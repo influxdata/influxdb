@@ -243,7 +243,6 @@ decorate!(
     methods = [
         "partition_create_or_get" = create_or_get(&mut self, key: PartitionKey, shard_id: ShardId, table_id: TableId) -> Result<Partition>;
         "partition_get_by_id" = get_by_id(&mut self, partition_id: PartitionId) -> Result<Option<Partition>>;
-        "partition_list_by_shard" = list_by_shard(&mut self, shard_id: ShardId) -> Result<Vec<Partition>>;
         "partition_list_by_namespace" = list_by_namespace(&mut self, namespace_id: NamespaceId) -> Result<Vec<Partition>>;
         "partition_list_by_table_id" = list_by_table_id(&mut self, table_id: TableId) -> Result<Vec<Partition>>;
         "partition_list_ids" = list_ids(&mut self) -> Result<Vec<PartitionId>>;
@@ -252,7 +251,8 @@ decorate!(
         "partition_list_skipped_compactions" = list_skipped_compactions(&mut self) -> Result<Vec<SkippedCompaction>>;
         "partition_delete_skipped_compactions" = delete_skipped_compactions(&mut self, partition_id: PartitionId) -> Result<Option<SkippedCompaction>>;
         "partition_update_persisted_sequence_number" = update_persisted_sequence_number(&mut self, partition_id: PartitionId, sequence_number: SequenceNumber) -> Result<()>;
-        "partition_most_recent_n" = most_recent_n(&mut self, n: usize, shards: &[ShardId]) -> Result<Vec<Partition>>;
+        "partition_most_recent_n" = most_recent_n(&mut self, n: usize) -> Result<Vec<Partition>>;
+        "partition_most_recent_n_in_shards" = most_recent_n_in_shards(&mut self, n: usize, shards: &[ShardId]) -> Result<Vec<Partition>>;
         "partitions_with_recent_created_files" = partitions_with_recent_created_files(&mut self, time_in_the_past: Timestamp, max_num_partitions: usize) -> Result<Vec<PartitionParam>>;
         "partitions_to_compact" = partitions_to_compact(&mut self, recent_time: Timestamp) -> Result<Vec<PartitionId>>;
         "get_in_skipped_compaction" = get_in_skipped_compaction(&mut self, partition_id: PartitionId) -> Result<Option<SkippedCompaction>>;

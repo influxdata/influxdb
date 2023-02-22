@@ -33,11 +33,11 @@ message Partition {
     reserved "sort_key";
     reserved 2;
     reserved "sequencer_id";
+    reserved 7;
+    reserved "shard_id";
 
     // the partition id
     int64 id = 1;
-    // the shard the partition is under
-    int64 shard_id = 7;
     // the table id the partition is in
     int64 table_id = 3;
     // the partition key

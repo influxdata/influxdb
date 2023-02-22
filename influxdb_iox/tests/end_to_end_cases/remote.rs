@@ -268,7 +268,6 @@ async fn remote_partition_and_get_from_store_and_pull() {
                     // Looks like:
                     // {
                     //     "id": "1",
-                    //     "shardId": 1,
                     //     "namespaceId": 1,
                     //     "tableId": 1,
                     //     "partitionId": "1",
@@ -292,7 +291,6 @@ async fn remote_partition_and_get_from_store_and_pull() {
                         .success()
                         .stdout(
                             predicate::str::contains(r#""id": "1""#)
-                                .and(predicate::str::contains(r#""shardId": "1","#))
                                 .and(predicate::str::contains(r#""partitionId": "1","#)),
                         )
                         .get_output()

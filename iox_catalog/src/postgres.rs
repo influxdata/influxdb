@@ -1257,14 +1257,6 @@ RETURNING *;
         Ok(Some(partition))
     }
 
-    async fn list_by_shard(&mut self, shard_id: ShardId) -> Result<Vec<Partition>> {
-        sqlx::query_as::<_, Partition>(r#"SELECT * FROM partition WHERE shard_id = $1;"#)
-            .bind(shard_id) // $1
-            .fetch_all(&mut self.inner)
-            .await
-            .map_err(|e| Error::SqlxError { source: e })
-    }
-
     async fn list_by_namespace(&mut self, namespace_id: NamespaceId) -> Result<Vec<Partition>> {
         sqlx::query_as::<_, Partition>(
             r#"
@@ -1480,7 +1472,19 @@ WHERE id = $2;
         Ok(())
     }
 
-    async fn most_recent_n(&mut self, n: usize, shards: &[ShardId]) -> Result<Vec<Partition>> {
+    async fn most_recent_n(&mut self, n: usize) -> Result<Vec<Partition>> {
+        sqlx::query_as(r#"SELECT * FROM partition ORDER BY id DESC LIMIT $1;"#)
+            .bind(n as i64) // $1
+            .fetch_all(&mut self.inner)
+            .await
+            .map_err(|e| Error::SqlxError { source: e })
+    }
+
+    async fn most_recent_n_in_shards(
+        &mut self,
+        n: usize,
+        shards: &[ShardId],
+    ) -> Result<Vec<Partition>> {
         sqlx::query_as(
             r#"SELECT * FROM partition WHERE shard_id IN (SELECT UNNEST($1)) ORDER BY id DESC LIMIT $2;"#,
         )

@@ -7,11 +7,11 @@ message ParquetFile {
     reserved "min_sequence_number";
     reserved 2;
     reserved "sequencer_id";
+    reserved 17;
+    reserved "shard_id";
 
     // the id of the file in the catalog
     int64 id = 1;
-    // the shard that sequenced writes for this file
-    int64 shard_id = 17;
     // the namespace id
     int64 namespace_id = 3;
     // the table id

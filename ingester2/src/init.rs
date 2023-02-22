@@ -245,8 +245,7 @@ where
         BackoffConfig::default(),
     ));
 
-    // Read the most recently created partitions for the shards this ingester
-    // instance will be consuming from.
+    // Read the most recently created partitions.
     //
     // By caching these hot partitions overall catalog load after an ingester
     // starts up is reduced, and the associated query latency is removed from
@@ -255,7 +254,7 @@ where
         .repositories()
         .await
         .partitions()
-        .most_recent_n(40_000, &[transition_shard.id])
+        .most_recent_n(40_000)
         .await
         .map_err(InitError::PreWarmPartitions)?;
 

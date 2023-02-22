@@ -51,7 +51,7 @@ impl SchemaCache {
             .repositories()
             .await
             .partitions()
-            .most_recent_n(RECENT_PARTITION_COUNT_TO_WARM, &[self.transition_shard_id])
+            .most_recent_n(RECENT_PARTITION_COUNT_TO_WARM)
             .await?;
 
         let mut state = self.state.write();

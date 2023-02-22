@@ -1073,19 +1073,6 @@ RETURNING *;
         Ok(Some(partition.into()))
     }
 
-    async fn list_by_shard(&mut self, shard_id: ShardId) -> Result<Vec<Partition>> {
-        Ok(
-            sqlx::query_as::<_, PartitionPod>(r#"SELECT * FROM partition WHERE shard_id = $1;"#)
-                .bind(shard_id) // $1
-                .fetch_all(self.inner.get_mut())
-                .await
-                .map_err(|e| Error::SqlxError { source: e })?
-                .into_iter()
-                .map(Into::into)
-                .collect(),
-        )
-    }
-
     async fn list_by_namespace(&mut self, namespace_id: NamespaceId) -> Result<Vec<Partition>> {
         Ok(sqlx::query_as::<_, PartitionPod>(
             r#"
@@ -1308,7 +1295,24 @@ WHERE id = $2;
         Ok(())
     }
 
-    async fn most_recent_n(&mut self, n: usize, shards: &[ShardId]) -> Result<Vec<Partition>> {
+    async fn most_recent_n(&mut self, n: usize) -> Result<Vec<Partition>> {
+        Ok(sqlx::query_as::<_, PartitionPod>(
+            r#"SELECT * FROM partition ORDER BY id DESC LIMIT $1;"#,
+        )
+        .bind(n as i64) // $1
+        .fetch_all(self.inner.get_mut())
+        .await
+        .map_err(|e| Error::SqlxError { source: e })?
+        .into_iter()
+        .map(Into::into)
+        .collect())
+    }
+
+    async fn most_recent_n_in_shards(
+        &mut self,
+        n: usize,
+        shards: &[ShardId],
+    ) -> Result<Vec<Partition>> {
         Ok(sqlx::query_as::<_, PartitionPod>(
             r#"SELECT * FROM partition WHERE shard_id IN (SELECT value FROM json_each($1)) ORDER BY id DESC LIMIT $2;"#,
         )
