@@ -79,6 +79,12 @@ impl Extend<SequenceNumber> for SequenceNumberSet {
     }
 }
 
+impl FromIterator<SequenceNumber> for SequenceNumberSet {
+    fn from_iter<T: IntoIterator<Item = SequenceNumber>>(iter: T) -> Self {
+        Self(iter.into_iter().map(|v| v.get() as _).collect())
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -135,6 +141,17 @@ mod tests {
         a.extend(extend_set);
 
         assert!(a.contains(SequenceNumber::new(42)));
+        assert!(a.contains(SequenceNumber::new(4)));
+        assert!(a.contains(SequenceNumber::new(2)));
+    }
+
+    #[test]
+    fn test_collect() {
+        let collect_set = [SequenceNumber::new(4), SequenceNumber::new(2)];
+
+        let a = collect_set.into_iter().collect::<SequenceNumberSet>();
+
+        assert!(!a.contains(SequenceNumber::new(42)));
         assert!(a.contains(SequenceNumber::new(4)));
         assert!(a.contains(SequenceNumber::new(2)));
     }
