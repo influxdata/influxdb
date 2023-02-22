@@ -73,6 +73,12 @@ impl TryFrom<&[u8]> for SequenceNumberSet {
     }
 }
 
+impl Extend<SequenceNumber> for SequenceNumberSet {
+    fn extend<T: IntoIterator<Item = SequenceNumber>>(&mut self, iter: T) {
+        self.0.extend(iter.into_iter().map(|v| v.get() as _))
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -113,5 +119,23 @@ mod tests {
         // Removing the last element should result in an empty set.
         a.remove(SequenceNumber::new(1));
         assert_eq!(a.len(), 0);
+    }
+
+    #[test]
+    fn test_extend() {
+        let mut a = SequenceNumberSet::default();
+        a.add(SequenceNumber::new(42));
+
+        let extend_set = [SequenceNumber::new(4), SequenceNumber::new(2)];
+
+        assert!(a.contains(SequenceNumber::new(42)));
+        assert!(!a.contains(SequenceNumber::new(4)));
+        assert!(!a.contains(SequenceNumber::new(2)));
+
+        a.extend(extend_set);
+
+        assert!(a.contains(SequenceNumber::new(42)));
+        assert!(a.contains(SequenceNumber::new(4)));
+        assert!(a.contains(SequenceNumber::new(2)));
     }
 }
