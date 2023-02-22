@@ -91,6 +91,7 @@ pub(crate) mod database {
                     .with_f64_field_column("shared_field0")
                     .with_f64_field_column("field_f64")
                     .with_i64_field_column("field_i64")
+                    .with_u64_field_column_no_stats("field_u64")
                     .with_string_field_column_with_stats("field_str", None, None)
                     .with_one_row_of_data(),
             ),

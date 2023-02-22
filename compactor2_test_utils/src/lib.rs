@@ -37,7 +37,7 @@ use schema::sort::SortKey;
 
 use compactor2::{
     compact,
-    config::{AlgoVersion, Config, PartitionsSourceConfig},
+    config::{Config, PartitionsSourceConfig},
     hardcoded_components, Components, PanicDataFusionPlanner, PartitionInfo,
 };
 
@@ -109,7 +109,6 @@ impl TestSetupBuilder<false> {
             ignore_partition_skip_marker: false,
             max_input_parquet_bytes_per_partition: usize::MAX,
             shard_config: None,
-            compact_version: AlgoVersion::AllAtOnce,
             min_num_l1_files_to_compact: MIN_NUM_L1_FILES_TO_COMPACT,
             process_once: true,
             simulate_without_object_store: false,
@@ -271,12 +270,6 @@ impl<const WITH_FILES: bool> TestSetupBuilder<WITH_FILES> {
     /// Use shadow mode
     pub fn with_shadow_mode(mut self) -> Self {
         self.config.shadow_mode = true;
-        self
-    }
-
-    /// Set compact version
-    pub fn with_compact_version(mut self, compact_version: AlgoVersion) -> Self {
-        self.config.compact_version = compact_version;
         self
     }
 

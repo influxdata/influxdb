@@ -5,7 +5,7 @@ use crate::process_info::setup_metric_registry;
 use super::main;
 use clap_blocks::{
     catalog_dsn::CatalogDsnConfig,
-    compactor2::{Compactor2Config, CompactorAlgoVersion},
+    compactor2::Compactor2Config,
     ingester2::Ingester2Config,
     ingester_address::IngesterAddress,
     object_store::{make_object_store, ObjectStoreConfig},
@@ -27,15 +27,24 @@ use ioxd_querier::{create_querier_server_type, QuerierServerTypeArgs};
 use ioxd_router::create_router2_server_type;
 use object_store::DynObjectStore;
 use observability_deps::tracing::*;
-use once_cell::sync::Lazy;
 use parquet_file::storage::{ParquetStorage, StorageId};
 use std::{
-    collections::HashMap, num::NonZeroUsize, path::PathBuf, str::FromStr, sync::Arc, time::Duration,
+    collections::HashMap,
+    num::NonZeroUsize,
+    path::{Path, PathBuf},
+    str::FromStr,
+    sync::Arc,
+    time::Duration,
 };
-use tempfile::TempDir;
 use thiserror::Error;
 use trace_exporters::TracingConfig;
 use trogging::cli::LoggingConfig;
+
+/// The default name of the influxdb_iox data directory
+pub const DEFAULT_DATA_DIRECTORY_NAME: &str = ".influxdb_iox";
+
+/// The default name of the catalog file
+pub const DEFAULT_CATALOG_FILENAME: &str = "catalog.sqlite";
 
 /// The default bind address for the Router HTTP API.
 pub const DEFAULT_ROUTER_HTTP_BIND_ADDR: &str = "127.0.0.1:8080";
@@ -87,18 +96,18 @@ pub enum Error {
 
 pub type Result<T, E = Error> = std::result::Result<T, E>;
 
-/// Use a static so the directory lasts the entire process
-static DEFAULT_WAL_DIRECTORY: Lazy<TempDir> =
-    Lazy::new(|| TempDir::new().expect("Could not create a temporary directory for WAL"));
-
 /// The intention is to keep the number of options on this Config
-/// object as small as possible. For more complex configurations and
-/// deployments the individual services (e.g. Router and Compactor)
-/// should be instantiated and configured individually.
+/// object as small as possible. All in one mode is designed for ease
+/// of use and testing.
+///
+/// For production deployments, IOx is designed to run as multiple
+/// individual services, and thus knobs for tuning performance are
+/// found on those individual services.
 ///
 /// This creates the following four services, configured to talk to a
 /// common catalog, objectstore and write buffer.
 ///
+/// ```text
 /// ┌─────────────┐  ┌─────────────┐   ┌─────────────┐   ┌─────────────┐
 /// │   Router    │  │  Ingester   │   │   Querier   │   │  Compactor  │
 /// └─────────────┘  └──────┬──────┘   └──────┬──────┘   └──────┬──────┘
@@ -116,11 +125,11 @@ static DEFAULT_WAL_DIRECTORY: Lazy<TempDir> =
 ///         (       )         (       )             (       )
 ///          `─────'           `─────'               `─────'
 ///
-///         Existing         Object Store        kafka / redpanda
-///         Postgres        (file, mem, or         Object Store
-///        (started by      pre-existing)         (file, mem, or
-///           user)        configured with        pre-existing)
-///                         --object-store       configured with
+///         Catalog           Object Store        Write Ahead Log (WAL)
+///      (sqllite, mem,      (file, mem, or         Object Store
+///      or pre-existing)    pre-existing)         (file, mem, or
+///       postgres)                                pre-existing)
+/// ```
 ///
 /// Ideally all the gRPC services would listen on the same port, but
 /// due to challenges with tonic this effort was postponed. See
@@ -128,8 +137,8 @@ static DEFAULT_WAL_DIRECTORY: Lazy<TempDir> =
 /// for more details
 ///
 /// Currently, the starts services on 5 ports, designed so that the
-/// ports used to interact with the old architecture are the same as
-/// the new architecture (8081 write endpoint and query on 8082).
+/// ports are the same as the CLI default (8080 http v2 API endpoint and
+/// querier on 8082).
 ///
 /// Router;
 ///  8080 http  (overrides INFLUXDB_IOX_BIND_ADDR)
@@ -185,6 +194,12 @@ pub struct Config {
     #[clap(flatten)]
     catalog_dsn: CatalogDsnConfig,
 
+    /// The directory to store the write ahead log
+    ///
+    /// If not specified, defaults to INFLUXDB_IOX_DB_DIR/wal
+    #[clap(long = "wal-directory", env = "INFLUXDB_IOX_WAL_DIRECTORY", action)]
+    pub wal_directory: Option<PathBuf>,
+
     /// The number of seconds between WAL file rotations.
     #[clap(
         long = "wal-rotation-period-seconds",
@@ -213,6 +228,9 @@ pub struct Config {
     )]
     pub persist_max_parallelism: usize,
 
+    // TODO - evaluate if these ingester knobs could be replaced with
+    // hard coded values as a way to encourage people to use the
+    // multi-service setup for performance sensitive installations
     /// The maximum number of persist tasks that can be queued at any one time.
     ///
     /// Once this limit is reached, ingest is blocked until the persist backlog
@@ -322,13 +340,15 @@ pub struct Config {
 }
 
 impl Config {
-    /// Get a specialized run config to use for each service
+    /// Convert the all-in-one mode configuration to a specialized
+    /// configuration for each individual IOx service
     fn specialize(self) -> SpecializedConfig {
         let Self {
             logging_config,
             tracing_config,
             max_http_request_size,
             object_store_config,
+            wal_directory,
             catalog_dsn,
             wal_rotation_period_seconds,
             concurrent_query_limit,
@@ -346,26 +366,56 @@ impl Config {
             exec_mem_pool_bytes,
         } = self;
 
-        let database_directory = object_store_config.database_directory.clone();
-        // If dir location is provided and no object store type is provided, use it also as file object store.
-        let object_store_config = {
-            if object_store_config.object_store.is_none() && database_directory.is_some() {
-                ObjectStoreConfig::new(database_directory.clone())
-            } else {
-                object_store_config
-            }
+        // Determine where to store files (wal and possibly catalog
+        // and object store)
+        let database_directory = object_store_config
+            .database_directory
+            .clone()
+            .unwrap_or_else(|| {
+                dirs::home_dir()
+                    .expect("No data-dir specified but could not find user's home directory")
+                    .join(DEFAULT_DATA_DIRECTORY_NAME)
+            });
+
+        ensure_directory_exists(&database_directory);
+
+        // if we have an explicit object store configuration, use
+        // that, otherwise default to file based object store in database directory/object_store
+        let object_store_config = if object_store_config.object_store.is_some() {
+            object_store_config
+        } else {
+            let object_store_directory = database_directory.join("object_store");
+            debug!(
+                ?object_store_directory,
+                "No database directory, using default location for object store"
+            );
+            ensure_directory_exists(&object_store_directory);
+            ObjectStoreConfig::new(Some(object_store_directory))
         };
 
-        // if data directory is specified, default to data-dir/wal
-        // otherwise use a per-process temporary directory
-        let wal_directory = database_directory
-            .map(|database_directory| database_directory.join("wal"))
-            .unwrap_or_else(|| PathBuf::from(DEFAULT_WAL_DIRECTORY.path()));
+        let wal_directory = wal_directory.clone().unwrap_or_else(|| {
+            debug!(
+                ?wal_directory,
+                "No wal_directory specified, using defaul location for wal"
+            );
+            database_directory.join("wal")
+        });
+        ensure_directory_exists(&wal_directory);
 
-        let catalog_dsn = if catalog_dsn.dsn.is_none() {
-            CatalogDsnConfig::new_memory()
-        } else {
+        let catalog_dsn = if catalog_dsn.dsn.is_some() {
             catalog_dsn
+        } else {
+            let local_catalog_path = database_directory
+                .join(DEFAULT_CATALOG_FILENAME)
+                .to_string_lossy()
+                .to_string();
+
+            debug!(
+                ?local_catalog_path,
+                "No catalog dsn specified, using default sqlite catalog"
+            );
+
+            CatalogDsnConfig::new_sqlite(local_catalog_path)
         };
 
         let router_run_config = RunConfig::new(
@@ -420,7 +470,7 @@ impl Config {
             compaction_job_concurrency: NonZeroUsize::new(1).unwrap(),
             compaction_partition_scratchpad_concurrency: NonZeroUsize::new(1).unwrap(),
             compaction_partition_minute_threshold: 10,
-            query_exec_thread_count: 1,
+            query_exec_thread_count: Some(1),
             exec_mem_pool_bytes,
             max_desired_file_size_bytes: 30_000,
             percentage_max_file_size: 30,
@@ -432,7 +482,6 @@ impl Config {
             max_input_parquet_bytes_per_partition: 268_435_456, // 256 MB
             shard_count: None,
             shard_id: None,
-            compact_version: CompactorAlgoVersion::AllAtOnce,
             min_num_l1_files_to_compact: 1,
             process_once: false,
             process_all_partitions: false,
@@ -465,6 +514,16 @@ impl Config {
             compactor_config,
             querier_config,
         }
+    }
+}
+
+/// If `p` does not exist, try to create it as a directory.
+///
+/// panic's if the directory does not exist and can not be created
+fn ensure_directory_exists(p: &Path) {
+    if !p.exists() {
+        println!("Creating directory {p:?}");
+        std::fs::create_dir_all(p).expect("Could not create default directory");
     }
 }
 

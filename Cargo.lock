@@ -224,9 +224,9 @@ dependencies = [
  "bytes",
  "futures",
  "proc-macro2",
- "prost 0.11.6",
- "prost-build 0.11.6",
- "prost-derive 0.11.6",
+ "prost",
+ "prost-build",
+ "prost-derive",
  "tokio",
  "tonic",
  "tonic-build",
@@ -899,15 +899,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "cmake"
-version = "0.1.49"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "db34956e100b30725f2eb215f90d4871051239535632f84fea3bc92722c66b7c"
-dependencies = [
- "cc",
-]
-
-[[package]]
 name = "codespan-reporting"
 version = "0.11.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1070,8 +1061,8 @@ version = "0.4.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "e57ff02e8ad8e06ab9731d5dc72dc23bef9200778eae1a89d555d8c42e5d4a86"
 dependencies = [
- "prost 0.11.6",
- "prost-types 0.11.6",
+ "prost",
+ "prost-types",
  "tonic",
  "tracing-core",
 ]
@@ -1089,7 +1080,7 @@ dependencies = [
  "hdrhistogram",
  "humantime",
  "parking_lot 0.11.2",
- "prost-types 0.11.6",
+ "prost-types",
  "serde",
  "serde_json",
  "thread_local",
@@ -1137,9 +1128,9 @@ checksum = "5827cebf4670468b8772dd191856768aedcb1b0278a04f989f7766351917b9dc"
 
 [[package]]
 name = "cpp_demangle"
-version = "0.3.5"
+version = "0.4.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "eeaa953eaad386a53111e47172c2fedba671e5684c8dd601a5f474f4f118710f"
+checksum = "b446fd40bcc17eddd6a4a78f24315eb90afdb3334999ddfd4909985c47722442"
 dependencies = [
  "cfg-if",
 ]
@@ -1225,9 +1216,9 @@ dependencies = [
 
 [[package]]
 name = "croaring"
-version = "0.8.0"
+version = "0.8.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "33f91ebda496fc1cb7910d80373119c706a5f84efd060fb14eb369ffa5cfdacf"
+checksum = "eb8264aab40cc6593ec5cbb4ba98c785f323de053d77406c814640312f14774a"
 dependencies = [
  "byteorder",
  "croaring-sys",
@@ -1235,9 +1226,9 @@ dependencies = [
 
 [[package]]
 name = "croaring-sys"
-version = "0.8.0"
+version = "0.8.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "0d42a4c75d6dc458444a52816cec8fd4ef5af16ec82e1dfc2a1116d431c0787d"
+checksum = "dfcf3afb25740bb232303d3a61eef6a2b5c369ca7767f10a207f05014147cf3b"
 dependencies = [
  "cc",
 ]
@@ -1548,8 +1539,8 @@ dependencies = [
  "object_store",
  "parking_lot 0.12.1",
  "pbjson-build",
- "prost 0.11.6",
- "prost-build 0.11.6",
+ "prost",
+ "prost-build",
 ]
 
 [[package]]
@@ -1841,7 +1832,7 @@ dependencies = [
  "futures",
  "iox_query",
  "observability_deps",
- "prost 0.11.6",
+ "prost",
  "snafu",
  "tokio",
  "tonic",
@@ -2024,8 +2015,8 @@ dependencies = [
  "pbjson-build",
  "pbjson-types",
  "predicate",
- "prost 0.11.6",
- "prost-build 0.11.6",
+ "prost",
+ "prost-build",
  "query_functions",
  "serde",
  "snafu",
@@ -2082,9 +2073,9 @@ dependencies = [
  "http-body",
  "hyper",
  "pin-project",
- "prost 0.11.6",
- "prost-build 0.11.6",
- "prost-types 0.11.6",
+ "prost",
+ "prost-build",
+ "prost-types",
  "tokio",
  "tokio-stream",
  "tonic",
@@ -2097,9 +2088,9 @@ dependencies = [
 name = "grpc-binary-logger-proto"
 version = "0.1.0"
 dependencies = [
- "prost 0.11.6",
- "prost-build 0.11.6",
- "prost-types 0.11.6",
+ "prost",
+ "prost-build",
+ "prost-types",
  "tonic",
  "tonic-build",
  "workspace-hack",
@@ -2109,9 +2100,9 @@ dependencies = [
 name = "grpc-binary-logger-test-proto"
 version = "0.1.0"
 dependencies = [
- "prost 0.11.6",
- "prost-build 0.11.6",
- "prost-types 0.11.6",
+ "prost",
+ "prost-build",
+ "prost-types",
  "tonic",
  "tonic-build",
  "workspace-hack",
@@ -2209,13 +2200,13 @@ dependencies = [
 [[package]]
 name = "heappy"
 version = "0.1.0"
-source = "git+https://github.com/mkmik/heappy?rev=b98e7f7dc080d5d7972a134de0e01e999e68e350#b98e7f7dc080d5d7972a134de0e01e999e68e350"
+source = "git+https://github.com/mkmik/heappy?rev=1d6ac77a4026fffce8680a7b31a9f6e9859b5e73#1d6ac77a4026fffce8680a7b31a9f6e9859b5e73"
 dependencies = [
  "backtrace",
  "bytes",
  "lazy_static",
  "libc",
- "pprof 0.10.1",
+ "pprof",
  "spin 0.9.5",
  "thiserror",
  "tikv-jemalloc-sys",
@@ -2280,9 +2271,9 @@ dependencies = [
 
 [[package]]
 name = "http"
-version = "0.2.8"
+version = "0.2.9"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "75f43d41e26995c17e71ee126451dd3941010b0514a81a9d11f3b341debc2399"
+checksum = "bd6effc99afb63425aff9b05836f029929e345a6148a14b7ecd5ab67af944482"
 dependencies = [
  "bytes",
  "fnv",
@@ -2516,6 +2507,7 @@ dependencies = [
  "console-subscriber",
  "data_types",
  "datafusion",
+ "dirs",
  "dotenvy",
  "flate2",
  "futures",
@@ -2555,7 +2547,7 @@ dependencies = [
  "parquet_to_line_protocol",
  "predicate",
  "predicates",
- "prost 0.11.6",
+ "prost",
  "rustyline",
  "schema",
  "serde",
@@ -2590,7 +2582,7 @@ dependencies = [
  "futures-util",
  "generated_types",
  "influxdb_line_protocol",
- "prost 0.11.6",
+ "prost",
  "rand",
  "reqwest",
  "thiserror",
@@ -2622,7 +2614,7 @@ dependencies = [
  "futures-util",
  "generated_types",
  "observability_deps",
- "prost 0.11.6",
+ "prost",
  "tonic",
  "workspace-hack",
 ]
@@ -2689,7 +2681,7 @@ dependencies = [
  "paste",
  "pin-project",
  "predicate",
- "prost 0.11.6",
+ "prost",
  "rand",
  "schema",
  "service_grpc_catalog",
@@ -2740,7 +2732,7 @@ dependencies = [
  "paste",
  "pin-project",
  "predicate",
- "prost 0.11.6",
+ "prost",
  "rand",
  "schema",
  "service_grpc_catalog",
@@ -2798,7 +2790,7 @@ dependencies = [
  "paste",
  "pin-project",
  "predicate",
- "prost 0.11.6",
+ "prost",
  "rand",
  "schema",
  "service_grpc_catalog",
@@ -3012,7 +3004,7 @@ dependencies = [
  "metric_exporters",
  "observability_deps",
  "parking_lot 0.12.1",
- "pprof 0.11.0",
+ "pprof",
  "reqwest",
  "serde",
  "serde_json",
@@ -3648,7 +3640,7 @@ dependencies = [
  "mutable_batch",
  "mutable_batch_lp",
  "mutable_batch_pb",
- "prost 0.11.6",
+ "prost",
 ]
 
 [[package]]
@@ -3657,18 +3649,6 @@ version = "0.24.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "fa52e972a9a719cecb6864fb88568781eb706bac2cd1d4f04a648542dbf78069"
 dependencies = [
- "bitflags",
- "cfg-if",
- "libc",
-]
-
-[[package]]
-name = "nix"
-version = "0.25.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "f346ff70e7dbfd675fe90590b92d59ef2de15a8779ae305ebcbfd3f0caf59be4"
-dependencies = [
- "autocfg",
  "bitflags",
  "cfg-if",
  "libc",
@@ -4045,7 +4025,7 @@ dependencies = [
  "parquet",
  "pbjson-types",
  "predicate",
- "prost 0.11.6",
+ "prost",
  "schema",
  "snafu",
  "thiserror",
@@ -4108,8 +4088,8 @@ checksum = "bdbb7b706f2afc610f3853550cdbbf6372fd324824a087806bd4480ea4996e24"
 dependencies = [
  "heck",
  "itertools",
- "prost 0.11.6",
- "prost-types 0.11.6",
+ "prost",
+ "prost-types",
 ]
 
 [[package]]
@@ -4122,8 +4102,8 @@ dependencies = [
  "chrono",
  "pbjson",
  "pbjson-build",
- "prost 0.11.6",
- "prost-build 0.11.6",
+ "prost",
+ "prost-build",
  "serde",
 ]
 
@@ -4274,31 +4254,6 @@ checksum = "6ac9a59f73473f1b8d852421e59e64809f025994837ef743615c6d0c5b305160"
 
 [[package]]
 name = "pprof"
-version = "0.10.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "d6472bfed9475542ac46c518734a8d06d71b0f6cb2c17f904aa301711a57786f"
-dependencies = [
- "backtrace",
- "cfg-if",
- "findshlibs",
- "inferno",
- "libc",
- "log",
- "nix 0.24.3",
- "once_cell",
- "parking_lot 0.12.1",
- "prost 0.10.4",
- "prost-build 0.10.4",
- "prost-derive 0.10.1",
- "protobuf",
- "smallvec",
- "symbolic-demangle 9.2.1",
- "tempfile",
- "thiserror",
-]
-
-[[package]]
-name = "pprof"
 version = "0.11.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "e20150f965e0e4c925982b9356da71c84bcd56cb66ef4e894825837cbcf6613e"
@@ -4312,12 +4267,13 @@ dependencies = [
  "nix 0.24.3",
  "once_cell",
  "parking_lot 0.12.1",
- "prost 0.11.6",
- "prost-build 0.11.6",
- "prost-derive 0.11.6",
+ "prost",
+ "prost-build",
+ "prost-derive",
+ "protobuf",
  "sha2",
  "smallvec",
- "symbolic-demangle 10.2.1",
+ "symbolic-demangle",
  "tempfile",
  "thiserror",
 ]
@@ -4472,44 +4428,12 @@ dependencies = [
 
 [[package]]
 name = "prost"
-version = "0.10.4"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "71adf41db68aa0daaefc69bb30bcd68ded9b9abaad5d1fbb6304c4fb390e083e"
-dependencies = [
- "bytes",
- "prost-derive 0.10.1",
-]
-
-[[package]]
-name = "prost"
 version = "0.11.6"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "21dc42e00223fc37204bd4aa177e69420c604ca4a183209a8f9de30c6d934698"
 dependencies = [
  "bytes",
- "prost-derive 0.11.6",
-]
-
-[[package]]
-name = "prost-build"
-version = "0.10.4"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "8ae5a4388762d5815a9fc0dea33c56b021cdc8dde0c55e0c9ca57197254b0cab"
-dependencies = [
- "bytes",
- "cfg-if",
- "cmake",
- "heck",
- "itertools",
- "lazy_static",
- "log",
- "multimap",
- "petgraph",
- "prost 0.10.4",
- "prost-types 0.10.1",
- "regex",
- "tempfile",
- "which",
+ "prost-derive",
 ]
 
 [[package]]
@@ -4526,25 +4450,12 @@ dependencies = [
  "multimap",
  "petgraph",
  "prettyplease",
- "prost 0.11.6",
- "prost-types 0.11.6",
+ "prost",
+ "prost-types",
  "regex",
  "syn",
  "tempfile",
  "which",
-]
-
-[[package]]
-name = "prost-derive"
-version = "0.10.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "7b670f45da57fb8542ebdbb6105a925fe571b67f9e7ed9f47a06a84e72b4e7cc"
-dependencies = [
- "anyhow",
- "itertools",
- "proc-macro2",
- "quote",
- "syn",
 ]
 
 [[package]]
@@ -4562,22 +4473,12 @@ dependencies = [
 
 [[package]]
 name = "prost-types"
-version = "0.10.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "2d0a014229361011dc8e69c8a1ec6c2e8d0f2af7c91e3ea3f5b2170298461e68"
-dependencies = [
- "bytes",
- "prost 0.10.4",
-]
-
-[[package]]
-name = "prost-types"
 version = "0.11.6"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "a5e0526209433e96d83d750dd81a99118edbc55739e7e61a46764fd2ad537788"
 dependencies = [
  "bytes",
- "prost 0.11.6",
+ "prost",
 ]
 
 [[package]]
@@ -4618,7 +4519,7 @@ dependencies = [
  "parquet_file",
  "pin-project",
  "predicate",
- "prost 0.11.6",
+ "prost",
  "rand",
  "regex",
  "schema",
@@ -5015,9 +4916,9 @@ checksum = "5583e89e108996506031660fe09baa5011b9dd0341b89029313006d1fb508d70"
 
 [[package]]
 name = "rustyline"
-version = "10.1.1"
+version = "11.0.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "c1e83c32c3f3c33b08496e0d1df9ea8c64d39adb8eb36a1ebb1440c690697aef"
+checksum = "5dfc8644681285d1fb67a467fb3021bfea306b99b4146b166a1fe3ada965eece"
 dependencies = [
  "bitflags",
  "cfg-if",
@@ -5026,7 +4927,7 @@ dependencies = [
  "libc",
  "log",
  "memchr",
- "nix 0.25.1",
+ "nix 0.26.2",
  "scopeguard",
  "unicode-segmentation",
  "unicode-width",
@@ -5204,7 +5105,7 @@ dependencies = [
  "iox_query",
  "metric",
  "observability_deps",
- "prost 0.11.6",
+ "prost",
  "serde",
  "serde_json",
  "service_common",
@@ -5236,7 +5137,7 @@ dependencies = [
  "parking_lot 0.12.1",
  "pin-project",
  "predicate",
- "prost 0.11.6",
+ "prost",
  "query_functions",
  "regex",
  "schema",
@@ -5661,18 +5562,6 @@ checksum = "6bdef32e8150c2a081110b42772ffe7d7c9032b606bc226c8260fd97e0976601"
 
 [[package]]
 name = "symbolic-common"
-version = "9.2.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "800963ba330b09a2ae4a4f7c6392b81fbc2784099a98c1eac68c3437aa9382b2"
-dependencies = [
- "debugid",
- "memmap2",
- "stable_deref_trait",
- "uuid",
-]
-
-[[package]]
-name = "symbolic-common"
 version = "10.2.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "1b55cdc318ede251d0957f07afe5fed912119b8c1bc5a7804151826db999e737"
@@ -5685,23 +5574,13 @@ dependencies = [
 
 [[package]]
 name = "symbolic-demangle"
-version = "9.2.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "2b940a1fdbc72bb3369e38714efe6cd332dbbe46d093cf03d668b9ac390d1ad0"
-dependencies = [
- "cpp_demangle",
- "rustc-demangle",
- "symbolic-common 9.2.1",
-]
-
-[[package]]
-name = "symbolic-demangle"
 version = "10.2.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "79be897be8a483a81fff6a3a4e195b4ac838ef73ca42d348b3f722da9902e489"
 dependencies = [
+ "cpp_demangle",
  "rustc-demangle",
- "symbolic-common 10.2.1",
+ "symbolic-common",
 ]
 
 [[package]]
@@ -5793,7 +5672,7 @@ dependencies = [
  "observability_deps",
  "once_cell",
  "parking_lot 0.12.1",
- "prost 0.11.6",
+ "prost",
  "rand",
  "regex",
  "reqwest",
@@ -5987,9 +5866,9 @@ dependencies = [
 
 [[package]]
 name = "tokio-stream"
-version = "0.1.11"
+version = "0.1.12"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "d660770404473ccd7bc9f8b28494a811bc18542b915c0855c51e8f419d5223ce"
+checksum = "8fb52b74f05dbf495a8fba459fdc331812b96aa086d9eb78101fa0d4569c3313"
 dependencies = [
  "futures-core",
  "pin-project-lite",
@@ -6065,8 +5944,8 @@ dependencies = [
  "hyper-timeout",
  "percent-encoding",
  "pin-project",
- "prost 0.11.6",
- "prost-derive 0.11.6",
+ "prost",
+ "prost-derive",
  "tokio",
  "tokio-stream",
  "tokio-util",
@@ -6085,7 +5964,7 @@ checksum = "5bf5e9b9c0f7e0a7c027dcfaba7b2c60816c7049171f679d99ee2ff65d0de8c4"
 dependencies = [
  "prettyplease",
  "proc-macro2",
- "prost-build 0.11.6",
+ "prost-build",
  "quote",
  "syn",
 ]
@@ -6098,7 +5977,7 @@ checksum = "a88aee666ef3a4d1ee46218bbc8e5f69bcf9cc27bf2e871d6b724d83f56d179f"
 dependencies = [
  "async-stream",
  "bytes",
- "prost 0.11.6",
+ "prost",
  "tokio",
  "tokio-stream",
  "tonic",
@@ -6111,8 +5990,8 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "67494bad4dda4c9bffae901dfe14e2b2c0f760adb4706dc10beeb81799f7f7b2"
 dependencies = [
  "bytes",
- "prost 0.11.6",
- "prost-types 0.11.6",
+ "prost",
+ "prost-types",
  "tokio",
  "tokio-stream",
  "tonic",
@@ -6486,7 +6365,7 @@ dependencies = [
  "observability_deps",
  "once_cell",
  "parking_lot 0.12.1",
- "prost 0.11.6",
+ "prost",
  "regex",
  "serde",
  "snafu",
@@ -6823,6 +6702,7 @@ dependencies = [
  "log",
  "md-5",
  "memchr",
+ "nix 0.26.2",
  "nom",
  "num-integer",
  "num-traits",
@@ -6832,8 +6712,8 @@ dependencies = [
  "parquet",
  "phf_shared",
  "predicates",
- "prost 0.11.6",
- "prost-types 0.11.6",
+ "prost",
+ "prost-types",
  "rand",
  "rand_core",
  "regex",
@@ -6894,7 +6774,7 @@ dependencies = [
  "observability_deps",
  "parking_lot 0.12.1",
  "pin-project",
- "prost 0.11.6",
+ "prost",
  "rskafka",
  "schema",
  "tempfile",

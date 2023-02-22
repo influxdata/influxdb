@@ -101,9 +101,8 @@ mod tests {
     use arrow::datatypes::{DataType, Field, Schema as ArrowSchema};
     use data_types::ChunkId;
     use datafusion::{
-        execution::context::TaskContext,
         physical_plan::filter::FilterExec,
-        prelude::{col, lit, SessionConfig, SessionContext},
+        prelude::{col, lit},
     };
     use predicate::Predicate;
 
@@ -186,7 +185,7 @@ mod tests {
             None,
             vec![Arc::new(chunk1)],
             Predicate::default(),
-            task_ctx(),
+            2,
         );
         let plan = FilterExec::try_new(
             df_physical_expr(plan.as_ref(), col("tag1").eq(lit("foo"))).unwrap(),
@@ -198,22 +197,10 @@ mod tests {
 
     #[track_caller]
     fn assert_roundtrip(schema: Schema, chunks: Vec<Arc<dyn QueryChunk>>) {
-        let plan = chunks_to_physical_nodes(
-            &schema,
-            None,
-            chunks.clone(),
-            Predicate::default(),
-            task_ctx(),
-        );
+        let plan = chunks_to_physical_nodes(&schema, None, chunks.clone(), Predicate::default(), 2);
         let (schema2, chunks2) = extract_chunks(plan.as_ref()).expect("data found");
         assert_eq!(schema, schema2);
         assert_eq!(chunk_ids(&chunks), chunk_ids(&chunks2));
-    }
-
-    fn task_ctx() -> Arc<TaskContext> {
-        let session_ctx =
-            SessionContext::with_config(SessionConfig::default().with_target_partitions(2));
-        Arc::new(TaskContext::from(&session_ctx))
     }
 
     fn chunk_ids(chunks: &[Arc<dyn QueryChunk>]) -> Vec<ChunkId> {

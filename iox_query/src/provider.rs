@@ -1093,7 +1093,7 @@ impl Deduplicater {
             output_sort_key,
             vec![Arc::clone(&chunk)],
             predicate,
-            ctx.inner().task_ctx(),
+            ctx.inner().task_ctx().session_config().target_partitions(),
         );
 
         // Add Filter operator, FilterExec, if the chunk has delete predicates
@@ -1271,7 +1271,7 @@ impl Deduplicater {
                 output_sort_key,
                 chunks.into_no_duplicates(deduplication),
                 predicate,
-                ctx.inner().task_ctx(),
+                ctx.inner().task_ctx().session_config().target_partitions(),
             ));
             return Ok(plans);
         }
@@ -1456,7 +1456,11 @@ mod test {
             None,
             vec![Arc::clone(&chunk)],
             Predicate::default(),
-            IOxSessionContext::with_testing().inner().task_ctx(),
+            IOxSessionContext::with_testing()
+                .inner()
+                .task_ctx()
+                .session_config()
+                .target_partitions(),
         );
 
         // plan should not have sort operator
@@ -1540,7 +1544,11 @@ mod test {
             None,
             vec![Arc::clone(&chunk)],
             Predicate::default(),
-            IOxSessionContext::with_testing().inner().task_ctx(),
+            IOxSessionContext::with_testing()
+                .inner()
+                .task_ctx()
+                .session_config()
+                .target_partitions(),
         );
         let batch = test_collect(Arc::clone(&input)).await;
         // data in its original non-sorted form

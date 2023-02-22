@@ -1,6 +1,7 @@
 pub(crate) mod request;
 pub(crate) mod response;
 
+use crate::commands::storage::response::{BinaryTagSchema, TextTagSchema};
 use generated_types::{
     aggregate::AggregateType, influxdata::platform::storage::read_group_request::Group, Predicate,
 };
@@ -197,7 +198,7 @@ struct ReadGroup {
     )]
     group: Group,
 
-    #[clap(long, action)]
+    #[clap(long, action, value_delimiter = ',')]
     group_keys: Vec<String>,
 }
 
@@ -303,7 +304,8 @@ pub async fn command(connection: Connection, config: Config) -> Result<()> {
             info!(?request, "read_filter");
             let result = client.read_filter(request).await.context(ServerSnafu)?;
             match config.format {
-                Format::Pretty => response::pretty_print_frames(&result).context(ResponseSnafu)?,
+                Format::Pretty => response::pretty_print_frames::<BinaryTagSchema>(&result)
+                    .context(ResponseSnafu)?,
                 Format::Quiet => {}
             }
         }
@@ -320,7 +322,8 @@ pub async fn command(connection: Connection, config: Config) -> Result<()> {
             info!(?request, "read_group");
             let result = client.read_group(request).await.context(ServerSnafu)?;
             match config.format {
-                Format::Pretty => response::pretty_print_frames(&result).context(ResponseSnafu)?,
+                Format::Pretty => response::pretty_print_frames::<TextTagSchema>(&result)
+                    .context(ResponseSnafu)?,
                 Format::Quiet => {}
             }
         }
@@ -343,7 +346,8 @@ pub async fn command(connection: Connection, config: Config) -> Result<()> {
                 .context(ServerSnafu)?;
 
             match config.format {
-                Format::Pretty => response::pretty_print_frames(&result).context(ResponseSnafu)?,
+                Format::Pretty => response::pretty_print_frames::<TextTagSchema>(&result)
+                    .context(ResponseSnafu)?,
                 Format::Quiet => {}
             }
         }
