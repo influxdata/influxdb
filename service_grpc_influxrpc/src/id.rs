@@ -97,7 +97,6 @@ impl From<Id> for String {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use serde::Deserialize;
     use std::convert::TryInto;
 
     #[test]
@@ -168,24 +167,5 @@ mod tests {
             let actual_output = input.to_string();
             assert_eq!(expected_output, actual_output);
         }
-    }
-
-    #[test]
-    fn test_deserialize_then_to_string() {
-        let i: Id = "0000111100001111".parse().unwrap();
-        assert_eq!(Id(NonZeroU64::new(18_764_712_120_593).unwrap()), i);
-
-        #[derive(Deserialize)]
-        struct WriteInfo {
-            org: Id,
-        }
-
-        let query = "org=0000111100001111";
-        let write_info: WriteInfo = serde_urlencoded::from_str(query).unwrap();
-        assert_eq!(
-            Id(NonZeroU64::new(18_764_712_120_593).unwrap()),
-            write_info.org
-        );
-        assert_eq!("0000111100001111", write_info.org.to_string());
     }
 }

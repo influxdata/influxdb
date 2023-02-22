@@ -18,11 +18,7 @@ use data_types::{
 };
 use datafusion::error::DataFusionError;
 use futures::{stream::FuturesUnordered, TryStreamExt};
-use generated_types::{
-    influxdata::iox::ingester::v1::GetWriteInfoResponse,
-    ingester::{encode_proto_predicate_as_base64, IngesterQueryRequest},
-    write_info::merge_responses,
-};
+use generated_types::ingester::{encode_proto_predicate_as_base64, IngesterQueryRequest};
 use influxdb_iox_client::flight::generated_types::IngesterQueryResponseMetadata;
 use iox_query::{
     exec::{stringset::StringSet, IOxSessionContext},
@@ -222,10 +218,6 @@ pub trait IngesterConnection: std::fmt::Debug + Send + Sync + 'static {
         predicate: &Predicate,
         span: Option<Span>,
     ) -> Result<Vec<IngesterPartition>>;
-
-    /// Returns the most recent partition status info across all ingester(s) for the specified
-    /// write token.
-    async fn get_write_info(&self, write_token: &str) -> Result<GetWriteInfoResponse>;
 
     /// Return backend as [`Any`] which can be used to downcast to a specific implementation.
     fn as_any(&self) -> &dyn Any;
@@ -990,39 +982,9 @@ impl IngesterConnection for IngesterConnectionImpl {
         Ok(ingester_partitions)
     }
 
-    async fn get_write_info(&self, write_token: &str) -> Result<GetWriteInfoResponse> {
-        let responses = self
-            .unique_ingester_addresses
-            .iter()
-            .map(|ingester_address| execute_get_write_infos(ingester_address, write_token))
-            .collect::<FuturesUnordered<_>>()
-            .try_collect::<Vec<_>>()
-            .await?;
-
-        Ok(merge_responses(responses))
-    }
-
     fn as_any(&self) -> &dyn Any {
         self as &dyn Any
     }
-}
-
-async fn execute_get_write_infos(
-    ingester_address: &str,
-    write_token: &str,
-) -> Result<GetWriteInfoResponse, Error> {
-    let connection = connection::Builder::new()
-        .build(ingester_address)
-        .await
-        .context(ConnectingSnafu { ingester_address })?;
-
-    influxdb_iox_client::write_info::Client::new(connection)
-        .get_write_info(write_token)
-        .await
-        .context(WriteInfoSnafu {
-            ingester_address,
-            write_token,
-        })
 }
 
 /// A wrapper around the unpersisted data in a partition returned by

@@ -98,10 +98,6 @@ impl<C: QuerierHandler + std::fmt::Debug + 'static> ServerType for QuerierServer
             builder,
             rpc::namespace::namespace_service(Arc::clone(&self.database))
         );
-        add_service!(
-            builder,
-            rpc::write_info::write_info_service(Arc::clone(&self.database))
-        );
         add_service!(builder, self.server.handler().schema_service());
         add_service!(builder, self.server.handler().catalog_service());
         add_service!(builder, self.server.handler().object_store_service());
