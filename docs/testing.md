@@ -24,11 +24,7 @@ The end to end tests are run using the `cargo test --test end_to_end` command, a
 `TEST_INTEGRATION` and `TEST_INFLUXDB_IOX_CATALOG_DSN` environment variables. NOTE if you don't set
 these variables the tests will "pass" locally (really they will be skipped).
 
-By default, the integration tests for the Kafka-based write buffer are not run. To run these
-you need to set the `KAFKA_CONNECT` environment variable and `TEST_INTEGRATION=1`.
-
-For example, you can run this docker compose to get redpanda (a kafka-compatible message queue)
-and postgres running:
+For example, you can run this docker compose to get postgres running:
 
 ```shell
 docker-compose -f integration-docker-compose.yml up
@@ -38,12 +34,11 @@ In another terminal window, you can run:
 
 ```shell
 export TEST_INTEGRATION=1
-export KAFKA_CONNECT=localhost:9092
 export TEST_INFLUXDB_IOX_CATALOG_DSN=postgresql://postgres@localhost:5432/postgres
 cargo test --workspace
 ```
 
-Or for just the end-to-end tests (and not general tests or kafka):
+Or for just the end-to-end tests (and not general tests):
 
 ```shell
 TEST_INTEGRATION=1 TEST_INFLUXDB_IOX_CATALOG_DSN=postgresql://postgres@localhost:5432/postgres cargo test --test end_to_end

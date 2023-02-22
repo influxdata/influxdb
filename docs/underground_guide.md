@@ -19,22 +19,18 @@ cd influxdb_iox
 cargo build --release --features=pprof
 ```
 
-You can also install the `influxdb_iox` command locally via 
+You can also install the `influxdb_iox` command locally via
 
 ```shell
 cd influxdb_iox
 cargo install --path influxdb_iox
 ```
 
-## Step 2: Start kafka and postgres
+## Step 2: Start postgres
 
-Now, start up kafka and postgres locally in docker containers:
+Now, start up postgres locally in a docker container:
 ```shell
-# get rskafka from https://github.com/influxdata/rskafka
-cd rskafka
-# Run kafka on localhost:9010
-docker-compose -f docker-compose-kafka.yml up &
-# now run postgres
+# Run postgres
 docker run -p 5432:5432 -e POSTGRES_HOST_AUTH_METHOD=trust postgres &
 ```
 
@@ -47,19 +43,13 @@ you have postgres running locally on port 5432).
 
 ```shell
 # initialize the catalog
-INFLUXDB_IOX_WRITE_BUFFER_TYPE=kafka \
-INFLUXDB_IOX_WRITE_BUFFER_ADDR=localhost:9010 \
-INFLUXDB_IOX_WRITE_BUFFER_AUTO_CREATE_TOPICS=10 \
 INFLUXDB_IOX_CATALOG_DSN=postgres://postgres@localhost:5432/postgres \
 OBJECT_STORE=file \
 DATABASE_DIRECTORY=~/data_dir \
 LOG_FILTER=debug \
 ./target/release/influxdb_iox catalog setup
 
-# initialize the kafka topic
-INFLUXDB_IOX_WRITE_BUFFER_TYPE=kafka \
-INFLUXDB_IOX_WRITE_BUFFER_ADDR=localhost:9010 \
-INFLUXDB_IOX_WRITE_BUFFER_AUTO_CREATE_TOPICS=10 \
+# initialize the topic
 INFLUXDB_IOX_CATALOG_DSN=postgres://postgres@localhost:5432/postgres \
 OBJECT_STORE=file \
 DATABASE_DIRECTORY=~/data_dir \
@@ -67,10 +57,10 @@ LOG_FILTER=debug \
 ./target/release/influxdb_iox catalog topic update iox-shared
 ```
 
-## Inspecting Catalog and Kafka / Redpanda state
+## Inspecting Catalog state
 
 Depending on what you are trying to do, you may want to inspect the
-catalog and/or the contents of Kafka / Redpands.
+catalog.
 
 You can run psql like this to inspect the catalog:
 ```shell
@@ -111,41 +101,13 @@ postgres=# \d
 postgres=#
 ```
 
-You can mess with redpanda using `docker exec redpanda-0 rpk` like this:
-
-```shell
-$ docker exec redpanda-0 rpk topic list
-NAME        PARTITIONS  REPLICAS
-iox-shared  1           1
-```
-
-
 # Step 4: Run the services
 
-## Run Router on port 8080/8081 (http/grpc)
-```shell
-INFLUXDB_IOX_BIND_ADDR=localhost:8080 \
-INFLUXDB_IOX_GRPC_BIND_ADDR=localhost:8081 \
-INFLUXDB_IOX_WRITE_BUFFER_TYPE=kafka \
-INFLUXDB_IOX_WRITE_BUFFER_ADDR=localhost:9010 \
-INFLUXDB_IOX_WRITE_BUFFER_AUTO_CREATE_TOPICS=10 \
-INFLUXDB_IOX_CATALOG_DSN=postgres://postgres@localhost:5432/postgres \
-OBJECT_STORE=file \
-DATABASE_DIRECTORY=~/data_dir \
-LOG_FILTER=info \
-./target/release/influxdb_iox run router
-```
-
-
 ## Run Ingester on port 8083/8083 (http/grpc)
+
 ```shell
 INFLUXDB_IOX_BIND_ADDR=localhost:8083 \
 INFLUXDB_IOX_GRPC_BIND_ADDR=localhost:8084 \
-INFLUXDB_IOX_WRITE_BUFFER_TYPE=kafka \
-INFLUXDB_IOX_WRITE_BUFFER_ADDR=localhost:9010 \
-xINFLUXDB_IOX_WRITE_BUFFER_AUTO_CREATE_TOPICS=10 \
-INFLUXDB_IOX_SHARD_INDEX_RANGE_START=0 \
-INFLUXDB_IOX_SHARD_INDEX_RANGE_END=0 \
 INFLUXDB_IOX_PAUSE_INGEST_SIZE_BYTES=5000000000 \
 INFLUXDB_IOX_PERSIST_MEMORY_THRESHOLD_BYTES=4000000000 \
 INFLUXDB_IOX_CATALOG_DSN=postgres://postgres@localhost:5432/postgres \
@@ -153,15 +115,26 @@ INFLUXDB_IOX_MAX_HTTP_REQUEST_SIZE=100000000 \
 OBJECT_STORE=file \
 DATABASE_DIRECTORY=~/data_dir \
 LOG_FILTER=info \
-./target/release/influxdb_iox run ingester
+./target/release/influxdb_iox run ingester2
 ```
 
+## Run Router on port 8080/8081 (http/grpc)
+
+```shell
+INFLUXDB_IOX_BIND_ADDR=localhost:8080 \
+INFLUXDB_IOX_GRPC_BIND_ADDR=localhost:8081 \
+INFLUXDB_IOX_CATALOG_DSN=postgres://postgres@localhost:5432/postgres \
+OBJECT_STORE=file \
+DATABASE_DIRECTORY=~/data_dir \
+LOG_FILTER=info \
+./target/release/influxdb_iox run router2
+```
 
 # Step 5: Ingest data
 
 You can load data using the influxdb_iox client:
 ```shell
-influxdb_iox  --host=http://localhost:8080 -v write test_db test_fixtures/lineproto/*.lp
+influxdb_iox --host=http://localhost:8080 -v write test_db test_fixtures/lineproto/*.lp
 ```
 
 Now you can post data to `http://localhost:8080` with your favorite load generating tool
@@ -180,21 +153,14 @@ data. The default settings at the time of this writing would result in
 posting fairly large requests (necessitating the
 `INFLUXDB_IOX_MAX_HTTP_REQUEST_SIZE` setting above)
 
-
 # Step 6: Profile
 
 See [`profiling.md`](./profiling.md).
 
-
 # Step 7: Clean up local state
 
-If you find yourself needing to clean up postgres / kafka state use these commands:
+If you find yourself needing to clean up postgres state, use this command:
+
 ```shell
 docker ps -a -q | xargs docker stop
-docker rm rskafka_proxy_1
-docker rm rskafka_kafka-0_1
-docker rm rskafka_kafka-1_1
-docker rm rskafka_kafka-2_1
-docker rm rskafka_zookeeper_1
-docker volume rm  rskafka_kafka_0_data rskafka_kafka_1_data rskafka_kafka_2_data rskafka_zookeeper_data
 ```
