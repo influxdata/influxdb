@@ -176,7 +176,7 @@ where
             warn!(predicate=?p, "ignoring query predicate (unsupported)");
         }
 
-        let response = self
+        let response = match self
             .query_handler
             .query_exec(
                 namespace_id,
@@ -184,7 +184,19 @@ where
                 request.columns,
                 span_ctx.child_span("ingester query"),
             )
-            .await?;
+            .await
+        {
+            Ok(v) => v,
+            Err(e) => {
+                error!(
+                    error=%e,
+                    %namespace_id,
+                    %table_id,
+                    "query error"
+                );
+                return Err(e)?;
+            }
+        };
 
         let output = encode_response(response, self.ingester_id).map_err(tonic::Status::from);
 
