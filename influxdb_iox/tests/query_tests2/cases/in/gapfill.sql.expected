@@ -34,6 +34,17 @@
 | 2000-05-05T12:40:00Z | 1               |
 | 2000-05-05T12:50:00Z |                 |
 +----------------------+-----------------+
+-- SQL: SELECT date_bin_gapfill(interval '10 minute', time, timestamp '1970-01-01T00:00:00Z') as minute from cpu where time between timestamp '2000-05-05T12:00:00Z' and timestamp '2000-05-05T12:59:00Z' group by minute;
++----------------------+
+| minute               |
++----------------------+
+| 2000-05-05T12:00:00Z |
+| 2000-05-05T12:10:00Z |
+| 2000-05-05T12:20:00Z |
+| 2000-05-05T12:30:00Z |
+| 2000-05-05T12:40:00Z |
+| 2000-05-05T12:50:00Z |
++----------------------+
 -- SQL: SELECT date_bin_gapfill(interval '10 minute', time, timestamp '1970-01-01T00:00:00Z') as minute, region, count(cpu.user) from cpu where time between timestamp '2000-05-05T12:00:00Z' and timestamp '2000-05-05T12:59:00Z' group by minute, region;
 +----------------------+--------+-----------------+
 | minute               | region | COUNT(cpu.user) |
@@ -50,4 +61,23 @@
 | 2000-05-05T12:30:00Z | b      | 2               |
 | 2000-05-05T12:40:00Z | b      |                 |
 | 2000-05-05T12:50:00Z | b      |                 |
++----------------------+--------+-----------------+
+-- SQL: SELECT date_bin_gapfill(interval '10 minute', time, timestamp '1970-01-01T00:00:07Z') as minute, region, count(cpu.user) from cpu where time between timestamp '2000-05-05T12:00:00Z' and timestamp '2000-05-05T12:59:00Z' group by minute, region;
++----------------------+--------+-----------------+
+| minute               | region | COUNT(cpu.user) |
++----------------------+--------+-----------------+
+| 2000-05-05T11:50:07Z | a      |                 |
+| 2000-05-05T12:00:07Z | a      |                 |
+| 2000-05-05T12:10:07Z | a      | 1               |
+| 2000-05-05T12:20:07Z | a      |                 |
+| 2000-05-05T12:30:07Z | a      | 1               |
+| 2000-05-05T12:40:07Z | a      |                 |
+| 2000-05-05T12:50:07Z | a      |                 |
+| 2000-05-05T11:50:07Z | b      |                 |
+| 2000-05-05T12:00:07Z | b      |                 |
+| 2000-05-05T12:10:07Z | b      |                 |
+| 2000-05-05T12:20:07Z | b      |                 |
+| 2000-05-05T12:30:07Z | b      | 2               |
+| 2000-05-05T12:40:07Z | b      |                 |
+| 2000-05-05T12:50:07Z | b      |                 |
 +----------------------+--------+-----------------+
