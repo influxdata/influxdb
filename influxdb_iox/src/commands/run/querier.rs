@@ -17,7 +17,7 @@ use ioxd_querier::{create_querier_server_type, QuerierServerTypeArgs};
 use object_store::DynObjectStore;
 use object_store_metrics::ObjectStoreMetrics;
 use observability_deps::tracing::*;
-use std::sync::Arc;
+use std::{num::NonZeroUsize, sync::Arc};
 use thiserror::Error;
 
 #[derive(Debug, Error)]
@@ -93,7 +93,9 @@ pub async fn command(config: Config) -> Result<(), Error> {
     let time_provider = Arc::new(SystemProvider::new());
 
     let num_query_threads = config.querier_config.num_query_threads();
-    let num_threads = num_query_threads.unwrap_or_else(num_cpus::get);
+    let num_threads = num_query_threads.unwrap_or_else(|| {
+        NonZeroUsize::new(num_cpus::get()).unwrap_or_else(|| NonZeroUsize::new(1).unwrap())
+    });
     info!(%num_threads, "using specified number of threads per thread pool");
 
     let rpc_write = std::env::var("INFLUXDB_IOX_RPC_MODE").is_ok();

@@ -1,10 +1,10 @@
 //! This module contains code that implements
 //! a gap-filling extension to DataFusion
 
-mod algo;
 mod builder;
 mod params;
 mod series;
+mod stream;
 
 use std::{
     fmt::{self, Debug},
@@ -27,8 +27,8 @@ use datafusion::{
     },
     prelude::Expr,
 };
-use datafusion_util::{watch::WatchedTask, AdapterStream};
-use tokio::sync::mpsc;
+
+use self::stream::GapFillStream;
 
 /// A logical node that represents the gap filling operation.
 #[derive(Clone, Debug)]
@@ -412,18 +412,15 @@ impl ExecutionPlan for GapFillExec {
         let baseline_metrics = BaselineMetrics::new(&self.metrics, partition);
         let output_batch_size = context.session_config().batch_size();
         let input_stream = self.input.execute(partition, context)?;
-        let (tx, rx) = mpsc::channel(1);
-        let fut = algo::fill_gaps(
+        Ok(Box::pin(GapFillStream::try_new(
+            self.schema(),
+            &self.sort_expr,
+            &self.aggr_expr,
+            &self.params,
             output_batch_size,
             input_stream,
-            self.sort_expr.clone(),
-            self.aggr_expr.clone(),
-            self.params.clone(),
-            tx.clone(),
             baseline_metrics,
-        );
-        let handle = WatchedTask::new(fut, vec![tx], "gapfill batches");
-        Ok(AdapterStream::adapt(self.schema(), rx, handle))
+        )?))
     }
 
     fn fmt_as(&self, t: DisplayFormatType, f: &mut fmt::Formatter<'_>) -> fmt::Result {
@@ -479,6 +476,7 @@ mod test {
         prelude::{col, lit, lit_timestamp_nano, SessionConfig, SessionContext},
         scalar::ScalarValue,
     };
+    use observability_deps::tracing::debug;
     use schema::{InfluxColumnType, InfluxFieldType};
 
     fn schema() -> Schema {
@@ -635,34 +633,37 @@ mod test {
     #[tokio::test]
     async fn test_gapfill_simple() -> Result<()> {
         test_helpers::maybe_start_logging();
-        for batch_size in [1, 2, 4, 8] {
-            let batch = TestBatch {
-                group_cols: vec![vec![Some("a"), Some("a")]],
-                time_col: vec![Some(1_000), Some(1_100)],
-                agg_cols: vec![vec![Some(10), Some(11)]],
-            };
-            let params = get_params_ms(&batch, 25, 975, 1_125);
-            let tc = TestCase {
-                in_batches: vec![batch],
-                batch_size,
-                params,
-            };
-            let batches = tc.run().await?;
-            let expected = [
-                "+----+--------------------------+----+",
-                "| g0 | time                     | a0 |",
-                "+----+--------------------------+----+",
-                "| a  | 1970-01-01T00:00:00.975Z |    |",
-                "| a  | 1970-01-01T00:00:01Z     | 10 |",
-                "| a  | 1970-01-01T00:00:01.025Z |    |",
-                "| a  | 1970-01-01T00:00:01.050Z |    |",
-                "| a  | 1970-01-01T00:00:01.075Z |    |",
-                "| a  | 1970-01-01T00:00:01.100Z | 11 |",
-                "| a  | 1970-01-01T00:00:01.125Z |    |",
-                "+----+--------------------------+----+",
-            ];
-            assert_batches_eq!(expected, &batches);
-            assert_batch_count(&batches, batch_size);
+        for output_batch_size in [1, 2, 4, 8] {
+            for input_batch_size in [1, 2] {
+                let batch = TestRecords {
+                    group_cols: vec![vec![Some("a"), Some("a")]],
+                    time_col: vec![Some(1_000), Some(1_100)],
+                    agg_cols: vec![vec![Some(10), Some(11)]],
+                    input_batch_size,
+                };
+                let params = get_params_ms(&batch, 25, 975, 1_125);
+                let tc = TestCase {
+                    test_records: batch,
+                    output_batch_size,
+                    params,
+                };
+                let batches = tc.run().await?;
+                let expected = [
+                    "+----+--------------------------+----+",
+                    "| g0 | time                     | a0 |",
+                    "+----+--------------------------+----+",
+                    "| a  | 1970-01-01T00:00:00.975Z |    |",
+                    "| a  | 1970-01-01T00:00:01Z     | 10 |",
+                    "| a  | 1970-01-01T00:00:01.025Z |    |",
+                    "| a  | 1970-01-01T00:00:01.050Z |    |",
+                    "| a  | 1970-01-01T00:00:01.075Z |    |",
+                    "| a  | 1970-01-01T00:00:01.100Z | 11 |",
+                    "| a  | 1970-01-01T00:00:01.125Z |    |",
+                    "+----+--------------------------+----+",
+                ];
+                assert_batches_eq!(expected, &batches);
+                assert_batch_count(&batches, output_batch_size);
+            }
         }
         Ok(())
     }
@@ -673,77 +674,83 @@ mod test {
         // and there may be no aggregate columns as well.
         // Such a query is not all that useful but it should work.
         test_helpers::maybe_start_logging();
-        for batch_size in [1, 2, 4, 8] {
-            let batch = TestBatch {
-                group_cols: vec![],
-                time_col: vec![None, Some(1_000), Some(1_100)],
-                agg_cols: vec![],
-            };
-            let params = get_params_ms(&batch, 25, 975, 1_125);
-            let tc = TestCase {
-                in_batches: vec![batch],
-                batch_size,
-                params,
-            };
-            let batches = tc.run().await?;
-            let expected = [
-                "+--------------------------+",
-                "| time                     |",
-                "+--------------------------+",
-                "|                          |",
-                "| 1970-01-01T00:00:00.975Z |",
-                "| 1970-01-01T00:00:01Z     |",
-                "| 1970-01-01T00:00:01.025Z |",
-                "| 1970-01-01T00:00:01.050Z |",
-                "| 1970-01-01T00:00:01.075Z |",
-                "| 1970-01-01T00:00:01.100Z |",
-                "| 1970-01-01T00:00:01.125Z |",
-                "+--------------------------+",
-            ];
-            assert_batches_eq!(expected, &batches);
-            assert_batch_count(&batches, batch_size);
+        for output_batch_size in [1, 2, 4, 8] {
+            for input_batch_size in [1, 2, 4] {
+                let batch = TestRecords {
+                    group_cols: vec![],
+                    time_col: vec![None, Some(1_000), Some(1_100)],
+                    agg_cols: vec![],
+                    input_batch_size,
+                };
+                let params = get_params_ms(&batch, 25, 975, 1_125);
+                let tc = TestCase {
+                    test_records: batch,
+                    output_batch_size,
+                    params,
+                };
+                let batches = tc.run().await?;
+                let expected = [
+                    "+--------------------------+",
+                    "| time                     |",
+                    "+--------------------------+",
+                    "|                          |",
+                    "| 1970-01-01T00:00:00.975Z |",
+                    "| 1970-01-01T00:00:01Z     |",
+                    "| 1970-01-01T00:00:01.025Z |",
+                    "| 1970-01-01T00:00:01.050Z |",
+                    "| 1970-01-01T00:00:01.075Z |",
+                    "| 1970-01-01T00:00:01.100Z |",
+                    "| 1970-01-01T00:00:01.125Z |",
+                    "+--------------------------+",
+                ];
+                assert_batches_eq!(expected, &batches);
+                assert_batch_count(&batches, output_batch_size);
+            }
         }
         Ok(())
     }
 
     #[tokio::test]
-    async fn test_gapfill_multi_group() -> Result<()> {
+    async fn test_gapfill_multi_group_simple() -> Result<()> {
         test_helpers::maybe_start_logging();
-        for batch_size in [1, 2, 4, 8, 16] {
-            let batch = TestBatch {
-                group_cols: vec![vec![Some("a"), Some("a"), Some("b"), Some("b")]],
-                time_col: vec![Some(1_000), Some(1_100), Some(1_025), Some(1_050)],
-                agg_cols: vec![vec![Some(10), Some(11), Some(20), Some(21)]],
-            };
-            let params = get_params_ms(&batch, 25, 975, 1_125);
-            let tc = TestCase {
-                in_batches: vec![batch],
-                batch_size,
-                params,
-            };
-            let batches = tc.run().await?;
-            let expected = [
-                "+----+--------------------------+----+",
-                "| g0 | time                     | a0 |",
-                "+----+--------------------------+----+",
-                "| a  | 1970-01-01T00:00:00.975Z |    |",
-                "| a  | 1970-01-01T00:00:01Z     | 10 |",
-                "| a  | 1970-01-01T00:00:01.025Z |    |",
-                "| a  | 1970-01-01T00:00:01.050Z |    |",
-                "| a  | 1970-01-01T00:00:01.075Z |    |",
-                "| a  | 1970-01-01T00:00:01.100Z | 11 |",
-                "| a  | 1970-01-01T00:00:01.125Z |    |",
-                "| b  | 1970-01-01T00:00:00.975Z |    |",
-                "| b  | 1970-01-01T00:00:01Z     |    |",
-                "| b  | 1970-01-01T00:00:01.025Z | 20 |",
-                "| b  | 1970-01-01T00:00:01.050Z | 21 |",
-                "| b  | 1970-01-01T00:00:01.075Z |    |",
-                "| b  | 1970-01-01T00:00:01.100Z |    |",
-                "| b  | 1970-01-01T00:00:01.125Z |    |",
-                "+----+--------------------------+----+",
-            ];
-            assert_batches_eq!(expected, &batches);
-            assert_batch_count(&batches, batch_size);
+        for output_batch_size in [1, 2, 4, 8, 16] {
+            for input_batch_size in [1, 2, 4] {
+                let records = TestRecords {
+                    group_cols: vec![vec![Some("a"), Some("a"), Some("b"), Some("b")]],
+                    time_col: vec![Some(1_000), Some(1_100), Some(1_025), Some(1_050)],
+                    agg_cols: vec![vec![Some(10), Some(11), Some(20), Some(21)]],
+                    input_batch_size,
+                };
+                let params = get_params_ms(&records, 25, 975, 1_125);
+                let tc = TestCase {
+                    test_records: records,
+                    output_batch_size,
+                    params,
+                };
+                let batches = tc.run().await?;
+                let expected = [
+                    "+----+--------------------------+----+",
+                    "| g0 | time                     | a0 |",
+                    "+----+--------------------------+----+",
+                    "| a  | 1970-01-01T00:00:00.975Z |    |",
+                    "| a  | 1970-01-01T00:00:01Z     | 10 |",
+                    "| a  | 1970-01-01T00:00:01.025Z |    |",
+                    "| a  | 1970-01-01T00:00:01.050Z |    |",
+                    "| a  | 1970-01-01T00:00:01.075Z |    |",
+                    "| a  | 1970-01-01T00:00:01.100Z | 11 |",
+                    "| a  | 1970-01-01T00:00:01.125Z |    |",
+                    "| b  | 1970-01-01T00:00:00.975Z |    |",
+                    "| b  | 1970-01-01T00:00:01Z     |    |",
+                    "| b  | 1970-01-01T00:00:01.025Z | 20 |",
+                    "| b  | 1970-01-01T00:00:01.050Z | 21 |",
+                    "| b  | 1970-01-01T00:00:01.075Z |    |",
+                    "| b  | 1970-01-01T00:00:01.100Z |    |",
+                    "| b  | 1970-01-01T00:00:01.125Z |    |",
+                    "+----+--------------------------+----+",
+                ];
+                assert_batches_eq!(expected, &batches);
+                assert_batch_count(&batches, output_batch_size);
+            }
         }
         Ok(())
     }
@@ -751,159 +758,10 @@ mod test {
     #[tokio::test]
     async fn test_gapfill_multi_group_with_nulls() -> Result<()> {
         test_helpers::maybe_start_logging();
-        for batch_size in [1, 2, 4, 8, 16, 32] {
-            let batch = TestBatch {
-                group_cols: vec![vec![
-                    Some("a"),
-                    Some("a"),
-                    Some("a"),
-                    Some("a"),
-                    Some("b"),
-                    Some("b"),
-                    Some("b"),
-                ]],
-                time_col: vec![
-                    None,
-                    None,
-                    Some(1_000),
-                    Some(1_100),
-                    None,
-                    Some(1_000),
-                    Some(1_100),
-                ],
-                agg_cols: vec![vec![
-                    Some(1),
-                    None,
-                    Some(10),
-                    Some(11),
-                    Some(2),
-                    Some(20),
-                    Some(21),
-                ]],
-            };
-            let params = get_params_ms(&batch, 25, 975, 1_125);
-            let tc = TestCase {
-                in_batches: vec![batch],
-                batch_size,
-                params,
-            };
-            let batches = tc.run().await?;
-            let expected = [
-                "+----+--------------------------+----+",
-                "| g0 | time                     | a0 |",
-                "+----+--------------------------+----+",
-                "| a  |                          | 1  |",
-                "| a  |                          |    |",
-                "| a  | 1970-01-01T00:00:00.975Z |    |",
-                "| a  | 1970-01-01T00:00:01Z     | 10 |",
-                "| a  | 1970-01-01T00:00:01.025Z |    |",
-                "| a  | 1970-01-01T00:00:01.050Z |    |",
-                "| a  | 1970-01-01T00:00:01.075Z |    |",
-                "| a  | 1970-01-01T00:00:01.100Z | 11 |",
-                "| a  | 1970-01-01T00:00:01.125Z |    |",
-                "| b  |                          | 2  |",
-                "| b  | 1970-01-01T00:00:00.975Z |    |",
-                "| b  | 1970-01-01T00:00:01Z     | 20 |",
-                "| b  | 1970-01-01T00:00:01.025Z |    |",
-                "| b  | 1970-01-01T00:00:01.050Z |    |",
-                "| b  | 1970-01-01T00:00:01.075Z |    |",
-                "| b  | 1970-01-01T00:00:01.100Z | 21 |",
-                "| b  | 1970-01-01T00:00:01.125Z |    |",
-                "+----+--------------------------+----+",
-            ];
-            assert_batches_eq!(expected, &batches);
-            assert_batch_count(&batches, batch_size);
-        }
-        Ok(())
-    }
-
-    #[tokio::test]
-    async fn test_gapfill_multi_group_cols_with_nulls() -> Result<()> {
-        test_helpers::maybe_start_logging();
-        for batch_size in [1, 2, 4, 8, 16, 32] {
-            let batch = TestBatch {
-                group_cols: vec![
-                    vec![
-                        Some("a"),
-                        Some("a"),
-                        Some("a"),
-                        Some("a"),
-                        Some("a"),
-                        Some("a"),
-                        Some("a"),
-                    ],
-                    vec![
-                        Some("c"),
-                        Some("c"),
-                        Some("c"),
-                        Some("c"),
-                        Some("d"),
-                        Some("d"),
-                        Some("d"),
-                    ],
-                ],
-                time_col: vec![
-                    None,
-                    None,
-                    Some(1_000),
-                    Some(1_100),
-                    None,
-                    Some(1_000),
-                    Some(1_100),
-                ],
-                agg_cols: vec![vec![
-                    Some(1),
-                    None,
-                    Some(10),
-                    Some(11),
-                    Some(2),
-                    Some(20),
-                    Some(21),
-                ]],
-            };
-            let params = get_params_ms(&batch, 25, 975, 1_125);
-            let tc = TestCase {
-                in_batches: vec![batch],
-                batch_size,
-                params,
-            };
-            let batches = tc.run().await?;
-            let expected = [
-                "+----+----+--------------------------+----+",
-                "| g0 | g1 | time                     | a0 |",
-                "+----+----+--------------------------+----+",
-                "| a  | c  |                          | 1  |",
-                "| a  | c  |                          |    |",
-                "| a  | c  | 1970-01-01T00:00:00.975Z |    |",
-                "| a  | c  | 1970-01-01T00:00:01Z     | 10 |",
-                "| a  | c  | 1970-01-01T00:00:01.025Z |    |",
-                "| a  | c  | 1970-01-01T00:00:01.050Z |    |",
-                "| a  | c  | 1970-01-01T00:00:01.075Z |    |",
-                "| a  | c  | 1970-01-01T00:00:01.100Z | 11 |",
-                "| a  | c  | 1970-01-01T00:00:01.125Z |    |",
-                "| a  | d  |                          | 2  |",
-                "| a  | d  | 1970-01-01T00:00:00.975Z |    |",
-                "| a  | d  | 1970-01-01T00:00:01Z     | 20 |",
-                "| a  | d  | 1970-01-01T00:00:01.025Z |    |",
-                "| a  | d  | 1970-01-01T00:00:01.050Z |    |",
-                "| a  | d  | 1970-01-01T00:00:01.075Z |    |",
-                "| a  | d  | 1970-01-01T00:00:01.100Z | 21 |",
-                "| a  | d  | 1970-01-01T00:00:01.125Z |    |",
-                "+----+----+--------------------------+----+",
-            ];
-            assert_batches_eq!(expected, &batches);
-            assert_batch_count(&batches, batch_size);
-        }
-        Ok(())
-    }
-
-    #[tokio::test]
-    async fn test_gapfill_multi_aggr_cols_with_nulls() -> Result<()> {
-        test_helpers::maybe_start_logging();
-        for batch_size in [1, 2, 4, 8, 16, 32] {
-            let batch = TestBatch {
-                group_cols: vec![
-                    vec![
+        for output_batch_size in [1, 2, 4, 8, 16, 32] {
+            for input_batch_size in [1, 2, 4, 8] {
+                let records = TestRecords {
+                    group_cols: vec![vec![
                         Some("a"),
                         Some("a"),
                         Some("a"),
@@ -911,28 +769,17 @@ mod test {
                         Some("b"),
                         Some("b"),
                         Some("b"),
+                    ]],
+                    time_col: vec![
+                        None,
+                        None,
+                        Some(1_000),
+                        Some(1_100),
+                        None,
+                        Some(1_000),
+                        Some(1_100),
                     ],
-                    vec![
-                        Some("c"),
-                        Some("c"),
-                        Some("c"),
-                        Some("c"),
-                        Some("d"),
-                        Some("d"),
-                        Some("d"),
-                    ],
-                ],
-                time_col: vec![
-                    None,
-                    None,
-                    Some(1_000),
-                    Some(1_100),
-                    None,
-                    Some(1_000),
-                    Some(1_100),
-                ],
-                agg_cols: vec![
-                    vec![
+                    agg_cols: vec![vec![
                         Some(1),
                         None,
                         Some(10),
@@ -940,50 +787,219 @@ mod test {
                         Some(2),
                         Some(20),
                         Some(21),
+                    ]],
+                    input_batch_size,
+                };
+                let params = get_params_ms(&records, 25, 975, 1_125);
+                let tc = TestCase {
+                    test_records: records,
+                    output_batch_size,
+                    params,
+                };
+                let batches = tc.run().await?;
+                let expected = [
+                    "+----+--------------------------+----+",
+                    "| g0 | time                     | a0 |",
+                    "+----+--------------------------+----+",
+                    "| a  |                          | 1  |",
+                    "| a  |                          |    |",
+                    "| a  | 1970-01-01T00:00:00.975Z |    |",
+                    "| a  | 1970-01-01T00:00:01Z     | 10 |",
+                    "| a  | 1970-01-01T00:00:01.025Z |    |",
+                    "| a  | 1970-01-01T00:00:01.050Z |    |",
+                    "| a  | 1970-01-01T00:00:01.075Z |    |",
+                    "| a  | 1970-01-01T00:00:01.100Z | 11 |",
+                    "| a  | 1970-01-01T00:00:01.125Z |    |",
+                    "| b  |                          | 2  |",
+                    "| b  | 1970-01-01T00:00:00.975Z |    |",
+                    "| b  | 1970-01-01T00:00:01Z     | 20 |",
+                    "| b  | 1970-01-01T00:00:01.025Z |    |",
+                    "| b  | 1970-01-01T00:00:01.050Z |    |",
+                    "| b  | 1970-01-01T00:00:01.075Z |    |",
+                    "| b  | 1970-01-01T00:00:01.100Z | 21 |",
+                    "| b  | 1970-01-01T00:00:01.125Z |    |",
+                    "+----+--------------------------+----+",
+                ];
+                assert_batches_eq!(expected, &batches);
+                assert_batch_count(&batches, output_batch_size);
+            }
+        }
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn test_gapfill_multi_group_cols_with_nulls() -> Result<()> {
+        test_helpers::maybe_start_logging();
+        for output_batch_size in [1, 2, 4, 8, 16, 32] {
+            for input_batch_size in [1, 2, 4, 8] {
+                let records = TestRecords {
+                    group_cols: vec![
+                        vec![
+                            Some("a"),
+                            Some("a"),
+                            Some("a"),
+                            Some("a"),
+                            Some("a"),
+                            Some("a"),
+                            Some("a"),
+                        ],
+                        vec![
+                            Some("c"),
+                            Some("c"),
+                            Some("c"),
+                            Some("c"),
+                            Some("d"),
+                            Some("d"),
+                            Some("d"),
+                        ],
                     ],
-                    vec![
-                        Some(3),
-                        Some(3),
-                        Some(30),
+                    time_col: vec![
                         None,
-                        Some(4),
-                        Some(40),
-                        Some(41),
+                        None,
+                        Some(1_000),
+                        Some(1_100),
+                        None,
+                        Some(1_000),
+                        Some(1_100),
                     ],
-                ],
-            };
-            let params = get_params_ms(&batch, 25, 975, 1_125);
-            let tc = TestCase {
-                in_batches: vec![batch],
-                batch_size,
-                params,
-            };
-            let batches = tc.run().await?;
-            let expected = [
-                "+----+----+--------------------------+----+----+",
-                "| g0 | g1 | time                     | a0 | a1 |",
-                "+----+----+--------------------------+----+----+",
-                "| a  | c  |                          | 1  | 3  |",
-                "| a  | c  |                          |    | 3  |",
-                "| a  | c  | 1970-01-01T00:00:00.975Z |    |    |",
-                "| a  | c  | 1970-01-01T00:00:01Z     | 10 | 30 |",
-                "| a  | c  | 1970-01-01T00:00:01.025Z |    |    |",
-                "| a  | c  | 1970-01-01T00:00:01.050Z |    |    |",
-                "| a  | c  | 1970-01-01T00:00:01.075Z |    |    |",
-                "| a  | c  | 1970-01-01T00:00:01.100Z | 11 |    |",
-                "| a  | c  | 1970-01-01T00:00:01.125Z |    |    |",
-                "| b  | d  |                          | 2  | 4  |",
-                "| b  | d  | 1970-01-01T00:00:00.975Z |    |    |",
-                "| b  | d  | 1970-01-01T00:00:01Z     | 20 | 40 |",
-                "| b  | d  | 1970-01-01T00:00:01.025Z |    |    |",
-                "| b  | d  | 1970-01-01T00:00:01.050Z |    |    |",
-                "| b  | d  | 1970-01-01T00:00:01.075Z |    |    |",
-                "| b  | d  | 1970-01-01T00:00:01.100Z | 21 | 41 |",
-                "| b  | d  | 1970-01-01T00:00:01.125Z |    |    |",
-                "+----+----+--------------------------+----+----+",
-            ];
-            assert_batches_eq!(expected, &batches);
-            assert_batch_count(&batches, batch_size);
+                    agg_cols: vec![vec![
+                        Some(1),
+                        None,
+                        Some(10),
+                        Some(11),
+                        Some(2),
+                        Some(20),
+                        Some(21),
+                    ]],
+                    input_batch_size,
+                };
+                let params = get_params_ms(&records, 25, 975, 1_125);
+                let tc = TestCase {
+                    test_records: records,
+                    output_batch_size,
+                    params,
+                };
+                let batches = tc.run().await?;
+                let expected = [
+                    "+----+----+--------------------------+----+",
+                    "| g0 | g1 | time                     | a0 |",
+                    "+----+----+--------------------------+----+",
+                    "| a  | c  |                          | 1  |",
+                    "| a  | c  |                          |    |",
+                    "| a  | c  | 1970-01-01T00:00:00.975Z |    |",
+                    "| a  | c  | 1970-01-01T00:00:01Z     | 10 |",
+                    "| a  | c  | 1970-01-01T00:00:01.025Z |    |",
+                    "| a  | c  | 1970-01-01T00:00:01.050Z |    |",
+                    "| a  | c  | 1970-01-01T00:00:01.075Z |    |",
+                    "| a  | c  | 1970-01-01T00:00:01.100Z | 11 |",
+                    "| a  | c  | 1970-01-01T00:00:01.125Z |    |",
+                    "| a  | d  |                          | 2  |",
+                    "| a  | d  | 1970-01-01T00:00:00.975Z |    |",
+                    "| a  | d  | 1970-01-01T00:00:01Z     | 20 |",
+                    "| a  | d  | 1970-01-01T00:00:01.025Z |    |",
+                    "| a  | d  | 1970-01-01T00:00:01.050Z |    |",
+                    "| a  | d  | 1970-01-01T00:00:01.075Z |    |",
+                    "| a  | d  | 1970-01-01T00:00:01.100Z | 21 |",
+                    "| a  | d  | 1970-01-01T00:00:01.125Z |    |",
+                    "+----+----+--------------------------+----+",
+                ];
+                assert_batches_eq!(expected, &batches);
+                assert_batch_count(&batches, output_batch_size);
+            }
+        }
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn test_gapfill_multi_aggr_cols_with_nulls() -> Result<()> {
+        test_helpers::maybe_start_logging();
+        for output_batch_size in [1, 2, 4, 8, 16, 32] {
+            for input_batch_size in [1, 2, 4, 8] {
+                let records = TestRecords {
+                    group_cols: vec![
+                        vec![
+                            Some("a"),
+                            Some("a"),
+                            Some("a"),
+                            Some("a"),
+                            Some("b"),
+                            Some("b"),
+                            Some("b"),
+                        ],
+                        vec![
+                            Some("c"),
+                            Some("c"),
+                            Some("c"),
+                            Some("c"),
+                            Some("d"),
+                            Some("d"),
+                            Some("d"),
+                        ],
+                    ],
+                    time_col: vec![
+                        None,
+                        None,
+                        Some(1_000),
+                        Some(1_100),
+                        None,
+                        Some(1_000),
+                        Some(1_100),
+                    ],
+                    agg_cols: vec![
+                        vec![
+                            Some(1),
+                            None,
+                            Some(10),
+                            Some(11),
+                            Some(2),
+                            Some(20),
+                            Some(21),
+                        ],
+                        vec![
+                            Some(3),
+                            Some(3),
+                            Some(30),
+                            None,
+                            Some(4),
+                            Some(40),
+                            Some(41),
+                        ],
+                    ],
+                    input_batch_size,
+                };
+                let params = get_params_ms(&records, 25, 975, 1_125);
+                let tc = TestCase {
+                    test_records: records,
+                    output_batch_size,
+                    params,
+                };
+                let batches = tc.run().await?;
+                let expected = [
+                    "+----+----+--------------------------+----+----+",
+                    "| g0 | g1 | time                     | a0 | a1 |",
+                    "+----+----+--------------------------+----+----+",
+                    "| a  | c  |                          | 1  | 3  |",
+                    "| a  | c  |                          |    | 3  |",
+                    "| a  | c  | 1970-01-01T00:00:00.975Z |    |    |",
+                    "| a  | c  | 1970-01-01T00:00:01Z     | 10 | 30 |",
+                    "| a  | c  | 1970-01-01T00:00:01.025Z |    |    |",
+                    "| a  | c  | 1970-01-01T00:00:01.050Z |    |    |",
+                    "| a  | c  | 1970-01-01T00:00:01.075Z |    |    |",
+                    "| a  | c  | 1970-01-01T00:00:01.100Z | 11 |    |",
+                    "| a  | c  | 1970-01-01T00:00:01.125Z |    |    |",
+                    "| b  | d  |                          | 2  | 4  |",
+                    "| b  | d  | 1970-01-01T00:00:00.975Z |    |    |",
+                    "| b  | d  | 1970-01-01T00:00:01Z     | 20 | 40 |",
+                    "| b  | d  | 1970-01-01T00:00:01.025Z |    |    |",
+                    "| b  | d  | 1970-01-01T00:00:01.050Z |    |    |",
+                    "| b  | d  | 1970-01-01T00:00:01.075Z |    |    |",
+                    "| b  | d  | 1970-01-01T00:00:01.100Z | 21 | 41 |",
+                    "| b  | d  | 1970-01-01T00:00:01.125Z |    |    |",
+                    "+----+----+--------------------------+----+----+",
+                ];
+                assert_batches_eq!(expected, &batches);
+                assert_batch_count(&batches, output_batch_size);
+            }
         }
         Ok(())
     }
@@ -996,15 +1012,16 @@ mod test {
 
     type ExprVec = Vec<Arc<dyn PhysicalExpr>>;
 
-    struct TestBatch {
+    struct TestRecords {
         group_cols: Vec<Vec<Option<&'static str>>>,
         // Stored as millisecods since intervals use millis,
         // to let test cases be consistent and easier to read.
         time_col: Vec<Option<i64>>,
         agg_cols: Vec<Vec<Option<i64>>>,
+        input_batch_size: usize,
     }
 
-    impl TestBatch {
+    impl TestRecords {
         fn schema(&self) -> SchemaRef {
             // In order to test input with null timestamps, we need the
             // timestamp column to be nullable. Unforunately this means
@@ -1032,6 +1049,10 @@ mod test {
             Schema::new(fields).into()
         }
 
+        fn len(&self) -> usize {
+            self.time_col.len()
+        }
+
         fn exprs(&self) -> Result<(ExprVec, ExprVec)> {
             let mut group_expr: ExprVec = vec![];
             let mut aggr_expr: ExprVec = vec![];
@@ -1050,10 +1071,10 @@ mod test {
         }
     }
 
-    impl TryFrom<TestBatch> for RecordBatch {
+    impl TryFrom<TestRecords> for Vec<RecordBatch> {
         type Error = DataFusionError;
 
-        fn try_from(value: TestBatch) -> Result<Self> {
+        fn try_from(value: TestRecords) -> Result<Self> {
             let mut arrs: Vec<ArrayRef> =
                 Vec::with_capacity(value.group_cols.len() + value.agg_cols.len() + 1);
             for gc in &value.group_cols {
@@ -1072,26 +1093,45 @@ mod test {
                 arrs.push(arr);
             }
 
-            Self::try_new(value.schema(), arrs).map_err(DataFusionError::ArrowError)
+            let one_batch =
+                RecordBatch::try_new(value.schema(), arrs).map_err(DataFusionError::ArrowError)?;
+            let mut batches = vec![];
+            let mut offset = 0;
+            while offset < one_batch.num_rows() {
+                let len = std::cmp::min(value.input_batch_size, one_batch.num_rows() - offset);
+                let batch = one_batch.slice(offset, len);
+                batches.push(batch);
+                offset += value.input_batch_size;
+            }
+            Ok(batches)
         }
     }
 
     struct TestCase {
-        in_batches: Vec<TestBatch>,
-        batch_size: usize,
+        test_records: TestRecords,
+        output_batch_size: usize,
         params: GapFillExecParams,
     }
 
     impl TestCase {
         async fn run(self) -> Result<Vec<RecordBatch>> {
-            let schema = self.in_batches[0].schema();
-            let (group_expr, aggr_expr) = self.in_batches[0].exprs()?;
+            let schema = self.test_records.schema();
+            let (group_expr, aggr_expr) = self.test_records.exprs()?;
 
-            let batches: Vec<RecordBatch> = self
-                .in_batches
-                .into_iter()
-                .map(|tb| tb.try_into())
-                .collect::<Result<Vec<_>>>()?;
+            let input_batch_size = self.test_records.input_batch_size;
+
+            let num_records = self.test_records.len();
+            let batches: Vec<RecordBatch> = self.test_records.try_into()?;
+            assert_batch_count(&batches, input_batch_size);
+            assert_eq!(
+                batches.iter().map(|b| b.num_rows()).sum::<usize>(),
+                num_records
+            );
+
+            debug!(
+                "input_batch_size is {input_batch_size}, output_batch_size is {}",
+                self.output_batch_size
+            );
             let input = Arc::new(MemoryExec::try_new(&[batches], schema, None)?);
 
             let plan = Arc::new(GapFillExec::try_new(
@@ -1102,14 +1142,14 @@ mod test {
             )?);
 
             let session_ctx = SessionContext::with_config(
-                SessionConfig::default().with_batch_size(self.batch_size),
+                SessionConfig::default().with_batch_size(self.output_batch_size),
             );
             let task_ctx = Arc::new(TaskContext::from(&session_ctx));
             collect(plan, task_ctx).await
         }
     }
 
-    fn get_params_ms(batch: &TestBatch, stride: i64, start: i64, end: i64) -> GapFillExecParams {
+    fn get_params_ms(batch: &TestRecords, stride: i64, start: i64, end: i64) -> GapFillExecParams {
         GapFillExecParams {
             // interval day time is milliseconds in the low 32-bit word
             stride: phys_lit(ScalarValue::IntervalDayTime(Some(stride))), // milliseconds

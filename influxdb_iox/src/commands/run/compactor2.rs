@@ -7,6 +7,7 @@ use object_store::DynObjectStore;
 use object_store_metrics::ObjectStoreMetrics;
 use observability_deps::tracing::*;
 use parquet_file::storage::{ParquetStorage, StorageId};
+use std::num::NonZeroUsize;
 use std::sync::Arc;
 use thiserror::Error;
 
@@ -109,7 +110,10 @@ pub async fn command(config: Config) -> Result<(), Error> {
     let num_threads = config
         .compactor_config
         .query_exec_thread_count
-        .unwrap_or_else(|| num_cpus::get() - 1_usize);
+        .unwrap_or_else(|| {
+            NonZeroUsize::new(num_cpus::get().saturating_sub(1))
+                .unwrap_or_else(|| NonZeroUsize::new(1).unwrap())
+        });
     info!(%num_threads, "using specified number of threads");
 
     let exec = Arc::new(Executor::new_with_config(ExecutorConfig {

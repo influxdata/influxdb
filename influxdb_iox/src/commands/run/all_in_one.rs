@@ -470,7 +470,7 @@ impl Config {
             compaction_job_concurrency: NonZeroUsize::new(1).unwrap(),
             compaction_partition_scratchpad_concurrency: NonZeroUsize::new(1).unwrap(),
             compaction_partition_minute_threshold: 10,
-            query_exec_thread_count: Some(1),
+            query_exec_thread_count: Some(NonZeroUsize::new(1).unwrap()),
             exec_mem_pool_bytes,
             max_desired_file_size_bytes: 30_000,
             percentage_max_file_size: 30,
@@ -585,7 +585,8 @@ pub async fn command(config: Config) -> Result<()> {
 
     // TODO: make num_threads a parameter (other modes have it
     // configured by a command line)
-    let num_threads = num_cpus::get();
+    let num_threads = NonZeroUsize::new(num_cpus::get())
+        .unwrap_or_else(|| NonZeroUsize::new(1).expect("1 is valid"));
     info!(%num_threads, "Creating shared query executor");
 
     let parquet_store_real = ParquetStorage::new(Arc::clone(&object_store), StorageId::from("iox"));

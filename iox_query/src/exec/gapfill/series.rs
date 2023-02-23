@@ -3,7 +3,12 @@
 
 use std::ops::Range;
 
-use arrow::array::{Array, TimestampNanosecondArray};
+use arrow::{
+    array::{Array, TimestampNanosecondArray},
+    record_batch::RecordBatch,
+};
+use arrow_util::optimize::optimize_dictionaries;
+use datafusion::error::{DataFusionError, Result};
 
 use super::params::GapFillParams;
 
@@ -13,7 +18,7 @@ use super::params::GapFillParams;
 #[derive(Clone, Debug, PartialEq)]
 pub(super) struct SeriesState {
     /// Where to read the next row from the input
-    next_input_offset: usize,
+    pub next_input_offset: usize,
     /// The next timestamp to be produced for the current series
     next_ts: i64,
     /// How many rows may be output before we need to start a new record batch.
@@ -56,6 +61,23 @@ impl SeriesState {
     pub fn fresh_series(&mut self, params: &GapFillParams) {
         self.next_ts = params.first_ts
     }
+
+    /// Slice the input batch so that it has just one row before the next offset.
+    pub fn slice_input_batch(&mut self, batch: RecordBatch) -> Result<RecordBatch> {
+        if self.next_input_offset < 2 {
+            // nothing to do
+            return Ok(batch);
+        }
+
+        let offset = self.next_input_offset - 1;
+        let len = batch.num_rows() - offset;
+        self.next_input_offset = 1;
+
+        let batch = batch.slice(offset, len);
+        // Because input batches are concatentated together, their dicionaries won't be
+        // optimized. Ensure that they are at least optimized in the output.
+        optimize_dictionaries(&batch).map_err(DataFusionError::ArrowError)
+    }
 }
 
 /// Encapsulates logic for generating rows that fill
@@ -63,7 +85,7 @@ impl SeriesState {
 #[derive(Clone, Debug)]
 pub(super) struct SeriesAppender {
     /// The exclusive offset of the end of data for this series in the input `RecordBatch`.
-    input_end: usize,
+    pub input_end: usize,
 }
 
 impl SeriesAppender {

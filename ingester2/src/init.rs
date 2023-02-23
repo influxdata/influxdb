@@ -37,7 +37,10 @@ use crate::{
         completion_observer::NopObserver, handle::PersistHandle,
         hot_partitions::HotPartitionPersister,
     },
-    query::{instrumentation::QueryExecInstrumentation, tracing::QueryExecTracing},
+    query::{
+        exec_instrumentation::QueryExecInstrumentation,
+        result_instrumentation::QueryResultInstrumentation, tracing::QueryExecTracing,
+    },
     server::grpc::GrpcDelegate,
     timestamp_oracle::TimestampOracle,
     wal::{rotate_task::periodic_rotation, wal_sink::WalSink},
@@ -339,9 +342,10 @@ where
     );
 
     // And the chain of QueryExec that forms the read path.
+    let read_path = QueryResultInstrumentation::new(Arc::clone(&buffer), &metrics);
     let read_path = QueryExecInstrumentation::new(
         "buffer",
-        QueryExecTracing::new(Arc::clone(&buffer), "buffer"),
+        QueryExecTracing::new(read_path, "buffer"),
         &metrics,
     );
 

@@ -10,7 +10,7 @@ use object_store::DynObjectStore;
 use object_store_metrics::ObjectStoreMetrics;
 use parquet_file::storage::{ParquetStorage, StorageId};
 use snafu::prelude::*;
-use std::{collections::HashMap, sync::Arc};
+use std::{collections::HashMap, num::NonZeroUsize, sync::Arc};
 
 use crate::process_info::{setup_metric_registry, USIZE_MAX};
 
@@ -40,7 +40,7 @@ pub enum Command {
             default_value = "4",
             action
         )]
-        query_exec_thread_count: usize,
+        query_exec_thread_count: NonZeroUsize,
 
         /// Size of memory pool used during query exec, in bytes.
         #[clap(

@@ -27,7 +27,6 @@ use iox_time::{MockProvider, Time, TimeProvider};
 use mutable_batch_lp::test_helpers::lp_to_mutable_batch;
 use object_store::{memory::InMemory, DynObjectStore};
 use observability_deps::tracing::debug;
-use once_cell::sync::Lazy;
 use parquet_file::{
     chunk::ParquetChunk,
     metadata::IoxMetadata,
@@ -37,12 +36,8 @@ use schema::{
     sort::{adjust_sort_key_columns, compute_sort_key, SortKey},
     Projection, Schema,
 };
-use std::{collections::HashMap, sync::Arc};
+use std::{collections::HashMap, num::NonZeroUsize, sync::Arc};
 use uuid::Uuid;
-
-/// Global executor used by all test catalogs.
-static GLOBAL_EXEC: Lazy<Arc<DedicatedExecutors>> =
-    Lazy::new(|| Arc::new(DedicatedExecutors::new(1)));
 
 /// Common retention period used throughout tests
 pub const TEST_RETENTION_PERIOD_NS: Option<i64> = Some(3_600 * 1_000_000_000);
@@ -65,19 +60,21 @@ impl TestCatalog {
     /// All test catalogs use the same [`Executor`]. Use [`with_execs`](Self::with_execs) if you need a special or
     /// dedicated executor.
     pub fn new() -> Arc<Self> {
-        let exec = Arc::clone(&GLOBAL_EXEC);
-
-        Self::with_execs(exec, 1)
+        let exec = Arc::new(DedicatedExecutors::new_testing());
+        Self::with_execs(exec, NonZeroUsize::new(1).unwrap())
     }
 
     /// Initialize with partitions
-    pub fn with_target_query_partitions(target_query_partitions: usize) -> Arc<Self> {
-        let exec = Arc::clone(&GLOBAL_EXEC);
+    pub fn with_target_query_partitions(target_query_partitions: NonZeroUsize) -> Arc<Self> {
+        let exec = Arc::new(DedicatedExecutors::new_testing());
         Self::with_execs(exec, target_query_partitions)
     }
 
     /// Initialize with given executors and partitions
-    pub fn with_execs(exec: Arc<DedicatedExecutors>, target_query_partitions: usize) -> Arc<Self> {
+    pub fn with_execs(
+        exec: Arc<DedicatedExecutors>,
+        target_query_partitions: NonZeroUsize,
+    ) -> Arc<Self> {
         let metric_registry = Arc::new(metric::Registry::new());
         let catalog: Arc<dyn Catalog> = Arc::new(MemCatalog::new(Arc::clone(&metric_registry)));
         let object_store = Arc::new(InMemory::new());

@@ -8,7 +8,7 @@ use arrow_flight::{
 };
 use data_types::{NamespaceId, PartitionId, TableId};
 use flatbuffers::FlatBufferBuilder;
-use futures::{stream::BoxStream, Stream, StreamExt, TryStreamExt};
+use futures::{Stream, StreamExt, TryStreamExt};
 use generated_types::influxdata::iox::ingester::v1::{self as proto, PartitionStatus};
 use metric::U64Counter;
 use observability_deps::tracing::*;
@@ -272,7 +272,7 @@ fn encode_partition(
     // [`PartitionResponse`]: crate::query::partition_response::PartitionResponse
     completed_persistence_count: u64,
     ingester_id: IngesterId,
-) -> std::result::Result<FlightData, FlightError> {
+) -> Result<FlightData, FlightError> {
     let mut bytes = bytes::BytesMut::new();
     let app_metadata = proto::IngesterQueryResponseMetadata {
         partition_id: partition_id.get(),
@@ -311,35 +311,32 @@ fn build_none_flight_msg() -> Vec<u8> {
 fn encode_response(
     response: QueryResponse,
     ingester_id: IngesterId,
-) -> BoxStream<'static, std::result::Result<FlightData, FlightError>> {
-    response
-        .into_partition_stream()
-        .flat_map(move |partition| {
-            let partition_id = partition.id();
-            let completed_persistence_count = partition.completed_persistence_count();
-            let head = futures::stream::once(async move {
-                encode_partition(
-                    partition_id,
-                    PartitionStatus {
-                        parquet_max_sequence_number: None,
-                    },
-                    completed_persistence_count,
-                    ingester_id,
-                )
-            });
+) -> impl Stream<Item = Result<FlightData, FlightError>> {
+    response.into_partition_stream().flat_map(move |partition| {
+        let partition_id = partition.id();
+        let completed_persistence_count = partition.completed_persistence_count();
+        let head = futures::stream::once(async move {
+            encode_partition(
+                partition_id,
+                PartitionStatus {
+                    parquet_max_sequence_number: None,
+                },
+                completed_persistence_count,
+                ingester_id,
+            )
+        });
 
-            match partition.into_record_batch_stream() {
-                Some(stream) => {
-                    let stream = stream.map_err(|e| FlightError::ExternalError(Box::new(e)));
+        match partition.into_record_batch_stream() {
+            Some(stream) => {
+                let stream = stream.map_err(|e| FlightError::ExternalError(Box::new(e)));
 
-                    let tail = FlightDataEncoderBuilder::new().build(stream);
+                let tail = FlightDataEncoderBuilder::new().build(stream);
 
-                    head.chain(tail).boxed()
-                }
-                None => head.boxed(),
+                head.chain(tail).boxed()
             }
-        })
-        .boxed()
+            None => head.boxed(),
+        }
+    })
 }
 
 #[cfg(test)]

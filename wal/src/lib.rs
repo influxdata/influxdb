@@ -18,12 +18,10 @@ use generated_types::{
     google::{FieldViolation, OptionalField},
     influxdata::iox::wal::v1::{
         sequenced_wal_op::Op as WalOp, SequencedWalOp as ProtoSequencedWalOp,
-        WalOpBatch as ProtoWalOpBatch,
     },
 };
 use observability_deps::tracing::info;
 use parking_lot::Mutex;
-use prost::Message;
 use snafu::prelude::*;
 use std::{
     collections::BTreeMap,
@@ -34,8 +32,10 @@ use std::{
     time::Duration,
 };
 use tokio::sync::watch;
+use writer_thread::WriterIoThreadHandle;
 
 pub mod blocking;
+mod writer_thread;
 
 const WAL_FLUSH_INTERVAL: Duration = Duration::from_millis(10);
 
@@ -192,7 +192,7 @@ const SEGMENT_FILE_EXTENSION: &str = "dat";
 /// is not supported.
 pub struct Wal {
     root: PathBuf,
-    segments: Mutex<Segments>,
+    segments: Arc<Mutex<Segments>>,
     next_id_source: Arc<AtomicU64>,
     buffer: Mutex<WalBuffer>,
 }
@@ -271,10 +271,10 @@ impl Wal {
 
         let wal = Self {
             root,
-            segments: Mutex::new(Segments {
+            segments: Arc::new(Mutex::new(Segments {
                 closed_segments,
                 open_segment,
-            }),
+            })),
             next_id_source,
             buffer: Mutex::new(buffer),
         };
@@ -328,6 +328,15 @@ impl Wal {
     }
 
     async fn flush_buffer_background_task(&self) {
+        // Start a separate I/O thread to handle the serialisation, compression,
+        // and actual file I/O.
+        //
+        // This prevents the file I/O from blocking an async runtime thread,
+        // which in turn would starve it of the ability to service other tasks.
+        //
+        // When this handle is dropped, the I/O thread is gracefully stopped.
+        let io_thread = WriterIoThreadHandle::new(Arc::clone(&self.segments));
+
         let mut interval = tokio::time::interval(WAL_FLUSH_INTERVAL);
 
         loop {
@@ -343,28 +352,7 @@ impl Wal {
                 std::mem::replace(&mut *b, WalBuffer::new())
             };
 
-            // do the encoding while we're not holding any locks
-            let ops: Vec<_> = filled_buffer
-                .ops
-                .into_iter()
-                .map(ProtoSequencedWalOp::from)
-                .collect();
-            let batch = ProtoWalOpBatch { ops };
-            let encoded = batch.encode_to_vec();
-
-            // now write the data and let everyone know how things went
-            let res = {
-                let mut segments = self.segments.lock();
-                match segments.open_segment.write(&encoded) {
-                    Ok(summary) => WriteResult::Ok(summary),
-                    Err(e) => WriteResult::Err(e.to_string()),
-                }
-            };
-
-            // Do not panic if no thread is waiting for the flush notification -
-            // this may be the case if all writes disconnected before the WAL
-            // was flushed.
-            let _ = filled_buffer.notify_flush.send(Some(res));
+            io_thread.enqueue_batch(filled_buffer).await;
         }
     }
 
@@ -389,11 +377,13 @@ impl std::fmt::Debug for Wal {
     }
 }
 
+#[derive(Debug)]
 struct Segments {
     closed_segments: BTreeMap<SegmentId, ClosedSegment>,
     open_segment: OpenSegmentFileWriter,
 }
 
+#[derive(Debug)]
 struct WalBuffer {
     ops: Vec<SequencedWalOp>,
     notify_flush: tokio::sync::watch::Sender<Option<WriteResult>>,

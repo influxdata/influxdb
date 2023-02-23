@@ -1,3 +1,5 @@
+//! Instrumentation of [`QueryExec`] implementers.
+
 use async_trait::async_trait;
 use data_types::{NamespaceId, TableId};
 use iox_time::{SystemProvider, TimeProvider};
@@ -27,8 +29,8 @@ impl<T> QueryExecInstrumentation<T> {
     pub(crate) fn new(name: &'static str, inner: T, metrics: &metric::Registry) -> Self {
         // Record query duration metrics, broken down by query execution result
         let query_duration: Metric<DurationHistogram> = metrics.register_metric(
-            "ingester_flight_query_duration",
-            "flight request query execution duration",
+            "ingester_query_exec_duration",
+            "duration of time spent selecting partitions for a query",
         );
         let query_duration_success =
             query_duration.recorder(&[("handler", name), ("result", "success")]);
@@ -118,7 +120,7 @@ mod tests {
                     // Validate the histogram with the specified attributes saw
                     // an observation
                     let histogram = metrics
-                        .get_instrument::<Metric<DurationHistogram>>("ingester_flight_query_duration")
+                        .get_instrument::<Metric<DurationHistogram>>("ingester_query_exec_duration")
                         .expect("failed to find metric")
                         .get_observer(&Attributes::from(&$want_metric_attr))
                         .expect("failed to find attributes")

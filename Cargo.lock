@@ -2963,7 +2963,6 @@ dependencies = [
  "mutable_batch_lp",
  "object_store",
  "observability_deps",
- "once_cell",
  "parquet_file",
  "predicate",
  "schema",

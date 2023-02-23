@@ -3,7 +3,9 @@ use crate::ingester_address::IngesterAddress;
 use data_types::{IngesterMapping, ShardIndex};
 use serde::Deserialize;
 use snafu::{ResultExt, Snafu};
-use std::{collections::HashMap, fs, io, path::PathBuf, str::FromStr, sync::Arc};
+use std::{
+    collections::HashMap, fs, io, num::NonZeroUsize, path::PathBuf, str::FromStr, sync::Arc,
+};
 
 #[derive(Debug, Snafu)]
 #[allow(missing_docs)]
@@ -55,7 +57,7 @@ pub struct QuerierConfig {
         env = "INFLUXDB_IOX_NUM_QUERY_THREADS",
         action
     )]
-    pub num_query_threads: Option<usize>,
+    pub num_query_threads: Option<NonZeroUsize>,
 
     /// Size of memory pool used during query exec, in bytes.
     ///
@@ -273,7 +275,7 @@ pub struct QuerierConfig {
 impl QuerierConfig {
     /// Get the querier config's num query threads.
     #[must_use]
-    pub fn num_query_threads(&self) -> Option<usize> {
+    pub fn num_query_threads(&self) -> Option<NonZeroUsize> {
         self.num_query_threads
     }
 
@@ -465,7 +467,10 @@ mod tests {
         let actual =
             QuerierConfig::try_parse_from(["my_binary", "--num-query-threads", "42"]).unwrap();
 
-        assert_eq!(actual.num_query_threads(), Some(42));
+        assert_eq!(
+            actual.num_query_threads(),
+            Some(NonZeroUsize::new(42).unwrap())
+        );
         assert!(matches!(
             actual.ingester_addresses().unwrap(),
             IngesterAddresses::None,

@@ -17,7 +17,7 @@ use parquet_file::storage::StorageId;
 use trace::span::{SpanExt, SpanRecorder};
 mod cross_rt_stream;
 
-use std::{collections::HashMap, fmt::Display, sync::Arc};
+use std::{collections::HashMap, fmt::Display, num::NonZeroUsize, sync::Arc};
 
 use datafusion::{
     self,
@@ -40,10 +40,10 @@ use self::{non_null_checker::NonNullCheckerNode, split::StreamSplitNode};
 #[derive(Debug, Clone)]
 pub struct ExecutorConfig {
     /// Number of threads per thread pool
-    pub num_threads: usize,
+    pub num_threads: NonZeroUsize,
 
     /// Target parallelism for query execution
-    pub target_query_partitions: usize,
+    pub target_query_partitions: NonZeroUsize,
 
     /// Object stores
     pub object_stores: HashMap<StorageId, Arc<DynObjectStore>>,
@@ -72,11 +72,11 @@ pub struct DedicatedExecutors {
     reorg_exec: DedicatedExecutor,
 
     /// Number of threads per thread pool
-    num_threads: usize,
+    num_threads: NonZeroUsize,
 }
 
 impl DedicatedExecutors {
-    pub fn new(num_threads: usize) -> Self {
+    pub fn new(num_threads: NonZeroUsize) -> Self {
         let query_exec = DedicatedExecutor::new("IOx Query", num_threads);
         let reorg_exec = DedicatedExecutor::new("IOx Reorg", num_threads);
 
@@ -88,14 +88,18 @@ impl DedicatedExecutors {
     }
 
     pub fn new_testing() -> Self {
+        let query_exec = DedicatedExecutor::new_testing();
+        let reorg_exec = DedicatedExecutor::new_testing();
+        assert_eq!(query_exec.num_threads(), reorg_exec.num_threads());
+        let num_threads = query_exec.num_threads();
         Self {
-            query_exec: DedicatedExecutor::new_testing(),
-            reorg_exec: DedicatedExecutor::new_testing(),
-            num_threads: 1,
+            query_exec,
+            reorg_exec,
+            num_threads,
         }
     }
 
-    pub fn num_threads(&self) -> usize {
+    pub fn num_threads(&self) -> NonZeroUsize {
         self.num_threads
     }
 }
@@ -133,7 +137,7 @@ pub enum ExecutorType {
 impl Executor {
     /// Creates a new executor with a two dedicated thread pools, each
     /// with num_threads
-    pub fn new(num_threads: usize, mem_pool_size: usize) -> Self {
+    pub fn new(num_threads: NonZeroUsize, mem_pool_size: usize) -> Self {
         Self::new_with_config(ExecutorConfig {
             num_threads,
             target_query_partitions: num_threads,
@@ -152,8 +156,8 @@ impl Executor {
     /// to preserve resources.
     pub fn new_testing() -> Self {
         let config = ExecutorConfig {
-            num_threads: 1,
-            target_query_partitions: 1,
+            num_threads: NonZeroUsize::new(1).unwrap(),
+            target_query_partitions: NonZeroUsize::new(1).unwrap(),
             object_stores: HashMap::default(),
             mem_pool_size: 1024 * 1024 * 1024, // 1GB
         };

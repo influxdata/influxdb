@@ -7,6 +7,7 @@ use object_store_metrics::ObjectStoreMetrics;
 use observability_deps::tracing::*;
 use parquet_file::storage::{ParquetStorage, StorageId};
 use std::collections::HashMap;
+use std::num::NonZeroUsize;
 use std::sync::Arc;
 use thiserror::Error;
 
@@ -75,7 +76,7 @@ pub struct Config {
         default_value = "4",
         action
     )]
-    pub query_exec_thread_count: usize,
+    pub query_exec_thread_count: NonZeroUsize,
 
     /// Size of memory pool used during query exec, in bytes.
     #[clap(
