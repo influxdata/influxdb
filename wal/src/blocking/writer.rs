@@ -4,7 +4,7 @@ use crc32fast::Hasher;
 use snafu::prelude::*;
 use std::{
     fs::{File, OpenOptions},
-    io::{self, Write},
+    io::{self, Cursor, Write},
     mem, num,
     path::PathBuf,
     sync::{
@@ -13,6 +13,17 @@ use std::{
     },
 };
 
+/// Defines the desired maximum size of the re-used write
+/// [`OpenSegmentFileWriter`] buffer.
+///
+/// The buffer is free to exceed this soft limit as necessary, but will always
+/// be shrunk back down to at most this size eventually.
+///
+/// Setting this too low causes needless reallocations for each write that
+/// exceeds it. Setting it too high wastes memory. Configure it to a tolerable
+/// amount of memory overhead for the lifetime of the writer.
+const SOFT_MAX_BUFFER_LEN: usize = 1024 * 128; // 128kiB
+
 /// Struct for writing data to a segment file in a wal
 #[derive(Debug)]
 pub struct OpenSegmentFileWriter {
@@ -20,6 +31,8 @@ pub struct OpenSegmentFileWriter {
     path: PathBuf,
     f: File,
     bytes_written: usize,
+
+    buffer: Vec<u8>,
 }
 
 impl OpenSegmentFileWriter {
@@ -53,6 +66,7 @@ impl OpenSegmentFileWriter {
             path,
             f,
             bytes_written,
+            buffer: Vec::with_capacity(8 * 1204), // 8kiB initial size
         })
     }
 
@@ -61,42 +75,58 @@ impl OpenSegmentFileWriter {
     }
 
     pub fn write(&mut self, data: &[u8]) -> Result<WriteSummary> {
+        // Ensure the write buffer is always empty before using it.
+        self.buffer.clear();
+        // And shrink the buffer below the maximum permitted size should the odd
+        // large batch grow it. This is a NOP if the size is less than
+        // SOFT_MAX_BUFFER_LEN already.
+        self.buffer.shrink_to(SOFT_MAX_BUFFER_LEN);
+
         // Only designed to support chunks up to `u32::max` bytes long.
         let uncompressed_len = data.len();
         u32::try_from(uncompressed_len).context(ChunkSizeTooLargeSnafu {
             actual: uncompressed_len,
         })?;
 
-        // TODO: Can this code avoid keeping all intermediate data in memory?
-        // TODO: The snappy frame format has a built-in CRC32; should we just use that?
-        let mut encoder = snap::write::FrameEncoder::new(Vec::new());
+        // The chunk header is two u32 values, so write a dummy u64 value and
+        // come back to fill them in later.
+        self.buffer
+            .write_u64::<BigEndian>(0)
+            .expect("cannot fail to write to buffer");
+
+        // Compress the payload into the reused buffer, recording the crc hash
+        // as it is wrote.
+        let mut encoder = snap::write::FrameEncoder::new(HasherWrapper::new(&mut self.buffer));
         encoder.write_all(data).context(UnableToCompressDataSnafu)?;
-        let compressed_data = encoder.into_inner().expect("cannot fail to flush to a Vec");
-        let actual_compressed_len = compressed_data.len();
-        let actual_compressed_len =
-            u32::try_from(actual_compressed_len).context(ChunkSizeTooLargeSnafu {
-                actual: actual_compressed_len,
-            })?;
+        let (checksum, buf) = encoder
+            .into_inner()
+            .expect("cannot fail to flush to a Vec")
+            .finalize();
 
-        let mut hasher = Hasher::new();
-        hasher.update(&compressed_data);
-        let checksum = hasher.finalize();
+        // Adjust the compressed length to take into account the u64 padding
+        // above.
+        let compressed_len = buf.len() - mem::size_of::<u64>();
+        let compressed_len = u32::try_from(compressed_len).context(ChunkSizeTooLargeSnafu {
+            actual: compressed_len,
+        })?;
 
-        self.f
-            .write_u32::<BigEndian>(checksum)
+        // Go back and write the chunk header values
+        let mut buf = Cursor::new(buf);
+        buf.set_position(0);
+
+        buf.write_u32::<BigEndian>(checksum)
             .context(SegmentWriteChecksumSnafu)?;
-        self.f
-            .write_u32::<BigEndian>(actual_compressed_len)
+        buf.write_u32::<BigEndian>(compressed_len)
             .context(SegmentWriteLengthSnafu)?;
-        self.f
-            .write_all(&compressed_data)
-            .context(SegmentWriteDataSnafu)?;
 
+        // Write the entire buffer to the file
+        let buf = buf.into_inner();
+        let bytes_written = buf.len();
+        self.f.write_all(buf).context(SegmentWriteDataSnafu)?;
+
+        // fsync the fd
         self.f.sync_all().expect("fsync failure");
 
-        let bytes_written = mem::size_of_val(&checksum)
-            + mem::size_of_val(&actual_compressed_len)
-            + compressed_data.len();
         self.bytes_written += bytes_written;
 
         Ok(WriteSummary {
@@ -168,3 +198,37 @@ pub enum Error {
 }
 
 pub type Result<T, E = Error> = std::result::Result<T, E>;
+
+/// A [`HasherWrapper`] acts as a [`Write`] decorator, recording the crc
+/// checksum of the data wrote to the inner [`Write`] implementation.
+struct HasherWrapper<W> {
+    inner: W,
+    hasher: Hasher,
+}
+
+impl<W> HasherWrapper<W> {
+    fn new(inner: W) -> Self {
+        Self {
+            inner,
+            hasher: Hasher::default(),
+        }
+    }
+
+    fn finalize(self) -> (u32, W) {
+        (self.hasher.finalize(), self.inner)
+    }
+}
+
+impl<W> Write for HasherWrapper<W>
+where
+    W: Write,
+{
+    fn write(&mut self, buf: &[u8]) -> io::Result<usize> {
+        self.hasher.update(buf);
+        self.inner.write(buf)
+    }
+
+    fn flush(&mut self) -> io::Result<()> {
+        self.inner.flush()
+    }
+}
