@@ -166,7 +166,7 @@ impl<T> QueryResultInstrumentation<T> {
             .register_metric_with_options::<U64Histogram, _>(
                 "ingester_query_result_partition",
                 "distribution of query result partition count sent to the client",
-                || U64HistogramOptions::new([1, 2, 3, 4, 5]),
+                || U64HistogramOptions::new([1, 2, 3, 4, 5, 6, 7, 8, 9, 10]),
             )
             .recorder(&[]);
 
