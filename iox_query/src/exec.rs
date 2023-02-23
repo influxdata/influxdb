@@ -17,7 +17,7 @@ use parquet_file::storage::StorageId;
 use trace::span::{SpanExt, SpanRecorder};
 mod cross_rt_stream;
 
-use std::{collections::HashMap, sync::Arc};
+use std::{collections::HashMap, fmt::Display, sync::Arc};
 
 use datafusion::{
     self,
@@ -50,6 +50,16 @@ pub struct ExecutorConfig {
 
     /// Memory pool size in bytes.
     pub mem_pool_size: usize,
+}
+
+impl Display for ExecutorConfig {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(
+            f,
+            "num_threads={}, target_query_partitions={}, mem_pool_size={}",
+            self.num_threads, self.target_query_partitions, self.mem_pool_size
+        )
+    }
 }
 
 #[derive(Debug)]
@@ -103,6 +113,12 @@ pub struct Executor {
     /// The DataFusion [RuntimeEnv] (including memory manager and disk
     /// manager) used for all executions
     runtime: Arc<RuntimeEnv>,
+}
+
+impl Display for Executor {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "Executor({})", self.config)
+    }
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]

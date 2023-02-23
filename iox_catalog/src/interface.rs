@@ -12,7 +12,7 @@ use iox_time::TimeProvider;
 use snafu::{OptionExt, Snafu};
 use std::{
     collections::{BTreeMap, HashMap, HashSet},
-    fmt::Debug,
+    fmt::{Debug, Display},
     sync::Arc,
 };
 use uuid::Uuid;
@@ -198,7 +198,7 @@ impl SoftDeletedRows {
 
 /// Methods for working with the catalog.
 #[async_trait]
-pub trait Catalog: Send + Sync + Debug {
+pub trait Catalog: Send + Sync + Debug + Display {
     /// Setup catalog for usage and apply possible migrations.
     async fn setup(&self) -> Result<(), Error>;
 
@@ -505,9 +505,6 @@ pub trait PartitionRepo: Send + Sync {
     /// get partition by ID
     async fn get_by_id(&mut self, partition_id: PartitionId) -> Result<Option<Partition>>;
 
-    /// return partitions for a given shard
-    async fn list_by_shard(&mut self, shard_id: ShardId) -> Result<Vec<Partition>>;
-
     /// return partitions for a given namespace
     async fn list_by_namespace(&mut self, namespace_id: NamespaceId) -> Result<Vec<Partition>>;
 
@@ -574,8 +571,15 @@ pub trait PartitionRepo: Send + Sync {
         sequence_number: SequenceNumber,
     ) -> Result<()>;
 
+    /// Return the N most recently created partitions.
+    async fn most_recent_n(&mut self, n: usize) -> Result<Vec<Partition>>;
+
     /// Return the N most recently created partitions for the specified shards.
-    async fn most_recent_n(&mut self, n: usize, shards: &[ShardId]) -> Result<Vec<Partition>>;
+    async fn most_recent_n_in_shards(
+        &mut self,
+        n: usize,
+        shards: &[ShardId],
+    ) -> Result<Vec<Partition>>;
 
     /// Select partition for cold/warm/hot compaction
     /// These are partitions with files created recently (aka created after the specified time_in_the_past)
@@ -1904,18 +1908,6 @@ pub(crate) mod test_helpers {
             .unwrap()
             .is_none());
 
-        // List them and assert they match
-        let listed = repos
-            .partitions()
-            .list_by_shard(shard.id)
-            .await
-            .expect("failed to list partitions")
-            .into_iter()
-            .map(|v| (v.id, v))
-            .collect::<BTreeMap<_, _>>();
-
-        assert_eq!(created, listed);
-
         let listed = repos
             .partitions()
             .list_by_table_id(table.id)
@@ -2186,21 +2178,42 @@ pub(crate) mod test_helpers {
 
         let recent = repos
             .partitions()
-            .most_recent_n(10, &[shard.id, other_shard.id])
+            .most_recent_n(10)
             .await
             .expect("should list most recent");
         assert_eq!(recent.len(), 4);
 
         let recent = repos
             .partitions()
-            .most_recent_n(10, &[shard.id])
+            .most_recent_n(4)
+            .await
+            .expect("should list most recent");
+        assert_eq!(recent.len(), 4);
+
+        let recent = repos
+            .partitions()
+            .most_recent_n(2)
+            .await
+            .expect("should list most recent");
+        assert_eq!(recent.len(), 2);
+
+        let recent = repos
+            .partitions()
+            .most_recent_n_in_shards(10, &[shard.id, other_shard.id])
+            .await
+            .expect("should list most recent");
+        assert_eq!(recent.len(), 4);
+
+        let recent = repos
+            .partitions()
+            .most_recent_n_in_shards(10, &[shard.id])
             .await
             .expect("should list most recent");
         assert_eq!(recent.len(), 3);
 
         let recent2 = repos
             .partitions()
-            .most_recent_n(10, &[shard.id, ShardId::new(42)])
+            .most_recent_n_in_shards(10, &[shard.id, ShardId::new(42)])
             .await
             .expect("should list most recent");
         assert_eq!(recent, recent2);

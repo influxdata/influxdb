@@ -1,13 +1,19 @@
 //! APIs for testing.
 #![cfg(test)]
 
-use crate::test::TestChunk;
+use crate::plan::influxql::SchemaProvider;
+use crate::test::{TestChunk, TestDatabase};
 use crate::QueryChunkMeta;
+use datafusion::common::DataFusionError;
+use datafusion::datasource::empty::EmptyTable;
+use datafusion::datasource::provider_as_source;
+use datafusion::logical_expr::TableSource;
 use influxdb_influxql_parser::parse_statements;
 use influxdb_influxql_parser::select::{Field, SelectStatement};
 use influxdb_influxql_parser::statement::Statement;
 use predicate::rpc_predicate::QueryNamespaceMeta;
 use schema::Schema;
+use std::collections::HashMap;
 use std::sync::Arc;
 
 /// Returns the first `Field` of the `SELECT` statement.
@@ -142,27 +148,68 @@ pub(crate) mod database {
     }
 }
 
-pub(crate) struct MockNamespace {
+pub(crate) struct MockSchemaProvider {
     chunks: Vec<Arc<TestChunk>>,
 }
 
-impl Default for MockNamespace {
+impl Default for MockSchemaProvider {
     fn default() -> Self {
         let chunks = database::chunks();
         Self { chunks }
     }
 }
 
-impl QueryNamespaceMeta for MockNamespace {
-    fn table_names(&self) -> Vec<String> {
-        self.chunks
-            .iter()
-            .map(|x| x.table_name().to_string())
-            .collect()
+impl SchemaProvider for MockSchemaProvider {
+    fn get_table_provider(
+        &self,
+        _name: &str,
+    ) -> crate::exec::context::Result<Arc<dyn TableSource>> {
+        unimplemented!()
     }
 
-    fn table_schema(&self, table_name: &str) -> Option<Schema> {
-        let c = self.chunks.iter().find(|x| x.table_name() == table_name)?;
+    fn table_names(&self) -> Vec<&'_ str> {
+        self.chunks.iter().map(|x| x.table_name()).collect()
+    }
+
+    fn table_schema(&self, name: &str) -> Option<Schema> {
+        let c = self.chunks.iter().find(|x| x.table_name() == name)?;
         Some(c.schema().clone())
+    }
+}
+
+pub(crate) struct TestDatabaseAdapter {
+    tables: HashMap<String, (Arc<dyn TableSource>, Schema)>,
+}
+
+impl SchemaProvider for TestDatabaseAdapter {
+    fn get_table_provider(&self, name: &str) -> crate::exec::context::Result<Arc<dyn TableSource>> {
+        self.tables
+            .get(name)
+            .map(|(t, _)| Arc::clone(t))
+            .ok_or_else(|| DataFusionError::Plan(format!("measurement does not exist: {name}")))
+    }
+
+    fn table_names(&self) -> Vec<&'_ str> {
+        self.tables.keys().map(|k| k.as_str()).collect::<Vec<_>>()
+    }
+
+    fn table_schema(&self, name: &str) -> Option<Schema> {
+        self.tables.get(name).map(|(_, s)| s.clone())
+    }
+}
+
+impl TestDatabaseAdapter {
+    pub(crate) fn new(db: &TestDatabase) -> Self {
+        let table_names = db.table_names();
+        let mut res = Self {
+            tables: HashMap::with_capacity(table_names.len()),
+        };
+        for table in table_names {
+            let schema = db.table_schema(&table).unwrap();
+            let s = Arc::new(EmptyTable::new(schema.as_arrow()));
+            res.tables.insert(table, (provider_as_source(s), schema));
+        }
+
+        res
     }
 }

@@ -26,7 +26,7 @@ use sqlx::types::Uuid;
 use std::{
     collections::{HashMap, HashSet},
     convert::TryFrom,
-    fmt::Formatter,
+    fmt::{Display, Formatter},
     sync::Arc,
 };
 use tokio::sync::{Mutex, OwnedMutexGuard};
@@ -108,6 +108,12 @@ impl Drop for MemTxn {
             }
             _ => {}
         }
+    }
+}
+
+impl Display for MemCatalog {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        write!(f, "Memory")
     }
 }
 
@@ -810,18 +816,6 @@ impl PartitionRepo for MemTxn {
             .cloned())
     }
 
-    async fn list_by_shard(&mut self, shard_id: ShardId) -> Result<Vec<Partition>> {
-        let stage = self.stage();
-
-        let partitions: Vec<_> = stage
-            .partitions
-            .iter()
-            .filter(|p| p.shard_id == shard_id)
-            .cloned()
-            .collect();
-        Ok(partitions)
-    }
-
     async fn list_by_namespace(&mut self, namespace_id: NamespaceId) -> Result<Vec<Partition>> {
         let stage = self.stage();
 
@@ -973,7 +967,16 @@ impl PartitionRepo for MemTxn {
         }
     }
 
-    async fn most_recent_n(&mut self, n: usize, shards: &[ShardId]) -> Result<Vec<Partition>> {
+    async fn most_recent_n(&mut self, n: usize) -> Result<Vec<Partition>> {
+        let stage = self.stage();
+        Ok(stage.partitions.iter().rev().take(n).cloned().collect())
+    }
+
+    async fn most_recent_n_in_shards(
+        &mut self,
+        n: usize,
+        shards: &[ShardId],
+    ) -> Result<Vec<Partition>> {
         let stage = self.stage();
         Ok(stage
             .partitions

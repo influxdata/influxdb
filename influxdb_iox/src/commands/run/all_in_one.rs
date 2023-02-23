@@ -5,7 +5,7 @@ use crate::process_info::setup_metric_registry;
 use super::main;
 use clap_blocks::{
     catalog_dsn::CatalogDsnConfig,
-    compactor2::{Compactor2Config, CompactorAlgoVersion},
+    compactor2::Compactor2Config,
     ingester2::Ingester2Config,
     ingester_address::IngesterAddress,
     object_store::{make_object_store, ObjectStoreConfig},
@@ -228,7 +228,9 @@ pub struct Config {
     )]
     pub persist_max_parallelism: usize,
 
-    // TODO - remove these ingester tuning knobs  from all in one mode??
+    // TODO - evaluate if these ingester knobs could be replaced with
+    // hard coded values as a way to encourage people to use the
+    // multi-service setup for performance sensitive installations
     /// The maximum number of persist tasks that can be queued at any one time.
     ///
     /// Once this limit is reached, ingest is blocked until the persist backlog
@@ -480,7 +482,6 @@ impl Config {
             max_input_parquet_bytes_per_partition: 268_435_456, // 256 MB
             shard_count: None,
             shard_id: None,
-            compact_version: CompactorAlgoVersion::AllAtOnce,
             min_num_l1_files_to_compact: 1,
             process_once: false,
             process_all_partitions: false,

@@ -7,7 +7,6 @@ use data_types::ParquetFile;
 
 use crate::{file_classification::FileClassification, partition_info::PartitionInfo, RoundInfo};
 
-pub mod all_at_once;
 pub mod logging;
 pub mod split_based;
 

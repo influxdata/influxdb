@@ -1,6 +1,8 @@
 use datafusion::common::{DFSchema, DFSchemaRef, DataFusionError, Result};
 use datafusion::logical_expr::Operator;
 use influxdb_influxql_parser::expression::BinaryOperator;
+use influxdb_influxql_parser::string::Regex;
+use query_functions::clean_non_meta_escapes;
 use schema::Schema;
 use std::sync::Arc;
 
@@ -40,4 +42,12 @@ impl Schemas {
             iox_schema: schema_from_df(df_schema)?,
         })
     }
+}
+
+/// Sanitize an InfluxQL regular expression and create a compiled [`regex::Regex`].
+pub fn parse_regex(re: &Regex) -> Result<regex::Regex> {
+    let pattern = clean_non_meta_escapes(re.as_str());
+    regex::Regex::new(&pattern).map_err(|e| {
+        DataFusionError::External(format!("invalid regular expression '{re}': {e}").into())
+    })
 }

@@ -12,6 +12,7 @@
 use chrono::{DateTime, TimeZone, Timelike, Utc};
 use parking_lot::{lock_api::RwLockUpgradableReadGuard, RwLock};
 use std::{
+    fmt::{Debug, Display},
     future::Future,
     ops::{Add, Sub},
     pin::Pin,
@@ -62,7 +63,7 @@ impl Sub<Self> for Time {
     }
 }
 
-impl std::fmt::Debug for Time {
+impl Debug for Time {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         std::fmt::Display::fmt(self, f)
     }
@@ -181,7 +182,7 @@ impl Time {
     }
 }
 
-pub trait TimeProvider: std::fmt::Debug + Send + Sync + 'static {
+pub trait TimeProvider: Debug + Display + Send + Sync + 'static {
     /// Returns the current `Time`. No guarantees are made about monotonicity
     fn now(&self) -> Time;
 
@@ -219,6 +220,12 @@ pub struct SystemProvider {}
 impl SystemProvider {
     pub fn new() -> Self {
         Self::default()
+    }
+}
+
+impl Display for SystemProvider {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "System")
     }
 }
 
@@ -276,6 +283,12 @@ impl MockProvider {
             waiter.wake()
         }
         inner.now
+    }
+}
+
+impl Display for MockProvider {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "Mock")
     }
 }
 

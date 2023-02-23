@@ -28,7 +28,7 @@ use sqlx::{
     Acquire, ConnectOptions, Executor, Postgres, Row,
 };
 use sqlx_hotswap_pool::HotSwapPool;
-use std::{collections::HashMap, str::FromStr, sync::Arc, time::Duration};
+use std::{collections::HashMap, fmt::Display, str::FromStr, sync::Arc, time::Duration};
 
 static MIGRATOR: Migrator = sqlx::migrate!();
 
@@ -101,8 +101,9 @@ impl Default for PostgresConnectionOptions {
 pub struct PostgresCatalog {
     metrics: Arc<metric::Registry>,
     pool: HotSwapPool<Postgres>,
-    schema_name: String,
     time_provider: Arc<dyn TimeProvider>,
+    // Connection options for display
+    options: PostgresConnectionOptions,
 }
 
 // struct to get return value from "select count(id) ..." query
@@ -121,13 +122,28 @@ impl PostgresCatalog {
             .await
             .map_err(|e| Error::SqlxError { source: e })?;
 
-        let schema_name = options.schema_name;
         Ok(Self {
             pool,
             metrics,
-            schema_name,
             time_provider: Arc::new(SystemProvider::new()),
+            options,
         })
+    }
+
+    fn schema_name(&self) -> &str {
+        &self.options.schema_name
+    }
+}
+
+impl Display for PostgresCatalog {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(
+            f,
+            // Do not include dsn in log as it may have credentials
+            // that should not end up in the log
+            "Postgres(dsn=OMITTED, schema_name='{}')",
+            self.schema_name()
+        )
     }
 }
 
@@ -281,7 +297,7 @@ impl Catalog for PostgresCatalog {
         //
         // This makes the migrations/20210217134322_create_schema.sql step unnecessary; we need to
         // keep that file because migration files are immutable.
-        let create_schema_query = format!("CREATE SCHEMA IF NOT EXISTS {};", &self.schema_name);
+        let create_schema_query = format!("CREATE SCHEMA IF NOT EXISTS {};", self.schema_name());
         self.pool
             .execute(sqlx::query(&create_schema_query))
             .await
@@ -1257,14 +1273,6 @@ RETURNING *;
         Ok(Some(partition))
     }
 
-    async fn list_by_shard(&mut self, shard_id: ShardId) -> Result<Vec<Partition>> {
-        sqlx::query_as::<_, Partition>(r#"SELECT * FROM partition WHERE shard_id = $1;"#)
-            .bind(shard_id) // $1
-            .fetch_all(&mut self.inner)
-            .await
-            .map_err(|e| Error::SqlxError { source: e })
-    }
-
     async fn list_by_namespace(&mut self, namespace_id: NamespaceId) -> Result<Vec<Partition>> {
         sqlx::query_as::<_, Partition>(
             r#"
@@ -1480,7 +1488,19 @@ WHERE id = $2;
         Ok(())
     }
 
-    async fn most_recent_n(&mut self, n: usize, shards: &[ShardId]) -> Result<Vec<Partition>> {
+    async fn most_recent_n(&mut self, n: usize) -> Result<Vec<Partition>> {
+        sqlx::query_as(r#"SELECT * FROM partition ORDER BY id DESC LIMIT $1;"#)
+            .bind(n as i64) // $1
+            .fetch_all(&mut self.inner)
+            .await
+            .map_err(|e| Error::SqlxError { source: e })
+    }
+
+    async fn most_recent_n_in_shards(
+        &mut self,
+        n: usize,
+        shards: &[ShardId],
+    ) -> Result<Vec<Partition>> {
         sqlx::query_as(
             r#"SELECT * FROM partition WHERE shard_id IN (SELECT UNNEST($1)) ORDER BY id DESC LIMIT $2;"#,
         )
@@ -2588,7 +2608,7 @@ mod tests {
         assert_eq!(tz, "UTC");
 
         let pool = postgres.pool.clone();
-        let schema_name = postgres.schema_name.clone();
+        let schema_name = postgres.schema_name().to_string();
 
         let postgres: Arc<dyn Catalog> = Arc::new(postgres);
 
