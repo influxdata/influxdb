@@ -1,7 +1,7 @@
 use std::{sync::Arc, thread::JoinHandle};
 
 use generated_types::influxdata::iox::wal::v1 as proto;
-use observability_deps::tracing::{debug, warn};
+use observability_deps::tracing::{debug, error};
 use parking_lot::Mutex;
 use prost::Message;
 use tokio::sync::mpsc;
@@ -134,7 +134,7 @@ impl WriterIoThread {
                 match segments.open_segment.write(&proto_data) {
                     Ok(summary) => WriteResult::Ok(summary),
                     Err(e) => {
-                        warn!(erorr=%e, "failed to write WAL batch");
+                        error!(error=%e, "failed to write WAL batch");
                         WriteResult::Err(e.to_string())
                     }
                 }
