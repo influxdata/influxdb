@@ -11,3 +11,5 @@ mod util;
 mod var_ref;
 
 pub use planner::InfluxQLToLogicalPlan;
+pub use planner::SchemaProvider;
+pub use util::parse_regex;

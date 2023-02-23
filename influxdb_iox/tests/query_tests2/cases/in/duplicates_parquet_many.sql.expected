@@ -3,7 +3,7 @@
 +-----------------+----------+
 | COUNT(UInt8(1)) | SUM(m.f) |
 +-----------------+----------+
-| 21              | 33       |
+| 21              | 33.0     |
 +-----------------+----------+
 -- SQL: EXPLAIN select count(*), sum(f) from m;
 -- Results After Normalizing UUIDs
