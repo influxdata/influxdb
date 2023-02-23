@@ -53,7 +53,7 @@ pub async fn querier_namespace(ns: &Arc<TestNamespace>) -> QuerierNamespace {
         ns.catalog.exec(),
         Some(create_ingester_connection_for_testing()),
         sharder,
-        false,
+        true,
     )
 }
 
