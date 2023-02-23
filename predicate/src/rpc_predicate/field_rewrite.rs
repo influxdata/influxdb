@@ -204,7 +204,7 @@ impl FieldProjectionRewriter {
                 }
             });
 
-        Ok(predicate.with_field_columns(new_fields))
+        Ok(predicate.with_field_columns(new_fields).unwrap())
     }
 }
 
