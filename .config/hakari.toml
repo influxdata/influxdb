@@ -1,7 +1,10 @@
 # This file contains settings for `cargo hakari`.
-# See https://docs.rs/cargo-hakari/*/cargo_hakari/config for a full list of options.
+# See https://docs.rs/cargo-hakari/latest/cargo_hakari/config for a full list of options.
 
 hakari-package = "workspace-hack"
+
+# Format version for hakari's output. Version 4 requires cargo-hakari 0.9.22 or above.
+dep-format-version = "4"
 
 # Setting workspace.resolver = "2" in the root Cargo.toml is HIGHLY recommended.
 # Hakari works much better with the new feature resolver.
