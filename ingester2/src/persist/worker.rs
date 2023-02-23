@@ -305,7 +305,16 @@ where
     // table in order to make the file visible to queriers.
     let parquet_table_data =
         iox_metadata.to_parquet_file(ctx.partition_id(), file_size, &md, |name| {
-            table_schema.columns.get(name).expect("unknown column").id
+            table_schema
+                .columns
+                .get(name)
+                .unwrap_or_else(|| {
+                    panic!(
+                        "unknown column {name} in table ID {table_id}",
+                        table_id = ctx.table_id().get()
+                    )
+                })
+                .id
         });
 
     (catalog_sort_key_update, parquet_table_data)
