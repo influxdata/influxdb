@@ -120,7 +120,7 @@ impl<T> QueryResultInstrumentation<T> {
         let row_hist: U64Histogram = metrics
             .register_metric_with_options::<U64Histogram, _>(
                 "ingester_query_result_row",
-                "distribution of query result row count",
+                "distribution of query result row count sent to the client",
                 || {
                     U64HistogramOptions::new([
                         1 << 5,  // 32
@@ -145,7 +145,7 @@ impl<T> QueryResultInstrumentation<T> {
         let record_batch_hist: U64Histogram = metrics
             .register_metric_with_options::<U64Histogram, _>(
                 "ingester_query_result_record_batch",
-                "distribution of query result record batch count",
+                "distribution of query result record batch count sent to the client",
                 || {
                     U64HistogramOptions::new([
                         1 << 1, // 2
@@ -165,7 +165,7 @@ impl<T> QueryResultInstrumentation<T> {
         let partition_hist: U64Histogram = metrics
             .register_metric_with_options::<U64Histogram, _>(
                 "ingester_query_result_partition",
-                "distribution of query result partition count",
+                "distribution of query result partition count sent to the client",
                 || U64HistogramOptions::new([1, 2, 3, 4, 5]),
             )
             .recorder(&[]);
