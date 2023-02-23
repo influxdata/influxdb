@@ -478,12 +478,12 @@ impl Predicate {
     pub fn with_field_columns(
         mut self,
         columns: impl IntoIterator<Item = impl Into<String>>,
-    ) -> Self {
+    ) -> Result<Self, &'static str> {
         // We need to distinguish predicates like `column_name In
         // (foo, bar)` and `column_name = foo and column_name = bar` in order to handle
         // this
         if self.field_columns.is_some() {
-            unimplemented!("Complex/Multi field predicates are not yet supported");
+            return Err("Complex/Multi field predicates are not yet supported");
         }
 
         let column_names = columns
@@ -492,7 +492,7 @@ impl Predicate {
             .collect::<BTreeSet<_>>();
 
         self.field_columns = Some(column_names);
-        self
+        Ok(self)
     }
 
     /// Adds all expressions to the list of general purpose predicates
@@ -703,11 +703,26 @@ mod tests {
         let p = Predicate::new()
             .with_range(1, 100)
             .with_expr(col("foo").eq(lit(42)))
-            .with_field_columns(vec!["f1", "f2"]);
+            .with_field_columns(vec!["f1", "f2"])
+            .unwrap();
 
         assert_eq!(
             p.to_string(),
             "Predicate field_columns: {f1, f2} range: [1 - 100] exprs: [foo = Int32(42)]"
+        );
+    }
+
+    #[test]
+    fn predicate_multi_field_cols_not_supported() {
+        let err = Predicate::new()
+            .with_field_columns(vec!["f1", "f2"])
+            .unwrap()
+            .with_field_columns(vec!["f1", "f2"])
+            .unwrap_err();
+
+        assert_eq!(
+            err.to_string(),
+            "Complex/Multi field predicates are not yet supported"
         );
     }
 

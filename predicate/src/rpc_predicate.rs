@@ -372,7 +372,7 @@ mod tests {
         )
         .unwrap();
 
-        let expected = Predicate::new().with_field_columns(vec!["f1"]);
+        let expected = Predicate::new().with_field_columns(vec!["f1"]).unwrap();
 
         assert_eq!(predicate, expected);
     }
@@ -387,7 +387,9 @@ mod tests {
         )
         .unwrap();
 
-        let expected = Predicate::new().with_field_columns(vec!["f1", "f2"]);
+        let expected = Predicate::new()
+            .with_field_columns(vec!["f1", "f2"])
+            .unwrap();
 
         assert_eq!(predicate, expected);
     }
@@ -401,7 +403,9 @@ mod tests {
         )
         .unwrap();
 
-        let expected = Predicate::new().with_field_columns(vec![] as Vec<String>);
+        let expected = Predicate::new()
+            .with_field_columns(vec![] as Vec<String>)
+            .unwrap();
         assert_eq!(&expected.field_columns, &Some(BTreeSet::new()));
         assert_eq!(predicate, expected);
     }
@@ -449,7 +453,7 @@ mod tests {
         )
         .unwrap();
 
-        let expected = Predicate::new().with_field_columns(vec!["f2"]);
+        let expected = Predicate::new().with_field_columns(vec!["f2"]).unwrap();
 
         assert_eq!(predicate, expected);
     }
@@ -466,7 +470,7 @@ mod tests {
         )
         .unwrap();
 
-        let expected = Predicate::new().with_field_columns(vec!["f1"]);
+        let expected = Predicate::new().with_field_columns(vec!["f1"]).unwrap();
 
         assert_eq!(predicate, expected);
     }
