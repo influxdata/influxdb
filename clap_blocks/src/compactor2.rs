@@ -58,7 +58,7 @@ pub struct Compactor2Config {
         env = "INFLUXDB_IOX_QUERY_EXEC_THREAD_COUNT",
         action
     )]
-    pub query_exec_thread_count: Option<usize>,
+    pub query_exec_thread_count: Option<NonZeroUsize>,
 
     /// Size of memory pool used during compaction plan execution, in
     /// bytes.

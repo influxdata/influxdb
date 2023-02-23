@@ -54,7 +54,7 @@ use executor::DedicatedExecutor;
 use futures::{Stream, StreamExt, TryStreamExt};
 use observability_deps::tracing::debug;
 use query_functions::{register_scalar_functions, selectors::register_selector_aggregates};
-use std::{convert::TryInto, fmt, sync::Arc};
+use std::{convert::TryInto, fmt, num::NonZeroUsize, sync::Arc};
 use trace::{
     ctx::SpanContext,
     span::{MetaValue, Span, SpanExt, SpanRecorder},
@@ -200,10 +200,10 @@ impl IOxSessionConfig {
     }
 
     /// Set execution concurrency
-    pub fn with_target_partitions(mut self, target_partitions: usize) -> Self {
+    pub fn with_target_partitions(mut self, target_partitions: NonZeroUsize) -> Self {
         self.session_config = self
             .session_config
-            .with_target_partitions(target_partitions);
+            .with_target_partitions(target_partitions.get());
         self
     }
 

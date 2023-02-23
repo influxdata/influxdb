@@ -18,7 +18,7 @@ use object_store_metrics::ObjectStoreMetrics;
 use observability_deps::tracing::*;
 use panic_logging::make_panics_fatal;
 use parquet_file::storage::{ParquetStorage, StorageId};
-use std::sync::Arc;
+use std::{num::NonZeroUsize, sync::Arc};
 use thiserror::Error;
 
 #[derive(Debug, Error)]
@@ -73,7 +73,7 @@ pub struct Config {
         default_value = "4",
         action
     )]
-    pub exec_thread_count: usize,
+    pub exec_thread_count: NonZeroUsize,
 
     /// Size of memory pool used during query exec, in bytes.
     #[clap(
