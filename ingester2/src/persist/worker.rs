@@ -311,7 +311,7 @@ where
                 .unwrap_or_else(|| {
                     panic!(
                         "unknown column {name} in table ID {table_id}",
-                        table_id = ctx.table_id()
+                        table_id = ctx.table_id().get()
                     )
                 })
                 .id
