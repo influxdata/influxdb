@@ -210,6 +210,14 @@ impl Error {
             | Self::FilteringSeries { source, .. }
             | Self::GroupingSeries { source, .. }
             | Self::ListingTagValues { source, .. } => datafusion_error_to_tonic_code(&source),
+            Self::ConvertingPredicate { source, .. }
+            | Self::ConvertingReadGroupType { source, .. }
+            | Self::ConvertingReadGroupAggregate { source, .. }
+            | Self::ConvertingWindowAggregate { source, .. }
+                if matches!(source, super::expr::Error::FieldColumnsNotSupported { .. }) =>
+            {
+                tonic::Code::Unimplemented
+            }
             Self::ConvertingPredicate { .. }
             | Self::ConvertingReadGroupAggregate { .. }
             | Self::ConvertingReadGroupType { .. }
