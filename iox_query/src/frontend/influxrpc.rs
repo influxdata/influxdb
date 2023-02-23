@@ -2028,7 +2028,8 @@ mod tests {
         // test 5: predicate on tag with field_columns without need_fields
         let predicate = Predicate::new()
             .with_expr(col("foo").eq(lit("some_thing")))
-            .with_field_columns(vec!["i64_field".to_string()]);
+            .with_field_columns(vec!["i64_field".to_string()])
+            .unwrap();
         let need_fields = false;
         let mut projection =
             columns_in_predicates(need_fields, &schema, table, &predicate).unwrap();
@@ -2047,7 +2048,8 @@ mod tests {
         // test 7: predicate on tag and field with field_columns without need_fields
         let predicate = Predicate::new()
             .with_expr(col("bar").eq(lit(1)).and(col("i64_field").eq(lit(1))))
-            .with_field_columns(vec!["i64_field".to_string()]);
+            .with_field_columns(vec!["i64_field".to_string()])
+            .unwrap();
         let need_fields = false;
         let mut projection =
             columns_in_predicates(need_fields, &schema, table, &predicate).unwrap();
@@ -2307,7 +2309,8 @@ mod tests {
         let expr = col("bar").eq(lit(10));
         let predicate = Predicate::new()
             .with_expr(expr)
-            .with_field_columns(vec!["i64_field".to_string()]);
+            .with_field_columns(vec!["i64_field".to_string()])
+            .unwrap();
         let table_predicates = vec![(Arc::from("h2o"), predicate)];
 
         let test_db = Arc::new(TestDatabase::new(Arc::clone(&executor)));
@@ -2511,6 +2514,7 @@ mod tests {
         let got_predicate = test_db.get_chunks_predicate();
         let exp_predicate = Predicate::new()
             .with_field_columns(vec!["foo.bar"])
+            .unwrap()
             .with_value_expr(
                 "_value"
                     .as_expr()
