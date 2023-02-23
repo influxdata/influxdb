@@ -214,7 +214,7 @@ pub trait TimeProvider: Debug + Display + Send + Sync + 'static {
 }
 
 /// A [`TimeProvider`] that uses [`Utc::now`] as a clock source
-#[derive(Debug, Default)]
+#[derive(Debug, Default, Clone)]
 pub struct SystemProvider {}
 
 impl SystemProvider {
