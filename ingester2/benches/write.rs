@@ -1,7 +1,7 @@
 use std::sync::Arc;
 
 use criterion::{criterion_group, criterion_main, BenchmarkId, Criterion, Throughput};
-use data_types::{PartitionKey, Sequence, SequenceNumber, ShardIndex};
+use data_types::{PartitionKey, SequenceNumber};
 use dml::{DmlMeta, DmlWrite};
 use futures::{stream::FuturesUnordered, StreamExt};
 use generated_types::influxdata::{
@@ -67,7 +67,7 @@ async fn init(lp: impl AsRef<str>) -> (TestContext<impl IngesterRpcInterface>, D
         batches_by_ids,
         PartitionKey::from(PARTITION_KEY),
         DmlMeta::sequenced(
-            Sequence::new(ShardIndex::new(42), SequenceNumber::new(42)),
+            SequenceNumber::new(42),
             iox_time::SystemProvider::new().now(),
             None,
             50,

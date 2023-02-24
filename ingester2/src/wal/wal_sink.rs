@@ -102,7 +102,6 @@ impl WalAppender for Arc<wal::Wal> {
             .meta()
             .sequence()
             .expect("committing unsequenced dml operation to wal")
-            .sequence_number
             .get() as u64;
 
         let namespace_id = op.namespace_id();

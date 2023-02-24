@@ -130,7 +130,7 @@ mod tests {
         // Populate the metadata with a span context.
         let meta = op.meta();
         op.set_meta(DmlMeta::sequenced(
-            *meta.sequence().unwrap(),
+            meta.sequence().unwrap(),
             meta.producer_ts().unwrap(),
             Some(span),
             42,
@@ -166,7 +166,7 @@ mod tests {
         // Populate the metadata with a span context.
         let meta = op.meta();
         op.set_meta(DmlMeta::sequenced(
-            *meta.sequence().unwrap(),
+            meta.sequence().unwrap(),
             meta.producer_ts().unwrap(),
             Some(span),
             42,

@@ -1,4 +1,4 @@
-use data_types::{NamespaceId, PartitionKey, Sequence, SequenceNumber, TableId};
+use data_types::{NamespaceId, PartitionKey, SequenceNumber, TableId};
 use dml::{DmlMeta, DmlOperation, DmlWrite};
 use generated_types::influxdata::iox::wal::v1::sequenced_wal_op::Op;
 use metric::U64Counter;
@@ -12,7 +12,6 @@ use crate::{
     dml_sink::{DmlError, DmlSink},
     partition_iter::PartitionIter,
     persist::{drain_buffer::persist_partitions, queue::PersistQueue},
-    TRANSITION_SHARD_INDEX,
 };
 
 /// Errors returned when replaying the write-ahead log.
@@ -235,10 +234,7 @@ where
                 partition_key,
                 // The tracing context should be propagated over the RPC boundary.
                 DmlMeta::sequenced(
-                    Sequence {
-                        shard_index: TRANSITION_SHARD_INDEX, // TODO: remove this from DmlMeta
-                        sequence_number,
-                    },
+                    sequence_number,
                     iox_time::Time::MAX, // TODO: remove this from DmlMeta
                     // TODO: A tracing context should be added for WAL replay.
                     None,
