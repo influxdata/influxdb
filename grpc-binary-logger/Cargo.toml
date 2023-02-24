@@ -15,7 +15,7 @@ http-body = "0.4"
 hyper = "0.14"
 pin-project = "1.0"
 prost = "0.11"
-prost-types = { version = "0.11.6", features = ["std"] }
+prost-types = { version = "0.11.7", features = ["std"] }
 tokio = {version = "1", features = [ "rt" ]}
 tonic = "0.8"
 tower = "0.4"
