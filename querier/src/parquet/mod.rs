@@ -233,7 +233,6 @@ pub mod tests {
             ]
             .join("\n");
             let ns = catalog.create_namespace_1hr_retention("ns").await;
-            let shard = ns.create_shard(1).await;
             let table = ns.create_table("table").await;
             table.create_column("tag1", ColumnType::Tag).await;
             table.create_column("tag2", ColumnType::Tag).await;
@@ -243,7 +242,6 @@ pub mod tests {
             table.create_column("field_float", ColumnType::F64).await;
             table.create_column("time", ColumnType::Time).await;
             let partition = table
-                .with_shard(&shard)
                 .create_partition("part")
                 .await
                 .update_sort_key(SortKey::from_columns(["tag1", "tag2", "tag4", "time"]))

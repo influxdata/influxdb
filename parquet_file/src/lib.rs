@@ -20,9 +20,7 @@ pub mod metadata;
 pub mod serialize;
 pub mod storage;
 
-use data_types::{
-    NamespaceId, ParquetFile, ParquetFileParams, PartitionId, ShardId, TableId, TRANSITION_SHARD_ID,
-};
+use data_types::{NamespaceId, ParquetFile, ParquetFileParams, PartitionId, TableId};
 use object_store::path::Path;
 use uuid::Uuid;
 
@@ -32,7 +30,6 @@ use uuid::Uuid;
 pub struct ParquetFilePath {
     namespace_id: NamespaceId,
     table_id: TableId,
-    shard_id: ShardId,
     partition_id: PartitionId,
     object_store_id: Uuid,
 }
@@ -42,14 +39,12 @@ impl ParquetFilePath {
     pub fn new(
         namespace_id: NamespaceId,
         table_id: TableId,
-        shard_id: ShardId,
         partition_id: PartitionId,
         object_store_id: Uuid,
     ) -> Self {
         Self {
             namespace_id,
             table_id,
-            shard_id,
             partition_id,
             object_store_id,
         }
@@ -60,26 +55,15 @@ impl ParquetFilePath {
         let Self {
             namespace_id,
             table_id,
-            shard_id,
             partition_id,
             object_store_id,
         } = self;
-        if shard_id == &TRANSITION_SHARD_ID {
-            Path::from_iter([
-                namespace_id.to_string().as_str(),
-                table_id.to_string().as_str(),
-                partition_id.to_string().as_str(),
-                &format!("{object_store_id}.parquet"),
-            ])
-        } else {
-            Path::from_iter([
-                namespace_id.to_string().as_str(),
-                table_id.to_string().as_str(),
-                shard_id.to_string().as_str(),
-                partition_id.to_string().as_str(),
-                &format!("{object_store_id}.parquet"),
-            ])
-        }
+        Path::from_iter([
+            namespace_id.to_string().as_str(),
+            table_id.to_string().as_str(),
+            partition_id.to_string().as_str(),
+            &format!("{object_store_id}.parquet"),
+        ])
     }
 
     /// Get object store ID.
@@ -107,7 +91,6 @@ impl From<&crate::metadata::IoxMetadata> for ParquetFilePath {
         Self {
             namespace_id: m.namespace_id,
             table_id: m.table_id,
-            shard_id: m.shard_id,
             partition_id: m.partition_id,
             object_store_id: m.object_store_id,
         }
@@ -119,7 +102,6 @@ impl From<&ParquetFile> for ParquetFilePath {
         Self {
             namespace_id: f.namespace_id,
             table_id: f.table_id,
-            shard_id: f.shard_id,
             partition_id: f.partition_id,
             object_store_id: f.object_store_id,
         }
@@ -131,7 +113,6 @@ impl From<&ParquetFileParams> for ParquetFilePath {
         Self {
             namespace_id: f.namespace_id,
             table_id: f.table_id,
-            shard_id: f.shard_id,
             partition_id: f.partition_id,
             object_store_id: f.object_store_id,
         }
@@ -147,23 +128,6 @@ mod tests {
         let pfp = ParquetFilePath::new(
             NamespaceId::new(1),
             TableId::new(2),
-            ShardId::new(3),
-            PartitionId::new(4),
-            Uuid::nil(),
-        );
-        let path = pfp.object_store_path();
-        assert_eq!(
-            path.to_string(),
-            "1/2/3/4/00000000-0000-0000-0000-000000000000.parquet".to_string(),
-        );
-    }
-
-    #[test]
-    fn parquet_file_without_shard_id() {
-        let pfp = ParquetFilePath::new(
-            NamespaceId::new(1),
-            TableId::new(2),
-            TRANSITION_SHARD_ID,
             PartitionId::new(4),
             Uuid::nil(),
         );

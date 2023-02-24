@@ -5,8 +5,7 @@ use arrow::{
     record_batch::RecordBatch,
 };
 use data_types::{
-    ColumnId, CompactionLevel, NamespaceId, PartitionId, SequenceNumber, ShardId, TableId,
-    Timestamp,
+    ColumnId, CompactionLevel, NamespaceId, PartitionId, SequenceNumber, TableId, Timestamp,
 };
 use datafusion_util::MemoryStream;
 use iox_time::Time;
@@ -54,7 +53,6 @@ async fn test_decoded_iox_metadata() {
         creation_timestamp: Time::from_timestamp_nanos(42),
         namespace_id: NamespaceId::new(1),
         namespace_name: "bananas".into(),
-        shard_id: ShardId::new(2),
         table_id: TableId::new(3),
         table_name: "platanos".into(),
         partition_id: PartitionId::new(4),
@@ -196,7 +194,6 @@ async fn test_empty_parquet_file_panic() {
         creation_timestamp: Time::from_timestamp_nanos(42),
         namespace_id: NamespaceId::new(1),
         namespace_name: "bananas".into(),
-        shard_id: ShardId::new(2),
         table_id: TableId::new(3),
         table_name: "platanos".into(),
         partition_id: PartitionId::new(4),
@@ -291,7 +288,6 @@ async fn test_decoded_many_columns_with_null_cols_iox_metadata() {
         creation_timestamp: Time::from_timestamp_nanos(42),
         namespace_id: NamespaceId::new(1),
         namespace_name: "bananas".into(),
-        shard_id: ShardId::new(2),
         table_id: TableId::new(3),
         table_name: "platanos".into(),
         partition_id: PartitionId::new(4),
@@ -380,7 +376,6 @@ async fn test_derive_parquet_file_params() {
         creation_timestamp: Time::from_timestamp_nanos(1234),
         namespace_id: NamespaceId::new(1),
         namespace_name: "bananas".into(),
-        shard_id: ShardId::new(2),
         table_id: TableId::new(3),
         table_name: "platanos".into(),
         partition_id,
@@ -425,7 +420,6 @@ async fn test_derive_parquet_file_params() {
     //
     // NOTE: thrift-encoded metadata not checked
     // TODO: check thrift-encoded metadata which may be the issue of bug 4695
-    assert_eq!(catalog_data.shard_id, meta.shard_id);
     assert_eq!(catalog_data.namespace_id, meta.namespace_id);
     assert_eq!(catalog_data.table_id, meta.table_id);
     assert_eq!(catalog_data.partition_id, meta.partition_id);

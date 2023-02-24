@@ -10,7 +10,6 @@ use clap_blocks::{
     catalog_dsn::CatalogDsnConfig,
     object_store::{make_object_store, ObjectStoreConfig},
 };
-use influxdb_iox_client::connection::Connection;
 use iox_time::{SystemProvider, TimeProvider};
 use object_store::{path::Path, DynObjectStore};
 use object_store_metrics::ObjectStoreMetrics;
@@ -133,7 +132,7 @@ pub struct MergeConfig {
 }
 
 /// Entry-point for the schema command
-pub async fn command(connection: Connection, config: Config) -> Result<(), SchemaCommandError> {
+pub async fn command(config: Config) -> Result<(), SchemaCommandError> {
     match config {
         Config::Merge(merge_config) => {
             let time_provider = Arc::new(SystemProvider::new()) as Arc<dyn TimeProvider>;
@@ -198,7 +197,6 @@ pub async fn command(connection: Connection, config: Config) -> Result<(), Schem
                 &merge_config.topic,
                 &merge_config.query_pool_name,
                 Arc::clone(&catalog),
-                connection.clone(),
             )
             .await?;
 

@@ -4,9 +4,7 @@ use std::{
 };
 
 use async_trait::async_trait;
-use data_types::{
-    ColumnSet, CompactionLevel, ParquetFileParams, SequenceNumber, ShardId, Timestamp,
-};
+use data_types::{ColumnSet, CompactionLevel, ParquetFileParams, SequenceNumber, Timestamp};
 use datafusion::{
     arrow::{datatypes::SchemaRef, record_batch::RecordBatch},
     error::DataFusionError,
@@ -70,7 +68,6 @@ impl ParquetFileSink for MockParquetFileSink {
         let row_count = batches.iter().map(|b| b.num_rows()).sum::<usize>();
         let mut guard = self.records.lock().expect("not poisoned");
         let out = ((row_count > 0) || !self.filter_empty_files).then(|| ParquetFileParams {
-            shard_id: ShardId::new(1),
             namespace_id: partition.namespace_id,
             table_id: partition.table.id,
             partition_id: partition.partition_id,
@@ -167,7 +164,6 @@ mod tests {
                 .await
                 .unwrap(),
             Some(ParquetFileParams {
-                shard_id: ShardId::new(1),
                 namespace_id: NamespaceId::new(2),
                 table_id: TableId::new(3),
                 partition_id: PartitionId::new(1),
@@ -231,7 +227,6 @@ mod tests {
                 .await
                 .unwrap(),
             Some(ParquetFileParams {
-                shard_id: ShardId::new(1),
                 namespace_id: NamespaceId::new(2),
                 table_id: TableId::new(3),
                 partition_id: PartitionId::new(1),

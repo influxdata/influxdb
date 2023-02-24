@@ -1,11 +1,9 @@
-use self::generated_types::{shard_service_client::ShardServiceClient, *};
 use crate::{AggregateTSMMeasurement, AggregateTSMSchema};
 use chrono::{format::StrftimeItems, offset::FixedOffset, DateTime, Duration};
 use data_types::{
     ColumnType, Namespace, NamespaceName, NamespaceSchema, OrgBucketMappingError, Partition,
-    PartitionKey, QueryPoolId, ShardId, TableSchema, TopicId,
+    PartitionKey, QueryPoolId, TableSchema, TopicId,
 };
-use influxdb_iox_client::connection::{Connection, GrpcConnection};
 use iox_catalog::interface::{
     get_schema_by_name, CasFailure, Catalog, RepoCollection, SoftDeletedRows,
 };
@@ -15,10 +13,6 @@ use schema::{
 };
 use std::{collections::HashMap, fmt::Write, ops::DerefMut, sync::Arc};
 use thiserror::Error;
-
-pub mod generated_types {
-    pub use generated_types::influxdata::iox::sharder::v1::*;
-}
 
 #[derive(Debug, Error)]
 pub enum UpdateCatalogError {
@@ -45,9 +39,6 @@ pub enum UpdateCatalogError {
 
     #[error("Time calculation error when deriving partition key: {0}")]
     PartitionKeyCalculationError(String),
-
-    #[error("Error fetching shard ID from shard service: {0}")]
-    ShardServiceError(#[from] tonic::Status),
 }
 
 /// Given a merged schema, update the IOx catalog to either merge that schema into the existing one
@@ -61,7 +52,6 @@ pub async fn update_iox_catalog<'a>(
     topic: &'a str,
     query_pool_name: &'a str,
     catalog: Arc<dyn Catalog>,
-    connection: Connection,
 ) -> Result<(), UpdateCatalogError> {
     let namespace_name =
         NamespaceName::from_org_and_bucket(&merged_tsm_schema.org_id, &merged_tsm_schema.bucket_id)
@@ -103,18 +93,8 @@ pub async fn update_iox_catalog<'a>(
             return Err(UpdateCatalogError::CatalogError(e));
         }
     };
-    // initialise a client of the shard service in the router. we will use it to find out which
-    // shard a table/namespace combo would shard to, without exposing the implementation
-    // details of the sharding
-    let mut shard_client = ShardServiceClient::new(connection.into_grpc_connection());
-    update_catalog_schema_with_merged(
-        namespace_name.as_str(),
-        iox_schema,
-        merged_tsm_schema,
-        repos.deref_mut(),
-        &mut shard_client,
-    )
-    .await?;
+
+    update_catalog_schema_with_merged(iox_schema, merged_tsm_schema, repos.deref_mut()).await?;
     Ok(())
 }
 
@@ -179,11 +159,9 @@ where
 /// This is basically the same as iox_catalog::validate_mutable_batch() but operates on
 /// AggregateTSMSchema instead of a MutableBatch (we don't have any data, only a schema)
 async fn update_catalog_schema_with_merged<R>(
-    namespace_name: &str,
     iox_schema: NamespaceSchema,
     merged_tsm_schema: &AggregateTSMSchema,
     repos: &mut R,
-    shard_client: &mut ShardServiceClient<GrpcConnection>,
 ) -> Result<(), UpdateCatalogError>
 where
     R: RepoCollection + ?Sized,
@@ -290,19 +268,12 @@ where
         // date, but this is what the router logic currently does so that would need to change too.
         let partition_keys =
             get_partition_keys_for_range(measurement.earliest_time, measurement.latest_time)?;
-        let response = shard_client
-            .map_to_shard(tonic::Request::new(MapToShardRequest {
-                table_name: measurement_name.clone(),
-                namespace_name: namespace_name.to_string(),
-            }))
-            .await?;
-        let shard_id = ShardId::new(response.into_inner().shard_id);
         for partition_key in partition_keys {
             // create the partition if it doesn't exist; new partitions get an empty sort key which
             // gets matched as `None`` in the code below
             let partition = repos
                 .partitions()
-                .create_or_get(partition_key, shard_id, table.id)
+                .create_or_get(partition_key, table.id)
                 .await
                 .map_err(UpdateCatalogError::CatalogError)?;
             // get the sort key from the partition, if it exists. create it or update it as
@@ -418,88 +389,12 @@ fn datetime_to_partition_key(
 
 #[cfg(test)]
 mod tests {
-    use super::{generated_types::shard_service_server::ShardService, *};
+    use super::*;
     use crate::{AggregateTSMField, AggregateTSMTag};
     use assert_matches::assert_matches;
-    use client_util::connection::Builder;
     use data_types::{PartitionId, TableId};
     use iox_catalog::mem::MemCatalog;
-    use parking_lot::RwLock;
-    use std::{collections::HashSet, net::SocketAddr};
-    use tokio::task::JoinHandle;
-    use tokio_stream::wrappers::TcpListenerStream;
-    use tonic::transport::Server;
-
-    struct MockShardService {
-        requests: Arc<RwLock<Vec<MapToShardRequest>>>,
-        reply_with: MapToShardResponse,
-    }
-
-    impl MockShardService {
-        pub fn new(response: MapToShardResponse) -> Self {
-            MockShardService {
-                requests: Arc::new(RwLock::new(vec![])),
-                reply_with: response,
-            }
-        }
-
-        /// Use to replace the next reply with the given response (not currently used but would be
-        /// handy for expanded tests)
-        #[allow(dead_code)]
-        pub fn with_reply(mut self, response: MapToShardResponse) -> Self {
-            self.reply_with = response;
-            self
-        }
-
-        /// Get all the requests that were made to the mock (not currently used but would be handy
-        /// for expanded tests)
-        #[allow(dead_code)]
-        pub fn get_requests(&self) -> Arc<RwLock<Vec<MapToShardRequest>>> {
-            Arc::clone(&self.requests)
-        }
-    }
-
-    #[tonic::async_trait]
-    impl ShardService for MockShardService {
-        async fn map_to_shard(
-            &self,
-            request: tonic::Request<MapToShardRequest>,
-        ) -> Result<tonic::Response<MapToShardResponse>, tonic::Status> {
-            self.requests.write().push(request.into_inner());
-            Ok(tonic::Response::new(self.reply_with.clone()))
-        }
-    }
-
-    async fn create_test_shard_service(
-        response: MapToShardResponse,
-    ) -> (
-        Connection,
-        JoinHandle<()>,
-        Arc<RwLock<Vec<MapToShardRequest>>>,
-    ) {
-        let bind_addr = SocketAddr::new(
-            std::net::IpAddr::V4(std::net::Ipv4Addr::new(127, 0, 0, 1)),
-            0,
-        );
-        let socket = tokio::net::TcpListener::bind(bind_addr)
-            .await
-            .expect("failed to bind to socket in test");
-        let bind_addr = socket.local_addr().unwrap();
-        let sharder = MockShardService::new(response);
-        let requests = Arc::clone(&sharder.get_requests());
-        let server =
-            Server::builder().add_service(shard_service_server::ShardServiceServer::new(sharder));
-        let server = async move {
-            let stream = TcpListenerStream::new(socket);
-            server.serve_with_incoming(stream).await.ok();
-        };
-        let join_handle = tokio::task::spawn(server);
-        let connection = Builder::default()
-            .build(format!("http://{bind_addr}"))
-            .await
-            .expect("failed to connect to server");
-        (connection, join_handle, requests)
-    }
+    use std::collections::HashSet;
 
     #[tokio::test]
     async fn needs_creating() {
@@ -513,11 +408,6 @@ mod tests {
             .create_or_get("iox-shared")
             .await
             .expect("topic created");
-        let (connection, _join_handle, _requests) = create_test_shard_service(MapToShardResponse {
-            shard_id: 0,
-            shard_index: 0,
-        })
-        .await;
 
         let json = r#"
         {
@@ -543,7 +433,6 @@ mod tests {
             "iox-shared",
             "iox-shared",
             Arc::clone(&catalog),
-            connection,
         )
         .await
         .expect("schema update worked");
@@ -602,11 +491,6 @@ mod tests {
             .create_or_get("iox-shared")
             .await
             .expect("topic created");
-        let (connection, _join_handle, _requests) = create_test_shard_service(MapToShardResponse {
-            shard_id: 0,
-            shard_index: 0,
-        })
-        .await;
 
         // create namespace, table and columns for weather measurement
         let namespace = txn
@@ -666,7 +550,6 @@ mod tests {
             "iox-shared",
             "iox-shared",
             Arc::clone(&catalog),
-            connection,
         )
         .await
         .expect("schema update worked");
@@ -710,11 +593,6 @@ mod tests {
             .create_or_get("iox-shared")
             .await
             .expect("topic created");
-        let (connection, _join_handle, _requests) = create_test_shard_service(MapToShardResponse {
-            shard_id: 0,
-            shard_index: 0,
-        })
-        .await;
 
         // create namespace, table and columns for weather measurement
         let namespace = txn
@@ -767,7 +645,6 @@ mod tests {
             "iox-shared",
             "iox-shared",
             Arc::clone(&catalog),
-            connection,
         )
         .await
         .expect_err("should fail catalog update");
@@ -790,11 +667,6 @@ mod tests {
             .create_or_get("iox-shared")
             .await
             .expect("topic created");
-        let (connection, _join_handle, _requests) = create_test_shard_service(MapToShardResponse {
-            shard_id: 0,
-            shard_index: 0,
-        })
-        .await;
 
         // create namespace, table and columns for weather measurement
         let namespace = txn
@@ -846,7 +718,6 @@ mod tests {
             "iox-shared",
             "iox-shared",
             Arc::clone(&catalog),
-            connection,
         )
         .await
         .expect_err("should fail catalog update");
@@ -854,85 +725,6 @@ mod tests {
         assert!(err.to_string().ends_with(
             "a column with name temperature already exists in the schema with a different type"
         ));
-    }
-
-    #[tokio::test]
-    async fn shard_lookup() {
-        // init a test catalog stack
-        let metrics = Arc::new(metric::Registry::default());
-        let catalog: Arc<dyn Catalog> = Arc::new(MemCatalog::new(Arc::clone(&metrics)));
-        catalog
-            .repositories()
-            .await
-            .topics()
-            .create_or_get("iox-shared")
-            .await
-            .expect("topic created");
-        let (connection, _join_handle, requests) = create_test_shard_service(MapToShardResponse {
-            shard_id: 0,
-            shard_index: 0,
-        })
-        .await;
-
-        let json = r#"
-        {
-          "org_id": "1234",
-          "bucket_id": "5678",
-          "measurements": {
-            "cpu": {
-              "tags": [
-                { "name": "host", "values": ["server", "desktop"] }
-              ],
-             "fields": [
-                { "name": "usage", "types": ["Float"] }
-              ],
-              "earliest_time": "2022-01-01T00:00:00.00Z",
-              "latest_time": "2022-07-07T06:00:00.00Z"
-            },
-            "weather": {
-              "tags": [
-              ],
-             "fields": [
-                { "name": "temperature", "types": ["Integer"] }
-              ],
-              "earliest_time": "2022-01-01T00:00:00.00Z",
-              "latest_time": "2022-07-07T06:00:00.00Z"
-            }
-          }
-        }
-        "#;
-        let agg_schema: AggregateTSMSchema = json.try_into().unwrap();
-        update_iox_catalog(
-            &agg_schema,
-            "iox-shared",
-            "iox-shared",
-            Arc::clone(&catalog),
-            connection,
-        )
-        .await
-        .expect("schema update worked");
-        // check that a request was made for the two shard lookups for the tables
-        let requests = requests.read();
-        assert_eq!(requests.len(), 2);
-        let cpu_req = requests
-            .iter()
-            .find(|r| r.table_name == "cpu")
-            .expect("cpu request missing from mock");
-        assert_eq!(
-            (cpu_req.namespace_name.as_str(), cpu_req.table_name.as_str()),
-            ("1234_5678", "cpu"),
-        );
-        let weather_req = requests
-            .iter()
-            .find(|r| r.table_name == "weather")
-            .expect("weather request missing from mock");
-        assert_eq!(
-            (
-                weather_req.namespace_name.as_str(),
-                weather_req.table_name.as_str()
-            ),
-            ("1234_5678", "weather"),
-        );
     }
 
     #[tokio::test]
@@ -1230,7 +1022,6 @@ mod tests {
         };
         let partition = Partition {
             id: PartitionId::new(1),
-            shard_id: ShardId::new(1),
             table_id: TableId::new(1),
             persisted_sequence_number: None,
             partition_key: PartitionKey::from("2022-06-21"),
@@ -1278,7 +1069,6 @@ mod tests {
         };
         let partition = Partition {
             id: PartitionId::new(1),
-            shard_id: ShardId::new(1),
             table_id: TableId::new(1),
             persisted_sequence_number: None,
             partition_key: PartitionKey::from("2022-06-21"),
@@ -1326,7 +1116,6 @@ mod tests {
         };
         let partition = Partition {
             id: PartitionId::new(1),
-            shard_id: ShardId::new(1),
             table_id: TableId::new(1),
             persisted_sequence_number: None,
             partition_key: PartitionKey::from("2022-06-21"),
@@ -1376,7 +1165,6 @@ mod tests {
         };
         let partition = Partition {
             id: PartitionId::new(1),
-            shard_id: ShardId::new(1),
             table_id: TableId::new(1),
             persisted_sequence_number: None,
             partition_key: PartitionKey::from("2022-06-21"),

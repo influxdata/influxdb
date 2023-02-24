@@ -5,9 +5,10 @@ use crate::{
     interface::{
         sealed::TransactionFinalize, CasFailure, Catalog, ColumnRepo, ColumnTypeMismatchSnafu,
         Error, NamespaceRepo, ParquetFileRepo, PartitionRepo, QueryPoolRepo, RepoCollection,
-        Result, ShardRepo, SoftDeletedRows, TableRepo, TopicMetadataRepo, Transaction,
+        Result, SoftDeletedRows, TableRepo, TopicMetadataRepo, Transaction,
         MAX_PARQUET_FILES_SELECTED_ONCE,
     },
+    kafkaless_transition::{Shard, TRANSITION_SHARD_ID, TRANSITION_SHARD_INDEX},
     metrics::MetricDecorator,
     DEFAULT_MAX_COLUMNS_PER_TABLE, DEFAULT_MAX_TABLES, SHARED_TOPIC_ID, SHARED_TOPIC_NAME,
 };
@@ -15,8 +16,7 @@ use async_trait::async_trait;
 use data_types::{
     Column, ColumnId, ColumnType, CompactionLevel, Namespace, NamespaceId, ParquetFile,
     ParquetFileId, ParquetFileParams, Partition, PartitionId, PartitionKey, QueryPool, QueryPoolId,
-    SequenceNumber, Shard, ShardId, ShardIndex, SkippedCompaction, Table, TableId, Timestamp,
-    TopicId, TopicMetadata, TRANSITION_SHARD_ID, TRANSITION_SHARD_INDEX,
+    SequenceNumber, SkippedCompaction, Table, TableId, Timestamp, TopicId, TopicMetadata,
 };
 use iox_time::{SystemProvider, TimeProvider};
 use observability_deps::tracing::warn;
@@ -245,10 +245,6 @@ impl RepoCollection for MemTxn {
     }
 
     fn columns(&mut self) -> &mut dyn ColumnRepo {
-        self
-    }
-
-    fn shards(&mut self) -> &mut dyn ShardRepo {
         self
     }
 
@@ -689,114 +685,29 @@ impl ColumnRepo for MemTxn {
 }
 
 #[async_trait]
-impl ShardRepo for MemTxn {
-    async fn create_or_get(
-        &mut self,
-        topic: &TopicMetadata,
-        _shard_index: ShardIndex,
-    ) -> Result<Shard> {
+impl PartitionRepo for MemTxn {
+    async fn create_or_get(&mut self, key: PartitionKey, table_id: TableId) -> Result<Partition> {
         let stage = self.stage();
 
-        // Temporary: only ever create the transition shard, no matter what is asked. Shards are
-        // going away completely soon.
-        let shard = match stage
-            .shards
+        let partition = match stage
+            .partitions
             .iter()
-            .find(|s| s.topic_id == topic.id && s.shard_index == TRANSITION_SHARD_INDEX)
+            .find(|p| p.partition_key == key && p.table_id == table_id)
         {
-            Some(t) => t,
+            Some(p) => p,
             None => {
-                let shard = Shard {
-                    id: TRANSITION_SHARD_ID,
-                    topic_id: topic.id,
-                    shard_index: TRANSITION_SHARD_INDEX,
-                    min_unpersisted_sequence_number: SequenceNumber::new(0),
+                let p = Partition {
+                    id: PartitionId::new(stage.partitions.len() as i64 + 1),
+                    table_id,
+                    partition_key: key,
+                    sort_key: vec![],
+                    persisted_sequence_number: None,
+                    new_file_at: None,
                 };
-                stage.shards.push(shard);
-                stage.shards.last().unwrap()
+                stage.partitions.push(p);
+                stage.partitions.last().unwrap()
             }
         };
-
-        Ok(*shard)
-    }
-
-    async fn get_by_topic_id_and_shard_index(
-        &mut self,
-        topic_id: TopicId,
-        shard_index: ShardIndex,
-    ) -> Result<Option<Shard>> {
-        let stage = self.stage();
-
-        let shard = stage
-            .shards
-            .iter()
-            .find(|s| s.topic_id == topic_id && s.shard_index == shard_index)
-            .cloned();
-        Ok(shard)
-    }
-
-    async fn list(&mut self) -> Result<Vec<Shard>> {
-        let stage = self.stage();
-
-        Ok(stage.shards.clone())
-    }
-
-    async fn list_by_topic(&mut self, topic: &TopicMetadata) -> Result<Vec<Shard>> {
-        let stage = self.stage();
-
-        let shards: Vec<_> = stage
-            .shards
-            .iter()
-            .filter(|s| s.topic_id == topic.id)
-            .cloned()
-            .collect();
-        Ok(shards)
-    }
-
-    async fn update_min_unpersisted_sequence_number(
-        &mut self,
-        shard_id: ShardId,
-        sequence_number: SequenceNumber,
-    ) -> Result<()> {
-        let stage = self.stage();
-
-        if let Some(s) = stage.shards.iter_mut().find(|s| s.id == shard_id) {
-            s.min_unpersisted_sequence_number = sequence_number
-        };
-
-        Ok(())
-    }
-}
-
-#[async_trait]
-impl PartitionRepo for MemTxn {
-    async fn create_or_get(
-        &mut self,
-        key: PartitionKey,
-        shard_id: ShardId,
-        table_id: TableId,
-    ) -> Result<Partition> {
-        let stage = self.stage();
-
-        let partition =
-            match stage.partitions.iter().find(|p| {
-                p.partition_key == key && p.shard_id == shard_id && p.table_id == table_id
-            }) {
-                Some(p) => p,
-                None => {
-                    let p = Partition {
-                        id: PartitionId::new(stage.partitions.len() as i64 + 1),
-                        shard_id,
-                        table_id,
-                        partition_key: key,
-                        sort_key: vec![],
-                        persisted_sequence_number: None,
-                        new_file_at: None,
-                    };
-                    stage.partitions.push(p);
-                    stage.partitions.last().unwrap()
-                }
-            };
 
         Ok(partition.clone())
     }

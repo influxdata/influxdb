@@ -11,7 +11,7 @@ use cache_system::{
     loader::{metrics::MetricsLoader, FunctionLoader},
     resource_consumption::FunctionEstimator,
 };
-use data_types::{ColumnId, PartitionId, ShardId};
+use data_types::{ColumnId, PartitionId};
 use iox_catalog::interface::Catalog;
 use iox_time::TimeProvider;
 use schema::sort::SortKey;
@@ -74,10 +74,7 @@ impl PartitionCache {
                         Arc::new(PartitionSortKey::new(sort_key, &extra.column_id_map_rev))
                     });
 
-                    Some(CachedPartition {
-                        shard_id: partition.shard_id,
-                        sort_key,
-                    })
+                    Some(CachedPartition { sort_key })
                 }
             });
         let loader = Arc::new(MetricsLoader::new(
@@ -118,19 +115,6 @@ impl PartitionCache {
         }
     }
 
-    /// Get shard ID.
-    pub async fn shard_id(
-        &self,
-        cached_table: Arc<CachedTable>,
-        partition_id: PartitionId,
-        span: Option<Span>,
-    ) -> Option<ShardId> {
-        self.cache
-            .get(partition_id, (cached_table, span))
-            .await
-            .map(|p| p.shard_id)
-    }
-
     /// Get sort key
     ///
     /// Expire partition if the cached sort key does NOT cover the given set of columns.
@@ -164,7 +148,6 @@ impl PartitionCache {
 
 #[derive(Debug, Clone)]
 struct CachedPartition {
-    shard_id: ShardId,
     sort_key: Option<Arc<PartitionSortKey>>,
 }
 
@@ -228,74 +211,6 @@ mod tests {
     use schema::{Schema, SchemaBuilder};
 
     #[tokio::test]
-    async fn test_shard_id() {
-        let catalog = TestCatalog::new();
-
-        let ns = catalog.create_namespace_1hr_retention("ns").await;
-        let t = ns.create_table("table").await;
-        let s1 = ns.create_shard(1).await;
-        let s2 = ns.create_shard(2).await;
-        let p1 = t
-            .with_shard(&s1)
-            .create_partition("k1")
-            .await
-            .partition
-            .clone();
-        let p2 = t
-            .with_shard(&s2)
-            .create_partition("k2")
-            .await
-            .partition
-            .clone();
-        let cached_table = Arc::new(CachedTable {
-            id: t.table.id,
-            schema: schema(),
-            column_id_map: HashMap::default(),
-            column_id_map_rev: HashMap::default(),
-            primary_key_column_ids: vec![],
-        });
-
-        let cache = PartitionCache::new(
-            catalog.catalog(),
-            BackoffConfig::default(),
-            catalog.time_provider(),
-            &catalog.metric_registry(),
-            test_ram_pool(),
-            true,
-        );
-
-        let id1 = cache
-            .shard_id(Arc::clone(&cached_table), p1.id, None)
-            .await
-            .unwrap();
-        assert_eq!(id1, s1.shard.id);
-        assert_histogram_metric_count(&catalog.metric_registry, "partition_get_by_id", 1);
-
-        let id2 = cache
-            .shard_id(Arc::clone(&cached_table), p2.id, None)
-            .await
-            .unwrap();
-        assert_eq!(id2, s2.shard.id);
-        assert_histogram_metric_count(&catalog.metric_registry, "partition_get_by_id", 2);
-
-        let id1 = cache
-            .shard_id(Arc::clone(&cached_table), p1.id, None)
-            .await
-            .unwrap();
-        assert_eq!(id1, s1.shard.id);
-        assert_histogram_metric_count(&catalog.metric_registry, "partition_get_by_id", 2);
-
-        // non-existing partition
-        for _ in 0..2 {
-            let res = cache
-                .shard_id(Arc::clone(&cached_table), PartitionId::new(i64::MAX), None)
-                .await;
-            assert_eq!(res, None);
-            assert_histogram_metric_count(&catalog.metric_registry, "partition_get_by_id", 3);
-        }
-    }
-
-    #[tokio::test]
     async fn test_sort_key() {
         let catalog = TestCatalog::new();
 
@@ -303,16 +218,12 @@ mod tests {
         let t = ns.create_table("table").await;
         let c1 = t.create_column("tag", ColumnType::Tag).await;
         let c2 = t.create_column("time", ColumnType::Time).await;
-        let s1 = ns.create_shard(1).await;
-        let s2 = ns.create_shard(2).await;
         let p1 = t
-            .with_shard(&s1)
             .create_partition_with_sort_key("k1", &["tag", "time"])
             .await
             .partition
             .clone();
         let p2 = t
-            .with_shard(&s2)
             .create_partition("k2") // no sort key
             .await
             .partition
@@ -391,26 +302,13 @@ mod tests {
         let t = ns.create_table("table").await;
         let c1 = t.create_column("tag", ColumnType::Tag).await;
         let c2 = t.create_column("time", ColumnType::Time).await;
-        let s1 = ns.create_shard(1).await;
-        let s2 = ns.create_shard(2).await;
         let p1 = t
-            .with_shard(&s1)
             .create_partition_with_sort_key("k1", &["tag", "time"])
             .await
             .partition
             .clone();
-        let p2 = t
-            .with_shard(&s2)
-            .create_partition("k2")
-            .await
-            .partition
-            .clone();
-        let p3 = t
-            .with_shard(&s2)
-            .create_partition("k3")
-            .await
-            .partition
-            .clone();
+        let p2 = t.create_partition("k2").await.partition.clone();
+        let p3 = t.create_partition("k3").await.partition.clone();
         let cached_table = Arc::new(CachedTable {
             id: t.table.id,
             schema: schema(),
@@ -434,22 +332,19 @@ mod tests {
             true,
         );
 
-        cache.shard_id(Arc::clone(&cached_table), p2.id, None).await;
         cache
             .sort_key(Arc::clone(&cached_table), p3.id, &Vec::new(), None)
             .await;
-        assert_histogram_metric_count(&catalog.metric_registry, "partition_get_by_id", 2);
+        assert_histogram_metric_count(&catalog.metric_registry, "partition_get_by_id", 1);
 
-        cache.shard_id(Arc::clone(&cached_table), p1.id, None).await;
         cache
             .sort_key(Arc::clone(&cached_table), p2.id, &Vec::new(), None)
             .await;
-        assert_histogram_metric_count(&catalog.metric_registry, "partition_get_by_id", 3);
+        assert_histogram_metric_count(&catalog.metric_registry, "partition_get_by_id", 2);
 
         cache
             .sort_key(Arc::clone(&cached_table), p1.id, &Vec::new(), None)
             .await;
-        cache.shard_id(Arc::clone(&cached_table), p2.id, None).await;
         assert_histogram_metric_count(&catalog.metric_registry, "partition_get_by_id", 3);
     }
 
@@ -461,8 +356,7 @@ mod tests {
         let t = ns.create_table("table").await;
         let c1 = t.create_column("foo", ColumnType::Tag).await;
         let c2 = t.create_column("time", ColumnType::Time).await;
-        let s = ns.create_shard(1).await;
-        let p = t.with_shard(&s).create_partition("k1").await;
+        let p = t.create_partition("k1").await;
         let p_id = p.partition.id;
         let p_sort_key = p.partition.sort_key();
         let cached_table = Arc::new(CachedTable {

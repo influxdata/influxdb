@@ -15,7 +15,7 @@ mod tests {
     use std::{sync::Arc, time::Duration};
 
     use assert_matches::assert_matches;
-    use data_types::{CompactionLevel, ParquetFile, SequenceNumber, TRANSITION_SHARD_ID};
+    use data_types::{CompactionLevel, ParquetFile, SequenceNumber};
     use dml::DmlOperation;
     use futures::TryStreamExt;
     use iox_catalog::{
@@ -48,7 +48,6 @@ mod tests {
             ARBITRARY_NAMESPACE_NAME_PROVIDER, ARBITRARY_PARTITION_KEY, ARBITRARY_TABLE_NAME,
             ARBITRARY_TABLE_NAME_PROVIDER,
         },
-        TRANSITION_SHARD_INDEX,
     };
 
     use super::handle::PersistHandle;
@@ -62,13 +61,8 @@ mod tests {
     /// partition entry exists (by driving the buffer tree to create it).
     async fn partition_with_write(catalog: Arc<dyn Catalog>) -> Arc<Mutex<PartitionData>> {
         // Create the namespace in the catalog and it's the schema
-        let (_shard_id, namespace_id, table_id) = populate_catalog(
-            &*catalog,
-            TRANSITION_SHARD_INDEX,
-            &ARBITRARY_NAMESPACE_NAME,
-            &ARBITRARY_TABLE_NAME,
-        )
-        .await;
+        let (namespace_id, table_id) =
+            populate_catalog(&*catalog, &ARBITRARY_NAMESPACE_NAME, &ARBITRARY_TABLE_NAME).await;
 
         // Init the buffer tree
         let buf = BufferTree::new(
@@ -77,7 +71,6 @@ mod tests {
             Arc::new(CatalogPartitionResolver::new(Arc::clone(&catalog))),
             Arc::new(MockPostWriteObserver::default()),
             Arc::new(metric::Registry::default()),
-            TRANSITION_SHARD_ID,
         );
 
         let write = make_write_op(
@@ -448,14 +441,8 @@ mod tests {
         assert_eq!(files.len(), 2, "expected two uploaded files");
 
         // Ensure the catalog record points at a valid file in object storage.
-        let want_path = ParquetFilePath::new(
-            namespace_id,
-            table_id,
-            TRANSITION_SHARD_ID,
-            partition_id,
-            object_store_id,
-        )
-        .object_store_path();
+        let want_path = ParquetFilePath::new(namespace_id, table_id, partition_id, object_store_id)
+            .object_store_path();
         let file = files
             .into_iter()
             .find(|f| f.location == want_path)

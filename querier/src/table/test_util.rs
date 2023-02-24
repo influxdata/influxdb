@@ -6,7 +6,7 @@ use crate::{
 use arrow::record_batch::RecordBatch;
 use data_types::{ChunkId, SequenceNumber};
 use iox_catalog::interface::{get_schema_by_name, SoftDeletedRows};
-use iox_tests::{TestCatalog, TestPartition, TestShard, TestTable};
+use iox_tests::{TestCatalog, TestPartition, TestTable};
 use mutable_batch_lp::test_helpers::lp_to_mutable_batch;
 use schema::{sort::SortKey, Projection, Schema};
 use std::{sync::Arc, time::Duration};
@@ -64,7 +64,6 @@ pub(crate) fn lp_to_record_batch(lp: &str) -> RecordBatch {
 #[derive(Debug, Clone)]
 pub(crate) struct IngesterPartitionBuilder {
     schema: Schema,
-    shard: Arc<TestShard>,
     partition: Arc<TestPartition>,
     ingester_chunk_id: u128,
 
@@ -75,14 +74,9 @@ pub(crate) struct IngesterPartitionBuilder {
 }
 
 impl IngesterPartitionBuilder {
-    pub(crate) fn new(
-        schema: Schema,
-        shard: &Arc<TestShard>,
-        partition: &Arc<TestPartition>,
-    ) -> Self {
+    pub(crate) fn new(schema: Schema, partition: &Arc<TestPartition>) -> Self {
         Self {
             schema,
-            shard: Arc::clone(shard),
             partition: Arc::clone(partition),
             partition_sort_key: None,
             ingester_chunk_id: 1,
@@ -115,7 +109,6 @@ impl IngesterPartitionBuilder {
         IngesterPartition::new(
             Some(Uuid::new_v4()),
             self.partition.partition.id,
-            self.shard.shard.id,
             0,
             parquet_max_sequence_number,
             self.partition_sort_key.clone(),

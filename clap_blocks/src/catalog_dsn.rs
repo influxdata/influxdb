@@ -213,7 +213,7 @@ impl CatalogDsnConfig {
                 let mem = MemCatalog::new(metrics);
 
                 let mut txn = mem.start_transaction().await.context(CatalogSnafu)?;
-                create_or_get_default_records(1, txn.deref_mut())
+                create_or_get_default_records(txn.deref_mut())
                     .await
                     .context(CatalogSnafu)?;
                 txn.commit().await.context(CatalogSnafu)?;

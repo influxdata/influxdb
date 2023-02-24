@@ -11,7 +11,6 @@ pub fn log_config(config: &Config) {
     // use struct unpack so we don't forget any members
     let Config {
         compaction_type,
-        shard_id,
         // no need to print the internal state of the registry
         metric_registry: _,
         catalog,
@@ -59,7 +58,6 @@ pub fn log_config(config: &Config) {
 
     info!(
         ?compaction_type,
-        shard_id=shard_id.get(),
         %catalog,
         %parquet_store_real,
         %parquet_store_scratchpad,

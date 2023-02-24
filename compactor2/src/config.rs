@@ -1,8 +1,8 @@
 //! Config-related stuff.
 use std::{collections::HashSet, fmt::Display, num::NonZeroUsize, sync::Arc, time::Duration};
 
-use backoff::{Backoff, BackoffConfig};
-use data_types::{PartitionId, ShardId, ShardIndex};
+use backoff::BackoffConfig;
+use data_types::PartitionId;
 use iox_catalog::interface::Catalog;
 use iox_query::exec::Executor;
 use iox_time::TimeProvider;
@@ -21,9 +21,6 @@ const MIN_COMPACT_SIZE_MULTIPLE: usize = 3;
 pub struct Config {
     /// Compaction type.
     pub compaction_type: CompactionType,
-
-    /// Shard Id
-    pub shard_id: ShardId,
 
     /// Metric registry.
     pub metric_registry: Arc<metric::Registry>,
@@ -145,55 +142,6 @@ impl Config {
     /// the partition (for now) as a self-protection mechanism.
     pub fn max_compact_size_bytes(&self) -> usize {
         self.max_desired_file_size_bytes as usize * MIN_COMPACT_SIZE_MULTIPLE
-    }
-
-    /// Fetch shard ID.
-    ///
-    /// This is likely required to construct a [`Config`] object.
-    pub async fn fetch_shard_id(
-        catalog: Arc<dyn Catalog>,
-        backoff_config: BackoffConfig,
-        topic_name: String,
-        shard_index: i32,
-    ) -> ShardId {
-        // Get shardId from topic and shard_index
-        // Fetch topic
-        let topic = Backoff::new(&backoff_config)
-            .retry_all_errors("topic_of_given_name", || async {
-                catalog
-                    .repositories()
-                    .await
-                    .topics()
-                    .get_by_name(topic_name.as_str())
-                    .await
-            })
-            .await
-            .expect("retry forever");
-
-        if topic.is_none() {
-            panic!("Topic {topic_name} not found");
-        }
-        let topic = topic.unwrap();
-
-        // Fetch shard
-        let shard = Backoff::new(&backoff_config)
-            .retry_all_errors("sahrd_of_given_index", || async {
-                catalog
-                    .repositories()
-                    .await
-                    .shards()
-                    .get_by_topic_id_and_shard_index(topic.id, ShardIndex::new(shard_index))
-                    .await
-            })
-            .await
-            .expect("retry forever");
-
-        match shard {
-            Some(shard) => shard.id,
-            None => {
-                panic!("Topic {topic_name} and Shard Index {shard_index} not found")
-            }
-        }
     }
 }
 

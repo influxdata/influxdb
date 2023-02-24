@@ -1,9 +1,6 @@
 use std::{collections::BTreeMap, sync::Arc, time::Duration};
 
-use data_types::{
-    NamespaceId, Partition, PartitionId, PartitionKey, SequenceNumber, ShardId, ShardIndex,
-    TableId, TRANSITION_SHARD_ID,
-};
+use data_types::{NamespaceId, Partition, PartitionId, PartitionKey, SequenceNumber, TableId};
 use dml::{DmlMeta, DmlWrite};
 use iox_catalog::interface::Catalog;
 use lazy_static::lazy_static;
@@ -117,7 +114,6 @@ impl PartitionDataBuilder {
             self.table_name
                 .unwrap_or_else(|| Arc::clone(&*DEFER_TABLE_NAME_1_SEC)),
             self.sort_key.unwrap_or(SortKeyState::Provided(None)),
-            TRANSITION_SHARD_ID,
         )
     }
 }
@@ -127,7 +123,6 @@ impl PartitionDataBuilder {
 pub(crate) fn arbitrary_partition() -> Partition {
     Partition {
         id: ARBITRARY_PARTITION_ID,
-        shard_id: TRANSITION_SHARD_ID,
         table_id: ARBITRARY_TABLE_ID,
         partition_key: ARBITRARY_PARTITION_KEY.clone(),
         sort_key: Default::default(),
@@ -285,10 +280,9 @@ pub(crate) fn make_write_op(
 
 pub(crate) async fn populate_catalog(
     catalog: &dyn Catalog,
-    shard_index: ShardIndex,
     namespace: &str,
     table: &str,
-) -> (ShardId, NamespaceId, TableId) {
+) -> (NamespaceId, TableId) {
     let mut c = catalog.repositories().await;
     let topic = c.topics().create_or_get("kafka-topic").await.unwrap();
     let query_pool = c.query_pools().create_or_get("query-pool").await.unwrap();
@@ -299,14 +293,8 @@ pub(crate) async fn populate_catalog(
         .unwrap()
         .id;
     let table_id = c.tables().create_or_get(table, ns_id).await.unwrap().id;
-    let shard_id = c
-        .shards()
-        .create_or_get(&topic, shard_index)
-        .await
-        .unwrap()
-        .id;
 
-    (shard_id, ns_id, table_id)
+    (ns_id, table_id)
 }
 
 /// Assert `a` and `b` have identical metadata, and that when converting

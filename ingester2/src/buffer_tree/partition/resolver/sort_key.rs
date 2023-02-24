@@ -59,12 +59,9 @@ impl SortKeyResolver {
 mod tests {
     use std::sync::Arc;
 
-    use data_types::ShardIndex;
-
     use super::*;
     use crate::test_util::populate_catalog;
 
-    const SHARD_INDEX: ShardIndex = ShardIndex::new(24);
     const TABLE_NAME: &str = "bananas";
     const NAMESPACE_NAME: &str = "platanos";
     const PARTITION_KEY: &str = "platanos";
@@ -76,15 +73,14 @@ mod tests {
         let catalog: Arc<dyn Catalog> =
             Arc::new(iox_catalog::mem::MemCatalog::new(Arc::clone(&metrics)));
 
-        // Populate the catalog with the shard / namespace / table
-        let (shard_id, _ns_id, table_id) =
-            populate_catalog(&*catalog, SHARD_INDEX, NAMESPACE_NAME, TABLE_NAME).await;
+        // Populate the catalog with the namespace / table
+        let (_ns_id, table_id) = populate_catalog(&*catalog, NAMESPACE_NAME, TABLE_NAME).await;
 
         let partition_id = catalog
             .repositories()
             .await
             .partitions()
-            .create_or_get(PARTITION_KEY.into(), shard_id, table_id)
+            .create_or_get(PARTITION_KEY.into(), table_id)
             .await
             .expect("should create")
             .id;
