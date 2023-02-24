@@ -30,7 +30,7 @@ hyper = "0.14"
 thiserror = "1.0.38"
 tokio = { version = "1.25", features = ["macros", "net", "parking_lot", "rt-multi-thread", "signal", "sync", "time"] }
 tonic = "0.8"
-workspace-hack = { path = "../workspace-hack"}
+workspace-hack = { version = "0.1", path = "../workspace-hack" }
 parquet_file = { version = "0.1.0", path = "../parquet_file" }
 tokio-util = "0.7.7"
 

@@ -12,7 +12,7 @@ reqwest = { version = "0.11", default-features = false, features = ["stream", "r
 thiserror = "1.0.38"
 tonic = { version = "0.8" }
 tower = "0.4"
-workspace-hack = { path = "../workspace-hack"}
+workspace-hack = { version = "0.1", path = "../workspace-hack" }
 
 [dev-dependencies]
 tokio = { version = "1.25", features = ["macros", "parking_lot", "rt-multi-thread"] }

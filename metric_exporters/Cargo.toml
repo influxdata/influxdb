@@ -9,7 +9,7 @@ license.workspace = true
 observability_deps = { path = "../observability_deps" }
 metric = { path = "../metric" }
 prometheus = { version = "0.13", default-features = false }
-workspace-hack = { path = "../workspace-hack"}
+workspace-hack = { version = "0.1", path = "../workspace-hack" }
 
 [dev-dependencies] # In alphabetical order
 test_helpers = { path = "../test_helpers" }

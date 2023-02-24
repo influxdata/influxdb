@@ -10,4 +10,4 @@ sqlparser = "0.30.0"
 snafu = "0.7.4"
 
 generated_types = { path = "../generated_types" }
-workspace-hack = { path = "../workspace-hack"}
+workspace-hack = { version = "0.1", path = "../workspace-hack" }

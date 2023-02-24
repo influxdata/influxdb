@@ -8,7 +8,7 @@ license.workspace = true
 
 [dependencies] # In alphabetical order
 tracing = { version = "0.1", features = ["max_level_trace"] }
-workspace-hack = { path = "../workspace-hack"}
+workspace-hack = { version = "0.1", path = "../workspace-hack" }
 
 [features]
 default = []

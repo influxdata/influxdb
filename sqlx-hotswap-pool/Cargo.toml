@@ -14,7 +14,7 @@ sqlx = { version = "0.6.1", features = ["runtime-tokio-rustls", "postgres", "jso
 either = "1.8.1"
 tokio = { version = "1.25", features = ["rt-multi-thread", "macros", "parking_lot"] }
 futures = "0.3"
-workspace-hack = { path = "../workspace-hack"}
+workspace-hack = { version = "0.1", path = "../workspace-hack" }
 
 [dev-dependencies]
 dotenvy = "0.15.6"

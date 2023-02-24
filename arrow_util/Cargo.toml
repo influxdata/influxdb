@@ -16,7 +16,7 @@ comfy-table = { version = "6.1", default-features = false }
 hashbrown = { workspace = true }
 num-traits = "0.2"
 snafu = "0.7"
-workspace-hack = { path = "../workspace-hack"}
+workspace-hack = { version = "0.1", path = "../workspace-hack" }
 
 [dev-dependencies]
 arrow-flight = { workspace = true }
