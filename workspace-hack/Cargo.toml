@@ -153,7 +153,9 @@ once_cell = { version = "1", default-features = false, features = ["unstable"] }
 rustix = { version = "0.36", features = ["fs", "io-lifetimes", "libc", "std", "termios", "use-libc-auxv"] }
 
 [target.x86_64-unknown-linux-gnu.build-dependencies]
+io-lifetimes = { version = "1", features = ["close", "libc", "windows-sys"] }
 once_cell = { version = "1", default-features = false, features = ["unstable"] }
+rustix = { version = "0.36", features = ["fs", "io-lifetimes", "libc", "std", "termios", "use-libc-auxv"] }
 
 [target.x86_64-apple-darwin.dependencies]
 io-lifetimes = { version = "1", features = ["close", "libc", "windows-sys"] }
@@ -162,7 +164,9 @@ once_cell = { version = "1", default-features = false, features = ["unstable"] }
 rustix = { version = "0.36", features = ["fs", "io-lifetimes", "libc", "std", "termios", "use-libc-auxv"] }
 
 [target.x86_64-apple-darwin.build-dependencies]
+io-lifetimes = { version = "1", features = ["close", "libc", "windows-sys"] }
 once_cell = { version = "1", default-features = false, features = ["unstable"] }
+rustix = { version = "0.36", features = ["fs", "io-lifetimes", "libc", "std", "termios", "use-libc-auxv"] }
 
 [target.aarch64-apple-darwin.dependencies]
 io-lifetimes = { version = "1", features = ["close", "libc", "windows-sys"] }
@@ -171,7 +175,9 @@ once_cell = { version = "1", default-features = false, features = ["unstable"] }
 rustix = { version = "0.36", features = ["fs", "io-lifetimes", "libc", "std", "termios", "use-libc-auxv"] }
 
 [target.aarch64-apple-darwin.build-dependencies]
+io-lifetimes = { version = "1", features = ["close", "libc", "windows-sys"] }
 once_cell = { version = "1", default-features = false, features = ["unstable"] }
+rustix = { version = "0.36", features = ["fs", "io-lifetimes", "libc", "std", "termios", "use-libc-auxv"] }
 
 [target.x86_64-pc-windows-msvc.dependencies]
 once_cell = { version = "1", default-features = false, features = ["unstable"] }

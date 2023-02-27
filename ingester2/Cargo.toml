@@ -58,7 +58,7 @@ datafusion_util = { path = "../datafusion_util" }
 lazy_static = "1.4.0"
 mutable_batch_lp = { path = "../mutable_batch_lp" }
 paste = "1.0.11"
-tempfile = "3.3.0"
+tempfile = "3.4.0"
 test_helpers = { path = "../test_helpers", features = ["future_timeout"] }
 tokio = { version = "1.25", features = ["macros", "time", "test-util"] }
 
