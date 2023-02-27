@@ -10,6 +10,9 @@
 -- IOX_COMPARE: sorted
 SELECT * FROM m0;
 
+-- No matching measurement
+SELECT * FROM non_existent;
+
 -- Projection wildcard, only tags
 -- IOX_COMPARE: sorted
 SELECT *::tag, f64 FROM m0;
@@ -250,3 +253,9 @@ SELECT tag0, i64, i64 * 0.5, i64 + f64::integer, i64 & 1 FROM m0 WHERE f64 > 19;
 
 -- non-existing column
 SELECT f64, non_existing, f64 + non_existing FROM m0 WHERE f64 > 19;
+
+--
+-- Multiple measurements in the FROM clause
+--
+
+SELECT usage_idle, bytes_used FROM cpu, disk;

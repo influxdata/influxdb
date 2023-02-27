@@ -55,6 +55,7 @@ pub(crate) mod database {
                     .with_time_column()
                     .with_tag_column("host")
                     .with_tag_column("region")
+                    .with_tag_column("cpu")
                     .with_f64_field_column("usage_user")
                     .with_f64_field_column("usage_system")
                     .with_f64_field_column("usage_idle")
@@ -67,6 +68,7 @@ pub(crate) mod database {
                     .with_time_column()
                     .with_tag_column("host")
                     .with_tag_column("region")
+                    .with_tag_column("device")
                     .with_i64_field_column("bytes_used")
                     .with_i64_field_column("bytes_free")
                     .with_one_row_of_data(),

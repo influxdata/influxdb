@@ -1233,6 +1233,10 @@ pub static SETUPS: Lazy<HashMap<SetupName, SetupSteps>> = Lazy::new(|| {
                     m1,tag0=val00 f64=100.5,i64=1001i,str="hi" 1667181600000000000
                     m1,tag0=val00 f64=200.6,i64=2001i,str="lo" 1667181610000000000
                     m1,tag0=val01 f64=101.7,i64=1011i,str="lo" 1667181600000000000
+                    cpu,host=host1,cpu=cpu0 usage_idle=0.98,usage_system=0.2 1667181600000000000
+                    cpu,host=host1,cpu=cpu0 usage_idle=0.99,usage_system=0.1 1667181610000000000
+                    disk,host=host1,device=disk1s1 bytes_free=1234,bytes_used=219838 1667181600000000000
+                    disk,host=host1,device=disk1s1 bytes_free=1239,bytes_used=219833 1667181610000000000
                     "#
                     .to_string(),
                 ),
