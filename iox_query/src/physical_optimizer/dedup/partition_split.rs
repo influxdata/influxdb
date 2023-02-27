@@ -1,0 +1,232 @@
+use std::sync::Arc;
+
+use data_types::PartitionId;
+use datafusion::{
+    config::ConfigOptions,
+    error::Result,
+    physical_optimizer::PhysicalOptimizerRule,
+    physical_plan::{rewrite::TreeNodeRewritable, union::UnionExec, ExecutionPlan},
+};
+use hashbrown::HashMap;
+use predicate::Predicate;
+
+use crate::{
+    config::IoxConfigExt,
+    physical_optimizer::chunk_extraction::extract_chunks,
+    provider::{chunks_to_physical_nodes, DeduplicateExec},
+    QueryChunk,
+};
+
+/// Split de-duplication operations based on partitons.
+///
+/// This should usually be more cost-efficient.
+#[derive(Debug, Default)]
+pub struct PartitionSplit;
+
+impl PhysicalOptimizerRule for PartitionSplit {
+    fn optimize(
+        &self,
+        plan: Arc<dyn ExecutionPlan>,
+        config: &ConfigOptions,
+    ) -> Result<Arc<dyn ExecutionPlan>> {
+        plan.transform_up(&|plan| {
+            let plan_any = plan.as_any();
+
+            if let Some(dedup_exec) = plan_any.downcast_ref::<DeduplicateExec>() {
+                let mut children = dedup_exec.children();
+                assert_eq!(children.len(), 1);
+                let child = children.remove(0);
+                let Some((schema, chunks)) = extract_chunks(child.as_ref()) else {
+                    return Ok(None);
+                };
+
+                let mut chunks_by_partition: HashMap<PartitionId, Vec<Arc<dyn QueryChunk>>> =
+                    Default::default();
+                for chunk in chunks {
+                    chunks_by_partition
+                        .entry(chunk.partition_id())
+                        .or_default()
+                        .push(chunk);
+                }
+
+                // If there not multiple partitions (0 or 1), then this optimizer is a no-op. Signal that to the
+                // optimizer framework.
+                if chunks_by_partition.len() < 2 {
+                    return Ok(None);
+                }
+
+                // Protect against degenerative plans
+                if chunks_by_partition.len()
+                    > config
+                        .extensions
+                        .get::<IoxConfigExt>()
+                        .cloned()
+                        .unwrap_or_default()
+                        .max_dedup_partition_split
+                {
+                    return Ok(None);
+                }
+
+                // ensure deterministic order
+                let mut chunks_by_partition = chunks_by_partition.into_iter().collect::<Vec<_>>();
+                chunks_by_partition.sort_by_key(|(p_id, _chunks)| *p_id);
+
+                let out = UnionExec::new(
+                    chunks_by_partition
+                        .into_iter()
+                        .map(|(_p_id, chunks)| {
+                            Arc::new(DeduplicateExec::new(
+                                chunks_to_physical_nodes(
+                                    &schema,
+                                    None,
+                                    chunks,
+                                    Predicate::new(),
+                                    config.execution.target_partitions,
+                                ),
+                                dedup_exec.sort_keys().to_vec(),
+                            )) as _
+                        })
+                        .collect(),
+                );
+                return Ok(Some(Arc::new(out)));
+            }
+
+            Ok(None)
+        })
+    }
+
+    fn name(&self) -> &str {
+        "partition_split"
+    }
+
+    fn schema_check(&self) -> bool {
+        true
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use crate::{
+        physical_optimizer::{
+            dedup::test_util::{chunk, dedup_plan},
+            test_util::OptimizationTest,
+        },
+        QueryChunkMeta,
+    };
+
+    use super::*;
+
+    #[test]
+    fn test_no_chunks() {
+        let schema = chunk(1).schema().clone();
+        let plan = dedup_plan(schema, vec![]);
+        let opt = PartitionSplit::default();
+        insta::assert_yaml_snapshot!(
+            OptimizationTest::new(plan, opt),
+            @r###"
+        ---
+        input:
+          - " DeduplicateExec: [tag1@1 ASC,tag2@2 ASC,time@3 ASC]"
+          - "   EmptyExec: produce_one_row=false"
+        output:
+          Ok:
+            - " DeduplicateExec: [tag1@1 ASC,tag2@2 ASC,time@3 ASC]"
+            - "   EmptyExec: produce_one_row=false"
+        "###
+        );
+    }
+
+    #[test]
+    fn test_same_partition() {
+        let chunk1 = chunk(1);
+        let chunk2 = chunk(2);
+        let chunk3 = chunk(3).with_dummy_parquet_file();
+        let schema = chunk1.schema().clone();
+        let plan = dedup_plan(schema, vec![chunk1, chunk2, chunk3]);
+        let opt = PartitionSplit::default();
+        insta::assert_yaml_snapshot!(
+            OptimizationTest::new(plan, opt),
+            @r###"
+        ---
+        input:
+          - " DeduplicateExec: [tag1@1 ASC,tag2@2 ASC,time@3 ASC]"
+          - "   UnionExec"
+          - "     RecordBatchesExec: batches_groups=2 batches=0 total_rows=0"
+          - "     ParquetExec: limit=None, partitions={1 group: [[3.parquet]]}, projection=[field, tag1, tag2, time]"
+        output:
+          Ok:
+            - " DeduplicateExec: [tag1@1 ASC,tag2@2 ASC,time@3 ASC]"
+            - "   UnionExec"
+            - "     RecordBatchesExec: batches_groups=2 batches=0 total_rows=0"
+            - "     ParquetExec: limit=None, partitions={1 group: [[3.parquet]]}, projection=[field, tag1, tag2, time]"
+        "###
+        );
+    }
+
+    #[test]
+    fn test_different_partitions() {
+        let chunk1 = chunk(1).with_partition_id(1);
+        let chunk2 = chunk(2).with_partition_id(2);
+        // use at least 3 parquet files for one of the two partitions to validate that `target_partitions` is forwared correctly
+        let chunk3 = chunk(3).with_dummy_parquet_file().with_partition_id(1);
+        let chunk4 = chunk(4).with_dummy_parquet_file().with_partition_id(2);
+        let chunk5 = chunk(5).with_dummy_parquet_file().with_partition_id(1);
+        let chunk6 = chunk(6).with_dummy_parquet_file().with_partition_id(1);
+        let schema = chunk1.schema().clone();
+        let plan = dedup_plan(schema, vec![chunk1, chunk2, chunk3, chunk4, chunk5, chunk6]);
+        let opt = PartitionSplit::default();
+        let mut config = ConfigOptions::default();
+        config.execution.target_partitions = 2;
+        insta::assert_yaml_snapshot!(
+            OptimizationTest::new_with_config(plan, opt, &config),
+            @r###"
+        ---
+        input:
+          - " DeduplicateExec: [tag1@1 ASC,tag2@2 ASC,time@3 ASC]"
+          - "   UnionExec"
+          - "     RecordBatchesExec: batches_groups=2 batches=0 total_rows=0"
+          - "     ParquetExec: limit=None, partitions={2 groups: [[3.parquet, 5.parquet], [4.parquet, 6.parquet]]}, projection=[field, tag1, tag2, time]"
+        output:
+          Ok:
+            - " UnionExec"
+            - "   DeduplicateExec: [tag1@1 ASC,tag2@2 ASC,time@3 ASC]"
+            - "     UnionExec"
+            - "       RecordBatchesExec: batches_groups=1 batches=0 total_rows=0"
+            - "       ParquetExec: limit=None, partitions={2 groups: [[3.parquet, 6.parquet], [5.parquet]]}, projection=[field, tag1, tag2, time]"
+            - "   DeduplicateExec: [tag1@1 ASC,tag2@2 ASC,time@3 ASC]"
+            - "     UnionExec"
+            - "       RecordBatchesExec: batches_groups=1 batches=0 total_rows=0"
+            - "       ParquetExec: limit=None, partitions={1 group: [[4.parquet]]}, projection=[field, tag1, tag2, time]"
+        "###
+        );
+    }
+
+    #[test]
+    fn test_max_split() {
+        let chunk1 = chunk(1).with_partition_id(1);
+        let chunk2 = chunk(2).with_partition_id(2);
+        let chunk3 = chunk(3).with_partition_id(3);
+        let schema = chunk1.schema().clone();
+        let plan = dedup_plan(schema, vec![chunk1, chunk2, chunk3]);
+        let opt = PartitionSplit::default();
+        let mut config = ConfigOptions::default();
+        config.extensions.insert(IoxConfigExt {
+            max_dedup_partition_split: 2,
+        });
+        insta::assert_yaml_snapshot!(
+            OptimizationTest::new_with_config(plan, opt, &config),
+            @r###"
+        ---
+        input:
+          - " DeduplicateExec: [tag1@1 ASC,tag2@2 ASC,time@3 ASC]"
+          - "   UnionExec"
+          - "     RecordBatchesExec: batches_groups=3 batches=0 total_rows=0"
+        output:
+          Ok:
+            - " DeduplicateExec: [tag1@1 ASC,tag2@2 ASC,time@3 ASC]"
+            - "   UnionExec"
+            - "     RecordBatchesExec: batches_groups=3 batches=0 total_rows=0"
+        "###
+        );
+    }
+}

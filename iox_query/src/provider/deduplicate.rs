@@ -119,6 +119,10 @@ impl DeduplicateExec {
             metrics: ExecutionPlanMetricsSet::new(),
         }
     }
+
+    pub fn sort_keys(&self) -> &[PhysicalSortExpr] {
+        &self.sort_keys
+    }
 }
 
 #[derive(Debug)]

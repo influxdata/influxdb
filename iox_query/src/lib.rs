@@ -25,6 +25,7 @@ use schema::{
 };
 use std::{any::Any, collections::BTreeSet, fmt::Debug, iter::FromIterator, sync::Arc};
 
+pub mod config;
 pub mod exec;
 pub mod frontend;
 pub mod logical_optimizer;
