@@ -5,8 +5,7 @@ use std::{
 
 use async_trait::async_trait;
 use data_types::{
-    ColumnSet, CompactionLevel, ParquetFile, ParquetFileId, ParquetFileParams, SequenceNumber,
-    ShardId, Timestamp,
+    ColumnSet, CompactionLevel, ParquetFile, ParquetFileParams, SequenceNumber, ShardId, Timestamp,
 };
 use datafusion::physical_plan::SendableRecordBatchStream;
 use iox_time::Time;
@@ -15,7 +14,7 @@ use uuid::Uuid;
 
 use compactor2::{DynError, ParquetFilesSink, PartitionInfo, PlanIR};
 
-use crate::{display_size, format_files};
+use crate::{display::total_size, display_size, format_files};
 
 /// Simulates the result of running a compaction plan that
 /// produces multiple parquet files.
@@ -81,37 +80,22 @@ impl ParquetFileSimulator {
                     i,
                     plan_type,
                     input_parquet_files.len(),
-                    display_size(total_size(input_parquet_files.iter()))
+                    display_size(total_size(&input_parquet_files))
                 );
-
-                // display the files created by this run
-                let output_parquet_files: Vec<_> = output_params
-                    .into_iter()
-                    .map(|params| {
-                        // Use file id 0 as they haven't been
-                        // assigned an id in the catalog yet
-                        ParquetFile::from_params(params, ParquetFileId::new(0))
-                    })
-                    .collect();
 
                 let output_title = format!(
                     "**** {} Output Files (parquet_file_id not yet assigned), {} total:",
-                    output_parquet_files.len(),
-                    display_size(total_size(output_parquet_files.iter()))
+                    output_params.len(),
+                    display_size(total_size(&output_params))
                 );
 
                 // hook up inputs and outputs
                 format_files(input_title, &input_parquet_files)
                     .into_iter()
-                    .chain(format_files(output_title, &output_parquet_files).into_iter())
+                    .chain(format_files(output_title, &output_params).into_iter())
             })
             .collect()
     }
-}
-
-/// return the total file size of all the parquet files
-fn total_size<'a>(parquet_files: impl IntoIterator<Item = &'a ParquetFile>) -> i64 {
-    parquet_files.into_iter().map(|f| f.file_size_bytes).sum()
 }
 
 #[async_trait]
