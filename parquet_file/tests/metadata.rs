@@ -4,9 +4,7 @@ use arrow::{
     array::{ArrayRef, StringArray, TimestampNanosecondArray},
     record_batch::RecordBatch,
 };
-use data_types::{
-    ColumnId, CompactionLevel, NamespaceId, PartitionId, SequenceNumber, TableId, Timestamp,
-};
+use data_types::{ColumnId, CompactionLevel, NamespaceId, PartitionId, TableId, Timestamp};
 use datafusion_util::MemoryStream;
 use iox_time::Time;
 use object_store::DynObjectStore;
@@ -57,7 +55,6 @@ async fn test_decoded_iox_metadata() {
         table_name: "platanos".into(),
         partition_id: PartitionId::new(4),
         partition_key: "potato".into(),
-        max_sequence_number: SequenceNumber::new(11),
         compaction_level: CompactionLevel::FileNonOverlapped,
         sort_key: None,
         max_l0_created_at: Time::from_timestamp_nanos(42),
@@ -198,7 +195,6 @@ async fn test_empty_parquet_file_panic() {
         table_name: "platanos".into(),
         partition_id: PartitionId::new(4),
         partition_key: "potato".into(),
-        max_sequence_number: SequenceNumber::new(11),
         compaction_level: CompactionLevel::FileNonOverlapped,
         sort_key: None,
         max_l0_created_at: Time::from_timestamp_nanos(42),
@@ -292,7 +288,6 @@ async fn test_decoded_many_columns_with_null_cols_iox_metadata() {
         table_name: "platanos".into(),
         partition_id: PartitionId::new(4),
         partition_key: "potato".into(),
-        max_sequence_number: SequenceNumber::new(11),
         compaction_level: CompactionLevel::FileNonOverlapped,
         sort_key: Some(sort_key),
         max_l0_created_at: Time::from_timestamp_nanos(42),
@@ -380,7 +375,6 @@ async fn test_derive_parquet_file_params() {
         table_name: "platanos".into(),
         partition_id,
         partition_key: "potato".into(),
-        max_sequence_number: SequenceNumber::new(11),
         compaction_level: CompactionLevel::FileNonOverlapped,
         sort_key: None,
         max_l0_created_at: Time::from_timestamp_nanos(1234),
@@ -424,7 +418,6 @@ async fn test_derive_parquet_file_params() {
     assert_eq!(catalog_data.table_id, meta.table_id);
     assert_eq!(catalog_data.partition_id, meta.partition_id);
     assert_eq!(catalog_data.object_store_id, meta.object_store_id);
-    assert_eq!(catalog_data.max_sequence_number, meta.max_sequence_number);
     assert_eq!(catalog_data.file_size_bytes, file_size as i64);
     assert_eq!(catalog_data.compaction_level, meta.compaction_level);
     assert_eq!(catalog_data.created_at, Timestamp::new(1234));

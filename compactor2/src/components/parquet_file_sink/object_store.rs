@@ -1,7 +1,7 @@
 use std::{fmt::Display, sync::Arc};
 
 use async_trait::async_trait;
-use data_types::{CompactionLevel, ParquetFileParams, SequenceNumber};
+use data_types::{CompactionLevel, ParquetFileParams};
 use datafusion::{error::DataFusionError, physical_plan::SendableRecordBatchStream};
 use iox_time::{Time, TimeProvider};
 use parquet_file::{
@@ -14,9 +14,6 @@ use uuid::Uuid;
 use crate::partition_info::PartitionInfo;
 
 use super::ParquetFileSink;
-
-// fields no longer used but still exists in the catalog
-const MAX_SEQUENCE_NUMBER: i64 = 0;
 
 #[derive(Debug)]
 pub struct ObjectStoreParquetFileSink {
@@ -57,7 +54,6 @@ impl ParquetFileSink for ObjectStoreParquetFileSink {
             table_name: partition.table.name.clone().into(),
             partition_id: partition.partition_id,
             partition_key: partition.partition_key.clone(),
-            max_sequence_number: SequenceNumber::new(MAX_SEQUENCE_NUMBER),
             compaction_level: level,
             sort_key: partition.sort_key.clone(),
             max_l0_created_at,

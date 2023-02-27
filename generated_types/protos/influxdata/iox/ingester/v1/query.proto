@@ -73,28 +73,15 @@ message IngesterQueryResponseMetadata {
   // Partition id for this batch.
   int64 partition_id = 7;
 
-  // Optional partition status.
-  //
-  // If this is given, then no schema and no batch will be part of this FlightData object.
-  PartitionStatus status = 8;
+  // Was partition status.
+  reserved "status";
+  reserved 8;
 
   // UUID of this ingester instance.
   string ingester_uuid = 9;
 
   // Number of Parquet files that have been persisted to object storage for this partition.
   uint64 completed_persistence_count = 10;
-}
-
-// Status of a partition that has unpersisted data.
-//
-// Note that this structure is specific to a partition (which itself is bound to a table and shard)!
-message PartitionStatus {
-  // Max sequence number persisted
-  optional int64 parquet_max_sequence_number = 1;
-
-  // Deprecated tombstone support in ingester (#5825).
-  reserved "tombstone_max_sequence_number";
-  reserved 2;
 }
 
 // Serialization of `predicate::predicate::Predicate` that contains DataFusion `Expr`s

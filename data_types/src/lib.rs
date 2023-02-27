@@ -830,23 +830,6 @@ pub struct Partition {
     /// relative order of B and C have been reversed.
     pub sort_key: Vec<String>,
 
-    /// The inclusive maximum [`SequenceNumber`] of the most recently persisted
-    /// data for this partition.
-    ///
-    /// All writes with a [`SequenceNumber`] less than and equal to this
-    /// [`SequenceNumber`] have been persisted to the object store. The inverse
-    /// is not guaranteed to be true due to update ordering; some files for this
-    /// partition may exist in the `parquet_files` table that have a greater
-    /// [`SequenceNumber`] than is specified here - the system will converge so
-    /// long as the ingester progresses.
-    ///
-    /// It is a system invariant that this value monotonically increases over
-    /// time - wrote another way, it is an invariant that partitions are
-    /// persisted (or at least made visible) in sequence order.
-    ///
-    /// If [`None`] no data has been persisted for this partition.
-    pub persisted_sequence_number: Option<SequenceNumber>,
-
     /// The time at which the newest file of the partition is created
     pub new_file_at: Option<Timestamp>,
 }
@@ -945,8 +928,6 @@ pub struct ParquetFile {
     pub partition_id: PartitionId,
     /// the uuid used in the object store path for this file
     pub object_store_id: Uuid,
-    /// the maximum sequence number from a record in this file
-    pub max_sequence_number: SequenceNumber,
     /// the min timestamp of data in this file
     pub min_time: Timestamp,
     /// the max timestamp of data in this file
@@ -1003,7 +984,6 @@ impl ParquetFile {
             table_id: params.table_id,
             partition_id: params.partition_id,
             object_store_id: params.object_store_id,
-            max_sequence_number: params.max_sequence_number,
             min_time: params.min_time,
             max_time: params.max_time,
             to_delete: None,
@@ -1044,8 +1024,6 @@ pub struct ParquetFileParams {
     pub partition_id: PartitionId,
     /// the uuid used in the object store path for this file
     pub object_store_id: Uuid,
-    /// the maximum sequence number from a record in this file
-    pub max_sequence_number: SequenceNumber,
     /// the min timestamp of data in this file
     pub min_time: Timestamp,
     /// the max timestamp of data in this file
@@ -1071,7 +1049,6 @@ impl From<ParquetFile> for ParquetFileParams {
             table_id: value.table_id,
             partition_id: value.partition_id,
             object_store_id: value.object_store_id,
-            max_sequence_number: value.max_sequence_number,
             min_time: value.min_time,
             max_time: value.max_time,
             file_size_bytes: value.file_size_bytes,

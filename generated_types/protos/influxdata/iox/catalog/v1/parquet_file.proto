@@ -9,6 +9,8 @@ message ParquetFile {
     reserved "sequencer_id";
     reserved 17;
     reserved "shard_id";
+    reserved 8;
+    reserved "max_sequence_number";
 
     // the id of the file in the catalog
     int64 id = 1;
@@ -20,8 +22,6 @@ message ParquetFile {
     int64 partition_id = 5;
     // the object store uuid
     string object_store_id = 6;
-    // the maximum sequence number from a record in this file
-    int64 max_sequence_number = 8;
     // the min timestamp of data in this file
     int64 min_time = 9;
     // the max timestamp of data in this file
