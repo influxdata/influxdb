@@ -441,15 +441,13 @@ impl QuerierTable {
 // therefore needs to refresh its view of the catalog.
 fn collect_persisted_file_counts(
     capacity: usize,
-    partitions: impl Iterator<Item = (Option<Uuid>, u64)>,
+    partitions: impl Iterator<Item = (Uuid, u64)>,
 ) -> HashMap<Uuid, u64> {
     partitions.fold(
         HashMap::with_capacity(capacity),
         |mut map, (uuid, count)| {
-            if let Some(uuid) = uuid {
-                let sum = map.entry(uuid).or_default();
-                *sum += count;
-            }
+            let sum = map.entry(uuid).or_default();
+            *sum += count;
             map
         },
     )
@@ -481,19 +479,13 @@ mod tests {
             "Expected output to be empty, instead was: {output:?}"
         );
 
-        // If there's no UUIDs, don't count anything
-        let input = [(None, 10)];
+        let uuid1 = Uuid::new_v4();
+        let uuid2 = Uuid::new_v4();
+        let input = [(uuid1, 20), (uuid1, 22), (uuid2, 30)];
         let output = collect_persisted_file_counts(input.len(), input.into_iter());
-        assert!(
-            output.is_empty(),
-            "Expected output to be empty, instead was: {output:?}"
-        );
-
-        let uuid = Uuid::new_v4();
-        let input = [(Some(uuid), 20), (Some(uuid), 22), (None, 10)];
-        let output = collect_persisted_file_counts(input.len(), input.into_iter());
-        assert_eq!(output.len(), 1);
-        assert_eq!(*output.get(&uuid).unwrap(), 42);
+        assert_eq!(output.len(), 2);
+        assert_eq!(*output.get(&uuid1).unwrap(), 42);
+        assert_eq!(*output.get(&uuid2).unwrap(), 30);
     }
 
     #[tokio::test]

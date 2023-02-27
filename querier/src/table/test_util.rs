@@ -107,7 +107,7 @@ impl IngesterPartitionBuilder {
         let data = self.lp.iter().map(|lp| lp_to_record_batch(lp)).collect();
 
         IngesterPartition::new(
-            Some(Uuid::new_v4()),
+            Uuid::new_v4(),
             self.partition.partition.id,
             0,
             parquet_max_sequence_number,

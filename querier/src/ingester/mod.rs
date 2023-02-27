@@ -567,16 +567,10 @@ impl IngesterStreamDecoder {
                 // columns that the sort key must cover.
                 let partition_sort_key = None;
 
-                let ingester_uuid = if md.ingester_uuid.is_empty() {
-                    // Using the write buffer path, no UUID specified
-                    None
-                } else {
-                    Some(
-                        Uuid::parse_str(&md.ingester_uuid).context(IngesterUuidSnafu {
-                            ingester_uuid: md.ingester_uuid,
-                        })?,
-                    )
-                };
+                let ingester_uuid =
+                    Uuid::parse_str(&md.ingester_uuid).context(IngesterUuidSnafu {
+                        ingester_uuid: md.ingester_uuid,
+                    })?;
 
                 let partition = IngesterPartition::new(
                     ingester_uuid,
@@ -767,17 +761,15 @@ impl IngesterConnection for IngesterConnectionImpl {
 /// more than one IngesterPartition for each table the ingester knows about.
 #[derive(Debug, Clone)]
 pub struct IngesterPartition {
-    /// If using ingester2/rpc write path, the ingester UUID will be present and will identify
-    /// whether this ingester has restarted since the last time it was queried or not.
-    ///
-    /// When we fully switch over to always using the RPC write path, the `Option` in this type can
-    /// be removed.
-    ingester_uuid: Option<Uuid>,
+    /// The ingester UUID that identifies whether this ingester has restarted since the last time
+    /// it was queried or not, which affects whether we can compare the
+    /// `completed_persistence_count` with a previous count for this ingester to know if we need
+    /// to refresh the catalog cache or not.
+    ingester_uuid: Uuid,
 
     partition_id: PartitionId,
 
-    /// If using ingester2/rpc write path, this will be the number of Parquet files this ingester
-    /// UUID has persisted for this partition.
+    /// The number of Parquet files this ingester UUID has persisted for this partition.
     completed_persistence_count: u64,
 
     /// Maximum sequence number of parquet files the ingester has
@@ -795,7 +787,7 @@ impl IngesterPartition {
     /// `RecordBatches` into the correct types
     #[allow(clippy::too_many_arguments)]
     pub fn new(
-        ingester_uuid: Option<Uuid>,
+        ingester_uuid: Uuid,
         partition_id: PartitionId,
         completed_persistence_count: u64,
         parquet_max_sequence_number: Option<SequenceNumber>,
@@ -860,7 +852,7 @@ impl IngesterPartition {
         Ok(self)
     }
 
-    pub(crate) fn ingester_uuid(&self) -> Option<Uuid> {
+    pub(crate) fn ingester_uuid(&self) -> Uuid {
         self.ingester_uuid
     }
 
@@ -1200,7 +1192,7 @@ mod tests {
         assert_eq!(p.partition_id.get(), 1);
         assert_eq!(p.parquet_max_sequence_number, None);
         assert_eq!(p.chunks.len(), 0);
-        assert_eq!(p.ingester_uuid.unwrap(), ingester_uuid);
+        assert_eq!(p.ingester_uuid, ingester_uuid);
         assert_eq!(p.completed_persistence_count, 5);
     }
 
@@ -1540,7 +1532,7 @@ mod tests {
         assert_eq!(partitions.len(), 3);
 
         let p1 = &partitions[0];
-        assert_eq!(p1.ingester_uuid.unwrap(), ingester_uuid1);
+        assert_eq!(p1.ingester_uuid, ingester_uuid1);
         assert_eq!(p1.completed_persistence_count, 0);
         assert_eq!(p1.partition_id.get(), 1);
         assert_eq!(
@@ -1549,7 +1541,7 @@ mod tests {
         );
 
         let p2 = &partitions[1];
-        assert_eq!(p2.ingester_uuid.unwrap(), ingester_uuid1);
+        assert_eq!(p2.ingester_uuid, ingester_uuid1);
         assert_eq!(p2.completed_persistence_count, 42);
         assert_eq!(p2.partition_id.get(), 2);
         assert_eq!(
@@ -1558,7 +1550,7 @@ mod tests {
         );
 
         let p3 = &partitions[2];
-        assert_eq!(p3.ingester_uuid.unwrap(), ingester_uuid2);
+        assert_eq!(p3.ingester_uuid, ingester_uuid2);
         assert_eq!(p3.completed_persistence_count, 9000);
         assert_eq!(p3.partition_id.get(), 3);
         assert_eq!(
@@ -1824,7 +1816,7 @@ mod tests {
             let parquet_max_sequence_number = None;
             // Construct a partition and ensure it doesn't error
             let ingester_partition = IngesterPartition::new(
-                Some(ingester_uuid),
+                ingester_uuid,
                 PartitionId::new(1),
                 0,
                 parquet_max_sequence_number,
@@ -1853,7 +1845,7 @@ mod tests {
 
         let parquet_max_sequence_number = None;
         let err = IngesterPartition::new(
-            Some(ingester_uuid),
+            ingester_uuid,
             PartitionId::new(1),
             0,
             parquet_max_sequence_number,
