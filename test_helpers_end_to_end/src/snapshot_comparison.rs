@@ -1,4 +1,4 @@
-mod normalization;
+pub mod normalization;
 mod queries;
 
 use crate::snapshot_comparison::queries::TestQueries;

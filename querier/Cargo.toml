@@ -56,5 +56,5 @@ insta = { version = "1.28.0", features = ["yaml"] }
 iox_tests = { path = "../iox_tests" }
 mutable_batch_lp = { path = "../mutable_batch_lp" }
 object_store_metrics = { path = "../object_store_metrics" }
-regex = "1.7.1"
 test_helpers = { path = "../test_helpers" }
+test_helpers_end_to_end = { path = "../test_helpers_end_to_end" }

@@ -205,8 +205,8 @@ mod tests {
     use iox_query::frontend::sql::SqlQueryPlanner;
     use iox_tests::{TestCatalog, TestParquetFileBuilder};
     use metric::{Observation, RawReporter};
-    use regex::Regex;
     use snafu::{ResultExt, Snafu};
+    use test_helpers_end_to_end::snapshot_comparison::normalization::Normalizer;
     use trace::{span::SpanStatus, RingBufferTraceCollector};
 
     #[tokio::test]
@@ -492,13 +492,13 @@ mod tests {
             format_explain(&querier_namespace, "EXPLAIN SELECT * FROM cpu").await,
             @r###"
         ---
-        - +---------------+---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------+
-        - "| plan_type     | plan                                                                                                                                                                                                                                                                                                                                                                |"
-        - +---------------+---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------+
-        - "| logical_plan  | TableScan: cpu projection=[foo, host, load, time]                                                                                                                                                                                                                                                                                                                   |"
-        - "| physical_plan | ParquetExec: limit=None, partitions={1 group: [[1/1/1/1/<uuid>.parquet, 1/1/1/1/<uuid>.parquet, 1/1/1/1/<uuid>.parquet, 1/1/2/2/<uuid>.parquet, 1/1/1/3/<uuid>.parquet]]}, projection=[foo, host, load, time] |"
-        - "|               |                                                                                                                                                                                                                                                                                                                                                                     |"
-        - +---------------+---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------+
+        - "----------"
+        - "| plan_type    | plan    |"
+        - "----------"
+        - "| logical_plan    | TableScan: cpu projection=[foo, host, load, time]    |"
+        - "| physical_plan    | ParquetExec: limit=None, partitions={1 group: [[1/1/1/1/00000000-0000-0000-0000-000000000000.parquet, 1/1/1/1/00000000-0000-0000-0000-000000000001.parquet, 1/1/1/1/00000000-0000-0000-0000-000000000002.parquet, 1/1/1/1/00000000-0000-0000-0000-000000000003.parquet, 1/1/1/1/00000000-0000-0000-0000-000000000004.parquet]]}, projection=[foo, host, load, time]    |"
+        - "|    |    |"
+        - "----------"
         "###
         );
 
@@ -509,22 +509,22 @@ mod tests {
             format_explain(&querier_namespace, "EXPLAIN SELECT * FROM mem ORDER BY host,time").await,
             @r###"
         ---
-        - +---------------+--------------------------------------------------------------------------------------------------------------------------------------------------+
-        - "| plan_type     | plan                                                                                                                                             |"
-        - +---------------+--------------------------------------------------------------------------------------------------------------------------------------------------+
-        - "| logical_plan  | Sort: mem.host ASC NULLS LAST, mem.time ASC NULLS LAST                                                                                           |"
-        - "|               |   TableScan: mem projection=[host, perc, time]                                                                                                   |"
-        - "| physical_plan | SortExec: expr=[host@0 ASC NULLS LAST,time@2 ASC NULLS LAST]                                                                                     |"
-        - "|               |   CoalescePartitionsExec                                                                                                                         |"
-        - "|               |     UnionExec                                                                                                                                    |"
-        - "|               |       CoalesceBatchesExec: target_batch_size=8192                                                                                                |"
-        - "|               |         FilterExec: time@2 < 1 OR time@2 > 13 OR NOT host@0 = CAST(d AS Dictionary(Int32, Utf8))                                                 |"
-        - "|               |           ParquetExec: limit=None, partitions={1 group: [[1/2/1/4/<uuid>.parquet]]}, projection=[host, perc, time] |"
-        - "|               |       CoalesceBatchesExec: target_batch_size=8192                                                                                                |"
-        - "|               |         FilterExec: time@2 < 1 OR time@2 > 13 OR NOT host@0 = CAST(d AS Dictionary(Int32, Utf8))                                                 |"
-        - "|               |           ParquetExec: limit=None, partitions={1 group: [[1/2/1/4/<uuid>.parquet]]}, projection=[host, perc, time] |"
-        - "|               |                                                                                                                                                  |"
-        - +---------------+--------------------------------------------------------------------------------------------------------------------------------------------------+
+        - "----------"
+        - "| plan_type    | plan    |"
+        - "----------"
+        - "| logical_plan    | Sort: mem.host ASC NULLS LAST, mem.time ASC NULLS LAST    |"
+        - "|    |   TableScan: mem projection=[host, perc, time]    |"
+        - "| physical_plan    | SortExec: expr=[host@0 ASC NULLS LAST,time@2 ASC NULLS LAST]    |"
+        - "|    |   CoalescePartitionsExec    |"
+        - "|    |     UnionExec    |"
+        - "|    |       CoalesceBatchesExec: target_batch_size=8192    |"
+        - "|    |         FilterExec: time@2 < 1 OR time@2 > 13 OR NOT host@0 = CAST(d AS Dictionary(Int32, Utf8))    |"
+        - "|    |           ParquetExec: limit=None, partitions={1 group: [[1/1/1/1/00000000-0000-0000-0000-000000000000.parquet]]}, projection=[host, perc, time]    |"
+        - "|    |       CoalesceBatchesExec: target_batch_size=8192    |"
+        - "|    |         FilterExec: time@2 < 1 OR time@2 > 13 OR NOT host@0 = CAST(d AS Dictionary(Int32, Utf8))    |"
+        - "|    |           ParquetExec: limit=None, partitions={1 group: [[1/1/1/1/00000000-0000-0000-0000-000000000001.parquet]]}, projection=[host, perc, time]    |"
+        - "|    |    |"
+        - "----------"
         "###
         );
 
@@ -567,19 +567,19 @@ mod tests {
             format_explain(&querier_namespace, "EXPLAIN SELECT * FROM cpu").await,
             @r###"
         ---
-        - +---------------+-----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------+
-        - "| plan_type     | plan                                                                                                                                                                                                                                                                                                            |"
-        - +---------------+-----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------+
-        - "| logical_plan  | TableScan: cpu projection=[foo, host, load, time]                                                                                                                                                                                                                                                               |"
-        - "| physical_plan | UnionExec                                                                                                                                                                                                                                                                                                       |"
-        - "|               |   DeduplicateExec: [host@1 ASC,time@3 ASC]                                                                                                                                                                                                                                                                      |"
-        - "|               |     SortPreservingMergeExec: [host@1 ASC,time@3 ASC]                                                                                                                                                                                                                                                            |"
-        - "|               |       UnionExec                                                                                                                                                                                                                                                                                                 |"
-        - "|               |         ParquetExec: limit=None, partitions={1 group: [[1/1/2/2/<uuid>.parquet]]}, output_ordering=[host@1 ASC, time@3 ASC], projection=[foo, host, load, time]                                                                                                                   |"
-        - "|               |         ParquetExec: limit=None, partitions={1 group: [[1/1/2/2/<uuid>.parquet]]}, output_ordering=[host@1 ASC, time@3 ASC], projection=[foo, host, load, time]                                                                                                                   |"
-        - "|               |   ParquetExec: limit=None, partitions={1 group: [[1/1/1/1/<uuid>.parquet, 1/1/1/1/<uuid>.parquet, 1/1/1/1/<uuid>.parquet, 1/1/1/3/<uuid>.parquet]]}, projection=[foo, host, load, time] |"
-        - "|               |                                                                                                                                                                                                                                                                                                                 |"
-        - +---------------+-----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------+
+        - "----------"
+        - "| plan_type    | plan    |"
+        - "----------"
+        - "| logical_plan    | TableScan: cpu projection=[foo, host, load, time]    |"
+        - "| physical_plan    | UnionExec    |"
+        - "|    |   DeduplicateExec: [host@1 ASC,time@3 ASC]    |"
+        - "|    |     SortPreservingMergeExec: [host@1 ASC,time@3 ASC]    |"
+        - "|    |       UnionExec    |"
+        - "|    |         ParquetExec: limit=None, partitions={1 group: [[1/1/1/1/00000000-0000-0000-0000-000000000000.parquet]]}, output_ordering=[host@1 ASC, time@3 ASC], projection=[foo, host, load, time]    |"
+        - "|    |         ParquetExec: limit=None, partitions={1 group: [[1/1/1/1/00000000-0000-0000-0000-000000000001.parquet]]}, output_ordering=[host@1 ASC, time@3 ASC], projection=[foo, host, load, time]    |"
+        - "|    |   ParquetExec: limit=None, partitions={1 group: [[1/1/1/1/00000000-0000-0000-0000-000000000002.parquet, 1/1/1/1/00000000-0000-0000-0000-000000000003.parquet, 1/1/1/1/00000000-0000-0000-0000-000000000004.parquet, 1/1/1/1/00000000-0000-0000-0000-000000000005.parquet]]}, projection=[foo, host, load, time]    |"
+        - "|    |    |"
+        - "----------"
         "###
         );
     }
@@ -599,15 +599,11 @@ mod tests {
 
     async fn format_explain(querier_namespace: &Arc<QuerierNamespace>, sql: &str) -> Vec<String> {
         let results = run(querier_namespace, sql, None).await;
-        let formatted = arrow_util::display::pretty_format_batches(&results).unwrap();
-
-        let regex = Regex::new("[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}")
-            .expect("UUID regex");
-        formatted
-            .trim()
-            .split('\n')
-            .map(|s| regex.replace_all(s, "<uuid>").to_string())
-            .collect::<Vec<_>>()
+        let normalizer = Normalizer {
+            normalized_uuids: true,
+            ..Default::default()
+        };
+        normalizer.normalize_results(results)
     }
 
     async fn run(
