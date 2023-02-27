@@ -86,12 +86,20 @@ pub struct Compactor2Config {
     )]
     pub max_desired_file_size_bytes: u64,
 
-    /// Percentage of desired max file size.
+    /// Percentage of desired max file size for "leading edge split"
+    /// optimization.
     ///
-    /// If the estimated compacted result is too small, no need to split it.
-    /// This percentage is to determine how small it is:
-    ///    < percentage_max_file_size * max_desired_file_size_bytes:
+    /// This setting controls the estimated output file size at which
+    /// the compactor will apply the "leading edge" optimization.
+    ///
+    /// When compacting files together, if the output size is
+    /// estimated to be greater than the following quantity, the
+    /// "leading edge split" optimization will be applied:
+    ///
+    /// percentage_max_file_size * max_desired_file_size_bytes
+    ///
     /// This value must be between (0, 100)
+    ///
     /// Default is 20
     #[clap(
         long = "compaction-percentage-max-file_size",
@@ -101,15 +109,33 @@ pub struct Compactor2Config {
     )]
     pub percentage_max_file_size: u16,
 
-    /// Split file percentage
-    /// If the estimated compacted result is neither too small nor too large, it will be
-    /// split into 2 files determined by this percentage.
-    ///    . Too small means: < percentage_max_file_size * max_desired_file_size_bytes
-    ///    . Too large means: > max_desired_file_size_bytes
-    ///    . Any size in the middle will be considered neither too small nor too large
+    /// Split file percentage for "leading edge split"
+    ///
+    /// To reduce the likelihood of recompacting the same data too many
+    /// times, the compactor uses the "leading edge split"
+    /// optimization for the common case where the new data written
+    /// into a partition also has the most recent timestamps.
+    ///
+    /// When compacting multiple files together, if the compactor
+    /// estimates the resulting file will be large enough (see
+    /// `percentage_max_file_size`) it creates two output files
+    /// rather than one, split by time, like this:
+    ///
+    /// `|-------------- older_data -----------------||---- newer_data ----|`
+    ///
+    /// In the common case, the file containing `older_data` is less
+    /// likely to overlap with new data written in.
+    ///
+    /// This setting controls what percentage of data is placed into
+    /// the `older_data` portion.
+    ///
+    /// Increasing this value increases the average size of compacted
+    /// files after the first round of compaction. However, doing so
+    /// also increase the likelihood that late arriving data will
+    /// overlap with larger existing files, necessitating additional
+    /// compaction rounds.
     ///
     /// This value must be between (0, 100)
-    /// Default is 80
     #[clap(
         long = "compaction-split-percentage",
         env = "INFLUXDB_IOX_COMPACTION_SPLIT_PERCENTAGE",
