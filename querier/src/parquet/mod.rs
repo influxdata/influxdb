@@ -275,7 +275,7 @@ pub mod tests {
                     &Handle::current(),
                 )),
                 catalog.metric_registry(),
-                false,
+                true,
             );
 
             Self {

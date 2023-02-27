@@ -268,7 +268,7 @@ mod tests {
             catalog.exec(),
             Some(create_ingester_connection_for_testing()),
             QuerierDatabase::MAX_CONCURRENT_QUERIES_MAX.saturating_add(1),
-            false,
+            true,
         )
         .await
         .unwrap();
@@ -293,7 +293,7 @@ mod tests {
                 catalog.exec(),
                 Some(create_ingester_connection_for_testing()),
                 QuerierDatabase::MAX_CONCURRENT_QUERIES_MAX,
-                false,
+                false, // this only applies to the kafka write path
             )
             .await,
             Error::NoShards
@@ -319,7 +319,7 @@ mod tests {
             catalog.exec(),
             Some(create_ingester_connection_for_testing()),
             QuerierDatabase::MAX_CONCURRENT_QUERIES_MAX,
-            false,
+            true,
         )
         .await
         .unwrap();
@@ -349,7 +349,7 @@ mod tests {
             catalog.exec(),
             Some(create_ingester_connection_for_testing()),
             QuerierDatabase::MAX_CONCURRENT_QUERIES_MAX,
-            false,
+            true,
         )
         .await
         .unwrap();
