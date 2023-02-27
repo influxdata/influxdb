@@ -16,7 +16,7 @@ parquet_file  = { path = "../parquet_file" }
 schema = { path = "../schema" }
 tokio = "1.25"
 snafu = "0.7"
-workspace-hack = { path = "../workspace-hack"}
+workspace-hack = { version = "0.1", path = "../workspace-hack" }
 
 
 [dev-dependencies]

@@ -14,7 +14,7 @@ metric = { version = "0.1.0", path = "../metric" }
 object_store = "0.5.4"
 pin-project = "1.0.12"
 tokio = { version = "1.25", features = ["io-util"] }
-workspace-hack = { path = "../workspace-hack" }
+workspace-hack = { version = "0.1", path = "../workspace-hack" }
 
 [dev-dependencies] # In alphabetical order
 dotenvy = "0.15.6"

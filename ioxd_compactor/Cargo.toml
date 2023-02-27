@@ -23,6 +23,6 @@ trace = { path = "../trace" }
 async-trait = "0.1"
 hyper = "0.14"
 thiserror = "1.0.38"
-workspace-hack = { path = "../workspace-hack"}
+workspace-hack = { version = "0.1", path = "../workspace-hack" }
 parquet_file = { version = "0.1.0", path = "../parquet_file" }
 tokio-util = "0.7.7"

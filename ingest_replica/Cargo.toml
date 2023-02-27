@@ -44,7 +44,7 @@ tokio = { version = "1.22", features = ["macros", "parking_lot", "rt-multi-threa
 tonic = "0.8.3"
 trace = { version = "0.1.0", path = "../trace" }
 uuid = "1.2.2"
-workspace-hack = { path = "../workspace-hack"}
+workspace-hack = { version = "0.1", path = "../workspace-hack" }
 
 [dev-dependencies]
 assert_matches = "1.5.0"

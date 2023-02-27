@@ -12,7 +12,7 @@ iox_catalog = { path = "../iox_catalog" }
 observability_deps = { path = "../observability_deps" }
 tokio = { version = "1", features = ["rt-multi-thread", "macros"] }
 tonic = "0.8"
-workspace-hack = { path = "../workspace-hack"}
+workspace-hack = { version = "0.1", path = "../workspace-hack" }
 
 [dev-dependencies]
 metric = { path = "../metric" }

@@ -19,6 +19,6 @@ parking_lot = "0.12"
 pin-project = "1.0"
 snafu = "0.7"
 tower = "0.4"
-workspace-hack = { path = "../workspace-hack"}
+workspace-hack = { version = "0.1", path = "../workspace-hack" }
 
 [dev-dependencies]

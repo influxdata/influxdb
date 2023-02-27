@@ -16,183 +16,181 @@ license.workspace = true
 
 ### BEGIN HAKARI SECTION
 [dependencies]
-ahash = { version = "0.8", default-features = false, features = ["getrandom", "runtime-rng"] }
-arrow = { version = "33", features = ["arrow-csv", "arrow-ipc", "arrow-json", "comfy-table", "csv", "dyn_cmp_dict", "ipc", "json", "prettyprint"] }
+ahash = { version = "0.8", default-features = false, features = ["runtime-rng"] }
+arrow = { version = "33", features = ["dyn_cmp_dict", "prettyprint"] }
 arrow-flight = { version = "33", features = ["flight-sql-experimental"] }
 arrow-ord = { version = "33", default-features = false, features = ["dyn_cmp_dict"] }
 arrow-string = { version = "33", default-features = false, features = ["dyn_cmp_dict"] }
-base64-594e8ee84c453af0 = { package = "base64", version = "0.13", features = ["std"] }
-base64-647d43efb71741da = { package = "base64", version = "0.21", features = ["std"] }
+base64-594e8ee84c453af0 = { package = "base64", version = "0.13" }
+base64-647d43efb71741da = { package = "base64", version = "0.21" }
 bitflags = { version = "1" }
-byteorder = { version = "1", features = ["std"] }
-bytes = { version = "1", features = ["std"] }
-chrono = { version = "0.4", default-features = false, features = ["alloc", "clock", "iana-time-zone", "serde", "std", "winapi"] }
-crossbeam-utils = { version = "0.8", features = ["std"] }
+byteorder = { version = "1" }
+bytes = { version = "1" }
+chrono = { version = "0.4", default-features = false, features = ["alloc", "clock", "serde"] }
+crossbeam-utils = { version = "0.8" }
 crypto-common = { version = "0.1", default-features = false, features = ["std"] }
-datafusion = { git = "https://github.com/apache/arrow-datafusion.git", rev = "f6e49ac7a027abb95d8b7fa755502dfa7d53c21c", features = ["async-compression", "bzip2", "compression", "crypto_expressions", "flate2", "regex_expressions", "unicode_expressions", "xz2"] }
-digest = { version = "0.10", features = ["alloc", "block-buffer", "core-api", "mac", "std", "subtle"] }
-either = { version = "1", features = ["use_std"] }
-fixedbitset = { version = "0.4", features = ["std"] }
-flatbuffers = { version = "23", features = ["std"] }
-flate2 = { version = "1", features = ["miniz_oxide", "rust_backend"] }
-futures-channel = { version = "0.3", features = ["alloc", "futures-sink", "sink", "std"] }
-futures-core = { version = "0.3", features = ["alloc", "std"] }
-futures-executor = { version = "0.3", features = ["std"] }
-futures-io = { version = "0.3", features = ["std"] }
-futures-sink = { version = "0.3", features = ["alloc", "std"] }
-futures-task = { version = "0.3", default-features = false, features = ["alloc", "std"] }
-futures-util = { version = "0.3", features = ["alloc", "async-await", "async-await-macro", "channel", "futures-channel", "futures-io", "futures-macro", "futures-sink", "io", "memchr", "sink", "slab", "std"] }
+datafusion = { git = "https://github.com/apache/arrow-datafusion.git", rev = "f6e49ac7a027abb95d8b7fa755502dfa7d53c21c" }
+digest = { version = "0.10", features = ["mac", "std"] }
+either = { version = "1" }
+fixedbitset = { version = "0.4" }
+flatbuffers = { version = "23" }
+flate2 = { version = "1" }
+futures-channel = { version = "0.3", features = ["sink"] }
+futures-core = { version = "0.3" }
+futures-executor = { version = "0.3" }
+futures-io = { version = "0.3" }
+futures-sink = { version = "0.3" }
+futures-task = { version = "0.3", default-features = false, features = ["std"] }
+futures-util = { version = "0.3", features = ["channel", "io", "sink"] }
 getrandom = { version = "0.2", default-features = false, features = ["std"] }
-hashbrown-5ef9efb8ec2df382 = { package = "hashbrown", version = "0.12", features = ["ahash", "inline-more", "raw"] }
-hashbrown-594e8ee84c453af0 = { package = "hashbrown", version = "0.13", features = ["ahash", "inline-more", "raw"] }
+hashbrown-594e8ee84c453af0 = { package = "hashbrown", version = "0.13", features = ["raw"] }
+hashbrown-5ef9efb8ec2df382 = { package = "hashbrown", version = "0.12", features = ["raw"] }
 indexmap = { version = "1", default-features = false, features = ["std"] }
-itertools = { version = "0.10", features = ["use_alloc", "use_std"] }
-libc = { version = "0.2", features = ["extra_traits", "std"] }
+itertools = { version = "0.10" }
+libc = { version = "0.2", features = ["extra_traits"] }
 lock_api = { version = "0.4", default-features = false, features = ["arc_lock"] }
 log = { version = "0.4", default-features = false, features = ["std"] }
-md-5 = { version = "0.10", features = ["std"] }
-memchr = { version = "2", features = ["std"] }
-nom = { version = "7", features = ["alloc", "std"] }
+md-5 = { version = "0.10" }
+memchr = { version = "2" }
+nom = { version = "7" }
 num-integer = { version = "0.1", default-features = false, features = ["i128", "std"] }
-num-traits = { version = "0.2", features = ["i128", "libm", "std"] }
-object_store = { version = "0.5", default-features = false, features = ["aws", "azure", "base64", "cloud", "gcp", "quick-xml", "rand", "reqwest", "ring", "rustls-pemfile", "serde", "serde_json"] }
-once_cell = { version = "1", features = ["alloc", "parking_lot", "parking_lot_core", "race", "std"] }
+num-traits = { version = "0.2", features = ["i128", "libm"] }
+object_store = { version = "0.5", default-features = false, features = ["aws", "azure", "gcp"] }
+once_cell = { version = "1", features = ["parking_lot"] }
 parking_lot = { version = "0.12", features = ["arc_lock"] }
-parquet = { version = "33", features = ["arrow", "arrow-array", "arrow-buffer", "arrow-cast", "arrow-data", "arrow-ipc", "arrow-schema", "arrow-select", "async", "base64", "brotli", "experimental", "flate2", "futures", "lz4", "snap", "tokio", "zstd"] }
-phf_shared = { version = "0.11", features = ["std"] }
-predicates = { version = "2", features = ["diff", "float-cmp", "normalize-line-endings", "regex"] }
-prost = { version = "0.11", features = ["prost-derive", "std"] }
-prost-types = { version = "0.11", features = ["std"] }
-rand = { version = "0.8", features = ["alloc", "getrandom", "libc", "rand_chacha", "small_rng", "std", "std_rng"] }
-rand_core = { version = "0.6", default-features = false, features = ["alloc", "getrandom", "std"] }
-regex = { version = "1", features = ["aho-corasick", "memchr", "perf", "perf-cache", "perf-dfa", "perf-inline", "perf-literal", "std", "unicode", "unicode-age", "unicode-bool", "unicode-case", "unicode-gencat", "unicode-perl", "unicode-script", "unicode-segment"] }
-regex-syntax = { version = "0.6", features = ["unicode", "unicode-age", "unicode-bool", "unicode-case", "unicode-gencat", "unicode-perl", "unicode-script", "unicode-segment"] }
-reqwest = { version = "0.11", default-features = false, features = ["__rustls", "__tls", "hyper-rustls", "json", "rustls", "rustls-pemfile", "rustls-tls", "rustls-tls-webpki-roots", "serde_json", "stream", "tokio-rustls", "tokio-util", "wasm-streams", "webpki-roots"] }
-ring = { version = "0.16", features = ["alloc", "dev_urandom_fallback", "once_cell", "std"] }
-serde = { version = "1", features = ["derive", "rc", "serde_derive", "std"] }
-serde_json = { version = "1", features = ["raw_value", "std"] }
-sha2 = { version = "0.10", features = ["std"] }
-similar = { version = "2", features = ["inline", "text"] }
+parquet = { version = "33", features = ["async", "experimental"] }
+phf_shared = { version = "0.11" }
+predicates = { version = "2" }
+prost = { version = "0.11" }
+prost-types = { version = "0.11" }
+rand = { version = "0.8", features = ["small_rng"] }
+rand_core = { version = "0.6", default-features = false, features = ["std"] }
+regex = { version = "1" }
+regex-syntax = { version = "0.6" }
+reqwest = { version = "0.11", default-features = false, features = ["json", "rustls-tls", "stream"] }
+ring = { version = "0.16", features = ["std"] }
+serde = { version = "1", features = ["derive", "rc"] }
+serde_json = { version = "1", features = ["raw_value"] }
+sha2 = { version = "0.10" }
+similar = { version = "2", features = ["inline"] }
 smallvec = { version = "1", default-features = false, features = ["union"] }
-sqlx = { version = "0.6", features = ["_rt-tokio", "json", "macros", "migrate", "postgres", "runtime-tokio-rustls", "sqlite", "sqlx-macros", "tls", "uuid"] }
-sqlx-core = { version = "0.6", default-features = false, features = ["_rt-tokio", "_tls-rustls", "any", "base64", "crc", "dirs", "flume", "futures-executor", "hkdf", "hmac", "json", "libsqlite3-sys", "md-5", "migrate", "postgres", "rand", "runtime-tokio-rustls", "rustls", "rustls-pemfile", "serde", "serde_json", "sha1", "sha2", "sqlite", "tokio-stream", "uuid", "webpki-roots", "whoami"] }
-thrift = { version = "0.17", features = ["log", "server", "threadpool"] }
-tokio = { version = "1", features = ["bytes", "fs", "full", "io-std", "io-util", "libc", "macros", "memchr", "mio", "net", "num_cpus", "parking_lot", "process", "rt", "rt-multi-thread", "signal", "signal-hook-registry", "socket2", "sync", "test-util", "time", "tokio-macros", "tracing"] }
-tokio-stream = { version = "0.1", features = ["fs", "net", "time"] }
-tokio-util = { version = "0.7", features = ["codec", "compat", "futures-io", "io", "tracing"] }
-tonic = { version = "0.8", features = ["async-trait", "axum", "channel", "codegen", "h2", "hyper", "hyper-timeout", "prost", "prost-derive", "prost1", "tokio", "tower", "tracing-futures", "transport"] }
-tower = { version = "0.4", features = ["__common", "balance", "buffer", "discover", "futures-core", "futures-util", "indexmap", "limit", "load", "log", "make", "pin-project", "pin-project-lite", "rand", "ready-cache", "slab", "timeout", "tokio", "tokio-util", "tracing", "util"] }
-tracing = { version = "0.1", features = ["attributes", "log", "max_level_trace", "release_max_level_trace", "std", "tracing-attributes"] }
-tracing-core = { version = "0.1", features = ["once_cell", "std"] }
-tracing-log = { version = "0.1", features = ["log-tracer", "std", "trace-logger"] }
-tracing-subscriber = { version = "0.3", features = ["alloc", "ansi", "env-filter", "fmt", "json", "matchers", "nu-ansi-term", "once_cell", "parking_lot", "regex", "registry", "serde", "serde_json", "sharded-slab", "smallvec", "std", "thread_local", "tracing", "tracing-log", "tracing-serde"] }
+sqlx = { version = "0.6", features = ["json", "postgres", "runtime-tokio-rustls", "sqlite", "tls", "uuid"] }
+sqlx-core = { version = "0.6", default-features = false, features = ["any", "migrate", "postgres", "runtime-tokio-rustls", "sqlite", "uuid"] }
+thrift = { version = "0.17" }
+tokio = { version = "1", features = ["full", "test-util", "tracing"] }
+tokio-stream = { version = "0.1", features = ["fs", "net"] }
+tokio-util = { version = "0.7", features = ["codec", "compat", "io"] }
+tonic = { version = "0.8" }
+tower = { version = "0.4", features = ["balance", "buffer", "limit", "timeout", "util"] }
+tracing = { version = "0.1", features = ["log", "max_level_trace", "release_max_level_trace"] }
+tracing-core = { version = "0.1" }
+tracing-log = { version = "0.1" }
+tracing-subscriber = { version = "0.3", features = ["env-filter", "json", "parking_lot"] }
 url = { version = "2" }
-uuid = { version = "1", features = ["getrandom", "rng", "std", "v4"] }
-zstd = { version = "0.12", features = ["arrays", "legacy", "zdict_builder"] }
+uuid = { version = "1", features = ["v4"] }
+zstd = { version = "0.12" }
 zstd-safe = { version = "6", default-features = false, features = ["arrays", "legacy", "std", "zdict_builder"] }
 zstd-sys = { version = "2", default-features = false, features = ["legacy", "std", "zdict_builder"] }
 
 [build-dependencies]
-base64-594e8ee84c453af0 = { package = "base64", version = "0.13", features = ["std"] }
-base64-647d43efb71741da = { package = "base64", version = "0.21", features = ["std"] }
+base64-594e8ee84c453af0 = { package = "base64", version = "0.13" }
+base64-647d43efb71741da = { package = "base64", version = "0.21" }
 bitflags = { version = "1" }
-byteorder = { version = "1", features = ["std"] }
-bytes = { version = "1", features = ["std"] }
-cc = { version = "1", default-features = false, features = ["jobserver", "parallel"] }
-crossbeam-utils = { version = "0.8", features = ["std"] }
+byteorder = { version = "1" }
+bytes = { version = "1" }
+cc = { version = "1", default-features = false, features = ["parallel"] }
+crossbeam-utils = { version = "0.8" }
 crypto-common = { version = "0.1", default-features = false, features = ["std"] }
-digest = { version = "0.10", features = ["alloc", "block-buffer", "core-api", "mac", "std", "subtle"] }
-either = { version = "1", features = ["use_std"] }
-fixedbitset = { version = "0.4", features = ["std"] }
-futures-channel = { version = "0.3", features = ["alloc", "futures-sink", "sink", "std"] }
-futures-core = { version = "0.3", features = ["alloc", "std"] }
-futures-executor = { version = "0.3", features = ["std"] }
-futures-io = { version = "0.3", features = ["std"] }
-futures-sink = { version = "0.3", features = ["alloc", "std"] }
-futures-task = { version = "0.3", default-features = false, features = ["alloc", "std"] }
-futures-util = { version = "0.3", features = ["alloc", "async-await", "async-await-macro", "channel", "futures-channel", "futures-io", "futures-macro", "futures-sink", "io", "memchr", "sink", "slab", "std"] }
+digest = { version = "0.10", features = ["mac", "std"] }
+either = { version = "1" }
+fixedbitset = { version = "0.4" }
+futures-channel = { version = "0.3", features = ["sink"] }
+futures-core = { version = "0.3" }
+futures-executor = { version = "0.3" }
+futures-io = { version = "0.3" }
+futures-sink = { version = "0.3" }
+futures-task = { version = "0.3", default-features = false, features = ["std"] }
+futures-util = { version = "0.3", features = ["channel", "io", "sink"] }
 getrandom = { version = "0.2", default-features = false, features = ["std"] }
-hashbrown-5ef9efb8ec2df382 = { package = "hashbrown", version = "0.12", features = ["ahash", "inline-more", "raw"] }
-heck = { version = "0.4", features = ["unicode", "unicode-segmentation"] }
+hashbrown-5ef9efb8ec2df382 = { package = "hashbrown", version = "0.12", features = ["raw"] }
+heck = { version = "0.4", features = ["unicode"] }
 indexmap = { version = "1", default-features = false, features = ["std"] }
-itertools = { version = "0.10", features = ["use_alloc", "use_std"] }
-libc = { version = "0.2", features = ["extra_traits", "std"] }
+itertools = { version = "0.10" }
+libc = { version = "0.2", features = ["extra_traits"] }
 lock_api = { version = "0.4", default-features = false, features = ["arc_lock"] }
 log = { version = "0.4", default-features = false, features = ["std"] }
-md-5 = { version = "0.10", features = ["std"] }
-memchr = { version = "2", features = ["std"] }
-nom = { version = "7", features = ["alloc", "std"] }
-num-traits = { version = "0.2", features = ["i128", "libm", "std"] }
-once_cell = { version = "1", features = ["alloc", "parking_lot", "parking_lot_core", "race", "std"] }
+md-5 = { version = "0.10" }
+memchr = { version = "2" }
+nom = { version = "7" }
+num-traits = { version = "0.2", features = ["i128", "libm"] }
+once_cell = { version = "1", features = ["parking_lot"] }
 parking_lot = { version = "0.12", features = ["arc_lock"] }
-phf_shared = { version = "0.11", features = ["std"] }
-prost = { version = "0.11", features = ["prost-derive", "std"] }
-prost-types = { version = "0.11", features = ["std"] }
-rand = { version = "0.8", features = ["alloc", "getrandom", "libc", "rand_chacha", "small_rng", "std", "std_rng"] }
-rand_core = { version = "0.6", default-features = false, features = ["alloc", "getrandom", "std"] }
-regex = { version = "1", features = ["aho-corasick", "memchr", "perf", "perf-cache", "perf-dfa", "perf-inline", "perf-literal", "std", "unicode", "unicode-age", "unicode-bool", "unicode-case", "unicode-gencat", "unicode-perl", "unicode-script", "unicode-segment"] }
-regex-syntax = { version = "0.6", features = ["unicode", "unicode-age", "unicode-bool", "unicode-case", "unicode-gencat", "unicode-perl", "unicode-script", "unicode-segment"] }
-ring = { version = "0.16", features = ["alloc", "dev_urandom_fallback", "once_cell", "std"] }
-serde = { version = "1", features = ["derive", "rc", "serde_derive", "std"] }
-serde_json = { version = "1", features = ["raw_value", "std"] }
-sha2 = { version = "0.10", features = ["std"] }
+phf_shared = { version = "0.11" }
+prost = { version = "0.11" }
+prost-types = { version = "0.11" }
+rand = { version = "0.8", features = ["small_rng"] }
+rand_core = { version = "0.6", default-features = false, features = ["std"] }
+regex = { version = "1" }
+regex-syntax = { version = "0.6" }
+ring = { version = "0.16", features = ["std"] }
+serde = { version = "1", features = ["derive", "rc"] }
+serde_json = { version = "1", features = ["raw_value"] }
+sha2 = { version = "0.10" }
 smallvec = { version = "1", default-features = false, features = ["union"] }
-sqlx-core = { version = "0.6", default-features = false, features = ["_rt-tokio", "_tls-rustls", "any", "base64", "crc", "dirs", "flume", "futures-executor", "hkdf", "hmac", "json", "libsqlite3-sys", "md-5", "migrate", "postgres", "rand", "runtime-tokio-rustls", "rustls", "rustls-pemfile", "serde", "serde_json", "sha1", "sha2", "sqlite", "tokio-stream", "uuid", "webpki-roots", "whoami"] }
-sqlx-macros = { version = "0.6", default-features = false, features = ["_rt-tokio", "json", "migrate", "postgres", "runtime-tokio-rustls", "serde_json", "sha2", "sqlite", "uuid"] }
-syn = { version = "1", features = ["clone-impls", "derive", "extra-traits", "full", "parsing", "printing", "proc-macro", "quote", "visit", "visit-mut"] }
-tokio = { version = "1", features = ["bytes", "fs", "full", "io-std", "io-util", "libc", "macros", "memchr", "mio", "net", "num_cpus", "parking_lot", "process", "rt", "rt-multi-thread", "signal", "signal-hook-registry", "socket2", "sync", "test-util", "time", "tokio-macros", "tracing"] }
-tokio-stream = { version = "0.1", features = ["fs", "net", "time"] }
-tonic-build = { version = "0.8", features = ["prost", "prost-build", "transport"] }
+sqlx-core = { version = "0.6", default-features = false, features = ["any", "migrate", "postgres", "runtime-tokio-rustls", "sqlite", "uuid"] }
+sqlx-macros = { version = "0.6", default-features = false, features = ["json", "migrate", "postgres", "runtime-tokio-rustls", "sqlite", "uuid"] }
+syn = { version = "1", features = ["extra-traits", "full", "visit", "visit-mut"] }
+tokio = { version = "1", features = ["full", "test-util", "tracing"] }
+tokio-stream = { version = "0.1", features = ["fs", "net"] }
+tonic-build = { version = "0.8" }
 url = { version = "2" }
-uuid = { version = "1", features = ["getrandom", "rng", "std", "v4"] }
+uuid = { version = "1", features = ["v4"] }
 
 [target.x86_64-unknown-linux-gnu.dependencies]
-io-lifetimes = { version = "1", features = ["close", "libc", "windows-sys"] }
-nix = { version = "0.26", features = ["acct", "aio", "dir", "env", "event", "feature", "fs", "hostname", "inotify", "ioctl", "kmod", "memoffset", "mman", "mount", "mqueue", "net", "personality", "pin-utils", "poll", "process", "pthread", "ptrace", "quota", "reboot", "resource", "sched", "signal", "socket", "term", "time", "ucontext", "uio", "user", "zerocopy"] }
+io-lifetimes = { version = "1" }
+nix = { version = "0.26" }
 once_cell = { version = "1", default-features = false, features = ["unstable"] }
-rustix = { version = "0.36", features = ["fs", "io-lifetimes", "libc", "std", "termios", "use-libc-auxv"] }
+rustix = { version = "0.36", features = ["fs", "termios"] }
 
 [target.x86_64-unknown-linux-gnu.build-dependencies]
-io-lifetimes = { version = "1", features = ["close", "libc", "windows-sys"] }
+io-lifetimes = { version = "1" }
 once_cell = { version = "1", default-features = false, features = ["unstable"] }
-rustix = { version = "0.36", features = ["fs", "io-lifetimes", "libc", "std", "termios", "use-libc-auxv"] }
+rustix = { version = "0.36", features = ["fs", "termios"] }
 
 [target.x86_64-apple-darwin.dependencies]
-io-lifetimes = { version = "1", features = ["close", "libc", "windows-sys"] }
-nix = { version = "0.26", features = ["acct", "aio", "dir", "env", "event", "feature", "fs", "hostname", "inotify", "ioctl", "kmod", "memoffset", "mman", "mount", "mqueue", "net", "personality", "pin-utils", "poll", "process", "pthread", "ptrace", "quota", "reboot", "resource", "sched", "signal", "socket", "term", "time", "ucontext", "uio", "user", "zerocopy"] }
+io-lifetimes = { version = "1" }
+nix = { version = "0.26" }
 once_cell = { version = "1", default-features = false, features = ["unstable"] }
-rustix = { version = "0.36", features = ["fs", "io-lifetimes", "libc", "std", "termios", "use-libc-auxv"] }
+rustix = { version = "0.36", features = ["fs", "termios"] }
 
 [target.x86_64-apple-darwin.build-dependencies]
-io-lifetimes = { version = "1", features = ["close", "libc", "windows-sys"] }
+io-lifetimes = { version = "1" }
 once_cell = { version = "1", default-features = false, features = ["unstable"] }
-rustix = { version = "0.36", features = ["fs", "io-lifetimes", "libc", "std", "termios", "use-libc-auxv"] }
+rustix = { version = "0.36", features = ["fs", "termios"] }
 
 [target.aarch64-apple-darwin.dependencies]
-io-lifetimes = { version = "1", features = ["close", "libc", "windows-sys"] }
-nix = { version = "0.26", features = ["acct", "aio", "dir", "env", "event", "feature", "fs", "hostname", "inotify", "ioctl", "kmod", "memoffset", "mman", "mount", "mqueue", "net", "personality", "pin-utils", "poll", "process", "pthread", "ptrace", "quota", "reboot", "resource", "sched", "signal", "socket", "term", "time", "ucontext", "uio", "user", "zerocopy"] }
+io-lifetimes = { version = "1" }
+nix = { version = "0.26" }
 once_cell = { version = "1", default-features = false, features = ["unstable"] }
-rustix = { version = "0.36", features = ["fs", "io-lifetimes", "libc", "std", "termios", "use-libc-auxv"] }
+rustix = { version = "0.36", features = ["fs", "termios"] }
 
 [target.aarch64-apple-darwin.build-dependencies]
-io-lifetimes = { version = "1", features = ["close", "libc", "windows-sys"] }
+io-lifetimes = { version = "1" }
 once_cell = { version = "1", default-features = false, features = ["unstable"] }
-rustix = { version = "0.36", features = ["fs", "io-lifetimes", "libc", "std", "termios", "use-libc-auxv"] }
+rustix = { version = "0.36", features = ["fs", "termios"] }
 
 [target.x86_64-pc-windows-msvc.dependencies]
 once_cell = { version = "1", default-features = false, features = ["unstable"] }
-scopeguard = { version = "1", features = ["use_std"] }
-tokio = { version = "1", default-features = false, features = ["windows-sys"] }
+scopeguard = { version = "1" }
 winapi = { version = "0.3", default-features = false, features = ["activation", "basetsd", "combaseapi", "consoleapi", "errhandlingapi", "fileapi", "handleapi", "impl-debug", "impl-default", "knownfolders", "minwinbase", "minwindef", "ntsecapi", "ntstatus", "objbase", "processenv", "roapi", "shellapi", "shlobj", "std", "stringapiset", "synchapi", "timezoneapi", "winbase", "wincon", "winerror", "winnt", "winreg", "winstring", "winuser", "ws2ipdef", "ws2tcpip", "wtypesbase"] }
-windows-sys-b32c9ddb6d93a9d2 = { package = "windows-sys", version = "0.42", features = ["Win32", "Win32_Foundation", "Win32_Networking", "Win32_Networking_WinSock", "Win32_Security", "Win32_Storage", "Win32_Storage_FileSystem", "Win32_System", "Win32_System_Console", "Win32_System_IO", "Win32_System_Pipes", "Win32_System_SystemServices", "Win32_System_Threading", "Win32_System_WindowsProgramming", "Win32_UI", "Win32_UI_Input", "Win32_UI_Input_KeyboardAndMouse"] }
-windows-sys-53888c27b7ba5cf4 = { package = "windows-sys", version = "0.45", features = ["Win32", "Win32_Foundation", "Win32_Networking", "Win32_Networking_WinSock", "Win32_Security", "Win32_Storage", "Win32_Storage_FileSystem", "Win32_System", "Win32_System_Console", "Win32_System_IO", "Win32_System_LibraryLoader", "Win32_System_SystemServices", "Win32_System_Threading", "Win32_System_WindowsProgramming"] }
+windows-sys-53888c27b7ba5cf4 = { package = "windows-sys", version = "0.45", features = ["Win32_Foundation", "Win32_Networking_WinSock", "Win32_Security", "Win32_Storage_FileSystem", "Win32_System_Console", "Win32_System_IO", "Win32_System_LibraryLoader", "Win32_System_SystemServices", "Win32_System_Threading", "Win32_System_WindowsProgramming"] }
+windows-sys-b32c9ddb6d93a9d2 = { package = "windows-sys", version = "0.42", features = ["Win32_Foundation", "Win32_Networking_WinSock", "Win32_Security", "Win32_Storage_FileSystem", "Win32_System_Console", "Win32_System_IO", "Win32_System_Pipes", "Win32_System_SystemServices", "Win32_System_Threading", "Win32_System_WindowsProgramming", "Win32_UI_Input_KeyboardAndMouse"] }
 
 [target.x86_64-pc-windows-msvc.build-dependencies]
 once_cell = { version = "1", default-features = false, features = ["unstable"] }
-scopeguard = { version = "1", features = ["use_std"] }
-tokio = { version = "1", default-features = false, features = ["windows-sys"] }
+scopeguard = { version = "1" }
 winapi = { version = "0.3", default-features = false, features = ["activation", "basetsd", "combaseapi", "consoleapi", "errhandlingapi", "fileapi", "handleapi", "impl-debug", "impl-default", "knownfolders", "minwinbase", "minwindef", "ntsecapi", "ntstatus", "objbase", "processenv", "roapi", "shellapi", "shlobj", "std", "stringapiset", "synchapi", "timezoneapi", "winbase", "wincon", "winerror", "winnt", "winreg", "winstring", "winuser", "ws2ipdef", "ws2tcpip", "wtypesbase"] }
-windows-sys-b32c9ddb6d93a9d2 = { package = "windows-sys", version = "0.42", features = ["Win32", "Win32_Foundation", "Win32_Networking", "Win32_Networking_WinSock", "Win32_Security", "Win32_Storage", "Win32_Storage_FileSystem", "Win32_System", "Win32_System_Console", "Win32_System_IO", "Win32_System_Pipes", "Win32_System_SystemServices", "Win32_System_Threading", "Win32_System_WindowsProgramming", "Win32_UI", "Win32_UI_Input", "Win32_UI_Input_KeyboardAndMouse"] }
-windows-sys-53888c27b7ba5cf4 = { package = "windows-sys", version = "0.45", features = ["Win32", "Win32_Foundation", "Win32_Networking", "Win32_Networking_WinSock", "Win32_Security", "Win32_Storage", "Win32_Storage_FileSystem", "Win32_System", "Win32_System_Console", "Win32_System_IO", "Win32_System_LibraryLoader", "Win32_System_SystemServices", "Win32_System_Threading", "Win32_System_WindowsProgramming"] }
+windows-sys-53888c27b7ba5cf4 = { package = "windows-sys", version = "0.45", features = ["Win32_Foundation", "Win32_Networking_WinSock", "Win32_Security", "Win32_Storage_FileSystem", "Win32_System_Console", "Win32_System_IO", "Win32_System_LibraryLoader", "Win32_System_SystemServices", "Win32_System_Threading", "Win32_System_WindowsProgramming"] }
+windows-sys-b32c9ddb6d93a9d2 = { package = "windows-sys", version = "0.42", features = ["Win32_Foundation", "Win32_Networking_WinSock", "Win32_Security", "Win32_Storage_FileSystem", "Win32_System_Console", "Win32_System_IO", "Win32_System_Pipes", "Win32_System_SystemServices", "Win32_System_Threading", "Win32_System_WindowsProgramming", "Win32_UI_Input_KeyboardAndMouse"] }
 
 ### END HAKARI SECTION

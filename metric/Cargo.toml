@@ -7,6 +7,6 @@ license.workspace = true
 
 [dependencies] # In alphabetical order
 parking_lot = "0.12"
-workspace-hack = { path = "../workspace-hack"}
+workspace-hack = { version = "0.1", path = "../workspace-hack" }
 
 [dev-dependencies] # In alphabetical order

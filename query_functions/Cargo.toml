@@ -16,7 +16,7 @@ regex = "1"
 regex-syntax = "0.6.28"
 schema = { path = "../schema" }
 snafu = "0.7"
-workspace-hack = { path = "../workspace-hack"}
+workspace-hack = { version = "0.1", path = "../workspace-hack" }
 
 [dev-dependencies]
 tokio = { version = "1.25", features = ["macros", "parking_lot"] }

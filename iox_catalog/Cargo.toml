@@ -22,7 +22,7 @@ sqlx-hotswap-pool = { path = "../sqlx-hotswap-pool" }
 thiserror = "1.0.38"
 tokio = { version = "1.25", features = ["io-util", "macros", "parking_lot", "rt-multi-thread", "time"] }
 uuid = { version = "1", features = ["v4"] }
-workspace-hack = { path = "../workspace-hack"}
+workspace-hack = { version = "0.1", path = "../workspace-hack" }
 
 [dev-dependencies] # In alphabetical order
 assert_matches = "1.5.0"

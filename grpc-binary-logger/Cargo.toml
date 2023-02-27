@@ -20,7 +20,7 @@ tokio = {version = "1", features = [ "rt" ]}
 tonic = "0.8"
 tower = "0.4"
 grpc-binary-logger-proto = { path = "../grpc-binary-logger-proto" }
-workspace-hack = { path = "../workspace-hack"}
+workspace-hack = { version = "0.1", path = "../workspace-hack" }
 
 [dev-dependencies]
 grpc-binary-logger-test-proto = { path = "../grpc-binary-logger-test-proto" }

@@ -17,6 +17,6 @@ snafu = "0.7"
 thrift = { version = "0.17.0" }
 tokio = { version = "1.25", features = ["macros", "parking_lot", "rt", "sync"] }
 trace = { path = "../trace" }
-workspace-hack = { path = "../workspace-hack"}
+workspace-hack = { version = "0.1", path = "../workspace-hack" }
 
 [dev-dependencies]

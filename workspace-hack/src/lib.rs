@@ -1,1 +1,1 @@
-// This is a dummy lib.rs.
+// This is a stub lib.rs.
