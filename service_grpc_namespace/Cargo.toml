@@ -11,7 +11,7 @@ generated_types = { path = "../generated_types" }
 observability_deps = { path = "../observability_deps" }
 tonic = "0.8"
 iox_catalog = { path = "../iox_catalog" }
-workspace-hack = { path = "../workspace-hack"}
+workspace-hack = { version = "0.1", path = "../workspace-hack" }
 
 [dev-dependencies]
 assert_matches = "1.5.0"

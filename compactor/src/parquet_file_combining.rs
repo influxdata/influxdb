@@ -878,6 +878,8 @@ async fn update_catalog(
 
 #[cfg(test)]
 mod tests {
+    use std::num::NonZeroUsize;
+
     use crate::parquet_file::CompactorParquetFile;
 
     use super::*;
@@ -1066,7 +1068,7 @@ mod tests {
         /// Create data that is pre-sorted and deduplicated
         async fn new_for_sort() -> Self {
             // Ensure we have at least run at least partitions to test cross partition merging
-            let catalog = TestCatalog::with_target_query_partitions(2);
+            let catalog = TestCatalog::with_target_query_partitions(NonZeroUsize::new(2).unwrap());
             let ns = catalog.create_namespace_1hr_retention("ns").await;
             let shard = ns.create_shard(1).await;
             let table = ns.create_table("table").await;

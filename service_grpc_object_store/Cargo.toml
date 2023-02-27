@@ -16,7 +16,7 @@ parquet_file = { path = "../parquet_file" }
 tokio = { version = "1", features = ["rt-multi-thread", "macros"] }
 tonic = "0.8"
 uuid = { version = "1", features = ["v4"] }
-workspace-hack = { path = "../workspace-hack"}
+workspace-hack = { version = "0.1", path = "../workspace-hack" }
 
 [dev-dependencies]
 bytes = "1.4"

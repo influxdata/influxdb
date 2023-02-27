@@ -31,10 +31,10 @@ tokio-util = "0.7.7"
 trace = { path = "../trace" }
 trace_http = { path = "../trace_http" }
 uuid = { version = "1", features = ["v4"] }
-workspace-hack = { path = "../workspace-hack"}
+workspace-hack = { version = "0.1", path = "../workspace-hack" }
 
 [dev-dependencies]
-tempfile = "3.1.0"
+tempfile = "3.4.0"
 test_helpers = { path = "../test_helpers" }
 
 [package.metadata.cargo-udeps.ignore]

@@ -19,4 +19,4 @@ snafu = "0.7"
 prost = "0.11"
 tokio = { version = "1.25", features = ["macros", "net", "parking_lot", "rt-multi-thread", "signal", "sync", "time"] }
 tonic = "0.8"
-workspace-hack = { path = "../workspace-hack"}
+workspace-hack = { version = "0.1", path = "../workspace-hack" }

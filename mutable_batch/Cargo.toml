@@ -16,7 +16,7 @@ schema = { path = "../schema" }
 snafu = "0.7"
 hashbrown = { workspace = true }
 itertools = "0.10"
-workspace-hack = { path = "../workspace-hack"}
+workspace-hack = { version = "0.1", path = "../workspace-hack" }
 
 [dev-dependencies]
 mutable_batch_lp = { path = "../mutable_batch_lp" }

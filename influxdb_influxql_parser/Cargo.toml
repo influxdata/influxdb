@@ -11,7 +11,7 @@ once_cell = "1"
 chrono = { version = "0.4", default-features = false, features = ["std"] }
 chrono-tz = { version = "0.8" }
 num-traits = "0.2"
-workspace-hack = { path = "../workspace-hack"}
+workspace-hack = { version = "0.1", path = "../workspace-hack" }
 
 [dev-dependencies] # In alphabetical order
 test_helpers = { path = "../test_helpers" }

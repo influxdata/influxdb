@@ -29,7 +29,7 @@ tokio = { version = "1", features = ["macros", "rt", "sync"] }
 tokio-util = { version = "0.7.7" }
 tracker = { path = "../tracker" }
 uuid = { version = "1", features = ["v4"] }
-workspace-hack = { path = "../workspace-hack"}
+workspace-hack = { version = "0.1", path = "../workspace-hack" }
 
 [dev-dependencies]
 arrow_util = { path = "../arrow_util" }

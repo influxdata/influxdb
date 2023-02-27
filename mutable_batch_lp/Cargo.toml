@@ -12,7 +12,7 @@ influxdb_line_protocol = { path = "../influxdb_line_protocol" }
 mutable_batch = { path = "../mutable_batch" }
 schema = { path = "../schema" }
 snafu = "0.7"
-workspace-hack = { path = "../workspace-hack"}
+workspace-hack = { version = "0.1", path = "../workspace-hack" }
 
 [dev-dependencies]
 arrow_util = { path = "../arrow_util" }

@@ -7,9 +7,9 @@ license.workspace = true
 
 [dependencies]
 prost = "0.11"
-prost-types = { version = "0.11.6", features = ["std"] }
+prost-types = { version = "0.11.7", features = ["std"] }
 tonic = "0.8"
-workspace-hack = { path = "../workspace-hack"}
+workspace-hack = { version = "0.1", path = "../workspace-hack" }
 
 [build-dependencies]
 prost-build = "0.11"

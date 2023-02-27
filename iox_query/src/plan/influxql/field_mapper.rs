@@ -70,7 +70,7 @@ mod test {
         );
         assert_eq!(
             tag_set,
-            TagSet::from(["host".to_string(), "region".to_string()])
+            TagSet::from(["cpu".to_string(), "host".to_string(), "region".to_string()])
         );
 
         // Measurement does not exist

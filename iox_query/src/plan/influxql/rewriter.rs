@@ -554,14 +554,14 @@ mod test {
         let stmt = rewrite_statement(&namespace, &stmt).unwrap();
         assert_eq!(
             stmt.to_string(),
-            "SELECT host::tag AS host, region::tag AS region, usage_idle::float AS usage_idle, usage_system::float AS usage_system, usage_user::float AS usage_user FROM cpu"
+            "SELECT cpu::tag AS cpu, host::tag AS host, region::tag AS region, usage_idle::float AS usage_idle, usage_system::float AS usage_system, usage_user::float AS usage_user FROM cpu"
         );
 
         let stmt = parse_select("SELECT * FROM cpu, disk");
         let stmt = rewrite_statement(&namespace, &stmt).unwrap();
         assert_eq!(
             stmt.to_string(),
-            "SELECT bytes_free::integer AS bytes_free, bytes_used::integer AS bytes_used, host::tag AS host, region::tag AS region, usage_idle::float AS usage_idle, usage_system::float AS usage_system, usage_user::float AS usage_user FROM cpu, disk"
+            "SELECT bytes_free::integer AS bytes_free, bytes_used::integer AS bytes_used, cpu::tag AS cpu, device::tag AS device, host::tag AS host, region::tag AS region, usage_idle::float AS usage_idle, usage_system::float AS usage_system, usage_user::float AS usage_user FROM cpu, disk"
         );
 
         // Regular expression selects fields from multiple measurements
@@ -577,7 +577,7 @@ mod test {
         let stmt = rewrite_statement(&namespace, &stmt).unwrap();
         assert_eq!(
             stmt.to_string(),
-            "SELECT host::tag AS host, region::tag AS region FROM cpu"
+            "SELECT cpu::tag AS cpu, host::tag AS host, region::tag AS region FROM cpu"
         );
 
         // Selective wildcard for fields
@@ -593,7 +593,7 @@ mod test {
         let stmt = rewrite_statement(&namespace, &stmt).unwrap();
         assert_eq!(
             stmt.to_string(),
-            "SELECT usage_idle::float AS usage_idle, host::tag AS host, region::tag AS region FROM cpu"
+            "SELECT usage_idle::float AS usage_idle, cpu::tag AS cpu, host::tag AS host, region::tag AS region FROM cpu"
         );
 
         // GROUP BY expansion
@@ -609,7 +609,7 @@ mod test {
         let stmt = rewrite_statement(&namespace, &stmt).unwrap();
         assert_eq!(
             stmt.to_string(),
-            "SELECT usage_idle::float AS usage_idle FROM cpu GROUP BY host, region"
+            "SELECT usage_idle::float AS usage_idle FROM cpu GROUP BY cpu, host, region"
         );
 
         // Does not include tags in projection when expanded in GROUP BY
@@ -617,7 +617,7 @@ mod test {
         let stmt = rewrite_statement(&namespace, &stmt).unwrap();
         assert_eq!(
             stmt.to_string(),
-            "SELECT usage_idle::float AS usage_idle, usage_system::float AS usage_system, usage_user::float AS usage_user FROM cpu GROUP BY host, region"
+            "SELECT usage_idle::float AS usage_idle, usage_system::float AS usage_system, usage_user::float AS usage_user FROM cpu GROUP BY cpu, host, region"
         );
 
         // Does include explicitly listed tags in projection
@@ -625,7 +625,7 @@ mod test {
         let stmt = rewrite_statement(&namespace, &stmt).unwrap();
         assert_eq!(
             stmt.to_string(),
-            "SELECT host::tag AS host, usage_idle::float AS usage_idle, usage_system::float AS usage_system, usage_user::float AS usage_user FROM cpu GROUP BY host, region"
+            "SELECT host::tag AS host, usage_idle::float AS usage_idle, usage_system::float AS usage_system, usage_user::float AS usage_user FROM cpu GROUP BY cpu, host, region"
         );
 
         // Fallible

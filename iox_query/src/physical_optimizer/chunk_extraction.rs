@@ -20,7 +20,6 @@ use crate::{
 /// additional nodes (like de-duplication, filtering, projection) then NO data will be returned.
 ///
 /// [`chunks_to_physical_nodes`]: crate::provider::chunks_to_physical_nodes
-#[allow(dead_code)]
 pub fn extract_chunks(plan: &dyn ExecutionPlan) -> Option<(Schema, Vec<Arc<dyn QueryChunk>>)> {
     let mut visitor = ExtractChunksVisitor::default();
     visit_execution_plan(plan, &mut visitor).ok()?;

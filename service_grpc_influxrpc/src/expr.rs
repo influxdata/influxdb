@@ -110,6 +110,11 @@ pub enum Error {
         tag_name: String,
         source: DataFusionError,
     },
+
+    #[snafu(display("Field columns not supported: {}", source))]
+    FieldColumnsNotSupported {
+        source: Box<dyn std::error::Error + Send + Sync>,
+    },
 }
 
 pub type Result<T, E = Error> = std::result::Result<T, E>;
@@ -309,7 +314,11 @@ fn convert_simple_node(
                     return Ok(builder.tables(value_list));
                 }
                 Ok(DecodedTagKey::Field) => {
-                    builder.inner = builder.inner.with_field_columns(value_list);
+                    builder.inner = builder
+                        .inner
+                        .with_field_columns(value_list)
+                        .map_err(|e| Box::<dyn std::error::Error + Send + Sync>::from(e.to_owned()))
+                        .context(FieldColumnsNotSupportedSnafu)?;
                     return Ok(builder);
                 }
                 _ => {}
@@ -1072,7 +1081,7 @@ mod tests {
 
         // predicate is rewritten to true (which is simplified to an
         // empty expr), and projection is added
-        let expected = Predicate::new().with_field_columns(vec!["foo"]);
+        let expected = Predicate::new().with_field_columns(vec!["foo"]).unwrap();
 
         assert_eq!(
             predicate, expected,

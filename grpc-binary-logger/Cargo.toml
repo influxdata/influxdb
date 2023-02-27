@@ -15,12 +15,12 @@ http-body = "0.4"
 hyper = "0.14"
 pin-project = "1.0"
 prost = "0.11"
-prost-types = { version = "0.11.6", features = ["std"] }
+prost-types = { version = "0.11.7", features = ["std"] }
 tokio = {version = "1", features = [ "rt" ]}
 tonic = "0.8"
 tower = "0.4"
 grpc-binary-logger-proto = { path = "../grpc-binary-logger-proto" }
-workspace-hack = { path = "../workspace-hack"}
+workspace-hack = { version = "0.1", path = "../workspace-hack" }
 
 [dev-dependencies]
 grpc-binary-logger-test-proto = { path = "../grpc-binary-logger-test-proto" }

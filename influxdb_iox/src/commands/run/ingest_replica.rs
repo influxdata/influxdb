@@ -12,7 +12,7 @@ use ioxd_common::{
 };
 use ioxd_ingest_replica::create_ingest_replica_server_type;
 use observability_deps::tracing::*;
-use std::sync::Arc;
+use std::{num::NonZeroUsize, sync::Arc};
 use thiserror::Error;
 
 #[derive(Debug, Error)]
@@ -64,7 +64,7 @@ pub struct Config {
         default_value = "4",
         action
     )]
-    pub exec_thread_count: usize,
+    pub exec_thread_count: NonZeroUsize,
 
     /// Size of memory pool used during query exec, in bytes.
     #[clap(
