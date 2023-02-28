@@ -91,6 +91,12 @@ cfg! {
         ///              primary key space. This is NOT the same as a DataFusion partition which refers to a stream
         ///              within the physical plan data flow.
         pub max_dedup_partition_split: usize, default = 100
+
+        /// When splitting de-duplicate operations based on time-based overlaps, this is the maximum number of groups
+        /// that should be considered. If there are more groups, the split will NOT be performed.
+        ///
+        /// This protects against certain highly degenerative plans.
+        pub max_dedup_time_split: usize, default = 100
     }
 }
 
