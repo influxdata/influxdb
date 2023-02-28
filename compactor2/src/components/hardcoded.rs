@@ -156,6 +156,12 @@ pub fn hardcoded_components(config: &Config) -> Arc<Components> {
         ))
     };
 
+    let commit = if let Some(commit_wrapper) = config.commit_wrapper.as_ref() {
+        commit_wrapper.wrap(commit)
+    } else {
+        commit
+    };
+
     let scratchpad_store_output = if config.shadow_mode {
         Arc::new(IgnoreWrites::new(Arc::new(InMemory::new())))
     } else {

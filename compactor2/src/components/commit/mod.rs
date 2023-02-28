@@ -30,6 +30,14 @@ pub trait Commit: Debug + Display + Send + Sync {
     ) -> Vec<ParquetFileId>;
 }
 
+/// Something that can wrap `Commit` instances
+///
+/// Use to install test observation
+pub trait CommitWrapper: Debug + Send + Sync {
+    /// a function to call that wraps a [`Commit`] instance
+    fn wrap(&self, commit: Arc<dyn Commit>) -> Arc<dyn Commit>;
+}
+
 #[async_trait]
 impl<T> Commit for Arc<T>
 where

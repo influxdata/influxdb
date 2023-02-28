@@ -34,7 +34,8 @@ pub fn log_config(config: &Config) {
         shard_config,
         min_num_l1_files_to_compact,
         process_once,
-        parquet_files_sink_override: parquet_files_sink,
+        parquet_files_sink_override,
+        commit_wrapper,
         simulate_without_object_store,
         all_errors_are_fatal,
         max_num_columns_per_table,
@@ -50,10 +51,13 @@ pub fn log_config(config: &Config) {
         }
     };
 
-    let parquet_files_sink = parquet_files_sink
+    let parquet_files_sink_override = parquet_files_sink_override
         .as_ref()
         .map(|_| "Some")
         .unwrap_or("None");
+
+    let commit_wrapper = commit_wrapper.as_ref().map(|_| "Some").unwrap_or("None");
+
     info!(
         shard_id=shard_id.get(),
         %catalog,
@@ -79,7 +83,8 @@ pub fn log_config(config: &Config) {
         min_num_l1_files_to_compact,
         process_once,
         simulate_without_object_store,
-        %parquet_files_sink,
+        %parquet_files_sink_override,
+        %commit_wrapper,
         all_errors_are_fatal,
         max_num_columns_per_table,
         max_num_files_per_plan,
