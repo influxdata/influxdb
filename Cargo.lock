@@ -802,9 +802,9 @@ dependencies = [
 
 [[package]]
 name = "clap"
-version = "4.1.6"
+version = "4.1.7"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "ec0b0588d44d4d63a87dbd75c136c166bbfd9a86a31cb89e09906521c7d3f5e3"
+checksum = "2f3061d6db6d8fcbbd4b05e057f2acace52e64e96b498c08c2d7a4e65addd340"
 dependencies = [
  "bitflags",
  "clap_derive",
@@ -819,7 +819,7 @@ dependencies = [
 name = "clap_blocks"
 version = "0.1.0"
 dependencies = [
- "clap 4.1.6",
+ "clap 4.1.7",
  "data_types",
  "futures",
  "http",
@@ -844,9 +844,9 @@ dependencies = [
 
 [[package]]
 name = "clap_derive"
-version = "4.1.0"
+version = "4.1.7"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "684a277d672e91966334af371f1a7b5833f9aa00b07c84e92fbce95e00208ce8"
+checksum = "34d122164198950ba84a918270a3bb3f7ededd25e15f7451673d986f55bd2667"
 dependencies = [
  "heck",
  "proc-macro-error",
@@ -1981,7 +1981,7 @@ version = "0.1.0"
 dependencies = [
  "chrono",
  "chrono-english",
- "clap 4.1.6",
+ "clap 4.1.7",
  "clap_blocks",
  "data_types",
  "filetime",
@@ -2499,7 +2499,7 @@ dependencies = [
  "async-trait",
  "backtrace",
  "bytes",
- "clap 4.1.6",
+ "clap 4.1.7",
  "clap_blocks",
  "comfy-table",
  "compactor",
@@ -2884,7 +2884,7 @@ dependencies = [
  "bytes",
  "chrono",
  "chrono-english",
- "clap 4.1.6",
+ "clap 4.1.7",
  "criterion",
  "datafusion_util",
  "futures",
@@ -2988,7 +2988,7 @@ dependencies = [
  "async-trait",
  "bytes",
  "chrono",
- "clap 4.1.6",
+ "clap 4.1.7",
  "clap_blocks",
  "data_types",
  "flate2",
@@ -3212,7 +3212,7 @@ name = "ioxd_test"
 version = "0.1.0"
 dependencies = [
  "async-trait",
- "clap 4.1.6",
+ "clap 4.1.7",
  "hyper",
  "ioxd_common",
  "metric",
@@ -6061,7 +6061,7 @@ version = "0.1.0"
 dependencies = [
  "async-trait",
  "chrono",
- "clap 4.1.6",
+ "clap 4.1.7",
  "futures",
  "iox_time",
  "observability_deps",
@@ -6200,7 +6200,7 @@ dependencies = [
 name = "trogging"
 version = "0.1.0"
 dependencies = [
- "clap 4.1.6",
+ "clap 4.1.7",
  "is-terminal",
  "logfmt",
  "observability_deps",
