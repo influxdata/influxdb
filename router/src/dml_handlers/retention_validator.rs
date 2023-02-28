@@ -26,7 +26,15 @@ pub enum RetentionError {
 }
 
 /// A [`DmlHandler`] implementation that validates that the write is within the
-/// retention period of the  namespace
+/// retention period of the namespace.
+///
+/// Each row of data being wrote is inspected, and if any "time" column
+/// timestamp lays outside of the configured namespace retention period, the
+/// entire write is rejected.
+///
+/// Namespace retention periods are loaded from the provided [`NamespaceCache`]
+/// implementation. If a cache miss occurs, the [`Catalog`] is queried and the
+/// cache is populated.
 #[derive(Debug)]
 pub struct RetentionValidator<C = Arc<InstrumentedCache<MemoryNamespaceCache>>, P = SystemProvider>
 {
