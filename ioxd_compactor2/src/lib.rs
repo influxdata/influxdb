@@ -202,6 +202,7 @@ pub async fn create_compactor2_server_type(
         process_once: compactor_config.process_once,
         simulate_without_object_store: false,
         parquet_files_sink_override: None,
+        commit_wrapper: None,
         all_errors_are_fatal: false,
         max_num_columns_per_table: compactor_config.max_num_columns_per_table,
         max_num_files_per_plan: compactor_config.max_num_files_per_plan,

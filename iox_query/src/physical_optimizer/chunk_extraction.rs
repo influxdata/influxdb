@@ -33,21 +33,20 @@ struct ExtractChunksVisitor {
 }
 
 impl ExtractChunksVisitor {
-    fn add_schema(&mut self, schema: &Schema) -> Result<(), ()> {
-        if let Some(existing) = &self.schema {
-            if existing != schema {
-                return Err(());
-            }
-        } else {
-            self.schema = Some(schema.clone());
-        }
-
+    fn add_chunk(&mut self, chunk: Arc<dyn QueryChunk>) -> Result<(), ()> {
+        self.chunks.push(chunk);
         Ok(())
     }
 
-    fn add_chunk(&mut self, chunk: Arc<dyn QueryChunk>) -> Result<(), ()> {
-        self.add_schema(chunk.schema())?;
-        self.chunks.push(chunk);
+    fn add_schema_from_exec(&mut self, exec: &dyn ExecutionPlan) -> Result<(), ()> {
+        let schema = Schema::try_from(exec.schema()).map_err(|_| ())?;
+        if let Some(existing) = &self.schema {
+            if existing != &schema {
+                return Err(());
+            }
+        } else {
+            self.schema = Some(schema);
+        }
         Ok(())
     }
 }
@@ -59,10 +58,14 @@ impl ExecutionPlanVisitor for ExtractChunksVisitor {
         let plan_any = plan.as_any();
 
         if let Some(record_batches_exec) = plan_any.downcast_ref::<RecordBatchesExec>() {
+            self.add_schema_from_exec(record_batches_exec)?;
+
             for chunk in record_batches_exec.chunks() {
                 self.add_chunk(Arc::clone(chunk))?;
             }
         } else if let Some(parquet_exec) = plan_any.downcast_ref::<ParquetExec>() {
+            self.add_schema_from_exec(parquet_exec)?;
+
             for group in &parquet_exec.base_config().file_groups {
                 for file in group {
                     let ext = file
@@ -79,8 +82,7 @@ impl ExecutionPlanVisitor for ExtractChunksVisitor {
                 return Err(());
             }
 
-            let schema = Schema::try_from(empty_exec.schema()).map_err(|_| ())?;
-            self.add_schema(&schema)?;
+            self.add_schema_from_exec(empty_exec)?;
         } else if plan_any.downcast_ref::<UnionExec>().is_some() {
             // continue visiting
         } else {
@@ -104,6 +106,7 @@ mod tests {
         prelude::{col, lit},
     };
     use predicate::Predicate;
+    use schema::{merge::SchemaMerger, SchemaBuilder};
 
     use super::*;
 
@@ -192,6 +195,32 @@ mod tests {
         )
         .unwrap();
         assert!(extract_chunks(&plan).is_none());
+    }
+
+    #[test]
+    fn test_preserve_record_batches_exec_schema() {
+        let chunk = chunk(1);
+        let schema_ext = SchemaBuilder::new().tag("zzz").build().unwrap();
+        let schema = SchemaMerger::new()
+            .merge(chunk.schema())
+            .unwrap()
+            .merge(&schema_ext)
+            .unwrap()
+            .build();
+        assert_roundtrip(schema, vec![Arc::new(chunk)]);
+    }
+
+    #[test]
+    fn test_preserve_parquet_exec_schema() {
+        let chunk = chunk(1).with_dummy_parquet_file();
+        let schema_ext = SchemaBuilder::new().tag("zzz").build().unwrap();
+        let schema = SchemaMerger::new()
+            .merge(chunk.schema())
+            .unwrap()
+            .merge(&schema_ext)
+            .unwrap()
+            .build();
+        assert_roundtrip(schema, vec![Arc::new(chunk)]);
     }
 
     #[track_caller]
