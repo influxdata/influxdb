@@ -387,7 +387,7 @@ impl TestSetup {
         TestSetupBuilder::new().await
     }
 
-    /// Get the catalog files stored in the catalog
+    /// Get the parquet files stored in the catalog
     pub async fn list_by_table_not_to_delete(&self) -> Vec<ParquetFile> {
         self.catalog
             .list_by_table_not_to_delete(self.table.table.id)
@@ -454,6 +454,39 @@ impl TestSetup {
         CompactResult {
             run_log: self.run_log.lock().unwrap().clone(),
         }
+    }
+
+    /// Checks the catalog contents of this test setup.
+    ///
+    /// Currently checks:
+    /// 1. There are no overlapping files (the compactor should never create overlapping L1 or L2 files)
+    pub async fn verify_invariants(&self) {
+        let files: Vec<_> = self
+            .list_by_table_not_to_delete()
+            .await
+            .into_iter()
+            // ignore files that are deleted
+            .filter(|f| f.to_delete.is_none())
+            .collect();
+
+        for f1 in &files {
+            for f2 in &files {
+                assert_no_overlap(f1, f2);
+            }
+        }
+    }
+}
+
+/// Returns true of f1 and f2 are different, overlapping files in the
+/// L1 or L2 levels (the compactor should never create such files
+fn assert_no_overlap(f1: &ParquetFile, f2: &ParquetFile) {
+    if f1.id != f2.id
+        && (f1.compaction_level == CompactionLevel::FileNonOverlapped
+            || f1.compaction_level == CompactionLevel::Final)
+        && f1.compaction_level == f2.compaction_level
+        && f1.overlaps(f2)
+    {
+        panic!("Found overlapping files at L1/L2 target level!\n{f1:#?}\n{f2:#?}");
     }
 }
 
@@ -1011,4 +1044,146 @@ pub fn create_overlapped_files_3_mix_size(size: i64) -> Vec<ParquetFile> {
 
     // Put the files in random order
     vec![l0_3, l0_2, l0_1, l0_4, l0_5, l0_6, l1_1, l1_2]
+}
+
+#[cfg(test)]
+mod test {
+    use super::*;
+
+    #[tokio::test]
+    async fn good_setup_overlapping_l0() {
+        let builder = TestSetup::builder().await;
+
+        // two overlapping L0 Files
+        builder
+            .partition
+            .create_parquet_file(
+                parquet_builder()
+                    .with_compaction_level(CompactionLevel::Initial)
+                    .with_min_time(100)
+                    .with_max_time(200),
+            )
+            .await;
+
+        builder
+            .partition
+            .create_parquet_file(
+                parquet_builder()
+                    .with_compaction_level(CompactionLevel::Initial)
+                    .with_min_time(50)
+                    .with_max_time(200),
+            )
+            .await;
+
+        // expect no panic
+        builder.build().await.verify_invariants().await;
+    }
+
+    #[tokio::test]
+    #[should_panic(expected = "Found overlapping files at L1/L2 target level")]
+    async fn bad_setup_overlapping_l1() {
+        let builder = TestSetup::builder().await;
+
+        // two overlapping L1 Files
+
+        builder
+            .partition
+            .create_parquet_file(
+                parquet_builder()
+                    .with_compaction_level(CompactionLevel::FileNonOverlapped)
+                    .with_min_time(50)
+                    .with_max_time(200),
+            )
+            .await;
+
+        builder
+            .partition
+            .create_parquet_file(
+                parquet_builder()
+                    .with_compaction_level(CompactionLevel::FileNonOverlapped)
+                    .with_min_time(100)
+                    .with_max_time(200),
+            )
+            .await;
+
+        builder.build().await.verify_invariants().await;
+    }
+
+    #[tokio::test]
+    #[should_panic(expected = "Found overlapping files at L1/L2 target level")]
+    async fn bad_setup_overlapping_l1_leading_edge() {
+        let builder = TestSetup::builder().await;
+
+        // non overlapping l1 with
+        // two overlapping L1 files but right on edge (max time == min time)
+
+        builder
+            .partition
+            .create_parquet_file(
+                parquet_builder()
+                    .with_compaction_level(CompactionLevel::FileNonOverlapped)
+                    .with_min_time(100)
+                    .with_max_time(200),
+            )
+            .await;
+
+        builder
+            .partition
+            .create_parquet_file(
+                parquet_builder()
+                    .with_compaction_level(CompactionLevel::FileNonOverlapped)
+                    .with_min_time(50)
+                    .with_max_time(75),
+            )
+            .await;
+
+        builder
+            .partition
+            .create_parquet_file(
+                parquet_builder()
+                    .with_compaction_level(CompactionLevel::FileNonOverlapped)
+                    .with_min_time(200)
+                    .with_max_time(300),
+            )
+            .await;
+
+        builder.build().await.verify_invariants().await;
+    }
+
+    #[tokio::test]
+    #[should_panic(expected = "Found overlapping files at L1/L2 target level")]
+    async fn bad_setup_overlapping_l2() {
+        let builder = TestSetup::builder().await;
+
+        // two overlapping L1 Files
+        builder
+            .partition
+            .create_parquet_file(
+                parquet_builder()
+                    .with_compaction_level(CompactionLevel::Final)
+                    .with_min_time(100)
+                    .with_max_time(200),
+            )
+            .await;
+
+        builder
+            .partition
+            .create_parquet_file(
+                parquet_builder()
+                    .with_compaction_level(CompactionLevel::Final)
+                    .with_min_time(50)
+                    .with_max_time(200),
+            )
+            .await;
+
+        builder.build().await.verify_invariants().await;
+    }
+
+    /// creates a TestParquetFileBuilder setup for layout tests
+    pub fn parquet_builder() -> TestParquetFileBuilder {
+        TestParquetFileBuilder::default()
+            // need some LP to generate the schema
+            .with_line_protocol("table,tag1=A,tag2=B,tag3=C field_int=1i 100")
+            .with_file_size_bytes(300)
+    }
 }
