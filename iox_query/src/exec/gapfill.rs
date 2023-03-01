@@ -48,24 +48,29 @@ pub(crate) struct GapFillParams {
     /// The origin argument from the call to DATE_BIN_GAPFILL
     pub origin: Expr,
     /// The time range of the time column inferred from predicates
-    /// in the overall query
+    /// in the overall query. The lower bound may be [`Bound::Unbounded`]
+    /// which implies that gap-filling should just start from the
+    /// first point in each series.
     pub time_range: Range<Bound<Expr>>,
 }
 
 impl GapFillParams {
     // Extract the expressions so they can be optimized.
     fn expressions(&self) -> Vec<Expr> {
-        vec![
+        let mut exprs = vec![
             self.stride.clone(),
             self.time_column.clone(),
             self.origin.clone(),
-            bound_extract(&self.time_range.start)
-                .unwrap_or_else(|| panic!("lower time bound is required"))
-                .clone(),
+        ];
+        if let Some(start) = bound_extract(&self.time_range.start) {
+            exprs.push(start.clone());
+        }
+        exprs.push(
             bound_extract(&self.time_range.end)
                 .unwrap_or_else(|| panic!("upper time bound is required"))
                 .clone(),
-        ]
+        );
+        exprs
     }
 
     #[allow(clippy::wrong_self_convention)] // follows convention of UserDefinedLogicalNode
@@ -100,6 +105,11 @@ impl GapFill {
         aggr_expr: Vec<Expr>,
         params: GapFillParams,
     ) -> Result<Self> {
+        if params.time_range.end == Bound::Unbounded {
+            return Err(DataFusionError::Internal(
+                "missing upper bound in GapFill time range".to_string(),
+            ));
+        }
         Ok(Self {
             input,
             group_expr,
@@ -477,6 +487,7 @@ mod test {
     };
     use observability_deps::tracing::debug;
     use schema::{InfluxColumnType, InfluxFieldType};
+    use test_helpers::assert_error;
 
     fn schema() -> Schema {
         Schema::new(vec![
@@ -496,10 +507,10 @@ mod test {
     }
 
     #[test]
-    fn test_from_template() -> Result<()> {
-        let scan = table_scan()?;
-        let gapfill = GapFill::try_new(
-            Arc::new(scan.clone()),
+    fn test_try_new_errs() {
+        let scan = table_scan().unwrap();
+        let result = GapFill::try_new(
+            Arc::new(scan),
             vec![col("loc"), col("time")],
             vec![col("temp")],
             GapFillParams {
@@ -508,12 +519,23 @@ mod test {
                 origin: lit_timestamp_nano(0),
                 time_range: Range {
                     start: Bound::Included(lit_timestamp_nano(1000)),
-                    end: Bound::Excluded(lit_timestamp_nano(2000)),
+                    end: Bound::Unbounded,
                 },
             },
-        )?;
+        );
+
+        assert_error!(result, DataFusionError::Internal(ref msg) if msg == "missing upper bound in GapFill time range");
+    }
+
+    fn assert_gapfill_from_template_roundtrip(gapfill: &GapFill) {
+        let scan = table_scan().unwrap();
         let exprs = gapfill.expressions();
-        assert_eq!(8, exprs.len());
+        let want_exprs = gapfill.group_expr.len()
+            + gapfill.aggr_expr.len()
+            + 3 // stride, time, origin
+            + bound_extract(&gapfill.params.time_range.start).iter().count()
+            + bound_extract(&gapfill.params.time_range.end).iter().count();
+        assert_eq!(want_exprs, exprs.len());
         let gapfill_ft = gapfill.from_template(&exprs, &[scan]);
         let gapfill_ft = gapfill_ft
             .as_any()
@@ -522,7 +544,35 @@ mod test {
         assert_eq!(gapfill.group_expr, gapfill_ft.group_expr);
         assert_eq!(gapfill.aggr_expr, gapfill_ft.aggr_expr);
         assert_eq!(gapfill.params, gapfill_ft.params);
-        Ok(())
+    }
+
+    #[test]
+    fn test_from_template() {
+        for time_range in vec![
+            Range {
+                start: Bound::Included(lit_timestamp_nano(1000)),
+                end: Bound::Excluded(lit_timestamp_nano(2000)),
+            },
+            Range {
+                start: Bound::Unbounded,
+                end: Bound::Excluded(lit_timestamp_nano(2000)),
+            },
+        ] {
+            let scan = table_scan().unwrap();
+            let gapfill = GapFill::try_new(
+                Arc::new(scan.clone()),
+                vec![col("loc"), col("time")],
+                vec![col("temp")],
+                GapFillParams {
+                    stride: lit(ScalarValue::IntervalDayTime(Some(60_000))),
+                    time_column: col("time"),
+                    origin: lit_timestamp_nano(0),
+                    time_range,
+                },
+            )
+            .unwrap();
+            assert_gapfill_from_template_roundtrip(&gapfill);
+        }
     }
 
     #[test]
@@ -640,7 +690,7 @@ mod test {
                     agg_cols: vec![vec![Some(10), Some(11)]],
                     input_batch_size,
                 };
-                let params = get_params_ms(&batch, 25, 975, 1_125);
+                let params = get_params_ms(&batch, 25, Some(975), 1_125);
                 let tc = TestCase {
                     test_records: batch,
                     output_batch_size,
@@ -681,7 +731,7 @@ mod test {
                     agg_cols: vec![],
                     input_batch_size,
                 };
-                let params = get_params_ms(&batch, 25, 975, 1_125);
+                let params = get_params_ms(&batch, 25, Some(975), 1_125);
                 let tc = TestCase {
                     test_records: batch,
                     output_batch_size,
@@ -720,7 +770,7 @@ mod test {
                     agg_cols: vec![vec![Some(10), Some(11), Some(20), Some(21)]],
                     input_batch_size,
                 };
-                let params = get_params_ms(&records, 25, 975, 1_125);
+                let params = get_params_ms(&records, 25, Some(975), 1_125);
                 let tc = TestCase {
                     test_records: records,
                     output_batch_size,
@@ -789,7 +839,7 @@ mod test {
                     ]],
                     input_batch_size,
                 };
-                let params = get_params_ms(&records, 25, 975, 1_125);
+                let params = get_params_ms(&records, 25, Some(975), 1_125);
                 let tc = TestCase {
                     test_records: records,
                     output_batch_size,
@@ -872,7 +922,7 @@ mod test {
                     ]],
                     input_batch_size,
                 };
-                let params = get_params_ms(&records, 25, 975, 1_125);
+                let params = get_params_ms(&records, 25, Some(975), 1_125);
                 let tc = TestCase {
                     test_records: records,
                     output_batch_size,
@@ -907,6 +957,58 @@ mod test {
             }
         }
         Ok(())
+    }
+
+    #[tokio::test]
+    async fn test_gapfill_multi_group_cols_with_more_nulls() {
+        test_helpers::maybe_start_logging();
+        for output_batch_size in [1, 2, 4, 8, 16, 32] {
+            for input_batch_size in [1, 2, 4, 8] {
+                let records = TestRecords {
+                    group_cols: vec![vec![Some("a"), Some("b"), Some("b"), Some("b"), Some("b")]],
+                    time_col: vec![
+                        Some(1_000),
+                        None, // group b
+                        None,
+                        None,
+                        None,
+                    ],
+                    agg_cols: vec![vec![
+                        Some(10), // group a
+                        Some(90), // group b
+                        Some(91),
+                        Some(92),
+                        Some(93),
+                    ]],
+                    input_batch_size,
+                };
+                let params = get_params_ms(&records, 25, Some(975), 1_025);
+                let tc = TestCase {
+                    test_records: records,
+                    output_batch_size,
+                    params,
+                };
+                let batches = tc.run().await.unwrap();
+                let expected = [
+                    "+----+--------------------------+----+",
+                    "| g0 | time                     | a0 |",
+                    "+----+--------------------------+----+",
+                    "| a  | 1970-01-01T00:00:00.975Z |    |",
+                    "| a  | 1970-01-01T00:00:01Z     | 10 |",
+                    "| a  | 1970-01-01T00:00:01.025Z |    |",
+                    "| b  |                          | 90 |",
+                    "| b  |                          | 91 |",
+                    "| b  |                          | 92 |",
+                    "| b  |                          | 93 |",
+                    "| b  | 1970-01-01T00:00:00.975Z |    |",
+                    "| b  | 1970-01-01T00:00:01Z     |    |",
+                    "| b  | 1970-01-01T00:00:01.025Z |    |",
+                    "+----+--------------------------+----+",
+                ];
+                assert_batches_eq!(expected, &batches);
+                assert_batch_count(&batches, output_batch_size);
+            }
+        }
     }
 
     #[tokio::test]
@@ -966,7 +1068,7 @@ mod test {
                     ],
                     input_batch_size,
                 };
-                let params = get_params_ms(&records, 25, 975, 1_125);
+                let params = get_params_ms(&records, 25, Some(975), 1_125);
                 let tc = TestCase {
                     test_records: records,
                     output_batch_size,
@@ -1001,6 +1103,131 @@ mod test {
             }
         }
         Ok(())
+    }
+
+    #[tokio::test]
+    async fn test_gapfill_simple_no_lower_bound() {
+        test_helpers::maybe_start_logging();
+        for output_batch_size in [1, 2, 4, 8] {
+            for input_batch_size in [1, 2, 4] {
+                let batch = TestRecords {
+                    group_cols: vec![vec![Some("a"), Some("a"), Some("b"), Some("b")]],
+                    time_col: vec![Some(1_025), Some(1_100), Some(1_050), Some(1_100)],
+                    agg_cols: vec![vec![Some(10), Some(11), Some(20), Some(21)]],
+                    input_batch_size,
+                };
+                let params = get_params_ms(&batch, 25, None, 1_125);
+                let tc = TestCase {
+                    test_records: batch,
+                    output_batch_size,
+                    params,
+                };
+                let batches = tc.run().await.unwrap();
+                let expected = [
+                    "+----+--------------------------+----+",
+                    "| g0 | time                     | a0 |",
+                    "+----+--------------------------+----+",
+                    "| a  | 1970-01-01T00:00:01.025Z | 10 |",
+                    "| a  | 1970-01-01T00:00:01.050Z |    |",
+                    "| a  | 1970-01-01T00:00:01.075Z |    |",
+                    "| a  | 1970-01-01T00:00:01.100Z | 11 |",
+                    "| a  | 1970-01-01T00:00:01.125Z |    |",
+                    "| b  | 1970-01-01T00:00:01.050Z | 20 |",
+                    "| b  | 1970-01-01T00:00:01.075Z |    |",
+                    "| b  | 1970-01-01T00:00:01.100Z | 21 |",
+                    "| b  | 1970-01-01T00:00:01.125Z |    |",
+                    "+----+--------------------------+----+",
+                ];
+                assert_batches_eq!(expected, &batches);
+                assert_batch_count(&batches, output_batch_size);
+            }
+        }
+    }
+
+    #[tokio::test]
+    async fn test_gapfill_simple_no_lower_bound_with_nulls() {
+        test_helpers::maybe_start_logging();
+        for output_batch_size in [1, 2, 4, 8] {
+            for input_batch_size in [1, 2, 4] {
+                let batch = TestRecords {
+                    group_cols: vec![vec![
+                        Some("a"),
+                        Some("a"),
+                        Some("a"),
+                        Some("b"),
+                        Some("b"),
+                        Some("b"),
+                        Some("b"),
+                        Some("c"),
+                        Some("c"),
+                        Some("c"),
+                        Some("c"),
+                        Some("c"),
+                    ]],
+                    time_col: vec![
+                        None, // group a
+                        Some(1_025),
+                        Some(1_100),
+                        None, // group b
+                        None,
+                        None,
+                        None, // group c
+                        None,
+                        None,
+                        None,
+                        Some(1_050),
+                        Some(1_100),
+                    ],
+                    agg_cols: vec![vec![
+                        Some(1), // group a
+                        Some(10),
+                        Some(11),
+                        Some(90), // group b
+                        Some(91),
+                        Some(92),
+                        Some(93),
+                        None, // group c
+                        None,
+                        Some(2),
+                        Some(20),
+                        Some(21),
+                    ]],
+                    input_batch_size,
+                };
+                let params = get_params_ms(&batch, 25, None, 1_125);
+                let tc = TestCase {
+                    test_records: batch,
+                    output_batch_size,
+                    params,
+                };
+                let batches = tc.run().await.unwrap();
+                let expected = [
+                    "+----+--------------------------+----+",
+                    "| g0 | time                     | a0 |",
+                    "+----+--------------------------+----+",
+                    "| a  |                          | 1  |",
+                    "| a  | 1970-01-01T00:00:01.025Z | 10 |",
+                    "| a  | 1970-01-01T00:00:01.050Z |    |",
+                    "| a  | 1970-01-01T00:00:01.075Z |    |",
+                    "| a  | 1970-01-01T00:00:01.100Z | 11 |",
+                    "| a  | 1970-01-01T00:00:01.125Z |    |",
+                    "| b  |                          | 90 |",
+                    "| b  |                          | 91 |",
+                    "| b  |                          | 92 |",
+                    "| b  |                          | 93 |",
+                    "| c  |                          |    |",
+                    "| c  |                          |    |",
+                    "| c  |                          | 2  |",
+                    "| c  | 1970-01-01T00:00:01.050Z | 20 |",
+                    "| c  | 1970-01-01T00:00:01.075Z |    |",
+                    "| c  | 1970-01-01T00:00:01.100Z | 21 |",
+                    "| c  | 1970-01-01T00:00:01.125Z |    |",
+                    "+----+--------------------------+----+",
+                ];
+                assert_batches_eq!(expected, &batches);
+                assert_batch_count(&batches, output_batch_size);
+            }
+        }
     }
 
     fn assert_batch_count(actual_batches: &[RecordBatch], batch_size: usize) {
@@ -1148,7 +1375,20 @@ mod test {
         }
     }
 
-    fn get_params_ms(batch: &TestRecords, stride: i64, start: i64, end: i64) -> GapFillExecParams {
+    fn bound_included_from_option<T>(o: Option<T>) -> Bound<T> {
+        if let Some(v) = o {
+            Bound::Included(v)
+        } else {
+            Bound::Unbounded
+        }
+    }
+
+    fn get_params_ms(
+        batch: &TestRecords,
+        stride: i64,
+        start: Option<i64>,
+        end: i64,
+    ) -> GapFillExecParams {
         GapFillExecParams {
             // interval day time is milliseconds in the low 32-bit word
             stride: phys_lit(ScalarValue::IntervalDayTime(Some(stride))), // milliseconds
@@ -1156,10 +1396,12 @@ mod test {
             origin: phys_lit(ScalarValue::TimestampNanosecond(Some(0), None)),
             // timestamps are nanos, so scale them accordingly
             time_range: Range {
-                start: Bound::Included(phys_lit(ScalarValue::TimestampNanosecond(
-                    Some(start * 1_000_000),
-                    None,
-                ))),
+                start: bound_included_from_option(start.map(|start| {
+                    phys_lit(ScalarValue::TimestampNanosecond(
+                        Some(start * 1_000_000),
+                        None,
+                    ))
+                })),
                 end: Bound::Included(phys_lit(ScalarValue::TimestampNanosecond(
                     Some(end * 1_000_000),
                     None,

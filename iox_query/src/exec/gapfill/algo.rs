@@ -79,10 +79,9 @@ pub(super) struct GapFiller {
 impl GapFiller {
     /// Initialize a [GapFiller] at the beginning of an input record batch.
     pub fn new(params: GapFillParams) -> Self {
-        let next_ts = params.first_ts;
         let cursor = Cursor {
             next_input_offset: 0,
-            next_ts,
+            next_ts: params.first_ts,
             remaining_output_batch_size: 0,
         };
         Self {
@@ -135,7 +134,11 @@ impl GapFiller {
             self.trailing_gaps = false;
         } else {
             assert!(self.cursor.next_input_offset == *last_series_end);
-            if self.cursor.next_ts <= self.params.last_ts {
+            if self
+                .cursor
+                .next_ts
+                .map_or(false, |next_ts| next_ts <= self.params.last_ts)
+            {
                 // Possible state 2:
                 // Set this bit so that the output batch begins
                 // with trailing gaps for the last series.
@@ -297,7 +300,10 @@ struct Cursor {
     /// Where to read the next row from the input.
     next_input_offset: usize,
     /// The next timestamp to be produced for the current series.
-    next_ts: i64,
+    /// Since the lower bound for gap filling could just be "whatever
+    /// the first timestamp in the series is," this may be `None` before
+    /// any rows with non-null timestamps are produced for a series.
+    next_ts: Option<i64>,
     /// How many rows may be output before we need to start a new record batch.
     remaining_output_batch_size: usize,
 }
@@ -311,7 +317,7 @@ impl Cursor {
         input_time_array: &TimestampNanosecondArray,
         series_end: usize,
     ) -> usize {
-        let null_ts_count = if input_time_array.null_count() > 0 {
+        let mut count = if input_time_array.null_count() > 0 {
             let len = series_end - self.next_input_offset;
             let slice = input_time_array.slice(self.next_input_offset, len);
             slice.null_count()
@@ -319,12 +325,46 @@ impl Cursor {
             0
         };
 
-        let count = null_ts_count + params.valid_row_count(self.next_ts);
+        self.next_input_offset += count;
+        if self.maybe_init_next_ts(input_time_array, series_end) {
+            count += params.valid_row_count(self.next_ts.unwrap());
+        }
 
         self.next_input_offset = series_end;
         self.next_ts = params.first_ts;
 
         count
+    }
+
+    /// Attempts to assign a value to `self.next_ts` if it does not have one.
+    ///
+    /// This bit of abstraction is needed because the lower bound for gap filling may be
+    /// determined in one of two ways:
+    /// * If the [`GapFillParams`] provided by client code has `first_ts` set to `Some`, this
+    ///   will be the first timestamp for each series. In this case `self.next_ts`
+    ///   will never `None`, and this function does nothing.
+    /// * Otherwise it is determined to be whatever the first timestamp in the input series is.
+    ///   In this case `params.first_ts == None`, and we need to extract the timestamp from
+    ///   the input time array.
+    ///
+    /// Returns true if `self.next_ts` ends up containing a value.
+    fn maybe_init_next_ts(
+        &mut self,
+        input_time_array: &TimestampNanosecondArray,
+        series_end: usize,
+    ) -> bool {
+        self.next_ts = match self.next_ts {
+            Some(_) => self.next_ts,
+            None if self.next_input_offset < series_end
+                && input_time_array.is_valid(self.next_input_offset) =>
+            {
+                Some(input_time_array.value(self.next_input_offset))
+            }
+            // This may happen if current input offset points at a row
+            // with a null timestamp, or is past the end of the current series.
+            _ => None,
+        };
+        self.next_ts.is_some()
     }
 
     /// Builds a vector that can be used to produce a timestamp array.
@@ -458,17 +498,21 @@ impl Cursor {
             self.next_input_offset += 1;
         }
 
+        if !self.maybe_init_next_ts(input_times, series_end) {
+            return Ok(());
+        }
+        let mut next_ts = self.next_ts.unwrap();
+
         let output_row_count = std::cmp::min(
-            params.valid_row_count(self.next_ts),
+            params.valid_row_count(next_ts),
             self.remaining_output_batch_size,
         );
         if output_row_count == 0 {
             return Ok(());
         }
 
-        let mut next_ts = self.next_ts;
         // last_ts is the last timestamp that will fit in the output batch
-        let last_ts = self.next_ts + (output_row_count - 1) as i64 * params.stride;
+        let last_ts = next_ts + (output_row_count - 1) as i64 * params.stride;
 
         loop {
             if self.next_input_offset >= series_end {
@@ -503,7 +547,7 @@ impl Cursor {
             next_ts += params.stride;
         }
 
-        self.next_ts = last_ts + params.stride;
+        self.next_ts = Some(last_ts + params.stride);
         self.remaining_output_batch_size -= output_row_count;
         Ok(())
     }
@@ -551,7 +595,7 @@ mod tests {
 
         let params = GapFillParams {
             stride: 50,
-            first_ts: 950,
+            first_ts: Some(950),
             last_ts: 1250,
         };
 
@@ -579,13 +623,50 @@ mod tests {
         assert_eq!(
             Cursor {
                 next_input_offset: input_times.len(),
-                next_ts: params.last_ts + params.stride,
+                next_ts: Some(params.last_ts + params.stride),
                 remaining_output_batch_size: output_batch_size - 7
             },
             cursor
         );
 
         Ok(())
+    }
+
+    #[test]
+    fn test_cursor_append_time_values_no_first_ts() {
+        test_helpers::maybe_start_logging();
+        let input_times = TimestampNanosecondArray::from(vec![1100, 1200]);
+        let series = input_times.len();
+
+        let params = GapFillParams {
+            stride: 50,
+            first_ts: None,
+            last_ts: 1250,
+        };
+
+        let output_batch_size = 10000;
+        let mut cursor = Cursor {
+            next_input_offset: 0,
+            next_ts: params.first_ts,
+            remaining_output_batch_size: output_batch_size,
+        };
+
+        let out_times = cursor
+            .build_time_vec(&params, &[series], &input_times)
+            .unwrap();
+        assert_eq!(
+            vec![Some(1100), Some(1150), Some(1200), Some(1250)],
+            out_times
+        );
+
+        assert_eq!(
+            Cursor {
+                next_input_offset: input_times.len(),
+                next_ts: Some(params.last_ts + params.stride),
+                remaining_output_batch_size: output_batch_size - 4
+            },
+            cursor
+        );
     }
 
     #[test]
@@ -597,7 +678,7 @@ mod tests {
 
         let params = GapFillParams {
             stride: 50,
-            first_ts: 950,
+            first_ts: Some(950),
             last_ts: 1250,
         };
 
@@ -626,7 +707,7 @@ mod tests {
         assert_eq!(
             Cursor {
                 next_input_offset: input_times.len(),
-                next_ts: params.last_ts + params.stride,
+                next_ts: Some(params.last_ts + params.stride),
                 remaining_output_batch_size: output_batch_size - 9
             },
             cursor
@@ -642,7 +723,7 @@ mod tests {
 
         let params = GapFillParams {
             stride: 50,
-            first_ts: 950,
+            first_ts: Some(950),
             last_ts: 1250,
         };
 
@@ -658,7 +739,7 @@ mod tests {
         assert_eq!(
             Cursor {
                 next_input_offset: input_times.len(),
-                next_ts: params.last_ts + params.stride,
+                next_ts: Some(params.last_ts + params.stride),
                 remaining_output_batch_size: output_batch_size - 7
             },
             cursor
@@ -674,7 +755,7 @@ mod tests {
 
         let params = GapFillParams {
             stride: 50,
-            first_ts: 950,
+            first_ts: Some(950),
             last_ts: 1250,
         };
 
@@ -694,7 +775,7 @@ mod tests {
         assert_eq!(
             Cursor {
                 next_input_offset: input_times.len(),
-                next_ts: params.last_ts + params.stride,
+                next_ts: Some(params.last_ts + params.stride),
                 remaining_output_batch_size: output_batch_size - 7
             },
             cursor
@@ -712,7 +793,7 @@ mod tests {
 
         let params = GapFillParams {
             stride: 50,
-            first_ts: 950,
+            first_ts: Some(950),
             last_ts: 1250,
         };
 
@@ -742,7 +823,7 @@ mod tests {
         assert_eq!(
             Cursor {
                 next_input_offset: input_times.len(),
-                next_ts: params.last_ts + params.stride,
+                next_ts: Some(params.last_ts + params.stride),
                 remaining_output_batch_size: output_batch_size - 9
             },
             cursor
@@ -756,7 +837,7 @@ mod tests {
         let output_batch_size = 5;
         let params = GapFillParams {
             stride: 50,
-            first_ts: 950,
+            first_ts: Some(950),
             last_ts: 1350,
         };
         let input_times = TimestampNanosecondArray::from(vec![
@@ -795,7 +876,7 @@ mod tests {
         assert_eq!(
             Cursor {
                 next_input_offset: 2,
-                next_ts: 1200,
+                next_ts: Some(1200),
                 remaining_output_batch_size: 0
             },
             cursor
@@ -818,7 +899,7 @@ mod tests {
         assert_eq!(
             Cursor {
                 next_input_offset: input_times.len(),
-                next_ts: params.last_ts + params.stride,
+                next_ts: Some(params.last_ts + params.stride),
                 remaining_output_batch_size: 1
             },
             cursor
@@ -833,7 +914,7 @@ mod tests {
         let output_batch_size = 6;
         let params = GapFillParams {
             stride: 50,
-            first_ts: 950,
+            first_ts: Some(950),
             last_ts: 1350,
         };
         let input_times = TimestampNanosecondArray::from(vec![
@@ -878,7 +959,7 @@ mod tests {
         assert_eq!(
             Cursor {
                 next_input_offset: 4,
-                next_ts: 1150,
+                next_ts: Some(1150),
                 remaining_output_batch_size: 0
             },
             cursor
@@ -900,7 +981,7 @@ mod tests {
         assert_eq!(
             Cursor {
                 next_input_offset: input_times.len(),
-                next_ts: params.last_ts + params.stride,
+                next_ts: Some(params.last_ts + params.stride),
                 remaining_output_batch_size: 1
             },
             cursor
@@ -916,7 +997,7 @@ mod tests {
         let output_batch_size = 4;
         let params = GapFillParams {
             stride: 50,
-            first_ts: 1000,
+            first_ts: Some(1000),
             last_ts: 1100,
         };
         let input_times = TimestampNanosecondArray::from(vec![
@@ -957,7 +1038,7 @@ mod tests {
         assert_eq!(
             Cursor {
                 next_input_offset: 4,
-                next_ts: 1000,
+                next_ts: Some(1000),
                 remaining_output_batch_size: 0
             },
             cursor
@@ -980,7 +1061,7 @@ mod tests {
         assert_eq!(
             Cursor {
                 next_input_offset: input_times.len(),
-                next_ts: params.last_ts + params.stride,
+                next_ts: Some(params.last_ts + params.stride),
                 remaining_output_batch_size: 1
             },
             cursor,
@@ -998,7 +1079,7 @@ mod tests {
         let output_batch_size = 4;
         let params = GapFillParams {
             stride: 50,
-            first_ts: 1000,
+            first_ts: Some(1000),
             last_ts: 1100,
         };
         let input_times = TimestampNanosecondArray::from(vec![
@@ -1040,7 +1121,7 @@ mod tests {
         assert_eq!(
             Cursor {
                 next_input_offset: 4,
-                next_ts: 1000,
+                next_ts: Some(1000),
                 remaining_output_batch_size: 0
             },
             cursor
@@ -1063,7 +1144,7 @@ mod tests {
         assert_eq!(
             Cursor {
                 next_input_offset: input_times.len(),
-                next_ts: params.last_ts + params.stride,
+                next_ts: Some(params.last_ts + params.stride),
                 remaining_output_batch_size: 0
             },
             cursor,
@@ -1079,7 +1160,7 @@ mod tests {
         let output_batch_size = 3;
         let params = GapFillParams {
             stride: 100,
-            first_ts: 200,
+            first_ts: Some(200),
             last_ts: 1000,
         };
         let input_times = TimestampNanosecondArray::from(vec![300, 500, 700, 800]);
@@ -1111,7 +1192,7 @@ mod tests {
         assert_eq!(
             Cursor {
                 next_input_offset: 1,
-                next_ts: 500,
+                next_ts: Some(500),
                 remaining_output_batch_size: 0
             },
             cursor
@@ -1134,7 +1215,7 @@ mod tests {
         assert_eq!(
             Cursor {
                 next_input_offset: 3,
-                next_ts: 800,
+                next_ts: Some(800),
                 remaining_output_batch_size: 0
             },
             cursor
@@ -1157,7 +1238,7 @@ mod tests {
         assert_eq!(
             Cursor {
                 next_input_offset: input_times.len(),
-                next_ts: params.last_ts + params.stride,
+                next_ts: Some(params.last_ts + params.stride),
                 remaining_output_batch_size: 0
             },
             cursor
@@ -1172,7 +1253,7 @@ mod tests {
         let output_batch_size = 4;
         let params = GapFillParams {
             stride: 50,
-            first_ts: 1000,
+            first_ts: Some(1000),
             last_ts: 1200,
         };
         let input_times = TimestampNanosecondArray::from(vec![
@@ -1212,7 +1293,7 @@ mod tests {
         assert_eq!(
             Cursor {
                 next_input_offset: 2,
-                next_ts: 1200,
+                next_ts: Some(1200),
                 remaining_output_batch_size: 0
             },
             cursor
@@ -1235,7 +1316,7 @@ mod tests {
         assert_eq!(
             Cursor {
                 next_input_offset: 3,
-                next_ts: params.last_ts + params.stride,
+                next_ts: Some(params.last_ts + params.stride),
                 remaining_output_batch_size: 3
             },
             cursor
@@ -1259,7 +1340,7 @@ mod tests {
         assert_eq!(
             Cursor {
                 next_input_offset: 5,
-                next_ts: 1150,
+                next_ts: Some(1150),
                 remaining_output_batch_size: 0
             },
             cursor
@@ -1282,7 +1363,7 @@ mod tests {
         assert_eq!(
             Cursor {
                 next_input_offset: 7,
-                next_ts: 1250,
+                next_ts: Some(1250),
                 remaining_output_batch_size: 2
             },
             cursor
