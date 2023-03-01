@@ -5,6 +5,7 @@ use datafusion::{execution::context::SessionState, physical_optimizer::PhysicalO
 use self::union::one_union::OneUnion;
 
 mod chunk_extraction;
+mod combine_chunks;
 mod dedup;
 mod union;
 
