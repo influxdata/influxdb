@@ -14,7 +14,7 @@
 use crate::blocking::{
     ClosedSegmentFileReader as RawClosedSegmentFileReader, OpenSegmentFileWriter,
 };
-use data_types::{sequence_number_set::SequenceNumberSet, SequenceNumber};
+use data_types::sequence_number_set::SequenceNumberSet;
 use generated_types::{
     google::{FieldViolation, OptionalField},
     influxdata::iox::wal::v1::{
@@ -301,16 +301,18 @@ impl Wal {
         ClosedSegmentFileReader::from_path(path)
     }
 
-    /// Writes one [`SequencedWalOp`] to the buffer and returns a watch channel for when the buffer
-    /// is flushed and fsync'd to disk.
+    /// Writes one [`SequencedWalOp`] to the buffer and returns a watch channel
+    /// for when the buffer is flushed and fsync'd to disk.
     pub fn write_op(&self, op: SequencedWalOp) -> watch::Receiver<Option<WriteResult>> {
         let mut b = self.buffer.lock();
         b.ops.push(op);
         b.flush_notification.clone()
     }
 
-    /// Closes the currently open segment and opens a new one, returning the closed segment details.
-    pub fn rotate(&self) -> Result<ClosedSegment> {
+    /// Closes the currently open segment and opens a new one, returning the
+    /// closed segment details, including the [`SequenceNumberSet`] containing
+    /// the sequence numbers of the writes within the closed segment.
+    pub fn rotate(&self) -> Result<(ClosedSegment, SequenceNumberSet)> {
         let new_open_segment =
             OpenSegmentFileWriter::new_in_directory(&self.root, Arc::clone(&self.next_id_source))
                 .context(UnableToCreateSegmentFileSnafu)?;
@@ -318,7 +320,7 @@ impl Wal {
         let mut segments = self.segments.lock();
 
         let closed = std::mem::replace(&mut segments.open_segment, new_open_segment);
-        let _seqnum_set = std::mem::take(&mut segments.open_segment_ids);
+        let seqnum_set = std::mem::take(&mut segments.open_segment_ids);
         let closed = closed.close().expect("should convert to closed segment");
 
         let previous_value = segments.closed_segments.insert(closed.id(), closed.clone());
@@ -327,7 +329,7 @@ impl Wal {
             "should always add new closed segment entries, not replace"
         );
 
-        Ok(closed)
+        Ok((closed, seqnum_set))
     }
 
     async fn flush_buffer_background_task(&self) {
@@ -537,7 +539,7 @@ impl ClosedSegment {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use data_types::{NamespaceId, TableId};
+    use data_types::{NamespaceId, SequenceNumber, TableId};
     use dml::DmlWrite;
     use generated_types::influxdata::{
         iox::{delete::v1::DeletePayload, wal::v1::PersistOp},
@@ -575,7 +577,7 @@ mod tests {
         wal.write_op(op3.clone());
         wal.write_op(op4.clone()).changed().await.unwrap();
 
-        let closed = wal.rotate().unwrap();
+        let (closed, ids) = wal.rotate().unwrap();
 
         let mut reader = wal.reader_for_segment(closed.id).unwrap();
 
@@ -584,6 +586,22 @@ mod tests {
             ops.append(&mut batch);
         }
         assert_eq!(vec![op1, op2, op3, op4], ops);
+
+        // Assert the set has recorded the op IDs.
+        //
+        // Note that one op has a duplicate sequence number above!
+        assert_eq!(ids.len(), 3);
+
+        // Assert the sequence number set contains the specified ops.
+        let ids = ids.iter().collect::<Vec<_>>();
+        assert_eq!(
+            ids,
+            [
+                SequenceNumber::new(0),
+                SequenceNumber::new(1),
+                SequenceNumber::new(2),
+            ]
+        )
     }
 
     // open wal with files that aren't segments (should log and skip)
@@ -604,8 +622,9 @@ mod tests {
         );
 
         // No writes, but rotating is totally fine
-        let closed_segment_details = wal.rotate().unwrap();
+        let (closed_segment_details, ids) = wal.rotate().unwrap();
         assert_eq!(closed_segment_details.size(), 16);
+        assert!(ids.is_empty());
 
         // There's one closed segment
         let closed = wal.closed_segments();
