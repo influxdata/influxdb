@@ -1,3 +1,7 @@
+//! A randomised, globally unique identifier of a single ingester instance.
+//!
+//! The value of this ID is expected to change between restarts of the ingester.
+
 use std::fmt::Display;
 
 use uuid::Uuid;

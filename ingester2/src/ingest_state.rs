@@ -1,3 +1,9 @@
+//! Propagate subsystem error state between other subsystems.
+//!
+//! A [`IngestState`] allows disparate subsystems to broadcast their health
+//! state to other subsystems. Concretely, it is used to reject writes when the
+//! ingester is unable to process them.
+
 use std::sync::atomic::{AtomicUsize, Ordering};
 
 use crossbeam_utils::CachePadded;
@@ -18,7 +24,7 @@ pub(crate) enum IngestStateError {
 
 impl IngestStateError {
     #[inline(always)]
-    fn to_bits(self) -> usize {
+    fn as_bits(self) -> usize {
         // Map the user-friendly enum to a u64 bitmap.
         let set = self as usize;
         debug_assert_eq!(set.count_ones(), 1); // A single bit
@@ -56,7 +62,7 @@ impl IngestState {
     /// Returns true if this call set the error state to `error`, false if
     /// `error` was already set.
     pub(crate) fn set(&self, error: IngestStateError) -> bool {
-        let set = error.to_bits();
+        let set = error.as_bits();
         let mut current = self.state.load(Ordering::Relaxed);
         loop {
             if current & set != 0 {
@@ -92,7 +98,7 @@ impl IngestState {
     /// Returns true if this call unset the `error` state, false if `error` was
     /// already unset.
     pub(crate) fn unset(&self, error: IngestStateError) -> bool {
-        let unset = error.to_bits();
+        let unset = error.as_bits();
         let mut current = self.state.load(Ordering::Relaxed);
         loop {
             if current & unset == 0 {
@@ -135,7 +141,7 @@ impl IngestState {
         if current != 0 {
             // Map the non-healthy state to an error using a "cold" function,
             // asking LLVM to move the mapping logic out of the happy/hot path.
-            return to_err(current);
+            return as_err(current);
         }
 
         Ok(())
@@ -148,12 +154,12 @@ impl IngestState {
 /// the user always sees (instead of potentially flip-flopping between "shutting
 /// down" and "persist saturated").
 #[cold]
-fn to_err(state: usize) -> Result<(), IngestStateError> {
-    if state & IngestStateError::GracefulStop.to_bits() != 0 {
+fn as_err(state: usize) -> Result<(), IngestStateError> {
+    if state & IngestStateError::GracefulStop.as_bits() != 0 {
         return Err(IngestStateError::GracefulStop);
     }
 
-    if state & IngestStateError::PersistSaturated.to_bits() != 0 {
+    if state & IngestStateError::PersistSaturated.as_bits() != 0 {
         return Err(IngestStateError::PersistSaturated);
     }
 
@@ -168,15 +174,15 @@ mod tests {
 
     #[test]
     fn test_disjoint_discriminant_bits() {
-        assert!(IngestStateError::PersistSaturated.to_bits() < usize::BITS as usize);
-        assert_eq!(IngestStateError::PersistSaturated.to_bits().count_ones(), 1);
+        assert!(IngestStateError::PersistSaturated.as_bits() < usize::BITS as usize);
+        assert_eq!(IngestStateError::PersistSaturated.as_bits().count_ones(), 1);
 
-        assert!(IngestStateError::GracefulStop.to_bits() < usize::BITS as usize);
-        assert_eq!(IngestStateError::PersistSaturated.to_bits().count_ones(), 1);
+        assert!(IngestStateError::GracefulStop.as_bits() < usize::BITS as usize);
+        assert_eq!(IngestStateError::PersistSaturated.as_bits().count_ones(), 1);
 
         assert_ne!(
-            IngestStateError::PersistSaturated.to_bits(),
-            IngestStateError::GracefulStop.to_bits()
+            IngestStateError::PersistSaturated.as_bits(),
+            IngestStateError::GracefulStop.as_bits()
         );
     }
 

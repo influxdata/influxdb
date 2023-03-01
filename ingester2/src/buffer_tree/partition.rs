@@ -146,6 +146,8 @@ impl PartitionData {
         Ok(())
     }
 
+    /// Return an estimated cost of persisting the data buffered in this
+    /// [`PartitionData`].
     pub(crate) fn persist_cost_estimate(&self) -> usize {
         self.buffer.persist_cost_estimate()
     }
