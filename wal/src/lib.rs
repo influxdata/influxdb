@@ -267,7 +267,7 @@ impl Wal {
             OpenSegmentFileWriter::new_in_directory(&root, Arc::clone(&next_id_source))
                 .context(UnableToCreateSegmentFileSnafu)?;
 
-        let buffer = WalBuffer::new();
+        let buffer = WalBuffer::new(None);
 
         let wal = Self {
             root,
@@ -339,18 +339,40 @@ impl Wal {
 
         let mut interval = tokio::time::interval(WAL_FLUSH_INTERVAL);
 
+        // Pre-allocate the WAL buffer outside of the exclusive lock, and track
+        // the buffer utilisation to optimise pre-allocation.
+        let mut size_hint = None;
+        let mut new_buf = WalBuffer::new(size_hint);
+
         loop {
             interval.tick().await;
+
+            // Rust's move properties ensure we never accidentally reuse a
+            // buffer, but make it clear the buffer is always fresh before use.
+            assert!(new_buf.ops.is_empty());
 
             // only write to the disk if there are writes buffered
             let filled_buffer = {
                 let mut b = self.buffer.lock();
                 if b.ops.is_empty() {
+                    // Don't replace the buffer, as the current buffer is empty.
+                    //
+                    // This doesn't throw away the pre-allocated buffer - that
+                    // can be used later!
                     continue;
                 }
 
-                std::mem::replace(&mut *b, WalBuffer::new())
+                // Update the size hint, ensuring it slowly shrinks over time to
+                // prevent buffer runaway due to the occasional large buffer.
+                size_hint = Some(b.ops.len().saturating_sub(1));
+
+                // Move the pre-allocated buffer to replace the old.
+                std::mem::replace(&mut *b, new_buf)
             };
+
+            // Allocate the next buffer, using the previous buffer size as a
+            // pre-allocation hint.
+            new_buf = WalBuffer::new(size_hint);
 
             io_thread.enqueue_batch(filled_buffer).await;
         }
@@ -391,11 +413,11 @@ struct WalBuffer {
 }
 
 impl WalBuffer {
-    fn new() -> Self {
+    fn new(size_hint: Option<usize>) -> Self {
         let (tx, rx) = tokio::sync::watch::channel::<Option<WriteResult>>(None);
 
         Self {
-            ops: vec![],
+            ops: Vec::with_capacity(size_hint.unwrap_or(20)),
             notify_flush: tx,
             flush_notification: rx,
         }
