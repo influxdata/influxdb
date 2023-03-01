@@ -4,93 +4,114 @@
 //!
 //! * Creating IOx namespaces & synchronising them within the catalog.
 //! * Handling writes:
-//!     * Receiving IOx write/delete requests via HTTP.
-//!     * Enforcing schema validation & synchronising it within the catalog.
+//!     * Receiving IOx write/delete requests via HTTP
+//!     * Creating or validating the write's namespace
+//!     * Validating write payloads are within the configured retention period
+//!     * Enforcing schema validation & synchronising it within the catalog
 //!     * Deriving the partition key of each DML operation.
-//!     * Applying sharding logic.
-//!     * Push resulting operations into the appropriate shards (Kafka
-//!       partitions if using Kafka).
+//!     * Load-balancing & health-checking the pool of downstream ingesters
+//!     * Writing payloads to the downstream ingesters
 //!
 //! The router is composed of singly-responsible components that each apply a
 //! transformation to the request:
 //!
 //! ```text
-//!                           ┌──────────────┐
-//!                           │   HTTP API   │
-//!                           └──────────────┘
-//!                                   │
-//!                                   │
-//!                                   ▼
-//!                      ╔═ NamespaceResolver ════╗
-//!                      ║                        ║
-//!                      ║  ┌──────────────────┐  ║
-//!                      ║  │    Namespace     │  ║
-//!                      ║  │   Autocreation   │ ─║─ ─ ─ ─ ─ ─
-//!                      ║  └──────────────────┘  ║           │
-//!                      ║            │           ║
-//!                      ║            ▼           ║           │
-//!                      ║  ┌──────────────────┐  ║
-//!                      ║  │ NamespaceSchema  │  ║           │
-//!                      ║  │     Resolver     │ ─║─ ─ ─ ─ ─ ─
-//!                      ║  └──────────────────┘  ║           │
-//!                      ║            │           ║
-//!                      ╚════════════│═══════════╝           │
-//!                                   │              ┌─────────────────┐
-//!                                   │              │ Namespace Cache │
-//!                                   │              └─────────────────┘
-//!                      ╔═ DmlHandler│Stack ═════╗           │
-//!                      ║            ▼           ║
-//!                      ║  ┌──────────────────┐  ║           │
-//!                      ║  │   Partitioner    │  ║
-//!                      ║  └──────────────────┘  ║           │
-//!                      ║            │           ║
-//!                      ║            ▼           ║           │
-//!                      ║  ┌──────────────────┐  ║
-//!                      ║  │      Schema      │  ║           │
-//!                      ║  │    Validation    │ ─║─ ─ ─ ─ ─ ─
-//!                      ║  └──────────────────┘  ║
-//!                      ║            │           ║
-//!                      ║            ▼           ║
-//!         ┌───────┐    ║  ┌──────────────────┐  ║
-//!         │Sharder│◀ ─ ─ ▶│ShardedWriteBuffer│  ║
-//!         └───────┘    ║  └──────────────────┘  ║
-//!                      ║            │           ║
-//!                      ╚════════════│═══════════╝
-//!                                   │
-//!                                   ▼
-//!                           ┌──────────────┐
-//!                           │ Write Buffer │
-//!                           └──────────────┘
-//!                                   │
-//!                                   │
-//!                          ┌────────▼─────┐
-//!                          │    Kafka     ├┐
-//!                          └┬─────────────┘├┐
-//!                           └┬─────────────┘│
-//!                            └──────────────┘
+//!                       ┌──────────────┐
+//!                       │   HTTP API   │
+//!                       └──────────────┘
+//!                               │
+//!                               │
+//!                               ▼
+//!                  ╔═ NamespaceResolver ════╗
+//!                  ║                        ║
+//!                  ║  ┌──────────────────┐  ║
+//!                  ║  │    Namespace     │  ║
+//!                  ║  │   Autocreation   │ ─║─ ─ ─ ─ ─ ─ ┐
+//!                  ║  └──────────────────┘  ║
+//!                  ║            │           ║            │
+//!                  ║            ▼           ║
+//!                  ║  ┌──────────────────┐  ║            │
+//!                  ║  │ NamespaceSchema  │  ║
+//!                  ║  │     Resolver     │ ─║─ ─ ─ ─ ─ ─ ┤
+//!                  ║  └──────────────────┘  ║
+//!                  ║            │           ║            │
+//!                  ╚════════════│═══════════╝
+//!                               │               ┌─────────────────┐
+//!                               │               │ Namespace Cache │
+//!                               │               └─────────────────┘
+//!                  ╔═ DmlHandler│Stack ═════╗            │
+//!                  ║            ▼           ║
+//!                  ║                        ║            │
+//!                  ║  ┌──────────────────┐  ║
+//!                  ║  │RetentionValidator│ ─║─ ─ ─ ─ ─ ─ ┤
+//!                  ║  └──────────────────┘  ║
+//!                  ║            │           ║            │
+//!                  ║            ▼           ║
+//!                  ║  ┌──────────────────┐  ║            │
+//!                  ║  │      Schema      │  ║
+//!                  ║  │    Validation    │ ─║─ ─ ─ ─ ─ ─ ┘
+//!                  ║  └──────────────────┘  ║
+//!                  ║            │           ║
+//!                  ║            ▼           ║
+//!                  ║  ┌──────────────────┐  ║
+//!                  ║  │   Partitioner    │  ║
+//!                  ║  └──────────────────┘  ║
+//!                  ╚════════════│═══════════╝
+//!                               │
+//!                               ▼
+//!                       ┌──────────────┐
+//!                       │  RPC Writer  │
+//!                       └──────────────┘
+//!                               │
+//!                               │
+//!                      ┌ ─ ─ ─ ─▼─ ─ ─
+//!                          Ingester   ├
+//!                      └ ─ ─ ─ ─ ─ ─ ─ ├
+//!                       └ ─ ─ ─ ─ ─ ─ ─ │
+//!                        └ ─ ─ ─ ─ ─ ─ ─
 //! ```
 //!
 //! The [`NamespaceAutocreation`] handler (for testing only) populates the
-//! global catalog with an entry for each namespace it observes, using the
-//! [`NamespaceCache`] as an optimisation, allowing the handler to skip sending
-//! requests to the catalog for namespaces that are known to exist.
+//! global catalog with an entry for each namespace it observes, if enabled. It
+//! uses the [`NamespaceCache`] as an optimisation, allowing the handler to skip
+//! sending requests to the catalog for namespaces that are known to exist.
 //!
-//! A [`NamespaceResolver`] maps a user-provided namespace string to the
-//! catalog ID ([`NamespaceId`]). The [`NamespaceSchemaResolver`] achieves this
-//! by inspecting the contents of the [`NamespaceCache`]. If a cache-miss
-//! occurs the [`NamespaceSchemaResolver`] queries the catalog and populates the
-//! cache for subsequent requests.
+//! A [`NamespaceResolver`] maps a user-provided namespace string to the catalog
+//! ID ([`NamespaceId`]). The [`NamespaceSchemaResolver`] achieves this by
+//! inspecting the contents of the [`NamespaceCache`]. If a cache-miss occurs
+//! the [`NamespaceSchemaResolver`] queries the catalog and populates the cache
+//! for subsequent requests.
 //!
 //! Once the [`NamespaceId`] has been resolved, the request is passed into the
 //! [`DmlHandler`] stack.
 //!
+//! ## DML Handlers
+//!
+//! The handlers are composed together to form a request handling pipeline,
+//! optionally transforming the payloads and passing them through to the next
+//! handler in the chain.
+//!
+//! Each DML handler implements the [`DmlHandler`] trait.
+//!
+//! See the handler types for further documentation:
+//!
+//! * [`RetentionValidator`]
+//! * [`SchemaValidator`]
+//! * [`Partitioner`]
+//! * [`RpcWrite`]
+//!
 //! [`NamespaceAutocreation`]: crate::namespace_resolver::NamespaceAutocreation
-//! [`NamespaceSchemaResolver`]: crate::namespace_resolver::NamespaceSchemaResolver
+//! [`NamespaceSchemaResolver`]:
+//!     crate::namespace_resolver::NamespaceSchemaResolver
 //! [`NamespaceResolver`]: crate::namespace_resolver
 //! [`NamespaceId`]: data_types::NamespaceId
 //! [`NamespaceCache`]: crate::namespace_cache::NamespaceCache
 //! [`NamespaceSchema`]: data_types::NamespaceSchema
 //! [`DmlHandler`]: crate::dml_handlers
+//! [`RetentionValidator`]: crate::dml_handlers::RetentionValidator
+//! [`SchemaValidator`]: crate::dml_handlers::SchemaValidator
+//! [`Partitioner`]: crate::dml_handlers::Partitioner
+//! [`RpcWrite`]: crate::dml_handlers::RpcWrite
 
 #![deny(
     rustdoc::broken_intra_doc_links,
