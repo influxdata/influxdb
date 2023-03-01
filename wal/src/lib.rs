@@ -14,6 +14,7 @@
 use crate::blocking::{
     ClosedSegmentFileReader as RawClosedSegmentFileReader, OpenSegmentFileWriter,
 };
+use data_types::{sequence_number_set::SequenceNumberSet, SequenceNumber};
 use generated_types::{
     google::{FieldViolation, OptionalField},
     influxdata::iox::wal::v1::{
@@ -274,6 +275,7 @@ impl Wal {
             segments: Arc::new(Mutex::new(Segments {
                 closed_segments,
                 open_segment,
+                open_segment_ids: SequenceNumberSet::default(),
             })),
             next_id_source,
             buffer: Mutex::new(buffer),
@@ -316,12 +318,13 @@ impl Wal {
         let mut segments = self.segments.lock();
 
         let closed = std::mem::replace(&mut segments.open_segment, new_open_segment);
-        let closed = closed.close().expect("should convert to closed segmet");
+        let _seqnum_set = std::mem::take(&mut segments.open_segment_ids);
+        let closed = closed.close().expect("should convert to closed segment");
 
         let previous_value = segments.closed_segments.insert(closed.id(), closed.clone());
         assert!(
             previous_value.is_none(),
-            "Should always add new closed segment entries, not replace"
+            "should always add new closed segment entries, not replace"
         );
 
         Ok(closed)
@@ -381,6 +384,7 @@ impl std::fmt::Debug for Wal {
 struct Segments {
     closed_segments: BTreeMap<SegmentId, ClosedSegment>,
     open_segment: OpenSegmentFileWriter,
+    open_segment_ids: SequenceNumberSet,
 }
 
 #[derive(Debug)]
