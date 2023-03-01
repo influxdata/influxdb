@@ -31,7 +31,7 @@ use std::{
     sync::{atomic::AtomicU64, Arc},
     time::Duration,
 };
-use tokio::sync::watch;
+use tokio::{sync::watch, task::JoinHandle};
 use writer_thread::WriterIoThreadHandle;
 
 pub mod blocking;
@@ -195,6 +195,9 @@ pub struct Wal {
     segments: Arc<Mutex<Segments>>,
     next_id_source: Arc<AtomicU64>,
     buffer: Mutex<WalBuffer>,
+
+    /// The handle to the [`Wal::flush_buffer_background_task()`] task.
+    flusher_task: Mutex<Option<JoinHandle<()>>>,
 }
 
 impl Wal {
@@ -277,12 +280,16 @@ impl Wal {
             })),
             next_id_source,
             buffer: Mutex::new(buffer),
+            flusher_task: Default::default(),
         };
 
         let wal = Arc::new(wal);
         let flush_wal = Arc::clone(&wal);
 
-        tokio::task::spawn(async move { flush_wal.flush_buffer_background_task().await });
+        // Retain the handle to the flusher task so it can be stopped later.
+        *wal.flusher_task.lock() = Some(tokio::task::spawn(async move {
+            flush_wal.flush_buffer_background_task().await
+        }));
 
         Ok(wal)
     }
@@ -365,6 +372,15 @@ impl Wal {
             .remove(&id)
             .context(SegmentNotFoundSnafu { id })?;
         std::fs::remove_file(&closed.path).context(DeleteClosedSegmentSnafu { path: closed.path })
+    }
+}
+
+impl Drop for Wal {
+    fn drop(&mut self) {
+        // Stop the background flusher task, if any.
+        if let Some(t) = self.flusher_task.lock().take() {
+            t.abort()
+        }
     }
 }
 
