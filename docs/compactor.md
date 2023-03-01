@@ -4,7 +4,7 @@ Compactor is one of the servers in an IOx cluster and its main job is to compact
 
 - The purpose of compaction to increase query performance by
    1. Avoiding reading too many small files
-   2. Avoiding doing deduplication and tombstone application during query time
+   2. Avoiding doing deduplication during query time
 
 - The existence of compaction will enable
    1. The Ingesters to ingest as many small files as they need to reduce TTBR (time to be ready)
@@ -55,29 +55,29 @@ These are [up-to-date configurable parameters](https://github.com/influxdata/inf
 The idea of a single compaction is to compact as many small input files as possible into one or few larger output files as follows:
 
 ```text
-     ┌────────┐         ┌────────┐     
-     │        │         │        │     
-     │ Output │  .....  │ Output │     
-     │ File 1 │         │ File m │     
-     │        │         │        │     
-     └────────┘         └────────┘     
-          ▲                  ▲         
-          │                  │         
-          │                  │         
-      .─────────────────────────.      
- _.──'                           `───. 
+     ┌────────┐         ┌────────┐
+     │        │         │        │
+     │ Output │  .....  │ Output │
+     │ File 1 │         │ File m │
+     │        │         │        │
+     └────────┘         └────────┘
+          ▲                  ▲
+          │                  │
+          │                  │
+      .─────────────────────────.
+ _.──'                           `───.
 (               Compact               )
- `────.                         _.───' 
-       `───────────────────────'       
-       ▲        ▲              ▲       
-       │        │              │       
-       │        │              │       
-   ┌───────┐┌──────┐       ┌──────┐    
-   │       ││      │       │      │    
-   │ Input ││Input │       │Input │    
-   │File 1 ││File 2│ ..... │File n│    
-   │       ││      │       │      │    
-   └───────┘└──────┘       └──────┘    
+ `────.                         _.───'
+       `───────────────────────'
+       ▲        ▲              ▲
+       │        │              │
+       │        │              │
+   ┌───────┐┌──────┐       ┌──────┐
+   │       ││      │       │      │
+   │ Input ││Input │       │Input │
+   │File 1 ││File 2│ ..... │File n│
+   │       ││      │       │      │
+   └───────┘└──────┘       └──────┘
 Figure 1: Compact a Partition
 ```
 
@@ -85,30 +85,30 @@ Figure 1: Compact a Partition
 Currently, in order to avoid over committing memory (and OOMing), the compactor computes an estimate of the memory needed for loading full input files into memory, memory for streaming input files in parallel, and memory for output streams. The boxes in the diagram below illustrate the memory needed to run the query plan above. IOx picks the number of input files to compact based on their sizes, number of columns and columns types of the file's table, max desired output files, and the memory budget the compactor is provided. Details:
 
 ```text
-          ┌───────────┐          ┌────────────┐     
-          │Memory for │          │ Memory for │     
-          │  Output   │  .....   │   Output   │     
-          │ Stream 1  │          │  Stream m  │     
-          │           │          │            │     
-          └───────────┘          └────────────┘     
-                                                    
-               ▲                        ▲           
-               │                        │           
-               │                        │           
-               │                        │           
-                 .─────────────────────.            
-          _.────'                       `─────.     
-       ,─'                                     '─.  
-      ╱            Run Compaction Plan            ╲ 
+          ┌───────────┐          ┌────────────┐
+          │Memory for │          │ Memory for │
+          │  Output   │  .....   │   Output   │
+          │ Stream 1  │          │  Stream m  │
+          │           │          │            │
+          └───────────┘          └────────────┘
+
+               ▲                        ▲
+               │                        │
+               │                        │
+               │                        │
+                 .─────────────────────.
+          _.────'                       `─────.
+       ,─'                                     '─.
+      ╱            Run Compaction Plan            ╲
      (                                             )
-      `.                                         ,' 
-        '─.                                   ,─'   
-           `─────.                     _.────'      
-                  `───────────────────'             
-       ▲              ▲                      ▲      
-       │              │                      │      
-       │              │                      │      
-       │              │                      │      
+      `.                                         ,'
+        '─.                                   ,─'
+           `─────.                     _.────'
+                  `───────────────────'
+       ▲              ▲                      ▲
+       │              │                      │
+       │              │                      │
+       │              │                      │
 ┌────────────┐ ┌────────────┐         ┌────────────┐
 │ Memory for │ │ Memory for │         │ Memory for │
 │ Streaming  │ │ Streaming  │         │ Streaming  │

@@ -1,15 +1,16 @@
 use crate::delete_expr::{df_to_expr, expr_to_df};
 use chrono::DateTime;
-use data_types::{DeleteExpr, DeletePredicate, TimestampRange, Tombstone};
-use datafusion::logical_expr::Operator;
-use datafusion::prelude::{binary_expr, lit, Column, Expr};
+use data_types::{DeleteExpr, DeletePredicate, TimestampRange};
+use datafusion::{
+    logical_expr::Operator,
+    prelude::{binary_expr, lit, Column, Expr},
+};
 use snafu::Snafu;
 use sqlparser::{
     ast::{BinaryOperator, Expr as SqlParserExpr, Ident, Statement, Value},
     dialect::GenericDialect,
     parser::Parser,
 };
-use std::sync::Arc;
 
 /// Parse Delete Predicates
 /// Parse Error
@@ -48,27 +49,6 @@ impl From<DeletePredicate> for crate::Predicate {
             value_expr: vec![],
         }
     }
-}
-
-/// Convert tombstones to delete predicates
-pub fn tombstones_to_delete_predicates(tombstones: &[Tombstone]) -> Vec<Arc<DeletePredicate>> {
-    tombstones_to_delete_predicates_iter(tombstones).collect()
-}
-
-/// Return Iterator of delete predicates
-pub fn tombstones_to_delete_predicates_iter(
-    tombstones: &[Tombstone],
-) -> impl Iterator<Item = Arc<DeletePredicate>> + '_ {
-    tombstones.iter().map(|tombstone| {
-        Arc::new(
-            parse_delete_predicate(
-                &tombstone.min_time.get().to_string(),
-                &tombstone.max_time.get().to_string(),
-                &tombstone.serialized_predicate,
-            )
-            .expect("Error building delete predicate"),
-        )
-    })
 }
 
 /// Parse and convert the delete grpc API into ParseDeletePredicate to send to server

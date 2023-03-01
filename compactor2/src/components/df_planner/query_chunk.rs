@@ -1,7 +1,7 @@
 //! QueryableParquetChunk for building query plan
 use std::{any::Any, sync::Arc};
 
-use data_types::{ChunkId, ChunkOrder, DeletePredicate, PartitionId, TableSummary, Tombstone};
+use data_types::{ChunkId, ChunkOrder, DeletePredicate, PartitionId, TableSummary};
 use datafusion::error::DataFusionError;
 use iox_query::{
     exec::{stringset::StringSet, IOxSessionContext},
@@ -10,7 +10,7 @@ use iox_query::{
 };
 use observability_deps::tracing::debug;
 use parquet_file::{chunk::ParquetChunk, storage::ParquetStorage};
-use predicate::{delete_predicate::tombstones_to_delete_predicates, Predicate};
+use predicate::Predicate;
 use schema::{merge::SchemaMerger, sort::SortKey, Projection, Schema};
 use uuid::Uuid;
 
@@ -21,7 +21,6 @@ use crate::{partition_info::PartitionInfo, plan_ir::FileIR};
 pub struct QueryableParquetChunk {
     // Data of the parquet file
     data: Arc<ParquetChunk>,
-    // Converted from tombstones.
     // We do not yet support delete but we need this to work with the straight QueryChunkMeta
     delete_predicates: Vec<Arc<DeletePredicate>>,
     partition_id: PartitionId,
@@ -37,12 +36,10 @@ impl QueryableParquetChunk {
     pub fn new(
         partition_id: PartitionId,
         data: Arc<ParquetChunk>,
-        deletes: &[Tombstone],
         sort_key: Option<SortKey>,
         partition_sort_key: Option<SortKey>,
         order: ChunkOrder,
     ) -> Self {
-        let delete_predicates = tombstones_to_delete_predicates(deletes);
         let summary = Arc::new(create_basic_summary(
             data.rows() as u64,
             data.schema(),
@@ -50,7 +47,7 @@ impl QueryableParquetChunk {
         ));
         Self {
             data,
-            delete_predicates,
+            delete_predicates: vec![],
             partition_id,
             sort_key,
             partition_sort_key,
@@ -224,7 +221,6 @@ fn to_queryable_parquet_chunk(
     QueryableParquetChunk::new(
         partition_id,
         Arc::new(parquet_chunk),
-        &[],
         sort_key,
         partition_info.sort_key.clone(),
         file.order,
