@@ -1,3 +1,9 @@
+//! Propagate subsystem error state between other subsystems.
+//!
+//! A [`IngestState`] allows disparate subsystems to broadcast their health
+//! state to other subsystems. Concretely, it is used to reject writes when the
+//! ingester is unable to process them.
+
 use std::sync::atomic::{AtomicUsize, Ordering};
 
 use crossbeam_utils::CachePadded;
