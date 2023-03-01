@@ -23,9 +23,7 @@ macro_rules! assert_batches_eq {
         let expected_lines: Vec<String> =
             $EXPECTED_LINES.into_iter().map(|s| s.to_string()).collect();
 
-        let formatted = arrow_util::display::pretty_format_batches($CHUNKS).unwrap();
-
-        let actual_lines = formatted.trim().split('\n').collect::<Vec<_>>();
+        let actual_lines = arrow_util::test_util::batches_to_lines($CHUNKS);
 
         assert_eq!(
             expected_lines, actual_lines,
@@ -48,24 +46,10 @@ macro_rules! assert_batches_eq {
 #[macro_export]
 macro_rules! assert_batches_sorted_eq {
     ($EXPECTED_LINES: expr, $CHUNKS: expr) => {
-        let mut expected_lines: Vec<String> = $EXPECTED_LINES.iter().map(|&s| s.into()).collect();
+        let expected_lines: Vec<String> = $EXPECTED_LINES.iter().map(|&s| s.into()).collect();
+        let expected_lines = arrow_util::test_util::sort_lines(expected_lines);
 
-        // sort except for header + footer
-        let num_lines = expected_lines.len();
-        if num_lines > 3 {
-            expected_lines.as_mut_slice()[2..num_lines - 1].sort_unstable()
-        }
-
-        let formatted = arrow_util::display::pretty_format_batches($CHUNKS).unwrap();
-        // fix for windows: \r\n -->
-
-        let mut actual_lines: Vec<&str> = formatted.trim().lines().collect();
-
-        // sort except for header + footer
-        let num_lines = actual_lines.len();
-        if num_lines > 3 {
-            actual_lines.as_mut_slice()[2..num_lines - 1].sort_unstable()
-        }
+        let actual_lines = arrow_util::test_util::batches_to_sorted_lines($CHUNKS);
 
         assert_eq!(
             expected_lines, actual_lines,
@@ -73,6 +57,47 @@ macro_rules! assert_batches_sorted_eq {
             expected_lines, actual_lines
         );
     };
+}
+
+/// Converts the [`RecordBatch`]es into a pretty printed output suitable for
+/// comparing in tests
+///
+/// Example:
+///
+/// ```text
+/// "+-----+------+------+--------------------------------+",
+/// "| foo | host | load | time                           |",
+/// "+-----+------+------+--------------------------------+",
+/// "|     | a    | 1.0  | 1970-01-01T00:00:00.000000011Z |",
+/// "|     | a    | 14.0 | 1970-01-01T00:00:00.000010001Z |",
+/// "|     | a    | 3.0  | 1970-01-01T00:00:00.000000033Z |",
+/// "|     | b    | 5.0  | 1970-01-01T00:00:00.000000011Z |",
+/// "|     | z    | 0.0  | 1970-01-01T00:00:00Z           |",
+/// "+-----+------+------+--------------------------------+",
+/// ```
+pub fn batches_to_lines(batches: &[RecordBatch]) -> Vec<String> {
+    crate::display::pretty_format_batches(batches)
+        .unwrap()
+        .trim()
+        .lines()
+        .map(|s| s.to_string())
+        .collect()
+}
+
+/// Converts the [`RecordBatch`]es into a pretty printed output suitable for
+/// comparing in tests where sorting does not matter.
+pub fn batches_to_sorted_lines(batches: &[RecordBatch]) -> Vec<String> {
+    sort_lines(batches_to_lines(batches))
+}
+
+/// Sorts the lines (assumed to be the output of `batches_to_lines` for stable comparison)
+pub fn sort_lines(mut lines: Vec<String>) -> Vec<String> {
+    // sort except for header + footer
+    let num_lines = lines.len();
+    if num_lines > 3 {
+        lines.as_mut_slice()[2..num_lines - 1].sort_unstable()
+    }
+    lines
 }
 
 // sort a record batch by all columns (to provide a stable output order for test
