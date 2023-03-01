@@ -142,8 +142,6 @@ impl QuerierTable {
     }
 
     /// Query all chunks within this table.
-    ///
-    /// This currently contains all parquet files linked to their unprocessed tombstones.
     pub async fn chunks(
         &self,
         predicate: &Predicate,
@@ -211,7 +209,7 @@ impl QuerierTable {
 
         // ask ingesters for data, also optimistically fetching catalog
         // contents at the same time to pre-warm cache
-        let (partitions, _parquet_files, _tombstones) = join!(
+        let (partitions, _parquet_files) = join!(
             self.ingester_partitions(
                 &predicate,
                 span_recorder.child_span("ingester partitions"),
@@ -222,20 +220,10 @@ impl QuerierTable {
                 None,
                 span_recorder.child_span("cache GET parquet_file (pre-warm")
             ),
-            catalog_cache.tombstone().get(
-                self.id(),
-                None,
-                span_recorder.child_span("cache GET tombstone (pre-warm)")
-            ),
         );
 
         // handle errors / cache refresh
         let partitions = partitions?;
-
-        let max_tombstone_sequence_number = partitions
-            .iter()
-            .flat_map(|p| p.tombstone_max_sequence_number())
-            .max();
 
         // Determine number of persisted parquet files per ingester UUID seen in the ingester query
         // responses for cache invalidation. If `persisted_file_counts_by_ingester_uuid` is empty,
@@ -255,20 +243,16 @@ impl QuerierTable {
         );
 
         // Now fetch the actual contents of the catalog we need
-        // NB: Pass max parquet/tombstone sequence numbers to `get`
-        //     to ensure cache is refreshed if we learned about new files/tombstones.
-        let (parquet_files, tombstones) = join!(
-            catalog_cache.parquet_file().get(
+        // NB: Pass max parquet sequence numbers to `get`
+        //     to ensure cache is refreshed if we learned about new files.
+        let parquet_files = catalog_cache
+            .parquet_file()
+            .get(
                 self.id(),
                 Some(persisted_file_counts_by_ingester_uuid),
                 span_recorder.child_span("cache GET parquet_file"),
-            ),
-            catalog_cache.tombstone().get(
-                self.id(),
-                max_tombstone_sequence_number,
-                span_recorder.child_span("cache GET tombstone")
             )
-        );
+            .await;
 
         let columns: HashSet<ColumnId> = parquet_files
             .files
@@ -294,7 +278,6 @@ impl QuerierTable {
         let reconciler = Reconciler::new(
             Arc::clone(&self.table_name),
             Arc::clone(&self.namespace_name),
-            Arc::clone(self.chunk_adapter.catalog_cache()),
         );
 
         // create parquet files
@@ -312,7 +295,6 @@ impl QuerierTable {
         let chunks = reconciler
             .reconcile(
                 partitions,
-                tombstones.to_vec(),
                 retention_delete_pred,
                 parquet_files,
                 span_recorder.child_span("reconcile"),
@@ -432,15 +414,6 @@ impl QuerierTable {
         self.chunk_adapter
             .catalog_cache()
             .parquet_file()
-            .expire(self.table_id)
-    }
-
-    /// clear the tombstone cache
-    #[cfg(test)]
-    fn clear_tombstone_cache(&self) {
-        self.chunk_adapter
-            .catalog_cache()
-            .tombstone()
             .expire(self.table_id)
     }
 }
@@ -576,7 +549,6 @@ mod tests {
 
         // As we have now made new parquet files, force a cache refresh
         querier_table.inner().clear_parquet_cache();
-        querier_table.inner().clear_tombstone_cache();
 
         // Invoke chunks that will prune chunks fully outside retention C3
         let mut chunks = querier_table.chunks().await.unwrap();
@@ -687,26 +659,13 @@ mod tests {
 
         file111.flag_for_delete().await;
 
-        let tombstone1 = table1
-            .with_shard(&shard1)
-            .create_tombstone(7, 1, 100, "foo=1")
-            .await;
-        tombstone1.mark_processed(&file112).await;
-        let tombstone2 = table1
-            .with_shard(&shard1)
-            .create_tombstone(8, 1, 100, "foo=1")
-            .await;
-        tombstone2.mark_processed(&file112).await;
-
         // As we have now made new parquet files, force a cache refresh
         querier_table.inner().clear_parquet_cache();
-        querier_table.inner().clear_tombstone_cache();
 
         // now we have some files
         // this contains all files except for:
         // - file111: marked for delete
         // - file221: wrong table
-        // - file123: filtered by predicate
         let pred = Predicate::new().with_range(0, 100);
         let mut chunks = querier_table.chunks_with_predicate(&pred).await.unwrap();
         chunks.sort_by_key(|c| c.id());
@@ -737,20 +696,6 @@ mod tests {
             chunks[5].id(),
             ChunkId::new_test(file122.parquet_file.id.get() as u128),
         );
-
-        // check delete predicates
-        // file112: marked as processed
-        assert_eq!(chunks[0].delete_predicates().len(), 0);
-        // file113: has delete predicate
-        assert_eq!(chunks[1].delete_predicates().len(), 2);
-        // file114: predicates are directly within the chunk range => assume they are materialized
-        assert_eq!(chunks[2].delete_predicates().len(), 0);
-        // file115: came after in sequence
-        assert_eq!(chunks[3].delete_predicates().len(), 0);
-        // file121: wrong shard
-        assert_eq!(chunks[4].delete_predicates().len(), 0);
-        // file122: wrong shard
-        assert_eq!(chunks[5].delete_predicates().len(), 0);
     }
 
     #[tokio::test]
@@ -877,109 +822,6 @@ mod tests {
         assert_eq!(chunks.len(), 3);
     }
 
-    #[tokio::test]
-    async fn test_tombstone_cache_refresh() {
-        maybe_start_logging();
-        let catalog = TestCatalog::new();
-        // infinite retention
-        let ns = catalog.create_namespace_with_retention("ns", None).await;
-        let table = ns.create_table("table1").await;
-        let shard = ns.create_shard(1).await;
-        let partition = table.with_shard(&shard).create_partition("k").await;
-        let schema = make_schema(&table).await;
-        // Expect 1 chunk with with one delete predicate
-        let querier_table = TestQuerierTable::new(&catalog, &table).await;
-
-        let builder =
-            IngesterPartitionBuilder::new(schema, &shard, &partition).with_lp(["table foo=1 1"]);
-
-        // parquet file with max sequence number 1
-        let pf_builder = TestParquetFileBuilder::default()
-            .with_line_protocol("table1 foo=1 11")
-            .with_max_seq(1);
-        partition.create_parquet_file(pf_builder).await;
-
-        // tombstone with max sequence number 2
-        table
-            .with_shard(&shard)
-            .create_tombstone(2, 1, 100, "foo=1")
-            .await;
-
-        let max_parquet_sequence_number = Some(SequenceNumber::new(1));
-        let max_tombstone_sequence_number = Some(SequenceNumber::new(2));
-        let ingester_partition =
-            builder.build(max_parquet_sequence_number, max_tombstone_sequence_number);
-
-        let querier_table = querier_table.with_ingester_partition(ingester_partition);
-
-        let deletes = num_deletes(querier_table.chunks().await.unwrap());
-        assert_eq!(&deletes, &[1, 0]);
-
-        // Now, make a second tombstone with max sequence number 3
-        table
-            .with_shard(&shard)
-            .create_tombstone(3, 1, 100, "foo=1")
-            .await;
-
-        // With the same ingester response, still expect 1 delete
-        // (because cache is not cleared)
-        let deletes = num_deletes(querier_table.chunks().await.unwrap());
-        assert_eq!(&deletes, &[1, 0]);
-
-        // update the ingester response to return a new max delete sequence number
-        let max_tombstone_sequence_number = Some(SequenceNumber::new(3));
-        let ingester_partition =
-            builder.build(max_parquet_sequence_number, max_tombstone_sequence_number);
-        let querier_table = querier_table
-            .clear_ingester_partitions()
-            .with_ingester_partition(ingester_partition);
-
-        // second tombstone should be found
-        let deletes = num_deletes(querier_table.chunks().await.unwrap());
-        assert_eq!(&deletes, &[2, 0]);
-    }
-
-    #[tokio::test]
-    async fn test_tombstone_cache_refresh_with_retention() {
-        maybe_start_logging();
-        let catalog = TestCatalog::new();
-        // 1-hour retention
-        let ns = catalog.create_namespace_1hr_retention("ns").await;
-        let table = ns.create_table("table1").await;
-        let shard = ns.create_shard(1).await;
-        let partition = table.with_shard(&shard).create_partition("k").await;
-        let schema = make_schema(&table).await;
-        // Expect 1 chunk with with one delete predicate
-        let querier_table = TestQuerierTable::new(&catalog, &table).await;
-
-        let builder =
-            IngesterPartitionBuilder::new(schema, &shard, &partition).with_lp(["table foo=1 1"]);
-
-        // parquet file with max sequence number 1
-        let pf_builder = TestParquetFileBuilder::default()
-            .with_line_protocol("table1 foo=1 11")
-            .with_max_seq(1);
-        partition.create_parquet_file(pf_builder).await;
-
-        // tombstone with max sequence number 2
-        table
-            .with_shard(&shard)
-            .create_tombstone(2, 1, 100, "foo=1")
-            .await;
-
-        let max_parquet_sequence_number = Some(SequenceNumber::new(1));
-        let max_tombstone_sequence_number = Some(SequenceNumber::new(2));
-        let ingester_partition =
-            builder.build(max_parquet_sequence_number, max_tombstone_sequence_number);
-
-        let querier_table = querier_table.with_ingester_partition(ingester_partition);
-
-        let deletes = num_deletes(querier_table.chunks().await.unwrap());
-        // For parquet: There must be two delete predicates: one from the tombstone, one from retention
-        // For ingester: one delete predicate from retention
-        assert_eq!(&deletes, &[2, 1]);
-    }
-
     /// Adds a "foo" column to the table and returns the created schema
     async fn make_schema(table: &Arc<TestTable>) -> Schema {
         table.create_column("foo", ColumnType::F64).await;
@@ -1085,14 +927,5 @@ mod tests {
             let span = Some(Span::root("root", Arc::clone(&self.traces) as _));
             self.querier_table.chunks(pred, span, projection).await
         }
-    }
-
-    /// returns the number of deletes in each chunk
-    fn num_deletes(mut chunks: Vec<Arc<dyn QueryChunk>>) -> Vec<usize> {
-        chunks.sort_by_key(|c| c.id());
-        chunks
-            .iter()
-            .map(|chunk| chunk.delete_predicates().len())
-            .collect()
     }
 }

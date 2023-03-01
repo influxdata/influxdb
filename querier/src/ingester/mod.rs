@@ -686,7 +686,6 @@ impl IngesterStreamDecoder {
                     shard_id,
                     md.completed_persistence_count,
                     status.parquet_max_sequence_number.map(SequenceNumber::new),
-                    None,
                     partition_sort_key,
                 );
                 self.current_partition = CurrentPartition::Some(partition);
@@ -898,10 +897,6 @@ pub struct IngesterPartition {
     /// persisted for this partition
     parquet_max_sequence_number: Option<SequenceNumber>,
 
-    /// Maximum sequence number of tombstone that the ingester has
-    /// persisted for this partition
-    tombstone_max_sequence_number: Option<SequenceNumber>,
-
     /// Partition-wide sort key.
     partition_sort_key: Option<Arc<SortKey>>,
 
@@ -918,7 +913,6 @@ impl IngesterPartition {
         shard_id: ShardId,
         completed_persistence_count: u64,
         parquet_max_sequence_number: Option<SequenceNumber>,
-        tombstone_max_sequence_number: Option<SequenceNumber>,
         partition_sort_key: Option<Arc<SortKey>>,
     ) -> Self {
         Self {
@@ -927,7 +921,6 @@ impl IngesterPartition {
             shard_id,
             completed_persistence_count,
             parquet_max_sequence_number,
-            tombstone_max_sequence_number,
             partition_sort_key,
             chunks: vec![],
         }
@@ -1013,10 +1006,6 @@ impl IngesterPartition {
 
     pub(crate) fn parquet_max_sequence_number(&self) -> Option<SequenceNumber> {
         self.parquet_max_sequence_number
-    }
-
-    pub(crate) fn tombstone_max_sequence_number(&self) -> Option<SequenceNumber> {
-        self.tombstone_max_sequence_number
     }
 
     pub(crate) fn chunks(&self) -> &[IngesterChunk] {
@@ -1420,7 +1409,6 @@ mod tests {
         assert_eq!(p.partition_id.get(), 1);
         assert_eq!(p.shard_id.get(), 1);
         assert_eq!(p.parquet_max_sequence_number, None);
-        assert_eq!(p.tombstone_max_sequence_number, None);
         assert_eq!(p.chunks.len(), 0);
         assert_eq!(p.ingester_uuid.unwrap(), ingester_uuid);
         assert_eq!(p.completed_persistence_count, 5);
@@ -1635,7 +1623,6 @@ mod tests {
             p1.parquet_max_sequence_number,
             Some(SequenceNumber::new(11))
         );
-        assert_eq!(p1.tombstone_max_sequence_number, None);
         assert_eq!(p1.chunks.len(), 2);
         assert_eq!(p1.chunks[0].schema().as_arrow(), schema_1_1);
         assert_eq!(p1.chunks[0].batches.len(), 2);
@@ -1652,7 +1639,6 @@ mod tests {
             p2.parquet_max_sequence_number,
             Some(SequenceNumber::new(21))
         );
-        assert_eq!(p2.tombstone_max_sequence_number, None);
         assert_eq!(p2.chunks.len(), 1);
         assert_eq!(p2.chunks[0].schema().as_arrow(), schema_2_1);
         assert_eq!(p2.chunks[0].batches.len(), 1);
@@ -1665,7 +1651,6 @@ mod tests {
             p3.parquet_max_sequence_number,
             Some(SequenceNumber::new(31))
         );
-        assert_eq!(p3.tombstone_max_sequence_number, None);
         assert_eq!(p3.chunks.len(), 1);
         assert_eq!(p3.chunks[0].schema().as_arrow(), schema_3_1);
         assert_eq!(p3.chunks[0].batches.len(), 1);
@@ -1776,7 +1761,6 @@ mod tests {
             p1.parquet_max_sequence_number,
             Some(SequenceNumber::new(11))
         );
-        assert_eq!(p1.tombstone_max_sequence_number, None);
 
         let p2 = &partitions[1];
         assert_eq!(p2.ingester_uuid.unwrap(), ingester_uuid1);
@@ -1787,7 +1771,6 @@ mod tests {
             p2.parquet_max_sequence_number,
             Some(SequenceNumber::new(21))
         );
-        assert_eq!(p2.tombstone_max_sequence_number, None);
 
         let p3 = &partitions[2];
         assert_eq!(p3.ingester_uuid.unwrap(), ingester_uuid2);
@@ -1798,7 +1781,6 @@ mod tests {
             p3.parquet_max_sequence_number,
             Some(SequenceNumber::new(31))
         );
-        assert_eq!(p3.tombstone_max_sequence_number, None);
     }
 
     #[tokio::test]
@@ -2059,7 +2041,6 @@ mod tests {
 
         for case in cases {
             let parquet_max_sequence_number = None;
-            let tombstone_max_sequence_number = None;
             // Construct a partition and ensure it doesn't error
             let ingester_partition = IngesterPartition::new(
                 Some(ingester_uuid),
@@ -2067,7 +2048,6 @@ mod tests {
                 ShardId::new(1),
                 0,
                 parquet_max_sequence_number,
-                tombstone_max_sequence_number,
                 None,
             )
             .try_add_chunk(ChunkId::new(), expected_schema.clone(), vec![case])
@@ -2092,14 +2072,12 @@ mod tests {
             RecordBatch::try_from_iter(vec![("b", int64_array()), ("time", ts_array())]).unwrap();
 
         let parquet_max_sequence_number = None;
-        let tombstone_max_sequence_number = None;
         let err = IngesterPartition::new(
             Some(ingester_uuid),
             PartitionId::new(1),
             ShardId::new(1),
             0,
             parquet_max_sequence_number,
-            tombstone_max_sequence_number,
             None,
         )
         .try_add_chunk(ChunkId::new(), expected_schema, vec![batch])

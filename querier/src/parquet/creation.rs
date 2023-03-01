@@ -222,11 +222,9 @@ impl ChunkAdapter {
         let order = ChunkOrder::new(parquet_file.max_l0_created_at.get());
 
         let meta = Arc::new(QuerierParquetChunkMeta {
-            parquet_file_id: parquet_file.id,
             chunk_id,
             order,
             sort_key: Some(sort_key),
-            shard_id: parquet_file.shard_id,
             partition_id: parquet_file.partition_id,
             max_sequence_number: parquet_file.max_sequence_number,
             compaction_level: parquet_file.compaction_level,

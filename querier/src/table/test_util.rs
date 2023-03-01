@@ -102,16 +102,13 @@ impl IngesterPartitionBuilder {
         &self,
         parquet_max_sequence_number: Option<SequenceNumber>,
     ) -> IngesterPartition {
-        let tombstone_max_sequence_number = None;
-
-        self.build(parquet_max_sequence_number, tombstone_max_sequence_number)
+        self.build(parquet_max_sequence_number)
     }
 
     /// Create an ingester partition with the specified field values
     pub(crate) fn build(
         &self,
         parquet_max_sequence_number: Option<SequenceNumber>,
-        tombstone_max_sequence_number: Option<SequenceNumber>,
     ) -> IngesterPartition {
         let data = self.lp.iter().map(|lp| lp_to_record_batch(lp)).collect();
 
@@ -121,7 +118,6 @@ impl IngesterPartitionBuilder {
             self.shard.shard.id,
             0,
             parquet_max_sequence_number,
-            tombstone_max_sequence_number,
             self.partition_sort_key.clone(),
         )
         .try_add_chunk(
