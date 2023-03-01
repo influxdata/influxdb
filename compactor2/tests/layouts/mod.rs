@@ -50,6 +50,7 @@
 //! ```
 mod core;
 mod knobs;
+mod large_overlaps;
 mod many_files;
 
 use std::time::Duration;
