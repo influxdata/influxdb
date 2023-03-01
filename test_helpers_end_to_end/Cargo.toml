@@ -26,7 +26,6 @@ once_cell = { version = "1.17", features = ["parking_lot"] }
 parking_lot = "0.12"
 prost = "0.11"
 rand = "0.8.3"
-regex = "1.7.0"
 reqwest = { version = "0.11", default-features = false, features = ["json", "rustls-tls"] }
 snafu = "0.7"
 sqlx = { version = "0.6", features = [ "runtime-tokio-rustls" , "postgres", "uuid" ] }
@@ -35,5 +34,4 @@ test_helpers = { path = "../test_helpers", features = ["future_timeout"] }
 tokio = { version = "1.25", features = ["macros", "net", "parking_lot", "rt-multi-thread", "signal", "sync", "time"] }
 tokio-util = "0.7"
 tonic = "0.8"
-uuid = "1"
 workspace-hack = { version = "0.1", path = "../workspace-hack" }

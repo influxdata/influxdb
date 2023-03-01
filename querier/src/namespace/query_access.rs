@@ -199,14 +199,13 @@ mod tests {
     use super::*;
     use crate::namespace::test_util::{clear_parquet_cache, querier_namespace};
     use arrow::record_batch::RecordBatch;
-    use arrow_util::test_util::batches_to_sorted_lines;
+    use arrow_util::test_util::{batches_to_sorted_lines, Normalizer};
     use data_types::ColumnType;
     use datafusion::common::DataFusionError;
     use iox_query::frontend::sql::SqlQueryPlanner;
     use iox_tests::{TestCatalog, TestParquetFileBuilder};
     use metric::{Observation, RawReporter};
     use snafu::{ResultExt, Snafu};
-    use test_helpers_end_to_end::snapshot_comparison::normalization::Normalizer;
     use trace::{span::SpanStatus, RingBufferTraceCollector};
 
     #[tokio::test]
