@@ -445,7 +445,13 @@ where
 
         // Log after we acquire the permit and are about to start execution
         let start = Instant::now();
-        info!(%namespace_name, %query, %trace, "DoGet request");
+        info!(
+            %namespace_name,
+            %query,
+            %trace,
+            variant=query.variant(),
+            "DoGet request",
+        );
 
         let response = self
             .run_do_get(span_ctx, permit, query, namespace_name.to_string())

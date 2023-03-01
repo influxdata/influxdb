@@ -47,6 +47,16 @@ pub enum RunQuery {
     FlightSQL(FlightSQLCommand),
 }
 
+impl RunQuery {
+    pub fn variant(&self) -> &'static str {
+        match self {
+            Self::Sql(_) => "sql",
+            Self::InfluxQL(_) => "influxql",
+            Self::FlightSQL(_) => "flightsql",
+        }
+    }
+}
+
 impl Display for RunQuery {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         match self {

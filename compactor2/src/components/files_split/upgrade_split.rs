@@ -9,12 +9,12 @@ use crate::file_group::{overlaps_in_time, split_by_level, FilesTimeRange};
 /// Split files into `[files_to_compact]` and `[files_to_upgrade]`
 /// To have better and efficient compaction performance, eligible upgradable files
 /// should not be compacted but only need to update its compaction_level to the target_level
-pub struct TargetLevelUpgradeSplit {
+pub struct UpgradeSplit {
     // Maximum desired file size (try and avoid compacting files above this size)
     max_desired_file_size_bytes: u64,
 }
 
-impl TargetLevelUpgradeSplit {
+impl UpgradeSplit {
     pub fn new(size: u64) -> Self {
         Self {
             max_desired_file_size_bytes: size,
@@ -22,7 +22,7 @@ impl TargetLevelUpgradeSplit {
     }
 }
 
-impl Display for TargetLevelUpgradeSplit {
+impl Display for UpgradeSplit {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         write!(
             f,
@@ -32,7 +32,7 @@ impl Display for TargetLevelUpgradeSplit {
     }
 }
 
-impl FilesSplit for TargetLevelUpgradeSplit {
+impl FilesSplit for UpgradeSplit {
     /// Return (`[files_to_compact]`, `[files_to_upgrade]`) of the given files
     /// so that `files_to_upgrade` does not overlap with any files in previous level
     ///
@@ -156,7 +156,7 @@ mod tests {
     #[test]
     fn test_display() {
         assert_eq!(
-            TargetLevelUpgradeSplit::new(MAX_SIZE).to_string(),
+            UpgradeSplit::new(MAX_SIZE).to_string(),
             "Upgrade split for TargetLevel version - Size: 100"
         );
     }
@@ -164,7 +164,7 @@ mod tests {
     #[test]
     #[should_panic]
     fn test_wrong_target_level() {
-        let split = TargetLevelUpgradeSplit::new(MAX_SIZE);
+        let split = UpgradeSplit::new(MAX_SIZE);
         let (_files_to_compact, _files_to_upgrade) = split.apply(vec![], CompactionLevel::Initial);
     }
 
@@ -174,7 +174,7 @@ mod tests {
     )]
     fn test_unexpected_compaction_level_2() {
         let files = create_overlapped_files();
-        let split = TargetLevelUpgradeSplit::new(MAX_SIZE);
+        let split = UpgradeSplit::new(MAX_SIZE);
         // There are L2 files and will panic
         split.apply(files, CompactionLevel::FileNonOverlapped);
     }
@@ -185,14 +185,14 @@ mod tests {
     )]
     fn test_unexpected_compaction_level_0() {
         let files = create_overlapped_files();
-        let split = TargetLevelUpgradeSplit::new(MAX_SIZE);
+        let split = UpgradeSplit::new(MAX_SIZE);
         // There are L0 files and will panic
         split.apply(files, CompactionLevel::Final);
     }
 
     #[test]
     fn test_apply_empty_files() {
-        let split = TargetLevelUpgradeSplit::new(MAX_SIZE);
+        let split = UpgradeSplit::new(MAX_SIZE);
         let (files_to_compact, files_to_upgrade) =
             split.apply(vec![], CompactionLevel::FileNonOverlapped);
         assert_eq!((files_to_compact, files_to_upgrade), (vec![], vec![]));
@@ -216,7 +216,7 @@ mod tests {
         "###
         );
 
-        let split = TargetLevelUpgradeSplit::new(MAX_SIZE);
+        let split = UpgradeSplit::new(MAX_SIZE);
         let (files_to_compact, files_to_upgrade) =
             split.apply(files, CompactionLevel::FileNonOverlapped);
 
@@ -250,7 +250,7 @@ mod tests {
         "###
         );
 
-        let split = TargetLevelUpgradeSplit::new(MAX_SIZE);
+        let split = UpgradeSplit::new(MAX_SIZE);
         let (files_to_compact, files_to_upgrade) =
             split.apply(files, CompactionLevel::FileNonOverlapped);
 
@@ -286,7 +286,7 @@ mod tests {
         - "L0.3[800,900]                                                                     |-----L0.3------| "
         "###
         );
-        let split = TargetLevelUpgradeSplit::new(MAX_SIZE);
+        let split = UpgradeSplit::new(MAX_SIZE);
         let (files_to_compact, files_to_upgrade) =
             split.apply(files, CompactionLevel::FileNonOverlapped);
 
@@ -319,7 +319,7 @@ mod tests {
         - "L0.3[800,900]                                                                     |-----L0.3------| "
         "###
         );
-        let split = TargetLevelUpgradeSplit::new(MAX_SIZE);
+        let split = UpgradeSplit::new(MAX_SIZE);
         let (files_to_compact, files_to_upgrade) =
             split.apply(files, CompactionLevel::FileNonOverlapped);
 
@@ -352,7 +352,7 @@ mod tests {
         - "L1.11[250,350]      |-----L1.11-----|                                                               "
         "###
         );
-        let split = TargetLevelUpgradeSplit::new(MAX_SIZE);
+        let split = UpgradeSplit::new(MAX_SIZE);
         let (files_to_compact, files_to_upgrade) =
             split.apply(files, CompactionLevel::FileNonOverlapped);
 
@@ -374,7 +374,7 @@ mod tests {
     #[test]
     fn test_apply_one_level_large_l1() {
         let files = create_l1_files((MAX_SIZE + 1) as i64);
-        let split = TargetLevelUpgradeSplit::new(MAX_SIZE);
+        let split = UpgradeSplit::new(MAX_SIZE);
         let (files_to_compact, files_to_upgrade) = split.apply(files, CompactionLevel::Final);
 
         // All files are large and eligible for upgrade
@@ -415,7 +415,7 @@ mod tests {
         "###
         );
 
-        let split = TargetLevelUpgradeSplit::new(MAX_SIZE);
+        let split = UpgradeSplit::new(MAX_SIZE);
         let (files_to_compact, files_to_upgrade) = split.apply(files, CompactionLevel::Final);
 
         // Some files are large and eligible for upgrade
@@ -455,7 +455,7 @@ mod tests {
         "###
         );
 
-        let split = TargetLevelUpgradeSplit::new(MAX_SIZE);
+        let split = UpgradeSplit::new(MAX_SIZE);
         let (files_to_compact, files_to_upgrade) =
             split.apply(files, CompactionLevel::FileNonOverlapped);
 
@@ -497,7 +497,7 @@ mod tests {
         "###
         );
 
-        let split = TargetLevelUpgradeSplit::new(MAX_SIZE);
+        let split = UpgradeSplit::new(MAX_SIZE);
         let (files_to_compact, files_to_upgrade) =
             split.apply(files, CompactionLevel::FileNonOverlapped);
 
@@ -524,7 +524,7 @@ mod tests {
     #[test]
     fn test_apply_all_small_target_l2() {
         let files = create_overlapped_l1_l2_files((MAX_SIZE - 1) as i64);
-        let split = TargetLevelUpgradeSplit::new(MAX_SIZE);
+        let split = UpgradeSplit::new(MAX_SIZE);
         let (files_to_compact, files_to_upgrade) = split.apply(files, CompactionLevel::Final);
 
         // All files are small --> nothing to upgrade
@@ -563,7 +563,7 @@ mod tests {
         "###
         );
 
-        let split = TargetLevelUpgradeSplit::new(MAX_SIZE);
+        let split = UpgradeSplit::new(MAX_SIZE);
         let (files_to_compact, files_to_upgrade) = split.apply(files, CompactionLevel::Final);
 
         // All files are large --> L1.2 and L1.3 are eligible for upgrade
@@ -606,7 +606,7 @@ mod tests {
         "###
         );
 
-        let split = TargetLevelUpgradeSplit::new(MAX_SIZE);
+        let split = UpgradeSplit::new(MAX_SIZE);
         let (files_to_compact, files_to_upgrade) = split.apply(files, CompactionLevel::Final);
 
         insta::assert_yaml_snapshot!(
@@ -647,7 +647,7 @@ mod tests {
         "###
         );
 
-        let split = TargetLevelUpgradeSplit::new(MAX_SIZE);
+        let split = UpgradeSplit::new(MAX_SIZE);
         let (files_to_compact, files_to_upgrade) = split.apply(files, CompactionLevel::Final);
         insta::assert_yaml_snapshot!(
             format_files_split("files_to_compact", &files_to_compact, "files_to_upgrade", &files_to_upgrade),
@@ -687,7 +687,7 @@ mod tests {
         "###
         );
 
-        let split = TargetLevelUpgradeSplit::new(MAX_SIZE);
+        let split = UpgradeSplit::new(MAX_SIZE);
         let (files_to_compact, files_to_upgrade) =
             split.apply(files, CompactionLevel::FileNonOverlapped);
 
@@ -731,7 +731,7 @@ mod tests {
         "###
         );
 
-        let split = TargetLevelUpgradeSplit::new(MAX_SIZE);
+        let split = UpgradeSplit::new(MAX_SIZE);
         let (files_to_compact, files_to_upgrade) =
             split.apply(files, CompactionLevel::FileNonOverlapped);
 
@@ -779,7 +779,7 @@ mod tests {
         "###
         );
 
-        let split = TargetLevelUpgradeSplit::new(MAX_SIZE);
+        let split = UpgradeSplit::new(MAX_SIZE);
         let (files_to_compact, files_to_upgrade) =
             split.apply(files, CompactionLevel::FileNonOverlapped);
 
@@ -828,7 +828,7 @@ mod tests {
         "###
         );
 
-        let split = TargetLevelUpgradeSplit::new(MAX_SIZE);
+        let split = UpgradeSplit::new(MAX_SIZE);
         let (files_to_compact, files_to_upgrade) =
             split.apply(files, CompactionLevel::FileNonOverlapped);
 

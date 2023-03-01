@@ -19,7 +19,7 @@ use super::{try_map_bound, try_map_range, GapFillExecParams};
 /// that remain constant during gap filling, i.e., not the streaming table
 /// data, or anything else.
 /// When we support `locf` for aggregate columns, that will be tracked here.
-#[derive(Debug, PartialEq)]
+#[derive(Clone, Debug, PartialEq)]
 pub(super) struct GapFillParams {
     /// The stride in nanoseconds of the timestamps to be output.
     pub stride: i64,

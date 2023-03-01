@@ -116,23 +116,18 @@ async fn compact_partition(
 ///
 /// The high level flow is:
 ///
-///   . Mutiple rounds, each round has 1 branch
-///   . Each branch will compact files lowest level (aka initial level) into its next level (aka target level):
-///      - hot:  (L0s & L1s) to L1s   if there are L0s
-///      - cold: (L1s & L2s) to L2s   if no L0s
+///   . Mutiple rounds, each round process mutltiple branches. Each branch inlcudes at most 200 files
+///   . Each branch will compact files lowest level (aka start-level) into its next level (aka target-level):
+///      - Many L0s into fewer and larger L0s. Start-level = target-level = 0
+///      - Many L1s into fewer and larger L1s. Start-level = target-level = 1
+///      - (L0s & L1s) to L1s if there are L0s. Start-level = 0, target-level = 1
+///      - (L1s & L2s) to L2s if no L0s. Start-level = 1, target-level = 2
 ///   . Each branch does find non-overlaps and upgragde files to avoid unecessary recompacting.
 ///     The actually split files:
-///      1. files_higher_level: do not compact these files because they are already higher than target level
-///          . Value: nothing for hot and L2s for cold
-///      2. files_non_overlap: do not compact these target-level files because they are not overlapped
-///          with the initial-level files
-///          . Value: non-overlapped L1s for hot and non-overlapped L2s for cold
-///          . Definition of overlaps is defined in the split non-overlapped files function
-///      3. files_upgrade: upgrade this initial-level files to target level because they are not overlap with
+///      1. files_to _keep: do not compact these files because they are already higher than target level
+///      2. files_to_upgrade: upgrade this initial-level files to target level because they are not overlap with
 ///          any target-level and initial-level files and large enough (> desired max size)
-///          . value: non-overlapped L0s for hot and non-overlapped L1s for cold
-///      4. files_compact: the rest of the files that must be compacted
-///          . Value: (L0s & L1s) for hot and (L1s & L2s) for cold
+///      3. files_to_compact: the rest of the files that must be compacted
 ///
 /// Example: 4 files: two L0s, two L1s and one L2
 ///  Input:
@@ -141,8 +136,7 @@ async fn compact_partition(
 ///     |----L2.1-----|
 ///
 ///  - Round 1: There are L0s, let compact L0s with L1s. But let split them first:
-///    . files_higher_level: L2.1
-///    . files_non_overlap: L1.1
+///    . files_higher_keep: L2.1 (higher leelve than targetlevel) and L1.1 (not overlapped wot any L0s)
 ///    . files_upgrade: L0.2
 ///    . files_compact: L0.1, L1.2
 ///    Output: 4 files

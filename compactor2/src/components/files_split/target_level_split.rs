@@ -6,21 +6,21 @@ use super::FilesSplit;
 
 /// Split given files into 2 groups of files: `[<= target_level]` and `[> target_level]`
 #[derive(Debug)]
-pub struct TargetLevelTargetLevelSplit {}
+pub struct TargetLevelSplit {}
 
-impl TargetLevelTargetLevelSplit {
+impl TargetLevelSplit {
     pub fn new() -> Self {
         Self {}
     }
 }
 
-impl Display for TargetLevelTargetLevelSplit {
+impl Display for TargetLevelSplit {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         write!(f, "Target level split for TargetLevel version")
     }
 }
 
-impl FilesSplit for TargetLevelTargetLevelSplit {
+impl FilesSplit for TargetLevelSplit {
     fn apply(
         &self,
         files: Vec<data_types::ParquetFile>,
@@ -45,7 +45,7 @@ mod tests {
     #[test]
     fn test_display() {
         assert_eq!(
-            TargetLevelTargetLevelSplit::new().to_string(),
+            TargetLevelSplit::new().to_string(),
             "Target level split for TargetLevel version"
         );
     }
@@ -53,7 +53,7 @@ mod tests {
     #[test]
     fn test_apply_empty_files() {
         let files = vec![];
-        let split = TargetLevelTargetLevelSplit::new();
+        let split = TargetLevelSplit::new();
 
         let (lower, higher) = split.apply(files, CompactionLevel::FileNonOverlapped);
         assert_eq!(lower.len(), 0);
@@ -75,7 +75,7 @@ mod tests {
         "###
         );
 
-        let split = TargetLevelTargetLevelSplit::new();
+        let split = TargetLevelSplit::new();
         let (lower, higher) = split.apply(files.clone(), CompactionLevel::Initial);
         assert_eq!(lower.len(), 3);
         assert_eq!(higher.len(), 0);
@@ -104,7 +104,7 @@ mod tests {
         "###
         );
 
-        let split = TargetLevelTargetLevelSplit::new();
+        let split = TargetLevelSplit::new();
         let (lower, higher) = split.apply(files.clone(), CompactionLevel::Initial);
         assert_eq!(lower.len(), 0);
         assert_eq!(higher.len(), 3);
@@ -132,7 +132,7 @@ mod tests {
         "###
         );
 
-        let split = TargetLevelTargetLevelSplit::new();
+        let split = TargetLevelSplit::new();
         let (lower, higher) = split.apply(files.clone(), CompactionLevel::Initial);
         assert_eq!(lower.len(), 0);
         assert_eq!(higher.len(), 2);
@@ -169,7 +169,7 @@ mod tests {
         "###
         );
 
-        let split = TargetLevelTargetLevelSplit::new();
+        let split = TargetLevelSplit::new();
         let (lower, higher) = split.apply(files, CompactionLevel::Initial);
 
         insta::assert_yaml_snapshot!(
@@ -228,7 +228,7 @@ mod tests {
         "###
         );
 
-        let split = TargetLevelTargetLevelSplit::new();
+        let split = TargetLevelSplit::new();
         let (lower, higher) = split.apply(files, CompactionLevel::FileNonOverlapped);
 
         insta::assert_yaml_snapshot!(
@@ -287,7 +287,7 @@ mod tests {
         "###
         );
 
-        let split = TargetLevelTargetLevelSplit::new();
+        let split = TargetLevelSplit::new();
         let (lower, higher) = split.apply(files, CompactionLevel::Final);
 
         // verify number of files (nothing in higher)

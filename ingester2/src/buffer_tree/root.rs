@@ -53,6 +53,10 @@ use crate::{
 /// apply successive [`DmlOperation`] to its internal state, and makes the
 /// materialised result available through a streaming [`QueryExec`] execution.
 ///
+/// The tree is populated lazily/on-demand as [`DmlOperation`] are applied or
+/// the data is accessed, but some information is pre-cached and made available
+/// to the [`BufferTree`] for performance reasons (see [`PartitionCache`]).
+///
 /// # Read Consistency
 ///
 /// When [`BufferTree::query_exec()`] is called for a given table, a snapshot of
@@ -69,6 +73,7 @@ use crate::{
 ///
 /// [`TableData`]: crate::buffer_tree::table::TableData
 /// [`PartitionData`]: crate::buffer_tree::partition::PartitionData
+/// [`PartitionCache`]: crate::buffer_tree::partition::resolver::PartitionCache
 #[derive(Debug)]
 pub(crate) struct BufferTree<O> {
     /// The resolver of `(table_id, partition_key)` to [`PartitionData`].

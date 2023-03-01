@@ -17,10 +17,10 @@ license.workspace = true
 ### BEGIN HAKARI SECTION
 [dependencies]
 ahash = { version = "0.8", default-features = false, features = ["runtime-rng"] }
-arrow = { version = "33", features = ["dyn_cmp_dict", "prettyprint"] }
-arrow-flight = { version = "33", features = ["flight-sql-experimental"] }
-arrow-ord = { version = "33", default-features = false, features = ["dyn_cmp_dict"] }
-arrow-string = { version = "33", default-features = false, features = ["dyn_cmp_dict"] }
+arrow = { version = "34", features = ["dyn_cmp_dict", "prettyprint"] }
+arrow-flight = { version = "34", features = ["flight-sql-experimental"] }
+arrow-ord = { version = "34", default-features = false, features = ["dyn_cmp_dict"] }
+arrow-string = { version = "34", default-features = false, features = ["dyn_cmp_dict"] }
 base64-594e8ee84c453af0 = { package = "base64", version = "0.13" }
 base64-647d43efb71741da = { package = "base64", version = "0.21" }
 bitflags = { version = "1" }
@@ -29,7 +29,7 @@ bytes = { version = "1" }
 chrono = { version = "0.4", default-features = false, features = ["alloc", "clock", "serde"] }
 crossbeam-utils = { version = "0.8" }
 crypto-common = { version = "0.1", default-features = false, features = ["std"] }
-datafusion = { git = "https://github.com/apache/arrow-datafusion.git", rev = "f6e49ac7a027abb95d8b7fa755502dfa7d53c21c" }
+datafusion = { git = "https://github.com/apache/arrow-datafusion.git", rev = "ea3b965dd4861f966a5ec1c4a65f748f0e5dcc12" }
 digest = { version = "0.10", features = ["mac", "std"] }
 either = { version = "1" }
 fixedbitset = { version = "0.4" }
@@ -58,7 +58,7 @@ num-traits = { version = "0.2", features = ["i128", "libm"] }
 object_store = { version = "0.5", default-features = false, features = ["aws", "azure", "gcp"] }
 once_cell = { version = "1", features = ["parking_lot"] }
 parking_lot = { version = "0.12", features = ["arc_lock"] }
-parquet = { version = "33", features = ["async", "experimental"] }
+parquet = { version = "34", features = ["async", "experimental"] }
 phf_shared = { version = "0.11" }
 predicates = { version = "2" }
 prost = { version = "0.11" }

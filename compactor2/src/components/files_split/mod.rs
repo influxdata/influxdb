@@ -2,9 +2,9 @@ use std::fmt::{Debug, Display};
 
 use data_types::{CompactionLevel, ParquetFile};
 
-pub mod target_level_non_overlap_split;
-pub mod target_level_target_level_split;
-pub mod target_level_upgrade_split;
+pub mod non_overlap_split;
+pub mod target_level_split;
+pub mod upgrade_split;
 
 pub trait FilesSplit: Debug + Display + Send + Sync {
     /// Split provided files into 2 groups of files:

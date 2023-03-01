@@ -1,9 +1,8 @@
 //! This module contains code that implements
 //! a gap-filling extension to DataFusion
 
-mod builder;
+mod algo;
 mod params;
-mod series;
 mod stream;
 
 use std::{

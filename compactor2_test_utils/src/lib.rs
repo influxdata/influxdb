@@ -12,14 +12,22 @@
     clippy::dbg_macro
 )]
 
+mod commit_wrapper;
 mod display;
 mod simulator;
+use commit_wrapper::CommitRecorderBuilder;
 pub use display::{display_size, format_files, format_files_split};
 use iox_query::exec::ExecutorType;
 use simulator::ParquetFileSimulator;
 use tracker::AsyncSemaphoreMetrics;
 
-use std::{collections::HashSet, future::Future, num::NonZeroUsize, sync::Arc, time::Duration};
+use std::{
+    collections::HashSet,
+    future::Future,
+    num::NonZeroUsize,
+    sync::{Arc, Mutex},
+    time::Duration,
+};
 
 use async_trait::async_trait;
 use backoff::BackoffConfig;
@@ -59,6 +67,8 @@ pub struct TestSetupBuilder<const WITH_FILES: bool> {
     table: Arc<TestTable>,
     partition: Arc<TestPartition>,
     files: Vec<ParquetFile>,
+    /// a shared log of what happened during the test
+    run_log: Arc<Mutex<Vec<String>>>,
 }
 
 impl TestSetupBuilder<false> {
@@ -83,6 +93,10 @@ impl TestSetupBuilder<false> {
         // ingester has seen
         let sort_key = SortKey::from_columns(["tag1", "tag2", "tag3", "time"]);
         let partition = partition.update_sort_key(sort_key.clone()).await;
+
+        // intercept commit calls and record them as well
+        let run_log = Arc::new(Mutex::new(vec![]));
+        let commit_wrapper = CommitRecorderBuilder::new(Arc::clone(&run_log));
 
         let config = Config {
             shard_id: shard.shard.id,
@@ -113,6 +127,7 @@ impl TestSetupBuilder<false> {
             process_once: true,
             simulate_without_object_store: false,
             parquet_files_sink_override: None,
+            commit_wrapper: Some(Arc::new(commit_wrapper)),
             all_errors_are_fatal: true,
             max_num_columns_per_table: 200,
             max_num_files_per_plan: 200,
@@ -126,6 +141,7 @@ impl TestSetupBuilder<false> {
             table,
             partition,
             files: vec![],
+            run_log,
         }
     }
 
@@ -245,6 +261,7 @@ impl TestSetupBuilder<false> {
             table: self.table,
             partition: self.partition,
             files,
+            run_log: Arc::new(Mutex::new(vec![])),
         }
     }
 }
@@ -287,8 +304,10 @@ impl<const WITH_FILES: bool> TestSetupBuilder<WITH_FILES> {
 
     /// set simulate_without_object_store
     pub fn simulate_without_object_store(mut self) -> Self {
+        let run_log = Arc::clone(&self.run_log);
         self.config.simulate_without_object_store = true;
-        self.config.parquet_files_sink_override = Some(Arc::new(ParquetFileSimulator::new()));
+        self.config.parquet_files_sink_override =
+            Some(Arc::new(ParquetFileSimulator::new(run_log)));
         self
     }
 
@@ -338,6 +357,7 @@ impl<const WITH_FILES: bool> TestSetupBuilder<WITH_FILES> {
             table: self.table,
             partition: self.partition,
             config: Arc::new(self.config),
+            run_log: self.run_log,
         }
     }
 }
@@ -357,6 +377,8 @@ pub struct TestSetup {
     pub partition: Arc<TestPartition>,
     /// The compactor2 configuration
     pub config: Arc<Config>,
+    /// a shared log of what happened during a simulated run
+    run_log: Arc<Mutex<Vec<String>>>,
 }
 
 impl TestSetup {
@@ -400,6 +422,9 @@ impl TestSetup {
     }
 
     async fn run_compact_impl(&self, components: Arc<Components>) -> CompactResult {
+        // clear any existing log entries, if any
+        self.run_log.lock().unwrap().clear();
+
         let config = Arc::clone(&self.config);
         let job_semaphore = Arc::new(
             Arc::new(AsyncSemaphoreMetrics::new(&config.metric_registry, [])).new_semaphore(10),
@@ -426,24 +451,16 @@ impl TestSetup {
         .await;
 
         // get the results
-        let simulator_runs = if let Some(simulator) = components
-            .parquet_files_sink
-            .as_any()
-            .downcast_ref::<ParquetFileSimulator>()
-        {
-            simulator.runs()
-        } else {
-            vec![]
-        };
-
-        CompactResult { simulator_runs }
+        CompactResult {
+            run_log: self.run_log.lock().unwrap().clone(),
+        }
     }
 }
 
 /// Information about the compaction that was run
 pub struct CompactResult {
     /// [`ParquetFileSimulator`] output, if enabled
-    pub simulator_runs: Vec<String>,
+    pub run_log: Vec<String>,
 }
 
 /// A collection of nanosecond timestamps relative to now

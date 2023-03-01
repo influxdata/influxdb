@@ -52,6 +52,7 @@ workspace-hack = { version = "0.1", path = "../workspace-hack" }
 [dev-dependencies]
 arrow_util = { path = "../arrow_util" }
 assert_matches = "1.5"
+insta = { version = "1.28.0", features = ["yaml"] }
 iox_tests = { path = "../iox_tests" }
 mutable_batch_lp = { path = "../mutable_batch_lp" }
 object_store_metrics = { path = "../object_store_metrics" }

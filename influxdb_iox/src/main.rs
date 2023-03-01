@@ -131,9 +131,22 @@ struct Config {
     )]
     rpc_timeout: Duration,
 
-    /// Automatically generate an uber-trace-id header for CLI requests
+    /// Trace ID header.
+    ///
+    /// See `--gen-trace-id` to trigger header generation.
+    #[clap(
+        long,
+        global = true,
+        default_value = trace_exporters::DEFAULT_JAEGER_TRACE_CONTEXT_HEADER_NAME,
+        action,
+    )]
+    trace_id_header: String,
+
+    /// Automatically generate an trace id header for CLI requests
     ///
     /// The generated trace ID will be emitted at the beginning of the response.
+    ///
+    /// See `--trace-id-header` to set how the header should be named.
     #[clap(long, global = true, action)]
     gen_trace_id: bool,
 
@@ -221,17 +234,14 @@ fn main() -> Result<(), std::io::Error> {
             builder = builder.timeout(rpc_timeout);
 
             if config.gen_trace_id {
-                let key = http::header::HeaderName::from_str(
-                    trace_exporters::DEFAULT_JAEGER_TRACE_CONTEXT_HEADER_NAME,
-                )
-                .unwrap();
+                let key = http::header::HeaderName::from_str(&config.trace_id_header).unwrap();
                 let trace_id = gen_trace_id();
                 let value = http::header::HeaderValue::from_str(trace_id.as_str()).unwrap();
                 debug!(name=?key, value=?value, "Setting trace header");
                 builder = builder.header(key, value);
 
                 // Emit trace id information
-                println!("Trace ID set to {trace_id}");
+                println!("Trace ID set to {}={}", config.trace_id_header, trace_id);
             }
 
             if let Some(token) = config.token.as_ref() {

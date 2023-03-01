@@ -6,7 +6,7 @@ use thiserror::Error;
 use trace::ctx::SpanContext;
 
 use super::{
-    partitioner::PartitionError, retention_validator::RetentionError, RpcWriteError, SchemaError,
+    partitioner::PartitionError, retention_validation::RetentionError, RpcWriteError, SchemaError,
     ShardError,
 };
 

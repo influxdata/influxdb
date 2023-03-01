@@ -11,21 +11,21 @@ use super::FilesSplit;
 /// Split files into `[overlapping_files]` and `[non_overlapping_files]`
 /// To have better and efficient compaction performance, eligible non-overlapped files
 /// should not be compacted.
-pub struct TargetLevelNonOverlapSplit {}
+pub struct NonOverlapSplit {}
 
-impl TargetLevelNonOverlapSplit {
+impl NonOverlapSplit {
     pub fn new() -> Self {
         Self {}
     }
 }
 
-impl Display for TargetLevelNonOverlapSplit {
+impl Display for NonOverlapSplit {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         write!(f, "Non-overlapping  split for TargetLevel version")
     }
 }
 
-impl FilesSplit for TargetLevelNonOverlapSplit {
+impl FilesSplit for NonOverlapSplit {
     /// Return (`[overlapping_files]`, `[non_overlapping_files]`) of given files
     /// such that after combining all `overlapping_files` into a new file, the new file will
     /// have no overlap with any file in `non_overlapping_files`.
@@ -139,7 +139,7 @@ mod tests {
     #[test]
     fn test_display() {
         assert_eq!(
-            TargetLevelNonOverlapSplit::new().to_string(),
+            NonOverlapSplit::new().to_string(),
             "Non-overlapping  split for TargetLevel version"
         );
     }
@@ -148,7 +148,7 @@ mod tests {
     #[should_panic]
     fn test_wrong_target_level() {
         let files = create_overlapped_files();
-        let split = TargetLevelNonOverlapSplit::new();
+        let split = NonOverlapSplit::new();
         split.apply(files, CompactionLevel::Initial);
     }
 
@@ -158,7 +158,7 @@ mod tests {
     )]
     fn test_unexpected_compaction_level_2() {
         let files = create_overlapped_files();
-        let split = TargetLevelNonOverlapSplit::new();
+        let split = NonOverlapSplit::new();
         // There are L2 files and will panic
         split.apply(files, CompactionLevel::FileNonOverlapped);
     }
@@ -169,7 +169,7 @@ mod tests {
     )]
     fn test_unexpected_compaction_level_0() {
         let files = create_overlapped_files();
-        let split = TargetLevelNonOverlapSplit::new();
+        let split = NonOverlapSplit::new();
         // There are L0 files and will panic
         split.apply(files, CompactionLevel::Final);
     }
@@ -177,7 +177,7 @@ mod tests {
     #[test]
     fn test_apply_empty_files() {
         let files = vec![];
-        let split = TargetLevelNonOverlapSplit::new();
+        let split = NonOverlapSplit::new();
 
         let (overlap, non_overlap) = split.apply(files, CompactionLevel::FileNonOverlapped);
         assert_eq!(overlap.len(), 0);
@@ -199,7 +199,7 @@ mod tests {
         "###
         );
 
-        let split = TargetLevelNonOverlapSplit::new();
+        let split = NonOverlapSplit::new();
 
         // Lower level is empty  -> all files will be in non_overlapping_files
         let (overlap, non_overlap) = split.apply(files.clone(), CompactionLevel::FileNonOverlapped);
@@ -231,7 +231,7 @@ mod tests {
         "###
         );
 
-        let split = TargetLevelNonOverlapSplit::new();
+        let split = NonOverlapSplit::new();
         let (overlap, non_overlap) = split.apply(files, CompactionLevel::FileNonOverlapped);
         insta::assert_yaml_snapshot!(
             format_files_split("overlap", &overlap, "non_overlap", &non_overlap),
@@ -274,7 +274,7 @@ mod tests {
         "###
         );
 
-        let split = TargetLevelNonOverlapSplit::new();
+        let split = NonOverlapSplit::new();
         let (overlap, non_overlap) = split.apply(files, CompactionLevel::Final);
         insta::assert_yaml_snapshot!(
             format_files_split("overlap", &overlap, "non_overlap", &non_overlap),
@@ -319,7 +319,7 @@ mod tests {
         "###
         );
 
-        let split = TargetLevelNonOverlapSplit::new();
+        let split = NonOverlapSplit::new();
         let (overlap, non_overlap) = split.apply(files, CompactionLevel::FileNonOverlapped);
         insta::assert_yaml_snapshot!(
             format_files_split("overlap", &overlap, "non_overlap", &non_overlap),

@@ -40,7 +40,7 @@ mod deduplicate;
 pub mod overlap;
 mod physical;
 mod record_batch_exec;
-use self::overlap::group_potential_duplicates;
+pub use self::overlap::group_potential_duplicates;
 pub use deduplicate::{DeduplicateExec, RecordBatchDeduplicator};
 pub(crate) use physical::{chunks_to_physical_nodes, PartitionedFileExt};
 

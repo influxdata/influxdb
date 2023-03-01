@@ -34,9 +34,8 @@ use super::{
     },
     file_filter::level_range::LevelRangeFileFilter,
     files_split::{
-        target_level_non_overlap_split::TargetLevelNonOverlapSplit,
-        target_level_target_level_split::TargetLevelTargetLevelSplit,
-        target_level_upgrade_split::TargetLevelUpgradeSplit,
+        non_overlap_split::NonOverlapSplit, target_level_split::TargetLevelSplit,
+        upgrade_split::UpgradeSplit,
     },
     id_only_partition_filter::{
         and::AndIdOnlyPartitionFilter, shard::ShardPartitionFilter, IdOnlyPartitionFilter,
@@ -155,6 +154,12 @@ pub fn hardcoded_components(config: &Config) -> Arc<Components> {
             config.backoff_config.clone(),
             Arc::clone(&config.catalog),
         ))
+    };
+
+    let commit = if let Some(commit_wrapper) = config.commit_wrapper.as_ref() {
+        commit_wrapper.wrap(commit)
+    } else {
+        commit
     };
 
     let scratchpad_store_output = if config.shadow_mode {
@@ -343,8 +348,8 @@ fn make_partition_filters(config: &Config) -> Vec<Arc<dyn PartitionFilter>> {
 
 fn make_file_classifier(config: &Config) -> Arc<dyn FileClassifier> {
     Arc::new(SplitBasedFileClassifier::new(
-        TargetLevelTargetLevelSplit::new(),
-        TargetLevelNonOverlapSplit::new(),
-        TargetLevelUpgradeSplit::new(config.max_desired_file_size_bytes),
+        TargetLevelSplit::new(),
+        NonOverlapSplit::new(),
+        UpgradeSplit::new(config.max_desired_file_size_bytes),
     ))
 }

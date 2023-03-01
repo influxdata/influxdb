@@ -1,3 +1,5 @@
+//! The persistence subsystem; abstractions, types, and implementation.
+
 pub(crate) mod backpressure;
 pub(super) mod compact;
 pub(crate) mod completion_observer;

@@ -1,6 +1,5 @@
 //! Implementation of [Stream] that performs gap-filling on tables.
 use std::{
-    ops::Range,
     pin::Pin,
     sync::Arc,
     task::{Context, Poll},
@@ -8,10 +7,10 @@ use std::{
 
 use arrow::{
     array::{ArrayRef, TimestampNanosecondArray},
-    compute::SortColumn,
     datatypes::SchemaRef,
     record_batch::RecordBatch,
 };
+use arrow_util::optimize::optimize_dictionaries;
 use datafusion::{
     error::{DataFusionError, Result},
     physical_expr::PhysicalSortExpr,
@@ -23,12 +22,7 @@ use datafusion::{
 };
 use futures::{ready, Stream, StreamExt};
 
-use super::{
-    builder::{build_output, OutputState},
-    params::GapFillParams,
-    series::{SeriesAppender, SeriesState},
-    GapFillExecParams,
-};
+use super::{algo::GapFiller, params::GapFillParams, GapFillExecParams};
 
 /// An implementation of a gap-filling operator that uses the [Stream] trait.
 #[allow(dead_code)]
@@ -44,20 +38,14 @@ pub(super) struct GapFillStream {
     group_expr: Vec<Arc<dyn PhysicalExpr>>,
     /// The aggregate columns from the select list of the original query.
     aggr_expr: Vec<Arc<dyn PhysicalExpr>>,
-    /// The parameters of gap-filling: time range start, end and the stride.
-    params: GapFillParams,
     /// The number of rows to produce in each output batch.
     batch_size: usize,
     /// The producer of the input record batches.
     input: SendableRecordBatchStream,
     /// Input that has been read from the iput stream.
     buffered_input_batches: Vec<RecordBatch>,
-    /// The current state of gap-filling, including the offset of the next row
-    /// to read from the input and the next timestamp to produce.
-    series_state: SeriesState,
-    /// This bit is set when we have consumed all of the input for a series in
-    /// a previous output batch, but there are still trailing gap rows to produce.
-    trailing_gaps: bool,
+    /// The thing that does the gap filling.
+    gap_filler: GapFiller,
     /// This is true as long as there are more input record batches to read from `input`.
     more_input: bool,
     /// Baseline metrics.
@@ -88,18 +76,16 @@ impl GapFillStream {
         let aggr_expr = aggr_expr.to_owned();
         let time_expr = group_expr.split_off(group_expr.len() - 1).pop().unwrap();
         let params = GapFillParams::try_new(Arc::clone(&schema), exec_params)?;
-        let series_state = SeriesState::new(&params, batch_size);
+        let gap_filler = GapFiller::new(params);
         Ok(Self {
             schema: Arc::clone(&schema),
             time_expr,
             group_expr,
             aggr_expr,
-            params,
             batch_size,
             input,
             buffered_input_batches: vec![],
-            series_state,
-            trailing_gaps: false,
+            gap_filler,
             more_input: true,
             baseline_metrics: metrics,
         })
@@ -149,10 +135,8 @@ impl Stream for GapFillStream {
         let input_batch = match self.take_buffered_input() {
             Ok(None) => return Poll::Ready(None),
             Ok(Some(input_batch)) => {
-                // If we have consumed all of our input, and there are no trailing gaps to produce
-                if self.series_state.next_input_offset == input_batch.num_rows()
-                    && !self.trailing_gaps
-                {
+                // If we have consumed all of our input, and there is no more work
+                if self.gap_filler.done(input_batch.num_rows()) {
                     // leave the input batch taken so that its reference
                     // count goes to zero.
                     return Poll::Ready(None);
@@ -193,10 +177,16 @@ impl GapFillStream {
         let mut v = vec![];
         std::mem::swap(&mut v, &mut self.buffered_input_batches);
 
-        Ok(Some(
-            arrow::compute::concat_batches(&self.schema, &v)
-                .map_err(DataFusionError::ArrowError)?,
-        ))
+        let mut batch = arrow::compute::concat_batches(&self.schema, &v)
+            .map_err(DataFusionError::ArrowError)?;
+
+        if v.len() > 1 {
+            // Optimize the dictionaries. The output of this operator uses the take kernel to produce
+            // its output. Since the input batches will usually be smaller than the output, it should
+            // be less work to optimize here vs optimizing the output.
+            batch = optimize_dictionaries(&batch).map_err(DataFusionError::ArrowError)?;
+        }
+        Ok(Some(batch))
     }
 
     /// Produces a 2-tuple of [RecordBatch]es:
@@ -219,54 +209,22 @@ impl GapFillStream {
 
         let group_arrays = self.group_arrays(&input_batch)?;
         let aggr_arrays = self.aggr_arrays(&input_batch)?;
-        let series_appenders = self.series_appenders(input_time_array.1, &group_arrays)?;
 
         let timer = elapsed_compute.timer();
-        let OutputState {
-            output_batch,
-            new_series_state,
-        } = build_output(
-            self.series_state.clone(),
-            Arc::clone(&self.schema),
-            &self.params,
-            input_time_array,
-            &group_arrays,
-            &aggr_arrays,
-            &series_appenders,
-        )?;
+        let output_batch = self
+            .gap_filler
+            .build_gapfilled_output(
+                self.batch_size,
+                Arc::clone(&self.schema),
+                input_time_array,
+                &group_arrays,
+                &aggr_arrays,
+            )
+            .record_output(&self.baseline_metrics)?;
         timer.done();
-        let output_batch = output_batch.record_output(&self.baseline_metrics);
-        self.series_state = new_series_state;
-
-        let last_series = series_appenders
-            .last()
-            .expect("there is at least one series");
-
-        // there are three possible states at this point:
-        // 1. We ended output in the middle of input for a series. In this case
-        //     series_state.next_input_offset < last_series.input_end
-        // 2. We processed all the input for a series, but there are still more
-        //     gaps to fill at the end. In this case series_is_done will return false.
-        // 3. We ended exactly at the end of a series, and filled all the gaps.
-        //     In this case series_is_done will return true.
-
-        // No special action needed for possible state 1.
-        if self.series_state.next_input_offset == last_series.input_end {
-            if !self.series_state.series_is_done(&self.params, last_series) {
-                // Possible state 2:
-                // Set this bit so that the next invocation of poll_next generates
-                // the trailing gaps.
-                self.trailing_gaps = true;
-            } else {
-                // Possible state 3
-                self.series_state.fresh_series(&self.params);
-            }
-        }
 
         // Slice the input so array data that is no longer referenced can be dropped.
-        input_batch = self.series_state.slice_input_batch(input_batch)?;
-
-        self.series_state.fresh_output_batch(self.batch_size);
+        input_batch = self.gap_filler.slice_input_batch(input_batch)?;
 
         Ok((output_batch, input_batch))
     }
@@ -297,66 +255,6 @@ impl GapFillStream {
                 ))
             })
             .collect::<Result<Vec<_>>>()
-    }
-
-    /// Produces the [SeriesAppender] structs for each series that can at least
-    /// be started in the next output batch.
-    fn series_appenders(
-        &mut self,
-        input_time_array: &TimestampNanosecondArray,
-        group_arr: &[(usize, ArrayRef)],
-    ) -> Result<Vec<SeriesAppender>> {
-        if group_arr.is_empty() {
-            self.trailing_gaps = false;
-            // there are no group columns, so the output
-            // will be just one big series.
-            return Ok(vec![SeriesAppender::new_with_input_end_offset(
-                input_time_array.len(),
-            )]);
-        }
-
-        let sort_columns = group_arr
-            .iter()
-            .map(|(_, arr)| SortColumn {
-                values: Arc::clone(arr),
-                options: None,
-            })
-            .collect::<Vec<_>>();
-        let mut ranges = arrow::compute::lexicographical_partition_ranges(&sort_columns)
-            .map_err(DataFusionError::ArrowError)?;
-
-        let mut appenders = vec![];
-        let mut series_state = self.series_state.clone();
-        let mut output_row_count = 0;
-
-        let start_offset = series_state.next_input_offset;
-        assert!(start_offset <= 1, "input is sliced after it is consumed");
-        while output_row_count < self.batch_size {
-            match ranges.next() {
-                Some(Range { end, .. }) => {
-                    assert!(
-                        end > 0,
-                        "each lexicographical partition will have at least one row"
-                    );
-                    if end == start_offset && !self.trailing_gaps {
-                        // This represents a partition that ends at our current input offset,
-                        // but since trailing_gaps is not set, there is nothing to do.
-                        continue;
-                    }
-
-                    let sa = SeriesAppender::new_with_input_end_offset(end);
-                    let (nrows, ss) =
-                        sa.remaining_output_row_count(&self.params, input_time_array, series_state);
-                    series_state = ss;
-                    output_row_count += nrows;
-                    appenders.push(sa);
-                }
-                None => break,
-            }
-        }
-        self.trailing_gaps = false;
-
-        Ok(appenders)
     }
 }
 

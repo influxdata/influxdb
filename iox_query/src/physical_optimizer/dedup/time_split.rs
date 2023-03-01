@@ -1,30 +1,29 @@
 use std::sync::Arc;
 
-use data_types::PartitionId;
 use datafusion::{
     config::ConfigOptions,
     error::Result,
     physical_optimizer::PhysicalOptimizerRule,
     physical_plan::{rewrite::TreeNodeRewritable, union::UnionExec, ExecutionPlan},
 };
-use hashbrown::HashMap;
 use observability_deps::tracing::warn;
 use predicate::Predicate;
 
 use crate::{
     config::IoxConfigExt,
     physical_optimizer::chunk_extraction::extract_chunks,
-    provider::{chunks_to_physical_nodes, DeduplicateExec},
-    QueryChunk,
+    provider::{chunks_to_physical_nodes, group_potential_duplicates, DeduplicateExec},
 };
 
-/// Split de-duplication operations based on partitons.
+/// Split de-duplication operations based on time.
+///
+/// Chunks that overlap will be part of the same de-dup group.
 ///
 /// This should usually be more cost-efficient.
 #[derive(Debug, Default)]
-pub struct PartitionSplit;
+pub struct TimeSplit;
 
-impl PhysicalOptimizerRule for PartitionSplit {
+impl PhysicalOptimizerRule for TimeSplit {
     fn optimize(
         &self,
         plan: Arc<dyn ExecutionPlan>,
@@ -41,45 +40,33 @@ impl PhysicalOptimizerRule for PartitionSplit {
                     return Ok(None);
                 };
 
-                let mut chunks_by_partition: HashMap<PartitionId, Vec<Arc<dyn QueryChunk>>> =
-                    Default::default();
-                for chunk in chunks {
-                    chunks_by_partition
-                        .entry(chunk.partition_id())
-                        .or_default()
-                        .push(chunk);
-                }
+                let groups = group_potential_duplicates(chunks);
 
-                // If there not multiple partitions (0 or 1), then this optimizer is a no-op. Signal that to the
-                // optimizer framework.
-                if chunks_by_partition.len() < 2 {
+                // if there are no chunks or there is only one group, we don't need to split
+                if groups.len() < 2 {
                     return Ok(None);
                 }
 
                 // Protect against degenerative plans
-                let max_dedup_partition_split = config
+                let max_dedup_time_split = config
                     .extensions
                     .get::<IoxConfigExt>()
                     .cloned()
                     .unwrap_or_default()
-                    .max_dedup_partition_split;
-                if chunks_by_partition.len() > max_dedup_partition_split {
+                    .max_dedup_time_split;
+                if groups.len() > max_dedup_time_split {
                     warn!(
-                        n_partitions = chunks_by_partition.len(),
-                        max_dedup_partition_split,
-                        "cannot split dedup operation based on partition, too many partitions"
+                        n_groups = groups.len(),
+                        max_dedup_time_split,
+                        "cannot split dedup operation based on time overlaps, too many groups"
                     );
                     return Ok(None);
                 }
 
-                // ensure deterministic order
-                let mut chunks_by_partition = chunks_by_partition.into_iter().collect::<Vec<_>>();
-                chunks_by_partition.sort_by_key(|(p_id, _chunks)| *p_id);
-
                 let out = UnionExec::new(
-                    chunks_by_partition
+                    groups
                         .into_iter()
-                        .map(|(_p_id, chunks)| {
+                        .map(|chunks| {
                             Arc::new(DeduplicateExec::new(
                                 chunks_to_physical_nodes(
                                     &schema,
@@ -101,7 +88,7 @@ impl PhysicalOptimizerRule for PartitionSplit {
     }
 
     fn name(&self) -> &str {
-        "partition_split"
+        "time_split"
     }
 
     fn schema_check(&self) -> bool {
@@ -125,7 +112,7 @@ mod tests {
     fn test_no_chunks() {
         let schema = chunk(1).schema().clone();
         let plan = dedup_plan(schema, vec![]);
-        let opt = PartitionSplit::default();
+        let opt = TimeSplit::default();
         insta::assert_yaml_snapshot!(
             OptimizationTest::new(plan, opt),
             @r###"
@@ -142,13 +129,15 @@ mod tests {
     }
 
     #[test]
-    fn test_same_partition() {
-        let chunk1 = chunk(1);
-        let chunk2 = chunk(2);
-        let chunk3 = chunk(3).with_dummy_parquet_file();
+    fn test_all_overlap() {
+        let chunk1 = chunk(1).with_timestamp_min_max(5, 10);
+        let chunk2 = chunk(2).with_timestamp_min_max(3, 5);
+        let chunk3 = chunk(3)
+            .with_dummy_parquet_file()
+            .with_timestamp_min_max(8, 9);
         let schema = chunk1.schema().clone();
         let plan = dedup_plan(schema, vec![chunk1, chunk2, chunk3]);
-        let opt = PartitionSplit::default();
+        let opt = TimeSplit::default();
         insta::assert_yaml_snapshot!(
             OptimizationTest::new(plan, opt),
             @r###"
@@ -169,17 +158,25 @@ mod tests {
     }
 
     #[test]
-    fn test_different_partitions() {
-        let chunk1 = chunk(1).with_partition_id(1);
-        let chunk2 = chunk(2).with_partition_id(2);
-        // use at least 3 parquet files for one of the two partitions to validate that `target_partitions` is forwared correctly
-        let chunk3 = chunk(3).with_dummy_parquet_file().with_partition_id(1);
-        let chunk4 = chunk(4).with_dummy_parquet_file().with_partition_id(2);
-        let chunk5 = chunk(5).with_dummy_parquet_file().with_partition_id(1);
-        let chunk6 = chunk(6).with_dummy_parquet_file().with_partition_id(1);
+    fn test_different_groups() {
+        let chunk1 = chunk(1).with_timestamp_min_max(0, 10);
+        let chunk2 = chunk(2).with_timestamp_min_max(11, 12);
+        // use at least 3 parquet files for one of the two partitions to validate that `target_partitions` is forwarded correctly
+        let chunk3 = chunk(3)
+            .with_dummy_parquet_file()
+            .with_timestamp_min_max(1, 5);
+        let chunk4 = chunk(4)
+            .with_dummy_parquet_file()
+            .with_timestamp_min_max(11, 11);
+        let chunk5 = chunk(5)
+            .with_dummy_parquet_file()
+            .with_timestamp_min_max(7, 8);
+        let chunk6 = chunk(6)
+            .with_dummy_parquet_file()
+            .with_timestamp_min_max(0, 0);
         let schema = chunk1.schema().clone();
         let plan = dedup_plan(schema, vec![chunk1, chunk2, chunk3, chunk4, chunk5, chunk6]);
-        let opt = PartitionSplit::default();
+        let opt = TimeSplit::default();
         let mut config = ConfigOptions::default();
         config.execution.target_partitions = 2;
         insta::assert_yaml_snapshot!(
@@ -197,7 +194,7 @@ mod tests {
             - "   DeduplicateExec: [tag1@1 ASC,tag2@2 ASC,time@3 ASC]"
             - "     UnionExec"
             - "       RecordBatchesExec: batches_groups=1 batches=0 total_rows=0"
-            - "       ParquetExec: limit=None, partitions={2 groups: [[3.parquet, 6.parquet], [5.parquet]]}, projection=[field, tag1, tag2, time]"
+            - "       ParquetExec: limit=None, partitions={2 groups: [[6.parquet, 5.parquet], [3.parquet]]}, projection=[field, tag1, tag2, time]"
             - "   DeduplicateExec: [tag1@1 ASC,tag2@2 ASC,time@3 ASC]"
             - "     UnionExec"
             - "       RecordBatchesExec: batches_groups=1 batches=0 total_rows=0"
@@ -208,15 +205,15 @@ mod tests {
 
     #[test]
     fn test_max_split() {
-        let chunk1 = chunk(1).with_partition_id(1);
-        let chunk2 = chunk(2).with_partition_id(2);
-        let chunk3 = chunk(3).with_partition_id(3);
+        let chunk1 = chunk(1).with_timestamp_min_max(1, 1);
+        let chunk2 = chunk(2).with_timestamp_min_max(2, 2);
+        let chunk3 = chunk(3).with_timestamp_min_max(3, 3);
         let schema = chunk1.schema().clone();
         let plan = dedup_plan(schema, vec![chunk1, chunk2, chunk3]);
-        let opt = PartitionSplit::default();
+        let opt = TimeSplit::default();
         let mut config = ConfigOptions::default();
         config.extensions.insert(IoxConfigExt {
-            max_dedup_partition_split: 2,
+            max_dedup_time_split: 2,
             ..Default::default()
         });
         insta::assert_yaml_snapshot!(

@@ -113,7 +113,7 @@ pub(crate) async fn run_layout_scenario(setup: &TestSetup) -> Vec<String> {
     let compact_result = setup.run_compact().await;
 
     // record what the compactor actually did
-    output.extend(compact_result.simulator_runs);
+    output.extend(compact_result.run_log);
 
     // Record any skipped compactions (is after what the compactor actually did)
     output.extend(get_skipped_compactions(setup).await);

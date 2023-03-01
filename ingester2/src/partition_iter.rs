@@ -1,3 +1,8 @@
+//! An abstraction for a source of [`PartitionData`].
+//!
+//! This abstraction allows code that uses a set of [`PartitionData`] to be
+//! decoupled from the source/provider of that data.
+
 use parking_lot::Mutex;
 use std::{fmt::Debug, sync::Arc};
 

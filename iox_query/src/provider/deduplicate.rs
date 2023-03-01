@@ -2,11 +2,12 @@
 mod algo;
 mod key_ranges;
 
-use std::{fmt, sync::Arc};
+use std::{collections::HashSet, fmt, sync::Arc};
 
 use arrow::{error::ArrowError, record_batch::RecordBatch};
 use datafusion_util::{watch::WatchedTask, AdapterStream};
 
+use self::algo::get_col_name;
 pub use self::algo::RecordBatchDeduplicator;
 use datafusion::{
     error::{DataFusionError, Result},
@@ -122,6 +123,13 @@ impl DeduplicateExec {
 
     pub fn sort_keys(&self) -> &[PhysicalSortExpr] {
         &self.sort_keys
+    }
+
+    pub fn sort_columns(&self) -> HashSet<&str> {
+        self.sort_keys
+            .iter()
+            .map(|sk| get_col_name(sk.expr.as_ref()))
+            .collect()
     }
 }
 
