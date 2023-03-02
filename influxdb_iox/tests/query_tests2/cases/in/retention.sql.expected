@@ -28,7 +28,7 @@
 |    |                   RecordBatchesExec: batches_groups=1 batches=1 total_rows=2    |
 |    |           CoalesceBatchesExec: target_batch_size=8192    |
 |    |             FilterExec: time@3 < <REDACTED> OR time@3 > <REDACTED>    |
-|    |               ParquetExec: limit=None, partitions={2 groups: [[1/1/1/1/00000000-0000-0000-0000-000000000000.parquet], [1/1/1/1/00000000-0000-0000-0000-000000000001.parquet]]}, predicate=time@2 < <REDACTED> OR time@2 > <REDACTED>, pruning_predicate=time_min@0 < <REDACTED> OR time_max@1 > <REDACTED>, output_ordering=[host@1 ASC, time@3 ASC, __chunk_order@0 ASC], projection=[__chunk_order, host, load, time]    |
+|    |               ParquetExec: limit=None, partitions={2 groups: [[1/1/1/00000000-0000-0000-0000-000000000000.parquet], [1/1/1/00000000-0000-0000-0000-000000000001.parquet]]}, predicate=time@2 < <REDACTED> OR time@2 > <REDACTED>, pruning_predicate=time_min@0 < <REDACTED> OR time_max@1 > <REDACTED>, output_ordering=[host@1 ASC, time@3 ASC, __chunk_order@0 ASC], projection=[__chunk_order, host, load, time]    |
 |    |    |
 ----------
 -- SQL: SELECT * FROM cpu WHERE host != 'b' ORDER BY host,time;
@@ -59,6 +59,6 @@
 |    |                   RecordBatchesExec: batches_groups=1 batches=1 total_rows=2    |
 |    |           CoalesceBatchesExec: target_batch_size=8192    |
 |    |             FilterExec: host@1 != b AND (time@3 < <REDACTED> OR time@3 > <REDACTED>)    |
-|    |               ParquetExec: limit=None, partitions={2 groups: [[1/1/1/1/00000000-0000-0000-0000-000000000000.parquet], [1/1/1/1/00000000-0000-0000-0000-000000000001.parquet]]}, predicate=host@0 != b AND (time@2 < <REDACTED> OR time@2 > <REDACTED>), pruning_predicate=(host_min@0 != b OR b != host_max@1) AND (time_min@2 < <REDACTED> OR time_max@3 > <REDACTED>), output_ordering=[host@1 ASC, time@3 ASC, __chunk_order@0 ASC], projection=[__chunk_order, host, load, time]    |
+|    |               ParquetExec: limit=None, partitions={2 groups: [[1/1/1/00000000-0000-0000-0000-000000000000.parquet], [1/1/1/00000000-0000-0000-0000-000000000001.parquet]]}, predicate=host@0 != b AND (time@2 < <REDACTED> OR time@2 > <REDACTED>), pruning_predicate=(host_min@0 != b OR b != host_max@1) AND (time_min@2 < <REDACTED> OR time_max@3 > <REDACTED>), output_ordering=[host@1 ASC, time@3 ASC, __chunk_order@0 ASC], projection=[__chunk_order, host, load, time]    |
 |    |    |
 ----------
