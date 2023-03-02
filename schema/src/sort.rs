@@ -6,76 +6,12 @@ use arrow::{
     record_batch::RecordBatch,
 };
 use indexmap::{map::Iter, IndexMap};
-use itertools::Itertools;
 use observability_deps::tracing::debug;
-use snafu::Snafu;
 use std::{
     collections::{HashMap, HashSet},
     fmt::Display,
-    str::FromStr,
     sync::Arc,
 };
-
-#[derive(Debug, Snafu)]
-pub enum Error {
-    #[snafu(display("invalid column sort: {}", value))]
-    InvalidColumnSort { value: String },
-
-    #[snafu(display("invalid sort ordinal: {}", value))]
-    InvalidSortOrdinal { value: String },
-
-    #[snafu(display("invalid descending value: {}", value))]
-    InvalidDescending { value: String },
-
-    #[snafu(display("invalid nulls first value: {}", value))]
-    InvalidNullsFirst { value: String },
-}
-
-pub type Result<T, E = Error> = std::result::Result<T, E>;
-
-#[derive(Debug, Clone, Copy, Eq, PartialEq)]
-pub struct ColumnSort {
-    /// Position of this column in the sort key
-    pub sort_ordinal: usize,
-    pub options: SortOptions,
-}
-
-impl FromStr for ColumnSort {
-    type Err = Error;
-
-    fn from_str(s: &str) -> Result<Self, Self::Err> {
-        let (sort, descending, nulls) =
-            s.split('/')
-                .collect_tuple()
-                .ok_or(Error::InvalidColumnSort {
-                    value: s.to_string(),
-                })?;
-
-        Ok(Self {
-            sort_ordinal: sort.parse().map_err(|_| Error::InvalidSortOrdinal {
-                value: sort.to_string(),
-            })?,
-            options: SortOptions {
-                descending: descending.parse().map_err(|_| Error::InvalidDescending {
-                    value: descending.to_string(),
-                })?,
-                nulls_first: nulls.parse().map_err(|_| Error::InvalidNullsFirst {
-                    value: nulls.to_string(),
-                })?,
-            },
-        })
-    }
-}
-
-impl std::fmt::Display for ColumnSort {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(
-            f,
-            "{}/{}/{}",
-            self.sort_ordinal, self.options.descending, self.options.nulls_first
-        )
-    }
-}
 
 #[derive(Debug, Default)]
 pub struct SortKeyBuilder {
@@ -154,15 +90,6 @@ impl SortKey {
 
     pub fn to_columns(&self) -> impl Iterator<Item = &str> {
         self.columns.keys().map(|k| k.as_ref())
-    }
-
-    /// Gets the ColumnSort for a given column name
-    pub fn get(&self, column: &str) -> Option<ColumnSort> {
-        let (sort_ordinal, _, options) = self.columns.get_full(column)?;
-        Some(ColumnSort {
-            sort_ordinal,
-            options: *options,
-        })
     }
 
     /// Gets the column for a given index
@@ -249,18 +176,6 @@ impl SortKey {
     pub fn try_merge_key<'a>(key1: &'a SortKey, key2: &'a SortKey) -> Option<&'a SortKey> {
         if key1.is_empty() || key2.is_empty() {
             panic!("Sort key cannot be empty");
-        }
-
-        // Verify if time column in the sort key
-        for key in [&key1, &key2] {
-            match key.columns.get_index_of(TIME_COLUMN_NAME) {
-                None => panic!("Time column is not included in the sort key {key:#?}"),
-                Some(idx) => {
-                    if idx < key.len() - 1 {
-                        panic!("Time column is not last in the sort key {key:#?}")
-                    }
-                }
-            }
         }
 
         let (long_key, short_key) = if key1.len() > key2.len() {
@@ -528,71 +443,6 @@ mod tests {
     use super::*;
     use crate::builder::SchemaBuilder;
     use arrow::array::ArrayRef;
-
-    #[test]
-    fn test_parse() {
-        assert_eq!(
-            ColumnSort::from_str("23/true/false").unwrap(),
-            ColumnSort {
-                sort_ordinal: 23,
-                options: SortOptions {
-                    descending: true,
-                    nulls_first: false
-                }
-            }
-        );
-
-        assert!(matches!(
-            ColumnSort::from_str("///").unwrap_err(),
-            Error::InvalidColumnSort { value } if &value == "///"
-        ));
-
-        assert!(matches!(
-            ColumnSort::from_str("-1/true/false").unwrap_err(),
-            Error::InvalidSortOrdinal { value } if &value == "-1"
-        ));
-
-        assert!(matches!(
-            ColumnSort::from_str("34/sdf d/false").unwrap_err(),
-            Error::InvalidDescending {value } if &value == "sdf d"
-        ));
-
-        assert!(matches!(
-            ColumnSort::from_str("34/true/s=,ds").unwrap_err(),
-            Error::InvalidNullsFirst { value } if &value == "s=,ds"
-        ));
-    }
-
-    #[test]
-    fn test_basic() {
-        let key = SortKey::from_columns(vec!["a", "c", "b"]);
-
-        assert_eq!(key.len(), 3);
-        assert!(!key.is_empty());
-
-        assert_eq!(key.get("foo"), None);
-        assert_eq!(
-            key.get("a"),
-            Some(ColumnSort {
-                sort_ordinal: 0,
-                options: Default::default()
-            })
-        );
-        assert_eq!(
-            key.get("b"),
-            Some(ColumnSort {
-                sort_ordinal: 2,
-                options: Default::default()
-            })
-        );
-        assert_eq!(
-            key.get("c"),
-            Some(ColumnSort {
-                sort_ordinal: 1,
-                options: Default::default()
-            })
-        );
-    }
 
     #[test]
     fn test_sort_key_eq() {

@@ -1,5 +1,6 @@
 use std::{sync::Arc, thread::JoinHandle};
 
+use data_types::{sequence_number_set::SequenceNumberSet, SequenceNumber};
 use generated_types::influxdata::iox::wal::v1 as proto;
 use observability_deps::tracing::{debug, error};
 use parking_lot::Mutex;
@@ -115,12 +116,16 @@ impl WriterIoThread {
                 }
             };
 
-            // Encode the batch into the proto types
-            let ops: Vec<_> = batch
+            // Encode the batch into the proto types, and extract the
+            // SequenceNumberSet for this batch.
+            let (ops, ids): (Vec<_>, SequenceNumberSet) = batch
                 .ops
                 .into_iter()
-                .map(proto::SequencedWalOp::from)
-                .collect();
+                .map(|v| {
+                    let id = SequenceNumber::new(v.sequence_number as _);
+                    (proto::SequencedWalOp::from(v), id)
+                })
+                .unzip();
             let proto_batch = proto::WalOpBatch { ops };
 
             // Generate the binary protobuf message, storing it into proto_data
@@ -128,24 +133,33 @@ impl WriterIoThread {
                 .encode(&mut proto_data)
                 .expect("encoding batch into vec cannot fail");
 
-            // Write the serialised data to the current open segment file.
-            let res = {
+            // Obtain the segments lock - this prevents concurrent rotation, but
+            // has no impact on concurrent writers.
+            {
+                // Write the serialised data to the current open segment file.
                 let mut segments = self.segments.lock();
                 match segments.open_segment.write(&proto_data) {
-                    Ok(summary) => WriteResult::Ok(summary),
+                    Ok(summary) => {
+                        // Broadcast the result to all writers to this batch.
+                        //
+                        // Do not panic if no thread is waiting for the flush
+                        // notification - this may be the case if all writes
+                        // disconnected before the WAL was flushed.
+                        let _ = batch.notify_flush.send(Some(WriteResult::Ok(summary)));
+
+                        // Now the blocked writers are making progress, union
+                        // this batch sequence number set with the cumulative
+                        // segment file set before releasing the segment lock.
+                        segments.open_segment_ids.add_set(&ids);
+                    }
                     Err(e) => {
                         error!(error=%e, "failed to write WAL batch");
-                        WriteResult::Err(e.to_string())
+                        let _ = batch
+                            .notify_flush
+                            .send(Some(WriteResult::Err(e.to_string())));
                     }
-                }
+                };
             };
-
-            // Broadcast the result to all writers to this batch.
-            //
-            // Do not panic if no thread is waiting for the flush notification -
-            // this may be the case if all writes disconnected before the WAL
-            // was flushed.
-            let _ = batch.notify_flush.send(Some(res));
         }
     }
 }

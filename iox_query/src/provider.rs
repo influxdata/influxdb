@@ -1067,7 +1067,7 @@ impl Deduplicater {
         if let Some(key) = output_sort_key {
             for (t, field) in chunk_schema.iter() {
                 // Ignore columns present in sort key but not in chunk
-                if key.get(field.name()).is_some() {
+                if key.contains(field.name()) {
                     schema_merger.merge_field(field, t).unwrap();
                 }
             }
