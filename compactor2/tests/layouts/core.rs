@@ -9,6 +9,57 @@ use crate::layouts::{
 };
 
 #[tokio::test]
+#[should_panic(expected = "Found overlapping files at L1/L2 target level!")]
+async fn test_panic_l1_overlap() {
+    test_helpers::maybe_start_logging();
+    let setup = layout_setup_builder().await.build().await;
+
+    // This test verifies the simulator, rather than real code. Input files that violate
+    // an invariant are given to the simulator, and this test requires that the simulator
+    // panic. The invariant violated in this test is:
+    //    L1 files, that overlap slightly (the max of the first matches the min of the next)
+    for i in 0..2 {
+        setup
+            .partition
+            .create_parquet_file(
+                parquet_builder()
+                    .with_min_time(10 + i * 30)
+                    .with_max_time(10 + (i + 1) * 30)
+                    .with_compaction_level(CompactionLevel::FileNonOverlapped),
+            )
+            .await;
+    }
+
+    run_layout_scenario(&setup).await;
+}
+
+#[tokio::test]
+#[should_panic(expected = "Found overlapping files at L1/L2 target level!")]
+async fn test_panic_l2_overlap() {
+    test_helpers::maybe_start_logging();
+
+    let setup = layout_setup_builder().await.build().await;
+
+    // This test verifies the simulator, rather than real code. Input files that violate
+    // an invariant are given to the simulator, and this test requires that the simulator
+    // panic. The invariant violated in this test is:
+    //    L2 files, that overlap slightly (the max of the first matches the min of the next)
+    for i in 0..2 {
+        setup
+            .partition
+            .create_parquet_file(
+                parquet_builder()
+                    .with_min_time(10 + i * 30)
+                    .with_max_time(10 + (i + 1) * 30)
+                    .with_compaction_level(CompactionLevel::Final),
+            )
+            .await;
+    }
+
+    run_layout_scenario(&setup).await;
+}
+
+#[tokio::test]
 async fn all_overlapping_l0() {
     test_helpers::maybe_start_logging();
 
