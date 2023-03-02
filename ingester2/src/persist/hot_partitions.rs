@@ -7,6 +7,8 @@ use crate::buffer_tree::{partition::PartitionData, post_write::PostWriteObserver
 
 use super::queue::PersistQueue;
 
+/// A [`PostWriteObserver`] that triggers persistence of a partition when the
+/// estimated persistence cost exceeds a pre-configured limit.
 #[derive(Debug)]
 pub(crate) struct HotPartitionPersister<P> {
     persist_handle: P,
@@ -57,6 +59,10 @@ where
     #[inline(always)]
     fn observe(&self, partition: Arc<Mutex<PartitionData>>, guard: MutexGuard<'_, PartitionData>) {
         // Without releasing the lock, obtain the new persist cost estimate.
+        //
+        // By holding the write lock, concurrent writes are blocked while the
+        // cost is evaluated. This prevents "overrun" where parallel writes are
+        // applied while the cost is evaluated concurrently in this thread.
         let cost_estimate = guard.persist_cost_estimate();
 
         // This observer is called after a successful write, therefore

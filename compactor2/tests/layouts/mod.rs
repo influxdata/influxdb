@@ -50,6 +50,7 @@
 //! ```
 mod core;
 mod knobs;
+mod large_overlaps;
 mod many_files;
 
 use std::time::Duration;
@@ -104,6 +105,9 @@ pub(crate) async fn all_overlapping_l0_files(setup: TestSetup) -> TestSetup {
 
 /// runs the scenario and returns a string based output for comparison
 pub(crate) async fn run_layout_scenario(setup: &TestSetup) -> Vec<String> {
+    // verify the files are ok to begin with
+    setup.verify_invariants().await;
+
     setup.catalog.time_provider.inc(Duration::from_nanos(200));
 
     let input_files = setup.list_by_table_not_to_delete().await;
@@ -124,6 +128,9 @@ pub(crate) async fn run_layout_scenario(setup: &TestSetup) -> Vec<String> {
         "**** Final Output Files ",
         &sort_files(output_files),
     ));
+
+    // verify that the output of the compactor was valid as well
+    setup.verify_invariants().await;
 
     output
 }

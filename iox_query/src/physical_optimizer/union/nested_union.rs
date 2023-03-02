@@ -7,21 +7,27 @@ use datafusion::{
     physical_plan::{rewrite::TreeNodeRewritable, union::UnionExec, ExecutionPlan},
 };
 
-/// Optimizer that replaces [`UnionExec`] with a single child node w/ the child note itself.
+/// Optimizer that replaces nested [`UnionExec`]s with a single level.
 ///
 /// # Example
 /// ```yaml
 /// ---
 /// UnionExec:
-///  - SomeExec1
+///  - UnionExec:
+///      - SomeExec1
+///      - SomeExec2
+///  - SomeExec3
 ///
 /// ---
-/// SomeExec1
+/// UnionExec:
+///  - SomeExec1
+///  - SomeExec2
+///  - SomeExec3
 /// ```
 #[derive(Debug, Default)]
-pub struct OneUnion;
+pub struct NestedUnion;
 
-impl PhysicalOptimizerRule for OneUnion {
+impl PhysicalOptimizerRule for NestedUnion {
     fn optimize(
         &self,
         plan: Arc<dyn ExecutionPlan>,
@@ -31,9 +37,21 @@ impl PhysicalOptimizerRule for OneUnion {
             let plan_any = plan.as_any();
 
             if let Some(union_exec) = plan_any.downcast_ref::<UnionExec>() {
-                let mut children = union_exec.children();
-                if children.len() == 1 {
-                    return Ok(Some(children.remove(0)));
+                let children = union_exec.children();
+
+                let mut children_new = Vec::with_capacity(children.len());
+                let mut found_union = false;
+                for child in children {
+                    if let Some(union_child) = child.as_any().downcast_ref::<UnionExec>() {
+                        found_union = true;
+                        children_new.append(&mut union_child.children());
+                    } else {
+                        children_new.push(child)
+                    }
+                }
+
+                if found_union {
+                    return Ok(Some(Arc::new(UnionExec::new(children_new))));
                 }
             }
 
@@ -42,7 +60,7 @@ impl PhysicalOptimizerRule for OneUnion {
     }
 
     fn name(&self) -> &str {
-        "one_union"
+        "nested_union"
     }
 
     fn schema_check(&self) -> bool {
@@ -67,9 +85,9 @@ mod tests {
     }
 
     #[test]
-    fn test_union_one() {
+    fn test_union_not_nested() {
         let plan = Arc::new(UnionExec::new(vec![other_node()]));
-        let opt = OneUnion::default();
+        let opt = NestedUnion::default();
         insta::assert_yaml_snapshot!(
             OptimizationTest::new(plan, opt),
             @r###"
@@ -79,26 +97,64 @@ mod tests {
           - "   EmptyExec: produce_one_row=false"
         output:
           Ok:
-            - " EmptyExec: produce_one_row=false"
+            - " UnionExec"
+            - "   EmptyExec: produce_one_row=false"
         "###
         );
     }
 
     #[test]
-    fn test_union_two() {
-        let plan = Arc::new(UnionExec::new(vec![other_node(), other_node()]));
-        let opt = OneUnion::default();
+    fn test_union_nested() {
+        let plan = Arc::new(UnionExec::new(vec![
+            Arc::new(UnionExec::new(vec![other_node(), other_node()])),
+            other_node(),
+        ]));
+        let opt = NestedUnion::default();
         insta::assert_yaml_snapshot!(
             OptimizationTest::new(plan, opt),
             @r###"
         ---
         input:
           - " UnionExec"
-          - "   EmptyExec: produce_one_row=false"
+          - "   UnionExec"
+          - "     EmptyExec: produce_one_row=false"
+          - "     EmptyExec: produce_one_row=false"
           - "   EmptyExec: produce_one_row=false"
         output:
           Ok:
             - " UnionExec"
+            - "   EmptyExec: produce_one_row=false"
+            - "   EmptyExec: produce_one_row=false"
+            - "   EmptyExec: produce_one_row=false"
+        "###
+        );
+    }
+
+    #[test]
+    fn test_union_deeply_nested() {
+        let plan = Arc::new(UnionExec::new(vec![
+            Arc::new(UnionExec::new(vec![
+                other_node(),
+                Arc::new(UnionExec::new(vec![other_node()])),
+            ])),
+            other_node(),
+        ]));
+        let opt = NestedUnion::default();
+        insta::assert_yaml_snapshot!(
+            OptimizationTest::new(plan, opt),
+            @r###"
+        ---
+        input:
+          - " UnionExec"
+          - "   UnionExec"
+          - "     EmptyExec: produce_one_row=false"
+          - "     UnionExec"
+          - "       EmptyExec: produce_one_row=false"
+          - "   EmptyExec: produce_one_row=false"
+        output:
+          Ok:
+            - " UnionExec"
+            - "   EmptyExec: produce_one_row=false"
             - "   EmptyExec: produce_one_row=false"
             - "   EmptyExec: produce_one_row=false"
         "###
@@ -108,7 +164,7 @@ mod tests {
     #[test]
     fn test_other_node() {
         let plan = other_node();
-        let opt = OneUnion::default();
+        let opt = NestedUnion::default();
         insta::assert_yaml_snapshot!(
             OptimizationTest::new(plan, opt),
             @r###"

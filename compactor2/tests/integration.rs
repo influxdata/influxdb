@@ -1,7 +1,7 @@
 use arrow_util::assert_batches_sorted_eq;
 use data_types::{CompactionLevel, ParquetFile, PartitionId};
 
-use compactor2_test_utils::{list_object_store, TestSetup};
+use compactor2_test_utils::{format_files, list_object_store, TestSetup};
 
 mod layouts;
 
@@ -234,6 +234,160 @@ async fn test_compact_target_level() {
         ],
         &batches
     );
+}
+
+#[tokio::test]
+async fn test_compact_large_overlapes() {
+    test_helpers::maybe_start_logging();
+
+    // Simulate a production scenario in which there are two L1 files but one overlaps with three L2 files
+    // and their total size > limit 256MB
+    // |----------L2.1----------||----------L2.2----------||-----L2.3----|
+    // |----------------------------------------L1.1---------------------------||--L1.2--|
+
+    let setup = TestSetup::builder()
+        .await
+        .with_3_l2_2_l1_scenario_1()
+        .await
+        // the test setup does not exceed number of files limit
+        .with_max_num_files_per_plan(10)
+        // the test setup exceed max compact size limit
+        .with_max_input_parquet_bytes_per_partition_relative_to_total_size(-1)
+        .with_min_num_l1_files_to_compact(2)
+        .with_max_desired_file_size_bytes(100 * 1024 * 1024)
+        .build()
+        .await;
+
+    let files = setup.list_by_table_not_to_delete().await;
+    // verify 5 files
+    insta::assert_yaml_snapshot!(
+        format_files("initial", &files),
+        @r###"
+    ---
+    - initial
+    - "L1                                                                                                  "
+    - "L1.4[0,68000] 2.66kb|-----------------L1.4-----------------|                                        "
+    - "L1.5[136000,136000] 2.17kb                                                                                |L1.5|"
+    - "L2                                                                                                  "
+    - "L2.1[8000,12000] 1.8kb    |L2.1|                                                                      "
+    - "L2.2[20000,30000] 2.61kb           |L2.2|                                                               "
+    - "L2.3[35000,36000] 2.17kb                    |L2.3|                                                      "
+    "###
+    );
+
+    // compact
+    setup.run_compact().await;
+
+    // Due to size limit, the compaction skip this partition and 5 files still in the system
+    // After PR https://github.com/influxdata/influxdb_iox/pull/7079 is in, this test will fail here
+    // ad the right result shoudl be similar to the  commented out below
+    let files = setup.list_by_table_not_to_delete().await;
+    assert_eq!(files.len(), 5);
+
+    // todo: use insta::assert_yaml_snapshot!( to verify the output layput
+
+    // // verify the content of files
+    // // Compacted smaller file with the later data
+    // let mut files = setup.list_by_table_not_to_delete().await;
+    // let file1 = files.pop().unwrap();
+    // let batches = setup.read_parquet_file(file1).await;
+    // assert_batches_sorted_eq!(
+    //     &[
+    //         "+-----------+------+------+------+-----------------------------+",
+    //         "| field_int | tag1 | tag2 | tag3 | time                        |",
+    //         "+-----------+------+------+------+-----------------------------+",
+    //         "| 10        | VT   |      |      | 1970-01-01T00:00:00.000006Z |",
+    //         "| 10        | VT   |      |      | 1970-01-01T00:00:00.000010Z |",
+    //         "| 10        | VT   |      |      | 1970-01-01T00:00:00.000068Z |",
+    //         "| 1500      | WA   |      |      | 1970-01-01T00:00:00.000008Z |",
+    //         "| 1601      |      | PA   | 15   | 1970-01-01T00:00:00.000028Z |",
+    //         "| 1601      |      | PA   | 15   | 1970-01-01T00:00:00.000030Z |",
+    //         "| 21        |      | OH   | 21   | 1970-01-01T00:00:00.000036Z |",
+    //         "| 210       |      | OH   | 21   | 1970-01-01T00:00:00.000136Z |",
+    //         "| 270       | UT   |      |      | 1970-01-01T00:00:00.000025Z |",
+    //         "| 70        | UT   |      |      | 1970-01-01T00:00:00.000020Z |",
+    //         "| 99        | OR   |      |      | 1970-01-01T00:00:00.000012Z |",
+    //         "+-----------+------+------+------+-----------------------------+",
+    //     ],
+    //     &batches
+    // );
+}
+
+#[tokio::test]
+async fn test_compact_large_overlape_2() {
+    test_helpers::maybe_start_logging();
+
+    // Simulate a production scenario in which there are two L1 files that overlap with more than 1 L2 file
+    // Scenario 2: two L1 files each overlaps with at least 2 L2 files
+    // |----------L2.1----------||----------L2.2----------||-----L2.3----|
+    // |----------------------------------------L1.1----||------L1.2--------|
+
+    let setup = TestSetup::builder()
+        .await
+        .with_3_l2_2_l1_scenario_2()
+        .await
+        // the test setup does not exceed number of files limit
+        .with_max_num_files_per_plan(10)
+        // the test setup exceed max compact size limit
+        .with_max_input_parquet_bytes_per_partition_relative_to_total_size(-1)
+        .with_min_num_l1_files_to_compact(2)
+        .with_max_desired_file_size_bytes(100 * 1024 * 1024)
+        .build()
+        .await;
+
+    // verify 5 files
+    let files = setup.list_by_table_not_to_delete().await;
+    insta::assert_yaml_snapshot!(
+        format_files("initial", &files),
+        @r###"
+    ---
+    - initial
+    - "L1                                                                                                  "
+    - "L1.4[8000,25000] 1.8kb|--L1.4--|                                                                      "
+    - "L1.5[28000,136000] 2.64kb            |------------------------------L1.5-------------------------------| "
+    - "L2                                                                                                  "
+    - "L2.1[8000,12000] 1.8kb|L2.1|                                                                          "
+    - "L2.2[20000,30000] 2.61kb       |L2.2|                                                                   "
+    - "L2.3[35000,36000] 2.17kb                |L2.3|                                                          "
+    "###
+    );
+
+    // compact
+    setup.run_compact().await;
+
+    // Due to size limit, the compaction skip this partition and 5 files still in the system
+    // After PR https://github.com/influxdata/influxdb_iox/pull/7079 is in, this test will fail here
+    // ad the right result shoudl be similar to the  commented out below
+    let files = setup.list_by_table_not_to_delete().await;
+    assert_eq!(files.len(), 5);
+
+    // todo: use insta::assert_yaml_snapshot!( to verify the output layput
+
+    // // verify the content of files
+    // // Compacted smaller file with the later data
+    // let mut files = setup.list_by_table_not_to_delete().await;
+    // let file1 = files.pop().unwrap();
+    // let batches = setup.read_parquet_file(file1).await;
+    // assert_batches_sorted_eq!(
+    //     &[
+    //         "+-----------+------+------+------+-----------------------------+",
+    //         "| field_int | tag1 | tag2 | tag3 | time                        |",
+    //         "+-----------+------+------+------+-----------------------------+",
+    //         "| 10        | VT   |      |      | 1970-01-01T00:00:00.000006Z |",
+    //         "| 10        | VT   |      |      | 1970-01-01T00:00:00.000010Z |",
+    //         "| 10        | VT   |      |      | 1970-01-01T00:00:00.000068Z |",
+    //         "| 1500      | WA   |      |      | 1970-01-01T00:00:00.000008Z |",
+    //         "| 1601      |      | PA   | 15   | 1970-01-01T00:00:00.000028Z |",
+    //         "| 1601      |      | PA   | 15   | 1970-01-01T00:00:00.000030Z |",
+    //         "| 21        |      | OH   | 21   | 1970-01-01T00:00:00.000036Z |",
+    //         "| 210       |      | OH   | 21   | 1970-01-01T00:00:00.000136Z |",
+    //         "| 270       | UT   |      |      | 1970-01-01T00:00:00.000025Z |",
+    //         "| 70        | UT   |      |      | 1970-01-01T00:00:00.000020Z |",
+    //         "| 99        | OR   |      |      | 1970-01-01T00:00:00.000012Z |",
+    //         "+-----------+------+------+------+-----------------------------+",
+    //     ],
+    //     &batches
+    // );
 }
 
 #[tokio::test]

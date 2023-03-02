@@ -26,10 +26,11 @@ pub(crate) async fn periodic_rotation<T, P>(
         interval.tick().await;
         info!("rotating wal file");
 
-        let stats = wal.rotate().expect("failed to rotate WAL");
+        let (stats, ids) = wal.rotate().expect("failed to rotate WAL");
         debug!(
             closed_id = %stats.id(),
             segment_bytes = stats.size(),
+            n_ops = ids.len(),
             "rotated wal"
         );
 
@@ -127,6 +128,8 @@ pub(crate) async fn periodic_rotation<T, P>(
 
                 info!(
                     closed_id = %stats.id(),
+                    file_bytes = stats.size(),
+                    n_ops = ids.len(),
                     "dropped persisted wal segment"
                 );
             }

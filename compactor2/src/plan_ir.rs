@@ -20,10 +20,8 @@ pub enum PlanIR {
         /// If there are n split entries in split_times,
         /// there will be `n+1` output files.
         ///
-        /// The contents of each file:
-        /// * `0`: Rows that have `time` *on or before* the `split_times[0]`
-        /// * `i (0 < i < split_times's length)`: Rows that have  `time` in range `(split_times[i-1], split_times[i]]`
-        /// * `n (n = split_times.len())`: Rows that have `time` *after* all the `split_times` and NULL rows
+        /// The distribution of times is described on
+        /// [`iox_query::frontend::reorg::ReorgPlanner::split_plan`]
         split_times: Vec<i64>,
     },
 }

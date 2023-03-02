@@ -43,17 +43,17 @@ async fn all_overlapping_l0() {
     - "L0.3[100,200]       |-------------------------------------L0.3-------------------------------------|"
     - "L0.2[100,200]       |-------------------------------------L0.2-------------------------------------|"
     - "L0.1[100,200]       |-------------------------------------L0.1-------------------------------------|"
-    - "**** 2 Output Files (parquet_file_id not yet assigned), 90mb total:"
+    - "**** 2 Output Files (parquet_file_id not yet assigned), 89.1mb total:"
     - "L1                                                                                                  "
     - "L1.?[100,180] 72mb  |-----------------------------L1.?-----------------------------|                "
-    - "L1.?[180,200] 18mb                                                                  |-----L1.?-----|"
+    - "L1.?[181,200] 17.1mb                                                                |----L1.?-----| "
     - "Committing partition 1:"
     - "  Soft Deleting 10 files: L0.1, L0.2, L0.3, L0.4, L0.5, L0.6, L0.7, L0.8, L0.9, L0.10"
     - "  Creating 2 files at level CompactionLevel::L1"
     - "**** Final Output Files "
     - "L1                                                                                                  "
     - "L1.11[100,180] 72mb |----------------------------L1.11-----------------------------|                "
-    - "L1.12[180,200] 18mb                                                                 |----L1.12-----|"
+    - "L1.12[181,200] 17.1mb                                                                |----L1.12----| "
     "###
     );
 }
@@ -105,17 +105,17 @@ async fn all_non_overlapping_l0() {
     - "L0.3[200,201]                        |L0.3|                                                         "
     - "L0.2[100,101]               |L0.2|                                                                  "
     - "L0.1[0,1]           |L0.1|                                                                          "
-    - "**** 2 Output Files (parquet_file_id not yet assigned), 100mb total:"
+    - "**** 2 Output Files (parquet_file_id not yet assigned), 99.89mb total:"
     - "L1                                                                                                  "
     - "L1.?[0,720] 79.91mb |----------------------------L1.?-----------------------------|                 "
-    - "L1.?[720,901] 20.09mb                                                               |-----L1.?-----| "
+    - "L1.?[721,901] 19.98mb                                                                |----L1.?-----| "
     - "Committing partition 1:"
     - "  Soft Deleting 10 files: L0.1, L0.2, L0.3, L0.4, L0.5, L0.6, L0.7, L0.8, L0.9, L0.10"
     - "  Creating 2 files at level CompactionLevel::L1"
     - "**** Final Output Files "
     - "L1                                                                                                  "
     - "L1.11[0,720] 79.91mb|----------------------------L1.11----------------------------|                 "
-    - "L1.12[720,901] 20.09mb                                                               |----L1.12-----| "
+    - "L1.12[721,901] 19.98mb                                                                |----L1.12----| "
     "###
     );
 }
@@ -139,7 +139,7 @@ async fn l1_with_overlapping_l0() {
             .create_parquet_file(
                 parquet_builder()
                     .with_min_time(50 + i * 50)
-                    .with_max_time(100 + i * 50)
+                    .with_max_time(99 + i * 50)
                     .with_compaction_level(CompactionLevel::FileNonOverlapped)
                     .with_file_size_bytes(10 * ONE_MB),
             )
@@ -170,8 +170,8 @@ async fn l1_with_overlapping_l0() {
     - "L0.6[230,280] 5kb                                                          |----L0.6-----|          "
     - "L0.7[260,310] 5kb                                                                   |----L0.7-----| "
     - "L1                                                                                                  "
-    - "L1.1[50,100] 10mb   |----L1.1-----|                                                                 "
-    - "L1.2[100,150] 10mb                 |----L1.2-----|                                                  "
+    - "L1.1[50,99] 10mb    |----L1.1-----|                                                                 "
+    - "L1.2[100,149] 10mb                 |----L1.2-----|                                                  "
     - "**** Simulation run 0, type=compact. 6 Input Files, 10.02mb total:"
     - "L0                                                                                                  "
     - "L0.7[260,310] 5kb                                                               |------L0.7-------| "
@@ -180,7 +180,7 @@ async fn l1_with_overlapping_l0() {
     - "L0.4[170,220] 5kb                             |------L0.4-------|                                   "
     - "L0.3[140,190] 5kb                  |------L0.3-------|                                              "
     - "L1                                                                                                  "
-    - "L1.2[100,150] 10mb  |------L1.2-------|                                                             "
+    - "L1.2[100,149] 10mb  |------L1.2------|                                                              "
     - "**** 1 Output Files (parquet_file_id not yet assigned), 10.02mb total:"
     - "L1, all files 10.02mb                                                                               "
     - "L1.?[100,310]       |-------------------------------------L1.?-------------------------------------|"
@@ -189,7 +189,7 @@ async fn l1_with_overlapping_l0() {
     - "  Creating 1 files at level CompactionLevel::L1"
     - "**** Final Output Files "
     - "L1                                                                                                  "
-    - "L1.1[50,100] 10mb   |----L1.1-----|                                                                 "
+    - "L1.1[50,99] 10mb    |----L1.1-----|                                                                 "
     - "L1.8[100,310] 10.02mb               |-----------------------------L1.8-----------------------------| "
     "###
     );
@@ -213,7 +213,7 @@ async fn l1_with_non_overlapping_l0() {
             .create_parquet_file(
                 parquet_builder()
                     .with_min_time(50 + i * 50)
-                    .with_max_time(100 + i * 50)
+                    .with_max_time(99 + i * 50)
                     .with_compaction_level(CompactionLevel::FileNonOverlapped)
                     .with_file_size_bytes(10 * ONE_MB),
             )
@@ -243,8 +243,8 @@ async fn l1_with_non_overlapping_l0() {
     - "L0.6[450,500] 5kb                                                                   |-L0.6-|        "
     - "L0.7[500,550] 5kb                                                                           |-L0.7-|"
     - "L1                                                                                                  "
-    - "L1.1[50,100] 10mb   |-L1.1-|                                                                        "
-    - "L1.2[100,150] 10mb          |-L1.2-|                                                                "
+    - "L1.1[50,99] 10mb    |L1.1-|                                                                         "
+    - "L1.2[100,149] 10mb          |L1.2-|                                                                 "
     - "**** Simulation run 0, type=compact. 5 Input Files, 25kb total:"
     - "L0, all files 5kb                                                                                   "
     - "L0.7[500,550]                                                                       |-----L0.7-----|"
@@ -260,8 +260,8 @@ async fn l1_with_non_overlapping_l0() {
     - "  Creating 1 files at level CompactionLevel::L1"
     - "**** Final Output Files "
     - "L1                                                                                                  "
-    - "L1.1[50,100] 10mb   |-L1.1-|                                                                        "
-    - "L1.2[100,150] 10mb          |-L1.2-|                                                                "
+    - "L1.1[50,99] 10mb    |L1.1-|                                                                         "
+    - "L1.2[100,149] 10mb          |L1.2-|                                                                 "
     - "L1.8[300,550] 25kb                                          |-----------------L1.8-----------------|"
     "###
     );
@@ -285,12 +285,13 @@ async fn l1_with_non_overlapping_l0_larger() {
             .create_parquet_file(
                 parquet_builder()
                     .with_min_time(50 + i * 50)
-                    .with_max_time(100 + i * 50)
+                    .with_max_time(99 + i * 50)
                     .with_compaction_level(CompactionLevel::FileNonOverlapped)
                     .with_file_size_bytes(sz * ONE_MB),
             )
             .await;
     }
+    // L0 overlapping
     for i in 0..3 {
         setup
             .partition
@@ -313,10 +314,10 @@ async fn l1_with_non_overlapping_l0_larger() {
     - "L0.6[350,400] 5mb                                                               |--L0.6--|          "
     - "L0.7[400,450] 5mb                                                                         |--L0.7--|"
     - "L1                                                                                                  "
-    - "L1.1[50,100] 20mb   |--L1.1--|                                                                      "
-    - "L1.2[100,150] 50mb            |--L1.2--|                                                            "
-    - "L1.3[150,200] 20mb                      |--L1.3--|                                                  "
-    - "L1.4[200,250] 3mb                                 |--L1.4--|                                        "
+    - "L1.1[50,99] 20mb    |-L1.1--|                                                                       "
+    - "L1.2[100,149] 50mb            |-L1.2--|                                                             "
+    - "L1.3[150,199] 20mb                      |-L1.3--|                                                   "
+    - "L1.4[200,249] 3mb                                 |-L1.4--|                                         "
     - "**** Simulation run 0, type=compact. 3 Input Files, 15mb total:"
     - "L0, all files 5mb                                                                                   "
     - "L0.7[400,450]                                                            |----------L0.7----------| "
@@ -330,22 +331,22 @@ async fn l1_with_non_overlapping_l0_larger() {
     - "  Creating 1 files at level CompactionLevel::L1"
     - "**** Simulation run 1, type=split(split_times=[370]). 5 Input Files, 108mb total:"
     - "L1                                                                                                  "
-    - "L1.4[200,250] 3mb                                 |--L1.4--|                                        "
-    - "L1.3[150,200] 20mb                      |--L1.3--|                                                  "
-    - "L1.2[100,150] 50mb            |--L1.2--|                                                            "
-    - "L1.1[50,100] 20mb   |--L1.1--|                                                                      "
+    - "L1.4[200,249] 3mb                                 |-L1.4--|                                         "
+    - "L1.3[150,199] 20mb                      |-L1.3--|                                                   "
+    - "L1.2[100,149] 50mb            |-L1.2--|                                                             "
+    - "L1.1[50,99] 20mb    |-L1.1--|                                                                       "
     - "L1.8[300,450] 15mb                                                    |------------L1.8------------|"
-    - "**** 2 Output Files (parquet_file_id not yet assigned), 108mb total:"
+    - "**** 2 Output Files (parquet_file_id not yet assigned), 107.73mb total:"
     - "L2                                                                                                  "
     - "L2.?[50,370] 86.4mb |-----------------------------L2.?-----------------------------|                "
-    - "L2.?[370,450] 21.6mb                                                                |-----L2.?-----|"
+    - "L2.?[371,450] 21.33mb                                                                |----L2.?-----| "
     - "Committing partition 1:"
     - "  Soft Deleting 5 files: L1.1, L1.2, L1.3, L1.4, L1.8"
     - "  Creating 2 files at level CompactionLevel::L2"
     - "**** Final Output Files "
     - "L2                                                                                                  "
     - "L2.9[50,370] 86.4mb |-----------------------------L2.9-----------------------------|                "
-    - "L2.10[370,450] 21.6mb                                                                |----L2.10-----|"
+    - "L2.10[371,450] 21.33mb                                                                |----L2.10----| "
     "###
     );
 }
@@ -370,7 +371,7 @@ async fn l1_too_much_with_non_overlapping_l0() {
             .create_parquet_file(
                 parquet_builder()
                     .with_min_time(50 + i * 50)
-                    .with_max_time(100 + i * 50)
+                    .with_max_time(99 + i * 50)
                     .with_compaction_level(CompactionLevel::FileNonOverlapped)
                     .with_file_size_bytes(sz * ONE_MB),
             )
@@ -399,16 +400,16 @@ async fn l1_too_much_with_non_overlapping_l0() {
     - "L0.12[600,650] 5mb                                                                           |L0.12|"
     - "L0.13[600,650] 5mb                                                                           |L0.13|"
     - "L1                                                                                                  "
-    - "L1.1[50,100] 90mb   |L1.1|                                                                          "
-    - "L1.2[100,150] 80mb        |L1.2|                                                                    "
-    - "L1.3[150,200] 70mb               |L1.3|                                                             "
-    - "L1.4[200,250] 70mb                      |L1.4|                                                      "
-    - "L1.5[250,300] 70mb                            |L1.5|                                                "
-    - "L1.6[300,350] 70mb                                   |L1.6|                                         "
-    - "L1.7[350,400] 70mb                                          |L1.7|                                  "
-    - "L1.8[400,450] 70mb                                                |L1.8|                            "
-    - "L1.9[450,500] 70mb                                                       |L1.9|                     "
-    - "L1.10[500,550] 70mb                                                             |L1.10|             "
+    - "L1.1[50,99] 90mb    |L1.1|                                                                          "
+    - "L1.2[100,149] 80mb        |L1.2|                                                                    "
+    - "L1.3[150,199] 70mb               |L1.3|                                                             "
+    - "L1.4[200,249] 70mb                      |L1.4|                                                      "
+    - "L1.5[250,299] 70mb                            |L1.5|                                                "
+    - "L1.6[300,349] 70mb                                   |L1.6|                                         "
+    - "L1.7[350,399] 70mb                                          |L1.7|                                  "
+    - "L1.8[400,449] 70mb                                                |L1.8|                            "
+    - "L1.9[450,499] 70mb                                                       |L1.9|                     "
+    - "L1.10[500,549] 70mb                                                             |L1.10|             "
     - "**** Simulation run 0, type=compact. 3 Input Files, 15mb total:"
     - "L0, all files 5mb                                                                                   "
     - "L0.13[600,650]      |------------------------------------L0.13-------------------------------------|"
@@ -423,16 +424,16 @@ async fn l1_too_much_with_non_overlapping_l0() {
     - "SKIPPED COMPACTION for PartitionId(1): partition 1 has 781189120 parquet file bytes, limit is 268435456"
     - "**** Final Output Files "
     - "L1                                                                                                  "
-    - "L1.1[50,100] 90mb   |L1.1|                                                                          "
-    - "L1.2[100,150] 80mb        |L1.2|                                                                    "
-    - "L1.3[150,200] 70mb               |L1.3|                                                             "
-    - "L1.4[200,250] 70mb                      |L1.4|                                                      "
-    - "L1.5[250,300] 70mb                            |L1.5|                                                "
-    - "L1.6[300,350] 70mb                                   |L1.6|                                         "
-    - "L1.7[350,400] 70mb                                          |L1.7|                                  "
-    - "L1.8[400,450] 70mb                                                |L1.8|                            "
-    - "L1.9[450,500] 70mb                                                       |L1.9|                     "
-    - "L1.10[500,550] 70mb                                                             |L1.10|             "
+    - "L1.1[50,99] 90mb    |L1.1|                                                                          "
+    - "L1.2[100,149] 80mb        |L1.2|                                                                    "
+    - "L1.3[150,199] 70mb               |L1.3|                                                             "
+    - "L1.4[200,249] 70mb                      |L1.4|                                                      "
+    - "L1.5[250,299] 70mb                            |L1.5|                                                "
+    - "L1.6[300,349] 70mb                                   |L1.6|                                         "
+    - "L1.7[350,399] 70mb                                          |L1.7|                                  "
+    - "L1.8[400,449] 70mb                                                |L1.8|                            "
+    - "L1.9[450,499] 70mb                                                       |L1.9|                     "
+    - "L1.10[500,549] 70mb                                                             |L1.10|             "
     - "L1.14[600,650] 15mb                                                                          |L1.14|"
     "###
     );
@@ -457,7 +458,7 @@ async fn many_l1_with_non_overlapping_l0() {
             .create_parquet_file(
                 parquet_builder()
                     .with_min_time(50 + i * 50)
-                    .with_max_time(100 + i * 50)
+                    .with_max_time(99 + i * 50)
                     .with_compaction_level(CompactionLevel::FileNonOverlapped)
                     .with_file_size_bytes(sz * ONE_MB),
             )
@@ -486,16 +487,16 @@ async fn many_l1_with_non_overlapping_l0() {
     - "L0.12[600,650] 5mb                                                                           |L0.12|"
     - "L0.13[600,650] 5mb                                                                           |L0.13|"
     - "L1                                                                                                  "
-    - "L1.1[50,100] 9mb    |L1.1|                                                                          "
-    - "L1.2[100,150] 8mb         |L1.2|                                                                    "
-    - "L1.3[150,200] 7mb                |L1.3|                                                             "
-    - "L1.4[200,250] 7mb                       |L1.4|                                                      "
-    - "L1.5[250,300] 7mb                             |L1.5|                                                "
-    - "L1.6[300,350] 7mb                                    |L1.6|                                         "
-    - "L1.7[350,400] 7mb                                           |L1.7|                                  "
-    - "L1.8[400,450] 7mb                                                 |L1.8|                            "
-    - "L1.9[450,500] 7mb                                                        |L1.9|                     "
-    - "L1.10[500,550] 7mb                                                              |L1.10|             "
+    - "L1.1[50,99] 9mb     |L1.1|                                                                          "
+    - "L1.2[100,149] 8mb         |L1.2|                                                                    "
+    - "L1.3[150,199] 7mb                |L1.3|                                                             "
+    - "L1.4[200,249] 7mb                       |L1.4|                                                      "
+    - "L1.5[250,299] 7mb                             |L1.5|                                                "
+    - "L1.6[300,349] 7mb                                    |L1.6|                                         "
+    - "L1.7[350,399] 7mb                                           |L1.7|                                  "
+    - "L1.8[400,449] 7mb                                                 |L1.8|                            "
+    - "L1.9[450,499] 7mb                                                        |L1.9|                     "
+    - "L1.10[500,549] 7mb                                                              |L1.10|             "
     - "**** Simulation run 0, type=compact. 3 Input Files, 15mb total:"
     - "L0, all files 5mb                                                                                   "
     - "L0.13[600,650]      |------------------------------------L0.13-------------------------------------|"
@@ -509,28 +510,28 @@ async fn many_l1_with_non_overlapping_l0() {
     - "  Creating 1 files at level CompactionLevel::L1"
     - "**** Simulation run 1, type=split(split_times=[530]). 11 Input Files, 88mb total:"
     - "L1                                                                                                  "
-    - "L1.10[500,550] 7mb                                                              |L1.10|             "
-    - "L1.9[450,500] 7mb                                                        |L1.9|                     "
-    - "L1.8[400,450] 7mb                                                 |L1.8|                            "
-    - "L1.7[350,400] 7mb                                           |L1.7|                                  "
-    - "L1.6[300,350] 7mb                                    |L1.6|                                         "
-    - "L1.5[250,300] 7mb                             |L1.5|                                                "
-    - "L1.4[200,250] 7mb                       |L1.4|                                                      "
-    - "L1.3[150,200] 7mb                |L1.3|                                                             "
-    - "L1.2[100,150] 8mb         |L1.2|                                                                    "
-    - "L1.1[50,100] 9mb    |L1.1|                                                                          "
+    - "L1.10[500,549] 7mb                                                              |L1.10|             "
+    - "L1.9[450,499] 7mb                                                        |L1.9|                     "
+    - "L1.8[400,449] 7mb                                                 |L1.8|                            "
+    - "L1.7[350,399] 7mb                                           |L1.7|                                  "
+    - "L1.6[300,349] 7mb                                    |L1.6|                                         "
+    - "L1.5[250,299] 7mb                             |L1.5|                                                "
+    - "L1.4[200,249] 7mb                       |L1.4|                                                      "
+    - "L1.3[150,199] 7mb                |L1.3|                                                             "
+    - "L1.2[100,149] 8mb         |L1.2|                                                                    "
+    - "L1.1[50,99] 9mb     |L1.1|                                                                          "
     - "L1.14[600,650] 15mb                                                                          |L1.14|"
-    - "**** 2 Output Files (parquet_file_id not yet assigned), 88mb total:"
+    - "**** 2 Output Files (parquet_file_id not yet assigned), 87.85mb total:"
     - "L2                                                                                                  "
     - "L2.?[50,530] 70.4mb |-----------------------------L2.?-----------------------------|                "
-    - "L2.?[530,650] 17.6mb                                                                |-----L2.?-----|"
+    - "L2.?[531,650] 17.45mb                                                                |----L2.?-----| "
     - "Committing partition 1:"
     - "  Soft Deleting 11 files: L1.1, L1.2, L1.3, L1.4, L1.5, L1.6, L1.7, L1.8, L1.9, L1.10, L1.14"
     - "  Creating 2 files at level CompactionLevel::L2"
     - "**** Final Output Files "
     - "L2                                                                                                  "
     - "L2.15[50,530] 70.4mb|----------------------------L2.15-----------------------------|                "
-    - "L2.16[530,650] 17.6mb                                                                |----L2.16-----|"
+    - "L2.16[531,650] 17.45mb                                                                |----L2.16----| "
     "###
     );
 }
@@ -554,7 +555,7 @@ async fn large_l1_with_non_overlapping_l0() {
             .create_parquet_file(
                 parquet_builder()
                     .with_min_time(50 + i * 50)
-                    .with_max_time(100 + i * 50)
+                    .with_max_time(99 + i * 50)
                     .with_compaction_level(CompactionLevel::FileNonOverlapped)
                     .with_file_size_bytes(sz * ONE_MB),
             )
@@ -583,8 +584,8 @@ async fn large_l1_with_non_overlapping_l0() {
     - "L0.4[600,650] 5mb                                                                            |L0.4| "
     - "L0.5[600,650] 5mb                                                                            |L0.5| "
     - "L1                                                                                                  "
-    - "L1.1[50,100] 90mb   |L1.1|                                                                          "
-    - "L1.2[100,150] 80mb        |L1.2|                                                                    "
+    - "L1.1[50,99] 90mb    |L1.1|                                                                          "
+    - "L1.2[100,149] 80mb        |L1.2|                                                                    "
     - "**** Simulation run 0, type=compact. 3 Input Files, 15mb total:"
     - "L0, all files 5mb                                                                                   "
     - "L0.5[600,650]       |-------------------------------------L0.5-------------------------------------|"
@@ -598,20 +599,20 @@ async fn large_l1_with_non_overlapping_l0() {
     - "  Creating 1 files at level CompactionLevel::L1"
     - "**** Simulation run 1, type=split(split_times=[375]). 3 Input Files, 185mb total:"
     - "L1                                                                                                  "
-    - "L1.2[100,150] 80mb        |L1.2|                                                                    "
-    - "L1.1[50,100] 90mb   |L1.1|                                                                          "
+    - "L1.2[100,149] 80mb        |L1.2|                                                                    "
+    - "L1.1[50,99] 90mb    |L1.1|                                                                          "
     - "L1.6[600,650] 15mb                                                                           |L1.6| "
-    - "**** 2 Output Files (parquet_file_id not yet assigned), 185mb total:"
+    - "**** 2 Output Files (parquet_file_id not yet assigned), 184.69mb total:"
     - "L2                                                                                                  "
     - "L2.?[50,375] 100.21mb|------------------L2.?-------------------|                                     "
-    - "L2.?[375,650] 84.79mb                                           |---------------L2.?---------------| "
+    - "L2.?[376,650] 84.48mb                                           |---------------L2.?---------------| "
     - "Committing partition 1:"
     - "  Soft Deleting 3 files: L1.1, L1.2, L1.6"
     - "  Creating 2 files at level CompactionLevel::L2"
     - "**** Final Output Files "
     - "L2                                                                                                  "
     - "L2.7[50,375] 100.21mb|------------------L2.7-------------------|                                     "
-    - "L2.8[375,650] 84.79mb                                           |---------------L2.8---------------| "
+    - "L2.8[376,650] 84.48mb                                           |---------------L2.8---------------| "
     "###
     );
 }

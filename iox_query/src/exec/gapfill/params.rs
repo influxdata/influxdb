@@ -24,8 +24,9 @@ pub(super) struct GapFillParams {
     /// The stride in nanoseconds of the timestamps to be output.
     pub stride: i64,
     /// The first timestamp (inclusive) to be output for each series,
-    /// in nanoseconds since the epoch.
-    pub first_ts: i64,
+    /// in nanoseconds since the epoch. `None` means gap filling should
+    /// start from the first timestamp in each series.
+    pub first_ts: Option<i64>,
     /// The last timestamp (inclusive!) to be output for each series,
     /// in nanoseconds since the epoch.
     pub last_ts: i64,
@@ -47,15 +48,11 @@ impl GapFillParams {
         })?;
 
         // Find the smallest timestamp that might appear in the
-        // range
+        // range. There might not be one, which is okay.
         let first_ts = match range.start {
-            Bound::Included(v) => v,
-            Bound::Excluded(v) => v + 1,
-            Bound::Unbounded => {
-                return Err(DataFusionError::Execution(
-                    "missing lower time bound for gap filling".to_string(),
-                ))
-            }
+            Bound::Included(v) => Some(v),
+            Bound::Excluded(v) => Some(v + 1),
+            Bound::Unbounded => None,
         };
 
         // Find the largest timestamp that might appear in the
@@ -73,8 +70,10 @@ impl GapFillParams {
         // Call date_bin on the timestamps to find the first and last time bins
         // for each series
         let mut args = vec![stride, i64_to_columnar_ts(first_ts), origin];
-        let first_ts = extract_timestamp_nanos(&date_bin(&args)?)?;
-        args[1] = i64_to_columnar_ts(last_ts);
+        let first_ts = first_ts
+            .map(|_| extract_timestamp_nanos(&date_bin(&args)?))
+            .transpose()?;
+        args[1] = i64_to_columnar_ts(Some(last_ts));
         let last_ts = extract_timestamp_nanos(&date_bin(&args)?)?;
 
         Ok(Self {
@@ -94,8 +93,11 @@ impl GapFillParams {
     }
 }
 
-fn i64_to_columnar_ts(i: i64) -> ColumnarValue {
-    ColumnarValue::Scalar(ScalarValue::TimestampNanosecond(Some(i), None))
+fn i64_to_columnar_ts(i: Option<i64>) -> ColumnarValue {
+    match i {
+        Some(i) => ColumnarValue::Scalar(ScalarValue::TimestampNanosecond(Some(i), None)),
+        None => ColumnarValue::Scalar(ScalarValue::Null),
+    }
 }
 
 fn extract_timestamp_nanos(cv: &ColumnarValue) -> Result<i64> {
@@ -127,12 +129,26 @@ fn extract_interval_nanos(cv: &ColumnarValue) -> Result<i64> {
 
 #[cfg(test)]
 mod tests {
-    use std::sync::Arc;
+    use std::{
+        ops::{Bound, Range},
+        sync::Arc,
+    };
 
     use arrow::datatypes::{DataType, Field, Schema, TimeUnit};
-    use datafusion::{datasource::empty::EmptyTable, error::Result};
+    use datafusion::{
+        datasource::empty::EmptyTable,
+        error::Result,
+        physical_plan::{
+            expressions::{Column, Literal},
+            PhysicalExpr,
+        },
+        scalar::ScalarValue,
+    };
 
-    use crate::exec::{gapfill::GapFillExec, Executor, ExecutorType};
+    use crate::exec::{
+        gapfill::{GapFillExec, GapFillExecParams},
+        Executor, ExecutorType,
+    };
 
     use super::GapFillParams;
 
@@ -148,9 +164,9 @@ mod tests {
                \ngroup by minute",
             ).await?;
         let expected = GapFillParams {
-            stride: 60_000_000_000,            // 1 minute
-            first_ts: 441_820_500_000_000_000, // Sunday, January 1, 1984 3:55:00 PM
-            last_ts: 441_820_800_000_000_000,  // Sunday, January 1, 1984 3:59:00 PM
+            stride: 60_000_000_000,                  // 1 minute
+            first_ts: Some(441_820_500_000_000_000), // Sunday, January 1, 1984 3:55:00 PM
+            last_ts: 441_820_800_000_000_000,        // Sunday, January 1, 1984 3:59:00 PM
         };
         assert_eq!(expected, actual);
         Ok(())
@@ -168,8 +184,8 @@ mod tests {
                \ngroup by minute",
             ).await?;
         let expected = GapFillParams {
-            stride: 60_000_000_000,            // 1 minute
-            first_ts: 441_820_500_000_000_000, // Sunday, January 1, 1984 3:55:00 PM
+            stride: 60_000_000_000,                  // 1 minute
+            first_ts: Some(441_820_500_000_000_000), // Sunday, January 1, 1984 3:55:00 PM
             // Last bin at 16:00 is excluded
             last_ts: 441_820_740_000_000_000, // Sunday, January 1, 1984 3:59:00 PM
         };
@@ -191,8 +207,8 @@ mod tests {
         let expected = GapFillParams {
             stride: 60_000_000_000, // 1 minute
             // First bin not exluded since it truncates to 15:55:00
-            first_ts: 441_820_500_000_000_000, // Sunday, January 1, 1984 3:55:00 PM
-            last_ts: 441_820_800_000_000_000,  // Sunday, January 1, 1984 3:59:00 PM
+            first_ts: Some(441_820_500_000_000_000), // Sunday, January 1, 1984 3:55:00 PM
+            last_ts: 441_820_800_000_000_000,        // Sunday, January 1, 1984 3:59:00 PM
         };
         assert_eq!(expected, actual);
         Ok(())
@@ -211,12 +227,48 @@ mod tests {
                \ngroup by minute",
             ).await?;
         let expected = GapFillParams {
-            stride: 60_000_000_000,            // 1 minute
-            first_ts: 441_820_449_000_000_000, // Sunday, January 1, 1984 3:54:09 PM
-            last_ts: 441_820_749_000_000_000,  // Sunday, January 1, 1984 3:59:09 PM
+            stride: 60_000_000_000,                  // 1 minute
+            first_ts: Some(441_820_449_000_000_000), // Sunday, January 1, 1984 3:54:09 PM
+            last_ts: 441_820_749_000_000_000,        // Sunday, January 1, 1984 3:59:09 PM
         };
         assert_eq!(expected, actual);
         Ok(())
+    }
+
+    fn interval(ns: i64) -> Arc<dyn PhysicalExpr> {
+        Arc::new(Literal::new(ScalarValue::IntervalDayTime(Some(
+            ns / 1_000_000,
+        ))))
+    }
+
+    fn timestamp(ns: i64) -> Arc<dyn PhysicalExpr> {
+        Arc::new(Literal::new(ScalarValue::TimestampNanosecond(
+            Some(ns),
+            None,
+        )))
+    }
+
+    #[test]
+    fn test_params_no_start() {
+        let exec_params = GapFillExecParams {
+            stride: interval(1_000_000_000),
+            time_column: Column::new("time", 0),
+            origin: timestamp(0),
+            time_range: Range {
+                start: Bound::Unbounded,
+                end: Bound::Excluded(timestamp(20_000_000_000)),
+            },
+        };
+
+        let actual = GapFillParams::try_new(schema().into(), &exec_params).unwrap();
+        assert_eq!(
+            GapFillParams {
+                stride: 1_000_000_000,
+                first_ts: None,
+                last_ts: 19_000_000_000,
+            },
+            actual
+        );
     }
 
     #[test]
@@ -225,7 +277,7 @@ mod tests {
         test_helpers::maybe_start_logging();
         let params = GapFillParams {
             stride: 10,
-            first_ts: 1000,
+            first_ts: Some(1000),
             last_ts: 1050,
         };
 

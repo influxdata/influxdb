@@ -26,25 +26,23 @@ use crate::{
 
 /// A persistence task submission handle.
 ///
-/// This type is cheap to clone to share across threads.
-///
 /// # Usage
 ///
 /// The caller should construct an [`PersistHandle`] by calling
 /// [`PersistHandle::new()`].
 ///
-/// The [`PersistHandle`] can be passed over thread/task boundaries to enqueue
-/// persist tasks in parallel.
+/// The [`PersistHandle`] can be wrapped in an [`Arc`] and shared over
+/// thread/task boundaries to enqueue persist tasks in parallel.
 ///
-/// Dropping all [`PersistHandle`] instances immediately stops all persist
+/// Dropping the [`PersistHandle`] instance immediately stops all persist
 /// workers and drops all outstanding persist tasks.
 ///
 /// # Topology
 ///
 /// The persist system is exposes a logical queue of persist tasks with up to
-/// `persist_queue_depth` slots. Each persist task is executed on a worker in
-/// the worker pool in order to parallelise persistence operations up to
-/// `n_workers` number of parallel tasks.
+/// `persist_queue_depth` slots. Each persist task is executed on a worker in a
+/// worker pool in order to parallelise persistence operations up to `n_workers`
+/// number of parallel tasks.
 ///
 /// ```text
 ///                            ┌─────────────┐
@@ -75,7 +73,7 @@ use crate::{
 /// parallelisation of work given the constraints of an individual persist job.
 ///
 /// Compaction is performed in the provided [`Executor`] re-org thread-pool and
-/// is shared across all workers.
+/// is shared across a set of `n_workers` number of worker tasks.
 ///
 /// While the logical queue bounds the number of outstanding persist tasks to at
 /// most `persist_queue_depth`, once this limit is reached threads attempting to
@@ -90,7 +88,15 @@ use crate::{
 ///
 /// Because updates of a partition's [`SortKey`] are not commutative, they must
 /// be serialised. For this reason, persist operations for given partition are
-/// always placed in the same worker queue, ensuring they execute sequentially.
+/// placed in the same worker queue, ensuring they execute sequentially unless
+/// it can be determined that the persist operation will not cause a [`SortKey`]
+/// update, at which point it is enqueued into the global work queue and
+/// parallelised with other persist jobs for the same partition.
+///
+/// Multiple ingester nodes running in a cluster can update the [`SortKey`] in
+/// the catalog for a partition independently, and at times, concurrently. When
+/// a concurrent catalog sort key update occurs, only one persist job makes
+/// progress and the others must be restarted with the newly discovered key.
 ///
 /// [`SortKey`]: schema::sort::SortKey
 ///

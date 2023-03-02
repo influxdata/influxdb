@@ -31,6 +31,26 @@
 //!   computation. Derived from *O6* and *O7*.
 //!
 //!
+//! # File Levels
+//!
+//! Each parquet file has a `compaction_level` that the compactor uses
+//! to optimize its choice of what files to compact. There are three levels:
+//! * `L0`: [`data_types::CompactionLevel::Initial`]
+//! * `L1`: [`data_types::CompactionLevel::FileNonOverlapped`]
+//! * `L2`: [`data_types::CompactionLevel::Final`].
+//!
+//! The compactor maintains the following invariants with levels:
+//!
+//! 1. The ingester writes all new data as `L0` files.
+//! 2. The compactor creates `L1` and `L2` files.
+//! 3. `L1` files never overlap with other `L1` files.
+//! 4. `L2` files never overlap with other `L2` files.
+//! 5. `L0` files can overlap with each other and any `L1` or `L2` files.
+//! 6. `L1` files can overlap with `L2` files.
+//!
+//! Over time the compactor aims to rearrange data in all partitions
+//! into a small number of large `L2` files.
+//!
 //! # Crate Layout
 //!
 //! This crate tries to decouple "when to do what" from "how to do what". The "when" is described by the [driver] which

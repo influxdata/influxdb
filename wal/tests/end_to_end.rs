@@ -1,4 +1,4 @@
-use data_types::{NamespaceId, TableId};
+use data_types::{NamespaceId, SequenceNumber, TableId};
 use dml::DmlWrite;
 use generated_types::influxdata::{
     iox::wal::v1::sequenced_wal_op::Op as WalOp,
@@ -41,8 +41,12 @@ async fn crud() {
     );
 
     // Can't read entries from the open segment; have to rotate first
-    let closed_segment_details = wal.rotate().unwrap();
+    let (closed_segment_details, ids) = wal.rotate().unwrap();
     assert_eq!(closed_segment_details.size(), 232);
+    assert_eq!(
+        ids.iter().collect::<Vec<_>>(),
+        [SequenceNumber::new(42), SequenceNumber::new(43)]
+    );
 
     // There's one closed segment
     let closed = wal.closed_segments();
@@ -110,11 +114,13 @@ async fn ordering() {
 
         let op = arbitrary_sequenced_wal_op(42);
         let _ = unwrap_summary(wal.write_op(op)).await;
-        wal.rotate().unwrap();
+        let (_, ids) = wal.rotate().unwrap();
+        assert_eq!(ids.iter().collect::<Vec<_>>(), [SequenceNumber::new(42)]);
 
         let op = arbitrary_sequenced_wal_op(43);
         let _ = unwrap_summary(wal.write_op(op)).await;
-        wal.rotate().unwrap();
+        let (_, ids) = wal.rotate().unwrap();
+        assert_eq!(ids.iter().collect::<Vec<_>>(), [SequenceNumber::new(43)]);
 
         let op = arbitrary_sequenced_wal_op(44);
         let _ = unwrap_summary(wal.write_op(op)).await;
@@ -130,12 +136,14 @@ async fn ordering() {
     assert_eq!(closed_segment_ids, &[0, 1, 2]);
 
     // The open segment is next in order
-    let closed_segment_details = wal.rotate().unwrap();
+    let (closed_segment_details, ids) = wal.rotate().unwrap();
     assert_eq!(closed_segment_details.id().get(), 3);
+    assert!(ids.is_empty());
 
     // Creating new files after replay are later in the ordering
-    let closed_segment_details = wal.rotate().unwrap();
+    let (closed_segment_details, ids) = wal.rotate().unwrap();
     assert_eq!(closed_segment_details.id().get(), 4);
+    assert!(ids.is_empty());
 }
 
 fn arbitrary_sequenced_wal_op(sequence_number: u64) -> SequencedWalOp {

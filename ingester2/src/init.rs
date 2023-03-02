@@ -159,6 +159,19 @@ pub enum InitError {
 ///
 /// Any error during replay is fatal.
 ///
+/// ## Graceful Shutdown
+///
+/// When `shutdown` completes, the ingester blocks ingest (returning an error to
+/// all new write requests) while still executing query requests. The ingester
+/// then persists all data currently buffered.
+///
+/// Callers can wait for this buffer persist to complete by awaiting
+/// [`IngesterGuard::join()`], which will resolve once all data has been flushed
+/// to object storage.
+///
+/// The ingester will continue answering queries until the gRPC server is
+/// stopped by the caller (managed outside of this crate).
+///
 /// ## Deferred Loading for Persist Operations
 ///
 /// Several items within the ingester's internal state are loaded only when
@@ -184,18 +197,25 @@ pub enum InitError {
 /// operations, but not so long that it causes catalog load spikes at persist
 /// time (which can be observed by the catalog instrumentation metrics).
 ///
-/// ## Graceful Shutdown
+/// ## Hot Persistence
 ///
-/// When `shutdown` completes, the ingester blocks ingest (returning an error to
-/// all new write requests) while still executing query requests. The ingester
-/// then persists all data currently buffered.
+/// Partitions have a opaque estimate of the "cost" (in terms of time/space) to
+/// persist the data within them. The cost calculation is made in
+/// [`MutableBatch::size_data()`].
 ///
-/// Callers can wait for this buffer persist to complete by awaiting
-/// [`IngesterGuard::join()`], which will resolve once all data has been flushed
-/// to object storage.
+/// Once this cost estimation exceeds the `persist_hot_partition_cost` the
+/// partition is immediately enqueued for persistence, and subsequent writes are
+/// applied to a new buffer.
 ///
-/// The ingester will continue answering queries until the gRPC server is
-/// stopped by the caller (managed outside of this crate).
+/// Increasing this value reduces the frequency of hot partition persistence,
+/// but may also increase the total amount of data that needs persisting for a
+/// single partition. In practice, this increases the memory utilisation of
+/// datafusion during the persist compaction step.
+///
+/// Decreasing this value increases the frequency of persist operations, and
+/// usually decreases the size of the resulting parquet files.
+///
+/// [`MutableBatch::size_data()`]: mutable_batch::MutableBatch::size_data
 #[allow(clippy::too_many_arguments)]
 pub async fn new<F>(
     catalog: Arc<dyn Catalog>,

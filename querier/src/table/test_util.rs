@@ -12,6 +12,7 @@ use schema::{sort::SortKey, Projection, Schema};
 use sharder::JumpHash;
 use std::{sync::Arc, time::Duration};
 use tokio::runtime::Handle;
+use uuid::Uuid;
 
 /// Create a [`QuerierTable`] for testing.
 pub async fn querier_table(catalog: &Arc<TestCatalog>, table: &Arc<TestTable>) -> QuerierTable {
@@ -133,7 +134,7 @@ impl IngesterPartitionBuilder {
 
         IngesterPartition::new(
             Arc::clone(&self.ingester_name),
-            None,
+            Some(Uuid::new_v4()),
             self.partition.partition.id,
             self.shard.shard.id,
             0,
