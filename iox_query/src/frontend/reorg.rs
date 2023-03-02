@@ -66,12 +66,14 @@ impl ReorgPlanner {
     ///
     /// 1. Merges chunks together into a single stream
     /// 2. Deduplicates via PK as necessary
-    /// 3. Sorts the result according to the requested `output_sort_key`
+    /// 3. Sorts the result according to the requested `output_sort_key` (if necessary)
     ///
     /// The plan looks like:
     ///
-    /// (Sort on output_sort_key)
+    /// ```text
+    /// (Optional Sort on output_sort_key)
     ///   (Scan chunks) <-- any needed deduplication happens here
+    /// ```
     pub fn compact_plan<I>(
         &self,
         table_name: Arc<str>,
@@ -107,16 +109,31 @@ impl ReorgPlanner {
     ///
     /// The plan looks like:
     ///
+    /// ```text
     /// (Split on Time)
     ///   (Sort on output_sort)
     ///     (Scan chunks) <-- any needed deduplication happens here
+    /// ```
     ///
-    /// The output execution plan has n "output streams" (DataFusion partition):
+    /// The output execution plan has `N` "output streams" (DataFusion
+    /// partitions) where `N` = `split_times.len() + 1`. The
+    /// time ranges of the streams are:
+    ///
     /// Stream 0: Rows that have `time` *on or before* the `split_times[0]`
-    /// Stream i (0 < i < split_times's length): Rows that have  `time` in range `(split_times[i-1], split_times[i]]`
-    /// Stream n (n = split_times.len()): Rows that have `time` *after* all the split_times and NULL rows
     ///
-    /// For example, if the input looks like:
+    /// Stream i, where 0 < i < split_times.len():
+    /// Rows have: `time` in range `(split_times[i-1], split_times[i]]`,
+    ///  Which is: greater than `split_times[i-1]` up to and including `split_times[i]`.
+    ///
+    /// Stream n, where n = split_times.len()): Rows that have `time`
+    /// *after* `split_times[n-1]` as well as NULL rows
+    ///
+    /// # Panics
+    ///
+    /// The code will panic if split_times are not in monotonically increasing order
+    ///
+    /// # Example
+    /// if the input looks like:
     /// ```text
     ///  X | time
     /// ---+-----
