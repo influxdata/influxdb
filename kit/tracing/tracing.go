@@ -19,7 +19,8 @@ import (
 
 // LogError adds a span log for an error.
 // Returns unchanged error, so useful to wrap as in:
-//  return 0, tracing.LogError(err)
+//
+//	return 0, tracing.LogError(err)
 func LogError(span opentracing.Span, err error) error {
 	if err == nil {
 		return nil
@@ -115,24 +116,25 @@ func (s *Span) Finish() {
 // Context without parent span reference triggers root span construction.
 // This function never returns nil values.
 //
-// Performance
+// # Performance
 //
 // This function incurs a small performance penalty, roughly 1000 ns/op, 376 B/op, 6 allocs/op.
 // Jaeger timestamp and duration precision is only µs, so this is pretty negligible.
 //
-// Alternatives
+// # Alternatives
 //
 // If this performance penalty is too much, try these, which are also demonstrated in benchmark tests:
-//  // Create a root span
-//  span := opentracing.StartSpan("operation name")
-//  ctx := opentracing.ContextWithSpan(context.Background(), span)
 //
-//  // Create a child span
-//  span := opentracing.StartSpan("operation name", opentracing.ChildOf(sc))
-//  ctx := opentracing.ContextWithSpan(context.Background(), span)
+//	// Create a root span
+//	span := opentracing.StartSpan("operation name")
+//	ctx := opentracing.ContextWithSpan(context.Background(), span)
 //
-//  // Sugar to create a child span
-//  span, ctx := opentracing.StartSpanFromContext(ctx, "operation name")
+//	// Create a child span
+//	span := opentracing.StartSpan("operation name", opentracing.ChildOf(sc))
+//	ctx := opentracing.ContextWithSpan(context.Background(), span)
+//
+//	// Sugar to create a child span
+//	span, ctx := opentracing.StartSpanFromContext(ctx, "operation name")
 func StartSpanFromContext(ctx context.Context, opts ...opentracing.StartSpanOption) (opentracing.Span, context.Context) {
 	if ctx == nil {
 		panic("StartSpanFromContext called with nil context")
