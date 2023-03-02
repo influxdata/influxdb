@@ -37,7 +37,7 @@ query_functions = { path = "../query_functions"}
 regex = "1"
 schema = { path = "../schema" }
 snafu = "0.7"
-tokio = { version = "1.25", features = ["macros", "parking_lot"] }
+tokio = { version = "1.26", features = ["macros", "parking_lot"] }
 tokio-stream = "0.1"
 trace = { path = "../trace" }
 predicate = { path = "../predicate" }
