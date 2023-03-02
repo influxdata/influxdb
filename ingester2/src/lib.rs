@@ -251,6 +251,7 @@ maybe_pub!(mod persist);
 maybe_pub!(mod partition_iter);
 maybe_pub!(mod wal);
 mod arcmap;
+mod cancellation_safe;
 mod deferred_load;
 mod ingest_state;
 mod ingester_id;
