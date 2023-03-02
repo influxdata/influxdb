@@ -103,17 +103,17 @@ async fn many_l1_files() {
     - "L1.2[2,3] 10mb          |L1.2|                                                                      "
     - "L1.1[0,1] 10mb      |L1.1|                                                                          "
     - "L1.24[24,25] 13mb                                                    |L1.24|                        "
-    - "**** 2 Output Files (parquet_file_id not yet assigned), 203mb total:"
+    - "**** 2 Output Files (parquet_file_id not yet assigned), 197.79mb total:"
     - "L2                                                                                                  "
     - "L2.?[0,20] 104.1mb  |-----------------L2.?------------------|                                       "
-    - "L2.?[20,39] 98.9mb                                           |----------------L2.?----------------| "
+    - "L2.?[21,39] 93.69mb                                            |---------------L2.?---------------| "
     - "Committing partition 1:"
     - "  Soft Deleting 20 files: L1.1, L1.2, L1.3, L1.4, L1.5, L1.6, L1.7, L1.8, L1.9, L1.10, L1.11, L1.12, L1.14, L1.15, L1.16, L1.17, L1.18, L1.19, L1.20, L1.24"
     - "  Creating 2 files at level CompactionLevel::L2"
     - "**** Final Output Files "
     - "L2                                                                                                  "
     - "L2.25[0,20] 104.1mb |-----------------L2.25-----------------|                                       "
-    - "L2.26[20,39] 98.9mb                                          |---------------L2.26----------------| "
+    - "L2.26[21,39] 93.69mb                                           |--------------L2.26---------------| "
     "###
     );
 }
@@ -2780,17 +2780,17 @@ async fn many_l0_and_overlapped_l1_files() {
     - "L1.207[160,169] 1mb                                                                 |L1.207|        "
     - "L1.208[170,179] 1mb                                                                     |L1.208|    "
     - "L1.209[180,189] 1mb                                                                         |L1.209|"
-    - "**** 2 Output Files (parquet_file_id not yet assigned), 21.3mb total:"
+    - "**** 2 Output Files (parquet_file_id not yet assigned), 21.19mb total:"
     - "L1                                                                                                  "
     - "L1.?[0,159] 17.02mb |----------------------------L1.?-----------------------------|                 "
-    - "L1.?[159,199] 4.28mb                                                               |-----L1.?-----| "
+    - "L1.?[160,199] 4.17mb                                                                |----L1.?-----| "
     - "Committing partition 1:"
     - "  Soft Deleting 21 files: L1.191, L1.192, L1.193, L1.194, L1.195, L1.196, L1.197, L1.198, L1.199, L1.200, L1.201, L1.202, L1.203, L1.204, L1.205, L1.206, L1.207, L1.208, L1.209, L1.210, L0.211"
     - "  Creating 2 files at level CompactionLevel::L1"
     - "**** Final Output Files "
     - "L1                                                                                                  "
     - "L1.212[0,159] 17.02mb|---------------------------L1.212----------------------------|                 "
-    - "L1.213[159,199] 4.28mb                                                               |----L1.213----| "
+    - "L1.213[160,199] 4.17mb                                                                |---L1.213----| "
     "###
     );
 }
@@ -3298,17 +3298,17 @@ async fn not_many_l0_and_overlapped_l1_files() {
     - "L1.209[2800,2809] 1mb                                                                          |L1.209|"
     - "L1.210[3000,3009] 1mb                                                                               |L1.210|"
     - "L1.211[0,190] 6.3mb |L1.211|                                                                        "
-    - "**** 2 Output Files (parquet_file_id not yet assigned), 21.3mb total:"
+    - "**** 2 Output Files (parquet_file_id not yet assigned), 21.29mb total:"
     - "L2                                                                                                  "
     - "L2.?[0,2407] 17.04mb|----------------------------L2.?-----------------------------|                 "
-    - "L2.?[2407,3009] 4.26mb                                                               |-----L2.?-----| "
+    - "L2.?[2408,3009] 4.25mb                                                                |----L2.?-----| "
     - "Committing partition 1:"
     - "  Soft Deleting 16 files: L1.196, L1.197, L1.198, L1.199, L1.200, L1.201, L1.202, L1.203, L1.204, L1.205, L1.206, L1.207, L1.208, L1.209, L1.210, L1.211"
     - "  Creating 2 files at level CompactionLevel::L2"
     - "**** Final Output Files "
     - "L2                                                                                                  "
     - "L2.212[0,2407] 17.04mb|---------------------------L2.212----------------------------|                 "
-    - "L2.213[2407,3009] 4.26mb                                                               |----L2.213----| "
+    - "L2.213[2408,3009] 4.25mb                                                                |---L2.213----| "
     "###
     );
 }
