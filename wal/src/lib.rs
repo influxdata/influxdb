@@ -362,9 +362,8 @@ impl Wal {
                     continue;
                 }
 
-                // Update the size hint, ensuring it slowly shrinks over time to
-                // prevent buffer runaway due to the occasional large buffer.
-                size_hint = Some(b.ops.len().saturating_sub(1));
+                // Update the size hint to match the size of the last batch.
+                size_hint = Some(b.ops.len());
 
                 // Move the pre-allocated buffer to replace the old.
                 std::mem::replace(&mut *b, new_buf)
