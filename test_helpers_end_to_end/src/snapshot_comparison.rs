@@ -1,11 +1,9 @@
-mod normalization;
 mod queries;
 
-use crate::snapshot_comparison::queries::TestQueries;
-use crate::{run_influxql, run_sql, MiniCluster};
+use crate::{run_influxql, run_sql, snapshot_comparison::queries::TestQueries, MiniCluster};
 use snafu::{OptionExt, ResultExt, Snafu};
-use std::fmt::{Display, Formatter};
 use std::{
+    fmt::{Display, Formatter},
     fs,
     path::{Path, PathBuf},
 };

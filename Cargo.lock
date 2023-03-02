@@ -340,8 +340,11 @@ dependencies = [
  "datafusion",
  "hashbrown 0.13.2",
  "num-traits",
+ "once_cell",
  "rand",
+ "regex",
  "snafu",
+ "uuid",
  "workspace-hack",
 ]
 
@@ -4513,7 +4516,6 @@ dependencies = [
  "predicate",
  "prost",
  "rand",
- "regex",
  "schema",
  "service_common",
  "service_grpc_catalog",
@@ -5656,7 +5658,6 @@ dependencies = [
  "parking_lot 0.12.1",
  "prost",
  "rand",
- "regex",
  "reqwest",
  "snafu",
  "sqlx",
@@ -5665,7 +5666,6 @@ dependencies = [
  "tokio",
  "tokio-util",
  "tonic",
- "uuid",
  "workspace-hack",
 ]
 

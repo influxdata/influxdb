@@ -1,6 +1,5 @@
 use arrow::record_batch::RecordBatch;
-
-use super::normalization::Normalizer;
+use arrow_util::test_util::Normalizer;
 
 /// A query to run with optional annotations
 #[derive(Debug, PartialEq, Eq, Default)]
