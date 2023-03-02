@@ -279,6 +279,24 @@ fn even_time_split(
     let total_rows: i64 = files.iter().map(|f| f.row_count).sum();
     let total_size: i64 = files.iter().map(|f| f.file_size_bytes).sum();
 
+    // verify split times invariants.
+    let mut last_split = 0;
+    for split in split_times {
+        assert!(
+            split > &last_split,
+            "split times must be in ascending order"
+        );
+        assert!(
+            Timestamp::new(*split) > overall_min_time,
+            "split time must be greater than time range min"
+        );
+        assert!(
+            Timestamp::new(*split) < overall_max_time,
+            "split time must be less than time range max"
+        );
+        last_split = *split;
+    }
+
     // compute the timeranges data each file will have
     let mut last_time = overall_min_time;
     let mut time_ranges: Vec<_> = split_times
