@@ -12,7 +12,7 @@ use super::DmlSink;
 /// [`DmlSink::apply()`] call.
 ///
 /// Constructing this decorator is cheap.
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub(crate) struct DmlSinkTracing<T> {
     inner: T,
     name: Cow<'static, str>,

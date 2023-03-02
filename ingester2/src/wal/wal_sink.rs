@@ -6,7 +6,10 @@ use std::sync::Arc;
 use tokio::sync::watch::Receiver;
 use wal::{SequencedWalOp, WriteResult};
 
-use crate::dml_sink::{DmlError, DmlSink};
+use crate::{
+    cancellation_safe::CancellationSafe,
+    dml_sink::{DmlError, DmlSink},
+};
 
 use super::traits::WalAppender;
 
@@ -33,30 +36,33 @@ impl<T, W> WalSink<T, W> {
 #[async_trait]
 impl<T, W> DmlSink for WalSink<T, W>
 where
-    T: DmlSink,
+    T: DmlSink + Clone + 'static,
     W: WalAppender + 'static,
 {
     type Error = DmlError;
 
     async fn apply(&self, op: DmlOperation) -> Result<(), Self::Error> {
-        // TODO: cancellation safety
-        //
-        // See https://github.com/influxdata/influxdb_iox/issues/6281.
-        //
-        // Once an item is in the WAL, it should be passed into the inner
-        // DmlSink so that is becomes readable - failing to do this means writes
-        // will randomly appear after replaying the WAL.
-        //
-        // This can happen If the caller stops polling just after the WAL commit
-        // future completes and before the inner DmlSink call returns Ready.
-
         // Append the operation to the WAL
         let mut write_result = self.wal.append(&op);
 
-        // Pass it to the inner handler while we wait for the write to be made durable
-        self.inner.apply(op).await.map_err(Into::into)?;
+        // Pass it to the inner handler while we wait for the write to be made
+        // durable.
+        //
+        // Ensure that this future is always driven to completion now that the
+        // WAL entry is being committed, otherwise they'll diverge.
+        //
+        // If this buffer apply fails, the entry remains in the WAL and will be
+        // attempted again during WAL replay after a crash. If this can never
+        // succeed, this can cause a crash loop (unlikely) - see:
+        //
+        //  https://github.com/influxdata/influxdb_iox/issues/7111
+        //
+        let inner = self.inner.clone();
+        CancellationSafe::new(async move { inner.apply(op).await })
+            .await
+            .map_err(Into::into)?;
 
-        // wait for the write to be durable before returning
+        // Wait for the write to be durable before returning to the user
         write_result
             .changed()
             .await

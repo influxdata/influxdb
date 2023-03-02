@@ -9,7 +9,7 @@ use super::DmlSink;
 ///
 /// This wrapper captures the latency distribution of the decorated
 /// [`DmlSink::apply()`] call, faceted by success/error result.
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub(crate) struct DmlSinkInstrumentation<T, P = SystemProvider> {
     inner: T,
     time_provider: P,
