@@ -286,7 +286,7 @@ fn even_time_split(
         .map(|time| {
             let time = Timestamp::new(*time);
             let ret = (last_time, time);
-            last_time = time;
+            last_time = time + 1;
             ret
         })
         .collect();

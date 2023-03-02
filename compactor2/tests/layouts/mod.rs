@@ -129,9 +129,8 @@ pub(crate) async fn run_layout_scenario(setup: &TestSetup) -> Vec<String> {
         &sort_files(output_files),
     ));
 
-    // TODO this fails (as the compactor produces output files with overlapping ranges)
-    // verify that the output of the compactor was valid
-    //setup.verify_invariants().await;
+    // verify that the output of the compactor was valid as well
+    setup.verify_invariants().await;
 
     output
 }
