@@ -83,7 +83,6 @@ async fn parquet_to_lp() {
                     // Looks like:
                     // {
                     //     "id": "1",
-                    //     "shardId": 1,
                     //     "namespaceId": 1,
                     //     "tableId": 1,
                     //     "partitionId": "1",

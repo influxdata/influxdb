@@ -31,7 +31,7 @@ const METRIC_EVAL_INTERVAL: Duration = Duration::from_secs(3);
 ///
 /// # Request Distribution
 ///
-/// Requests are distributed uniformly across all shards **per thread**. Given
+/// Requests are distributed uniformly across all endpoints **per thread**. Given
 /// enough requests (where `N` is significantly larger than the number of
 /// threads) an approximately uniform distribution is achieved.
 #[derive(Debug)]

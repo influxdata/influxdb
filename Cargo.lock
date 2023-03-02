@@ -2597,7 +2597,6 @@ dependencies = [
  "schema",
  "serde",
  "serde_json",
- "sharder",
  "snafu",
  "tempfile",
  "test_helpers",
@@ -2975,7 +2974,6 @@ dependencies = [
  "parquet_file",
  "predicate",
  "schema",
- "sharder",
  "uuid",
  "workspace-hack",
 ]
