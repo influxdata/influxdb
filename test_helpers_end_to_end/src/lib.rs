@@ -13,7 +13,7 @@ mod grpc;
 mod mini_cluster;
 mod server_fixture;
 mod server_type;
-mod snapshot_comparison;
+pub mod snapshot_comparison;
 mod steps;
 mod udp_listener;
 

@@ -19,7 +19,7 @@ schema = { path = "../schema" }
 serde = { version = "1.0", features = ["derive"] }
 serde_json = "1.0.93"
 thiserror = "1.0.38"
-tokio = { version = "1.25" }
+tokio = { version = "1.26" }
 tonic = { version = "0.8" }
 trogging = { path = "../trogging", features = ["clap"] }
 workspace-hack = { version = "0.1", path = "../workspace-hack" }

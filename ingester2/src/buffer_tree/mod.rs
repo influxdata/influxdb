@@ -1,3 +1,6 @@
+//! A mutable, hierarchical buffer structure of namespace -> table ->
+//! partition -> write payloads.
+
 pub(crate) mod namespace;
 pub(crate) mod partition;
 pub(crate) mod table;

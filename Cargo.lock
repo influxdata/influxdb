@@ -340,8 +340,11 @@ dependencies = [
  "datafusion",
  "hashbrown 0.13.2",
  "num-traits",
+ "once_cell",
  "rand",
+ "regex",
  "snafu",
+ "uuid",
  "workspace-hack",
 ]
 
@@ -1447,7 +1450,7 @@ dependencies = [
  "pin-project-lite",
  "rand",
  "smallvec",
- "sqlparser",
+ "sqlparser 0.30.0",
  "tempfile",
  "tokio",
  "tokio-stream",
@@ -1468,7 +1471,7 @@ dependencies = [
  "num_cpus",
  "object_store",
  "parquet",
- "sqlparser",
+ "sqlparser 0.30.0",
 ]
 
 [[package]]
@@ -1480,7 +1483,7 @@ dependencies = [
  "arrow",
  "datafusion-common",
  "log",
- "sqlparser",
+ "sqlparser 0.30.0",
 ]
 
 [[package]]
@@ -1567,7 +1570,7 @@ dependencies = [
  "datafusion-common",
  "datafusion-expr",
  "log",
- "sqlparser",
+ "sqlparser 0.30.0",
 ]
 
 [[package]]
@@ -2644,7 +2647,7 @@ version = "0.1.0"
 dependencies = [
  "generated_types",
  "snafu",
- "sqlparser",
+ "sqlparser 0.31.0",
  "workspace-hack",
 ]
 
@@ -4290,7 +4293,7 @@ dependencies = [
  "query_functions",
  "schema",
  "snafu",
- "sqlparser",
+ "sqlparser 0.31.0",
  "test_helpers",
  "workspace-hack",
 ]
@@ -4513,7 +4516,6 @@ dependencies = [
  "predicate",
  "prost",
  "rand",
- "regex",
  "schema",
  "service_common",
  "service_grpc_catalog",
@@ -5357,6 +5359,15 @@ dependencies = [
 ]
 
 [[package]]
+name = "sqlparser"
+version = "0.31.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "f064eb7b163863163c29801910f763c6bfb563b8a8ca4c54193da4c1eea57547"
+dependencies = [
+ "log",
+]
+
+[[package]]
 name = "sqlparser_derive"
 version = "0.1.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -5656,7 +5667,6 @@ dependencies = [
  "parking_lot 0.12.1",
  "prost",
  "rand",
- "regex",
  "reqwest",
  "snafu",
  "sqlx",
@@ -5665,7 +5675,6 @@ dependencies = [
  "tokio",
  "tokio-util",
  "tonic",
- "uuid",
  "workspace-hack",
 ]
 
@@ -5795,9 +5804,9 @@ checksum = "1f3ccbac311fea05f86f61904b462b55fb3df8837a366dfc601a0161d0532f20"
 
 [[package]]
 name = "tokio"
-version = "1.25.0"
+version = "1.26.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "c8e00990ebabbe4c14c08aca901caed183ecd5c09562a12c824bb53d3c3fd3af"
+checksum = "03201d01c3c27a29c8a5cee5b55a93ddae1ccf6f08f65365c2c918f8c1b76f64"
 dependencies = [
  "autocfg",
  "bytes",
@@ -5811,7 +5820,7 @@ dependencies = [
  "socket2",
  "tokio-macros",
  "tracing",
- "windows-sys 0.42.0",
+ "windows-sys 0.45.0",
 ]
 
 [[package]]

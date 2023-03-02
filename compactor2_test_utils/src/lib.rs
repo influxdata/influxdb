@@ -38,7 +38,7 @@ use iox_tests::{
     ParquetFileBuilder, TestCatalog, TestNamespace, TestParquetFileBuilder, TestPartition,
     TestShard, TestTable,
 };
-use iox_time::TimeProvider;
+use iox_time::{Time, TimeProvider};
 use object_store::{path::Path, DynObjectStore};
 use parquet_file::storage::{ParquetStorage, StorageId};
 use schema::sort::SortKey;
@@ -264,6 +264,186 @@ impl TestSetupBuilder<false> {
             run_log: Arc::new(Mutex::new(vec![])),
         }
     }
+
+    /// Simulate a production scenario in which there are two L1 files that overlap with more than 1 L2 file
+    /// Secnario 1: one L1 file overlaps with three L3 files
+    /// |----------L2.1----------||----------L2.2----------||-----L2.3----|
+    /// |----------------------------------------L1.1---------------------------||--L1.2--|
+    pub async fn with_3_l2_2_l1_scenario_1(&self) -> TestSetupBuilder<true> {
+        let time = TestTimes::new(self.catalog.time_provider().as_ref());
+        let l2_files = self.create_three_l2_files(time).await;
+        let l1_files = self
+            .create_two_l1_and_one_overlaps_with_three_l2_files(time)
+            .await;
+
+        let files = l2_files.into_iter().chain(l1_files.into_iter()).collect();
+
+        TestSetupBuilder::<true> {
+            config: self.config.clone(),
+            catalog: Arc::clone(&self.catalog),
+            ns: Arc::clone(&self.ns),
+            shard: Arc::clone(&self.shard),
+            table: Arc::clone(&self.table),
+            partition: Arc::clone(&self.partition),
+            files,
+            run_log: Arc::new(Mutex::new(vec![])),
+        }
+    }
+
+    /// Simulate a production scenario in which there are two L1 files that overlap with more than 1 L2 file
+    /// Scenario 2: two L1 files each overlaps with at least 2 L2 files
+    /// |----------L2.1----------||----------L2.2----------||-----L2.3----|
+    /// |----------------------------------------L1.1----||------L1.2--------|
+    pub async fn with_3_l2_2_l1_scenario_2(&self) -> TestSetupBuilder<true> {
+        let time = TestTimes::new(self.catalog.time_provider().as_ref());
+
+        let l2_files = self.create_three_l2_files(time).await;
+        let l1_files = self
+            .create_two_l1_and_both_overlap_with_two_l2_files(time)
+            .await;
+
+        let files = l2_files.into_iter().chain(l1_files.into_iter()).collect();
+
+        TestSetupBuilder::<true> {
+            config: self.config.clone(),
+            catalog: Arc::clone(&self.catalog),
+            ns: Arc::clone(&self.ns),
+            shard: Arc::clone(&self.shard),
+            table: Arc::clone(&self.table),
+            partition: Arc::clone(&self.partition),
+            files,
+            run_log: Arc::new(Mutex::new(vec![])),
+        }
+    }
+
+    /// Create 3 L2 files
+    pub async fn create_three_l2_files(&self, time: TestTimes) -> Vec<ParquetFile> {
+        // L2.1 file
+        let lp = vec![
+            "table,tag1=WA field_int=1000i 8000", // will be eliminated due to duplicate
+            "table,tag1=VT field_int=88i 10000",  //  will be eliminated due to duplicate.
+            "table,tag1=OR field_int=99i 12000",
+        ]
+        .join("\n");
+        let builder = TestParquetFileBuilder::default()
+            .with_line_protocol(&lp)
+            .with_creation_time(Time::from_timestamp_nanos(time.time_1_minute_future))
+            .with_max_l0_created_at(Time::from_timestamp_nanos(time.time_1_minute_future))
+            .with_min_time(8000)
+            .with_max_time(12000)
+            .with_compaction_level(CompactionLevel::Final);
+        let l2_1 = self.partition.create_parquet_file(builder).await.into();
+
+        // L2.2 file
+        let lp = vec![
+            "table,tag1=UT field_int=70i 20000",
+            "table,tag2=PA,tag3=15 field_int=1601i 30000",
+        ]
+        .join("\n");
+        let builder = TestParquetFileBuilder::default()
+            .with_line_protocol(&lp)
+            .with_creation_time(Time::from_timestamp_nanos(time.time_2_minutes_future))
+            .with_max_l0_created_at(Time::from_timestamp_nanos(time.time_2_minutes_future))
+            .with_min_time(20000)
+            .with_max_time(30000)
+            .with_compaction_level(CompactionLevel::Final);
+        let l2_2 = self.partition.create_parquet_file(builder).await.into();
+
+        // L2.3 file
+        let lp = vec!["table,tag2=OH,tag3=21 field_int=21i 36000"].join("\n");
+        let builder = TestParquetFileBuilder::default()
+            .with_line_protocol(&lp)
+            .with_creation_time(Time::from_timestamp_nanos(time.time_3_minutes_future))
+            .with_max_l0_created_at(Time::from_timestamp_nanos(time.time_3_minutes_future))
+            .with_min_time(35000)
+            .with_max_time(36000)
+            .with_compaction_level(CompactionLevel::Final);
+        let l2_3 = self.partition.create_parquet_file(builder).await.into();
+
+        // return the files in random order
+        vec![l2_2, l2_3, l2_1]
+    }
+
+    /// Create 2 L1 files and only one overlaps with 3 L2 files
+    pub async fn create_two_l1_and_one_overlaps_with_three_l2_files(
+        &self,
+        time: TestTimes,
+    ) -> Vec<ParquetFile> {
+        // L1.1 file
+        let lp = vec![
+            "table,tag1=WA field_int=1500i 8000", // latest duplicate and kept
+            "table,tag1=VT field_int=10i 10000",  // latest duplicate and kept
+            "table,tag1=VT field_int=10i 6000",
+            "table,tag1=UT field_int=270i 25000",
+            "table,tag2=PA,tag3=15 field_int=1601i 28000",
+            "table,tag1=VT field_int=10i 68000",
+        ]
+        .join("\n");
+        let builder = TestParquetFileBuilder::default()
+            .with_line_protocol(&lp)
+            .with_creation_time(Time::from_timestamp_nanos(time.time_4_minutes_future))
+            .with_max_l0_created_at(Time::from_timestamp_nanos(time.time_4_minutes_future))
+            .with_min_time(0)
+            .with_max_time(68000)
+            .with_compaction_level(CompactionLevel::FileNonOverlapped);
+        let l1_1 = self.partition.create_parquet_file(builder).await.into();
+
+        // L1.2 file
+        let lp = vec!["table,tag2=OH,tag3=21 field_int=210i 136000"].join("\n");
+        let builder = TestParquetFileBuilder::default()
+            .with_line_protocol(&lp)
+            .with_min_time(136000)
+            .with_max_time(136000)
+            .with_creation_time(Time::from_timestamp_nanos(time.time_5_minutes_future))
+            .with_max_l0_created_at(Time::from_timestamp_nanos(time.time_5_minutes_future))
+            .with_compaction_level(CompactionLevel::FileNonOverlapped);
+        let l1_2 = self.partition.create_parquet_file(builder).await.into();
+
+        // return l1 files in random order
+        vec![l1_2, l1_1]
+    }
+
+    /// Create 2 L1 files and both overlap with at least one L2 file
+    pub async fn create_two_l1_and_both_overlap_with_two_l2_files(
+        &self,
+        time: TestTimes,
+    ) -> Vec<ParquetFile> {
+        // L1.1 file
+        let lp = vec![
+            "table,tag1=WA field_int=1500i 8000", // latest duplicate and kept
+            "table,tag1=VT field_int=10i 10000",  // latest duplicate and kept
+            "table,tag1=VT field_int=10i 6000",
+            "table,tag1=UT field_int=270i 25000",
+        ]
+        .join("\n");
+        let builder = TestParquetFileBuilder::default()
+            .with_line_protocol(&lp)
+            .with_creation_time(Time::from_timestamp_nanos(time.time_5_minutes_future))
+            .with_max_l0_created_at(Time::from_timestamp_nanos(time.time_4_minutes_future))
+            .with_min_time(8000)
+            .with_max_time(25000)
+            .with_compaction_level(CompactionLevel::FileNonOverlapped);
+        let l1_1 = self.partition.create_parquet_file(builder).await.into();
+
+        // L1.2 file
+        let lp = vec![
+            "table,tag2=PA,tag3=15 field_int=1601i 28000",
+            "table,tag1=VT field_int=10i 68000",
+            "table,tag2=OH,tag3=21 field_int=210i 136000",
+        ]
+        .join("\n");
+        let builder = TestParquetFileBuilder::default()
+            .with_line_protocol(&lp)
+            .with_min_time(28000)
+            .with_max_time(136000)
+            .with_creation_time(Time::from_timestamp_nanos(time.time_5_minutes_future))
+            .with_max_l0_created_at(Time::from_timestamp_nanos(time.time_5_minutes_future))
+            .with_compaction_level(CompactionLevel::FileNonOverlapped);
+        let l1_2 = self.partition.create_parquet_file(builder).await.into();
+
+        // return l1 files in random order
+        vec![l1_2, l1_1]
+    }
 }
 
 impl TestSetupBuilder<true> {
@@ -387,7 +567,7 @@ impl TestSetup {
         TestSetupBuilder::new().await
     }
 
-    /// Get the catalog files stored in the catalog
+    /// Get the parquet files stored in the catalog
     pub async fn list_by_table_not_to_delete(&self) -> Vec<ParquetFile> {
         self.catalog
             .list_by_table_not_to_delete(self.table.table.id)
@@ -455,6 +635,39 @@ impl TestSetup {
             run_log: self.run_log.lock().unwrap().clone(),
         }
     }
+
+    /// Checks the catalog contents of this test setup.
+    ///
+    /// Currently checks:
+    /// 1. There are no overlapping files (the compactor should never create overlapping L1 or L2 files)
+    pub async fn verify_invariants(&self) {
+        let files: Vec<_> = self
+            .list_by_table_not_to_delete()
+            .await
+            .into_iter()
+            // ignore files that are deleted
+            .filter(|f| f.to_delete.is_none())
+            .collect();
+
+        for f1 in &files {
+            for f2 in &files {
+                assert_no_overlap(f1, f2);
+            }
+        }
+    }
+}
+
+/// Returns true of f1 and f2 are different, overlapping files in the
+/// L1 or L2 levels (the compactor should never create such files
+fn assert_no_overlap(f1: &ParquetFile, f2: &ParquetFile) {
+    if f1.id != f2.id
+        && (f1.compaction_level == CompactionLevel::FileNonOverlapped
+            || f1.compaction_level == CompactionLevel::Final)
+        && f1.compaction_level == f2.compaction_level
+        && f1.overlaps(f2)
+    {
+        panic!("Found overlapping files at L1/L2 target level!\n{f1:#?}\n{f2:#?}");
+    }
 }
 
 /// Information about the compaction that was run
@@ -472,6 +685,8 @@ pub struct TestTimes {
     pub time_2_minutes_future: i64,
     /// 3 minutes in the future
     pub time_3_minutes_future: i64,
+    /// 4 minutes in the future
+    pub time_4_minutes_future: i64,
     /// 5 minutes in the future
     pub time_5_minutes_future: i64,
 }
@@ -481,11 +696,13 @@ impl TestTimes {
         let time_1_minute_future = time_provider.minutes_into_future(1).timestamp_nanos();
         let time_2_minutes_future = time_provider.minutes_into_future(2).timestamp_nanos();
         let time_3_minutes_future = time_provider.minutes_into_future(3).timestamp_nanos();
+        let time_4_minutes_future = time_provider.minutes_into_future(4).timestamp_nanos();
         let time_5_minutes_future = time_provider.minutes_into_future(5).timestamp_nanos();
         Self {
             time_1_minute_future,
             time_2_minutes_future,
             time_3_minutes_future,
+            time_4_minutes_future,
             time_5_minutes_future,
         }
     }
@@ -1011,4 +1228,146 @@ pub fn create_overlapped_files_3_mix_size(size: i64) -> Vec<ParquetFile> {
 
     // Put the files in random order
     vec![l0_3, l0_2, l0_1, l0_4, l0_5, l0_6, l1_1, l1_2]
+}
+
+#[cfg(test)]
+mod test {
+    use super::*;
+
+    #[tokio::test]
+    async fn good_setup_overlapping_l0() {
+        let builder = TestSetup::builder().await;
+
+        // two overlapping L0 Files
+        builder
+            .partition
+            .create_parquet_file(
+                parquet_builder()
+                    .with_compaction_level(CompactionLevel::Initial)
+                    .with_min_time(100)
+                    .with_max_time(200),
+            )
+            .await;
+
+        builder
+            .partition
+            .create_parquet_file(
+                parquet_builder()
+                    .with_compaction_level(CompactionLevel::Initial)
+                    .with_min_time(50)
+                    .with_max_time(200),
+            )
+            .await;
+
+        // expect no panic
+        builder.build().await.verify_invariants().await;
+    }
+
+    #[tokio::test]
+    #[should_panic(expected = "Found overlapping files at L1/L2 target level")]
+    async fn bad_setup_overlapping_l1() {
+        let builder = TestSetup::builder().await;
+
+        // two overlapping L1 Files
+
+        builder
+            .partition
+            .create_parquet_file(
+                parquet_builder()
+                    .with_compaction_level(CompactionLevel::FileNonOverlapped)
+                    .with_min_time(50)
+                    .with_max_time(200),
+            )
+            .await;
+
+        builder
+            .partition
+            .create_parquet_file(
+                parquet_builder()
+                    .with_compaction_level(CompactionLevel::FileNonOverlapped)
+                    .with_min_time(100)
+                    .with_max_time(200),
+            )
+            .await;
+
+        builder.build().await.verify_invariants().await;
+    }
+
+    #[tokio::test]
+    #[should_panic(expected = "Found overlapping files at L1/L2 target level")]
+    async fn bad_setup_overlapping_l1_leading_edge() {
+        let builder = TestSetup::builder().await;
+
+        // non overlapping l1 with
+        // two overlapping L1 files but right on edge (max time == min time)
+
+        builder
+            .partition
+            .create_parquet_file(
+                parquet_builder()
+                    .with_compaction_level(CompactionLevel::FileNonOverlapped)
+                    .with_min_time(100)
+                    .with_max_time(200),
+            )
+            .await;
+
+        builder
+            .partition
+            .create_parquet_file(
+                parquet_builder()
+                    .with_compaction_level(CompactionLevel::FileNonOverlapped)
+                    .with_min_time(50)
+                    .with_max_time(75),
+            )
+            .await;
+
+        builder
+            .partition
+            .create_parquet_file(
+                parquet_builder()
+                    .with_compaction_level(CompactionLevel::FileNonOverlapped)
+                    .with_min_time(200)
+                    .with_max_time(300),
+            )
+            .await;
+
+        builder.build().await.verify_invariants().await;
+    }
+
+    #[tokio::test]
+    #[should_panic(expected = "Found overlapping files at L1/L2 target level")]
+    async fn bad_setup_overlapping_l2() {
+        let builder = TestSetup::builder().await;
+
+        // two overlapping L1 Files
+        builder
+            .partition
+            .create_parquet_file(
+                parquet_builder()
+                    .with_compaction_level(CompactionLevel::Final)
+                    .with_min_time(100)
+                    .with_max_time(200),
+            )
+            .await;
+
+        builder
+            .partition
+            .create_parquet_file(
+                parquet_builder()
+                    .with_compaction_level(CompactionLevel::Final)
+                    .with_min_time(50)
+                    .with_max_time(200),
+            )
+            .await;
+
+        builder.build().await.verify_invariants().await;
+    }
+
+    /// creates a TestParquetFileBuilder setup for layout tests
+    pub fn parquet_builder() -> TestParquetFileBuilder {
+        TestParquetFileBuilder::default()
+            // need some LP to generate the schema
+            .with_line_protocol("table,tag1=A,tag2=B,tag3=C field_int=1i 100")
+            .with_file_size_bytes(300)
+    }
 }

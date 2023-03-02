@@ -22,7 +22,7 @@ generated_types = { path = "../generated_types", default-features = false, featu
 prost = "0.11"
 rand = "0.8.3"
 reqwest = { version = "0.11", default-features = false, features = ["stream", "rustls-tls"] }
-tokio = { version = "1.25", features = ["macros", "parking_lot", "rt-multi-thread"] }
+tokio = { version = "1.26", features = ["macros", "parking_lot", "rt-multi-thread"] }
 tokio-stream = "0.1.12"
 thiserror = "1.0.38"
 tonic = { version = "0.8" }
