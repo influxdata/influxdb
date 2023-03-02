@@ -805,7 +805,6 @@ func (h *Handler) async(q *influxql.Query, results <-chan *query.Result) {
 // in the database URL query value.  It is encoded using a forward slash like
 // "database/retentionpolicy" and we should be able to simply split that string
 // on the forward slash.
-//
 func bucket2dbrp(bucket string) (string, string, error) {
 	// test for a slash in our bucket name.
 	switch idx := strings.IndexByte(bucket, '/'); idx {
