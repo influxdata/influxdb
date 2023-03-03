@@ -33,10 +33,9 @@ func RewriteExprRemoveFieldKeyAndValue(expr influxql.Expr) influxql.Expr {
 //
 // This condition is determined when the following is true:
 //
-//		* there is only one occurrence of the tag key `_measurement`.
-//		* there are no OR operators in the expression tree.
-//		* the operator for the `_measurement` binary expression is ==.
-//
+//   - there is only one occurrence of the tag key `_measurement`.
+//   - there are no OR operators in the expression tree.
+//   - the operator for the `_measurement` binary expression is ==.
 func HasSingleMeasurementNoOR(expr influxql.Expr) (string, bool) {
 	var lastMeasurement string
 	foundOnce := true

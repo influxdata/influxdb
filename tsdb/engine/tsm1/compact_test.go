@@ -15,7 +15,7 @@ import (
 	"go.uber.org/zap"
 )
 
-//  Tests compacting a Cache snapshot into a single TSM file
+// Tests compacting a Cache snapshot into a single TSM file
 func TestCompactor_Snapshot(t *testing.T) {
 	dir := MustTempDir()
 	defer os.RemoveAll(dir)
