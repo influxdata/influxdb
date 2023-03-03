@@ -25,26 +25,24 @@ where
     P: PersistQueue + Clone,
 {
     let notifications = stream::iter(iter)
-        .filter_map(|p| {
-            async move {
-                let t = Instant::now();
+        .filter_map(|p| async move {
+            let t = Instant::now();
 
-                // Skip this partition if there is no data to persist
-                let data = p.lock().mark_persisting()?;
+            // Skip this partition if there is no data to persist
+            let data = p.lock().mark_persisting()?;
 
-                debug!(
-                    partition_id=data.partition_id().get(),
-                    lock_wait=?Instant::now().duration_since(t),
-                    "read data for persistence"
-                );
+            debug!(
+                partition_id=data.partition_id().get(),
+                lock_wait=?Instant::now().duration_since(t),
+                "read data for persistence"
+            );
 
-                // Enqueue the partition for persistence.
-                //
-                // The persist task will call mark_persisted() on the partition
-                // once complete.
-                // Some(future::ready(persist.queue_persist(p, data).await))
-                Some(future::ready((p, data)))
-            }
+            // Enqueue the partition for persistence.
+            //
+            // The persist task will call mark_persisted() on the partition
+            // once complete.
+            // Some(future::ready(persist.queue_persist(p, data).await))
+            Some(future::ready((p, data)))
         })
         // Concurrently attempt to obtain partition locks and mark them as
         // persisting. This will hide the latency of individual lock
