@@ -97,6 +97,11 @@ impl FromIterator<SequenceNumber> for SequenceNumberSet {
     }
 }
 
+/// Return the intersection of `self` and `other`.
+pub fn intersect(a: &SequenceNumberSet, b: &SequenceNumberSet) -> SequenceNumberSet {
+    SequenceNumberSet(a.0.and(&b.0))
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -186,5 +191,26 @@ mod tests {
 
         a.add(SequenceNumber::new(24));
         assert_eq!(a, b);
+    }
+
+    #[test]
+    fn test_intersect() {
+        let a = [0, i64::MAX, 40, 41, 42, 43, 44, 45]
+            .into_iter()
+            .map(SequenceNumber::new)
+            .collect::<SequenceNumberSet>();
+
+        let b = [1, 5, i64::MAX, 42]
+            .into_iter()
+            .map(SequenceNumber::new)
+            .collect::<SequenceNumberSet>();
+
+        let intersection = intersect(&a, &b);
+        let want = [i64::MAX, 42]
+            .into_iter()
+            .map(SequenceNumber::new)
+            .collect::<SequenceNumberSet>();
+
+        assert_eq!(intersection, want);
     }
 }
