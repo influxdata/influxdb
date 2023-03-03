@@ -3,7 +3,7 @@
 use crate::SequenceNumber;
 
 /// A space-efficient encoded set of [`SequenceNumber`].
-#[derive(Debug, Default, Clone)]
+#[derive(Debug, Default, Clone, PartialEq)]
 pub struct SequenceNumberSet(croaring::Bitmap);
 
 impl SequenceNumberSet {
@@ -154,5 +154,25 @@ mod tests {
         assert!(!a.contains(SequenceNumber::new(42)));
         assert!(a.contains(SequenceNumber::new(4)));
         assert!(a.contains(SequenceNumber::new(2)));
+    }
+
+    #[test]
+    fn test_partial_eq() {
+        let mut a = SequenceNumberSet::default();
+        let mut b = SequenceNumberSet::default();
+
+        assert_eq!(a, b);
+
+        a.add(SequenceNumber::new(42));
+        assert_ne!(a, b);
+
+        b.add(SequenceNumber::new(42));
+        assert_eq!(a, b);
+
+        b.add(SequenceNumber::new(24));
+        assert_ne!(a, b);
+
+        a.add(SequenceNumber::new(24));
+        assert_eq!(a, b);
     }
 }
