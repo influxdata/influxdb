@@ -35,7 +35,7 @@ pub struct CompletedPersist {
 
 impl CompletedPersist {
     /// Construct a new completion notification.
-    pub(super) fn new(
+    pub(crate) fn new(
         namespace_id: NamespaceId,
         table_id: TableId,
         partition_id: PartitionId,
