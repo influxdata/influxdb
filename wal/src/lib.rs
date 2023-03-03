@@ -143,7 +143,7 @@ pub type SegmentIdBytes = [u8; 8];
 
 #[allow(missing_docs)]
 impl SegmentId {
-    pub fn new(v: u64) -> Self {
+    pub const fn new(v: u64) -> Self {
         Self(v)
     }
 
