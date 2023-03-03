@@ -4,6 +4,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"io/fs"
 	"math"
 	"os"
 	"path/filepath"
@@ -358,6 +359,29 @@ func (qm *durableQueueManager) StartReplicationQueues(trackedReplications map[pl
 
 		// Open and map the queue struct to its replication ID
 		if err := queue.Open(); err != nil {
+			// This could have errored after a backup/restore (we do not persist the replicationq).
+			// Check if the dir exists, create if it doesn't, then open and carry on
+			if pErr, ok := err.(*fs.PathError); ok {
+				path := pErr.Path
+				if _, err := os.Stat(path); err != nil && os.IsNotExist(err) {
+					if err := os.MkdirAll(path, 0777); err != nil {
+						qm.logger.Error("error attempting to recreate missing replication queue", zap.Error(err), zap.String("id", id.String()))
+						errOccurred = true
+						continue
+					}
+
+					if err := queue.Open(); err != nil {
+						qm.logger.Error("error attempting to open replication queue", zap.Error(err), zap.String("id", id.String()))
+						errOccurred = true
+						continue
+					}
+
+					qm.replicationQueues[id] = qm.newReplicationQueue(id, repl.OrgID, repl.LocalBucketID, queue, repl.MaxAgeSeconds)
+					qm.replicationQueues[id].Open()
+					qm.logger.Info("Opened replication stream", zap.String("id", id.String()), zap.String("path", queue.Dir()))
+					continue
+				}
+			}
 			qm.logger.Error("failed to open replication stream durable queue", zap.Error(err), zap.String("id", id.String()))
 			errOccurred = true
 			continue

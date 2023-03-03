@@ -695,3 +695,41 @@ func TestGetReplications(t *testing.T) {
 	repls = qm.GetReplications(orgID2, localBucketID2)
 	require.ElementsMatch(t, expectedRepls, repls)
 }
+
+func TestReplicationStartMissingQueue(t *testing.T) {
+	t.Parallel()
+
+	queuePath, qm := initQueueManager(t)
+	defer os.RemoveAll(filepath.Dir(queuePath))
+
+	// Create new queue
+	err := qm.InitializeQueue(id1, maxQueueSizeBytes, orgID1, localBucketID1, 0)
+	require.NoError(t, err)
+	require.DirExists(t, filepath.Join(queuePath, id1.String()))
+
+	// Represents the replications tracked in sqlite, this one is tracked
+	trackedReplications := make(map[platform.ID]*influxdb.TrackedReplication)
+	trackedReplications[id1] = &influxdb.TrackedReplication{
+		MaxQueueSizeBytes: maxQueueSizeBytes,
+		MaxAgeSeconds:     0,
+		OrgID:             orgID1,
+		LocalBucketID:     localBucketID1,
+	}
+
+	// Simulate server shutdown by closing all queues and clearing replicationQueues map
+	shutdown(t, qm)
+
+	// Delete the queue to simulate restoring from a backup
+	os.RemoveAll(filepath.Join(queuePath))
+
+	// Call startup function
+	err = qm.StartReplicationQueues(trackedReplications)
+	require.NoError(t, err)
+
+	// Make sure queue is stored in map
+	require.NotNil(t, qm.replicationQueues[id1])
+
+	// Ensure queue is open by trying to remove, will error if open
+	err = qm.replicationQueues[id1].queue.Remove()
+	require.Errorf(t, err, "queue is open")
+}
