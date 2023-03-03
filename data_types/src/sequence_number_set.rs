@@ -3,7 +3,7 @@
 use crate::SequenceNumber;
 
 /// A space-efficient encoded set of [`SequenceNumber`].
-#[derive(Debug, Default, Clone)]
+#[derive(Debug, Default, Clone, PartialEq)]
 pub struct SequenceNumberSet(croaring::Bitmap);
 
 impl SequenceNumberSet {
@@ -29,6 +29,12 @@ impl SequenceNumberSet {
     /// Remove all the [`SequenceNumber`] in `other` from `self`.
     pub fn remove_set(&mut self, other: &Self) {
         self.0.andnot_inplace(&other.0)
+    }
+
+    /// Reduce the memory usage of this set (trading off immediate CPU time) by
+    /// efficiently re-encoding the set (using run-length encoding).
+    pub fn run_optimise(&mut self) {
+        self.0.run_optimize();
     }
 
     /// Serialise `self` into an array of bytes.
@@ -60,6 +66,12 @@ impl SequenceNumberSet {
     pub fn iter(&self) -> impl Iterator<Item = SequenceNumber> + '_ {
         self.0.iter().map(|v| SequenceNumber::new(v as _))
     }
+
+    /// Initialise a [`SequenceNumberSet`] that is pre-allocated to contain up
+    /// to `n` elements without reallocating.
+    pub fn with_capacity(n: u32) -> Self {
+        Self(croaring::Bitmap::create_with_capacity(n))
+    }
 }
 
 /// Deserialisation method.
@@ -83,6 +95,11 @@ impl FromIterator<SequenceNumber> for SequenceNumberSet {
     fn from_iter<T: IntoIterator<Item = SequenceNumber>>(iter: T) -> Self {
         Self(iter.into_iter().map(|v| v.get() as _).collect())
     }
+}
+
+/// Return the intersection of `self` and `other`.
+pub fn intersect(a: &SequenceNumberSet, b: &SequenceNumberSet) -> SequenceNumberSet {
+    SequenceNumberSet(a.0.and(&b.0))
 }
 
 #[cfg(test)]
@@ -154,5 +171,46 @@ mod tests {
         assert!(!a.contains(SequenceNumber::new(42)));
         assert!(a.contains(SequenceNumber::new(4)));
         assert!(a.contains(SequenceNumber::new(2)));
+    }
+
+    #[test]
+    fn test_partial_eq() {
+        let mut a = SequenceNumberSet::default();
+        let mut b = SequenceNumberSet::default();
+
+        assert_eq!(a, b);
+
+        a.add(SequenceNumber::new(42));
+        assert_ne!(a, b);
+
+        b.add(SequenceNumber::new(42));
+        assert_eq!(a, b);
+
+        b.add(SequenceNumber::new(24));
+        assert_ne!(a, b);
+
+        a.add(SequenceNumber::new(24));
+        assert_eq!(a, b);
+    }
+
+    #[test]
+    fn test_intersect() {
+        let a = [0, i64::MAX, 40, 41, 42, 43, 44, 45]
+            .into_iter()
+            .map(SequenceNumber::new)
+            .collect::<SequenceNumberSet>();
+
+        let b = [1, 5, i64::MAX, 42]
+            .into_iter()
+            .map(SequenceNumber::new)
+            .collect::<SequenceNumberSet>();
+
+        let intersection = intersect(&a, &b);
+        let want = [i64::MAX, 42]
+            .into_iter()
+            .map(SequenceNumber::new)
+            .collect::<SequenceNumberSet>();
+
+        assert_eq!(intersection, want);
     }
 }
