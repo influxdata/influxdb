@@ -412,7 +412,6 @@ func (s *Service) writeRetentionPolicyInfo(conn net.Conn, database, retentionPol
 // the json buffer and the conn.
 //
 // we return that buffer sans the newline at the beginning.
-//
 func (s *Service) readRequest(r io.Reader) (*Request, []byte, error) {
 	var req Request
 	d := json.NewDecoder(r)

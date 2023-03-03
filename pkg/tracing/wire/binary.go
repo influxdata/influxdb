@@ -1,6 +1,5 @@
 /*
 Package wire is used to serialize a trace.
-
 */
 package wire
 

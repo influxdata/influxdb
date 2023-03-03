@@ -22,7 +22,7 @@ func (el *ErrorList) Add(err error) {
 	el.errs = append(el.errs, err)
 }
 
-//Err returns whether or not an error list is an error.
+// Err returns whether or not an error list is an error.
 func (el *ErrorList) Err() error {
 	if len(el.errs) == 0 {
 		return nil

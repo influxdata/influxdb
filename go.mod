@@ -1,6 +1,6 @@
 module github.com/influxdata/influxdb
 
-go 1.18
+go 1.19
 
 require (
 	collectd.org v0.3.0
@@ -148,7 +148,6 @@ require (
 	github.com/uber/athenadriver v1.1.4 // indirect
 	github.com/uber/jaeger-lib v2.4.1+incompatible // indirect
 	github.com/vertica/vertica-sql-go v1.1.1 // indirect
-	github.com/willf/bitset v1.1.9 // indirect
 	go.opencensus.io v0.23.0 // indirect
 	go.uber.org/atomic v1.7.0 // indirect
 	golang.org/x/lint v0.0.0-20210508222113-6edffad5e616 // indirect
