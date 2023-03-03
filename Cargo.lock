@@ -3558,9 +3558,9 @@ dependencies = [
 
 [[package]]
 name = "mockito"
-version = "0.32.3"
+version = "0.32.4"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "09908a0c0e8c956c1360268b54c0f7eeefc7ef98020cfb81077fa71761a18d29"
+checksum = "7fa08cccbc31b07113e4322d79df4464e0ed888032fc67ec56136325cd3afecf"
 dependencies = [
  "assert-json-diff",
  "async-trait",
@@ -3806,9 +3806,9 @@ dependencies = [
 
 [[package]]
 name = "object_store"
-version = "0.5.4"
+version = "0.5.5"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "1f344e51ec9584d2f51199c0c29c6f73dddd04ade986497875bf8fa2f178caf0"
+checksum = "e1ea8f683b4f89a64181393742c041520a1a87e9775e6b4c0dd5a3281af05fc6"
 dependencies = [
  "async-trait",
  "base64 0.21.0",
