@@ -379,12 +379,11 @@ func (qm *durableQueueManager) StartReplicationQueues(trackedReplications map[pl
 					qm.replicationQueues[id] = qm.newReplicationQueue(id, repl.OrgID, repl.LocalBucketID, queue, repl.MaxAgeSeconds)
 					qm.replicationQueues[id].Open()
 					qm.logger.Info("Opened replication stream", zap.String("id", id.String()), zap.String("path", queue.Dir()))
-					continue
 				}
+			} else {
+				qm.logger.Error("failed to open replication stream durable queue", zap.Error(err), zap.String("id", id.String()))
+				errOccurred = true
 			}
-			qm.logger.Error("failed to open replication stream durable queue", zap.Error(err), zap.String("id", id.String()))
-			errOccurred = true
-			continue
 		} else {
 			qm.replicationQueues[id] = qm.newReplicationQueue(id, repl.OrgID, repl.LocalBucketID, queue, repl.MaxAgeSeconds)
 			qm.replicationQueues[id].Open()
