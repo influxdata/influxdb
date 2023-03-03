@@ -15,7 +15,7 @@ use arrow::{compute::SortOptions, datatypes::SchemaRef};
 use datafusion::{
     common::DFSchemaRef,
     error::{DataFusionError, Result},
-    execution::context::TaskContext,
+    execution::{context::TaskContext, memory_pool::MemoryConsumer},
     logical_expr::{LogicalPlan, UserDefinedLogicalNode},
     physical_expr::{create_physical_expr, execution_props::ExecutionProps, PhysicalSortExpr},
     physical_plan::{
@@ -412,22 +412,22 @@ impl ExecutionPlan for GapFillExec {
         partition: usize,
         context: Arc<TaskContext>,
     ) -> Result<SendableRecordBatchStream> {
-        if self.output_partitioning().partition_count() <= partition {
+        if partition != 0 {
             return Err(DataFusionError::Internal(format!(
-                "GapFillExec invalid partition {partition}"
+                "GapFillExec invalid partition {partition}, there can be only one partition"
             )));
         }
 
         let baseline_metrics = BaselineMetrics::new(&self.metrics, partition);
         let output_batch_size = context.session_config().batch_size();
+        let reservation = MemoryConsumer::new(format!("GapFillExec[{partition}]"))
+            .register(context.memory_pool());
         let input_stream = self.input.execute(partition, context)?;
         Ok(Box::pin(GapFillStream::try_new(
-            self.schema(),
-            &self.sort_expr,
-            &self.aggr_expr,
-            &self.params,
+            self,
             output_batch_size,
             input_stream,
+            reservation,
             baseline_metrics,
         )?))
     }
@@ -480,6 +480,7 @@ mod test {
     use datafusion::{
         datasource::empty::EmptyTable,
         error::Result,
+        execution::runtime_env::{RuntimeConfig, RuntimeEnv},
         logical_expr::{logical_plan, Extension},
         physical_plan::{collect, expressions::lit as phys_lit, memory::MemoryExec},
         prelude::{col, lit, lit_timestamp_nano, SessionConfig, SessionContext},
@@ -696,7 +697,10 @@ mod test {
                     output_batch_size,
                     params,
                 };
-                let batches = tc.run().await?;
+                // For this simple test case, also test that
+                // memory is tracked correctly, which is done by
+                // TestCase when running with a memory limit.
+                let batches = tc.run_with_memory_limit(16384).await?;
                 let expected = [
                     "+----+--------------------------+----+",
                     "| g0 | time                     | a0 |",
@@ -1230,6 +1234,28 @@ mod test {
         }
     }
 
+    #[tokio::test]
+    async fn test_gapfill_oom() {
+        // Show that a graceful error is produced if memory limit is exceeded
+        test_helpers::maybe_start_logging();
+        let input_batch_size = 128;
+        let output_batch_size = 128;
+        let batch = TestRecords {
+            group_cols: vec![vec![Some("a"), Some("a")]],
+            time_col: vec![Some(1_000), Some(1_100)],
+            agg_cols: vec![vec![Some(10), Some(11)]],
+            input_batch_size,
+        };
+        let params = get_params_ms(&batch, 25, Some(975), 1_125);
+        let tc = TestCase {
+            test_records: batch,
+            output_batch_size,
+            params,
+        };
+        let result = tc.run_with_memory_limit(1).await;
+        assert_error!(result, DataFusionError::ResourcesExhausted(_));
+    }
+
     fn assert_batch_count(actual_batches: &[RecordBatch], batch_size: usize) {
         let num_rows = actual_batches.iter().map(|b| b.num_rows()).sum::<usize>();
         let expected_batch_count = f64::ceil(num_rows as f64 / batch_size as f64) as usize;
@@ -1341,6 +1367,32 @@ mod test {
 
     impl TestCase {
         async fn run(self) -> Result<Vec<RecordBatch>> {
+            let session_ctx = SessionContext::with_config(
+                SessionConfig::default().with_batch_size(self.output_batch_size),
+            )
+            .into();
+            Self::execute_with_config(&session_ctx, self.plan()?).await
+        }
+
+        async fn run_with_memory_limit(self, limit: usize) -> Result<Vec<RecordBatch>> {
+            let session_ctx = SessionContext::with_config_rt(
+                SessionConfig::default().with_batch_size(self.output_batch_size),
+                RuntimeEnv::new(RuntimeConfig::default().with_memory_limit(limit, 1.0))?.into(),
+            )
+            .into();
+            let result = Self::execute_with_config(&session_ctx, self.plan()?).await;
+
+            if result.is_ok() {
+                // Verify that the operator reports usage in a
+                // symmetrical way.
+                let pool = &session_ctx.runtime_env().memory_pool;
+                assert_eq!(0, pool.reserved());
+            }
+
+            result
+        }
+
+        fn plan(self) -> Result<Arc<GapFillExec>> {
             let schema = self.test_records.schema();
             let (group_expr, aggr_expr) = self.test_records.exprs()?;
 
@@ -1359,18 +1411,20 @@ mod test {
                 self.output_batch_size
             );
             let input = Arc::new(MemoryExec::try_new(&[batches], schema, None)?);
-
             let plan = Arc::new(GapFillExec::try_new(
                 input,
                 group_expr,
                 aggr_expr,
-                self.params,
+                self.params.clone(),
             )?);
+            Ok(plan)
+        }
 
-            let session_ctx = SessionContext::with_config(
-                SessionConfig::default().with_batch_size(self.output_batch_size),
-            );
-            let task_ctx = Arc::new(TaskContext::from(&session_ctx));
+        async fn execute_with_config(
+            session_ctx: &Arc<SessionContext>,
+            plan: Arc<GapFillExec>,
+        ) -> Result<Vec<RecordBatch>> {
+            let task_ctx = Arc::new(TaskContext::from(session_ctx.as_ref()));
             collect(plan, task_ctx).await
         }
     }
