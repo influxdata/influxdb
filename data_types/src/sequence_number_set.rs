@@ -31,6 +31,12 @@ impl SequenceNumberSet {
         self.0.andnot_inplace(&other.0)
     }
 
+    /// Reduce the memory usage of this set (trading off immediate CPU time) by
+    /// efficiently re-encoding the set (using run-length encoding).
+    pub fn run_optimise(&mut self) {
+        self.0.run_optimize();
+    }
+
     /// Serialise `self` into an array of bytes.
     ///
     /// [This document][spec] describes the serialised format.
