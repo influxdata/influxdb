@@ -66,6 +66,12 @@ impl SequenceNumberSet {
     pub fn iter(&self) -> impl Iterator<Item = SequenceNumber> + '_ {
         self.0.iter().map(|v| SequenceNumber::new(v as _))
     }
+
+    /// Initialise a [`SequenceNumberSet`] that is pre-allocated to contain up
+    /// to `n` elements without reallocating.
+    pub fn with_capacity(n: u32) -> Self {
+        Self(croaring::Bitmap::create_with_capacity(n))
+    }
 }
 
 /// Deserialisation method.
