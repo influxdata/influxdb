@@ -128,14 +128,14 @@ func (s *service) ListReplications(ctx context.Context, filter influxdb.Replicat
 		return nil, err
 	}
 	for i := range rs.Replications {
-		rs.Replications[i].CurrentQueueSizeBytes = sizes[rs.Replications[i].ID]
+		rs.Replications[i].TotalSizeOnDiskBytes = sizes[rs.Replications[i].ID]
 	}
 	rsizes, err := s.durableQueueManager.RemainingQueueSizes(ids)
 	if err != nil {
 		return nil, err
 	}
 	for i := range rs.Replications {
-		rs.Replications[i].RemainingQueueSizeBytes = rsizes[rs.Replications[i].ID]
+		rs.Replications[i].RemainingBytesToBeSynced = rsizes[rs.Replications[i].ID]
 	}
 
 	return rs, nil
@@ -203,12 +203,12 @@ func (s *service) GetReplication(ctx context.Context, id platform.ID) (*influxdb
 	if err != nil {
 		return nil, err
 	}
-	r.CurrentQueueSizeBytes = sizes[r.ID]
+	r.TotalSizeOnDiskBytes = sizes[r.ID]
 	rsizes, err := s.durableQueueManager.RemainingQueueSizes([]platform.ID{r.ID})
 	if err != nil {
 		return nil, err
 	}
-	r.RemainingQueueSizeBytes = rsizes[r.ID]
+	r.RemainingBytesToBeSynced = rsizes[r.ID]
 
 	return r, nil
 }
@@ -233,12 +233,12 @@ func (s *service) UpdateReplication(ctx context.Context, id platform.ID, request
 	if err != nil {
 		return nil, err
 	}
-	r.CurrentQueueSizeBytes = sizes[r.ID]
+	r.TotalSizeOnDiskBytes = sizes[r.ID]
 	rsizes, err := s.durableQueueManager.RemainingQueueSizes([]platform.ID{r.ID})
 	if err != nil {
 		return nil, err
 	}
-	r.RemainingQueueSizeBytes = rsizes[r.ID]
+	r.RemainingBytesToBeSynced = rsizes[r.ID]
 
 	return r, nil
 }

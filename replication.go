@@ -20,21 +20,21 @@ var ErrMaxQueueSizeTooSmall = errors.Error{
 
 // Replication contains all info about a replication that should be returned to users.
 type Replication struct {
-	ID                      platform.ID  `json:"id" db:"id"`
-	OrgID                   platform.ID  `json:"orgID" db:"org_id"`
-	Name                    string       `json:"name" db:"name"`
-	Description             *string      `json:"description,omitempty" db:"description"`
-	RemoteID                platform.ID  `json:"remoteID" db:"remote_id"`
-	LocalBucketID           platform.ID  `json:"localBucketID" db:"local_bucket_id"`
-	RemoteBucketID          *platform.ID `json:"remoteBucketID" db:"remote_bucket_id"`
-	RemoteBucketName        string       `json:"RemoteBucketName" db:"remote_bucket_name"`
-	MaxQueueSizeBytes       int64        `json:"maxQueueSizeBytes" db:"max_queue_size_bytes"`
-	CurrentQueueSizeBytes   int64        `json:"currentQueueSizeBytes" db:"current_queue_size_bytes"`
-	RemainingQueueSizeBytes int64        `json:"remainingQueueSizeBytes" db:"remaining_queue_size_bytes"`
-	LatestResponseCode      *int32       `json:"latestResponseCode,omitempty" db:"latest_response_code"`
-	LatestErrorMessage      *string      `json:"latestErrorMessage,omitempty" db:"latest_error_message"`
-	DropNonRetryableData    bool         `json:"dropNonRetryableData" db:"drop_non_retryable_data"`
-	MaxAgeSeconds           int64        `json:"maxAgeSeconds" db:"max_age_seconds"`
+	ID                       platform.ID  `json:"id" db:"id"`
+	OrgID                    platform.ID  `json:"orgID" db:"org_id"`
+	Name                     string       `json:"name" db:"name"`
+	Description              *string      `json:"description,omitempty" db:"description"`
+	RemoteID                 platform.ID  `json:"remoteID" db:"remote_id"`
+	LocalBucketID            platform.ID  `json:"localBucketID" db:"local_bucket_id"`
+	RemoteBucketID           *platform.ID `json:"remoteBucketID" db:"remote_bucket_id"`
+	RemoteBucketName         string       `json:"RemoteBucketName" db:"remote_bucket_name"`
+	MaxQueueSizeBytes        int64        `json:"maxQueueSizeBytes" db:"max_queue_size_bytes"`
+	TotalSizeOnDiskBytes     int64        `json:"totalSizeOnDiskBytes"`
+	RemainingBytesToBeSynced int64        `json:"remainingBytesToBeSynced"`
+	LatestResponseCode       *int32       `json:"latestResponseCode,omitempty" db:"latest_response_code"`
+	LatestErrorMessage       *string      `json:"latestErrorMessage,omitempty" db:"latest_error_message"`
+	DropNonRetryableData     bool         `json:"dropNonRetryableData" db:"drop_non_retryable_data"`
+	MaxAgeSeconds            int64        `json:"maxAgeSeconds" db:"max_age_seconds"`
 }
 
 // ReplicationListFilter is a selection filter for listing replications.
