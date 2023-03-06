@@ -41,7 +41,7 @@ rand = "0.8.5"
 schema = { version = "0.1.0", path = "../schema" }
 service_grpc_catalog = { version = "0.1.0", path = "../service_grpc_catalog" }
 sharder = { version = "0.1.0", path = "../sharder" }
-thiserror = "1.0.38"
+thiserror = "1.0.39"
 test_helpers = { path = "../test_helpers", features = ["future_timeout"], optional = true }
 tokio = { version = "1.26", features = ["macros", "parking_lot", "rt-multi-thread", "sync", "time"] }
 tonic = "0.8.3"
