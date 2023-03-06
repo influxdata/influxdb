@@ -6,7 +6,7 @@ edition.workspace = true
 license.workspace = true
 
 [dependencies]
-async-trait = "0.1.64"
+async-trait = "0.1.66"
 backoff = { path = "../backoff" }
 bytes = "1.4"
 datafusion = { workspace = true }
