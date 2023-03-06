@@ -7,6 +7,7 @@ use crate::{file_classification::FilesToCompactOrSplit, PartitionInfo};
 pub mod files_to_compact;
 pub mod files_to_split;
 pub mod logging;
+pub mod metrics;
 pub mod split_compact;
 
 pub trait SplitOrCompact: Debug + Display + Send + Sync {
