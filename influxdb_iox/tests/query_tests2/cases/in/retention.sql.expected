@@ -53,9 +53,9 @@
 |    |               UnionExec    |
 |    |                 CoalesceBatchesExec: target_batch_size=8192    |
 |    |                   FilterExec: <REDACTED>
-|    |                     ParquetExec: limit=None, partitions={1 group: [[1/1/1/1/00000000-0000-0000-0000-000000000000.parquet]]}, predicate=host != Dictionary(Int32, Utf8("b")), pruning_predicate=host_min@0 != b OR b != host_max@1, output_ordering=[host@0 ASC, time@2 ASC], projection=[host, load, time]    |
+|    |                     ParquetExec: limit=None, partitions={1 group: [[1/1/1/1/00000000-0000-0000-0000-000000000000.parquet]]}, predicate=host@0 != b, pruning_predicate=host_min@0 != b OR b != host_max@1, output_ordering=[host@0 ASC, time@2 ASC], projection=[host, load, time]    |
 |    |                 CoalesceBatchesExec: target_batch_size=8192    |
 |    |                   FilterExec: <REDACTED>
-|    |                     ParquetExec: limit=None, partitions={1 group: [[1/1/1/1/00000000-0000-0000-0000-000000000001.parquet]]}, predicate=host != Dictionary(Int32, Utf8("b")), pruning_predicate=host_min@0 != b OR b != host_max@1, output_ordering=[host@0 ASC, time@2 ASC], projection=[host, load, time]    |
+|    |                     ParquetExec: limit=None, partitions={1 group: [[1/1/1/1/00000000-0000-0000-0000-000000000001.parquet]]}, predicate=host@0 != b, pruning_predicate=host_min@0 != b OR b != host_max@1, output_ordering=[host@0 ASC, time@2 ASC], projection=[host, load, time]    |
 |    |    |
 ----------

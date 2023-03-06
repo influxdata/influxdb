@@ -40,7 +40,7 @@
 |    |     DeduplicateExec: [tag@2 ASC,time@3 ASC]    |
 |    |       SortPreservingMergeExec: [tag@2 ASC,time@3 ASC]    |
 |    |         UnionExec    |
-|    |           ParquetExec: limit=None, partitions={1 group: [[1/1/1/1/00000000-0000-0000-0000-000000000000.parquet]]}, predicate=tag = Dictionary(Int32, Utf8("A")), pruning_predicate=tag_min@0 <= A AND A <= tag_max@1, output_ordering=[tag@2 ASC, time@3 ASC], projection=[bar, foo, tag, time]    |
+|    |           ParquetExec: limit=None, partitions={1 group: [[1/1/1/1/00000000-0000-0000-0000-000000000000.parquet]]}, predicate=tag@2 = A, pruning_predicate=tag_min@0 <= A AND A <= tag_max@1, output_ordering=[tag@2 ASC, time@3 ASC], projection=[bar, foo, tag, time]    |
 |    |           SortExec: expr=[tag@2 ASC,time@3 ASC]    |
 |    |             RecordBatchesExec: batches_groups=1 batches=1 total_rows=2    |
 |    |    |
@@ -91,7 +91,7 @@
 |    |           DeduplicateExec: [tag@2 ASC,time@3 ASC]    |
 |    |             SortPreservingMergeExec: [tag@2 ASC,time@3 ASC]    |
 |    |               UnionExec    |
-|    |                 ParquetExec: limit=None, partitions={1 group: [[1/1/1/1/00000000-0000-0000-0000-000000000000.parquet]]}, predicate=time = TimestampNanosecond(0, None), pruning_predicate=time_min@0 <= 0 AND 0 <= time_max@1, output_ordering=[tag@2 ASC, time@3 ASC], projection=[bar, foo, tag, time]    |
+|    |                 ParquetExec: limit=None, partitions={1 group: [[1/1/1/1/00000000-0000-0000-0000-000000000000.parquet]]}, predicate=time@3 = 0, pruning_predicate=time_min@0 <= 0 AND 0 <= time_max@1, output_ordering=[tag@2 ASC, time@3 ASC], projection=[bar, foo, tag, time]    |
 |    |                 SortExec: expr=[tag@2 ASC,time@3 ASC]    |
 |    |                   RecordBatchesExec: batches_groups=1 batches=1 total_rows=2    |
 |    |    |
@@ -114,7 +114,7 @@
 |    |     DeduplicateExec: [tag@2 ASC,time@3 ASC]    |
 |    |       SortPreservingMergeExec: [tag@2 ASC,time@3 ASC]    |
 |    |         UnionExec    |
-|    |           ParquetExec: limit=None, partitions={1 group: [[1/1/1/1/00000000-0000-0000-0000-000000000000.parquet]]}, predicate=tag = Dictionary(Int32, Utf8("A")) AND time = TimestampNanosecond(0, None), pruning_predicate=tag_min@0 <= A AND A <= tag_max@1 AND time_min@2 <= 0 AND 0 <= time_max@3, output_ordering=[tag@2 ASC, time@3 ASC], projection=[bar, foo, tag, time]    |
+|    |           ParquetExec: limit=None, partitions={1 group: [[1/1/1/1/00000000-0000-0000-0000-000000000000.parquet]]}, predicate=tag@2 = A AND time@3 = 0, pruning_predicate=tag_min@0 <= A AND A <= tag_max@1 AND time_min@2 <= 0 AND 0 <= time_max@3, output_ordering=[tag@2 ASC, time@3 ASC], projection=[bar, foo, tag, time]    |
 |    |           SortExec: expr=[tag@2 ASC,time@3 ASC]    |
 |    |             RecordBatchesExec: batches_groups=1 batches=1 total_rows=2    |
 |    |    |

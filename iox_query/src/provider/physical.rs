@@ -6,6 +6,7 @@ use crate::{
 };
 use datafusion::{
     datasource::{listing::PartitionedFile, object_store::ObjectStoreUrl},
+    physical_expr::execution_props::ExecutionProps,
     physical_plan::{
         empty::EmptyExec,
         file_format::{FileScanConfig, ParquetExec},
@@ -13,7 +14,9 @@ use datafusion::{
         ExecutionPlan, Statistics,
     },
 };
+use datafusion_util::create_physical_expr_from_schema;
 use object_store::ObjectMeta;
+use observability_deps::tracing::warn;
 use predicate::Predicate;
 use schema::{sort::SortKey, Schema};
 use std::{
@@ -190,6 +193,18 @@ pub fn chunks_to_physical_nodes(
         let output_ordering =
             sort_key.map(|sort_key| arrow_sort_key_exprs(&sort_key, &file_schema));
 
+        let props = ExecutionProps::new();
+        let filter_expr = predicate.filter_expr()
+            .and_then(|filter_expr| {
+                match create_physical_expr_from_schema(&props, &filter_expr, &file_schema) {
+                    Ok(f) => Some(f),
+                    Err(e) => {
+                        warn!(%e, ?filter_expr, "Error creating physical filter expression, can not push down");
+                        None
+                    }
+                }
+            });
+
         let base_config = FileScanConfig {
             object_store_url,
             file_schema,
@@ -202,7 +217,8 @@ pub fn chunks_to_physical_nodes(
             infinite_source: false,
         };
         let meta_size_hint = None;
-        let parquet_exec = ParquetExec::new(base_config, predicate.filter_expr(), meta_size_hint);
+
+        let parquet_exec = ParquetExec::new(base_config, filter_expr, meta_size_hint);
         output_nodes.push(Arc::new(parquet_exec));
     }
 

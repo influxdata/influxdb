@@ -232,9 +232,15 @@ pub trait QueryChunk: QueryChunkMeta + Debug + Send + Sync + 'static {
     /// predicates.
     fn apply_predicate_to_metadata(
         &self,
+        ctx: &IOxSessionContext,
         predicate: &Predicate,
     ) -> Result<PredicateMatch, DataFusionError> {
-        Ok(predicate.apply_to_table_summary(&self.summary(), self.schema().as_arrow()))
+        let state = ctx.inner().state();
+        Ok(predicate.apply_to_table_summary(
+            state.execution_props(),
+            &self.summary(),
+            self.schema().as_arrow(),
+        ))
     }
 
     /// Returns a set of Strings with column names from the specified

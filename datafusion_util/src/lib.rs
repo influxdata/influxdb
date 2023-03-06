@@ -20,12 +20,14 @@ use std::task::{Context, Poll};
 use datafusion::arrow::array::BooleanArray;
 use datafusion::arrow::compute::filter_record_batch;
 use datafusion::arrow::datatypes::DataType;
-use datafusion::common::DataFusionError;
+use datafusion::common::{DataFusionError, ToDFSchema};
 use datafusion::datasource::MemTable;
 use datafusion::execution::context::TaskContext;
 use datafusion::execution::memory_pool::UnboundedMemoryPool;
 use datafusion::logical_expr::expr::Sort;
-use datafusion::physical_expr::PhysicalExpr;
+use datafusion::physical_expr::execution_props::ExecutionProps;
+use datafusion::physical_expr::{create_physical_expr, PhysicalExpr};
+use datafusion::physical_optimizer::pruning::PruningPredicate;
 use datafusion::physical_plan::common::SizedRecordBatchStream;
 use datafusion::physical_plan::metrics::{ExecutionPlanMetricsSet, MemTrackingMetrics};
 use datafusion::physical_plan::{collect, EmptyRecordBatchStream, ExecutionPlan};
@@ -365,6 +367,26 @@ pub fn nullable_schema(schema: SchemaRef) -> SchemaRef {
             schema.metadata().clone(),
         ))
     }
+}
+
+/// Returns a [`PhysicalExpr`] from the logical [`Expr`] and Arrow [`SchemaRef`]
+pub fn create_physical_expr_from_schema(
+    props: &ExecutionProps,
+    expr: &Expr,
+    schema: &SchemaRef,
+) -> Result<Arc<dyn PhysicalExpr>, DataFusionError> {
+    let df_schema = Arc::clone(schema).to_dfschema_ref()?;
+    create_physical_expr(expr, df_schema.as_ref(), schema.as_ref(), props)
+}
+
+/// Returns a [`PruningPredicate`] from the logical [`Expr`] and Arrow [`SchemaRef`]
+pub fn create_pruning_predicate(
+    props: &ExecutionProps,
+    expr: &Expr,
+    schema: &SchemaRef,
+) -> Result<PruningPredicate, DataFusionError> {
+    let expr = create_physical_expr_from_schema(props, expr, schema)?;
+    PruningPredicate::try_new(expr, Arc::clone(schema))
 }
 
 #[cfg(test)]

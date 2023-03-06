@@ -116,7 +116,7 @@ impl QueryNamespace for TestDatabase {
         table_name: &str,
         predicate: &Predicate,
         _projection: Option<&Vec<usize>>,
-        _ctx: IOxSessionContext,
+        ctx: IOxSessionContext,
     ) -> Result<Vec<Arc<dyn QueryChunk>>, DataFusionError> {
         // save last predicate
         *self.chunks_predicate.lock() = predicate.clone();
@@ -130,7 +130,11 @@ impl QueryNamespace for TestDatabase {
             // only keep chunks if their statistics overlap
             .filter(|c| {
                 !matches!(
-                    predicate.apply_to_table_summary(&c.table_summary, c.schema.as_arrow()),
+                    predicate.apply_to_table_summary(
+                        ctx.inner().state().execution_props(),
+                        &c.table_summary,
+                        c.schema.as_arrow()
+                    ),
                     PredicateMatch::Zero
                 )
             })
@@ -1172,6 +1176,7 @@ impl QueryChunk for TestChunk {
 
     fn apply_predicate_to_metadata(
         &self,
+        _ctx: &IOxSessionContext,
         predicate: &Predicate,
     ) -> Result<PredicateMatch, DataFusionError> {
         self.check_error()?;

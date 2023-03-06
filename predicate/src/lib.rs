@@ -30,10 +30,11 @@ use datafusion::{
         BinaryExpr,
     },
     optimizer::utils::split_conjunction,
-    physical_optimizer::pruning::{PruningPredicate, PruningStatistics},
+    physical_expr::execution_props::ExecutionProps,
+    physical_optimizer::pruning::PruningStatistics,
     prelude::{col, lit_timestamp_nano, Expr},
 };
-use datafusion_util::{make_range_expr, nullable_schema, AsExpr};
+use datafusion_util::{create_pruning_predicate, make_range_expr, nullable_schema, AsExpr};
 use observability_deps::tracing::debug;
 use rpc_predicate::VALUE_COLUMN_NAME;
 use schema::TIME_COLUMN_NAME;
@@ -250,6 +251,7 @@ impl Predicate {
     /// look at actual data.
     pub fn apply_to_table_summary(
         &self,
+        props: &ExecutionProps,
         table_summary: &TableSummary,
         schema: SchemaRef,
     ) -> PredicateMatch {
@@ -263,7 +265,7 @@ impl Predicate {
         let schema = nullable_schema(schema);
 
         if let Some(expr) = self.filter_expr() {
-            match PruningPredicate::try_new(expr.clone(), Arc::clone(&schema)) {
+            match create_pruning_predicate(props, &expr, &schema) {
                 Ok(pp) => {
                     match pp.prune(&summary) {
                         Ok(matched) => {
@@ -776,6 +778,7 @@ mod tests {
     #[test]
     fn test_apply_to_table_summary() {
         maybe_start_logging();
+        let props = ExecutionProps::new();
 
         let p = Predicate::new()
             .with_range(100, 200)
@@ -806,7 +809,7 @@ mod tests {
             }],
         };
         assert_eq!(
-            p.apply_to_table_summary(&summary, schema.as_arrow()),
+            p.apply_to_table_summary(&props, &summary, schema.as_arrow()),
             PredicateMatch::Zero,
         );
 
@@ -824,7 +827,7 @@ mod tests {
             }],
         };
         assert_eq!(
-            p.apply_to_table_summary(&summary, schema.as_arrow()),
+            p.apply_to_table_summary(&props, &summary, schema.as_arrow()),
             PredicateMatch::Unknown,
         );
 
@@ -842,7 +845,7 @@ mod tests {
             }],
         };
         assert_eq!(
-            p.apply_to_table_summary(&summary, schema.as_arrow()),
+            p.apply_to_table_summary(&props, &summary, schema.as_arrow()),
             PredicateMatch::Zero,
         );
 
@@ -860,7 +863,7 @@ mod tests {
             }],
         };
         assert_eq!(
-            p.apply_to_table_summary(&summary, schema.as_arrow()),
+            p.apply_to_table_summary(&props, &summary, schema.as_arrow()),
             PredicateMatch::Zero,
         );
 
@@ -878,7 +881,7 @@ mod tests {
             }],
         };
         assert_eq!(
-            p.apply_to_table_summary(&summary, schema.as_arrow()),
+            p.apply_to_table_summary(&props, &summary, schema.as_arrow()),
             PredicateMatch::Unknown,
         )
     }
@@ -887,6 +890,7 @@ mod tests {
     #[test]
     fn test_apply_to_table_summary_partially_unsupported() {
         maybe_start_logging();
+        let props = ExecutionProps::new();
 
         let p = Predicate::new()
             .with_range(100, 200)
@@ -926,7 +930,7 @@ mod tests {
             ],
         };
         assert_eq!(
-            p.apply_to_table_summary(&summary, schema.as_arrow()),
+            p.apply_to_table_summary(&props, &summary, schema.as_arrow()),
             PredicateMatch::Zero,
         );
     }

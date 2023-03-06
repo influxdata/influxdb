@@ -9,9 +9,10 @@ use arrow::{
 };
 use data_types::{StatValues, Statistics, TableSummary};
 use datafusion::{
-    physical_optimizer::pruning::{PruningPredicate, PruningStatistics},
+    physical_expr::execution_props::ExecutionProps, physical_optimizer::pruning::PruningStatistics,
     prelude::Column,
 };
+use datafusion_util::create_pruning_predicate;
 use observability_deps::tracing::{debug, trace, warn};
 use predicate::Predicate;
 use query_functions::group_by::Aggregate;
@@ -98,8 +99,10 @@ pub fn prune_summaries(
     };
     trace!(%filter_expr, "Filter_expr of pruning chunks");
 
+    // no information about the queries here
+    let props = ExecutionProps::new();
     let pruning_predicate =
-        match PruningPredicate::try_new(filter_expr.clone(), table_schema.as_arrow()) {
+        match create_pruning_predicate(&props, &filter_expr, &table_schema.as_arrow()) {
             Ok(p) => p,
             Err(e) => {
                 warn!(%e, ?filter_expr, "Can not create pruning predicate");
@@ -123,7 +126,7 @@ pub fn prune_summaries(
 }
 
 /// Wraps a collection of [`QueryChunk`] and implements the [`PruningStatistics`]
-/// interface required by [`PruningPredicate`]
+/// interface required for pruning
 struct ChunkPruningStatistics<'a> {
     table_schema: &'a Schema,
     summaries: &'a [Arc<TableSummary>],

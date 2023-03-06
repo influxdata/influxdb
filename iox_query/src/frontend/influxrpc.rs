@@ -241,6 +241,9 @@ impl InfluxRpcPlanner {
         // Special case predicates that span the entire valid timestamp range
         let rpc_predicate = rpc_predicate.clear_timestamp_if_max_range();
 
+        let metadata_ctx = ctx.child_ctx("apply_predicate_to_metadata");
+        let metadata_ctx = &metadata_ctx; // needed to use inside the move closure
+
         let table_predicates = rpc_predicate
             .table_predicates(namespace.as_meta())
             .context(CreatingPredicatesSnafu)?;
@@ -250,6 +253,7 @@ impl InfluxRpcPlanner {
                     // Identify which chunks can answer from its metadata and then record its table,
                     // and which chunks needs full plan and group them into their table
                     let mut chunks_full = vec![];
+
                     for chunk in cheap_chunk_first(chunks) {
                         trace!(chunk_id=%chunk.id(), %table_name, "Considering table");
 
@@ -260,7 +264,7 @@ impl InfluxRpcPlanner {
                         } else {
                             // Try and apply the predicate using only metadata
                             let pred_result = chunk
-                                .apply_predicate_to_metadata(predicate)
+                                .apply_predicate_to_metadata(metadata_ctx, predicate)
                                 .context(CheckingChunkPredicateSnafu {
                                     chunk_id: chunk.id(),
                                 })?;
@@ -384,7 +388,7 @@ impl InfluxRpcPlanner {
 
                 for chunk in cheap_chunk_first(chunks) {
                     // Try and apply the predicate using only metadata
-                    let pred_result = chunk.apply_predicate_to_metadata(predicate).context(
+                    let pred_result = chunk.apply_predicate_to_metadata(&ctx, predicate).context(
                         CheckingChunkPredicateSnafu {
                             chunk_id: chunk.id(),
                         },
@@ -524,6 +528,9 @@ impl InfluxRpcPlanner {
             table_predicates_filtered.push((table_name, predicate));
         }
 
+        let metadata_ctx = ctx.child_ctx("apply_predicate_to_metadata");
+        let metadata_ctx = &metadata_ctx; // needed to use inside the move closure
+
         let tables: Vec<_> = table_chunk_stream(
             Arc::clone(&namespace),
             false,
@@ -536,11 +543,11 @@ impl InfluxRpcPlanner {
 
             for chunk in cheap_chunk_first(chunks) {
                 // Try and apply the predicate using only metadata
-                let pred_result = chunk.apply_predicate_to_metadata(predicate).context(
-                    CheckingChunkPredicateSnafu {
+                let pred_result = chunk
+                    .apply_predicate_to_metadata(metadata_ctx, predicate)
+                    .context(CheckingChunkPredicateSnafu {
                         chunk_id: chunk.id(),
-                    },
-                )?;
+                    })?;
 
                 if matches!(pred_result, PredicateMatch::Zero) {
                     continue;
@@ -1567,9 +1574,12 @@ where
         + Sync,
     P: Send,
 {
+    let metadata_ctx = ctx.child_ctx("apply_predicate_to_metadata");
+    let metadata_ctx = &metadata_ctx; // needed to use inside the move closure
+
     table_chunk_stream(Arc::clone(&namespace), true, table_predicates, &ctx)
         .and_then(|(table_name, predicate, chunks)| async move {
-            let chunks = prune_chunks_metadata(chunks, predicate)?;
+            let chunks = prune_chunks_metadata(metadata_ctx, chunks, predicate)?;
             Ok((table_name, predicate, chunks))
         })
         // rustc seems to heavily confused about the filter step here, esp. it dislikes `.try_filter` and even
@@ -1603,18 +1613,18 @@ where
 ///
 /// TODO: Should this logic live with the rest of the chunk pruning logic?
 fn prune_chunks_metadata(
+    ctx: &IOxSessionContext,
     chunks: Vec<Arc<dyn QueryChunk>>,
     predicate: &Predicate,
 ) -> Result<Vec<Arc<dyn QueryChunk>>> {
     let mut filtered = Vec::with_capacity(chunks.len());
     for chunk in chunks {
         // Try and apply the predicate using only metadata
-        let pred_result =
-            chunk
-                .apply_predicate_to_metadata(predicate)
-                .context(CheckingChunkPredicateSnafu {
-                    chunk_id: chunk.id(),
-                })?;
+        let pred_result = chunk.apply_predicate_to_metadata(ctx, predicate).context(
+            CheckingChunkPredicateSnafu {
+                chunk_id: chunk.id(),
+            },
+        )?;
 
         trace!(?pred_result, chunk_id=?chunk.id(), "applied predicate to metadata");
 
