@@ -46,10 +46,12 @@ impl DivideInitial for MultipleBranchesDivideInitial {
                     .collect::<Vec<_>>();
                 let start_level_files = order_files(start_level_files, start_level);
 
+                let capacity = start_level_files.len();
+
                 // Split L0s into many small groups, each has max_num_files_to_group but not exceed max_total_file_size_to_group
                 // Collect files until either limit is reached
-                let mut branches = vec![];
-                let mut current_branch = vec![];
+                let mut branches = Vec::with_capacity(capacity);
+                let mut current_branch = Vec::with_capacity(capacity);
                 let mut current_branch_size = 0;
                 for f in start_level_files {
                     if current_branch.len() == *max_num_files_to_group
@@ -62,7 +64,7 @@ impl DivideInitial for MultipleBranchesDivideInitial {
                         }
 
                         branches.push(current_branch);
-                        current_branch = vec![];
+                        current_branch = Vec::with_capacity(capacity);
                         current_branch_size = 0;
                     }
                     current_branch_size += f.file_size_bytes as usize;

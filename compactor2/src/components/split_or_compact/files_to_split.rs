@@ -50,8 +50,8 @@ pub fn identify_files_to_split(
     target_level_files.sort_by_key(|f| f.min_time);
 
     // Get files in start level that overlap with any file in target level
-    let mut files_to_split = Vec::new();
-    let mut files_not_to_split = Vec::new();
+    let mut files_to_split = Vec::with_capacity(len);
+    let mut files_not_to_split = Vec::with_capacity(len);
     for file in start_level_files {
         // Get target_level files that overlaps with this file
         let overlapped_target_level_files: Vec<&ParquetFile> = target_level_files

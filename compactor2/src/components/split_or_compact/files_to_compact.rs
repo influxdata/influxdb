@@ -46,9 +46,9 @@ pub fn limit_files_to_compact(
     let mut start_level_files = start_level_files.into_iter();
 
     // Go over start-level files and find overlapped files in target level
-    let mut start_level_files_to_compact: Vec<ParquetFile> = Vec::new();
-    let mut target_level_files_to_compact = Vec::new();
-    let mut files_to_keep = Vec::new();
+    let mut start_level_files_to_compact = Vec::with_capacity(len);
+    let mut target_level_files_to_compact = Vec::with_capacity(len);
+    let mut files_to_keep = Vec::with_capacity(len);
     let mut total_size = 0;
 
     for file in start_level_files.by_ref() {
