@@ -1,5 +1,3 @@
-use std::collections::VecDeque;
-
 use data_types::{CompactionLevel, ParquetFile};
 use itertools::Itertools;
 use observability_deps::tracing::debug;
@@ -44,20 +42,17 @@ pub fn identify_files_to_split(
     // Get start-level and target-level files
     let len = files.len();
     let split = TargetLevelSplit::new();
-    let (start_level_files, mut target_level_files) = split.apply(files, start_level);
+    let (mut start_level_files, mut target_level_files) = split.apply(files, start_level);
 
-    // sort start_level files in their max_l0_created_at and convert it to VecDeque for pop_front
-    let mut start_level_files: VecDeque<ParquetFile> = start_level_files
-        .into_iter()
-        .sorted_by_key(|f| f.max_l0_created_at)
-        .collect();
+    // sort start_level files in their max_l0_created_at
+    start_level_files.sort_by_key(|f| f.max_l0_created_at);
     // sort target level files in their min_time
     target_level_files.sort_by_key(|f| f.min_time);
 
     // Get files in start level that overlap with any file in target level
     let mut files_to_split = Vec::new();
     let mut files_not_to_split = Vec::new();
-    while let Some(file) = start_level_files.pop_front() {
+    for file in start_level_files {
         // Get target_level files that overlaps with this file
         let overlapped_target_level_files: Vec<&ParquetFile> = target_level_files
             .iter()
@@ -93,8 +88,7 @@ pub fn identify_files_to_split(
     }
 
     // keep the rest of the files for next round
-    start_level_files.extend(target_level_files);
-    files_not_to_split.extend(start_level_files);
+    files_not_to_split.extend(target_level_files);
 
     assert_eq!(files_to_split.len() + files_not_to_split.len(), len);
 
