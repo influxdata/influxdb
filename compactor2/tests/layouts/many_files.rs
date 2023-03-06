@@ -174,10 +174,9 @@ async fn many_l1_files_different_created_order() {
         )
         .await;
 
-    // All L1 files are non-overlapped. Copacting them together must kep them non-overlapped.
+    // All L1 files are non-overlapped. Compacting them together must keep them non-overlapped.
     // If we cannot compact them together in one run, they must be split in the order of their min_time (or max_time)
-    // to ensure that the output files are non-overlapped.
-    // BUG: reproducer of https://github.com/influxdata/idpe/issues/17221
+    // to ensure that the output files are still non-overlapped.
     // L1.1 must be compacted with L1.3 instead of L1.2
     insta::assert_yaml_snapshot!(
         run_layout_scenario(&setup).await,
@@ -191,28 +190,28 @@ async fn many_l1_files_different_created_order() {
     - "L1.4[41,50]                                                                      |------L1.4------| "
     - "**** Simulation run 0, type=compact. 2 Input Files, 5.1kb total:"
     - "L1, all files 2.55kb                                                                                "
-    - "L1.1[11,20]         |---------L1.1---------|                                                        "
-    - "L1.2[31,40]                                                                |---------L1.2---------| "
+    - "L1.1[11,20]         |---------------L1.1----------------|                                           "
+    - "L1.3[21,30]                                                   |---------------L1.3----------------| "
     - "**** 1 Output Files (parquet_file_id not yet assigned), 5.1kb total:"
     - "L1, all files 5.1kb                                                                                 "
-    - "L1.?[11,40]         |-------------------------------------L1.?-------------------------------------|"
+    - "L1.?[11,30]         |-------------------------------------L1.?-------------------------------------|"
     - "Committing partition 1:"
-    - "  Soft Deleting 2 files: L1.1, L1.2"
+    - "  Soft Deleting 2 files: L1.1, L1.3"
     - "  Creating 1 files at level CompactionLevel::L1"
     - "**** Simulation run 1, type=compact. 2 Input Files, 5.1kb total:"
     - "L1, all files 2.55kb                                                                                "
-    - "L1.3[21,30]         |---------L1.3---------|                                                        "
-    - "L1.4[41,50]                                                                |---------L1.4---------| "
+    - "L1.2[31,40]         |---------------L1.2----------------|                                           "
+    - "L1.4[41,50]                                                   |---------------L1.4----------------| "
     - "**** 1 Output Files (parquet_file_id not yet assigned), 5.1kb total:"
     - "L1, all files 5.1kb                                                                                 "
-    - "L1.?[21,50]         |-------------------------------------L1.?-------------------------------------|"
+    - "L1.?[31,50]         |-------------------------------------L1.?-------------------------------------|"
     - "Committing partition 1:"
-    - "  Soft Deleting 2 files: L1.3, L1.4"
+    - "  Soft Deleting 2 files: L1.2, L1.4"
     - "  Creating 1 files at level CompactionLevel::L1"
     - "**** Simulation run 2, type=compact. 2 Input Files, 10.2kb total:"
     - "L1, all files 5.1kb                                                                                 "
-    - "L1.6[21,50]                             |--------------------------L1.6---------------------------| "
-    - "L1.5[11,40]         |--------------------------L1.5---------------------------|                     "
+    - "L1.6[31,50]                                                  |----------------L1.6----------------| "
+    - "L1.5[11,30]         |----------------L1.5----------------|                                          "
     - "**** 1 Output Files (parquet_file_id not yet assigned), 10.2kb total:"
     - "L2, all files 10.2kb                                                                                "
     - "L2.?[11,50]         |-------------------------------------L2.?-------------------------------------|"
@@ -222,6 +221,114 @@ async fn many_l1_files_different_created_order() {
     - "**** Final Output Files "
     - "L2, all files 10.2kb                                                                                "
     - "L2.7[11,50]         |-------------------------------------L2.7-------------------------------------|"
+    "###
+    );
+}
+
+#[tokio::test]
+async fn many_l0_files_different_created_order_non_overlap() {
+    test_helpers::maybe_start_logging();
+
+    let setup = layout_setup_builder()
+        .await
+        .with_min_num_l1_files_to_compact(2)
+        .with_max_num_files_per_plan(2)
+        .build()
+        .await;
+
+    // L0.1
+    setup
+        .partition
+        .create_parquet_file(
+            parquet_builder()
+                .with_min_time(11)
+                .with_max_time(20)
+                .with_compaction_level(CompactionLevel::Initial)
+                .with_max_l0_created_at(Time::from_timestamp_nanos(1)),
+        )
+        .await;
+
+    // L0.2
+    setup
+        .partition
+        .create_parquet_file(
+            parquet_builder()
+                .with_min_time(31)
+                .with_max_time(40)
+                .with_compaction_level(CompactionLevel::Initial)
+                .with_max_l0_created_at(Time::from_timestamp_nanos(2)),
+        )
+        .await;
+
+    // L0.3
+    setup
+        .partition
+        .create_parquet_file(
+            parquet_builder()
+                .with_min_time(21)
+                .with_max_time(30)
+                .with_compaction_level(CompactionLevel::Initial)
+                .with_max_l0_created_at(Time::from_timestamp_nanos(3)),
+        )
+        .await;
+
+    // L0.4
+    setup
+        .partition
+        .create_parquet_file(
+            parquet_builder()
+                .with_min_time(41)
+                .with_max_time(50)
+                .with_compaction_level(CompactionLevel::Initial)
+                .with_max_l0_created_at(Time::from_timestamp_nanos(4)),
+        )
+        .await;
+
+    // All L0 files do not overlap but their time ranges are in different order of their createion time
+    // They still need to be sorted on their creation time before being compacted
+    insta::assert_yaml_snapshot!(
+        run_layout_scenario(&setup).await,
+        @r###"
+    ---
+    - "**** Input Files "
+    - "L0, all files 2.55kb                                                                                "
+    - "L0.1[11,20]         |------L0.1------|                                                              "
+    - "L0.2[31,40]                                                  |------L0.2------|                     "
+    - "L0.3[21,30]                             |------L0.3------|                                          "
+    - "L0.4[41,50]                                                                      |------L0.4------| "
+    - "**** Simulation run 0, type=compact. 2 Input Files, 5.1kb total:"
+    - "L0, all files 2.55kb                                                                                "
+    - "L0.1[11,20]         |---------L0.1---------|                                                        "
+    - "L0.2[31,40]                                                                |---------L0.2---------| "
+    - "**** 1 Output Files (parquet_file_id not yet assigned), 5.1kb total:"
+    - "L0, all files 5.1kb                                                                                 "
+    - "L0.?[11,40]         |-------------------------------------L0.?-------------------------------------|"
+    - "Committing partition 1:"
+    - "  Soft Deleting 2 files: L0.1, L0.2"
+    - "  Creating 1 files at level CompactionLevel::L0"
+    - "**** Simulation run 1, type=compact. 2 Input Files, 5.1kb total:"
+    - "L0, all files 2.55kb                                                                                "
+    - "L0.3[21,30]         |---------L0.3---------|                                                        "
+    - "L0.4[41,50]                                                                |---------L0.4---------| "
+    - "**** 1 Output Files (parquet_file_id not yet assigned), 5.1kb total:"
+    - "L0, all files 5.1kb                                                                                 "
+    - "L0.?[21,50]         |-------------------------------------L0.?-------------------------------------|"
+    - "Committing partition 1:"
+    - "  Soft Deleting 2 files: L0.3, L0.4"
+    - "  Creating 1 files at level CompactionLevel::L0"
+    - "**** Simulation run 2, type=compact. 2 Input Files, 10.2kb total:"
+    - "L0, all files 5.1kb                                                                                 "
+    - "L0.6[21,50]                             |--------------------------L0.6---------------------------| "
+    - "L0.5[11,40]         |--------------------------L0.5---------------------------|                     "
+    - "**** 1 Output Files (parquet_file_id not yet assigned), 10.2kb total:"
+    - "L1, all files 10.2kb                                                                                "
+    - "L1.?[11,50]         |-------------------------------------L1.?-------------------------------------|"
+    - "Committing partition 1:"
+    - "  Soft Deleting 2 files: L0.5, L0.6"
+    - "  Creating 1 files at level CompactionLevel::L1"
+    - "**** Final Output Files "
+    - "L1, all files 10.2kb                                                                                "
+    - "L1.7[11,50]         |-------------------------------------L1.7-------------------------------------|"
     "###
     );
 }
