@@ -29,7 +29,7 @@ type Replication struct {
 	RemoteBucketID           *platform.ID `json:"remoteBucketID" db:"remote_bucket_id"`
 	RemoteBucketName         string       `json:"RemoteBucketName" db:"remote_bucket_name"`
 	MaxQueueSizeBytes        int64        `json:"maxQueueSizeBytes" db:"max_queue_size_bytes"`
-	TotalSizeOnDiskBytes     int64        `json:"totalSizeOnDiskBytes"`
+	CurrentQueueSizeBytes    int64        `json:"currentQueueSizeBytes"`
 	RemainingBytesToBeSynced int64        `json:"remainingBytesToBeSynced"`
 	LatestResponseCode       *int32       `json:"latestResponseCode,omitempty" db:"latest_response_code"`
 	LatestErrorMessage       *string      `json:"latestErrorMessage,omitempty" db:"latest_error_message"`
