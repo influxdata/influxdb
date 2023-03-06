@@ -17,7 +17,7 @@ use crate::{
 /// Example:
 ///  . Input:
 ///                          |---L0.1---|   |--L0.2--|
-///            |--L1.1--| |--L1.2--| |--L1.3--|      
+///            |--L1.1--| |--L1.2--| |--L1.3--|
 ///
 ///    L0.1 overlaps with 2 level-1 files (L1.2, L1.3) and should be split into 2 files, one overlaps with L1.2
 ///    and one oerlaps with L1.3
@@ -32,7 +32,7 @@ use crate::{
 /// To achieve this goal, a start-level file should be split to overlap with at most one target-level file. This enables the
 /// minimum set of compacting files to 2 files: a start-level file and an overlapped target-level file.
 pub fn identify_files_to_split(
-    files: Vec<data_types::ParquetFile>,
+    files: Vec<ParquetFile>,
     target_level: CompactionLevel,
 ) -> (Vec<FileToSplit>, Vec<ParquetFile>) {
     // panic if not all files are either in target level or start level

@@ -22,7 +22,7 @@ pub trait FilesSplit: Debug + Display + Send + Sync {
     /// create dummy modules to return all files
     fn apply(
         &self,
-        files: Vec<data_types::ParquetFile>,
+        files: Vec<ParquetFile>,
         target_level: CompactionLevel,
     ) -> (Vec<ParquetFile>, Vec<ParquetFile>);
 }

@@ -29,7 +29,7 @@ use crate::components::{
 ///
 pub fn limit_files_to_compact(
     max_compact_size: usize,
-    files: Vec<data_types::ParquetFile>,
+    files: Vec<ParquetFile>,
     target_level: CompactionLevel,
 ) -> (Vec<ParquetFile>, Vec<ParquetFile>) {
     // panic if not all files are either in target level or start level

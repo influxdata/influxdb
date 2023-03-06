@@ -126,7 +126,7 @@ impl RoundInfoSource for LevelBasedRoundInfo {
     }
 }
 
-fn get_start_level(files: &[data_types::ParquetFile]) -> CompactionLevel {
+fn get_start_level(files: &[ParquetFile]) -> CompactionLevel {
     // panic if the files are empty
     assert!(!files.is_empty());
 
@@ -176,7 +176,7 @@ fn get_num_overlapped_files(
     count_overlapped
 }
 
-fn pick_level(files: &[data_types::ParquetFile]) -> CompactionLevel {
+fn pick_level(files: &[ParquetFile]) -> CompactionLevel {
     // Start with initial level
     // If there are files in  this level, the compaction's target level will be the next level.
     // Otherwise repeat until reaching the final level.
