@@ -184,12 +184,12 @@ async fn try_compact_partition(
             return Ok(());
         }
 
-        let (files_now, files_later) = components.round_split.split(files, round_info.as_ref());
+        let (files_now, files_later) = components.round_split.split(files, round_info);
 
         // Each branch must not overlap with each other
         let branches = components
             .divide_initial
-            .divide(files_now, round_info.as_ref())
+            .divide(files_now, round_info)
             .into_iter();
 
         let mut files_next = files_later;
