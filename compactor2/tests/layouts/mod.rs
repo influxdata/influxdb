@@ -114,6 +114,9 @@ pub(crate) async fn run_layout_scenario(setup: &TestSetup) -> Vec<String> {
     let input_files = setup.list_by_table_not_to_delete().await;
     let mut output = format_files("**** Input Files ", &sort_files(input_files));
 
+    // check if input files trip warnings (situations may be deliberate)
+    output.extend(setup.generate_warnings().await);
+
     // run the actual compaction
     let compact_result = setup.run_compact().await;
 
@@ -132,6 +135,9 @@ pub(crate) async fn run_layout_scenario(setup: &TestSetup) -> Vec<String> {
 
     // verify that the output of the compactor was valid as well
     setup.verify_invariants().await;
+
+    // check if output files trip warnings (warnings here deserve scrutiny, but may be justifiable)
+    output.extend(setup.generate_warnings().await);
 
     output
 }

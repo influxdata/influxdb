@@ -16,7 +16,7 @@ mod commit_wrapper;
 mod display;
 mod simulator;
 use commit_wrapper::CommitRecorderBuilder;
-pub use display::{display_size, format_files, format_files_split};
+pub use display::{display_format, display_size, format_files, format_files_split};
 use iox_query::exec::ExecutorType;
 use simulator::ParquetFileSimulator;
 use tracker::AsyncSemaphoreMetrics;
@@ -56,6 +56,9 @@ const MAX_DESIRE_FILE_SIZE: u64 = 100 * 1024;
 const PERCENTAGE_MAX_FILE_SIZE: u16 = 5;
 const SPLIT_PERCENTAGE: u16 = 80;
 const MIN_NUM_L1_FILES_TO_COMPACT: usize = 2;
+
+// Warning thresholds
+const MAX_DESIRE_FILE_SIZE_OVERAGE_PERCENT: i64 = 50;
 
 /// Creates [`TestSetup`]s
 #[derive(Debug)]
@@ -636,7 +639,7 @@ impl TestSetup {
         }
     }
 
-    /// Checks the catalog contents of this test setup.
+    /// Checks the catalog contents of this test setup for invariant violations.
     ///
     /// Currently checks:
     /// 1. There are no overlapping files (the compactor should never create overlapping L1 or L2 files)
@@ -654,6 +657,34 @@ impl TestSetup {
                 assert_no_overlap(f1, f2);
             }
         }
+    }
+
+    /// Checks the catalog contents of this test setup for abnormal characteristics.
+    ///
+    /// Currently checks:
+    /// 1. No file sizes exceed max_desired_file_size_bytes by more than MAX_DESIRE_FILE_SIZE_OVERAGE_PERCENT
+    pub async fn generate_warnings(&self) -> Vec<String> {
+        let warnings: Vec<_> = self
+            .list_by_table_not_to_delete()
+            .await
+            .into_iter()
+            .filter(|f| {
+                f.file_size_bytes
+                    > self.config.max_desired_file_size_bytes as i64
+                        * (100 + MAX_DESIRE_FILE_SIZE_OVERAGE_PERCENT)
+                        / 100
+            })
+            .map(|f| {
+                format!(
+                    "WARNING: file {} exceeds soft limit {} by more than {}%",
+                    display_format(&f, true),
+                    display_size(self.config.max_desired_file_size_bytes as i64),
+                    MAX_DESIRE_FILE_SIZE_OVERAGE_PERCENT
+                )
+            })
+            .collect();
+
+        warnings
     }
 }
 

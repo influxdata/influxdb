@@ -35,6 +35,7 @@ async fn single_giant_file() {
     - "**** Input Files "
     - "L0, all files 4.88gb                                                                                "
     - "L0.1[100,100]       |-------------------------------------L0.1-------------------------------------|"
+    - "WARNING: file L0.1[100,100] 4.88gb exceeds soft limit 100mb by more than 50%"
     - "Committing partition 1:"
     - "  Upgrading 1 files level to CompactionLevel::L1: L0.1"
     - "Committing partition 1:"
@@ -42,6 +43,7 @@ async fn single_giant_file() {
     - "**** Final Output Files "
     - "L2, all files 4.88gb                                                                                "
     - "L2.1[100,100]       |-------------------------------------L2.1-------------------------------------|"
+    - "WARNING: file L2.1[100,100] 4.88gb exceeds soft limit 100mb by more than 50%"
     "###
     );
 }
@@ -75,11 +77,15 @@ async fn two_giant_files() {
     - "L0, all files 4.88gb                                                                                "
     - "L0.1[100,100]       |-------------------------------------L0.1-------------------------------------|"
     - "L0.2[100,100]       |-------------------------------------L0.2-------------------------------------|"
+    - "WARNING: file L0.1[100,100] 4.88gb exceeds soft limit 100mb by more than 50%"
+    - "WARNING: file L0.2[100,100] 4.88gb exceeds soft limit 100mb by more than 50%"
     - "SKIPPED COMPACTION for PartitionId(1): partition 1 has 10485760000 parquet file bytes, limit is 268435456"
     - "**** Final Output Files "
     - "L0, all files 4.88gb                                                                                "
     - "L0.1[100,100]       |-------------------------------------L0.1-------------------------------------|"
     - "L0.2[100,100]       |-------------------------------------L0.2-------------------------------------|"
+    - "WARNING: file L0.1[100,100] 4.88gb exceeds soft limit 100mb by more than 50%"
+    - "WARNING: file L0.2[100,100] 4.88gb exceeds soft limit 100mb by more than 50%"
     "###
     );
 }
@@ -239,6 +245,7 @@ async fn many_small_files() {
     - "**** Final Output Files "
     - "L2, all files 200mb                                                                                 "
     - "L2.21[100,100]      |------------------------------------L2.21-------------------------------------|"
+    - "WARNING: file L2.21[100,100] 200mb exceeds soft limit 100mb by more than 50%"
     "###
     );
 }

@@ -344,7 +344,7 @@ fn round(x: f64, decimals: u32) -> f64 {
 /// ```text
 /// L0.1[100,200]@1
 /// ```
-fn display_format<P: ParquetFileInfo>(file: &P, show_size: bool) -> String {
+pub fn display_format<P: ParquetFileInfo>(file: &P, show_size: bool) -> String {
     let file_id = file.display_id();
     let min_time = file.min_time(); // display as i64
     let max_time = file.max_time(); // display as i64
