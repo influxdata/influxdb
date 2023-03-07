@@ -197,6 +197,24 @@ func decodeDeleteRequest(ctx context.Context, r *http.Request, orgSvc influxdb.O
 			}
 			return false, nil
 		})
+
+		var walkError error
+		influxql.WalkFunc(expr, func(e influxql.Node) {
+			if v, ok := e.(*influxql.BinaryExpr); ok {
+				if vv, ok := v.LHS.(*influxql.VarRef); ok && v.Op == influxql.EQ {
+					if vv.Val == "_field" {
+						walkError = &errors.Error{
+							Code: errors.ENotImplemented,
+							Msg:  "delete by field is not supported",
+							Err:  fmt.Errorf("delete by field is not supported"),
+						}
+					}
+				}
+			}
+		})
+		if walkError != nil {
+			return nil, nil, walkError
+		}
 		if err != nil {
 			return nil, nil, &errors.Error{
 				Code: errors.EInvalid,
