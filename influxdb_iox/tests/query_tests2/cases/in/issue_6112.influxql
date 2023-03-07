@@ -259,3 +259,21 @@ SELECT f64, non_existing, f64 + non_existing FROM m0 WHERE f64 > 19;
 --
 
 SELECT usage_idle, bytes_used FROM cpu, disk;
+
+--
+-- GROUP BY
+--
+
+-- Validate ordering without GROUP BY
+SELECT cpu, usage_idle FROM cpu;
+
+-- Validate various GROUP BY scenarios
+SELECT usage_idle FROM cpu GROUP BY cpu;
+SELECT usage_idle, cpu FROM cpu GROUP BY cpu;
+
+-- multiple measurements and tags in the group by
+
+SELECT usage_idle, bytes_free FROM cpu, disk GROUP BY cpu;
+SELECT usage_idle, bytes_free FROM cpu, disk GROUP BY cpu, device;
+SELECT usage_idle, bytes_free FROM cpu, disk GROUP BY device, cpu;
+SELECT usage_idle, bytes_free, device, cpu FROM cpu, disk GROUP BY device, cpu;

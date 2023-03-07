@@ -691,7 +691,7 @@ mod test {
         let stmt = rewrite_statement(&namespace, &stmt).unwrap();
         assert_eq!(
             stmt.to_string(),
-            "SELECT COUNT(field_i64::integer) AS COUNT FROM temp_01"
+            "SELECT count(field_i64::integer) AS count FROM temp_01"
         );
 
         // Duplicate aggregate columns
@@ -699,14 +699,14 @@ mod test {
         let stmt = rewrite_statement(&namespace, &stmt).unwrap();
         assert_eq!(
             stmt.to_string(),
-            "SELECT COUNT(field_i64::integer) AS COUNT, COUNT(field_i64::integer) AS COUNT_1 FROM temp_01"
+            "SELECT count(field_i64::integer) AS count, count(field_i64::integer) AS count_1 FROM temp_01"
         );
 
         let stmt = parse_select("SELECT COUNT(field_f64) FROM temp_01");
         let stmt = rewrite_statement(&namespace, &stmt).unwrap();
         assert_eq!(
             stmt.to_string(),
-            "SELECT COUNT(field_f64::float) AS COUNT FROM temp_01"
+            "SELECT count(field_f64::float) AS count FROM temp_01"
         );
 
         // Expands all fields
@@ -714,7 +714,7 @@ mod test {
         let stmt = rewrite_statement(&namespace, &stmt).unwrap();
         assert_eq!(
             stmt.to_string(),
-            "SELECT COUNT(field_f64::float) AS COUNT_field_f64, COUNT(field_i64::integer) AS COUNT_field_i64, COUNT(field_str::string) AS COUNT_field_str, COUNT(field_u64::unsigned) AS COUNT_field_u64, COUNT(shared_field0::float) AS COUNT_shared_field0 FROM temp_01"
+            "SELECT count(field_f64::float) AS count_field_f64, count(field_i64::integer) AS count_field_i64, count(field_str::string) AS count_field_str, count(field_u64::unsigned) AS count_field_u64, count(shared_field0::float) AS count_shared_field0 FROM temp_01"
         );
 
         // Expands matching fields
@@ -722,7 +722,7 @@ mod test {
         let stmt = rewrite_statement(&namespace, &stmt).unwrap();
         assert_eq!(
             stmt.to_string(),
-            "SELECT COUNT(field_f64::float) AS COUNT_field_f64, COUNT(field_i64::integer) AS COUNT_field_i64, COUNT(field_u64::unsigned) AS COUNT_field_u64 FROM temp_01"
+            "SELECT count(field_f64::float) AS count_field_f64, count(field_i64::integer) AS count_field_i64, count(field_u64::unsigned) AS count_field_u64 FROM temp_01"
         );
 
         // Expands only numeric fields
@@ -730,7 +730,7 @@ mod test {
         let stmt = rewrite_statement(&namespace, &stmt).unwrap();
         assert_eq!(
             stmt.to_string(),
-            "SELECT SUM(field_f64::float) AS SUM_field_f64, SUM(field_i64::integer) AS SUM_field_i64, SUM(field_u64::unsigned) AS SUM_field_u64, SUM(shared_field0::float) AS SUM_shared_field0 FROM temp_01"
+            "SELECT sum(field_f64::float) AS sum_field_f64, sum(field_i64::integer) AS sum_field_i64, sum(field_u64::unsigned) AS sum_field_u64, sum(shared_field0::float) AS sum_shared_field0 FROM temp_01"
         );
 
         let stmt = parse_select("SELECT * FROM merge_00, merge_01");
@@ -760,7 +760,7 @@ mod test {
         let err = rewrite_statement(&namespace, &stmt).unwrap_err();
         assert_eq!(
             err.to_string(),
-            "External error: unable to use tag as wildcard in COUNT()"
+            "External error: unable to use tag as wildcard in count()"
         );
     }
 

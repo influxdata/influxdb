@@ -886,7 +886,7 @@ mod test {
         assert_eq!(
             got,
             Field {
-                expr: call!("COUNT", var_ref!("foo")),
+                expr: call!("count", var_ref!("foo")),
                 alias: Some("bar".into())
             }
         );
@@ -896,7 +896,7 @@ mod test {
         assert_eq!(
             got,
             Field {
-                expr: call!("LAST", var_ref!("n.asks")),
+                expr: call!("last", var_ref!("n.asks")),
                 alias: None
             }
         );
@@ -916,7 +916,7 @@ mod test {
         assert_eq!(
             got,
             Field {
-                expr: call!("COUNT", distinct!("foo")),
+                expr: call!("count", distinct!("foo")),
                 alias: Some("bar".into())
             }
         );
@@ -926,7 +926,7 @@ mod test {
         assert_eq!(
             got,
             Field {
-                expr: call!("COUNT", call!("DISTINCT", var_ref!("foo"))),
+                expr: call!("count", call!("distinct", var_ref!("foo"))),
                 alias: None
             }
         );
@@ -966,7 +966,7 @@ mod test {
         assert_eq!(
             got,
             Field {
-                expr: call!("COUNT", wildcard!()),
+                expr: call!("count", wildcard!()),
                 alias: None,
             }
         );

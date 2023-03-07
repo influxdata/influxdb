@@ -742,7 +742,7 @@ struct IOxFlightDataEncoderBuilder {
 impl IOxFlightDataEncoderBuilder {
     fn new(schema: SchemaRef) -> Self {
         Self {
-            inner: FlightDataEncoderBuilder::new(),
+            inner: FlightDataEncoderBuilder::new().with_schema(Arc::clone(&schema)),
             schema: prepare_schema_for_flight(schema),
         }
     }
@@ -819,7 +819,7 @@ fn prepare_schema_for_flight(schema: SchemaRef) -> SchemaRef {
         })
         .collect();
 
-    Arc::new(Schema::new(fields))
+    Arc::new(Schema::new(fields).with_metadata(schema.metadata().clone()))
 }
 
 impl Stream for GetStream {

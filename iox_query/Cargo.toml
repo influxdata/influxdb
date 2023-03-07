@@ -25,6 +25,7 @@ datafusion = { workspace = true }
 datafusion_util = { path = "../datafusion_util" }
 executor = { path = "../executor"}
 futures = "0.3"
+generated_types = { path = "../generated_types" }
 hashbrown = { workspace = true }
 influxdb_influxql_parser = { path = "../influxdb_influxql_parser" }
 itertools = "0.10.5"
@@ -36,6 +37,7 @@ parquet_file = { path = "../parquet_file" }
 query_functions = { path = "../query_functions"}
 regex = "1"
 schema = { path = "../schema" }
+serde_json = "1.0.93"
 snafu = "0.7"
 tokio = { version = "1.26", features = ["macros", "parking_lot"] }
 tokio-stream = "0.1"

@@ -1,12 +1,20 @@
+use arrow::datatypes::SchemaRef;
+use std::any::Any;
 use std::collections::{HashMap, HashSet};
+use std::fmt;
+use std::fmt::Debug;
 use std::ops::Deref;
 use std::sync::Arc;
 
 use crate::exec::context::IOxSessionContext;
 use crate::plan::influxql;
 use crate::plan::influxql::{InfluxQLToLogicalPlan, SchemaProvider};
+use datafusion::common::Statistics;
 use datafusion::datasource::provider_as_source;
+use datafusion::execution::context::TaskContext;
 use datafusion::logical_expr::{LogicalPlan, TableSource};
+use datafusion::physical_expr::PhysicalSortExpr;
+use datafusion::physical_plan::{Partitioning, SendableRecordBatchStream};
 use datafusion::{
     error::{DataFusionError, Result},
     physical_plan::ExecutionPlan,
@@ -43,6 +51,61 @@ impl SchemaProvider for ContextSchemaProvider {
     }
 }
 
+/// A physical operator that overrides the `schema` API,
+/// to return an amended version owned by `SchemaExec`. The
+/// principal use case is to add additional metadata to the schema.
+struct SchemaExec {
+    input: Arc<dyn ExecutionPlan>,
+    schema: SchemaRef,
+}
+
+impl Debug for SchemaExec {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "SchemaExec")
+    }
+}
+
+impl ExecutionPlan for SchemaExec {
+    fn as_any(&self) -> &dyn Any {
+        self
+    }
+
+    fn schema(&self) -> SchemaRef {
+        Arc::clone(&self.schema)
+    }
+
+    fn output_partitioning(&self) -> Partitioning {
+        self.input.output_partitioning()
+    }
+
+    fn output_ordering(&self) -> Option<&[PhysicalSortExpr]> {
+        self.input.output_ordering()
+    }
+
+    fn children(&self) -> Vec<Arc<dyn ExecutionPlan>> {
+        unimplemented!()
+    }
+
+    fn with_new_children(
+        self: Arc<Self>,
+        _children: Vec<Arc<dyn ExecutionPlan>>,
+    ) -> Result<Arc<dyn ExecutionPlan>> {
+        unimplemented!()
+    }
+
+    fn execute(
+        &self,
+        partition: usize,
+        context: Arc<TaskContext>,
+    ) -> Result<SendableRecordBatchStream> {
+        self.input.execute(partition, context)
+    }
+
+    fn statistics(&self) -> Statistics {
+        self.input.statistics()
+    }
+}
+
 /// This struct can create plans for running SQL queries against databases
 #[derive(Debug, Default)]
 pub struct InfluxQLQueryPlanner {}
@@ -65,9 +128,20 @@ impl InfluxQLQueryPlanner {
         let statement = self.query_to_statement(query)?;
         let logical_plan = self.statement_to_plan(statement, &ctx).await?;
 
-        // This would only work for SELECT statements at the moment, as the schema queries do
-        // not return ExecutionPlan
-        ctx.create_physical_plan(&logical_plan).await
+        let input = ctx.create_physical_plan(&logical_plan).await?;
+
+        // Merge schema-level metadata from the logical plan with the
+        // schema from the physical plan, as it is not propagated through the
+        // physical planning process.
+        let input_schema = input.schema();
+        let mut md = input_schema.metadata().clone();
+        md.extend(logical_plan.schema().metadata().clone());
+        let schema = Arc::new(arrow::datatypes::Schema::new_with_metadata(
+            input_schema.fields().clone(),
+            md,
+        ));
+
+        Ok(Arc::new(SchemaExec { input, schema }))
     }
 
     async fn statement_to_plan(

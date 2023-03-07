@@ -100,10 +100,10 @@ mod test {
         assert_eq!(field_name(&f), "usage");
 
         let f = get_first_field("SELECT COUNT(usage) FROM cpu");
-        assert_eq!(field_name(&f), "COUNT");
+        assert_eq!(field_name(&f), "count");
 
         let f = get_first_field("SELECT COUNT(usage) + SUM(usage_idle) FROM cpu");
-        assert_eq!(field_name(&f), "COUNT_usage_SUM_usage_idle");
+        assert_eq!(field_name(&f), "count_usage_sum_usage_idle");
 
         let f = get_first_field("SELECT 1+2 FROM cpu");
         assert_eq!(field_name(&f), "");

@@ -7,7 +7,7 @@ use crate::plan::influxql::var_ref::{
 };
 use crate::DataFusionError;
 use arrow::datatypes::DataType;
-use datafusion::common::{Result, ScalarValue, ToDFSchema};
+use datafusion::common::{DFSchema, DFSchemaRef, Result, ScalarValue, ToDFSchema};
 use datafusion::logical_expr::expr_rewriter::{normalize_col, ExprRewritable, ExprRewriter};
 use datafusion::logical_expr::logical_plan::builder::project;
 use datafusion::logical_expr::logical_plan::Analyze;
@@ -16,12 +16,16 @@ use datafusion::logical_expr::{
     LogicalPlanBuilder, Operator, PlanType, Projection, TableSource, ToStringifiedPlan,
 };
 use datafusion_util::{lit_dict, AsExpr};
+use generated_types::influxdata::iox::querier::v1::{
+    influx_ql_metadata::TagKeyColumn, InfluxQlMetadata,
+};
 use influxdb_influxql_parser::common::OrderByClause;
 use influxdb_influxql_parser::explain::{ExplainOption, ExplainStatement};
+use influxdb_influxql_parser::expression::walk::walk_expr;
 use influxdb_influxql_parser::expression::{
     BinaryOperator, ConditionalExpression, ConditionalOperator, VarRefDataType,
 };
-use influxdb_influxql_parser::select::{SLimitClause, SOffsetClause};
+use influxdb_influxql_parser::select::{Dimension, SLimitClause, SOffsetClause};
 use influxdb_influxql_parser::{
     common::{LimitClause, MeasurementName, OffsetClause, WhereClause},
     expression::Expr as IQLExpr,
@@ -33,13 +37,19 @@ use influxdb_influxql_parser::{
 use itertools::Itertools;
 use once_cell::sync::Lazy;
 use query_functions::clean_non_meta_escapes;
-use schema::{InfluxColumnType, InfluxFieldType, Schema};
-use std::collections::{HashSet, VecDeque};
+use schema::{
+    InfluxColumnType, InfluxFieldType, Schema, INFLUXQL_MEASUREMENT_COLUMN_NAME,
+    INFLUXQL_METADATA_KEY,
+};
+use std::collections::{HashMap, HashSet, VecDeque};
 use std::fmt::Debug;
 use std::iter;
-use std::ops::Deref;
+use std::ops::{ControlFlow, Deref};
 use std::str::FromStr;
 use std::sync::Arc;
+
+/// The column index of the measurement column.
+const MEASUREMENT_COLUMN_INDEX: u32 = 0;
 
 /// The `SchemaProvider` trait allows the InfluxQL query planner to obtain
 /// meta-data about tables referenced in InfluxQL statements.
@@ -159,28 +169,176 @@ impl<'a> InfluxQLToLogicalPlan<'a> {
     fn select_statement_to_plan(&self, select: &SelectStatement) -> Result<LogicalPlan> {
         let mut plans = self.plan_from_tables(&select.from)?;
 
+        // Aggregate functions are currently not supported.
+        //
+        // See: https://github.com/influxdata/influxdb_iox/issues/6919
+        if has_aggregate_exprs(&select.fields) {
+            return Err(DataFusionError::NotImplemented(
+                "aggregate functions".to_owned(),
+            ));
+        }
+
+        let mut meta = InfluxQlMetadata {
+            measurement_column_index: MEASUREMENT_COLUMN_INDEX,
+            tag_key_columns: Vec::new(),
+        };
+
+        // The `time` column is always present in the result set
+        let mut fields = if !has_time_column(&select.fields) {
+            vec![Field {
+                expr: IQLExpr::VarRef {
+                    name: "time".into(),
+                    data_type: Some(VarRefDataType::Timestamp),
+                },
+                alias: None,
+            }]
+        } else {
+            vec![]
+        };
+
+        let (group_by_tag_set, projection_tag_set) = if let Some(group_by) = &select.group_by {
+            let mut tag_columns = find_tag_columns::<HashSet<_>>(&select.fields);
+
+            // Contains the list of tag keys specified in the `GROUP BY` clause
+            let (tag_set, is_projected): (Vec<_>, Vec<_>) = group_by
+                .iter()
+                .map(|dimension| match dimension {
+                    Dimension::Tag(t) => {
+                        Ok((t.deref().as_str(), tag_columns.contains(t.deref().as_str())))
+                    }
+                    // TODO(sgc): https://github.com/influxdata/influxdb_iox/issues/6915
+                    Dimension::Time { .. } => {
+                        Err(DataFusionError::NotImplemented("GROUP BY time".to_owned()))
+                    }
+                    // Inconsistent state, as these variants should have been expanded by `rewrite_select_statement`
+                    Dimension::Regex(_) | Dimension::Wildcard => Err(DataFusionError::Internal(
+                        "unexpected regular expression or wildcard found in GROUP BY".into(),
+                    )),
+                })
+                .collect::<Result<Vec<_>>>()?
+                .into_iter()
+                // We sort the tag set, to ensure correct ordering of the results. The tag columns
+                // referenced in the `tag_set` variable are added to the sort operator in
+                // lexicographically ascending order.
+                .sorted_by(|a, b| a.0.cmp(b.0))
+                .unzip();
+
+            // Tags specified in the `GROUP BY` clause that are not already added to the
+            // projection must be projected, so they key be used in the group key.
+            //
+            // At the end of the loop, the `tag_columns` set will contain the tag columns that
+            // exist in the projection and not in the `GROUP BY`.
+            for col in &tag_set {
+                if tag_columns.remove(*col) {
+                    continue;
+                }
+
+                fields.push(Field {
+                    expr: IQLExpr::VarRef {
+                        name: (*col).into(),
+                        data_type: Some(VarRefDataType::Tag),
+                    },
+                    alias: Some((*col).into()),
+                });
+            }
+
+            // Add the remaining columns to be projected
+            fields.extend(select.fields.iter().cloned());
+
+            /// There is always a [INFLUXQL_MEASUREMENT_COLUMN_NAME] column projected in the LogicalPlan,
+            /// therefore the start index is 1 for determining the offsets of the
+            /// tag key columns in the column projection list.
+            const START_INDEX: usize = 1;
+
+            // Create a map of tag key columns to their respective index in the projection
+            let index_map = fields
+                .iter()
+                .enumerate()
+                .filter_map(|(index, f)| match &f.expr {
+                    IQLExpr::VarRef {
+                        name,
+                        data_type: Some(VarRefDataType::Tag),
+                    } => Some((name.deref().as_str(), index + START_INDEX)),
+                    _ => None,
+                })
+                .collect::<HashMap<_, _>>();
+
+            // tag_set was previously sorted, so tag_key_columns will be in the correct order
+            meta.tag_key_columns = tag_set
+                .iter()
+                .zip(is_projected)
+                .map(|(tag_key, is_projected)| TagKeyColumn {
+                    tag_key: (*tag_key).to_owned(),
+                    column_index: *index_map.get(*tag_key).unwrap() as u32,
+                    is_projected,
+                })
+                .collect();
+
+            (
+                tag_set,
+                tag_columns.into_iter().sorted().collect::<Vec<_>>(),
+            )
+        } else {
+            let mut tag_columns = find_tag_columns::<Vec<_>>(&select.fields);
+            tag_columns.sort();
+            // Add the remaining columns to be projected
+            fields.extend(select.fields.iter().cloned());
+            (vec![], tag_columns)
+        };
+
         let Some(plan) = plans.pop_front() else { return LogicalPlanBuilder::empty(false).build(); };
-        let plan = self.project_select(plan, select)?;
+        let plan = self.project_select(plan, select, &fields)?;
 
         // If there are multiple measurements, we need to sort by the measurement column
         // NOTE: Ideally DataFusion would maintain the order of the UNION ALL, which would eliminate
         //  the need to sort by measurement.
         //  See: https://github.com/influxdata/influxdb_iox/issues/7062
         let mut series_sort = if !plans.is_empty() {
-            vec![Expr::sort("iox::measurement".as_expr(), true, false)]
+            vec![Expr::sort(
+                INFLUXQL_MEASUREMENT_COLUMN_NAME.as_expr(),
+                true,
+                false,
+            )]
         } else {
             vec![]
         };
 
         // UNION the remaining plans
         let plan = plans.into_iter().try_fold(plan, |prev, next| {
-            let next = self.project_select(next, select)?;
+            let next = self.project_select(next, select, &fields)?;
             LogicalPlanBuilder::from(prev).union(next)?.build()
         })?;
 
-        let plan = if select.group_by.is_none() {
-            // Generate the following sort:
-            // iox::measurement, time, [projected tags, sorted lexicographically]
+        let plan = plan_with_metadata(plan, &meta)?;
+
+        // Construct the sort logical operator
+        //
+        // The ordering of the results is as follows:
+        //
+        // iox::measurement, [group by tag 0, .., group by tag n], time, [projection tag 0, .., projection tag n]
+        //
+        // NOTE:
+        //
+        // Sort expressions referring to tag keys are always specified in lexicographically ascending order.
+        let plan = {
+            if !group_by_tag_set.is_empty() {
+                // Adding `LIMIT` or `OFFSET` with a `GROUP BY tag, ...` clause is not supported
+                //
+                // See: https://github.com/influxdata/influxdb_iox/issues/6920
+                if !group_by_tag_set.is_empty()
+                    && (select.offset.is_some() || select.limit.is_some())
+                {
+                    return Err(DataFusionError::NotImplemented(
+                        "GROUP BY combined with LIMIT or OFFSET clause".to_owned(),
+                    ));
+                }
+
+                series_sort.extend(
+                    group_by_tag_set
+                        .into_iter()
+                        .map(|f| Expr::sort(f.as_expr(), true, false)),
+                );
+            };
 
             series_sort.push(Expr::sort(
                 "time".as_expr(),
@@ -192,31 +350,15 @@ impl<'a> InfluxQLToLogicalPlan<'a> {
                 false,
             ));
 
-            series_sort.extend(
-                select
-                    .fields
-                    .iter()
-                    .filter_map(|f| {
-                        if let IQLExpr::VarRef {
-                            name,
-                            data_type: Some(VarRefDataType::Tag),
-                        } = &f.expr
-                        {
-                            Some(name.deref())
-                        } else {
-                            None
-                        }
-                    })
-                    // the tags must be sorted lexicographically in ascending order to match
-                    // the ordering in InfluxQL
-                    .sorted()
-                    .map(|n| Expr::sort(n.as_expr(), true, false)),
-            );
+            if !projection_tag_set.is_empty() {
+                series_sort.extend(
+                    projection_tag_set
+                        .into_iter()
+                        .map(|f| Expr::sort(f.as_expr(), true, false)),
+                );
+            }
+
             LogicalPlanBuilder::from(plan).sort(series_sort)?.build()
-        } else {
-            Err(DataFusionError::NotImplemented(
-                "GROUP BY not supported".into(),
-            ))
         }?;
 
         let plan = self.limit(plan, select.offset, select.limit)?;
@@ -226,7 +368,12 @@ impl<'a> InfluxQLToLogicalPlan<'a> {
         Ok(plan)
     }
 
-    fn project_select(&self, plan: LogicalPlan, select: &SelectStatement) -> Result<LogicalPlan> {
+    fn project_select(
+        &self,
+        plan: LogicalPlan,
+        select: &SelectStatement,
+        fields: &[Field],
+    ) -> Result<LogicalPlan> {
         let (proj, plan) = match plan {
             LogicalPlan::Projection(Projection { expr, input, .. }) => {
                 (expr, input.deref().clone())
@@ -241,7 +388,7 @@ impl<'a> InfluxQLToLogicalPlan<'a> {
         let plan = self.plan_where_clause(&select.condition, plan, &schemas, tz)?;
 
         // Process and validate the field expressions in the SELECT projection list
-        let select_exprs = self.field_list_to_exprs(&plan, &select.fields, &schemas)?;
+        let select_exprs = self.field_list_to_exprs(&plan, fields, &schemas)?;
 
         // Wrap the plan in a `LogicalPlan::Projection` from the select expressions
         project(plan, proj.into_iter().chain(select_exprs.into_iter()))
@@ -290,25 +437,11 @@ impl<'a> InfluxQLToLogicalPlan<'a> {
     fn field_list_to_exprs(
         &self,
         plan: &LogicalPlan,
-        fields: &FieldList,
+        fields: &[Field],
         schemas: &Schemas,
     ) -> Result<Vec<Expr>> {
-        // InfluxQL requires the time column is present in the projection list.
-        let extra = if !has_time_column(fields) {
-            vec![Field {
-                expr: IQLExpr::VarRef {
-                    name: "time".into(),
-                    data_type: Some(VarRefDataType::Timestamp),
-                },
-                alias: None,
-            }]
-        } else {
-            vec![]
-        };
-
-        extra
+        fields
             .iter()
-            .chain(fields.iter())
             .map(|field| self.field_to_df_expr(field, plan, schemas))
             .collect()
     }
@@ -597,12 +730,80 @@ impl<'a> InfluxQLToLogicalPlan<'a> {
         Ok(if let Ok(source) = self.s.get_table_provider(&table_name) {
             Some(project(
                 LogicalPlanBuilder::scan(&table_name, source, None)?.build()?,
-                iter::once(lit_dict(&table_name).alias("iox::measurement")),
+                iter::once(lit_dict(&table_name).alias(INFLUXQL_MEASUREMENT_COLUMN_NAME)),
             )?)
         } else {
             None
         })
     }
+}
+
+/// Adds [`InfluxQlMetadata`] to the `plan`.
+///
+/// **Note**
+///
+/// The metadata does not propagate over RPC requests due to issue [#3779].
+///
+/// [#3779]: https://github.com/apache/arrow-rs/issues/3779
+fn plan_with_metadata(plan: LogicalPlan, metadata: &InfluxQlMetadata) -> Result<LogicalPlan> {
+    fn make_schema(schema: DFSchemaRef, metadata: &InfluxQlMetadata) -> Result<DFSchemaRef> {
+        let data = serde_json::to_string(metadata).map_err(|err| {
+            DataFusionError::Internal(format!("error serializing InfluxQL metadata: {err}"))
+        })?;
+
+        let mut md = schema.metadata().clone();
+        md.insert(INFLUXQL_METADATA_KEY.to_owned(), data);
+
+        Ok(Arc::new(DFSchema::new_with_metadata(
+            schema.fields().clone(),
+            md,
+        )?))
+    }
+
+    Ok(match plan {
+        LogicalPlan::Projection(mut p) => {
+            p.schema = make_schema(p.schema, metadata)?;
+            LogicalPlan::Projection(p)
+        }
+        LogicalPlan::Union(mut u) => {
+            u.schema = make_schema(u.schema, metadata)?;
+            LogicalPlan::Union(u)
+        }
+        _ => {
+            return Err(DataFusionError::Internal(
+                "unexpected LogicalPlan".to_owned(),
+            ))
+        }
+    })
+}
+
+/// Returns `true` if any expressions refer to an aggregate function.
+fn has_aggregate_exprs(fields: &FieldList) -> bool {
+    fields.iter().any(|f| {
+        walk_expr(&f.expr, &mut |e| match e {
+            IQLExpr::Call { name, .. } if is_aggregate_function(name) => ControlFlow::Break(()),
+            _ => ControlFlow::Continue(()),
+        })
+        .is_break()
+    })
+}
+
+/// Find all the tag columns projected in the `SELECT` from the field list.
+fn find_tag_columns<'a, T: FromIterator<&'a str>>(fields: &'a FieldList) -> T {
+    fields
+        .iter()
+        .filter_map(|f| {
+            if let IQLExpr::VarRef {
+                name,
+                data_type: Some(VarRefDataType::Tag),
+            } = &f.expr
+            {
+                Some(name.deref().as_str())
+            } else {
+                None
+            }
+        })
+        .collect()
 }
 
 /// Perform a series of passes to rewrite `expr` in compliance with InfluxQL behavior
@@ -708,7 +909,7 @@ fn normalize_identifier(ident: &Identifier) -> String {
 /// >
 /// > To match InfluxQL, the `time` column must not exist as part of a
 /// > complex expression.
-fn has_time_column(fields: &FieldList) -> bool {
+fn has_time_column(fields: &[Field]) -> bool {
     fields
         .iter()
         .any(|f| matches!(&f.expr, IQLExpr::VarRef { name, .. } if name.deref() == "time"))
@@ -725,6 +926,72 @@ static SCALAR_MATH_FUNCTIONS: Lazy<HashSet<&'static str>> = Lazy::new(|| {
 /// supported by InfluxQL.
 fn is_scalar_math_function(name: &str) -> bool {
     SCALAR_MATH_FUNCTIONS.contains(name)
+}
+
+/// A list of valid aggregate and aggregate-like functions supported by InfluxQL.
+///
+/// A full list is available via the [InfluxQL documentation][docs].
+///
+/// > **Note**
+/// >
+/// > These are not necessarily implemented, and are tracked by the following
+/// > issues:
+/// >
+/// > * <https://github.com/influxdata/influxdb_iox/issues/6934>
+/// > * <https://github.com/influxdata/influxdb_iox/issues/6935>
+/// > * <https://github.com/influxdata/influxdb_iox/issues/6937>
+/// > * <https://github.com/influxdata/influxdb_iox/issues/6938>
+/// > * <https://github.com/influxdata/influxdb_iox/issues/6939>
+///
+/// [docs]: https://docs.influxdata.com/influxdb/v1.8/query_language/functions/
+static AGGREGATE_FUNCTIONS: Lazy<HashSet<&'static str>> = Lazy::new(|| {
+    HashSet::from([
+        // Scalar-like functions
+        "cumulative_sum",
+        "derivative",
+        "difference",
+        "elapsed",
+        "moving_average",
+        "non_negative_derivative",
+        "non_negative_difference",
+        // Selector functions
+        "bottom",
+        "first",
+        "last",
+        "max",
+        "min",
+        "percentile",
+        "sample",
+        "top",
+        // Aggregate functions
+        "count",
+        "count",
+        "integral",
+        "mean",
+        "median",
+        "mode",
+        "spread",
+        "stddev",
+        "sum",
+        // Prediction functions
+        "holt_winters",
+        "holt_winters_with_fit",
+        // Technical analysis functions
+        "chande_momentum_oscillator",
+        "exponential_moving_average",
+        "double_exponential_moving_average",
+        "kaufmans_efficiency_ratio",
+        "kaufmans_adaptive_moving_average",
+        "triple_exponential_moving_average",
+        "triple_exponential_derivative",
+        "relative_strength_index",
+    ])
+});
+
+/// Returns `true` if `name` is an aggregate or aggregate function
+/// supported by InfluxQL.
+fn is_aggregate_function(name: &str) -> bool {
+    AGGREGATE_FUNCTIONS.contains(name)
 }
 
 /// Returns true if the conditional expression is a single node that
@@ -755,12 +1022,12 @@ mod test {
     use super::*;
     use crate::exec::Executor;
     use crate::plan::influxql::test_utils;
-    use crate::plan::influxql::test_utils::TestDatabaseAdapter;
+    use crate::plan::influxql::test_utils::{parse_select, TestDatabaseAdapter};
     use crate::test::{TestChunk, TestDatabase};
     use influxdb_influxql_parser::parse_statements;
     use insta::assert_snapshot;
 
-    fn plan(sql: &str) -> String {
+    fn logical_plan(sql: &str) -> Result<LogicalPlan> {
         let mut statements = parse_statements(sql).unwrap();
         // index of columns in the above chunk: [bar, foo, i64_field, i64_field_2, time]
         let executor = Arc::new(Executor::new_testing());
@@ -813,7 +1080,21 @@ mod test {
 
         let planner = InfluxQLToLogicalPlan::new(&sp);
 
-        match planner.statement_to_plan(statements.pop().unwrap()) {
+        planner.statement_to_plan(statements.pop().unwrap())
+    }
+
+    fn metadata(sql: &str) -> Option<InfluxQlMetadata> {
+        logical_plan(sql)
+            .unwrap()
+            .schema()
+            .metadata()
+            .get(INFLUXQL_METADATA_KEY)
+            .map(|s| serde_json::from_str(s).unwrap())
+    }
+
+    fn plan(sql: &str) -> String {
+        let result = logical_plan(sql);
+        match result {
             Ok(res) => res.display_indent_schema().to_string(),
             Err(err) => err.to_string(),
         }
@@ -839,6 +1120,80 @@ mod test {
     /// such as the WHERE clause.
     mod select {
         use super::*;
+
+        /// Validate the metadata is correctly encoded in the schema.
+        ///
+        /// Properties that are tested:
+        ///
+        /// * only tag keys listed in a `GROUP BY` clause are included in the `tag_key_columns` vector
+        /// * `tag_key_columns` is order by `tag_key`
+        #[test]
+        fn test_metadata_in_schema() {
+            macro_rules! assert_tag_keys {
+                ($MD:expr $(,($KEY:literal, $VAL:literal, $PROJ:literal))+) => {
+                    assert_eq!(
+                        $MD.tag_key_columns.clone().into_iter().map(|v| (v.tag_key, v.column_index, v.is_projected)).collect::<Vec<_>>(),
+                        vec![$(($KEY.to_owned(), $VAL, $PROJ),)*],
+                        "tag keys don't match"
+                    );
+
+                    let keys = $MD.tag_key_columns.into_iter().map(|v| v.tag_key).collect::<Vec<_>>();
+                    let mut sorted = keys.clone();
+                    sorted.sort_unstable();
+                    assert_eq!(keys, sorted, "tag keys are not sorted");
+                };
+            }
+
+            // validate metadata is empty when there is no group by
+            let md = metadata("SELECT free FROM disk").unwrap();
+            assert_eq!(md.measurement_column_index, 0);
+            assert!(md.tag_key_columns.is_empty());
+            let md = metadata("SELECT free FROM disk, cpu").unwrap();
+            assert_eq!(md.measurement_column_index, 0);
+            assert!(md.tag_key_columns.is_empty());
+
+            let md = metadata("SELECT free FROM disk GROUP BY device").unwrap();
+            assert_eq!(md.measurement_column_index, 0);
+            assert_tag_keys!(md, ("device", 2, false));
+
+            // validate tag in projection is not included in metadata
+            let md =
+                metadata("SELECT cpu, usage_idle, free FROM cpu, disk GROUP BY device").unwrap();
+            assert_eq!(md.measurement_column_index, 0);
+            assert_tag_keys!(md, ("device", 2, false));
+
+            // validate multiple tags from different measurements
+            let md =
+                metadata("SELECT usage_idle, free FROM cpu, disk GROUP BY cpu, device").unwrap();
+            assert_eq!(md.measurement_column_index, 0);
+            assert_tag_keys!(md, ("cpu", 2, false), ("device", 3, false));
+
+            // validate multiple tags from different measurements, and key order is maintained
+            let md =
+                metadata("SELECT usage_idle, free FROM cpu, disk GROUP BY device, cpu").unwrap();
+            assert_eq!(md.measurement_column_index, 0);
+            assert_tag_keys!(md, ("cpu", 2, false), ("device", 3, false));
+
+            // validate that with cpu tag explicitly listed in project, tag-key order is maintained and column index
+            // is valid
+            let md = metadata("SELECT usage_idle, free, cpu FROM cpu, disk GROUP BY cpu, device")
+                .unwrap();
+            assert_eq!(md.measurement_column_index, 0);
+            assert_tag_keys!(md, ("cpu", 5, true), ("device", 2, false));
+
+            // validate region tag, shared by both measurements, is still correctly handled
+            let md = metadata(
+                "SELECT region, usage_idle, free, cpu FROM cpu, disk GROUP BY region, cpu, device",
+            )
+            .unwrap();
+            assert_eq!(md.measurement_column_index, 0);
+            assert_tag_keys!(
+                md,
+                ("cpu", 6, true),
+                ("device", 2, false),
+                ("region", 3, true)
+            );
+        }
 
         /// Verify the behaviour of the `FROM` clause when selecting from zero to many measurements.
         #[test]
@@ -1190,6 +1545,16 @@ mod test {
         }
     }
 
+    /// Tests to validate InfluxQL `SELECT` statements that utilise aggregate functions.
+    mod select_aggregate {
+        use super::*;
+
+        #[test]
+        fn test_aggregates_are_not_yet_supported() {
+            assert_snapshot!(plan("SELECT count(f64_field) FROM data"), @"This feature is not implemented: aggregate functions");
+        }
+    }
+
     /// Tests to validate InfluxQL `SELECT` statements that project columns without specifying
     /// aggregates or `GROUP BY time()` with gap filling.
     mod select_raw {
@@ -1264,6 +1629,105 @@ mod test {
               Projection: Dictionary(Int32, Utf8("data")) AS iox::measurement, data.time, data.foo AS foo, data.f64_field + Float64(0.5) AS f64_field [iox::measurement:Dictionary(Int32, Utf8), time:Timestamp(Nanosecond, None), foo:Dictionary(Int32, Utf8);N, f64_field:Float64;N]
                 TableScan: data [TIME:Boolean;N, bar:Dictionary(Int32, Utf8);N, bool_field:Boolean;N, f64_field:Float64;N, foo:Dictionary(Int32, Utf8);N, i64_field:Int64;N, mixedCase:Float64;N, str_field:Utf8;N, time:Timestamp(Nanosecond, None), with space:Float64;N]
             "###);
+        }
+
+        #[test]
+        fn test_select_single_measurement_group_by() {
+            // Sort should be cpu, time
+            assert_snapshot!(plan("SELECT usage_idle FROM cpu GROUP BY cpu"), @r###"
+            Sort: cpu ASC NULLS LAST, cpu.time ASC NULLS LAST [iox::measurement:Dictionary(Int32, Utf8), time:Timestamp(Nanosecond, None), cpu:Dictionary(Int32, Utf8);N, usage_idle:Float64;N]
+              Projection: Dictionary(Int32, Utf8("cpu")) AS iox::measurement, cpu.time, cpu.cpu AS cpu, cpu.usage_idle AS usage_idle [iox::measurement:Dictionary(Int32, Utf8), time:Timestamp(Nanosecond, None), cpu:Dictionary(Int32, Utf8);N, usage_idle:Float64;N]
+                TableScan: cpu [cpu:Dictionary(Int32, Utf8);N, host:Dictionary(Int32, Utf8);N, region:Dictionary(Int32, Utf8);N, time:Timestamp(Nanosecond, None), usage_idle:Float64;N, usage_system:Float64;N, usage_user:Float64;N]
+            "###);
+
+            // Sort should be cpu, time
+            assert_snapshot!(plan("SELECT cpu, usage_idle FROM cpu GROUP BY cpu"), @r###"
+            Sort: cpu ASC NULLS LAST, cpu.time ASC NULLS LAST [iox::measurement:Dictionary(Int32, Utf8), time:Timestamp(Nanosecond, None), cpu:Dictionary(Int32, Utf8);N, usage_idle:Float64;N]
+              Projection: Dictionary(Int32, Utf8("cpu")) AS iox::measurement, cpu.time, cpu.cpu AS cpu, cpu.usage_idle AS usage_idle [iox::measurement:Dictionary(Int32, Utf8), time:Timestamp(Nanosecond, None), cpu:Dictionary(Int32, Utf8);N, usage_idle:Float64;N]
+                TableScan: cpu [cpu:Dictionary(Int32, Utf8);N, host:Dictionary(Int32, Utf8);N, region:Dictionary(Int32, Utf8);N, time:Timestamp(Nanosecond, None), usage_idle:Float64;N, usage_system:Float64;N, usage_user:Float64;N]
+            "###);
+
+            // Sort should be cpu, region, time
+            assert_snapshot!(plan("SELECT usage_idle FROM cpu GROUP BY cpu, region"), @r###"
+            Sort: cpu ASC NULLS LAST, region ASC NULLS LAST, cpu.time ASC NULLS LAST [iox::measurement:Dictionary(Int32, Utf8), time:Timestamp(Nanosecond, None), cpu:Dictionary(Int32, Utf8);N, region:Dictionary(Int32, Utf8);N, usage_idle:Float64;N]
+              Projection: Dictionary(Int32, Utf8("cpu")) AS iox::measurement, cpu.time, cpu.cpu AS cpu, cpu.region AS region, cpu.usage_idle AS usage_idle [iox::measurement:Dictionary(Int32, Utf8), time:Timestamp(Nanosecond, None), cpu:Dictionary(Int32, Utf8);N, region:Dictionary(Int32, Utf8);N, usage_idle:Float64;N]
+                TableScan: cpu [cpu:Dictionary(Int32, Utf8);N, host:Dictionary(Int32, Utf8);N, region:Dictionary(Int32, Utf8);N, time:Timestamp(Nanosecond, None), usage_idle:Float64;N, usage_system:Float64;N, usage_user:Float64;N]
+            "###);
+
+            // Sort should be cpu, region, time
+            assert_snapshot!(plan("SELECT usage_idle FROM cpu GROUP BY region, cpu"), @r###"
+            Sort: cpu ASC NULLS LAST, region ASC NULLS LAST, cpu.time ASC NULLS LAST [iox::measurement:Dictionary(Int32, Utf8), time:Timestamp(Nanosecond, None), cpu:Dictionary(Int32, Utf8);N, region:Dictionary(Int32, Utf8);N, usage_idle:Float64;N]
+              Projection: Dictionary(Int32, Utf8("cpu")) AS iox::measurement, cpu.time, cpu.cpu AS cpu, cpu.region AS region, cpu.usage_idle AS usage_idle [iox::measurement:Dictionary(Int32, Utf8), time:Timestamp(Nanosecond, None), cpu:Dictionary(Int32, Utf8);N, region:Dictionary(Int32, Utf8);N, usage_idle:Float64;N]
+                TableScan: cpu [cpu:Dictionary(Int32, Utf8);N, host:Dictionary(Int32, Utf8);N, region:Dictionary(Int32, Utf8);N, time:Timestamp(Nanosecond, None), usage_idle:Float64;N, usage_system:Float64;N, usage_user:Float64;N]
+            "###);
+
+            // Sort should be cpu, time, region
+            assert_snapshot!(plan("SELECT region, usage_idle FROM cpu GROUP BY cpu"), @r###"
+            Sort: cpu ASC NULLS LAST, cpu.time ASC NULLS LAST, region ASC NULLS LAST [iox::measurement:Dictionary(Int32, Utf8), time:Timestamp(Nanosecond, None), cpu:Dictionary(Int32, Utf8);N, region:Dictionary(Int32, Utf8);N, usage_idle:Float64;N]
+              Projection: Dictionary(Int32, Utf8("cpu")) AS iox::measurement, cpu.time, cpu.cpu AS cpu, cpu.region AS region, cpu.usage_idle AS usage_idle [iox::measurement:Dictionary(Int32, Utf8), time:Timestamp(Nanosecond, None), cpu:Dictionary(Int32, Utf8);N, region:Dictionary(Int32, Utf8);N, usage_idle:Float64;N]
+                TableScan: cpu [cpu:Dictionary(Int32, Utf8);N, host:Dictionary(Int32, Utf8);N, region:Dictionary(Int32, Utf8);N, time:Timestamp(Nanosecond, None), usage_idle:Float64;N, usage_system:Float64;N, usage_user:Float64;N]
+            "###);
+        }
+
+        #[test]
+        fn test_select_multiple_measurements_group_by() {
+            // Sort should be iox::measurement, cpu, time
+            assert_snapshot!(plan("SELECT usage_idle, free FROM cpu, disk GROUP BY cpu"), @r###"
+            Sort: iox::measurement ASC NULLS LAST, cpu ASC NULLS LAST, time ASC NULLS LAST [iox::measurement:Dictionary(Int32, Utf8), time:Timestamp(Nanosecond, None), cpu:Utf8;N, usage_idle:Float64;N, free:Null;N]
+              Union [iox::measurement:Dictionary(Int32, Utf8), time:Timestamp(Nanosecond, None), cpu:Utf8;N, usage_idle:Float64;N, free:Null;N]
+                Projection: Dictionary(Int32, Utf8("cpu")) AS iox::measurement, cpu.time, CAST(cpu.cpu AS Utf8) AS cpu, cpu.usage_idle AS usage_idle, NULL AS free [iox::measurement:Dictionary(Int32, Utf8), time:Timestamp(Nanosecond, None), cpu:Utf8;N, usage_idle:Float64;N, free:Null;N]
+                  TableScan: cpu [cpu:Dictionary(Int32, Utf8);N, host:Dictionary(Int32, Utf8);N, region:Dictionary(Int32, Utf8);N, time:Timestamp(Nanosecond, None), usage_idle:Float64;N, usage_system:Float64;N, usage_user:Float64;N]
+                Projection: Dictionary(Int32, Utf8("disk")) AS iox::measurement, disk.time, CAST(NULL AS Utf8) AS cpu, CAST(NULL AS Float64) AS usage_idle, NULL AS free [iox::measurement:Dictionary(Int32, Utf8), time:Timestamp(Nanosecond, None), cpu:Utf8;N, usage_idle:Float64;N, free:Null;N]
+                  TableScan: disk [bytes_free:Int64;N, bytes_used:Int64;N, device:Dictionary(Int32, Utf8);N, host:Dictionary(Int32, Utf8);N, region:Dictionary(Int32, Utf8);N, time:Timestamp(Nanosecond, None)]
+            "###);
+
+            // Sort should be iox::measurement, cpu, device, time
+            assert_snapshot!(plan("SELECT usage_idle, free FROM cpu, disk GROUP BY device, cpu"), @r###"
+            Sort: iox::measurement ASC NULLS LAST, cpu ASC NULLS LAST, device ASC NULLS LAST, time ASC NULLS LAST [iox::measurement:Dictionary(Int32, Utf8), time:Timestamp(Nanosecond, None), cpu:Utf8;N, device:Utf8;N, usage_idle:Float64;N, free:Null;N]
+              Union [iox::measurement:Dictionary(Int32, Utf8), time:Timestamp(Nanosecond, None), cpu:Utf8;N, device:Utf8;N, usage_idle:Float64;N, free:Null;N]
+                Projection: Dictionary(Int32, Utf8("cpu")) AS iox::measurement, cpu.time, CAST(cpu.cpu AS Utf8) AS cpu, CAST(NULL AS Utf8) AS device, cpu.usage_idle AS usage_idle, NULL AS free [iox::measurement:Dictionary(Int32, Utf8), time:Timestamp(Nanosecond, None), cpu:Utf8;N, device:Utf8;N, usage_idle:Float64;N, free:Null;N]
+                  TableScan: cpu [cpu:Dictionary(Int32, Utf8);N, host:Dictionary(Int32, Utf8);N, region:Dictionary(Int32, Utf8);N, time:Timestamp(Nanosecond, None), usage_idle:Float64;N, usage_system:Float64;N, usage_user:Float64;N]
+                Projection: Dictionary(Int32, Utf8("disk")) AS iox::measurement, disk.time, CAST(NULL AS Utf8) AS cpu, CAST(disk.device AS Utf8) AS device, CAST(NULL AS Float64) AS usage_idle, NULL AS free [iox::measurement:Dictionary(Int32, Utf8), time:Timestamp(Nanosecond, None), cpu:Utf8;N, device:Utf8;N, usage_idle:Float64;N, free:Null;N]
+                  TableScan: disk [bytes_free:Int64;N, bytes_used:Int64;N, device:Dictionary(Int32, Utf8);N, host:Dictionary(Int32, Utf8);N, region:Dictionary(Int32, Utf8);N, time:Timestamp(Nanosecond, None)]
+            "###);
+
+            // Sort should be iox::measurement, cpu, time, device
+            assert_snapshot!(plan("SELECT device, usage_idle, free FROM cpu, disk GROUP BY cpu"), @r###"
+            Sort: iox::measurement ASC NULLS LAST, cpu ASC NULLS LAST, time ASC NULLS LAST, device ASC NULLS LAST [iox::measurement:Dictionary(Int32, Utf8), time:Timestamp(Nanosecond, None), cpu:Utf8;N, device:Utf8;N, usage_idle:Float64;N, free:Null;N]
+              Union [iox::measurement:Dictionary(Int32, Utf8), time:Timestamp(Nanosecond, None), cpu:Utf8;N, device:Utf8;N, usage_idle:Float64;N, free:Null;N]
+                Projection: Dictionary(Int32, Utf8("cpu")) AS iox::measurement, cpu.time, CAST(cpu.cpu AS Utf8) AS cpu, CAST(NULL AS Utf8) AS device, cpu.usage_idle AS usage_idle, NULL AS free [iox::measurement:Dictionary(Int32, Utf8), time:Timestamp(Nanosecond, None), cpu:Utf8;N, device:Utf8;N, usage_idle:Float64;N, free:Null;N]
+                  TableScan: cpu [cpu:Dictionary(Int32, Utf8);N, host:Dictionary(Int32, Utf8);N, region:Dictionary(Int32, Utf8);N, time:Timestamp(Nanosecond, None), usage_idle:Float64;N, usage_system:Float64;N, usage_user:Float64;N]
+                Projection: Dictionary(Int32, Utf8("disk")) AS iox::measurement, disk.time, CAST(NULL AS Utf8) AS cpu, CAST(disk.device AS Utf8) AS device, CAST(NULL AS Float64) AS usage_idle, NULL AS free [iox::measurement:Dictionary(Int32, Utf8), time:Timestamp(Nanosecond, None), cpu:Utf8;N, device:Utf8;N, usage_idle:Float64;N, free:Null;N]
+                  TableScan: disk [bytes_free:Int64;N, bytes_used:Int64;N, device:Dictionary(Int32, Utf8);N, host:Dictionary(Int32, Utf8);N, region:Dictionary(Int32, Utf8);N, time:Timestamp(Nanosecond, None)]
+            "###);
+
+            // Sort should be iox::measurement, cpu, device, time
+            assert_snapshot!(plan("SELECT cpu, usage_idle, free FROM cpu, disk GROUP BY cpu, device"), @r###"
+            Sort: iox::measurement ASC NULLS LAST, cpu ASC NULLS LAST, device ASC NULLS LAST, time ASC NULLS LAST [iox::measurement:Dictionary(Int32, Utf8), time:Timestamp(Nanosecond, None), device:Utf8;N, cpu:Utf8;N, usage_idle:Float64;N, free:Null;N]
+              Union [iox::measurement:Dictionary(Int32, Utf8), time:Timestamp(Nanosecond, None), device:Utf8;N, cpu:Utf8;N, usage_idle:Float64;N, free:Null;N]
+                Projection: Dictionary(Int32, Utf8("cpu")) AS iox::measurement, cpu.time, CAST(NULL AS Utf8) AS device, CAST(cpu.cpu AS Utf8) AS cpu, cpu.usage_idle AS usage_idle, NULL AS free [iox::measurement:Dictionary(Int32, Utf8), time:Timestamp(Nanosecond, None), device:Utf8;N, cpu:Utf8;N, usage_idle:Float64;N, free:Null;N]
+                  TableScan: cpu [cpu:Dictionary(Int32, Utf8);N, host:Dictionary(Int32, Utf8);N, region:Dictionary(Int32, Utf8);N, time:Timestamp(Nanosecond, None), usage_idle:Float64;N, usage_system:Float64;N, usage_user:Float64;N]
+                Projection: Dictionary(Int32, Utf8("disk")) AS iox::measurement, disk.time, CAST(disk.device AS Utf8) AS device, CAST(NULL AS Utf8) AS cpu, CAST(NULL AS Float64) AS usage_idle, NULL AS free [iox::measurement:Dictionary(Int32, Utf8), time:Timestamp(Nanosecond, None), device:Utf8;N, cpu:Utf8;N, usage_idle:Float64;N, free:Null;N]
+                  TableScan: disk [bytes_free:Int64;N, bytes_used:Int64;N, device:Dictionary(Int32, Utf8);N, host:Dictionary(Int32, Utf8);N, region:Dictionary(Int32, Utf8);N, time:Timestamp(Nanosecond, None)]
+            "###);
+
+            // Sort should be iox::measurement, device, time, cpu
+            assert_snapshot!(plan("SELECT cpu, usage_idle, free FROM cpu, disk GROUP BY device"), @r###"
+            Sort: iox::measurement ASC NULLS LAST, device ASC NULLS LAST, time ASC NULLS LAST, cpu ASC NULLS LAST [iox::measurement:Dictionary(Int32, Utf8), time:Timestamp(Nanosecond, None), device:Utf8;N, cpu:Utf8;N, usage_idle:Float64;N, free:Null;N]
+              Union [iox::measurement:Dictionary(Int32, Utf8), time:Timestamp(Nanosecond, None), device:Utf8;N, cpu:Utf8;N, usage_idle:Float64;N, free:Null;N]
+                Projection: Dictionary(Int32, Utf8("cpu")) AS iox::measurement, cpu.time, CAST(NULL AS Utf8) AS device, CAST(cpu.cpu AS Utf8) AS cpu, cpu.usage_idle AS usage_idle, NULL AS free [iox::measurement:Dictionary(Int32, Utf8), time:Timestamp(Nanosecond, None), device:Utf8;N, cpu:Utf8;N, usage_idle:Float64;N, free:Null;N]
+                  TableScan: cpu [cpu:Dictionary(Int32, Utf8);N, host:Dictionary(Int32, Utf8);N, region:Dictionary(Int32, Utf8);N, time:Timestamp(Nanosecond, None), usage_idle:Float64;N, usage_system:Float64;N, usage_user:Float64;N]
+                Projection: Dictionary(Int32, Utf8("disk")) AS iox::measurement, disk.time, CAST(disk.device AS Utf8) AS device, CAST(NULL AS Utf8) AS cpu, CAST(NULL AS Float64) AS usage_idle, NULL AS free [iox::measurement:Dictionary(Int32, Utf8), time:Timestamp(Nanosecond, None), device:Utf8;N, cpu:Utf8;N, usage_idle:Float64;N, free:Null;N]
+                  TableScan: disk [bytes_free:Int64;N, bytes_used:Int64;N, device:Dictionary(Int32, Utf8);N, host:Dictionary(Int32, Utf8);N, region:Dictionary(Int32, Utf8);N, time:Timestamp(Nanosecond, None)]
+            "###);
+        }
+
+        #[test]
+        fn test_select_group_by_limit_offset() {
+            // Should return internal error
+            assert_snapshot!(plan("SELECT usage_idle FROM cpu GROUP BY cpu LIMIT 1"), @"This feature is not implemented: GROUP BY combined with LIMIT or OFFSET clause");
+            assert_snapshot!(plan("SELECT usage_idle FROM cpu GROUP BY cpu OFFSET 1"), @"This feature is not implemented: GROUP BY combined with LIMIT or OFFSET clause");
+            assert_snapshot!(plan("SELECT usage_idle FROM cpu GROUP BY cpu LIMIT 1 OFFSET 1"), @"This feature is not implemented: GROUP BY combined with LIMIT or OFFSET clause");
         }
 
         // The following is an outline of additional scenarios to develop
@@ -1394,5 +1858,35 @@ mod test {
             // should bind to time and f64_field, and i64_Field should return NULL values
             assert_snapshot!(plan("SELECT time, f64_field, i64_Field FROM data"));
         }
+    }
+
+    #[test]
+    fn test_has_aggregate_exprs() {
+        let sel = parse_select("SELECT count(usage) FROM cpu");
+        assert!(has_aggregate_exprs(&sel.fields));
+
+        // Can be part of a complex expression
+        let sel = parse_select("SELECT sum(usage) + count(usage) FROM cpu");
+        assert!(has_aggregate_exprs(&sel.fields));
+
+        // Can be mixed with scalar columns
+        let sel = parse_select("SELECT idle, first(usage) FROM cpu");
+        assert!(has_aggregate_exprs(&sel.fields));
+
+        // Are case insensitive
+        let sel = parse_select("SELECT Count(usage) FROM cpu");
+        assert!(has_aggregate_exprs(&sel.fields));
+
+        // Returns false where it is not a valid aggregate function
+        let sel = parse_select("SELECT foo(usage) FROM cpu");
+        assert!(!has_aggregate_exprs(&sel.fields));
+
+        // Returns false when it is a math function
+        let sel = parse_select("SELECT abs(usage) FROM cpu");
+        assert!(!has_aggregate_exprs(&sel.fields));
+
+        // Returns false when there are only scalar functions
+        let sel = parse_select("SELECT usage, idle FROM cpu");
+        assert!(!has_aggregate_exprs(&sel.fields));
     }
 }

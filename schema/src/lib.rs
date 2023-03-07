@@ -20,6 +20,11 @@ use snafu::{OptionExt, Snafu};
 /// The name of the timestamp column in the InfluxDB datamodel
 pub const TIME_COLUMN_NAME: &str = "time";
 
+/// The name of the column specifying the source measurement for a row for an InfluxQL query.
+pub const INFLUXQL_MEASUREMENT_COLUMN_NAME: &str = "iox::measurement";
+/// The key identifying the schema-level metadata.
+pub const INFLUXQL_METADATA_KEY: &str = "iox::influxql::group_key::metadata";
+
 /// The Timezone to use for InfluxDB timezone (should be a constant)
 #[allow(non_snake_case)]
 pub fn TIME_DATA_TIMEZONE() -> Option<String> {

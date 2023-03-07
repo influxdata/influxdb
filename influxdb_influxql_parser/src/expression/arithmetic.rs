@@ -418,7 +418,9 @@ where
     )(i)
 }
 
-/// Parse a function call expression
+/// Parse a function call expression.
+///
+/// The `name` field of the [`Expr::Call`] variant is guaranteed to be in lowercase.
 pub(crate) fn call_expression<T>(i: &str) -> ParseResult<&str, Expr>
 where
     T: ArithmeticParsers,
@@ -427,10 +429,9 @@ where
         separated_pair(
             // special case to handle `DISTINCT`, which is allowed as an identifier
             // in a call expression
-            map(
-                alt((unquoted_identifier, keyword("DISTINCT"))),
-                &str::to_string,
-            ),
+            map(alt((unquoted_identifier, keyword("DISTINCT"))), |n| {
+                n.to_ascii_lowercase()
+            }),
             ws0,
             delimited(
                 char('('),
@@ -874,19 +875,19 @@ mod test {
         // tests.
 
         // No arguments
-        assert_call("FN()", "FN()");
+        assert_call("FN()", "fn()");
 
         // Single argument with surrounding whitespace
-        assert_call("FN ( 1 )", "FN(1)");
+        assert_call("FN ( 1 )", "fn(1)");
 
         // Multiple arguments with varying whitespace
-        assert_call("FN ( 1,2\n,3,\t4 )", "FN(1, 2, 3, 4)");
+        assert_call("FN ( 1,2\n,3,\t4 )", "fn(1, 2, 3, 4)");
 
         // Arguments as expressions
-        assert_call("FN ( 1 + 2, foo, 'bar' )", "FN(1 + 2, foo, 'bar')");
+        assert_call("FN ( 1 + 2, foo, 'bar' )", "fn(1 + 2, foo, 'bar')");
 
         // A single regular expression argument
-        assert_call("FN ( /foo/ )", "FN(/foo/)");
+        assert_call("FN ( /foo/ )", "fn(/foo/)");
 
         // Fallible cases
 
