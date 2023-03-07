@@ -32,6 +32,11 @@ use trace::TraceCollector;
 const TOPIC: &str = "iox-shared";
 const TRANSITION_SHARD_INDEX: i32 = TRANSITION_SHARD_NUMBER;
 
+// Minimum multiple between max_desired_file_size_bytes and max_input_parquet_bytes_per_partition
+// Since max_desired_file_size_bytes is softly enforced, actual file sizes can exceed it, and a
+// single compaction job must be able to compact >1 max sized file, so the multiple should be at least 3.
+const MIN_COMPACT_SIZE_MULTIPLE: i64 = 3;
+
 pub struct Compactor2ServerType {
     compactor: Compactor2,
     metric_registry: Arc<Registry>,
@@ -171,6 +176,18 @@ pub async fn create_compactor2_server_type(
             "provided partition ID filter and specific 'process all', this does not make sense"
         ),
     };
+
+    if compactor_config.max_desired_file_size_bytes as i64 * MIN_COMPACT_SIZE_MULTIPLE
+        > compactor_config
+            .max_input_parquet_bytes_per_partition
+            .try_into()
+            .unwrap()
+    {
+        panic!("max_input_parquet_bytes_per_partition ({}) must be at least {} times larger than max_desired_file_size_bytes ({})",
+            compactor_config.max_input_parquet_bytes_per_partition,
+            MIN_COMPACT_SIZE_MULTIPLE,
+            compactor_config.max_desired_file_size_bytes);
+    }
 
     let compactor = Compactor2::start(Config {
         shard_id,
