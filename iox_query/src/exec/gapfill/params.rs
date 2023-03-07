@@ -9,11 +9,12 @@ use chrono::Duration;
 use datafusion::{
     error::{DataFusionError, Result},
     physical_expr::datetime_expressions::date_bin,
-    physical_plan::ColumnarValue,
+    physical_plan::{expressions::Column, ColumnarValue},
     scalar::ScalarValue,
 };
+use hashbrown::HashMap;
 
-use super::{try_map_bound, try_map_range, GapFillExecParams};
+use super::{try_map_bound, try_map_range, FillStrategy, GapFillExecParams};
 
 /// The parameters to gap filling. Included here are the parameters
 /// that remain constant during gap filling, i.e., not the streaming table
@@ -30,6 +31,9 @@ pub(super) struct GapFillParams {
     /// The last timestamp (inclusive!) to be output for each series,
     /// in nanoseconds since the epoch.
     pub last_ts: i64,
+    /// What to do when filling gaps in aggregate columns.
+    /// The map is keyed on the columns offset in the schema.
+    pub fill_strategy: HashMap<usize, FillStrategy>,
 }
 
 impl GapFillParams {
@@ -76,10 +80,26 @@ impl GapFillParams {
         args[1] = i64_to_columnar_ts(Some(last_ts));
         let last_ts = extract_timestamp_nanos(&date_bin(&args)?)?;
 
+        let fill_strategy = params
+            .fill_strategy
+            .iter()
+            .map(|(e, fs)| {
+                let idx = e
+                    .as_any()
+                    .downcast_ref::<Column>()
+                    .ok_or(DataFusionError::Internal(format!(
+                        "fill strategy aggr expr was not a column: {e:?}",
+                    )))?
+                    .index();
+                Ok((idx, fs.clone()))
+            })
+            .collect::<Result<HashMap<usize, FillStrategy>>>()?;
+
         Ok(Self {
             stride: extract_interval_nanos(&args[0])?,
             first_ts,
             last_ts,
+            fill_strategy,
         })
     }
 
@@ -144,9 +164,10 @@ mod tests {
         },
         scalar::ScalarValue,
     };
+    use hashbrown::HashMap;
 
     use crate::exec::{
-        gapfill::{GapFillExec, GapFillExecParams},
+        gapfill::{FillStrategy, GapFillExec, GapFillExecParams},
         Executor, ExecutorType,
     };
 
@@ -167,6 +188,7 @@ mod tests {
             stride: 60_000_000_000,                  // 1 minute
             first_ts: Some(441_820_500_000_000_000), // Sunday, January 1, 1984 3:55:00 PM
             last_ts: 441_820_800_000_000_000,        // Sunday, January 1, 1984 3:59:00 PM
+            fill_strategy: HashMap::new(),
         };
         assert_eq!(expected, actual);
         Ok(())
@@ -188,6 +210,7 @@ mod tests {
             first_ts: Some(441_820_500_000_000_000), // Sunday, January 1, 1984 3:55:00 PM
             // Last bin at 16:00 is excluded
             last_ts: 441_820_740_000_000_000, // Sunday, January 1, 1984 3:59:00 PM
+            fill_strategy: HashMap::new(),
         };
         assert_eq!(expected, actual);
         Ok(())
@@ -209,6 +232,7 @@ mod tests {
             // First bin not exluded since it truncates to 15:55:00
             first_ts: Some(441_820_500_000_000_000), // Sunday, January 1, 1984 3:55:00 PM
             last_ts: 441_820_800_000_000_000,        // Sunday, January 1, 1984 3:59:00 PM
+            fill_strategy: HashMap::new(),
         };
         assert_eq!(expected, actual);
         Ok(())
@@ -230,6 +254,7 @@ mod tests {
             stride: 60_000_000_000,                  // 1 minute
             first_ts: Some(441_820_449_000_000_000), // Sunday, January 1, 1984 3:54:09 PM
             last_ts: 441_820_749_000_000_000,        // Sunday, January 1, 1984 3:59:09 PM
+            fill_strategy: HashMap::new(),
         };
         assert_eq!(expected, actual);
         Ok(())
@@ -258,6 +283,11 @@ mod tests {
                 start: Bound::Unbounded,
                 end: Bound::Excluded(timestamp(20_000_000_000)),
             },
+            fill_strategy: std::iter::once((
+                Arc::new(Column::new("a0", 1)) as Arc<dyn PhysicalExpr>,
+                FillStrategy::Null,
+            ))
+            .collect(),
         };
 
         let actual = GapFillParams::try_new(schema().into(), &exec_params).unwrap();
@@ -266,6 +296,7 @@ mod tests {
                 stride: 1_000_000_000,
                 first_ts: None,
                 last_ts: 19_000_000_000,
+                fill_strategy: simple_fill_strategy(),
             },
             actual
         );
@@ -279,6 +310,7 @@ mod tests {
             stride: 10,
             first_ts: Some(1000),
             last_ts: 1050,
+            fill_strategy: simple_fill_strategy(),
         };
 
         assert_eq!(6, params.valid_row_count(1000));
@@ -315,5 +347,9 @@ mod tests {
         let exec_params = &gapfill_node.params;
         let schema = schema();
         GapFillParams::try_new(schema.into(), exec_params)
+    }
+
+    fn simple_fill_strategy() -> HashMap<usize, FillStrategy> {
+        std::iter::once((1, FillStrategy::Null)).collect()
     }
 }

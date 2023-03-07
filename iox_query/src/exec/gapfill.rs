@@ -52,6 +52,25 @@ pub(crate) struct GapFillParams {
     /// which implies that gap-filling should just start from the
     /// first point in each series.
     pub time_range: Range<Bound<Expr>>,
+    /// What to do when filling aggregate columns.
+    /// The first item in the tuple will be the column
+    /// reference for the aggregate column.
+    pub fill_strategy: Vec<(Expr, FillStrategy)>,
+}
+
+/// Describes how to fill gaps in an aggregate column.
+#[derive(Clone, Debug, PartialEq)]
+pub enum FillStrategy {
+    /// Fill with null values.
+    /// This is the InfluxQL behavior for `FILL(NULL)` or `FILL(NONE)`.
+    Null,
+    /// Fill with the most recent value in the input column.
+    #[allow(dead_code)]
+    Prev,
+    /// Fill with the most recent non-null value in the input column.
+    /// This is the InfluxQL behavior for `FILL(PREVIOUS)`.
+    #[allow(dead_code)]
+    PrevNullAsMissing,
 }
 
 impl GapFillParams {
@@ -74,7 +93,7 @@ impl GapFillParams {
     }
 
     #[allow(clippy::wrong_self_convention)] // follows convention of UserDefinedLogicalNode
-    fn from_template(&self, exprs: &[Expr]) -> Self {
+    fn from_template(&self, exprs: &[Expr], aggr_expr: &[Expr]) -> Self {
         assert!(
             exprs.len() >= 3,
             "should be a at least stride, source and origin in params"
@@ -89,11 +108,24 @@ impl GapFillParams {
             })
         })
         .unwrap();
+
+        let fill_strategy = aggr_expr
+            .iter()
+            .cloned()
+            .zip(
+                self.fill_strategy
+                    .iter()
+                    .map(|(_expr, fill_strategy)| fill_strategy)
+                    .cloned(),
+            )
+            .collect();
+
         Self {
             stride,
             time_column,
             origin,
             time_range,
+            fill_strategy,
         }
     }
 }
@@ -161,7 +193,7 @@ impl UserDefinedLogicalNode for GapFill {
         let mut group_expr: Vec<_> = exprs.to_vec();
         let mut aggr_expr = group_expr.split_off(self.group_expr.len());
         let param_expr = aggr_expr.split_off(self.aggr_expr.len());
-        let params = self.params.from_template(&param_expr);
+        let params = self.params.from_template(&param_expr, &aggr_expr);
         let gapfill = Self::try_new(Arc::new(inputs[0].clone()), group_expr, aggr_expr, params)
             .expect("should not fail");
         Arc::new(gapfill)
@@ -228,11 +260,24 @@ pub(crate) fn plan_gap_fill(
         execution_props,
     )?;
 
+    let fill_strategy = gap_fill
+        .params
+        .fill_strategy
+        .iter()
+        .map(|(e, fs)| {
+            Ok((
+                create_physical_expr(e, input_dfschema, input_schema, execution_props)?,
+                fs.clone(),
+            ))
+        })
+        .collect::<Result<Vec<(Arc<dyn PhysicalExpr>, FillStrategy)>>>()?;
+
     let params = GapFillExecParams {
         stride,
         time_column,
         origin,
         time_range,
+        fill_strategy,
     };
     GapFillExec::try_new(
         Arc::clone(&physical_inputs[0]),
@@ -269,6 +314,7 @@ fn bound_extract<T>(b: &Bound<T>) -> Option<&T> {
         Bound::Unbounded => None,
     }
 }
+
 /// A physical node for the gap-fill operation.
 pub struct GapFillExec {
     input: Arc<dyn ExecutionPlan>,
@@ -296,6 +342,9 @@ struct GapFillExecParams {
     /// The time range of source input to DATE_BIN_GAPFILL.
     /// Inferred from predicates in the overall query.
     time_range: Range<Bound<Arc<dyn PhysicalExpr>>>,
+    /// What to do when filling aggregate columns.
+    /// The 0th element in each tuple is the aggregate column.
+    fill_strategy: Vec<(Arc<dyn PhysicalExpr>, FillStrategy)>,
 }
 
 impl GapFillExec {
@@ -482,7 +531,9 @@ mod test {
         error::Result,
         execution::runtime_env::{RuntimeConfig, RuntimeEnv},
         logical_expr::{logical_plan, Extension},
-        physical_plan::{collect, expressions::lit as phys_lit, memory::MemoryExec},
+        physical_plan::{
+            collect, expressions::col as phys_col, expressions::lit as phys_lit, memory::MemoryExec,
+        },
         prelude::{col, lit, lit_timestamp_nano, SessionConfig, SessionContext},
         scalar::ScalarValue,
     };
@@ -507,6 +558,10 @@ mod test {
         logical_plan::table_scan(Some("temps"), &schema, None)?.build()
     }
 
+    fn fill_strategy_null(cols: Vec<Expr>) -> Vec<(Expr, FillStrategy)> {
+        cols.into_iter().map(|e| (e, FillStrategy::Null)).collect()
+    }
+
     #[test]
     fn test_try_new_errs() {
         let scan = table_scan().unwrap();
@@ -522,6 +577,7 @@ mod test {
                     start: Bound::Included(lit_timestamp_nano(1000)),
                     end: Bound::Unbounded,
                 },
+                fill_strategy: fill_strategy_null(vec![col("temp")]),
             },
         );
 
@@ -569,6 +625,7 @@ mod test {
                     time_column: col("time"),
                     origin: lit_timestamp_nano(0),
                     time_range,
+                    fill_strategy: fill_strategy_null(vec![col("temp")]),
                 },
             )
             .unwrap();
@@ -594,6 +651,7 @@ mod test {
                     start: Bound::Included(lit_timestamp_nano(1000)),
                     end: Bound::Excluded(lit_timestamp_nano(2000)),
                 },
+                fill_strategy: fill_strategy_null(vec![col("temp")]),
             },
         )?;
         let plan = LogicalPlan::Extension(Extension {
@@ -1235,6 +1293,29 @@ mod test {
     }
 
     #[tokio::test]
+    async fn test_gapfill_strategy_not_implemented() -> Result<()> {
+        test_helpers::maybe_start_logging();
+        let input_batch_size = 1024;
+        let output_batch_size = input_batch_size;
+        let batch = TestRecords {
+            group_cols: vec![vec![Some("a"), Some("a")]],
+            time_col: vec![Some(1_000), Some(1_100)],
+            agg_cols: vec![vec![Some(10), Some(11)]],
+            input_batch_size,
+        };
+        let mut params = get_params_ms(&batch, 25, Some(975), 1_125);
+        params.fill_strategy[0].1 = FillStrategy::PrevNullAsMissing;
+        let tc = TestCase {
+            test_records: batch,
+            output_batch_size,
+            params,
+        };
+        let result = tc.run().await;
+        assert_error!(result, DataFusionError::NotImplemented(ref msg) if msg == "unsupported gap fill strategy PrevNullAsMissing");
+        Ok(())
+    }
+
+    #[tokio::test]
     async fn test_gapfill_oom() {
         // Show that a graceful error is produced if memory limit is exceeded
         test_helpers::maybe_start_logging();
@@ -1437,6 +1518,18 @@ mod test {
         }
     }
 
+    fn phys_fill_strategy_null(
+        records: &TestRecords,
+    ) -> Result<Vec<(Arc<dyn PhysicalExpr>, FillStrategy)>> {
+        let start = records.group_cols.len() + 1; // 1 is for time col
+        let end = start + records.agg_cols.len();
+        let mut v = Vec::with_capacity(records.agg_cols.len());
+        for f in records.schema().fields()[start..end].iter() {
+            v.push((phys_col(f.name(), &records.schema())?, FillStrategy::Null));
+        }
+        Ok(v)
+    }
+
     fn get_params_ms(
         batch: &TestRecords,
         stride: i64,
@@ -1461,6 +1554,7 @@ mod test {
                     None,
                 ))),
             },
+            fill_strategy: phys_fill_strategy_null(batch).unwrap(),
         }
     }
 }

@@ -3,7 +3,7 @@
 
 mod range_predicate;
 
-use crate::exec::gapfill::{GapFill, GapFillParams};
+use crate::exec::gapfill::{FillStrategy, GapFill, GapFillParams};
 use datafusion::{
     error::{DataFusionError, Result},
     logical_expr::{
@@ -182,6 +182,15 @@ fn build_gapfill_node(
         .collect();
     let aggr_expr = new_group_expr.split_off(aggr.group_expr.len());
 
+    // For now, we can only fill with null values.
+    // In the future, this rule will allow a projection to be pushed into the
+    // GapFill node, e.g., if it contains an item like `LOCF(<col>)`.
+    let fill_behavior = aggr_expr
+        .iter()
+        .cloned()
+        .map(|e| (e, FillStrategy::Null))
+        .collect();
+
     Ok(LogicalPlan::Extension(Extension {
         node: Arc::new(GapFill::try_new(
             Arc::new(new_aggr_plan),
@@ -192,6 +201,7 @@ fn build_gapfill_node(
                 time_column,
                 origin,
                 time_range,
+                fill_strategy: fill_behavior,
             },
         )?),
     }))

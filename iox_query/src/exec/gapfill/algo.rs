@@ -11,7 +11,7 @@ use arrow::{
 };
 use datafusion::error::{DataFusionError, Result};
 
-use super::params::GapFillParams;
+use super::{params::GapFillParams, FillStrategy};
 
 /// Provides methods to the [`GapFillStream`](super::stream::GapFillStream)
 /// module that fill gaps in buffered input.
@@ -270,8 +270,19 @@ impl GapFiller {
         // Build the aggregate columns
         for (idx, aa) in aggr_arr.iter() {
             let mut cursor = self.cursor.clone();
-            let take_vec =
-                cursor.build_aggr_take_vec(&self.params, series_ends, input_time_array)?;
+            let take_vec = match self.params.fill_strategy.get(idx) {
+                Some(FillStrategy::Null) => cursor.build_aggr_take_vec_fill_null(
+                    &self.params,
+                    series_ends,
+                    input_time_array,
+                ),
+                Some(fs) => Err(DataFusionError::NotImplemented(format!(
+                    "unsupported gap fill strategy {fs:?}"
+                ))),
+                None => Err(DataFusionError::Internal(format!(
+                    "could not find fill strategy for aggregate column with index {idx}"
+                ))),
+            }?;
             if take_vec.len() != output_time_len {
                 return Err(DataFusionError::Internal(format!(
                     "gapfill aggr column has {} rows, expected {}",
@@ -421,7 +432,7 @@ impl Cursor {
 
     /// Builds a vector that can use the [`take`](take::take) kernel
     /// to produce an aggregate output column.
-    fn build_aggr_take_vec(
+    fn build_aggr_take_vec_fill_null(
         &mut self,
         params: &GapFillParams,
         series_ends: &[usize],
@@ -584,8 +595,9 @@ enum RowStatus {
 mod tests {
     use arrow::array::TimestampNanosecondArray;
     use datafusion::error::Result;
+    use hashbrown::HashMap;
 
-    use crate::exec::gapfill::{algo::Cursor, params::GapFillParams};
+    use crate::exec::gapfill::{algo::Cursor, params::GapFillParams, FillStrategy};
 
     #[test]
     fn test_cursor_append_time_values() -> Result<()> {
@@ -597,6 +609,7 @@ mod tests {
             stride: 50,
             first_ts: Some(950),
             last_ts: 1250,
+            fill_strategy: simple_fill_strategy(),
         };
 
         let output_batch_size = 10000;
@@ -642,6 +655,7 @@ mod tests {
             stride: 50,
             first_ts: None,
             last_ts: 1250,
+            fill_strategy: simple_fill_strategy(),
         };
 
         let output_batch_size = 10000;
@@ -680,6 +694,7 @@ mod tests {
             stride: 50,
             first_ts: Some(950),
             last_ts: 1250,
+            fill_strategy: simple_fill_strategy(),
         };
 
         let output_batch_size = 10000;
@@ -725,6 +740,7 @@ mod tests {
             stride: 50,
             first_ts: Some(950),
             last_ts: 1250,
+            fill_strategy: simple_fill_strategy(),
         };
 
         let output_batch_size = 10000;
@@ -757,6 +773,7 @@ mod tests {
             stride: 50,
             first_ts: Some(950),
             last_ts: 1250,
+            fill_strategy: simple_fill_strategy(),
         };
 
         let output_batch_size = 10000;
@@ -766,7 +783,7 @@ mod tests {
             remaining_output_batch_size: output_batch_size,
         };
 
-        let take_idxs = cursor.build_aggr_take_vec(&params, &[series], &input_times)?;
+        let take_idxs = cursor.build_aggr_take_vec_fill_null(&params, &[series], &input_times)?;
         assert_eq!(
             vec![None, Some(0), None, Some(1), None, Some(2), None],
             take_idxs
@@ -795,6 +812,7 @@ mod tests {
             stride: 50,
             first_ts: Some(950),
             last_ts: 1250,
+            fill_strategy: simple_fill_strategy(),
         };
 
         let output_batch_size = 10000;
@@ -804,7 +822,7 @@ mod tests {
             remaining_output_batch_size: output_batch_size,
         };
 
-        let take_idxs = cursor.build_aggr_take_vec(&params, &[series], &input_times)?;
+        let take_idxs = cursor.build_aggr_take_vec_fill_null(&params, &[series], &input_times)?;
         assert_eq!(
             vec![
                 Some(0), // corresopnds to null ts
@@ -839,6 +857,7 @@ mod tests {
             stride: 50,
             first_ts: Some(950),
             last_ts: 1350,
+            fill_strategy: simple_fill_strategy(),
         };
         let input_times = TimestampNanosecondArray::from(vec![
             // 950
@@ -916,6 +935,7 @@ mod tests {
             stride: 50,
             first_ts: Some(950),
             last_ts: 1350,
+            fill_strategy: simple_fill_strategy(),
         };
         let input_times = TimestampNanosecondArray::from(vec![
             None,
@@ -999,6 +1019,7 @@ mod tests {
             stride: 50,
             first_ts: Some(1000),
             last_ts: 1100,
+            fill_strategy: simple_fill_strategy(),
         };
         let input_times = TimestampNanosecondArray::from(vec![
             None,
@@ -1081,6 +1102,7 @@ mod tests {
             stride: 50,
             first_ts: Some(1000),
             last_ts: 1100,
+            fill_strategy: simple_fill_strategy(),
         };
         let input_times = TimestampNanosecondArray::from(vec![
             None,
@@ -1162,6 +1184,7 @@ mod tests {
             stride: 100,
             first_ts: Some(200),
             last_ts: 1000,
+            fill_strategy: simple_fill_strategy(),
         };
         let input_times = TimestampNanosecondArray::from(vec![300, 500, 700, 800]);
         let series = input_times.len();
@@ -1255,6 +1278,7 @@ mod tests {
             stride: 50,
             first_ts: Some(1000),
             last_ts: 1200,
+            fill_strategy: simple_fill_strategy(),
         };
         let input_times = TimestampNanosecondArray::from(vec![
             1000, // 1050
@@ -1382,6 +1406,10 @@ mod tests {
         cursor.count_series_rows(params, input_times, series_end)
     }
 
+    fn simple_fill_strategy() -> HashMap<usize, FillStrategy> {
+        std::iter::once((1, FillStrategy::Null)).collect()
+    }
+
     struct Expected {
         times: Vec<Option<i64>>,
         group_take: Vec<u64>,
@@ -1407,7 +1435,8 @@ mod tests {
                 .build_group_take_vec(params, &[series_end], input_times)?;
         assert_eq!(expected.group_take, actual_group_take, "{desc} group take");
 
-        let actual_aggr_take = cursor.build_aggr_take_vec(params, &[series_end], input_times)?;
+        let actual_aggr_take =
+            cursor.build_aggr_take_vec_fill_null(params, &[series_end], input_times)?;
         assert_eq!(expected.aggr_take, actual_aggr_take, "{desc} aggr take");
 
         Ok(())
