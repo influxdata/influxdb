@@ -113,7 +113,9 @@ impl Display for V1IRPlanner {
 }
 
 impl IRPlanner for V1IRPlanner {
-    fn plan(
+    /// Build a plan to compact many files into a single file. Since we limit the size of the files,
+    /// if the compact result is larger than that limit, we will split the output into many files
+    fn compact_plan(
         &self,
         files: Vec<ParquetFile>,
         _partition: Arc<PartitionInfo>,
@@ -145,7 +147,11 @@ impl IRPlanner for V1IRPlanner {
         let files = files
             .into_iter()
             .map(|file| {
-                let order = order(file.compaction_level, compaction_level, file.created_at);
+                let order = order(
+                    file.compaction_level,
+                    compaction_level,
+                    file.max_l0_created_at,
+                );
                 FileIR { file, order }
             })
             .collect::<Vec<_>>();
@@ -175,9 +181,31 @@ impl IRPlanner for V1IRPlanner {
                 // everything into one file
                 PlanIR::Compact { files }
             } else {
-                // split compact query plan
+                // split compact query plan to split the result into multiple files
                 PlanIR::Split { files, split_times }
             }
+        }
+    }
+
+    /// Build a plan to split a file into multiple files based on the given split times
+    fn split_plan(
+        &self,
+        file: ParquetFile,
+        split_times: Vec<i64>,
+        _partition: Arc<PartitionInfo>,
+        compaction_level: CompactionLevel,
+    ) -> PlanIR {
+        let order = order(
+            file.compaction_level,
+            compaction_level,
+            file.max_l0_created_at,
+        );
+
+        let file = FileIR { file, order };
+
+        PlanIR::Split {
+            files: vec![file],
+            split_times,
         }
     }
 }
@@ -186,15 +214,16 @@ impl IRPlanner for V1IRPlanner {
 fn order(
     compaction_level: CompactionLevel,
     target_level: CompactionLevel,
-    created_at: Timestamp,
+    max_l0_created_at: Timestamp,
 ) -> ChunkOrder {
     // TODO: If we chnage this design specified in driver.rs's compact functions, we will need to refine this
     // Currently, we only compact files of level_n with level_n+1 and produce level_n+1 files,
     // and with the strictly design that:
     //    . Level-0 files can overlap with any files.
     //    . Level-N files (N > 0) cannot overlap with any files in the same level.
-    //    . For Level-0 files, we always pick the smaller `created_at` files to compact (with
-    //      each other and overlapped L1 files) first.
+    //    . For Level-0 files, we always pick the smaller `max_l0_created_at` files to compact (with
+    //      each other and overlapped L1 files) first. `max_l0_created_at` is the max created time of all L0 files
+    //      that were compacted into this given file. This value is used to order chunk for deduplication.
     //    . Level-N+1 files are results of compacting Level-N and/or Level-N+1 files, their `created_at`
     //      can be after the `created_at` of other Level-N files but they may include data loaded before
     //      the other Level-N files. Hence we should never use `created_at` of Level-N+1 files to order
@@ -210,7 +239,7 @@ fn order(
         (CompactionLevel::Initial, CompactionLevel::Initial)
         | (CompactionLevel::Initial, CompactionLevel::FileNonOverlapped)
         | (CompactionLevel::FileNonOverlapped, CompactionLevel::Final) => {
-            ChunkOrder::new(created_at.get())
+            ChunkOrder::new(max_l0_created_at.get())
         }
         (CompactionLevel::FileNonOverlapped, CompactionLevel::FileNonOverlapped)
         | (CompactionLevel::Final, CompactionLevel::Final) => ChunkOrder::new(0),

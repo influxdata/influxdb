@@ -247,6 +247,7 @@ where
                 .get(file_level)
                 .expect("all compaction levels covered")
                 .record(create.len() as u64);
+
             self.job_bytes
                 .create
                 .get(file_level)

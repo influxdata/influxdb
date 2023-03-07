@@ -3,8 +3,10 @@ use std::fmt::Display;
 use data_types::{CompactionLevel, ParquetFile};
 
 use crate::{
-    components::files_split::FilesSplit, file_classification::FileClassification,
-    partition_info::PartitionInfo, RoundInfo,
+    components::{files_split::FilesSplit, split_or_compact::SplitOrCompact},
+    file_classification::{FileClassification, FilesToCompactOrSplit},
+    partition_info::PartitionInfo,
+    RoundInfo,
 };
 
 use super::FileClassifier;
@@ -33,50 +35,70 @@ use super::FileClassifier;
 ///             [non overlap split (FO)]    |                   :
 ///                      |     |            |                   :
 ///                      |     |            |                   :
-///                      |     +------------+-->(files keep)    :
-///                      |                                      :
-///                      |                                      :
+///                      |     +------------+------+            :
+///                      |                         |            :
+///                      |                         |            :
 ///                      |     +................................+
-///                      |     :
-///                      V     V
-///             [upgrade split (FU)]
-///                      |     |
-///                      |     |
-///                      V     V
-///           (file compact)  (file upgrade)
+///                      |     :                   |            :
+///                      V     V                   |            :
+///             [upgrade split (FU)]               |            :
+///                      |     |                   |            :
+///                      |     |                   |            :
+///                      |     V                   |            :
+///                      |  (files upgrade)        |            :
+///                      |                         |            :
+///                      |     +................................+
+///                      |     |                   |
+///                      V     V                   |
+///            [split or compact (FSC)]            |
+///                      |     |                   |
+///                      |     +-------------------+
+///                      |                         |
+///                      V                         V
+///      (files compact or split)            (files keep)
 /// ```
 #[derive(Debug)]
-pub struct SplitBasedFileClassifier<FT, FO, FU>
+pub struct SplitBasedFileClassifier<FT, FO, FU, FSC>
 where
     FT: FilesSplit,
     FO: FilesSplit,
     FU: FilesSplit,
+    FSC: SplitOrCompact,
 {
     target_level_split: FT,
     non_overlap_split: FO,
     upgrade_split: FU,
+    split_or_compact: FSC,
 }
 
-impl<FT, FO, FU> SplitBasedFileClassifier<FT, FO, FU>
+impl<FT, FO, FU, FSC> SplitBasedFileClassifier<FT, FO, FU, FSC>
 where
     FT: FilesSplit,
     FO: FilesSplit,
     FU: FilesSplit,
+    FSC: SplitOrCompact,
 {
-    pub fn new(target_level_split: FT, non_overlap_split: FO, upgrade_split: FU) -> Self {
+    pub fn new(
+        target_level_split: FT,
+        non_overlap_split: FO,
+        upgrade_split: FU,
+        split_or_compact: FSC,
+    ) -> Self {
         Self {
             target_level_split,
             non_overlap_split,
             upgrade_split,
+            split_or_compact,
         }
     }
 }
 
-impl<FT, FO, FU> Display for SplitBasedFileClassifier<FT, FO, FU>
+impl<FT, FO, FU, FSC> Display for SplitBasedFileClassifier<FT, FO, FU, FSC>
 where
     FT: FilesSplit,
     FO: FilesSplit,
     FU: FilesSplit,
+    FSC: SplitOrCompact,
 {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         write!(
@@ -87,15 +109,16 @@ where
     }
 }
 
-impl<FT, FO, FU> FileClassifier for SplitBasedFileClassifier<FT, FO, FU>
+impl<FT, FO, FU, FSC> FileClassifier for SplitBasedFileClassifier<FT, FO, FU, FSC>
 where
     FT: FilesSplit,
     FO: FilesSplit,
     FU: FilesSplit,
+    FSC: SplitOrCompact,
 {
     fn classify(
         &self,
-        _partition_info: &PartitionInfo,
+        partition_info: &PartitionInfo,
         round_info: &RoundInfo,
         files: Vec<ParquetFile>,
     ) -> FileClassification {
@@ -123,13 +146,23 @@ where
             self.non_overlap_split.apply(files_to_compact, target_level);
         files_to_keep.extend(non_overlapping_files);
 
-        // To have efficient compaction performance, we only need to uprade (catalog update only) eligible files
+        // To have efficient compaction performance, we only need to upgrade (catalog update only) eligible files
         let (files_to_compact, files_to_upgrade) =
             self.upgrade_split.apply(files_to_compact, target_level);
 
+        // See if we need to split start-level files due to over compaction size limit
+        let (files_to_compact_or_split, other_files) =
+            self.split_or_compact
+                .apply(partition_info, files_to_compact, target_level);
+        files_to_keep.extend(other_files);
+
+        // Target level of split files is the same level of the input files all of which are in the same level,
+        // while target level of compact files is the value of the target_level which is the higested level of the input files
+        let target_level = files_to_compact_or_split.target_level(target_level);
+
         FileClassification {
             target_level,
-            files_to_compact,
+            files_to_compact_or_split,
             files_to_upgrade,
             files_to_keep,
         }
@@ -154,7 +187,7 @@ fn file_classification_for_many_files(
 
     FileClassification {
         target_level,
-        files_to_compact,
+        files_to_compact_or_split: FilesToCompactOrSplit::FilesToCompact(files_to_compact),
         files_to_upgrade: vec![],
         files_to_keep: vec![],
     }

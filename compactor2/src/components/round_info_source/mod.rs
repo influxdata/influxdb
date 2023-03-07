@@ -55,6 +55,7 @@ impl RoundInfoSource for LoggingRoundInfoWrapper {
 #[derive(Debug)]
 pub struct LevelBasedRoundInfo {
     pub max_num_files_per_plan: usize,
+    pub max_total_file_size_per_plan: usize,
 }
 
 impl Display for LevelBasedRoundInfo {
@@ -63,9 +64,10 @@ impl Display for LevelBasedRoundInfo {
     }
 }
 impl LevelBasedRoundInfo {
-    pub fn new(max_num_files_per_plan: usize) -> Self {
+    pub fn new(max_num_files_per_plan: usize, max_total_file_size_per_plan: usize) -> Self {
         Self {
             max_num_files_per_plan,
+            max_total_file_size_per_plan,
         }
     }
 
@@ -115,6 +117,7 @@ impl RoundInfoSource for LevelBasedRoundInfo {
             return Ok(Arc::new(RoundInfo::ManySmallFiles {
                 start_level,
                 max_num_files_to_group: self.max_num_files_per_plan,
+                max_total_file_size_to_group: self.max_total_file_size_per_plan,
             }));
         }
 
@@ -221,6 +224,7 @@ mod tests {
         // max 2 files per plan
         let round_info = LevelBasedRoundInfo {
             max_num_files_per_plan: 2,
+            max_total_file_size_per_plan: 1000,
         };
 
         // f1 and f2 are not over limit

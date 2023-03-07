@@ -19,6 +19,8 @@ pub enum RoundInfo {
         start_level: CompactionLevel,
         /// max number of files to group in each plan
         max_num_files_to_group: usize,
+        /// max total size limit of files to group in each plan
+        max_total_file_size_to_group: usize,
     },
 }
 
@@ -29,7 +31,8 @@ impl Display for RoundInfo {
             Self::ManySmallFiles {
                 start_level,
                 max_num_files_to_group,
-            } => write!(f, "ManySmallFiles: {start_level}, {max_num_files_to_group}",),
+                max_total_file_size_to_group,
+            } => write!(f, "ManySmallFiles: {start_level}, {max_num_files_to_group}, {max_total_file_size_to_group}",),
         }
     }
 }

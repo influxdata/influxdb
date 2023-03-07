@@ -1223,6 +1223,11 @@ impl ParquetFile {
     pub fn overlaps(&self, other: &Self) -> bool {
         self.min_time <= other.max_time && self.max_time >= other.min_time
     }
+
+    /// Return true if the time range of this file overlaps with the given time range
+    pub fn overlaps_time_range(&self, min_time: Timestamp, max_time: Timestamp) -> bool {
+        self.min_time <= max_time && self.max_time >= min_time
+    }
 }
 
 /// Data for a parquet file to be inserted into the catalog.

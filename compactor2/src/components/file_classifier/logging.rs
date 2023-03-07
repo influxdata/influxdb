@@ -49,7 +49,8 @@ where
             partition_id = partition_info.partition_id.get(),
             target_level = %classification.target_level,
             round_info = %round_info,
-            files_to_compacts = classification.files_to_compact.len(),
+            files_to_compact = classification.files_to_compact_len(),
+            files_to_split = classification.files_to_split_len(),
             files_to_upgrade = classification.files_to_upgrade.len(),
             files_to_keep = classification.files_to_keep.len(),
             "file classification"

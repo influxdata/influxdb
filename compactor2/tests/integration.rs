@@ -76,57 +76,6 @@ async fn test_num_files_over_limit() {
 }
 
 #[tokio::test]
-async fn test_total_file_size_over_limit() {
-    test_helpers::maybe_start_logging();
-
-    // Create a test setup with 6 files
-    let setup = TestSetup::builder()
-        .await
-        .with_files()
-        .await
-        // Set max size < the input file size  --> it won't get compacted
-        .with_max_input_parquet_bytes_per_partition_relative_to_total_size(-1)
-        .build()
-        .await;
-
-    // verify 6 files
-    let files = setup.list_by_table_not_to_delete().await;
-    assert_eq!(files.len(), 6);
-
-    // verify ID and compaction level of the files
-    assert_levels(
-        &files,
-        vec![
-            (1, CompactionLevel::FileNonOverlapped),
-            (2, CompactionLevel::Initial),
-            (3, CompactionLevel::Initial),
-            (4, CompactionLevel::FileNonOverlapped),
-            (5, CompactionLevel::Initial),
-            (6, CompactionLevel::Initial),
-        ],
-    );
-
-    setup.run_compact().await;
-
-    // read files and verify they are not compacted
-    let files = setup.list_by_table_not_to_delete().await;
-    assert_eq!(files.len(), 6);
-
-    // verify ID and compaction level of the files
-    assert_levels(
-        &files,
-        vec![
-            (1, CompactionLevel::FileNonOverlapped),
-            (2, CompactionLevel::Initial),
-            (3, CompactionLevel::Initial),
-            (4, CompactionLevel::FileNonOverlapped),
-            (5, CompactionLevel::Initial),
-            (6, CompactionLevel::Initial),
-        ],
-    );
-}
-
-#[tokio::test]
 async fn test_compact_target_level() {
     test_helpers::maybe_start_logging();
 
@@ -249,7 +198,7 @@ async fn test_compact_large_overlapes() {
         .await
         // the test setup does not exceed number of files limit
         .with_max_num_files_per_plan(10)
-        // the test setup exceed max compact size limit
+        // the test setup to have total file size exceed max compact size limit
         .with_max_input_parquet_bytes_per_partition_relative_to_total_size(-1)
         .with_min_num_l1_files_to_compact(2)
         .with_max_desired_file_size_bytes(100 * 1024 * 1024)
@@ -264,51 +213,82 @@ async fn test_compact_large_overlapes() {
     ---
     - initial
     - "L1                                                                                                  "
-    - "L1.4[0,68000] 2.66kb|-----------------L1.4-----------------|                                        "
+    - "L1.4[6000,68000] 2.66kb|----------------L1.4----------------|                                          "
     - "L1.5[136000,136000] 2.17kb                                                                                |L1.5|"
     - "L2                                                                                                  "
-    - "L2.1[8000,12000] 1.8kb    |L2.1|                                                                      "
-    - "L2.2[20000,30000] 2.61kb           |L2.2|                                                               "
-    - "L2.3[35000,36000] 2.17kb                    |L2.3|                                                      "
+    - "L2.1[8000,12000] 1.8kb |L2.1|                                                                         "
+    - "L2.2[20000,30000] 2.61kb        |L2.2|                                                                  "
+    - "L2.3[36000,36000] 2.17kb                  |L2.3|                                                        "
     "###
     );
 
     // compact
     setup.run_compact().await;
 
-    // Due to size limit, the compaction skip this partition and 5 files still in the system
-    // After PR https://github.com/influxdata/influxdb_iox/pull/7079 is in, this test will fail here
-    // ad the right result shoudl be similar to the  commented out below
-    let files = setup.list_by_table_not_to_delete().await;
-    assert_eq!(files.len(), 5);
+    let mut files = setup.list_by_table_not_to_delete().await;
+    insta::assert_yaml_snapshot!(
+        format_files("initial", &files),
+        @r###"
+    ---
+    - initial
+    - "L2                                                                                                  "
+    - "L2.3[36000,36000] 2.17kb                  |L2.3|                                                        "
+    - "L2.9[6000,30000] 2.68kb|----L2.9----|                                                                  "
+    - "L2.10[68000,136000] 2.62kb                                      |-----------------L2.10-----------------| "
+    "###
+    );
 
-    // todo: use insta::assert_yaml_snapshot!( to verify the output layput
+    assert_eq!(files.len(), 3);
 
-    // // verify the content of files
-    // // Compacted smaller file with the later data
-    // let mut files = setup.list_by_table_not_to_delete().await;
-    // let file1 = files.pop().unwrap();
-    // let batches = setup.read_parquet_file(file1).await;
-    // assert_batches_sorted_eq!(
-    //     &[
-    //         "+-----------+------+------+------+-----------------------------+",
-    //         "| field_int | tag1 | tag2 | tag3 | time                        |",
-    //         "+-----------+------+------+------+-----------------------------+",
-    //         "| 10        | VT   |      |      | 1970-01-01T00:00:00.000006Z |",
-    //         "| 10        | VT   |      |      | 1970-01-01T00:00:00.000010Z |",
-    //         "| 10        | VT   |      |      | 1970-01-01T00:00:00.000068Z |",
-    //         "| 1500      | WA   |      |      | 1970-01-01T00:00:00.000008Z |",
-    //         "| 1601      |      | PA   | 15   | 1970-01-01T00:00:00.000028Z |",
-    //         "| 1601      |      | PA   | 15   | 1970-01-01T00:00:00.000030Z |",
-    //         "| 21        |      | OH   | 21   | 1970-01-01T00:00:00.000036Z |",
-    //         "| 210       |      | OH   | 21   | 1970-01-01T00:00:00.000136Z |",
-    //         "| 270       | UT   |      |      | 1970-01-01T00:00:00.000025Z |",
-    //         "| 70        | UT   |      |      | 1970-01-01T00:00:00.000020Z |",
-    //         "| 99        | OR   |      |      | 1970-01-01T00:00:00.000012Z |",
-    //         "+-----------+------+------+------+-----------------------------+",
-    //     ],
-    //     &batches
-    // );
+    // order files on their min_time
+    files.sort_by_key(|f| f.min_time);
+
+    let file = files[0].clone();
+    let batches = setup.read_parquet_file(file).await;
+    assert_batches_sorted_eq!(
+        &[
+            "+-----------+------+------+------+-----------------------------+",
+            "| field_int | tag1 | tag2 | tag3 | time                        |",
+            "+-----------+------+------+------+-----------------------------+",
+            "| 10        | VT   |      |      | 1970-01-01T00:00:00.000006Z |",
+            "| 10        | VT   |      |      | 1970-01-01T00:00:00.000010Z |",
+            "| 1500      | WA   |      |      | 1970-01-01T00:00:00.000008Z |",
+            "| 1601      |      | PA   | 15   | 1970-01-01T00:00:00.000028Z |",
+            "| 1601      |      | PA   | 15   | 1970-01-01T00:00:00.000030Z |",
+            "| 270       | UT   |      |      | 1970-01-01T00:00:00.000025Z |",
+            "| 70        | UT   |      |      | 1970-01-01T00:00:00.000020Z |",
+            "| 99        | OR   |      |      | 1970-01-01T00:00:00.000012Z |",
+            "+-----------+------+------+------+-----------------------------+",
+        ],
+        &batches
+    );
+
+    let file = files[1].clone();
+    let batches = setup.read_parquet_file(file).await;
+    assert_batches_sorted_eq!(
+        &[
+            "+-----------+------+------+-----------------------------+",
+            "| field_int | tag2 | tag3 | time                        |",
+            "+-----------+------+------+-----------------------------+",
+            "| 21        | OH   | 21   | 1970-01-01T00:00:00.000036Z |",
+            "+-----------+------+------+-----------------------------+",
+        ],
+        &batches
+    );
+
+    let file = files[2].clone();
+    let batches = setup.read_parquet_file(file).await;
+    assert_batches_sorted_eq!(
+        &[
+            "+-----------+------+------+------+-----------------------------+",
+            "| field_int | tag1 | tag2 | tag3 | time                        |",
+            "+-----------+------+------+------+-----------------------------+",
+            "| 10        | VT   |      |      | 1970-01-01T00:00:00.000068Z |",
+            "| 210       |      | OH   | 21   | 1970-01-01T00:00:00.000136Z |",
+            "+-----------+------+------+------+-----------------------------+",
+        ],
+        &batches
+    );
 }
 
 #[tokio::test]
@@ -341,51 +321,83 @@ async fn test_compact_large_overlape_2() {
     ---
     - initial
     - "L1                                                                                                  "
-    - "L1.4[8000,25000] 1.8kb|--L1.4--|                                                                      "
-    - "L1.5[28000,136000] 2.64kb            |------------------------------L1.5-------------------------------| "
+    - "L1.4[6000,25000] 1.8kb|--L1.4---|                                                                     "
+    - "L1.5[28000,136000] 2.64kb             |------------------------------L1.5------------------------------| "
     - "L2                                                                                                  "
-    - "L2.1[8000,12000] 1.8kb|L2.1|                                                                          "
-    - "L2.2[20000,30000] 2.61kb       |L2.2|                                                                   "
-    - "L2.3[35000,36000] 2.17kb                |L2.3|                                                          "
+    - "L2.1[8000,12000] 1.8kb |L2.1|                                                                         "
+    - "L2.2[20000,30000] 2.61kb        |L2.2|                                                                  "
+    - "L2.3[36000,36000] 2.17kb                  |L2.3|                                                        "
     "###
     );
 
     // compact
     setup.run_compact().await;
 
-    // Due to size limit, the compaction skip this partition and 5 files still in the system
-    // After PR https://github.com/influxdata/influxdb_iox/pull/7079 is in, this test will fail here
-    // ad the right result shoudl be similar to the  commented out below
-    let files = setup.list_by_table_not_to_delete().await;
-    assert_eq!(files.len(), 5);
+    let mut files = setup.list_by_table_not_to_delete().await;
+    insta::assert_yaml_snapshot!(
+        format_files("initial", &files),
+        @r###"
+    ---
+    - initial
+    - "L1                                                                                                  "
+    - "L1.9[68000,136000] 2.62kb                                      |-----------------L1.9------------------| "
+    - "L2                                                                                                  "
+    - "L2.3[36000,36000] 2.17kb                  |L2.3|                                                        "
+    - "L2.10[6000,30000] 2.68kb|---L2.10----|                                                                  "
+    "###
+    );
 
-    // todo: use insta::assert_yaml_snapshot!( to verify the output layput
+    assert_eq!(files.len(), 3);
 
-    // // verify the content of files
-    // // Compacted smaller file with the later data
-    // let mut files = setup.list_by_table_not_to_delete().await;
-    // let file1 = files.pop().unwrap();
-    // let batches = setup.read_parquet_file(file1).await;
-    // assert_batches_sorted_eq!(
-    //     &[
-    //         "+-----------+------+------+------+-----------------------------+",
-    //         "| field_int | tag1 | tag2 | tag3 | time                        |",
-    //         "+-----------+------+------+------+-----------------------------+",
-    //         "| 10        | VT   |      |      | 1970-01-01T00:00:00.000006Z |",
-    //         "| 10        | VT   |      |      | 1970-01-01T00:00:00.000010Z |",
-    //         "| 10        | VT   |      |      | 1970-01-01T00:00:00.000068Z |",
-    //         "| 1500      | WA   |      |      | 1970-01-01T00:00:00.000008Z |",
-    //         "| 1601      |      | PA   | 15   | 1970-01-01T00:00:00.000028Z |",
-    //         "| 1601      |      | PA   | 15   | 1970-01-01T00:00:00.000030Z |",
-    //         "| 21        |      | OH   | 21   | 1970-01-01T00:00:00.000036Z |",
-    //         "| 210       |      | OH   | 21   | 1970-01-01T00:00:00.000136Z |",
-    //         "| 270       | UT   |      |      | 1970-01-01T00:00:00.000025Z |",
-    //         "| 70        | UT   |      |      | 1970-01-01T00:00:00.000020Z |",
-    //         "| 99        | OR   |      |      | 1970-01-01T00:00:00.000012Z |",
-    //         "+-----------+------+------+------+-----------------------------+",
-    //     ],
-    //     &batches
-    // );
+    // order files on their min_time
+    files.sort_by_key(|f| f.min_time);
+
+    let file = files[0].clone();
+    let batches = setup.read_parquet_file(file).await;
+    assert_batches_sorted_eq!(
+        &[
+            "+-----------+------+------+------+-----------------------------+",
+            "| field_int | tag1 | tag2 | tag3 | time                        |",
+            "+-----------+------+------+------+-----------------------------+",
+            "| 10        | VT   |      |      | 1970-01-01T00:00:00.000006Z |",
+            "| 10        | VT   |      |      | 1970-01-01T00:00:00.000010Z |",
+            "| 1500      | WA   |      |      | 1970-01-01T00:00:00.000008Z |",
+            "| 1601      |      | PA   | 15   | 1970-01-01T00:00:00.000028Z |",
+            "| 1601      |      | PA   | 15   | 1970-01-01T00:00:00.000030Z |",
+            "| 270       | UT   |      |      | 1970-01-01T00:00:00.000025Z |",
+            "| 70        | UT   |      |      | 1970-01-01T00:00:00.000020Z |",
+            "| 99        | OR   |      |      | 1970-01-01T00:00:00.000012Z |",
+            "+-----------+------+------+------+-----------------------------+",
+        ],
+        &batches
+    );
+
+    let file = files[1].clone();
+    let batches = setup.read_parquet_file(file).await;
+    assert_batches_sorted_eq!(
+        &[
+            "+-----------+------+------+-----------------------------+",
+            "| field_int | tag2 | tag3 | time                        |",
+            "+-----------+------+------+-----------------------------+",
+            "| 21        | OH   | 21   | 1970-01-01T00:00:00.000036Z |",
+            "+-----------+------+------+-----------------------------+",
+        ],
+        &batches
+    );
+
+    let file = files[2].clone();
+    let batches = setup.read_parquet_file(file).await;
+    assert_batches_sorted_eq!(
+        &[
+            "+-----------+------+------+------+-----------------------------+",
+            "| field_int | tag1 | tag2 | tag3 | time                        |",
+            "+-----------+------+------+------+-----------------------------+",
+            "| 10        | VT   |      |      | 1970-01-01T00:00:00.000068Z |",
+            "| 210       |      | OH   | 21   | 1970-01-01T00:00:00.000136Z |",
+            "+-----------+------+------+------+-----------------------------+",
+        ],
+        &batches
+    );
 }
 
 #[tokio::test]

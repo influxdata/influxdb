@@ -35,6 +35,7 @@ pub mod round_info_source;
 pub mod round_split;
 pub mod scratchpad;
 pub mod skipped_compactions_source;
+pub mod split_or_compact;
 pub mod tables_source;
 
 /// Pluggable system to determine compactor behavior. Please see

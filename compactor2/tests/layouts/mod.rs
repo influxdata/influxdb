@@ -59,6 +59,7 @@ use std::time::Duration;
 use compactor2_test_utils::{format_files, TestSetup, TestSetupBuilder};
 use data_types::{CompactionLevel, ParquetFile};
 use iox_tests::TestParquetFileBuilder;
+use iox_time::Time;
 
 pub(crate) const ONE_MB: u64 = 1024 * 1024;
 
@@ -90,14 +91,15 @@ pub(crate) async fn layout_setup_builder() -> TestSetupBuilder<false> {
 
 /// Creates a scenario with ten 9 * 1MB overlapping L0 files
 pub(crate) async fn all_overlapping_l0_files(setup: TestSetup) -> TestSetup {
-    for _ in 0..10 {
+    for i in 0..10 {
         setup
             .partition
             .create_parquet_file(
                 parquet_builder()
                     .with_min_time(100)
-                    .with_max_time(200)
-                    .with_file_size_bytes(9 * ONE_MB),
+                    .with_max_time(200000)
+                    .with_file_size_bytes(9 * ONE_MB)
+                    .with_max_l0_created_at(Time::from_timestamp_nanos(i + 1)),
             )
             .await;
     }

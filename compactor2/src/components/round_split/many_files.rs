@@ -61,6 +61,7 @@ mod tests {
         let round_info = RoundInfo::ManySmallFiles {
             start_level: CompactionLevel::Initial,
             max_num_files_to_group: 2,
+            max_total_file_size_to_group: 100,
         };
         let split = ManyFilesRoundSplit::new();
 

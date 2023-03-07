@@ -12,10 +12,10 @@ pub mod has_files;
 pub mod has_matching_file;
 pub mod logging;
 pub mod max_num_columns;
-pub mod max_parquet_bytes;
 pub mod metrics;
 pub mod never_skipped;
 pub mod or;
+pub mod unable_to_compact;
 
 /// Filters partition based on ID and parquet files.
 ///

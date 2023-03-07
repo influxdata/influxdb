@@ -9,7 +9,9 @@ use tracker::InstrumentedAsyncSemaphore;
 use crate::{
     components::{scratchpad::Scratchpad, Components},
     error::DynError,
+    file_classification::{FileToSplit, FilesToCompactOrSplit},
     partition_info::PartitionInfo,
+    PlanIR,
 };
 
 /// Tries to compact all eligible partitions, up to
@@ -116,18 +118,21 @@ async fn compact_partition(
 ///
 /// The high level flow is:
 ///
-///   . Mutiple rounds, each round process mutltiple branches. Each branch inlcudes at most 200 files
-///   . Each branch will compact files lowest level (aka start-level) into its next level (aka target-level):
-///      - Many L0s into fewer and larger L0s. Start-level = target-level = 0
-///      - Many L1s into fewer and larger L1s. Start-level = target-level = 1
-///      - (L0s & L1s) to L1s if there are L0s. Start-level = 0, target-level = 1
-///      - (L1s & L2s) to L2s if no L0s. Start-level = 1, target-level = 2
+///   . Mutiple rounds, each round process mutltiple branches. Each branch includes at most 200 files
+///   . Each branch will compact files lowest level (aka start-level) into its next level (aka target-level), either:
+///      - Compact many L0s into fewer and larger L0s. Start-level = target-level = 0
+///      - Compact many L1s into fewer and larger L1s. Start-level = target-level = 1
+///      - Compact (L0s & L1s) to L1s if there are L0s. Start-level = 0, target-level = 1
+///      - Compact (L1s & L2s) to L2s if no L0s. Start-level = 1, target-level = 2
+///      - Split L0s each of which overlaps with more than 1 L1s into many L0s, each overlaps with at most one L1 files
+///      - Split L1s each of which overlaps with more than 1 L2s into many L1s, each overlaps with at most one L2 files
 ///   . Each branch does find non-overlaps and upgragde files to avoid unecessary recompacting.
 ///     The actually split files:
 ///      1. files_to _keep: do not compact these files because they are already higher than target level
 ///      2. files_to_upgrade: upgrade this initial-level files to target level because they are not overlap with
 ///          any target-level and initial-level files and large enough (> desired max size)
-///      3. files_to_compact: the rest of the files that must be compacted
+///      3. files_to_compact_or_split.: this is either files to compact or split and will be compacted or split accordingly
+
 ///
 /// Example: 4 files: two L0s, two L1s and one L2
 ///  Input:
@@ -202,24 +207,20 @@ async fn try_compact_partition(
                     .file_classifier
                     .classify(&partition_info, &round_info, branch);
 
-            // Cannot run this plan and skip this partition because of over limit of input num_files or size.
-            // The partition_resource_limit_filter will throw an error if one of the limits hit and will lead
-            // to the partition is added to the `skipped_compactions` catalog table for us to not bother
-            // compacting it again.
-            // TODO: After https://github.com/influxdata/idpe/issues/17090 is iplemented (aka V3), we will
-            //      split files to smaller branches and aslo compact L0s into fewer L0s to deal with all kinds
-            //      of conidtions even with limited resource. Then we will remove this resrouce limit check.
             if !components
                 .partition_resource_limit_filter
-                .apply(&partition_info, &file_classification.files_to_compact)
+                .apply(
+                    &partition_info,
+                    &file_classification.files_to_compact_or_split.files(),
+                )
                 .await?
             {
                 return Ok(());
             }
 
             // Compact
-            let created_file_params = run_compaction_plan(
-                &file_classification.files_to_compact,
+            let created_file_params = run_plans(
+                &file_classification.files_to_compact_or_split,
                 &partition_info,
                 &components,
                 file_classification.target_level,
@@ -237,10 +238,11 @@ async fn try_compact_partition(
 
             // Update the catalog to reflect the newly created files, soft delete the compacted files and
             // update the upgraded files
+            let files_to_delete = file_classification.files_to_compact_or_split.files();
             let (created_files, upgraded_files) = update_catalog(
                 Arc::clone(&components),
                 partition_id,
-                file_classification.files_to_compact,
+                files_to_delete,
                 file_classification.files_to_upgrade,
                 created_file_params,
                 file_classification.target_level,
@@ -254,6 +256,41 @@ async fn try_compact_partition(
         }
 
         files = files_next;
+    }
+}
+
+/// Compact of split give files
+async fn run_plans(
+    files: &FilesToCompactOrSplit,
+    partition_info: &Arc<PartitionInfo>,
+    components: &Arc<Components>,
+    target_level: CompactionLevel,
+    job_semaphore: Arc<InstrumentedAsyncSemaphore>,
+    scratchpad_ctx: &mut dyn Scratchpad,
+) -> Result<Vec<ParquetFileParams>, DynError> {
+    match files {
+        FilesToCompactOrSplit::FilesToCompact(files) => {
+            run_compaction_plan(
+                files,
+                partition_info,
+                components,
+                target_level,
+                job_semaphore,
+                scratchpad_ctx,
+            )
+            .await
+        }
+        FilesToCompactOrSplit::FilesToSplit(files) => {
+            run_split_plans(
+                files,
+                partition_info,
+                components,
+                target_level,
+                job_semaphore,
+                scratchpad_ctx,
+            )
+            .await
+        }
     }
 }
 
@@ -285,8 +322,89 @@ async fn run_compaction_plan(
     let plan_ir =
         components
             .ir_planner
-            .plan(branch_inpad, Arc::clone(partition_info), target_level);
+            .compact_plan(branch_inpad, Arc::clone(partition_info), target_level);
 
+    execute_plan(
+        plan_ir,
+        partition_info,
+        components,
+        target_level,
+        job_semaphore,
+    )
+    .await
+}
+
+/// Split each of given files into multiple files
+async fn run_split_plans(
+    files_to_split: &[FileToSplit],
+    partition_info: &Arc<PartitionInfo>,
+    components: &Arc<Components>,
+    target_level: CompactionLevel,
+    job_semaphore: Arc<InstrumentedAsyncSemaphore>,
+    scratchpad_ctx: &mut dyn Scratchpad,
+) -> Result<Vec<ParquetFileParams>, DynError> {
+    if files_to_split.is_empty() {
+        return Ok(vec![]);
+    }
+
+    let mut created_file_params = vec![];
+    for file_to_split in files_to_split {
+        let x = run_split_plan(
+            file_to_split,
+            partition_info,
+            components,
+            target_level,
+            Arc::clone(&job_semaphore),
+            scratchpad_ctx,
+        )
+        .await?;
+        created_file_params.extend(x);
+    }
+
+    Ok(created_file_params)
+}
+
+// Split a given file into multiple files
+async fn run_split_plan(
+    file_to_split: &FileToSplit,
+    partition_info: &Arc<PartitionInfo>,
+    components: &Arc<Components>,
+    target_level: CompactionLevel,
+    job_semaphore: Arc<InstrumentedAsyncSemaphore>,
+    scratchpad_ctx: &mut dyn Scratchpad,
+) -> Result<Vec<ParquetFileParams>, DynError> {
+    // stage files
+    let input_path = (&file_to_split.file).into();
+    let input_uuids_inpad = scratchpad_ctx.load_to_scratchpad(&[input_path]).await;
+    let file_inpad = ParquetFile {
+        object_store_id: input_uuids_inpad[0],
+        ..file_to_split.file.clone()
+    };
+
+    let plan_ir = components.ir_planner.split_plan(
+        file_inpad,
+        file_to_split.split_times.clone(),
+        Arc::clone(partition_info),
+        target_level,
+    );
+
+    execute_plan(
+        plan_ir,
+        partition_info,
+        components,
+        target_level,
+        job_semaphore,
+    )
+    .await
+}
+
+async fn execute_plan(
+    plan_ir: PlanIR,
+    partition_info: &Arc<PartitionInfo>,
+    components: &Arc<Components>,
+    target_level: CompactionLevel,
+    job_semaphore: Arc<InstrumentedAsyncSemaphore>,
+) -> Result<Vec<ParquetFileParams>, DynError> {
     let create = {
         // draw semaphore BEFORE creating the DataFusion plan and drop it directly AFTER finishing the
         // DataFusion computation (but BEFORE doing any additional external IO).

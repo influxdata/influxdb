@@ -12,7 +12,7 @@ use data_types::{
 };
 use datafusion::physical_plan::SendableRecordBatchStream;
 use iox_time::Time;
-use observability_deps::tracing::{debug, info};
+use observability_deps::tracing::info;
 use uuid::Uuid;
 
 use compactor2::{DynError, ParquetFilesSink, PartitionInfo, PlanIR};
@@ -312,7 +312,7 @@ fn even_time_split(
     // add the entry for the last bucket
     time_ranges.push((last_time, overall_max_time));
 
-    debug!(
+    info!(
         ?overall_min_time,
         ?overall_max_time,
         ?overall_time_range,
