@@ -2647,7 +2647,7 @@ version = "0.1.0"
 dependencies = [
  "generated_types",
  "snafu",
- "sqlparser 0.31.0",
+ "sqlparser 0.32.0",
  "workspace-hack",
 ]
 
@@ -4293,7 +4293,7 @@ dependencies = [
  "query_functions",
  "schema",
  "snafu",
- "sqlparser 0.31.0",
+ "sqlparser 0.32.0",
  "test_helpers",
  "workspace-hack",
 ]
@@ -5360,9 +5360,9 @@ dependencies = [
 
 [[package]]
 name = "sqlparser"
-version = "0.31.0"
+version = "0.32.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "f064eb7b163863163c29801910f763c6bfb563b8a8ca4c54193da4c1eea57547"
+checksum = "0366f270dbabb5cc2e4c88427dc4c08bba144f81e32fbd459a013f26a4d16aa0"
 dependencies = [
  "log",
 ]
