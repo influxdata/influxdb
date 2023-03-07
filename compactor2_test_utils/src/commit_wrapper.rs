@@ -4,13 +4,14 @@ use async_trait::async_trait;
 use compactor2::{Commit, CommitWrapper};
 use data_types::{CompactionLevel, ParquetFile, ParquetFileId, ParquetFileParams, PartitionId};
 use std::{
-    fmt::Display,
+    fmt::{Debug, Display},
     sync::{Arc, Mutex},
 };
 
 use crate::display::ParquetFileInfo;
 
-/// Records catalog operations to a shared run_log during tests
+/// Records catalog operations to a shared run_log during tests and
+/// checks invariants
 #[derive(Debug)]
 struct CommitRecorder {
     /// The inner commit that does the work
@@ -18,6 +19,10 @@ struct CommitRecorder {
 
     /// a log of what happened during this test
     run_log: Arc<Mutex<Vec<String>>>,
+
+    /// An optional additional verification function to run before and
+    /// after the commit.
+    invariant_check: Option<Arc<dyn InvariantCheck>>,
 }
 
 #[async_trait]
@@ -30,6 +35,10 @@ impl Commit for CommitRecorder {
         create: &[ParquetFileParams],
         target_level: CompactionLevel,
     ) -> Vec<ParquetFileId> {
+        if let Some(invariant_check) = self.invariant_check.as_ref() {
+            invariant_check.check().await
+        };
+
         // lock scope
         {
             let mut run_log = self.run_log.lock().unwrap();
@@ -61,9 +70,15 @@ impl Commit for CommitRecorder {
                 ));
             }
         }
-        self.inner
+        let output_files = self
+            .inner
             .commit(partition_id, delete, upgrade, create, target_level)
-            .await
+            .await;
+
+        if let Some(invariant_check) = self.invariant_check.as_ref() {
+            invariant_check.check().await
+        };
+        output_files
     }
 }
 
@@ -87,17 +102,39 @@ impl Display for CommitRecorder {
 pub(crate) struct CommitRecorderBuilder {
     /// a shared log of what happened during a simulated run
     run_log: Arc<Mutex<Vec<String>>>,
+    /// optional check
+    invariant_check: Option<Arc<dyn InvariantCheck>>,
 }
 
 impl CommitRecorderBuilder {
     pub fn new(run_log: Arc<Mutex<Vec<String>>>) -> Self {
-        Self { run_log }
+        Self {
+            run_log,
+            invariant_check: None,
+        }
+    }
+
+    /// Add an optional additional verification function to run before and after the commit.
+    pub fn with_invariant_check(mut self, invariant_check: Arc<dyn InvariantCheck>) -> Self {
+        self.invariant_check = Some(invariant_check);
+        self
     }
 }
 
 impl CommitWrapper for CommitRecorderBuilder {
     fn wrap(&self, inner: Arc<(dyn Commit)>) -> Arc<(dyn Commit + 'static)> {
         let run_log = Arc::clone(&self.run_log);
-        Arc::new(CommitRecorder { inner, run_log })
+        let invariant_check = self.invariant_check.clone();
+        Arc::new(CommitRecorder {
+            inner,
+            run_log,
+            invariant_check,
+        })
     }
+}
+
+#[async_trait]
+pub trait InvariantCheck: std::fmt::Debug + Send + Sync + 'static {
+    /// Runs an invariant check
+    async fn check(&self);
 }

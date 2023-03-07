@@ -57,20 +57,18 @@ async fn test_num_files_over_limit() {
 
     setup.run_compact().await;
     //
-    // read files and verify 4 files: 2 original L1s and 2 new L1s after L0s are split and compacted into
+    // read files and verify 2 files
     let files = setup.list_by_table_not_to_delete().await;
-    assert_eq!(files.len(), 4);
+    assert_eq!(files.len(), 2);
 
     //
     // verify ID and compaction level of the files
     // Original IDs of files: 1, 2, 3, 4, 5, 6
-    // 4 L0s files are splitted into 2 groups and compacted into 2 new L0s files with IDs 7, 8
-    // Then these 2 new L0s files are compacted into 2 new L1s files with IDs 9, 10
+    // 4 L0s files are compacted into 2 new L0s files with IDs 7, 8
+    // Then these 2 new L0s files are compacted with overlapped L1 files into 2 new L1s files with IDs 9, 10
     assert_levels(
         &files,
         vec![
-            (1, CompactionLevel::FileNonOverlapped),
-            (4, CompactionLevel::FileNonOverlapped),
             (9, CompactionLevel::FileNonOverlapped),
             (10, CompactionLevel::FileNonOverlapped),
         ],

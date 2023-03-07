@@ -15,8 +15,9 @@
 mod commit_wrapper;
 mod display;
 mod simulator;
-use commit_wrapper::CommitRecorderBuilder;
+use commit_wrapper::{CommitRecorderBuilder, InvariantCheck};
 pub use display::{display_format, display_size, format_files, format_files_split};
+use iox_catalog::interface::Catalog;
 use iox_query::exec::ExecutorType;
 use simulator::ParquetFileSimulator;
 use tracker::AsyncSemaphoreMetrics;
@@ -31,7 +32,7 @@ use std::{
 
 use async_trait::async_trait;
 use backoff::BackoffConfig;
-use data_types::{ColumnType, CompactionLevel, ParquetFile, TRANSITION_SHARD_NUMBER};
+use data_types::{ColumnType, CompactionLevel, ParquetFile, TableId, TRANSITION_SHARD_NUMBER};
 use datafusion::arrow::record_batch::RecordBatch;
 use futures::TryStreamExt;
 use iox_tests::{
@@ -72,6 +73,8 @@ pub struct TestSetupBuilder<const WITH_FILES: bool> {
     files: Vec<ParquetFile>,
     /// a shared log of what happened during the test
     run_log: Arc<Mutex<Vec<String>>>,
+    /// Checker that catalog invariant are not violated
+    invariant_check: Arc<dyn InvariantCheck>,
 }
 
 impl TestSetupBuilder<false> {
@@ -97,9 +100,17 @@ impl TestSetupBuilder<false> {
         let sort_key = SortKey::from_columns(["tag1", "tag2", "tag3", "time"]);
         let partition = partition.update_sort_key(sort_key.clone()).await;
 
-        // intercept commit calls and record them as well
+        // Ensure the input scenario conforms to the expected invariants.
+        let invariant_check = Arc::new(CatalogInvariants {
+            table_id: table.table.id,
+            catalog: Arc::clone(&catalog.catalog),
+        });
+
+        // Intercept all catalog commit calls to record them in
+        // `run_log` as well as ensuring the invariants still hold
         let run_log = Arc::new(Mutex::new(vec![]));
-        let commit_wrapper = CommitRecorderBuilder::new(Arc::clone(&run_log));
+        let commit_wrapper = CommitRecorderBuilder::new(Arc::clone(&run_log))
+            .with_invariant_check(Arc::clone(&invariant_check) as _);
 
         let config = Config {
             shard_id: shard.shard.id,
@@ -145,6 +156,7 @@ impl TestSetupBuilder<false> {
             partition,
             files: vec![],
             run_log,
+            invariant_check,
         }
     }
 
@@ -164,6 +176,8 @@ impl TestSetupBuilder<false> {
         .join("\n");
         let builder = TestParquetFileBuilder::default()
             .with_line_protocol(&lp)
+            .with_min_time(30000)
+            .with_max_time(36000)
             .with_creation_time(time_3_minutes_future)
             .with_max_l0_created_at(time_1_minute_future)
             .with_compaction_level(CompactionLevel::FileNonOverlapped); // Prev compaction
@@ -181,6 +195,8 @@ impl TestSetupBuilder<false> {
             .with_line_protocol(&lp)
             .with_creation_time(time_2_minutes_future)
             .with_max_l0_created_at(time_2_minutes_future)
+            .with_min_time(8000)
+            .with_max_time(20000)
             .with_compaction_level(CompactionLevel::Initial);
         let level_0_file_16_minutes_ago = self.partition.create_parquet_file(builder).await.into();
 
@@ -195,6 +211,8 @@ impl TestSetupBuilder<false> {
             .with_line_protocol(&lp)
             .with_creation_time(time_5_minutes_future)
             .with_max_l0_created_at(time_5_minutes_future)
+            .with_min_time(8000)
+            .with_max_time(25000)
             .with_compaction_level(CompactionLevel::Initial);
         let level_0_file_5_minutes_ago = self.partition.create_parquet_file(builder).await.into();
 
@@ -209,6 +227,8 @@ impl TestSetupBuilder<false> {
         let builder = TestParquetFileBuilder::default()
             .with_line_protocol(&lp)
             .with_creation_time(time_5_minutes_future)
+            .with_min_time(10000)
+            .with_max_time(12000)
             .with_max_l0_created_at(time_3_minutes_future)
             .with_compaction_level(CompactionLevel::FileNonOverlapped); // Prev compaction
         let level_1_file_1_minute_ago_with_duplicates: ParquetFile =
@@ -256,6 +276,10 @@ impl TestSetupBuilder<false> {
             large_level_0_file_2_2_minutes_ago,
         ];
 
+        // ensure the catalog still looks good
+        let invariant_check = Arc::clone(&self.invariant_check);
+        invariant_check.check().await;
+
         TestSetupBuilder::<true> {
             config: self.config,
             catalog: self.catalog,
@@ -265,6 +289,7 @@ impl TestSetupBuilder<false> {
             partition: self.partition,
             files,
             run_log: Arc::new(Mutex::new(vec![])),
+            invariant_check,
         }
     }
 
@@ -281,6 +306,10 @@ impl TestSetupBuilder<false> {
 
         let files = l2_files.into_iter().chain(l1_files.into_iter()).collect();
 
+        // make sure the catalog still looks good
+        let invariant_check = Arc::clone(&self.invariant_check);
+        invariant_check.check().await;
+
         TestSetupBuilder::<true> {
             config: self.config.clone(),
             catalog: Arc::clone(&self.catalog),
@@ -290,6 +319,7 @@ impl TestSetupBuilder<false> {
             partition: Arc::clone(&self.partition),
             files,
             run_log: Arc::new(Mutex::new(vec![])),
+            invariant_check,
         }
     }
 
@@ -307,6 +337,10 @@ impl TestSetupBuilder<false> {
 
         let files = l2_files.into_iter().chain(l1_files.into_iter()).collect();
 
+        // ensure the catalog still looks good
+        let invariant_check = Arc::clone(&self.invariant_check);
+        invariant_check.check().await;
+
         TestSetupBuilder::<true> {
             config: self.config.clone(),
             catalog: Arc::clone(&self.catalog),
@@ -316,6 +350,7 @@ impl TestSetupBuilder<false> {
             partition: Arc::clone(&self.partition),
             files,
             run_log: Arc::new(Mutex::new(vec![])),
+            invariant_check,
         }
     }
 
@@ -541,6 +576,7 @@ impl<const WITH_FILES: bool> TestSetupBuilder<WITH_FILES> {
             partition: self.partition,
             config: Arc::new(self.config),
             run_log: self.run_log,
+            invariant_check: self.invariant_check,
         }
     }
 }
@@ -562,6 +598,8 @@ pub struct TestSetup {
     pub config: Arc<Config>,
     /// a shared log of what happened during a simulated run
     run_log: Arc<Mutex<Vec<String>>>,
+    /// Checker that catalog invariant are not violated
+    invariant_check: Arc<dyn InvariantCheck>,
 }
 
 impl TestSetup {
@@ -640,23 +678,8 @@ impl TestSetup {
     }
 
     /// Checks the catalog contents of this test setup for invariant violations.
-    ///
-    /// Currently checks:
-    /// 1. There are no overlapping files (the compactor should never create overlapping L1 or L2 files)
     pub async fn verify_invariants(&self) {
-        let files: Vec<_> = self
-            .list_by_table_not_to_delete()
-            .await
-            .into_iter()
-            // ignore files that are deleted
-            .filter(|f| f.to_delete.is_none())
-            .collect();
-
-        for f1 in &files {
-            for f2 in &files {
-                assert_no_overlap(f1, f2);
-            }
-        }
+        self.invariant_check.check().await
     }
 
     /// Checks the catalog contents of this test setup for abnormal characteristics.
@@ -688,6 +711,43 @@ impl TestSetup {
     }
 }
 
+#[derive(Debug)]
+struct CatalogInvariants {
+    catalog: Arc<dyn Catalog>,
+    table_id: TableId,
+}
+
+#[async_trait]
+impl InvariantCheck for CatalogInvariants {
+    async fn check(&self) {
+        verify_catalog_invariants(self.catalog.as_ref(), self.table_id).await
+    }
+}
+
+/// Checks the catalog contents for invariant violations of the table
+///
+/// Currently checks:
+/// 1. There are no overlapping files (the compactor should never create overlapping L1 or L2 files)
+pub async fn verify_catalog_invariants(catalog: &dyn Catalog, table_id: TableId) {
+    let files: Vec<_> = catalog
+        .repositories()
+        .await
+        .parquet_files()
+        .list_by_table_not_to_delete(table_id)
+        .await
+        .unwrap()
+        .into_iter()
+        // ignore files that are deleted
+        .filter(|f| f.to_delete.is_none())
+        .collect();
+
+    for f1 in &files {
+        for f2 in &files {
+            assert_no_overlap(f1, f2);
+        }
+    }
+}
+
 /// Returns true of f1 and f2 are different, overlapping files in the
 /// L1 or L2 levels (the compactor should never create such files
 fn assert_no_overlap(f1: &ParquetFile, f2: &ParquetFile) {
@@ -697,7 +757,10 @@ fn assert_no_overlap(f1: &ParquetFile, f2: &ParquetFile) {
         && f1.compaction_level == f2.compaction_level
         && f1.overlaps(f2)
     {
-        panic!("Found overlapping files at L1/L2 target level!\n{f1:#?}\n{f2:#?}");
+        panic!("Found overlapping files at L1/L2 target level!\nf1 = {}\nf2 = {}\n\n{f1:#?}\n\n{f2:#?}",
+               display_format(f1, true),
+               display_format(f2, true),
+        );
     }
 }
 
