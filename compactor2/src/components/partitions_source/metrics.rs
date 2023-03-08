@@ -69,7 +69,7 @@ where
 
 #[cfg(test)]
 mod tests {
-    use metric::{Attributes, Metric};
+    use metric::{assert_counter, Attributes, Metric};
 
     use crate::components::partitions_source::mock::MockPartitionsSource;
 
@@ -96,30 +96,30 @@ mod tests {
             &registry,
         );
 
-        assert_eq!(fetch_counter(&registry), 0,);
-        assert_eq!(partition_counter(&registry), 0,);
+        assert_fetch_counter(&registry, 0);
+        assert_partition_counter(&registry, 0);
 
         assert_eq!(source.fetch().await, partitions);
 
-        assert_eq!(fetch_counter(&registry), 1,);
-        assert_eq!(partition_counter(&registry), 3,);
+        assert_fetch_counter(&registry, 1);
+        assert_partition_counter(&registry, 3);
     }
 
-    fn fetch_counter(registry: &Registry) -> u64 {
-        registry
-            .get_instrument::<Metric<U64Counter>>(METRIC_NAME_PARTITIONS_FETCH_COUNT)
-            .expect("instrument not found")
-            .get_observer(&Attributes::from([]))
-            .expect("observer not found")
-            .fetch()
+    fn assert_fetch_counter(registry: &Registry, value: u64) {
+        assert_counter!(
+            registry,
+            U64Counter,
+            METRIC_NAME_PARTITIONS_FETCH_COUNT,
+            value = value,
+        );
     }
 
-    fn partition_counter(registry: &Registry) -> u64 {
-        registry
-            .get_instrument::<Metric<U64Counter>>(METRIC_NAME_PARTITIONS_COUNT)
-            .expect("instrument not found")
-            .get_observer(&Attributes::from([]))
-            .expect("observer not found")
-            .fetch()
+    fn assert_partition_counter(registry: &Registry, value: u64) {
+        assert_counter!(
+            registry,
+            U64Counter,
+            METRIC_NAME_PARTITIONS_COUNT,
+            value = value,
+        );
     }
 }

@@ -34,6 +34,33 @@ impl MetricObserver for U64Counter {
     }
 }
 
+/// A concise helper to assert the value of a metric counter, regardless of underlying type.
+#[macro_export]
+macro_rules! assert_counter {
+    (
+        $metrics:ident,
+        $counter:ty,
+        $name:expr,
+        $(labels = $attr:expr,)*
+        $(value = $value:expr,)*
+    ) => {
+        // Default to an empty set of attributes if not specified.
+        #[allow(unused)]
+        let mut attr = None;
+        $(attr = Some($attr);)*
+        let attr = attr.unwrap_or_else(|| Attributes::from(&[]));
+
+        let counter = $metrics
+            .get_instrument::<Metric<$counter>>($name)
+            .expect("failed to find metric with provided name")
+            .get_observer(&attr)
+            .expect("failed to find metric with provided attributes")
+            .fetch();
+
+        $(assert_eq!(counter, $value, "counter value mismatch");)*
+    };
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

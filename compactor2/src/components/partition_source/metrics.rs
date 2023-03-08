@@ -64,7 +64,7 @@ where
 
 #[cfg(test)]
 mod tests {
-    use metric::{Attributes, Metric};
+    use metric::{assert_counter, Attributes, Metric};
 
     use crate::components::partition_source::mock::MockPartitionSource;
     use iox_tests::PartitionBuilder;
@@ -88,8 +88,8 @@ mod tests {
             &registry,
         );
 
-        assert_eq!(fetch_found_counter(&registry), 0,);
-        assert_eq!(fetch_notfound_counter(&registry), 0,);
+        assert_fetch_found_counter(&registry, 0);
+        assert_fetch_notfound_counter(&registry, 0);
 
         assert_eq!(
             source.fetch_by_id(PartitionId::new(5)).await,
@@ -98,25 +98,27 @@ mod tests {
         assert_eq!(source.fetch_by_id(PartitionId::new(5)).await, Some(p));
         assert_eq!(source.fetch_by_id(PartitionId::new(1)).await, None);
 
-        assert_eq!(fetch_found_counter(&registry), 2,);
-        assert_eq!(fetch_notfound_counter(&registry), 1,);
+        assert_fetch_found_counter(&registry, 2);
+        assert_fetch_notfound_counter(&registry, 1);
     }
 
-    fn fetch_found_counter(registry: &Registry) -> u64 {
-        registry
-            .get_instrument::<Metric<U64Counter>>(METRIC_NAME_PARTITION_FETCH_COUNT)
-            .expect("instrument not found")
-            .get_observer(&Attributes::from(&[("result", "found")]))
-            .expect("observer not found")
-            .fetch()
+    fn assert_fetch_found_counter(registry: &Registry, value: u64) {
+        assert_counter!(
+            registry,
+            U64Counter,
+            METRIC_NAME_PARTITION_FETCH_COUNT,
+            labels = Attributes::from(&[("result", "found")]),
+            value = value,
+        );
     }
 
-    fn fetch_notfound_counter(registry: &Registry) -> u64 {
-        registry
-            .get_instrument::<Metric<U64Counter>>(METRIC_NAME_PARTITION_FETCH_COUNT)
-            .expect("instrument not found")
-            .get_observer(&Attributes::from(&[("result", "not_found")]))
-            .expect("observer not found")
-            .fetch()
+    fn assert_fetch_notfound_counter(registry: &Registry, value: u64) {
+        assert_counter!(
+            registry,
+            U64Counter,
+            METRIC_NAME_PARTITION_FETCH_COUNT,
+            labels = Attributes::from(&[("result", "not_found")]),
+            value = value,
+        );
     }
 }
