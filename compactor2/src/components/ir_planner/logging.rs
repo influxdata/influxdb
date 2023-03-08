@@ -45,12 +45,14 @@ where
     ) -> PlanIR {
         let partition_id = partition.partition_id;
         let n_input_files = files.len();
+        let column_count = partition.column_count();
         let input_file_size_bytes = files.iter().map(|f| f.file_size_bytes).sum::<i64>();
         let plan = self.inner.compact_plan(files, partition, compaction_level);
 
         info!(
             partition_id = partition_id.get(),
             n_input_files,
+            column_count,
             input_file_size_bytes,
             n_output_files = plan.n_output_files(),
             compaction_level = compaction_level as i16,
@@ -70,6 +72,7 @@ where
     ) -> PlanIR {
         let partition_id = partition.partition_id;
         let n_input_files = 1;
+        let column_count = partition.column_count();
         let input_file_size_bytes = file.file_size_bytes;
         let plan = self
             .inner
@@ -78,6 +81,7 @@ where
         info!(
             partition_id = partition_id.get(),
             n_input_files,
+            column_count,
             input_file_size_bytes,
             n_output_files = plan.n_output_files(),
             compaction_level = compaction_level as i16,
