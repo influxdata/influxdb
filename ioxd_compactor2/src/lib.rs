@@ -32,7 +32,7 @@ use trace::TraceCollector;
 const TOPIC: &str = "iox-shared";
 const TRANSITION_SHARD_INDEX: i32 = TRANSITION_SHARD_NUMBER;
 
-// Minimum multiple between max_desired_file_size_bytes and max_input_parquet_bytes_per_partition
+// Minimum multiple between max_desired_file_size_bytes and max_compact_size
 // Since max_desired_file_size_bytes is softly enforced, actual file sizes can exceed it, and a
 // single compaction job must be able to compact >1 max sized file, so the multiple should be at least 3.
 const MIN_COMPACT_SIZE_MULTIPLE: i64 = 3;
@@ -178,13 +178,10 @@ pub async fn create_compactor2_server_type(
     };
 
     if compactor_config.max_desired_file_size_bytes as i64 * MIN_COMPACT_SIZE_MULTIPLE
-        > compactor_config
-            .max_input_parquet_bytes_per_partition
-            .try_into()
-            .unwrap()
+        > compactor_config.max_compact_size.try_into().unwrap()
     {
-        panic!("max_input_parquet_bytes_per_partition ({}) must be at least {} times larger than max_desired_file_size_bytes ({})",
-            compactor_config.max_input_parquet_bytes_per_partition,
+        panic!("max_compact_size ({}) must be at least {} times larger than max_desired_file_size_bytes ({})",
+            compactor_config.max_compact_size,
             MIN_COMPACT_SIZE_MULTIPLE,
             compactor_config.max_desired_file_size_bytes);
     }
@@ -212,8 +209,7 @@ pub async fn create_compactor2_server_type(
         partitions_source,
         shadow_mode: compactor_config.shadow_mode,
         ignore_partition_skip_marker: compactor_config.ignore_partition_skip_marker,
-        max_input_parquet_bytes_per_partition: compactor_config
-            .max_input_parquet_bytes_per_partition,
+        max_compact_size: compactor_config.max_compact_size,
         shard_config,
         min_num_l1_files_to_compact: compactor_config.min_num_l1_files_to_compact,
         process_once: compactor_config.process_once,

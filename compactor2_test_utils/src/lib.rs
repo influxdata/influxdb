@@ -135,7 +135,7 @@ impl TestSetupBuilder<false> {
             partitions_source: PartitionsSourceConfig::CatalogRecentWrites,
             shadow_mode: false,
             ignore_partition_skip_marker: false,
-            max_input_parquet_bytes_per_partition: usize::MAX,
+            max_compact_size: usize::MAX,
             shard_config: None,
             min_num_l1_files_to_compact: MIN_NUM_L1_FILES_TO_COMPACT,
             process_once: true,
@@ -486,15 +486,12 @@ impl TestSetupBuilder<false> {
 }
 
 impl TestSetupBuilder<true> {
-    /// Set max_input_parquet_bytes_per_partition
-    pub fn with_max_input_parquet_bytes_per_partition_relative_to_total_size(
-        self,
-        delta: isize,
-    ) -> Self {
+    /// Set max_compact_size
+    pub fn with_max_compact_size_relative_to_total_size(self, delta: isize) -> Self {
         let total_size = self.files.iter().map(|f| f.file_size_bytes).sum::<i64>();
         Self {
             config: Config {
-                max_input_parquet_bytes_per_partition: (total_size as isize + delta) as usize,
+                max_compact_size: (total_size as isize + delta) as usize,
                 ..self.config
             },
             ..self
@@ -548,12 +545,9 @@ impl<const WITH_FILES: bool> TestSetupBuilder<WITH_FILES> {
         self
     }
 
-    /// Set max_input_parquet_bytes_per_partition
-    pub fn with_max_input_parquet_bytes_per_partition(
-        mut self,
-        max_input_parquet_bytes_per_partition: usize,
-    ) -> Self {
-        self.config.max_input_parquet_bytes_per_partition = max_input_parquet_bytes_per_partition;
+    /// Set max_compact_size
+    pub fn with_max_compact_size(mut self, max_compact_size: usize) -> Self {
+        self.config.max_compact_size = max_compact_size;
         self
     }
 

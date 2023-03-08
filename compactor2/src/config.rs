@@ -91,9 +91,9 @@ pub struct Config {
     /// This is mostly useful for debugging.
     pub ignore_partition_skip_marker: bool,
 
-    /// Maximum input bytes (in parquet) per partition. If there is more data, we ignore the partition (for now) as a
-    /// self-protection mechanism.
-    pub max_input_parquet_bytes_per_partition: usize,
+    /// Maximum input bytes (from parquet files) per compaction. If there is more data, we ignore
+    /// the partition (for now) as a self-protection mechanism.
+    pub max_compact_size: usize,
 
     /// Shard config (if sharding should be enabled).
     pub shard_config: Option<ShardConfig>,

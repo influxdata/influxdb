@@ -86,7 +86,7 @@ async fn test_compact_target_level() {
         .await
         // Ensure we have enough resource to compact the files
         .with_max_num_files_per_plan(10)
-        .with_max_input_parquet_bytes_per_partition_relative_to_total_size(1000)
+        .with_max_compact_size_relative_to_total_size(1000)
         .with_min_num_l1_files_to_compact(2)
         .build()
         .await;
@@ -199,7 +199,7 @@ async fn test_compact_large_overlapes() {
         // the test setup does not exceed number of files limit
         .with_max_num_files_per_plan(10)
         // the test setup to have total file size exceed max compact size limit
-        .with_max_input_parquet_bytes_per_partition_relative_to_total_size(-1)
+        .with_max_compact_size_relative_to_total_size(-1)
         .with_min_num_l1_files_to_compact(2)
         .with_max_desired_file_size_bytes(100 * 1024 * 1024)
         .build()
@@ -307,7 +307,7 @@ async fn test_compact_large_overlape_2() {
         // the test setup does not exceed number of files limit
         .with_max_num_files_per_plan(10)
         // the test setup exceed max compact size limit
-        .with_max_input_parquet_bytes_per_partition_relative_to_total_size(-1)
+        .with_max_compact_size_relative_to_total_size(-1)
         .with_min_num_l1_files_to_compact(2)
         .with_max_desired_file_size_bytes(100 * 1024 * 1024)
         .build()

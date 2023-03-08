@@ -393,7 +393,7 @@ async fn all_overlapping_l0_max_input_bytes_per_partition() {
     // limit the plan to combining 30 mb at a time
     let setup = layout_setup_builder()
         .await
-        .with_max_input_parquet_bytes_per_partition(30 * ONE_MB as usize)
+        .with_max_compact_size(30 * ONE_MB as usize)
         // implicit max desired file size means it is 100MB and greater than the max compact size
         .build()
         .await;
@@ -1083,7 +1083,7 @@ async fn all_overlapping_l0_max_input_bytes_per_partition_small_max_desired_file
     // limit the plan to combining 30 mb at a time
     let setup = layout_setup_builder()
         .await
-        .with_max_input_parquet_bytes_per_partition(30 * ONE_MB as usize)
+        .with_max_compact_size(30 * ONE_MB as usize)
         // max desired file size is smaller than the max compact size
         .with_max_desired_file_size_bytes(10 * ONE_MB)
         .build()

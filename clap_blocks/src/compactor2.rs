@@ -201,7 +201,7 @@ pub struct Compactor2Config {
     )]
     pub max_num_files_per_plan: usize,
 
-    /// Maximum input bytes (in parquet) per partition that the
+    /// Maximum input bytes (in parquet) per compaction that the
     /// compactor will attempt to compact in any one plan.
     ///
     /// In the worst case, if the sum of the sizes of all parquet
@@ -213,12 +213,12 @@ pub struct Compactor2Config {
     /// This setting is a self protection mechanism, and it is
     /// expected to be removed in future versions
     #[clap(
-        long = "compaction-max-input-parquet-bytes-per-partition",
-        env = "INFLUXDB_IOX_COMPACTION_MAX_INPUT_PARQUET_BYTES_PER_PARTITION",
-        default_value = "268435456",  // 256MB
+        long = "compaction-max-compact-size",
+        env = "INFLUXDB_IOX_COMPACTION_MAX_COMPACT_SIZE",
+        default_value = "314572800",  // 300MB
         action
     )]
-    pub max_input_parquet_bytes_per_partition: usize,
+    pub max_compact_size: usize,
 
     /// Number of shards.
     ///
