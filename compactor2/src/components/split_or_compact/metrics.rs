@@ -78,7 +78,7 @@ mod tests {
 
     use compactor2_test_utils::create_overlapped_l0_l1_files_2;
     use data_types::CompactionLevel;
-    use metric::{Attributes, Metric};
+    use metric::{Attributes, Metric, assert_histogram};
 
     use crate::{
         components::split_or_compact::{split_compact::SplitCompact, SplitOrCompact},
@@ -100,14 +100,12 @@ mod tests {
 
         assert!(files_to_compact_or_split.is_empty());
 
-        let hist = registry
-            .get_instrument::<Metric<U64Histogram>>(METRIC_NAME_FILES_TO_SPLIT)
-            .expect("failed to find metric with provided name")
-            .get_observer(&Attributes::from(&[]))
-            .expect("failed to find metric with provided attributes")
-            .fetch();
-
-        assert_eq!(hist.sample_count(), 0);
+        assert_histogram!(
+            registry,
+            U64Histogram,
+            METRIC_NAME_FILES_TO_SPLIT,
+            samples = 0,
+        );
     }
 
     #[test]
@@ -123,14 +121,12 @@ mod tests {
 
         assert_eq!(files_to_compact_or_split.files_to_split_len(), 1);
 
-        let hist = registry
-            .get_instrument::<Metric<U64Histogram>>(METRIC_NAME_FILES_TO_SPLIT)
-            .expect("failed to find metric with provided name")
-            .get_observer(&Attributes::from(&[]))
-            .expect("failed to find metric with provided attributes")
-            .fetch();
-
-        assert_eq!(hist.sample_count(), 1);
-        assert_eq!(hist.total, 1);
+        assert_histogram!(
+            registry,
+            U64Histogram,
+            METRIC_NAME_FILES_TO_SPLIT,
+            samples = 1,
+            sum = 1,
+        );
     }
 }
