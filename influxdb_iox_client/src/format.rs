@@ -8,6 +8,9 @@ use arrow::{
     self, csv::WriterBuilder, error::ArrowError, json::ArrayWriter, record_batch::RecordBatch,
 };
 
+/// Output formatting for InfluxQL.
+pub mod influxql;
+
 /// Error type for results formatting
 #[derive(Debug, Error)]
 pub enum Error {

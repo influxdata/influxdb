@@ -16,14 +16,21 @@ arrow-flight = { workspace = true, optional = true, features=["flight-sql-experi
 arrow_util = { path = "../arrow_util", optional = true }
 bytes = "1.4"
 client_util = { path = "../client_util" }
+comfy-table = { version = "6.1", default-features = false }
 futures-util = { version = "0.3", optional = true }
 influxdb_line_protocol = { path = "../influxdb_line_protocol"}
+itertools = "0.10.5"
 generated_types = { path = "../generated_types", default-features = false, features = ["data_types_conversions"] }
 prost = "0.11"
 rand = "0.8.3"
 reqwest = { version = "0.11", default-features = false, features = ["stream", "rustls-tls"] }
+schema = { path = "../schema" }
+serde_json = "1.0.93"
 tokio = { version = "1.26", features = ["macros", "parking_lot", "rt-multi-thread"] }
 tokio-stream = "0.1.12"
 thiserror = "1.0.39"
 tonic = { version = "0.8" }
 trace_http = { path = "../trace_http" }
+
+[dev-dependencies]
+insta = { version = "1" }
