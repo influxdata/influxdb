@@ -526,40 +526,11 @@ mod tests {
     use datafusion::physical_plan::stream::RecordBatchStreamAdapter;
     use futures::{stream, StreamExt};
     use iox_time::MockProvider;
-    use metric::Attributes;
+    use metric::{assert_histogram, Attributes};
 
     const NAMESPACE_ID: NamespaceId = NamespaceId::new(42);
     const TABLE_ID: TableId = TableId::new(42);
     const TIME_STEP: Duration = Duration::from_secs(42);
-
-    /// A concise helper to assert the value of a metric histogram, regardless
-    /// of underlying type.
-    macro_rules! assert_histogram {
-        (
-            $metrics:ident,
-            $hist:ty,
-            $name:literal,
-            $(labels = $attr:expr,)*
-            $(samples = $samples:expr,)*
-            $(sum = $sum:expr,)*
-        ) => {
-            // Default to an empty set of attributes if not specified.
-            #[allow(unused)]
-            let mut attr = None;
-            $(attr = Some($attr);)*
-            let attr = attr.unwrap_or_else(|| Attributes::from(&[]));
-
-            let hist = $metrics
-                .get_instrument::<Metric<$hist>>($name)
-                .expect("failed to find metric with provided name")
-                .get_observer(&attr)
-                .expect("failed to find metric with provided attributes")
-                .fetch();
-
-            $(assert_eq!(hist.sample_count(), $samples, "sample count mismatch");)*
-            $(assert_eq!(hist.total, $sum, "sum value mismatch");)*
-        };
-    }
 
     /// A query against a table that has been persisted / no longer contains any
     /// data (only metadata).
