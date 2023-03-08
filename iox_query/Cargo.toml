@@ -27,6 +27,7 @@ executor = { path = "../executor"}
 futures = "0.3"
 generated_types = { path = "../generated_types" }
 hashbrown = { workspace = true }
+indexmap = { version = "1.9", features = ["std"] }
 influxdb_influxql_parser = { path = "../influxdb_influxql_parser" }
 itertools = "0.10.5"
 once_cell = "1"

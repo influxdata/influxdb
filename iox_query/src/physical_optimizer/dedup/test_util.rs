@@ -2,7 +2,7 @@ use std::sync::Arc;
 
 use datafusion::physical_plan::ExecutionPlan;
 use predicate::Predicate;
-use schema::{sort::SortKeyBuilder, Schema, TIME_COLUMN_NAME};
+use schema::Schema;
 
 use crate::{
     provider::{chunks_to_physical_nodes, DeduplicateExec},
@@ -17,11 +17,8 @@ pub fn dedup_plan(schema: Schema, chunks: Vec<TestChunk>) -> Arc<dyn ExecutionPl
         .map(|c| Arc::new(c) as _)
         .collect::<Vec<Arc<dyn QueryChunk>>>();
     let plan = chunks_to_physical_nodes(&schema, None, chunks, Predicate::new(), 2);
-    let sort_key = SortKeyBuilder::new()
-        .with_col("tag1")
-        .with_col("tag2")
-        .with_col(TIME_COLUMN_NAME)
-        .build();
+
+    let sort_key = schema::sort::SortKey::from_columns(schema.primary_key());
     let sort_exprs = arrow_sort_key_exprs(&sort_key, &schema.as_arrow());
     Arc::new(DeduplicateExec::new(plan, sort_exprs))
 }

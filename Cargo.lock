@@ -2938,6 +2938,7 @@ dependencies = [
  "futures",
  "generated_types",
  "hashbrown 0.13.2",
+ "indexmap",
  "influxdb_influxql_parser",
  "insta",
  "itertools",
