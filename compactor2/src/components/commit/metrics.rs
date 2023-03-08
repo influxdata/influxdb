@@ -305,7 +305,7 @@ where
 mod tests {
     use std::sync::Arc;
 
-    use metric::{Attributes, HistogramObservation, Metric};
+    use metric::{assert_histogram, Attributes, Metric};
 
     use crate::components::commit::mock::{CommitHistoryEntry, MockCommit};
     use iox_tests::ParquetFileBuilder;
@@ -362,48 +362,28 @@ mod tests {
         ] {
             for file_level in CompactionLevel::all() {
                 for op in ["create", "delete"] {
-                    assert_eq!(
-                        hist_count(
-                            &registry,
-                            metric_name,
-                            [("op", op), ("level", file_level.name())]
-                        ),
-                        0
-                    );
-                    assert_eq!(
-                        hist_total(
-                            &registry,
-                            metric_name,
-                            [("op", op), ("level", file_level.name())]
-                        ),
-                        0
+                    assert_histogram!(
+                        registry,
+                        U64Histogram,
+                        metric_name,
+                        labels = Attributes::from(&[("op", op), ("level", file_level.name())]),
+                        samples = 0,
+                        sum = 0,
                     );
                 }
 
                 for target_level in CompactionLevel::all() {
-                    assert_eq!(
-                        hist_count(
-                            &registry,
-                            metric_name,
-                            [
-                                ("op", "upgrade"),
-                                ("from", file_level.name()),
-                                ("to", target_level.name())
-                            ]
-                        ),
-                        0
-                    );
-                    assert_eq!(
-                        hist_total(
-                            &registry,
-                            metric_name,
-                            [
-                                ("op", "upgrade"),
-                                ("from", file_level.name()),
-                                ("to", target_level.name())
-                            ]
-                        ),
-                        0
+                    assert_histogram!(
+                        registry,
+                        U64Histogram,
+                        metric_name,
+                        labels = Attributes::from(&[
+                            ("op", "upgrade"),
+                            ("from", file_level.name()),
+                            ("to", target_level.name())
+                        ]),
+                        samples = 0,
+                        sum = 0,
                     );
                 }
             }
@@ -431,69 +411,37 @@ mod tests {
             .await;
         assert_eq!(ids, vec![]);
 
-        assert_eq!(
-            hist_count(
-                &registry,
-                METRIC_NAME_FILE_BYTES,
-                [("op", "create"), ("level", "L0")]
-            ),
-            1
+        assert_histogram!(
+            registry,
+            U64Histogram,
+            METRIC_NAME_FILE_BYTES,
+            labels = Attributes::from(&[("op", "create"), ("level", "L0")]),
+            samples = 1,
+            sum = 10_016,
         );
-        assert_eq!(
-            hist_count(
-                &registry,
-                METRIC_NAME_FILE_BYTES,
-                [("op", "upgrade"), ("from", "L0"), ("to", "L1")]
-            ),
-            1
+        assert_histogram!(
+            registry,
+            U64Histogram,
+            METRIC_NAME_FILE_BYTES,
+            labels = Attributes::from(&[("op", "upgrade"), ("from", "L0"), ("to", "L1")]),
+            samples = 1,
+            sum = 10_002,
         );
-        assert_eq!(
-            hist_count(
-                &registry,
-                METRIC_NAME_FILE_BYTES,
-                [("op", "upgrade"), ("from", "L1"), ("to", "L2")]
-            ),
-            1
+        assert_histogram!(
+            registry,
+            U64Histogram,
+            METRIC_NAME_FILE_BYTES,
+            labels = Attributes::from(&[("op", "upgrade"), ("from", "L1"), ("to", "L2")]),
+            samples = 1,
+            sum = 10_008,
         );
-        assert_eq!(
-            hist_count(
-                &registry,
-                METRIC_NAME_FILE_BYTES,
-                [("op", "delete"), ("level", "L1")]
-            ),
-            3
-        );
-        assert_eq!(
-            hist_total(
-                &registry,
-                METRIC_NAME_FILE_BYTES,
-                [("op", "create"), ("level", "L0")]
-            ),
-            10_016
-        );
-        assert_eq!(
-            hist_total(
-                &registry,
-                METRIC_NAME_FILE_BYTES,
-                [("op", "upgrade"), ("from", "L0"), ("to", "L1")]
-            ),
-            10_002
-        );
-        assert_eq!(
-            hist_total(
-                &registry,
-                METRIC_NAME_FILE_BYTES,
-                [("op", "upgrade"), ("from", "L1"), ("to", "L2")]
-            ),
-            10_008
-        );
-        assert_eq!(
-            hist_total(
-                &registry,
-                METRIC_NAME_FILE_BYTES,
-                [("op", "delete"), ("level", "L1")]
-            ),
-            30_007
+        assert_histogram!(
+            registry,
+            U64Histogram,
+            METRIC_NAME_FILE_BYTES,
+            labels = Attributes::from(&[("op", "delete"), ("level", "L1")]),
+            samples = 3,
+            sum = 30_007,
         );
 
         assert_eq!(
@@ -515,34 +463,5 @@ mod tests {
                 },
             ]
         );
-    }
-
-    fn hist<const N: usize>(
-        registry: &Registry,
-        metric_name: &'static str,
-        attributes: [(&'static str, &'static str); N],
-    ) -> HistogramObservation<u64> {
-        registry
-            .get_instrument::<Metric<U64Histogram>>(metric_name)
-            .expect("instrument not found")
-            .get_observer(&Attributes::from(&attributes))
-            .expect("observer not found")
-            .fetch()
-    }
-
-    fn hist_count<const N: usize>(
-        registry: &Registry,
-        metric_name: &'static str,
-        attributes: [(&'static str, &'static str); N],
-    ) -> u64 {
-        hist(registry, metric_name, attributes).sample_count()
-    }
-
-    fn hist_total<const N: usize>(
-        registry: &Registry,
-        metric_name: &'static str,
-        attributes: [(&'static str, &'static str); N],
-    ) -> u64 {
-        hist(registry, metric_name, attributes).total
     }
 }

@@ -78,7 +78,7 @@ mod tests {
 
     use compactor2_test_utils::create_overlapped_l0_l1_files_2;
     use data_types::CompactionLevel;
-    use metric::{Attributes, Metric, assert_histogram};
+    use metric::{assert_histogram, Attributes, Metric};
 
     use crate::{
         components::split_or_compact::{split_compact::SplitCompact, SplitOrCompact},
