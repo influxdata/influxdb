@@ -90,6 +90,7 @@ use tokio::sync::mpsc::Sender;
 ///   in which rows are only evaluated to true in at most one of the expressions.
 /// * partition n (n = partition split_exprs.len())  are the rows for which all split_exprs
 ///   do not evaluate to true (e.g. Null or false)
+#[derive(Hash, PartialEq, Eq)]
 pub struct StreamSplitNode {
     input: LogicalPlan,
     split_exprs: Vec<Expr>,
@@ -120,6 +121,10 @@ impl UserDefinedLogicalNode for StreamSplitNode {
         self
     }
 
+    fn name(&self) -> &str {
+        "StreamSplit"
+    }
+
     fn inputs(&self) -> Vec<&LogicalPlan> {
         vec![&self.input]
     }
@@ -134,7 +139,7 @@ impl UserDefinedLogicalNode for StreamSplitNode {
     }
 
     fn fmt_for_explain(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "StreamSplit split_expr={:?}", self.split_exprs)
+        write!(f, "{} split_expr={:?}", self.name(), self.split_exprs)
     }
 
     fn from_template(
@@ -142,11 +147,24 @@ impl UserDefinedLogicalNode for StreamSplitNode {
         exprs: &[Expr],
         inputs: &[LogicalPlan],
     ) -> Arc<dyn UserDefinedLogicalNode> {
-        assert_eq!(inputs.len(), 1, "StreamSplitNode: input sizes inconistent");
+        assert_eq!(inputs.len(), 1, "StreamSplitNode: input sizes inconsistent");
         Arc::new(Self {
             input: inputs[0].clone(),
             split_exprs: (*exprs).to_vec(),
         })
+    }
+
+    fn dyn_eq(&self, other: &dyn UserDefinedLogicalNode) -> bool {
+        match other.as_any().downcast_ref::<Self>() {
+            Some(o) => self == o,
+            None => false,
+        }
+    }
+
+    fn dyn_hash(&self, state: &mut dyn std::hash::Hasher) {
+        use std::hash::Hash;
+        let mut s = state;
+        self.hash(&mut s);
     }
 }
 

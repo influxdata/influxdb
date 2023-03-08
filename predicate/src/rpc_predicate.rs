@@ -6,13 +6,12 @@ mod value_rewrite;
 
 use crate::Predicate;
 
-use datafusion::common::{ExprSchema, ToDFSchema};
-use datafusion::error::{DataFusionError, Result as DataFusionResult};
+use datafusion::common::ToDFSchema;
+use datafusion::error::Result as DataFusionResult;
 use datafusion::execution::context::ExecutionProps;
 use datafusion::logical_expr::expr_rewriter::ExprRewritable;
-use datafusion::logical_expr::ExprSchemable;
-use datafusion::optimizer::simplify_expressions::{ExprSimplifier, SimplifyInfo};
-use datafusion::prelude::{lit, Column, Expr};
+use datafusion::optimizer::simplify_expressions::{ExprSimplifier, SimplifyContext};
+use datafusion::prelude::{lit, Expr};
 use observability_deps::tracing::{debug, trace};
 use schema::Schema;
 use std::collections::BTreeSet;
@@ -216,15 +215,15 @@ fn normalize_predicate(
 
     let mut field_value_exprs = vec![];
 
-    // TODO find some better interface than a DFSchema :vomit:
+    let props = ExecutionProps::new();
     let df_schema = schema.as_arrow().to_dfschema_ref()?;
+    let simplify_context = SimplifyContext::new(&props).with_schema(Arc::clone(&df_schema));
+    let simplifier = ExprSimplifier::new(simplify_context);
 
     predicate.exprs = predicate
         .exprs
         .into_iter()
         .map(|e| {
-            let simplifier = ExprSimplifier::new(SimplifyAdapter::new(&schema));
-
             debug!(?e, "rewriting expr");
 
             let e = rewrite_measurement_references(table_name, e)
@@ -277,63 +276,6 @@ fn normalize_predicate(
 fn log_rewrite(expr: Expr, description: &str) -> Expr {
     trace!(?expr, %description, "After rewrite");
     expr
-}
-
-struct SimplifyAdapter<'a> {
-    schema: &'a Schema,
-    execution_props: ExecutionProps,
-}
-
-impl<'a> SimplifyAdapter<'a> {
-    fn new(schema: &'a Schema) -> Self {
-        Self {
-            schema,
-            execution_props: ExecutionProps::new(),
-        }
-    }
-
-    // returns the field named 'name', if any
-    fn field(&self, name: &str) -> Option<&arrow::datatypes::Field> {
-        self.schema
-            .find_index_of(name)
-            .map(|index| self.schema.field(index).1)
-    }
-}
-
-impl<'a> SimplifyInfo for SimplifyAdapter<'a> {
-    fn is_boolean_type(&self, expr: &Expr) -> DataFusionResult<bool> {
-        Ok(expr
-            .get_type(self)
-            .ok()
-            .map(|t| matches!(t, arrow::datatypes::DataType::Boolean))
-            .unwrap_or(false))
-    }
-
-    fn nullable(&self, expr: &Expr) -> DataFusionResult<bool> {
-        Ok(expr.nullable(self).ok().unwrap_or(false))
-    }
-
-    fn execution_props(&self) -> &ExecutionProps {
-        &self.execution_props
-    }
-}
-
-impl<'a> ExprSchema for SimplifyAdapter<'a> {
-    fn nullable(&self, col: &Column) -> DataFusionResult<bool> {
-        assert!(col.relation.is_none());
-        //if the field isn't present IOx will treat it as null
-        Ok(self
-            .field(&col.name)
-            .map(|f| f.is_nullable())
-            .unwrap_or(true))
-    }
-
-    fn data_type(&self, col: &Column) -> DataFusionResult<&arrow::datatypes::DataType> {
-        assert!(col.relation.is_none());
-        self.field(&col.name)
-            .map(|f| f.data_type())
-            .ok_or_else(|| DataFusionError::Plan(format!("Unknown field {}", &col.name)))
-    }
 }
 
 #[cfg(test)]

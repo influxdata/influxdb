@@ -66,6 +66,7 @@ use tokio::sync::mpsc;
 use tokio_stream::StreamExt;
 
 /// Implements the NonNullChecker operation as described in this module's documentation
+#[derive(Hash, PartialEq, Eq)]
 pub struct NonNullCheckerNode {
     input: LogicalPlan,
     schema: DFSchemaRef,
@@ -117,6 +118,10 @@ impl UserDefinedLogicalNode for NonNullCheckerNode {
         self
     }
 
+    fn name(&self) -> &str {
+        "NonNullChecker"
+    }
+
     fn inputs(&self) -> Vec<&LogicalPlan> {
         vec![&self.input]
     }
@@ -132,7 +137,7 @@ impl UserDefinedLogicalNode for NonNullCheckerNode {
 
     /// For example: `NonNullChecker('the_value')`
     fn fmt_for_explain(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "NonNullChecker('{}')", self.value)
+        write!(f, "{}('{}')", self.name(), self.value)
     }
 
     fn from_template(
@@ -147,6 +152,19 @@ impl UserDefinedLogicalNode for NonNullCheckerNode {
             "NonNullChecker: expression sizes inconistent"
         );
         Arc::new(Self::new(self.value.as_ref(), inputs[0].clone()))
+    }
+
+    fn dyn_eq(&self, other: &dyn UserDefinedLogicalNode) -> bool {
+        match other.as_any().downcast_ref::<Self>() {
+            Some(o) => self == o,
+            None => false,
+        }
+    }
+
+    fn dyn_hash(&self, state: &mut dyn std::hash::Hasher) {
+        use std::hash::Hash;
+        let mut s = state;
+        self.hash(&mut s);
     }
 }
 

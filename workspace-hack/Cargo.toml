@@ -29,7 +29,7 @@ bytes = { version = "1" }
 chrono = { version = "0.4", default-features = false, features = ["alloc", "clock", "serde"] }
 crossbeam-utils = { version = "0.8" }
 crypto-common = { version = "0.1", default-features = false, features = ["std"] }
-datafusion = { git = "https://github.com/apache/arrow-datafusion.git", rev = "03fbf9fecad00f8d6eb3e72e72ba16252b28b1d6" }
+datafusion = { git = "https://github.com/apache/arrow-datafusion.git", rev = "deeaa5632ed99a58b91767261570756db736d158" }
 digest = { version = "0.10", features = ["mac", "std"] }
 either = { version = "1" }
 fixedbitset = { version = "0.4" }
@@ -59,6 +59,7 @@ object_store = { version = "0.5", default-features = false, features = ["aws", "
 once_cell = { version = "1", features = ["parking_lot"] }
 parking_lot = { version = "0.12", features = ["arc_lock"] }
 parquet = { version = "34", features = ["async", "experimental"] }
+petgraph = { version = "0.6" }
 phf_shared = { version = "0.11" }
 predicates = { version = "2" }
 prost = { version = "0.11" }
@@ -125,6 +126,7 @@ nom = { version = "7" }
 num-traits = { version = "0.2", features = ["i128", "libm"] }
 once_cell = { version = "1", features = ["parking_lot"] }
 parking_lot = { version = "0.12", features = ["arc_lock"] }
+petgraph = { version = "0.6" }
 phf_shared = { version = "0.11" }
 prost = { version = "0.11" }
 prost-types = { version = "0.11" }

@@ -32,7 +32,7 @@ use datafusion::{
 use self::stream::GapFillStream;
 
 /// A logical node that represents the gap filling operation.
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, Hash, PartialEq, Eq)]
 pub struct GapFill {
     input: Arc<LogicalPlan>,
     group_expr: Vec<Expr>,
@@ -41,7 +41,7 @@ pub struct GapFill {
 }
 
 /// Parameters to the GapFill operation
-#[derive(Clone, Debug, PartialEq)]
+#[derive(Clone, Debug, Hash, PartialEq, Eq)]
 pub(crate) struct GapFillParams {
     /// The stride argument from the call to DATE_BIN_GAPFILL
     pub stride: Expr,
@@ -61,7 +61,7 @@ pub(crate) struct GapFillParams {
 }
 
 /// Describes how to fill gaps in an aggregate column.
-#[derive(Clone, Debug, PartialEq)]
+#[derive(Clone, Debug, Hash, PartialEq, Eq)]
 pub enum FillStrategy {
     /// Fill with null values.
     /// This is the InfluxQL behavior for `FILL(NULL)` or `FILL(NONE)`.
@@ -158,6 +158,10 @@ impl UserDefinedLogicalNode for GapFill {
         self
     }
 
+    fn name(&self) -> &str {
+        "GapFill"
+    }
+
     fn inputs(&self) -> Vec<&LogicalPlan> {
         vec![self.input.as_ref()]
     }
@@ -178,7 +182,8 @@ impl UserDefinedLogicalNode for GapFill {
     fn fmt_for_explain(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         write!(
             f,
-            "GapFill: groupBy=[{:?}], aggr=[{:?}], time_column={}, stride={}, range={:?}",
+            "{}: groupBy=[{:?}], aggr=[{:?}], time_column={}, stride={}, range={:?}",
+            self.name(),
             self.group_expr,
             self.aggr_expr,
             self.params.time_column,
@@ -199,6 +204,19 @@ impl UserDefinedLogicalNode for GapFill {
         let gapfill = Self::try_new(Arc::new(inputs[0].clone()), group_expr, aggr_expr, params)
             .expect("should not fail");
         Arc::new(gapfill)
+    }
+
+    fn dyn_eq(&self, other: &dyn UserDefinedLogicalNode) -> bool {
+        match other.as_any().downcast_ref::<Self>() {
+            Some(o) => self == o,
+            None => false,
+        }
+    }
+
+    fn dyn_hash(&self, state: &mut dyn std::hash::Hasher) {
+        use std::hash::Hash;
+        let mut s = state;
+        self.hash(&mut s);
     }
 }
 

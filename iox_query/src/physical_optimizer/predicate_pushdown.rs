@@ -7,6 +7,7 @@ use datafusion::{
     physical_expr::{
         rewrite::{RewriteRecursion, TreeNodeRewriter},
         split_conjunction,
+        utils::collect_columns,
     },
     physical_optimizer::PhysicalOptimizerRule,
     physical_plan::{
@@ -65,7 +66,7 @@ impl PhysicalOptimizerRule for PredicatePushdown {
                             .into_iter()
                             .cloned()
                             .partition(|expr| {
-                                get_phys_expr_columns(expr)
+                                collect_columns(expr)
                                     .into_iter()
                                     .all(|c| dedup_cols.contains(c.name()))
                             });
@@ -104,21 +105,6 @@ impl PhysicalOptimizerRule for PredicatePushdown {
     fn schema_check(&self) -> bool {
         true
     }
-}
-
-/// Extract referenced [`Column`]s within a [`PhysicalExpr`].
-///
-/// This works recursively.
-///
-/// TODO: remove once <https://github.com/apache/arrow-datafusion/pull/5419> is available.
-pub fn get_phys_expr_columns(pred: &Arc<dyn PhysicalExpr>) -> HashSet<Column> {
-    use datafusion::physical_expr::rewrite::TreeNodeRewritable;
-
-    let mut rewriter = ColumnCollector::default();
-    Arc::clone(pred)
-        .transform_using(&mut rewriter)
-        .expect("never fail");
-    rewriter.cols
 }
 
 #[derive(Debug, Default)]

@@ -51,6 +51,7 @@ use tokio::sync::mpsc;
 use tokio_stream::StreamExt;
 
 /// Implements the SchemaPivot operation described in `make_schema_pivot`
+#[derive(Hash, PartialEq, Eq)]
 pub struct SchemaPivotNode {
     input: LogicalPlan,
     schema: DFSchemaRef,
@@ -93,6 +94,10 @@ impl UserDefinedLogicalNode for SchemaPivotNode {
         self
     }
 
+    fn name(&self) -> &str {
+        "SchemaPivot"
+    }
+
     fn inputs(&self) -> Vec<&LogicalPlan> {
         vec![&self.input]
     }
@@ -108,7 +113,7 @@ impl UserDefinedLogicalNode for SchemaPivotNode {
 
     /// For example: `SchemaPivot`
     fn fmt_for_explain(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "SchemaPivot")
+        write!(f, "{}", self.name())
     }
 
     fn from_template(
@@ -123,6 +128,19 @@ impl UserDefinedLogicalNode for SchemaPivotNode {
             "SchemaPivot: expression sizes inconistent"
         );
         Arc::new(Self::new(inputs[0].clone()))
+    }
+
+    fn dyn_eq(&self, other: &dyn UserDefinedLogicalNode) -> bool {
+        match other.as_any().downcast_ref::<Self>() {
+            Some(o) => self == o,
+            None => false,
+        }
+    }
+
+    fn dyn_hash(&self, state: &mut dyn std::hash::Hasher) {
+        use std::hash::Hash;
+        let mut s = state;
+        self.hash(&mut s);
     }
 }
 
