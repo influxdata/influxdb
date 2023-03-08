@@ -6,6 +6,8 @@ use metric::{Registry, U64Counter};
 
 use super::PartitionSource;
 
+const METRIC_NAME_PARTITION_FETCH_COUNT: &str = "iox_compactor_partition_fetch_count";
+
 #[derive(Debug)]
 pub struct MetricsPartitionSourceWrapper<T>
 where
@@ -22,7 +24,7 @@ where
 {
     pub fn new(inner: T, registry: &Registry) -> Self {
         let fetch_metric = registry.register_metric::<U64Counter>(
-            "iox_compactor_partition_fetch_count",
+            METRIC_NAME_PARTITION_FETCH_COUNT,
             "Number of times the compactor fetched information for a dedicated partition",
         );
         let fetch_found_counter = fetch_metric.recorder(&[("result", "found")]);
@@ -102,7 +104,7 @@ mod tests {
 
     fn fetch_found_counter(registry: &Registry) -> u64 {
         registry
-            .get_instrument::<Metric<U64Counter>>("iox_compactor_partition_fetch_count")
+            .get_instrument::<Metric<U64Counter>>(METRIC_NAME_PARTITION_FETCH_COUNT)
             .expect("instrument not found")
             .get_observer(&Attributes::from(&[("result", "found")]))
             .expect("observer not found")
@@ -111,7 +113,7 @@ mod tests {
 
     fn fetch_notfound_counter(registry: &Registry) -> u64 {
         registry
-            .get_instrument::<Metric<U64Counter>>("iox_compactor_partition_fetch_count")
+            .get_instrument::<Metric<U64Counter>>(METRIC_NAME_PARTITION_FETCH_COUNT)
             .expect("instrument not found")
             .get_observer(&Attributes::from(&[("result", "not_found")]))
             .expect("observer not found")

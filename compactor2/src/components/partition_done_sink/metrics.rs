@@ -8,6 +8,8 @@ use crate::error::{DynError, ErrorKind, ErrorKindExt};
 
 use super::PartitionDoneSink;
 
+const METRIC_NAME_PARTITION_COMPLETE_COUNT: &str = "iox_compactor_partition_complete_count";
+
 #[derive(Debug)]
 pub struct MetricsPartitionDoneSinkWrapper<T>
 where
@@ -24,7 +26,7 @@ where
 {
     pub fn new(inner: T, registry: &Registry) -> Self {
         let metric = registry.register_metric::<U64Counter>(
-            "iox_compactor_partition_complete_count",
+            METRIC_NAME_PARTITION_COMPLETE_COUNT,
             "Number of completed partitions",
         );
         let ok_counter = metric.recorder(&[("result", "ok")]);
@@ -133,7 +135,7 @@ mod tests {
 
     fn ok_counter(registry: &Registry) -> u64 {
         registry
-            .get_instrument::<Metric<U64Counter>>("iox_compactor_partition_complete_count")
+            .get_instrument::<Metric<U64Counter>>(METRIC_NAME_PARTITION_COMPLETE_COUNT)
             .expect("instrument not found")
             .get_observer(&Attributes::from(&[("result", "ok")]))
             .expect("observer not found")
@@ -142,7 +144,7 @@ mod tests {
 
     fn error_counter(registry: &Registry, kind: &'static str) -> u64 {
         registry
-            .get_instrument::<Metric<U64Counter>>("iox_compactor_partition_complete_count")
+            .get_instrument::<Metric<U64Counter>>(METRIC_NAME_PARTITION_COMPLETE_COUNT)
             .expect("instrument not found")
             .get_observer(&Attributes::from(&[("result", "error"), ("kind", kind)]))
             .expect("observer not found")

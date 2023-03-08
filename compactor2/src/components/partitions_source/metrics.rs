@@ -6,6 +6,9 @@ use metric::{Registry, U64Counter};
 
 use super::PartitionsSource;
 
+const METRIC_NAME_PARTITIONS_FETCH_COUNT: &str = "iox_compactor_partitions_fetch_count";
+const METRIC_NAME_PARTITIONS_COUNT: &str = "iox_compactor_partitions_count";
+
 #[derive(Debug)]
 pub struct MetricsPartitionsSourceWrapper<T>
 where
@@ -23,13 +26,13 @@ where
     pub fn new(inner: T, registry: &Registry) -> Self {
         let partitions_fetch_counter = registry
             .register_metric::<U64Counter>(
-                "iox_compactor_partitions_fetch_count",
+                METRIC_NAME_PARTITIONS_FETCH_COUNT,
                 "Number of times the compactor fetched fresh partitions",
             )
             .recorder(&[]);
         let partitions_counter = registry
             .register_metric::<U64Counter>(
-                "iox_compactor_partitions_count",
+                METRIC_NAME_PARTITIONS_COUNT,
                 "Number of partitions processed by the compactor. This contains the sum over ALL rounds (i.e. the same partition may be counted multiple times).",
             )
             .recorder(&[]);
@@ -104,7 +107,7 @@ mod tests {
 
     fn fetch_counter(registry: &Registry) -> u64 {
         registry
-            .get_instrument::<Metric<U64Counter>>("iox_compactor_partitions_fetch_count")
+            .get_instrument::<Metric<U64Counter>>(METRIC_NAME_PARTITIONS_FETCH_COUNT)
             .expect("instrument not found")
             .get_observer(&Attributes::from([]))
             .expect("observer not found")
@@ -113,7 +116,7 @@ mod tests {
 
     fn partition_counter(registry: &Registry) -> u64 {
         registry
-            .get_instrument::<Metric<U64Counter>>("iox_compactor_partitions_count")
+            .get_instrument::<Metric<U64Counter>>(METRIC_NAME_PARTITIONS_COUNT)
             .expect("instrument not found")
             .get_observer(&Attributes::from([]))
             .expect("observer not found")

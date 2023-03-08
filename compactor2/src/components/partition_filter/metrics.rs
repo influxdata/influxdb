@@ -8,6 +8,8 @@ use crate::{error::DynError, PartitionInfo};
 
 use super::PartitionFilter;
 
+const METRIC_NAME_PARTITION_FILTER_COUNT: &str = "iox_compactor_partition_filter_count";
+
 #[derive(Debug)]
 pub struct MetricsPartitionFilterWrapper<T>
 where
@@ -26,7 +28,7 @@ where
 {
     pub fn new(inner: T, registry: &Registry, filter_type: &'static str) -> Self {
         let metric = registry.register_metric::<U64Counter>(
-            "iox_compactor_partition_filter_count",
+            METRIC_NAME_PARTITION_FILTER_COUNT,
             "Number of times the compactor fetched fresh partitions",
         );
 
@@ -124,7 +126,7 @@ mod tests {
 
     fn pass_counter(registry: &Registry) -> u64 {
         registry
-            .get_instrument::<Metric<U64Counter>>("iox_compactor_partition_filter_count")
+            .get_instrument::<Metric<U64Counter>>(METRIC_NAME_PARTITION_FILTER_COUNT)
             .expect("instrument not found")
             .get_observer(&Attributes::from(&[
                 ("result", "pass"),
@@ -136,7 +138,7 @@ mod tests {
 
     fn filter_counter(registry: &Registry) -> u64 {
         registry
-            .get_instrument::<Metric<U64Counter>>("iox_compactor_partition_filter_count")
+            .get_instrument::<Metric<U64Counter>>(METRIC_NAME_PARTITION_FILTER_COUNT)
             .expect("instrument not found")
             .get_observer(&Attributes::from(&[
                 ("result", "filter"),
@@ -148,7 +150,7 @@ mod tests {
 
     fn error_counter(registry: &Registry) -> u64 {
         registry
-            .get_instrument::<Metric<U64Counter>>("iox_compactor_partition_filter_count")
+            .get_instrument::<Metric<U64Counter>>(METRIC_NAME_PARTITION_FILTER_COUNT)
             .expect("instrument not found")
             .get_observer(&Attributes::from(&[
                 ("result", "error"),
