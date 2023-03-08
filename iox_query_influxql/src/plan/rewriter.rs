@@ -1,9 +1,9 @@
 #![allow(dead_code)]
 
-use crate::plan::influxql::expr_type_evaluator::evaluate_type;
-use crate::plan::influxql::field::field_name;
-use crate::plan::influxql::field_mapper::{field_and_dimensions, FieldTypeMap, TagSet};
-use crate::plan::influxql::{util, SchemaProvider};
+use crate::plan::expr_type_evaluator::evaluate_type;
+use crate::plan::field::field_name;
+use crate::plan::field_mapper::{field_and_dimensions, FieldTypeMap, TagSet};
+use crate::plan::{util, SchemaProvider};
 use datafusion::common::{DataFusionError, Result};
 use influxdb_influxql_parser::common::{MeasurementName, QualifiedMeasurementName};
 use influxdb_influxql_parser::expression::walk::{walk_expr, walk_expr_mut};
@@ -490,8 +490,8 @@ pub(crate) fn rewrite_statement(
 
 #[cfg(test)]
 mod test {
-    use crate::plan::influxql::rewriter::{has_wildcards, rewrite_statement};
-    use crate::plan::influxql::test_utils::{parse_select, MockSchemaProvider};
+    use crate::plan::rewriter::{has_wildcards, rewrite_statement};
+    use crate::plan::test_utils::{parse_select, MockSchemaProvider};
     use test_helpers::assert_contains;
 
     #[test]

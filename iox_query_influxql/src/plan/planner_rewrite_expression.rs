@@ -121,7 +121,7 @@
 //! [`Reduce`]: https://github.com/influxdata/influxql/blob/1ba470371ec093d57a726b143fe6ccbacf1b452b/ast.go#L4850-L4852
 //! [`EvalBool`]: https://github.com/influxdata/influxql/blob/1ba470371ec093d57a726b143fe6ccbacf1b452b/ast.go#L4181-L4183
 //! [`Eval`]: https://github.com/influxdata/influxql/blob/1ba470371ec093d57a726b143fe6ccbacf1b452b/ast.go#L4137
-use crate::plan::influxql::util::Schemas;
+use crate::plan::util::Schemas;
 use arrow::datatypes::DataType;
 use datafusion::common::{Result, ScalarValue};
 use datafusion::logical_expr::expr_rewriter::{ExprRewritable, ExprRewriter};
@@ -130,7 +130,7 @@ use datafusion::logical_expr::{
 };
 
 /// Rewrite the expression tree and return a boolean result.
-pub(super) fn rewrite_conditional(expr: Expr, schemas: &Schemas) -> Result<Expr> {
+pub(in crate::plan) fn rewrite_conditional(expr: Expr, schemas: &Schemas) -> Result<Expr> {
     let expr = expr.rewrite(&mut RewriteAndCoerce { schemas })?;
     Ok(match expr {
         Expr::Literal(ScalarValue::Null) => lit(false),
@@ -140,7 +140,7 @@ pub(super) fn rewrite_conditional(expr: Expr, schemas: &Schemas) -> Result<Expr>
 
 /// Rewrite the expression tree and return a result or `NULL` if some of the operands are
 /// incompatible.
-pub(super) fn rewrite_expr(expr: Expr, schemas: &Schemas) -> Result<Expr> {
+pub(in crate::plan) fn rewrite_expr(expr: Expr, schemas: &Schemas) -> Result<Expr> {
     expr.rewrite(&mut RewriteAndCoerce { schemas })
 }
 

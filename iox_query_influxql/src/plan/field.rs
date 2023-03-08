@@ -84,8 +84,8 @@ fn binary_expr_name(expr: &Expr) -> String {
 
 #[cfg(test)]
 mod test {
-    use crate::plan::influxql::field::{field_by_name, field_name};
-    use crate::plan::influxql::test_utils::{get_first_field, parse_select};
+    use crate::plan::field::{field_by_name, field_name};
+    use crate::plan::test_utils::{get_first_field, parse_select};
     use assert_matches::assert_matches;
 
     #[test]

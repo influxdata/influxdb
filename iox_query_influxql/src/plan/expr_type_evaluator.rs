@@ -1,6 +1,6 @@
-use crate::plan::influxql::field::field_by_name;
-use crate::plan::influxql::field_mapper::map_type;
-use crate::plan::influxql::SchemaProvider;
+use crate::plan::field::field_by_name;
+use crate::plan::field_mapper::map_type;
+use crate::plan::SchemaProvider;
 use datafusion::common::{DataFusionError, Result};
 use influxdb_influxql_parser::common::{MeasurementName, QualifiedMeasurementName};
 use influxdb_influxql_parser::expression::{Expr, VarRefDataType};
@@ -148,8 +148,8 @@ impl<'a> TypeEvaluator<'a> {
 
 #[cfg(test)]
 mod test {
-    use crate::plan::influxql::expr_type_evaluator::evaluate_type;
-    use crate::plan::influxql::test_utils::{parse_select, MockSchemaProvider};
+    use crate::plan::expr_type_evaluator::evaluate_type;
+    use crate::plan::test_utils::{parse_select, MockSchemaProvider};
     use assert_matches::assert_matches;
     use influxdb_influxql_parser::expression::VarRefDataType;
 

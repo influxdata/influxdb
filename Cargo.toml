@@ -33,6 +33,7 @@ members = [
     "iox_catalog",
     "iox_data_generator",
     "iox_query",
+    "iox_query_influxql",
     "iox_tests",
     "iox_time",
     "ioxd_common",

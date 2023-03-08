@@ -10,6 +10,7 @@ async-trait = "0.1.66"
 bytes = "1.4"
 datafusion = { workspace = true }
 iox_query = { path = "../iox_query" }
+iox_query_influxql = { path = "../iox_query_influxql" }
 flightsql = { path = "../flightsql" }
 metric = { path = "../metric" }
 parking_lot = "0.12"
