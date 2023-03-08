@@ -205,7 +205,7 @@ func decodeDeleteRequest(ctx context.Context, r *http.Request, orgSvc influxdb.O
 					if vv.Val == "_field" {
 						walkError = &errors.Error{
 							Code: errors.ENotImplemented,
-							Msg:  "delete by field is not supported",
+							Msg:  "",
 							Err:  fmt.Errorf("delete by field is not supported"),
 						}
 					}
