@@ -42,7 +42,7 @@ pub fn limit_files_to_compact(
     let (start_level_files, mut target_level_files) = split.apply(files, start_level);
 
     // Order start-level files to group the files to compact them correctly
-    let start_level_files = order_files(start_level_files, &start_level);
+    let start_level_files = order_files(start_level_files, start_level);
     let mut start_level_files = start_level_files.into_iter();
 
     // Go over start-level files and find overlapped files in target level

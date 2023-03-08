@@ -44,7 +44,7 @@ impl DivideInitial for MultipleBranchesDivideInitial {
                     .into_iter()
                     .filter(|f| f.compaction_level == start_level)
                     .collect::<Vec<_>>();
-                let start_level_files = order_files(start_level_files, &start_level);
+                let start_level_files = order_files(start_level_files, start_level);
 
                 let capacity = start_level_files.len();
 
@@ -90,9 +90,9 @@ impl DivideInitial for MultipleBranchesDivideInitial {
 /// All given files are in the same given start_level.
 /// They will be sorted on their `max_l0_created_at` if the start_level is 0,
 /// otherwise on their `min_time`
-pub fn order_files(files: Vec<ParquetFile>, start_level: &CompactionLevel) -> Vec<ParquetFile> {
+pub fn order_files(files: Vec<ParquetFile>, start_level: CompactionLevel) -> Vec<ParquetFile> {
     let mut files = files;
-    if *start_level == CompactionLevel::Initial {
+    if start_level == CompactionLevel::Initial {
         files.sort_by(|a, b| a.max_l0_created_at.cmp(&b.max_l0_created_at));
     } else {
         files.sort_by(|a, b| a.min_time.cmp(&b.min_time));
