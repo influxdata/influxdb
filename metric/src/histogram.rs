@@ -97,7 +97,7 @@ macro_rules! assert_histogram {
     (
         $metrics:ident,
         $hist:ty,
-        $name:literal,
+        $name:expr,
         $(labels = $attr:expr,)*
         $(samples = $samples:expr,)*
         $(sum = $sum:expr,)*
