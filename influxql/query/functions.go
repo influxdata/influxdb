@@ -1240,7 +1240,7 @@ type FloatHoltWintersReducer struct {
 }
 
 const (
-	// Arbitrary weight for initializing some intial guesses.
+	// Arbitrary weight for initializing some initial guesses.
 	// This should be in the  range [0,1]
 	hwWeight = 0.5
 	// Epsilon value for the minimization process
