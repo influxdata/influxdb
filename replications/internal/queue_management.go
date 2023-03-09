@@ -365,13 +365,13 @@ func (qm *durableQueueManager) StartReplicationQueues(trackedReplications map[pl
 				path := pErr.Path
 				if _, err := os.Stat(path); err != nil && os.IsNotExist(err) {
 					if err := os.MkdirAll(path, 0777); err != nil {
-						qm.logger.Error("error attempting to recreate missing replication queue", zap.Error(err), zap.String("id", id.String()))
+						qm.logger.Error("error attempting to recreate missing replication queue", zap.Error(err), zap.String("id", id.String()), zap.String("path", path))
 						errOccurred = true
 						continue
 					}
 
 					if err := queue.Open(); err != nil {
-						qm.logger.Error("error attempting to open replication queue", zap.Error(err), zap.String("id", id.String()))
+						qm.logger.Error("error attempting to open replication queue", zap.Error(err), zap.String("id", id.String()), zap.String("path", path))
 						errOccurred = true
 						continue
 					}
@@ -381,7 +381,7 @@ func (qm *durableQueueManager) StartReplicationQueues(trackedReplications map[pl
 					qm.logger.Info("Opened replication stream", zap.String("id", id.String()), zap.String("path", queue.Dir()))
 				}
 			} else {
-				qm.logger.Error("failed to open replication stream durable queue", zap.Error(err), zap.String("id", id.String()))
+				qm.logger.Error("failed to open replication stream durable queue", zap.Error(err), zap.String("id", id.String()), zap.String("path", queue.Dir()))
 				errOccurred = true
 			}
 		} else {

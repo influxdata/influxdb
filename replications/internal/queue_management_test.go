@@ -720,7 +720,8 @@ func TestReplicationStartMissingQueue(t *testing.T) {
 	shutdown(t, qm)
 
 	// Delete the queue to simulate restoring from a backup
-	os.RemoveAll(filepath.Join(queuePath))
+	err = os.RemoveAll(filepath.Join(queuePath))
+	require.NoError(t, err)
 
 	// Call startup function
 	err = qm.StartReplicationQueues(trackedReplications)
