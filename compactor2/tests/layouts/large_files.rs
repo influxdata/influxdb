@@ -40,11 +40,11 @@ async fn one_larger_max_file_size() {
     ---
     - "**** Input Files "
     - "L1, all files 100mb                                                                                 "
-    - "L1.1[1,1000]        |-------------------------------------L1.1-------------------------------------|"
+    - "L1.1[1,1000] 1ns    |-------------------------------------L1.1-------------------------------------|"
     - "SKIPPED COMPACTION for PartitionId(1): partition 1 has overlapped files that exceed max compact size limit 314572800. The may happen if a large amount of data has the same timestamp"
     - "**** Final Output Files "
     - "L1, all files 100mb                                                                                 "
-    - "L1.1[1,1000]        |-------------------------------------L1.1-------------------------------------|"
+    - "L1.1[1,1000] 1ns    |-------------------------------------L1.1-------------------------------------|"
     "###
     );
 }
@@ -79,11 +79,11 @@ async fn one_l0_larger_max_file_size() {
     ---
     - "**** Input Files "
     - "L0, all files 100mb                                                                                 "
-    - "L0.1[1,1000]        |-------------------------------------L0.1-------------------------------------|"
+    - "L0.1[1,1000] 1ns    |-------------------------------------L0.1-------------------------------------|"
     - "SKIPPED COMPACTION for PartitionId(1): partition 1 has overlapped files that exceed max compact size limit 314572800. The may happen if a large amount of data has the same timestamp"
     - "**** Final Output Files "
     - "L0, all files 100mb                                                                                 "
-    - "L0.1[1,1000]        |-------------------------------------L0.1-------------------------------------|"
+    - "L0.1[1,1000] 1ns    |-------------------------------------L0.1-------------------------------------|"
     "###
     );
 }
@@ -119,13 +119,13 @@ async fn one_larger_max_compact_size() {
     ---
     - "**** Input Files "
     - "L1, all files 300mb                                                                                 "
-    - "L1.1[1,1000]        |-------------------------------------L1.1-------------------------------------|"
-    - "WARNING: file L1.1[1,1000] 300mb exceeds soft limit 100mb by more than 50%"
+    - "L1.1[1,1000] 1ns    |-------------------------------------L1.1-------------------------------------|"
+    - "WARNING: file L1.1[1,1000] 1ns 300mb exceeds soft limit 100mb by more than 50%"
     - "SKIPPED COMPACTION for PartitionId(1): partition 1 has overlapped files that exceed max compact size limit 314572800. The may happen if a large amount of data has the same timestamp"
     - "**** Final Output Files "
     - "L1, all files 300mb                                                                                 "
-    - "L1.1[1,1000]        |-------------------------------------L1.1-------------------------------------|"
-    - "WARNING: file L1.1[1,1000] 300mb exceeds soft limit 100mb by more than 50%"
+    - "L1.1[1,1000] 1ns    |-------------------------------------L1.1-------------------------------------|"
+    - "WARNING: file L1.1[1,1000] 1ns 300mb exceeds soft limit 100mb by more than 50%"
     "###
     );
 }
@@ -161,13 +161,13 @@ async fn one_l0_larger_max_compact_size() {
     ---
     - "**** Input Files "
     - "L0, all files 300mb                                                                                 "
-    - "L0.1[1,1000]        |-------------------------------------L0.1-------------------------------------|"
-    - "WARNING: file L0.1[1,1000] 300mb exceeds soft limit 100mb by more than 50%"
+    - "L0.1[1,1000] 1ns    |-------------------------------------L0.1-------------------------------------|"
+    - "WARNING: file L0.1[1,1000] 1ns 300mb exceeds soft limit 100mb by more than 50%"
     - "SKIPPED COMPACTION for PartitionId(1): partition 1 has overlapped files that exceed max compact size limit 314572800. The may happen if a large amount of data has the same timestamp"
     - "**** Final Output Files "
     - "L0, all files 300mb                                                                                 "
-    - "L0.1[1,1000]        |-------------------------------------L0.1-------------------------------------|"
-    - "WARNING: file L0.1[1,1000] 300mb exceeds soft limit 100mb by more than 50%"
+    - "L0.1[1,1000] 1ns    |-------------------------------------L0.1-------------------------------------|"
+    - "WARNING: file L0.1[1,1000] 1ns 300mb exceeds soft limit 100mb by more than 50%"
     "###
     );
 }
@@ -207,25 +207,25 @@ async fn two_large_files_total_under_max_compact_size() {
     ---
     - "**** Input Files "
     - "L1, all files 100mb                                                                                 "
-    - "L1.1[1,1000]        |-------------------------------------L1.1-------------------------------------|"
+    - "L1.1[1,1000] 1ns    |-------------------------------------L1.1-------------------------------------|"
     - "L2, all files 100mb                                                                                 "
-    - "L2.2[2,1000]        |------------------------------------L2.2-------------------------------------| "
+    - "L2.2[2,1000] 1ns    |------------------------------------L2.2-------------------------------------| "
     - "**** Simulation run 0, type=split(split_times=[501]). 2 Input Files, 200mb total:"
     - "L1, all files 100mb                                                                                 "
-    - "L1.1[1,1000]        |-------------------------------------L1.1-------------------------------------|"
+    - "L1.1[1,1000] 1ns    |-------------------------------------L1.1-------------------------------------|"
     - "L2, all files 100mb                                                                                 "
-    - "L2.2[2,1000]        |------------------------------------L2.2-------------------------------------| "
+    - "L2.2[2,1000] 1ns    |------------------------------------L2.2-------------------------------------| "
     - "**** 2 Output Files (parquet_file_id not yet assigned), 199.8mb total:"
     - "L2                                                                                                  "
-    - "L2.?[1,501] 100.1mb |-----------------L2.?-----------------|                                        "
-    - "L2.?[502,1000] 99.7mb                                        |----------------L2.?-----------------| "
+    - "L2.?[1,501] 1ns 100.1mb|-----------------L2.?-----------------|                                        "
+    - "L2.?[502,1000] 1ns 99.7mb                                        |----------------L2.?-----------------| "
     - "Committing partition 1:"
     - "  Soft Deleting 2 files: L1.1, L2.2"
     - "  Creating 2 files at level CompactionLevel::L2"
     - "**** Final Output Files "
     - "L2                                                                                                  "
-    - "L2.3[1,501] 100.1mb |-----------------L2.3-----------------|                                        "
-    - "L2.4[502,1000] 99.7mb                                        |----------------L2.4-----------------| "
+    - "L2.3[1,501] 1ns 100.1mb|-----------------L2.3-----------------|                                        "
+    - "L2.4[502,1000] 1ns 99.7mb                                        |----------------L2.4-----------------| "
     "###
     );
 }
@@ -265,19 +265,19 @@ async fn two_large_files_total_over_max_compact_size() {
     ---
     - "**** Input Files "
     - "L1, all files 150mb                                                                                 "
-    - "L1.1[1,1000]        |-------------------------------------L1.1-------------------------------------|"
+    - "L1.1[1,1000] 1ns    |-------------------------------------L1.1-------------------------------------|"
     - "L2, all files 150mb                                                                                 "
-    - "L2.2[2,1000]        |------------------------------------L2.2-------------------------------------| "
-    - "WARNING: file L1.1[1,1000] 150mb exceeds soft limit 100mb by more than 50%"
-    - "WARNING: file L2.2[2,1000] 150mb exceeds soft limit 100mb by more than 50%"
+    - "L2.2[2,1000] 1ns    |------------------------------------L2.2-------------------------------------| "
+    - "WARNING: file L1.1[1,1000] 1ns 150mb exceeds soft limit 100mb by more than 50%"
+    - "WARNING: file L2.2[2,1000] 1ns 150mb exceeds soft limit 100mb by more than 50%"
     - "SKIPPED COMPACTION for PartitionId(1): partition 1 has overlapped files that exceed max compact size limit 314572800. The may happen if a large amount of data has the same timestamp"
     - "**** Final Output Files "
     - "L1, all files 150mb                                                                                 "
-    - "L1.1[1,1000]        |-------------------------------------L1.1-------------------------------------|"
+    - "L1.1[1,1000] 1ns    |-------------------------------------L1.1-------------------------------------|"
     - "L2, all files 150mb                                                                                 "
-    - "L2.2[2,1000]        |------------------------------------L2.2-------------------------------------| "
-    - "WARNING: file L1.1[1,1000] 150mb exceeds soft limit 100mb by more than 50%"
-    - "WARNING: file L2.2[2,1000] 150mb exceeds soft limit 100mb by more than 50%"
+    - "L2.2[2,1000] 1ns    |------------------------------------L2.2-------------------------------------| "
+    - "WARNING: file L1.1[1,1000] 1ns 150mb exceeds soft limit 100mb by more than 50%"
+    - "WARNING: file L2.2[2,1000] 1ns 150mb exceeds soft limit 100mb by more than 50%"
     "###
     );
 }
@@ -318,19 +318,19 @@ async fn two_large_files_total_over_max_compact_size_small_overlap_range() {
     ---
     - "**** Input Files "
     - "L1, all files 150mb                                                                                 "
-    - "L1.1[0,1000]        |-------------------------------------L1.1-------------------------------------|"
+    - "L1.1[0,1000] 1ns    |-------------------------------------L1.1-------------------------------------|"
     - "L2, all files 150mb                                                                                 "
-    - "L2.2[800,1000]                                                                      |-----L2.2-----|"
-    - "WARNING: file L1.1[0,1000] 150mb exceeds soft limit 100mb by more than 50%"
-    - "WARNING: file L2.2[800,1000] 150mb exceeds soft limit 100mb by more than 50%"
+    - "L2.2[800,1000] 1ns                                                                  |-----L2.2-----|"
+    - "WARNING: file L1.1[0,1000] 1ns 150mb exceeds soft limit 100mb by more than 50%"
+    - "WARNING: file L2.2[800,1000] 1ns 150mb exceeds soft limit 100mb by more than 50%"
     - "SKIPPED COMPACTION for PartitionId(1): partition 1 has overlapped files that exceed max compact size limit 314572800. The may happen if a large amount of data has the same timestamp"
     - "**** Final Output Files "
     - "L1, all files 150mb                                                                                 "
-    - "L1.1[0,1000]        |-------------------------------------L1.1-------------------------------------|"
+    - "L1.1[0,1000] 1ns    |-------------------------------------L1.1-------------------------------------|"
     - "L2, all files 150mb                                                                                 "
-    - "L2.2[800,1000]                                                                      |-----L2.2-----|"
-    - "WARNING: file L1.1[0,1000] 150mb exceeds soft limit 100mb by more than 50%"
-    - "WARNING: file L2.2[800,1000] 150mb exceeds soft limit 100mb by more than 50%"
+    - "L2.2[800,1000] 1ns                                                                  |-----L2.2-----|"
+    - "WARNING: file L1.1[0,1000] 1ns 150mb exceeds soft limit 100mb by more than 50%"
+    - "WARNING: file L2.2[800,1000] 1ns 150mb exceeds soft limit 100mb by more than 50%"
     "###
     );
 }
@@ -372,19 +372,19 @@ async fn two_large_files_total_over_max_compact_size_small_overlap_range_2() {
     ---
     - "**** Input Files "
     - "L1, all files 150mb                                                                                 "
-    - "L1.1[800,2000]      |------------------L1.1-------------------|                                     "
+    - "L1.1[800,2000] 1ns  |------------------L1.1-------------------|                                     "
     - "L2, all files 150mb                                                                                 "
-    - "L2.2[1600,3000]                                  |----------------------L2.2----------------------| "
-    - "WARNING: file L1.1[800,2000] 150mb exceeds soft limit 100mb by more than 50%"
-    - "WARNING: file L2.2[1600,3000] 150mb exceeds soft limit 100mb by more than 50%"
+    - "L2.2[1600,3000] 1ns                              |----------------------L2.2----------------------| "
+    - "WARNING: file L1.1[800,2000] 1ns 150mb exceeds soft limit 100mb by more than 50%"
+    - "WARNING: file L2.2[1600,3000] 1ns 150mb exceeds soft limit 100mb by more than 50%"
     - "SKIPPED COMPACTION for PartitionId(1): partition 1 has overlapped files that exceed max compact size limit 314572800. The may happen if a large amount of data has the same timestamp"
     - "**** Final Output Files "
     - "L1, all files 150mb                                                                                 "
-    - "L1.1[800,2000]      |------------------L1.1-------------------|                                     "
+    - "L1.1[800,2000] 1ns  |------------------L1.1-------------------|                                     "
     - "L2, all files 150mb                                                                                 "
-    - "L2.2[1600,3000]                                  |----------------------L2.2----------------------| "
-    - "WARNING: file L1.1[800,2000] 150mb exceeds soft limit 100mb by more than 50%"
-    - "WARNING: file L2.2[1600,3000] 150mb exceeds soft limit 100mb by more than 50%"
+    - "L2.2[1600,3000] 1ns                              |----------------------L2.2----------------------| "
+    - "WARNING: file L1.1[800,2000] 1ns 150mb exceeds soft limit 100mb by more than 50%"
+    - "WARNING: file L2.2[1600,3000] 1ns 150mb exceeds soft limit 100mb by more than 50%"
     "###
     );
 }
@@ -426,19 +426,19 @@ async fn two_large_files_total_over_max_compact_size_small_overlap_range_3() {
     ---
     - "**** Input Files "
     - "L1, all files 150mb                                                                                 "
-    - "L1.1[0,300]         |------L1.1------|                                                              "
+    - "L1.1[0,300] 1ns     |------L1.1------|                                                              "
     - "L2, all files 150mb                                                                                 "
-    - "L2.2[200,1300]                  |------------------------------L2.2-------------------------------| "
-    - "WARNING: file L1.1[0,300] 150mb exceeds soft limit 100mb by more than 50%"
-    - "WARNING: file L2.2[200,1300] 150mb exceeds soft limit 100mb by more than 50%"
+    - "L2.2[200,1300] 1ns              |------------------------------L2.2-------------------------------| "
+    - "WARNING: file L1.1[0,300] 1ns 150mb exceeds soft limit 100mb by more than 50%"
+    - "WARNING: file L2.2[200,1300] 1ns 150mb exceeds soft limit 100mb by more than 50%"
     - "SKIPPED COMPACTION for PartitionId(1): partition 1 has overlapped files that exceed max compact size limit 314572800. The may happen if a large amount of data has the same timestamp"
     - "**** Final Output Files "
     - "L1, all files 150mb                                                                                 "
-    - "L1.1[0,300]         |------L1.1------|                                                              "
+    - "L1.1[0,300] 1ns     |------L1.1------|                                                              "
     - "L2, all files 150mb                                                                                 "
-    - "L2.2[200,1300]                  |------------------------------L2.2-------------------------------| "
-    - "WARNING: file L1.1[0,300] 150mb exceeds soft limit 100mb by more than 50%"
-    - "WARNING: file L2.2[200,1300] 150mb exceeds soft limit 100mb by more than 50%"
+    - "L2.2[200,1300] 1ns              |------------------------------L2.2-------------------------------| "
+    - "WARNING: file L1.1[0,300] 1ns 150mb exceeds soft limit 100mb by more than 50%"
+    - "WARNING: file L2.2[200,1300] 1ns 150mb exceeds soft limit 100mb by more than 50%"
     "###
     );
 }
@@ -479,19 +479,19 @@ async fn two_large_files_total_over_max_compact_size_start_l0() {
     ---
     - "**** Input Files "
     - "L0, all files 150mb                                                                                 "
-    - "L0.1[0,1000]        |-------------------------------------L0.1-------------------------------------|"
+    - "L0.1[0,1000] 1ns    |-------------------------------------L0.1-------------------------------------|"
     - "L1, all files 150mb                                                                                 "
-    - "L1.2[1,1000]        |------------------------------------L1.2-------------------------------------| "
-    - "WARNING: file L0.1[0,1000] 150mb exceeds soft limit 100mb by more than 50%"
-    - "WARNING: file L1.2[1,1000] 150mb exceeds soft limit 100mb by more than 50%"
+    - "L1.2[1,1000] 1ns    |------------------------------------L1.2-------------------------------------| "
+    - "WARNING: file L0.1[0,1000] 1ns 150mb exceeds soft limit 100mb by more than 50%"
+    - "WARNING: file L1.2[1,1000] 1ns 150mb exceeds soft limit 100mb by more than 50%"
     - "SKIPPED COMPACTION for PartitionId(1): partition 1 has overlapped files that exceed max compact size limit 314572800. The may happen if a large amount of data has the same timestamp"
     - "**** Final Output Files "
     - "L0, all files 150mb                                                                                 "
-    - "L0.1[0,1000]        |-------------------------------------L0.1-------------------------------------|"
+    - "L0.1[0,1000] 1ns    |-------------------------------------L0.1-------------------------------------|"
     - "L1, all files 150mb                                                                                 "
-    - "L1.2[1,1000]        |------------------------------------L1.2-------------------------------------| "
-    - "WARNING: file L0.1[0,1000] 150mb exceeds soft limit 100mb by more than 50%"
-    - "WARNING: file L1.2[1,1000] 150mb exceeds soft limit 100mb by more than 50%"
+    - "L1.2[1,1000] 1ns    |------------------------------------L1.2-------------------------------------| "
+    - "WARNING: file L0.1[0,1000] 1ns 150mb exceeds soft limit 100mb by more than 50%"
+    - "WARNING: file L1.2[1,1000] 1ns 150mb exceeds soft limit 100mb by more than 50%"
     "###
     );
 }
@@ -549,21 +549,21 @@ async fn target_too_large_1() {
     ---
     - "**** Input Files "
     - "L1                                                                                                  "
-    - "L1.2[1,1000] 53mb   |----------L1.2----------|                                                      "
-    - "L1.3[1001,2000] 45mb                          |----------L1.3----------|                            "
-    - "L1.4[2001,3000] 5mb                                                      |----------L1.4----------| "
+    - "L1.2[1,1000] 1ns 53mb|----------L1.2----------|                                                      "
+    - "L1.3[1001,2000] 1ns 45mb                          |----------L1.3----------|                            "
+    - "L1.4[2001,3000] 1ns 5mb                                                     |----------L1.4----------| "
     - "L2                                                                                                  "
-    - "L2.1[1,1000] 253mb  |----------L2.1----------|                                                      "
-    - "WARNING: file L2.1[1,1000] 253mb exceeds soft limit 100mb by more than 50%"
+    - "L2.1[1,1000] 1ns 253mb|----------L2.1----------|                                                      "
+    - "WARNING: file L2.1[1,1000] 1ns 253mb exceeds soft limit 100mb by more than 50%"
     - "SKIPPED COMPACTION for PartitionId(1): partition 1 has overlapped files that exceed max compact size limit 314572800. The may happen if a large amount of data has the same timestamp"
     - "**** Final Output Files "
     - "L1                                                                                                  "
-    - "L1.2[1,1000] 53mb   |----------L1.2----------|                                                      "
-    - "L1.3[1001,2000] 45mb                          |----------L1.3----------|                            "
-    - "L1.4[2001,3000] 5mb                                                      |----------L1.4----------| "
+    - "L1.2[1,1000] 1ns 53mb|----------L1.2----------|                                                      "
+    - "L1.3[1001,2000] 1ns 45mb                          |----------L1.3----------|                            "
+    - "L1.4[2001,3000] 1ns 5mb                                                     |----------L1.4----------| "
     - "L2                                                                                                  "
-    - "L2.1[1,1000] 253mb  |----------L2.1----------|                                                      "
-    - "WARNING: file L2.1[1,1000] 253mb exceeds soft limit 100mb by more than 50%"
+    - "L2.1[1,1000] 1ns 253mb|----------L2.1----------|                                                      "
+    - "WARNING: file L2.1[1,1000] 1ns 253mb exceeds soft limit 100mb by more than 50%"
     "###
     );
 }
@@ -621,19 +621,19 @@ async fn target_too_large_2() {
     ---
     - "**** Input Files "
     - "L1                                                                                                  "
-    - "L1.2[1,1000] 69mb   |----------L1.2----------|                                                      "
-    - "L1.3[1001,2000] 50mb                          |----------L1.3----------|                            "
+    - "L1.2[1,1000] 1ns 69mb|----------L1.2----------|                                                      "
+    - "L1.3[1001,2000] 1ns 50mb                          |----------L1.3----------|                            "
     - "L2                                                                                                  "
-    - "L2.1[1,3000] 232mb  |-------------------------------------L2.1-------------------------------------|"
-    - "WARNING: file L2.1[1,3000] 232mb exceeds soft limit 100mb by more than 50%"
+    - "L2.1[1,3000] 1ns 232mb|-------------------------------------L2.1-------------------------------------|"
+    - "WARNING: file L2.1[1,3000] 1ns 232mb exceeds soft limit 100mb by more than 50%"
     - "SKIPPED COMPACTION for PartitionId(1): partition 1 has overlapped files that exceed max compact size limit 314572800. The may happen if a large amount of data has the same timestamp"
     - "**** Final Output Files "
     - "L1                                                                                                  "
-    - "L1.2[1,1000] 69mb   |----------L1.2----------|                                                      "
-    - "L1.3[1001,2000] 50mb                          |----------L1.3----------|                            "
+    - "L1.2[1,1000] 1ns 69mb|----------L1.2----------|                                                      "
+    - "L1.3[1001,2000] 1ns 50mb                          |----------L1.3----------|                            "
     - "L2                                                                                                  "
-    - "L2.1[1,3000] 232mb  |-------------------------------------L2.1-------------------------------------|"
-    - "WARNING: file L2.1[1,3000] 232mb exceeds soft limit 100mb by more than 50%"
+    - "L2.1[1,3000] 1ns 232mb|-------------------------------------L2.1-------------------------------------|"
+    - "WARNING: file L2.1[1,3000] 1ns 232mb exceeds soft limit 100mb by more than 50%"
     "###
     );
 }
@@ -679,17 +679,17 @@ async fn start_too_large_similar_time_range() {
     ---
     - "**** Input Files "
     - "L1                                                                                                  "
-    - "L1.1[1,1000] 250mb  |-------------------------------------L1.1-------------------------------------|"
+    - "L1.1[1,1000] 1ns 250mb|-------------------------------------L1.1-------------------------------------|"
     - "L2                                                                                                  "
-    - "L2.2[2,1000] 52mb   |------------------------------------L2.2-------------------------------------| "
-    - "WARNING: file L1.1[1,1000] 250mb exceeds soft limit 100mb by more than 50%"
+    - "L2.2[2,1000] 1ns 52mb|------------------------------------L2.2-------------------------------------| "
+    - "WARNING: file L1.1[1,1000] 1ns 250mb exceeds soft limit 100mb by more than 50%"
     - "SKIPPED COMPACTION for PartitionId(1): partition 1 has overlapped files that exceed max compact size limit 314572800. The may happen if a large amount of data has the same timestamp"
     - "**** Final Output Files "
     - "L1                                                                                                  "
-    - "L1.1[1,1000] 250mb  |-------------------------------------L1.1-------------------------------------|"
+    - "L1.1[1,1000] 1ns 250mb|-------------------------------------L1.1-------------------------------------|"
     - "L2                                                                                                  "
-    - "L2.2[2,1000] 52mb   |------------------------------------L2.2-------------------------------------| "
-    - "WARNING: file L1.1[1,1000] 250mb exceeds soft limit 100mb by more than 50%"
+    - "L2.2[2,1000] 1ns 52mb|------------------------------------L2.2-------------------------------------| "
+    - "WARNING: file L1.1[1,1000] 1ns 250mb exceeds soft limit 100mb by more than 50%"
     "###
     );
 }
@@ -736,17 +736,17 @@ async fn start_too_large_small_time_range() {
     ---
     - "**** Input Files "
     - "L1                                                                                                  "
-    - "L1.1[0,1000] 250mb  |-------------------------------------L1.1-------------------------------------|"
+    - "L1.1[0,1000] 1ns 250mb|-------------------------------------L1.1-------------------------------------|"
     - "L2                                                                                                  "
-    - "L2.2[800,1000] 52mb                                                                 |-----L2.2-----|"
-    - "WARNING: file L1.1[0,1000] 250mb exceeds soft limit 100mb by more than 50%"
+    - "L2.2[800,1000] 1ns 52mb                                                                |-----L2.2-----|"
+    - "WARNING: file L1.1[0,1000] 1ns 250mb exceeds soft limit 100mb by more than 50%"
     - "SKIPPED COMPACTION for PartitionId(1): partition 1 has overlapped files that exceed max compact size limit 314572800. The may happen if a large amount of data has the same timestamp"
     - "**** Final Output Files "
     - "L1                                                                                                  "
-    - "L1.1[0,1000] 250mb  |-------------------------------------L1.1-------------------------------------|"
+    - "L1.1[0,1000] 1ns 250mb|-------------------------------------L1.1-------------------------------------|"
     - "L2                                                                                                  "
-    - "L2.2[800,1000] 52mb                                                                 |-----L2.2-----|"
-    - "WARNING: file L1.1[0,1000] 250mb exceeds soft limit 100mb by more than 50%"
+    - "L2.2[800,1000] 1ns 52mb                                                                |-----L2.2-----|"
+    - "WARNING: file L1.1[0,1000] 1ns 250mb exceeds soft limit 100mb by more than 50%"
     "###
     );
 }
@@ -793,17 +793,17 @@ async fn start_too_large_small_time_range_2() {
     ---
     - "**** Input Files "
     - "L1                                                                                                  "
-    - "L1.1[800,2000] 250mb|------------------L1.1-------------------|                                     "
+    - "L1.1[800,2000] 1ns 250mb|------------------L1.1-------------------|                                     "
     - "L2                                                                                                  "
-    - "L2.2[1600,3000] 52mb                             |----------------------L2.2----------------------| "
-    - "WARNING: file L1.1[800,2000] 250mb exceeds soft limit 100mb by more than 50%"
+    - "L2.2[1600,3000] 1ns 52mb                             |----------------------L2.2----------------------| "
+    - "WARNING: file L1.1[800,2000] 1ns 250mb exceeds soft limit 100mb by more than 50%"
     - "SKIPPED COMPACTION for PartitionId(1): partition 1 has overlapped files that exceed max compact size limit 314572800. The may happen if a large amount of data has the same timestamp"
     - "**** Final Output Files "
     - "L1                                                                                                  "
-    - "L1.1[800,2000] 250mb|------------------L1.1-------------------|                                     "
+    - "L1.1[800,2000] 1ns 250mb|------------------L1.1-------------------|                                     "
     - "L2                                                                                                  "
-    - "L2.2[1600,3000] 52mb                             |----------------------L2.2----------------------| "
-    - "WARNING: file L1.1[800,2000] 250mb exceeds soft limit 100mb by more than 50%"
+    - "L2.2[1600,3000] 1ns 52mb                             |----------------------L2.2----------------------| "
+    - "WARNING: file L1.1[800,2000] 1ns 250mb exceeds soft limit 100mb by more than 50%"
     "###
     );
 }
@@ -851,17 +851,17 @@ async fn start_too_large_small_time_range_3() {
     ---
     - "**** Input Files "
     - "L1                                                                                                  "
-    - "L1.1[0,300] 250mb   |------L1.1------|                                                              "
+    - "L1.1[0,300] 1ns 250mb|------L1.1------|                                                              "
     - "L2                                                                                                  "
-    - "L2.2[200,1300] 52mb             |------------------------------L2.2-------------------------------| "
-    - "WARNING: file L1.1[0,300] 250mb exceeds soft limit 100mb by more than 50%"
+    - "L2.2[200,1300] 1ns 52mb            |------------------------------L2.2-------------------------------| "
+    - "WARNING: file L1.1[0,300] 1ns 250mb exceeds soft limit 100mb by more than 50%"
     - "SKIPPED COMPACTION for PartitionId(1): partition 1 has overlapped files that exceed max compact size limit 314572800. The may happen if a large amount of data has the same timestamp"
     - "**** Final Output Files "
     - "L1                                                                                                  "
-    - "L1.1[0,300] 250mb   |------L1.1------|                                                              "
+    - "L1.1[0,300] 1ns 250mb|------L1.1------|                                                              "
     - "L2                                                                                                  "
-    - "L2.2[200,1300] 52mb             |------------------------------L2.2-------------------------------| "
-    - "WARNING: file L1.1[0,300] 250mb exceeds soft limit 100mb by more than 50%"
+    - "L2.2[200,1300] 1ns 52mb            |------------------------------L2.2-------------------------------| "
+    - "WARNING: file L1.1[0,300] 1ns 250mb exceeds soft limit 100mb by more than 50%"
     "###
     );
 }
