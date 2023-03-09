@@ -1,13 +1,10 @@
-use crate::plan::influxql::planner_rewrite_expression::{rewrite_conditional, rewrite_expr};
-use crate::plan::influxql::planner_time_range_expression::time_range_to_df_expr;
-use crate::plan::influxql::rewriter::rewrite_statement;
-use crate::plan::influxql::util::{binary_operator_to_df_operator, Schemas};
-use crate::plan::influxql::var_ref::{
-    column_type_to_var_ref_data_type, var_ref_data_type_to_data_type,
-};
-use crate::DataFusionError;
+use crate::plan::planner_rewrite_expression::{rewrite_conditional, rewrite_expr};
+use crate::plan::planner_time_range_expression::time_range_to_df_expr;
+use crate::plan::rewriter::rewrite_statement;
+use crate::plan::util::{binary_operator_to_df_operator, Schemas};
+use crate::plan::var_ref::{column_type_to_var_ref_data_type, var_ref_data_type_to_data_type};
 use arrow::datatypes::DataType;
-use datafusion::common::{DFSchema, DFSchemaRef, Result, ScalarValue, ToDFSchema};
+use datafusion::common::{DFSchema, DFSchemaRef, DataFusionError, Result, ScalarValue, ToDFSchema};
 use datafusion::logical_expr::expr_rewriter::{normalize_col, ExprRewritable, ExprRewriter};
 use datafusion::logical_expr::logical_plan::builder::project;
 use datafusion::logical_expr::logical_plan::Analyze;
@@ -1020,63 +1017,44 @@ fn find_expr(cond: &ConditionalExpression) -> Result<&IQLExpr> {
 #[cfg(test)]
 mod test {
     use super::*;
-    use crate::exec::Executor;
-    use crate::plan::influxql::test_utils;
-    use crate::plan::influxql::test_utils::{parse_select, TestDatabaseAdapter};
-    use crate::test::{TestChunk, TestDatabase};
+    use crate::plan::test_utils::{parse_select, MockSchemaProvider};
     use influxdb_influxql_parser::parse_statements;
     use insta::assert_snapshot;
+    use schema::SchemaBuilder;
 
     fn logical_plan(sql: &str) -> Result<LogicalPlan> {
         let mut statements = parse_statements(sql).unwrap();
-        // index of columns in the above chunk: [bar, foo, i64_field, i64_field_2, time]
-        let executor = Arc::new(Executor::new_testing());
-        let test_db = TestDatabase::new(Arc::clone(&executor));
-        test_db.add_chunk(
-            "my_partition_key",
-            Arc::new(
-                TestChunk::new("data")
-                    .with_quiet()
-                    .with_id(0)
-                    .with_tag_column("foo")
-                    .with_tag_column("bar")
-                    .with_f64_field_column("f64_field")
-                    .with_f64_field_column("mixedCase")
-                    .with_f64_field_column("with space")
-                    .with_i64_field_column("i64_field")
-                    .with_string_field_column_with_stats("str_field", None, None)
-                    .with_bool_field_column("bool_field")
-                    // InfluxQL is case sensitive
-                    .with_bool_field_column("TIME")
-                    .with_time_column()
-                    .with_one_row_of_data(),
-            ),
-        );
-
-        // Table with tags and all field types
-        test_db.add_chunk(
-            "my_partition_key",
-            Arc::new(
-                TestChunk::new("all_types")
-                    .with_quiet()
-                    .with_id(1)
-                    .with_tag_column("tag0")
-                    .with_tag_column("tag1")
-                    .with_f64_field_column("f64_field")
-                    .with_i64_field_column("i64_field")
-                    .with_string_field_column_with_stats("str_field", None, None)
-                    .with_bool_field_column("bool_field")
-                    .with_u64_field_column_no_stats("u64_field")
-                    .with_time_column()
-                    .with_one_row_of_data(),
-            ),
-        );
-
-        test_utils::database::chunks().iter().for_each(|c| {
-            test_db.add_chunk("my_partition_key", Arc::clone(c));
-        });
-
-        let sp = TestDatabaseAdapter::new(&test_db);
+        let mut sp = MockSchemaProvider::default();
+        sp.add_schemas(vec![
+            SchemaBuilder::new()
+                .measurement("data")
+                .timestamp()
+                .tag("foo")
+                .tag("bar")
+                .influx_field("f64_field", InfluxFieldType::Float)
+                .influx_field("mixedCase", InfluxFieldType::Float)
+                .influx_field("with space", InfluxFieldType::Float)
+                .influx_field("i64_field", InfluxFieldType::Integer)
+                .influx_field("str_field", InfluxFieldType::String)
+                .influx_field("bool_field", InfluxFieldType::Boolean)
+                // InfluxQL is case sensitive
+                .influx_field("TIME", InfluxFieldType::Boolean)
+                .build()
+                .unwrap(),
+            // Table with tags and all field types
+            SchemaBuilder::new()
+                .measurement("all_types")
+                .timestamp()
+                .tag("tag0")
+                .tag("tag1")
+                .influx_field("f64_field", InfluxFieldType::Float)
+                .influx_field("i64_field", InfluxFieldType::Integer)
+                .influx_field("str_field", InfluxFieldType::String)
+                .influx_field("bool_field", InfluxFieldType::Boolean)
+                .influx_field("u64_field", InfluxFieldType::UInteger)
+                .build()
+                .unwrap(),
+        ]);
 
         let planner = InfluxQLToLogicalPlan::new(&sp);
 

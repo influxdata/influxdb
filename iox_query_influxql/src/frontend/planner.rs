@@ -6,9 +6,7 @@ use std::fmt::Debug;
 use std::ops::Deref;
 use std::sync::Arc;
 
-use crate::exec::context::IOxSessionContext;
-use crate::plan::influxql;
-use crate::plan::influxql::{InfluxQLToLogicalPlan, SchemaProvider};
+use crate::plan::{parse_regex, InfluxQLToLogicalPlan, SchemaProvider};
 use datafusion::common::Statistics;
 use datafusion::datasource::provider_as_source;
 use datafusion::execution::context::TaskContext;
@@ -23,6 +21,7 @@ use influxdb_influxql_parser::common::MeasurementName;
 use influxdb_influxql_parser::parse_statements;
 use influxdb_influxql_parser::statement::Statement;
 use influxdb_influxql_parser::visit::{Visitable, Visitor};
+use iox_query::exec::IOxSessionContext;
 use observability_deps::tracing::debug;
 use schema::Schema;
 
@@ -106,7 +105,7 @@ impl ExecutionPlan for SchemaExec {
     }
 }
 
-/// This struct can create plans for running SQL queries against databases
+/// Create plans for running InfluxQL queries against databases
 #[derive(Debug, Default)]
 pub struct InfluxQLQueryPlanner {}
 
@@ -122,11 +121,10 @@ impl InfluxQLQueryPlanner {
         query: &str,
         ctx: &IOxSessionContext,
     ) -> Result<Arc<dyn ExecutionPlan>> {
-        let ctx = ctx.child_ctx("query");
         debug!(text=%query, "planning InfluxQL query");
 
         let statement = self.query_to_statement(query)?;
-        let logical_plan = self.statement_to_plan(statement, &ctx).await?;
+        let logical_plan = self.statement_to_plan(statement, ctx).await?;
 
         let input = ctx.create_physical_plan(&logical_plan).await?;
 
@@ -225,7 +223,7 @@ fn find_all_measurements(stmt: &Statement, tables: &[String]) -> Result<HashSet<
                     }
                 }
                 MeasurementName::Regex(re) => {
-                    let re = influxql::parse_regex(re)?;
+                    let re = parse_regex(re)?;
 
                     self.1
                         .iter()

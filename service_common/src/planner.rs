@@ -12,7 +12,7 @@ use iox_query::{
 };
 
 pub use datafusion::error::{DataFusionError as Error, Result};
-use iox_query::frontend::influxql::InfluxQLQueryPlanner;
+use iox_query_influxql::frontend::planner::InfluxQLQueryPlanner;
 use predicate::rpc_predicate::InfluxRpcPredicate;
 
 /// Query planner that plans queries on a separate threadpool.

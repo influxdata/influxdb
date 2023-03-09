@@ -1,5 +1,5 @@
-use crate::plan::influxql::timestamp::parse_timestamp;
-use crate::plan::influxql::util::binary_operator_to_df_operator;
+use crate::plan::timestamp::parse_timestamp;
+use crate::plan::util::binary_operator_to_df_operator;
 use datafusion::common::{DataFusionError, Result, ScalarValue};
 use datafusion::logical_expr::{binary_expr, lit, now, BinaryExpr, Expr as DFExpr, Operator};
 use influxdb_influxql_parser::expression::BinaryOperator;
@@ -40,7 +40,7 @@ type ExprResult = Result<DFExpr>;
 /// [`Reduce`]: https://github.com/influxdata/influxql/blob/1ba470371ec093d57a726b143fe6ccbacf1b452b/ast.go#L4850-L4852
 /// [conditionExpr]: https://github.com/influxdata/influxql/blob/1ba470371ec093d57a726b143fe6ccbacf1b452b/ast.go#L5751-L5756
 /// [`TZ`]: https://docs.influxdata.com/influxdb/v1.8/query_language/explore-data/#the-time-zone-clause
-pub(super) fn time_range_to_df_expr(expr: &Expr, tz: Option<chrono_tz::Tz>) -> ExprResult {
+pub(in crate::plan) fn time_range_to_df_expr(expr: &Expr, tz: Option<chrono_tz::Tz>) -> ExprResult {
     let df_expr = reduce_expr(expr, tz)?;
 
     // Attempt to coerce the final expression into a timestamp

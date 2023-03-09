@@ -12,4 +12,4 @@ mod var_ref;
 
 pub use planner::InfluxQLToLogicalPlan;
 pub use planner::SchemaProvider;
-pub use util::parse_regex;
+pub(crate) use util::parse_regex;

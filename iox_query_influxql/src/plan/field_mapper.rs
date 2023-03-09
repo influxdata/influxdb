@@ -1,7 +1,7 @@
 #![allow(dead_code)]
 
-use crate::plan::influxql::var_ref::field_type_to_var_ref_data_type;
-use crate::plan::influxql::SchemaProvider;
+use crate::plan::var_ref::field_type_to_var_ref_data_type;
+use crate::plan::SchemaProvider;
 use datafusion::common::Result;
 use influxdb_influxql_parser::expression::VarRefDataType;
 use schema::InfluxColumnType;
@@ -51,7 +51,7 @@ pub(crate) fn map_type(
 #[cfg(test)]
 mod test {
     use super::*;
-    use crate::plan::influxql::test_utils::MockSchemaProvider;
+    use crate::plan::test_utils::MockSchemaProvider;
     use assert_matches::assert_matches;
 
     #[test]
