@@ -11,6 +11,7 @@ pub trait ParquetFileInfo {
     fn compaction_level(&self) -> CompactionLevel;
     /// returns a value like `L0.<id>` to identify this ParquetFile
     fn display_id(&self) -> String;
+    fn max_l0_created_at(&self) -> i64;
 }
 
 impl ParquetFileInfo for ParquetFile {
@@ -35,6 +36,10 @@ impl ParquetFileInfo for ParquetFile {
     fn compaction_level(&self) -> CompactionLevel {
         self.compaction_level
     }
+
+    fn max_l0_created_at(&self) -> i64 {
+        self.max_l0_created_at.get()
+    }
 }
 
 impl ParquetFileInfo for ParquetFileParams {
@@ -58,6 +63,10 @@ impl ParquetFileInfo for ParquetFileParams {
         let level = display_level(&self.compaction_level());
         // ID is not assigned, so use '?' in place of id
         format!("{level}.?")
+    }
+
+    fn max_l0_created_at(&self) -> i64 {
+        self.max_l0_created_at.get()
     }
 }
 
@@ -326,6 +335,27 @@ pub fn display_size(sz: i64) -> String {
     }
 }
 
+/// Format a time for reasonable human reading
+pub fn display_time(ns: i64) -> String {
+    let us = 1000.0;
+    let ms = 1000.0 * us;
+    let s = 1000.0 * ms;
+
+    let ns = ns as f64;
+    if ns < us {
+        format!("{ns}ns")
+    } else if ns < ms {
+        let micro = round(ns / us, 2);
+        format!("{micro}us")
+    } else if ns < s {
+        let milli = round(ns / ms, 2);
+        format!("{milli}ms")
+    } else {
+        let sec = round(ns / s, 2);
+        format!("{sec}s")
+    }
+}
+
 /// return the total file size of all the parquet files
 pub fn total_size<P: ParquetFileInfo>(parquet_files: &[P]) -> i64 {
     parquet_files.iter().map(|f| f.file_size_bytes()).sum()
@@ -349,11 +379,13 @@ pub fn display_format<P: ParquetFileInfo>(file: &P, show_size: bool) -> String {
     let min_time = file.min_time(); // display as i64
     let max_time = file.max_time(); // display as i64
     let sz = file.file_size_bytes();
+    let created_at = display_time(file.max_l0_created_at());
+
     if show_size {
         let sz = display_size(sz);
-        format!("{file_id}[{min_time},{max_time}] {sz}")
+        format!("{file_id}[{min_time},{max_time}] {created_at} {sz}")
     } else {
-        format!("{file_id}[{min_time},{max_time}]")
+        format!("{file_id}[{min_time},{max_time}] {created_at}")
     }
 }
 

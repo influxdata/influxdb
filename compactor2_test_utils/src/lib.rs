@@ -160,7 +160,7 @@ impl TestSetupBuilder<false> {
         }
     }
 
-    /// Create a buidler with some pre-cooked files
+    /// Create a builder with some pre-cooked files
     pub async fn with_files(self) -> TestSetupBuilder<true> {
         let time_provider = self.catalog.time_provider();
         let time_1_minute_future = time_provider.minutes_into_future(1);
