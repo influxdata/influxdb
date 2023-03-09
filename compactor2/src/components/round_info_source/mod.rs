@@ -16,7 +16,7 @@ pub trait RoundInfoSource: Debug + Display + Send + Sync {
         &self,
         partition_info: &PartitionInfo,
         files: &[ParquetFile],
-    ) -> Result<Arc<RoundInfo>, DynError>;
+    ) -> Result<RoundInfo, DynError>;
 }
 
 #[derive(Debug)]
@@ -42,7 +42,7 @@ impl RoundInfoSource for LoggingRoundInfoWrapper {
         &self,
         partition_info: &PartitionInfo,
         files: &[ParquetFile],
-    ) -> Result<Arc<RoundInfo>, DynError> {
+    ) -> Result<RoundInfo, DynError> {
         let res = self.inner.calculate(partition_info, files).await;
         if let Ok(round_info) = &res {
             debug!(round_info_source=%self.inner, %round_info, "running round");
@@ -110,23 +110,23 @@ impl RoundInfoSource for LevelBasedRoundInfo {
         &self,
         _partition_info: &PartitionInfo,
         files: &[ParquetFile],
-    ) -> Result<Arc<RoundInfo>, DynError> {
+    ) -> Result<RoundInfo, DynError> {
         let start_level = get_start_level(files);
 
         if self.too_many_files_to_compact(files, start_level) {
-            return Ok(Arc::new(RoundInfo::ManySmallFiles {
+            return Ok(RoundInfo::ManySmallFiles {
                 start_level,
                 max_num_files_to_group: self.max_num_files_per_plan,
                 max_total_file_size_to_group: self.max_total_file_size_per_plan,
-            }));
+            });
         }
 
         let target_level = pick_level(files);
-        Ok(Arc::new(RoundInfo::TargetLevel { target_level }))
+        Ok(RoundInfo::TargetLevel { target_level })
     }
 }
 
-fn get_start_level(files: &[data_types::ParquetFile]) -> CompactionLevel {
+fn get_start_level(files: &[ParquetFile]) -> CompactionLevel {
     // panic if the files are empty
     assert!(!files.is_empty());
 
@@ -176,7 +176,7 @@ fn get_num_overlapped_files(
     count_overlapped
 }
 
-fn pick_level(files: &[data_types::ParquetFile]) -> CompactionLevel {
+fn pick_level(files: &[ParquetFile]) -> CompactionLevel {
     // Start with initial level
     // If there are files in  this level, the compaction's target level will be the next level.
     // Otherwise repeat until reaching the final level.

@@ -8,6 +8,8 @@ use crate::error::{DynError, ErrorKind, ErrorKindExt};
 
 use super::PartitionDoneSink;
 
+const METRIC_NAME_PARTITION_COMPLETE_COUNT: &str = "iox_compactor_partition_complete_count";
+
 #[derive(Debug)]
 pub struct MetricsPartitionDoneSinkWrapper<T>
 where
@@ -24,7 +26,7 @@ where
 {
     pub fn new(inner: T, registry: &Registry) -> Self {
         let metric = registry.register_metric::<U64Counter>(
-            "iox_compactor_partition_complete_count",
+            METRIC_NAME_PARTITION_COMPLETE_COUNT,
             "Number of completed partitions",
         );
         let ok_counter = metric.recorder(&[("result", "ok")]);
@@ -81,7 +83,7 @@ where
 mod tests {
     use std::{collections::HashMap, sync::Arc};
 
-    use metric::{Attributes, Metric};
+    use metric::{assert_counter, Attributes, Metric};
     use object_store::Error as ObjectStoreError;
 
     use crate::components::partition_done_sink::mock::MockPartitionDoneSink;
@@ -101,9 +103,9 @@ mod tests {
         let inner = Arc::new(MockPartitionDoneSink::new());
         let sink = MetricsPartitionDoneSinkWrapper::new(Arc::clone(&inner), &registry);
 
-        assert_eq!(ok_counter(&registry), 0);
-        assert_eq!(error_counter(&registry, "unknown"), 0);
-        assert_eq!(error_counter(&registry, "object_store"), 0);
+        assert_ok_counter(&registry, 0);
+        assert_error_counter(&registry, "unknown", 0);
+        assert_error_counter(&registry, "object_store", 0);
 
         sink.record(PartitionId::new(1), Err("msg 1".into())).await;
         sink.record(PartitionId::new(2), Err("msg 2".into())).await;
@@ -114,9 +116,9 @@ mod tests {
         .await;
         sink.record(PartitionId::new(3), Ok(())).await;
 
-        assert_eq!(ok_counter(&registry), 1);
-        assert_eq!(error_counter(&registry, "unknown"), 2);
-        assert_eq!(error_counter(&registry, "object_store"), 1);
+        assert_ok_counter(&registry, 1);
+        assert_error_counter(&registry, "unknown", 2);
+        assert_error_counter(&registry, "object_store", 1);
 
         assert_eq!(
             inner.results(),
@@ -131,21 +133,23 @@ mod tests {
         );
     }
 
-    fn ok_counter(registry: &Registry) -> u64 {
-        registry
-            .get_instrument::<Metric<U64Counter>>("iox_compactor_partition_complete_count")
-            .expect("instrument not found")
-            .get_observer(&Attributes::from(&[("result", "ok")]))
-            .expect("observer not found")
-            .fetch()
+    fn assert_ok_counter(registry: &Registry, value: u64) {
+        assert_counter!(
+            registry,
+            U64Counter,
+            METRIC_NAME_PARTITION_COMPLETE_COUNT,
+            labels = Attributes::from(&[("result", "ok")]),
+            value = value,
+        );
     }
 
-    fn error_counter(registry: &Registry, kind: &'static str) -> u64 {
-        registry
-            .get_instrument::<Metric<U64Counter>>("iox_compactor_partition_complete_count")
-            .expect("instrument not found")
-            .get_observer(&Attributes::from(&[("result", "error"), ("kind", kind)]))
-            .expect("observer not found")
-            .fetch()
+    fn assert_error_counter(registry: &Registry, kind: &'static str, value: u64) {
+        assert_counter!(
+            registry,
+            U64Counter,
+            METRIC_NAME_PARTITION_COMPLETE_COUNT,
+            labels = Attributes::from(&[("result", "error"), ("kind", kind)]),
+            value = value,
+        );
     }
 }

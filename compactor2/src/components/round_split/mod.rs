@@ -16,6 +16,6 @@ pub trait RoundSplit: Debug + Display + Send + Sync {
     fn split(
         &self,
         files: Vec<ParquetFile>,
-        round_info: &RoundInfo,
+        round_info: RoundInfo,
     ) -> (Vec<ParquetFile>, Vec<ParquetFile>);
 }

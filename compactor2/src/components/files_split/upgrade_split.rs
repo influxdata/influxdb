@@ -62,7 +62,7 @@ impl FilesSplit for UpgradeSplit {
     ///
     fn apply(
         &self,
-        files: Vec<data_types::ParquetFile>,
+        files: Vec<ParquetFile>,
         target_level: CompactionLevel,
     ) -> (Vec<ParquetFile>, Vec<ParquetFile>) {
         // Panic if given wrong target level, L0

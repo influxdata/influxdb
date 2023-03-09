@@ -22,7 +22,7 @@ impl Display for MultipleBranchesDivideInitial {
 }
 
 impl DivideInitial for MultipleBranchesDivideInitial {
-    fn divide(&self, files: Vec<ParquetFile>, round_info: &RoundInfo) -> Vec<Vec<ParquetFile>> {
+    fn divide(&self, files: Vec<ParquetFile>, round_info: RoundInfo) -> Vec<Vec<ParquetFile>> {
         match round_info {
             RoundInfo::ManySmallFiles {
                 start_level,
@@ -42,19 +42,21 @@ impl DivideInitial for MultipleBranchesDivideInitial {
                 // See tests many_l0_files_different_created_order and many_l1_files_different_created_order for examples
                 let start_level_files = files
                     .into_iter()
-                    .filter(|f| f.compaction_level == *start_level)
+                    .filter(|f| f.compaction_level == start_level)
                     .collect::<Vec<_>>();
                 let start_level_files = order_files(start_level_files, start_level);
 
+                let capacity = start_level_files.len();
+
                 // Split L0s into many small groups, each has max_num_files_to_group but not exceed max_total_file_size_to_group
                 // Collect files until either limit is reached
-                let mut branches = vec![];
-                let mut current_branch = vec![];
+                let mut branches = Vec::with_capacity(capacity);
+                let mut current_branch = Vec::with_capacity(capacity);
                 let mut current_branch_size = 0;
                 for f in start_level_files {
-                    if current_branch.len() == *max_num_files_to_group
+                    if current_branch.len() == max_num_files_to_group
                         || current_branch_size + f.file_size_bytes as usize
-                            > *max_total_file_size_to_group
+                            > max_total_file_size_to_group
                     {
                         // panic if current_branch is empty
                         if current_branch.is_empty() {
@@ -62,7 +64,7 @@ impl DivideInitial for MultipleBranchesDivideInitial {
                         }
 
                         branches.push(current_branch);
-                        current_branch = vec![];
+                        current_branch = Vec::with_capacity(capacity);
                         current_branch_size = 0;
                     }
                     current_branch_size += f.file_size_bytes as usize;
@@ -88,9 +90,9 @@ impl DivideInitial for MultipleBranchesDivideInitial {
 /// All given files are in the same given start_level.
 /// They will be sorted on their `max_l0_created_at` if the start_level is 0,
 /// otherwise on their `min_time`
-pub fn order_files(files: Vec<ParquetFile>, start_level: &CompactionLevel) -> Vec<ParquetFile> {
+pub fn order_files(files: Vec<ParquetFile>, start_level: CompactionLevel) -> Vec<ParquetFile> {
     let mut files = files;
-    if *start_level == CompactionLevel::Initial {
+    if start_level == CompactionLevel::Initial {
         files.sort_by(|a, b| a.max_l0_created_at.cmp(&b.max_l0_created_at));
     } else {
         files.sort_by(|a, b| a.min_time.cmp(&b.min_time));
@@ -123,7 +125,7 @@ mod tests {
         let divide = MultipleBranchesDivideInitial::new();
 
         // empty input
-        assert_eq!(divide.divide(vec![], &round_info), Vec::<Vec<_>>::new());
+        assert_eq!(divide.divide(vec![], round_info), Vec::<Vec<_>>::new());
 
         // not empty
         let f1 = ParquetFileBuilder::new(1)
@@ -142,7 +144,7 @@ mod tests {
         // files in random order of max_l0_created_at
         let files = vec![f2.clone(), f3.clone(), f1.clone()];
 
-        let branches = divide.divide(files, &round_info);
+        let branches = divide.divide(files, round_info);
         // output must be split into their max_l0_created_at
         assert_eq!(branches.len(), 2);
         assert_eq!(branches[0], vec![f1, f2]);
@@ -176,7 +178,7 @@ mod tests {
         let files = vec![f2, f1];
 
         // panic
-        let _branches = divide.divide(files, &round_info);
+        let _branches = divide.divide(files, round_info);
     }
 
     #[test]
@@ -207,7 +209,7 @@ mod tests {
         // files in random order of max_l0_created_at
         let files = vec![f2.clone(), f3.clone(), f1.clone()];
 
-        let branches = divide.divide(files, &round_info);
+        let branches = divide.divide(files, round_info);
         // output must be split into their max_l0_created_at
         assert_eq!(branches.len(), 2);
         assert_eq!(branches[0], vec![f1]);

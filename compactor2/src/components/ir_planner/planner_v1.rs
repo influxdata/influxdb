@@ -82,10 +82,13 @@ impl V1IRPlanner {
         }
 
         let mut split_times = vec![];
+
         let percentage = max_desired_file_size as f64 / total_size as f64;
+        let interval = ((max_time - min_time) as f64 * percentage).ceil() as i64;
+
         let mut min = min_time;
         loop {
-            let split_time = min + ((max_time - min_time) as f64 * percentage).ceil() as i64;
+            let split_time = min + interval;
 
             if split_time >= max_time {
                 break;

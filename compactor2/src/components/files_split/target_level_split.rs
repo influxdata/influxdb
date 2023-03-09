@@ -23,7 +23,7 @@ impl Display for TargetLevelSplit {
 impl FilesSplit for TargetLevelSplit {
     fn apply(
         &self,
-        files: Vec<data_types::ParquetFile>,
+        files: Vec<ParquetFile>,
         target_level: CompactionLevel,
     ) -> (Vec<ParquetFile>, Vec<ParquetFile>) {
         files

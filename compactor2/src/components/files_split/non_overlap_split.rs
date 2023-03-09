@@ -59,7 +59,7 @@ impl FilesSplit for NonOverlapSplit {
     ///
     fn apply(
         &self,
-        files: Vec<data_types::ParquetFile>,
+        files: Vec<ParquetFile>,
         target_level: CompactionLevel,
     ) -> (Vec<ParquetFile>, Vec<ParquetFile>) {
         // Panic if given wrong target level, L0

@@ -25,7 +25,7 @@ impl RoundSplit for ManyFilesRoundSplit {
     fn split(
         &self,
         files: Vec<ParquetFile>,
-        round_info: &RoundInfo,
+        round_info: RoundInfo,
     ) -> (Vec<ParquetFile>, Vec<ParquetFile>) {
         // Scpecify specific arms to avoid missing any new variants
         match round_info {
@@ -33,7 +33,7 @@ impl RoundSplit for ManyFilesRoundSplit {
                 // Split start_level from the rest
                 let (start_level_files, rest) = files
                     .into_iter()
-                    .partition(|f| f.compaction_level == *start_level);
+                    .partition(|f| f.compaction_level == start_level);
                 (start_level_files, rest)
             }
             // Not a lot of files and do not need to split
@@ -66,7 +66,7 @@ mod tests {
         let split = ManyFilesRoundSplit::new();
 
         // empty input
-        assert_eq!(split.split(vec![], &round_info), (vec![], vec![]));
+        assert_eq!(split.split(vec![], round_info), (vec![], vec![]));
 
         // all L0
         let f1 = ParquetFileBuilder::new(1)
@@ -76,7 +76,7 @@ mod tests {
             .with_compaction_level(CompactionLevel::Initial)
             .build();
         assert_eq!(
-            split.split(vec![f1.clone(), f2.clone()], &round_info),
+            split.split(vec![f1.clone(), f2.clone()], round_info),
             (vec![f1.clone(), f2.clone()], vec![])
         );
 
@@ -90,7 +90,7 @@ mod tests {
         assert_eq!(
             split.split(
                 vec![f1.clone(), f2.clone(), f3.clone(), f4.clone()],
-                &round_info
+                round_info
             ),
             (vec![f1, f2], vec![f3, f4])
         );
@@ -104,13 +104,13 @@ mod tests {
         let split = ManyFilesRoundSplit::new();
 
         // empty input
-        assert_eq!(split.split(vec![], &round_info), (vec![], vec![]));
+        assert_eq!(split.split(vec![], round_info), (vec![], vec![]));
 
         // non empty
         let f1 = ParquetFileBuilder::new(1).build();
         let f2 = ParquetFileBuilder::new(2).build();
         assert_eq!(
-            split.split(vec![f1.clone(), f2.clone()], &round_info),
+            split.split(vec![f1.clone(), f2.clone()], round_info),
             (vec![f1, f2], vec![])
         );
     }

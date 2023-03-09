@@ -79,7 +79,10 @@ use super::{
     round_split::many_files::ManyFilesRoundSplit,
     scratchpad::{noop::NoopScratchpadGen, prod::ProdScratchpadGen, ScratchpadGen},
     skipped_compactions_source::catalog::CatalogSkippedCompactionsSource,
-    split_or_compact::{logging::LoggingSplitOrCompactWrapper, split_compact::SplitCompact},
+    split_or_compact::{
+        logging::LoggingSplitOrCompactWrapper, metrics::MetricsSplitOrCompactWrapper,
+        split_compact::SplitCompact,
+    },
     Components,
 };
 
@@ -313,7 +316,10 @@ pub fn hardcoded_components(config: &Config) -> Arc<Components> {
                 TargetLevelSplit::new(),
                 NonOverlapSplit::new(),
                 UpgradeSplit::new(config.max_desired_file_size_bytes),
-                LoggingSplitOrCompactWrapper::new(SplitCompact::new(config.max_compact_size)),
+                LoggingSplitOrCompactWrapper::new(MetricsSplitOrCompactWrapper::new(
+                    SplitCompact::new(config.max_compact_size),
+                    &config.metric_registry,
+                )),
             ),
         ))),
         partition_resource_limit_filter: Arc::new(LoggingPartitionFilterWrapper::new(

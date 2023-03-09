@@ -1,5 +1,3 @@
-use std::collections::VecDeque;
-
 use data_types::{CompactionLevel, ParquetFile, Timestamp};
 
 use crate::components::{
@@ -29,7 +27,7 @@ use crate::components::{
 ///
 pub fn limit_files_to_compact(
     max_compact_size: usize,
-    files: Vec<data_types::ParquetFile>,
+    files: Vec<ParquetFile>,
     target_level: CompactionLevel,
 ) -> (Vec<ParquetFile>, Vec<ParquetFile>) {
     // panic if not all files are either in target level or start level
@@ -43,21 +41,22 @@ pub fn limit_files_to_compact(
     let split = TargetLevelSplit::new();
     let (start_level_files, mut target_level_files) = split.apply(files, start_level);
 
-    // Order start-level files by to group the files to commpact them correctly
-    let start_level_files = order_files(start_level_files, &start_level);
-    let mut start_level_files = start_level_files.iter().collect::<VecDeque<_>>();
+    // Order start-level files to group the files to compact them correctly
+    let start_level_files = order_files(start_level_files, start_level);
+    let mut start_level_files = start_level_files.into_iter();
 
     // Go over start-level files and find overlapped files in target level
-    let mut start_level_files_to_compact: Vec<ParquetFile> = Vec::new();
-    let mut target_level_files_to_compact = Vec::new();
-    let mut files_to_keep = Vec::new();
+    let mut start_level_files_to_compact = Vec::with_capacity(len);
+    let mut target_level_files_to_compact = Vec::with_capacity(len);
+    let mut files_to_keep = Vec::with_capacity(len);
     let mut total_size = 0;
-    while let Some(file) = start_level_files.pop_front() {
+
+    for file in start_level_files.by_ref() {
         // A start-level file, if compacted, must be compacted with all of its overlapped target-level files.
         // Thus compute the size needed before deciding to compact this file and its overlaps or not
 
         // Time range of start_level_files_to_compact plus this file
-        let (min_time, max_time) = time_range(file, &start_level_files_to_compact);
+        let (min_time, max_time) = time_range(&file, &start_level_files_to_compact);
 
         // Get all target-level files that overlaps with the time range and not yet in target_level_files_to_compact
         let overlapped_files: Vec<&ParquetFile> = target_level_files
@@ -75,13 +74,13 @@ pub fn limit_files_to_compact(
 
         // If total size is under limit, add this file and its overlapped files to files_to_compact
         if total_size + size <= max_compact_size as i64 {
-            start_level_files_to_compact.push(file.clone());
+            start_level_files_to_compact.push(file);
             target_level_files_to_compact
                 .extend(overlapped_files.into_iter().cloned().collect::<Vec<_>>());
             total_size += size;
         } else {
             // Over limit, stop here
-            files_to_keep.push(file.clone());
+            files_to_keep.push(file);
             break;
         }
     }
@@ -90,7 +89,7 @@ pub fn limit_files_to_compact(
     target_level_files.retain(|f| !target_level_files_to_compact.iter().any(|x| x == f));
 
     // All files left in start_level_files  and target_level_files are kept for next round
-    target_level_files.extend(start_level_files.into_iter().cloned().collect::<Vec<_>>());
+    target_level_files.extend(start_level_files);
     files_to_keep.extend(target_level_files);
 
     // All files in start_level_files_to_compact and target_level_files_to_compact will be compacted

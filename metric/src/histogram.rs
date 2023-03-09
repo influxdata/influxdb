@@ -91,6 +91,35 @@ impl MetricObserver for U64Histogram {
     }
 }
 
+/// A concise helper to assert the value of a metric histogram, regardless of underlying type.
+#[macro_export]
+macro_rules! assert_histogram {
+    (
+        $metrics:ident,
+        $hist:ty,
+        $name:expr,
+        $(labels = $attr:expr,)*
+        $(samples = $samples:expr,)*
+        $(sum = $sum:expr,)*
+    ) => {
+        // Default to an empty set of attributes if not specified.
+        #[allow(unused)]
+        let mut attr = None;
+        $(attr = Some($attr);)*
+        let attr = attr.unwrap_or_else(|| Attributes::from(&[]));
+
+        let hist = $metrics
+            .get_instrument::<Metric<$hist>>($name)
+            .expect("failed to find metric with provided name")
+            .get_observer(&attr)
+            .expect("failed to find metric with provided attributes")
+            .fetch();
+
+        $(assert_eq!(hist.sample_count(), $samples, "sample count mismatch");)*
+        $(assert_eq!(hist.total, $sum, "sum value mismatch");)*
+    };
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

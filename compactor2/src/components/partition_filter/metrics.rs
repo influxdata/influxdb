@@ -8,6 +8,8 @@ use crate::{error::DynError, PartitionInfo};
 
 use super::PartitionFilter;
 
+const METRIC_NAME_PARTITION_FILTER_COUNT: &str = "iox_compactor_partition_filter_count";
+
 #[derive(Debug)]
 pub struct MetricsPartitionFilterWrapper<T>
 where
@@ -26,7 +28,7 @@ where
 {
     pub fn new(inner: T, registry: &Registry, filter_type: &'static str) -> Self {
         let metric = registry.register_metric::<U64Counter>(
-            "iox_compactor_partition_filter_count",
+            METRIC_NAME_PARTITION_FILTER_COUNT,
             "Number of times the compactor fetched fresh partitions",
         );
 
@@ -83,7 +85,7 @@ where
 mod tests {
     use std::sync::Arc;
 
-    use metric::{Attributes, Metric};
+    use metric::{assert_counter, Attributes, Metric};
 
     use crate::{
         components::partition_filter::has_files::HasFilesPartitionFilter,
@@ -109,52 +111,46 @@ mod tests {
         let p_info = Arc::new(PartitionInfoBuilder::new().with_partition_id(1).build());
         let f = ParquetFileBuilder::new(0).build();
 
-        assert_eq!(pass_counter(&registry), 0);
-        assert_eq!(filter_counter(&registry), 0);
-        assert_eq!(error_counter(&registry), 0);
+        assert_pass_counter(&registry, 0);
+        assert_filter_counter(&registry, 0);
+        assert_error_counter(&registry, 0);
 
         assert!(!filter.apply(&p_info, &[]).await.unwrap());
         assert!(!filter.apply(&p_info, &[]).await.unwrap());
         assert!(filter.apply(&p_info, &[f]).await.unwrap());
 
-        assert_eq!(pass_counter(&registry), 1);
-        assert_eq!(filter_counter(&registry), 2);
-        assert_eq!(error_counter(&registry), 0);
+        assert_pass_counter(&registry, 1);
+        assert_filter_counter(&registry, 2);
+        assert_error_counter(&registry, 0);
     }
 
-    fn pass_counter(registry: &Registry) -> u64 {
-        registry
-            .get_instrument::<Metric<U64Counter>>("iox_compactor_partition_filter_count")
-            .expect("instrument not found")
-            .get_observer(&Attributes::from(&[
-                ("result", "pass"),
-                ("filter_type", "test"),
-            ]))
-            .expect("observer not found")
-            .fetch()
+    fn assert_pass_counter(registry: &Registry, value: u64) {
+        assert_counter!(
+            registry,
+            U64Counter,
+            METRIC_NAME_PARTITION_FILTER_COUNT,
+            labels = Attributes::from(&[("result", "pass"), ("filter_type", "test")]),
+            value = value,
+        );
     }
 
-    fn filter_counter(registry: &Registry) -> u64 {
-        registry
-            .get_instrument::<Metric<U64Counter>>("iox_compactor_partition_filter_count")
-            .expect("instrument not found")
-            .get_observer(&Attributes::from(&[
-                ("result", "filter"),
-                ("filter_type", "test"),
-            ]))
-            .expect("observer not found")
-            .fetch()
+    fn assert_filter_counter(registry: &Registry, value: u64) {
+        assert_counter!(
+            registry,
+            U64Counter,
+            METRIC_NAME_PARTITION_FILTER_COUNT,
+            labels = Attributes::from(&[("result", "filter"), ("filter_type", "test")]),
+            value = value,
+        );
     }
 
-    fn error_counter(registry: &Registry) -> u64 {
-        registry
-            .get_instrument::<Metric<U64Counter>>("iox_compactor_partition_filter_count")
-            .expect("instrument not found")
-            .get_observer(&Attributes::from(&[
-                ("result", "error"),
-                ("filter_type", "test"),
-            ]))
-            .expect("observer not found")
-            .fetch()
+    fn assert_error_counter(registry: &Registry, value: u64) {
+        assert_counter!(
+            registry,
+            U64Counter,
+            METRIC_NAME_PARTITION_FILTER_COUNT,
+            labels = Attributes::from(&[("result", "error"), ("filter_type", "test")]),
+            value = value,
+        );
     }
 }
