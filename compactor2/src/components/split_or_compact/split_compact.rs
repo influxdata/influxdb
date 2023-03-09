@@ -96,7 +96,7 @@ mod tests {
     }
 
     #[test]
-    fn test_compact_too_small_to_compact() {
+    fn test_compact_too_large_to_compact() {
         let files = create_overlapped_l1_l2_files_2(MAX_SIZE as i64);
         insta::assert_yaml_snapshot!(
             format_files("initial", &files),
@@ -117,6 +117,7 @@ mod tests {
         let (files_to_compact_or_split, files_to_keep) =
             split_compact.apply(&p_info, files, CompactionLevel::Final);
         // nothing to compact or split
+        // after https://github.com/influxdata/idpe/issues/17246, this list won't be empty
         assert!(files_to_compact_or_split.is_empty());
         assert_eq!(files_to_keep.len(), 4);
     }

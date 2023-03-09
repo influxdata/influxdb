@@ -50,6 +50,7 @@
 //! ```
 mod core;
 mod knobs;
+mod large_files;
 mod large_overlaps;
 mod many_files;
 mod single_timestamp;
