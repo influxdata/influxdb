@@ -477,7 +477,7 @@ jobs:
 
   deploy_release:
     docker:
-      - image: quay.io/influxdb/rust:ci
+      - image: cimg/gcp:2022.11.1
     steps:
       - setup_remote_docker:
           version: 19.03.13
@@ -489,25 +489,67 @@ jobs:
       - run:
           name: quay login
           command: |
-            echo "$QUAY_INFLUXDB_IOX_PASS" | skopeo login quay.io --username $QUAY_INFLUXDB_IOX_USER --password-stdin
+            echo "$QUAY_INFLUXDB_IOX_PASS" | docker login quay.io --username $QUAY_INFLUXDB_IOX_USER --password-stdin
+      - run:
+          name: install skopeo
+          command: |
+            #!/bin/bash
+
+              set -eu -o pipefail
+
+              readonly attempts=5
+
+              install() {
+                # install skopeo via kubic on Ubuntu 20.04
+                if [ "$(sh -c '. /etc/os-release && echo $VERSION_ID')" = "20.04" ] ; then
+                  sudo sh -c '. /etc/os-release && echo "deb https://download.opensuse.org/repositories/devel:/kubic:/libcontainers:/stable/xUbuntu_${VERSION_ID}/ /" >/etc/apt/sources.list.d/kubic-stable.list'
+                  sudo sh -c '. /etc/os-release && curl -L "https://download.opensuse.org/repositories/devel:/kubic:/libcontainers:/stable/xUbuntu_${VERSION_ID}/Release.key" | apt-key add -'
+                fi
+                sudo apt-get update
+                sudo apt-get -y install skopeo
+              }
+
+              # retry installing skopeo up to 5 times to avoid temporary networking issues
+              for attempt in $(seq 1 "${attempts}") ; do
+                # run installation, if successful, exit and return 0
+                if install ; then
+                  exit 0
+                else
+                  if [ "${attempt}" -ne ${attempts} ] ; then
+                    # if installing failed, wait for a bit and retry
+                    sleep $(( attempt * 5 ))
+                  else
+                    # if this was the last attempt, exit with an error
+                    echo >&2 "Failed to install skopeo"
+                    exit 1
+                  fi
+                fi
+              done
       - run:
           name: Upload images
           command: |
             COMMIT_SHA="$(git rev-parse HEAD)"
             BRANCH="$(echo "$CIRCLE_BRANCH" | tr '[:upper:]' '[:lower:]' | sed 's/[^a-z0-9]/_/g')"
 
-            images=( "iox" "iox_data_generator" )
-            registries=( "quay.io/influxdb" "us-docker.pkg.dev/influxdb2-artifacts/iox" )
-            tags=( "$COMMIT_SHA" "$BRANCH" )
+            docker load -i /tmp/images/iox.tar.gz
+            docker load -i /tmp/images/iox_data_generator.tar.gz
 
-            for image in "${images[@]}"; do
-              for registry in "${registries[@]}"; do
-                for tag in "${tags[@]}"; do
-                  echo "Upload: image=$image registry=$registry tag=$tag"
-                  skopeo copy "docker-archive:///tmp/images/$image.tar.gz" "docker://$registry/$image:$tag" --quiet
-                done
-              done
-            done
+            docker tag quay.io/influxdb/iox:"$COMMIT_SHA" quay.io/influxdb/iox:"$BRANCH"
+            docker tag quay.io/influxdb/iox_data_generator:"$COMMIT_SHA" quay.io/influxdb/iox_data_generator:"$BRANCH"
+
+            docker push quay.io/influxdb/iox:"$COMMIT_SHA"
+            docker push quay.io/influxdb/iox_data_generator:"$COMMIT_SHA"
+            docker push quay.io/influxdb/iox:"$BRANCH"
+            docker push quay.io/influxdb/iox_data_generator:"$BRANCH"
+
+            # copy image to Google as well
+            skopeo copy docker://quay.io/influxdb/iox:${COMMIT_SHA} docker://us-docker.pkg.dev/influxdb2-artifacts/iox/iox:${COMMIT_SHA} --quiet
+            skopeo copy docker://quay.io/influxdb/iox:${BRANCH} docker://us-docker.pkg.dev/influxdb2-artifacts/iox/iox:${BRANCH} --quiet
+            skopeo copy docker://quay.io/influxdb/iox_data_generator:${COMMIT_SHA} docker://us-docker.pkg.dev/influxdb2-artifacts/iox/iox_data_generator:${COMMIT_SHA} --quiet
+            skopeo copy docker://quay.io/influxdb/iox_data_generator:${BRANCH} docker://us-docker.pkg.dev/influxdb2-artifacts/iox/iox_data_generator:${BRANCH} --quiet
+
+            # for next step
+            echo "export COMMIT_SHA=${COMMIT_SHA}" >> $BASH_ENV
 
   # Prepare the CI image used for other tasks.
   #
