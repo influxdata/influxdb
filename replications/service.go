@@ -135,7 +135,7 @@ func (s *service) ListReplications(ctx context.Context, filter influxdb.Replicat
 		return nil, err
 	}
 	for i := range rs.Replications {
-		rs.Replications[i].RemainingQueueSizeBytes = rsizes[rs.Replications[i].ID]
+		rs.Replications[i].RemainingBytesToBeSynced = rsizes[rs.Replications[i].ID]
 	}
 
 	return rs, nil
@@ -208,7 +208,7 @@ func (s *service) GetReplication(ctx context.Context, id platform.ID) (*influxdb
 	if err != nil {
 		return nil, err
 	}
-	r.RemainingQueueSizeBytes = rsizes[r.ID]
+	r.RemainingBytesToBeSynced = rsizes[r.ID]
 
 	return r, nil
 }
@@ -238,7 +238,7 @@ func (s *service) UpdateReplication(ctx context.Context, id platform.ID, request
 	if err != nil {
 		return nil, err
 	}
-	r.RemainingQueueSizeBytes = rsizes[r.ID]
+	r.RemainingBytesToBeSynced = rsizes[r.ID]
 
 	return r, nil
 }

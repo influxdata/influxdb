@@ -194,7 +194,7 @@ func TestListReplications(t *testing.T) {
 
 			for _, r := range got.Replications {
 				require.Equal(t, tt.sizes[r.ID], r.CurrentQueueSizeBytes)
-				require.Equal(t, tt.rsizes[r.ID], r.RemainingQueueSizeBytes)
+				require.Equal(t, tt.rsizes[r.ID], r.RemainingBytesToBeSynced)
 			}
 		})
 	}
@@ -394,7 +394,7 @@ func TestGetReplication(t *testing.T) {
 			}
 
 			require.Equal(t, tt.sizes[got.ID], got.CurrentQueueSizeBytes)
-			require.Equal(t, tt.rsizes[got.ID], got.RemainingQueueSizeBytes)
+			require.Equal(t, tt.rsizes[got.ID], got.RemainingBytesToBeSynced)
 
 		})
 	}
