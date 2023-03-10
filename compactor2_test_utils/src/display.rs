@@ -11,6 +11,7 @@ pub trait ParquetFileInfo {
     fn compaction_level(&self) -> CompactionLevel;
     /// returns a value like `L0.<id>` to identify this ParquetFile
     fn display_id(&self) -> String;
+    fn max_l0_created_at(&self) -> i64;
 }
 
 impl ParquetFileInfo for ParquetFile {
@@ -35,6 +36,10 @@ impl ParquetFileInfo for ParquetFile {
     fn compaction_level(&self) -> CompactionLevel {
         self.compaction_level
     }
+
+    fn max_l0_created_at(&self) -> i64 {
+        self.max_l0_created_at.get()
+    }
 }
 
 impl ParquetFileInfo for ParquetFileParams {
@@ -58,6 +63,10 @@ impl ParquetFileInfo for ParquetFileParams {
         let level = display_level(&self.compaction_level());
         // ID is not assigned, so use '?' in place of id
         format!("{level}.?")
+    }
+
+    fn max_l0_created_at(&self) -> i64 {
+        self.max_l0_created_at.get()
     }
 }
 
@@ -84,10 +93,10 @@ pub fn format_files_split<P: ParquetFileInfo>(
 }
 
 /// default width for printing
-const DEFAULT_WIDTH: usize = 80;
+const DEFAULT_WIDTH: usize = 90;
 
 /// default width for header
-const DEFAULT_HEADING_WIDTH: usize = 20;
+const DEFAULT_HEADING_WIDTH: usize = 25;
 
 /// This function returns a visual representation of the list of
 /// parquet files arranged so they are lined up horizontally based on
@@ -132,16 +141,16 @@ fn readable_list_of_files<P: ParquetFileInfo>(title: Option<String>, files: &[P]
 /// Each file has this format:
 ///
 /// ```text
-/// L<levelno>.<id>[min_time,max_time]@file_size_bytes
+/// L<levelno>.<id>[min_time,max_time] max_l0_created_at @file_size_bytes
 /// ```
 ///
 /// Example
 ///
 /// ```text
 /// L0
-/// L0.1[100,200]@1     |----------L0.1----------|
-/// L0.2[300,400]@1                                                          |----------L0.2----------|
-/// L0.11[150,350]@44                |-----------------------L0.11-----------------------|
+/// L0.1[100,200] 1m @1     |----------L0.1----------|
+/// L0.2[300,400] 4m @1                                                          |----------L0.2----------|
+/// L0.11[150,350] 15m @44                |-----------------------L0.11-----------------------|
 /// ```
 #[derive(Debug, Default)]
 struct ParquetFileFormatter {
@@ -326,6 +335,27 @@ pub fn display_size(sz: i64) -> String {
     }
 }
 
+/// Format a time for reasonable human reading
+pub fn display_time(ns: i64) -> String {
+    let us = 1000.0;
+    let ms = 1000.0 * us;
+    let s = 1000.0 * ms;
+
+    let ns = ns as f64;
+    if ns < us {
+        format!("{ns}ns")
+    } else if ns < ms {
+        let micro = round(ns / us, 2);
+        format!("{micro}us")
+    } else if ns < s {
+        let milli = round(ns / ms, 2);
+        format!("{milli}ms")
+    } else {
+        let sec = round(ns / s, 2);
+        format!("{sec}s")
+    }
+}
+
 /// return the total file size of all the parquet files
 pub fn total_size<P: ParquetFileInfo>(parquet_files: &[P]) -> i64 {
     parquet_files.iter().map(|f| f.file_size_bytes()).sum()
@@ -349,11 +379,13 @@ pub fn display_format<P: ParquetFileInfo>(file: &P, show_size: bool) -> String {
     let min_time = file.min_time(); // display as i64
     let max_time = file.max_time(); // display as i64
     let sz = file.file_size_bytes();
+    let created_at = display_time(file.max_l0_created_at());
+
     if show_size {
         let sz = display_size(sz);
-        format!("{file_id}[{min_time},{max_time}] {sz}")
+        format!("{file_id}[{min_time},{max_time}] {created_at} {sz}")
     } else {
-        format!("{file_id}[{min_time},{max_time}]")
+        format!("{file_id}[{min_time},{max_time}] {created_at}")
     }
 }
 
@@ -379,9 +411,9 @@ mod test {
             @r###"
         ---
         - display
-        - "L0, all files 1b                                                                                    "
-        - "L0.1[0,0]           |-------------------------------------L0.1-------------------------------------|"
-        - "L0.2[0,0]           |-------------------------------------L0.2-------------------------------------|"
+        - "L0, all files 1b                                                                                                   "
+        - "L0.1[0,0] 0ns            |------------------------------------------L0.1------------------------------------------|"
+        - "L0.2[0,0] 0ns            |------------------------------------------L0.2------------------------------------------|"
         "###
         );
     }
@@ -406,11 +438,11 @@ mod test {
             @r###"
         ---
         - display
-        - "L0                                                                                                  "
-        - "L0.1[0,0] 1b        |-------------------------------------L0.1-------------------------------------|"
-        - "L0.2[0,0] 1b        |-------------------------------------L0.2-------------------------------------|"
-        - "L2                                                                                                  "
-        - "L2.3[0,0] 42b       |-------------------------------------L2.3-------------------------------------|"
+        - "L0                                                                                                                 "
+        - "L0.1[0,0] 0ns 1b         |------------------------------------------L0.1------------------------------------------|"
+        - "L0.2[0,0] 0ns 1b         |------------------------------------------L0.2------------------------------------------|"
+        - "L2                                                                                                                 "
+        - "L2.3[0,0] 0ns 42b        |------------------------------------------L2.3------------------------------------------|"
         "###
         );
     }
@@ -439,10 +471,10 @@ mod test {
             @r###"
         ---
         - display
-        - "L0                                                                                                  "
-        - "L0.1[100,200] 1b    |----------L0.1----------|                                                      "
-        - "L0.2[300,400] 1b                                                         |----------L0.2----------| "
-        - "L0.11[150,350] 44b               |-----------------------L0.11-----------------------|              "
+        - "L0                                                                                                                 "
+        - "L0.1[100,200] 0ns 1b     |------------L0.1------------|                                                            "
+        - "L0.2[300,400] 0ns 1b                                                                 |------------L0.2------------|"
+        - "L0.11[150,350] 0ns 44b                  |--------------------------L0.11---------------------------|               "
         "###
         );
     }
