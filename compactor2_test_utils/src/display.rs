@@ -141,16 +141,16 @@ fn readable_list_of_files<P: ParquetFileInfo>(title: Option<String>, files: &[P]
 /// Each file has this format:
 ///
 /// ```text
-/// L<levelno>.<id>[min_time,max_time]@file_size_bytes
+/// L<levelno>.<id>[min_time,max_time] max_l0_created_at @file_size_bytes
 /// ```
 ///
 /// Example
 ///
 /// ```text
 /// L0
-/// L0.1[100,200]@1     |----------L0.1----------|
-/// L0.2[300,400]@1                                                          |----------L0.2----------|
-/// L0.11[150,350]@44                |-----------------------L0.11-----------------------|
+/// L0.1[100,200] 1m @1     |----------L0.1----------|
+/// L0.2[300,400] 4m @1                                                          |----------L0.2----------|
+/// L0.11[150,350] 15m @44                |-----------------------L0.11-----------------------|
 /// ```
 #[derive(Debug, Default)]
 struct ParquetFileFormatter {
