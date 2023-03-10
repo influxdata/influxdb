@@ -5983,7 +5983,9 @@ dependencies = [
  "pin-project",
  "prost",
  "prost-derive",
+ "rustls-pemfile",
  "tokio",
+ "tokio-rustls",
  "tokio-stream",
  "tokio-util",
  "tower",
@@ -5991,6 +5993,7 @@ dependencies = [
  "tower-service",
  "tracing",
  "tracing-futures",
+ "webpki-roots",
 ]
 
 [[package]]
@@ -6777,6 +6780,7 @@ dependencies = [
  "reqwest",
  "ring",
  "rustix",
+ "rustls",
  "scopeguard",
  "serde",
  "serde_json",
