@@ -1064,6 +1064,52 @@ pub fn create_overlapped_l0_l1_files_2(size: i64) -> Vec<ParquetFile> {
     vec![l1_2, l0_2, l1_1, l0_1, l0_3]
 }
 
+/// Each level-0 file overlaps with at most one level-1 file
+///                   |--L1.1--|     |--L1.2--|
+///                       |--L0.1--|    |--L0.2--| |--L0.3--|
+pub fn create_overlapped_l0_l1_files_3(size: i64) -> Vec<ParquetFile> {
+    let time_provider = Arc::new(MockProvider::new(Time::from_timestamp(0, 0).unwrap()));
+    let time = TestTimes::new(&time_provider);
+
+    let l1_1 = ParquetFileBuilder::new(12)
+        .with_compaction_level(CompactionLevel::FileNonOverlapped)
+        .with_time_range(400, 500)
+        .with_file_size_bytes(size)
+        .with_max_l0_created_at(time.time_1_minute_future)
+        .build();
+    let l1_2 = ParquetFileBuilder::new(13)
+        .with_compaction_level(CompactionLevel::FileNonOverlapped)
+        .with_time_range(600, 700)
+        .with_file_size_bytes(size)
+        .with_max_l0_created_at(time.time_1_minute_future)
+        .build();
+
+    // L0_1 overlaps with L1_1
+    let l0_1 = ParquetFileBuilder::new(1)
+        .with_compaction_level(CompactionLevel::Initial)
+        .with_time_range(450, 550)
+        .with_file_size_bytes(size)
+        .with_max_l0_created_at(time.time_2_minutes_future)
+        .build();
+    // L0_2 overlaps with L1_2
+    let l0_2 = ParquetFileBuilder::new(2)
+        .with_compaction_level(CompactionLevel::Initial)
+        .with_time_range(650, 750)
+        .with_file_size_bytes(size)
+        .with_max_l0_created_at(time.time_3_minutes_future)
+        .build();
+    // L0_3 overlaps with nothing
+    let l0_3 = ParquetFileBuilder::new(3)
+        .with_compaction_level(CompactionLevel::Initial)
+        .with_time_range(800, 900)
+        .with_file_size_bytes(size)
+        .with_max_l0_created_at(time.time_5_minutes_future)
+        .build();
+
+    // Put the files in random order
+    vec![l1_2, l0_2, l1_1, l0_1, l0_3]
+}
+
 /// This setup will return files with ranges as follows:
 ///   |--L1.1--|   |--L1.2--|  |--L1.3--|   : target_level files
 ///     |--L0.1--|   |--L0.3--| |--L0.2--|  : start_level files

@@ -9,11 +9,15 @@ use crate::components::{
 /// such that `files_to_compact` are files to compact that under max_compact_size limit
 /// and `files_to_keep` are the rest of the files that will be considered to compact in next round
 ///
+/// The input of this function has a constraint that every single file in start-level must overlap
+/// with at most one file in target level
+///
 /// To deduplicate data correctly, we need to select start-level files in their max_l0_created_at order
-/// and they must be compacted with overlapped files in target level. See example below for the
+/// if they are level-0 or in their min_time order otherwise, and they must be compacted with overlapped
+/// files in target level. See example below for the
 /// correlation between created order and overlapped time ranges of files
 ///
-/// Example:
+/// Example of start level as L0 and target level as L1:
 ///
 ///  Input Files: three L0 and threee L1 files. The ID after the dot is the order the files are created
 ///     |---L0.1---|  |---L0.3---|  |---L0.2---|  Note that L0.2 is created BEFORE L0.3 but has LATER time range
@@ -25,6 +29,18 @@ use crate::components::{
 ///      Note that L1.2 overlaps with the time range of L0.1 + L0.2 and must be included here
 ///   3. Largest compacting set: All input files
 ///
+/// Example of start level as L1 and target level as L2.
+/// Note the difference of the output compared with the previous example
+///
+///  Input Files: three L1 and threee L2 files. The ID after the dot is the order the files are created
+///     |---L1.1---|  |---L1.3---|  |---L1.2---|  Note that L1.2 is created BEFORE L1.3 but has LATER time range
+///   |---L2.1---|  |---L2.2---|  |---L2.3---|
+///
+///  Output of files_to_compact: only 3 possible choices:
+///   1. Smallest compacting set: L1.1 + L2.1
+///   2. Medium size compacting set: L1.1 + L2.1 + L1.3 + L2.2
+///   3. Largest compacting set: All input files
+///  
 pub fn limit_files_to_compact(
     max_compact_size: usize,
     files: Vec<ParquetFile>,
@@ -40,6 +56,13 @@ pub fn limit_files_to_compact(
     let len = files.len();
     let split = TargetLevelSplit::new();
     let (start_level_files, mut target_level_files) = split.apply(files, start_level);
+
+    // panic if there is any file in start level that overlaps with more than one file in target level
+    assert!(start_level_files.iter().all(|s| target_level_files
+        .iter()
+        .filter(|t| t.overlaps(s))
+        .count()
+        <= 1));
 
     // Order start-level files to group the files to compact them correctly
     let start_level_files = order_files(start_level_files, start_level);
@@ -119,7 +142,8 @@ fn time_range(file: &ParquetFile, files: &[ParquetFile]) -> (Timestamp, Timestam
 mod tests {
     use compactor2_test_utils::{
         create_l1_files, create_overlapped_files, create_overlapped_l0_l1_files_2,
-        create_overlapped_start_target_files, format_files, format_files_split,
+        create_overlapped_l0_l1_files_3, create_overlapped_start_target_files, format_files,
+        format_files_split,
     };
     use data_types::CompactionLevel;
 
@@ -177,7 +201,9 @@ mod tests {
     }
 
     #[test]
-    fn test_compact_files_no_limit() {
+    // at least one start-level file overlaps with more than 1 target-level file
+    #[should_panic]
+    fn test_compact_files_start_level_overlap_many_target_levels() {
         let files = create_overlapped_l0_l1_files_2(MAX_SIZE as i64);
         insta::assert_yaml_snapshot!(
             format_files("initial", &files),
@@ -187,6 +213,29 @@ mod tests {
         - "L0, all files 100b                                                                                                 "
         - "L0.2[650,750] 180s                                                    |------L0.2------|                           "
         - "L0.1[450,620] 120s                |------------L0.1------------|                                                   "
+        - "L0.3[800,900] 300s                                                                               |------L0.3------|"
+        - "L1, all files 100b                                                                                                 "
+        - "L1.13[600,700] 60s                                           |-----L1.13------|                                    "
+        - "L1.12[400,500] 60s       |-----L1.12------|                                                                        "
+        "###
+        );
+
+        // size limit > total size --> files to compact = all L0s and overalapped L1s
+        let (_files_to_compact, _files_to_keep) =
+            limit_files_to_compact(MAX_SIZE * 5 + 1, files, CompactionLevel::FileNonOverlapped);
+    }
+
+    #[test]
+    fn test_compact_files_no_limit() {
+        let files = create_overlapped_l0_l1_files_3(MAX_SIZE as i64);
+        insta::assert_yaml_snapshot!(
+            format_files("initial", &files),
+            @r###"
+        ---
+        - initial
+        - "L0, all files 100b                                                                                                 "
+        - "L0.2[650,750] 180s                                                    |------L0.2------|                           "
+        - "L0.1[450,550] 120s                |------L0.1------|                                                               "
         - "L0.3[800,900] 300s                                                                               |------L0.3------|"
         - "L1, all files 100b                                                                                                 "
         - "L1.13[600,700] 60s                                           |-----L1.13------|                                    "
@@ -208,12 +257,12 @@ mod tests {
         ---
         - "files to compact:"
         - "L0, all files 100b                                                                                                 "
-        - "L0.1[450,620] 120s                |------------L0.1------------|                                                   "
+        - "L0.1[450,550] 120s                |------L0.1------|                                                               "
         - "L0.2[650,750] 180s                                                    |------L0.2------|                           "
         - "L0.3[800,900] 300s                                                                               |------L0.3------|"
         - "L1, all files 100b                                                                                                 "
-        - "L1.13[600,700] 60s                                           |-----L1.13------|                                    "
         - "L1.12[400,500] 60s       |-----L1.12------|                                                                        "
+        - "L1.13[600,700] 60s                                           |-----L1.13------|                                    "
         - "files to keep:"
         "###
         );
@@ -221,7 +270,7 @@ mod tests {
 
     #[test]
     fn test_compact_files_limit_too_small() {
-        let files = create_overlapped_l0_l1_files_2(MAX_SIZE as i64);
+        let files = create_overlapped_l0_l1_files_3(MAX_SIZE as i64);
         insta::assert_yaml_snapshot!(
             format_files("initial", &files),
             @r###"
@@ -229,7 +278,7 @@ mod tests {
         - initial
         - "L0, all files 100b                                                                                                 "
         - "L0.2[650,750] 180s                                                    |------L0.2------|                           "
-        - "L0.1[450,620] 120s                |------------L0.1------------|                                                   "
+        - "L0.1[450,550] 120s                |------L0.1------|                                                               "
         - "L0.3[800,900] 300s                                                                               |------L0.3------|"
         - "L1, all files 100b                                                                                                 "
         - "L1.13[600,700] 60s                                           |-----L1.13------|                                    "
@@ -252,7 +301,7 @@ mod tests {
         - "files to compact:"
         - "files to keep:"
         - "L0, all files 100b                                                                                                 "
-        - "L0.1[450,620] 120s                |------------L0.1------------|                                                   "
+        - "L0.1[450,550] 120s                |------L0.1------|                                                               "
         - "L0.2[650,750] 180s                                                    |------L0.2------|                           "
         - "L0.3[800,900] 300s                                                                               |------L0.3------|"
         - "L1, all files 100b                                                                                                 "
@@ -264,7 +313,7 @@ mod tests {
 
     #[test]
     fn test_compact_files_limit() {
-        let files = create_overlapped_l0_l1_files_2(MAX_SIZE as i64);
+        let files = create_overlapped_l0_l1_files_3(MAX_SIZE as i64);
         insta::assert_yaml_snapshot!(
             format_files("initial", &files),
             @r###"
@@ -272,7 +321,7 @@ mod tests {
         - initial
         - "L0, all files 100b                                                                                                 "
         - "L0.2[650,750] 180s                                                    |------L0.2------|                           "
-        - "L0.1[450,620] 120s                |------------L0.1------------|                                                   "
+        - "L0.1[450,550] 120s                |------L0.1------|                                                               "
         - "L0.3[800,900] 300s                                                                               |------L0.3------|"
         - "L1, all files 100b                                                                                                 "
         - "L1.13[600,700] 60s                                           |-----L1.13------|                                    "
@@ -280,12 +329,12 @@ mod tests {
         "###
         );
 
-        // size limit < total size --> only enough to compact L0.1 with L1.12 and L1.13
+        // size limit < total size --> only enough to compact L0.1 with L1.12
         let (files_to_compact, files_to_keep) =
             limit_files_to_compact(MAX_SIZE * 3, files, CompactionLevel::FileNonOverlapped);
 
-        assert_eq!(files_to_compact.len(), 3);
-        assert_eq!(files_to_keep.len(), 2);
+        assert_eq!(files_to_compact.len(), 2);
+        assert_eq!(files_to_keep.len(), 3);
 
         // See layout of 2 set of files
         insta::assert_yaml_snapshot!(
@@ -294,21 +343,22 @@ mod tests {
         ---
         - "files to compact:"
         - "L0, all files 100b                                                                                                 "
-        - "L0.1[450,620] 120s                      |----------------------L0.1-----------------------|                        "
+        - "L0.1[450,550] 120s                                     |---------------------------L0.1---------------------------|"
         - "L1, all files 100b                                                                                                 "
-        - "L1.13[600,700] 60s                                                                   |-----------L1.13------------|"
-        - "L1.12[400,500] 60s       |-----------L1.12------------|                                                            "
+        - "L1.12[400,500] 60s       |--------------------------L1.12---------------------------|                              "
         - "files to keep:"
         - "L0, all files 100b                                                                                                 "
-        - "L0.2[650,750] 180s       |---------------L0.2---------------|                                                      "
-        - "L0.3[800,900] 300s                                                             |---------------L0.3---------------|"
+        - "L0.2[650,750] 180s                      |------------L0.2------------|                                             "
+        - "L0.3[800,900] 300s                                                                   |------------L0.3------------|"
+        - "L1, all files 100b                                                                                                 "
+        - "L1.13[600,700] 60s       |-----------L1.13------------|                                                            "
         "###
         );
     }
 
     #[test]
     fn test_compact_files_limit_2() {
-        let files = create_overlapped_l0_l1_files_2(MAX_SIZE as i64);
+        let files = create_overlapped_l0_l1_files_3(MAX_SIZE as i64);
         insta::assert_yaml_snapshot!(
             format_files("initial", &files),
             @r###"
@@ -316,7 +366,7 @@ mod tests {
         - initial
         - "L0, all files 100b                                                                                                 "
         - "L0.2[650,750] 180s                                                    |------L0.2------|                           "
-        - "L0.1[450,620] 120s                |------------L0.1------------|                                                   "
+        - "L0.1[450,550] 120s                |------L0.1------|                                                               "
         - "L0.3[800,900] 300s                                                                               |------L0.3------|"
         - "L1, all files 100b                                                                                                 "
         - "L1.13[600,700] 60s                                           |-----L1.13------|                                    "
@@ -338,11 +388,11 @@ mod tests {
         ---
         - "files to compact:"
         - "L0, all files 100b                                                                                                 "
-        - "L0.1[450,620] 120s                   |------------------L0.1-------------------|                                   "
+        - "L0.1[450,550] 120s                   |---------L0.1----------|                                                     "
         - "L0.2[650,750] 180s                                                                       |---------L0.2----------| "
         - "L1, all files 100b                                                                                                 "
-        - "L1.13[600,700] 60s                                                          |---------L1.13---------|              "
         - "L1.12[400,500] 60s       |---------L1.12---------|                                                                 "
+        - "L1.13[600,700] 60s                                                          |---------L1.13---------|              "
         - "files to keep:"
         - "L0, all files 100b                                                                                                 "
         - "L0.3[800,900] 300s       |------------------------------------------L0.3------------------------------------------|"

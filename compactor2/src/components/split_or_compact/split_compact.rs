@@ -44,7 +44,7 @@ impl SplitOrCompact for SplitCompact {
             return (FilesToCompactOrSplit::FilesToCompact(files), vec![]);
         }
 
-        // See if split is needed
+        // This function identifies all start-level files that overlap with more than one target-level files
         let (files_to_split, files_not_to_split) = identify_files_to_split(files, target_level);
 
         if !files_to_split.is_empty() {
@@ -54,7 +54,8 @@ impl SplitOrCompact for SplitCompact {
                 files_not_to_split,
             )
         } else {
-            // No split is needed, need to limit number of files to compact to stay under total size limit
+            // No split is needed, which means every start-level file overlaps with at most one target-level file
+            // Need to limit number of files to compact to stay under compact size limit
             let (files_to_compact, files_to_keep) =
                 limit_files_to_compact(self.max_compact_size, files_not_to_split, target_level);
 

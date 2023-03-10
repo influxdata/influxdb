@@ -10,7 +10,8 @@ use crate::{
 /// Return (`[files_to_split]`, `[files_not_to_split]`) of given files
 /// such that `files_to_split` are files  in start-level that overlaps with more than one file in target_level.
 ///
-/// Only split files in start-level if the total size greater than max_compact_size
+/// The returned `[files_to_split]` includes a set of pairs. A pair is composed of a file and its corresponding split-times
+/// at which the file will be split into multiple files.
 ///
 /// Example:
 ///  . Input:
@@ -24,11 +25,13 @@ use crate::{
 ///     . files_to_split = [L0.1]
 ///     . files_not_to_split = [L1.1, L1.2, L1.3, L0.2] which is the rest of the files
 ///
+/// Reason behind the split:
 /// Since a start-level file needs to compact with all of its overlapped target-level files to retain the invariant that
 /// all files in target level are non-overlapped, splitting start-level files is to reduce the number of overlapped files
 /// at the target level and avoid compacting too many files in the next compaction cycle.
 /// To achieve this goal, a start-level file should be split to overlap with at most one target-level file. This enables the
 /// minimum set of compacting files to 2 files: a start-level file and an overlapped target-level file.
+///
 pub fn identify_files_to_split(
     files: Vec<ParquetFile>,
     target_level: CompactionLevel,
@@ -60,7 +63,7 @@ pub fn identify_files_to_split(
             .collect();
 
         // Neither split file that overlaps with only one file in target level
-        // nor has a single timestamp (splitting this will lead to the same file and as a result infinite loop)
+        // nor has a single timestamp (splitting this will lead to the same file and as a result will introduce infinite loop)
         // nor has time range = 1 (splitting this will cause panic because split_time will be min_tim/max_time which is disallowed)
         if overlapped_target_level_files.len() < 2
             || file.min_time == file.max_time
