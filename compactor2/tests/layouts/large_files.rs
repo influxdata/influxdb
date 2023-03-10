@@ -34,6 +34,7 @@ async fn one_larger_max_file_size() {
         )
         .await;
 
+    // Large L1 is upgraded to L2
     insta::assert_yaml_snapshot!(
         run_layout_scenario(&setup).await,
         @r###"
@@ -41,10 +42,11 @@ async fn one_larger_max_file_size() {
     - "**** Input Files "
     - "L1, all files 100mb                                                                                                "
     - "L1.1[1,1000] 1ns         |------------------------------------------L1.1------------------------------------------|"
-    - "SKIPPED COMPACTION for PartitionId(1): partition 1 has overlapped files that exceed max compact size limit 314572800. The may happen if a large amount of data has the same timestamp"
+    - "Committing partition 1:"
+    - "  Upgrading 1 files level to CompactionLevel::L2: L1.1"
     - "**** Final Output Files "
-    - "L1, all files 100mb                                                                                                "
-    - "L1.1[1,1000] 1ns         |------------------------------------------L1.1------------------------------------------|"
+    - "L2, all files 100mb                                                                                                "
+    - "L2.1[1,1000] 1ns         |------------------------------------------L2.1------------------------------------------|"
     "###
     );
 }
@@ -73,6 +75,8 @@ async fn one_l0_larger_max_file_size() {
         )
         .await;
 
+    // Large L0 is upgraded to L1 and then L2
+    // Note: a parquet file including level 0 does not include duplicated data and no need to go over compaction
     insta::assert_yaml_snapshot!(
         run_layout_scenario(&setup).await,
         @r###"
@@ -80,10 +84,13 @@ async fn one_l0_larger_max_file_size() {
     - "**** Input Files "
     - "L0, all files 100mb                                                                                                "
     - "L0.1[1,1000] 1ns         |------------------------------------------L0.1------------------------------------------|"
-    - "SKIPPED COMPACTION for PartitionId(1): partition 1 has overlapped files that exceed max compact size limit 314572800. The may happen if a large amount of data has the same timestamp"
+    - "Committing partition 1:"
+    - "  Upgrading 1 files level to CompactionLevel::L1: L0.1"
+    - "Committing partition 1:"
+    - "  Upgrading 1 files level to CompactionLevel::L2: L1.1"
     - "**** Final Output Files "
-    - "L0, all files 100mb                                                                                                "
-    - "L0.1[1,1000] 1ns         |------------------------------------------L0.1------------------------------------------|"
+    - "L2, all files 100mb                                                                                                "
+    - "L2.1[1,1000] 1ns         |------------------------------------------L2.1------------------------------------------|"
     "###
     );
 }
@@ -113,6 +120,7 @@ async fn one_larger_max_compact_size() {
         )
         .await;
 
+    // Large L1 is upgraded to L2
     insta::assert_yaml_snapshot!(
         run_layout_scenario(&setup).await,
         @r###"
@@ -121,11 +129,12 @@ async fn one_larger_max_compact_size() {
     - "L1, all files 300mb                                                                                                "
     - "L1.1[1,1000] 1ns         |------------------------------------------L1.1------------------------------------------|"
     - "WARNING: file L1.1[1,1000] 1ns 300mb exceeds soft limit 100mb by more than 50%"
-    - "SKIPPED COMPACTION for PartitionId(1): partition 1 has overlapped files that exceed max compact size limit 314572800. The may happen if a large amount of data has the same timestamp"
+    - "Committing partition 1:"
+    - "  Upgrading 1 files level to CompactionLevel::L2: L1.1"
     - "**** Final Output Files "
-    - "L1, all files 300mb                                                                                                "
-    - "L1.1[1,1000] 1ns         |------------------------------------------L1.1------------------------------------------|"
-    - "WARNING: file L1.1[1,1000] 1ns 300mb exceeds soft limit 100mb by more than 50%"
+    - "L2, all files 300mb                                                                                                "
+    - "L2.1[1,1000] 1ns         |------------------------------------------L2.1------------------------------------------|"
+    - "WARNING: file L2.1[1,1000] 1ns 300mb exceeds soft limit 100mb by more than 50%"
     "###
     );
 }
@@ -155,6 +164,7 @@ async fn one_l0_larger_max_compact_size() {
         )
         .await;
 
+    // Large L0 will be upgraded to L1 and then L2
     insta::assert_yaml_snapshot!(
         run_layout_scenario(&setup).await,
         @r###"
@@ -163,11 +173,14 @@ async fn one_l0_larger_max_compact_size() {
     - "L0, all files 300mb                                                                                                "
     - "L0.1[1,1000] 1ns         |------------------------------------------L0.1------------------------------------------|"
     - "WARNING: file L0.1[1,1000] 1ns 300mb exceeds soft limit 100mb by more than 50%"
-    - "SKIPPED COMPACTION for PartitionId(1): partition 1 has overlapped files that exceed max compact size limit 314572800. The may happen if a large amount of data has the same timestamp"
+    - "Committing partition 1:"
+    - "  Upgrading 1 files level to CompactionLevel::L1: L0.1"
+    - "Committing partition 1:"
+    - "  Upgrading 1 files level to CompactionLevel::L2: L1.1"
     - "**** Final Output Files "
-    - "L0, all files 300mb                                                                                                "
-    - "L0.1[1,1000] 1ns         |------------------------------------------L0.1------------------------------------------|"
-    - "WARNING: file L0.1[1,1000] 1ns 300mb exceeds soft limit 100mb by more than 50%"
+    - "L2, all files 300mb                                                                                                "
+    - "L2.1[1,1000] 1ns         |------------------------------------------L2.1------------------------------------------|"
+    - "WARNING: file L2.1[1,1000] 1ns 300mb exceeds soft limit 100mb by more than 50%"
     "###
     );
 }

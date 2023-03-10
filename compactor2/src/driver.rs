@@ -206,13 +206,15 @@ async fn try_compact_partition(
                     .file_classifier
                     .classify(&partition_info, &round_info, branch);
 
-            if !components
-                .partition_resource_limit_filter
-                .apply(
-                    &partition_info,
-                    &file_classification.files_to_compact_or_split.files(),
-                )
-                .await?
+            // Skip partition if it has neither files to upgrade nor files to compact or split
+            if !file_classification.has_upgrade_files()
+                && !components
+                    .partition_resource_limit_filter
+                    .apply(
+                        &partition_info,
+                        &file_classification.files_to_compact_or_split.files(),
+                    )
+                    .await?
             {
                 return Ok(());
             }

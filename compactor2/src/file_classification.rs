@@ -39,6 +39,10 @@ impl FileClassification {
             FilesToCompactOrSplit::FilesToSplit(files) => files.len(),
         }
     }
+
+    pub fn has_upgrade_files(&self) -> bool {
+        !self.files_to_upgrade.is_empty()
+    }
 }
 
 /// Files to compact or to split

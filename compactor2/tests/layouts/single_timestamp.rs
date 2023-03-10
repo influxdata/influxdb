@@ -28,6 +28,7 @@ async fn single_giant_file() {
         )
         .await;
 
+    // L0 file is upgraded to L1 and then L2
     insta::assert_yaml_snapshot!(
         run_layout_scenario(&setup).await,
         @r###"
@@ -36,11 +37,14 @@ async fn single_giant_file() {
     - "L0, all files 4.88gb                                                                                               "
     - "L0.1[100,100] 1ns        |------------------------------------------L0.1------------------------------------------|"
     - "WARNING: file L0.1[100,100] 1ns 4.88gb exceeds soft limit 100mb by more than 50%"
-    - "SKIPPED COMPACTION for PartitionId(1): partition 1 has overlapped files that exceed max compact size limit 268435456. The may happen if a large amount of data has the same timestamp"
+    - "Committing partition 1:"
+    - "  Upgrading 1 files level to CompactionLevel::L1: L0.1"
+    - "Committing partition 1:"
+    - "  Upgrading 1 files level to CompactionLevel::L2: L1.1"
     - "**** Final Output Files "
-    - "L0, all files 4.88gb                                                                                               "
-    - "L0.1[100,100] 1ns        |------------------------------------------L0.1------------------------------------------|"
-    - "WARNING: file L0.1[100,100] 1ns 4.88gb exceeds soft limit 100mb by more than 50%"
+    - "L2, all files 4.88gb                                                                                               "
+    - "L2.1[100,100] 1ns        |------------------------------------------L2.1------------------------------------------|"
+    - "WARNING: file L2.1[100,100] 1ns 4.88gb exceeds soft limit 100mb by more than 50%"
     "###
     );
 }
@@ -322,6 +326,8 @@ async fn many_small_files() {
             .await;
     }
 
+    // L0s are compacted into a single L1 file. It can't be split becasue of single timestamp
+    // Then the L1 is large enough to get upgraded to L2
     insta::assert_yaml_snapshot!(
         run_layout_scenario(&setup).await,
         @r###"
@@ -376,11 +382,12 @@ async fn many_small_files() {
     - "Committing partition 1:"
     - "  Soft Deleting 20 files: L0.1, L0.2, L0.3, L0.4, L0.5, L0.6, L0.7, L0.8, L0.9, L0.10, L0.11, L0.12, L0.13, L0.14, L0.15, L0.16, L0.17, L0.18, L0.19, L0.20"
     - "  Creating 1 files at level CompactionLevel::L1"
-    - "SKIPPED COMPACTION for PartitionId(1): partition 1 has overlapped files that exceed max compact size limit 268435456. The may happen if a large amount of data has the same timestamp"
+    - "Committing partition 1:"
+    - "  Upgrading 1 files level to CompactionLevel::L2: L1.21"
     - "**** Final Output Files "
-    - "L1, all files 200mb                                                                                                "
-    - "L1.21[100,100] 1ns       |-----------------------------------------L1.21------------------------------------------|"
-    - "WARNING: file L1.21[100,100] 1ns 200mb exceeds soft limit 100mb by more than 50%"
+    - "L2, all files 200mb                                                                                                "
+    - "L2.21[100,100] 1ns       |-----------------------------------------L2.21------------------------------------------|"
+    - "WARNING: file L2.21[100,100] 1ns 200mb exceeds soft limit 100mb by more than 50%"
     "###
     );
 }
