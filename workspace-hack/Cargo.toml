@@ -70,6 +70,7 @@ regex = { version = "1" }
 regex-syntax = { version = "0.6" }
 reqwest = { version = "0.11", default-features = false, features = ["json", "rustls-tls", "stream"] }
 ring = { version = "0.16", features = ["std"] }
+rustls = { version = "0.20", features = ["dangerous_configuration"] }
 serde = { version = "1", features = ["derive", "rc"] }
 serde_json = { version = "1", features = ["raw_value"] }
 sha2 = { version = "0.10" }
@@ -81,7 +82,7 @@ thrift = { version = "0.17" }
 tokio = { version = "1", features = ["full", "test-util", "tracing"] }
 tokio-stream = { version = "0.1", features = ["fs", "net"] }
 tokio-util = { version = "0.7", features = ["codec", "compat", "io"] }
-tonic = { version = "0.8" }
+tonic = { version = "0.8", features = ["tls-webpki-roots"] }
 tower = { version = "0.4", features = ["balance", "buffer", "limit", "timeout", "util"] }
 tracing = { version = "0.1", features = ["log", "max_level_trace", "release_max_level_trace"] }
 tracing-core = { version = "0.1" }
@@ -135,6 +136,7 @@ rand_core = { version = "0.6", default-features = false, features = ["std"] }
 regex = { version = "1" }
 regex-syntax = { version = "0.6" }
 ring = { version = "0.16", features = ["std"] }
+rustls = { version = "0.20", features = ["dangerous_configuration"] }
 serde = { version = "1", features = ["derive", "rc"] }
 serde_json = { version = "1", features = ["raw_value"] }
 sha2 = { version = "0.10" }

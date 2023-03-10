@@ -351,21 +351,15 @@ fn even_time_split(
         .collect();
 
     // make sure we have assigned all bytes and rows to one of the output files
-    if simulated_files.len() == 1 {
-        // TODO do this adjustment for all tests (not just if there is
-        // only one output file) but only apply if there is a single
-        // output file until https://github.com/influxdata/influxdb_iox/pull/7079 is
-        // merged to minimize churn.
 
-        let total_output_size: i64 = simulated_files.iter().map(|f| f.file_size_bytes).sum();
-        let total_output_rows: i64 = simulated_files.iter().map(|f| f.row_count).sum();
+    let total_output_size: i64 = simulated_files.iter().map(|f| f.file_size_bytes).sum();
+    let total_output_rows: i64 = simulated_files.iter().map(|f| f.row_count).sum();
 
-        // adjust the row counts / bytes in the final file to ensure that
-        // the same number of bytes went in and went out
-        let last_file = simulated_files.last_mut().unwrap();
-        last_file.file_size_bytes += total_input_size - total_output_size;
-        last_file.row_count += total_input_rows - total_output_rows;
-    }
+    // adjust the row counts / bytes in the final file to ensure that
+    // the same number of bytes went in and went out
+    let last_file = simulated_files.last_mut().unwrap();
+    last_file.file_size_bytes += total_input_size - total_output_size;
+    last_file.row_count += total_input_rows - total_output_rows;
 
     simulated_files
 }
