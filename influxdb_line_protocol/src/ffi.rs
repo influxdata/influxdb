@@ -13,7 +13,7 @@ pub unsafe extern "C" fn validate_lines(lp: *const libc::c_char) -> *const libc:
     catch_unwind(|| {
         let bytes = CStr::from_ptr(lp).to_bytes();
         let str = String::from_utf8(bytes.to_vec()).unwrap();
-        let lines = parse_lines(&str).into_iter().collect::<Result<Vec<_>>>();
+        let lines = parse_lines(&str).collect::<Result<Vec<_>>>();
         match lines {
             Ok(_) => std::ptr::null(),
             Err(e) => CString::new(e.to_string()).unwrap().into_raw() as *const _,

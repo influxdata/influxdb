@@ -559,7 +559,6 @@ impl WriteBufferStreamHandler for MockBufferStreamHandler {
 impl WriteBufferReading for MockBufferForReading {
     fn shard_indexes(&self) -> BTreeSet<ShardIndex> {
         (0..self.n_shards)
-            .into_iter()
             .map(|i| ShardIndex::new(i as i32))
             .collect()
     }

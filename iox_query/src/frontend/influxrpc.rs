@@ -1509,7 +1509,7 @@ fn columns_in_predicates(
         .collect();
     let val_exprs_cols_result = exprlist_to_columns(&exprs, &mut columns).context(ReadColumnsSnafu);
 
-    let projection = if expr_cols_result.is_err() || val_exprs_cols_result.is_err() {
+    if expr_cols_result.is_err() || val_exprs_cols_result.is_err() {
         if expr_cols_result.is_err() {
             let error_message = expr_cols_result.err().unwrap().to_string();
             warn!(table_name, ?predicate.exprs, ?error_message, "cannot determine columns in predicate.exprs");
@@ -1541,9 +1541,7 @@ fn columns_in_predicates(
             }
         }
         Some(indices)
-    };
-
-    projection
+    }
 }
 
 /// Create plans that fetch the data specified in table_predicates.

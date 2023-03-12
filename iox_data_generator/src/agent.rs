@@ -126,7 +126,6 @@ impl Agent {
         generated_tag_sets: &GeneratedTagSets,
     ) -> Result<Vec<Self>> {
         let agents: Vec<_> = (1..count + 1)
-            .into_iter()
             .map(|agent_id| {
                 let data = json!({"agent": {"id": agent_id, "name": agent_spec.name}});
 

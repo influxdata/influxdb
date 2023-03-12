@@ -213,7 +213,7 @@ fn test_basic() {
 
     let mut writer = Writer::new(&mut batch, 17);
 
-    writer.write_time("time", (0..17).into_iter()).unwrap();
+    writer.write_time("time", 0..17).unwrap();
 
     writer
         .write_f64(
