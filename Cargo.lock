@@ -1009,10 +1009,8 @@ dependencies = [
 name = "compactor2_test_utils"
 version = "0.1.0"
 dependencies = [
- "arrow_util",
  "async-trait",
  "backoff",
- "bytes",
  "compactor2",
  "data_types",
  "datafusion",
@@ -1022,18 +1020,11 @@ dependencies = [
  "iox_query",
  "iox_tests",
  "iox_time",
- "metric",
  "object_store",
  "observability_deps",
  "parquet_file",
- "predicate",
- "rand",
  "schema",
- "sharder",
- "snafu",
- "test_helpers",
  "tokio",
- "tokio-util",
  "tracker",
  "uuid",
  "workspace-hack",
@@ -2098,7 +2089,6 @@ dependencies = [
  "pin-project",
  "prost",
  "prost-build",
- "prost-types",
  "tokio",
  "tokio-stream",
  "tonic",
@@ -2607,7 +2597,6 @@ dependencies = [
  "generated_types",
  "influxdb_line_protocol",
  "insta",
- "itertools",
  "prost",
  "rand",
  "reqwest",
@@ -2617,7 +2606,6 @@ dependencies = [
  "tokio",
  "tokio-stream",
  "tonic",
- "trace_http",
 ]
 
 [[package]]
