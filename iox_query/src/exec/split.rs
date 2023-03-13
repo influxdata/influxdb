@@ -48,7 +48,6 @@
 //! ```
 
 use std::{
-    any::Any,
     fmt::{self, Debug},
     sync::Arc,
 };
@@ -63,7 +62,7 @@ use datafusion::{
     common::DFSchemaRef,
     error::{DataFusionError, Result},
     execution::context::TaskContext,
-    logical_expr::{Expr, LogicalPlan, UserDefinedLogicalNode},
+    logical_expr::{Expr, LogicalPlan, UserDefinedLogicalNodeCore},
     physical_plan::{
         expressions::PhysicalSortExpr,
         metrics::{BaselineMetrics, ExecutionPlanMetricsSet, MetricsSet, RecordOutput},
@@ -116,11 +115,7 @@ impl Debug for StreamSplitNode {
     }
 }
 
-impl UserDefinedLogicalNode for StreamSplitNode {
-    fn as_any(&self) -> &dyn Any {
-        self
-    }
-
+impl UserDefinedLogicalNodeCore for StreamSplitNode {
     fn name(&self) -> &str {
         "StreamSplit"
     }
@@ -142,29 +137,12 @@ impl UserDefinedLogicalNode for StreamSplitNode {
         write!(f, "{} split_expr={:?}", self.name(), self.split_exprs)
     }
 
-    fn from_template(
-        &self,
-        exprs: &[Expr],
-        inputs: &[LogicalPlan],
-    ) -> Arc<dyn UserDefinedLogicalNode> {
+    fn from_template(&self, exprs: &[Expr], inputs: &[LogicalPlan]) -> Self {
         assert_eq!(inputs.len(), 1, "StreamSplitNode: input sizes inconsistent");
-        Arc::new(Self {
+        Self {
             input: inputs[0].clone(),
             split_exprs: (*exprs).to_vec(),
-        })
-    }
-
-    fn dyn_eq(&self, other: &dyn UserDefinedLogicalNode) -> bool {
-        match other.as_any().downcast_ref::<Self>() {
-            Some(o) => self == o,
-            None => false,
         }
-    }
-
-    fn dyn_hash(&self, state: &mut dyn std::hash::Hasher) {
-        use std::hash::Hash;
-        let mut s = state;
-        self.hash(&mut s);
     }
 }
 

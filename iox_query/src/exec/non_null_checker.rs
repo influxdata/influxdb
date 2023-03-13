@@ -37,7 +37,6 @@
 //! This operation can be used to implement the table_name metadata query
 
 use std::{
-    any::Any,
     fmt::{self, Debug},
     sync::Arc,
 };
@@ -51,7 +50,7 @@ use datafusion::{
     common::{DFSchemaRef, ToDFSchema},
     error::{DataFusionError, Result},
     execution::context::TaskContext,
-    logical_expr::{Expr, LogicalPlan, UserDefinedLogicalNode},
+    logical_expr::{Expr, LogicalPlan, UserDefinedLogicalNodeCore},
     physical_plan::{
         expressions::PhysicalSortExpr,
         metrics::{BaselineMetrics, ExecutionPlanMetricsSet, MetricsSet},
@@ -113,11 +112,7 @@ impl Debug for NonNullCheckerNode {
     }
 }
 
-impl UserDefinedLogicalNode for NonNullCheckerNode {
-    fn as_any(&self) -> &dyn Any {
-        self
-    }
-
+impl UserDefinedLogicalNodeCore for NonNullCheckerNode {
     fn name(&self) -> &str {
         "NonNullChecker"
     }
@@ -140,31 +135,14 @@ impl UserDefinedLogicalNode for NonNullCheckerNode {
         write!(f, "{}('{}')", self.name(), self.value)
     }
 
-    fn from_template(
-        &self,
-        exprs: &[Expr],
-        inputs: &[LogicalPlan],
-    ) -> Arc<dyn UserDefinedLogicalNode> {
+    fn from_template(&self, exprs: &[Expr], inputs: &[LogicalPlan]) -> Self {
         assert_eq!(inputs.len(), 1, "NonNullChecker: input sizes inconistent");
         assert_eq!(
             exprs.len(),
             self.exprs.len(),
             "NonNullChecker: expression sizes inconistent"
         );
-        Arc::new(Self::new(self.value.as_ref(), inputs[0].clone()))
-    }
-
-    fn dyn_eq(&self, other: &dyn UserDefinedLogicalNode) -> bool {
-        match other.as_any().downcast_ref::<Self>() {
-            Some(o) => self == o,
-            None => false,
-        }
-    }
-
-    fn dyn_hash(&self, state: &mut dyn std::hash::Hasher) {
-        use std::hash::Hash;
-        let mut s = state;
-        self.hash(&mut s);
+        Self::new(self.value.as_ref(), inputs[0].clone())
     }
 }
 

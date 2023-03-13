@@ -18,7 +18,7 @@ use datafusion::{
     common::DFSchemaRef,
     error::{DataFusionError, Result},
     execution::{context::TaskContext, memory_pool::MemoryConsumer},
-    logical_expr::{LogicalPlan, UserDefinedLogicalNode},
+    logical_expr::{LogicalPlan, UserDefinedLogicalNodeCore},
     physical_expr::{create_physical_expr, execution_props::ExecutionProps, PhysicalSortExpr},
     physical_plan::{
         expressions::Column,
@@ -153,11 +153,7 @@ impl GapFill {
     }
 }
 
-impl UserDefinedLogicalNode for GapFill {
-    fn as_any(&self) -> &dyn std::any::Any {
-        self
-    }
-
+impl UserDefinedLogicalNodeCore for GapFill {
     fn name(&self) -> &str {
         "GapFill"
     }
@@ -192,31 +188,13 @@ impl UserDefinedLogicalNode for GapFill {
         )
     }
 
-    fn from_template(
-        &self,
-        exprs: &[Expr],
-        inputs: &[LogicalPlan],
-    ) -> Arc<dyn UserDefinedLogicalNode> {
+    fn from_template(&self, exprs: &[Expr], inputs: &[LogicalPlan]) -> Self {
         let mut group_expr: Vec<_> = exprs.to_vec();
         let mut aggr_expr = group_expr.split_off(self.group_expr.len());
         let param_expr = aggr_expr.split_off(self.aggr_expr.len());
         let params = self.params.from_template(&param_expr, &aggr_expr);
-        let gapfill = Self::try_new(Arc::new(inputs[0].clone()), group_expr, aggr_expr, params)
-            .expect("should not fail");
-        Arc::new(gapfill)
-    }
-
-    fn dyn_eq(&self, other: &dyn UserDefinedLogicalNode) -> bool {
-        match other.as_any().downcast_ref::<Self>() {
-            Some(o) => self == o,
-            None => false,
-        }
-    }
-
-    fn dyn_hash(&self, state: &mut dyn std::hash::Hasher) {
-        use std::hash::Hash;
-        let mut s = state;
-        self.hash(&mut s);
+        Self::try_new(Arc::new(inputs[0].clone()), group_expr, aggr_expr, params)
+            .expect("should not fail")
     }
 }
 
@@ -541,7 +519,7 @@ mod test {
     use datafusion::{
         datasource::empty::EmptyTable,
         error::Result,
-        logical_expr::{logical_plan, Extension},
+        logical_expr::{logical_plan, Extension, UserDefinedLogicalNode},
         prelude::{col, lit, lit_timestamp_nano},
         scalar::ScalarValue,
     };
@@ -592,15 +570,16 @@ mod test {
     }
 
     fn assert_gapfill_from_template_roundtrip(gapfill: &GapFill) {
+        let gapfill_as_node: &dyn UserDefinedLogicalNode = gapfill;
         let scan = table_scan().unwrap();
-        let exprs = gapfill.expressions();
+        let exprs = gapfill_as_node.expressions();
         let want_exprs = gapfill.group_expr.len()
             + gapfill.aggr_expr.len()
             + 3 // stride, time, origin
             + bound_extract(&gapfill.params.time_range.start).iter().count()
             + bound_extract(&gapfill.params.time_range.end).iter().count();
         assert_eq!(want_exprs, exprs.len());
-        let gapfill_ft = gapfill.from_template(&exprs, &[scan]);
+        let gapfill_ft = gapfill_as_node.from_template(&exprs, &[scan]);
         let gapfill_ft = gapfill_ft
             .as_any()
             .downcast_ref::<GapFill>()

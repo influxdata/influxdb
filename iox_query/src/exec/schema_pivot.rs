@@ -20,7 +20,6 @@
 //! This operation can be used to implement the tag_keys metadata query
 
 use std::{
-    any::Any,
     fmt::{self, Debug},
     sync::Arc,
 };
@@ -36,7 +35,7 @@ use datafusion::{
     common::{DFSchemaRef, ToDFSchema},
     error::{DataFusionError as Error, Result},
     execution::context::TaskContext,
-    logical_expr::{Expr, LogicalPlan, UserDefinedLogicalNode},
+    logical_expr::{Expr, LogicalPlan, UserDefinedLogicalNodeCore},
     physical_plan::{
         expressions::PhysicalSortExpr,
         metrics::{BaselineMetrics, ExecutionPlanMetricsSet, MetricsSet, RecordOutput},
@@ -89,11 +88,7 @@ impl Debug for SchemaPivotNode {
     }
 }
 
-impl UserDefinedLogicalNode for SchemaPivotNode {
-    fn as_any(&self) -> &dyn Any {
-        self
-    }
-
+impl UserDefinedLogicalNodeCore for SchemaPivotNode {
     fn name(&self) -> &str {
         "SchemaPivot"
     }
@@ -116,31 +111,14 @@ impl UserDefinedLogicalNode for SchemaPivotNode {
         write!(f, "{}", self.name())
     }
 
-    fn from_template(
-        &self,
-        exprs: &[Expr],
-        inputs: &[LogicalPlan],
-    ) -> Arc<dyn UserDefinedLogicalNode> {
+    fn from_template(&self, exprs: &[Expr], inputs: &[LogicalPlan]) -> Self {
         assert_eq!(inputs.len(), 1, "SchemaPivot: input sizes inconistent");
         assert_eq!(
             exprs.len(),
             self.exprs.len(),
             "SchemaPivot: expression sizes inconistent"
         );
-        Arc::new(Self::new(inputs[0].clone()))
-    }
-
-    fn dyn_eq(&self, other: &dyn UserDefinedLogicalNode) -> bool {
-        match other.as_any().downcast_ref::<Self>() {
-            Some(o) => self == o,
-            None => false,
-        }
-    }
-
-    fn dyn_hash(&self, state: &mut dyn std::hash::Hasher) {
-        use std::hash::Hash;
-        let mut s = state;
-        self.hash(&mut s);
+        Self::new(inputs[0].clone())
     }
 }
 

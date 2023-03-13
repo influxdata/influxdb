@@ -29,7 +29,7 @@ bytes = { version = "1" }
 chrono = { version = "0.4", default-features = false, features = ["alloc", "clock", "serde"] }
 crossbeam-utils = { version = "0.8" }
 crypto-common = { version = "0.1", default-features = false, features = ["std"] }
-datafusion = { git = "https://github.com/apache/arrow-datafusion.git", rev = "deeaa5632ed99a58b91767261570756db736d158" }
+datafusion = { git = "https://github.com/apache/arrow-datafusion.git", rev = "8c34ca4fa34787b137b48ce4f6ffd41b64a1a633" }
 digest = { version = "0.10", features = ["mac", "std"] }
 either = { version = "1" }
 fixedbitset = { version = "0.4" }
