@@ -11,6 +11,9 @@ use crate::test::format_execution_plan;
 pub struct OptimizationTest {
     input: Vec<String>,
     output: Result<Vec<String>, String>,
+
+    #[serde(skip_serializing)]
+    output_plan: Option<Arc<dyn ExecutionPlan>>,
 }
 
 impl OptimizationTest {
@@ -29,12 +32,22 @@ impl OptimizationTest {
     where
         O: PhysicalOptimizerRule,
     {
+        let input = format_execution_plan(&input_plan);
+
+        let output_result = opt.optimize(input_plan, config);
+        let output_plan = output_result.as_ref().ok().cloned();
+        let output = output_result
+            .map(|plan| format_execution_plan(&plan))
+            .map_err(|e| e.to_string());
+
         Self {
-            input: format_execution_plan(&input_plan),
-            output: opt
-                .optimize(input_plan, config)
-                .map(|plan| format_execution_plan(&plan))
-                .map_err(|e| e.to_string()),
+            input,
+            output,
+            output_plan,
         }
+    }
+
+    pub fn output_plan(&self) -> Option<&Arc<dyn ExecutionPlan>> {
+        self.output_plan.as_ref()
     }
 }

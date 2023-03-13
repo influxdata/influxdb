@@ -8,6 +8,7 @@ mod chunk_extraction;
 mod combine_chunks;
 mod dedup;
 mod predicate_pushdown;
+mod projection_pushdown;
 mod sort;
 mod union;
 
