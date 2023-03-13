@@ -19,7 +19,7 @@ datafusion.workspace = true
 datafusion_util = { path = "../datafusion_util" }
 dml = { version = "0.1.0", path = "../dml" }
 flatbuffers = "23.1.21"
-futures = "0.3.26"
+futures = "0.3.27"
 generated_types = { version = "0.1.0", path = "../generated_types" }
 hashbrown.workspace = true
 influxdb_iox_client = { path = "../influxdb_iox_client" }

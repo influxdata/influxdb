@@ -12,7 +12,7 @@ client_util = { path = "../client_util" }
 data_types = { path = "../data_types" }
 dml = { path = "../dml" }
 flate2 = "1.0"
-futures = "0.3.26"
+futures = "0.3.27"
 generated_types = { path = "../generated_types" }
 hashbrown = { workspace = true }
 hyper = "0.14"
