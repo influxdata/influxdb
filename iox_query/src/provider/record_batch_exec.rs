@@ -152,7 +152,7 @@ impl ExecutionPlan for RecordBatchesExec {
             projection,
         )?);
         let adapter = Box::pin(
-            SchemaAdapterStream::try_new(stream, schema, baseline_metrics)
+            SchemaAdapterStream::try_new(stream, schema, &Default::default(), baseline_metrics)
                 .map_err(|e| DataFusionError::Internal(e.to_string()))?,
         );
 
