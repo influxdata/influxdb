@@ -71,30 +71,19 @@ pub(super) struct GapFiller {
     /// The current state of gap-filling, including the next timestamp,
     /// the offset of the next input row, and remaining space in output batch.
     cursor: Cursor,
-    /// True if there are trailing gaps from processed input to produce
-    /// at the beginning of an output batch.
-    trailing_gaps: bool,
 }
 
 impl GapFiller {
     /// Initialize a [GapFiller] at the beginning of an input record batch.
     pub fn new(params: GapFillParams) -> Self {
-        let cursor = Cursor {
-            next_input_offset: 0,
-            next_ts: params.first_ts,
-            remaining_output_batch_size: 0,
-        };
-        Self {
-            params,
-            cursor,
-            trailing_gaps: false,
-        }
+        let cursor = Cursor::new(&params);
+        Self { params, cursor }
     }
 
-    /// Returns true if `next_input_offset` points past the end of input
-    /// and there are no trailing gaps to produce.
+    /// Returns true if there are no more output rows to produce given
+    /// the number of rows of buffered input.
     pub fn done(&self, buffered_input_row_count: usize) -> bool {
-        self.cursor.next_input_offset == buffered_input_row_count && !self.trailing_gaps
+        self.cursor.done(buffered_input_row_count)
     }
 
     /// Produces a gap-filled output [RecordBatch].
@@ -111,46 +100,13 @@ impl GapFiller {
     ) -> Result<RecordBatch> {
         let series_ends = self.plan_output_batch(batch_size, input_time_array.1, group_arrays)?;
         self.cursor.remaining_output_batch_size = batch_size;
-        let output_batch = self.build_output(
+        self.build_output(
             schema,
             input_time_array,
             group_arrays,
             aggr_arrays,
             &series_ends,
-        )?;
-
-        let last_series_end = series_ends.last().expect("there is at least one series");
-
-        // there are three possible states at this point:
-        // 1. We ended output in the middle of input for a series. In this case
-        //     cursor.next_input_offset < last_series.input_end
-        // 2. We processed all the input for a series, but there are still more
-        //     gaps to fill at the end. In this case cursor.next_ts <= params.last_ts.
-        // 3. We ended exactly at the end of a series, and filled all the gaps.
-        //     In this case cursor.next_ts > params.last_ts.
-
-        if self.cursor.next_input_offset < *last_series_end {
-            // No special action needed for possible state 1.
-            self.trailing_gaps = false;
-        } else {
-            assert!(self.cursor.next_input_offset == *last_series_end);
-            if self
-                .cursor
-                .next_ts
-                .map_or(false, |next_ts| next_ts <= self.params.last_ts)
-            {
-                // Possible state 2:
-                // Set this bit so that the output batch begins
-                // with trailing gaps for the last series.
-                self.trailing_gaps = true;
-            } else {
-                // Possible state 3
-                self.cursor.next_ts = self.params.first_ts;
-                self.trailing_gaps = false;
-            }
-        }
-
-        Ok(output_batch)
+        )
     }
 
     /// Slice the input batch so that it has one context row before the next input offset.
@@ -208,15 +164,13 @@ impl GapFiller {
                         end > 0,
                         "each lexicographical partition will have at least one row"
                     );
-                    if end == start_offset && !self.trailing_gaps {
-                        // This represents a partition that ends at our current input offset,
-                        // but since trailing_gaps is not set, there is nothing to do.
-                        continue;
-                    }
 
-                    let nrows = cursor.count_series_rows(&self.params, input_time_array, end);
-                    output_row_count += nrows;
-                    series_ends.push(end);
+                    if let Some(nrows) =
+                        cursor.count_series_rows(&self.params, input_time_array, end)
+                    {
+                        output_row_count += nrows;
+                        series_ends.push(end);
+                    }
                 }
                 None => break,
             }
@@ -317,17 +271,43 @@ struct Cursor {
     next_ts: Option<i64>,
     /// How many rows may be output before we need to start a new record batch.
     remaining_output_batch_size: usize,
+    /// True if there are trailing gaps from after the last input row for a series
+    /// to be produced at the beginning of the next output batch.
+    trailing_gaps: bool,
 }
 
 impl Cursor {
-    /// Counts the number of rows that will be produced for a series that ends at
-    /// `series_end`, including rows that have a null timestamp, if any.
+    /// Creates a new cursor.
+    fn new(params: &GapFillParams) -> Self {
+        Self {
+            next_input_offset: 0,
+            next_ts: params.first_ts,
+            remaining_output_batch_size: 0,
+            trailing_gaps: false,
+        }
+    }
+
+    /// Returns true of we point past all rows of buffered input and there
+    /// are no trailing gaps left to produce.
+    fn done(&self, buffered_input_row_count: usize) -> bool {
+        self.next_input_offset == buffered_input_row_count && !self.trailing_gaps
+    }
+
+    /// Counts the number of rows that will be produced for a series that ends (exclusively)
+    /// at `series_end`, including rows that have a null timestamp, if any.
+    ///
+    /// Produces `None` for the case where `next_input_offset` is equal to `series_end`,
+    /// and there are no trailing gaps to produce.
     fn count_series_rows(
         &mut self,
         params: &GapFillParams,
         input_time_array: &TimestampNanosecondArray,
         series_end: usize,
-    ) -> usize {
+    ) -> Option<usize> {
+        if !self.trailing_gaps && self.next_input_offset == series_end {
+            return None;
+        }
+
         let mut count = if input_time_array.null_count() > 0 {
             let len = series_end - self.next_input_offset;
             let slice = input_time_array.slice(self.next_input_offset, len);
@@ -344,7 +324,7 @@ impl Cursor {
         self.next_input_offset = series_end;
         self.next_ts = params.first_ts;
 
-        count
+        Some(count)
     }
 
     /// Attempts to assign a value to `self.next_ts` if it does not have one.
@@ -467,18 +447,25 @@ impl Cursor {
     where
         F: FnMut(RowStatus),
     {
-        let first_series = series_ends.first().ok_or(DataFusionError::Internal(
+        for series in series_ends.iter() {
+            if self
+                .next_ts
+                .map_or(false, |next_ts| next_ts > params.last_ts)
+            {
+                self.next_ts = params.first_ts;
+            }
+
+            self.append_series_items(params, input_time_array, *series, &mut f)?;
+        }
+
+        let last_series_end = series_ends.last().ok_or(DataFusionError::Internal(
             "expected at least one item in series batch".to_string(),
         ))?;
 
-        // Process the first series separately as it may just be a part of what
-        // did not fit in the previous output batch.
-        self.append_series_items(params, input_time_array, *first_series, &mut f)?;
-
-        for series in series_ends.iter().skip(1) {
-            self.next_ts = params.first_ts;
-            self.append_series_items(params, input_time_array, *series, &mut f)?;
-        }
+        self.trailing_gaps = self.next_input_offset == *last_series_end
+            && self
+                .next_ts
+                .map_or(true, |next_ts| next_ts <= params.last_ts);
         Ok(())
     }
 
@@ -613,11 +600,7 @@ mod tests {
         };
 
         let output_batch_size = 10000;
-        let mut cursor = Cursor {
-            next_input_offset: 0,
-            next_ts: params.first_ts,
-            remaining_output_batch_size: output_batch_size,
-        };
+        let mut cursor = new_cursor_with_batch_size(&params, output_batch_size);
 
         let out_times = cursor.build_time_vec(&params, &[series], &input_times)?;
         assert_eq!(
@@ -633,14 +616,7 @@ mod tests {
             out_times
         );
 
-        assert_eq!(
-            Cursor {
-                next_input_offset: input_times.len(),
-                next_ts: Some(params.last_ts + params.stride),
-                remaining_output_batch_size: output_batch_size - 7
-            },
-            cursor
-        );
+        assert_cursor_end_state(&cursor, &input_times, &params);
 
         Ok(())
     }
@@ -659,11 +635,7 @@ mod tests {
         };
 
         let output_batch_size = 10000;
-        let mut cursor = Cursor {
-            next_input_offset: 0,
-            next_ts: params.first_ts,
-            remaining_output_batch_size: output_batch_size,
-        };
+        let mut cursor = new_cursor_with_batch_size(&params, output_batch_size);
 
         let out_times = cursor
             .build_time_vec(&params, &[series], &input_times)
@@ -673,14 +645,7 @@ mod tests {
             out_times
         );
 
-        assert_eq!(
-            Cursor {
-                next_input_offset: input_times.len(),
-                next_ts: Some(params.last_ts + params.stride),
-                remaining_output_batch_size: output_batch_size - 4
-            },
-            cursor
-        );
+        assert_cursor_end_state(&cursor, &input_times, &params);
     }
 
     #[test]
@@ -698,11 +663,7 @@ mod tests {
         };
 
         let output_batch_size = 10000;
-        let mut cursor = Cursor {
-            next_input_offset: 0,
-            next_ts: params.first_ts,
-            remaining_output_batch_size: output_batch_size,
-        };
+        let mut cursor = new_cursor_with_batch_size(&params, output_batch_size);
         let out_times = cursor.build_time_vec(&params, &[series], &input_times)?;
         assert_eq!(
             vec![
@@ -719,14 +680,7 @@ mod tests {
             out_times
         );
 
-        assert_eq!(
-            Cursor {
-                next_input_offset: input_times.len(),
-                next_ts: Some(params.last_ts + params.stride),
-                remaining_output_batch_size: output_batch_size - 9
-            },
-            cursor
-        );
+        assert_cursor_end_state(&cursor, &input_times, &params);
 
         Ok(())
     }
@@ -744,22 +698,11 @@ mod tests {
         };
 
         let output_batch_size = 10000;
-        let mut cursor = Cursor {
-            next_input_offset: 0,
-            next_ts: params.first_ts,
-            remaining_output_batch_size: output_batch_size,
-        };
+        let mut cursor = new_cursor_with_batch_size(&params, output_batch_size);
         let take_idxs = cursor.build_group_take_vec(&params, &[series], &input_times)?;
         assert_eq!(vec![2; 7], take_idxs);
 
-        assert_eq!(
-            Cursor {
-                next_input_offset: input_times.len(),
-                next_ts: Some(params.last_ts + params.stride),
-                remaining_output_batch_size: output_batch_size - 7
-            },
-            cursor
-        );
+        assert_cursor_end_state(&cursor, &input_times, &params);
 
         Ok(())
     }
@@ -777,11 +720,7 @@ mod tests {
         };
 
         let output_batch_size = 10000;
-        let mut cursor = Cursor {
-            next_input_offset: 0,
-            next_ts: params.first_ts,
-            remaining_output_batch_size: output_batch_size,
-        };
+        let mut cursor = new_cursor_with_batch_size(&params, output_batch_size);
 
         let take_idxs = cursor.build_aggr_take_vec_fill_null(&params, &[series], &input_times)?;
         assert_eq!(
@@ -789,14 +728,7 @@ mod tests {
             take_idxs
         );
 
-        assert_eq!(
-            Cursor {
-                next_input_offset: input_times.len(),
-                next_ts: Some(params.last_ts + params.stride),
-                remaining_output_batch_size: output_batch_size - 7
-            },
-            cursor
-        );
+        assert_cursor_end_state(&cursor, &input_times, &params);
 
         Ok(())
     }
@@ -816,11 +748,7 @@ mod tests {
         };
 
         let output_batch_size = 10000;
-        let mut cursor = Cursor {
-            next_input_offset: 0,
-            next_ts: params.first_ts,
-            remaining_output_batch_size: output_batch_size,
-        };
+        let mut cursor = new_cursor_with_batch_size(&params, output_batch_size);
 
         let take_idxs = cursor.build_aggr_take_vec_fill_null(&params, &[series], &input_times)?;
         assert_eq!(
@@ -838,14 +766,7 @@ mod tests {
             take_idxs
         );
 
-        assert_eq!(
-            Cursor {
-                next_input_offset: input_times.len(),
-                next_ts: Some(params.last_ts + params.stride),
-                remaining_output_batch_size: output_batch_size - 9
-            },
-            cursor
-        );
+        assert_cursor_end_state(&cursor, &input_times, &params);
 
         Ok(())
     }
@@ -869,11 +790,7 @@ mod tests {
         ]);
         let series = input_times.len();
 
-        let mut cursor = Cursor {
-            next_input_offset: 0,
-            next_ts: params.first_ts,
-            remaining_output_batch_size: output_batch_size,
-        };
+        let mut cursor = new_cursor_with_batch_size(&params, output_batch_size);
         assert_eq!(
             9,
             cursor_series_output_row_count(&params, &cursor, series, &input_times)
@@ -892,15 +809,6 @@ mod tests {
             },
         )?;
 
-        assert_eq!(
-            Cursor {
-                next_input_offset: 2,
-                next_ts: Some(1200),
-                remaining_output_batch_size: 0
-            },
-            cursor
-        );
-
         cursor.remaining_output_batch_size = output_batch_size;
         assert_cursor_output(
             "second batch",
@@ -915,14 +823,7 @@ mod tests {
             },
         )?;
 
-        assert_eq!(
-            Cursor {
-                next_input_offset: input_times.len(),
-                next_ts: Some(params.last_ts + params.stride),
-                remaining_output_batch_size: 1
-            },
-            cursor
-        );
+        assert_cursor_end_state(&cursor, &input_times, &params);
 
         Ok(())
     }
@@ -952,11 +853,7 @@ mod tests {
             // 1350
         ]);
         let series = input_times.len();
-        let mut cursor = Cursor {
-            next_input_offset: 0,
-            next_ts: params.first_ts,
-            remaining_output_batch_size: output_batch_size,
-        };
+        let mut cursor = new_cursor_with_batch_size(&params, output_batch_size);
         assert_eq!(
             11,
             cursor_series_output_row_count(&params, &cursor, series, &input_times)
@@ -976,15 +873,6 @@ mod tests {
             },
         )?;
 
-        assert_eq!(
-            Cursor {
-                next_input_offset: 4,
-                next_ts: Some(1150),
-                remaining_output_batch_size: 0
-            },
-            cursor
-        );
-
         cursor.remaining_output_batch_size = output_batch_size;
         assert_cursor_output(
             "second batch",
@@ -998,14 +886,7 @@ mod tests {
                 aggr_take: vec![None, Some(4), None, Some(5), None],
             },
         )?;
-        assert_eq!(
-            Cursor {
-                next_input_offset: input_times.len(),
-                next_ts: Some(params.last_ts + params.stride),
-                remaining_output_batch_size: 1
-            },
-            cursor
-        );
+        assert_cursor_end_state(&cursor, &input_times, &params);
         Ok(())
     }
 
@@ -1032,11 +913,7 @@ mod tests {
         ]);
         let series = input_times.len();
 
-        let mut cursor = Cursor {
-            next_input_offset: 0,
-            next_ts: params.first_ts,
-            remaining_output_batch_size: output_batch_size,
-        };
+        let mut cursor = new_cursor_with_batch_size(&params, output_batch_size);
         assert_eq!(
             7,
             cursor_series_output_row_count(&params, &cursor, series, &input_times)
@@ -1056,15 +933,6 @@ mod tests {
             },
         )?;
 
-        assert_eq!(
-            Cursor {
-                next_input_offset: 4,
-                next_ts: Some(1000),
-                remaining_output_batch_size: 0
-            },
-            cursor
-        );
-
         cursor.remaining_output_batch_size = output_batch_size;
         assert_cursor_output(
             "second batch",
@@ -1079,14 +947,7 @@ mod tests {
             },
         )?;
 
-        assert_eq!(
-            Cursor {
-                next_input_offset: input_times.len(),
-                next_ts: Some(params.last_ts + params.stride),
-                remaining_output_batch_size: 1
-            },
-            cursor,
-        );
+        assert_cursor_end_state(&cursor, &input_times, &params);
 
         Ok(())
     }
@@ -1117,11 +978,7 @@ mod tests {
         ]);
         let series = input_times.len();
 
-        let mut cursor = Cursor {
-            next_input_offset: 0,
-            next_ts: params.first_ts,
-            remaining_output_batch_size: output_batch_size,
-        };
+        let mut cursor = new_cursor_with_batch_size(&params, output_batch_size);
         assert_eq!(
             8,
             cursor_series_output_row_count(&params, &cursor, series, &input_times)
@@ -1140,15 +997,6 @@ mod tests {
             },
         )?;
 
-        assert_eq!(
-            Cursor {
-                next_input_offset: 4,
-                next_ts: Some(1000),
-                remaining_output_batch_size: 0
-            },
-            cursor
-        );
-
         cursor.remaining_output_batch_size = output_batch_size;
         assert_cursor_output(
             "second batch",
@@ -1163,14 +1011,7 @@ mod tests {
             },
         )?;
 
-        assert_eq!(
-            Cursor {
-                next_input_offset: input_times.len(),
-                next_ts: Some(params.last_ts + params.stride),
-                remaining_output_batch_size: 0
-            },
-            cursor,
-        );
+        assert_cursor_end_state(&cursor, &input_times, &params);
 
         Ok(())
     }
@@ -1189,11 +1030,7 @@ mod tests {
         let input_times = TimestampNanosecondArray::from(vec![300, 500, 700, 800]);
         let series = input_times.len();
 
-        let mut cursor = Cursor {
-            next_input_offset: 0,
-            next_ts: params.first_ts,
-            remaining_output_batch_size: output_batch_size,
-        };
+        let mut cursor = new_cursor_with_batch_size(&params, output_batch_size);
         assert_eq!(
             9,
             cursor_series_output_row_count(&params, &cursor, series, &input_times)
@@ -1212,15 +1049,6 @@ mod tests {
             },
         )?;
 
-        assert_eq!(
-            Cursor {
-                next_input_offset: 1,
-                next_ts: Some(500),
-                remaining_output_batch_size: 0
-            },
-            cursor
-        );
-
         cursor.remaining_output_batch_size = output_batch_size;
         assert_cursor_output(
             "second batch",
@@ -1234,15 +1062,6 @@ mod tests {
                 aggr_take: vec![Some(1), None, Some(2)],
             },
         )?;
-
-        assert_eq!(
-            Cursor {
-                next_input_offset: 3,
-                next_ts: Some(800),
-                remaining_output_batch_size: 0
-            },
-            cursor
-        );
 
         cursor.remaining_output_batch_size = output_batch_size;
         assert_cursor_output(
@@ -1258,14 +1077,7 @@ mod tests {
             },
         )?;
 
-        assert_eq!(
-            Cursor {
-                next_input_offset: input_times.len(),
-                next_ts: Some(params.last_ts + params.stride),
-                remaining_output_batch_size: 0
-            },
-            cursor
-        );
+        assert_cursor_end_state(&cursor, &input_times, &params);
 
         Ok(())
     }
@@ -1291,11 +1103,7 @@ mod tests {
         let series0 = 3;
         let series1 = 7;
 
-        let mut cursor = Cursor {
-            next_input_offset: 0,
-            next_ts: params.first_ts,
-            remaining_output_batch_size: output_batch_size,
-        };
+        let mut cursor = new_cursor_with_batch_size(&params, output_batch_size);
         assert_eq!(
             5,
             cursor_series_output_row_count(&params, &cursor, series0, &input_times)
@@ -1314,15 +1122,6 @@ mod tests {
             },
         )?;
 
-        assert_eq!(
-            Cursor {
-                next_input_offset: 2,
-                next_ts: Some(1200),
-                remaining_output_batch_size: 0
-            },
-            cursor
-        );
-
         cursor.remaining_output_batch_size = output_batch_size;
         assert_cursor_output(
             "second batch, first series",
@@ -1336,15 +1135,6 @@ mod tests {
                 aggr_take: vec![Some(2)],
             },
         )?;
-
-        assert_eq!(
-            Cursor {
-                next_input_offset: 3,
-                next_ts: Some(params.last_ts + params.stride),
-                remaining_output_batch_size: 3
-            },
-            cursor
-        );
 
         cursor.next_ts = params.first_ts;
 
@@ -1361,15 +1151,6 @@ mod tests {
             },
         )?;
 
-        assert_eq!(
-            Cursor {
-                next_input_offset: 5,
-                next_ts: Some(1150),
-                remaining_output_batch_size: 0
-            },
-            cursor
-        );
-
         cursor.remaining_output_batch_size = output_batch_size;
         assert_cursor_output(
             "third batch, second series",
@@ -1384,16 +1165,24 @@ mod tests {
             },
         )?;
 
-        assert_eq!(
-            Cursor {
-                next_input_offset: 7,
-                next_ts: Some(1250),
-                remaining_output_batch_size: 2
-            },
-            cursor
-        );
+        assert_cursor_end_state(&cursor, &input_times, &params);
 
         Ok(())
+    }
+
+    fn new_cursor_with_batch_size(params: &GapFillParams, batch_size: usize) -> Cursor {
+        let mut cursor = Cursor::new(params);
+        cursor.remaining_output_batch_size = batch_size;
+        cursor
+    }
+
+    fn assert_cursor_end_state(
+        cursor: &Cursor,
+        input_times: &TimestampNanosecondArray,
+        params: &GapFillParams,
+    ) {
+        assert_eq!(input_times.len(), cursor.next_input_offset);
+        assert_eq!(params.last_ts + params.stride, cursor.next_ts.unwrap());
     }
 
     fn cursor_series_output_row_count(
@@ -1403,7 +1192,9 @@ mod tests {
         input_times: &TimestampNanosecondArray,
     ) -> usize {
         let mut cursor = cursor.clone();
-        cursor.count_series_rows(params, input_times, series_end)
+        cursor
+            .count_series_rows(params, input_times, series_end)
+            .unwrap()
     }
 
     fn simple_fill_strategy() -> HashMap<usize, FillStrategy> {
