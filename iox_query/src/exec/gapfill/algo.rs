@@ -365,20 +365,28 @@ impl Cursor {
         series_ends: &[usize],
         input_time_array: &TimestampNanosecondArray,
     ) -> Result<Vec<Option<i64>>> {
-        let mut times = Vec::with_capacity(self.remaining_output_batch_size);
-        self.build_vec(
-            params,
-            input_time_array,
-            series_ends,
-            |row_status| match row_status {
-                RowStatus::NullTimestamp { .. } => times.push(None),
-                RowStatus::Present { ts, .. } | RowStatus::Missing { ts, .. } => {
-                    times.push(Some(ts))
-                }
-            },
-        )?;
+        struct TimeBuilder {
+            times: Vec<Option<i64>>,
+        }
 
-        Ok(times)
+        impl VecBuilder for TimeBuilder {
+            fn push(&mut self, row_status: RowStatus) -> Result<()> {
+                match row_status {
+                    RowStatus::NullTimestamp { .. } => self.times.push(None),
+                    RowStatus::Present { ts, .. } | RowStatus::Missing { ts, .. } => {
+                        self.times.push(Some(ts))
+                    }
+                }
+                Ok(())
+            }
+        }
+
+        let mut time_builder = TimeBuilder {
+            times: Vec::with_capacity(self.remaining_output_batch_size),
+        };
+        self.build_vec(params, input_time_array, series_ends, &mut time_builder)?;
+
+        Ok(time_builder.times)
     }
 
     /// Builds a vector that can use the [`take`](take::take) kernel
@@ -389,25 +397,33 @@ impl Cursor {
         series_ends: &[usize],
         input_time_array: &TimestampNanosecondArray,
     ) -> Result<Vec<u64>> {
-        let mut take_idxs = Vec::with_capacity(self.remaining_output_batch_size);
-        self.build_vec(
-            params,
-            input_time_array,
-            series_ends,
-            |row_status| match row_status {
-                RowStatus::NullTimestamp {
-                    series_end_offset, ..
-                }
-                | RowStatus::Present {
-                    series_end_offset, ..
-                }
-                | RowStatus::Missing {
-                    series_end_offset, ..
-                } => take_idxs.push(series_end_offset as u64 - 1),
-            },
-        )?;
+        struct GroupBuilder {
+            take_idxs: Vec<u64>,
+        }
 
-        Ok(take_idxs)
+        impl VecBuilder for GroupBuilder {
+            fn push(&mut self, row_status: RowStatus) -> Result<()> {
+                match row_status {
+                    RowStatus::NullTimestamp {
+                        series_end_offset, ..
+                    }
+                    | RowStatus::Present {
+                        series_end_offset, ..
+                    }
+                    | RowStatus::Missing {
+                        series_end_offset, ..
+                    } => self.take_idxs.push(series_end_offset as u64 - 1),
+                }
+                Ok(())
+            }
+        }
+
+        let mut group_builder = GroupBuilder {
+            take_idxs: Vec::with_capacity(self.remaining_output_batch_size),
+        };
+        self.build_vec(params, input_time_array, series_ends, &mut group_builder)?;
+
+        Ok(group_builder.take_idxs)
     }
 
     /// Builds a vector that can use the [`take`](take::take) kernel
@@ -418,44 +434,50 @@ impl Cursor {
         series_ends: &[usize],
         input_time_array: &TimestampNanosecondArray,
     ) -> Result<Vec<Option<u64>>> {
-        let mut take_idxs = Vec::with_capacity(self.remaining_output_batch_size);
-        self.build_vec(
-            params,
-            input_time_array,
-            series_ends,
-            |row_status| match row_status {
-                RowStatus::NullTimestamp { offset, .. } | RowStatus::Present { offset, .. } => {
-                    take_idxs.push(Some(offset as u64))
-                }
-                RowStatus::Missing { .. } => take_idxs.push(None),
-            },
-        )?;
+        struct AggrBuilder {
+            take_idxs: Vec<Option<u64>>,
+        }
 
-        Ok(take_idxs)
+        impl VecBuilder for AggrBuilder {
+            fn push(&mut self, row_status: RowStatus) -> Result<()> {
+                match row_status {
+                    RowStatus::NullTimestamp { offset, .. } | RowStatus::Present { offset, .. } => {
+                        self.take_idxs.push(Some(offset as u64))
+                    }
+                    RowStatus::Missing { .. } => self.take_idxs.push(None),
+                }
+                Ok(())
+            }
+        }
+
+        let mut aggr_builder = AggrBuilder {
+            take_idxs: Vec::with_capacity(self.remaining_output_batch_size),
+        };
+        self.build_vec(params, input_time_array, series_ends, &mut aggr_builder)?;
+
+        Ok(aggr_builder.take_idxs)
     }
 
     /// Helper method that iterates over each series
     /// that ends with offsets in `series_ends` and produces
     /// the appropriate output values.
-    fn build_vec<F>(
+    fn build_vec(
         &mut self,
         params: &GapFillParams,
         input_time_array: &TimestampNanosecondArray,
         series_ends: &[usize],
-        mut f: F,
-    ) -> Result<()>
-    where
-        F: FnMut(RowStatus),
-    {
+        vec_builder: &mut impl VecBuilder,
+    ) -> Result<()> {
         for series in series_ends.iter() {
             if self
                 .next_ts
                 .map_or(false, |next_ts| next_ts > params.last_ts)
             {
+                vec_builder.start_new_series()?;
                 self.next_ts = params.first_ts;
             }
 
-            self.append_series_items(params, input_time_array, *series, &mut f)?;
+            self.append_series_items(params, input_time_array, *series, vec_builder)?;
         }
 
         let last_series_end = series_ends.last().ok_or(DataFusionError::Internal(
@@ -470,17 +492,14 @@ impl Cursor {
     }
 
     /// Helper method that generates output for one series by invoking
-    /// `append` for each output value in the column to be generated.
-    fn append_series_items<F>(
+    /// [VecBuilder::push] for each output value in the column to be generated.
+    fn append_series_items(
         &mut self,
         params: &GapFillParams,
         input_times: &TimestampNanosecondArray,
         series_end: usize,
-        mut append: F,
-    ) -> Result<()>
-    where
-        F: FnMut(RowStatus),
-    {
+        vec_builder: &mut impl VecBuilder,
+    ) -> Result<()> {
         // If there are any null timestamps for this group, they will be first.
         // These rows can just be copied into the output.
         // Append the corresponding values.
@@ -488,10 +507,10 @@ impl Cursor {
             && self.next_input_offset < series_end
             && input_times.is_null(self.next_input_offset)
         {
-            append(RowStatus::NullTimestamp {
+            vec_builder.push(RowStatus::NullTimestamp {
                 series_end_offset: series_end,
                 offset: self.next_input_offset,
-            });
+            })?;
             self.remaining_output_batch_size -= 1;
             self.next_input_offset += 1;
         }
@@ -521,32 +540,45 @@ impl Cursor {
                 break;
             }
             while next_ts < in_ts {
-                append(RowStatus::Missing {
+                vec_builder.push(RowStatus::Missing {
                     series_end_offset: series_end,
                     ts: next_ts,
-                });
+                })?;
                 next_ts += params.stride;
             }
-            append(RowStatus::Present {
+            vec_builder.push(RowStatus::Present {
                 series_end_offset: series_end,
                 offset: self.next_input_offset,
                 ts: next_ts,
-            });
+            })?;
             next_ts += params.stride;
             self.next_input_offset += 1;
         }
 
         // Add any additional missing values after the last of the input.
         while next_ts <= last_ts {
-            append(RowStatus::Missing {
+            vec_builder.push(RowStatus::Missing {
                 series_end_offset: series_end,
                 ts: next_ts,
-            });
+            })?;
             next_ts += params.stride;
         }
 
         self.next_ts = Some(last_ts + params.stride);
         self.remaining_output_batch_size -= output_row_count;
+        Ok(())
+    }
+}
+
+/// A trait that lets implementors describe how to build the
+/// vectors used to create Arrow arrays in the output.
+trait VecBuilder {
+    /// Pushes a new value based on the output row's
+    /// relation to the input row.
+    fn push(&mut self, _: RowStatus) -> Result<()>;
+
+    /// Called just before a new series starts.
+    fn start_new_series(&mut self) -> Result<()> {
         Ok(())
     }
 }
