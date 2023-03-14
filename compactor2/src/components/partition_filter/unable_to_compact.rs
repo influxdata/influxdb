@@ -39,12 +39,10 @@ impl PartitionFilter for UnableToCompactPartitionFilter {
             Ok(true)
         } else {
             // No files means the split_compact cannot find any reasonable set of files to compact or split
-            // TODO: after https://github.com/influxdata/idpe/issues/17208 that renames the size limit and
-            // https://github.com/influxdata/idpe/issues/17209 for modifying the knobs, this message should be modified accordingly
             Err(SimpleError::new(
                 ErrorKind::OutOfMemory,
                 format!(
-                    "partition {} has overlapped files that exceed max compact size limit {}. The may happen if a large amount of data has the same timestamp",
+                    "partition {} has overlapped files that exceed max compact size limit {}. This may happen if a large amount of data has the same timestamp",
                     partition_info.partition_id, self.max_parquet_bytes
                 ),
             )
@@ -78,7 +76,7 @@ mod tests {
         assert_eq!(err.classify(), ErrorKind::OutOfMemory);
         assert_eq!(
             err.to_string(),
-            "partition 1 has overlapped files that exceed max compact size limit 10. The may happen if a large amount of data has the same timestamp"
+            "partition 1 has overlapped files that exceed max compact size limit 10. This may happen if a large amount of data has the same timestamp"
         );
     }
 

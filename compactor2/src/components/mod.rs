@@ -54,7 +54,7 @@ pub struct Components {
     /// stop condition for completing a partition compaction
     pub partition_filter: Arc<dyn PartitionFilter>,
     /// condition to avoid running out of resources during compaction
-    pub partition_resource_limit_filter: Arc<dyn PartitionFilter>,
+    pub partition_too_large_to_compact_filter: Arc<dyn PartitionFilter>,
     /// Records "partition is done" status for given partition.
     pub partition_done_sink: Arc<dyn PartitionDoneSink>,
     /// Commits changes (i.e. deletion and creation) to the catalog.
