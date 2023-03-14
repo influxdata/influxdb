@@ -5,10 +5,11 @@ use data_types::{CompactionLevel, ParquetFile};
 use crate::{file_classification::FilesToCompactOrSplit, PartitionInfo};
 
 pub mod files_to_compact;
-pub mod files_to_split;
+pub mod large_files_to_split;
 pub mod logging;
 pub mod metrics;
 pub mod split_compact;
+pub mod start_level_files_to_split;
 
 pub trait SplitOrCompact: Debug + Display + Send + Sync {
     /// Return (`[files_to_split_or_compact]`, `[files_to_keep]`) of given files

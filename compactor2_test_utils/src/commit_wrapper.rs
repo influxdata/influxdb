@@ -63,11 +63,7 @@ impl Commit for CommitRecorder {
             }
 
             if !create.is_empty() {
-                run_log.push(format!(
-                    "  Creating {} files at level {}",
-                    create.len(),
-                    target_level
-                ));
+                run_log.push(format!("  Creating {} files", create.len()));
             }
         }
         let output_files = self

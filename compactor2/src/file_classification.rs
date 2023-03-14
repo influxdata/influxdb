@@ -100,20 +100,19 @@ impl FilesToCompactOrSplit {
         }
     }
 
+    // return split times of files to split
+    pub fn split_times(&self) -> Vec<Vec<i64>> {
+        match self {
+            Self::FilesToCompact(_) => vec![],
+            Self::FilesToSplit(files) => files.iter().map(|f| f.split_times.clone()).collect(),
+        }
+    }
+
     /// Return files of either type
     pub fn files(&self) -> Vec<ParquetFile> {
         match self {
             Self::FilesToCompact(files) => files.clone(),
             Self::FilesToSplit(files) => files.iter().map(|f| f.file.clone()).collect(),
-        }
-    }
-
-    // Returns target level of the files which the compaction level of spit files if any
-    // or the given target level
-    pub fn target_level(&self, target_level: CompactionLevel) -> CompactionLevel {
-        match self {
-            Self::FilesToCompact(_) => target_level,
-            Self::FilesToSplit(files) => files[0].file.compaction_level,
         }
     }
 }

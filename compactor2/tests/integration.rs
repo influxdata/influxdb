@@ -34,7 +34,7 @@ async fn test_num_files_over_limit() {
         .await
         // Set max num file to 4 (< num files) --> many L0s files, comppact 4 L0s into 2 L0s
         .with_max_num_files_per_plan(4)
-        // Not compact L1s into L2s becasue tnumber of L1s < 5
+        // Not compact L1s into L2s because tnumber of L1s < 5
         .with_min_num_l1_files_to_compact(5)
         .build()
         .await;

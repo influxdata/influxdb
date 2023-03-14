@@ -196,7 +196,7 @@ async fn many_medium_files() {
     - "L1.?[100,100] 1ns        |------------------------------------------L1.?------------------------------------------|"
     - "Committing partition 1:"
     - "  Soft Deleting 8 files: L0.13, L0.14, L0.15, L0.16, L0.17, L0.18, L0.19, L0.20"
-    - "  Creating 1 files at level CompactionLevel::L1"
+    - "  Creating 1 files"
     - "SKIPPED COMPACTION for PartitionId(1): partition 1 has overlapped files that exceed max compact size limit 268435456. This may happen if a large amount of data has the same timestamp"
     - "**** Final Output Files "
     - "L0                                                                                                                 "
@@ -282,7 +282,7 @@ async fn many_medium_files_time_range_1() {
     - "L1.?[100,101] 1ns        |------------------------------------------L1.?------------------------------------------|"
     - "Committing partition 1:"
     - "  Soft Deleting 8 files: L0.13, L0.14, L0.15, L0.16, L0.17, L0.18, L0.19, L0.20"
-    - "  Creating 1 files at level CompactionLevel::L1"
+    - "  Creating 1 files"
     - "SKIPPED COMPACTION for PartitionId(1): partition 1 has overlapped files that exceed max compact size limit 268435456. This may happen if a large amount of data has the same timestamp"
     - "**** Final Output Files "
     - "L0                                                                                                                 "
@@ -326,7 +326,7 @@ async fn many_small_files() {
             .await;
     }
 
-    // L0s are compacted into a single L1 file. It can't be split becasue of single timestamp
+    // L0s are compacted into a single L1 file. It can't be split because of single timestamp
     // Then the L1 is large enough to get upgraded to L2
     insta::assert_yaml_snapshot!(
         run_layout_scenario(&setup).await,
@@ -381,7 +381,7 @@ async fn many_small_files() {
     - "L1.?[100,100] 1ns        |------------------------------------------L1.?------------------------------------------|"
     - "Committing partition 1:"
     - "  Soft Deleting 20 files: L0.1, L0.2, L0.3, L0.4, L0.5, L0.6, L0.7, L0.8, L0.9, L0.10, L0.11, L0.12, L0.13, L0.14, L0.15, L0.16, L0.17, L0.18, L0.19, L0.20"
-    - "  Creating 1 files at level CompactionLevel::L1"
+    - "  Creating 1 files"
     - "Committing partition 1:"
     - "  Upgrading 1 files level to CompactionLevel::L2: L1.21"
     - "**** Final Output Files "

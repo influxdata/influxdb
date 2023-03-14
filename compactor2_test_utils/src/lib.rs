@@ -781,7 +781,8 @@ pub struct TestTimes {
 }
 
 impl TestTimes {
-    fn new(time_provider: &dyn TimeProvider) -> Self {
+    /// Create a new instance
+    pub fn new(time_provider: &dyn TimeProvider) -> Self {
         let time_1_minute_future = time_provider.minutes_into_future(1).timestamp_nanos();
         let time_2_minutes_future = time_provider.minutes_into_future(2).timestamp_nanos();
         let time_3_minutes_future = time_provider.minutes_into_future(3).timestamp_nanos();
@@ -964,6 +965,32 @@ pub fn create_l2_files() -> Vec<ParquetFile> {
 
     // Put the files in random order
     vec![l2_1, l2_2]
+}
+
+/// This setup will return files with ranges as follows:
+///                   |--L1.1--|
+///                       |--L0.1--|
+pub fn create_overlapped_two_overlapped_files(size: i64) -> Vec<ParquetFile> {
+    let time_provider = Arc::new(MockProvider::new(Time::from_timestamp(0, 0).unwrap()));
+    let time = TestTimes::new(&time_provider);
+
+    let l1_1 = ParquetFileBuilder::new(11)
+        .with_compaction_level(CompactionLevel::FileNonOverlapped)
+        .with_time_range(400, 500)
+        .with_file_size_bytes(size)
+        .with_max_l0_created_at(time.time_1_minute_future)
+        .build();
+
+    // L0_1 overlaps with L1_1
+    let l0_1 = ParquetFileBuilder::new(1)
+        .with_compaction_level(CompactionLevel::Initial)
+        .with_time_range(450, 620)
+        .with_file_size_bytes(size)
+        .with_max_l0_created_at(time.time_2_minutes_future)
+        .build();
+
+    // Put the files in random order
+    vec![l1_1, l0_1]
 }
 
 /// This setup will return files with ranges as follows:

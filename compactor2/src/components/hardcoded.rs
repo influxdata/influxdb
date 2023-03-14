@@ -318,7 +318,7 @@ pub fn hardcoded_components(config: &Config) -> Arc<Components> {
                 NonOverlapSplit::new(),
                 UpgradeSplit::new(config.max_desired_file_size_bytes),
                 LoggingSplitOrCompactWrapper::new(MetricsSplitOrCompactWrapper::new(
-                    SplitCompact::new(config.max_compact_size),
+                    SplitCompact::new(config.max_compact_size, config.max_desired_file_size_bytes),
                     &config.metric_registry,
                 )),
             ),
