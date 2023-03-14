@@ -55,7 +55,9 @@ func (p *prometheusScraper) parse(r io.Reader, header http.Header, target influx
 	now := time.Now()
 
 	mediatype, params, err := mime.ParseMediaType(header.Get("Content-Type"))
-	if err != nil {
+	if err != nil && err.Error() == "mime: no media type" {
+		mediatype = "text/plain"
+	} else if err != nil {
 		return collected, err
 	}
 	// Prepare output
