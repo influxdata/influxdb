@@ -156,10 +156,6 @@ where
                 .apply(partition_info, files_to_compact, target_level);
         files_to_keep.extend(other_files);
 
-        // Target level of split files is the same level of the input files all of which are in the same level,
-        // while target level of compact files is the value of the target_level which is the higested level of the input files
-        let target_level = files_to_compact_or_split.target_level(target_level);
-
         FileClassification {
             target_level,
             files_to_compact_or_split,

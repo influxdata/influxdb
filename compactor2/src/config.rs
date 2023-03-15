@@ -10,6 +10,12 @@ use parquet_file::storage::ParquetStorage;
 
 use crate::components::{commit::CommitWrapper, parquet_files_sink::ParquetFilesSink};
 
+/// Multiple from `max_desired_file_size_bytes` to compute the minimum value for
+/// `max_compact_size_bytes`. Since `max_desired_file_size_bytes` is softly enforced, actual file
+/// sizes can exceed it. A single compaction job must be able to compact > 1 max sized file, so the
+/// multiple should be at least 3.
+const MIN_COMPACT_SIZE_MULTIPLE: usize = 3;
+
 /// Config to set up a compactor.
 #[derive(Debug, Clone)]
 pub struct Config {
@@ -91,10 +97,6 @@ pub struct Config {
     /// This is mostly useful for debugging.
     pub ignore_partition_skip_marker: bool,
 
-    /// Maximum input bytes (from parquet files) per compaction. If there is more data, we ignore
-    /// the partition (for now) as a self-protection mechanism.
-    pub max_compact_size: usize,
-
     /// Shard config (if sharding should be enabled).
     pub shard_config: Option<ShardConfig>,
 
@@ -137,6 +139,12 @@ pub struct Config {
 }
 
 impl Config {
+    /// Maximum input bytes (from parquet files) per compaction. If there is more data, we ignore
+    /// the partition (for now) as a self-protection mechanism.
+    pub fn max_compact_size_bytes(&self) -> usize {
+        self.max_desired_file_size_bytes as usize * MIN_COMPACT_SIZE_MULTIPLE
+    }
+
     /// Fetch shard ID.
     ///
     /// This is likely required to construct a [`Config`] object.

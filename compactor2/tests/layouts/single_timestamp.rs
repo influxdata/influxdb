@@ -80,7 +80,7 @@ async fn two_giant_files() {
     - "L0.2[100,100] 1ns        |------------------------------------------L0.2------------------------------------------|"
     - "WARNING: file L0.1[100,100] 1ns 4.88gb exceeds soft limit 100mb by more than 50%"
     - "WARNING: file L0.2[100,100] 1ns 4.88gb exceeds soft limit 100mb by more than 50%"
-    - "SKIPPED COMPACTION for PartitionId(1): partition 1 has overlapped files that exceed max compact size limit 268435456. This may happen if a large amount of data has the same timestamp"
+    - "SKIPPED COMPACTION for PartitionId(1): partition 1 has overlapped files that exceed max compact size limit 314572800. This may happen if a large amount of data has the same timestamp"
     - "**** Final Output Files "
     - "L0, all files 4.88gb                                                                                               "
     - "L0.1[100,100] 1ns        |------------------------------------------L0.1------------------------------------------|"
@@ -122,7 +122,7 @@ async fn two_giant_files_time_range_1() {
     - "L0.2[100,101] 1ns        |------------------------------------------L0.2------------------------------------------|"
     - "WARNING: file L0.1[100,101] 1ns 4.88gb exceeds soft limit 100mb by more than 50%"
     - "WARNING: file L0.2[100,101] 1ns 4.88gb exceeds soft limit 100mb by more than 50%"
-    - "SKIPPED COMPACTION for PartitionId(1): partition 1 has overlapped files that exceed max compact size limit 268435456. This may happen if a large amount of data has the same timestamp"
+    - "SKIPPED COMPACTION for PartitionId(1): partition 1 has overlapped files that exceed max compact size limit 314572800. This may happen if a large amount of data has the same timestamp"
     - "**** Final Output Files "
     - "L0, all files 4.88gb                                                                                               "
     - "L0.1[100,101] 1ns        |------------------------------------------L0.1------------------------------------------|"
@@ -181,7 +181,7 @@ async fn many_medium_files() {
     - "L0.18[100,100] 1ns       |-----------------------------------------L0.18------------------------------------------|"
     - "L0.19[100,100] 1ns       |-----------------------------------------L0.19------------------------------------------|"
     - "L0.20[100,100] 1ns       |-----------------------------------------L0.20------------------------------------------|"
-    - "**** Simulation run 0, type=compact. 8 Input Files, 240mb total:"
+    - "**** Simulation run 0, type=compact. 10 Input Files, 300mb total:"
     - "L0, all files 30mb                                                                                                 "
     - "L0.20[100,100] 1ns       |-----------------------------------------L0.20------------------------------------------|"
     - "L0.19[100,100] 1ns       |-----------------------------------------L0.19------------------------------------------|"
@@ -191,13 +191,15 @@ async fn many_medium_files() {
     - "L0.15[100,100] 1ns       |-----------------------------------------L0.15------------------------------------------|"
     - "L0.14[100,100] 1ns       |-----------------------------------------L0.14------------------------------------------|"
     - "L0.13[100,100] 1ns       |-----------------------------------------L0.13------------------------------------------|"
-    - "**** 1 Output Files (parquet_file_id not yet assigned), 240mb total:"
-    - "L1, all files 240mb                                                                                                "
+    - "L0.12[100,100] 1ns       |-----------------------------------------L0.12------------------------------------------|"
+    - "L0.11[100,100] 1ns       |-----------------------------------------L0.11------------------------------------------|"
+    - "**** 1 Output Files (parquet_file_id not yet assigned), 300mb total:"
+    - "L1, all files 300mb                                                                                                "
     - "L1.?[100,100] 1ns        |------------------------------------------L1.?------------------------------------------|"
     - "Committing partition 1:"
-    - "  Soft Deleting 8 files: L0.13, L0.14, L0.15, L0.16, L0.17, L0.18, L0.19, L0.20"
-    - "  Creating 1 files at level CompactionLevel::L1"
-    - "SKIPPED COMPACTION for PartitionId(1): partition 1 has overlapped files that exceed max compact size limit 268435456. This may happen if a large amount of data has the same timestamp"
+    - "  Soft Deleting 10 files: L0.11, L0.12, L0.13, L0.14, L0.15, L0.16, L0.17, L0.18, L0.19, L0.20"
+    - "  Creating 1 files"
+    - "SKIPPED COMPACTION for PartitionId(1): partition 1 has overlapped files that exceed max compact size limit 314572800. This may happen if a large amount of data has the same timestamp"
     - "**** Final Output Files "
     - "L0                                                                                                                 "
     - "L0.1[100,100] 1ns 30mb   |------------------------------------------L0.1------------------------------------------|"
@@ -210,11 +212,9 @@ async fn many_medium_files() {
     - "L0.8[100,100] 1ns 30mb   |------------------------------------------L0.8------------------------------------------|"
     - "L0.9[100,100] 1ns 30mb   |------------------------------------------L0.9------------------------------------------|"
     - "L0.10[100,100] 1ns 30mb  |-----------------------------------------L0.10------------------------------------------|"
-    - "L0.11[100,100] 1ns 30mb  |-----------------------------------------L0.11------------------------------------------|"
-    - "L0.12[100,100] 1ns 30mb  |-----------------------------------------L0.12------------------------------------------|"
     - "L1                                                                                                                 "
-    - "L1.21[100,100] 1ns 240mb |-----------------------------------------L1.21------------------------------------------|"
-    - "WARNING: file L1.21[100,100] 1ns 240mb exceeds soft limit 100mb by more than 50%"
+    - "L1.21[100,100] 1ns 300mb |-----------------------------------------L1.21------------------------------------------|"
+    - "WARNING: file L1.21[100,100] 1ns 300mb exceeds soft limit 100mb by more than 50%"
     "###
     );
 }
@@ -267,7 +267,7 @@ async fn many_medium_files_time_range_1() {
     - "L0.18[100,101] 1ns       |-----------------------------------------L0.18------------------------------------------|"
     - "L0.19[100,101] 1ns       |-----------------------------------------L0.19------------------------------------------|"
     - "L0.20[100,101] 1ns       |-----------------------------------------L0.20------------------------------------------|"
-    - "**** Simulation run 0, type=compact. 8 Input Files, 240mb total:"
+    - "**** Simulation run 0, type=compact. 10 Input Files, 300mb total:"
     - "L0, all files 30mb                                                                                                 "
     - "L0.20[100,101] 1ns       |-----------------------------------------L0.20------------------------------------------|"
     - "L0.19[100,101] 1ns       |-----------------------------------------L0.19------------------------------------------|"
@@ -277,13 +277,15 @@ async fn many_medium_files_time_range_1() {
     - "L0.15[100,101] 1ns       |-----------------------------------------L0.15------------------------------------------|"
     - "L0.14[100,101] 1ns       |-----------------------------------------L0.14------------------------------------------|"
     - "L0.13[100,101] 1ns       |-----------------------------------------L0.13------------------------------------------|"
-    - "**** 1 Output Files (parquet_file_id not yet assigned), 240mb total:"
-    - "L1, all files 240mb                                                                                                "
+    - "L0.12[100,101] 1ns       |-----------------------------------------L0.12------------------------------------------|"
+    - "L0.11[100,101] 1ns       |-----------------------------------------L0.11------------------------------------------|"
+    - "**** 1 Output Files (parquet_file_id not yet assigned), 300mb total:"
+    - "L1, all files 300mb                                                                                                "
     - "L1.?[100,101] 1ns        |------------------------------------------L1.?------------------------------------------|"
     - "Committing partition 1:"
-    - "  Soft Deleting 8 files: L0.13, L0.14, L0.15, L0.16, L0.17, L0.18, L0.19, L0.20"
-    - "  Creating 1 files at level CompactionLevel::L1"
-    - "SKIPPED COMPACTION for PartitionId(1): partition 1 has overlapped files that exceed max compact size limit 268435456. This may happen if a large amount of data has the same timestamp"
+    - "  Soft Deleting 10 files: L0.11, L0.12, L0.13, L0.14, L0.15, L0.16, L0.17, L0.18, L0.19, L0.20"
+    - "  Creating 1 files"
+    - "SKIPPED COMPACTION for PartitionId(1): partition 1 has overlapped files that exceed max compact size limit 314572800. This may happen if a large amount of data has the same timestamp"
     - "**** Final Output Files "
     - "L0                                                                                                                 "
     - "L0.1[100,101] 1ns 30mb   |------------------------------------------L0.1------------------------------------------|"
@@ -296,11 +298,9 @@ async fn many_medium_files_time_range_1() {
     - "L0.8[100,101] 1ns 30mb   |------------------------------------------L0.8------------------------------------------|"
     - "L0.9[100,101] 1ns 30mb   |------------------------------------------L0.9------------------------------------------|"
     - "L0.10[100,101] 1ns 30mb  |-----------------------------------------L0.10------------------------------------------|"
-    - "L0.11[100,101] 1ns 30mb  |-----------------------------------------L0.11------------------------------------------|"
-    - "L0.12[100,101] 1ns 30mb  |-----------------------------------------L0.12------------------------------------------|"
     - "L1                                                                                                                 "
-    - "L1.21[100,101] 1ns 240mb |-----------------------------------------L1.21------------------------------------------|"
-    - "WARNING: file L1.21[100,101] 1ns 240mb exceeds soft limit 100mb by more than 50%"
+    - "L1.21[100,101] 1ns 300mb |-----------------------------------------L1.21------------------------------------------|"
+    - "WARNING: file L1.21[100,101] 1ns 300mb exceeds soft limit 100mb by more than 50%"
     "###
     );
 }
@@ -326,7 +326,7 @@ async fn many_small_files() {
             .await;
     }
 
-    // L0s are compacted into a single L1 file. It can't be split becasue of single timestamp
+    // L0s are compacted into a single L1 file. It can't be split because of single timestamp
     // Then the L1 is large enough to get upgraded to L2
     insta::assert_yaml_snapshot!(
         run_layout_scenario(&setup).await,
@@ -381,7 +381,7 @@ async fn many_small_files() {
     - "L1.?[100,100] 1ns        |------------------------------------------L1.?------------------------------------------|"
     - "Committing partition 1:"
     - "  Soft Deleting 20 files: L0.1, L0.2, L0.3, L0.4, L0.5, L0.6, L0.7, L0.8, L0.9, L0.10, L0.11, L0.12, L0.13, L0.14, L0.15, L0.16, L0.17, L0.18, L0.19, L0.20"
-    - "  Creating 1 files at level CompactionLevel::L1"
+    - "  Creating 1 files"
     - "Committing partition 1:"
     - "  Upgrading 1 files level to CompactionLevel::L2: L1.21"
     - "**** Final Output Files "

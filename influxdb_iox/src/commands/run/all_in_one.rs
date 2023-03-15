@@ -479,7 +479,6 @@ impl Config {
             partition_filter: None,
             shadow_mode: false,
             ignore_partition_skip_marker: false,
-            max_compact_size: 268_435_456, // 256 MB
             shard_count: None,
             shard_id: None,
             min_num_l1_files_to_compact: 1,

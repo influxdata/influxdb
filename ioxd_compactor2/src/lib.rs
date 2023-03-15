@@ -32,11 +32,6 @@ use trace::TraceCollector;
 const TOPIC: &str = "iox-shared";
 const TRANSITION_SHARD_INDEX: i32 = TRANSITION_SHARD_NUMBER;
 
-// Minimum multiple between max_desired_file_size_bytes and max_compact_size
-// Since max_desired_file_size_bytes is softly enforced, actual file sizes can exceed it, and a
-// single compaction job must be able to compact >1 max sized file, so the multiple should be at least 3.
-const MIN_COMPACT_SIZE_MULTIPLE: i64 = 3;
-
 pub struct Compactor2ServerType {
     compactor: Compactor2,
     metric_registry: Arc<Registry>,
@@ -177,15 +172,6 @@ pub async fn create_compactor2_server_type(
         ),
     };
 
-    if compactor_config.max_desired_file_size_bytes as i64 * MIN_COMPACT_SIZE_MULTIPLE
-        > compactor_config.max_compact_size.try_into().unwrap()
-    {
-        panic!("max_compact_size ({}) must be at least {} times larger than max_desired_file_size_bytes ({})",
-            compactor_config.max_compact_size,
-            MIN_COMPACT_SIZE_MULTIPLE,
-            compactor_config.max_desired_file_size_bytes);
-    }
-
     let compactor = Compactor2::start(Config {
         shard_id,
         metric_registry: Arc::clone(&metric_registry),
@@ -209,7 +195,6 @@ pub async fn create_compactor2_server_type(
         partitions_source,
         shadow_mode: compactor_config.shadow_mode,
         ignore_partition_skip_marker: compactor_config.ignore_partition_skip_marker,
-        max_compact_size: compactor_config.max_compact_size,
         shard_config,
         min_num_l1_files_to_compact: compactor_config.min_num_l1_files_to_compact,
         process_once: compactor_config.process_once,

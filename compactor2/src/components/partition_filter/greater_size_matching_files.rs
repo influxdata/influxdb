@@ -12,8 +12,8 @@ use super::PartitionFilter;
 /// The idea for doing this:
 ///  1. Not to compact large input size to avoid hitting OOM/crash.
 ///  2. Not to compact too-large input size that lead to unecessary split into many files.
-///     - Becasue we limit the size of a file. If the compacted result is too large, we will split them into many files.
-///     - Becasue Level-1 files do not overlap, it is a waste to compact too-large size and then split.
+///     - Because we limit the size of a file. If the compacted result is too large, we will split them into many files.
+///     - Because Level-1 files do not overlap, it is a waste to compact too-large size and then split.
 #[derive(Debug)]
 pub struct GreaterSizeMatchingFilesPartitionFilter<T>
 where

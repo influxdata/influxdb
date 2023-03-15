@@ -113,7 +113,7 @@ mod tests {
         test_utils::PartitionInfoBuilder,
     };
 
-    const MAX_SIZE: usize = 100;
+    const MAX_FILE: usize = 100;
 
     #[test]
     fn empty_records_nothing() {
@@ -121,8 +121,10 @@ mod tests {
 
         let files = vec![];
         let p_info = Arc::new(PartitionInfoBuilder::new().build());
-        let split_compact =
-            MetricsSplitOrCompactWrapper::new(SplitCompact::new(MAX_SIZE), &registry);
+        let split_compact = MetricsSplitOrCompactWrapper::new(
+            SplitCompact::new(MAX_FILE, MAX_FILE as u64),
+            &registry,
+        );
         let (files_to_compact_or_split, _files_to_keep) =
             split_compact.apply(&p_info, files, CompactionLevel::Initial);
 
@@ -152,10 +154,12 @@ mod tests {
     fn files_to_split_get_recorded() {
         let registry = Registry::new();
 
-        let files = create_overlapped_l0_l1_files_2(MAX_SIZE as i64);
+        let files = create_overlapped_l0_l1_files_2(MAX_FILE as i64);
         let p_info = Arc::new(PartitionInfoBuilder::new().build());
-        let split_compact =
-            MetricsSplitOrCompactWrapper::new(SplitCompact::new(MAX_SIZE), &registry);
+        let split_compact = MetricsSplitOrCompactWrapper::new(
+            SplitCompact::new(MAX_FILE, MAX_FILE as u64),
+            &registry,
+        );
         let (files_to_compact_or_split, _files_to_keep) =
             split_compact.apply(&p_info, files, CompactionLevel::FileNonOverlapped);
 
@@ -186,10 +190,12 @@ mod tests {
     fn files_to_compact_get_recorded() {
         let registry = Registry::new();
 
-        let files = create_overlapped_l1_l2_files_2(MAX_SIZE as i64);
+        let files = create_overlapped_l1_l2_files_2(MAX_FILE as i64);
         let p_info = Arc::new(PartitionInfoBuilder::new().build());
-        let split_compact =
-            MetricsSplitOrCompactWrapper::new(SplitCompact::new(MAX_SIZE * 3), &registry);
+        let split_compact = MetricsSplitOrCompactWrapper::new(
+            SplitCompact::new(MAX_FILE * 3, MAX_FILE as u64),
+            &registry,
+        );
         let (files_to_compact_or_split, _files_to_keep) =
             split_compact.apply(&p_info, files, CompactionLevel::Final);
 

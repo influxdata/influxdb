@@ -6,10 +6,8 @@ use data_types::CompactionLevel;
 
 use crate::layouts::{layout_setup_builder, parquet_builder, run_layout_scenario, ONE_MB};
 
-const MAX_COMPACT_SIZE: usize = 300 * ONE_MB as usize;
 const MAX_DESIRED_FILE_SIZE: u64 = 100 * ONE_MB;
 
-// This file should be upgraded after https://github.com/influxdata/idpe/issues/17246
 // One l1 file that is larger than max desired file size
 #[tokio::test]
 async fn one_larger_max_file_size() {
@@ -17,7 +15,6 @@ async fn one_larger_max_file_size() {
 
     let setup = layout_setup_builder()
         .await
-        .with_max_compact_size(MAX_COMPACT_SIZE)
         .with_max_desired_file_size_bytes(MAX_DESIRED_FILE_SIZE)
         .build()
         .await;
@@ -58,7 +55,6 @@ async fn one_l0_larger_max_file_size() {
 
     let setup = layout_setup_builder()
         .await
-        .with_max_compact_size(MAX_COMPACT_SIZE)
         .with_max_desired_file_size_bytes(MAX_DESIRED_FILE_SIZE)
         .build()
         .await;
@@ -95,7 +91,6 @@ async fn one_l0_larger_max_file_size() {
     );
 }
 
-// This file should be upgraded after https://github.com/influxdata/idpe/issues/17246
 // One l1 file that is larger than max compact size
 #[tokio::test]
 async fn one_larger_max_compact_size() {
@@ -103,10 +98,11 @@ async fn one_larger_max_compact_size() {
 
     let setup = layout_setup_builder()
         .await
-        .with_max_compact_size(MAX_COMPACT_SIZE)
         .with_max_desired_file_size_bytes(MAX_DESIRED_FILE_SIZE)
         .build()
         .await;
+
+    let max_compact_size = setup.config.max_compact_size_bytes();
 
     setup
         .partition
@@ -116,7 +112,7 @@ async fn one_larger_max_compact_size() {
                 .with_max_time(1000)
                 .with_compaction_level(CompactionLevel::FileNonOverlapped)
                 // file > max_desired_file_size_bytes
-                .with_file_size_bytes((MAX_COMPACT_SIZE + 1) as u64),
+                .with_file_size_bytes((max_compact_size + 1) as u64),
         )
         .await;
 
@@ -139,7 +135,6 @@ async fn one_larger_max_compact_size() {
     );
 }
 
-// This file should be upgraded after https://github.com/influxdata/idpe/issues/17246
 // One l0 file that is larger than max compact size
 #[tokio::test]
 async fn one_l0_larger_max_compact_size() {
@@ -147,10 +142,11 @@ async fn one_l0_larger_max_compact_size() {
 
     let setup = layout_setup_builder()
         .await
-        .with_max_compact_size(MAX_COMPACT_SIZE)
         .with_max_desired_file_size_bytes(MAX_DESIRED_FILE_SIZE)
         .build()
         .await;
+
+    let max_compact_size = setup.config.max_compact_size_bytes();
 
     setup
         .partition
@@ -160,7 +156,7 @@ async fn one_l0_larger_max_compact_size() {
                 .with_max_time(1000)
                 .with_compaction_level(CompactionLevel::Initial)
                 // file > max_desired_file_size_bytes
-                .with_file_size_bytes((MAX_COMPACT_SIZE + 1) as u64),
+                .with_file_size_bytes((max_compact_size + 1) as u64),
         )
         .await;
 
@@ -185,7 +181,6 @@ async fn one_l0_larger_max_compact_size() {
     );
 }
 
-// This is working as expected and should stay after https://github.com/influxdata/idpe/issues/17246
 // Two files that are under max compact size
 #[tokio::test]
 async fn two_large_files_total_under_max_compact_size() {
@@ -193,7 +188,6 @@ async fn two_large_files_total_under_max_compact_size() {
 
     let setup = layout_setup_builder()
         .await
-        .with_max_compact_size(MAX_COMPACT_SIZE)
         .with_max_desired_file_size_bytes(MAX_DESIRED_FILE_SIZE)
         .build()
         .await;
@@ -234,7 +228,7 @@ async fn two_large_files_total_under_max_compact_size() {
     - "L2.?[502,1000] 1ns 99.9mb                                             |-------------------L2.?-------------------| "
     - "Committing partition 1:"
     - "  Soft Deleting 2 files: L1.1, L2.2"
-    - "  Creating 2 files at level CompactionLevel::L2"
+    - "  Creating 2 files"
     - "**** Final Output Files "
     - "L2                                                                                                                 "
     - "L2.3[1,501] 1ns 100.1mb  |-------------------L2.3--------------------|                                             "
@@ -243,7 +237,6 @@ async fn two_large_files_total_under_max_compact_size() {
     );
 }
 
-// These files should be split and then compacted after https://github.com/influxdata/idpe/issues/17246
 // Two similar size and time range files with total size larger than max compact size
 #[tokio::test]
 async fn two_large_files_total_over_max_compact_size() {
@@ -251,12 +244,12 @@ async fn two_large_files_total_over_max_compact_size() {
 
     let setup = layout_setup_builder()
         .await
-        .with_max_compact_size(MAX_COMPACT_SIZE)
         .with_max_desired_file_size_bytes(MAX_DESIRED_FILE_SIZE)
         .build()
         .await;
 
-    let size = MAX_COMPACT_SIZE / 2 + 10;
+    let max_compact_size = setup.config.max_compact_size_bytes();
+    let size = max_compact_size / 2 + 10;
 
     for i in 1..=2 {
         setup
@@ -283,19 +276,57 @@ async fn two_large_files_total_over_max_compact_size() {
     - "L2.2[2,1000] 1ns         |-----------------------------------------L2.2------------------------------------------| "
     - "WARNING: file L1.1[1,1000] 1ns 150mb exceeds soft limit 100mb by more than 50%"
     - "WARNING: file L2.2[2,1000] 1ns 150mb exceeds soft limit 100mb by more than 50%"
-    - "SKIPPED COMPACTION for PartitionId(1): partition 1 has overlapped files that exceed max compact size limit 314572800. This may happen if a large amount of data has the same timestamp"
-    - "**** Final Output Files "
+    - "**** Simulation run 0, type=split(split_times=[667]). 1 Input Files, 150mb total:"
     - "L1, all files 150mb                                                                                                "
     - "L1.1[1,1000] 1ns         |------------------------------------------L1.1------------------------------------------|"
+    - "**** 2 Output Files (parquet_file_id not yet assigned), 150mb total:"
+    - "L1                                                                                                                 "
+    - "L1.?[1,667] 1ns 100mb    |---------------------------L1.?---------------------------|                              "
+    - "L1.?[668,1000] 1ns 50mb                                                              |-----------L1.?------------| "
+    - "**** Simulation run 1, type=split(split_times=[668]). 1 Input Files, 150mb total:"
     - "L2, all files 150mb                                                                                                "
-    - "L2.2[2,1000] 1ns         |-----------------------------------------L2.2------------------------------------------| "
-    - "WARNING: file L1.1[1,1000] 1ns 150mb exceeds soft limit 100mb by more than 50%"
-    - "WARNING: file L2.2[2,1000] 1ns 150mb exceeds soft limit 100mb by more than 50%"
+    - "L2.2[2,1000] 1ns         |------------------------------------------L2.2------------------------------------------|"
+    - "**** 2 Output Files (parquet_file_id not yet assigned), 150mb total:"
+    - "L2                                                                                                                 "
+    - "L2.?[2,668] 1ns 100.1mb  |---------------------------L2.?---------------------------|                              "
+    - "L2.?[669,1000] 1ns 49.9mb                                                            |-----------L2.?------------| "
+    - "Committing partition 1:"
+    - "  Soft Deleting 2 files: L1.1, L2.2"
+    - "  Creating 4 files"
+    - "**** Simulation run 2, type=split(split_times=[668]). 1 Input Files, 50mb total:"
+    - "L1, all files 50mb                                                                                                 "
+    - "L1.4[668,1000] 1ns       |------------------------------------------L1.4------------------------------------------|"
+    - "**** 2 Output Files (parquet_file_id not yet assigned), 50mb total:"
+    - "L1                                                                                                                 "
+    - "L1.?[668,668] 1ns 0b     |L1.?|                                                                                    "
+    - "L1.?[669,1000] 1ns 50mb  |-----------------------------------------L1.?------------------------------------------| "
+    - "Committing partition 1:"
+    - "  Soft Deleting 1 files: L1.4"
+    - "  Creating 2 files"
+    - "**** Simulation run 3, type=split(split_times=[335]). 3 Input Files, 200.1mb total:"
+    - "L1                                                                                                                 "
+    - "L1.3[1,667] 1ns 100mb    |-----------------------------------------L1.3------------------------------------------| "
+    - "L1.7[668,668] 1ns 0b                                                                                               |L1.7|"
+    - "L2                                                                                                                 "
+    - "L2.5[2,668] 1ns 100.1mb  |-----------------------------------------L2.5------------------------------------------| "
+    - "**** 2 Output Files (parquet_file_id not yet assigned), 200.1mb total:"
+    - "L2                                                                                                                 "
+    - "L2.?[1,335] 1ns 100.2mb  |-------------------L2.?--------------------|                                             "
+    - "L2.?[336,668] 1ns 99.9mb                                              |-------------------L2.?-------------------| "
+    - "Committing partition 1:"
+    - "  Soft Deleting 3 files: L1.3, L2.5, L1.7"
+    - "  Creating 2 files"
+    - "**** Final Output Files "
+    - "L1                                                                                                                 "
+    - "L1.8[669,1000] 1ns 50mb                                                              |-----------L1.8------------| "
+    - "L2                                                                                                                 "
+    - "L2.6[669,1000] 1ns 49.9mb                                                            |-----------L2.6------------| "
+    - "L2.9[1,335] 1ns 100.2mb  |------------L2.9------------|                                                            "
+    - "L2.10[336,668] 1ns 99.9mb                              |-----------L2.10-----------|                               "
     "###
     );
 }
 
-// These files should be split and then compacted after https://github.com/influxdata/idpe/issues/17246
 // Two similar size files with total size larger than max compact size with small overlap range
 // The time range of target level file is much smaller and at the end range of the start level file
 #[tokio::test]
@@ -304,12 +335,12 @@ async fn two_large_files_total_over_max_compact_size_small_overlap_range() {
 
     let setup = layout_setup_builder()
         .await
-        .with_max_compact_size(MAX_COMPACT_SIZE)
         .with_max_desired_file_size_bytes(MAX_DESIRED_FILE_SIZE)
         .build()
         .await;
 
-    let size = MAX_COMPACT_SIZE / 2 + 10;
+    let max_compact_size = setup.config.max_compact_size_bytes();
+    let size = max_compact_size / 2 + 10;
 
     for i in 1..=2 {
         setup
@@ -336,19 +367,46 @@ async fn two_large_files_total_over_max_compact_size_small_overlap_range() {
     - "L2.2[800,1000] 1ns                                                                               |------L2.2------|"
     - "WARNING: file L1.1[0,1000] 1ns 150mb exceeds soft limit 100mb by more than 50%"
     - "WARNING: file L2.2[800,1000] 1ns 150mb exceeds soft limit 100mb by more than 50%"
-    - "SKIPPED COMPACTION for PartitionId(1): partition 1 has overlapped files that exceed max compact size limit 314572800. This may happen if a large amount of data has the same timestamp"
-    - "**** Final Output Files "
+    - "**** Simulation run 0, type=split(split_times=[667]). 1 Input Files, 150mb total:"
     - "L1, all files 150mb                                                                                                "
     - "L1.1[0,1000] 1ns         |------------------------------------------L1.1------------------------------------------|"
+    - "**** 2 Output Files (parquet_file_id not yet assigned), 150mb total:"
+    - "L1                                                                                                                 "
+    - "L1.?[0,667] 1ns 100.05mb |---------------------------L1.?---------------------------|                              "
+    - "L1.?[668,1000] 1ns 49.95mb                                                            |-----------L1.?------------| "
+    - "**** Simulation run 1, type=split(split_times=[934]). 1 Input Files, 150mb total:"
     - "L2, all files 150mb                                                                                                "
-    - "L2.2[800,1000] 1ns                                                                               |------L2.2------|"
-    - "WARNING: file L1.1[0,1000] 1ns 150mb exceeds soft limit 100mb by more than 50%"
-    - "WARNING: file L2.2[800,1000] 1ns 150mb exceeds soft limit 100mb by more than 50%"
+    - "L2.2[800,1000] 1ns       |------------------------------------------L2.2------------------------------------------|"
+    - "**** 2 Output Files (parquet_file_id not yet assigned), 150mb total:"
+    - "L2                                                                                                                 "
+    - "L2.?[800,934] 1ns 100.5mb|---------------------------L2.?---------------------------|                              "
+    - "L2.?[935,1000] 1ns 49.5mb                                                            |-----------L2.?------------| "
+    - "Committing partition 1:"
+    - "  Soft Deleting 2 files: L1.1, L2.2"
+    - "  Creating 4 files"
+    - "**** Simulation run 2, type=split(split_times=[835]). 3 Input Files, 199.95mb total:"
+    - "L1                                                                                                                 "
+    - "L1.4[668,1000] 1ns 49.95mb|------------------------------------------L1.4------------------------------------------|"
+    - "L2                                                                                                                 "
+    - "L2.5[800,934] 1ns 100.5mb                                   |---------------L2.5---------------|                   "
+    - "L2.6[935,1000] 1ns 49.5mb                                                                        |-----L2.6------| "
+    - "**** 2 Output Files (parquet_file_id not yet assigned), 199.95mb total:"
+    - "L2                                                                                                                 "
+    - "L2.?[668,835] 1ns 100.58mb|-------------------L2.?--------------------|                                             "
+    - "L2.?[836,1000] 1ns 99.37mb                                             |-------------------L2.?-------------------| "
+    - "Committing partition 1:"
+    - "  Soft Deleting 3 files: L1.4, L2.5, L2.6"
+    - "  Upgrading 1 files level to CompactionLevel::L2: L1.3"
+    - "  Creating 2 files"
+    - "**** Final Output Files "
+    - "L2                                                                                                                 "
+    - "L2.3[0,667] 1ns 100.05mb |---------------------------L2.3---------------------------|                              "
+    - "L2.7[668,835] 1ns 100.58mb                                                            |----L2.7-----|               "
+    - "L2.8[836,1000] 1ns 99.37mb                                                                           |----L2.8----| "
     "###
     );
 }
 
-// These files should be split and then compacted after https://github.com/influxdata/idpe/issues/17246
 // Two similar size files with total size larger than max compact size with small overlap range
 // The overlapped range is at the end range of start_level file and start of target level file
 // Two files have similar length of time range
@@ -358,12 +416,12 @@ async fn two_large_files_total_over_max_compact_size_small_overlap_range_2() {
 
     let setup = layout_setup_builder()
         .await
-        .with_max_compact_size(MAX_COMPACT_SIZE)
         .with_max_desired_file_size_bytes(MAX_DESIRED_FILE_SIZE)
         .build()
         .await;
 
-    let size = MAX_COMPACT_SIZE / 2 + 10;
+    let max_compact_size = setup.config.max_compact_size_bytes();
+    let size = max_compact_size / 2 + 10;
 
     for i in 1..=2 {
         setup
@@ -390,19 +448,47 @@ async fn two_large_files_total_over_max_compact_size_small_overlap_range_2() {
     - "L2.2[1600,3000] 1ns                                      |-------------------------L2.2--------------------------| "
     - "WARNING: file L1.1[800,2000] 1ns 150mb exceeds soft limit 100mb by more than 50%"
     - "WARNING: file L2.2[1600,3000] 1ns 150mb exceeds soft limit 100mb by more than 50%"
-    - "SKIPPED COMPACTION for PartitionId(1): partition 1 has overlapped files that exceed max compact size limit 314572800. This may happen if a large amount of data has the same timestamp"
-    - "**** Final Output Files "
+    - "**** Simulation run 0, type=split(split_times=[1600]). 1 Input Files, 150mb total:"
     - "L1, all files 150mb                                                                                                "
-    - "L1.1[800,2000] 1ns       |---------------------L1.1----------------------|                                         "
+    - "L1.1[800,2000] 1ns       |------------------------------------------L1.1------------------------------------------|"
+    - "**** 2 Output Files (parquet_file_id not yet assigned), 150mb total:"
+    - "L1                                                                                                                 "
+    - "L1.?[800,1600] 1ns 100mb |---------------------------L1.?---------------------------|                              "
+    - "L1.?[1601,2000] 1ns 50mb                                                             |-----------L1.?------------| "
+    - "**** Simulation run 1, type=split(split_times=[2534]). 1 Input Files, 150mb total:"
     - "L2, all files 150mb                                                                                                "
-    - "L2.2[1600,3000] 1ns                                      |-------------------------L2.2--------------------------| "
-    - "WARNING: file L1.1[800,2000] 1ns 150mb exceeds soft limit 100mb by more than 50%"
-    - "WARNING: file L2.2[1600,3000] 1ns 150mb exceeds soft limit 100mb by more than 50%"
+    - "L2.2[1600,3000] 1ns      |------------------------------------------L2.2------------------------------------------|"
+    - "**** 2 Output Files (parquet_file_id not yet assigned), 150mb total:"
+    - "L2                                                                                                                 "
+    - "L2.?[1600,2534] 1ns 100.07mb|---------------------------L2.?---------------------------|                              "
+    - "L2.?[2535,3000] 1ns 49.93mb                                                            |-----------L2.?------------| "
+    - "Committing partition 1:"
+    - "  Soft Deleting 2 files: L1.1, L2.2"
+    - "  Creating 4 files"
+    - "**** Simulation run 2, type=split(split_times=[1494, 2188]). 3 Input Files, 250.07mb total:"
+    - "L1                                                                                                                 "
+    - "L1.4[1601,2000] 1ns 50mb                                          |-------L1.4-------|                             "
+    - "L1.3[800,1600] 1ns 100mb |-----------------L1.3------------------|                                                 "
+    - "L2                                                                                                                 "
+    - "L2.5[1600,2534] 1ns 100.07mb                                         |---------------------L2.5---------------------| "
+    - "**** 3 Output Files (parquet_file_id not yet assigned), 250.07mb total:"
+    - "L2                                                                                                                 "
+    - "L2.?[800,1494] 1ns 100.09mb|---------------L2.?---------------|                                                      "
+    - "L2.?[1495,2188] 1ns 99.94mb                                    |--------------L2.?---------------|                   "
+    - "L2.?[2189,2534] 1ns 50.04mb                                                                        |-----L2.?------| "
+    - "Committing partition 1:"
+    - "  Soft Deleting 3 files: L1.3, L1.4, L2.5"
+    - "  Creating 3 files"
+    - "**** Final Output Files "
+    - "L2                                                                                                                 "
+    - "L2.6[2535,3000] 1ns 49.93mb                                                                      |------L2.6-------| "
+    - "L2.7[800,1494] 1ns 100.09mb|-----------L2.7-----------|                                                              "
+    - "L2.8[1495,2188] 1ns 99.94mb                            |-----------L2.8-----------|                                  "
+    - "L2.9[2189,2534] 1ns 50.04mb                                                        |----L2.9----|                    "
     "###
     );
 }
 
-// These files should be split and then compacted after https://github.com/influxdata/idpe/issues/17246
 // Two similar size files with total size larger than max compact size with small overlap range
 // The overlapped range is at the end range of start_level file and start of target level file
 // Time range of the start level file is much smaller than the one of target level file
@@ -412,12 +498,12 @@ async fn two_large_files_total_over_max_compact_size_small_overlap_range_3() {
 
     let setup = layout_setup_builder()
         .await
-        .with_max_compact_size(MAX_COMPACT_SIZE)
         .with_max_desired_file_size_bytes(MAX_DESIRED_FILE_SIZE)
         .build()
         .await;
 
-    let size = MAX_COMPACT_SIZE / 2 + 10;
+    let max_compact_size = setup.config.max_compact_size_bytes();
+    let size = max_compact_size / 2 + 10;
 
     for i in 1..=2 {
         setup
@@ -444,19 +530,47 @@ async fn two_large_files_total_over_max_compact_size_small_overlap_range_3() {
     - "L2.2[200,1300] 1ns                    |-----------------------------------L2.2-----------------------------------| "
     - "WARNING: file L1.1[0,300] 1ns 150mb exceeds soft limit 100mb by more than 50%"
     - "WARNING: file L2.2[200,1300] 1ns 150mb exceeds soft limit 100mb by more than 50%"
-    - "SKIPPED COMPACTION for PartitionId(1): partition 1 has overlapped files that exceed max compact size limit 314572800. This may happen if a large amount of data has the same timestamp"
-    - "**** Final Output Files "
+    - "**** Simulation run 0, type=split(split_times=[200]). 1 Input Files, 150mb total:"
     - "L1, all files 150mb                                                                                                "
-    - "L1.1[0,300] 1ns          |-------L1.1-------|                                                                      "
+    - "L1.1[0,300] 1ns          |------------------------------------------L1.1------------------------------------------|"
+    - "**** 2 Output Files (parquet_file_id not yet assigned), 150mb total:"
+    - "L1                                                                                                                 "
+    - "L1.?[0,200] 1ns 100mb    |---------------------------L1.?---------------------------|                              "
+    - "L1.?[201,300] 1ns 50mb                                                               |-----------L1.?------------| "
+    - "**** Simulation run 1, type=split(split_times=[934]). 1 Input Files, 150mb total:"
     - "L2, all files 150mb                                                                                                "
-    - "L2.2[200,1300] 1ns                    |-----------------------------------L2.2-----------------------------------| "
-    - "WARNING: file L1.1[0,300] 1ns 150mb exceeds soft limit 100mb by more than 50%"
-    - "WARNING: file L2.2[200,1300] 1ns 150mb exceeds soft limit 100mb by more than 50%"
+    - "L2.2[200,1300] 1ns       |------------------------------------------L2.2------------------------------------------|"
+    - "**** 2 Output Files (parquet_file_id not yet assigned), 150mb total:"
+    - "L2                                                                                                                 "
+    - "L2.?[200,934] 1ns 100.09mb|---------------------------L2.?---------------------------|                              "
+    - "L2.?[935,1300] 1ns 49.91mb                                                            |-----------L2.?------------| "
+    - "Committing partition 1:"
+    - "  Soft Deleting 2 files: L1.1, L2.2"
+    - "  Creating 4 files"
+    - "**** Simulation run 2, type=split(split_times=[374, 748]). 3 Input Files, 250.09mb total:"
+    - "L1                                                                                                                 "
+    - "L1.4[201,300] 1ns 50mb                      |-L1.4--|                                                              "
+    - "L1.3[0,200] 1ns 100mb    |------L1.3-------|                                                                       "
+    - "L2                                                                                                                 "
+    - "L2.5[200,934] 1ns 100.09mb                   |--------------------------------L2.5--------------------------------| "
+    - "**** 3 Output Files (parquet_file_id not yet assigned), 250.09mb total:"
+    - "L2                                                                                                                 "
+    - "L2.?[0,374] 1ns 100.14mb |---------------L2.?---------------|                                                      "
+    - "L2.?[375,748] 1ns 99.88mb                                    |--------------L2.?---------------|                   "
+    - "L2.?[749,934] 1ns 50.07mb                                                                        |-----L2.?------| "
+    - "Committing partition 1:"
+    - "  Soft Deleting 3 files: L1.3, L1.4, L2.5"
+    - "  Creating 3 files"
+    - "**** Final Output Files "
+    - "L2                                                                                                                 "
+    - "L2.6[935,1300] 1ns 49.91mb                                                                |---------L2.6----------| "
+    - "L2.7[0,374] 1ns 100.14mb |---------L2.7----------|                                                                 "
+    - "L2.8[375,748] 1ns 99.88mb                         |---------L2.8----------|                                        "
+    - "L2.9[749,934] 1ns 50.07mb                                                   |---L2.9---|                           "
     "###
     );
 }
 
-// These files should be split and then compacted after https://github.com/influxdata/idpe/issues/17246
 // Two similar size files with total size larger than max compact size and similar time range
 // Start level is 0
 #[tokio::test]
@@ -465,12 +579,12 @@ async fn two_large_files_total_over_max_compact_size_start_l0() {
 
     let setup = layout_setup_builder()
         .await
-        .with_max_compact_size(MAX_COMPACT_SIZE)
         .with_max_desired_file_size_bytes(MAX_DESIRED_FILE_SIZE)
         .build()
         .await;
 
-    let size = MAX_COMPACT_SIZE / 2 + 10;
+    let max_compact_size = setup.config.max_compact_size_bytes();
+    let size = max_compact_size / 2 + 10;
 
     for i in 0..=1 {
         setup
@@ -497,19 +611,69 @@ async fn two_large_files_total_over_max_compact_size_start_l0() {
     - "L1.2[1,1000] 1ns         |-----------------------------------------L1.2------------------------------------------| "
     - "WARNING: file L0.1[0,1000] 1ns 150mb exceeds soft limit 100mb by more than 50%"
     - "WARNING: file L1.2[1,1000] 1ns 150mb exceeds soft limit 100mb by more than 50%"
-    - "SKIPPED COMPACTION for PartitionId(1): partition 1 has overlapped files that exceed max compact size limit 314572800. This may happen if a large amount of data has the same timestamp"
-    - "**** Final Output Files "
+    - "**** Simulation run 0, type=split(split_times=[667]). 1 Input Files, 150mb total:"
     - "L0, all files 150mb                                                                                                "
     - "L0.1[0,1000] 1ns         |------------------------------------------L0.1------------------------------------------|"
+    - "**** 2 Output Files (parquet_file_id not yet assigned), 150mb total:"
+    - "L0                                                                                                                 "
+    - "L0.?[0,667] 1ns 100.05mb |---------------------------L0.?---------------------------|                              "
+    - "L0.?[668,1000] 1ns 49.95mb                                                            |-----------L0.?------------| "
+    - "**** Simulation run 1, type=split(split_times=[667]). 1 Input Files, 150mb total:"
     - "L1, all files 150mb                                                                                                "
-    - "L1.2[1,1000] 1ns         |-----------------------------------------L1.2------------------------------------------| "
-    - "WARNING: file L0.1[0,1000] 1ns 150mb exceeds soft limit 100mb by more than 50%"
-    - "WARNING: file L1.2[1,1000] 1ns 150mb exceeds soft limit 100mb by more than 50%"
+    - "L1.2[1,1000] 1ns         |------------------------------------------L1.2------------------------------------------|"
+    - "**** 2 Output Files (parquet_file_id not yet assigned), 150mb total:"
+    - "L1                                                                                                                 "
+    - "L1.?[1,667] 1ns 100mb    |---------------------------L1.?---------------------------|                              "
+    - "L1.?[668,1000] 1ns 50mb                                                              |-----------L1.?------------| "
+    - "Committing partition 1:"
+    - "  Soft Deleting 2 files: L0.1, L1.2"
+    - "  Creating 4 files"
+    - "**** Simulation run 2, type=split(split_times=[933]). 2 Input Files, 99.95mb total:"
+    - "L0                                                                                                                 "
+    - "L0.4[668,1000] 1ns 49.95mb|------------------------------------------L0.4------------------------------------------|"
+    - "L1                                                                                                                 "
+    - "L1.6[668,1000] 1ns 50mb  |------------------------------------------L1.6------------------------------------------|"
+    - "**** 2 Output Files (parquet_file_id not yet assigned), 99.95mb total:"
+    - "L1                                                                                                                 "
+    - "L1.?[668,933] 1ns 79.78mb|--------------------------------L1.?---------------------------------|                   "
+    - "L1.?[934,1000] 1ns 20.17mb                                                                        |-----L1.?------| "
+    - "Committing partition 1:"
+    - "  Soft Deleting 2 files: L0.4, L1.6"
+    - "  Creating 2 files"
+    - "**** Simulation run 3, type=split(split_times=[334]). 2 Input Files, 200.05mb total:"
+    - "L0                                                                                                                 "
+    - "L0.3[0,667] 1ns 100.05mb |------------------------------------------L0.3------------------------------------------|"
+    - "L1                                                                                                                 "
+    - "L1.5[1,667] 1ns 100mb    |-----------------------------------------L1.5------------------------------------------| "
+    - "**** 2 Output Files (parquet_file_id not yet assigned), 200.05mb total:"
+    - "L1                                                                                                                 "
+    - "L1.?[0,334] 1ns 100.17mb |-------------------L1.?--------------------|                                             "
+    - "L1.?[335,667] 1ns 99.88mb                                             |-------------------L1.?-------------------| "
+    - "Committing partition 1:"
+    - "  Soft Deleting 2 files: L0.3, L1.5"
+    - "  Creating 2 files"
+    - "**** Simulation run 4, type=split(split_times=[668]). 3 Input Files, 199.83mb total:"
+    - "L1                                                                                                                 "
+    - "L1.7[668,933] 1ns 79.78mb                                             |--------------L1.7---------------|          "
+    - "L1.8[934,1000] 1ns 20.17mb                                                                                 |-L1.8-| "
+    - "L1.10[335,667] 1ns 99.88mb|------------------L1.10-------------------|                                              "
+    - "**** 2 Output Files (parquet_file_id not yet assigned), 199.83mb total:"
+    - "L2                                                                                                                 "
+    - "L2.?[335,668] 1ns 100.06mb|-------------------L2.?--------------------|                                             "
+    - "L2.?[669,1000] 1ns 99.76mb                                             |-------------------L2.?-------------------| "
+    - "Committing partition 1:"
+    - "  Soft Deleting 3 files: L1.7, L1.8, L1.10"
+    - "  Upgrading 1 files level to CompactionLevel::L2: L1.9"
+    - "  Creating 2 files"
+    - "**** Final Output Files "
+    - "L2                                                                                                                 "
+    - "L2.9[0,334] 1ns 100.17mb |------------L2.9------------|                                                            "
+    - "L2.11[335,668] 1ns 100.06mb                              |-----------L2.11-----------|                               "
+    - "L2.12[669,1000] 1ns 99.76mb                                                            |-----------L2.12-----------| "
     "###
     );
 }
 
-// These files should be split and then compacted after https://github.com/influxdata/idpe/issues/17246
 // Real-life case with three good size L1s and one very large L2
 #[tokio::test]
 async fn target_too_large_1() {
@@ -517,7 +681,6 @@ async fn target_too_large_1() {
 
     let setup = layout_setup_builder()
         .await
-        .with_max_compact_size(MAX_COMPACT_SIZE)
         .with_max_desired_file_size_bytes(MAX_DESIRED_FILE_SIZE)
         .build()
         .await;
@@ -568,20 +731,57 @@ async fn target_too_large_1() {
     - "L2                                                                                                                 "
     - "L2.1[1,1000] 1ns 253mb   |-----------L2.1------------|                                                             "
     - "WARNING: file L2.1[1,1000] 1ns 253mb exceeds soft limit 100mb by more than 50%"
-    - "SKIPPED COMPACTION for PartitionId(1): partition 1 has overlapped files that exceed max compact size limit 314572800. This may happen if a large amount of data has the same timestamp"
+    - "**** Simulation run 0, type=split(split_times=[396, 791]). 1 Input Files, 253mb total:"
+    - "L2, all files 253mb                                                                                                "
+    - "L2.1[1,1000] 1ns         |------------------------------------------L2.1------------------------------------------|"
+    - "**** 3 Output Files (parquet_file_id not yet assigned), 253mb total:"
+    - "L2                                                                                                                 "
+    - "L2.?[1,396] 1ns 100.04mb |--------------L2.?---------------|                                                       "
+    - "L2.?[397,791] 1ns 99.78mb                                   |--------------L2.?---------------|                    "
+    - "L2.?[792,1000] 1ns 53.18mb                                                                       |------L2.?------| "
+    - "Committing partition 1:"
+    - "  Soft Deleting 1 files: L2.1"
+    - "  Creating 3 files"
+    - "**** Simulation run 1, type=split(split_times=[396, 791]). 1 Input Files, 53mb total:"
+    - "L1, all files 53mb                                                                                                 "
+    - "L1.2[1,1000] 1ns         |------------------------------------------L1.2------------------------------------------|"
+    - "**** 3 Output Files (parquet_file_id not yet assigned), 53mb total:"
+    - "L1                                                                                                                 "
+    - "L1.?[1,396] 1ns 20.96mb  |--------------L1.?---------------|                                                       "
+    - "L1.?[397,791] 1ns 20.9mb                                    |--------------L1.?---------------|                    "
+    - "L1.?[792,1000] 1ns 11.14mb                                                                       |------L1.?------| "
+    - "Committing partition 1:"
+    - "  Soft Deleting 1 files: L1.2"
+    - "  Creating 3 files"
+    - "**** Simulation run 2, type=split(split_times=[328, 655]). 4 Input Files, 241.68mb total:"
+    - "L1                                                                                                                 "
+    - "L1.8[1,396] 1ns 20.96mb  |-------------------L1.8-------------------|                                              "
+    - "L1.9[397,791] 1ns 20.9mb                                              |-------------------L1.9-------------------| "
+    - "L2                                                                                                                 "
+    - "L2.5[1,396] 1ns 100.04mb |-------------------L2.5-------------------|                                              "
+    - "L2.6[397,791] 1ns 99.78mb                                             |-------------------L2.6-------------------| "
+    - "**** 3 Output Files (parquet_file_id not yet assigned), 241.68mb total:"
+    - "L2                                                                                                                 "
+    - "L2.?[1,328] 1ns 100.04mb |---------------L2.?----------------|                                                     "
+    - "L2.?[329,655] 1ns 99.73mb                                     |---------------L2.?----------------|                "
+    - "L2.?[656,791] 1ns 41.91mb                                                                          |----L2.?-----| "
+    - "Committing partition 1:"
+    - "  Soft Deleting 4 files: L2.5, L2.6, L1.8, L1.9"
+    - "  Creating 3 files"
     - "**** Final Output Files "
     - "L1                                                                                                                 "
-    - "L1.2[1,1000] 1ns 53mb    |-----------L1.2------------|                                                             "
     - "L1.3[1001,2000] 1ns 45mb                               |-----------L1.3------------|                               "
     - "L1.4[2001,3000] 1ns 5mb                                                              |-----------L1.4------------| "
+    - "L1.10[792,1000] 1ns 11.14mb                       |L1.10|                                                            "
     - "L2                                                                                                                 "
-    - "L2.1[1,1000] 1ns 253mb   |-----------L2.1------------|                                                             "
-    - "WARNING: file L2.1[1,1000] 1ns 253mb exceeds soft limit 100mb by more than 50%"
+    - "L2.7[792,1000] 1ns 53.18mb                       |L2.7|                                                             "
+    - "L2.11[1,328] 1ns 100.04mb|-L2.11-|                                                                                 "
+    - "L2.12[329,655] 1ns 99.73mb         |-L2.12-|                                                                        "
+    - "L2.13[656,791] 1ns 41.91mb                   |L2.13|                                                                "
     "###
     );
 }
 
-// These files should be split and then compacted after https://github.com/influxdata/idpe/issues/17246
 // Real-life case with two good size L1s and one very large L2
 #[tokio::test]
 async fn target_too_large_2() {
@@ -589,7 +789,6 @@ async fn target_too_large_2() {
 
     let setup = layout_setup_builder()
         .await
-        .with_max_compact_size(MAX_COMPACT_SIZE)
         .with_max_desired_file_size_bytes(MAX_DESIRED_FILE_SIZE)
         .build()
         .await;
@@ -639,19 +838,52 @@ async fn target_too_large_2() {
     - "L2                                                                                                                 "
     - "L2.1[1,3000] 1ns 232mb   |------------------------------------------L2.1------------------------------------------|"
     - "WARNING: file L2.1[1,3000] 1ns 232mb exceeds soft limit 100mb by more than 50%"
-    - "SKIPPED COMPACTION for PartitionId(1): partition 1 has overlapped files that exceed max compact size limit 314572800. This may happen if a large amount of data has the same timestamp"
+    - "**** Simulation run 0, type=split(split_times=[1294, 2587]). 1 Input Files, 232mb total:"
+    - "L2, all files 232mb                                                                                                "
+    - "L2.1[1,3000] 1ns         |------------------------------------------L2.1------------------------------------------|"
+    - "**** 3 Output Files (parquet_file_id not yet assigned), 232mb total:"
+    - "L2                                                                                                                 "
+    - "L2.?[1,1294] 1ns 100.03mb|----------------L2.?----------------|                                                    "
+    - "L2.?[1295,2587] 1ns 99.95mb                                      |----------------L2.?----------------|              "
+    - "L2.?[2588,3000] 1ns 32.03mb                                                                             |---L2.?---| "
+    - "Committing partition 1:"
+    - "  Soft Deleting 1 files: L2.1"
+    - "  Creating 3 files"
+    - "**** Simulation run 1, type=split(split_times=[1294]). 1 Input Files, 50mb total:"
+    - "L1, all files 50mb                                                                                                 "
+    - "L1.3[1001,2000] 1ns      |------------------------------------------L1.3------------------------------------------|"
+    - "**** 2 Output Files (parquet_file_id not yet assigned), 50mb total:"
+    - "L1                                                                                                                 "
+    - "L1.?[1001,1294] 1ns 14.66mb|----------L1.?----------|                                                                "
+    - "L1.?[1295,2000] 1ns 35.34mb                          |----------------------------L1.?-----------------------------| "
+    - "Committing partition 1:"
+    - "  Soft Deleting 1 files: L1.3"
+    - "  Creating 2 files"
+    - "**** Simulation run 2, type=split(split_times=[705]). 3 Input Files, 183.69mb total:"
+    - "L1                                                                                                                 "
+    - "L1.2[1,1000] 1ns 69mb    |-------------------------------L1.2--------------------------------|                     "
+    - "L1.7[1001,1294] 1ns 14.66mb                                                                     |-------L1.7-------| "
+    - "L2                                                                                                                 "
+    - "L2.4[1,1294] 1ns 100.03mb|------------------------------------------L2.4------------------------------------------|"
+    - "**** 2 Output Files (parquet_file_id not yet assigned), 183.69mb total:"
+    - "L2                                                                                                                 "
+    - "L2.?[1,705] 1ns 100.01mb |---------------------L2.?----------------------|                                         "
+    - "L2.?[706,1294] 1ns 83.68mb                                                 |-----------------L2.?-----------------| "
+    - "Committing partition 1:"
+    - "  Soft Deleting 3 files: L1.2, L2.4, L1.7"
+    - "  Creating 2 files"
     - "**** Final Output Files "
     - "L1                                                                                                                 "
-    - "L1.2[1,1000] 1ns 69mb    |-----------L1.2------------|                                                             "
-    - "L1.3[1001,2000] 1ns 50mb                               |-----------L1.3------------|                               "
+    - "L1.8[1295,2000] 1ns 35.34mb                                      |-------L1.8--------|                               "
     - "L2                                                                                                                 "
-    - "L2.1[1,3000] 1ns 232mb   |------------------------------------------L2.1------------------------------------------|"
-    - "WARNING: file L2.1[1,3000] 1ns 232mb exceeds soft limit 100mb by more than 50%"
+    - "L2.5[1295,2587] 1ns 99.95mb                                      |----------------L2.5----------------|              "
+    - "L2.6[2588,3000] 1ns 32.03mb                                                                             |---L2.6---| "
+    - "L2.9[1,705] 1ns 100.01mb |-------L2.9--------|                                                                     "
+    - "L2.10[706,1294] 1ns 83.68mb                     |-----L2.10-----|                                                    "
     "###
     );
 }
 
-// These files should be split and then compacted after https://github.com/influxdata/idpe/issues/17246
 // One very large start level file with one good size overlapped target level file
 // Two have similar time range
 #[tokio::test]
@@ -660,7 +892,6 @@ async fn start_too_large_similar_time_range() {
 
     let setup = layout_setup_builder()
         .await
-        .with_max_compact_size(MAX_COMPACT_SIZE)
         .with_max_desired_file_size_bytes(MAX_DESIRED_FILE_SIZE)
         .build()
         .await;
@@ -696,18 +927,42 @@ async fn start_too_large_similar_time_range() {
     - "L2                                                                                                                 "
     - "L2.2[2,1000] 1ns 52mb    |-----------------------------------------L2.2------------------------------------------| "
     - "WARNING: file L1.1[1,1000] 1ns 250mb exceeds soft limit 100mb by more than 50%"
-    - "SKIPPED COMPACTION for PartitionId(1): partition 1 has overlapped files that exceed max compact size limit 314572800. This may happen if a large amount of data has the same timestamp"
-    - "**** Final Output Files "
+    - "**** Simulation run 0, type=split(split_times=[401, 801]). 1 Input Files, 250mb total:"
+    - "L1, all files 250mb                                                                                                "
+    - "L1.1[1,1000] 1ns         |------------------------------------------L1.1------------------------------------------|"
+    - "**** 3 Output Files (parquet_file_id not yet assigned), 250mb total:"
     - "L1                                                                                                                 "
-    - "L1.1[1,1000] 1ns 250mb   |------------------------------------------L1.1------------------------------------------|"
+    - "L1.?[1,401] 1ns 100.1mb  |---------------L1.?---------------|                                                      "
+    - "L1.?[402,801] 1ns 99.85mb                                    |--------------L1.?---------------|                   "
+    - "L1.?[802,1000] 1ns 50.05mb                                                                        |-----L1.?------| "
+    - "Committing partition 1:"
+    - "  Soft Deleting 1 files: L1.1"
+    - "  Creating 3 files"
+    - "**** Simulation run 1, type=split(split_times=[398, 795]). 3 Input Files, 251.95mb total:"
+    - "L1                                                                                                                 "
+    - "L1.3[1,401] 1ns 100.1mb  |---------------L1.3---------------|                                                      "
+    - "L1.4[402,801] 1ns 99.85mb                                    |--------------L1.4---------------|                   "
     - "L2                                                                                                                 "
     - "L2.2[2,1000] 1ns 52mb    |-----------------------------------------L2.2------------------------------------------| "
-    - "WARNING: file L1.1[1,1000] 1ns 250mb exceeds soft limit 100mb by more than 50%"
+    - "**** 3 Output Files (parquet_file_id not yet assigned), 251.95mb total:"
+    - "L2                                                                                                                 "
+    - "L2.?[1,398] 1ns 100.12mb |--------------L2.?---------------|                                                       "
+    - "L2.?[399,795] 1ns 99.87mb                                   |--------------L2.?---------------|                    "
+    - "L2.?[796,1000] 1ns 51.95mb                                                                       |------L2.?------| "
+    - "Committing partition 1:"
+    - "  Soft Deleting 3 files: L2.2, L1.3, L1.4"
+    - "  Creating 3 files"
+    - "**** Final Output Files "
+    - "L1                                                                                                                 "
+    - "L1.5[802,1000] 1ns 50.05mb                                                                        |-----L1.5------| "
+    - "L2                                                                                                                 "
+    - "L2.6[1,398] 1ns 100.12mb |--------------L2.6---------------|                                                       "
+    - "L2.7[399,795] 1ns 99.87mb                                   |--------------L2.7---------------|                    "
+    - "L2.8[796,1000] 1ns 51.95mb                                                                       |------L2.8------| "
     "###
     );
 }
 
-// These files should be split and then compacted after https://github.com/influxdata/idpe/issues/17246
 // One very large start level file with one good size overlapped target level file
 // Overlapped range is small
 // The overlapped range is at the end of both start_level file and target level file
@@ -717,7 +972,6 @@ async fn start_too_large_small_time_range() {
 
     let setup = layout_setup_builder()
         .await
-        .with_max_compact_size(MAX_COMPACT_SIZE)
         .with_max_desired_file_size_bytes(MAX_DESIRED_FILE_SIZE)
         .build()
         .await;
@@ -753,18 +1007,42 @@ async fn start_too_large_small_time_range() {
     - "L2                                                                                                                 "
     - "L2.2[800,1000] 1ns 52mb                                                                          |------L2.2------|"
     - "WARNING: file L1.1[0,1000] 1ns 250mb exceeds soft limit 100mb by more than 50%"
-    - "SKIPPED COMPACTION for PartitionId(1): partition 1 has overlapped files that exceed max compact size limit 314572800. This may happen if a large amount of data has the same timestamp"
-    - "**** Final Output Files "
+    - "**** Simulation run 0, type=split(split_times=[400, 800]). 1 Input Files, 250mb total:"
+    - "L1, all files 250mb                                                                                                "
+    - "L1.1[0,1000] 1ns         |------------------------------------------L1.1------------------------------------------|"
+    - "**** 3 Output Files (parquet_file_id not yet assigned), 250mb total:"
     - "L1                                                                                                                 "
-    - "L1.1[0,1000] 1ns 250mb   |------------------------------------------L1.1------------------------------------------|"
+    - "L1.?[0,400] 1ns 100mb    |---------------L1.?---------------|                                                      "
+    - "L1.?[401,800] 1ns 99.75mb                                    |--------------L1.?---------------|                   "
+    - "L1.?[801,1000] 1ns 50.25mb                                                                        |-----L1.?------| "
+    - "Committing partition 1:"
+    - "  Soft Deleting 1 files: L1.1"
+    - "  Creating 3 files"
+    - "**** Simulation run 1, type=split(split_times=[698, 995]). 3 Input Files, 202mb total:"
+    - "L1                                                                                                                 "
+    - "L1.5[801,1000] 1ns 50.25mb                                                            |-----------L1.5------------| "
+    - "L1.4[401,800] 1ns 99.75mb|--------------------------L1.4---------------------------|                               "
     - "L2                                                                                                                 "
-    - "L2.2[800,1000] 1ns 52mb                                                                          |------L2.2------|"
-    - "WARNING: file L1.1[0,1000] 1ns 250mb exceeds soft limit 100mb by more than 50%"
+    - "L2.2[800,1000] 1ns 52mb                                                             |------------L2.2------------| "
+    - "**** 3 Output Files (parquet_file_id not yet assigned), 202mb total:"
+    - "L2                                                                                                                 "
+    - "L2.?[401,698] 1ns 100.16mb|-------------------L2.?-------------------|                                              "
+    - "L2.?[699,995] 1ns 99.82mb                                            |-------------------L2.?-------------------|  "
+    - "L2.?[996,1000] 1ns 2.02mb                                                                                         |L2.?|"
+    - "Committing partition 1:"
+    - "  Soft Deleting 3 files: L2.2, L1.4, L1.5"
+    - "  Upgrading 1 files level to CompactionLevel::L2: L1.3"
+    - "  Creating 3 files"
+    - "**** Final Output Files "
+    - "L2                                                                                                                 "
+    - "L2.3[0,400] 1ns 100mb    |---------------L2.3---------------|                                                      "
+    - "L2.6[401,698] 1ns 100.16mb                                    |----------L2.6----------|                            "
+    - "L2.7[699,995] 1ns 99.82mb                                                              |----------L2.7----------|  "
+    - "L2.8[996,1000] 1ns 2.02mb                                                                                         |L2.8|"
     "###
     );
 }
 
-// These files should be split and then compacted after https://github.com/influxdata/idpe/issues/17246
 // One very large start level file with one good size overlapped target level file
 // Overlapped range is small
 // The overlapped range is at the end of start_level file and start of target level file
@@ -774,7 +1052,6 @@ async fn start_too_large_small_time_range_2() {
 
     let setup = layout_setup_builder()
         .await
-        .with_max_compact_size(MAX_COMPACT_SIZE)
         .with_max_desired_file_size_bytes(MAX_DESIRED_FILE_SIZE)
         .build()
         .await;
@@ -810,18 +1087,42 @@ async fn start_too_large_small_time_range_2() {
     - "L2                                                                                                                 "
     - "L2.2[1600,3000] 1ns 52mb                                 |-------------------------L2.2--------------------------| "
     - "WARNING: file L1.1[800,2000] 1ns 250mb exceeds soft limit 100mb by more than 50%"
-    - "SKIPPED COMPACTION for PartitionId(1): partition 1 has overlapped files that exceed max compact size limit 314572800. This may happen if a large amount of data has the same timestamp"
-    - "**** Final Output Files "
+    - "**** Simulation run 0, type=split(split_times=[1280, 1760]). 1 Input Files, 250mb total:"
+    - "L1, all files 250mb                                                                                                "
+    - "L1.1[800,2000] 1ns       |------------------------------------------L1.1------------------------------------------|"
+    - "**** 3 Output Files (parquet_file_id not yet assigned), 250mb total:"
     - "L1                                                                                                                 "
-    - "L1.1[800,2000] 1ns 250mb |---------------------L1.1----------------------|                                         "
+    - "L1.?[800,1280] 1ns 100mb |---------------L1.?---------------|                                                      "
+    - "L1.?[1281,1760] 1ns 99.79mb                                    |--------------L1.?---------------|                   "
+    - "L1.?[1761,2000] 1ns 50.21mb                                                                        |-----L1.?------| "
+    - "Committing partition 1:"
+    - "  Soft Deleting 1 files: L1.1"
+    - "  Creating 3 files"
+    - "**** Simulation run 1, type=split(split_times=[2132, 2983]). 3 Input Files, 202mb total:"
+    - "L1                                                                                                                 "
+    - "L1.5[1761,2000] 1ns 50.21mb                         |---L1.5---|                                                     "
+    - "L1.4[1281,1760] 1ns 99.79mb|---------L1.4----------|                                                                 "
     - "L2                                                                                                                 "
-    - "L2.2[1600,3000] 1ns 52mb                                 |-------------------------L2.2--------------------------| "
-    - "WARNING: file L1.1[800,2000] 1ns 250mb exceeds soft limit 100mb by more than 50%"
+    - "L2.2[1600,3000] 1ns 52mb                 |---------------------------------L2.2----------------------------------| "
+    - "**** 3 Output Files (parquet_file_id not yet assigned), 202mb total:"
+    - "L2                                                                                                                 "
+    - "L2.?[1281,2132] 1ns 100mb|-------------------L2.?-------------------|                                              "
+    - "L2.?[2133,2983] 1ns 99.88mb                                            |-------------------L2.?-------------------|  "
+    - "L2.?[2984,3000] 1ns 2.12mb                                                                                         |L2.?|"
+    - "Committing partition 1:"
+    - "  Soft Deleting 3 files: L2.2, L1.4, L1.5"
+    - "  Upgrading 1 files level to CompactionLevel::L2: L1.3"
+    - "  Creating 3 files"
+    - "**** Final Output Files "
+    - "L2                                                                                                                 "
+    - "L2.3[800,1280] 1ns 100mb |------L2.3-------|                                                                       "
+    - "L2.6[1281,2132] 1ns 100mb                   |--------------L2.6--------------|                                     "
+    - "L2.7[2133,2983] 1ns 99.88mb                                                      |--------------L2.7--------------|  "
+    - "L2.8[2984,3000] 1ns 2.12mb                                                                                         |L2.8|"
     "###
     );
 }
 
-// These files should be split and then compacted after https://github.com/influxdata/idpe/issues/17246
 // One very large start level file with one good size overlapped target level file
 // Overlapped range is small
 // The overlapped range is at the end of start_level file and start of target level file
@@ -832,7 +1133,6 @@ async fn start_too_large_small_time_range_3() {
 
     let setup = layout_setup_builder()
         .await
-        .with_max_compact_size(MAX_COMPACT_SIZE)
         .with_max_desired_file_size_bytes(MAX_DESIRED_FILE_SIZE)
         .build()
         .await;
@@ -868,13 +1168,104 @@ async fn start_too_large_small_time_range_3() {
     - "L2                                                                                                                 "
     - "L2.2[200,1300] 1ns 52mb               |-----------------------------------L2.2-----------------------------------| "
     - "WARNING: file L1.1[0,300] 1ns 250mb exceeds soft limit 100mb by more than 50%"
+    - "**** Simulation run 0, type=split(split_times=[120, 240]). 1 Input Files, 250mb total:"
+    - "L1, all files 250mb                                                                                                "
+    - "L1.1[0,300] 1ns          |------------------------------------------L1.1------------------------------------------|"
+    - "**** 3 Output Files (parquet_file_id not yet assigned), 250mb total:"
+    - "L1                                                                                                                 "
+    - "L1.?[0,120] 1ns 100mb    |---------------L1.?---------------|                                                      "
+    - "L1.?[121,240] 1ns 99.17mb                                    |--------------L1.?---------------|                   "
+    - "L1.?[241,300] 1ns 50.83mb                                                                        |-----L1.?------| "
+    - "Committing partition 1:"
+    - "  Soft Deleting 1 files: L1.1"
+    - "  Creating 3 files"
+    - "**** Simulation run 1, type=split(split_times=[705, 1289]). 3 Input Files, 202mb total:"
+    - "L1                                                                                                                 "
+    - "L1.5[241,300] 1ns 50.83mb         |L1.5|                                                                           "
+    - "L1.4[121,240] 1ns 99.17mb|-L1.4--|                                                                                 "
+    - "L2                                                                                                                 "
+    - "L2.2[200,1300] 1ns 52mb        |--------------------------------------L2.2---------------------------------------| "
+    - "**** 3 Output Files (parquet_file_id not yet assigned), 202mb total:"
+    - "L2                                                                                                                 "
+    - "L2.?[121,705] 1ns 100.06mb|-------------------L2.?-------------------|                                              "
+    - "L2.?[706,1289] 1ns 99.89mb                                            |-------------------L2.?-------------------|  "
+    - "L2.?[1290,1300] 1ns 2.06mb                                                                                         |L2.?|"
+    - "Committing partition 1:"
+    - "  Soft Deleting 3 files: L2.2, L1.4, L1.5"
+    - "  Upgrading 1 files level to CompactionLevel::L2: L1.3"
+    - "  Creating 3 files"
+    - "**** Final Output Files "
+    - "L2                                                                                                                 "
+    - "L2.3[0,120] 1ns 100mb    |-L2.3-|                                                                                  "
+    - "L2.6[121,705] 1ns 100.06mb        |-----------------L2.6-----------------|                                          "
+    - "L2.7[706,1289] 1ns 99.89mb                                                |-----------------L2.7-----------------|  "
+    - "L2.8[1290,1300] 1ns 2.06mb                                                                                         |L2.8|"
+    "###
+    );
+}
+
+// tiny time range and cannot split --> skip
+#[tokio::test]
+async fn tiny_time_range() {
+    test_helpers::maybe_start_logging();
+
+    let setup = layout_setup_builder()
+        .await
+        .with_max_desired_file_size_bytes(MAX_DESIRED_FILE_SIZE)
+        .build()
+        .await;
+
+    //   . one L1 >>  max_desired_file_size_bytes to trigger compaction
+    //   . L1 is tiny time range --> won't be split
+    //   . one good size overlapped L2 --> won't be split
+    //   . total size = L1 & L2 > max_compact_size
+
+    // size of l1 & l2 respectively
+    let l1_size = 250 * ONE_MB;
+    let l2_size = 52 * ONE_MB;
+
+    // l1
+    setup
+        .partition
+        .create_parquet_file(
+            parquet_builder()
+                .with_min_time(1)
+                .with_max_time(2)
+                .with_compaction_level(CompactionLevel::FileNonOverlapped)
+                .with_file_size_bytes(l1_size),
+        )
+        .await;
+
+    // l2
+    setup
+        .partition
+        .create_parquet_file(
+            parquet_builder()
+                .with_min_time(1)
+                .with_max_time(1000)
+                .with_compaction_level(CompactionLevel::Final)
+                .with_file_size_bytes(l2_size),
+        )
+        .await;
+
+    // Neither L1 nor L2 will be split and lead to skipping compaction
+    insta::assert_yaml_snapshot!(
+        run_layout_scenario(&setup).await,
+        @r###"
+    ---
+    - "**** Input Files "
+    - "L1                                                                                                                 "
+    - "L1.1[1,2] 1ns 250mb      |L1.1|                                                                                    "
+    - "L2                                                                                                                 "
+    - "L2.2[1,1000] 1ns 52mb    |------------------------------------------L2.2------------------------------------------|"
+    - "WARNING: file L1.1[1,2] 1ns 250mb exceeds soft limit 100mb by more than 50%"
     - "SKIPPED COMPACTION for PartitionId(1): partition 1 has overlapped files that exceed max compact size limit 314572800. This may happen if a large amount of data has the same timestamp"
     - "**** Final Output Files "
     - "L1                                                                                                                 "
-    - "L1.1[0,300] 1ns 250mb    |-------L1.1-------|                                                                      "
+    - "L1.1[1,2] 1ns 250mb      |L1.1|                                                                                    "
     - "L2                                                                                                                 "
-    - "L2.2[200,1300] 1ns 52mb               |-----------------------------------L2.2-----------------------------------| "
-    - "WARNING: file L1.1[0,300] 1ns 250mb exceeds soft limit 100mb by more than 50%"
+    - "L2.2[1,1000] 1ns 52mb    |------------------------------------------L2.2------------------------------------------|"
+    - "WARNING: file L1.1[1,2] 1ns 250mb exceeds soft limit 100mb by more than 50%"
     "###
     );
 }

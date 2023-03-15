@@ -32,7 +32,7 @@ use crate::{
 /// To achieve this goal, a start-level file should be split to overlap with at most one target-level file. This enables the
 /// minimum set of compacting files to 2 files: a start-level file and an overlapped target-level file.
 ///
-pub fn identify_files_to_split(
+pub fn identify_start_level_files_to_split(
     files: Vec<ParquetFile>,
     target_level: CompactionLevel,
 ) -> (Vec<FileToSplit>, Vec<ParquetFile>) {
@@ -110,7 +110,7 @@ mod tests {
     fn test_split_empty() {
         let files = vec![];
         let (files_to_split, files_not_to_split) =
-            super::identify_files_to_split(files, CompactionLevel::Initial);
+            super::identify_start_level_files_to_split(files, CompactionLevel::Initial);
         assert!(files_to_split.is_empty());
         assert!(files_not_to_split.is_empty());
     }
@@ -123,7 +123,7 @@ mod tests {
 
         // Target is L0 while all files are in L1 --> panic
         let (_files_to_split, _files_not_to_split) =
-            super::identify_files_to_split(files, CompactionLevel::Initial);
+            super::identify_start_level_files_to_split(files, CompactionLevel::Initial);
     }
 
     #[test]
@@ -152,7 +152,7 @@ mod tests {
 
         // panic because it only handle at most 2 levels next to each other
         let (_files_to_split, _files_not_to_split) =
-            super::identify_files_to_split(files, CompactionLevel::FileNonOverlapped);
+            super::identify_start_level_files_to_split(files, CompactionLevel::FileNonOverlapped);
     }
 
     #[test]
@@ -171,7 +171,7 @@ mod tests {
         );
 
         let (files_to_split, files_not_to_split) =
-            super::identify_files_to_split(files, CompactionLevel::FileNonOverlapped);
+            super::identify_start_level_files_to_split(files, CompactionLevel::FileNonOverlapped);
         assert!(files_to_split.is_empty());
         assert_eq!(files_not_to_split.len(), 3);
     }
@@ -195,7 +195,7 @@ mod tests {
         );
 
         let (files_to_split, files_not_to_split) =
-            super::identify_files_to_split(files, CompactionLevel::FileNonOverlapped);
+            super::identify_start_level_files_to_split(files, CompactionLevel::FileNonOverlapped);
 
         // L0.1 that overlaps with 2 level-1 files will be split
         assert_eq!(files_to_split.len(), 1);

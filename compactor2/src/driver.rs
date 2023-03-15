@@ -286,7 +286,6 @@ async fn run_plans(
                 files,
                 partition_info,
                 components,
-                target_level,
                 job_semaphore,
                 scratchpad_ctx,
             )
@@ -340,7 +339,6 @@ async fn run_split_plans(
     files_to_split: &[FileToSplit],
     partition_info: &Arc<PartitionInfo>,
     components: &Arc<Components>,
-    target_level: CompactionLevel,
     job_semaphore: Arc<InstrumentedAsyncSemaphore>,
     scratchpad_ctx: &mut dyn Scratchpad,
 ) -> Result<Vec<ParquetFileParams>, DynError> {
@@ -354,7 +352,6 @@ async fn run_split_plans(
             file_to_split,
             partition_info,
             components,
-            target_level,
             Arc::clone(&job_semaphore),
             scratchpad_ctx,
         )
@@ -370,7 +367,6 @@ async fn run_split_plan(
     file_to_split: &FileToSplit,
     partition_info: &Arc<PartitionInfo>,
     components: &Arc<Components>,
-    target_level: CompactionLevel,
     job_semaphore: Arc<InstrumentedAsyncSemaphore>,
     scratchpad_ctx: &mut dyn Scratchpad,
 ) -> Result<Vec<ParquetFileParams>, DynError> {
@@ -381,6 +377,9 @@ async fn run_split_plan(
         object_store_id: input_uuids_inpad[0],
         ..file_to_split.file.clone()
     };
+
+    // target level of a split file is the same as its level
+    let target_level = file_to_split.file.compaction_level;
 
     let plan_ir = components.ir_planner.split_plan(
         file_inpad,

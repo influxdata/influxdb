@@ -284,15 +284,13 @@ fn even_time_split(
     for split in split_times {
         assert!(
             split > &last_split,
-            "split times must be in ascending order"
-        );
-        assert!(
-            Timestamp::new(*split) > overall_min_time,
-            "split time must be greater than time range min"
+            "split times {last_split} {split} must be in ascending order",
         );
         assert!(
             Timestamp::new(*split) < overall_max_time,
-            "split time must be less than time range max"
+            "split time {} must be less than time range max {}",
+            split,
+            overall_max_time.get()
         );
         last_split = *split;
     }

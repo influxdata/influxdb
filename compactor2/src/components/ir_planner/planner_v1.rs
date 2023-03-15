@@ -64,7 +64,7 @@ impl V1IRPlanner {
     //     7 = 1 (min_time) + 6 (time range)
     //     13 = 7 (previous time) + 6 (time range)
     //     19 = 13 (previous time) + 6 (time range)
-    fn compute_split_time(
+    pub fn compute_split_time(
         chunk_times: Vec<TimestampMinMax>,
         min_time: i64,
         max_time: i64,
@@ -330,7 +330,7 @@ mod tests {
         // Imagine a customer is backfilling a large amount of data and for some reason, all the
         // times on the data are exactly the same. That means the min_time and max_time will be the
         // same, but the total_size will be greater than the desired size.
-        // We will not split it becasue the split has to stick to non-overlapped time range
+        // We will not split it because the split has to stick to non-overlapped time range
 
         let min_time = 1;
         let max_time = 1;
