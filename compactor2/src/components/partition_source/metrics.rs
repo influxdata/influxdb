@@ -64,7 +64,7 @@ where
 
 #[cfg(test)]
 mod tests {
-    use metric::{assert_counter, Attributes, Metric};
+    use metric::{assert_counter, Attributes};
 
     use crate::components::partition_source::mock::MockPartitionSource;
     use iox_tests::PartitionBuilder;

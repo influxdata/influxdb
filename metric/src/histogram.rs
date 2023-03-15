@@ -106,10 +106,10 @@ macro_rules! assert_histogram {
         #[allow(unused)]
         let mut attr = None;
         $(attr = Some($attr);)*
-        let attr = attr.unwrap_or_else(|| Attributes::from(&[]));
+        let attr = attr.unwrap_or_else(|| metric::Attributes::from(&[]));
 
         let hist = $metrics
-            .get_instrument::<Metric<$hist>>($name)
+            .get_instrument::<metric::Metric<$hist>>($name)
             .expect("failed to find metric with provided name")
             .get_observer(&attr)
             .expect("failed to find metric with provided attributes")

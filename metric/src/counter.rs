@@ -48,10 +48,10 @@ macro_rules! assert_counter {
         #[allow(unused)]
         let mut attr = None;
         $(attr = Some($attr);)*
-        let attr = attr.unwrap_or_else(|| Attributes::from(&[]));
+        let attr = attr.unwrap_or_else(|| metric::Attributes::from(&[]));
 
         let counter = $metrics
-            .get_instrument::<Metric<$counter>>($name)
+            .get_instrument::<metric::Metric<$counter>>($name)
             .expect("failed to find metric with provided name")
             .get_observer(&attr)
             .expect("failed to find metric with provided attributes")
