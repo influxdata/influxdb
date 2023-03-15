@@ -187,7 +187,7 @@ where
             .await
         {
             Ok(v) => v,
-            Err(e @ QueryError::TableNotFound(_, _) | e @ QueryError::NamespaceNotFound(_)) => {
+            Err(e @ (QueryError::TableNotFound(_, _) | QueryError::NamespaceNotFound(_))) => {
                 debug!(
                         error=%e,
                         %namespace_id,
