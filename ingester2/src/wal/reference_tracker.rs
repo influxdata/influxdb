@@ -187,7 +187,7 @@ pub(crate) struct WalReferenceActor<T = Arc<wal::Wal>> {
     wal: T,
 
     /// The set of IDs of persisted data that do not yet appear in
-    /// `wal_segments`, the set of WAL files rotated out of active use. This is
+    /// `wal_files`, the set of WAL files rotated out of active use. This is
     /// an intermediate buffer necessary to tolerate out-of-order persist
     /// notifications w.r.t file notifications.
     ///
