@@ -1407,8 +1407,8 @@ dependencies = [
 
 [[package]]
 name = "datafusion"
-version = "19.0.0"
-source = "git+https://github.com/apache/arrow-datafusion.git?rev=8c34ca4fa34787b137b48ce4f6ffd41b64a1a633#8c34ca4fa34787b137b48ce4f6ffd41b64a1a633"
+version = "20.0.0"
+source = "git+https://github.com/apache/arrow-datafusion.git?rev=612eb1d0ce338af7980fa906df8796eb47c4be44#612eb1d0ce338af7980fa906df8796eb47c4be44"
 dependencies = [
  "ahash 0.8.3",
  "arrow",
@@ -1437,7 +1437,6 @@ dependencies = [
  "object_store",
  "parking_lot 0.12.1",
  "parquet",
- "paste",
  "percent-encoding",
  "pin-project-lite",
  "rand",
@@ -1455,8 +1454,8 @@ dependencies = [
 
 [[package]]
 name = "datafusion-common"
-version = "19.0.0"
-source = "git+https://github.com/apache/arrow-datafusion.git?rev=8c34ca4fa34787b137b48ce4f6ffd41b64a1a633#8c34ca4fa34787b137b48ce4f6ffd41b64a1a633"
+version = "20.0.0"
+source = "git+https://github.com/apache/arrow-datafusion.git?rev=612eb1d0ce338af7980fa906df8796eb47c4be44#612eb1d0ce338af7980fa906df8796eb47c4be44"
 dependencies = [
  "arrow",
  "chrono",
@@ -1468,8 +1467,8 @@ dependencies = [
 
 [[package]]
 name = "datafusion-execution"
-version = "19.0.0"
-source = "git+https://github.com/apache/arrow-datafusion.git?rev=8c34ca4fa34787b137b48ce4f6ffd41b64a1a633#8c34ca4fa34787b137b48ce4f6ffd41b64a1a633"
+version = "20.0.0"
+source = "git+https://github.com/apache/arrow-datafusion.git?rev=612eb1d0ce338af7980fa906df8796eb47c4be44#612eb1d0ce338af7980fa906df8796eb47c4be44"
 dependencies = [
  "dashmap",
  "datafusion-common",
@@ -1485,20 +1484,19 @@ dependencies = [
 
 [[package]]
 name = "datafusion-expr"
-version = "19.0.0"
-source = "git+https://github.com/apache/arrow-datafusion.git?rev=8c34ca4fa34787b137b48ce4f6ffd41b64a1a633#8c34ca4fa34787b137b48ce4f6ffd41b64a1a633"
+version = "20.0.0"
+source = "git+https://github.com/apache/arrow-datafusion.git?rev=612eb1d0ce338af7980fa906df8796eb47c4be44#612eb1d0ce338af7980fa906df8796eb47c4be44"
 dependencies = [
  "ahash 0.8.3",
  "arrow",
  "datafusion-common",
- "log",
  "sqlparser",
 ]
 
 [[package]]
 name = "datafusion-optimizer"
-version = "19.0.0"
-source = "git+https://github.com/apache/arrow-datafusion.git?rev=8c34ca4fa34787b137b48ce4f6ffd41b64a1a633#8c34ca4fa34787b137b48ce4f6ffd41b64a1a633"
+version = "20.0.0"
+source = "git+https://github.com/apache/arrow-datafusion.git?rev=612eb1d0ce338af7980fa906df8796eb47c4be44#612eb1d0ce338af7980fa906df8796eb47c4be44"
 dependencies = [
  "arrow",
  "async-trait",
@@ -1514,8 +1512,8 @@ dependencies = [
 
 [[package]]
 name = "datafusion-physical-expr"
-version = "19.0.0"
-source = "git+https://github.com/apache/arrow-datafusion.git?rev=8c34ca4fa34787b137b48ce4f6ffd41b64a1a633#8c34ca4fa34787b137b48ce4f6ffd41b64a1a633"
+version = "20.0.0"
+source = "git+https://github.com/apache/arrow-datafusion.git?rev=612eb1d0ce338af7980fa906df8796eb47c4be44#612eb1d0ce338af7980fa906df8796eb47c4be44"
 dependencies = [
  "ahash 0.8.3",
  "arrow",
@@ -1533,7 +1531,6 @@ dependencies = [
  "itertools",
  "lazy_static",
  "md-5",
- "num-traits",
  "paste",
  "petgraph",
  "rand",
@@ -1545,8 +1542,8 @@ dependencies = [
 
 [[package]]
 name = "datafusion-proto"
-version = "19.0.0"
-source = "git+https://github.com/apache/arrow-datafusion.git?rev=8c34ca4fa34787b137b48ce4f6ffd41b64a1a633#8c34ca4fa34787b137b48ce4f6ffd41b64a1a633"
+version = "20.0.0"
+source = "git+https://github.com/apache/arrow-datafusion.git?rev=612eb1d0ce338af7980fa906df8796eb47c4be44#612eb1d0ce338af7980fa906df8796eb47c4be44"
 dependencies = [
  "arrow",
  "chrono",
@@ -1554,7 +1551,6 @@ dependencies = [
  "datafusion-common",
  "datafusion-expr",
  "object_store",
- "parking_lot 0.12.1",
  "pbjson-build",
  "prost",
  "prost-build",
@@ -1562,8 +1558,8 @@ dependencies = [
 
 [[package]]
 name = "datafusion-row"
-version = "19.0.0"
-source = "git+https://github.com/apache/arrow-datafusion.git?rev=8c34ca4fa34787b137b48ce4f6ffd41b64a1a633#8c34ca4fa34787b137b48ce4f6ffd41b64a1a633"
+version = "20.0.0"
+source = "git+https://github.com/apache/arrow-datafusion.git?rev=612eb1d0ce338af7980fa906df8796eb47c4be44#612eb1d0ce338af7980fa906df8796eb47c4be44"
 dependencies = [
  "arrow",
  "datafusion-common",
@@ -1573,8 +1569,8 @@ dependencies = [
 
 [[package]]
 name = "datafusion-sql"
-version = "19.0.0"
-source = "git+https://github.com/apache/arrow-datafusion.git?rev=8c34ca4fa34787b137b48ce4f6ffd41b64a1a633#8c34ca4fa34787b137b48ce4f6ffd41b64a1a633"
+version = "20.0.0"
+source = "git+https://github.com/apache/arrow-datafusion.git?rev=612eb1d0ce338af7980fa906df8796eb47c4be44#612eb1d0ce338af7980fa906df8796eb47c4be44"
 dependencies = [
  "arrow-schema",
  "datafusion-common",
@@ -6690,6 +6686,8 @@ dependencies = [
  "crossbeam-utils",
  "crypto-common",
  "datafusion",
+ "datafusion-optimizer",
+ "datafusion-physical-expr",
  "digest",
  "either",
  "fixedbitset",
