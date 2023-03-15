@@ -187,13 +187,13 @@ where
             .await
         {
             Ok(v) => v,
-            Err(e) => {
-                error!(
-                    error=%e,
-                    %namespace_id,
-                    %table_id,
-                    "query error"
-                );
+            Err(e @ QueryError::TableNotFound(_, _) | e @ QueryError::NamespaceNotFound(_)) => {
+                debug!(
+                        error=%e,
+                        %namespace_id,
+                        %table_id,
+                        "query error, no buffered data found");
+
                 return Err(e)?;
             }
         };
