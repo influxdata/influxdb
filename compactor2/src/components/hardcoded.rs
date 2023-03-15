@@ -139,7 +139,7 @@ pub fn hardcoded_components(config: &Config) -> Arc<Components> {
 
     let partition_large_size_tiny_time_range_filter: Vec<Arc<dyn PartitionFilter>> =
         vec![Arc::new(UnableToCompactPartitionFilter::new(
-            config.max_compact_size,
+            config.max_compact_size_bytes(),
         ))];
 
     let partition_done_sink: Arc<dyn PartitionDoneSink> = if config.shadow_mode {
@@ -281,7 +281,10 @@ pub fn hardcoded_components(config: &Config) -> Arc<Components> {
             Arc::clone(&config.catalog),
         )),
         round_info_source: Arc::new(LoggingRoundInfoWrapper::new(Arc::new(
-            LevelBasedRoundInfo::new(config.max_num_files_per_plan, config.max_compact_size),
+            LevelBasedRoundInfo::new(
+                config.max_num_files_per_plan,
+                config.max_compact_size_bytes(),
+            ),
         ))),
         partition_filter: Arc::new(LoggingPartitionFilterWrapper::new(
             MetricsPartitionFilterWrapper::new(
@@ -318,7 +321,10 @@ pub fn hardcoded_components(config: &Config) -> Arc<Components> {
                 NonOverlapSplit::new(),
                 UpgradeSplit::new(config.max_desired_file_size_bytes),
                 LoggingSplitOrCompactWrapper::new(MetricsSplitOrCompactWrapper::new(
-                    SplitCompact::new(config.max_compact_size, config.max_desired_file_size_bytes),
+                    SplitCompact::new(
+                        config.max_compact_size_bytes(),
+                        config.max_desired_file_size_bytes,
+                    ),
                     &config.metric_registry,
                 )),
             ),

@@ -6,7 +6,6 @@ use data_types::CompactionLevel;
 
 use crate::layouts::{layout_setup_builder, parquet_builder, run_layout_scenario, ONE_MB};
 
-const MAX_COMPACT_SIZE: usize = 300 * ONE_MB as usize;
 const MAX_DESIRED_FILE_SIZE: u64 = 100 * ONE_MB;
 
 // One l1 file that is larger than max desired file size
@@ -16,7 +15,6 @@ async fn one_larger_max_file_size() {
 
     let setup = layout_setup_builder()
         .await
-        .with_max_compact_size(MAX_COMPACT_SIZE)
         .with_max_desired_file_size_bytes(MAX_DESIRED_FILE_SIZE)
         .build()
         .await;
@@ -57,7 +55,6 @@ async fn one_l0_larger_max_file_size() {
 
     let setup = layout_setup_builder()
         .await
-        .with_max_compact_size(MAX_COMPACT_SIZE)
         .with_max_desired_file_size_bytes(MAX_DESIRED_FILE_SIZE)
         .build()
         .await;
@@ -101,10 +98,11 @@ async fn one_larger_max_compact_size() {
 
     let setup = layout_setup_builder()
         .await
-        .with_max_compact_size(MAX_COMPACT_SIZE)
         .with_max_desired_file_size_bytes(MAX_DESIRED_FILE_SIZE)
         .build()
         .await;
+
+    let max_compact_size = setup.config.max_compact_size_bytes();
 
     setup
         .partition
@@ -114,7 +112,7 @@ async fn one_larger_max_compact_size() {
                 .with_max_time(1000)
                 .with_compaction_level(CompactionLevel::FileNonOverlapped)
                 // file > max_desired_file_size_bytes
-                .with_file_size_bytes((MAX_COMPACT_SIZE + 1) as u64),
+                .with_file_size_bytes((max_compact_size + 1) as u64),
         )
         .await;
 
@@ -144,10 +142,11 @@ async fn one_l0_larger_max_compact_size() {
 
     let setup = layout_setup_builder()
         .await
-        .with_max_compact_size(MAX_COMPACT_SIZE)
         .with_max_desired_file_size_bytes(MAX_DESIRED_FILE_SIZE)
         .build()
         .await;
+
+    let max_compact_size = setup.config.max_compact_size_bytes();
 
     setup
         .partition
@@ -157,7 +156,7 @@ async fn one_l0_larger_max_compact_size() {
                 .with_max_time(1000)
                 .with_compaction_level(CompactionLevel::Initial)
                 // file > max_desired_file_size_bytes
-                .with_file_size_bytes((MAX_COMPACT_SIZE + 1) as u64),
+                .with_file_size_bytes((max_compact_size + 1) as u64),
         )
         .await;
 
@@ -189,7 +188,6 @@ async fn two_large_files_total_under_max_compact_size() {
 
     let setup = layout_setup_builder()
         .await
-        .with_max_compact_size(MAX_COMPACT_SIZE)
         .with_max_desired_file_size_bytes(MAX_DESIRED_FILE_SIZE)
         .build()
         .await;
@@ -246,12 +244,12 @@ async fn two_large_files_total_over_max_compact_size() {
 
     let setup = layout_setup_builder()
         .await
-        .with_max_compact_size(MAX_COMPACT_SIZE)
         .with_max_desired_file_size_bytes(MAX_DESIRED_FILE_SIZE)
         .build()
         .await;
 
-    let size = MAX_COMPACT_SIZE / 2 + 10;
+    let max_compact_size = setup.config.max_compact_size_bytes();
+    let size = max_compact_size / 2 + 10;
 
     for i in 1..=2 {
         setup
@@ -337,12 +335,12 @@ async fn two_large_files_total_over_max_compact_size_small_overlap_range() {
 
     let setup = layout_setup_builder()
         .await
-        .with_max_compact_size(MAX_COMPACT_SIZE)
         .with_max_desired_file_size_bytes(MAX_DESIRED_FILE_SIZE)
         .build()
         .await;
 
-    let size = MAX_COMPACT_SIZE / 2 + 10;
+    let max_compact_size = setup.config.max_compact_size_bytes();
+    let size = max_compact_size / 2 + 10;
 
     for i in 1..=2 {
         setup
@@ -418,12 +416,12 @@ async fn two_large_files_total_over_max_compact_size_small_overlap_range_2() {
 
     let setup = layout_setup_builder()
         .await
-        .with_max_compact_size(MAX_COMPACT_SIZE)
         .with_max_desired_file_size_bytes(MAX_DESIRED_FILE_SIZE)
         .build()
         .await;
 
-    let size = MAX_COMPACT_SIZE / 2 + 10;
+    let max_compact_size = setup.config.max_compact_size_bytes();
+    let size = max_compact_size / 2 + 10;
 
     for i in 1..=2 {
         setup
@@ -500,12 +498,12 @@ async fn two_large_files_total_over_max_compact_size_small_overlap_range_3() {
 
     let setup = layout_setup_builder()
         .await
-        .with_max_compact_size(MAX_COMPACT_SIZE)
         .with_max_desired_file_size_bytes(MAX_DESIRED_FILE_SIZE)
         .build()
         .await;
 
-    let size = MAX_COMPACT_SIZE / 2 + 10;
+    let max_compact_size = setup.config.max_compact_size_bytes();
+    let size = max_compact_size / 2 + 10;
 
     for i in 1..=2 {
         setup
@@ -581,12 +579,12 @@ async fn two_large_files_total_over_max_compact_size_start_l0() {
 
     let setup = layout_setup_builder()
         .await
-        .with_max_compact_size(MAX_COMPACT_SIZE)
         .with_max_desired_file_size_bytes(MAX_DESIRED_FILE_SIZE)
         .build()
         .await;
 
-    let size = MAX_COMPACT_SIZE / 2 + 10;
+    let max_compact_size = setup.config.max_compact_size_bytes();
+    let size = max_compact_size / 2 + 10;
 
     for i in 0..=1 {
         setup
@@ -683,7 +681,6 @@ async fn target_too_large_1() {
 
     let setup = layout_setup_builder()
         .await
-        .with_max_compact_size(MAX_COMPACT_SIZE)
         .with_max_desired_file_size_bytes(MAX_DESIRED_FILE_SIZE)
         .build()
         .await;
@@ -792,7 +789,6 @@ async fn target_too_large_2() {
 
     let setup = layout_setup_builder()
         .await
-        .with_max_compact_size(MAX_COMPACT_SIZE)
         .with_max_desired_file_size_bytes(MAX_DESIRED_FILE_SIZE)
         .build()
         .await;
@@ -896,7 +892,6 @@ async fn start_too_large_similar_time_range() {
 
     let setup = layout_setup_builder()
         .await
-        .with_max_compact_size(MAX_COMPACT_SIZE)
         .with_max_desired_file_size_bytes(MAX_DESIRED_FILE_SIZE)
         .build()
         .await;
@@ -977,7 +972,6 @@ async fn start_too_large_small_time_range() {
 
     let setup = layout_setup_builder()
         .await
-        .with_max_compact_size(MAX_COMPACT_SIZE)
         .with_max_desired_file_size_bytes(MAX_DESIRED_FILE_SIZE)
         .build()
         .await;
@@ -1058,7 +1052,6 @@ async fn start_too_large_small_time_range_2() {
 
     let setup = layout_setup_builder()
         .await
-        .with_max_compact_size(MAX_COMPACT_SIZE)
         .with_max_desired_file_size_bytes(MAX_DESIRED_FILE_SIZE)
         .build()
         .await;
@@ -1140,7 +1133,6 @@ async fn start_too_large_small_time_range_3() {
 
     let setup = layout_setup_builder()
         .await
-        .with_max_compact_size(MAX_COMPACT_SIZE)
         .with_max_desired_file_size_bytes(MAX_DESIRED_FILE_SIZE)
         .build()
         .await;
@@ -1219,7 +1211,6 @@ async fn tiny_time_range() {
 
     let setup = layout_setup_builder()
         .await
-        .with_max_compact_size(MAX_COMPACT_SIZE)
         .with_max_desired_file_size_bytes(MAX_DESIRED_FILE_SIZE)
         .build()
         .await;

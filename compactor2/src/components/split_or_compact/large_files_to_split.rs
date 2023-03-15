@@ -13,8 +13,6 @@ pub const PERCENTAGE_OF_SOFT_EXCEEDED: f64 = 0.1;
 pub fn compute_split_times_for_large_files(
     files: Vec<ParquetFile>,
     max_desired_file_size: u64,
-    // todo: after https://github.com/influxdata/idpe/issues/17259 is fixed, remove this parameter and
-    // use a function in the config to get this value
     max_compact_size: usize,
 ) -> (Vec<FileToSplit>, Vec<ParquetFile>) {
     // Sanity checks

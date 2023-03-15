@@ -84,7 +84,6 @@ pub(crate) async fn layout_setup_builder() -> TestSetupBuilder<false> {
         .with_percentage_max_file_size(20)
         .with_split_percentage(80)
         .with_max_num_files_per_plan(200)
-        .with_max_compact_size(256 * ONE_MB as usize)
         .with_min_num_l1_files_to_compact(10)
         .with_max_desired_file_size_bytes(100 * ONE_MB)
         .simulate_without_object_store()

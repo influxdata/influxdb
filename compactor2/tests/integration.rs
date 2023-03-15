@@ -86,7 +86,6 @@ async fn test_compact_target_level() {
         .await
         // Ensure we have enough resource to compact the files
         .with_max_num_files_per_plan(10)
-        .with_max_compact_size_relative_to_total_size(1000)
         .with_min_num_l1_files_to_compact(2)
         .build()
         .await;
@@ -198,10 +197,9 @@ async fn test_compact_large_overlapes() {
         .await
         // the test setup does not exceed number of files limit
         .with_max_num_files_per_plan(10)
-        // the test setup to have total file size exceed max compact size limit
-        .with_max_compact_size_relative_to_total_size(-1)
         .with_min_num_l1_files_to_compact(2)
-        .with_max_desired_file_size_bytes(100 * 1024 * 1024)
+        // the test setup to have total file size exceed max compact size limit
+        .with_max_desired_file_size_bytes((4 * 1024) as u64)
         .build()
         .await;
 
@@ -232,9 +230,9 @@ async fn test_compact_large_overlapes() {
     ---
     - initial
     - "L2                                                                                                                 "
-    - "L2.3[36000,36000] 180s 2.17kb                    |L2.3|                                                                "
-    - "L2.9[6000,30000] 240s 2.68kb|-----L2.9-----|                                                                          "
-    - "L2.10[68000,136000] 300s 2.62kb                                          |--------------------L2.10--------------------| "
+    - "L2.6[6000,36000] 300s 2.71kb|-------L2.6-------|                                                                      "
+    - "L2.7[68000,68000] 300s 2.51kb                                          |L2.7|                                          "
+    - "L2.8[136000,136000] 300s 2.55kb                                                                                          |L2.8|"
     "###
     );
 
@@ -243,6 +241,7 @@ async fn test_compact_large_overlapes() {
     // order files on their min_time
     files.sort_by_key(|f| f.min_time);
 
+    // time range: [6000,36000]
     let file = files[0].clone();
     let batches = setup.read_parquet_file(file).await;
     assert_batches_sorted_eq!(
@@ -255,6 +254,7 @@ async fn test_compact_large_overlapes() {
             "| 1500      | WA   |      |      | 1970-01-01T00:00:00.000008Z |",
             "| 1601      |      | PA   | 15   | 1970-01-01T00:00:00.000028Z |",
             "| 1601      |      | PA   | 15   | 1970-01-01T00:00:00.000030Z |",
+            "| 21        |      | OH   | 21   | 1970-01-01T00:00:00.000036Z |",
             "| 270       | UT   |      |      | 1970-01-01T00:00:00.000025Z |",
             "| 70        | UT   |      |      | 1970-01-01T00:00:00.000020Z |",
             "| 99        | OR   |      |      | 1970-01-01T00:00:00.000012Z |",
@@ -263,20 +263,8 @@ async fn test_compact_large_overlapes() {
         &batches
     );
 
+    // time range: [68000,68000]
     let file = files[1].clone();
-    let batches = setup.read_parquet_file(file).await;
-    assert_batches_sorted_eq!(
-        &[
-            "+-----------+------+------+-----------------------------+",
-            "| field_int | tag2 | tag3 | time                        |",
-            "+-----------+------+------+-----------------------------+",
-            "| 21        | OH   | 21   | 1970-01-01T00:00:00.000036Z |",
-            "+-----------+------+------+-----------------------------+",
-        ],
-        &batches
-    );
-
-    let file = files[2].clone();
     let batches = setup.read_parquet_file(file).await;
     assert_batches_sorted_eq!(
         &[
@@ -284,6 +272,19 @@ async fn test_compact_large_overlapes() {
             "| field_int | tag1 | tag2 | tag3 | time                        |",
             "+-----------+------+------+------+-----------------------------+",
             "| 10        | VT   |      |      | 1970-01-01T00:00:00.000068Z |",
+            "+-----------+------+------+------+-----------------------------+",
+        ],
+        &batches
+    );
+
+    // time range: [136000,136000]
+    let file = files[2].clone();
+    let batches = setup.read_parquet_file(file).await;
+    assert_batches_sorted_eq!(
+        &[
+            "+-----------+------+------+------+-----------------------------+",
+            "| field_int | tag1 | tag2 | tag3 | time                        |",
+            "+-----------+------+------+------+-----------------------------+",
             "| 210       |      | OH   | 21   | 1970-01-01T00:00:00.000136Z |",
             "+-----------+------+------+------+-----------------------------+",
         ],
@@ -306,10 +307,9 @@ async fn test_compact_large_overlape_2() {
         .await
         // the test setup does not exceed number of files limit
         .with_max_num_files_per_plan(10)
-        // the test setup exceed max compact size limit
-        .with_max_compact_size_relative_to_total_size(-1)
         .with_min_num_l1_files_to_compact(2)
-        .with_max_desired_file_size_bytes(100 * 1024 * 1024)
+        // the test setup to have total file size exceed max compact size limit
+        .with_max_desired_file_size_bytes((4 * 1024) as u64)
         .build()
         .await;
 
@@ -339,11 +339,10 @@ async fn test_compact_large_overlape_2() {
         @r###"
     ---
     - initial
-    - "L1                                                                                                                 "
-    - "L1.9[68000,136000] 300s 2.62kb                                          |--------------------L1.9---------------------| "
     - "L2                                                                                                                 "
-    - "L2.3[36000,36000] 180s 2.17kb                    |L2.3|                                                                "
-    - "L2.10[6000,30000] 300s 2.68kb|----L2.10-----|                                                                          "
+    - "L2.6[6000,36000] 300s 2.71kb|-------L2.6-------|                                                                      "
+    - "L2.7[68000,68000] 300s 2.51kb                                          |L2.7|                                          "
+    - "L2.8[136000,136000] 300s 2.55kb                                                                                          |L2.8|"
     "###
     );
 
@@ -352,6 +351,7 @@ async fn test_compact_large_overlape_2() {
     // order files on their min_time
     files.sort_by_key(|f| f.min_time);
 
+    // time range: [6000,36000]
     let file = files[0].clone();
     let batches = setup.read_parquet_file(file).await;
     assert_batches_sorted_eq!(
@@ -364,6 +364,7 @@ async fn test_compact_large_overlape_2() {
             "| 1500      | WA   |      |      | 1970-01-01T00:00:00.000008Z |",
             "| 1601      |      | PA   | 15   | 1970-01-01T00:00:00.000028Z |",
             "| 1601      |      | PA   | 15   | 1970-01-01T00:00:00.000030Z |",
+            "| 21        |      | OH   | 21   | 1970-01-01T00:00:00.000036Z |",
             "| 270       | UT   |      |      | 1970-01-01T00:00:00.000025Z |",
             "| 70        | UT   |      |      | 1970-01-01T00:00:00.000020Z |",
             "| 99        | OR   |      |      | 1970-01-01T00:00:00.000012Z |",
@@ -372,20 +373,8 @@ async fn test_compact_large_overlape_2() {
         &batches
     );
 
+    // time range: [68000,68000]
     let file = files[1].clone();
-    let batches = setup.read_parquet_file(file).await;
-    assert_batches_sorted_eq!(
-        &[
-            "+-----------+------+------+-----------------------------+",
-            "| field_int | tag2 | tag3 | time                        |",
-            "+-----------+------+------+-----------------------------+",
-            "| 21        | OH   | 21   | 1970-01-01T00:00:00.000036Z |",
-            "+-----------+------+------+-----------------------------+",
-        ],
-        &batches
-    );
-
-    let file = files[2].clone();
     let batches = setup.read_parquet_file(file).await;
     assert_batches_sorted_eq!(
         &[
@@ -393,6 +382,19 @@ async fn test_compact_large_overlape_2() {
             "| field_int | tag1 | tag2 | tag3 | time                        |",
             "+-----------+------+------+------+-----------------------------+",
             "| 10        | VT   |      |      | 1970-01-01T00:00:00.000068Z |",
+            "+-----------+------+------+------+-----------------------------+",
+        ],
+        &batches
+    );
+
+    // time range: [136000,136000]
+    let file = files[2].clone();
+    let batches = setup.read_parquet_file(file).await;
+    assert_batches_sorted_eq!(
+        &[
+            "+-----------+------+------+------+-----------------------------+",
+            "| field_int | tag1 | tag2 | tag3 | time                        |",
+            "+-----------+------+------+------+-----------------------------+",
             "| 210       |      | OH   | 21   | 1970-01-01T00:00:00.000136Z |",
             "+-----------+------+------+------+-----------------------------+",
         ],
