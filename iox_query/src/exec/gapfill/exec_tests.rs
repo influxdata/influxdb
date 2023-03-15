@@ -497,6 +497,83 @@ fn test_gapfill_simple_no_lower_bound() {
 }
 
 #[test]
+fn test_gapfill_fill_prev() {
+    test_helpers::maybe_start_logging();
+    insta::allow_duplicates! { for output_batch_size in [1, 2, 4, 8] {
+        for input_batch_size in [1, 2, 4] {
+            let records = TestRecords {
+                group_cols: vec![vec![
+                    Some("a"),
+                    Some("a"),
+                    Some("b"),
+                    Some("b"),
+                    Some("b"),
+                ]],
+                time_col: vec![
+                    // 975
+                    Some(1000),
+                    // 1025
+                    // 1050
+                    Some(1075),
+                    // 1100
+                    // 1125
+                    // --- new series
+                    // 975
+                    Some(1000),
+                    // 1025
+                    Some(1050),
+                    // 1075
+                    Some(1100),
+                    // 1125
+                ],
+                agg_cols: vec![vec![
+                    Some(10),
+                    Some(11),
+                    Some(20),
+                    None,
+                    Some(21),
+                ]],
+                input_batch_size,
+            };
+            let params = get_params_ms_with_fill_strategy(&records, 25, Some(975), 1_125, FillStrategy::Prev);
+            let tc = TestCase {
+                test_records: records,
+                output_batch_size,
+                params,
+            };
+            let batches = tc.run().unwrap();
+            let actual = batches_to_lines(&batches);
+            insta::with_settings!({
+                description => format!("input_batch_size: {input_batch_size}, output_batch_size: {output_batch_size}"),
+            }, {
+                insta::assert_yaml_snapshot!(actual, @r###"
+                ---
+                - +----+--------------------------+----+
+                - "| g0 | time                     | a0 |"
+                - +----+--------------------------+----+
+                - "| a  | 1970-01-01T00:00:00.975Z |    |"
+                - "| a  | 1970-01-01T00:00:01Z     | 10 |"
+                - "| a  | 1970-01-01T00:00:01.025Z | 10 |"
+                - "| a  | 1970-01-01T00:00:01.050Z | 10 |"
+                - "| a  | 1970-01-01T00:00:01.075Z | 11 |"
+                - "| a  | 1970-01-01T00:00:01.100Z | 11 |"
+                - "| a  | 1970-01-01T00:00:01.125Z | 11 |"
+                - "| b  | 1970-01-01T00:00:00.975Z |    |"
+                - "| b  | 1970-01-01T00:00:01Z     | 20 |"
+                - "| b  | 1970-01-01T00:00:01.025Z | 20 |"
+                - "| b  | 1970-01-01T00:00:01.050Z |    |"
+                - "| b  | 1970-01-01T00:00:01.075Z |    |"
+                - "| b  | 1970-01-01T00:00:01.100Z | 21 |"
+                - "| b  | 1970-01-01T00:00:01.125Z | 21 |"
+                - +----+--------------------------+----+
+                "###)
+            });
+            assert_batch_count(&batches, output_batch_size);
+        }
+    }}
+}
+
+#[test]
 fn test_gapfill_simple_no_lower_bound_with_nulls() {
     test_helpers::maybe_start_logging();
     insta::allow_duplicates! { for output_batch_size in [1, 2, 4, 8] {
@@ -812,23 +889,28 @@ fn bound_included_from_option<T>(o: Option<T>) -> Bound<T> {
     }
 }
 
-fn phys_fill_strategy_null(
+fn phys_fill_strategies(
     records: &TestRecords,
+    fill_strategy: FillStrategy,
 ) -> Result<Vec<(Arc<dyn PhysicalExpr>, FillStrategy)>> {
     let start = records.group_cols.len() + 1; // 1 is for time col
     let end = start + records.agg_cols.len();
     let mut v = Vec::with_capacity(records.agg_cols.len());
     for f in records.schema().fields()[start..end].iter() {
-        v.push((phys_col(f.name(), &records.schema())?, FillStrategy::Null));
+        v.push((
+            phys_col(f.name(), &records.schema())?,
+            fill_strategy.clone(),
+        ));
     }
     Ok(v)
 }
 
-fn get_params_ms(
+fn get_params_ms_with_fill_strategy(
     batch: &TestRecords,
     stride: i64,
     start: Option<i64>,
     end: i64,
+    fill_strategy: FillStrategy,
 ) -> GapFillExecParams {
     GapFillExecParams {
         // interval day time is milliseconds in the low 32-bit word
@@ -848,6 +930,15 @@ fn get_params_ms(
                 None,
             ))),
         },
-        fill_strategy: phys_fill_strategy_null(batch).unwrap(),
+        fill_strategy: phys_fill_strategies(batch, fill_strategy).unwrap(),
     }
+}
+
+fn get_params_ms(
+    batch: &TestRecords,
+    stride: i64,
+    start: Option<i64>,
+    end: i64,
+) -> GapFillExecParams {
+    get_params_ms_with_fill_strategy(batch, stride, start, end, FillStrategy::Null)
 }
