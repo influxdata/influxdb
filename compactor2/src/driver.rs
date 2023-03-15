@@ -663,7 +663,7 @@ mod tests {
         let state = timeout_with_progress_checking(Duration::from_millis(5), |_tx| async move {
             // No loop in this test; don't report progress and then sleep enough that this will
             // time out.
-            tokio::time::sleep(Duration::from_millis(10)).await;
+            tokio::time::sleep(Duration::from_secs(1)).await;
             Result::<(), String>::Ok(())
         })
         .await;
