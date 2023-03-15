@@ -48,6 +48,7 @@
 //! ```text
 //!     - L0.?[300,350] 5kb                                           |-L0.3-|
 //! ```
+mod common_use_cases;
 mod core;
 mod knobs;
 mod large_files;
