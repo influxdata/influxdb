@@ -4,6 +4,7 @@
 //! [`DmlSink`]: crate::dml_sink::DmlSink
 //! [`DmlOperation`]: dml::DmlOperation
 
+pub(crate) mod reference_tracker;
 pub(crate) mod rotate_task;
 mod traits;
 pub(crate) mod wal_sink;
