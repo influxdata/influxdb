@@ -632,15 +632,15 @@ mod tests {
 
     #[tokio::test]
     async fn doesnt_report_progress_returns_err_under_timeout() {
-        let state = timeout_with_progress_checking(Duration::from_millis(5), |tx| async move {
-            // No loop in this test; report progress and then return success to simulate
-            // successfully completing all work before the timeout.
-            let _ignore_send_errors = tx.send(true);
-            Result::<(), String>::Ok(())
+        let state = timeout_with_progress_checking(Duration::from_millis(5), |_tx| async move {
+            Result::<(), String>::Err(String::from("there was a problem"))
         })
         .await;
 
-        assert_matches!(state, TimeoutWithProgress::Completed(Ok(())));
+        assert_matches!(
+            state,
+            TimeoutWithProgress::Completed(Err(e)) if e == "there was a problem"
+        );
     }
 
     #[tokio::test]
