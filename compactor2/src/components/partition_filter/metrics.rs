@@ -85,7 +85,7 @@ where
 mod tests {
     use std::sync::Arc;
 
-    use metric::{assert_counter, Attributes, Metric};
+    use metric::{assert_counter, Attributes};
 
     use crate::{
         components::partition_filter::has_files::HasFilesPartitionFilter,

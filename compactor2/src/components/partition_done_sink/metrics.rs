@@ -83,7 +83,7 @@ where
 mod tests {
     use std::{collections::HashMap, sync::Arc};
 
-    use metric::{assert_counter, Attributes, Metric};
+    use metric::{assert_counter, Attributes};
     use object_store::Error as ObjectStoreError;
 
     use crate::components::partition_done_sink::mock::MockPartitionDoneSink;
