@@ -69,7 +69,7 @@ where
 
 #[cfg(test)]
 mod tests {
-    use metric::{assert_counter, Attributes, Metric};
+    use metric::assert_counter;
 
     use crate::components::partitions_source::mock::MockPartitionsSource;
 

@@ -305,7 +305,7 @@ where
 mod tests {
     use std::sync::Arc;
 
-    use metric::{assert_histogram, Attributes, Metric};
+    use metric::{assert_histogram, Attributes};
 
     use crate::components::commit::mock::{CommitHistoryEntry, MockCommit};
     use iox_tests::ParquetFileBuilder;
