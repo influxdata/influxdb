@@ -1,5 +1,7 @@
 use std::path::PathBuf;
 
+use arrow::record_batch::RecordBatch;
+use arrow_flight::decode::FlightRecordBatchStream;
 use arrow_util::assert_batches_sorted_eq;
 use assert_cmd::Command;
 use datafusion::common::assert_contains;
@@ -37,22 +39,10 @@ async fn flightsql_adhoc_query() {
                         "+------+------+--------------------------------+-----+",
                     ];
 
-                    let connection = state.cluster().querier().querier_grpc_connection();
-                    let (channel, _headers) = connection.into_grpc_connection().into_parts();
+                    let mut client = flightsql_client(state.cluster());
 
-                    let mut client = FlightSqlClient::new(channel);
-
-                    // Add namespace to client headers until it is fully supported by FlightSQL
-                    let namespace = state.cluster().namespace();
-                    client.add_header("iox-namespace-name", namespace).unwrap();
-
-                    let batches: Vec<_> = client
-                        .query(sql)
-                        .await
-                        .expect("ran SQL query")
-                        .try_collect()
-                        .await
-                        .expect("got batches");
+                    let stream = client.query(sql).await.unwrap();
+                    let batches = collect_stream(stream).await;
 
                     assert_batches_sorted_eq!(&expected, &batches);
                 }
@@ -84,14 +74,7 @@ async fn flightsql_adhoc_query_error() {
                 async move {
                     let sql = String::from("select * from incorrect_table");
 
-                    let connection = state.cluster().querier().querier_grpc_connection();
-                    let (channel, _headers) = connection.into_grpc_connection().into_parts();
-
-                    let mut client = FlightSqlClient::new(channel);
-
-                    // Add namespace to client headers until it is fully supported by FlightSQL
-                    let namespace = state.cluster().namespace();
-                    client.add_header("iox-namespace-name", namespace).unwrap();
+                    let mut client = flightsql_client(state.cluster());
 
                     let err = client.query(sql).await.unwrap_err();
 
@@ -138,24 +121,54 @@ async fn flightsql_prepared_query() {
                         "+------+------+--------------------------------+-----+",
                     ];
 
-                    let connection = state.cluster().querier().querier_grpc_connection();
-                    let (channel, _headers) = connection.into_grpc_connection().into_parts();
-
-                    let mut client = FlightSqlClient::new(channel);
-
-                    // Add namespace to client headers until it is fully supported by FlightSQL
-                    let namespace = state.cluster().namespace();
-                    client.add_header("iox-namespace-name", namespace).unwrap();
+                    let mut client = flightsql_client(state.cluster());
 
                     let handle = client.prepare(sql).await.unwrap();
+                    let stream = client.execute(handle).await.unwrap();
 
-                    let batches: Vec<_> = client
-                        .execute(handle)
-                        .await
-                        .expect("ran SQL query")
-                        .try_collect()
-                        .await
-                        .expect("got batches");
+                    let batches = collect_stream(stream).await;
+
+                    assert_batches_sorted_eq!(&expected, &batches);
+                }
+                .boxed()
+            })),
+        ],
+    )
+    .run()
+    .await
+}
+
+#[tokio::test]
+async fn flightsql_get_catalogs() {
+    test_helpers::maybe_start_logging();
+    let database_url = maybe_skip_integration!();
+
+    let table_name = "the_table";
+
+    // Set up the cluster  ====================================
+    let mut cluster = MiniCluster::create_shared2(database_url).await;
+
+    StepTest::new(
+        &mut cluster,
+        vec![
+            Step::WriteLineProtocol(format!(
+                "{table_name},tag1=A,tag2=B val=42i 123456\n\
+                 {table_name},tag1=A,tag2=C val=43i 123457"
+            )),
+            Step::Custom(Box::new(move |state: &mut StepTestState| {
+                async move {
+                    let expected = vec![
+                        "+--------------+",
+                        "| catalog_name |",
+                        "+--------------+",
+                        "| public       |",
+                        "+--------------+",
+                    ];
+
+                    let mut client = flightsql_client(state.cluster());
+
+                    let stream = client.get_catalogs().await.unwrap();
+                    let batches = collect_stream(stream).await;
 
                     assert_batches_sorted_eq!(&expected, &batches);
                 }
@@ -243,6 +256,22 @@ async fn flightsql_jdbc() {
                         .success()
                         .stdout(predicate::str::contains("Running Prepared SQL Query"))
                         .stdout(predicate::str::contains("A,  B"));
+
+                    // CommandGetCatalogs output
+                    let expected_catalogs = "**************\n\
+                                             Catalogs:\n\
+                                             **************\n\
+                                             TABLE_CAT\n\
+                                             ------------\n\
+                                             public";
+
+                    // Validate metadata: jdbc_client <url> metadata
+                    Command::from_std(std::process::Command::new(&path))
+                        .arg(&jdbc_url)
+                        .arg("metadata")
+                        .assert()
+                        .success()
+                        .stdout(predicate::str::contains(expected_catalogs));
                 }
                 .boxed()
             })),
@@ -250,4 +279,22 @@ async fn flightsql_jdbc() {
     )
     .run()
     .await
+}
+
+/// Return a [`FlightSqlClient`] configured for use
+fn flightsql_client(cluster: &MiniCluster) -> FlightSqlClient {
+    let connection = cluster.querier().querier_grpc_connection();
+    let (channel, _headers) = connection.into_grpc_connection().into_parts();
+
+    let mut client = FlightSqlClient::new(channel);
+
+    // Add namespace to client headers until it is fully supported by FlightSQL
+    let namespace = cluster.namespace();
+    client.add_header("iox-namespace-name", namespace).unwrap();
+
+    client
+}
+
+async fn collect_stream(stream: FlightRecordBatchStream) -> Vec<RecordBatch> {
+    stream.try_collect().await.expect("collecting batches")
 }
