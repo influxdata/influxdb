@@ -661,7 +661,7 @@ mod test {
         context
             .inner()
             .register_table("temps", Arc::new(EmptyTable::new(Arc::new(schema()))))?;
-        let physical_plan = context.prepare_sql(sql).await?;
+        let physical_plan = context.sql_to_physical_plan(sql).await?;
         Ok(format_execution_plan(&physical_plan))
     }
 

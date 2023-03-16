@@ -341,7 +341,7 @@ mod tests {
         context
             .inner()
             .register_table("t", Arc::new(EmptyTable::new(Arc::new(schema()))))?;
-        let physical_plan = context.prepare_sql(sql).await?;
+        let physical_plan = context.sql_to_physical_plan(sql).await?;
         let gapfill_node = &physical_plan.children()[0];
         let gapfill_node = gapfill_node.as_any().downcast_ref::<GapFillExec>().unwrap();
         let exec_params = &gapfill_node.params;

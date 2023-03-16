@@ -76,12 +76,12 @@ impl FlightSQLPlanner {
         match cmd {
             FlightSQLCommand::CommandStatementQuery(CommandStatementQuery { query }) => {
                 debug!(%query, "Planning FlightSQL query");
-                Ok(ctx.prepare_sql(&query).await?)
+                Ok(ctx.sql_to_physical_plan(&query).await?)
             }
             FlightSQLCommand::CommandPreparedStatementQuery(handle) => {
                 let query = handle.query();
                 debug!(%query, "Planning FlightSQL prepared query");
-                Ok(ctx.prepare_sql(query).await?)
+                Ok(ctx.sql_to_physical_plan(query).await?)
             }
             FlightSQLCommand::CommandGetCatalogs(CommandGetCatalogs {}) => {
                 debug!("Planning GetCatalogs query");
@@ -163,7 +163,7 @@ impl FlightSQLPlanner {
 ///
 /// returns: IPC encoded (schema_bytes) for this query
 async fn get_schema_for_query(query: &str, ctx: &IOxSessionContext) -> Result<Bytes> {
-    get_schema_for_plan(ctx.plan_sql(query).await?)
+    get_schema_for_plan(ctx.sql_to_logical_plan(query).await?)
 }
 
 /// Return the schema for the specified logical plan
@@ -194,7 +194,7 @@ fn encode_schema(schema: &Schema) -> Result<Bytes> {
 /// entire DataFusion plan.
 async fn plan_get_catalogs(ctx: &IOxSessionContext) -> Result<LogicalPlan> {
     let query = "SELECT DISTINCT table_catalog AS catalog_name FROM information_schema.tables ORDER BY table_catalog";
-    Ok(ctx.plan_sql(query).await?)
+    Ok(ctx.sql_to_logical_plan(query).await?)
 }
 
 /// Return a `LogicalPlan` for GetDbSchemas
@@ -233,7 +233,7 @@ async fn plan_get_db_schemas(
         ScalarValue::Utf8(Some(db_schema_filter_pattern)),
     ];
 
-    let plan = ctx.plan_sql(query).await?;
+    let plan = ctx.sql_to_logical_plan(query).await?;
     debug!(?plan, "Prepared plan is");
     Ok(plan.with_param_values(params)?)
 }

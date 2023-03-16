@@ -19,6 +19,6 @@ impl SqlQueryPlanner {
         query: &str,
         ctx: &IOxSessionContext,
     ) -> Result<Arc<dyn ExecutionPlan>> {
-        ctx.prepare_sql(query).await
+        ctx.sql_to_physical_plan(query).await
     }
 }

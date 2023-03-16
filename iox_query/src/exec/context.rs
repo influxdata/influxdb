@@ -316,20 +316,20 @@ impl IOxSessionContext {
 
     /// Plan a SQL statement. This assumes that any tables referenced
     /// in the SQL have been registered with this context. Use
-    /// `prepare_sql` to actually execute the query.
-    pub async fn plan_sql(&self, sql: &str) -> Result<LogicalPlan> {
-        let ctx = self.child_ctx("plan_sql");
+    /// `create_physical_plan` to actually execute the query.
+    pub async fn sql_to_logical_plan(&self, sql: &str) -> Result<LogicalPlan> {
+        let ctx = self.child_ctx("sql_to_logical_plan");
         debug!(text=%sql, "planning SQL query");
         // NOTE can not use ctx.inner.sql() here as it also interprets DDL
         ctx.inner.state().create_logical_plan(sql).await
     }
 
-    /// Prepare a SQL statement for execution. This assumes that any
+    /// Plan a SQL statement and convert it to an execution plan. This assumes that any
     /// tables referenced in the SQL have been registered with this context
-    pub async fn prepare_sql(&self, sql: &str) -> Result<Arc<dyn ExecutionPlan>> {
-        let logical_plan = self.plan_sql(sql).await?;
+    pub async fn sql_to_physical_plan(&self, sql: &str) -> Result<Arc<dyn ExecutionPlan>> {
+        let logical_plan = self.sql_to_logical_plan(sql).await?;
 
-        let ctx = self.child_ctx("prepare_sql");
+        let ctx = self.child_ctx("sql_to_physical_plan");
         ctx.create_physical_plan(&logical_plan).await
     }
 
