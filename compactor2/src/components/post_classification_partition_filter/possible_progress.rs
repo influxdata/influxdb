@@ -1,10 +1,10 @@
 use std::fmt::Display;
 
 use async_trait::async_trait;
-use data_types::ParquetFile;
 
 use crate::{
     error::{DynError, ErrorKind, SimpleError},
+    file_classification::FilesForProgress,
     PartitionInfo,
 };
 
@@ -32,9 +32,9 @@ impl PostClassificationPartitionFilter for PossibleProgressFilter {
     async fn apply(
         &self,
         partition_info: &PartitionInfo,
-        files: &[ParquetFile],
+        files_to_make_progress_on: &FilesForProgress,
     ) -> Result<bool, DynError> {
-        if !files.is_empty() {
+        if !files_to_make_progress_on.is_empty() {
             // There is some files to compact or split; we can make progress
             Ok(true)
         } else {
@@ -56,7 +56,10 @@ impl PostClassificationPartitionFilter for PossibleProgressFilter {
 mod tests {
     use std::sync::Arc;
 
-    use crate::{error::ErrorKindExt, test_utils::PartitionInfoBuilder};
+    use crate::{
+        error::ErrorKindExt, file_classification::FilesToSplitOrCompact,
+        test_utils::PartitionInfoBuilder,
+    };
     use iox_tests::ParquetFileBuilder;
 
     use super::*;
@@ -73,7 +76,10 @@ mod tests {
     async fn test_apply_empty() {
         let filter = PossibleProgressFilter::new(10);
         let p_info = Arc::new(PartitionInfoBuilder::new().with_partition_id(1).build());
-        let err = filter.apply(&p_info, &[]).await.unwrap_err();
+        let err = filter
+            .apply(&p_info, &FilesForProgress::empty())
+            .await
+            .unwrap_err();
         assert_eq!(err.classify(), ErrorKind::OutOfMemory);
         assert_eq!(
             err.to_string(),
@@ -87,6 +93,10 @@ mod tests {
         let filter = PossibleProgressFilter::new(10);
         let p_info = Arc::new(PartitionInfoBuilder::new().with_partition_id(1).build());
         let f1 = ParquetFileBuilder::new(1).with_file_size_bytes(7).build();
-        assert!(filter.apply(&p_info, &[f1]).await.unwrap());
+        let files_for_progress = FilesForProgress {
+            upgrade: vec![],
+            split_or_compact: FilesToSplitOrCompact::Compact(vec![f1]),
+        };
+        assert!(filter.apply(&p_info, &files_for_progress).await.unwrap());
     }
 }

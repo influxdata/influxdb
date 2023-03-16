@@ -4,9 +4,8 @@ use std::{
 };
 
 use async_trait::async_trait;
-use data_types::ParquetFile;
 
-use crate::{error::DynError, PartitionInfo};
+use crate::{error::DynError, file_classification::FilesForProgress, PartitionInfo};
 
 use super::PostClassificationPartitionFilter;
 
@@ -40,7 +39,7 @@ impl PostClassificationPartitionFilter for MockPostClassificationPartitionFilter
     async fn apply(
         &self,
         _partition_info: &PartitionInfo,
-        _files: &[ParquetFile],
+        _files_to_make_progress_on: &FilesForProgress,
     ) -> Result<bool, DynError> {
         self.return_values.lock().unwrap().next().unwrap()
     }

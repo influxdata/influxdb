@@ -14,7 +14,9 @@ use crate::{
         Components,
     },
     error::{DynError, ErrorKind, SimpleError},
-    file_classification::{FileClassification, FileToSplit, FilesToSplitOrCompact},
+    file_classification::{
+        FileClassification, FileToSplit, FilesForProgress, FilesToSplitOrCompact,
+    },
     partition_info::PartitionInfo,
     PlanIR,
 };
@@ -227,26 +229,30 @@ async fn try_compact_partition(
             // compaction
             let FileClassification {
                 target_level,
-                files_to_split_or_compact,
-                files_to_upgrade,
+                files_to_make_progress_on,
                 files_to_keep,
             } = components
                 .file_classifier
                 .classify(&partition_info, &round_info, branch);
 
-            // Skip partition if it has neither files to upgrade nor files to split or compact
-            if files_to_upgrade.is_empty()
-                && !components
-                    .post_classification_partition_filter
-                    .apply(&partition_info, &files_to_split_or_compact.files())
-                    .await?
+            // Evaluate whether there's work to do or not based on the files classified for
+            // making progress on. If there's no work to do, return early.
+            if !components
+                .post_classification_partition_filter
+                .apply(&partition_info, &files_to_make_progress_on)
+                .await?
             {
                 return Ok(());
             }
 
+            let FilesForProgress {
+                upgrade,
+                split_or_compact,
+            } = files_to_make_progress_on;
+
             // Compact
             let created_file_params = run_plans(
-                &files_to_split_or_compact,
+                &split_or_compact,
                 &partition_info,
                 &components,
                 target_level,
@@ -262,14 +268,14 @@ async fn try_compact_partition(
             // clean scratchpad
             scratchpad_ctx.clean_from_scratchpad(&input_paths).await;
 
-            // Update the catalog to reflect the newly created files, soft delete the compacted files and
-            // update the upgraded files
-            let files_to_delete = files_to_split_or_compact.files();
+            // Update the catalog to reflect the newly created files, soft delete the compacted
+            // files and update the upgraded files
+            let files_to_delete = split_or_compact.into_files();
             let (created_files, upgraded_files) = update_catalog(
                 Arc::clone(&components),
                 partition_id,
                 files_to_delete,
-                files_to_upgrade,
+                upgrade,
                 created_file_params,
                 target_level,
             )
@@ -323,6 +329,7 @@ async fn run_plans(
             )
             .await
         }
+        FilesToSplitOrCompact::None => Ok(vec![]), // Nothing to do
     }
 }
 

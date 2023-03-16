@@ -49,8 +49,8 @@ where
         info!(
             partition_id = partition_info.partition_id.get(),
             target_level = %target_level,
-            files_to_compact = files_to_split_or_compact.files_to_compact_len(),
-            files_to_split = files_to_split_or_compact.files_to_split_len(),
+            files_to_compact = files_to_split_or_compact.num_files_to_compact(),
+            files_to_split = files_to_split_or_compact.num_files_to_split(),
             files_to_keep = files_to_keep.len(),
             "split or compact"
         );
