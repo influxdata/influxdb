@@ -86,7 +86,7 @@ arrow_util = { path = "../arrow_util" }
 assert_cmd = "2.0.9"
 async-trait = "0.1"
 predicate = { path = "../predicate" }
-predicates = "2.1.0"
+predicates = "3.0.1"
 serde = "1.0.156"
 test_helpers = { path = "../test_helpers", features = ["future_timeout"] }
 test_helpers_end_to_end = { path = "../test_helpers_end_to_end" }
