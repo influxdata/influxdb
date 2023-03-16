@@ -218,41 +218,20 @@ async fn plan_get_db_schemas(
     catalog: Option<String>,
     db_schema_filter_pattern: Option<String>,
 ) -> Result<LogicalPlan> {
-    let (query, params) = match (catalog, db_schema_filter_pattern) {
-        (Some(catalog), Some(db_schema_filter_pattern)) => (
-            "PREPARE my_plan(VARCHAR, VARCHAR) AS \
-             SELECT DISTINCT table_catalog AS catalog_name, table_schema AS db_schema_name \
-              FROM information_schema.tables \
-              WHERE table_catalog like $1 AND table_schema like $2  \
-              ORDER BY table_catalog, table_schema",
-            vec![
-                ScalarValue::Utf8(Some(catalog)),
-                ScalarValue::Utf8(Some(db_schema_filter_pattern)),
-            ],
-        ),
-        (None, Some(db_schema_filter_pattern)) => (
-            "PREPARE my_plan(VARCHAR) AS \
-             SELECT DISTINCT table_catalog AS catalog_name, table_schema AS db_schema_name \
-             FROM information_schema.tables \
-             WHERE table_schema like $1 \
-             ORDER BY table_catalog, table_schema",
-            vec![ScalarValue::Utf8(Some(db_schema_filter_pattern))],
-        ),
-        (Some(catalog), None) => (
-            "PREPARE my_plan(VARCHAR) AS \
-             SELECT DISTINCT table_catalog AS catalog_name, table_schema AS db_schema_name \
-              FROM information_schema.tables \
-              WHERE table_catalog like $1 \
-              ORDER BY table_catalog, table_schema",
-            vec![ScalarValue::Utf8(Some(catalog))],
-        ),
-        (None, None) => (
-            "SELECT DISTINCT table_catalog AS catalog_name, table_schema AS db_schema_name \
-              FROM information_schema.tables \
-              ORDER BY table_catalog, table_schema",
-            vec![],
-        ),
-    };
+    // use '%' to match anything if filters are not specified
+    let catalog = catalog.unwrap_or_else(|| String::from("%"));
+    let db_schema_filter_pattern = db_schema_filter_pattern.unwrap_or_else(|| String::from("%"));
+
+    let query = "PREPARE my_plan(VARCHAR, VARCHAR) AS \
+                 SELECT DISTINCT table_catalog AS catalog_name, table_schema AS db_schema_name \
+                 FROM information_schema.tables \
+                 WHERE table_catalog like $1 AND table_schema like $2  \
+                 ORDER BY table_catalog, table_schema";
+
+    let params = vec![
+        ScalarValue::Utf8(Some(catalog)),
+        ScalarValue::Utf8(Some(db_schema_filter_pattern)),
+    ];
 
     let plan = ctx.plan_sql(query).await?;
     debug!(?plan, "Prepared plan is");
