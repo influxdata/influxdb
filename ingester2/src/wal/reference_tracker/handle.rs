@@ -179,7 +179,7 @@ mod tests {
         }
         /// Return a future that completes when a file is subsequently deleted,
         /// or panics if no file is deleted within 5 seconds.
-        fn waker(&self) -> impl Future<Output = ()> + '_ {
+        fn deleted_file_waker(&self) -> impl Future<Output = ()> + '_ {
             self.notify
                 .notified()
                 .with_timeout_panic(Duration::from_secs(5))
@@ -253,11 +253,11 @@ mod tests {
         assert!(wal.calls().is_empty());
 
         // Finally release the last IDs
-        let waker = wal.waker();
+        let deleted_file_waker = wal.deleted_file_waker();
         handle.enqueue_persist_notification(new_note([3, 4])).await;
 
         // Wait for it to be processed
-        waker.await;
+        deleted_file_waker.await;
 
         // Validate the correct ID was deleted
         assert_matches!(wal.calls().as_slice(), &[v] if v == SEGMENT_ID);
@@ -313,13 +313,13 @@ mod tests {
         handle.enqueue_persist_notification(new_note([3, 4])).await;
 
         // Add a file with IDs 1, 2, 3
-        let waker = wal.waker();
+        let deleted_file_waker = wal.deleted_file_waker();
         handle
             .enqueue_rotated_file(SEGMENT_ID_1, new_set([1, 2, 3]))
             .await;
 
         // Wait for it to be processed
-        waker.await;
+        deleted_file_waker.await;
 
         // Validate the correct ID was deleted
         assert_matches!(wal.calls().as_slice(), &[v] if v == SEGMENT_ID_1);
@@ -340,11 +340,11 @@ mod tests {
         assert_eq!(wal.calls().len(), 1);
 
         // And finally release the last ref via an unbuffered notification
-        let waker = wal.waker();
+        let deleted_file_waker = wal.deleted_file_waker();
         handle
             .enqueue_unbuffered_write(SequenceNumber::new(5))
             .await;
-        waker.await;
+        deleted_file_waker.await;
 
         // Validate the correct ID was deleted
         assert_matches!(wal.calls().as_slice(), &[a, b] => {
@@ -372,13 +372,13 @@ mod tests {
 
         // Notifying the actor of a WAL file with no operations in it should not
         // cause a panic, and should cause the file to be immediately deleted.
-        let waker = wal.waker();
+        let deleted_file_waker = wal.deleted_file_waker();
         handle
             .enqueue_rotated_file(SEGMENT_ID, SequenceNumberSet::default())
             .await;
 
         // Wait for the file deletion.
-        waker.await;
+        deleted_file_waker.await;
         assert_matches!(wal.calls().as_slice(), &[v] if v == SEGMENT_ID);
 
         // Assert clean shutdown behaviour.
@@ -442,10 +442,10 @@ mod tests {
             .await;
 
         // Release the references to file 2
-        let waker = wal.waker();
+        let deleted_file_waker = wal.deleted_file_waker();
         handle.enqueue_persist_notification(new_note([6])).await;
 
-        waker.await;
+        deleted_file_waker.await;
 
         //
         // At this point, the actor has deleted the second file, which means it
