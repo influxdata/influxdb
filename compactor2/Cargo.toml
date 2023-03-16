@@ -33,6 +33,7 @@ workspace-hack = { version = "0.1", path = "../workspace-hack" }
 
 [dev-dependencies]
 arrow_util = { path = "../arrow_util" }
+assert_matches = "1"
 compactor2_test_utils = { path = "../compactor2_test_utils" }
 iox_tests = { path = "../iox_tests" }
 test_helpers = { path = "../test_helpers"}
