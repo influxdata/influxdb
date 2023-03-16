@@ -57,7 +57,7 @@ use super::{
         has_files::HasFilesPartitionFilter, has_matching_file::HasMatchingFilePartitionFilter,
         logging::LoggingPartitionFilterWrapper, max_num_columns::MaxNumColumnsPartitionFilter,
         metrics::MetricsPartitionFilterWrapper, never_skipped::NeverSkippedPartitionFilter,
-        or::OrPartitionFilter, unable_to_compact::UnableToCompactPartitionFilter, PartitionFilter,
+        or::OrPartitionFilter, unable_to_compact::PossibleProgressFilter, PartitionFilter,
     },
     partition_info_source::sub_sources::SubSourcePartitionInfoSource,
     partition_source::{
@@ -326,7 +326,7 @@ pub fn hardcoded_components(config: &Config) -> Arc<Components> {
         ))),
         post_classification_partition_filter: Arc::new(LoggingPartitionFilterWrapper::new(
             MetricsPartitionFilterWrapper::new(
-                UnableToCompactPartitionFilter::new(config.max_compact_size_bytes()),
+                PossibleProgressFilter::new(config.max_compact_size_bytes()),
                 &config.metric_registry,
                 partition_resource_limit_conditions,
             ),

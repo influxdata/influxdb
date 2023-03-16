@@ -11,38 +11,39 @@ use crate::{
 use super::PartitionFilter;
 
 #[derive(Debug)]
-pub struct UnableToCompactPartitionFilter {
+pub struct PossibleProgressFilter {
     max_parquet_bytes: usize,
 }
 
-impl UnableToCompactPartitionFilter {
+impl PossibleProgressFilter {
     pub fn new(max_parquet_bytes: usize) -> Self {
         Self { max_parquet_bytes }
     }
 }
 
-impl Display for UnableToCompactPartitionFilter {
+impl Display for PossibleProgressFilter {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "unable_to_compact")
+        write!(f, "possible_progress")
     }
 }
 
 #[async_trait]
-impl PartitionFilter for UnableToCompactPartitionFilter {
+impl PartitionFilter for PossibleProgressFilter {
     async fn apply(
         &self,
         partition_info: &PartitionInfo,
         files: &[ParquetFile],
     ) -> Result<bool, DynError> {
         if !files.is_empty() {
-            // There is some files to compact or split
+            // There is some files to compact or split; we can make progress
             Ok(true)
         } else {
-            // No files means the split_compact cannot find any reasonable set of files to compact or split
+            // No files means the split_compact cannot find any reasonable set of files to make progress on
             Err(SimpleError::new(
                 ErrorKind::OutOfMemory,
                 format!(
-                    "partition {} has overlapped files that exceed max compact size limit {}. This may happen if a large amount of data has the same timestamp",
+                    "partition {} has overlapped files that exceed max compact size limit {}. \
+                    This may happen if a large amount of data has the same timestamp",
                     partition_info.partition_id, self.max_parquet_bytes
                 ),
             )
@@ -63,26 +64,27 @@ mod tests {
     #[test]
     fn test_display() {
         assert_eq!(
-            UnableToCompactPartitionFilter::new(10).to_string(),
-            "unable_to_compact"
+            PossibleProgressFilter::new(10).to_string(),
+            "possible_progress"
         );
     }
 
     #[tokio::test]
     async fn test_apply_empty() {
-        let filter = UnableToCompactPartitionFilter::new(10);
+        let filter = PossibleProgressFilter::new(10);
         let p_info = Arc::new(PartitionInfoBuilder::new().with_partition_id(1).build());
         let err = filter.apply(&p_info, &[]).await.unwrap_err();
         assert_eq!(err.classify(), ErrorKind::OutOfMemory);
         assert_eq!(
             err.to_string(),
-            "partition 1 has overlapped files that exceed max compact size limit 10. This may happen if a large amount of data has the same timestamp"
+            "partition 1 has overlapped files that exceed max compact size limit 10. \
+            This may happen if a large amount of data has the same timestamp"
         );
     }
 
     #[tokio::test]
     async fn test_apply_not_empty() {
-        let filter = UnableToCompactPartitionFilter::new(10);
+        let filter = PossibleProgressFilter::new(10);
         let p_info = Arc::new(PartitionInfoBuilder::new().with_partition_id(1).build());
         let f1 = ParquetFileBuilder::new(1).with_file_size_bytes(7).build();
         assert!(filter.apply(&p_info, &[f1]).await.unwrap());
