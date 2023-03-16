@@ -4,7 +4,7 @@ use datafusion::{
     config::ConfigOptions,
     error::Result,
     physical_optimizer::PhysicalOptimizerRule,
-    physical_plan::{rewrite::TreeNodeRewritable, sorts::sort::SortExec, ExecutionPlan},
+    physical_plan::{sorts::sort::SortExec, tree_node::TreeNodeRewritable, ExecutionPlan},
 };
 
 /// Removes [`SortExec`] if it is no longer needed.

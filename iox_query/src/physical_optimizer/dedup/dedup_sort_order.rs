@@ -5,7 +5,7 @@ use datafusion::{
     config::ConfigOptions,
     error::Result,
     physical_optimizer::PhysicalOptimizerRule,
-    physical_plan::{rewrite::TreeNodeRewritable, ExecutionPlan},
+    physical_plan::{tree_node::TreeNodeRewritable, ExecutionPlan},
 };
 use indexmap::IndexSet;
 use predicate::Predicate;
@@ -132,7 +132,7 @@ impl PhysicalOptimizerRule for DedupSortOrder {
                     config.execution.target_partitions,
                 );
 
-                let sort_exprs = arrow_sort_key_exprs(&quorum_sort_key, schema.as_arrow().as_ref());
+                let sort_exprs = arrow_sort_key_exprs(&quorum_sort_key, &schema);
                 return Ok(Some(Arc::new(DeduplicateExec::new(child, sort_exprs))));
             }
 

@@ -10,8 +10,7 @@ async fn schema_merge_nonexistent_column() {
         setup_name: "MultiChunkSchemaMerge",
         sql: "SELECT * from cpu where foo = 8",
         expected_error_code: tonic::Code::InvalidArgument,
-        expected_message: "Error while planning query: Schema error: No field named 'foo'. \
-        Valid fields are 'cpu'.'host', 'cpu'.'region', 'cpu'.'system', 'cpu'.'time', 'cpu'.'user'.",
+        expected_message: r#"Error while planning query: Schema error: No field named "foo". Valid fields are "cpu"."host", "cpu"."region", "cpu"."system", "cpu"."time", "cpu"."user"."#,
     }
     .run()
     .await;

@@ -4,7 +4,7 @@ use datafusion::{
     config::ConfigOptions,
     error::Result,
     physical_optimizer::PhysicalOptimizerRule,
-    physical_plan::{rewrite::TreeNodeRewritable, ExecutionPlan},
+    physical_plan::{tree_node::TreeNodeRewritable, ExecutionPlan},
 };
 use predicate::Predicate;
 
@@ -34,9 +34,9 @@ impl PhysicalOptimizerRule for CombineChunks {
         config: &ConfigOptions,
     ) -> Result<Arc<dyn ExecutionPlan>> {
         plan.transform_up(&|plan| {
-            if let Some((iox_schema, chunks)) = extract_chunks(plan.as_ref()) {
+            if let Some((schema, chunks)) = extract_chunks(plan.as_ref()) {
                 return Ok(Some(chunks_to_physical_nodes(
-                    &iox_schema,
+                    &schema,
                     None,
                     chunks,
                     Predicate::new(),
@@ -72,7 +72,7 @@ mod tests {
         let chunk3 = TestChunk::new("table").with_id(3);
         let chunk4 = TestChunk::new("table").with_id(4).with_dummy_parquet_file();
         let chunk5 = TestChunk::new("table").with_id(5).with_dummy_parquet_file();
-        let schema = chunk1.schema().clone();
+        let schema = chunk1.schema().as_arrow();
         let plan = Arc::new(UnionExec::new(vec![
             chunks_to_physical_nodes(
                 &schema,

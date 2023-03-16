@@ -4,7 +4,7 @@ use datafusion::{
     config::ConfigOptions,
     error::Result,
     physical_optimizer::PhysicalOptimizerRule,
-    physical_plan::{rewrite::TreeNodeRewritable, ExecutionPlan},
+    physical_plan::{tree_node::TreeNodeRewritable, ExecutionPlan},
 };
 use predicate::Predicate;
 use schema::{sort::SortKeyBuilder, TIME_COLUMN_NAME};
@@ -44,7 +44,7 @@ impl PhysicalOptimizerRule for DedupNullColumns {
                     return Ok(None);
                 };
 
-                let pk_cols = schema.primary_key().into_iter().collect::<HashSet<_>>();
+                let pk_cols = dedup_exec.sort_columns();
 
                 let mut used_pk_cols = HashSet::new();
                 for chunk in &chunks {
@@ -72,7 +72,7 @@ impl PhysicalOptimizerRule for DedupNullColumns {
                     config.execution.target_partitions,
                 );
 
-                let sort_exprs = arrow_sort_key_exprs(&sort_key, schema.as_arrow().as_ref());
+                let sort_exprs = arrow_sort_key_exprs(&sort_key, &schema);
                 return Ok(Some(Arc::new(DeduplicateExec::new(child, sort_exprs))));
             }
 

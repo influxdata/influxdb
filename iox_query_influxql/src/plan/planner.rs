@@ -4,6 +4,7 @@ use crate::plan::rewriter::rewrite_statement;
 use crate::plan::util::{binary_operator_to_df_operator, Schemas};
 use crate::plan::var_ref::{column_type_to_var_ref_data_type, var_ref_data_type_to_data_type};
 use arrow::datatypes::DataType;
+use datafusion::catalog::TableReference;
 use datafusion::common::{DFSchema, DFSchemaRef, DataFusionError, Result, ScalarValue, ToDFSchema};
 use datafusion::logical_expr::expr_rewriter::{normalize_col, ExprRewritable, ExprRewriter};
 use datafusion::logical_expr::logical_plan::builder::project;
@@ -725,8 +726,9 @@ impl<'a> InfluxQLToLogicalPlan<'a> {
     /// by the [`rewrite_statement`] function.
     fn create_table_ref(&self, table_name: String) -> Result<Option<LogicalPlan>> {
         Ok(if let Ok(source) = self.s.get_table_provider(&table_name) {
+            let table_ref = TableReference::bare(table_name.to_string());
             Some(project(
-                LogicalPlanBuilder::scan(&table_name, source, None)?.build()?,
+                LogicalPlanBuilder::scan(table_ref, source, None)?.build()?,
                 iter::once(lit_dict(&table_name).alias(INFLUXQL_MEASUREMENT_COLUMN_NAME)),
             )?)
         } else {

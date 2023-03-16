@@ -9,7 +9,7 @@ license.workspace = true
 arrow = { workspace = true, features = ["prettyprint"] }
 arrow-flight = { workspace = true }
 arrow_util = { path = "../arrow_util" }
-assert_cmd = "2.0.8"
+assert_cmd = "2.0.9"
 bytes = "1.4"
 data_types = { path = "../data_types" }
 dml = { path = "../dml" }

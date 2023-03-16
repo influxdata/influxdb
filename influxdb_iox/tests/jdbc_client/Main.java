@@ -19,7 +19,7 @@ public class Main {
         System.err.println("# Run specified prepared query without parameters");
         System.err.println("jdbc_client <url> prepared_query <sql>");
         System.err.println("# Run metadata tests");
-        System.err.println("jdbc_client <url> props");
+        System.err.println("jdbc_client <url> metadata");
         System.exit(1);
     }
 
@@ -63,9 +63,9 @@ public class Main {
                 }
                 break;
 
-            case "props":
+            case "metadata":
                 {
-                    run_props(url);
+                    run_metadata(url);
                 }
                 break;
 
@@ -115,17 +115,31 @@ public class Main {
         print_result_set(rs);
     }
 
-    static void run_props(String url) throws SQLException {
+    static void run_metadata(String url) throws SQLException {
         Connection conn = connect(url);
         System.out.println(conn.getCatalog());
         DatabaseMetaData md = conn.getMetaData();
-        System.out.println("isReadOnly: " + md.isReadOnly());
-        System.out.println("getSearchStringEscape: " + md.getSearchStringEscape());
-        System.out.println("getDriverVersion: " + md.getDriverVersion());
-        System.out.println("getDatabaseProductVersion: " + md.getDatabaseProductVersion());
-        System.out.println("getJDBCMajorVersion: " + md.getJDBCMajorVersion());
-        System.out.println("getJDBCMinorVersion: " + md.getJDBCMinorVersion());
-        System.out.println("getDriverName: " + md.getDriverName());
+        // Note yet implemented
+        // (see https://github.com/influxdata/influxdb_iox/issues/7210 )
+
+        System.out.println("**************");
+        System.out.println("Catalogs:");
+        System.out.println("**************");
+        print_result_set(md.getCatalogs());
+
+        System.out.println("**************");
+        System.out.println("Schemas:");
+        System.out.println("**************");
+        print_result_set(md.getSchemas());
+
+        //System.out.println("isReadOnly: " + md.isReadOnly());
+        //System.out.println("getSearchStringEscape: " + md.getSearchStringEscape());
+        //System.out.println("getDriverVersion: " + md.getDriverVersion());
+        //System.out.println("getDatabaseProductVersion: " + md.getDatabaseProductVersion());
+        //System.out.println("getJDBCMajorVersion: " + md.getJDBCMajorVersion());
+        //System.out.println("getJDBCMinorVersion: " + md.getJDBCMinorVersion());
+        //System.out.println("getDriverName: " + md.getDriverName());
+
     }
 
     // Print out the ResultSet in a whitespace delimited form

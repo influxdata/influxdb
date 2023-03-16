@@ -1,10 +1,14 @@
 use std::sync::Arc;
 
-use datafusion::physical_plan::{
-    empty::EmptyExec, file_format::ParquetExec, union::UnionExec, visit_execution_plan,
-    ExecutionPlan, ExecutionPlanVisitor,
+use arrow::datatypes::SchemaRef;
+use datafusion::{
+    error::DataFusionError,
+    physical_plan::{
+        empty::EmptyExec, file_format::ParquetExec, union::UnionExec, visit_execution_plan,
+        ExecutionPlan, ExecutionPlanVisitor,
+    },
 };
-use schema::Schema;
+use observability_deps::tracing::debug;
 
 use crate::{
     provider::{PartitionedFileExt, RecordBatchesExec},
@@ -20,29 +24,36 @@ use crate::{
 /// additional nodes (like de-duplication, filtering, projection) then NO data will be returned.
 ///
 /// [`chunks_to_physical_nodes`]: crate::provider::chunks_to_physical_nodes
-pub fn extract_chunks(plan: &dyn ExecutionPlan) -> Option<(Schema, Vec<Arc<dyn QueryChunk>>)> {
+pub fn extract_chunks(plan: &dyn ExecutionPlan) -> Option<(SchemaRef, Vec<Arc<dyn QueryChunk>>)> {
     let mut visitor = ExtractChunksVisitor::default();
-    visit_execution_plan(plan, &mut visitor).ok()?;
+    if let Err(e) = visit_execution_plan(plan, &mut visitor) {
+        debug!(
+            %e,
+            "cannot extract chunks",
+        );
+        return None;
+    }
     visitor.schema.map(|schema| (schema, visitor.chunks))
 }
 
 #[derive(Debug, Default)]
 struct ExtractChunksVisitor {
     chunks: Vec<Arc<dyn QueryChunk>>,
-    schema: Option<Schema>,
+    schema: Option<SchemaRef>,
 }
 
 impl ExtractChunksVisitor {
-    fn add_chunk(&mut self, chunk: Arc<dyn QueryChunk>) -> Result<(), ()> {
+    fn add_chunk(&mut self, chunk: Arc<dyn QueryChunk>) {
         self.chunks.push(chunk);
-        Ok(())
     }
 
-    fn add_schema_from_exec(&mut self, exec: &dyn ExecutionPlan) -> Result<(), ()> {
-        let schema = Schema::try_from(exec.schema()).map_err(|_| ())?;
+    fn add_schema_from_exec(&mut self, exec: &dyn ExecutionPlan) -> Result<(), DataFusionError> {
+        let schema = exec.schema();
         if let Some(existing) = &self.schema {
             if existing != &schema {
-                return Err(());
+                return Err(DataFusionError::External(
+                    String::from("Different schema").into(),
+                ));
             }
         } else {
             self.schema = Some(schema);
@@ -52,19 +63,27 @@ impl ExtractChunksVisitor {
 }
 
 impl ExecutionPlanVisitor for ExtractChunksVisitor {
-    type Error = ();
+    type Error = DataFusionError;
 
     fn pre_visit(&mut self, plan: &dyn ExecutionPlan) -> Result<bool, Self::Error> {
         let plan_any = plan.as_any();
 
         if let Some(record_batches_exec) = plan_any.downcast_ref::<RecordBatchesExec>() {
-            self.add_schema_from_exec(record_batches_exec)?;
+            self.add_schema_from_exec(record_batches_exec)
+                .map_err(|e| {
+                    DataFusionError::Context(
+                        "add schema from RecordBatchesExec".to_owned(),
+                        Box::new(e),
+                    )
+                })?;
 
             for chunk in record_batches_exec.chunks() {
-                self.add_chunk(Arc::clone(chunk))?;
+                self.add_chunk(Arc::clone(chunk));
             }
         } else if let Some(parquet_exec) = plan_any.downcast_ref::<ParquetExec>() {
-            self.add_schema_from_exec(parquet_exec)?;
+            self.add_schema_from_exec(parquet_exec).map_err(|e| {
+                DataFusionError::Context("add schema from ParquetExec".to_owned(), Box::new(e))
+            })?;
 
             for group in &parquet_exec.base_config().file_groups {
                 for file in group {
@@ -72,22 +91,32 @@ impl ExecutionPlanVisitor for ExtractChunksVisitor {
                         .extensions
                         .as_ref()
                         .and_then(|any| any.downcast_ref::<PartitionedFileExt>())
-                        .ok_or(())?;
-                    self.add_chunk(Arc::clone(&ext.0))?;
+                        .ok_or_else(|| {
+                            DataFusionError::External(
+                                String::from("PartitionedFileExt not found").into(),
+                            )
+                        })?;
+                    self.add_chunk(Arc::clone(&ext.0));
                 }
             }
         } else if let Some(empty_exec) = plan_any.downcast_ref::<EmptyExec>() {
             // should not produce dummy data
             if empty_exec.produce_one_row() {
-                return Err(());
+                return Err(DataFusionError::External(
+                    String::from("EmptyExec produces row").into(),
+                ));
             }
 
-            self.add_schema_from_exec(empty_exec)?;
+            self.add_schema_from_exec(empty_exec).map_err(|e| {
+                DataFusionError::Context("add schema from EmptyExec".to_owned(), Box::new(e))
+            })?;
         } else if plan_any.downcast_ref::<UnionExec>().is_some() {
             // continue visiting
         } else {
             // unsupported node
-            return Err(());
+            return Err(DataFusionError::External(
+                String::from("Unsupported node").into(),
+            ));
         }
 
         Ok(true)
@@ -112,20 +141,20 @@ mod tests {
 
     #[test]
     fn test_roundtrip_empty() {
-        let schema = chunk(1).schema().clone();
+        let schema = chunk(1).schema().as_arrow();
         assert_roundtrip(schema, vec![]);
     }
 
     #[test]
     fn test_roundtrip_single_record_batch() {
         let chunk1 = chunk(1);
-        assert_roundtrip(chunk1.schema().clone(), vec![Arc::new(chunk1)]);
+        assert_roundtrip(chunk1.schema().as_arrow(), vec![Arc::new(chunk1)]);
     }
 
     #[test]
     fn test_roundtrip_single_parquet() {
         let chunk1 = chunk(1).with_dummy_parquet_file();
-        assert_roundtrip(chunk1.schema().clone(), vec![Arc::new(chunk1)]);
+        assert_roundtrip(chunk1.schema().as_arrow(), vec![Arc::new(chunk1)]);
     }
 
     #[test]
@@ -136,7 +165,7 @@ mod tests {
         let chunk4 = chunk(4);
         let chunk5 = chunk(5);
         assert_roundtrip(
-            chunk1.schema().clone(),
+            chunk1.schema().as_arrow(),
             vec![
                 Arc::new(chunk1),
                 Arc::new(chunk2),
@@ -174,14 +203,16 @@ mod tests {
             DataType::Float64,
             true,
         )]));
-        let plan = EmptyExec::new(false, schema);
-        assert!(extract_chunks(&plan).is_none());
+        let plan = EmptyExec::new(false, Arc::clone(&schema));
+        let (schema2, chunks) = extract_chunks(&plan).unwrap();
+        assert_eq!(schema, schema2);
+        assert!(chunks.is_empty());
     }
 
     #[test]
     fn test_stop_at_other_node_types() {
         let chunk1 = chunk(1);
-        let schema = chunk1.schema().clone();
+        let schema = chunk1.schema().as_arrow();
         let plan = chunks_to_physical_nodes(
             &schema,
             None,
@@ -206,7 +237,8 @@ mod tests {
             .unwrap()
             .merge(&schema_ext)
             .unwrap()
-            .build();
+            .build()
+            .as_arrow();
         assert_roundtrip(schema, vec![Arc::new(chunk)]);
     }
 
@@ -219,12 +251,13 @@ mod tests {
             .unwrap()
             .merge(&schema_ext)
             .unwrap()
-            .build();
+            .build()
+            .as_arrow();
         assert_roundtrip(schema, vec![Arc::new(chunk)]);
     }
 
     #[track_caller]
-    fn assert_roundtrip(schema: Schema, chunks: Vec<Arc<dyn QueryChunk>>) {
+    fn assert_roundtrip(schema: SchemaRef, chunks: Vec<Arc<dyn QueryChunk>>) {
         let plan = chunks_to_physical_nodes(&schema, None, chunks.clone(), Predicate::default(), 2);
         let (schema2, chunks2) = extract_chunks(plan.as_ref()).expect("data found");
         assert_eq!(schema, schema2);

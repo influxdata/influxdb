@@ -4,6 +4,7 @@ use crate::{
     provider::record_batch_exec::RecordBatchesExec, util::arrow_sort_key_exprs, QueryChunk,
     QueryChunkData,
 };
+use arrow::datatypes::SchemaRef;
 use datafusion::{
     datasource::{listing::PartitionedFile, object_store::ObjectStoreUrl},
     physical_expr::execution_props::ExecutionProps,
@@ -135,14 +136,14 @@ fn combine_sort_key(
 /// pushdown ([`RecordBatchesExec`] has NO builtin filter function). Delete predicates are NOT applied at all. The
 /// caller is responsible for wrapping the output node into appropriate filter nodes.
 pub fn chunks_to_physical_nodes(
-    iox_schema: &Schema,
+    schema: &SchemaRef,
     output_sort_key: Option<&SortKey>,
     chunks: Vec<Arc<dyn QueryChunk>>,
     predicate: Predicate,
     target_partitions: usize,
 ) -> Arc<dyn ExecutionPlan> {
     if chunks.is_empty() {
-        return Arc::new(EmptyExec::new(false, iox_schema.as_arrow()));
+        return Arc::new(EmptyExec::new(false, Arc::clone(schema)));
     }
 
     let mut record_batch_chunks: Vec<Arc<dyn QueryChunk>> = vec![];
@@ -177,7 +178,7 @@ pub fn chunks_to_physical_nodes(
     if !record_batch_chunks.is_empty() {
         output_nodes.push(Arc::new(RecordBatchesExec::new(
             record_batch_chunks,
-            iox_schema.as_arrow(),
+            Arc::clone(schema),
         )));
     }
     let mut parquet_chunks: Vec<_> = parquet_chunks.into_iter().collect();
@@ -202,14 +203,12 @@ pub fn chunks_to_physical_nodes(
         );
 
         // Tell datafusion about the sort key, if any
-        let file_schema = iox_schema.as_arrow();
-        let output_ordering =
-            sort_key.map(|sort_key| arrow_sort_key_exprs(&sort_key, &file_schema));
+        let output_ordering = sort_key.map(|sort_key| arrow_sort_key_exprs(&sort_key, schema));
 
         let props = ExecutionProps::new();
         let filter_expr = predicate.filter_expr()
             .and_then(|filter_expr| {
-                match create_physical_expr_from_schema(&props, &filter_expr, &file_schema) {
+                match create_physical_expr_from_schema(&props, &filter_expr, schema) {
                     Ok(f) => Some(f),
                     Err(e) => {
                         warn!(%e, ?filter_expr, "Error creating physical filter expression, can not push down");
@@ -220,7 +219,7 @@ pub fn chunks_to_physical_nodes(
 
         let base_config = FileScanConfig {
             object_store_url,
-            file_schema,
+            file_schema: Arc::clone(schema),
             file_groups,
             statistics: Statistics::default(),
             projection: None,
@@ -361,7 +360,7 @@ mod tests {
 
     #[test]
     fn test_chunks_to_physical_nodes_empty() {
-        let schema = TestChunk::new("table").schema().clone();
+        let schema = TestChunk::new("table").schema().as_arrow();
         let plan = chunks_to_physical_nodes(&schema, None, vec![], Predicate::new(), 2);
         insta::assert_yaml_snapshot!(
             format_execution_plan(&plan),
@@ -375,7 +374,7 @@ mod tests {
     #[test]
     fn test_chunks_to_physical_nodes_recordbatch() {
         let chunk = TestChunk::new("table");
-        let schema = chunk.schema().clone();
+        let schema = chunk.schema().as_arrow();
         let plan =
             chunks_to_physical_nodes(&schema, None, vec![Arc::new(chunk)], Predicate::new(), 2);
         insta::assert_yaml_snapshot!(
@@ -391,7 +390,7 @@ mod tests {
     #[test]
     fn test_chunks_to_physical_nodes_parquet_one_file() {
         let chunk = TestChunk::new("table").with_dummy_parquet_file();
-        let schema = chunk.schema().clone();
+        let schema = chunk.schema().as_arrow();
         let plan =
             chunks_to_physical_nodes(&schema, None, vec![Arc::new(chunk)], Predicate::new(), 2);
         insta::assert_yaml_snapshot!(
@@ -409,7 +408,7 @@ mod tests {
         let chunk1 = TestChunk::new("table").with_id(0).with_dummy_parquet_file();
         let chunk2 = TestChunk::new("table").with_id(1).with_dummy_parquet_file();
         let chunk3 = TestChunk::new("table").with_id(2).with_dummy_parquet_file();
-        let schema = chunk1.schema().clone();
+        let schema = chunk1.schema().as_arrow();
         let plan = chunks_to_physical_nodes(
             &schema,
             None,
@@ -435,7 +434,7 @@ mod tests {
         let chunk2 = TestChunk::new("table")
             .with_id(1)
             .with_dummy_parquet_file_and_store("iox2://");
-        let schema = chunk1.schema().clone();
+        let schema = chunk1.schema().as_arrow();
         let plan = chunks_to_physical_nodes(
             &schema,
             None,
@@ -458,7 +457,7 @@ mod tests {
     fn test_chunks_to_physical_nodes_mixed() {
         let chunk1 = TestChunk::new("table").with_dummy_parquet_file();
         let chunk2 = TestChunk::new("table");
-        let schema = chunk1.schema().clone();
+        let schema = chunk1.schema().as_arrow();
         let plan = chunks_to_physical_nodes(
             &schema,
             None,

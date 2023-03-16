@@ -29,7 +29,8 @@ use arrow_flight::{
     error::{FlightError, Result},
     sql::{
         ActionCreatePreparedStatementRequest, ActionCreatePreparedStatementResult, Any,
-        CommandPreparedStatementQuery, CommandStatementQuery, ProstMessageExt,
+        CommandGetCatalogs, CommandGetDbSchemas, CommandPreparedStatementQuery,
+        CommandStatementQuery, ProstMessageExt,
     },
     Action, FlightClient, FlightDescriptor, FlightInfo, IpcMessage, Ticket,
 };
@@ -124,7 +125,54 @@ impl FlightSqlClient {
         self.do_get_with_cmd(msg.as_any()).await
     }
 
-    async fn do_get_with_cmd(
+    /// List the catalogs on this server using a [`CommandGetCatalogs`] message.
+    ///
+    /// This implementation does not support alternate endpoints
+    ///
+    /// [`CommandGetCatalogs`]: https://github.com/apache/arrow/blob/3a6fc1f9eedd41df2d8ffbcbdfbdab911ff6d82e/format/FlightSql.proto#L1125-L1140
+    pub async fn get_catalogs(&mut self) -> Result<FlightRecordBatchStream> {
+        let msg = CommandGetCatalogs {};
+        self.do_get_with_cmd(msg.as_any()).await
+    }
+
+    /// List the schemas on this server
+    ///
+    /// # Parameters
+    ///
+    /// Definition from <https://github.com/apache/arrow/blob/44edc27e549d82db930421b0d4c76098941afd71/format/FlightSql.proto#L1156-L1173>
+    ///
+    /// catalog: Specifies the Catalog to search for the tables.
+    /// An empty string retrieves those without a catalog.
+    /// If omitted the catalog name should not be used to narrow the search.
+    ///
+    /// db_schema_filter_pattern: Specifies a filter pattern for schemas to search for.
+    /// When no db_schema_filter_pattern is provided, the pattern will not be used to narrow the search.
+    /// In the pattern string, two special characters can be used to denote matching rules:
+    ///    - "%" means to match any substring with 0 or more characters.
+    ///    - "_" means to match any one character.
+    ///
+    /// This implementation does not support alternate endpoints
+    pub async fn get_db_schemas(
+        &mut self,
+        catalog: Option<impl Into<String> + Send>,
+        db_schema_filter_pattern: Option<impl Into<String> + Send>,
+    ) -> Result<FlightRecordBatchStream> {
+        let msg = CommandGetDbSchemas {
+            catalog: catalog.map(|s| s.into()),
+            db_schema_filter_pattern: db_schema_filter_pattern.map(|s| s.into()),
+        };
+        self.do_get_with_cmd(msg.as_any()).await
+    }
+
+    /// Implements the canonical interaction for most FlightSQL messages:
+    ///
+    /// 1. Call `GetFlightInfo` with the provided message, and get a
+    /// [`FlightInfo`] and embedded ticket.
+    ///
+    /// 2. Call `DoGet` with the provided ticket.
+    ///
+    /// TODO: example calling with GetDbSchemas
+    pub async fn do_get_with_cmd(
         &mut self,
         cmd: arrow_flight::sql::Any,
     ) -> Result<FlightRecordBatchStream> {

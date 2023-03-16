@@ -1089,7 +1089,7 @@ impl Deduplicater {
 
         // Create the bottom node RecordBatchesExec for this chunk
         let mut input = chunks_to_physical_nodes(
-            &input_schema,
+            &input_schema.as_arrow(),
             output_sort_key,
             vec![Arc::clone(&chunk)],
             predicate,
@@ -1267,7 +1267,7 @@ impl Deduplicater {
             debug!("Build one scan RecordBatchesExec for all non duplicated chunks even if empty");
 
             plans.push(chunks_to_physical_nodes(
-                output_schema,
+                &output_schema.as_arrow(),
                 output_sort_key,
                 chunks.into_no_duplicates(deduplication),
                 predicate,
@@ -1452,7 +1452,7 @@ mod test {
 
         // IOx scan operator
         let input = chunks_to_physical_nodes(
-            chunk.schema(),
+            &chunk.schema().as_arrow(),
             None,
             vec![Arc::clone(&chunk)],
             Predicate::default(),
@@ -1540,7 +1540,7 @@ mod test {
 
         // IOx scan operator
         let input = chunks_to_physical_nodes(
-            chunk.schema(),
+            &chunk.schema().as_arrow(),
             None,
             vec![Arc::clone(&chunk)],
             Predicate::default(),
