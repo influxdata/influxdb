@@ -5,6 +5,7 @@ authors = ["InfluxDB IOx Project Developers"]
 edition = "2021"
 license = "MIT OR Apache-2.0"
 readme = "README.md"
+description = "InfluxDB line protocol parser and builder."
 homepage = "https://github.com/influxdata/influxdb_iox/tree/main/influxdb_line_protocol"
 repository = "https://github.com/influxdata/influxdb_iox/tree/main/influxdb_line_protocol"
 
