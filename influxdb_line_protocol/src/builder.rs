@@ -1,6 +1,6 @@
-//! Typestate [Line protocol] builder.
+//! Typestate [line protocol] builder.
 //!
-//! [Line protocol]: https://docs.influxdata.com/influxdb/cloud/reference/syntax/line-protocol
+//! [line protocol]: https://docs.influxdata.com/influxdb/cloud/reference/syntax/line-protocol
 //! [special characters]: https://docs.influxdata.com/influxdb/cloud/reference/syntax/line-protocol/#special-characters
 use bytes::BufMut;
 use std::{
@@ -31,7 +31,7 @@ pub struct AfterTimestamp;
 
 /// Implements a [line protocol] builder.
 ///
-/// A [`LineProtocolBuilder`] is a statically typed influxdb [line protocol] builder.
+/// A [`LineProtocolBuilder`] is a statically-typed InfluxDB [line protocol] builder.
 /// It writes one or more lines of [line protocol] to a [`bytes::BufMut`].
 ///
 /// ```
@@ -45,14 +45,14 @@ pub struct AfterTimestamp;
 /// assert_eq!(lp.build(), b"foo,bar=baz qux=42\n");
 /// ```
 ///
-/// [`LineProtocolBuilder`] never returns runtime errors. Instead, it employs as type-level state machine
-/// to guarantee that users can't build a syntactically malformed line protocol batch.
+/// [`LineProtocolBuilder`] never returns runtime errors. Instead, it employs a type-level state machine
+/// to guarantee that users can't build a syntactically-malformed line protocol batch.
 ///
-/// This builder does not check for semantic errors. In particular it does not check for duplicate tag and field
+/// This builder does not check for semantic errors. In particular, it does not check for duplicate tag and field
 /// names, nor it does enforce [naming restrictions] on keys.
 ///
 /// Attempts to consume the line protocol before closing a line yield
-/// compile time errors:
+/// compile-time errors:
 ///
 /// ```compile_fail
 /// # use influxdb_line_protocol::LineProtocolBuilder;
@@ -63,8 +63,8 @@ pub struct AfterTimestamp;
 /// assert_eq!(lp.build(), b"foo,bar=baz qux=42\n");
 /// ```
 ///
-/// and attempts to close_line the line without at least one field also yield
-/// compile time errors:
+/// and attempts to `close_line` the line without at least one field also yield
+/// compile-time errors:
 ///
 /// ```compile_fail
 /// # use influxdb_line_protocol::LineProtocolBuilder;
@@ -74,7 +74,7 @@ pub struct AfterTimestamp;
 ///     .close_line();
 /// ```
 ///
-/// Tags, if any, must be emitted before fields:
+/// Tags, if any, must be emitted before fields. This will fail to compile:
 ///
 /// ```compile_fail
 /// # use influxdb_line_protocol::LineProtocolBuilder;
@@ -85,7 +85,7 @@ pub struct AfterTimestamp;
 ///     .close_line();
 /// ```
 ///
-/// and timestamps, if any, must be the last before closing the line:
+/// and timestamps, if any, must be specified last before closing the line:
 ///
 /// ```compile_fail
 /// # use influxdb_line_protocol::LineProtocolBuilder;
@@ -96,9 +96,9 @@ pub struct AfterTimestamp;
 ///     .close_line();
 /// ```
 ///
-/// (this part of the doc is so verbose because it's the only way to test compilation failures)
+/// (the negative examples part of the documentation is so verbose because it's the only way to test compilation failures)
 ///
-/// [Line protocol]: https://docs.influxdata.com/influxdb/cloud/reference/syntax/line-protocol
+/// [line protocol]: https://docs.influxdata.com/influxdb/cloud/reference/syntax/line-protocol
 /// [special characters]: https://docs.influxdata.com/influxdb/cloud/reference/syntax/line-protocol/#special-characters
 /// [naming restrictions]: https://docs.influxdata.com/influxdb/cloud/reference/syntax/line-protocol/#naming-restrictions
 #[derive(Debug, Default)]
@@ -121,7 +121,7 @@ impl<B> LineProtocolBuilder<B, BeforeMeasurement>
 where
     B: BufMut,
 {
-    /// Like `new` but appending to existing `BufMut`.
+    /// Like `new` but appending to an existing `BufMut`.
     pub fn new_with(buf: B) -> Self {
         Self {
             buf,
@@ -131,7 +131,7 @@ where
 
     /// Provide the measurement name.
     ///
-    /// It returns a new builder whose type allow only to set tags and fields.
+    /// It returns a new builder whose type allows only setting tags and fields.
     pub fn measurement(self, measurement: &str) -> LineProtocolBuilder<B, AfterMeasurement> {
         let measurement = escape(measurement, COMMA_SPACE);
         self.write(format_args!("{measurement}"))
@@ -149,7 +149,7 @@ where
 {
     /// Add a tag (key + value).
     ///
-    /// Tag keys and tag values will be escaped according to the rules defined in [special characters].
+    /// Tag keys and tag values will be escaped according to the rules defined in [the special characters documentation].
     ///
     /// [special characters]: https://docs.influxdata.com/influxdb/cloud/reference/syntax/line-protocol/#special-characters
     pub fn tag(self, tag_key: &str, tag_value: &str) -> Self {
@@ -160,11 +160,11 @@ where
 
     /// Add a field (key + value).
     ///
-    /// Field keys will be escaped according to the rules defined in [special characters].
+    /// Field keys will be escaped according to the rules defined in [the special characters documentation].
     ///
-    /// Field values will encoded according to the rules defined in [data types and formats].
+    /// Field values will encoded according to the rules defined in [the data types and formats documentation].
     ///
-    /// This variant is called for the first field only. It returns a new builder whose type no longer allows to add tags.
+    /// This function is called for the first field only. It returns a new builder whose type no longer allows adding tags.
     ///
     /// [special characters]: https://docs.influxdata.com/influxdb/cloud/reference/syntax/line-protocol/#special-characters
     /// [data types and formats]: https://docs.influxdata.com/influxdb/cloud/reference/syntax/line-protocol/#data-types-and-format
@@ -182,7 +182,7 @@ where
 {
     /// Add a field (key + value).
     ///
-    /// This variant is called for the second and subsequent fields.
+    /// This function is called for the second and subsequent fields.
     pub fn field<F: FieldValue>(self, field_key: &str, field_value: F) -> Self {
         self.write(format_args!(",{}", format_field(field_key, &field_value)))
     }
@@ -192,7 +192,7 @@ where
     /// It returns a builder whose type allows only closing the line.
     ///
     /// The precision of the timestamp is by default nanoseconds (ns) but the unit
-    /// can be changed when performing the request that carries the LP body.
+    /// can be changed when performing the request that carries the line protocol body.
     /// Setting the unit is outside of the scope of a line protocol builder.
     pub fn timestamp(self, ts: i64) -> LineProtocolBuilder<B, AfterTimestamp> {
         self.write(format_args!(" {ts}"))

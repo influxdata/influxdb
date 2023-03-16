@@ -2599,16 +2599,14 @@ dependencies = [
 
 [[package]]
 name = "influxdb_line_protocol"
-version = "0.1.0"
+version = "1.0.0"
 dependencies = [
  "bytes",
- "libc",
+ "log",
  "nom",
- "observability_deps",
  "smallvec",
  "snafu",
  "test_helpers",
- "workspace-hack",
 ]
 
 [[package]]

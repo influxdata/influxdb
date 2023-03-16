@@ -1,24 +1,26 @@
 [package]
 name = "influxdb_line_protocol"
-version.workspace = true
-authors.workspace = true
-edition.workspace = true
-license.workspace = true
+version = "1.0.0"
+authors = ["InfluxDB IOx Project Developers"]
+edition = "2021"
+license = "MIT OR Apache-2.0"
+readme = "README.md"
+homepage = "https://github.com/influxdata/influxdb_iox/tree/main/influxdb_line_protocol"
+repository = "https://github.com/influxdata/influxdb_iox/tree/main/influxdb_line_protocol"
 
-[lib]
-crate-type = ["rlib", "staticlib"]
-
-[features]
-ffi = ["libc"]
+# Note this crate is published as its own crate on crates.io but kept in
+# this repository for maintenance convenience.
+#
+# Thus it is important not to have workspace dependencies.
+#
+# https://github.com/influxdata/influxdb_iox/issues/7051
 
 [dependencies] # In alphabetical order
 bytes = "1.4"
-libc = { version = "0.2", optional = true }
+log = "0.4.17"
 nom = { version = "7", default-features = false, features = ["std"] }
 smallvec = { version = "1.10.0", features = ["union"] }
 snafu = "0.7"
-observability_deps = { path = "../observability_deps" }
-workspace-hack = { version = "0.1", path = "../workspace-hack" }
 
 [dev-dependencies] # In alphabetical order
 test_helpers = { path = "../test_helpers" }
