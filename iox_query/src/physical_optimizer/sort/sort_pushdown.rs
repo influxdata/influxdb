@@ -5,7 +5,7 @@ use datafusion::{
     error::Result,
     physical_optimizer::PhysicalOptimizerRule,
     physical_plan::{
-        rewrite::TreeNodeRewritable, sorts::sort::SortExec, union::UnionExec, ExecutionPlan,
+        sorts::sort::SortExec, tree_node::TreeNodeRewritable, union::UnionExec, ExecutionPlan,
     },
 };
 

@@ -4,7 +4,7 @@ use datafusion::{
     config::ConfigOptions,
     error::Result,
     physical_optimizer::PhysicalOptimizerRule,
-    physical_plan::{rewrite::TreeNodeRewritable, ExecutionPlan},
+    physical_plan::{tree_node::TreeNodeRewritable, ExecutionPlan},
 };
 use predicate::Predicate;
 use schema::{sort::SortKeyBuilder, TIME_COLUMN_NAME};

@@ -15,7 +15,7 @@ use datafusion::{
         expressions::{BinaryExpr, Column},
         file_format::ParquetExec,
         filter::FilterExec,
-        rewrite::TreeNodeRewritable,
+        tree_node::TreeNodeRewritable,
         union::UnionExec,
         ExecutionPlan, PhysicalExpr,
     },

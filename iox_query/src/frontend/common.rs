@@ -1,6 +1,7 @@
 use std::sync::Arc;
 
 use datafusion::{
+    catalog::TableReference,
     datasource::provider_as_source,
     logical_expr::{expr_rewriter::ExprRewritable, LogicalPlanBuilder},
 };
@@ -183,8 +184,10 @@ impl<'a> ScanPlanBuilder<'a> {
         // later if possible)
         let projection = None;
 
-        let mut plan_builder = LogicalPlanBuilder::scan(table_name.as_ref(), source, projection)
-            .context(BuildingPlanSnafu)?;
+        // Do not parse the tablename as a SQL identifer, but use as is
+        let table_ref = TableReference::bare(table_name.to_string());
+        let mut plan_builder =
+            LogicalPlanBuilder::scan(table_ref, source, projection).context(BuildingPlanSnafu)?;
 
         // Use a filter node to add general predicates + timestamp
         // range, if any
