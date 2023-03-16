@@ -3,11 +3,14 @@ use std::sync::Arc;
 
 use arrow::{datatypes::Schema, error::ArrowError, ipc::writer::IpcWriteOptions};
 use arrow_flight::{
-    sql::{ActionCreatePreparedStatementResult, Any},
+    sql::{
+        ActionCreatePreparedStatementRequest, ActionCreatePreparedStatementResult, Any,
+        CommandGetCatalogs, CommandGetDbSchemas, CommandStatementQuery,
+    },
     IpcMessage, SchemaAsIpc,
 };
 use bytes::Bytes;
-use datafusion::{logical_expr::LogicalPlan, physical_plan::ExecutionPlan};
+use datafusion::{logical_expr::LogicalPlan, physical_plan::ExecutionPlan, scalar::ScalarValue};
 use iox_query::{exec::IOxSessionContext, QueryNamespace};
 use observability_deps::tracing::debug;
 use prost::Message;
@@ -34,14 +37,21 @@ impl FlightSQLPlanner {
         debug!(%namespace_name, %cmd, "Handling flightsql get_flight_info");
 
         match cmd {
-            FlightSQLCommand::CommandStatementQuery(query) => {
+            FlightSQLCommand::CommandStatementQuery(CommandStatementQuery { query }) => {
                 get_schema_for_query(&query, ctx).await
             }
             FlightSQLCommand::CommandPreparedStatementQuery(handle) => {
                 get_schema_for_query(handle.query(), ctx).await
             }
-            FlightSQLCommand::CommandGetCatalogs() => {
+            FlightSQLCommand::CommandGetCatalogs(CommandGetCatalogs {}) => {
                 let plan = plan_get_catalogs(ctx).await?;
+                get_schema_for_plan(plan)
+            }
+            FlightSQLCommand::CommandGetDbSchemas(CommandGetDbSchemas {
+                catalog,
+                db_schema_filter_pattern,
+            }) => {
+                let plan = plan_get_db_schemas(ctx, catalog, db_schema_filter_pattern).await?;
                 get_schema_for_plan(plan)
             }
             FlightSQLCommand::ActionCreatePreparedStatementRequest(_)
@@ -64,7 +74,7 @@ impl FlightSQLPlanner {
         debug!(%namespace_name, %cmd, "Handling flightsql do_get");
 
         match cmd {
-            FlightSQLCommand::CommandStatementQuery(query) => {
+            FlightSQLCommand::CommandStatementQuery(CommandStatementQuery { query }) => {
                 debug!(%query, "Planning FlightSQL query");
                 Ok(ctx.prepare_sql(&query).await?)
             }
@@ -73,12 +83,23 @@ impl FlightSQLPlanner {
                 debug!(%query, "Planning FlightSQL prepared query");
                 Ok(ctx.prepare_sql(query).await?)
             }
-            FlightSQLCommand::CommandGetCatalogs() => {
+            FlightSQLCommand::CommandGetCatalogs(CommandGetCatalogs {}) => {
                 debug!("Planning GetCatalogs query");
                 let plan = plan_get_catalogs(ctx).await?;
                 Ok(ctx.create_physical_plan(&plan).await?)
             }
-
+            FlightSQLCommand::CommandGetDbSchemas(CommandGetDbSchemas {
+                catalog,
+                db_schema_filter_pattern,
+            }) => {
+                debug!(
+                    ?catalog,
+                    ?db_schema_filter_pattern,
+                    "Planning GetDbSchemas query"
+                );
+                let plan = plan_get_db_schemas(ctx, catalog, db_schema_filter_pattern).await?;
+                Ok(ctx.create_physical_plan(&plan).await?)
+            }
             FlightSQLCommand::ActionClosePreparedStatementRequest(_)
             | FlightSQLCommand::ActionCreatePreparedStatementRequest(_) => ProtocolSnafu {
                 cmd: format!("{cmd:?}"),
@@ -101,7 +122,9 @@ impl FlightSQLPlanner {
         debug!(%namespace_name, %cmd, "Handling flightsql do_action");
 
         match cmd {
-            FlightSQLCommand::ActionCreatePreparedStatementRequest(query) => {
+            FlightSQLCommand::ActionCreatePreparedStatementRequest(
+                ActionCreatePreparedStatementRequest { query },
+            ) => {
                 debug!(%query, "Creating prepared statement");
 
                 // todo run the planner here and actually figure out parameter schemas
@@ -172,4 +195,66 @@ fn encode_schema(schema: &Schema) -> Result<Bytes> {
 async fn plan_get_catalogs(ctx: &IOxSessionContext) -> Result<LogicalPlan> {
     let query = "SELECT DISTINCT table_catalog AS catalog_name FROM information_schema.tables ORDER BY table_catalog";
     Ok(ctx.plan_sql(query).await?)
+}
+
+/// Return a `LogicalPlan` for GetDbSchemas
+///
+/// # Parameters
+///
+/// Definition from <https://github.com/apache/arrow/blob/44edc27e549d82db930421b0d4c76098941afd71/format/FlightSql.proto#L1156-L1173>
+///
+/// catalog: Specifies the Catalog to search for the tables.
+/// An empty string retrieves those without a catalog.
+/// If omitted the catalog name should not be used to narrow the search.
+///
+/// db_schema_filter_pattern: Specifies a filter pattern for schemas to search for.
+/// When no db_schema_filter_pattern is provided, the pattern will not be used to narrow the search.
+/// In the pattern string, two special characters can be used to denote matching rules:
+///    - "%" means to match any substring with 0 or more characters.
+///    - "_" means to match any one character.
+///
+async fn plan_get_db_schemas(
+    ctx: &IOxSessionContext,
+    catalog: Option<String>,
+    db_schema_filter_pattern: Option<String>,
+) -> Result<LogicalPlan> {
+    let (query, params) = match (catalog, db_schema_filter_pattern) {
+        (Some(catalog), Some(db_schema_filter_pattern)) => (
+            "PREPARE my_plan(VARCHAR, VARCHAR) AS \
+             SELECT DISTINCT table_catalog AS catalog_name, table_schema AS db_schema_name \
+              FROM information_schema.tables \
+              WHERE table_catalog like $1 AND table_schema like $2  \
+              ORDER BY table_catalog, table_schema",
+            vec![
+                ScalarValue::Utf8(Some(catalog)),
+                ScalarValue::Utf8(Some(db_schema_filter_pattern)),
+            ],
+        ),
+        (None, Some(db_schema_filter_pattern)) => (
+            "PREPARE my_plan(VARCHAR) AS \
+             SELECT DISTINCT table_catalog AS catalog_name, table_schema AS db_schema_name \
+             FROM information_schema.tables \
+             WHERE table_schema like $1 \
+             ORDER BY table_catalog, table_schema",
+            vec![ScalarValue::Utf8(Some(db_schema_filter_pattern))],
+        ),
+        (Some(catalog), None) => (
+            "PREPARE my_plan(VARCHAR) AS \
+             SELECT DISTINCT table_catalog AS catalog_name, table_schema AS db_schema_name \
+              FROM information_schema.tables \
+              WHERE table_catalog like $1 \
+              ORDER BY table_catalog, table_schema",
+            vec![ScalarValue::Utf8(Some(catalog))],
+        ),
+        (None, None) => (
+            "SELECT DISTINCT table_catalog AS catalog_name, table_schema AS db_schema_name \
+              FROM information_schema.tables \
+              ORDER BY table_catalog, table_schema",
+            vec![],
+        ),
+    };
+
+    let plan = ctx.plan_sql(query).await?;
+    debug!(?plan, "Prepared plan is");
+    Ok(plan.with_param_values(params)?)
 }

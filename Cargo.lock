@@ -2520,6 +2520,7 @@ dependencies = [
  "influxdb_iox_client",
  "influxdb_storage_client",
  "influxrpc_parser",
+ "insta",
  "iox_catalog",
  "iox_query",
  "iox_time",

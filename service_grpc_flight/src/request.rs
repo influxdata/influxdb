@@ -216,6 +216,7 @@ impl IoxGetRequest {
 
 #[cfg(test)]
 mod tests {
+    use arrow_flight::sql::CommandStatementQuery;
     use assert_matches::assert_matches;
     use generated_types::influxdata::iox::querier::v1::read_info::QueryType;
 
@@ -385,7 +386,9 @@ mod tests {
 
     #[test]
     fn round_trip_flightsql() {
-        let cmd = FlightSQLCommand::CommandStatementQuery("select * from foo".into());
+        let cmd = FlightSQLCommand::CommandStatementQuery(CommandStatementQuery {
+            query: "select * from foo".into(),
+        });
 
         let request = IoxGetRequest {
             namespace_name: "foo_blarg".into(),
