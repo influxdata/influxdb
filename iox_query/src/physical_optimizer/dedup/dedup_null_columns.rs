@@ -44,7 +44,7 @@ impl PhysicalOptimizerRule for DedupNullColumns {
                     return Ok(None);
                 };
 
-                let pk_cols = schema.primary_key().into_iter().collect::<HashSet<_>>();
+                let pk_cols = dedup_exec.sort_columns();
 
                 let mut used_pk_cols = HashSet::new();
                 for chunk in &chunks {
@@ -64,16 +64,15 @@ impl PhysicalOptimizerRule for DedupNullColumns {
                 }
 
                 let sort_key = sort_key_builder.build();
-                let arrow_schema = schema.as_arrow();
                 let child = chunks_to_physical_nodes(
-                    &arrow_schema,
+                    &schema,
                     (!sort_key.is_empty()).then_some(&sort_key),
                     chunks,
                     Predicate::new(),
                     config.execution.target_partitions,
                 );
 
-                let sort_exprs = arrow_sort_key_exprs(&sort_key, &arrow_schema);
+                let sort_exprs = arrow_sort_key_exprs(&sort_key, &schema);
                 return Ok(Some(Arc::new(DeduplicateExec::new(child, sort_exprs))));
             }
 

@@ -76,14 +76,13 @@ impl PhysicalOptimizerRule for PartitionSplit {
                 let mut chunks_by_partition = chunks_by_partition.into_iter().collect::<Vec<_>>();
                 chunks_by_partition.sort_by_key(|(p_id, _chunks)| *p_id);
 
-                let arrow_schema = schema.as_arrow();
                 let out = UnionExec::new(
                     chunks_by_partition
                         .into_iter()
                         .map(|(_p_id, chunks)| {
                             Arc::new(DeduplicateExec::new(
                                 chunks_to_physical_nodes(
-                                    &arrow_schema,
+                                    &schema,
                                     None,
                                     chunks,
                                     Predicate::new(),

@@ -34,9 +34,9 @@ impl PhysicalOptimizerRule for CombineChunks {
         config: &ConfigOptions,
     ) -> Result<Arc<dyn ExecutionPlan>> {
         plan.transform_up(&|plan| {
-            if let Some((iox_schema, chunks)) = extract_chunks(plan.as_ref()) {
+            if let Some((schema, chunks)) = extract_chunks(plan.as_ref()) {
                 return Ok(Some(chunks_to_physical_nodes(
-                    &iox_schema.as_arrow(),
+                    &schema,
                     None,
                     chunks,
                     Predicate::new(),
