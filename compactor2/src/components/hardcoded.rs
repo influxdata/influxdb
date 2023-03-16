@@ -137,11 +137,6 @@ pub fn hardcoded_components(config: &Config) -> Arc<Components> {
     )));
     partition_filters.append(&mut make_partition_filters(config));
 
-    let partition_large_size_tiny_time_range_filter: Vec<Arc<dyn PartitionFilter>> =
-        vec![Arc::new(UnableToCompactPartitionFilter::new(
-            config.max_compact_size_bytes(),
-        ))];
-
     let partition_done_sink: Arc<dyn PartitionDoneSink> = if config.shadow_mode {
         Arc::new(MockPartitionDoneSink::new())
     } else {
@@ -331,7 +326,7 @@ pub fn hardcoded_components(config: &Config) -> Arc<Components> {
         ))),
         post_classification_partition_filter: Arc::new(LoggingPartitionFilterWrapper::new(
             MetricsPartitionFilterWrapper::new(
-                AndPartitionFilter::new(partition_large_size_tiny_time_range_filter),
+                UnableToCompactPartitionFilter::new(config.max_compact_size_bytes()),
                 &config.metric_registry,
                 partition_resource_limit_conditions,
             ),
