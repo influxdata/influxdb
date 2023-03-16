@@ -237,7 +237,7 @@ async fn try_compact_partition(
             // Skip partition if it has neither files to upgrade nor files to compact or split
             if files_to_upgrade.is_empty()
                 && !components
-                    .partition_too_large_to_compact_filter
+                    .post_classification_partition_filter
                     .apply(&partition_info, &files_to_compact_or_split.files())
                     .await?
             {

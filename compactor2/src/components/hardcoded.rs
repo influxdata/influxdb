@@ -329,7 +329,7 @@ pub fn hardcoded_components(config: &Config) -> Arc<Components> {
                 )),
             ),
         ))),
-        partition_too_large_to_compact_filter: Arc::new(LoggingPartitionFilterWrapper::new(
+        post_classification_partition_filter: Arc::new(LoggingPartitionFilterWrapper::new(
             MetricsPartitionFilterWrapper::new(
                 AndPartitionFilter::new(partition_large_size_tiny_time_range_filter),
                 &config.metric_registry,
