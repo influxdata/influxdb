@@ -37,7 +37,7 @@ pub mod scratchpad;
 pub mod skipped_compactions_source;
 pub mod split_or_compact;
 pub mod tables_source;
-pub mod timeout_with_progress;
+pub mod timeout;
 
 /// Pluggable system to determine compactor behavior. Please see
 /// [Crate Level Documentation](crate) for more details on the

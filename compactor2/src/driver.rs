@@ -10,7 +10,7 @@ use tracker::InstrumentedAsyncSemaphore;
 use crate::{
     components::{
         scratchpad::Scratchpad,
-        timeout_with_progress::{timeout_with_progress_checking, TimeoutWithProgress},
+        timeout::{timeout_with_progress_checking, TimeoutWithProgress},
         Components,
     },
     error::{DynError, ErrorKind, SimpleError},
