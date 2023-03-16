@@ -329,6 +329,15 @@ impl IOxSessionContext {
     pub async fn prepare_sql(&self, sql: &str) -> Result<Arc<dyn ExecutionPlan>> {
         let logical_plan = self.plan_sql(sql).await?;
 
+        let ctx = self.child_ctx("prepare_sql");
+        ctx.create_physical_plan(&logical_plan).await
+    }
+
+    /// Prepare (optimize + plan) a pre-created [`LogicalPlan`] for execution
+    pub async fn create_physical_plan(
+        &self,
+        logical_plan: &LogicalPlan,
+    ) -> Result<Arc<dyn ExecutionPlan>> {
         // Make nicer erorrs for unsupported SQL
         // (By default datafusion returns Internal Error)
         match &logical_plan {
@@ -353,15 +362,9 @@ impl IOxSessionContext {
             _ => (),
         }
 
-        let ctx = self.child_ctx("prepare_sql");
-        ctx.create_physical_plan(&logical_plan).await
-    }
-
-    /// Prepare (optimize + plan) a pre-created [`LogicalPlan`] for execution
-    pub async fn create_physical_plan(&self, plan: &LogicalPlan) -> Result<Arc<dyn ExecutionPlan>> {
         let mut ctx = self.child_ctx("create_physical_plan");
-        debug!(text=%plan.display_indent_schema(), "create_physical_plan: initial plan");
-        let physical_plan = ctx.inner.state().create_physical_plan(plan).await?;
+        debug!(text=%logical_plan.display_indent_schema(), "create_physical_plan: initial plan");
+        let physical_plan = ctx.inner.state().create_physical_plan(logical_plan).await?;
 
         ctx.recorder.event("physical plan");
         debug!(text=%displayable(physical_plan.as_ref()).indent(), "create_physical_plan: plan to run");

@@ -29,7 +29,7 @@ use arrow_flight::{
     error::{FlightError, Result},
     sql::{
         ActionCreatePreparedStatementRequest, ActionCreatePreparedStatementResult, Any,
-        CommandPreparedStatementQuery, CommandStatementQuery, ProstMessageExt,
+        CommandGetCatalogs, CommandPreparedStatementQuery, CommandStatementQuery, ProstMessageExt,
     },
     Action, FlightClient, FlightDescriptor, FlightInfo, IpcMessage, Ticket,
 };
@@ -124,6 +124,22 @@ impl FlightSqlClient {
         self.do_get_with_cmd(msg.as_any()).await
     }
 
+    /// List the catalogs on this server using a [`CommandGetCatalogs`] message.
+    ///
+    /// This implementation does not support alternate endpoints
+    ///
+    /// [`CommandGetCatalogs`]: https://github.com/apache/arrow/blob/3a6fc1f9eedd41df2d8ffbcbdfbdab911ff6d82e/format/FlightSql.proto#L1125-L1140
+    pub async fn get_catalogs(&mut self) -> Result<FlightRecordBatchStream> {
+        let msg = CommandGetCatalogs {};
+        self.do_get_with_cmd(msg.as_any()).await
+    }
+
+    /// Implements the canonical interaction for most FlightSQL messages:
+    ///
+    /// 1. Call `GetFlightInfo` with the provided message, and get a
+    /// [`FlightInfo`] and embedded ticket.
+    ///
+    /// 2. Call `DoGet` with the provided ticket.
     async fn do_get_with_cmd(
         &mut self,
         cmd: arrow_flight::sql::Any,

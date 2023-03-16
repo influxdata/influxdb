@@ -63,13 +63,14 @@ impl PhysicalOptimizerRule for TimeSplit {
                     return Ok(None);
                 }
 
+                let arrow_schema = schema.as_arrow();
                 let out = UnionExec::new(
                     groups
                         .into_iter()
                         .map(|chunks| {
                             Arc::new(DeduplicateExec::new(
                                 chunks_to_physical_nodes(
-                                    &schema,
+                                    &arrow_schema,
                                     None,
                                     chunks,
                                     Predicate::new(),

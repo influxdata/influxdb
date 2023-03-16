@@ -63,7 +63,7 @@ parking_lot = { version = "0.12", features = ["arc_lock"] }
 parquet = { version = "34", features = ["async", "experimental"] }
 petgraph = { version = "0.6" }
 phf_shared = { version = "0.11" }
-predicates = { version = "2" }
+predicates = { version = "3" }
 prost = { version = "0.11" }
 prost-types = { version = "0.11" }
 rand = { version = "0.8", features = ["small_rng"] }

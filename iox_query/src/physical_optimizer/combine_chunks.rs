@@ -36,7 +36,7 @@ impl PhysicalOptimizerRule for CombineChunks {
         plan.transform_up(&|plan| {
             if let Some((iox_schema, chunks)) = extract_chunks(plan.as_ref()) {
                 return Ok(Some(chunks_to_physical_nodes(
-                    &iox_schema,
+                    &iox_schema.as_arrow(),
                     None,
                     chunks,
                     Predicate::new(),
@@ -72,7 +72,7 @@ mod tests {
         let chunk3 = TestChunk::new("table").with_id(3);
         let chunk4 = TestChunk::new("table").with_id(4).with_dummy_parquet_file();
         let chunk5 = TestChunk::new("table").with_id(5).with_dummy_parquet_file();
-        let schema = chunk1.schema().clone();
+        let schema = chunk1.schema().as_arrow();
         let plan = Arc::new(UnionExec::new(vec![
             chunks_to_physical_nodes(
                 &schema,

@@ -4,7 +4,7 @@ use std::fmt::Display;
 
 use arrow_flight::sql::{
     ActionClosePreparedStatementRequest, ActionCreatePreparedStatementRequest, Any,
-    CommandPreparedStatementQuery, CommandStatementQuery,
+    CommandGetCatalogs, CommandPreparedStatementQuery, CommandStatementQuery,
 };
 use bytes::Bytes;
 use prost::Message;
@@ -14,7 +14,7 @@ use crate::error::*;
 
 /// Represents a prepared statement "handle". IOx passes all state
 /// required to run the prepared statement back and forth to the
-/// client so any querier instance can run it
+/// client, so any querier instance can run it
 #[derive(Debug, Clone, PartialEq)]
 pub struct PreparedStatementHandle {
     /// The raw SQL query text
@@ -57,12 +57,17 @@ impl From<PreparedStatementHandle> for Bytes {
     }
 }
 
-/// Decoded /  validated FlightSQL command messages
+/// Decoded / validated FlightSQL command messages
+///
+/// Handles encoding/decoding prost::Any messages back
+/// and forth to native Rust types
 #[derive(Debug, Clone, PartialEq)]
 pub enum FlightSQLCommand {
     CommandStatementQuery(String),
     /// Run a prepared statement
     CommandPreparedStatementQuery(PreparedStatementHandle),
+    /// Get a list of the available catalogs
+    CommandGetCatalogs(),
     /// Create a prepared statement
     ActionCreatePreparedStatementRequest(String),
     /// Close a prepared statement
@@ -74,6 +79,7 @@ impl Display for FlightSQLCommand {
         match self {
             Self::CommandStatementQuery(q) => write!(f, "CommandStatementQuery{q}"),
             Self::CommandPreparedStatementQuery(h) => write!(f, "CommandPreparedStatementQuery{h}"),
+            Self::CommandGetCatalogs() => write!(f, "CommandGetCatalogs"),
             Self::ActionCreatePreparedStatementRequest(q) => {
                 write!(f, "ActionCreatePreparedStatementRequest{q}")
             }
@@ -100,6 +106,10 @@ impl FlightSQLCommand {
 
             let handle = PreparedStatementHandle::try_decode(prepared_statement_handle)?;
             Ok(Self::CommandPreparedStatementQuery(handle))
+        } else if let Some(decoded_cmd) = Any::unpack::<CommandGetCatalogs>(&msg)? {
+            let CommandGetCatalogs {} = decoded_cmd;
+
+            Ok(Self::CommandGetCatalogs())
         } else if let Some(decoded_cmd) = Any::unpack::<ActionCreatePreparedStatementRequest>(&msg)?
         {
             let ActionCreatePreparedStatementRequest { query } = decoded_cmd;
@@ -131,6 +141,7 @@ impl FlightSQLCommand {
                     prepared_statement_handle,
                 })
             }
+            FlightSQLCommand::CommandGetCatalogs() => Any::pack(&CommandGetCatalogs {}),
             FlightSQLCommand::ActionCreatePreparedStatementRequest(query) => {
                 Any::pack(&ActionCreatePreparedStatementRequest { query })
             }

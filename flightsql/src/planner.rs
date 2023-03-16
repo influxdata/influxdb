@@ -1,13 +1,13 @@
 //! FlightSQL handling
 use std::sync::Arc;
 
-use arrow::{error::ArrowError, ipc::writer::IpcWriteOptions};
+use arrow::{datatypes::Schema, error::ArrowError, ipc::writer::IpcWriteOptions};
 use arrow_flight::{
     sql::{ActionCreatePreparedStatementResult, Any},
     IpcMessage, SchemaAsIpc,
 };
 use bytes::Bytes;
-use datafusion::physical_plan::ExecutionPlan;
+use datafusion::{logical_expr::LogicalPlan, physical_plan::ExecutionPlan};
 use iox_query::{exec::IOxSessionContext, QueryNamespace};
 use observability_deps::tracing::debug;
 use prost::Message;
@@ -35,35 +35,22 @@ impl FlightSQLPlanner {
 
         match cmd {
             FlightSQLCommand::CommandStatementQuery(query) => {
-                Self::get_schema_for_query(&query, ctx).await
+                get_schema_for_query(&query, ctx).await
             }
             FlightSQLCommand::CommandPreparedStatementQuery(handle) => {
-                Self::get_schema_for_query(handle.query(), ctx).await
+                get_schema_for_query(handle.query(), ctx).await
             }
-            _ => ProtocolSnafu {
+            FlightSQLCommand::CommandGetCatalogs() => {
+                let plan = plan_get_catalogs(ctx).await?;
+                get_schema_for_plan(plan)
+            }
+            FlightSQLCommand::ActionCreatePreparedStatementRequest(_)
+            | FlightSQLCommand::ActionClosePreparedStatementRequest(_) => ProtocolSnafu {
                 cmd: format!("{cmd:?}"),
                 method: "GetFlightInfo",
             }
             .fail(),
         }
-    }
-
-    /// Return the schema for the specified query
-    ///
-    /// returns: IPC encoded (schema_bytes) for this query
-    async fn get_schema_for_query(query: &str, ctx: &IOxSessionContext) -> Result<Bytes> {
-        // gather real schema, but only
-        let logical_plan = ctx.plan_sql(query).await?;
-        let schema = arrow::datatypes::Schema::from(logical_plan.schema().as_ref());
-        let options = IpcWriteOptions::default();
-
-        // encode the schema into the correct form
-        let message: Result<IpcMessage, ArrowError> =
-            SchemaAsIpc::new(&schema, &options).try_into();
-
-        let IpcMessage(schema) = message?;
-
-        Ok(schema)
     }
 
     /// Returns a plan that computes results requested in msg
@@ -86,7 +73,14 @@ impl FlightSQLPlanner {
                 debug!(%query, "Planning FlightSQL prepared query");
                 Ok(ctx.prepare_sql(query).await?)
             }
-            _ => ProtocolSnafu {
+            FlightSQLCommand::CommandGetCatalogs() => {
+                debug!("Planning GetCatalogs query");
+                let plan = plan_get_catalogs(ctx).await?;
+                Ok(ctx.create_physical_plan(&plan).await?)
+            }
+
+            FlightSQLCommand::ActionClosePreparedStatementRequest(_)
+            | FlightSQLCommand::ActionCreatePreparedStatementRequest(_) => ProtocolSnafu {
                 cmd: format!("{cmd:?}"),
                 method: "DoGet",
             }
@@ -114,7 +108,7 @@ impl FlightSQLPlanner {
                 // see https://github.com/apache/arrow-datafusion/pull/4701
                 let parameter_schema = vec![];
 
-                let dataset_schema = Self::get_schema_for_query(&query, ctx).await?;
+                let dataset_schema = get_schema_for_query(&query, ctx).await?;
                 let handle = PreparedStatementHandle::new(query);
 
                 let result = ActionCreatePreparedStatementResult {
@@ -140,4 +134,42 @@ impl FlightSQLPlanner {
             .fail(),
         }
     }
+}
+
+/// Return the schema for the specified query
+///
+/// returns: IPC encoded (schema_bytes) for this query
+async fn get_schema_for_query(query: &str, ctx: &IOxSessionContext) -> Result<Bytes> {
+    get_schema_for_plan(ctx.plan_sql(query).await?)
+}
+
+/// Return the schema for the specified logical plan
+///
+/// returns: IPC encoded (schema_bytes) for this query
+fn get_schema_for_plan(logical_plan: LogicalPlan) -> Result<Bytes> {
+    // gather real schema, but only
+    let schema = Schema::from(logical_plan.schema().as_ref());
+    encode_schema(&schema)
+}
+
+/// Encodes the schema IPC encoded (schema_bytes)
+fn encode_schema(schema: &Schema) -> Result<Bytes> {
+    let options = IpcWriteOptions::default();
+
+    // encode the schema into the correct form
+    let message: Result<IpcMessage, ArrowError> = SchemaAsIpc::new(schema, &options).try_into();
+
+    let IpcMessage(schema) = message?;
+
+    Ok(schema)
+}
+
+/// Return a `LogicalPlan` for GetCatalogs
+///
+/// In the future this could be made more efficient by building the
+/// response directly from the IOx catalog rather than running an
+/// entire DataFusion plan.
+async fn plan_get_catalogs(ctx: &IOxSessionContext) -> Result<LogicalPlan> {
+    let query = "SELECT DISTINCT table_catalog AS catalog_name FROM information_schema.tables ORDER BY table_catalog";
+    Ok(ctx.plan_sql(query).await?)
 }

@@ -64,15 +64,16 @@ impl PhysicalOptimizerRule for DedupNullColumns {
                 }
 
                 let sort_key = sort_key_builder.build();
+                let arrow_schema = schema.as_arrow();
                 let child = chunks_to_physical_nodes(
-                    &schema,
+                    &arrow_schema,
                     (!sort_key.is_empty()).then_some(&sort_key),
                     chunks,
                     Predicate::new(),
                     config.execution.target_partitions,
                 );
 
-                let sort_exprs = arrow_sort_key_exprs(&sort_key, schema.as_arrow().as_ref());
+                let sort_exprs = arrow_sort_key_exprs(&sort_key, &arrow_schema);
                 return Ok(Some(Arc::new(DeduplicateExec::new(child, sort_exprs))));
             }
 

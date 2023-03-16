@@ -35,8 +35,9 @@ impl PhysicalOptimizerRule for RemoveDedup {
                 };
 
                 if (chunks.len() < 2) && chunks.iter().all(|c| !c.may_contain_pk_duplicates()) {
+                    let arrow_schema = schema.as_arrow();
                     return Ok(Some(chunks_to_physical_nodes(
-                        &schema,
+                        &arrow_schema,
                         None,
                         chunks,
                         Predicate::new(),
