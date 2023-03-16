@@ -14,7 +14,7 @@ use crate::{
         Components,
     },
     error::{DynError, ErrorKind, SimpleError},
-    file_classification::{FileToSplit, FilesToCompactOrSplit},
+    file_classification::{FileClassification, FileToSplit, FilesToCompactOrSplit},
     partition_info::PartitionInfo,
     PlanIR,
 };
@@ -225,19 +225,20 @@ async fn try_compact_partition(
             // Identify the target level and files that should be
             // compacted together, upgraded, and kept for next round of
             // compaction
-            let file_classification =
-                components
-                    .file_classifier
-                    .classify(&partition_info, &round_info, branch);
+            let FileClassification {
+                target_level,
+                files_to_compact_or_split,
+                files_to_upgrade,
+                files_to_keep,
+            } = components
+                .file_classifier
+                .classify(&partition_info, &round_info, branch);
 
             // Skip partition if it has neither files to upgrade nor files to compact or split
-            if !file_classification.has_upgrade_files()
+            if files_to_upgrade.is_empty()
                 && !components
                     .partition_too_large_to_compact_filter
-                    .apply(
-                        &partition_info,
-                        &file_classification.files_to_compact_or_split.files(),
-                    )
+                    .apply(&partition_info, &files_to_compact_or_split.files())
                     .await?
             {
                 return Ok(());
@@ -245,10 +246,10 @@ async fn try_compact_partition(
 
             // Compact
             let created_file_params = run_plans(
-                &file_classification.files_to_compact_or_split,
+                &files_to_compact_or_split,
                 &partition_info,
                 &components,
-                file_classification.target_level,
+                target_level,
                 Arc::clone(&job_semaphore),
                 scratchpad_ctx,
             )
@@ -263,21 +264,21 @@ async fn try_compact_partition(
 
             // Update the catalog to reflect the newly created files, soft delete the compacted files and
             // update the upgraded files
-            let files_to_delete = file_classification.files_to_compact_or_split.files();
+            let files_to_delete = files_to_compact_or_split.files();
             let (created_files, upgraded_files) = update_catalog(
                 Arc::clone(&components),
                 partition_id,
                 files_to_delete,
-                file_classification.files_to_upgrade,
+                files_to_upgrade,
                 created_file_params,
-                file_classification.target_level,
+                target_level,
             )
             .await;
 
             // Extend created files, upgraded files and files_to_keep to files_next
             files_next.extend(created_files);
             files_next.extend(upgraded_files);
-            files_next.extend(file_classification.files_to_keep);
+            files_next.extend(files_to_keep);
         }
 
         files = files_next;
