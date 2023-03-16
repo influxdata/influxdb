@@ -2,7 +2,7 @@ use std::path::PathBuf;
 
 use arrow::record_batch::RecordBatch;
 use arrow_flight::decode::FlightRecordBatchStream;
-use arrow_util::{assert_batches_sorted_eq, test_util::batches_to_sorted_lines};
+use arrow_util::test_util::batches_to_sorted_lines;
 use assert_cmd::Command;
 use datafusion::common::assert_contains;
 use futures::{FutureExt, TryStreamExt};
@@ -30,21 +30,22 @@ async fn flightsql_adhoc_query() {
             Step::Custom(Box::new(move |state: &mut StepTestState| {
                 async move {
                     let sql = format!("select * from {table_name}");
-                    let expected = vec![
-                        "+------+------+--------------------------------+-----+",
-                        "| tag1 | tag2 | time                           | val |",
-                        "+------+------+--------------------------------+-----+",
-                        "| A    | B    | 1970-01-01T00:00:00.000123456Z | 42  |",
-                        "| A    | C    | 1970-01-01T00:00:00.000123457Z | 43  |",
-                        "+------+------+--------------------------------+-----+",
-                    ];
-
                     let mut client = flightsql_client(state.cluster());
 
                     let stream = client.query(sql).await.unwrap();
                     let batches = collect_stream(stream).await;
-
-                    assert_batches_sorted_eq!(&expected, &batches);
+                    insta::assert_yaml_snapshot!(
+                        batches_to_sorted_lines(&batches),
+                        @r###"
+                    ---
+                    - +------+------+--------------------------------+-----+
+                    - "| tag1 | tag2 | time                           | val |"
+                    - +------+------+--------------------------------+-----+
+                    - "| A    | B    | 1970-01-01T00:00:00.000123456Z | 42  |"
+                    - "| A    | C    | 1970-01-01T00:00:00.000123457Z | 43  |"
+                    - +------+------+--------------------------------+-----+
+                    "###
+                    );
                 }
                 .boxed()
             })),
@@ -112,23 +113,24 @@ async fn flightsql_prepared_query() {
             Step::Custom(Box::new(move |state: &mut StepTestState| {
                 async move {
                     let sql = format!("select * from {table_name}");
-                    let expected = vec![
-                        "+------+------+--------------------------------+-----+",
-                        "| tag1 | tag2 | time                           | val |",
-                        "+------+------+--------------------------------+-----+",
-                        "| A    | B    | 1970-01-01T00:00:00.000123456Z | 42  |",
-                        "| A    | C    | 1970-01-01T00:00:00.000123457Z | 43  |",
-                        "+------+------+--------------------------------+-----+",
-                    ];
-
                     let mut client = flightsql_client(state.cluster());
 
                     let handle = client.prepare(sql).await.unwrap();
                     let stream = client.execute(handle).await.unwrap();
 
                     let batches = collect_stream(stream).await;
-
-                    assert_batches_sorted_eq!(&expected, &batches);
+                    insta::assert_yaml_snapshot!(
+                        batches_to_sorted_lines(&batches),
+                        @r###"
+                    ---
+                    - +------+------+--------------------------------+-----+
+                    - "| tag1 | tag2 | time                           | val |"
+                    - +------+------+--------------------------------+-----+
+                    - "| A    | B    | 1970-01-01T00:00:00.000123456Z | 42  |"
+                    - "| A    | C    | 1970-01-01T00:00:00.000123457Z | 43  |"
+                    - +------+------+--------------------------------+-----+
+                    "###
+                    );
                 }
                 .boxed()
             })),
@@ -157,20 +159,22 @@ async fn flightsql_get_catalogs() {
             )),
             Step::Custom(Box::new(move |state: &mut StepTestState| {
                 async move {
-                    let expected = vec![
-                        "+--------------+",
-                        "| catalog_name |",
-                        "+--------------+",
-                        "| public       |",
-                        "+--------------+",
-                    ];
-
                     let mut client = flightsql_client(state.cluster());
 
                     let stream = client.get_catalogs().await.unwrap();
                     let batches = collect_stream(stream).await;
 
-                    assert_batches_sorted_eq!(&expected, &batches);
+                    insta::assert_yaml_snapshot!(
+                        batches_to_sorted_lines(&batches),
+                        @r###"
+                    ---
+                    - +--------------+
+                    - "| catalog_name |"
+                    - +--------------+
+                    - "| public       |"
+                    - +--------------+
+                    "###
+                    );
                 }
                 .boxed()
             })),
