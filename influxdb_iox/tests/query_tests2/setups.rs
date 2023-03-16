@@ -1291,7 +1291,12 @@ impl RetentionSetup {
         let retention_period_1_hour_ns = 3600 * 1_000_000_000;
 
         // Data is relative to this particular time stamp
-        let cutoff = Time::from_rfc3339("2022-01-01T00:00:00+00:00")
+        //
+        // Use a cutoff date that is NOT at the start of the partition so that `lp_partially_inside` only spans a single
+        // partition, not two. This is important because otherwise this will result in two chunks / files, not one.
+        // However a partial inside/outside chunk is important for the query tests so that we can proof that it is not
+        // sufficient to prune the chunks solely on statistics but that there needs to be an actual row-wise filter.
+        let cutoff = Time::from_rfc3339("2022-01-01T10:00:00+00:00")
             .unwrap()
             .timestamp_nanos();
         // Timestamp 1 hour later than the cutoff, so the data will be retained for 1 hour
