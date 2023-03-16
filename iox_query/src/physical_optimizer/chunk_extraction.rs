@@ -215,7 +215,7 @@ mod tests {
     #[test]
     fn test_stop_at_other_node_types() {
         let chunk1 = chunk(1);
-        let schema = chunk1.schema().clone();
+        let schema = chunk1.schema().as_arrow();
         let plan = chunks_to_physical_nodes(
             &schema,
             None,
@@ -259,7 +259,13 @@ mod tests {
 
     #[track_caller]
     fn assert_roundtrip(schema: Schema, chunks: Vec<Arc<dyn QueryChunk>>) {
-        let plan = chunks_to_physical_nodes(&schema, None, chunks.clone(), Predicate::default(), 2);
+        let plan = chunks_to_physical_nodes(
+            &schema.as_arrow(),
+            None,
+            chunks.clone(),
+            Predicate::default(),
+            2,
+        );
         let (schema2, chunks2) = extract_chunks(plan.as_ref()).expect("data found");
         assert_eq!(schema, schema2);
         assert_eq!(chunk_ids(&chunks), chunk_ids(&chunks2));

@@ -124,15 +124,16 @@ impl PhysicalOptimizerRule for DedupSortOrder {
                 }
 
                 let quorum_sort_key = quorum_sort_key_builder.build();
+                let arrow_schema = schema.as_arrow();
                 let child = chunks_to_physical_nodes(
-                    &schema,
+                    &arrow_schema,
                     (!quorum_sort_key.is_empty()).then_some(&quorum_sort_key),
                     chunks,
                     Predicate::new(),
                     config.execution.target_partitions,
                 );
 
-                let sort_exprs = arrow_sort_key_exprs(&quorum_sort_key, schema.as_arrow().as_ref());
+                let sort_exprs = arrow_sort_key_exprs(&quorum_sort_key, &arrow_schema);
                 return Ok(Some(Arc::new(DeduplicateExec::new(child, sort_exprs))));
             }
 

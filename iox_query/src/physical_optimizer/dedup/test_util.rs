@@ -16,7 +16,7 @@ pub fn dedup_plan(schema: Schema, chunks: Vec<TestChunk>) -> Arc<dyn ExecutionPl
         .into_iter()
         .map(|c| Arc::new(c) as _)
         .collect::<Vec<Arc<dyn QueryChunk>>>();
-    let plan = chunks_to_physical_nodes(&schema, None, chunks, Predicate::new(), 2);
+    let plan = chunks_to_physical_nodes(&schema.as_arrow(), None, chunks, Predicate::new(), 2);
 
     let sort_key = schema::sort::SortKey::from_columns(schema.primary_key());
     let sort_exprs = arrow_sort_key_exprs(&sort_key, &schema.as_arrow());
