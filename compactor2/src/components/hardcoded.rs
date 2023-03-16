@@ -57,7 +57,7 @@ use super::{
         has_files::HasFilesPartitionFilter, has_matching_file::HasMatchingFilePartitionFilter,
         logging::LoggingPartitionFilterWrapper, max_num_columns::MaxNumColumnsPartitionFilter,
         metrics::MetricsPartitionFilterWrapper, never_skipped::NeverSkippedPartitionFilter,
-        or::OrPartitionFilter, unable_to_compact::PossibleProgressFilter, PartitionFilter,
+        or::OrPartitionFilter, possible_progress::PossibleProgressFilter, PartitionFilter,
     },
     partition_info_source::sub_sources::SubSourcePartitionInfoSource,
     partition_source::{

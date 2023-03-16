@@ -15,7 +15,7 @@ pub mod max_num_columns;
 pub mod metrics;
 pub mod never_skipped;
 pub mod or;
-pub mod unable_to_compact;
+pub mod possible_progress;
 
 /// Filters partition based on ID and parquet files.
 ///
