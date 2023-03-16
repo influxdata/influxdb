@@ -2,7 +2,7 @@ use std::path::PathBuf;
 
 use arrow::record_batch::RecordBatch;
 use arrow_flight::decode::FlightRecordBatchStream;
-use arrow_util::assert_batches_sorted_eq;
+use arrow_util::{assert_batches_sorted_eq, test_util::batches_to_sorted_lines};
 use assert_cmd::Command;
 use datafusion::common::assert_contains;
 use futures::{FutureExt, TryStreamExt};
@@ -181,6 +181,131 @@ async fn flightsql_get_catalogs() {
 }
 
 #[tokio::test]
+async fn flightsql_get_db_schemas() {
+    test_helpers::maybe_start_logging();
+    let database_url = maybe_skip_integration!();
+
+    let table_name = "the_table";
+
+    // Set up the cluster  ====================================
+    let mut cluster = MiniCluster::create_shared2(database_url).await;
+
+    StepTest::new(
+        &mut cluster,
+        vec![
+            Step::WriteLineProtocol(format!(
+                "{table_name},tag1=A,tag2=B val=42i 123456\n\
+                 {table_name},tag1=A,tag2=C val=43i 123457"
+            )),
+            Step::Custom(Box::new(move |state: &mut StepTestState| {
+                async move {
+                    struct TestCase {
+                        catalog: Option<&'static str>,
+                        db_schema_filter_pattern: Option<&'static str>,
+                    }
+                    let cases = [
+                        TestCase {
+                            catalog: None,
+                            db_schema_filter_pattern: None,
+                        },
+                        TestCase {
+                            // pub <> public
+                            catalog: Some("pub"),
+                            db_schema_filter_pattern: None,
+                        },
+                        TestCase {
+                            // pub% should match all
+                            catalog: Some("pub%"),
+                            db_schema_filter_pattern: None,
+                        },
+                        TestCase {
+                            catalog: None,
+                            db_schema_filter_pattern: Some("%for%"),
+                        },
+                        TestCase {
+                            catalog: Some("public"),
+                            db_schema_filter_pattern: Some("iox"),
+                        },
+                    ];
+
+                    let mut client = flightsql_client(state.cluster());
+
+                    let mut output = vec![];
+                    for case in cases {
+                        let TestCase {
+                            catalog,
+                            db_schema_filter_pattern,
+                        } = case;
+                        output.push(format!("catalog:{catalog:?}"));
+                        output.push(format!(
+                            "db_schema_filter_pattern:{db_schema_filter_pattern:?}"
+                        ));
+                        output.push("*********************".into());
+
+                        let stream = client
+                            .get_db_schemas(catalog, db_schema_filter_pattern)
+                            .await
+                            .unwrap();
+                        let batches = collect_stream(stream).await;
+                        output.extend(batches_to_sorted_lines(&batches))
+                    }
+                    insta::assert_yaml_snapshot!(
+                        output,
+                        @r###"
+                    ---
+                    - "catalog:None"
+                    - "db_schema_filter_pattern:None"
+                    - "*********************"
+                    - +--------------+--------------------+
+                    - "| catalog_name | db_schema_name     |"
+                    - +--------------+--------------------+
+                    - "| public       | information_schema |"
+                    - "| public       | iox                |"
+                    - "| public       | system             |"
+                    - +--------------+--------------------+
+                    - "catalog:Some(\"pub\")"
+                    - "db_schema_filter_pattern:None"
+                    - "*********************"
+                    - ++
+                    - ++
+                    - "catalog:Some(\"pub%\")"
+                    - "db_schema_filter_pattern:None"
+                    - "*********************"
+                    - +--------------+--------------------+
+                    - "| catalog_name | db_schema_name     |"
+                    - +--------------+--------------------+
+                    - "| public       | information_schema |"
+                    - "| public       | iox                |"
+                    - "| public       | system             |"
+                    - +--------------+--------------------+
+                    - "catalog:None"
+                    - "db_schema_filter_pattern:Some(\"%for%\")"
+                    - "*********************"
+                    - +--------------+--------------------+
+                    - "| catalog_name | db_schema_name     |"
+                    - +--------------+--------------------+
+                    - "| public       | information_schema |"
+                    - +--------------+--------------------+
+                    - "catalog:Some(\"public\")"
+                    - "db_schema_filter_pattern:Some(\"iox\")"
+                    - "*********************"
+                    - +--------------+----------------+
+                    - "| catalog_name | db_schema_name |"
+                    - +--------------+----------------+
+                    - "| public       | iox            |"
+                    - +--------------+----------------+
+                    "###
+                    );
+                }
+                .boxed()
+            })),
+        ],
+    )
+    .run()
+    .await
+}
+
+#[tokio::test]
 /// Runs  the `jdbc_client` program against IOx to verify JDBC via FlightSQL is working
 ///
 /// Example command:
@@ -265,13 +390,23 @@ async fn flightsql_jdbc() {
                                              ------------\n\
                                              public";
 
+                    let expected_schemas = "**************\n\
+                                            Schemas:\n\
+                                            **************\n\
+                                            TABLE_SCHEM,  TABLE_CATALOG\n\
+                                            ------------\n\
+                                            information_schema,  public\n\
+                                            iox,  public\n\
+                                            system,  public";
+
                     // Validate metadata: jdbc_client <url> metadata
                     Command::from_std(std::process::Command::new(&path))
                         .arg(&jdbc_url)
                         .arg("metadata")
                         .assert()
                         .success()
-                        .stdout(predicate::str::contains(expected_catalogs));
+                        .stdout(predicate::str::contains(expected_catalogs))
+                        .stdout(predicate::str::contains(expected_schemas));
                 }
                 .boxed()
             })),

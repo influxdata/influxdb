@@ -125,8 +125,12 @@ public class Main {
         System.out.println("**************");
         System.out.println("Catalogs:");
         System.out.println("**************");
-        ResultSet rs = md.getCatalogs();
-        print_result_set(rs);
+        print_result_set(md.getCatalogs());
+
+        System.out.println("**************");
+        System.out.println("Schemas:");
+        System.out.println("**************");
+        print_result_set(md.getSchemas());
 
         //System.out.println("isReadOnly: " + md.isReadOnly());
         //System.out.println("getSearchStringEscape: " + md.getSearchStringEscape());
