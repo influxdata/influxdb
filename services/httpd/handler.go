@@ -1001,9 +1001,13 @@ func (h *Handler) serveDeleteV2(w http.ResponseWriter, r *http.Request, user met
 		return
 	}
 
-	srcs := make([]influxql.Source, 0)
 	const measurement = "_measurement"
 
+	// This has to be nil if there are no sources;
+	// an empty slice causes the Statement.String()
+	// function into adding an empty WHERE clause.
+	// And that breaks Enterprise remote query execution.
+	var srcs []influxql.Source = nil
 	// take out the _measurement = 'mymeasurement' clause to pass separately
 	// Also check for illegal operands.
 	_, remainingExpr, err := influxql.PartitionExpr(influxql.CloneExpr(cond), func(e influxql.Expr) (bool, error) {
