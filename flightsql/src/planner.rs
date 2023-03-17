@@ -5,7 +5,7 @@ use arrow::{datatypes::Schema, error::ArrowError, ipc::writer::IpcWriteOptions};
 use arrow_flight::{
     sql::{
         ActionCreatePreparedStatementRequest, ActionCreatePreparedStatementResult, Any,
-        CommandGetCatalogs, CommandGetDbSchemas, CommandStatementQuery,
+        CommandGetCatalogs, CommandGetDbSchemas, CommandGetTableTypes, CommandStatementQuery,
     },
     IpcMessage, SchemaAsIpc,
 };
@@ -45,6 +45,8 @@ impl FlightSQLPlanner {
             }
             FlightSQLCommand::CommandGetCatalogs(CommandGetCatalogs {}) => {
                 let plan = plan_get_catalogs(ctx).await?;
+                // As an optimization, we could hard code the result
+                // schema instead of recomputing it each time.
                 get_schema_for_plan(plan)
             }
             FlightSQLCommand::CommandGetDbSchemas(CommandGetDbSchemas {
@@ -52,6 +54,14 @@ impl FlightSQLPlanner {
                 db_schema_filter_pattern,
             }) => {
                 let plan = plan_get_db_schemas(ctx, catalog, db_schema_filter_pattern).await?;
+                // As an optimization, we could hard code the result
+                // schema instead of recomputing it each time.
+                get_schema_for_plan(plan)
+            }
+            FlightSQLCommand::CommandGetTableTypes(CommandGetTableTypes {}) => {
+                let plan = plan_get_table_types(ctx).await?;
+                // As an optimization, we could hard code the result
+                // schema instead of recomputing it each time.
                 get_schema_for_plan(plan)
             }
             FlightSQLCommand::ActionCreatePreparedStatementRequest(_)
@@ -98,6 +108,11 @@ impl FlightSQLPlanner {
                     "Planning GetDbSchemas query"
                 );
                 let plan = plan_get_db_schemas(ctx, catalog, db_schema_filter_pattern).await?;
+                Ok(ctx.create_physical_plan(&plan).await?)
+            }
+            FlightSQLCommand::CommandGetTableTypes(CommandGetTableTypes {}) => {
+                debug!("Planning GetTableTypes query");
+                let plan = plan_get_table_types(ctx).await?;
                 Ok(ctx.create_physical_plan(&plan).await?)
             }
             FlightSQLCommand::ActionClosePreparedStatementRequest(_)
@@ -236,4 +251,14 @@ async fn plan_get_db_schemas(
     let plan = ctx.sql_to_logical_plan(query).await?;
     debug!(?plan, "Prepared plan is");
     Ok(plan.with_param_values(params)?)
+}
+
+/// Return a `LogicalPlan` for GetTableTypes
+///
+/// In the future this could be made more efficient by building the
+/// response directly from the IOx catalog rather than running an
+/// entire DataFusion plan.
+async fn plan_get_table_types(ctx: &IOxSessionContext) -> Result<LogicalPlan> {
+    let query = "SELECT DISTINCT table_type FROM information_schema.tables ORDER BY table_type";
+    Ok(ctx.sql_to_logical_plan(query).await?)
 }

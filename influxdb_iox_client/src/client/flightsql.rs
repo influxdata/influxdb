@@ -29,8 +29,8 @@ use arrow_flight::{
     error::{FlightError, Result},
     sql::{
         ActionCreatePreparedStatementRequest, ActionCreatePreparedStatementResult, Any,
-        CommandGetCatalogs, CommandGetDbSchemas, CommandPreparedStatementQuery,
-        CommandStatementQuery, ProstMessageExt,
+        CommandGetCatalogs, CommandGetDbSchemas, CommandGetTableTypes,
+        CommandPreparedStatementQuery, CommandStatementQuery, ProstMessageExt,
     },
     Action, FlightClient, FlightDescriptor, FlightInfo, IpcMessage, Ticket,
 };
@@ -161,6 +161,16 @@ impl FlightSqlClient {
             catalog: catalog.map(|s| s.into()),
             db_schema_filter_pattern: db_schema_filter_pattern.map(|s| s.into()),
         };
+        self.do_get_with_cmd(msg.as_any()).await
+    }
+
+    /// List the table types on this server using a [`CommandGetTableTypes`] message.
+    ///
+    /// This implementation does not support alternate endpoints
+    ///
+    /// [`CommandGetTableTypes`]: https://github.com/apache/arrow/blob/44edc27e549d82db930421b0d4c76098941afd71/format/FlightSql.proto#L1243-L1259
+    pub async fn get_table_types(&mut self) -> Result<FlightRecordBatchStream> {
+        let msg = CommandGetTableTypes {};
         self.do_get_with_cmd(msg.as_any()).await
     }
 

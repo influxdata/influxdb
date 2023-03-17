@@ -185,6 +185,51 @@ async fn flightsql_get_catalogs() {
 }
 
 #[tokio::test]
+async fn flightsql_get_table_types() {
+    test_helpers::maybe_start_logging();
+    let database_url = maybe_skip_integration!();
+
+    let table_name = "the_table";
+
+    // Set up the cluster  ====================================
+    let mut cluster = MiniCluster::create_shared2(database_url).await;
+
+    StepTest::new(
+        &mut cluster,
+        vec![
+            Step::WriteLineProtocol(format!(
+                "{table_name},tag1=A,tag2=B val=42i 123456\n\
+                 {table_name},tag1=A,tag2=C val=43i 123457"
+            )),
+            Step::Custom(Box::new(move |state: &mut StepTestState| {
+                async move {
+                    let mut client = flightsql_client(state.cluster());
+
+                    let stream = client.get_table_types().await.unwrap();
+                    let batches = collect_stream(stream).await;
+
+                    insta::assert_yaml_snapshot!(
+                        batches_to_sorted_lines(&batches),
+                        @r###"
+                    ---
+                    - +------------+
+                    - "| table_type |"
+                    - +------------+
+                    - "| BASE TABLE |"
+                    - "| VIEW       |"
+                    - +------------+
+                    "###
+                    );
+                }
+                .boxed()
+            })),
+        ],
+    )
+    .run()
+    .await
+}
+
+#[tokio::test]
 async fn flightsql_get_db_schemas() {
     test_helpers::maybe_start_logging();
     let database_url = maybe_skip_integration!();
@@ -394,6 +439,7 @@ async fn flightsql_jdbc() {
                                              ------------\n\
                                              public";
 
+                    // CommandGetSchemas output
                     let expected_schemas = "**************\n\
                                             Schemas:\n\
                                             **************\n\
@@ -403,6 +449,15 @@ async fn flightsql_jdbc() {
                                             iox,  public\n\
                                             system,  public";
 
+                    // CommandGetTableTypes output
+                    let expected_table_types = "**************\n\
+                                                Table Types:\n\
+                                                **************\n\
+                                                TABLE_TYPE\n\
+                                                ------------\n\
+                                                BASE TABLE\n\
+                                                VIEW";
+
                     // Validate metadata: jdbc_client <url> metadata
                     Command::from_std(std::process::Command::new(&path))
                         .arg(&jdbc_url)
@@ -410,7 +465,8 @@ async fn flightsql_jdbc() {
                         .assert()
                         .success()
                         .stdout(predicate::str::contains(expected_catalogs))
-                        .stdout(predicate::str::contains(expected_schemas));
+                        .stdout(predicate::str::contains(expected_schemas))
+                        .stdout(predicate::str::contains(expected_table_types));
                 }
                 .boxed()
             })),

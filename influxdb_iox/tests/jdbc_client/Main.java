@@ -132,6 +132,11 @@ public class Main {
         System.out.println("**************");
         print_result_set(md.getSchemas());
 
+        System.out.println("**************");
+        System.out.println("Table Types:");
+        System.out.println("**************");
+        print_result_set(md.getTableTypes());
+
         //System.out.println("isReadOnly: " + md.isReadOnly());
         //System.out.println("getSearchStringEscape: " + md.getSearchStringEscape());
         //System.out.println("getDriverVersion: " + md.getDriverVersion());
