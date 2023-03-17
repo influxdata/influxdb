@@ -9,7 +9,7 @@ use metric::U64Gauge;
 use observability_deps::tracing::{debug, info};
 use tokio::{
     select,
-    sync::{mpsc, Notify},
+    sync::{mpsc, oneshot, Notify},
 };
 use wal::SegmentId;
 
@@ -55,7 +55,7 @@ pub(crate) struct WalReferenceActor<T = Arc<wal::Wal>> {
     /// Channels for input from the [`WalReferenceHandle`].
     ///
     /// [`WalReferenceHandle`]: super::WalReferenceHandle
-    file_rx: mpsc::Receiver<(SegmentId, SequenceNumberSet)>,
+    file_rx: mpsc::Receiver<(SegmentId, SequenceNumberSet, oneshot::Sender<()>)>,
     persist_rx: mpsc::Receiver<Arc<CompletedPersist>>,
     unbuffered_rx: mpsc::Receiver<SequenceNumber>,
 
@@ -81,7 +81,7 @@ where
 {
     pub(super) fn new(
         wal: T,
-        file_rx: mpsc::Receiver<(SegmentId, SequenceNumberSet)>,
+        file_rx: mpsc::Receiver<(SegmentId, SequenceNumberSet, oneshot::Sender<()>)>,
         persist_rx: mpsc::Receiver<Arc<CompletedPersist>>,
         unbuffered_rx: mpsc::Receiver<SequenceNumber>,
         empty_waker: Arc<Notify>,
@@ -137,7 +137,10 @@ where
                 // "persisted" set, reducing memory utilisation.
                 biased;
 
-                Some((id, f)) = self.file_rx.recv() => self.handle_new_file(id, f).await,
+                Some((id, f, done)) = self.file_rx.recv() => {
+                    self.handle_new_file(id, f).await;
+                    let _ = done.send(()); // There may be no listener.
+                },
                 Some(p) = self.persist_rx.recv() => self.handle_persisted(p).await,
                 Some(i) = self.unbuffered_rx.recv() => self.handle_unbuffered(i).await,
                 else => break
