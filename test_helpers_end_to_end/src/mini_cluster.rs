@@ -473,9 +473,12 @@ impl MiniCluster {
 
         let mut command = Command::cargo_bin("influxdb_iox").unwrap();
         let command = command
-            .arg("compactor")
-            .arg("run-once")
+            .arg("run")
+            .arg("compactor2")
+            .arg("--compaction-process-once")
+            .arg("--compaction-process-all-partitions")
             .env("LOG_FILTER", log_filter)
+            .env("INFLUXDB_IOX_GRPC_BIND_ADDR", "8999")
             .env(
                 "INFLUXDB_IOX_CATALOG_DSN",
                 self.compactor_config()
@@ -494,7 +497,10 @@ impl MiniCluster {
 
         log_command(command);
 
-        command.ok().unwrap();
+        if let Err(e) = command.ok() {
+            dump_log_to_stdout("compactor run-once", &log_path);
+            panic!("Command failed: {:?}", e);
+        }
         dump_log_to_stdout("compactor run-once", &log_path);
     }
 
