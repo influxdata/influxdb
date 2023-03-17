@@ -45,6 +45,16 @@ pub mod influxdata {
     }
 
     pub mod iox {
+        pub mod authz {
+            pub mod v1 {
+                include!(concat!(env!("OUT_DIR"), "/influxdata.iox.authz.v1.rs"));
+                include!(concat!(
+                    env!("OUT_DIR"),
+                    "/influxdata.iox.authz.v1.serde.rs"
+                ));
+            }
+        }
+
         pub mod catalog {
             pub mod v1 {
                 include!(concat!(env!("OUT_DIR"), "/influxdata.iox.catalog.v1.rs"));

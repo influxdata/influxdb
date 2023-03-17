@@ -9,6 +9,7 @@ license.workspace = true
 [dependencies]
 # Workspace dependencies, in alphabetical order
 arrow-flight = { workspace = true }
+authz = {path = "../authz" }
 clap_blocks = { path = "../clap_blocks" }
 compactor = { path = "../compactor" }
 compactor2 = { path = "../compactor2" }

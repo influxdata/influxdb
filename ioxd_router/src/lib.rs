@@ -1,4 +1,5 @@
 use async_trait::async_trait;
+use authz::Authorizer;
 use clap_blocks::{router::RouterConfig, router2::Router2Config, write_buffer::WriteBufferConfig};
 use data_types::{NamespaceName, PartitionTemplate, TemplatePart};
 use hashbrown::HashMap;
@@ -277,6 +278,7 @@ pub async fn create_router2_server_type(
     metrics: Arc<metric::Registry>,
     catalog: Arc<dyn Catalog>,
     object_store: Arc<DynObjectStore>,
+    authz: Option<Arc<dyn Authorizer>>,
     router_config: &Router2Config,
 ) -> Result<Arc<dyn ServerType>> {
     // 1. START: Different Setup Per Router Path: this part is only relevant to using RPC write
@@ -438,6 +440,7 @@ pub async fn create_router2_server_type(
         router_config.http_request_limit,
         namespace_resolver,
         handler_stack,
+        authz,
         &metrics,
     );
     // 4. END
@@ -463,6 +466,7 @@ pub async fn create_router_server_type(
     metrics: Arc<metric::Registry>,
     catalog: Arc<dyn Catalog>,
     object_store: Arc<DynObjectStore>,
+    authz: Option<Arc<dyn Authorizer>>,
     write_buffer_config: &WriteBufferConfig,
     router_config: &RouterConfig,
 ) -> Result<Arc<dyn ServerType>> {
@@ -625,6 +629,7 @@ pub async fn create_router_server_type(
         router_config.http_request_limit,
         namespace_resolver,
         handler_stack,
+        authz,
         &metrics,
     );
     // 4. END

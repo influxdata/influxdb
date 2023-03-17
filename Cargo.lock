@@ -479,6 +479,18 @@ dependencies = [
 ]
 
 [[package]]
+name = "authz"
+version = "0.1.0"
+dependencies = [
+ "async-trait",
+ "generated_types",
+ "observability_deps",
+ "snafu",
+ "tonic",
+ "workspace-hack",
+]
+
+[[package]]
 name = "autocfg"
 version = "1.1.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -831,6 +843,7 @@ dependencies = [
 name = "clap_blocks"
 version = "0.1.0"
 dependencies = [
+ "authz",
  "clap 4.1.9",
  "data_types",
  "futures",
@@ -2510,6 +2523,7 @@ dependencies = [
  "arrow_util",
  "assert_cmd",
  "async-trait",
+ "authz",
  "backtrace",
  "bytes",
  "clap 4.1.9",
@@ -3214,6 +3228,7 @@ name = "ioxd_router"
 version = "0.1.0"
 dependencies = [
  "async-trait",
+ "authz",
  "clap_blocks",
  "data_types",
  "hashbrown 0.13.2",
@@ -4796,6 +4811,7 @@ version = "0.1.0"
 dependencies = [
  "assert_matches",
  "async-trait",
+ "authz",
  "bytes",
  "client_util",
  "criterion",

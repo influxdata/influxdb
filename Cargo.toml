@@ -2,6 +2,7 @@
 # In alphabetical order
 members = [
     "arrow_util",
+    "authz",
     "backoff",
     "cache_system",
     "clap_blocks",

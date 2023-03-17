@@ -84,6 +84,7 @@ fn e2e_benchmarks(c: &mut Criterion) {
             100,
             namespace_resolver,
             Arc::new(handler_stack),
+            None,
             &metrics,
         )
     };

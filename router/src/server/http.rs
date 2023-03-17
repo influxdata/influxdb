@@ -2,6 +2,7 @@
 
 mod delete_predicate;
 
+use authz::{Action, Authorizer, Permission, Resource};
 use bytes::{Bytes, BytesMut};
 use data_types::{org_and_bucket_to_namespace, OrgBucketMappingError};
 use futures::StreamExt;
@@ -14,7 +15,7 @@ use mutable_batch_lp::LinesConverter;
 use observability_deps::tracing::*;
 use predicate::delete_predicate::parse_delete_predicate;
 use serde::Deserialize;
-use std::{str::Utf8Error, time::Instant};
+use std::{str::Utf8Error, sync::Arc, time::Instant};
 use thiserror::Error;
 use tokio::sync::{Semaphore, TryAcquireError};
 use trace::ctx::SpanContext;
@@ -92,6 +93,18 @@ pub enum Error {
     /// simultaneous requests.
     #[error("this service is overloaded, please try again later")]
     RequestLimit,
+
+    /// The request has no authentication, but authorization is configured.
+    #[error("authentication required")]
+    Unauthenticated,
+
+    /// The provided authorization is not sufficient to perform the request.
+    #[error("access denied")]
+    Forbidden,
+
+    /// An error occurred verifying the authorization token.
+    #[error(transparent)]
+    Authorizer(authz::Error),
 }
 
 impl Error {
@@ -120,6 +133,18 @@ impl Error {
             )) => StatusCode::BAD_REQUEST,
             Error::NamespaceResolver(_) => StatusCode::INTERNAL_SERVER_ERROR,
             Error::RequestLimit => StatusCode::SERVICE_UNAVAILABLE,
+            Error::Unauthenticated => StatusCode::UNAUTHORIZED,
+            Error::Forbidden => StatusCode::FORBIDDEN,
+            Error::Authorizer(_) => StatusCode::INTERNAL_SERVER_ERROR,
+        }
+    }
+}
+
+impl From<authz::Error> for Error {
+    fn from(value: authz::Error) -> Self {
+        match value {
+            authz::Error::Forbidden => Self::Forbidden,
+            e => Self::Authorizer(e),
         }
     }
 }
@@ -245,6 +270,7 @@ pub struct HttpDelegate<D, N, T = SystemProvider> {
     time_provider: T,
     namespace_resolver: N,
     dml_handler: D,
+    authz: Option<Arc<dyn Authorizer>>,
 
     // A request limiter to restrict the number of simultaneous requests this
     // router services.
@@ -275,6 +301,7 @@ impl<D, N> HttpDelegate<D, N, SystemProvider> {
         max_requests: usize,
         namespace_resolver: N,
         dml_handler: D,
+        authz: Option<Arc<dyn Authorizer>>,
         metrics: &metric::Registry,
     ) -> Self {
         let write_metric_lines = metrics
@@ -325,6 +352,7 @@ impl<D, N> HttpDelegate<D, N, SystemProvider> {
             time_provider: SystemProvider::default(),
             namespace_resolver,
             dml_handler,
+            authz,
             request_sem: Semaphore::new(max_requests),
             write_metric_lines,
             http_line_protocol_parse_duration,
@@ -384,6 +412,36 @@ where
         let write_info = WriteInfo::try_from(&req)?;
         let namespace = org_and_bucket_to_namespace(&write_info.org, &write_info.bucket)
             .map_err(OrgBucketError::MappingFail)?;
+
+        if let Some(authz) = &self.authz {
+            let token = req
+                .headers()
+                .get(hyper::header::AUTHORIZATION)
+                .and_then(|v| {
+                    let s = v.as_ref();
+                    if s.len() < b"Token ".len() {
+                        None
+                    } else {
+                        match s.split_at(b"Token ".len()) {
+                            (b"Token ", token) => Some(token),
+                            _ => None,
+                        }
+                    }
+                })
+                .ok_or(Error::Unauthenticated)?;
+
+            let perms = [Permission::ResourceAction(
+                Resource::Namespace(namespace.to_string()),
+                Action::Write,
+            )];
+            authz
+                .require_any_permission(token, &perms)
+                .await
+                .map_err(|e| match e {
+                    authz::Error::Forbidden => Error::Forbidden,
+                    e => e.into(),
+                })?;
+        }
 
         trace!(
             org=%write_info.org,
@@ -567,6 +625,7 @@ mod tests {
         namespace_resolver::{mock::MockNamespaceResolver, NamespaceCreationError},
     };
     use assert_matches::assert_matches;
+    use async_trait::async_trait;
     use data_types::{NamespaceId, NamespaceNameError, TableId};
     use flate2::{write::GzEncoder, Compression};
     use hyper::header::HeaderValue;
@@ -678,6 +737,7 @@ mod tests {
                         100,
                         mock_namespace_resolver,
                         Arc::clone(&dml_handler),
+                        None,
                         &metrics
                     );
 
@@ -1226,6 +1286,7 @@ mod tests {
             1,
             mock_namespace_resolver,
             Arc::clone(&dml_handler),
+            None,
             &metrics,
         ));
 
@@ -1334,6 +1395,90 @@ mod tests {
 
         // And the request rejected metric must remain unchanged
         assert_metric_hit(&metrics, "http_request_limit_rejected", Some(1));
+    }
+
+    #[derive(Debug)]
+    struct MockAuthorizer {}
+
+    #[async_trait]
+    impl Authorizer for MockAuthorizer {
+        async fn permissions(
+            &self,
+            token: &[u8],
+            perms: &[Permission],
+        ) -> Result<Vec<Permission>, authz::Error> {
+            match token {
+                b"GOOD" => Ok(perms.to_vec()),
+                b"UGLY" => Err(authz::Error::verification("test", "test error")),
+                _ => Ok(vec![]),
+            }
+        }
+    }
+
+    #[tokio::test]
+    async fn test_authz() {
+        let mock_namespace_resolver =
+            MockNamespaceResolver::default().with_mapping("bananas_test", NamespaceId::new(42));
+
+        let dml_handler = Arc::new(
+            MockDmlHandler::default()
+                .with_write_return([Ok(summary())])
+                .with_delete_return([]),
+        );
+        let metrics = Arc::new(metric::Registry::default());
+        let authz = Arc::new(MockAuthorizer {});
+        let delegate = HttpDelegate::new(
+            MAX_BYTES,
+            1,
+            mock_namespace_resolver,
+            Arc::clone(&dml_handler),
+            Some(authz),
+            &metrics,
+        );
+
+        let request = Request::builder()
+            .uri("https://bananas.example/api/v2/write?org=bananas&bucket=test")
+            .method("POST")
+            .header("Authorization", "Token GOOD")
+            .body(Body::from("platanos,tag1=A,tag2=B val=42i 123456"))
+            .unwrap();
+
+        let got = delegate.route(request).await;
+        assert_matches!(got, Ok(_));
+
+        let request = Request::builder()
+            .uri("https://bananas.example/api/v2/write?org=bananas&bucket=test")
+            .method("POST")
+            .header("Authorization", "Token BAD")
+            .body(Body::from(""))
+            .unwrap();
+
+        let got = delegate.route(request).await;
+        assert_matches!(got, Err(Error::Forbidden));
+
+        let request = Request::builder()
+            .uri("https://bananas.example/api/v2/write?org=bananas&bucket=test")
+            .method("POST")
+            .body(Body::from(""))
+            .unwrap();
+
+        let got = delegate.route(request).await;
+        assert_matches!(got, Err(Error::Unauthenticated));
+
+        let request = Request::builder()
+            .uri("https://bananas.example/api/v2/write?org=bananas&bucket=test")
+            .method("POST")
+            .header("Authorization", "Token UGLY")
+            .body(Body::from(""))
+            .unwrap();
+
+        let got = delegate.route(request).await;
+        assert_matches!(got, Err(Error::Authorizer(_)));
+
+        let calls = dml_handler.calls();
+        assert_matches!(calls.as_slice(), [MockDmlHandlerCall::Write{namespace, ..}] => {
+            assert_eq!(namespace, "bananas_test");
+        })
     }
 
     // The display text of Error gets passed through `ioxd_router::IoxHttpErrorAdaptor` then
@@ -1529,6 +1674,23 @@ mod tests {
         (
             RequestLimit,
             "this service is overloaded, please try again later",
+        ),
+
+        (
+            Unauthenticated,
+            "authentication required",
+        ),
+
+        (
+            Forbidden,
+            "access denied",
+        ),
+
+        (
+            Authorizer(
+                authz::Error::verification("bananas", NamespaceCreationError::Reject("bananas".to_string()))
+            ),
+            "token verification not possible: bananas",
         ),
 
         (

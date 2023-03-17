@@ -7,6 +7,7 @@ license.workspace = true
 
 [dependencies]
 async-trait = "0.1"
+authz = { path = "../authz" }
 bytes = "1.4"
 client_util = { path = "../client_util" }
 data_types = { path = "../data_types" }
