@@ -531,10 +531,9 @@ func TestWAL_DiskSize(t *testing.T) {
 	}
 
 	test(w, false, false)
-	require.NoError(t, w.Close())
 
 	// reopen
-	w = NewWAL(dir, 0, 0)
+	require.NoError(t, w.Close())
 	require.NoError(t, w.Open())
 
 	test(w, false, false)
