@@ -8,7 +8,7 @@ license.workspace = true
 [dependencies]
 datafusion = { workspace = true }
 datafusion_util = { path = "../datafusion_util" }
-influxdb_line_protocol = { path = "../influxdb_line_protocol" }
+influxdb-line-protocol = { path = "../influxdb_line_protocol" }
 futures = {version = "0.3"}
 num_cpus = "1.15.0"
 object_store = { version = "0.5.5" }

@@ -8,7 +8,7 @@ license.workspace = true
 
 [dependencies]
 hashbrown = { workspace = true }
-influxdb_line_protocol = { path = "../influxdb_line_protocol" }
+influxdb-line-protocol = { path = "../influxdb_line_protocol" }
 mutable_batch = { path = "../mutable_batch" }
 schema = { path = "../schema" }
 snafu = "0.7"

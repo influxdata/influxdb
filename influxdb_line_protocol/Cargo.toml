@@ -1,5 +1,5 @@
 [package]
-name = "influxdb_line_protocol"
+name = "influxdb-line-protocol"
 version = "1.0.0"
 authors = ["InfluxDB IOx Project Developers"]
 edition = "2021"

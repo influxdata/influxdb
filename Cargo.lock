@@ -1399,7 +1399,7 @@ name = "data_types"
 version = "0.1.0"
 dependencies = [
  "croaring",
- "influxdb_line_protocol",
+ "influxdb-line-protocol",
  "iox_time",
  "observability_deps",
  "ordered-float 3.4.0",
@@ -2456,6 +2456,18 @@ dependencies = [
 ]
 
 [[package]]
+name = "influxdb-line-protocol"
+version = "1.0.0"
+dependencies = [
+ "bytes",
+ "log",
+ "nom",
+ "smallvec",
+ "snafu",
+ "test_helpers",
+]
+
+[[package]]
 name = "influxdb2_client"
 version = "0.1.0"
 dependencies = [
@@ -2584,7 +2596,7 @@ dependencies = [
  "comfy-table",
  "futures-util",
  "generated_types",
- "influxdb_line_protocol",
+ "influxdb-line-protocol",
  "insta",
  "prost",
  "rand",
@@ -2595,18 +2607,6 @@ dependencies = [
  "tokio",
  "tokio-stream",
  "tonic",
-]
-
-[[package]]
-name = "influxdb_line_protocol"
-version = "1.0.0"
-dependencies = [
- "bytes",
- "log",
- "nom",
- "smallvec",
- "snafu",
- "test_helpers",
 ]
 
 [[package]]
@@ -3638,7 +3638,7 @@ dependencies = [
  "assert_matches",
  "criterion",
  "hashbrown 0.13.2",
- "influxdb_line_protocol",
+ "influxdb-line-protocol",
  "mutable_batch",
  "schema",
  "snafu",
@@ -4066,7 +4066,7 @@ dependencies = [
  "datafusion",
  "datafusion_util",
  "futures",
- "influxdb_line_protocol",
+ "influxdb-line-protocol",
  "mutable_batch",
  "mutable_batch_lp",
  "num_cpus",
@@ -4807,7 +4807,7 @@ dependencies = [
  "generated_types",
  "hashbrown 0.13.2",
  "hyper",
- "influxdb_line_protocol",
+ "influxdb-line-protocol",
  "iox_catalog",
  "iox_tests",
  "iox_time",
