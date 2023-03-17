@@ -16,6 +16,7 @@ use datafusion::{
     },
 };
 use observability_deps::tracing::trace;
+use schema::sort::SortKey;
 use std::{collections::HashSet, fmt, sync::Arc};
 
 /// Implements the DataFusion physical plan interface for [`RecordBatch`]es with automatic projection and NULL-column creation.
@@ -32,10 +33,22 @@ pub(crate) struct RecordBatchesExec {
 
     /// Statistics over all batches.
     statistics: Statistics,
+
+    /// Sort key that was passed to [`chunks_to_physical_nodes`].
+    ///
+    /// This is NOT used to set the output ordering. It is only here to recover this information later.
+    ///
+    ///
+    /// [`chunks_to_physical_nodes`]: super::physical::chunks_to_physical_nodes
+    output_sort_key_memo: Option<SortKey>,
 }
 
 impl RecordBatchesExec {
-    pub fn new(chunks: impl IntoIterator<Item = Arc<dyn QueryChunk>>, schema: SchemaRef) -> Self {
+    pub fn new(
+        chunks: impl IntoIterator<Item = Arc<dyn QueryChunk>>,
+        schema: SchemaRef,
+        output_sort_key_memo: Option<SortKey>,
+    ) -> Self {
         let mut combined_summary_option: Option<TableSummary> = None;
 
         let chunks: Vec<_> = chunks
@@ -67,6 +80,7 @@ impl RecordBatchesExec {
             chunks,
             schema,
             statistics,
+            output_sort_key_memo,
             metrics: ExecutionPlanMetricsSet::new(),
         }
     }
@@ -74,6 +88,16 @@ impl RecordBatchesExec {
     /// Chunks that make up this node.
     pub fn chunks(&self) -> impl Iterator<Item = &Arc<dyn QueryChunk>> {
         self.chunks.iter().map(|(chunk, _batches)| chunk)
+    }
+
+    /// Sort key that was passed to [`chunks_to_physical_nodes`].
+    ///
+    /// This is NOT used to set the output ordering. It is only here to recover this information later.
+    ///
+    ///
+    /// [`chunks_to_physical_nodes`]: super::physical::chunks_to_physical_nodes
+    pub fn output_sort_key_memo(&self) -> Option<&SortKey> {
+        self.output_sort_key_memo.as_ref()
     }
 }
 

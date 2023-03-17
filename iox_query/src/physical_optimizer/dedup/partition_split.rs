@@ -37,7 +37,7 @@ impl PhysicalOptimizerRule for PartitionSplit {
                 let mut children = dedup_exec.children();
                 assert_eq!(children.len(), 1);
                 let child = children.remove(0);
-                let Some((schema, chunks)) = extract_chunks(child.as_ref()) else {
+                let Some((schema, chunks, output_sort_key)) = extract_chunks(child.as_ref()) else {
                     return Ok(None);
                 };
 
@@ -83,7 +83,7 @@ impl PhysicalOptimizerRule for PartitionSplit {
                             Arc::new(DeduplicateExec::new(
                                 chunks_to_physical_nodes(
                                     &schema,
-                                    None,
+                                    output_sort_key.as_ref(),
                                     chunks,
                                     Predicate::new(),
                                     config.execution.target_partitions,

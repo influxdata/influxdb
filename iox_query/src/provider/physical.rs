@@ -25,8 +25,11 @@ use std::{
     sync::Arc,
 };
 
-/// Extension for [`PartitionedFile`] to hold the original [`QueryChunk`].
-pub struct PartitionedFileExt(pub Arc<dyn QueryChunk>);
+/// Extension for [`PartitionedFile`] to hold the original [`QueryChunk`] and the [`SortKey`] that was passed to [`chunks_to_physical_nodes`].
+pub struct PartitionedFileExt {
+    pub chunk: Arc<dyn QueryChunk>,
+    pub output_sort_key_memo: Option<SortKey>,
+}
 
 /// Holds a list of chunks that all have the same "URL" and
 /// will be scanned using the same ParquetExec.
@@ -179,6 +182,7 @@ pub fn chunks_to_physical_nodes(
         output_nodes.push(Arc::new(RecordBatchesExec::new(
             record_batch_chunks,
             Arc::clone(schema),
+            output_sort_key.cloned(),
         )));
     }
     let mut parquet_chunks: Vec<_> = parquet_chunks.into_iter().collect();
@@ -197,7 +201,10 @@ pub fn chunks_to_physical_nodes(
                     object_meta,
                     partition_values: vec![],
                     range: None,
-                    extensions: Some(Arc::new(PartitionedFileExt(chunk))),
+                    extensions: Some(Arc::new(PartitionedFileExt {
+                        chunk,
+                        output_sort_key_memo: output_sort_key.cloned(),
+                    })),
                 }),
             target_partitions,
         );

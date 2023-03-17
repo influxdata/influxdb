@@ -34,10 +34,10 @@ impl PhysicalOptimizerRule for CombineChunks {
         config: &ConfigOptions,
     ) -> Result<Arc<dyn ExecutionPlan>> {
         plan.transform_up(&|plan| {
-            if let Some((schema, chunks)) = extract_chunks(plan.as_ref()) {
+            if let Some((schema, chunks, output_sort_key)) = extract_chunks(plan.as_ref()) {
                 return Ok(Some(chunks_to_physical_nodes(
                     &schema,
-                    None,
+                    output_sort_key.as_ref(),
                     chunks,
                     Predicate::new(),
                     config.execution.target_partitions,

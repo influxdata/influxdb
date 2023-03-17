@@ -219,6 +219,7 @@ impl PhysicalOptimizerRule for ProjectionPushdown {
                     let new_child = RecordBatchesExec::new(
                         child_recordbatches.chunks().cloned(),
                         Arc::new(child_recordbatches.schema().project(&column_indices)?),
+                        child_recordbatches.output_sort_key_memo().cloned(),
                     );
                     return Ok(Some(Arc::new(new_child)));
                 }
@@ -1067,7 +1068,11 @@ mod tests {
         let plan = Arc::new(
             ProjectionExec::try_new(
                 vec![(expr_col("tag1", &schema), String::from("tag1"))],
-                Arc::new(RecordBatchesExec::new(vec![Arc::new(chunk) as _], schema)),
+                Arc::new(RecordBatchesExec::new(
+                    vec![Arc::new(chunk) as _],
+                    schema,
+                    None,
+                )),
             )
             .unwrap(),
         );
