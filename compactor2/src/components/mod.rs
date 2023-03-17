@@ -6,6 +6,7 @@ use self::{
     parquet_files_sink::ParquetFilesSink, partition_done_sink::PartitionDoneSink,
     partition_files_source::PartitionFilesSource, partition_filter::PartitionFilter,
     partition_info_source::PartitionInfoSource, partition_stream::PartitionStream,
+    post_classification_partition_filter::PostClassificationPartitionFilter,
     round_info_source::RoundInfoSource, round_split::RoundSplit, scratchpad::ScratchpadGen,
 };
 
@@ -30,6 +31,7 @@ pub mod partition_info_source;
 pub mod partition_source;
 pub mod partition_stream;
 pub mod partitions_source;
+pub mod post_classification_partition_filter;
 pub mod report;
 pub mod round_info_source;
 pub mod round_split;
@@ -55,7 +57,7 @@ pub struct Components {
     /// stop condition for completing a partition compaction
     pub partition_filter: Arc<dyn PartitionFilter>,
     /// condition to avoid running out of resources during compaction
-    pub post_classification_partition_filter: Arc<dyn PartitionFilter>,
+    pub post_classification_partition_filter: Arc<dyn PostClassificationPartitionFilter>,
     /// Records "partition is done" status for given partition.
     pub partition_done_sink: Arc<dyn PartitionDoneSink>,
     /// Commits changes (i.e. deletion and creation) to the catalog.

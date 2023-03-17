@@ -8,7 +8,7 @@ use crate::{
     PartitionInfo,
 };
 
-use super::PartitionFilter;
+use super::PostClassificationPartitionFilter;
 
 #[derive(Debug)]
 pub struct PossibleProgressFilter {
@@ -28,7 +28,7 @@ impl Display for PossibleProgressFilter {
 }
 
 #[async_trait]
-impl PartitionFilter for PossibleProgressFilter {
+impl PostClassificationPartitionFilter for PossibleProgressFilter {
     async fn apply(
         &self,
         partition_info: &PartitionInfo,

@@ -57,7 +57,7 @@ use super::{
         has_files::HasFilesPartitionFilter, has_matching_file::HasMatchingFilePartitionFilter,
         logging::LoggingPartitionFilterWrapper, max_num_columns::MaxNumColumnsPartitionFilter,
         metrics::MetricsPartitionFilterWrapper, never_skipped::NeverSkippedPartitionFilter,
-        or::OrPartitionFilter, possible_progress::PossibleProgressFilter, PartitionFilter,
+        or::OrPartitionFilter, PartitionFilter,
     },
     partition_info_source::sub_sources::SubSourcePartitionInfoSource,
     partition_source::{
@@ -74,6 +74,10 @@ use super::{
         metrics::MetricsPartitionsSourceWrapper, mock::MockPartitionsSource,
         not_empty::NotEmptyPartitionsSourceWrapper,
         randomize_order::RandomizeOrderPartitionsSourcesWrapper, PartitionsSource,
+    },
+    post_classification_partition_filter::{
+        logging::LoggingPostClassificationFilterWrapper,
+        metrics::MetricsPostClassificationFilterWrapper, possible_progress::PossibleProgressFilter,
     },
     round_info_source::{LevelBasedRoundInfo, LoggingRoundInfoWrapper},
     round_split::many_files::ManyFilesRoundSplit,
@@ -324,14 +328,16 @@ pub fn hardcoded_components(config: &Config) -> Arc<Components> {
                 )),
             ),
         ))),
-        post_classification_partition_filter: Arc::new(LoggingPartitionFilterWrapper::new(
-            MetricsPartitionFilterWrapper::new(
-                PossibleProgressFilter::new(config.max_compact_size_bytes()),
-                &config.metric_registry,
+        post_classification_partition_filter: Arc::new(
+            LoggingPostClassificationFilterWrapper::new(
+                MetricsPostClassificationFilterWrapper::new(
+                    PossibleProgressFilter::new(config.max_compact_size_bytes()),
+                    &config.metric_registry,
+                    partition_resource_limit_conditions,
+                ),
                 partition_resource_limit_conditions,
             ),
-            partition_resource_limit_conditions,
-        )),
+        ),
     })
 }
 
