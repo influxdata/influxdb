@@ -736,6 +736,9 @@ func TestReplicationStartMissingQueue(t *testing.T) {
 	// Call startup function
 	err = qm.StartReplicationQueues(trackedReplications)
 	require.NoError(t, err)
+	t.Cleanup(func() {
+		shutdown(t, qm)
+	})
 
 	// Make sure queue is stored in map
 	require.NotNil(t, qm.replicationQueues[id1])
