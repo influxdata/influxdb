@@ -2989,6 +2989,28 @@ dependencies = [
 ]
 
 [[package]]
+name = "iox_query_influxrpc"
+version = "0.1.0"
+dependencies = [
+ "arrow",
+ "data_types",
+ "datafusion",
+ "datafusion_util",
+ "futures",
+ "hashbrown 0.13.2",
+ "insta",
+ "iox_query",
+ "observability_deps",
+ "predicate",
+ "query_functions",
+ "schema",
+ "snafu",
+ "test_helpers",
+ "tokio",
+ "workspace-hack",
+]
+
+[[package]]
 name = "iox_tests"
 version = "0.1.0"
 dependencies = [
@@ -5089,6 +5111,7 @@ dependencies = [
  "flightsql",
  "iox_query",
  "iox_query_influxql",
+ "iox_query_influxrpc",
  "metric",
  "parking_lot 0.12.1",
  "predicate",

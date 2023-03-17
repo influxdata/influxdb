@@ -6,10 +6,11 @@ use datafusion::{error::DataFusionError, physical_plan::ExecutionPlan};
 use flightsql::{FlightSQLCommand, FlightSQLPlanner};
 use iox_query::{
     exec::IOxSessionContext,
-    frontend::{influxrpc::InfluxRpcPlanner, sql::SqlQueryPlanner},
+    frontend::sql::SqlQueryPlanner,
     plan::{fieldlist::FieldListPlan, seriesset::SeriesSetPlans, stringset::StringSetPlan},
     Aggregate, QueryNamespace, WindowDuration,
 };
+use iox_query_influxrpc::InfluxRpcPlanner;
 
 pub use datafusion::error::{DataFusionError as Error, Result};
 use iox_query_influxql::frontend::planner::InfluxQLQueryPlanner;
