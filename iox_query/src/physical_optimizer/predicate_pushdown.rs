@@ -104,6 +104,7 @@ impl PhysicalOptimizerRule for PredicatePushdown {
                                 grandchild,
                             )?),
                             child_dedup.sort_keys().to_vec(),
+                            child_dedup.use_chunk_order_col(),
                         ));
                         if !no_pushdown.is_empty() {
                             new_node = Arc::new(FilterExec::try_new(
@@ -354,6 +355,7 @@ mod tests {
                 Arc::new(DeduplicateExec::new(
                     Arc::new(EmptyExec::new(true, Arc::clone(&schema))),
                     sort_expr(&schema),
+                    false,
                 )),
             )
             .unwrap(),
@@ -385,6 +387,7 @@ mod tests {
                 Arc::new(DeduplicateExec::new(
                     Arc::new(EmptyExec::new(true, Arc::clone(&schema))),
                     sort_expr(&schema),
+                    false,
                 )),
             )
             .unwrap(),
@@ -423,6 +426,7 @@ mod tests {
                 Arc::new(DeduplicateExec::new(
                     Arc::new(EmptyExec::new(true, Arc::clone(&schema))),
                     sort_expr(&schema),
+                    false,
                 )),
             )
             .unwrap(),

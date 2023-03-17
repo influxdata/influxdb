@@ -1362,9 +1362,17 @@ impl ChunkOrder {
     /// The minimum ordering value a chunk could have. Currently only used in testing.
     pub const MIN: Self = Self(0);
 
+    /// The maximum chunk order.
+    pub const MAX: Self = Self(i64::MAX);
+
     /// Create a ChunkOrder from the given value.
     pub fn new(order: i64) -> Self {
         Self(order)
+    }
+
+    /// Under underlying order as integer.
+    pub fn get(&self) -> i64 {
+        self.0
     }
 }
 

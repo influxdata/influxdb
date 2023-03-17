@@ -208,7 +208,11 @@ impl PhysicalOptimizerRule for ProjectionPushdown {
                                 child_dedup.sort_keys(),
                                 &plan.schema(),
                             )?;
-                            Ok(Arc::new(DeduplicateExec::new(plan, sort_keys)))
+                            Ok(Arc::new(DeduplicateExec::new(
+                                plan,
+                                sort_keys,
+                                child_dedup.use_chunk_order_col(),
+                            )))
                         },
                     )?;
 
@@ -981,6 +985,7 @@ mod tests {
                             ..Default::default()
                         },
                     }],
+                    false,
                 )),
             )
             .unwrap(),
@@ -1036,6 +1041,7 @@ mod tests {
                             },
                         },
                     ],
+                    false,
                 )),
             )
             .unwrap(),
@@ -1135,6 +1141,7 @@ mod tests {
                     options: Default::default(),
                 },
             ],
+            false,
         ));
         let plan =
             Arc::new(FilterExec::try_new(expr_string_cmp("tag2", &plan.schema()), plan).unwrap());

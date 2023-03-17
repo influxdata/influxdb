@@ -941,7 +941,7 @@ impl Deduplicater {
         sort_exprs: Vec<PhysicalSortExpr>,
         input: Arc<dyn ExecutionPlan>,
     ) -> Arc<dyn ExecutionPlan> {
-        Arc::new(DeduplicateExec::new(input, sort_exprs))
+        Arc::new(DeduplicateExec::new(input, sort_exprs, false))
     }
 
     /// Creates a plan that produces output_schema given a plan that

@@ -10,7 +10,10 @@
     clippy::dbg_macro
 )]
 
-use arrow::record_batch::RecordBatch;
+use arrow::{
+    datatypes::{DataType, Field},
+    record_batch::RecordBatch,
+};
 use async_trait::async_trait;
 use data_types::{ChunkId, ChunkOrder, DeletePredicate, InfluxDbType, PartitionId, TableSummary};
 use datafusion::{error::DataFusionError, prelude::SessionContext};
@@ -38,6 +41,14 @@ pub mod util;
 
 pub use frontend::common::ScanPlanBuilder;
 pub use query_functions::group_by::{Aggregate, WindowDuration};
+
+/// The name of the virtual column that represents the chunk order.
+pub const CHUNK_ORDER_COLUMN_NAME: &str = "__chunk_order";
+
+/// Generate [`Field`] for [chunk order column](CHUNK_ORDER_COLUMN_NAME).
+pub fn chunk_order_field() -> Field {
+    Field::new(CHUNK_ORDER_COLUMN_NAME, DataType::Int64, false)
+}
 
 /// Trait for an object (designed to be a Chunk) which can provide
 /// metadata

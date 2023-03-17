@@ -222,7 +222,7 @@ impl QueryChunk for QueryAdaptor {
     }
 
     fn order(&self) -> ChunkOrder {
-        unimplemented!()
+        ChunkOrder::MAX
     }
 
     fn as_any(&self) -> &dyn Any {

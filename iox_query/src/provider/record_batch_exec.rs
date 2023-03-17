@@ -1,23 +1,30 @@
 //! Implementation of a DataFusion PhysicalPlan node across partition chunks
 
-use crate::QueryChunk;
+use crate::{QueryChunk, CHUNK_ORDER_COLUMN_NAME};
 
 use super::adapter::SchemaAdapterStream;
 use arrow::{datatypes::SchemaRef, record_batch::RecordBatch};
-use data_types::TableSummary;
+use data_types::{ColumnSummary, InfluxDbType, TableSummary};
 use datafusion::{
     error::DataFusionError,
     execution::context::TaskContext,
     physical_plan::{
-        expressions::PhysicalSortExpr,
+        expressions::{Column, PhysicalSortExpr},
         memory::MemoryStream,
         metrics::{BaselineMetrics, ExecutionPlanMetricsSet, MetricsSet},
         DisplayFormatType, ExecutionPlan, Partitioning, SendableRecordBatchStream, Statistics,
     },
+    scalar::ScalarValue,
 };
 use observability_deps::tracing::trace;
 use schema::sort::SortKey;
-use std::{collections::HashSet, fmt, sync::Arc};
+use std::{
+    borrow::Cow,
+    collections::{HashMap, HashSet},
+    fmt,
+    num::NonZeroU64,
+    sync::Arc,
+};
 
 /// Implements the DataFusion physical plan interface for [`RecordBatch`]es with automatic projection and NULL-column creation.
 #[derive(Debug)]
@@ -41,6 +48,9 @@ pub(crate) struct RecordBatchesExec {
     ///
     /// [`chunks_to_physical_nodes`]: super::physical::chunks_to_physical_nodes
     output_sort_key_memo: Option<SortKey>,
+
+    /// Output ordering.
+    output_ordering: Option<Vec<PhysicalSortExpr>>,
 }
 
 impl RecordBatchesExec {
@@ -49,7 +59,7 @@ impl RecordBatchesExec {
         schema: SchemaRef,
         output_sort_key_memo: Option<SortKey>,
     ) -> Self {
-        let mut combined_summary_option: Option<TableSummary> = None;
+        let has_chunk_order_col = schema.field_with_name(CHUNK_ORDER_COLUMN_NAME).is_ok();
 
         let chunks: Vec<_> = chunks
             .into_iter()
@@ -58,29 +68,81 @@ impl RecordBatchesExec {
                     .data()
                     .into_record_batches()
                     .expect("chunk must have record batches");
-                let summary = chunk.summary();
-                match combined_summary_option.as_mut() {
-                    None => {
-                        combined_summary_option = Some(summary.as_ref().clone());
-                    }
-                    Some(combined_summary) => {
-                        combined_summary.update_from(&summary);
-                    }
-                }
 
                 (chunk, batches)
             })
             .collect();
 
-        let statistics = combined_summary_option
+        let statistics = chunks
+            .iter()
+            .fold(
+                None,
+                |mut combined_summary: Option<TableSummary>, (chunk, _batches)| {
+                    let summary = chunk.summary();
+
+                    let summary = if has_chunk_order_col {
+                        // add chunk order column
+                        let order = chunk.order().get();
+                        let summary = TableSummary {
+                            columns: summary
+                                .columns
+                                .iter()
+                                .cloned()
+                                .chain(std::iter::once(ColumnSummary {
+                                    name: CHUNK_ORDER_COLUMN_NAME.to_owned(),
+                                    influxdb_type: InfluxDbType::Field,
+                                    stats: data_types::Statistics::I64(data_types::StatValues {
+                                        min: Some(order),
+                                        max: Some(order),
+                                        total_count: summary.total_count(),
+                                        null_count: Some(0),
+                                        distinct_count: Some(NonZeroU64::new(1).unwrap()),
+                                    }),
+                                }))
+                                .collect(),
+                        };
+
+                        Cow::Owned(summary)
+                    } else {
+                        Cow::Borrowed(summary.as_ref())
+                    };
+
+                    match combined_summary.as_mut() {
+                        None => {
+                            combined_summary = Some(summary.into_owned());
+                        }
+                        Some(combined_summary) => {
+                            combined_summary.update_from(&summary);
+                        }
+                    }
+
+                    combined_summary
+                },
+            )
             .map(|combined_summary| crate::statistics::df_from_iox(&schema, &combined_summary))
             .unwrap_or_default();
+
+        let output_ordering = if has_chunk_order_col {
+            Some(vec![
+                // every chunk gets its own partition, so we can claim that the output is ordered
+                PhysicalSortExpr {
+                    expr: Arc::new(
+                        Column::new_with_schema(CHUNK_ORDER_COLUMN_NAME, &schema)
+                            .expect("just checked presence of chunk order col"),
+                    ),
+                    options: Default::default(),
+                },
+            ])
+        } else {
+            None
+        };
 
         Self {
             chunks,
             schema,
             statistics,
             output_sort_key_memo,
+            output_ordering,
             metrics: ExecutionPlanMetricsSet::new(),
         }
     }
@@ -115,8 +177,7 @@ impl ExecutionPlan for RecordBatchesExec {
     }
 
     fn output_ordering(&self) -> Option<&[PhysicalSortExpr]> {
-        // TODO ??
-        None
+        self.output_ordering.as_deref()
     }
 
     fn children(&self) -> Vec<Arc<dyn ExecutionPlan>> {
@@ -175,8 +236,12 @@ impl ExecutionPlan for RecordBatchesExec {
             incomplete_output_schema,
             projection,
         )?);
+        let virtual_columns = HashMap::from([(
+            CHUNK_ORDER_COLUMN_NAME,
+            ScalarValue::from(chunk.order().get()),
+        )]);
         let adapter = Box::pin(
-            SchemaAdapterStream::try_new(stream, schema, &Default::default(), baseline_metrics)
+            SchemaAdapterStream::try_new(stream, schema, &virtual_columns, baseline_metrics)
                 .map_err(|e| DataFusionError::Internal(e.to_string()))?,
         );
 

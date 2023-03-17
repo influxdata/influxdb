@@ -15,6 +15,7 @@ use crate::{
     physical_optimizer::chunk_extraction::extract_chunks,
     provider::{chunks_to_physical_nodes, DeduplicateExec},
     util::arrow_sort_key_exprs,
+    CHUNK_ORDER_COLUMN_NAME,
 };
 
 /// Determine sort key order of [`DeduplicateExec`].
@@ -80,6 +81,7 @@ impl PhysicalOptimizerRule for DedupSortOrder {
 
                 let mut quorum_sort_key_builder = SortKeyBuilder::default();
                 let mut todo_pk_columns = dedup_exec.sort_columns();
+                todo_pk_columns.remove(CHUNK_ORDER_COLUMN_NAME);
                 while !todo_pk_columns.is_empty() {
                     let candidate_counts = todo_pk_columns.iter().copied().map(|col| {
                         let count = chunk_sort_keys
@@ -133,7 +135,11 @@ impl PhysicalOptimizerRule for DedupSortOrder {
                 );
 
                 let sort_exprs = arrow_sort_key_exprs(&quorum_sort_key, &schema);
-                return Ok(Some(Arc::new(DeduplicateExec::new(child, sort_exprs))));
+                return Ok(Some(Arc::new(DeduplicateExec::new(
+                    child,
+                    sort_exprs,
+                    dedup_exec.use_chunk_order_col(),
+                ))));
             }
 
             Ok(None)
@@ -165,7 +171,7 @@ mod tests {
 
     use crate::{
         physical_optimizer::{
-            dedup::test_util::{chunk, dedup_plan},
+            dedup::test_util::{chunk, dedup_plan, dedup_plan_with_chunk_order_col},
             test_util::OptimizationTest,
         },
         test::TestChunk,
@@ -242,6 +248,35 @@ mod tests {
             - " DeduplicateExec: [tag2@2 ASC,tag1@1 ASC,time@3 ASC]"
             - "   UnionExec"
             - "     ParquetExec: limit=None, partitions={1 group: [[1.parquet]]}, output_ordering=[tag2@2 ASC, tag1@1 ASC, time@3 ASC], projection=[field, tag1, tag2, time]"
+        "###
+        );
+    }
+
+    #[test]
+    fn test_single_chunk_with_chunk_order_col() {
+        let chunk = chunk(1)
+            .with_dummy_parquet_file()
+            .with_sort_key(SortKey::from_columns([
+                Arc::from("tag2"),
+                Arc::from("tag1"),
+                Arc::from(TIME_COLUMN_NAME),
+            ]));
+        let schema = chunk.schema().clone();
+        let plan = dedup_plan_with_chunk_order_col(schema, vec![chunk]);
+        let opt = DedupSortOrder::default();
+        insta::assert_yaml_snapshot!(
+            OptimizationTest::new(plan, opt),
+            @r###"
+        ---
+        input:
+          - " DeduplicateExec: [tag1@1 ASC,tag2@2 ASC,time@3 ASC]"
+          - "   UnionExec"
+          - "     ParquetExec: limit=None, partitions={1 group: [[1.parquet]]}, output_ordering=[__chunk_order@4 ASC], projection=[field, tag1, tag2, time, __chunk_order]"
+        output:
+          Ok:
+            - " DeduplicateExec: [tag2@2 ASC,tag1@1 ASC,time@3 ASC]"
+            - "   UnionExec"
+            - "     ParquetExec: limit=None, partitions={1 group: [[1.parquet]]}, output_ordering=[tag2@2 ASC, tag1@1 ASC, time@3 ASC, __chunk_order@4 ASC], projection=[field, tag1, tag2, time, __chunk_order]"
         "###
         );
     }

@@ -2,18 +2,20 @@
 
 use crate::{
     provider::record_batch_exec::RecordBatchesExec, util::arrow_sort_key_exprs, QueryChunk,
-    QueryChunkData,
+    QueryChunkData, CHUNK_ORDER_COLUMN_NAME,
 };
-use arrow::datatypes::SchemaRef;
+use arrow::datatypes::{DataType, Schema as ArrowSchema, SchemaRef};
 use datafusion::{
     datasource::{listing::PartitionedFile, object_store::ObjectStoreUrl},
-    physical_expr::execution_props::ExecutionProps,
+    physical_expr::{execution_props::ExecutionProps, PhysicalSortExpr},
     physical_plan::{
         empty::EmptyExec,
+        expressions::Column,
         file_format::{FileScanConfig, ParquetExec},
         union::UnionExec,
-        ExecutionPlan, Statistics,
+        ColumnStatistics, ExecutionPlan, Statistics,
     },
+    scalar::ScalarValue,
 };
 use datafusion_util::create_physical_expr_from_schema;
 use object_store::ObjectMeta;
@@ -187,25 +189,49 @@ pub fn chunks_to_physical_nodes(
     }
     let mut parquet_chunks: Vec<_> = parquet_chunks.into_iter().collect();
     parquet_chunks.sort_by_key(|(url_str, _)| url_str.clone());
+    let has_chunk_order_col = schema.field_with_name(CHUNK_ORDER_COLUMN_NAME).is_ok();
     for (_url_str, chunk_list) in parquet_chunks {
         let ParquetChunkList {
             object_store_url,
-            chunks,
+            mut chunks,
             sort_key,
         } = chunk_list;
 
+        // ensure that chunks are actually ordered by chunk order
+        chunks.sort_by_key(|(_meta, c)| c.order());
+
+        let num_rows = chunks
+            .iter()
+            .map(|(_meta, c)| c.summary().total_count() as usize)
+            .sum::<usize>();
+        let chunk_order_min = chunks
+            .iter()
+            .map(|(_meta, c)| c.order().get())
+            .min()
+            .expect("at least one chunk");
+        let chunk_order_max = chunks
+            .iter()
+            .map(|(_meta, c)| c.order().get())
+            .max()
+            .expect("at least one chunk");
+
         let file_groups = distribute(
-            chunks
-                .into_iter()
-                .map(|(object_meta, chunk)| PartitionedFile {
+            chunks.into_iter().map(|(object_meta, chunk)| {
+                let partition_values = if has_chunk_order_col {
+                    vec![ScalarValue::from(chunk.order().get())]
+                } else {
+                    vec![]
+                };
+                PartitionedFile {
                     object_meta,
-                    partition_values: vec![],
+                    partition_values,
                     range: None,
                     extensions: Some(Arc::new(PartitionedFileExt {
                         chunk,
                         output_sort_key_memo: output_sort_key.cloned(),
                     })),
-                }),
+                }
+            }),
             target_partitions,
         );
 
@@ -224,14 +250,76 @@ pub fn chunks_to_physical_nodes(
                 }
             });
 
+        let (table_partition_cols, file_schema, output_ordering) = if has_chunk_order_col {
+            let table_partition_cols = vec![(CHUNK_ORDER_COLUMN_NAME.to_owned(), DataType::Int64)];
+            let file_schema = Arc::new(ArrowSchema::new(
+                schema
+                    .fields
+                    .iter()
+                    .filter(|f| f.name() != CHUNK_ORDER_COLUMN_NAME)
+                    .cloned()
+                    .collect(),
+            ));
+            let output_ordering = Some(
+                output_ordering
+                    .unwrap_or_default()
+                    .into_iter()
+                    .chain(std::iter::once(PhysicalSortExpr {
+                        expr: Arc::new(
+                            Column::new_with_schema(CHUNK_ORDER_COLUMN_NAME, schema)
+                                .expect("just added col"),
+                        ),
+                        options: Default::default(),
+                    }))
+                    .collect::<Vec<_>>(),
+            );
+            (table_partition_cols, file_schema, output_ordering)
+        } else {
+            (vec![], Arc::clone(schema), output_ordering)
+        };
+
+        let statistics = Statistics {
+            num_rows: Some(num_rows),
+            total_byte_size: None,
+            column_statistics: Some(
+                schema
+                    .fields
+                    .iter()
+                    .map(|f| {
+                        let null_count = if f.is_nullable() { None } else { Some(0) };
+
+                        let (min_value, max_value) = if f.name() == CHUNK_ORDER_COLUMN_NAME {
+                            (
+                                Some(ScalarValue::from(chunk_order_min)),
+                                Some(ScalarValue::from(chunk_order_max)),
+                            )
+                        } else {
+                            (None, None)
+                        };
+
+                        ColumnStatistics {
+                            null_count,
+                            min_value,
+                            max_value,
+                            distinct_count: None,
+                        }
+                    })
+                    .collect(),
+            ),
+
+            // this does NOT account for predicate pushdown
+            // Also see https://github.com/apache/arrow-datafusion/issues/5614
+            is_exact: false,
+        };
+
         let base_config = FileScanConfig {
             object_store_url,
-            file_schema: Arc::clone(schema),
+            file_schema,
             file_groups,
-            statistics: Statistics::default(),
+            statistics,
             projection: None,
             limit: None,
-            table_partition_cols: vec![],
+            table_partition_cols,
             output_ordering,
             infinite_source: false,
         };
@@ -271,6 +359,7 @@ mod tests {
     use schema::{sort::SortKeyBuilder, SchemaBuilder, TIME_COLUMN_NAME};
 
     use crate::{
+        chunk_order_field,
         test::{format_execution_plan, TestChunk},
         QueryChunkMeta,
     };
@@ -479,6 +568,40 @@ mod tests {
         - " UnionExec"
         - "   RecordBatchesExec: batches_groups=1 batches=0 total_rows=0"
         - "   ParquetExec: limit=None, partitions={1 group: [[0.parquet]]}, projection=[]"
+        "###
+        );
+    }
+
+    #[test]
+    fn test_chunks_to_physical_nodes_mixed_with_chunk_order() {
+        let chunk1 = TestChunk::new("table")
+            .with_tag_column("tag")
+            .with_dummy_parquet_file();
+        let chunk2 = TestChunk::new("table").with_tag_column("tag");
+        let schema = Arc::new(ArrowSchema::new(
+            chunk1
+                .schema()
+                .as_arrow()
+                .fields
+                .iter()
+                .cloned()
+                .chain(std::iter::once(chunk_order_field()))
+                .collect(),
+        ));
+        let plan = chunks_to_physical_nodes(
+            &schema,
+            None,
+            vec![Arc::new(chunk1), Arc::new(chunk2)],
+            Predicate::new(),
+            2,
+        );
+        insta::assert_yaml_snapshot!(
+            format_execution_plan(&plan),
+            @r###"
+        ---
+        - " UnionExec"
+        - "   RecordBatchesExec: batches_groups=1 batches=0 total_rows=0"
+        - "   ParquetExec: limit=None, partitions={1 group: [[0.parquet]]}, output_ordering=[__chunk_order@1 ASC], projection=[tag, __chunk_order]"
         "###
         );
     }

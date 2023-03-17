@@ -772,7 +772,9 @@ mod tests {
             let input = Arc::new(MemoryExec::try_new(&[batch], schema, projection).unwrap());
 
             // Create and run the deduplicator
-            let exec = Arc::new(iox_query::provider::DeduplicateExec::new(input, sort_keys));
+            let exec = Arc::new(iox_query::provider::DeduplicateExec::new(
+                input, sort_keys, false,
+            ));
             let got = test_collect(Arc::clone(&exec) as Arc<dyn ExecutionPlan>).await;
 
             assert_batches_eq!(expect, &*got);

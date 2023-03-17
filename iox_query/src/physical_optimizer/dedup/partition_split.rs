@@ -89,6 +89,7 @@ impl PhysicalOptimizerRule for PartitionSplit {
                                     config.execution.target_partitions,
                                 ),
                                 dedup_exec.sort_keys().to_vec(),
+                                dedup_exec.use_chunk_order_col(),
                             )) as _
                         })
                         .collect(),

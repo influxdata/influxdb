@@ -1,10 +1,12 @@
 use std::sync::Arc;
 
+use arrow::datatypes::Schema as ArrowSchema;
 use datafusion::physical_plan::ExecutionPlan;
 use predicate::Predicate;
 use schema::Schema;
 
 use crate::{
+    chunk_order_field,
     provider::{chunks_to_physical_nodes, DeduplicateExec},
     test::TestChunk,
     util::arrow_sort_key_exprs,
@@ -12,15 +14,43 @@ use crate::{
 };
 
 pub fn dedup_plan(schema: Schema, chunks: Vec<TestChunk>) -> Arc<dyn ExecutionPlan> {
+    dedup_plan_impl(schema, chunks, false)
+}
+
+pub fn dedup_plan_with_chunk_order_col(
+    schema: Schema,
+    chunks: Vec<TestChunk>,
+) -> Arc<dyn ExecutionPlan> {
+    dedup_plan_impl(schema, chunks, true)
+}
+
+fn dedup_plan_impl(
+    schema: Schema,
+    chunks: Vec<TestChunk>,
+    use_chunk_order_col: bool,
+) -> Arc<dyn ExecutionPlan> {
     let chunks = chunks
         .into_iter()
         .map(|c| Arc::new(c) as _)
         .collect::<Vec<Arc<dyn QueryChunk>>>();
-    let plan = chunks_to_physical_nodes(&schema.as_arrow(), None, chunks, Predicate::new(), 2);
+    let arrow_schema = if use_chunk_order_col {
+        Arc::new(ArrowSchema::new(
+            schema
+                .as_arrow()
+                .fields
+                .iter()
+                .cloned()
+                .chain(std::iter::once(chunk_order_field()))
+                .collect(),
+        ))
+    } else {
+        schema.as_arrow()
+    };
+    let plan = chunks_to_physical_nodes(&arrow_schema, None, chunks, Predicate::new(), 2);
 
     let sort_key = schema::sort::SortKey::from_columns(schema.primary_key());
-    let sort_exprs = arrow_sort_key_exprs(&sort_key, &schema.as_arrow());
-    Arc::new(DeduplicateExec::new(plan, sort_exprs))
+    let sort_exprs = arrow_sort_key_exprs(&sort_key, &plan.schema());
+    Arc::new(DeduplicateExec::new(plan, sort_exprs, use_chunk_order_col))
 }
 
 pub fn chunk(id: u128) -> TestChunk {
