@@ -48,6 +48,7 @@ fn shard_id_without_num_shards_is_invalid() {
         .arg("compactor2")
         .env("INFLUXDB_IOX_COMPACTION_SHARD_ID", "1") // only provide shard ID
         .env("INFLUXDB_IOX_RPC_MODE", "2")
+        .env("INFLUXDB_IOX_CATALOG_TYPE", "memory")
         .assert()
         .failure()
         .stderr(predicate::str::contains(
@@ -66,6 +67,7 @@ fn num_shards_without_shard_id_is_invalid() {
         .arg("compactor2")
         .env("INFLUXDB_IOX_COMPACTION_SHARD_COUNT", "1") // only provide shard count
         .env("INFLUXDB_IOX_RPC_MODE", "2")
+        .env("INFLUXDB_IOX_CATALOG_TYPE", "memory")
         .assert()
         .failure()
         .stderr(predicate::str::contains(
