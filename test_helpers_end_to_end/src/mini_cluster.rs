@@ -1,6 +1,6 @@
 use crate::{
-    dump_log_to_stdout, log_command, rand_id, write_to_ingester, write_to_router, ServerFixture,
-    TestConfig, TestServer,
+    dump_log_to_stdout, log_command, rand_id, server_type::AddAddrEnv, write_to_ingester,
+    write_to_router, ServerFixture, TestConfig, TestServer,
 };
 use arrow::{datatypes::SchemaRef, record_batch::RecordBatch};
 use arrow_flight::{
@@ -473,8 +473,10 @@ impl MiniCluster {
 
         let mut command = Command::cargo_bin("influxdb_iox").unwrap();
         let command = command
-            .arg("compactor")
-            .arg("run-once")
+            .arg("run")
+            .arg("compactor2")
+            .arg("--compaction-process-once")
+            .arg("--compaction-process-all-partitions")
             .env("LOG_FILTER", log_filter)
             .env(
                 "INFLUXDB_IOX_CATALOG_DSN",
@@ -488,13 +490,20 @@ impl MiniCluster {
                 self.compactor_config().catalog_schema_name(),
             )
             .envs(self.compactor_config().env())
+            .add_addr_env(
+                self.compactor_config().server_type(),
+                self.compactor_config().addrs(),
+            )
             // redirect output to log file
             .stdout(stdout_log_file)
             .stderr(stderr_log_file);
 
         log_command(command);
 
-        command.ok().unwrap();
+        if let Err(e) = command.ok() {
+            dump_log_to_stdout("compactor run-once", &log_path);
+            panic!("Command failed: {:?}", e);
+        }
         dump_log_to_stdout("compactor run-once", &log_path);
     }
 
