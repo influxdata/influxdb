@@ -6,7 +6,6 @@ use iox_catalog::{
     interface::{Catalog, SoftDeletedRows},
     mem::MemCatalog,
 };
-use metric::Registry;
 use mutable_batch::MutableBatch;
 use object_store::memory::InMemory;
 use router::{
@@ -32,16 +31,65 @@ pub const TEST_QUERY_POOL_ID: i64 = 1;
 /// Common retention period value we'll use in tests
 pub const TEST_RETENTION_PERIOD_NS: Option<i64> = Some(3_600 * 1_000_000_000);
 
+pub fn test_context() -> TestContextBuilder {
+    TestContextBuilder::default()
+}
+
+#[derive(Debug, Default)]
+pub struct TestContextBuilder {
+    namespace_autocreate_policy: Option<NamespaceAutocreatePolicy>,
+    catalog: Option<Arc<dyn Catalog>>,
+}
+
+impl TestContextBuilder {
+    pub fn namespace_autocreate_policy(mut self, policy: NamespaceAutocreatePolicy) -> Self {
+        self.namespace_autocreate_policy = Some(policy);
+        self
+    }
+
+    pub async fn build(self) -> TestContext {
+        let Self {
+            namespace_autocreate_policy,
+            catalog,
+        } = self;
+
+        test_helpers::maybe_start_logging();
+
+        let namespace_autocreate_policy = namespace_autocreate_policy
+            .unwrap_or_else(|| NamespaceAutocreatePolicy::new(false, None));
+
+        let metrics: Arc<metric::Registry> = Default::default();
+
+        let catalog = catalog.unwrap_or_else(|| Arc::new(MemCatalog::new(Arc::clone(&metrics))));
+
+        TestContext::new(namespace_autocreate_policy, catalog, metrics).await
+    }
+}
+
+#[derive(Debug)]
+pub struct NamespaceAutocreatePolicy {
+    enabled: bool,
+    retention_period_nanos: Option<i64>,
+}
+
+impl NamespaceAutocreatePolicy {
+    pub fn new(enabled: bool, retention_period_nanos: Option<i64>) -> Self {
+        Self {
+            enabled,
+            retention_period_nanos,
+        }
+    }
+}
+
 #[derive(Debug)]
 pub struct TestContext {
     client: Arc<MockWriteClient>,
     http_delegate: HttpDelegateStack,
     grpc_delegate: RpcWriteGrpcDelegate,
     catalog: Arc<dyn Catalog>,
-    metrics: Arc<Registry>,
+    metrics: Arc<metric::Registry>,
 
-    autocreate_ns: bool,
-    ns_autocreate_retention_period_ns: Option<i64>,
+    namespace_autocreate_policy: NamespaceAutocreatePolicy,
 }
 
 // This mass of words is certainly a downside of chained handlers.
@@ -74,21 +122,8 @@ type HttpDelegateStack = HttpDelegate<
 
 /// A [`router`] stack configured with the various DML handlers using mock catalog backends.
 impl TestContext {
-    pub async fn new(autocreate_ns: bool, ns_autocreate_retention_period_ns: Option<i64>) -> Self {
-        let metrics = Arc::new(metric::Registry::default());
-        let catalog: Arc<dyn Catalog> = Arc::new(MemCatalog::new(Arc::clone(&metrics)));
-
-        Self::init_with_catalog(
-            autocreate_ns,
-            ns_autocreate_retention_period_ns,
-            catalog,
-            metrics,
-        )
-    }
-
-    fn init_with_catalog(
-        autocreate_ns: bool,
-        ns_autocreate_retention_period_ns: Option<i64>,
+    pub async fn new(
+        namespace_autocreate_policy: NamespaceAutocreatePolicy,
         catalog: Arc<dyn Catalog>,
         metrics: Arc<metric::Registry>,
     ) -> Self {
@@ -118,8 +153,10 @@ impl TestContext {
             TopicId::new(TEST_TOPIC_ID),
             QueryPoolId::new(TEST_QUERY_POOL_ID),
             {
-                if autocreate_ns {
-                    MissingNamespaceAction::AutoCreate(ns_autocreate_retention_period_ns)
+                if namespace_autocreate_policy.enabled {
+                    MissingNamespaceAction::AutoCreate(
+                        namespace_autocreate_policy.retention_period_nanos,
+                    )
                 } else {
                     MissingNamespaceAction::Reject
                 }
@@ -151,22 +188,17 @@ impl TestContext {
             grpc_delegate,
             catalog,
             metrics,
-            autocreate_ns,
-            ns_autocreate_retention_period_ns,
+
+            namespace_autocreate_policy,
         }
     }
 
     // Restart the server, rebuilding all state from the catalog (preserves
     // metrics).
-    pub fn restart(self) -> Self {
+    pub async fn restart(self) -> Self {
         let catalog = self.catalog();
         let metrics = Arc::clone(&self.metrics);
-        Self::init_with_catalog(
-            self.autocreate_ns,
-            self.ns_autocreate_retention_period_ns,
-            catalog,
-            metrics,
-        )
+        Self::new(self.namespace_autocreate_policy, catalog, metrics).await
     }
 
     /// Get a reference to the test context's http delegate.
@@ -189,7 +221,7 @@ impl TestContext {
     }
 
     /// Get a reference to the test context's metrics.
-    pub fn metrics(&self) -> &Registry {
+    pub fn metrics(&self) -> &metric::Registry {
         self.metrics.as_ref()
     }
 

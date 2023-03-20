@@ -1,4 +1,7 @@
-use crate::common::{TestContext, TEST_QUERY_POOL_ID, TEST_RETENTION_PERIOD_NS, TEST_TOPIC_ID};
+use crate::common::{
+    test_context, NamespaceAutocreatePolicy, TEST_QUERY_POOL_ID, TEST_RETENTION_PERIOD_NS,
+    TEST_TOPIC_ID,
+};
 use assert_matches::assert_matches;
 use data_types::{ColumnType, QueryPoolId, TopicId};
 use futures::{stream::FuturesUnordered, StreamExt};
@@ -15,7 +18,11 @@ pub mod common;
 
 #[tokio::test]
 async fn test_write_ok() {
-    let ctx = TestContext::new(true, None).await;
+    // Create a test context with implicit namespace creation.
+    let ctx = test_context()
+        .namespace_autocreate_policy(NamespaceAutocreatePolicy::new(true, None))
+        .build()
+        .await;
 
     // Write data inside retention period
     let now = SystemProvider::default()
@@ -89,7 +96,13 @@ async fn test_write_ok() {
 
 #[tokio::test]
 async fn test_write_outside_retention_period() {
-    let ctx = TestContext::new(true, TEST_RETENTION_PERIOD_NS).await;
+    let ctx = test_context()
+        .namespace_autocreate_policy(NamespaceAutocreatePolicy::new(
+            true,
+            TEST_RETENTION_PERIOD_NS,
+        ))
+        .build()
+        .await;
 
     // Write data outside retention period into a new table
     let two_hours_ago =
@@ -115,7 +128,10 @@ async fn test_write_outside_retention_period() {
 
 #[tokio::test]
 async fn test_schema_conflict() {
-    let ctx = TestContext::new(true, None).await;
+    let ctx = test_context()
+        .namespace_autocreate_policy(NamespaceAutocreatePolicy::new(true, None))
+        .build()
+        .await;
 
     // data inside the retention period
     let now = SystemProvider::default()
@@ -167,7 +183,7 @@ async fn test_schema_conflict() {
 
 #[tokio::test]
 async fn test_rejected_ns() {
-    let ctx = TestContext::new(false, None).await;
+    let ctx = test_context().build().await;
 
     let now = SystemProvider::default()
         .now()
@@ -194,7 +210,10 @@ async fn test_rejected_ns() {
 
 #[tokio::test]
 async fn test_schema_limit() {
-    let ctx = TestContext::new(true, None).await;
+    let ctx = test_context()
+        .namespace_autocreate_policy(NamespaceAutocreatePolicy::new(true, None))
+        .build()
+        .await;
 
     let now = SystemProvider::default()
         .now()
@@ -248,7 +267,10 @@ async fn test_schema_limit() {
 
 #[tokio::test]
 async fn test_write_propagate_ids() {
-    let ctx = TestContext::new(true, None).await;
+    let ctx = test_context()
+        .namespace_autocreate_policy(NamespaceAutocreatePolicy::new(true, None))
+        .build()
+        .await;
 
     // Create the namespace and a set of tables.
     let ns = ctx
@@ -333,7 +355,10 @@ async fn test_write_propagate_ids() {
 
 #[tokio::test]
 async fn test_delete_unsupported() {
-    let ctx = TestContext::new(true, None).await;
+    let ctx = test_context()
+        .namespace_autocreate_policy(NamespaceAutocreatePolicy::new(true, None))
+        .build()
+        .await;
 
     // Create the namespace and a set of tables.
     ctx.catalog()
