@@ -14,7 +14,7 @@ use crate::{
         Components,
     },
     error::{DynError, ErrorKind, SimpleError},
-    file_classification::{FileClassification, FileToSplit, FilesToCompactOrSplit},
+    file_classification::{FileClassification, FileToSplit, FilesToSplitOrCompact},
     partition_info::PartitionInfo,
     PlanIR,
 };
@@ -151,10 +151,10 @@ async fn compact_partition(
 ///      - Split L1s each of which overlaps with more than 1 L2s into many L1s, each overlaps with at most one L2 files
 ///   . Each branch does find non-overlaps and upgragde files to avoid unecessary recompacting.
 ///     The actually split files:
-///      1. files_to _keep: do not compact these files because they are already higher than target level
+///      1. files_to_keep: do not compact these files because they are already higher than target level
 ///      2. files_to_upgrade: upgrade this initial-level files to target level because they are not overlap with
 ///          any target-level and initial-level files and large enough (> desired max size)
-///      3. files_to_compact_or_split.: this is either files to compact or split and will be compacted or split accordingly
+///      3. files_to_split_or_compact: this is either files to split or files to compact and will be handled accordingly
 
 ///
 /// Example: 4 files: two L0s, two L1s and one L2
@@ -227,18 +227,18 @@ async fn try_compact_partition(
             // compaction
             let FileClassification {
                 target_level,
-                files_to_compact_or_split,
+                files_to_split_or_compact,
                 files_to_upgrade,
                 files_to_keep,
             } = components
                 .file_classifier
                 .classify(&partition_info, &round_info, branch);
 
-            // Skip partition if it has neither files to upgrade nor files to compact or split
+            // Skip partition if it has neither files to upgrade nor files to split or compact
             if files_to_upgrade.is_empty()
                 && !components
                     .post_classification_partition_filter
-                    .apply(&partition_info, &files_to_compact_or_split.files())
+                    .apply(&partition_info, &files_to_split_or_compact.files())
                     .await?
             {
                 return Ok(());
@@ -246,7 +246,7 @@ async fn try_compact_partition(
 
             // Compact
             let created_file_params = run_plans(
-                &files_to_compact_or_split,
+                &files_to_split_or_compact,
                 &partition_info,
                 &components,
                 target_level,
@@ -264,7 +264,7 @@ async fn try_compact_partition(
 
             // Update the catalog to reflect the newly created files, soft delete the compacted files and
             // update the upgraded files
-            let files_to_delete = files_to_compact_or_split.files();
+            let files_to_delete = files_to_split_or_compact.files();
             let (created_files, upgraded_files) = update_catalog(
                 Arc::clone(&components),
                 partition_id,
@@ -294,7 +294,7 @@ async fn try_compact_partition(
 
 /// Compact of split give files
 async fn run_plans(
-    files: &FilesToCompactOrSplit,
+    files: &FilesToSplitOrCompact,
     partition_info: &Arc<PartitionInfo>,
     components: &Arc<Components>,
     target_level: CompactionLevel,
@@ -302,7 +302,7 @@ async fn run_plans(
     scratchpad_ctx: &mut dyn Scratchpad,
 ) -> Result<Vec<ParquetFileParams>, DynError> {
     match files {
-        FilesToCompactOrSplit::FilesToCompact(files) => {
+        FilesToSplitOrCompact::Compact(files) => {
             run_compaction_plan(
                 files,
                 partition_info,
@@ -313,7 +313,7 @@ async fn run_plans(
             )
             .await
         }
-        FilesToCompactOrSplit::FilesToSplit(files) => {
+        FilesToSplitOrCompact::Split(files) => {
             run_split_plans(
                 files,
                 partition_info,

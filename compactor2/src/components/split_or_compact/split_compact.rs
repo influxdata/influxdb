@@ -2,7 +2,7 @@ use std::fmt::Display;
 
 use data_types::{CompactionLevel, ParquetFile};
 
-use crate::{file_classification::FilesToCompactOrSplit, partition_info::PartitionInfo};
+use crate::{file_classification::FilesToSplitOrCompact, partition_info::PartitionInfo};
 
 use super::{
     files_to_compact::limit_files_to_compact,
@@ -56,11 +56,11 @@ impl SplitOrCompact for SplitCompact {
         _partition_info: &PartitionInfo,
         files: Vec<ParquetFile>,
         target_level: CompactionLevel,
-    ) -> (FilesToCompactOrSplit, Vec<ParquetFile>) {
+    ) -> (FilesToSplitOrCompact, Vec<ParquetFile>) {
         // Compact all in one run if total size is less than max_compact_size
         let total_size: i64 = files.iter().map(|f| f.file_size_bytes).sum();
         if total_size as usize <= self.max_compact_size {
-            return (FilesToCompactOrSplit::FilesToCompact(files), vec![]);
+            return (FilesToSplitOrCompact::Compact(files), vec![]);
         }
 
         // (1) This function identifies all start-level files that overlap with more than one target-level files
@@ -70,23 +70,23 @@ impl SplitOrCompact for SplitCompact {
         if !files_to_split.is_empty() {
             // These files must be split before further compaction
             return (
-                FilesToCompactOrSplit::FilesToSplit(files_to_split),
+                FilesToSplitOrCompact::Split(files_to_split),
                 files_not_to_split,
             );
         }
 
         // (2) No start level split is needed, which means every start-level file overlaps with at most one target-level file
         // Need to limit number of files to compact to stay under compact size limit
-        let keep_and_compact_or_split =
+        let keep_and_split_or_compact =
             limit_files_to_compact(self.max_compact_size, files_not_to_split, target_level);
 
-        let files_to_compact = keep_and_compact_or_split.files_to_compact();
-        let files_to_further_split = keep_and_compact_or_split.files_to_further_split();
-        let mut files_to_keep = keep_and_compact_or_split.files_to_keep();
+        let files_to_compact = keep_and_split_or_compact.files_to_compact();
+        let files_to_further_split = keep_and_split_or_compact.files_to_further_split();
+        let mut files_to_keep = keep_and_split_or_compact.files_to_keep();
 
         if !files_to_compact.is_empty() {
             return (
-                FilesToCompactOrSplit::FilesToCompact(files_to_compact),
+                FilesToSplitOrCompact::Compact(files_to_compact),
                 files_to_keep,
             );
         }
@@ -100,10 +100,7 @@ impl SplitOrCompact for SplitCompact {
 
         files_to_keep.extend(files_not_to_split);
 
-        (
-            FilesToCompactOrSplit::FilesToSplit(files_to_split),
-            files_to_keep,
-        )
+        (FilesToSplitOrCompact::Split(files_to_split), files_to_keep)
     }
 }
 
@@ -132,10 +129,10 @@ mod tests {
         let files = vec![];
         let p_info = Arc::new(PartitionInfoBuilder::new().build());
         let split_compact = SplitCompact::new(FILE_SIZE, FILE_SIZE as u64);
-        let (files_to_compact_or_split, files_to_keep) =
+        let (files_to_split_or_compact, files_to_keep) =
             split_compact.apply(&p_info, files, CompactionLevel::Initial);
 
-        assert!(files_to_compact_or_split.is_empty());
+        assert!(files_to_split_or_compact.is_empty());
         assert!(files_to_keep.is_empty());
     }
 
@@ -161,7 +158,7 @@ mod tests {
 
         let p_info = Arc::new(PartitionInfoBuilder::new().build());
         let split_compact = SplitCompact::new(FILE_SIZE, FILE_SIZE as u64);
-        let (_files_to_compact_or_split, _files_to_keep) =
+        let (_files_to_split_or_compact, _files_to_keep) =
             split_compact.apply(&p_info, files, CompactionLevel::Final);
     }
 
@@ -187,13 +184,13 @@ mod tests {
             FILE_SIZE - (FILE_SIZE as f64 * PERCENTAGE_OF_SOFT_EXCEEDED) as usize - 30;
         let max_compact_size = 3 * max_desired_file_size;
         let split_compact = SplitCompact::new(max_compact_size, max_desired_file_size as u64);
-        let (files_to_compact_or_split, files_to_keep) =
+        let (files_to_split_or_compact, files_to_keep) =
             split_compact.apply(&p_info, files, CompactionLevel::Final);
 
         // need to split files
-        let files_to_compact = files_to_compact_or_split.files_to_compact();
-        let files_to_split = files_to_compact_or_split.files_to_split();
-        let split_times = files_to_compact_or_split.split_times();
+        let files_to_compact = files_to_split_or_compact.files_to_compact();
+        let files_to_split = files_to_split_or_compact.files_to_split();
+        let split_times = files_to_split_or_compact.split_times();
         assert!(files_to_compact.is_empty());
         assert_eq!(files_to_split.len(), 2);
         assert_eq!(files_to_keep.len(), 2);
@@ -205,7 +202,7 @@ mod tests {
 
         // See layout of 2 set of files
         insta::assert_yaml_snapshot!(
-            format_files_split("files to split", &files_to_compact_or_split.files_to_split() , "files to keep:", &files_to_keep),
+            format_files_split("files to split", &files_to_split_or_compact.files_to_split() , "files to keep:", &files_to_keep),
             @r###"
         ---
         - files to split
@@ -242,15 +239,15 @@ mod tests {
         // size limit > total size --> compact all
         let p_info = Arc::new(PartitionInfoBuilder::new().build());
         let split_compact = SplitCompact::new(FILE_SIZE * 6 + 1, FILE_SIZE as u64);
-        let (files_to_compact_or_split, files_to_keep) =
+        let (files_to_split_or_compact, files_to_keep) =
             split_compact.apply(&p_info, files, CompactionLevel::FileNonOverlapped);
 
-        assert_eq!(files_to_compact_or_split.files_to_compact_len(), 5);
+        assert_eq!(files_to_split_or_compact.files_to_compact_len(), 5);
         assert!(files_to_keep.is_empty());
 
         // See layout of 2 set of files
         insta::assert_yaml_snapshot!(
-            format_files_split("files to compact", &files_to_compact_or_split.files_to_compact() , "files to keep:", &files_to_keep),
+            format_files_split("files to compact", &files_to_split_or_compact.files_to_compact() , "files to keep:", &files_to_keep),
             @r###"
         ---
         - files to compact
@@ -287,15 +284,15 @@ mod tests {
         // hit size limit -> split start_level files that overlap with more than 1 target_level files
         let p_info = Arc::new(PartitionInfoBuilder::new().build());
         let split_compact = SplitCompact::new(FILE_SIZE, FILE_SIZE as u64);
-        let (files_to_compact_or_split, files_to_keep) =
+        let (files_to_split_or_compact, files_to_keep) =
             split_compact.apply(&p_info, files, CompactionLevel::FileNonOverlapped);
 
-        assert_eq!(files_to_compact_or_split.files_to_split_len(), 1);
+        assert_eq!(files_to_split_or_compact.files_to_split_len(), 1);
         assert_eq!(files_to_keep.len(), 4);
 
         // See layout of 2 set of files
         insta::assert_yaml_snapshot!(
-            format_files_split("files to compact or split:", &files_to_compact_or_split.files_to_split(), "files to keep:", &files_to_keep),
+            format_files_split("files to compact or split:", &files_to_split_or_compact.files_to_split(), "files to keep:", &files_to_keep),
             @r###"
         ---
         - "files to compact or split:"
@@ -332,15 +329,15 @@ mod tests {
         // hit size limit and nthign to split --> limit number if files to compact
         let p_info = Arc::new(PartitionInfoBuilder::new().build());
         let split_compact = SplitCompact::new(FILE_SIZE * 3, FILE_SIZE as u64);
-        let (files_to_compact_or_split, files_to_keep) =
+        let (files_to_split_or_compact, files_to_keep) =
             split_compact.apply(&p_info, files, CompactionLevel::Final);
 
-        assert_eq!(files_to_compact_or_split.files_to_compact_len(), 3);
+        assert_eq!(files_to_split_or_compact.files_to_compact_len(), 3);
         assert_eq!(files_to_keep.len(), 1);
 
         // See layout of 2 set of files
         insta::assert_yaml_snapshot!(
-            format_files_split("files to compact or split:", &files_to_compact_or_split.files_to_compact() , "files to keep:", &files_to_keep),
+            format_files_split("files to compact or split:", &files_to_split_or_compact.files_to_compact() , "files to keep:", &files_to_keep),
             @r###"
         ---
         - "files to compact or split:"

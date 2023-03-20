@@ -12,8 +12,8 @@ pub struct FileClassification {
     /// The target level of file resulting from compaction
     pub target_level: CompactionLevel,
 
-    /// Decision on what files should be compacted or split. See [`FilesToCompactOrSplit`] for more details.
-    pub files_to_compact_or_split: FilesToCompactOrSplit,
+    /// Decision on what files should be split or compacted. See [`FilesToSplitOrCompact`] for more details.
+    pub files_to_split_or_compact: FilesToSplitOrCompact,
 
     /// Non-overlapped files that should be upgraded to the target
     /// level without rewriting (for example they are of sufficient
@@ -27,69 +27,69 @@ pub struct FileClassification {
 
 impl FileClassification {
     pub fn files_to_compact_len(&self) -> usize {
-        match &self.files_to_compact_or_split {
-            FilesToCompactOrSplit::FilesToCompact(files) => files.len(),
-            FilesToCompactOrSplit::FilesToSplit(_) => 0,
+        match &self.files_to_split_or_compact {
+            FilesToSplitOrCompact::Compact(files) => files.len(),
+            FilesToSplitOrCompact::Split(_) => 0,
         }
     }
 
     pub fn files_to_split_len(&self) -> usize {
-        match &self.files_to_compact_or_split {
-            FilesToCompactOrSplit::FilesToCompact(_files) => 0,
-            FilesToCompactOrSplit::FilesToSplit(files) => files.len(),
+        match &self.files_to_split_or_compact {
+            FilesToSplitOrCompact::Compact(_files) => 0,
+            FilesToSplitOrCompact::Split(files) => files.len(),
         }
     }
 }
 
 /// Files to compact or to split
 #[derive(Debug, PartialEq, Eq)]
-pub enum FilesToCompactOrSplit {
+pub enum FilesToSplitOrCompact {
     /// These files should be compacted together, ideally forming a single output file.
     /// Due to constraints such as the maximum desired output file size and the "leading edge" optimization
     ///  `FilesToCompact` may actually produce multiple output files.
-    FilesToCompact(Vec<ParquetFile>),
+    Compact(Vec<ParquetFile>),
     /// The input files should be split into multiple output files, at the specified times
-    FilesToSplit(Vec<FileToSplit>),
+    Split(Vec<FileToSplit>),
 }
 
-impl FilesToCompactOrSplit {
+impl FilesToSplitOrCompact {
     // Return true if thelist is empty
     pub fn is_empty(&self) -> bool {
         match self {
-            Self::FilesToCompact(files) => files.is_empty(),
-            Self::FilesToSplit(files) => files.is_empty(),
+            Self::Compact(files) => files.is_empty(),
+            Self::Split(files) => files.is_empty(),
         }
     }
 
     /// Return lentgh of files to compact
     pub fn files_to_compact_len(&self) -> usize {
         match self {
-            Self::FilesToCompact(files) => files.len(),
-            Self::FilesToSplit(_) => 0,
+            Self::Compact(files) => files.len(),
+            Self::Split(_) => 0,
         }
     }
 
     /// Return lentgh of files to split
     pub fn files_to_split_len(&self) -> usize {
         match self {
-            Self::FilesToCompact(_) => 0,
-            Self::FilesToSplit(files) => files.len(),
+            Self::Compact(_) => 0,
+            Self::Split(files) => files.len(),
         }
     }
 
     /// Return files to compact
     pub fn files_to_compact(&self) -> Vec<ParquetFile> {
         match self {
-            Self::FilesToCompact(files) => files.clone(),
-            Self::FilesToSplit(_) => vec![],
+            Self::Compact(files) => files.clone(),
+            Self::Split(_) => vec![],
         }
     }
 
     /// Return files to split
     pub fn files_to_split(&self) -> Vec<ParquetFile> {
         match self {
-            Self::FilesToCompact(_) => vec![],
-            Self::FilesToSplit(files) => {
+            Self::Compact(_) => vec![],
+            Self::Split(files) => {
                 let files: Vec<ParquetFile> = files.iter().map(|f| f.file.clone()).collect();
                 files
             }
@@ -99,16 +99,16 @@ impl FilesToCompactOrSplit {
     // return split times of files to split
     pub fn split_times(&self) -> Vec<Vec<i64>> {
         match self {
-            Self::FilesToCompact(_) => vec![],
-            Self::FilesToSplit(files) => files.iter().map(|f| f.split_times.clone()).collect(),
+            Self::Compact(_) => vec![],
+            Self::Split(files) => files.iter().map(|f| f.split_times.clone()).collect(),
         }
     }
 
     /// Return files of either type
     pub fn files(&self) -> Vec<ParquetFile> {
         match self {
-            Self::FilesToCompact(files) => files.clone(),
-            Self::FilesToSplit(files) => files.iter().map(|f| f.file.clone()).collect(),
+            Self::Compact(files) => files.clone(),
+            Self::Split(files) => files.iter().map(|f| f.file.clone()).collect(),
         }
     }
 }
