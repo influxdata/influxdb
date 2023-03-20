@@ -7,7 +7,10 @@ use data_types::{
 use hashbrown::HashMap;
 use metric::U64Gauge;
 use observability_deps::tracing::{debug, info};
-use tokio::{select, sync::mpsc};
+use tokio::{
+    select,
+    sync::{mpsc, oneshot, Notify},
+};
 use wal::SegmentId;
 
 use crate::{
@@ -43,10 +46,16 @@ pub(crate) struct WalReferenceActor<T = Arc<wal::Wal>> {
     /// Invariant: sets in this map are always non-empty.
     wal_files: HashMap<wal::SegmentId, SequenceNumberSet>,
 
+    /// A semaphore to wake tasks waiting for the number of inactive
+    /// (old/rotated) WAL segments (in wal_files) to reach 0.
+    ///
+    /// This can happen multiple times during the lifecycle of an ingester.
+    empty_waker: Arc<Notify>,
+
     /// Channels for input from the [`WalReferenceHandle`].
     ///
     /// [`WalReferenceHandle`]: super::WalReferenceHandle
-    file_rx: mpsc::Receiver<(SegmentId, SequenceNumberSet)>,
+    file_rx: mpsc::Receiver<(SegmentId, SequenceNumberSet, oneshot::Sender<()>)>,
     persist_rx: mpsc::Receiver<Arc<CompletedPersist>>,
     unbuffered_rx: mpsc::Receiver<SequenceNumber>,
 
@@ -72,9 +81,10 @@ where
 {
     pub(super) fn new(
         wal: T,
-        file_rx: mpsc::Receiver<(SegmentId, SequenceNumberSet)>,
+        file_rx: mpsc::Receiver<(SegmentId, SequenceNumberSet, oneshot::Sender<()>)>,
         persist_rx: mpsc::Receiver<Arc<CompletedPersist>>,
         unbuffered_rx: mpsc::Receiver<SequenceNumber>,
+        empty_waker: Arc<Notify>,
         metrics: &metric::Registry,
     ) -> Self {
         let num_files = metrics
@@ -108,6 +118,7 @@ where
             num_files,
             min_id,
             referenced_ops,
+            empty_waker,
         }
     }
 
@@ -126,14 +137,19 @@ where
                 // "persisted" set, reducing memory utilisation.
                 biased;
 
-                Some((id, f)) = self.file_rx.recv() => self.handle_new_file(id, f).await,
+                Some((id, f, done)) = self.file_rx.recv() => {
+                    self.handle_new_file(id, f).await;
+                    let _ = done.send(()); // There may be no listener.
+                },
                 Some(p) = self.persist_rx.recv() => self.handle_persisted(p).await,
                 Some(i) = self.unbuffered_rx.recv() => self.handle_unbuffered(i).await,
                 else => break
             }
 
-            // After each action is processed, update the metrics.
+            // After each action is processed, update the metrics and wake any
+            // waiters if the tracker has no unpersisted operations.
             self.update_metrics();
+            self.notify_empty_wakers();
         }
 
         debug!("stopping wal reference counter task");
@@ -309,6 +325,13 @@ where
             assert!(file_set.is_empty());
 
             delete_file(&self.wal, id).await
+        }
+    }
+
+    /// Wake the waiters when the last inactive WAL segment file is deleted.
+    fn notify_empty_wakers(&self) {
+        if self.wal_files.is_empty() {
+            self.empty_waker.notify_waiters();
         }
     }
 }
