@@ -1,6 +1,17 @@
 //! Query frontend for InfluxDB Storage gRPC requests
 
-use crate::{
+use arrow::datatypes::DataType;
+use data_types::ChunkId;
+use datafusion::{
+    common::DFSchemaRef,
+    error::DataFusionError,
+    logical_expr::{utils::exprlist_to_columns, ExprSchemable, LogicalPlan, LogicalPlanBuilder},
+    prelude::{when, Column, Expr},
+};
+use datafusion_util::AsExpr;
+use futures::{Stream, StreamExt, TryStreamExt};
+use hashbrown::HashSet;
+use iox_query::{
     exec::{
         field::FieldColumns, fieldlist::Field, make_non_null_checker, make_schema_pivot,
         IOxSessionContext,
@@ -13,17 +24,6 @@ use crate::{
     },
     QueryChunk, QueryNamespace,
 };
-use arrow::datatypes::DataType;
-use data_types::ChunkId;
-use datafusion::{
-    common::DFSchemaRef,
-    error::DataFusionError,
-    logical_expr::{utils::exprlist_to_columns, ExprSchemable, LogicalPlan, LogicalPlanBuilder},
-    prelude::{when, Column, Expr},
-};
-use datafusion_util::AsExpr;
-use futures::{Stream, StreamExt, TryStreamExt};
-use hashbrown::HashSet;
 use observability_deps::tracing::{debug, trace, warn};
 use predicate::{
     rpc_predicate::{
@@ -125,7 +125,9 @@ pub enum Error {
     },
 
     #[snafu(display("Error creating scan:  {}", source))]
-    CreatingScan { source: super::common::Error },
+    CreatingScan {
+        source: iox_query::frontend::common::Error,
+    },
 
     #[snafu(display(
         "gRPC planner got error casting aggregate {:?} for {}: {}",
@@ -180,8 +182,8 @@ impl Error {
     }
 }
 
-impl From<super::common::Error> for Error {
-    fn from(source: super::common::Error) -> Self {
+impl From<iox_query::frontend::common::Error> for Error {
+    fn from(source: iox_query::frontend::common::Error) -> Self {
         Self::CreatingScan { source }
     }
 }
@@ -1982,7 +1984,7 @@ mod tests {
     use futures::{future::BoxFuture, FutureExt};
     use predicate::{rpc_predicate::QueryNamespaceMeta, Predicate};
 
-    use crate::{
+    use iox_query::{
         exec::{ExecutionContextProvider, Executor},
         test::{TestChunk, TestDatabase},
     };

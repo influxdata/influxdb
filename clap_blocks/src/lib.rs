@@ -12,6 +12,7 @@
     clippy::todo,
     clippy::dbg_macro
 )]
+pub mod authz;
 pub mod catalog_dsn;
 pub mod compactor;
 pub mod compactor2;

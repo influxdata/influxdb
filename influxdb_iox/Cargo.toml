@@ -9,6 +9,7 @@ license.workspace = true
 [dependencies]
 # Workspace dependencies, in alphabetical order
 arrow-flight = { workspace = true }
+authz = {path = "../authz" }
 clap_blocks = { path = "../clap_blocks" }
 compactor = { path = "../compactor" }
 compactor2 = { path = "../compactor2" }
@@ -53,7 +54,7 @@ bytes = "1.4"
 clap = { version = "4", features = ["derive", "env"] }
 comfy-table = { version = "6.1", default-features = false }
 console-subscriber = { version = "0.1.8", optional = true, features = ["parking_lot"] }
-dirs = "4.0.0"
+dirs = "5.0.0"
 dotenvy = "0.15.6"
 futures = "0.3"
 futures-util = { version = "0.3" }

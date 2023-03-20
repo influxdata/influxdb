@@ -2,6 +2,7 @@
 # In alphabetical order
 members = [
     "arrow_util",
+    "authz",
     "backoff",
     "cache_system",
     "clap_blocks",
@@ -34,6 +35,7 @@ members = [
     "iox_data_generator",
     "iox_query",
     "iox_query_influxql",
+    "iox_query_influxrpc",
     "iox_tests",
     "iox_time",
     "ioxd_common",

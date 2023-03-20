@@ -6,7 +6,8 @@ use super::main;
 use clap_blocks::object_store::make_object_store;
 use clap_blocks::router::RouterConfig;
 use clap_blocks::{
-    catalog_dsn::CatalogDsnConfig, run_config::RunConfig, write_buffer::WriteBufferConfig,
+    authz::AuthzConfig, catalog_dsn::CatalogDsnConfig, run_config::RunConfig,
+    write_buffer::WriteBufferConfig,
 };
 use iox_time::{SystemProvider, TimeProvider};
 use ioxd_common::{
@@ -36,6 +37,9 @@ pub enum Error {
 
     #[error("Catalog DSN error: {0}")]
     CatalogDsn(#[from] clap_blocks::catalog_dsn::Error),
+
+    #[error("Authz error: {0}")]
+    Authz(#[from] clap_blocks::authz::Error),
 }
 
 pub type Result<T, E = Error> = std::result::Result<T, E>;
@@ -56,6 +60,9 @@ Configuration is loaded from the following sources (highest precedence first):
         - pre-configured default values"
 )]
 pub struct Config {
+    #[clap(flatten)]
+    pub(crate) authz_config: AuthzConfig,
+
     #[clap(flatten)]
     pub(crate) run_config: RunConfig,
 
@@ -80,6 +87,7 @@ pub async fn command(config: Config) -> Result<()> {
     let common_state = CommonServerState::from_config(config.run_config.clone())?;
     let time_provider = Arc::new(SystemProvider::new()) as Arc<dyn TimeProvider>;
     let metrics = setup_metric_registry();
+    let authz = config.authz_config.authorizer()?;
 
     let catalog = config
         .catalog_dsn
@@ -100,6 +108,7 @@ pub async fn command(config: Config) -> Result<()> {
         Arc::clone(&metrics),
         catalog,
         object_store,
+        authz,
         &config.write_buffer_config,
         &config.router_config,
     )

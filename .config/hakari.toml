@@ -34,7 +34,7 @@ workspace-members = [
     "influxdb_iox_client",
     # influxdb_line_protocol is published as a standalone crate, so don't
     # depend on workspace
-    "influxdb_line_protocol",
+    "influxdb-line-protocol",
     "influxdb2_client",
     "iox_data_generator",
     # The garbage collector uses chrono-english which needlessly

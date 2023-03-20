@@ -136,7 +136,7 @@ impl TestContext {
         let handler_stack = InstrumentationDecorator::new("request", &metrics, handler_stack);
 
         let http_delegate =
-            HttpDelegate::new(1024, 100, namespace_resolver, handler_stack, &metrics);
+            HttpDelegate::new(1024, 100, namespace_resolver, handler_stack, None, &metrics);
 
         let grpc_delegate = RpcWriteGrpcDelegate::new(
             Arc::clone(&catalog),
