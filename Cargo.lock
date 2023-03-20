@@ -6834,6 +6834,7 @@ dependencies = [
  "petgraph",
  "phf_shared",
  "predicates",
+ "proptest",
  "prost",
  "prost-types",
  "rand",
