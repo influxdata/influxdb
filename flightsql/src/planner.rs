@@ -5,8 +5,8 @@ use arrow::{datatypes::Schema, error::ArrowError, ipc::writer::IpcWriteOptions};
 use arrow_flight::{
     sql::{
         ActionCreatePreparedStatementRequest, ActionCreatePreparedStatementResult, Any,
-        CommandGetCatalogs, CommandGetDbSchemas, CommandGetTableTypes, CommandGetTables,
-        CommandStatementQuery,
+        CommandGetCatalogs, CommandGetDbSchemas, CommandGetSqlInfo, CommandGetTableTypes,
+        CommandGetTables, CommandStatementQuery,
     },
     IpcMessage, SchemaAsIpc,
 };
@@ -16,7 +16,7 @@ use iox_query::{exec::IOxSessionContext, QueryNamespace};
 use observability_deps::tracing::debug;
 use prost::Message;
 
-use crate::error::*;
+use crate::{error::*, sql_info::iox_sql_info_list};
 use crate::{FlightSQLCommand, PreparedStatementHandle};
 
 /// Logic for creating plans for various Flight messages against a query database
@@ -43,6 +43,12 @@ impl FlightSQLPlanner {
             }
             FlightSQLCommand::CommandPreparedStatementQuery(handle) => {
                 get_schema_for_query(handle.query(), ctx).await
+            }
+            FlightSQLCommand::CommandGetSqlInfo(CommandGetSqlInfo { info }) => {
+                let plan = plan_get_sql_info(ctx, info).await?;
+                // As an optimization, we could hard code the result
+                // schema instead of recomputing it each time.
+                get_schema_for_plan(plan)
             }
             FlightSQLCommand::CommandGetCatalogs(CommandGetCatalogs {}) => {
                 let plan = plan_get_catalogs(ctx).await?;
@@ -111,6 +117,11 @@ impl FlightSQLPlanner {
                 let query = handle.query();
                 debug!(%query, "Planning FlightSQL prepared query");
                 Ok(ctx.sql_to_physical_plan(query).await?)
+            }
+            FlightSQLCommand::CommandGetSqlInfo(CommandGetSqlInfo { info }) => {
+                debug!("Planning GetSqlInfo query");
+                let plan = plan_get_sql_info(ctx, info).await?;
+                Ok(ctx.create_physical_plan(&plan).await?)
             }
             FlightSQLCommand::CommandGetCatalogs(CommandGetCatalogs {}) => {
                 debug!("Planning GetCatalogs query");
@@ -238,6 +249,14 @@ fn encode_schema(schema: &Schema) -> Result<Bytes> {
     let IpcMessage(schema) = message?;
 
     Ok(schema)
+}
+
+/// Return a `LogicalPlan` for GetSqlInfo
+///
+/// The infos are passed directly from the [`CommandGetSqlInfo::info`]
+async fn plan_get_sql_info(ctx: &IOxSessionContext, info: Vec<u32>) -> Result<LogicalPlan> {
+    let batch = iox_sql_info_list().filter(&info).encode()?;
+    Ok(ctx.batch_to_logical_plan(batch)?)
 }
 
 /// Return a `LogicalPlan` for GetCatalogs

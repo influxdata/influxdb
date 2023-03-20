@@ -29,8 +29,8 @@ use arrow_flight::{
     error::{FlightError, Result},
     sql::{
         ActionCreatePreparedStatementRequest, ActionCreatePreparedStatementResult, Any,
-        CommandGetCatalogs, CommandGetDbSchemas, CommandGetTableTypes, CommandGetTables,
-        CommandPreparedStatementQuery, CommandStatementQuery, ProstMessageExt,
+        CommandGetCatalogs, CommandGetDbSchemas, CommandGetSqlInfo, CommandGetTableTypes,
+        CommandGetTables, CommandPreparedStatementQuery, CommandStatementQuery, ProstMessageExt,
     },
     Action, FlightClient, FlightDescriptor, FlightInfo, IpcMessage, Ticket,
 };
@@ -122,6 +122,18 @@ impl FlightSqlClient {
     /// This implementation does not support alternate endpoints
     pub async fn query(&mut self, query: String) -> Result<FlightRecordBatchStream> {
         let msg = CommandStatementQuery { query };
+        self.do_get_with_cmd(msg.as_any()).await
+    }
+
+    /// Get information about sql compatibility from this server using [`CommandGetSqlInfo`]
+    ///
+    /// This implementation does not support alternate endpoints
+    ///
+    /// * If omitted, then all metadata will be retrieved.
+    ///
+    /// [`CommandGetSqlInfo`]: https://github.com/apache/arrow/blob/3a6fc1f9eedd41df2d8ffbcbdfbdab911ff6d82e/format/FlightSql.proto#L45-L68
+    pub async fn get_sql_info(&mut self, info: Vec<u32>) -> Result<FlightRecordBatchStream> {
+        let msg = CommandGetSqlInfo { info };
         self.do_get_with_cmd(msg.as_any()).await
     }
 

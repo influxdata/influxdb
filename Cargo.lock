@@ -1889,6 +1889,7 @@ dependencies = [
  "futures",
  "iox_query",
  "observability_deps",
+ "once_cell",
  "prost",
  "snafu",
  "tokio",
