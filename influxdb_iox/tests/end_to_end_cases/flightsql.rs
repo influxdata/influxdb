@@ -185,6 +185,58 @@ async fn flightsql_get_catalogs() {
 }
 
 #[tokio::test]
+async fn flightsql_get_tables() {
+    test_helpers::maybe_start_logging();
+    let database_url = maybe_skip_integration!();
+
+    let table_name = "the_table";
+
+    // Set up the cluster  ====================================
+    let mut cluster = MiniCluster::create_shared2(database_url).await;
+
+    StepTest::new(
+        &mut cluster,
+        vec![
+            Step::WriteLineProtocol(format!(
+                "{table_name},tag1=A,tag2=B val=42i 123456\n\
+                 {table_name},tag1=A,tag2=C val=43i 123457"
+            )),
+            Step::Custom(Box::new(move |state: &mut StepTestState| {
+                async move {
+                    let mut client = flightsql_client(state.cluster());
+
+                    let stream = client
+                        .get_tables(Some(""), Some(""), Some(""), None)
+                        .await
+                        .unwrap();
+                    let batches = collect_stream(stream).await;
+
+                    insta::assert_yaml_snapshot!(
+                        batches_to_sorted_lines(&batches),
+                        @r###"
+                    ---
+                    - +--------------+--------------------+-------------+------------+
+                    - "| catalog_name | db_schema_name     | table_name  | table_type |"
+                    - +--------------+--------------------+-------------+------------+
+                    - "| public       | information_schema | columns     | VIEW       |"
+                    - "| public       | information_schema | df_settings | VIEW       |"
+                    - "| public       | information_schema | tables      | VIEW       |"
+                    - "| public       | information_schema | views       | VIEW       |"
+                    - "| public       | iox                | the_table   | BASE TABLE |"
+                    - "| public       | system             | queries     | BASE TABLE |"
+                    - +--------------+--------------------+-------------+------------+
+                    "###
+                    );
+                }
+                .boxed()
+            })),
+        ],
+    )
+    .run()
+    .await
+}
+
+#[tokio::test]
 async fn flightsql_get_table_types() {
     test_helpers::maybe_start_logging();
     let database_url = maybe_skip_integration!();
@@ -448,6 +500,18 @@ async fn flightsql_jdbc() {
                                             information_schema,  public\n\
                                             iox,  public\n\
                                             system,  public";
+                    // CommandGetTables output
+                    let expected_tables = "**************\n\
+                                           Tables:\n\
+                                           **************\n\
+                                           TABLE_CAT,  TABLE_SCHEM,  TABLE_NAME,  TABLE_TYPE,  REMARKS,  TYPE_CAT,  TYPE_SCHEM,  TYPE_NAME,  SELF_REFERENCING_COL_NAME,  REF_GENERATION\n\
+                                           ------------\n\
+                                           public,  information_schema,  columns,  VIEW,  null,  null,  null,  null,  null,  null\n\
+                                           public,  information_schema,  df_settings,  VIEW,  null,  null,  null,  null,  null,  null\n\
+                                           public,  information_schema,  tables,  VIEW,  null,  null,  null,  null,  null,  null\n\
+                                           public,  information_schema,  views,  VIEW,  null,  null,  null,  null,  null,  null\n\
+                                           public,  iox,  the_table,  BASE TABLE,  null,  null,  null,  null,  null,  null\n\
+                                           public,  system,  queries,  BASE TABLE,  null,  null,  null,  null,  null,  null";
 
                     // CommandGetTableTypes output
                     let expected_table_types = "**************\n\
@@ -466,6 +530,7 @@ async fn flightsql_jdbc() {
                         .success()
                         .stdout(predicate::str::contains(expected_catalogs))
                         .stdout(predicate::str::contains(expected_schemas))
+                        .stdout(predicate::str::contains(expected_tables))
                         .stdout(predicate::str::contains(expected_table_types));
                 }
                 .boxed()

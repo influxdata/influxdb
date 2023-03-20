@@ -133,6 +133,17 @@ public class Main {
         print_result_set(md.getSchemas());
 
         System.out.println("**************");
+        System.out.println("Tables:");
+        System.out.println("**************");
+        // null means no filtering
+        print_result_set(md.getTables(null, null, null, null));
+
+        // System.out.println("**************");
+        // System.out.println("Tables (system table filter):");
+        // System.out.println("**************");
+        // print_result_set(md.getTables("public", "system", null, null));
+       
+        System.out.println("**************");
         System.out.println("Table Types:");
         System.out.println("**************");
         print_result_set(md.getTableTypes());

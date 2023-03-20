@@ -29,7 +29,7 @@ use arrow_flight::{
     error::{FlightError, Result},
     sql::{
         ActionCreatePreparedStatementRequest, ActionCreatePreparedStatementResult, Any,
-        CommandGetCatalogs, CommandGetDbSchemas, CommandGetTableTypes,
+        CommandGetCatalogs, CommandGetDbSchemas, CommandGetTableTypes, CommandGetTables,
         CommandPreparedStatementQuery, CommandStatementQuery, ProstMessageExt,
     },
     Action, FlightClient, FlightDescriptor, FlightInfo, IpcMessage, Ticket,
@@ -160,6 +160,29 @@ impl FlightSqlClient {
         let msg = CommandGetDbSchemas {
             catalog: catalog.map(|s| s.into()),
             db_schema_filter_pattern: db_schema_filter_pattern.map(|s| s.into()),
+        };
+        self.do_get_with_cmd(msg.as_any()).await
+    }
+
+    /// List the tables on this server using a [`CommandGetTables`] message.
+    ///
+    /// This implementation does not support alternate endpoints
+    ///
+    /// [`CommandGetTables`]: https://github.com/apache/arrow/blob/44edc27e549d82db930421b0d4c76098941afd71/format/FlightSql.proto#L1176-L1241
+    pub async fn get_tables(
+        &mut self,
+        _catalog: Option<impl Into<String> + Send>,
+        _db_schema_filter_pattern: Option<impl Into<String> + Send>,
+        _table_name_filter_pattern: Option<impl Into<String> + Send>,
+        _table_types: Option<Vec<String>>,
+    ) -> Result<FlightRecordBatchStream> {
+        let msg = CommandGetTables {
+            catalog: None,
+            db_schema_filter_pattern: None,
+            table_name_filter_pattern: None,
+            table_types: vec![],
+            // TODO: implement include_schema after optional query parameters are done
+            include_schema: false,
         };
         self.do_get_with_cmd(msg.as_any()).await
     }
