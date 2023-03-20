@@ -29,7 +29,7 @@ pub const TEST_TOPIC_ID: i64 = 1;
 pub const TEST_QUERY_POOL_ID: i64 = 1;
 
 /// Common retention period value we'll use in tests
-pub const TEST_RETENTION_PERIOD_NS: Option<i64> = Some(3_600 * 1_000_000_000);
+pub const TEST_RETENTION_PERIOD_NS: i64 = 3_600 * 1_000_000_000;
 
 pub fn test_context() -> TestContextBuilder {
     TestContextBuilder::default()
@@ -42,8 +42,22 @@ pub struct TestContextBuilder {
 }
 
 impl TestContextBuilder {
-    pub fn namespace_autocreate_policy(mut self, policy: NamespaceAutocreatePolicy) -> Self {
-        self.namespace_autocreate_policy = Some(policy);
+    pub fn autocreate_namespace(mut self, enabled: bool) -> Self {
+        self.namespace_autocreate_policy = match self.namespace_autocreate_policy {
+            Some(p) => Some(NamespaceAutocreatePolicy { enabled, ..p }),
+            None => Some(NamespaceAutocreatePolicy::new(true, None)),
+        };
+        self
+    }
+
+    pub fn autocreate_namespace_retention_period_nanos(mut self, period_nanos: i64) -> Self {
+        self.namespace_autocreate_policy = match self.namespace_autocreate_policy {
+            Some(p) => Some(NamespaceAutocreatePolicy {
+                retention_period_nanos: Some(period_nanos),
+                ..p
+            }),
+            None => Some(NamespaceAutocreatePolicy::new(false, Some(period_nanos))),
+        };
         self
     }
 
@@ -67,13 +81,13 @@ impl TestContextBuilder {
 }
 
 #[derive(Debug)]
-pub struct NamespaceAutocreatePolicy {
+struct NamespaceAutocreatePolicy {
     enabled: bool,
     retention_period_nanos: Option<i64>,
 }
 
 impl NamespaceAutocreatePolicy {
-    pub fn new(enabled: bool, retention_period_nanos: Option<i64>) -> Self {
+    fn new(enabled: bool, retention_period_nanos: Option<i64>) -> Self {
         Self {
             enabled,
             retention_period_nanos,
@@ -122,7 +136,7 @@ type HttpDelegateStack = HttpDelegate<
 
 /// A [`router`] stack configured with the various DML handlers using mock catalog backends.
 impl TestContext {
-    pub async fn new(
+    async fn new(
         namespace_autocreate_policy: NamespaceAutocreatePolicy,
         catalog: Arc<dyn Catalog>,
         metrics: Arc<metric::Registry>,

@@ -14,7 +14,7 @@ use router::{
 };
 use tonic::{Code, Request};
 
-use crate::common::{test_context, NamespaceAutocreatePolicy};
+use crate::common::test_context;
 
 pub mod common;
 
@@ -140,10 +140,7 @@ async fn test_namespace_create() {
 #[tokio::test]
 async fn test_namespace_delete() {
     // Initialise a TestContext with implicit namespace creation.
-    let ctx = test_context()
-        .namespace_autocreate_policy(NamespaceAutocreatePolicy::new(true, None))
-        .build()
-        .await;
+    let ctx = test_context().autocreate_namespace(true).build().await;
 
     const RETENTION: i64 = Duration::from_secs(42 * 60 * 60).as_nanos() as _;
 
