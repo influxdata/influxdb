@@ -1,10 +1,14 @@
 //! A set of [`SequenceNumber`] instances.
 
+use std::collections::BTreeMap;
+
+use croaring::treemap::NativeSerializer;
+
 use crate::SequenceNumber;
 
 /// A space-efficient encoded set of [`SequenceNumber`].
 #[derive(Debug, Default, Clone, PartialEq)]
-pub struct SequenceNumberSet(croaring::Bitmap);
+pub struct SequenceNumberSet(croaring::Treemap);
 
 impl SequenceNumberSet {
     /// Add the specified [`SequenceNumber`] to the set.
@@ -43,7 +47,9 @@ impl SequenceNumberSet {
     ///
     /// [spec]: https://github.com/RoaringBitmap/RoaringFormatSpec/
     pub fn to_bytes(&self) -> Vec<u8> {
-        self.0.serialize()
+        self.0
+            .serialize()
+            .expect("failed to serialise sequence number set")
     }
 
     /// Return true if the specified [`SequenceNumber`] has been added to
@@ -70,7 +76,9 @@ impl SequenceNumberSet {
     /// Initialise a [`SequenceNumberSet`] that is pre-allocated to contain up
     /// to `n` elements without reallocating.
     pub fn with_capacity(n: u32) -> Self {
-        Self(croaring::Bitmap::create_with_capacity(n))
+        let mut map = BTreeMap::new();
+        map.insert(0, croaring::Bitmap::create_with_capacity(n));
+        Self(croaring::Treemap { map })
     }
 }
 
@@ -79,9 +87,9 @@ impl TryFrom<&[u8]> for SequenceNumberSet {
     type Error = String;
 
     fn try_from(buffer: &[u8]) -> Result<Self, Self::Error> {
-        croaring::Bitmap::try_deserialize(buffer)
+        croaring::Treemap::deserialize(buffer)
             .map(SequenceNumberSet)
-            .ok_or_else(|| "invalid bitmap bytes".to_string())
+            .map_err(|e| format!("failed to deserialise sequence number set: {e}"))
     }
 }
 
