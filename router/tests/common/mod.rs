@@ -38,7 +38,6 @@ pub fn test_context() -> TestContextBuilder {
 #[derive(Debug, Default)]
 pub struct TestContextBuilder {
     namespace_autocreate_policy: Option<NamespaceAutocreatePolicy>,
-    catalog: Option<Arc<dyn Catalog>>,
 }
 
 impl TestContextBuilder {
@@ -64,7 +63,6 @@ impl TestContextBuilder {
     pub async fn build(self) -> TestContext {
         let Self {
             namespace_autocreate_policy,
-            catalog,
         } = self;
 
         test_helpers::maybe_start_logging();
@@ -74,7 +72,7 @@ impl TestContextBuilder {
 
         let metrics: Arc<metric::Registry> = Default::default();
 
-        let catalog = catalog.unwrap_or_else(|| Arc::new(MemCatalog::new(Arc::clone(&metrics))));
+        let catalog = Arc::new(MemCatalog::new(Arc::clone(&metrics)));
 
         TestContext::new(namespace_autocreate_policy, catalog, metrics).await
     }
