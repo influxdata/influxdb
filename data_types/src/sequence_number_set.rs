@@ -1,10 +1,14 @@
 //! A set of [`SequenceNumber`] instances.
 
+use std::collections::BTreeMap;
+
+use croaring::treemap::NativeSerializer;
+
 use crate::SequenceNumber;
 
 /// A space-efficient encoded set of [`SequenceNumber`].
 #[derive(Debug, Default, Clone, PartialEq)]
-pub struct SequenceNumberSet(croaring::Bitmap);
+pub struct SequenceNumberSet(croaring::Treemap);
 
 impl SequenceNumberSet {
     /// Add the specified [`SequenceNumber`] to the set.
@@ -43,7 +47,9 @@ impl SequenceNumberSet {
     ///
     /// [spec]: https://github.com/RoaringBitmap/RoaringFormatSpec/
     pub fn to_bytes(&self) -> Vec<u8> {
-        self.0.serialize()
+        self.0
+            .serialize()
+            .expect("failed to serialise sequence number set")
     }
 
     /// Return true if the specified [`SequenceNumber`] has been added to
@@ -70,7 +76,9 @@ impl SequenceNumberSet {
     /// Initialise a [`SequenceNumberSet`] that is pre-allocated to contain up
     /// to `n` elements without reallocating.
     pub fn with_capacity(n: u32) -> Self {
-        Self(croaring::Bitmap::create_with_capacity(n))
+        let mut map = BTreeMap::new();
+        map.insert(0, croaring::Bitmap::create_with_capacity(n));
+        Self(croaring::Treemap { map })
     }
 }
 
@@ -79,9 +87,9 @@ impl TryFrom<&[u8]> for SequenceNumberSet {
     type Error = String;
 
     fn try_from(buffer: &[u8]) -> Result<Self, Self::Error> {
-        croaring::Bitmap::try_deserialize(buffer)
+        croaring::Treemap::deserialize(buffer)
             .map(SequenceNumberSet)
-            .ok_or_else(|| "invalid bitmap bytes".to_string())
+            .map_err(|e| format!("failed to deserialise sequence number set: {e}"))
     }
 }
 
@@ -104,6 +112,10 @@ pub fn intersect(a: &SequenceNumberSet, b: &SequenceNumberSet) -> SequenceNumber
 
 #[cfg(test)]
 mod tests {
+    use std::collections::HashSet;
+
+    use proptest::{prelude::prop, proptest, strategy::Strategy};
+
     use super::*;
 
     #[test]
@@ -212,5 +224,113 @@ mod tests {
             .collect::<SequenceNumberSet>();
 
         assert_eq!(intersection, want);
+    }
+
+    /// Yield vec's of [`SequenceNumber`] derived from u64 values and cast to
+    /// i64.
+    ///
+    /// This matches how the ingester allocates [`SequenceNumber`] - from a u64
+    /// source.
+    fn sequence_number_vec() -> impl Strategy<Value = Vec<SequenceNumber>> {
+        prop::collection::vec(0..u64::MAX, 0..1024).prop_map(|vec| {
+            vec.into_iter()
+                .map(|v| SequenceNumber::new(v as i64))
+                .collect()
+        })
+    }
+
+    // The following tests compare to an order-independent HashSet, as the
+    // SequenceNumber uses the PartialOrd impl of the inner i64 for ordering,
+    // resulting in incorrect output when compared to an ordered set of cast as
+    // u64.
+    //
+    //      https://github.com/influxdata/influxdb_iox/issues/7260
+    //
+    // These tests also cover, collect()-ing to a SequenceNumberSet, etc.
+    proptest! {
+        /// Perform a SequenceNumberSet intersection test comparing the results
+        /// to the known-good stdlib HashSet intersection implementation.
+        #[test]
+        fn prop_set_intersection(
+                a in sequence_number_vec(),
+                b in sequence_number_vec()
+            ) {
+            let known_a = a.iter().cloned().collect::<HashSet<_>>();
+            let known_b = b.iter().cloned().collect::<HashSet<_>>();
+            let set_a = a.into_iter().collect::<SequenceNumberSet>();
+            let set_b = b.into_iter().collect::<SequenceNumberSet>();
+
+            // The sets should be equal
+            assert_eq!(set_a.iter().collect::<HashSet<_>>(), known_a, "set a does not match");
+            assert_eq!(set_b.iter().collect::<HashSet<_>>(), known_b, "set b does not match");
+
+            let known_intersection = known_a.intersection(&known_b).cloned().collect::<HashSet<_>>();
+            let set_intersection = intersect(&set_a, &set_b).iter().collect::<HashSet<_>>();
+
+            // The set intersections should be equal.
+            assert_eq!(set_intersection, known_intersection);
+        }
+
+        /// Perform a SequenceNumberSet remove_set test comparing the results to
+        /// the known-good stdlib HashSet difference implementation.
+        #[test]
+        fn prop_set_difference(
+            a in sequence_number_vec(),
+            b in sequence_number_vec()
+        ) {
+            let known_a = a.iter().cloned().collect::<HashSet<_>>();
+            let known_b = b.iter().cloned().collect::<HashSet<_>>();
+            let mut set_a = a.into_iter().collect::<SequenceNumberSet>();
+            let set_b = b.into_iter().collect::<SequenceNumberSet>();
+
+            // The sets should be equal
+            assert_eq!(set_a.iter().collect::<HashSet<_>>(), known_a, "set a does not match");
+            assert_eq!(set_b.iter().collect::<HashSet<_>>(), known_b, "set b does not match");
+
+            let known_a = known_a.difference(&known_b).cloned().collect::<HashSet<_>>();
+            set_a.remove_set(&set_b);
+            let set_a = set_a.iter().collect::<HashSet<_>>();
+
+            // The set difference should be equal.
+            assert_eq!(set_a, known_a);
+        }
+
+        /// Perform a SequenceNumberSet add_set test comparing the results to
+        /// the known-good stdlib HashSet or implementation.
+        #[test]
+        fn prop_set_add(
+            a in sequence_number_vec(),
+            b in sequence_number_vec()
+        ) {
+            let known_a = a.iter().cloned().collect::<HashSet<_>>();
+            let known_b = b.iter().cloned().collect::<HashSet<_>>();
+            let mut set_a = a.into_iter().collect::<SequenceNumberSet>();
+            let set_b = b.into_iter().collect::<SequenceNumberSet>();
+
+            // The sets should be equal
+            assert_eq!(set_a.iter().collect::<HashSet<_>>(), known_a, "set a does not match");
+            assert_eq!(set_b.iter().collect::<HashSet<_>>(), known_b, "set b does not match");
+
+            let known_a = known_a.union(&known_b).cloned().collect::<HashSet<_>>();
+            set_a.add_set(&set_b);
+            let set_a = set_a.iter().collect::<HashSet<_>>();
+
+            // The sets should be equal.
+            assert_eq!(set_a, known_a);
+        }
+
+        /// Assert that a SequenceNumberSet deserialised from its serialised
+        /// representation is equal (round-trippable).
+        #[test]
+        fn prop_serialise_deserialise(
+            a in sequence_number_vec()
+        ) {
+            let orig = a.iter().cloned().collect::<SequenceNumberSet>();
+
+            let serialised = orig.to_bytes();
+            let got = SequenceNumberSet::try_from(&*serialised).expect("failed to deserialise valid set");
+
+            assert_eq!(got, orig);
+        }
     }
 }
