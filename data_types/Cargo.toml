@@ -21,4 +21,5 @@ uuid = { version = "1", features = ["v4"] }
 workspace-hack = { version = "0.1", path = "../workspace-hack" }
 
 [dev-dependencies] # In alphabetical order
+proptest = "1.1.0"
 test_helpers = { path = "../test_helpers" }
