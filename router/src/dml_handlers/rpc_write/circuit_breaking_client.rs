@@ -90,7 +90,7 @@ where
 }
 
 #[async_trait]
-impl<T, C> WriteClient for &CircuitBreakingClient<T, C>
+impl<T, C> WriteClient for CircuitBreakingClient<T, C>
 where
     T: WriteClient,
     C: CircuitBreakerState,

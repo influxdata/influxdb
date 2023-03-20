@@ -4921,6 +4921,7 @@ dependencies = [
  "service_grpc_object_store",
  "service_grpc_schema",
  "sharder",
+ "smallvec",
  "snafu",
  "test_helpers",
  "thiserror",

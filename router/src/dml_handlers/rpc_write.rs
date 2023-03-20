@@ -3,10 +3,14 @@ mod circuit_breaker;
 mod circuit_breaking_client;
 pub mod client;
 pub mod lazy_connector;
+mod upstream_snapshot;
 
 use crate::dml_handlers::rpc_write::client::WriteClient;
 
-use self::{balancer::Balancer, circuit_breaking_client::CircuitBreakingClient};
+use self::{
+    balancer::Balancer, circuit_breaking_client::CircuitBreakingClient,
+    upstream_snapshot::UpstreamSnapshot,
+};
 
 use super::{DmlHandler, Partitioned};
 use async_trait::async_trait;
@@ -90,7 +94,7 @@ impl<C> RpcWrite<C> {
 #[async_trait]
 impl<C> DmlHandler for RpcWrite<C>
 where
-    C: client::WriteClient + 'static,
+    C: WriteClient + 'static,
 {
     type WriteInput = Partitioned<HashMap<TableId, (String, MutableBatch)>>;
     type WriteOutput = Vec<DmlMeta>;
@@ -162,12 +166,14 @@ where
 }
 
 async fn write_loop<T>(
-    mut endpoints: impl Iterator<Item = T> + Send,
+    mut endpoints: UpstreamSnapshot<'_, T>,
     req: WriteRequest,
 ) -> Result<(), RpcWriteError>
 where
     T: WriteClient,
 {
+    // Infinitely cycle through the snapshot, trying each node in turn until the
+    // request succeeds or this async call times out.
     let mut delay = Duration::from_millis(50);
     loop {
         match endpoints
