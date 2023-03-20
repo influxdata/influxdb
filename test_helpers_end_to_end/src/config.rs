@@ -250,6 +250,12 @@ impl TestConfig {
         self.with_env("INFLUXDB_IOX_EXEC_MEM_POOL_BYTES", bytes.to_string())
     }
 
+    /// Configure sharding splits for the compactor.
+    pub fn with_compactor_shards(self, n_shards: usize, shard_id: usize) -> Self {
+        self.with_env("INFLUXDB_IOX_COMPACTION_SHARD_COUNT", n_shards.to_string())
+            .with_env("INFLUXDB_IOX_COMPACTION_SHARD_ID", shard_id.to_string())
+    }
+
     /// Get the test config's server type.
     #[must_use]
     pub fn server_type(&self) -> ServerType {
