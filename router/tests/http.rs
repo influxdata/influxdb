@@ -16,7 +16,7 @@ pub mod common;
 #[tokio::test]
 async fn test_write_ok() {
     // Create a test context with implicit namespace creation.
-    let ctx = test_context().autocreate_namespace(true).build().await;
+    let ctx = test_context().with_autocreate_namespace(true).build().await;
 
     // Write data inside retention period
     let now = SystemProvider::default()
@@ -91,8 +91,8 @@ async fn test_write_ok() {
 #[tokio::test]
 async fn test_write_outside_retention_period() {
     let ctx = test_context()
-        .autocreate_namespace(true)
-        .autocreate_namespace_retention_period_nanos(TEST_RETENTION_PERIOD_NS)
+        .with_autocreate_namespace(true)
+        .with_autocreate_namespace_retention_period_nanos(TEST_RETENTION_PERIOD_NS)
         .build()
         .await;
 
@@ -120,7 +120,7 @@ async fn test_write_outside_retention_period() {
 
 #[tokio::test]
 async fn test_schema_conflict() {
-    let ctx = test_context().autocreate_namespace(true).build().await;
+    let ctx = test_context().with_autocreate_namespace(true).build().await;
 
     // data inside the retention period
     let now = SystemProvider::default()
@@ -199,7 +199,7 @@ async fn test_rejected_ns() {
 
 #[tokio::test]
 async fn test_schema_limit() {
-    let ctx = test_context().autocreate_namespace(true).build().await;
+    let ctx = test_context().with_autocreate_namespace(true).build().await;
 
     let now = SystemProvider::default()
         .now()
@@ -253,7 +253,7 @@ async fn test_schema_limit() {
 
 #[tokio::test]
 async fn test_write_propagate_ids() {
-    let ctx = test_context().autocreate_namespace(true).build().await;
+    let ctx = test_context().with_autocreate_namespace(true).build().await;
 
     // Create the namespace and a set of tables.
     let ns = ctx
@@ -338,7 +338,7 @@ async fn test_write_propagate_ids() {
 
 #[tokio::test]
 async fn test_delete_unsupported() {
-    let ctx = test_context().autocreate_namespace(true).build().await;
+    let ctx = test_context().with_autocreate_namespace(true).build().await;
 
     // Create the namespace and a set of tables.
     ctx.catalog()

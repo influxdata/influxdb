@@ -37,25 +37,22 @@ pub fn test_context() -> TestContextBuilder {
 
 #[derive(Debug, Default)]
 pub struct TestContextBuilder {
-    namespace_autocreate_policy: Option<NamespaceAutocreatePolicy>,
+    namespace_autocreate_policy: NamespaceAutocreatePolicy,
 }
 
 impl TestContextBuilder {
-    pub fn autocreate_namespace(mut self, enabled: bool) -> Self {
-        self.namespace_autocreate_policy = match self.namespace_autocreate_policy {
-            Some(p) => Some(NamespaceAutocreatePolicy { enabled, ..p }),
-            None => Some(NamespaceAutocreatePolicy::new(true, None)),
+    pub fn with_autocreate_namespace(mut self, enabled: bool) -> Self {
+        self.namespace_autocreate_policy = NamespaceAutocreatePolicy {
+            enabled,
+            ..self.namespace_autocreate_policy
         };
         self
     }
 
-    pub fn autocreate_namespace_retention_period_nanos(mut self, period_nanos: i64) -> Self {
-        self.namespace_autocreate_policy = match self.namespace_autocreate_policy {
-            Some(p) => Some(NamespaceAutocreatePolicy {
-                retention_period_nanos: Some(period_nanos),
-                ..p
-            }),
-            None => Some(NamespaceAutocreatePolicy::new(false, Some(period_nanos))),
+    pub fn with_autocreate_namespace_retention_period_nanos(mut self, period_nanos: i64) -> Self {
+        self.namespace_autocreate_policy = NamespaceAutocreatePolicy {
+            retention_period_nanos: Some(period_nanos),
+            ..self.namespace_autocreate_policy
         };
         self
     }
@@ -67,8 +64,7 @@ impl TestContextBuilder {
 
         test_helpers::maybe_start_logging();
 
-        let namespace_autocreate_policy = namespace_autocreate_policy
-            .unwrap_or_else(|| NamespaceAutocreatePolicy::new(false, None));
+        let namespace_autocreate_policy = namespace_autocreate_policy;
 
         let metrics: Arc<metric::Registry> = Default::default();
 
@@ -78,19 +74,10 @@ impl TestContextBuilder {
     }
 }
 
-#[derive(Debug)]
+#[derive(Debug, Default)]
 struct NamespaceAutocreatePolicy {
     enabled: bool,
     retention_period_nanos: Option<i64>,
-}
-
-impl NamespaceAutocreatePolicy {
-    fn new(enabled: bool, retention_period_nanos: Option<i64>) -> Self {
-        Self {
-            enabled,
-            retention_period_nanos,
-        }
-    }
 }
 
 #[derive(Debug)]

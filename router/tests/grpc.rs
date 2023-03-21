@@ -140,7 +140,7 @@ async fn test_namespace_create() {
 #[tokio::test]
 async fn test_namespace_delete() {
     // Initialise a TestContext with implicit namespace creation.
-    let ctx = test_context().autocreate_namespace(true).build().await;
+    let ctx = test_context().with_autocreate_namespace(true).build().await;
 
     const RETENTION: i64 = Duration::from_secs(42 * 60 * 60).as_nanos() as _;
 
