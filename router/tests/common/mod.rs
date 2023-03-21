@@ -31,53 +31,48 @@ pub const TEST_QUERY_POOL_ID: i64 = 1;
 /// Common retention period value we'll use in tests
 pub const TEST_RETENTION_PERIOD: Duration = Duration::from_secs(3600);
 
-pub fn test_context() -> TestContextBuilder {
-    TestContextBuilder::default()
+/// A [`TestContextBuilder`] can be used to build up a [`TestContext`] from a set
+/// of sensible defaults. The default context produced will reject writes for a
+/// missing namespace.
+#[derive(Debug)]
+pub struct TestContextBuilder {
+    namespace_autocreation: MissingNamespaceAction,
 }
 
-#[derive(Debug, Default)]
-pub struct TestContextBuilder {
-    namespace_autocreate_policy: NamespaceAutocreatePolicy,
+impl Default for TestContextBuilder {
+    fn default() -> Self {
+        Self {
+            namespace_autocreation: MissingNamespaceAction::Reject,
+        }
+    }
 }
 
 impl TestContextBuilder {
-    pub fn with_autocreate_namespace(mut self, enabled: bool) -> Self {
-        self.namespace_autocreate_policy = NamespaceAutocreatePolicy {
-            enabled,
-            ..self.namespace_autocreate_policy
-        };
+    /// Enable implicit namespace creation, with an optional retention duration,
+    /// for all subsequently built [`TestContext`]s.
+    pub fn with_autocreate_namespace(mut self, retention_duration: Option<Duration>) -> Self {
+        self.namespace_autocreation =
+            MissingNamespaceAction::AutoCreate(retention_duration.map(|d| {
+                i64::try_from(d.as_nanos()).expect("retention period outside of i64 range")
+            }));
         self
     }
 
-    pub fn with_autocreate_namespace_retention_period(mut self, period: Duration) -> Self {
-        self.namespace_autocreate_policy = NamespaceAutocreatePolicy {
-            retention_period: Some(period),
-            ..self.namespace_autocreate_policy
-        };
+    /// Disable implicit namespace creation, for all subsequently built
+    /// [`TestContext`]s.
+    pub fn without_autocreate_namespace(mut self) -> Self {
+        self.namespace_autocreation = MissingNamespaceAction::Reject;
         self
     }
 
     pub async fn build(self) -> TestContext {
-        let Self {
-            namespace_autocreate_policy,
-        } = self;
-
         test_helpers::maybe_start_logging();
 
-        let namespace_autocreate_policy = namespace_autocreate_policy;
-
         let metrics: Arc<metric::Registry> = Default::default();
-
         let catalog = Arc::new(MemCatalog::new(Arc::clone(&metrics)));
 
-        TestContext::new(namespace_autocreate_policy, catalog, metrics).await
+        TestContext::new(self.namespace_autocreation, catalog, metrics).await
     }
-}
-
-#[derive(Debug, Default)]
-struct NamespaceAutocreatePolicy {
-    enabled: bool,
-    retention_period: Option<Duration>,
 }
 
 #[derive(Debug)]
@@ -88,7 +83,7 @@ pub struct TestContext {
     catalog: Arc<dyn Catalog>,
     metrics: Arc<metric::Registry>,
 
-    namespace_autocreate_policy: NamespaceAutocreatePolicy,
+    namespace_autocreation: MissingNamespaceAction,
 }
 
 // This mass of words is certainly a downside of chained handlers.
@@ -122,7 +117,7 @@ type HttpDelegateStack = HttpDelegate<
 /// A [`router`] stack configured with the various DML handlers using mock catalog backends.
 impl TestContext {
     async fn new(
-        namespace_autocreate_policy: NamespaceAutocreatePolicy,
+        namespace_autocreation: MissingNamespaceAction,
         catalog: Arc<dyn Catalog>,
         metrics: Arc<metric::Registry>,
     ) -> Self {
@@ -151,17 +146,7 @@ impl TestContext {
             Arc::clone(&catalog),
             TopicId::new(TEST_TOPIC_ID),
             QueryPoolId::new(TEST_QUERY_POOL_ID),
-            {
-                if namespace_autocreate_policy.enabled {
-                    MissingNamespaceAction::AutoCreate(
-                        namespace_autocreate_policy
-                            .retention_period
-                            .map(|d| i64::try_from(d.as_nanos()).unwrap()),
-                    )
-                } else {
-                    MissingNamespaceAction::Reject
-                }
-            },
+            namespace_autocreation,
         );
 
         let parallel_write = WriteSummaryAdapter::new(FanOutAdaptor::new(rpc_writer));
@@ -190,7 +175,7 @@ impl TestContext {
             catalog,
             metrics,
 
-            namespace_autocreate_policy,
+            namespace_autocreation,
         }
     }
 
@@ -199,7 +184,7 @@ impl TestContext {
     pub async fn restart(self) -> Self {
         let catalog = self.catalog();
         let metrics = Arc::clone(&self.metrics);
-        Self::new(self.namespace_autocreate_policy, catalog, metrics).await
+        Self::new(self.namespace_autocreation, catalog, metrics).await
     }
 
     /// Get a reference to the test context's http delegate.

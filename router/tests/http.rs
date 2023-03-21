@@ -1,4 +1,4 @@
-use crate::common::{test_context, TEST_QUERY_POOL_ID, TEST_RETENTION_PERIOD, TEST_TOPIC_ID};
+use crate::common::{TestContextBuilder, TEST_QUERY_POOL_ID, TEST_RETENTION_PERIOD, TEST_TOPIC_ID};
 use assert_matches::assert_matches;
 use data_types::{ColumnType, QueryPoolId, TopicId};
 use futures::{stream::FuturesUnordered, StreamExt};
@@ -16,7 +16,10 @@ pub mod common;
 #[tokio::test]
 async fn test_write_ok() {
     // Create a test context with implicit namespace creation.
-    let ctx = test_context().with_autocreate_namespace(true).build().await;
+    let ctx = TestContextBuilder::default()
+        .with_autocreate_namespace(None)
+        .build()
+        .await;
 
     // Write data inside retention period
     let now = SystemProvider::default()
@@ -90,9 +93,8 @@ async fn test_write_ok() {
 
 #[tokio::test]
 async fn test_write_outside_retention_period() {
-    let ctx = test_context()
-        .with_autocreate_namespace(true)
-        .with_autocreate_namespace_retention_period(TEST_RETENTION_PERIOD)
+    let ctx = TestContextBuilder::default()
+        .with_autocreate_namespace(Some(TEST_RETENTION_PERIOD))
         .build()
         .await;
 
@@ -120,7 +122,10 @@ async fn test_write_outside_retention_period() {
 
 #[tokio::test]
 async fn test_schema_conflict() {
-    let ctx = test_context().with_autocreate_namespace(true).build().await;
+    let ctx = TestContextBuilder::default()
+        .with_autocreate_namespace(None)
+        .build()
+        .await;
 
     // data inside the retention period
     let now = SystemProvider::default()
@@ -172,7 +177,7 @@ async fn test_schema_conflict() {
 
 #[tokio::test]
 async fn test_rejected_ns() {
-    let ctx = test_context().build().await;
+    let ctx = TestContextBuilder::default().build().await;
 
     let now = SystemProvider::default()
         .now()
@@ -199,7 +204,10 @@ async fn test_rejected_ns() {
 
 #[tokio::test]
 async fn test_schema_limit() {
-    let ctx = test_context().with_autocreate_namespace(true).build().await;
+    let ctx = TestContextBuilder::default()
+        .with_autocreate_namespace(None)
+        .build()
+        .await;
 
     let now = SystemProvider::default()
         .now()
@@ -253,7 +261,10 @@ async fn test_schema_limit() {
 
 #[tokio::test]
 async fn test_write_propagate_ids() {
-    let ctx = test_context().with_autocreate_namespace(true).build().await;
+    let ctx = TestContextBuilder::default()
+        .with_autocreate_namespace(None)
+        .build()
+        .await;
 
     // Create the namespace and a set of tables.
     let ns = ctx
@@ -338,7 +349,10 @@ async fn test_write_propagate_ids() {
 
 #[tokio::test]
 async fn test_delete_unsupported() {
-    let ctx = test_context().with_autocreate_namespace(true).build().await;
+    let ctx = TestContextBuilder::default()
+        .with_autocreate_namespace(None)
+        .build()
+        .await;
 
     // Create the namespace and a set of tables.
     ctx.catalog()

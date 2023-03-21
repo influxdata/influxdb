@@ -14,7 +14,7 @@ use router::{
 };
 use tonic::{Code, Request};
 
-use crate::common::test_context;
+use crate::common::TestContextBuilder;
 
 pub mod common;
 
@@ -23,7 +23,7 @@ pub mod common;
 #[tokio::test]
 async fn test_namespace_create() {
     // Initialise a TestContext without a namespace autocreation policy.
-    let ctx = test_context().build().await;
+    let ctx = TestContextBuilder::default().build().await;
 
     // Try writing to the non-existent namespace, which should return an error.
     let now = SystemProvider::default()
@@ -140,7 +140,10 @@ async fn test_namespace_create() {
 #[tokio::test]
 async fn test_namespace_delete() {
     // Initialise a TestContext with implicit namespace creation.
-    let ctx = test_context().with_autocreate_namespace(true).build().await;
+    let ctx = TestContextBuilder::default()
+        .with_autocreate_namespace(None)
+        .build()
+        .await;
 
     const RETENTION: i64 = Duration::from_secs(42 * 60 * 60).as_nanos() as _;
 
@@ -271,7 +274,7 @@ async fn test_namespace_delete() {
 #[tokio::test]
 async fn test_create_namespace_0_retention_period() {
     // Initialise a test context without implicit namespace creation policy.
-    let ctx = test_context().build().await;
+    let ctx = TestContextBuilder::default().build().await;
 
     // Explicitly create the namespace.
     let req = CreateNamespaceRequest {
@@ -335,7 +338,7 @@ async fn test_create_namespace_0_retention_period() {
 /// Ensure creating a namespace with a negative retention period is rejected.
 #[tokio::test]
 async fn test_create_namespace_negative_retention_period() {
-    let ctx = test_context().build().await;
+    let ctx = TestContextBuilder::default().build().await;
 
     // Explicitly create the namespace.
     let req = CreateNamespaceRequest {
@@ -395,7 +398,7 @@ async fn test_create_namespace_negative_retention_period() {
 #[tokio::test]
 async fn test_update_namespace_0_retention_period() {
     // Initialise a TestContext requiring explicit namespace creation.
-    let ctx = test_context().build().await;
+    let ctx = TestContextBuilder::default().build().await;
 
     // Explicitly create the namespace.
     let create = ctx
@@ -499,7 +502,7 @@ async fn test_update_namespace_0_retention_period() {
 #[tokio::test]
 async fn test_update_namespace_negative_retention_period() {
     // Initialise a TestContext requiring explicit namespace creation.
-    let ctx = test_context().build().await;
+    let ctx = TestContextBuilder::default().build().await;
 
     // Explicitly create the namespace.
     let create = ctx
