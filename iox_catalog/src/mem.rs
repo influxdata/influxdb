@@ -1291,6 +1291,18 @@ impl ParquetFileRepo for MemTxn {
         Ok(parquet_files)
     }
 
+    async fn list_by_table(&mut self, table_id: TableId) -> Result<Vec<ParquetFile>> {
+        let stage = self.stage();
+
+        let parquet_files: Vec<_> = stage
+            .parquet_files
+            .iter()
+            .filter(|f| table_id == f.table_id)
+            .cloned()
+            .collect();
+        Ok(parquet_files)
+    }
+
     async fn delete_old(&mut self, older_than: Timestamp) -> Result<Vec<ParquetFile>> {
         let stage = self.stage();
 

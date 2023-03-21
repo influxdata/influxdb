@@ -45,7 +45,7 @@ impl SplitOrCompact for SplitCompact {
     /// (2).If split is not needed which also means the split was needed and done in previous round,
     ///     pick files to compact that under max_compact_size limit. Mostly after the split above
     ///     done in previous round, we will be able to do this because start level and
-    ///     target level time ranges are aligned   
+    ///     target level time ranges are aligned
     /// (3).If the smallest possible set to compact is still over size limit, split over-size files.
     ///     This will be any large files of start-level or target-level. We expect this split is very rare
     ///     and the goal is to reduce the size for us to move forward, hence the split time will make e

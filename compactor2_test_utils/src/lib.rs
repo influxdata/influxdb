@@ -595,6 +595,11 @@ impl TestSetup {
             .await
     }
 
+    /// Get the parquet files including the soft-deleted stored in the catalog
+    pub async fn list_by_table(&self) -> Vec<ParquetFile> {
+        self.catalog.list_by_table(self.table.table.id).await
+    }
+
     /// Reads the specified parquet file out of object store
     pub async fn read_parquet_file(&self, file: ParquetFile) -> Vec<RecordBatch> {
         assert_eq!(file.table_id, self.table.table.id);

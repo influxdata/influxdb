@@ -1914,6 +1914,24 @@ WHERE table_id = $1 AND to_delete IS NULL;
         .map_err(|e| Error::SqlxError { source: e })
     }
 
+    async fn list_by_table(&mut self, table_id: TableId) -> Result<Vec<ParquetFile>> {
+        // Deliberately doesn't use `SELECT *` to avoid the performance hit of fetching the large
+        // `parquet_metadata` column!!
+        sqlx::query_as::<_, ParquetFile>(
+            r#"
+SELECT id, shard_id, namespace_id, table_id, partition_id, object_store_id,
+       max_sequence_number, min_time, max_time, to_delete, file_size_bytes,
+       row_count, compaction_level, created_at, column_set, max_l0_created_at
+FROM parquet_file
+WHERE table_id = $1;
+             "#,
+        )
+        .bind(table_id) // $1
+        .fetch_all(&mut self.inner)
+        .await
+        .map_err(|e| Error::SqlxError { source: e })
+    }
+
     async fn delete_old(&mut self, older_than: Timestamp) -> Result<Vec<ParquetFile>> {
         sqlx::query_as::<_, ParquetFile>(
             r#"
