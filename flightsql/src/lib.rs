@@ -2,6 +2,7 @@
 mod cmd;
 mod error;
 mod planner;
+mod sql_info;
 
 pub use cmd::{FlightSQLCommand, PreparedStatementHandle};
 pub use error::{Error, Result};

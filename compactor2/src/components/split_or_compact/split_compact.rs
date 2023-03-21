@@ -39,8 +39,18 @@ impl SplitOrCompact for SplitCompact {
     /// Return (`[files_to_split_or_compact]`, `[files_to_keep]`) of given files
     ///
     /// Verify if the the give files are over the max_compact_size limit
-    /// If so, find start-level files that can be split to reduce the number of overlapped files that must be compact in one run.
-    /// If split is not needed, pick files to compact that under max_compact_size limit
+    /// (1).If so, find start-level files that can be split to reduce the number of overlapped
+    ///     files that must be compact in one run. This split will align the time ranges of
+    ///    start_level files with taregt level files.
+    /// (2).If split is not needed which also means the split was needed and done in previous round,
+    ///     pick files to compact that under max_compact_size limit. Mostly after the split above
+    ///     done in previous round, we will be able to do this because start level and
+    ///     target level time ranges are aligned   
+    /// (3).If the smallest possible set to compact is still over size limit, split over-size files.
+    ///     This will be any large files of start-level or target-level. We expect this split is very rare
+    ///     and the goal is to reduce the size for us to move forward, hence the split time will make e
+    ///     ach output file soft max file size. If this split is not rare and/or created many non-aligned
+    ///    files that will lead to more splits in next round, it won't be efficient
     fn apply(
         &self,
         _partition_info: &PartitionInfo,
@@ -53,7 +63,7 @@ impl SplitOrCompact for SplitCompact {
             return (FilesToCompactOrSplit::FilesToCompact(files), vec![]);
         }
 
-        // This function identifies all start-level files that overlap with more than one target-level files
+        // (1) This function identifies all start-level files that overlap with more than one target-level files
         let (files_to_split, files_not_to_split) =
             identify_start_level_files_to_split(files, target_level);
 
@@ -65,7 +75,7 @@ impl SplitOrCompact for SplitCompact {
             );
         }
 
-        // No start level split is needed, which means every start-level file overlaps with at most one target-level file
+        // (2) No start level split is needed, which means every start-level file overlaps with at most one target-level file
         // Need to limit number of files to compact to stay under compact size limit
         let keep_and_compact_or_split =
             limit_files_to_compact(self.max_compact_size, files_not_to_split, target_level);
@@ -81,6 +91,7 @@ impl SplitOrCompact for SplitCompact {
             );
         }
 
+        // (3) Not able to compact the smallest set, split the large files
         let (files_to_split, files_not_to_split) = compute_split_times_for_large_files(
             files_to_further_split,
             self.max_desired_file_size,

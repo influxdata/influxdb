@@ -1889,6 +1889,7 @@ dependencies = [
  "futures",
  "iox_query",
  "observability_deps",
+ "once_cell",
  "prost",
  "snafu",
  "tokio",
@@ -4972,9 +4973,9 @@ dependencies = [
 
 [[package]]
 name = "rustix"
-version = "0.36.10"
+version = "0.36.11"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "2fe885c3a125aa45213b68cc1472a49880cb5923dc23f522ad2791b882228778"
+checksum = "db4165c9963ab29e422d6c26fbc1d37f15bace6b2810221f9d925023480fcf0e"
 dependencies = [
  "bitflags 1.3.2",
  "errno",

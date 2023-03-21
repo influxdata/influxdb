@@ -121,6 +121,7 @@ impl TestConfig {
             other.dsn().to_owned(),
             other.catalog_schema_name(),
         )
+        .with_env("INFLUXDB_IOX_RPC_MODE", "2")
         .with_existing_object_store(other)
     }
 

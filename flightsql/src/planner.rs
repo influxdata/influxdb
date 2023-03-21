@@ -5,7 +5,8 @@ use arrow::{datatypes::Schema, error::ArrowError, ipc::writer::IpcWriteOptions};
 use arrow_flight::{
     sql::{
         ActionCreatePreparedStatementRequest, ActionCreatePreparedStatementResult, Any,
-        CommandGetCatalogs, CommandGetDbSchemas, CommandGetTableTypes, CommandStatementQuery,
+        CommandGetCatalogs, CommandGetDbSchemas, CommandGetSqlInfo, CommandGetTableTypes,
+        CommandGetTables, CommandStatementQuery,
     },
     IpcMessage, SchemaAsIpc,
 };
@@ -15,7 +16,7 @@ use iox_query::{exec::IOxSessionContext, QueryNamespace};
 use observability_deps::tracing::debug;
 use prost::Message;
 
-use crate::error::*;
+use crate::{error::*, sql_info::iox_sql_info_list};
 use crate::{FlightSQLCommand, PreparedStatementHandle};
 
 /// Logic for creating plans for various Flight messages against a query database
@@ -43,6 +44,12 @@ impl FlightSQLPlanner {
             FlightSQLCommand::CommandPreparedStatementQuery(handle) => {
                 get_schema_for_query(handle.query(), ctx).await
             }
+            FlightSQLCommand::CommandGetSqlInfo(CommandGetSqlInfo { info }) => {
+                let plan = plan_get_sql_info(ctx, info).await?;
+                // As an optimization, we could hard code the result
+                // schema instead of recomputing it each time.
+                get_schema_for_plan(plan)
+            }
             FlightSQLCommand::CommandGetCatalogs(CommandGetCatalogs {}) => {
                 let plan = plan_get_catalogs(ctx).await?;
                 // As an optimization, we could hard code the result
@@ -56,6 +63,24 @@ impl FlightSQLPlanner {
                 let plan = plan_get_db_schemas(ctx, catalog, db_schema_filter_pattern).await?;
                 // As an optimization, we could hard code the result
                 // schema instead of recomputing it each time.
+                get_schema_for_plan(plan)
+            }
+            FlightSQLCommand::CommandGetTables(CommandGetTables {
+                catalog,
+                db_schema_filter_pattern,
+                table_name_filter_pattern,
+                table_types,
+                include_schema,
+            }) => {
+                let plan = plan_get_tables(
+                    ctx,
+                    catalog,
+                    db_schema_filter_pattern,
+                    table_name_filter_pattern,
+                    table_types,
+                    include_schema,
+                )
+                .await?;
                 get_schema_for_plan(plan)
             }
             FlightSQLCommand::CommandGetTableTypes(CommandGetTableTypes {}) => {
@@ -93,6 +118,11 @@ impl FlightSQLPlanner {
                 debug!(%query, "Planning FlightSQL prepared query");
                 Ok(ctx.sql_to_physical_plan(query).await?)
             }
+            FlightSQLCommand::CommandGetSqlInfo(CommandGetSqlInfo { info }) => {
+                debug!("Planning GetSqlInfo query");
+                let plan = plan_get_sql_info(ctx, info).await?;
+                Ok(ctx.create_physical_plan(&plan).await?)
+            }
             FlightSQLCommand::CommandGetCatalogs(CommandGetCatalogs {}) => {
                 debug!("Planning GetCatalogs query");
                 let plan = plan_get_catalogs(ctx).await?;
@@ -108,6 +138,25 @@ impl FlightSQLPlanner {
                     "Planning GetDbSchemas query"
                 );
                 let plan = plan_get_db_schemas(ctx, catalog, db_schema_filter_pattern).await?;
+                Ok(ctx.create_physical_plan(&plan).await?)
+            }
+            FlightSQLCommand::CommandGetTables(CommandGetTables {
+                catalog,
+                db_schema_filter_pattern,
+                table_name_filter_pattern,
+                table_types,
+                include_schema,
+            }) => {
+                debug!("Planning GetTables query");
+                let plan = plan_get_tables(
+                    ctx,
+                    catalog,
+                    db_schema_filter_pattern,
+                    table_name_filter_pattern,
+                    table_types,
+                    include_schema,
+                )
+                .await?;
                 Ok(ctx.create_physical_plan(&plan).await?)
             }
             FlightSQLCommand::CommandGetTableTypes(CommandGetTableTypes {}) => {
@@ -202,6 +251,14 @@ fn encode_schema(schema: &Schema) -> Result<Bytes> {
     Ok(schema)
 }
 
+/// Return a `LogicalPlan` for GetSqlInfo
+///
+/// The infos are passed directly from the [`CommandGetSqlInfo::info`]
+async fn plan_get_sql_info(ctx: &IOxSessionContext, info: Vec<u32>) -> Result<LogicalPlan> {
+    let batch = iox_sql_info_list().filter(&info).encode()?;
+    Ok(ctx.batch_to_logical_plan(batch)?)
+}
+
 /// Return a `LogicalPlan` for GetCatalogs
 ///
 /// In the future this could be made more efficient by building the
@@ -251,6 +308,23 @@ async fn plan_get_db_schemas(
     let plan = ctx.sql_to_logical_plan(query).await?;
     debug!(?plan, "Prepared plan is");
     Ok(plan.with_param_values(params)?)
+}
+
+/// Return a `LogicalPlan` for GetTables
+async fn plan_get_tables(
+    ctx: &IOxSessionContext,
+    _catalog: Option<String>,
+    _db_schema_filter_pattern: Option<String>,
+    _table_name_filter_pattern: Option<String>,
+    _table_types: Vec<String>,
+    _include_schema: bool,
+) -> Result<LogicalPlan> {
+    let query = "SELECT table_catalog AS catalog_name, \
+        table_schema AS db_schema_name, table_name, table_type \
+        FROM information_schema.tables \
+        ORDER BY table_catalog, table_schema, table_name";
+
+    Ok(ctx.sql_to_logical_plan(query).await?)
 }
 
 /// Return a `LogicalPlan` for GetTableTypes

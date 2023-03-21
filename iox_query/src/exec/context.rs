@@ -324,6 +324,14 @@ impl IOxSessionContext {
         ctx.inner.state().create_logical_plan(sql).await
     }
 
+    /// Create a logical plan that reads a single [`RecordBatch`]. Use
+    /// `create_physical_plan` to actually execute the query.
+    pub fn batch_to_logical_plan(&self, batch: RecordBatch) -> Result<LogicalPlan> {
+        let ctx = self.child_ctx("batch_to_logical_plan");
+        debug!(num_rows = batch.num_rows(), "planning RecordBatch query");
+        ctx.inner.read_batch(batch)?.into_optimized_plan()
+    }
+
     /// Plan a SQL statement and convert it to an execution plan. This assumes that any
     /// tables referenced in the SQL have been registered with this context
     pub async fn sql_to_physical_plan(&self, sql: &str) -> Result<Arc<dyn ExecutionPlan>> {
