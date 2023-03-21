@@ -3,10 +3,14 @@ mod circuit_breaker;
 mod circuit_breaking_client;
 pub mod client;
 pub mod lazy_connector;
+mod upstream_snapshot;
 
 use crate::dml_handlers::rpc_write::client::WriteClient;
 
-use self::{balancer::Balancer, circuit_breaking_client::CircuitBreakingClient};
+use self::{
+    balancer::Balancer, circuit_breaking_client::CircuitBreakingClient,
+    upstream_snapshot::UpstreamSnapshot,
+};
 
 use super::{DmlHandler, Partitioned};
 use async_trait::async_trait;
@@ -90,7 +94,7 @@ impl<C> RpcWrite<C> {
 #[async_trait]
 impl<C> DmlHandler for RpcWrite<C>
 where
-    C: client::WriteClient + 'static,
+    C: WriteClient + 'static,
 {
     type WriteInput = Partitioned<HashMap<TableId, (String, MutableBatch)>>;
     type WriteOutput = Vec<DmlMeta>;
@@ -162,12 +166,14 @@ where
 }
 
 async fn write_loop<T>(
-    mut endpoints: impl Iterator<Item = T> + Send,
+    mut endpoints: UpstreamSnapshot<'_, T>,
     req: WriteRequest,
 ) -> Result<(), RpcWriteError>
 where
     T: WriteClient,
 {
+    // Infinitely cycle through the snapshot, trying each node in turn until the
+    // request succeeds or this async call times out.
     let mut delay = Duration::from_millis(50);
     loop {
         match endpoints
@@ -267,8 +273,10 @@ mod tests {
         assert_eq!(got_tables, want_tables);
     }
 
+    /// Ensure all candidates returned by the balancer are tried, aborting after
+    /// the first successful request.
     #[tokio::test]
-    async fn test_write_retries() {
+    async fn test_write_tries_all_candidates() {
         let batches = lp_to_writes("bananas,tag1=A,tag2=B val=42i 1");
 
         // Wrap the table batches in a partition key
@@ -280,10 +288,12 @@ mod tests {
                 .with_ret([Err(RpcWriteError::Upstream(tonic::Status::internal("")))]),
         );
         let client2 = Arc::new(MockWriteClient::default());
+        let client3 = Arc::new(MockWriteClient::default());
         let handler = RpcWrite::new(
             [
                 (Arc::clone(&client1), "client1"),
                 (Arc::clone(&client2), "client2"),
+                (Arc::clone(&client3), "client3"),
             ],
             &metric::Registry::default(),
         );
@@ -303,6 +313,78 @@ mod tests {
         let call = {
             let mut calls = client2.calls();
             assert_eq!(calls.len(), 1);
+            calls.pop().unwrap()
+        };
+
+        // Ensure client 3 was not called.
+        assert!(client3.calls().is_empty());
+
+        let payload = assert_matches!(call.payload, Some(p) => p);
+        assert_eq!(payload.database_id, NAMESPACE_ID.get());
+        assert_eq!(payload.partition_key, "2022-01-01");
+        assert_eq!(payload.table_batches.len(), 1);
+
+        let got_tables = payload
+            .table_batches
+            .into_iter()
+            .map(|t| t.table_id)
+            .collect::<HashSet<_>>();
+
+        let want_tables = batches
+            .into_iter()
+            .map(|(id, (_name, _data))| id.get())
+            .collect::<HashSet<_>>();
+
+        assert_eq!(got_tables, want_tables);
+    }
+
+    /// Ensure all candidates are tried more than once should they first fail.
+    #[tokio::test]
+    async fn test_write_retries() {
+        let batches = lp_to_writes("bananas,tag1=A,tag2=B val=42i 1");
+
+        // Wrap the table batches in a partition key
+        let input = Partitioned::new(PartitionKey::from("2022-01-01"), batches.clone());
+
+        // The first client in line fails the first request, but will succeed
+        // the second try.
+        let client1 = Arc::new(MockWriteClient::default().with_ret([
+            Err(RpcWriteError::Upstream(tonic::Status::internal(""))),
+            Ok(()),
+        ]));
+        // This client always errors.
+        let client2 = Arc::new(MockWriteClient::default().with_ret([
+            Err(RpcWriteError::Upstream(tonic::Status::internal(""))),
+            Err(RpcWriteError::Upstream(tonic::Status::internal(""))),
+            Err(RpcWriteError::Upstream(tonic::Status::internal(""))),
+            Err(RpcWriteError::Upstream(tonic::Status::internal(""))),
+            Err(RpcWriteError::Upstream(tonic::Status::internal(""))),
+            Err(RpcWriteError::Upstream(tonic::Status::internal(""))),
+        ]));
+
+        let handler = RpcWrite::new(
+            [
+                (Arc::clone(&client1), "client1"),
+                (Arc::clone(&client2), "client2"),
+            ],
+            &metric::Registry::default(),
+        );
+
+        // Drive the RPC writer
+        let got = handler
+            .write(
+                &NamespaceName::new(NAMESPACE_NAME).unwrap(),
+                NAMESPACE_ID,
+                input,
+                None,
+            )
+            .await;
+        assert_matches!(got, Ok(_));
+
+        // Ensure client 1 observed both calls.
+        let call = {
+            let mut calls = client1.calls();
+            assert_eq!(calls.len(), 2);
             calls.pop().unwrap()
         };
 
