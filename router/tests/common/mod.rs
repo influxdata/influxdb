@@ -18,7 +18,7 @@ use router::{
     namespace_resolver::{MissingNamespaceAction, NamespaceAutocreation, NamespaceSchemaResolver},
     server::{grpc::RpcWriteGrpcDelegate, http::HttpDelegate},
 };
-use std::{iter, string::String, sync::Arc};
+use std::{iter, string::String, sync::Arc, time::Duration};
 
 /// The topic catalog ID assigned by the namespace auto-creator in the
 /// handler stack for namespaces it has not yet observed.
@@ -29,7 +29,7 @@ pub const TEST_TOPIC_ID: i64 = 1;
 pub const TEST_QUERY_POOL_ID: i64 = 1;
 
 /// Common retention period value we'll use in tests
-pub const TEST_RETENTION_PERIOD_NS: i64 = 3_600 * 1_000_000_000;
+pub const TEST_RETENTION_PERIOD: Duration = Duration::from_secs(3600);
 
 pub fn test_context() -> TestContextBuilder {
     TestContextBuilder::default()
@@ -49,9 +49,9 @@ impl TestContextBuilder {
         self
     }
 
-    pub fn with_autocreate_namespace_retention_period_nanos(mut self, period_nanos: i64) -> Self {
+    pub fn with_autocreate_namespace_retention_period(mut self, period: Duration) -> Self {
         self.namespace_autocreate_policy = NamespaceAutocreatePolicy {
-            retention_period_nanos: Some(period_nanos),
+            retention_period: Some(period),
             ..self.namespace_autocreate_policy
         };
         self
@@ -77,7 +77,7 @@ impl TestContextBuilder {
 #[derive(Debug, Default)]
 struct NamespaceAutocreatePolicy {
     enabled: bool,
-    retention_period_nanos: Option<i64>,
+    retention_period: Option<Duration>,
 }
 
 #[derive(Debug)]
@@ -154,7 +154,9 @@ impl TestContext {
             {
                 if namespace_autocreate_policy.enabled {
                     MissingNamespaceAction::AutoCreate(
-                        namespace_autocreate_policy.retention_period_nanos,
+                        namespace_autocreate_policy
+                            .retention_period
+                            .map(|d| i64::try_from(d.as_nanos()).unwrap()),
                     )
                 } else {
                     MissingNamespaceAction::Reject

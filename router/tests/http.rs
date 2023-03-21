@@ -1,4 +1,4 @@
-use crate::common::{test_context, TEST_QUERY_POOL_ID, TEST_RETENTION_PERIOD_NS, TEST_TOPIC_ID};
+use crate::common::{test_context, TEST_QUERY_POOL_ID, TEST_RETENTION_PERIOD, TEST_TOPIC_ID};
 use assert_matches::assert_matches;
 use data_types::{ColumnType, QueryPoolId, TopicId};
 use futures::{stream::FuturesUnordered, StreamExt};
@@ -92,7 +92,7 @@ async fn test_write_ok() {
 async fn test_write_outside_retention_period() {
     let ctx = test_context()
         .with_autocreate_namespace(true)
-        .with_autocreate_namespace_retention_period_nanos(TEST_RETENTION_PERIOD_NS)
+        .with_autocreate_namespace_retention_period(TEST_RETENTION_PERIOD)
         .build()
         .await;
 
