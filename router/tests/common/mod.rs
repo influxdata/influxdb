@@ -6,7 +6,6 @@ use iox_catalog::{
     interface::{Catalog, SoftDeletedRows},
     mem::MemCatalog,
 };
-use metric::Registry;
 use mutable_batch::MutableBatch;
 use object_store::memory::InMemory;
 use router::{
@@ -19,7 +18,7 @@ use router::{
     namespace_resolver::{MissingNamespaceAction, NamespaceAutocreation, NamespaceSchemaResolver},
     server::{grpc::RpcWriteGrpcDelegate, http::HttpDelegate},
 };
-use std::{iter, string::String, sync::Arc};
+use std::{iter, string::String, sync::Arc, time::Duration};
 
 /// The topic catalog ID assigned by the namespace auto-creator in the
 /// handler stack for namespaces it has not yet observed.
@@ -30,7 +29,51 @@ pub const TEST_TOPIC_ID: i64 = 1;
 pub const TEST_QUERY_POOL_ID: i64 = 1;
 
 /// Common retention period value we'll use in tests
-pub const TEST_RETENTION_PERIOD_NS: Option<i64> = Some(3_600 * 1_000_000_000);
+pub const TEST_RETENTION_PERIOD: Duration = Duration::from_secs(3600);
+
+/// A [`TestContextBuilder`] can be used to build up a [`TestContext`] from a set
+/// of sensible defaults. The default context produced will reject writes for a
+/// missing namespace.
+#[derive(Debug)]
+pub struct TestContextBuilder {
+    namespace_autocreation: MissingNamespaceAction,
+}
+
+impl Default for TestContextBuilder {
+    fn default() -> Self {
+        Self {
+            namespace_autocreation: MissingNamespaceAction::Reject,
+        }
+    }
+}
+
+impl TestContextBuilder {
+    /// Enable implicit namespace creation, with an optional retention duration,
+    /// for all subsequently built [`TestContext`]s.
+    pub fn with_autocreate_namespace(mut self, retention_duration: Option<Duration>) -> Self {
+        self.namespace_autocreation =
+            MissingNamespaceAction::AutoCreate(retention_duration.map(|d| {
+                i64::try_from(d.as_nanos()).expect("retention period outside of i64 range")
+            }));
+        self
+    }
+
+    /// Disable implicit namespace creation, for all subsequently built
+    /// [`TestContext`]s.
+    pub fn without_autocreate_namespace(mut self) -> Self {
+        self.namespace_autocreation = MissingNamespaceAction::Reject;
+        self
+    }
+
+    pub async fn build(self) -> TestContext {
+        test_helpers::maybe_start_logging();
+
+        let metrics: Arc<metric::Registry> = Default::default();
+        let catalog = Arc::new(MemCatalog::new(Arc::clone(&metrics)));
+
+        TestContext::new(self.namespace_autocreation, catalog, metrics).await
+    }
+}
 
 #[derive(Debug)]
 pub struct TestContext {
@@ -38,10 +81,9 @@ pub struct TestContext {
     http_delegate: HttpDelegateStack,
     grpc_delegate: RpcWriteGrpcDelegate,
     catalog: Arc<dyn Catalog>,
-    metrics: Arc<Registry>,
+    metrics: Arc<metric::Registry>,
 
-    autocreate_ns: bool,
-    ns_autocreate_retention_period_ns: Option<i64>,
+    namespace_autocreation: MissingNamespaceAction,
 }
 
 // This mass of words is certainly a downside of chained handlers.
@@ -74,21 +116,8 @@ type HttpDelegateStack = HttpDelegate<
 
 /// A [`router`] stack configured with the various DML handlers using mock catalog backends.
 impl TestContext {
-    pub async fn new(autocreate_ns: bool, ns_autocreate_retention_period_ns: Option<i64>) -> Self {
-        let metrics = Arc::new(metric::Registry::default());
-        let catalog: Arc<dyn Catalog> = Arc::new(MemCatalog::new(Arc::clone(&metrics)));
-
-        Self::init_with_catalog(
-            autocreate_ns,
-            ns_autocreate_retention_period_ns,
-            catalog,
-            metrics,
-        )
-    }
-
-    fn init_with_catalog(
-        autocreate_ns: bool,
-        ns_autocreate_retention_period_ns: Option<i64>,
+    async fn new(
+        namespace_autocreation: MissingNamespaceAction,
         catalog: Arc<dyn Catalog>,
         metrics: Arc<metric::Registry>,
     ) -> Self {
@@ -117,13 +146,7 @@ impl TestContext {
             Arc::clone(&catalog),
             TopicId::new(TEST_TOPIC_ID),
             QueryPoolId::new(TEST_QUERY_POOL_ID),
-            {
-                if autocreate_ns {
-                    MissingNamespaceAction::AutoCreate(ns_autocreate_retention_period_ns)
-                } else {
-                    MissingNamespaceAction::Reject
-                }
-            },
+            namespace_autocreation,
         );
 
         let parallel_write = WriteSummaryAdapter::new(FanOutAdaptor::new(rpc_writer));
@@ -151,22 +174,17 @@ impl TestContext {
             grpc_delegate,
             catalog,
             metrics,
-            autocreate_ns,
-            ns_autocreate_retention_period_ns,
+
+            namespace_autocreation,
         }
     }
 
     // Restart the server, rebuilding all state from the catalog (preserves
     // metrics).
-    pub fn restart(self) -> Self {
+    pub async fn restart(self) -> Self {
         let catalog = self.catalog();
         let metrics = Arc::clone(&self.metrics);
-        Self::init_with_catalog(
-            self.autocreate_ns,
-            self.ns_autocreate_retention_period_ns,
-            catalog,
-            metrics,
-        )
+        Self::new(self.namespace_autocreation, catalog, metrics).await
     }
 
     /// Get a reference to the test context's http delegate.
@@ -189,7 +207,7 @@ impl TestContext {
     }
 
     /// Get a reference to the test context's metrics.
-    pub fn metrics(&self) -> &Registry {
+    pub fn metrics(&self) -> &metric::Registry {
         self.metrics.as_ref()
     }
 
