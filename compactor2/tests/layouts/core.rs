@@ -126,6 +126,7 @@ async fn all_non_overlapping_l0() {
                 parquet_builder()
                     .with_min_time(100 * i)
                     .with_max_time(100 * i + 1)
+                    .with_max_l0_created_at(Time::from_timestamp_nanos(i))
                     .with_file_size_bytes(10 * ONE_MB),
             )
             .await;
@@ -137,50 +138,50 @@ async fn all_non_overlapping_l0() {
     ---
     - "**** Input Files "
     - "L0, all files 10mb                                                                                                 "
-    - "L0.1[0,1] 1ns            |L0.1|                                                                                    "
+    - "L0.1[0,1] 0ns            |L0.1|                                                                                    "
     - "L0.2[100,101] 1ns                 |L0.2|                                                                           "
-    - "L0.3[200,201] 1ns                           |L0.3|                                                                 "
-    - "L0.4[300,301] 1ns                                     |L0.4|                                                       "
-    - "L0.5[400,401] 1ns                                               |L0.5|                                             "
-    - "L0.6[500,501] 1ns                                                         |L0.6|                                   "
-    - "L0.7[600,601] 1ns                                                                   |L0.7|                         "
-    - "L0.8[700,701] 1ns                                                                             |L0.8|               "
-    - "L0.9[800,801] 1ns                                                                                       |L0.9|     "
-    - "L0.10[900,901] 1ns                                                                                                |L0.10|"
+    - "L0.3[200,201] 2ns                           |L0.3|                                                                 "
+    - "L0.4[300,301] 3ns                                     |L0.4|                                                       "
+    - "L0.5[400,401] 4ns                                               |L0.5|                                             "
+    - "L0.6[500,501] 5ns                                                         |L0.6|                                   "
+    - "L0.7[600,601] 6ns                                                                   |L0.7|                         "
+    - "L0.8[700,701] 7ns                                                                             |L0.8|               "
+    - "L0.9[800,801] 8ns                                                                                       |L0.9|     "
+    - "L0.10[900,901] 9ns                                                                                                |L0.10|"
     - "**** Simulation run 0, type=split(split_times=[720]). 10 Input Files, 100mb total:"
     - "L0, all files 10mb                                                                                                 "
-    - "L0.10[900,901] 1ns                                                                                                |L0.10|"
-    - "L0.9[800,801] 1ns                                                                                       |L0.9|     "
-    - "L0.8[700,701] 1ns                                                                             |L0.8|               "
-    - "L0.7[600,601] 1ns                                                                   |L0.7|                         "
-    - "L0.6[500,501] 1ns                                                         |L0.6|                                   "
-    - "L0.5[400,401] 1ns                                               |L0.5|                                             "
-    - "L0.4[300,301] 1ns                                     |L0.4|                                                       "
-    - "L0.3[200,201] 1ns                           |L0.3|                                                                 "
+    - "L0.10[900,901] 9ns                                                                                                |L0.10|"
+    - "L0.9[800,801] 8ns                                                                                       |L0.9|     "
+    - "L0.8[700,701] 7ns                                                                             |L0.8|               "
+    - "L0.7[600,601] 6ns                                                                   |L0.7|                         "
+    - "L0.6[500,501] 5ns                                                         |L0.6|                                   "
+    - "L0.5[400,401] 4ns                                               |L0.5|                                             "
+    - "L0.4[300,301] 3ns                                     |L0.4|                                                       "
+    - "L0.3[200,201] 2ns                           |L0.3|                                                                 "
     - "L0.2[100,101] 1ns                 |L0.2|                                                                           "
-    - "L0.1[0,1] 1ns            |L0.1|                                                                                    "
+    - "L0.1[0,1] 0ns            |L0.1|                                                                                    "
     - "**** 2 Output Files (parquet_file_id not yet assigned), 100mb total:"
     - "L1                                                                                                                 "
-    - "L1.?[0,720] 1ns 79.91mb  |--------------------------------L1.?---------------------------------|                   "
-    - "L1.?[721,901] 1ns 20.09mb                                                                        |-----L1.?------| "
+    - "L1.?[0,720] 9ns 79.91mb  |--------------------------------L1.?---------------------------------|                   "
+    - "L1.?[721,901] 9ns 20.09mb                                                                        |-----L1.?------| "
     - "Committing partition 1:"
     - "  Soft Deleting 10 files: L0.1, L0.2, L0.3, L0.4, L0.5, L0.6, L0.7, L0.8, L0.9, L0.10"
     - "  Creating 2 files"
     - "**** Simulation run 1, type=split(split_times=[720]). 2 Input Files, 100mb total:"
     - "L1                                                                                                                 "
-    - "L1.12[721,901] 1ns 20.09mb                                                                        |-----L1.12-----| "
-    - "L1.11[0,720] 1ns 79.91mb |--------------------------------L1.11--------------------------------|                   "
+    - "L1.12[721,901] 9ns 20.09mb                                                                        |-----L1.12-----| "
+    - "L1.11[0,720] 9ns 79.91mb |--------------------------------L1.11--------------------------------|                   "
     - "**** 2 Output Files (parquet_file_id not yet assigned), 100mb total:"
     - "L2                                                                                                                 "
-    - "L2.?[0,720] 1ns 79.91mb  |--------------------------------L2.?---------------------------------|                   "
-    - "L2.?[721,901] 1ns 20.09mb                                                                        |-----L2.?------| "
+    - "L2.?[0,720] 9ns 79.91mb  |--------------------------------L2.?---------------------------------|                   "
+    - "L2.?[721,901] 9ns 20.09mb                                                                        |-----L2.?------| "
     - "Committing partition 1:"
     - "  Soft Deleting 2 files: L1.11, L1.12"
     - "  Creating 2 files"
     - "**** Final Output Files "
     - "L2                                                                                                                 "
-    - "L2.13[0,720] 1ns 79.91mb |--------------------------------L2.13--------------------------------|                   "
-    - "L2.14[721,901] 1ns 20.09mb                                                                        |-----L2.14-----| "
+    - "L2.13[0,720] 9ns 79.91mb |--------------------------------L2.13--------------------------------|                   "
+    - "L2.14[721,901] 9ns 20.09mb                                                                        |-----L2.14-----| "
     "###
     );
 }
@@ -206,6 +207,8 @@ async fn l1_with_overlapping_l0() {
                     .with_min_time(50 + i * 50)
                     .with_max_time(99 + i * 50)
                     .with_compaction_level(CompactionLevel::FileNonOverlapped)
+                    // L1 files with smaller max_l0_created_at to indicate they inlcude data created before the L0 files
+                    .with_max_l0_created_at(Time::from_timestamp_nanos(i + 1))
                     .with_file_size_bytes(10 * ONE_MB),
             )
             .await;
@@ -218,6 +221,10 @@ async fn l1_with_overlapping_l0() {
                 parquet_builder()
                     .with_min_time(140 + i * 30)
                     .with_max_time(160 + (i + 1) * 30)
+                    // specify L0 explicitly
+                    .with_compaction_level(CompactionLevel::Initial)
+                    // L0 files with larger max_l0_created_at to indicate they are created after data comapcted in the L1 files
+                    .with_max_l0_created_at(Time::from_timestamp_nanos(10 + i + 1))
                     .with_file_size_bytes(five_kb),
             )
             .await;
@@ -229,33 +236,33 @@ async fn l1_with_overlapping_l0() {
     ---
     - "**** Input Files "
     - "L0                                                                                                                 "
-    - "L0.3[140,190] 1ns 5kb                                   |-----L0.3------|                                          "
-    - "L0.4[170,220] 1ns 5kb                                             |-----L0.4------|                                "
-    - "L0.5[200,250] 1ns 5kb                                                       |-----L0.5------|                      "
-    - "L0.6[230,280] 1ns 5kb                                                                  |-----L0.6------|           "
-    - "L0.7[260,310] 1ns 5kb                                                                            |-----L0.7------| "
+    - "L0.3[140,190] 11ns 5kb                                  |-----L0.3------|                                          "
+    - "L0.4[170,220] 12ns 5kb                                            |-----L0.4------|                                "
+    - "L0.5[200,250] 13ns 5kb                                                      |-----L0.5------|                      "
+    - "L0.6[230,280] 14ns 5kb                                                                 |-----L0.6------|           "
+    - "L0.7[260,310] 15ns 5kb                                                                           |-----L0.7------| "
     - "L1                                                                                                                 "
     - "L1.1[50,99] 1ns 10mb     |-----L1.1-----|                                                                          "
-    - "L1.2[100,149] 1ns 10mb                    |-----L1.2-----|                                                         "
+    - "L1.2[100,149] 2ns 10mb                    |-----L1.2-----|                                                         "
     - "**** Simulation run 0, type=compact. 6 Input Files, 10.02mb total:"
     - "L0                                                                                                                 "
-    - "L0.7[260,310] 1ns 5kb                                                                        |-------L0.7--------| "
-    - "L0.6[230,280] 1ns 5kb                                                           |-------L0.6--------|              "
-    - "L0.5[200,250] 1ns 5kb                                              |-------L0.5--------|                           "
-    - "L0.4[170,220] 1ns 5kb                                 |-------L0.4--------|                                        "
-    - "L0.3[140,190] 1ns 5kb                     |-------L0.3--------|                                                    "
+    - "L0.7[260,310] 15ns 5kb                                                                       |-------L0.7--------| "
+    - "L0.6[230,280] 14ns 5kb                                                          |-------L0.6--------|              "
+    - "L0.5[200,250] 13ns 5kb                                             |-------L0.5--------|                           "
+    - "L0.4[170,220] 12ns 5kb                                |-------L0.4--------|                                        "
+    - "L0.3[140,190] 11ns 5kb                    |-------L0.3--------|                                                    "
     - "L1                                                                                                                 "
-    - "L1.2[100,149] 1ns 10mb   |-------L1.2--------|                                                                     "
+    - "L1.2[100,149] 2ns 10mb   |-------L1.2--------|                                                                     "
     - "**** 1 Output Files (parquet_file_id not yet assigned), 10.02mb total:"
     - "L1, all files 10.02mb                                                                                              "
-    - "L1.?[100,310] 1ns        |------------------------------------------L1.?------------------------------------------|"
+    - "L1.?[100,310] 15ns       |------------------------------------------L1.?------------------------------------------|"
     - "Committing partition 1:"
     - "  Soft Deleting 6 files: L1.2, L0.3, L0.4, L0.5, L0.6, L0.7"
     - "  Creating 1 files"
     - "**** Final Output Files "
     - "L1                                                                                                                 "
     - "L1.1[50,99] 1ns 10mb     |-----L1.1-----|                                                                          "
-    - "L1.8[100,310] 1ns 10.02mb                 |---------------------------------L1.8---------------------------------| "
+    - "L1.8[100,310] 15ns 10.02mb                 |---------------------------------L1.8---------------------------------| "
     "###
     );
 }
@@ -280,6 +287,8 @@ async fn l1_with_non_overlapping_l0() {
                     .with_min_time(50 + i * 50)
                     .with_max_time(99 + i * 50)
                     .with_compaction_level(CompactionLevel::FileNonOverlapped)
+                    // L1 files with smaller max_l0_created_at to indicate they inlcude data created before the L0 files
+                    .with_max_l0_created_at(Time::from_timestamp_nanos(i + 1))
                     .with_file_size_bytes(10 * ONE_MB),
             )
             .await;
@@ -291,6 +300,10 @@ async fn l1_with_non_overlapping_l0() {
                 parquet_builder()
                     .with_min_time(300 + i * 50)
                     .with_max_time(350 + i * 50)
+                    // specify L0 explicitly
+                    .with_compaction_level(CompactionLevel::Initial)
+                    // L0 files with larger max_l0_created_at to indicate they are created after data compacted in the L1 files
+                    .with_max_l0_created_at(Time::from_timestamp_nanos(10 + i + 1))
                     .with_file_size_bytes(five_kb),
             )
             .await;
@@ -302,32 +315,32 @@ async fn l1_with_non_overlapping_l0() {
     ---
     - "**** Input Files "
     - "L0                                                                                                                 "
-    - "L0.3[300,350] 1ns 5kb                                                 |-L0.3--|                                    "
-    - "L0.4[350,400] 1ns 5kb                                                          |-L0.4--|                           "
-    - "L0.5[400,450] 1ns 5kb                                                                   |-L0.5--|                  "
-    - "L0.6[450,500] 1ns 5kb                                                                            |-L0.6--|         "
-    - "L0.7[500,550] 1ns 5kb                                                                                     |-L0.7--|"
+    - "L0.3[300,350] 11ns 5kb                                                |-L0.3--|                                    "
+    - "L0.4[350,400] 12ns 5kb                                                         |-L0.4--|                           "
+    - "L0.5[400,450] 13ns 5kb                                                                  |-L0.5--|                  "
+    - "L0.6[450,500] 14ns 5kb                                                                           |-L0.6--|         "
+    - "L0.7[500,550] 15ns 5kb                                                                                    |-L0.7--|"
     - "L1                                                                                                                 "
     - "L1.1[50,99] 1ns 10mb     |-L1.1-|                                                                                  "
-    - "L1.2[100,149] 1ns 10mb            |-L1.2-|                                                                         "
+    - "L1.2[100,149] 2ns 10mb            |-L1.2-|                                                                         "
     - "**** Simulation run 0, type=compact. 5 Input Files, 25kb total:"
     - "L0, all files 5kb                                                                                                  "
-    - "L0.7[500,550] 1ns                                                                                |------L0.7------|"
-    - "L0.6[450,500] 1ns                                                              |------L0.6------|                  "
-    - "L0.5[400,450] 1ns                                            |------L0.5------|                                    "
-    - "L0.4[350,400] 1ns                          |------L0.4------|                                                      "
-    - "L0.3[300,350] 1ns        |------L0.3------|                                                                        "
+    - "L0.7[500,550] 15ns                                                                               |------L0.7------|"
+    - "L0.6[450,500] 14ns                                                             |------L0.6------|                  "
+    - "L0.5[400,450] 13ns                                           |------L0.5------|                                    "
+    - "L0.4[350,400] 12ns                         |------L0.4------|                                                      "
+    - "L0.3[300,350] 11ns       |------L0.3------|                                                                        "
     - "**** 1 Output Files (parquet_file_id not yet assigned), 25kb total:"
     - "L1, all files 25kb                                                                                                 "
-    - "L1.?[300,550] 1ns        |------------------------------------------L1.?------------------------------------------|"
+    - "L1.?[300,550] 15ns       |------------------------------------------L1.?------------------------------------------|"
     - "Committing partition 1:"
     - "  Soft Deleting 5 files: L0.3, L0.4, L0.5, L0.6, L0.7"
     - "  Creating 1 files"
     - "**** Final Output Files "
     - "L1                                                                                                                 "
     - "L1.1[50,99] 1ns 10mb     |-L1.1-|                                                                                  "
-    - "L1.2[100,149] 1ns 10mb            |-L1.2-|                                                                         "
-    - "L1.8[300,550] 1ns 25kb                                                |-------------------L1.8--------------------|"
+    - "L1.2[100,149] 2ns 10mb            |-L1.2-|                                                                         "
+    - "L1.8[300,550] 15ns 25kb                                               |-------------------L1.8--------------------|"
     "###
     );
 }
@@ -352,6 +365,8 @@ async fn l1_with_non_overlapping_l0_larger() {
                     .with_min_time(50 + i * 50)
                     .with_max_time(99 + i * 50)
                     .with_compaction_level(CompactionLevel::FileNonOverlapped)
+                    // L1 files with smaller max_l0_created_at to indicate they inlcude data created before the L0 files
+                    .with_max_l0_created_at(Time::from_timestamp_nanos(i + 1))
                     .with_file_size_bytes(sz * ONE_MB),
             )
             .await;
@@ -364,6 +379,10 @@ async fn l1_with_non_overlapping_l0_larger() {
                 parquet_builder()
                     .with_min_time(300 + i * 50)
                     .with_max_time(350 + i * 50)
+                    // specify L0 explicitly
+                    .with_compaction_level(CompactionLevel::Initial)
+                    // L0 files with larger max_l0_created_at to indicate they are created after data compacted in the L1 files
+                    .with_max_l0_created_at(Time::from_timestamp_nanos(10 + i + 1))
                     .with_file_size_bytes(5 * ONE_MB),
             )
             .await;
@@ -375,43 +394,43 @@ async fn l1_with_non_overlapping_l0_larger() {
     ---
     - "**** Input Files "
     - "L0                                                                                                                 "
-    - "L0.5[300,350] 1ns 5mb                                                            |--L0.5---|                       "
-    - "L0.6[350,400] 1ns 5mb                                                                       |--L0.6---|            "
-    - "L0.7[400,450] 1ns 5mb                                                                                  |--L0.7---| "
+    - "L0.5[300,350] 11ns 5mb                                                           |--L0.5---|                       "
+    - "L0.6[350,400] 12ns 5mb                                                                      |--L0.6---|            "
+    - "L0.7[400,450] 13ns 5mb                                                                                 |--L0.7---| "
     - "L1                                                                                                                 "
     - "L1.1[50,99] 1ns 20mb     |--L1.1---|                                                                               "
-    - "L1.2[100,149] 1ns 50mb              |--L1.2---|                                                                    "
-    - "L1.3[150,199] 1ns 20mb                         |--L1.3---|                                                         "
-    - "L1.4[200,249] 1ns 3mb                                     |--L1.4---|                                              "
+    - "L1.2[100,149] 2ns 50mb              |--L1.2---|                                                                    "
+    - "L1.3[150,199] 3ns 20mb                         |--L1.3---|                                                         "
+    - "L1.4[200,249] 4ns 3mb                                     |--L1.4---|                                              "
     - "**** Simulation run 0, type=compact. 3 Input Files, 15mb total:"
     - "L0, all files 5mb                                                                                                  "
-    - "L0.7[400,450] 1ns                                                                    |------------L0.7------------|"
-    - "L0.6[350,400] 1ns                                      |------------L0.6------------|                              "
-    - "L0.5[300,350] 1ns        |------------L0.5------------|                                                            "
+    - "L0.7[400,450] 13ns                                                                   |------------L0.7------------|"
+    - "L0.6[350,400] 12ns                                     |------------L0.6------------|                              "
+    - "L0.5[300,350] 11ns       |------------L0.5------------|                                                            "
     - "**** 1 Output Files (parquet_file_id not yet assigned), 15mb total:"
     - "L1, all files 15mb                                                                                                 "
-    - "L1.?[300,450] 1ns        |------------------------------------------L1.?------------------------------------------|"
+    - "L1.?[300,450] 13ns       |------------------------------------------L1.?------------------------------------------|"
     - "Committing partition 1:"
     - "  Soft Deleting 3 files: L0.5, L0.6, L0.7"
     - "  Creating 1 files"
     - "**** Simulation run 1, type=split(split_times=[370]). 5 Input Files, 108mb total:"
     - "L1                                                                                                                 "
-    - "L1.4[200,249] 1ns 3mb                                     |--L1.4---|                                              "
-    - "L1.3[150,199] 1ns 20mb                         |--L1.3---|                                                         "
-    - "L1.2[100,149] 1ns 50mb              |--L1.2---|                                                                    "
+    - "L1.4[200,249] 4ns 3mb                                     |--L1.4---|                                              "
+    - "L1.3[150,199] 3ns 20mb                         |--L1.3---|                                                         "
+    - "L1.2[100,149] 2ns 50mb              |--L1.2---|                                                                    "
     - "L1.1[50,99] 1ns 20mb     |--L1.1---|                                                                               "
-    - "L1.8[300,450] 1ns 15mb                                                           |-------------L1.8--------------| "
+    - "L1.8[300,450] 13ns 15mb                                                          |-------------L1.8--------------| "
     - "**** 2 Output Files (parquet_file_id not yet assigned), 108mb total:"
     - "L2                                                                                                                 "
-    - "L2.?[50,370] 1ns 86.4mb  |---------------------------------L2.?---------------------------------|                  "
-    - "L2.?[371,450] 1ns 21.6mb                                                                         |-----L2.?------| "
+    - "L2.?[50,370] 13ns 86.4mb |---------------------------------L2.?---------------------------------|                  "
+    - "L2.?[371,450] 13ns 21.6mb                                                                        |-----L2.?------| "
     - "Committing partition 1:"
     - "  Soft Deleting 5 files: L1.1, L1.2, L1.3, L1.4, L1.8"
     - "  Creating 2 files"
     - "**** Final Output Files "
     - "L2                                                                                                                 "
-    - "L2.9[50,370] 1ns 86.4mb  |---------------------------------L2.9---------------------------------|                  "
-    - "L2.10[371,450] 1ns 21.6mb                                                                        |-----L2.10-----| "
+    - "L2.9[50,370] 13ns 86.4mb |---------------------------------L2.9---------------------------------|                  "
+    - "L2.10[371,450] 13ns 21.6mb                                                                        |-----L2.10-----| "
     "###
     );
 }
@@ -571,18 +590,24 @@ async fn many_l1_with_non_overlapping_l0() {
                     .with_min_time(50 + i * 50)
                     .with_max_time(99 + i * 50)
                     .with_compaction_level(CompactionLevel::FileNonOverlapped)
+                    // L1 files with smaller max_l0_created_at to indicate they inlcude data created before the L0 files
+                    .with_max_l0_created_at(Time::from_timestamp_nanos(i + 1))
                     .with_file_size_bytes(sz * ONE_MB),
             )
             .await;
     }
     // note these overlap with each other, but not the L1 files
-    for _ in 0..3 {
+    for i in 0..3 {
         setup
             .partition
             .create_parquet_file(
                 parquet_builder()
                     .with_min_time(600)
                     .with_max_time(650)
+                    // specify L0 explicitly
+                    .with_compaction_level(CompactionLevel::Initial)
+                    // L0 files with larger max_l0_created_at to indicate they are created after data compacted in the L1 files
+                    .with_max_l0_created_at(Time::from_timestamp_nanos(20 + i + 1))
                     .with_file_size_bytes(5 * ONE_MB),
             )
             .await;
@@ -594,55 +619,55 @@ async fn many_l1_with_non_overlapping_l0() {
     ---
     - "**** Input Files "
     - "L0                                                                                                                 "
-    - "L0.11[600,650] 1ns 5mb                                                                                     |L0.11| "
-    - "L0.12[600,650] 1ns 5mb                                                                                     |L0.12| "
-    - "L0.13[600,650] 1ns 5mb                                                                                     |L0.13| "
+    - "L0.11[600,650] 21ns 5mb                                                                                    |L0.11| "
+    - "L0.12[600,650] 22ns 5mb                                                                                    |L0.12| "
+    - "L0.13[600,650] 23ns 5mb                                                                                    |L0.13| "
     - "L1                                                                                                                 "
     - "L1.1[50,99] 1ns 9mb      |L1.1-|                                                                                   "
-    - "L1.2[100,149] 1ns 8mb           |L1.2-|                                                                            "
-    - "L1.3[150,199] 1ns 7mb                   |L1.3-|                                                                    "
-    - "L1.4[200,249] 1ns 7mb                          |L1.4-|                                                             "
-    - "L1.5[250,299] 1ns 7mb                                  |L1.5-|                                                     "
-    - "L1.6[300,349] 1ns 7mb                                         |L1.6-|                                              "
-    - "L1.7[350,399] 1ns 7mb                                                 |L1.7-|                                      "
-    - "L1.8[400,449] 1ns 7mb                                                        |L1.8-|                               "
-    - "L1.9[450,499] 1ns 7mb                                                                |L1.9-|                       "
-    - "L1.10[500,549] 1ns 7mb                                                                      |L1.10|                "
+    - "L1.2[100,149] 2ns 8mb           |L1.2-|                                                                            "
+    - "L1.3[150,199] 3ns 7mb                   |L1.3-|                                                                    "
+    - "L1.4[200,249] 4ns 7mb                          |L1.4-|                                                             "
+    - "L1.5[250,299] 5ns 7mb                                  |L1.5-|                                                     "
+    - "L1.6[300,349] 6ns 7mb                                         |L1.6-|                                              "
+    - "L1.7[350,399] 7ns 7mb                                                 |L1.7-|                                      "
+    - "L1.8[400,449] 8ns 7mb                                                        |L1.8-|                               "
+    - "L1.9[450,499] 9ns 7mb                                                                |L1.9-|                       "
+    - "L1.10[500,549] 10ns 7mb                                                                     |L1.10|                "
     - "**** Simulation run 0, type=compact. 3 Input Files, 15mb total:"
     - "L0, all files 5mb                                                                                                  "
-    - "L0.13[600,650] 1ns       |-----------------------------------------L0.13------------------------------------------|"
-    - "L0.12[600,650] 1ns       |-----------------------------------------L0.12------------------------------------------|"
-    - "L0.11[600,650] 1ns       |-----------------------------------------L0.11------------------------------------------|"
+    - "L0.13[600,650] 23ns      |-----------------------------------------L0.13------------------------------------------|"
+    - "L0.12[600,650] 22ns      |-----------------------------------------L0.12------------------------------------------|"
+    - "L0.11[600,650] 21ns      |-----------------------------------------L0.11------------------------------------------|"
     - "**** 1 Output Files (parquet_file_id not yet assigned), 15mb total:"
     - "L1, all files 15mb                                                                                                 "
-    - "L1.?[600,650] 1ns        |------------------------------------------L1.?------------------------------------------|"
+    - "L1.?[600,650] 23ns       |------------------------------------------L1.?------------------------------------------|"
     - "Committing partition 1:"
     - "  Soft Deleting 3 files: L0.11, L0.12, L0.13"
     - "  Creating 1 files"
     - "**** Simulation run 1, type=split(split_times=[530]). 11 Input Files, 88mb total:"
     - "L1                                                                                                                 "
-    - "L1.10[500,549] 1ns 7mb                                                                      |L1.10|                "
-    - "L1.9[450,499] 1ns 7mb                                                                |L1.9-|                       "
-    - "L1.8[400,449] 1ns 7mb                                                        |L1.8-|                               "
-    - "L1.7[350,399] 1ns 7mb                                                 |L1.7-|                                      "
-    - "L1.6[300,349] 1ns 7mb                                         |L1.6-|                                              "
-    - "L1.5[250,299] 1ns 7mb                                  |L1.5-|                                                     "
-    - "L1.4[200,249] 1ns 7mb                          |L1.4-|                                                             "
-    - "L1.3[150,199] 1ns 7mb                   |L1.3-|                                                                    "
-    - "L1.2[100,149] 1ns 8mb           |L1.2-|                                                                            "
+    - "L1.10[500,549] 10ns 7mb                                                                     |L1.10|                "
+    - "L1.9[450,499] 9ns 7mb                                                                |L1.9-|                       "
+    - "L1.8[400,449] 8ns 7mb                                                        |L1.8-|                               "
+    - "L1.7[350,399] 7ns 7mb                                                 |L1.7-|                                      "
+    - "L1.6[300,349] 6ns 7mb                                         |L1.6-|                                              "
+    - "L1.5[250,299] 5ns 7mb                                  |L1.5-|                                                     "
+    - "L1.4[200,249] 4ns 7mb                          |L1.4-|                                                             "
+    - "L1.3[150,199] 3ns 7mb                   |L1.3-|                                                                    "
+    - "L1.2[100,149] 2ns 8mb           |L1.2-|                                                                            "
     - "L1.1[50,99] 1ns 9mb      |L1.1-|                                                                                   "
-    - "L1.14[600,650] 1ns 15mb                                                                                    |L1.14| "
+    - "L1.14[600,650] 23ns 15mb                                                                                   |L1.14| "
     - "**** 2 Output Files (parquet_file_id not yet assigned), 88mb total:"
     - "L2                                                                                                                 "
-    - "L2.?[50,530] 1ns 70.4mb  |---------------------------------L2.?---------------------------------|                  "
-    - "L2.?[531,650] 1ns 17.6mb                                                                         |-----L2.?------| "
+    - "L2.?[50,530] 23ns 70.4mb |---------------------------------L2.?---------------------------------|                  "
+    - "L2.?[531,650] 23ns 17.6mb                                                                        |-----L2.?------| "
     - "Committing partition 1:"
     - "  Soft Deleting 11 files: L1.1, L1.2, L1.3, L1.4, L1.5, L1.6, L1.7, L1.8, L1.9, L1.10, L1.14"
     - "  Creating 2 files"
     - "**** Final Output Files "
     - "L2                                                                                                                 "
-    - "L2.15[50,530] 1ns 70.4mb |--------------------------------L2.15---------------------------------|                  "
-    - "L2.16[531,650] 1ns 17.6mb                                                                        |-----L2.16-----| "
+    - "L2.15[50,530] 23ns 70.4mb|--------------------------------L2.15---------------------------------|                  "
+    - "L2.16[531,650] 23ns 17.6mb                                                                        |-----L2.16-----| "
     "###
     );
 }
@@ -668,18 +693,24 @@ async fn large_l1_with_non_overlapping_l0() {
                     .with_min_time(50 + i * 50)
                     .with_max_time(99 + i * 50)
                     .with_compaction_level(CompactionLevel::FileNonOverlapped)
+                    // L1 files with smaller max_l0_created_at to indicate they inlcude data created before the L0 files
+                    .with_max_l0_created_at(Time::from_timestamp_nanos(i + 1))
                     .with_file_size_bytes(sz * ONE_MB),
             )
             .await;
     }
     // note these overlap with each other, but not the L1 files
-    for _ in 0..3 {
+    for i in 0..3 {
         setup
             .partition
             .create_parquet_file(
                 parquet_builder()
                     .with_min_time(600)
                     .with_max_time(650)
+                    // specify L0 explicitly
+                    .with_compaction_level(CompactionLevel::Initial)
+                    // L0 files with larger max_l0_created_at to indicate they are created after data compacted in the L1 files
+                    .with_max_l0_created_at(Time::from_timestamp_nanos(20 + i + 1))
                     .with_file_size_bytes(5 * ONE_MB),
             )
             .await;
@@ -691,39 +722,39 @@ async fn large_l1_with_non_overlapping_l0() {
     ---
     - "**** Input Files "
     - "L0                                                                                                                 "
-    - "L0.3[600,650] 1ns 5mb                                                                                      |L0.3-| "
-    - "L0.4[600,650] 1ns 5mb                                                                                      |L0.4-| "
-    - "L0.5[600,650] 1ns 5mb                                                                                      |L0.5-| "
+    - "L0.3[600,650] 21ns 5mb                                                                                     |L0.3-| "
+    - "L0.4[600,650] 22ns 5mb                                                                                     |L0.4-| "
+    - "L0.5[600,650] 23ns 5mb                                                                                     |L0.5-| "
     - "L1                                                                                                                 "
     - "L1.1[50,99] 1ns 90mb     |L1.1-|                                                                                   "
-    - "L1.2[100,149] 1ns 80mb          |L1.2-|                                                                            "
+    - "L1.2[100,149] 2ns 80mb          |L1.2-|                                                                            "
     - "**** Simulation run 0, type=compact. 3 Input Files, 15mb total:"
     - "L0, all files 5mb                                                                                                  "
-    - "L0.5[600,650] 1ns        |------------------------------------------L0.5------------------------------------------|"
-    - "L0.4[600,650] 1ns        |------------------------------------------L0.4------------------------------------------|"
-    - "L0.3[600,650] 1ns        |------------------------------------------L0.3------------------------------------------|"
+    - "L0.5[600,650] 23ns       |------------------------------------------L0.5------------------------------------------|"
+    - "L0.4[600,650] 22ns       |------------------------------------------L0.4------------------------------------------|"
+    - "L0.3[600,650] 21ns       |------------------------------------------L0.3------------------------------------------|"
     - "**** 1 Output Files (parquet_file_id not yet assigned), 15mb total:"
     - "L1, all files 15mb                                                                                                 "
-    - "L1.?[600,650] 1ns        |------------------------------------------L1.?------------------------------------------|"
+    - "L1.?[600,650] 23ns       |------------------------------------------L1.?------------------------------------------|"
     - "Committing partition 1:"
     - "  Soft Deleting 3 files: L0.3, L0.4, L0.5"
     - "  Creating 1 files"
     - "**** Simulation run 1, type=split(split_times=[375]). 3 Input Files, 185mb total:"
     - "L1                                                                                                                 "
-    - "L1.2[100,149] 1ns 80mb          |L1.2-|                                                                            "
+    - "L1.2[100,149] 2ns 80mb          |L1.2-|                                                                            "
     - "L1.1[50,99] 1ns 90mb     |L1.1-|                                                                                   "
-    - "L1.6[600,650] 1ns 15mb                                                                                     |L1.6-| "
+    - "L1.6[600,650] 23ns 15mb                                                                                    |L1.6-| "
     - "**** 2 Output Files (parquet_file_id not yet assigned), 185mb total:"
     - "L2                                                                                                                 "
-    - "L2.?[50,375] 1ns 100.21mb|---------------------L2.?---------------------|                                          "
-    - "L2.?[376,650] 1ns 84.79mb                                                |-----------------L2.?------------------| "
+    - "L2.?[50,375] 23ns 100.21mb|---------------------L2.?---------------------|                                          "
+    - "L2.?[376,650] 23ns 84.79mb                                                |-----------------L2.?------------------| "
     - "Committing partition 1:"
     - "  Soft Deleting 3 files: L1.1, L1.2, L1.6"
     - "  Creating 2 files"
     - "**** Final Output Files "
     - "L2                                                                                                                 "
-    - "L2.7[50,375] 1ns 100.21mb|---------------------L2.7---------------------|                                          "
-    - "L2.8[376,650] 1ns 84.79mb                                                |-----------------L2.8------------------| "
+    - "L2.7[50,375] 23ns 100.21mb|---------------------L2.7---------------------|                                          "
+    - "L2.8[376,650] 23ns 84.79mb                                                |-----------------L2.8------------------| "
     "###
     );
 }
