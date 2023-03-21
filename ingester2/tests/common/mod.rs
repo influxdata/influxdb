@@ -23,8 +23,10 @@ use observability_deps::tracing::*;
 use parquet_file::storage::ParquetStorage;
 use std::{collections::HashMap, path::PathBuf, sync::Arc, time::Duration};
 use tempfile::TempDir;
+use test_helpers::timeout::FutureTimeout;
 use tokio::sync::oneshot;
 use tokio_util::sync::CancellationToken;
+use tonic::Request;
 
 pub const TEST_TOPIC_NAME: &str = "banana-topics";
 
@@ -363,6 +365,32 @@ where
         let record_batches = iox_record_batch_stream.try_collect().await?;
 
         Ok(record_batches)
+    }
+
+    /// Request `namespace` be persisted and block for its completion.
+    pub async fn persist(&self, namespace: impl Into<String>) {
+        use generated_types::influxdata::iox::ingester::v1::{
+            self as proto, persist_service_server::PersistService,
+        };
+
+        let namespace = namespace.into();
+        self.ingester
+            .rpc()
+            .persist_service()
+            .persist(Request::new(proto::PersistRequest { namespace }))
+            .await
+            .expect("failed to invoke persist");
+    }
+
+    /// Gracefully stop the ingester, blocking until completion.
+    pub async fn shutdown(self) {
+        self.shutdown_tx
+            .send(CancellationToken::new())
+            .expect("shutdown channel dead");
+        self.ingester
+            .join()
+            .with_timeout_panic(Duration::from_secs(10))
+            .await;
     }
 
     /// Retrieve the specified metric value.
