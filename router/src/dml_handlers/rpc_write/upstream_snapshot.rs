@@ -43,6 +43,14 @@ impl<'a, C> UpstreamSnapshot<'a, C> {
         self.idx = self.idx.wrapping_sub(1);
     }
 
+    /// Returns the number of clients in this [`UpstreamSnapshot`].
+    ///
+    /// This value decreases as upstreams are removed by calls to
+    /// [`UpstreamSnapshot::remove_last_unstable()`].
+    pub(super) fn len(&self) -> usize {
+        self.clients.len()
+    }
+
     #[inline(always)]
     fn idx(&self) -> usize {
         self.idx % self.clients.len()
@@ -61,7 +69,7 @@ impl<'a, C> Iterator for UpstreamSnapshot<'a, C> {
     }
 
     fn size_hint(&self) -> (usize, Option<usize>) {
-        (0, Some(self.clients.len()))
+        (0, Some(self.len()))
     }
 }
 
@@ -81,6 +89,8 @@ mod tests {
 
         let mut snap = UpstreamSnapshot::new(elements.iter(), 0);
 
+        assert_eq!(snap.len(), 3);
+
         let (min, max) = snap.size_hint();
         assert_eq!(min, 0);
         assert_eq!(max, Some(3));
@@ -90,6 +100,7 @@ mod tests {
         let (min, max) = snap.size_hint();
         assert_eq!(min, 0);
         assert_eq!(max, Some(2));
+        assert_eq!(snap.len(), 2);
     }
 
     #[test]
@@ -187,13 +198,18 @@ mod tests {
     }
 
     #[test]
-    fn test_remove_last_element() {
+    fn test_remove_all_elements() {
         let elements = [42];
         let mut snap = UpstreamSnapshot::new(elements.iter(), 0);
+
+        assert_eq!(snap.len(), 1);
+
         assert_eq!(snap.next(), Some(&42));
         assert_eq!(snap.next(), Some(&42));
         snap.remove_last_unstable();
         assert_eq!(snap.next(), None);
         assert_eq!(snap.next(), None);
+
+        assert_eq!(snap.len(), 0);
     }
 }
