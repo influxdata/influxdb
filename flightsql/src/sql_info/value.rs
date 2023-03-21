@@ -143,6 +143,11 @@ impl SqlInfoUnionBuilder {
         }
     }
 
+    /// Returns the DataType created by this builder
+    pub fn schema() -> &'static DataType {
+        &UNION_TYPE
+    }
+
     /// Append the specified value to this builder
     pub fn append_value(&mut self, v: &SqlInfoValue) {
         // typeid is which child and len is the child array's length

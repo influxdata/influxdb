@@ -24,7 +24,11 @@ mod value;
 use crate::error::Result;
 use std::{borrow::Cow, collections::BTreeMap, sync::Arc};
 
-use arrow::{array::UInt32Builder, record_batch::RecordBatch};
+use arrow::{
+    array::UInt32Builder,
+    datatypes::{DataType, Field, Schema},
+    record_batch::RecordBatch,
+};
 use arrow_flight::sql::{
     SqlInfo, SqlNullOrdering, SqlSupportedCaseSensitivity, SqlSupportedTransactions,
     SupportedSqlGrammar,
@@ -93,7 +97,21 @@ impl SqlInfoList {
         ])?;
         Ok(batch)
     }
+
+    /// Return the schema for the record batches produced
+    pub fn schema(&self) -> &Schema {
+        // It is always the same
+        &SCHEMA
+    }
 }
+
+// The schema produced by [`SqlInfoList`]
+static SCHEMA: Lazy<Schema> = Lazy::new(|| {
+    Schema::new(vec![
+        Field::new("info_name", DataType::UInt32, false),
+        Field::new("value", SqlInfoUnionBuilder::schema().clone(), false),
+    ])
+});
 
 #[allow(non_snake_case)]
 static INSTANCE: Lazy<SqlInfoList> = Lazy::new(|| {
@@ -237,7 +255,7 @@ static INSTANCE: Lazy<SqlInfoList> = Lazy::new(|| {
         .with_sql_info(SqlInfo::SqlStoredFunctionsUsingCallSyntaxSupported, false)
 });
 
-/// Return the static SqlInfoList that describes IOx's capablity
+/// Return a [`SqlInfoList`] that describes IOx's capablities
 pub fn iox_sql_info_list() -> &'static SqlInfoList {
     &INSTANCE
 }
