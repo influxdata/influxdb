@@ -68,7 +68,7 @@ where
     /// evaluated at this point and the result is returned to the caller as an
     /// infinite / cycling iterator. A node that becomes unavailable after the
     /// snapshot was taken will continue to be returned by the iterator.
-    pub(super) fn endpoints(&self) -> UpstreamSnapshot<'_, CircuitBreakingClient<T, C>> {
+    pub(super) fn endpoints(&self) -> Option<UpstreamSnapshot<'_, CircuitBreakingClient<T, C>>> {
         // Grab and increment the current counter.
         let counter = COUNTER.with(|cell| {
             let mut cell = cell.borrow_mut();
@@ -214,7 +214,7 @@ mod tests {
 
     use super::*;
 
-    /// No healthy nodes yields an empty iterator.
+    /// No healthy nodes prevents a snapshot from being returned.
     #[tokio::test]
     async fn test_balancer_empty_iter() {
         const BALANCER_CALLS: usize = 10;
@@ -239,9 +239,7 @@ mod tests {
         assert_eq!(circuit_err_2.ok_count(), 0);
 
         let balancer = Balancer::new([client_err_1, client_err_2], None);
-        let mut endpoints = balancer.endpoints();
-
-        assert_matches!(endpoints.next(), None);
+        assert!(balancer.endpoints().is_none());
     }
 
     /// When multiple nodes are unhealthy and available for probing, at most one
@@ -271,7 +269,7 @@ mod tests {
 
         let balancer = Balancer::new([client_err_1, client_err_2, client_ok], None);
 
-        let mut endpoints = balancer.endpoints();
+        let mut endpoints = balancer.endpoints().unwrap();
 
         // A bad client is yielded first
         let _ = endpoints
@@ -343,7 +341,7 @@ mod tests {
         assert_eq!(circuit_err_2.ok_count(), 0);
 
         let balancer = Balancer::new([client_err_1, client_ok, client_err_2], None);
-        let mut endpoints = balancer.endpoints();
+        let mut endpoints = balancer.endpoints().unwrap();
 
         // Only the health client should be yielded, and it should cycle
         // indefinitely.
@@ -392,15 +390,15 @@ mod tests {
         let balancer = Balancer::new([client], None);
 
         // The balancer should yield no candidates.
-        let mut endpoints = balancer.endpoints();
-        assert_matches!(endpoints.next(), None);
+        assert!(balancer.endpoints().is_none());
+        // The circuit breaker health state should have been read
         assert_eq!(circuit.is_healthy_count(), 1);
 
         // Mark the client as healthy.
         circuit.set_healthy(true);
 
         // A single client should be yielded
-        let mut endpoints = balancer.endpoints();
+        let mut endpoints = balancer.endpoints().unwrap();
         assert_matches!(endpoints.next(), Some(_));
         assert_eq!(circuit.is_healthy_count(), 2);
 
@@ -454,6 +452,7 @@ mod tests {
         for _ in 0..N {
             balancer
                 .endpoints()
+                .unwrap()
                 .next()
                 .expect("should yield healthy client")
                 .write(WriteRequest::default())
@@ -545,5 +544,33 @@ mod tests {
         assert!(circuit_ok.is_healthy_count() > 0);
 
         worker.abort();
+    }
+
+    #[test]
+    fn test_no_endpoints() {
+        let balancer = Balancer::<MockWriteClient>::new([], None);
+        assert!(balancer.endpoints().is_none());
+    }
+
+    #[tokio::test]
+    async fn test_no_healthy_endpoints() {
+        let circuit_err = Arc::new(MockCircuitBreaker::default());
+        circuit_err.set_healthy(false);
+        circuit_err.set_should_probe(false);
+        let client_err =
+            CircuitBreakingClient::new(Arc::new(MockWriteClient::default()), "bad-client-1")
+                .with_circuit_breaker(Arc::clone(&circuit_err));
+
+        let balancer = Balancer::new([client_err], None);
+        assert!(balancer.endpoints().is_none());
+
+        circuit_err.set_should_probe(true);
+        assert!(balancer.endpoints().is_some());
+
+        circuit_err.set_should_probe(false);
+        assert!(balancer.endpoints().is_none());
+
+        circuit_err.set_healthy(true);
+        assert!(balancer.endpoints().is_some());
     }
 }
