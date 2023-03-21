@@ -271,6 +271,7 @@ func (l *WAL) Open() error {
 				return err
 			}
 			if _, err := fd.Seek(0, io.SeekEnd); err != nil {
+				_ = fd.Close()
 				return err
 			}
 			l.currentSegmentWriter = NewWALSegmentWriter(fd)
@@ -598,16 +599,25 @@ func (l *WAL) Close() error {
 	l.mu.Lock()
 	defer l.mu.Unlock()
 
+	// Always attempt to close the segment writer. We cannot do this in once.Do
+	// because if we have already closed the WAL before and reopened it again,
+	// the next Close() call will not close the new segment writer. For example:
+	// func main() {
+	//   w.Close() -- (1)
+	//   w.Open()
+	//   w.Close() -- (2)
+	// }
+	// (2) needs to close the reopened `currentSegmentWriter` again.
+	l.traceLogger.Info("Closing WAL file", zap.String("path", l.path))
+	if l.currentSegmentWriter != nil {
+		l.sync()
+		_ = l.currentSegmentWriter.close()
+		l.currentSegmentWriter = nil
+	}
+
 	l.once.Do(func() {
 		// Close, but don't set to nil so future goroutines can still be signaled
-		l.traceLogger.Info("Closing WAL file", zap.String("path", l.path))
 		close(l.closing)
-
-		if l.currentSegmentWriter != nil {
-			l.sync()
-			l.currentSegmentWriter.close()
-			l.currentSegmentWriter = nil
-		}
 	})
 
 	return nil

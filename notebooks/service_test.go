@@ -20,8 +20,7 @@ var (
 func TestCreateAndGetNotebook(t *testing.T) {
 	t.Parallel()
 
-	svc, clean := newTestService(t)
-	defer clean(t)
+	svc := newTestService(t)
 	ctx := context.Background()
 
 	// getting an invalid id should return an error
@@ -59,8 +58,7 @@ func TestCreateAndGetNotebook(t *testing.T) {
 func TestUpdate(t *testing.T) {
 	t.Parallel()
 
-	svc, clean := newTestService(t)
-	defer clean(t)
+	svc := newTestService(t)
 	ctx := context.Background()
 
 	testCreate := &influxdb.NotebookReqBody{
@@ -108,8 +106,7 @@ func TestUpdate(t *testing.T) {
 func TestDelete(t *testing.T) {
 	t.Parallel()
 
-	svc, clean := newTestService(t)
-	defer clean(t)
+	svc := newTestService(t)
 	ctx := context.Background()
 
 	// attempting to delete a non-existant notebook should return an error
@@ -145,8 +142,7 @@ func TestDelete(t *testing.T) {
 func TestList(t *testing.T) {
 	t.Parallel()
 
-	svc, clean := newTestService(t)
-	defer clean(t)
+	svc := newTestService(t)
 	ctx := context.Background()
 
 	orgID := idGen.ID()
@@ -195,8 +191,8 @@ func TestList(t *testing.T) {
 	}
 }
 
-func newTestService(t *testing.T) (*Service, func(t *testing.T)) {
-	store, clean := sqlite.NewTestStore(t)
+func newTestService(t *testing.T) *Service {
+	store := sqlite.NewTestStore(t)
 	ctx := context.Background()
 
 	sqliteMigrator := sqlite.NewMigrator(store, zap.NewNop())
@@ -205,5 +201,5 @@ func newTestService(t *testing.T) (*Service, func(t *testing.T)) {
 
 	svc := NewService(store)
 
-	return svc, clean
+	return svc
 }

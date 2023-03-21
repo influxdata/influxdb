@@ -11,8 +11,7 @@ import (
 )
 
 func TestSeriesSegment(t *testing.T) {
-	dir, cleanup := MustTempDir()
-	defer cleanup()
+	dir := t.TempDir()
 
 	// Create a new initial segment (4mb) and initialize for writing.
 	segment, err := tsdb.CreateSeriesSegment(0, filepath.Join(dir, "0000"))
@@ -69,8 +68,7 @@ func TestSeriesSegment(t *testing.T) {
 }
 
 func TestSeriesSegment_AppendSeriesIDs(t *testing.T) {
-	dir, cleanup := MustTempDir()
-	defer cleanup()
+	dir := t.TempDir()
 
 	segment, err := tsdb.CreateSeriesSegment(0, filepath.Join(dir, "0000"))
 	if err != nil {
@@ -97,8 +95,7 @@ func TestSeriesSegment_AppendSeriesIDs(t *testing.T) {
 }
 
 func TestSeriesSegment_MaxSeriesID(t *testing.T) {
-	dir, cleanup := MustTempDir()
-	defer cleanup()
+	dir := t.TempDir()
 
 	segment, err := tsdb.CreateSeriesSegment(0, filepath.Join(dir, "0000"))
 	if err != nil {
@@ -142,8 +139,7 @@ func TestSeriesSegmentHeader(t *testing.T) {
 }
 
 func TestSeriesSegment_PartialWrite(t *testing.T) {
-	dir, cleanup := MustTempDir()
-	defer cleanup()
+	dir := t.TempDir()
 
 	// Create a new initial segment (4mb) and initialize for writing.
 	segment, err := tsdb.CreateSeriesSegment(0, filepath.Join(dir, "0000"))

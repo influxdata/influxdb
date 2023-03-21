@@ -13,7 +13,7 @@ import (
 
 // Ensure a simple index file can be built and opened.
 func TestCreateIndexFile(t *testing.T) {
-	sfile := MustOpenSeriesFile()
+	sfile := MustOpenSeriesFile(t)
 	defer sfile.Close()
 
 	f, err := CreateIndexFile(sfile.SeriesFile, []Series{
@@ -33,7 +33,7 @@ func TestCreateIndexFile(t *testing.T) {
 }
 
 func TestIndexFile_TagKeySeriesIDIterator(t *testing.T) {
-	sfile := MustOpenSeriesFile()
+	sfile := MustOpenSeriesFile(t)
 	defer sfile.Close()
 
 	f, err := CreateIndexFile(sfile.SeriesFile, []Series{
@@ -82,7 +82,7 @@ func TestIndexFile_TagKeySeriesIDIterator(t *testing.T) {
 
 // Ensure index file generation can be successfully built.
 func TestGenerateIndexFile(t *testing.T) {
-	sfile := MustOpenSeriesFile()
+	sfile := MustOpenSeriesFile(t)
 	defer sfile.Close()
 
 	// Build generated index file.
@@ -126,7 +126,7 @@ func TestGenerateIndexFile_Uvarint(t *testing.T) {
 
 // Ensure a MeasurementHashSeries returns false when all series are tombstoned.
 func TestIndexFile_MeasurementHasSeries_Tombstoned(t *testing.T) {
-	sfile := MustOpenSeriesFile()
+	sfile := MustOpenSeriesFile(t)
 	defer sfile.Close()
 
 	f, err := CreateIndexFile(sfile.SeriesFile, []Series{
@@ -146,17 +146,17 @@ func TestIndexFile_MeasurementHasSeries_Tombstoned(t *testing.T) {
 
 func BenchmarkIndexFile_TagValueSeries(b *testing.B) {
 	b.Run("M=1,K=2,V=3", func(b *testing.B) {
-		sfile := MustOpenSeriesFile()
+		sfile := MustOpenSeriesFile(b)
 		defer sfile.Close()
 		benchmarkIndexFile_TagValueSeries(b, MustFindOrGenerateIndexFile(sfile.SeriesFile, 1, 2, 3))
 	})
 	b.Run("M=10,K=5,V=5", func(b *testing.B) {
-		sfile := MustOpenSeriesFile()
+		sfile := MustOpenSeriesFile(b)
 		defer sfile.Close()
 		benchmarkIndexFile_TagValueSeries(b, MustFindOrGenerateIndexFile(sfile.SeriesFile, 10, 5, 5))
 	})
 	b.Run("M=10,K=7,V=5", func(b *testing.B) {
-		sfile := MustOpenSeriesFile()
+		sfile := MustOpenSeriesFile(b)
 		defer sfile.Close()
 		benchmarkIndexFile_TagValueSeries(b, MustFindOrGenerateIndexFile(sfile.SeriesFile, 10, 7, 7))
 	})

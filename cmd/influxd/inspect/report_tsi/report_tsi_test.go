@@ -34,10 +34,7 @@ const (
 
 func Test_ReportTSI_GeneratedData(t *testing.T) {
 	shardlessPath := newTempDirectories(t, false)
-	defer os.RemoveAll(shardlessPath)
-
 	shardPath := newTempDirectories(t, true)
-	defer os.RemoveAll(shardPath)
 
 	tests := []cmdParams{
 		{
@@ -69,9 +66,7 @@ func Test_ReportTSI_GeneratedData(t *testing.T) {
 func Test_ReportTSI_TestData(t *testing.T) {
 
 	// Create temp directory for extracted test data
-	path, err := os.MkdirTemp("", "report-tsi-test-")
-	require.NoError(t, err)
-	defer os.RemoveAll(path)
+	path := t.TempDir()
 
 	// Extract test data
 	file, err := os.Open("../tsi-test-data.tar.gz")
@@ -125,10 +120,9 @@ func Test_ReportTSI_TestData(t *testing.T) {
 func newTempDirectories(t *testing.T, withShards bool) string {
 	t.Helper()
 
-	dataDir, err := os.MkdirTemp("", "reporttsi")
-	require.NoError(t, err)
+	dataDir := t.TempDir()
 
-	err = os.MkdirAll(filepath.Join(dataDir, bucketID, "autogen"), 0777)
+	err := os.MkdirAll(filepath.Join(dataDir, bucketID, "autogen"), 0777)
 	require.NoError(t, err)
 
 	if withShards {

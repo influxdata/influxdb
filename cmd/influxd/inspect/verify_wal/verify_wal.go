@@ -109,6 +109,8 @@ func (a args) Run(cmd *cobra.Command) error {
 		}
 		totalEntriesScanned += entriesScanned
 		_ = tw.Flush()
+
+		_ = reader.Close()
 	}
 
 	// Print Summary

@@ -21,12 +21,11 @@ const (
 
 // Run tests on a directory with no Tombstone files
 func TestVerifies_InvalidFileType(t *testing.T) {
-	path, err := os.MkdirTemp("", "verify-tombstone")
-	require.NoError(t, err)
+	path := t.TempDir()
 
-	_, err = os.CreateTemp(path, "verifytombstonetest*"+".txt")
+	f, err := os.CreateTemp(path, "verifytombstonetest*"+".txt")
 	require.NoError(t, err)
-	defer os.RemoveAll(path)
+	require.NoError(t, f.Close())
 
 	verify := NewVerifyTombstoneCommand()
 	verify.SetArgs([]string{"--engine-path", path})
@@ -43,7 +42,6 @@ func TestVerifies_InvalidFileType(t *testing.T) {
 // Run tests on an empty Tombstone file (treated as v1)
 func TestVerifies_InvalidEmptyFile(t *testing.T) {
 	path, _ := NewTempTombstone(t)
-	defer os.RemoveAll(path)
 
 	verify := NewVerifyTombstoneCommand()
 	verify.SetArgs([]string{"--engine-path", path})
@@ -60,7 +58,6 @@ func TestVerifies_InvalidEmptyFile(t *testing.T) {
 // Runs tests on an invalid V2 Tombstone File
 func TestVerifies_InvalidV2(t *testing.T) {
 	path, file := NewTempTombstone(t)
-	defer os.RemoveAll(path)
 
 	WriteTombstoneHeader(t, file, v2header)
 	WriteBadData(t, file)
@@ -74,7 +71,6 @@ func TestVerifies_InvalidV2(t *testing.T) {
 
 func TestVerifies_ValidTS(t *testing.T) {
 	path, file := NewTempTombstone(t)
-	defer os.RemoveAll(path)
 
 	ts := tsm1.NewTombstoner(file.Name(), nil)
 	require.NoError(t, ts.Add([][]byte{[]byte("foobar")}))
@@ -90,7 +86,6 @@ func TestVerifies_ValidTS(t *testing.T) {
 // Runs tests on an invalid V3 Tombstone File
 func TestVerifies_InvalidV3(t *testing.T) {
 	path, file := NewTempTombstone(t)
-	defer os.RemoveAll(path)
 
 	WriteTombstoneHeader(t, file, v3header)
 	WriteBadData(t, file)
@@ -105,7 +100,6 @@ func TestVerifies_InvalidV3(t *testing.T) {
 // Runs tests on an invalid V4 Tombstone File
 func TestVerifies_InvalidV4(t *testing.T) {
 	path, file := NewTempTombstone(t)
-	defer os.RemoveAll(path)
 
 	WriteTombstoneHeader(t, file, v4header)
 	WriteBadData(t, file)
@@ -121,7 +115,6 @@ func TestVerifies_InvalidV4(t *testing.T) {
 // is not needed, but was part of old command.
 func TestTombstone_VeryVeryVerbose(t *testing.T) {
 	path, file := NewTempTombstone(t)
-	defer os.RemoveAll(path)
 
 	WriteTombstoneHeader(t, file, v4header)
 	WriteBadData(t, file)
@@ -136,8 +129,7 @@ func TestTombstone_VeryVeryVerbose(t *testing.T) {
 func NewTempTombstone(t *testing.T) (string, *os.File) {
 	t.Helper()
 
-	dir, err := os.MkdirTemp("", "verify-tombstone")
-	require.NoError(t, err)
+	dir := t.TempDir()
 
 	file, err := os.CreateTemp(dir, "verifytombstonetest*"+"."+tsm1.TombstoneFileExtension)
 	require.NoError(t, err)

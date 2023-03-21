@@ -2,7 +2,6 @@ package tsm1_test
 
 import (
 	"context"
-	"os"
 	"testing"
 
 	"github.com/google/go-cmp/cmp"
@@ -310,11 +309,10 @@ func TestFileStore_Array(t *testing.T) {
 
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
-			dir := MustTempDir()
-			defer os.RemoveAll(dir)
-			fs := tsm1.NewFileStore(dir, tsdb.EngineTags{})
+			dir := t.TempDir()
+			fs := newTestFileStore(t, dir)
 
-			files, err := newFiles(dir, tc.data...)
+			files, err := newFiles(t, dir, tc.data...)
 			if err != nil {
 				t.Fatalf("unexpected error creating files: %v", err)
 			}
@@ -324,6 +322,7 @@ func TestFileStore_Array(t *testing.T) {
 					// Delete part of the block in the first file.
 					r := MustOpenTSMReader(files[del.f])
 					r.DeleteRange([][]byte{[]byte("cpu")}, del.min, del.max)
+					r.Close()
 				}
 			}
 
@@ -339,6 +338,7 @@ func TestFileStore_Array(t *testing.T) {
 
 			buf := tsdb.NewFloatArrayLen(1000)
 			c := fs.KeyCursor(context.Background(), []byte("cpu"), tc.time, tc.asc)
+			t.Cleanup(c.Close)
 
 			for i, read := range tc.reads {
 				// Search for an entry that exists in the second file

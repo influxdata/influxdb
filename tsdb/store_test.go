@@ -154,7 +154,7 @@ func TestStore_BadShard(t *testing.T) {
 			sh := tsdb.NewTempShard(t, idx)
 			err := s.OpenShard(context.Background(), sh.Shard, false)
 			require.NoError(t, err, "opening temp shard")
-			defer require.NoError(t, sh.Close(), "closing temporary shard")
+			require.NoError(t, sh.Close(), "closing temporary shard")
 
 			s.SetShardOpenErrorForTest(sh.ID(), errors.New(errStr))
 			err2 := s.OpenShard(context.Background(), sh.Shard, false)
@@ -164,6 +164,7 @@ func TestStore_BadShard(t *testing.T) {
 
 			// This should succeed with the force (and because opening an open shard automatically succeeds)
 			require.NoError(t, s.OpenShard(context.Background(), sh.Shard, true), "forced re-opening previously failing shard")
+			require.NoError(t, sh.Close())
 		}()
 	}
 }
@@ -484,9 +485,11 @@ func TestStore_Open_InvalidDatabaseFile(t *testing.T) {
 		defer s.Close()
 
 		// Create a file instead of a directory for a database.
-		if _, err := os.Create(filepath.Join(s.Path(), "db0")); err != nil {
+		f, err := os.Create(filepath.Join(s.Path(), "db0"))
+		if err != nil {
 			t.Fatal(err)
 		}
+		require.NoError(t, f.Close())
 
 		// Store should ignore database since it's a file.
 		if err := s.Open(context.Background()); err != nil {
@@ -511,9 +514,13 @@ func TestStore_Open_InvalidRetentionPolicy(t *testing.T) {
 		// Create an RP file instead of a directory.
 		if err := os.MkdirAll(filepath.Join(s.Path(), "db0"), 0777); err != nil {
 			t.Fatal(err)
-		} else if _, err := os.Create(filepath.Join(s.Path(), "db0", "rp0")); err != nil {
+		}
+
+		f, err := os.Create(filepath.Join(s.Path(), "db0", "rp0"))
+		if err != nil {
 			t.Fatal(err)
 		}
+		require.NoError(t, f.Close())
 
 		// Store should ignore retention policy since it's a file, and there should
 		// be no indices created.
@@ -540,9 +547,13 @@ func TestStore_Open_InvalidShard(t *testing.T) {
 		// Create a non-numeric shard file.
 		if err := os.MkdirAll(filepath.Join(s.Path(), "db0", "rp0"), 0777); err != nil {
 			t.Fatal(err)
-		} else if _, err := os.Create(filepath.Join(s.Path(), "db0", "rp0", "bad_shard")); err != nil {
+		}
+
+		f, err := os.Create(filepath.Join(s.Path(), "db0", "rp0", "bad_shard"))
+		if err != nil {
 			t.Fatal(err)
 		}
+		require.NoError(t, f.Close())
 
 		// Store should ignore shard since it does not have a numeric name.
 		if err := s.Open(context.Background()); err != nil {
@@ -2390,10 +2401,7 @@ type Store struct {
 func NewStore(tb testing.TB, index string) *Store {
 	tb.Helper()
 
-	path, err := os.MkdirTemp("", "influxdb-tsdb-")
-	if err != nil {
-		panic(err)
-	}
+	path := tb.TempDir()
 
 	s := &Store{Store: tsdb.NewStore(path), index: index}
 	s.EngineOptions.IndexVersion = index
@@ -2436,7 +2444,6 @@ func (s *Store) Reopen(tb testing.TB) error {
 
 // Close closes the store and removes the underlying data.
 func (s *Store) Close() error {
-	defer os.RemoveAll(s.Path())
 	return s.Store.Close()
 }
 

@@ -36,8 +36,7 @@ func Test_DumpWal_Bad_Path(t *testing.T) {
 
 func Test_DumpWal_Wrong_File_Type(t *testing.T) {
 	// Creates a temporary .txt file (wrong extension)
-	dir, file := newTempWal(t, false, false)
-	defer os.RemoveAll(dir)
+	file := newTempWal(t, false, false)
 
 	params := cmdParams{
 		walPaths:    []string{file},
@@ -48,8 +47,7 @@ func Test_DumpWal_Wrong_File_Type(t *testing.T) {
 }
 
 func Test_DumpWal_File_Valid(t *testing.T) {
-	dir, file := newTempWal(t, true, false)
-	defer os.RemoveAll(dir)
+	file := newTempWal(t, true, false)
 
 	params := cmdParams{
 		walPaths: []string{file},
@@ -67,8 +65,7 @@ func Test_DumpWal_File_Valid(t *testing.T) {
 }
 
 func Test_DumpWal_Find_Duplicates_None(t *testing.T) {
-	dir, file := newTempWal(t, true, false)
-	defer os.RemoveAll(dir)
+	file := newTempWal(t, true, false)
 
 	params := cmdParams{
 		findDuplicates: true,
@@ -80,8 +77,7 @@ func Test_DumpWal_Find_Duplicates_None(t *testing.T) {
 }
 
 func Test_DumpWal_Find_Duplicates_Present(t *testing.T) {
-	dir, file := newTempWal(t, true, true)
-	defer os.RemoveAll(dir)
+	file := newTempWal(t, true, true)
 
 	params := cmdParams{
 		findDuplicates: true,
@@ -92,21 +88,25 @@ func Test_DumpWal_Find_Duplicates_Present(t *testing.T) {
 	runCommand(t, params)
 }
 
-func newTempWal(t *testing.T, validExt bool, withDuplicate bool) (string, string) {
+func newTempWal(t *testing.T, validExt bool, withDuplicate bool) string {
 	t.Helper()
 
-	dir, err := os.MkdirTemp("", "dump-wal")
-	require.NoError(t, err)
-	var file *os.File
+	dir := t.TempDir()
 
 	if !validExt {
 		file, err := os.CreateTemp(dir, "dumpwaltest*.txt")
 		require.NoError(t, err)
-		return dir, file.Name()
+		t.Cleanup(func() {
+			file.Close()
+		})
+		return file.Name()
 	}
 
-	file, err = os.CreateTemp(dir, "dumpwaltest*"+"."+tsm1.WALFileExtension)
+	file, err := os.CreateTemp(dir, "dumpwaltest*"+"."+tsm1.WALFileExtension)
 	require.NoError(t, err)
+	t.Cleanup(func() {
+		file.Close()
+	})
 
 	p1 := tsm1.NewValue(10, 1.1)
 	p2 := tsm1.NewValue(1, int64(1))
@@ -132,7 +132,7 @@ func newTempWal(t *testing.T, validExt bool, withDuplicate bool) (string, string
 	// Write to WAL File
 	writeWalFile(t, file, values)
 
-	return dir, file.Name()
+	return file.Name()
 }
 
 func writeWalFile(t *testing.T, file *os.File, vals map[string][]tsm1.Value) {

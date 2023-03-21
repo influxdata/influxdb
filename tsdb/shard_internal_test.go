@@ -3,7 +3,6 @@ package tsdb
 import (
 	"context"
 	"fmt"
-	"os"
 	"path/filepath"
 	"regexp"
 	"sort"
@@ -367,10 +366,7 @@ func NewTempShard(tb testing.TB, index string) *TempShard {
 	tb.Helper()
 
 	// Create temporary path for data and WAL.
-	dir, err := os.MkdirTemp("", "influxdb-tsdb-")
-	if err != nil {
-		panic(err)
-	}
+	dir := tb.TempDir()
 
 	// Create series file.
 	sfile := NewSeriesFile(filepath.Join(dir, "db0", SeriesFileDirectory))
@@ -398,7 +394,6 @@ func NewTempShard(tb testing.TB, index string) *TempShard {
 
 // Close closes the shard and removes all underlying data.
 func (sh *TempShard) Close() error {
-	defer os.RemoveAll(sh.path)
 	sh.sfile.Close()
 	return sh.Shard.Close()
 }

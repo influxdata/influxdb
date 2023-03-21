@@ -13,16 +13,15 @@ import (
 )
 
 func Test_Invalid_NotDir(t *testing.T) {
-	dir, err := os.MkdirTemp("", "")
-	require.NoError(t, err)
+	dir := t.TempDir()
 	file, err := os.CreateTemp(dir, "")
 	require.NoError(t, err)
-	defer os.RemoveAll(dir)
 
 	runCommand(t, testInfo{
 		dir:       file.Name(),
 		expectOut: []string{"Files: 0"},
 	})
+	require.NoError(t, file.Close())
 }
 
 func Test_Invalid_EmptyDir(t *testing.T) {

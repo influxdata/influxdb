@@ -605,11 +605,7 @@ func ReadSegment(segment *segment) string {
 }
 
 func TestSegment_repair(t *testing.T) {
-	dir, err := os.MkdirTemp("", "hh_queue")
-	if err != nil {
-		t.Fatalf("failed to create temp dir: %v", err)
-	}
-	defer os.RemoveAll(dir)
+	dir := t.TempDir()
 
 	examples := []struct {
 		In       *TestSegment
@@ -703,6 +699,9 @@ func TestSegment_repair(t *testing.T) {
 			example.VerifyFn = func([]byte) error { return nil }
 		}
 		segment := mustCreateSegment(example.In, dir, example.VerifyFn)
+		t.Cleanup(func() {
+			segment.close()
+		})
 
 		if got, exp := ReadSegment(segment), example.Expected.String(); got != exp {
 			t.Errorf("[example %d]\ngot: %s\nexp: %s\n\n", i+1, got, exp)

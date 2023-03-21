@@ -12,7 +12,7 @@ import (
 // Test that an error is returned if a manifest isn't the first thing written
 // to a digest.
 func TestEngine_DigestManifestNotWritten(t *testing.T) {
-	f := MustTempFile("")
+	f := MustTempFile(t, "")
 	w, err := tsm1.NewDigestWriter(f)
 	if err != nil {
 		t.Fatalf("NewDigestWriter: %v", err)
@@ -30,7 +30,7 @@ func TestEngine_DigestManifestNotWritten(t *testing.T) {
 // Test that a digest reader will skip over the manifest without error
 // if needed.
 func TestEngine_DigestReadSkipsManifest(t *testing.T) {
-	f := MustTempFile("")
+	f := MustTempFile(t, "")
 	w, err := tsm1.NewDigestWriter(f)
 	if err != nil {
 		t.Fatalf("NewDigestWriter: %v", err)
@@ -85,7 +85,7 @@ func TestEngine_DigestReadSkipsManifest(t *testing.T) {
 
 // Test that we get an error if a digest manifest is written twice.
 func TestEngine_DigestManifestDoubleWrite(t *testing.T) {
-	f := MustTempFile("")
+	f := MustTempFile(t, "")
 	w, err := tsm1.NewDigestWriter(f)
 	if err != nil {
 		t.Fatalf("NewDigestWriter: %v", err)
@@ -103,7 +103,7 @@ func TestEngine_DigestManifestDoubleWrite(t *testing.T) {
 
 // Test that we get an error if the manifest is read twice.
 func TestEngine_DigestManifestDoubleRead(t *testing.T) {
-	f := MustTempFile("")
+	f := MustTempFile(t, "")
 	w, err := tsm1.NewDigestWriter(f)
 	if err != nil {
 		t.Fatalf("NewDigestWriter: %v", err)
@@ -143,7 +143,7 @@ func TestEngine_DigestManifestDoubleRead(t *testing.T) {
 
 // Test writing and reading a digest.
 func TestEngine_DigestWriterReader(t *testing.T) {
-	f := MustTempFile("")
+	f := MustTempFile(t, "")
 	w, err := tsm1.NewDigestWriter(f)
 	if err != nil {
 		t.Fatalf("NewDigestWriter: %v", err)

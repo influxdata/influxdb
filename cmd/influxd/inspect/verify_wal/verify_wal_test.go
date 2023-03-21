@@ -21,12 +21,11 @@ type testInfo struct {
 }
 
 func TestVerifies_InvalidFileType(t *testing.T) {
-	path, err := os.MkdirTemp("", "verify-wal")
-	require.NoError(t, err)
+	path := t.TempDir()
 
-	_, err = os.CreateTemp(path, "verifywaltest*"+".txt")
+	f, err := os.CreateTemp(path, "verifywaltest*"+".txt")
 	require.NoError(t, err)
-	defer os.RemoveAll(path)
+	require.NoError(t, f.Close())
 
 	runCommand(testInfo{
 		t:           t,
@@ -37,8 +36,7 @@ func TestVerifies_InvalidFileType(t *testing.T) {
 }
 
 func TestVerifies_InvalidNotDir(t *testing.T) {
-	path, file := newTempWALInvalid(t, true)
-	defer os.RemoveAll(path)
+	_, file := newTempWALInvalid(t, true)
 
 	runCommand(testInfo{
 		t:           t,
@@ -50,7 +48,6 @@ func TestVerifies_InvalidNotDir(t *testing.T) {
 
 func TestVerifies_InvalidEmptyFile(t *testing.T) {
 	path, _ := newTempWALInvalid(t, true)
-	defer os.RemoveAll(path)
 
 	runCommand(testInfo{
 		t:           t,
@@ -62,7 +59,6 @@ func TestVerifies_InvalidEmptyFile(t *testing.T) {
 
 func TestVerifies_Invalid(t *testing.T) {
 	path, _ := newTempWALInvalid(t, false)
-	defer os.RemoveAll(path)
 
 	runCommand(testInfo{
 		t:           t,
@@ -74,7 +70,6 @@ func TestVerifies_Invalid(t *testing.T) {
 
 func TestVerifies_Valid(t *testing.T) {
 	path := newTempWALValid(t)
-	defer os.RemoveAll(path)
 
 	runCommand(testInfo{
 		t:           t,
@@ -108,12 +103,13 @@ func runCommand(args testInfo) {
 func newTempWALValid(t *testing.T) string {
 	t.Helper()
 
-	dir, err := os.MkdirTemp("", "verify-wal")
-	require.NoError(t, err)
+	dir := t.TempDir()
 
 	w := tsm1.NewWAL(dir, 0, 0, tsdb.EngineTags{})
-	defer w.Close()
 	require.NoError(t, w.Open())
+	t.Cleanup(func() {
+		require.NoError(t, w.Close())
+	})
 
 	p1 := tsm1.NewValue(1, 1.1)
 	p2 := tsm1.NewValue(1, int64(1))
@@ -129,7 +125,7 @@ func newTempWALValid(t *testing.T) string {
 		"cpu,host=A#!~#unsigned": {p5},
 	}
 
-	_, err = w.WriteMulti(context.Background(), values)
+	_, err := w.WriteMulti(context.Background(), values)
 	require.NoError(t, err)
 
 	return dir
@@ -138,18 +134,14 @@ func newTempWALValid(t *testing.T) string {
 func newTempWALInvalid(t *testing.T, empty bool) (string, *os.File) {
 	t.Helper()
 
-	dir, err := os.MkdirTemp("", "verify-wal")
-	require.NoError(t, err)
+	dir := t.TempDir()
 
 	file, err := os.CreateTemp(dir, "verifywaltest*."+tsm1.WALFileExtension)
 	require.NoError(t, err)
+	t.Cleanup(func() { file.Close() })
 
 	if !empty {
-		writer, err := os.OpenFile(file.Name(), os.O_APPEND|os.O_WRONLY, 0644)
-		require.NoError(t, err)
-		defer writer.Close()
-
-		written, err := writer.Write([]byte("foobar"))
+		written, err := file.Write([]byte("foobar"))
 		require.NoError(t, err)
 		require.Equal(t, 6, written)
 	}

@@ -370,9 +370,12 @@ func (p *Partition) Close() error {
 	p.mu.Lock()
 	defer p.mu.Unlock()
 
-	var err error
+	if p.fileSet == nil {
+		return nil
+	}
 
 	// Close log files.
+	var err error
 	for _, f := range p.fileSet.files {
 		if localErr := f.Close(); localErr != nil {
 			err = localErr
@@ -508,7 +511,7 @@ func (p *Partition) prependActiveLogFile() (rErr error) {
 	// Prepend and generate new fileset but do not yet update the partition
 	newFileSet := p.fileSet.PrependLogFile(f)
 
-	errors2.Capture(&rErr, func() error {
+	defer errors2.Capture(&rErr, func() error {
 		if rErr != nil {
 			// close the new file.
 			f.Close()

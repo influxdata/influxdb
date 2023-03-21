@@ -29,10 +29,7 @@ import (
 )
 
 func TestPathValidations(t *testing.T) {
-	tmpdir, err := os.MkdirTemp("", "")
-	require.Nil(t, err)
-
-	defer os.RemoveAll(tmpdir)
+	tmpdir := t.TempDir()
 
 	v1Dir := filepath.Join(tmpdir, "v1db")
 	v2Dir := filepath.Join(tmpdir, "v2db")
@@ -41,7 +38,7 @@ func TestPathValidations(t *testing.T) {
 	configsPath := filepath.Join(v2Dir, "configs")
 	enginePath := filepath.Join(v2Dir, "engine")
 
-	err = os.MkdirAll(filepath.Join(enginePath, "db"), 0777)
+	err := os.MkdirAll(filepath.Join(enginePath, "db"), 0777)
 	require.Nil(t, err)
 
 	sourceOpts := &optionsV1{
@@ -89,10 +86,7 @@ func TestPathValidations(t *testing.T) {
 }
 
 func TestClearTargetPaths(t *testing.T) {
-	tmpdir, err := os.MkdirTemp("", "")
-	require.NoError(t, err)
-
-	defer os.RemoveAll(tmpdir)
+	tmpdir := t.TempDir()
 
 	v2Dir := filepath.Join(tmpdir, "v2db")
 	boltPath := filepath.Join(v2Dir, bolt.DefaultFilename)
@@ -101,7 +95,7 @@ func TestClearTargetPaths(t *testing.T) {
 	cqPath := filepath.Join(v2Dir, "cqs")
 	configPath := filepath.Join(v2Dir, "config")
 
-	err = os.MkdirAll(filepath.Join(enginePath, "db"), 0777)
+	err := os.MkdirAll(filepath.Join(enginePath, "db"), 0777)
 	require.NoError(t, err)
 	err = os.WriteFile(boltPath, []byte{1}, 0777)
 	require.NoError(t, err)
@@ -176,11 +170,9 @@ func TestDbURL(t *testing.T) {
 func TestUpgradeRealDB(t *testing.T) {
 	ctx := context.Background()
 
-	tmpdir, err := os.MkdirTemp("", "")
-	require.NoError(t, err)
+	tmpdir := t.TempDir()
 
-	defer os.RemoveAll(tmpdir)
-	err = testutil.Unzip(filepath.Join("testdata", "v1db.zip"), tmpdir)
+	err := testutil.Unzip(filepath.Join("testdata", "v1db.zip"), tmpdir)
 	require.NoError(t, err)
 
 	v1ConfigPath := filepath.Join(tmpdir, "v1.conf")

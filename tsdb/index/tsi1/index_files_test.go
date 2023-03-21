@@ -10,7 +10,7 @@ import (
 
 // Ensure multiple index files can be compacted together.
 func TestIndexFiles_WriteTo(t *testing.T) {
-	sfile := MustOpenSeriesFile()
+	sfile := MustOpenSeriesFile(t)
 	defer sfile.Close()
 
 	// Write first file.

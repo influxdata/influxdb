@@ -20,14 +20,6 @@ type keyValues struct {
 	values []Value
 }
 
-func MustTempDir() string {
-	dir, err := os.MkdirTemp("", "tsm1-test")
-	if err != nil {
-		panic(fmt.Sprintf("failed to create temp dir: %v", err))
-	}
-	return dir
-}
-
 func MustTempFile(dir string) *os.File {
 	f, err := os.CreateTemp(dir, "tsm1test")
 	if err != nil {
@@ -72,14 +64,15 @@ func newFiles(dir string, values ...keyValues) ([]string, error) {
 
 func TestDescendingCursor_SinglePointStartTime(t *testing.T) {
 	t.Run("cache", func(t *testing.T) {
-		dir := MustTempDir()
-		defer os.RemoveAll(dir)
+		dir := t.TempDir()
 		fs := NewFileStore(dir, tsdb.EngineTags{})
+		t.Cleanup(func() { fs.Close() })
 
 		const START, END = 10, 1
 		kc := fs.KeyCursor(context.Background(), []byte("m,_field=v#!~#v"), START, false)
-		defer kc.Close()
+		t.Cleanup(kc.Close)
 		cur := newIntegerArrayDescendingCursor()
+		t.Cleanup(cur.Close)
 		// Include a cached value with timestamp equal to END
 		cur.reset(START, END, Values{NewIntegerValue(1, 1)}, kc)
 
@@ -95,9 +88,9 @@ func TestDescendingCursor_SinglePointStartTime(t *testing.T) {
 		}
 	})
 	t.Run("tsm", func(t *testing.T) {
-		dir := MustTempDir()
-		defer os.RemoveAll(dir)
+		dir := t.TempDir()
 		fs := NewFileStore(dir, tsdb.EngineTags{})
+		t.Cleanup(func() { fs.Close() })
 
 		const START, END = 10, 1
 
@@ -114,8 +107,9 @@ func TestDescendingCursor_SinglePointStartTime(t *testing.T) {
 		_ = fs.Replace(nil, files)
 
 		kc := fs.KeyCursor(context.Background(), []byte("m,_field=v#!~#v"), START, false)
-		defer kc.Close()
+		t.Cleanup(kc.Close)
 		cur := newIntegerArrayDescendingCursor()
+		t.Cleanup(cur.Close)
 		cur.reset(START, END, nil, kc)
 
 		var got []int64
@@ -132,9 +126,9 @@ func TestDescendingCursor_SinglePointStartTime(t *testing.T) {
 }
 
 func TestFileStore_DuplicatePoints(t *testing.T) {
-	dir := MustTempDir()
-	defer os.RemoveAll(dir)
+	dir := t.TempDir()
 	fs := NewFileStore(dir, tsdb.EngineTags{})
+	t.Cleanup(func() { fs.Close() })
 
 	makeVals := func(ts ...int64) []Value {
 		vals := make([]Value, len(ts))
@@ -162,9 +156,10 @@ func TestFileStore_DuplicatePoints(t *testing.T) {
 	t.Run("ascending", func(t *testing.T) {
 		const START, END = 0, 100
 		kc := fs.KeyCursor(context.Background(), []byte("m,_field=v#!~#v"), START, true)
-		defer kc.Close()
+		t.Cleanup(kc.Close)
 		cur := newFloatArrayAscendingCursor()
 		cur.reset(START, END, nil, kc)
+		t.Cleanup(cur.Close)
 
 		var got []int64
 		ar := cur.Next()
@@ -181,9 +176,10 @@ func TestFileStore_DuplicatePoints(t *testing.T) {
 	t.Run("descending", func(t *testing.T) {
 		const START, END = 100, 0
 		kc := fs.KeyCursor(context.Background(), []byte("m,_field=v#!~#v"), START, false)
-		defer kc.Close()
+		t.Cleanup(kc.Close)
 		cur := newFloatArrayDescendingCursor()
 		cur.reset(START, END, nil, kc)
+		t.Cleanup(cur.Close)
 
 		var got []int64
 		ar := cur.Next()
@@ -217,9 +213,9 @@ func (p Int64Slice) Swap(i, j int)      { p[i], p[j] = p[j], p[i] }
 // When calling `nextTSM`, a single block of 1200 timestamps will be returned and the
 // array cursor must chuck the values in the Next call.
 func TestFileStore_MergeBlocksLargerThat1000_SecondEntirelyContained(t *testing.T) {
-	dir := MustTempDir()
-	defer os.RemoveAll(dir)
+	dir := t.TempDir()
 	fs := NewFileStore(dir, tsdb.EngineTags{})
+	t.Cleanup(func() { fs.Close() })
 
 	// makeVals creates count points starting at ts and incrementing by step
 	makeVals := func(ts, count, step int64) []Value {
@@ -256,8 +252,9 @@ func TestFileStore_MergeBlocksLargerThat1000_SecondEntirelyContained(t *testing.
 	t.Run("ascending", func(t *testing.T) {
 		const START, END = 1000, 10000
 		kc := fs.KeyCursor(context.Background(), []byte("m,_field=v#!~#v"), START, true)
-		defer kc.Close()
+		t.Cleanup(kc.Close)
 		cur := newFloatArrayAscendingCursor()
+		t.Cleanup(cur.Close)
 		cur.reset(START, END, nil, kc)
 
 		exp := makeTs(1000, 800, 10)
@@ -279,8 +276,9 @@ func TestFileStore_MergeBlocksLargerThat1000_SecondEntirelyContained(t *testing.
 	t.Run("descending", func(t *testing.T) {
 		const START, END = 10000, 0
 		kc := fs.KeyCursor(context.Background(), []byte("m,_field=v#!~#v"), START, false)
-		defer kc.Close()
+		t.Cleanup(kc.Close)
 		cur := newFloatArrayDescendingCursor()
+		t.Cleanup(cur.Close)
 		cur.reset(START, END, nil, kc)
 
 		exp := makeTs(1000, 800, 10)
@@ -319,9 +317,9 @@ func (a *FloatArray) Swap(i, j int) {
 // To verify intersecting data from the second file replaces the first, the values differ,
 // so the enumerated results can be compared with the expected output.
 func TestFileStore_MergeBlocksLargerThat1000_MultipleBlocksInEachFile(t *testing.T) {
-	dir := MustTempDir()
-	defer os.RemoveAll(dir)
+	dir := t.TempDir()
 	fs := NewFileStore(dir, tsdb.EngineTags{})
+	t.Cleanup(func() { fs.Close() })
 
 	// makeVals creates count points starting at ts and incrementing by step
 	makeVals := func(ts, count, step int64, v float64) []Value {
@@ -359,8 +357,9 @@ func TestFileStore_MergeBlocksLargerThat1000_MultipleBlocksInEachFile(t *testing
 	t.Run("ascending", func(t *testing.T) {
 		const START, END = 1000, 1e9
 		kc := fs.KeyCursor(context.Background(), []byte("m,_field=v#!~#v"), START, true)
-		defer kc.Close()
+		t.Cleanup(kc.Close)
 		cur := newFloatArrayAscendingCursor()
+		t.Cleanup(cur.Close)
 		cur.reset(START, END, nil, kc)
 
 		exp := makeArray(1000, 3500, 10, 1.01)
@@ -386,8 +385,9 @@ func TestFileStore_MergeBlocksLargerThat1000_MultipleBlocksInEachFile(t *testing
 	t.Run("descending", func(t *testing.T) {
 		const START, END = 1e9, 0
 		kc := fs.KeyCursor(context.Background(), []byte("m,_field=v#!~#v"), START, false)
-		defer kc.Close()
+		t.Cleanup(kc.Close)
 		cur := newFloatArrayDescendingCursor()
+		t.Cleanup(cur.Close)
 		cur.reset(START, END, nil, kc)
 
 		exp := makeArray(1000, 3500, 10, 1.01)
@@ -413,9 +413,9 @@ func TestFileStore_MergeBlocksLargerThat1000_MultipleBlocksInEachFile(t *testing
 }
 
 func TestFileStore_SeekBoundaries(t *testing.T) {
-	dir := MustTempDir()
-	defer os.RemoveAll(dir)
+	dir := t.TempDir()
 	fs := NewFileStore(dir, tsdb.EngineTags{})
+	t.Cleanup(func() { fs.Close() })
 
 	// makeVals creates count points starting at ts and incrementing by step
 	makeVals := func(ts, count, step int64, v float64) []Value {
@@ -453,8 +453,9 @@ func TestFileStore_SeekBoundaries(t *testing.T) {
 	t.Run("ascending full", func(t *testing.T) {
 		const START, END = 1000, 1099
 		kc := fs.KeyCursor(context.Background(), []byte("m,_field=v#!~#v"), START, true)
-		defer kc.Close()
+		t.Cleanup(kc.Close)
 		cur := newFloatArrayAscendingCursor()
+		t.Cleanup(cur.Close)
 		cur.reset(START, END, nil, kc)
 
 		exp := makeArray(1000, 100, 1, 1.01)
@@ -478,8 +479,9 @@ func TestFileStore_SeekBoundaries(t *testing.T) {
 	t.Run("ascending split", func(t *testing.T) {
 		const START, END = 1050, 1149
 		kc := fs.KeyCursor(context.Background(), []byte("m,_field=v#!~#v"), START, true)
-		defer kc.Close()
+		t.Cleanup(kc.Close)
 		cur := newFloatArrayAscendingCursor()
+		t.Cleanup(cur.Close)
 		cur.reset(START, END, nil, kc)
 
 		exp := makeArray(1050, 50, 1, 1.01)
@@ -505,8 +507,9 @@ func TestFileStore_SeekBoundaries(t *testing.T) {
 	t.Run("descending full", func(t *testing.T) {
 		const START, END = 1099, 1000
 		kc := fs.KeyCursor(context.Background(), []byte("m,_field=v#!~#v"), START, false)
-		defer kc.Close()
+		t.Cleanup(kc.Close)
 		cur := newFloatArrayDescendingCursor()
+		t.Cleanup(cur.Close)
 		cur.reset(START, END, nil, kc)
 
 		exp := makeArray(1000, 100, 1, 1.01)
@@ -531,8 +534,9 @@ func TestFileStore_SeekBoundaries(t *testing.T) {
 	t.Run("descending split", func(t *testing.T) {
 		const START, END = 1149, 1050
 		kc := fs.KeyCursor(context.Background(), []byte("m,_field=v#!~#v"), START, false)
-		defer kc.Close()
+		t.Cleanup(kc.Close)
 		cur := newFloatArrayDescendingCursor()
+		t.Cleanup(cur.Close)
 		cur.reset(START, END, nil, kc)
 
 		exp := makeArray(1050, 50, 1, 1.01)

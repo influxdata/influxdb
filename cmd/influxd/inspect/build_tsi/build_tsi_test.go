@@ -55,8 +55,7 @@ func Test_BuildTSI_ShardID_Without_BucketID(t *testing.T) {
 }
 
 func Test_BuildTSI_Invalid_Index_Already_Exists(t *testing.T) {
-	tempDir := newTempDirectory(t, "", "build-tsi")
-	defer os.RemoveAll(tempDir)
+	tempDir := t.TempDir()
 
 	os.MkdirAll(filepath.Join(tempDir, "data", "12345", "autogen", "1", "index"), 0777)
 	os.MkdirAll(filepath.Join(tempDir, "wal", "12345", "autogen", "1"), 0777)
@@ -75,8 +74,7 @@ func Test_BuildTSI_Invalid_Index_Already_Exists(t *testing.T) {
 }
 
 func Test_BuildTSI_Valid(t *testing.T) {
-	tempDir := newTempDirectory(t, "", "build-tsi")
-	defer os.RemoveAll(tempDir)
+	tempDir := t.TempDir()
 
 	os.MkdirAll(filepath.Join(tempDir, "data", "12345", "autogen", "1"), 0777)
 	os.MkdirAll(filepath.Join(tempDir, "wal", "12345", "autogen", "1"), 0777)
@@ -119,8 +117,7 @@ func Test_BuildTSI_Valid(t *testing.T) {
 }
 
 func Test_BuildTSI_Valid_Batch_Size_Exceeded(t *testing.T) {
-	tempDir := newTempDirectory(t, "", "build-tsi")
-	defer os.RemoveAll(tempDir)
+	tempDir := t.TempDir()
 
 	os.MkdirAll(filepath.Join(tempDir, "data", "12345", "autogen", "1"), 0777)
 	os.MkdirAll(filepath.Join(tempDir, "wal", "12345", "autogen", "1"), 0777)
@@ -164,8 +161,7 @@ func Test_BuildTSI_Valid_Batch_Size_Exceeded(t *testing.T) {
 
 func Test_BuildTSI_Valid_Verbose(t *testing.T) {
 	// Set up temp directory structure
-	tempDir := newTempDirectory(t, "", "build-tsi")
-	defer os.RemoveAll(tempDir)
+	tempDir := t.TempDir()
 
 	os.MkdirAll(filepath.Join(tempDir, "data", "12345", "autogen", "1"), 0777)
 	os.MkdirAll(filepath.Join(tempDir, "wal", "12345", "autogen", "1"), 0777)
@@ -231,8 +227,7 @@ func Test_BuildTSI_Valid_Compact_Series(t *testing.T) {
 		t.Skip("mmap implementation on Windows prevents series-file from shrinking during compaction")
 	}
 
-	tempDir := newTempDirectory(t, "", "build-tsi")
-	defer os.RemoveAll(tempDir)
+	tempDir := t.TempDir()
 
 	os.MkdirAll(filepath.Join(tempDir, "data", "12345", "_series"), 0777)
 
@@ -393,15 +388,6 @@ func runCommand(t *testing.T, params cmdParams, outs cmdOuts) {
 			require.Contains(t, string(out), outs.expectedOut)
 		}
 	}
-}
-
-func newTempDirectory(t *testing.T, parentDir string, dirName string) string {
-	t.Helper()
-
-	dir, err := os.MkdirTemp(parentDir, dirName)
-	require.NoError(t, err)
-
-	return dir
 }
 
 func newTempTsmFile(t *testing.T, path string, values []tsm1.Value) {
