@@ -20,6 +20,7 @@ StateDirectoryMode=0750
 LogsDirectory=influxdb
 LogsDirectoryMode=0750
 UMask=0027
+TimeoutStartSec=0
 
 [Install]
 WantedBy=multi-user.target
