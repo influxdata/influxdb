@@ -150,7 +150,7 @@ impl InfluxQLQueryPlanner {
         use std::collections::hash_map::Entry;
 
         let session_cfg = ctx.inner().copied_config();
-        let cfg = session_cfg.config_options();
+        let cfg = session_cfg.options();
         let schema = ctx
             .inner()
             .catalog(&cfg.catalog.default_catalog)
