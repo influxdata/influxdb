@@ -530,6 +530,12 @@ impl<const WITH_FILES: bool> TestSetupBuilder<WITH_FILES> {
         self
     }
 
+    /// Set the compaction timeout
+    pub fn with_partition_timeout(mut self, partition_timeout: Duration) -> Self {
+        self.config.partition_timeout = partition_timeout;
+        self
+    }
+
     /// Create a [`TestSetup`]
     pub async fn build(self) -> TestSetup {
         let candidate_partition = Arc::new(PartitionInfo {
@@ -639,7 +645,7 @@ impl TestSetup {
 
         compact(
             NonZeroUsize::new(10).unwrap(),
-            Duration::from_secs(3_6000),
+            config.partition_timeout,
             job_semaphore,
             &components,
         )
