@@ -123,7 +123,14 @@ impl FlightSQLPlanner {
                 table_types,
                 include_schema,
             }) => {
-                debug!("Planning GetTables query");
+                debug!(
+                    ?catalog,
+                    ?db_schema_filter_pattern,
+                    ?table_name_filter_pattern,
+                    ?table_types,
+                    ?include_schema,
+                    "Planning GetTables query"
+                );
                 let plan = plan_get_tables(
                     ctx,
                     catalog,
@@ -302,18 +309,62 @@ static GET_DB_SCHEMAS_SCHEMA: Lazy<Schema> = Lazy::new(|| {
 /// Return a `LogicalPlan` for GetTables
 async fn plan_get_tables(
     ctx: &IOxSessionContext,
-    _catalog: Option<String>,
-    _db_schema_filter_pattern: Option<String>,
-    _table_name_filter_pattern: Option<String>,
-    _table_types: Vec<String>,
+    catalog: Option<String>,
+    db_schema_filter_pattern: Option<String>,
+    table_name_filter_pattern: Option<String>,
+    table_types: Vec<String>,
     _include_schema: bool,
 ) -> Result<LogicalPlan> {
-    let query = "SELECT table_catalog AS catalog_name, \
+    // use '%' to match anything if filters are not specified
+    let catalog = catalog.unwrap_or_else(|| String::from("%"));
+    let db_schema_filter_pattern = db_schema_filter_pattern.unwrap_or_else(|| String::from("%"));
+    let table_name_filter_pattern = table_name_filter_pattern.unwrap_or_else(|| String::from("%"));
+
+    let has_base_tables = table_types.iter().any(|t| t == "BASE TABLE");
+    let has_views = table_types.iter().any(|t| t == "VIEW");
+
+    let where_clause = match (table_types.is_empty(), has_base_tables, has_views) {
+        // user input `table_types` is not in IOx
+        (false, false, false) => "false",
+        (true, _, _) => {
+            // `table_types` is an empty vec![]
+            "table_catalog like $1 AND table_schema like $2 AND table_name like $3"
+        }
+        (false, false, true) => {
+            "table_catalog like $1 AND table_schema like $2 AND table_name like $3 \
+            AND table_type = 'VIEW'"
+        }
+        (false, true, false) => {
+            "table_catalog like $1 AND table_schema like $2 AND table_name like $3 \
+            AND table_type = 'BASE TABLE'"
+        }
+        (false, true, true) => {
+            "table_catalog like $1 AND table_schema like $2 AND table_name like $3 \
+            AND table_type IN ('BASE TABLE', 'VIEW')"
+        }
+    };
+
+    // the WHERE clause is being constructed from known strings (rather than using
+    // `table_types` directly in the SQL) to avoid a SQL injection attack
+    let query = format!(
+        "PREPARE my_plan(VARCHAR, VARCHAR, VARCHAR) AS \
+        SELECT table_catalog AS catalog_name, \
         table_schema AS db_schema_name, table_name, table_type \
         FROM information_schema.tables \
-        ORDER BY table_catalog, table_schema, table_name";
+        WHERE {} \
+        ORDER BY table_catalog, table_schema, table_name",
+        where_clause
+    );
 
-    Ok(ctx.sql_to_logical_plan(query).await?)
+    let params = vec![
+        ScalarValue::Utf8(Some(catalog)),
+        ScalarValue::Utf8(Some(db_schema_filter_pattern)),
+        ScalarValue::Utf8(Some(table_name_filter_pattern)),
+    ];
+
+    let plan = ctx.sql_to_logical_plan(query.as_str()).await?;
+    debug!(?plan, "Prepared plan is");
+    Ok(plan.with_param_values(params)?)
 }
 
 /// The schema for GetTables
@@ -333,6 +384,7 @@ static GET_TABLES_SCHEMA: Lazy<Schema> = Lazy::new(|| {
 /// entire DataFusion plan.
 async fn plan_get_table_types(ctx: &IOxSessionContext) -> Result<LogicalPlan> {
     let query = "SELECT DISTINCT table_type FROM information_schema.tables ORDER BY table_type";
+
     Ok(ctx.sql_to_logical_plan(query).await?)
 }
 
