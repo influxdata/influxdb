@@ -309,15 +309,6 @@ async fn run_plans(
     let input_uuids_inpad = scratchpad_ctx
         .load_to_scratchpad(&split_or_compact.file_input_paths())
         .await;
-    let files_inpad: Vec<_> = split_or_compact
-        .files()
-        .into_iter()
-        .zip(input_uuids_inpad)
-        .map(|(f, uuid)| ParquetFile {
-            object_store_id: uuid,
-            ..f.clone()
-        })
-        .collect();
 
     let capacity = match &split_or_compact {
         FilesToSplitOrCompact::Compact(files) => files.len(),
@@ -327,9 +318,10 @@ async fn run_plans(
     let mut created_file_params = Vec::with_capacity(capacity);
 
     let plans = match split_or_compact {
-        FilesToSplitOrCompact::Compact(_files) => {
+        FilesToSplitOrCompact::Compact(files) => {
             vec![components.ir_planner.compact_plan(
-                files_inpad,
+                files,
+                input_uuids_inpad,
                 Arc::clone(partition_info),
                 target_level,
             )]
@@ -337,14 +329,14 @@ async fn run_plans(
         FilesToSplitOrCompact::Split(files) => {
             files
                 .into_iter()
-                .zip(files_inpad.into_iter())
-                .map(|(file_to_split, file_inpad)| {
+                .zip(input_uuids_inpad)
+                .map(|(file_to_split, uuid)| {
                     // target level of a split file is the same as its level
                     let target_level = file_to_split.file.compaction_level;
 
                     components.ir_planner.split_plan(
-                        file_inpad,
-                        file_to_split.split_times.clone(),
+                        file_to_split,
+                        uuid,
                         Arc::clone(partition_info),
                         target_level,
                     )

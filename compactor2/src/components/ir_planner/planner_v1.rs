@@ -1,8 +1,10 @@
 use std::{fmt::Display, sync::Arc};
 
 use data_types::{ChunkOrder, CompactionLevel, ParquetFile, Timestamp, TimestampMinMax};
+use uuid::Uuid;
 
 use crate::{
+    file_classification::FileToSplit,
     partition_info::PartitionInfo,
     plan_ir::{FileIR, PlanIR},
 };
@@ -121,6 +123,7 @@ impl IRPlanner for V1IRPlanner {
     fn compact_plan(
         &self,
         files: Vec<ParquetFile>,
+        object_store_ids: Vec<Uuid>,
         _partition: Arc<PartitionInfo>,
         target_level: CompactionLevel,
     ) -> PlanIR {
@@ -149,9 +152,16 @@ impl IRPlanner for V1IRPlanner {
 
         let files = files
             .into_iter()
-            .map(|file| {
+            .zip(object_store_ids)
+            .map(|(file, object_store_id)| {
                 let order = order(file.compaction_level, target_level, file.max_l0_created_at);
-                FileIR { file, order }
+                FileIR {
+                    file: ParquetFile {
+                        object_store_id,
+                        ..file
+                    },
+                    order,
+                }
             })
             .collect::<Vec<_>>();
 
@@ -199,14 +209,21 @@ impl IRPlanner for V1IRPlanner {
     /// Build a plan to split a file into multiple files based on the given split times
     fn split_plan(
         &self,
-        file: ParquetFile,
-        split_times: Vec<i64>,
+        file_to_split: FileToSplit,
+        object_store_id: Uuid,
         _partition: Arc<PartitionInfo>,
         target_level: CompactionLevel,
     ) -> PlanIR {
+        let FileToSplit { file, split_times } = file_to_split;
         let order = order(file.compaction_level, target_level, file.max_l0_created_at);
 
-        let file = FileIR { file, order };
+        let file = FileIR {
+            file: ParquetFile {
+                object_store_id,
+                ..file
+            },
+            order,
+        };
 
         PlanIR::Split {
             files: vec![file],
