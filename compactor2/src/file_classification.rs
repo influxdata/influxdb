@@ -71,7 +71,7 @@ impl FilesForProgress {
 }
 
 /// Files to split or to compact
-#[derive(Debug, PartialEq, Eq)]
+#[derive(Debug, PartialEq, Eq, Clone)]
 pub enum FilesToSplitOrCompact {
     /// Nothing to do.
     None,
@@ -125,7 +125,7 @@ impl FilesToSplitOrCompact {
 }
 
 /// File to split and their split times
-#[derive(Debug, PartialEq, Eq)]
+#[derive(Debug, PartialEq, Eq, Clone)]
 pub struct FileToSplit {
     pub file: ParquetFile,
     pub split_times: Vec<i64>,

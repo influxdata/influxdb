@@ -250,7 +250,7 @@ async fn try_compact_partition(
 
             // Compact
             let created_file_params = run_plans(
-                &split_or_compact,
+                split_or_compact.clone(),
                 &partition_info,
                 &components,
                 target_level,
@@ -298,7 +298,7 @@ async fn try_compact_partition(
 
 /// Compact of split give files
 async fn run_plans(
-    split_or_compact: &FilesToSplitOrCompact,
+    split_or_compact: FilesToSplitOrCompact,
     partition_info: &Arc<PartitionInfo>,
     components: &Arc<Components>,
     target_level: CompactionLevel,
@@ -319,7 +319,7 @@ async fn run_plans(
         })
         .collect();
 
-    let capacity = match split_or_compact {
+    let capacity = match &split_or_compact {
         FilesToSplitOrCompact::Compact(files) => files.len(),
         FilesToSplitOrCompact::Split(files) => files.iter().map(|f| f.split_times.len() + 1).sum(),
         FilesToSplitOrCompact::None => 0,
