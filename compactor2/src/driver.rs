@@ -300,22 +300,44 @@ async fn try_compact_partition(
 
 /// Compact of split give files
 async fn run_plans(
-    files: &FilesToSplitOrCompact,
+    split_or_compact: &FilesToSplitOrCompact,
     partition_info: &Arc<PartitionInfo>,
     components: &Arc<Components>,
     target_level: CompactionLevel,
     job_semaphore: Arc<InstrumentedAsyncSemaphore>,
     scratchpad_ctx: &mut dyn Scratchpad,
 ) -> Result<Vec<ParquetFileParams>, DynError> {
-    match files {
-        FilesToSplitOrCompact::Compact(files) => {
-            run_compaction_plan(
-                files,
+    // stage files
+    let input_paths: Vec<ParquetFilePath> = split_or_compact
+        .files()
+        .iter()
+        .map(|f| (*f).into())
+        .collect();
+    let input_uuids_inpad = scratchpad_ctx.load_to_scratchpad(&input_paths).await;
+    let files_inpad: Vec<_> = split_or_compact
+        .files()
+        .into_iter()
+        .zip(input_uuids_inpad)
+        .map(|(f, uuid)| ParquetFile {
+            object_store_id: uuid,
+            ..f.clone()
+        })
+        .collect();
+
+    match split_or_compact {
+        FilesToSplitOrCompact::Compact(_files) => {
+            let plan_ir = components.ir_planner.compact_plan(
+                files_inpad,
+                Arc::clone(partition_info),
+                target_level,
+            );
+
+            execute_plan(
+                plan_ir,
                 partition_info,
                 components,
                 target_level,
                 job_semaphore,
-                scratchpad_ctx,
             )
             .await
         }
@@ -338,46 +360,6 @@ async fn run_plans(
         }
         FilesToSplitOrCompact::None => Ok(vec![]), // Nothing to do
     }
-}
-
-/// Compact `files` into a new parquet file of the the given target_level
-async fn run_compaction_plan(
-    files: &[ParquetFile],
-    partition_info: &Arc<PartitionInfo>,
-    components: &Arc<Components>,
-    target_level: CompactionLevel,
-    job_semaphore: Arc<InstrumentedAsyncSemaphore>,
-    scratchpad_ctx: &mut dyn Scratchpad,
-) -> Result<Vec<ParquetFileParams>, DynError> {
-    if files.is_empty() {
-        return Ok(vec![]);
-    }
-
-    // stage files
-    let input_paths: Vec<ParquetFilePath> = files.iter().map(|f| f.into()).collect();
-    let input_uuids_inpad = scratchpad_ctx.load_to_scratchpad(&input_paths).await;
-    let branch_inpad: Vec<_> = files
-        .iter()
-        .zip(input_uuids_inpad)
-        .map(|(f, uuid)| ParquetFile {
-            object_store_id: uuid,
-            ..f.clone()
-        })
-        .collect();
-
-    let plan_ir =
-        components
-            .ir_planner
-            .compact_plan(branch_inpad, Arc::clone(partition_info), target_level);
-
-    execute_plan(
-        plan_ir,
-        partition_info,
-        components,
-        target_level,
-        job_semaphore,
-    )
-    .await
 }
 
 // Split a given file into multiple files

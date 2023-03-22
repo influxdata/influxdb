@@ -99,6 +99,15 @@ impl FilesToSplitOrCompact {
         }
     }
 
+    /// References to the inner Parquet files
+    pub fn files(&self) -> Vec<&ParquetFile> {
+        match self {
+            Self::None => vec![],
+            Self::Split(files) => files.iter().map(|f| &f.file).collect(),
+            Self::Compact(files) => files.iter().collect(),
+        }
+    }
+
     /// Return files of either type
     pub fn into_files(self) -> Vec<ParquetFile> {
         match self {
