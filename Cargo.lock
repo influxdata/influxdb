@@ -1930,6 +1930,7 @@ version = "0.1.0"
 dependencies = [
  "arrow",
  "arrow-flight",
+ "arrow_util",
  "bytes",
  "datafusion",
  "futures",

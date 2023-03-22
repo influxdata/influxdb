@@ -8,6 +8,7 @@ edition = "2021"
 [dependencies]
 arrow = { workspace = true, features = ["prettyprint"] }
 arrow-flight = { workspace = true, features = ["flight-sql-experimental"] }
+arrow_util = { path = "../arrow_util" }
 datafusion = { workspace = true }
 observability_deps = { path = "../observability_deps" }
 iox_query = { path = "../iox_query" }

@@ -14,6 +14,7 @@ use arrow_flight::{
     },
     IpcMessage, SchemaAsIpc,
 };
+use arrow_util::flight::prepare_schema_for_flight;
 use bytes::Bytes;
 use datafusion::{logical_expr::LogicalPlan, physical_plan::ExecutionPlan, scalar::ScalarValue};
 use iox_query::{exec::IOxSessionContext, QueryNamespace};
@@ -210,7 +211,8 @@ async fn get_schema_for_query(query: &str, ctx: &IOxSessionContext) -> Result<By
 /// returns: IPC encoded (schema_bytes) for this query
 fn get_schema_for_plan(logical_plan: LogicalPlan) -> Result<Bytes> {
     // gather real schema, but only
-    let schema = Schema::from(logical_plan.schema().as_ref());
+    let schema = Arc::new(Schema::from(logical_plan.schema().as_ref())) as _;
+    let schema = prepare_schema_for_flight(schema);
     encode_schema(&schema)
 }
 

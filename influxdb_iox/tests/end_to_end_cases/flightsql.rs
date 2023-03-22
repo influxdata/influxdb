@@ -1,11 +1,14 @@
-use std::path::PathBuf;
+use std::{collections::HashMap, path::PathBuf, sync::Arc};
 
-use arrow::record_batch::RecordBatch;
+use arrow::{
+    datatypes::{Schema, SchemaRef},
+    record_batch::RecordBatch,
+};
 use arrow_flight::{
     decode::FlightRecordBatchStream,
     sql::{
         Any, CommandGetCatalogs, CommandGetDbSchemas, CommandGetSqlInfo, CommandGetTableTypes,
-        CommandGetTables, ProstMessageExt, SqlInfo,
+        CommandGetTables, CommandStatementQuery, ProstMessageExt, SqlInfo,
     },
     FlightClient, FlightDescriptor,
 };
@@ -658,12 +661,10 @@ async fn flightsql_schema_matches() {
 
                     // Verify schema for each type of command
                     let cases = vec![
-                        // CommandStatementQuery fails because of
-                        // https://github.com/influxdata/influxdb_iox/issues/7279>
-                        // CommandStatementQuery {
-                        //     query: format!("select * from {table_name}"),
-                        // }
-                        // .as_any(),
+                        CommandStatementQuery {
+                            query: format!("select * from {table_name}"),
+                        }
+                        .as_any(),
                         CommandGetSqlInfo { info: vec![] }.as_any(),
                         CommandGetCatalogs {}.as_any(),
                         CommandGetDbSchemas {
@@ -717,15 +718,37 @@ async fn assert_schema(client: &mut FlightClient, cmd: Any) {
     let mut saw_data = false;
     while let Some(batch) = result_stream.try_next().await.unwrap() {
         saw_data = true;
-        assert_eq!(batch.schema().as_ref(), &flight_info_schema);
+        // strip metadata (GetFlightInfo doesn't include metadata for
+        // some reason) before comparison
+        // https://github.com/influxdata/influxdb_iox/issues/7282
+        let batch_schema = strip_metadata(&batch.schema());
+        assert_eq!(
+            batch_schema.as_ref(),
+            &flight_info_schema,
+            "batch_schema:\n{batch_schema:#?}\n\nflight_info_schema:\n{flight_info_schema:#?}"
+        );
         // The stream itself also may report a schema
         if let Some(stream_schema) = result_stream.schema() {
+            // strip metadata (GetFlightInfo doesn't include metadata for
+            // some reason) before comparison
+            // https://github.com/influxdata/influxdb_iox/issues/7282
+            let stream_schema = strip_metadata(stream_schema);
             assert_eq!(stream_schema.as_ref(), &flight_info_schema);
         }
     }
     // verify we have seen at least one RecordBatch
     // (all FlightSQL endpoints return at least one)
     assert!(saw_data);
+}
+
+fn strip_metadata(schema: &Schema) -> SchemaRef {
+    let stripped_fields: Vec<_> = schema
+        .fields()
+        .iter()
+        .map(|f| f.clone().with_metadata(HashMap::new()))
+        .collect();
+
+    Arc::new(Schema::new(stripped_fields))
 }
 
 /// Return a [`FlightSqlClient`] configured for use

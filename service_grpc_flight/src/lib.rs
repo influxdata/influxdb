@@ -4,9 +4,7 @@
 mod request;
 
 use arrow::{
-    datatypes::{DataType, Field, Schema, SchemaRef},
-    error::ArrowError,
-    ipc::writer::IpcWriteOptions,
+    datatypes::SchemaRef, error::ArrowError, ipc::writer::IpcWriteOptions,
     record_batch::RecordBatch,
 };
 use arrow_flight::{
@@ -16,6 +14,7 @@ use arrow_flight::{
     Action, ActionType, Criteria, Empty, FlightData, FlightDescriptor, FlightEndpoint, FlightInfo,
     HandshakeRequest, HandshakeResponse, PutResult, SchemaAsIpc, SchemaResult, Ticket,
 };
+use arrow_util::flight::prepare_schema_for_flight;
 use bytes::Bytes;
 use data_types::NamespaceNameError;
 use datafusion::{error::DataFusionError, physical_plan::ExecutionPlan};
@@ -797,29 +796,6 @@ impl Stream for IOxFlightDataEncoder {
             }
         }
     }
-}
-
-/// Prepare an arrow Schema for transport over the Arrow Flight protocol
-///
-/// Convert dictionary types to underlying types
-///
-/// See hydrate_dictionary for more information
-fn prepare_schema_for_flight(schema: SchemaRef) -> SchemaRef {
-    let fields = schema
-        .fields()
-        .iter()
-        .map(|field| match field.data_type() {
-            DataType::Dictionary(_, value_type) => Field::new(
-                field.name(),
-                value_type.as_ref().clone(),
-                field.is_nullable(),
-            )
-            .with_metadata(field.metadata().clone()),
-            _ => field.clone(),
-        })
-        .collect();
-
-    Arc::new(Schema::new(fields).with_metadata(schema.metadata().clone()))
 }
 
 impl Stream for GetStream {
