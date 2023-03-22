@@ -452,7 +452,7 @@ impl MiniCluster {
         }
     }
 
-    pub fn run_compaction(&self) {
+    pub fn run_compaction(&self) -> Result<(), String> {
         let (log_file, log_path) = NamedTempFile::new()
             .expect("opening log file")
             .keep()
@@ -500,11 +500,15 @@ impl MiniCluster {
 
         log_command(command);
 
-        if let Err(e) = command.ok() {
-            dump_log_to_stdout("compactor run-once", &log_path);
-            panic!("Command failed: {:?}", e);
-        }
+        let run_result = command.ok();
+
         dump_log_to_stdout("compactor run-once", &log_path);
+
+        // Return the command output from the log file as the error message to enable
+        // assertions on the error message contents
+        run_result.map_err(|_| std::fs::read_to_string(&log_path).unwrap())?;
+
+        Ok(())
     }
 
     /// Create a storage client connected to the querier member of the cluster

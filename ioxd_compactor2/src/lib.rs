@@ -141,13 +141,6 @@ pub async fn create_compactor2_server_type(
     compactor_config: Compactor2Config,
 ) -> Arc<dyn ServerType> {
     let backoff_config = BackoffConfig::default();
-    let shard_id = Config::fetch_shard_id(
-        Arc::clone(&catalog),
-        backoff_config.clone(),
-        TOPIC.to_string(),
-        TRANSITION_SHARD_INDEX,
-    )
-    .await;
 
     assert!(
         compactor_config.shard_id.is_some() == compactor_config.shard_count.is_some(),
@@ -172,6 +165,13 @@ pub async fn create_compactor2_server_type(
         ),
     };
 
+    let shard_id = Config::fetch_shard_id(
+        Arc::clone(&catalog),
+        backoff_config.clone(),
+        TOPIC.to_string(),
+        TRANSITION_SHARD_INDEX,
+    )
+    .await;
     let compactor = Compactor2::start(Config {
         shard_id,
         metric_registry: Arc::clone(&metric_registry),

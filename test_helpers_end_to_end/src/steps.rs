@@ -9,6 +9,7 @@ use futures::future::BoxFuture;
 use http::StatusCode;
 use observability_deps::tracing::info;
 use std::{path::PathBuf, time::Duration};
+use test_helpers::assert_contains;
 
 const MAX_QUERY_RETRY_TIME_SEC: u64 = 20;
 
@@ -161,8 +162,12 @@ pub enum Step {
     /// (i.e. never drop data).
     SetRetention(Option<i64>),
 
-    /// Run one hot and one cold compaction operation and wait for it to finish.
+    /// Run one compaction operation and wait for it to finish, expecting success.
     Compact,
+
+    /// Run one compaction operation and wait for it to finish, expecting an error that matches
+    /// the specified message.
+    CompactExpectingError { expected_message: String },
 
     /// Run a SQL query using the FlightSQL interface and verify that the
     /// results match the expected results using the
@@ -309,9 +314,18 @@ where
                 }
                 Step::Compact => {
                     info!("====Begin running compaction");
-                    state.cluster.run_compaction();
+                    state.cluster.run_compaction().unwrap();
                     info!("====Done running compaction");
                 }
+                Step::CompactExpectingError { expected_message } => {
+                    info!("====Begin running compaction expected to error");
+                    let err = state.cluster.run_compaction().unwrap_err();
+
+                    assert_contains!(err, expected_message);
+
+                    info!("====Done running");
+                }
+
                 Step::SetRetention(retention_period_ns) => {
                     info!("====Begin setting retention period to {retention_period_ns:?}");
                     let namespace = state.cluster().namespace();
