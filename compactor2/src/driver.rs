@@ -296,7 +296,7 @@ async fn try_compact_partition(
     }
 }
 
-/// Compact of split give files
+/// Compact or split given files
 async fn run_plans(
     split_or_compact: FilesToSplitOrCompact,
     partition_info: &Arc<PartitionInfo>,
@@ -310,41 +310,14 @@ async fn run_plans(
         .load_to_scratchpad(&split_or_compact.file_input_paths())
         .await;
 
-    let capacity = match &split_or_compact {
-        FilesToSplitOrCompact::Compact(files) => files.len(),
-        FilesToSplitOrCompact::Split(files) => files.iter().map(|f| f.split_times.len() + 1).sum(),
-        FilesToSplitOrCompact::None => 0,
-    };
+    let plans = components.ir_planner.create_plans(
+        Arc::clone(partition_info),
+        target_level,
+        split_or_compact,
+        input_uuids_inpad,
+    );
+    let capacity = plans.iter().map(|p| p.n_output_files()).sum();
     let mut created_file_params = Vec::with_capacity(capacity);
-
-    let plans = match split_or_compact {
-        FilesToSplitOrCompact::Compact(files) => {
-            vec![components.ir_planner.compact_plan(
-                files,
-                input_uuids_inpad,
-                Arc::clone(partition_info),
-                target_level,
-            )]
-        }
-        FilesToSplitOrCompact::Split(files) => {
-            files
-                .into_iter()
-                .zip(input_uuids_inpad)
-                .map(|(file_to_split, uuid)| {
-                    // target level of a split file is the same as its level
-                    let target_level = file_to_split.file.compaction_level;
-
-                    components.ir_planner.split_plan(
-                        file_to_split,
-                        uuid,
-                        Arc::clone(partition_info),
-                        target_level,
-                    )
-                })
-                .collect()
-        }
-        FilesToSplitOrCompact::None => vec![], // Nothing to do
-    };
 
     for plan_ir in plans {
         created_file_params.extend(

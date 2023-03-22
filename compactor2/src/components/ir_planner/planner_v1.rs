@@ -5,6 +5,7 @@ use uuid::Uuid;
 
 use crate::{
     file_classification::FileToSplit,
+    file_classification::FilesToSplitOrCompact,
     partition_info::PartitionInfo,
     plan_ir::{FileIR, PlanIR},
 };
@@ -118,6 +119,39 @@ impl Display for V1IRPlanner {
 }
 
 impl IRPlanner for V1IRPlanner {
+    /// Build compact or split plans as appropriate
+    fn create_plans(
+        &self,
+        partition: Arc<PartitionInfo>,
+        target_level: CompactionLevel,
+        split_or_compact: FilesToSplitOrCompact,
+        object_store_ids: Vec<Uuid>,
+    ) -> Vec<PlanIR> {
+        match split_or_compact {
+            FilesToSplitOrCompact::Compact(files) => {
+                vec![self.compact_plan(files, object_store_ids, partition, target_level)]
+            }
+            FilesToSplitOrCompact::Split(files) => {
+                files
+                    .into_iter()
+                    .zip(object_store_ids)
+                    .map(|(file_to_split, object_store_id)| {
+                        // target level of a split file is the same as its level
+                        let target_level = file_to_split.file.compaction_level;
+
+                        self.split_plan(
+                            file_to_split,
+                            object_store_id,
+                            Arc::clone(&partition),
+                            target_level,
+                        )
+                    })
+                    .collect()
+            }
+            FilesToSplitOrCompact::None => vec![], // Nothing to do
+        }
+    }
+
     /// Build a plan to compact many files into a single file. Since we limit the size of the files,
     /// if the compact result is larger than that limit, we will split the output into many files
     fn compact_plan(

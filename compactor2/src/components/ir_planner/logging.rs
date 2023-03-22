@@ -4,7 +4,11 @@ use data_types::{CompactionLevel, ParquetFile};
 use observability_deps::tracing::info;
 use uuid::Uuid;
 
-use crate::{file_classification::FileToSplit, partition_info::PartitionInfo, plan_ir::PlanIR};
+use crate::{
+    file_classification::{FileToSplit, FilesToSplitOrCompact},
+    partition_info::PartitionInfo,
+    plan_ir::PlanIR,
+};
 
 use super::IRPlanner;
 
@@ -38,6 +42,17 @@ impl<T> IRPlanner for LoggingIRPlannerWrapper<T>
 where
     T: IRPlanner,
 {
+    fn create_plans(
+        &self,
+        partition: Arc<PartitionInfo>,
+        target_level: CompactionLevel,
+        split_or_compact: FilesToSplitOrCompact,
+        object_store_ids: Vec<Uuid>,
+    ) -> Vec<PlanIR> {
+        self.inner
+            .create_plans(partition, target_level, split_or_compact, object_store_ids)
+    }
+
     fn compact_plan(
         &self,
         files: Vec<ParquetFile>,
