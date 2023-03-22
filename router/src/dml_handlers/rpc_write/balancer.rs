@@ -8,6 +8,7 @@ use tokio::task::JoinHandle;
 use super::{
     circuit_breaker::CircuitBreaker,
     circuit_breaking_client::{CircuitBreakerState, CircuitBreakingClient},
+    upstream_snapshot::UpstreamSnapshot,
 };
 
 thread_local! {
@@ -67,7 +68,7 @@ where
     /// evaluated at this point and the result is returned to the caller as an
     /// infinite / cycling iterator. A node that becomes unavailable after the
     /// snapshot was taken will continue to be returned by the iterator.
-    pub(super) fn endpoints(&self) -> impl Iterator<Item = &'_ CircuitBreakingClient<T, C>> {
+    pub(super) fn endpoints(&self) -> UpstreamSnapshot<'_, CircuitBreakingClient<T, C>> {
         // Grab and increment the current counter.
         let counter = COUNTER.with(|cell| {
             let mut cell = cell.borrow_mut();
@@ -114,7 +115,7 @@ where
             }
         };
 
-        probe.into_iter().chain(healthy).cycle().skip(idx)
+        UpstreamSnapshot::new(probe.into_iter().chain(healthy), idx)
     }
 }
 
@@ -310,7 +311,8 @@ mod tests {
     }
 
     /// A test that ensures only healthy clients are returned by the balancer,
-    /// and that they are polled exactly once per request.
+    /// and that they are polled exactly once per call to
+    /// [`Balancer::endpoints()`].
     #[tokio::test]
     async fn test_balancer_yield_healthy_polled_once() {
         const BALANCER_CALLS: usize = 10;
@@ -377,8 +379,8 @@ mod tests {
     async fn test_balancer_upstream_recovery() {
         const BALANCER_CALLS: usize = 10;
 
-        // Initialise 3 RPC clients and configure their mock circuit breakers;
-        // two returns a unhealthy state, one is healthy.
+        // Initialise a single client and configure its mock circuit breaker to
+        // return unhealthy.
         let circuit = Arc::new(MockCircuitBreaker::default());
         circuit.set_healthy(false);
         circuit.set_should_probe(false);
@@ -389,12 +391,15 @@ mod tests {
 
         let balancer = Balancer::new([client], None);
 
+        // The balancer should yield no candidates.
         let mut endpoints = balancer.endpoints();
         assert_matches!(endpoints.next(), None);
         assert_eq!(circuit.is_healthy_count(), 1);
 
+        // Mark the client as healthy.
         circuit.set_healthy(true);
 
+        // A single client should be yielded
         let mut endpoints = balancer.endpoints();
         assert_matches!(endpoints.next(), Some(_));
         assert_eq!(circuit.is_healthy_count(), 2);

@@ -15,6 +15,7 @@ use mutable_batch_lp::LinesConverter;
 use observability_deps::tracing::*;
 use predicate::delete_predicate::parse_delete_predicate;
 use serde::Deserialize;
+use server_util::authorization::AuthorizationHeaderExtension;
 use std::{str::Utf8Error, sync::Arc, time::Instant};
 use thiserror::Error;
 use tokio::sync::{Semaphore, TryAcquireError};
@@ -415,8 +416,9 @@ where
 
         if let Some(authz) = &self.authz {
             let token = req
-                .headers()
-                .get(hyper::header::AUTHORIZATION)
+                .extensions()
+                .get::<AuthorizationHeaderExtension>()
+                .and_then(|v| v.as_ref())
                 .and_then(|v| {
                     let s = v.as_ref();
                     if s.len() < b"Token ".len() {
@@ -1439,7 +1441,9 @@ mod tests {
         let request = Request::builder()
             .uri("https://bananas.example/api/v2/write?org=bananas&bucket=test")
             .method("POST")
-            .header("Authorization", "Token GOOD")
+            .extension(AuthorizationHeaderExtension::new(Some(
+                HeaderValue::from_str("Token GOOD").expect("ok"),
+            )))
             .body(Body::from("platanos,tag1=A,tag2=B val=42i 123456"))
             .unwrap();
 
@@ -1449,7 +1453,9 @@ mod tests {
         let request = Request::builder()
             .uri("https://bananas.example/api/v2/write?org=bananas&bucket=test")
             .method("POST")
-            .header("Authorization", "Token BAD")
+            .extension(AuthorizationHeaderExtension::new(Some(
+                HeaderValue::from_str("Token BAD").expect("ok"),
+            )))
             .body(Body::from(""))
             .unwrap();
 
@@ -1468,7 +1474,9 @@ mod tests {
         let request = Request::builder()
             .uri("https://bananas.example/api/v2/write?org=bananas&bucket=test")
             .method("POST")
-            .header("Authorization", "Token UGLY")
+            .extension(AuthorizationHeaderExtension::new(Some(
+                HeaderValue::from_str("Token UGLY").expect("ok"),
+            )))
             .body(Body::from(""))
             .unwrap();
 

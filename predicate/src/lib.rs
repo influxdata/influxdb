@@ -600,7 +600,18 @@ impl From<ValueExpr> for Expr {
     }
 }
 
-/// Recursively walk an expression tree, checking if the expression is row-based.
+/// Recursively walk an expression tree, checking if the expression is
+/// row-based.
+///
+/// A row-based function takes one row in and produces
+/// one value as output.
+///
+/// Note that even though a predicate expression  like `col < 5` can be used to
+/// filter rows, the expression itself is row-based (produces a single boolean).
+///
+/// Examples of non row based expressions are Aggregate and
+/// Window function which produce different cardinality than their
+/// input.
 struct RowBasedVisitor {
     row_based: bool,
 }
@@ -637,6 +648,7 @@ impl ExpressionVisitor for RowBasedVisitor {
             | Expr::Literal(_)
             | Expr::Negative(_)
             | Expr::Not(_)
+            | Expr::OuterReferenceColumn(_, _)
             | Expr::Placeholder { .. }
             | Expr::QualifiedWildcard { .. }
             | Expr::ScalarFunction { .. }

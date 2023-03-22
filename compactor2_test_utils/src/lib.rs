@@ -530,6 +530,12 @@ impl<const WITH_FILES: bool> TestSetupBuilder<WITH_FILES> {
         self
     }
 
+    /// Set the compaction timeout
+    pub fn with_partition_timeout(mut self, partition_timeout: Duration) -> Self {
+        self.config.partition_timeout = partition_timeout;
+        self
+    }
+
     /// Create a [`TestSetup`]
     pub async fn build(self) -> TestSetup {
         let candidate_partition = Arc::new(PartitionInfo {
@@ -589,6 +595,11 @@ impl TestSetup {
             .await
     }
 
+    /// Get the parquet files including the soft-deleted stored in the catalog
+    pub async fn list_by_table(&self) -> Vec<ParquetFile> {
+        self.catalog.list_by_table(self.table.table.id).await
+    }
+
     /// Reads the specified parquet file out of object store
     pub async fn read_parquet_file(&self, file: ParquetFile) -> Vec<RecordBatch> {
         assert_eq!(file.table_id, self.table.table.id);
@@ -639,7 +650,7 @@ impl TestSetup {
 
         compact(
             NonZeroUsize::new(10).unwrap(),
-            Duration::from_secs(3_6000),
+            config.partition_timeout,
             job_semaphore,
             &components,
         )

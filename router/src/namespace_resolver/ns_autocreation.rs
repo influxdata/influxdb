@@ -10,7 +10,7 @@ use super::NamespaceResolver;
 use crate::namespace_cache::NamespaceCache;
 
 /// What to do when the namespace doesn't exist
-#[derive(Debug)]
+#[derive(Debug, Copy, Clone)]
 pub enum MissingNamespaceAction {
     /// Automatically create the namespace using the given retention period.
     AutoCreate(Option<i64>),

@@ -679,6 +679,10 @@ pub trait ParquetFileRepo: Send + Sync {
     /// [`to_delete`](ParquetFile::to_delete).
     async fn list_by_table_not_to_delete(&mut self, table_id: TableId) -> Result<Vec<ParquetFile>>;
 
+    /// List all parquet files within a given table including those marked as [`to_delete`](ParquetFile::to_delete).
+    /// This is for debug purpose
+    async fn list_by_table(&mut self, table_id: TableId) -> Result<Vec<ParquetFile>>;
+
     /// Delete all parquet files that were marked to be deleted earlier than the specified time.
     /// Returns the deleted records.
     async fn delete_old(&mut self, older_than: Timestamp) -> Result<Vec<ParquetFile>>;
@@ -2743,6 +2747,15 @@ pub(crate) mod test_helpers {
         assert_matches!(deleted_files.as_slice(), []);
         assert!(repos.parquet_files().exist(parquet_file.id).await.unwrap());
 
+        // test list_by_table that includes soft-deleted file
+        // at this time the file is not soft-deleted yet and will be included in the returned list
+        let files = repos
+            .parquet_files()
+            .list_by_table(parquet_file.table_id)
+            .await
+            .unwrap();
+        assert_eq!(files.len(), 1);
+
         // verify to_delete can be updated to a timestamp
         repos
             .parquet_files()
@@ -2757,6 +2770,15 @@ pub(crate) mod test_helpers {
         let marked_deleted = files.first().unwrap();
         assert!(marked_deleted.to_delete.is_some());
 
+        // test list_by_table that includes soft-deleted file
+        // at this time the file is soft-deleted and will be included in the returned list
+        let files = repos
+            .parquet_files()
+            .list_by_table(parquet_file.table_id)
+            .await
+            .unwrap();
+        assert_eq!(files.len(), 1);
+
         // File is not deleted if it was marked to be deleted after the specified time
         let before_deleted = Timestamp::new(
             (catalog.time_provider().now() - Duration::from_secs(100)).timestamp_nanos(),
@@ -2769,11 +2791,30 @@ pub(crate) mod test_helpers {
         assert!(deleted_files.is_empty());
         assert!(repos.parquet_files().exist(parquet_file.id).await.unwrap());
 
+        // test list_by_table that includes soft-deleted file
+        // at this time the file is not actually hard deleted yet and stay as soft deleted
+        // and will be returned in the list
+        let files = repos
+            .parquet_files()
+            .list_by_table(parquet_file.table_id)
+            .await
+            .unwrap();
+        assert_eq!(files.len(), 1);
+
         // File is deleted if it was marked to be deleted before the specified time
         let deleted_files = repos.parquet_files().delete_old(older_than).await.unwrap();
         assert_eq!(deleted_files.len(), 1);
         assert_eq!(marked_deleted, &deleted_files[0]);
         assert!(!repos.parquet_files().exist(parquet_file.id).await.unwrap());
+
+        // test list_by_table that includes soft-deleted file
+        // at this time the file is hard deleted -> the returned list is empty
+        let files = repos
+            .parquet_files()
+            .list_by_table(parquet_file.table_id)
+            .await
+            .unwrap();
+        assert_eq!(files.len(), 0);
 
         // test list_by_table_not_to_delete
         let files = repos
@@ -2788,6 +2829,16 @@ pub(crate) mod test_helpers {
             .await
             .unwrap();
         assert_eq!(files, vec![other_file.clone()]);
+
+        // test list_by_table
+        println!("parquet_file.table_id = {}", parquet_file.table_id);
+        let files = repos
+            .parquet_files()
+            // .list_by_table(parquet_file.table_id) // todo: tables of deleted files
+            .list_by_table(other_file.table_id)
+            .await
+            .unwrap();
+        assert_eq!(files.len(), 1);
 
         // test list_by_namespace_not_to_delete
         let namespace2 = repos

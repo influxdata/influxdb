@@ -1,13 +1,21 @@
 use std::path::PathBuf;
 
 use arrow::record_batch::RecordBatch;
-use arrow_flight::decode::FlightRecordBatchStream;
+use arrow_flight::{
+    decode::FlightRecordBatchStream,
+    sql::{
+        Any, CommandGetCatalogs, CommandGetDbSchemas, CommandGetSqlInfo, CommandGetTableTypes,
+        CommandGetTables, ProstMessageExt, SqlInfo,
+    },
+    FlightClient, FlightDescriptor,
+};
 use arrow_util::test_util::batches_to_sorted_lines;
 use assert_cmd::Command;
 use datafusion::common::assert_contains;
 use futures::{FutureExt, TryStreamExt};
 use influxdb_iox_client::flightsql::FlightSqlClient;
 use predicates::prelude::*;
+use prost::Message;
 use test_helpers_end_to_end::{maybe_skip_integration, MiniCluster, Step, StepTest, StepTestState};
 
 #[tokio::test]
@@ -141,6 +149,82 @@ async fn flightsql_prepared_query() {
 }
 
 #[tokio::test]
+async fn flightsql_get_sql_infos() {
+    test_helpers::maybe_start_logging();
+    let database_url = maybe_skip_integration!();
+
+    let table_name = "the_table";
+
+    // Set up the cluster  ====================================
+    let mut cluster = MiniCluster::create_shared2(database_url).await;
+
+    StepTest::new(
+        &mut cluster,
+        vec![
+            Step::WriteLineProtocol(format!(
+                "{table_name},tag1=A,tag2=B val=42i 123456\n\
+                 {table_name},tag1=A,tag2=C val=43i 123457"
+            )),
+            Step::Custom(Box::new(move |state: &mut StepTestState| {
+                async move {
+                    let mut client = flightsql_client(state.cluster());
+
+                    // test with no filtering
+                    let batches = collect_stream(client.get_sql_info(vec![]).await.unwrap()).await;
+                    let total_rows: usize = batches.iter().map(|b| b.num_rows()).sum();
+                    // 85 `SqlInfo` entries are returned by IOx's GetSqlInfo implementation
+                    // if we change what is returned then this number should be updated too
+                    assert_eq!(total_rows, 85);
+
+                    // only retrieve requested metadata
+                    let infos = vec![
+                        SqlInfo::FlightSqlServerName as u32,
+                        SqlInfo::FlightSqlServerArrowVersion as u32,
+                        SqlInfo::SqlBatchUpdatesSupported as u32,
+                        999999, //  model some unknown info requested
+                    ];
+
+                    let batches = collect_stream(client.get_sql_info(infos).await.unwrap()).await;
+
+                    insta::assert_yaml_snapshot!(
+                        batches_to_sorted_lines(&batches),
+                        @r###"
+                    ---
+                    - +-----------+-----------------------------+
+                    - "| info_name | value                       |"
+                    - +-----------+-----------------------------+
+                    - "| 0         | {string_value=InfluxDB IOx} |"
+                    - "| 2         | {string_value=1.3}          |"
+                    - "| 572       | {bool_value=false}          |"
+                    - +-----------+-----------------------------+
+                    "###
+                    );
+
+                    // Test zero case (nothing matches)
+                    let infos = vec![
+                        999999, //  model some unknown info requested
+                    ];
+
+                    let batches = collect_stream(client.get_sql_info(infos).await.unwrap()).await;
+
+                    insta::assert_yaml_snapshot!(
+                        batches_to_sorted_lines(&batches),
+                        @r###"
+                    ---
+                    - ++
+                    - ++
+                    "###
+                    );
+                }
+                .boxed()
+            })),
+        ],
+    )
+    .run()
+    .await
+}
+
+#[tokio::test]
 async fn flightsql_get_catalogs() {
     test_helpers::maybe_start_logging();
     let database_url = maybe_skip_integration!();
@@ -173,6 +257,58 @@ async fn flightsql_get_catalogs() {
                     - +--------------+
                     - "| public       |"
                     - +--------------+
+                    "###
+                    );
+                }
+                .boxed()
+            })),
+        ],
+    )
+    .run()
+    .await
+}
+
+#[tokio::test]
+async fn flightsql_get_tables() {
+    test_helpers::maybe_start_logging();
+    let database_url = maybe_skip_integration!();
+
+    let table_name = "the_table";
+
+    // Set up the cluster  ====================================
+    let mut cluster = MiniCluster::create_shared2(database_url).await;
+
+    StepTest::new(
+        &mut cluster,
+        vec![
+            Step::WriteLineProtocol(format!(
+                "{table_name},tag1=A,tag2=B val=42i 123456\n\
+                 {table_name},tag1=A,tag2=C val=43i 123457"
+            )),
+            Step::Custom(Box::new(move |state: &mut StepTestState| {
+                async move {
+                    let mut client = flightsql_client(state.cluster());
+
+                    let stream = client
+                        .get_tables(Some(""), Some(""), Some(""), None)
+                        .await
+                        .unwrap();
+                    let batches = collect_stream(stream).await;
+
+                    insta::assert_yaml_snapshot!(
+                        batches_to_sorted_lines(&batches),
+                        @r###"
+                    ---
+                    - +--------------+--------------------+-------------+------------+
+                    - "| catalog_name | db_schema_name     | table_name  | table_type |"
+                    - +--------------+--------------------+-------------+------------+
+                    - "| public       | information_schema | columns     | VIEW       |"
+                    - "| public       | information_schema | df_settings | VIEW       |"
+                    - "| public       | information_schema | tables      | VIEW       |"
+                    - "| public       | information_schema | views       | VIEW       |"
+                    - "| public       | iox                | the_table   | BASE TABLE |"
+                    - "| public       | system             | queries     | BASE TABLE |"
+                    - +--------------+--------------------+-------------+------------+
                     "###
                     );
                 }
@@ -448,6 +584,18 @@ async fn flightsql_jdbc() {
                                             information_schema,  public\n\
                                             iox,  public\n\
                                             system,  public";
+                    // CommandGetTables output
+                    let expected_tables = "**************\n\
+                                           Tables:\n\
+                                           **************\n\
+                                           TABLE_CAT,  TABLE_SCHEM,  TABLE_NAME,  TABLE_TYPE,  REMARKS,  TYPE_CAT,  TYPE_SCHEM,  TYPE_NAME,  SELF_REFERENCING_COL_NAME,  REF_GENERATION\n\
+                                           ------------\n\
+                                           public,  information_schema,  columns,  VIEW,  null,  null,  null,  null,  null,  null\n\
+                                           public,  information_schema,  df_settings,  VIEW,  null,  null,  null,  null,  null,  null\n\
+                                           public,  information_schema,  tables,  VIEW,  null,  null,  null,  null,  null,  null\n\
+                                           public,  information_schema,  views,  VIEW,  null,  null,  null,  null,  null,  null\n\
+                                           public,  iox,  the_table,  BASE TABLE,  null,  null,  null,  null,  null,  null\n\
+                                           public,  system,  queries,  BASE TABLE,  null,  null,  null,  null,  null,  null";
 
                     // CommandGetTableTypes output
                     let expected_table_types = "**************\n\
@@ -459,14 +607,23 @@ async fn flightsql_jdbc() {
                                                 VIEW";
 
                     // Validate metadata: jdbc_client <url> metadata
-                    Command::from_std(std::process::Command::new(&path))
+                    let mut assert = Command::from_std(std::process::Command::new(&path))
                         .arg(&jdbc_url)
                         .arg("metadata")
                         .assert()
                         .success()
                         .stdout(predicate::str::contains(expected_catalogs))
                         .stdout(predicate::str::contains(expected_schemas))
+                        .stdout(predicate::str::contains(expected_tables))
                         .stdout(predicate::str::contains(expected_table_types));
+
+                    let expected_metadata = EXPECTED_METADATA
+                        .trim()
+                        .replace("REPLACE_ME_WITH_JBDC_URL", &jdbc_url);
+
+                    for expected in expected_metadata.lines() {
+                        assert = assert.stdout(predicate::str::contains(expected));
+                    }
                 }
                 .boxed()
             })),
@@ -474,6 +631,101 @@ async fn flightsql_jdbc() {
     )
     .run()
     .await
+}
+
+/// test ensures that the schema returned as part of GetFlightInfo matches that of the
+/// actual response.
+#[tokio::test]
+async fn flightsql_schema_matches() {
+    test_helpers::maybe_start_logging();
+    let database_url = maybe_skip_integration!();
+
+    let table_name = "the_table";
+
+    // Set up the cluster  ====================================
+    let mut cluster = MiniCluster::create_shared2(database_url).await;
+
+    StepTest::new(
+        &mut cluster,
+        vec![
+            Step::WriteLineProtocol(format!(
+                "{table_name},tag1=A,tag2=B val=42i 123456\n\
+                 {table_name},tag1=A,tag2=C val=43i 123457"
+            )),
+            Step::Custom(Box::new(move |state: &mut StepTestState| {
+                async move {
+                    let mut client = flightsql_client(state.cluster()).into_inner();
+
+                    // Verify schema for each type of command
+                    let cases = vec![
+                        // CommandStatementQuery fails because of
+                        // https://github.com/influxdata/influxdb_iox/issues/7279>
+                        // CommandStatementQuery {
+                        //     query: format!("select * from {table_name}"),
+                        // }
+                        // .as_any(),
+                        CommandGetSqlInfo { info: vec![] }.as_any(),
+                        CommandGetCatalogs {}.as_any(),
+                        CommandGetDbSchemas {
+                            catalog: None,
+                            db_schema_filter_pattern: None,
+                        }
+                        .as_any(),
+                        CommandGetTables {
+                            catalog: None,
+                            db_schema_filter_pattern: None,
+                            table_name_filter_pattern: None,
+                            table_types: vec![],
+                            include_schema: false,
+                        }
+                        .as_any(),
+                        CommandGetTableTypes {}.as_any(),
+                    ];
+
+                    for cmd in cases {
+                        assert_schema(&mut client, cmd).await;
+                    }
+                }
+                .boxed()
+            })),
+        ],
+    )
+    .run()
+    .await
+}
+
+///  Verifies that the schema returned by `GetFlightInfo` and `DoGet`
+///  match for `cmd`.
+async fn assert_schema(client: &mut FlightClient, cmd: Any) {
+    println!("Checking schema for message type {}", cmd.type_url);
+
+    let descriptor = FlightDescriptor::new_cmd(cmd.encode_to_vec());
+    let flight_info = client.get_flight_info(descriptor).await.unwrap();
+
+    assert_eq!(flight_info.endpoint.len(), 1);
+    let ticket = flight_info.endpoint[0]
+        .ticket
+        .as_ref()
+        .expect("Need ticket")
+        .clone();
+
+    // Schema reported by `GetFlightInfo`
+    let flight_info_schema = flight_info.try_decode_schema().unwrap();
+
+    // Get results and ensure they match the schema reported by GetFlightInfo
+    let mut result_stream = client.do_get(ticket).await.unwrap();
+    let mut saw_data = false;
+    while let Some(batch) = result_stream.try_next().await.unwrap() {
+        saw_data = true;
+        assert_eq!(batch.schema().as_ref(), &flight_info_schema);
+        // The stream itself also may report a schema
+        if let Some(stream_schema) = result_stream.schema() {
+            assert_eq!(stream_schema.as_ref(), &flight_info_schema);
+        }
+    }
+    // verify we have seen at least one RecordBatch
+    // (all FlightSQL endpoints return at least one)
+    assert!(saw_data);
 }
 
 /// Return a [`FlightSqlClient`] configured for use
@@ -493,3 +745,140 @@ fn flightsql_client(cluster: &MiniCluster) -> FlightSqlClient {
 async fn collect_stream(stream: FlightRecordBatchStream) -> Vec<RecordBatch> {
     stream.try_collect().await.expect("collecting batches")
 }
+
+const EXPECTED_METADATA: &str = r#"
+allProceduresAreCallable: true
+allTablesAreSelectable: true
+autoCommitFailureClosesAllResultSets: false
+dataDefinitionCausesTransactionCommit: false
+dataDefinitionIgnoredInTransactions: true
+doesMaxRowSizeIncludeBlobs: true
+generatedKeyAlwaysReturned: false
+getCatalogSeparator: .
+getCatalogTerm: null
+getDatabaseMajorVersion: 10
+getDatabaseMinorVersion: 0
+getDatabaseProductName: InfluxDB IOx
+getDatabaseProductVersion: 2
+getDefaultTransactionIsolation: 0
+getDriverMajorVersion: 10
+getDriverMinorVersion: 0
+getDriverName: Arrow Flight SQL JDBC Driver
+getDriverVersion: 10.0.0
+getExtraNameCharacters:
+getIdentifierQuoteString: "
+getJDBCMajorVersion: 4
+getJDBCMinorVersion: 1
+getMaxBinaryLiteralLength: 2147483647
+getMaxCatalogNameLength: 2147483647
+getMaxCharLiteralLength: 2147483647
+getMaxColumnNameLength: 2147483647
+getMaxColumnsInGroupBy: 2147483647
+getMaxColumnsInIndex: 2147483647
+getMaxColumnsInOrderBy: 2147483647
+getMaxColumnsInSelect: 2147483647
+getMaxColumnsInTable: 2147483647
+getMaxConnections: 2147483647
+getMaxCursorNameLength: 2147483647
+getMaxIndexLength: 2147483647
+getMaxLogicalLobSize: 0
+getMaxProcedureNameLength: 2147483647
+getMaxRowSize: 2147483647
+getMaxSchemaNameLength: 2147483647
+getMaxStatementLength: 2147483647
+getMaxStatements: 2147483647
+getMaxTableNameLength: 2147483647
+getMaxTablesInSelect: 2147483647
+getMaxUserNameLength: 2147483647
+getNumericFunctions: abs, acos, asin, atan, atan2, ceil, cos, exp, floor, ln, log, log10, log2, pow, power, round, signum, sin, sqrt, tan, trunc
+getProcedureTerm: procedure
+getResultSetHoldability: 1
+getSchemaTerm: schema
+getSearchStringEscape: \
+getSQLKeywords: absolute, action, add, all, allocate, alter, and, any, are, as, asc, assertion, at, authorization, avg, begin, between, bit, bit_length, both, by, cascade, cascaded, case, cast, catalog, char, char_length, character, character_length, check, close, coalesce, collate, collation, column, commit, connect, connection, constraint, constraints, continue, convert, corresponding, count, create, cross, current, current_date, current_time, current_timestamp, current_user, cursor, date, day, deallocate, dec, decimal, declare, default, deferrable, deferred, delete, desc, describe, descriptor, diagnostics, disconnect, distinct, domain, double, drop, else, end, end-exec, escape, except, exception, exec, execute, exists, external, extract, false, fetch, first, float, for, foreign, found, from, full, get, global, go, goto, grant, group, having, hour, identity, immediate, in, indicator, initially, inner, input, insensitive, insert, int, integer, intersect, interval, into, is, isolation, join, key, language, last, leading, left, level, like, local, lower, match, max, min, minute, module, month, names, national, natural, nchar, next, no, not, null, nullif, numeric, octet_length, of, on, only, open, option, or, order, outer, output, overlaps, pad, partial, position, precision, prepare, preserve, primary, prior, privileges, procedure, public, read, real, references, relative, restrict, revoke, right, rollback, rows, schema, scroll, second, section, select, session, session_user, set, size, smallint, some, space, sql, sqlcode, sqlerror, sqlstate, substring, sum, system_user, table, temporary, then, time, timestamp, timezone_hour, timezone_minute, to, trailing, transaction, translate, translation, trim, true, union, unique, unknown, update, upper, usage, user, using, value, values, varchar, varying, view, when, whenever, where, with, work, write, year, zone
+getSQLStateType: 2
+getStringFunctions: arrow_typeof, ascii, bit_length, btrim, char_length, character_length, chr, concat, concat_ws, digest, from_unixtime, initcap, left, length, lower, lpad, ltrim, md5, octet_length, random, regexp_match, regexp_replace, repeat, replace, reverse, right, rpad, rtrim, sha224, sha256, sha384, sha512, split_part, starts_with, strpos, substr, to_hex, translate, trim, upper, uuid
+getSystemFunctions: array, arrow_typeof, struct
+getTimeDateFunctions: current_date, current_time, date_bin, date_part, date_trunc, datepart, datetrunc, from_unixtime, now, to_timestamp, to_timestamp_micros, to_timestamp_millis, to_timestamp_seconds
+getURL: REPLACE_ME_WITH_JBDC_URL
+getUserName: test
+isCatalogAtStart: false
+isReadOnly: true
+locatorsUpdateCopy: false
+nullPlusNonNullIsNull: true
+nullsAreSortedAtEnd: true
+nullsAreSortedAtStart: false
+nullsAreSortedHigh: false
+nullsAreSortedLow: false
+storesLowerCaseIdentifiers: false
+storesLowerCaseQuotedIdentifiers: false
+storesMixedCaseIdentifiers: false
+storesMixedCaseQuotedIdentifiers: false
+storesUpperCaseIdentifiers: true
+storesUpperCaseQuotedIdentifiers: false
+supportsAlterTableWithAddColumn: false
+supportsAlterTableWithDropColumn: false
+supportsANSI92EntryLevelSQL: true
+supportsANSI92FullSQL: true
+supportsANSI92IntermediateSQL: true
+supportsBatchUpdates: false
+supportsCatalogsInDataManipulation: true
+supportsCatalogsInIndexDefinitions: false
+supportsCatalogsInPrivilegeDefinitions: false
+supportsCatalogsInProcedureCalls: true
+supportsCatalogsInTableDefinitions: true
+supportsColumnAliasing: true
+supportsCoreSQLGrammar: false
+supportsCorrelatedSubqueries: true
+supportsDataDefinitionAndDataManipulationTransactions: false
+supportsDataManipulationTransactionsOnly: true
+supportsDifferentTableCorrelationNames: false
+supportsExpressionsInOrderBy: true
+supportsExtendedSQLGrammar: false
+supportsFullOuterJoins: false
+supportsGetGeneratedKeys: false
+supportsGroupBy: true
+supportsGroupByBeyondSelect: true
+supportsGroupByUnrelated: true
+supportsIntegrityEnhancementFacility: false
+supportsLikeEscapeClause: true
+supportsLimitedOuterJoins: true
+supportsMinimumSQLGrammar: true
+supportsMixedCaseIdentifiers: false
+supportsMixedCaseQuotedIdentifiers: true
+supportsMultipleOpenResults: false
+supportsMultipleResultSets: false
+supportsMultipleTransactions: false
+supportsNamedParameters: false
+supportsNonNullableColumns: true
+supportsOpenCursorsAcrossCommit: false
+supportsOpenCursorsAcrossRollback: false
+supportsOpenStatementsAcrossCommit: false
+supportsOpenStatementsAcrossRollback: false
+supportsOrderByUnrelated: true
+supportsOuterJoins: true
+supportsPositionedDelete: false
+supportsPositionedUpdate: false
+supportsRefCursors: false
+supportsSavepoints: false
+supportsSchemasInDataManipulation: true
+supportsSchemasInIndexDefinitions: false
+supportsSchemasInPrivilegeDefinitions: false
+supportsSchemasInProcedureCalls: false
+supportsSchemasInTableDefinitions: true
+supportsSelectForUpdate: false
+supportsStatementPooling: false
+supportsStoredFunctionsUsingCallSyntax: false
+supportsStoredProcedures: false
+supportsSubqueriesInComparisons: true
+supportsSubqueriesInExists: true
+supportsSubqueriesInIns: true
+supportsSubqueriesInQuantifieds: true
+supportsTableCorrelationNames: false
+supportsTransactionIsolationLevel: false
+supportsTransactions: false
+supportsUnion: true
+supportsUnionAll: true
+usesLocalFilePerTable: false
+usesLocalFiles: false
+"#;

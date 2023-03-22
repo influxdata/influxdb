@@ -4,8 +4,8 @@ use std::fmt::Display;
 
 use arrow_flight::sql::{
     ActionClosePreparedStatementRequest, ActionCreatePreparedStatementRequest, Any,
-    CommandGetCatalogs, CommandGetDbSchemas, CommandGetTableTypes, CommandPreparedStatementQuery,
-    CommandStatementQuery,
+    CommandGetCatalogs, CommandGetDbSchemas, CommandGetSqlInfo, CommandGetTableTypes,
+    CommandGetTables, CommandPreparedStatementQuery, CommandStatementQuery,
 };
 use bytes::Bytes;
 use prost::Message;
@@ -67,14 +67,19 @@ impl From<PreparedStatementHandle> for Bytes {
 /// <https://github.com/apache/arrow-rs/issues/3874>
 #[derive(Debug, Clone, PartialEq)]
 pub enum FlightSQLCommand {
+    /// Run a normal query
     CommandStatementQuery(CommandStatementQuery),
     /// Run a prepared statement.
     CommandPreparedStatementQuery(PreparedStatementHandle),
+    /// Get information about the SQL supported
+    CommandGetSqlInfo(CommandGetSqlInfo),
     /// Get a list of the available catalogs. See [`CommandGetCatalogs`] for details.
     CommandGetCatalogs(CommandGetCatalogs),
     /// Get a list of the available schemas. See [`CommandGetDbSchemas`]
     /// for details and how to interpret the parameters.
     CommandGetDbSchemas(CommandGetDbSchemas),
+    /// Get a list of the available tables
+    CommandGetTables(CommandGetTables),
     /// Get a list of the available table tyypes
     CommandGetTableTypes(CommandGetTableTypes),
     /// Create a prepared statement
@@ -90,6 +95,9 @@ impl Display for FlightSQLCommand {
                 write!(f, "CommandStatementQuery{query}")
             }
             Self::CommandPreparedStatementQuery(h) => write!(f, "CommandPreparedStatementQuery{h}"),
+            Self::CommandGetSqlInfo(CommandGetSqlInfo { info: _ }) => {
+                write!(f, "CommandGetSqlInfo(...)")
+            }
             Self::CommandGetCatalogs(CommandGetCatalogs {}) => write!(f, "CommandGetCatalogs"),
             Self::CommandGetDbSchemas(CommandGetDbSchemas {
                 catalog,
@@ -103,6 +111,30 @@ impl Display for FlightSQLCommand {
                         .as_ref()
                         .map(|c| c.as_str())
                         .unwrap_or("<NONE>")
+                )
+            }
+            Self::CommandGetTables(CommandGetTables {
+                catalog,
+                db_schema_filter_pattern,
+                table_name_filter_pattern,
+                table_types,
+                include_schema,
+            }) => {
+                write!(
+                    f,
+                    "CommandGetTables(catalog={}, db_schema_filter_pattern={},\
+                        table_name_filter_pattern={},table_types={},include_schema={})",
+                    catalog.as_ref().map(|c| c.as_ref()).unwrap_or("<NONE>"),
+                    db_schema_filter_pattern
+                        .as_ref()
+                        .map(|db| db.as_ref())
+                        .unwrap_or("<NONE>"),
+                    table_name_filter_pattern
+                        .as_ref()
+                        .map(|t| t.as_ref())
+                        .unwrap_or("<NONE>"),
+                    table_types.join(","),
+                    include_schema,
                 )
             }
             Self::CommandGetTableTypes(CommandGetTableTypes {}) => {
@@ -135,10 +167,14 @@ impl FlightSQLCommand {
             // Decode to IOx specific structure
             let handle = PreparedStatementHandle::try_decode(prepared_statement_handle)?;
             Ok(Self::CommandPreparedStatementQuery(handle))
+        } else if let Some(decoded_cmd) = Any::unpack::<CommandGetSqlInfo>(&msg)? {
+            Ok(Self::CommandGetSqlInfo(decoded_cmd))
         } else if let Some(decoded_cmd) = Any::unpack::<CommandGetCatalogs>(&msg)? {
             Ok(Self::CommandGetCatalogs(decoded_cmd))
         } else if let Some(decoded_cmd) = Any::unpack::<CommandGetDbSchemas>(&msg)? {
             Ok(Self::CommandGetDbSchemas(decoded_cmd))
+        } else if let Some(decode_cmd) = Any::unpack::<CommandGetTables>(&msg)? {
+            Ok(Self::CommandGetTables(decode_cmd))
         } else if let Some(decoded_cmd) = Any::unpack::<CommandGetTableTypes>(&msg)? {
             Ok(Self::CommandGetTableTypes(decoded_cmd))
         } else if let Some(decoded_cmd) = Any::unpack::<ActionCreatePreparedStatementRequest>(&msg)?
@@ -171,8 +207,10 @@ impl FlightSQLCommand {
                 };
                 Any::pack(&cmd)
             }
+            FlightSQLCommand::CommandGetSqlInfo(cmd) => Any::pack(&cmd),
             FlightSQLCommand::CommandGetCatalogs(cmd) => Any::pack(&cmd),
             FlightSQLCommand::CommandGetDbSchemas(cmd) => Any::pack(&cmd),
+            FlightSQLCommand::CommandGetTables(cmd) => Any::pack(&cmd),
             FlightSQLCommand::CommandGetTableTypes(cmd) => Any::pack(&cmd),
             FlightSQLCommand::ActionCreatePreparedStatementRequest(cmd) => Any::pack(&cmd),
             FlightSQLCommand::ActionClosePreparedStatementRequest(handle) => {

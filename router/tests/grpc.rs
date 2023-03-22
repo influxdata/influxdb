@@ -14,7 +14,7 @@ use router::{
 };
 use tonic::{Code, Request};
 
-use crate::common::TestContext;
+use crate::common::TestContextBuilder;
 
 pub mod common;
 
@@ -22,10 +22,10 @@ pub mod common;
 /// the catalog.
 #[tokio::test]
 async fn test_namespace_create() {
-    // Initialise a TestContext requiring explicit namespace creation.
-    let ctx = TestContext::new(false, None).await;
+    // Initialise a TestContext without a namespace autocreation policy.
+    let ctx = TestContextBuilder::default().build().await;
 
-    // Try writing to the non-existant namespace, which should return an error.
+    // Try writing to the non-existent namespace, which should return an error.
     let now = SystemProvider::default()
         .now()
         .timestamp_nanos()
@@ -139,8 +139,11 @@ async fn test_namespace_create() {
 /// restarted.
 #[tokio::test]
 async fn test_namespace_delete() {
-    // Initialise a TestContext requiring explicit namespace creation.
-    let ctx = TestContext::new(true, None).await;
+    // Initialise a TestContext with implicit namespace creation.
+    let ctx = TestContextBuilder::default()
+        .with_autocreate_namespace(None)
+        .build()
+        .await;
 
     const RETENTION: i64 = Duration::from_secs(42 * 60 * 60).as_nanos() as _;
 
@@ -252,7 +255,7 @@ async fn test_namespace_delete() {
 
     // The router restarts, and writes are no longer accepted for the
     // soft-deleted bucket.
-    let ctx = ctx.restart();
+    let ctx = ctx.restart().await;
 
     let err = ctx
         .write_lp("bananas", "test", lp)
@@ -270,8 +273,8 @@ async fn test_namespace_delete() {
 /// and not "none".
 #[tokio::test]
 async fn test_create_namespace_0_retention_period() {
-    // Initialise a TestContext requiring explicit namespace creation.
-    let ctx = TestContext::new(false, None).await;
+    // Initialise a test context without implicit namespace creation policy.
+    let ctx = TestContextBuilder::default().build().await;
 
     // Explicitly create the namespace.
     let req = CreateNamespaceRequest {
@@ -335,8 +338,7 @@ async fn test_create_namespace_0_retention_period() {
 /// Ensure creating a namespace with a negative retention period is rejected.
 #[tokio::test]
 async fn test_create_namespace_negative_retention_period() {
-    // Initialise a TestContext requiring explicit namespace creation.
-    let ctx = TestContext::new(false, None).await;
+    let ctx = TestContextBuilder::default().build().await;
 
     // Explicitly create the namespace.
     let req = CreateNamespaceRequest {
@@ -396,7 +398,7 @@ async fn test_create_namespace_negative_retention_period() {
 #[tokio::test]
 async fn test_update_namespace_0_retention_period() {
     // Initialise a TestContext requiring explicit namespace creation.
-    let ctx = TestContext::new(false, None).await;
+    let ctx = TestContextBuilder::default().build().await;
 
     // Explicitly create the namespace.
     let create = ctx
@@ -487,7 +489,7 @@ async fn test_update_namespace_0_retention_period() {
     );
 
     // The router restarts, and writes are then accepted.
-    let ctx = ctx.restart();
+    let ctx = ctx.restart().await;
 
     let response = ctx
         .write_lp("bananas", "test", "platanos,tag1=A,tag2=B val=42i 42424242")
@@ -500,7 +502,7 @@ async fn test_update_namespace_0_retention_period() {
 #[tokio::test]
 async fn test_update_namespace_negative_retention_period() {
     // Initialise a TestContext requiring explicit namespace creation.
-    let ctx = TestContext::new(false, None).await;
+    let ctx = TestContextBuilder::default().build().await;
 
     // Explicitly create the namespace.
     let create = ctx

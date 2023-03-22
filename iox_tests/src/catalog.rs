@@ -277,6 +277,17 @@ impl TestCatalog {
             .unwrap()
     }
 
+    /// List all files including the soft deleted ones
+    pub async fn list_by_table(self: &Arc<Self>, table_id: TableId) -> Vec<ParquetFile> {
+        self.catalog
+            .repositories()
+            .await
+            .parquet_files()
+            .list_by_table(table_id)
+            .await
+            .unwrap()
+    }
+
     /// Add a partition into skipped compaction
     pub async fn add_to_skipped_compaction(
         self: &Arc<Self>,

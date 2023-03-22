@@ -19,6 +19,7 @@ hashbrown = { workspace = true }
 hyper = "0.14"
 iox_catalog = { path = "../iox_catalog" }
 iox_time = { path = "../iox_time" }
+ioxd_common = { path = "../ioxd_common" }
 metric = { path = "../metric" }
 mutable_batch = { path = "../mutable_batch" }
 mutable_batch_lp = { path = "../mutable_batch_lp" }
@@ -31,6 +32,7 @@ schema = { version = "0.1.0", path = "../schema" }
 serde = "1.0"
 serde_json = "1.0.94"
 serde_urlencoded = "0.7"
+server_util = { path = "../server_util" }
 service_grpc_catalog = { path = "../service_grpc_catalog"}
 service_grpc_namespace = { path = "../service_grpc_namespace"}
 service_grpc_schema = { path = "../service_grpc_schema" }
@@ -46,6 +48,7 @@ write_buffer = { path = "../write_buffer" }
 write_summary = { path = "../write_summary" }
 tower = { version = "0.4.13", features = ["balance"] }
 crossbeam-utils = "0.8.15"
+smallvec = "1.10.0"
 
 [dev-dependencies]
 assert_matches = "1.5"
