@@ -1,4 +1,5 @@
 use data_types::{CompactionLevel, ParquetFile};
+use parquet_file::ParquetFilePath;
 
 /// A file classification specifies the parameters for a single compaction branch.
 ///
@@ -97,6 +98,11 @@ impl FilesToSplitOrCompact {
             Self::Split(files) => files.len(),
             _ => 0,
         }
+    }
+
+    /// Paths to the files for giving to the scratchpad.
+    pub fn file_input_paths(&self) -> Vec<ParquetFilePath> {
+        self.files().iter().map(|f| (*f).into()).collect()
     }
 
     /// References to the inner Parquet files

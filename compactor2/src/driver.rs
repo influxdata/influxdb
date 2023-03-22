@@ -306,12 +306,9 @@ async fn run_plans(
     scratchpad_ctx: &mut dyn Scratchpad,
 ) -> Result<Vec<ParquetFileParams>, DynError> {
     // stage files
-    let input_paths: Vec<ParquetFilePath> = split_or_compact
-        .files()
-        .iter()
-        .map(|f| (*f).into())
-        .collect();
-    let input_uuids_inpad = scratchpad_ctx.load_to_scratchpad(&input_paths).await;
+    let input_uuids_inpad = scratchpad_ctx
+        .load_to_scratchpad(&split_or_compact.file_input_paths())
+        .await;
     let files_inpad: Vec<_> = split_or_compact
         .files()
         .into_iter()
