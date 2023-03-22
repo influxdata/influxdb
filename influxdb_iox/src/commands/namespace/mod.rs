@@ -4,6 +4,7 @@ use influxdb_iox_client::{connection::Connection, namespace};
 use thiserror::Error;
 
 mod create;
+mod delete;
 mod retention;
 
 #[allow(clippy::enum_variant_names)]
@@ -34,6 +35,9 @@ enum Command {
 
     /// Update retention of an existing namespace
     Retention(retention::Config),
+
+    /// Delete a namespace
+    Delete(delete::Config),
 }
 
 pub async fn command(connection: Connection, config: Config) -> Result<(), Error> {
@@ -48,6 +52,9 @@ pub async fn command(connection: Connection, config: Config) -> Result<(), Error
         }
         Command::Retention(config) => {
             retention::command(connection, config).await?;
+        }
+        Command::Delete(config) => {
+            delete::command(connection, config).await?;
         } // Deliberately not adding _ => so the compiler will direct people here to impl new
           // commands
     }
