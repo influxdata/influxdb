@@ -326,14 +326,11 @@ async fn run_plans(
     };
     let mut created_file_params = Vec::with_capacity(capacity);
 
-    let plans_and_target_levels = match split_or_compact {
+    let plans = match split_or_compact {
         FilesToSplitOrCompact::Compact(_files) => {
-            vec![(
-                components.ir_planner.compact_plan(
-                    files_inpad,
-                    Arc::clone(partition_info),
-                    target_level,
-                ),
+            vec![components.ir_planner.compact_plan(
+                files_inpad,
+                Arc::clone(partition_info),
                 target_level,
             )]
         }
@@ -345,13 +342,10 @@ async fn run_plans(
                     // target level of a split file is the same as its level
                     let target_level = file_to_split.file.compaction_level;
 
-                    (
-                        components.ir_planner.split_plan(
-                            file_inpad,
-                            file_to_split.split_times.clone(),
-                            Arc::clone(partition_info),
-                            target_level,
-                        ),
+                    components.ir_planner.split_plan(
+                        file_inpad,
+                        file_to_split.split_times.clone(),
+                        Arc::clone(partition_info),
                         target_level,
                     )
                 })
@@ -360,13 +354,12 @@ async fn run_plans(
         FilesToSplitOrCompact::None => vec![], // Nothing to do
     };
 
-    for (plan_ir, target_level) in plans_and_target_levels {
+    for plan_ir in plans {
         created_file_params.extend(
             execute_plan(
                 plan_ir,
                 partition_info,
                 components,
-                target_level,
                 Arc::clone(&job_semaphore),
             )
             .await?,
@@ -380,7 +373,6 @@ async fn execute_plan(
     plan_ir: PlanIR,
     partition_info: &Arc<PartitionInfo>,
     components: &Arc<Components>,
-    target_level: CompactionLevel,
     job_semaphore: Arc<InstrumentedAsyncSemaphore>,
 ) -> Result<Vec<ParquetFileParams>, DynError> {
     let create = {
@@ -407,7 +399,7 @@ async fn execute_plan(
         let job = components.parquet_files_sink.stream_into_file_sink(
             streams,
             Arc::clone(partition_info),
-            target_level,
+            plan_ir.target_level(),
             &plan_ir,
         );
 

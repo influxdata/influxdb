@@ -122,7 +122,7 @@ impl IRPlanner for V1IRPlanner {
         &self,
         files: Vec<ParquetFile>,
         _partition: Arc<PartitionInfo>,
-        compaction_level: CompactionLevel,
+        target_level: CompactionLevel,
     ) -> PlanIR {
         // gather data
         // total file size is the sum of the file sizes of the files to compact
@@ -150,18 +150,17 @@ impl IRPlanner for V1IRPlanner {
         let files = files
             .into_iter()
             .map(|file| {
-                let order = order(
-                    file.compaction_level,
-                    compaction_level,
-                    file.max_l0_created_at,
-                );
+                let order = order(file.compaction_level, target_level, file.max_l0_created_at);
                 FileIR { file, order }
             })
             .collect::<Vec<_>>();
 
         // Build logical compact plan
         if total_size <= small_cutoff_bytes {
-            PlanIR::Compact { files }
+            PlanIR::Compact {
+                files,
+                target_level,
+            }
         } else {
             let split_times = if small_cutoff_bytes < total_size && total_size <= large_cutoff_bytes
             {
@@ -182,10 +181,17 @@ impl IRPlanner for V1IRPlanner {
             if split_times.is_empty() || (split_times.len() == 1 && split_times[0] == max_time) {
                 // The split times might not have actually split anything, so in this case, compact
                 // everything into one file
-                PlanIR::Compact { files }
+                PlanIR::Compact {
+                    files,
+                    target_level,
+                }
             } else {
                 // split compact query plan to split the result into multiple files
-                PlanIR::Split { files, split_times }
+                PlanIR::Split {
+                    files,
+                    split_times,
+                    target_level,
+                }
             }
         }
     }
@@ -196,19 +202,16 @@ impl IRPlanner for V1IRPlanner {
         file: ParquetFile,
         split_times: Vec<i64>,
         _partition: Arc<PartitionInfo>,
-        compaction_level: CompactionLevel,
+        target_level: CompactionLevel,
     ) -> PlanIR {
-        let order = order(
-            file.compaction_level,
-            compaction_level,
-            file.max_l0_created_at,
-        );
+        let order = order(file.compaction_level, target_level, file.max_l0_created_at);
 
         let file = FileIR { file, order };
 
         PlanIR::Split {
             files: vec![file],
             split_times,
+            target_level,
         }
     }
 }

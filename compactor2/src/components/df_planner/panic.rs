@@ -95,6 +95,7 @@ impl ExecutionPlan for PanicPlan {
 
 #[cfg(test)]
 mod tests {
+    use data_types::CompactionLevel;
     use datafusion::{physical_plan::collect, prelude::SessionContext};
 
     use crate::test_utils::PartitionInfoBuilder;
@@ -112,7 +113,13 @@ mod tests {
         let planner = PanicDataFusionPlanner::new();
         let partition = Arc::new(PartitionInfoBuilder::new().build());
         let plan = planner
-            .plan(&PlanIR::Compact { files: vec![] }, partition)
+            .plan(
+                &PlanIR::Compact {
+                    files: vec![],
+                    target_level: CompactionLevel::Final,
+                },
+                partition,
+            )
             .await
             .unwrap();
 
