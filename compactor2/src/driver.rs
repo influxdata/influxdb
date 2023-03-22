@@ -15,7 +15,7 @@ use crate::{
     },
     error::{DynError, ErrorKind, SimpleError},
     file_classification::{
-        FileClassification, FileToSplit, FilesForProgress, FilesToSplitOrCompact,
+        FileClassification, FilesForProgress, FilesToSplitOrCompact,
     },
     partition_info::PartitionInfo,
     PlanIR,
@@ -344,14 +344,24 @@ async fn run_plans(
         FilesToSplitOrCompact::Split(files) => {
             let mut created_file_params =
                 Vec::with_capacity(files.iter().map(|f| f.split_times.len() + 1).sum());
-            for file in files {
+            for (file_to_split, file_inpad) in files.into_iter().zip(files_inpad.into_iter()) {
+                // target level of a split file is the same as its level
+                let target_level = file_to_split.file.compaction_level;
+
+                let plan_ir = components.ir_planner.split_plan(
+                    file_inpad,
+                    file_to_split.split_times.clone(),
+                    Arc::clone(partition_info),
+                    target_level,
+                );
+
                 created_file_params.extend(
-                    run_split_plan(
-                        file,
+                    execute_plan(
+                        plan_ir,
                         partition_info,
                         components,
+                        target_level,
                         Arc::clone(&job_semaphore),
-                        scratchpad_ctx,
                     )
                     .await?,
                 );
@@ -360,42 +370,6 @@ async fn run_plans(
         }
         FilesToSplitOrCompact::None => Ok(vec![]), // Nothing to do
     }
-}
-
-// Split a given file into multiple files
-async fn run_split_plan(
-    file_to_split: &FileToSplit,
-    partition_info: &Arc<PartitionInfo>,
-    components: &Arc<Components>,
-    job_semaphore: Arc<InstrumentedAsyncSemaphore>,
-    scratchpad_ctx: &mut dyn Scratchpad,
-) -> Result<Vec<ParquetFileParams>, DynError> {
-    // stage files
-    let input_path = (&file_to_split.file).into();
-    let input_uuids_inpad = scratchpad_ctx.load_to_scratchpad(&[input_path]).await;
-    let file_inpad = ParquetFile {
-        object_store_id: input_uuids_inpad[0],
-        ..file_to_split.file.clone()
-    };
-
-    // target level of a split file is the same as its level
-    let target_level = file_to_split.file.compaction_level;
-
-    let plan_ir = components.ir_planner.split_plan(
-        file_inpad,
-        file_to_split.split_times.clone(),
-        Arc::clone(partition_info),
-        target_level,
-    );
-
-    execute_plan(
-        plan_ir,
-        partition_info,
-        components,
-        target_level,
-        job_semaphore,
-    )
-    .await
 }
 
 async fn execute_plan(
