@@ -64,6 +64,7 @@ members = [
     "query_functions",
     "router",
     "schema",
+    "server_util",
     "service_common",
     "service_grpc_influxrpc",
     "service_grpc_flight",

@@ -20,6 +20,7 @@ observability_deps = { path = "../observability_deps" }
 # (honestly I thought that cargo dependencies were isolated on a per crate basis so I'm a bit surprised that pprof accidentally builds
 # successfully just because another crate happens to depend on backtrace-rs)
 pprof = { version = "0.11", default-features = false, features = ["flamegraph", "prost-codec"], optional = true }
+server_util = { path = "../server_util" }
 service_grpc_testing = { path = "../service_grpc_testing" }
 trace = { path = "../trace" }
 trace_exporters = { path = "../trace_exporters" }
