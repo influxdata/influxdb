@@ -3161,6 +3161,7 @@ dependencies = [
  "serde",
  "serde_json",
  "serde_urlencoded",
+ "server_util",
  "service_grpc_testing",
  "snafu",
  "tokio",
@@ -4947,6 +4948,7 @@ dependencies = [
  "iox_catalog",
  "iox_tests",
  "iox_time",
+ "ioxd_common",
  "metric",
  "mutable_batch",
  "mutable_batch_lp",
@@ -4963,6 +4965,7 @@ dependencies = [
  "serde",
  "serde_json",
  "serde_urlencoded",
+ "server_util",
  "service_grpc_catalog",
  "service_grpc_namespace",
  "service_grpc_object_store",
@@ -5210,6 +5213,14 @@ dependencies = [
  "itoa",
  "ryu",
  "serde",
+]
+
+[[package]]
+name = "server_util"
+version = "0.1.0"
+dependencies = [
+ "http",
+ "workspace-hack",
 ]
 
 [[package]]

@@ -7,6 +7,7 @@ use hyper::{
 };
 use observability_deps::tracing::{debug, error};
 use serde::Deserialize;
+use server_util::authorization::AuthorizationHeaderExtension;
 use snafu::Snafu;
 use tokio_util::sync::CancellationToken;
 use tower::Layer;
@@ -116,8 +117,12 @@ async fn route_request(
     server_type: Arc<dyn ServerType>,
     mut req: Request<Body>,
 ) -> Result<Response<Body>, Infallible> {
-    // we don't need the authorization header and we don't want to accidentally log it.
-    req.headers_mut().remove("authorization");
+    let auth = { req.headers().get(hyper::header::AUTHORIZATION).cloned() };
+    req.extensions_mut()
+        .insert(AuthorizationHeaderExtension::new(auth));
+
+    // we don't need the authorization header anymore and we don't want to accidentally log it.
+    req.headers_mut().remove(hyper::header::AUTHORIZATION);
     debug!(request = ?req,"Processing request");
 
     let method = req.method().clone();
