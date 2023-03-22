@@ -320,14 +320,21 @@ async fn run_plans(
             .await
         }
         FilesToSplitOrCompact::Split(files) => {
-            run_split_plans(
-                files,
-                partition_info,
-                components,
-                job_semaphore,
-                scratchpad_ctx,
-            )
-            .await
+            let mut created_file_params =
+                Vec::with_capacity(files.iter().map(|f| f.split_times.len() + 1).sum());
+            for file in files {
+                created_file_params.extend(
+                    run_split_plan(
+                        file,
+                        partition_info,
+                        components,
+                        Arc::clone(&job_semaphore),
+                        scratchpad_ctx,
+                    )
+                    .await?,
+                );
+            }
+            Ok(created_file_params)
         }
         FilesToSplitOrCompact::None => Ok(vec![]), // Nothing to do
     }
@@ -371,34 +378,6 @@ async fn run_compaction_plan(
         job_semaphore,
     )
     .await
-}
-
-/// Split each of given files into multiple files
-async fn run_split_plans(
-    files_to_split: &[FileToSplit],
-    partition_info: &Arc<PartitionInfo>,
-    components: &Arc<Components>,
-    job_semaphore: Arc<InstrumentedAsyncSemaphore>,
-    scratchpad_ctx: &mut dyn Scratchpad,
-) -> Result<Vec<ParquetFileParams>, DynError> {
-    if files_to_split.is_empty() {
-        return Ok(vec![]);
-    }
-
-    let mut created_file_params = vec![];
-    for file_to_split in files_to_split {
-        let x = run_split_plan(
-            file_to_split,
-            partition_info,
-            components,
-            Arc::clone(&job_semaphore),
-            scratchpad_ctx,
-        )
-        .await?;
-        created_file_params.extend(x);
-    }
-
-    Ok(created_file_params)
 }
 
 // Split a given file into multiple files
