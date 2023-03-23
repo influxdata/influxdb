@@ -323,7 +323,10 @@ async fn run_plans(
     let capacity = plans.iter().map(|p| p.n_output_files()).sum();
     let mut created_file_params = Vec::with_capacity(capacity);
 
-    for plan_ir in plans {
+    for plan_ir in plans
+        .into_iter()
+        .filter(|plan| !matches!(plan, PlanIR::None { .. }))
+    {
         created_file_params.extend(
             execute_plan(
                 plan_ir,

@@ -71,12 +71,12 @@ where
             self.inner.apply(partition_info, files, target_level);
 
         match &files_to_split_or_compact {
-            FilesToSplitOrCompact::Split(_) => {
+            FilesToSplitOrCompact::Split(..) => {
                 self.files_to_split
                     .record(files_to_split_or_compact.num_files_to_split() as u64);
                 self.split_decision_count.inc(1);
             }
-            FilesToSplitOrCompact::Compact(_) => self.compact_decision_count.inc(1),
+            FilesToSplitOrCompact::Compact(..) => self.compact_decision_count.inc(1),
             _ => {} // Nothing to do
         }
 

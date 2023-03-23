@@ -57,7 +57,8 @@ mod tests {
     use std::sync::Arc;
 
     use crate::{
-        error::ErrorKindExt, file_classification::FilesToSplitOrCompact,
+        error::ErrorKindExt,
+        file_classification::{CompactReason, FilesToSplitOrCompact},
         test_utils::PartitionInfoBuilder,
     };
     use iox_tests::ParquetFileBuilder;
@@ -95,7 +96,10 @@ mod tests {
         let f1 = ParquetFileBuilder::new(1).with_file_size_bytes(7).build();
         let files_for_progress = FilesForProgress {
             upgrade: vec![],
-            split_or_compact: FilesToSplitOrCompact::Compact(vec![f1]),
+            split_or_compact: FilesToSplitOrCompact::Compact(
+                vec![f1],
+                CompactReason::ManySmallFiles,
+            ),
         };
         assert!(filter.apply(&p_info, &files_for_progress).await.unwrap());
     }

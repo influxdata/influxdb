@@ -4,7 +4,9 @@ use data_types::{CompactionLevel, ParquetFile};
 
 use crate::{
     components::{files_split::FilesSplit, split_or_compact::SplitOrCompact},
-    file_classification::{FileClassification, FilesForProgress, FilesToSplitOrCompact},
+    file_classification::{
+        CompactReason, FileClassification, FilesForProgress, FilesToSplitOrCompact,
+    },
     partition_info::PartitionInfo,
     RoundInfo,
 };
@@ -187,7 +189,10 @@ fn file_classification_for_many_files(
 
     let files_to_make_progress_on = FilesForProgress {
         upgrade: vec![],
-        split_or_compact: FilesToSplitOrCompact::Compact(files_to_compact),
+        split_or_compact: FilesToSplitOrCompact::Compact(
+            files_to_compact,
+            CompactReason::ManySmallFiles,
+        ),
     };
 
     FileClassification {
