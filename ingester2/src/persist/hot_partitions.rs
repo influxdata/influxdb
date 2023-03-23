@@ -1,6 +1,5 @@
 use std::{fmt::Debug, sync::Arc};
 
-use metric::U64Counter;
 use observability_deps::tracing::info;
 use parking_lot::{Mutex, MutexGuard};
 
@@ -16,7 +15,7 @@ pub(crate) struct HotPartitionPersister<P> {
     max_estimated_persist_cost: usize,
 
     /// A metric tracking the number of partitions persisted as "hot partitions".
-    persist_count: metric::Metric<U64Counter>,
+    persist_count: metric::U64Counter,
 }
 
 impl<P> HotPartitionPersister<P>
@@ -29,10 +28,12 @@ where
         metrics: &metric::Registry,
     ) -> Self {
         let persist_count = metrics
-            .register_metric::<U64Counter>(
+            .register_metric::<metric::U64Counter>(
                 "ingester_persist_hot_partition_enqueue_count",
-                "number of times persistence of a partition has been triggered because the persist cost exceeded the pre-configured limit",
-            );
+                "number of times persistence of a partition has been triggered \
+                because the persist cost exceeded the pre-configured limit",
+            )
+            .recorder(&[]);
         Self {
             persist_handle,
             max_estimated_persist_cost,
@@ -47,9 +48,8 @@ where
         partition: Arc<Mutex<PartitionData>>,
         mut guard: MutexGuard<'_, PartitionData>,
     ) {
-        let partition_id = guard.partition_id().get();
         info!(
-            partition_id = partition_id,
+            partition_id = guard.partition_id().get(),
             cost_estimate, "marking hot partition for persistence"
         );
 
@@ -65,9 +65,7 @@ where
             persist_handle.enqueue(partition, data).await;
         });
         // Update any exported metrics.
-        let attributes =
-            metric::Attributes::from([("partition_id", format!("{partition_id}").into())]);
-        self.persist_count.recorder(attributes).inc(1);
+        self.persist_count.inc(1);
     }
 }
 
