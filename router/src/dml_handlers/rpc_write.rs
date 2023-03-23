@@ -201,7 +201,7 @@ where
 
 #[cfg(test)]
 mod tests {
-    use std::{collections::HashSet, sync::Arc};
+    use std::{collections::HashSet, iter, sync::Arc};
 
     use assert_matches::assert_matches;
     use data_types::PartitionKey;
@@ -292,10 +292,9 @@ mod tests {
         let input = Partitioned::new(PartitionKey::from("2022-01-01"), batches.clone());
 
         // Init the write handler with a mock client to capture the rpc calls.
-        let client1 = Arc::new(
-            MockWriteClient::default()
-                .with_ret([Err(RpcWriteError::Upstream(tonic::Status::internal("")))]),
-        );
+        let client1 = Arc::new(MockWriteClient::default().with_ret(Box::new(iter::once(Err(
+            RpcWriteError::Upstream(tonic::Status::internal("")),
+        )))));
         let client2 = Arc::new(MockWriteClient::default());
         let client3 = Arc::new(MockWriteClient::default());
         let handler = RpcWrite::new(
@@ -357,19 +356,21 @@ mod tests {
 
         // The first client in line fails the first request, but will succeed
         // the second try.
-        let client1 = Arc::new(MockWriteClient::default().with_ret([
-            Err(RpcWriteError::Upstream(tonic::Status::internal(""))),
-            Ok(()),
-        ]));
+        let client1 = Arc::new(
+            MockWriteClient::default().with_ret(Box::new(
+                [
+                    Err(RpcWriteError::Upstream(tonic::Status::internal(""))),
+                    Ok(()),
+                ]
+                .into_iter(),
+            )),
+        );
         // This client always errors.
-        let client2 = Arc::new(MockWriteClient::default().with_ret([
-            Err(RpcWriteError::Upstream(tonic::Status::internal(""))),
-            Err(RpcWriteError::Upstream(tonic::Status::internal(""))),
-            Err(RpcWriteError::Upstream(tonic::Status::internal(""))),
-            Err(RpcWriteError::Upstream(tonic::Status::internal(""))),
-            Err(RpcWriteError::Upstream(tonic::Status::internal(""))),
-            Err(RpcWriteError::Upstream(tonic::Status::internal(""))),
-        ]));
+        let client2 = Arc::new(
+            MockWriteClient::default().with_ret(Box::new(iter::repeat_with(|| {
+                Err(RpcWriteError::Upstream(tonic::Status::internal("")))
+            }))),
+        );
 
         let handler = RpcWrite::new(
             [
