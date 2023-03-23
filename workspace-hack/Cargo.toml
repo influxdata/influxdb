@@ -23,7 +23,7 @@ arrow-ord = { version = "34", default-features = false, features = ["dyn_cmp_dic
 arrow-string = { version = "34", default-features = false, features = ["dyn_cmp_dict"] }
 base64-594e8ee84c453af0 = { package = "base64", version = "0.13" }
 base64-647d43efb71741da = { package = "base64", version = "0.21" }
-bitflags = { version = "2" }
+bitflags = { version = "1" }
 byteorder = { version = "1" }
 bytes = { version = "1" }
 chrono = { version = "0.4", default-features = false, features = ["alloc", "clock", "serde"] }
@@ -100,7 +100,7 @@ zstd-sys = { version = "2", default-features = false, features = ["legacy", "std
 [build-dependencies]
 base64-594e8ee84c453af0 = { package = "base64", version = "0.13" }
 base64-647d43efb71741da = { package = "base64", version = "0.21" }
-bitflags = { version = "2" }
+bitflags = { version = "1" }
 byteorder = { version = "1" }
 bytes = { version = "1" }
 cc = { version = "1", default-features = false, features = ["parallel"] }
