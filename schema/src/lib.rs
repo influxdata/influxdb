@@ -282,6 +282,12 @@ impl Schema {
         )
     }
 
+    /// Return the InfluxDB data model type, if any, and underlying arrow
+    /// schema field for the column identified by `name`.
+    pub fn field_by_name(&self, name: &str) -> Option<(InfluxColumnType, &ArrowField)> {
+        self.find_index_of(name).map(|index| self.field(index))
+    }
+
     /// Find the index of the column with the given name, if any.
     pub fn find_index_of(&self, name: &str) -> Option<usize> {
         self.inner.index_of(name).ok()

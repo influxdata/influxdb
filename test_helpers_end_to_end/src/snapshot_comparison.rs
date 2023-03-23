@@ -1,12 +1,14 @@
 mod queries;
 
-use crate::{run_influxql, run_sql, snapshot_comparison::queries::TestQueries, MiniCluster};
+use crate::{run_sql, snapshot_comparison::queries::TestQueries, try_run_influxql, MiniCluster};
+use arrow_flight::error::FlightError;
 use snafu::{OptionExt, ResultExt, Snafu};
 use std::{
     fmt::{Display, Formatter},
     fs,
     path::{Path, PathBuf},
 };
+use tonic::Code;
 
 use self::queries::Query;
 
@@ -227,12 +229,21 @@ async fn run_query(
             .await
         }
         Language::InfluxQL => {
-            run_influxql(
+            match try_run_influxql(
                 query_text,
                 cluster.namespace(),
                 cluster.querier().querier_grpc_connection(),
             )
             .await
+            {
+                Ok(results) => results,
+                Err(influxdb_iox_client::flight::Error::ArrowFlightError(FlightError::Tonic(
+                    status,
+                ))) if status.code() == Code::InvalidArgument => {
+                    return Ok(vec![status.message().to_owned()])
+                }
+                Err(err) => return Ok(vec![err.to_string()]),
+            }
         }
     };
 

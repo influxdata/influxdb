@@ -36,12 +36,10 @@ pub(crate) fn map_type(
     field: &str,
 ) -> Result<Option<VarRefDataType>> {
     match s.table_schema(measurement_name) {
-        Some(iox) => Ok(match iox.find_index_of(field) {
-            Some(i) => match iox.field(i).0 {
-                InfluxColumnType::Field(ft) => Some(field_type_to_var_ref_data_type(ft)),
-                InfluxColumnType::Tag => Some(VarRefDataType::Tag),
-                InfluxColumnType::Timestamp => None,
-            },
+        Some(iox) => Ok(match iox.field_by_name(field) {
+            Some((InfluxColumnType::Field(ft), _)) => Some(field_type_to_var_ref_data_type(ft)),
+            Some((InfluxColumnType::Tag, _)) => Some(VarRefDataType::Tag),
+            Some((InfluxColumnType::Timestamp, _)) => Some(VarRefDataType::Timestamp),
             None => None,
         }),
         None => Ok(None),
@@ -86,6 +84,10 @@ mod test {
         assert_matches!(
             map_type(&namespace, "cpu", "host").unwrap(),
             Some(VarRefDataType::Tag)
+        );
+        assert_matches!(
+            map_type(&namespace, "cpu", "time").unwrap(),
+            Some(VarRefDataType::Timestamp)
         );
         // Returns None for nonexistent field
         assert!(map_type(&namespace, "cpu", "nonexistent")

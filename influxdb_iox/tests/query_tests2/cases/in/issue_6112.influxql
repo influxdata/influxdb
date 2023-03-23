@@ -271,9 +271,58 @@ SELECT cpu, usage_idle FROM cpu;
 SELECT usage_idle FROM cpu GROUP BY cpu;
 SELECT usage_idle, cpu FROM cpu GROUP BY cpu;
 
+-- group by a non-existent tag
+SELECT usage_idle FROM cpu GROUP BY cpu, non_existent;
+-- group by and project a non-existent tag
+SELECT usage_idle, non_existent FROM cpu GROUP BY cpu, non_existent;
+
 -- multiple measurements and tags in the group by
 
 SELECT usage_idle, bytes_free FROM cpu, disk GROUP BY cpu;
+SELECT usage_idle, bytes_free FROM cpu, disk GROUP BY cpu, non_existent;
 SELECT usage_idle, bytes_free FROM cpu, disk GROUP BY cpu, device;
 SELECT usage_idle, bytes_free FROM cpu, disk GROUP BY device, cpu;
 SELECT usage_idle, bytes_free, device, cpu FROM cpu, disk GROUP BY device, cpu;
+
+--
+-- Aggregate queries
+--
+
+SELECT COUNT(f64), SUM(f64), stddev(f64) FROM m0 GROUP BY tag0;
+SELECT COUNT(f64), SUM(f64), stddev(f64) FROM m0 GROUP BY tag0, non_existent;
+SELECT COUNT(f64), SUM(f64), stddev(f64) FROM m0 GROUP BY non_existent;
+SELECT COUNT(f64), COUNT(f64) + COUNT(f64), COUNT(f64) * 3 FROM m0;
+-- non-existent columns in an aggregate should evaluate to NULL
+SELECT COUNT(f64) as the_count, SUM(non_existent) as foo FROM m0;
+-- non-existent columns in an aggregate expression should evaluate to NULL
+SELECT COUNT(f64) as the_count, SUM(f64) + SUM(non_existent) as foo FROM m0;
+
+SELECT COUNT(f64), SUM(f64) FROM m0 GROUP BY TIME(30s) FILL(none);
+-- supports offset parameter
+SELECT COUNT(f64), SUM(f64) FROM m0 GROUP BY TIME(30s, 1s) FILL(none);
+
+SELECT COUNT(usage_idle), COUNT(bytes_free) FROM cpu, disk;
+SELECT COUNT(usage_idle), COUNT(bytes_free) FROM cpu, disk GROUP BY TIME(1s) FILL(none);
+SELECT COUNT(usage_idle), COUNT(bytes_free) FROM cpu, disk GROUP BY cpu;
+SELECT COUNT(usage_idle) as count_usage_idle, COUNT(bytes_free) as count_bytes_free FROM cpu, disk WHERE cpu = 'cpu0' OR device = 'disk1s1' GROUP BY cpu;
+
+-- measurements without any matching fields are omitted from the result set
+SELECT SUM(usage_idle) FROM cpu, disk WHERE cpu = 'cpu0' GROUP BY cpu;
+SELECT SUM(usage_idle) FROM cpu, disk GROUP BY cpu;
+
+-- Fallible cases
+
+-- Mixing aggregate and non-aggregate columns
+SELECT COUNT(usage_idle) + usage_idle FROM cpu;
+SELECT COUNT(usage_idle), usage_idle FROM cpu;
+
+-- Unimplemented cases
+
+-- TODO(sgc): No gap filling
+-- Default FILL(null) when FILL is omitted
+SELECT COUNT(usage_idle) FROM cpu GROUP BY TIME(30s);
+SELECT COUNT(usage_idle) FROM cpu GROUP BY TIME(30s) FILL(previous);
+
+-- LIMIT and OFFSET aren't supported with aggregates and groups
+SELECT COUNT(usage_idle) FROM cpu GROUP BY cpu LIMIT 1;
+SELECT COUNT(usage_idle) FROM cpu GROUP BY cpu OFFSET 1;

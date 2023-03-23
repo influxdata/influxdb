@@ -1,5 +1,6 @@
 use crate::plan::timestamp::parse_timestamp;
 use crate::plan::util::binary_operator_to_df_operator;
+use arrow::temporal_conversions::MILLISECONDS_IN_DAY;
 use datafusion::common::{DataFusionError, Result, ScalarValue};
 use datafusion::logical_expr::{binary_expr, lit, now, BinaryExpr, Expr as DFExpr, Operator};
 use influxdb_influxql_parser::expression::BinaryOperator;
@@ -68,6 +69,48 @@ pub(in crate::plan) fn time_range_to_df_expr(expr: &Expr, tz: Option<chrono_tz::
             ))
         }
     })
+}
+
+/// Simplifies `expr` to an InfluxQL duration and returns a DataFusion interval.
+///
+/// Returns an error if `expr` is not a duration expression.
+///
+/// ## NOTE
+///
+/// The returned interval is limited to a precision of milliseconds,
+/// due to [issue #7204][]
+///
+/// [issue #7204]: https://github.com/influxdata/influxdb_iox/issues/7204
+pub(super) fn expr_to_df_interval_dt(expr: &Expr) -> ExprResult {
+    let v = duration_expr_to_nanoseconds(expr)?;
+    if v % 1_000_000 != 0 {
+        Err(DataFusionError::NotImplemented("interval limited to a precision of milliseconds. See https://github.com/influxdata/influxdb_iox/issues/7204".to_owned()))
+    } else {
+        let v = v / 1_000_000;
+        let days = v / MILLISECONDS_IN_DAY;
+        // keep the sign on `days` and remove it from `millis`
+        let millis = (v - days * MILLISECONDS_IN_DAY).abs();
+
+        // It is not possible for an InfluxQL duration to overflow an IntervalDayTime.
+        // An InfluxQL duration encodes a number of nanoseconds into a 64-bit signed integer,
+        // which is a maximum of 15,250.2845 days. An IntervalDayTime can encode days
+        // as a signed 32-bit number.
+        Ok(lit(ScalarValue::new_interval_dt(
+            days as i32,
+            millis as i32,
+        )))
+    }
+}
+
+/// Reduces an InfluxQL duration `expr` to a nanosecond interval.
+pub(super) fn duration_expr_to_nanoseconds(expr: &Expr) -> Result<i64> {
+    let df_expr = reduce_expr(expr, None)?;
+    match df_expr {
+        DFExpr::Literal(ScalarValue::IntervalMonthDayNano(Some(v))) => Ok(v as i64),
+        DFExpr::Literal(ScalarValue::Float64(Some(v))) => Ok(v as i64),
+        DFExpr::Literal(ScalarValue::Int64(Some(v))) => Ok(v),
+        _ => Err(DataFusionError::Plan("invalid duration expression".into())),
+    }
 }
 
 fn map_expr_err(expr: &Expr) -> impl Fn(DataFusionError) -> DataFusionError + '_ {
@@ -393,6 +436,7 @@ fn parse_timestamp_df_expr(s: &str, tz: Option<chrono_tz::Tz>) -> ExprResult {
 #[cfg(test)]
 mod test {
     use super::*;
+    use assert_matches::assert_matches;
     use influxdb_influxql_parser::expression::ConditionalExpression;
     use test_helpers::assert_error;
 
@@ -544,5 +588,34 @@ mod test {
             "'2004-04-09T10:05:00.123456789Z'",
             "TimestampNanosecond(1081505100123456789, None)" // 2004-04-09T10:05:00.123456789Z
         );
+    }
+
+    #[test]
+    fn test_expr_to_df_interval_dt() {
+        fn parse(s: &str) -> ExprResult {
+            let expr = s
+                .parse::<ConditionalExpression>()
+                .unwrap()
+                .expr()
+                .unwrap()
+                .clone();
+            expr_to_df_interval_dt(&expr)
+        }
+
+        use ScalarValue::IntervalDayTime;
+
+        assert_matches!(parse("10s").unwrap(), DFExpr::Literal(IntervalDayTime(v)) if IntervalDayTime(v) == ScalarValue::new_interval_dt(0, 10_000));
+        assert_matches!(parse("10s + 1d").unwrap(), DFExpr::Literal(IntervalDayTime(v)) if IntervalDayTime(v) == ScalarValue::new_interval_dt(1, 10_000));
+        assert_matches!(parse("5d10ms").unwrap(), DFExpr::Literal(IntervalDayTime(v)) if IntervalDayTime(v) == ScalarValue::new_interval_dt(5, 10));
+        assert_matches!(parse("-2d10ms").unwrap(), DFExpr::Literal(IntervalDayTime(v)) if IntervalDayTime(v) == ScalarValue::new_interval_dt(-2, 10));
+
+        // Fallible
+
+        use DataFusionError::NotImplemented;
+
+        // Don't support a precision greater than milliseconds.
+        //
+        // See: https://github.com/influxdata/influxdb_iox/issues/7204
+        assert_error!(parse("-2d10ns"), NotImplemented(ref s) if s == "interval limited to a precision of milliseconds. See https://github.com/influxdata/influxdb_iox/issues/7204");
     }
 }

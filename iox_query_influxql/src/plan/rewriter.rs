@@ -180,9 +180,11 @@ fn has_wildcards(stmt: &SelectStatement) -> (bool, bool) {
 
 /// Rewrite the projection list and GROUP BY of the specified `SELECT` statement.
 ///
-/// Wildcards and regular expressions in the `SELECT` projection list and `GROUP BY` are expanded.
-/// Any fields with no type specifier are rewritten with the appropriate type, if they exist in the
-/// underlying schema.
+/// The following transformations are performed:
+///
+/// * Wildcards and regular expressions in the `SELECT` projection list and `GROUP BY` are expanded.
+/// * Any fields with no type specifier are rewritten with the appropriate type, if they exist in the
+///   underlying schema.
 ///
 /// Derived from [Go implementation](https://github.com/influxdata/influxql/blob/1ba470371ec093d57a726b143fe6ccbacf1b452b/ast.go#L1185).
 fn rewrite_field_list(s: &dyn SchemaProvider, stmt: &mut SelectStatement) -> Result<()> {
