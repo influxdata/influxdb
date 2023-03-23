@@ -68,16 +68,16 @@ pub enum RpcWriteError {
 ///
 /// [gRPC write service]: client::WriteClient
 #[derive(Debug)]
-pub struct RpcWrite<C> {
-    endpoints: Balancer<C>,
+pub struct RpcWrite<T> {
+    endpoints: Balancer<T>,
 }
 
-impl<C> RpcWrite<C> {
+impl<T> RpcWrite<T> {
     /// Initialise a new [`RpcWrite`] that sends requests to an arbitrary
     /// downstream Ingester, using a round-robin strategy.
-    pub fn new<N>(endpoints: impl IntoIterator<Item = (C, N)>, metrics: &metric::Registry) -> Self
+    pub fn new<N>(endpoints: impl IntoIterator<Item = (T, N)>, metrics: &metric::Registry) -> Self
     where
-        C: Send + Sync + Debug + 'static,
+        T: Send + Sync + Debug + 'static,
         N: Into<Arc<str>>,
     {
         Self {
@@ -92,9 +92,9 @@ impl<C> RpcWrite<C> {
 }
 
 #[async_trait]
-impl<C> DmlHandler for RpcWrite<C>
+impl<T> DmlHandler for RpcWrite<T>
 where
-    C: WriteClient + 'static,
+    T: WriteClient + 'static,
 {
     type WriteInput = Partitioned<HashMap<TableId, (String, MutableBatch)>>;
     type WriteOutput = Vec<DmlMeta>;
