@@ -14,7 +14,7 @@ use crate::{
         Components,
     },
     error::{DynError, ErrorKind, SimpleError},
-    file_classification::{FileToSplit, FilesToCompactOrSplit},
+    file_classification::{FileClassification, FilesForProgress, FilesToSplitOrCompact},
     partition_info::PartitionInfo,
     PlanIR,
 };
@@ -151,10 +151,10 @@ async fn compact_partition(
 ///      - Split L1s each of which overlaps with more than 1 L2s into many L1s, each overlaps with at most one L2 files
 ///   . Each branch does find non-overlaps and upgragde files to avoid unecessary recompacting.
 ///     The actually split files:
-///      1. files_to _keep: do not compact these files because they are already higher than target level
+///      1. files_to_keep: do not compact these files because they are already higher than target level
 ///      2. files_to_upgrade: upgrade this initial-level files to target level because they are not overlap with
 ///          any target-level and initial-level files and large enough (> desired max size)
-///      3. files_to_compact_or_split.: this is either files to compact or split and will be compacted or split accordingly
+///      3. files_to_split_or_compact: this is either files to split or files to compact and will be handled accordingly
 
 ///
 /// Example: 4 files: two L0s, two L1s and one L2
@@ -225,30 +225,39 @@ async fn try_compact_partition(
             // Identify the target level and files that should be
             // compacted together, upgraded, and kept for next round of
             // compaction
-            let file_classification =
-                components
-                    .file_classifier
-                    .classify(&partition_info, &round_info, branch);
+            let FileClassification {
+                target_level,
+                files_to_make_progress_on,
+                files_to_keep,
+            } = components
+                .file_classifier
+                .classify(&partition_info, &round_info, branch);
 
-            // Skip partition if it has neither files to upgrade nor files to compact or split
-            if !file_classification.has_upgrade_files()
-                && !components
-                    .partition_too_large_to_compact_filter
-                    .apply(
-                        &partition_info,
-                        &file_classification.files_to_compact_or_split.files(),
-                    )
-                    .await?
+            // Evaluate whether there's work to do or not based on the files classified for
+            // making progress on. If there's no work to do, return early.
+            //
+            // Currently, no work to do mostly means we are unable to compact this partition due to
+            // some limitation such as a large file with single timestamp that we cannot split in
+            // order to further compact.
+            if !components
+                .post_classification_partition_filter
+                .apply(&partition_info, &files_to_make_progress_on)
+                .await?
             {
                 return Ok(());
             }
 
+            let FilesForProgress {
+                upgrade,
+                split_or_compact,
+            } = files_to_make_progress_on;
+
             // Compact
             let created_file_params = run_plans(
-                &file_classification.files_to_compact_or_split,
+                split_or_compact.clone(),
                 &partition_info,
                 &components,
-                file_classification.target_level,
+                target_level,
                 Arc::clone(&job_semaphore),
                 scratchpad_ctx,
             )
@@ -261,23 +270,23 @@ async fn try_compact_partition(
             // clean scratchpad
             scratchpad_ctx.clean_from_scratchpad(&input_paths).await;
 
-            // Update the catalog to reflect the newly created files, soft delete the compacted files and
-            // update the upgraded files
-            let files_to_delete = file_classification.files_to_compact_or_split.files();
+            // Update the catalog to reflect the newly created files, soft delete the compacted
+            // files and update the upgraded files
+            let files_to_delete = split_or_compact.into_files();
             let (created_files, upgraded_files) = update_catalog(
                 Arc::clone(&components),
                 partition_id,
                 files_to_delete,
-                file_classification.files_to_upgrade,
+                upgrade,
                 created_file_params,
-                file_classification.target_level,
+                target_level,
             )
             .await;
 
             // Extend created files, upgraded files and files_to_keep to files_next
             files_next.extend(created_files);
             files_next.extend(upgraded_files);
-            files_next.extend(file_classification.files_to_keep);
+            files_next.extend(files_to_keep);
         }
 
         files = files_next;
@@ -291,149 +300,48 @@ async fn try_compact_partition(
     }
 }
 
-/// Compact of split give files
+/// Compact or split given files
 async fn run_plans(
-    files: &FilesToCompactOrSplit,
+    split_or_compact: FilesToSplitOrCompact,
     partition_info: &Arc<PartitionInfo>,
     components: &Arc<Components>,
     target_level: CompactionLevel,
     job_semaphore: Arc<InstrumentedAsyncSemaphore>,
     scratchpad_ctx: &mut dyn Scratchpad,
 ) -> Result<Vec<ParquetFileParams>, DynError> {
-    match files {
-        FilesToCompactOrSplit::FilesToCompact(files) => {
-            run_compaction_plan(
-                files,
-                partition_info,
-                components,
-                target_level,
-                job_semaphore,
-                scratchpad_ctx,
-            )
-            .await
-        }
-        FilesToCompactOrSplit::FilesToSplit(files) => {
-            run_split_plans(
-                files,
-                partition_info,
-                components,
-                job_semaphore,
-                scratchpad_ctx,
-            )
-            .await
-        }
-    }
-}
-
-/// Compact `files` into a new parquet file of the the given target_level
-async fn run_compaction_plan(
-    files: &[ParquetFile],
-    partition_info: &Arc<PartitionInfo>,
-    components: &Arc<Components>,
-    target_level: CompactionLevel,
-    job_semaphore: Arc<InstrumentedAsyncSemaphore>,
-    scratchpad_ctx: &mut dyn Scratchpad,
-) -> Result<Vec<ParquetFileParams>, DynError> {
-    if files.is_empty() {
-        return Ok(vec![]);
-    }
-
     // stage files
-    let input_paths: Vec<ParquetFilePath> = files.iter().map(|f| f.into()).collect();
-    let input_uuids_inpad = scratchpad_ctx.load_to_scratchpad(&input_paths).await;
-    let branch_inpad: Vec<_> = files
-        .iter()
-        .zip(input_uuids_inpad)
-        .map(|(f, uuid)| ParquetFile {
-            object_store_id: uuid,
-            ..f.clone()
-        })
-        .collect();
+    let input_uuids_inpad = scratchpad_ctx
+        .load_to_scratchpad(&split_or_compact.file_input_paths())
+        .await;
 
-    let plan_ir =
-        components
-            .ir_planner
-            .compact_plan(branch_inpad, Arc::clone(partition_info), target_level);
-
-    execute_plan(
-        plan_ir,
-        partition_info,
-        components,
+    let plans = components.ir_planner.create_plans(
+        Arc::clone(partition_info),
         target_level,
-        job_semaphore,
-    )
-    .await
-}
+        split_or_compact,
+        input_uuids_inpad,
+    );
+    let capacity = plans.iter().map(|p| p.n_output_files()).sum();
+    let mut created_file_params = Vec::with_capacity(capacity);
 
-/// Split each of given files into multiple files
-async fn run_split_plans(
-    files_to_split: &[FileToSplit],
-    partition_info: &Arc<PartitionInfo>,
-    components: &Arc<Components>,
-    job_semaphore: Arc<InstrumentedAsyncSemaphore>,
-    scratchpad_ctx: &mut dyn Scratchpad,
-) -> Result<Vec<ParquetFileParams>, DynError> {
-    if files_to_split.is_empty() {
-        return Ok(vec![]);
-    }
-
-    let mut created_file_params = vec![];
-    for file_to_split in files_to_split {
-        let x = run_split_plan(
-            file_to_split,
-            partition_info,
-            components,
-            Arc::clone(&job_semaphore),
-            scratchpad_ctx,
+    for plan_ir in plans {
+        created_file_params.extend(
+            execute_plan(
+                plan_ir,
+                partition_info,
+                components,
+                Arc::clone(&job_semaphore),
+            )
+            .await?,
         )
-        .await?;
-        created_file_params.extend(x);
     }
 
     Ok(created_file_params)
-}
-
-// Split a given file into multiple files
-async fn run_split_plan(
-    file_to_split: &FileToSplit,
-    partition_info: &Arc<PartitionInfo>,
-    components: &Arc<Components>,
-    job_semaphore: Arc<InstrumentedAsyncSemaphore>,
-    scratchpad_ctx: &mut dyn Scratchpad,
-) -> Result<Vec<ParquetFileParams>, DynError> {
-    // stage files
-    let input_path = (&file_to_split.file).into();
-    let input_uuids_inpad = scratchpad_ctx.load_to_scratchpad(&[input_path]).await;
-    let file_inpad = ParquetFile {
-        object_store_id: input_uuids_inpad[0],
-        ..file_to_split.file.clone()
-    };
-
-    // target level of a split file is the same as its level
-    let target_level = file_to_split.file.compaction_level;
-
-    let plan_ir = components.ir_planner.split_plan(
-        file_inpad,
-        file_to_split.split_times.clone(),
-        Arc::clone(partition_info),
-        target_level,
-    );
-
-    execute_plan(
-        plan_ir,
-        partition_info,
-        components,
-        target_level,
-        job_semaphore,
-    )
-    .await
 }
 
 async fn execute_plan(
     plan_ir: PlanIR,
     partition_info: &Arc<PartitionInfo>,
     components: &Arc<Components>,
-    target_level: CompactionLevel,
     job_semaphore: Arc<InstrumentedAsyncSemaphore>,
 ) -> Result<Vec<ParquetFileParams>, DynError> {
     let create = {
@@ -460,7 +368,7 @@ async fn execute_plan(
         let job = components.parquet_files_sink.stream_into_file_sink(
             streams,
             Arc::clone(partition_info),
-            target_level,
+            plan_ir.target_level(),
             &plan_ir,
         );
 

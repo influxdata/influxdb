@@ -4,7 +4,7 @@ use data_types::{CompactionLevel, ParquetFile};
 use metric::{Registry, U64Counter, U64Histogram, U64HistogramOptions};
 
 use super::SplitOrCompact;
-use crate::{file_classification::FilesToCompactOrSplit, partition_info::PartitionInfo};
+use crate::{file_classification::FilesToSplitOrCompact, partition_info::PartitionInfo};
 
 const METRIC_NAME_FILES_TO_SPLIT: &str = "iox_compactor_files_to_split";
 const METRIC_NAME_SPLIT_DECISION_COUNT: &str = "iox_compactor_split_decision";
@@ -66,26 +66,21 @@ where
         partition_info: &PartitionInfo,
         files: Vec<ParquetFile>,
         target_level: CompactionLevel,
-    ) -> (FilesToCompactOrSplit, Vec<ParquetFile>) {
-        let (files_to_compact_or_split, files_not_to_split) =
+    ) -> (FilesToSplitOrCompact, Vec<ParquetFile>) {
+        let (files_to_split_or_compact, files_to_keep) =
             self.inner.apply(partition_info, files, target_level);
 
-        match &files_to_compact_or_split {
-            FilesToCompactOrSplit::FilesToSplit(inner_files_to_split) => {
-                if !inner_files_to_split.is_empty() {
-                    self.files_to_split
-                        .record(inner_files_to_split.len() as u64);
-                    self.split_decision_count.inc(1);
-                }
+        match &files_to_split_or_compact {
+            FilesToSplitOrCompact::Split(_) => {
+                self.files_to_split
+                    .record(files_to_split_or_compact.num_files_to_split() as u64);
+                self.split_decision_count.inc(1);
             }
-            FilesToCompactOrSplit::FilesToCompact(inner_files_to_compact) => {
-                if !inner_files_to_compact.is_empty() {
-                    self.compact_decision_count.inc(1);
-                }
-            }
+            FilesToSplitOrCompact::Compact(_) => self.compact_decision_count.inc(1),
+            _ => {} // Nothing to do
         }
 
-        (files_to_compact_or_split, files_not_to_split)
+        (files_to_split_or_compact, files_to_keep)
     }
 }
 
@@ -125,10 +120,8 @@ mod tests {
             SplitCompact::new(MAX_FILE, MAX_FILE as u64),
             &registry,
         );
-        let (files_to_compact_or_split, _files_to_keep) =
+        let (_files_to_split_or_compact, _files_to_keep) =
             split_compact.apply(&p_info, files, CompactionLevel::Initial);
-
-        assert!(files_to_compact_or_split.is_empty());
 
         assert_histogram!(
             registry,
@@ -160,10 +153,8 @@ mod tests {
             SplitCompact::new(MAX_FILE, MAX_FILE as u64),
             &registry,
         );
-        let (files_to_compact_or_split, _files_to_keep) =
+        let (_files_to_split_or_compact, _files_to_keep) =
             split_compact.apply(&p_info, files, CompactionLevel::FileNonOverlapped);
-
-        assert_eq!(files_to_compact_or_split.files_to_split_len(), 1);
 
         assert_histogram!(
             registry,
@@ -196,10 +187,8 @@ mod tests {
             SplitCompact::new(MAX_FILE * 3, MAX_FILE as u64),
             &registry,
         );
-        let (files_to_compact_or_split, _files_to_keep) =
+        let (_files_to_split_or_compact, _files_to_keep) =
             split_compact.apply(&p_info, files, CompactionLevel::Final);
-
-        assert_eq!(files_to_compact_or_split.files_to_compact_len(), 3);
 
         assert_histogram!(
             registry,

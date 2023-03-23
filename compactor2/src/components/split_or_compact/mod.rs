@@ -2,7 +2,7 @@ use std::fmt::{Debug, Display};
 
 use data_types::{CompactionLevel, ParquetFile};
 
-use crate::{file_classification::FilesToCompactOrSplit, PartitionInfo};
+use crate::{file_classification::FilesToSplitOrCompact, PartitionInfo};
 
 pub mod files_to_compact;
 pub mod large_files_to_split;
@@ -20,5 +20,5 @@ pub trait SplitOrCompact: Debug + Display + Send + Sync {
         partition_info: &PartitionInfo,
         files: Vec<ParquetFile>,
         target_level: CompactionLevel,
-    ) -> (FilesToCompactOrSplit, Vec<ParquetFile>);
+    ) -> (FilesToSplitOrCompact, Vec<ParquetFile>);
 }

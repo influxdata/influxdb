@@ -57,7 +57,7 @@ use super::{
         has_files::HasFilesPartitionFilter, has_matching_file::HasMatchingFilePartitionFilter,
         logging::LoggingPartitionFilterWrapper, max_num_columns::MaxNumColumnsPartitionFilter,
         metrics::MetricsPartitionFilterWrapper, never_skipped::NeverSkippedPartitionFilter,
-        or::OrPartitionFilter, unable_to_compact::UnableToCompactPartitionFilter, PartitionFilter,
+        or::OrPartitionFilter, PartitionFilter,
     },
     partition_info_source::sub_sources::SubSourcePartitionInfoSource,
     partition_source::{
@@ -74,6 +74,10 @@ use super::{
         metrics::MetricsPartitionsSourceWrapper, mock::MockPartitionsSource,
         not_empty::NotEmptyPartitionsSourceWrapper,
         randomize_order::RandomizeOrderPartitionsSourcesWrapper, PartitionsSource,
+    },
+    post_classification_partition_filter::{
+        logging::LoggingPostClassificationFilterWrapper,
+        metrics::MetricsPostClassificationFilterWrapper, possible_progress::PossibleProgressFilter,
     },
     round_info_source::{LevelBasedRoundInfo, LoggingRoundInfoWrapper},
     round_split::many_files::ManyFilesRoundSplit,
@@ -136,11 +140,6 @@ pub fn hardcoded_components(config: &Config) -> Arc<Components> {
         config.max_num_columns_per_table,
     )));
     partition_filters.append(&mut make_partition_filters(config));
-
-    let partition_large_size_tiny_time_range_filter: Vec<Arc<dyn PartitionFilter>> =
-        vec![Arc::new(UnableToCompactPartitionFilter::new(
-            config.max_compact_size_bytes(),
-        ))];
 
     let partition_done_sink: Arc<dyn PartitionDoneSink> = if config.shadow_mode {
         Arc::new(MockPartitionDoneSink::new())
@@ -329,14 +328,16 @@ pub fn hardcoded_components(config: &Config) -> Arc<Components> {
                 )),
             ),
         ))),
-        partition_too_large_to_compact_filter: Arc::new(LoggingPartitionFilterWrapper::new(
-            MetricsPartitionFilterWrapper::new(
-                AndPartitionFilter::new(partition_large_size_tiny_time_range_filter),
-                &config.metric_registry,
+        post_classification_partition_filter: Arc::new(
+            LoggingPostClassificationFilterWrapper::new(
+                MetricsPostClassificationFilterWrapper::new(
+                    PossibleProgressFilter::new(config.max_compact_size_bytes()),
+                    &config.metric_registry,
+                    partition_resource_limit_conditions,
+                ),
                 partition_resource_limit_conditions,
             ),
-            partition_resource_limit_conditions,
-        )),
+        ),
     })
 }
 

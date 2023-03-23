@@ -99,7 +99,7 @@ pub fn log_components(components: &Components) {
         partition_files_source,
         round_info_source,
         partition_filter,
-        partition_too_large_to_compact_filter,
+        post_classification_partition_filter: partition_too_large_to_compact_filter,
         partition_done_sink,
         commit,
         ir_planner,

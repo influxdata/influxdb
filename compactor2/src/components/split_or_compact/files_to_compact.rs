@@ -246,12 +246,12 @@ mod tests {
     #[test]
     fn test_compact_empty() {
         let files = vec![];
-        let keep_and_compact_or_split =
+        let keep_and_split_or_compact =
             limit_files_to_compact(MAX_SIZE, files, CompactionLevel::Initial);
 
-        let files_to_compact = keep_and_compact_or_split.files_to_compact();
-        let files_to_further_split = keep_and_compact_or_split.files_to_further_split();
-        let files_to_keep = keep_and_compact_or_split.files_to_keep();
+        let files_to_compact = keep_and_split_or_compact.files_to_compact();
+        let files_to_further_split = keep_and_split_or_compact.files_to_further_split();
+        let files_to_keep = keep_and_split_or_compact.files_to_keep();
 
         assert!(files_to_compact.is_empty());
         assert!(files_to_further_split.is_empty());
@@ -265,7 +265,7 @@ mod tests {
         let files = create_l1_files(1);
 
         // Target is L0 while all files are in L1 --> panic
-        let _keep_and_compact_or_split =
+        let _keep_and_split_or_compact =
             limit_files_to_compact(MAX_SIZE, files, CompactionLevel::Initial);
     }
 
@@ -294,7 +294,7 @@ mod tests {
         );
 
         // panic because it only handle at most 2 levels next to each other
-        let _keep_and_compact_or_split =
+        let _keep_and_split_or_compact =
             limit_files_to_compact(MAX_SIZE, files, CompactionLevel::FileNonOverlapped);
     }
 
@@ -319,7 +319,7 @@ mod tests {
         );
 
         // size limit > total size --> files to compact = all L0s and overalapped L1s
-        let _keep_and_compact_or_split =
+        let _keep_and_split_or_compact =
             limit_files_to_compact(MAX_SIZE * 5 + 1, files, CompactionLevel::FileNonOverlapped);
     }
 
@@ -342,12 +342,12 @@ mod tests {
         );
 
         // size limit > total size --> files to compact = all L0s and overalapped L1s
-        let keep_and_compact_or_split =
+        let keep_and_split_or_compact =
             limit_files_to_compact(MAX_SIZE * 5 + 1, files, CompactionLevel::FileNonOverlapped);
 
-        let files_to_compact = keep_and_compact_or_split.files_to_compact();
-        let files_to_further_split = keep_and_compact_or_split.files_to_further_split();
-        let files_to_keep = keep_and_compact_or_split.files_to_keep();
+        let files_to_compact = keep_and_split_or_compact.files_to_compact();
+        let files_to_further_split = keep_and_split_or_compact.files_to_further_split();
+        let files_to_keep = keep_and_split_or_compact.files_to_keep();
 
         assert_eq!(files_to_compact.len(), 5);
         assert_eq!(files_to_further_split.len(), 0);
@@ -390,12 +390,12 @@ mod tests {
         );
 
         // size limit too small to compact anything
-        let keep_and_compact_or_split =
+        let keep_and_split_or_compact =
             limit_files_to_compact(MAX_SIZE, files, CompactionLevel::FileNonOverlapped);
 
-        let files_to_compact = keep_and_compact_or_split.files_to_compact();
-        let files_to_further_split = keep_and_compact_or_split.files_to_further_split();
-        let files_to_keep = keep_and_compact_or_split.files_to_keep();
+        let files_to_compact = keep_and_split_or_compact.files_to_compact();
+        let files_to_further_split = keep_and_split_or_compact.files_to_further_split();
+        let files_to_keep = keep_and_split_or_compact.files_to_keep();
 
         assert_eq!(files_to_compact.len(), 0);
         assert_eq!(files_to_further_split.len(), 2);
@@ -440,12 +440,12 @@ mod tests {
         );
 
         // size limit < total size --> only enough to compact L0.1 with L1.12
-        let keep_and_compact_or_split =
+        let keep_and_split_or_compact =
             limit_files_to_compact(MAX_SIZE * 3, files, CompactionLevel::FileNonOverlapped);
 
-        let files_to_compact = keep_and_compact_or_split.files_to_compact();
-        let files_to_further_split = keep_and_compact_or_split.files_to_further_split();
-        let files_to_keep = keep_and_compact_or_split.files_to_keep();
+        let files_to_compact = keep_and_split_or_compact.files_to_compact();
+        let files_to_further_split = keep_and_split_or_compact.files_to_further_split();
+        let files_to_keep = keep_and_split_or_compact.files_to_keep();
 
         assert_eq!(files_to_compact.len(), 2);
         assert_eq!(files_to_further_split.len(), 0);
@@ -490,12 +490,12 @@ mod tests {
         );
 
         // size limit < total size --> only enough to compact L0.1, L0.2 with L1.12 and L1.13
-        let keep_and_compact_or_split =
+        let keep_and_split_or_compact =
             limit_files_to_compact(MAX_SIZE * 4, files, CompactionLevel::FileNonOverlapped);
 
-        let files_to_compact = keep_and_compact_or_split.files_to_compact();
-        let files_to_further_split = keep_and_compact_or_split.files_to_further_split();
-        let files_to_keep = keep_and_compact_or_split.files_to_keep();
+        let files_to_compact = keep_and_split_or_compact.files_to_compact();
+        let files_to_further_split = keep_and_split_or_compact.files_to_further_split();
+        let files_to_keep = keep_and_split_or_compact.files_to_keep();
 
         assert_eq!(files_to_compact.len(), 4);
         assert_eq!(files_to_further_split.len(), 0);
@@ -547,12 +547,12 @@ mod tests {
 
         // --------------------
         // size limit = MAX_SIZE  to force the first choice: splitting L0.1 with L1.11
-        let keep_and_compact_or_split =
+        let keep_and_split_or_compact =
             limit_files_to_compact(MAX_SIZE, files.clone(), CompactionLevel::FileNonOverlapped);
 
-        let files_to_compact = keep_and_compact_or_split.files_to_compact();
-        let files_to_further_split = keep_and_compact_or_split.files_to_further_split();
-        let files_to_keep = keep_and_compact_or_split.files_to_keep();
+        let files_to_compact = keep_and_split_or_compact.files_to_compact();
+        let files_to_further_split = keep_and_split_or_compact.files_to_further_split();
+        let files_to_keep = keep_and_split_or_compact.files_to_keep();
 
         assert_eq!(files_to_compact.len(), 0);
         assert_eq!(files_to_further_split.len(), 2);
@@ -580,15 +580,15 @@ mod tests {
 
         // --------------------
         // size limit = MAX_SIZE * 3 to force the second choice, L0.1 with L1.11
-        let keep_and_compact_or_split = limit_files_to_compact(
+        let keep_and_split_or_compact = limit_files_to_compact(
             MAX_SIZE * 3,
             files.clone(),
             CompactionLevel::FileNonOverlapped,
         );
 
-        let files_to_compact = keep_and_compact_or_split.files_to_compact();
-        let files_to_further_split = keep_and_compact_or_split.files_to_further_split();
-        let files_to_keep = keep_and_compact_or_split.files_to_keep();
+        let files_to_compact = keep_and_split_or_compact.files_to_compact();
+        let files_to_further_split = keep_and_split_or_compact.files_to_further_split();
+        let files_to_keep = keep_and_split_or_compact.files_to_keep();
 
         assert_eq!(files_to_compact.len(), 2);
         assert_eq!(files_to_further_split.len(), 0);
@@ -617,15 +617,15 @@ mod tests {
         // --------------------
         // size limit = MAX_SIZE * 4 to force the second choice, L0.1 with L1.11, because it still not enough to for second choice
 
-        let keep_and_compact_or_split = limit_files_to_compact(
+        let keep_and_split_or_compact = limit_files_to_compact(
             MAX_SIZE * 4,
             files.clone(),
             CompactionLevel::FileNonOverlapped,
         );
 
-        let files_to_compact = keep_and_compact_or_split.files_to_compact();
-        let files_to_further_split = keep_and_compact_or_split.files_to_further_split();
-        let files_to_keep = keep_and_compact_or_split.files_to_keep();
+        let files_to_compact = keep_and_split_or_compact.files_to_compact();
+        let files_to_further_split = keep_and_split_or_compact.files_to_further_split();
+        let files_to_keep = keep_and_split_or_compact.files_to_keep();
 
         assert_eq!(files_to_compact.len(), 2);
         assert_eq!(files_to_further_split.len(), 0);
@@ -653,15 +653,15 @@ mod tests {
 
         // --------------------
         // size limit = MAX_SIZE * 5 to force the third choice, L0.1, L0.2 with L1.11, L1.12, L1.13
-        let keep_and_compact_or_split = limit_files_to_compact(
+        let keep_and_split_or_compact = limit_files_to_compact(
             MAX_SIZE * 5,
             files.clone(),
             CompactionLevel::FileNonOverlapped,
         );
 
-        let files_to_compact = keep_and_compact_or_split.files_to_compact();
-        let files_to_further_split = keep_and_compact_or_split.files_to_further_split();
-        let files_to_keep = keep_and_compact_or_split.files_to_keep();
+        let files_to_compact = keep_and_split_or_compact.files_to_compact();
+        let files_to_further_split = keep_and_split_or_compact.files_to_further_split();
+        let files_to_keep = keep_and_split_or_compact.files_to_keep();
 
         assert_eq!(files_to_compact.len(), 5);
         assert_eq!(files_to_further_split.len(), 0);
@@ -688,12 +688,12 @@ mod tests {
 
         // --------------------
         // size limit >= total size to force the forth choice compacting everything:  L0.1, L0.2, L0.3 with L1.11, L1.12, L1.13
-        let keep_and_compact_or_split =
+        let keep_and_split_or_compact =
             limit_files_to_compact(MAX_SIZE * 6, files, CompactionLevel::FileNonOverlapped);
 
-        let files_to_compact = keep_and_compact_or_split.files_to_compact();
-        let files_to_further_split = keep_and_compact_or_split.files_to_further_split();
-        let files_to_keep = keep_and_compact_or_split.files_to_keep();
+        let files_to_compact = keep_and_split_or_compact.files_to_compact();
+        let files_to_further_split = keep_and_split_or_compact.files_to_further_split();
+        let files_to_keep = keep_and_split_or_compact.files_to_keep();
 
         assert_eq!(files_to_compact.len(), 6);
         assert_eq!(files_to_further_split.len(), 0);
@@ -748,12 +748,12 @@ mod tests {
 
         // --------------------
         // size limit = MAX_SIZE to force the first choice: splitting L1.1 & L2.11
-        let keep_and_compact_or_split =
+        let keep_and_split_or_compact =
             limit_files_to_compact(MAX_SIZE, files.clone(), CompactionLevel::Final);
 
-        let files_to_compact = keep_and_compact_or_split.files_to_compact();
-        let files_to_further_split = keep_and_compact_or_split.files_to_further_split();
-        let files_to_keep = keep_and_compact_or_split.files_to_keep();
+        let files_to_compact = keep_and_split_or_compact.files_to_compact();
+        let files_to_further_split = keep_and_split_or_compact.files_to_further_split();
+        let files_to_keep = keep_and_split_or_compact.files_to_keep();
 
         assert_eq!(files_to_compact.len(), 0);
         assert_eq!(files_to_further_split.len(), 2);
@@ -781,12 +781,12 @@ mod tests {
 
         // --------------------
         // size limit = MAX_SIZE * 3 to force the second choice,: compact L1.1 with L2.11
-        let keep_and_compact_or_split =
+        let keep_and_split_or_compact =
             limit_files_to_compact(MAX_SIZE * 3, files.clone(), CompactionLevel::Final);
 
-        let files_to_compact = keep_and_compact_or_split.files_to_compact();
-        let files_to_further_split = keep_and_compact_or_split.files_to_further_split();
-        let files_to_keep = keep_and_compact_or_split.files_to_keep();
+        let files_to_compact = keep_and_split_or_compact.files_to_compact();
+        let files_to_further_split = keep_and_split_or_compact.files_to_further_split();
+        let files_to_keep = keep_and_split_or_compact.files_to_keep();
 
         assert_eq!(files_to_compact.len(), 2);
         assert_eq!(files_to_further_split.len(), 0);
@@ -814,12 +814,12 @@ mod tests {
 
         // --------------------
         // size limit = MAX_SIZE * 3 to force the second choice, compact L1.1 with L1.12, because it still not enough to for third choice
-        let keep_and_compact_or_split =
+        let keep_and_split_or_compact =
             limit_files_to_compact(MAX_SIZE * 3, files.clone(), CompactionLevel::Final);
 
-        let files_to_compact = keep_and_compact_or_split.files_to_compact();
-        let files_to_further_split = keep_and_compact_or_split.files_to_further_split();
-        let files_to_keep = keep_and_compact_or_split.files_to_keep();
+        let files_to_compact = keep_and_split_or_compact.files_to_compact();
+        let files_to_further_split = keep_and_split_or_compact.files_to_further_split();
+        let files_to_keep = keep_and_split_or_compact.files_to_keep();
 
         assert_eq!(files_to_compact.len(), 2);
         assert_eq!(files_to_further_split.len(), 0);
@@ -847,12 +847,12 @@ mod tests {
 
         // --------------------
         // size limit = MAX_SIZE * 5 to force the third choice, L1.1, L1.2 with L2.11, L2.12, L2.13
-        let keep_and_compact_or_split =
+        let keep_and_split_or_compact =
             limit_files_to_compact(MAX_SIZE * 5, files.clone(), CompactionLevel::Final);
 
-        let files_to_compact = keep_and_compact_or_split.files_to_compact();
-        let files_to_further_split = keep_and_compact_or_split.files_to_further_split();
-        let files_to_keep = keep_and_compact_or_split.files_to_keep();
+        let files_to_compact = keep_and_split_or_compact.files_to_compact();
+        let files_to_further_split = keep_and_split_or_compact.files_to_further_split();
+        let files_to_keep = keep_and_split_or_compact.files_to_keep();
 
         assert_eq!(files_to_compact.len(), 4);
         assert_eq!(files_to_further_split.len(), 0);
@@ -880,12 +880,12 @@ mod tests {
 
         // --------------------
         // size limit >= total size to force the forth choice compacting everything:  L1.1, L1.2, L1.3 with L2.11, L2.12, L2.13
-        let keep_and_compact_or_split =
+        let keep_and_split_or_compact =
             limit_files_to_compact(MAX_SIZE * 6, files, CompactionLevel::Final);
 
-        let files_to_compact = keep_and_compact_or_split.files_to_compact();
-        let files_to_further_split = keep_and_compact_or_split.files_to_further_split();
-        let files_to_keep = keep_and_compact_or_split.files_to_keep();
+        let files_to_compact = keep_and_split_or_compact.files_to_compact();
+        let files_to_further_split = keep_and_split_or_compact.files_to_further_split();
+        let files_to_keep = keep_and_split_or_compact.files_to_keep();
 
         assert_eq!(files_to_compact.len(), 6);
         assert_eq!(files_to_further_split.len(), 0);
