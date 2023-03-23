@@ -138,10 +138,10 @@ public class Main {
         // null means no filtering
         print_result_set(md.getTables(null, null, null, null));
 
-        // System.out.println("**************");
-        // System.out.println("Tables (system table filter):");
-        // System.out.println("**************");
-        // print_result_set(md.getTables("public", "system", null, null));
+        System.out.println("**************");
+        System.out.println("Tables (system table filter):");
+        System.out.println("**************");
+        print_result_set(md.getTables("public", "system", null, null));
        
         System.out.println("**************");
         System.out.println("Table Types:");

@@ -289,7 +289,8 @@ impl Display for Duration {
 fn single_duration(i: &str) -> ParseResult<&str, i64> {
     use DurationUnit::*;
 
-    map(
+    map_fail(
+        "overflow",
         pair(
             integer,
             alt((
@@ -304,15 +305,18 @@ fn single_duration(i: &str) -> ParseResult<&str, i64> {
                 value(Week, tag("w")),         // weeks
             )),
         ),
-        |(v, unit)| match unit {
-            Nanosecond => v,
-            Microsecond => v * NANOS_PER_MICRO,
-            Millisecond => v * NANOS_PER_MILLI,
-            Second => v * NANOS_PER_SEC,
-            Minute => v * NANOS_PER_MIN,
-            Hour => v * NANOS_PER_HOUR,
-            Day => v * NANOS_PER_DAY,
-            Week => v * NANOS_PER_WEEK,
+        |(v, unit)| {
+            (match unit {
+                Nanosecond => Some(v),
+                Microsecond => v.checked_mul(NANOS_PER_MICRO),
+                Millisecond => v.checked_mul(NANOS_PER_MILLI),
+                Second => v.checked_mul(NANOS_PER_SEC),
+                Minute => v.checked_mul(NANOS_PER_MIN),
+                Hour => v.checked_mul(NANOS_PER_HOUR),
+                Day => v.checked_mul(NANOS_PER_DAY),
+                Week => v.checked_mul(NANOS_PER_WEEK),
+            })
+            .ok_or("integer overflow")
         },
     )(i)
 }
@@ -407,6 +411,8 @@ mod test {
         // Fallible cases
 
         integer("hello").unwrap_err();
+
+        integer("9223372036854775808").expect_err("expected overflow");
     }
 
     #[test]
@@ -487,6 +493,11 @@ mod test {
 
         let (_, got) = single_duration("5w").unwrap();
         assert_eq!(got, 5 * NANOS_PER_WEEK);
+
+        // Fallible
+
+        // Handle overflow
+        single_duration("16000w").expect_err("expected overflow");
     }
 
     #[test]

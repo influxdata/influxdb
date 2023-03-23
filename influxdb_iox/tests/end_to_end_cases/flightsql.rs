@@ -1,11 +1,14 @@
-use std::path::PathBuf;
+use std::{collections::HashMap, path::PathBuf, sync::Arc};
 
-use arrow::record_batch::RecordBatch;
+use arrow::{
+    datatypes::{Schema, SchemaRef},
+    record_batch::RecordBatch,
+};
 use arrow_flight::{
     decode::FlightRecordBatchStream,
     sql::{
         Any, CommandGetCatalogs, CommandGetDbSchemas, CommandGetSqlInfo, CommandGetTableTypes,
-        CommandGetTables, ProstMessageExt, SqlInfo,
+        CommandGetTables, CommandStatementQuery, ProstMessageExt, SqlInfo,
     },
     FlightClient, FlightDescriptor,
 };
@@ -287,18 +290,98 @@ async fn flightsql_get_tables() {
             )),
             Step::Custom(Box::new(move |state: &mut StepTestState| {
                 async move {
+                    struct TestCase {
+                        catalog: Option<&'static str>,
+                        db_schema_filter_pattern: Option<&'static str>,
+                        table_name_filter_pattern: Option<&'static str>,
+                        table_types: Vec<String>,
+                        include_schema: bool,
+                    }
+                    let cases = [
+                        TestCase {
+                            catalog: None,
+                            db_schema_filter_pattern: None,
+                            table_name_filter_pattern: None,
+                            table_types: vec![],
+                            include_schema: false,
+                        },
+                        TestCase {
+                            catalog: None,
+                            db_schema_filter_pattern: None,
+                            table_name_filter_pattern: None,
+                            table_types: vec!["BASE TABLE".to_string()],
+                            include_schema: false,
+                        },
+                        TestCase {
+                            catalog: None,
+                            db_schema_filter_pattern: None,
+                            table_name_filter_pattern: None,
+                            // BASE <> BASE TABLE
+                            table_types: vec!["BASE".to_string()],
+                            include_schema: false,
+                        },
+                        TestCase {
+                            catalog: None,
+                            db_schema_filter_pattern: None,
+                            table_name_filter_pattern: None,
+                            table_types: vec!["RANDOM".to_string()],
+                            include_schema: false,
+                        },
+                        TestCase {
+                            catalog: Some("public"),
+                            db_schema_filter_pattern: Some("information_schema"),
+                            table_name_filter_pattern: Some("tables"),
+                            table_types: vec!["VIEW".to_string()],
+                            include_schema: false,
+                        },
+                    ];
+
                     let mut client = flightsql_client(state.cluster());
 
-                    let stream = client
-                        .get_tables(Some(""), Some(""), Some(""), None)
-                        .await
-                        .unwrap();
-                    let batches = collect_stream(stream).await;
+                    let mut output = vec![];
+                    for case in cases {
+                        let TestCase {
+                            catalog,
+                            db_schema_filter_pattern,
+                            table_name_filter_pattern,
+                            table_types,
+                            include_schema,
+                        } = case;
+
+                        output.push(format!("catalog:{catalog:?}"));
+                        output.push(format!(
+                            "db_schema_filter_pattern:{db_schema_filter_pattern:?}"
+                        ));
+                        output.push(format!(
+                            "table_name_filter_pattern:{table_name_filter_pattern:?}"
+                        ));
+                        output.push(format!("table_types:{table_types:?}"));
+                        output.push(format!("include_schema:{include_schema:?}"));
+                        output.push("*********************".into());
+
+                        let stream = client
+                            .get_tables(
+                                catalog,
+                                db_schema_filter_pattern,
+                                table_name_filter_pattern,
+                                table_types,
+                            )
+                            .await
+                            .unwrap();
+                        let batches = collect_stream(stream).await;
+                        output.extend(batches_to_sorted_lines(&batches))
+                    }
 
                     insta::assert_yaml_snapshot!(
-                        batches_to_sorted_lines(&batches),
+                        output,
                         @r###"
                     ---
+                    - "catalog:None"
+                    - "db_schema_filter_pattern:None"
+                    - "table_name_filter_pattern:None"
+                    - "table_types:[]"
+                    - "include_schema:false"
+                    - "*********************"
                     - +--------------+--------------------+-------------+------------+
                     - "| catalog_name | db_schema_name     | table_name  | table_type |"
                     - +--------------+--------------------+-------------+------------+
@@ -309,6 +392,45 @@ async fn flightsql_get_tables() {
                     - "| public       | iox                | the_table   | BASE TABLE |"
                     - "| public       | system             | queries     | BASE TABLE |"
                     - +--------------+--------------------+-------------+------------+
+                    - "catalog:None"
+                    - "db_schema_filter_pattern:None"
+                    - "table_name_filter_pattern:None"
+                    - "table_types:[\"BASE TABLE\"]"
+                    - "include_schema:false"
+                    - "*********************"
+                    - +--------------+----------------+------------+------------+
+                    - "| catalog_name | db_schema_name | table_name | table_type |"
+                    - +--------------+----------------+------------+------------+
+                    - "| public       | iox            | the_table  | BASE TABLE |"
+                    - "| public       | system         | queries    | BASE TABLE |"
+                    - +--------------+----------------+------------+------------+
+                    - "catalog:None"
+                    - "db_schema_filter_pattern:None"
+                    - "table_name_filter_pattern:None"
+                    - "table_types:[\"BASE\"]"
+                    - "include_schema:false"
+                    - "*********************"
+                    - ++
+                    - ++
+                    - "catalog:None"
+                    - "db_schema_filter_pattern:None"
+                    - "table_name_filter_pattern:None"
+                    - "table_types:[\"RANDOM\"]"
+                    - "include_schema:false"
+                    - "*********************"
+                    - ++
+                    - ++
+                    - "catalog:Some(\"public\")"
+                    - "db_schema_filter_pattern:Some(\"information_schema\")"
+                    - "table_name_filter_pattern:Some(\"tables\")"
+                    - "table_types:[\"VIEW\"]"
+                    - "include_schema:false"
+                    - "*********************"
+                    - +--------------+--------------------+------------+------------+
+                    - "| catalog_name | db_schema_name     | table_name | table_type |"
+                    - +--------------+--------------------+------------+------------+
+                    - "| public       | information_schema | tables     | VIEW       |"
+                    - +--------------+--------------------+------------+------------+
                     "###
                     );
                 }
@@ -584,8 +706,9 @@ async fn flightsql_jdbc() {
                                             information_schema,  public\n\
                                             iox,  public\n\
                                             system,  public";
+
                     // CommandGetTables output
-                    let expected_tables = "**************\n\
+                    let expected_tables_no_filter = "**************\n\
                                            Tables:\n\
                                            **************\n\
                                            TABLE_CAT,  TABLE_SCHEM,  TABLE_NAME,  TABLE_TYPE,  REMARKS,  TYPE_CAT,  TYPE_SCHEM,  TYPE_NAME,  SELF_REFERENCING_COL_NAME,  REF_GENERATION\n\
@@ -596,6 +719,14 @@ async fn flightsql_jdbc() {
                                            public,  information_schema,  views,  VIEW,  null,  null,  null,  null,  null,  null\n\
                                            public,  iox,  the_table,  BASE TABLE,  null,  null,  null,  null,  null,  null\n\
                                            public,  system,  queries,  BASE TABLE,  null,  null,  null,  null,  null,  null";
+
+                    // CommandGetTables output
+                    let expected_tables_with_filters = "**************\n\
+                                            Tables (system table filter):\n\
+                                            **************\n\
+                                            TABLE_CAT,  TABLE_SCHEM,  TABLE_NAME,  TABLE_TYPE,  REMARKS,  TYPE_CAT,  TYPE_SCHEM,  TYPE_NAME,  SELF_REFERENCING_COL_NAME,  REF_GENERATION\n\
+                                            ------------\n\
+                                            public,  system,  queries,  BASE TABLE,  null,  null,  null,  null,  null,  null";
 
                     // CommandGetTableTypes output
                     let expected_table_types = "**************\n\
@@ -614,7 +745,8 @@ async fn flightsql_jdbc() {
                         .success()
                         .stdout(predicate::str::contains(expected_catalogs))
                         .stdout(predicate::str::contains(expected_schemas))
-                        .stdout(predicate::str::contains(expected_tables))
+                        .stdout(predicate::str::contains(expected_tables_no_filter))
+                        .stdout(predicate::str::contains(expected_tables_with_filters))
                         .stdout(predicate::str::contains(expected_table_types));
 
                     let expected_metadata = EXPECTED_METADATA
@@ -658,12 +790,10 @@ async fn flightsql_schema_matches() {
 
                     // Verify schema for each type of command
                     let cases = vec![
-                        // CommandStatementQuery fails because of
-                        // https://github.com/influxdata/influxdb_iox/issues/7279>
-                        // CommandStatementQuery {
-                        //     query: format!("select * from {table_name}"),
-                        // }
-                        // .as_any(),
+                        CommandStatementQuery {
+                            query: format!("select * from {table_name}"),
+                        }
+                        .as_any(),
                         CommandGetSqlInfo { info: vec![] }.as_any(),
                         CommandGetCatalogs {}.as_any(),
                         CommandGetDbSchemas {
@@ -717,15 +847,37 @@ async fn assert_schema(client: &mut FlightClient, cmd: Any) {
     let mut saw_data = false;
     while let Some(batch) = result_stream.try_next().await.unwrap() {
         saw_data = true;
-        assert_eq!(batch.schema().as_ref(), &flight_info_schema);
+        // strip metadata (GetFlightInfo doesn't include metadata for
+        // some reason) before comparison
+        // https://github.com/influxdata/influxdb_iox/issues/7282
+        let batch_schema = strip_metadata(&batch.schema());
+        assert_eq!(
+            batch_schema.as_ref(),
+            &flight_info_schema,
+            "batch_schema:\n{batch_schema:#?}\n\nflight_info_schema:\n{flight_info_schema:#?}"
+        );
         // The stream itself also may report a schema
         if let Some(stream_schema) = result_stream.schema() {
+            // strip metadata (GetFlightInfo doesn't include metadata for
+            // some reason) before comparison
+            // https://github.com/influxdata/influxdb_iox/issues/7282
+            let stream_schema = strip_metadata(stream_schema);
             assert_eq!(stream_schema.as_ref(), &flight_info_schema);
         }
     }
     // verify we have seen at least one RecordBatch
     // (all FlightSQL endpoints return at least one)
     assert!(saw_data);
+}
+
+fn strip_metadata(schema: &Schema) -> SchemaRef {
+    let stripped_fields: Vec<_> = schema
+        .fields()
+        .iter()
+        .map(|f| f.clone().with_metadata(HashMap::new()))
+        .collect();
+
+    Arc::new(Schema::new(stripped_fields))
 }
 
 /// Return a [`FlightSqlClient`] configured for use

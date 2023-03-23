@@ -70,6 +70,15 @@ pub struct SelectStatement {
     pub timezone: Option<TimeZoneClause>,
 }
 
+impl SelectStatement {
+    /// Return the `FILL` behaviour for the `SELECT` statement.
+    ///
+    /// The default when no `FILL` clause present is `FILL(null)`.
+    pub fn fill(&self) -> FillClause {
+        self.fill.unwrap_or_default()
+    }
+}
+
 impl Display for SelectStatement {
     fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
         write!(f, "SELECT {} {}", self.fields, self.from)?;
@@ -242,6 +251,24 @@ impl Display for GroupByClause {
     }
 }
 
+impl GroupByClause {
+    /// Returns the time dimension for the `GROUP BY` clause.
+    pub fn time_dimension(&self) -> Option<&TimeDimension> {
+        self.contents.iter().find_map(|dim| match dim {
+            Dimension::Time(t) => Some(t),
+            _ => None,
+        })
+    }
+
+    /// Returns an iterator of all the tag dimensions for the `GROUP BY` clause.
+    pub fn tags(&self) -> impl Iterator<Item = &Identifier> + '_ {
+        self.contents.iter().filter_map(|dim| match dim {
+            Dimension::Tag(i) => Some(i),
+            _ => None,
+        })
+    }
+}
+
 /// Used to parse the interval argument of the TIME function
 struct TimeCallIntervalArgument;
 
@@ -290,16 +317,30 @@ impl ArithmeticParsers for TimeCallOffsetArgument {
     }
 }
 
+/// Represents a `TIME` dimension in a `GROUP BY` clause.
+#[derive(Clone, Debug, PartialEq)]
+pub struct TimeDimension {
+    /// The first argument of the `TIME` call.
+    pub interval: Expr,
+    /// An optional second argument to specify the offset applied to the `TIME` call.
+    pub offset: Option<Expr>,
+}
+
+impl Display for TimeDimension {
+    fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
+        write!(f, "TIME({}", self.interval)?;
+        if let Some(offset) = &self.offset {
+            write!(f, ", {offset}")?;
+        }
+        write!(f, ")")
+    }
+}
+
 /// Represents a dimension of a `GROUP BY` clause.
 #[derive(Clone, Debug, PartialEq)]
 pub enum Dimension {
     /// Represents a `TIME` call in a `GROUP BY` clause.
-    Time {
-        /// The first argument of the `TIME` call.
-        interval: Expr,
-        /// An optional second argument to specify the offset applied to the `TIME` call.
-        offset: Option<Expr>,
-    },
+    Time(TimeDimension),
 
     /// Represents a literal tag reference in a `GROUP BY` clause.
     Tag(Identifier),
@@ -314,11 +355,7 @@ pub enum Dimension {
 impl Display for Dimension {
     fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
         match self {
-            Self::Time {
-                interval,
-                offset: Some(offset),
-            } => write!(f, "TIME({interval}, {offset})"),
-            Self::Time { interval, .. } => write!(f, "TIME({interval})"),
+            Self::Time(v) => Display::fmt(v, f),
             Self::Tag(v) => Display::fmt(v, f),
             Self::Regex(v) => Display::fmt(v, f),
             Self::Wildcard => f.write_char('*'),
@@ -366,7 +403,7 @@ fn time_call_expression(i: &str) -> ParseResult<&str, Dimension> {
                 expect("invalid TIME call, expected ')'", preceded(ws0, char(')'))),
             ),
         ),
-        |(interval, offset)| Dimension::Time { interval, offset },
+        |(interval, offset)| Dimension::Time(TimeDimension { interval, offset }),
     )(i)
 }
 
@@ -390,9 +427,12 @@ fn group_by_clause(i: &str) -> ParseResult<&str, GroupByClause> {
 }
 
 /// Represents a `FILL` clause, and specifies all possible cases of the argument to the `FILL` clause.
-#[derive(Debug, Clone, Copy, PartialEq)]
+#[derive(Debug, Default, Clone, Copy, PartialEq)]
 pub enum FillClause {
     /// Empty aggregate windows will contain null values and is specified as `fill(null)`
+    ///
+    /// This is the default behavior of a `SELECT` statement, when the `FILL` clause is omitted.
+    #[default]
     Null,
 
     /// Empty aggregate windows will be discarded and is specified as `fill(none)`.
@@ -704,6 +744,8 @@ mod test {
     fn test_select_statement() {
         let (_, got) = select_statement("SELECT value FROM foo").unwrap();
         assert_eq!(got.to_string(), "SELECT value FROM foo");
+        // Assert default behaviour when `FILL` is omitted
+        assert_eq!(got.fill(), FillClause::Null);
 
         let (_, got) =
             select_statement(r#"SELECT f1,/f2/, f3 AS "a field" FROM foo WHERE host =~ /c1/"#)
@@ -740,6 +782,7 @@ mod test {
             got.to_string(),
             r#"SELECT sum(value) FROM foo GROUP BY TIME(5m), host FILL(PREVIOUS)"#
         );
+        assert_eq!(got.fill(), FillClause::Previous);
 
         let (_, got) = select_statement("SELECT value FROM foo ORDER BY DESC").unwrap();
         assert_eq!(
@@ -1139,6 +1182,20 @@ mod test {
             group_by_clause("GROUP BY 1"),
             "invalid GROUP BY clause, expected wildcard, TIME, identifier or regular expression"
         );
+    }
+
+    #[test]
+    fn test_group_by_clause_tags_time_dimension() {
+        let (_, got) = group_by_clause("GROUP BY *, /foo/, TIME(5m), tag1, tag2").unwrap();
+        assert!(got.time_dimension().is_some());
+        assert_eq!(
+            got.tags().cloned().collect::<Vec<_>>(),
+            vec!["tag1".into(), "tag2".into()]
+        );
+
+        let (_, got) = group_by_clause("GROUP BY *, /foo/").unwrap();
+        assert!(got.time_dimension().is_none());
+        assert_eq!(got.tags().count(), 0);
     }
 
     #[test]

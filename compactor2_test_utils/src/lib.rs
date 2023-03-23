@@ -228,7 +228,7 @@ impl TestSetupBuilder<false> {
             .with_creation_time(time_5_minutes_future)
             .with_min_time(10000)
             .with_max_time(12000)
-            .with_max_l0_created_at(time_3_minutes_future)
+            .with_max_l0_created_at(time_1_minute_future)
             .with_compaction_level(CompactionLevel::FileNonOverlapped); // Prev compaction
         let level_1_file_1_minute_ago_with_duplicates: ParquetFile =
             self.partition.create_parquet_file(builder).await.into();
@@ -728,14 +728,15 @@ pub async fn verify_catalog_invariants(catalog: &dyn Catalog, table_id: TableId)
 
     for f1 in &files {
         for f2 in &files {
-            assert_no_overlap(f1, f2);
+            assert_no_intra_level_overlap(f1, f2);
+            assert_no_inter_level_misordered_overlap(f1, f2);
         }
     }
 }
 
-/// Returns true of f1 and f2 are different, overlapping files in the
-/// L1 or L2 levels (the compactor should never create such files
-fn assert_no_overlap(f1: &ParquetFile, f2: &ParquetFile) {
+/// Panics if f1 and f2 are different, overlapping files in the
+/// (same) L1 or L2 levels (the compactor should never create such files
+fn assert_no_intra_level_overlap(f1: &ParquetFile, f2: &ParquetFile) {
     if f1.id != f2.id
         && (f1.compaction_level == CompactionLevel::FileNonOverlapped
             || f1.compaction_level == CompactionLevel::Final)
@@ -743,6 +744,21 @@ fn assert_no_overlap(f1: &ParquetFile, f2: &ParquetFile) {
         && f1.overlaps(f2)
     {
         panic!("Found overlapping files at L1/L2 target level!\nf1 = {}\nf2 = {}\n\n{f1:#?}\n\n{f2:#?}",
+               display_format(f1, true),
+               display_format(f2, true),
+        );
+    }
+}
+
+/// Panics if F2 is higher level than F1, and they overlap, and their max_l0_created_at
+/// times are out of order (F1 must be newer than F2)
+fn assert_no_inter_level_misordered_overlap(f1: &ParquetFile, f2: &ParquetFile) {
+    if f1.id != f2.id
+        && f1.compaction_level < f2.compaction_level
+        && f1.overlaps(f2)
+        && f1.max_l0_created_at < f2.max_l0_created_at
+    {
+        panic!("Found overlapping files with illegal max_l0_created_at order\nf1 = {}\nf2 = {}\n\n{f1:#?}\n\n{f2:#?}",
                display_format(f1, true),
                display_format(f2, true),
         );
