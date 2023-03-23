@@ -61,6 +61,11 @@ where
         }
     }
 
+    /// Returns the number of configured upstream endpoints.
+    pub(super) fn len(&self) -> usize {
+        self.endpoints.len()
+    }
+
     /// Return an (infinite) iterator of healthy [`CircuitBreakingClient`], and
     /// at most one client needing a health probe.
     ///
