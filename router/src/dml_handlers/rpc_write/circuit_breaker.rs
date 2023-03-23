@@ -143,7 +143,7 @@ const PROBE_INTERVAL: Duration = Duration::from_secs(1);
 /// period of [`PROBE_INTERVAL`], all requests are probes and are allowed
 /// through.
 #[derive(Debug)]
-pub(crate) struct CircuitBreaker {
+pub struct CircuitBreaker {
     /// Counters tracking the number of [`Ok`] and [`Err`] observed in the
     /// current [`ERROR_WINDOW`].
     ///

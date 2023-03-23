@@ -8,7 +8,9 @@ mod upstream_snapshot;
 use crate::dml_handlers::rpc_write::client::WriteClient;
 
 use self::{
-    balancer::Balancer, circuit_breaking_client::CircuitBreakingClient,
+    balancer::Balancer,
+    circuit_breaker::CircuitBreaker,
+    circuit_breaking_client::{CircuitBreakerState, CircuitBreakingClient},
     upstream_snapshot::UpstreamSnapshot,
 };
 
@@ -68,8 +70,8 @@ pub enum RpcWriteError {
 ///
 /// [gRPC write service]: client::WriteClient
 #[derive(Debug)]
-pub struct RpcWrite<T> {
-    endpoints: Balancer<T>,
+pub struct RpcWrite<T, C = CircuitBreaker> {
+    endpoints: Balancer<T, C>,
 }
 
 impl<T> RpcWrite<T> {
@@ -92,9 +94,10 @@ impl<T> RpcWrite<T> {
 }
 
 #[async_trait]
-impl<T> DmlHandler for RpcWrite<T>
+impl<T, C> DmlHandler for RpcWrite<T, C>
 where
     T: WriteClient + 'static,
+    C: CircuitBreakerState + 'static,
 {
     type WriteInput = Partitioned<HashMap<TableId, (String, MutableBatch)>>;
     type WriteOutput = Vec<DmlMeta>;
@@ -205,6 +208,8 @@ mod tests {
 
     use assert_matches::assert_matches;
     use data_types::PartitionKey;
+
+    use crate::dml_handlers::rpc_write::circuit_breaking_client::mock::MockCircuitBreaker;
 
     use super::{client::mock::MockWriteClient, *};
 
@@ -415,5 +420,76 @@ mod tests {
             .collect::<HashSet<_>>();
 
         assert_eq!(got_tables, want_tables);
+    }
+
+    /// Assert the error response for a write request when there are no healthy
+    /// upstreams.
+    #[tokio::test]
+    async fn test_write_no_healthy_upstreams() {
+        let client_1 = Arc::new(MockWriteClient::default());
+        let circuit_1 = Arc::new(MockCircuitBreaker::default());
+
+        // Mark the client circuit breaker as unhealthy
+        circuit_1.set_healthy(false);
+
+        let handler =
+            RpcWrite {
+                endpoints: Balancer::new(
+                    [CircuitBreakingClient::new(client_1, "client_1")
+                        .with_circuit_breaker(circuit_1)],
+                    None,
+                ),
+            };
+
+        // Generate some write input
+        let input = Partitioned::new(
+            PartitionKey::from("2022-01-01"),
+            lp_to_writes("bananas,tag1=A,tag2=B val=42i 1"),
+        );
+
+        // Drive the RPC writer
+        let got = handler
+            .write(
+                &NamespaceName::new(NAMESPACE_NAME).unwrap(),
+                NAMESPACE_ID,
+                input,
+                None,
+            )
+            .await;
+        assert_matches!(got, Err(RpcWriteError::NoUpstreams));
+    }
+
+    /// Assert the error response when the only upstream continuously returns an
+    /// error.
+    #[tokio::test]
+    async fn test_write_upstream_error() {
+        let client_1 = Arc::new(MockWriteClient::default());
+        let circuit_1 = Arc::new(MockCircuitBreaker::default());
+
+        let handler =
+            RpcWrite {
+                endpoints: Balancer::new(
+                    [CircuitBreakingClient::new(client_1, "client_1")
+                        .with_circuit_breaker(circuit_1)],
+                    None,
+                ),
+            };
+
+        // Generate some write input
+        let input = Partitioned::new(
+            PartitionKey::from("2022-01-01"),
+            lp_to_writes("bananas,tag1=A,tag2=B val=42i 1"),
+        );
+
+        // Drive the RPC writer
+        let got = handler
+            .write(
+                &NamespaceName::new(NAMESPACE_NAME).unwrap(),
+                NAMESPACE_ID,
+                input,
+                None,
+            )
+            .await;
+        assert_matches!(got, Err(RpcWriteError::NoUpstreams));
     }
 }
