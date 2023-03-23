@@ -765,8 +765,9 @@ async fn flightsql_jdbc() {
     .await
 }
 
-/// test ensures that the schema returned as part of GetFlightInfo matches that of the
-/// actual response.
+/// Ensures that the schema returned as part of GetFlightInfo matches
+/// that of the actual response (as the schema is hard coded in some
+/// cases)
 #[tokio::test]
 async fn flightsql_schema_matches() {
     test_helpers::maybe_start_logging();
@@ -806,7 +807,17 @@ async fn flightsql_schema_matches() {
                             db_schema_filter_pattern: None,
                             table_name_filter_pattern: None,
                             table_types: vec![],
+                            // Do not include optional `table_schema` column
                             include_schema: false,
+                        }
+                        .as_any(),
+                        CommandGetTables {
+                            catalog: None,
+                            db_schema_filter_pattern: None,
+                            table_name_filter_pattern: None,
+                            table_types: vec![],
+                            // Include optional `table_schema` column
+                            include_schema: true,
                         }
                         .as_any(),
                         CommandGetTableTypes {}.as_any(),
