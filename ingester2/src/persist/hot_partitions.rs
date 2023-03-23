@@ -13,16 +13,31 @@ use super::queue::PersistQueue;
 pub(crate) struct HotPartitionPersister<P> {
     persist_handle: P,
     max_estimated_persist_cost: usize,
+
+    /// A metric tracking the number of partitions persisted as "hot partitions".
+    persist_count: metric::U64Counter,
 }
 
 impl<P> HotPartitionPersister<P>
 where
     P: PersistQueue + Clone + Sync + 'static,
 {
-    pub fn new(persist_handle: P, max_estimated_persist_cost: usize) -> Self {
+    pub fn new(
+        persist_handle: P,
+        max_estimated_persist_cost: usize,
+        metrics: &metric::Registry,
+    ) -> Self {
+        let persist_count = metrics
+            .register_metric::<metric::U64Counter>(
+                "ingester_persist_hot_partition_enqueue_count",
+                "number of times persistence of a partition has been triggered \
+                because the persist cost exceeded the pre-configured limit",
+            )
+            .recorder(&[]);
         Self {
             persist_handle,
             max_estimated_persist_cost,
+            persist_count,
         }
     }
 
@@ -49,6 +64,8 @@ where
             // There is no need to await on the completion handle.
             persist_handle.enqueue(partition, data).await;
         });
+        // Update any exported metrics.
+        self.persist_count.inc(1);
     }
 }
 
