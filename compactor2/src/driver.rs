@@ -235,6 +235,10 @@ async fn try_compact_partition(
 
             // Evaluate whether there's work to do or not based on the files classified for
             // making progress on. If there's no work to do, return early.
+            //
+            // Currently, no work to do mostly means we are unable to compact this partition due to
+            // some limitation such as a large file with single timestamp that we cannot split in
+            // order to further compact.
             if !components
                 .post_classification_partition_filter
                 .apply(&partition_info, &files_to_make_progress_on)
