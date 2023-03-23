@@ -41,7 +41,7 @@ pub enum RpcWriteError {
 
     /// The RPC call timed out after [`RPC_TIMEOUT`] length of time.
     #[error("timeout writing to upstream ingester")]
-    Timeout(#[from] tokio::time::error::Elapsed),
+    Timeout(tokio::time::error::Elapsed),
 
     /// There are no healthy ingesters to route a write to.
     #[error("no healthy upstream ingesters available")]
@@ -135,16 +135,15 @@ where
         };
 
         // Perform the gRPC write to an ingester.
-        tokio::time::timeout(
-            RPC_TIMEOUT,
-            write_loop(
-                self.endpoints
-                    .endpoints()
-                    .ok_or(RpcWriteError::NoUpstreams)?,
-                req,
-            ),
+        //
+        // This call is bounded to at most RPC_TIMEOUT duration of time.
+        write_loop(
+            self.endpoints
+                .endpoints()
+                .ok_or(RpcWriteError::NoUpstreams)?,
+            req,
         )
-        .await??;
+        .await?;
 
         debug!(
             %partition_key,
@@ -177,6 +176,13 @@ where
     }
 }
 
+/// Perform an RPC write with `req` against one of the upstream ingesters in
+/// `endpoints`.
+///
+/// This write attempt is bounded in time to at most [`RPC_TIMEOUT`].
+///
+/// If at least one upstream request has failed (returning an error), the most
+/// recent error is returned.
 async fn write_loop<T>(
     mut endpoints: UpstreamSnapshot<'_, T>,
     req: WriteRequest,
@@ -184,22 +190,52 @@ async fn write_loop<T>(
 where
     T: WriteClient,
 {
-    // Infinitely cycle through the snapshot, trying each node in turn until the
-    // request succeeds or this async call times out.
-    let mut delay = Duration::from_millis(50);
-    loop {
-        match endpoints
-            .next()
-            .ok_or(RpcWriteError::NoUpstreams)?
-            .write(req.clone())
-            .await
-        {
-            Ok(()) => return Ok(()),
-            Err(e) => warn!(error=%e, "failed ingester rpc write"),
-        };
-        tokio::time::sleep(delay).await;
-        delay = delay.saturating_mul(2);
-    }
+    // The last error returned from an upstream write request attempt.
+    let mut last_err = None;
+
+    tokio::time::timeout(RPC_TIMEOUT, async {
+        // Infinitely cycle through the snapshot, trying each node in turn until the
+        // request succeeds or this async call times out.
+        let mut delay = Duration::from_millis(50);
+        loop {
+            match endpoints
+                .next()
+                .ok_or(RpcWriteError::NoUpstreams)?
+                .write(req.clone())
+                .await
+            {
+                Ok(()) => return Ok(()),
+                Err(e) => {
+                    warn!(error=%e, "failed ingester rpc write");
+                    last_err = Some(e);
+                }
+            };
+            tokio::time::sleep(delay).await;
+            delay = delay.saturating_mul(2);
+        }
+    })
+    .await
+    .map_err(|e| match last_err {
+        // This error is an internal implementation detail - the meaningful
+        // error for the user is "there's no healthy upstreams".
+        Some(RpcWriteError::UpstreamNotConnected(_)) => RpcWriteError::NoUpstreams,
+        // Any other error is returned as-is.
+        Some(v) => v,
+        // If the entire write attempt fails during the first RPC write
+        // request, then the per-request timeout is greater than the write
+        // attempt timeout, and therefore only one upstream is ever tried.
+        //
+        // Log a warning so the logs show the timeout, but also include
+        // helpful hint for the user to adjust the configuration.
+        None => {
+            warn!(
+                "failed ingester rpc write - rpc write request timed out during \
+                 the first rpc attempt; consider decreasing rpc request timeout \
+                 below {RPC_TIMEOUT:?}"
+            );
+            RpcWriteError::Timeout(e)
+        }
+    })?
 }
 
 #[cfg(test)]
@@ -422,6 +458,38 @@ mod tests {
         assert_eq!(got_tables, want_tables);
     }
 
+    async fn make_request<T, C>(
+        endpoints: impl IntoIterator<Item = CircuitBreakingClient<T, C>> + Send,
+    ) -> Result<Vec<DmlMeta>, RpcWriteError>
+    where
+        T: WriteClient + 'static,
+        C: CircuitBreakerState + 'static,
+    {
+        let handler = RpcWrite {
+            endpoints: Balancer::new(endpoints, None),
+        };
+
+        // Generate some write input
+        let input = Partitioned::new(
+            PartitionKey::from("2022-01-01"),
+            lp_to_writes("bananas,tag1=A,tag2=B val=42i 1"),
+        );
+
+        // Use tokio's "auto-advance" time feature to avoid waiting for the
+        // actual timeout duration.
+        tokio::time::pause();
+
+        // Drive the RPC writer
+        handler
+            .write(
+                &NamespaceName::new(NAMESPACE_NAME).unwrap(),
+                NAMESPACE_ID,
+                input,
+                None,
+            )
+            .await
+    }
+
     /// Assert the error response for a write request when there are no healthy
     /// upstreams.
     #[tokio::test]
@@ -432,30 +500,11 @@ mod tests {
         // Mark the client circuit breaker as unhealthy
         circuit_1.set_healthy(false);
 
-        let handler =
-            RpcWrite {
-                endpoints: Balancer::new(
-                    [CircuitBreakingClient::new(client_1, "client_1")
-                        .with_circuit_breaker(circuit_1)],
-                    None,
-                ),
-            };
+        let got = make_request([
+            CircuitBreakingClient::new(client_1, "client_1").with_circuit_breaker(circuit_1)
+        ])
+        .await;
 
-        // Generate some write input
-        let input = Partitioned::new(
-            PartitionKey::from("2022-01-01"),
-            lp_to_writes("bananas,tag1=A,tag2=B val=42i 1"),
-        );
-
-        // Drive the RPC writer
-        let got = handler
-            .write(
-                &NamespaceName::new(NAMESPACE_NAME).unwrap(),
-                NAMESPACE_ID,
-                input,
-                None,
-            )
-            .await;
         assert_matches!(got, Err(RpcWriteError::NoUpstreams));
     }
 
@@ -463,33 +512,42 @@ mod tests {
     /// error.
     #[tokio::test]
     async fn test_write_upstream_error() {
-        let client_1 = Arc::new(MockWriteClient::default());
-        let circuit_1 = Arc::new(MockCircuitBreaker::default());
-
-        let handler =
-            RpcWrite {
-                endpoints: Balancer::new(
-                    [CircuitBreakingClient::new(client_1, "client_1")
-                        .with_circuit_breaker(circuit_1)],
-                    None,
-                ),
-            };
-
-        // Generate some write input
-        let input = Partitioned::new(
-            PartitionKey::from("2022-01-01"),
-            lp_to_writes("bananas,tag1=A,tag2=B val=42i 1"),
+        let client_1 = Arc::new(
+            MockWriteClient::default().with_ret(Box::new(iter::repeat_with(|| {
+                Err(RpcWriteError::Upstream(tonic::Status::internal("bananas")))
+            }))),
         );
+        let circuit_1 = Arc::new(MockCircuitBreaker::default());
+        circuit_1.set_healthy(true);
 
-        // Drive the RPC writer
-        let got = handler
-            .write(
-                &NamespaceName::new(NAMESPACE_NAME).unwrap(),
-                NAMESPACE_ID,
-                input,
-                None,
-            )
-            .await;
+        let got = make_request([
+            CircuitBreakingClient::new(client_1, "client_1").with_circuit_breaker(circuit_1)
+        ])
+        .await;
+
+        assert_matches!(got, Err(RpcWriteError::Upstream(s)) => {
+            assert_eq!(s.code(), tonic::Code::Internal);
+            assert_eq!(s.message(), "bananas");
+        });
+    }
+
+    /// Assert that an [`RpcWriteError::UpstreamNotConnected`] error is mapped
+    /// to a user-friendly [`RpcWriteError::NoUpstreams`] for consistency.
+    #[tokio::test]
+    async fn test_write_map_upstream_not_connected_error() {
+        let client_1 = Arc::new(
+            MockWriteClient::default().with_ret(Box::new(iter::repeat_with(|| {
+                Err(RpcWriteError::UpstreamNotConnected("bananas".to_string()))
+            }))),
+        );
+        let circuit_1 = Arc::new(MockCircuitBreaker::default());
+        circuit_1.set_healthy(true);
+
+        let got = make_request([
+            CircuitBreakingClient::new(client_1, "client_1").with_circuit_breaker(circuit_1)
+        ])
+        .await;
+
         assert_matches!(got, Err(RpcWriteError::NoUpstreams));
     }
 }
