@@ -37,18 +37,36 @@ impl WriteClient for WriteServiceClient<tonic::transport::Channel> {
 pub mod mock {
     use super::*;
     use parking_lot::Mutex;
-    use std::{collections::VecDeque, sync::Arc};
+    use std::{fmt::Debug, iter, sync::Arc};
 
-    #[derive(Debug, Default)]
     struct State {
         calls: Vec<WriteRequest>,
-        ret: VecDeque<Result<(), RpcWriteError>>,
+        ret: Box<dyn Iterator<Item = Result<(), RpcWriteError>> + Send + Sync>,
     }
 
     /// A mock implementation of the [`WriteClient`] for testing purposes.
-    #[derive(Debug, Default)]
+    ///
+    /// An instance yielded by the [`Default`] implementation will always return
+    /// [`Ok(())`] for write calls.
     pub struct MockWriteClient {
         state: Mutex<State>,
+    }
+
+    impl Debug for MockWriteClient {
+        fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+            f.debug_struct("MockWriteClient").finish()
+        }
+    }
+
+    impl Default for MockWriteClient {
+        fn default() -> Self {
+            Self {
+                state: Mutex::new(State {
+                    calls: Default::default(),
+                    ret: Box::new(iter::repeat_with(|| Ok(()))),
+                }),
+            }
+        }
     }
 
     impl MockWriteClient {
@@ -57,9 +75,14 @@ pub mod mock {
             self.state.lock().calls.clone()
         }
 
+        /// Read values off of the provided iterator and return them for calls
+        /// to [`Self::write()`].
         #[cfg(test)]
-        pub(crate) fn with_ret(self, ret: impl Into<VecDeque<Result<(), RpcWriteError>>>) -> Self {
-            self.state.lock().ret = ret.into();
+        pub(crate) fn with_ret(
+            self,
+            ret: Box<dyn Iterator<Item = Result<(), RpcWriteError>> + Send + Sync>,
+        ) -> Self {
+            self.state.lock().ret = ret;
             self
         }
     }
@@ -69,7 +92,7 @@ pub mod mock {
         async fn write(&self, op: WriteRequest) -> Result<(), RpcWriteError> {
             let mut guard = self.state.lock();
             guard.calls.push(op);
-            guard.ret.pop_front().unwrap_or(Ok(()))
+            guard.ret.next().expect("no mock response")
         }
     }
 }
