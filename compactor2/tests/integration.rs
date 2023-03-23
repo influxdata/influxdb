@@ -112,7 +112,7 @@ async fn test_compact_target_level() {
             (1, times.time_1_minute_future),
             (2, times.time_2_minutes_future),
             (3, times.time_5_minutes_future),
-            (4, times.time_3_minutes_future),
+            (4, times.time_1_minute_future),
             (5, times.time_5_minutes_future),
             (6, times.time_2_minutes_future),
         ],

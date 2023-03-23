@@ -36,7 +36,8 @@ use crate::expression::arithmetic::Expr;
 use crate::expression::conditional::ConditionalExpression;
 use crate::select::{
     Dimension, Field, FieldList, FillClause, FromMeasurementClause, GroupByClause,
-    MeasurementSelection, SLimitClause, SOffsetClause, SelectStatement, TimeZoneClause,
+    MeasurementSelection, SLimitClause, SOffsetClause, SelectStatement, TimeDimension,
+    TimeZoneClause,
 };
 use crate::show::{OnClause, ShowDatabasesStatement};
 use crate::show_field_keys::ShowFieldKeysStatement;
@@ -364,6 +365,19 @@ pub trait Visitor: Sized {
 
     /// Invoked after all children of the `GROUP BY` dimension expression are visited.
     fn post_visit_select_dimension(self, _n: &Dimension) -> Result<Self, Self::Error> {
+        Ok(self)
+    }
+
+    /// Invoked before `TIME` dimension clause is visited.
+    fn pre_visit_select_time_dimension(
+        self,
+        _n: &TimeDimension,
+    ) -> Result<Recursion<Self>, Self::Error> {
+        Ok(Continue(self))
+    }
+
+    /// Invoked after `TIME` dimension clause is visited.
+    fn post_visit_select_time_dimension(self, _n: &TimeDimension) -> Result<Self, Self::Error> {
         Ok(self)
     }
 
@@ -1108,18 +1122,29 @@ impl Visitable for Dimension {
         };
 
         let visitor = match self {
-            Self::Time { interval, offset } => {
-                let visitor = interval.accept(visitor)?;
-                if let Some(offset) = offset {
-                    offset.accept(visitor)
-                } else {
-                    Ok(visitor)
-                }
-            }
+            Self::Time(v) => v.accept(visitor),
             Self::Tag(_) | Self::Regex(_) | Self::Wildcard => Ok(visitor),
         }?;
 
         visitor.post_visit_select_dimension(self)
+    }
+}
+
+impl Visitable for TimeDimension {
+    fn accept<V: Visitor>(&self, visitor: V) -> Result<V, V::Error> {
+        let visitor = match visitor.pre_visit_select_time_dimension(self)? {
+            Continue(visitor) => visitor,
+            Stop(visitor) => return Ok(visitor),
+        };
+
+        let visitor = self.interval.accept(visitor)?;
+        let visitor = if let Some(offset) = &self.offset {
+            offset.accept(visitor)?
+        } else {
+            visitor
+        };
+
+        visitor.post_visit_select_time_dimension(self)
     }
 }
 
@@ -1218,7 +1243,8 @@ mod test {
     use crate::expression::conditional::ConditionalExpression;
     use crate::select::{
         Dimension, Field, FieldList, FillClause, FromMeasurementClause, GroupByClause,
-        MeasurementSelection, SLimitClause, SOffsetClause, SelectStatement, TimeZoneClause,
+        MeasurementSelection, SLimitClause, SOffsetClause, SelectStatement, TimeDimension,
+        TimeZoneClause,
     };
     use crate::show::{OnClause, ShowDatabasesStatement};
     use crate::show_field_keys::ShowFieldKeysStatement;
@@ -1504,6 +1530,17 @@ mod test {
 
         fn post_visit_select_dimension(self, n: &Dimension) -> Result<Self, Self::Error> {
             Ok(self.push_post("select_dimension", n))
+        }
+
+        fn pre_visit_select_time_dimension(
+            self,
+            n: &TimeDimension,
+        ) -> Result<Recursion<Self>, Self::Error> {
+            Ok(Continue(self.push_pre("select_time_dimension", n)))
+        }
+
+        fn post_visit_select_time_dimension(self, n: &TimeDimension) -> Result<Self, Self::Error> {
+            Ok(self.push_post("select_time_dimension", n))
         }
 
         fn pre_visit_where_clause(self, n: &WhereClause) -> Result<Recursion<Self>, Self::Error> {

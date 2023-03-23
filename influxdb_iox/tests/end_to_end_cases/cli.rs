@@ -832,6 +832,93 @@ async fn namespace_retention() {
     .await
 }
 
+/// Test the namespace deletion command
+#[tokio::test]
+async fn namespace_deletion() {
+    test_helpers::maybe_start_logging();
+    let database_url = maybe_skip_integration!();
+    let mut cluster = MiniCluster::create_shared2(database_url).await;
+
+    StepTest::new(
+        &mut cluster,
+        vec![
+            // create a new namespace without retention policy
+            Step::Custom(Box::new(|state: &mut StepTestState| {
+                async {
+                    let addr = state.cluster().router().router_grpc_base().to_string();
+                    let retention_period_hours = 0;
+                    let namespace = "bananas_namespace";
+
+                    // Validate the output of the namespace retention command
+                    //
+                    //     {
+                    //      "id": "1",
+                    //      "name": "bananas_namespace",
+                    //    }
+                    Command::cargo_bin("influxdb_iox")
+                        .unwrap()
+                        .arg("-h")
+                        .arg(&addr)
+                        .arg("namespace")
+                        .arg("create")
+                        .arg("--retention-hours")
+                        .arg(retention_period_hours.to_string())
+                        .arg(namespace)
+                        .assert()
+                        .success()
+                        .stdout(
+                            predicate::str::contains(namespace)
+                                .and(predicate::str::contains("retentionPeriodNs".to_string()))
+                                .not(),
+                        );
+                }
+                .boxed()
+            })),
+            // delete the newly created namespace
+            Step::Custom(Box::new(|state: &mut StepTestState| {
+                async {
+                    let addr = state.cluster().router().router_grpc_base().to_string();
+                    let namespace = "bananas_namespace";
+
+                    Command::cargo_bin("influxdb_iox")
+                        .unwrap()
+                        .arg("-h")
+                        .arg(&addr)
+                        .arg("namespace")
+                        .arg("delete")
+                        .arg(namespace)
+                        .assert()
+                        .success()
+                        .stdout(
+                            predicate::str::contains("Deleted namespace")
+                                .and(predicate::str::contains(namespace)),
+                        );
+                }
+                .boxed()
+            })),
+            Step::Custom(Box::new(|state: &mut StepTestState| {
+                async {
+                    let addr = state.cluster().router().router_grpc_base().to_string();
+                    let namespace = "bananas_namespace";
+
+                    Command::cargo_bin("influxdb_iox")
+                        .unwrap()
+                        .arg("-h")
+                        .arg(&addr)
+                        .arg("namespace")
+                        .arg("list")
+                        .assert()
+                        .success()
+                        .stdout(predicate::str::contains(namespace).not());
+                }
+                .boxed()
+            })),
+        ],
+    )
+    .run()
+    .await
+}
+
 /// Test the query_ingester CLI command
 #[tokio::test]
 async fn query_ingester() {

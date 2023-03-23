@@ -9,8 +9,8 @@ use std::sync::Arc;
 use crate::plan::{parse_regex, InfluxQLToLogicalPlan, SchemaProvider};
 use datafusion::common::Statistics;
 use datafusion::datasource::provider_as_source;
-use datafusion::execution::context::TaskContext;
-use datafusion::logical_expr::{LogicalPlan, TableSource};
+use datafusion::execution::context::{SessionState, TaskContext};
+use datafusion::logical_expr::{AggregateUDF, LogicalPlan, ScalarUDF, TableSource};
 use datafusion::physical_expr::PhysicalSortExpr;
 use datafusion::physical_plan::{Partitioning, SendableRecordBatchStream};
 use datafusion::{
@@ -25,16 +25,25 @@ use iox_query::exec::IOxSessionContext;
 use observability_deps::tracing::debug;
 use schema::Schema;
 
-struct ContextSchemaProvider {
+struct ContextSchemaProvider<'a> {
+    state: &'a SessionState,
     tables: HashMap<String, (Arc<dyn TableSource>, Schema)>,
 }
 
-impl SchemaProvider for ContextSchemaProvider {
+impl<'a> SchemaProvider for ContextSchemaProvider<'a> {
     fn get_table_provider(&self, name: &str) -> Result<Arc<dyn TableSource>> {
         self.tables
             .get(name)
             .map(|(t, _)| Arc::clone(t))
             .ok_or_else(|| DataFusionError::Plan(format!("measurement does not exist: {name}")))
+    }
+
+    fn get_function_meta(&self, name: &str) -> Option<Arc<ScalarUDF>> {
+        self.state.scalar_functions().get(name).cloned()
+    }
+
+    fn get_aggregate_meta(&self, name: &str) -> Option<Arc<AggregateUDF>> {
+        self.state.aggregate_functions().get(name).cloned()
     }
 
     fn table_names(&self) -> Vec<&'_ str> {
@@ -171,6 +180,7 @@ impl InfluxQLQueryPlanner {
         let query_tables = find_all_measurements(&statement, &names)?;
 
         let mut sp = ContextSchemaProvider {
+            state: &ctx.inner().state(),
             tables: HashMap::with_capacity(query_tables.len()),
         };
 

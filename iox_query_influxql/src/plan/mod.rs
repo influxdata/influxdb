@@ -8,6 +8,7 @@ mod rewriter;
 mod test_utils;
 mod timestamp;
 mod util;
+mod util_copy;
 mod var_ref;
 
 pub use planner::InfluxQLToLogicalPlan;

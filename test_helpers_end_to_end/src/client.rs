@@ -11,6 +11,7 @@ use influxdb_iox_client::{
 };
 use mutable_batch_lp::lines_to_batches;
 use mutable_batch_pb::encode::encode_write;
+use std::fmt::Display;
 use tonic::IntoRequest;
 
 /// Writes the line protocol to the write_base/api/v2/write endpoint (typically on the router)
@@ -129,11 +130,11 @@ pub async fn run_sql(
 ///
 /// Use [`try_run_influxql`] if you want to check the error manually.
 pub async fn run_influxql(
-    influxql: impl Into<String>,
+    influxql: impl Into<String> + Clone + Display,
     namespace: impl Into<String>,
     querier_connection: Connection,
 ) -> Vec<RecordBatch> {
-    try_run_influxql(influxql, namespace, querier_connection)
+    try_run_influxql(influxql.clone(), namespace, querier_connection)
         .await
-        .expect("Error executing influxql query")
+        .unwrap_or_else(|_| panic!("Error executing InfluxQL query: {influxql}"))
 }

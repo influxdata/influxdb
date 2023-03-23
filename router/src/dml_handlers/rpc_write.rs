@@ -132,7 +132,16 @@ where
         };
 
         // Perform the gRPC write to an ingester.
-        tokio::time::timeout(RPC_TIMEOUT, write_loop(self.endpoints.endpoints(), req)).await??;
+        tokio::time::timeout(
+            RPC_TIMEOUT,
+            write_loop(
+                self.endpoints
+                    .endpoints()
+                    .ok_or(RpcWriteError::NoUpstreams)?,
+                req,
+            ),
+        )
+        .await??;
 
         debug!(
             %partition_key,

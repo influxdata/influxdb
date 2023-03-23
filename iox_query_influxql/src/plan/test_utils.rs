@@ -5,7 +5,7 @@ use crate::plan::SchemaProvider;
 use datafusion::common::{DataFusionError, Result as DataFusionResult};
 use datafusion::datasource::empty::EmptyTable;
 use datafusion::datasource::provider_as_source;
-use datafusion::logical_expr::TableSource;
+use datafusion::logical_expr::{AggregateUDF, ScalarUDF, TableSource};
 use influxdb_influxql_parser::parse_statements;
 use influxdb_influxql_parser::select::{Field, SelectStatement};
 use influxdb_influxql_parser::statement::Statement;
@@ -157,6 +157,14 @@ impl SchemaProvider for MockSchemaProvider {
             .get(name)
             .map(|(t, _)| Arc::clone(t))
             .ok_or_else(|| DataFusionError::Plan(format!("measurement does not exist: {name}")))
+    }
+
+    fn get_function_meta(&self, _name: &str) -> Option<Arc<ScalarUDF>> {
+        None
+    }
+
+    fn get_aggregate_meta(&self, _name: &str) -> Option<Arc<AggregateUDF>> {
+        None
     }
 
     fn table_names(&self) -> Vec<&'_ str> {
