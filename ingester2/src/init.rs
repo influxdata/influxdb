@@ -320,8 +320,11 @@ where
     // runs, such as if the configuration of the ingester was changed to persist
     // smaller partitions in-between executions because it was OOMing during WAL
     // replay (and the configuration was changed to mitigate it).
-    let hot_partition_persister =
-        HotPartitionPersister::new(Arc::clone(&persist_handle), persist_hot_partition_cost);
+    let hot_partition_persister = HotPartitionPersister::new(
+        Arc::clone(&persist_handle),
+        persist_hot_partition_cost,
+        &metrics,
+    );
 
     let buffer = Arc::new(BufferTree::new(
         namespace_name_provider,
