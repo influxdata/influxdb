@@ -896,6 +896,23 @@ async fn namespace_deletion() {
                 }
                 .boxed()
             })),
+            Step::Custom(Box::new(|state: &mut StepTestState| {
+                async {
+                    let addr = state.cluster().router().router_grpc_base().to_string();
+                    let namespace = "bananas_namespace";
+
+                    Command::cargo_bin("influxdb_iox")
+                        .unwrap()
+                        .arg("-h")
+                        .arg(&addr)
+                        .arg("namespace")
+                        .arg("list")
+                        .assert()
+                        .success()
+                        .stdout(predicate::str::contains(namespace).not());
+                }
+                .boxed()
+            })),
         ],
     )
     .run()
