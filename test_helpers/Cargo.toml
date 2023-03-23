@@ -6,7 +6,7 @@ edition.workspace = true
 license.workspace = true
 
 [dependencies] # In alphabetical order
-dotenvy = "0.15.6"
+dotenvy = "0.15.7"
 parking_lot = "0.12"
 tempfile = "3.4.0"
 tracing-log = "0.1"
