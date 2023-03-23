@@ -2,8 +2,13 @@ use std::{fmt::Display, sync::Arc};
 
 use data_types::{CompactionLevel, ParquetFile};
 use observability_deps::tracing::info;
+use uuid::Uuid;
 
-use crate::{partition_info::PartitionInfo, plan_ir::PlanIR};
+use crate::{
+    file_classification::{FileToSplit, FilesToSplitOrCompact},
+    partition_info::PartitionInfo,
+    plan_ir::PlanIR,
+};
 
 use super::IRPlanner;
 
@@ -37,9 +42,21 @@ impl<T> IRPlanner for LoggingIRPlannerWrapper<T>
 where
     T: IRPlanner,
 {
+    fn create_plans(
+        &self,
+        partition: Arc<PartitionInfo>,
+        target_level: CompactionLevel,
+        split_or_compact: FilesToSplitOrCompact,
+        object_store_ids: Vec<Uuid>,
+    ) -> Vec<PlanIR> {
+        self.inner
+            .create_plans(partition, target_level, split_or_compact, object_store_ids)
+    }
+
     fn compact_plan(
         &self,
         files: Vec<ParquetFile>,
+        object_store_ids: Vec<Uuid>,
         partition: Arc<PartitionInfo>,
         compaction_level: CompactionLevel,
     ) -> PlanIR {
@@ -47,7 +64,9 @@ where
         let n_input_files = files.len();
         let column_count = partition.column_count();
         let input_file_size_bytes = files.iter().map(|f| f.file_size_bytes).sum::<i64>();
-        let plan = self.inner.compact_plan(files, partition, compaction_level);
+        let plan = self
+            .inner
+            .compact_plan(files, object_store_ids, partition, compaction_level);
 
         info!(
             partition_id = partition_id.get(),
@@ -65,18 +84,18 @@ where
 
     fn split_plan(
         &self,
-        file: ParquetFile,
-        split_times: Vec<i64>,
+        file_to_split: FileToSplit,
+        object_store_id: Uuid,
         partition: Arc<PartitionInfo>,
         compaction_level: CompactionLevel,
     ) -> PlanIR {
         let partition_id = partition.partition_id;
         let n_input_files = 1;
         let column_count = partition.column_count();
-        let input_file_size_bytes = file.file_size_bytes;
-        let plan = self
-            .inner
-            .split_plan(file, split_times, partition, compaction_level);
+        let input_file_size_bytes = file_to_split.file.file_size_bytes;
+        let plan =
+            self.inner
+                .split_plan(file_to_split, object_store_id, partition, compaction_level);
 
         info!(
             partition_id = partition_id.get(),

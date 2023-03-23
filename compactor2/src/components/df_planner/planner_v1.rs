@@ -49,7 +49,7 @@ impl DataFusionPlanner for V1DataFusionPlanner {
         let ctx = self.exec.new_context(ExecutorType::Reorg);
 
         let plan = match ir {
-            PlanIR::Compact { files } => {
+            PlanIR::Compact { files, .. } => {
                 let query_chunks = to_query_chunks(files, &partition, self.store.clone());
                 let merged_schema = QueryableParquetChunk::merge_schemas(&query_chunks);
                 let sort_key = partition
@@ -72,7 +72,9 @@ impl DataFusionPlanner for V1DataFusionPlanner {
                         )
                     })?
             }
-            PlanIR::Split { files, split_times } => {
+            PlanIR::Split {
+                files, split_times, ..
+            } => {
                 let query_chunks = to_query_chunks(files, &partition, self.store.clone());
                 let merged_schema = QueryableParquetChunk::merge_schemas(&query_chunks);
                 let sort_key = partition

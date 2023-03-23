@@ -1,8 +1,11 @@
 use std::{fmt::Display, sync::Arc};
 
 use data_types::{ChunkOrder, CompactionLevel, ParquetFile, Timestamp, TimestampMinMax};
+use uuid::Uuid;
 
 use crate::{
+    file_classification::FileToSplit,
+    file_classification::FilesToSplitOrCompact,
     partition_info::PartitionInfo,
     plan_ir::{FileIR, PlanIR},
 };
@@ -116,13 +119,47 @@ impl Display for V1IRPlanner {
 }
 
 impl IRPlanner for V1IRPlanner {
+    /// Build compact or split plans as appropriate
+    fn create_plans(
+        &self,
+        partition: Arc<PartitionInfo>,
+        target_level: CompactionLevel,
+        split_or_compact: FilesToSplitOrCompact,
+        object_store_ids: Vec<Uuid>,
+    ) -> Vec<PlanIR> {
+        match split_or_compact {
+            FilesToSplitOrCompact::Compact(files) => {
+                vec![self.compact_plan(files, object_store_ids, partition, target_level)]
+            }
+            FilesToSplitOrCompact::Split(files) => {
+                files
+                    .into_iter()
+                    .zip(object_store_ids)
+                    .map(|(file_to_split, object_store_id)| {
+                        // target level of a split file is the same as its level
+                        let target_level = file_to_split.file.compaction_level;
+
+                        self.split_plan(
+                            file_to_split,
+                            object_store_id,
+                            Arc::clone(&partition),
+                            target_level,
+                        )
+                    })
+                    .collect()
+            }
+            FilesToSplitOrCompact::None => vec![], // Nothing to do
+        }
+    }
+
     /// Build a plan to compact many files into a single file. Since we limit the size of the files,
     /// if the compact result is larger than that limit, we will split the output into many files
     fn compact_plan(
         &self,
         files: Vec<ParquetFile>,
+        object_store_ids: Vec<Uuid>,
         _partition: Arc<PartitionInfo>,
-        compaction_level: CompactionLevel,
+        target_level: CompactionLevel,
     ) -> PlanIR {
         // gather data
         // total file size is the sum of the file sizes of the files to compact
@@ -149,19 +186,25 @@ impl IRPlanner for V1IRPlanner {
 
         let files = files
             .into_iter()
-            .map(|file| {
-                let order = order(
-                    file.compaction_level,
-                    compaction_level,
-                    file.max_l0_created_at,
-                );
-                FileIR { file, order }
+            .zip(object_store_ids)
+            .map(|(file, object_store_id)| {
+                let order = order(file.compaction_level, target_level, file.max_l0_created_at);
+                FileIR {
+                    file: ParquetFile {
+                        object_store_id,
+                        ..file
+                    },
+                    order,
+                }
             })
             .collect::<Vec<_>>();
 
         // Build logical compact plan
         if total_size <= small_cutoff_bytes {
-            PlanIR::Compact { files }
+            PlanIR::Compact {
+                files,
+                target_level,
+            }
         } else {
             let split_times = if small_cutoff_bytes < total_size && total_size <= large_cutoff_bytes
             {
@@ -182,10 +225,17 @@ impl IRPlanner for V1IRPlanner {
             if split_times.is_empty() || (split_times.len() == 1 && split_times[0] == max_time) {
                 // The split times might not have actually split anything, so in this case, compact
                 // everything into one file
-                PlanIR::Compact { files }
+                PlanIR::Compact {
+                    files,
+                    target_level,
+                }
             } else {
                 // split compact query plan to split the result into multiple files
-                PlanIR::Split { files, split_times }
+                PlanIR::Split {
+                    files,
+                    split_times,
+                    target_level,
+                }
             }
         }
     }
@@ -193,22 +243,26 @@ impl IRPlanner for V1IRPlanner {
     /// Build a plan to split a file into multiple files based on the given split times
     fn split_plan(
         &self,
-        file: ParquetFile,
-        split_times: Vec<i64>,
+        file_to_split: FileToSplit,
+        object_store_id: Uuid,
         _partition: Arc<PartitionInfo>,
-        compaction_level: CompactionLevel,
+        target_level: CompactionLevel,
     ) -> PlanIR {
-        let order = order(
-            file.compaction_level,
-            compaction_level,
-            file.max_l0_created_at,
-        );
+        let FileToSplit { file, split_times } = file_to_split;
+        let order = order(file.compaction_level, target_level, file.max_l0_created_at);
 
-        let file = FileIR { file, order };
+        let file = FileIR {
+            file: ParquetFile {
+                object_store_id,
+                ..file
+            },
+            order,
+        };
 
         PlanIR::Split {
             files: vec![file],
             split_times,
+            target_level,
         }
     }
 }

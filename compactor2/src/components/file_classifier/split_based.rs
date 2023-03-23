@@ -4,7 +4,7 @@ use data_types::{CompactionLevel, ParquetFile};
 
 use crate::{
     components::{files_split::FilesSplit, split_or_compact::SplitOrCompact},
-    file_classification::{FileClassification, FilesToCompactOrSplit},
+    file_classification::{FileClassification, FilesForProgress, FilesToSplitOrCompact},
     partition_info::PartitionInfo,
     RoundInfo,
 };
@@ -151,15 +151,19 @@ where
             self.upgrade_split.apply(files_to_compact, target_level);
 
         // See if we need to split start-level files due to over compaction size limit
-        let (files_to_compact_or_split, other_files) =
+        let (files_to_split_or_compact, other_files) =
             self.split_or_compact
                 .apply(partition_info, files_to_compact, target_level);
         files_to_keep.extend(other_files);
 
+        let files_to_make_progress_on = FilesForProgress {
+            upgrade: files_to_upgrade,
+            split_or_compact: files_to_split_or_compact,
+        };
+
         FileClassification {
             target_level,
-            files_to_compact_or_split,
-            files_to_upgrade,
+            files_to_make_progress_on,
             files_to_keep,
         }
     }
@@ -181,10 +185,14 @@ fn file_classification_for_many_files(
         "{err_msg}"
     );
 
+    let files_to_make_progress_on = FilesForProgress {
+        upgrade: vec![],
+        split_or_compact: FilesToSplitOrCompact::Compact(files_to_compact),
+    };
+
     FileClassification {
         target_level,
-        files_to_compact_or_split: FilesToCompactOrSplit::FilesToCompact(files_to_compact),
-        files_to_upgrade: vec![],
+        files_to_make_progress_on,
         files_to_keep: vec![],
     }
 }
