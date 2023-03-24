@@ -238,7 +238,7 @@ impl IRPlanner for V1IRPlanner {
                     files,
                     split_times,
                     target_level,
-                    reason: SplitReason::TriedToCompactTooMuch(reason),
+                    reason: SplitReason::CompactAndSplitOutput(reason),
                 }
             }
         }
