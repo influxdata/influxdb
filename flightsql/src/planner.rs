@@ -31,7 +31,11 @@ use observability_deps::tracing::{debug, info};
 use once_cell::sync::Lazy;
 use prost::Message;
 
-use crate::{error::*, sql_info::iox_sql_info_list};
+use crate::{
+    error::*,
+    get_catalogs::{get_catalogs, get_catalogs_schema},
+    sql_info::iox_sql_info_list,
+};
 use crate::{FlightSQLCommand, PreparedStatementHandle};
 
 /// Logic for creating plans for various Flight messages against a query database
@@ -63,7 +67,7 @@ impl FlightSQLPlanner {
                 encode_schema(iox_sql_info_list().schema())
             }
             FlightSQLCommand::CommandGetCatalogs(CommandGetCatalogs {}) => {
-                encode_schema(&GET_CATALOG_SCHEMA)
+                encode_schema(get_catalogs_schema())
             }
             FlightSQLCommand::CommandGetDbSchemas(CommandGetDbSchemas { .. }) => {
                 encode_schema(&GET_DB_SCHEMAS_SCHEMA)
@@ -257,18 +261,9 @@ async fn plan_get_sql_info(ctx: &IOxSessionContext, info: Vec<u32>) -> Result<Lo
 }
 
 /// Return a `LogicalPlan` for GetCatalogs
-///
-/// In the future this could be made more efficient by building the
-/// response directly from the IOx catalog rather than running an
-/// entire DataFusion plan.
 async fn plan_get_catalogs(ctx: &IOxSessionContext) -> Result<LogicalPlan> {
-    let query = "SELECT DISTINCT table_catalog AS catalog_name FROM information_schema.tables ORDER BY table_catalog";
-    Ok(ctx.sql_to_logical_plan(query).await?)
+    Ok(ctx.batch_to_logical_plan(get_catalogs(ctx.inner())?)?)
 }
-
-/// The schema for GetCatalogs
-static GET_CATALOG_SCHEMA: Lazy<Schema> =
-    Lazy::new(|| Schema::new(vec![Field::new("catalog_name", DataType::Utf8, false)]));
 
 /// Return a `LogicalPlan` for GetDbSchemas
 ///
