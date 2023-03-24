@@ -1,4 +1,10 @@
-use datafusion::{config::ConfigOptions, prelude::SessionConfig};
+use std::{fmt::Display, sync::Arc};
+
+use datafusion::{
+    config::ConfigOptions, execution::runtime_env::RuntimeEnv, prelude::SessionConfig,
+};
+use object_store::ObjectStore;
+use url::Url;
 
 // The default catalog name - this impacts what SQL queries use if not specified
 pub const DEFAULT_CATALOG: &str = "public";
@@ -24,4 +30,16 @@ pub fn iox_session_config() -> SessionConfig {
         .with_create_default_catalog_and_schema(true)
         .with_information_schema(true)
         .with_default_catalog_and_schema(DEFAULT_CATALOG, DEFAULT_SCHEMA)
+}
+
+/// Register the "IOx" object store provider for URLs of the form "iox://{id}
+///
+/// Return the previous registered store, if any
+pub fn register_iox_object_store<D: Display>(
+    runtime: impl AsRef<RuntimeEnv>,
+    id: D,
+    object_store: Arc<dyn ObjectStore>,
+) -> Option<Arc<dyn ObjectStore>> {
+    let url = Url::parse(&format!("iox://{id}")).unwrap();
+    runtime.as_ref().register_object_store(&url, object_store)
 }

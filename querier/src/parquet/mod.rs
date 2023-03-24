@@ -168,6 +168,7 @@ pub mod tests {
     use arrow::{datatypes::DataType, record_batch::RecordBatch};
     use arrow_util::assert_batches_eq;
     use data_types::{ColumnType, NamespaceSchema, ParquetFile};
+    use datafusion_util::config::register_iox_object_store;
     use iox_query::{
         exec::{ExecutorType, IOxSessionContext},
         QueryChunk, QueryChunkMeta,
@@ -351,8 +352,8 @@ pub mod tests {
     async fn assert_content(chunk: &QuerierParquetChunk, test_data: &TestData) {
         let ctx = test_data.catalog.exec.new_context(ExecutorType::Query);
         let parquet_store = test_data.adapter.catalog_cache().parquet_store();
-        ctx.inner().runtime_env().register_object_store(
-            "iox",
+        register_iox_object_store(
+            ctx.inner().runtime_env(),
             parquet_store.id(),
             Arc::clone(parquet_store.object_store()),
         );

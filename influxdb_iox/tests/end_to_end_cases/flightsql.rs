@@ -332,7 +332,7 @@ async fn flightsql_get_tables() {
                             db_schema_filter_pattern: Some("information_schema"),
                             table_name_filter_pattern: Some("tables"),
                             table_types: vec!["VIEW".to_string()],
-                            include_schema: false,
+                            include_schema: true,
                         },
                     ];
 
@@ -365,6 +365,7 @@ async fn flightsql_get_tables() {
                                 db_schema_filter_pattern,
                                 table_name_filter_pattern,
                                 table_types,
+                                include_schema,
                             )
                             .await
                             .unwrap();
@@ -424,13 +425,13 @@ async fn flightsql_get_tables() {
                     - "db_schema_filter_pattern:Some(\"information_schema\")"
                     - "table_name_filter_pattern:Some(\"tables\")"
                     - "table_types:[\"VIEW\"]"
-                    - "include_schema:false"
+                    - "include_schema:true"
                     - "*********************"
-                    - +--------------+--------------------+------------+------------+
-                    - "| catalog_name | db_schema_name     | table_name | table_type |"
-                    - +--------------+--------------------+------------+------------+
-                    - "| public       | information_schema | tables     | VIEW       |"
-                    - +--------------+--------------------+------------+------------+
+                    - +--------------+--------------------+------------+------------+------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------+
+                    - "| catalog_name | db_schema_name     | table_name | table_type | table_schema                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                     |"
+                    - +--------------+--------------------+------------+------------+------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------+
+                    - "| public       | information_schema | tables     | VIEW       | ffffffff380100001000000000000a000c000a00090004000a00000010000000000104000800080000000400080000000400000004000000a800000064000000340000000400000078ffffff140000000c000000000000050c0000000000000068ffffff0a0000007461626c655f747970650000a4ffffff140000000c000000000000050c0000000000000094ffffff0a0000007461626c655f6e616d650000d0ffffff140000000c000000000000050c00000000000000c0ffffff0c0000007461626c655f736368656d610000000010001400100000000f0004000000080010000000180000000c00000000000005100000000000000004000400040000000d0000007461626c655f636174616c6f670000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000 |"
+                    - +--------------+--------------------+------------+------------+------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------+
                     "###
                     );
                 }
@@ -478,6 +479,70 @@ async fn flightsql_get_table_types() {
                     - +------------+
                     "###
                     );
+                }
+                .boxed()
+            })),
+        ],
+    )
+    .run()
+    .await
+}
+
+#[tokio::test]
+async fn flightsql_get_table_types_matches_information_schema() {
+    test_helpers::maybe_start_logging();
+    let database_url = maybe_skip_integration!();
+
+    let table_name = "the_table";
+
+    // Set up the cluster  ====================================
+    let mut cluster = MiniCluster::create_shared2(database_url).await;
+
+    StepTest::new(
+        &mut cluster,
+        vec![
+            Step::WriteLineProtocol(format!(
+                "{table_name},tag1=A,tag2=B val=42i 123456\n\
+                 {table_name},tag1=A,tag2=C val=43i 123457"
+            )),
+            Step::Custom(Box::new(move |state: &mut StepTestState| {
+                async move {
+                    let mut client = flightsql_client(state.cluster());
+
+                    // output of get_table_types is built manually in
+                    // IOx, so it is important it remains in sync with
+                    // the actual contents of the information schema
+                    fn no_filter() -> Option<String> {
+                        None
+                    }
+                    let stream = client
+                        .get_table_types()
+                        .await
+                        .unwrap();
+                    let get_table_types_batches = collect_stream(stream).await;
+                    let get_table_types_output = batches_to_sorted_lines(&get_table_types_batches);
+
+                    let sql = "SELECT DISTINCT table_type FROM information_schema.tables ORDER BY table_type";
+
+                    let stream = client.query(sql).await.unwrap();
+                    let information_schema_batches = collect_stream(stream).await;
+                    let information_schema_output =
+                        batches_to_sorted_lines(&information_schema_batches);
+
+                    insta::assert_yaml_snapshot!(
+                        get_table_types_output,
+                        @r###"
+                    ---
+                    - +------------+
+                    - "| table_type |"
+                    - +------------+
+                    - "| BASE TABLE |"
+                    - "| VIEW       |"
+                    - +------------+
+                    "###
+                    );
+
+                    assert_eq!(get_table_types_output, information_schema_output);
                 }
                 .boxed()
             })),

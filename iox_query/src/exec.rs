@@ -11,6 +11,7 @@ mod schema_pivot;
 pub mod seriesset;
 pub(crate) mod split;
 pub mod stringset;
+use datafusion_util::config::register_iox_object_store;
 use executor::DedicatedExecutor;
 use object_store::DynObjectStore;
 use parquet_file::storage::StorageId;
@@ -181,13 +182,10 @@ impl Executor {
             .with_disk_manager(DiskManagerConfig::Disabled)
             .with_memory_limit(config.mem_pool_size, 1.0);
 
-        for (id, store) in &config.object_stores {
-            runtime_config
-                .object_store_registry
-                .register_store("iox", id, Arc::clone(store));
-        }
-
         let runtime = Arc::new(RuntimeEnv::new(runtime_config).expect("creating runtime"));
+        for (id, store) in &config.object_stores {
+            register_iox_object_store(&runtime, id, Arc::clone(store));
+        }
 
         Self {
             executors,
