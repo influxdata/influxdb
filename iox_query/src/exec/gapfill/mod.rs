@@ -73,6 +73,11 @@ pub enum FillStrategy {
     /// This is the InfluxQL behavior for `FILL(PREVIOUS)`.
     #[allow(dead_code)]
     PrevNullAsMissing,
+    /// Fill the gaps between points linearly.
+    /// Null values will not be considered as missing, so two non-null values
+    /// with a null in between will not be filled.
+    #[allow(dead_code)]
+    LinearInterpolate,
 }
 
 impl GapFillParams {

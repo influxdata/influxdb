@@ -1,6 +1,8 @@
 //! Contains the [GapFiller] type which does the
 //! actual gap filling of record batches.
 
+mod interpolate;
+
 use std::{ops::Range, sync::Arc};
 
 use arrow::{
@@ -9,8 +11,13 @@ use arrow::{
     datatypes::SchemaRef,
     record_batch::RecordBatch,
 };
-use datafusion::error::{DataFusionError, Result};
+use datafusion::{
+    error::{DataFusionError, Result},
+    scalar::ScalarValue,
+};
 use hashbrown::HashMap;
+
+use self::interpolate::Segment;
 
 use super::{params::GapFillParams, FillStrategy};
 
@@ -251,7 +258,7 @@ impl GapFiller {
 /// Maintains the state needed to fill gaps in output columns. Also provides methods
 /// for building vectors that build time, group, and aggregate output arrays.
 #[derive(Debug)]
-struct Cursor {
+pub(crate) struct Cursor {
     /// Where to read the next row from the input.
     next_input_offset: usize,
     /// The next timestamp to be produced for the current series.
@@ -517,6 +524,12 @@ impl Cursor {
                 self.build_aggr_fill_prev(params, series_ends, input_time_array, input_aggr_array)
             }
             AggrColState::PrevNullAsMissingStashed { .. } => self.build_aggr_fill_prev_stashed(
+                params,
+                series_ends,
+                input_time_array,
+                input_aggr_array,
+            ),
+            AggrColState::LinearInterpolate(_) => self.build_aggr_fill_interpolate(
                 params,
                 series_ends,
                 input_time_array,
@@ -799,6 +812,10 @@ enum AggrColState {
     /// This state happens when the previous value in the buffered input
     /// rows has gone away during a call to [`GapFiller::slice_input_batch`].
     PrevNullAsMissingStashed { stash: ArrayRef },
+    /// For [FillStrategy::LinearInterpolate], this tracks if we are in the middle
+    /// of a "segment" (two non-null points in the input separated by more
+    /// than the stride) between output batches.
+    LinearInterpolate(Option<Segment<ScalarValue>>),
 }
 
 impl AggrColState {
@@ -808,6 +825,7 @@ impl AggrColState {
             FillStrategy::Null => Self::Null,
             FillStrategy::Prev => Self::Prev { offset: None },
             FillStrategy::PrevNullAsMissing => Self::PrevNullAsMissing { offset: None },
+            FillStrategy::LinearInterpolate => Self::LinearInterpolate(None),
         }
     }
 
@@ -851,6 +869,18 @@ impl AggrColState {
     fn stash(&self) -> ArrayRef {
         match self {
             Self::PrevNullAsMissingStashed { stash } => Arc::clone(stash),
+            _ => unreachable!(),
+        }
+    }
+
+    /// Return the segment being interpolated, if any.
+    ///
+    /// # Panics
+    ///
+    /// This method will panic if `self` is not [AggrColState::LinearInterpolate].
+    fn segment(&self) -> &Option<Segment<ScalarValue>> {
+        match self {
+            Self::LinearInterpolate(segment) => segment,
             _ => unreachable!(),
         }
     }
@@ -987,7 +1017,7 @@ mod tests {
     use arrow_util::test_util::batches_to_lines;
     use datafusion::error::Result;
     use hashbrown::HashMap;
-    use schema::{InfluxColumnType, InfluxFieldType};
+    use schema::InfluxColumnType;
 
     use crate::exec::gapfill::{
         algo::{AggrColState, Cursor},
@@ -1526,14 +1556,18 @@ mod tests {
         assert_cursor_end_state(&cursor, &input_times, &params);
     }
 
-    fn array_to_lines(time_array: &TimestampNanosecondArray, aggr_array: &ArrayRef) -> Vec<String> {
+    pub(crate) fn array_to_lines(
+        time_array: &TimestampNanosecondArray,
+        aggr_array: &ArrayRef,
+    ) -> Vec<String> {
+        let data_type = aggr_array.data_type().clone();
         let schema = Schema::new(vec![
             Field::new(
                 "time".to_string(),
                 (&InfluxColumnType::Timestamp).into(),
                 true,
             ),
-            Field::new("a0".to_string(), InfluxFieldType::Float.into(), true),
+            Field::new("a0".to_string(), data_type, true),
         ]);
 
         let time_array: ArrayRef = Arc::new(time_array.clone());
@@ -1542,13 +1576,13 @@ mod tests {
         batches_to_lines(&[rb])
     }
 
-    fn new_cursor_with_batch_size(params: &GapFillParams, batch_size: usize) -> Cursor {
+    pub(crate) fn new_cursor_with_batch_size(params: &GapFillParams, batch_size: usize) -> Cursor {
         let mut cursor = Cursor::new(params);
         cursor.remaining_output_batch_size = batch_size;
         cursor
     }
 
-    fn assert_cursor_end_state(
+    pub(crate) fn assert_cursor_end_state(
         cursor: &Cursor,
         input_times: &TimestampNanosecondArray,
         params: &GapFillParams,
