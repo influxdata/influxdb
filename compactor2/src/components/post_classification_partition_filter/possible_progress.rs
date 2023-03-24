@@ -98,6 +98,7 @@ mod tests {
             upgrade: vec![],
             split_or_compact: FilesToSplitOrCompact::Compact(
                 vec![f1],
+                // This reason is arbitrary
                 CompactReason::ManySmallFiles,
             ),
         };

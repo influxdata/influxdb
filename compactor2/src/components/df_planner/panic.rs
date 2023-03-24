@@ -117,6 +117,7 @@ mod tests {
                 &PlanIR::Compact {
                     files: vec![],
                     target_level: CompactionLevel::Final,
+                    // This reason is arbitrary
                     reason: CompactReason::ManySmallFiles,
                 },
                 partition,
