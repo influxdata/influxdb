@@ -94,7 +94,7 @@ pub enum NoneReason {
 #[derive(Debug, PartialEq, Eq, Clone, Copy)]
 pub enum SplitReason {
     ReduceOverlap,
-    FoundFilesToSplit,
+    ReduceLargeFileSize,
     TriedToCompactTooMuch(CompactReason),
 }
 
@@ -180,7 +180,7 @@ mod tests {
                         split_times: vec![],
                     })
                     .collect(),
-                SplitReason::FoundFilesToSplit,
+                SplitReason::ReduceLargeFileSize,
             ),
             // Make sure this is a valid case; splitting and compacting are mutually exclusive
             _ => unreachable!("num_to_compact and num_to_split can't both be nonzero"),

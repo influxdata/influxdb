@@ -126,7 +126,7 @@ impl SplitOrCompact for SplitCompact {
             )
         } else {
             (
-                FilesToSplitOrCompact::Split(files_to_split, SplitReason::FoundFilesToSplit),
+                FilesToSplitOrCompact::Split(files_to_split, SplitReason::ReduceLargeFileSize),
                 files_to_keep,
             )
         }
