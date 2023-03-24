@@ -14,14 +14,13 @@ use bytes::Bytes;
 use datafusion::{
     datasource::{listing::PartitionedFile, object_store::ObjectStoreUrl},
     error::DataFusionError,
-    execution::context::TaskContext,
     physical_plan::{
         file_format::{FileScanConfig, ParquetExec},
         ExecutionPlan, SendableRecordBatchStream, Statistics,
     },
     prelude::SessionContext,
 };
-use datafusion_util::config::iox_session_config;
+use datafusion_util::config::{iox_session_config, register_iox_object_store};
 use object_store::{DynObjectStore, ObjectMeta};
 use observability_deps::tracing::*;
 use schema::Projection;
@@ -203,11 +202,7 @@ impl ParquetStorage {
         // set up "fake" DataFusion session
         let object_store = Arc::clone(&self.object_store);
         let session_ctx = SessionContext::with_config(iox_session_config());
-        let task_ctx = Arc::new(TaskContext::from(&session_ctx));
-        task_ctx
-            .runtime_env()
-            .register_object_store("iox", self.id, object_store);
-
+        register_iox_object_store(session_ctx.runtime_env(), self.id, object_store);
         session_ctx
     }
 

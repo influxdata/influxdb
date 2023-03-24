@@ -3,6 +3,7 @@ use crate::{
     cache::namespace::CachedNamespace, create_ingester_connection_for_testing, QuerierCatalogCache,
 };
 use data_types::{ShardIndex, TableId};
+use datafusion_util::config::register_iox_object_store;
 use iox_catalog::interface::{get_schema_by_name, SoftDeletedRows};
 use iox_query::exec::ExecutorType;
 use iox_tests::TestNamespace;
@@ -32,16 +33,17 @@ pub async fn querier_namespace(ns: &Arc<TestNamespace>) -> QuerierNamespace {
 
     // add cached store
     let parquet_store = catalog_cache.parquet_store();
-    ns.catalog
+    let runtime_env = ns
+        .catalog
         .exec()
         .new_context(ExecutorType::Query)
         .inner()
-        .runtime_env()
-        .register_object_store(
-            "iox",
-            parquet_store.id(),
-            Arc::clone(parquet_store.object_store()),
-        );
+        .runtime_env();
+    register_iox_object_store(
+        runtime_env,
+        parquet_store.id(),
+        Arc::clone(parquet_store.object_store()),
+    );
 
     let sharder = Arc::new(JumpHash::new((0..1).map(ShardIndex::new).map(Arc::new)));
 

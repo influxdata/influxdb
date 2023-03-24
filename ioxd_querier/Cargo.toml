@@ -9,6 +9,7 @@ license.workspace = true
 # Workspace dependencies, in alphabetical order
 clap_blocks = { path = "../clap_blocks" }
 data_types = { path = "../data_types" }
+datafusion_util = { path = "../datafusion_util"}
 generated_types = { path = "../generated_types" }
 iox_catalog = { path = "../iox_catalog" }
 ioxd_common = { path = "../ioxd_common" }

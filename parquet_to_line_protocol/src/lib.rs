@@ -18,7 +18,7 @@ use datafusion::{
     },
     prelude::SessionContext,
 };
-use datafusion_util::config::iox_session_config;
+use datafusion_util::config::{iox_session_config, register_iox_object_store};
 use futures::{stream::BoxStream, StreamExt};
 use object_store::{
     local::LocalFileSystem, path::Path as ObjectStorePath, ObjectMeta, ObjectStore,
@@ -30,7 +30,6 @@ use std::{
     path::{Path, PathBuf},
     sync::Arc,
 };
-
 mod batch;
 use batch::convert_to_lines;
 pub type Result<T = (), E = Error> = std::result::Result<T, E>;
@@ -235,10 +234,8 @@ impl ParquetFileReader {
         let exec = ParquetExec::new(base_config, predicate, metadata_size_hint);
 
         let object_store = Arc::clone(&self.object_store);
+        register_iox_object_store(self.session_ctx.runtime_env(), "iox", object_store);
         let task_ctx = Arc::new(TaskContext::from(&self.session_ctx));
-        task_ctx
-            .runtime_env()
-            .register_object_store("iox", "iox", object_store);
 
         execute_stream(Arc::new(exec), task_ctx).context(ExecutingStreamSnafu)
     }

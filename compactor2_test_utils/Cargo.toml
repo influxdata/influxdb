@@ -11,6 +11,7 @@ async-trait = "0.1.66"
 backoff = { path = "../backoff" }
 compactor2 = { path = "../compactor2" }
 datafusion = { workspace = true }
+datafusion_util = { path = "../datafusion_util" }
 data_types = { path = "../data_types" }
 futures = "0.3"
 iox_catalog = { path = "../iox_catalog" }
