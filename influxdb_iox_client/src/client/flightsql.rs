@@ -120,8 +120,13 @@ impl FlightSqlClient {
     /// Step 2: Fetch the results described in the [`FlightInfo`]
     ///
     /// This implementation does not support alternate endpoints
-    pub async fn query(&mut self, query: String) -> Result<FlightRecordBatchStream> {
-        let msg = CommandStatementQuery { query };
+    pub async fn query(
+        &mut self,
+        query: impl Into<String> + Send,
+    ) -> Result<FlightRecordBatchStream> {
+        let msg = CommandStatementQuery {
+            query: query.into(),
+        };
         self.do_get_with_cmd(msg.as_any()).await
     }
 

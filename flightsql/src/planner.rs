@@ -2,7 +2,7 @@
 use std::sync::Arc;
 
 use arrow::{
-    array::{as_string_array, ArrayRef, BinaryArray, GenericBinaryBuilder},
+    array::{as_string_array, ArrayRef, BinaryArray, GenericBinaryBuilder, StringArray},
     datatypes::{DataType, Field, Schema, SchemaRef},
     error::ArrowError,
     ipc::writer::IpcWriteOptions,
@@ -558,16 +558,22 @@ static GET_TABLES_SCHEMA_WITH_TABLE_SCHEMA: Lazy<SchemaRef> = Lazy::new(|| {
 });
 
 /// Return a `LogicalPlan` for GetTableTypes
-///
-/// In the future this could be made more efficient by building the
-/// response directly from the IOx catalog rather than running an
-/// entire DataFusion plan.
 async fn plan_get_table_types(ctx: &IOxSessionContext) -> Result<LogicalPlan> {
-    let query = "SELECT DISTINCT table_type FROM information_schema.tables ORDER BY table_type";
-
-    Ok(ctx.sql_to_logical_plan(query).await?)
+    Ok(ctx.batch_to_logical_plan(TABLE_TYPES_RECORD_BATCH.clone())?)
 }
 
 /// The schema for GetTableTypes
-static GET_TABLE_TYPE_SCHEMA: Lazy<Schema> =
-    Lazy::new(|| Schema::new(vec![Field::new("table_type", DataType::Utf8, false)]));
+static GET_TABLE_TYPE_SCHEMA: Lazy<SchemaRef> = Lazy::new(|| {
+    Arc::new(Schema::new(vec![Field::new(
+        "table_type",
+        DataType::Utf8,
+        false,
+    )]))
+});
+
+static TABLE_TYPES_RECORD_BATCH: Lazy<RecordBatch> = Lazy::new(|| {
+    // https://github.com/apache/arrow-datafusion/blob/26b8377b0690916deacf401097d688699026b8fb/datafusion/core/src/catalog/information_schema.rs#L285-L287
+    // IOx doesn't support LOCAL TEMPORARY yet
+    let table_type = Arc::new(StringArray::from_iter_values(["BASE TABLE", "VIEW"])) as ArrayRef;
+    RecordBatch::try_new(Arc::clone(&GET_TABLE_TYPE_SCHEMA), vec![table_type]).unwrap()
+});

@@ -489,6 +489,70 @@ async fn flightsql_get_table_types() {
 }
 
 #[tokio::test]
+async fn flightsql_get_table_types_matches_information_schema() {
+    test_helpers::maybe_start_logging();
+    let database_url = maybe_skip_integration!();
+
+    let table_name = "the_table";
+
+    // Set up the cluster  ====================================
+    let mut cluster = MiniCluster::create_shared2(database_url).await;
+
+    StepTest::new(
+        &mut cluster,
+        vec![
+            Step::WriteLineProtocol(format!(
+                "{table_name},tag1=A,tag2=B val=42i 123456\n\
+                 {table_name},tag1=A,tag2=C val=43i 123457"
+            )),
+            Step::Custom(Box::new(move |state: &mut StepTestState| {
+                async move {
+                    let mut client = flightsql_client(state.cluster());
+
+                    // output of get_table_types is built manually in
+                    // IOx, so it is important it remains in sync with
+                    // the actual contents of the information schema
+                    fn no_filter() -> Option<String> {
+                        None
+                    }
+                    let stream = client
+                        .get_table_types()
+                        .await
+                        .unwrap();
+                    let get_table_types_batches = collect_stream(stream).await;
+                    let get_table_types_output = batches_to_sorted_lines(&get_table_types_batches);
+
+                    let sql = "SELECT DISTINCT table_type FROM information_schema.tables ORDER BY table_type";
+
+                    let stream = client.query(sql).await.unwrap();
+                    let information_schema_batches = collect_stream(stream).await;
+                    let information_schema_output =
+                        batches_to_sorted_lines(&information_schema_batches);
+
+                    insta::assert_yaml_snapshot!(
+                        get_table_types_output,
+                        @r###"
+                    ---
+                    - +------------+
+                    - "| table_type |"
+                    - +------------+
+                    - "| BASE TABLE |"
+                    - "| VIEW       |"
+                    - +------------+
+                    "###
+                    );
+
+                    assert_eq!(get_table_types_output, information_schema_output);
+                }
+                .boxed()
+            })),
+        ],
+    )
+    .run()
+    .await
+}
+
+#[tokio::test]
 async fn flightsql_get_db_schemas() {
     test_helpers::maybe_start_logging();
     let database_url = maybe_skip_integration!();
