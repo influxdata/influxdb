@@ -7,11 +7,160 @@ use crate::{
     file_classification::FileToSplit,
 };
 
+/// This function only takes action in scenarios with high backlog of overlapped L0s.
+///
+/// Return (`[files_to_split]`, `[files_not_to_split]`) of given files
+/// such that `files_to_split` are files in potentially both levels, and overlap each other.
+///
+/// The returned `[files_to_split]` includes a set of pairs. A pair is composed of a file
+///  and its corresponding split-times at which the file will be split into multiple files.
+///
+/// Example:
+///  . Input:
+///    - "L0.11[76,932] 1us 10mb         |-----------------------------------L0.11-----------------------------------|       "
+///    - "L0.12[42,986] 1us 10mb      |---------------------------------------L0.12---------------------------------------|  "
+///    - "L0.13[173,950] 1us 10mb                 |-------------------------------L0.13--------------------------------|     "
+///    - "L0.14[50,629] 1us 10mb       |----------------------L0.14-----------------------|                                  "
+///    - "L0.15[76,932] 1us 10mb         |-----------------------------------L0.15-----------------------------------|       "
+///    - "L0.16[42,986] 1us 10mb      |---------------------------------------L0.16---------------------------------------|  "
+///    - "L0.17[173,950] 1.01us 10mb               |-------------------------------L0.17--------------------------------|     "
+///    - "L0.18[50,629] 1.01us 10mb    |----------------------L0.18-----------------------|                                  "
+///  ... <pattern repeats>
+///    - "L0.55[76,932] 1.04us 10mb      |-----------------------------------L0.55-----------------------------------|       "
+///    - "L0.56[42,986] 1.05us 10mb   |---------------------------------------L0.56---------------------------------------|  "
+///    - "L0.57[173,950] 1.05us 10mb               |-------------------------------L0.57--------------------------------|     "
+///    - "L0.58[50,629] 1.05us 10mb    |----------------------L0.58-----------------------|                                  "
+///    - "L0.59[76,932] 1.05us 10mb      |-----------------------------------L0.59-----------------------------------|       "
+///    - "L0.60[42,986] 1.05us 10mb   |---------------------------------------L0.60---------------------------------------|  "
+///
+///  . Output:
+///     split all L0 input files at: split(split_times=[248, 372, 496, 620, 744, 868]
+///
+/// Reason behind the split:
+///  If this input was allowed to compact and split based on the algorithm focused on less
+///  extensively overlapped files, it can produce overlapped L1s so large than they can
+///  only be compacted 2-3 at a time, and then resplit at their prior boundaries.
+///
+///  Instead, this algorithm recognizes the large quantity of highly overlapped data and
+///  performs a 'vertical split', instead of selecting bite sized set of files and splitting
+///  just them, it selects all overlapping data and splits all of the files at the same
+///  time(s).  A single split decision made by this function may split a quantity of files
+///  many times larger than what we can compact in a single compaction.  But the split will
+///  allow a future compaction to fit all the data for a relatively narrow time range.
+///
+pub fn high_l0_overlap_split(
+    max_compact_size: usize,
+    files: Vec<ParquetFile>,
+    target_level: CompactionLevel,
+) -> (Vec<FileToSplit>, Vec<ParquetFile>) {
+    let start_level = target_level.prev();
+    let len = files.len();
+
+    // This function focuses on many overlaps in a single level, which is only possible in L0.
+    if start_level != CompactionLevel::Initial {
+        return (vec![], files);
+    }
+
+    // We'll apply vertical splitting when the number of overlapped files is too large
+    // for a single compaction.
+    let total_cap: usize = files.iter().map(|f| f.file_size_bytes as usize).sum();
+
+    if total_cap < max_compact_size {
+        // Take no action, pass all files on to the next rule.
+        return (vec![], files);
+    }
+
+    // panic if not all files are either in target level or start level
+    assert!(files
+        .iter()
+        .all(|f| f.compaction_level == target_level || f.compaction_level == start_level));
+
+    // Get files in start level that overlap with any file in target level
+    let mut files_to_split = Vec::with_capacity(len);
+    let mut overlaps: Vec<&ParquetFile> = Vec::with_capacity(len);
+    let mut files_not_to_split = Vec::with_capacity(len);
+
+    // The files in `files` all overlap, but they might overlap in a chain (file1 overlaps file1, which overlaps file3...)
+    // This algorithm is not concerned with the chain of overlaps that keeps pulling in more files.  Instead, for each file,
+    // we'll look at what overlaps just it.  If that's over max_compact_size, we'll split them.
+    for file in &files {
+        if file.compaction_level != start_level {
+            continue;
+        }
+
+        // Get the set of overlaping start_level files that includes file
+        overlaps = files.iter().filter(|f| file.overlaps(f)).collect();
+
+        let min = overlaps.iter().map(|f| f.min_time.get()).min().unwrap();
+        let max = overlaps.iter().map(|f| f.max_time.get()).max().unwrap();
+
+        let overlapped_cap: usize = overlaps.iter().map(|f| f.file_size_bytes as usize).sum();
+
+        if overlapped_cap > max_compact_size {
+            // Overlapping start_level files are too big to compact all once.  So we'll split all of them, as if
+            // drawing a vertical line on the `input` in the above example.
+
+            // decide how many splits we should do.  Assume the bytes are dispersed over the time range close to
+            // linearly (meaning: split it into 50% more pieces than a simple size/max_compact_size).
+            let splits = overlapped_cap * 3 / (max_compact_size * 2);
+
+            // get min time, max time, split it into (1 + cap/max) pieces
+            let delta = (max - min) / (splits + 1) as i64;
+            if delta == 0 {
+                // TODO: this is very small time range, but if the delta is non-zero we could still split it.
+                overlaps = vec![];
+                continue;
+            }
+            let split_times: Vec<i64> = (1..splits + 1).map(|i| min + (i as i64 * delta)).collect();
+
+            assert!(!split_times.is_empty());
+
+            // for all the files in the overlapped set, if our chosen split times fall within the file, split it at the chosen time(s).
+            for file in &overlaps {
+                let this_file_splits: Vec<i64> = split_times
+                    .iter()
+                    .filter(|split| split >= &&file.min_time.get() && split < &&file.max_time.get())
+                    .cloned()
+                    .collect();
+
+                if !this_file_splits.is_empty() {
+                    files_to_split.push(FileToSplit {
+                        file: (*file).clone(),
+                        split_times: this_file_splits,
+                    });
+                } else {
+                    files_not_to_split.push((*file).clone());
+                }
+            }
+
+            break;
+        }
+
+        overlaps = vec![];
+    }
+
+    // Files in overlaps are already in files_to_split and files_not_to_split.  Everything else belongs in files_not_to_split.
+    let start_leftovers: Vec<ParquetFile> = files
+        .iter()
+        .filter(|f| !overlaps.contains(f))
+        .cloned()
+        .collect();
+
+    files_not_to_split.extend(start_leftovers);
+
+    assert_eq!(files_to_split.len() + files_not_to_split.len(), len);
+
+    (files_to_split, files_not_to_split)
+}
+
 /// Return (`[files_to_split]`, `[files_not_to_split]`) of given files
 /// such that `files_to_split` are files  in start-level that overlaps with more than one file in target_level.
 ///
 /// The returned `[files_to_split]` includes a set of pairs. A pair is composed of a file and its corresponding split-times
 /// at which the file will be split into multiple files.
+///
+/// Unlike high_l0_overlap_split, this function focusses on scenarios where start level files are not highly overlapping.
+/// Typically each file overlaps its neighbors, but each file does not overlap all or almost all L0.s
 ///
 /// Example:
 ///  . Input:

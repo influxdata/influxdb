@@ -7,7 +7,8 @@ use crate::{file_classification::FilesToSplitOrCompact, partition_info::Partitio
 use super::{
     files_to_compact::limit_files_to_compact,
     large_files_to_split::compute_split_times_for_large_files,
-    start_level_files_to_split::identify_start_level_files_to_split, SplitOrCompact,
+    start_level_files_to_split::{high_l0_overlap_split, identify_start_level_files_to_split},
+    SplitOrCompact,
 };
 
 #[derive(Debug)]
@@ -38,15 +39,17 @@ impl Display for SplitCompact {
 impl SplitOrCompact for SplitCompact {
     /// Return (`[files_to_split_or_compact]`, `[files_to_keep]`) of given files
     ///
-    /// Verify if the the give files are over the max_compact_size limit
-    /// (1).If so, find start-level files that can be split to reduce the number of overlapped
+    /// Verify if the the give files are over the max_compact_size limit, then:
+    /// (1).If >max_compact_size files overlap each other (i.e. they all overlap, not just each one
+    ///     overlapping its neighbors), perform a 'vertical split' on all overlapping files.
+    /// (2).Find start-level files that can be split to reduce the number of overlapped
     ///     files that must be compact in one run. This split will align the time ranges of
-    ///    start_level files with taregt level files.
-    /// (2).If split is not needed which also means the split was needed and done in previous round,
+    ///    start_level files with target level files.
+    /// (3).If split is not needed which also means the split was needed and done in previous round,
     ///     pick files to compact that under max_compact_size limit. Mostly after the split above
     ///     done in previous round, we will be able to do this because start level and
     ///     target level time ranges are aligned
-    /// (3).If the smallest possible set to compact is still over size limit, split over-size files.
+    /// (4).If the smallest possible set to compact is still over size limit, split over-size files.
     ///     This will be any large files of start-level or target-level. We expect this split is very rare
     ///     and the goal is to reduce the size for us to move forward, hence the split time will make e
     ///     ach output file soft max file size. If this split is not rare and/or created many non-aligned
@@ -67,9 +70,21 @@ impl SplitOrCompact for SplitCompact {
             return (FilesToSplitOrCompact::Compact(files), vec![]);
         }
 
-        // (1) This function identifies all start-level files that overlap with more than one target-level files
+        // (1) this function checks for a highly overlapped L0s
+        let (files_to_split, remaining_files) =
+            high_l0_overlap_split(self.max_compact_size, files, target_level);
+
+        if !files_to_split.is_empty() {
+            // These files must be split before further compaction
+            return (
+                FilesToSplitOrCompact::Split(files_to_split),
+                remaining_files,
+            );
+        }
+
+        // (2) This function identifies all start-level files that overlap with more than one target-level files
         let (files_to_split, files_not_to_split) =
-            identify_start_level_files_to_split(files, target_level);
+            identify_start_level_files_to_split(remaining_files, target_level);
 
         if !files_to_split.is_empty() {
             // These files must be split before further compaction
@@ -79,7 +94,7 @@ impl SplitOrCompact for SplitCompact {
             );
         }
 
-        // (2) No start level split is needed, which means every start-level file overlaps with at most one target-level file
+        // (3) No start level split is needed, which means every start-level file overlaps with at most one target-level file
         // Need to limit number of files to compact to stay under compact size limit
         let keep_and_split_or_compact =
             limit_files_to_compact(self.max_compact_size, files_not_to_split, target_level);
@@ -95,7 +110,7 @@ impl SplitOrCompact for SplitCompact {
             );
         }
 
-        // (3) Not able to compact the smallest set, split the large files
+        // (4) Not able to compact the smallest set, split the large files
         let (files_to_split, files_not_to_split) = compute_split_times_for_large_files(
             files_to_further_split,
             self.max_desired_file_size,
@@ -307,8 +322,8 @@ mod tests {
         let (files_to_split_or_compact, files_to_keep) =
             split_compact.apply(&p_info, files, CompactionLevel::FileNonOverlapped);
 
-        assert_eq!(files_to_split_or_compact.num_files_to_split(), 1);
-        assert_eq!(files_to_keep.len(), 4);
+        assert_eq!(files_to_split_or_compact.num_files_to_split(), 2);
+        assert_eq!(files_to_keep.len(), 3);
 
         let files_to_split = files_to_split_or_compact.into_files();
 
