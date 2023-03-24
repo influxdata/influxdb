@@ -506,6 +506,76 @@ async fn flightsql_get_tables() {
 }
 
 #[tokio::test]
+async fn flightsql_get_tables_matches_information_schema() {
+    test_helpers::maybe_start_logging();
+    let database_url = maybe_skip_integration!();
+
+    let table_name = "the_table";
+
+    // Set up the cluster  ====================================
+    let mut cluster = MiniCluster::create_shared2(database_url).await;
+
+    StepTest::new(
+        &mut cluster,
+        vec![
+            Step::WriteLineProtocol(format!(
+                "{table_name},tag1=A,tag2=B val=42i 123456\n\
+                 {table_name},tag1=A,tag2=C val=43i 123457"
+            )),
+            Step::Custom(Box::new(move |state: &mut StepTestState| {
+                async move {
+                    let mut client = flightsql_client(state.cluster());
+
+                    // output of get_tables is built manually in IOx, so it is important it remains in sync with the
+                    // actual contents of the information schema
+                    fn no_filter() -> Option<String> {
+                        None
+                    }
+                    let stream = client
+                        .get_tables(no_filter(), no_filter(), no_filter(), vec![], false)
+                        .await
+                        .unwrap();
+                    let get_tables_batches = collect_stream(stream).await;
+                    let get_tables_output = batches_to_sorted_lines(&get_tables_batches);
+
+                    let sql = "SELECT table_catalog AS catalog_name, \
+                               table_schema AS db_schema_name, table_name, table_type \
+                               FROM information_schema.tables \
+                               ORDER BY table_catalog, table_schema, table_name, table_type";
+
+                    let stream = client.query(sql).await.unwrap();
+                    let information_schema_batches = collect_stream(stream).await;
+                    let information_schema_output =
+                        batches_to_sorted_lines(&information_schema_batches);
+
+                    insta::assert_yaml_snapshot!(
+                        get_tables_output,
+                        @r###"
+                    ---
+                    - +--------------+--------------------+-------------+------------+
+                    - "| catalog_name | db_schema_name     | table_name  | table_type |"
+                    - +--------------+--------------------+-------------+------------+
+                    - "| public       | information_schema | columns     | VIEW       |"
+                    - "| public       | information_schema | df_settings | VIEW       |"
+                    - "| public       | information_schema | tables      | VIEW       |"
+                    - "| public       | information_schema | views       | VIEW       |"
+                    - "| public       | iox                | the_table   | BASE TABLE |"
+                    - "| public       | system             | queries     | BASE TABLE |"
+                    - +--------------+--------------------+-------------+------------+
+                    "###
+                    );
+
+                    assert_eq!(get_tables_output, information_schema_output);
+                }
+                .boxed()
+            })),
+        ],
+    )
+    .run()
+    .await
+}
+
+#[tokio::test]
 async fn flightsql_get_table_types() {
     test_helpers::maybe_start_logging();
     let database_url = maybe_skip_integration!();

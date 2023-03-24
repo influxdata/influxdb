@@ -2,14 +2,13 @@
 use std::sync::Arc;
 
 use arrow::{
-    array::{as_string_array, ArrayRef, BinaryArray, GenericBinaryBuilder, StringArray},
+    array::{ArrayRef, StringArray},
     datatypes::{DataType, Field, Schema, SchemaRef},
     error::ArrowError,
     ipc::writer::IpcWriteOptions,
     record_batch::RecordBatch,
 };
 use arrow_flight::{
-    error::FlightError,
     sql::{
         ActionCreatePreparedStatementRequest, ActionCreatePreparedStatementResult, Any,
         CommandGetCatalogs, CommandGetDbSchemas, CommandGetSqlInfo, CommandGetTableTypes,
@@ -19,21 +18,16 @@ use arrow_flight::{
 };
 use arrow_util::flight::prepare_schema_for_flight;
 use bytes::Bytes;
-use datafusion::{
-    datasource::TableProvider,
-    logical_expr::LogicalPlan,
-    physical_plan::{collect, ExecutionPlan},
-    scalar::ScalarValue,
-    sql::TableReference,
-};
+use datafusion::{logical_expr::LogicalPlan, physical_plan::ExecutionPlan, scalar::ScalarValue};
 use iox_query::{exec::IOxSessionContext, QueryNamespace};
-use observability_deps::tracing::{debug, info};
+use observability_deps::tracing::debug;
 use once_cell::sync::Lazy;
 use prost::Message;
 
 use crate::{
     error::*,
     get_catalogs::{get_catalogs, get_catalogs_schema},
+    get_tables::{get_tables, get_tables_schema},
     sql_info::iox_sql_info_list,
 };
 use crate::{FlightSQLCommand, PreparedStatementHandle};
@@ -73,11 +67,8 @@ impl FlightSQLPlanner {
                 encode_schema(&GET_DB_SCHEMAS_SCHEMA)
             }
             FlightSQLCommand::CommandGetTables(CommandGetTables { include_schema, .. }) => {
-                if include_schema {
-                    encode_schema(&GET_TABLES_SCHEMA_WITH_TABLE_SCHEMA)
-                } else {
-                    encode_schema(&GET_TABLES_SCHEMA_WITHOUT_TABLE_SCHEMA)
-                }
+                let schema = get_tables_schema(include_schema);
+                encode_schema(schema.as_ref())
             }
             FlightSQLCommand::CommandGetTableTypes(CommandGetTableTypes { .. }) => {
                 encode_schema(&GET_TABLE_TYPE_SCHEMA)
@@ -313,35 +304,6 @@ static GET_DB_SCHEMAS_SCHEMA: Lazy<Schema> = Lazy::new(|| {
         Field::new("db_schema_name", DataType::Utf8, false),
     ])
 });
-
-/// Return a `LogicalPlan` for GetTables
-///
-/// # Parameters
-///
-/// Definition from <https://github.com/apache/arrow/blob/44edc27e549d82db930421b0d4c76098941afd71/format/FlightSql.proto#L1176-L1241>
-///
-/// catalog: Specifies the Catalog to search for the tables.
-/// An empty string retrieves those without a catalog.
-/// If omitted the catalog name should not be used to narrow the search.
-///
-/// db_schema_filter_pattern: Specifies a filter pattern for schemas to search for.
-/// When no db_schema_filter_pattern is provided, the pattern will not be used to narrow the search.
-/// In the pattern string, two special characters can be used to denote matching rules:
-///    - "%" means to match any substring with 0 or more characters.
-///    - "_" means to match any one character.
-///
-/// table_name_filter_pattern: Specifies a filter pattern for tables to search for.
-/// When no table_name_filter_pattern is provided, all tables matching other filters are searched.
-/// In the pattern string, two special characters can be used to denote matching rules:
-///    - "%" means to match any substring with 0 or more characters.
-///    - "_" means to match any one character.
-///
-/// table_types: Specifies a filter of table types which must match.
-/// The table types depend on vendor/implementation. It is usually used to separate tables from views or system tables.
-/// TABLE, VIEW, and SYSTEM TABLE are commonly supported.
-///
-/// include_schema: Specifies if the Arrow schema should be returned for found tables.
-///
 async fn plan_get_tables(
     ctx: &IOxSessionContext,
     catalog: Option<String>,
@@ -350,207 +312,18 @@ async fn plan_get_tables(
     table_types: Vec<String>,
     include_schema: bool,
 ) -> Result<LogicalPlan> {
-    // use '%' to match anything if filters are not specified
-    let catalog = catalog.unwrap_or_else(|| String::from("%"));
-    let db_schema_filter_pattern = db_schema_filter_pattern.unwrap_or_else(|| String::from("%"));
-    let table_name_filter_pattern = table_name_filter_pattern.unwrap_or_else(|| String::from("%"));
+    let batch = get_tables(
+        ctx.inner(),
+        catalog,
+        db_schema_filter_pattern,
+        table_name_filter_pattern,
+        table_types,
+        include_schema,
+    )
+    .await?;
 
-    let has_base_tables = table_types.iter().any(|t| t == "BASE TABLE");
-    let has_views = table_types.iter().any(|t| t == "VIEW");
-
-    let where_clause = match (table_types.is_empty(), has_base_tables, has_views) {
-        // user input `table_types` is not in IOx
-        (false, false, false) => "false",
-        (true, _, _) => {
-            // `table_types` is an empty vec![]
-            "table_catalog like $1 AND table_schema like $2 AND table_name like $3"
-        }
-        (false, false, true) => {
-            "table_catalog like $1 AND table_schema like $2 AND table_name like $3 \
-            AND table_type = 'VIEW'"
-        }
-        (false, true, false) => {
-            "table_catalog like $1 AND table_schema like $2 AND table_name like $3 \
-            AND table_type = 'BASE TABLE'"
-        }
-        (false, true, true) => {
-            "table_catalog like $1 AND table_schema like $2 AND table_name like $3 \
-            AND table_type IN ('BASE TABLE', 'VIEW')"
-        }
-    };
-
-    // the WHERE clause is being constructed from known strings (rather than using
-    // `table_types` directly in the SQL) to avoid a SQL injection attack
-    let query = format!(
-        "PREPARE my_plan(VARCHAR, VARCHAR, VARCHAR) AS \
-        SELECT table_catalog AS catalog_name, \
-        table_schema AS db_schema_name, table_name, table_type \
-        FROM information_schema.tables \
-        WHERE {} \
-        ORDER BY table_catalog, table_schema, table_name, table_type",
-        where_clause
-    );
-
-    let params = vec![
-        ScalarValue::Utf8(Some(catalog)),
-        ScalarValue::Utf8(Some(db_schema_filter_pattern)),
-        ScalarValue::Utf8(Some(table_name_filter_pattern)),
-    ];
-
-    let plan = ctx.sql_to_logical_plan(query.as_str()).await?;
-    debug!(?plan, "Prepared plan is");
-    let plan = plan.with_param_values(params)?;
-
-    if include_schema {
-        add_schema_column_to_plan(ctx, plan).await
-    } else {
-        Ok(plan)
-    }
+    Ok(ctx.batch_to_logical_plan(batch)?)
 }
-
-async fn add_schema_column_to_plan(
-    ctx: &IOxSessionContext,
-    plan: LogicalPlan,
-) -> Result<LogicalPlan> {
-    let physical_plan = ctx.create_physical_plan(&plan).await?;
-    let context = ctx.inner().task_ctx();
-
-    // get all the plans output into a Vec<RecordBatch>
-    // like
-    // catalog_name | db_schema_name | table_name | table_type
-    // -------------+----------------+------------+-----------
-    // iox          | public         | foo        | BASE TABLE
-    // iox          | public         | bar        | BASE TABLE
-    let batches = collect(physical_plan, context).await?;
-    if batches.is_empty() {
-        let new_batch = RecordBatch::new_empty(Arc::clone(&GET_TABLES_SCHEMA_WITHOUT_TABLE_SCHEMA));
-        return Ok(ctx.batch_to_logical_plan(new_batch)?);
-    }
-
-    let mut builder = GenericBinaryBuilder::new();
-    // concat multiple batches into a single RecordBatch
-    let batch =
-        match arrow::compute::concat_batches(&GET_TABLES_SCHEMA_WITHOUT_TABLE_SCHEMA, &batches) {
-            Ok(batch) => batch,
-            Err(e) => return Err(Error::Arrow { source: (e) }),
-        };
-
-    let catalog_name_arr = match batch.column_by_name("catalog_name") {
-        Some(catalog_name) => catalog_name,
-        None => {
-            return Err(Error::Flight {
-                source: (FlightError::ExternalError("Cannot find catalog_name".into())),
-            })
-        }
-    };
-    let catalog_name_column = as_string_array(catalog_name_arr);
-
-    let table_name_arr = match batch.column_by_name("table_name") {
-        Some(table_name) => table_name,
-        None => {
-            return Err(Error::Flight {
-                source: (FlightError::ExternalError("Cannot find table_name".into())),
-            })
-        }
-    };
-    let table_name_column = as_string_array(table_name_arr);
-
-    let db_schema_name_arr = match batch.column_by_name("db_schema_name") {
-        Some(db_schema_name) => db_schema_name,
-        None => {
-            return Err(Error::Flight {
-                source: (FlightError::ExternalError("Cannot find db_schema_name".into())),
-            })
-        }
-    };
-    let db_schema_name_column = as_string_array(db_schema_name_arr);
-
-    // iterates over each actual table name, getting the schema
-    let name_iter = catalog_name_column
-        .iter()
-        .zip(db_schema_name_column.iter().zip(table_name_column.iter()));
-    for (catalog_name, (schema_name, table_name)) in name_iter {
-        // foo
-        // bar,
-        info!(?table_name, "AAL found table name");
-        let catalog_name = match catalog_name {
-            Some(name) => name,
-            None => {
-                return Err(Error::Flight {
-                    source: (FlightError::ExternalError("No catalog name".into())),
-                })
-            }
-        };
-        let schema_name = match schema_name {
-            Some(name) => name,
-            None => {
-                return Err(Error::Flight {
-                    source: (FlightError::ExternalError("No schema name".into())),
-                })
-            }
-        };
-        let table_name = match table_name {
-            Some(name) => name,
-            None => {
-                return Err(Error::Flight {
-                    source: (FlightError::ExternalError("No table name".into())),
-                })
-            }
-        };
-        // get table schema
-        let table_name = TableReference::full(catalog_name, schema_name, table_name);
-        let provider: Arc<dyn TableProvider> = match ctx.inner().table_provider(table_name).await {
-            Ok(table_provider) => table_provider,
-            Err(e) => return Err(Error::DataFusion { source: (e) }),
-        };
-        let table_schema = provider.schema();
-        let schema_bytes = encode_schema(&table_schema)?;
-
-        // convert the schema to the binary representation
-        // add the binary representation to the colmn we are building
-        builder.append_value(schema_bytes.as_ref());
-    }
-
-    let new_column: BinaryArray = builder.finish();
-    let new_column: ArrayRef = Arc::new(new_column);
-
-    // append the binary representation to a new binary array
-    // append new colum to existing columns
-    let mut new_columns = batch.columns().to_vec();
-    new_columns.push(new_column);
-
-    // TODO actually make a new column and append to batch
-    let new_batch = match RecordBatch::try_new(
-        Arc::clone(&GET_TABLES_SCHEMA_WITH_TABLE_SCHEMA),
-        new_columns,
-    ) {
-        Ok(new_batch) => new_batch,
-        Err(e) => return Err(Error::Arrow { source: (e) }),
-    };
-
-    Ok(ctx.batch_to_logical_plan(new_batch)?)
-}
-
-/// The schema for GetTables without `table_schema` column
-static GET_TABLES_SCHEMA_WITHOUT_TABLE_SCHEMA: Lazy<SchemaRef> = Lazy::new(|| {
-    Arc::new(Schema::new(vec![
-        Field::new("catalog_name", DataType::Utf8, false),
-        Field::new("db_schema_name", DataType::Utf8, false),
-        Field::new("table_name", DataType::Utf8, false),
-        Field::new("table_type", DataType::Utf8, false),
-    ]))
-});
-
-/// The schema for GetTables with `table_schema` column
-static GET_TABLES_SCHEMA_WITH_TABLE_SCHEMA: Lazy<SchemaRef> = Lazy::new(|| {
-    Arc::new(Schema::new(vec![
-        Field::new("catalog_name", DataType::Utf8, false),
-        Field::new("db_schema_name", DataType::Utf8, false),
-        Field::new("table_name", DataType::Utf8, false),
-        Field::new("table_type", DataType::Utf8, false),
-        Field::new("table_schema", DataType::Binary, false),
-    ]))
-});
 
 /// Return a `LogicalPlan` for GetTableTypes
 async fn plan_get_table_types(ctx: &IOxSessionContext) -> Result<LogicalPlan> {
