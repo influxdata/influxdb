@@ -187,14 +187,14 @@ impl FlightSqlClient {
         db_schema_filter_pattern: Option<impl Into<String> + Send>,
         table_name_filter_pattern: Option<impl Into<String> + Send>,
         table_types: Vec<String>,
+        include_schema: bool,
     ) -> Result<FlightRecordBatchStream> {
         let msg = CommandGetTables {
             catalog: catalog.map(|s| s.into()),
             db_schema_filter_pattern: db_schema_filter_pattern.map(|s| s.into()),
             table_name_filter_pattern: table_name_filter_pattern.map(|s| s.into()),
             table_types,
-            // TODO: implement include_schema after optional query parameters are done
-            include_schema: false,
+            include_schema,
         };
         self.do_get_with_cmd(msg.as_any()).await
     }
