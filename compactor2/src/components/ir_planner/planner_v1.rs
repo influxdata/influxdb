@@ -4,8 +4,7 @@ use data_types::{ChunkOrder, CompactionLevel, ParquetFile, Timestamp, TimestampM
 use uuid::Uuid;
 
 use crate::{
-    file_classification::FileToSplit,
-    file_classification::FilesToSplitOrCompact,
+    file_classification::{CompactReason, FileToSplit, FilesToSplitOrCompact, SplitReason},
     partition_info::PartitionInfo,
     plan_ir::{FileIR, PlanIR},
 };
@@ -128,10 +127,10 @@ impl IRPlanner for V1IRPlanner {
         object_store_ids: Vec<Uuid>,
     ) -> Vec<PlanIR> {
         match split_or_compact {
-            FilesToSplitOrCompact::Compact(files) => {
-                vec![self.compact_plan(files, object_store_ids, partition, target_level)]
+            FilesToSplitOrCompact::Compact(files, reason) => {
+                vec![self.compact_plan(files, object_store_ids, reason, partition, target_level)]
             }
-            FilesToSplitOrCompact::Split(files) => {
+            FilesToSplitOrCompact::Split(files, reason) => {
                 files
                     .into_iter()
                     .zip(object_store_ids)
@@ -142,13 +141,14 @@ impl IRPlanner for V1IRPlanner {
                         self.split_plan(
                             file_to_split,
                             object_store_id,
+                            reason,
                             Arc::clone(&partition),
                             target_level,
                         )
                     })
                     .collect()
             }
-            FilesToSplitOrCompact::None => vec![], // Nothing to do
+            FilesToSplitOrCompact::None(reason) => vec![PlanIR::None { reason }], // Nothing to do
         }
     }
 
@@ -158,6 +158,7 @@ impl IRPlanner for V1IRPlanner {
         &self,
         files: Vec<ParquetFile>,
         object_store_ids: Vec<Uuid>,
+        reason: CompactReason,
         _partition: Arc<PartitionInfo>,
         target_level: CompactionLevel,
     ) -> PlanIR {
@@ -204,6 +205,7 @@ impl IRPlanner for V1IRPlanner {
             PlanIR::Compact {
                 files,
                 target_level,
+                reason,
             }
         } else {
             let split_times = if small_cutoff_bytes < total_size && total_size <= large_cutoff_bytes
@@ -228,6 +230,7 @@ impl IRPlanner for V1IRPlanner {
                 PlanIR::Compact {
                     files,
                     target_level,
+                    reason,
                 }
             } else {
                 // split compact query plan to split the result into multiple files
@@ -235,6 +238,7 @@ impl IRPlanner for V1IRPlanner {
                     files,
                     split_times,
                     target_level,
+                    reason: SplitReason::CompactAndSplitOutput(reason),
                 }
             }
         }
@@ -245,6 +249,7 @@ impl IRPlanner for V1IRPlanner {
         &self,
         file_to_split: FileToSplit,
         object_store_id: Uuid,
+        reason: SplitReason,
         _partition: Arc<PartitionInfo>,
         target_level: CompactionLevel,
     ) -> PlanIR {
@@ -263,6 +268,7 @@ impl IRPlanner for V1IRPlanner {
             files: vec![file],
             split_times,
             target_level,
+            reason,
         }
     }
 }

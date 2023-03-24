@@ -2,6 +2,8 @@ use std::fmt::Display;
 
 use data_types::{ChunkOrder, CompactionLevel, ParquetFile};
 
+use crate::file_classification::{CompactReason, NoneReason, SplitReason};
+
 #[derive(Debug)]
 /// Describes a specific compactor plan to create.
 pub enum PlanIR {
@@ -11,6 +13,8 @@ pub enum PlanIR {
         files: Vec<FileIR>,
         /// The level the compacted file will be
         target_level: CompactionLevel,
+        /// The reason compact was chosen
+        reason: CompactReason,
     },
     /// Compact `files` into multiple files, for each entry in
     /// `split_times`
@@ -27,6 +31,13 @@ pub enum PlanIR {
         split_times: Vec<i64>,
         /// The level the split files will be
         target_level: CompactionLevel,
+        /// The reason split was chosen
+        reason: SplitReason,
+    },
+    /// Nothing to do, but communicate why
+    None {
+        /// The reason there's nothing to do
+        reason: NoneReason,
     },
 }
 
@@ -36,6 +47,7 @@ impl PlanIR {
         match *self {
             Self::Compact { target_level, .. } => target_level,
             Self::Split { target_level, .. } => target_level,
+            Self::None { .. } => unreachable!("filter out None plans before calling target_level"),
         }
     }
 
@@ -44,6 +56,7 @@ impl PlanIR {
         match self {
             Self::Compact { .. } => 1,
             Self::Split { split_times, .. } => split_times.len() + 1,
+            Self::None { .. } => 0,
         }
     }
 
@@ -52,6 +65,7 @@ impl PlanIR {
         match self {
             Self::Compact { files, .. } => files,
             Self::Split { files, .. } => files,
+            Self::None { .. } => &[],
         }
     }
 }
@@ -59,8 +73,9 @@ impl PlanIR {
 impl Display for PlanIR {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
-            Self::Compact { .. } => write!(f, "compact"),
-            Self::Split { .. } => write!(f, "split"),
+            Self::Compact { reason, .. } => write!(f, "compact({reason:?})"),
+            Self::Split { reason, .. } => write!(f, "split({reason:?})"),
+            Self::None { reason, .. } => write!(f, "none({reason:?})"),
         }
     }
 }
