@@ -2,9 +2,11 @@
 use std::sync::Arc;
 
 use arrow::{
-    datatypes::{DataType, Field, Schema},
+    array::{ArrayRef, StringArray},
+    datatypes::{DataType, Field, Schema, SchemaRef},
     error::ArrowError,
     ipc::writer::IpcWriteOptions,
+    record_batch::RecordBatch,
 };
 use arrow_flight::{
     sql::{
@@ -22,7 +24,12 @@ use observability_deps::tracing::debug;
 use once_cell::sync::Lazy;
 use prost::Message;
 
-use crate::{error::*, sql_info::iox_sql_info_list};
+use crate::{
+    error::*,
+    get_catalogs::{get_catalogs, get_catalogs_schema},
+    get_tables::{get_tables, get_tables_schema},
+    sql_info::iox_sql_info_list,
+};
 use crate::{FlightSQLCommand, PreparedStatementHandle};
 
 /// Logic for creating plans for various Flight messages against a query database
@@ -54,13 +61,14 @@ impl FlightSQLPlanner {
                 encode_schema(iox_sql_info_list().schema())
             }
             FlightSQLCommand::CommandGetCatalogs(CommandGetCatalogs {}) => {
-                encode_schema(&GET_CATALOG_SCHEMA)
+                encode_schema(get_catalogs_schema())
             }
             FlightSQLCommand::CommandGetDbSchemas(CommandGetDbSchemas { .. }) => {
                 encode_schema(&GET_DB_SCHEMAS_SCHEMA)
             }
-            FlightSQLCommand::CommandGetTables(CommandGetTables { .. }) => {
-                encode_schema(&GET_TABLES_SCHEMA)
+            FlightSQLCommand::CommandGetTables(CommandGetTables { include_schema, .. }) => {
+                let schema = get_tables_schema(include_schema);
+                encode_schema(schema.as_ref())
             }
             FlightSQLCommand::CommandGetTableTypes(CommandGetTableTypes { .. }) => {
                 encode_schema(&GET_TABLE_TYPE_SCHEMA)
@@ -244,18 +252,9 @@ async fn plan_get_sql_info(ctx: &IOxSessionContext, info: Vec<u32>) -> Result<Lo
 }
 
 /// Return a `LogicalPlan` for GetCatalogs
-///
-/// In the future this could be made more efficient by building the
-/// response directly from the IOx catalog rather than running an
-/// entire DataFusion plan.
 async fn plan_get_catalogs(ctx: &IOxSessionContext) -> Result<LogicalPlan> {
-    let query = "SELECT DISTINCT table_catalog AS catalog_name FROM information_schema.tables ORDER BY table_catalog";
-    Ok(ctx.sql_to_logical_plan(query).await?)
+    Ok(ctx.batch_to_logical_plan(get_catalogs(ctx.inner())?)?)
 }
-
-/// The schema for GetCatalogs
-static GET_CATALOG_SCHEMA: Lazy<Schema> =
-    Lazy::new(|| Schema::new(vec![Field::new("catalog_name", DataType::Utf8, false)]));
 
 /// Return a `LogicalPlan` for GetDbSchemas
 ///
@@ -305,89 +304,44 @@ static GET_DB_SCHEMAS_SCHEMA: Lazy<Schema> = Lazy::new(|| {
         Field::new("db_schema_name", DataType::Utf8, false),
     ])
 });
-
-/// Return a `LogicalPlan` for GetTables
 async fn plan_get_tables(
     ctx: &IOxSessionContext,
     catalog: Option<String>,
     db_schema_filter_pattern: Option<String>,
     table_name_filter_pattern: Option<String>,
     table_types: Vec<String>,
-    _include_schema: bool,
+    include_schema: bool,
 ) -> Result<LogicalPlan> {
-    // use '%' to match anything if filters are not specified
-    let catalog = catalog.unwrap_or_else(|| String::from("%"));
-    let db_schema_filter_pattern = db_schema_filter_pattern.unwrap_or_else(|| String::from("%"));
-    let table_name_filter_pattern = table_name_filter_pattern.unwrap_or_else(|| String::from("%"));
+    let batch = get_tables(
+        ctx.inner(),
+        catalog,
+        db_schema_filter_pattern,
+        table_name_filter_pattern,
+        table_types,
+        include_schema,
+    )
+    .await?;
 
-    let has_base_tables = table_types.iter().any(|t| t == "BASE TABLE");
-    let has_views = table_types.iter().any(|t| t == "VIEW");
-
-    let where_clause = match (table_types.is_empty(), has_base_tables, has_views) {
-        // user input `table_types` is not in IOx
-        (false, false, false) => "false",
-        (true, _, _) => {
-            // `table_types` is an empty vec![]
-            "table_catalog like $1 AND table_schema like $2 AND table_name like $3"
-        }
-        (false, false, true) => {
-            "table_catalog like $1 AND table_schema like $2 AND table_name like $3 \
-            AND table_type = 'VIEW'"
-        }
-        (false, true, false) => {
-            "table_catalog like $1 AND table_schema like $2 AND table_name like $3 \
-            AND table_type = 'BASE TABLE'"
-        }
-        (false, true, true) => {
-            "table_catalog like $1 AND table_schema like $2 AND table_name like $3 \
-            AND table_type IN ('BASE TABLE', 'VIEW')"
-        }
-    };
-
-    // the WHERE clause is being constructed from known strings (rather than using
-    // `table_types` directly in the SQL) to avoid a SQL injection attack
-    let query = format!(
-        "PREPARE my_plan(VARCHAR, VARCHAR, VARCHAR) AS \
-        SELECT table_catalog AS catalog_name, \
-        table_schema AS db_schema_name, table_name, table_type \
-        FROM information_schema.tables \
-        WHERE {} \
-        ORDER BY table_catalog, table_schema, table_name",
-        where_clause
-    );
-
-    let params = vec![
-        ScalarValue::Utf8(Some(catalog)),
-        ScalarValue::Utf8(Some(db_schema_filter_pattern)),
-        ScalarValue::Utf8(Some(table_name_filter_pattern)),
-    ];
-
-    let plan = ctx.sql_to_logical_plan(query.as_str()).await?;
-    debug!(?plan, "Prepared plan is");
-    Ok(plan.with_param_values(params)?)
+    Ok(ctx.batch_to_logical_plan(batch)?)
 }
 
-/// The schema for GetTables
-static GET_TABLES_SCHEMA: Lazy<Schema> = Lazy::new(|| {
-    Schema::new(vec![
-        Field::new("catalog_name", DataType::Utf8, false),
-        Field::new("db_schema_name", DataType::Utf8, false),
-        Field::new("table_name", DataType::Utf8, false),
-        Field::new("table_type", DataType::Utf8, false),
-    ])
-});
-
 /// Return a `LogicalPlan` for GetTableTypes
-///
-/// In the future this could be made more efficient by building the
-/// response directly from the IOx catalog rather than running an
-/// entire DataFusion plan.
 async fn plan_get_table_types(ctx: &IOxSessionContext) -> Result<LogicalPlan> {
-    let query = "SELECT DISTINCT table_type FROM information_schema.tables ORDER BY table_type";
-
-    Ok(ctx.sql_to_logical_plan(query).await?)
+    Ok(ctx.batch_to_logical_plan(TABLE_TYPES_RECORD_BATCH.clone())?)
 }
 
 /// The schema for GetTableTypes
-static GET_TABLE_TYPE_SCHEMA: Lazy<Schema> =
-    Lazy::new(|| Schema::new(vec![Field::new("table_type", DataType::Utf8, false)]));
+static GET_TABLE_TYPE_SCHEMA: Lazy<SchemaRef> = Lazy::new(|| {
+    Arc::new(Schema::new(vec![Field::new(
+        "table_type",
+        DataType::Utf8,
+        false,
+    )]))
+});
+
+static TABLE_TYPES_RECORD_BATCH: Lazy<RecordBatch> = Lazy::new(|| {
+    // https://github.com/apache/arrow-datafusion/blob/26b8377b0690916deacf401097d688699026b8fb/datafusion/core/src/catalog/information_schema.rs#L285-L287
+    // IOx doesn't support LOCAL TEMPORARY yet
+    let table_type = Arc::new(StringArray::from_iter_values(["BASE TABLE", "VIEW"])) as ArrayRef;
+    RecordBatch::try_new(Arc::clone(&GET_TABLE_TYPE_SCHEMA), vec![table_type]).unwrap()
+});

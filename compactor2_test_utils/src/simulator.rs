@@ -94,7 +94,8 @@ impl ParquetFilesSink for ParquetFileSimulator {
 
         info!("Simulating {plan_ir}");
         let (plan_type, split_times): (String, &[i64]) = match plan_ir {
-            // pretend it is an empty split
+            // pretend None and Compact are empty splits
+            PlanIR::None { .. } => (plan_ir.to_string(), &[]),
             PlanIR::Compact { files: _, .. } => (plan_ir.to_string(), &[]),
             PlanIR::Split {
                 files: _,

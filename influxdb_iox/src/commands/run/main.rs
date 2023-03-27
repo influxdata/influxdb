@@ -7,6 +7,8 @@ use panic_logging::SendPanicsToTracing;
 use snafu::{ResultExt, Snafu};
 use tokio_util::sync::CancellationToken;
 
+use crate::process_info;
+
 #[cfg(all(not(feature = "heappy"), feature = "jemalloc_replacing_malloc"))]
 mod jemalloc;
 
@@ -73,11 +75,12 @@ pub async fn main(
     services: Vec<Service>,
     metrics: Arc<metric::Registry>,
 ) -> Result<()> {
-    let git_hash = env!("GIT_HASH", "starting influxdb_iox server");
     let num_cpus = num_cpus::get();
     let build_malloc_conf = build_malloc_conf();
     info!(
-        git_hash,
+        git_hash = %process_info::IOX_GIT_HASH as &str,
+        version = %process_info::IOX_VERSION.as_ref() as &str,
+        uuid = %process_info::PROCESS_UUID.as_ref() as &str,
         num_cpus,
         %build_malloc_conf,
         "InfluxDB IOx server starting",

@@ -98,7 +98,7 @@ mod tests {
     use data_types::CompactionLevel;
     use datafusion::{physical_plan::collect, prelude::SessionContext};
 
-    use crate::test_utils::PartitionInfoBuilder;
+    use crate::{file_classification::CompactReason, test_utils::PartitionInfoBuilder};
 
     use super::*;
 
@@ -117,6 +117,8 @@ mod tests {
                 &PlanIR::Compact {
                     files: vec![],
                     target_level: CompactionLevel::Final,
+                    // This reason is arbitrary
+                    reason: CompactReason::ManySmallFiles,
                 },
                 partition,
             )

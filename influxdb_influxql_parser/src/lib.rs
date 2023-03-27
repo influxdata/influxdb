@@ -159,6 +159,19 @@ mod test {
             "SELECT idle FROM cpu WHERE host = 'host1'"
         );
 
+        // Parses empty single-line comments in various placements
+        let got = parse_statements(
+            r#"-- foo
+        --
+        --
+        SELECT value FROM cpu--
+        -- foo
+        ;SELECT val2 FROM cpu"#,
+        )
+        .unwrap();
+        assert_eq!(got[0].to_string(), "SELECT value FROM cpu");
+        assert_eq!(got[1].to_string(), "SELECT val2 FROM cpu");
+
         // Returns error for invalid statement
         let got = parse_statements("BAD SQL").unwrap_err();
         assert_eq!(got.to_string(), "invalid SQL statement at pos 0");

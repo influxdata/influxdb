@@ -21,7 +21,7 @@ use super::{try_map_bound, try_map_range, FillStrategy, GapFillExecParams};
 /// data, or anything else.
 /// When we support `locf` for aggregate columns, that will be tracked here.
 #[derive(Clone, Debug, PartialEq)]
-pub(super) struct GapFillParams {
+pub(crate) struct GapFillParams {
     /// The stride in nanoseconds of the timestamps to be output.
     pub stride: i64,
     /// The first timestamp (inclusive) to be output for each series,
@@ -39,7 +39,7 @@ pub(super) struct GapFillParams {
 impl GapFillParams {
     /// Create a new [GapFillParams] by figuring out the actual values (as native i64) for the stride,
     /// first and last timestamp for gap filling.
-    pub fn try_new(schema: SchemaRef, params: &GapFillExecParams) -> Result<Self> {
+    pub(super) fn try_new(schema: SchemaRef, params: &GapFillExecParams) -> Result<Self> {
         let batch = RecordBatch::new_empty(schema);
         let stride = params.stride.evaluate(&batch)?;
         let origin = params.origin.evaluate(&batch)?;

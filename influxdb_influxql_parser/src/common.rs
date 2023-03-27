@@ -8,7 +8,7 @@ use crate::literal::unsigned_integer;
 use crate::string::{regex, Regex};
 use core::fmt;
 use nom::branch::alt;
-use nom::bytes::complete::{is_not, tag, take_until};
+use nom::bytes::complete::{tag, take_till, take_until};
 use nom::character::complete::{char, multispace1};
 use nom::combinator::{map, opt, recognize, value};
 use nom::multi::{fold_many0, fold_many1, separated_list1};
@@ -146,7 +146,7 @@ pub(crate) fn qualified_measurement_name(i: &str) -> ParseResult<&str, Qualified
 
 /// Parse a SQL-style single-line comment
 fn comment_single_line(i: &str) -> ParseResult<&str, &str> {
-    recognize(pair(tag("--"), is_not("\n\r")))(i)
+    recognize(pair(tag("--"), take_till(|c| c == '\n' || c == '\r')))(i)
 }
 
 /// Parse a SQL-style inline comment, which can span multiple lines
@@ -935,6 +935,12 @@ mod tests {
         // Comment to EOL
         let (rem, _) = comment_single_line("-- this is a test\nmore text").unwrap();
         assert_eq!(rem, "\nmore text");
+
+        // Empty comments
+        let (rem, _) = comment_single_line("--").unwrap();
+        assert_eq!(rem, "");
+        let (rem, _) = comment_single_line("--\nSELECT").unwrap();
+        assert_eq!(rem, "\nSELECT");
     }
 
     #[test]

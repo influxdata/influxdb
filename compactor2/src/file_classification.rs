@@ -29,7 +29,7 @@ impl FileClassification {
     /// Number of files to compact; useful for logging
     pub fn num_files_to_compact(&self) -> usize {
         match &self.files_to_make_progress_on.split_or_compact {
-            FilesToSplitOrCompact::Compact(files) => files.len(),
+            FilesToSplitOrCompact::Compact(files, ..) => files.len(),
             _ => 0,
         }
     }
@@ -37,7 +37,7 @@ impl FileClassification {
     /// Number of files to split; useful for logging
     pub fn num_files_to_split(&self) -> usize {
         match &self.files_to_make_progress_on.split_or_compact {
-            FilesToSplitOrCompact::Split(files) => files.len(),
+            FilesToSplitOrCompact::Split(files, ..) => files.len(),
             _ => 0,
         }
     }
@@ -57,7 +57,7 @@ pub struct FilesForProgress {
 impl FilesForProgress {
     // If there are neither files to upgrade nor files to split/compact, there's nothing to do.
     pub fn is_empty(&self) -> bool {
-        self.upgrade.is_empty() && matches!(self.split_or_compact, FilesToSplitOrCompact::None)
+        self.upgrade.is_empty() && matches!(self.split_or_compact, FilesToSplitOrCompact::None(..))
     }
 
     /// Create an empty instance; useful for tests.
@@ -65,7 +65,7 @@ impl FilesForProgress {
     pub fn empty() -> Self {
         Self {
             upgrade: vec![],
-            split_or_compact: FilesToSplitOrCompact::None,
+            split_or_compact: FilesToSplitOrCompact::None(NoneReason::NoInputFiles),
         }
     }
 }
@@ -74,20 +74,43 @@ impl FilesForProgress {
 #[derive(Debug, PartialEq, Eq, Clone)]
 pub enum FilesToSplitOrCompact {
     /// Nothing to do.
-    None,
+    None(NoneReason),
     /// The input files should be split into multiple output files, at the specified times
-    Split(Vec<FileToSplit>),
+    Split(Vec<FileToSplit>, SplitReason),
     /// These files should be compacted together, ideally forming a single output file.
     /// Due to constraints such as the maximum desired output file size and the "leading edge" optimization
     ///  `FilesToCompact` may actually produce multiple output files.
-    Compact(Vec<ParquetFile>),
+    Compact(Vec<ParquetFile>, CompactReason),
+}
+
+/// Reasons why there's nothing to split or compact
+#[derive(Debug, PartialEq, Eq, Clone, Copy)]
+pub enum NoneReason {
+    NoInputFiles,
+    NoFilesToSplitFound,
+}
+
+/// Reasons why there are files to split
+#[derive(Debug, PartialEq, Eq, Clone, Copy)]
+pub enum SplitReason {
+    ReduceOverlap,
+    ReduceLargeFileSize,
+    CompactAndSplitOutput(CompactReason),
+}
+
+/// Reasons why there are files to compact
+#[derive(Debug, PartialEq, Eq, Clone, Copy)]
+pub enum CompactReason {
+    ManySmallFiles,
+    TotalSizeLessThanMaxCompactSize,
+    FoundSubsetLessThanMaxCompactSize,
 }
 
 impl FilesToSplitOrCompact {
     /// Number of files to compact; useful for logging
     pub fn num_files_to_compact(&self) -> usize {
         match &self {
-            Self::Compact(files) => files.len(),
+            Self::Compact(files, ..) => files.len(),
             _ => 0,
         }
     }
@@ -95,7 +118,7 @@ impl FilesToSplitOrCompact {
     /// Number of files to split; useful for logging
     pub fn num_files_to_split(&self) -> usize {
         match &self {
-            Self::Split(files) => files.len(),
+            Self::Split(files, ..) => files.len(),
             _ => 0,
         }
     }
@@ -108,18 +131,18 @@ impl FilesToSplitOrCompact {
     /// References to the inner Parquet files
     pub fn files(&self) -> Vec<&ParquetFile> {
         match self {
-            Self::None => vec![],
-            Self::Split(files) => files.iter().map(|f| &f.file).collect(),
-            Self::Compact(files) => files.iter().collect(),
+            Self::None(..) => vec![],
+            Self::Split(files, ..) => files.iter().map(|f| &f.file).collect(),
+            Self::Compact(files, ..) => files.iter().collect(),
         }
     }
 
     /// Return files of either type
     pub fn into_files(self) -> Vec<ParquetFile> {
         match self {
-            Self::None => vec![],
-            Self::Split(files) => files.into_iter().map(|f| f.file).collect(),
-            Self::Compact(files) => files,
+            Self::None(..) => vec![],
+            Self::Split(files, ..) => files.into_iter().map(|f| f.file).collect(),
+            Self::Compact(files, ..) => files,
         }
     }
 }
@@ -145,8 +168,11 @@ mod tests {
         let file = ParquetFileBuilder::new(1).build();
 
         let split_or_compact = match (num_to_compact, num_to_split) {
-            (0, 0) => FilesToSplitOrCompact::None,
-            (n, 0) => FilesToSplitOrCompact::Compact((0..n).map(|_| file.clone()).collect()),
+            (0, 0) => FilesToSplitOrCompact::None(NoneReason::NoInputFiles),
+            (n, 0) => FilesToSplitOrCompact::Compact(
+                (0..n).map(|_| file.clone()).collect(),
+                CompactReason::ManySmallFiles,
+            ),
             (0, n) => FilesToSplitOrCompact::Split(
                 (0..n)
                     .map(|_| FileToSplit {
@@ -154,6 +180,7 @@ mod tests {
                         split_times: vec![],
                     })
                     .collect(),
+                SplitReason::ReduceLargeFileSize,
             ),
             // Make sure this is a valid case; splitting and compacting are mutually exclusive
             _ => unreachable!("num_to_compact and num_to_split can't both be nonzero"),
