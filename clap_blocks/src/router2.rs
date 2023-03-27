@@ -1,7 +1,10 @@
 //! CLI config for the router using the RPC write path
 
 use crate::ingester_address::IngesterAddress;
-use std::{num::ParseIntError, time::Duration};
+use std::{
+    num::{NonZeroUsize, ParseIntError},
+    time::Duration,
+};
 
 /// CLI config for the router using the RPC write path
 #[derive(Debug, Clone, clap::Parser)]
@@ -105,6 +108,17 @@ pub struct Router2Config {
         value_parser = parse_duration
     )]
     pub rpc_write_timeout_seconds: Duration,
+
+    /// Specify the optional replication factor for each RPC write.
+    ///
+    /// The total number of copies of data after replication will be this value,
+    /// plus 1.
+    ///
+    /// If the desired replication level is not achieved, a partial write error
+    /// will be returned to the user. The write MAY be queryable after a partial
+    /// write failure.
+    #[clap(long = "rpc-write-replicas", env = "INFLUXDB_IOX_RPC_WRITE_REPLICAS")]
+    pub rpc_write_replicas: Option<NonZeroUsize>,
 }
 
 /// Map a string containing an integer number of seconds into a [`Duration`].

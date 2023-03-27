@@ -180,7 +180,10 @@ impl From<&DmlError> for StatusCode {
             DmlError::RpcWrite(RpcWriteError::DeletesUnsupported) => StatusCode::NOT_IMPLEMENTED,
             DmlError::RpcWrite(RpcWriteError::Timeout(_)) => StatusCode::GATEWAY_TIMEOUT,
             DmlError::RpcWrite(
-                RpcWriteError::NoUpstreams | RpcWriteError::UpstreamNotConnected(_),
+                RpcWriteError::NoUpstreams
+                | RpcWriteError::NotEnoughReplicas
+                | RpcWriteError::PartialWrite { .. }
+                | RpcWriteError::UpstreamNotConnected(_),
             ) => StatusCode::SERVICE_UNAVAILABLE,
         }
     }
