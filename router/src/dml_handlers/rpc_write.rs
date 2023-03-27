@@ -159,7 +159,7 @@ impl<T> RpcWrite<T> {
 
         Self {
             endpoints,
-            n_copies: replica_copies.map(NonZeroUsize::get).unwrap_or(1),
+            n_copies,
         }
     }
 }
