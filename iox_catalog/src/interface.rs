@@ -590,8 +590,14 @@ pub trait PartitionRepo: Send + Sync {
         max_num_partitions: usize,
     ) -> Result<Vec<PartitionParam>>;
 
-    /// Select partitions to compact
-    async fn partitions_to_compact(&mut self, recent_time: Timestamp) -> Result<Vec<PartitionId>>;
+    /// Select partitions with a `new_file_at` value greater than the minimum time value and, if specified, less than
+    /// the maximum time value. Both range ends are exclusive; a timestamp exactly equal to either end will _not_ be
+    /// included in the results.
+    async fn partitions_new_file_between(
+        &mut self,
+        minimum_time: Timestamp,
+        maximum_time: Option<Timestamp>,
+    ) -> Result<Vec<PartitionId>>;
 }
 
 /// Functions for working with tombstones in the catalog
@@ -4334,6 +4340,7 @@ pub(crate) mod test_helpers {
         let time_two_hour_ago = Timestamp::from(catalog.time_provider().hours_ago(2));
         let time_three_hour_ago = Timestamp::from(catalog.time_provider().hours_ago(3));
         let time_five_hour_ago = Timestamp::from(catalog.time_provider().hours_ago(5));
+        let time_six_hour_ago = Timestamp::from(catalog.time_provider().hours_ago(6));
 
         // Db has no partition
         // get from partition table
@@ -4400,7 +4407,19 @@ pub(crate) mod test_helpers {
         // read from partition table only
         let partitions = repos
             .partitions()
-            .partitions_to_compact(time_two_hour_ago)
+            .partitions_new_file_between(time_two_hour_ago, None)
+            .await
+            .unwrap();
+        assert!(partitions.is_empty());
+        let partitions = repos
+            .partitions()
+            .partitions_new_file_between(time_two_hour_ago, Some(time_one_hour_ago))
+            .await
+            .unwrap();
+        assert!(partitions.is_empty());
+        let partitions = repos
+            .partitions()
+            .partitions_new_file_between(time_three_hour_ago, Some(time_one_hour_ago))
             .await
             .unwrap();
         assert!(partitions.is_empty());
@@ -4428,11 +4447,31 @@ pub(crate) mod test_helpers {
         // read from partition table only
         let partitions = repos
             .partitions()
-            .partitions_to_compact(time_two_hour_ago)
+            .partitions_new_file_between(time_two_hour_ago, None)
             .await
             .unwrap();
         assert_eq!(partitions.len(), 1);
         assert_eq!(partitions[0], partition1.id);
+        let partitions = repos
+            .partitions()
+            .partitions_new_file_between(time_two_hour_ago, Some(time_now))
+            .await
+            .unwrap();
+        assert_eq!(partitions.len(), 1);
+        assert_eq!(partitions[0], partition1.id);
+        let partitions = repos
+            .partitions()
+            .partitions_new_file_between(time_three_hour_ago, Some(time_now))
+            .await
+            .unwrap();
+        assert_eq!(partitions.len(), 1);
+        assert_eq!(partitions[0], partition1.id);
+        let partitions = repos
+            .partitions()
+            .partitions_new_file_between(time_three_hour_ago, Some(time_two_hour_ago))
+            .await
+            .unwrap();
+        assert!(partitions.is_empty());
 
         // -----------------
         // PARTITION two
@@ -4442,7 +4481,7 @@ pub(crate) mod test_helpers {
             .create_or_get("two".into(), shard.id, table.id)
             .await
             .unwrap();
-        // should return partittion one only
+        // should return partition one only
         // get from partition table
         let partitions = repos
             .partitions()
@@ -4454,7 +4493,14 @@ pub(crate) mod test_helpers {
         // read from partition table only
         let partitions = repos
             .partitions()
-            .partitions_to_compact(time_two_hour_ago)
+            .partitions_new_file_between(time_two_hour_ago, None)
+            .await
+            .unwrap();
+        assert_eq!(partitions.len(), 1);
+        assert_eq!(partitions[0], partition1.id);
+        let partitions = repos
+            .partitions()
+            .partitions_new_file_between(time_three_hour_ago, Some(time_now))
             .await
             .unwrap();
         assert_eq!(partitions.len(), 1);
@@ -4472,7 +4518,7 @@ pub(crate) mod test_helpers {
             .create(l0_five_hour_ago_file_params.clone())
             .await
             .unwrap();
-        // still return partittione one only
+        // still return partition one only
         // get from partition table
         let partitions = repos
             .partitions()
@@ -4484,11 +4530,33 @@ pub(crate) mod test_helpers {
         // read from partition table only
         let partitions = repos
             .partitions()
-            .partitions_to_compact(time_two_hour_ago)
+            .partitions_new_file_between(time_two_hour_ago, None)
             .await
             .unwrap();
         assert_eq!(partitions.len(), 1);
         assert_eq!(partitions[0], partition1.id);
+        let partitions = repos
+            .partitions()
+            .partitions_new_file_between(time_three_hour_ago, Some(time_now))
+            .await
+            .unwrap();
+        assert_eq!(partitions.len(), 1);
+        assert_eq!(partitions[0], partition1.id);
+        let partitions = repos
+            .partitions()
+            .partitions_new_file_between(time_three_hour_ago, Some(time_now))
+            .await
+            .unwrap();
+        assert_eq!(partitions.len(), 1);
+        assert_eq!(partitions[0], partition1.id);
+        // Between six and three hours ago, return only partition 2
+        let partitions = repos
+            .partitions()
+            .partitions_new_file_between(time_six_hour_ago, Some(time_three_hour_ago))
+            .await
+            .unwrap();
+        assert_eq!(partitions.len(), 1);
+        assert_eq!(partitions[0], partition2.id);
 
         //  Add a L1 created recently (just now)
         let l1_file_params = ParquetFileParams {
@@ -4505,29 +4573,43 @@ pub(crate) mod test_helpers {
             .unwrap();
         // should return both partitions
         // get from partition table
-        let partitions = repos
+        let mut partitions = repos
             .partitions()
             .partitions_with_recent_created_files(time_two_hour_ago, max_num_partition)
             .await
             .unwrap();
         assert_eq!(partitions.len(), 2);
         // sort by partition id
-        let mut partitions = partitions;
         partitions.sort_by(|a, b| a.partition_id.cmp(&b.partition_id));
         assert_eq!(partitions[0].partition_id, partition1.id);
         assert_eq!(partitions[1].partition_id, partition2.id);
         // read from partition table only
-        let partitions = repos
+        let mut partitions = repos
             .partitions()
-            .partitions_to_compact(time_two_hour_ago)
+            .partitions_new_file_between(time_two_hour_ago, None)
             .await
             .unwrap();
         assert_eq!(partitions.len(), 2);
         // sort by partition id
-        let mut partitions = partitions;
         partitions.sort();
         assert_eq!(partitions[0], partition1.id);
         assert_eq!(partitions[1], partition2.id);
+        // Only return partition1: the creation time must be strictly less than the maximum time, not equal
+        let mut partitions = repos
+            .partitions()
+            .partitions_new_file_between(time_three_hour_ago, Some(time_now))
+            .await
+            .unwrap();
+        assert_eq!(partitions.len(), 1);
+        partitions.sort();
+        assert_eq!(partitions[0], partition1.id);
+        // Between six and three hours ago, return none
+        let partitions = repos
+            .partitions()
+            .partitions_new_file_between(time_six_hour_ago, Some(time_three_hour_ago))
+            .await
+            .unwrap();
+        assert!(partitions.is_empty());
 
         // -----------------
         // PARTITION three
@@ -4537,31 +4619,44 @@ pub(crate) mod test_helpers {
             .create_or_get("three".into(), shard.id, table.id)
             .await
             .unwrap();
-        // should return partittion one and two only
+        // should return partition one and two only
         // get from partition table
-        let partitions = repos
+        let mut partitions = repos
             .partitions()
             .partitions_with_recent_created_files(time_two_hour_ago, max_num_partition)
             .await
             .unwrap();
         assert_eq!(partitions.len(), 2);
         // sort by partition id
-        let mut partitions = partitions;
         partitions.sort_by(|a, b| a.partition_id.cmp(&b.partition_id));
         assert_eq!(partitions[0].partition_id, partition1.id);
         assert_eq!(partitions[1].partition_id, partition2.id);
         // read from partition table only
-        let partitions = repos
+        let mut partitions = repos
             .partitions()
-            .partitions_to_compact(time_two_hour_ago)
+            .partitions_new_file_between(time_two_hour_ago, None)
             .await
             .unwrap();
         assert_eq!(partitions.len(), 2);
         // sort by partition id
-        let mut partitions = partitions;
         partitions.sort();
         assert_eq!(partitions[0], partition1.id);
         assert_eq!(partitions[1], partition2.id);
+        // Only return partition1: the creation time must be strictly less than the maximum time, not equal
+        let partitions = repos
+            .partitions()
+            .partitions_new_file_between(time_three_hour_ago, Some(time_now))
+            .await
+            .unwrap();
+        assert_eq!(partitions.len(), 1);
+        assert_eq!(partitions[0], partition1.id);
+        // Between six and three hours ago, return none
+        let partitions = repos
+            .partitions()
+            .partitions_new_file_between(time_six_hour_ago, Some(time_three_hour_ago))
+            .await
+            .unwrap();
+        assert!(partitions.is_empty());
 
         // Add a L2 created recently (just now) for partition three
         // Since it is L2, the partition won't get updated
@@ -4577,31 +4672,44 @@ pub(crate) mod test_helpers {
             .create(l2_file_params.clone())
             .await
             .unwrap();
-        // still should return partittion one and two only
+        // still should return partition one and two only
         // get from partition table
-        let partitions = repos
+        let mut partitions = repos
             .partitions()
             .partitions_with_recent_created_files(time_two_hour_ago, max_num_partition)
             .await
             .unwrap();
         assert_eq!(partitions.len(), 2);
         // sort by partition id
-        let mut partitions = partitions;
         partitions.sort_by(|a, b| a.partition_id.cmp(&b.partition_id));
         assert_eq!(partitions[0].partition_id, partition1.id);
         assert_eq!(partitions[1].partition_id, partition2.id);
         // read from partition table only
-        let partitions = repos
+        let mut partitions = repos
             .partitions()
-            .partitions_to_compact(time_two_hour_ago)
+            .partitions_new_file_between(time_two_hour_ago, None)
             .await
             .unwrap();
         assert_eq!(partitions.len(), 2);
         // sort by partition id
-        let mut partitions = partitions;
         partitions.sort();
         assert_eq!(partitions[0], partition1.id);
         assert_eq!(partitions[1], partition2.id);
+        // Only return partition1: the creation time must be strictly less than the maximum time, not equal
+        let partitions = repos
+            .partitions()
+            .partitions_new_file_between(time_three_hour_ago, Some(time_now))
+            .await
+            .unwrap();
+        assert_eq!(partitions.len(), 1);
+        assert_eq!(partitions[0], partition1.id);
+        // Between six and three hours ago, return none
+        let partitions = repos
+            .partitions()
+            .partitions_new_file_between(time_six_hour_ago, Some(time_three_hour_ago))
+            .await
+            .unwrap();
+        assert!(partitions.is_empty());
 
         // add an L0 file created recently (one hour ago) for partition three
         let l0_one_hour_ago_file_params = ParquetFileParams {
@@ -4617,31 +4725,46 @@ pub(crate) mod test_helpers {
             .unwrap();
         // should return all partitions
         // get from partition table
-        let partitions = repos
+        let mut partitions = repos
             .partitions()
             .partitions_with_recent_created_files(time_two_hour_ago, max_num_partition)
             .await
             .unwrap();
         assert_eq!(partitions.len(), 3);
         // sort by partition id
-        let mut partitions = partitions;
         partitions.sort_by(|a, b| a.partition_id.cmp(&b.partition_id));
         assert_eq!(partitions[0].partition_id, partition1.id);
         assert_eq!(partitions[1].partition_id, partition2.id);
         assert_eq!(partitions[2].partition_id, partition3.id);
         // read from partition table only
-        let partitions = repos
+        let mut partitions = repos
             .partitions()
-            .partitions_to_compact(time_two_hour_ago)
+            .partitions_new_file_between(time_two_hour_ago, None)
             .await
             .unwrap();
         assert_eq!(partitions.len(), 3);
         // sort by partition id
-        let mut partitions = partitions;
         partitions.sort();
         assert_eq!(partitions[0], partition1.id);
         assert_eq!(partitions[1], partition2.id);
         assert_eq!(partitions[2], partition3.id);
+        // Only return partitions 1 and 3; 2 was created just now
+        let mut partitions = repos
+            .partitions()
+            .partitions_new_file_between(time_three_hour_ago, Some(time_now))
+            .await
+            .unwrap();
+        assert_eq!(partitions.len(), 2);
+        partitions.sort();
+        assert_eq!(partitions[0], partition1.id);
+        assert_eq!(partitions[1], partition3.id);
+        // Between six and three hours ago, return none
+        let partitions = repos
+            .partitions()
+            .partitions_new_file_between(time_six_hour_ago, Some(time_three_hour_ago))
+            .await
+            .unwrap();
+        assert!(partitions.is_empty());
 
         // Limit max num partition
         let partitions = repos
