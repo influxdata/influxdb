@@ -28,7 +28,8 @@ pub type QueryChunks = Vec<Arc<dyn QueryChunk>>;
 /// sort key can be reconstructed. However this is usually OK because it does not have any effect anyways.
 ///
 /// Note that this only works on the direct output of [`chunks_to_physical_nodes`]. If the plan is wrapped into
-/// additional nodes (like de-duplication, filtering, projection) then NO data will be returned.
+/// additional nodes (like de-duplication, filtering, projection) then NO data will be returned. Also [`ParquetExec`]
+/// MUST NOT have a predicate attached.
 ///
 ///
 /// [`chunks_to_physical_nodes`]: crate::provider::chunks_to_physical_nodes
@@ -114,6 +115,12 @@ impl ExecutionPlanVisitor for ExtractChunksVisitor {
                 self.add_chunk(Arc::clone(chunk));
             }
         } else if let Some(parquet_exec) = plan_any.downcast_ref::<ParquetExec>() {
+            if parquet_exec.predicate().is_some() {
+                return Err(DataFusionError::External(
+                    String::from("ParquetExec has predicate").into(),
+                ));
+            }
+
             self.add_schema_from_exec(parquet_exec).map_err(|e| {
                 DataFusionError::Context("add schema from ParquetExec".to_owned(), Box::new(e))
             })?;
@@ -165,8 +172,9 @@ mod tests {
     use arrow::datatypes::{DataType, Field, Schema as ArrowSchema};
     use data_types::ChunkId;
     use datafusion::{
-        physical_plan::filter::FilterExec,
+        physical_plan::{expressions::Literal, filter::FilterExec, tree_node::TreeNodeRewritable},
         prelude::{col, lit},
+        scalar::ScalarValue,
     };
     use predicate::Predicate;
     use schema::{merge::SchemaMerger, sort::SortKeyBuilder, SchemaBuilder, TIME_COLUMN_NAME};
@@ -318,6 +326,33 @@ mod tests {
             .build()
             .as_arrow();
         assert_roundtrip(schema, vec![Arc::new(chunk)], None);
+    }
+
+    #[test]
+    fn test_parquet_with_predicate_fails() {
+        let chunk = chunk(1).with_dummy_parquet_file();
+        let schema = chunk.schema().as_arrow();
+        let plan = chunks_to_physical_nodes(
+            &schema,
+            None,
+            vec![Arc::new(chunk)],
+            Predicate::default(),
+            2,
+        );
+        let plan = plan
+            .transform_down(&|plan| {
+                if let Some(exec) = plan.as_any().downcast_ref::<ParquetExec>() {
+                    let exec = ParquetExec::new(
+                        exec.base_config().clone(),
+                        Some(Arc::new(Literal::new(ScalarValue::from(false)))),
+                        None,
+                    );
+                    return Ok(Some(Arc::new(exec)));
+                }
+                Ok(None)
+            })
+            .unwrap();
+        assert!(extract_chunks(plan.as_ref()).is_none());
     }
 
     #[track_caller]
