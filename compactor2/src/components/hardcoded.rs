@@ -93,9 +93,6 @@ use super::{
 
 /// Get hardcoded components.
 pub fn hardcoded_components(config: &Config) -> Arc<Components> {
-    // TODO: partitions source: Implementing ID-based sharding / hash-partitioning so we can run multiple compactors in
-    //       parallel. This should be a wrapper around the existing partions source.
-
     let partitions_source: Arc<dyn PartitionsSource> = match &config.partitions_source {
         PartitionsSourceConfig::CatalogRecentWrites => {
             Arc::new(CatalogToCompactPartitionsSource::new(
