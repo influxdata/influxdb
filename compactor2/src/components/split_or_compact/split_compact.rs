@@ -2,7 +2,10 @@ use std::fmt::Display;
 
 use data_types::{CompactionLevel, ParquetFile};
 
-use crate::{file_classification::FilesToSplitOrCompact, partition_info::PartitionInfo};
+use crate::{
+    file_classification::{CompactReason, FilesToSplitOrCompact, NoneReason, SplitReason},
+    partition_info::PartitionInfo,
+};
 
 use super::{
     files_to_compact::limit_files_to_compact,
@@ -61,13 +64,22 @@ impl SplitOrCompact for SplitCompact {
         target_level: CompactionLevel,
     ) -> (FilesToSplitOrCompact, Vec<ParquetFile>) {
         if files.is_empty() {
-            return (FilesToSplitOrCompact::None, vec![]);
+            return (
+                FilesToSplitOrCompact::None(NoneReason::NoInputFiles),
+                vec![],
+            );
         }
 
         // Compact all in one run if total size is less than max_compact_size
         let total_size: i64 = files.iter().map(|f| f.file_size_bytes).sum();
         if total_size as usize <= self.max_compact_size {
-            return (FilesToSplitOrCompact::Compact(files), vec![]);
+            return (
+                FilesToSplitOrCompact::Compact(
+                    files,
+                    CompactReason::TotalSizeLessThanMaxCompactSize,
+                ),
+                vec![],
+            );
         }
 
         // (1) this function checks for a highly overlapped L0s
@@ -77,7 +89,7 @@ impl SplitOrCompact for SplitCompact {
         if !files_to_split.is_empty() {
             // These files must be split before further compaction
             return (
-                FilesToSplitOrCompact::Split(files_to_split),
+                FilesToSplitOrCompact::Split(files_to_split, SplitReason::HighL0Overlap),
                 remaining_files,
             );
         }
@@ -89,7 +101,7 @@ impl SplitOrCompact for SplitCompact {
         if !files_to_split.is_empty() {
             // These files must be split before further compaction
             return (
-                FilesToSplitOrCompact::Split(files_to_split),
+                FilesToSplitOrCompact::Split(files_to_split, SplitReason::ReduceOverlap),
                 files_not_to_split,
             );
         }
@@ -105,7 +117,10 @@ impl SplitOrCompact for SplitCompact {
 
         if !files_to_compact.is_empty() {
             return (
-                FilesToSplitOrCompact::Compact(files_to_compact),
+                FilesToSplitOrCompact::Compact(
+                    files_to_compact,
+                    CompactReason::FoundSubsetLessThanMaxCompactSize,
+                ),
                 files_to_keep,
             );
         }
@@ -120,9 +135,15 @@ impl SplitOrCompact for SplitCompact {
         files_to_keep.extend(files_not_to_split);
 
         if files_to_split.is_empty() {
-            (FilesToSplitOrCompact::None, files_to_keep)
+            (
+                FilesToSplitOrCompact::None(NoneReason::NoFilesToSplitFound),
+                files_to_keep,
+            )
         } else {
-            (FilesToSplitOrCompact::Split(files_to_split), files_to_keep)
+            (
+                FilesToSplitOrCompact::Split(files_to_split, SplitReason::ReduceLargeFileSize),
+                files_to_keep,
+            )
         }
     }
 }
@@ -142,7 +163,7 @@ mod tests {
             large_files_to_split::PERCENTAGE_OF_SOFT_EXCEEDED, split_compact::SplitCompact,
             SplitOrCompact,
         },
-        file_classification::FilesToSplitOrCompact,
+        file_classification::{FilesToSplitOrCompact, NoneReason},
         test_utils::PartitionInfoBuilder,
     };
 
@@ -158,7 +179,7 @@ mod tests {
 
         assert!(matches!(
             files_to_split_or_compact,
-            FilesToSplitOrCompact::None
+            FilesToSplitOrCompact::None(NoneReason::NoInputFiles),
         ));
         assert!(files_to_keep.is_empty());
     }
@@ -216,12 +237,13 @@ mod tests {
 
         // need to split files
         assert_eq!(files_to_split_or_compact.num_files_to_compact(), 0);
-        let files_to_split =
-            if let FilesToSplitOrCompact::Split(ref files_to_split) = files_to_split_or_compact {
-                files_to_split
-            } else {
-                panic!("Expected files to split, instead got {files_to_split_or_compact:?}");
-            };
+        let files_to_split = if let FilesToSplitOrCompact::Split(ref files_to_split, ..) =
+            files_to_split_or_compact
+        {
+            files_to_split
+        } else {
+            panic!("Expected files to split, instead got {files_to_split_or_compact:?}");
+        };
         assert_eq!(files_to_split.len(), 2);
         assert_eq!(files_to_keep.len(), 2);
 

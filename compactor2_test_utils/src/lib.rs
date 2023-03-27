@@ -34,6 +34,7 @@ use async_trait::async_trait;
 use backoff::BackoffConfig;
 use data_types::{ColumnType, CompactionLevel, ParquetFile, TableId, TRANSITION_SHARD_NUMBER};
 use datafusion::arrow::record_batch::RecordBatch;
+use datafusion_util::config::register_iox_object_store;
 use futures::TryStreamExt;
 use iox_tests::{
     ParquetFileBuilder, TestCatalog, TestNamespace, TestParquetFileBuilder, TestPartition,
@@ -637,16 +638,17 @@ impl TestSetup {
         );
 
         // register scratchpad store
-        self.catalog
+        let runtime_env = self
+            .catalog
             .exec()
             .new_context(ExecutorType::Reorg)
             .inner()
-            .runtime_env()
-            .register_object_store(
-                "iox",
-                config.parquet_store_scratchpad.id(),
-                Arc::clone(config.parquet_store_scratchpad.object_store()),
-            );
+            .runtime_env();
+        register_iox_object_store(
+            runtime_env,
+            config.parquet_store_scratchpad.id(),
+            Arc::clone(config.parquet_store_scratchpad.object_store()),
+        );
 
         compact(
             NonZeroUsize::new(10).unwrap(),

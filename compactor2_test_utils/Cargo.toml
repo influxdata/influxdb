@@ -11,6 +11,7 @@ async-trait = "0.1.66"
 backoff = { path = "../backoff" }
 compactor2 = { path = "../compactor2" }
 datafusion = { workspace = true }
+datafusion_util = { path = "../datafusion_util" }
 data_types = { path = "../data_types" }
 futures = "0.3"
 iox_catalog = { path = "../iox_catalog" }
@@ -26,4 +27,4 @@ uuid = { version = "1", features = ["v4"] }
 workspace-hack = { version = "0.1", path = "../workspace-hack" }
 
 iox_tests = { path = "../iox_tests" }
-insta = { version = "1.28.0", features = ["yaml"] }
+insta = { version = "1.29.0", features = ["yaml"] }

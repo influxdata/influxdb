@@ -1,5 +1,6 @@
 use async_trait::async_trait;
 use clap_blocks::querier::{IngesterAddresses, QuerierConfig};
+use datafusion_util::config::register_iox_object_store;
 use hyper::{Body, Request, Response};
 use iox_catalog::interface::Catalog;
 use iox_query::exec::{Executor, ExecutorType};
@@ -177,16 +178,16 @@ pub async fn create_querier_server_type(
 
     // register cached object store with the execution context
     let parquet_store = catalog_cache.parquet_store();
-    let existing = args
+    let runtime_env = args
         .exec
         .new_context(ExecutorType::Query)
         .inner()
-        .runtime_env()
-        .register_object_store(
-            "iox",
-            parquet_store.id(),
-            Arc::clone(parquet_store.object_store()),
-        );
+        .runtime_env();
+    let existing = register_iox_object_store(
+        runtime_env,
+        parquet_store.id(),
+        Arc::clone(parquet_store.object_store()),
+    );
     assert!(existing.is_none());
 
     let ingester_connection = match args.ingester_addresses {

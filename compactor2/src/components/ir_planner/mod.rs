@@ -10,7 +10,7 @@ pub mod logging;
 pub mod planner_v1;
 
 use crate::{
-    file_classification::{FileToSplit, FilesToSplitOrCompact},
+    file_classification::{CompactReason, FileToSplit, FilesToSplitOrCompact, SplitReason},
     partition_info::PartitionInfo,
     plan_ir::PlanIR,
 };
@@ -31,6 +31,7 @@ pub trait IRPlanner: Debug + Display + Send + Sync {
         &self,
         files: Vec<ParquetFile>,
         object_store_ids: Vec<Uuid>,
+        reason: CompactReason,
         partition: Arc<PartitionInfo>,
         target_level: CompactionLevel,
     ) -> PlanIR;
@@ -40,6 +41,7 @@ pub trait IRPlanner: Debug + Display + Send + Sync {
         &self,
         file_to_split: FileToSplit,
         object_store_id: Uuid,
+        reason: SplitReason,
         partition: Arc<PartitionInfo>,
         target_level: CompactionLevel,
     ) -> PlanIR;

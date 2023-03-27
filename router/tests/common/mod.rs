@@ -122,7 +122,7 @@ impl TestContext {
         metrics: Arc<metric::Registry>,
     ) -> Self {
         let client = Arc::new(MockWriteClient::default());
-        let rpc_writer = RpcWrite::new([(Arc::clone(&client), "mock client")], &metrics);
+        let rpc_writer = RpcWrite::new([(Arc::clone(&client), "mock client")], None, &metrics);
 
         let ns_cache = Arc::new(ShardedCache::new(
             iter::repeat_with(|| Arc::new(MemoryNamespaceCache::default())).take(10),

@@ -49,6 +49,7 @@ impl DataFusionPlanner for V1DataFusionPlanner {
         let ctx = self.exec.new_context(ExecutorType::Reorg);
 
         let plan = match ir {
+            PlanIR::None { .. } => unreachable!("filter out None plans before calling plan"),
             PlanIR::Compact { files, .. } => {
                 let query_chunks = to_query_chunks(files, &partition, self.store.clone());
                 let merged_schema = QueryableParquetChunk::merge_schemas(&query_chunks);
