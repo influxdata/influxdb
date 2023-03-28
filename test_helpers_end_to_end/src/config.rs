@@ -1,7 +1,7 @@
 use crate::{addrs::BindAddresses, ServerType, UdpCapture};
 use http::{header::HeaderName, HeaderValue};
 use rand::Rng;
-use std::{collections::HashMap, sync::Arc};
+use std::{collections::HashMap, num::NonZeroUsize, sync::Arc};
 use tempfile::TempDir;
 
 /// Options for creating test servers (`influxdb_iox` processes)
@@ -170,6 +170,13 @@ impl TestConfig {
         self.with_env(
             "INFLUXDB_IOX_INGESTER_ADDRESSES",
             ingester_addresses.join(","),
+        )
+    }
+
+    pub fn with_rpc_write_replicas(self, rpc_write_replicas: NonZeroUsize) -> Self {
+        self.with_env(
+            "INFLUXDB_IOX_RPC_WRITE_REPLICAS",
+            rpc_write_replicas.get().to_string(),
         )
     }
 

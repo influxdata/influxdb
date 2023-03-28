@@ -149,6 +149,8 @@ impl<T> RpcWrite<T> {
         // copies necessary to consider a write a success.
         let n_copies = replica_copies.map(NonZeroUsize::get).unwrap_or(1);
 
+        debug!(n_copies, "write replication factor");
+
         // Assert this configuration is not impossible to satisfy.
         assert!(
             n_copies <= endpoints.len(),

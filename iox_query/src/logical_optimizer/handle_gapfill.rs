@@ -22,7 +22,7 @@ use std::{
     sync::Arc,
 };
 
-// This optimizer rule enables gap-filling semantics for SQL queries
+/// This optimizer rule enables gap-filling semantics for SQL queries
 /// that contain calls to `DATE_BIN_GAPFILL()`.
 ///
 /// In SQL a typical gap-filling query might look like this:
