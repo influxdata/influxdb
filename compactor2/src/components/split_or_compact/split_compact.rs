@@ -322,6 +322,54 @@ mod tests {
 
     #[test]
     fn test_split_files() {
+        let files = create_overlapped_l0_l1_files_2(FILE_SIZE as i64 - 1);
+        insta::assert_yaml_snapshot!(
+            format_files("initial", &files),
+            @r###"
+        ---
+        - initial
+        - "L0, all files 99b                                                                                                  "
+        - "L0.2[650,750] 180s                                                    |------L0.2------|                           "
+        - "L0.1[450,620] 120s                |------------L0.1------------|                                                   "
+        - "L0.3[800,900] 300s                                                                               |------L0.3------|"
+        - "L1, all files 99b                                                                                                  "
+        - "L1.13[600,700] 60s                                           |-----L1.13------|                                    "
+        - "L1.12[400,500] 60s       |-----L1.12------|                                                                        "
+        "###
+        );
+
+        // hit size limit -> split start_level files that overlap with more than 1 target_level files
+        let p_info = Arc::new(PartitionInfoBuilder::new().build());
+        let split_compact = SplitCompact::new(FILE_SIZE * 3, FILE_SIZE as u64);
+        let (files_to_split_or_compact, files_to_keep) =
+            split_compact.apply(&p_info, files, CompactionLevel::FileNonOverlapped);
+
+        assert_eq!(files_to_split_or_compact.num_files_to_split(), 1);
+        assert_eq!(files_to_keep.len(), 4);
+
+        let files_to_split = files_to_split_or_compact.into_files();
+
+        // See layout of 2 set of files
+        insta::assert_yaml_snapshot!(
+            format_files_split("files to compact or split:", &files_to_split, "files to keep:", &files_to_keep),
+            @r###"
+        ---
+        - "files to compact or split:"
+        - "L0, all files 99b                                                                                                  "
+        - "L0.1[450,620] 120s       |------------------------------------------L0.1------------------------------------------|"
+        - "files to keep:"
+        - "L0, all files 99b                                                                                                  "
+        - "L0.2[650,750] 180s                                                    |------L0.2------|                           "
+        - "L0.3[800,900] 300s                                                                               |------L0.3------|"
+        - "L1, all files 99b                                                                                                  "
+        - "L1.12[400,500] 60s       |-----L1.12------|                                                                        "
+        - "L1.13[600,700] 60s                                           |-----L1.13------|                                    "
+        "###
+        );
+    }
+
+    #[test]
+    fn test_split_files_high_capacity() {
         let files = create_overlapped_l0_l1_files_2(FILE_SIZE as i64);
         insta::assert_yaml_snapshot!(
             format_files("initial", &files),
@@ -338,14 +386,14 @@ mod tests {
         "###
         );
 
-        // hit size limit -> split start_level files that overlap with more than 1 target_level files
+        // hit max_compact_size limit on files that overlap just L0.1, and split that set of files into something manageable.
         let p_info = Arc::new(PartitionInfoBuilder::new().build());
         let split_compact = SplitCompact::new(FILE_SIZE, FILE_SIZE as u64);
         let (files_to_split_or_compact, files_to_keep) =
             split_compact.apply(&p_info, files, CompactionLevel::FileNonOverlapped);
 
-        assert_eq!(files_to_split_or_compact.num_files_to_split(), 2);
-        assert_eq!(files_to_keep.len(), 3);
+        assert_eq!(files_to_split_or_compact.num_files_to_split(), 3);
+        assert_eq!(files_to_keep.len(), 2);
 
         let files_to_split = files_to_split_or_compact.into_files();
 
@@ -356,15 +404,14 @@ mod tests {
         ---
         - "files to compact or split:"
         - "L0, all files 100b                                                                                                 "
-        - "L0.2[650,750] 180s                                     |---------------------------L0.2---------------------------|"
+        - "L0.1[450,620] 120s                      |----------------------L0.1-----------------------|                        "
         - "L1, all files 100b                                                                                                 "
-        - "L1.13[600,700] 60s       |--------------------------L1.13---------------------------|                              "
+        - "L1.13[600,700] 60s                                                                   |-----------L1.13------------|"
+        - "L1.12[400,500] 60s       |-----------L1.12------------|                                                            "
         - "files to keep:"
         - "L0, all files 100b                                                                                                 "
-        - "L0.1[450,620] 120s                |------------L0.1------------|                                                   "
-        - "L0.3[800,900] 300s                                                                               |------L0.3------|"
-        - "L1, all files 100b                                                                                                 "
-        - "L1.12[400,500] 60s       |-----L1.12------|                                                                        "
+        - "L0.2[650,750] 180s       |---------------L0.2---------------|                                                      "
+        - "L0.3[800,900] 300s                                                             |---------------L0.3---------------|"
         "###
         );
     }

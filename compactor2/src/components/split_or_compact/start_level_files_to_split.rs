@@ -50,7 +50,7 @@ use crate::{
 ///
 pub fn high_l0_overlap_split(
     max_compact_size: usize,
-    files: Vec<ParquetFile>,
+    mut files: Vec<ParquetFile>,
     target_level: CompactionLevel,
 ) -> (Vec<FileToSplit>, Vec<ParquetFile>) {
     let start_level = target_level.prev();
@@ -79,6 +79,9 @@ pub fn high_l0_overlap_split(
     let mut files_to_split = Vec::with_capacity(len);
     let mut overlaps: Vec<&ParquetFile> = Vec::with_capacity(len);
     let mut files_not_to_split = Vec::with_capacity(len);
+
+    // We need to operate on the earliest ("left most") files first.
+    files.sort_by_key(|f| f.max_l0_created_at);
 
     // The files in `files` all overlap, but they might overlap in a chain (file1 overlaps file2, which overlaps file3...)
     // This algorithm is not concerned with the chain of overlaps that keeps pulling in more files.  Instead, for each file,
