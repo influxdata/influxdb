@@ -1965,7 +1965,7 @@ dependencies = [
  "futures-core",
  "futures-sink",
  "pin-project",
- "spin 0.9.6",
+ "spin 0.9.7",
 ]
 
 [[package]]
@@ -2314,7 +2314,7 @@ dependencies = [
  "lazy_static",
  "libc",
  "pprof",
- "spin 0.9.6",
+ "spin 0.9.7",
  "thiserror",
  "tikv-jemalloc-sys",
 ]
@@ -5520,9 +5520,9 @@ checksum = "6e63cff320ae2c57904679ba7cb63280a3dc4613885beafb148ee7bf9aa9042d"
 
 [[package]]
 name = "spin"
-version = "0.9.6"
+version = "0.9.7"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "b5d6e0250b93c8427a177b849d144a96d5acc57006149479403d7861ab721e34"
+checksum = "c0959fd6f767df20b231736396e4f602171e00d95205676286e79d4a4eb67bef"
 dependencies = [
  "lock_api",
 ]

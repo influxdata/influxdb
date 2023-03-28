@@ -30,7 +30,14 @@ async fn persist_on_demand() {
                         Some(::predicate::EMPTY_PREDICATE),
                     );
                     let query: proto::IngesterQueryRequest = query.try_into().unwrap();
-                    let ingester_response = state.cluster().query_ingester(query).await.unwrap();
+                    let ingester_response = state
+                        .cluster()
+                        .query_ingester(
+                            query,
+                            state.cluster().ingester().ingester_grpc_connection(),
+                        )
+                        .await
+                        .unwrap();
 
                     let ingester_uuid = ingester_response.app_metadata.ingester_uuid.clone();
                     assert!(!ingester_uuid.is_empty());
@@ -61,8 +68,14 @@ async fn persist_on_demand() {
                         Some(::predicate::EMPTY_PREDICATE),
                     );
                     let query: proto::IngesterQueryRequest = query.try_into().unwrap();
-                    let ingester_response =
-                        state.cluster().query_ingester(query.clone()).await.unwrap();
+                    let ingester_response = state
+                        .cluster()
+                        .query_ingester(
+                            query.clone(),
+                            state.cluster().ingester().ingester_grpc_connection(),
+                        )
+                        .await
+                        .unwrap();
 
                     let num_files_persisted =
                         ingester_response.app_metadata.completed_persistence_count;
@@ -104,7 +117,10 @@ async fn ingester_flight_api() {
         Some(::predicate::EMPTY_PREDICATE),
     );
     let query: proto::IngesterQueryRequest = query.try_into().unwrap();
-    let ingester_response = cluster.query_ingester(query.clone()).await.unwrap();
+    let ingester_response = cluster
+        .query_ingester(query.clone(), cluster.ingester().ingester_grpc_connection())
+        .await
+        .unwrap();
 
     let ingester_uuid = ingester_response.app_metadata.ingester_uuid.clone();
     assert!(!ingester_uuid.is_empty());
@@ -132,7 +148,10 @@ async fn ingester_flight_api() {
         });
 
     // Ensure the ingester UUID is the same in the next query
-    let ingester_response = cluster.query_ingester(query.clone()).await.unwrap();
+    let ingester_response = cluster
+        .query_ingester(query.clone(), cluster.ingester().ingester_grpc_connection())
+        .await
+        .unwrap();
     assert_eq!(ingester_response.app_metadata.ingester_uuid, ingester_uuid);
 
     // Restart the ingesters
@@ -144,7 +163,10 @@ async fn ingester_flight_api() {
     cluster.write_to_ingester(lp, table_name).await;
 
     // Query for the new UUID and assert it has changed.
-    let ingester_response = cluster.query_ingester(query).await.unwrap();
+    let ingester_response = cluster
+        .query_ingester(query, cluster.ingester().ingester_grpc_connection())
+        .await
+        .unwrap();
     assert_ne!(ingester_response.app_metadata.ingester_uuid, ingester_uuid);
 }
 
@@ -164,7 +186,10 @@ async fn ingester_flight_api_namespace_not_found() {
         Some(::predicate::EMPTY_PREDICATE),
     );
     let query: proto::IngesterQueryRequest = query.try_into().unwrap();
-    let err = cluster.query_ingester(query).await.unwrap_err();
+    let err = cluster
+        .query_ingester(query, cluster.ingester().ingester_grpc_connection())
+        .await
+        .unwrap_err();
 
     if let FlightError::Tonic(status) = err {
         assert_eq!(status.code(), tonic::Code::NotFound);

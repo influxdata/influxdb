@@ -78,11 +78,12 @@ pub mod mock {
         /// Read values off of the provided iterator and return them for calls
         /// to [`Self::write()`].
         #[cfg(test)]
-        pub(crate) fn with_ret(
-            self,
-            ret: Box<dyn Iterator<Item = Result<(), RpcWriteError>> + Send + Sync>,
-        ) -> Self {
-            self.state.lock().ret = ret;
+        pub(crate) fn with_ret<T, U>(self, ret: T) -> Self
+        where
+            T: IntoIterator<IntoIter = U>,
+            U: Iterator<Item = Result<(), RpcWriteError>> + Send + Sync + 'static,
+        {
+            self.state.lock().ret = Box::new(ret.into_iter());
             self
         }
     }
