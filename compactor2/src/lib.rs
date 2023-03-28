@@ -47,6 +47,23 @@
 //! 4. `L2` files never overlap with other `L2` files.
 //! 5. `L0` files can overlap with each other and any `L1` or `L2` files.
 //! 6. `L1` files can overlap with `L2` files.
+//! 7. If an `L0` overlaps with an `L1`, the L0's `max_l0_create_at` must  >= L1's `max_l0_create_at`.
+//! 8. If an `L1` overlaps with an `L2`, the L1's `max_l0_create_at` must  >= L2's `max_l0_create_at`.
+//!
+//! To maintan those invariants, the compactor algorithms must follow these rules:
+//!
+//! i. Never compact more than 2 levels of files together. Every time, at most 2 consecutive levels must be compacted.
+//! ii. Always start from the smallest level, compact L0 with L1. Then compact L1 and L2 together.
+//! iii. If all L0 files cannot be compacted in one run, they must be picked by the order of their `max_l0_create_at`.
+//! iv. If all L1 files cannot be compacted in one run, they must be picked by the order of their `min_time`.
+//!    See funtion `order_files` where iii and iv are enforced
+//!    Note that if we want to compact many L2s to fewer L2 files (or to L3 in the future), L2 files must be picked by
+//!    the order of their `min_time` as well.
+//! v. After the appropriate files are groupped to compact in one DF plan, higher level files are always ordered first.
+//!    Function ir_planner::planner_v1::order enforces this rule.
+//! vi. Split and Compact are exclusive operations. If the overlapped files are large and the split is needed,
+//!    the split must be done before continuing compaction.
+//! vii. Hot and Cold compaction on the same partition cannot be compacted concurrently.
 //!
 //! Over time the compactor aims to rearrange data in all partitions
 //! into a small number of large `L2` files.
