@@ -30,7 +30,6 @@ pub mod selectors;
 /// window_bounds expressions
 mod window;
 
-/// gap filling expressions
 pub mod gapfill;
 
 /// Function registry
