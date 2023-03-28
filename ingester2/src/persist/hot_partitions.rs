@@ -163,10 +163,8 @@ mod tests {
         // Observe the partition after the first write
         hot_partition_persister.observe(Arc::clone(&p), p.lock());
 
-        // Give the persist call a chance to be enqueued
-        tokio::time::pause();
-        tokio::time::advance(Duration::from_secs(1)).await;
-        tokio::time::resume();
+        // Yield to allow the enqueue task to run
+        tokio::task::yield_now().await;
         // Assert no persist calls were made
         assert_eq!(persist_handle.calls().len(), 0);
 
@@ -178,20 +176,22 @@ mod tests {
         );
 
         // Write more data to the partition
-        let mb = lp_to_mutable_batch(r#"potatoes,city=Worcester people=2,crisps="fine" 5"#).1;
-        p.lock()
-            .buffer_write(mb, SequenceNumber::new(2))
-            .expect("write should succeed");
+        let want_query_data = {
+            let mb = lp_to_mutable_batch(r#"potatoes,city=Worcester people=2,crisps="fine" 5"#).1;
+            let mut guard = p.lock();
+            guard
+                .buffer_write(mb, SequenceNumber::new(2))
+                .expect("write should succeed");
+            guard.get_query_data().expect("should have query adaptor")
+        };
 
         hot_partition_persister.observe(Arc::clone(&p), p.lock());
 
-        tokio::time::pause();
-        tokio::time::advance(Duration::from_secs(1)).await;
-        tokio::time::resume();
-
-        // Assert the partition was queued for persistence
+        tokio::task::yield_now().await;
+        // Assert the partition was queued for persistence with the correct data.
         assert_matches!(persist_handle.calls().as_slice(), [got] => {
-            assert!(Arc::ptr_eq(got, &p));
+            let got_query_data = got.lock().get_query_data().expect("should have query adaptor");
+            assert_eq!(got_query_data.record_batches(), want_query_data.record_batches());
         });
 
         metric::assert_counter!(
@@ -201,7 +201,7 @@ mod tests {
             value = 1,
         );
 
-        // Wait for the persist call to complete, then check persist completion.
+        // Check persist completion.
         drop(hot_partition_persister);
         Arc::try_unwrap(persist_handle)
             .expect("should be no more refs")
