@@ -14,7 +14,7 @@ use futures::{stream::FuturesOrdered, StreamExt};
 use http::Response;
 use hyper::Body;
 use influxdb_iox_client::{
-    connection::GrpcConnection,
+    connection::{Connection, GrpcConnection},
     flight::generated_types::{IngesterQueryRequest, IngesterQueryResponseMetadata},
     schema::generated_types::{schema_service_client::SchemaServiceClient, GetSchemaRequest},
 };
@@ -401,13 +401,13 @@ impl MiniCluster {
         .await;
     }
 
-    /// Query the ingester using flight directly, rather than through a querier.
+    /// Query the ingester specified by the given gRPC connection using flight directly, rather than through a querier.
     pub async fn query_ingester(
         &self,
         query: IngesterQueryRequest,
+        ingester_grpc_connection: Connection,
     ) -> Result<IngesterResponse, FlightError> {
-        let querier_flight =
-            influxdb_iox_client::flight::Client::new(self.ingester().ingester_grpc_connection());
+        let querier_flight = influxdb_iox_client::flight::Client::new(ingester_grpc_connection);
 
         let ticket = Ticket {
             ticket: query.encode_to_vec().into(),
