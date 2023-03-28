@@ -14,8 +14,9 @@ use crate::plan::var_ref::{column_type_to_var_ref_data_type, var_ref_data_type_t
 use arrow::datatypes::DataType;
 use chrono_tz::Tz;
 use datafusion::catalog::TableReference;
+use datafusion::common::tree_node::{TreeNode, TreeNodeRewriter};
 use datafusion::common::{DFSchema, DFSchemaRef, DataFusionError, Result, ScalarValue, ToDFSchema};
-use datafusion::logical_expr::expr_rewriter::{normalize_col, ExprRewritable, ExprRewriter};
+use datafusion::logical_expr::expr_rewriter::normalize_col;
 use datafusion::logical_expr::logical_plan::builder::project;
 use datafusion::logical_expr::logical_plan::Analyze;
 use datafusion::logical_expr::utils::{expr_as_column_expr, find_aggregate_exprs};
@@ -1049,7 +1050,9 @@ struct FixRegularExpressions<'a> {
     schemas: &'a Schemas,
 }
 
-impl<'a> ExprRewriter for FixRegularExpressions<'a> {
+impl<'a> TreeNodeRewriter for FixRegularExpressions<'a> {
+    type N = Expr;
+
     fn mutate(&mut self, expr: Expr) -> Result<Expr> {
         match expr {
             // InfluxQL evaluates regular expression conditions to false if the column is numeric

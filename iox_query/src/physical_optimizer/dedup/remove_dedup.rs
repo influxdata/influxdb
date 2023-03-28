@@ -1,10 +1,11 @@
 use std::sync::Arc;
 
 use datafusion::{
+    common::tree_node::{Transformed, TreeNode},
     config::ConfigOptions,
     error::Result,
     physical_optimizer::PhysicalOptimizerRule,
-    physical_plan::{tree_node::TreeNodeRewritable, ExecutionPlan},
+    physical_plan::ExecutionPlan,
 };
 use predicate::Predicate;
 
@@ -31,11 +32,11 @@ impl PhysicalOptimizerRule for RemoveDedup {
                 assert_eq!(children.len(), 1);
                 let child = children.remove(0);
                 let Some((schema, chunks, output_sort_key)) = extract_chunks(child.as_ref()) else {
-                    return Ok(None);
+                    return Ok(Transformed::No(plan));
                 };
 
                 if (chunks.len() < 2) && chunks.iter().all(|c| !c.may_contain_pk_duplicates()) {
-                    return Ok(Some(chunks_to_physical_nodes(
+                    return Ok(Transformed::Yes(chunks_to_physical_nodes(
                         &schema,
                         output_sort_key.as_ref(),
                         chunks,
@@ -45,7 +46,7 @@ impl PhysicalOptimizerRule for RemoveDedup {
                 }
             }
 
-            Ok(None)
+            Ok(Transformed::No(plan))
         })
     }
 

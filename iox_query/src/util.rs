@@ -18,13 +18,11 @@ use data_types::{
 };
 use datafusion::{
     self,
-    common::{DFSchema, ToDFSchema},
+    common::{tree_node::TreeNodeRewriter, DFSchema, ToDFSchema},
     datasource::{provider_as_source, MemTable},
     error::{DataFusionError, Result as DatafusionResult},
     execution::context::ExecutionProps,
-    logical_expr::{
-        expr_rewriter::ExprRewriter, BinaryExpr, ExprSchemable, LogicalPlan, LogicalPlanBuilder,
-    },
+    logical_expr::{BinaryExpr, ExprSchemable, LogicalPlan, LogicalPlanBuilder},
     optimizer::simplify_expressions::{ExprSimplifier, SimplifyContext},
     physical_expr::create_physical_expr,
     physical_plan::{
@@ -205,7 +203,9 @@ impl<'a> MissingColumnsToNull<'a> {
     }
 }
 
-impl<'a> ExprRewriter for MissingColumnsToNull<'a> {
+impl<'a> TreeNodeRewriter for MissingColumnsToNull<'a> {
+    type N = Expr;
+
     fn mutate(&mut self, expr: Expr) -> DatafusionResult<Expr> {
         // Ideally this would simply find all Expr::Columns and
         // replace them with a constant NULL value. However, doing do
@@ -358,7 +358,7 @@ pub fn create_basic_summary(
 mod tests {
     use arrow::datatypes::DataType;
     use datafusion::{
-        logical_expr::expr_rewriter::ExprRewritable,
+        common::tree_node::TreeNode,
         prelude::{col, lit},
         scalar::ScalarValue,
     };

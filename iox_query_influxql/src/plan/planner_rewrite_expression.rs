@@ -123,43 +123,46 @@
 //! [`Eval`]: https://github.com/influxdata/influxql/blob/1ba470371ec093d57a726b143fe6ccbacf1b452b/ast.go#L4137
 use crate::plan::util::Schemas;
 use arrow::datatypes::DataType;
+use datafusion::common::tree_node::{Transformed, TreeNode};
 use datafusion::common::{Result, ScalarValue};
-use datafusion::logical_expr::expr_rewriter::{ExprRewritable, ExprRewriter};
 use datafusion::logical_expr::{
     binary_expr, cast, coalesce, lit, BinaryExpr, Expr, ExprSchemable, Operator,
 };
 
 /// Rewrite the expression tree and return a boolean result.
 pub(in crate::plan) fn rewrite_conditional(expr: Expr, schemas: &Schemas) -> Result<Expr> {
-    let expr = expr.rewrite(&mut RewriteAndCoerce { schemas })?;
+    let expr = rewrite_expr(expr, schemas)?;
     Ok(match expr {
         Expr::Literal(ScalarValue::Null) => lit(false),
         _ => expr,
     })
 }
 
+/// The expression was rewritten
+fn yes(expr: Expr) -> Result<Transformed<Expr>> {
+    Ok(Transformed::Yes(expr))
+}
+
+/// The expression was not rewritten
+fn no(expr: Expr) -> Result<Transformed<Expr>> {
+    Ok(Transformed::No(expr))
+}
+
 /// Rewrite the expression tree and return a result or `NULL` if some of the operands are
 /// incompatible.
-pub(in crate::plan) fn rewrite_expr(expr: Expr, schemas: &Schemas) -> Result<Expr> {
-    expr.rewrite(&mut RewriteAndCoerce { schemas })
-}
-
+///
 /// Rewrite and coerce the expression tree to model the behavior
 /// of an InfluxQL query.
-struct RewriteAndCoerce<'a> {
-    schemas: &'a Schemas,
-}
-
-impl<'a> ExprRewriter for RewriteAndCoerce<'a> {
-    fn mutate(&mut self, expr: Expr) -> Result<Expr> {
+pub(in crate::plan) fn rewrite_expr(expr: Expr, schemas: &Schemas) -> Result<Expr> {
+    expr.transform(&|expr| {
         match expr {
             Expr::BinaryExpr(BinaryExpr {
                 ref left,
                 op,
                 ref right,
             }) => {
-                let lhs_type = left.get_type(&self.schemas.df_schema)?;
-                let rhs_type = right.get_type(&self.schemas.df_schema)?;
+                let lhs_type = left.get_type(&schemas.df_schema)?;
+                let rhs_type = right.get_type(&schemas.df_schema)?;
 
                 match (lhs_type, op, rhs_type) {
                     //
@@ -183,7 +186,7 @@ impl<'a> ExprRewriter for RewriteAndCoerce<'a> {
                         DataType::Null,
                         _,
                         DataType::Null
-                    ) => Ok(lit(ScalarValue::Null)),
+                    ) => yes(lit(ScalarValue::Null)),
 
                     // NULL using AND or OR is rewritten as `false`, which the optimiser
                     // may short circuit.
@@ -191,12 +194,12 @@ impl<'a> ExprRewriter for RewriteAndCoerce<'a> {
                         DataType::Null,
                         Operator::Or | Operator::And,
                         _
-                    ) => Ok(binary_expr(lit(false), op, (**right).clone())),
+                    ) => yes(binary_expr(lit(false), op, (**right).clone())),
                     (
                         _,
                         Operator::Or | Operator::And,
                         DataType::Null
-                    ) => Ok(binary_expr((**left).clone(), op, lit(false))),
+                    ) => yes(binary_expr((**left).clone(), op, lit(false))),
 
                     // NULL with other operators is passed through to DataFusion, which is expected
                     // evaluate to false.
@@ -209,10 +212,10 @@ impl<'a> ExprRewriter for RewriteAndCoerce<'a> {
                         _,
                         Operator::Eq | Operator::NotEq | Operator::Gt | Operator::Lt | Operator::GtEq | Operator::LtEq,
                         DataType::Null
-                    ) => Ok(expr),
+                    ) => no(expr),
 
                     // Any other operations with NULL should return false
-                    (DataType::Null, ..) | (.., DataType::Null) => Ok(lit(false)),
+                    (DataType::Null, ..) | (.., DataType::Null) => yes(lit(false)),
 
                     //
                     // Boolean types
@@ -222,7 +225,7 @@ impl<'a> ExprRewriter for RewriteAndCoerce<'a> {
                         DataType::Boolean,
                         Operator::And | Operator::Or | Operator::Eq | Operator::NotEq | Operator::BitwiseAnd | Operator::BitwiseXor | Operator::BitwiseOr,
                         DataType::Boolean,
-                    ) => Ok(rewrite_boolean((**left).clone(), op, (**right).clone())),
+                    ) => yes(rewrite_boolean((**left).clone(), op, (**right).clone())),
 
                     //
                     // Numeric types
@@ -247,16 +250,16 @@ impl<'a> ExprRewriter for RewriteAndCoerce<'a> {
                         // implementations, however, InfluxQL coalesces the result to `0`.
 
                         // See: https://github.com/influxdata/influxql/blob/1ba470371ec093d57a726b143fe6ccbacf1b452b/ast.go#L4268-L4270
-                        Operator::Divide => Ok(coalesce(vec![expr, lit(0_f64)])),
-                        _ => Ok(expr),
+                        Operator::Divide => yes(coalesce(vec![expr, lit(0_f64)])),
+                        _ => no(expr),
                     },
                     //
                     // If either of the types UInt64 and the other is UInt64 or Int64
                     //
                     (DataType::UInt64, ..) |
                     (.., DataType::UInt64) => match op {
-                        Operator::Divide => Ok(coalesce(vec![expr, lit(0_u64)])),
-                        _ => Ok(expr),
+                        Operator::Divide => yes(coalesce(vec![expr, lit(0_u64)])),
+                        _ => no(expr),
                     }
                     //
                     // Finally, if both sides are Int64
@@ -269,8 +272,8 @@ impl<'a> ExprRewriter for RewriteAndCoerce<'a> {
                         // Like Float64, dividing by zero should return 0 for InfluxQL
                         //
                         // See: https://github.com/influxdata/influxql/blob/1ba470371ec093d57a726b143fe6ccbacf1b452b/ast.go#L4338-L4340
-                        Operator::Divide => Ok(coalesce(vec![expr, lit(0_i64)])),
-                        _ => Ok(expr),
+                        Operator::Divide => yes(coalesce(vec![expr, lit(0_i64)])),
+                        _ => no(expr),
                     },
 
                     //
@@ -282,13 +285,13 @@ impl<'a> ExprRewriter for RewriteAndCoerce<'a> {
                         DataType::Utf8,
                         Operator::Eq | Operator::NotEq | Operator::RegexMatch | Operator::RegexNotMatch | Operator::StringConcat,
                         DataType::Utf8
-                    ) => Ok(expr),
+                    ) => no(expr),
                     // Rewrite the + operator to the string-concatenation operator
                     (
                         DataType::Utf8,
                         Operator::Plus,
                         DataType::Utf8
-                    ) => Ok(binary_expr((**left).clone(), Operator::StringConcat, (**right).clone())),
+                    ) => yes(binary_expr((**left).clone(), Operator::StringConcat, (**right).clone())),
 
                     //
                     // Dictionary (tag column) is treated the same as Utf8
@@ -302,7 +305,7 @@ impl<'a> ExprRewriter for RewriteAndCoerce<'a> {
                         DataType::Utf8,
                         Operator::Eq | Operator::NotEq | Operator::RegexMatch | Operator::RegexNotMatch | Operator::StringConcat,
                         DataType::Dictionary(..)
-                    ) => Ok(expr),
+                    ) => no(expr),
                     (
                         DataType::Dictionary(..),
                         Operator::Plus,
@@ -312,13 +315,13 @@ impl<'a> ExprRewriter for RewriteAndCoerce<'a> {
                         DataType::Utf8,
                         Operator::Plus,
                         DataType::Dictionary(..)
-                    ) => Ok(expr),
+                    ) => no(expr),
 
                     //
                     // Timestamp (time-range) expressions should pass through to DataFusion.
                     //
-                    (DataType::Timestamp(..), ..) => Ok(expr),
-                    (.., DataType::Timestamp(..)) => Ok(expr),
+                    (DataType::Timestamp(..), ..) => no(expr),
+                    (.., DataType::Timestamp(..)) => no(expr),
 
                     //
                     // Unhandled binary expressions with conditional operators
@@ -337,13 +340,13 @@ impl<'a> ExprRewriter for RewriteAndCoerce<'a> {
                         | Operator::And
                         | Operator::Or,
                         _
-                    ) => Ok(lit(false)),
+                    ) => yes(lit(false)),
 
                     //
                     // Everything else should result in `NULL`.
                     //
                     // See: https://github.com/influxdata/influxql/blob/1ba470371ec093d57a726b143fe6ccbacf1b452b/ast.go#L4558
-                    _ => Ok(lit(ScalarValue::Null)),
+                    _ => yes(lit(ScalarValue::Null)),
                 }
             }
             //
@@ -351,9 +354,9 @@ impl<'a> ExprRewriter for RewriteAndCoerce<'a> {
             // as it will handle evaluating function calls, etc
             //
             // See: https://github.com/influxdata/influxql/blob/1ba470371ec093d57a726b143fe6ccbacf1b452b/ast.go#L4638-L4647
-            _ => Ok(expr),
+            _ => no(expr),
         }
-    }
+    })
 }
 
 /// Rewrite conditional operators to `false` and any

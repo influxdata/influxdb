@@ -4,9 +4,9 @@ use super::FIELD_COLUMN_NAME;
 use arrow::array::{as_boolean_array, as_string_array, ArrayRef, StringArray};
 use arrow::compute::kernels;
 use arrow::record_batch::RecordBatch;
+use datafusion::common::tree_node::{TreeNode, TreeNodeVisitor, VisitRecursion};
 use datafusion::common::DFSchema;
 use datafusion::error::{DataFusionError, Result as DataFusionResult};
-use datafusion::logical_expr::expr_visitor::{ExprVisitable, ExpressionVisitor, Recursion};
 use datafusion::optimizer::utils::split_conjunction_owned;
 use datafusion::physical_expr::create_physical_expr;
 use datafusion::physical_expr::execution_props::ExecutionProps;
@@ -78,7 +78,8 @@ impl FieldProjectionRewriter {
 
     // Rewrites a single predicate. Does not handle AND specially
     fn rewrite_single_conjunct(&mut self, expr: Expr) -> DataFusionResult<Expr> {
-        let finder = expr.accept(ColumnReferencesFinder::default())?;
+        let mut finder = ColumnReferencesFinder::default();
+        expr.visit(&mut finder)?;
 
         // rewrite any expression that only references _field to `true`
         match (finder.saw_field_reference, finder.saw_non_field_reference) {
@@ -217,8 +218,9 @@ struct ColumnReferencesFinder {
     saw_non_field_reference: bool,
 }
 
-impl ExpressionVisitor for ColumnReferencesFinder {
-    fn pre_visit(mut self, expr: &Expr) -> DataFusionResult<Recursion<Self>> {
+impl TreeNodeVisitor for ColumnReferencesFinder {
+    type N = Expr;
+    fn pre_visit(&mut self, expr: &Expr) -> DataFusionResult<VisitRecursion> {
         if let Expr::Column(col) = expr {
             if col.name == FIELD_COLUMN_NAME {
                 self.saw_field_reference = true;
@@ -229,9 +231,9 @@ impl ExpressionVisitor for ColumnReferencesFinder {
 
         // terminate early if we have already found both
         if self.saw_field_reference && self.saw_non_field_reference {
-            Ok(Recursion::Stop(self))
+            Ok(VisitRecursion::Stop)
         } else {
-            Ok(Recursion::Continue(self))
+            Ok(VisitRecursion::Continue)
         }
     }
 }

@@ -172,7 +172,8 @@ mod tests {
     use arrow::datatypes::{DataType, Field, Schema as ArrowSchema};
     use data_types::ChunkId;
     use datafusion::{
-        physical_plan::{expressions::Literal, filter::FilterExec, tree_node::TreeNodeRewritable},
+        common::tree_node::{Transformed, TreeNode},
+        physical_plan::{expressions::Literal, filter::FilterExec},
         prelude::{col, lit},
         scalar::ScalarValue,
     };
@@ -347,9 +348,9 @@ mod tests {
                         Some(Arc::new(Literal::new(ScalarValue::from(false)))),
                         None,
                     );
-                    return Ok(Some(Arc::new(exec)));
+                    return Ok(Transformed::Yes(Arc::new(exec)));
                 }
-                Ok(None)
+                Ok(Transformed::No(plan))
             })
             .unwrap();
         assert!(extract_chunks(plan.as_ref()).is_none());

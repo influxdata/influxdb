@@ -1,10 +1,11 @@
 use std::{collections::HashSet, sync::Arc};
 
 use datafusion::{
+    common::tree_node::{Transformed, TreeNode},
     config::ConfigOptions,
     error::Result,
     physical_optimizer::PhysicalOptimizerRule,
-    physical_plan::{tree_node::TreeNodeRewritable, ExecutionPlan},
+    physical_plan::ExecutionPlan,
 };
 use predicate::Predicate;
 use schema::{sort::SortKeyBuilder, TIME_COLUMN_NAME};
@@ -41,7 +42,7 @@ impl PhysicalOptimizerRule for DedupNullColumns {
                 assert_eq!(children.len(), 1);
                 let child = children.remove(0);
                 let Some((schema, chunks, _output_sort_key)) = extract_chunks(child.as_ref()) else {
-                    return Ok(None);
+                    return Ok(Transformed::No(plan));
                 };
 
                 let pk_cols = dedup_exec.sort_columns();
@@ -73,14 +74,14 @@ impl PhysicalOptimizerRule for DedupNullColumns {
                 );
 
                 let sort_exprs = arrow_sort_key_exprs(&sort_key, &schema);
-                return Ok(Some(Arc::new(DeduplicateExec::new(
+                return Ok(Transformed::Yes(Arc::new(DeduplicateExec::new(
                     child,
                     sort_exprs,
                     dedup_exec.use_chunk_order_col(),
                 ))));
             }
 
-            Ok(None)
+            Ok(Transformed::No(plan))
         })
     }
 

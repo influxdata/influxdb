@@ -2,10 +2,11 @@ use std::sync::Arc;
 
 use data_types::PartitionId;
 use datafusion::{
+    common::tree_node::{Transformed, TreeNode},
     config::ConfigOptions,
     error::Result,
     physical_optimizer::PhysicalOptimizerRule,
-    physical_plan::{tree_node::TreeNodeRewritable, union::UnionExec, ExecutionPlan},
+    physical_plan::{union::UnionExec, ExecutionPlan},
 };
 use hashbrown::HashMap;
 use observability_deps::tracing::warn;
@@ -38,7 +39,7 @@ impl PhysicalOptimizerRule for PartitionSplit {
                 assert_eq!(children.len(), 1);
                 let child = children.remove(0);
                 let Some((schema, chunks, output_sort_key)) = extract_chunks(child.as_ref()) else {
-                    return Ok(None);
+                    return Ok(Transformed::No(plan));
                 };
 
                 let mut chunks_by_partition: HashMap<PartitionId, Vec<Arc<dyn QueryChunk>>> =
@@ -53,7 +54,7 @@ impl PhysicalOptimizerRule for PartitionSplit {
                 // If there not multiple partitions (0 or 1), then this optimizer is a no-op. Signal that to the
                 // optimizer framework.
                 if chunks_by_partition.len() < 2 {
-                    return Ok(None);
+                    return Ok(Transformed::No(plan));
                 }
 
                 // Protect against degenerative plans
@@ -69,7 +70,7 @@ impl PhysicalOptimizerRule for PartitionSplit {
                         max_dedup_partition_split,
                         "cannot split dedup operation based on partition, too many partitions"
                     );
-                    return Ok(None);
+                    return Ok(Transformed::No(plan));
                 }
 
                 // ensure deterministic order
@@ -94,10 +95,10 @@ impl PhysicalOptimizerRule for PartitionSplit {
                         })
                         .collect(),
                 );
-                return Ok(Some(Arc::new(out)));
+                return Ok(Transformed::Yes(Arc::new(out)));
             }
 
-            Ok(None)
+            Ok(Transformed::No(plan))
         })
     }
 

@@ -22,13 +22,9 @@ use arrow::{
 };
 use data_types::{InfluxDbType, TableSummary, TimestampRange};
 use datafusion::{
+    common::tree_node::{TreeNode, TreeNodeVisitor, VisitRecursion},
     error::DataFusionError,
-    logical_expr::{
-        binary_expr,
-        expr_visitor::{ExprVisitable, ExpressionVisitor, Recursion},
-        utils::expr_to_columns,
-        BinaryExpr,
-    },
+    logical_expr::{binary_expr, utils::expr_to_columns, BinaryExpr},
     optimizer::utils::split_conjunction,
     physical_expr::execution_props::ExecutionProps,
     physical_optimizer::pruning::PruningStatistics,
@@ -535,9 +531,10 @@ impl Predicate {
                     return false;
                 }
 
-                expr.accept(RowBasedVisitor::default())
-                    .expect("never fails")
-                    .row_based
+                let mut visitor = RowBasedVisitor::default();
+                expr.visit(&mut visitor).expect("never fails");
+
+                visitor.row_based
             })
             .cloned()
             .collect();
@@ -622,8 +619,10 @@ impl Default for RowBasedVisitor {
     }
 }
 
-impl ExpressionVisitor for RowBasedVisitor {
-    fn pre_visit(mut self, expr: &Expr) -> Result<Recursion<Self>, DataFusionError> {
+impl TreeNodeVisitor for RowBasedVisitor {
+    type N = Expr;
+
+    fn pre_visit(&mut self, expr: &Expr) -> Result<VisitRecursion, DataFusionError> {
         match expr {
             Expr::Alias(_, _)
             | Expr::Between { .. }
@@ -658,13 +657,13 @@ impl ExpressionVisitor for RowBasedVisitor {
             | Expr::SimilarTo { .. }
             | Expr::Sort { .. }
             | Expr::TryCast { .. }
-            | Expr::Wildcard => Ok(Recursion::Continue(self)),
+            | Expr::Wildcard => Ok(VisitRecursion::Continue),
             Expr::AggregateFunction { .. }
             | Expr::AggregateUDF { .. }
             | Expr::GroupingSet(_)
             | Expr::WindowFunction { .. } => {
                 self.row_based = false;
-                Ok(Recursion::Stop(self))
+                Ok(VisitRecursion::Stop)
             }
         }
     }

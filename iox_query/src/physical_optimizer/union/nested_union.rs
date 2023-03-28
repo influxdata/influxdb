@@ -1,10 +1,11 @@
 use std::sync::Arc;
 
 use datafusion::{
+    common::tree_node::{Transformed, TreeNode},
     config::ConfigOptions,
     error::Result,
     physical_optimizer::PhysicalOptimizerRule,
-    physical_plan::{tree_node::TreeNodeRewritable, union::UnionExec, ExecutionPlan},
+    physical_plan::{union::UnionExec, ExecutionPlan},
 };
 
 /// Optimizer that replaces nested [`UnionExec`]s with a single level.
@@ -51,11 +52,11 @@ impl PhysicalOptimizerRule for NestedUnion {
                 }
 
                 if found_union {
-                    return Ok(Some(Arc::new(UnionExec::new(children_new))));
+                    return Ok(Transformed::Yes(Arc::new(UnionExec::new(children_new))));
                 }
             }
 
-            Ok(None)
+            Ok(Transformed::No(plan))
         })
     }
 

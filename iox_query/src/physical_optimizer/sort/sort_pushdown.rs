@@ -1,12 +1,11 @@
 use std::sync::Arc;
 
 use datafusion::{
+    common::tree_node::{Transformed, TreeNode},
     config::ConfigOptions,
     error::Result,
     physical_optimizer::PhysicalOptimizerRule,
-    physical_plan::{
-        sorts::sort::SortExec, tree_node::TreeNodeRewritable, union::UnionExec, ExecutionPlan,
-    },
+    physical_plan::{sorts::sort::SortExec, union::UnionExec, ExecutionPlan},
 };
 
 /// Pushes [`SortExec`] closer to the data source.
@@ -44,11 +43,11 @@ impl PhysicalOptimizerRule for SortPushdown {
                             })
                             .collect::<Result<Vec<_>>>()?,
                     );
-                    return Ok(Some(Arc::new(new_union)));
+                    return Ok(Transformed::Yes(Arc::new(new_union)));
                 }
             }
 
-            Ok(None)
+            Ok(Transformed::No(plan))
         })
     }
 

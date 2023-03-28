@@ -4,12 +4,13 @@ mod measurement_rewrite;
 mod rewrite;
 mod value_rewrite;
 
+use crate::rpc_predicate::column_rewrite::missing_tag_to_null;
 use crate::Predicate;
 
+use datafusion::common::tree_node::TreeNode;
 use datafusion::common::ToDFSchema;
 use datafusion::error::Result as DataFusionResult;
 use datafusion::execution::context::ExecutionProps;
-use datafusion::logical_expr::expr_rewriter::ExprRewritable;
 use datafusion::optimizer::simplify_expressions::{ExprSimplifier, SimplifyContext};
 use datafusion::prelude::{lit, Expr};
 use observability_deps::tracing::{debug, trace};
@@ -17,7 +18,6 @@ use schema::Schema;
 use std::collections::BTreeSet;
 use std::sync::Arc;
 
-use self::column_rewrite::MissingTagColumnRewriter;
 use self::field_rewrite::FieldProjectionRewriter;
 use self::measurement_rewrite::rewrite_measurement_references;
 use self::value_rewrite::rewrite_field_value_references;
@@ -211,7 +211,6 @@ fn normalize_predicate(
     let mut predicate = predicate.clone();
 
     let mut field_projections = FieldProjectionRewriter::new(schema.clone());
-    let mut missing_tag_columns = MissingTagColumnRewriter::new(schema.clone());
 
     let mut field_value_exprs = vec![];
 
@@ -226,7 +225,8 @@ fn normalize_predicate(
         .map(|e| {
             debug!(?e, "rewriting expr");
 
-            let e = rewrite_measurement_references(table_name, e)
+            let e = e
+                .transform(&|e| rewrite_measurement_references(table_name, e))
                 .map(|e| log_rewrite(e, "rewrite_measurement_references"))
                 // Rewrite any references to `_value = some_value` to literal true values.
                 // Keeps track of these expressions, which can then be used to
@@ -242,10 +242,10 @@ fn normalize_predicate(
                 // in the table's schema as tags. Replace any column references that
                 // do not exist, or that are not tags, with NULL.
                 // Field values always use `_value` as a name and are handled above.
-                .and_then(|e| e.rewrite(&mut missing_tag_columns))
+                .and_then(|e| e.transform(&|e| missing_tag_to_null(&schema, e)))
                 .map(|e| log_rewrite(e, "missing_columums"))
                 // apply IOx specific rewrites (that unlock other simplifications)
-                .and_then(rewrite::rewrite)
+                .and_then(rewrite::iox_expr_rewrite)
                 .map(|e| log_rewrite(e, "rewrite"))
                 // apply type_coercing so datafuson simplification can deal with this
                 .and_then(|e| simplifier.coerce(e, Arc::clone(&df_schema)))

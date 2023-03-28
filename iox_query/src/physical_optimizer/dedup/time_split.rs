@@ -1,10 +1,11 @@
 use std::sync::Arc;
 
 use datafusion::{
+    common::tree_node::{Transformed, TreeNode},
     config::ConfigOptions,
     error::Result,
     physical_optimizer::PhysicalOptimizerRule,
-    physical_plan::{tree_node::TreeNodeRewritable, union::UnionExec, ExecutionPlan},
+    physical_plan::{union::UnionExec, ExecutionPlan},
 };
 use observability_deps::tracing::warn;
 use predicate::Predicate;
@@ -37,14 +38,14 @@ impl PhysicalOptimizerRule for TimeSplit {
                 assert_eq!(children.len(), 1);
                 let child = children.remove(0);
                 let Some((schema, chunks, output_sort_key)) = extract_chunks(child.as_ref()) else {
-                    return Ok(None);
+                    return Ok(Transformed::No(plan));
                 };
 
                 let groups = group_potential_duplicates(chunks);
 
                 // if there are no chunks or there is only one group, we don't need to split
                 if groups.len() < 2 {
-                    return Ok(None);
+                    return Ok(Transformed::No(plan));
                 }
 
                 // Protect against degenerative plans
@@ -60,7 +61,7 @@ impl PhysicalOptimizerRule for TimeSplit {
                         max_dedup_time_split,
                         "cannot split dedup operation based on time overlaps, too many groups"
                     );
-                    return Ok(None);
+                    return Ok(Transformed::No(plan));
                 }
 
                 let out = UnionExec::new(
@@ -81,10 +82,10 @@ impl PhysicalOptimizerRule for TimeSplit {
                         })
                         .collect(),
                 );
-                return Ok(Some(Arc::new(out)));
+                return Ok(Transformed::Yes(Arc::new(out)));
             }
 
-            Ok(None)
+            Ok(Transformed::No(plan))
         })
     }
 

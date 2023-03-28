@@ -1,21 +1,17 @@
 use std::{collections::HashSet, sync::Arc};
 
 use datafusion::{
+    common::tree_node::{RewriteRecursion, Transformed, TreeNode, TreeNodeRewriter},
     config::ConfigOptions,
     error::{DataFusionError, Result},
     logical_expr::Operator,
-    physical_expr::{
-        rewrite::{RewriteRecursion, TreeNodeRewriter},
-        split_conjunction,
-        utils::collect_columns,
-    },
+    physical_expr::{split_conjunction, utils::collect_columns},
     physical_optimizer::PhysicalOptimizerRule,
     physical_plan::{
         empty::EmptyExec,
         expressions::{BinaryExpr, Column},
         file_format::ParquetExec,
         filter::FilterExec,
-        tree_node::TreeNodeRewritable,
         union::UnionExec,
         ExecutionPlan, PhysicalExpr,
     },
@@ -44,7 +40,7 @@ impl PhysicalOptimizerRule for PredicatePushdown {
                 let child_any = child.as_any();
                 if let Some(child_empty) = child_any.downcast_ref::<EmptyExec>() {
                     if !child_empty.produce_one_row() {
-                        return Ok(Some(child));
+                        return Ok(Transformed::Yes(child));
                     }
                 } else if let Some(child_union) = child_any.downcast_ref::<UnionExec>() {
                     let new_inputs = child_union
@@ -59,7 +55,7 @@ impl PhysicalOptimizerRule for PredicatePushdown {
                         })
                         .collect::<Result<Vec<_>>>()?;
                     let new_union = UnionExec::new(new_inputs);
-                    return Ok(Some(Arc::new(new_union)));
+                    return Ok(Transformed::Yes(Arc::new(new_union)));
                 } else if let Some(child_parquet) = child_any.downcast_ref::<ParquetExec>() {
                     let existing = child_parquet
                         .predicate()
@@ -80,7 +76,7 @@ impl PhysicalOptimizerRule for PredicatePushdown {
                             None,
                         )),
                     )?);
-                    return Ok(Some(new_node));
+                    return Ok(Transformed::Yes(new_node));
                 } else if let Some(child_dedup) = child_any.downcast_ref::<DeduplicateExec>() {
                     let dedup_cols = child_dedup.sort_columns();
                     let (pushdown, no_pushdown): (Vec<_>, Vec<_>) =
@@ -112,12 +108,12 @@ impl PhysicalOptimizerRule for PredicatePushdown {
                                 new_node,
                             )?);
                         }
-                        return Ok(Some(new_node));
+                        return Ok(Transformed::Yes(new_node));
                     }
                 }
             }
 
-            Ok(None)
+            Ok(Transformed::No(plan))
         })
     }
 
@@ -135,7 +131,9 @@ struct ColumnCollector {
     cols: HashSet<Column>,
 }
 
-impl TreeNodeRewriter<Arc<dyn PhysicalExpr>> for ColumnCollector {
+impl TreeNodeRewriter for ColumnCollector {
+    type N = Arc<dyn PhysicalExpr>;
+
     fn pre_visit(
         &mut self,
         node: &Arc<dyn PhysicalExpr>,
