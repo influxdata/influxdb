@@ -110,11 +110,7 @@ pub fn hardcoded_components(config: &Config) -> Arc<Components> {
             scratchpad_store_output,
         ))
     };
-    let df_plan_exec: Arc<dyn DataFusionPlanExec> = if config.simulate_without_object_store {
-        Arc::new(NoopDataFusionPlanExec::new())
-    } else {
-        Arc::new(DedicatedDataFusionPlanExec::new(Arc::clone(&config.exec)))
-    };
+
     let parquet_files_sink: Arc<dyn ParquetFilesSink> =
         if let Some(sink) = config.parquet_files_sink_override.as_ref() {
             Arc::clone(sink)
@@ -145,7 +141,7 @@ pub fn hardcoded_components(config: &Config) -> Arc<Components> {
         commit,
         ir_planner: make_ir_planner(config),
         df_planner: make_df_planner(config),
-        df_plan_exec,
+        df_plan_exec: make_df_plan_exec(config),
         parquet_files_sink,
         round_split: Arc::new(ManyFilesRoundSplit::new()),
         divide_initial: Arc::new(MultipleBranchesDivideInitial::new()),
@@ -401,4 +397,12 @@ fn make_df_planner(config: &Config) -> Arc<dyn DataFusionPlanner> {
         config.parquet_store_scratchpad.clone(),
         Arc::clone(&config.exec),
     ))
+}
+
+fn make_df_plan_exec(config: &Config) -> Arc<dyn DataFusionPlanExec> {
+    if config.simulate_without_object_store {
+        Arc::new(NoopDataFusionPlanExec::new())
+    } else {
+        Arc::new(DedicatedDataFusionPlanExec::new(Arc::clone(&config.exec)))
+    }
 }
