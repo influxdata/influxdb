@@ -91,25 +91,7 @@ use super::{
 
 /// Get hardcoded components.
 pub fn hardcoded_components(config: &Config) -> Arc<Components> {
-    let scratchpad_store_output = if config.shadow_mode {
-        Arc::new(IgnoreWrites::new(Arc::new(InMemory::new())))
-    } else {
-        Arc::clone(config.parquet_store_real.object_store())
-    };
-
     let partition_resource_limit_conditions = "resource_limit_conditions";
-
-    let scratchpad_gen: Arc<dyn ScratchpadGen> = if config.simulate_without_object_store {
-        Arc::new(NoopScratchpadGen::new())
-    } else {
-        Arc::new(ProdScratchpadGen::new(
-            config.partition_scratchpad_concurrency,
-            config.backoff_config.clone(),
-            Arc::clone(config.parquet_store_real.object_store()),
-            Arc::clone(config.parquet_store_scratchpad.object_store()),
-            scratchpad_store_output,
-        ))
-    };
 
     let parquet_files_sink: Arc<dyn ParquetFilesSink> =
         if let Some(sink) = config.parquet_files_sink_override.as_ref() {
@@ -145,7 +127,7 @@ pub fn hardcoded_components(config: &Config) -> Arc<Components> {
         parquet_files_sink,
         round_split: Arc::new(ManyFilesRoundSplit::new()),
         divide_initial: Arc::new(MultipleBranchesDivideInitial::new()),
-        scratchpad_gen,
+        scratchpad_gen: make_scratchpad_gen(config),
         file_classifier: Arc::new(LoggingFileClassifierWrapper::new(Arc::new(
             SplitBasedFileClassifier::new(
                 TargetLevelSplit::new(),
@@ -404,5 +386,25 @@ fn make_df_plan_exec(config: &Config) -> Arc<dyn DataFusionPlanExec> {
         Arc::new(NoopDataFusionPlanExec::new())
     } else {
         Arc::new(DedicatedDataFusionPlanExec::new(Arc::clone(&config.exec)))
+    }
+}
+
+fn make_scratchpad_gen(config: &Config) -> Arc<dyn ScratchpadGen> {
+    if config.simulate_without_object_store {
+        Arc::new(NoopScratchpadGen::new())
+    } else {
+        let scratchpad_store_output = if config.shadow_mode {
+            Arc::new(IgnoreWrites::new(Arc::new(InMemory::new())))
+        } else {
+            Arc::clone(config.parquet_store_real.object_store())
+        };
+
+        Arc::new(ProdScratchpadGen::new(
+            config.partition_scratchpad_concurrency,
+            config.backoff_config.clone(),
+            Arc::clone(config.parquet_store_real.object_store()),
+            Arc::clone(config.parquet_store_scratchpad.object_store()),
+            scratchpad_store_output,
+        ))
     }
 }
