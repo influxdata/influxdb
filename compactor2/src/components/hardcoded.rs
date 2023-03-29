@@ -77,6 +77,7 @@ use super::{
     post_classification_partition_filter::{
         logging::LoggingPostClassificationFilterWrapper,
         metrics::MetricsPostClassificationFilterWrapper, possible_progress::PossibleProgressFilter,
+        PostClassificationPartitionFilter,
     },
     round_info_source::{LevelBasedRoundInfo, LoggingRoundInfoWrapper, RoundInfoSource},
     round_split::many_files::ManyFilesRoundSplit,
@@ -92,8 +93,6 @@ use super::{
 
 /// Get hardcoded components.
 pub fn hardcoded_components(config: &Config) -> Arc<Components> {
-    let partition_resource_limit_conditions = "resource_limit_conditions";
-
     let (partitions_source, commit, partition_done_sink) =
         make_partitions_source_commit_partition_sink(config);
 
@@ -113,16 +112,7 @@ pub fn hardcoded_components(config: &Config) -> Arc<Components> {
         divide_initial: Arc::new(MultipleBranchesDivideInitial::new()),
         scratchpad_gen: make_scratchpad_gen(config),
         file_classifier: make_file_classifier(config),
-        post_classification_partition_filter: Arc::new(
-            LoggingPostClassificationFilterWrapper::new(
-                MetricsPostClassificationFilterWrapper::new(
-                    PossibleProgressFilter::new(config.max_compact_size_bytes()),
-                    &config.metric_registry,
-                    partition_resource_limit_conditions,
-                ),
-                partition_resource_limit_conditions,
-            ),
-        ),
+        post_classification_partition_filter: make_post_classification_partition_filter(config),
         changed_files_filter: Arc::new(LoggingChangedFiles::new()),
     })
 }
@@ -413,4 +403,19 @@ fn make_file_classifier(config: &Config) -> Arc<dyn FileClassifier> {
             )),
         ),
     )))
+}
+
+fn make_post_classification_partition_filter(
+    config: &Config,
+) -> Arc<dyn PostClassificationPartitionFilter> {
+    let partition_resource_limit_conditions = "resource_limit_conditions";
+
+    Arc::new(LoggingPostClassificationFilterWrapper::new(
+        MetricsPostClassificationFilterWrapper::new(
+            PossibleProgressFilter::new(config.max_compact_size_bytes()),
+            &config.metric_registry,
+            partition_resource_limit_conditions,
+        ),
+        partition_resource_limit_conditions,
+    ))
 }
