@@ -303,20 +303,63 @@ status: SERVING
 ### Manually call the gRPC API
 
 To manually invoke one of the gRPC APIs, use a gRPC CLI client such as [grpcurl](https://github.com/fullstorydev/grpcurl).
+Because the gRPC server library in IOx doesn't provide service reflection, you need to pass the IOx `.proto` files to your client
+when making requests.
+After you install **grpcurl**, you can use the `./scripts/grpcurl` wrapper script to make requests that the `.proto` files for you--for example:
 
-Tonic (the gRPC server library we're using) currently doesn't have support for gRPC reflection, hence you must pass all `.proto` files to your client.
-You can find a convenient `grpcurl` wrapper that does that in the `scripts` directory:
+Use the `list` command to list gRPC API services:
 
 ```console
-$ ./scripts/grpcurl -plaintext 127.0.0.1:8082 list
+./scripts/grpcurl -plaintext 127.0.0.1:8082 list
+```
+
+```console
+google.longrunning.Operations
 grpc.health.v1.Health
-influxdata.iox.management.v1.ManagementService
+influxdata.iox.authz.v1.IoxAuthorizerService
+influxdata.iox.catalog.v1.CatalogService
+influxdata.iox.compactor.v1.CompactionService
+influxdata.iox.delete.v1.DeleteService
+influxdata.iox.ingester.v1.PartitionBufferService
+influxdata.iox.ingester.v1.PersistService
+influxdata.iox.ingester.v1.ReplicationService
+influxdata.iox.ingester.v1.WriteInfoService
+influxdata.iox.ingester.v1.WriteService
+influxdata.iox.namespace.v1.NamespaceService
+influxdata.iox.object_store.v1.ObjectStoreService
+influxdata.iox.schema.v1.SchemaService
+influxdata.iox.sharder.v1.ShardService
 influxdata.platform.storage.IOxTesting
 influxdata.platform.storage.Storage
-$ ./scripts/grpcurl -plaintext 127.0.0.1:8082 influxdata.iox.management.v1.ManagementService.ListDatabases
+```
+
+Use the `describe` command to view methods for a service:
+
+```console
+./scripts/grpcurl -plaintext 127.0.0.1:8082 describe influxdata.iox.namespace.v1.NamespaceService
+```
+
+```console
+service NamespaceService {
+  ...
+  rpc GetNamespaces ( .influxdata.iox.namespace.v1.GetNamespacesRequest ) returns ( .influxdata.iox.namespace.v1.GetNamespacesResponse );
+  ...
+}
+```
+
+Invoke a method:
+
+```console
+./scripts/grpcurl -plaintext 127.0.0.1:8082 influxdata.iox.namespace.v1.NamespaceService.GetNamespaces
+```
+
+```console
 {
-  "names": [
-    "foobar_weather"
+  "namespaces": [
+    {
+      "id": "1",
+      "name": "company_sensors"
+    }
   ]
 }
 ```

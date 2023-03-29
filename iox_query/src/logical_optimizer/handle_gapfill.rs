@@ -5,12 +5,10 @@ mod range_predicate;
 
 use crate::exec::gapfill::{FillStrategy, GapFill, GapFillParams};
 use datafusion::{
+    common::tree_node::{RewriteRecursion, TreeNode, TreeNodeRewriter, VisitRecursion},
     error::{DataFusionError, Result},
     logical_expr::{
-        expr_rewriter::{ExprRewritable, ExprRewriter, RewriteRecursion},
-        expr_visitor::{ExprVisitable, ExpressionVisitor, Recursion},
-        utils::expr_to_columns,
-        Aggregate, BuiltinScalarFunction, Extension, LogicalPlan,
+        utils::expr_to_columns, Aggregate, BuiltinScalarFunction, Extension, LogicalPlan,
     },
     optimizer::{optimizer::ApplyOrder, OptimizerConfig, OptimizerRule},
     prelude::{col, Expr},
@@ -22,7 +20,7 @@ use std::{
     sync::Arc,
 };
 
-// This optimizer rule enables gap-filling semantics for SQL queries
+/// This optimizer rule enables gap-filling semantics for SQL queries
 /// that contain calls to `DATE_BIN_GAPFILL()`.
 ///
 /// In SQL a typical gap-filling query might look like this:
@@ -305,7 +303,8 @@ struct DateBinGapfillRewriter {
     args: Option<Vec<Expr>>,
 }
 
-impl ExprRewriter for DateBinGapfillRewriter {
+impl TreeNodeRewriter for DateBinGapfillRewriter {
+    type N = Expr;
     fn pre_visit(&mut self, expr: &Expr) -> Result<RewriteRecursion> {
         match expr {
             Expr::ScalarUDF { fun, .. } if fun.name == DATE_BIN_GAPFILL_UDF_NAME => {
@@ -330,23 +329,19 @@ impl ExprRewriter for DateBinGapfillRewriter {
 }
 
 fn count_date_bin_gapfill(e: &Expr) -> Result<usize> {
-    struct Finder {
-        count: usize,
-    }
-    impl ExpressionVisitor for Finder {
-        fn pre_visit(mut self, expr: &Expr) -> Result<Recursion<Self>> {
-            match expr {
-                Expr::ScalarUDF { fun, .. } if fun.name == DATE_BIN_GAPFILL_UDF_NAME => {
-                    self.count += 1;
-                }
-                _ => (),
-            };
-            Ok(Recursion::Continue(self))
-        }
-    }
-    let f = Finder { count: 0 };
-    let f = e.accept(f)?;
-    Ok(f.count)
+    let mut count = 0;
+    e.apply(&mut |expr| {
+        match expr {
+            Expr::ScalarUDF { fun, .. } if fun.name == DATE_BIN_GAPFILL_UDF_NAME => {
+                count += 1;
+            }
+            _ => (),
+        };
+        Ok(VisitRecursion::Continue)
+    })
+    .expect("no errors");
+
+    Ok(count)
 }
 
 fn check_node(node: &LogicalPlan) -> Result<()> {

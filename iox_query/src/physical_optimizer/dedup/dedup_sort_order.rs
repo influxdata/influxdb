@@ -2,10 +2,11 @@ use std::{cmp::Reverse, sync::Arc};
 
 use arrow::compute::SortOptions;
 use datafusion::{
+    common::tree_node::{Transformed, TreeNode},
     config::ConfigOptions,
     error::Result,
     physical_optimizer::PhysicalOptimizerRule,
-    physical_plan::{tree_node::TreeNodeRewritable, ExecutionPlan},
+    physical_plan::ExecutionPlan,
 };
 use indexmap::IndexSet;
 use predicate::Predicate;
@@ -58,7 +59,7 @@ impl PhysicalOptimizerRule for DedupSortOrder {
                 assert_eq!(children.len(), 1);
                 let child = children.remove(0);
                 let Some((schema, chunks, _output_sort_key)) = extract_chunks(child.as_ref()) else {
-                    return Ok(None);
+                    return Ok(Transformed::No(plan))
                 };
 
                 let mut chunk_sort_keys: Vec<IndexSet<_>> = chunks
@@ -135,14 +136,14 @@ impl PhysicalOptimizerRule for DedupSortOrder {
                 );
 
                 let sort_exprs = arrow_sort_key_exprs(&quorum_sort_key, &schema);
-                return Ok(Some(Arc::new(DeduplicateExec::new(
+                return Ok(Transformed::Yes(Arc::new(DeduplicateExec::new(
                     child,
                     sort_exprs,
                     dedup_exec.use_chunk_order_col(),
                 ))));
             }
 
-            Ok(None)
+            Ok(Transformed::No(plan))
         })
     }
 

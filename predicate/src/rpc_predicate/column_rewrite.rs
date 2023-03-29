@@ -1,53 +1,37 @@
 use datafusion::{
-    error::Result as DataFusionResult, logical_expr::expr_rewriter::ExprRewriter, prelude::*,
+    common::tree_node::Transformed, error::Result as DataFusionResult, prelude::*,
     scalar::ScalarValue,
 };
 use schema::{InfluxColumnType, Schema};
 
 /// Logic for rewriting expressions from influxrpc that reference non
 /// existent columns, or columns that are not tags, to NULL.
-#[derive(Debug)]
-pub(crate) struct MissingTagColumnRewriter {
-    /// The input schema
-    schema: Schema,
+pub fn missing_tag_to_null(schema: &Schema, expr: Expr) -> DataFusionResult<Transformed<Expr>> {
+    Ok(match expr {
+        Expr::Column(col) if !tag_column_exists(schema, &col)? => Transformed::Yes(lit_null()),
+        expr => Transformed::No(expr),
+    })
 }
 
-impl MissingTagColumnRewriter {
-    /// Create a new [`MissingTagColumnRewriter`] targeting the given schema
-    pub(crate) fn new(schema: Schema) -> Self {
-        Self { schema }
-    }
+fn tag_column_exists(schema: &Schema, col: &Column) -> DataFusionResult<bool> {
+    // todo a real error here (rpc_predicates shouldn't have table/relation qualifiers)
+    assert!(col.relation.is_none());
 
-    fn tag_column_exists(&self, col: &Column) -> DataFusionResult<bool> {
-        // todo a real error here (rpc_predicates shouldn't have table/relation qualifiers)
-        assert!(col.relation.is_none());
-
-        let exists = self
-            .schema
-            .find_index_of(&col.name)
-            .map(|i| self.schema.field(i).0)
-            .map(|influx_column_type| influx_column_type == InfluxColumnType::Tag)
-            .unwrap_or(false);
-        Ok(exists)
-    }
+    let exists = schema
+        .find_index_of(&col.name)
+        .map(|i| schema.field(i).0)
+        .map(|influx_column_type| influx_column_type == InfluxColumnType::Tag)
+        .unwrap_or(false);
+    Ok(exists)
 }
 
 fn lit_null() -> Expr {
     lit(ScalarValue::Utf8(None))
 }
 
-impl ExprRewriter for MissingTagColumnRewriter {
-    fn mutate(&mut self, expr: Expr) -> DataFusionResult<Expr> {
-        Ok(match expr {
-            Expr::Column(col) if !self.tag_column_exists(&col)? => lit_null(),
-            expr => expr,
-        })
-    }
-}
-
 #[cfg(test)]
 mod tests {
-    use datafusion::{arrow::datatypes::DataType, logical_expr::expr_rewriter::ExprRewritable};
+    use datafusion::{arrow::datatypes::DataType, common::tree_node::TreeNode};
     use schema::SchemaBuilder;
 
     use super::*;
@@ -103,7 +87,7 @@ mod tests {
             .build()
             .unwrap();
 
-        let mut rewriter = MissingTagColumnRewriter::new(schema);
-        expr.rewrite(&mut rewriter).unwrap()
+        expr.transform(&|expr| missing_tag_to_null(&schema, expr))
+            .unwrap()
     }
 }

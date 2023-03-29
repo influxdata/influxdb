@@ -154,8 +154,7 @@ SELECT
     atan(f64),
     atan2(f64, 2),
     exp(f64),
--- TODO(sgc): Dependent on https://github.com/apache/arrow-datafusion/issues/5206
---    log(f64, 8),
+    log(f64, 8),
     ln(f64),
     log2(f64),
     log10(f64),
@@ -179,8 +178,7 @@ SELECT
     atan(i64),
     atan2(i64, 2),
     exp(i64),
--- TODO(sgc): Dependent on https://github.com/apache/arrow-datafusion/issues/5206
---    log(i64, 8),
+    log(i64, 8),
     ln(i64),
     log2(i64),
     log10(i64),
@@ -190,6 +188,9 @@ SELECT
     ceil(i64),
     round(i64)
 FROM m0 LIMIT 1;
+
+-- validate log requires two arguments
+SELECT log(f64) FROM m0 LIMIT 1;
 
 -- Deviation from InfluxQL is that NaNs are not coalesced to NULL
 -- The InfluxQL compatibility later will be responsible for this translation

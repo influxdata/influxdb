@@ -6,6 +6,7 @@
 | a    | 1.0  | 2022-01-01T11:00:00Z |
 | b    | 2.0  | 2022-01-01T11:00:00Z |
 | bb   | 21.0 | 2022-01-01T11:00:00Z |
+| d    | 4.0  | 2022-01-01T11:00:00Z |
 +------+------+----------------------+
 -- SQL: EXPLAIN SELECT * FROM cpu order by host, load, time;
 -- Results After Normalizing UUIDs
@@ -25,6 +26,12 @@
 |    |         CoalesceBatchesExec: target_batch_size=8192    |
 |    |           FilterExec: <REDACTED>
 |    |             ParquetExec: limit=None, partitions={1 group: [[1/1/1/1/00000000-0000-0000-0000-000000000001.parquet]]}, output_ordering=[host@0 ASC, time@2 ASC], projection=[host, load, time]    |
+|    |         SortExec: expr=[host@0 ASC,time@2 ASC]    |
+|    |           CoalescePartitionsExec    |
+|    |             CoalesceBatchesExec: target_batch_size=8192    |
+|    |               FilterExec: <REDACTED>
+|    |                 RepartitionExec: partitioning=RoundRobinBatch(4), input_partitions=1    |
+|    |                   RecordBatchesExec: batches_groups=1 batches=1 total_rows=2    |
 |    |    |
 ----------
 -- SQL: SELECT * FROM cpu WHERE host != 'b' ORDER BY host,time;
@@ -33,6 +40,7 @@
 +------+------+----------------------+
 | a    | 1.0  | 2022-01-01T11:00:00Z |
 | bb   | 21.0 | 2022-01-01T11:00:00Z |
+| d    | 4.0  | 2022-01-01T11:00:00Z |
 +------+------+----------------------+
 -- SQL: EXPLAIN SELECT * FROM cpu WHERE host != 'b' ORDER BY host,time;
 -- Results After Normalizing UUIDs
@@ -57,5 +65,11 @@
 |    |                 CoalesceBatchesExec: target_batch_size=8192    |
 |    |                   FilterExec: <REDACTED>
 |    |                     ParquetExec: limit=None, partitions={1 group: [[1/1/1/1/00000000-0000-0000-0000-000000000001.parquet]]}, predicate=host@0 != b, pruning_predicate=host_min@0 != b OR b != host_max@1, output_ordering=[host@0 ASC, time@2 ASC], projection=[host, load, time]    |
+|    |                 SortExec: expr=[host@0 ASC,time@2 ASC]    |
+|    |                   CoalescePartitionsExec    |
+|    |                     CoalesceBatchesExec: target_batch_size=8192    |
+|    |                       FilterExec: <REDACTED>
+|    |                         RepartitionExec: partitioning=RoundRobinBatch(4), input_partitions=1    |
+|    |                           RecordBatchesExec: batches_groups=1 batches=1 total_rows=2    |
 |    |    |
 ----------

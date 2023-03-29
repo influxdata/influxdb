@@ -2,9 +2,12 @@
 use std::ops::{Bound, Range};
 
 use datafusion::{
-    common::DFSchema,
-    error::{DataFusionError, Result},
-    logical_expr::{Between, BinaryExpr, LogicalPlan, Operator, PlanVisitor},
+    common::{
+        tree_node::{TreeNode, TreeNodeVisitor, VisitRecursion},
+        DFSchema,
+    },
+    error::Result,
+    logical_expr::{Between, BinaryExpr, LogicalPlan, Operator},
     optimizer::utils::split_conjunction,
     prelude::{Column, Expr},
 };
@@ -16,7 +19,7 @@ pub(super) fn find_time_range(plan: &LogicalPlan, time_col: &Column) -> Result<R
         col: time_col.clone(),
         range: TimeRange::default(),
     };
-    plan.accept(&mut v)?;
+    plan.visit(&mut v)?;
     Ok(v.range.0)
 }
 
@@ -25,19 +28,19 @@ struct TimeRangeVisitor {
     range: TimeRange,
 }
 
-impl PlanVisitor for TimeRangeVisitor {
-    type Error = DataFusionError;
+impl TreeNodeVisitor for TimeRangeVisitor {
+    type N = LogicalPlan;
 
-    fn pre_visit(&mut self, plan: &LogicalPlan) -> Result<bool, Self::Error> {
+    fn pre_visit(&mut self, plan: &LogicalPlan) -> Result<VisitRecursion> {
         match plan {
             LogicalPlan::Projection(p) => {
                 let idx = p.schema.index_of_column(&self.col)?;
                 match unwrap_alias(&p.expr[idx]) {
                     Expr::Column(ref c) => {
                         self.col = c.clone();
-                        Ok(true)
+                        Ok(VisitRecursion::Continue)
                     }
-                    _ => Ok(false),
+                    _ => Ok(VisitRecursion::Stop),
                 }
             }
             LogicalPlan::Filter(f) => {
@@ -48,15 +51,15 @@ impl PlanVisitor for TimeRangeVisitor {
                         range.with_expr(f.input.schema().as_ref(), &self.col, expr)
                     })?;
                 self.range = range;
-                Ok(true)
+                Ok(VisitRecursion::Continue)
             }
             // These nodes do not alter their schema, so we can recurse through them
             LogicalPlan::Sort(_)
             | LogicalPlan::Repartition(_)
             | LogicalPlan::Limit(_)
-            | LogicalPlan::Distinct(_) => Ok(true),
+            | LogicalPlan::Distinct(_) => Ok(VisitRecursion::Continue),
             // At some point we may wish to handle joins here too.
-            _ => Ok(false),
+            _ => Ok(VisitRecursion::Stop),
         }
     }
 }

@@ -1,9 +1,8 @@
 use std::sync::Arc;
 
 use datafusion::{
-    catalog::TableReference,
-    datasource::provider_as_source,
-    logical_expr::{expr_rewriter::ExprRewritable, LogicalPlanBuilder},
+    catalog::TableReference, common::tree_node::TreeNode, datasource::provider_as_source,
+    logical_expr::LogicalPlanBuilder,
 };
 use observability_deps::tracing::trace;
 use predicate::Predicate;

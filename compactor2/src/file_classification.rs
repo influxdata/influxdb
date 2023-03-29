@@ -96,6 +96,7 @@ pub enum SplitReason {
     ReduceOverlap,
     ReduceLargeFileSize,
     CompactAndSplitOutput(CompactReason),
+    HighL0Overlap,
 }
 
 /// Reasons why there are files to compact

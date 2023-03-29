@@ -59,7 +59,7 @@ impl Reconciler {
         &self,
         ingester_partitions: Vec<IngesterPartition>,
         tombstones: Vec<Arc<Tombstone>>,
-        retention_delete_pred: Option<DeletePredicate>,
+        retention_delete_pred: Option<Arc<DeletePredicate>>,
         parquet_files: Vec<QuerierParquetChunk>,
         span: Option<Span>,
     ) -> Result<Vec<Arc<dyn QueryChunk>>, ReconcileError> {
@@ -68,12 +68,12 @@ impl Reconciler {
             .build_chunks_from_parquet(
                 &ingester_partitions,
                 tombstones,
-                retention_delete_pred,
+                retention_delete_pred.clone(),
                 parquet_files,
                 span_recorder.child_span("build_chunks_from_parquet"),
             )
             .await?;
-        chunks.extend(self.build_ingester_chunks(ingester_partitions));
+        chunks.extend(self.build_ingester_chunks(ingester_partitions, retention_delete_pred));
         debug!(num_chunks=%chunks.len(), "Final chunk count after reconcilation");
 
         let chunks = self.sync_partition_sort_keys(chunks);
@@ -90,7 +90,7 @@ impl Reconciler {
         &self,
         ingester_partitions: &[IngesterPartition],
         tombstones: Vec<Arc<Tombstone>>,
-        retention_delete_pred: Option<DeletePredicate>,
+        retention_delete_pred: Option<Arc<DeletePredicate>>,
         parquet_files: Vec<QuerierParquetChunk>,
         span: Option<Span>,
     ) -> Result<Vec<Box<dyn UpdatableQuerierChunk>>, ReconcileError> {
@@ -207,7 +207,7 @@ impl Reconciler {
             }
 
             if let Some(retention_delete_pred) = retention_delete_pred.clone() {
-                delete_predicates.push(Arc::new(retention_delete_pred));
+                delete_predicates.push(retention_delete_pred);
             }
 
             let chunk = chunk.with_delete_predicates(delete_predicates);
@@ -221,6 +221,7 @@ impl Reconciler {
     fn build_ingester_chunks(
         &self,
         ingester_partitions: Vec<IngesterPartition>,
+        retention_delete_pred: Option<Arc<DeletePredicate>>,
     ) -> impl Iterator<Item = Box<dyn UpdatableQuerierChunk>> {
         // Add ingester chunks to the overall chunk list.
         // - filter out chunks that don't have any record batches
@@ -228,7 +229,13 @@ impl Reconciler {
         //   ingester
         ingester_partitions
             .into_iter()
-            .flat_map(|c| c.into_chunks().into_iter())
+            .flat_map(move |c| {
+                let c = match &retention_delete_pred {
+                    Some(pred) => c.with_delete_predicates(vec![Arc::clone(pred)]),
+                    None => c,
+                };
+                c.into_chunks().into_iter()
+            })
             .map(|c| Box::new(c) as Box<dyn UpdatableQuerierChunk>)
     }
 

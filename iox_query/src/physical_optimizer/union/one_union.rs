@@ -1,10 +1,11 @@
 use std::sync::Arc;
 
 use datafusion::{
+    common::tree_node::{Transformed, TreeNode},
     config::ConfigOptions,
     error::Result,
     physical_optimizer::PhysicalOptimizerRule,
-    physical_plan::{tree_node::TreeNodeRewritable, union::UnionExec, ExecutionPlan},
+    physical_plan::{union::UnionExec, ExecutionPlan},
 };
 
 /// Optimizer that replaces [`UnionExec`] with a single child node w/ the child note itself.
@@ -33,11 +34,11 @@ impl PhysicalOptimizerRule for OneUnion {
             if let Some(union_exec) = plan_any.downcast_ref::<UnionExec>() {
                 let mut children = union_exec.children();
                 if children.len() == 1 {
-                    return Ok(Some(children.remove(0)));
+                    return Ok(Transformed::Yes(children.remove(0)));
                 }
             }
 
-            Ok(None)
+            Ok(Transformed::No(plan))
         })
     }
 

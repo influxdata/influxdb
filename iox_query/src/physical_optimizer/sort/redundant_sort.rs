@@ -1,10 +1,11 @@
 use std::sync::Arc;
 
 use datafusion::{
+    common::tree_node::{Transformed, TreeNode},
     config::ConfigOptions,
     error::Result,
     physical_optimizer::PhysicalOptimizerRule,
-    physical_plan::{sorts::sort::SortExec, tree_node::TreeNodeRewritable, ExecutionPlan},
+    physical_plan::{sorts::sort::SortExec, ExecutionPlan},
 };
 
 /// Removes [`SortExec`] if it is no longer needed.
@@ -24,11 +25,11 @@ impl PhysicalOptimizerRule for RedundantSort {
                 let child = sort_exec.input();
 
                 if child.output_ordering() == Some(sort_exec.expr()) {
-                    return Ok(Some(Arc::clone(child)));
+                    return Ok(Transformed::Yes(Arc::clone(child)));
                 }
             }
 
-            Ok(None)
+            Ok(Transformed::No(plan))
         })
     }
 

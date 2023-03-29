@@ -5,6 +5,7 @@ use std::{
 
 use arrow::datatypes::SchemaRef;
 use datafusion::{
+    common::tree_node::{Transformed, TreeNode},
     config::ConfigOptions,
     error::{DataFusionError, Result},
     physical_expr::{
@@ -19,7 +20,6 @@ use datafusion::{
         filter::FilterExec,
         projection::ProjectionExec,
         sorts::{sort::SortExec, sort_preserving_merge::SortPreservingMergeExec},
-        tree_node::TreeNodeRewritable,
         union::UnionExec,
         ExecutionPlan, PhysicalExpr,
     },
@@ -53,11 +53,11 @@ impl PhysicalOptimizerRule for ProjectionPushdown {
                             column_names.push(output_name.as_str());
                         } else {
                             // don't bother w/ renames
-                            return Ok(None);
+                            return Ok(Transformed::No(plan));
                         }
                     } else {
                         // don't bother to deal w/ calculation within projection nodes
-                        return Ok(None);
+                        return Ok(Transformed::No(plan));
                     }
                 }
 
@@ -67,7 +67,7 @@ impl PhysicalOptimizerRule for ProjectionPushdown {
                         child_empty.produce_one_row(),
                         Arc::new(child_empty.schema().project(&column_indices)?),
                     );
-                    return Ok(Some(Arc::new(new_child)));
+                    return Ok(Transformed::Yes(Arc::new(new_child)));
                 } else if let Some(child_union) = child_any.downcast_ref::<UnionExec>() {
                     let new_inputs = child_union
                         .inputs()
@@ -81,7 +81,7 @@ impl PhysicalOptimizerRule for ProjectionPushdown {
                         })
                         .collect::<Result<Vec<_>>>()?;
                     let new_union = UnionExec::new(new_inputs);
-                    return Ok(Some(Arc::new(new_union)));
+                    return Ok(Transformed::Yes(Arc::new(new_union)));
                 } else if let Some(child_parquet) = child_any.downcast_ref::<ParquetExec>() {
                     let projection = match child_parquet.base_config().projection.as_ref() {
                         Some(projection) => column_indices
@@ -94,13 +94,40 @@ impl PhysicalOptimizerRule for ProjectionPushdown {
                             .collect::<Result<Vec<_>>>()?,
                         None => column_indices,
                     };
+                    let output_ordering = match &child_parquet.base_config().output_ordering {
+                        Some(sort_exprs) => {
+                            let projected_schema = projection_exec.schema();
+
+                            // filter out sort exprs columns that got projected away
+                            let known_columns = projected_schema
+                                .all_fields()
+                                .iter()
+                                .map(|f| f.name().as_str())
+                                .collect::<HashSet<_>>();
+                            let sort_exprs = sort_exprs
+                                .iter()
+                                .filter(|expr| {
+                                    if let Some(col) = expr.expr.as_any().downcast_ref::<Column>() {
+                                        known_columns.contains(col.name())
+                                    } else {
+                                        true
+                                    }
+                                })
+                                .cloned()
+                                .collect::<Vec<_>>();
+
+                            Some(reassign_sort_exprs_columns(&sort_exprs, &projected_schema)?)
+                        }
+                        None => None,
+                    };
                     let base_config = FileScanConfig {
                         projection: Some(projection),
+                        output_ordering,
                         ..child_parquet.base_config().clone()
                     };
                     let new_child =
                         ParquetExec::new(base_config, child_parquet.predicate().cloned(), None);
-                    return Ok(Some(Arc::new(new_child)));
+                    return Ok(Transformed::Yes(Arc::new(new_child)));
                 } else if let Some(child_filter) = child_any.downcast_ref::<FilterExec>() {
                     let filter_required_cols = collect_columns(child_filter.predicate());
                     let filter_required_cols = filter_required_cols
@@ -124,7 +151,7 @@ impl PhysicalOptimizerRule for ProjectionPushdown {
                         },
                     )?;
 
-                    return Ok(Some(plan));
+                    return Ok(Transformed::Yes(plan));
                 } else if let Some(child_sort) = child_any.downcast_ref::<SortExec>() {
                     let sort_required_cols = child_sort
                         .expr()
@@ -150,7 +177,7 @@ impl PhysicalOptimizerRule for ProjectionPushdown {
                         },
                     )?;
 
-                    return Ok(Some(plan));
+                    return Ok(Transformed::Yes(plan));
                 } else if let Some(child_sort) = child_any.downcast_ref::<SortPreservingMergeExec>()
                 {
                     let sort_required_cols = child_sort
@@ -176,7 +203,7 @@ impl PhysicalOptimizerRule for ProjectionPushdown {
                         },
                     )?;
 
-                    return Ok(Some(plan));
+                    return Ok(Transformed::Yes(plan));
                 } else if let Some(child_proj) = child_any.downcast_ref::<ProjectionExec>() {
                     let expr = column_indices
                         .iter()
@@ -191,7 +218,7 @@ impl PhysicalOptimizerRule for ProjectionPushdown {
                     // and miss the optimization of that particular new ProjectionExec
                     let plan = self.optimize(plan, config)?;
 
-                    return Ok(Some(plan));
+                    return Ok(Transformed::Yes(plan));
                 } else if let Some(child_dedup) = child_any.downcast_ref::<DeduplicateExec>() {
                     let dedup_required_cols = child_dedup.sort_columns();
 
@@ -216,7 +243,7 @@ impl PhysicalOptimizerRule for ProjectionPushdown {
                         },
                     )?;
 
-                    return Ok(Some(plan));
+                    return Ok(Transformed::Yes(plan));
                 } else if let Some(child_recordbatches) =
                     child_any.downcast_ref::<RecordBatchesExec>()
                 {
@@ -225,11 +252,11 @@ impl PhysicalOptimizerRule for ProjectionPushdown {
                         Arc::new(child_recordbatches.schema().project(&column_indices)?),
                         child_recordbatches.output_sort_key_memo().cloned(),
                     );
-                    return Ok(Some(Arc::new(new_child)));
+                    return Ok(Transformed::Yes(Arc::new(new_child)));
                 }
             }
 
-            Ok(None)
+            Ok(Transformed::No(plan))
         })
     }
 
@@ -620,22 +647,45 @@ mod tests {
 
     #[test]
     fn test_parquet() {
-        let schema = schema();
+        let schema = Arc::new(Schema::new(vec![
+            Field::new("tag1", DataType::Utf8, true),
+            Field::new("tag2", DataType::Utf8, true),
+            Field::new("tag3", DataType::Utf8, true),
+            Field::new("field", DataType::UInt64, true),
+        ]));
+        let projection = vec![3, 2, 1];
+        let schema_projected = Arc::new(schema.project(&projection).unwrap());
         let base_config = FileScanConfig {
             object_store_url: ObjectStoreUrl::parse("test://").unwrap(),
             file_schema: Arc::clone(&schema),
             file_groups: vec![],
             statistics: Statistics::default(),
-            projection: Some(vec![1, 2]),
+            projection: Some(projection),
             limit: None,
             table_partition_cols: vec![],
-            output_ordering: None,
+            output_ordering: Some(vec![
+                PhysicalSortExpr {
+                    expr: expr_col("tag3", &schema_projected),
+                    options: Default::default(),
+                },
+                PhysicalSortExpr {
+                    expr: expr_col("field", &schema_projected),
+                    options: Default::default(),
+                },
+                PhysicalSortExpr {
+                    expr: expr_col("tag2", &schema_projected),
+                    options: Default::default(),
+                },
+            ]),
             infinite_source: false,
         };
         let inner = ParquetExec::new(base_config, Some(expr_string_cmp("tag1", &schema)), None);
         let plan = Arc::new(
             ProjectionExec::try_new(
-                vec![(expr_col("tag2", &inner.schema()), String::from("tag2"))],
+                vec![
+                    (expr_col("tag2", &inner.schema()), String::from("tag2")),
+                    (expr_col("tag3", &inner.schema()), String::from("tag3")),
+                ],
                 Arc::new(inner),
             )
             .unwrap(),
@@ -647,11 +697,11 @@ mod tests {
             @r###"
         ---
         input:
-          - " ProjectionExec: expr=[tag2@0 as tag2]"
-          - "   ParquetExec: limit=None, partitions={0 groups: []}, predicate=tag1@0 = foo, pruning_predicate=tag1_min@0 <= foo AND foo <= tag1_max@1, projection=[tag2, field]"
+          - " ProjectionExec: expr=[tag2@2 as tag2, tag3@1 as tag3]"
+          - "   ParquetExec: limit=None, partitions={0 groups: []}, predicate=tag1@0 = foo, pruning_predicate=tag1_min@0 <= foo AND foo <= tag1_max@1, output_ordering=[tag3@1 ASC, field@0 ASC, tag2@2 ASC], projection=[field, tag3, tag2]"
         output:
           Ok:
-            - " ParquetExec: limit=None, partitions={0 groups: []}, predicate=tag1@0 = foo, pruning_predicate=tag1_min@0 <= foo AND foo <= tag1_max@1, projection=[tag2]"
+            - " ParquetExec: limit=None, partitions={0 groups: []}, predicate=tag1@0 = foo, pruning_predicate=tag1_min@0 <= foo AND foo <= tag1_max@1, output_ordering=[tag3@1 ASC, tag2@0 ASC], projection=[tag2, tag3]"
         "###
         );
 
@@ -661,7 +711,10 @@ mod tests {
             .as_any()
             .downcast_ref::<ParquetExec>()
             .unwrap();
-        let expected_schema = Schema::new(vec![Field::new("tag2", DataType::Utf8, true)]);
+        let expected_schema = Schema::new(vec![
+            Field::new("tag2", DataType::Utf8, true),
+            Field::new("tag3", DataType::Utf8, true),
+        ]);
         assert_eq!(parquet_exec.schema().as_ref(), &expected_schema);
     }
 

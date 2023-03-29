@@ -18,6 +18,7 @@ license.workspace = true
 [dependencies]
 ahash = { version = "0.8", default-features = false, features = ["runtime-rng"] }
 arrow = { version = "34", features = ["dyn_cmp_dict", "prettyprint"] }
+arrow-array = { version = "34", default-features = false, features = ["chrono-tz"] }
 arrow-flight = { version = "34", features = ["flight-sql-experimental"] }
 arrow-ord = { version = "34", default-features = false, features = ["dyn_cmp_dict"] }
 arrow-string = { version = "34", default-features = false, features = ["dyn_cmp_dict"] }
@@ -29,9 +30,9 @@ bytes = { version = "1" }
 chrono = { version = "0.4", default-features = false, features = ["alloc", "clock", "serde"] }
 crossbeam-utils = { version = "0.8" }
 crypto-common = { version = "0.1", default-features = false, features = ["std"] }
-datafusion = { git = "https://github.com/apache/arrow-datafusion.git", rev = "74c3955db48f7ef6458125100eed3999512a56ba" }
-datafusion-optimizer = { git = "https://github.com/apache/arrow-datafusion.git", rev = "74c3955db48f7ef6458125100eed3999512a56ba", default-features = false, features = ["crypto_expressions", "regex_expressions", "unicode_expressions"] }
-datafusion-physical-expr = { git = "https://github.com/apache/arrow-datafusion.git", rev = "74c3955db48f7ef6458125100eed3999512a56ba", default-features = false, features = ["crypto_expressions", "regex_expressions", "unicode_expressions"] }
+datafusion = { git = "https://github.com/apache/arrow-datafusion.git", rev = "f30671760285f242950437c3c0f520ef418c1068" }
+datafusion-optimizer = { git = "https://github.com/apache/arrow-datafusion.git", rev = "f30671760285f242950437c3c0f520ef418c1068", default-features = false, features = ["crypto_expressions", "regex_expressions", "unicode_expressions"] }
+datafusion-physical-expr = { git = "https://github.com/apache/arrow-datafusion.git", rev = "f30671760285f242950437c3c0f520ef418c1068", default-features = false, features = ["crypto_expressions", "regex_expressions", "unicode_expressions"] }
 digest = { version = "0.10", features = ["mac", "std"] }
 either = { version = "1" }
 fixedbitset = { version = "0.4" }

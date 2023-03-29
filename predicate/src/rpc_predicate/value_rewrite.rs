@@ -1,5 +1,5 @@
+use datafusion::common::tree_node::{TreeNode, TreeNodeRewriter};
 use datafusion::error::Result as DataFusionResult;
-use datafusion::logical_expr::expr_rewriter::{ExprRewritable, ExprRewriter};
 use datafusion::prelude::{lit, Expr};
 
 use crate::ValueExpr;
@@ -19,7 +19,9 @@ struct FieldValueRewriter<'a> {
     value_exprs: &'a mut Vec<ValueExpr>,
 }
 
-impl<'a> ExprRewriter for FieldValueRewriter<'a> {
+impl<'a> TreeNodeRewriter for FieldValueRewriter<'a> {
+    type N = Expr;
+
     fn mutate(&mut self, expr: Expr) -> DataFusionResult<Expr> {
         // try and convert Expr into a ValueExpr
         match expr.try_into() {

@@ -14,8 +14,9 @@ use crate::plan::var_ref::{column_type_to_var_ref_data_type, var_ref_data_type_t
 use arrow::datatypes::DataType;
 use chrono_tz::Tz;
 use datafusion::catalog::TableReference;
+use datafusion::common::tree_node::{TreeNode, TreeNodeRewriter};
 use datafusion::common::{DFSchema, DFSchemaRef, DataFusionError, Result, ScalarValue, ToDFSchema};
-use datafusion::logical_expr::expr_rewriter::{normalize_col, ExprRewritable, ExprRewriter};
+use datafusion::logical_expr::expr_rewriter::normalize_col;
 use datafusion::logical_expr::logical_plan::builder::project;
 use datafusion::logical_expr::logical_plan::Analyze;
 use datafusion::logical_expr::utils::{expr_as_column_expr, find_aggregate_exprs};
@@ -107,7 +108,7 @@ struct Context<'a> {
     scope: ExprScope,
     tz: Option<Tz>,
 
-    //
+    /// `true` if the query projects aggregates.
     is_aggregate: bool,
 
     // GROUP BY information
@@ -873,12 +874,26 @@ impl<'a> InfluxQLToLogicalPlan<'a> {
         args: &[IQLExpr],
         schemas: &Schemas,
     ) -> Result<Expr> {
-        let fun = BuiltinScalarFunction::from_str(name)?;
         let args = args
             .iter()
             .map(|e| self.expr_to_df_expr(ctx, e, schemas))
             .collect::<Result<Vec<Expr>>>()?;
-        Ok(Expr::ScalarFunction { fun, args })
+
+        match BuiltinScalarFunction::from_str(name)? {
+            BuiltinScalarFunction::Log => {
+                if args.len() != 2 {
+                    Err(DataFusionError::Plan(
+                        "invalid number of arguments for log, expected 2, got 1".to_owned(),
+                    ))
+                } else {
+                    Ok(Expr::ScalarFunction {
+                        fun: BuiltinScalarFunction::Log,
+                        args: args.into_iter().rev().collect(),
+                    })
+                }
+            }
+            fun => Ok(Expr::ScalarFunction { fun, args }),
+        }
     }
 
     /// Map an InfluxQL arithmetic expression to a DataFusion [`Expr`].
@@ -1049,7 +1064,9 @@ struct FixRegularExpressions<'a> {
     schemas: &'a Schemas,
 }
 
-impl<'a> ExprRewriter for FixRegularExpressions<'a> {
+impl<'a> TreeNodeRewriter for FixRegularExpressions<'a> {
+    type N = Expr;
+
     fn mutate(&mut self, expr: Expr) -> Result<Expr> {
         match expr {
             // InfluxQL evaluates regular expression conditions to false if the column is numeric
@@ -1306,6 +1323,23 @@ mod test {
     /// such as the WHERE clause.
     mod select {
         use super::*;
+
+        /// Test InfluxQL-specific behaviour of scalar functions that differ
+        /// from DataFusion
+        #[test]
+        fn test_scalar_functions() {
+            // LOG requires two arguments, and first argument is field
+            assert_snapshot!(plan("SELECT LOG(usage_idle, 8) FROM cpu"), @r###"
+            Sort: time ASC NULLS LAST [iox::measurement:Dictionary(Int32, Utf8), time:Timestamp(Nanosecond, None), log:Float64;N]
+              Projection: Dictionary(Int32, Utf8("cpu")) AS iox::measurement, cpu.time AS time, log(Int64(8), cpu.usage_idle) AS log [iox::measurement:Dictionary(Int32, Utf8), time:Timestamp(Nanosecond, None), log:Float64;N]
+                TableScan: cpu [cpu:Dictionary(Int32, Utf8);N, host:Dictionary(Int32, Utf8);N, region:Dictionary(Int32, Utf8);N, time:Timestamp(Nanosecond, None), usage_idle:Float64;N, usage_system:Float64;N, usage_user:Float64;N]
+            "###);
+
+            // Fallible
+
+            // LOG requires two arguments
+            assert_snapshot!(plan("SELECT LOG(usage_idle) FROM cpu"), @"Error during planning: invalid number of arguments for log, expected 2, got 1");
+        }
 
         /// Validate the metadata is correctly encoded in the schema.
         ///
