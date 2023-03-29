@@ -60,7 +60,7 @@ use super::{
         metrics::MetricsPartitionFilterWrapper, never_skipped::NeverSkippedPartitionFilter,
         or::OrPartitionFilter, PartitionFilter,
     },
-    partition_info_source::sub_sources::SubSourcePartitionInfoSource,
+    partition_info_source::{sub_sources::SubSourcePartitionInfoSource, PartitionInfoSource},
     partition_source::{
         catalog::CatalogPartitionSource, logging::LoggingPartitionSourceWrapper,
         metrics::MetricsPartitionSourceWrapper,
@@ -139,20 +139,7 @@ pub fn hardcoded_components(config: &Config) -> Arc<Components> {
 
     Arc::new(Components {
         partition_stream: make_partition_stream(config, partitions_source),
-        partition_info_source: Arc::new(SubSourcePartitionInfoSource::new(
-            LoggingPartitionSourceWrapper::new(MetricsPartitionSourceWrapper::new(
-                CatalogPartitionSource::new(
-                    config.backoff_config.clone(),
-                    Arc::clone(&config.catalog),
-                ),
-                &config.metric_registry,
-            )),
-            CatalogTablesSource::new(config.backoff_config.clone(), Arc::clone(&config.catalog)),
-            CatalogNamespacesSource::new(
-                config.backoff_config.clone(),
-                Arc::clone(&config.catalog),
-            ),
-        )),
+        partition_info_source: make_partition_info_source(config),
         partition_files_source: Arc::new(CatalogPartitionFilesSource::new(
             config.backoff_config.clone(),
             Arc::clone(&config.catalog),
@@ -336,6 +323,17 @@ fn make_partition_stream(
     } else {
         Arc::new(EndlessPartititionStream::new(partitions_source))
     }
+}
+
+fn make_partition_info_source(config: &Config) -> Arc<dyn PartitionInfoSource> {
+    Arc::new(SubSourcePartitionInfoSource::new(
+        LoggingPartitionSourceWrapper::new(MetricsPartitionSourceWrapper::new(
+            CatalogPartitionSource::new(config.backoff_config.clone(), Arc::clone(&config.catalog)),
+            &config.metric_registry,
+        )),
+        CatalogTablesSource::new(config.backoff_config.clone(), Arc::clone(&config.catalog)),
+        CatalogNamespacesSource::new(config.backoff_config.clone(), Arc::clone(&config.catalog)),
+    ))
 }
 
 // Conditions to compact this partittion
