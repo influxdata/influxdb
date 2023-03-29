@@ -8,6 +8,7 @@ use self::{
 
 mod handle_gapfill;
 mod influx_regex_to_datafusion_regex;
+pub use handle_gapfill::range_predicate;
 
 /// Register IOx-specific logical [`OptimizerRule`]s with the SessionContext
 ///

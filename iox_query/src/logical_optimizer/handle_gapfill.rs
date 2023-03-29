@@ -1,7 +1,7 @@
 //! An optimizer rule that transforms a plan
 //! to fill gaps in time series data.
 
-mod range_predicate;
+pub mod range_predicate;
 
 use crate::exec::gapfill::{FillStrategy, GapFill, GapFillParams};
 use datafusion::{

@@ -17,32 +17,6 @@ use datafusion::logical_expr::{
     LogicalPlan,
 };
 
-/// Rebuilds an `Expr` as a projection on top of a collection of `Expr`'s.
-///
-/// For example, the expression `a + b < 1` would require, as input, the 2
-/// individual columns, `a` and `b`. But, if the base expressions already
-/// contain the `a + b` result, then that may be used in lieu of the `a` and
-/// `b` columns.
-///
-/// This is useful in the context of a query like:
-///
-/// SELECT a + b < 1 ... GROUP BY a + b
-///
-/// where post-aggregation, `a + b` need not be a projection against the
-/// individual columns `a` and `b`, but rather it is a projection against the
-/// `a + b` found in the GROUP BY.
-///
-/// Source: <https://github.com/apache/arrow-datafusion/blob/e6d71068474f3b2ef9ad5e9af85f56f0d0560a1b/datafusion/sql/src/utils.rs#L63>
-pub(crate) fn rebase_expr(expr: &Expr, base_exprs: &[Expr], plan: &LogicalPlan) -> Result<Expr> {
-    clone_with_replacement(expr, &|nested_expr| {
-        if base_exprs.contains(nested_expr) {
-            Ok(Some(expr_as_column_expr(nested_expr, plan)?))
-        } else {
-            Ok(None)
-        }
-    })
-}
-
 /// Returns a cloned `Expr`, but any of the `Expr`'s in the tree may be
 /// replaced/customized by the replacement function.
 ///
@@ -62,7 +36,7 @@ pub(crate) fn rebase_expr(expr: &Expr, base_exprs: &[Expr], plan: &LogicalPlan) 
 ///       `clone_with_replacement()`.
 ///
 /// Source: <https://github.com/apache/arrow-datafusion/blob/26e1b20ea/datafusion/sql/src/utils.rs#L153>
-fn clone_with_replacement<F>(expr: &Expr, replacement_fn: &F) -> Result<Expr>
+pub(super) fn clone_with_replacement<F>(expr: &Expr, replacement_fn: &F) -> Result<Expr>
 where
     F: Fn(&Expr) -> Result<Option<Expr>>,
 {

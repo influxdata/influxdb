@@ -289,7 +289,10 @@ SELECT usage_idle, bytes_free, device, cpu FROM cpu, disk GROUP BY device, cpu;
 -- Aggregate queries
 --
 
+SELECT COUNT(f64), SUM(f64), stddev(f64) FROM m0;
+SELECT COUNT(f64), SUM(f64), stddev(f64) FROM m0, m1;
 SELECT COUNT(f64), SUM(f64), stddev(f64) FROM m0 GROUP BY tag0;
+SELECT COUNT(f64), SUM(f64), stddev(f64) FROM m0, m1 GROUP BY tag0;
 SELECT COUNT(f64), SUM(f64), stddev(f64) FROM m0 GROUP BY tag0, non_existent;
 SELECT COUNT(f64), SUM(f64), stddev(f64) FROM m0 GROUP BY non_existent;
 SELECT COUNT(f64), COUNT(f64) + COUNT(f64), COUNT(f64) * 3 FROM m0;
@@ -297,6 +300,17 @@ SELECT COUNT(f64), COUNT(f64) + COUNT(f64), COUNT(f64) * 3 FROM m0;
 SELECT COUNT(f64) as the_count, SUM(non_existent) as foo FROM m0;
 -- non-existent columns in an aggregate expression should evaluate to NULL
 SELECT COUNT(f64) as the_count, SUM(f64) + SUM(non_existent) as foo FROM m0;
+
+-- measurements with different schema
+SELECT MEAN(usage_idle), MEAN(bytes_free) FROM cpu, disk;
+SELECT MEAN(usage_idle), MEAN(bytes_free) FROM cpu, disk GROUP BY TIME(10s) FILL(none);
+
+-- TODO(sgc): The following two queries produce incorrect results
+-- See: https://github.com/influxdata/influxdb_iox/issues/7361
+-- using aggregates across measurements
+-- SELECT MEAN(usage_idle) + MEAN(bytes_free) FROM cpu, disk;
+-- using aggregates with missing fields
+-- SELECT MEAN(usage_idle) + MEAN(foo) FROM cpu;
 
 SELECT COUNT(f64), SUM(f64) FROM m0 GROUP BY TIME(30s) FILL(none);
 -- supports offset parameter
@@ -317,12 +331,43 @@ SELECT SUM(usage_idle) FROM cpu, disk GROUP BY cpu;
 SELECT COUNT(usage_idle) + usage_idle FROM cpu;
 SELECT COUNT(usage_idle), usage_idle FROM cpu;
 
+--
+-- gap filling via FILL clause
+--
+
+-- Default FILL(null) when FILL is omitted
+SELECT COUNT(usage_idle) FROM cpu WHERE time >= '2022-10-31T02:00:00Z' AND time < '2022-10-31T02:02:00Z' GROUP BY TIME(30s);
+SELECT COUNT(usage_idle), COUNT(bytes_free) FROM cpu, disk WHERE time >= '2022-10-31T02:00:00Z' AND time < '2022-10-31T02:02:00Z' GROUP BY TIME(30s);
+SELECT COUNT(usage_idle) FROM cpu WHERE time >= '2022-10-31T02:00:00Z' AND time < '2022-10-31T02:02:00Z' GROUP BY TIME(30s) FILL(null);
+SELECT COUNT(usage_idle), COUNT(bytes_free) FROM cpu, disk WHERE time >= '2022-10-31T02:00:00Z' AND time < '2022-10-31T02:02:00Z' GROUP BY TIME(30s) FILL(null);
+SELECT COUNT(usage_idle) FROM cpu WHERE time >= '2022-10-31T02:00:00Z' AND time < '2022-10-31T02:02:00Z' GROUP BY TIME(30s) FILL(previous);
+SELECT COUNT(usage_idle), COUNT(bytes_free) FROM cpu, disk WHERE time >= '2022-10-31T02:00:00Z' AND time < '2022-10-31T02:02:00Z' GROUP BY TIME(30s) FILL(previous);
+SELECT COUNT(usage_idle) FROM cpu WHERE time >= '2022-10-31T02:00:00Z' AND time < '2022-10-31T02:02:00Z' GROUP BY TIME(30s) FILL(3.14);
+SELECT COUNT(usage_idle), COUNT(bytes_free) FROM cpu, disk WHERE time >= '2022-10-31T02:00:00Z' AND time < '2022-10-31T02:02:00Z' GROUP BY TIME(30s) FILL(3.14);
+
+-- correct data type of FILL(value) depending on the data type of the aggregate
+SELECT COUNT(usage_idle), SUM(usage_idle) FROM cpu WHERE time >= '2022-10-31T02:00:00Z' AND time < '2022-10-31T02:02:00Z' GROUP BY TIME(30s) FILL(3.14);
+SELECT COUNT(bytes_free), SUM(bytes_free) FROM disk WHERE time >= '2022-10-31T02:00:00Z' AND time < '2022-10-31T02:02:00Z' GROUP BY TIME(30s) FILL(3.14);
+
+-- can combine multiple aggregates into a binary expression
+SELECT COUNT(bytes_free) as a, SUM(bytes_free) as b, COUNT(bytes_free) + SUM(bytes_free) as "a+b" FROM disk WHERE time >= '2022-10-31T02:00:00Z' AND time < '2022-10-31T02:02:00Z' GROUP BY TIME(30s) FILL(5);
+
+-- grouping by tags
+SELECT COUNT(usage_idle) FROM cpu WHERE time >= '2022-10-31T02:00:00Z' AND time < '2022-10-31T02:02:00Z' GROUP BY TIME(30s), cpu;
+SELECT COUNT(usage_idle) FROM cpu WHERE time >= '2022-10-31T02:00:00Z' AND time < '2022-10-31T02:02:00Z' GROUP BY TIME(30s), cpu FILL(null);
+SELECT COUNT(usage_idle), COUNT(bytes_free) FROM cpu, disk WHERE time >= '2022-10-31T02:00:00Z' AND time < '2022-10-31T02:02:00Z' GROUP BY TIME(30s), cpu, device FILL(null);
+SELECT COUNT(usage_idle) FROM cpu WHERE time >= '2022-10-31T02:00:00Z' AND time < '2022-10-31T02:02:00Z' GROUP BY TIME(30s), cpu FILL(previous);
+SELECT COUNT(usage_idle), COUNT(bytes_free) FROM cpu, disk WHERE time >= '2022-10-31T02:00:00Z' AND time < '2022-10-31T02:02:00Z' GROUP BY TIME(30s), cpu, device FILL(previous);
+SELECT COUNT(usage_idle) FROM cpu WHERE time >= '2022-10-31T02:00:00Z' AND time < '2022-10-31T02:02:00Z' GROUP BY TIME(30s), cpu FILL(3.14);
+SELECT COUNT(usage_idle), COUNT(bytes_free) FROM cpu, disk WHERE time >= '2022-10-31T02:00:00Z' AND time < '2022-10-31T02:02:00Z' GROUP BY TIME(30s), cpu, device FILL(3.14);
+
+-- Succeeds without upper bound
+-- NOTE: expected to return no data, as there is none within the time range
+SELECT COUNT(usage_idle) FROM cpu WHERE time >= now() - 2m GROUP BY TIME(30s) FILL(null);
+
 -- Unimplemented cases
 
--- TODO(sgc): No gap filling
--- Default FILL(null) when FILL is omitted
-SELECT COUNT(usage_idle) FROM cpu GROUP BY TIME(30s);
-SELECT COUNT(usage_idle) FROM cpu GROUP BY TIME(30s) FILL(previous);
+SELECT COUNT(usage_idle) FROM cpu WHERE time >= '2022-10-31T02:00:00Z' AND time < '2022-10-31T02:02:00Z' GROUP BY TIME(30s) FILL(linear);
 
 -- LIMIT and OFFSET aren't supported with aggregates and groups
 SELECT COUNT(usage_idle) FROM cpu GROUP BY cpu LIMIT 1;

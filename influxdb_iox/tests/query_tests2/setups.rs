@@ -1240,12 +1240,12 @@ pub static SETUPS: Lazy<HashMap<SetupName, SetupSteps>> = Lazy::new(|| {
                     cpu,host=host1,cpu=cpu0 usage_idle=0.99,usage_system=0.1 1667181610000000000
                     cpu,host=host1,cpu=cpu1 usage_idle=1.98,usage_system=1.2 1667181600000000000
                     cpu,host=host1,cpu=cpu1 usage_idle=1.99,usage_system=1.1 1667181610000000000
-                    disk,host=host1,device=disk1s1 bytes_free=1234,bytes_used=219838 1667181600000000000
-                    disk,host=host1,device=disk1s1 bytes_free=1239,bytes_used=219833 1667181610000000000
-                    disk,host=host1,device=disk1s2 bytes_free=2234,bytes_used=319838 1667181600000000000
-                    disk,host=host1,device=disk1s2 bytes_free=2239,bytes_used=319833 1667181610000000000
-                    disk,host=host1,device=disk1s5 bytes_free=3234,bytes_used=419838 1667181600000000000
-                    disk,host=host1,device=disk1s5 bytes_free=3239,bytes_used=419833 1667181610000000000
+                    disk,host=host1,device=disk1s1 bytes_free=1234i,bytes_used=219838i 1667181600000000000
+                    disk,host=host1,device=disk1s1 bytes_free=1239i,bytes_used=219833i 1667181610000000000
+                    disk,host=host1,device=disk1s2 bytes_free=2234i,bytes_used=319838i 1667181600000000000
+                    disk,host=host1,device=disk1s2 bytes_free=2239i,bytes_used=319833i 1667181610000000000
+                    disk,host=host1,device=disk1s5 bytes_free=3234i,bytes_used=419838i 1667181600000000000
+                    disk,host=host1,device=disk1s5 bytes_free=3239i,bytes_used=419833i 1667181610000000000
                     "#
                     .to_string(),
                 ),

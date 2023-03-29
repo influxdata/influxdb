@@ -34,15 +34,20 @@ use self::stream::GapFillStream;
 /// A logical node that represents the gap filling operation.
 #[derive(Clone, Debug, Hash, PartialEq, Eq)]
 pub struct GapFill {
-    input: Arc<LogicalPlan>,
-    group_expr: Vec<Expr>,
-    aggr_expr: Vec<Expr>,
-    params: GapFillParams,
+    /// The incoming logical plan
+    pub input: Arc<LogicalPlan>,
+    /// Grouping expressions
+    pub group_expr: Vec<Expr>,
+    /// Aggregate expressions
+    pub aggr_expr: Vec<Expr>,
+    /// Parameters to configure the behavior of the
+    /// gap-filling operation
+    pub params: GapFillParams,
 }
 
 /// Parameters to the GapFill operation
 #[derive(Clone, Debug, Hash, PartialEq, Eq)]
-pub(crate) struct GapFillParams {
+pub struct GapFillParams {
     /// The stride argument from the call to DATE_BIN_GAPFILL
     pub stride: Expr,
     /// The source time column
@@ -149,7 +154,8 @@ impl GapFillParams {
 }
 
 impl GapFill {
-    pub(crate) fn try_new(
+    /// Create a new gap-filling operator.
+    pub fn try_new(
         input: Arc<LogicalPlan>,
         group_expr: Vec<Expr>,
         aggr_expr: Vec<Expr>,

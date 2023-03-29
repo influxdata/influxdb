@@ -8,8 +8,7 @@ use crate::plan::planner_time_range_expression::{
     duration_expr_to_nanoseconds, expr_to_df_interval_dt, time_range_to_df_expr,
 };
 use crate::plan::rewriter::rewrite_statement;
-use crate::plan::util::{binary_operator_to_df_operator, Schemas};
-use crate::plan::util_copy::rebase_expr;
+use crate::plan::util::{binary_operator_to_df_operator, rebase_expr, Schemas};
 use crate::plan::var_ref::{column_type_to_var_ref_data_type, var_ref_data_type_to_data_type};
 use arrow::datatypes::DataType;
 use chrono_tz::Tz;
@@ -21,9 +20,9 @@ use datafusion::logical_expr::logical_plan::builder::project;
 use datafusion::logical_expr::logical_plan::Analyze;
 use datafusion::logical_expr::utils::{expr_as_column_expr, find_aggregate_exprs};
 use datafusion::logical_expr::{
-    binary_expr, date_bin, expr, lit, lit_timestamp_nano, AggregateFunction, AggregateUDF,
-    BinaryExpr, BuiltinScalarFunction, Explain, Expr, ExprSchemable, LogicalPlan,
-    LogicalPlanBuilder, Operator, PlanType, ScalarUDF, TableSource, ToStringifiedPlan,
+    binary_expr, col, date_bin, expr, lit, lit_timestamp_nano, now, Aggregate, AggregateFunction,
+    AggregateUDF, BinaryExpr, BuiltinScalarFunction, Explain, Expr, ExprSchemable, Extension,
+    LogicalPlan, LogicalPlanBuilder, Operator, PlanType, ScalarUDF, TableSource, ToStringifiedPlan,
 };
 use datafusion_util::{lit_dict, AsExpr};
 use generated_types::influxdata::iox::querier::v1::InfluxQlMetadata;
@@ -43,6 +42,8 @@ use influxdb_influxql_parser::{
     select::{Field, FieldList, FromMeasurementClause, MeasurementSelection, SelectStatement},
     statement::Statement,
 };
+use iox_query::exec::gapfill::{FillStrategy, GapFill, GapFillParams};
+use iox_query::logical_optimizer::range_predicate::find_time_range;
 use itertools::Itertools;
 use once_cell::sync::Lazy;
 use query_functions::clean_non_meta_escapes;
@@ -52,7 +53,7 @@ use schema::{
 };
 use std::collections::{HashSet, VecDeque};
 use std::fmt::Debug;
-use std::ops::{ControlFlow, Deref};
+use std::ops::{Bound, ControlFlow, Deref, Range};
 use std::str::FromStr;
 use std::sync::Arc;
 
@@ -143,6 +144,10 @@ impl<'a> Context<'a> {
             is_aggregate,
             ..*self
         }
+    }
+
+    fn fill(&self) -> FillClause {
+        self.fill.unwrap_or_default()
     }
 }
 
@@ -403,14 +408,8 @@ impl<'a> InfluxQLToLogicalPlan<'a> {
         // Transform InfluxQL AST field expressions to a list of DataFusion expressions.
         let select_exprs = self.field_list_to_exprs(ctx, &plan, fields, &schemas)?;
 
-        let (plan, select_exprs_post_aggr) = self.select_aggregate(
-            plan,
-            fields,
-            select_exprs,
-            select.group_by.as_ref(),
-            group_by_tag_set,
-            &schemas,
-        )?;
+        let (plan, select_exprs_post_aggr) =
+            self.select_aggregate(ctx, plan, fields, select_exprs, group_by_tag_set, &schemas)?;
 
         // Wrap the plan in a `LogicalPlan::Projection` from the select expressions
         project(
@@ -422,13 +421,17 @@ impl<'a> InfluxQLToLogicalPlan<'a> {
 
     fn select_aggregate(
         &self,
+        ctx: &Context<'_>,
         input: LogicalPlan,
         fields: &[Field],
         select_exprs: Vec<Expr>,
-        group_by: Option<&GroupByClause>,
         group_by_tag_set: &[&str],
         schemas: &Schemas,
     ) -> Result<(LogicalPlan, Vec<Expr>)> {
+        let Some(time_column_index) = find_time_column_index(fields) else {
+            return Err(DataFusionError::Internal("unable to find time column".to_owned()))
+        };
+
         // Find a list of unique aggregate expressions from the projection.
         //
         // For example, a projection such as:
@@ -443,14 +446,12 @@ impl<'a> InfluxQLToLogicalPlan<'a> {
             return Ok((input, select_exprs));
         }
 
-        let aggr_group_by_exprs = if let Some(group_by) = group_by {
+        let aggr_group_by_exprs = if let Some(group_by) = ctx.group_by {
             let mut group_by_exprs = Vec::new();
 
             if group_by.time_dimension().is_some() {
                 // Include the GROUP BY TIME(..) expression
-                if let Some(index) = find_time_column_index(fields) {
-                    group_by_exprs.push(select_exprs[index].clone());
-                }
+                group_by_exprs.push(select_exprs[time_column_index].clone());
             }
 
             // Exclude tags that do not exist in the current table schema.
@@ -475,6 +476,48 @@ impl<'a> InfluxQLToLogicalPlan<'a> {
             .aggregate(aggr_group_by_exprs.clone(), aggr_exprs.clone())?
             .build()?;
 
+        let fill_option = ctx.fill();
+
+        // Wrap the plan in a GapFill operator if the statement specifies a `GROUP BY TIME` clause and
+        // the FILL option is one of
+        //
+        // * `null`
+        // * `previous`
+        // * `literal` value
+        // * `linear`
+        //
+        let plan = if ctx.group_by.and_then(|gb| gb.time_dimension()).is_some()
+            && fill_option != FillClause::None
+        {
+            let args = match select_exprs[time_column_index].clone().unalias() {
+                Expr::ScalarFunction {
+                    fun: BuiltinScalarFunction::DateBin,
+                    args,
+                } => args,
+                _ => {
+                    // The InfluxQL planner adds the `date_bin` function,
+                    // so this condition represents an internal failure.
+                    return Err(DataFusionError::Internal(
+                        "expected DATE_BIN function".to_owned(),
+                    ));
+                }
+            };
+
+            let fill_strategy = match fill_option {
+                FillClause::Null | FillClause::Value(_) => FillStrategy::Null,
+                FillClause::Previous => FillStrategy::PrevNullAsMissing,
+                FillClause::Linear => {
+                    return Err(DataFusionError::NotImplemented(fill_option.to_string()))
+                }
+
+                FillClause::None => unreachable!(),
+            };
+
+            build_gap_fill_node(plan, time_column_index, args, fill_strategy)?
+        } else {
+            plan
+        };
+
         // Combine the aggregate columns and group by expressions, which represents
         // the final projection from the aggregate operator.
         let aggr_projection_exprs = [aggr_group_by_exprs, aggr_exprs].concat();
@@ -486,11 +529,29 @@ impl<'a> InfluxQLToLogicalPlan<'a> {
             .map(|expr| expr_as_column_expr(expr, &plan))
             .collect::<Result<Vec<Expr>>>()?;
 
+        // Create a literal expression for `value` if the strategy
+        // is `FILL(<value>)`
+        let fill_if_null = match fill_option {
+            FillClause::Value(v) => Some(v),
+            _ => None,
+        };
+
         // Rewrite the aggregate columns from the projection, so that the expressions
         // refer to the columns from the aggregate projection
         let select_exprs_post_aggr = select_exprs
             .iter()
-            .map(|expr| rebase_expr(expr, &aggr_projection_exprs, &plan))
+            .zip(fields)
+            .map(|(expr, f)| {
+                // This implements the `FILL(<value>)` strategy, by coalescing any aggregate
+                // expressions to `<value>` when they are `NULL`.
+                let fill_if_null = if fill_if_null.is_some() && is_aggregate_field(f) {
+                    fill_if_null
+                } else {
+                    None
+                };
+
+                rebase_expr(expr, &aggr_projection_exprs, &fill_if_null, &plan)
+            })
             .collect::<Result<Vec<Expr>>>()?;
 
         // Strip the NULL columns, which are tags that do not exist in the aggregate
@@ -682,14 +743,6 @@ impl<'a> InfluxQLToLogicalPlan<'a> {
                             // or binning the time.
                             if let Some(group_by) = ctx.group_by {
                                 if let Some(dim) = group_by.time_dimension() {
-                                    // Not supported until date_bin_gapfill is complete
-                                    let fill = ctx.fill.unwrap_or_default();
-                                    if fill != FillClause::None {
-                                        return Err(DataFusionError::NotImplemented(format!(
-                                            "{fill}"
-                                        )));
-                                    }
-
                                     let stride = expr_to_df_interval_dt(&dim.interval)?;
                                     let offset = if let Some(offset) = &dim.offset {
                                         duration_expr_to_nanoseconds(offset)?
@@ -983,6 +1036,94 @@ impl<'a> InfluxQLToLogicalPlan<'a> {
     }
 }
 
+/// Returns a [`LogicalPlan`] that performs gap-filling for the `input` plan.
+///
+/// # Arguments
+///
+/// * `input` - An aggregate plan which requires gap-filling.
+/// * `date_bin_index` - The index of the field in the input schema that refers to the `date_bin` expression.
+/// * `date_bin_args` - The list of arguments passed to the `date_bin` function, used to configure the gap-fill parameters.
+/// * `fill_strategy` - The strategy used to fill gaps in the data.
+fn build_gap_fill_node(
+    input: LogicalPlan,
+    date_bin_index: usize,
+    date_bin_args: Vec<Expr>,
+    fill_strategy: FillStrategy,
+) -> Result<LogicalPlan> {
+    // Extract the gap-fill parameters from the arguments to the `DATE_BIN` function.
+    // Any unexpected conditions represents an internal error, as the `DATE_BIN` function is
+    // added by the planner.
+    let (stride, time_range, origin) = if date_bin_args.len() == 3 {
+        let time_col = date_bin_args[1].try_into_col().map_err(|_| {
+            DataFusionError::Internal(
+                "DATE_BIN requires a column as the source argument".to_string(),
+            )
+        })?;
+
+        // Ensure that a time range was specified and is valid for gap filling
+        let time_range = match find_time_range(input.inputs()[0], &time_col)? {
+            // Follow the InfluxQL behaviour to use an upper bound of `now` when
+            // not found:
+            //
+            // See: https://github.com/influxdata/influxdb/blob/98361e207349a3643bcc332d54b009818fe7585f/query/compile.go#L172-L176
+            Range {
+                start,
+                end: Bound::Unbounded,
+            } => Range {
+                start,
+                end: Bound::Excluded(now()),
+            },
+            time_range => time_range,
+        };
+
+        (
+            date_bin_args[0].clone(),
+            time_range,
+            date_bin_args[2].clone(),
+        )
+    } else {
+        // This is an internal error as the date_bin function is added by the planner and should
+        // always contain the correct number of arguments.
+        return Err(DataFusionError::Internal(format!(
+            "DATE_BIN expects 3 arguments, got {}",
+            date_bin_args.len()
+        )));
+    };
+
+    let aggr = Aggregate::try_from_plan(&input)?;
+    let mut new_group_expr: Vec<_> = aggr
+        .schema
+        .fields()
+        .iter()
+        .map(|f| Expr::Column(f.qualified_column()))
+        .collect();
+    let aggr_expr = new_group_expr.split_off(aggr.group_expr.len());
+
+    // The fill strategy for InfluxQL is specified at the query level
+    let fill_strategy = aggr_expr
+        .iter()
+        .cloned()
+        .map(|e| (e, fill_strategy.clone()))
+        .collect();
+
+    let time_column = col(input.schema().fields()[date_bin_index].qualified_column());
+
+    Ok(LogicalPlan::Extension(Extension {
+        node: Arc::new(GapFill::try_new(
+            Arc::new(input),
+            new_group_expr,
+            aggr_expr,
+            GapFillParams {
+                stride,
+                time_column,
+                origin,
+                time_range,
+                fill_strategy,
+            },
+        )?),
+    }))
+}
+
 /// Adds [`InfluxQlMetadata`] to the `plan`.
 ///
 /// **Note**
@@ -1025,13 +1166,18 @@ fn plan_with_metadata(plan: LogicalPlan, metadata: &InfluxQlMetadata) -> Result<
 
 /// Returns `true` if any expressions refer to an aggregate function.
 fn has_aggregate_exprs(fields: &FieldList) -> bool {
-    fields.iter().any(|f| {
-        walk_expr(&f.expr, &mut |e| match e {
-            IQLExpr::Call { name, .. } if is_aggregate_function(name) => ControlFlow::Break(()),
-            _ => ControlFlow::Continue(()),
-        })
-        .is_break()
+    fields.iter().any(is_aggregate_field)
+}
+
+/// A utility function that checks whether `f` is an
+/// aggregate field or not. An aggregate field is one that contains at least one
+/// call to an aggregate function.
+fn is_aggregate_field(f: &Field) -> bool {
+    walk_expr(&f.expr, &mut |e| match e {
+        IQLExpr::Call { name, .. } if is_aggregate_function(name) => ControlFlow::Break(()),
+        _ => ControlFlow::Continue(()),
     })
+    .is_break()
 }
 
 /// Find all the columns where the resolved data type
@@ -1762,105 +1908,191 @@ mod test {
     mod select_aggregate {
         use super::*;
 
-        #[test]
-        fn test_single_measurement() {
-            assert_snapshot!(plan("SELECT COUNT(f64_field) FROM data"), @r###"
+        mod single_measurement {
+            use super::*;
+
+            #[test]
+            fn no_group_by() {
+                assert_snapshot!(plan("SELECT COUNT(f64_field) FROM data"), @r###"
             Sort: time ASC NULLS LAST [iox::measurement:Dictionary(Int32, Utf8), time:Timestamp(Nanosecond, None), count:Int64;N]
               Projection: Dictionary(Int32, Utf8("data")) AS iox::measurement, TimestampNanosecond(0, None) AS time, COUNT(data.f64_field) AS count [iox::measurement:Dictionary(Int32, Utf8), time:Timestamp(Nanosecond, None), count:Int64;N]
                 Aggregate: groupBy=[[]], aggr=[[COUNT(data.f64_field)]] [COUNT(data.f64_field):Int64;N]
                   TableScan: data [TIME:Boolean;N, bar:Dictionary(Int32, Utf8);N, bool_field:Boolean;N, f64_field:Float64;N, foo:Dictionary(Int32, Utf8);N, i64_field:Int64;N, mixedCase:Float64;N, str_field:Utf8;N, time:Timestamp(Nanosecond, None), with space:Float64;N]
             "###);
 
-            assert_snapshot!(plan("SELECT COUNT(f64_field) FROM data GROUP BY non_existent"), @r###"
+                assert_snapshot!(plan("SELECT COUNT(f64_field) FROM data GROUP BY non_existent"), @r###"
             Sort: time ASC NULLS LAST [iox::measurement:Dictionary(Int32, Utf8), time:Timestamp(Nanosecond, None), non_existent:Null;N, count:Int64;N]
               Projection: Dictionary(Int32, Utf8("data")) AS iox::measurement, TimestampNanosecond(0, None) AS time, NULL AS non_existent, COUNT(data.f64_field) AS count [iox::measurement:Dictionary(Int32, Utf8), time:Timestamp(Nanosecond, None), non_existent:Null;N, count:Int64;N]
                 Aggregate: groupBy=[[]], aggr=[[COUNT(data.f64_field)]] [COUNT(data.f64_field):Int64;N]
                   TableScan: data [TIME:Boolean;N, bar:Dictionary(Int32, Utf8);N, bool_field:Boolean;N, f64_field:Float64;N, foo:Dictionary(Int32, Utf8);N, i64_field:Int64;N, mixedCase:Float64;N, str_field:Utf8;N, time:Timestamp(Nanosecond, None), with space:Float64;N]
             "###);
-            assert_snapshot!(plan("SELECT COUNT(f64_field) FROM data GROUP BY foo"), @r###"
+                assert_snapshot!(plan("SELECT COUNT(f64_field) FROM data GROUP BY foo"), @r###"
             Sort: foo ASC NULLS LAST, time ASC NULLS LAST [iox::measurement:Dictionary(Int32, Utf8), time:Timestamp(Nanosecond, None), foo:Dictionary(Int32, Utf8);N, count:Int64;N]
               Projection: Dictionary(Int32, Utf8("data")) AS iox::measurement, TimestampNanosecond(0, None) AS time, data.foo AS foo, COUNT(data.f64_field) AS count [iox::measurement:Dictionary(Int32, Utf8), time:Timestamp(Nanosecond, None), foo:Dictionary(Int32, Utf8);N, count:Int64;N]
                 Aggregate: groupBy=[[data.foo]], aggr=[[COUNT(data.f64_field)]] [foo:Dictionary(Int32, Utf8);N, COUNT(data.f64_field):Int64;N]
                   TableScan: data [TIME:Boolean;N, bar:Dictionary(Int32, Utf8);N, bool_field:Boolean;N, f64_field:Float64;N, foo:Dictionary(Int32, Utf8);N, i64_field:Int64;N, mixedCase:Float64;N, str_field:Utf8;N, time:Timestamp(Nanosecond, None), with space:Float64;N]
             "###);
 
-            // The `COUNT(f64_field)` aggregate is only projected ones in the Aggregate and reused in the projection
-            assert_snapshot!(plan("SELECT COUNT(f64_field), COUNT(f64_field) + COUNT(f64_field), COUNT(f64_field) * 3 FROM data"), @r###"
+                // The `COUNT(f64_field)` aggregate is only projected ones in the Aggregate and reused in the projection
+                assert_snapshot!(plan("SELECT COUNT(f64_field), COUNT(f64_field) + COUNT(f64_field), COUNT(f64_field) * 3 FROM data"), @r###"
             Sort: time ASC NULLS LAST [iox::measurement:Dictionary(Int32, Utf8), time:Timestamp(Nanosecond, None), count:Int64;N, count_f64_field_count_f64_field:Int64;N, count_f64_field:Int64;N]
               Projection: Dictionary(Int32, Utf8("data")) AS iox::measurement, TimestampNanosecond(0, None) AS time, COUNT(data.f64_field) AS count, COUNT(data.f64_field) + COUNT(data.f64_field) AS count_f64_field_count_f64_field, COUNT(data.f64_field) * Int64(3) AS count_f64_field [iox::measurement:Dictionary(Int32, Utf8), time:Timestamp(Nanosecond, None), count:Int64;N, count_f64_field_count_f64_field:Int64;N, count_f64_field:Int64;N]
                 Aggregate: groupBy=[[]], aggr=[[COUNT(data.f64_field)]] [COUNT(data.f64_field):Int64;N]
                   TableScan: data [TIME:Boolean;N, bar:Dictionary(Int32, Utf8);N, bool_field:Boolean;N, f64_field:Float64;N, foo:Dictionary(Int32, Utf8);N, i64_field:Int64;N, mixedCase:Float64;N, str_field:Utf8;N, time:Timestamp(Nanosecond, None), with space:Float64;N]
             "###);
 
-            // non-existent tags are excluded from the Aggregate groupBy and Sort operators
-            assert_snapshot!(plan("SELECT COUNT(f64_field) FROM data GROUP BY foo, non_existent"), @r###"
+                // non-existent tags are excluded from the Aggregate groupBy and Sort operators
+                assert_snapshot!(plan("SELECT COUNT(f64_field) FROM data GROUP BY foo, non_existent"), @r###"
             Sort: foo ASC NULLS LAST, time ASC NULLS LAST [iox::measurement:Dictionary(Int32, Utf8), time:Timestamp(Nanosecond, None), foo:Dictionary(Int32, Utf8);N, non_existent:Null;N, count:Int64;N]
               Projection: Dictionary(Int32, Utf8("data")) AS iox::measurement, TimestampNanosecond(0, None) AS time, data.foo AS foo, NULL AS non_existent, COUNT(data.f64_field) AS count [iox::measurement:Dictionary(Int32, Utf8), time:Timestamp(Nanosecond, None), foo:Dictionary(Int32, Utf8);N, non_existent:Null;N, count:Int64;N]
                 Aggregate: groupBy=[[data.foo]], aggr=[[COUNT(data.f64_field)]] [foo:Dictionary(Int32, Utf8);N, COUNT(data.f64_field):Int64;N]
                   TableScan: data [TIME:Boolean;N, bar:Dictionary(Int32, Utf8);N, bool_field:Boolean;N, f64_field:Float64;N, foo:Dictionary(Int32, Utf8);N, i64_field:Int64;N, mixedCase:Float64;N, str_field:Utf8;N, time:Timestamp(Nanosecond, None), with space:Float64;N]
             "###);
 
-            // Fallible
+                // Aggregate expression is projected once and reused in final projection
+                assert_snapshot!(plan("SELECT COUNT(f64_field),  COUNT(f64_field) * 2 FROM data"), @r###"
+                Sort: time ASC NULLS LAST [iox::measurement:Dictionary(Int32, Utf8), time:Timestamp(Nanosecond, None), count:Int64;N, count_f64_field:Int64;N]
+                  Projection: Dictionary(Int32, Utf8("data")) AS iox::measurement, TimestampNanosecond(0, None) AS time, COUNT(data.f64_field) AS count, COUNT(data.f64_field) * Int64(2) AS count_f64_field [iox::measurement:Dictionary(Int32, Utf8), time:Timestamp(Nanosecond, None), count:Int64;N, count_f64_field:Int64;N]
+                    Aggregate: groupBy=[[]], aggr=[[COUNT(data.f64_field)]] [COUNT(data.f64_field):Int64;N]
+                      TableScan: data [TIME:Boolean;N, bar:Dictionary(Int32, Utf8);N, bool_field:Boolean;N, f64_field:Float64;N, foo:Dictionary(Int32, Utf8);N, i64_field:Int64;N, mixedCase:Float64;N, str_field:Utf8;N, time:Timestamp(Nanosecond, None), with space:Float64;N]
+                "###);
 
-            // Cannot combine aggregate and non-aggregate columns in the projection
-            assert_snapshot!(plan("SELECT COUNT(f64_field), f64_field FROM data"), @"Error during planning: mixing aggregate and non-aggregate columns is not supported");
-            assert_snapshot!(plan("SELECT COUNT(f64_field) + f64_field FROM data"), @"Error during planning: mixing aggregate and non-aggregate columns is not supported");
-        }
+                // Fallible
 
-        #[test]
-        fn test_single_measurement_group_by_time() {
-            assert_snapshot!(plan("SELECT COUNT(f64_field) FROM data GROUP BY TIME(10s) FILL(none)"), @r###"
+                // Cannot combine aggregate and non-aggregate columns in the projection
+                assert_snapshot!(plan("SELECT COUNT(f64_field), f64_field FROM data"), @"Error during planning: mixing aggregate and non-aggregate columns is not supported");
+                assert_snapshot!(plan("SELECT COUNT(f64_field) + f64_field FROM data"), @"Error during planning: mixing aggregate and non-aggregate columns is not supported");
+            }
+
+            #[test]
+            fn group_by_time() {
+                assert_snapshot!(plan("SELECT COUNT(f64_field) FROM data GROUP BY TIME(10s) FILL(none)"), @r###"
             Sort: time ASC NULLS LAST [iox::measurement:Dictionary(Int32, Utf8), time:Timestamp(Nanosecond, None);N, count:Int64;N]
               Projection: Dictionary(Int32, Utf8("data")) AS iox::measurement, time, COUNT(data.f64_field) AS count [iox::measurement:Dictionary(Int32, Utf8), time:Timestamp(Nanosecond, None);N, count:Int64;N]
                 Aggregate: groupBy=[[datebin(IntervalDayTime("10000"), data.time, TimestampNanosecond(0, None)) AS time]], aggr=[[COUNT(data.f64_field)]] [time:Timestamp(Nanosecond, None);N, COUNT(data.f64_field):Int64;N]
                   TableScan: data [TIME:Boolean;N, bar:Dictionary(Int32, Utf8);N, bool_field:Boolean;N, f64_field:Float64;N, foo:Dictionary(Int32, Utf8);N, i64_field:Int64;N, mixedCase:Float64;N, str_field:Utf8;N, time:Timestamp(Nanosecond, None), with space:Float64;N]
             "###);
 
-            // supports offset parameter
-            assert_snapshot!(plan("SELECT COUNT(f64_field) FROM data GROUP BY TIME(10s, 5s) FILL(none)"), @r###"
+                // supports offset parameter
+                assert_snapshot!(plan("SELECT COUNT(f64_field) FROM data GROUP BY TIME(10s, 5s) FILL(none)"), @r###"
             Sort: time ASC NULLS LAST [iox::measurement:Dictionary(Int32, Utf8), time:Timestamp(Nanosecond, None);N, count:Int64;N]
               Projection: Dictionary(Int32, Utf8("data")) AS iox::measurement, time, COUNT(data.f64_field) AS count [iox::measurement:Dictionary(Int32, Utf8), time:Timestamp(Nanosecond, None);N, count:Int64;N]
                 Aggregate: groupBy=[[datebin(IntervalDayTime("10000"), data.time, TimestampNanosecond(5000000000, None)) AS time]], aggr=[[COUNT(data.f64_field)]] [time:Timestamp(Nanosecond, None);N, COUNT(data.f64_field):Int64;N]
                   TableScan: data [TIME:Boolean;N, bar:Dictionary(Int32, Utf8);N, bool_field:Boolean;N, f64_field:Float64;N, foo:Dictionary(Int32, Utf8);N, i64_field:Int64;N, mixedCase:Float64;N, str_field:Utf8;N, time:Timestamp(Nanosecond, None), with space:Float64;N]
             "###);
-        }
-
-        /// These tests validate the planner returns an error when using features that
-        /// are not implemented.
-        mod not_implemented {
-            use super::*;
-
-            #[test]
-            fn test_with_limit_or_offset() {
-                assert_snapshot!(plan("SELECT COUNT(f64_field) FROM data LIMIT 1"), @r###"
-                Limit: skip=0, fetch=1 [iox::measurement:Dictionary(Int32, Utf8), time:Timestamp(Nanosecond, None), count:Int64;N]
-                  Sort: time ASC NULLS LAST [iox::measurement:Dictionary(Int32, Utf8), time:Timestamp(Nanosecond, None), count:Int64;N]
-                    Projection: Dictionary(Int32, Utf8("data")) AS iox::measurement, TimestampNanosecond(0, None) AS time, COUNT(data.f64_field) AS count [iox::measurement:Dictionary(Int32, Utf8), time:Timestamp(Nanosecond, None), count:Int64;N]
-                      Aggregate: groupBy=[[]], aggr=[[COUNT(data.f64_field)]] [COUNT(data.f64_field):Int64;N]
-                        TableScan: data [TIME:Boolean;N, bar:Dictionary(Int32, Utf8);N, bool_field:Boolean;N, f64_field:Float64;N, foo:Dictionary(Int32, Utf8);N, i64_field:Int64;N, mixedCase:Float64;N, str_field:Utf8;N, time:Timestamp(Nanosecond, None), with space:Float64;N]
-                "###);
-                assert_snapshot!(plan("SELECT COUNT(f64_field) FROM data OFFSET 1"), @r###"
-                Limit: skip=1, fetch=None [iox::measurement:Dictionary(Int32, Utf8), time:Timestamp(Nanosecond, None), count:Int64;N]
-                  Sort: time ASC NULLS LAST [iox::measurement:Dictionary(Int32, Utf8), time:Timestamp(Nanosecond, None), count:Int64;N]
-                    Projection: Dictionary(Int32, Utf8("data")) AS iox::measurement, TimestampNanosecond(0, None) AS time, COUNT(data.f64_field) AS count [iox::measurement:Dictionary(Int32, Utf8), time:Timestamp(Nanosecond, None), count:Int64;N]
-                      Aggregate: groupBy=[[]], aggr=[[COUNT(data.f64_field)]] [COUNT(data.f64_field):Int64;N]
-                        TableScan: data [TIME:Boolean;N, bar:Dictionary(Int32, Utf8);N, bool_field:Boolean;N, f64_field:Float64;N, foo:Dictionary(Int32, Utf8);N, i64_field:Int64;N, mixedCase:Float64;N, str_field:Utf8;N, time:Timestamp(Nanosecond, None), with space:Float64;N]
-                "###);
             }
 
             #[test]
-            fn test_group_by_time_precision() {
-                assert_snapshot!(plan("SELECT COUNT(f64_field) FROM data GROUP BY TIME(10u) FILL(none)"), @"This feature is not implemented: interval limited to a precision of milliseconds. See https://github.com/influxdata/influxdb_iox/issues/7204");
-            }
+            fn group_by_time_gapfill() {
+                // No time bounds
+                assert_snapshot!(plan("SELECT COUNT(f64_field) FROM data GROUP BY TIME(10s)"), @r###"
+            Sort: time ASC NULLS LAST [iox::measurement:Dictionary(Int32, Utf8), time:Timestamp(Nanosecond, None);N, count:Int64;N]
+              Projection: Dictionary(Int32, Utf8("data")) AS iox::measurement, time, COUNT(data.f64_field) AS count [iox::measurement:Dictionary(Int32, Utf8), time:Timestamp(Nanosecond, None);N, count:Int64;N]
+                GapFill: groupBy=[[time]], aggr=[[COUNT(data.f64_field)]], time_column=time, stride=IntervalDayTime("10000"), range=Unbounded..Excluded(now()) [time:Timestamp(Nanosecond, None);N, COUNT(data.f64_field):Int64;N]
+                  Aggregate: groupBy=[[datebin(IntervalDayTime("10000"), data.time, TimestampNanosecond(0, None)) AS time]], aggr=[[COUNT(data.f64_field)]] [time:Timestamp(Nanosecond, None);N, COUNT(data.f64_field):Int64;N]
+                    TableScan: data [TIME:Boolean;N, bar:Dictionary(Int32, Utf8);N, bool_field:Boolean;N, f64_field:Float64;N, foo:Dictionary(Int32, Utf8);N, i64_field:Int64;N, mixedCase:Float64;N, str_field:Utf8;N, time:Timestamp(Nanosecond, None), with space:Float64;N]
+            "###);
 
-            #[test]
-            fn test_single_measurement_group_by_time_gapfill() {
+                // No lower time bounds
+                assert_snapshot!(plan("SELECT COUNT(f64_field) FROM data WHERE time < '2022-10-31T02:02:00Z' GROUP BY TIME(10s)"), @r###"
+            Sort: time ASC NULLS LAST [iox::measurement:Dictionary(Int32, Utf8), time:Timestamp(Nanosecond, None);N, count:Int64;N]
+              Projection: Dictionary(Int32, Utf8("data")) AS iox::measurement, time, COUNT(data.f64_field) AS count [iox::measurement:Dictionary(Int32, Utf8), time:Timestamp(Nanosecond, None);N, count:Int64;N]
+                GapFill: groupBy=[[time]], aggr=[[COUNT(data.f64_field)]], time_column=time, stride=IntervalDayTime("10000"), range=Unbounded..Excluded(TimestampNanosecond(1667181720000000000, None)) [time:Timestamp(Nanosecond, None);N, COUNT(data.f64_field):Int64;N]
+                  Aggregate: groupBy=[[datebin(IntervalDayTime("10000"), data.time, TimestampNanosecond(0, None)) AS time]], aggr=[[COUNT(data.f64_field)]] [time:Timestamp(Nanosecond, None);N, COUNT(data.f64_field):Int64;N]
+                    Filter: data.time < TimestampNanosecond(1667181720000000000, None) [TIME:Boolean;N, bar:Dictionary(Int32, Utf8);N, bool_field:Boolean;N, f64_field:Float64;N, foo:Dictionary(Int32, Utf8);N, i64_field:Int64;N, mixedCase:Float64;N, str_field:Utf8;N, time:Timestamp(Nanosecond, None), with space:Float64;N]
+                      TableScan: data [TIME:Boolean;N, bar:Dictionary(Int32, Utf8);N, bool_field:Boolean;N, f64_field:Float64;N, foo:Dictionary(Int32, Utf8);N, i64_field:Int64;N, mixedCase:Float64;N, str_field:Utf8;N, time:Timestamp(Nanosecond, None), with space:Float64;N]
+            "###);
+
+                // No upper time bounds
+                assert_snapshot!(plan("SELECT COUNT(f64_field) FROM data WHERE time >= '2022-10-31T02:00:00Z' GROUP BY TIME(10s)"), @r###"
+            Sort: time ASC NULLS LAST [iox::measurement:Dictionary(Int32, Utf8), time:Timestamp(Nanosecond, None);N, count:Int64;N]
+              Projection: Dictionary(Int32, Utf8("data")) AS iox::measurement, time, COUNT(data.f64_field) AS count [iox::measurement:Dictionary(Int32, Utf8), time:Timestamp(Nanosecond, None);N, count:Int64;N]
+                GapFill: groupBy=[[time]], aggr=[[COUNT(data.f64_field)]], time_column=time, stride=IntervalDayTime("10000"), range=Included(TimestampNanosecond(1667181600000000000, None))..Excluded(now()) [time:Timestamp(Nanosecond, None);N, COUNT(data.f64_field):Int64;N]
+                  Aggregate: groupBy=[[datebin(IntervalDayTime("10000"), data.time, TimestampNanosecond(0, None)) AS time]], aggr=[[COUNT(data.f64_field)]] [time:Timestamp(Nanosecond, None);N, COUNT(data.f64_field):Int64;N]
+                    Filter: data.time >= TimestampNanosecond(1667181600000000000, None) [TIME:Boolean;N, bar:Dictionary(Int32, Utf8);N, bool_field:Boolean;N, f64_field:Float64;N, foo:Dictionary(Int32, Utf8);N, i64_field:Int64;N, mixedCase:Float64;N, str_field:Utf8;N, time:Timestamp(Nanosecond, None), with space:Float64;N]
+                      TableScan: data [TIME:Boolean;N, bar:Dictionary(Int32, Utf8);N, bool_field:Boolean;N, f64_field:Float64;N, foo:Dictionary(Int32, Utf8);N, i64_field:Int64;N, mixedCase:Float64;N, str_field:Utf8;N, time:Timestamp(Nanosecond, None), with space:Float64;N]
+            "###);
+
                 // Default is FILL(null)
-                assert_snapshot!(plan("SELECT COUNT(f64_field) FROM data GROUP BY TIME(10s)"), @"This feature is not implemented: FILL(NULL)");
-                assert_snapshot!(plan("SELECT COUNT(f64_field) FROM data GROUP BY TIME(10s) FILL(null)"), @"This feature is not implemented: FILL(NULL)");
-                assert_snapshot!(plan("SELECT COUNT(f64_field) FROM data GROUP BY TIME(10s) FILL(linear)"), @"This feature is not implemented: FILL(LINEAR)");
-                assert_snapshot!(plan("SELECT COUNT(f64_field) FROM data GROUP BY TIME(10s) FILL(previous)"), @"This feature is not implemented: FILL(PREVIOUS)");
-                assert_snapshot!(plan("SELECT COUNT(f64_field) FROM data GROUP BY TIME(10s) FILL(0)"), @"This feature is not implemented: FILL(0)");
+                assert_snapshot!(plan("SELECT COUNT(f64_field) FROM data WHERE time >= '2022-10-31T02:00:00Z' AND time < '2022-10-31T02:02:00Z' GROUP BY TIME(10s)"), @r###"
+                Sort: time ASC NULLS LAST [iox::measurement:Dictionary(Int32, Utf8), time:Timestamp(Nanosecond, None);N, count:Int64;N]
+                  Projection: Dictionary(Int32, Utf8("data")) AS iox::measurement, time, COUNT(data.f64_field) AS count [iox::measurement:Dictionary(Int32, Utf8), time:Timestamp(Nanosecond, None);N, count:Int64;N]
+                    GapFill: groupBy=[[time]], aggr=[[COUNT(data.f64_field)]], time_column=time, stride=IntervalDayTime("10000"), range=Included(TimestampNanosecond(1667181600000000000, None))..Excluded(TimestampNanosecond(1667181720000000000, None)) [time:Timestamp(Nanosecond, None);N, COUNT(data.f64_field):Int64;N]
+                      Aggregate: groupBy=[[datebin(IntervalDayTime("10000"), data.time, TimestampNanosecond(0, None)) AS time]], aggr=[[COUNT(data.f64_field)]] [time:Timestamp(Nanosecond, None);N, COUNT(data.f64_field):Int64;N]
+                        Filter: data.time >= TimestampNanosecond(1667181600000000000, None) AND data.time < TimestampNanosecond(1667181720000000000, None) [TIME:Boolean;N, bar:Dictionary(Int32, Utf8);N, bool_field:Boolean;N, f64_field:Float64;N, foo:Dictionary(Int32, Utf8);N, i64_field:Int64;N, mixedCase:Float64;N, str_field:Utf8;N, time:Timestamp(Nanosecond, None), with space:Float64;N]
+                          TableScan: data [TIME:Boolean;N, bar:Dictionary(Int32, Utf8);N, bool_field:Boolean;N, f64_field:Float64;N, foo:Dictionary(Int32, Utf8);N, i64_field:Int64;N, mixedCase:Float64;N, str_field:Utf8;N, time:Timestamp(Nanosecond, None), with space:Float64;N]
+                "###);
+                assert_snapshot!(plan("SELECT COUNT(f64_field) FROM data GROUP BY TIME(10s)"), @r###"
+                Sort: time ASC NULLS LAST [iox::measurement:Dictionary(Int32, Utf8), time:Timestamp(Nanosecond, None);N, count:Int64;N]
+                  Projection: Dictionary(Int32, Utf8("data")) AS iox::measurement, time, COUNT(data.f64_field) AS count [iox::measurement:Dictionary(Int32, Utf8), time:Timestamp(Nanosecond, None);N, count:Int64;N]
+                    GapFill: groupBy=[[time]], aggr=[[COUNT(data.f64_field)]], time_column=time, stride=IntervalDayTime("10000"), range=Unbounded..Excluded(now()) [time:Timestamp(Nanosecond, None);N, COUNT(data.f64_field):Int64;N]
+                      Aggregate: groupBy=[[datebin(IntervalDayTime("10000"), data.time, TimestampNanosecond(0, None)) AS time]], aggr=[[COUNT(data.f64_field)]] [time:Timestamp(Nanosecond, None);N, COUNT(data.f64_field):Int64;N]
+                        TableScan: data [TIME:Boolean;N, bar:Dictionary(Int32, Utf8);N, bool_field:Boolean;N, f64_field:Float64;N, foo:Dictionary(Int32, Utf8);N, i64_field:Int64;N, mixedCase:Float64;N, str_field:Utf8;N, time:Timestamp(Nanosecond, None), with space:Float64;N]
+                "###);
+                assert_snapshot!(plan("SELECT COUNT(f64_field) FROM data GROUP BY TIME(10s) FILL(null)"), @r###"
+                Sort: time ASC NULLS LAST [iox::measurement:Dictionary(Int32, Utf8), time:Timestamp(Nanosecond, None);N, count:Int64;N]
+                  Projection: Dictionary(Int32, Utf8("data")) AS iox::measurement, time, COUNT(data.f64_field) AS count [iox::measurement:Dictionary(Int32, Utf8), time:Timestamp(Nanosecond, None);N, count:Int64;N]
+                    GapFill: groupBy=[[time]], aggr=[[COUNT(data.f64_field)]], time_column=time, stride=IntervalDayTime("10000"), range=Unbounded..Excluded(now()) [time:Timestamp(Nanosecond, None);N, COUNT(data.f64_field):Int64;N]
+                      Aggregate: groupBy=[[datebin(IntervalDayTime("10000"), data.time, TimestampNanosecond(0, None)) AS time]], aggr=[[COUNT(data.f64_field)]] [time:Timestamp(Nanosecond, None);N, COUNT(data.f64_field):Int64;N]
+                        TableScan: data [TIME:Boolean;N, bar:Dictionary(Int32, Utf8);N, bool_field:Boolean;N, f64_field:Float64;N, foo:Dictionary(Int32, Utf8);N, i64_field:Int64;N, mixedCase:Float64;N, str_field:Utf8;N, time:Timestamp(Nanosecond, None), with space:Float64;N]
+                "###);
+                assert_snapshot!(plan("SELECT COUNT(f64_field) FROM data GROUP BY TIME(10s) FILL(previous)"), @r###"
+                Sort: time ASC NULLS LAST [iox::measurement:Dictionary(Int32, Utf8), time:Timestamp(Nanosecond, None);N, count:Int64;N]
+                  Projection: Dictionary(Int32, Utf8("data")) AS iox::measurement, time, COUNT(data.f64_field) AS count [iox::measurement:Dictionary(Int32, Utf8), time:Timestamp(Nanosecond, None);N, count:Int64;N]
+                    GapFill: groupBy=[[time]], aggr=[[LOCF(null-as-missing, COUNT(data.f64_field))]], time_column=time, stride=IntervalDayTime("10000"), range=Unbounded..Excluded(now()) [time:Timestamp(Nanosecond, None);N, COUNT(data.f64_field):Int64;N]
+                      Aggregate: groupBy=[[datebin(IntervalDayTime("10000"), data.time, TimestampNanosecond(0, None)) AS time]], aggr=[[COUNT(data.f64_field)]] [time:Timestamp(Nanosecond, None);N, COUNT(data.f64_field):Int64;N]
+                        TableScan: data [TIME:Boolean;N, bar:Dictionary(Int32, Utf8);N, bool_field:Boolean;N, f64_field:Float64;N, foo:Dictionary(Int32, Utf8);N, i64_field:Int64;N, mixedCase:Float64;N, str_field:Utf8;N, time:Timestamp(Nanosecond, None), with space:Float64;N]
+                "###);
+                assert_snapshot!(plan("SELECT COUNT(f64_field) FROM data GROUP BY TIME(10s) FILL(0)"), @r###"
+                Sort: time ASC NULLS LAST [iox::measurement:Dictionary(Int32, Utf8), time:Timestamp(Nanosecond, None);N, count:Int64;N]
+                  Projection: Dictionary(Int32, Utf8("data")) AS iox::measurement, time, coalesce(COUNT(data.f64_field), Int64(0)) AS count [iox::measurement:Dictionary(Int32, Utf8), time:Timestamp(Nanosecond, None);N, count:Int64;N]
+                    GapFill: groupBy=[[time]], aggr=[[COUNT(data.f64_field)]], time_column=time, stride=IntervalDayTime("10000"), range=Unbounded..Excluded(now()) [time:Timestamp(Nanosecond, None);N, COUNT(data.f64_field):Int64;N]
+                      Aggregate: groupBy=[[datebin(IntervalDayTime("10000"), data.time, TimestampNanosecond(0, None)) AS time]], aggr=[[COUNT(data.f64_field)]] [time:Timestamp(Nanosecond, None);N, COUNT(data.f64_field):Int64;N]
+                        TableScan: data [TIME:Boolean;N, bar:Dictionary(Int32, Utf8);N, bool_field:Boolean;N, f64_field:Float64;N, foo:Dictionary(Int32, Utf8);N, i64_field:Int64;N, mixedCase:Float64;N, str_field:Utf8;N, time:Timestamp(Nanosecond, None), with space:Float64;N]
+                "###);
+
+                // Coalesces the fill value, which is a float, to the matching type of a `COUNT` aggregate.
+                assert_snapshot!(plan("SELECT COUNT(f64_field) FROM data GROUP BY TIME(10s) FILL(3.2)"), @r###"
+                Sort: time ASC NULLS LAST [iox::measurement:Dictionary(Int32, Utf8), time:Timestamp(Nanosecond, None);N, count:Int64;N]
+                  Projection: Dictionary(Int32, Utf8("data")) AS iox::measurement, time, coalesce(COUNT(data.f64_field), Int64(3)) AS count [iox::measurement:Dictionary(Int32, Utf8), time:Timestamp(Nanosecond, None);N, count:Int64;N]
+                    GapFill: groupBy=[[time]], aggr=[[COUNT(data.f64_field)]], time_column=time, stride=IntervalDayTime("10000"), range=Unbounded..Excluded(now()) [time:Timestamp(Nanosecond, None);N, COUNT(data.f64_field):Int64;N]
+                      Aggregate: groupBy=[[datebin(IntervalDayTime("10000"), data.time, TimestampNanosecond(0, None)) AS time]], aggr=[[COUNT(data.f64_field)]] [time:Timestamp(Nanosecond, None);N, COUNT(data.f64_field):Int64;N]
+                        TableScan: data [TIME:Boolean;N, bar:Dictionary(Int32, Utf8);N, bool_field:Boolean;N, f64_field:Float64;N, foo:Dictionary(Int32, Utf8);N, i64_field:Int64;N, mixedCase:Float64;N, str_field:Utf8;N, time:Timestamp(Nanosecond, None), with space:Float64;N]
+                "###);
+
+                // Aggregates as part of a binary expression
+                assert_snapshot!(plan("SELECT COUNT(f64_field) + MEAN(f64_field) FROM data GROUP BY TIME(10s) FILL(3.2)"), @r###"
+                Sort: time ASC NULLS LAST [iox::measurement:Dictionary(Int32, Utf8), time:Timestamp(Nanosecond, None);N, count_f64_field_mean_f64_field:Float64;N]
+                  Projection: Dictionary(Int32, Utf8("data")) AS iox::measurement, time, coalesce(COUNT(data.f64_field), Int64(3)) + coalesce(AVG(data.f64_field), Float64(3.2)) AS count_f64_field_mean_f64_field [iox::measurement:Dictionary(Int32, Utf8), time:Timestamp(Nanosecond, None);N, count_f64_field_mean_f64_field:Float64;N]
+                    GapFill: groupBy=[[time]], aggr=[[COUNT(data.f64_field), AVG(data.f64_field)]], time_column=time, stride=IntervalDayTime("10000"), range=Unbounded..Excluded(now()) [time:Timestamp(Nanosecond, None);N, COUNT(data.f64_field):Int64;N, AVG(data.f64_field):Float64;N]
+                      Aggregate: groupBy=[[datebin(IntervalDayTime("10000"), data.time, TimestampNanosecond(0, None)) AS time]], aggr=[[COUNT(data.f64_field), AVG(data.f64_field)]] [time:Timestamp(Nanosecond, None);N, COUNT(data.f64_field):Int64;N, AVG(data.f64_field):Float64;N]
+                        TableScan: data [TIME:Boolean;N, bar:Dictionary(Int32, Utf8);N, bool_field:Boolean;N, f64_field:Float64;N, foo:Dictionary(Int32, Utf8);N, i64_field:Int64;N, mixedCase:Float64;N, str_field:Utf8;N, time:Timestamp(Nanosecond, None), with space:Float64;N]
+                "###);
+            }
+
+            /// These tests validate the planner returns an error when using features that
+            /// are not implemented or supported.
+            mod not_implemented {
+                use super::*;
+
+                /// Tracked by <https://github.com/influxdata/influxdb_iox/issues/6920>
+                #[test]
+                fn with_limit_or_offset() {
+                    assert_snapshot!(plan("SELECT COUNT(f64_field) FROM data GROUP BY foo LIMIT 1"), @"This feature is not implemented: GROUP BY combined with LIMIT or OFFSET clause");
+                    assert_snapshot!(plan("SELECT COUNT(f64_field) FROM data GROUP BY foo OFFSET 1"), @"This feature is not implemented: GROUP BY combined with LIMIT or OFFSET clause");
+                }
+
+                /// Tracked by <https://github.com/influxdata/influxdb_iox/issues/7204>
+                #[test]
+                fn group_by_time_precision() {
+                    assert_snapshot!(plan("SELECT COUNT(f64_field) FROM data GROUP BY TIME(10u) FILL(none)"), @"This feature is not implemented: interval limited to a precision of milliseconds. See https://github.com/influxdata/influxdb_iox/issues/7204");
+                }
+
+                /// Tracked by <https://github.com/influxdata/influxdb_iox/issues/6916>
+                #[test]
+                fn group_by_time_gapfill() {
+                    assert_snapshot!(plan("SELECT COUNT(f64_field) FROM data GROUP BY TIME(10s) FILL(linear)"), @"This feature is not implemented: FILL(LINEAR)");
+                }
             }
         }
     }

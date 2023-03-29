@@ -14,7 +14,7 @@ use datafusion::{
 
 /// Given a plan and a column, finds the predicates that use that column
 /// and return a range with expressions for upper and lower bounds.
-pub(super) fn find_time_range(plan: &LogicalPlan, time_col: &Column) -> Result<Range<Bound<Expr>>> {
+pub fn find_time_range(plan: &LogicalPlan, time_col: &Column) -> Result<Range<Bound<Expr>>> {
     let mut v = TimeRangeVisitor {
         col: time_col.clone(),
         range: TimeRange::default(),
