@@ -130,31 +130,76 @@ impl IoxGetRequest {
         })
     }
 
-    /// The Go clients still use an older form of ticket encoding, JSON tickets
+    /// Some clients still use an older form of ticket encoding, JSON tickets
     ///
     /// - <https://github.com/influxdata/influxdb-iox-client-go/commit/2e7a3b0bd47caab7f1a31a1bbe0ff54aa9486b7b>
     /// - <https://github.com/influxdata/influxdb-iox-client-go/commit/52f1a1b8d5bb8cc8dc2fe825f4da630ad0b9167c>
     ///
-    /// Go clients are unable to execute InfluxQL queries until the JSON structure is updated
-    /// accordingly.
+    /// # Example JSON format
+    /// This runs the SQL "SELECT 1" in namespace `my_db`
+    ///
+    /// ```json
+    /// {
+    ///   "namespace_name": "my_db",
+    ///   "sql_query": "SELECT 1;"
+    /// }
+    /// ```
+    ///
+    /// This is the same as the example above, but has an explicit query language
+    ///
+    /// ```json
+    /// {
+    ///   "namespace_name": "my_db",
+    ///   "sql_query": "SELECT 1;"
+    ///   "query_type": "sql"
+    /// }
+    /// ```
+    ///
+    /// This runs the 'SHOW DATABASES' InfluxQL command (the `sql_query` field name is misleading)
+    ///
+    /// ```json
+    /// {
+    ///   "namespace_name": "my_db",
+    ///   "sql_query": "SHOW DATABASES;"
+    ///   "query_type": "influxql"
+    /// }
+    /// ```
     fn decode_json(ticket: Bytes) -> Result<Self, String> {
         let json_str = String::from_utf8(ticket.to_vec()).map_err(|_| "Not UTF8".to_string())?;
 
+        /// This represents ths JSON fields
         #[derive(Deserialize, Debug)]
         struct ReadInfoJson {
             namespace_name: String,
             sql_query: String,
+            // If query type is not supplied, defaults to SQL
+            query_type: Option<String>,
         }
 
         let ReadInfoJson {
             namespace_name,
             sql_query,
+            query_type,
         } = serde_json::from_str(&json_str).map_err(|e| format!("JSON parse error: {e}"))?;
+
+        let query = if let Some(query_type) = query_type {
+            match query_type.as_str() {
+                "sql" => RunQuery::Sql(sql_query),
+                "influxql" => RunQuery::InfluxQL(sql_query),
+                _ => {
+                    return Err(format!(
+                        "unknown query type. Expected 'sql' or 'influxql', got {query_type}'"
+                    ))
+                }
+            }
+        } else {
+            // default to SQL
+            RunQuery::Sql(sql_query)
+        };
 
         Ok(Self {
             namespace_name,
-            /// Old JSON format is always SQL
-            query: RunQuery::Sql(sql_query),
+            query,
         })
     }
 
@@ -223,7 +268,7 @@ mod tests {
     use super::*;
 
     #[test]
-    fn json_ticket_decoding() {
+    fn json_ticket_decoding_compatibility() {
         // The Go clients still use JSON tickets. See:
         //
         // - <https://github.com/influxdata/influxdb-iox-client-go/commit/2e7a3b0bd47caab7f1a31a1bbe0ff54aa9486b7b>
@@ -238,9 +283,94 @@ mod tests {
     }
 
     #[test]
-    fn json_ticket_decoding_error() {
+    fn json_ticket_decoding() {
+        struct TestCase {
+            json: &'static str,
+            expected: IoxGetRequest,
+        }
+
+        impl TestCase {
+            fn new_sql(json: &'static str, expected_namespace: &str, query: &str) -> Self {
+                Self {
+                    json,
+                    expected: IoxGetRequest {
+                        namespace_name: String::from(expected_namespace),
+                        query: RunQuery::Sql(String::from(query)),
+                    },
+                }
+            }
+
+            fn new_influxql(json: &'static str, expected_namespace: &str, query: &str) -> Self {
+                Self {
+                    json,
+                    expected: IoxGetRequest {
+                        namespace_name: String::from(expected_namespace),
+                        query: RunQuery::InfluxQL(String::from(query)),
+                    },
+                }
+            }
+        }
+
+        let cases = vec![
+            // implict `query_type`
+            TestCase::new_sql(
+                r#"{"namespace_name": "my_db", "sql_query": "SELECT 1;"}"#,
+                "my_db",
+                "SELECT 1;",
+            ),
+            // explicit query type, sql
+            TestCase::new_sql(
+                r#"{"namespace_name": "my_db", "sql_query": "SELECT 1;", "query_type": "sql"}"#,
+                "my_db",
+                "SELECT 1;",
+            ),
+            // explicit query type null
+            TestCase::new_sql(
+                r#"{"namespace_name": "my_db", "sql_query": "SELECT 1;", "query_type": null}"#,
+                "my_db",
+                "SELECT 1;",
+            ),
+            // explicit query type, influxql
+            TestCase::new_influxql(
+                r#"{"namespace_name": "my_otherdb", "sql_query": "SHOW DATABASES;", "query_type": "influxql"}"#,
+                "my_otherdb",
+                "SHOW DATABASES;",
+            ),
+        ];
+
+        for TestCase { json, expected } in cases {
+            println!("Test:\nInput:\n{json}\nExpected:\n{expected:?}");
+            let ticket = make_json_ticket(json);
+
+            let ri = IoxGetRequest::try_decode(ticket).unwrap();
+            assert_eq!(ri, expected);
+        }
+    }
+
+    #[test]
+    fn json_ticket_decoding_invalid_json() {
         // invalid json (database name rather than namespace name)
         let ticket = make_json_ticket(r#"{"database_name": "my_db", "sql_query": "SELECT 1;"}"#);
+        let e = IoxGetRequest::try_decode(ticket).unwrap_err();
+        assert_matches!(e, Error::Invalid);
+    }
+
+    #[test]
+    fn json_ticket_decoding_invalid_query_type() {
+        // invalid query_type
+        let ticket = make_json_ticket(
+            r#"{"namespace_name": "my_otherdb", "sql_query": "SHOW DATABASES;", "query_type": "flight"}"#,
+        );
+        let e = IoxGetRequest::try_decode(ticket).unwrap_err();
+        assert_matches!(e, Error::Invalid);
+    }
+
+    #[test]
+    fn json_ticket_decoding_empty_query_type() {
+        // invalid query_type ""
+        let ticket = make_json_ticket(
+            r#"{"namespace_name": "my_otherdb", "sql_query": "SHOW DATABASES;", "query_type": ""}"#,
+        );
         let e = IoxGetRequest::try_decode(ticket).unwrap_err();
         assert_matches!(e, Error::Invalid);
     }
