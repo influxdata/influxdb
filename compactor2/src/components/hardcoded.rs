@@ -144,10 +144,7 @@ pub fn hardcoded_components(config: &Config) -> Arc<Components> {
         round_info_source: make_round_info_source(config),
         partition_filter: make_partition_filter(config),
         partition_done_sink,
-        commit: Arc::new(LoggingCommitWrapper::new(MetricsCommitWrapper::new(
-            commit,
-            &config.metric_registry,
-        ))),
+        commit,
         ir_planner: Arc::new(LoggingIRPlannerWrapper::new(V1IRPlanner::new(
             config.max_desired_file_size_bytes,
             config.percentage_max_file_size,
@@ -264,6 +261,11 @@ fn make_partitions_source_commit_partition_sink(
         1,
     );
 
+    let commit = Arc::new(LoggingCommitWrapper::new(MetricsCommitWrapper::new(
+        commit,
+        &config.metric_registry,
+    )));
+
     let partition_done_sink: Arc<dyn PartitionDoneSink> = if config.all_errors_are_fatal {
         Arc::new(partition_done_sink)
     } else {
@@ -304,7 +306,7 @@ fn make_partitions_source_commit_partition_sink(
         ))
     };
 
-    (partitions_source, Arc::new(commit), partition_done_sink)
+    (partitions_source, commit, partition_done_sink)
 }
 
 fn make_partition_stream(
