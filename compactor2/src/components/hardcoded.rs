@@ -93,37 +93,6 @@ use super::{
 
 /// Get hardcoded components.
 pub fn hardcoded_components(config: &Config) -> Arc<Components> {
-    let partitions_source: Arc<dyn PartitionsSource> = match &config.partitions_source {
-        PartitionsSourceConfig::CatalogRecentWrites => {
-            Arc::new(CatalogToCompactPartitionsSource::new(
-                config.backoff_config.clone(),
-                Arc::clone(&config.catalog),
-                config.partition_threshold,
-                Arc::clone(&config.time_provider),
-            ))
-        }
-        PartitionsSourceConfig::CatalogAll => Arc::new(CatalogAllPartitionsSource::new(
-            config.backoff_config.clone(),
-            Arc::clone(&config.catalog),
-        )),
-        PartitionsSourceConfig::Fixed(ids) => {
-            Arc::new(MockPartitionsSource::new(ids.iter().cloned().collect()))
-        }
-    };
-
-    let mut id_only_partition_filters: Vec<Arc<dyn IdOnlyPartitionFilter>> = vec![];
-    if let Some(shard_config) = &config.shard_config {
-        // add shard filter before performing any catalog IO
-        id_only_partition_filters.push(Arc::new(ShardPartitionFilter::new(
-            shard_config.n_shards,
-            shard_config.shard_id,
-        )));
-    }
-    let partitions_source = FilterPartitionsSourceWrapper::new(
-        AndIdOnlyPartitionFilter::new(id_only_partition_filters),
-        partitions_source,
-    );
-
     let mut partition_filters: Vec<Arc<dyn PartitionFilter>> = vec![];
     partition_filters.push(Arc::new(HasFilesPartitionFilter::new()));
     if !config.ignore_partition_skip_marker {
@@ -139,81 +108,10 @@ pub fn hardcoded_components(config: &Config) -> Arc<Components> {
     )));
     partition_filters.append(&mut make_partition_filters(config));
 
-    let partition_done_sink: Arc<dyn PartitionDoneSink> = if config.shadow_mode {
-        Arc::new(MockPartitionDoneSink::new())
-    } else {
-        Arc::new(CatalogPartitionDoneSink::new(
-            config.backoff_config.clone(),
-            Arc::clone(&config.catalog),
-        ))
-    };
-
-    let commit: Arc<dyn Commit> = if config.shadow_mode {
-        Arc::new(MockCommit::new())
-    } else {
-        Arc::new(CatalogCommit::new(
-            config.backoff_config.clone(),
-            Arc::clone(&config.catalog),
-        ))
-    };
-
-    let commit = if let Some(commit_wrapper) = config.commit_wrapper.as_ref() {
-        commit_wrapper.wrap(commit)
-    } else {
-        commit
-    };
-
     let scratchpad_store_output = if config.shadow_mode {
         Arc::new(IgnoreWrites::new(Arc::new(InMemory::new())))
     } else {
         Arc::clone(config.parquet_store_real.object_store())
-    };
-
-    let (partitions_source, partition_done_sink) =
-        unique_partitions(partitions_source, partition_done_sink, 1);
-    let (partitions_source, commit, partition_done_sink) = throttle_partition(
-        partitions_source,
-        commit,
-        partition_done_sink,
-        Arc::clone(&config.time_provider),
-        Duration::from_secs(60),
-        1,
-    );
-    let partition_done_sink: Arc<dyn PartitionDoneSink> = if config.all_errors_are_fatal {
-        Arc::new(partition_done_sink)
-    } else {
-        Arc::new(ErrorKindPartitionDoneSinkWrapper::new(
-            partition_done_sink,
-            ErrorKind::variants()
-                .iter()
-                .filter(|kind| {
-                    // use explicit match statement so we never forget to add new variants
-                    match kind {
-                        ErrorKind::OutOfMemory | ErrorKind::Timeout | ErrorKind::Unknown => true,
-                        ErrorKind::ObjectStore => false,
-                    }
-                })
-                .copied()
-                .collect(),
-        ))
-    };
-
-    // Note: Place "not empty" wrapper at the very last so that the logging and metric wrapper work even when there
-    //       is not data.
-    let partitions_source =
-        LoggingPartitionsSourceWrapper::new(MetricsPartitionsSourceWrapper::new(
-            RandomizeOrderPartitionsSourcesWrapper::new(partitions_source, 1234),
-            &config.metric_registry,
-        ));
-    let partitions_source: Arc<dyn PartitionsSource> = if config.process_once {
-        // do not wrap into the "not empty" filter because we do NOT wanna throttle in this case but just exit early
-        Arc::new(partitions_source)
-    } else {
-        Arc::new(NotEmptyPartitionsSourceWrapper::new(
-            partitions_source,
-            Duration::from_secs(5),
-            Arc::clone(&config.time_provider),
-        ))
     };
 
     let partition_continue_conditions = "continue_conditions";
@@ -251,6 +149,9 @@ pub fn hardcoded_components(config: &Config) -> Arc<Components> {
             ));
             Arc::new(DispatchParquetFilesSink::new(parquet_file_sink))
         };
+
+    let (partitions_source, commit, partition_done_sink) =
+        make_partitions_source_commit_partition_sink(config);
 
     Arc::new(Components {
         partition_stream: make_partition_stream(config, partitions_source),
@@ -333,6 +234,120 @@ pub fn hardcoded_components(config: &Config) -> Arc<Components> {
         ),
         changed_files_filter: Arc::new(LoggingChangedFiles::new()),
     })
+}
+
+fn make_partitions_source_commit_partition_sink(
+    config: &Config,
+) -> (
+    Arc<dyn PartitionsSource>,
+    Arc<dyn Commit>,
+    Arc<dyn PartitionDoneSink>,
+) {
+    let partitions_source: Arc<dyn PartitionsSource> = match &config.partitions_source {
+        PartitionsSourceConfig::CatalogRecentWrites => {
+            Arc::new(CatalogToCompactPartitionsSource::new(
+                config.backoff_config.clone(),
+                Arc::clone(&config.catalog),
+                config.partition_threshold,
+                Arc::clone(&config.time_provider),
+            ))
+        }
+        PartitionsSourceConfig::CatalogAll => Arc::new(CatalogAllPartitionsSource::new(
+            config.backoff_config.clone(),
+            Arc::clone(&config.catalog),
+        )),
+        PartitionsSourceConfig::Fixed(ids) => {
+            Arc::new(MockPartitionsSource::new(ids.iter().cloned().collect()))
+        }
+    };
+
+    let mut id_only_partition_filters: Vec<Arc<dyn IdOnlyPartitionFilter>> = vec![];
+    if let Some(shard_config) = &config.shard_config {
+        // add shard filter before performing any catalog IO
+        id_only_partition_filters.push(Arc::new(ShardPartitionFilter::new(
+            shard_config.n_shards,
+            shard_config.shard_id,
+        )));
+    }
+    let partitions_source = FilterPartitionsSourceWrapper::new(
+        AndIdOnlyPartitionFilter::new(id_only_partition_filters),
+        partitions_source,
+    );
+
+    let partition_done_sink: Arc<dyn PartitionDoneSink> = if config.shadow_mode {
+        Arc::new(MockPartitionDoneSink::new())
+    } else {
+        Arc::new(CatalogPartitionDoneSink::new(
+            config.backoff_config.clone(),
+            Arc::clone(&config.catalog),
+        ))
+    };
+
+    let commit: Arc<dyn Commit> = if config.shadow_mode {
+        Arc::new(MockCommit::new())
+    } else {
+        Arc::new(CatalogCommit::new(
+            config.backoff_config.clone(),
+            Arc::clone(&config.catalog),
+        ))
+    };
+
+    let commit = if let Some(commit_wrapper) = config.commit_wrapper.as_ref() {
+        commit_wrapper.wrap(commit)
+    } else {
+        commit
+    };
+
+    let (partitions_source, partition_done_sink) =
+        unique_partitions(partitions_source, partition_done_sink, 1);
+
+    let (partitions_source, commit, partition_done_sink) = throttle_partition(
+        partitions_source,
+        commit,
+        partition_done_sink,
+        Arc::clone(&config.time_provider),
+        Duration::from_secs(60),
+        1,
+    );
+
+    let partition_done_sink: Arc<dyn PartitionDoneSink> = if config.all_errors_are_fatal {
+        Arc::new(partition_done_sink)
+    } else {
+        Arc::new(ErrorKindPartitionDoneSinkWrapper::new(
+            partition_done_sink,
+            ErrorKind::variants()
+                .iter()
+                .filter(|kind| {
+                    // use explicit match statement so we never forget to add new variants
+                    match kind {
+                        ErrorKind::OutOfMemory | ErrorKind::Timeout | ErrorKind::Unknown => true,
+                        ErrorKind::ObjectStore => false,
+                    }
+                })
+                .copied()
+                .collect(),
+        ))
+    };
+
+    // Note: Place "not empty" wrapper at the very last so that the logging and metric wrapper work even when there
+    //       is not data.
+    let partitions_source =
+        LoggingPartitionsSourceWrapper::new(MetricsPartitionsSourceWrapper::new(
+            RandomizeOrderPartitionsSourcesWrapper::new(partitions_source, 1234),
+            &config.metric_registry,
+        ));
+    let partitions_source: Arc<dyn PartitionsSource> = if config.process_once {
+        // do not wrap into the "not empty" filter because we do NOT wanna throttle in this case but just exit early
+        Arc::new(partitions_source)
+    } else {
+        Arc::new(NotEmptyPartitionsSourceWrapper::new(
+            partitions_source,
+            Duration::from_secs(5),
+            Arc::clone(&config.time_provider),
+        ))
+    };
+
+    (partitions_source, Arc::new(commit), partition_done_sink)
 }
 
 fn make_partition_stream(
