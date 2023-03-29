@@ -67,7 +67,6 @@ pub enum FillStrategy {
     /// This is the InfluxQL behavior for `FILL(NULL)` or `FILL(NONE)`.
     Null,
     /// Fill with the most recent value in the input column.
-    #[allow(dead_code)]
     Prev,
     /// Fill with the most recent non-null value in the input column.
     /// This is the InfluxQL behavior for `FILL(PREVIOUS)`.
@@ -135,6 +134,18 @@ impl GapFillParams {
             fill_strategy,
         }
     }
+
+    // Find the expression that matches `e` and replace its fill strategy.
+    // If such an expression is found, return the old strategy, and `None` otherwise.
+    fn replace_fill_strategy(&mut self, e: &Expr, mut fs: FillStrategy) -> Option<FillStrategy> {
+        for expr_fs in &mut self.fill_strategy {
+            if &expr_fs.0 == e {
+                std::mem::swap(&mut fs, &mut expr_fs.1);
+                return Some(fs);
+            }
+        }
+        None
+    }
 }
 
 impl GapFill {
@@ -155,6 +166,16 @@ impl GapFill {
             aggr_expr,
             params,
         })
+    }
+
+    // Find the expression that matches `e` and replace its fill strategy.
+    // If such an expression is found, return the old strategy, and `None` otherwise.
+    pub(crate) fn replace_fill_strategy(
+        &mut self,
+        e: &Expr,
+        fs: FillStrategy,
+    ) -> Option<FillStrategy> {
+        self.params.replace_fill_strategy(e, fs)
     }
 }
 
@@ -181,12 +202,24 @@ impl UserDefinedLogicalNodeCore for GapFill {
     }
 
     fn fmt_for_explain(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        let aggr_expr: String = self
+            .params
+            .fill_strategy
+            .iter()
+            .map(|(e, fs)| match fs {
+                FillStrategy::Prev => format!("LOCF({})", e),
+                FillStrategy::PrevNullAsMissing => format!("LOCF(null-as-missing, {})", e),
+                FillStrategy::LinearInterpolate => format!("INTERPOLATE({})", e),
+                FillStrategy::Null => e.to_string(),
+            })
+            .collect::<Vec<String>>()
+            .join(", ");
         write!(
             f,
-            "{}: groupBy=[{:?}], aggr=[{:?}], time_column={}, stride={}, range={:?}",
+            "{}: groupBy=[{:?}], aggr=[[{}]], time_column={}, stride={}, range={:?}",
             self.name(),
             self.group_expr,
-            self.aggr_expr,
+            aggr_expr,
             self.params.time_column,
             self.params.stride,
             self.params.time_range,
@@ -488,7 +521,17 @@ impl ExecutionPlan for GapFillExec {
         match t {
             DisplayFormatType::Default => {
                 let group_expr: Vec<_> = self.group_expr.iter().map(|e| e.to_string()).collect();
-                let aggr_expr: Vec<_> = self.aggr_expr.iter().map(|e| e.to_string()).collect();
+                let aggr_expr: Vec<_> = self
+                    .params
+                    .fill_strategy
+                    .iter()
+                    .map(|(e, fs)| match fs {
+                        FillStrategy::Prev => format!("LOCF({})", e),
+                        FillStrategy::PrevNullAsMissing => format!("LOCF(null-as-missing, {})", e),
+                        FillStrategy::LinearInterpolate => format!("INTERPOLATE({})", e),
+                        FillStrategy::Null => e.to_string(),
+                    })
+                    .collect();
                 let time_range = try_map_range(&self.params.time_range, |b| {
                     try_map_bound(b.as_ref(), |e| Ok(e.to_string()))
                 })

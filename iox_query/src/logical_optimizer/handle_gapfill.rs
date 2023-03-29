@@ -9,11 +9,12 @@ use datafusion::{
     error::{DataFusionError, Result},
     logical_expr::{
         utils::expr_to_columns, Aggregate, BuiltinScalarFunction, Extension, LogicalPlan,
+        Projection,
     },
     optimizer::{optimizer::ApplyOrder, OptimizerConfig, OptimizerRule},
     prelude::{col, Expr},
 };
-use query_functions::gapfill::DATE_BIN_GAPFILL_UDF_NAME;
+use query_functions::gapfill::{DATE_BIN_GAPFILL_UDF_NAME, LOCF_UDF_NAME};
 use std::{
     collections::HashSet,
     ops::{Bound, Range},
@@ -21,29 +22,48 @@ use std::{
 };
 
 /// This optimizer rule enables gap-filling semantics for SQL queries
-/// that contain calls to `DATE_BIN_GAPFILL()`.
+/// that contain calls to `DATE_BIN_GAPFILL()` and related functions
+/// like `LOCF()`.
 ///
 /// In SQL a typical gap-filling query might look like this:
 /// ```sql
 /// SELECT
 ///   location,
 ///   DATE_BIN_GAPFILL(INTERVAL '1 minute', time, '1970-01-01T00:00:00Z') AS minute,
-///   AVG(temp)
+///   LOCF(AVG(temp))
 /// FROM temps
 /// WHERE time > NOW() - INTERVAL '6 hours' AND time < NOW()
 /// GROUP BY LOCATION, MINUTE
 /// ```
-/// The aggregation step of the initial logical plan looks like this:
+///
+/// The initial logical plan will look like this:
+///
 /// ```text
-///   Aggregate: groupBy=[[datebingapfill(IntervalDayTime("60000"), temps.time, TimestampNanosecond(0, None)))]], aggr=[[AVG(temps.temp)]]
+///   Projection: location, date_bin_gapfill(...) as minute, LOCF(AVG(temps.temp))
+///     Aggregate: groupBy=[[location, date_bin_gapfill(...)]], aggr=[[AVG(temps.temp)]]
+///       ...
 /// ```
-/// However, `DATE_BIN_GAPFILL()` does not have an actual implementation like other functions.
-/// Instead, the plan is transformed to this:
+///
+/// This optimizer rule transforms it to this:
+///
 /// ```text
-/// GapFill: groupBy=[[datebingapfill(IntervalDayTime("60000"), temps.time, TimestampNanosecond(0, None)))]], aggr=[[AVG(temps.temp)]], start=..., stop=...
-///   Aggregate: groupBy=[[datebingapfill(IntervalDayTime("60000"), temps.time, TimestampNanosecond(0, None)))]], aggr=[[AVG(temps.temp)]]
+///   Projection: location, date_bin_gapfill(...) as minute, AVG(temps.temp)
+///     GapFill: groupBy=[[location, date_bin_gapfill(...))]], aggr=[[LOCF(AVG(temps.temp))]], start=..., stop=...
+///       Aggregate: groupBy=[[location, date_bin(...))]], aggr=[[AVG(temps.temp)]]
+///         ...
 /// ```
-/// This optimizer rule makes that transformation.
+///
+/// For `Aggregate` nodes that contain calls to `DATE_BIN_GAPFILL`, this rule will:
+/// - Convert `DATE_BIN_GAPFILL()` to `DATE_BIN()`
+/// - Create a `GapFill` node that fills in gaps in the query
+/// - The range for gap filling is found by analyzing any preceding `Filter` nodes
+///
+/// If there is a `Projection` above the `GapFill` node that gets created:
+/// - Look for calls to gap-filling functions like `LOCF`
+/// - Push down these functions into the `GapFill` node, updating the fill strategy for the column.
+///
+/// Note: both `DATE_BIN_GAPFILL` and `LOCF` are functions that don't have implementations.
+/// This rule must rewrite the plan to get rid of them.
 pub struct HandleGapFill;
 
 impl HandleGapFill {
@@ -79,6 +99,7 @@ impl OptimizerRule for HandleGapFill {
 fn handle_gap_fill(plan: &LogicalPlan) -> Result<Option<LogicalPlan>> {
     let res = match plan {
         LogicalPlan::Aggregate(aggr) => handle_aggregate(aggr)?,
+        LogicalPlan::Projection(proj) => handle_projection(proj)?,
         _ => None,
     };
 
@@ -260,7 +281,7 @@ fn replace_date_bin_gapfill(group_expr: &[Expr]) -> Result<Option<RewriteInfo>> 
         .iter()
         .enumerate()
         .try_for_each(|(i, e)| -> Result<()> {
-            let fn_cnt = count_date_bin_gapfill(e)?;
+            let fn_cnt = count_udf(e, DATE_BIN_GAPFILL_UDF_NAME)?;
             date_bin_gapfill_count += fn_cnt;
             if fn_cnt > 0 {
                 dbg_idx = Some(i);
@@ -328,28 +349,96 @@ impl TreeNodeRewriter for DateBinGapfillRewriter {
     }
 }
 
-fn count_date_bin_gapfill(e: &Expr) -> Result<usize> {
+fn handle_projection(proj: &Projection) -> Result<Option<LogicalPlan>> {
+    let Projection {
+        input,
+        expr: proj_exprs,
+        schema: proj_schema,
+        ..
+    } = proj;
+    let Some(child_gapfill) = (match input.as_ref() {
+        LogicalPlan::Extension(Extension { node }) => node.as_any().downcast_ref::<GapFill>(),
+        _ => None,
+    }) else {
+        // If this is not a projection that is a parent to a GapFill node,
+        // then there is nothing to do.
+        return Ok(None)
+    };
+
+    let fill_cols: Vec<(&Expr, FillStrategy)> = proj_exprs
+        .iter()
+        .filter_map(|e| match e {
+            Expr::ScalarUDF { fun, args } if fun.name == LOCF_UDF_NAME => {
+                let col = &args[0];
+                Some((col, FillStrategy::Prev))
+            }
+            _ => None,
+        })
+        .collect();
+    if fill_cols.is_empty() {
+        // No special gap-filling functions, nothing to do.
+        return Ok(None);
+    }
+
+    // Clone the existing GapFill node, then modify it in place
+    // to reflect the new fill strategy.
+    let mut new_gapfill = child_gapfill.clone();
+    for (e, col) in fill_cols {
+        if new_gapfill.replace_fill_strategy(e, col).is_none() {
+            // There was a gap filling function called on an aggregate column.
+            return Err(DataFusionError::Plan(
+                "LOCF must be called on an aggregate column in a gap-filling query".to_string(),
+            ));
+        }
+    }
+
+    // Remove the gap filling functions from the projection.
+    let new_proj_exprs: Vec<Expr> = proj_exprs
+        .iter()
+        .cloned()
+        .map(|e| match e {
+            Expr::ScalarUDF { fun, mut args } if fun.name == LOCF_UDF_NAME => args.remove(0),
+            _ => e,
+        })
+        .collect();
+
+    let new_proj = {
+        let mut proj = proj.clone();
+        proj.expr = new_proj_exprs;
+        proj.input = Arc::new(LogicalPlan::Extension(Extension {
+            node: Arc::new(new_gapfill),
+        }));
+        proj.schema = Arc::clone(proj_schema);
+        LogicalPlan::Projection(proj)
+    };
+
+    Ok(Some(new_proj))
+}
+
+fn count_udf(e: &Expr, name: &str) -> Result<usize> {
     let mut count = 0;
     e.apply(&mut |expr| {
         match expr {
-            Expr::ScalarUDF { fun, .. } if fun.name == DATE_BIN_GAPFILL_UDF_NAME => {
+            Expr::ScalarUDF { fun, .. } if fun.name == name => {
                 count += 1;
             }
             _ => (),
         };
         Ok(VisitRecursion::Continue)
-    })
-    .expect("no errors");
-
+    })?;
     Ok(count)
 }
 
 fn check_node(node: &LogicalPlan) -> Result<()> {
     node.expressions().iter().try_for_each(|expr| {
-        let count = count_date_bin_gapfill(expr)?;
-        if count > 0 {
+        let dbg_count = count_udf(expr, DATE_BIN_GAPFILL_UDF_NAME)?;
+        if dbg_count > 0 {
             Err(DataFusionError::Plan(format!(
                 "{DATE_BIN_GAPFILL_UDF_NAME} may only be used as a GROUP BY expression"
+            )))
+        } else if count_udf(expr, LOCF_UDF_NAME)? > 0 {
+            Err(DataFusionError::Plan(format!(
+                "{LOCF_UDF_NAME} may only be used in the SELECT list of a gap-filling query"
             )))
         } else {
             Ok(())
@@ -368,9 +457,9 @@ mod test {
     use datafusion::logical_expr::{logical_plan, LogicalPlan, LogicalPlanBuilder};
     use datafusion::optimizer::optimizer::Optimizer;
     use datafusion::optimizer::OptimizerContext;
-    use datafusion::prelude::{avg, case, col, lit, lit_timestamp_nano, Expr};
+    use datafusion::prelude::{avg, case, col, lit, lit_timestamp_nano, min, Expr};
     use datafusion::scalar::ScalarValue;
-    use query_functions::gapfill::DATE_BIN_GAPFILL_UDF_NAME;
+    use query_functions::gapfill::{DATE_BIN_GAPFILL_UDF_NAME, LOCF_UDF_NAME};
 
     fn table_scan() -> Result<LogicalPlan> {
         let schema = Schema::new(vec![
@@ -398,6 +487,13 @@ mod test {
         Ok(Expr::ScalarUDF {
             fun: query_functions::registry().udf(DATE_BIN_GAPFILL_UDF_NAME)?,
             args: vec![interval, time, origin],
+        })
+    }
+
+    fn locf(arg: Expr) -> Result<Expr> {
+        Ok(Expr::ScalarUDF {
+            fun: query_functions::registry().udf(LOCF_UDF_NAME)?,
+            args: vec![arg],
         })
     }
 
@@ -451,7 +547,7 @@ mod test {
     }
 
     #[test]
-    fn misplaced_fns_err() -> Result<()> {
+    fn misplaced_dbg_err() -> Result<()> {
         // date_bin_gapfill used in a filter should produce an error
         let scan = table_scan()?;
         let plan = LogicalPlanBuilder::from(scan)
@@ -466,6 +562,52 @@ mod test {
         assert_optimizer_err(
             &plan,
             "Error during planning: date_bin_gapfill may only be used as a GROUP BY expression",
+        );
+        Ok(())
+    }
+
+    /// calling LOCF in a WHERE predicate is not valid
+    #[test]
+    fn misplaced_locf_err() -> Result<()> {
+        // date_bin_gapfill used in a filter should produce an error
+        let scan = table_scan()?;
+        let plan = LogicalPlanBuilder::from(scan)
+            .filter(locf(col("temp"))?.gt(lit(100.0)))?
+            .build()?;
+        assert_optimizer_err(
+            &plan,
+            "Error during planning: locf may only be used in the SELECT list of a gap-filling query",
+        );
+        Ok(())
+    }
+
+    /// calling LOCF on the SELECT list but not on an aggregate column is not valid.
+    #[test]
+    fn misplaced_locf_non_agg_err() -> Result<()> {
+        let dbg_args = "IntervalDayTime(\"60000\"),temps.time,TimestampNanosecond(0, None)";
+        let plan = LogicalPlanBuilder::from(table_scan()?)
+            .filter(
+                col("time")
+                    .gt_eq(lit_timestamp_nano(1000))
+                    .and(col("time").lt(lit_timestamp_nano(2000))),
+            )?
+            .aggregate(
+                vec![
+                    col("loc"),
+                    date_bin_gapfill(lit(ScalarValue::IntervalDayTime(Some(60_000))), col("time"))?,
+                ],
+                vec![avg(col("temp")), min(col("temp"))],
+            )?
+            .project(vec![
+                locf(col("loc"))?,
+                col(format!("date_bin_gapfill({dbg_args})")),
+                locf(col("AVG(temps.temp)"))?,
+                locf(col("MIN(temps.temp)"))?,
+            ])?
+            .build()?;
+        assert_optimizer_err(
+            &plan,
+            "LOCF must be called on an aggregate column in a gap-filling query",
         );
         Ok(())
     }
@@ -672,6 +814,39 @@ mod test {
             "Projection: date_bin_gapfill({dbg_args}), AVG(temps.temp)\
            \n  GapFill: groupBy=[[date_bin_gapfill({dbg_args})]], aggr=[[AVG(temps.temp)]], time_column=date_bin_gapfill({dbg_args}), stride=IntervalDayTime(\"60000\"), range=Included(TimestampNanosecond(1000, None))..Excluded(TimestampNanosecond(2000, None))\
            \n    Aggregate: groupBy=[[datebin(IntervalDayTime(\"60000\"), temps.time, TimestampNanosecond(0, None))]], aggr=[[AVG(temps.temp)]]\
+           \n      Filter: temps.time >= TimestampNanosecond(1000, None) AND temps.time < TimestampNanosecond(2000, None)\
+           \n        TableScan: temps");
+        assert_optimized_plan_eq(&plan, &expected)?;
+        Ok(())
+    }
+
+    #[test]
+    fn with_locf() -> Result<()> {
+        let dbg_args = "IntervalDayTime(\"60000\"),temps.time,TimestampNanosecond(0, None)";
+        let plan = LogicalPlanBuilder::from(table_scan()?)
+            .filter(
+                col("time")
+                    .gt_eq(lit_timestamp_nano(1000))
+                    .and(col("time").lt(lit_timestamp_nano(2000))),
+            )?
+            .aggregate(
+                vec![date_bin_gapfill(
+                    lit(ScalarValue::IntervalDayTime(Some(60_000))),
+                    col("time"),
+                )?],
+                vec![avg(col("temp")), min(col("temp"))],
+            )?
+            .project(vec![
+                col(format!("date_bin_gapfill({dbg_args})")),
+                locf(col("AVG(temps.temp)"))?,
+                locf(col("MIN(temps.temp)"))?,
+            ])?
+            .build()?;
+
+        let expected = format!(
+            "Projection: date_bin_gapfill({dbg_args}), AVG(temps.temp), MIN(temps.temp)\
+           \n  GapFill: groupBy=[[date_bin_gapfill({dbg_args})]], aggr=[[LOCF(AVG(temps.temp)), LOCF(MIN(temps.temp))]], time_column=date_bin_gapfill({dbg_args}), stride=IntervalDayTime(\"60000\"), range=Included(TimestampNanosecond(1000, None))..Excluded(TimestampNanosecond(2000, None))\
+           \n    Aggregate: groupBy=[[datebin(IntervalDayTime(\"60000\"), temps.time, TimestampNanosecond(0, None))]], aggr=[[AVG(temps.temp), MIN(temps.temp)]]\
            \n      Filter: temps.time >= TimestampNanosecond(1000, None) AND temps.time < TimestampNanosecond(2000, None)\
            \n        TableScan: temps");
         assert_optimized_plan_eq(&plan, &expected)?;

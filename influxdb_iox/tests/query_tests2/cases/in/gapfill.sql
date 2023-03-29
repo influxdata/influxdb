@@ -48,3 +48,21 @@ from cpu
 where time between timestamp '2000-05-05T12:00:00Z' and timestamp '2000-05-05T12:59:00Z'
 group by minute, region;
 
+-- gap filling with previous value using LOCF
+-- IOX_COMPARE: uuid
+EXPLAIN SELECT
+  region,
+  date_bin_gapfill(interval '10 minute', time, timestamp '1970-01-01T00:00:00Z') as minute,
+  locf(avg(cpu.user))
+from cpu
+where time between timestamp '2000-05-05T12:00:00Z' and timestamp '2000-05-05T12:59:00Z'
+group by region, minute;
+
+SELECT
+  region,
+  date_bin_gapfill(interval '5 minute', time, timestamp '1970-01-01T00:00:00Z') as minute,
+  locf(min(cpu.user))
+from cpu
+where time between timestamp '2000-05-05T12:15:00Z' and timestamp '2000-05-05T12:59:00Z'
+group by region, minute;
+
