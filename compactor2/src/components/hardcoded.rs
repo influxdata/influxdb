@@ -40,7 +40,7 @@ use super::{
     id_only_partition_filter::{
         and::AndIdOnlyPartitionFilter, shard::ShardPartitionFilter, IdOnlyPartitionFilter,
     },
-    ir_planner::{logging::LoggingIRPlannerWrapper, planner_v1::V1IRPlanner},
+    ir_planner::{logging::LoggingIRPlannerWrapper, planner_v1::V1IRPlanner, IRPlanner},
     parquet_file_sink::{
         dedicated::DedicatedExecParquetFileSinkWrapper, logging::LoggingParquetFileSinkWrapper,
         object_store::ObjectStoreParquetFileSink,
@@ -145,11 +145,7 @@ pub fn hardcoded_components(config: &Config) -> Arc<Components> {
         partition_filter: make_partition_filter(config),
         partition_done_sink,
         commit,
-        ir_planner: Arc::new(LoggingIRPlannerWrapper::new(V1IRPlanner::new(
-            config.max_desired_file_size_bytes,
-            config.percentage_max_file_size,
-            config.split_percentage,
-        ))),
+        ir_planner: make_ir_planner(config),
         df_planner: Arc::new(V1DataFusionPlanner::new(
             config.parquet_store_scratchpad.clone(),
             Arc::clone(&config.exec),
@@ -395,4 +391,12 @@ fn make_partition_filter(config: &Config) -> Arc<dyn PartitionFilter> {
         ),
         partition_continue_conditions,
     ))
+}
+
+fn make_ir_planner(config: &Config) -> Arc<dyn IRPlanner> {
+    Arc::new(LoggingIRPlannerWrapper::new(V1IRPlanner::new(
+        config.max_desired_file_size_bytes,
+        config.percentage_max_file_size,
+        config.split_percentage,
+    )))
 }
