@@ -23,7 +23,7 @@ use super::{
     df_plan_exec::{
         dedicated::DedicatedDataFusionPlanExec, noop::NoopDataFusionPlanExec, DataFusionPlanExec,
     },
-    df_planner::planner_v1::V1DataFusionPlanner,
+    df_planner::{planner_v1::V1DataFusionPlanner, DataFusionPlanner},
     divide_initial::multiple_branches::MultipleBranchesDivideInitial,
     file_classifier::{
         logging::LoggingFileClassifierWrapper, split_based::SplitBasedFileClassifier,
@@ -144,10 +144,7 @@ pub fn hardcoded_components(config: &Config) -> Arc<Components> {
         partition_done_sink,
         commit,
         ir_planner: make_ir_planner(config),
-        df_planner: Arc::new(V1DataFusionPlanner::new(
-            config.parquet_store_scratchpad.clone(),
-            Arc::clone(&config.exec),
-        )),
+        df_planner: make_df_planner(config),
         df_plan_exec,
         parquet_files_sink,
         round_split: Arc::new(ManyFilesRoundSplit::new()),
@@ -397,4 +394,11 @@ fn make_ir_planner(config: &Config) -> Arc<dyn IRPlanner> {
         config.percentage_max_file_size,
         config.split_percentage,
     )))
+}
+
+fn make_df_planner(config: &Config) -> Arc<dyn DataFusionPlanner> {
+    Arc::new(V1DataFusionPlanner::new(
+        config.parquet_store_scratchpad.clone(),
+        Arc::clone(&config.exec),
+    ))
 }
