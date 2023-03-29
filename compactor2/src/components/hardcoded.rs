@@ -216,11 +216,6 @@ pub fn hardcoded_components(config: &Config) -> Arc<Components> {
         ))
     };
 
-    let partition_stream: Arc<dyn PartitionStream> = if config.process_once {
-        Arc::new(OncePartititionStream::new(partitions_source))
-    } else {
-        Arc::new(EndlessPartititionStream::new(partitions_source))
-    };
     let partition_continue_conditions = "continue_conditions";
     let partition_resource_limit_conditions = "resource_limit_conditions";
 
@@ -258,7 +253,7 @@ pub fn hardcoded_components(config: &Config) -> Arc<Components> {
         };
 
     Arc::new(Components {
-        partition_stream,
+        partition_stream: make_partition_stream(config, partitions_source),
         partition_info_source: Arc::new(SubSourcePartitionInfoSource::new(
             LoggingPartitionSourceWrapper::new(MetricsPartitionSourceWrapper::new(
                 CatalogPartitionSource::new(
@@ -338,6 +333,17 @@ pub fn hardcoded_components(config: &Config) -> Arc<Components> {
         ),
         changed_files_filter: Arc::new(LoggingChangedFiles::new()),
     })
+}
+
+fn make_partition_stream(
+    config: &Config,
+    partitions_source: Arc<dyn PartitionsSource>,
+) -> Arc<dyn PartitionStream> {
+    if config.process_once {
+        Arc::new(OncePartititionStream::new(partitions_source))
+    } else {
+        Arc::new(EndlessPartititionStream::new(partitions_source))
+    }
 }
 
 // Conditions to compact this partittion
