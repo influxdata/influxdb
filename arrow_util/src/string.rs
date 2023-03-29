@@ -1,6 +1,7 @@
 use arrow::array::ArrayDataBuilder;
 use arrow::array::StringArray;
 use arrow::buffer::Buffer;
+use arrow::buffer::NullBuffer;
 use num_traits::{AsPrimitive, FromPrimitive, Zero};
 use std::fmt::Debug;
 use std::ops::Range;
@@ -157,7 +158,7 @@ impl<K: AsPrimitive<usize> + FromPrimitive + Zero> PackedStringArray<K> {
 
 impl PackedStringArray<i32> {
     /// Convert to an arrow with an optional null bitmask
-    pub fn to_arrow(&self, nulls: Option<Buffer>) -> StringArray {
+    pub fn to_arrow(&self, nulls: Option<NullBuffer>) -> StringArray {
         let len = self.offsets.len() - 1;
         let offsets = Buffer::from_slice_ref(&self.offsets);
         let values = Buffer::from(self.storage.as_bytes());
@@ -166,7 +167,7 @@ impl PackedStringArray<i32> {
             .len(len)
             .add_buffer(offsets)
             .add_buffer(values)
-            .null_bit_buffer(nulls)
+            .nulls(nulls)
             .build()
             // TODO consider skipping the validation checks by using
             // `new_unchecked`

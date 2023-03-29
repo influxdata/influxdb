@@ -3,7 +3,7 @@
 use std::convert::TryFrom;
 
 use arrow::array::{Array, ArrayDataBuilder, DictionaryArray};
-use arrow::buffer::Buffer;
+use arrow::buffer::NullBuffer;
 use arrow::datatypes::{DataType, Int32Type};
 use hashbrown::HashMap;
 use num_traits::{AsPrimitive, FromPrimitive, Zero};
@@ -137,7 +137,7 @@ fn hash_str(hasher: &ahash::RandomState, value: &str) -> u64 {
 impl StringDictionary<i32> {
     /// Convert to an arrow representation with the provided set of
     /// keys and an optional null bitmask
-    pub fn to_arrow<I>(&self, keys: I, nulls: Option<Buffer>) -> DictionaryArray<Int32Type>
+    pub fn to_arrow<I>(&self, keys: I, nulls: Option<NullBuffer>) -> DictionaryArray<Int32Type>
     where
         I: IntoIterator<Item = i32>,
         I::IntoIter: ExactSizeIterator,
@@ -154,7 +154,7 @@ impl StringDictionary<i32> {
         .len(keys.len())
         .add_buffer(keys.collect())
         .add_child_data(self.storage.to_arrow(dictionary_nulls).data().clone())
-        .null_bit_buffer(nulls)
+        .nulls(nulls)
         // TODO consider skipping the validation checks by using
         // `build_unchecked()`
         .build()

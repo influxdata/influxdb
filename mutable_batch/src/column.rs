@@ -5,6 +5,7 @@ use arrow::{
         ArrayDataBuilder, ArrayRef, BooleanArray, Float64Array, Int64Array,
         TimestampNanosecondArray, UInt64Array,
     },
+    buffer::NullBuffer,
     datatypes::DataType,
     error::ArrowError,
 };
@@ -260,13 +261,14 @@ impl Column {
 
     /// Converts this column to an arrow [`ArrayRef`]
     pub fn to_arrow(&self) -> Result<ArrayRef> {
-        let nulls = self.valid.to_arrow();
+        let nulls = Some(NullBuffer::new(self.valid.to_arrow()));
+
         let data: ArrayRef = match &self.data {
             ColumnData::F64(data, _) => {
                 let data = ArrayDataBuilder::new(DataType::Float64)
                     .len(data.len())
                     .add_buffer(data.iter().cloned().collect())
-                    .null_bit_buffer(Some(nulls))
+                    .nulls(nulls)
                     .build()
                     .context(CreatingArrowArraySnafu)?;
                 Arc::new(Float64Array::from(data))
@@ -276,7 +278,7 @@ impl Column {
                     let data = ArrayDataBuilder::new(TIME_DATA_TYPE())
                         .len(data.len())
                         .add_buffer(data.iter().cloned().collect())
-                        .null_bit_buffer(Some(nulls))
+                        .nulls(nulls)
                         .build()
                         .context(CreatingArrowArraySnafu)?;
                     Arc::new(TimestampNanosecondArray::from(data))
@@ -286,7 +288,7 @@ impl Column {
                     let data = ArrayDataBuilder::new(DataType::Int64)
                         .len(data.len())
                         .add_buffer(data.iter().cloned().collect())
-                        .null_bit_buffer(Some(nulls))
+                        .nulls(nulls)
                         .build()
                         .context(CreatingArrowArraySnafu)?;
                     Arc::new(Int64Array::from(data))
@@ -297,23 +299,23 @@ impl Column {
                 let data = ArrayDataBuilder::new(DataType::UInt64)
                     .len(data.len())
                     .add_buffer(data.iter().cloned().collect())
-                    .null_bit_buffer(Some(nulls))
+                    .nulls(nulls)
                     .build()
                     .context(CreatingArrowArraySnafu)?;
                 Arc::new(UInt64Array::from(data))
             }
-            ColumnData::String(data, _) => Arc::new(data.to_arrow(Some(nulls))),
+            ColumnData::String(data, _) => Arc::new(data.to_arrow(nulls)),
             ColumnData::Bool(data, _) => {
                 let data = ArrayDataBuilder::new(DataType::Boolean)
                     .len(data.len())
-                    .add_buffer(data.to_arrow())
-                    .null_bit_buffer(Some(nulls))
+                    .add_buffer(data.to_arrow().into_inner())
+                    .nulls(nulls)
                     .build()
                     .context(CreatingArrowArraySnafu)?;
                 Arc::new(BooleanArray::from(data))
             }
             ColumnData::Tag(data, dictionary, _) => {
-                Arc::new(dictionary.to_arrow(data.iter().cloned(), Some(nulls)))
+                Arc::new(dictionary.to_arrow(data.iter().cloned(), nulls))
             }
         };
 

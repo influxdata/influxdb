@@ -182,7 +182,7 @@ fn writer_props(meta: &IoxMetadata) -> Result<WriterProperties, prost::EncodeErr
             key: METADATA_KEY.to_string(),
             value: Some(meta.to_base64()?),
         }]))
-        .set_compression(Compression::ZSTD)
+        .set_compression(Compression::ZSTD(Default::default()))
         .set_max_row_group_size(ROW_GROUP_WRITE_SIZE);
 
     Ok(builder.build())
