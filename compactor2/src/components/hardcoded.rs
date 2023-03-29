@@ -93,23 +93,6 @@ use super::{
 pub fn hardcoded_components(config: &Config) -> Arc<Components> {
     let partition_resource_limit_conditions = "resource_limit_conditions";
 
-    let parquet_files_sink: Arc<dyn ParquetFilesSink> =
-        if let Some(sink) = config.parquet_files_sink_override.as_ref() {
-            Arc::clone(sink)
-        } else {
-            let parquet_file_sink = Arc::new(LoggingParquetFileSinkWrapper::new(
-                DedicatedExecParquetFileSinkWrapper::new(
-                    ObjectStoreParquetFileSink::new(
-                        config.shard_id,
-                        config.parquet_store_scratchpad.clone(),
-                        Arc::clone(&config.time_provider),
-                    ),
-                    Arc::clone(&config.exec),
-                ),
-            ));
-            Arc::new(DispatchParquetFilesSink::new(parquet_file_sink))
-        };
-
     let (partitions_source, commit, partition_done_sink) =
         make_partitions_source_commit_partition_sink(config);
 
@@ -124,7 +107,7 @@ pub fn hardcoded_components(config: &Config) -> Arc<Components> {
         ir_planner: make_ir_planner(config),
         df_planner: make_df_planner(config),
         df_plan_exec: make_df_plan_exec(config),
-        parquet_files_sink,
+        parquet_files_sink: make_parquet_files_sink(config),
         round_split: Arc::new(ManyFilesRoundSplit::new()),
         divide_initial: Arc::new(MultipleBranchesDivideInitial::new()),
         scratchpad_gen: make_scratchpad_gen(config),
@@ -386,6 +369,24 @@ fn make_df_plan_exec(config: &Config) -> Arc<dyn DataFusionPlanExec> {
         Arc::new(NoopDataFusionPlanExec::new())
     } else {
         Arc::new(DedicatedDataFusionPlanExec::new(Arc::clone(&config.exec)))
+    }
+}
+
+fn make_parquet_files_sink(config: &Config) -> Arc<dyn ParquetFilesSink> {
+    if let Some(sink) = config.parquet_files_sink_override.as_ref() {
+        Arc::clone(sink)
+    } else {
+        let parquet_file_sink = Arc::new(LoggingParquetFileSinkWrapper::new(
+            DedicatedExecParquetFileSinkWrapper::new(
+                ObjectStoreParquetFileSink::new(
+                    config.shard_id,
+                    config.parquet_store_scratchpad.clone(),
+                    Arc::clone(&config.time_provider),
+                ),
+                Arc::clone(&config.exec),
+            ),
+        ));
+        Arc::new(DispatchParquetFilesSink::new(parquet_file_sink))
     }
 }
 
