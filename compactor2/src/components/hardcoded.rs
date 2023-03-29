@@ -340,7 +340,7 @@ pub fn hardcoded_components(config: &Config) -> Arc<Components> {
     })
 }
 
-// Conditions to commpact this partittion
+// Conditions to compact this partittion
 fn make_partition_filters(config: &Config) -> Vec<Arc<dyn PartitionFilter>> {
     // (Has-L0) OR            -- to avoid overlaped files
     // (num(L1) > N) OR       -- to avoid many files
