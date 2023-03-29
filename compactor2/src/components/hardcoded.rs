@@ -8,10 +8,6 @@ use data_types::CompactionLevel;
 use object_store::memory::InMemory;
 
 use crate::{
-    components::{
-        namespaces_source::catalog::CatalogNamespacesSource,
-        tables_source::catalog::CatalogTablesSource,
-    },
     config::{Config, PartitionsSourceConfig},
     error::ErrorKind,
     object_store::ignore_writes::IgnoreWrites,
@@ -41,6 +37,7 @@ use super::{
         and::AndIdOnlyPartitionFilter, shard::ShardPartitionFilter, IdOnlyPartitionFilter,
     },
     ir_planner::{logging::LoggingIRPlannerWrapper, planner_v1::V1IRPlanner, IRPlanner},
+    namespaces_source::catalog::CatalogNamespacesSource,
     parquet_file_sink::{
         dedicated::DedicatedExecParquetFileSinkWrapper, logging::LoggingParquetFileSinkWrapper,
         object_store::ObjectStoreParquetFileSink,
@@ -88,6 +85,7 @@ use super::{
         logging::LoggingSplitOrCompactWrapper, metrics::MetricsSplitOrCompactWrapper,
         split_compact::SplitCompact,
     },
+    tables_source::catalog::CatalogTablesSource,
     Components,
 };
 
