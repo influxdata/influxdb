@@ -143,9 +143,7 @@ pub fn hardcoded_components(config: &Config) -> Arc<Components> {
         partition_files_source: make_partition_files_source(config),
         round_info_source: make_round_info_source(config),
         partition_filter: make_partition_filter(config),
-        partition_done_sink: Arc::new(LoggingPartitionDoneSinkWrapper::new(
-            MetricsPartitionDoneSinkWrapper::new(partition_done_sink, &config.metric_registry),
-        )),
+        partition_done_sink,
         commit: Arc::new(LoggingCommitWrapper::new(MetricsCommitWrapper::new(
             commit,
             &config.metric_registry,
@@ -284,6 +282,9 @@ fn make_partitions_source_commit_partition_sink(
                 .collect(),
         ))
     };
+    let partition_done_sink = Arc::new(LoggingPartitionDoneSinkWrapper::new(
+        MetricsPartitionDoneSinkWrapper::new(partition_done_sink, &config.metric_registry),
+    ));
 
     // Note: Place "not empty" wrapper at the very last so that the logging and metric wrapper work even when there
     //       is not data.
