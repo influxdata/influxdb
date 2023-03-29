@@ -102,6 +102,7 @@ impl IngesterConnection for MockIngesterConnection {
                             batches,
                             ts_min_max: ic.ts_min_max,
                             summary: Arc::new(summary),
+                            delete_predicates: vec![],
                         }
                     })
                     .collect::<Vec<_>>();

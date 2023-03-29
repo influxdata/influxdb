@@ -13,8 +13,8 @@ use async_trait::async_trait;
 use backoff::{Backoff, BackoffConfig, BackoffError};
 use client_util::connection;
 use data_types::{
-    ChunkId, ChunkOrder, IngesterMapping, NamespaceId, PartitionId, SequenceNumber, ShardId,
-    ShardIndex, TableSummary, TimestampMinMax,
+    ChunkId, ChunkOrder, DeletePredicate, IngesterMapping, NamespaceId, PartitionId,
+    SequenceNumber, ShardId, ShardIndex, TableSummary, TimestampMinMax,
 };
 use datafusion::error::DataFusionError;
 use futures::{stream::FuturesUnordered, TryStreamExt};
@@ -1134,6 +1134,7 @@ impl IngesterPartition {
             batches,
             ts_min_max,
             summary,
+            delete_predicates: vec![],
         };
 
         self.chunks.push(chunk);
@@ -1186,6 +1187,23 @@ impl IngesterPartition {
         &self.chunks
     }
 
+    pub(crate) fn with_delete_predicates(
+        self,
+        delete_predicates: Vec<Arc<DeletePredicate>>,
+    ) -> Self {
+        Self {
+            chunks: self
+                .chunks
+                .into_iter()
+                .map(|chunk| IngesterChunk {
+                    delete_predicates: delete_predicates.clone(),
+                    ..chunk
+                })
+                .collect(),
+            ..self
+        }
+    }
+
     pub(crate) fn into_chunks(self) -> Vec<IngesterChunk> {
         self.chunks
     }
@@ -1208,6 +1226,8 @@ pub struct IngesterChunk {
 
     /// Summary Statistics
     summary: Arc<TableSummary>,
+
+    delete_predicates: Vec<Arc<DeletePredicate>>,
 }
 
 impl IngesterChunk {
@@ -1271,7 +1291,7 @@ impl QueryChunkMeta for IngesterChunk {
     }
 
     fn delete_predicates(&self) -> &[Arc<data_types::DeletePredicate>] {
-        &[]
+        &self.delete_predicates
     }
 }
 

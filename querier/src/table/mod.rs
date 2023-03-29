@@ -225,8 +225,8 @@ impl QuerierTable {
 
                 // Expression used to add to delete predicate to delete data older than retention
                 // period time < retention_time
-                let retention_delete_pred = Some(DeletePredicate::retention_delete_predicate(
-                    retention_time_ns,
+                let retention_delete_pred = Some(Arc::new(
+                    DeletePredicate::retention_delete_predicate(retention_time_ns),
                 ));
 
                 (Cow::Owned(predicate), retention_delete_pred)
@@ -1306,9 +1306,10 @@ mod tests {
 
         let querier_table = querier_table.with_ingester_partition(ingester_partition);
 
-        // There must be two delete predicates: one from the tombstone, one from retention
         let deletes = num_deletes(querier_table.chunks().await.unwrap());
-        assert_eq!(&deletes, &[2, 0]);
+        // For parquet: There must be two delete predicates: one from the tombstone, one from retention
+        // For ingester: one delete predicate from retention
+        assert_eq!(&deletes, &[2, 1]);
     }
 
     /// Adds a "foo" column to the table and returns the created schema

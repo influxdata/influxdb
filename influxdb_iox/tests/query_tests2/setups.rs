@@ -1087,7 +1087,7 @@ pub static SETUPS: Lazy<HashMap<SetupName, SetupSteps>> = Lazy::new(|| {
             "ThreeChunksWithRetention",
             vec![
                 Step::RecordNumParquetFiles,
-                Step::WriteLineProtocol(RETENTION_SETUP.lp_partially_inside.clone()),
+                Step::WriteLineProtocol(RETENTION_SETUP.lp_partially_inside_1.clone()),
                 Step::Persist,
                 Step::WaitForPersisted2 {
                     expected_increase: 1,
@@ -1104,6 +1104,7 @@ pub static SETUPS: Lazy<HashMap<SetupName, SetupSteps>> = Lazy::new(|| {
                 Step::WaitForPersisted2 {
                     expected_increase: 1,
                 },
+                Step::WriteLineProtocol(RETENTION_SETUP.lp_partially_inside_2.clone()),
                 Step::SetRetention(Some(RETENTION_SETUP.retention_period_ns)),
             ],
         ),
@@ -1277,7 +1278,10 @@ struct RetentionSetup {
     retention_period_ns: i64,
 
     /// lineprotocol data partially inside retention
-    lp_partially_inside: String,
+    lp_partially_inside_1: String,
+
+    /// lineprotocol data partially inside retention
+    lp_partially_inside_2: String,
 
     /// lineprotocol data fully inside (included in query)
     lp_fully_inside: String,
@@ -1303,7 +1307,7 @@ impl RetentionSetup {
         let inside_retention = cutoff + retention_period_1_hour_ns;
         let outside_retention = cutoff - 10; // before retention
 
-        let lp_partially_inside = format!(
+        let lp_partially_inside_1 = format!(
             "cpu,host=a load=1 {inside_retention}\n\
              cpu,host=aa load=11 {outside_retention}"
         );
@@ -1314,8 +1318,13 @@ impl RetentionSetup {
         );
 
         let lp_fully_outside = format!(
-            "cpu,host=z load=3 {outside_retention}\n\
-             cpu,host=zz load=31 {outside_retention}"
+            "cpu,host=c load=3 {outside_retention}\n\
+             cpu,host=cc load=31 {outside_retention}"
+        );
+
+        let lp_partially_inside_2 = format!(
+            "cpu,host=d load=4 {inside_retention}\n\
+             cpu,host=dd load=41 {outside_retention}"
         );
 
         // Set retention period to be at the cutoff date. Note that
@@ -1329,7 +1338,8 @@ impl RetentionSetup {
         Self {
             // translate the retention period to be relative to now
             retention_period_ns,
-            lp_partially_inside,
+            lp_partially_inside_1,
+            lp_partially_inside_2,
             lp_fully_inside,
             lp_fully_outside,
         }
