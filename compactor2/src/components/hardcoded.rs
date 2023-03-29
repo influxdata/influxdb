@@ -27,6 +27,7 @@ use super::{
     divide_initial::multiple_branches::MultipleBranchesDivideInitial,
     file_classifier::{
         logging::LoggingFileClassifierWrapper, split_based::SplitBasedFileClassifier,
+        FileClassifier,
     },
     file_filter::level_range::LevelRangeFileFilter,
     files_split::{
@@ -111,20 +112,7 @@ pub fn hardcoded_components(config: &Config) -> Arc<Components> {
         round_split: Arc::new(ManyFilesRoundSplit::new()),
         divide_initial: Arc::new(MultipleBranchesDivideInitial::new()),
         scratchpad_gen: make_scratchpad_gen(config),
-        file_classifier: Arc::new(LoggingFileClassifierWrapper::new(Arc::new(
-            SplitBasedFileClassifier::new(
-                TargetLevelSplit::new(),
-                NonOverlapSplit::new(),
-                UpgradeSplit::new(config.max_desired_file_size_bytes),
-                LoggingSplitOrCompactWrapper::new(MetricsSplitOrCompactWrapper::new(
-                    SplitCompact::new(
-                        config.max_compact_size_bytes(),
-                        config.max_desired_file_size_bytes,
-                    ),
-                    &config.metric_registry,
-                )),
-            ),
-        ))),
+        file_classifier: make_file_classifier(config),
         post_classification_partition_filter: Arc::new(
             LoggingPostClassificationFilterWrapper::new(
                 MetricsPostClassificationFilterWrapper::new(
@@ -408,4 +396,21 @@ fn make_scratchpad_gen(config: &Config) -> Arc<dyn ScratchpadGen> {
             scratchpad_store_output,
         ))
     }
+}
+
+fn make_file_classifier(config: &Config) -> Arc<dyn FileClassifier> {
+    Arc::new(LoggingFileClassifierWrapper::new(Arc::new(
+        SplitBasedFileClassifier::new(
+            TargetLevelSplit::new(),
+            NonOverlapSplit::new(),
+            UpgradeSplit::new(config.max_desired_file_size_bytes),
+            LoggingSplitOrCompactWrapper::new(MetricsSplitOrCompactWrapper::new(
+                SplitCompact::new(
+                    config.max_compact_size_bytes(),
+                    config.max_desired_file_size_bytes,
+                ),
+                &config.metric_registry,
+            )),
+        ),
+    )))
 }
