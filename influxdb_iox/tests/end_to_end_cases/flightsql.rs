@@ -1,7 +1,8 @@
 use std::{collections::HashMap, path::PathBuf, sync::Arc};
 
 use arrow::{
-    datatypes::{Schema, SchemaRef},
+    array::as_generic_binary_array,
+    datatypes::{DataType, Schema, SchemaRef, TimeUnit},
     record_batch::RecordBatch,
 };
 use arrow_flight::{
@@ -10,10 +11,11 @@ use arrow_flight::{
         Any, CommandGetCatalogs, CommandGetDbSchemas, CommandGetSqlInfo, CommandGetTableTypes,
         CommandGetTables, CommandStatementQuery, ProstMessageExt, SqlInfo,
     },
-    FlightClient, FlightDescriptor,
+    FlightClient, FlightDescriptor, IpcMessage,
 };
 use arrow_util::test_util::batches_to_sorted_lines;
 use assert_cmd::Command;
+use bytes::Bytes;
 use datafusion::common::assert_contains;
 use futures::{FutureExt, TryStreamExt};
 use influxdb_iox_client::flightsql::FlightSqlClient;
@@ -496,6 +498,77 @@ async fn flightsql_get_tables() {
                     - +--------------+--------------------+------------+------------+------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------+
                     "###
                     );
+                }
+                .boxed()
+            })),
+        ],
+    )
+    .run()
+    .await
+}
+
+#[tokio::test]
+async fn flightsql_get_tables_decoded_table_schema() {
+    test_helpers::maybe_start_logging();
+    let database_url = maybe_skip_integration!();
+
+    // Set up the cluster  ====================================
+    let mut cluster = MiniCluster::create_shared2(database_url).await;
+
+    StepTest::new(
+        &mut cluster,
+        vec![
+            Step::WriteLineProtocol(String::from("the_table val=42i 123456")),
+            Step::Custom(Box::new(move |state: &mut StepTestState| {
+                async move {
+                    let mut client = flightsql_client(state.cluster());
+                    let catalog = Some("public");
+                    let db_schema_filter_pattern: Option<&str> = None;
+                    let table_name_filter_pattern = Some("the_table");
+                    let table_types = vec![];
+                    let include_schema = true;
+
+                    // verify that the schema that is returned from
+                    // GetTables can be properly decoded into an Arrow
+                    // schema
+                    let stream = client
+                        .get_tables(
+                            catalog,
+                            db_schema_filter_pattern,
+                            table_name_filter_pattern,
+                            table_types,
+                            include_schema,
+                        )
+                        .await
+                        .unwrap();
+
+                    // Code below extracts the <binary> part from the
+                    // output below and decodes it as an encoded arrow IPC schema
+                    //
+                    //| catalog_name | db_schema_name     | table_name | table_type | table_schema
+                    //+--------------+--------------------+------------+------------+-------------
+                    //|    ...       |      ...           |    ...     |  ...       | <binary>
+                    let mut batches = collect_stream(stream).await;
+                    assert_eq!(batches.len(), 1);
+                    let batch = batches.pop().unwrap();
+                    assert_eq!(batch.num_rows(), 1);
+                    let array = batch.column_by_name("table_schema").unwrap();
+                    let encoded_schema = as_generic_binary_array::<i32>(array).value(0).to_vec();
+                    let decoded_schema = decode_schema(Bytes::from(encoded_schema));
+
+                    // Just spot check the schema, the full decoded
+                    // content (with metadata, etc) is checked
+                    // elsewhere
+                    assert_eq!(decoded_schema.fields().len(), 2);
+                    let f = decoded_schema.field(0);
+                    assert_eq!(f.name(), "time");
+                    assert_eq!(
+                        f.data_type(),
+                        &DataType::Timestamp(TimeUnit::Nanosecond, None)
+                    );
+                    let f = decoded_schema.field(1);
+                    assert_eq!(f.name(), "val");
+                    assert_eq!(f.data_type(), &DataType::Int64);
                 }
                 .boxed()
             })),
@@ -1104,6 +1177,11 @@ fn flightsql_client(cluster: &MiniCluster) -> FlightSqlClient {
 
 async fn collect_stream(stream: FlightRecordBatchStream) -> Vec<RecordBatch> {
     stream.try_collect().await.expect("collecting batches")
+}
+
+fn decode_schema(data: Bytes) -> Schema {
+    let msg = IpcMessage(data);
+    Schema::try_from(msg).unwrap()
 }
 
 const EXPECTED_METADATA: &str = r#"
