@@ -23,6 +23,12 @@ pub enum ErrorKind {
     /// Partition took too long.
     Timeout,
 
+    /// Concurrent modification.
+    ///
+    /// This compactor instance expected to be the only process working on this partition's Parquet files, but the
+    /// Parquet files were modified while the compactor was doing work, so the work was thrown away and not committed.
+    ConcurrentModification,
+
     /// Unknown/unexpected error.
     ///
     /// This will likely mark the affected partition as "skipped" and the compactor will no longer touch it.
@@ -36,6 +42,7 @@ impl ErrorKind {
             Self::ObjectStore,
             Self::OutOfMemory,
             Self::Timeout,
+            Self::ConcurrentModification,
             Self::Unknown,
         ]
     }
@@ -46,6 +53,7 @@ impl ErrorKind {
             Self::ObjectStore => "object_store",
             Self::OutOfMemory => "out_of_memory",
             Self::Timeout => "timeout",
+            Self::ConcurrentModification => "concurrent_modification",
             Self::Unknown => "unknown",
         }
     }
