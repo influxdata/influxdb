@@ -169,11 +169,12 @@ impl PhysicalOptimizerRule for ProjectionPushdown {
                         &column_names,
                         Arc::clone(child_sort.input()),
                         |plan| {
-                            Ok(Arc::new(SortExec::try_new(
+                            Ok(Arc::new(SortExec::new_with_partitioning(
                                 reassign_sort_exprs_columns(child_sort.expr(), &plan.schema())?,
                                 plan,
+                                child_sort.preserve_partitioning(),
                                 child_sort.fetch(),
-                            )?))
+                            )))
                         },
                     )?;
 
@@ -377,7 +378,10 @@ mod tests {
         scalar::ScalarValue,
     };
 
-    use crate::{physical_optimizer::test_util::OptimizationTest, test::TestChunk};
+    use crate::{
+        physical_optimizer::test_util::{assert_unknown_partitioning, OptimizationTest},
+        test::TestChunk,
+    };
 
     use super::*;
 
@@ -850,7 +854,7 @@ mod tests {
         );
     }
 
-    // since `SortExec` and `FilterExec` both use `wrap_user_into_projections`, we only test one variant for `SortExec`
+    // since `SortExec` and `FilterExec` both use `wrap_user_into_projections`, we only test a few variants for `SortExec`
     #[test]
     fn test_sort_projection_split() {
         let schema = schema();
@@ -891,6 +895,52 @@ mod tests {
             - "       Test"
         "###
         );
+    }
+
+    #[test]
+    fn test_sort_preserve_partitioning() {
+        let schema = schema();
+        let plan = Arc::new(
+            ProjectionExec::try_new(
+                vec![(expr_col("tag1", &schema), String::from("tag1"))],
+                Arc::new(SortExec::new_with_partitioning(
+                    vec![PhysicalSortExpr {
+                        expr: expr_col("tag2", &schema),
+                        options: SortOptions {
+                            descending: true,
+                            ..Default::default()
+                        },
+                    }],
+                    Arc::new(TestExec::new_with_partitions(schema, 2)),
+                    true,
+                    Some(42),
+                )),
+            )
+            .unwrap(),
+        );
+
+        assert_unknown_partitioning(plan.output_partitioning(), 2);
+
+        let opt = ProjectionPushdown::default();
+        let test = OptimizationTest::new(plan, opt);
+        insta::assert_yaml_snapshot!(
+            test,
+            @r###"
+        ---
+        input:
+          - " ProjectionExec: expr=[tag1@0 as tag1]"
+          - "   SortExec: fetch=42, expr=[tag2@1 DESC]"
+          - "     Test"
+        output:
+          Ok:
+            - " ProjectionExec: expr=[tag1@0 as tag1]"
+            - "   SortExec: fetch=42, expr=[tag2@1 DESC]"
+            - "     ProjectionExec: expr=[tag1@0 as tag1, tag2@1 as tag2]"
+            - "       Test"
+        "###
+        );
+
+        assert_unknown_partitioning(test.output_plan().unwrap().output_partitioning(), 2);
     }
 
     // since `SortPreservingMergeExec` and `FilterExec` both use `wrap_user_into_projections`, we only test one variant for `SortPreservingMergeExec`
@@ -1251,11 +1301,16 @@ mod tests {
     #[derive(Debug)]
     struct TestExec {
         schema: SchemaRef,
+        partitions: usize,
     }
 
     impl TestExec {
         fn new(schema: SchemaRef) -> Self {
-            Self { schema }
+            Self::new_with_partitions(schema, 1)
+        }
+
+        fn new_with_partitions(schema: SchemaRef, partitions: usize) -> Self {
+            Self { schema, partitions }
         }
     }
 
@@ -1269,7 +1324,7 @@ mod tests {
         }
 
         fn output_partitioning(&self) -> datafusion::physical_plan::Partitioning {
-            datafusion::physical_plan::Partitioning::UnknownPartitioning(1)
+            datafusion::physical_plan::Partitioning::UnknownPartitioning(self.partitions)
         }
 
         fn output_ordering(&self) -> Option<&[datafusion::physical_expr::PhysicalSortExpr]> {

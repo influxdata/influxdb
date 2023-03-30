@@ -1,7 +1,9 @@
 use std::sync::Arc;
 
 use datafusion::{
-    config::ConfigOptions, physical_optimizer::PhysicalOptimizerRule, physical_plan::ExecutionPlan,
+    config::ConfigOptions,
+    physical_optimizer::PhysicalOptimizerRule,
+    physical_plan::{ExecutionPlan, Partitioning},
 };
 use serde::Serialize;
 
@@ -49,5 +51,20 @@ impl OptimizationTest {
 
     pub fn output_plan(&self) -> Option<&Arc<dyn ExecutionPlan>> {
         self.output_plan.as_ref()
+    }
+}
+
+/// Check if given partitioning is [`Partitioning::UnknownPartitioning`] with the given count.
+///
+/// This is needed because [`PartialEq`] for [`Partitioning`] is specified as "unknown != unknown".
+#[track_caller]
+pub fn assert_unknown_partitioning(partitioning: Partitioning, n: usize) {
+    match partitioning {
+        Partitioning::UnknownPartitioning(n2) if n == n2 => {}
+        _ => panic!(
+            "Unexpected partitioning, wanted: {:?}, got: {:?}",
+            Partitioning::UnknownPartitioning(n),
+            partitioning
+        ),
     }
 }
