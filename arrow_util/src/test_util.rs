@@ -231,13 +231,31 @@ static REGEX_METRICS: Lazy<Regex> =
 static REGEX_TIMING: Lazy<Regex> =
     Lazy::new(|| Regex::new(r#"[0-9]+(\.[0-9]+)?.s"#).expect("timing regex"));
 
-/// Matches things like `FilterExec: time@2 < -9223372036854775808 OR time@2 > 1640995204240217000`
-static REGEX_FILTER: Lazy<Regex> =
-    Lazy::new(|| Regex::new("FilterExec: .*").expect("filter regex"));
+/// Matches things like `FilterExec: .*` and `ParquetExec: .*`
+///
+/// Should be used in combination w/ [`REGEX_TIME_OP`].
+static REGEX_FILTER: Lazy<Regex> = Lazy::new(|| {
+    Regex::new("(?P<prefix>(FilterExec)|(ParquetExec): )(?P<expr>.*)").expect("filter regex")
+});
+
+/// Matches things like `time@3 < -9223372036854775808` and `time_min@2 > 1641031200399937022`
+static REGEX_TIME_OP: Lazy<Regex> = Lazy::new(|| {
+    Regex::new("(?P<prefix>time((_min)|(_max))?@[0-9]+ [<>=]=? )(?P<value>-?[0-9]+)")
+        .expect("time opt regex")
+});
 
 fn normalize_for_variable_width(s: Cow<'_, str>) -> String {
     let s = REGEX_LINESEP.replace_all(&s, "----------");
     REGEX_COL.replace_all(&s, "    |").to_string()
+}
+
+fn normalize_time_ops(s: &str) -> String {
+    REGEX_TIME_OP
+        .replace_all(s, |c: &Captures<'_>| {
+            let prefix = c.name("prefix").expect("always captures").as_str();
+            format!("{prefix}<REDACTED>")
+        })
+        .to_string()
 }
 
 /// A query to run with optional annotations
@@ -345,15 +363,24 @@ impl Normalizer {
         //
         // Converts:
         // FilterExec: time@2 < -9223372036854775808 OR time@2 > 1640995204240217000
+        // ParquetExec: limit=None, partitions={...}, predicate=time@2 > 1640995204240217000, pruning_predicate=time@2 > 1640995204240217000, output_ordering=[...], projection=[...]
         //
         // to
-        // FilterExec: <REDACTED>
+        // FilterExec: time@2 < <REDACTED> OR time@2 > <REDACTED>
+        // ParquetExec: limit=None, partitions={...}, predicate=time@2 > <REDACTED>, pruning_predicate=time@2 > <REDACTED>, output_ordering=[...], projection=[...]
         if self.normalized_filters {
             current_results = current_results
                 .into_iter()
                 .map(|s| {
                     REGEX_FILTER
-                        .replace_all(&s, |_: &Captures<'_>| "FilterExec: <REDACTED>")
+                        .replace_all(&s, |c: &Captures<'_>| {
+                            let prefix = c.name("prefix").expect("always captrues").as_str();
+
+                            let expr = c.name("expr").expect("always captures").as_str();
+                            let expr = normalize_time_ops(expr);
+
+                            format!("{prefix}{expr}")
+                        })
                         .to_string()
                 })
                 .collect();
