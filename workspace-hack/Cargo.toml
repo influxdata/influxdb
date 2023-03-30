@@ -147,7 +147,8 @@ sha2 = { version = "0.10" }
 smallvec = { version = "1", default-features = false, features = ["union"] }
 sqlx-core = { version = "0.6", default-features = false, features = ["any", "migrate", "postgres", "runtime-tokio-rustls", "sqlite", "uuid"] }
 sqlx-macros = { version = "0.6", default-features = false, features = ["json", "migrate", "postgres", "runtime-tokio-rustls", "sqlite", "uuid"] }
-syn = { version = "1", features = ["extra-traits", "full", "visit", "visit-mut"] }
+syn-dff4ba8e3ae991db = { package = "syn", version = "1", features = ["extra-traits", "full", "visit", "visit-mut"] }
+syn-f595c2ba2a3f28df = { package = "syn", version = "2", features = ["full", "visit-mut"] }
 tokio = { version = "1", features = ["full", "test-util", "tracing"] }
 tokio-stream = { version = "0.1", features = ["fs", "net"] }
 url = { version = "2" }

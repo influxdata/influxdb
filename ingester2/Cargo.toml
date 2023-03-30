@@ -10,7 +10,7 @@ arrow = { workspace = true, features = ["prettyprint"] }
 arrow-flight = { workspace = true }
 arrow_util = { version = "0.1.0", path = "../arrow_util" }
 async-channel = "1.8.0"
-async-trait = "0.1.66"
+async-trait = "0.1.68"
 backoff = { version = "0.1.0", path = "../backoff" }
 bytes = "1.4.0"
 crossbeam-utils = "0.8.15"
