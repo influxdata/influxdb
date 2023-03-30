@@ -9,13 +9,14 @@ use tracker::InstrumentedAsyncSemaphore;
 
 use crate::{
     components::{
+        changed_files_filter::SavedParquetFileState,
         scratchpad::Scratchpad,
         timeout::{timeout_with_progress_checking, TimeoutWithProgress},
         Components,
     },
     error::{DynError, ErrorKind, SimpleError},
     file_classification::{FileClassification, FilesForProgress, FilesToSplitOrCompact},
-    partition_info::{PartitionInfo, SavedParquetFileState},
+    partition_info::PartitionInfo,
     PlanIR,
 };
 
@@ -287,7 +288,7 @@ async fn try_compact_partition(
                 created_file_params,
                 target_level,
             )
-            .await?;
+            .await;
 
             // Extend created files, upgraded files and files_to_keep to files_next
             files_next.extend(created_files);
@@ -434,21 +435,14 @@ async fn update_catalog(
     files_to_upgrade: Vec<ParquetFile>,
     file_params_to_create: Vec<ParquetFileParams>,
     target_level: CompactionLevel,
-) -> Result<(Vec<ParquetFile>, Vec<ParquetFile>), DynError> {
+) -> (Vec<ParquetFile>, Vec<ParquetFile>) {
     let current_parquet_file_state =
         fetch_and_save_parquet_file_state(&components, partition_id).await;
 
-    if saved_parquet_file_state.existing_files_modified(&current_parquet_file_state) {
-        // Someone else has changed the files in the catalog since we started compacting; throw away our work and
-        // don't commit anything.
-        return Err(Box::new(SimpleError::new(
-            ErrorKind::ConcurrentModification,
-            format!(
-                "Parquet files for partition {partition_id} have been modified since compaction started. \
-                Saved: {saved_parquet_file_state:?} != Current: {current_parquet_file_state:?}"
-            ),
-        )));
-    }
+    // Right now this only logs; in the future we might decide not to commit these changes
+    let _ignore = components
+        .changed_files_filter
+        .apply(&saved_parquet_file_state, &current_parquet_file_state);
 
     let created_ids = components
         .commit
@@ -477,5 +471,5 @@ async fn update_catalog(
         })
         .collect::<Vec<_>>();
 
-    Ok((created_file_params, upgraded_files))
+    (created_file_params, upgraded_files)
 }
