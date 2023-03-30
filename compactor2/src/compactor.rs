@@ -56,12 +56,7 @@ impl Compactor2 {
             tokio::select! {
                 _ = shutdown_captured.cancelled() => {}
                 _ = async {
-                    compact(
-                        config.partition_concurrency,
-                        config.partition_timeout,
-                        Arc::clone(&job_semaphore),
-                        &components
-                    ).await;
+                    compact(config.partition_concurrency, config.partition_timeout, Arc::clone(&job_semaphore), &components).await;
 
                     info!("compactor done");
                 } => {}
