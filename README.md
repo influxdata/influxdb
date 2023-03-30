@@ -1,11 +1,11 @@
 # InfluxDB IOx
 
-InfluxDB IOx (short for Iron Oxide, pronounced InfluxDB "eye-ox") is the future core of InfluxDB, an open source time series database.
+InfluxDB IOx (short for Iron Oxide, pronounced InfluxDB "eye-ox") is the core of InfluxDB, an open source time series database.
 The name is in homage to Rust, the language this project is written in.
 It is built using [Apache Arrow](https://arrow.apache.org/) and [DataFusion](https://arrow.apache.org/blog/2019/02/04/datafusion-donation/) among other things.
 InfluxDB IOx aims to be:
 
-* The future core of InfluxDB; supporting industry standard SQL, InfluxQL, and Flux
+* The core of InfluxDB; providing industry standard SQL, InfluxQL, and Flux
 * An in-memory columnar store using object storage for persistence
 * A fast analytic database for structured and semi-structured events (like logs and tracing data)
 * A system for defining replication (synchronous, asynchronous, push and pull) and partitioning rules for InfluxDB time series data and tabular analytics data
@@ -20,21 +20,18 @@ For more details on the motivation behind the project and some of our goals, rea
 If you prefer a video that covers a little bit of InfluxDB history and high level goals for [InfluxDB IOx you can watch Paul Dix's announcement talk from InfluxDays NA 2020](https://www.youtube.com/watch?v=pnwkAAyMp18).
 For more details on the motivation behind the selection of [Apache Arrow, Flight and Parquet, read this](https://www.influxdata.com/blog/apache-arrow-parquet-flight-and-their-ecosystem-are-a-game-changer-for-olap/).
 
-## Supported Platforms
+## Platforms
 
-As we commit to support platforms they will be added here.
 Our current goal is that the following platforms will be able to run InfluxDB IOx.
 
 * Linux x86 (`x86_64-unknown-linux-gnu`)
 * Darwin x86 (`x86_64-apple-darwin`)
 * Darwin arm (`aarch64-apple-darwin`)
 
-This list is very unlikely to be complete; we will add more platforms based on
-our ability to support them effectively.
 
 ## Project Status
 
-This project is very early and in active development. It isn't yet ready for testing, which is why we're not producing builds or documentation yet.
+This project is in active development, which is why we're not producing builds yet.
 
 If you would like contact the InfluxDB IOx developers,
 join the [InfluxData Community Slack](https://influxdata.com/slack) and look for the #influxdb_iox channel.
@@ -103,7 +100,7 @@ IOx should then build correctly.
 The catalog is stored in Postgres (unless you're running in ephemeral mode). Postgres can be installed via Homebrew:
 
 ```shell
-brew install postgres
+brew install postgresql
 ```
 
 then follow the instructions for starting Postgres either at system startup or on-demand.
@@ -130,7 +127,7 @@ The rest of these instructions assume you are in this directory.
 InfluxDB IOx can be configured using either environment variables or a configuration file,
 making it suitable for deployment in containerized environments.
 
-For a list of configuration options, run `influxdb_iox --help`.
+For a list of configuration options, run `influxdb_iox --help`, after installing IOx.
 For configuration options for specific subcommands, run `influxdb_iox <subcommand> --help`.
 
 To use a configuration file, use a `.env` file in the working directory.
@@ -180,7 +177,7 @@ DOCKER_BUILDKIT=1 docker build .
 
 #### Local filesystem testing mode
 
-InfluxDB IOx supports testing entirely backed by the local filesystem. 
+InfluxDB IOx supports testing backed by the local filesystem.
 
 > **Note**
 >
@@ -271,7 +268,7 @@ InfluxDB IOx allows seamless interoperability with InfluxDB 2.0.
 
 Where InfluxDB 2.0 stores data in organizations and buckets,
 InfluxDB IOx stores data in _namespaces_.
-IOx maps `organization` and `bucket` pairs to namespaces  with the two parts separated by an underscore (`_`):
+IOx maps `organization` and `bucket` pairs to namespaces with the two parts separated by an underscore (`_`):
 `organization_bucket`.
 
 Here's an example using [`curl`] to send data into the `company_sensors` namespace using the InfluxDB 2.0 `/api/v2/write` API:
@@ -280,7 +277,7 @@ Here's an example using [`curl`] to send data into the `company_sensors` namespa
 curl -v "http://127.0.0.1:8080/api/v2/write?org=company&bucket=sensors" --data-binary @test_fixtures/lineproto/metrics.lp
 ```
 
-[line protocol]: https://docs.influxdata.com/influxdb/v2.0/reference/syntax/line-protocol/
+[line protocol]: https://docs.influxdata.com/influxdb/v2.6/reference/syntax/line-protocol/
 [`curl`]: https://curl.se/
 
 ### Run health checks
@@ -305,7 +302,7 @@ status: SERVING
 To manually invoke one of the gRPC APIs, use a gRPC CLI client such as [grpcurl](https://github.com/fullstorydev/grpcurl).
 Because the gRPC server library in IOx doesn't provide service reflection, you need to pass the IOx `.proto` files to your client
 when making requests.
-After you install **grpcurl**, you can use the `./scripts/grpcurl` wrapper script to make requests that the `.proto` files for you--for example:
+After you install **grpcurl**, you can use the `./scripts/grpcurl` wrapper script to make requests that use the `.proto` files for you--for example:
 
 Use the `list` command to list gRPC API services:
 
