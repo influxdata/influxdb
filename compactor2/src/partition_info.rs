@@ -1,6 +1,6 @@
 //! Information of a partition for compaction
 
-use std::sync::Arc;
+use std::{collections::HashSet, sync::Arc};
 
 use data_types::{
     CompactionLevel, NamespaceId, ParquetFile, ParquetFileId, PartitionId, PartitionKey, Table,
@@ -45,9 +45,9 @@ impl PartitionInfo {
 /// we assume no other compactor instance has compacted this partition and this compactor instance should commit its
 /// work. If the two saved states differ, throw away the work and do not commit as the Parquet files have been changed
 /// by some other process while this compactor instance was working.
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone)]
 pub(crate) struct SavedParquetFileState {
-    ids_and_levels: Vec<(ParquetFileId, CompactionLevel)>,
+    ids_and_levels: HashSet<(ParquetFileId, CompactionLevel)>,
 }
 
 impl<'a, T> From<T> for SavedParquetFileState
@@ -55,14 +55,23 @@ where
     T: IntoIterator<Item = &'a ParquetFile>,
 {
     fn from(parquet_files: T) -> Self {
-        let mut ids_and_levels: Vec<_> = parquet_files
+        let ids_and_levels = parquet_files
             .into_iter()
             .map(|pf| (pf.id, pf.compaction_level))
             .collect();
 
-        ids_and_levels.sort();
-
         Self { ids_and_levels }
+    }
+}
+
+impl SavedParquetFileState {
+    pub fn existing_files_modified(&self, new: &SavedParquetFileState) -> bool {
+        let old = self;
+        let mut missing = old.ids_and_levels.difference(&new.ids_and_levels);
+
+        // If there are any files in `self`/`old` that are not present in `new`, that means some files were marked
+        // to delete by some other process.
+        missing.next().is_some()
     }
 }
 
@@ -88,7 +97,7 @@ mod tests {
         let saved_state_2 =
             SavedParquetFileState::from([&pf_id3_level_1, &pf_id1_level_0, &pf_id2_level_2]);
 
-        assert_eq!(saved_state_1, saved_state_2);
+        assert!(!saved_state_1.existing_files_modified(&saved_state_2));
     }
 
     #[test]
@@ -96,11 +105,11 @@ mod tests {
         let saved_state_1 = SavedParquetFileState::from([]);
         let saved_state_2 = SavedParquetFileState::from([]);
 
-        assert_eq!(saved_state_1, saved_state_2);
+        assert!(!saved_state_1.existing_files_modified(&saved_state_2));
     }
 
     #[test]
-    fn one_empty_parquet_files() {
+    fn missing_files_indicates_modifications() {
         let pf_id1_level_0 = ParquetFileBuilder::new(1)
             .with_compaction_level(CompactionLevel::Initial)
             .build();
@@ -108,49 +117,48 @@ mod tests {
         let saved_state_1 = SavedParquetFileState::from([&pf_id1_level_0]);
         let saved_state_2 = SavedParquetFileState::from([]);
 
-        assert_ne!(saved_state_1, saved_state_2);
+        assert!(saved_state_1.existing_files_modified(&saved_state_2));
     }
 
     #[test]
-    fn missing_files_not_equal() {
+    fn disregard_new_files() {
         let pf_id1_level_0 = ParquetFileBuilder::new(1)
             .with_compaction_level(CompactionLevel::Initial)
             .build();
+
+        // New files of any level don't affect whether the old saved state is considered modified
         let pf_id2_level_2 = ParquetFileBuilder::new(2)
             .with_compaction_level(CompactionLevel::Final)
             .build();
         let pf_id3_level_1 = ParquetFileBuilder::new(3)
             .with_compaction_level(CompactionLevel::FileNonOverlapped)
             .build();
-
-        let saved_state_1 =
-            SavedParquetFileState::from([&pf_id1_level_0, &pf_id2_level_2, &pf_id3_level_1]);
-        let saved_state_2 = SavedParquetFileState::from([&pf_id3_level_1, &pf_id1_level_0]);
-
-        assert_ne!(saved_state_1, saved_state_2);
-    }
-
-    #[test]
-    fn additional_files_not_equal() {
-        let pf_id1_level_0 = ParquetFileBuilder::new(1)
+        let pf_id4_level_0 = ParquetFileBuilder::new(1)
             .with_compaction_level(CompactionLevel::Initial)
             .build();
-        let pf_id2_level_2 = ParquetFileBuilder::new(2)
-            .with_compaction_level(CompactionLevel::Final)
-            .build();
-        let pf_id3_level_1 = ParquetFileBuilder::new(3)
-            .with_compaction_level(CompactionLevel::FileNonOverlapped)
-            .build();
 
-        let saved_state_1 = SavedParquetFileState::from([&pf_id3_level_1, &pf_id1_level_0]);
-        let saved_state_2 =
-            SavedParquetFileState::from([&pf_id1_level_0, &pf_id2_level_2, &pf_id3_level_1]);
+        let saved_state_1 = SavedParquetFileState::from([&pf_id1_level_0]);
 
-        assert_ne!(saved_state_1, saved_state_2);
+        let saved_state_2 = SavedParquetFileState::from([&pf_id1_level_0, &pf_id2_level_2]);
+        assert!(!saved_state_1.existing_files_modified(&saved_state_2));
+
+        let saved_state_2 = SavedParquetFileState::from([&pf_id1_level_0, &pf_id3_level_1]);
+        assert!(!saved_state_1.existing_files_modified(&saved_state_2));
+
+        let saved_state_2 = SavedParquetFileState::from([&pf_id1_level_0, &pf_id4_level_0]);
+        assert!(!saved_state_1.existing_files_modified(&saved_state_2));
+
+        let saved_state_2 = SavedParquetFileState::from([
+            &pf_id1_level_0,
+            &pf_id2_level_2,
+            &pf_id4_level_0,
+            &pf_id4_level_0,
+        ]);
+        assert!(!saved_state_1.existing_files_modified(&saved_state_2));
     }
 
     #[test]
-    fn changed_compaction_level_not_equal() {
+    fn changed_compaction_level_indicates_modification() {
         let pf_id1_level_0 = ParquetFileBuilder::new(1)
             .with_compaction_level(CompactionLevel::Initial)
             .build();
@@ -164,11 +172,11 @@ mod tests {
         let saved_state_1 = SavedParquetFileState::from([&pf_id1_level_0, &pf_id2_level_2]);
         let saved_state_2 = SavedParquetFileState::from([&pf_id1_level_1, &pf_id2_level_2]);
 
-        assert_ne!(saved_state_1, saved_state_2);
+        assert!(saved_state_1.existing_files_modified(&saved_state_2));
     }
 
     #[test]
-    fn same_number_of_files_different_ids_not_equal() {
+    fn same_number_of_files_different_ids_indicates_modification() {
         let pf_id1_level_0 = ParquetFileBuilder::new(1)
             .with_compaction_level(CompactionLevel::Initial)
             .build();
@@ -182,6 +190,6 @@ mod tests {
         let saved_state_1 = SavedParquetFileState::from([&pf_id1_level_0, &pf_id3_level_2]);
         let saved_state_2 = SavedParquetFileState::from([&pf_id2_level_0, &pf_id3_level_2]);
 
-        assert_ne!(saved_state_1, saved_state_2);
+        assert!(saved_state_1.existing_files_modified(&saved_state_2));
     }
 }

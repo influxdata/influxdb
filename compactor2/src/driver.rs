@@ -219,11 +219,10 @@ async fn try_compact_partition(
         let mut files_next = files_later;
         // loop for each "Branch"
         for branch in branches {
-            // Keep the current state as a check to make sure this is the only compactor modifying this partition's
-            // files. Check that the catalog state matches this before committing and, if it doesn't match, throw away
-            // the compaction work we've done.
-            let saved_parquet_file_state =
-                fetch_and_save_parquet_file_state(&components, partition_id).await;
+            // Keep the current state as a check to make sure this is the only compactor modifying this branch's
+            // files. Check that the catalog state for the files in this set is the same before committing and, if not,
+            // throw away the compaction work we've done.
+            let saved_parquet_file_state = SavedParquetFileState::from(&branch);
 
             let input_paths: Vec<ParquetFilePath> =
                 branch.iter().map(ParquetFilePath::from).collect();
@@ -439,7 +438,7 @@ async fn update_catalog(
     let current_parquet_file_state =
         fetch_and_save_parquet_file_state(&components, partition_id).await;
 
-    if saved_parquet_file_state != current_parquet_file_state {
+    if saved_parquet_file_state.existing_files_modified(&current_parquet_file_state) {
         // Someone else has changed the files in the catalog since we started compacting; throw away our work and
         // don't commit anything.
         return Err(Box::new(SimpleError::new(
