@@ -24,7 +24,7 @@ predicate = { path = "../predicate" }
 prost = "0.11"
 schema = { path = "../schema" }
 snafu = "0.7"
-thiserror = "1.0.39"
+thiserror = "1.0.40"
 thrift = "0.17"
 tokio = { version = "1.27", features = ["macros", "parking_lot", "rt", "rt-multi-thread", "sync"] }
 uuid = { version = "1", features = ["v4"] }
