@@ -13,10 +13,10 @@ iox_time = { version = "0.1.0", path = "../iox_time" }
 metric = { version = "0.1.0", path = "../metric" }
 object_store = "0.5.5"
 pin-project = "1.0.12"
-tokio = { version = "1.26", features = ["io-util"] }
+tokio = { version = "1.27", features = ["io-util"] }
 workspace-hack = { version = "0.1", path = "../workspace-hack" }
 
 [dev-dependencies] # In alphabetical order
 dotenvy = "0.15.7"
 snafu = "0.7"
-tokio = { version = "1.26", features = ["macros", "io-util"] }
+tokio = { version = "1.27", features = ["macros", "io-util"] }

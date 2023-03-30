@@ -39,7 +39,7 @@ schema = { path = "../schema" }
 sharder = { path = "../sharder" }
 snafu = "0.7"
 thiserror = "1.0"
-tokio = { version = "1.26", features = ["macros", "parking_lot", "rt-multi-thread", "sync", "time"] }
+tokio = { version = "1.27", features = ["macros", "parking_lot", "rt-multi-thread", "sync", "time"] }
 tokio-util = { version = "0.7.7" }
 tonic = { version = "0.8" }
 trace = { path = "../trace" }
