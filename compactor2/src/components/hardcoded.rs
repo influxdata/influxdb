@@ -191,7 +191,10 @@ pub fn hardcoded_components(config: &Config) -> Arc<Components> {
                 .filter(|kind| {
                     // use explicit match statement so we never forget to add new variants
                     match kind {
-                        ErrorKind::OutOfMemory | ErrorKind::Timeout | ErrorKind::Unknown => true,
+                        ErrorKind::OutOfMemory
+                        | ErrorKind::Timeout
+                        | ErrorKind::ConcurrentModification
+                        | ErrorKind::Unknown => true,
                         ErrorKind::ObjectStore => false,
                     }
                 })
