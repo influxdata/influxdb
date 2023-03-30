@@ -92,6 +92,26 @@ mod tests {
     }
 
     #[test]
+    fn both_empty_parquet_files() {
+        let saved_state_1 = SavedParquetFileState::from([]);
+        let saved_state_2 = SavedParquetFileState::from([]);
+
+        assert_eq!(saved_state_1, saved_state_2);
+    }
+
+    #[test]
+    fn one_empty_parquet_files() {
+        let pf_id1_level_0 = ParquetFileBuilder::new(1)
+            .with_compaction_level(CompactionLevel::Initial)
+            .build();
+
+        let saved_state_1 = SavedParquetFileState::from([&pf_id1_level_0]);
+        let saved_state_2 = SavedParquetFileState::from([]);
+
+        assert_ne!(saved_state_1, saved_state_2);
+    }
+
+    #[test]
     fn missing_files_not_equal() {
         let pf_id1_level_0 = ParquetFileBuilder::new(1)
             .with_compaction_level(CompactionLevel::Initial)
@@ -137,9 +157,30 @@ mod tests {
         let pf_id1_level_1 = ParquetFileBuilder::new(1)
             .with_compaction_level(CompactionLevel::FileNonOverlapped)
             .build();
+        let pf_id2_level_2 = ParquetFileBuilder::new(2)
+            .with_compaction_level(CompactionLevel::Final)
+            .build();
 
-        let saved_state_1 = SavedParquetFileState::from([&pf_id1_level_0]);
-        let saved_state_2 = SavedParquetFileState::from([&pf_id1_level_1]);
+        let saved_state_1 = SavedParquetFileState::from([&pf_id1_level_0, &pf_id2_level_2]);
+        let saved_state_2 = SavedParquetFileState::from([&pf_id1_level_1, &pf_id2_level_2]);
+
+        assert_ne!(saved_state_1, saved_state_2);
+    }
+
+    #[test]
+    fn same_number_of_files_different_ids_not_equal() {
+        let pf_id1_level_0 = ParquetFileBuilder::new(1)
+            .with_compaction_level(CompactionLevel::Initial)
+            .build();
+        let pf_id2_level_0 = ParquetFileBuilder::new(2)
+            .with_compaction_level(CompactionLevel::Initial)
+            .build();
+        let pf_id3_level_2 = ParquetFileBuilder::new(3)
+            .with_compaction_level(CompactionLevel::Final)
+            .build();
+
+        let saved_state_1 = SavedParquetFileState::from([&pf_id1_level_0, &pf_id3_level_2]);
+        let saved_state_2 = SavedParquetFileState::from([&pf_id2_level_0, &pf_id3_level_2]);
 
         assert_ne!(saved_state_1, saved_state_2);
     }
