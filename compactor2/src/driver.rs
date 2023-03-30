@@ -15,7 +15,7 @@ use crate::{
     },
     error::{DynError, ErrorKind, SimpleError},
     file_classification::{FileClassification, FilesForProgress, FilesToSplitOrCompact},
-    partition_info::{PartitionInfo, SavedParquetFileState},
+    partition_info::PartitionInfo,
     PlanIR,
 };
 
@@ -219,12 +219,6 @@ async fn try_compact_partition(
         let mut files_next = files_later;
         // loop for each "Branch"
         for branch in branches {
-            // Keep the current state as a check to make sure this is the only compactor modifying this partition's
-            // files. Check that the catalog state matches this before committing and, if it doesn't match, throw away
-            // the compaction work we've done.
-            let saved_parquet_file_state =
-                fetch_and_save_parquet_file_state(&components, partition_id).await;
-
             let input_paths: Vec<ParquetFilePath> =
                 branch.iter().map(ParquetFilePath::from).collect();
 
@@ -282,13 +276,12 @@ async fn try_compact_partition(
             let (created_files, upgraded_files) = update_catalog(
                 Arc::clone(&components),
                 partition_id,
-                saved_parquet_file_state,
                 files_to_delete,
                 upgrade,
                 created_file_params,
                 target_level,
             )
-            .await?;
+            .await;
 
             // Extend created files, upgraded files and files_to_keep to files_next
             files_next.extend(created_files);
@@ -416,41 +409,17 @@ async fn upload_files_to_object_store(
         .collect()
 }
 
-async fn fetch_and_save_parquet_file_state(
-    components: &Components,
-    partition_id: PartitionId,
-) -> SavedParquetFileState {
-    let catalog_files = components.partition_files_source.fetch(partition_id).await;
-    SavedParquetFileState::from(&catalog_files)
-}
-
 /// Update the catalog to create, soft delete and upgrade corresponding given input
 /// to provided target level
 /// Return created and upgraded files
 async fn update_catalog(
     components: Arc<Components>,
     partition_id: PartitionId,
-    saved_parquet_file_state: SavedParquetFileState,
     files_to_delete: Vec<ParquetFile>,
     files_to_upgrade: Vec<ParquetFile>,
     file_params_to_create: Vec<ParquetFileParams>,
     target_level: CompactionLevel,
-) -> Result<(Vec<ParquetFile>, Vec<ParquetFile>), DynError> {
-    let current_parquet_file_state =
-        fetch_and_save_parquet_file_state(&components, partition_id).await;
-
-    if saved_parquet_file_state != current_parquet_file_state {
-        // Someone else has changed the files in the catalog since we started compacting; throw away our work and
-        // don't commit anything.
-        return Err(Box::new(SimpleError::new(
-            ErrorKind::ConcurrentModification,
-            format!(
-                "Parquet files for partition {partition_id} have been modified since compaction started. \
-                Saved: {saved_parquet_file_state:?} != Current: {current_parquet_file_state:?}"
-            ),
-        )));
-    }
-
+) -> (Vec<ParquetFile>, Vec<ParquetFile>) {
     let created_ids = components
         .commit
         .commit(
@@ -478,5 +447,5 @@ async fn update_catalog(
         })
         .collect::<Vec<_>>();
 
-    Ok((created_file_params, upgraded_files))
+    (created_file_params, upgraded_files)
 }
