@@ -1,15 +1,17 @@
 use std::sync::Arc;
 
 use self::{
-    commit::Commit, df_plan_exec::DataFusionPlanExec, df_planner::DataFusionPlanner,
-    divide_initial::DivideInitial, file_classifier::FileClassifier, ir_planner::IRPlanner,
-    parquet_files_sink::ParquetFilesSink, partition_done_sink::PartitionDoneSink,
-    partition_files_source::PartitionFilesSource, partition_filter::PartitionFilter,
-    partition_info_source::PartitionInfoSource, partition_stream::PartitionStream,
+    changed_files_filter::ChangedFilesFilter, commit::Commit, df_plan_exec::DataFusionPlanExec,
+    df_planner::DataFusionPlanner, divide_initial::DivideInitial, file_classifier::FileClassifier,
+    ir_planner::IRPlanner, parquet_files_sink::ParquetFilesSink,
+    partition_done_sink::PartitionDoneSink, partition_files_source::PartitionFilesSource,
+    partition_filter::PartitionFilter, partition_info_source::PartitionInfoSource,
+    partition_stream::PartitionStream,
     post_classification_partition_filter::PostClassificationPartitionFilter,
     round_info_source::RoundInfoSource, round_split::RoundSplit, scratchpad::ScratchpadGen,
 };
 
+pub mod changed_files_filter;
 pub mod combos;
 pub mod commit;
 pub mod df_plan_exec;
@@ -78,4 +80,6 @@ pub struct Components {
     pub scratchpad_gen: Arc<dyn ScratchpadGen>,
     /// Classify files for each compaction branch.
     pub file_classifier: Arc<dyn FileClassifier>,
+    /// Check for other processes modifying files.
+    pub changed_files_filter: Arc<dyn ChangedFilesFilter>,
 }

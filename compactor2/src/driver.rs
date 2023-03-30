@@ -9,6 +9,7 @@ use tracker::InstrumentedAsyncSemaphore;
 
 use crate::{
     components::{
+        changed_files_filter::SavedParquetFileState,
         scratchpad::Scratchpad,
         timeout::{timeout_with_progress_checking, TimeoutWithProgress},
         Components,
@@ -219,6 +220,11 @@ async fn try_compact_partition(
         let mut files_next = files_later;
         // loop for each "Branch"
         for branch in branches {
+            // Keep the current state as a check to make sure this is the only compactor modifying this branch's
+            // files. Check that the catalog state for the files in this set is the same before committing and, if not,
+            // throw away the compaction work we've done.
+            let saved_parquet_file_state = SavedParquetFileState::from(&branch);
+
             let input_paths: Vec<ParquetFilePath> =
                 branch.iter().map(ParquetFilePath::from).collect();
 
@@ -276,6 +282,7 @@ async fn try_compact_partition(
             let (created_files, upgraded_files) = update_catalog(
                 Arc::clone(&components),
                 partition_id,
+                saved_parquet_file_state,
                 files_to_delete,
                 upgrade,
                 created_file_params,
@@ -409,17 +416,34 @@ async fn upload_files_to_object_store(
         .collect()
 }
 
+async fn fetch_and_save_parquet_file_state(
+    components: &Components,
+    partition_id: PartitionId,
+) -> SavedParquetFileState {
+    let catalog_files = components.partition_files_source.fetch(partition_id).await;
+    SavedParquetFileState::from(&catalog_files)
+}
+
 /// Update the catalog to create, soft delete and upgrade corresponding given input
 /// to provided target level
 /// Return created and upgraded files
 async fn update_catalog(
     components: Arc<Components>,
     partition_id: PartitionId,
+    saved_parquet_file_state: SavedParquetFileState,
     files_to_delete: Vec<ParquetFile>,
     files_to_upgrade: Vec<ParquetFile>,
     file_params_to_create: Vec<ParquetFileParams>,
     target_level: CompactionLevel,
 ) -> (Vec<ParquetFile>, Vec<ParquetFile>) {
+    let current_parquet_file_state =
+        fetch_and_save_parquet_file_state(&components, partition_id).await;
+
+    // Right now this only logs; in the future we might decide not to commit these changes
+    let _ignore = components
+        .changed_files_filter
+        .apply(&saved_parquet_file_state, &current_parquet_file_state);
+
     let created_ids = components
         .commit
         .commit(

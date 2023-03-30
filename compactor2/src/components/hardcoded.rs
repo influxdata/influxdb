@@ -18,6 +18,7 @@ use crate::{
 };
 
 use super::{
+    changed_files_filter::logging::LoggingChangedFiles,
     combos::{throttle_partition::throttle_partition, unique_partitions::unique_partitions},
     commit::{
         catalog::CatalogCommit, logging::LoggingCommitWrapper, metrics::MetricsCommitWrapper,
@@ -338,6 +339,7 @@ pub fn hardcoded_components(config: &Config) -> Arc<Components> {
                 partition_resource_limit_conditions,
             ),
         ),
+        changed_files_filter: Arc::new(LoggingChangedFiles::new()),
     })
 }
 

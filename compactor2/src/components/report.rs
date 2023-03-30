@@ -110,6 +110,7 @@ pub fn log_components(components: &Components) {
         divide_initial,
         scratchpad_gen,
         file_classifier,
+        changed_files_filter,
     } = components;
 
     info!(
@@ -129,6 +130,7 @@ pub fn log_components(components: &Components) {
         %divide_initial,
         %scratchpad_gen,
         %file_classifier,
+        %changed_files_filter,
         "component setup",
     );
 }
