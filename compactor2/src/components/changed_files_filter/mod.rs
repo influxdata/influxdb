@@ -8,9 +8,7 @@ use data_types::{CompactionLevel, ParquetFile, ParquetFileId};
 
 pub mod logging;
 
-/// Filters partition based on ID and Parquet files after the files have been classified.
-///
-/// May return an error. In this case, the partition will be marked as "skipped".
+/// Returns `true` if the files in the saved state have been changed according to the current state.
 #[async_trait]
 pub trait ChangedFilesFilter: Debug + Display + Send + Sync {
     /// Return `true` if some other process modified the files in `old` such that they don't appear or appear with a
@@ -19,10 +17,12 @@ pub trait ChangedFilesFilter: Debug + Display + Send + Sync {
 }
 
 /// Saved snapshot of a partition's Parquet files' IDs and compaction levels. Save this state at the beginning of a
-/// compaction operation, then just before committing ask for the state again. If the two saved states are identical,
-/// we assume no other compactor instance has compacted this partition and this compactor instance should commit its
-/// work. If the two saved states differ, throw away the work and do not commit as the Parquet files have been changed
-/// by some other process while this compactor instance was working.
+/// compaction operation, then just before committing ask for the catalog state again. If the ID+compaction level pairs
+/// in the initial saved state still appear in the latest catalog state (disregarding any new files that may appear in
+/// the latest catalog state) we assume no other compactor instance has compacted the relevant files and this compactor
+/// instance should commit its work. If any old ID+compaction level pairs are missing from the latest catalog state
+/// (and thus show up in a set difference operation of `old - current`), throw away the work and do not commit as the
+/// relevant Parquet files have been changed by some other process while this compactor instance was working.
 #[derive(Debug, Clone)]
 pub struct SavedParquetFileState {
     ids_and_levels: HashSet<(ParquetFileId, CompactionLevel)>,
@@ -53,8 +53,8 @@ impl SavedParquetFileState {
 
     pub fn existing_files_modified(&self, new: &Self) -> bool {
         let mut missing = self.missing(new);
-        // If there are any files in `self`/`old` that are not present in `new`, that means some files were marked
-        // to delete by some other process.
+        // If there are any `(ParquetFileId, CompactionLevel)` pairs in `self` that are not present in `new`, that
+        // means some files were marked to delete or had their compaction level changed by some other process.
         missing.next().is_some()
     }
 
