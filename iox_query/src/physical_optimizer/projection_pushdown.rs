@@ -330,9 +330,36 @@ where
         .chain(outer_cols.iter())
         .copied()
         .collect::<HashSet<_>>();
-    if inner_required_cols.len() < plan.schema().fields().len() {
-        let mut inner_projection_cols = inner_required_cols.iter().copied().collect::<Vec<_>>();
-        inner_projection_cols.sort();
+
+    // sort inner required cols according the final projection
+    let outer_cols_order = outer_cols
+        .iter()
+        .copied()
+        .enumerate()
+        .map(|(idx, col)| (col, idx))
+        .collect::<HashMap<_, _>>();
+    let mut inner_projection_cols = inner_required_cols
+        .iter()
+        .copied()
+        .map(|col| {
+            // Note: if the col is NOT known, this will fail in `schema_name_projection`, so we just default it here
+            let idx = outer_cols_order.get(col).copied().unwrap_or_default();
+            (idx, col)
+        })
+        .collect::<Vec<_>>();
+    inner_projection_cols.sort();
+    let inner_projection_cols = inner_projection_cols
+        .into_iter()
+        .map(|(_idx, col)| col)
+        .collect::<Vec<_>>();
+
+    let plan_schema = plan.schema();
+    let plan_cols = plan_schema
+        .fields()
+        .iter()
+        .map(|f| f.name().as_str())
+        .collect::<Vec<_>>();
+    if plan_cols != inner_projection_cols {
         let expr = schema_name_projection(&plan.schema(), &inner_projection_cols)?;
         plan = Arc::new(ProjectionExec::try_new(expr, plan)?);
     }
@@ -854,6 +881,47 @@ mod tests {
         );
     }
 
+    #[test]
+    fn test_filter_uses_resorted_cols() {
+        let schema = schema();
+        let plan = Arc::new(
+            ProjectionExec::try_new(
+                vec![
+                    (expr_col("tag2", &schema), String::from("tag2")),
+                    (expr_col("tag1", &schema), String::from("tag1")),
+                    (expr_col("field", &schema), String::from("field")),
+                ],
+                Arc::new(
+                    FilterExec::try_new(
+                        expr_and(
+                            expr_string_cmp("tag2", &schema),
+                            expr_string_cmp("tag1", &schema),
+                        ),
+                        Arc::new(TestExec::new(schema)),
+                    )
+                    .unwrap(),
+                ),
+            )
+            .unwrap(),
+        );
+        let opt = ProjectionPushdown::default();
+        insta::assert_yaml_snapshot!(
+            OptimizationTest::new(plan, opt),
+            @r###"
+        ---
+        input:
+          - " ProjectionExec: expr=[tag2@1 as tag2, tag1@0 as tag1, field@2 as field]"
+          - "   FilterExec: tag2@1 = foo AND tag1@0 = foo"
+          - "     Test"
+        output:
+          Ok:
+            - " FilterExec: tag2@0 = foo AND tag1@1 = foo"
+            - "   ProjectionExec: expr=[tag2@1 as tag2, tag1@0 as tag1, field@2 as field]"
+            - "     Test"
+        "###
+        );
+    }
+
     // since `SortExec` and `FilterExec` both use `wrap_user_into_projections`, we only test a few variants for `SortExec`
     #[test]
     fn test_sort_projection_split() {
@@ -1160,9 +1228,9 @@ mod tests {
           - "     Test"
         output:
           Ok:
-            - " ProjectionExec: expr=[tag1@1 as tag1, field1@0 as field1]"
-            - "   DeduplicateExec: [tag1@1 DESC,tag2@2 ASC]"
-            - "     ProjectionExec: expr=[field1@2 as field1, tag1@0 as tag1, tag2@1 as tag2]"
+            - " ProjectionExec: expr=[tag1@0 as tag1, field1@2 as field1]"
+            - "   DeduplicateExec: [tag1@0 DESC,tag2@1 ASC]"
+            - "     ProjectionExec: expr=[tag1@0 as tag1, tag2@1 as tag2, field1@2 as field1]"
             - "       Test"
         "###
         );
@@ -1296,6 +1364,10 @@ mod tests {
             Operator::Eq,
             Arc::new(Literal::new(ScalarValue::from("foo"))),
         ))
+    }
+
+    fn expr_and(a: Arc<dyn PhysicalExpr>, b: Arc<dyn PhysicalExpr>) -> Arc<dyn PhysicalExpr> {
+        Arc::new(BinaryExpr::new(a, Operator::And, b))
     }
 
     #[derive(Debug)]
