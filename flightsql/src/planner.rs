@@ -18,7 +18,7 @@ use arrow_flight::{
 };
 use arrow_util::flight::prepare_schema_for_flight;
 use bytes::Bytes;
-use datafusion::{logical_expr::LogicalPlan, physical_plan::ExecutionPlan, scalar::ScalarValue};
+use datafusion::{logical_expr::LogicalPlan, physical_plan::ExecutionPlan};
 use iox_query::{exec::IOxSessionContext, QueryNamespace};
 use observability_deps::tracing::debug;
 use once_cell::sync::Lazy;
@@ -27,6 +27,7 @@ use prost::Message;
 use crate::{
     error::*,
     get_catalogs::{get_catalogs, get_catalogs_schema},
+    get_db_schemas::{get_db_schemas, get_db_schemas_schema},
     get_tables::{get_tables, get_tables_schema},
     sql_info::iox_sql_info_list,
 };
@@ -64,11 +65,10 @@ impl FlightSQLPlanner {
                 encode_schema(get_catalogs_schema())
             }
             FlightSQLCommand::CommandGetDbSchemas(CommandGetDbSchemas { .. }) => {
-                encode_schema(&GET_DB_SCHEMAS_SCHEMA)
+                encode_schema(get_db_schemas_schema().as_ref())
             }
             FlightSQLCommand::CommandGetTables(CommandGetTables { include_schema, .. }) => {
-                let schema = get_tables_schema(include_schema);
-                encode_schema(schema.as_ref())
+                encode_schema(get_tables_schema(include_schema).as_ref())
             }
             FlightSQLCommand::CommandGetTableTypes(CommandGetTableTypes { .. }) => {
                 encode_schema(&GET_TABLE_TYPE_SCHEMA)
@@ -251,59 +251,19 @@ async fn plan_get_sql_info(ctx: &IOxSessionContext, info: Vec<u32>) -> Result<Lo
     Ok(ctx.batch_to_logical_plan(batch)?)
 }
 
-/// Return a `LogicalPlan` for GetCatalogs
 async fn plan_get_catalogs(ctx: &IOxSessionContext) -> Result<LogicalPlan> {
     Ok(ctx.batch_to_logical_plan(get_catalogs(ctx.inner())?)?)
 }
 
-/// Return a `LogicalPlan` for GetDbSchemas
-///
-/// # Parameters
-///
-/// Definition from <https://github.com/apache/arrow/blob/44edc27e549d82db930421b0d4c76098941afd71/format/FlightSql.proto#L1156-L1173>
-///
-/// catalog: Specifies the Catalog to search for the tables.
-/// An empty string retrieves those without a catalog.
-/// If omitted the catalog name should not be used to narrow the search.
-///
-/// db_schema_filter_pattern: Specifies a filter pattern for schemas to search for.
-/// When no db_schema_filter_pattern is provided, the pattern will not be used to narrow the search.
-/// In the pattern string, two special characters can be used to denote matching rules:
-///    - "%" means to match any substring with 0 or more characters.
-///    - "_" means to match any one character.
-///
 async fn plan_get_db_schemas(
     ctx: &IOxSessionContext,
     catalog: Option<String>,
     db_schema_filter_pattern: Option<String>,
 ) -> Result<LogicalPlan> {
-    // use '%' to match anything if filters are not specified
-    let catalog = catalog.unwrap_or_else(|| String::from("%"));
-    let db_schema_filter_pattern = db_schema_filter_pattern.unwrap_or_else(|| String::from("%"));
-
-    let query = "PREPARE my_plan(VARCHAR, VARCHAR) AS \
-                 SELECT DISTINCT table_catalog AS catalog_name, table_schema AS db_schema_name \
-                 FROM information_schema.tables \
-                 WHERE table_catalog like $1 AND table_schema like $2  \
-                 ORDER BY table_catalog, table_schema";
-
-    let params = vec![
-        ScalarValue::Utf8(Some(catalog)),
-        ScalarValue::Utf8(Some(db_schema_filter_pattern)),
-    ];
-
-    let plan = ctx.sql_to_logical_plan(query).await?;
-    debug!(?plan, "Prepared plan is");
-    Ok(plan.with_param_values(params)?)
+    let batch = get_db_schemas(ctx.inner(), catalog, db_schema_filter_pattern)?;
+    Ok(ctx.batch_to_logical_plan(batch)?)
 }
 
-/// The schema for GetDbSchemas
-static GET_DB_SCHEMAS_SCHEMA: Lazy<Schema> = Lazy::new(|| {
-    Schema::new(vec![
-        Field::new("catalog_name", DataType::Utf8, false),
-        Field::new("db_schema_name", DataType::Utf8, false),
-    ])
-});
 async fn plan_get_tables(
     ctx: &IOxSessionContext,
     catalog: Option<String>,

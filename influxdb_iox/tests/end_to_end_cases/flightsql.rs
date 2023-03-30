@@ -791,11 +791,6 @@ async fn flightsql_get_db_schemas() {
                             db_schema_filter_pattern: None,
                         },
                         TestCase {
-                            // pub% should match all
-                            catalog: Some("pub%"),
-                            db_schema_filter_pattern: None,
-                        },
-                        TestCase {
                             catalog: None,
                             db_schema_filter_pattern: Some("%for%"),
                         },
@@ -845,16 +840,6 @@ async fn flightsql_get_db_schemas() {
                     - "*********************"
                     - ++
                     - ++
-                    - "catalog:Some(\"pub%\")"
-                    - "db_schema_filter_pattern:None"
-                    - "*********************"
-                    - +--------------+--------------------+
-                    - "| catalog_name | db_schema_name     |"
-                    - +--------------+--------------------+
-                    - "| public       | information_schema |"
-                    - "| public       | iox                |"
-                    - "| public       | system             |"
-                    - +--------------+--------------------+
                     - "catalog:None"
                     - "db_schema_filter_pattern:Some(\"%for%\")"
                     - "*********************"
@@ -873,6 +858,73 @@ async fn flightsql_get_db_schemas() {
                     - +--------------+----------------+
                     "###
                     );
+                }
+                .boxed()
+            })),
+        ],
+    )
+    .run()
+    .await
+}
+
+#[tokio::test]
+async fn flightsql_get_db_schema_matches_information_schema() {
+    test_helpers::maybe_start_logging();
+    let database_url = maybe_skip_integration!();
+
+    let table_name = "the_table";
+
+    // Set up the cluster  ====================================
+    let mut cluster = MiniCluster::create_shared2(database_url).await;
+
+    StepTest::new(
+        &mut cluster,
+        vec![
+            Step::WriteLineProtocol(format!(
+                "{table_name},tag1=A,tag2=B val=42i 123456\n\
+                 {table_name},tag1=A,tag2=C val=43i 123457"
+            )),
+            Step::Custom(Box::new(move |state: &mut StepTestState| {
+                async move {
+                    let mut client = flightsql_client(state.cluster());
+
+                    // output of get_db_schema is built manually in IOx,
+                    // so it is important it remains in sync with the
+                    // actual contents of the information schema
+                    fn no_filter() -> Option<String> {
+                        None
+                    }
+                    let stream = client
+                        .get_db_schemas(no_filter(), no_filter())
+                        .await
+                        .unwrap();
+                    let get_tables_batches = collect_stream(stream).await;
+                    let get_tables_output = batches_to_sorted_lines(&get_tables_batches);
+
+                    let sql = "SELECT DISTINCT table_catalog AS catalog_name, table_schema AS db_schema_name \
+                               FROM information_schema.tables \
+                               ORDER BY table_catalog, table_schema";
+
+                    let stream = client.query(sql).await.unwrap();
+                    let information_schema_batches = collect_stream(stream).await;
+                    let information_schema_output =
+                        batches_to_sorted_lines(&information_schema_batches);
+
+                    insta::assert_yaml_snapshot!(
+                        get_tables_output,
+                        @r###"
+                    ---
+                    - +--------------+--------------------+
+                    - "| catalog_name | db_schema_name     |"
+                    - +--------------+--------------------+
+                    - "| public       | information_schema |"
+                    - "| public       | iox                |"
+                    - "| public       | system             |"
+                    - +--------------+--------------------+
+                    "###
+                    );
+
+                    assert_eq!(get_tables_output, information_schema_output);
                 }
                 .boxed()
             })),
