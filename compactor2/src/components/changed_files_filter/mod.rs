@@ -131,7 +131,7 @@ mod tests {
         let pf_id3_level_1 = ParquetFileBuilder::new(3)
             .with_compaction_level(CompactionLevel::FileNonOverlapped)
             .build();
-        let pf_id4_level_0 = ParquetFileBuilder::new(1)
+        let pf_id4_level_0 = ParquetFileBuilder::new(4)
             .with_compaction_level(CompactionLevel::Initial)
             .build();
 
