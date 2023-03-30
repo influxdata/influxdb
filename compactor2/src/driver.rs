@@ -294,16 +294,16 @@ async fn try_compact_partition(
             files_next.extend(created_files);
             files_next.extend(upgraded_files);
             files_next.extend(files_to_keep);
+
+            // Report to `timeout_with_progress_checking` that some progress has been made; stop
+            // if sending this signal fails because something has gone terribly wrong for the other
+            // end of the channel to not be listening anymore.
+            if let Err(e) = transmit_progress_signal.send(true) {
+                return Err(Box::new(e));
+            }
         }
 
         files = files_next;
-
-        // Report to `timeout_with_progress_checking` that some progress has been made; stop
-        // if sending this signal fails because something has gone terribly wrong for the other
-        // end of the channel to not be listening anymore.
-        if let Err(e) = transmit_progress_signal.send(true) {
-            return Err(Box::new(e));
-        }
     }
 }
 
