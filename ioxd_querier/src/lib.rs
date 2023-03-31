@@ -1,4 +1,5 @@
 use async_trait::async_trait;
+use authz::Authorizer;
 use clap_blocks::querier::{IngesterAddresses, QuerierConfig};
 use datafusion_util::config::register_iox_object_store;
 use hyper::{Body, Request, Response};
@@ -34,6 +35,7 @@ pub struct QuerierServerType<C: QuerierHandler> {
     database: Arc<QuerierDatabase>,
     server: QuerierServer<C>,
     trace_collector: Option<Arc<dyn TraceCollector>>,
+    authz: Option<Arc<dyn Authorizer>>,
 }
 
 impl<C: QuerierHandler> std::fmt::Debug for QuerierServerType<C> {
@@ -47,11 +49,13 @@ impl<C: QuerierHandler> QuerierServerType<C> {
         server: QuerierServer<C>,
         database: Arc<QuerierDatabase>,
         common_state: &CommonServerState,
+        authz: Option<Arc<dyn Authorizer>>,
     ) -> Self {
         Self {
             server,
             database,
             trace_collector: common_state.trace_collector(),
+            authz,
         }
     }
 }
@@ -81,7 +85,10 @@ impl<C: QuerierHandler + std::fmt::Debug + 'static> ServerType for QuerierServer
         let builder = setup_builder!(builder_input, self);
         add_service!(
             builder,
-            rpc::query::make_flight_server(Arc::clone(&self.database))
+            rpc::query::make_flight_server(
+                Arc::clone(&self.database),
+                self.authz.as_ref().map(Arc::clone)
+            )
         );
         add_service!(
             builder,
@@ -154,6 +161,7 @@ pub struct QuerierServerTypeArgs<'a> {
     pub ingester_addresses: IngesterAddresses,
     pub querier_config: QuerierConfig,
     pub rpc_write: bool,
+    pub authz: Option<Arc<dyn Authorizer>>,
 }
 
 #[derive(Debug, Error)]
@@ -244,5 +252,6 @@ pub async fn create_querier_server_type(
         querier,
         database,
         args.common_state,
+        args.authz.as_ref().map(Arc::clone),
     )))
 }

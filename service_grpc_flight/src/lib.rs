@@ -15,6 +15,7 @@ use arrow_flight::{
     HandshakeRequest, HandshakeResponse, PutResult, SchemaAsIpc, SchemaResult, Ticket,
 };
 use arrow_util::flight::prepare_schema_for_flight;
+use authz::Authorizer;
 use bytes::Bytes;
 use data_types::NamespaceNameError;
 use datafusion::{error::DataFusionError, physical_plan::ExecutionPlan};
@@ -95,6 +96,15 @@ pub enum Error {
 
     #[snafu(display("Unsupported message type: {}", description))]
     UnsupportedMessageType { description: String },
+
+    #[snafu(display("Unauthenticated"))]
+    Unauthenticated,
+
+    #[snafu(display("Permission denied"))]
+    PermissionDenied,
+
+    #[snafu(display("Authz error: {}", source))]
+    Authz { source: authz::Error },
 }
 pub type Result<T, E = Error> = std::result::Result<T, E>;
 
@@ -109,17 +119,20 @@ impl From<Error> for tonic::Status {
             Error::NamespaceNotFound { .. }
             | Error::InvalidTicket { .. }
             | Error::InvalidHandshake { .. }
+            | Error::Unauthenticated { .. }
+            | Error::PermissionDenied { .. }
             // TODO(edd): this should be `debug`. Keeping at info while IOx in early development
             | Error::InvalidNamespaceName { .. } => info!(e=%err, msg),
             Error::Query { .. } => info!(e=%err, msg),
             Error::Optimize { .. }
-            |Error::NoFlightSQLNamespace
-            |Error::InvalidNamespaceHeader { .. }
+            | Error::NoFlightSQLNamespace
+            | Error::InvalidNamespaceHeader { .. }
             | Error::Planning { .. }
             | Error::Deserialization { .. }
             | Error::InternalCreatingTicket { .. }
-                | Error::UnsupportedMessageType { .. }
-                | Error::FlightSQL { .. }
+            | Error::UnsupportedMessageType { .. }
+            | Error::FlightSQL { .. }
+            | Error::Authz { .. }
             => {
                 warn!(e=%err, msg)
             }
@@ -146,7 +159,7 @@ impl Error {
                 datafusion_error_to_tonic_code(&source)
             }
             Self::UnsupportedMessageType { .. } => tonic::Code::Unimplemented,
-            Error::FlightSQL { source } => match source {
+            Self::FlightSQL { source } => match source {
                 flightsql::Error::InvalidHandle { .. }
                 | flightsql::Error::Decode { .. }
                 | flightsql::Error::Protocol { .. }
@@ -159,7 +172,11 @@ impl Error {
                 }
                 flightsql::Error::DataFusion { source } => datafusion_error_to_tonic_code(&source),
             },
-            Self::InternalCreatingTicket { .. } | Self::Optimize { .. } => tonic::Code::Internal,
+            Self::InternalCreatingTicket { .. } | Self::Optimize { .. } | Self::Authz { .. } => {
+                tonic::Code::Internal
+            }
+            Self::Unauthenticated => tonic::Code::Unauthenticated,
+            Self::PermissionDenied => tonic::Code::PermissionDenied,
         };
 
         tonic::Status::new(code, msg)
@@ -175,6 +192,16 @@ impl Error {
 impl From<flightsql::Error> for Error {
     fn from(source: flightsql::Error) -> Self {
         Self::FlightSQL { source }
+    }
+}
+
+impl From<authz::Error> for Error {
+    fn from(source: authz::Error) -> Self {
+        match source {
+            authz::Error::Forbidden => Self::PermissionDenied,
+            authz::Error::NoToken => Self::Unauthenticated,
+            source => Self::Authz { source },
+        }
     }
 }
 
@@ -331,13 +358,17 @@ where
     S: QueryNamespaceProvider,
 {
     server: Arc<S>,
+    authz: Option<Arc<dyn Authorizer>>,
 }
 
-pub fn make_server<S>(server: Arc<S>) -> FlightServer<impl Flight>
+pub fn make_server<S>(
+    server: Arc<S>,
+    authz: Option<Arc<dyn Authorizer>>,
+) -> FlightServer<impl Flight>
 where
     S: QueryNamespaceProvider,
 {
-    FlightServer::new(FlightService { server })
+    FlightServer::new(FlightService { server, authz })
 }
 
 impl<S> FlightService<S>
@@ -424,6 +455,7 @@ where
         let external_span_ctx: Option<RequestLogContext> = request.extensions().get().cloned();
         let trace = external_span_ctx.format_jaeger();
         let span_ctx: Option<SpanContext> = request.extensions().get().cloned();
+        let authz_token = get_flight_authz(request.metadata());
         let ticket = request.into_inner();
 
         // attempt to decode ticket
@@ -436,6 +468,18 @@ where
         let request = request?;
         let namespace_name = request.namespace_name();
         let query = request.query();
+
+        let perms = match query {
+            RunQuery::FlightSQL(cmd) => flightsql_permissions(namespace_name, cmd),
+            RunQuery::Sql(_) | RunQuery::InfluxQL(_) => vec![authz::Permission::ResourceAction(
+                authz::Resource::Namespace(namespace_name.to_string()),
+                authz::Action::Read,
+            )],
+        };
+        self.authz
+            .require_any_permission(authz_token.as_deref(), &perms)
+            .await
+            .map_err(Error::from)?;
 
         let permit = self
             .server
@@ -506,12 +550,18 @@ where
         let trace = external_span_ctx.format_jaeger();
 
         let namespace_name = get_flightsql_namespace(request.metadata())?;
+        let authz_token = get_flight_authz(request.metadata());
         let flight_descriptor = request.into_inner();
 
         // extract the FlightSQL message
         let cmd = cmd_from_descriptor(flight_descriptor.clone())?;
-
         info!(%namespace_name, %cmd, %trace, "GetFlightInfo request");
+
+        let perms = flightsql_permissions(&namespace_name, &cmd);
+        self.authz
+            .require_any_permission(authz_token.as_deref(), &perms)
+            .await
+            .map_err(Error::from)?;
 
         let db = self
             .server
@@ -585,6 +635,7 @@ where
         let trace = external_span_ctx.format_jaeger();
 
         let namespace_name = get_flightsql_namespace(request.metadata())?;
+        let authz_token = get_flight_authz(request.metadata());
         let Action {
             r#type: action_type,
             body,
@@ -594,6 +645,12 @@ where
         let cmd = FlightSQLCommand::try_decode(body).context(FlightSQLSnafu)?;
 
         info!(%namespace_name, %action_type, %cmd, %trace, "DoAction request");
+
+        let perms = flightsql_permissions(&namespace_name, &cmd);
+        self.authz
+            .require_any_permission(authz_token.as_deref(), &perms)
+            .await
+            .map_err(Error::from)?;
 
         let db = self
             .server
@@ -661,6 +718,34 @@ fn get_flightsql_namespace(metadata: &MetadataMap) -> Result<String> {
     }
 
     NoFlightSQLNamespaceSnafu.fail()
+}
+
+/// Retrieve the authorization token associated with the request.
+fn get_flight_authz(metadata: &MetadataMap) -> Option<Vec<u8>> {
+    let val = metadata.get("authorization")?.as_ref();
+    if val.len() < b"Bearer ".len() {
+        return None;
+    }
+    match val.split_at(b"Bearer ".len()) {
+        (b"Bearer ", token) => Some(token.to_vec()),
+        _ => None,
+    }
+}
+
+fn flightsql_permissions(namespace_name: &str, cmd: &FlightSQLCommand) -> Vec<authz::Permission> {
+    let resource = authz::Resource::Namespace(namespace_name.to_string());
+    let action = match cmd {
+        FlightSQLCommand::CommandStatementQuery(_) => authz::Action::Read,
+        FlightSQLCommand::CommandPreparedStatementQuery(_) => authz::Action::Read,
+        FlightSQLCommand::CommandGetSqlInfo(_) => authz::Action::ReadSchema,
+        FlightSQLCommand::CommandGetCatalogs(_) => authz::Action::ReadSchema,
+        FlightSQLCommand::CommandGetDbSchemas(_) => authz::Action::ReadSchema,
+        FlightSQLCommand::CommandGetTables(_) => authz::Action::ReadSchema,
+        FlightSQLCommand::CommandGetTableTypes(_) => authz::Action::ReadSchema,
+        FlightSQLCommand::ActionCreatePreparedStatementRequest(_) => authz::Action::Read,
+        FlightSQLCommand::ActionClosePreparedStatementRequest(_) => authz::Action::Read,
+    };
+    vec![authz::Permission::ResourceAction(resource, action)]
 }
 
 /// Wrapper over a FlightDataEncodeStream that adds IOx specfic
@@ -831,10 +916,14 @@ impl Stream for GetStream {
 
 #[cfg(test)]
 mod tests {
+    use arrow_flight::sql::ProstMessageExt;
+    use async_trait::async_trait;
+    use authz::Permission;
     use futures::Future;
     use metric::{Attributes, Metric, U64Gauge};
     use service_common::test_util::TestDatabaseStore;
     use tokio::pin;
+    use tonic::metadata::{MetadataKey, MetadataValue};
 
     use super::*;
 
@@ -864,6 +953,7 @@ mod tests {
 
         let service = FlightService {
             server: Arc::clone(&test_storage),
+            authz: Option::<Arc<dyn Authorizer>>::None,
         };
         let ticket = Ticket {
             ticket: br#"{"namespace_name": "my_db", "sql_query": "SELECT 1;"}"#
@@ -994,5 +1084,172 @@ mod tests {
             .expect("failed to get observer")
             .fetch();
         assert_eq!(actual, expected);
+    }
+
+    #[derive(Debug)]
+    struct MockAuthorizer {}
+
+    #[async_trait]
+    impl Authorizer for MockAuthorizer {
+        async fn permissions(
+            &self,
+            token: Option<&[u8]>,
+            perms: &[Permission],
+        ) -> Result<Vec<Permission>, authz::Error> {
+            match token {
+                Some(b"GOOD") => Ok(perms.to_vec()),
+                Some(b"BAD") => Ok(vec![]),
+                Some(b"UGLY") => Err(authz::Error::verification("test", "test error")),
+                Some(_) => panic!("unexpected token"),
+                None => Err(authz::Error::NoToken),
+            }
+        }
+    }
+
+    #[tokio::test]
+    async fn do_get_authz() {
+        let test_storage = Arc::new(TestDatabaseStore::default());
+        test_storage.clone().db_or_create("bananas").await;
+
+        let svc = FlightService {
+            server: Arc::clone(&test_storage),
+            authz: Some(Arc::new(MockAuthorizer {})),
+        };
+
+        async fn assert_code(
+            svc: &FlightService<TestDatabaseStore>,
+            want: tonic::Code,
+            request: tonic::Request<arrow_flight::Ticket>,
+        ) {
+            let got = match svc.do_get(request).await {
+                Ok(_) => tonic::Code::Ok,
+                Err(e) => e.code(),
+            };
+            assert_eq!(want, got);
+        }
+
+        fn request(
+            query: RunQuery,
+            authorization: &'static str,
+        ) -> tonic::Request<arrow_flight::Ticket> {
+            let mut req = tonic::Request::new(
+                IoxGetRequest::new("bananas".to_string(), query)
+                    .try_encode()
+                    .unwrap(),
+            );
+            if !authorization.is_empty() {
+                req.metadata_mut().insert(
+                    MetadataKey::from_static("authorization"),
+                    MetadataValue::from_static(authorization),
+                );
+            }
+            req
+        }
+
+        fn sql_request(authorization: &'static str) -> tonic::Request<arrow_flight::Ticket> {
+            request(RunQuery::Sql("SELECT 1".to_string()), authorization)
+        }
+
+        fn influxql_request(authorization: &'static str) -> tonic::Request<arrow_flight::Ticket> {
+            request(
+                RunQuery::InfluxQL("SHOW DATABASES".to_string()),
+                authorization,
+            )
+        }
+
+        fn flightsql_request(authorization: &'static str) -> tonic::Request<arrow_flight::Ticket> {
+            request(
+                RunQuery::FlightSQL(FlightSQLCommand::CommandGetCatalogs(
+                    arrow_flight::sql::CommandGetCatalogs {},
+                )),
+                authorization,
+            )
+        }
+
+        assert_code(&svc, tonic::Code::Unauthenticated, sql_request("")).await;
+        assert_code(&svc, tonic::Code::Ok, sql_request("Bearer GOOD")).await;
+        assert_code(
+            &svc,
+            tonic::Code::PermissionDenied,
+            sql_request("Bearer BAD"),
+        )
+        .await;
+        assert_code(&svc, tonic::Code::Internal, sql_request("Bearer UGLY")).await;
+
+        assert_code(&svc, tonic::Code::Unauthenticated, influxql_request("")).await;
+
+        assert_code(
+            &svc,
+            tonic::Code::InvalidArgument, // SHOW DATABASE has not been implemented yet.
+            influxql_request("Bearer GOOD"),
+        )
+        .await;
+        assert_code(
+            &svc,
+            tonic::Code::PermissionDenied,
+            influxql_request("Bearer BAD"),
+        )
+        .await;
+        assert_code(&svc, tonic::Code::Internal, influxql_request("Bearer UGLY")).await;
+
+        assert_code(&svc, tonic::Code::Unauthenticated, flightsql_request("")).await;
+        assert_code(&svc, tonic::Code::Ok, flightsql_request("Bearer GOOD")).await;
+        assert_code(
+            &svc,
+            tonic::Code::PermissionDenied,
+            flightsql_request("Bearer BAD"),
+        )
+        .await;
+        assert_code(
+            &svc,
+            tonic::Code::Internal,
+            flightsql_request("Bearer UGLY"),
+        )
+        .await;
+    }
+
+    #[tokio::test]
+    async fn get_flight_info_authz() {
+        let test_storage = Arc::new(TestDatabaseStore::default());
+        test_storage.clone().db_or_create("bananas").await;
+
+        let svc = FlightService {
+            server: Arc::clone(&test_storage),
+            authz: Some(Arc::new(MockAuthorizer {})),
+        };
+
+        async fn assert_code(
+            svc: &FlightService<TestDatabaseStore>,
+            want: tonic::Code,
+            request: tonic::Request<FlightDescriptor>,
+        ) {
+            let got = match svc.get_flight_info(request).await {
+                Ok(_) => tonic::Code::Ok,
+                Err(e) => e.code(),
+            };
+            assert_eq!(want, got);
+        }
+
+        fn request(authorization: &'static str) -> tonic::Request<FlightDescriptor> {
+            let cmd = arrow_flight::sql::CommandGetCatalogs {};
+            let mut req =
+                tonic::Request::new(FlightDescriptor::new_cmd(cmd.as_any().encode_to_vec()));
+            req.metadata_mut().insert(
+                MetadataKey::from_static("iox-namespace-name"),
+                MetadataValue::from_static("bananas"),
+            );
+            if !authorization.is_empty() {
+                req.metadata_mut().insert(
+                    MetadataKey::from_static("authorization"),
+                    MetadataValue::from_static(authorization),
+                );
+            }
+            req
+        }
+
+        assert_code(&svc, tonic::Code::Unauthenticated, request("")).await;
+        assert_code(&svc, tonic::Code::Ok, request("Bearer GOOD")).await;
+        assert_code(&svc, tonic::Code::PermissionDenied, request("Bearer BAD")).await;
+        assert_code(&svc, tonic::Code::Internal, request("Bearer UGLY")).await;
     }
 }

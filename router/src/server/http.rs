@@ -145,6 +145,7 @@ impl From<authz::Error> for Error {
     fn from(value: authz::Error) -> Self {
         match value {
             authz::Error::Forbidden => Self::Forbidden,
+            authz::Error::NoToken => Self::Unauthenticated,
             e => Self::Authorizer(e),
         }
     }
@@ -417,36 +418,26 @@ where
         let namespace = org_and_bucket_to_namespace(&write_info.org, &write_info.bucket)
             .map_err(OrgBucketError::MappingFail)?;
 
-        if let Some(authz) = &self.authz {
-            let token = req
-                .extensions()
-                .get::<AuthorizationHeaderExtension>()
-                .and_then(|v| v.as_ref())
-                .and_then(|v| {
-                    let s = v.as_ref();
-                    if s.len() < b"Token ".len() {
-                        None
-                    } else {
-                        match s.split_at(b"Token ".len()) {
-                            (b"Token ", token) => Some(token),
-                            _ => None,
-                        }
+        let token = req
+            .extensions()
+            .get::<AuthorizationHeaderExtension>()
+            .and_then(|v| v.as_ref())
+            .and_then(|v| {
+                let s = v.as_ref();
+                if s.len() < b"Token ".len() {
+                    None
+                } else {
+                    match s.split_at(b"Token ".len()) {
+                        (b"Token ", token) => Some(token),
+                        _ => None,
                     }
-                })
-                .ok_or(Error::Unauthenticated)?;
-
-            let perms = [Permission::ResourceAction(
-                Resource::Namespace(namespace.to_string()),
-                Action::Write,
-            )];
-            authz
-                .require_any_permission(token, &perms)
-                .await
-                .map_err(|e| match e {
-                    authz::Error::Forbidden => Error::Forbidden,
-                    e => e.into(),
-                })?;
-        }
+                }
+            });
+        let perms = [Permission::ResourceAction(
+            Resource::Namespace(namespace.to_string()),
+            Action::Write,
+        )];
+        self.authz.require_any_permission(token, &perms).await?;
 
         trace!(
             org=%write_info.org,
@@ -1409,13 +1400,14 @@ mod tests {
     impl Authorizer for MockAuthorizer {
         async fn permissions(
             &self,
-            token: &[u8],
+            token: Option<&[u8]>,
             perms: &[Permission],
         ) -> Result<Vec<Permission>, authz::Error> {
             match token {
-                b"GOOD" => Ok(perms.to_vec()),
-                b"UGLY" => Err(authz::Error::verification("test", "test error")),
-                _ => Ok(vec![]),
+                Some(b"GOOD") => Ok(perms.to_vec()),
+                Some(b"UGLY") => Err(authz::Error::verification("test", "test error")),
+                Some(_) => Ok(vec![]),
+                None => Err(authz::Error::NoToken),
             }
         }
     }

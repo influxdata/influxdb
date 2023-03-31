@@ -1,6 +1,7 @@
 //! Command line options for running a router2 that uses the RPC write path.
 use super::main;
 use crate::process_info::setup_metric_registry;
+use authz::Authorizer;
 use clap_blocks::{
     authz::AuthzConfig, catalog_dsn::CatalogDsnConfig, object_store::make_object_store,
     router2::Router2Config, run_config::RunConfig,
@@ -105,10 +106,8 @@ pub async fn command(config: Config) -> Result<()> {
         &metrics,
     ));
     let authz = config.authz_config.authorizer()?;
-    if let Some(authz) = &authz {
-        // Verify the connection to the authorizer, if configured.
-        authz.probe().await?;
-    }
+    // Verify the connection to the authorizer, if configured.
+    authz.probe().await?;
 
     let server_type = create_router2_server_type(
         &common_state,

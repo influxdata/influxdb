@@ -7,6 +7,7 @@ license.workspace = true
 
 [dependencies]
 # Workspace dependencies, in alphabetical order
+authz = { path = "../authz" }
 arrow_util = { path = "../arrow_util" }
 data_types = { path = "../data_types" }
 datafusion = { workspace = true }
@@ -22,6 +23,7 @@ tracker = { path = "../tracker" }
 # Crates.io dependencies, in alphabetical order
 arrow = { workspace = true, features = ["prettyprint"] }
 arrow-flight = { workspace = true, features=["flight-sql-experimental"] }
+async-trait = "0.1"
 bytes = "1.4"
 futures = "0.3"
 prost = "0.11"

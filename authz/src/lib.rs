@@ -38,14 +38,14 @@ pub trait Authorizer: std::fmt::Debug + Send + Sync {
     /// empty permission sets.
     async fn permissions(
         &self,
-        token: &[u8],
+        token: Option<&[u8]>,
         perms: &[Permission],
     ) -> Result<Vec<Permission>, Error>;
 
     /// Make a test request that determines if end-to-end communication
     /// with the service is working.
     async fn probe(&self) -> Result<(), Error> {
-        self.permissions(b"", &[]).await?;
+        self.permissions(Some(b""), &[]).await?;
         Ok(())
     }
 
@@ -55,7 +55,7 @@ pub trait Authorizer: std::fmt::Debug + Send + Sync {
     /// error is returned.
     async fn require_any_permission(
         &self,
-        token: &[u8],
+        token: Option<&[u8]>,
         perms: &[Permission],
     ) -> Result<(), Error> {
         if self.permissions(token, perms).await?.is_empty() {
@@ -63,6 +63,31 @@ pub trait Authorizer: std::fmt::Debug + Send + Sync {
         } else {
             Ok(())
         }
+    }
+}
+
+#[async_trait]
+impl<T: Authorizer> Authorizer for Option<T> {
+    async fn permissions(
+        &self,
+        token: Option<&[u8]>,
+        perms: &[Permission],
+    ) -> Result<Vec<Permission>, Error> {
+        match self {
+            Some(authz) => authz.permissions(token, perms).await,
+            None => Ok(perms.to_vec()),
+        }
+    }
+}
+
+#[async_trait]
+impl<T: AsRef<dyn Authorizer> + std::fmt::Debug + Send + Sync> Authorizer for T {
+    async fn permissions(
+        &self,
+        token: Option<&[u8]>,
+        perms: &[Permission],
+    ) -> Result<Vec<Permission>, Error> {
+        self.as_ref().permissions(token, perms).await
     }
 }
 
@@ -92,11 +117,11 @@ impl IoxAuthorizer {
 impl Authorizer for IoxAuthorizer {
     async fn permissions(
         &self,
-        token: &[u8],
+        token: Option<&[u8]>,
         perms: &[Permission],
     ) -> Result<Vec<Permission>, Error> {
         let req = proto::AuthorizeRequest {
-            token: token.to_vec(),
+            token: token.ok_or(Error::NoToken)?.to_vec(),
             permissions: perms
                 .iter()
                 .filter_map(|p| p.clone().try_into().ok())
@@ -131,9 +156,13 @@ pub enum Error {
         source: Box<dyn std::error::Error + Send + Sync + 'static>,
     },
 
-    /// The token's permissions do not allow the operation..
+    /// The token's permissions do not allow the operation.
     #[snafu(display("forbidden"))]
     Forbidden,
+
+    /// No token has been supplied, but is required.
+    #[snafu(display("no token"))]
+    NoToken,
 }
 
 impl Error {

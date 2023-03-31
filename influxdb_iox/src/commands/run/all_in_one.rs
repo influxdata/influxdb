@@ -3,6 +3,7 @@
 use crate::process_info::setup_metric_registry;
 
 use super::main;
+use authz::Authorizer;
 use clap_blocks::{
     authz::AuthzConfig,
     catalog_dsn::CatalogDsnConfig,
@@ -596,10 +597,8 @@ pub async fn command(config: Config) -> Result<()> {
     let time_provider: Arc<dyn TimeProvider> = Arc::new(SystemProvider::new());
 
     let authz = authz_config.authorizer()?;
-    if let Some(authz) = &authz {
-        // Verify the connection to the authorizer, if configured.
-        authz.probe().await?;
-    }
+    // Verify the connection to the authorizer, if configured.
+    authz.probe().await?;
 
     // create common state from the router and use it below
     let common_state = CommonServerState::from_config(router_run_config.clone())?;
@@ -627,7 +626,7 @@ pub async fn command(config: Config) -> Result<()> {
         Arc::clone(&metrics),
         Arc::clone(&catalog),
         Arc::clone(&object_store),
-        authz.map(|a| Arc::clone(&a)),
+        authz.as_ref().map(Arc::clone),
         &router_config,
     )
     .await?;
@@ -682,6 +681,7 @@ pub async fn command(config: Config) -> Result<()> {
         ingester_addresses,
         querier_config,
         rpc_write: true,
+        authz: authz.as_ref().map(Arc::clone),
     })
     .await?;
 

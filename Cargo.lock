@@ -3326,6 +3326,7 @@ version = "0.1.0"
 dependencies = [
  "arrow-flight",
  "async-trait",
+ "authz",
  "clap_blocks",
  "data_types",
  "datafusion_util",
@@ -5288,6 +5289,8 @@ dependencies = [
  "arrow-flight",
  "arrow_util",
  "assert_matches",
+ "async-trait",
+ "authz",
  "bytes",
  "data_types",
  "datafusion",
