@@ -279,6 +279,23 @@ fn make_round_info_source(config: &Config) -> Arc<dyn RoundInfoSource> {
 
 // Conditions to compact this partition
 fn make_partition_filter(config: &Config) -> Arc<dyn PartitionFilter> {
+    let mut partition_filters = exceptional_cases_partition_filters(config);
+
+    partition_filters.push(continue_condition_filter(config));
+
+    let partition_continue_conditions = "continue_conditions";
+    Arc::new(LoggingPartitionFilterWrapper::new(
+        MetricsPartitionFilterWrapper::new(
+            AndPartitionFilter::new(partition_filters),
+            &config.metric_registry,
+            partition_continue_conditions,
+        ),
+        partition_continue_conditions,
+    ))
+}
+
+fn exceptional_cases_partition_filters(config: &Config) -> Vec<Arc<dyn PartitionFilter>> {
+    // Capacity is hardcoded to a somewhat arbitrary number to prevent some reallocations
     let mut partition_filters: Vec<Arc<dyn PartitionFilter>> = Vec::with_capacity(8);
     partition_filters.push(Arc::new(HasFilesPartitionFilter::new()));
 
@@ -295,10 +312,14 @@ fn make_partition_filter(config: &Config) -> Arc<dyn PartitionFilter> {
         config.max_num_columns_per_table,
     )));
 
+    partition_filters
+}
+
+fn continue_condition_filter(config: &Config) -> Arc<dyn PartitionFilter> {
     // (Has-L0) OR            -- to avoid overlapped files
     // (num(L1) > N) OR       -- to avoid many files
     // (total_size(L1) > max_desired_file_size)  -- to avoid compact and than split
-    partition_filters.push(Arc::new(OrPartitionFilter::new(vec![
+    Arc::new(OrPartitionFilter::new(vec![
         Arc::new(HasMatchingFilePartitionFilter::new(
             LevelRangeFileFilter::new(CompactionLevel::Initial..=CompactionLevel::Initial),
         )),
@@ -314,17 +335,7 @@ fn make_partition_filter(config: &Config) -> Arc<dyn PartitionFilter> {
             ),
             config.max_desired_file_size_bytes,
         )),
-    ])));
-
-    let partition_continue_conditions = "continue_conditions";
-    Arc::new(LoggingPartitionFilterWrapper::new(
-        MetricsPartitionFilterWrapper::new(
-            AndPartitionFilter::new(partition_filters),
-            &config.metric_registry,
-            partition_continue_conditions,
-        ),
-        partition_continue_conditions,
-    ))
+    ]))
 }
 
 fn make_ir_planner(config: &Config) -> Arc<dyn IRPlanner> {
