@@ -4650,6 +4650,16 @@ pub(crate) mod test_helpers {
             .unwrap();
         assert_eq!(partitions.len(), 1);
         assert_eq!(partitions[0], partition1.id);
+        // When the maximum time is greater than the creation time of partition2, return it
+        let mut partitions = repos
+            .partitions()
+            .partitions_new_file_between(time_three_hour_ago, Some(time_now + 1))
+            .await
+            .unwrap();
+        assert_eq!(partitions.len(), 2);
+        partitions.sort();
+        assert_eq!(partitions[0], partition1.id);
+        assert_eq!(partitions[1], partition2.id);
         // Between six and three hours ago, return none
         let partitions = repos
             .partitions()
