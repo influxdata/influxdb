@@ -50,7 +50,7 @@ impl PartitionsSource for CatalogToCompactPartitionsSource {
                     .repositories()
                     .await
                     .partitions()
-                    .partitions_to_compact(cutoff.into())
+                    .partitions_new_file_between(cutoff.into(), None)
                     .await
             })
             .await

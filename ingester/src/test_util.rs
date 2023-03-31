@@ -507,7 +507,7 @@ pub(crate) fn make_partitions(
     ns_id: NamespaceId,
 ) -> Vec<DmlOperation> {
     // In-memory data includes these rows but split between 4 groups go into
-    // different batches of parittion 1 or partittion 2  as requeted
+    // different batches of partition 1 or partition 2  as requeted
     // let expected = vec![
     //         "+------------+-----+------+--------------------------------+",
     //         "| city       | day | temp | time                           |",
@@ -623,7 +623,7 @@ fn make_first_partition_data(
     ns_id: NamespaceId,
 ) -> (Vec<DmlOperation>, SequenceNumber) {
     // In-memory data includes these rows but split between 3 groups go into
-    // different batches of parittion p1
+    // different batches of partition p1
     // let expected = vec![
     //         "+------------+-----+------+--------------------------------+",
     //         "| city       | day | temp | time                           |",

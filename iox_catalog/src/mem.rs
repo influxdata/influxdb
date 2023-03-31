@@ -1021,13 +1021,22 @@ impl PartitionRepo for MemTxn {
         Ok(partitions)
     }
 
-    async fn partitions_to_compact(&mut self, recent_time: Timestamp) -> Result<Vec<PartitionId>> {
+    async fn partitions_new_file_between(
+        &mut self,
+        minimum_time: Timestamp,
+        maximum_time: Option<Timestamp>,
+    ) -> Result<Vec<PartitionId>> {
         let stage = self.stage();
 
         let partitions: Vec<_> = stage
             .partitions
             .iter()
-            .filter(|p| p.new_file_at > Some(recent_time))
+            .filter(|p| {
+                p.new_file_at > Some(minimum_time)
+                    && maximum_time
+                        .map(|max| p.new_file_at < Some(max))
+                        .unwrap_or(true)
+            })
             .map(|p| p.id)
             .collect();
 
