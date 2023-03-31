@@ -5,10 +5,10 @@ use generated_types::influxdata::iox::namespace::v1::{
     namespace_service_server::NamespaceService, *,
 };
 use hyper::StatusCode;
-use iox_catalog::interface::SoftDeletedRows;
+use iox_catalog::interface::{Error as CatalogError, SoftDeletedRows};
 use iox_time::{SystemProvider, TimeProvider};
 use router::{
-    dml_handlers::{DmlError, RetentionError},
+    dml_handlers::{CachedServiceProtectionLimit, DmlError, RetentionError, SchemaError},
     namespace_resolver::{self, NamespaceCreationError},
     server::http::Error,
 };
@@ -559,6 +559,310 @@ async fn test_update_namespace_negative_retention_period() {
             assert_eq!(ns.id.get(), create.id);
             assert_eq!(ns.name, create.name);
             assert_eq!(ns.retention_period_ns, create.retention_period_ns);
+        });
+    }
+}
+
+#[tokio::test]
+async fn test_update_namespace_limit_max_tables() {
+    // Initialise a TestContext requiring explicit namespace creation.
+    let ctx = TestContextBuilder::default().build().await;
+
+    // Explicitly create the namespace.
+    let create = ctx
+        .grpc_delegate()
+        .namespace_service()
+        .create_namespace(Request::new(CreateNamespaceRequest {
+            name: "bananas_test".to_string(),
+            retention_period_ns: Some(0),
+        }))
+        .await
+        .expect("failed to create namespace")
+        .into_inner()
+        .namespace
+        .expect("no namespace in response");
+
+    // Writing to two initial tables should succeed
+    ctx.write_lp("bananas", "test", "ananas,tag1=A,tag2=B val=42i 42424242")
+        .await
+        .expect("write should succeed");
+    ctx.write_lp("bananas", "test", "platanos,tag3=C,tag4=D val=99i 42424243")
+        .await
+        .expect("write should succeed");
+
+    // Limit the maximum number of tables to prevent a write adding another table
+    let got = ctx
+        .grpc_delegate()
+        .namespace_service()
+        .update_namespace_service_protection_limit(Request::new(
+            UpdateNamespaceServiceProtectionLimitRequest {
+                name: "bananas_test".to_string(),
+                limit_update: Some(
+                    update_namespace_service_protection_limit_request::LimitUpdate::MaxTables(1),
+                ),
+            },
+        ))
+        .await
+        .expect("failed to update namespace max table limit")
+        .into_inner()
+        .namespace
+        .expect("no namespace in response");
+
+    assert_eq!(got.name, create.name);
+    assert_eq!(got.id, create.id);
+    assert_eq!(got.retention_period_ns, create.retention_period_ns);
+    assert_matches!(&got.service_protection_limits, Some(got_limits) => {
+        assert_eq!(got_limits.max_tables, 1);
+        assert_eq!(got_limits.max_columns_per_table, create.service_protection_limits.expect("created namespace should have limits").max_columns_per_table);
+    });
+
+    // The list namespace RPC should show the updated namespace
+    {
+        let list = ctx
+            .grpc_delegate()
+            .namespace_service()
+            .get_namespaces(Request::new(Default::default()))
+            .await
+            .expect("must return namespaces")
+            .into_inner();
+        assert_matches!(list.namespaces.as_slice(), [ns] => {
+            assert_eq!(*ns, got);
+        });
+    }
+
+    // The catalog should contain the namespace.
+    {
+        let db_list = ctx
+            .catalog()
+            .repositories()
+            .await
+            .namespaces()
+            .list(SoftDeletedRows::ExcludeDeleted)
+            .await
+            .expect("query failure");
+        assert_matches!(db_list.as_slice(), [ns] => {
+            assert_eq!(ns.id.get(), got.id);
+            assert_eq!(ns.name, got.name);
+            assert_eq!(ns.retention_period_ns, got.retention_period_ns);
+            let got_limits = got.service_protection_limits.expect("created namespace should have limits");
+            assert_eq!(ns.max_tables, got_limits.max_tables);
+            assert_eq!(ns.max_columns_per_table, got_limits.max_columns_per_table);
+            assert!(ns.deleted_at.is_none());
+        });
+    }
+
+    // New table should fail to be created by the catalog.
+    let err = ctx
+        .write_lp(
+            "bananas",
+            "test",
+            "arán_banana,tag1=A,tag2=B val=42i 42424244",
+        )
+        .await
+        .expect_err("cached entry should be removed");
+    assert_matches!(err, router::server::http::Error::DmlHandler(DmlError::Schema(SchemaError::ServiceLimit(e))) => {
+        let e: CatalogError = *e.downcast::<CatalogError>().expect("error returned should be a table create limit error");
+        assert_matches!(e,CatalogError::TableCreateLimitError { table_name, .. } => {
+            assert_eq!(table_name, "arán_banana");
+        });
+    });
+}
+#[tokio::test]
+async fn test_update_namespace_limit_max_columns_per_table() {
+    // Initialise a TestContext requiring explicit namespace creation.
+    let ctx = TestContextBuilder::default().build().await;
+
+    // Explicitly create the namespace.
+    let create = ctx
+        .grpc_delegate()
+        .namespace_service()
+        .create_namespace(Request::new(CreateNamespaceRequest {
+            name: "bananas_test".to_string(),
+            retention_period_ns: Some(0),
+        }))
+        .await
+        .expect("failed to create namespace")
+        .into_inner()
+        .namespace
+        .expect("no namespace in response");
+
+    // Initial write within limit should succeed
+    ctx.write_lp("bananas", "test", "ananas,tag1=A,tag2=B val=42i 42424242")
+        .await
+        .expect("write should succeed");
+
+    // Limit the maximum number of columns per table so an extra column is rejected
+    let got = ctx
+        .grpc_delegate()
+        .namespace_service()
+        .update_namespace_service_protection_limit(Request::new(
+            UpdateNamespaceServiceProtectionLimitRequest {
+                name: "bananas_test".to_string(),
+                limit_update: Some(
+                    update_namespace_service_protection_limit_request::LimitUpdate::MaxColumnsPerTable(1),
+                ),
+            },
+        ))
+        .await
+        .expect("failed to update namespace max table limit")
+        .into_inner()
+        .namespace
+        .expect("no namespace in response");
+
+    assert_eq!(got.name, create.name);
+    assert_eq!(got.id, create.id);
+    assert_eq!(got.retention_period_ns, create.retention_period_ns);
+    assert_matches!(&got.service_protection_limits, Some(got_limits) => {
+        assert_eq!(got_limits.max_tables, create.service_protection_limits.expect("namespace should have limits").max_tables);
+        assert_eq!(got_limits.max_columns_per_table, 1);
+    });
+
+    // The list namespace RPC should show the updated namespace
+    {
+        let list = ctx
+            .grpc_delegate()
+            .namespace_service()
+            .get_namespaces(Request::new(Default::default()))
+            .await
+            .expect("must return namespaces")
+            .into_inner();
+        assert_matches!(list.namespaces.as_slice(), [ns] => {
+            assert_eq!(*ns, got);
+        });
+    }
+
+    // The catalog should contain the namespace.
+    {
+        let db_list = ctx
+            .catalog()
+            .repositories()
+            .await
+            .namespaces()
+            .list(SoftDeletedRows::ExcludeDeleted)
+            .await
+            .expect("query failure");
+        assert_matches!(db_list.as_slice(), [ns] => {
+            assert_eq!(ns.id.get(), got.id);
+            assert_eq!(ns.name, got.name);
+            assert_eq!(ns.retention_period_ns, got.retention_period_ns);
+            let got_limits = got.service_protection_limits.expect("created namespace should have limits");
+            assert_eq!(ns.max_tables, got_limits.max_tables);
+            assert_eq!(ns.max_columns_per_table, got_limits.max_columns_per_table);
+            assert!(ns.deleted_at.is_none());
+        });
+    }
+
+    // The cached entry is not affected, and writes continue to be validated
+    // against the old value.
+    //
+    // https://github.com/influxdata/influxdb_iox/issues/6175
+
+    // Writing to second table should succeed while using the cached entry
+    ctx.write_lp(
+        "bananas",
+        "test",
+        "platanos,tag1=A,tag2=B val=1337i 42424243",
+    )
+    .await
+    .expect("write should succeed");
+
+    // The router restarts, and writes with too many columns are then rejected.
+    let ctx = ctx.restart().await;
+
+    let err = ctx
+        .write_lp(
+            "bananas",
+            "test",
+            "arán_banana,tag1=A,tag2=B val=76i 42424243",
+        )
+        .await
+        .expect_err("cached entry should be removed and write should be blocked");
+    assert_matches!(
+        err, router::server::http::Error::DmlHandler(DmlError::Schema(
+            SchemaError::ServiceLimit(e)
+        )) => {
+            let e: CachedServiceProtectionLimit = *e.downcast::<CachedServiceProtectionLimit>().expect("error returned should be a cached service protection limit");
+            assert_matches!(e, CachedServiceProtectionLimit::Column {
+                table_name,
+                max_columns_per_table,
+                ..
+            } => {
+            assert_eq!(table_name, "arán_banana");
+                assert_eq!(max_columns_per_table, 1);
+            });
+        }
+    )
+}
+
+#[tokio::test]
+async fn test_update_namespace_limit_0_max_tables_max_columns() {
+    // Initialise a TestContext requiring explicit namespace creation.
+    let ctx = TestContextBuilder::default().build().await;
+
+    // Explicitly create the namespace.
+    let create = ctx
+        .grpc_delegate()
+        .namespace_service()
+        .create_namespace(Request::new(CreateNamespaceRequest {
+            name: "bananas_test".to_string(),
+            retention_period_ns: Some(0),
+        }))
+        .await
+        .expect("failed to create namespace")
+        .into_inner()
+        .namespace
+        .expect("no namespace in response");
+
+    // Attempt to use an invalid table limit
+    let err = ctx
+        .grpc_delegate()
+        .namespace_service()
+        .update_namespace_service_protection_limit(Request::new(
+            UpdateNamespaceServiceProtectionLimitRequest {
+                name: "bananas_test".to_string(),
+                limit_update: Some(
+                    update_namespace_service_protection_limit_request::LimitUpdate::MaxTables(0),
+                ),
+            },
+        ))
+        .await
+        .expect_err("should not have been able to update the table limit to 0");
+    assert_eq!(err.code(), Code::InvalidArgument);
+
+    // Attempt to use an invalid column limit
+    let err = ctx
+        .grpc_delegate()
+        .namespace_service()
+        .update_namespace_service_protection_limit(Request::new(
+            UpdateNamespaceServiceProtectionLimitRequest {
+                name: "bananas_test".to_string(),
+                limit_update: Some(
+                    update_namespace_service_protection_limit_request::LimitUpdate::MaxColumnsPerTable(0),
+                ),
+            },
+        ))
+        .await
+        .expect_err("should not have been able to update the column per table limit to 0");
+    assert_eq!(err.code(), Code::InvalidArgument);
+
+    // The catalog should contain the namespace unchanged.
+    {
+        let db_list = ctx
+            .catalog()
+            .repositories()
+            .await
+            .namespaces()
+            .list(SoftDeletedRows::ExcludeDeleted)
+            .await
+            .expect("query failure");
+        assert_matches!(db_list.as_slice(), [ns] => {
+            assert_eq!(ns.id.get(), create.id);
+            assert_eq!(ns.name, create.name);
+            assert_eq!(ns.retention_period_ns, create.retention_period_ns);
+            let create_limits = create.service_protection_limits.expect("created namespace should have limits");
+            assert_eq!(ns.max_tables, create_limits.max_tables);
+            assert_eq!(ns.max_columns_per_table, create_limits.max_columns_per_table);
+            assert!(ns.deleted_at.is_none());
         });
     }
 }
