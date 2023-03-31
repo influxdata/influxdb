@@ -1490,9 +1490,9 @@ dependencies = [
  "proptest",
  "schema",
  "serde",
- "snafu",
  "sqlx",
  "test_helpers",
+ "thiserror",
  "uuid",
  "workspace-hack",
 ]

@@ -1,7 +1,7 @@
 use std::{borrow::Cow, ops::RangeInclusive};
 
 use percent_encoding::{utf8_percent_encode, NON_ALPHANUMERIC};
-use snafu::{ResultExt, Snafu};
+use thiserror::Error;
 
 /// Length constraints for a [`NamespaceName`] name.
 ///
@@ -10,41 +10,51 @@ const LENGTH_CONSTRAINT: RangeInclusive<usize> = 1..=64;
 
 /// Errors returned when attempting to construct a [`NamespaceName`] from an org
 /// & bucket string pair.
-#[derive(Debug, Snafu)]
-#[allow(missing_docs)]
+#[derive(Debug, Error)]
 pub enum OrgBucketMappingError {
-    #[snafu(display("Invalid namespace name: {}", source))]
-    InvalidNamespaceName { source: NamespaceNameError },
+    /// An error returned when the org, or bucket string contains invalid
+    /// characters.
+    #[error("invalid namespace name: {0}")]
+    InvalidNamespaceName(#[from] NamespaceNameError),
 
-    #[snafu(display("missing org/bucket value"))]
+    /// Either the org, or bucket is an empty string.
+    #[error("missing org/bucket value")]
     NotSpecified,
 }
 
 /// [`NamespaceName`] name validation errors.
-#[derive(Debug, Snafu)]
-#[allow(missing_docs)]
+#[derive(Debug, Error)]
 pub enum NamespaceNameError {
-    #[snafu(display(
-        "Namespace name {} length must be between {} and {} characters",
+    /// The provided namespace name does not fall within the valid length of a
+    /// namespace.
+    #[error(
+        "namespace name {} length must be between {} and {} characters",
         name,
         LENGTH_CONSTRAINT.start(),
         LENGTH_CONSTRAINT.end()
-    ))]
-    LengthConstraint { name: String },
+    )]
+    LengthConstraint {
+        /// The user-provided namespace that failed validation.
+        name: String,
+    },
 
-    #[snafu(display(
-        "Namespace name '{}' contains invalid character. \
-        Character number {} is a control which is not allowed.",
+    /// The provided namespace name contains an unacceptable character.
+    #[error(
+        "namespace name '{}' contains invalid character, character number {} \
+        is a control which is not allowed.",
         name,
         bad_char_offset
-    ))]
+    )]
     BadChars {
+        /// The zero-indexed (multi-byte) character position that failed
+        /// validation.
         bad_char_offset: usize,
+        /// The user-provided namespace that failed validation.
         name: String,
     },
 }
 
-/// A correctly formed Namespace name.
+/// A correctly formed namespace name.
 ///
 /// Using this wrapper type allows the consuming code to enforce the invariant
 /// that only valid names are provided.
@@ -83,11 +93,10 @@ impl<'a> NamespaceName<'a> {
         // NOTE: If changing these characters, please update the error message
         // above.
         if let Some(bad_char_offset) = name.chars().position(|c| c.is_control()) {
-            return BadCharsSnafu {
+            return Err(NamespaceNameError::BadChars {
                 bad_char_offset,
-                name,
-            }
-            .fail();
+                name: name.to_string(),
+            });
         };
 
         Ok(Self(name))
@@ -118,7 +127,7 @@ impl<'a> NamespaceName<'a> {
         let suffix: Cow<'_, str> = utf8_percent_encode(bucket, NON_ALPHANUMERIC).into();
 
         let db_name = format!("{}_{}", prefix, suffix);
-        Self::new(db_name).context(InvalidNamespaceNameSnafu)
+        Ok(Self::new(db_name)?)
     }
 }
 
@@ -247,25 +256,25 @@ mod tests {
     #[test]
     fn test_bad_chars_null() {
         let got = NamespaceName::new("example\x00").unwrap_err();
-        assert_eq!(got.to_string() , "Namespace name 'example\x00' contains invalid character. Character number 7 is a control which is not allowed.");
+        assert_eq!(got.to_string() , "namespace name 'example\x00' contains invalid character, character number 7 is a control which is not allowed.");
     }
 
     #[test]
     fn test_bad_chars_high_control() {
         let got = NamespaceName::new("\u{007f}example").unwrap_err();
-        assert_eq!(got.to_string() , "Namespace name '\u{007f}example' contains invalid character. Character number 0 is a control which is not allowed.");
+        assert_eq!(got.to_string() , "namespace name '\u{007f}example' contains invalid character, character number 0 is a control which is not allowed.");
     }
 
     #[test]
     fn test_bad_chars_tab() {
         let got = NamespaceName::new("example\tdb").unwrap_err();
-        assert_eq!(got.to_string() , "Namespace name 'example\tdb' contains invalid character. Character number 7 is a control which is not allowed.");
+        assert_eq!(got.to_string() , "namespace name 'example\tdb' contains invalid character, character number 7 is a control which is not allowed.");
     }
 
     #[test]
     fn test_bad_chars_newline() {
         let got = NamespaceName::new("my_example\ndb").unwrap_err();
-        assert_eq!(got.to_string() , "Namespace name 'my_example\ndb' contains invalid character. Character number 10 is a control which is not allowed.");
+        assert_eq!(got.to_string() , "namespace name 'my_example\ndb' contains invalid character, character number 10 is a control which is not allowed.");
     }
 
     #[test]

@@ -1547,11 +1547,11 @@ mod tests {
         (
             InvalidOrgBucket({
                 let e = NamespaceNameError::LengthConstraint { name: "[too long name]".into() };
-                let e = OrgBucketMappingError::InvalidNamespaceName { source: e };
+                let e = OrgBucketMappingError::InvalidNamespaceName(e);
                 OrgBucketError::MappingFail(e)
             }),
-            "Invalid namespace name: \
-             Namespace name [too long name] length must be between 1 and 64 characters",
+            "invalid namespace name: \
+             namespace name [too long name] length must be between 1 and 64 characters",
         ),
 
         (
