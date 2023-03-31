@@ -16,13 +16,11 @@ use test_helpers_end_to_end::{maybe_skip_integration, MiniCluster, Step, StepTes
 /// ingester that persists everything as fast as possible.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum ChunkStage {
-    /// Set up all chunks in the ingester set up to go through the write buffer (Kafka). This is
-    /// temporary until the switch to the Kafkaless architecture is complete.
+    /// Set up all chunks in the ingester, with all persistence-related settings high enough to
+    /// make persistence effectively never happen.
     Ingester,
 
-    /// Set up all chunks persisted in Parquet, as fast as possible, through the old ingester and
-    /// write buffer (Kafka). This is temporary until the switch to the Kafkaless architecture is
-    /// complete.
+    /// Set up all chunks persisted in Parquet, as fast as possible.
     Parquet,
 
     /// Run tests against all of the previous states in this enum.
