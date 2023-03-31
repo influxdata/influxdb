@@ -92,10 +92,10 @@ Examples:
     # Display all "run" mode settings
     influxdb_iox run --help
 
-    # Run the interactive SQL prompt
+    # Run the interactive SQL prompt against a running server
     influxdb_iox sql
 
-Command are generally structured in the form:
+Commands are generally structured in the form:
     <type of object> <action> <arguments>
 
 For example, a command such as the following shows all actions
@@ -105,16 +105,26 @@ For example, a command such as the following shows all actions
 "#
 )]
 struct Config {
-    /// gRPC address of IOx server to connect to
+    /// gRPC or HTTP address of IOx server to connect to
     #[clap(
         short,
         long,
         global = true,
         env = "IOX_ADDR",
-        default_value = "http://127.0.0.1:8082",
-        action
+        action,
+        help = "gRPC or HTTP address and port of IOx server, takes precedence over --http_host, [default: http://127.0.0.1:8082]"
     )]
-    host: String,
+    host: Option<String>,
+
+    /// http address of IOx server to connect to
+    #[clap(
+        long,
+        global = true,
+        env = "IOX_HTTP_ADDR",
+        action,
+        help = "http address and port of IOx server, [default: http://127.0.0.1:8080]"
+    )]
+    http_host: Option<String>,
 
     /// Additional headers to add to CLI requests
     ///
@@ -216,16 +226,18 @@ fn main() -> Result<(), std::io::Error> {
     // load all environment variables from .env before doing anything
     load_dotenv();
 
-    let config: Config = clap::Parser::parse();
+    let global_config: Config = clap::Parser::parse();
 
-    let tokio_runtime = get_runtime(config.num_threads)?;
+    let tokio_runtime = get_runtime(global_config.num_threads)?;
     tokio_runtime.block_on(async move {
-        let host = config.host;
-        let headers = config.header;
-        let log_verbose_count = config.all_in_one_config.logging_config.log_verbose_count;
-        let rpc_timeout = config.rpc_timeout;
+        let headers = global_config.header;
+        let log_verbose_count = global_config
+            .all_in_one_config
+            .logging_config
+            .log_verbose_count;
+        let rpc_timeout = global_config.rpc_timeout;
 
-        let connection = || async move {
+        let connection = |host| async move {
             let mut builder = headers.into_iter().fold(Builder::default(), |builder, kv| {
                 debug!(name=?kv.key, value=?kv.value, "Setting header");
                 builder.header(kv.key, kv.value)
@@ -233,18 +245,22 @@ fn main() -> Result<(), std::io::Error> {
 
             builder = builder.timeout(rpc_timeout);
 
-            if config.gen_trace_id {
-                let key = http::header::HeaderName::from_str(&config.trace_id_header).unwrap();
+            if global_config.gen_trace_id {
+                let key =
+                    http::header::HeaderName::from_str(&global_config.trace_id_header).unwrap();
                 let trace_id = gen_trace_id();
                 let value = http::header::HeaderValue::from_str(trace_id.as_str()).unwrap();
                 debug!(name=?key, value=?value, "Setting trace header");
                 builder = builder.header(key, value);
 
                 // Emit trace id information
-                println!("Trace ID set to {}={}", config.trace_id_header, trace_id);
+                println!(
+                    "Trace ID set to {}={}",
+                    global_config.trace_id_header, trace_id
+                );
             }
 
-            if let Some(token) = config.token.as_ref() {
+            if let Some(token) = global_config.token.as_ref() {
                 let key = http::header::HeaderName::from_str("Authorization").unwrap();
                 let value = http::header::HeaderValue::from_str(&format!("Token {token}")).unwrap();
                 debug!(name=?key, value=?value, "Setting token header");
@@ -270,17 +286,30 @@ fn main() -> Result<(), std::io::Error> {
             }
         }
 
-        match config.command {
+        let grpc_host = global_config
+            .host
+            .clone()
+            .unwrap_or("http://127.0.0.1:8082".to_string());
+        // The Write subcommand needs to use the http endpoint:port, unless the grpc_host is
+        // explicitly set, then use the grpc host:port to preserve existing users of --host with
+        // the write command.
+        let http_host = match global_config.host {
+            None => global_config
+                .http_host
+                .unwrap_or("http://127.0.0.1:8080".to_string()),
+            Some(_) => grpc_host.clone(),
+        };
+        match global_config.command {
             None => {
                 let _tracing_guard = handle_init_logs(init_simple_logs(log_verbose_count));
-                if let Err(e) = all_in_one::command(config.all_in_one_config).await {
+                if let Err(e) = all_in_one::command(global_config.all_in_one_config).await {
                     eprintln!("Server command failed: {e}");
                     std::process::exit(ReturnCode::Failure as _)
                 }
             }
             Some(Command::Remote(config)) => {
                 let _tracing_guard = handle_init_logs(init_simple_logs(log_verbose_count));
-                let connection = connection().await;
+                let connection = connection(grpc_host).await;
                 if let Err(e) = commands::remote::command(connection, config).await {
                     eprintln!("{e}");
                     std::process::exit(ReturnCode::Failure as _)
@@ -296,7 +325,7 @@ fn main() -> Result<(), std::io::Error> {
             }
             Some(Command::Sql(config)) => {
                 let _tracing_guard = handle_init_logs(init_simple_logs(log_verbose_count));
-                let connection = connection().await;
+                let connection = connection(grpc_host).await;
                 if let Err(e) = commands::sql::command(connection, config).await {
                     eprintln!("{e}");
                     std::process::exit(ReturnCode::Failure as _)
@@ -304,7 +333,7 @@ fn main() -> Result<(), std::io::Error> {
             }
             Some(Command::Storage(config)) => {
                 let _tracing_guard = handle_init_logs(init_simple_logs(log_verbose_count));
-                let connection = connection().await;
+                let connection = connection(grpc_host).await;
                 if let Err(e) = commands::storage::command(connection, config).await {
                     eprintln!("{e}");
                     std::process::exit(ReturnCode::Failure as _)
@@ -326,14 +355,14 @@ fn main() -> Result<(), std::io::Error> {
             }
             Some(Command::Debug(config)) => {
                 let _tracing_guard = handle_init_logs(init_simple_logs(log_verbose_count));
-                if let Err(e) = commands::debug::command(connection, config).await {
+                if let Err(e) = commands::debug::command(|| connection(grpc_host), config).await {
                     eprintln!("{e}");
                     std::process::exit(ReturnCode::Failure as _)
                 }
             }
             Some(Command::Write(config)) => {
                 let _tracing_guard = handle_init_logs(init_simple_logs(log_verbose_count));
-                let connection = connection().await;
+                let connection = connection(http_host).await;
                 if let Err(e) = commands::write::command(connection, config).await {
                     eprintln!("{e}");
                     std::process::exit(ReturnCode::Failure as _)
@@ -341,7 +370,7 @@ fn main() -> Result<(), std::io::Error> {
             }
             Some(Command::Query(config)) => {
                 let _tracing_guard = handle_init_logs(init_simple_logs(log_verbose_count));
-                let connection = connection().await;
+                let connection = connection(grpc_host).await;
                 if let Err(e) = commands::query::command(connection, config).await {
                     eprintln!("{e}");
                     std::process::exit(ReturnCode::Failure as _)
@@ -349,7 +378,7 @@ fn main() -> Result<(), std::io::Error> {
             }
             Some(Command::QueryIngester(config)) => {
                 let _tracing_guard = handle_init_logs(init_simple_logs(log_verbose_count));
-                let connection = connection().await;
+                let connection = connection(grpc_host).await;
                 if let Err(e) = commands::query_ingester::command(connection, config).await {
                     eprintln!("{e}");
                     std::process::exit(ReturnCode::Failure as _)
@@ -357,7 +386,7 @@ fn main() -> Result<(), std::io::Error> {
             }
             Some(Command::Import(config)) => {
                 let _tracing_guard = handle_init_logs(init_simple_logs(log_verbose_count));
-                let connection = connection().await;
+                let connection = connection(grpc_host).await;
                 if let Err(e) = commands::import::command(connection, config).await {
                     eprintln!("{e}");
                     std::process::exit(ReturnCode::Failure as _)
@@ -365,7 +394,7 @@ fn main() -> Result<(), std::io::Error> {
             }
             Some(Command::Namespace(config)) => {
                 let _tracing_guard = handle_init_logs(init_simple_logs(log_verbose_count));
-                let connection = connection().await;
+                let connection = connection(grpc_host).await;
                 if let Err(e) = commands::namespace::command(connection, config).await {
                     eprintln!("{e}");
                     std::process::exit(ReturnCode::Failure as _)

@@ -22,16 +22,16 @@ pub const DEFAULT_MAX_REQUEST_PAYLOAD_SIZE_BYTES: Option<usize> = Some(1024 * 10
 ///     connection::Builder,
 /// };
 ///
-/// let mut connection = Builder::default()
+/// let connection = Builder::default()
 ///     .build("http://127.0.0.1:8080")
 ///     .await
 ///     .unwrap();
 ///
 /// let mut client = Client::new(connection);
 ///
-/// // write a line of line procol data
+/// // write a line of line protocol data
 /// client
-///     .write_lp("bananas", "cpu,region=west user=23.2 100")
+///     .write_lp("fruit_bananas", "cpu,region=west user=23.2 100")
 ///     .await
 ///     .expect("failed to write to IOx");
 /// # }
