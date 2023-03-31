@@ -53,6 +53,18 @@ impl TreeNodeVisitor for TimeRangeVisitor {
                 self.range = range;
                 Ok(VisitRecursion::Continue)
             }
+            LogicalPlan::TableScan(t) => {
+                let range = self.range.clone();
+                let range = t
+                    .filters
+                    .iter()
+                    .flat_map(split_conjunction)
+                    .try_fold(range, |range, expr| {
+                        range.with_expr(&t.projected_schema, &self.col, expr)
+                    })?;
+                self.range = range;
+                Ok(VisitRecursion::Continue)
+            }
             // These nodes do not alter their schema, so we can recurse through them
             LogicalPlan::Sort(_)
             | LogicalPlan::Repartition(_)
@@ -143,33 +155,51 @@ impl TimeRange {
 
 #[cfg(test)]
 mod tests {
-    use std::ops::{Bound, Range};
+    use std::{
+        ops::{Bound, Range},
+        sync::Arc,
+    };
 
     use arrow::datatypes::{DataType, Field, Schema, TimeUnit};
     use datafusion::{
         error::Result,
-        logical_expr::{logical_plan, Between, LogicalPlan, LogicalPlanBuilder},
+        logical_expr::{
+            logical_plan::{self, builder::LogicalTableSource},
+            Between, LogicalPlan, LogicalPlanBuilder,
+        },
         prelude::{col, lit, lit_timestamp_nano, Column, Expr, Partitioning},
+        sql::TableReference,
     };
 
     use super::find_time_range;
 
-    fn table_scan() -> Result<LogicalPlan> {
-        let schema = Schema::new(vec![
+    fn schema() -> Schema {
+        Schema::new(vec![
             Field::new(
                 "time",
                 DataType::Timestamp(TimeUnit::Nanosecond, None),
                 false,
             ),
             Field::new("temp", DataType::Float64, false),
-        ]);
+        ])
+    }
+
+    fn table_scan() -> Result<LogicalPlan> {
+        let schema = schema();
         logical_plan::table_scan(Some("t"), &schema, None)?.build()
     }
 
-    fn simple_filter_plan(pred: Expr) -> Result<LogicalPlan> {
-        LogicalPlanBuilder::from(table_scan()?)
-            .filter(pred)?
-            .build()
+    fn simple_filter_plan(pred: Expr, inline_filter: bool) -> Result<LogicalPlan> {
+        let schema = schema();
+        let table_source = Arc::new(LogicalTableSource::new(Arc::new(schema)));
+        let name = TableReference::from("t").to_quoted_string();
+        if inline_filter {
+            LogicalPlanBuilder::scan_with_filters(name, table_source, None, vec![pred])?.build()
+        } else {
+            LogicalPlanBuilder::scan(name, table_source, None)?
+                .filter(pred)?
+                .build()
+        }
     }
 
     fn between(expr: Expr, low: Expr, high: Expr) -> Expr {
@@ -282,9 +312,14 @@ mod tests {
             ),
         ];
         for (name, pred, expected) in cases {
-            let plan = simple_filter_plan(pred)?;
-            let actual = find_time_range(&plan, &time_col)?;
-            assert_eq!(expected, actual, "test case `{name}` failed");
+            for inline_filter in [false, true] {
+                let plan = simple_filter_plan(pred.clone(), inline_filter)?;
+                let actual = find_time_range(&plan, &time_col)?;
+                assert_eq!(
+                    expected, actual,
+                    "test case `{name}` with inline_filter={inline_filter} failed",
+                );
+            }
         }
         Ok(())
     }
