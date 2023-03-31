@@ -2,8 +2,8 @@ use self::generated_types::{shard_service_client::ShardServiceClient, *};
 use crate::{AggregateTSMMeasurement, AggregateTSMSchema};
 use chrono::{format::StrftimeItems, offset::FixedOffset, DateTime, Duration};
 use data_types::{
-    org_and_bucket_to_namespace, ColumnType, Namespace, NamespaceSchema, OrgBucketMappingError,
-    Partition, PartitionKey, QueryPoolId, ShardId, TableSchema, TopicId,
+    ColumnType, Namespace, NamespaceName, NamespaceSchema, OrgBucketMappingError, Partition,
+    PartitionKey, QueryPoolId, ShardId, TableSchema, TopicId,
 };
 use influxdb_iox_client::connection::{Connection, GrpcConnection};
 use iox_catalog::interface::{
@@ -64,7 +64,7 @@ pub async fn update_iox_catalog<'a>(
     connection: Connection,
 ) -> Result<(), UpdateCatalogError> {
     let namespace_name =
-        org_and_bucket_to_namespace(&merged_tsm_schema.org_id, &merged_tsm_schema.bucket_id)
+        NamespaceName::from_org_and_bucket(&merged_tsm_schema.org_id, &merged_tsm_schema.bucket_id)
             .map_err(UpdateCatalogError::InvalidOrgBucket)?;
     let mut repos = catalog.repositories().await;
     let iox_schema = match get_schema_by_name(

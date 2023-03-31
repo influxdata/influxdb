@@ -20,30 +20,6 @@ pub enum OrgBucketMappingError {
     NotSpecified,
 }
 
-/// Map an InfluxDB 2.X org & bucket into an IOx NamespaceName.
-///
-/// This function ensures the mapping is unambiguous by requiring both `org` and
-/// `bucket` to not contain the `_` character in addition to the
-/// [`NamespaceName`] validation.
-pub fn org_and_bucket_to_namespace<'a, O: AsRef<str>, B: AsRef<str>>(
-    org: O,
-    bucket: B,
-) -> Result<NamespaceName<'a>, OrgBucketMappingError> {
-    const SEPARATOR: char = '_';
-
-    let org: Cow<'_, str> = utf8_percent_encode(org.as_ref(), NON_ALPHANUMERIC).into();
-    let bucket: Cow<'_, str> = utf8_percent_encode(bucket.as_ref(), NON_ALPHANUMERIC).into();
-
-    // An empty org or bucket is not acceptable.
-    if org.is_empty() || bucket.is_empty() {
-        return Err(OrgBucketMappingError::NotSpecified);
-    }
-
-    let db_name = format!("{}{}{}", org.as_ref(), SEPARATOR, bucket.as_ref());
-
-    NamespaceName::new(db_name).context(InvalidNamespaceNameSnafu)
-}
-
 /// [`NamespaceName`] name validation errors.
 #[derive(Debug, Snafu)]
 #[allow(missing_docs)]
@@ -121,6 +97,29 @@ impl<'a> NamespaceName<'a> {
     pub fn as_str(&self) -> &str {
         self.0.as_ref()
     }
+
+    /// Map an InfluxDB 2.X org & bucket into an IOx NamespaceName.
+    ///
+    /// This function ensures the mapping is unambiguous by encoding any
+    /// non-alphanumeric characters in both `org` and `bucket` in addition to
+    /// the validation performed in [`NamespaceName::new()`].
+    pub fn from_org_and_bucket<O: AsRef<str>, B: AsRef<str>>(
+        org: O,
+        bucket: B,
+    ) -> Result<Self, OrgBucketMappingError> {
+        let org = org.as_ref();
+        let bucket = bucket.as_ref();
+
+        if org.is_empty() || bucket.is_empty() {
+            return Err(OrgBucketMappingError::NotSpecified);
+        }
+
+        let prefix: Cow<'_, str> = utf8_percent_encode(org, NON_ALPHANUMERIC).into();
+        let suffix: Cow<'_, str> = utf8_percent_encode(bucket, NON_ALPHANUMERIC).into();
+
+        let db_name = format!("{}_{}", prefix, suffix);
+        Self::new(db_name).context(InvalidNamespaceNameSnafu)
+    }
 }
 
 impl<'a> std::convert::From<NamespaceName<'a>> for String {
@@ -171,47 +170,48 @@ mod tests {
 
     #[test]
     fn test_org_bucket_map_db_ok() {
-        let got = org_and_bucket_to_namespace("org", "bucket").expect("failed on valid DB mapping");
+        let got = NamespaceName::from_org_and_bucket("org", "bucket")
+            .expect("failed on valid DB mapping");
 
         assert_eq!(got.as_str(), "org_bucket");
     }
 
     #[test]
     fn test_org_bucket_map_db_contains_underscore() {
-        let got = org_and_bucket_to_namespace("my_org", "bucket").unwrap();
+        let got = NamespaceName::from_org_and_bucket("my_org", "bucket").unwrap();
         assert_eq!(got.as_str(), "my%5Forg_bucket");
 
-        let got = org_and_bucket_to_namespace("org", "my_bucket").unwrap();
+        let got = NamespaceName::from_org_and_bucket("org", "my_bucket").unwrap();
         assert_eq!(got.as_str(), "org_my%5Fbucket");
 
-        let got = org_and_bucket_to_namespace("org", "my__bucket").unwrap();
+        let got = NamespaceName::from_org_and_bucket("org", "my__bucket").unwrap();
         assert_eq!(got.as_str(), "org_my%5F%5Fbucket");
 
-        let got = org_and_bucket_to_namespace("my_org", "my_bucket").unwrap();
+        let got = NamespaceName::from_org_and_bucket("my_org", "my_bucket").unwrap();
         assert_eq!(got.as_str(), "my%5Forg_my%5Fbucket");
     }
 
     #[test]
     fn test_org_bucket_map_db_contains_underscore_and_percent() {
-        let got = org_and_bucket_to_namespace("my%5Forg", "bucket").unwrap();
+        let got = NamespaceName::from_org_and_bucket("my%5Forg", "bucket").unwrap();
         assert_eq!(got.as_str(), "my%255Forg_bucket");
 
-        let got = org_and_bucket_to_namespace("my%5Forg_", "bucket").unwrap();
+        let got = NamespaceName::from_org_and_bucket("my%5Forg_", "bucket").unwrap();
         assert_eq!(got.as_str(), "my%255Forg%5F_bucket");
     }
 
     #[test]
     fn test_bad_namespace_name_is_encoded() {
-        let got = org_and_bucket_to_namespace("org", "bucket?").unwrap();
+        let got = NamespaceName::from_org_and_bucket("org", "bucket?").unwrap();
         assert_eq!(got.as_str(), "org_bucket%3F");
 
-        let got = org_and_bucket_to_namespace("org!", "bucket").unwrap();
+        let got = NamespaceName::from_org_and_bucket("org!", "bucket").unwrap();
         assert_eq!(got.as_str(), "org%21_bucket");
     }
 
     #[test]
     fn test_empty_org_bucket() {
-        let err = org_and_bucket_to_namespace("", "")
+        let err = NamespaceName::from_org_and_bucket("", "")
             .expect_err("should fail with empty org/bucket valuese");
         assert!(matches!(err, OrgBucketMappingError::NotSpecified));
     }

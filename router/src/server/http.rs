@@ -4,7 +4,7 @@ mod delete_predicate;
 
 use authz::{Action, Authorizer, Permission, Resource};
 use bytes::{Bytes, BytesMut};
-use data_types::{org_and_bucket_to_namespace, OrgBucketMappingError};
+use data_types::{NamespaceName, OrgBucketMappingError};
 use futures::StreamExt;
 use hashbrown::HashMap;
 use hyper::{header::CONTENT_ENCODING, Body, Method, Request, Response, StatusCode};
@@ -415,7 +415,7 @@ where
         let span_ctx: Option<SpanContext> = req.extensions().get().cloned();
 
         let write_info = WriteInfo::try_from(&req)?;
-        let namespace = org_and_bucket_to_namespace(&write_info.org, &write_info.bucket)
+        let namespace = NamespaceName::from_org_and_bucket(&write_info.org, &write_info.bucket)
             .map_err(OrgBucketError::MappingFail)?;
 
         let token = req
@@ -503,7 +503,7 @@ where
         let span_ctx: Option<SpanContext> = req.extensions().get().cloned();
 
         let account = WriteInfo::try_from(&req)?;
-        let namespace = org_and_bucket_to_namespace(&account.org, &account.bucket)
+        let namespace = NamespaceName::from_org_and_bucket(&account.org, &account.bucket)
             .map_err(OrgBucketError::MappingFail)?;
 
         trace!(org=%account.org, bucket=%account.bucket, %namespace, "processing delete request");
