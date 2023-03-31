@@ -1101,7 +1101,7 @@ where
 }
 
 fn get_namespace_name(input: &impl GrpcInputs) -> Result<NamespaceName<'static>, Status> {
-    NamespaceName::from_org_and_bucket(input.org_id()?.to_string(), &input.bucket_name()?)
+    NamespaceName::from_org_and_bucket(input.org_id()?.to_string(), input.bucket_name()?)
         .map_err(|e| Status::internal(e.to_string()))
 }
 

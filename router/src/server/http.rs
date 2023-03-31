@@ -415,7 +415,7 @@ where
         let span_ctx: Option<SpanContext> = req.extensions().get().cloned();
 
         let write_info = WriteInfo::try_from(&req)?;
-        let namespace = NamespaceName::from_org_and_bucket(&write_info.org, &write_info.bucket)
+        let namespace = NamespaceName::from_org_and_bucket(write_info.org, write_info.bucket)
             .map_err(OrgBucketError::MappingFail)?;
 
         let token = req
@@ -440,8 +440,6 @@ where
         self.authz.require_any_permission(token, &perms).await?;
 
         trace!(
-            org=%write_info.org,
-            bucket=%write_info.bucket,
             %namespace,
             "processing write request"
         );
@@ -476,8 +474,6 @@ where
             precision=?write_info.precision,
             body_size=body.len(),
             %namespace,
-            org=%write_info.org,
-            bucket=%write_info.bucket,
             duration=?duration,
             "routing write",
         );
@@ -503,10 +499,10 @@ where
         let span_ctx: Option<SpanContext> = req.extensions().get().cloned();
 
         let account = WriteInfo::try_from(&req)?;
-        let namespace = NamespaceName::from_org_and_bucket(&account.org, &account.bucket)
+        let namespace = NamespaceName::from_org_and_bucket(account.org, account.bucket)
             .map_err(OrgBucketError::MappingFail)?;
 
-        trace!(org=%account.org, bucket=%account.bucket, %namespace, "processing delete request");
+        trace!(%namespace, "processing delete request");
 
         // Read the HTTP body and convert it to a str.
         let body = self.read_body(req).await?;
@@ -527,8 +523,6 @@ where
             stop=%parsed_delete.stop_time,
             body_size=body.len(),
             %namespace,
-            org=%account.org,
-            bucket=%account.bucket,
             "routing delete"
         );
 
