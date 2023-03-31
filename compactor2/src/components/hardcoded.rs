@@ -277,7 +277,7 @@ fn make_round_info_source(config: &Config) -> Arc<dyn RoundInfoSource> {
     )))
 }
 
-// Conditions to compact this partittion
+// Conditions to compact this partition
 fn make_partition_filter(config: &Config) -> Arc<dyn PartitionFilter> {
     let mut partition_filters: Vec<Arc<dyn PartitionFilter>> = Vec::with_capacity(8);
     partition_filters.push(Arc::new(HasFilesPartitionFilter::new()));
