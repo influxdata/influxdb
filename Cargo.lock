@@ -2615,6 +2615,7 @@ dependencies = [
  "nom",
  "num-traits",
  "once_cell",
+ "paste",
  "test_helpers",
  "workspace-hack",
 ]

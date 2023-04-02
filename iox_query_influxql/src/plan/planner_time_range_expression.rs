@@ -3,7 +3,7 @@ use crate::plan::util::binary_operator_to_df_operator;
 use arrow::temporal_conversions::MILLISECONDS_IN_DAY;
 use datafusion::common::{DataFusionError, Result, ScalarValue};
 use datafusion::logical_expr::{binary_expr, lit, now, BinaryExpr, Expr as DFExpr, Operator};
-use influxdb_influxql_parser::expression::BinaryOperator;
+use influxdb_influxql_parser::expression::{Binary, BinaryOperator};
 use influxdb_influxql_parser::{expression::Expr, literal::Literal};
 
 type ExprResult = Result<DFExpr>;
@@ -128,12 +128,11 @@ fn map_expr_err(expr: &Expr) -> impl Fn(DataFusionError) -> DataFusionError + '_
 
 fn reduce_expr(expr: &Expr, tz: Option<chrono_tz::Tz>) -> ExprResult {
     match expr {
-        Expr::Binary { lhs, op, rhs } => reduce_binary_expr(lhs, *op, rhs, tz).map_err(map_expr_err(expr)),
-
-        Expr::Call { name, .. } => {
-            if !name.eq_ignore_ascii_case("now") {
+        Expr::Binary(v) => reduce_binary_expr(v, tz).map_err(map_expr_err(expr)),
+        Expr::Call (v) => {
+            if !v.name.eq_ignore_ascii_case("now") {
                 return Err(DataFusionError::Plan(
-                    format!("invalid function call '{name}'"),
+                    format!("invalid function call '{}'", v.name),
                 ));
             }
             Ok(now())
@@ -159,14 +158,10 @@ fn reduce_expr(expr: &Expr, tz: Option<chrono_tz::Tz>) -> ExprResult {
     }
 }
 
-fn reduce_binary_expr(
-    lhs: &Expr,
-    op: BinaryOperator,
-    rhs: &Expr,
-    tz: Option<chrono_tz::Tz>,
-) -> ExprResult {
-    let lhs = reduce_expr(lhs, tz)?;
-    let rhs = reduce_expr(rhs, tz)?;
+fn reduce_binary_expr(expr: &Binary, tz: Option<chrono_tz::Tz>) -> ExprResult {
+    let lhs = reduce_expr(&expr.lhs, tz)?;
+    let op = expr.op;
+    let rhs = reduce_expr(&expr.rhs, tz)?;
 
     match lhs {
         DFExpr::Literal(ScalarValue::IntervalMonthDayNano(Some(v))) => {

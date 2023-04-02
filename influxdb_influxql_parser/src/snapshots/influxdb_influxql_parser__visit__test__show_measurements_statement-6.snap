@@ -2,10 +2,10 @@
 source: influxdb_influxql_parser/src/visit.rs
 expression: "visit_statement!(\"SHOW MEASUREMENTS OFFSET 10\")"
 ---
-- "pre_visit_statement: ShowMeasurements(ShowMeasurementsStatement { on: None, with_measurement: None, condition: None, limit: None, offset: Some(OffsetClause(10)) })"
-- "pre_visit_show_measurements_statement: ShowMeasurementsStatement { on: None, with_measurement: None, condition: None, limit: None, offset: Some(OffsetClause(10)) }"
-- "pre_visit_offset_clause: OffsetClause(10)"
-- "post_visit_offset_clause: OffsetClause(10)"
-- "post_visit_show_measurements_statement: ShowMeasurementsStatement { on: None, with_measurement: None, condition: None, limit: None, offset: Some(OffsetClause(10)) }"
-- "post_visit_statement: ShowMeasurements(ShowMeasurementsStatement { on: None, with_measurement: None, condition: None, limit: None, offset: Some(OffsetClause(10)) })"
+- pre_visit_statement
+- pre_visit_show_measurements_statement
+- pre_visit_offset_clause
+- post_visit_offset_clause
+- post_visit_show_measurements_statement
+- post_visit_statement
 
