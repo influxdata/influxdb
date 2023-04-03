@@ -163,7 +163,7 @@ async fn retention() {
 
     TestCase {
         input: "cases/in/retention.sql",
-        chunk_stage: ChunkStage::Parquet,
+        chunk_stage: ChunkStage::Ingester,
     }
     .run()
     .await;

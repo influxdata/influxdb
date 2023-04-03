@@ -2,7 +2,11 @@
 
 use observability_deps::tracing::*;
 use snafu::{OptionExt, Snafu};
-use std::{fmt::Debug, fs, path::PathBuf};
+use std::{
+    fmt::{Debug, Display},
+    fs,
+    path::PathBuf,
+};
 use test_helpers_end_to_end::{maybe_skip_integration, MiniCluster, Step, StepTest};
 
 /// The kind of chunks the test should set up by default. Choosing `All` will run the test twice,
@@ -12,17 +16,25 @@ use test_helpers_end_to_end::{maybe_skip_integration, MiniCluster, Step, StepTes
 /// ingester that persists everything as fast as possible.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum ChunkStage {
-    /// Set up all chunks in the ingester set up to go through the write buffer (Kafka). This is
-    /// temporary until the switch to the Kafkaless architecture is complete.
+    /// Set up all chunks in the ingester, with all persistence-related settings high enough to
+    /// make persistence effectively never happen.
     Ingester,
 
-    /// Set up all chunks persisted in Parquet, as fast as possible, through the old ingester and
-    /// write buffer (Kafka). This is temporary until the switch to the Kafkaless architecture is
-    /// complete.
+    /// Set up all chunks persisted in Parquet, as fast as possible.
     Parquet,
 
     /// Run tests against all of the previous states in this enum.
     All,
+}
+
+impl Display for ChunkStage {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Self::Ingester => write!(f, "Ingester (do not persist, except on demand)"),
+            Self::Parquet => write!(f, "Parquet (persist as fast as possible)"),
+            Self::All => write!(f, "All (run with every other variant in this enum)"),
+        }
+    }
 }
 
 impl IntoIterator for ChunkStage {
@@ -52,7 +64,7 @@ impl TestCase {
         let database_url = maybe_skip_integration!();
 
         for chunk_stage in self.chunk_stage {
-            info!("Using ChunkStage::{chunk_stage:?}");
+            info!("Using ChunkStage::{chunk_stage}");
 
             // Setup that differs by chunk stage.
             let mut cluster = match chunk_stage {
