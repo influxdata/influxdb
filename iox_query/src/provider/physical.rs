@@ -167,6 +167,8 @@ pub fn chunks_to_physical_nodes(
                             .add_parquet_file(chunk, parquet_input.object_meta);
                     }
                     Entry::Vacant(v) => {
+                        // better have some instead of no sort information at all
+                        let output_sort_key = output_sort_key.or_else(|| chunk.sort_key());
                         v.insert(ParquetChunkList::new(
                             parquet_input.object_store_url,
                             chunk,

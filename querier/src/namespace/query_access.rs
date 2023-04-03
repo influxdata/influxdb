@@ -204,6 +204,7 @@ mod tests {
     use datafusion::common::DataFusionError;
     use iox_query::frontend::sql::SqlQueryPlanner;
     use iox_tests::{TestCatalog, TestParquetFileBuilder};
+    use iox_time::Time;
     use metric::{Observation, RawReporter};
     use snafu::{ResultExt, Snafu};
     use trace::{span::SpanStatus, RingBufferTraceCollector};
@@ -238,6 +239,7 @@ mod tests {
         let partition_mem_c_2 = table_mem.with_shard(&shard2).create_partition("c").await;
 
         let builder = TestParquetFileBuilder::default()
+            .with_max_l0_created_at(Time::from_timestamp_nanos(1))
             .with_line_protocol("cpu,host=a load=1 11")
             .with_max_seq(1)
             .with_min_time(11)
@@ -245,6 +247,7 @@ mod tests {
         partition_cpu_a_1.create_parquet_file(builder).await;
 
         let builder = TestParquetFileBuilder::default()
+            .with_max_l0_created_at(Time::from_timestamp_nanos(2))
             .with_line_protocol("cpu,host=a load=2 22")
             .with_max_seq(2)
             .with_min_time(22)
@@ -256,6 +259,7 @@ mod tests {
             .await;
 
         let builder = TestParquetFileBuilder::default()
+            .with_max_l0_created_at(Time::from_timestamp_nanos(3))
             .with_line_protocol("cpu,host=z load=0 0")
             .with_max_seq(2)
             .with_min_time(22)
@@ -263,6 +267,7 @@ mod tests {
         partition_cpu_a_1.create_parquet_file(builder).await;
 
         let builder = TestParquetFileBuilder::default()
+            .with_max_l0_created_at(Time::from_timestamp_nanos(4))
             .with_line_protocol("cpu,host=a load=3 33")
             .with_max_seq(3)
             .with_min_time(33)
@@ -270,6 +275,7 @@ mod tests {
         partition_cpu_a_1.create_parquet_file(builder).await;
 
         let builder = TestParquetFileBuilder::default()
+            .with_max_l0_created_at(Time::from_timestamp_nanos(5))
             .with_line_protocol("cpu,host=a load=4 10001")
             .with_max_seq(4)
             .with_min_time(10_001)
@@ -277,6 +283,7 @@ mod tests {
         partition_cpu_a_2.create_parquet_file(builder).await;
 
         let builder = TestParquetFileBuilder::default()
+            .with_creation_time(Time::from_timestamp_nanos(6))
             .with_line_protocol("cpu,host=b load=5 11")
             .with_max_seq(5)
             .with_min_time(11)
@@ -292,6 +299,7 @@ mod tests {
         ]
         .join("\n");
         let builder = TestParquetFileBuilder::default()
+            .with_max_l0_created_at(Time::from_timestamp_nanos(7))
             .with_line_protocol(&lp)
             .with_max_seq(6)
             .with_min_time(11)
@@ -299,6 +307,7 @@ mod tests {
         partition_mem_c_1.create_parquet_file(builder).await;
 
         let builder = TestParquetFileBuilder::default()
+            .with_max_l0_created_at(Time::from_timestamp_nanos(8))
             .with_line_protocol("mem,host=c perc=50 1001")
             .with_max_seq(7)
             .with_min_time(1001)
@@ -311,6 +320,7 @@ mod tests {
 
         // will be pruned by the tombstone
         let builder = TestParquetFileBuilder::default()
+            .with_max_l0_created_at(Time::from_timestamp_nanos(9))
             .with_line_protocol("mem,host=d perc=55 1")
             .with_max_seq(7)
             .with_min_time(1)
@@ -514,14 +524,9 @@ mod tests {
         - "| logical_plan    | Sort: mem.host ASC NULLS LAST, mem.time ASC NULLS LAST    |"
         - "|    |   TableScan: mem projection=[host, perc, time]    |"
         - "| physical_plan    | SortExec: expr=[host@0 ASC NULLS LAST,time@2 ASC NULLS LAST]    |"
-        - "|    |   CoalescePartitionsExec    |"
-        - "|    |     UnionExec    |"
-        - "|    |       CoalesceBatchesExec: target_batch_size=8192    |"
-        - "|    |         FilterExec: time@2 < 1 OR time@2 > 13 OR NOT host@0 = CAST(d AS Dictionary(Int32, Utf8))    |"
-        - "|    |           ParquetExec: limit=None, partitions={1 group: [[1/1/1/1/00000000-0000-0000-0000-000000000000.parquet]]}, projection=[host, perc, time]    |"
-        - "|    |       CoalesceBatchesExec: target_batch_size=8192    |"
-        - "|    |         FilterExec: time@2 < 1 OR time@2 > 13 OR NOT host@0 = CAST(d AS Dictionary(Int32, Utf8))    |"
-        - "|    |           ParquetExec: limit=None, partitions={1 group: [[1/1/1/1/00000000-0000-0000-0000-000000000001.parquet]]}, projection=[host, perc, time]    |"
+        - "|    |   CoalesceBatchesExec: target_batch_size=8192    |"
+        - "|    |     FilterExec: time@2 < 1 OR time@2 > 13 OR NOT host@0 = CAST(d AS Dictionary(Int32, Utf8))    |"
+        - "|    |       ParquetExec: limit=None, partitions={1 group: [[1/1/1/1/00000000-0000-0000-0000-000000000000.parquet, 1/1/1/1/00000000-0000-0000-0000-000000000001.parquet]]}, predicate=time@2 < 1 OR time@2 > 13 OR NOT host@0 = CAST(d AS Dictionary(Int32, Utf8)), projection=[host, perc, time]    |"
         - "|    |    |"
         - "----------"
         "###
@@ -531,6 +536,7 @@ mod tests {
         // Add an overlapped chunk
         // (overlaps `partition_cpu_a_2`)
         let builder = TestParquetFileBuilder::default()
+            .with_max_l0_created_at(Time::from_timestamp_nanos(10))
             // duplicate row with different field value (load=14)
             .with_line_protocol("cpu,host=a load=14 10001")
             .with_max_seq(2_000)
@@ -571,12 +577,11 @@ mod tests {
         - "----------"
         - "| logical_plan    | TableScan: cpu projection=[foo, host, load, time]    |"
         - "| physical_plan    | UnionExec    |"
-        - "|    |   DeduplicateExec: [host@1 ASC,time@3 ASC]    |"
-        - "|    |     SortPreservingMergeExec: [host@1 ASC,time@3 ASC]    |"
-        - "|    |       UnionExec    |"
-        - "|    |         ParquetExec: limit=None, partitions={1 group: [[1/1/1/1/00000000-0000-0000-0000-000000000000.parquet]]}, output_ordering=[host@1 ASC, time@3 ASC], projection=[foo, host, load, time]    |"
-        - "|    |         ParquetExec: limit=None, partitions={1 group: [[1/1/1/1/00000000-0000-0000-0000-000000000001.parquet]]}, output_ordering=[host@1 ASC, time@3 ASC], projection=[foo, host, load, time]    |"
-        - "|    |   ParquetExec: limit=None, partitions={1 group: [[1/1/1/1/00000000-0000-0000-0000-000000000002.parquet, 1/1/1/1/00000000-0000-0000-0000-000000000003.parquet, 1/1/1/1/00000000-0000-0000-0000-000000000004.parquet, 1/1/1/1/00000000-0000-0000-0000-000000000005.parquet]]}, projection=[foo, host, load, time]    |"
+        - "|    |   ParquetExec: limit=None, partitions={1 group: [[1/1/1/1/00000000-0000-0000-0000-000000000000.parquet, 1/1/1/1/00000000-0000-0000-0000-000000000001.parquet, 1/1/1/1/00000000-0000-0000-0000-000000000002.parquet, 1/1/1/1/00000000-0000-0000-0000-000000000003.parquet]]}, projection=[foo, host, load, time]    |"
+        - "|    |   ProjectionExec: expr=[foo@1 as foo, host@2 as host, load@3 as load, time@4 as time]    |"
+        - "|    |     DeduplicateExec: [host@2 ASC,time@4 ASC]    |"
+        - "|    |       SortPreservingMergeExec: [host@2 ASC,time@4 ASC,__chunk_order@0 ASC]    |"
+        - "|    |         ParquetExec: limit=None, partitions={2 groups: [[1/1/1/1/00000000-0000-0000-0000-000000000004.parquet], [1/1/1/1/00000000-0000-0000-0000-000000000005.parquet]]}, output_ordering=[host@2 ASC, time@4 ASC, __chunk_order@0 ASC], projection=[__chunk_order, foo, host, load, time]    |"
         - "|    |    |"
         - "----------"
         "###

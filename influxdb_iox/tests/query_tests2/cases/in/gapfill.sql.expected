@@ -7,12 +7,11 @@
 | logical_plan    | Projection: date_bin_gapfill(IntervalDayTime("600000"),cpu.time,Utf8("1970-01-01T00:00:00Z")) AS minute, COUNT(cpu.user)    |
 |    |   GapFill: groupBy=[[date_bin_gapfill(IntervalDayTime("600000"),cpu.time,Utf8("1970-01-01T00:00:00Z"))]], aggr=[[COUNT(cpu.user)]], time_column=date_bin_gapfill(IntervalDayTime("600000"),cpu.time,Utf8("1970-01-01T00:00:00Z")), stride=IntervalDayTime("600000"), range=Included(TimestampNanosecond(957528000000000000, None))..Included(TimestampNanosecond(957531540000000000, None))    |
 |    |     Aggregate: groupBy=[[datebin(IntervalDayTime("600000"), cpu.time, TimestampNanosecond(0, None)) AS date_bin_gapfill(IntervalDayTime("600000"),cpu.time,Utf8("1970-01-01T00:00:00Z"))]], aggr=[[COUNT(cpu.user)]]    |
-|    |       Filter: cpu.time >= TimestampNanosecond(957528000000000000, None) AND cpu.time <= TimestampNanosecond(957531540000000000, None)    |
-|    |         TableScan: cpu projection=[time, user], partial_filters=[cpu.time >= TimestampNanosecond(957528000000000000, None), cpu.time <= TimestampNanosecond(957531540000000000, None)]    |
+|    |       TableScan: cpu projection=[time, user], full_filters=[cpu.time >= TimestampNanosecond(957528000000000000, None), cpu.time <= TimestampNanosecond(957531540000000000, None)]    |
 | physical_plan    | ProjectionExec: expr=[date_bin_gapfill(IntervalDayTime("600000"),cpu.time,Utf8("1970-01-01T00:00:00Z"))@0 as minute, COUNT(cpu.user)@1 as COUNT(cpu.user)]    |
 |    |   GapFillExec: group_expr=[date_bin_gapfill(IntervalDayTime("600000"),cpu.time,Utf8("1970-01-01T00:00:00Z"))@0], aggr_expr=[COUNT(cpu.user)@1], stride=600000, time_range=Included("957528000000000000")..Included("957531540000000000")    |
-|    |     SortExec: expr=[date_bin_gapfill(IntervalDayTime("600000"),cpu.time,Utf8("1970-01-01T00:00:00Z"))@0 ASC]    |
-|    |       CoalescePartitionsExec    |
+|    |     SortPreservingMergeExec: [date_bin_gapfill(IntervalDayTime("600000"),cpu.time,Utf8("1970-01-01T00:00:00Z"))@0 ASC]    |
+|    |       SortExec: expr=[date_bin_gapfill(IntervalDayTime("600000"),cpu.time,Utf8("1970-01-01T00:00:00Z"))@0 ASC]    |
 |    |         AggregateExec: mode=FinalPartitioned, gby=[date_bin_gapfill(IntervalDayTime("600000"),cpu.time,Utf8("1970-01-01T00:00:00Z"))@0 as date_bin_gapfill(IntervalDayTime("600000"),cpu.time,Utf8("1970-01-01T00:00:00Z"))], aggr=[COUNT(cpu.user)]    |
 |    |           CoalesceBatchesExec: target_batch_size=8192    |
 |    |             RepartitionExec: partitioning=Hash([Column { name: "date_bin_gapfill(IntervalDayTime(\"600000\"),cpu.time,Utf8(\"1970-01-01T00:00:00Z\"))", index: 0 }], 4), input_partitions=4    |
@@ -20,7 +19,7 @@
 |    |                 RepartitionExec: partitioning=RoundRobinBatch(4), input_partitions=1    |
 |    |                   CoalesceBatchesExec: target_batch_size=8192    |
 |    |                     FilterExec: time@0 >= 957528000000000000 AND time@0 <= 957531540000000000    |
-|    |                       ParquetExec: limit=None, partitions={1 group: [[1/1/1/1/00000000-0000-0000-0000-000000000000.parquet]]}, predicate=time@0 >= 957528000000000000 AND time@0 <= 957531540000000000, pruning_predicate=time_max@0 >= 957528000000000000 AND time_min@1 <= 957531540000000000, projection=[time, user]    |
+|    |                       ParquetExec: limit=None, partitions={1 group: [[1/1/1/1/00000000-0000-0000-0000-000000000000.parquet]]}, predicate=time@1 >= 957528000000000000 AND time@1 <= 957531540000000000, pruning_predicate=time_max@0 >= 957528000000000000 AND time_min@1 <= 957531540000000000, output_ordering=[time@0 ASC], projection=[time, user]    |
 |    |    |
 ----------
 -- SQL: SELECT date_bin_gapfill(interval '10 minute', time, timestamp '1970-01-01T00:00:00Z') as minute, count(cpu.user) from cpu where time between timestamp '2000-05-05T12:00:00Z' and timestamp '2000-05-05T12:59:00Z' group by minute;
@@ -89,12 +88,11 @@
 | logical_plan    | Projection: cpu.region, date_bin_gapfill(IntervalDayTime("600000"),cpu.time,Utf8("1970-01-01T00:00:00Z")) AS minute, AVG(cpu.user)    |
 |    |   GapFill: groupBy=[[cpu.region, date_bin_gapfill(IntervalDayTime("600000"),cpu.time,Utf8("1970-01-01T00:00:00Z"))]], aggr=[[LOCF(AVG(cpu.user))]], time_column=date_bin_gapfill(IntervalDayTime("600000"),cpu.time,Utf8("1970-01-01T00:00:00Z")), stride=IntervalDayTime("600000"), range=Included(TimestampNanosecond(957528000000000000, None))..Included(TimestampNanosecond(957531540000000000, None))    |
 |    |     Aggregate: groupBy=[[cpu.region, datebin(IntervalDayTime("600000"), cpu.time, TimestampNanosecond(0, None)) AS date_bin_gapfill(IntervalDayTime("600000"),cpu.time,Utf8("1970-01-01T00:00:00Z"))]], aggr=[[AVG(cpu.user)]]    |
-|    |       Filter: cpu.time >= TimestampNanosecond(957528000000000000, None) AND cpu.time <= TimestampNanosecond(957531540000000000, None)    |
-|    |         TableScan: cpu projection=[region, time, user], partial_filters=[cpu.time >= TimestampNanosecond(957528000000000000, None), cpu.time <= TimestampNanosecond(957531540000000000, None)]    |
+|    |       TableScan: cpu projection=[region, time, user], full_filters=[cpu.time >= TimestampNanosecond(957528000000000000, None), cpu.time <= TimestampNanosecond(957531540000000000, None)]    |
 | physical_plan    | ProjectionExec: expr=[region@0 as region, date_bin_gapfill(IntervalDayTime("600000"),cpu.time,Utf8("1970-01-01T00:00:00Z"))@1 as minute, AVG(cpu.user)@2 as AVG(cpu.user)]    |
 |    |   GapFillExec: group_expr=[region@0, date_bin_gapfill(IntervalDayTime("600000"),cpu.time,Utf8("1970-01-01T00:00:00Z"))@1], aggr_expr=[LOCF(AVG(cpu.user)@2)], stride=600000, time_range=Included("957528000000000000")..Included("957531540000000000")    |
-|    |     SortExec: expr=[region@0 ASC,date_bin_gapfill(IntervalDayTime("600000"),cpu.time,Utf8("1970-01-01T00:00:00Z"))@1 ASC]    |
-|    |       CoalescePartitionsExec    |
+|    |     SortPreservingMergeExec: [region@0 ASC,date_bin_gapfill(IntervalDayTime("600000"),cpu.time,Utf8("1970-01-01T00:00:00Z"))@1 ASC]    |
+|    |       SortExec: expr=[region@0 ASC,date_bin_gapfill(IntervalDayTime("600000"),cpu.time,Utf8("1970-01-01T00:00:00Z"))@1 ASC]    |
 |    |         AggregateExec: mode=FinalPartitioned, gby=[region@0 as region, date_bin_gapfill(IntervalDayTime("600000"),cpu.time,Utf8("1970-01-01T00:00:00Z"))@1 as date_bin_gapfill(IntervalDayTime("600000"),cpu.time,Utf8("1970-01-01T00:00:00Z"))], aggr=[AVG(cpu.user)]    |
 |    |           CoalesceBatchesExec: target_batch_size=8192    |
 |    |             RepartitionExec: partitioning=Hash([Column { name: "region", index: 0 }, Column { name: "date_bin_gapfill(IntervalDayTime(\"600000\"),cpu.time,Utf8(\"1970-01-01T00:00:00Z\"))", index: 1 }], 4), input_partitions=4    |
@@ -102,7 +100,7 @@
 |    |                 RepartitionExec: partitioning=RoundRobinBatch(4), input_partitions=1    |
 |    |                   CoalesceBatchesExec: target_batch_size=8192    |
 |    |                     FilterExec: time@1 >= 957528000000000000 AND time@1 <= 957531540000000000    |
-|    |                       ParquetExec: limit=None, partitions={1 group: [[1/1/1/1/00000000-0000-0000-0000-000000000000.parquet]]}, predicate=time@1 >= 957528000000000000 AND time@1 <= 957531540000000000, pruning_predicate=time_max@0 >= 957528000000000000 AND time_min@1 <= 957531540000000000, projection=[region, time, user]    |
+|    |                       ParquetExec: limit=None, partitions={1 group: [[1/1/1/1/00000000-0000-0000-0000-000000000000.parquet]]}, predicate=time@1 >= 957528000000000000 AND time@1 <= 957531540000000000, pruning_predicate=time_max@0 >= 957528000000000000 AND time_min@1 <= 957531540000000000, output_ordering=[region@0 ASC, time@1 ASC], projection=[region, time, user]    |
 |    |    |
 ----------
 -- SQL: SELECT region, date_bin_gapfill(interval '5 minute', time, timestamp '1970-01-01T00:00:00Z') as minute, locf(min(cpu.user)) from cpu where time between timestamp '2000-05-05T12:15:00Z' and timestamp '2000-05-05T12:59:00Z' group by region, minute;

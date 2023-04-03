@@ -29,6 +29,7 @@ indexmap = { version = "1.9", features = ["std"] }
 itertools = "0.10.5"
 object_store = "0.5.5"
 observability_deps = { path = "../observability_deps" }
+once_cell = "1"
 parking_lot = "0.12"
 parquet_file = { path = "../parquet_file" }
 query_functions = { path = "../query_functions"}

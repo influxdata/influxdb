@@ -12,6 +12,7 @@ use datafusion::{
 };
 use iox_query::{
     exec::{ExecutorType, SessionContextIOxExt},
+    influxdb_iox_pre_6098_planner,
     provider::{ChunkPruner, Error as ProviderError, ProviderBuilder},
     pruning::{prune_chunks, NotPrunedReason, PruningObserver},
     QueryChunk,
@@ -87,9 +88,13 @@ impl TableProvider for QuerierTable {
         &self,
         _filter: &Expr,
     ) -> Result<TableProviderFilterPushDown, DataFusionError> {
-        // we may apply filtering (via pruning) but can not guarantee
-        // that the filter catches all row during scan
-        Ok(TableProviderFilterPushDown::Inexact)
+        if influxdb_iox_pre_6098_planner() {
+            // we may apply filtering (via pruning) but can not guarantee
+            // that the filter catches all row during scan
+            Ok(TableProviderFilterPushDown::Inexact)
+        } else {
+            Ok(TableProviderFilterPushDown::Exact)
+        }
     }
 }
 

@@ -1,10 +1,14 @@
 //! Implementation of a DataFusion `TableProvider` in terms of `QueryChunk`s
 
 use async_trait::async_trait;
+use data_types::DeletePredicate;
 use hashbrown::HashMap;
 use std::sync::Arc;
 
-use arrow::{datatypes::SchemaRef as ArrowSchemaRef, error::ArrowError};
+use arrow::{
+    datatypes::{Schema as ArrowSchema, SchemaRef as ArrowSchemaRef},
+    error::ArrowError,
+};
 use datafusion::{
     datasource::TableProvider,
     error::{DataFusionError, Result as DataFusionResult},
@@ -27,10 +31,11 @@ use schema::{
 };
 
 use crate::{
-    compute_sort_key_for_chunks,
+    chunk_order_field, compute_sort_key_for_chunks,
     exec::IOxSessionContext,
+    influxdb_iox_pre_6098_planner,
     util::{arrow_sort_key_exprs, df_physical_expr},
-    QueryChunk,
+    QueryChunk, CHUNK_ORDER_COLUMN_NAME,
 };
 
 use snafu::{ResultExt, Snafu};
@@ -119,6 +124,8 @@ pub struct ProviderBuilder {
 
 impl ProviderBuilder {
     pub fn new(table_name: Arc<str>, schema: Schema, ctx: IOxSessionContext) -> Self {
+        assert_eq!(schema.find_index_of(CHUNK_ORDER_COLUMN_NAME), None);
+
         Self {
             table_name,
             schema,
@@ -201,25 +208,11 @@ impl ChunkTableProvider {
     pub fn deduplication(&self) -> bool {
         self.deduplication
     }
-}
 
-#[async_trait]
-impl TableProvider for ChunkTableProvider {
-    fn as_any(&self) -> &dyn std::any::Any {
-        self
-    }
-
-    /// Schema with all available columns across all chunks
-    fn schema(&self) -> ArrowSchemaRef {
-        self.arrow_schema()
-    }
-
-    async fn scan(
+    fn scan_old(
         &self,
-        _ctx: &SessionState,
         projection: Option<&Vec<usize>>,
         filters: &[Expr],
-        _limit: Option<usize>,
     ) -> std::result::Result<Arc<dyn ExecutionPlan>, DataFusionError> {
         trace!("Create a scan node for ChunkTableProvider");
         let chunks: Vec<Arc<dyn QueryChunk>> = self.chunks.to_vec();
@@ -249,12 +242,156 @@ impl TableProvider for ChunkTableProvider {
         Ok(plan)
     }
 
+    fn scan_new(
+        &self,
+        ctx: &SessionState,
+        projection: Option<&Vec<usize>>,
+        filters: &[Expr],
+    ) -> std::result::Result<Arc<dyn ExecutionPlan>, DataFusionError> {
+        trace!("Create a scan node for ChunkTableProvider");
+
+        let schema_with_chunk_order = Arc::new(ArrowSchema::new(
+            self.iox_schema
+                .as_arrow()
+                .fields
+                .iter()
+                .cloned()
+                .chain(std::iter::once(chunk_order_field()))
+                .collect(),
+        ));
+        let dedup_sort_key = SortKey::from_columns(self.iox_schema().primary_key());
+
+        let mut chunks_by_delete_predicates =
+            HashMap::<&[Arc<DeletePredicate>], Vec<Arc<dyn QueryChunk>>>::new();
+        for chunk in &self.chunks {
+            chunks_by_delete_predicates
+                .entry(chunk.delete_predicates())
+                .or_default()
+                .push(Arc::clone(chunk));
+        }
+
+        let (delete_predicates, chunks) = match chunks_by_delete_predicates.len() {
+            0 => (&[] as _, vec![]),
+            1 => chunks_by_delete_predicates
+                .into_iter()
+                .next()
+                .expect("checked len"),
+            n => {
+                return Err(DataFusionError::External(
+                    format!("expected at most 1 delete predicate set, got {n}").into(),
+                ));
+            }
+        };
+
+        // Create data stream from chunk data. This is the most simple data stream possible and contains duplicates and
+        // has no filters at all.
+        let plan = chunks_to_physical_nodes(
+            &schema_with_chunk_order,
+            None,
+            chunks,
+            Predicate::default(),
+            ctx.config().target_partitions(),
+        );
+
+        // De-dup before doing anything else, because all logical expressions act on de-duplicated data.
+        let plan = if self.deduplication {
+            let sort_exprs = arrow_sort_key_exprs(&dedup_sort_key, &plan.schema());
+            Arc::new(DeduplicateExec::new(plan, sort_exprs, true))
+        } else {
+            plan
+        };
+
+        // Convert delete predicates to DF
+        let del_preds: Vec<Arc<Predicate>> = delete_predicates
+            .iter()
+            .map(|pred| Arc::new(pred.as_ref().clone().into()))
+            .collect();
+        let negated_del_expr_val = Predicate::negated_expr(&del_preds[..]);
+
+        // Filter as early as possible (AFTER de-dup!). Predicate pushdown will eventually push down parts of this.
+        let plan = if let Some(expr) = filters
+            .iter()
+            .cloned()
+            .chain(negated_del_expr_val)
+            .reduce(|a, b| a.and(b))
+        {
+            Arc::new(FilterExec::try_new(
+                df_physical_expr(plan.as_ref(), expr)?,
+                plan,
+            )?)
+        } else {
+            plan
+        };
+
+        // Sort after filter to reduce potential work.
+        let plan = if let Some(output_sort_key) = self.output_sort_key.as_ref() {
+            let sort_exprs = arrow_sort_key_exprs(output_sort_key, &self.arrow_schema());
+            Arc::new(SortExec::try_new(sort_exprs, plan, None)?)
+        } else {
+            plan
+        };
+
+        // Project at last because it removes columns and hence other operations may fail. Projection pushdown will
+        // optimize that later.
+        // Always project because we MUST make sure that chunk order col doesn't leak to the user or to our parquet
+        // files.
+        let default_projection: Vec<_> = (0..self.iox_schema.len()).collect();
+        let projection = projection.unwrap_or(&default_projection);
+        let select_exprs = self
+            .iox_schema()
+            .select_by_indices(projection)
+            .as_arrow()
+            .fields()
+            .iter()
+            .map(|f| {
+                let field_name = f.name();
+                let physical_expr =
+                    physical_col(field_name, &self.schema()).context(InternalSelectExprSnafu)?;
+                Ok((physical_expr, field_name.to_string()))
+            })
+            .collect::<Result<Vec<_>>>()?;
+
+        let plan = Arc::new(ProjectionExec::try_new(select_exprs, plan)?);
+
+        Ok(plan)
+    }
+}
+
+#[async_trait]
+impl TableProvider for ChunkTableProvider {
+    fn as_any(&self) -> &dyn std::any::Any {
+        self
+    }
+
+    /// Schema with all available columns across all chunks
+    fn schema(&self) -> ArrowSchemaRef {
+        self.arrow_schema()
+    }
+
+    async fn scan(
+        &self,
+        ctx: &SessionState,
+        projection: Option<&Vec<usize>>,
+        filters: &[Expr],
+        _limit: Option<usize>,
+    ) -> std::result::Result<Arc<dyn ExecutionPlan>, DataFusionError> {
+        if influxdb_iox_pre_6098_planner() {
+            self.scan_old(projection, filters)
+        } else {
+            self.scan_new(ctx, projection, filters)
+        }
+    }
+
     /// Filter pushdown specification
     fn supports_filter_pushdown(
         &self,
         _filter: &Expr,
     ) -> DataFusionResult<TableProviderFilterPushDown> {
-        Ok(TableProviderFilterPushDown::Inexact)
+        if influxdb_iox_pre_6098_planner() {
+            Ok(TableProviderFilterPushDown::Inexact)
+        } else {
+            Ok(TableProviderFilterPushDown::Exact)
+        }
     }
 
     fn table_type(&self) -> TableType {

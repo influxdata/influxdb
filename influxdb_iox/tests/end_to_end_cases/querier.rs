@@ -471,7 +471,10 @@ async fn issue_4631_b() {
             // chunk sort key tag, tag2, time,
             // ```
             //
-            // Note that we cannot query tag2 because the schema is cached for a while.
+            // Note that:
+            // 1. We cannot query tag2 because the schema is cached for a while.
+            // 2. Because tag2 is not part of the schema, it is also not used de-dup. Under the cached schema, we do NOT
+            //    produce any primary-key duplicates.
             Step::Query {
                 sql: format!("select tag, val from {table_name} where tag='A' order by val"),
                 expected: vec![
@@ -479,7 +482,6 @@ async fn issue_4631_b() {
                     "| tag | val |",
                     "+-----+-----+",
                     "| A   | bar |",
-                    "| A   | foo |",
                     "+-----+-----+",
                 ],
             },
