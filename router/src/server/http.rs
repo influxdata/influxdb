@@ -629,6 +629,7 @@ mod tests {
 
     const MAX_BYTES: usize = 1024;
     const NAMESPACE_ID: NamespaceId = NamespaceId::new(42);
+    static NAMESPACE_NAME: &str = "bananas_test";
 
     fn summary() -> WriteSummary {
         WriteSummary::default()
@@ -716,7 +717,7 @@ mod tests {
                     test_http_handler!(encoding_header=$encoding, request);
 
                     let mock_namespace_resolver = MockNamespaceResolver::default()
-                        .with_mapping("bananas_test", NAMESPACE_ID);
+                        .with_mapping(NAMESPACE_NAME, NAMESPACE_ID);
                     let dml_handler = Arc::new(MockDmlHandler::default()
                         .with_write_return($dml_write_handler)
                         .with_delete_return($dml_delete_handler)
@@ -826,7 +827,7 @@ mod tests {
         dml_handler = [Ok(summary())],
         want_result = Ok(_),
         want_dml_calls = [MockDmlHandlerCall::Write{namespace, ..}] => {
-            assert_eq!(namespace, "bananas_test");
+            assert_eq!(namespace, NAMESPACE_NAME);
         }
     );
 
@@ -837,7 +838,7 @@ mod tests {
         dml_handler = [Ok(summary())],
         want_result = Ok(_),
         want_dml_calls = [MockDmlHandlerCall::Write{namespace, namespace_id, write_input}] => {
-            assert_eq!(namespace, "bananas_test");
+            assert_eq!(namespace, NAMESPACE_NAME);
             assert_eq!(*namespace_id, NAMESPACE_ID);
 
             let table = write_input.get("platanos").expect("table not found");
@@ -853,7 +854,7 @@ mod tests {
         dml_handler = [Ok(summary())],
         want_result = Ok(_),
         want_dml_calls = [MockDmlHandlerCall::Write{namespace, namespace_id, write_input}] => {
-            assert_eq!(namespace, "bananas_test");
+            assert_eq!(namespace, NAMESPACE_NAME);
             assert_eq!(*namespace_id, NAMESPACE_ID);
 
             let table = write_input.get("platanos").expect("table not found");
@@ -869,7 +870,7 @@ mod tests {
         dml_handler = [Ok(summary())],
         want_result = Ok(_),
         want_dml_calls = [MockDmlHandlerCall::Write{namespace, namespace_id, write_input}] => {
-            assert_eq!(namespace, "bananas_test");
+            assert_eq!(namespace, NAMESPACE_NAME);
             assert_eq!(*namespace_id, NAMESPACE_ID);
 
             let table = write_input.get("platanos").expect("table not found");
@@ -885,7 +886,7 @@ mod tests {
         dml_handler = [Ok(summary())],
         want_result = Ok(_),
         want_dml_calls = [MockDmlHandlerCall::Write{namespace, namespace_id, write_input}] => {
-            assert_eq!(namespace, "bananas_test");
+            assert_eq!(namespace, NAMESPACE_NAME);
             assert_eq!(*namespace_id, NAMESPACE_ID);
 
             let table = write_input.get("platanos").expect("table not found");
@@ -990,10 +991,10 @@ mod tests {
         db_not_found,
         query_string = "?org=bananas&bucket=test",
         body = "platanos,tag1=A,tag2=B val=42i 123456".as_bytes(),
-        dml_handler = [Err(DmlError::NamespaceNotFound("bananas_test".to_string()))],
+        dml_handler = [Err(DmlError::NamespaceNotFound(NAMESPACE_NAME.to_string()))],
         want_result = Err(Error::DmlHandler(DmlError::NamespaceNotFound(_))),
         want_dml_calls = [MockDmlHandlerCall::Write{namespace, ..}] => {
-            assert_eq!(namespace, "bananas_test");
+            assert_eq!(namespace, NAMESPACE_NAME);
         }
     );
 
@@ -1004,7 +1005,7 @@ mod tests {
         dml_handler = [Err(DmlError::Internal("💣".into()))],
         want_result = Err(Error::DmlHandler(DmlError::Internal(_))),
         want_dml_calls = [MockDmlHandlerCall::Write{namespace, ..}] => {
-            assert_eq!(namespace, "bananas_test");
+            assert_eq!(namespace, NAMESPACE_NAME);
         }
     );
 
@@ -1015,7 +1016,7 @@ mod tests {
         dml_handler = [Ok(summary())],
         want_result = Ok(_),
         want_dml_calls = [MockDmlHandlerCall::Write{namespace, namespace_id, write_input}] => {
-            assert_eq!(namespace, "bananas_test");
+            assert_eq!(namespace, NAMESPACE_NAME);
             assert_eq!(*namespace_id, NAMESPACE_ID);
             let table = write_input.get("test").expect("table not in write");
             let col = table.column("field").expect("column missing");
@@ -1043,7 +1044,7 @@ mod tests {
         want_result = Ok(_),
         want_dml_calls = [MockDmlHandlerCall::Delete{namespace, namespace_id, table, predicate}] => {
             assert_eq!(table, "its_a_table");
-            assert_eq!(namespace, "bananas_test");
+            assert_eq!(namespace, NAMESPACE_NAME);
             assert_eq!(*namespace_id, NAMESPACE_ID);
             assert!(!predicate.exprs.is_empty());
         }
@@ -1107,11 +1108,11 @@ mod tests {
         db_not_found,
         query_string = "?org=bananas&bucket=test",
         body = r#"{"start":"2021-04-01T14:00:00Z","stop":"2021-04-02T14:00:00Z", "predicate":"_measurement=its_a_table and location=Boston"}"#.as_bytes(),
-        dml_handler = [Err(DmlError::NamespaceNotFound("bananas_test".to_string()))],
+        dml_handler = [Err(DmlError::NamespaceNotFound(NAMESPACE_NAME.to_string()))],
         want_result = Err(Error::DmlHandler(DmlError::NamespaceNotFound(_))),
         want_dml_calls = [MockDmlHandlerCall::Delete{namespace, namespace_id, table, predicate}] => {
             assert_eq!(table, "its_a_table");
-            assert_eq!(namespace, "bananas_test");
+            assert_eq!(namespace, NAMESPACE_NAME);
             assert_eq!(*namespace_id, NAMESPACE_ID);
             assert!(!predicate.exprs.is_empty());
         }
@@ -1125,7 +1126,7 @@ mod tests {
         want_result = Err(Error::DmlHandler(DmlError::Internal(_))),
         want_dml_calls = [MockDmlHandlerCall::Delete{namespace, namespace_id, table, predicate}] => {
             assert_eq!(table, "its_a_table");
-            assert_eq!(namespace, "bananas_test");
+            assert_eq!(namespace, NAMESPACE_NAME);
             assert_eq!(*namespace_id, NAMESPACE_ID);
             assert!(!predicate.exprs.is_empty());
         }
@@ -1152,7 +1153,7 @@ mod tests {
             dml_handler = [Ok(summary())],
             want_result = Ok(_),
             want_dml_calls = [MockDmlHandlerCall::Write{namespace, write_input, ..}] => {
-                assert_eq!(namespace, "bananas_test");
+                assert_eq!(namespace, NAMESPACE_NAME);
                 let table = write_input.get("whydo").expect("table not in write");
                 let col = table.column("InputPower").expect("column missing");
                 assert_matches!(col.data(), ColumnData::I64(data, _) => {
@@ -1169,7 +1170,7 @@ mod tests {
             dml_handler = [Ok(summary())],
             want_result = Ok(_),
             want_dml_calls = [MockDmlHandlerCall::Write{namespace, write_input, ..}] => {
-                assert_eq!(namespace, "bananas_test");
+                assert_eq!(namespace, NAMESPACE_NAME);
                 let table = write_input.get("whydo").expect("table not in write");
                 let col = table.column("InputPower").expect("column missing");
                 assert_matches!(col.data(), ColumnData::I64(data, _) => {
@@ -1409,7 +1410,7 @@ mod tests {
     #[tokio::test]
     async fn test_authz() {
         let mock_namespace_resolver =
-            MockNamespaceResolver::default().with_mapping("bananas_test", NamespaceId::new(42));
+            MockNamespaceResolver::default().with_mapping(NAMESPACE_NAME, NamespaceId::new(42));
 
         let dml_handler = Arc::new(
             MockDmlHandler::default()
@@ -1474,7 +1475,7 @@ mod tests {
 
         let calls = dml_handler.calls();
         assert_matches!(calls.as_slice(), [MockDmlHandlerCall::Write{namespace, ..}] => {
-            assert_eq!(namespace, "bananas_test");
+            assert_eq!(namespace, NAMESPACE_NAME);
         })
     }
 
