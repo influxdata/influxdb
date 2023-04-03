@@ -1,4 +1,4 @@
-use influxdb_influxql_parser::expression::Expr;
+use influxdb_influxql_parser::expression::{Call, Expr, VarRef};
 use influxdb_influxql_parser::select::{Field, SelectStatement};
 use influxdb_influxql_parser::visit::{Recursion, Visitable, Visitor};
 use std::ops::Deref;
@@ -18,11 +18,11 @@ pub(crate) fn field_name(f: &Field) -> String {
     let mut expr = &f.expr;
     loop {
         expr = match expr {
-            Expr::Call { name, .. } => return name.clone(),
+            Expr::Call(Call { name, .. }) => return name.clone(),
             Expr::Nested(nested) => nested,
             Expr::Binary { .. } => return binary_expr_name(&f.expr),
             Expr::Distinct(_) => return "distinct".to_string(),
-            Expr::VarRef { name, .. } => return name.deref().into(),
+            Expr::VarRef(VarRef { name, .. }) => return name.deref().into(),
             Expr::Wildcard(_) | Expr::BindParameter(_) | Expr::Literal(_) => return "".to_string(),
         };
     }
@@ -45,10 +45,10 @@ pub(crate) fn field_by_name(select: &SelectStatement, name: &str) -> Option<Fiel
         .iter()
         .find(|f| {
             field_name(f) == name || match &f.expr {
-                Expr::Call { name: func_name, args } if (func_name.eq_ignore_ascii_case("top")
+                Expr::Call(Call{ name: func_name, args }) if (func_name.eq_ignore_ascii_case("top")
                     || func_name.eq_ignore_ascii_case("bottom"))
                     && args.len() > 2 =>
-                    args[1..].iter().any(|f| matches!(f, Expr::VarRef { name: field_name, .. } if field_name.as_str() == name)),
+                    args[1..].iter().any(|f| matches!(f, Expr::VarRef(VarRef{ name: field_name, .. }) if field_name.as_str() == name)),
                 _ => false,
             }
         })
@@ -60,13 +60,13 @@ struct BinaryExprNameVisitor<'a>(&'a mut Vec<String>);
 impl<'a> Visitor for BinaryExprNameVisitor<'a> {
     type Error = ();
 
-    fn pre_visit_expr(self, n: &Expr) -> Result<Recursion<Self>, Self::Error> {
-        match n {
-            Expr::Call { name, .. } => self.0.push(name.clone()),
-            Expr::VarRef { name, .. } => self.0.push(name.to_string()),
-            _ => {}
-        };
+    fn pre_visit_var_ref(self, n: &VarRef) -> Result<Recursion<Self>, Self::Error> {
+        self.0.push(n.name.to_string());
+        Ok(Recursion::Continue(self))
+    }
 
+    fn pre_visit_call(self, n: &Call) -> Result<Recursion<Self>, Self::Error> {
+        self.0.push(n.name.clone());
         Ok(Recursion::Continue(self))
     }
 }

@@ -2,6 +2,7 @@ use crate::common::{ws0, ParseError};
 use crate::expression::arithmetic::{
     arithmetic, call_expression, var_ref, ArithmeticParsers, Expr,
 };
+use crate::expression::Call;
 use crate::internal::Error as InternalError;
 use crate::internal::{expect, verify, ParseResult};
 use crate::keywords::keyword;
@@ -63,6 +64,24 @@ impl Display for ConditionalOperator {
     }
 }
 
+/// Conditional binary operations, such as `foo = 'bar'` or `true AND false`.
+#[derive(Debug, Clone, PartialEq)]
+pub struct ConditionalBinary {
+    /// Represents the left-hand side of the conditional binary expression.
+    pub lhs: Box<ConditionalExpression>,
+    /// Represents the operator to apply to the conditional binary expression.
+    pub op: ConditionalOperator,
+    /// Represents the right-hand side of the conditional binary expression.
+    pub rhs: Box<ConditionalExpression>,
+}
+
+impl Display for ConditionalBinary {
+    fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
+        let Self { lhs, op, rhs } = self;
+        write!(f, "{lhs} {op} {rhs}")
+    }
+}
+
 /// Represents a conditional expression.
 #[derive(Debug, Clone, PartialEq)]
 pub enum ConditionalExpression {
@@ -70,14 +89,7 @@ pub enum ConditionalExpression {
     Expr(Box<Expr>),
 
     /// Binary operations, such as `foo = 'bar'` or `true AND false`.
-    Binary {
-        /// Represents the left-hand side of the conditional binary expression.
-        lhs: Box<ConditionalExpression>,
-        /// Represents the operator to apply to the conditional binary expression.
-        op: ConditionalOperator,
-        /// Represents the right-hand side of the conditional binary expression.
-        rhs: Box<ConditionalExpression>,
-    },
+    Binary(ConditionalBinary),
 
     /// Represents a conditional expression enclosed in parenthesis.
     Grouped(Box<ConditionalExpression>),
@@ -98,7 +110,7 @@ impl Display for ConditionalExpression {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         match self {
             Self::Expr(v) => fmt::Display::fmt(v, f),
-            Self::Binary { lhs, op, rhs } => write!(f, "{lhs} {op} {rhs}"),
+            Self::Binary(v) => fmt::Display::fmt(v, f),
             Self::Grouped(v) => write!(f, "({v})"),
         }
     }
@@ -268,19 +280,19 @@ fn reduce_expr(
     expr: ConditionalExpression,
     remainder: Vec<(ConditionalOperator, ConditionalExpression)>,
 ) -> ConditionalExpression {
-    remainder
-        .into_iter()
-        .fold(expr, |lhs, val| ConditionalExpression::Binary {
+    remainder.into_iter().fold(expr, |lhs, val| {
+        ConditionalExpression::Binary(ConditionalBinary {
             lhs: lhs.into(),
             op: val.0,
             rhs: val.1.into(),
         })
+    })
 }
 
 /// Returns true if `expr` is a valid [`Expr::Call`] expression for the `now` function.
 pub(crate) fn is_valid_now_call(expr: &Expr) -> bool {
     match expr {
-        Expr::Call { name, args } => name.to_lowercase() == "now" && args.is_empty(),
+        Expr::Call(Call { name, args }) => name.to_lowercase() == "now" && args.is_empty(),
         _ => false,
     }
 }

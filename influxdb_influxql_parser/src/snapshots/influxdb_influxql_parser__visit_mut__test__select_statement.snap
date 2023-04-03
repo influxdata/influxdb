@@ -2,22 +2,24 @@
 source: influxdb_influxql_parser/src/visit_mut.rs
 expression: "visit_statement!(r#\"SELECT value FROM temp\"#)"
 ---
-- "pre_visit_statement: Select(SelectStatement { fields: ZeroOrMore { contents: [Field { expr: VarRef { name: Identifier(\"value\"), data_type: None }, alias: None }] }, from: ZeroOrMore { contents: [Name(QualifiedMeasurementName { database: None, retention_policy: None, name: Name(Identifier(\"temp\")) })] }, condition: None, group_by: None, fill: None, order_by: None, limit: None, offset: None, series_limit: None, series_offset: None, timezone: None })"
-- "pre_visit_select_statement: SelectStatement { fields: ZeroOrMore { contents: [Field { expr: VarRef { name: Identifier(\"value\"), data_type: None }, alias: None }] }, from: ZeroOrMore { contents: [Name(QualifiedMeasurementName { database: None, retention_policy: None, name: Name(Identifier(\"temp\")) })] }, condition: None, group_by: None, fill: None, order_by: None, limit: None, offset: None, series_limit: None, series_offset: None, timezone: None }"
-- "pre_visit_select_field_list: ZeroOrMore { contents: [Field { expr: VarRef { name: Identifier(\"value\"), data_type: None }, alias: None }] }"
-- "pre_visit_select_field: Field { expr: VarRef { name: Identifier(\"value\"), data_type: None }, alias: None }"
-- "pre_visit_expr: VarRef { name: Identifier(\"value\"), data_type: None }"
-- "post_visit_expr: VarRef { name: Identifier(\"value\"), data_type: None }"
-- "post_visit_select_field: Field { expr: VarRef { name: Identifier(\"value\"), data_type: None }, alias: None }"
-- "post_visit_select_field_list: ZeroOrMore { contents: [Field { expr: VarRef { name: Identifier(\"value\"), data_type: None }, alias: None }] }"
-- "pre_visit_select_from_clause: ZeroOrMore { contents: [Name(QualifiedMeasurementName { database: None, retention_policy: None, name: Name(Identifier(\"temp\")) })] }"
-- "pre_visit_select_measurement_selection: Name(QualifiedMeasurementName { database: None, retention_policy: None, name: Name(Identifier(\"temp\")) })"
-- "pre_visit_qualified_measurement_name: QualifiedMeasurementName { database: None, retention_policy: None, name: Name(Identifier(\"temp\")) }"
-- "pre_visit_measurement_name: Name(Identifier(\"temp\"))"
-- "post_visit_measurement_name: Name(Identifier(\"temp\"))"
-- "post_visit_qualified_measurement_name: QualifiedMeasurementName { database: None, retention_policy: None, name: Name(Identifier(\"temp\")) }"
-- "post_visit_select_measurement_selection: Name(QualifiedMeasurementName { database: None, retention_policy: None, name: Name(Identifier(\"temp\")) })"
-- "post_visit_select_from_clause: ZeroOrMore { contents: [Name(QualifiedMeasurementName { database: None, retention_policy: None, name: Name(Identifier(\"temp\")) })] }"
-- "post_visit_select_statement: SelectStatement { fields: ZeroOrMore { contents: [Field { expr: VarRef { name: Identifier(\"value\"), data_type: None }, alias: None }] }, from: ZeroOrMore { contents: [Name(QualifiedMeasurementName { database: None, retention_policy: None, name: Name(Identifier(\"temp\")) })] }, condition: None, group_by: None, fill: None, order_by: None, limit: None, offset: None, series_limit: None, series_offset: None, timezone: None }"
-- "post_visit_statement: Select(SelectStatement { fields: ZeroOrMore { contents: [Field { expr: VarRef { name: Identifier(\"value\"), data_type: None }, alias: None }] }, from: ZeroOrMore { contents: [Name(QualifiedMeasurementName { database: None, retention_policy: None, name: Name(Identifier(\"temp\")) })] }, condition: None, group_by: None, fill: None, order_by: None, limit: None, offset: None, series_limit: None, series_offset: None, timezone: None })"
+- pre_visit_statement
+- pre_visit_select_statement
+- pre_visit_select_field_list
+- pre_visit_select_field
+- pre_visit_expr
+- pre_visit_var_ref
+- post_visit_var_ref
+- post_visit_expr
+- post_visit_select_field
+- post_visit_select_field_list
+- pre_visit_select_from_clause
+- pre_visit_select_measurement_selection
+- pre_visit_qualified_measurement_name
+- pre_visit_measurement_name
+- post_visit_measurement_name
+- post_visit_qualified_measurement_name
+- post_visit_select_measurement_selection
+- post_visit_select_from_clause
+- post_visit_select_statement
+- post_visit_statement
 

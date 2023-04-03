@@ -2,10 +2,10 @@
 source: influxdb_influxql_parser/src/visit_mut.rs
 expression: "visit_statement!(\"SHOW MEASUREMENTS LIMIT 5\")"
 ---
-- "pre_visit_statement: ShowMeasurements(ShowMeasurementsStatement { on: None, with_measurement: None, condition: None, limit: Some(LimitClause(5)), offset: None })"
-- "pre_visit_show_measurements_statement: ShowMeasurementsStatement { on: None, with_measurement: None, condition: None, limit: Some(LimitClause(5)), offset: None }"
-- "pre_visit_limit_clause: LimitClause(5)"
-- "post_visit_limit_clause: LimitClause(5)"
-- "post_visit_show_measurements_statement: ShowMeasurementsStatement { on: None, with_measurement: None, condition: None, limit: Some(LimitClause(5)), offset: None }"
-- "post_visit_statement: ShowMeasurements(ShowMeasurementsStatement { on: None, with_measurement: None, condition: None, limit: Some(LimitClause(5)), offset: None })"
+- pre_visit_statement
+- pre_visit_show_measurements_statement
+- pre_visit_limit_clause
+- post_visit_limit_clause
+- post_visit_show_measurements_statement
+- post_visit_statement
 
