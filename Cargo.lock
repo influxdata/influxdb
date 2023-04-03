@@ -1977,7 +1977,7 @@ dependencies = [
  "futures-core",
  "futures-sink",
  "pin-project",
- "spin 0.9.7",
+ "spin 0.9.8",
 ]
 
 [[package]]
@@ -2326,7 +2326,7 @@ dependencies = [
  "lazy_static",
  "libc",
  "pprof",
- "spin 0.9.7",
+ "spin 0.9.8",
  "thiserror",
  "tikv-jemalloc-sys",
 ]
@@ -2615,6 +2615,7 @@ dependencies = [
  "nom",
  "num-traits",
  "once_cell",
+ "paste",
  "test_helpers",
  "workspace-hack",
 ]
@@ -3739,9 +3740,9 @@ dependencies = [
 
 [[package]]
 name = "mockito"
-version = "1.0.1"
+version = "1.0.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "a383b2462062a0ef6f378d44b8057ef2bdcb94429b8e30bd4078842cd38ee453"
+checksum = "ea57936ab3bf56156f135f20ee24b840e5a8ad97a8e1710eace33ac078f8f537"
 dependencies = [
  "assert-json-diff",
  "colored",
@@ -5540,9 +5541,9 @@ checksum = "6e63cff320ae2c57904679ba7cb63280a3dc4613885beafb148ee7bf9aa9042d"
 
 [[package]]
 name = "spin"
-version = "0.9.7"
+version = "0.9.8"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "c0959fd6f767df20b231736396e4f602171e00d95205676286e79d4a4eb67bef"
+checksum = "6980e8d7511241f8acf4aebddbb1ff938df5eebe98691418c4468d0b72a96a67"
 dependencies = [
  "lock_api",
 ]

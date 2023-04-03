@@ -12,6 +12,7 @@ use crate::expression::arithmetic::{
     arithmetic, call_expression, var_ref, ArithmeticParsers, Expr, WildcardType,
 };
 use crate::expression::conditional::is_valid_now_call;
+use crate::expression::VarRef;
 use crate::identifier::{identifier, Identifier};
 use crate::impl_tuple_clause;
 use crate::internal::{expect, map_fail, verify, ParseResult};
@@ -372,7 +373,7 @@ impl Parser for Dimension {
             map(regex, Self::Regex),
             map(var_ref, |v| {
                 Self::Tag(match v {
-                    Expr::VarRef { name, .. } => name,
+                    Expr::VarRef(VarRef { name, .. }) => name,
                     // var_ref only returns Expr::VarRef
                     _ => unreachable!(),
                 })

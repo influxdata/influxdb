@@ -4,17 +4,17 @@
 #[macro_export]
 macro_rules! var_ref {
     ($NAME: literal) => {
-        $crate::expression::arithmetic::Expr::VarRef {
+        $crate::expression::Expr::VarRef($crate::expression::VarRef {
             name: $NAME.into(),
             data_type: None,
-        }
+        })
     };
 
     ($NAME: literal, $TYPE: ident) => {
-        $crate::expression::arithmetic::Expr::VarRef {
+        $crate::expression::Expr::VarRef($crate::expression::VarRef {
             name: $NAME.into(),
             data_type: Some($crate::expression::arithmetic::VarRefDataType::$TYPE),
-        }
+        })
     };
 }
 
@@ -62,16 +62,16 @@ macro_rules! nested {
 #[macro_export]
 macro_rules! call {
     ($NAME:literal) => {
-        $crate::expression::arithmetic::Expr::Call {
+        $crate::expression::Expr::Call($crate::expression::Call {
             name: $NAME.into(),
             args: vec![],
-        }
+        })
     };
     ($NAME:literal, $( $ARG:expr ),+) => {
-        $crate::expression::arithmetic::Expr::Call {
+        $crate::expression::Expr::Call($crate::expression::Call {
             name: $NAME.into(),
             args: vec![$( $ARG ),+],
-        }
+        })
     };
 }
 
@@ -105,11 +105,11 @@ macro_rules! wildcard {
 #[macro_export]
 macro_rules! binary_op {
     ($LHS: expr, $OP: ident, $RHS: expr) => {
-        $crate::expression::arithmetic::Expr::Binary {
+        $crate::expression::Expr::Binary($crate::expression::Binary {
             lhs: $LHS.into(),
-            op: $crate::expression::arithmetic::BinaryOperator::$OP,
+            op: $crate::expression::BinaryOperator::$OP,
             rhs: $RHS.into(),
-        }
+        })
     };
 }
 
@@ -117,14 +117,14 @@ macro_rules! binary_op {
 #[macro_export]
 macro_rules! cond_op {
     ($LHS: expr, $OP: ident, $RHS: expr) => {
-        <$crate::expression::conditional::ConditionalExpression as std::convert::Into<
-            Box<$crate::expression::conditional::ConditionalExpression>,
-        >>::into(
-            $crate::expression::conditional::ConditionalExpression::Binary {
+        <$crate::expression::ConditionalExpression as std::convert::Into<
+            Box<$crate::expression::ConditionalExpression>,
+        >>::into($crate::expression::ConditionalExpression::Binary(
+            $crate::expression::ConditionalBinary {
                 lhs: $LHS.into(),
-                op: $crate::expression::conditional::ConditionalOperator::$OP,
+                op: $crate::expression::ConditionalOperator::$OP,
                 rhs: $RHS.into(),
             },
-        )
+        ))
     };
 }

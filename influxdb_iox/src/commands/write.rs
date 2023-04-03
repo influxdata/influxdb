@@ -50,7 +50,7 @@ pub type Result<T, E = Error> = std::result::Result<T, E>;
 /// Write data into the specified namespace
 #[derive(Debug, clap::Parser)]
 pub struct Config {
-    /// If specified, restricts the maxium amount of line protocol
+    /// If specified, restricts the maximum amount of line protocol
     /// sent per request to this many bytes. Defaults to 1MB
     #[clap(action, long, short = 'b', default_value = "1048576")]
     max_request_payload_size_bytes: usize,
@@ -59,7 +59,7 @@ pub struct Config {
     #[clap(action, long, short = 'c', default_value = "10")]
     max_concurrent_uploads: usize,
 
-    /// The namespace into which to write
+    /// The namespace into which to write, in the form <org_id>_<bucket_id>
     #[clap(action)]
     namespace: String,
 

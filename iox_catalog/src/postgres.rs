@@ -1532,18 +1532,29 @@ WHERE id = $2;
         .map_err(|e| Error::SqlxError { source: e })
     }
 
-    async fn partitions_to_compact(&mut self, recent_time: Timestamp) -> Result<Vec<PartitionId>> {
-        sqlx::query_as(
+    async fn partitions_new_file_between(
+        &mut self,
+        minimum_time: Timestamp,
+        maximum_time: Option<Timestamp>,
+    ) -> Result<Vec<PartitionId>> {
+        let sql = format!(
             r#"
             SELECT p.id as partition_id
             FROM partition p
             WHERE p.new_file_at > $1
+            {}
             "#,
-        )
-        .bind(recent_time) // $1
-        .fetch_all(&mut self.inner)
-        .await
-        .map_err(|e| Error::SqlxError { source: e })
+            maximum_time
+                .map(|_| "AND p.new_file_at < $2")
+                .unwrap_or_default()
+        );
+
+        sqlx::query_as(&sql)
+            .bind(minimum_time) // $1
+            .bind(maximum_time) // $2
+            .fetch_all(&mut self.inner)
+            .await
+            .map_err(|e| Error::SqlxError { source: e })
     }
 }
 

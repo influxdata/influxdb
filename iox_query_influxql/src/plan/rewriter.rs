@@ -7,7 +7,7 @@ use crate::plan::{util, SchemaProvider};
 use datafusion::common::{DataFusionError, Result};
 use influxdb_influxql_parser::common::{MeasurementName, QualifiedMeasurementName};
 use influxdb_influxql_parser::expression::walk::{walk_expr, walk_expr_mut};
-use influxdb_influxql_parser::expression::{Expr, VarRefDataType, WildcardType};
+use influxdb_influxql_parser::expression::{Call, Expr, VarRef, VarRefDataType, WildcardType};
 use influxdb_influxql_parser::identifier::Identifier;
 use influxdb_influxql_parser::literal::Literal;
 use influxdb_influxql_parser::select::{
@@ -199,14 +199,14 @@ fn rewrite_field_list(s: &dyn SchemaProvider, stmt: &mut SelectStatement) -> Res
     // hasn't been specified.
     if let ControlFlow::Break(e) = stmt.fields.iter_mut().try_for_each(|f| {
         walk_expr_mut::<DataFusionError>(&mut f.expr, &mut |e| {
-            if matches!(e, Expr::VarRef { .. }) {
+            if matches!(e, Expr::VarRef(_)) {
                 let new_type = match evaluate_type(s, e.borrow(), &stmt.from) {
                     Err(e) => ControlFlow::Break(e)?,
                     Ok(v) => v,
                 };
 
-                if let Expr::VarRef { data_type, .. } = e {
-                    *data_type = new_type;
+                if let Expr::VarRef(v) = e {
+                    v.data_type = new_type;
                 }
             }
             ControlFlow::Continue(())
@@ -234,23 +234,17 @@ fn rewrite_field_list(s: &dyn SchemaProvider, stmt: &mut SelectStatement) -> Res
         }
     }
 
-    #[derive(PartialEq, PartialOrd, Eq, Ord)]
-    struct VarRef {
-        name: String,
-        data_type: VarRefDataType,
-    }
-
     let fields = if !field_set.is_empty() {
         let fields_iter = field_set.iter().map(|(k, v)| VarRef {
-            name: k.clone(),
-            data_type: *v,
+            name: k.clone().into(),
+            data_type: Some(*v),
         });
 
         if !has_group_by_wildcard {
             fields_iter
                 .chain(tag_set.iter().map(|tag| VarRef {
-                    name: tag.clone(),
-                    data_type: VarRefDataType::Tag,
+                    name: tag.clone().into(),
+                    data_type: Some(VarRefDataType::Tag),
                 }))
                 .sorted()
                 .collect::<Vec<_>>()
@@ -267,10 +261,7 @@ fn rewrite_field_list(s: &dyn SchemaProvider, stmt: &mut SelectStatement) -> Res
         for f in stmt.fields.iter() {
             let add_field = |f: &VarRef| {
                 new_fields.push(Field {
-                    expr: Expr::VarRef {
-                        name: f.name.clone().into(),
-                        data_type: Some(f.data_type),
-                    },
+                    expr: Expr::VarRef(f.clone()),
                     alias: None,
                 })
             };
@@ -279,8 +270,12 @@ fn rewrite_field_list(s: &dyn SchemaProvider, stmt: &mut SelectStatement) -> Res
                 Expr::Wildcard(wct) => {
                     let filter: fn(&&VarRef) -> bool = match wct {
                         None => |_| true,
-                        Some(WildcardType::Tag) => |v| v.data_type.is_tag_type(),
-                        Some(WildcardType::Field) => |v| v.data_type.is_field_type(),
+                        Some(WildcardType::Tag) => {
+                            |v| v.data_type.map_or(false, |dt| dt.is_tag_type())
+                        }
+                        Some(WildcardType::Field) => {
+                            |v| v.data_type.map_or(false, |dt| dt.is_field_type())
+                        }
                     };
 
                     fields.iter().filter(filter).for_each(add_field);
@@ -294,53 +289,52 @@ fn rewrite_field_list(s: &dyn SchemaProvider, stmt: &mut SelectStatement) -> Res
                         .for_each(add_field);
                 }
 
-                Expr::Call { name, args } => {
+                Expr::Call(Call { name, args }) => {
                     let mut name = name;
                     let mut args = args;
 
                     // Search for the call with a wildcard by continuously descending until
                     // we no longer have a call.
-                    while let Some(Expr::Call {
+                    while let Some(Expr::Call(Call {
                         name: inner_name,
                         args: inner_args,
-                    }) = args.first()
+                    })) = args.first()
                     {
                         name = inner_name;
                         args = inner_args;
                     }
 
                     let mut supported_types = HashSet::from([
-                        VarRefDataType::Float,
-                        VarRefDataType::Integer,
-                        VarRefDataType::Unsigned,
+                        Some(VarRefDataType::Float),
+                        Some(VarRefDataType::Integer),
+                        Some(VarRefDataType::Unsigned),
                     ]);
 
                     // Add additional types for certain functions.
                     match name.to_lowercase().as_str() {
                         "count" | "first" | "last" | "distinct" | "elapsed" | "mode" | "sample" => {
-                            supported_types
-                                .extend([VarRefDataType::String, VarRefDataType::Boolean]);
+                            supported_types.extend([
+                                Some(VarRefDataType::String),
+                                Some(VarRefDataType::Boolean),
+                            ]);
                         }
                         "min" | "max" => {
-                            supported_types.insert(VarRefDataType::Boolean);
+                            supported_types.insert(Some(VarRefDataType::Boolean));
                         }
                         "holt_winters" | "holt_winters_with_fit" => {
-                            supported_types.remove(&VarRefDataType::Unsigned);
+                            supported_types.remove(&Some(VarRefDataType::Unsigned));
                         }
                         _ => {}
                     }
 
                     let add_field = |v: &VarRef| {
                         let mut args = args.clone();
-                        args[0] = Expr::VarRef {
-                            name: v.name.clone().into(),
-                            data_type: Some(v.data_type),
-                        };
+                        args[0] = Expr::VarRef(v.clone());
                         new_fields.push(Field {
-                            expr: Expr::Call {
+                            expr: Expr::Call(Call {
                                 name: name.clone(),
                                 args,
-                            },
+                            }),
                             alias: Some(format!("{}_{}", field_name(f), v.name).into()),
                         })
                     };

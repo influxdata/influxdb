@@ -38,7 +38,7 @@ pub(crate) fn unquoted_identifier(i: &str) -> ParseResult<&str, &str> {
 }
 
 /// A type that represents an InfluxQL identifier.
-#[derive(Clone, Debug, Eq, Hash, PartialEq)]
+#[derive(Clone, Debug, Eq, Hash, PartialEq, Ord, PartialOrd)]
 pub struct Identifier(pub(crate) String);
 
 impl_tuple_clause!(Identifier, String);

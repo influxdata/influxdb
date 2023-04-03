@@ -3,7 +3,7 @@ use crate::plan::field_mapper::map_type;
 use crate::plan::SchemaProvider;
 use datafusion::common::{DataFusionError, Result};
 use influxdb_influxql_parser::common::{MeasurementName, QualifiedMeasurementName};
-use influxdb_influxql_parser::expression::{Expr, VarRefDataType};
+use influxdb_influxql_parser::expression::{Call, Expr, VarRef, VarRefDataType};
 use influxdb_influxql_parser::literal::Literal;
 use influxdb_influxql_parser::select::{Dimension, FromMeasurementClause, MeasurementSelection};
 use itertools::Itertools;
@@ -31,8 +31,8 @@ impl<'a> TypeEvaluator<'a> {
 
     fn eval_type(&self, expr: &Expr) -> Result<Option<VarRefDataType>> {
         Ok(match expr {
-            Expr::VarRef { name, data_type } => self.eval_var_ref(name.as_str(), data_type)?,
-            Expr::Call { name, args } => self.eval_call(name.as_str(), args)?,
+            Expr::VarRef(v) => self.eval_var_ref(v)?,
+            Expr::Call(v) => self.eval_call(v)?,
             // NOTE: This is a deviation from https://github.com/influxdata/influxql/blob/1ba470371ec093d57a726b143fe6ccbacf1b452b/ast.go#L4635,
             // as we'll let DataFusion determine the column type and if the types are compatible.
             Expr::Binary { .. } => None,
@@ -54,12 +54,8 @@ impl<'a> TypeEvaluator<'a> {
 
     /// Returns the type for the specified [`Expr`].
     /// This function assumes that the expression has already been reduced.
-    fn eval_var_ref(
-        &self,
-        name: &str,
-        data_type: &Option<VarRefDataType>,
-    ) -> Result<Option<VarRefDataType>> {
-        Ok(match data_type {
+    fn eval_var_ref(&self, expr: &VarRef) -> Result<Option<VarRefDataType>> {
+        Ok(match expr.data_type {
             Some(dt)
                 if matches!(
                     dt,
@@ -70,7 +66,7 @@ impl<'a> TypeEvaluator<'a> {
                         | VarRefDataType::Boolean
                 ) =>
             {
-                Some(*dt)
+                Some(dt)
             }
             _ => {
                 let mut data_type: Option<VarRefDataType> = None;
@@ -79,7 +75,10 @@ impl<'a> TypeEvaluator<'a> {
                         MeasurementSelection::Name(QualifiedMeasurementName {
                             name: MeasurementName::Name(ident),
                             ..
-                        }) => match (data_type, map_type(self.s, ident.as_str(), name)?) {
+                        }) => match (
+                            data_type,
+                            map_type(self.s, ident.as_str(), expr.name.as_str())?,
+                        ) {
                             (Some(existing), Some(res)) => {
                                 if res < existing {
                                     data_type = Some(res)
@@ -90,7 +89,7 @@ impl<'a> TypeEvaluator<'a> {
                         },
                         MeasurementSelection::Subquery(select) => {
                             // find the field by name
-                            if let Some(field) = field_by_name(select, name) {
+                            if let Some(field) = field_by_name(select, expr.name.as_str()) {
                                 match (data_type, evaluate_type(self.s, &field.expr, &select.from)?)
                                 {
                                     (Some(existing), Some(res)) => {
@@ -106,7 +105,7 @@ impl<'a> TypeEvaluator<'a> {
                             if data_type.is_none() {
                                 if let Some(group_by) = &select.group_by {
                                     if group_by.iter().any(|dim| {
-                                        matches!(dim, Dimension::Tag(ident) if ident.as_str() == name)
+                                        matches!(dim, Dimension::Tag(ident) if ident.as_str() == expr.name.as_str())
                                     }) {
                                         data_type = Some(VarRefDataType::Tag);
                                     }
@@ -130,11 +129,15 @@ impl<'a> TypeEvaluator<'a> {
     ///
     /// Derived from [Go implementation](https://github.com/influxdata/influxql/blob/1ba470371ec093d57a726b143fe6ccbacf1b452b/ast.go#L4693)
     /// and [here](https://github.com/influxdata/influxdb/blob/37088e8f5330bec0f08a376b2cb945d02a296f4e/influxql/query/functions.go#L50).
-    fn eval_call(&self, name: &str, args: &[Expr]) -> Result<Option<VarRefDataType>> {
+    fn eval_call(&self, call: &Call) -> Result<Option<VarRefDataType>> {
         // Evaluate the data types of the arguments
-        let arg_types: Vec<_> = args.iter().map(|expr| self.eval_type(expr)).try_collect()?;
+        let arg_types: Vec<_> = call
+            .args
+            .iter()
+            .map(|expr| self.eval_type(expr))
+            .try_collect()?;
 
-        Ok(match name.to_ascii_lowercase().as_str() {
+        Ok(match call.name.as_str() {
             "mean" => Some(VarRefDataType::Float),
             "count" => Some(VarRefDataType::Integer),
             "min" | "max" | "sum" | "first" | "last" => match arg_types.first() {
