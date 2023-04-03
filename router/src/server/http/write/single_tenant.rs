@@ -50,7 +50,7 @@ impl From<&SingleTenantExtractError> for hyper::StatusCode {
             SingleTenantExtractError::ParseV1Request(
                 V1WriteParseError::NoQueryParams
                 | V1WriteParseError::DecodeFail(_)
-                | V1WriteParseError::NamespaceContainsRpSeparator,
+                | V1WriteParseError::ContainsRpSeparator,
             ) => Self::BAD_REQUEST,
             SingleTenantExtractError::ParseV2Request(
                 V2WriteParseError::NoQueryParams | V2WriteParseError::DecodeFail(_),
@@ -127,4 +127,233 @@ fn parse_v2(req: &Request<Body>) -> Result<WriteParams, SingleTenantExtractError
         namespace: NamespaceName::new(write_params.bucket)?,
         precision: write_params.precision,
     })
+}
+
+#[cfg(test)]
+mod tests {
+    use crate::server::http::write::Precision;
+
+    use super::*;
+
+    use assert_matches::assert_matches;
+
+    macro_rules! test_parse_v1 {
+        (
+            $name:ident,
+            query_string = $query_string:expr,  // A query string including the ?
+            want = $($want:tt)+                 // A pattern match for assert_matches!
+        ) => {
+            paste::paste! {
+                #[test]
+                fn [<test_parse_v1_ $name>]() {
+                    let parser = SingleTenantRequestParser::default();
+
+                    let query = $query_string;
+                    let request = Request::builder()
+                        .uri(format!("https://itsallbroken.com/ignored{query}"))
+                        .method("POST")
+                        .body(Body::from(""))
+                        .unwrap();
+
+                    let got = parser.parse_v1(&request);
+                    assert_matches!(got, $($want)+);
+                }
+            }
+        };
+    }
+
+    test_parse_v1!(
+        no_query_string,
+        query_string = "",
+        want = Err(Error::SingleTenantError(
+            SingleTenantExtractError::ParseV1Request(V1WriteParseError::NoQueryParams)
+        ))
+    );
+
+    test_parse_v1!(
+        empty_query_string,
+        query_string = "?",
+        want = Err(Error::SingleTenantError(
+            SingleTenantExtractError::ParseV1Request(V1WriteParseError::DecodeFail(e))
+        )) => {
+            assert_eq!(e.to_string(), "missing field `db`")
+        }
+    );
+
+    test_parse_v1!(
+        no_db,
+        query_string = "?rp=autogen",
+        want = Err(Error::SingleTenantError(
+            SingleTenantExtractError::ParseV1Request(V1WriteParseError::DecodeFail(e))
+        )) => {
+            assert_eq!(e.to_string(), "missing field `db`")
+        }
+    );
+
+    test_parse_v1!(
+        no_rp,
+        query_string = "?db=bananas",
+        want = Ok(WriteParams{ namespace, precision }) => {
+            assert_eq!(namespace.as_str(), "bananas");
+            assert_matches!(precision, Precision::Nanoseconds);
+        }
+    );
+
+    // Prevent ambiguity by denying the `/` character in the DB
+    test_parse_v1!(
+        no_rp_db_with_rp_separator,
+        query_string = "?db=bananas/are/great",
+        want = Err(Error::SingleTenantError(
+            SingleTenantExtractError::ParseV1Request(V1WriteParseError::ContainsRpSeparator)
+        ))
+    );
+
+    // Prevent ambiguity by denying the `/` character in the RP
+    test_parse_v1!(
+        rp_with_rp_separator,
+        query_string = "?db=bananas&rp=are/great",
+        want = Err(Error::SingleTenantError(
+            SingleTenantExtractError::ParseV1Request(V1WriteParseError::ContainsRpSeparator)
+        ))
+    );
+
+    test_parse_v1!(
+        rp_empty,
+        query_string = "?db=bananas&rp=",
+        want = Ok(WriteParams{ namespace, precision }) => {
+            assert_eq!(namespace.as_str(), "bananas");
+            assert_matches!(precision, Precision::Nanoseconds);
+        }
+    );
+
+    test_parse_v1!(
+        rp_empty_quotes,
+        query_string = "?db=bananas&rp=''",
+        want = Ok(WriteParams{ namespace, precision }) => {
+            assert_eq!(namespace.as_str(), "bananas");
+            assert_matches!(precision, Precision::Nanoseconds);
+        }
+    );
+
+    test_parse_v1!(
+        rp_autogen,
+        query_string = "?db=bananas&rp=autogen",
+        want = Ok(WriteParams{ namespace, precision }) => {
+            assert_eq!(namespace.as_str(), "bananas");
+            assert_matches!(precision, Precision::Nanoseconds);
+        }
+    );
+
+    test_parse_v1!(
+        rp_specified,
+        query_string = "?db=bananas&rp=ageless",
+        want = Ok(WriteParams{ namespace, precision }) => {
+            assert_eq!(namespace.as_str(), "bananas/ageless");
+            assert_matches!(precision, Precision::Nanoseconds);
+        }
+    );
+
+    test_parse_v1!(
+        with_precision,
+        query_string = "?db=bananas&rp=ageless&precision=ms",
+        want = Ok(WriteParams{ namespace, precision }) => {
+            assert_eq!(namespace.as_str(), "bananas/ageless");
+            assert_matches!(precision, Precision::Milliseconds);
+        }
+    );
+
+    macro_rules! test_parse_v2 {
+        (
+            $name:ident,
+            query_string = $query_string:expr,  // A query string including the ?
+            want = $($want:tt)+                 // A pattern match for assert_matches!
+        ) => {
+            paste::paste! {
+                #[test]
+                fn [<test_parse_v2_ $name>]() {
+                    let parser = SingleTenantRequestParser::default();
+
+                    let query = $query_string;
+                    let request = Request::builder()
+                        .uri(format!("https://itsallbroken.com/ignored{query}"))
+                        .method("POST")
+                        .body(Body::from(""))
+                        .unwrap();
+
+                    let got = parser.parse_v2(&request);
+                    assert_matches!(got, $($want)+);
+                }
+            }
+        };
+    }
+
+    test_parse_v2!(
+        empty_query_string,
+        query_string = "?",
+        want = Err(Error::SingleTenantError(
+            SingleTenantExtractError::InvalidNamespace(NamespaceNameError::LengthConstraint { .. })
+        ))
+    );
+
+    // This is allowed in single-tenant, it is NOT allowed in multi-tenant
+    test_parse_v2!(
+        bucket_only,
+        query_string = "?bucket=bananas",
+        want = Ok(WriteParams{ namespace, precision }) => {
+            assert_eq!(namespace.as_str(), "bananas");
+            assert_matches!(precision, Precision::Nanoseconds);
+        }
+    );
+
+    // An empty/missing "bucket" is an error.
+    test_parse_v2!(
+        org_only,
+        query_string = "?org=bananas",
+        want = Err(Error::SingleTenantError(
+            SingleTenantExtractError::InvalidNamespace(NamespaceNameError::LengthConstraint { .. })
+        ))
+    );
+
+    test_parse_v2!(
+        no_org_no_bucket,
+        query_string = "?wat=isthis",
+        want = Err(Error::SingleTenantError(
+            SingleTenantExtractError::InvalidNamespace(NamespaceNameError::LengthConstraint { .. })
+        ))
+    );
+
+    // Do not encode potentially problematic input.
+    test_parse_v2!(
+        no_encoding,
+        // URL-encoded input that is decoded in the HTTP layer
+        query_string = "?bucket=cool%2Fconfusing%F0%9F%8D%8C&prg=org",
+        want = Ok(WriteParams {namespace, ..}) => {
+            // Yielding a not-encoded string as the namespace.
+            assert_eq!(namespace.as_str(), "cool/confusing🍌");
+        }
+    );
+
+    test_parse_v2!(
+        org_ignored,
+        query_string = "?org=wat&bucket=bananas",
+        want = Ok(WriteParams {
+            namespace,
+            precision
+        }) => {
+            assert_eq!(namespace.as_str(), "bananas");
+            assert_matches!(precision, Precision::Nanoseconds);
+        }
+    );
+
+    test_parse_v2!(
+        with_precision,
+        query_string = "?bucket=bananas&precision=ms",
+        want = Ok(WriteParams {
+            namespace,
+            precision
+        }) => {
+            assert_eq!(namespace.as_str(), "bananas");
+            assert_matches!(precision, Precision::Milliseconds);
+        }
+    );
 }

@@ -30,11 +30,11 @@ pub enum V1WriteParseError {
     #[error("failed to deserialize db/rp/precision in request: {0}")]
     DecodeFail(#[from] serde::de::value::Error),
 
-    /// The provided "db" value contains the reserved `/` character.
+    /// The provided "db" or "rp" value contains the reserved `/` character.
     ///
     /// See [`V1_NAMESPACE_RP_SEPARATOR`].
     #[error("db cannot contain the reserved character '/'")]
-    NamespaceContainsRpSeparator,
+    ContainsRpSeparator,
 }
 
 /// May be empty string, explicit rp name, or `autogen`. As provided at the
@@ -88,7 +88,15 @@ impl<T> TryFrom<&Request<T>> for WriteParamsV1 {
         // No namespace (db) is ever allowed to contain a `/` to prevent
         // ambiguity with the namespace/rp NamespaceName construction.
         if params.db.contains(V1_NAMESPACE_RP_SEPARATOR) {
-            return Err(V1WriteParseError::NamespaceContainsRpSeparator);
+            return Err(V1WriteParseError::ContainsRpSeparator);
+        }
+
+        // Likewise the "rp" field itself cannot contain the `/` character if
+        // specified.
+        if let RetentionPolicy::Named(s) = &params.rp {
+            if s.contains(V1_NAMESPACE_RP_SEPARATOR) {
+                return Err(V1WriteParseError::ContainsRpSeparator);
+            }
         }
 
         Ok(params)

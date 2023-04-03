@@ -1,4 +1,7 @@
-//! MultiTenantRequestParser
+//! Parsing of HTTP requests that conform to the [V2 Write API] only.
+//!
+//! [V2 Write API]:
+//!     https://docs.influxdata.com/influxdb/v2.6/api/#operation/PostWrite
 
 use data_types::{NamespaceName, OrgBucketMappingError};
 use hyper::{Body, Request};
@@ -68,4 +71,111 @@ fn parse_v2(req: &Request<Body>) -> Result<WriteParams, MultiTenantExtractError>
         namespace,
         precision: write_params.precision,
     })
+}
+
+#[cfg(test)]
+mod tests {
+    use assert_matches::assert_matches;
+
+    use crate::server::http::write::Precision;
+
+    use super::*;
+
+    #[test]
+    fn test_parse_v1_always_errors() {
+        let parser = MultiTenantRequestParser::default();
+
+        let got = parser.parse_v1(&Request::default());
+        assert_matches!(got, Err(Error::NoHandler));
+    }
+
+    macro_rules! test_parse_v2 {
+        (
+            $name:ident,
+            query_string = $query_string:expr,  // A query string including the ?
+            want = $($want:tt)+                 // A pattern match for assert_matches!
+        ) => {
+            paste::paste! {
+                #[test]
+                fn [<test_parse_v2_ $name>]() {
+                    let parser = MultiTenantRequestParser::default();
+
+                    let query = $query_string;
+                    let request = Request::builder()
+                        .uri(format!("https://itsallbroken.com/ignored{query}"))
+                        .method("POST")
+                        .body(Body::from(""))
+                        .unwrap();
+
+                    let got = parser.parse_v2(&request);
+                    assert_matches!(got, $($want)+);
+                }
+            }
+        };
+    }
+
+    test_parse_v2!(
+        empty_query_string,
+        query_string = "?",
+        want = Err(Error::MultiTenantError(
+            MultiTenantExtractError::InvalidOrgAndBucket(
+                OrgBucketMappingError::NoOrgBucketSpecified
+            )
+        ))
+    );
+
+    // While this is allowed in single-tenant, it is NOT allowed in multi-tenant
+    test_parse_v2!(
+        bucket_only,
+        query_string = "?bucket=bananas",
+        want = Err(Error::MultiTenantError(
+            MultiTenantExtractError::InvalidOrgAndBucket(
+                OrgBucketMappingError::NoOrgBucketSpecified
+            )
+        ))
+    );
+
+    test_parse_v2!(
+        org_only,
+        query_string = "?org=bananas",
+        want = Err(Error::MultiTenantError(
+            MultiTenantExtractError::InvalidOrgAndBucket(
+                OrgBucketMappingError::NoOrgBucketSpecified
+            )
+        ))
+    );
+
+    test_parse_v2!(
+        no_org_no_bucket,
+        query_string = "?wat=isthis",
+        want = Err(Error::MultiTenantError(
+            MultiTenantExtractError::InvalidOrgAndBucket(
+                OrgBucketMappingError::NoOrgBucketSpecified
+            )
+        ))
+    );
+
+    test_parse_v2!(
+        encoded_bucket_separator,
+        query_string = "?org=cool_confusing&bucket=bucket",
+        want = Ok(WriteParams {
+            namespace,
+            ..
+        }) => {
+            assert_eq!(namespace.as_str(), "cool%5Fconfusing_bucket");
+        }
+    );
+
+    // Expected usage (no org) with precision
+    test_parse_v2!(
+        with_precision,
+        query_string = "?org=banana&bucket=cool&precision=ms",
+        want = Ok(WriteParams {
+            namespace,
+            precision
+        }) => {
+            assert_eq!(namespace.as_str(), "banana_cool");
+            assert_matches!(precision, Precision::Milliseconds);
+        }
+    );
 }
