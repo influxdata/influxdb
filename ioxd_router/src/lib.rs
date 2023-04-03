@@ -38,7 +38,13 @@ use router::{
     },
     server::{
         grpc::{sharder::ShardService, GrpcDelegate, RpcWriteGrpcDelegate},
-        http::HttpDelegate,
+        http::{
+            write::{
+                multi_tenant::MultiTenantRequestParser, single_tenant::SingleTenantRequestParser,
+                WriteParamExtractor,
+            },
+            HttpDelegate,
+        },
         RouterServer, RpcWriteRouterServer,
     },
     shard::Shard,
@@ -439,6 +445,11 @@ pub async fn create_router2_server_type(
     // 3. N/A: Shard mapping setup is only relevant to the write buffer router path
 
     // 4. START: Initialize the HTTP API delegate, this is the same in both router paths
+    let write_param_extractor: Box<dyn WriteParamExtractor> =
+        match router_config.single_tenant_deployment {
+            true => Box::<SingleTenantRequestParser>::default(),
+            false => Box::<MultiTenantRequestParser>::default(),
+        };
     let http = HttpDelegate::new(
         common_state.run_config().max_http_request_size,
         router_config.http_request_limit,
@@ -446,6 +457,7 @@ pub async fn create_router2_server_type(
         handler_stack,
         authz,
         &metrics,
+        write_param_extractor,
     );
     // 4. END
 
@@ -465,7 +477,7 @@ pub async fn create_router2_server_type(
 // NOTE!!! This needs to be kept in sync with `create_router2_server_type` until the
 // switch to the RPC write path/ingester2 is complete! See the numbered sections that annotate
 // where these two functions line up and where they diverge.
-pub async fn create_router_server_type(
+pub async fn create_router_server_type<'a>(
     common_state: &CommonServerState,
     metrics: Arc<metric::Registry>,
     catalog: Arc<dyn Catalog>,
@@ -628,6 +640,11 @@ pub async fn create_router_server_type(
     // 3. END
 
     // 4. START: Initialize the HTTP API delegate, this is the same in both router paths
+    let write_param_extractor: Box<dyn WriteParamExtractor> =
+        match router_config.single_tenant_deployment {
+            true => Box::<SingleTenantRequestParser>::default(),
+            false => Box::<MultiTenantRequestParser>::default(),
+        };
     let http = HttpDelegate::new(
         common_state.run_config().max_http_request_size,
         router_config.http_request_limit,
@@ -635,6 +652,7 @@ pub async fn create_router_server_type(
         handler_stack,
         authz,
         &metrics,
+        write_param_extractor,
     );
     // 4. END
 
