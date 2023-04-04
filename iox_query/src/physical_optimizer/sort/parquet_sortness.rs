@@ -12,6 +12,7 @@ use datafusion::{
         ExecutionPlan,
     },
 };
+use datafusion_util::sort_exprs::requirements_to_sort_exprs;
 use observability_deps::tracing::warn;
 
 use crate::config::IoxConfigExt;
@@ -95,7 +96,7 @@ impl PhysicalOptimizerRule for ParquetSortness {
                 })?;
 
                 // did this help?
-                if transformed_child.output_ordering() == Some(input_ordering) {
+                if transformed_child.output_ordering() == Some(&input_ordering) {
                     child = transformed_child;
                     transformed_any = true;
                 }
@@ -121,13 +122,16 @@ impl PhysicalOptimizerRule for ParquetSortness {
     }
 }
 
-type ChildWithSorting<'a> = (Arc<dyn ExecutionPlan>, &'a [PhysicalSortExpr]);
+type ChildWithSorting<'a> = (Arc<dyn ExecutionPlan>, Vec<PhysicalSortExpr>);
 
 fn detect_children_with_desired_ordering(
     plan: &dyn ExecutionPlan,
 ) -> Option<Vec<ChildWithSorting<'_>>> {
     if let Some(sort_exec) = plan.as_any().downcast_ref::<SortExec>() {
-        return Some(vec![(Arc::clone(sort_exec.input()), sort_exec.expr())]);
+        return Some(vec![(
+            Arc::clone(sort_exec.input()),
+            sort_exec.expr().to_vec(),
+        )]);
     }
 
     let required_input_ordering = plan.required_input_ordering();
@@ -152,7 +156,8 @@ fn detect_children_with_desired_ordering(
             .zip(
                 required_input_ordering
                     .into_iter()
-                    .map(|expr| expr.expect("just checked")),
+                    .map(|requirement| requirement.expect("just checked"))
+                    .map(requirements_to_sort_exprs),
             )
             .collect(),
     )
