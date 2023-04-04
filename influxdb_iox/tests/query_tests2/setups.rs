@@ -543,10 +543,10 @@ pub static SETUPS: Lazy<HashMap<SetupName, SetupSteps>> = Lazy::new(|| {
                 Step::RecordNumParquetFiles,
                 Step::WriteLineProtocol(
                     [
-                        "cpu,region=a user=23.2 957529200000000000", // 2000-05-05T12:20:00Z
-                        "cpu,region=a user=21.0 957530400000000000", // 2000-05-05T12:40:00Z
-                        "cpu,region=b user=25.2 957529860000000000", // 2000-05-05T12:31:00Z
-                        "cpu,region=b user=28.9 957530340000000000", // 2000-05-05T12:39:00Z
+                        "cpu,region=a user=23.2,idle=70.0 957529200000000000", // 2000-05-05T12:20:00Z
+                        "cpu,region=b user=25.2           957529860000000000", // 2000-05-05T12:31:00Z
+                        "cpu,region=b user=28.9,idle=60.0 957530340000000000", // 2000-05-05T12:39:00Z
+                        "cpu,region=a user=21.0           957530400000000000", // 2000-05-05T12:40:00Z
                     ]
                     .join("\n"),
                 ),

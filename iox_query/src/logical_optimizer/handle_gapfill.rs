@@ -370,7 +370,7 @@ fn handle_projection(proj: &Projection) -> Result<Option<LogicalPlan>> {
         .filter_map(|e| match e {
             Expr::ScalarUDF { fun, args } if fun.name == LOCF_UDF_NAME => {
                 let col = &args[0];
-                Some((col, FillStrategy::Prev))
+                Some((col, FillStrategy::PrevNullAsMissing))
             }
             _ => None,
         })

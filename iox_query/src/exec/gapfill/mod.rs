@@ -76,10 +76,11 @@ pub enum FillStrategy {
     /// This is the InfluxQL behavior for `FILL(NULL)` or `FILL(NONE)`.
     Null,
     /// Fill with the most recent value in the input column.
-    Prev,
+    /// Null values in the input are preserved.
+    #[allow(dead_code)]
+    PrevNullAsIntentional,
     /// Fill with the most recent non-null value in the input column.
     /// This is the InfluxQL behavior for `FILL(PREVIOUS)`.
-    #[allow(dead_code)]
     PrevNullAsMissing,
     /// Fill the gaps between points linearly.
     /// Null values will not be considered as missing, so two non-null values
@@ -217,8 +218,8 @@ impl UserDefinedLogicalNodeCore for GapFill {
             .fill_strategy
             .iter()
             .map(|(e, fs)| match fs {
-                FillStrategy::Prev => format!("LOCF({})", e),
-                FillStrategy::PrevNullAsMissing => format!("LOCF(null-as-missing, {})", e),
+                FillStrategy::PrevNullAsIntentional => format!("LOCF(null-as-intentional, {})", e),
+                FillStrategy::PrevNullAsMissing => format!("LOCF({})", e),
                 FillStrategy::LinearInterpolate => format!("INTERPOLATE({})", e),
                 FillStrategy::Null => e.to_string(),
             })
@@ -536,8 +537,10 @@ impl ExecutionPlan for GapFillExec {
                     .fill_strategy
                     .iter()
                     .map(|(e, fs)| match fs {
-                        FillStrategy::Prev => format!("LOCF({})", e),
-                        FillStrategy::PrevNullAsMissing => format!("LOCF(null-as-missing, {})", e),
+                        FillStrategy::PrevNullAsIntentional => {
+                            format!("LOCF(null-as-intentional, {})", e)
+                        }
+                        FillStrategy::PrevNullAsMissing => format!("LOCF({})", e),
                         FillStrategy::LinearInterpolate => format!("INTERPOLATE({})", e),
                         FillStrategy::Null => e.to_string(),
                     })

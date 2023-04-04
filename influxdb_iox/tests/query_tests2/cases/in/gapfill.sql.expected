@@ -19,7 +19,7 @@
 |    |                 RepartitionExec: partitioning=RoundRobinBatch(4), input_partitions=1    |
 |    |                   CoalesceBatchesExec: target_batch_size=8192    |
 |    |                     FilterExec: time@0 >= 957528000000000000 AND time@0 <= 957531540000000000    |
-|    |                       ParquetExec: limit=None, partitions={1 group: [[1/1/1/1/00000000-0000-0000-0000-000000000000.parquet]]}, predicate=time@1 >= 957528000000000000 AND time@1 <= 957531540000000000, pruning_predicate=time_max@0 >= 957528000000000000 AND time_min@1 <= 957531540000000000, output_ordering=[time@0 ASC], projection=[time, user]    |
+|    |                       ParquetExec: limit=None, partitions={1 group: [[1/1/1/1/00000000-0000-0000-0000-000000000000.parquet]]}, predicate=time@2 >= 957528000000000000 AND time@2 <= 957531540000000000, pruning_predicate=time_max@0 >= 957528000000000000 AND time_min@1 <= 957531540000000000, output_ordering=[time@0 ASC], projection=[time, user]    |
 |    |    |
 ----------
 -- SQL: SELECT date_bin_gapfill(interval '10 minute', time, timestamp '1970-01-01T00:00:00Z') as minute, count(cpu.user) from cpu where time between timestamp '2000-05-05T12:00:00Z' and timestamp '2000-05-05T12:59:00Z' group by minute;
@@ -100,7 +100,7 @@
 |    |                 RepartitionExec: partitioning=RoundRobinBatch(4), input_partitions=1    |
 |    |                   CoalesceBatchesExec: target_batch_size=8192    |
 |    |                     FilterExec: time@1 >= 957528000000000000 AND time@1 <= 957531540000000000    |
-|    |                       ParquetExec: limit=None, partitions={1 group: [[1/1/1/1/00000000-0000-0000-0000-000000000000.parquet]]}, predicate=time@1 >= 957528000000000000 AND time@1 <= 957531540000000000, pruning_predicate=time_max@0 >= 957528000000000000 AND time_min@1 <= 957531540000000000, output_ordering=[region@0 ASC, time@1 ASC], projection=[region, time, user]    |
+|    |                       ParquetExec: limit=None, partitions={1 group: [[1/1/1/1/00000000-0000-0000-0000-000000000000.parquet]]}, predicate=time@2 >= 957528000000000000 AND time@2 <= 957531540000000000, pruning_predicate=time_max@0 >= 957528000000000000 AND time_min@1 <= 957531540000000000, output_ordering=[region@0 ASC, time@1 ASC], projection=[region, time, user]    |
 |    |    |
 ----------
 -- SQL: SELECT region, date_bin_gapfill(interval '5 minute', time, timestamp '1970-01-01T00:00:00Z') as minute, locf(min(cpu.user)) from cpu where time between timestamp '2000-05-05T12:15:00Z' and timestamp '2000-05-05T12:59:00Z' group by region, minute;
@@ -126,3 +126,30 @@
 | b      | 2000-05-05T12:50:00Z | 28.9          |
 | b      | 2000-05-05T12:55:00Z | 28.9          |
 +--------+----------------------+---------------+
+-- SQL: SELECT date_bin_gapfill(interval '1 minute', time, timestamp '1970-01-01T00:00:00Z') as minute, locf(min(cpu.idle)) from cpu where time between timestamp '2000-05-05T12:19:00Z' and timestamp '2000-05-05T12:40:00Z' group by minute;
++----------------------+---------------+
+| minute               | MIN(cpu.idle) |
++----------------------+---------------+
+| 2000-05-05T12:19:00Z |               |
+| 2000-05-05T12:20:00Z | 70.0          |
+| 2000-05-05T12:21:00Z | 70.0          |
+| 2000-05-05T12:22:00Z | 70.0          |
+| 2000-05-05T12:23:00Z | 70.0          |
+| 2000-05-05T12:24:00Z | 70.0          |
+| 2000-05-05T12:25:00Z | 70.0          |
+| 2000-05-05T12:26:00Z | 70.0          |
+| 2000-05-05T12:27:00Z | 70.0          |
+| 2000-05-05T12:28:00Z | 70.0          |
+| 2000-05-05T12:29:00Z | 70.0          |
+| 2000-05-05T12:30:00Z | 70.0          |
+| 2000-05-05T12:31:00Z | 70.0          |
+| 2000-05-05T12:32:00Z | 70.0          |
+| 2000-05-05T12:33:00Z | 70.0          |
+| 2000-05-05T12:34:00Z | 70.0          |
+| 2000-05-05T12:35:00Z | 70.0          |
+| 2000-05-05T12:36:00Z | 70.0          |
+| 2000-05-05T12:37:00Z | 70.0          |
+| 2000-05-05T12:38:00Z | 70.0          |
+| 2000-05-05T12:39:00Z | 60.0          |
+| 2000-05-05T12:40:00Z | 60.0          |
++----------------------+---------------+
