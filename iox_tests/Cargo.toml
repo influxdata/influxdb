@@ -16,7 +16,7 @@ iox_catalog = { path = "../iox_catalog" }
 iox_time = { path = "../iox_time" }
 metric = { path = "../metric" }
 mutable_batch_lp = { path = "../mutable_batch_lp" }
-object_store = "0.5.5"
+object_store = "0.5.6"
 observability_deps = { path = "../observability_deps" }
 parquet_file = { path = "../parquet_file" }
 predicate = { path = "../predicate" }

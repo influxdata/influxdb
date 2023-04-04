@@ -19,7 +19,10 @@ use datafusion::{
     error::{DataFusionError, Result},
     execution::{context::TaskContext, memory_pool::MemoryConsumer},
     logical_expr::{LogicalPlan, UserDefinedLogicalNodeCore},
-    physical_expr::{create_physical_expr, execution_props::ExecutionProps, PhysicalSortExpr},
+    physical_expr::{
+        create_physical_expr, execution_props::ExecutionProps, PhysicalSortExpr,
+        PhysicalSortRequirement,
+    },
     physical_plan::{
         expressions::Column,
         metrics::{BaselineMetrics, ExecutionPlanMetricsSet},
@@ -28,6 +31,7 @@ use datafusion::{
     },
     prelude::Expr,
 };
+use datafusion_util::sort_exprs::requirements_from_sort_exprs;
 
 use self::stream::GapFillStream;
 
@@ -469,8 +473,8 @@ impl ExecutionPlan for GapFillExec {
         self.input.output_ordering()
     }
 
-    fn required_input_ordering(&self) -> Vec<Option<&[PhysicalSortExpr]>> {
-        vec![Some(&self.sort_expr)]
+    fn required_input_ordering(&self) -> Vec<Option<Vec<PhysicalSortRequirement>>> {
+        vec![Some(requirements_from_sort_exprs(&self.sort_expr))]
     }
 
     fn maintains_input_order(&self) -> Vec<bool> {

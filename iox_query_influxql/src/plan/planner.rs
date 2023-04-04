@@ -110,7 +110,7 @@ struct Context<'a> {
     scope: ExprScope,
     tz: Option<Tz>,
 
-    /// `true` if the query projects aggregates.
+    /// `true` if the query projection specifies aggregate expressions.
     is_aggregate: bool,
 
     // GROUP BY information
@@ -439,6 +439,10 @@ impl<'a> InfluxQLToLogicalPlan<'a> {
         group_by_tag_set: &[&str],
         schemas: &Schemas,
     ) -> Result<(LogicalPlan, Vec<Expr>)> {
+        if !ctx.is_aggregate {
+            return Ok((input, select_exprs));
+        }
+
         let Some(time_column_index) = find_time_column_index(fields) else {
             return Err(DataFusionError::Internal("unable to find time column".to_owned()))
         };
@@ -452,10 +456,13 @@ impl<'a> InfluxQLToLogicalPlan<'a> {
         // will produce two aggregate expressions:
         //
         // [SUM(foo), COUNT(foo)]
+        //
+        // NOTE:
+        //
+        // It is possible this vector is empty, when all the fields in the
+        // projection refer to columns that do not exist in the current
+        // table.
         let aggr_exprs = find_aggregate_exprs(&select_exprs);
-        if aggr_exprs.is_empty() {
-            return Ok((input, select_exprs));
-        }
 
         let aggr_group_by_exprs = if let Some(group_by) = ctx.group_by {
             let mut group_by_exprs = Vec::new();
@@ -482,6 +489,15 @@ impl<'a> InfluxQLToLogicalPlan<'a> {
         } else {
             vec![]
         };
+
+        if aggr_exprs.is_empty() && aggr_group_by_exprs.is_empty() {
+            // If there are no aggregate expressions in the projection, because
+            // they all referred to non-existent columns in the table, and there
+            // is no GROUP BY, the result set is a single row.
+            //
+            // This is required for InfluxQL compatibility.
+            return Ok((LogicalPlanBuilder::empty(true).build()?, select_exprs));
+        }
 
         let plan = LogicalPlanBuilder::from(input)
             .aggregate(aggr_group_by_exprs.clone(), aggr_exprs.clone())?
@@ -1957,6 +1973,29 @@ mod test {
                 Sort: time ASC NULLS LAST [iox::measurement:Dictionary(Int32, Utf8), time:Timestamp(Nanosecond, None), count:Int64;N, count_f64_field:Int64;N]
                   Projection: Dictionary(Int32, Utf8("data")) AS iox::measurement, TimestampNanosecond(0, None) AS time, COUNT(data.f64_field) AS count, COUNT(data.f64_field) * Int64(2) AS count_f64_field [iox::measurement:Dictionary(Int32, Utf8), time:Timestamp(Nanosecond, None), count:Int64;N, count_f64_field:Int64;N]
                     Aggregate: groupBy=[[]], aggr=[[COUNT(data.f64_field)]] [COUNT(data.f64_field):Int64;N]
+                      TableScan: data [TIME:Boolean;N, bar:Dictionary(Int32, Utf8);N, bool_field:Boolean;N, f64_field:Float64;N, foo:Dictionary(Int32, Utf8);N, i64_field:Int64;N, mixedCase:Float64;N, str_field:Utf8;N, time:Timestamp(Nanosecond, None), with space:Float64;N]
+                "###);
+
+                // Aggregate expression selecting non-existent field
+                assert_snapshot!(plan("SELECT MEAN(f64_field) + MEAN(non_existent) FROM data"), @r###"
+                Sort: time ASC NULLS LAST [iox::measurement:Dictionary(Int32, Utf8), time:Timestamp(Nanosecond, None), mean_f64_field_mean_non_existent:Null;N]
+                  Projection: Dictionary(Int32, Utf8("data")) AS iox::measurement, TimestampNanosecond(0, None) AS time, NULL AS mean_f64_field_mean_non_existent [iox::measurement:Dictionary(Int32, Utf8), time:Timestamp(Nanosecond, None), mean_f64_field_mean_non_existent:Null;N]
+                    EmptyRelation []
+                "###);
+
+                // Aggregate expression with GROUP BY and non-existent field
+                assert_snapshot!(plan("SELECT MEAN(f64_field) + MEAN(non_existent) FROM data GROUP BY foo"), @r###"
+                Sort: foo ASC NULLS LAST, time ASC NULLS LAST [iox::measurement:Dictionary(Int32, Utf8), time:Timestamp(Nanosecond, None), foo:Dictionary(Int32, Utf8);N, mean_f64_field_mean_non_existent:Null;N]
+                  Projection: Dictionary(Int32, Utf8("data")) AS iox::measurement, TimestampNanosecond(0, None) AS time, data.foo AS foo, NULL AS mean_f64_field_mean_non_existent [iox::measurement:Dictionary(Int32, Utf8), time:Timestamp(Nanosecond, None), foo:Dictionary(Int32, Utf8);N, mean_f64_field_mean_non_existent:Null;N]
+                    Aggregate: groupBy=[[data.foo]], aggr=[[]] [foo:Dictionary(Int32, Utf8);N]
+                      TableScan: data [TIME:Boolean;N, bar:Dictionary(Int32, Utf8);N, bool_field:Boolean;N, f64_field:Float64;N, foo:Dictionary(Int32, Utf8);N, i64_field:Int64;N, mixedCase:Float64;N, str_field:Utf8;N, time:Timestamp(Nanosecond, None), with space:Float64;N]
+                "###);
+
+                // Aggregate expression selecting tag, should treat as non-existent
+                assert_snapshot!(plan("SELECT MEAN(f64_field), MEAN(f64_field) + MEAN(non_existent) FROM data"), @r###"
+                Sort: time ASC NULLS LAST [iox::measurement:Dictionary(Int32, Utf8), time:Timestamp(Nanosecond, None), mean:Float64;N, mean_f64_field_mean_non_existent:Null;N]
+                  Projection: Dictionary(Int32, Utf8("data")) AS iox::measurement, TimestampNanosecond(0, None) AS time, AVG(data.f64_field) AS mean, NULL AS mean_f64_field_mean_non_existent [iox::measurement:Dictionary(Int32, Utf8), time:Timestamp(Nanosecond, None), mean:Float64;N, mean_f64_field_mean_non_existent:Null;N]
+                    Aggregate: groupBy=[[]], aggr=[[AVG(data.f64_field)]] [AVG(data.f64_field):Float64;N]
                       TableScan: data [TIME:Boolean;N, bar:Dictionary(Int32, Utf8);N, bool_field:Boolean;N, f64_field:Float64;N, foo:Dictionary(Int32, Utf8);N, i64_field:Int64;N, mixedCase:Float64;N, str_field:Utf8;N, time:Timestamp(Nanosecond, None), with space:Float64;N]
                 "###);
 
