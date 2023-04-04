@@ -59,7 +59,7 @@ impl From<&SingleTenantExtractError> for hyper::StatusCode {
     }
 }
 
-/// Request parsing for cloud2 / multi-tenant deployments.
+/// Request parsing for single-tenant deployments.
 ///
 /// This handler respects the [V2 Write API] with the following modifications:
 ///
