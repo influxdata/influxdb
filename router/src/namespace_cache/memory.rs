@@ -1,5 +1,6 @@
 use std::sync::Arc;
 
+use async_trait::async_trait;
 use data_types::{NamespaceName, NamespaceSchema};
 use hashbrown::HashMap;
 use parking_lot::RwLock;
@@ -13,8 +14,9 @@ pub struct MemoryNamespaceCache {
     cache: RwLock<HashMap<NamespaceName<'static>, Arc<NamespaceSchema>>>,
 }
 
+#[async_trait]
 impl NamespaceCache for Arc<MemoryNamespaceCache> {
-    fn get_schema(&self, namespace: &NamespaceName<'_>) -> Option<Arc<NamespaceSchema>> {
+    async fn get_schema(&self, namespace: &NamespaceName<'_>) -> Option<Arc<NamespaceSchema>> {
         self.cache.read().get(namespace).map(Arc::clone)
     }
 
@@ -33,12 +35,12 @@ mod tests {
 
     use super::*;
 
-    #[test]
-    fn test_put_get() {
+    #[tokio::test]
+    async fn test_put_get() {
         let ns = NamespaceName::new("test").expect("namespace name is valid");
         let cache = Arc::new(MemoryNamespaceCache::default());
 
-        assert!(cache.get_schema(&ns).is_none());
+        assert!(cache.get_schema(&ns).await.is_none());
 
         let schema1 = NamespaceSchema {
             id: NamespaceId::new(42),
@@ -50,7 +52,10 @@ mod tests {
             retention_period_ns: Some(876),
         };
         assert!(cache.put_schema(ns.clone(), schema1.clone()).is_none());
-        assert_eq!(*cache.get_schema(&ns).expect("lookup failure"), schema1);
+        assert_eq!(
+            *cache.get_schema(&ns).await.expect("lookup failure"),
+            schema1
+        );
 
         let schema2 = NamespaceSchema {
             id: NamespaceId::new(2),
@@ -68,6 +73,9 @@ mod tests {
                 .expect("should have existing schema"),
             schema1
         );
-        assert_eq!(*cache.get_schema(&ns).expect("lookup failure"), schema2);
+        assert_eq!(
+            *cache.get_schema(&ns).await.expect("lookup failure"),
+            schema2
+        );
     }
 }

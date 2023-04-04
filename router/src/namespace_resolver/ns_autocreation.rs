@@ -88,7 +88,7 @@ where
         &self,
         namespace: &NamespaceName<'static>,
     ) -> Result<NamespaceId, super::Error> {
-        if self.cache.get_schema(namespace).is_none() {
+        if self.cache.get_schema(namespace).await.is_none() {
             trace!(%namespace, "namespace not found in cache");
 
             match self.action {

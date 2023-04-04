@@ -1,5 +1,6 @@
 use std::sync::Arc;
 
+use async_trait::async_trait;
 use data_types::{NamespaceName, NamespaceSchema};
 use sharder::JumpHash;
 
@@ -21,12 +22,13 @@ impl<T> ShardedCache<T> {
     }
 }
 
+#[async_trait]
 impl<T> NamespaceCache for Arc<ShardedCache<T>>
 where
     T: NamespaceCache,
 {
-    fn get_schema(&self, namespace: &NamespaceName<'_>) -> Option<Arc<NamespaceSchema>> {
-        self.shards.hash(namespace).get_schema(namespace)
+    async fn get_schema(&self, namespace: &NamespaceName<'_>) -> Option<Arc<NamespaceSchema>> {
+        self.shards.hash(namespace).get_schema(namespace).await
     }
 
     fn put_schema(
@@ -70,8 +72,8 @@ mod tests {
         }
     }
 
-    #[test]
-    fn test_stable_cache_sharding() {
+    #[tokio::test]
+    async fn test_stable_cache_sharding() {
         // The number of namespaces to test with.
         const N: usize = 100;
 
@@ -92,7 +94,7 @@ mod tests {
 
         // The cache should be empty.
         for name in names.keys() {
-            assert!(cache.get_schema(name).is_none());
+            assert!(cache.get_schema(name).await.is_none());
         }
 
         // Populate the cache
@@ -104,7 +106,7 @@ mod tests {
         // The mapping should be stable
         for (name, id) in names {
             let want = schema_with_id(id as _);
-            assert_eq!(cache.get_schema(&name), Some(Arc::new(want)));
+            assert_eq!(cache.get_schema(&name).await, Some(Arc::new(want)));
         }
     }
 }

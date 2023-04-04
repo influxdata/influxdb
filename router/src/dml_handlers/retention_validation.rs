@@ -77,7 +77,7 @@ where
 
         // Load the namespace schema from the cache, falling back to pulling it
         // from the global catalog (if it exists).
-        let schema = self.cache.get_schema(namespace);
+        let schema = self.cache.get_schema(namespace).await;
         let schema = match schema {
             Some(v) => v,
             None => {

@@ -799,7 +799,10 @@ mod tests {
             .expect("pre-warming failed");
 
         let name = NamespaceName::new("test_ns").unwrap();
-        let got = cache.get_schema(&name).expect("should contain a schema");
+        let got = cache
+            .get_schema(&name)
+            .await
+            .expect("should contain a schema");
 
         assert!(got.tables.get("name").is_some());
     }

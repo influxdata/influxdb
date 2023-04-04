@@ -180,7 +180,7 @@ where
 
         // Load the namespace schema from the cache, falling back to pulling it
         // from the global catalog (if it exists).
-        let schema = self.cache.get_schema(namespace);
+        let schema = self.cache.get_schema(namespace).await;
         let schema = match schema {
             Some(v) => v,
             None => {
@@ -785,7 +785,7 @@ mod tests {
         (catalog, namespace)
     }
 
-    fn assert_cache<C>(handler: &SchemaValidator<C>, table: &str, col: &str, want: ColumnType)
+    async fn assert_cache<C>(handler: &SchemaValidator<C>, table: &str, col: &str, want: ColumnType)
     where
         C: NamespaceCache,
     {
@@ -793,6 +793,7 @@ mod tests {
         let ns = handler
             .cache
             .get_schema(&NAMESPACE)
+            .await
             .expect("cache should be populated");
         let table = ns.tables.get(table).expect("table should exist in cache");
         assert_eq!(
@@ -826,10 +827,10 @@ mod tests {
             .expect("request should succeed");
 
         // The cache should be populated.
-        assert_cache(&handler, "bananas", "tag1", ColumnType::Tag);
-        assert_cache(&handler, "bananas", "tag2", ColumnType::Tag);
-        assert_cache(&handler, "bananas", "val", ColumnType::I64);
-        assert_cache(&handler, "bananas", "time", ColumnType::Time);
+        assert_cache(&handler, "bananas", "tag1", ColumnType::Tag).await;
+        assert_cache(&handler, "bananas", "tag2", ColumnType::Tag).await;
+        assert_cache(&handler, "bananas", "val", ColumnType::I64).await;
+        assert_cache(&handler, "bananas", "time", ColumnType::Time).await;
 
         // Validate the table ID mapping.
         let (name, _data) = got.get(&want_id).expect("table not in output");
@@ -857,7 +858,7 @@ mod tests {
         assert_matches!(err, SchemaError::NamespaceLookup(_));
 
         // The cache should not have retained the schema.
-        assert!(handler.cache.get_schema(&ns).is_none());
+        assert!(handler.cache.get_schema(&ns).await.is_none());
     }
 
     #[tokio::test]
@@ -890,10 +891,10 @@ mod tests {
         });
 
         // The cache should retain the original schema.
-        assert_cache(&handler, "bananas", "tag1", ColumnType::Tag);
-        assert_cache(&handler, "bananas", "tag2", ColumnType::Tag);
-        assert_cache(&handler, "bananas", "val", ColumnType::I64); // original type
-        assert_cache(&handler, "bananas", "time", ColumnType::Time);
+        assert_cache(&handler, "bananas", "tag1", ColumnType::Tag).await;
+        assert_cache(&handler, "bananas", "tag2", ColumnType::Tag).await;
+        assert_cache(&handler, "bananas", "val", ColumnType::I64).await; // original type
+        assert_cache(&handler, "bananas", "time", ColumnType::Time).await;
 
         assert_eq!(1, handler.schema_conflict.fetch());
     }
@@ -1031,6 +1032,6 @@ mod tests {
             .expect("request should succeed");
 
         // Deletes have no effect on the cache.
-        assert!(handler.cache.get_schema(&ns).is_none());
+        assert!(handler.cache.get_schema(&ns).await.is_none());
     }
 }

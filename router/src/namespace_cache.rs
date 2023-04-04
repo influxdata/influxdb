@@ -10,12 +10,14 @@ pub mod metrics;
 
 use std::{fmt::Debug, sync::Arc};
 
+use async_trait::async_trait;
 use data_types::{NamespaceName, NamespaceSchema};
 
 /// An abstract cache of [`NamespaceSchema`].
+#[async_trait]
 pub trait NamespaceCache: Debug + Send + Sync {
     /// Return the [`NamespaceSchema`] for `namespace`.
-    fn get_schema(&self, namespace: &NamespaceName<'_>) -> Option<Arc<NamespaceSchema>>;
+    async fn get_schema(&self, namespace: &NamespaceName<'_>) -> Option<Arc<NamespaceSchema>>;
 
     /// Place `schema` in the cache, unconditionally overwriting any existing
     /// [`NamespaceSchema`] mapped to `namespace`, returning

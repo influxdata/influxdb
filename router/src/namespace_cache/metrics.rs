@@ -2,6 +2,7 @@
 
 use std::sync::Arc;
 
+use async_trait::async_trait;
 use data_types::{NamespaceName, NamespaceSchema};
 use iox_time::{SystemProvider, TimeProvider};
 use metric::{DurationHistogram, Metric, U64Gauge};
@@ -69,14 +70,15 @@ impl<T> InstrumentedCache<T> {
     }
 }
 
+#[async_trait]
 impl<T, P> NamespaceCache for Arc<InstrumentedCache<T, P>>
 where
     T: NamespaceCache,
     P: TimeProvider,
 {
-    fn get_schema(&self, namespace: &NamespaceName<'_>) -> Option<Arc<NamespaceSchema>> {
+    async fn get_schema(&self, namespace: &NamespaceName<'_>) -> Option<Arc<NamespaceSchema>> {
         let t = self.time_provider.now();
-        let res = self.inner.get_schema(namespace);
+        let res = self.inner.get_schema(namespace).await;
 
         // Avoid exploding if time goes backwards - simply drop the measurement
         // if it happens.
@@ -224,8 +226,8 @@ mod tests {
         );
     }
 
-    #[test]
-    fn test_put() {
+    #[tokio::test]
+    async fn test_put() {
         let ns = NamespaceName::new("test").expect("namespace name is valid");
         let registry = metric::Registry::default();
         let cache = Arc::new(MemoryNamespaceCache::default());
@@ -376,7 +378,7 @@ mod tests {
         assert_eq!(cache.table_count.observe(), Observation::U64Gauge(5));
         assert_eq!(cache.column_count.observe(), Observation::U64Gauge(42));
 
-        let _got = cache.get_schema(&ns).expect("should exist");
+        let _got = cache.get_schema(&ns).await.expect("should exist");
         assert_histogram_hit(
             &registry,
             "namespace_cache_get_duration",
