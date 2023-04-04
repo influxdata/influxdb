@@ -76,6 +76,7 @@ pub struct TestSetupBuilder<const WITH_FILES: bool> {
     run_log: Arc<Mutex<Vec<String>>>,
     /// Checker that catalog invariant are not violated
     invariant_check: Arc<dyn InvariantCheck>,
+    suppress_run_output: bool,
 }
 
 impl TestSetupBuilder<false> {
@@ -106,6 +107,8 @@ impl TestSetupBuilder<false> {
             table_id: table.table.id,
             catalog: Arc::clone(&catalog.catalog),
         });
+
+        let suppress_run_output = false;
 
         // Intercept all catalog commit calls to record them in
         // `run_log` as well as ensuring the invariants still hold
@@ -157,6 +160,7 @@ impl TestSetupBuilder<false> {
             files: vec![],
             run_log,
             invariant_check,
+            suppress_run_output,
         }
     }
 
@@ -290,6 +294,7 @@ impl TestSetupBuilder<false> {
             files,
             run_log: Arc::new(Mutex::new(vec![])),
             invariant_check,
+            suppress_run_output: false,
         }
     }
 
@@ -320,6 +325,7 @@ impl TestSetupBuilder<false> {
             files,
             run_log: Arc::new(Mutex::new(vec![])),
             invariant_check,
+            suppress_run_output: false,
         }
     }
 
@@ -351,6 +357,7 @@ impl TestSetupBuilder<false> {
             files,
             run_log: Arc::new(Mutex::new(vec![])),
             invariant_check,
+            suppress_run_output: false,
         }
     }
 
@@ -504,6 +511,12 @@ impl<const WITH_FILES: bool> TestSetupBuilder<WITH_FILES> {
         self
     }
 
+    /// Set option to suppress output of compaction runs;
+    pub fn with_suppress_run_output(mut self) -> Self {
+        self.suppress_run_output = true;
+        self
+    }
+
     /// set simulate_without_object_store
     pub fn simulate_without_object_store(mut self) -> Self {
         let run_log = Arc::clone(&self.run_log);
@@ -558,6 +571,7 @@ impl<const WITH_FILES: bool> TestSetupBuilder<WITH_FILES> {
             config: Arc::new(self.config),
             run_log: self.run_log,
             invariant_check: self.invariant_check,
+            suppress_run_output: self.suppress_run_output,
         }
     }
 }
@@ -577,6 +591,8 @@ pub struct TestSetup {
     pub partition: Arc<TestPartition>,
     /// The compactor2 configuration
     pub config: Arc<Config>,
+    /// allows optionally suppressing output of running the test
+    pub suppress_run_output: bool,
     /// a shared log of what happened during a simulated run
     run_log: Arc<Mutex<Vec<String>>>,
     /// Checker that catalog invariant are not violated
