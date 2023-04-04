@@ -58,9 +58,9 @@ mod large_overlaps;
 mod many_files;
 mod single_timestamp;
 
-use std::time::Duration;
+use std::{sync::atomic::Ordering, time::Duration};
 
-use compactor2_test_utils::{format_files, TestSetup, TestSetupBuilder};
+use compactor2_test_utils::{display_size, format_files, TestSetup, TestSetupBuilder};
 use data_types::{CompactionLevel, ParquetFile};
 use iox_tests::TestParquetFileBuilder;
 use iox_time::Time;
@@ -135,8 +135,14 @@ pub(crate) async fn run_layout_scenario(setup: &TestSetup) -> Vec<String> {
 
     // record the final state of the catalog
     let output_files = setup.list_by_table_not_to_delete().await;
+
+    let bytes_written = setup.bytes_written.load(Ordering::Relaxed) as i64;
+
     output.extend(format_files(
-        "**** Final Output Files ",
+        format!(
+            "**** Final Output Files ({} written)",
+            display_size(bytes_written)
+        ),
         &sort_files(output_files),
     ));
 

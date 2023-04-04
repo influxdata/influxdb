@@ -26,7 +26,7 @@ use std::{
     collections::HashSet,
     future::Future,
     num::NonZeroUsize,
-    sync::{Arc, Mutex},
+    sync::{atomic::AtomicUsize, Arc, Mutex},
     time::Duration,
 };
 
@@ -76,6 +76,8 @@ pub struct TestSetupBuilder<const WITH_FILES: bool> {
     run_log: Arc<Mutex<Vec<String>>>,
     /// Checker that catalog invariant are not violated
     invariant_check: Arc<dyn InvariantCheck>,
+    /// A shared count of total bytes written during test
+    bytes_written: Arc<AtomicUsize>,
     suppress_run_output: bool,
 }
 
@@ -150,6 +152,8 @@ impl TestSetupBuilder<false> {
             max_num_files_per_plan: 200,
         };
 
+        let bytes_written = Arc::new(AtomicUsize::new(0));
+
         Self {
             config,
             catalog,
@@ -160,6 +164,7 @@ impl TestSetupBuilder<false> {
             files: vec![],
             run_log,
             invariant_check,
+            bytes_written,
             suppress_run_output,
         }
     }
@@ -284,6 +289,8 @@ impl TestSetupBuilder<false> {
         let invariant_check = Arc::clone(&self.invariant_check);
         invariant_check.check().await;
 
+        let bytes_written = Arc::new(AtomicUsize::new(0));
+
         TestSetupBuilder::<true> {
             config: self.config,
             catalog: self.catalog,
@@ -294,6 +301,7 @@ impl TestSetupBuilder<false> {
             files,
             run_log: Arc::new(Mutex::new(vec![])),
             invariant_check,
+            bytes_written,
             suppress_run_output: false,
         }
     }
@@ -315,6 +323,8 @@ impl TestSetupBuilder<false> {
         let invariant_check = Arc::clone(&self.invariant_check);
         invariant_check.check().await;
 
+        let bytes_written = Arc::new(AtomicUsize::new(0));
+
         TestSetupBuilder::<true> {
             config: self.config.clone(),
             catalog: Arc::clone(&self.catalog),
@@ -325,6 +335,7 @@ impl TestSetupBuilder<false> {
             files,
             run_log: Arc::new(Mutex::new(vec![])),
             invariant_check,
+            bytes_written,
             suppress_run_output: false,
         }
     }
@@ -347,6 +358,8 @@ impl TestSetupBuilder<false> {
         let invariant_check = Arc::clone(&self.invariant_check);
         invariant_check.check().await;
 
+        let bytes_written = Arc::new(AtomicUsize::new(0));
+
         TestSetupBuilder::<true> {
             config: self.config.clone(),
             catalog: Arc::clone(&self.catalog),
@@ -357,6 +370,7 @@ impl TestSetupBuilder<false> {
             files,
             run_log: Arc::new(Mutex::new(vec![])),
             invariant_check,
+            bytes_written,
             suppress_run_output: false,
         }
     }
@@ -520,9 +534,11 @@ impl<const WITH_FILES: bool> TestSetupBuilder<WITH_FILES> {
     /// set simulate_without_object_store
     pub fn simulate_without_object_store(mut self) -> Self {
         let run_log = Arc::clone(&self.run_log);
+        let bytes_written = Arc::clone(&self.bytes_written);
+
         self.config.simulate_without_object_store = true;
         self.config.parquet_files_sink_override =
-            Some(Arc::new(ParquetFileSimulator::new(run_log)));
+            Some(Arc::new(ParquetFileSimulator::new(run_log, bytes_written)));
         self
     }
 
@@ -570,6 +586,7 @@ impl<const WITH_FILES: bool> TestSetupBuilder<WITH_FILES> {
             partition: self.partition,
             config: Arc::new(self.config),
             run_log: self.run_log,
+            bytes_written: self.bytes_written,
             invariant_check: self.invariant_check,
             suppress_run_output: self.suppress_run_output,
         }
@@ -595,6 +612,8 @@ pub struct TestSetup {
     pub suppress_run_output: bool,
     /// a shared log of what happened during a simulated run
     run_log: Arc<Mutex<Vec<String>>>,
+    /// A total of all bytes written during test.
+    pub bytes_written: Arc<AtomicUsize>,
     /// Checker that catalog invariant are not violated
     invariant_check: Arc<dyn InvariantCheck>,
 }
