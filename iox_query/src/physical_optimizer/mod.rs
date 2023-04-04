@@ -5,7 +5,6 @@ use datafusion::{execution::context::SessionState, physical_optimizer::PhysicalO
 use crate::influxdb_iox_pre_6098_planner;
 
 use self::{
-    clean_pipeline::CleanPipeline,
     combine_chunks::CombineChunks,
     dedup::{
         dedup_null_columns::DedupNullColumns, dedup_sort_order::DedupSortOrder,
@@ -21,7 +20,6 @@ use self::{
 };
 
 mod chunk_extraction;
-mod clean_pipeline;
 mod combine_chunks;
 mod dedup;
 mod predicate_pushdown;
@@ -48,18 +46,15 @@ pub fn register_iox_physical_optimizers(state: SessionState) -> SessionState {
             Arc::new(DedupSortOrder::default()),
             Arc::new(PredicatePushdown::default()),
             Arc::new(ProjectionPushdown::default()),
+            Arc::new(ParquetSortness::default()) as _,
             Arc::new(NestedUnion::default()),
             Arc::new(OneUnion::default()),
         ];
         optimizers.append(&mut state.physical_optimizers().to_vec());
         optimizers.extend([
             Arc::new(SortPushdown::default()) as _,
-            Arc::new(ParquetSortness::default()) as _,
-            // `ParquetSortness` may change distribution
-            Arc::new(CleanPipeline::default()) as _,
+            Arc::new(RedundantSort::default()) as _,
         ]);
-        optimizers.append(&mut state.physical_optimizers().to_vec());
-        optimizers.extend([Arc::new(RedundantSort::default()) as _]);
 
         state.with_physical_optimizer_rules(optimizers)
     }
