@@ -3412,7 +3412,7 @@ checksum = "256017f749ab3117e93acb91063009e1f1bb56d03965b14c2c8df4eb02c524d8"
 dependencies = [
  "hermit-abi 0.3.1",
  "io-lifetimes",
- "rustix 0.37.6",
+ "rustix 0.37.7",
  "windows-sys 0.45.0",
 ]
 
@@ -5049,9 +5049,9 @@ dependencies = [
 
 [[package]]
 name = "rustix"
-version = "0.37.6"
+version = "0.37.7"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "d097081ed288dfe45699b72f5b5d648e5f15d64d900c7080273baa20c16a6849"
+checksum = "2aae838e49b3d63e9274e1c01833cc8139d3fec468c3b84688c628f44b1ae11d"
 dependencies = [
  "bitflags",
  "errno 0.3.0",
@@ -5824,7 +5824,7 @@ dependencies = [
  "cfg-if",
  "fastrand",
  "redox_syscall 0.3.5",
- "rustix 0.37.6",
+ "rustix 0.37.7",
  "windows-sys 0.45.0",
 ]
 
@@ -7015,7 +7015,7 @@ dependencies = [
  "regex-syntax",
  "reqwest",
  "ring",
- "rustix 0.37.6",
+ "rustix 0.37.7",
  "rustls",
  "scopeguard",
  "serde",
