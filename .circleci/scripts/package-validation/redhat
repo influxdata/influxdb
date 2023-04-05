@@ -5,7 +5,11 @@ set -o errexit \
 
 # $1 -> architecture
 # $2 -> package path
-arch="${1}"
+case ${1} in
+  x86_64)  arch=x86_64 ;;
+  aarch64) arch=arm64  ;;
+esac
+
 package="$(realpath "${2}")"
 
 path="$(dirname "$(realpath "${BASH_SOURCE[0]}")")"
@@ -16,7 +20,7 @@ terraform_init() {
   # Unfortunately, CircleCI doesn't offer any RPM based machine images.
   # This is required to test the functionality of the systemd services.
   # (systemd doesn't run within docker containers). This will spawn a
-  # CentOS 9 Stream EC2 instance in AWS.
+  # Amazon Linux instance in AWS.
   terraform init
   terraform apply                   \
     -auto-approve                   \

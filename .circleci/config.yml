@@ -909,7 +909,7 @@ jobs:
       - run:
           name: Validate Debian Package (AMD64)
           command: |
-            sudo .circleci/scripts/package-validation/ubuntu \
+            sudo .circleci/scripts/package-validation/debian \
               /tmp/workspace/artifacts/influxdb2*-amd64.deb
 
   check_package_deb_arm64:
@@ -923,7 +923,7 @@ jobs:
       - run:
           name: Validate Debian Package (ARM64)
           command: |
-            sudo .circleci/scripts/package-validation/ubuntu \
+            sudo .circleci/scripts/package-validation/debian \
               /tmp/workspace/artifacts/influxdb2*-arm64.deb
 
   check_package_rpm:
@@ -947,4 +947,4 @@ jobs:
           command: |
             export AWS_ACCESS_KEY_ID=$TEST_AWS_ACCESS_KEY_ID
             export AWS_SECRET_ACCESS_KEY=$TEST_AWS_SECRET_ACCESS_KEY
-            .circleci/scripts/package-validation/centos << parameters.arch >> /tmp/workspace/artifacts/influxdb2*.<< parameters.arch >>.rpm
+            .circleci/scripts/package-validation/redhat << parameters.arch >> /tmp/workspace/artifacts/influxdb2*.<< parameters.arch >>.rpm
