@@ -63,6 +63,7 @@ use datafusion::{
     error::{DataFusionError, Result},
     execution::context::TaskContext,
     logical_expr::{Expr, LogicalPlan, UserDefinedLogicalNodeCore},
+    physical_expr::PhysicalSortRequirement,
     physical_plan::{
         expressions::PhysicalSortExpr,
         metrics::{BaselineMetrics, ExecutionPlanMetricsSet, MetricsSet, RecordOutput},
@@ -72,7 +73,9 @@ use datafusion::{
     scalar::ScalarValue,
 };
 
-use datafusion_util::{watch::WatchedTask, AdapterStream};
+use datafusion_util::{
+    sort_exprs::requirements_from_sort_exprs, watch::WatchedTask, AdapterStream,
+};
 use futures::StreamExt;
 use observability_deps::tracing::*;
 use parking_lot::Mutex;
@@ -204,6 +207,17 @@ impl ExecutionPlan for StreamSplitExec {
     /// the splits in parallel, but not now)
     fn required_input_distribution(&self) -> Vec<Distribution> {
         vec![Distribution::SinglePartition]
+    }
+
+    fn required_input_ordering(&self) -> Vec<Option<Vec<PhysicalSortRequirement>>> {
+        // require that the output ordering of the child is preserved
+        // (so that this node logically splits what was desired)
+        let requirement = self
+            .input
+            .output_ordering()
+            .map(requirements_from_sort_exprs);
+
+        vec![requirement]
     }
 
     fn children(&self) -> Vec<Arc<dyn ExecutionPlan>> {
