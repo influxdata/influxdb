@@ -36,10 +36,8 @@ fn namespace_to_proto(namespace: Namespace) -> proto::Namespace {
         id: namespace.id.get(),
         name: namespace.name,
         retention_period_ns: namespace.retention_period_ns,
-        service_protection_limits: Some(proto::ServiceProtectionLimits {
-            max_tables: namespace.max_tables,
-            max_columns_per_table: namespace.max_columns_per_table,
-        }),
+        max_tables: namespace.max_tables,
+        max_columns_per_table: namespace.max_columns_per_table,
     }
 }
 
@@ -190,19 +188,15 @@ mod tests {
                         id: 1,
                         name: "namespace2".to_string(),
                         retention_period_ns: TEST_RETENTION_PERIOD_NS,
-                        service_protection_limits: Some(proto::ServiceProtectionLimits {
-                            max_tables: TEST_MAX_TABLES,
-                            max_columns_per_table: TEST_MAX_COLUMNS_PER_TABLE,
-                        }),
+                        max_tables: TEST_MAX_TABLES,
+                        max_columns_per_table: TEST_MAX_COLUMNS_PER_TABLE,
                     },
                     proto::Namespace {
                         id: 2,
                         name: "namespace1".to_string(),
                         retention_period_ns: TEST_RETENTION_PERIOD_NS,
-                        service_protection_limits: Some(proto::ServiceProtectionLimits {
-                            max_tables: TEST_MAX_TABLES,
-                            max_columns_per_table: TEST_MAX_COLUMNS_PER_TABLE,
-                        }),
+                        max_tables: TEST_MAX_TABLES,
+                        max_columns_per_table: TEST_MAX_COLUMNS_PER_TABLE,
                     },
                 ]
             }

@@ -94,13 +94,9 @@ message Namespace {
   // NULL means "infinite retention".
   optional int64 retention_period_ns = 3;
 
-  // The service protection limits which the namespace operates within.
-  ServiceProtectionLimits service_protection_limits = 4;
-}
-
-message ServiceProtectionLimits {
   // The maximum number of tables which this namespace is allowed to contain.
-  int32 max_tables = 1;
+  int32 max_tables = 4;
+
   // The maximum number of columns a table belonging to this namespace may have.
-  int32 max_columns_per_table = 2;
+  int32 max_columns_per_table = 5;
 }

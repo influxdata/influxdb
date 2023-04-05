@@ -131,7 +131,11 @@ impl namespace_service_server::NamespaceService for NamespaceService {
 
         let retention_period_ns = map_retention_period(retention_period_ns)?;
 
-        debug!(%namespace_name, ?retention_period_ns, "Updating namespace retention");
+        debug!(
+            %namespace_name,
+            ?retention_period_ns,
+            "Updating namespace retention",
+        );
 
         let namespace = repos
             .namespaces()
@@ -143,7 +147,7 @@ impl namespace_service_server::NamespaceService for NamespaceService {
             })?;
 
         info!(
-            namespace_name,
+            %namespace_name,
             retention_period_ns,
             namespace_id = %namespace.id,
             "updated namespace retention"
@@ -165,7 +169,11 @@ impl namespace_service_server::NamespaceService for NamespaceService {
             limit_update,
         } = request.into_inner();
 
-        debug!(%namespace_name, ?limit_update, "updating namespace service protection limit");
+        debug!(
+            %namespace_name,
+            ?limit_update,
+            "updating namespace service protection limit",
+        );
 
         let namespace = match limit_update {
             Some(LimitUpdate::MaxTables(n)) => {
@@ -175,13 +183,18 @@ impl namespace_service_server::NamespaceService for NamespaceService {
                     ));
                 }
                 repos
-                .namespaces()
-                .update_table_limit(&namespace_name, n)
-                .await
-                .map_err(|e| {
-                    warn!(error=%e, %namespace_name, table_limit=%n, "failed to update table limit for namespace");
-                    status_from_catalog_namespace_error(e)
-                })
+                    .namespaces()
+                    .update_table_limit(&namespace_name, n)
+                    .await
+                    .map_err(|e| {
+                        warn!(
+                            error = %e,
+                            %namespace_name,
+                            table_limit = %n,
+                            "failed to update table limit for namespace",
+                        );
+                        status_from_catalog_namespace_error(e)
+                    })
             }
             Some(LimitUpdate::MaxColumnsPerTable(n)) => {
                 if n == 0 {
@@ -190,20 +203,31 @@ impl namespace_service_server::NamespaceService for NamespaceService {
                     ));
                 }
                 repos
-                .namespaces()
-                .update_column_limit(&namespace_name, n)
-                .await
-                .map_err(|e| {
-                    warn!(error=%e, %namespace_name, per_table_column_limit=%n, "failed to update per table column limit for namespace");
-                    status_from_catalog_namespace_error(e)
-                })
+                    .namespaces()
+                    .update_column_limit(&namespace_name, n)
+                    .await
+                    .map_err(|e| {
+                        warn!(
+                            error = %e,
+                            %namespace_name,
+                            per_table_column_limit = %n,
+                            "failed to update per table column limit for namespace",
+                        );
+                        status_from_catalog_namespace_error(e)
+                    })
             }
             None => Err(Status::invalid_argument(
                 "unsupported service protection limit change requested",
             )),
         }?;
 
-        info!(namespace_name, namespace_id = %namespace.id, "updated namespace service protection limits");
+        info!(
+            %namespace_name,
+            namespace_id = %namespace.id,
+            max_tables = %namespace.max_tables,
+            max_columns_per_table = %namespace.max_columns_per_table,
+            "updated namespace service protection limits",
+        );
 
         Ok(Response::new(
             UpdateNamespaceServiceProtectionLimitResponse {
@@ -218,10 +242,8 @@ fn namespace_to_proto(namespace: CatalogNamespace) -> Namespace {
         id: namespace.id.get(),
         name: namespace.name.clone(),
         retention_period_ns: namespace.retention_period_ns,
-        service_protection_limits: Some(ServiceProtectionLimits {
-            max_tables: namespace.max_tables,
-            max_columns_per_table: namespace.max_columns_per_table,
-        }),
+        max_tables: namespace.max_tables,
+        max_columns_per_table: namespace.max_columns_per_table,
     }
 }
 
@@ -231,10 +253,8 @@ fn namespace_to_create_response_proto(namespace: CatalogNamespace) -> CreateName
             id: namespace.id.get(),
             name: namespace.name.clone(),
             retention_period_ns: namespace.retention_period_ns,
-            service_protection_limits: Some(ServiceProtectionLimits {
-                max_tables: namespace.max_tables,
-                max_columns_per_table: namespace.max_columns_per_table,
-            }),
+            max_tables: namespace.max_tables,
+            max_columns_per_table: namespace.max_columns_per_table,
         }),
     }
 }
@@ -365,13 +385,6 @@ mod tests {
             .expect("no namespace in response");
         assert_eq!(created_ns.name, NS_NAME);
         assert_eq!(created_ns.retention_period_ns, Some(RETENTION));
-        let ServiceProtectionLimits {
-            max_tables: original_max_tables,
-            max_columns_per_table: original_max_columns_per_table,
-        } = created_ns
-            .service_protection_limits
-            .clone()
-            .expect("created namespace must have service protection limits");
 
         // There should now be one namespace
         {
@@ -416,7 +429,7 @@ mod tests {
         }
 
         // Update the max allowed tables
-        let want_max_tables = original_max_tables + 42;
+        let want_max_tables = created_ns.max_tables + 42;
         let updated_ns = handler
             .update_namespace_service_protection_limit(Request::new(
                 UpdateNamespaceServiceProtectionLimitRequest {
@@ -431,13 +444,14 @@ mod tests {
             .expect("no namespace in response");
         assert_eq!(updated_ns.name, created_ns.name);
         assert_eq!(updated_ns.id, created_ns.id);
-        assert_matches!(updated_ns.service_protection_limits, Some(got_limits) => {
-            assert_eq!(got_limits.max_tables, want_max_tables);
-            assert_eq!(got_limits.max_columns_per_table, original_max_columns_per_table);
-        });
+        assert_eq!(updated_ns.max_tables, want_max_tables);
+        assert_eq!(
+            updated_ns.max_columns_per_table,
+            created_ns.max_columns_per_table
+        );
 
         // Update the max allowed columns per table
-        let want_max_columns_per_table = original_max_columns_per_table + 7;
+        let want_max_columns_per_table = created_ns.max_columns_per_table + 7;
         let updated_ns = handler
             .update_namespace_service_protection_limit(Request::new(
                 UpdateNamespaceServiceProtectionLimitRequest {
@@ -452,10 +466,8 @@ mod tests {
             .expect("no namespace in response");
         assert_eq!(updated_ns.name, created_ns.name);
         assert_eq!(updated_ns.id, created_ns.id);
-        assert_matches!(updated_ns.service_protection_limits, Some(got_limits) => {
-            assert_eq!(got_limits.max_tables, want_max_tables);
-            assert_eq!(got_limits.max_columns_per_table, want_max_columns_per_table);
-        });
+        assert_eq!(updated_ns.max_tables, want_max_tables);
+        assert_eq!(updated_ns.max_columns_per_table, want_max_columns_per_table);
 
         // Deleting the namespace should cause it to disappear
         handler
@@ -511,10 +523,8 @@ mod tests {
             .expect("no namespace in response");
         assert_eq!(created_ns.name, NS_NAME);
         assert_eq!(created_ns.retention_period_ns, Some(RETENTION));
-        assert_matches!(created_ns.service_protection_limits, Some(limits) => {
-            assert_ne!(limits.max_tables, 0);
-            assert_ne!(limits.max_columns_per_table, 0);
-        });
+        assert_ne!(created_ns.max_tables, 0);
+        assert_ne!(created_ns.max_columns_per_table, 0);
 
         // The handler should reject any attempt to set the table limit to zero.
         let status = handler
