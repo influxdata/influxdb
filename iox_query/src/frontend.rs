@@ -59,6 +59,7 @@ mod test {
 
     #[tokio::test]
     async fn test_scan_plan_deduplication() {
+        test_helpers::maybe_start_logging();
         // Create 2 overlapped chunks
         let (schema, chunks) = get_test_overlapped_chunks();
         let ctx = IOxSessionContext::with_testing();
@@ -119,6 +120,7 @@ mod test {
 
     #[tokio::test]
     async fn test_scan_plan_without_deduplication() {
+        test_helpers::maybe_start_logging();
         // Create 2 overlapped chunks
         let (schema, chunks) = get_test_chunks();
         let ctx = IOxSessionContext::with_testing();
@@ -182,6 +184,7 @@ mod test {
 
     #[tokio::test]
     async fn test_scan_plan_without_deduplication_but_sort() {
+        test_helpers::maybe_start_logging();
         // Create 2 overlapped chunks
         let (schema, chunks) = get_test_chunks();
         let sort_key = SortKey::from_columns(vec!["time", "tag1"]);
@@ -235,6 +238,7 @@ mod test {
 
     #[tokio::test]
     async fn test_metrics() {
+        test_helpers::maybe_start_logging();
         let (schema, chunks) = get_test_chunks();
         let sort_key = SortKey::from_columns(vec!["time", "tag1"]);
 
@@ -252,6 +256,7 @@ mod test {
 
         assert_eq!(plan.output_partitioning().partition_count(), 2);
 
+        println!("Executing partition 0");
         let mut stream0 = test_execute_partition(Arc::clone(&plan), 0).await;
         let mut num_rows = 0;
         while let Some(batch) = stream0.next().await {
@@ -259,6 +264,7 @@ mod test {
         }
         assert_eq!(num_rows, 3);
 
+        println!("Executing partition 1");
         let mut stream1 = test_execute_partition(Arc::clone(&plan), 1).await;
         let mut num_rows = 0;
         while let Some(batch) = stream1.next().await {
