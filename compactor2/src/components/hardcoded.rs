@@ -125,12 +125,22 @@ fn make_partitions_source_commit_partition_sink(
     Arc<dyn PartitionDoneSink>,
 ) {
     let partitions_source: Arc<dyn PartitionsSource> = match &config.partitions_source {
-        PartitionsSourceConfig::CatalogRecentWrites => {
+        PartitionsSourceConfig::CatalogRecentWrites { threshold } => {
             Arc::new(CatalogToCompactPartitionsSource::new(
                 config.backoff_config.clone(),
                 Arc::clone(&config.catalog),
-                config.partition_threshold,
-                None, // Recent writes is `partition_threshold` ago to now
+                *threshold,
+                None, // Recent writes is `threshold` ago to now
+                Arc::clone(&config.time_provider),
+            ))
+        }
+        PartitionsSourceConfig::CatalogColdForWrites { threshold } => {
+            Arc::new(CatalogToCompactPartitionsSource::new(
+                config.backoff_config.clone(),
+                Arc::clone(&config.catalog),
+                // Cold for writes is `threshold * 3` ago to `threshold` ago
+                *threshold * 3,
+                Some(*threshold),
                 Arc::clone(&config.time_provider),
             ))
         }

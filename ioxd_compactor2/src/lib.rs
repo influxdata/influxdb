@@ -1,6 +1,6 @@
 use async_trait::async_trait;
 use backoff::BackoffConfig;
-use clap_blocks::compactor2::Compactor2Config;
+use clap_blocks::compactor2::{CompactionType, Compactor2Config};
 use compactor2::{
     compactor::Compactor2,
     config::{Config, PartitionsSourceConfig, ShardConfig},
@@ -159,13 +159,23 @@ pub async fn create_compactor2_server_type(
     let partitions_source = match (
         compactor_config.partition_filter,
         compactor_config.process_all_partitions,
+        compactor_config.compaction_type,
     ) {
-        (None, false) => PartitionsSourceConfig::CatalogRecentWrites,
-        (None, true) => PartitionsSourceConfig::CatalogAll,
-        (Some(ids), false) => {
+        (None, false, CompactionType::Hot) => PartitionsSourceConfig::CatalogRecentWrites {
+            threshold: Duration::from_secs(
+                compactor_config.compaction_partition_minute_threshold * 60,
+            ),
+        },
+        (None, false, CompactionType::Cold) => PartitionsSourceConfig::CatalogColdForWrites {
+            threshold: Duration::from_secs(
+                compactor_config.compaction_cold_partition_minute_threshold * 60,
+            ),
+        },
+        (None, true, _) => PartitionsSourceConfig::CatalogAll,
+        (Some(ids), false, _) => {
             PartitionsSourceConfig::Fixed(ids.into_iter().map(PartitionId::new).collect())
         }
-        (Some(_), true) => panic!(
+        (Some(_), true, _) => panic!(
             "provided partition ID filter and specific 'process all', this does not make sense"
         ),
     };
@@ -190,9 +200,6 @@ pub async fn create_compactor2_server_type(
         job_concurrency: compactor_config.compaction_job_concurrency,
         partition_scratchpad_concurrency: compactor_config
             .compaction_partition_scratchpad_concurrency,
-        partition_threshold: Duration::from_secs(
-            compactor_config.compaction_partition_minute_threshold * 60,
-        ),
         max_desired_file_size_bytes: compactor_config.max_desired_file_size_bytes,
         percentage_max_file_size: compactor_config.percentage_max_file_size,
         split_percentage: compactor_config.split_percentage,
