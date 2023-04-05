@@ -1,10 +1,10 @@
-use data_types::{CompactionLevel, ParquetFile};
+use data_types::{CompactionLevel, ParquetFile, Timestamp};
 use itertools::Itertools;
 use observability_deps::tracing::debug;
 
 use crate::{
     components::files_split::{target_level_split::TargetLevelSplit, FilesSplit},
-    file_classification::FileToSplit,
+    file_classification::{FileToSplit, SplitReason},
 };
 
 /// This function only takes action in scenarios with high backlog of overlapped L0s.
@@ -47,18 +47,20 @@ use crate::{
 ///  time(s).  A single split decision made by this function may split a quantity of files
 ///  many times larger than what we can compact in a single compaction.  But the split will
 ///  allow a future compaction to fit all the data for a relatively narrow time range.
+///  The usefulness of this function's output relies on the chain identification in the
+///  `ManySmallFiles` case of `divide` in multiple_branches.rs.
 ///
 pub fn high_l0_overlap_split(
     max_compact_size: usize,
     mut files: Vec<ParquetFile>,
     target_level: CompactionLevel,
-) -> (Vec<FileToSplit>, Vec<ParquetFile>) {
+) -> (Vec<FileToSplit>, Vec<ParquetFile>, SplitReason) {
     let start_level = target_level.prev();
     let len = files.len();
 
     // This function focuses on many overlaps in a single level, which is only possible in L0.
     if start_level != CompactionLevel::Initial {
-        return (vec![], files);
+        return (vec![], files, SplitReason::HighL0OverlapSingleFile);
     }
 
     // We'll apply vertical splitting when the number of overlapped files is too large
@@ -67,7 +69,7 @@ pub fn high_l0_overlap_split(
 
     if total_cap < max_compact_size {
         // Take no action, pass all files on to the next rule.
-        return (vec![], files);
+        return (vec![], files, SplitReason::HighL0OverlapSingleFile);
     }
 
     // panic if not all files are either in target level or start level
@@ -83,6 +85,57 @@ pub fn high_l0_overlap_split(
     // We need to operate on the earliest ("left most") files first.
     files.sort_by_key(|f| f.max_l0_created_at);
 
+    // This function currently applies a `vertical split` in two scenarios.
+    // The second scenario is not sufficient on its own.  The first scenario may be adequate on its own (perhaps at
+    // a lower threshold than 2xmax_compact_size).  We do get a little better efficiency by keeping both vertical
+    // split methods, so scenario #2 can stay for now but may be removed later as further work is done on efficiency.
+    // Vertical split scenario 1:
+    if total_cap > 2 * max_compact_size {
+        let chains = split_into_chains(files);
+
+        for mut chain in chains {
+            let chain_cap: usize = chain.iter().map(|f| f.file_size_bytes as usize).sum();
+
+            if chain_cap <= max_compact_size {
+                // Its a small chain, we can compact it, no need to split it.
+                files_not_to_split.append(&mut chain);
+            } else {
+                // This chain is too big to compact on its own, so split it into smaller, more manageable chains.
+                let min = chain.iter().map(|f| f.min_time.get()).min().unwrap();
+                let max = chain.iter().map(|f| f.max_time.get()).max().unwrap();
+                let split_times = select_split_times(chain_cap, max_compact_size, min, max);
+
+                for file in &chain {
+                    let this_file_splits: Vec<i64> = split_times
+                        .iter()
+                        .filter(|split| {
+                            split >= &&file.min_time.get() && split < &&file.max_time.get()
+                        })
+                        .cloned()
+                        .collect();
+
+                    if !this_file_splits.is_empty() {
+                        files_to_split.push(FileToSplit {
+                            file: (*file).clone(),
+                            split_times: this_file_splits,
+                        });
+                    } else {
+                        // even though the chain this file is in needs split, this file falls between the splits.
+                        files_not_to_split.push((*file).clone());
+                    }
+                }
+            }
+        }
+        assert_eq!(files_to_split.len() + files_not_to_split.len(), len);
+
+        return (
+            files_to_split,
+            files_not_to_split,
+            SplitReason::HighL0OverlapTotalBacklog,
+        );
+    }
+
+    // Vertical split scenario 2:
     // The files in `files` all overlap, but they might overlap in a chain (file1 overlaps file2, which overlaps file3...)
     // This algorithm is not concerned with the chain of overlaps that keeps pulling in more files.  Instead, for each file,
     // we'll look at what overlaps just it.  If that's over max_compact_size, we'll split them.
@@ -144,7 +197,11 @@ pub fn high_l0_overlap_split(
 
     assert_eq!(files_to_split.len() + files_not_to_split.len(), len);
 
-    (files_to_split, files_not_to_split)
+    (
+        files_to_split,
+        files_not_to_split,
+        SplitReason::HighL0OverlapSingleFile,
+    )
 }
 
 // selectSplitTimes returns an appropriate sets of split times to divide the given time range into,
@@ -172,7 +229,7 @@ pub fn select_split_times(
 
     // But the data won't be spread perfectly even across the time range, and its better err towards splitting
     // extra small rather than splitting extra large (which may still exceed max_compact_size).
-    // So pad the split count a litle beyond what a perfect distribution would require.
+    // So pad the split count a little beyond what a perfect distribution would require.
     // Add 50% (3/2) to the minimal computation, then +1 to ensure we don't do a single split when the cap
     // is 1 byte less than 2x the max_compact_size
     splits = splits * 3 / 2 + 1;
@@ -191,6 +248,82 @@ pub fn select_split_times(
         .collect();
 
     split_times
+}
+
+// split_into_chains splits files into separate overlapping chains of files.
+// A chain is a series of files that overlap.  Each file in the chain overlaps at least 1 neighbor, but all files
+// in the chain may not overlap all other files in the chain.  A "chain" is identified by sorting by min_time.
+// When the first file overlaps at least the next file.  As long as at least one prior file overlaps the next file,
+// the chain continues.  When the next file (by min_time) does not overlap a prior file, the chain ends, and a new
+// chain begins.
+pub fn split_into_chains(mut files: Vec<ParquetFile>) -> Vec<Vec<ParquetFile>> {
+    let mut left = files.len(); // how many files remain to consider
+    let mut chains: Vec<Vec<ParquetFile>> = Vec::with_capacity(10);
+    let mut chain: Vec<ParquetFile> = Vec::with_capacity(left);
+    let mut max_time: Timestamp = Timestamp::new(0);
+
+    files.sort_by_key(|f| f.min_time);
+
+    for file in files.drain(..) {
+        if chain.is_empty() {
+            // first of new chain
+            max_time = file.max_time;
+            chain.push(file);
+        } else if file.min_time <= max_time {
+            // This overlaps the chain, add to it.
+            if file.max_time > max_time {
+                max_time = file.max_time;
+            }
+            chain.push(file);
+        } else {
+            // file does not overlap the chain, its the start of a new chain.
+            max_time = file.max_time;
+            chains.push(chain);
+            chain = Vec::with_capacity(left);
+            chain.push(file);
+        }
+        left -= 1;
+    }
+    chains.push(chain);
+    chains
+}
+
+// merge_small_l0_chains takes a vector of overlapping "chains" (where a chain is vector of overlapping L0 files), and
+// attempts to merge small chains together if doing so can keep them under the given max_compact_size.
+// This function makes no assumption about the order of the chains - if they are created by `split_into_chains`, they're
+// ordered by min_time, which is unsafe for merging L0 chains.
+pub fn merge_small_l0_chains(
+    mut chains: Vec<Vec<ParquetFile>>,
+    max_compact_size: usize,
+) -> Vec<Vec<ParquetFile>> {
+    chains.sort_by_key(|a| get_max_l0_created_at(a.to_vec()));
+    let mut merged_chains: Vec<Vec<ParquetFile>> = Vec::with_capacity(chains.len());
+    let mut prior_chain_bytes: usize = 0;
+    let mut prior_chain_idx: i32 = -1;
+    for chain in &chains {
+        let this_chain_bytes = chain.iter().map(|f| f.file_size_bytes as usize).sum();
+
+        if prior_chain_bytes > 0 && prior_chain_bytes + this_chain_bytes <= max_compact_size {
+            // this chain can be added to the prior chain.
+            merged_chains[prior_chain_idx as usize].append(&mut chain.clone());
+            prior_chain_bytes += this_chain_bytes;
+        } else {
+            merged_chains.push(chain.to_vec());
+            prior_chain_bytes = this_chain_bytes;
+            prior_chain_idx += 1;
+        }
+    }
+
+    merged_chains
+}
+
+// get_max_l0_created_at gets the highest max_l0_created_at from all files within a vec.
+fn get_max_l0_created_at(files: Vec<ParquetFile>) -> Timestamp {
+    files
+        .into_iter()
+        .map(|f| f.max_l0_created_at)
+        .max()
+        .unwrap()
 }
 
 /// Return (`[files_to_split]`, `[files_not_to_split]`) of given files

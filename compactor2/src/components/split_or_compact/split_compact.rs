@@ -83,13 +83,13 @@ impl SplitOrCompact for SplitCompact {
         }
 
         // (1) this function checks for a highly overlapped L0s
-        let (files_to_split, remaining_files) =
+        let (files_to_split, remaining_files, reason) =
             high_l0_overlap_split(self.max_compact_size, files, target_level);
 
         if !files_to_split.is_empty() {
             // These files must be split before further compaction
             return (
-                FilesToSplitOrCompact::Split(files_to_split, SplitReason::HighL0Overlap),
+                FilesToSplitOrCompact::Split(files_to_split, reason),
                 remaining_files,
             );
         }
@@ -392,8 +392,8 @@ mod tests {
         let (files_to_split_or_compact, files_to_keep) =
             split_compact.apply(&p_info, files, CompactionLevel::FileNonOverlapped);
 
-        assert_eq!(files_to_split_or_compact.num_files_to_split(), 3);
-        assert_eq!(files_to_keep.len(), 2);
+        assert_eq!(files_to_split_or_compact.num_files_to_split(), 4);
+        assert_eq!(files_to_keep.len(), 1);
 
         let files_to_split = files_to_split_or_compact.into_files();
 
@@ -404,14 +404,14 @@ mod tests {
         ---
         - "files to compact or split:"
         - "L0, all files 100b                                                                                                 "
-        - "L0.1[450,620] 120s                      |----------------------L0.1-----------------------|                        "
+        - "L0.1[450,620] 120s                   |------------------L0.1-------------------|                                   "
+        - "L0.2[650,750] 180s                                                                       |---------L0.2----------| "
         - "L1, all files 100b                                                                                                 "
-        - "L1.13[600,700] 60s                                                                   |-----------L1.13------------|"
-        - "L1.12[400,500] 60s       |-----------L1.12------------|                                                            "
+        - "L1.12[400,500] 60s       |---------L1.12---------|                                                                 "
+        - "L1.13[600,700] 60s                                                          |---------L1.13---------|              "
         - "files to keep:"
         - "L0, all files 100b                                                                                                 "
-        - "L0.2[650,750] 180s       |---------------L0.2---------------|                                                      "
-        - "L0.3[800,900] 300s                                                             |---------------L0.3---------------|"
+        - "L0.3[800,900] 300s       |------------------------------------------L0.3------------------------------------------|"
         "###
         );
     }

@@ -2,7 +2,12 @@ use std::fmt::Display;
 
 use data_types::{CompactionLevel, ParquetFile};
 
-use crate::RoundInfo;
+use crate::{
+    components::split_or_compact::start_level_files_to_split::{
+        merge_small_l0_chains, split_into_chains,
+    },
+    RoundInfo,
+};
 
 use super::DivideInitial;
 
@@ -29,51 +34,68 @@ impl DivideInitial for MultipleBranchesDivideInitial {
                 max_num_files_to_group,
                 max_total_file_size_to_group,
             } => {
-                // To split the start_level files correctly so they can be compacted in the right order,
-                // the files must be sorted on `max_l0_created_at` if start_level is 0 or `min_time` otherwise.
-                //
-                // Since L0s can overlap, they can contain duplicate data, which can only be resolved by
-                // using `max_l0_created_at` time, so the `max_l0_created_at` time must be used to sort so that it is
-                // preserved.  Since L1s & L2s cannot overlap within their own level, they cannot contain
-                // duplicate data within their own level, so they do not need to preserve their `max_l0_created_at`
-                // time, so they do not need to be sorted based on `max_l0_created_at`.  However, sorting by
-                // `min_time` is needed to avoid introducing overlaps within their levels.
+                // Files must be sorted by `max_l0_created_at` when there are overlaps to resolve.
+                // If the `start_level` is greater than 0, there cannot be overlaps within the level,
+                // so sorting by `max_l0_created_at` is not necessary (however, sorting by `min_time`
+                // is needed to avoid introducing overlaps within their levels).  When the `start_level`
+                // is 0, we have to sort by `max_l0_created_at` if a chain of overlaps is too big for
+                // a single compaction.
                 //
                 // See tests many_l0_files_different_created_order and many_l1_files_different_created_order for examples
+
                 let start_level_files = files
                     .into_iter()
                     .filter(|f| f.compaction_level == start_level)
                     .collect::<Vec<_>>();
-                let start_level_files = order_files(start_level_files, start_level);
+                let mut branches = Vec::with_capacity(start_level_files.len());
 
-                let capacity = start_level_files.len();
-
-                // Split L0s into many small groups, each has max_num_files_to_group but not exceed max_total_file_size_to_group
-                // Collect files until either limit is reached
-                let mut branches = Vec::with_capacity(capacity);
-                let mut current_branch = Vec::with_capacity(capacity);
-                let mut current_branch_size = 0;
-                for f in start_level_files {
-                    if current_branch.len() == max_num_files_to_group
-                        || current_branch_size + f.file_size_bytes as usize
-                            > max_total_file_size_to_group
-                    {
-                        // panic if current_branch is empty
-                        if current_branch.is_empty() {
-                            panic!("Size of a file {} is larger than the max size limit to compact. Please adjust the settings. See ticket https://github.com/influxdata/idpe/issues/17209" , f.file_size_bytes);
-                        }
-
-                        branches.push(current_branch);
-                        current_branch = Vec::with_capacity(capacity);
-                        current_branch_size = 0;
-                    }
-                    current_branch_size += f.file_size_bytes as usize;
-                    current_branch.push(f);
+                let mut chains: Vec<Vec<ParquetFile>>;
+                if start_level == CompactionLevel::Initial {
+                    // The splitting & merging of chains in this block is what makes use of the vertical split performed by
+                    // high_l0_overlap_split.  Without this chain based grouping, compactions would generally undo the work
+                    // started by splitting in high_l0_overlap_split.
+                    // split start_level_files into chains of overlapping files.  This can happen based on min_time/max_time
+                    // without regard for max_l0_created_at because there are no overlaps between chains.
+                    chains = split_into_chains(start_level_files);
+                    // If the chains are smaller than the max compact size, combine them to get better compaction group sizes.
+                    // This combining of chains must happen based on max_l0_created_at (it can only join adjacent chains, when
+                    // sorted by max_l0_created_at).
+                    chains = merge_small_l0_chains(chains, max_total_file_size_to_group);
+                } else {
+                    chains = vec![start_level_files];
                 }
 
-                // push the last branch
-                if !current_branch.is_empty() {
-                    branches.push(current_branch);
+                for chain in chains {
+                    let start_level_files = order_files(chain, start_level);
+
+                    let capacity = start_level_files.len();
+
+                    // Split L0s into many small groups, each has max_num_files_to_group but not exceed max_total_file_size_to_group
+                    // Collect files until either limit is reached
+                    let mut current_branch = Vec::with_capacity(capacity);
+                    let mut current_branch_size = 0;
+                    for f in start_level_files {
+                        if current_branch.len() == max_num_files_to_group
+                            || current_branch_size + f.file_size_bytes as usize
+                                > max_total_file_size_to_group
+                        {
+                            // panic if current_branch is empty
+                            if current_branch.is_empty() {
+                                panic!("Size of a file {} is larger than the max size limit to compact. Please adjust the settings. See ticket https://github.com/influxdata/idpe/issues/17209" , f.file_size_bytes);
+                            }
+
+                            branches.push(current_branch);
+                            current_branch = Vec::with_capacity(capacity);
+                            current_branch_size = 0;
+                        }
+                        current_branch_size += f.file_size_bytes as usize;
+                        current_branch.push(f);
+                    }
+
+                    // push the last branch
+                    if !current_branch.is_empty() {
+                        branches.push(current_branch);
+                    }
                 }
 
                 branches
@@ -85,7 +107,7 @@ impl DivideInitial for MultipleBranchesDivideInitial {
 
 /// Return a sorted files of the given ones.
 /// The order is used to split the files and form the right groups of files to compact
-// and deduplcate correctly to fewer and larger but same level files
+/// and deduplicate correctly to fewer and larger but same level files
 ///
 /// All given files are in the same given start_level.
 /// They will be sorted on their `max_l0_created_at` if the start_level is 0,

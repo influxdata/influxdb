@@ -161,7 +161,7 @@ mod tests {
             U64Histogram,
             METRIC_NAME_FILES_TO_SPLIT,
             samples = 1,
-            sum = 3,
+            sum = 4,
         );
         assert_counter!(
             registry,
