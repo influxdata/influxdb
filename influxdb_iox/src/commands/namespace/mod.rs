@@ -16,9 +16,6 @@ pub enum Error {
 
     #[error("Client error: {0}")]
     ClientError(#[from] influxdb_iox_client::error::Error),
-
-    #[error("No valid limit was provided")]
-    InvalidLimit,
 }
 
 pub type Result<T, E = Error> = std::result::Result<T, E>;
