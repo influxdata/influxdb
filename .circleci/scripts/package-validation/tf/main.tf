@@ -23,21 +23,23 @@ provider "aws" {
   region = "us-east-1"
 }
 
-data "aws_ami" "centos" {
+data "aws_ami" "test_ami" {
   most_recent = true
 
-  # This information is sourced from https://wiki.centos.org/Cloud/AWS
-  # and should pull the latest AWS-provided CentOS Stream 9 image.
   filter {
     name   = "name"
-    values = [format("CentOS Stream 9 %s*", var.architecture)]
+    values = ["al20*-ami-20*"]
   }
   filter {
     name   = "virtualization-type"
     values = ["hvm"]
   }
+  filter {
+    name   = "architecture"
+    values = [var.architecture]
+  }
 
-  owners = ["125523088429"]
+  owners = ["137112412989"]
 }
 
 resource "aws_security_group" "influxdb_test_package_sg" {
@@ -58,15 +60,15 @@ resource "aws_security_group" "influxdb_test_package_sg" {
   }
 }
 
-resource "aws_instance" "centos" {
+resource "aws_instance" "test_instance" {
   count                  = 1
-  ami                    = data.aws_ami.centos.id
+  ami                    = data.aws_ami.test_ami.id
   instance_type          = var.architecture == "x86_64" ? "t2.micro" : "c6g.medium"
   key_name               = "circleci-oss-test"
   vpc_security_group_ids = [aws_security_group.influxdb_test_package_sg.id]
 
   tags = {
-    Name = format("circleci_%s_centos_%s", var.identifier, var.architecture)
+    Name = format("circleci_%s_test_%s", var.identifier, var.architecture)
   }
 
   provisioner "file" {
@@ -108,5 +110,5 @@ resource "aws_instance" "centos" {
 }
 
 output "node_ssh" {
-  value = aws_instance.centos.0.public_dns
+  value = aws_instance.test_instance.0.public_dns
 }
