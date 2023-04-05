@@ -376,10 +376,61 @@ SELECT COUNT(usage_idle), COUNT(bytes_free) FROM cpu, disk WHERE time >= '2022-1
 -- NOTE: expected to return no data, as there is none within the time range
 SELECT COUNT(usage_idle) FROM cpu WHERE time >= now() - 2m GROUP BY TIME(30s) FILL(null);
 
--- Unimplemented cases
+--
+-- LIMIT and OFFSET
+--
 
-SELECT COUNT(usage_idle) FROM cpu WHERE time >= '2022-10-31T02:00:00Z' AND time < '2022-10-31T02:02:00Z' GROUP BY TIME(30s) FILL(linear);
+-- raw query, single measurement
+SELECT f64 FROM m0 WHERE tag0 = 'val00' LIMIT 3;
+SELECT f64 FROM m0 WHERE tag0 = 'val00' ORDER BY DESC LIMIT 3;
+SELECT f64 FROM m0 WHERE tag0 = 'val00' LIMIT 2 OFFSET 1;
+SELECT f64 FROM m0 WHERE tag0 = 'val00' ORDER BY DESC LIMIT 2 OFFSET 1;
+SELECT usage_idle FROM cpu WHERE cpu = 'cpu-total' LIMIT 2;
+SELECT usage_idle FROM cpu WHERE cpu = 'cpu-total' ORDER BY DESC LIMIT 2;
+SELECT usage_idle FROM cpu WHERE cpu = 'cpu-total' LIMIT 2 OFFSET 1;
+SELECT usage_idle FROM cpu WHERE cpu = 'cpu-total' ORDER BY DESC LIMIT 2 OFFSET 1;
 
--- LIMIT and OFFSET aren't supported with aggregates and groups
+-- raw query, multiple measurements
+SELECT usage_idle, bytes_free FROM cpu, disk WHERE cpu = 'cpu-total' OR device = 'disk1s1' LIMIT 2;
+SELECT usage_idle, bytes_free FROM cpu, disk WHERE cpu = 'cpu-total' OR device = 'disk1s1' ORDER BY DESC LIMIT 2;
+SELECT usage_idle, bytes_free FROM cpu, disk WHERE cpu = 'cpu-total' OR device = 'disk1s1' LIMIT 2 OFFSET 1;
+SELECT usage_idle, bytes_free FROM cpu, disk WHERE cpu = 'cpu-total' OR device = 'disk1s1' ORDER BY DESC LIMIT 2 OFFSET 1;
+
+-- raw query, group by tag
+SELECT usage_idle FROM cpu GROUP BY cpu LIMIT 2;
+SELECT usage_idle FROM cpu GROUP BY cpu LIMIT 2 OFFSET 1;
+
+-- raw query, group by tag, multiple measurements
+SELECT usage_idle, bytes_free FROM cpu, disk GROUP BY cpu, device LIMIT 2;
+SELECT usage_idle, bytes_free FROM cpu, disk GROUP BY cpu, device LIMIT 2 OFFSET 1;
+
+-- aggregate
 SELECT COUNT(usage_idle) FROM cpu GROUP BY cpu LIMIT 1;
 SELECT COUNT(usage_idle) FROM cpu GROUP BY cpu OFFSET 1;
+
+-- aggregate, grouping by tag
+SELECT COUNT(usage_idle) FROM cpu GROUP BY cpu LIMIT 1;
+SELECT COUNT(usage_idle) FROM cpu GROUP BY cpu OFFSET 1;
+
+-- aggregate, group by TIME
+SELECT COUNT(usage_idle) FROM cpu WHERE time >= '2022-10-31T02:00:00Z' AND time < '2022-10-31T02:05:00Z' GROUP BY TIME(30s) LIMIT 2;
+SELECT COUNT(usage_idle) FROM cpu WHERE time >= '2022-10-31T02:00:00Z' AND time < '2022-10-31T02:05:00Z' GROUP BY TIME(30s) LIMIT 2 OFFSET 2;
+
+-- aggregate, group by TIME and tag
+SELECT COUNT(usage_idle) FROM cpu WHERE time >= '2022-10-31T02:00:00Z' AND time < '2022-10-31T02:05:00Z' GROUP BY TIME(30s), cpu LIMIT 2;
+
+-- aggregate, group by TIME, multiple measurements
+SELECT COUNT(usage_idle), COUNT(bytes_free) FROM cpu, disk WHERE time >= '2022-10-31T02:00:00Z' AND time < '2022-10-31T02:02:00Z' GROUP BY TIME(30s) LIMIT 1;
+-- should return the same row as the prior query
+SELECT COUNT(usage_idle), COUNT(bytes_free) FROM cpu, disk WHERE time >= '2022-10-31T02:00:00Z' AND time < '2022-10-31T02:02:00Z' GROUP BY TIME(30s) ORDER BY DESC LIMIT 1 OFFSET 3;
+SELECT COUNT(usage_idle), COUNT(bytes_free) FROM cpu, disk WHERE time >= '2022-10-31T02:00:00Z' AND time < '2022-10-31T02:02:00Z' GROUP BY TIME(30s) ORDER BY DESC LIMIT 1;
+
+-- aggregate, group by TIME and tag, multiple measurements
+SELECT COUNT(usage_idle), COUNT(bytes_free) FROM cpu, disk WHERE time >= '2022-10-31T02:00:00Z' AND time < '2022-10-31T02:02:00Z' GROUP BY TIME(30s), cpu, device LIMIT 1;
+
+
+--
+-- Unimplemented cases
+--
+
+SELECT COUNT(usage_idle) FROM cpu WHERE time >= '2022-10-31T02:00:00Z' AND time < '2022-10-31T02:02:00Z' GROUP BY TIME(30s) FILL(linear);

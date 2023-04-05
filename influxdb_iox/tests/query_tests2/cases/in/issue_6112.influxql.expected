@@ -1024,9 +1024,219 @@ Error while planning query: Error during planning: mixing aggregate and non-aggr
 -- InfluxQL: SELECT COUNT(usage_idle) FROM cpu WHERE time >= now() - 2m GROUP BY TIME(30s) FILL(null);
 ++
 ++
+-- InfluxQL: SELECT f64 FROM m0 WHERE tag0 = 'val00' LIMIT 3;
++------------------+----------------------+------+
+| iox::measurement | time                 | f64  |
++------------------+----------------------+------+
+| m0               | 2022-10-31T02:00:00Z | 10.1 |
+| m0               | 2022-10-31T02:00:10Z | 21.2 |
+| m0               | 2022-10-31T02:00:10Z | 18.9 |
++------------------+----------------------+------+
+-- InfluxQL: SELECT f64 FROM m0 WHERE tag0 = 'val00' ORDER BY DESC LIMIT 3;
++------------------+----------------------+------+
+| iox::measurement | time                 | f64  |
++------------------+----------------------+------+
+| m0               | 2022-10-31T02:00:30Z | 19.2 |
+| m0               | 2022-10-31T02:00:20Z | 11.2 |
+| m0               | 2022-10-31T02:00:10Z | 21.2 |
++------------------+----------------------+------+
+-- InfluxQL: SELECT f64 FROM m0 WHERE tag0 = 'val00' LIMIT 2 OFFSET 1;
++------------------+----------------------+------+
+| iox::measurement | time                 | f64  |
++------------------+----------------------+------+
+| m0               | 2022-10-31T02:00:10Z | 21.2 |
+| m0               | 2022-10-31T02:00:10Z | 18.9 |
++------------------+----------------------+------+
+-- InfluxQL: SELECT f64 FROM m0 WHERE tag0 = 'val00' ORDER BY DESC LIMIT 2 OFFSET 1;
++------------------+----------------------+------+
+| iox::measurement | time                 | f64  |
++------------------+----------------------+------+
+| m0               | 2022-10-31T02:00:20Z | 11.2 |
+| m0               | 2022-10-31T02:00:10Z | 21.2 |
++------------------+----------------------+------+
+-- InfluxQL: SELECT usage_idle FROM cpu WHERE cpu = 'cpu-total' LIMIT 2;
++------------------+----------------------+------------+
+| iox::measurement | time                 | usage_idle |
++------------------+----------------------+------------+
+| cpu              | 2022-10-31T02:00:00Z | 2.98       |
+| cpu              | 2022-10-31T02:00:10Z | 2.99       |
++------------------+----------------------+------------+
+-- InfluxQL: SELECT usage_idle FROM cpu WHERE cpu = 'cpu-total' ORDER BY DESC LIMIT 2;
++------------------+----------------------+------------+
+| iox::measurement | time                 | usage_idle |
++------------------+----------------------+------------+
+| cpu              | 2022-10-31T02:00:10Z | 2.99       |
+| cpu              | 2022-10-31T02:00:00Z | 2.98       |
++------------------+----------------------+------------+
+-- InfluxQL: SELECT usage_idle FROM cpu WHERE cpu = 'cpu-total' LIMIT 2 OFFSET 1;
++------------------+----------------------+------------+
+| iox::measurement | time                 | usage_idle |
++------------------+----------------------+------------+
+| cpu              | 2022-10-31T02:00:10Z | 2.99       |
++------------------+----------------------+------------+
+-- InfluxQL: SELECT usage_idle FROM cpu WHERE cpu = 'cpu-total' ORDER BY DESC LIMIT 2 OFFSET 1;
++------------------+----------------------+------------+
+| iox::measurement | time                 | usage_idle |
++------------------+----------------------+------------+
+| cpu              | 2022-10-31T02:00:00Z | 2.98       |
++------------------+----------------------+------------+
+-- InfluxQL: SELECT usage_idle, bytes_free FROM cpu, disk WHERE cpu = 'cpu-total' OR device = 'disk1s1' LIMIT 2;
++------------------+----------------------+------------+------------+
+| iox::measurement | time                 | usage_idle | bytes_free |
++------------------+----------------------+------------+------------+
+| cpu              | 2022-10-31T02:00:00Z | 2.98       |            |
+| cpu              | 2022-10-31T02:00:10Z | 2.99       |            |
+| disk             | 2022-10-31T02:00:00Z |            | 1234       |
+| disk             | 2022-10-31T02:00:10Z |            | 1239       |
++------------------+----------------------+------------+------------+
+-- InfluxQL: SELECT usage_idle, bytes_free FROM cpu, disk WHERE cpu = 'cpu-total' OR device = 'disk1s1' ORDER BY DESC LIMIT 2;
++------------------+----------------------+------------+------------+
+| iox::measurement | time                 | usage_idle | bytes_free |
++------------------+----------------------+------------+------------+
+| cpu              | 2022-10-31T02:00:10Z | 2.99       |            |
+| cpu              | 2022-10-31T02:00:00Z | 2.98       |            |
+| disk             | 2022-10-31T02:00:10Z |            | 1239       |
+| disk             | 2022-10-31T02:00:00Z |            | 1234       |
++------------------+----------------------+------------+------------+
+-- InfluxQL: SELECT usage_idle, bytes_free FROM cpu, disk WHERE cpu = 'cpu-total' OR device = 'disk1s1' LIMIT 2 OFFSET 1;
++------------------+----------------------+------------+------------+
+| iox::measurement | time                 | usage_idle | bytes_free |
++------------------+----------------------+------------+------------+
+| cpu              | 2022-10-31T02:00:10Z | 2.99       |            |
+| disk             | 2022-10-31T02:00:10Z |            | 1239       |
++------------------+----------------------+------------+------------+
+-- InfluxQL: SELECT usage_idle, bytes_free FROM cpu, disk WHERE cpu = 'cpu-total' OR device = 'disk1s1' ORDER BY DESC LIMIT 2 OFFSET 1;
++------------------+----------------------+------------+------------+
+| iox::measurement | time                 | usage_idle | bytes_free |
++------------------+----------------------+------------+------------+
+| cpu              | 2022-10-31T02:00:00Z | 2.98       |            |
+| disk             | 2022-10-31T02:00:00Z |            | 1234       |
++------------------+----------------------+------------+------------+
+-- InfluxQL: SELECT usage_idle FROM cpu GROUP BY cpu LIMIT 2;
++------------------+----------------------+-----------+------------+
+| iox::measurement | time                 | cpu       | usage_idle |
++------------------+----------------------+-----------+------------+
+| cpu              | 2022-10-31T02:00:00Z | cpu-total | 2.98       |
+| cpu              | 2022-10-31T02:00:10Z | cpu-total | 2.99       |
+| cpu              | 2022-10-31T02:00:00Z | cpu0      | 0.98       |
+| cpu              | 2022-10-31T02:00:10Z | cpu0      | 0.99       |
+| cpu              | 2022-10-31T02:00:00Z | cpu1      | 1.98       |
+| cpu              | 2022-10-31T02:00:10Z | cpu1      | 1.99       |
++------------------+----------------------+-----------+------------+
+-- InfluxQL: SELECT usage_idle FROM cpu GROUP BY cpu LIMIT 2 OFFSET 1;
++------------------+----------------------+-----------+------------+
+| iox::measurement | time                 | cpu       | usage_idle |
++------------------+----------------------+-----------+------------+
+| cpu              | 2022-10-31T02:00:10Z | cpu-total | 2.99       |
+| cpu              | 2022-10-31T02:00:10Z | cpu0      | 0.99       |
+| cpu              | 2022-10-31T02:00:10Z | cpu1      | 1.99       |
++------------------+----------------------+-----------+------------+
+-- InfluxQL: SELECT usage_idle, bytes_free FROM cpu, disk GROUP BY cpu, device LIMIT 2;
++------------------+----------------------+-----------+---------+------------+------------+
+| iox::measurement | time                 | cpu       | device  | usage_idle | bytes_free |
++------------------+----------------------+-----------+---------+------------+------------+
+| cpu              | 2022-10-31T02:00:00Z | cpu-total |         | 2.98       |            |
+| cpu              | 2022-10-31T02:00:10Z | cpu-total |         | 2.99       |            |
+| cpu              | 2022-10-31T02:00:00Z | cpu0      |         | 0.98       |            |
+| cpu              | 2022-10-31T02:00:10Z | cpu0      |         | 0.99       |            |
+| cpu              | 2022-10-31T02:00:00Z | cpu1      |         | 1.98       |            |
+| cpu              | 2022-10-31T02:00:10Z | cpu1      |         | 1.99       |            |
+| disk             | 2022-10-31T02:00:00Z |           | disk1s1 |            | 1234       |
+| disk             | 2022-10-31T02:00:10Z |           | disk1s1 |            | 1239       |
+| disk             | 2022-10-31T02:00:00Z |           | disk1s2 |            | 2234       |
+| disk             | 2022-10-31T02:00:10Z |           | disk1s2 |            | 2239       |
+| disk             | 2022-10-31T02:00:00Z |           | disk1s5 |            | 3234       |
+| disk             | 2022-10-31T02:00:10Z |           | disk1s5 |            | 3239       |
++------------------+----------------------+-----------+---------+------------+------------+
+-- InfluxQL: SELECT usage_idle, bytes_free FROM cpu, disk GROUP BY cpu, device LIMIT 2 OFFSET 1;
++------------------+----------------------+-----------+---------+------------+------------+
+| iox::measurement | time                 | cpu       | device  | usage_idle | bytes_free |
++------------------+----------------------+-----------+---------+------------+------------+
+| cpu              | 2022-10-31T02:00:10Z | cpu-total |         | 2.99       |            |
+| cpu              | 2022-10-31T02:00:10Z | cpu0      |         | 0.99       |            |
+| cpu              | 2022-10-31T02:00:10Z | cpu1      |         | 1.99       |            |
+| disk             | 2022-10-31T02:00:10Z |           | disk1s1 |            | 1239       |
+| disk             | 2022-10-31T02:00:10Z |           | disk1s2 |            | 2239       |
+| disk             | 2022-10-31T02:00:10Z |           | disk1s5 |            | 3239       |
++------------------+----------------------+-----------+---------+------------+------------+
+-- InfluxQL: SELECT COUNT(usage_idle) FROM cpu GROUP BY cpu LIMIT 1;
++------------------+----------------------+-----------+-------+
+| iox::measurement | time                 | cpu       | count |
++------------------+----------------------+-----------+-------+
+| cpu              | 1970-01-01T00:00:00Z | cpu-total | 2     |
+| cpu              | 1970-01-01T00:00:00Z | cpu0      | 2     |
+| cpu              | 1970-01-01T00:00:00Z | cpu1      | 2     |
++------------------+----------------------+-----------+-------+
+-- InfluxQL: SELECT COUNT(usage_idle) FROM cpu GROUP BY cpu OFFSET 1;
+++
+++
+-- InfluxQL: SELECT COUNT(usage_idle) FROM cpu GROUP BY cpu LIMIT 1;
++------------------+----------------------+-----------+-------+
+| iox::measurement | time                 | cpu       | count |
++------------------+----------------------+-----------+-------+
+| cpu              | 1970-01-01T00:00:00Z | cpu-total | 2     |
+| cpu              | 1970-01-01T00:00:00Z | cpu0      | 2     |
+| cpu              | 1970-01-01T00:00:00Z | cpu1      | 2     |
++------------------+----------------------+-----------+-------+
+-- InfluxQL: SELECT COUNT(usage_idle) FROM cpu GROUP BY cpu OFFSET 1;
+++
+++
+-- InfluxQL: SELECT COUNT(usage_idle) FROM cpu WHERE time >= '2022-10-31T02:00:00Z' AND time < '2022-10-31T02:05:00Z' GROUP BY TIME(30s) LIMIT 2;
++------------------+----------------------+-------+
+| iox::measurement | time                 | count |
++------------------+----------------------+-------+
+| cpu              | 2022-10-31T02:00:00Z | 6     |
+| cpu              | 2022-10-31T02:00:30Z |       |
++------------------+----------------------+-------+
+-- InfluxQL: SELECT COUNT(usage_idle) FROM cpu WHERE time >= '2022-10-31T02:00:00Z' AND time < '2022-10-31T02:05:00Z' GROUP BY TIME(30s) LIMIT 2 OFFSET 2;
++------------------+----------------------+-------+
+| iox::measurement | time                 | count |
++------------------+----------------------+-------+
+| cpu              | 2022-10-31T02:01:00Z |       |
+| cpu              | 2022-10-31T02:01:30Z |       |
++------------------+----------------------+-------+
+-- InfluxQL: SELECT COUNT(usage_idle) FROM cpu WHERE time >= '2022-10-31T02:00:00Z' AND time < '2022-10-31T02:05:00Z' GROUP BY TIME(30s), cpu LIMIT 2;
++------------------+----------------------+-----------+-------+
+| iox::measurement | time                 | cpu       | count |
++------------------+----------------------+-----------+-------+
+| cpu              | 2022-10-31T02:00:00Z | cpu-total | 2     |
+| cpu              | 2022-10-31T02:00:30Z | cpu-total |       |
+| cpu              | 2022-10-31T02:00:00Z | cpu0      | 2     |
+| cpu              | 2022-10-31T02:00:30Z | cpu0      |       |
+| cpu              | 2022-10-31T02:00:00Z | cpu1      | 2     |
+| cpu              | 2022-10-31T02:00:30Z | cpu1      |       |
++------------------+----------------------+-----------+-------+
+-- InfluxQL: SELECT COUNT(usage_idle), COUNT(bytes_free) FROM cpu, disk WHERE time >= '2022-10-31T02:00:00Z' AND time < '2022-10-31T02:02:00Z' GROUP BY TIME(30s) LIMIT 1;
++------------------+----------------------+-------+---------+
+| iox::measurement | time                 | count | count_1 |
++------------------+----------------------+-------+---------+
+| cpu              | 2022-10-31T02:00:00Z | 6     |         |
+| disk             | 2022-10-31T02:00:00Z |       | 6       |
++------------------+----------------------+-------+---------+
+-- InfluxQL: SELECT COUNT(usage_idle), COUNT(bytes_free) FROM cpu, disk WHERE time >= '2022-10-31T02:00:00Z' AND time < '2022-10-31T02:02:00Z' GROUP BY TIME(30s) ORDER BY DESC LIMIT 1 OFFSET 3;
++------------------+----------------------+-------+---------+
+| iox::measurement | time                 | count | count_1 |
++------------------+----------------------+-------+---------+
+| cpu              | 2022-10-31T02:00:00Z | 6     |         |
+| disk             | 2022-10-31T02:00:00Z |       | 6       |
++------------------+----------------------+-------+---------+
+-- InfluxQL: SELECT COUNT(usage_idle), COUNT(bytes_free) FROM cpu, disk WHERE time >= '2022-10-31T02:00:00Z' AND time < '2022-10-31T02:02:00Z' GROUP BY TIME(30s) ORDER BY DESC LIMIT 1;
++------------------+----------------------+-------+---------+
+| iox::measurement | time                 | count | count_1 |
++------------------+----------------------+-------+---------+
+| cpu              | 2022-10-31T02:01:30Z |       |         |
+| disk             | 2022-10-31T02:01:30Z |       |         |
++------------------+----------------------+-------+---------+
+-- InfluxQL: SELECT COUNT(usage_idle), COUNT(bytes_free) FROM cpu, disk WHERE time >= '2022-10-31T02:00:00Z' AND time < '2022-10-31T02:02:00Z' GROUP BY TIME(30s), cpu, device LIMIT 1;
++------------------+----------------------+-----------+---------+-------+---------+
+| iox::measurement | time                 | cpu       | device  | count | count_1 |
++------------------+----------------------+-----------+---------+-------+---------+
+| cpu              | 2022-10-31T02:00:00Z | cpu-total |         | 2     |         |
+| cpu              | 2022-10-31T02:00:00Z | cpu0      |         | 2     |         |
+| cpu              | 2022-10-31T02:00:00Z | cpu1      |         | 2     |         |
+| disk             | 2022-10-31T02:00:00Z |           | disk1s1 |       | 2       |
+| disk             | 2022-10-31T02:00:00Z |           | disk1s2 |       | 2       |
+| disk             | 2022-10-31T02:00:00Z |           | disk1s5 |       | 2       |
++------------------+----------------------+-----------+---------+-------+---------+
 -- InfluxQL: SELECT COUNT(usage_idle) FROM cpu WHERE time >= '2022-10-31T02:00:00Z' AND time < '2022-10-31T02:02:00Z' GROUP BY TIME(30s) FILL(linear);
 Error while planning query: This feature is not implemented: FILL(LINEAR)
--- InfluxQL: SELECT COUNT(usage_idle) FROM cpu GROUP BY cpu LIMIT 1;
-Error while planning query: This feature is not implemented: GROUP BY combined with LIMIT or OFFSET clause
--- InfluxQL: SELECT COUNT(usage_idle) FROM cpu GROUP BY cpu OFFSET 1;
-Error while planning query: This feature is not implemented: GROUP BY combined with LIMIT or OFFSET clause
