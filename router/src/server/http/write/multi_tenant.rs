@@ -115,6 +115,14 @@ mod tests {
     }
 
     test_parse_v2!(
+        no_query_string,
+        query_string = "",
+        want = Err(Error::MultiTenantError(
+            MultiTenantExtractError::ParseV2Request(V2WriteParseError::NoQueryParams)
+        ))
+    );
+
+    test_parse_v2!(
         empty_query_string,
         query_string = "?",
         want = Err(Error::MultiTenantError(

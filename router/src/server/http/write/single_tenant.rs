@@ -24,6 +24,10 @@ use data_types::{NamespaceName, NamespaceNameError};
 /// Request parsing errors when operating in "single tenant" mode.
 #[derive(Debug, Error)]
 pub enum SingleTenantExtractError {
+    /// v2 bucket is an empty string.
+    #[error("missing bucket value")]
+    NoBucketSpecified,
+
     /// The namespace (or "db" for V1) is not valid.
     #[error(transparent)]
     InvalidNamespace(#[from] NamespaceNameError),
@@ -46,6 +50,7 @@ impl From<&SingleTenantExtractError> for hyper::StatusCode {
         // have to be explicitly mapped and are not accidentally mapped to a
         // "catch all" code.
         match value {
+            SingleTenantExtractError::NoBucketSpecified => Self::BAD_REQUEST,
             SingleTenantExtractError::InvalidNamespace(_) => Self::BAD_REQUEST,
             SingleTenantExtractError::ParseV1Request(
                 V1WriteParseError::NoQueryParams
@@ -122,6 +127,9 @@ fn parse_v2(req: &Request<Body>) -> Result<WriteParams, SingleTenantExtractError
     //
     //      See https://github.com/influxdata/idpe/issues/17265
     //
+    if write_params.bucket.is_empty() {
+        return Err(SingleTenantExtractError::NoBucketSpecified);
+    }
 
     Ok(WriteParams {
         namespace: NamespaceName::new(write_params.bucket)?,
@@ -188,6 +196,14 @@ mod tests {
         )) => {
             assert_eq!(e.to_string(), "missing field `db`")
         }
+    );
+
+    test_parse_v1!(
+        invalid_db,
+        query_string = format!("?db={}", "A".repeat(1000)),
+        want = Err(Error::SingleTenantError(
+            SingleTenantExtractError::InvalidNamespace(NamespaceNameError::LengthConstraint { .. })
+        ))
     );
 
     test_parse_v1!(
@@ -291,7 +307,7 @@ mod tests {
         empty_query_string,
         query_string = "?",
         want = Err(Error::SingleTenantError(
-            SingleTenantExtractError::InvalidNamespace(NamespaceNameError::LengthConstraint { .. })
+            SingleTenantExtractError::NoBucketSpecified
         ))
     );
 
@@ -310,13 +326,21 @@ mod tests {
         org_only,
         query_string = "?org=bananas",
         want = Err(Error::SingleTenantError(
-            SingleTenantExtractError::InvalidNamespace(NamespaceNameError::LengthConstraint { .. })
+            SingleTenantExtractError::NoBucketSpecified
         ))
     );
 
     test_parse_v2!(
         no_org_no_bucket,
         query_string = "?wat=isthis",
+        want = Err(Error::SingleTenantError(
+            SingleTenantExtractError::NoBucketSpecified
+        ))
+    );
+
+    test_parse_v2!(
+        invalid_bucket,
+        query_string = format!("?bucket={}", "A".repeat(1000)),
         want = Err(Error::SingleTenantError(
             SingleTenantExtractError::InvalidNamespace(NamespaceNameError::LengthConstraint { .. })
         ))

@@ -22,7 +22,7 @@ pub(crate) const V1_NAMESPACE_RP_SEPARATOR: char = '/';
 /// HTTP request and deriving the namespace name from it.
 #[derive(Debug, Error)]
 pub enum V1WriteParseError {
-    /// The request contains no org/bucket destination information.
+    /// The request contains no db destination information.
     #[error("no db destination provided")]
     NoQueryParams,
 
