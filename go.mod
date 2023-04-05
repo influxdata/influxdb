@@ -120,7 +120,7 @@ require (
 	github.com/denisenkom/go-mssqldb v0.10.0 // indirect
 	github.com/dimchansky/utfbom v1.1.0 // indirect
 	github.com/docker/distribution v2.8.1+incompatible // indirect
-	github.com/docker/docker v23.0.0+incompatible // indirect
+	github.com/docker/docker v23.0.3+incompatible // indirect
 	github.com/docker/go-connections v0.4.0 // indirect
 	github.com/docker/go-units v0.5.0 // indirect
 	github.com/eclipse/paho.mqtt.golang v1.2.0 // indirect
