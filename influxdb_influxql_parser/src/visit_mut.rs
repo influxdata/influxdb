@@ -34,6 +34,7 @@ use crate::drop::DropMeasurementStatement;
 use crate::explain::ExplainStatement;
 use crate::expression::arithmetic::Expr;
 use crate::expression::conditional::ConditionalExpression;
+use crate::expression::{Binary, Call, ConditionalBinary, VarRef};
 use crate::select::{
     Dimension, Field, FieldList, FillClause, FromMeasurementClause, GroupByClause,
     MeasurementSelection, SLimitClause, SOffsetClause, SelectStatement, TimeDimension,
@@ -567,6 +568,52 @@ pub trait VisitorMut: Sized {
 
     /// Invoked after all children of a `WITH KEY` clause  are visited.
     fn post_visit_with_key_clause(&mut self, _n: &mut WithKeyClause) -> Result<(), Self::Error> {
+        Ok(())
+    }
+
+    /// Invoked before any children of a variable reference are visited.
+    fn pre_visit_var_ref(&mut self, _n: &mut VarRef) -> Result<Recursion, Self::Error> {
+        Ok(Continue)
+    }
+
+    /// Invoked after all children of a variable reference are visited.
+    fn post_visit_var_ref(&mut self, _n: &mut VarRef) -> Result<(), Self::Error> {
+        Ok(())
+    }
+
+    /// Invoked before any children of a function call are visited.
+    fn pre_visit_call(&mut self, _n: &mut Call) -> Result<Recursion, Self::Error> {
+        Ok(Continue)
+    }
+
+    /// Invoked after all children of a function call are visited.
+    fn post_visit_call(&mut self, _n: &mut Call) -> Result<(), Self::Error> {
+        Ok(())
+    }
+
+    /// Invoked before any children of a binary expression are visited.
+    fn pre_visit_expr_binary(&mut self, _n: &mut Binary) -> Result<Recursion, Self::Error> {
+        Ok(Continue)
+    }
+
+    /// Invoked after all children of a binary expression are visited.
+    fn post_visit_expr_binary(&mut self, _n: &mut Binary) -> Result<(), Self::Error> {
+        Ok(())
+    }
+
+    /// Invoked before any children of a conditional binary expression are visited.
+    fn pre_visit_conditional_binary(
+        &mut self,
+        _n: &mut ConditionalBinary,
+    ) -> Result<Recursion, Self::Error> {
+        Ok(Continue)
+    }
+
+    /// Invoked after all children of a conditional binary expression are visited.
+    fn post_visit_conditional_binary(
+        &mut self,
+        _n: &mut ConditionalBinary,
+    ) -> Result<(), Self::Error> {
         Ok(())
     }
 }
@@ -1119,10 +1166,7 @@ impl VisitableMut for ConditionalExpression {
 
         match self {
             Self::Expr(expr) => expr.accept(visitor),
-            Self::Binary { lhs, rhs, .. } => {
-                lhs.accept(visitor)?;
-                rhs.accept(visitor)
-            }
+            Self::Binary(expr) => expr.accept(visitor),
             Self::Grouped(expr) => expr.accept(visitor),
         }?;
 
@@ -1137,20 +1181,14 @@ impl VisitableMut for Expr {
         };
 
         match self {
-            Self::Call { args, .. } => args.iter_mut().try_for_each(|e| e.accept(visitor))?,
-            Self::Binary { lhs, op: _, rhs } => {
-                lhs.accept(visitor)?;
-                rhs.accept(visitor)?;
-            }
+            Self::Call(expr) => expr.accept(visitor)?,
+            Self::Binary(expr) => expr.accept(visitor)?,
             Self::Nested(expr) => expr.accept(visitor)?,
+            Self::VarRef(expr) => expr.accept(visitor)?,
 
             // We explicitly list out each enumeration, to ensure
             // we revisit if new items are added to the Expr enumeration.
-            Self::VarRef { .. }
-            | Self::BindParameter(_)
-            | Self::Literal(_)
-            | Self::Wildcard(_)
-            | Self::Distinct(_) => {}
+            Self::BindParameter(_) | Self::Literal(_) | Self::Wildcard(_) | Self::Distinct(_) => {}
         };
 
         visitor.post_visit_expr(self)
@@ -1167,6 +1205,54 @@ impl VisitableMut for OnClause {
     }
 }
 
+impl VisitableMut for VarRef {
+    fn accept<V: VisitorMut>(&mut self, visitor: &mut V) -> Result<(), V::Error> {
+        if let Stop = visitor.pre_visit_var_ref(self)? {
+            return Ok(());
+        };
+
+        visitor.post_visit_var_ref(self)
+    }
+}
+
+impl VisitableMut for Call {
+    fn accept<V: VisitorMut>(&mut self, visitor: &mut V) -> Result<(), V::Error> {
+        if let Stop = visitor.pre_visit_call(self)? {
+            return Ok(());
+        }
+
+        self.args.iter_mut().try_for_each(|e| e.accept(visitor))?;
+
+        visitor.post_visit_call(self)
+    }
+}
+
+impl VisitableMut for Binary {
+    fn accept<V: VisitorMut>(&mut self, visitor: &mut V) -> Result<(), V::Error> {
+        if let Stop = visitor.pre_visit_expr_binary(self)? {
+            return Ok(());
+        };
+
+        self.lhs.accept(visitor)?;
+        self.rhs.accept(visitor)?;
+
+        visitor.post_visit_expr_binary(self)
+    }
+}
+
+impl VisitableMut for ConditionalBinary {
+    fn accept<V: VisitorMut>(&mut self, visitor: &mut V) -> Result<(), V::Error> {
+        if let Stop = visitor.pre_visit_conditional_binary(self)? {
+            return Ok(());
+        };
+
+        self.lhs.accept(visitor)?;
+        self.rhs.accept(visitor)?;
+
+        visitor.post_visit_conditional_binary(self)
+    }
+}
+
 #[cfg(test)]
 mod test {
     use super::Recursion::Continue;
@@ -1180,6 +1266,7 @@ mod test {
     use crate::explain::ExplainStatement;
     use crate::expression::arithmetic::Expr;
     use crate::expression::conditional::ConditionalExpression;
+    use crate::expression::{Binary, Call, ConditionalBinary, VarRef};
     use crate::parse_statements;
     use crate::select::{
         Dimension, Field, FieldList, FillClause, FromMeasurementClause, GroupByClause,
@@ -1196,7 +1283,6 @@ mod test {
     use crate::show_tag_values::{ShowTagValuesStatement, WithKeyClause};
     use crate::simple_from_clause::{DeleteFromClause, ShowFromClause};
     use crate::statement::{statement, Statement};
-    use std::fmt::Debug;
 
     struct TestVisitor(Vec<String>);
 
@@ -1205,533 +1291,77 @@ mod test {
             Self(Vec::new())
         }
 
-        fn push_pre(&mut self, name: &str, n: impl Debug) {
-            self.0.push(format!("pre_visit_{name}: {n:?}"));
+        fn push_pre(&mut self, name: &str) {
+            self.0.push(format!("pre_visit_{name}"));
         }
 
-        fn push_post(&mut self, name: &str, n: impl Debug) {
-            self.0.push(format!("post_visit_{name}: {n:?}"));
+        fn push_post(&mut self, name: &str) {
+            self.0.push(format!("post_visit_{name}"));
         }
+    }
+
+    macro_rules! trace_visit {
+        ($NAME:ident, $TYPE:ty) => {
+            paste::paste! {
+                fn [<pre_visit_ $NAME>](&mut self, _n: &mut $TYPE) -> Result<Recursion, Self::Error> {
+                    self.push_pre(stringify!($NAME));
+                    Ok(Continue)
+                }
+
+                fn [<post_visit_ $NAME>](&mut self, _n: &mut $TYPE) -> Result<(), Self::Error> {
+                    self.push_post(stringify!($NAME));
+                    Ok(())
+                }
+            }
+        };
     }
 
     impl VisitorMut for TestVisitor {
         type Error = ();
 
-        fn pre_visit_statement(&mut self, n: &mut Statement) -> Result<Recursion, Self::Error> {
-            self.push_pre("statement", n);
-            Ok(Continue)
-        }
-
-        fn post_visit_statement(&mut self, n: &mut Statement) -> Result<(), Self::Error> {
-            self.push_post("statement", n);
-            Ok(())
-        }
-
-        fn pre_visit_delete_statement(
-            &mut self,
-            n: &mut DeleteStatement,
-        ) -> Result<Recursion, Self::Error> {
-            self.push_pre("delete_statement", n);
-            Ok(Continue)
-        }
-
-        fn post_visit_delete_statement(
-            &mut self,
-            n: &mut DeleteStatement,
-        ) -> Result<(), Self::Error> {
-            self.push_post("delete_statement", n);
-            Ok(())
-        }
-
-        fn pre_visit_delete_from_clause(
-            &mut self,
-            n: &mut DeleteFromClause,
-        ) -> Result<Recursion, Self::Error> {
-            self.push_pre("delete_from", n);
-            Ok(Continue)
-        }
-
-        fn post_visit_delete_from_clause(
-            &mut self,
-            n: &mut DeleteFromClause,
-        ) -> Result<(), Self::Error> {
-            self.push_post("delete_from", n);
-            Ok(())
-        }
-
-        fn pre_visit_measurement_name(
-            &mut self,
-            n: &mut MeasurementName,
-        ) -> Result<Recursion, Self::Error> {
-            self.push_pre("measurement_name", n);
-            Ok(Continue)
-        }
-
-        fn post_visit_measurement_name(
-            &mut self,
-            n: &mut MeasurementName,
-        ) -> Result<(), Self::Error> {
-            self.push_post("measurement_name", n);
-            Ok(())
-        }
-
-        fn pre_visit_drop_measurement_statement(
-            &mut self,
-            n: &mut DropMeasurementStatement,
-        ) -> Result<Recursion, Self::Error> {
-            self.push_pre("drop_measurement_statement", n);
-            Ok(Continue)
-        }
-
-        fn post_visit_drop_measurement_statement(
-            &mut self,
-            n: &mut DropMeasurementStatement,
-        ) -> Result<(), Self::Error> {
-            self.push_post("drop_measurement_statement", n);
-            Ok(())
-        }
-
-        fn pre_visit_explain_statement(
-            &mut self,
-            n: &mut ExplainStatement,
-        ) -> Result<Recursion, Self::Error> {
-            self.push_pre("explain_statement", n);
-            Ok(Continue)
-        }
-
-        fn post_visit_explain_statement(
-            &mut self,
-            n: &mut ExplainStatement,
-        ) -> Result<(), Self::Error> {
-            self.push_post("explain_statement", n);
-            Ok(())
-        }
-
-        fn pre_visit_select_statement(
-            &mut self,
-            n: &mut SelectStatement,
-        ) -> Result<Recursion, Self::Error> {
-            self.push_pre("select_statement", n);
-            Ok(Continue)
-        }
-
-        fn post_visit_select_statement(
-            &mut self,
-            n: &mut SelectStatement,
-        ) -> Result<(), Self::Error> {
-            self.push_post("select_statement", n);
-            Ok(())
-        }
-
-        fn pre_visit_show_databases_statement(
-            &mut self,
-            n: &mut ShowDatabasesStatement,
-        ) -> Result<Recursion, Self::Error> {
-            self.push_pre("show_databases_statement", n);
-            Ok(Continue)
-        }
-
-        fn post_visit_show_databases_statement(
-            &mut self,
-            n: &mut ShowDatabasesStatement,
-        ) -> Result<(), Self::Error> {
-            self.push_post("show_databases_statement", n);
-            Ok(())
-        }
-
-        fn pre_visit_show_measurements_statement(
-            &mut self,
-            n: &mut ShowMeasurementsStatement,
-        ) -> Result<Recursion, Self::Error> {
-            self.push_pre("show_measurements_statement", n);
-            Ok(Continue)
-        }
-
-        fn post_visit_show_measurements_statement(
-            &mut self,
-            n: &mut ShowMeasurementsStatement,
-        ) -> Result<(), Self::Error> {
-            self.push_post("show_measurements_statement", n);
-            Ok(())
-        }
-
-        fn pre_visit_show_retention_policies_statement(
-            &mut self,
-            n: &mut ShowRetentionPoliciesStatement,
-        ) -> Result<Recursion, Self::Error> {
-            self.push_pre("show_retention_policies_statement", n);
-            Ok(Continue)
-        }
-
-        fn post_visit_show_retention_policies_statement(
-            &mut self,
-            n: &mut ShowRetentionPoliciesStatement,
-        ) -> Result<(), Self::Error> {
-            self.push_post("show_retention_policies_statement", n);
-            Ok(())
-        }
-
-        fn pre_visit_show_tag_keys_statement(
-            &mut self,
-            n: &mut ShowTagKeysStatement,
-        ) -> Result<Recursion, Self::Error> {
-            self.push_pre("show_tag_keys_statement", n);
-            Ok(Continue)
-        }
-
-        fn post_visit_show_tag_keys_statement(
-            &mut self,
-            n: &mut ShowTagKeysStatement,
-        ) -> Result<(), Self::Error> {
-            self.push_post("show_tag_keys_statement", n);
-            Ok(())
-        }
-
-        fn pre_visit_show_tag_values_statement(
-            &mut self,
-            n: &mut ShowTagValuesStatement,
-        ) -> Result<Recursion, Self::Error> {
-            self.push_pre("show_tag_values_statement", n);
-            Ok(Continue)
-        }
-
-        fn post_visit_show_tag_values_statement(
-            &mut self,
-            n: &mut ShowTagValuesStatement,
-        ) -> Result<(), Self::Error> {
-            self.push_post("show_tag_values_statement", n);
-            Ok(())
-        }
-
-        fn pre_visit_show_field_keys_statement(
-            &mut self,
-            n: &mut ShowFieldKeysStatement,
-        ) -> Result<Recursion, Self::Error> {
-            self.push_pre("show_field_keys_statement", n);
-            Ok(Continue)
-        }
-
-        fn post_visit_show_field_keys_statement(
-            &mut self,
-            n: &mut ShowFieldKeysStatement,
-        ) -> Result<(), Self::Error> {
-            self.push_post("show_field_keys_statement", n);
-            Ok(())
-        }
-
-        fn pre_visit_conditional_expression(
-            &mut self,
-            n: &mut ConditionalExpression,
-        ) -> Result<Recursion, Self::Error> {
-            self.push_pre("conditional_expression", n);
-            Ok(Continue)
-        }
-
-        fn post_visit_conditional_expression(
-            &mut self,
-            n: &mut ConditionalExpression,
-        ) -> Result<(), Self::Error> {
-            self.push_post("conditional_expression", n);
-            Ok(())
-        }
-
-        fn pre_visit_expr(&mut self, n: &mut Expr) -> Result<Recursion, Self::Error> {
-            self.push_pre("expr", n);
-            Ok(Continue)
-        }
-
-        fn post_visit_expr(&mut self, n: &mut Expr) -> Result<(), Self::Error> {
-            self.push_post("expr", n);
-            Ok(())
-        }
-
-        fn pre_visit_select_field_list(
-            &mut self,
-            n: &mut FieldList,
-        ) -> Result<Recursion, Self::Error> {
-            self.push_pre("select_field_list", n);
-            Ok(Continue)
-        }
-
-        fn post_visit_select_field_list(&mut self, n: &mut FieldList) -> Result<(), Self::Error> {
-            self.push_post("select_field_list", n);
-            Ok(())
-        }
-
-        fn pre_visit_select_field(&mut self, n: &mut Field) -> Result<Recursion, Self::Error> {
-            self.push_pre("select_field", n);
-            Ok(Continue)
-        }
-
-        fn post_visit_select_field(&mut self, n: &mut Field) -> Result<(), Self::Error> {
-            self.push_post("select_field", n);
-            Ok(())
-        }
-
-        fn pre_visit_select_from_clause(
-            &mut self,
-            n: &mut FromMeasurementClause,
-        ) -> Result<Recursion, Self::Error> {
-            self.push_pre("select_from_clause", n);
-            Ok(Continue)
-        }
-
-        fn post_visit_select_from_clause(
-            &mut self,
-            n: &mut FromMeasurementClause,
-        ) -> Result<(), Self::Error> {
-            self.push_post("select_from_clause", n);
-            Ok(())
-        }
-
-        fn pre_visit_select_measurement_selection(
-            &mut self,
-            n: &mut MeasurementSelection,
-        ) -> Result<Recursion, Self::Error> {
-            self.push_pre("select_measurement_selection", n);
-            Ok(Continue)
-        }
-
-        fn post_visit_select_measurement_selection(
-            &mut self,
-            n: &mut MeasurementSelection,
-        ) -> Result<(), Self::Error> {
-            self.push_post("select_measurement_selection", n);
-            Ok(())
-        }
-
-        fn pre_visit_group_by_clause(
-            &mut self,
-            n: &mut GroupByClause,
-        ) -> Result<Recursion, Self::Error> {
-            self.push_pre("group_by_clause", n);
-            Ok(Continue)
-        }
-
-        fn post_visit_group_by_clause(&mut self, n: &mut GroupByClause) -> Result<(), Self::Error> {
-            self.push_post("group_by_clause", n);
-            Ok(())
-        }
-
-        fn pre_visit_select_dimension(
-            &mut self,
-            n: &mut Dimension,
-        ) -> Result<Recursion, Self::Error> {
-            self.push_pre("select_dimension", n);
-            Ok(Continue)
-        }
-
-        fn post_visit_select_dimension(&mut self, n: &mut Dimension) -> Result<(), Self::Error> {
-            self.push_post("select_dimension", n);
-            Ok(())
-        }
-
-        fn pre_visit_select_time_dimension(
-            &mut self,
-            n: &mut TimeDimension,
-        ) -> Result<Recursion, Self::Error> {
-            self.push_pre("select_time_dimension", n);
-            Ok(Continue)
-        }
-
-        fn post_visit_select_time_dimension(
-            &mut self,
-            n: &mut TimeDimension,
-        ) -> Result<(), Self::Error> {
-            self.push_post("select_time_dimension", n);
-            Ok(())
-        }
-
-        fn pre_visit_where_clause(
-            &mut self,
-            n: &mut WhereClause,
-        ) -> Result<Recursion, Self::Error> {
-            self.push_pre("where_clause", n);
-            Ok(Continue)
-        }
-
-        fn post_visit_where_clause(&mut self, n: &mut WhereClause) -> Result<(), Self::Error> {
-            self.push_post("where_clause", n);
-            Ok(())
-        }
-
-        fn pre_visit_show_from_clause(
-            &mut self,
-            n: &mut ShowFromClause,
-        ) -> Result<Recursion, Self::Error> {
-            self.push_pre("show_from_clause", n);
-            Ok(Continue)
-        }
-
-        fn post_visit_show_from_clause(
-            &mut self,
-            n: &mut ShowFromClause,
-        ) -> Result<(), Self::Error> {
-            self.push_post("show_from_clause", n);
-            Ok(())
-        }
-
-        fn pre_visit_qualified_measurement_name(
-            &mut self,
-            n: &mut QualifiedMeasurementName,
-        ) -> Result<Recursion, Self::Error> {
-            self.push_pre("qualified_measurement_name", n);
-            Ok(Continue)
-        }
-
-        fn post_visit_qualified_measurement_name(
-            &mut self,
-            n: &mut QualifiedMeasurementName,
-        ) -> Result<(), Self::Error> {
-            self.push_post("qualified_measurement_name", n);
-            Ok(())
-        }
-
-        fn pre_visit_fill_clause(&mut self, n: &mut FillClause) -> Result<Recursion, Self::Error> {
-            self.push_pre("fill_clause", n);
-            Ok(Continue)
-        }
-
-        fn post_visit_fill_clause(&mut self, n: &mut FillClause) -> Result<(), Self::Error> {
-            self.push_post("fill_clause", n);
-            Ok(())
-        }
-
-        fn pre_visit_order_by_clause(
-            &mut self,
-            n: &mut OrderByClause,
-        ) -> Result<Recursion, Self::Error> {
-            self.push_pre("order_by_clause", n);
-            Ok(Continue)
-        }
-
-        fn post_visit_order_by_clause(&mut self, n: &mut OrderByClause) -> Result<(), Self::Error> {
-            self.push_post("order_by_clause", n);
-            Ok(())
-        }
-
-        fn pre_visit_limit_clause(
-            &mut self,
-            n: &mut LimitClause,
-        ) -> Result<Recursion, Self::Error> {
-            self.push_pre("limit_clause", n);
-            Ok(Continue)
-        }
-
-        fn post_visit_limit_clause(&mut self, n: &mut LimitClause) -> Result<(), Self::Error> {
-            self.push_post("limit_clause", n);
-            Ok(())
-        }
-
-        fn pre_visit_offset_clause(
-            &mut self,
-            n: &mut OffsetClause,
-        ) -> Result<Recursion, Self::Error> {
-            self.push_pre("offset_clause", n);
-            Ok(Continue)
-        }
-
-        fn post_visit_offset_clause(&mut self, n: &mut OffsetClause) -> Result<(), Self::Error> {
-            self.push_post("offset_clause", n);
-            Ok(())
-        }
-
-        fn pre_visit_slimit_clause(
-            &mut self,
-            n: &mut SLimitClause,
-        ) -> Result<Recursion, Self::Error> {
-            self.push_pre("slimit_clause", n);
-            Ok(Continue)
-        }
-
-        fn post_visit_slimit_clause(&mut self, n: &mut SLimitClause) -> Result<(), Self::Error> {
-            self.push_post("slimit_clause", n);
-            Ok(())
-        }
-
-        fn pre_visit_soffset_clause(
-            &mut self,
-            n: &mut SOffsetClause,
-        ) -> Result<Recursion, Self::Error> {
-            self.push_pre("soffset_clause", n);
-            Ok(Continue)
-        }
-
-        fn post_visit_soffset_clause(&mut self, n: &mut SOffsetClause) -> Result<(), Self::Error> {
-            self.push_post("soffset_clause", n);
-            Ok(())
-        }
-
-        fn pre_visit_timezone_clause(
-            &mut self,
-            n: &mut TimeZoneClause,
-        ) -> Result<Recursion, Self::Error> {
-            self.push_pre("timezone_clause", n);
-            Ok(Continue)
-        }
-
-        fn post_visit_timezone_clause(
-            &mut self,
-            n: &mut TimeZoneClause,
-        ) -> Result<(), Self::Error> {
-            self.push_post("timezone_clause", n);
-            Ok(())
-        }
-
-        fn pre_visit_extended_on_clause(
-            &mut self,
-            n: &mut ExtendedOnClause,
-        ) -> Result<Recursion, Self::Error> {
-            self.push_pre("extended_on_clause", n);
-            Ok(Continue)
-        }
-
-        fn post_visit_extended_on_clause(
-            &mut self,
-            n: &mut ExtendedOnClause,
-        ) -> Result<(), Self::Error> {
-            self.push_post("extended_on_clause", n);
-            Ok(())
-        }
-
-        fn pre_visit_on_clause(&mut self, n: &mut OnClause) -> Result<Recursion, Self::Error> {
-            self.push_pre("on_clause", n);
-            Ok(Continue)
-        }
-
-        fn post_visit_on_clause(&mut self, n: &mut OnClause) -> Result<(), Self::Error> {
-            self.push_pre("on_clause", n);
-            Ok(())
-        }
-
-        fn pre_visit_with_measurement_clause(
-            &mut self,
-            n: &mut WithMeasurementClause,
-        ) -> Result<Recursion, Self::Error> {
-            self.push_pre("with_measurement_clause", n);
-            Ok(Continue)
-        }
-
-        fn post_visit_with_measurement_clause(
-            &mut self,
-            n: &mut WithMeasurementClause,
-        ) -> Result<(), Self::Error> {
-            self.push_post("with_measurement_clause", n);
-            Ok(())
-        }
-
-        fn pre_visit_with_key_clause(
-            &mut self,
-            n: &mut WithKeyClause,
-        ) -> Result<Recursion, Self::Error> {
-            self.push_pre("with_key_clause", n);
-            Ok(Continue)
-        }
-
-        fn post_visit_with_key_clause(&mut self, n: &mut WithKeyClause) -> Result<(), Self::Error> {
-            self.push_post("with_key_clause", n);
-            Ok(())
-        }
+        trace_visit!(statement, Statement);
+        trace_visit!(delete_statement, DeleteStatement);
+        trace_visit!(delete_from_clause, DeleteFromClause);
+        trace_visit!(measurement_name, MeasurementName);
+        trace_visit!(drop_measurement_statement, DropMeasurementStatement);
+        trace_visit!(explain_statement, ExplainStatement);
+        trace_visit!(select_statement, SelectStatement);
+        trace_visit!(show_databases_statement, ShowDatabasesStatement);
+        trace_visit!(show_measurements_statement, ShowMeasurementsStatement);
+        trace_visit!(
+            show_retention_policies_statement,
+            ShowRetentionPoliciesStatement
+        );
+        trace_visit!(show_tag_keys_statement, ShowTagKeysStatement);
+        trace_visit!(show_tag_values_statement, ShowTagValuesStatement);
+        trace_visit!(show_field_keys_statement, ShowFieldKeysStatement);
+        trace_visit!(conditional_expression, ConditionalExpression);
+        trace_visit!(expr, Expr);
+        trace_visit!(select_field_list, FieldList);
+        trace_visit!(select_field, Field);
+        trace_visit!(select_from_clause, FromMeasurementClause);
+        trace_visit!(select_measurement_selection, MeasurementSelection);
+        trace_visit!(group_by_clause, GroupByClause);
+        trace_visit!(select_dimension, Dimension);
+        trace_visit!(select_time_dimension, TimeDimension);
+        trace_visit!(where_clause, WhereClause);
+        trace_visit!(show_from_clause, ShowFromClause);
+        trace_visit!(qualified_measurement_name, QualifiedMeasurementName);
+        trace_visit!(fill_clause, FillClause);
+        trace_visit!(order_by_clause, OrderByClause);
+        trace_visit!(limit_clause, LimitClause);
+        trace_visit!(offset_clause, OffsetClause);
+        trace_visit!(slimit_clause, SLimitClause);
+        trace_visit!(soffset_clause, SOffsetClause);
+        trace_visit!(timezone_clause, TimeZoneClause);
+        trace_visit!(extended_on_clause, ExtendedOnClause);
+        trace_visit!(on_clause, OnClause);
+        trace_visit!(with_measurement_clause, WithMeasurementClause);
+        trace_visit!(with_key_clause, WithKeyClause);
+        trace_visit!(var_ref, VarRef);
+        trace_visit!(call, Call);
+        trace_visit!(expr_binary, Binary);
+        trace_visit!(conditional_binary, ConditionalBinary);
     }
 
     macro_rules! visit_statement {

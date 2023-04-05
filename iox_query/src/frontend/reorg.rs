@@ -226,7 +226,7 @@ mod test {
 
     use crate::{
         exec::{Executor, ExecutorType},
-        test::{raw_data, TestChunk},
+        test::{format_execution_plan, raw_data, TestChunk},
     };
 
     use super::*;
@@ -396,6 +396,23 @@ mod test {
             .create_physical_plan(&compact_plan)
             .await
             .unwrap();
+
+        insta::assert_yaml_snapshot!(
+            format_execution_plan(&physical_plan),
+            @r###"
+        ---
+        - " SortPreservingMergeExec: [tag1@2 DESC,time@3 ASC NULLS LAST]"
+        - "   UnionExec"
+        - "     SortExec: expr=[tag1@2 DESC,time@3 ASC NULLS LAST]"
+        - "       RecordBatchesExec: batches_groups=1 batches=1 total_rows=5"
+        - "     SortExec: expr=[tag1@2 DESC,time@3 ASC NULLS LAST]"
+        - "       ProjectionExec: expr=[field_int@1 as field_int, field_int2@2 as field_int2, tag1@3 as tag1, time@4 as time]"
+        - "         DeduplicateExec: [tag1@3 ASC,time@4 ASC]"
+        - "           SortExec: expr=[tag1@3 ASC,time@4 ASC,__chunk_order@0 ASC]"
+        - "             RecordBatchesExec: batches_groups=1 batches=1 total_rows=4"
+        "###
+        );
+
         assert_eq!(
             physical_plan.output_partitioning().partition_count(),
             1,
@@ -447,6 +464,23 @@ mod test {
             .create_physical_plan(&split_plan)
             .await
             .unwrap();
+
+        insta::assert_yaml_snapshot!(
+            format_execution_plan(&physical_plan),
+            @r###"
+        ---
+        - " StreamSplitExec"
+        - "   SortPreservingMergeExec: [time@3 ASC NULLS LAST,tag1@2 ASC]"
+        - "     UnionExec"
+        - "       SortExec: expr=[time@3 ASC NULLS LAST,tag1@2 ASC]"
+        - "         RecordBatchesExec: batches_groups=1 batches=1 total_rows=5"
+        - "       SortExec: expr=[time@3 ASC NULLS LAST,tag1@2 ASC]"
+        - "         ProjectionExec: expr=[field_int@1 as field_int, field_int2@2 as field_int2, tag1@3 as tag1, time@4 as time]"
+        - "           DeduplicateExec: [tag1@3 ASC,time@4 ASC]"
+        - "             SortExec: expr=[tag1@3 ASC,time@4 ASC,__chunk_order@0 ASC]"
+        - "               RecordBatchesExec: batches_groups=1 batches=1 total_rows=4"
+        "###
+        );
 
         assert_eq!(
             physical_plan.output_partitioning().partition_count(),
@@ -511,6 +545,23 @@ mod test {
             .create_physical_plan(&split_plan)
             .await
             .unwrap();
+
+        insta::assert_yaml_snapshot!(
+            format_execution_plan(&physical_plan),
+            @r###"
+        ---
+        - " StreamSplitExec"
+        - "   SortPreservingMergeExec: [time@3 ASC NULLS LAST,tag1@2 ASC]"
+        - "     UnionExec"
+        - "       SortExec: expr=[time@3 ASC NULLS LAST,tag1@2 ASC]"
+        - "         RecordBatchesExec: batches_groups=1 batches=1 total_rows=5"
+        - "       SortExec: expr=[time@3 ASC NULLS LAST,tag1@2 ASC]"
+        - "         ProjectionExec: expr=[field_int@1 as field_int, field_int2@2 as field_int2, tag1@3 as tag1, time@4 as time]"
+        - "           DeduplicateExec: [tag1@3 ASC,time@4 ASC]"
+        - "             SortExec: expr=[tag1@3 ASC,time@4 ASC,__chunk_order@0 ASC]"
+        - "               RecordBatchesExec: batches_groups=1 batches=1 total_rows=4"
+        "###
+        );
 
         assert_eq!(
             physical_plan.output_partitioning().partition_count(),

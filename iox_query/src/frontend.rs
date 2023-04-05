@@ -19,7 +19,7 @@ mod test {
         exec::{split::StreamSplitExec, Executor, ExecutorType, IOxSessionContext},
         frontend::reorg::ReorgPlanner,
         provider::{DeduplicateExec, RecordBatchesExec},
-        test::TestChunk,
+        test::{format_execution_plan, TestChunk},
         QueryChunk, QueryChunkMeta, ScanPlanBuilder,
     };
 
@@ -59,6 +59,7 @@ mod test {
 
     #[tokio::test]
     async fn test_scan_plan_deduplication() {
+        test_helpers::maybe_start_logging();
         // Create 2 overlapped chunks
         let (schema, chunks) = get_test_overlapped_chunks();
         let ctx = IOxSessionContext::with_testing();
@@ -77,6 +78,18 @@ mod test {
             .create_physical_plan(&logical_plan)
             .await
             .unwrap();
+
+        insta::assert_yaml_snapshot!(
+            format_execution_plan(&physical_plan),
+            @r###"
+        ---
+        - " ProjectionExec: expr=[field_int@1 as field_int, field_int2@2 as field_int2, tag1@3 as tag1, time@4 as time]"
+        - "   DeduplicateExec: [tag1@3 ASC,time@4 ASC]"
+        - "     SortPreservingMergeExec: [tag1@3 ASC,time@4 ASC,__chunk_order@0 ASC]"
+        - "       SortExec: expr=[tag1@3 ASC,time@4 ASC,__chunk_order@0 ASC]"
+        - "         RecordBatchesExec: batches_groups=2 batches=2 total_rows=9"
+        "###
+        );
 
         // Verify output data
         // Since data is merged due to deduplication, the two input chunks will be merged into one output chunk
@@ -107,6 +120,7 @@ mod test {
 
     #[tokio::test]
     async fn test_scan_plan_without_deduplication() {
+        test_helpers::maybe_start_logging();
         // Create 2 overlapped chunks
         let (schema, chunks) = get_test_chunks();
         let ctx = IOxSessionContext::with_testing();
@@ -170,6 +184,7 @@ mod test {
 
     #[tokio::test]
     async fn test_scan_plan_without_deduplication_but_sort() {
+        test_helpers::maybe_start_logging();
         // Create 2 overlapped chunks
         let (schema, chunks) = get_test_chunks();
         let sort_key = SortKey::from_columns(vec!["time", "tag1"]);
@@ -223,6 +238,7 @@ mod test {
 
     #[tokio::test]
     async fn test_metrics() {
+        test_helpers::maybe_start_logging();
         let (schema, chunks) = get_test_chunks();
         let sort_key = SortKey::from_columns(vec!["time", "tag1"]);
 
@@ -238,6 +254,9 @@ mod test {
             .await
             .unwrap();
 
+        assert_eq!(plan.output_partitioning().partition_count(), 2);
+
+        println!("Executing partition 0");
         let mut stream0 = test_execute_partition(Arc::clone(&plan), 0).await;
         let mut num_rows = 0;
         while let Some(batch) = stream0.next().await {
@@ -245,6 +264,7 @@ mod test {
         }
         assert_eq!(num_rows, 3);
 
+        println!("Executing partition 1");
         let mut stream1 = test_execute_partition(Arc::clone(&plan), 1).await;
         let mut num_rows = 0;
         while let Some(batch) = stream1.next().await {
@@ -258,7 +278,7 @@ mod test {
         })
         .unwrap();
 
-        assert_extracted_metrics!(extracted, 5);
+        assert_extracted_metrics!(extracted, 9);
 
         // now the deduplicator
         let extracted = extract_metrics(plan.as_ref(), |plan| {
@@ -336,12 +356,26 @@ mod test {
                 _ => {}
             });
 
-            self.inner = Some(ExtractedMetrics {
+            let new = ExtractedMetrics {
                 elapsed_compute: elapsed_compute.expect("did not find metric"),
                 output_rows: output_rows.expect("did not find metric"),
                 start_timestamp: start_timestamp.expect("did not find metric"),
                 end_timestamp: end_timestamp.expect("did not find metric"),
-            });
+            };
+
+            if let Some(existing) = &self.inner {
+                let ExtractedMetrics {
+                    elapsed_compute,
+                    output_rows,
+                    start_timestamp,
+                    end_timestamp,
+                } = existing;
+                new.elapsed_compute.add(elapsed_compute);
+                new.output_rows.add(output_rows.value());
+                new.start_timestamp.update_to_min(start_timestamp);
+                new.end_timestamp.update_to_max(end_timestamp);
+            }
+            self.inner = Some(new);
 
             // found what we are looking for, no need to continue
             Ok(false)
@@ -363,6 +397,7 @@ mod test {
         let max_time = if overlapped { 70000 } else { 7000 };
         let chunk1 = Arc::new(
             TestChunk::new("t")
+                .with_order(1)
                 .with_partition_id(1)
                 .with_time_column_with_stats(Some(50), Some(max_time))
                 .with_tag_column_with_stats("tag1", Some("AL"), Some("MT"))
@@ -373,6 +408,7 @@ mod test {
         // Chunk 2 has an extra field, and only 4 rows
         let chunk2 = Arc::new(
             TestChunk::new("t")
+                .with_order(2)
                 .with_partition_id(1)
                 .with_time_column_with_stats(Some(28000), Some(220000))
                 .with_tag_column_with_stats("tag1", Some("UT"), Some("WA"))

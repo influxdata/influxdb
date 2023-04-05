@@ -292,6 +292,7 @@ SELECT usage_idle, bytes_free, device, cpu FROM cpu, disk GROUP BY device, cpu;
 SELECT COUNT(f64), SUM(f64), stddev(f64) FROM m0;
 SELECT COUNT(f64), SUM(f64), stddev(f64) FROM m0, m1;
 SELECT COUNT(f64), SUM(f64), stddev(f64) FROM m0 GROUP BY tag0;
+-- IOX_COMPARE: sorted
 SELECT COUNT(f64), SUM(f64), stddev(f64) FROM m0, m1 GROUP BY tag0;
 SELECT COUNT(f64), SUM(f64), stddev(f64) FROM m0 GROUP BY tag0, non_existent;
 SELECT COUNT(f64), SUM(f64), stddev(f64) FROM m0 GROUP BY non_existent;
@@ -303,20 +304,30 @@ SELECT COUNT(f64) as the_count, SUM(f64) + SUM(non_existent) as foo FROM m0;
 
 -- measurements with different schema
 SELECT MEAN(usage_idle), MEAN(bytes_free) FROM cpu, disk;
+-- IOX_COMPARE: sorted
 SELECT MEAN(usage_idle), MEAN(bytes_free) FROM cpu, disk GROUP BY TIME(10s) FILL(none);
 
--- TODO(sgc): The following two queries produce incorrect results
--- See: https://github.com/influxdata/influxdb_iox/issues/7361
 -- using aggregates across measurements
--- SELECT MEAN(usage_idle) + MEAN(bytes_free) FROM cpu, disk;
--- using aggregates with missing fields
--- SELECT MEAN(usage_idle) + MEAN(foo) FROM cpu;
+SELECT MEAN(usage_idle) + MEAN(bytes_free) FROM cpu, disk;
+-- using aggregates with missing fields, should return a single, null value for the row
+SELECT MEAN(usage_idle) + MEAN(foo) FROM cpu;
+-- should return the mean result and a null result for the second column
+SELECT MEAN(usage_idle), MEAN(usage_idle) + MEAN(foo) FROM cpu;
+-- should return no results
+SELECT MEAN(foo) FROM cpu;
+-- should return a row for each tag key
+SELECT MEAN(usage_idle) + MEAN(foo) FROM cpu GROUP BY cpu;
+-- should return a row result for each tag key
+SELECT MEAN(usage_idle), MEAN(usage_idle) + MEAN(foo) FROM cpu GROUP BY cpu;
+-- should return nothing
+SELECT MEAN(foo) FROM cpu GROUP BY cpu;
 
 SELECT COUNT(f64), SUM(f64) FROM m0 GROUP BY TIME(30s) FILL(none);
 -- supports offset parameter
 SELECT COUNT(f64), SUM(f64) FROM m0 GROUP BY TIME(30s, 1s) FILL(none);
 
 SELECT COUNT(usage_idle), COUNT(bytes_free) FROM cpu, disk;
+-- IOX_COMPARE: sorted
 SELECT COUNT(usage_idle), COUNT(bytes_free) FROM cpu, disk GROUP BY TIME(1s) FILL(none);
 SELECT COUNT(usage_idle), COUNT(bytes_free) FROM cpu, disk GROUP BY cpu;
 SELECT COUNT(usage_idle) as count_usage_idle, COUNT(bytes_free) as count_bytes_free FROM cpu, disk WHERE cpu = 'cpu0' OR device = 'disk1s1' GROUP BY cpu;

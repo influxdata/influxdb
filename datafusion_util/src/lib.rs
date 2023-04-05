@@ -12,6 +12,7 @@
 
 pub mod config;
 pub mod sender;
+pub mod sort_exprs;
 pub mod watch;
 
 use std::sync::Arc;

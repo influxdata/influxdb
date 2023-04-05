@@ -66,3 +66,12 @@ from cpu
 where time between timestamp '2000-05-05T12:15:00Z' and timestamp '2000-05-05T12:59:00Z'
 group by region, minute;
 
+-- cpu.idle has a null value at 12:31. It should propagate the value from 12:20 forward,
+-- overwriting the null value.
+SELECT
+  date_bin_gapfill(interval '1 minute', time, timestamp '1970-01-01T00:00:00Z') as minute,
+  locf(min(cpu.idle))
+from cpu
+where time between timestamp '2000-05-05T12:19:00Z' and timestamp '2000-05-05T12:40:00Z'
+group by minute;
+

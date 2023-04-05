@@ -274,7 +274,7 @@ pub struct IoxMetadata {
     /// partition id of the data
     pub partition_id: PartitionId,
 
-    /// parittion key of the data
+    /// partition key of the data
     pub partition_key: PartitionKey,
 
     /// sequence number of the last write

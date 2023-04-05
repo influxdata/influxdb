@@ -442,6 +442,13 @@ impl TestChunk {
         }
     }
 
+    pub fn with_order(self, order: i64) -> Self {
+        Self {
+            order: ChunkOrder::new(order),
+            ..self
+        }
+    }
+
     pub fn with_dummy_parquet_file(self) -> Self {
         self.with_dummy_parquet_file_and_store("iox://store")
     }

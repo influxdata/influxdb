@@ -51,6 +51,8 @@ pub struct ParquetFileSimulator {
     run_log: Arc<Mutex<Vec<String>>>,
     /// Used to generate run ids for display
     run_id_generator: AtomicUsize,
+    /// Used to track total bytes written (to help judge efficiency changes)
+    bytes_written: Arc<AtomicUsize>,
 }
 
 impl std::fmt::Display for ParquetFileSimulator {
@@ -62,10 +64,11 @@ impl std::fmt::Display for ParquetFileSimulator {
 impl ParquetFileSimulator {
     /// Create a new simulator for creating parquet files, which
     /// appends its output to `run_log`
-    pub fn new(run_log: Arc<Mutex<Vec<String>>>) -> Self {
+    pub fn new(run_log: Arc<Mutex<Vec<String>>>, bytes_written: Arc<AtomicUsize>) -> Self {
         Self {
             run_log,
             run_id_generator: AtomicUsize::new(0),
+            bytes_written,
         }
     }
 
@@ -121,6 +124,7 @@ impl ParquetFilesSink for ParquetFileSimulator {
         let column_set = overall_column_set(input_parquet_files.iter());
         let output_files = even_time_split(&input_files, split_times, target_level);
         let partition_info = partition_info.as_ref();
+        let bytes_written: i64 = input_parquet_files.iter().map(|f| f.file_size_bytes).sum();
 
         // Compute final output
         let output_params: Vec<_> = output_files
@@ -138,6 +142,8 @@ impl ParquetFilesSink for ParquetFileSimulator {
             output_params: output_params.clone(),
         };
         self.run_log.lock().unwrap().extend(run.into_strings());
+        self.bytes_written
+            .fetch_add(bytes_written as usize, Ordering::Relaxed);
 
         Ok(output_params)
     }

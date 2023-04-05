@@ -254,10 +254,7 @@ pub fn identify_start_level_files_to_split(
         // Neither split file that overlaps with only one file in target level
         // nor has a single timestamp (splitting this will lead to the same file and as a result will introduce infinite loop)
         // nor has time range = 1 (splitting this will cause panic because split_time will be min_tim/max_time which is disallowed)
-        if overlapped_target_level_files.len() < 2
-            || file.min_time == file.max_time
-            || file.min_time == file.max_time - 1
-        {
+        if overlapped_target_level_files.len() < 2 || file.min_time == file.max_time {
             files_not_to_split.push(file);
         } else {
             debug!(?file.min_time, ?file.max_time, ?file.compaction_level, "time range of file to split");

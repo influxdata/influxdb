@@ -535,7 +535,7 @@ fn test_gapfill_fill_prev() {
                 ]],
                 input_batch_size,
             };
-            let params = get_params_ms_with_fill_strategy(&records, 25, Some(975), 1_125, FillStrategy::Prev);
+            let params = get_params_ms_with_fill_strategy(&records, 25, Some(975), 1_125, FillStrategy::PrevNullAsIntentional);
             let tc = TestCase {
                 test_records: records,
                 output_batch_size,

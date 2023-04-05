@@ -2,10 +2,10 @@
 source: influxdb_influxql_parser/src/expression/walk.rs
 expression: "walk_expression(\"time > now() + 1h\")"
 ---
-0: Arithmetic(VarRef { name: Identifier("time"), data_type: None })
-1: Conditional(Expr(VarRef { name: Identifier("time"), data_type: None }))
-2: Arithmetic(Call { name: "now", args: [] })
+0: Arithmetic(VarRef(VarRef { name: Identifier("time"), data_type: None }))
+1: Conditional(Expr(VarRef(VarRef { name: Identifier("time"), data_type: None })))
+2: Arithmetic(Call(Call { name: "now", args: [] }))
 3: Arithmetic(Literal(Duration(Duration(3600000000000))))
-4: Arithmetic(Binary { lhs: Call { name: "now", args: [] }, op: Add, rhs: Literal(Duration(Duration(3600000000000))) })
-5: Conditional(Expr(Binary { lhs: Call { name: "now", args: [] }, op: Add, rhs: Literal(Duration(Duration(3600000000000))) }))
-6: Conditional(Binary { lhs: Expr(VarRef { name: Identifier("time"), data_type: None }), op: Gt, rhs: Expr(Binary { lhs: Call { name: "now", args: [] }, op: Add, rhs: Literal(Duration(Duration(3600000000000))) }) })
+4: Arithmetic(Binary(Binary { lhs: Call(Call { name: "now", args: [] }), op: Add, rhs: Literal(Duration(Duration(3600000000000))) }))
+5: Conditional(Expr(Binary(Binary { lhs: Call(Call { name: "now", args: [] }), op: Add, rhs: Literal(Duration(Duration(3600000000000))) })))
+6: Conditional(Binary(ConditionalBinary { lhs: Expr(VarRef(VarRef { name: Identifier("time"), data_type: None })), op: Gt, rhs: Expr(Binary(Binary { lhs: Call(Call { name: "now", args: [] }), op: Add, rhs: Literal(Duration(Duration(3600000000000))) })) }))

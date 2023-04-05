@@ -13,7 +13,7 @@ use crate::{
     response_chunking::ChunkReadResponses,
     StorageService,
 };
-use data_types::{org_and_bucket_to_namespace, NamespaceName};
+use data_types::NamespaceName;
 use datafusion::error::DataFusionError;
 use futures::{stream::BoxStream, Stream, StreamExt, TryStreamExt};
 use generated_types::{
@@ -1101,7 +1101,7 @@ where
 }
 
 fn get_namespace_name(input: &impl GrpcInputs) -> Result<NamespaceName<'static>, Status> {
-    org_and_bucket_to_namespace(input.org_id()?.to_string(), &input.bucket_name()?)
+    NamespaceName::from_org_and_bucket(input.org_id()?.to_string(), input.bucket_name()?)
         .map_err(|e| Status::internal(e.to_string()))
 }
 

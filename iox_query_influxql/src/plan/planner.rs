@@ -29,7 +29,8 @@ use generated_types::influxdata::iox::querier::v1::InfluxQlMetadata;
 use influxdb_influxql_parser::explain::{ExplainOption, ExplainStatement};
 use influxdb_influxql_parser::expression::walk::walk_expr;
 use influxdb_influxql_parser::expression::{
-    BinaryOperator, ConditionalExpression, ConditionalOperator, VarRefDataType,
+    Binary, Call, ConditionalBinary, ConditionalExpression, ConditionalOperator, VarRef,
+    VarRefDataType,
 };
 use influxdb_influxql_parser::select::{
     FillClause, GroupByClause, SLimitClause, SOffsetClause, TimeZoneClause,
@@ -109,7 +110,7 @@ struct Context<'a> {
     scope: ExprScope,
     tz: Option<Tz>,
 
-    /// `true` if the query projects aggregates.
+    /// `true` if the query projection specifies aggregate expressions.
     is_aggregate: bool,
 
     // GROUP BY information
@@ -255,10 +256,10 @@ impl<'a> InfluxQLToLogicalPlan<'a> {
         // The `time` column is always present in the result set
         let mut fields = if find_time_column_index(&select.fields).is_none() {
             vec![Field {
-                expr: IQLExpr::VarRef {
+                expr: IQLExpr::VarRef(VarRef {
                     name: "time".into(),
                     data_type: Some(VarRefDataType::Timestamp),
-                },
+                }),
                 alias: Some("time".into()),
             }]
         } else {
@@ -297,10 +298,10 @@ impl<'a> InfluxQLToLogicalPlan<'a> {
                         .filter_map(|col| match tag_columns.remove(*col) {
                             true => None,
                             false => Some(Field {
-                                expr: IQLExpr::VarRef {
+                                expr: IQLExpr::VarRef(VarRef {
                                     name: (*col).into(),
                                     data_type: Some(VarRefDataType::Tag),
-                                },
+                                }),
                                 alias: Some((*col).into()),
                             }),
                         }),
@@ -390,7 +391,7 @@ impl<'a> InfluxQLToLogicalPlan<'a> {
             // looking for a reference to one column that
             // is a field
             walk_expr(&f.expr, &mut |e| match e {
-                IQLExpr::VarRef { name, .. } => {
+                IQLExpr::VarRef(VarRef { name, .. }) => {
                     match schemas.iox_schema.field_by_name(name.deref().as_str()) {
                         Some((InfluxColumnType::Field(_), _)) => ControlFlow::Break(()),
                         _ => ControlFlow::Continue(()),
@@ -402,6 +403,16 @@ impl<'a> InfluxQLToLogicalPlan<'a> {
         }) {
             return LogicalPlanBuilder::empty(false).build();
         }
+
+        // next we extract the functions which require windowing, such as difference or integral
+        fields.iter().any(|f| {
+            walk_expr(&f.expr, &mut |e| match e {
+                IQLExpr::Call(Call { name, .. }) if name == "difference" => ControlFlow::Break(()),
+                _ => ControlFlow::Continue(()),
+            });
+
+            false
+        });
 
         let plan = self.plan_where_clause(ctx, &select.condition, input, &schemas)?;
 
@@ -428,6 +439,10 @@ impl<'a> InfluxQLToLogicalPlan<'a> {
         group_by_tag_set: &[&str],
         schemas: &Schemas,
     ) -> Result<(LogicalPlan, Vec<Expr>)> {
+        if !ctx.is_aggregate {
+            return Ok((input, select_exprs));
+        }
+
         let Some(time_column_index) = find_time_column_index(fields) else {
             return Err(DataFusionError::Internal("unable to find time column".to_owned()))
         };
@@ -441,10 +456,13 @@ impl<'a> InfluxQLToLogicalPlan<'a> {
         // will produce two aggregate expressions:
         //
         // [SUM(foo), COUNT(foo)]
+        //
+        // NOTE:
+        //
+        // It is possible this vector is empty, when all the fields in the
+        // projection refer to columns that do not exist in the current
+        // table.
         let aggr_exprs = find_aggregate_exprs(&select_exprs);
-        if aggr_exprs.is_empty() {
-            return Ok((input, select_exprs));
-        }
 
         let aggr_group_by_exprs = if let Some(group_by) = ctx.group_by {
             let mut group_by_exprs = Vec::new();
@@ -471,6 +489,15 @@ impl<'a> InfluxQLToLogicalPlan<'a> {
         } else {
             vec![]
         };
+
+        if aggr_exprs.is_empty() && aggr_group_by_exprs.is_empty() {
+            // If there are no aggregate expressions in the projection, because
+            // they all referred to non-existent columns in the table, and there
+            // is no GROUP BY, the result set is a single row.
+            //
+            // This is required for InfluxQL compatibility.
+            return Ok((LogicalPlanBuilder::empty(true).build()?, select_exprs));
+        }
 
         let plan = LogicalPlanBuilder::from(input)
             .aggregate(aggr_group_by_exprs.clone(), aggr_exprs.clone())?
@@ -665,8 +692,8 @@ impl<'a> InfluxQLToLogicalPlan<'a> {
     ) -> Result<Expr> {
         match iql {
             ConditionalExpression::Expr(expr) => self.expr_to_df_expr(ctx, expr, schemas),
-            ConditionalExpression::Binary { lhs, op, rhs } => {
-                self.binary_conditional_to_df_expr(ctx, lhs, *op, rhs, schemas)
+            ConditionalExpression::Binary(expr) => {
+                self.binary_conditional_to_df_expr(ctx, expr, schemas)
             }
             ConditionalExpression::Grouped(e) => self.conditional_to_df_expr(ctx, e, schemas),
         }
@@ -676,12 +703,12 @@ impl<'a> InfluxQLToLogicalPlan<'a> {
     fn binary_conditional_to_df_expr(
         &self,
         ctx: &Context<'_>,
-        lhs: &ConditionalExpression,
-        op: ConditionalOperator,
-        rhs: &ConditionalExpression,
+        expr: &ConditionalBinary,
         schemas: &Schemas,
     ) -> Result<Expr> {
-        let op = conditional_op_to_operator(op)?;
+        let ConditionalBinary { lhs, op, rhs } = expr;
+
+        let op = conditional_op_to_operator(*op)?;
 
         let (lhs_time, rhs_time) = (is_time_field(lhs), is_time_field(rhs));
         let (lhs, rhs) = if matches!(
@@ -725,10 +752,10 @@ impl<'a> InfluxQLToLogicalPlan<'a> {
             IQLExpr::Wildcard(_) => Err(DataFusionError::Internal(
                 "unexpected wildcard in projection".into(),
             )),
-            IQLExpr::VarRef {
+            IQLExpr::VarRef(VarRef {
                 name,
                 data_type: opt_dst_type,
-            } => {
+            }) => {
                 let name = normalize_identifier(name);
                 Ok(
                     if ctx.scope == ExprScope::Where && name.eq_ignore_ascii_case("time") {
@@ -818,10 +845,8 @@ impl<'a> InfluxQLToLogicalPlan<'a> {
                 },
             },
             IQLExpr::Distinct(_) => Err(DataFusionError::NotImplemented("DISTINCT".into())),
-            IQLExpr::Call { name, args } => self.call_to_df_expr(ctx, name, args, schemas),
-            IQLExpr::Binary { lhs, op, rhs } => {
-                self.arithmetic_expr_to_df_expr(ctx, lhs, *op, rhs, schemas)
-            }
+            IQLExpr::Call(call) => self.call_to_df_expr(ctx, call, schemas),
+            IQLExpr::Binary(expr) => self.arithmetic_expr_to_df_expr(ctx, expr, schemas),
             IQLExpr::Nested(e) => self.expr_to_df_expr(ctx, e, schemas),
         }
     }
@@ -842,36 +867,30 @@ impl<'a> InfluxQLToLogicalPlan<'a> {
     /// > * <https://github.com/influxdata/influxdb_iox/issues/6939>
     ///
     /// [docs]: https://docs.influxdata.com/influxdb/v1.8/query_language/functions/
-    fn call_to_df_expr(
-        &self,
-        ctx: &Context<'_>,
-        name: &str,
-        args: &[IQLExpr],
-        schemas: &Schemas,
-    ) -> Result<Expr> {
-        if is_scalar_math_function(name) {
-            return self.scalar_math_func_to_df_expr(ctx, name, args, schemas);
+    fn call_to_df_expr(&self, ctx: &Context<'_>, call: &Call, schemas: &Schemas) -> Result<Expr> {
+        if is_scalar_math_function(call.name.as_str()) {
+            return self.scalar_math_func_to_df_expr(ctx, call, schemas);
         }
 
         match ctx.scope {
             ExprScope::Where => {
-                if name.eq_ignore_ascii_case("now") {
+                if call.name.eq_ignore_ascii_case("now") {
                     Err(DataFusionError::NotImplemented("now".into()))
                 } else {
+                    let name = &call.name;
                     Err(DataFusionError::External(
                         format!("invalid function call in condition: {name}").into(),
                     ))
                 }
             }
-            ExprScope::Projection => self.function_to_df_expr(ctx, name, args, schemas),
+            ExprScope::Projection => self.function_to_df_expr(ctx, call, schemas),
         }
     }
 
     fn function_to_df_expr(
         &self,
         ctx: &Context<'_>,
-        name: &str,
-        args: &[IQLExpr],
+        call: &Call,
         schemas: &Schemas,
     ) -> Result<Expr> {
         fn check_arg_count(name: &str, args: &[IQLExpr], count: usize) -> Result<()> {
@@ -885,7 +904,9 @@ impl<'a> InfluxQLToLogicalPlan<'a> {
             }
         }
 
-        match name {
+        let Call { name, args } = call;
+
+        match name.as_str() {
             "count" => {
                 // TODO(sgc): Handle `COUNT DISTINCT` variants
                 let distinct = false;
@@ -923,16 +944,16 @@ impl<'a> InfluxQLToLogicalPlan<'a> {
     fn scalar_math_func_to_df_expr(
         &self,
         ctx: &Context<'_>,
-        name: &str,
-        args: &[IQLExpr],
+        call: &Call,
         schemas: &Schemas,
     ) -> Result<Expr> {
-        let args = args
+        let args = call
+            .args
             .iter()
             .map(|e| self.expr_to_df_expr(ctx, e, schemas))
             .collect::<Result<Vec<Expr>>>()?;
 
-        match BuiltinScalarFunction::from_str(name)? {
+        match BuiltinScalarFunction::from_str(call.name.as_str())? {
             BuiltinScalarFunction::Log => {
                 if args.len() != 2 {
                     Err(DataFusionError::Plan(
@@ -953,15 +974,13 @@ impl<'a> InfluxQLToLogicalPlan<'a> {
     fn arithmetic_expr_to_df_expr(
         &self,
         ctx: &Context<'_>,
-        lhs: &IQLExpr,
-        op: BinaryOperator,
-        rhs: &IQLExpr,
+        expr: &Binary,
         schemas: &Schemas,
     ) -> Result<Expr> {
         Ok(binary_expr(
-            self.expr_to_df_expr(ctx, lhs, schemas)?,
-            binary_operator_to_df_operator(op),
-            self.expr_to_df_expr(ctx, rhs, schemas)?,
+            self.expr_to_df_expr(ctx, &expr.lhs, schemas)?,
+            binary_operator_to_df_operator(expr.op),
+            self.expr_to_df_expr(ctx, &expr.rhs, schemas)?,
         ))
     }
 
@@ -1174,7 +1193,7 @@ fn has_aggregate_exprs(fields: &FieldList) -> bool {
 /// call to an aggregate function.
 fn is_aggregate_field(f: &Field) -> bool {
     walk_expr(&f.expr, &mut |e| match e {
-        IQLExpr::Call { name, .. } if is_aggregate_function(name) => ControlFlow::Break(()),
+        IQLExpr::Call(Call { name, .. }) if is_aggregate_function(name) => ControlFlow::Break(()),
         _ => ControlFlow::Continue(()),
     })
     .is_break()
@@ -1184,10 +1203,10 @@ fn is_aggregate_field(f: &Field) -> bool {
 /// is a tag or is [`None`], which is unknown.
 fn find_tag_and_unknown_columns(fields: &FieldList) -> impl Iterator<Item = &str> {
     fields.iter().filter_map(|f| match &f.expr {
-        IQLExpr::VarRef {
+        IQLExpr::VarRef(VarRef {
             name,
             data_type: Some(VarRefDataType::Tag) | None,
-        } => Some(name.deref().as_str()),
+        }) => Some(name.deref().as_str()),
         _ => None,
     })
 }
@@ -1294,7 +1313,7 @@ pub(crate) fn find_time_column_index(fields: &[Field]) -> Option<usize> {
     fields
         .iter()
         .find_position(
-            |f| matches!(&f.expr, IQLExpr::VarRef { name, .. } if name.deref() == "time"),
+            |f| matches!(&f.expr, IQLExpr::VarRef(VarRef { name, .. }) if name.deref() == "time"),
         )
         .map(|(i, _)| i)
 }
@@ -1370,7 +1389,7 @@ fn is_aggregate_function(name: &str) -> bool {
 /// [go]: https://github.com/influxdata/influxql/blob/1ba470371ec093d57a726b143fe6ccbacf1b452b/ast.go#L5751-L5753
 fn is_time_field(cond: &ConditionalExpression) -> bool {
     if let ConditionalExpression::Expr(expr) = cond {
-        if let IQLExpr::VarRef { ref name, .. } = **expr {
+        if let IQLExpr::VarRef(VarRef { ref name, .. }) = **expr {
             name.eq_ignore_ascii_case("time")
         } else {
             false
@@ -1957,6 +1976,29 @@ mod test {
                       TableScan: data [TIME:Boolean;N, bar:Dictionary(Int32, Utf8);N, bool_field:Boolean;N, f64_field:Float64;N, foo:Dictionary(Int32, Utf8);N, i64_field:Int64;N, mixedCase:Float64;N, str_field:Utf8;N, time:Timestamp(Nanosecond, None), with space:Float64;N]
                 "###);
 
+                // Aggregate expression selecting non-existent field
+                assert_snapshot!(plan("SELECT MEAN(f64_field) + MEAN(non_existent) FROM data"), @r###"
+                Sort: time ASC NULLS LAST [iox::measurement:Dictionary(Int32, Utf8), time:Timestamp(Nanosecond, None), mean_f64_field_mean_non_existent:Null;N]
+                  Projection: Dictionary(Int32, Utf8("data")) AS iox::measurement, TimestampNanosecond(0, None) AS time, NULL AS mean_f64_field_mean_non_existent [iox::measurement:Dictionary(Int32, Utf8), time:Timestamp(Nanosecond, None), mean_f64_field_mean_non_existent:Null;N]
+                    EmptyRelation []
+                "###);
+
+                // Aggregate expression with GROUP BY and non-existent field
+                assert_snapshot!(plan("SELECT MEAN(f64_field) + MEAN(non_existent) FROM data GROUP BY foo"), @r###"
+                Sort: foo ASC NULLS LAST, time ASC NULLS LAST [iox::measurement:Dictionary(Int32, Utf8), time:Timestamp(Nanosecond, None), foo:Dictionary(Int32, Utf8);N, mean_f64_field_mean_non_existent:Null;N]
+                  Projection: Dictionary(Int32, Utf8("data")) AS iox::measurement, TimestampNanosecond(0, None) AS time, data.foo AS foo, NULL AS mean_f64_field_mean_non_existent [iox::measurement:Dictionary(Int32, Utf8), time:Timestamp(Nanosecond, None), foo:Dictionary(Int32, Utf8);N, mean_f64_field_mean_non_existent:Null;N]
+                    Aggregate: groupBy=[[data.foo]], aggr=[[]] [foo:Dictionary(Int32, Utf8);N]
+                      TableScan: data [TIME:Boolean;N, bar:Dictionary(Int32, Utf8);N, bool_field:Boolean;N, f64_field:Float64;N, foo:Dictionary(Int32, Utf8);N, i64_field:Int64;N, mixedCase:Float64;N, str_field:Utf8;N, time:Timestamp(Nanosecond, None), with space:Float64;N]
+                "###);
+
+                // Aggregate expression selecting tag, should treat as non-existent
+                assert_snapshot!(plan("SELECT MEAN(f64_field), MEAN(f64_field) + MEAN(non_existent) FROM data"), @r###"
+                Sort: time ASC NULLS LAST [iox::measurement:Dictionary(Int32, Utf8), time:Timestamp(Nanosecond, None), mean:Float64;N, mean_f64_field_mean_non_existent:Null;N]
+                  Projection: Dictionary(Int32, Utf8("data")) AS iox::measurement, TimestampNanosecond(0, None) AS time, AVG(data.f64_field) AS mean, NULL AS mean_f64_field_mean_non_existent [iox::measurement:Dictionary(Int32, Utf8), time:Timestamp(Nanosecond, None), mean:Float64;N, mean_f64_field_mean_non_existent:Null;N]
+                    Aggregate: groupBy=[[]], aggr=[[AVG(data.f64_field)]] [AVG(data.f64_field):Float64;N]
+                      TableScan: data [TIME:Boolean;N, bar:Dictionary(Int32, Utf8);N, bool_field:Boolean;N, f64_field:Float64;N, foo:Dictionary(Int32, Utf8);N, i64_field:Int64;N, mixedCase:Float64;N, str_field:Utf8;N, time:Timestamp(Nanosecond, None), with space:Float64;N]
+                "###);
+
                 // Fallible
 
                 // Cannot combine aggregate and non-aggregate columns in the projection
@@ -2039,7 +2081,7 @@ mod test {
                 assert_snapshot!(plan("SELECT COUNT(f64_field) FROM data GROUP BY TIME(10s) FILL(previous)"), @r###"
                 Sort: time ASC NULLS LAST [iox::measurement:Dictionary(Int32, Utf8), time:Timestamp(Nanosecond, None);N, count:Int64;N]
                   Projection: Dictionary(Int32, Utf8("data")) AS iox::measurement, time, COUNT(data.f64_field) AS count [iox::measurement:Dictionary(Int32, Utf8), time:Timestamp(Nanosecond, None);N, count:Int64;N]
-                    GapFill: groupBy=[[time]], aggr=[[LOCF(null-as-missing, COUNT(data.f64_field))]], time_column=time, stride=IntervalDayTime("10000"), range=Unbounded..Excluded(now()) [time:Timestamp(Nanosecond, None);N, COUNT(data.f64_field):Int64;N]
+                    GapFill: groupBy=[[time]], aggr=[[LOCF(COUNT(data.f64_field))]], time_column=time, stride=IntervalDayTime("10000"), range=Unbounded..Excluded(now()) [time:Timestamp(Nanosecond, None);N, COUNT(data.f64_field):Int64;N]
                       Aggregate: groupBy=[[datebin(IntervalDayTime("10000"), data.time, TimestampNanosecond(0, None)) AS time]], aggr=[[COUNT(data.f64_field)]] [time:Timestamp(Nanosecond, None);N, COUNT(data.f64_field):Int64;N]
                         TableScan: data [TIME:Boolean;N, bar:Dictionary(Int32, Utf8);N, bool_field:Boolean;N, f64_field:Float64;N, foo:Dictionary(Int32, Utf8);N, i64_field:Int64;N, mixedCase:Float64;N, str_field:Utf8;N, time:Timestamp(Nanosecond, None), with space:Float64;N]
                 "###);

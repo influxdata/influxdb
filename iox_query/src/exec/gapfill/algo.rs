@@ -520,7 +520,7 @@ impl Cursor {
             AggrColState::Null => {
                 self.build_aggr_fill_null(params, series_ends, input_time_array, input_aggr_array)
             }
-            AggrColState::Prev { .. } | AggrColState::PrevNullAsMissing { .. } => {
+            AggrColState::PrevNullAsIntentional { .. } | AggrColState::PrevNullAsMissing { .. } => {
                 self.build_aggr_fill_prev(params, series_ends, input_time_array, input_aggr_array)
             }
             AggrColState::PrevNullAsMissingStashed { .. } => self.build_aggr_fill_prev_stashed(
@@ -633,7 +633,7 @@ impl Cursor {
             ..
         } = aggr_builder;
         self.set_aggr_col_state(match null_as_missing {
-            false => AggrColState::Prev {
+            false => AggrColState::PrevNullAsIntentional {
                 offset: prev_offset,
             },
             true => AggrColState::PrevNullAsMissing {
@@ -801,8 +801,8 @@ impl Cursor {
 enum AggrColState {
     /// For [FillStrategy::Null] there is no state to maintain.
     Null,
-    /// For [FillStrategy::Prev].
-    Prev { offset: Option<u64> },
+    /// For [FillStrategy::PrevNullAsIntentional].
+    PrevNullAsIntentional { offset: Option<u64> },
     /// For [FillStrategy::PrevNullAsMissing].
     PrevNullAsMissing { offset: Option<u64> },
     /// For [FillStrategy::PrevNullAsMissing], when
@@ -823,7 +823,7 @@ impl AggrColState {
     fn new(fill_strategy: &FillStrategy) -> Self {
         match fill_strategy {
             FillStrategy::Null => Self::Null,
-            FillStrategy::Prev => Self::Prev { offset: None },
+            FillStrategy::PrevNullAsIntentional => Self::PrevNullAsIntentional { offset: None },
             FillStrategy::PrevNullAsMissing => Self::PrevNullAsMissing { offset: None },
             FillStrategy::LinearInterpolate => Self::LinearInterpolate(None),
         }
@@ -833,11 +833,11 @@ impl AggrColState {
     ///
     /// # Panics
     ///
-    /// This method will panic if `self` is not [AggrColState::Prev]
+    /// This method will panic if `self` is not [AggrColState::PrevNullAsIntentional]
     /// or [AggrColState::PrevNullAsMissing].
     fn prev_offset(&self) -> Option<u64> {
         match self {
-            Self::Prev { offset } | Self::PrevNullAsMissing { offset } => *offset,
+            Self::PrevNullAsIntentional { offset } | Self::PrevNullAsMissing { offset } => *offset,
             _ => unreachable!(),
         }
     }
@@ -853,9 +853,8 @@ impl AggrColState {
                 let stash = StashedAggrBuilder::create_stash(array, *v)?;
                 *self = Self::PrevNullAsMissingStashed { stash };
             }
-            Self::Prev { offset: Some(v) } | Self::PrevNullAsMissing { offset: Some(v) } => {
-                *v -= offset
-            }
+            Self::PrevNullAsIntentional { offset: Some(v) }
+            | Self::PrevNullAsMissing { offset: Some(v) } => *v -= offset,
             _ => (),
         };
         Ok(())
@@ -1596,7 +1595,7 @@ mod tests {
     }
 
     fn prev_fill_strategy(idx: usize) -> HashMap<usize, FillStrategy> {
-        std::iter::once((idx, FillStrategy::Prev)).collect()
+        std::iter::once((idx, FillStrategy::PrevNullAsIntentional)).collect()
     }
 
     fn prev_null_as_missing_fill_strategy(idx: usize) -> HashMap<usize, FillStrategy> {

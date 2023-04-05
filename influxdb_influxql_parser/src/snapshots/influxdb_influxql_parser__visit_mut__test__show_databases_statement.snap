@@ -2,8 +2,8 @@
 source: influxdb_influxql_parser/src/visit_mut.rs
 expression: "visit_statement!(\"SHOW DATABASES\")"
 ---
-- "pre_visit_statement: ShowDatabases(ShowDatabasesStatement)"
-- "pre_visit_show_databases_statement: ShowDatabasesStatement"
-- "post_visit_show_databases_statement: ShowDatabasesStatement"
-- "post_visit_statement: ShowDatabases(ShowDatabasesStatement)"
+- pre_visit_statement
+- pre_visit_show_databases_statement
+- post_visit_show_databases_statement
+- post_visit_statement
 

@@ -586,6 +586,7 @@ Error while planning query: Error during planning: invalid number of arguments f
 | m0               | 1970-01-01T00:00:00Z | val02 | 1     | 10.4 |                   |
 +------------------+----------------------+-------+-------+------+-------------------+
 -- InfluxQL: SELECT COUNT(f64), SUM(f64), stddev(f64) FROM m0, m1 GROUP BY tag0;
+-- Results After Sorting
 +------------------+----------------------+-------+-------+-------+-------------------+
 | iox::measurement | time                 | tag0  | count | sum   | stddev            |
 +------------------+----------------------+-------+-------+-------+-------------------+
@@ -635,6 +636,7 @@ Error while planning query: Error during planning: invalid number of arguments f
 | disk             | 1970-01-01T00:00:00Z |                    | 2236.5 |
 +------------------+----------------------+--------------------+--------+
 -- InfluxQL: SELECT MEAN(usage_idle), MEAN(bytes_free) FROM cpu, disk GROUP BY TIME(10s) FILL(none);
+-- Results After Sorting
 +------------------+----------------------+--------------------+--------+
 | iox::measurement | time                 | mean               | mean_1 |
 +------------------+----------------------+--------------------+--------+
@@ -643,6 +645,47 @@ Error while planning query: Error during planning: invalid number of arguments f
 | disk             | 2022-10-31T02:00:00Z |                    | 2234.0 |
 | disk             | 2022-10-31T02:00:10Z |                    | 2239.0 |
 +------------------+----------------------+--------------------+--------+
+-- InfluxQL: SELECT MEAN(usage_idle) + MEAN(bytes_free) FROM cpu, disk;
++------------------+----------------------+---------------------------------+
+| iox::measurement | time                 | mean_usage_idle_mean_bytes_free |
++------------------+----------------------+---------------------------------+
+| cpu              | 1970-01-01T00:00:00Z |                                 |
+| disk             | 1970-01-01T00:00:00Z |                                 |
++------------------+----------------------+---------------------------------+
+-- InfluxQL: SELECT MEAN(usage_idle) + MEAN(foo) FROM cpu;
++------------------+----------------------+--------------------------+
+| iox::measurement | time                 | mean_usage_idle_mean_foo |
++------------------+----------------------+--------------------------+
+| cpu              | 1970-01-01T00:00:00Z |                          |
++------------------+----------------------+--------------------------+
+-- InfluxQL: SELECT MEAN(usage_idle), MEAN(usage_idle) + MEAN(foo) FROM cpu;
++------------------+----------------------+--------------------+--------------------------+
+| iox::measurement | time                 | mean               | mean_usage_idle_mean_foo |
++------------------+----------------------+--------------------+--------------------------+
+| cpu              | 1970-01-01T00:00:00Z | 1.9850000000000003 |                          |
++------------------+----------------------+--------------------+--------------------------+
+-- InfluxQL: SELECT MEAN(foo) FROM cpu;
+++
+++
+-- InfluxQL: SELECT MEAN(usage_idle) + MEAN(foo) FROM cpu GROUP BY cpu;
++------------------+----------------------+-----------+--------------------------+
+| iox::measurement | time                 | cpu       | mean_usage_idle_mean_foo |
++------------------+----------------------+-----------+--------------------------+
+| cpu              | 1970-01-01T00:00:00Z | cpu-total |                          |
+| cpu              | 1970-01-01T00:00:00Z | cpu0      |                          |
+| cpu              | 1970-01-01T00:00:00Z | cpu1      |                          |
++------------------+----------------------+-----------+--------------------------+
+-- InfluxQL: SELECT MEAN(usage_idle), MEAN(usage_idle) + MEAN(foo) FROM cpu GROUP BY cpu;
++------------------+----------------------+-----------+--------------------+--------------------------+
+| iox::measurement | time                 | cpu       | mean               | mean_usage_idle_mean_foo |
++------------------+----------------------+-----------+--------------------+--------------------------+
+| cpu              | 1970-01-01T00:00:00Z | cpu-total | 2.9850000000000003 |                          |
+| cpu              | 1970-01-01T00:00:00Z | cpu0      | 0.985              |                          |
+| cpu              | 1970-01-01T00:00:00Z | cpu1      | 1.9849999999999999 |                          |
++------------------+----------------------+-----------+--------------------+--------------------------+
+-- InfluxQL: SELECT MEAN(foo) FROM cpu GROUP BY cpu;
+++
+++
 -- InfluxQL: SELECT COUNT(f64), SUM(f64) FROM m0 GROUP BY TIME(30s) FILL(none);
 +------------------+----------------------+-------+------+
 | iox::measurement | time                 | count | sum  |
@@ -665,6 +708,7 @@ Error while planning query: Error during planning: invalid number of arguments f
 | disk             | 1970-01-01T00:00:00Z |       | 6       |
 +------------------+----------------------+-------+---------+
 -- InfluxQL: SELECT COUNT(usage_idle), COUNT(bytes_free) FROM cpu, disk GROUP BY TIME(1s) FILL(none);
+-- Results After Sorting
 +------------------+----------------------+-------+---------+
 | iox::measurement | time                 | count | count_1 |
 +------------------+----------------------+-------+---------+

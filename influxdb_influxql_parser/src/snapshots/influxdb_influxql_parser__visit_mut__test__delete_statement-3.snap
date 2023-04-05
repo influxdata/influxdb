@@ -2,12 +2,12 @@
 source: influxdb_influxql_parser/src/visit_mut.rs
 expression: "visit_statement!(\"DELETE FROM cpu\")"
 ---
-- "pre_visit_statement: Delete(FromWhere { from: OneOrMore { contents: [Name(Identifier(\"cpu\"))] }, condition: None })"
-- "pre_visit_delete_statement: FromWhere { from: OneOrMore { contents: [Name(Identifier(\"cpu\"))] }, condition: None }"
-- "pre_visit_delete_from: OneOrMore { contents: [Name(Identifier(\"cpu\"))] }"
-- "pre_visit_measurement_name: Name(Identifier(\"cpu\"))"
-- "post_visit_measurement_name: Name(Identifier(\"cpu\"))"
-- "post_visit_delete_from: OneOrMore { contents: [Name(Identifier(\"cpu\"))] }"
-- "post_visit_delete_statement: FromWhere { from: OneOrMore { contents: [Name(Identifier(\"cpu\"))] }, condition: None }"
-- "post_visit_statement: Delete(FromWhere { from: OneOrMore { contents: [Name(Identifier(\"cpu\"))] }, condition: None })"
+- pre_visit_statement
+- pre_visit_delete_statement
+- pre_visit_delete_from_clause
+- pre_visit_measurement_name
+- post_visit_measurement_name
+- post_visit_delete_from_clause
+- post_visit_delete_statement
+- post_visit_statement
 

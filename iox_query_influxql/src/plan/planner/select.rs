@@ -5,7 +5,7 @@ use datafusion::logical_expr::{Expr, LogicalPlan, LogicalPlanBuilder};
 use datafusion_util::AsExpr;
 use generated_types::influxdata::iox::querier::v1::influx_ql_metadata::TagKeyColumn;
 use influxdb_influxql_parser::common::OrderByClause;
-use influxdb_influxql_parser::expression::{Expr as IQLExpr, VarRefDataType};
+use influxdb_influxql_parser::expression::{Expr as IQLExpr, VarRef, VarRefDataType};
 use influxdb_influxql_parser::select::{Field, SelectStatement};
 use schema::INFLUXQL_MEASUREMENT_COLUMN_NAME;
 use std::collections::HashMap;
@@ -43,10 +43,10 @@ pub(super) fn make_tag_key_column_meta(
         .iter()
         .enumerate()
         .filter_map(|(index, f)| match &f.expr {
-            IQLExpr::VarRef {
+            IQLExpr::VarRef(VarRef {
                 name,
                 data_type: Some(VarRefDataType::Tag) | None,
-            } => Some((name.deref().as_str(), index + START_INDEX)),
+            }) => Some((name.deref().as_str(), index + START_INDEX)),
             _ => None,
         })
         .collect::<HashMap<_, _>>();

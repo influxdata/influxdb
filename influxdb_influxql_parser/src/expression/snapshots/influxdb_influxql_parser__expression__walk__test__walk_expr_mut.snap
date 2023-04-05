@@ -4,4 +4,4 @@ expression: "walk_expr_mut(\"5 + 6\")"
 ---
 0: Literal(Integer(5))
 1: Literal(Integer(6))
-2: Binary { lhs: Literal(Integer(5)), op: Add, rhs: Literal(Integer(6)) }
+2: Binary(Binary { lhs: Literal(Integer(5)), op: Add, rhs: Literal(Integer(6)) })

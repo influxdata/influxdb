@@ -1,4 +1,4 @@
-use crate::expression::{ConditionalExpression, Expr};
+use crate::expression::{Binary, Call, ConditionalBinary, ConditionalExpression, Expr};
 
 /// Expression distinguishes InfluxQL [`ConditionalExpression`] or [`Expr`]
 /// nodes when visiting a [`ConditionalExpression`] tree. See [`walk_expression`].
@@ -27,7 +27,7 @@ pub fn walk_expression<B>(
 ) -> std::ops::ControlFlow<B> {
     match node {
         ConditionalExpression::Expr(n) => walk_expr(n, &mut |n| visit(Expression::Arithmetic(n)))?,
-        ConditionalExpression::Binary { lhs, rhs, .. } => {
+        ConditionalExpression::Binary(ConditionalBinary { lhs, rhs, .. }) => {
             walk_expression(lhs, visit)?;
             walk_expression(rhs, visit)?;
         }
@@ -46,7 +46,7 @@ pub fn walk_expression_mut<B>(
         ConditionalExpression::Expr(n) => {
             walk_expr_mut(n, &mut |n| visit(ExpressionMut::Arithmetic(n)))?
         }
-        ConditionalExpression::Binary { lhs, rhs, .. } => {
+        ConditionalExpression::Binary(ConditionalBinary { lhs, rhs, .. }) => {
             walk_expression_mut(lhs, visit)?;
             walk_expression_mut(rhs, visit)?;
         }
@@ -62,12 +62,12 @@ pub fn walk_expr<B>(
     visit: &mut impl FnMut(&Expr) -> std::ops::ControlFlow<B>,
 ) -> std::ops::ControlFlow<B> {
     match expr {
-        Expr::Binary { lhs, rhs, .. } => {
+        Expr::Binary(Binary { lhs, rhs, .. }) => {
             walk_expr(lhs, visit)?;
             walk_expr(rhs, visit)?;
         }
         Expr::Nested(n) => walk_expr(n, visit)?,
-        Expr::Call { args, .. } => {
+        Expr::Call(Call { args, .. }) => {
             args.iter().try_for_each(|n| walk_expr(n, visit))?;
         }
         Expr::VarRef { .. }
@@ -86,12 +86,12 @@ pub fn walk_expr_mut<B>(
     visit: &mut impl FnMut(&mut Expr) -> std::ops::ControlFlow<B>,
 ) -> std::ops::ControlFlow<B> {
     match expr {
-        Expr::Binary { lhs, rhs, .. } => {
+        Expr::Binary(Binary { lhs, rhs, .. }) => {
             walk_expr_mut(lhs, visit)?;
             walk_expr_mut(rhs, visit)?;
         }
         Expr::Nested(n) => walk_expr_mut(n, visit)?,
-        Expr::Call { args, .. } => {
+        Expr::Call(Call { args, .. }) => {
             args.iter_mut().try_for_each(|n| walk_expr_mut(n, visit))?;
         }
         Expr::VarRef { .. }
@@ -108,8 +108,8 @@ pub fn walk_expr_mut<B>(
 mod test {
     use crate::expression::walk::{walk_expr_mut, walk_expression_mut, ExpressionMut};
     use crate::expression::{
-        arithmetic_expression, conditional_expression, ConditionalExpression, ConditionalOperator,
-        Expr,
+        arithmetic_expression, conditional_expression, ConditionalBinary, ConditionalExpression,
+        ConditionalOperator, Expr, VarRef,
     };
     use crate::literal::Literal;
 
@@ -137,13 +137,13 @@ mod test {
         walk_expression_mut::<()>(expr, &mut |e| {
             match e {
                 ExpressionMut::Arithmetic(n) => match n {
-                    Expr::VarRef { name, .. } => *name = format!("c_{name}").into(),
+                    Expr::VarRef(VarRef { name, .. }) => *name = format!("c_{name}").into(),
                     Expr::Literal(Literal::Integer(v)) => *v *= 10,
                     Expr::Literal(Literal::Regex(v)) => *v = format!("c_{}", v.0).into(),
                     _ => {}
                 },
                 ExpressionMut::Conditional(n) => {
-                    if let ConditionalExpression::Binary { op, .. } = n {
+                    if let ConditionalExpression::Binary(ConditionalBinary { op, .. }) = n {
                         *op = ConditionalOperator::NotEqRegex
                     }
                 }
@@ -194,7 +194,7 @@ mod test {
         let (_, mut expr) = arithmetic_expression("foo + bar + 5").unwrap();
         walk_expr_mut::<()>(&mut expr, &mut |e| {
             match e {
-                Expr::VarRef { name, .. } => *name = format!("c_{name}").into(),
+                Expr::VarRef(VarRef { name, .. }) => *name = format!("c_{name}").into(),
                 Expr::Literal(Literal::Integer(v)) => *v *= 10,
                 _ => {}
             }

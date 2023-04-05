@@ -45,12 +45,14 @@ pub struct Config {
 
     /// Number of partitions that should be compacted in parallel.
     ///
-    /// This should usually be larger than the compaction job concurrency since one partition can spawn multiple compaction jobs.
+    /// This should usually be larger than the compaction job concurrency since one partition can spawn multiple
+    /// compaction jobs.
     pub partition_concurrency: NonZeroUsize,
 
     /// Number of concurrent compaction jobs.
     ///
-    /// This should usually be smaller than the partition concurrency since one partition can spawn multiple compaction jobs.
+    /// This should usually be smaller than the partition concurrency since one partition can spawn multiple compaction
+    /// jobs.
     pub job_concurrency: NonZeroUsize,
 
     /// Number of jobs PER PARTITION that move files in and out of the scratchpad.
