@@ -6,6 +6,7 @@ use thiserror::Error;
 mod create;
 mod delete;
 mod retention;
+mod update_limit;
 
 #[allow(clippy::enum_variant_names)]
 #[derive(Debug, Error)]
@@ -16,6 +17,8 @@ pub enum Error {
     #[error("Client error: {0}")]
     ClientError(#[from] influxdb_iox_client::error::Error),
 }
+
+pub type Result<T, E = Error> = std::result::Result<T, E>;
 
 /// Various commands for namespace inspection
 #[derive(Debug, clap::Parser)]
@@ -36,11 +39,14 @@ enum Command {
     /// Update retention of an existing namespace
     Retention(retention::Config),
 
+    /// Update one of the service protection limits for an existing namespace
+    UpdateLimit(update_limit::Config),
+
     /// Delete a namespace
     Delete(delete::Config),
 }
 
-pub async fn command(connection: Connection, config: Config) -> Result<(), Error> {
+pub async fn command(connection: Connection, config: Config) -> Result<()> {
     match config.command {
         Command::Create(config) => {
             create::command(connection, config).await?;
@@ -52,6 +58,9 @@ pub async fn command(connection: Connection, config: Config) -> Result<(), Error
         }
         Command::Retention(config) => {
             retention::command(connection, config).await?;
+        }
+        Command::UpdateLimit(config) => {
+            update_limit::command(connection, config).await?;
         }
         Command::Delete(config) => {
             delete::command(connection, config).await?;

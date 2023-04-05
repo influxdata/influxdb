@@ -1,15 +1,6 @@
 use influxdb_iox_client::connection::Connection;
-use thiserror::Error;
 
-#[allow(clippy::enum_variant_names)]
-#[derive(Debug, Error)]
-pub enum Error {
-    #[error("JSON Serialization error: {0}")]
-    Serde(#[from] serde_json::Error),
-
-    #[error("Client error: {0}")]
-    ClientError(#[from] influxdb_iox_client::error::Error),
-}
+use crate::commands::namespace::Result;
 
 /// Update the specified namespace's data retention period
 #[derive(Debug, clap::Parser)]
@@ -24,10 +15,7 @@ pub struct Config {
     retention_hours: u32,
 }
 
-pub async fn command(
-    connection: Connection,
-    config: Config,
-) -> Result<(), crate::commands::namespace::Error> {
+pub async fn command(connection: Connection, config: Config) -> Result<()> {
     let Config {
         namespace,
         retention_hours,
