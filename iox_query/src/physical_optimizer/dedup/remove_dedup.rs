@@ -7,7 +7,6 @@ use datafusion::{
     physical_optimizer::PhysicalOptimizerRule,
     physical_plan::ExecutionPlan,
 };
-use predicate::Predicate;
 
 use crate::{
     physical_optimizer::chunk_extraction::extract_chunks,
@@ -40,7 +39,6 @@ impl PhysicalOptimizerRule for RemoveDedup {
                         &schema,
                         output_sort_key.as_ref(),
                         chunks,
-                        Predicate::new(),
                         config.execution.target_partitions,
                     )));
                 }

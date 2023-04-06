@@ -9,10 +9,7 @@ use datafusion::{
 use observability_deps::tracing::debug;
 use schema::{sort::SortKey, Schema, TIME_COLUMN_NAME};
 
-use crate::{
-    exec::{make_stream_split, IOxSessionContext},
-    QueryChunk,
-};
+use crate::{exec::make_stream_split, QueryChunk};
 use snafu::{ResultExt, Snafu};
 
 use super::common::ScanPlanBuilder;
@@ -52,14 +49,12 @@ impl From<datafusion::error::DataFusionError> for Error {
 
 /// Planner for physically rearranging chunk data. This planner
 /// creates COMPACT and SPLIT plans for use in the database lifecycle manager
-#[derive(Debug)]
-pub struct ReorgPlanner {
-    ctx: IOxSessionContext,
-}
+#[derive(Debug, Default)]
+pub struct ReorgPlanner {}
 
 impl ReorgPlanner {
-    pub fn new(ctx: IOxSessionContext) -> Self {
-        Self { ctx }
+    pub fn new() -> Self {
+        Self::default()
     }
 
     /// Creates an execution plan for the COMPACT operations which does the following:
@@ -84,12 +79,11 @@ impl ReorgPlanner {
     where
         I: IntoIterator<Item = Arc<dyn QueryChunk>>,
     {
-        let scan_plan =
-            ScanPlanBuilder::new(table_name, schema, self.ctx.child_ctx("compact_plan"))
-                .with_chunks(chunks)
-                .with_output_sort_key(output_sort_key)
-                .build()
-                .context(BuildingScanSnafu)?;
+        let scan_plan = ScanPlanBuilder::new(table_name, schema)
+            .with_chunks(chunks)
+            .with_output_sort_key(output_sort_key)
+            .build()
+            .context(BuildingScanSnafu)?;
 
         let plan = scan_plan.plan_builder.build()?;
 
@@ -180,7 +174,7 @@ impl ReorgPlanner {
             panic!("Split plan does not accept empty split_times");
         }
 
-        let scan_plan = ScanPlanBuilder::new(table_name, schema, self.ctx.child_ctx("split_plan"))
+        let scan_plan = ScanPlanBuilder::new(table_name, schema)
             .with_chunks(chunks)
             .with_output_sort_key(output_sort_key)
             .build()
@@ -349,7 +343,7 @@ mod test {
                 .with_col_opts(TIME_COLUMN_NAME, false, true)
                 .build();
 
-            let compact_plan = ReorgPlanner::new(IOxSessionContext::with_testing())
+            let compact_plan = ReorgPlanner::new()
                 .compact_plan(Arc::from("t"), &schema, chunks, sort_key)
                 .expect("created compact plan");
 
@@ -386,7 +380,7 @@ mod test {
             .with_col_opts(TIME_COLUMN_NAME, false, false)
             .build();
 
-        let compact_plan = ReorgPlanner::new(IOxSessionContext::with_testing())
+        let compact_plan = ReorgPlanner::new()
             .compact_plan(Arc::from("t"), &schema, chunks, sort_key)
             .expect("created compact plan");
 
@@ -454,7 +448,7 @@ mod test {
             .build();
 
         // split on 1000 should have timestamps 1000, 5000, and 7000
-        let split_plan = ReorgPlanner::new(IOxSessionContext::with_testing())
+        let split_plan = ReorgPlanner::new()
             .split_plan(Arc::from("t"), &schema, chunks, sort_key, vec![1000])
             .expect("created compact plan");
 
@@ -535,7 +529,7 @@ mod test {
             .build();
 
         // split on 1000 and 7000
-        let split_plan = ReorgPlanner::new(IOxSessionContext::with_testing())
+        let split_plan = ReorgPlanner::new()
             .split_plan(Arc::from("t"), &schema, chunks, sort_key, vec![1000, 7000])
             .expect("created compact plan");
 
@@ -628,7 +622,7 @@ mod test {
             .build();
 
         // split on 1000 and 7000
-        let _split_plan = ReorgPlanner::new(IOxSessionContext::with_testing())
+        let _split_plan = ReorgPlanner::new()
             .split_plan(Arc::from("t"), &schema, chunks, sort_key, vec![]) // reason of panic: empty split_times
             .expect("created compact plan");
     }
@@ -647,7 +641,7 @@ mod test {
             .build();
 
         // split on 1000 and 7000
-        let _split_plan = ReorgPlanner::new(IOxSessionContext::with_testing())
+        let _split_plan = ReorgPlanner::new()
             .split_plan(Arc::from("t"), &schema, chunks, sort_key, vec![1000, 500]) // reason of panic: split_times not in ascending order
             .expect("created compact plan");
     }

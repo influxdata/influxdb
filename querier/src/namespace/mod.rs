@@ -75,7 +75,6 @@ impl QuerierNamespace {
                     schema: cached_table.schema.clone(),
                     ingester_connection: ingester_connection.clone(),
                     chunk_adapter: Arc::clone(&chunk_adapter),
-                    exec: Arc::clone(&exec),
                     prune_metrics: Arc::clone(&prune_metrics),
                 }));
 

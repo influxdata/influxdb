@@ -309,16 +309,8 @@ impl InfluxRpcPlanner {
                             table_name: table_name.as_ref(),
                         })?;
 
-                    let mut ctx = ctx.child_ctx("table name plan");
-                    ctx.set_metadata("table", table_name.to_string());
-
-                    let plan = Self::table_name_plan(
-                        ctx,
-                        Arc::clone(table_name),
-                        &schema,
-                        predicate,
-                        chunks,
-                    )?;
+                    let plan =
+                        Self::table_name_plan(Arc::clone(table_name), &schema, predicate, chunks)?;
                     builder = builder.append_other(plan.into());
                 }
             }
@@ -475,10 +467,7 @@ impl InfluxRpcPlanner {
                         table_name: table_name.as_ref(),
                     })?;
 
-                let mut ctx = ctx.child_ctx("tag_keys_plan");
-                ctx.set_metadata("table", table_name.to_string());
-
-                let plan = self.tag_keys_plan(ctx, table_name, &schema, predicate, chunks_full)?;
+                let plan = self.tag_keys_plan(table_name, &schema, predicate, chunks_full)?;
 
                 if let Some(plan) = plan {
                     builder = builder.append_other(plan)
@@ -647,10 +636,7 @@ impl InfluxRpcPlanner {
                         table_name: table_name.as_ref(),
                     })?;
 
-                let mut ctx = ctx.child_ctx("scan_and_filter planning");
-                ctx.set_metadata("table", table_name.to_string());
-
-                let scan_and_filter = ScanPlanBuilder::new(Arc::clone(table_name), &schema, ctx)
+                let scan_and_filter = ScanPlanBuilder::new(Arc::clone(table_name), &schema)
                     .with_chunks(chunks_full)
                     .with_predicate(predicate)
                     .build()?;
@@ -736,14 +722,8 @@ impl InfluxRpcPlanner {
             namespace,
             &table_predicates_need_chunks,
             ctx,
-            |ctx, table_name, predicate, chunks, schema| {
-                Self::field_columns_plan(
-                    ctx.child_ctx("field_columns plan"),
-                    Arc::from(table_name),
-                    schema,
-                    predicate,
-                    chunks,
-                )
+            |table_name, predicate, chunks, schema| {
+                Self::field_columns_plan(Arc::from(table_name), schema, predicate, chunks)
             },
         )
         .await?;
@@ -788,14 +768,8 @@ impl InfluxRpcPlanner {
             namespace,
             &table_predicates,
             ctx,
-            |ctx, table_name, predicate, chunks, schema| {
-                Self::read_filter_plan(
-                    ctx.child_ctx("read_filter plan"),
-                    table_name,
-                    schema,
-                    predicate,
-                    chunks,
-                )
+            |table_name, predicate, chunks, schema| {
+                Self::read_filter_plan(table_name, schema, predicate, chunks)
             },
         )
         .await?;
@@ -861,7 +835,7 @@ impl InfluxRpcPlanner {
             namespace,
             &table_predicates,
             ctx,
-            |ctx, table_name, predicate, chunks, schema| {
+            |table_name, predicate, chunks, schema| {
                 // check group_columns for unknown columns
                 let known_tags_vec = schema
                     .tags_iter()
@@ -890,21 +864,10 @@ impl InfluxRpcPlanner {
                 }
 
                 match agg {
-                    Aggregate::None => Self::read_filter_plan(
-                        ctx.child_ctx("read_filter plan"),
-                        table_name,
-                        schema,
-                        predicate,
-                        chunks,
-                    ),
-                    _ => Self::read_group_plan(
-                        ctx.child_ctx("read_group plan"),
-                        table_name,
-                        schema,
-                        predicate,
-                        agg,
-                        chunks,
-                    ),
+                    Aggregate::None => {
+                        Self::read_filter_plan(table_name, schema, predicate, chunks)
+                    }
+                    _ => Self::read_group_plan(table_name, schema, predicate, agg, chunks),
                 }
             },
         )
@@ -940,16 +903,9 @@ impl InfluxRpcPlanner {
             namespace,
             &table_predicates,
             ctx,
-            |ctx, table_name, predicate, chunks, schema| {
+            |table_name, predicate, chunks, schema| {
                 Self::read_window_aggregate_plan(
-                    ctx.child_ctx("read_window_aggregate plan"),
-                    table_name,
-                    schema,
-                    predicate,
-                    agg,
-                    every,
-                    offset,
-                    chunks,
+                    table_name, schema, predicate, agg, every, offset, chunks,
                 )
             },
         )
@@ -970,20 +926,15 @@ impl InfluxRpcPlanner {
     /// ```
     fn tag_keys_plan(
         &self,
-        ctx: IOxSessionContext,
         table_name: &str,
         schema: &Schema,
         predicate: &Predicate,
         chunks: Vec<Arc<dyn QueryChunk>>,
     ) -> Result<Option<StringSetPlan>> {
-        let scan_and_filter = ScanPlanBuilder::new(
-            Arc::from(table_name),
-            schema,
-            ctx.child_ctx("scan_and_filter planning"),
-        )
-        .with_predicate(predicate)
-        .with_chunks(chunks)
-        .build()?;
+        let scan_and_filter = ScanPlanBuilder::new(Arc::from(table_name), schema)
+            .with_predicate(predicate)
+            .with_chunks(chunks)
+            .build()?;
 
         // now, select only the tag columns
         let select_exprs = scan_and_filter
@@ -1036,20 +987,15 @@ impl InfluxRpcPlanner {
     ///        Scan
     /// ```
     fn field_columns_plan(
-        ctx: IOxSessionContext,
         table_name: Arc<str>,
         schema: &Schema,
         predicate: &Predicate,
         chunks: Vec<Arc<dyn QueryChunk>>,
     ) -> Result<LogicalPlan> {
-        let scan_and_filter = ScanPlanBuilder::new(
-            table_name,
-            schema,
-            ctx.child_ctx("scan_and_filter planning"),
-        )
-        .with_predicate(predicate)
-        .with_chunks(chunks)
-        .build()?;
+        let scan_and_filter = ScanPlanBuilder::new(table_name, schema)
+            .with_predicate(predicate)
+            .with_chunks(chunks)
+            .build()?;
 
         // Selection of only fields and time
         let select_exprs = scan_and_filter
@@ -1092,21 +1038,16 @@ impl InfluxRpcPlanner {
     ///        Scan
     /// ```
     fn table_name_plan(
-        ctx: IOxSessionContext,
         table_name: Arc<str>,
         schema: &Schema,
         predicate: &Predicate,
         chunks: Vec<Arc<dyn QueryChunk>>,
     ) -> Result<LogicalPlan> {
         debug!(%table_name, "Creating table_name full plan");
-        let scan_and_filter = ScanPlanBuilder::new(
-            Arc::clone(&table_name),
-            schema,
-            ctx.child_ctx("scan_and_filter planning"),
-        )
-        .with_predicate(predicate)
-        .with_chunks(chunks)
-        .build()?;
+        let scan_and_filter = ScanPlanBuilder::new(Arc::clone(&table_name), schema)
+            .with_predicate(predicate)
+            .with_chunks(chunks)
+            .build()?;
 
         // Select only fields requested
         let select_exprs: Vec<_> = filtered_fields_iter(scan_and_filter.schema(), predicate)
@@ -1137,20 +1078,15 @@ impl InfluxRpcPlanner {
     ///        Filter(predicate)
     ///          Scan
     fn read_filter_plan(
-        ctx: IOxSessionContext,
         table_name: &str,
         schema: &Schema,
         predicate: &Predicate,
         chunks: Vec<Arc<dyn QueryChunk>>,
     ) -> Result<SeriesSetPlan> {
-        let scan_and_filter = ScanPlanBuilder::new(
-            Arc::from(table_name),
-            schema,
-            ctx.child_ctx("scan_and_filter planning"),
-        )
-        .with_predicate(predicate)
-        .with_chunks(chunks)
-        .build()?;
+        let scan_and_filter = ScanPlanBuilder::new(Arc::from(table_name), schema)
+            .with_predicate(predicate)
+            .with_chunks(chunks)
+            .build()?;
 
         let schema = scan_and_filter.provider.iox_schema();
 
@@ -1245,21 +1181,16 @@ impl InfluxRpcPlanner {
     ///       Filter(predicate)
     ///          Scan
     fn read_group_plan(
-        ctx: IOxSessionContext,
         table_name: &str,
         schema: &Schema,
         predicate: &Predicate,
         agg: Aggregate,
         chunks: Vec<Arc<dyn QueryChunk>>,
     ) -> Result<SeriesSetPlan> {
-        let scan_and_filter = ScanPlanBuilder::new(
-            Arc::from(table_name),
-            schema,
-            ctx.child_ctx("scan_and_filter planning"),
-        )
-        .with_predicate(predicate)
-        .with_chunks(chunks)
-        .build()?;
+        let scan_and_filter = ScanPlanBuilder::new(Arc::from(table_name), schema)
+            .with_predicate(predicate)
+            .with_chunks(chunks)
+            .build()?;
 
         // order the tag columns so that the group keys come first (we
         // will group and
@@ -1354,7 +1285,6 @@ impl InfluxRpcPlanner {
     ///          Scan
     #[allow(clippy::too_many_arguments)]
     fn read_window_aggregate_plan(
-        ctx: IOxSessionContext,
         table_name: &str,
         schema: &Schema,
         predicate: &Predicate,
@@ -1363,14 +1293,10 @@ impl InfluxRpcPlanner {
         offset: WindowDuration,
         chunks: Vec<Arc<dyn QueryChunk>>,
     ) -> Result<SeriesSetPlan> {
-        let scan_and_filter = ScanPlanBuilder::new(
-            Arc::from(table_name),
-            schema,
-            ctx.child_ctx("scan_and_filter planning"),
-        )
-        .with_predicate(predicate)
-        .with_chunks(chunks)
-        .build()?;
+        let scan_and_filter = ScanPlanBuilder::new(Arc::from(table_name), schema)
+            .with_predicate(predicate)
+            .with_chunks(chunks)
+            .build()?;
 
         let schema = scan_and_filter.provider.iox_schema();
 
@@ -1562,13 +1488,7 @@ async fn create_plans<F, P>(
     f: F,
 ) -> Result<Vec<P>>
 where
-    F: for<'a> Fn(
-            &'a IOxSessionContext,
-            &'a str,
-            &'a Predicate,
-            Vec<Arc<dyn QueryChunk>>,
-            &'a Schema,
-        ) -> Result<P>
+    F: for<'a> Fn(&'a str, &'a Predicate, Vec<Arc<dyn QueryChunk>>, &'a Schema) -> Result<P>
         + Clone
         + Send
         + Sync,
@@ -1602,7 +1522,7 @@ where
                         table_name: table_name.as_ref(),
                     })?;
 
-                f(&ctx, table_name, predicate, chunks, &schema)
+                f(table_name, predicate, chunks, &schema)
             }
         })
         .try_collect()
