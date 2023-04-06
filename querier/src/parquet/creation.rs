@@ -137,7 +137,7 @@ impl ChunkAdapter {
         }
 
         {
-            let _span_recorder = span_recorder.child("create individual chunks");
+            let span_recorder = span_recorder.child("create individual chunks");
 
             futures::stream::iter(parquet_files)
                 .map(|cached_parquet_file| {
