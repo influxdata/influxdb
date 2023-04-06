@@ -4,8 +4,16 @@ use async_trait::async_trait;
 use data_types::{NamespaceName, NamespaceSchema};
 use hashbrown::HashMap;
 use parking_lot::RwLock;
+use thiserror::Error;
 
 use super::NamespaceCache;
+
+/// An error type indicating that `namespace` is not present in the cache.
+#[derive(Debug, Error)]
+#[error("namespace {namespace} not found in cache")]
+pub struct CacheMissErr {
+    namespace: NamespaceName<'static>,
+}
 
 /// An in-memory cache of [`NamespaceSchema`] backed by a hashmap protected with
 /// a read-write mutex.
@@ -16,8 +24,18 @@ pub struct MemoryNamespaceCache {
 
 #[async_trait]
 impl NamespaceCache for Arc<MemoryNamespaceCache> {
-    async fn get_schema(&self, namespace: &NamespaceName<'_>) -> Option<Arc<NamespaceSchema>> {
-        self.cache.read().get(namespace).map(Arc::clone)
+    type ReadError = CacheMissErr;
+
+    async fn get_schema(
+        &self,
+        namespace: &NamespaceName<'static>,
+    ) -> Result<Arc<NamespaceSchema>, Self::ReadError> {
+        match self.cache.read().get(namespace) {
+            Some(s) => Ok(Arc::clone(s)),
+            None => Err(CacheMissErr {
+                namespace: namespace.clone(),
+            }),
+        }
     }
 
     fn put_schema(
@@ -31,6 +49,7 @@ impl NamespaceCache for Arc<MemoryNamespaceCache> {
 
 #[cfg(test)]
 mod tests {
+    use assert_matches::assert_matches;
     use data_types::{NamespaceId, QueryPoolId, TopicId};
 
     use super::*;
@@ -40,7 +59,12 @@ mod tests {
         let ns = NamespaceName::new("test").expect("namespace name is valid");
         let cache = Arc::new(MemoryNamespaceCache::default());
 
-        assert!(cache.get_schema(&ns).await.is_none());
+        assert_matches!(
+            cache.get_schema(&ns).await,
+            Err(CacheMissErr { namespace: got_ns }) => {
+                assert_eq!(got_ns, ns);
+            }
+        );
 
         let schema1 = NamespaceSchema {
             id: NamespaceId::new(42),

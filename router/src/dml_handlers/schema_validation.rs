@@ -182,8 +182,8 @@ where
         // from the global catalog (if it exists).
         let schema = self.cache.get_schema(namespace).await;
         let schema = match schema {
-            Some(v) => v,
-            None => {
+            Ok(v) => v,
+            Err(_) => {
                 // Pull the schema from the global catalog or error if it does
                 // not exist.
                 let schema = get_schema_by_name(
@@ -858,7 +858,7 @@ mod tests {
         assert_matches!(err, SchemaError::NamespaceLookup(_));
 
         // The cache should not have retained the schema.
-        assert!(handler.cache.get_schema(&ns).await.is_none());
+        assert!(handler.cache.get_schema(&ns).await.is_err());
     }
 
     #[tokio::test]
@@ -1032,6 +1032,6 @@ mod tests {
             .expect("request should succeed");
 
         // Deletes have no effect on the cache.
-        assert!(handler.cache.get_schema(&ns).await.is_none());
+        assert!(handler.cache.get_schema(&ns).await.is_err());
     }
 }

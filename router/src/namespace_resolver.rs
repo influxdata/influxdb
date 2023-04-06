@@ -66,8 +66,8 @@ where
         // Load the namespace schema from the cache, falling back to pulling it
         // from the global catalog (if it exists).
         match self.cache.get_schema(namespace).await {
-            Some(v) => Ok(v.id),
-            None => {
+            Ok(v) => Ok(v.id),
+            Err(_) => {
                 let mut repos = self.catalog.repositories().await;
 
                 // Pull the schema from the global catalog or error if it does
@@ -142,7 +142,7 @@ mod tests {
             .await
             .expect("lookup should succeed");
 
-        assert!(cache.get_schema(&ns).await.is_some());
+        assert!(cache.get_schema(&ns).await.is_ok());
 
         // The cache hit should mean the catalog SHOULD NOT see a create request
         // for the namespace.
@@ -186,7 +186,7 @@ mod tests {
             .expect("lookup should succeed");
 
         // The cache should be populated as a result of the lookup.
-        assert!(cache.get_schema(&ns).await.is_some());
+        assert!(cache.get_schema(&ns).await.is_ok());
     }
 
     #[tokio::test]
@@ -226,7 +226,7 @@ mod tests {
         );
 
         // The cache should NOT be populated as a result of the lookup.
-        assert!(cache.get_schema(&ns).await.is_none());
+        assert!(cache.get_schema(&ns).await.is_err());
     }
 
     #[tokio::test]
@@ -245,6 +245,6 @@ mod tests {
             .expect_err("lookup should error");
 
         assert_matches!(err, Error::Lookup(_));
-        assert!(cache.get_schema(&ns).await.is_none());
+        assert!(cache.get_schema(&ns).await.is_err());
     }
 }

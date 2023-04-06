@@ -27,7 +27,12 @@ impl<T> NamespaceCache for Arc<ShardedCache<T>>
 where
     T: NamespaceCache,
 {
-    async fn get_schema(&self, namespace: &NamespaceName<'_>) -> Option<Arc<NamespaceSchema>> {
+    type ReadError = T::ReadError;
+
+    async fn get_schema(
+        &self,
+        namespace: &NamespaceName<'static>,
+    ) -> Result<Arc<NamespaceSchema>, Self::ReadError> {
         self.shards.hash(namespace).get_schema(namespace).await
     }
 
@@ -42,6 +47,8 @@ where
 
 #[cfg(test)]
 mod tests {
+
+    use assert_matches::assert_matches;
     use std::{collections::HashMap, iter};
 
     use data_types::{NamespaceId, QueryPoolId, TopicId};
@@ -94,7 +101,7 @@ mod tests {
 
         // The cache should be empty.
         for name in names.keys() {
-            assert!(cache.get_schema(name).await.is_none());
+            assert_matches!(cache.get_schema(name).await, Err(_));
         }
 
         // Populate the cache
@@ -106,7 +113,9 @@ mod tests {
         // The mapping should be stable
         for (name, id) in names {
             let want = schema_with_id(id as _);
-            assert_eq!(cache.get_schema(&name).await, Some(Arc::new(want)));
+            assert_matches!(cache.get_schema(&name).await, Ok(got) => {
+                assert_eq!(got, Arc::new(want));
+            });
         }
     }
 }

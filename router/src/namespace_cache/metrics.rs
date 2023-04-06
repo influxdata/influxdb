@@ -76,7 +76,12 @@ where
     T: NamespaceCache,
     P: TimeProvider,
 {
-    async fn get_schema(&self, namespace: &NamespaceName<'_>) -> Option<Arc<NamespaceSchema>> {
+    type ReadError = T::ReadError;
+
+    async fn get_schema(
+        &self,
+        namespace: &NamespaceName<'static>,
+    ) -> Result<Arc<NamespaceSchema>, Self::ReadError> {
         let t = self.time_provider.now();
         let res = self.inner.get_schema(namespace).await;
 
@@ -84,8 +89,8 @@ where
         // if it happens.
         if let Some(delta) = self.time_provider.now().checked_duration_since(t) {
             match &res {
-                Some(_) => self.get_hit.record(delta),
-                None => self.get_miss.record(delta),
+                Ok(_) => self.get_hit.record(delta),
+                Err(_) => self.get_miss.record(delta),
             };
         }
 
