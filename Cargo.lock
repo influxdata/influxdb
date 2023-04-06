@@ -1010,41 +1010,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "compactor"
-version = "0.1.0"
-dependencies = [
- "arrow",
- "arrow_util",
- "async-trait",
- "backoff",
- "bytes",
- "data_types",
- "datafusion",
- "futures",
- "generated_types",
- "iox_catalog",
- "iox_query",
- "iox_tests",
- "iox_time",
- "itertools",
- "metric",
- "object_store",
- "observability_deps",
- "parquet_file",
- "predicate",
- "schema",
- "service_grpc_catalog",
- "snafu",
- "test_helpers",
- "thiserror",
- "tokio",
- "tokio-util",
- "tonic",
- "uuid",
- "workspace-hack",
-]
-
-[[package]]
 name = "compactor2"
 version = "0.1.0"
 dependencies = [
@@ -2636,7 +2601,6 @@ dependencies = [
  "clap 4.2.1",
  "clap_blocks",
  "comfy-table",
- "compactor",
  "compactor2",
  "console-subscriber",
  "data_types",
@@ -2659,7 +2623,6 @@ dependencies = [
  "iox_query",
  "iox_time",
  "ioxd_common",
- "ioxd_compactor",
  "ioxd_compactor2",
  "ioxd_garbage_collector",
  "ioxd_ingest_replica",
@@ -3193,29 +3156,6 @@ dependencies = [
  "trace",
  "trace_exporters",
  "trace_http",
- "workspace-hack",
-]
-
-[[package]]
-name = "ioxd_compactor"
-version = "0.1.0"
-dependencies = [
- "async-trait",
- "backoff",
- "clap_blocks",
- "compactor",
- "data_types",
- "hyper",
- "iox_catalog",
- "iox_query",
- "iox_time",
- "ioxd_common",
- "metric",
- "object_store",
- "parquet_file",
- "thiserror",
- "tokio-util",
- "trace",
  "workspace-hack",
 ]
 

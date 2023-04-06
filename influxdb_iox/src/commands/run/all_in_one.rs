@@ -86,9 +86,6 @@ pub enum Error {
     #[error("Ingester error: {0}")]
     Ingester(#[from] ioxd_ingester::Error),
 
-    #[error("error initializing compactor: {0}")]
-    Compactor(#[from] ioxd_compactor::Error),
-
     #[error("Querier error: {0}")]
     Querier(#[from] ioxd_querier::Error),
 

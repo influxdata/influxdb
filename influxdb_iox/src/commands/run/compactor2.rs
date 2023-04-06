@@ -1,8 +1,19 @@
 //! Command line options for running compactor2 in RPC write mode
 
+use super::main;
+use crate::process_info::setup_metric_registry;
+use clap_blocks::{
+    catalog_dsn::CatalogDsnConfig, compactor2::Compactor2Config, object_store::make_object_store,
+    run_config::RunConfig,
+};
 use compactor2::object_store::metrics::MetricsStore;
 use iox_query::exec::{Executor, ExecutorConfig};
 use iox_time::{SystemProvider, TimeProvider};
+use ioxd_common::{
+    server_type::{CommonServerState, CommonServerStateError},
+    Service,
+};
+use ioxd_compactor2::create_compactor2_server_type;
 use object_store::DynObjectStore;
 use object_store_metrics::ObjectStoreMetrics;
 use observability_deps::tracing::*;
@@ -10,18 +21,6 @@ use parquet_file::storage::{ParquetStorage, StorageId};
 use std::num::NonZeroUsize;
 use std::sync::Arc;
 use thiserror::Error;
-
-use clap_blocks::object_store::make_object_store;
-use clap_blocks::{
-    catalog_dsn::CatalogDsnConfig, compactor2::Compactor2Config, run_config::RunConfig,
-};
-use ioxd_common::server_type::{CommonServerState, CommonServerStateError};
-use ioxd_common::Service;
-use ioxd_compactor2::create_compactor2_server_type;
-
-use crate::process_info::setup_metric_registry;
-
-use super::main;
 
 #[derive(Debug, Error)]
 pub enum Error {
@@ -39,9 +38,6 @@ pub enum Error {
 
     #[error("Cannot parse object store config: {0}")]
     ObjectStoreParsing(#[from] clap_blocks::object_store::ParseError),
-
-    #[error("error initializing compactor: {0}")]
-    Compactor(#[from] ioxd_compactor::Error),
 }
 
 #[derive(Debug, clap::Parser)]
