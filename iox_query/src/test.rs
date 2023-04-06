@@ -442,6 +442,11 @@ impl TestChunk {
         }
     }
 
+    pub fn with_delete_predicate(mut self, pred: Arc<DeletePredicate>) -> Self {
+        self.delete_predicates.push(pred);
+        self
+    }
+
     pub fn with_order(self, order: i64) -> Self {
         Self {
             order: ChunkOrder::new(order),
