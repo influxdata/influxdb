@@ -10,7 +10,6 @@ use schema::{sort::SortKey, Schema};
 use snafu::{ResultExt, Snafu};
 
 use crate::{
-    exec::IOxSessionContext,
     provider::{ChunkTableProvider, ProviderBuilder},
     util::MissingColumnsToNull,
     QueryChunk,
@@ -86,7 +85,6 @@ impl ScanPlan {
 
 #[derive(Debug)]
 pub struct ScanPlanBuilder<'a> {
-    ctx: IOxSessionContext,
     table_name: Arc<str>,
     /// The schema of the resulting table (any chunks that don't have
     /// all the necessary columns will be extended appropriately)
@@ -100,9 +98,8 @@ pub struct ScanPlanBuilder<'a> {
 }
 
 impl<'a> ScanPlanBuilder<'a> {
-    pub fn new(table_name: Arc<str>, table_schema: &'a Schema, ctx: IOxSessionContext) -> Self {
+    pub fn new(table_name: Arc<str>, table_schema: &'a Schema) -> Self {
         Self {
-            ctx,
             table_name,
             table_schema,
             chunks: vec![],
@@ -144,7 +141,6 @@ impl<'a> ScanPlanBuilder<'a> {
     /// Creates a `ScanPlan` from the specified chunks
     pub fn build(self) -> Result<ScanPlan> {
         let Self {
-            ctx,
             table_name,
             chunks,
             output_sort_key,
@@ -156,12 +152,8 @@ impl<'a> ScanPlanBuilder<'a> {
         assert!(!chunks.is_empty(), "no chunks provided");
 
         // Prepare the plan for the table
-        let mut builder = ProviderBuilder::new(
-            Arc::clone(&table_name),
-            table_schema.clone(),
-            ctx.child_ctx("provider_builder"),
-        )
-        .with_enable_deduplication(deduplication);
+        let mut builder = ProviderBuilder::new(Arc::clone(&table_name), table_schema.clone())
+            .with_enable_deduplication(deduplication);
 
         if let Some(output_sort_key) = output_sort_key {
             // Tell the scan of this provider to sort its output on the given sort_key

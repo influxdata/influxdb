@@ -81,7 +81,7 @@ pub(super) async fn compact_persisting_batch(
 
     // Build logical plan for compaction
     let ctx = executor.new_context(ExecutorType::Reorg);
-    let logical_plan = ReorgPlanner::new(ctx.child_ctx("ReorgPlanner"))
+    let logical_plan = ReorgPlanner::new()
         .compact_plan(
             table_name.into(),
             batch.schema(),

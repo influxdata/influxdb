@@ -9,7 +9,6 @@ use datafusion::{
     physical_plan::ExecutionPlan,
 };
 use indexmap::IndexSet;
-use predicate::Predicate;
 use schema::{sort::SortKeyBuilder, TIME_COLUMN_NAME};
 
 use crate::{
@@ -131,7 +130,6 @@ impl PhysicalOptimizerRule for DedupSortOrder {
                     &schema,
                     (!quorum_sort_key.is_empty()).then_some(&quorum_sort_key),
                     chunks,
-                    Predicate::new(),
                     config.execution.target_partitions,
                 );
 

@@ -16,7 +16,7 @@ mod test {
     use schema::{merge::SchemaMerger, sort::SortKey, Schema};
 
     use crate::{
-        exec::{split::StreamSplitExec, Executor, ExecutorType, IOxSessionContext},
+        exec::{split::StreamSplitExec, Executor, ExecutorType},
         frontend::reorg::ReorgPlanner,
         provider::{DeduplicateExec, RecordBatchesExec},
         test::{format_execution_plan, TestChunk},
@@ -62,10 +62,9 @@ mod test {
         test_helpers::maybe_start_logging();
         // Create 2 overlapped chunks
         let (schema, chunks) = get_test_overlapped_chunks();
-        let ctx = IOxSessionContext::with_testing();
 
         // Build a logical plan with deduplication
-        let scan_plan = ScanPlanBuilder::new(Arc::from("t"), &schema, ctx.child_ctx("scan_plan"))
+        let scan_plan = ScanPlanBuilder::new(Arc::from("t"), &schema)
             .with_chunks(chunks)
             .build()
             .unwrap();
@@ -123,10 +122,9 @@ mod test {
         test_helpers::maybe_start_logging();
         // Create 2 overlapped chunks
         let (schema, chunks) = get_test_chunks();
-        let ctx = IOxSessionContext::with_testing();
 
         // Build a logical plan without deduplication
-        let scan_plan = ScanPlanBuilder::new(Arc::from("t"), &schema, ctx.child_ctx("scan_plan"))
+        let scan_plan = ScanPlanBuilder::new(Arc::from("t"), &schema)
             .with_chunks(chunks)
             // force it to not deduplicate
             .enable_deduplication(false)
@@ -188,10 +186,9 @@ mod test {
         // Create 2 overlapped chunks
         let (schema, chunks) = get_test_chunks();
         let sort_key = SortKey::from_columns(vec!["time", "tag1"]);
-        let ctx = IOxSessionContext::with_testing();
 
         // Build a logical plan without deduplication but sort
-        let scan_plan = ScanPlanBuilder::new(Arc::from("t"), &schema, ctx.child_ctx("scan_plan"))
+        let scan_plan = ScanPlanBuilder::new(Arc::from("t"), &schema)
             .with_chunks(chunks)
             // force it to not deduplicate
             .enable_deduplication(false)
@@ -243,7 +240,7 @@ mod test {
         let sort_key = SortKey::from_columns(vec!["time", "tag1"]);
 
         // Use a split plan as it has StreamSplitExec, DeduplicateExec and IOxReadFilternode
-        let split_plan = ReorgPlanner::new(IOxSessionContext::with_testing())
+        let split_plan = ReorgPlanner::new()
             .split_plan(Arc::from("t"), &schema, chunks, sort_key, vec![1000])
             .expect("created compact plan");
 

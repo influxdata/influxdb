@@ -7,7 +7,6 @@ use datafusion::{
     physical_optimizer::PhysicalOptimizerRule,
     physical_plan::ExecutionPlan,
 };
-use predicate::Predicate;
 use schema::{sort::SortKeyBuilder, TIME_COLUMN_NAME};
 
 use crate::{
@@ -69,7 +68,6 @@ impl PhysicalOptimizerRule for DedupNullColumns {
                     &schema,
                     (!sort_key.is_empty()).then_some(&sort_key),
                     chunks,
-                    Predicate::new(),
                     config.execution.target_partitions,
                 );
 

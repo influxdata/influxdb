@@ -426,25 +426,6 @@ fn compute_sort_key(summaries: impl Iterator<Item = Arc<TableSummary>>) -> SortK
     key
 }
 
-/// Should we use the old query path prior to [#6098]?
-///
-/// This is done to enable the new code path bit-by-bit in production. Also see [k8s-idpe#17927]
-///
-///
-/// [#6098]: https://github.com/influxdata/influxdb_iox/issues/6098
-/// [k8s-idpe#17927]: https://github.com/influxdata/k8s-idpe/pull/17927
-pub fn influxdb_iox_pre_6098_planner() -> bool {
-    use once_cell::sync::OnceCell;
-
-    static STATE: OnceCell<bool> = OnceCell::new();
-    *STATE.get_or_init(|| {
-        std::env::var("INFLUXDB_IOX_PRE_6098_PLANNER")
-            .ok()
-            .as_deref()
-            == Some("1")
-    })
-}
-
 // Note: I would like to compile this module only in the 'test' cfg,
 // but when I do so then other modules can not find them. For example:
 //

@@ -177,7 +177,6 @@ mod tests {
         prelude::{col, lit},
         scalar::ScalarValue,
     };
-    use predicate::Predicate;
     use schema::{merge::SchemaMerger, sort::SortKeyBuilder, SchemaBuilder, TIME_COLUMN_NAME};
 
     use super::*;
@@ -264,20 +263,8 @@ mod tests {
         let chunk1 = Arc::new(chunk(1)) as Arc<dyn QueryChunk>;
         let schema = chunk1.schema().as_arrow();
         let plan = UnionExec::new(vec![
-            chunks_to_physical_nodes(
-                &schema,
-                Some(&sort_key1),
-                vec![Arc::clone(&chunk1)],
-                Predicate::default(),
-                1,
-            ),
-            chunks_to_physical_nodes(
-                &schema,
-                Some(&sort_key2),
-                vec![chunk1],
-                Predicate::default(),
-                1,
-            ),
+            chunks_to_physical_nodes(&schema, Some(&sort_key1), vec![Arc::clone(&chunk1)], 1),
+            chunks_to_physical_nodes(&schema, Some(&sort_key2), vec![chunk1], 1),
         ]);
         assert!(extract_chunks(&plan).is_none());
     }
@@ -286,13 +273,7 @@ mod tests {
     fn test_stop_at_other_node_types() {
         let chunk1 = chunk(1);
         let schema = chunk1.schema().as_arrow();
-        let plan = chunks_to_physical_nodes(
-            &schema,
-            None,
-            vec![Arc::new(chunk1)],
-            Predicate::default(),
-            2,
-        );
+        let plan = chunks_to_physical_nodes(&schema, None, vec![Arc::new(chunk1)], 2);
         let plan = FilterExec::try_new(
             df_physical_expr(plan.as_ref(), col("tag1").eq(lit("foo"))).unwrap(),
             plan,
@@ -333,13 +314,7 @@ mod tests {
     fn test_parquet_with_predicate_fails() {
         let chunk = chunk(1).with_dummy_parquet_file();
         let schema = chunk.schema().as_arrow();
-        let plan = chunks_to_physical_nodes(
-            &schema,
-            None,
-            vec![Arc::new(chunk)],
-            Predicate::default(),
-            2,
-        );
+        let plan = chunks_to_physical_nodes(&schema, None, vec![Arc::new(chunk)], 2);
         let plan = plan
             .transform_down(&|plan| {
                 if let Some(exec) = plan.as_any().downcast_ref::<ParquetExec>() {
@@ -362,13 +337,7 @@ mod tests {
         chunks: Vec<Arc<dyn QueryChunk>>,
         output_sort_key: Option<SortKey>,
     ) {
-        let plan = chunks_to_physical_nodes(
-            &schema,
-            output_sort_key.as_ref(),
-            chunks.clone(),
-            Predicate::default(),
-            2,
-        );
+        let plan = chunks_to_physical_nodes(&schema, output_sort_key.as_ref(), chunks.clone(), 2);
         let (schema2, chunks2, output_sort_key2) =
             extract_chunks(plan.as_ref()).expect("data found");
         assert_eq!(schema, schema2);

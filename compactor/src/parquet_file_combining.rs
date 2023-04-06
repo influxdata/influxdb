@@ -350,10 +350,9 @@ impl CompactPlanBuilder {
         let (small_cutoff_bytes, large_cutoff_bytes) =
             cutoff_bytes(max_desired_file_size_bytes, percentage_max_file_size);
 
-        let ctx = exec.new_context(ExecutorType::Reorg);
         let plan = if total_size <= small_cutoff_bytes {
             // Compact everything into one file
-            ReorgPlanner::new(ctx.child_ctx("ReorgPlanner"))
+            ReorgPlanner::new()
                 .compact_plan(
                     Arc::from(partition.table.name.clone()),
                     &merged_schema,
@@ -381,7 +380,7 @@ impl CompactPlanBuilder {
             if split_times.is_empty() || (split_times.len() == 1 && split_times[0] == max_time) {
                 // The split times might not have actually split anything, so in this case, compact
                 // everything into one file
-                ReorgPlanner::new(ctx.child_ctx("ReorgPlanner"))
+                ReorgPlanner::new()
                     .compact_plan(
                         Arc::from(partition.table.name.clone()),
                         &merged_schema,
@@ -391,7 +390,7 @@ impl CompactPlanBuilder {
                     .context(CompactLogicalPlanSnafu)?
             } else {
                 // split compact query plan
-                ReorgPlanner::new(ctx.child_ctx("ReorgPlanner"))
+                ReorgPlanner::new()
                     .split_plan(
                         Arc::from(partition.table.name.clone()),
                         &merged_schema,
@@ -532,9 +531,8 @@ impl CompactPlanBuilder {
             .expect("no partition sort key in catalog")
             .filter_to(&merged_schema.primary_key(), partition_id.get());
 
-        let ctx = exec.new_context(ExecutorType::Reorg);
         // Compact everything into one file
-        let plan = ReorgPlanner::new(ctx.child_ctx("ReorgPlanner"))
+        let plan = ReorgPlanner::new()
             .compact_plan(
                 Arc::from(partition.table.name.clone()),
                 &merged_schema,

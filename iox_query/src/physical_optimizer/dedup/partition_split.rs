@@ -10,7 +10,6 @@ use datafusion::{
 };
 use hashbrown::HashMap;
 use observability_deps::tracing::warn;
-use predicate::Predicate;
 
 use crate::{
     config::IoxConfigExt,
@@ -86,7 +85,6 @@ impl PhysicalOptimizerRule for PartitionSplit {
                                     &schema,
                                     output_sort_key.as_ref(),
                                     chunks,
-                                    Predicate::new(),
                                     config.execution.target_partitions,
                                 ),
                                 dedup_exec.sort_keys().to_vec(),

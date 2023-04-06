@@ -59,7 +59,7 @@ impl DataFusionPlanner for V1DataFusionPlanner {
                     .expect("no partition sort key in catalog")
                     .filter_to(&merged_schema.primary_key(), partition.partition_id.get());
 
-                ReorgPlanner::new(ctx.child_ctx("ReorgPlanner"))
+                ReorgPlanner::new()
                     .compact_plan(
                         Arc::from(partition.table.name.clone()),
                         &merged_schema,
@@ -84,7 +84,7 @@ impl DataFusionPlanner for V1DataFusionPlanner {
                     .expect("no partition sort key in catalog")
                     .filter_to(&merged_schema.primary_key(), partition.partition_id.get());
 
-                ReorgPlanner::new(ctx.child_ctx("ReorgPlanner"))
+                ReorgPlanner::new()
                     .split_plan(
                         Arc::from(partition.table.name.clone()),
                         &merged_schema,

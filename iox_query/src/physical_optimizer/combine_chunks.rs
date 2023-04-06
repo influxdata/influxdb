@@ -7,7 +7,6 @@ use datafusion::{
     physical_optimizer::PhysicalOptimizerRule,
     physical_plan::{union::UnionExec, ExecutionPlan},
 };
-use predicate::Predicate;
 
 use crate::{
     physical_optimizer::chunk_extraction::extract_chunks, provider::chunks_to_physical_nodes,
@@ -54,7 +53,6 @@ impl PhysicalOptimizerRule for CombineChunks {
                         &schema,
                         output_sort_key.as_ref(),
                         chunks,
-                        Predicate::new(),
                         config.execution.target_partitions,
                     );
                     let Some(union_of_chunks) = union_of_chunks.as_any().downcast_ref::<UnionExec>() else {
@@ -98,18 +96,11 @@ mod tests {
         let chunk5 = TestChunk::new("table").with_id(5).with_dummy_parquet_file();
         let schema = chunk1.schema().as_arrow();
         let plan = Arc::new(UnionExec::new(vec![
-            chunks_to_physical_nodes(
-                &schema,
-                None,
-                vec![Arc::new(chunk1), Arc::new(chunk2)],
-                Predicate::new(),
-                2,
-            ),
+            chunks_to_physical_nodes(&schema, None, vec![Arc::new(chunk1), Arc::new(chunk2)], 2),
             chunks_to_physical_nodes(
                 &schema,
                 None,
                 vec![Arc::new(chunk3), Arc::new(chunk4), Arc::new(chunk5)],
-                Predicate::new(),
                 2,
             ),
         ]));
@@ -144,18 +135,12 @@ mod tests {
         let chunk3 = TestChunk::new("table").with_id(1).with_dummy_parquet_file();
         let schema = chunk1.schema().as_arrow();
         let plan = Arc::new(UnionExec::new(vec![
-            chunks_to_physical_nodes(&schema, None, vec![Arc::new(chunk1)], Predicate::new(), 2),
-            chunks_to_physical_nodes(&schema, None, vec![Arc::new(chunk2)], Predicate::new(), 2),
+            chunks_to_physical_nodes(&schema, None, vec![Arc::new(chunk1)], 2),
+            chunks_to_physical_nodes(&schema, None, vec![Arc::new(chunk2)], 2),
             Arc::new(
                 FilterExec::try_new(
                     Arc::new(Literal::new(ScalarValue::from(false))),
-                    chunks_to_physical_nodes(
-                        &schema,
-                        None,
-                        vec![Arc::new(chunk3)],
-                        Predicate::new(),
-                        2,
-                    ),
+                    chunks_to_physical_nodes(&schema, None, vec![Arc::new(chunk3)], 2),
                 )
                 .unwrap(),
             ),
@@ -189,7 +174,7 @@ mod tests {
     fn test_no_chunks() {
         let chunk1 = TestChunk::new("table").with_id(1);
         let schema = chunk1.schema().as_arrow();
-        let plan = chunks_to_physical_nodes(&schema, None, vec![], Predicate::new(), 2);
+        let plan = chunks_to_physical_nodes(&schema, None, vec![], 2);
         let opt = CombineChunks::default();
         let mut config = ConfigOptions::default();
         config.execution.target_partitions = 2;
@@ -213,13 +198,7 @@ mod tests {
         let plan = Arc::new(UnionExec::new(vec![Arc::new(
             FilterExec::try_new(
                 Arc::new(Literal::new(ScalarValue::from(false))),
-                chunks_to_physical_nodes(
-                    &schema,
-                    None,
-                    vec![Arc::new(chunk1)],
-                    Predicate::new(),
-                    2,
-                ),
+                chunks_to_physical_nodes(&schema, None, vec![Arc::new(chunk1)], 2),
             )
             .unwrap(),
         )]));

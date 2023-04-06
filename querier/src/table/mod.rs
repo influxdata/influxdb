@@ -8,7 +8,7 @@ use crate::{
 use data_types::{ColumnId, DeletePredicate, NamespaceId, PartitionId, ShardIndex, TableId};
 use datafusion::error::DataFusionError;
 use futures::join;
-use iox_query::{exec::Executor, provider, provider::ChunkPruner, QueryChunk};
+use iox_query::{provider, provider::ChunkPruner, QueryChunk};
 use observability_deps::tracing::{debug, trace};
 use predicate::Predicate;
 use schema::Schema;
@@ -79,7 +79,6 @@ pub struct QuerierTableArgs {
     pub schema: Schema,
     pub ingester_connection: Option<Arc<dyn IngesterConnection>>,
     pub chunk_adapter: Arc<ChunkAdapter>,
-    pub exec: Arc<Executor>,
     pub prune_metrics: Arc<PruneMetrics>,
 }
 
@@ -114,9 +113,6 @@ pub struct QuerierTable {
     /// Interface to create chunks for this table.
     chunk_adapter: Arc<ChunkAdapter>,
 
-    /// Executor for queries.
-    exec: Arc<Executor>,
-
     /// Metrics for chunk pruning.
     prune_metrics: Arc<PruneMetrics>,
 }
@@ -134,7 +130,6 @@ impl QuerierTable {
             schema,
             ingester_connection,
             chunk_adapter,
-            exec,
             prune_metrics,
         } = args;
 
@@ -148,7 +143,6 @@ impl QuerierTable {
             schema,
             ingester_connection,
             chunk_adapter,
-            exec,
             prune_metrics,
         }
     }
