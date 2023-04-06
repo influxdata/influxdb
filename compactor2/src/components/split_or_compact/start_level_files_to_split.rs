@@ -209,7 +209,7 @@ pub fn high_l0_overlap_split(
 // The assumption is that the caller has `cap` bytes spread across `min_time` to `max_time` and wants
 // to split those bytes into chunks approximating `max_compact_size`.
 // This function returns a vec of split times that assume the data is spread close to linearly across
-// the time range, but padded slightly to allow some deviation from an even distrubution of data.
+// the time range, but padded to allow some deviation from an even distrubution of data.
 // The cost of splitting into smaller pieces is minimal (potentially extra but smaller compactions),
 // while the cost splitting into pieces that are too big is considerable (we may have split again).
 pub fn select_split_times(
@@ -229,10 +229,8 @@ pub fn select_split_times(
 
     // But the data won't be spread perfectly even across the time range, and its better err towards splitting
     // extra small rather than splitting extra large (which may still exceed max_compact_size).
-    // So pad the split count a little beyond what a perfect distribution would require.
-    // Add 50% (3/2) to the minimal computation, then +1 to ensure we don't do a single split when the cap
-    // is 1 byte less than 2x the max_compact_size
-    splits = splits * 3 / 2 + 1;
+    // So pad the split count beyond what a perfect distribution would require, by doubling it.
+    splits *= 2;
 
     // Splitting the time range into `splits` pieces requires an increase between each split time of `delta`.
     let mut delta = (max_time - min_time) / (splits + 1) as i64;
@@ -450,13 +448,13 @@ mod tests {
         // splitting 300-399 bytes based on a max of 100, with a time range 0-100, gives 5 splits, 6 pieces.
         // A bit agressive for exactly 3x the max cap, but very reasonable for 1 byte under 4x.
         split_times = super::select_split_times(300, 100, 0, 100);
-        assert!(split_times == vec![16, 32, 48, 64, 80]);
+        assert!(split_times == vec![14, 28, 42, 56, 70, 84]);
         split_times = super::select_split_times(399, 100, 0, 100);
-        assert!(split_times == vec![16, 32, 48, 64, 80]);
+        assert!(split_times == vec![14, 28, 42, 56, 70, 84]);
 
         // splitting 400 bytes based on a max of 100, with a time range 0-100, gives 7 splits, 8 pieces.
         split_times = super::select_split_times(400, 100, 0, 100);
-        assert!(split_times == vec![12, 24, 36, 48, 60, 72, 84]);
+        assert!(split_times == vec![11, 22, 33, 44, 55, 66, 77, 88]);
 
         // Now some pathelogical cases:
 
