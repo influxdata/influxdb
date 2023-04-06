@@ -118,6 +118,12 @@ pub enum Error {
         source: DataFusionError,
     },
 
+    #[snafu(display("Error setting predicate table '{:?}': {}", table, source))]
+    SettingPredicateTable {
+        table: Option<String>,
+        source: super::expr::Error,
+    },
+
     #[snafu(display("Error converting Predicate '{}: {}", rpc_predicate_string, source))]
     ConvertingPredicate {
         rpc_predicate_string: String,
@@ -214,7 +220,12 @@ impl Error {
             | Self::ConvertingReadGroupType { source, .. }
             | Self::ConvertingReadGroupAggregate { source, .. }
             | Self::ConvertingWindowAggregate { source, .. }
-                if matches!(source, super::expr::Error::FieldColumnsNotSupported { .. }) =>
+            | Self::SettingPredicateTable { source, .. }
+                if matches!(
+                    source,
+                    super::expr::Error::FieldColumnsNotSupported { .. }
+                        | super::expr::Error::MultipleTablePredicateNotSupported { .. }
+                ) =>
             {
                 tonic::Code::Unimplemented
             }
@@ -225,6 +236,7 @@ impl Error {
             | Self::ConvertingTagKeyInTagValues { .. }
             | Self::ComputingGroupedSeriesSet { .. }
             | Self::ConvertingFieldList { .. }
+            | Self::SettingPredicateTable { .. }
             | Self::MeasurementLiteralOrRegex { .. }
             | Self::MissingTagKeyPredicate {}
             | Self::InvalidTagKeyRegex { .. } => tonic::Code::InvalidArgument,
@@ -1171,7 +1183,8 @@ where
 
     let predicate = InfluxRpcPredicateBuilder::default()
         .set_range(range)
-        .table_option(measurement)
+        .table_option(measurement.clone())
+        .context(SettingPredicateTableSnafu { table: measurement })?
         .rpc_predicate(rpc_predicate)
         .context(ConvertingPredicateSnafu {
             rpc_predicate_string,
@@ -1213,7 +1226,8 @@ where
 
     let predicate = InfluxRpcPredicateBuilder::default()
         .set_range(range)
-        .table_option(measurement)
+        .table_option(measurement.clone())
+        .context(SettingPredicateTableSnafu { table: measurement })?
         .rpc_predicate(rpc_predicate)
         .context(ConvertingPredicateSnafu {
             rpc_predicate_string,
@@ -1460,7 +1474,8 @@ where
 
     let predicate = InfluxRpcPredicateBuilder::default()
         .set_range(range)
-        .table_option(measurement)
+        .table_option(measurement.clone())
+        .context(SettingPredicateTableSnafu { table: measurement })?
         .rpc_predicate(rpc_predicate)
         .context(ConvertingPredicateSnafu {
             rpc_predicate_string,
