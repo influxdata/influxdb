@@ -355,6 +355,13 @@ SELECT COUNT(usage_idle) FROM cpu WHERE time >= '2022-10-31T02:00:00Z' AND time 
 SELECT COUNT(usage_idle), COUNT(bytes_free) FROM cpu, disk WHERE time >= '2022-10-31T02:00:00Z' AND time < '2022-10-31T02:02:00Z' GROUP BY TIME(30s) FILL(previous);
 SELECT COUNT(usage_idle) FROM cpu WHERE time >= '2022-10-31T02:00:00Z' AND time < '2022-10-31T02:02:00Z' GROUP BY TIME(30s) FILL(3.14);
 SELECT COUNT(usage_idle), COUNT(bytes_free) FROM cpu, disk WHERE time >= '2022-10-31T02:00:00Z' AND time < '2022-10-31T02:02:00Z' GROUP BY TIME(30s) FILL(3.14);
+SELECT MEAN(usage_idle) FROM cpu WHERE time >= '2022-10-31T02:00:00Z' AND time <= '2022-10-31T02:00:10Z' GROUP BY TIME(2s) FILL(linear);
+SELECT MEAN(usage_idle), MEAN(bytes_free) FROM cpu, disk WHERE time >= '2022-10-31T02:00:00Z' AND time <= '2022-10-31T02:00:10Z' GROUP BY TIME(2s) FILL(linear);
+SELECT MEAN(usage_idle) FROM cpu WHERE time >= '2022-10-31T02:00:00Z' AND time <= '2022-10-31T02:00:10Z' GROUP BY TIME(2s) FILL(linear) LIMIT 3 OFFSET 1;
+SELECT MEAN(usage_idle), MEAN(bytes_free) FROM cpu, disk WHERE time >= '2022-10-31T02:00:00Z' AND time <= '2022-10-31T02:00:10Z' GROUP BY TIME(2s) FILL(linear) LIMIT 3 OFFSET 1;
+
+-- interpolates NULLs if there is no subsequent value
+SELECT MEAN(usage_idle) FROM cpu WHERE time >= '2022-10-31T02:00:00Z' AND time < '2022-10-31T02:00:10Z' GROUP BY TIME(2s) FILL(linear);
 
 -- correct data type of FILL(value) depending on the data type of the aggregate
 SELECT COUNT(usage_idle), SUM(usage_idle) FROM cpu WHERE time >= '2022-10-31T02:00:00Z' AND time < '2022-10-31T02:02:00Z' GROUP BY TIME(30s) FILL(3.14);
@@ -430,9 +437,3 @@ SELECT COUNT(usage_idle), COUNT(bytes_free) FROM cpu, disk WHERE time >= '2022-1
 
 -- aggregate, group by TIME and tag, multiple measurements
 SELECT COUNT(usage_idle), COUNT(bytes_free) FROM cpu, disk WHERE time >= '2022-10-31T02:00:00Z' AND time < '2022-10-31T02:02:00Z' GROUP BY TIME(30s), cpu, device LIMIT 1;
-
---
--- Unimplemented cases
---
-
-SELECT COUNT(usage_idle) FROM cpu WHERE time >= '2022-10-31T02:00:00Z' AND time < '2022-10-31T02:02:00Z' GROUP BY TIME(30s) FILL(linear);

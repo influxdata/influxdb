@@ -555,10 +555,7 @@ impl<'a> InfluxQLToLogicalPlan<'a> {
             let fill_strategy = match fill_option {
                 FillClause::Null | FillClause::Value(_) => FillStrategy::Null,
                 FillClause::Previous => FillStrategy::PrevNullAsMissing,
-                FillClause::Linear => {
-                    return Err(DataFusionError::NotImplemented(fill_option.to_string()))
-                }
-
+                FillClause::Linear => FillStrategy::LinearInterpolate,
                 FillClause::None => unreachable!(),
             };
 
@@ -2305,6 +2302,13 @@ mod test {
                       Aggregate: groupBy=[[datebin(IntervalDayTime("10000"), data.time, TimestampNanosecond(0, None)) AS time]], aggr=[[COUNT(data.f64_field)]] [time:Timestamp(Nanosecond, None);N, COUNT(data.f64_field):Int64;N]
                         TableScan: data [TIME:Boolean;N, bar:Dictionary(Int32, Utf8);N, bool_field:Boolean;N, f64_field:Float64;N, foo:Dictionary(Int32, Utf8);N, i64_field:Int64;N, mixedCase:Float64;N, str_field:Utf8;N, time:Timestamp(Nanosecond, None), with space:Float64;N]
                 "###);
+                assert_snapshot!(plan("SELECT COUNT(f64_field) FROM data GROUP BY TIME(10s) FILL(linear)"), @r###"
+                Sort: time ASC NULLS LAST [iox::measurement:Dictionary(Int32, Utf8), time:Timestamp(Nanosecond, None);N, count:Int64;N]
+                  Projection: Dictionary(Int32, Utf8("data")) AS iox::measurement, time, COUNT(data.f64_field) AS count [iox::measurement:Dictionary(Int32, Utf8), time:Timestamp(Nanosecond, None);N, count:Int64;N]
+                    GapFill: groupBy=[[time]], aggr=[[INTERPOLATE(COUNT(data.f64_field))]], time_column=time, stride=IntervalDayTime("10000"), range=Unbounded..Excluded(now()) [time:Timestamp(Nanosecond, None);N, COUNT(data.f64_field):Int64;N]
+                      Aggregate: groupBy=[[datebin(IntervalDayTime("10000"), data.time, TimestampNanosecond(0, None)) AS time]], aggr=[[COUNT(data.f64_field)]] [time:Timestamp(Nanosecond, None);N, COUNT(data.f64_field):Int64;N]
+                        TableScan: data [TIME:Boolean;N, bar:Dictionary(Int32, Utf8);N, bool_field:Boolean;N, f64_field:Float64;N, foo:Dictionary(Int32, Utf8);N, i64_field:Int64;N, mixedCase:Float64;N, str_field:Utf8;N, time:Timestamp(Nanosecond, None), with space:Float64;N]
+                "###);
 
                 // Coalesces the fill value, which is a float, to the matching type of a `COUNT` aggregate.
                 assert_snapshot!(plan("SELECT COUNT(f64_field) FROM data GROUP BY TIME(10s) FILL(3.2)"), @r###"
@@ -2375,12 +2379,6 @@ mod test {
                 #[test]
                 fn group_by_time_precision() {
                     assert_snapshot!(plan("SELECT COUNT(f64_field) FROM data GROUP BY TIME(10u) FILL(none)"), @"This feature is not implemented: interval limited to a precision of milliseconds. See https://github.com/influxdata/influxdb_iox/issues/7204");
-                }
-
-                /// Tracked by <https://github.com/influxdata/influxdb_iox/issues/6916>
-                #[test]
-                fn group_by_time_gapfill() {
-                    assert_snapshot!(plan("SELECT COUNT(f64_field) FROM data GROUP BY TIME(10s) FILL(linear)"), @"This feature is not implemented: FILL(LINEAR)");
                 }
             }
         }
