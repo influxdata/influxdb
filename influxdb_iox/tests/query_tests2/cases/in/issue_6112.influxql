@@ -389,6 +389,9 @@ SELECT usage_idle FROM cpu WHERE cpu = 'cpu-total' LIMIT 2;
 SELECT usage_idle FROM cpu WHERE cpu = 'cpu-total' ORDER BY DESC LIMIT 2;
 SELECT usage_idle FROM cpu WHERE cpu = 'cpu-total' LIMIT 2 OFFSET 1;
 SELECT usage_idle FROM cpu WHERE cpu = 'cpu-total' ORDER BY DESC LIMIT 2 OFFSET 1;
+-- correct final ordering
+-- See: https://github.com/influxdata/influxdb_iox/issues/7460
+SELECT f64 FROM m2 GROUP BY tag0 LIMIT 1;
 
 -- raw query, multiple measurements
 SELECT usage_idle, bytes_free FROM cpu, disk WHERE cpu = 'cpu-total' OR device = 'disk1s1' LIMIT 2;
@@ -427,7 +430,6 @@ SELECT COUNT(usage_idle), COUNT(bytes_free) FROM cpu, disk WHERE time >= '2022-1
 
 -- aggregate, group by TIME and tag, multiple measurements
 SELECT COUNT(usage_idle), COUNT(bytes_free) FROM cpu, disk WHERE time >= '2022-10-31T02:00:00Z' AND time < '2022-10-31T02:02:00Z' GROUP BY TIME(30s), cpu, device LIMIT 1;
-
 
 --
 -- Unimplemented cases
