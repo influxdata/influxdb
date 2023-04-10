@@ -355,6 +355,9 @@ async fn execute_plan(
     job_semaphore: Arc<InstrumentedAsyncSemaphore>,
 ) -> Result<Vec<ParquetFileParams>, DynError> {
     let create = {
+        // Adjust concurrency based on the column count in the partition.
+        let permits = compute_permits(job_semaphore.total_permits(), partition_info.column_count());
+
         // draw semaphore BEFORE creating the DataFusion plan and drop it directly AFTER finishing the
         // DataFusion computation (but BEFORE doing any additional external IO).
         //
@@ -362,12 +365,12 @@ async fn execute_plan(
         // DataFusion ever starts to pre-allocate buffers during the physical planning. To the best of our
         // knowledge, this is currently (2023-01-25) not the case but if this ever changes, then we are prepared.
         let permit = job_semaphore
-            .acquire(None)
+            .acquire_many(permits, None)
             .await
             .expect("semaphore not closed");
         info!(
             partition_id = partition_info.partition_id.get(),
-            "job semaphore acquired",
+            permits, "job semaphore acquired",
         );
 
         let plan = components
@@ -472,4 +475,41 @@ async fn update_catalog(
         .collect::<Vec<_>>();
 
     (created_file_params, upgraded_files)
+}
+
+// SINGLE_THREADED_COLUMN_COUNT is the number of columns requiring a partition be comapacted single threaded.
+const SINGLE_THREADED_COLUMN_COUNT: usize = 80;
+
+// Determine how many permits must be acquired from the concurrency limiter semaphore
+// based on the column count of this job and the total permits (concurrency).
+fn compute_permits(
+    total_permits: usize, // total number of permits (max concurrency)
+    columns: usize,       // column count for this job
+) -> u32 {
+    if columns >= SINGLE_THREADED_COLUMN_COUNT {
+        // this job requires all permits, forcing it to run by itself.
+        return total_permits as u32;
+    }
+
+    // compute the share (linearly scaled) of total permits this job requires
+    let share = columns as f64 / SINGLE_THREADED_COLUMN_COUNT as f64;
+    let permits = total_permits as f64 * share;
+
+    if permits < 1.0 {
+        return 1;
+    }
+
+    permits as u32
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn concurrency_limits() {
+        assert_eq!(compute_permits(10, 10000), 10); // huge column count takes exactly all permits (not more than the total)
+        assert_eq!(compute_permits(10, 1), 1); // 1 column still takes 1 permit
+        assert_eq!(compute_permits(10, SINGLE_THREADED_COLUMN_COUNT / 2), 5); // 1/2 the max column count takes half the total permits
+    }
 }
