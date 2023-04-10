@@ -6,7 +6,7 @@ use datafusion_util::AsExpr;
 use generated_types::influxdata::iox::querier::v1::influx_ql_metadata::TagKeyColumn;
 use influxdb_influxql_parser::common::OrderByClause;
 use influxdb_influxql_parser::expression::{Expr as IQLExpr, VarRef, VarRefDataType};
-use influxdb_influxql_parser::select::{Field, SelectStatement};
+use influxdb_influxql_parser::select::Field;
 use schema::INFLUXQL_MEASUREMENT_COLUMN_NAME;
 use std::collections::HashMap;
 use std::ops::Deref;
@@ -74,7 +74,8 @@ pub(super) fn make_tag_key_column_meta(
 /// Sort expressions referring to tag keys are always specified in lexicographically ascending order.
 pub(super) fn plan_with_sort(
     plan: LogicalPlan,
-    select: &SelectStatement,
+    time_sort_expr: Expr,
+    sort_by_measurement: bool,
     group_by_tag_set: &[&str],
     projection_tag_set: &[&str],
 ) -> Result<LogicalPlan> {
@@ -82,7 +83,7 @@ pub(super) fn plan_with_sort(
     // NOTE: Ideally DataFusion would maintain the order of the UNION ALL, which would eliminate
     //  the need to sort by measurement.
     //  See: https://github.com/influxdata/influxdb_iox/issues/7062
-    let mut series_sort = if matches!(plan, LogicalPlan::Union(_)) {
+    let mut series_sort = if sort_by_measurement {
         vec![Expr::sort(
             INFLUXQL_MEASUREMENT_COLUMN_NAME.as_expr(),
             true,
@@ -116,7 +117,7 @@ pub(super) fn plan_with_sort(
         series_sort.extend(map_to_expr(schema, group_by_tag_set));
     };
 
-    series_sort.push(select.order_by.to_sort_expr());
+    series_sort.push(time_sort_expr);
 
     series_sort.extend(map_to_expr(schema, projection_tag_set));
 
