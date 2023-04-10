@@ -5,7 +5,6 @@ pub(crate) mod all_in_one;
 mod compactor2;
 mod garbage_collector;
 mod ingest_replica;
-mod ingester;
 mod ingester2;
 mod main;
 mod querier;
@@ -30,9 +29,6 @@ pub enum Error {
 
     #[snafu(display("Error in router2 subcommand: {}", source))]
     Router2Error { source: router2::Error },
-
-    #[snafu(display("Error in ingester subcommand: {}", source))]
-    IngesterError { source: ingester::Error },
 
     #[snafu(display("Error in ingester2 subcommand: {}", source))]
     Ingester2Error { source: ingester2::Error },
@@ -68,7 +64,6 @@ impl Config {
             Some(Command::Querier(config)) => config.run_config.logging_config(),
             Some(Command::Router(config)) => config.run_config.logging_config(),
             Some(Command::Router2(config)) => config.run_config.logging_config(),
-            Some(Command::Ingester(config)) => config.run_config.logging_config(),
             Some(Command::Ingester2(config)) => config.run_config.logging_config(),
             Some(Command::IngestReplica(config)) => config.run_config.logging_config(),
             Some(Command::AllInOne(config)) => &config.logging_config,
@@ -90,9 +85,6 @@ enum Command {
 
     /// Run the server in router2 mode
     Router2(router2::Config),
-
-    /// Run the server in ingester mode
-    Ingester(ingester::Config),
 
     /// Run the server in ingester2 mode
     Ingester2(ingester2::Config),
@@ -124,7 +116,6 @@ pub async fn command(config: Config) -> Result<()> {
         Some(Command::Querier(config)) => querier::command(config).await.context(QuerierSnafu),
         Some(Command::Router(config)) => router::command(config).await.context(RouterSnafu),
         Some(Command::Router2(config)) => router2::command(config).await.context(Router2Snafu),
-        Some(Command::Ingester(config)) => ingester::command(config).await.context(IngesterSnafu),
         Some(Command::Ingester2(config)) => {
             ingester2::command(config).await.context(Ingester2Snafu)
         }

@@ -42,34 +42,6 @@ fn router2_errors_without_mode_env_var() {
 }
 
 #[test]
-fn ingester_errors_with_mode_env_var() {
-    Command::cargo_bin("influxdb_iox")
-        .unwrap()
-        .env_clear()
-        .env("INFLUXDB_IOX_RPC_MODE", "2")
-        .arg("run")
-        .arg("ingester")
-        .arg("--write-buffer")
-        .arg("required")
-        .arg("--write-buffer-addr")
-        .arg("required")
-        .arg("--shard-index-range-start")
-        .arg("0")
-        .arg("--shard-index-range-end")
-        .arg("1")
-        .arg("--pause-ingest-size-bytes")
-        .arg("300")
-        .arg("--persist-memory-threshold-bytes")
-        .arg("500")
-        .timeout(Duration::from_secs(2))
-        .assert()
-        .failure()
-        .stderr(predicate::str::contains(
-            "`INFLUXDB_IOX_RPC_MODE` was specified but `ingester` was the command run",
-        ));
-}
-
-#[test]
 fn ingester2_errors_without_mode_env_var() {
     Command::cargo_bin("influxdb_iox")
         .unwrap()

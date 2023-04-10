@@ -2626,7 +2626,6 @@ dependencies = [
  "ioxd_compactor2",
  "ioxd_garbage_collector",
  "ioxd_ingest_replica",
- "ioxd_ingester",
  "ioxd_ingester2",
  "ioxd_querier",
  "ioxd_router",
@@ -2780,62 +2779,6 @@ dependencies = [
  "trace",
  "uuid",
  "workspace-hack",
-]
-
-[[package]]
-name = "ingester"
-version = "0.1.0"
-dependencies = [
- "arrow",
- "arrow-flight",
- "arrow_util",
- "assert_matches",
- "async-trait",
- "backoff",
- "bytes",
- "chrono",
- "data_types",
- "datafusion",
- "datafusion_util",
- "dml",
- "flatbuffers",
- "futures",
- "generated_types",
- "hashbrown 0.13.2",
- "hyper",
- "iox_catalog",
- "iox_query",
- "iox_time",
- "lazy_static",
- "metric",
- "mutable_batch",
- "mutable_batch_lp",
- "mutable_batch_pb",
- "object_store",
- "observability_deps",
- "once_cell",
- "parking_lot 0.12.1",
- "parquet_file",
- "paste",
- "pin-project",
- "predicate",
- "prost",
- "rand",
- "schema",
- "service_grpc_catalog",
- "snafu",
- "test_helpers",
- "thiserror",
- "tokio",
- "tokio-stream",
- "tokio-util",
- "tonic",
- "trace",
- "tracker",
- "uuid",
- "workspace-hack",
- "write_buffer",
- "write_summary",
 ]
 
 [[package]]
@@ -3216,27 +3159,6 @@ dependencies = [
  "tokio-util",
  "trace",
  "workspace-hack",
-]
-
-[[package]]
-name = "ioxd_ingester"
-version = "0.1.0"
-dependencies = [
- "async-trait",
- "clap_blocks",
- "data_types",
- "hyper",
- "ingester",
- "iox_catalog",
- "iox_query",
- "ioxd_common",
- "metric",
- "object_store",
- "thiserror",
- "tokio-util",
- "trace",
- "workspace-hack",
- "write_buffer",
 ]
 
 [[package]]
