@@ -270,6 +270,38 @@ mod tests {
     );
 
     test_parse_v1!(
+        encoded_case_sensitive,
+        query_string = "?db=BaNanas",
+        want = Ok(WriteParams{ namespace, precision: _ }) => {
+            assert_eq!(namespace.as_str(), "BaNanas");
+        }
+    );
+
+    test_parse_v1!(
+        encoded_quotation,
+        query_string = "?db=ban'anas",
+        want = Ok(WriteParams{ namespace, precision: _ }) => {
+            assert_eq!(namespace.as_str(), "ban'anas");
+        }
+    );
+
+    test_parse_v1!(
+        start_nonalphanumeric,
+        query_string = "?db=_bananas",
+        want = Ok(WriteParams{ namespace, precision: _ }) => {
+            assert_eq!(namespace.as_str(), "_bananas");
+        }
+    );
+
+    test_parse_v1!(
+        minimum_length_possible,
+        query_string = "?db=d",
+        want = Ok(WriteParams{ namespace, precision: _ }) => {
+            assert_eq!(namespace.as_str().len(), 1);
+        }
+    );
+
+    test_parse_v1!(
         with_precision,
         query_string = "?db=bananas&rp=ageless&precision=ms",
         want = Ok(WriteParams{ namespace, precision }) => {
@@ -366,6 +398,50 @@ mod tests {
         }) => {
             assert_eq!(namespace.as_str(), "bananas");
             assert_matches!(precision, Precision::Nanoseconds);
+        }
+    );
+
+    test_parse_v2!(
+        encoded_case_sensitive,
+        query_string = "?bucket=buCket",
+        want = Ok(WriteParams {
+            namespace,
+            ..
+        }) => {
+            assert_eq!(namespace.as_str(), "buCket");
+        }
+    );
+
+    test_parse_v2!(
+        encoded_quotation,
+        query_string = "?bucket=buc'ket",
+        want = Ok(WriteParams {
+            namespace,
+            ..
+        }) => {
+            assert_eq!(namespace.as_str(), "buc'ket");
+        }
+    );
+
+    test_parse_v2!(
+        start_nonalphanumeric,
+        query_string = "?bucket=_bucket",
+        want = Ok(WriteParams {
+            namespace,
+            ..
+        }) => {
+            assert_eq!(namespace.as_str(), "_bucket");
+        }
+    );
+
+    test_parse_v2!(
+        minimum_length_possible,
+        query_string = "?bucket=b",
+        want = Ok(WriteParams {
+            namespace,
+            ..
+        }) => {
+            assert_eq!(namespace.as_str().len(), 1);
         }
     );
 

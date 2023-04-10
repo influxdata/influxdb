@@ -164,13 +164,57 @@ mod tests {
     );
 
     test_parse_v2!(
-        encoded_bucket_separator,
+        encoded_separator,
         query_string = "?org=cool_confusing&bucket=bucket",
         want = Ok(WriteParams {
             namespace,
             ..
         }) => {
             assert_eq!(namespace.as_str(), "cool%5Fconfusing_bucket");
+        }
+    );
+
+    test_parse_v2!(
+        encoded_case_sensitive,
+        query_string = "?org=Captialize&bucket=bucket",
+        want = Ok(WriteParams {
+            namespace,
+            ..
+        }) => {
+            assert_eq!(namespace.as_str(), "Captialize_bucket");
+        }
+    );
+
+    test_parse_v2!(
+        encoded_quotation,
+        query_string = "?org=cool'confusing&bucket=bucket",
+        want = Ok(WriteParams {
+            namespace,
+            ..
+        }) => {
+            assert_eq!(namespace.as_str(), "cool%27confusing_bucket");
+        }
+    );
+
+    test_parse_v2!(
+        start_nonalphanumeric,
+        query_string = "?org=_coolconfusing&bucket=bucket",
+        want = Ok(WriteParams {
+            namespace,
+            ..
+        }) => {
+            assert_eq!(namespace.as_str(), "%5Fcoolconfusing_bucket");
+        }
+    );
+
+    test_parse_v2!(
+        minimum_length_possible,
+        query_string = "?org=o&bucket=b",
+        want = Ok(WriteParams {
+            namespace,
+            ..
+        }) => {
+            assert_eq!(namespace.as_str().len(), 3);
         }
     );
 
