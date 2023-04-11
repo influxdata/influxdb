@@ -362,8 +362,7 @@ pub async fn create_router2_server_type(
 
     // e. Namespace resolver
     // Initialise the Namespace ID lookup + cache
-    let namespace_resolver =
-        NamespaceSchemaResolver::new(Arc::clone(&catalog), Arc::clone(&ns_cache));
+    let namespace_resolver = NamespaceSchemaResolver::new(Arc::clone(&ns_cache));
 
     ////////////////////////////////////////////////////////////////////////////
     //
@@ -554,8 +553,7 @@ pub async fn create_router_server_type<'a>(
 
     // e. Namespace resolver
     // Initialise the Namespace ID lookup + cache
-    let namespace_resolver =
-        NamespaceSchemaResolver::new(Arc::clone(&catalog), Arc::clone(&ns_cache));
+    let namespace_resolver = NamespaceSchemaResolver::new(Arc::clone(&ns_cache));
 
     ////////////////////////////////////////////////////////////////////////////
     //

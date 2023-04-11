@@ -170,8 +170,7 @@ impl TestContext {
             parts: vec![TemplatePart::TimeFormat("%Y-%m-%d".to_owned())],
         });
 
-        let namespace_resolver =
-            NamespaceSchemaResolver::new(Arc::clone(&catalog), Arc::clone(&ns_cache));
+        let namespace_resolver = NamespaceSchemaResolver::new(Arc::clone(&ns_cache));
         let namespace_resolver = NamespaceAutocreation::new(
             namespace_resolver,
             Arc::clone(&ns_cache),

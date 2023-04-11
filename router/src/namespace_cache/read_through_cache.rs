@@ -41,11 +41,11 @@ where
         &self,
         namespace: &NamespaceName<'static>,
     ) -> Result<Arc<NamespaceSchema>, Self::ReadError> {
-        let mut repos = self.catalog.repositories().await;
-
         match self.inner_cache.get_schema(namespace).await {
             Ok(v) => Ok(v),
             Err(CacheMissErr { .. }) => {
+                let mut repos = self.catalog.repositories().await;
+
                 let schema = match get_schema_by_name(
                     namespace,
                     repos.deref_mut(),
