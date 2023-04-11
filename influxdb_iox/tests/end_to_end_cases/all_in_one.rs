@@ -24,7 +24,7 @@ async fn smoke() {
     // Write some data into the v2 HTTP API ==============
     let lp = format!("{table_name},tag1=A,tag2=B val=42i 123456");
 
-    let response = write_to_router(lp, org, bucket, all_in_one.router_http_base()).await;
+    let response = write_to_router(lp, org, bucket, all_in_one.router_http_base(), None).await;
     assert_eq!(
         response.status(),
         StatusCode::NO_CONTENT,
@@ -33,7 +33,7 @@ async fn smoke() {
 
     // run query
     let sql = format!("select * from {table_name}");
-    let batches = run_sql(sql, namespace, all_in_one.querier_grpc_connection()).await;
+    let batches = run_sql(sql, namespace, all_in_one.querier_grpc_connection(), None).await;
 
     let expected = [
         "+------+------+--------------------------------+-----+",
@@ -69,7 +69,7 @@ async fn ephemeral_mode() {
         .to_string();
     let lp = format!("{table_name},tag1=A,tag2=B val=42i {now}");
 
-    let response = write_to_router(lp, org, bucket, all_in_one.router_http_base()).await;
+    let response = write_to_router(lp, org, bucket, all_in_one.router_http_base(), None).await;
     assert_eq!(
         response.status(),
         StatusCode::NO_CONTENT,
@@ -79,7 +79,7 @@ async fn ephemeral_mode() {
     // run query
     // do not select time becasue it changes every time
     let sql = format!("select tag1, tag2, val from {table_name}");
-    let batches = run_sql(sql, namespace, all_in_one.querier_grpc_connection()).await;
+    let batches = run_sql(sql, namespace, all_in_one.querier_grpc_connection(), None).await;
 
     let expected = [
         "+------+------+-----+",

@@ -197,6 +197,11 @@ impl InstrumentedAsyncSemaphore {
             span_recorder: Some(SpanRecorder::new(span)),
         }
     }
+
+    /// return the total number of permits (available + already acquired).
+    pub fn total_permits(self: &Arc<Self>) -> usize {
+        self.permits
+    }
 }
 
 impl Drop for InstrumentedAsyncSemaphore {
@@ -420,6 +425,8 @@ mod tests {
         let metrics = Arc::new(AsyncSemaphoreMetrics::new_unregistered());
         let semaphore = Arc::new(metrics.new_semaphore(10));
 
+        assert_eq!(10, semaphore.total_permits());
+
         let acquire_fut = semaphore.acquire_owned(None);
         let acquire_many_fut = semaphore.acquire_many_owned(1, None);
         assert_send(&acquire_fut);
@@ -427,7 +434,9 @@ mod tests {
         // futures itself are NOT Sync
 
         let permit_acquire = acquire_fut.await.unwrap();
+        assert_eq!(10, semaphore.total_permits());
         let permit_acquire_many = acquire_many_fut.await.unwrap();
+        assert_eq!(10, semaphore.total_permits());
         assert_send(&permit_acquire);
         assert_send(&permit_acquire_many);
         assert_sync(&permit_acquire);

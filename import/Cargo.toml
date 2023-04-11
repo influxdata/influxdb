@@ -6,7 +6,6 @@ edition.workspace = true
 license.workspace = true
 
 [dependencies]
-clap_blocks = { path = "../clap_blocks" }
 chrono = { version = "0.4", default-features = false }
 data_types = { path = "../data_types" }
 futures = "0.3"
@@ -14,14 +13,12 @@ generated_types = { path = "../generated_types" }
 influxdb_iox_client = { path = "../influxdb_iox_client" }
 iox_catalog = { path = "../iox_catalog" }
 object_store = { version = "0.5.6", features = ["aws"] }
-observability_deps = { path = "../observability_deps" }
 schema = { path = "../schema" }
 serde = { version = "1.0", features = ["derive"] }
 serde_json = "1.0.95"
 thiserror = "1.0.40"
 tokio = { version = "1.27" }
 tonic = { version = "0.8" }
-trogging = { path = "../trogging", features = ["clap"] }
 workspace-hack = { version = "0.1", path = "../workspace-hack" }
 
 [dev-dependencies]

@@ -20,6 +20,7 @@ pub async fn write_to_router(
     org: impl AsRef<str>,
     bucket: impl AsRef<str>,
     write_base: impl AsRef<str>,
+    authorization: Option<&str>,
 ) -> Response<Body> {
     let client = Client::new();
     let url = format!(
@@ -29,9 +30,11 @@ pub async fn write_to_router(
         bucket.as_ref()
     );
 
-    let request = Request::builder()
-        .uri(url)
-        .method("POST")
+    let mut builder = Request::builder().uri(url).method("POST");
+    if let Some(authorization) = authorization {
+        builder = builder.header(hyper::header::AUTHORIZATION, authorization);
+    };
+    let request = builder
         .body(Body::from(line_protocol.into()))
         .expect("failed to construct HTTP request");
 
@@ -80,8 +83,12 @@ pub async fn try_run_sql(
     sql_query: impl Into<String>,
     namespace: impl Into<String>,
     querier_connection: Connection,
+    authorization: Option<&str>,
 ) -> Result<Vec<RecordBatch>, influxdb_iox_client::flight::Error> {
     let mut client = influxdb_iox_client::flight::Client::new(querier_connection);
+    if let Some(authorization) = authorization {
+        client.add_header("authorization", authorization).unwrap();
+    }
 
     // Test the client handshake implementation
     // Normally this would be done one per connection, not per query
@@ -99,8 +106,12 @@ pub async fn try_run_influxql(
     influxql_query: impl Into<String>,
     namespace: impl Into<String>,
     querier_connection: Connection,
+    authorization: Option<&str>,
 ) -> Result<Vec<RecordBatch>, influxdb_iox_client::flight::Error> {
     let mut client = influxdb_iox_client::flight::Client::new(querier_connection);
+    if let Some(authorization) = authorization {
+        client.add_header("authorization", authorization).unwrap();
+    }
 
     // Test the client handshake implementation
     // Normally this would be done one per connection, not per query
@@ -120,8 +131,9 @@ pub async fn run_sql(
     sql: impl Into<String>,
     namespace: impl Into<String>,
     querier_connection: Connection,
+    authorization: Option<&str>,
 ) -> Vec<RecordBatch> {
-    try_run_sql(sql, namespace, querier_connection)
+    try_run_sql(sql, namespace, querier_connection, authorization)
         .await
         .expect("Error executing sql query")
 }
@@ -133,8 +145,14 @@ pub async fn run_influxql(
     influxql: impl Into<String> + Clone + Display,
     namespace: impl Into<String>,
     querier_connection: Connection,
+    authorization: Option<&str>,
 ) -> Vec<RecordBatch> {
-    try_run_influxql(influxql.clone(), namespace, querier_connection)
-        .await
-        .unwrap_or_else(|_| panic!("Error executing InfluxQL query: {influxql}"))
+    try_run_influxql(
+        influxql.clone(),
+        namespace,
+        querier_connection,
+        authorization,
+    )
+    .await
+    .unwrap_or_else(|_| panic!("Error executing InfluxQL query: {influxql}"))
 }

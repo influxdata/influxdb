@@ -24,7 +24,6 @@ predicate = { path = "../predicate" }
 rand = "0.8.3"
 schema = { path = "../schema" }
 sharder = { path = "../sharder" }
-snafu = "0.7"
 tokio = { version = "1", features = ["macros", "rt", "sync"] }
 tokio-util = { version = "0.7.7" }
 tracker = { path = "../tracker" }

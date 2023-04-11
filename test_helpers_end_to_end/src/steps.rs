@@ -143,6 +143,14 @@ pub enum Step {
         expected_error_code: StatusCode,
     },
 
+    /// Writes the specified line protocol to the `/api/v2/write` endpoint
+    /// using the specified authorization header, assert the data was
+    /// written successfully.
+    WriteLineProtocolWithAuthorization {
+        line_protocol: String,
+        authorization: String,
+    },
+
     /// Ask the catalog service how many Parquet files it has for this cluster's namespace. Do this
     /// before a write where you're interested in when the write has been persisted to Parquet;
     /// then after the write use `WaitForPersisted2` to observe the change in the number of Parquet
@@ -193,6 +201,16 @@ pub enum Step {
         expected_message: String,
     },
 
+    /// Run a SQL query using the FlightSQL interface authorized by the
+    /// authorization header. Verify that the
+    /// results match the expected results using the `assert_batches_eq!`
+    /// macro
+    QueryWithAuthorization {
+        sql: String,
+        authorization: String,
+        expected: Vec<&'static str>,
+    },
+
     /// Run a SQL query using the FlightSQL interface, and then verifies
     /// the results using the provided validation function on the
     /// results.
@@ -226,6 +244,15 @@ pub enum Step {
         query: String,
         expected_error_code: tonic::Code,
         expected_message: String,
+    },
+
+    /// Run an InfluxQL query using the FlightSQL interface including an
+    /// authorization header. Verify that the results match the expected
+    /// results using the `assert_batches_eq!` macro.
+    InfluxQLQueryWithAuthorization {
+        query: String,
+        authorization: String,
+        expected: Vec<&'static str>,
     },
 
     /// Retrieve the metrics and verify the results using the provided
@@ -280,7 +307,7 @@ where
                         "====Begin writing line protocol to v2 HTTP API:\n{}",
                         line_protocol
                     );
-                    let response = state.cluster.write_to_router(line_protocol).await;
+                    let response = state.cluster.write_to_router(line_protocol, None).await;
                     assert_eq!(response.status(), StatusCode::NO_CONTENT);
                     info!("====Done writing line protocol");
                 }
@@ -292,9 +319,24 @@ where
                         "====Begin writing line protocol expecting error to v2 HTTP API:\n{}",
                         line_protocol
                     );
-                    let response = state.cluster.write_to_router(line_protocol).await;
+                    let response = state.cluster.write_to_router(line_protocol, None).await;
                     assert_eq!(response.status(), *expected_error_code);
                     info!("====Done writing line protocol expecting error");
+                }
+                Step::WriteLineProtocolWithAuthorization {
+                    line_protocol,
+                    authorization,
+                } => {
+                    info!(
+                        "====Begin writing line protocol (authenticated) to v2 HTTP API:\n{}",
+                        line_protocol
+                    );
+                    let response = state
+                        .cluster
+                        .write_to_router(line_protocol, Some(authorization))
+                        .await;
+                    assert_eq!(response.status(), StatusCode::NO_CONTENT);
+                    info!("====Done writing line protocol");
                 }
                 // Get the current number of Parquet files in the cluster's namespace before
                 // starting a new write so we can observe a change when waiting for persistence.
@@ -344,6 +386,7 @@ where
                         sql,
                         state.cluster.namespace(),
                         state.cluster.querier().querier_grpc_connection(),
+                        None,
                     )
                     .await;
                     assert_batches_sorted_eq!(expected, &batches);
@@ -380,12 +423,30 @@ where
                         sql,
                         state.cluster().namespace(),
                         state.cluster().querier().querier_grpc_connection(),
+                        None,
                     )
                     .await
                     .unwrap_err();
 
                     check_flight_error(err, *expected_error_code, Some(expected_message));
 
+                    info!("====Done running");
+                }
+                Step::QueryWithAuthorization {
+                    sql,
+                    authorization,
+                    expected,
+                } => {
+                    info!("====Begin running SQL query (authenticated): {}", sql);
+                    // run query
+                    let batches = run_sql(
+                        sql,
+                        state.cluster.namespace(),
+                        state.cluster().querier().querier_grpc_connection(),
+                        Some(authorization.as_str()),
+                    )
+                    .await;
+                    assert_batches_sorted_eq!(expected, &batches);
                     info!("====Done running");
                 }
                 Step::VerifiedQuery { sql, verify } => {
@@ -395,6 +456,7 @@ where
                         sql,
                         state.cluster.namespace(),
                         state.cluster.querier().querier_grpc_connection(),
+                        None,
                     )
                     .await;
                     verify(batches);
@@ -407,6 +469,7 @@ where
                         query,
                         state.cluster.namespace(),
                         state.cluster.querier().querier_grpc_connection(),
+                        None,
                     )
                     .await;
                     assert_batches_sorted_eq!(expected, &batches);
@@ -446,12 +509,30 @@ where
                         query,
                         state.cluster().namespace(),
                         state.cluster().querier().querier_grpc_connection(),
+                        None,
                     )
                     .await
                     .unwrap_err();
 
                     check_flight_error(err, *expected_error_code, Some(expected_message));
 
+                    info!("====Done running");
+                }
+                Step::InfluxQLQueryWithAuthorization {
+                    query,
+                    authorization,
+                    expected,
+                } => {
+                    info!("====Begin running InfluxQL query: {}", query);
+                    // run query
+                    let batches = run_influxql(
+                        query,
+                        state.cluster.namespace(),
+                        state.cluster.querier().querier_grpc_connection(),
+                        Some(authorization),
+                    )
+                    .await;
+                    assert_batches_sorted_eq!(expected, &batches);
                     info!("====Done running");
                 }
                 Step::VerifiedMetrics(verify) => {

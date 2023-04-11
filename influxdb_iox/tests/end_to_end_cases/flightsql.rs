@@ -7,6 +7,7 @@ use arrow::{
 };
 use arrow_flight::{
     decode::FlightRecordBatchStream,
+    error::FlightError,
     sql::{
         Any, CommandGetCatalogs, CommandGetDbSchemas, CommandGetSqlInfo, CommandGetTableTypes,
         CommandGetTables, CommandStatementQuery, ProstMessageExt, SqlInfo,
@@ -15,13 +16,16 @@ use arrow_flight::{
 };
 use arrow_util::test_util::batches_to_sorted_lines;
 use assert_cmd::Command;
+use assert_matches::assert_matches;
 use bytes::Bytes;
 use datafusion::common::assert_contains;
 use futures::{FutureExt, TryStreamExt};
 use influxdb_iox_client::flightsql::FlightSqlClient;
 use predicates::prelude::*;
 use prost::Message;
-use test_helpers_end_to_end::{maybe_skip_integration, MiniCluster, Step, StepTest, StepTestState};
+use test_helpers_end_to_end::{
+    maybe_skip_integration, Authorizer, MiniCluster, Step, StepTest, StepTestState,
+};
 
 #[tokio::test]
 async fn flightsql_adhoc_query() {
@@ -1211,6 +1215,100 @@ fn strip_metadata(schema: &Schema) -> SchemaRef {
         .collect();
 
     Arc::new(Schema::new(stripped_fields))
+}
+
+#[tokio::test]
+async fn authz() {
+    test_helpers::maybe_start_logging();
+    let database_url = maybe_skip_integration!();
+
+    let table_name = "the_table";
+
+    // Set up the authorizer  =================================
+    let mut authz = Authorizer::create().await;
+
+    // Set up the cluster  ====================================
+    let mut cluster = MiniCluster::create_non_shared2_with_authz(database_url, authz.addr()).await;
+
+    let write_token = authz.create_token_for(cluster.namespace(), &["ACTION_WRITE"]);
+    let read_token = authz.create_token_for(cluster.namespace(), &["ACTION_READ_SCHEMA"]);
+
+    StepTest::new(
+        &mut cluster,
+        vec![
+            Step::WriteLineProtocolWithAuthorization {
+                line_protocol: format!(
+                    "{table_name},tag1=A,tag2=B val=42i 123456\n\
+                 {table_name},tag1=A,tag2=C val=43i 123457"
+                ),
+                authorization: format!("Token {}", write_token.clone()),
+            },
+            Step::Custom(Box::new(move |state: &mut StepTestState| {
+                async move {
+                    let mut client = flightsql_client(state.cluster());
+                    let err = client.get_table_types().await.unwrap_err();
+
+                    assert_matches!(err, FlightError::Tonic(status) => {
+                                assert_eq!(tonic::Code::Unauthenticated, status.code());
+                                assert_eq!("Unauthenticated", status.message());
+                    });
+                }
+                .boxed()
+            })),
+            Step::Custom(Box::new(move |state: &mut StepTestState| {
+                let token = write_token.clone();
+                async move {
+                    let mut client = flightsql_client(state.cluster());
+                    client
+                        .add_header(
+                            "authorization",
+                            format!("Bearer {}", token.clone()).as_str(),
+                        )
+                        .unwrap();
+                    let err = client.get_table_types().await.unwrap_err();
+
+                    assert_matches!(err, FlightError::Tonic(status) => {
+                                assert_eq!(tonic::Code::PermissionDenied, status.code());
+                                assert_eq!("Permission denied", status.message());
+                    });
+                }
+                .boxed()
+            })),
+            Step::Custom(Box::new(move |state: &mut StepTestState| {
+                let token = read_token.clone();
+                async move {
+                    let mut client = flightsql_client(state.cluster());
+                    client
+                        .add_header(
+                            "authorization",
+                            format!("Bearer {}", token.clone()).as_str(),
+                        )
+                        .unwrap();
+
+                    let stream = client.get_table_types().await.unwrap();
+                    let batches = collect_stream(stream).await;
+
+                    insta::assert_yaml_snapshot!(
+                        batches_to_sorted_lines(&batches),
+                        @r###"
+                    ---
+                    - +------------+
+                    - "| table_type |"
+                    - +------------+
+                    - "| BASE TABLE |"
+                    - "| VIEW       |"
+                    - +------------+
+                    "###
+                    );
+                }
+                .boxed()
+            })),
+        ],
+    )
+    .run()
+    .await;
+
+    authz.close().await;
 }
 
 /// Return a [`FlightSqlClient`] configured for use

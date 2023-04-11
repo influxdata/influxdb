@@ -1036,7 +1036,6 @@ dependencies = [
  "rand",
  "schema",
  "sharder",
- "snafu",
  "test_helpers",
  "tokio",
  "tokio-util",
@@ -1498,7 +1497,7 @@ dependencies = [
  "pin-project-lite",
  "rand",
  "smallvec",
- "sqlparser",
+ "sqlparser 0.32.0",
  "tempfile",
  "tokio",
  "tokio-stream",
@@ -1520,7 +1519,7 @@ dependencies = [
  "num_cpus",
  "object_store",
  "parquet",
- "sqlparser",
+ "sqlparser 0.32.0",
 ]
 
 [[package]]
@@ -1548,7 +1547,7 @@ dependencies = [
  "ahash 0.8.3",
  "arrow",
  "datafusion-common",
- "sqlparser",
+ "sqlparser 0.32.0",
 ]
 
 [[package]]
@@ -1633,7 +1632,7 @@ dependencies = [
  "datafusion-common",
  "datafusion-expr",
  "log",
- "sqlparser",
+ "sqlparser 0.32.0",
 ]
 
 [[package]]
@@ -2489,7 +2488,6 @@ version = "0.1.0"
 dependencies = [
  "assert_matches",
  "chrono",
- "clap_blocks",
  "client_util",
  "data_types",
  "futures",
@@ -2498,7 +2496,6 @@ dependencies = [
  "iox_catalog",
  "metric",
  "object_store",
- "observability_deps",
  "parking_lot 0.12.1",
  "schema",
  "serde",
@@ -2507,7 +2504,6 @@ dependencies = [
  "tokio",
  "tokio-stream",
  "tonic",
- "trogging",
  "workspace-hack",
 ]
 
@@ -2594,6 +2590,7 @@ dependencies = [
  "arrow-flight",
  "arrow_util",
  "assert_cmd",
+ "assert_matches",
  "async-trait",
  "authz",
  "backtrace",
@@ -2726,7 +2723,7 @@ version = "0.1.0"
 dependencies = [
  "generated_types",
  "snafu",
- "sqlparser",
+ "sqlparser 0.33.0",
  "workspace-hack",
 ]
 
@@ -3064,10 +3061,8 @@ version = "0.1.0"
 dependencies = [
  "async-trait",
  "bytes",
- "chrono",
  "clap 4.2.1",
  "clap_blocks",
- "data_types",
  "flate2",
  "futures",
  "generated_types",
@@ -3203,12 +3198,9 @@ dependencies = [
  "ioxd_common",
  "metric",
  "object_store",
- "parquet_file",
  "querier",
- "router",
  "service_grpc_flight",
  "service_grpc_influxrpc",
- "sharder",
  "thiserror",
  "tokio",
  "tokio-util",
@@ -3267,14 +3259,14 @@ checksum = "12b6ee2129af8d4fb011108c73d99a1b83a85977f23b82460c0ae2e25bb4b57f"
 
 [[package]]
 name = "is-terminal"
-version = "0.4.6"
+version = "0.4.7"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "256017f749ab3117e93acb91063009e1f1bb56d03965b14c2c8df4eb02c524d8"
+checksum = "adcf93614601c8129ddf72e2d5633df827ba6551541c6d8c59520a371475be1f"
 dependencies = [
  "hermit-abi 0.3.1",
  "io-lifetimes",
  "rustix 0.37.11",
- "windows-sys 0.45.0",
+ "windows-sys 0.48.0",
 ]
 
 [[package]]
@@ -4336,7 +4328,7 @@ dependencies = [
  "query_functions",
  "schema",
  "snafu",
- "sqlparser",
+ "sqlparser 0.33.0",
  "test_helpers",
  "workspace-hack",
 ]
@@ -5430,6 +5422,15 @@ checksum = "0366f270dbabb5cc2e4c88427dc4c08bba144f81e32fbd459a013f26a4d16aa0"
 dependencies = [
  "log",
  "sqlparser_derive",
+]
+
+[[package]]
+name = "sqlparser"
+version = "0.33.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "355dc4d4b6207ca8a3434fc587db0a8016130a574dbcdbfb93d7f7b5bc5b211a"
+dependencies = [
+ "log",
 ]
 
 [[package]]

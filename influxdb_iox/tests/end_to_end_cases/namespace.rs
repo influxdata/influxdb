@@ -27,7 +27,7 @@ async fn querier_namespace_client() {
 
     // Write some data into the v2 HTTP API ==============
     let lp = format!("{table_name},tag1=A,tag2=B val=42i 123456");
-    let response = cluster.write_to_router(lp).await;
+    let response = cluster.write_to_router(lp, None).await;
     assert_eq!(response.status(), StatusCode::NO_CONTENT);
 
     let mut client =
