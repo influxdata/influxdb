@@ -1530,7 +1530,7 @@ pub(crate) fn find_time_column_index(fields: &[Field]) -> Option<usize> {
 
 /// Returns `true` if `name` is a mathematical scalar function
 /// supported by InfluxQL.
-fn is_scalar_math_function(name: &str) -> bool {
+pub(crate) fn is_scalar_math_function(name: &str) -> bool {
     static FUNCTIONS: Lazy<HashSet<&'static str>> = Lazy::new(|| {
         HashSet::from([
             "abs", "sin", "cos", "tan", "asin", "acos", "atan", "atan2", "exp", "log", "ln",

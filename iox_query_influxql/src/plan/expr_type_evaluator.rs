@@ -138,12 +138,32 @@ impl<'a> TypeEvaluator<'a> {
             .try_collect()?;
 
         Ok(match call.name.as_str() {
+            // See: https://github.com/influxdata/influxdb/blob/e484c4d87193a475466c0285c018d16f168139e6/query/functions.go#L54-L60
             "mean" => Some(VarRefDataType::Float),
             "count" => Some(VarRefDataType::Integer),
             "min" | "max" | "sum" | "first" | "last" => match arg_types.first() {
                 Some(v) => *v,
                 None => None,
             },
+
+            // See: https://github.com/influxdata/influxdb/blob/e484c4d87193a475466c0285c018d16f168139e6/query/functions.go#L80
+            "median"
+            | "integral"
+            | "stddev"
+            | "derivative"
+            | "non_negative_derivative"
+            | "moving_average"
+            | "exponential_moving_average"
+            | "double_exponential_moving_average"
+            | "triple_exponential_moving_average"
+            | "relative_strength_index"
+            | "triple_exponential_derivative"
+            | "kaufmans_efficiency_ratio"
+            | "kaufmans_adaptive_moving_average"
+            | "chande_momentum_oscillator"
+            | "holt_winters"
+            | "holt_winters_with_fit" => Some(VarRefDataType::Float),
+            "elapsed" => Some(VarRefDataType::Integer),
             _ => None,
         })
     }
@@ -301,6 +321,49 @@ mod test {
             .unwrap()
             .unwrap();
         assert_matches!(res, VarRefDataType::Integer);
+
+        // Float functions
+        for name in [
+            "median",
+            "integral",
+            "stddev",
+            "derivative",
+            "non_negative_derivative",
+            "moving_average",
+            "exponential_moving_average",
+            "double_exponential_moving_average",
+            "triple_exponential_moving_average",
+            "relative_strength_index",
+            "triple_exponential_derivative",
+            "kaufmans_efficiency_ratio",
+            "kaufmans_adaptive_moving_average",
+            "chande_momentum_oscillator",
+            "holt_winters",
+            "holt_winters_with_fit",
+        ] {
+            let stmt = parse_select(&format!("SELECT {name}(field_i64) FROM temp_01"));
+            let field = stmt.fields.head().unwrap();
+            let res = evaluate_type(&namespace, &field.expr, &stmt.from)
+                .unwrap()
+                .unwrap();
+            assert_matches!(res, VarRefDataType::Float);
+        }
+
+        // Integer functions
+        let stmt = parse_select("SELECT elapsed(field_i64) FROM temp_01");
+        let field = stmt.fields.head().unwrap();
+        let res = evaluate_type(&namespace, &field.expr, &stmt.from)
+            .unwrap()
+            .unwrap();
+        assert_matches!(res, VarRefDataType::Integer);
+
+        // Invalid function
+        let stmt = parse_select("SELECT not_valid(field_i64) FROM temp_01");
+        let field = stmt.fields.head().unwrap();
+        let res = evaluate_type(&namespace, &field.expr, &stmt.from)
+            .unwrap()
+            .is_none();
+        assert!(res);
 
         // subqueries
 

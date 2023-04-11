@@ -78,6 +78,13 @@ impl SelectStatement {
     pub fn fill(&self) -> FillClause {
         self.fill.unwrap_or_default()
     }
+
+    /// Return the sort order for the `SELECT` statement.
+    ///
+    /// The default when no `ORDER BY` clause present is `TIME ASC`.
+    pub fn order_by(&self) -> OrderByClause {
+        self.order_by.unwrap_or_default()
+    }
 }
 
 impl Display for SelectStatement {
