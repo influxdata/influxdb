@@ -499,13 +499,16 @@ async fn execute(
         predicate: Some(predicate.clone()),
     };
 
-    let query_res = flight_client
-        .query(
-            Arc::clone(&ingester_address),
-            ingester_query_request,
-            span_recorder.span().map(|span| span.ctx.clone()),
-        )
-        .await;
+    let query_res = {
+        let span_recorder = span_recorder.child("flight client");
+        flight_client
+            .query(
+                Arc::clone(&ingester_address),
+                ingester_query_request,
+                span_recorder.span().map(|span| span.ctx.clone()),
+            )
+            .await
+    };
 
     match &query_res {
         Err(FlightClientError::CircuitBroken { .. }) => {

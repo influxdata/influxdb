@@ -19,7 +19,7 @@ use observability_deps::tracing::{info, warn};
 use parking_lot::Mutex;
 use pin_project::{pin_project, pinned_drop};
 use rand::rngs::mock::StepRng;
-use trace::ctx::SpanContext;
+use trace::{ctx::SpanContext, span::SpanRecorder};
 
 use crate::ingester::flight_client::{Error as FlightClientError, IngesterFlightClient, QueryData};
 
@@ -266,6 +266,9 @@ impl IngesterFlightClient for CircuitBreakerFlightClient {
         request: IngesterQueryRequest,
         span_context: Option<SpanContext>,
     ) -> Result<Box<dyn QueryData>, FlightClientError> {
+        let span = span_context.map(|s| s.child("circuit breaker"));
+        let mut span_recorder = SpanRecorder::new(span.clone());
+
         let (test_signal, start_gen) = {
             let mut circuits = self.circuits.lock();
 
@@ -311,6 +314,7 @@ impl IngesterFlightClient for CircuitBreakerFlightClient {
                                 ingester_address = ingester_addr.as_ref(),
                                 "Circuit open, not contacting ingester",
                             );
+                            span_recorder.event("Circuit open, not contacting ingester");
                             (true, None, *gen)
                         }
                         Circuit::HalfOpen {
@@ -327,11 +331,13 @@ impl IngesterFlightClient for CircuitBreakerFlightClient {
                                     ingester_address = ingester_addr.as_ref(),
                                     "Circuit half-open and this is a test request",
                                 );
+                                span_recorder.event("Circuit half-open and this is a test request");
                             } else {
                                 info!(
                                     ingester_address = ingester_addr.as_ref(),
                                     "Circuit half-open but a test request is already running, not contacting ingester",
                                 );
+                                span_recorder.event("Circuit half-open but a test request is already running, not contacting ingester");
                             }
 
                             (
@@ -354,9 +360,11 @@ impl IngesterFlightClient for CircuitBreakerFlightClient {
             }
         };
 
-        let fut = self
-            .inner
-            .query(Arc::clone(&ingester_addr), request, span_context);
+        let fut = self.inner.query(
+            Arc::clone(&ingester_addr),
+            request,
+            span_recorder.span().map(|span| span.ctx.clone()),
+        );
         let not_cancelled = test_signal.unwrap_or_else(|| Arc::new(AtomicBool::new(true)));
         let fut = TrackedFuture::new(fut, not_cancelled);
         let res = fut.await;
@@ -408,6 +416,8 @@ impl IngesterFlightClient for CircuitBreakerFlightClient {
                                         ingester_address = ingester_addr.as_ref(),
                                         "Error contacting ingester, circuit opened"
                                     );
+                                    span_recorder
+                                        .event("Error contacting ingester, circuit opened");
 
                                     (
                                         Backoff::new_with_rng(
@@ -437,6 +447,8 @@ impl IngesterFlightClient for CircuitBreakerFlightClient {
                     }
                 }
             }
+
+            span_recorder.error("error");
         } else {
             let mut circuits = self.circuits.lock();
 
@@ -459,6 +471,7 @@ impl IngesterFlightClient for CircuitBreakerFlightClient {
                                 "there's only a single concurrent request for half-open circuits"
                             );
                             info!(ingester_address = ingester_addr.as_ref(), "Circuit closed",);
+                            span_recorder.event("Circuit closed");
 
                             metrics.set_closed();
                             *o = Circuit::Closed {
@@ -477,6 +490,8 @@ impl IngesterFlightClient for CircuitBreakerFlightClient {
                     }
                 }
             }
+
+            span_recorder.ok("ok");
         }
 
         res

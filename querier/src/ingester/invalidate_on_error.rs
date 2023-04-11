@@ -2,7 +2,7 @@ use std::sync::Arc;
 
 use async_trait::async_trait;
 use generated_types::ingester::IngesterQueryRequest;
-use trace::ctx::SpanContext;
+use trace::{ctx::SpanContext, span::SpanRecorder};
 
 use crate::ingester::flight_client::{Error as FlightClientError, IngesterFlightClient, QueryData};
 
@@ -30,9 +30,16 @@ impl IngesterFlightClient for InvalidateOnErrorFlightClient {
         request: IngesterQueryRequest,
         span_context: Option<SpanContext>,
     ) -> Result<Box<dyn QueryData>, FlightClientError> {
+        let span = span_context.map(|s| s.child("invalidator"));
+        let mut span_recorder = SpanRecorder::new(span.clone());
+
         let res = self
             .inner
-            .query(Arc::clone(&ingester_addr), request, span_context)
+            .query(
+                Arc::clone(&ingester_addr),
+                request,
+                span_recorder.span().map(|span| span.ctx.clone()),
+            )
             .await;
 
         // IOx vs borrow checker
@@ -44,6 +51,7 @@ impl IngesterFlightClient for InvalidateOnErrorFlightClient {
 
         if is_err {
             self.inner.invalidate_connection(ingester_addr).await;
+            span_recorder.event("invalidate connection");
         }
 
         res

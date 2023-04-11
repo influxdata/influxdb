@@ -11,7 +11,7 @@ use observability_deps::tracing::{debug, warn};
 use prost::Message;
 use snafu::{ResultExt, Snafu};
 use std::{collections::HashMap, fmt::Debug, ops::DerefMut, sync::Arc};
-use trace::ctx::SpanContext;
+use trace::{ctx::SpanContext, span::SpanRecorder};
 use trace_http::ctx::format_jaeger_trace_context;
 
 pub use influxdb_iox_client::flight::Error as FlightError;
@@ -138,39 +138,59 @@ impl IngesterFlightClient for FlightClientImpl {
         request: IngesterQueryRequest,
         span_context: Option<SpanContext>,
     ) -> Result<Box<dyn QueryData>, Error> {
-        let connection = self.connect(Arc::clone(&ingester_addr)).await?;
+        let span = span_context.map(|s| s.child("ingester flight client impl"));
+        let span_recorder = SpanRecorder::new(span.clone());
+
+        let connection = {
+            let _span_recorder = span_recorder.child("connect");
+
+            self.connect(Arc::clone(&ingester_addr)).await?
+        };
+
+        debug!(%ingester_addr, ?request, "Sending request to ingester");
+        let ticket = {
+            let _span_recorder = span_recorder.child("serialize request");
+
+            let request = serialize_ingester_query_request(request)?.encode_to_vec();
+
+            Ticket {
+                ticket: request.into(),
+            }
+        };
 
         let mut client = influxdb_iox_client::flight::Client::new(connection)
             // use lower level client to send a custom message type
             .into_inner();
 
         // Add the span context header, if any
-        if let Some(ctx) = span_context {
+        let span_recorder_comm = span_recorder.child("comm");
+        if let Some(span) = span_recorder_comm.span() {
             client
                 .add_header(
                     trace_exporters::DEFAULT_JAEGER_TRACE_CONTEXT_HEADER_NAME,
-                    &format_jaeger_trace_context(&ctx),
+                    &format_jaeger_trace_context(&span.ctx),
                 )
                 // wrap in client error type
                 .map_err(FlightError::ArrowFlightError)
                 .context(FlightSnafu)?;
         }
 
-        debug!(%ingester_addr, ?request, "Sending request to ingester");
-        let request = serialize_ingester_query_request(request)?.encode_to_vec();
+        let data_stream = {
+            let _span_recorder = span_recorder_comm.child("initial request");
 
-        let ticket = Ticket {
-            ticket: request.into(),
+            client
+                .do_get(ticket)
+                .await
+                // wrap in client error type
+                .map_err(FlightError::ArrowFlightError)
+                .context(FlightSnafu)?
+                .into_inner()
         };
 
-        let data_stream = client
-            .do_get(ticket)
-            .await
-            // wrap in client error type
-            .map_err(FlightError::ArrowFlightError)
-            .context(FlightSnafu)?
-            .into_inner();
-        Ok(Box::new(data_stream))
+        Ok(Box::new(QueryDataTracer {
+            inner: data_stream,
+            recorder: span_recorder_comm.child("stream"),
+        }))
     }
 }
 
@@ -267,6 +287,36 @@ impl QueryData for FlightDataDecoder {
                 Ok((payload, app_metadata)) as Result<_, FlightError>
             })
             .transpose()?)
+    }
+}
+
+/// Wraps [`QueryData`] so that all calls to [`QueryData::next_message`] have proper tracing spans.
+#[derive(Debug)]
+struct QueryDataTracer<T>
+where
+    T: QueryData,
+{
+    inner: T,
+    recorder: SpanRecorder,
+}
+
+#[async_trait]
+impl<T> QueryData for QueryDataTracer<T>
+where
+    T: QueryData,
+{
+    async fn next_message(
+        &mut self,
+    ) -> Result<Option<(DecodedPayload, proto::IngesterQueryResponseMetadata)>, FlightError> {
+        let mut span_recorder = self.recorder.child("next message");
+        let res = self.inner.next_message().await;
+
+        match &res {
+            Ok(_) => span_recorder.ok("ok"),
+            Err(e) => span_recorder.error(e.to_string()),
+        }
+
+        res
     }
 }
 
