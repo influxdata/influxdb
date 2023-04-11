@@ -493,7 +493,11 @@ fn compute_permits(
 
     // compute the share (linearly scaled) of total permits this job requires
     let share = columns as f64 / SINGLE_THREADED_COLUMN_COUNT as f64;
-    let permits = total_permits as f64 * share;
+
+    // Square the share so the required permits is non-linearly scaled.
+    // See test cases below for detail, but this makes it extra permissive of low column counts,
+    // but still gets to single threaded by SINGLE_THREADED_COLUMN_COUNT.
+    let permits = total_permits as f64 * share * share;
 
     if permits < 1.0 {
         return 1;
@@ -508,8 +512,41 @@ mod tests {
 
     #[test]
     fn concurrency_limits() {
-        assert_eq!(compute_permits(10, 10000), 10); // huge column count takes exactly all permits (not more than the total)
-        assert_eq!(compute_permits(10, 1), 1); // 1 column still takes 1 permit
-        assert_eq!(compute_permits(10, SINGLE_THREADED_COLUMN_COUNT / 2), 5); // 1/2 the max column count takes half the total permits
+        assert_eq!(compute_permits(100, 1), 1); // 1 column still takes 1 permit
+        assert_eq!(compute_permits(100, SINGLE_THREADED_COLUMN_COUNT / 10), 1); // 10% of the max column count takes 1% of total permits
+        assert_eq!(
+            compute_permits(100, SINGLE_THREADED_COLUMN_COUNT * 2 / 10),
+            4
+        ); // 20% of the max column count takes 4% of total permits
+        assert_eq!(
+            compute_permits(100, SINGLE_THREADED_COLUMN_COUNT * 3 / 10),
+            9
+        ); // 30% of the max column count takes 9% of total permits
+        assert_eq!(
+            compute_permits(100, SINGLE_THREADED_COLUMN_COUNT * 4 / 10),
+            16
+        ); // 40% of the max column count takes 16% of total permits
+        assert_eq!(
+            compute_permits(100, SINGLE_THREADED_COLUMN_COUNT * 5 / 10),
+            25
+        ); // 50% of the max column count takes 25% of total permits
+        assert_eq!(
+            compute_permits(100, SINGLE_THREADED_COLUMN_COUNT * 6 / 10),
+            36
+        ); // 60% of the max column count takes 36% of total permits
+        assert_eq!(
+            compute_permits(100, SINGLE_THREADED_COLUMN_COUNT * 7 / 10),
+            49
+        ); // 70% of the max column count takes 49% of total permits
+        assert_eq!(
+            compute_permits(100, SINGLE_THREADED_COLUMN_COUNT * 8 / 10),
+            64
+        ); // 80% of the max column count takes 64% of total permits
+        assert_eq!(
+            compute_permits(100, SINGLE_THREADED_COLUMN_COUNT * 9 / 10),
+            81
+        ); // 90% of the max column count takes 81% of total permits
+        assert_eq!(compute_permits(100, SINGLE_THREADED_COLUMN_COUNT), 100); // 100% of the max column count takes 100% of total permits
+        assert_eq!(compute_permits(100, 10000), 100); // huge column count takes exactly all permits (not more than the total)
     }
 }
