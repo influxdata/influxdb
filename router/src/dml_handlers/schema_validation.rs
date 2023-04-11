@@ -569,18 +569,12 @@ mod tests {
             // Make two schema validator instances each with their own cache
             let handler1 = SchemaValidator::new(
                 catalog.catalog(),
-                Arc::new(ReadThroughCache::new(
-                    Arc::new(MemoryNamespaceCache::default()),
-                    catalog.catalog(),
-                )),
+                setup_test_cache(&catalog),
                 &catalog.metric_registry,
             );
             let handler2 = SchemaValidator::new(
                 catalog.catalog(),
-                Arc::new(ReadThroughCache::new(
-                    Arc::new(MemoryNamespaceCache::default()),
-                    catalog.catalog(),
-                )),
+                setup_test_cache(&catalog),
                 &catalog.metric_registry,
             );
 
@@ -763,6 +757,13 @@ mod tests {
         (catalog, namespace)
     }
 
+    fn setup_test_cache(catalog: &TestCatalog) -> Arc<ReadThroughCache<Arc<MemoryNamespaceCache>>> {
+        Arc::new(ReadThroughCache::new(
+            Arc::new(MemoryNamespaceCache::default()),
+            catalog.catalog(),
+        ))
+    }
+
     async fn assert_cache<C>(handler: &SchemaValidator<C>, table: &str, col: &str, want: ColumnType)
     where
         C: NamespaceCache,
@@ -792,14 +793,7 @@ mod tests {
         let want_id = namespace.create_table("bananas").await.table.id;
 
         let metrics = Arc::new(metric::Registry::default());
-        let handler = SchemaValidator::new(
-            catalog.catalog(),
-            Arc::new(ReadThroughCache::new(
-                Arc::new(MemoryNamespaceCache::default()),
-                catalog.catalog(),
-            )),
-            &metrics,
-        );
+        let handler = SchemaValidator::new(catalog.catalog(), setup_test_cache(&catalog), &metrics);
 
         let writes = lp_to_writes("bananas,tag1=A,tag2=B val=42i 123456");
         let got = handler
@@ -822,14 +816,7 @@ mod tests {
     async fn test_write_schema_not_found() {
         let (catalog, _namespace) = test_setup().await;
         let metrics = Arc::new(metric::Registry::default());
-        let handler = SchemaValidator::new(
-            catalog.catalog(),
-            Arc::new(ReadThroughCache::new(
-                Arc::new(MemoryNamespaceCache::default()),
-                catalog.catalog(),
-            )),
-            &metrics,
-        );
+        let handler = SchemaValidator::new(catalog.catalog(), setup_test_cache(&catalog), &metrics);
 
         let ns = NamespaceName::try_from("A_DIFFERENT_NAMESPACE").unwrap();
 
@@ -849,14 +836,7 @@ mod tests {
     async fn test_write_validation_failure() {
         let (catalog, _namespace) = test_setup().await;
         let metrics = Arc::new(metric::Registry::default());
-        let handler = SchemaValidator::new(
-            catalog.catalog(),
-            Arc::new(ReadThroughCache::new(
-                Arc::new(MemoryNamespaceCache::default()),
-                catalog.catalog(),
-            )),
-            &metrics,
-        );
+        let handler = SchemaValidator::new(catalog.catalog(), setup_test_cache(&catalog), &metrics);
 
         // First write sets the schema
         let writes = lp_to_writes("bananas,tag1=A,tag2=B val=42i 123456"); // val=i64
@@ -890,14 +870,7 @@ mod tests {
     async fn test_write_table_service_limit() {
         let (catalog, _namespace) = test_setup().await;
         let metrics = Arc::new(metric::Registry::default());
-        let handler = SchemaValidator::new(
-            catalog.catalog(),
-            Arc::new(ReadThroughCache::new(
-                Arc::new(MemoryNamespaceCache::default()),
-                catalog.catalog(),
-            )),
-            &metrics,
-        );
+        let handler = SchemaValidator::new(catalog.catalog(), setup_test_cache(&catalog), &metrics);
 
         // First write sets the schema
         let writes = lp_to_writes("bananas,tag1=A,tag2=B val=42i 123456");
@@ -932,14 +905,7 @@ mod tests {
     async fn test_write_column_service_limit() {
         let (catalog, namespace) = test_setup().await;
         let metrics = Arc::new(metric::Registry::default());
-        let handler = SchemaValidator::new(
-            catalog.catalog(),
-            Arc::new(ReadThroughCache::new(
-                Arc::new(MemoryNamespaceCache::default()),
-                catalog.catalog(),
-            )),
-            &metrics,
-        );
+        let handler = SchemaValidator::new(catalog.catalog(), setup_test_cache(&catalog), &metrics);
 
         // First write sets the schema
         let writes = lp_to_writes("bananas,tag1=A,tag2=B val=42i 123456");
@@ -951,14 +917,7 @@ mod tests {
 
         // Configure the service limit to be hit next request
         namespace.update_column_limit(1).await;
-        let handler = SchemaValidator::new(
-            catalog.catalog(),
-            Arc::new(ReadThroughCache::new(
-                Arc::new(MemoryNamespaceCache::default()),
-                catalog.catalog(),
-            )),
-            &metrics,
-        );
+        let handler = SchemaValidator::new(catalog.catalog(), setup_test_cache(&catalog), &metrics);
 
         // Second write attempts to violate limits, causing an error
         let writes = lp_to_writes("bananas,tag1=A,tag2=B val=42i,val2=42i 123456");
@@ -975,14 +934,7 @@ mod tests {
     async fn test_first_write_many_columns_service_limit() {
         let (catalog, _namespace) = test_setup().await;
         let metrics = Arc::new(metric::Registry::default());
-        let handler = SchemaValidator::new(
-            catalog.catalog(),
-            Arc::new(ReadThroughCache::new(
-                Arc::new(MemoryNamespaceCache::default()),
-                catalog.catalog(),
-            )),
-            &metrics,
-        );
+        let handler = SchemaValidator::new(catalog.catalog(), setup_test_cache(&catalog), &metrics);
 
         // Configure the service limit to be hit next request
         catalog
@@ -1012,14 +964,7 @@ mod tests {
 
         let (catalog, _namespace) = test_setup().await;
         let metrics = Arc::new(metric::Registry::default());
-        let handler = SchemaValidator::new(
-            catalog.catalog(),
-            Arc::new(ReadThroughCache::new(
-                Arc::new(MemoryNamespaceCache::default()),
-                catalog.catalog(),
-            )),
-            &metrics,
-        );
+        let handler = SchemaValidator::new(catalog.catalog(), setup_test_cache(&catalog), &metrics);
 
         let predicate = DeletePredicate {
             range: TimestampRange::new(1, 2),

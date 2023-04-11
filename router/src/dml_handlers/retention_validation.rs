@@ -113,6 +113,15 @@ mod tests {
 
     static NAMESPACE: Lazy<NamespaceName<'static>> = Lazy::new(|| "bananas".try_into().unwrap());
 
+    fn setup_test_cache(
+        catalog: Arc<TestCatalog>,
+    ) -> Arc<ReadThroughCache<Arc<MemoryNamespaceCache>>> {
+        Arc::new(ReadThroughCache::new(
+            Arc::new(MemoryNamespaceCache::default()),
+            catalog.catalog(),
+        ))
+    }
+
     #[tokio::test]
     async fn test_time_inside_retention_period() {
         let (catalog, namespace) = test_setup().await;
@@ -120,11 +129,9 @@ mod tests {
         // Create the table so that there is a known ID that must be returned.
         let _want_id = namespace.create_table("bananas").await.table.id;
 
-        // Create the validator whse retention period is 1 hour
-        let handler = RetentionValidator::new(Arc::new(ReadThroughCache::new(
-            Arc::new(MemoryNamespaceCache::default()),
-            catalog.catalog(),
-        )));
+        // Create the validator whose retention period is 1 hour
+        let cache = setup_test_cache(catalog);
+        let handler = RetentionValidator::new(cache);
 
         // Make time now to be inside the retention period
         let now = SystemProvider::default()
@@ -150,10 +157,8 @@ mod tests {
         let _want_id = namespace.create_table("bananas").await.table.id;
 
         // Create the validator whose retention period is 1 hour
-        let handler = RetentionValidator::new(Arc::new(ReadThroughCache::new(
-            Arc::new(MemoryNamespaceCache::default()),
-            catalog.catalog(),
-        )));
+        let cache = setup_test_cache(catalog);
+        let handler = RetentionValidator::new(cache);
 
         // Make time outside the retention period
         let two_hours_ago = (SystemProvider::default().now().timestamp_nanos()
@@ -179,11 +184,9 @@ mod tests {
         // Create the table so that there is a known ID that must be returned.
         let _want_id = namespace.create_table("bananas").await.table.id;
 
-        // Create the validator whse retention period is 1 hour
-        let handler = RetentionValidator::new(Arc::new(ReadThroughCache::new(
-            Arc::new(MemoryNamespaceCache::default()),
-            catalog.catalog(),
-        )));
+        // Create the validator whose retention period is 1 hour
+        let cache = setup_test_cache(catalog);
+        let handler = RetentionValidator::new(cache);
 
         // Make time now to be inside the retention period
         let now = SystemProvider::default()
@@ -218,10 +221,8 @@ mod tests {
         let _want_id = namespace.create_table("bananas").await.table.id;
 
         // Create the validator whse retention period is 1 hour
-        let handler = RetentionValidator::new(Arc::new(ReadThroughCache::new(
-            Arc::new(MemoryNamespaceCache::default()),
-            catalog.catalog(),
-        )));
+        let cache = setup_test_cache(catalog);
+        let handler = RetentionValidator::new(cache);
 
         // Make time now to be inside the retention period
         let now = SystemProvider::default()
