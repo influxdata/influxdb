@@ -62,7 +62,7 @@ impl TableProvider for QuerierTable {
         let chunks = self
             .chunks(
                 &pruning_predicate,
-                ctx.child_span("querier table chunks"),
+                ctx.child_span("QuerierTable chunks"),
                 projection,
             )
             .await?;

@@ -381,7 +381,7 @@ where
                 }
             });
         let perms = [Permission::ResourceAction(
-            Resource::Namespace(write_info.namespace.to_string()),
+            Resource::Database(write_info.namespace.to_string()),
             Action::Write,
         )];
         self.authz.require_any_permission(token, &perms).await?;

@@ -115,8 +115,8 @@ impl TryFrom<Permission> for proto::Permission {
 /// A resource is the object that a request is trying to access.
 #[derive(Clone, Debug, PartialEq)]
 pub enum Resource {
-    /// A namespace is a named IOx namespace.
-    Namespace(String),
+    /// A database is a named IOx database.
+    Database(String),
 }
 
 impl Resource {
@@ -125,8 +125,8 @@ impl Resource {
         ri: Option<String>,
     ) -> Result<Self, IncompatiblePermissionError> {
         match (rt, ri) {
-            (proto::resource_action_permission::ResourceType::Namespace, Some(s)) => {
-                Ok(Self::Namespace(s))
+            (proto::resource_action_permission::ResourceType::Database, Some(s)) => {
+                Ok(Self::Database(s))
             }
             _ => Err(IncompatiblePermissionError {}),
         }
@@ -142,8 +142,8 @@ impl Resource {
         IncompatiblePermissionError,
     > {
         match self {
-            Self::Namespace(s) => Ok((
-                proto::resource_action_permission::ResourceType::Namespace,
+            Self::Database(s) => Ok((
+                proto::resource_action_permission::ResourceType::Database,
                 Some(s),
             )),
         }
@@ -209,9 +209,9 @@ mod tests {
     #[test]
     fn resource_try_from_proto() {
         assert_eq!(
-            Resource::Namespace("ns1".into()),
+            Resource::Database("ns1".into()),
             Resource::try_from_proto(
-                proto::resource_action_permission::ResourceType::Namespace,
+                proto::resource_action_permission::ResourceType::Database,
                 Some("ns1".into())
             )
             .unwrap()
@@ -219,7 +219,7 @@ mod tests {
         assert_eq!(
             IncompatiblePermissionError {},
             Resource::try_from_proto(
-                proto::resource_action_permission::ResourceType::Namespace,
+                proto::resource_action_permission::ResourceType::Database,
                 None
             )
             .unwrap_err()
@@ -238,17 +238,17 @@ mod tests {
     fn resource_try_into_proto() {
         assert_eq!(
             (
-                proto::resource_action_permission::ResourceType::Namespace,
+                proto::resource_action_permission::ResourceType::Database,
                 Some("ns1".into())
             ),
-            Resource::Namespace("ns1".into()).try_into_proto().unwrap(),
+            Resource::Database("ns1".into()).try_into_proto().unwrap(),
         );
     }
 
     #[test]
     fn permission_try_from_proto() {
         assert_eq!(
-            Permission::ResourceAction(Resource::Namespace("ns2".into()), Action::Create),
+            Permission::ResourceAction(Resource::Database("ns2".into()), Action::Create),
             Permission::try_from(proto::Permission {
                 permission_one_of: Some(proto::permission::PermissionOneOf::ResourceAction(
                     proto::ResourceActionPermission {
@@ -301,7 +301,7 @@ mod tests {
                 ))
             },
             proto::Permission::try_from(Permission::ResourceAction(
-                Resource::Namespace("ns3".into()),
+                Resource::Database("ns3".into()),
                 Action::Create
             ))
             .unwrap()

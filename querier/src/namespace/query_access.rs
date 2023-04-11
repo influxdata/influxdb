@@ -59,7 +59,7 @@ impl QueryNamespace for QuerierNamespace {
         let mut chunks = table
             .chunks(
                 predicate,
-                ctx.span().map(|span| span.child("querier table chunks")),
+                ctx.child_span("QuerierNamespace chunks"),
                 projection,
             )
             .await?;
@@ -360,7 +360,7 @@ mod tests {
         let span = traces
             .spans()
             .into_iter()
-            .find(|s| s.name == "querier table chunks")
+            .find(|s| s.name == "QuerierTable chunks")
             .expect("tracing span not found");
         assert_eq!(span.status, SpanStatus::Ok);
 

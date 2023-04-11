@@ -678,6 +678,11 @@ impl IOxSessionContext {
         self.recorder.span()
     }
 
+    /// Returns a new child span of the current context
+    pub fn child_span(&self, name: &'static str) -> Option<Span> {
+        self.recorder.child_span(name)
+    }
+
     /// Number of currently active tasks.
     pub fn tasks(&self) -> usize {
         self.exec.tasks()
