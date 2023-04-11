@@ -135,33 +135,5 @@ build_package_linux()
   run_fpm rpm
 }
 
-sign_artifacts()
-{
-  # If this is not a release version, don't sign the artifacts. This
-  # prevents unathorized PRs and branches from being signed with our
-  # signing key.
-  if [[ ! ${RELEASE:-} ]]
-  then
-    return 0
-  fi
-
-  # CircleCI mangles environment variables with newlines. This key contians
-  # escaped newlines. For `gpg` to import the key, it requires `echo -e` to
-  # expand the escape sequences.
-  gpg --batch --import <<<"$(echo -e "${GPG_PRIVATE_KEY}")"
-
-  # TODO(bnpfeife): replace with code signing server
-  for target in /artifacts/*
-  do
-    gpg                            \
-      --batch                      \
-      --pinentry-mode=loopback     \
-      --passphrase "${PASSPHRASE}" \
-      --detach-sign                \
-      --armor "${target}"
-  done
-}
-
 build_archive
 build_package_linux
-sign_artifacts
