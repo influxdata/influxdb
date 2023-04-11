@@ -11,8 +11,8 @@ use arrow::{
 use arrow_flight::{
     sql::{
         ActionCreatePreparedStatementRequest, ActionCreatePreparedStatementResult, Any,
-        CommandGetCatalogs, CommandGetDbSchemas, CommandGetSqlInfo, CommandGetTableTypes,
-        CommandGetTables, CommandStatementQuery,
+        CommandGetCatalogs, CommandGetDbSchemas, CommandGetPrimaryKeys, CommandGetSqlInfo,
+        CommandGetTableTypes, CommandGetTables, CommandStatementQuery,
     },
     IpcMessage, SchemaAsIpc,
 };
@@ -66,6 +66,9 @@ impl FlightSQLPlanner {
             }
             FlightSQLCommand::CommandGetDbSchemas(CommandGetDbSchemas { .. }) => {
                 encode_schema(get_db_schemas_schema().as_ref())
+            }
+            FlightSQLCommand::CommandGetPrimaryKeys(CommandGetPrimaryKeys { .. }) => {
+                encode_schema(&GET_PRIMARY_KEYS_SCHEMA)
             }
             FlightSQLCommand::CommandGetTables(CommandGetTables { include_schema, .. }) => {
                 encode_schema(get_tables_schema(include_schema).as_ref())
@@ -122,6 +125,20 @@ impl FlightSQLPlanner {
                     "Planning GetDbSchemas query"
                 );
                 let plan = plan_get_db_schemas(ctx, catalog, db_schema_filter_pattern).await?;
+                Ok(ctx.create_physical_plan(&plan).await?)
+            }
+            FlightSQLCommand::CommandGetPrimaryKeys(CommandGetPrimaryKeys {
+                catalog,
+                db_schema,
+                table,
+            }) => {
+                debug!(
+                    ?catalog,
+                    ?db_schema,
+                    ?table,
+                    "Planning GetPrimaryKeys query"
+                );
+                let plan = plan_get_primary_keys(ctx, catalog, db_schema, table).await?;
                 Ok(ctx.create_physical_plan(&plan).await?)
             }
             FlightSQLCommand::CommandGetTables(CommandGetTables {
@@ -264,6 +281,16 @@ async fn plan_get_db_schemas(
     Ok(ctx.batch_to_logical_plan(batch)?)
 }
 
+async fn plan_get_primary_keys(
+    ctx: &IOxSessionContext,
+    _catalog: Option<String>,
+    _db_schema: Option<String>,
+    _table: String,
+) -> Result<LogicalPlan> {
+    let batch = RecordBatch::new_empty(Arc::new(Schema::new(vec![])));
+    Ok(ctx.batch_to_logical_plan(batch)?)
+}
+
 async fn plan_get_tables(
     ctx: &IOxSessionContext,
     catalog: Option<String>,
@@ -304,4 +331,15 @@ static TABLE_TYPES_RECORD_BATCH: Lazy<RecordBatch> = Lazy::new(|| {
     // IOx doesn't support LOCAL TEMPORARY yet
     let table_type = Arc::new(StringArray::from_iter_values(["BASE TABLE", "VIEW"])) as ArrayRef;
     RecordBatch::try_new(Arc::clone(&GET_TABLE_TYPE_SCHEMA), vec![table_type]).unwrap()
+});
+
+static GET_PRIMARY_KEYS_SCHEMA: Lazy<SchemaRef> = Lazy::new(|| {
+    Arc::new(Schema::new(vec![
+        Field::new("catalog_name", DataType::Utf8, false),
+        Field::new("db_schema_name", DataType::Utf8, false),
+        Field::new("table_name", DataType::Utf8, false),
+        Field::new("column_name", DataType::Utf8, false),
+        Field::new("key_name", DataType::Utf8, false),
+        Field::new("key_sequence", DataType::Int32, false),
+    ]))
 });

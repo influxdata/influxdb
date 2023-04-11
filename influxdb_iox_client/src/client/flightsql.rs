@@ -29,8 +29,9 @@ use arrow_flight::{
     error::{FlightError, Result},
     sql::{
         ActionCreatePreparedStatementRequest, ActionCreatePreparedStatementResult, Any,
-        CommandGetCatalogs, CommandGetDbSchemas, CommandGetSqlInfo, CommandGetTableTypes,
-        CommandGetTables, CommandPreparedStatementQuery, CommandStatementQuery, ProstMessageExt,
+        CommandGetCatalogs, CommandGetDbSchemas, CommandGetPrimaryKeys, CommandGetSqlInfo,
+        CommandGetTableTypes, CommandGetTables, CommandPreparedStatementQuery,
+        CommandStatementQuery, ProstMessageExt,
     },
     Action, FlightClient, FlightDescriptor, FlightInfo, IpcMessage, Ticket,
 };
@@ -177,6 +178,37 @@ impl FlightSqlClient {
         let msg = CommandGetDbSchemas {
             catalog: catalog.map(|s| s.into()),
             db_schema_filter_pattern: db_schema_filter_pattern.map(|s| s.into()),
+        };
+        self.do_get_with_cmd(msg.as_any()).await
+    }
+
+    /// List the primary keys on this server using a [`CommandGetPrimaryKeys`] message.
+    ///
+    /// # Parameters
+    ///
+    /// Definition from <https://github.com/apache/arrow/blob/2fe17338e2d1f85d0c2685d31d2dd51f138b6b80/format/FlightSql.proto#L1261-L1297>
+    ///
+    /// catalog: Specifies the catalog to search for the table.
+    /// An empty string retrieves those without a catalog.
+    /// If omitted the catalog name should not be used to narrow the search.
+    ///
+    /// db_schema: Specifies the schema to search for the table.
+    /// An empty string retrieves those without a schema.
+    /// If omitted the schema name should not be used to narrow the search.
+    ///
+    /// table: Specifies the table to get the primary keys for.
+    ///
+    /// This implementation does not support alternate endpoints
+    pub async fn get_primary_keys(
+        &mut self,
+        catalog: Option<impl Into<String> + Send>,
+        db_schema: Option<impl Into<String> + Send>,
+        table: String,
+    ) -> Result<FlightRecordBatchStream> {
+        let msg = CommandGetPrimaryKeys {
+            catalog: catalog.map(|s| s.into()),
+            db_schema: db_schema.map(|s| s.into()),
+            table,
         };
         self.do_get_with_cmd(msg.as_any()).await
     }

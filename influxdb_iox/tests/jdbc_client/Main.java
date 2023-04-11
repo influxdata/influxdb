@@ -133,6 +133,11 @@ public class Main {
         print_result_set(md.getSchemas());
 
         System.out.println("**************");
+        System.out.println("PrimaryKeys:");
+        System.out.println("**************");
+        print_result_set(md.getPrimaryKeys(null, null, "system"));
+
+        System.out.println("**************");
         System.out.println("Tables:");
         System.out.println("**************");
         // null means no filtering
