@@ -477,8 +477,8 @@ async fn update_catalog(
     (created_file_params, upgraded_files)
 }
 
-// SINGLE_THREADED_COLUMN_COUNT is the number of columns requiring a partition be comapacted single threaded.
-const SINGLE_THREADED_COLUMN_COUNT: usize = 80;
+// SINGLE_THREADED_COLUMN_COUNT is the number of columns requiring a partition be compacted single threaded.
+const SINGLE_THREADED_COLUMN_COUNT: usize = 100;
 
 // Determine how many permits must be acquired from the concurrency limiter semaphore
 // based on the column count of this job and the total permits (concurrency).
