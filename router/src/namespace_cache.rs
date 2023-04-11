@@ -8,6 +8,9 @@ pub use sharded_cache::*;
 
 pub mod metrics;
 
+mod read_through_cache;
+pub use read_through_cache::*;
+
 use std::{error::Error, fmt::Debug, sync::Arc};
 
 use async_trait::async_trait;

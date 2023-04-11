@@ -14,7 +14,7 @@ use router::{
         InstrumentationDecorator, Partitioned, Partitioner, RetentionValidator, RpcWrite,
         SchemaValidator, WriteSummaryAdapter,
     },
-    namespace_cache::{MemoryNamespaceCache, ShardedCache},
+    namespace_cache::{MemoryNamespaceCache, ReadThroughCache, ShardedCache},
     namespace_resolver::{MissingNamespaceAction, NamespaceAutocreation, NamespaceSchemaResolver},
     server::{
         grpc::RpcWriteGrpcDelegate,
@@ -118,8 +118,12 @@ type HttpDelegateStack = HttpDelegate<
         Chain<
             Chain<
                 Chain<
-                    RetentionValidator<Arc<ShardedCache<Arc<MemoryNamespaceCache>>>>,
-                    SchemaValidator<Arc<ShardedCache<Arc<MemoryNamespaceCache>>>>,
+                    RetentionValidator<
+                        Arc<ReadThroughCache<Arc<ShardedCache<Arc<MemoryNamespaceCache>>>>>,
+                    >,
+                    SchemaValidator<
+                        Arc<ReadThroughCache<Arc<ShardedCache<Arc<MemoryNamespaceCache>>>>>,
+                    >,
                 >,
                 Partitioner,
             >,
@@ -132,8 +136,10 @@ type HttpDelegateStack = HttpDelegate<
         >,
     >,
     NamespaceAutocreation<
-        Arc<ShardedCache<Arc<MemoryNamespaceCache>>>,
-        NamespaceSchemaResolver<Arc<ShardedCache<Arc<MemoryNamespaceCache>>>>,
+        Arc<ReadThroughCache<Arc<ShardedCache<Arc<MemoryNamespaceCache>>>>>,
+        NamespaceSchemaResolver<
+            Arc<ReadThroughCache<Arc<ShardedCache<Arc<MemoryNamespaceCache>>>>>,
+        >,
     >,
 >;
 
@@ -148,15 +154,17 @@ impl TestContext {
         let client = Arc::new(MockWriteClient::default());
         let rpc_writer = RpcWrite::new([(Arc::clone(&client), "mock client")], None, &metrics);
 
-        let ns_cache = Arc::new(ShardedCache::new(
-            iter::repeat_with(|| Arc::new(MemoryNamespaceCache::default())).take(10),
+        let ns_cache = Arc::new(ReadThroughCache::new(
+            Arc::new(ShardedCache::new(
+                iter::repeat_with(|| Arc::new(MemoryNamespaceCache::default())).take(10),
+            )),
+            Arc::clone(&catalog),
         ));
 
         let schema_validator =
             SchemaValidator::new(Arc::clone(&catalog), Arc::clone(&ns_cache), &metrics);
 
-        let retention_validator =
-            RetentionValidator::new(Arc::clone(&catalog), Arc::clone(&ns_cache));
+        let retention_validator = RetentionValidator::new(Arc::clone(&ns_cache));
 
         let partitioner = Partitioner::new(PartitionTemplate {
             parts: vec![TemplatePart::TimeFormat("%Y-%m-%d".to_owned())],

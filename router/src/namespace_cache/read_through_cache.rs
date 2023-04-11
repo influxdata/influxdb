@@ -1,0 +1,167 @@
+//! Read-through caching behaviour for a [`NamespaceCache`] implementation
+
+use std::{ops::DerefMut, sync::Arc};
+
+use async_trait::async_trait;
+use data_types::{NamespaceName, NamespaceSchema};
+use iox_catalog::interface::{get_schema_by_name, Catalog, SoftDeletedRows};
+use observability_deps::tracing::*;
+
+use super::memory::CacheMissErr;
+use super::NamespaceCache;
+
+#[derive(Debug)]
+/// A [`ReadThroughCache`] decorates a [`NamespaceCache`] with read-through
+/// caching behaviour on calls to [`NamespaceCache.get_schema()`].
+pub struct ReadThroughCache<T> {
+    inner_cache: T,
+    catalog: Arc<dyn Catalog>,
+}
+
+impl<T> ReadThroughCache<T> {
+    /// Decorates `inner_cache` with read-through caching behaviour, looking
+    /// up schema from `catalog` when not present in the underlying cache.
+    pub fn new(inner_cache: T, catalog: Arc<dyn Catalog>) -> Self {
+        Self {
+            inner_cache,
+            catalog,
+        }
+    }
+}
+
+#[async_trait]
+impl<T> NamespaceCache for Arc<ReadThroughCache<T>>
+where
+    T: NamespaceCache<ReadError = CacheMissErr>,
+{
+    type ReadError = iox_catalog::interface::Error;
+    /// Fetch the schema for `namespace` directly from the inner cache if
+    /// present, pullng from the catalog if not.
+    async fn get_schema(
+        &self,
+        namespace: &NamespaceName<'static>,
+    ) -> Result<Arc<NamespaceSchema>, Self::ReadError> {
+        let mut repos = self.catalog.repositories().await;
+
+        match self.inner_cache.get_schema(namespace).await {
+            Ok(v) => Ok(v),
+            Err(CacheMissErr { .. }) => {
+                let schema = match get_schema_by_name(
+                    namespace,
+                    repos.deref_mut(),
+                    SoftDeletedRows::ExcludeDeleted,
+                )
+                .await
+                {
+                    Ok(v) => Arc::new(v),
+                    Err(e) => {
+                        warn!(
+                            error = %e,
+                            %namespace,
+                            "failed to retrieve namespace schema"
+                        );
+                        return Err(e);
+                    }
+                };
+
+                self.put_schema(namespace.clone(), Arc::clone(&schema));
+
+                trace!(%namespace, "schema cache populated");
+                Ok(schema)
+            }
+        }
+    }
+
+    fn put_schema(
+        &self,
+        namespace: NamespaceName<'static>,
+        schema: impl Into<Arc<NamespaceSchema>>,
+    ) -> Option<Arc<NamespaceSchema>> {
+        self.inner_cache.put_schema(namespace, schema)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use assert_matches::assert_matches;
+    use data_types::{NamespaceId, QueryPoolId, TopicId};
+    use iox_catalog::mem::MemCatalog;
+
+    use super::*;
+    use crate::namespace_cache::memory::MemoryNamespaceCache;
+
+    #[tokio::test]
+    async fn test_put_get() {
+        let ns = NamespaceName::try_from("arán").expect("namespace name should be valid");
+
+        let inner = Arc::new(MemoryNamespaceCache::default());
+        let metrics = Arc::new(metric::Registry::new());
+        let catalog = Arc::new(MemCatalog::new(metrics));
+
+        let cache = Arc::new(ReadThroughCache::new(inner, catalog));
+
+        // Pre-condition: Namespace not in cache or catalog.
+        assert_matches!(cache.get_schema(&ns).await, Err(_));
+
+        // Place a schema in the cache for that name
+        let schema1 = NamespaceSchema::new(
+            NamespaceId::new(1),
+            TopicId::new(2),
+            QueryPoolId::new(3),
+            iox_catalog::DEFAULT_MAX_COLUMNS_PER_TABLE,
+            iox_catalog::DEFAULT_MAX_TABLES,
+            iox_catalog::DEFAULT_RETENTION_PERIOD,
+        );
+        assert_matches!(cache.put_schema(ns.clone(), schema1.clone()), None);
+
+        // Ensure it is present
+        assert_eq!(
+            *cache
+                .get_schema(&ns)
+                .await
+                .expect("schema should be present in cache"),
+            schema1
+        );
+    }
+
+    #[tokio::test]
+    async fn test_get_cache_miss_catalog_fetch_ok() {
+        let ns = NamespaceName::try_from("arán").expect("namespace name should be valid");
+
+        let inner = Arc::new(MemoryNamespaceCache::default());
+        let metrics = Arc::new(metric::Registry::new());
+        let catalog: Arc<dyn Catalog> = Arc::new(MemCatalog::new(metrics));
+
+        let cache = Arc::new(ReadThroughCache::new(inner, Arc::clone(&catalog)));
+
+        // Pre-condition: Namespace not in cache or catalog.
+        assert_matches!(cache.get_schema(&ns).await, Err(_));
+
+        // Place a schema in the catalog for that name
+        let schema1 = NamespaceSchema::new(
+            NamespaceId::new(1),
+            TopicId::new(2),
+            QueryPoolId::new(3),
+            iox_catalog::DEFAULT_MAX_COLUMNS_PER_TABLE,
+            iox_catalog::DEFAULT_MAX_TABLES,
+            iox_catalog::DEFAULT_RETENTION_PERIOD,
+        );
+        assert!(catalog
+            .repositories()
+            .await
+            .namespaces()
+            .create(
+                &ns,
+                iox_catalog::DEFAULT_RETENTION_PERIOD,
+                schema1.topic_id,
+                schema1.query_pool_id,
+            )
+            .await
+            .is_ok());
+
+        // Query the cache again, should return the above schema after missing the cache.
+        assert_matches!(cache.get_schema(&ns).await, Ok(v) => {
+            assert_eq!(*v, schema1);
+        })
+    }
+}
