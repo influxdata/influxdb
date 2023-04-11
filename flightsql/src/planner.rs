@@ -287,7 +287,7 @@ async fn plan_get_primary_keys(
     _db_schema: Option<String>,
     _table: String,
 ) -> Result<LogicalPlan> {
-    let batch = RecordBatch::new_empty(Arc::new(Schema::new(vec![])));
+    let batch = RecordBatch::new_empty(Arc::clone(&GET_PRIMARY_KEYS_SCHEMA));
     Ok(ctx.batch_to_logical_plan(batch)?)
 }
 
