@@ -81,7 +81,7 @@ impl Authorizer {
             .map(|a| Permission {
                 permission_one_of: Some(PermissionOneOf::ResourceAction(
                     ResourceActionPermission {
-                        resource_type: ResourceType::Namespace.into(),
+                        resource_type: ResourceType::Database.into(),
                         resource_id: Some(namespace_name.to_string()),
                         action: a.into(),
                     },

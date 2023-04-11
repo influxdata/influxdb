@@ -70,9 +70,9 @@ message ResourceActionPermission {
     RESOURCE_TYPE_UNSPECIFIED = 0;
 
     /*
-     * Permission to access a namespace.
+     * Permission to access a database.
      */
-    RESOURCE_TYPE_NAMESPACE = 1;
+    RESOURCE_TYPE_DATABASE = 1;
   }
 
   enum Action {

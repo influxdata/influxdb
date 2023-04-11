@@ -472,7 +472,7 @@ where
         let perms = match query {
             RunQuery::FlightSQL(cmd) => flightsql_permissions(namespace_name, cmd),
             RunQuery::Sql(_) | RunQuery::InfluxQL(_) => vec![authz::Permission::ResourceAction(
-                authz::Resource::Namespace(namespace_name.to_string()),
+                authz::Resource::Database(namespace_name.to_string()),
                 authz::Action::Read,
             )],
         };
@@ -733,7 +733,7 @@ fn get_flight_authz(metadata: &MetadataMap) -> Option<Vec<u8>> {
 }
 
 fn flightsql_permissions(namespace_name: &str, cmd: &FlightSQLCommand) -> Vec<authz::Permission> {
-    let resource = authz::Resource::Namespace(namespace_name.to_string());
+    let resource = authz::Resource::Database(namespace_name.to_string());
     let action = match cmd {
         FlightSQLCommand::CommandStatementQuery(_) => authz::Action::Read,
         FlightSQLCommand::CommandPreparedStatementQuery(_) => authz::Action::Read,
