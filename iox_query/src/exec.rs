@@ -15,7 +15,6 @@ use datafusion_util::config::register_iox_object_store;
 use executor::DedicatedExecutor;
 use object_store::DynObjectStore;
 use parquet_file::storage::StorageId;
-use trace::span::{SpanExt, SpanRecorder};
 mod cross_rt_stream;
 
 use std::{collections::HashMap, fmt::Display, num::NonZeroUsize, sync::Arc};
@@ -23,13 +22,11 @@ use std::{collections::HashMap, fmt::Display, num::NonZeroUsize, sync::Arc};
 use datafusion::{
     self,
     execution::{
-        context::SessionState,
         disk_manager::DiskManagerConfig,
         runtime_env::{RuntimeConfig, RuntimeEnv},
     },
     logical_expr::{expr_rewriter::normalize_col, Extension},
     logical_expr::{Expr, LogicalPlan},
-    prelude::SessionContext,
 };
 
 pub use context::{IOxSessionConfig, IOxSessionContext, SessionContextIOxExt};
@@ -201,18 +198,6 @@ impl Executor {
         let exec = self.executor(executor_type).clone();
         IOxSessionConfig::new(exec, Arc::clone(&self.runtime))
             .with_target_partitions(self.config.target_query_partitions)
-    }
-
-    /// Get IOx context from DataFusion state.
-    pub fn new_context_from_df(
-        &self,
-        executor_type: ExecutorType,
-        state: &SessionState,
-    ) -> IOxSessionContext {
-        let inner = SessionContext::with_state(state.clone());
-        let exec = self.executor(executor_type).clone();
-        let recorder = SpanRecorder::new(state.span_ctx().child_span("Query Execution"));
-        IOxSessionContext::new(inner, exec, recorder)
     }
 
     /// Create a new execution context, suitable for executing a new query or system task
