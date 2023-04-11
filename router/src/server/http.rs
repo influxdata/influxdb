@@ -1,10 +1,10 @@
 //! HTTP service implementations for `router`.
 
 mod delete_predicate;
+pub mod write;
 
 use authz::{Action, Authorizer, Permission, Resource};
 use bytes::{Bytes, BytesMut};
-use data_types::{NamespaceName, OrgBucketMappingError};
 use futures::StreamExt;
 use hashbrown::HashMap;
 use hyper::{header::CONTENT_ENCODING, Body, Method, Request, Response, StatusCode};
@@ -14,7 +14,6 @@ use mutable_batch::MutableBatch;
 use mutable_batch_lp::LinesConverter;
 use observability_deps::tracing::*;
 use predicate::delete_predicate::parse_delete_predicate;
-use serde::Deserialize;
 use server_util::authorization::AuthorizationHeaderExtension;
 use std::{str::Utf8Error, sync::Arc, time::Instant};
 use thiserror::Error;
@@ -22,7 +21,13 @@ use tokio::sync::{Semaphore, TryAcquireError};
 use trace::ctx::SpanContext;
 use write_summary::WriteSummary;
 
-use self::delete_predicate::parse_http_delete_request;
+use self::{
+    delete_predicate::parse_http_delete_request,
+    write::{
+        multi_tenant::MultiTenantExtractError, single_tenant::SingleTenantExtractError,
+        WriteParamExtractor, WriteParams,
+    },
+};
 use crate::{
     dml_handlers::{
         DmlError, DmlHandler, PartitionError, RetentionError, RpcWriteError, SchemaError,
@@ -39,9 +44,13 @@ pub enum Error {
     #[error("not found")]
     NoHandler,
 
-    /// An error with the org/bucket in the request.
+    /// An error parsing a single-tenant HTTP request.
     #[error(transparent)]
-    InvalidOrgBucket(#[from] OrgBucketError),
+    SingleTenantError(#[from] SingleTenantExtractError),
+
+    /// An error parsing a multi-tenant HTTP request.
+    #[error(transparent)]
+    MultiTenantError(#[from] MultiTenantExtractError),
 
     /// The request body content is not valid utf8.
     #[error("body content is not valid utf8: {0}")]
@@ -114,7 +123,6 @@ impl Error {
     pub fn as_status_code(&self) -> StatusCode {
         match self {
             Error::NoHandler => StatusCode::NOT_FOUND,
-            Error::InvalidOrgBucket(_) => StatusCode::BAD_REQUEST,
             Error::ClientHangup(_) => StatusCode::BAD_REQUEST,
             Error::InvalidGzip(_) => StatusCode::BAD_REQUEST,
             Error::NonUtf8ContentHeader(_) => StatusCode::BAD_REQUEST,
@@ -137,6 +145,8 @@ impl Error {
             Error::Unauthenticated => StatusCode::UNAUTHORIZED,
             Error::Forbidden => StatusCode::FORBIDDEN,
             Error::Authorizer(_) => StatusCode::INTERNAL_SERVER_ERROR,
+            Error::SingleTenantError(e) => StatusCode::from(e),
+            Error::MultiTenantError(e) => StatusCode::from(e),
         }
     }
 }
@@ -190,79 +200,6 @@ impl From<&DmlError> for StatusCode {
     }
 }
 
-/// Errors returned when decoding the organisation / bucket information from a
-/// HTTP request and deriving the namespace name from it.
-#[derive(Debug, Error)]
-pub enum OrgBucketError {
-    /// The request contains no org/bucket destination information.
-    #[error("no org/bucket destination provided")]
-    NotSpecified,
-
-    /// The request contains invalid parameters.
-    #[error("failed to deserialize org/bucket/precision in request: {0}")]
-    DecodeFail(#[from] serde::de::value::Error),
-
-    /// The provided org/bucket could not be converted into a namespace name.
-    #[error(transparent)]
-    MappingFail(#[from] OrgBucketMappingError),
-}
-
-#[derive(Debug, Deserialize)]
-enum Precision {
-    #[serde(rename = "s")]
-    Seconds,
-    #[serde(rename = "ms")]
-    Milliseconds,
-    #[serde(rename = "us")]
-    Microseconds,
-    #[serde(rename = "ns")]
-    Nanoseconds,
-}
-
-impl Default for Precision {
-    fn default() -> Self {
-        Self::Nanoseconds
-    }
-}
-
-impl Precision {
-    /// Returns the multiplier to convert to nanosecond timestamps
-    fn timestamp_base(&self) -> i64 {
-        match self {
-            Precision::Seconds => 1_000_000_000,
-            Precision::Milliseconds => 1_000_000,
-            Precision::Microseconds => 1_000,
-            Precision::Nanoseconds => 1,
-        }
-    }
-}
-
-#[derive(Debug, Deserialize)]
-/// Org & bucket identifiers for a DML operation.
-pub struct WriteInfo {
-    org: String,
-    bucket: String,
-
-    #[serde(default)]
-    precision: Precision,
-}
-
-impl<T> TryFrom<&Request<T>> for WriteInfo {
-    type Error = OrgBucketError;
-
-    fn try_from(req: &Request<T>) -> Result<Self, Self::Error> {
-        let query = req.uri().query().ok_or(OrgBucketError::NotSpecified)?;
-        let got: WriteInfo = serde_urlencoded::from_str(query)?;
-
-        // An empty org or bucket is not acceptable.
-        if got.org.is_empty() || got.bucket.is_empty() {
-            return Err(OrgBucketError::NotSpecified);
-        }
-
-        Ok(got)
-    }
-}
-
 /// This type is responsible for servicing requests to the `router` HTTP
 /// endpoint.
 ///
@@ -276,6 +213,7 @@ pub struct HttpDelegate<D, N, T = SystemProvider> {
     namespace_resolver: N,
     dml_handler: D,
     authz: Option<Arc<dyn Authorizer>>,
+    write_param_extractor: Box<dyn WriteParamExtractor>,
 
     // A request limiter to restrict the number of simultaneous requests this
     // router services.
@@ -308,6 +246,7 @@ impl<D, N> HttpDelegate<D, N, SystemProvider> {
         dml_handler: D,
         authz: Option<Arc<dyn Authorizer>>,
         metrics: &metric::Registry,
+        write_param_extractor: Box<dyn WriteParamExtractor>,
     ) -> Self {
         let write_metric_lines = metrics
             .register_metric::<U64Counter>(
@@ -356,6 +295,7 @@ impl<D, N> HttpDelegate<D, N, SystemProvider> {
             max_request_bytes,
             time_provider: SystemProvider::default(),
             namespace_resolver,
+            write_param_extractor,
             dml_handler,
             authz,
             request_sem: Semaphore::new(max_requests),
@@ -398,7 +338,14 @@ where
 
         // Route the request to a handler.
         match (req.method(), req.uri().path()) {
-            (&Method::POST, "/api/v2/write") => self.write_handler(req).await,
+            (&Method::POST, "/write") => {
+                let dml_info = self.write_param_extractor.parse_v1(&req)?;
+                self.write_handler(req, dml_info).await
+            }
+            (&Method::POST, "/api/v2/write") => {
+                let dml_info = self.write_param_extractor.parse_v2(&req)?;
+                self.write_handler(req, dml_info).await
+            }
             (&Method::POST, "/api/v2/delete") => self.delete_handler(req).await,
             _ => return Err(Error::NoHandler),
         }
@@ -411,12 +358,12 @@ where
         })
     }
 
-    async fn write_handler(&self, req: Request<Body>) -> Result<WriteSummary, Error> {
+    async fn write_handler(
+        &self,
+        req: Request<Body>,
+        write_info: WriteParams,
+    ) -> Result<WriteSummary, Error> {
         let span_ctx: Option<SpanContext> = req.extensions().get().cloned();
-
-        let write_info = WriteInfo::try_from(&req)?;
-        let namespace = NamespaceName::from_org_and_bucket(write_info.org, write_info.bucket)
-            .map_err(OrgBucketError::MappingFail)?;
 
         let token = req
             .extensions()
@@ -434,13 +381,13 @@ where
                 }
             });
         let perms = [Permission::ResourceAction(
-            Resource::Database(namespace.to_string()),
+            Resource::Database(write_info.namespace.to_string()),
             Action::Write,
         )];
         self.authz.require_any_permission(token, &perms).await?;
 
         trace!(
-            %namespace,
+            namespace=%write_info.namespace,
             "processing write request"
         );
 
@@ -473,17 +420,20 @@ where
             num_tables,
             precision=?write_info.precision,
             body_size=body.len(),
-            %namespace,
+            namespace=%write_info.namespace,
             duration=?duration,
             "routing write",
         );
 
         // Retrieve the namespace ID for this namespace.
-        let namespace_id = self.namespace_resolver.get_namespace_id(&namespace).await?;
+        let namespace_id = self
+            .namespace_resolver
+            .get_namespace_id(&write_info.namespace)
+            .await?;
 
         let summary = self
             .dml_handler
-            .write(&namespace, namespace_id, batches, span_ctx)
+            .write(&write_info.namespace, namespace_id, batches, span_ctx)
             .await
             .map_err(Into::into)?;
 
@@ -497,12 +447,9 @@ where
 
     async fn delete_handler(&self, req: Request<Body>) -> Result<WriteSummary, Error> {
         let span_ctx: Option<SpanContext> = req.extensions().get().cloned();
+        let write_info = self.write_param_extractor.parse_v2(&req)?;
 
-        let account = WriteInfo::try_from(&req)?;
-        let namespace = NamespaceName::from_org_and_bucket(account.org, account.bucket)
-            .map_err(OrgBucketError::MappingFail)?;
-
-        trace!(%namespace, "processing delete request");
+        trace!(namespace=%write_info.namespace, "processing delete request");
 
         // Read the HTTP body and convert it to a str.
         let body = self.read_body(req).await?;
@@ -522,15 +469,18 @@ where
             start=%parsed_delete.start_time,
             stop=%parsed_delete.stop_time,
             body_size=body.len(),
-            %namespace,
+            namespace=%write_info.namespace,
             "routing delete"
         );
 
-        let namespace_id = self.namespace_resolver.get_namespace_id(&namespace).await?;
+        let namespace_id = self
+            .namespace_resolver
+            .get_namespace_id(&write_info.namespace)
+            .await?;
 
         self.dml_handler
             .delete(
-                &namespace,
+                &write_info.namespace,
                 namespace_id,
                 parsed_delete.table_name.as_str(),
                 &predicate,
@@ -613,22 +563,31 @@ mod tests {
             CachedServiceProtectionLimit,
         },
         namespace_resolver::{mock::MockNamespaceResolver, NamespaceCreationError},
+        server::http::write::{
+            mock::{MockExtractorCall, MockWriteParamsExtractor},
+            multi_tenant::MultiTenantRequestParser,
+            v1::V1WriteParseError,
+            v2::V2WriteParseError,
+            Precision,
+        },
     };
     use assert_matches::assert_matches;
     use async_trait::async_trait;
-    use data_types::{NamespaceId, NamespaceNameError, TableId};
+    use data_types::{
+        NamespaceId, NamespaceName, NamespaceNameError, OrgBucketMappingError, TableId,
+    };
     use flate2::{write::GzEncoder, Compression};
     use hyper::header::HeaderValue;
     use metric::{Attributes, Metric};
     use mutable_batch::column::ColumnData;
     use mutable_batch_lp::LineWriteError;
-    use serde::de::Error as _;
     use std::{io::Write, iter, sync::Arc, time::Duration};
     use test_helpers::timeout::FutureTimeout;
     use tokio_stream::wrappers::ReceiverStream;
 
     const MAX_BYTES: usize = 1024;
     const NAMESPACE_ID: NamespaceId = NamespaceId::new(42);
+    static NAMESPACE_NAME: &str = "bananas_test";
 
     fn summary() -> WriteSummary {
         WriteSummary::default()
@@ -648,6 +607,16 @@ mod tests {
             assert!(counter > 0, "metric {name} did not record any values");
         }
     }
+
+    ////////////////////////////////////////////////////////////////////////////
+    //
+    // The following tests assert "cloud2" or "multi-tenant" mode only, as this
+    // is the default operating mode.
+    //
+    // Tests of the single-tenant behaviour differs from the established norms,
+    // and can be found alongside the single-tenant implementation.
+    //
+    ////////////////////////////////////////////////////////////////////////////
 
     // Generate two HTTP handler tests - one for a plain request and one with a
     // gzip-encoded body (and appropriate header), asserting the handler return
@@ -716,7 +685,7 @@ mod tests {
                     test_http_handler!(encoding_header=$encoding, request);
 
                     let mock_namespace_resolver = MockNamespaceResolver::default()
-                        .with_mapping("bananas_test", NAMESPACE_ID);
+                        .with_mapping(NAMESPACE_NAME, NAMESPACE_ID);
                     let dml_handler = Arc::new(MockDmlHandler::default()
                         .with_write_return($dml_write_handler)
                         .with_delete_return($dml_delete_handler)
@@ -728,7 +697,8 @@ mod tests {
                         mock_namespace_resolver,
                         Arc::clone(&dml_handler),
                         None,
-                        &metrics
+                        &metrics,
+                        Box::<crate::server::http::write::multi_tenant::MultiTenantRequestParser>::default(),
                     );
 
                     let got = delegate.route(request).await;
@@ -826,7 +796,7 @@ mod tests {
         dml_handler = [Ok(summary())],
         want_result = Ok(_),
         want_dml_calls = [MockDmlHandlerCall::Write{namespace, ..}] => {
-            assert_eq!(namespace, "bananas_test");
+            assert_eq!(namespace, NAMESPACE_NAME);
         }
     );
 
@@ -837,7 +807,7 @@ mod tests {
         dml_handler = [Ok(summary())],
         want_result = Ok(_),
         want_dml_calls = [MockDmlHandlerCall::Write{namespace, namespace_id, write_input}] => {
-            assert_eq!(namespace, "bananas_test");
+            assert_eq!(namespace, NAMESPACE_NAME);
             assert_eq!(*namespace_id, NAMESPACE_ID);
 
             let table = write_input.get("platanos").expect("table not found");
@@ -853,7 +823,7 @@ mod tests {
         dml_handler = [Ok(summary())],
         want_result = Ok(_),
         want_dml_calls = [MockDmlHandlerCall::Write{namespace, namespace_id, write_input}] => {
-            assert_eq!(namespace, "bananas_test");
+            assert_eq!(namespace, NAMESPACE_NAME);
             assert_eq!(*namespace_id, NAMESPACE_ID);
 
             let table = write_input.get("platanos").expect("table not found");
@@ -869,7 +839,7 @@ mod tests {
         dml_handler = [Ok(summary())],
         want_result = Ok(_),
         want_dml_calls = [MockDmlHandlerCall::Write{namespace, namespace_id, write_input}] => {
-            assert_eq!(namespace, "bananas_test");
+            assert_eq!(namespace, NAMESPACE_NAME);
             assert_eq!(*namespace_id, NAMESPACE_ID);
 
             let table = write_input.get("platanos").expect("table not found");
@@ -885,7 +855,7 @@ mod tests {
         dml_handler = [Ok(summary())],
         want_result = Ok(_),
         want_dml_calls = [MockDmlHandlerCall::Write{namespace, namespace_id, write_input}] => {
-            assert_eq!(namespace, "bananas_test");
+            assert_eq!(namespace, NAMESPACE_NAME);
             assert_eq!(*namespace_id, NAMESPACE_ID);
 
             let table = write_input.get("platanos").expect("table not found");
@@ -909,7 +879,9 @@ mod tests {
         query_string = "",
         body = "platanos,tag1=A,tag2=B val=42i 123456".as_bytes(),
         dml_handler = [Ok(summary())],
-        want_result = Err(Error::InvalidOrgBucket(OrgBucketError::NotSpecified)),
+        want_result = Err(Error::MultiTenantError(
+            MultiTenantExtractError::ParseV2Request(V2WriteParseError::NoQueryParams)
+        )),
         want_dml_calls = [] // None
     );
 
@@ -918,7 +890,11 @@ mod tests {
         query_string = "?",
         body = "platanos,tag1=A,tag2=B val=42i 123456".as_bytes(),
         dml_handler = [Ok(summary())],
-        want_result = Err(Error::InvalidOrgBucket(OrgBucketError::DecodeFail(_))),
+        want_result = Err(Error::MultiTenantError(
+            MultiTenantExtractError::InvalidOrgAndBucket(
+                OrgBucketMappingError::NoOrgBucketSpecified
+            )
+        )),
         want_dml_calls = [] // None
     );
 
@@ -927,7 +903,11 @@ mod tests {
         query_string = "?org=&bucket=",
         body = "platanos,tag1=A,tag2=B val=42i 123456".as_bytes(),
         dml_handler = [Ok(summary())],
-        want_result = Err(Error::InvalidOrgBucket(OrgBucketError::NotSpecified)),
+        want_result = Err(Error::MultiTenantError(
+            MultiTenantExtractError::InvalidOrgAndBucket(
+                OrgBucketMappingError::NoOrgBucketSpecified
+            )
+        )),
         want_dml_calls = [] // None
     );
 
@@ -936,7 +916,13 @@ mod tests {
         query_string = format!("?org=test&bucket={}", "A".repeat(1000)),
         body = "platanos,tag1=A,tag2=B val=42i 123456".as_bytes(),
         dml_handler = [Ok(summary())],
-        want_result = Err(Error::InvalidOrgBucket(OrgBucketError::MappingFail(_))),
+        want_result = Err(Error::MultiTenantError(
+            MultiTenantExtractError::InvalidOrgAndBucket(
+                OrgBucketMappingError::InvalidNamespaceName(
+                    NamespaceNameError::LengthConstraint { .. }
+                )
+            )
+        )),
         want_dml_calls = [] // None
     );
 
@@ -990,10 +976,10 @@ mod tests {
         db_not_found,
         query_string = "?org=bananas&bucket=test",
         body = "platanos,tag1=A,tag2=B val=42i 123456".as_bytes(),
-        dml_handler = [Err(DmlError::NamespaceNotFound("bananas_test".to_string()))],
+        dml_handler = [Err(DmlError::NamespaceNotFound(NAMESPACE_NAME.to_string()))],
         want_result = Err(Error::DmlHandler(DmlError::NamespaceNotFound(_))),
         want_dml_calls = [MockDmlHandlerCall::Write{namespace, ..}] => {
-            assert_eq!(namespace, "bananas_test");
+            assert_eq!(namespace, NAMESPACE_NAME);
         }
     );
 
@@ -1004,7 +990,7 @@ mod tests {
         dml_handler = [Err(DmlError::Internal("💣".into()))],
         want_result = Err(Error::DmlHandler(DmlError::Internal(_))),
         want_dml_calls = [MockDmlHandlerCall::Write{namespace, ..}] => {
-            assert_eq!(namespace, "bananas_test");
+            assert_eq!(namespace, NAMESPACE_NAME);
         }
     );
 
@@ -1015,7 +1001,7 @@ mod tests {
         dml_handler = [Ok(summary())],
         want_result = Ok(_),
         want_dml_calls = [MockDmlHandlerCall::Write{namespace, namespace_id, write_input}] => {
-            assert_eq!(namespace, "bananas_test");
+            assert_eq!(namespace, NAMESPACE_NAME);
             assert_eq!(*namespace_id, NAMESPACE_ID);
             let table = write_input.get("test").expect("table not in write");
             let col = table.column("field").expect("column missing");
@@ -1043,7 +1029,7 @@ mod tests {
         want_result = Ok(_),
         want_dml_calls = [MockDmlHandlerCall::Delete{namespace, namespace_id, table, predicate}] => {
             assert_eq!(table, "its_a_table");
-            assert_eq!(namespace, "bananas_test");
+            assert_eq!(namespace, NAMESPACE_NAME);
             assert_eq!(*namespace_id, NAMESPACE_ID);
             assert!(!predicate.exprs.is_empty());
         }
@@ -1063,7 +1049,9 @@ mod tests {
         query_string = "",
         body = "".as_bytes(),
         dml_handler = [Ok(())],
-        want_result = Err(Error::InvalidOrgBucket(OrgBucketError::NotSpecified)),
+        want_result = Err(Error::MultiTenantError(
+            MultiTenantExtractError::ParseV2Request(V2WriteParseError::NoQueryParams)
+        )),
         want_dml_calls = [] // None
     );
 
@@ -1072,7 +1060,11 @@ mod tests {
         query_string = "?",
         body = "".as_bytes(),
         dml_handler = [Ok(())],
-        want_result = Err(Error::InvalidOrgBucket(OrgBucketError::DecodeFail(_))),
+        want_result = Err(Error::MultiTenantError(
+            MultiTenantExtractError::InvalidOrgAndBucket(
+                OrgBucketMappingError::NoOrgBucketSpecified
+            )
+        )),
         want_dml_calls = [] // None
     );
 
@@ -1081,7 +1073,11 @@ mod tests {
         query_string = "?org=&bucket=",
         body = "".as_bytes(),
         dml_handler = [Ok(())],
-        want_result = Err(Error::InvalidOrgBucket(OrgBucketError::NotSpecified)),
+        want_result = Err(Error::MultiTenantError(
+            MultiTenantExtractError::InvalidOrgAndBucket(
+                OrgBucketMappingError::NoOrgBucketSpecified
+            )
+        )),
         want_dml_calls = [] // None
     );
 
@@ -1090,7 +1086,13 @@ mod tests {
         query_string = format!("?org=test&bucket={}", "A".repeat(1000)),
         body = "".as_bytes(),
         dml_handler = [Ok(())],
-        want_result = Err(Error::InvalidOrgBucket(OrgBucketError::MappingFail(_))),
+        want_result = Err(Error::MultiTenantError(
+            MultiTenantExtractError::InvalidOrgAndBucket(
+                OrgBucketMappingError::InvalidNamespaceName(
+                    NamespaceNameError::LengthConstraint { .. }
+                )
+            )
+        )),
         want_dml_calls = [] // None
     );
 
@@ -1107,11 +1109,11 @@ mod tests {
         db_not_found,
         query_string = "?org=bananas&bucket=test",
         body = r#"{"start":"2021-04-01T14:00:00Z","stop":"2021-04-02T14:00:00Z", "predicate":"_measurement=its_a_table and location=Boston"}"#.as_bytes(),
-        dml_handler = [Err(DmlError::NamespaceNotFound("bananas_test".to_string()))],
+        dml_handler = [Err(DmlError::NamespaceNotFound(NAMESPACE_NAME.to_string()))],
         want_result = Err(Error::DmlHandler(DmlError::NamespaceNotFound(_))),
         want_dml_calls = [MockDmlHandlerCall::Delete{namespace, namespace_id, table, predicate}] => {
             assert_eq!(table, "its_a_table");
-            assert_eq!(namespace, "bananas_test");
+            assert_eq!(namespace, NAMESPACE_NAME);
             assert_eq!(*namespace_id, NAMESPACE_ID);
             assert!(!predicate.exprs.is_empty());
         }
@@ -1125,7 +1127,7 @@ mod tests {
         want_result = Err(Error::DmlHandler(DmlError::Internal(_))),
         want_dml_calls = [MockDmlHandlerCall::Delete{namespace, namespace_id, table, predicate}] => {
             assert_eq!(table, "its_a_table");
-            assert_eq!(namespace, "bananas_test");
+            assert_eq!(namespace, NAMESPACE_NAME);
             assert_eq!(*namespace_id, NAMESPACE_ID);
             assert!(!predicate.exprs.is_empty());
         }
@@ -1152,7 +1154,7 @@ mod tests {
             dml_handler = [Ok(summary())],
             want_result = Ok(_),
             want_dml_calls = [MockDmlHandlerCall::Write{namespace, write_input, ..}] => {
-                assert_eq!(namespace, "bananas_test");
+                assert_eq!(namespace, NAMESPACE_NAME);
                 let table = write_input.get("whydo").expect("table not in write");
                 let col = table.column("InputPower").expect("column missing");
                 assert_matches!(col.data(), ColumnData::I64(data, _) => {
@@ -1169,7 +1171,7 @@ mod tests {
             dml_handler = [Ok(summary())],
             want_result = Ok(_),
             want_dml_calls = [MockDmlHandlerCall::Write{namespace, write_input, ..}] => {
-                assert_eq!(namespace, "bananas_test");
+                assert_eq!(namespace, NAMESPACE_NAME);
                 let table = write_input.get("whydo").expect("table not in write");
                 let col = table.column("InputPower").expect("column missing");
                 assert_matches!(col.data(), ColumnData::I64(data, _) => {
@@ -1278,6 +1280,14 @@ mod tests {
             Arc::clone(&dml_handler),
             None,
             &metrics,
+            Box::new(
+                MockWriteParamsExtractor::default().with_ret(iter::repeat_with(|| {
+                    Ok(WriteParams {
+                        namespace: NamespaceName::new(NAMESPACE_NAME).unwrap(),
+                        precision: Precision::default(),
+                    })
+                })),
+            ),
         ));
 
         // Use a channel to hold open the request.
@@ -1409,7 +1419,7 @@ mod tests {
     #[tokio::test]
     async fn test_authz() {
         let mock_namespace_resolver =
-            MockNamespaceResolver::default().with_mapping("bananas_test", NamespaceId::new(42));
+            MockNamespaceResolver::default().with_mapping(NAMESPACE_NAME, NamespaceId::new(42));
 
         let dml_handler = Arc::new(
             MockDmlHandler::default()
@@ -1425,13 +1435,21 @@ mod tests {
             Arc::clone(&dml_handler),
             Some(authz),
             &metrics,
+            Box::new(
+                MockWriteParamsExtractor::default().with_ret(iter::repeat_with(|| {
+                    Ok(WriteParams {
+                        namespace: NamespaceName::new(NAMESPACE_NAME).unwrap(),
+                        precision: Precision::default(),
+                    })
+                })),
+            ),
         );
 
         let request = Request::builder()
             .uri("https://bananas.example/api/v2/write?org=bananas&bucket=test")
             .method("POST")
             .extension(AuthorizationHeaderExtension::new(Some(
-                HeaderValue::from_str("Token GOOD").expect("ok"),
+                HeaderValue::from_str("Token GOOD").unwrap(),
             )))
             .body(Body::from("platanos,tag1=A,tag2=B val=42i 123456"))
             .unwrap();
@@ -1443,7 +1461,7 @@ mod tests {
             .uri("https://bananas.example/api/v2/write?org=bananas&bucket=test")
             .method("POST")
             .extension(AuthorizationHeaderExtension::new(Some(
-                HeaderValue::from_str("Token BAD").expect("ok"),
+                HeaderValue::from_str("Token BAD").unwrap(),
             )))
             .body(Body::from(""))
             .unwrap();
@@ -1464,7 +1482,7 @@ mod tests {
             .uri("https://bananas.example/api/v2/write?org=bananas&bucket=test")
             .method("POST")
             .extension(AuthorizationHeaderExtension::new(Some(
-                HeaderValue::from_str("Token UGLY").expect("ok"),
+                HeaderValue::from_str("Token UGLY").unwrap(),
             )))
             .body(Body::from(""))
             .unwrap();
@@ -1474,8 +1492,135 @@ mod tests {
 
         let calls = dml_handler.calls();
         assert_matches!(calls.as_slice(), [MockDmlHandlerCall::Write{namespace, ..}] => {
-            assert_eq!(namespace, "bananas_test");
+            assert_eq!(namespace, NAMESPACE_NAME);
         })
+    }
+
+    /// Assert the router rejects writes to the V1 endpoint when in
+    /// "multi-tenant" mode.
+    #[tokio::test]
+    async fn test_multi_tenant_denies_v1_writes() {
+        let mock_namespace_resolver =
+            MockNamespaceResolver::default().with_mapping(NAMESPACE_NAME, NamespaceId::new(42));
+
+        let dml_handler = Arc::new(
+            MockDmlHandler::default()
+                .with_write_return([Ok(summary())])
+                .with_delete_return([]),
+        );
+        let metrics = Arc::new(metric::Registry::default());
+        let delegate = HttpDelegate::new(
+            MAX_BYTES,
+            1,
+            mock_namespace_resolver,
+            Arc::clone(&dml_handler),
+            None,
+            &metrics,
+            Box::<MultiTenantRequestParser>::default(),
+        );
+
+        let request = Request::builder()
+            .uri("https://bananas.example/write")
+            .method("POST")
+            .extension(AuthorizationHeaderExtension::new(Some(
+                HeaderValue::from_str("Token GOOD").unwrap(),
+            )))
+            .body(Body::from("platanos,tag1=A,tag2=B val=42i 123456"))
+            .unwrap();
+
+        let got = delegate.route(request).await;
+        assert_matches!(got, Err(Error::NoHandler));
+    }
+
+    /// Assert the router delegates request parsing to the
+    /// [`WriteParamExtractor`] implementation.
+    ///
+    /// By validating request parsing is delegated, behavioural tests for each
+    /// implementation can be implemented directly against those implementations
+    /// (instead of putting them all here).
+    #[tokio::test]
+    async fn test_delegate_to_write_param_extractor_ok() {
+        let mock_namespace_resolver =
+            MockNamespaceResolver::default().with_mapping(NAMESPACE_NAME, NamespaceId::new(42));
+
+        let request_parser = Arc::new(MockWriteParamsExtractor::default().with_ret(
+            iter::repeat_with(|| {
+                Ok(WriteParams {
+                    namespace: NamespaceName::new(NAMESPACE_NAME).unwrap(),
+                    precision: Precision::default(),
+                })
+            }),
+        ));
+
+        let dml_handler = Arc::new(
+            MockDmlHandler::default()
+                .with_write_return([Ok(summary()), Ok(summary()), Ok(summary())])
+                .with_delete_return([]),
+        );
+        let metrics = Arc::new(metric::Registry::default());
+        let delegate = HttpDelegate::new(
+            MAX_BYTES,
+            1,
+            mock_namespace_resolver,
+            Arc::clone(&dml_handler),
+            None,
+            &metrics,
+            Box::new(Arc::clone(&request_parser)),
+        );
+
+        // A route miss does not invoke the parser
+        let request = Request::builder()
+            .uri("https://bananas.example/wat")
+            .method("POST")
+            .body(Body::from(""))
+            .unwrap();
+        let got = delegate.route(request).await;
+        assert_matches!(got, Err(Error::NoHandler));
+
+        // V1 write parsing is delegated
+        let request = Request::builder()
+            .uri("https://bananas.example/write")
+            .method("POST")
+            .body(Body::from("platanos,tag1=A,tag2=B val=42i 123456"))
+            .unwrap();
+        let got = delegate.route(request).await;
+        assert_matches!(got, Ok(_));
+
+        // Only one call was received, and it should be v1.
+        assert_matches!(request_parser.calls().as_slice(), [MockExtractorCall::V1]);
+
+        // V2 write parsing is delegated
+        let request = Request::builder()
+            .uri("https://bananas.example/api/v2/write")
+            .method("POST")
+            .body(Body::from("platanos,tag1=A,tag2=B val=42i 123456"))
+            .unwrap();
+        let got = delegate.route(request).await;
+        assert_matches!(got, Ok(_));
+
+        // Both call were received.
+        assert_matches!(
+            request_parser.calls().as_slice(),
+            [MockExtractorCall::V1, MockExtractorCall::V2]
+        );
+
+        // Delete requests hit the v2 parser
+        let request = Request::builder()
+            .uri("https://bananas.example/api/v2/delete")
+            .method("POST")
+            .body(Body::from(""))
+            .unwrap();
+        let _got = delegate.route(request).await;
+
+        // The delete should have hit v2.
+        assert_matches!(
+            request_parser.calls().as_slice(),
+            [
+                MockExtractorCall::V1,
+                MockExtractorCall::V2,
+                MockExtractorCall::V2
+            ]
+        );
     }
 
     // The display text of Error gets passed through `ioxd_router::IoxHttpErrorAdaptor` then
@@ -1527,31 +1672,6 @@ mod tests {
         (
             NoHandler,
             "not found",
-        ),
-
-        (InvalidOrgBucket(OrgBucketError::NotSpecified), "no org/bucket destination provided"),
-
-        (
-            InvalidOrgBucket({
-                let e = serde::de::value::Error::custom("[deserialization error]");
-                OrgBucketError::DecodeFail(e)
-            }),
-            "failed to deserialize org/bucket/precision in request: [deserialization error]",
-        ),
-
-        (
-            InvalidOrgBucket(OrgBucketError::MappingFail(OrgBucketMappingError::NotSpecified)),
-            "missing org/bucket value",
-        ),
-
-        (
-            InvalidOrgBucket({
-                let e = NamespaceNameError::LengthConstraint { name: "[too long name]".into() };
-                let e = OrgBucketMappingError::InvalidNamespaceName(e);
-                OrgBucketError::MappingFail(e)
-            }),
-            "invalid namespace name: \
-             namespace name [too long name] length must be between 1 and 64 characters",
         ),
 
         (
@@ -1726,6 +1846,40 @@ mod tests {
                 namespace_id: NamespaceId::new(42),
             })))),
             "dml handler error: service limit reached: couldn't create table bananas; limit reached on namespace 42",
+        ),
+
+        // A single-tenant namespace parsing error
+        (
+            SingleTenantError(SingleTenantExtractError::InvalidNamespace(NamespaceNameError::LengthConstraint{name: "bananas".to_string()})),
+            "namespace name bananas length must be between 1 and 64 characters",
+        ),
+        // A single-tenant v1 parsing error
+        (
+            SingleTenantError(SingleTenantExtractError::ParseV1Request(V1WriteParseError::NoQueryParams)),
+            "no db destination provided",
+        ),
+        // A single-tenant v2 parsing error
+        (
+            SingleTenantError(SingleTenantExtractError::ParseV2Request(V2WriteParseError::NoQueryParams)),
+            "no org/bucket destination provided",
+        ),
+
+        // A multi-tenant namespace parsing error
+        (
+            MultiTenantError(MultiTenantExtractError::InvalidOrgAndBucket(OrgBucketMappingError::InvalidNamespaceName(NamespaceNameError::LengthConstraint{name: "bananas".to_string()}))),
+            "invalid namespace name: namespace name bananas length must be between 1 and 64 characters",
+        ),
+        (
+            MultiTenantError(MultiTenantExtractError::InvalidOrgAndBucket(OrgBucketMappingError::NoOrgBucketSpecified)),
+            "missing org/bucket value",
+        ),
+
+        // There is no multi-tenant support for v1 parsing, so no errors!
+
+        // A multi-tenant v2 parsing error
+        (
+            MultiTenantError(MultiTenantExtractError::ParseV2Request(V2WriteParseError::NoQueryParams)),
+            "no org/bucket destination provided",
         ),
     }
 }

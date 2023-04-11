@@ -11,7 +11,10 @@ use router::{
     },
     namespace_cache::{MemoryNamespaceCache, ShardedCache},
     namespace_resolver::mock::MockNamespaceResolver,
-    server::http::HttpDelegate,
+    server::http::{
+        write::{multi_tenant::MultiTenantRequestParser, WriteParamExtractor},
+        HttpDelegate,
+    },
     shard::Shard,
 };
 use sharder::JumpHash;
@@ -79,6 +82,9 @@ fn e2e_benchmarks(c: &mut Criterion) {
         let namespace_resolver =
             MockNamespaceResolver::default().with_mapping("bananas", NamespaceId::new(42));
 
+        let write_param_extractor: Box<dyn WriteParamExtractor> =
+            Box::<MultiTenantRequestParser>::default();
+
         HttpDelegate::new(
             1024,
             100,
@@ -86,6 +92,7 @@ fn e2e_benchmarks(c: &mut Criterion) {
             Arc::new(handler_stack),
             None,
             &metrics,
+            write_param_extractor,
         )
     };
 

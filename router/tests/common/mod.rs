@@ -16,7 +16,16 @@ use router::{
     },
     namespace_cache::{MemoryNamespaceCache, ShardedCache},
     namespace_resolver::{MissingNamespaceAction, NamespaceAutocreation, NamespaceSchemaResolver},
-    server::{grpc::RpcWriteGrpcDelegate, http::HttpDelegate},
+    server::{
+        grpc::RpcWriteGrpcDelegate,
+        http::{
+            write::{
+                multi_tenant::MultiTenantRequestParser, single_tenant::SingleTenantRequestParser,
+                WriteParamExtractor,
+            },
+            HttpDelegate,
+        },
+    },
 };
 use std::{iter, string::String, sync::Arc, time::Duration};
 
@@ -37,12 +46,14 @@ pub const TEST_RETENTION_PERIOD: Duration = Duration::from_secs(3600);
 #[derive(Debug)]
 pub struct TestContextBuilder {
     namespace_autocreation: MissingNamespaceAction,
+    single_tenancy: bool,
 }
 
 impl Default for TestContextBuilder {
     fn default() -> Self {
         Self {
             namespace_autocreation: MissingNamespaceAction::Reject,
+            single_tenancy: false,
         }
     }
 }
@@ -65,13 +76,24 @@ impl TestContextBuilder {
         self
     }
 
+    pub fn with_single_tenancy(mut self) -> Self {
+        self.single_tenancy = true;
+        self
+    }
+
     pub async fn build(self) -> TestContext {
         test_helpers::maybe_start_logging();
 
         let metrics: Arc<metric::Registry> = Default::default();
         let catalog = Arc::new(MemCatalog::new(Arc::clone(&metrics)));
 
-        TestContext::new(self.namespace_autocreation, catalog, metrics).await
+        TestContext::new(
+            self.namespace_autocreation,
+            self.single_tenancy,
+            catalog,
+            metrics,
+        )
+        .await
     }
 }
 
@@ -84,6 +106,7 @@ pub struct TestContext {
     metrics: Arc<metric::Registry>,
 
     namespace_autocreation: MissingNamespaceAction,
+    single_tenancy: bool,
 }
 
 // This mass of words is certainly a downside of chained handlers.
@@ -118,6 +141,7 @@ type HttpDelegateStack = HttpDelegate<
 impl TestContext {
     async fn new(
         namespace_autocreation: MissingNamespaceAction,
+        single_tenancy: bool,
         catalog: Arc<dyn Catalog>,
         metrics: Arc<metric::Registry>,
     ) -> Self {
@@ -158,8 +182,20 @@ impl TestContext {
 
         let handler_stack = InstrumentationDecorator::new("request", &metrics, handler_stack);
 
-        let http_delegate =
-            HttpDelegate::new(1024, 100, namespace_resolver, handler_stack, None, &metrics);
+        let write_param_extractor: Box<dyn WriteParamExtractor> = match single_tenancy {
+            true => Box::<SingleTenantRequestParser>::default(),
+            false => Box::<MultiTenantRequestParser>::default(),
+        };
+
+        let http_delegate = HttpDelegate::new(
+            1024,
+            100,
+            namespace_resolver,
+            handler_stack,
+            None,
+            &metrics,
+            write_param_extractor,
+        );
 
         let grpc_delegate = RpcWriteGrpcDelegate::new(
             Arc::clone(&catalog),
@@ -176,6 +212,7 @@ impl TestContext {
             metrics,
 
             namespace_autocreation,
+            single_tenancy,
         }
     }
 
@@ -184,7 +221,13 @@ impl TestContext {
     pub async fn restart(self) -> Self {
         let catalog = self.catalog();
         let metrics = Arc::clone(&self.metrics);
-        Self::new(self.namespace_autocreation, catalog, metrics).await
+        Self::new(
+            self.namespace_autocreation,
+            self.single_tenancy,
+            catalog,
+            metrics,
+        )
+        .await
     }
 
     /// Get a reference to the test context's http delegate.

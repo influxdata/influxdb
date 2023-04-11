@@ -4,6 +4,17 @@
 #[derive(Debug, Clone, clap::Parser)]
 #[allow(missing_copy_implementations)]
 pub struct RouterConfig {
+    /// Differential handling based upon deployment to CST vs MT.
+    ///
+    /// At minimum, differs in supports of v1 endpoint. But also includes
+    /// differences in namespace handling, etc.
+    #[clap(
+        long = "single-tenancy",
+        env = "INFLUXDB_IOX_SINGLE_TENANCY",
+        default_value = "false"
+    )]
+    pub single_tenant_deployment: bool,
+
     /// Query pool name to dispatch writes to.
     #[clap(
         long = "query-pool",

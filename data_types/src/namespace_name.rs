@@ -19,7 +19,7 @@ pub enum OrgBucketMappingError {
 
     /// Either the org, or bucket is an empty string.
     #[error("missing org/bucket value")]
-    NotSpecified,
+    NoOrgBucketSpecified,
 }
 
 /// [`NamespaceName`] name validation errors.
@@ -120,7 +120,7 @@ impl<'a> NamespaceName<'a> {
         let bucket = bucket.as_ref();
 
         if org.is_empty() || bucket.is_empty() {
-            return Err(OrgBucketMappingError::NotSpecified);
+            return Err(OrgBucketMappingError::NoOrgBucketSpecified);
         }
 
         let prefix: Cow<'_, str> = utf8_percent_encode(org, NON_ALPHANUMERIC).into();
@@ -222,7 +222,7 @@ mod tests {
     fn test_empty_org_bucket() {
         let err = NamespaceName::from_org_and_bucket("", "")
             .expect_err("should fail with empty org/bucket valuese");
-        assert!(matches!(err, OrgBucketMappingError::NotSpecified));
+        assert!(matches!(err, OrgBucketMappingError::NoOrgBucketSpecified));
     }
 
     #[test]

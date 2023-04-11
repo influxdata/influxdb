@@ -468,6 +468,7 @@ impl Config {
             topic: QUERY_POOL_NAME.to_string(),
             rpc_write_timeout_seconds: Duration::new(3, 0),
             rpc_write_replicas: None,
+            single_tenant_deployment: false,
         };
 
         // create a CompactorConfig for the all in one server based on
