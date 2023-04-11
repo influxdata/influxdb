@@ -10,7 +10,6 @@ license.workspace = true
 [dependencies]
 # Workspace dependencies, in alphabetical order
 clap_blocks = { path = "../clap_blocks" }
-data_types = { path = "../data_types" }
 generated_types = { path = "../generated_types" }
 heappy = { git = "https://github.com/mkmik/heappy", rev = "1d6ac77a4026fffce8680a7b31a9f6e9859b5e73", features = ["enable_heap_profiler", "jemalloc_shim", "measure_free"], optional = true }
 metric = { path = "../metric" }
@@ -30,7 +29,6 @@ trace_http = { path = "../trace_http" }
 async-trait = "0.1"
 bytes = "1.4"
 clap = { version = "4", features = ["derive", "env"] }
-chrono = { version = "0.4", default-features = false }
 flate2 = "1.0"
 futures = "0.3"
 hashbrown = { workspace = true }
