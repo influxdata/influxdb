@@ -180,6 +180,11 @@ impl TestConfig {
         )
     }
 
+    /// Configure the authorization server.
+    pub fn with_authz_addr(self, addr: impl Into<String>) -> Self {
+        self.with_env("INFLUXDB_IOX_AUTHZ_ADDR", addr)
+    }
+
     // Get the catalog DSN URL if set.
     pub fn dsn(&self) -> &Option<String> {
         &self.dsn

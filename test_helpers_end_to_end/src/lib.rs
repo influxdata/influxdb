@@ -4,6 +4,7 @@ use rand::{
 };
 
 mod addrs;
+mod authz;
 mod client;
 mod config;
 mod data_generator;
@@ -18,6 +19,7 @@ mod steps;
 mod udp_listener;
 
 pub use addrs::BindAddresses;
+pub use authz::Authorizer;
 pub use client::*;
 pub use config::TestConfig;
 pub use data_generator::DataGenerator;

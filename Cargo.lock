@@ -2590,6 +2590,7 @@ dependencies = [
  "arrow-flight",
  "arrow_util",
  "assert_cmd",
+ "assert_matches",
  "async-trait",
  "authz",
  "backtrace",

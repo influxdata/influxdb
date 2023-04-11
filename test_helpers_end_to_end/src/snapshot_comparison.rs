@@ -225,6 +225,7 @@ async fn run_query(
                 query_text,
                 cluster.namespace(),
                 cluster.querier().querier_grpc_connection(),
+                None,
             )
             .await
         }
@@ -233,6 +234,7 @@ async fn run_query(
                 query_text,
                 cluster.namespace(),
                 cluster.querier().querier_grpc_connection(),
+                None,
             )
             .await
             {

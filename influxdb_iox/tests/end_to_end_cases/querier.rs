@@ -13,7 +13,7 @@ use generated_types::{
 use influxdb_iox_client::flight::IOxRecordBatchStream;
 use test_helpers_end_to_end::{
     check_flight_error, check_tonic_status, maybe_skip_integration, run_sql, try_run_sql,
-    GrpcRequestBuilder, MiniCluster, Step, StepTest, StepTestState, TestConfig,
+    Authorizer, GrpcRequestBuilder, MiniCluster, Step, StepTest, StepTestState, TestConfig,
 };
 
 #[tokio::test]
@@ -566,6 +566,7 @@ async fn table_or_namespace_not_found() {
                         "select * from this_table_does_exist;",
                         format!("{}_suffix", state.cluster().namespace()),
                         state.cluster().querier().querier_grpc_connection(),
+                        None,
                     )
                     .await
                     .unwrap_err();
@@ -654,6 +655,7 @@ async fn oom_protection() {
                         &sql,
                         state.cluster().namespace(),
                         state.cluster().querier().querier_grpc_connection(),
+                        None,
                     )
                     .await
                     .unwrap_err();
@@ -664,6 +666,7 @@ async fn oom_protection() {
                         format!("EXPLAIN {sql}"),
                         state.cluster().namespace(),
                         state.cluster().querier().querier_grpc_connection(),
+                        None,
                     )
                     .await;
                 }
@@ -693,6 +696,76 @@ async fn oom_protection() {
     )
     .run()
     .await
+}
+
+#[tokio::test]
+async fn authz() {
+    test_helpers::maybe_start_logging();
+    let database_url = maybe_skip_integration!();
+
+    let table_name = "the_table";
+
+    // Set up the authorizer  =================================
+    let mut authz = Authorizer::create().await;
+
+    // Set up the cluster  ====================================
+    let mut cluster = MiniCluster::create_non_shared2_with_authz(database_url, authz.addr()).await;
+
+    let write_token = authz.create_token_for(cluster.namespace(), &["ACTION_WRITE"]);
+    let read_token = authz.create_token_for(cluster.namespace(), &["ACTION_READ"]);
+
+    StepTest::new(
+        &mut cluster,
+        vec![
+            Step::WriteLineProtocolWithAuthorization {
+                line_protocol: format!(
+                    "{table_name},tag1=A,tag2=B val=42i 123456\n\
+                 {table_name},tag1=A,tag2=C val=43i 123457"
+                ),
+                authorization: format!("Token {}", write_token.clone()),
+            },
+            Step::QueryExpectingError {
+                sql: "SELECT 1".to_string(),
+                expected_error_code: tonic::Code::Unauthenticated,
+                expected_message: "Unauthenticated".to_string(),
+            },
+            Step::Custom(Box::new(move |state: &mut StepTestState| {
+                let token = write_token.clone();
+                async move {
+                    let cluster = state.cluster();
+                    let err = try_run_sql(
+                        "SELECT 1",
+                        cluster.namespace(),
+                        cluster.querier().querier_grpc_connection(),
+                        Some(format!("Bearer {}", token.clone()).as_str()),
+                    )
+                    .await
+                    .unwrap_err();
+                    check_flight_error(
+                        err,
+                        tonic::Code::PermissionDenied,
+                        Some("Permission denied"),
+                    );
+                }
+                .boxed()
+            })),
+            Step::QueryWithAuthorization {
+                sql: "SELECT 1".to_string(),
+                authorization: format!("Bearer {read_token}").to_string(),
+                expected: vec![
+                    "+----------+",
+                    "| Int64(1) |",
+                    "+----------+",
+                    "| 1        |",
+                    "+----------+",
+                ],
+            },
+        ],
+    )
+    .run()
+    .await;
+
+    authz.close().await;
 }
 
 /// Some clients, such as the golang ones, cannot decode dictionary encoded Flight data. This

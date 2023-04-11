@@ -217,6 +217,32 @@ impl MiniCluster {
             .await
             .with_compactor_config(compactor_config)
     }
+    /// Create a non-shared "version 2" MiniCluster that has a router,
+    /// ingester, and querier. The router and querier will be configured
+    /// to use the authorization service and will require all requests to
+    /// be authorized. Save config for a compactor, but the compactor service
+    /// should be run on-demand in tests using `compactor run-once` rather
+    /// than using `run compactor`.
+    pub async fn create_non_shared2_with_authz(
+        database_url: String,
+        authz_addr: impl Into<String> + Clone,
+    ) -> Self {
+        let ingester_config = TestConfig::new_ingester2(&database_url);
+        let router_config =
+            TestConfig::new_router2(&ingester_config).with_authz_addr(authz_addr.clone());
+        let querier_config = TestConfig::new_querier2(&ingester_config).with_authz_addr(authz_addr);
+        let compactor_config = TestConfig::new_compactor2(&ingester_config);
+
+        // Set up the cluster  ====================================
+        Self::new()
+            .with_ingester(ingester_config)
+            .await
+            .with_router(router_config)
+            .await
+            .with_querier(querier_config)
+            .await
+            .with_compactor_config(compactor_config)
+    }
 
     /// Create an all-(minus compactor)-in-one server with the specified configuration
     pub async fn create_all_in_one(test_config: TestConfig) -> Self {
@@ -380,12 +406,17 @@ impl MiniCluster {
 
     /// Writes the line protocol to the write_base/api/v2/write endpoint on the router into the
     /// org/bucket
-    pub async fn write_to_router(&self, line_protocol: impl Into<String>) -> Response<Body> {
+    pub async fn write_to_router(
+        &self,
+        line_protocol: impl Into<String>,
+        authorization: Option<&str>,
+    ) -> Response<Body> {
         write_to_router(
             line_protocol,
             &self.org_id,
             &self.bucket_id,
             self.router().router_http_base(),
+            authorization,
         )
         .await
     }

@@ -6,6 +6,7 @@ use ::generated_types::influxdata::iox::querier::v1::{read_info::QueryType, Read
 use futures_util::{Stream, StreamExt};
 use prost::Message;
 use thiserror::Error;
+use tonic::metadata::{MetadataKey, MetadataMap, MetadataValue};
 
 use arrow::{
     ipc::{self},
@@ -153,10 +154,10 @@ impl Client {
 
         // Copy any headers from IOx Connection
         for (name, value) in headers.iter() {
-            let name = tonic::metadata::MetadataKey::<_>::from_bytes(name.as_str().as_bytes())
+            let name = MetadataKey::<_>::from_bytes(name.as_str().as_bytes())
                 .expect("Invalid metadata name");
 
-            let value: tonic::metadata::MetadataValue<_> =
+            let value: MetadataValue<_> =
                 value.as_bytes().try_into().expect("Invalid metadata value");
             inner.metadata_mut().insert(name, value);
         }
@@ -167,6 +168,24 @@ impl Client {
     /// Return the inner arrow flight client
     pub fn into_inner(self) -> FlightClient {
         self.inner
+    }
+
+    /// Return a reference to gRPC metadata included with each request
+    pub fn metadata(&self) -> &MetadataMap {
+        self.inner.metadata()
+    }
+
+    /// Return a reference to gRPC metadata included with each request
+    ///
+    /// This can be used, for example, to include authorization or
+    /// other headers with each request
+    pub fn metadata_mut(&mut self) -> &mut MetadataMap {
+        self.inner.metadata_mut()
+    }
+
+    /// Add the specified header with value to all subsequent requests
+    pub fn add_header(&mut self, key: &str, value: &str) -> Result<(), Error> {
+        Ok(self.inner.add_header(key, value)?)
     }
 
     /// Query the given namespace with the given SQL query, returning
