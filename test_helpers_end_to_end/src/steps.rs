@@ -382,13 +382,14 @@ where
                 Step::Query { sql, expected } => {
                     info!("====Begin running SQL query: {}", sql);
                     // run query
-                    let batches = run_sql(
+                    let (mut batches, schema) = run_sql(
                         sql,
                         state.cluster.namespace(),
                         state.cluster.querier().querier_grpc_connection(),
                         None,
                     )
                     .await;
+                    batches.push(RecordBatch::new_empty(schema));
                     assert_batches_sorted_eq!(expected, &batches);
                     info!("====Done running");
                 }
@@ -439,20 +440,21 @@ where
                 } => {
                     info!("====Begin running SQL query (authenticated): {}", sql);
                     // run query
-                    let batches = run_sql(
+                    let (mut batches, schema) = run_sql(
                         sql,
                         state.cluster.namespace(),
                         state.cluster().querier().querier_grpc_connection(),
                         Some(authorization.as_str()),
                     )
                     .await;
+                    batches.push(RecordBatch::new_empty(schema));
                     assert_batches_sorted_eq!(expected, &batches);
                     info!("====Done running");
                 }
                 Step::VerifiedQuery { sql, verify } => {
                     info!("====Begin running SQL verified query: {}", sql);
                     // run query
-                    let batches = run_sql(
+                    let (batches, _schema) = run_sql(
                         sql,
                         state.cluster.namespace(),
                         state.cluster.querier().querier_grpc_connection(),
@@ -465,13 +467,14 @@ where
                 Step::InfluxQLQuery { query, expected } => {
                     info!("====Begin running InfluxQL query: {}", query);
                     // run query
-                    let batches = run_influxql(
+                    let (mut batches, schema) = run_influxql(
                         query,
                         state.cluster.namespace(),
                         state.cluster.querier().querier_grpc_connection(),
                         None,
                     )
                     .await;
+                    batches.push(RecordBatch::new_empty(schema));
                     assert_batches_sorted_eq!(expected, &batches);
                     info!("====Done running");
                 }
@@ -525,13 +528,14 @@ where
                 } => {
                     info!("====Begin running InfluxQL query: {}", query);
                     // run query
-                    let batches = run_influxql(
+                    let (mut batches, schema) = run_influxql(
                         query,
                         state.cluster.namespace(),
                         state.cluster.querier().querier_grpc_connection(),
                         Some(authorization),
                     )
                     .await;
+                    batches.push(RecordBatch::new_empty(schema));
                     assert_batches_sorted_eq!(expected, &batches);
                     info!("====Done running");
                 }

@@ -1,6 +1,7 @@
 mod queries;
 
 use crate::{run_sql, snapshot_comparison::queries::TestQueries, try_run_influxql, MiniCluster};
+use arrow::record_batch::RecordBatch;
 use arrow_flight::error::FlightError;
 use snafu::{OptionExt, ResultExt, Snafu};
 use std::{
@@ -219,7 +220,7 @@ async fn run_query(
 ) -> Result<Vec<String>> {
     let query_text = query.text();
 
-    let results = match language {
+    let (mut batches, schema) = match language {
         Language::Sql => {
             run_sql(
                 query_text,
@@ -248,6 +249,7 @@ async fn run_query(
             }
         }
     };
+    batches.push(RecordBatch::new_empty(schema));
 
-    Ok(query.normalize_results(results))
+    Ok(query.normalize_results(batches))
 }

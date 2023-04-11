@@ -15,6 +15,7 @@
 -- InfluxQL: SELECT * FROM non_existent;
 ++
 ++
+++
 -- InfluxQL: SELECT *::tag, f64 FROM m0;
 -- Results After Sorting
 +------------------+----------------------+-------+-------+------+
@@ -359,8 +360,10 @@ Error while planning query: Error during planning: invalid number of arguments f
 | m0               | 2022-10-31T02:00:10Z | 21.2 |
 +------------------+----------------------+------+
 -- InfluxQL: SELECT f64 FROM m0 WHERE f64 >= 19.5 AND str = 1;
-++
-++
++------------------+------+-----+
+| iox::measurement | time | f64 |
++------------------+------+-----+
++------------------+------+-----+
 -- InfluxQL: SELECT f64 FROM m0 WHERE f64 >= 19 + 0.5 OR non_existent = 1;
 +------------------+----------------------+------+
 | iox::measurement | time                 | f64  |
@@ -368,11 +371,15 @@ Error while planning query: Error during planning: invalid number of arguments f
 | m0               | 2022-10-31T02:00:10Z | 21.2 |
 +------------------+----------------------+------+
 -- InfluxQL: SELECT f64 FROM m0 WHERE f64 >= 19.5 AND non_existent = 1;
-++
-++
++------------------+------+-----+
+| iox::measurement | time | f64 |
++------------------+------+-----+
++------------------+------+-----+
 -- InfluxQL: SELECT f64 FROM m0 WHERE f64 >= 19.5 AND f64 =~ /foo/;
-++
-++
++------------------+------+-----+
+| iox::measurement | time | f64 |
++------------------+------+-----+
++------------------+------+-----+
 -- InfluxQL: SELECT f64 FROM m0 WHERE f64 >= 19.5 OR f64 =~ /foo/;
 +------------------+----------------------+------+
 | iox::measurement | time                 | f64  |
@@ -667,6 +674,7 @@ Error while planning query: Error during planning: invalid number of arguments f
 -- InfluxQL: SELECT MEAN(foo) FROM cpu;
 ++
 ++
+++
 -- InfluxQL: SELECT MEAN(usage_idle) + MEAN(foo) FROM cpu GROUP BY cpu;
 +------------------+----------------------+-----------+--------------------------+
 | iox::measurement | time                 | cpu       | mean_usage_idle_mean_foo |
@@ -684,6 +692,7 @@ Error while planning query: Error during planning: invalid number of arguments f
 | cpu              | 1970-01-01T00:00:00Z | cpu1      | 1.9849999999999999 |                          |
 +------------------+----------------------+-----------+--------------------+--------------------------+
 -- InfluxQL: SELECT MEAN(foo) FROM cpu GROUP BY cpu;
+++
 ++
 ++
 -- InfluxQL: SELECT COUNT(f64), SUM(f64) FROM m0 GROUP BY TIME(30s) FILL(none);
@@ -1079,8 +1088,10 @@ Error while planning query: Error during planning: mixing aggregate and non-aggr
 | disk             | 2022-10-31T02:01:30Z |           | disk1s5 |       | 3       |
 +------------------+----------------------+-----------+---------+-------+---------+
 -- InfluxQL: SELECT COUNT(usage_idle) FROM cpu WHERE time >= now() - 2m GROUP BY TIME(30s) FILL(null);
-++
-++
++------------------+------+-------+
+| iox::measurement | time | count |
++------------------+------+-------+
++------------------+------+-------+
 -- InfluxQL: SELECT f64 FROM m0 WHERE tag0 = 'val00' LIMIT 3;
 +------------------+----------------------+------+
 | iox::measurement | time                 | f64  |
@@ -1240,8 +1251,10 @@ Error while planning query: Error during planning: mixing aggregate and non-aggr
 | cpu              | 1970-01-01T00:00:00Z | cpu1      | 2     |
 +------------------+----------------------+-----------+-------+
 -- InfluxQL: SELECT COUNT(usage_idle) FROM cpu GROUP BY cpu OFFSET 1;
-++
-++
++------------------+------+-----+-------+
+| iox::measurement | time | cpu | count |
++------------------+------+-----+-------+
++------------------+------+-----+-------+
 -- InfluxQL: SELECT COUNT(usage_idle) FROM cpu GROUP BY cpu LIMIT 1;
 +------------------+----------------------+-----------+-------+
 | iox::measurement | time                 | cpu       | count |
@@ -1251,8 +1264,10 @@ Error while planning query: Error during planning: mixing aggregate and non-aggr
 | cpu              | 1970-01-01T00:00:00Z | cpu1      | 2     |
 +------------------+----------------------+-----------+-------+
 -- InfluxQL: SELECT COUNT(usage_idle) FROM cpu GROUP BY cpu OFFSET 1;
-++
-++
++------------------+------+-----+-------+
+| iox::measurement | time | cpu | count |
++------------------+------+-----+-------+
++------------------+------+-----+-------+
 -- InfluxQL: SELECT COUNT(usage_idle) FROM cpu WHERE time >= '2022-10-31T02:00:00Z' AND time < '2022-10-31T02:05:00Z' GROUP BY TIME(30s) LIMIT 2;
 +------------------+----------------------+-------+
 | iox::measurement | time                 | count |

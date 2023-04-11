@@ -1,5 +1,5 @@
 //! Client helpers for writing end to end ng tests
-use arrow::record_batch::RecordBatch;
+use arrow::{datatypes::SchemaRef, record_batch::RecordBatch};
 use data_types::{NamespaceId, TableId};
 use dml::{DmlMeta, DmlWrite};
 use futures::TryStreamExt;
@@ -84,7 +84,7 @@ pub async fn try_run_sql(
     namespace: impl Into<String>,
     querier_connection: Connection,
     authorization: Option<&str>,
-) -> Result<Vec<RecordBatch>, influxdb_iox_client::flight::Error> {
+) -> Result<(Vec<RecordBatch>, SchemaRef), influxdb_iox_client::flight::Error> {
     let mut client = influxdb_iox_client::flight::Client::new(querier_connection);
     if let Some(authorization) = authorization {
         client.add_header("authorization", authorization).unwrap();
@@ -94,11 +94,18 @@ pub async fn try_run_sql(
     // Normally this would be done one per connection, not per query
     client.handshake().await?;
 
-    client
-        .sql(namespace.into(), sql_query.into())
-        .await?
-        .try_collect()
-        .await
+    let mut stream = client.sql(namespace.into(), sql_query.into()).await?;
+
+    let batches = (&mut stream).try_collect().await?;
+
+    // read schema AFTER collection, otherwise the stream does not have the schema data yet
+    let schema = stream
+        .inner()
+        .schema()
+        .cloned()
+        .ok_or(influxdb_iox_client::flight::Error::NoSchema)?;
+
+    Ok((batches, schema))
 }
 
 /// Runs a InfluxQL query using the flight API on the specified connection.
@@ -107,7 +114,7 @@ pub async fn try_run_influxql(
     namespace: impl Into<String>,
     querier_connection: Connection,
     authorization: Option<&str>,
-) -> Result<Vec<RecordBatch>, influxdb_iox_client::flight::Error> {
+) -> Result<(Vec<RecordBatch>, SchemaRef), influxdb_iox_client::flight::Error> {
     let mut client = influxdb_iox_client::flight::Client::new(querier_connection);
     if let Some(authorization) = authorization {
         client.add_header("authorization", authorization).unwrap();
@@ -117,11 +124,20 @@ pub async fn try_run_influxql(
     // Normally this would be done one per connection, not per query
     client.handshake().await?;
 
-    client
+    let mut stream = client
         .influxql(namespace.into(), influxql_query.into())
-        .await?
-        .try_collect()
-        .await
+        .await?;
+
+    let batches = (&mut stream).try_collect().await?;
+
+    // read schema AFTER collection, otherwise the stream does not have the schema data yet
+    let schema = stream
+        .inner()
+        .schema()
+        .cloned()
+        .ok_or(influxdb_iox_client::flight::Error::NoSchema)?;
+
+    Ok((batches, schema))
 }
 
 /// Runs a SQL query using the flight API on the specified connection.
@@ -132,7 +148,7 @@ pub async fn run_sql(
     namespace: impl Into<String>,
     querier_connection: Connection,
     authorization: Option<&str>,
-) -> Vec<RecordBatch> {
+) -> (Vec<RecordBatch>, SchemaRef) {
     try_run_sql(sql, namespace, querier_connection, authorization)
         .await
         .expect("Error executing sql query")
@@ -146,7 +162,7 @@ pub async fn run_influxql(
     namespace: impl Into<String>,
     querier_connection: Connection,
     authorization: Option<&str>,
-) -> Vec<RecordBatch> {
+) -> (Vec<RecordBatch>, SchemaRef) {
     try_run_influxql(
         influxql.clone(),
         namespace,
