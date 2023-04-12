@@ -24,11 +24,57 @@ pub enum Error {
 }
 pub type Result<T, E = Error> = std::result::Result<T, E>;
 
-/// This is the structure of the opaque tickets` used for requests to
-/// IOx Flight DoGet endpoint
+/// Request structure of the "opaque" tickets used for IOx Arrow
+/// Flight DoGet endpoint.
 ///
 /// This structure encapsulates the deserialization and serializion
-/// logic for these requests
+/// logic for these requests.  The protocol is described in more
+/// detail on [`FlightService`](crate::FlightService).
+///
+/// # Ticket Format
+///
+/// Tickets are encoded in one of two formats:
+///
+/// 1. Protobuf: as a [ReadInfo](proto::ReadInfo) wrapped as a "Any"
+/// message and encoded using binary encoding
+///
+/// 2. JSON: formatted as below.
+///
+/// ## Known clients use the JSON encoding
+///
+/// - <https://github.com/influxdata/influxdb-iox-client-go/commit/2e7a3b0bd47caab7f1a31a1bbe0ff54aa9486b7b>
+/// - <https://github.com/influxdata/influxdb-iox-client-go/commit/52f1a1b8d5bb8cc8dc2fe825f4da630ad0b9167c>
+///
+/// ## Example JSON Ticket format
+///
+/// This runs the SQL "SELECT 1" in namespace `my_db`
+///
+/// ```json
+/// {
+///   "namespace_name": "my_db",
+///   "sql_query": "SELECT 1;"
+/// }
+/// ```
+///
+/// This is the same as the example above, but has an explicit query language
+///
+/// ```json
+/// {
+///   "namespace_name": "my_db",
+///   "sql_query": "SELECT 1;"
+///   "query_type": "sql"
+/// }
+/// ```
+///
+/// This runs the 'SHOW DATABASES' InfluxQL command (the `sql_query` field name is misleading)
+///
+/// ```json
+/// {
+///   "namespace_name": "my_db",
+///   "sql_query": "SHOW DATABASES;"
+///   "query_type": "influxql"
+/// }
+/// ```
 #[derive(Debug, PartialEq, Clone)]
 pub struct IoxGetRequest {
     namespace_name: String,
@@ -130,40 +176,7 @@ impl IoxGetRequest {
         })
     }
 
-    /// Some clients still use an older form of ticket encoding, JSON tickets
-    ///
-    /// - <https://github.com/influxdata/influxdb-iox-client-go/commit/2e7a3b0bd47caab7f1a31a1bbe0ff54aa9486b7b>
-    /// - <https://github.com/influxdata/influxdb-iox-client-go/commit/52f1a1b8d5bb8cc8dc2fe825f4da630ad0b9167c>
-    ///
-    /// # Example JSON format
-    /// This runs the SQL "SELECT 1" in namespace `my_db`
-    ///
-    /// ```json
-    /// {
-    ///   "namespace_name": "my_db",
-    ///   "sql_query": "SELECT 1;"
-    /// }
-    /// ```
-    ///
-    /// This is the same as the example above, but has an explicit query language
-    ///
-    /// ```json
-    /// {
-    ///   "namespace_name": "my_db",
-    ///   "sql_query": "SELECT 1;"
-    ///   "query_type": "sql"
-    /// }
-    /// ```
-    ///
-    /// This runs the 'SHOW DATABASES' InfluxQL command (the `sql_query` field name is misleading)
-    ///
-    /// ```json
-    /// {
-    ///   "namespace_name": "my_db",
-    ///   "sql_query": "SHOW DATABASES;"
-    ///   "query_type": "influxql"
-    /// }
-    /// ```
+    /// See comments on [`IoxGetRequest`] for details of this format
     fn decode_json(ticket: Bytes) -> Result<Self, String> {
         let json_str = String::from_utf8(ticket.to_vec()).map_err(|_| "Not UTF8".to_string())?;
 
@@ -203,6 +216,7 @@ impl IoxGetRequest {
         })
     }
 
+    /// See comments on [`IoxGetRequest`] for details of this format
     fn decode_protobuf(ticket: Bytes) -> Result<Self, Error> {
         let read_info = proto::ReadInfo::decode(ticket).context(DecodeSnafu)?;
 

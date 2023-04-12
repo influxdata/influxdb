@@ -358,6 +358,16 @@ async fn execute_plan(
         // Adjust concurrency based on the column count in the partition.
         let permits = compute_permits(job_semaphore.total_permits(), partition_info.column_count());
 
+        info!(
+            partition_id = partition_info.partition_id.get(),
+            jobs_running = job_semaphore.holders_acquired(),
+            jobs_pending = job_semaphore.holders_pending(),
+            permits_needed = permits,
+            permits_acquired = job_semaphore.permits_acquired(),
+            permits_pending = job_semaphore.permits_pending(),
+            "requesting job semaphore",
+        );
+
         // draw semaphore BEFORE creating the DataFusion plan and drop it directly AFTER finishing the
         // DataFusion computation (but BEFORE doing any additional external IO).
         //

@@ -28,6 +28,13 @@ async fn influxql_returns_error() {
                     "Error while planning query: This feature is not implemented: SHOW TAG KEYS"
                         .into(),
             },
+            Step::InfluxQLExpectingError {
+                query: "SHOW TAG KEYYYYYES".into(),
+                expected_error_code: tonic::Code::InvalidArgument,
+                expected_message:
+                    "Error while planning query: Error during planning: invalid SHOW TAG statement, expected KEYS or VALUES at pos 9"
+                        .into(),
+            },
         ],
     )
     .run()
