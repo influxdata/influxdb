@@ -100,6 +100,7 @@ macro_rules! setup_builder {
                 $server_type.metric_registry(),
                 $server_type.trace_collector(),
                 true,
+                $server_type.name(),
             ))
             .layer(
                 $crate::reexport::tower_http::catch_panic::CatchPanicLayer::custom(

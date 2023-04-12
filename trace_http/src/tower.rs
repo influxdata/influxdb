@@ -45,19 +45,23 @@ pub struct TraceLayer {
     trace_header_parser: TraceHeaderParser,
     metrics: Arc<MetricsCollection>,
     collector: Option<Arc<dyn TraceCollector>>,
+    name: Arc<str>,
 }
 
 impl TraceLayer {
+    /// Create a new tower [`Layer`] for tracing
     pub fn new(
         trace_header_parser: TraceHeaderParser,
         metric_registry: Arc<metric::Registry>,
         collector: Option<Arc<dyn TraceCollector>>,
         is_grpc: bool,
+        name: &str,
     ) -> Self {
         Self {
             trace_header_parser,
             metrics: Arc::new(MetricsCollection::new(metric_registry, is_grpc)),
             collector,
+            name: name.into(),
         }
     }
 }
@@ -71,6 +75,7 @@ impl<S> Layer<S> for TraceLayer {
             collector: self.collector.clone(),
             metrics: Arc::clone(&self.metrics),
             trace_header_parser: self.trace_header_parser.clone(),
+            name: Arc::clone(&self.name),
         }
     }
 }
@@ -82,6 +87,7 @@ pub struct TraceService<S> {
     trace_header_parser: TraceHeaderParser,
     collector: Option<Arc<dyn TraceCollector>>,
     metrics: Arc<MetricsCollection>,
+    name: Arc<str>,
 }
 
 impl<S, ReqBody, ResBody> Service<Request<ReqBody>> for TraceService<S>
@@ -122,7 +128,7 @@ where
             let ctx = ctx.ctx();
 
             (ctx.sampled && ctx.collector.is_some()).then(|| {
-                let span = ctx.child("IOx");
+                let span = ctx.child(format!("IOx {}", self.name));
 
                 // Add context to request for use by service handlers
                 request.extensions_mut().insert(span.ctx.clone());

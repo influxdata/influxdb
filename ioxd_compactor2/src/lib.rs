@@ -60,6 +60,11 @@ impl Compactor2ServerType {
 
 #[async_trait]
 impl ServerType for Compactor2ServerType {
+    /// Human name for this server type
+    fn name(&self) -> &str {
+        "compactor2"
+    }
+
     /// Return the [`metric::Registry`] used by the compactor.
     fn metric_registry(&self) -> Arc<Registry> {
         Arc::clone(&self.metric_registry)

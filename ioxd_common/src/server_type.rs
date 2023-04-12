@@ -38,6 +38,9 @@ impl From<tonic::transport::Error> for RpcError {
 
 #[async_trait]
 pub trait ServerType: std::fmt::Debug + Send + Sync + 'static {
+    /// Human name for this server type
+    fn name(&self) -> &str;
+
     /// Metric registry associated with the server.
     fn metric_registry(&self) -> Arc<Registry>;
 

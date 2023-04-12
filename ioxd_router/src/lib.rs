@@ -97,6 +97,10 @@ where
     D: DmlHandler<WriteInput = HashMap<String, MutableBatch>, WriteOutput = ()> + 'static,
     N: NamespaceResolver + 'static,
 {
+    fn name(&self) -> &str {
+        "rpc_write_router"
+    }
+
     /// Return the [`metric::Registry`] used by the router.
     fn metric_registry(&self) -> Arc<Registry> {
         self.server.metric_registry()

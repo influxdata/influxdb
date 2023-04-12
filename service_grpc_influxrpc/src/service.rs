@@ -3837,6 +3837,7 @@ mod tests {
                     Arc::clone(&test_storage.metric_registry),
                     None,
                     true,
+                    "test server",
                 ))
                 .add_service(service_grpc_testing::make_server())
                 .add_service(crate::make_server(Arc::clone(&test_storage)));

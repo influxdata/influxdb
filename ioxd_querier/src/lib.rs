@@ -62,6 +62,11 @@ impl<C: QuerierHandler> QuerierServerType<C> {
 
 #[async_trait]
 impl<C: QuerierHandler + std::fmt::Debug + 'static> ServerType for QuerierServerType<C> {
+    /// Human name for this server type
+    fn name(&self) -> &str {
+        "querier"
+    }
+
     /// Return the [`metric::Registry`] used by the compactor.
     fn metric_registry(&self) -> Arc<Registry> {
         self.server.metric_registry()
