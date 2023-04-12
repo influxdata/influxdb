@@ -75,3 +75,8 @@ name = "wal"
 harness = false
  # Require some internal types be made visible for benchmark code.
 required-features = ["benches"]
+
+[[bench]]
+name = "write"
+harness = false
+ # Require some internal types be made visible for benchmark code.
