@@ -46,6 +46,13 @@ use tonic::Request;
 /// The (legacy) topic name this ingester uses.
 pub const TEST_TOPIC_NAME: &str = "banana-topics";
 
+/// The default max persist queue depth - configurable with
+/// [`TestContextBuilder::with_max_persist_queue_depth()`].
+pub const DEFAULT_MAX_PERSIST_QUEUE_DEPTH: usize = 5;
+/// The default partition hot persist cost - configurable with
+/// [`TestContextBuilder::with_persist_hot_partition_cost()`].
+pub const DEFAULT_PERSIST_HOT_PARTITION_COST: usize = 20_000_000;
+
 /// Configure and construct a [`TestContext`] containing an [`ingester2`] instance.
 #[derive(Debug)]
 pub struct TestContextBuilder {
@@ -61,8 +68,8 @@ impl Default for TestContextBuilder {
         Self {
             wal_dir: None,
             catalog: None,
-            max_persist_queue_depth: 5,
-            persist_hot_partition_cost: 20_000_000,
+            max_persist_queue_depth: DEFAULT_MAX_PERSIST_QUEUE_DEPTH,
+            persist_hot_partition_cost: DEFAULT_PERSIST_HOT_PARTITION_COST,
         }
     }
 }
@@ -83,14 +90,15 @@ impl TestContextBuilder {
     }
 
     /// Configure the ingester to reject write requests after this many persist
-    /// jobs are queued for persistence. Defaults to 5.
+    /// jobs are queued for persistence. Defaults to
+    /// [`DEFAULT_MAX_PERSIST_QUEUE_DEPTH`].
     pub fn with_max_persist_queue_depth(mut self, max: usize) -> Self {
         self.max_persist_queue_depth = max;
         self
     }
 
     /// Configure the ingester to persist partitions after their abstract "cost"
-    /// exceeds this value. Defaults to 20m.
+    /// exceeds this value. Defaults to [`DEFAULT_PERSIST_HOT_PARTITION_COST`].
     pub fn with_persist_hot_partition_cost(mut self, cost: usize) -> Self {
         self.persist_hot_partition_cost = cost;
         self
