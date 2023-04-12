@@ -83,6 +83,8 @@ impl<'a, C> Iterator for UpstreamSnapshot<'a, C> {
 mod tests {
     use std::sync::atomic::{AtomicUsize, Ordering};
 
+    use proptest::proptest;
+
     use super::*;
 
     #[test]
@@ -233,5 +235,40 @@ mod tests {
     fn test_empty_snap() {
         assert!(UpstreamSnapshot::<usize>::new([].iter(), 0).is_none());
         assert!(UpstreamSnapshot::<usize>::new([].iter(), 1).is_none());
+    }
+
+    proptest! {
+        /// Assert the set always cycles indefinitely, visiting all elements
+        /// equally often (when the number of visits is a multiple of the set
+        /// size).
+        ///
+        /// Ensure the starting offset does not affect this property.
+        #[test]
+        fn prop_upstream_set_cycles(
+            complete_iters in (1_usize..5),
+            set_size in (1_usize..5),
+            offset in (1_usize..10),
+        ) {
+            let elements = (0..set_size).map(|_| AtomicUsize::new(0)).collect::<Vec<_>>();
+
+            // Create a snapshot and iterate over it the specified number of
+            // times.
+            {
+                let mut snap = UpstreamSnapshot::new(elements.iter(), offset)
+                    .expect("non-empty element set should yield snapshot");
+
+                for _ in 0..(elements.len() * complete_iters) {
+                    snap.next()
+                        .expect("should cycle forever")
+                        .fetch_add(1, Ordering::Relaxed);
+                }
+            }
+
+            // Assert all elements were visited exactly complete_iters number of
+            // times.
+            elements
+                .into_iter()
+                .for_each(|v| assert_eq!(v.load(Ordering::Relaxed), complete_iters));
+        }
     }
 }
