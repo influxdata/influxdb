@@ -16,7 +16,7 @@ hyper = "0.14"
 pin-project = "1.0"
 prost = "0.11"
 tokio = {version = "1", features = [ "rt" ]}
-tonic = "0.8"
+tonic = { workspace = true }
 tower = "0.4"
 grpc-binary-logger-proto = { path = "../grpc-binary-logger-proto" }
 workspace-hack = { version = "0.1", path = "../workspace-hack" }
@@ -28,4 +28,4 @@ assert_matches = "1"
 
 [build-dependencies]
 prost-build = "0.11"
-tonic-build = "0.8"
+tonic-build = { workspace = true }

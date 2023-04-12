@@ -71,7 +71,7 @@ tikv-jemalloc-ctl = { version = "0.5.0", optional = true }
 tokio = { version = "1.27", features = ["macros", "net", "parking_lot", "rt-multi-thread", "signal", "sync", "time", "io-std"] }
 tokio-stream = { version = "0.1", features = ["net"] }
 tokio-util = { version = "0.7.7", features = ["compat"] }
-tonic = "0.8"
+tonic = { workspace = true }
 uuid = { version = "1", features = ["v4"] }
 # jemalloc-sys with unprefixed_malloc_on_supported_platforms feature and heappy are mutually exclusive
 tikv-jemalloc-sys = { version = "0.5.3", optional = true, features = ["unprefixed_malloc_on_supported_platforms"] }
