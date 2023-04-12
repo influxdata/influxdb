@@ -327,4 +327,16 @@ mod influxql {
         .run()
         .await;
     }
+
+    #[tokio::test]
+    async fn influxql_metadata() {
+        test_helpers::maybe_start_logging();
+
+        TestCase {
+            input: "cases/in/influxql_metadata.influxql",
+            chunk_stage: ChunkStage::Ingester,
+        }
+        .run()
+        .await;
+    }
 }

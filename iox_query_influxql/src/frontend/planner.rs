@@ -1,4 +1,5 @@
 use arrow::datatypes::SchemaRef;
+use influxdb_influxql_parser::show_field_keys::ShowFieldKeysStatement;
 use std::any::Any;
 use std::collections::{HashMap, HashSet};
 use std::fmt;
@@ -246,6 +247,17 @@ fn find_all_measurements(stmt: &Statement, tables: &[String]) -> Result<HashSet<
 
             Ok(self)
         }
+
+        fn post_visit_show_field_keys_statement(
+            self,
+            sfk: &ShowFieldKeysStatement,
+        ) -> Result<Self, Self::Error> {
+            if sfk.from.is_none() {
+                self.0.extend(self.1.iter().cloned());
+            }
+
+            Ok(self)
+        }
     }
 
     let mut m = HashSet::new();
@@ -303,6 +315,10 @@ mod test {
             find("SELECT * FROM foo, (SELECT * FROM /bar/)"),
             vec!["bar", "foo", "foobar"]
         );
+
+        // Find all measurements in `SHOW FIELD KEYS`
+        assert_eq!(find("SHOW FIELD KEYS"), vec!["bar", "foo", "foobar"]);
+        assert_eq!(find("SHOW FIELD KEYS FROM /^foo/"), vec!["foo", "foobar"]);
 
         // Finds no measurements
         assert!(find("SELECT * FROM none").is_empty());

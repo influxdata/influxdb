@@ -11,11 +11,14 @@ use crate::plan::planner_time_range_expression::{
 use crate::plan::rewriter::rewrite_statement;
 use crate::plan::util::{binary_operator_to_df_operator, rebase_expr, Schemas};
 use crate::plan::var_ref::{column_type_to_var_ref_data_type, var_ref_data_type_to_data_type};
-use arrow::datatypes::DataType;
+use arrow::array::StringBuilder;
+use arrow::datatypes::{DataType, Field as ArrowField, Schema as ArrowSchema};
+use arrow::record_batch::RecordBatch;
 use chrono_tz::Tz;
 use datafusion::catalog::TableReference;
 use datafusion::common::tree_node::{TreeNode, TreeNodeRewriter};
 use datafusion::common::{DFSchema, DFSchemaRef, DataFusionError, Result, ScalarValue, ToDFSchema};
+use datafusion::datasource::{provider_as_source, MemTable};
 use datafusion::logical_expr::expr_rewriter::normalize_col;
 use datafusion::logical_expr::logical_plan::builder::project;
 use datafusion::logical_expr::logical_plan::Analyze;
@@ -39,6 +42,8 @@ use influxdb_influxql_parser::expression::{
 use influxdb_influxql_parser::select::{
     FillClause, GroupByClause, SLimitClause, SOffsetClause, TimeZoneClause,
 };
+use influxdb_influxql_parser::show_field_keys::ShowFieldKeysStatement;
+use influxdb_influxql_parser::simple_from_clause::ShowFromClause;
 use influxdb_influxql_parser::{
     common::{MeasurementName, WhereClause},
     expression::Expr as IQLExpr,
@@ -62,6 +67,8 @@ use std::iter;
 use std::ops::{Bound, ControlFlow, Deref, Range};
 use std::str::FromStr;
 use std::sync::Arc;
+
+use super::parse_regex;
 
 /// The column index of the measurement column.
 const MEASUREMENT_COLUMN_INDEX: u32 = 0;
@@ -197,8 +204,8 @@ impl<'a> InfluxQLToLogicalPlan<'a> {
             Statement::ShowTagValues(_) => {
                 Err(DataFusionError::NotImplemented("SHOW TAG VALUES".into()))
             }
-            Statement::ShowFieldKeys(_) => {
-                Err(DataFusionError::NotImplemented("SHOW FIELD KEYS".into()))
+            Statement::ShowFieldKeys(show_field_keys) => {
+                self.show_field_keys_to_plan(*show_field_keys)
             }
         }
     }
@@ -385,7 +392,7 @@ impl<'a> InfluxQLToLogicalPlan<'a> {
 
         let plan = plan_with_sort(
             plan,
-            select.order_by.to_sort_expr(),
+            Some(select.order_by.to_sort_expr()),
             is_multiple_measurements,
             &group_by_tag_set,
             &projection_tag_set,
@@ -395,7 +402,7 @@ impl<'a> InfluxQLToLogicalPlan<'a> {
             plan,
             select.offset,
             select.limit,
-            select.order_by.to_sort_expr(),
+            Some(select.order_by.to_sort_expr()),
             is_multiple_measurements,
             &group_by_tag_set,
             &projection_tag_set,
@@ -647,7 +654,7 @@ impl<'a> InfluxQLToLogicalPlan<'a> {
         input: LogicalPlan,
         offset: Option<OffsetClause>,
         limit: Option<LimitClause>,
-        time_sort_expr: Expr,
+        time_sort_expr: Option<Expr>,
         is_multiple_measurements: bool,
         group_by_tag_set: &[&str],
         projection_tag_set: &[&str],
@@ -678,6 +685,11 @@ impl<'a> InfluxQLToLogicalPlan<'a> {
             //   ORDER BY time [ASC | DESC]
             //   ROWS BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW
             // ) AS iox::row
+            let order_by = if let Some(time_sort_expr) = &time_sort_expr {
+                vec![time_sort_expr.clone()]
+            } else {
+                vec![]
+            };
             let window_func_exprs = vec![Expr::WindowFunction(WindowFunction {
                 fun: window_function::WindowFunction::BuiltInWindowFunction(
                     BuiltInWindowFunction::RowNumber,
@@ -686,7 +698,7 @@ impl<'a> InfluxQLToLogicalPlan<'a> {
                 partition_by: iter::once(INFLUXQL_MEASUREMENT_COLUMN_NAME.as_expr())
                     .chain(fields_to_exprs_no_nulls(input.schema(), group_by_tag_set))
                     .collect::<Vec<_>>(),
-                order_by: vec![time_sort_expr.clone()],
+                order_by,
                 window_frame: WindowFrame {
                     units: WindowFrameUnits::Rows,
                     start_bound: WindowFrameBound::Preceding(ScalarValue::Null),
@@ -1188,6 +1200,138 @@ impl<'a> InfluxQLToLogicalPlan<'a> {
             None
         })
     }
+
+    /// Expand tables from `FROM` clause in metadata queries.
+    fn expand_tables(&self, from: Option<ShowFromClause>) -> Result<Vec<String>> {
+        match from {
+            None => {
+                let mut tables = self
+                    .s
+                    .table_names()
+                    .into_iter()
+                    .map(|s| s.to_owned())
+                    .collect::<Vec<_>>();
+                tables.sort();
+                Ok(tables)
+            }
+            Some(from) => {
+                let all_tables = self.s.table_names().into_iter().collect::<HashSet<_>>();
+                let mut out = HashSet::new();
+                for qualified_name in from.iter() {
+                    if qualified_name.database.is_some() {
+                        return Err(DataFusionError::NotImplemented(
+                            "database name in from clause".into(),
+                        ));
+                    }
+                    if qualified_name.retention_policy.is_some() {
+                        return Err(DataFusionError::NotImplemented(
+                            "retention policy in from clause".into(),
+                        ));
+                    }
+                    match &qualified_name.name {
+                        MeasurementName::Name(name) => {
+                            let name = name.as_str();
+                            if all_tables.contains(name) {
+                                out.insert(name);
+                            }
+                        }
+                        MeasurementName::Regex(regex) => {
+                            let regex = parse_regex(regex)?;
+                            for name in &all_tables {
+                                if regex.is_match(name) {
+                                    out.insert(name);
+                                }
+                            }
+                        }
+                    }
+                }
+
+                let mut out = out.into_iter().map(|s| s.to_owned()).collect::<Vec<_>>();
+                out.sort();
+                Ok(out)
+            }
+        }
+    }
+
+    fn show_field_keys_to_plan(
+        &self,
+        show_field_keys: ShowFieldKeysStatement,
+    ) -> Result<LogicalPlan> {
+        if show_field_keys.database.is_some() {
+            // How do we handle this? Do we need to perform cross-namespace queries here?
+            return Err(DataFusionError::NotImplemented(
+                "SHOW FIELD KEYS ON <database>".into(),
+            ));
+        }
+
+        let field_key_col = "fieldKey";
+        let output_schema = Arc::new(ArrowSchema::new(vec![
+            ArrowField::new(INFLUXQL_MEASUREMENT_COLUMN_NAME, DataType::Utf8, false),
+            ArrowField::new(field_key_col, DataType::Utf8, false),
+            ArrowField::new("fieldType", DataType::Utf8, false),
+        ]));
+
+        let tables = self.expand_tables(show_field_keys.from)?;
+
+        let mut measurement_names_builder = StringBuilder::new();
+        let mut field_key_builder = StringBuilder::new();
+        let mut field_type_builder = StringBuilder::new();
+        for table in tables {
+            let Some(table_schema) = self.s.table_schema(&table) else {continue};
+            for (t, f) in table_schema.iter() {
+                let t = match t {
+                    InfluxColumnType::Field(t) => t,
+                    InfluxColumnType::Tag | InfluxColumnType::Timestamp => {
+                        continue;
+                    }
+                };
+                let t = match t {
+                    InfluxFieldType::Float => "float",
+                    InfluxFieldType::Integer => "integer",
+                    InfluxFieldType::UInteger => "unsigned",
+                    InfluxFieldType::String => "string",
+                    InfluxFieldType::Boolean => "boolean",
+                };
+                measurement_names_builder.append_value(&table);
+                field_key_builder.append_value(f.name());
+                field_type_builder.append_value(t);
+            }
+        }
+        let plan = LogicalPlanBuilder::scan(
+            "field_keys",
+            provider_as_source(Arc::new(MemTable::try_new(
+                Arc::clone(&output_schema),
+                vec![vec![RecordBatch::try_new(
+                    Arc::clone(&output_schema),
+                    vec![
+                        Arc::new(measurement_names_builder.finish()),
+                        Arc::new(field_key_builder.finish()),
+                        Arc::new(field_type_builder.finish()),
+                    ],
+                )?]],
+            )?)),
+            None,
+        )?
+        .build()?;
+        let plan = plan_with_metadata(
+            plan,
+            &InfluxQlMetadata {
+                measurement_column_index: MEASUREMENT_COLUMN_INDEX,
+                tag_key_columns: vec![],
+            },
+        )?;
+        let plan = self.limit(
+            plan,
+            show_field_keys.offset,
+            show_field_keys.limit,
+            None,
+            true,
+            &[],
+            &[field_key_col],
+        )?;
+
+        Ok(plan)
+    }
 }
 
 /// Returns a [`LogicalPlan`] that performs gap-filling for the `input` plan.
@@ -1382,9 +1526,14 @@ fn plan_with_metadata(plan: LogicalPlan, metadata: &InfluxQlMetadata) -> Result<
                 v.schema = make_schema(Arc::clone(&src.schema), metadata)?;
                 LogicalPlan::Unnest(v)
             }
+            LogicalPlan::TableScan(src) => {
+                let mut t = src.clone();
+                t.projected_schema = make_schema(Arc::clone(&src.projected_schema), metadata)?;
+                LogicalPlan::TableScan(t)
+            }
             _ => {
-                return Err(DataFusionError::Internal(
-                    "unexpected LogicalPlan".to_owned(),
+                return Err(DataFusionError::External(
+                    format!("unexpected LogicalPlan: {}", input.display()).into(),
                 ))
             }
         })
@@ -1691,7 +1840,7 @@ mod test {
         assert_snapshot!(plan("SHOW RETENTION POLICIES"), @"This feature is not implemented: SHOW RETENTION POLICIES");
         assert_snapshot!(plan("SHOW TAG KEYS"), @"This feature is not implemented: SHOW TAG KEYS");
         assert_snapshot!(plan("SHOW TAG VALUES WITH KEY = bar"), @"This feature is not implemented: SHOW TAG VALUES");
-        assert_snapshot!(plan("SHOW FIELD KEYS"), @"This feature is not implemented: SHOW FIELD KEYS");
+        assert_snapshot!(plan("SHOW FIELD KEYS"), @"TableScan: field_keys [iox::measurement:Utf8, fieldKey:Utf8, fieldType:Utf8]");
     }
 
     /// Tests to validate InfluxQL `SELECT` statements, where the projections do not matter,
