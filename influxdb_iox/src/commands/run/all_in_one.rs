@@ -475,6 +475,7 @@ impl Config {
         // settings from other configs. Can't use `#clap(flatten)` as the
         // parameters are redundant with ingester's
         let compactor_config = Compactor2Config {
+            compaction_type: Default::default(),
             compaction_partition_concurrency: NonZeroUsize::new(1).unwrap(),
             compaction_job_concurrency: NonZeroUsize::new(1).unwrap(),
             compaction_partition_scratchpad_concurrency: NonZeroUsize::new(1).unwrap(),
