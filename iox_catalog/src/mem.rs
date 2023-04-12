@@ -48,6 +48,13 @@ impl MemCatalog {
             time_provider: Arc::new(SystemProvider::new()),
         }
     }
+
+    /// Add partition directly, for testing purposes only as it does not do any consistency or
+    /// uniqueness checks
+    pub async fn add_partition(&self, partition: Partition) {
+        let mut collections = Arc::clone(&self.collections).lock_owned().await;
+        collections.partitions.push(partition);
+    }
 }
 
 impl std::fmt::Debug for MemCatalog {

@@ -144,7 +144,7 @@ impl TableBuilder {
 }
 
 #[derive(Debug)]
-/// Builds  [`Partition`]s for testing
+/// Builds [`Partition`]s for testing
 pub struct PartitionBuilder {
     partition: Partition,
 }
@@ -163,6 +163,13 @@ impl PartitionBuilder {
                 new_file_at: None,
             },
         }
+    }
+
+    /// Set the `new_file_at` attribute, without needing to actually create Parquet files for this
+    /// partition
+    pub fn with_new_file_at(mut self, time: Timestamp) -> Self {
+        self.partition.new_file_at = Some(time);
+        self
     }
 
     /// Create the partition
