@@ -219,7 +219,7 @@ impl QuerierTable {
             ),
             catalog_cache.parquet_file().get(
                 self.id(),
-                HashMap::new(),
+                None,
                 span_recorder.child_span("cache GET parquet_file (pre-warm")
             ),
             catalog_cache.tombstone().get(
@@ -260,7 +260,7 @@ impl QuerierTable {
         let (parquet_files, tombstones) = join!(
             catalog_cache.parquet_file().get(
                 self.id(),
-                persisted_file_counts_by_ingester_uuid,
+                Some(persisted_file_counts_by_ingester_uuid),
                 span_recorder.child_span("cache GET parquet_file"),
             ),
             catalog_cache.tombstone().get(
@@ -820,6 +820,61 @@ mod tests {
             "+-----+------+------+--------------------------------+",
         ];
         assert_batches_eq!(&expected, &batches);
+    }
+
+    #[tokio::test]
+    async fn test_parquet_cache_refresh() {
+        maybe_start_logging();
+        let catalog = TestCatalog::new();
+        let ns = catalog.create_namespace_1hr_retention("ns").await;
+        let table = ns.create_table("table1").await;
+        let shard = ns.create_shard(1).await;
+        let partition = table.with_shard(&shard).create_partition("k").await;
+        let schema = make_schema(&table).await;
+
+        let builder =
+            IngesterPartitionBuilder::new(schema, &shard, &partition).with_lp(["table foo=1 1"]);
+
+        // Parquet file between with max sequence number 2
+        let pf_builder = TestParquetFileBuilder::default()
+            .with_line_protocol("table1 foo=1 11")
+            .with_max_seq(2);
+        partition.create_parquet_file(pf_builder).await;
+
+        let ingester_partition =
+            builder.build_with_max_parquet_sequence_number(Some(SequenceNumber::new(2)));
+
+        let querier_table = TestQuerierTable::new(&catalog, &table)
+            .await
+            .with_ingester_partition(ingester_partition);
+
+        // Expect 2 chunks: one for ingester, and one from parquet file
+        let chunks = querier_table.chunks().await.unwrap();
+        assert_eq!(chunks.len(), 2);
+
+        // Now, make a second chunk with max sequence number 3
+        let pf_builder = TestParquetFileBuilder::default()
+            .with_line_protocol("table1 foo=1 22")
+            .with_max_seq(3);
+        partition.create_parquet_file(pf_builder).await;
+
+        // With the same ingester response, still expect 2 chunks: one
+        // for ingester, and one from parquet file
+        let chunks = querier_table.chunks().await.unwrap();
+        assert_eq!(chunks.len(), 2);
+
+        // update the ingester response to return a new max parquet
+        // sequence number that includes the new file (3)
+        let ingester_partition =
+            builder.build_with_max_parquet_sequence_number(Some(SequenceNumber::new(3)));
+
+        let querier_table = querier_table
+            .clear_ingester_partitions()
+            .with_ingester_partition(ingester_partition);
+
+        // expect the second file is found, resulting in three chunks
+        let chunks = querier_table.chunks().await.unwrap();
+        assert_eq!(chunks.len(), 3);
     }
 
     #[tokio::test]
