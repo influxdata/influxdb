@@ -775,6 +775,7 @@ fn test_gapfill_fill_interpolate() {
                     Some("b"),
                     Some("b"),
                     Some("b"),
+                    Some("b"),
                 ]],
                 time_col: vec![
                     None,
@@ -788,7 +789,7 @@ fn test_gapfill_fill_interpolate() {
                     // --- new series
                     None,
                     Some(975),
-                    // 1000
+                    Some(1000),
                     Some(1025),
                     // 1050
                     Some(1075),
@@ -807,7 +808,7 @@ fn test_gapfill_fill_interpolate() {
                     // --- new series
                     Some(-10),
                     Some(1100), //  975
-                    // 1200        1000
+                    None, // 1200  1000 (this null value will be filled)
                     Some(1300), // 1025
                     // 1325        1050
                     Some(1350), // 1075
