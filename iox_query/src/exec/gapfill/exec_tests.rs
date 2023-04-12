@@ -979,13 +979,13 @@ fn assert_batch_count(actual_batches: &[RecordBatch], batch_size: usize) {
 
 type ExprVec = Vec<Arc<dyn PhysicalExpr>>;
 
-struct TestRecords {
-    group_cols: Vec<Vec<Option<&'static str>>>,
+pub(super) struct TestRecords {
+    pub group_cols: Vec<Vec<Option<&'static str>>>,
     // Stored as millisecods since intervals use millis,
     // to let test cases be consistent and easier to read.
-    time_col: Vec<Option<i64>>,
-    agg_cols: Vec<Vec<Option<i64>>>,
-    input_batch_size: usize,
+    pub time_col: Vec<Option<i64>>,
+    pub agg_cols: Vec<Vec<Option<i64>>>,
+    pub input_batch_size: usize,
 }
 
 impl TestRecords {

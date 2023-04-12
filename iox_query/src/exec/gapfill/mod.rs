@@ -2,6 +2,7 @@
 //! a gap-filling extension to DataFusion
 
 mod algo;
+mod buffered_input;
 #[cfg(test)]
 mod exec_tests;
 mod params;
