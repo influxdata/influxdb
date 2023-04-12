@@ -1,3 +1,19 @@
+#![doc = include_str!("../README.md")]
+#![deny(rustdoc::broken_intra_doc_links, rust_2018_idioms)]
+#![warn(
+    clippy::clone_on_ref_ptr,
+    clippy::dbg_macro,
+    clippy::explicit_iter_loop,
+    clippy::future_not_send,
+    clippy::todo,
+    clippy::use_self,
+    missing_copy_implementations,
+    missing_debug_implementations,
+    missing_docs
+)]
+
+use std::{collections::HashMap, sync::Arc, time::Duration};
+
 use arrow::record_batch::RecordBatch;
 use arrow_flight::{decode::FlightRecordBatchStream, flight_service_server::FlightService, Ticket};
 use data_types::{
@@ -21,39 +37,81 @@ use mutable_batch_lp::lines_to_batches;
 use mutable_batch_pb::encode::encode_write;
 use observability_deps::tracing::*;
 use parquet_file::storage::ParquetStorage;
-use std::{collections::HashMap, path::PathBuf, sync::Arc, time::Duration};
 use tempfile::TempDir;
 use test_helpers::timeout::FutureTimeout;
 use tokio::sync::oneshot;
 use tokio_util::sync::CancellationToken;
 use tonic::Request;
 
+/// The (legacy) topic name this ingester uses.
 pub const TEST_TOPIC_NAME: &str = "banana-topics";
 
-/// Construct a new [`TestContextBuilder`] to make a [`TestContext`] for an [`ingester2`] instance.
-pub fn test_context() -> TestContextBuilder {
-    TestContextBuilder::default()
-}
+/// The default max persist queue depth - configurable with
+/// [`TestContextBuilder::with_max_persist_queue_depth()`].
+pub const DEFAULT_MAX_PERSIST_QUEUE_DEPTH: usize = 5;
+/// The default partition hot persist cost - configurable with
+/// [`TestContextBuilder::with_persist_hot_partition_cost()`].
+pub const DEFAULT_PERSIST_HOT_PARTITION_COST: usize = 20_000_000;
 
-#[derive(Debug, Default)]
+/// Configure and construct a [`TestContext`] containing an [`ingester2`] instance.
+#[derive(Debug)]
 pub struct TestContextBuilder {
     wal_dir: Option<Arc<TempDir>>,
     catalog: Option<Arc<dyn Catalog>>,
+
+    max_persist_queue_depth: usize,
+    persist_hot_partition_cost: usize,
+}
+
+impl Default for TestContextBuilder {
+    fn default() -> Self {
+        Self {
+            wal_dir: None,
+            catalog: None,
+            max_persist_queue_depth: DEFAULT_MAX_PERSIST_QUEUE_DEPTH,
+            persist_hot_partition_cost: DEFAULT_PERSIST_HOT_PARTITION_COST,
+        }
+    }
 }
 
 impl TestContextBuilder {
-    pub fn wal_dir(mut self, wal_dir: Arc<TempDir>) -> Self {
+    /// Set the WAL file directory, defaulting to a random temporary directory
+    /// if not specified.
+    pub fn with_wal_dir(mut self, wal_dir: Arc<TempDir>) -> Self {
         self.wal_dir = Some(wal_dir);
         self
     }
 
-    pub fn catalog(mut self, catalog: Arc<dyn Catalog>) -> Self {
+    /// Set the catalog implementation, defaulting to an in-memory
+    /// implementation if not specified.
+    pub fn with_catalog(mut self, catalog: Arc<dyn Catalog>) -> Self {
         self.catalog = Some(catalog);
         self
     }
 
+    /// Configure the ingester to reject write requests after this many persist
+    /// jobs are queued for persistence. Defaults to
+    /// [`DEFAULT_MAX_PERSIST_QUEUE_DEPTH`].
+    pub fn with_max_persist_queue_depth(mut self, max: usize) -> Self {
+        self.max_persist_queue_depth = max;
+        self
+    }
+
+    /// Configure the ingester to persist partitions after their abstract "cost"
+    /// exceeds this value. Defaults to [`DEFAULT_PERSIST_HOT_PARTITION_COST`].
+    pub fn with_persist_hot_partition_cost(mut self, cost: usize) -> Self {
+        self.persist_hot_partition_cost = cost;
+        self
+    }
+
+    /// Initialise the [`ingester2`] instance and return a [`TestContext`] for it.
     pub async fn build(self) -> TestContext<impl IngesterRpcInterface> {
-        let Self { wal_dir, catalog } = self;
+        let Self {
+            wal_dir,
+            catalog,
+            max_persist_queue_depth,
+            persist_hot_partition_cost,
+        } = self;
 
         test_helpers::maybe_start_logging();
 
@@ -73,11 +131,7 @@ impl TestContextBuilder {
         // Note that tests should set up their own namespace via
         // ensure_namespace()
         let mut txn = catalog.start_transaction().await.unwrap();
-        let topic = txn
-            .topics()
-            .create_or_get(crate::common::TEST_TOPIC_NAME)
-            .await
-            .unwrap();
+        let topic = txn.topics().create_or_get(TEST_TOPIC_NAME).await.unwrap();
         let query_id = txn
             .query_pools()
             .create_or_get("banana-query-pool")
@@ -86,78 +140,68 @@ impl TestContextBuilder {
             .id;
         txn.commit().await.unwrap();
 
-        let (ingester, shutdown_tx) = new_ingester(
+        // Settings so that the ingester will effectively never persist by itself, only on demand
+        let wal_rotation_period = Duration::from_secs(1_000_000);
+
+        let persist_background_fetch_time = Duration::from_secs(10);
+        let persist_executor = Arc::new(iox_query::exec::Executor::new_testing());
+        let persist_workers = 5;
+
+        let (shutdown_tx, shutdown_rx) = oneshot::channel();
+
+        let ingester = ingester2::new(
             Arc::clone(&catalog),
             Arc::clone(&metrics),
-            dir.path().to_path_buf(),
+            persist_background_fetch_time,
+            dir.path().to_owned(),
+            wal_rotation_period,
+            persist_executor,
+            persist_workers,
+            max_persist_queue_depth,
+            persist_hot_partition_cost,
             storage.clone(),
-        )
-        .await;
-
-        TestContext::new(
-            ingester,
-            shutdown_tx,
-            dir,
-            catalog,
-            storage,
-            query_id,
-            topic.id,
-            metrics,
+            shutdown_rx.map(|v| v.expect("shutdown sender dropped without calling shutdown")),
         )
         .await
+        .expect("failed to initialise ingester instance");
+
+        TestContext {
+            ingester,
+            shutdown_tx,
+            _dir: dir,
+            catalog,
+            _storage: storage,
+            query_id,
+            topic_id: topic.id,
+            metrics,
+            namespaces: Default::default(),
+        }
     }
-}
-
-async fn new_ingester(
-    catalog: Arc<dyn Catalog>,
-    metrics: Arc<metric::Registry>,
-    wal_directory: PathBuf,
-    storage: ParquetStorage,
-) -> (
-    IngesterGuard<impl IngesterRpcInterface>,
-    oneshot::Sender<CancellationToken>,
-) {
-    // Settings so that the ingester will effectively never persist by itself, only on demand
-    let wal_rotation_period = Duration::from_secs(1_000_000);
-    let persist_hot_partition_cost = 20_000_000;
-
-    let persist_background_fetch_time = Duration::from_secs(10);
-    let persist_executor = Arc::new(iox_query::exec::Executor::new_testing());
-    let persist_workers = 5;
-    let persist_queue_depth = 5;
-
-    let (shutdown_tx, shutdown_rx) = oneshot::channel();
-
-    let ingester = ingester2::new(
-        catalog,
-        metrics,
-        persist_background_fetch_time,
-        wal_directory,
-        wal_rotation_period,
-        persist_executor,
-        persist_workers,
-        persist_queue_depth,
-        persist_hot_partition_cost,
-        storage,
-        shutdown_rx.map(|v| v.expect("shutdown sender dropped without calling shutdown")),
-    )
-    .await
-    .expect("failed to initialise ingester instance");
-    (ingester, shutdown_tx)
 }
 
 const SHARD_INDEX: ShardIndex = ShardIndex::new(42);
 
-#[allow(dead_code)]
+/// A command interface to the underlying [`ingester2`] instance.
+///
+/// When the [`TestContext`] is dropped, the underlying [`ingester2`] instance
+/// it controls is (ungracefully) stopped.
+#[derive(Debug)]
 pub struct TestContext<T> {
     ingester: IngesterGuard<T>,
     shutdown_tx: oneshot::Sender<CancellationToken>,
-    dir: Arc<TempDir>,
     catalog: Arc<dyn Catalog>,
-    storage: ParquetStorage,
+    _storage: ParquetStorage,
     query_id: QueryPoolId,
     topic_id: TopicId,
     metrics: Arc<metric::Registry>,
+
+    /// Once the last [`TempDir`] reference is dropped, the directory it
+    /// references is deleted.
+    ///
+    /// The [`TempDir`] instance must be held for the lifetime of the ingester
+    /// so the temporary WAL directory is not deleted while in use.
+    _dir: Arc<TempDir>,
+
     /// A map of namespace IDs to schemas, also serving as the set of known
     /// namespaces.
     namespaces: HashMap<NamespaceId, NamespaceSchema>,
@@ -167,30 +211,6 @@ impl<T> TestContext<T>
 where
     T: IngesterRpcInterface,
 {
-    #[allow(clippy::too_many_arguments)]
-    pub async fn new(
-        ingester: IngesterGuard<T>,
-        shutdown_tx: oneshot::Sender<CancellationToken>,
-        dir: Arc<TempDir>,
-        catalog: Arc<dyn Catalog>,
-        storage: ParquetStorage,
-        query_id: QueryPoolId,
-        topic_id: TopicId,
-        metrics: Arc<metric::Registry>,
-    ) -> Self {
-        TestContext {
-            ingester,
-            shutdown_tx,
-            dir,
-            catalog,
-            storage,
-            query_id,
-            topic_id,
-            metrics,
-            namespaces: Default::default(),
-        }
-    }
-
     /// Create a namespace in the catalog for the ingester to discover.
     ///
     /// # Panics
@@ -232,7 +252,8 @@ where
         ns
     }
 
-    /// A helper wrapper over [`Self::enqueue_write()`] for line-protocol.
+    /// Construct and submit a RPC request to write the given line protocol to
+    /// the specified namespace & partition.
     pub async fn write_lp(
         &mut self,
         namespace: &str,
@@ -271,7 +292,7 @@ where
                         .repositories()
                         .await
                         .tables()
-                        .create_or_get(&table_name, namespace_id)
+                        .create_or_get(table_name.as_str(), namespace_id)
                         .await
                         .expect("table should create OK")
                         .id;
@@ -307,7 +328,8 @@ where
         debug!("pushed dml op");
     }
 
-    /// Return the [`NamespaceId`] in the catalog for the specified namespace name, or panic.
+    /// Return the [`NamespaceId`] in the catalog for the specified namespace
+    /// name, or panic.
     pub async fn namespace_id(&self, namespace: &str) -> NamespaceId {
         self.catalog
             .repositories()
@@ -368,7 +390,10 @@ where
     }
 
     /// Request `namespace` be persisted and block for its completion.
-    pub async fn persist(&self, namespace: impl Into<String>) {
+    ///
+    /// Be aware of the unreliable caveats of this interface (see proto
+    /// definition).
+    pub async fn persist(&self, namespace: impl Into<String> + Send) {
         use generated_types::influxdata::iox::ingester::v1::{
             self as proto, persist_service_server::PersistService,
         };
@@ -424,5 +449,20 @@ where
             .list_by_namespace_not_to_delete(namespace_id)
             .await
             .unwrap()
+    }
+
+    /// Return the [`Catalog`] for this [`TestContext`].
+    pub fn catalog(&self) -> Arc<dyn Catalog> {
+        Arc::clone(&self.catalog)
+    }
+
+    /// Return the [`IngesterRpcInterface`] for this [`TestContext`].
+    ///
+    /// Calls duration made through this interface measures the cost of the
+    /// request deserialisation and processing, and not any network I/O (as if
+    /// the I/O had just finished and was being handed off to invoke the request
+    /// handler with the fully read request).
+    pub fn rpc(&self) -> &T {
+        self.ingester.rpc()
     }
 }

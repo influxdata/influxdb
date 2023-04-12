@@ -2790,6 +2790,7 @@ dependencies = [
  "generated_types",
  "hashbrown 0.13.2",
  "influxdb_iox_client",
+ "ingester2_test_ctx",
  "iox_catalog",
  "iox_query",
  "iox_time",
@@ -2819,6 +2820,39 @@ dependencies = [
  "tonic",
  "trace",
  "uuid",
+ "wal",
+ "workspace-hack",
+]
+
+[[package]]
+name = "ingester2_test_ctx"
+version = "0.1.0"
+dependencies = [
+ "arrow",
+ "arrow-flight",
+ "bytes",
+ "data_types",
+ "dml",
+ "futures",
+ "generated_types",
+ "hashbrown 0.13.2",
+ "influxdb_iox_client",
+ "ingester2",
+ "iox_catalog",
+ "iox_query",
+ "iox_time",
+ "metric",
+ "mutable_batch_lp",
+ "mutable_batch_pb",
+ "object_store",
+ "observability_deps",
+ "parquet_file",
+ "prost",
+ "tempfile",
+ "test_helpers",
+ "tokio",
+ "tokio-util",
+ "tonic",
  "wal",
  "workspace-hack",
 ]
