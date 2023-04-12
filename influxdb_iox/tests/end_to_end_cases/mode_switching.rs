@@ -5,26 +5,6 @@ use predicates::prelude::*;
 use std::time::Duration;
 
 #[test]
-fn router_errors_with_mode_env_var() {
-    Command::cargo_bin("influxdb_iox")
-        .unwrap()
-        .env_clear()
-        .env("INFLUXDB_IOX_RPC_MODE", "2")
-        .arg("run")
-        .arg("router")
-        .arg("--write-buffer")
-        .arg("file")
-        .arg("--write-buffer-addr")
-        .arg("required")
-        .timeout(Duration::from_secs(2))
-        .assert()
-        .failure()
-        .stderr(predicate::str::contains(
-            "`INFLUXDB_IOX_RPC_MODE` was specified but `router` was the command run",
-        ));
-}
-
-#[test]
 fn router2_errors_without_mode_env_var() {
     Command::cargo_bin("influxdb_iox")
         .unwrap()

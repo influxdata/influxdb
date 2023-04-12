@@ -1,14 +1,11 @@
-use std::{error::Error, fmt::Debug, sync::Arc};
-
-use async_trait::async_trait;
-use data_types::{DeletePredicate, NamespaceId, NamespaceName};
-use thiserror::Error;
-use trace::ctx::SpanContext;
-
 use super::{
     partitioner::PartitionError, retention_validation::RetentionError, RpcWriteError, SchemaError,
-    ShardError,
 };
+use async_trait::async_trait;
+use data_types::{DeletePredicate, NamespaceId, NamespaceName};
+use std::{error::Error, fmt::Debug, sync::Arc};
+use thiserror::Error;
+use trace::ctx::SpanContext;
 
 /// Errors emitted by a [`DmlHandler`] implementation during DML request
 /// processing.
@@ -17,10 +14,6 @@ pub enum DmlError {
     /// The namespace specified by the caller does not exist.
     #[error("namespace {0} does not exist")]
     NamespaceNotFound(String),
-
-    /// An error sharding the writes and pushing them to the write buffer.
-    #[error(transparent)]
-    WriteBuffer(#[from] ShardError),
 
     /// An error pushing the request to a downstream ingester via a direct RPC
     /// call.

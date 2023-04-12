@@ -21,7 +21,6 @@ pub mod ingester2;
 pub mod ingester_address;
 pub mod object_store;
 pub mod querier;
-pub mod router;
 pub mod router2;
 pub mod run_config;
 pub mod socket_addr;

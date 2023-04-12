@@ -133,4 +133,3 @@ pub mod dml_handlers;
 pub mod namespace_cache;
 pub mod namespace_resolver;
 pub mod server;
-pub mod shard;
