@@ -204,8 +204,8 @@ impl InfluxQLQueryPlanner {
     }
 
     fn query_to_statement(&self, query: &str) -> Result<Statement> {
-        let mut statements = parse_statements(query)
-            .map_err(|e| DataFusionError::External(format!("{e}").into()))?;
+        let mut statements =
+            parse_statements(query).map_err(|e| DataFusionError::Plan(e.to_string()))?;
 
         if statements.len() != 1 {
             return Err(DataFusionError::NotImplemented(
