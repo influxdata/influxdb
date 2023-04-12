@@ -12,7 +12,16 @@ use super::NamespaceCache;
 
 #[derive(Debug)]
 /// A [`ReadThroughCache`] decorates a [`NamespaceCache`] with read-through
-/// caching behaviour on calls to [`NamespaceCache.get_schema()`].
+/// caching behaviour on calls to [`NamespaceCache.get_schema()`], resolving
+/// cache misses with the provided [`Catalog`].
+/// 
+/// Filters out all soft-deleted namespaces when resolving.
+/// 
+/// No attempt to serialise cache misses for a particular namespace is made -
+/// `N` concurrent calls for a missing namespace will cause `N` concurrent
+/// catalog queries, and `N` [`NamespaceSchema`] instances replacing each other
+/// in the cache before converging on a single instance (last resolved wins).
+/// Subsequent queries will return the currently cached instance.
 pub struct ReadThroughCache<T> {
     inner_cache: T,
     catalog: Arc<dyn Catalog>,
@@ -43,7 +52,12 @@ where
     ) -> Result<Arc<NamespaceSchema>, Self::ReadError> {
         match self.inner_cache.get_schema(namespace).await {
             Ok(v) => Ok(v),
-            Err(CacheMissErr { .. }) => {
+            Err(CacheMissErr {
+                namespace: cache_ns,
+            }) => {
+                // Invariant: the cache should not return misses for a different
+                // namespace name.
+                assert_eq!(cache_ns, *namespace);
                 let mut repos = self.catalog.repositories().await;
 
                 let schema = match get_schema_by_name(

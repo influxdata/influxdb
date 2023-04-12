@@ -30,12 +30,13 @@ impl NamespaceCache for Arc<MemoryNamespaceCache> {
         &self,
         namespace: &NamespaceName<'static>,
     ) -> Result<Arc<NamespaceSchema>, Self::ReadError> {
-        match self.cache.read().get(namespace) {
-            Some(s) => Ok(Arc::clone(s)),
-            None => Err(CacheMissErr {
+        self.cache
+            .read()
+            .get(namespace)
+            .ok_or(CacheMissErr {
                 namespace: namespace.clone(),
-            }),
-        }
+            })
+            .map(Arc::clone)
     }
 
     fn put_schema(
