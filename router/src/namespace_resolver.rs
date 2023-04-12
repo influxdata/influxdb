@@ -1,11 +1,7 @@
 //! An trait to abstract resolving a[`NamespaceName`] to [`NamespaceId`], and a
 //! collection of composable implementations.
-
-use std::{ops::DerefMut, sync::Arc};
-
 use async_trait::async_trait;
 use data_types::{NamespaceId, NamespaceName};
-use iox_catalog::interface::{get_schema_by_name, Catalog, SoftDeletedRows};
 use observability_deps::tracing::*;
 use thiserror::Error;
 
@@ -37,27 +33,25 @@ pub trait NamespaceResolver: std::fmt::Debug + Send + Sync {
     ) -> Result<NamespaceId, Error>;
 }
 
-/// An implementation of [`NamespaceResolver`] that queries the [`Catalog`] to
-/// resolve a [`NamespaceId`], and populates the [`NamespaceCache`] as a side
-/// effect.
+/// An implementation of [`NamespaceResolver`] that resolves the [`NamespaceId`]
+/// for a given name through a [`NamespaceCache`].
 #[derive(Debug)]
 pub struct NamespaceSchemaResolver<C> {
-    catalog: Arc<dyn Catalog>,
     cache: C,
 }
 
 impl<C> NamespaceSchemaResolver<C> {
-    /// Construct a new [`NamespaceSchemaResolver`] that fetches schemas from
-    /// `catalog` and caches them in `cache`.
-    pub fn new(catalog: Arc<dyn Catalog>, cache: C) -> Self {
-        Self { catalog, cache }
+    /// Construct a new [`NamespaceSchemaResolver`] that resolves namespace IDs
+    /// using `cache`.
+    pub fn new(cache: C) -> Self {
+        Self { cache }
     }
 }
 
 #[async_trait]
 impl<C> NamespaceResolver for NamespaceSchemaResolver<C>
 where
-    C: NamespaceCache,
+    C: NamespaceCache<ReadError = iox_catalog::interface::Error>,
 {
     async fn get_namespace_id(
         &self,
@@ -65,38 +59,9 @@ where
     ) -> Result<NamespaceId, Error> {
         // Load the namespace schema from the cache, falling back to pulling it
         // from the global catalog (if it exists).
-        match self.cache.get_schema(namespace) {
-            Some(v) => Ok(v.id),
-            None => {
-                let mut repos = self.catalog.repositories().await;
-
-                // Pull the schema from the global catalog or error if it does
-                // not exist.
-                let schema = get_schema_by_name(
-                    namespace,
-                    repos.deref_mut(),
-                    SoftDeletedRows::ExcludeDeleted,
-                )
-                .await
-                .map_err(|e| {
-                    warn!(
-                        error=%e,
-                        %namespace,
-                        "failed to retrieve namespace schema"
-                    );
-                    Error::Lookup(e)
-                })
-                .map(Arc::new)?;
-
-                // Cache population MAY race with other threads and lead to
-                // overwrites, but an entry will always exist once inserted, and
-                // the schemas will eventually converge.
-                self.cache
-                    .put_schema(namespace.clone(), Arc::clone(&schema));
-
-                trace!(%namespace, "schema cache populated");
-                Ok(schema.id)
-            }
+        match self.cache.get_schema(namespace).await {
+            Ok(v) => Ok(v.id),
+            Err(e) => return Err(Error::Lookup(e)),
         }
     }
 }
@@ -107,17 +72,26 @@ mod tests {
 
     use assert_matches::assert_matches;
     use data_types::{NamespaceId, NamespaceSchema, QueryPoolId, TopicId};
-    use iox_catalog::mem::MemCatalog;
+    use iox_catalog::{
+        interface::{Catalog, SoftDeletedRows},
+        mem::MemCatalog,
+    };
 
     use super::*;
-    use crate::namespace_cache::MemoryNamespaceCache;
+    use crate::namespace_cache::{MemoryNamespaceCache, ReadThroughCache};
 
     #[tokio::test]
     async fn test_cache_hit() {
         let ns = NamespaceName::try_from("bananas").unwrap();
 
+        let metrics = Arc::new(metric::Registry::new());
+        let catalog: Arc<dyn Catalog> = Arc::new(MemCatalog::new(metrics));
+
         // Prep the cache before the test to cause a hit
-        let cache = Arc::new(MemoryNamespaceCache::default());
+        let cache = Arc::new(ReadThroughCache::new(
+            Arc::new(MemoryNamespaceCache::default()),
+            Arc::clone(&catalog),
+        ));
         cache.put_schema(
             ns.clone(),
             NamespaceSchema {
@@ -131,10 +105,7 @@ mod tests {
             },
         );
 
-        let metrics = Arc::new(metric::Registry::new());
-        let catalog: Arc<dyn Catalog> = Arc::new(MemCatalog::new(metrics));
-
-        let resolver = NamespaceSchemaResolver::new(Arc::clone(&catalog), Arc::clone(&cache));
+        let resolver = NamespaceSchemaResolver::new(Arc::clone(&cache));
 
         // Drive the code under test
         resolver
@@ -142,7 +113,7 @@ mod tests {
             .await
             .expect("lookup should succeed");
 
-        assert!(cache.get_schema(&ns).is_some());
+        assert!(cache.get_schema(&ns).await.is_ok());
 
         // The cache hit should mean the catalog SHOULD NOT see a create request
         // for the namespace.
@@ -162,9 +133,12 @@ mod tests {
     async fn test_cache_miss() {
         let ns = NamespaceName::try_from("bananas").unwrap();
 
-        let cache = Arc::new(MemoryNamespaceCache::default());
         let metrics = Arc::new(metric::Registry::new());
         let catalog: Arc<dyn Catalog> = Arc::new(MemCatalog::new(metrics));
+        let cache = Arc::new(ReadThroughCache::new(
+            Arc::new(MemoryNamespaceCache::default()),
+            Arc::clone(&catalog),
+        ));
 
         // Create the namespace in the catalog
         {
@@ -178,7 +152,7 @@ mod tests {
                 .expect("failed to setup catalog state");
         }
 
-        let resolver = NamespaceSchemaResolver::new(Arc::clone(&catalog), Arc::clone(&cache));
+        let resolver = NamespaceSchemaResolver::new(Arc::clone(&cache));
 
         resolver
             .get_namespace_id(&ns)
@@ -186,16 +160,19 @@ mod tests {
             .expect("lookup should succeed");
 
         // The cache should be populated as a result of the lookup.
-        assert!(cache.get_schema(&ns).is_some());
+        assert!(cache.get_schema(&ns).await.is_ok());
     }
 
     #[tokio::test]
     async fn test_cache_miss_soft_deleted() {
         let ns = NamespaceName::try_from("bananas").unwrap();
 
-        let cache = Arc::new(MemoryNamespaceCache::default());
         let metrics = Arc::new(metric::Registry::new());
         let catalog: Arc<dyn Catalog> = Arc::new(MemCatalog::new(metrics));
+        let cache = Arc::new(ReadThroughCache::new(
+            Arc::new(MemoryNamespaceCache::default()),
+            Arc::clone(&catalog),
+        ));
 
         // Create the namespace in the catalog and mark it as deleted
         {
@@ -214,7 +191,7 @@ mod tests {
                 .expect("failed to setup catalog state");
         }
 
-        let resolver = NamespaceSchemaResolver::new(Arc::clone(&catalog), Arc::clone(&cache));
+        let resolver = NamespaceSchemaResolver::new(Arc::clone(&cache));
 
         let err = resolver
             .get_namespace_id(&ns)
@@ -226,18 +203,21 @@ mod tests {
         );
 
         // The cache should NOT be populated as a result of the lookup.
-        assert!(cache.get_schema(&ns).is_none());
+        assert!(cache.get_schema(&ns).await.is_err());
     }
 
     #[tokio::test]
     async fn test_cache_miss_does_not_exist() {
         let ns = NamespaceName::try_from("bananas").unwrap();
 
-        let cache = Arc::new(MemoryNamespaceCache::default());
         let metrics = Arc::new(metric::Registry::new());
         let catalog: Arc<dyn Catalog> = Arc::new(MemCatalog::new(metrics));
+        let cache = Arc::new(ReadThroughCache::new(
+            Arc::new(MemoryNamespaceCache::default()),
+            Arc::clone(&catalog),
+        ));
 
-        let resolver = NamespaceSchemaResolver::new(Arc::clone(&catalog), Arc::clone(&cache));
+        let resolver = NamespaceSchemaResolver::new(Arc::clone(&cache));
 
         let err = resolver
             .get_namespace_id(&ns)
@@ -245,6 +225,6 @@ mod tests {
             .expect_err("lookup should error");
 
         assert_matches!(err, Error::Lookup(_));
-        assert!(cache.get_schema(&ns).is_none());
+        assert!(cache.get_schema(&ns).await.is_err());
     }
 }

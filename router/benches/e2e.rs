@@ -9,7 +9,7 @@ use router::{
         DmlHandlerChainExt, FanOutAdaptor, Partitioner, SchemaValidator, ShardedWriteBuffer,
         WriteSummaryAdapter,
     },
-    namespace_cache::{MemoryNamespaceCache, ShardedCache},
+    namespace_cache::{MemoryNamespaceCache, ReadThroughCache, ShardedCache},
     namespace_resolver::mock::MockNamespaceResolver,
     server::http::{
         write::{multi_tenant::MultiTenantRequestParser, WriteParamExtractor},
@@ -64,8 +64,11 @@ fn e2e_benchmarks(c: &mut Criterion) {
     let delegate = {
         let metrics = Arc::new(metric::Registry::new());
         let catalog: Arc<dyn Catalog> = Arc::new(MemCatalog::new(Arc::clone(&metrics)));
-        let ns_cache = Arc::new(ShardedCache::new(
-            iter::repeat_with(|| Arc::new(MemoryNamespaceCache::default())).take(10),
+        let ns_cache = Arc::new(ReadThroughCache::new(
+            Arc::new(ShardedCache::new(
+                iter::repeat_with(|| Arc::new(MemoryNamespaceCache::default())).take(10),
+            )),
+            Arc::clone(&catalog),
         ));
 
         let write_buffer = init_write_buffer(1);

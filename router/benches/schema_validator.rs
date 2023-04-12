@@ -6,12 +6,12 @@ use criterion::{
 };
 use data_types::{NamespaceId, NamespaceName};
 use hashbrown::HashMap;
-use iox_catalog::mem::MemCatalog;
+use iox_catalog::{interface::Catalog, mem::MemCatalog};
 use mutable_batch::MutableBatch;
 use once_cell::sync::Lazy;
 use router::{
     dml_handlers::{DmlHandler, SchemaValidator},
-    namespace_cache::{MemoryNamespaceCache, ShardedCache},
+    namespace_cache::{MemoryNamespaceCache, ReadThroughCache, ShardedCache},
 };
 use schema::Projection;
 use tokio::runtime::Runtime;
@@ -41,9 +41,12 @@ fn sharder_benchmarks(c: &mut Criterion) {
 fn bench(group: &mut BenchmarkGroup<WallTime>, tables: usize, columns_per_table: usize) {
     let metrics = Arc::new(metric::Registry::default());
 
-    let catalog = Arc::new(MemCatalog::new(Arc::clone(&metrics)));
-    let ns_cache = Arc::new(ShardedCache::new(
-        iter::repeat_with(|| Arc::new(MemoryNamespaceCache::default())).take(10),
+    let catalog: Arc<dyn Catalog> = Arc::new(MemCatalog::new(Arc::clone(&metrics)));
+    let ns_cache = Arc::new(ReadThroughCache::new(
+        Arc::new(ShardedCache::new(
+            iter::repeat_with(|| Arc::new(MemoryNamespaceCache::default())).take(10),
+        )),
+        Arc::clone(&catalog),
     ));
     let validator = SchemaValidator::new(catalog, ns_cache, &metrics);
 

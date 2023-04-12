@@ -79,7 +79,7 @@ impl<C, T> NamespaceAutocreation<C, T> {
 #[async_trait]
 impl<C, T> NamespaceResolver for NamespaceAutocreation<C, T>
 where
-    C: NamespaceCache,
+    C: NamespaceCache<ReadError = iox_catalog::interface::Error>, // The resolver relies on the cache for read-through cache behaviour
     T: NamespaceResolver,
 {
     /// Force the creation of `namespace` if it does not already exist in the
@@ -88,7 +88,7 @@ where
         &self,
         namespace: &NamespaceName<'static>,
     ) -> Result<NamespaceId, super::Error> {
-        if self.cache.get_schema(namespace).is_none() {
+        if self.cache.get_schema(namespace).await.is_err() {
             trace!(%namespace, "namespace not found in cache");
 
             match self.action {
@@ -153,7 +153,7 @@ mod tests {
 
     use super::*;
     use crate::{
-        namespace_cache::MemoryNamespaceCache,
+        namespace_cache::{MemoryNamespaceCache, ReadThroughCache},
         namespace_resolver::{mock::MockNamespaceResolver, NamespaceSchemaResolver},
     };
 
@@ -166,8 +166,14 @@ mod tests {
 
         let ns = NamespaceName::try_from("bananas").unwrap();
 
+        let metrics = Arc::new(metric::Registry::new());
+        let catalog: Arc<dyn Catalog> = Arc::new(MemCatalog::new(metrics));
+
         // Prep the cache before the test to cause a hit
-        let cache = Arc::new(MemoryNamespaceCache::default());
+        let cache = Arc::new(ReadThroughCache::new(
+            Arc::new(MemoryNamespaceCache::default()),
+            Arc::clone(&catalog),
+        ));
         cache.put_schema(
             ns.clone(),
             NamespaceSchema {
@@ -180,9 +186,6 @@ mod tests {
                 retention_period_ns: None,
             },
         );
-
-        let metrics = Arc::new(metric::Registry::new());
-        let catalog: Arc<dyn Catalog> = Arc::new(MemCatalog::new(metrics));
 
         let creator = NamespaceAutocreation::new(
             MockNamespaceResolver::default().with_mapping(ns.clone(), NAMESPACE_ID),
@@ -218,9 +221,13 @@ mod tests {
     async fn test_cache_miss() {
         let ns = NamespaceName::try_from("bananas").unwrap();
 
-        let cache = Arc::new(MemoryNamespaceCache::default());
         let metrics = Arc::new(metric::Registry::new());
         let catalog: Arc<dyn Catalog> = Arc::new(MemCatalog::new(metrics));
+
+        let cache = Arc::new(ReadThroughCache::new(
+            Arc::new(MemoryNamespaceCache::default()),
+            Arc::clone(&catalog),
+        ));
 
         let creator = NamespaceAutocreation::new(
             MockNamespaceResolver::default().with_mapping(ns.clone(), NamespaceId::new(1)),
@@ -266,9 +273,12 @@ mod tests {
     async fn test_reject() {
         let ns = NamespaceName::try_from("bananas").unwrap();
 
-        let cache = Arc::new(MemoryNamespaceCache::default());
         let metrics = Arc::new(metric::Registry::new());
         let catalog: Arc<dyn Catalog> = Arc::new(MemCatalog::new(metrics));
+        let cache = Arc::new(ReadThroughCache::new(
+            Arc::new(MemoryNamespaceCache::default()),
+            Arc::clone(&catalog),
+        ));
 
         let creator = NamespaceAutocreation::new(
             MockNamespaceResolver::default(),
@@ -302,13 +312,16 @@ mod tests {
     async fn test_reject_exists_in_catalog() {
         let ns = NamespaceName::try_from("bananas").unwrap();
 
-        let cache = Arc::new(MemoryNamespaceCache::default());
         let metrics = Arc::new(metric::Registry::new());
         let catalog: Arc<dyn Catalog> = Arc::new(MemCatalog::new(metrics));
+        let cache = Arc::new(ReadThroughCache::new(
+            Arc::new(MemoryNamespaceCache::default()),
+            Arc::clone(&catalog),
+        ));
 
         // First drive the population of the catalog
         let creator = NamespaceAutocreation::new(
-            NamespaceSchemaResolver::new(Arc::clone(&catalog), Arc::clone(&cache)),
+            NamespaceSchemaResolver::new(Arc::clone(&cache)),
             Arc::clone(&cache),
             Arc::clone(&catalog),
             TopicId::new(42),
@@ -323,7 +336,7 @@ mod tests {
 
         // Now try in "reject" mode.
         let creator = NamespaceAutocreation::new(
-            NamespaceSchemaResolver::new(Arc::clone(&catalog), Arc::clone(&cache)),
+            NamespaceSchemaResolver::new(Arc::clone(&cache)),
             cache,
             Arc::clone(&catalog),
             TopicId::new(42),
