@@ -1,10 +1,8 @@
-mod common;
-
 use arrow_util::assert_batches_sorted_eq;
 use assert_matches::assert_matches;
-use common::*;
 use data_types::PartitionKey;
 use influxdb_iox_client::flight::generated_types::IngesterQueryRequest;
+use ingester2_test_ctx::TestContextBuilder;
 use iox_catalog::interface::Catalog;
 use metric::{DurationHistogram, U64Histogram};
 use std::sync::Arc;
@@ -13,7 +11,7 @@ use std::sync::Arc;
 #[tokio::test]
 async fn write_query() {
     let namespace_name = "write_query_test_namespace";
-    let mut ctx = test_context().build().await;
+    let mut ctx = TestContextBuilder::default().build().await;
     let ns = ctx.ensure_namespace(namespace_name, None).await;
 
     // Initial write
@@ -102,9 +100,9 @@ async fn wal_replay() {
     let namespace_name = "wal_replay_test_namespace";
 
     {
-        let mut ctx = test_context()
-            .wal_dir(Arc::clone(&wal_dir))
-            .catalog(Arc::clone(&catalog))
+        let mut ctx = TestContextBuilder::default()
+            .with_wal_dir(Arc::clone(&wal_dir))
+            .with_catalog(Arc::clone(&catalog))
             .build()
             .await;
 
@@ -163,9 +161,9 @@ async fn wal_replay() {
 
     // Restart the ingester and perform replay by creating another ingester using the same WAL
     // directory and catalog
-    let ctx = test_context()
-        .wal_dir(wal_dir)
-        .catalog(catalog)
+    let ctx = TestContextBuilder::default()
+        .with_wal_dir(wal_dir)
+        .with_catalog(catalog)
         .build()
         .await;
 
@@ -193,9 +191,9 @@ async fn graceful_shutdown() {
         Arc::new(iox_catalog::mem::MemCatalog::new(Arc::clone(&metrics)));
     let namespace_name = "wal_replay_test_namespace";
 
-    let mut ctx = test_context()
-        .wal_dir(Arc::clone(&wal_dir))
-        .catalog(Arc::clone(&catalog))
+    let mut ctx = TestContextBuilder::default()
+        .with_wal_dir(Arc::clone(&wal_dir))
+        .with_catalog(Arc::clone(&catalog))
         .build()
         .await;
 
