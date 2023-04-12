@@ -1,9 +1,6 @@
-use std::{ops::DerefMut, sync::Arc};
-
 use async_trait::async_trait;
 use data_types::{DeletePredicate, NamespaceId, NamespaceName};
 use hashbrown::HashMap;
-use iox_catalog::interface::{get_schema_by_name, Catalog, SoftDeletedRows};
 use iox_time::{SystemProvider, TimeProvider};
 use mutable_batch::MutableBatch;
 use observability_deps::tracing::*;
@@ -11,7 +8,7 @@ use thiserror::Error;
 use trace::ctx::SpanContext;
 
 use super::DmlHandler;
-use crate::namespace_cache::{metrics::InstrumentedCache, MemoryNamespaceCache, NamespaceCache};
+use crate::namespace_cache::NamespaceCache;
 
 /// Errors emitted during retention validation.
 #[derive(Debug, Error)]
@@ -33,21 +30,17 @@ pub enum RetentionError {
 /// entire write is rejected.
 ///
 /// Namespace retention periods are loaded from the provided [`NamespaceCache`]
-/// implementation. If a cache miss occurs, the [`Catalog`] is queried and the
-/// cache is populated.
+/// implementation.
 #[derive(Debug)]
-pub struct RetentionValidator<C = Arc<InstrumentedCache<MemoryNamespaceCache>>, P = SystemProvider>
-{
-    catalog: Arc<dyn Catalog>,
+pub struct RetentionValidator<C, P = SystemProvider> {
     cache: C,
     time_provider: P,
 }
 
 impl<C> RetentionValidator<C> {
     /// Initialise a new [`RetentionValidator`], rejecting time outside retention period
-    pub fn new(catalog: Arc<dyn Catalog>, cache: C) -> Self {
+    pub fn new(cache: C) -> Self {
         Self {
-            catalog,
             cache,
             time_provider: Default::default(),
         }
@@ -57,7 +50,7 @@ impl<C> RetentionValidator<C> {
 #[async_trait]
 impl<C> DmlHandler for RetentionValidator<C>
 where
-    C: NamespaceCache,
+    C: NamespaceCache<ReadError = iox_catalog::interface::Error>, // The handler expects the cache to read from the catalog if necessary.
 {
     type WriteError = RetentionError;
     type DeleteError = RetentionError;
@@ -69,43 +62,14 @@ where
     async fn write(
         &self,
         namespace: &NamespaceName<'static>,
-        namespace_id: NamespaceId,
+        _namespace_id: NamespaceId,
         batch: Self::WriteInput,
         _span_ctx: Option<SpanContext>,
     ) -> Result<Self::WriteOutput, Self::WriteError> {
-        let mut repos = self.catalog.repositories().await;
-
-        // Load the namespace schema from the cache, falling back to pulling it
-        // from the global catalog (if it exists).
-        let schema = self.cache.get_schema(namespace);
-        let schema = match schema {
-            Some(v) => v,
-            None => {
-                // Pull the schema from the global catalog or error if it does
-                // not exist.
-                let schema = get_schema_by_name(
-                    namespace,
-                    repos.deref_mut(),
-                    SoftDeletedRows::ExcludeDeleted,
-                )
-                .await
-                .map_err(|e| {
-                    warn!(
-                        error=%e,
-                        %namespace,
-                        %namespace_id,
-                        "failed to retrieve namespace schema"
-                    );
-                    RetentionError::NamespaceLookup(e)
-                })
-                .map(Arc::new)?;
-
-                self.cache
-                    .put_schema(namespace.clone(), Arc::clone(&schema));
-
-                trace!(%namespace, "schema cache populated");
-                schema
-            }
+        // Try to fetch the namespace schema through the cache.
+        let schema = match self.cache.get_schema(namespace).await {
+            Ok(v) => v,
+            Err(e) => return Err(RetentionError::NamespaceLookup(e)),
         };
 
         // retention is not infinte, validate all lines of a write are within the retention period
@@ -139,13 +103,24 @@ where
 
 #[cfg(test)]
 mod tests {
-    use iox_tests::{TestCatalog, TestNamespace};
-    use once_cell::sync::Lazy;
     use std::sync::Arc;
 
+    use iox_tests::{TestCatalog, TestNamespace};
+    use once_cell::sync::Lazy;
+
     use super::*;
+    use crate::namespace_cache::{MemoryNamespaceCache, ReadThroughCache};
 
     static NAMESPACE: Lazy<NamespaceName<'static>> = Lazy::new(|| "bananas".try_into().unwrap());
+
+    fn setup_test_cache(
+        catalog: Arc<TestCatalog>,
+    ) -> Arc<ReadThroughCache<Arc<MemoryNamespaceCache>>> {
+        Arc::new(ReadThroughCache::new(
+            Arc::new(MemoryNamespaceCache::default()),
+            catalog.catalog(),
+        ))
+    }
 
     #[tokio::test]
     async fn test_time_inside_retention_period() {
@@ -154,9 +129,9 @@ mod tests {
         // Create the table so that there is a known ID that must be returned.
         let _want_id = namespace.create_table("bananas").await.table.id;
 
-        // Create the validator whse retention period is 1 hour
-        let handler =
-            RetentionValidator::new(catalog.catalog(), Arc::new(MemoryNamespaceCache::default()));
+        // Create the validator whose retention period is 1 hour
+        let cache = setup_test_cache(catalog);
+        let handler = RetentionValidator::new(cache);
 
         // Make time now to be inside the retention period
         let now = SystemProvider::default()
@@ -182,8 +157,8 @@ mod tests {
         let _want_id = namespace.create_table("bananas").await.table.id;
 
         // Create the validator whose retention period is 1 hour
-        let handler =
-            RetentionValidator::new(catalog.catalog(), Arc::new(MemoryNamespaceCache::default()));
+        let cache = setup_test_cache(catalog);
+        let handler = RetentionValidator::new(cache);
 
         // Make time outside the retention period
         let two_hours_ago = (SystemProvider::default().now().timestamp_nanos()
@@ -209,9 +184,9 @@ mod tests {
         // Create the table so that there is a known ID that must be returned.
         let _want_id = namespace.create_table("bananas").await.table.id;
 
-        // Create the validator whse retention period is 1 hour
-        let handler =
-            RetentionValidator::new(catalog.catalog(), Arc::new(MemoryNamespaceCache::default()));
+        // Create the validator whose retention period is 1 hour
+        let cache = setup_test_cache(catalog);
+        let handler = RetentionValidator::new(cache);
 
         // Make time now to be inside the retention period
         let now = SystemProvider::default()
@@ -246,8 +221,8 @@ mod tests {
         let _want_id = namespace.create_table("bananas").await.table.id;
 
         // Create the validator whse retention period is 1 hour
-        let handler =
-            RetentionValidator::new(catalog.catalog(), Arc::new(MemoryNamespaceCache::default()));
+        let cache = setup_test_cache(catalog);
+        let handler = RetentionValidator::new(cache);
 
         // Make time now to be inside the retention period
         let now = SystemProvider::default()

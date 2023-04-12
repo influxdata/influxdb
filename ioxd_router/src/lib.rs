@@ -31,7 +31,8 @@ use router::{
         ShardedWriteBuffer, WriteSummaryAdapter,
     },
     namespace_cache::{
-        metrics::InstrumentedCache, MemoryNamespaceCache, NamespaceCache, ShardedCache,
+        metrics::InstrumentedCache, MemoryNamespaceCache, NamespaceCache, ReadThroughCache,
+        ShardedCache,
     },
     namespace_resolver::{
         MissingNamespaceAction, NamespaceAutocreation, NamespaceResolver, NamespaceSchemaResolver,
@@ -322,11 +323,14 @@ pub async fn create_router2_server_type(
     // Initialise an instrumented namespace cache to be shared with the schema
     // validator, and namespace auto-creator that reports cache hit/miss/update
     // metrics.
-    let ns_cache = Arc::new(InstrumentedCache::new(
-        Arc::new(ShardedCache::new(
-            std::iter::repeat_with(|| Arc::new(MemoryNamespaceCache::default())).take(10),
+    let ns_cache = Arc::new(ReadThroughCache::new(
+        Arc::new(InstrumentedCache::new(
+            Arc::new(ShardedCache::new(
+                std::iter::repeat_with(|| Arc::new(MemoryNamespaceCache::default())).take(10),
+            )),
+            &metrics,
         )),
-        &metrics,
+        Arc::clone(&catalog),
     ));
 
     pre_warm_schema_cache(&ns_cache, &*catalog)
@@ -342,7 +346,7 @@ pub async fn create_router2_server_type(
 
     // c. Retention validator
     // Add a retention validator into handler stack to reject data outside the retention period
-    let retention_validator = RetentionValidator::new(Arc::clone(&catalog), Arc::clone(&ns_cache));
+    let retention_validator = RetentionValidator::new(Arc::clone(&ns_cache));
     let retention_validator =
         InstrumentationDecorator::new("retention_validator", &metrics, retention_validator);
 
@@ -358,8 +362,7 @@ pub async fn create_router2_server_type(
 
     // e. Namespace resolver
     // Initialise the Namespace ID lookup + cache
-    let namespace_resolver =
-        NamespaceSchemaResolver::new(Arc::clone(&catalog), Arc::clone(&ns_cache));
+    let namespace_resolver = NamespaceSchemaResolver::new(Arc::clone(&ns_cache));
 
     ////////////////////////////////////////////////////////////////////////////
     //
@@ -513,11 +516,14 @@ pub async fn create_router_server_type<'a>(
     // Initialise an instrumented namespace cache to be shared with the schema
     // validator, and namespace auto-creator that reports cache hit/miss/update
     // metrics.
-    let ns_cache = Arc::new(InstrumentedCache::new(
-        Arc::new(ShardedCache::new(
-            std::iter::repeat_with(|| Arc::new(MemoryNamespaceCache::default())).take(10),
+    let ns_cache = Arc::new(ReadThroughCache::new(
+        Arc::new(InstrumentedCache::new(
+            Arc::new(ShardedCache::new(
+                std::iter::repeat_with(|| Arc::new(MemoryNamespaceCache::default())).take(10),
+            )),
+            &metrics,
         )),
-        &metrics,
+        Arc::clone(&catalog),
     ));
 
     pre_warm_schema_cache(&ns_cache, &*catalog)
@@ -533,7 +539,7 @@ pub async fn create_router_server_type<'a>(
 
     // c. Retention validator
     // Add a retention validator into handler stack to reject data outside the retention period
-    let retention_validator = RetentionValidator::new(Arc::clone(&catalog), Arc::clone(&ns_cache));
+    let retention_validator = RetentionValidator::new(Arc::clone(&ns_cache));
     let retention_validator =
         InstrumentationDecorator::new("retention_validator", &metrics, retention_validator);
 
@@ -547,8 +553,7 @@ pub async fn create_router_server_type<'a>(
 
     // e. Namespace resolver
     // Initialise the Namespace ID lookup + cache
-    let namespace_resolver =
-        NamespaceSchemaResolver::new(Arc::clone(&catalog), Arc::clone(&ns_cache));
+    let namespace_resolver = NamespaceSchemaResolver::new(Arc::clone(&ns_cache));
 
     ////////////////////////////////////////////////////////////////////////////
     //
@@ -799,7 +804,10 @@ mod tests {
             .expect("pre-warming failed");
 
         let name = NamespaceName::new("test_ns").unwrap();
-        let got = cache.get_schema(&name).expect("should contain a schema");
+        let got = cache
+            .get_schema(&name)
+            .await
+            .expect("should contain a schema");
 
         assert!(got.tables.get("name").is_some());
     }

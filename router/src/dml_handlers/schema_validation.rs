@@ -4,7 +4,7 @@ use async_trait::async_trait;
 use data_types::{DeletePredicate, NamespaceId, NamespaceName, NamespaceSchema, TableId};
 use hashbrown::HashMap;
 use iox_catalog::{
-    interface::{get_schema_by_name, Catalog, Error as CatalogError, SoftDeletedRows},
+    interface::{Catalog, Error as CatalogError},
     validate_or_insert_schema,
 };
 use metric::U64Counter;
@@ -14,7 +14,7 @@ use thiserror::Error;
 use trace::ctx::SpanContext;
 
 use super::DmlHandler;
-use crate::namespace_cache::{metrics::InstrumentedCache, MemoryNamespaceCache, NamespaceCache};
+use crate::namespace_cache::NamespaceCache;
 
 /// Errors emitted during schema validation.
 #[derive(Debug, Error)]
@@ -102,7 +102,7 @@ pub enum SchemaError {
 ///
 /// [#3573]: https://github.com/influxdata/influxdb_iox/issues/3573
 #[derive(Debug)]
-pub struct SchemaValidator<C = Arc<InstrumentedCache<MemoryNamespaceCache>>> {
+pub struct SchemaValidator<C> {
     catalog: Arc<dyn Catalog>,
     cache: C,
 
@@ -113,9 +113,7 @@ pub struct SchemaValidator<C = Arc<InstrumentedCache<MemoryNamespaceCache>>> {
 
 impl<C> SchemaValidator<C> {
     /// Initialise a new [`SchemaValidator`] decorator, loading schemas from
-    /// `catalog`.
-    ///
-    /// Schemas are cached in `ns_cache`.
+    /// `catalog` and the provided `ns_cache`.
     pub fn new(catalog: Arc<dyn Catalog>, ns_cache: C, metrics: &metric::Registry) -> Self {
         let service_limit_hit = metrics.register_metric::<U64Counter>(
             "schema_validation_service_limit_reached",
@@ -144,7 +142,7 @@ impl<C> SchemaValidator<C> {
 #[async_trait]
 impl<C> DmlHandler for SchemaValidator<C>
 where
-    C: NamespaceCache,
+    C: NamespaceCache<ReadError = iox_catalog::interface::Error>, // The handler expects the cache to read from the catalog if necessary.
 {
     type WriteError = SchemaError;
     type DeleteError = SchemaError;
@@ -176,39 +174,10 @@ where
         batches: Self::WriteInput,
         _span_ctx: Option<SpanContext>,
     ) -> Result<Self::WriteOutput, Self::WriteError> {
-        let mut repos = self.catalog.repositories().await;
-
-        // Load the namespace schema from the cache, falling back to pulling it
-        // from the global catalog (if it exists).
-        let schema = self.cache.get_schema(namespace);
-        let schema = match schema {
-            Some(v) => v,
-            None => {
-                // Pull the schema from the global catalog or error if it does
-                // not exist.
-                let schema = get_schema_by_name(
-                    namespace,
-                    repos.deref_mut(),
-                    SoftDeletedRows::ExcludeDeleted,
-                )
-                .await
-                .map_err(|e| {
-                    warn!(
-                        error=%e,
-                        %namespace,
-                        %namespace_id,
-                        "failed to retrieve namespace schema"
-                    );
-                    SchemaError::NamespaceLookup(e)
-                })
-                .map(Arc::new)?;
-
-                self.cache
-                    .put_schema(namespace.clone(), Arc::clone(&schema));
-
-                trace!(%namespace, "schema cache populated");
-                schema
-            }
+        // Try to fetch the namespace schema through the cache.
+        let schema = match self.cache.get_schema(namespace).await {
+            Ok(v) => v,
+            Err(e) => return Err(SchemaError::NamespaceLookup(e)),
         };
 
         validate_schema_limits(&batches, &schema).map_err(|e| {
@@ -248,6 +217,8 @@ where
             }
             SchemaError::ServiceLimit(Box::new(e))
         })?;
+
+        let mut repos = self.catalog.repositories().await;
 
         let maybe_new_schema = validate_or_insert_schema(
             batches.iter().map(|(k, v)| (k.as_str(), v)),
@@ -495,6 +466,7 @@ mod tests {
     use once_cell::sync::Lazy;
 
     use super::*;
+    use crate::namespace_cache::{MemoryNamespaceCache, ReadThroughCache};
 
     static NAMESPACE: Lazy<NamespaceName<'static>> = Lazy::new(|| "bananas".try_into().unwrap());
 
@@ -597,12 +569,12 @@ mod tests {
             // Make two schema validator instances each with their own cache
             let handler1 = SchemaValidator::new(
                 catalog.catalog(),
-                Arc::new(MemoryNamespaceCache::default()),
+                setup_test_cache(&catalog),
                 &catalog.metric_registry,
             );
             let handler2 = SchemaValidator::new(
                 catalog.catalog(),
-                Arc::new(MemoryNamespaceCache::default()),
+                setup_test_cache(&catalog),
                 &catalog.metric_registry,
             );
 
@@ -785,7 +757,14 @@ mod tests {
         (catalog, namespace)
     }
 
-    fn assert_cache<C>(handler: &SchemaValidator<C>, table: &str, col: &str, want: ColumnType)
+    fn setup_test_cache(catalog: &TestCatalog) -> Arc<ReadThroughCache<Arc<MemoryNamespaceCache>>> {
+        Arc::new(ReadThroughCache::new(
+            Arc::new(MemoryNamespaceCache::default()),
+            catalog.catalog(),
+        ))
+    }
+
+    async fn assert_cache<C>(handler: &SchemaValidator<C>, table: &str, col: &str, want: ColumnType)
     where
         C: NamespaceCache,
     {
@@ -793,6 +772,7 @@ mod tests {
         let ns = handler
             .cache
             .get_schema(&NAMESPACE)
+            .await
             .expect("cache should be populated");
         let table = ns.tables.get(table).expect("table should exist in cache");
         assert_eq!(
@@ -813,11 +793,7 @@ mod tests {
         let want_id = namespace.create_table("bananas").await.table.id;
 
         let metrics = Arc::new(metric::Registry::default());
-        let handler = SchemaValidator::new(
-            catalog.catalog(),
-            Arc::new(MemoryNamespaceCache::default()),
-            &metrics,
-        );
+        let handler = SchemaValidator::new(catalog.catalog(), setup_test_cache(&catalog), &metrics);
 
         let writes = lp_to_writes("bananas,tag1=A,tag2=B val=42i 123456");
         let got = handler
@@ -826,10 +802,10 @@ mod tests {
             .expect("request should succeed");
 
         // The cache should be populated.
-        assert_cache(&handler, "bananas", "tag1", ColumnType::Tag);
-        assert_cache(&handler, "bananas", "tag2", ColumnType::Tag);
-        assert_cache(&handler, "bananas", "val", ColumnType::I64);
-        assert_cache(&handler, "bananas", "time", ColumnType::Time);
+        assert_cache(&handler, "bananas", "tag1", ColumnType::Tag).await;
+        assert_cache(&handler, "bananas", "tag2", ColumnType::Tag).await;
+        assert_cache(&handler, "bananas", "val", ColumnType::I64).await;
+        assert_cache(&handler, "bananas", "time", ColumnType::Time).await;
 
         // Validate the table ID mapping.
         let (name, _data) = got.get(&want_id).expect("table not in output");
@@ -840,11 +816,7 @@ mod tests {
     async fn test_write_schema_not_found() {
         let (catalog, _namespace) = test_setup().await;
         let metrics = Arc::new(metric::Registry::default());
-        let handler = SchemaValidator::new(
-            catalog.catalog(),
-            Arc::new(MemoryNamespaceCache::default()),
-            &metrics,
-        );
+        let handler = SchemaValidator::new(catalog.catalog(), setup_test_cache(&catalog), &metrics);
 
         let ns = NamespaceName::try_from("A_DIFFERENT_NAMESPACE").unwrap();
 
@@ -857,18 +829,14 @@ mod tests {
         assert_matches!(err, SchemaError::NamespaceLookup(_));
 
         // The cache should not have retained the schema.
-        assert!(handler.cache.get_schema(&ns).is_none());
+        assert!(handler.cache.get_schema(&ns).await.is_err());
     }
 
     #[tokio::test]
     async fn test_write_validation_failure() {
         let (catalog, _namespace) = test_setup().await;
         let metrics = Arc::new(metric::Registry::default());
-        let handler = SchemaValidator::new(
-            catalog.catalog(),
-            Arc::new(MemoryNamespaceCache::default()),
-            &metrics,
-        );
+        let handler = SchemaValidator::new(catalog.catalog(), setup_test_cache(&catalog), &metrics);
 
         // First write sets the schema
         let writes = lp_to_writes("bananas,tag1=A,tag2=B val=42i 123456"); // val=i64
@@ -890,10 +858,10 @@ mod tests {
         });
 
         // The cache should retain the original schema.
-        assert_cache(&handler, "bananas", "tag1", ColumnType::Tag);
-        assert_cache(&handler, "bananas", "tag2", ColumnType::Tag);
-        assert_cache(&handler, "bananas", "val", ColumnType::I64); // original type
-        assert_cache(&handler, "bananas", "time", ColumnType::Time);
+        assert_cache(&handler, "bananas", "tag1", ColumnType::Tag).await;
+        assert_cache(&handler, "bananas", "tag2", ColumnType::Tag).await;
+        assert_cache(&handler, "bananas", "val", ColumnType::I64).await; // original type
+        assert_cache(&handler, "bananas", "time", ColumnType::Time).await;
 
         assert_eq!(1, handler.schema_conflict.fetch());
     }
@@ -902,11 +870,7 @@ mod tests {
     async fn test_write_table_service_limit() {
         let (catalog, _namespace) = test_setup().await;
         let metrics = Arc::new(metric::Registry::default());
-        let handler = SchemaValidator::new(
-            catalog.catalog(),
-            Arc::new(MemoryNamespaceCache::default()),
-            &metrics,
-        );
+        let handler = SchemaValidator::new(catalog.catalog(), setup_test_cache(&catalog), &metrics);
 
         // First write sets the schema
         let writes = lp_to_writes("bananas,tag1=A,tag2=B val=42i 123456");
@@ -941,11 +905,7 @@ mod tests {
     async fn test_write_column_service_limit() {
         let (catalog, namespace) = test_setup().await;
         let metrics = Arc::new(metric::Registry::default());
-        let handler = SchemaValidator::new(
-            catalog.catalog(),
-            Arc::new(MemoryNamespaceCache::default()),
-            &metrics,
-        );
+        let handler = SchemaValidator::new(catalog.catalog(), setup_test_cache(&catalog), &metrics);
 
         // First write sets the schema
         let writes = lp_to_writes("bananas,tag1=A,tag2=B val=42i 123456");
@@ -957,11 +917,7 @@ mod tests {
 
         // Configure the service limit to be hit next request
         namespace.update_column_limit(1).await;
-        let handler = SchemaValidator::new(
-            catalog.catalog(),
-            Arc::new(MemoryNamespaceCache::default()),
-            &metrics,
-        );
+        let handler = SchemaValidator::new(catalog.catalog(), setup_test_cache(&catalog), &metrics);
 
         // Second write attempts to violate limits, causing an error
         let writes = lp_to_writes("bananas,tag1=A,tag2=B val=42i,val2=42i 123456");
@@ -978,11 +934,7 @@ mod tests {
     async fn test_first_write_many_columns_service_limit() {
         let (catalog, _namespace) = test_setup().await;
         let metrics = Arc::new(metric::Registry::default());
-        let handler = SchemaValidator::new(
-            catalog.catalog(),
-            Arc::new(MemoryNamespaceCache::default()),
-            &metrics,
-        );
+        let handler = SchemaValidator::new(catalog.catalog(), setup_test_cache(&catalog), &metrics);
 
         // Configure the service limit to be hit next request
         catalog
@@ -1012,11 +964,7 @@ mod tests {
 
         let (catalog, _namespace) = test_setup().await;
         let metrics = Arc::new(metric::Registry::default());
-        let handler = SchemaValidator::new(
-            catalog.catalog(),
-            Arc::new(MemoryNamespaceCache::default()),
-            &metrics,
-        );
+        let handler = SchemaValidator::new(catalog.catalog(), setup_test_cache(&catalog), &metrics);
 
         let predicate = DeletePredicate {
             range: TimestampRange::new(1, 2),
@@ -1031,6 +979,6 @@ mod tests {
             .expect("request should succeed");
 
         // Deletes have no effect on the cache.
-        assert!(handler.cache.get_schema(&ns).is_none());
+        assert!(handler.cache.get_schema(&ns).await.is_err());
     }
 }

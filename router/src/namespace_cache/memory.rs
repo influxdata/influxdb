@@ -1,10 +1,19 @@
 use std::sync::Arc;
 
+use async_trait::async_trait;
 use data_types::{NamespaceName, NamespaceSchema};
 use hashbrown::HashMap;
 use parking_lot::RwLock;
+use thiserror::Error;
 
 use super::NamespaceCache;
+
+/// An error type indicating that `namespace` is not present in the cache.
+#[derive(Debug, Error)]
+#[error("namespace {namespace} not found in cache")]
+pub struct CacheMissErr {
+    pub(super) namespace: NamespaceName<'static>,
+}
 
 /// An in-memory cache of [`NamespaceSchema`] backed by a hashmap protected with
 /// a read-write mutex.
@@ -13,9 +22,21 @@ pub struct MemoryNamespaceCache {
     cache: RwLock<HashMap<NamespaceName<'static>, Arc<NamespaceSchema>>>,
 }
 
+#[async_trait]
 impl NamespaceCache for Arc<MemoryNamespaceCache> {
-    fn get_schema(&self, namespace: &NamespaceName<'_>) -> Option<Arc<NamespaceSchema>> {
-        self.cache.read().get(namespace).map(Arc::clone)
+    type ReadError = CacheMissErr;
+
+    async fn get_schema(
+        &self,
+        namespace: &NamespaceName<'static>,
+    ) -> Result<Arc<NamespaceSchema>, Self::ReadError> {
+        self.cache
+            .read()
+            .get(namespace)
+            .ok_or(CacheMissErr {
+                namespace: namespace.clone(),
+            })
+            .map(Arc::clone)
     }
 
     fn put_schema(
@@ -29,16 +50,22 @@ impl NamespaceCache for Arc<MemoryNamespaceCache> {
 
 #[cfg(test)]
 mod tests {
+    use assert_matches::assert_matches;
     use data_types::{NamespaceId, QueryPoolId, TopicId};
 
     use super::*;
 
-    #[test]
-    fn test_put_get() {
+    #[tokio::test]
+    async fn test_put_get() {
         let ns = NamespaceName::new("test").expect("namespace name is valid");
         let cache = Arc::new(MemoryNamespaceCache::default());
 
-        assert!(cache.get_schema(&ns).is_none());
+        assert_matches!(
+            cache.get_schema(&ns).await,
+            Err(CacheMissErr { namespace: got_ns }) => {
+                assert_eq!(got_ns, ns);
+            }
+        );
 
         let schema1 = NamespaceSchema {
             id: NamespaceId::new(42),
@@ -50,7 +77,10 @@ mod tests {
             retention_period_ns: Some(876),
         };
         assert!(cache.put_schema(ns.clone(), schema1.clone()).is_none());
-        assert_eq!(*cache.get_schema(&ns).expect("lookup failure"), schema1);
+        assert_eq!(
+            *cache.get_schema(&ns).await.expect("lookup failure"),
+            schema1
+        );
 
         let schema2 = NamespaceSchema {
             id: NamespaceId::new(2),
@@ -68,6 +98,9 @@ mod tests {
                 .expect("should have existing schema"),
             schema1
         );
-        assert_eq!(*cache.get_schema(&ns).expect("lookup failure"), schema2);
+        assert_eq!(
+            *cache.get_schema(&ns).await.expect("lookup failure"),
+            schema2
+        );
     }
 }

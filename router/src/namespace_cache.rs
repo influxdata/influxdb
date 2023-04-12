@@ -8,14 +8,27 @@ pub use sharded_cache::*;
 
 pub mod metrics;
 
-use std::{fmt::Debug, sync::Arc};
+mod read_through_cache;
+pub use read_through_cache::*;
 
+use std::{error::Error, fmt::Debug, sync::Arc};
+
+use async_trait::async_trait;
 use data_types::{NamespaceName, NamespaceSchema};
 
 /// An abstract cache of [`NamespaceSchema`].
+#[async_trait]
 pub trait NamespaceCache: Debug + Send + Sync {
+    /// The type of error a [`NamespaceCache`] implementation produces
+    /// when unable to read the [`NamespaceSchema`] requested from the
+    /// cache.
+    type ReadError: Error + Send;
+
     /// Return the [`NamespaceSchema`] for `namespace`.
-    fn get_schema(&self, namespace: &NamespaceName<'_>) -> Option<Arc<NamespaceSchema>>;
+    async fn get_schema(
+        &self,
+        namespace: &NamespaceName<'static>,
+    ) -> Result<Arc<NamespaceSchema>, Self::ReadError>;
 
     /// Place `schema` in the cache, unconditionally overwriting any existing
     /// [`NamespaceSchema`] mapped to `namespace`, returning
