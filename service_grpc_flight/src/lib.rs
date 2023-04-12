@@ -37,12 +37,17 @@ use trace::{ctx::SpanContext, span::SpanExt};
 use trace_http::ctx::{RequestLogContext, RequestLogContextExt};
 use tracker::InstrumentedAsyncOwnedSemaphorePermit;
 
-/// The name of the grpc header that contains the target iox namespace
-/// name for FlightSQL requests.
+/// The supported names of the grpc header that contain the target database
+/// for FlightSQL requests.
 ///
 /// See <https://lists.apache.org/thread/fd6r1n7vt91sg2c7fr35wcrsqz6x4645>
 /// for discussion on adding support to FlightSQL itself.
-const IOX_FLIGHT_SQL_NAMESPACE_HEADER: &str = "iox-namespace-name";
+const IOX_FLIGHT_SQL_DATABASE_HEADERS: [&str; 4] = [
+    "database", // preferred
+    "bucket",
+    "bucket-name",
+    "iox-namespace-name", // deprecated
+];
 
 #[allow(clippy::enum_variant_names)]
 #[derive(Debug, Snafu)]
@@ -69,8 +74,23 @@ pub enum Error {
         source: DataFusionError,
     },
 
+    #[snafu(display(
+        "More than one headers are found in request: {:?}. \
+    Please include only one of them",
+        header_names
+    ))]
+    TooManyFlightSQLDatabases { header_names: Vec<String> },
+
     #[snafu(display("no 'iox-namespace-name' header in request"))]
     NoFlightSQLNamespace,
+
+    #[snafu(display(
+        "Invalid 'database' or 'bucket' or 'bucket-name' header in request: {}",
+        source
+    ))]
+    InvalidDatabaseHeader {
+        source: tonic::metadata::errors::ToStrError,
+    },
 
     #[snafu(display("Invalid 'iox-namespace-name' header in request: {}", source))]
     InvalidNamespaceHeader {
@@ -125,7 +145,9 @@ impl From<Error> for tonic::Status {
             | Error::InvalidNamespaceName { .. } => info!(e=%err, msg),
             Error::Query { .. } => info!(e=%err, msg),
             Error::Optimize { .. }
+            | Error::TooManyFlightSQLDatabases { .. }
             | Error::NoFlightSQLNamespace
+            | Error::InvalidDatabaseHeader { .. }
             | Error::InvalidNamespaceHeader { .. }
             | Error::Planning { .. }
             | Error::Deserialization { .. }
@@ -152,7 +174,9 @@ impl Error {
             Self::InvalidTicket { .. }
             | Self::InvalidHandshake { .. }
             | Self::Deserialization { .. }
+            | Self::TooManyFlightSQLDatabases { .. }
             | Self::NoFlightSQLNamespace
+            | Self::InvalidDatabaseHeader { .. }
             | Self::InvalidNamespaceHeader { .. }
             | Self::InvalidNamespaceName { .. } => tonic::Code::InvalidArgument,
             Self::Planning { source, .. } | Self::Query { source, .. } => {
@@ -709,10 +733,41 @@ fn cmd_from_descriptor(flight_descriptor: FlightDescriptor) -> Result<FlightSQLC
     }
 }
 
-/// Figure out the namespace for this request by checking
-/// the "iox-namespace-name=the_name";
+/// Figure out the database for this request by checking
+/// the "database=database_or_bucket_name" (preferred)
+/// or "bucket=database_or_bucket_name"
+/// or "bucket-name=database_or_bucket_name"
+/// or "iox-namespace-name=the_name" (deprecated);
+///
+/// Only one of the keys is accepted.
+///
+/// Note that `iox-namespace-name` is still accepted (rather than error) for
+/// some period of time until we are sure that all other software speaking
+/// FlightSQL is using the new header names.
 fn get_flightsql_namespace(metadata: &MetadataMap) -> Result<String> {
-    if let Some(v) = metadata.get(IOX_FLIGHT_SQL_NAMESPACE_HEADER) {
+    let mut found_header_keys: Vec<String> = vec![];
+    for key in IOX_FLIGHT_SQL_DATABASE_HEADERS {
+        if metadata.contains_key(key) {
+            found_header_keys.push(key.to_string());
+        }
+    }
+    if found_header_keys.len() > 1 {
+        return TooManyFlightSQLDatabasesSnafu {
+            header_names: found_header_keys,
+        }
+        .fail();
+    }
+
+    if let Some(v) = metadata.get(IOX_FLIGHT_SQL_DATABASE_HEADERS[0]) {
+        let v = v.to_str().context(InvalidDatabaseHeaderSnafu)?;
+        return Ok(v.to_string());
+    } else if let Some(v) = metadata.get(IOX_FLIGHT_SQL_DATABASE_HEADERS[1]) {
+        let v = v.to_str().context(InvalidDatabaseHeaderSnafu)?;
+        return Ok(v.to_string());
+    } else if let Some(v) = metadata.get(IOX_FLIGHT_SQL_DATABASE_HEADERS[2]) {
+        let v = v.to_str().context(InvalidDatabaseHeaderSnafu)?;
+        return Ok(v.to_string());
+    } else if let Some(v) = metadata.get(IOX_FLIGHT_SQL_DATABASE_HEADERS[3]) {
         let v = v.to_str().context(InvalidNamespaceHeaderSnafu)?;
         return Ok(v.to_string());
     }

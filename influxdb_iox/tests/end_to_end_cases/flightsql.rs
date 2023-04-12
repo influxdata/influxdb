@@ -1357,8 +1357,153 @@ async fn authz() {
     authz.close().await;
 }
 
+/// Ensure that FligthSQL API supports the following grpc header names,
+/// in addition to the existing `iox-namespace-name`
+///   1. database
+///   2. bucket
+///   3. bucket-name
+#[tokio::test]
+async fn flightsql_client_header_name_database() {
+    test_helpers::maybe_start_logging();
+    let database_url = maybe_skip_integration!();
+
+    let table_name = "the_table";
+
+    // Set up the cluster  ====================================
+    let mut cluster = MiniCluster::create_shared2(database_url).await;
+
+    StepTest::new(
+        &mut cluster,
+        vec![
+            Step::WriteLineProtocol(format!(
+                "{table_name},tag1=A,tag2=B val=42i 123456\n\
+                 {table_name},tag1=A,tag2=C val=43i 123457"
+            )),
+            Step::Custom(Box::new(move |state: &mut StepTestState| {
+                async move {
+                    let mut client = flightsql_client_helper(state.cluster(), "database");
+
+                    let stream = client.get_table_types().await.unwrap();
+                    let batches = collect_stream(stream).await;
+
+                    insta::assert_yaml_snapshot!(
+                        batches_to_sorted_lines(&batches),
+                        @r###"
+                    ---
+                    - +------------+
+                    - "| table_type |"
+                    - +------------+
+                    - "| BASE TABLE |"
+                    - "| VIEW       |"
+                    - +------------+
+                    "###
+                    );
+                }
+                .boxed()
+            })),
+        ],
+    )
+    .run()
+    .await
+}
+
+#[tokio::test]
+async fn flightsql_client_header_name_bucket() {
+    test_helpers::maybe_start_logging();
+    let database_url = maybe_skip_integration!();
+
+    let table_name = "the_table";
+
+    // Set up the cluster  ====================================
+    let mut cluster = MiniCluster::create_shared2(database_url).await;
+
+    StepTest::new(
+        &mut cluster,
+        vec![
+            Step::WriteLineProtocol(format!(
+                "{table_name},tag1=A,tag2=B val=42i 123456\n\
+                 {table_name},tag1=A,tag2=C val=43i 123457"
+            )),
+            Step::Custom(Box::new(move |state: &mut StepTestState| {
+                async move {
+                    let mut client = flightsql_client_helper(state.cluster(), "bucket");
+
+                    let stream = client.get_table_types().await.unwrap();
+                    let batches = collect_stream(stream).await;
+
+                    insta::assert_yaml_snapshot!(
+                        batches_to_sorted_lines(&batches),
+                        @r###"
+                    ---
+                    - +------------+
+                    - "| table_type |"
+                    - +------------+
+                    - "| BASE TABLE |"
+                    - "| VIEW       |"
+                    - +------------+
+                    "###
+                    );
+                }
+                .boxed()
+            })),
+        ],
+    )
+    .run()
+    .await
+}
+
+#[tokio::test]
+async fn flightsql_client_header_name_bucket_name() {
+    test_helpers::maybe_start_logging();
+    let database_url = maybe_skip_integration!();
+
+    let table_name = "the_table";
+
+    // Set up the cluster  ====================================
+    let mut cluster = MiniCluster::create_shared2(database_url).await;
+
+    StepTest::new(
+        &mut cluster,
+        vec![
+            Step::WriteLineProtocol(format!(
+                "{table_name},tag1=A,tag2=B val=42i 123456\n\
+                 {table_name},tag1=A,tag2=C val=43i 123457"
+            )),
+            Step::Custom(Box::new(move |state: &mut StepTestState| {
+                async move {
+                    let mut client = flightsql_client_helper(state.cluster(), "bucket-name");
+
+                    let stream = client.get_table_types().await.unwrap();
+                    let batches = collect_stream(stream).await;
+
+                    insta::assert_yaml_snapshot!(
+                        batches_to_sorted_lines(&batches),
+                        @r###"
+                    ---
+                    - +------------+
+                    - "| table_type |"
+                    - +------------+
+                    - "| BASE TABLE |"
+                    - "| VIEW       |"
+                    - +------------+
+                    "###
+                    );
+                }
+                .boxed()
+            })),
+        ],
+    )
+    .run()
+    .await
+}
+
 /// Return a [`FlightSqlClient`] configured for use
 fn flightsql_client(cluster: &MiniCluster) -> FlightSqlClient {
+    flightsql_client_helper(cluster, "iox-namespace-name")
+}
+
+/// Helper function for fn `flightsql_client` that returns a [`FlightSqlClient`] configured for use
+fn flightsql_client_helper(cluster: &MiniCluster, header_name: &str) -> FlightSqlClient {
     let connection = cluster.querier().querier_grpc_connection();
     let (channel, _headers) = connection.into_grpc_connection().into_parts();
 
@@ -1366,7 +1511,7 @@ fn flightsql_client(cluster: &MiniCluster) -> FlightSqlClient {
 
     // Add namespace to client headers until it is fully supported by FlightSQL
     let namespace = cluster.namespace();
-    client.add_header("iox-namespace-name", namespace).unwrap();
+    client.add_header(header_name, namespace).unwrap();
 
     client
 }
