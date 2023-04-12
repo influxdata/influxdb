@@ -3161,7 +3161,6 @@ dependencies = [
  "tokio-util",
  "trace",
  "workspace-hack",
- "write_summary",
 ]
 
 [[package]]
@@ -4767,7 +4766,6 @@ dependencies = [
  "tonic",
  "trace",
  "workspace-hack",
- "write_summary",
 ]
 
 [[package]]
@@ -6792,21 +6790,6 @@ dependencies = [
  "zstd 0.12.3+zstd.1.5.2",
  "zstd-safe 6.0.5+zstd.1.5.4",
  "zstd-sys",
-]
-
-[[package]]
-name = "write_summary"
-version = "0.1.0"
-dependencies = [
- "base64 0.21.0",
- "data_types",
- "dml",
- "generated_types",
- "iox_time",
- "observability_deps",
- "serde_json",
- "snafu",
- "workspace-hack",
 ]
 
 [[package]]

@@ -40,7 +40,7 @@ where
     U: Iterator<Item = T::WriteInput> + Send + Sync,
 {
     type WriteInput = I;
-    type WriteOutput = Vec<T::WriteOutput>;
+    type WriteOutput = ();
     type WriteError = T::WriteError;
     type DeleteError = T::DeleteError;
 
@@ -54,7 +54,7 @@ where
         input: Self::WriteInput,
         span_ctx: Option<SpanContext>,
     ) -> Result<Self::WriteOutput, Self::WriteError> {
-        let results = input
+        input
             .into_iter()
             .map(|v| {
                 let namespace = namespace.clone();
@@ -68,7 +68,7 @@ where
             .collect::<FuturesUnordered<_>>()
             .try_collect::<Vec<_>>()
             .await?;
-        Ok(results)
+        Ok(())
     }
 
     /// Pass the delete through to the inner handler.

@@ -147,7 +147,6 @@ mod tests {
     use data_types::TimestampRange;
     use metric::Attributes;
     use trace::{span::SpanStatus, RingBufferTraceCollector, TraceCollector};
-    use write_summary::WriteSummary;
 
     use super::*;
     use crate::dml_handlers::{mock::MockDmlHandler, DmlError};
@@ -191,14 +190,10 @@ mod tests {
         );
     }
 
-    fn summary() -> WriteSummary {
-        WriteSummary::default()
-    }
-
     #[tokio::test]
     async fn test_write_ok() {
         let ns = "platanos".try_into().unwrap();
-        let handler = Arc::new(MockDmlHandler::default().with_write_return([Ok(summary())]));
+        let handler = Arc::new(MockDmlHandler::default().with_write_return([Ok(())]));
 
         let metrics = Arc::new(metric::Registry::default());
         let traces: Arc<dyn TraceCollector> = Arc::new(RingBufferTraceCollector::new(5));

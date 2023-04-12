@@ -2300,20 +2300,6 @@ impl TimestampMinMax {
     }
 }
 
-/// Specifies the status of data in the ingestion process.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum ShardWriteStatus {
-    /// Nothing is known about this write (e.g. it refers to a shard for which we have no
-    /// information)
-    ShardUnknown,
-    /// The data has not yet been processed by the ingester, and thus is unreadable
-    Durable,
-    /// The data is readable, but not yet persisted
-    Readable,
-    /// The data is both readable and persisted to parquet
-    Persisted,
-}
-
 #[cfg(test)]
 mod tests {
     use std::borrow::Cow;

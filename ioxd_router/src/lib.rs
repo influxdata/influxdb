@@ -27,7 +27,6 @@ use router::{
     dml_handlers::{
         lazy_connector::LazyConnector, DmlHandler, DmlHandlerChainExt, FanOutAdaptor,
         InstrumentationDecorator, Partitioner, RetentionValidator, RpcWrite, SchemaValidator,
-        WriteSummaryAdapter,
     },
     namespace_cache::{
         metrics::InstrumentedCache, MemoryNamespaceCache, NamespaceCache, ReadThroughCache,
@@ -55,7 +54,6 @@ use std::{
 use thiserror::Error;
 use tokio_util::sync::CancellationToken;
 use trace::TraceCollector;
-use write_summary::WriteSummary;
 
 #[derive(Debug, Error)]
 pub enum Error {
@@ -96,7 +94,7 @@ impl<D, N> std::fmt::Debug for RpcWriteRouterServerType<D, N> {
 #[async_trait]
 impl<D, N> ServerType for RpcWriteRouterServerType<D, N>
 where
-    D: DmlHandler<WriteInput = HashMap<String, MutableBatch>, WriteOutput = WriteSummary> + 'static,
+    D: DmlHandler<WriteInput = HashMap<String, MutableBatch>, WriteOutput = ()> + 'static,
     N: NamespaceResolver + 'static,
 {
     /// Return the [`metric::Registry`] used by the router.
@@ -318,7 +316,7 @@ pub async fn create_router2_server_type(
     ////////////////////////////////////////////////////////////////////////////
 
     // # Parallel writer
-    let parallel_write = WriteSummaryAdapter::new(FanOutAdaptor::new(rpc_writer));
+    let parallel_write = FanOutAdaptor::new(rpc_writer);
 
     // # Handler stack
     //
