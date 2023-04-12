@@ -10,18 +10,18 @@ use observability_deps::tracing::*;
 use super::memory::CacheMissErr;
 use super::NamespaceCache;
 
-#[derive(Debug)]
 /// A [`ReadThroughCache`] decorates a [`NamespaceCache`] with read-through
-/// caching behaviour on calls to [`NamespaceCache.get_schema()`], resolving
-/// cache misses with the provided [`Catalog`].
-/// 
+/// caching behaviour on calls to `self.get_schema()` when contained in an
+/// [`Arc`], resolving cache misses with the provided [`Catalog`].
+///
 /// Filters out all soft-deleted namespaces when resolving.
-/// 
+///
 /// No attempt to serialise cache misses for a particular namespace is made -
 /// `N` concurrent calls for a missing namespace will cause `N` concurrent
 /// catalog queries, and `N` [`NamespaceSchema`] instances replacing each other
 /// in the cache before converging on a single instance (last resolved wins).
 /// Subsequent queries will return the currently cached instance.
+#[derive(Debug)]
 pub struct ReadThroughCache<T> {
     inner_cache: T,
     catalog: Arc<dyn Catalog>,
@@ -160,18 +160,20 @@ mod tests {
             iox_catalog::DEFAULT_MAX_TABLES,
             iox_catalog::DEFAULT_RETENTION_PERIOD,
         );
-        assert!(catalog
-            .repositories()
-            .await
-            .namespaces()
-            .create(
-                &ns,
-                iox_catalog::DEFAULT_RETENTION_PERIOD,
-                schema1.topic_id,
-                schema1.query_pool_id,
-            )
-            .await
-            .is_ok());
+        assert_matches!(
+            catalog
+                .repositories()
+                .await
+                .namespaces()
+                .create(
+                    &ns,
+                    iox_catalog::DEFAULT_RETENTION_PERIOD,
+                    schema1.topic_id,
+                    schema1.query_pool_id,
+                )
+                .await,
+            Ok(_)
+        );
 
         // Query the cache again, should return the above schema after missing the cache.
         assert_matches!(cache.get_schema(&ns).await, Ok(v) => {

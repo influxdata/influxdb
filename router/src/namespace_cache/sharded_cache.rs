@@ -48,9 +48,9 @@ where
 #[cfg(test)]
 mod tests {
 
-    use assert_matches::assert_matches;
     use std::{collections::HashMap, iter};
 
+    use assert_matches::assert_matches;
     use data_types::{NamespaceId, QueryPoolId, TopicId};
     use rand::{distributions::Alphanumeric, thread_rng, Rng};
 
