@@ -208,7 +208,7 @@ pub struct ShardConfig {
 }
 
 /// Partitions source config.
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq)]
 pub enum PartitionsSourceConfig {
     /// For "hot" compaction: use the catalog to determine which partitions have recently received
     /// writes, defined as having a new Parquet file created within the last `threshold`.
