@@ -202,6 +202,26 @@ impl InstrumentedAsyncSemaphore {
     pub fn total_permits(self: &Arc<Self>) -> usize {
         self.permits
     }
+
+    /// return the number of pending permits
+    pub fn permits_pending(self: &Arc<Self>) -> u64 {
+        self.metrics.permits_pending.fetch()
+    }
+
+    /// return the number of acquired permits
+    pub fn permits_acquired(self: &Arc<Self>) -> u64 {
+        self.metrics.permits_acquired.fetch()
+    }
+
+    /// return the number of pending holders
+    pub fn holders_pending(self: &Arc<Self>) -> u64 {
+        self.metrics.holders_pending.fetch()
+    }
+
+    /// return the number of acquired holders
+    pub fn holders_acquired(self: &Arc<Self>) -> u64 {
+        self.metrics.holders_acquired.fetch()
+    }
 }
 
 impl Drop for InstrumentedAsyncSemaphore {
