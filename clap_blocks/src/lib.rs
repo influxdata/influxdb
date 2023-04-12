@@ -24,4 +24,3 @@ pub mod querier;
 pub mod router2;
 pub mod run_config;
 pub mod socket_addr;
-pub mod write_buffer;
