@@ -448,17 +448,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "async-socks5"
-version = "0.5.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "77f634add2445eb2c1f785642a67ca1073fedd71e73dc3ca69435ef9b9bdedc7"
-dependencies = [
- "async-trait",
- "thiserror",
- "tokio",
-]
-
-[[package]]
 name = "async-stream"
 version = "0.3.5"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -908,7 +897,6 @@ dependencies = [
  "trogging",
  "uuid",
  "workspace-hack",
- "write_buffer",
 ]
 
 [[package]]
@@ -1209,15 +1197,6 @@ name = "crc-catalog"
 version = "2.2.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "9cace84e55f07e7301bae1c519df89cdad8cc3cd868413d3fdbdeca9ff3db484"
-
-[[package]]
-name = "crc32c"
-version = "0.6.3"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "3dfea2db42e9927a3845fb268a10a72faed6d416065f77873f05e411457c363e"
-dependencies = [
- "rustc_version",
-]
 
 [[package]]
 name = "crc32fast"
@@ -3175,7 +3154,6 @@ dependencies = [
  "metric",
  "mutable_batch",
  "object_store",
- "observability_deps",
  "router",
  "sharder",
  "thiserror",
@@ -3183,7 +3161,6 @@ dependencies = [
  "tokio-util",
  "trace",
  "workspace-hack",
- "write_buffer",
  "write_summary",
 ]
 
@@ -4788,32 +4765,9 @@ dependencies = [
  "tokio",
  "tokio-stream",
  "tonic",
- "tower",
  "trace",
  "workspace-hack",
- "write_buffer",
  "write_summary",
-]
-
-[[package]]
-name = "rskafka"
-version = "0.3.0"
-source = "git+https://github.com/influxdata/rskafka.git?rev=abb2a28cff5ce39d186e814a0c5012267b9690a4#abb2a28cff5ce39d186e814a0c5012267b9690a4"
-dependencies = [
- "async-socks5",
- "async-trait",
- "bytes",
- "chrono",
- "crc32c",
- "futures",
- "integer-encoding",
- "parking_lot 0.12.1",
- "pin-project-lite",
- "rand",
- "thiserror",
- "tokio",
- "tracing",
- "zstd 0.12.3+zstd.1.5.2",
 ]
 
 [[package]]
@@ -6838,40 +6792,6 @@ dependencies = [
  "zstd 0.12.3+zstd.1.5.2",
  "zstd-safe 6.0.5+zstd.1.5.4",
  "zstd-sys",
-]
-
-[[package]]
-name = "write_buffer"
-version = "0.1.0"
-dependencies = [
- "async-trait",
- "data_types",
- "dml",
- "dotenvy",
- "futures",
- "generated_types",
- "hashbrown 0.13.2",
- "http",
- "httparse",
- "iox_time",
- "metric",
- "mutable_batch",
- "mutable_batch_lp",
- "mutable_batch_pb",
- "observability_deps",
- "parking_lot 0.12.1",
- "pin-project",
- "prost",
- "rskafka",
- "schema",
- "tempfile",
- "test_helpers",
- "tokio",
- "tokio-util",
- "trace",
- "trace_http",
- "uuid",
- "workspace-hack",
 ]
 
 [[package]]

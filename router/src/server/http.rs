@@ -181,7 +181,7 @@ impl From<&DmlError> for StatusCode {
                 StatusCode::INTERNAL_SERVER_ERROR
             }
 
-            DmlError::Internal(_) | DmlError::WriteBuffer(_) => StatusCode::INTERNAL_SERVER_ERROR,
+            DmlError::Internal(_) => StatusCode::INTERNAL_SERVER_ERROR,
             DmlError::Partition(PartitionError::BatchWrite(_)) => StatusCode::INTERNAL_SERVER_ERROR,
             DmlError::Retention(RetentionError::NamespaceLookup(_)) => {
                 StatusCode::INTERNAL_SERVER_ERROR

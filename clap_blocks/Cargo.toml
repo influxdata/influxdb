@@ -26,7 +26,6 @@ trace_exporters = { path = "../trace_exporters" }
 trogging = { path = "../trogging", default-features = false, features = ["clap"] }
 uuid = { version = "1", features = ["v4"] }
 workspace-hack = { version = "0.1", path = "../workspace-hack" }
-write_buffer = { path = "../write_buffer" }
 
 [dev-dependencies]
 test_helpers = { path = "../test_helpers" }

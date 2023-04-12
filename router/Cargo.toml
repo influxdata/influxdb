@@ -10,6 +10,7 @@ async-trait = "0.1"
 authz = { path = "../authz" }
 bytes = "1.4"
 client_util = { path = "../client_util" }
+crossbeam-utils = "0.8.15"
 data_types = { path = "../data_types" }
 dml = { path = "../dml" }
 flate2 = "1.0"
@@ -35,20 +36,17 @@ serde_urlencoded = "0.7"
 server_util = { path = "../server_util" }
 service_grpc_catalog = { path = "../service_grpc_catalog"}
 service_grpc_namespace = { path = "../service_grpc_namespace"}
-service_grpc_schema = { path = "../service_grpc_schema" }
 service_grpc_object_store = { path = "../service_grpc_object_store" }
+service_grpc_schema = { path = "../service_grpc_schema" }
 sharder = { path = "../sharder" }
+smallvec = "1.10.0"
 snafu = "0.7"
 thiserror = "1.0"
 tokio = { version = "1", features = ["rt-multi-thread", "macros", "time"] }
 tonic = "0.8"
 trace = { path = "../trace/" }
 workspace-hack = { version = "0.1", path = "../workspace-hack" }
-write_buffer = { path = "../write_buffer" }
 write_summary = { path = "../write_summary" }
-tower = { version = "0.4.13", features = ["balance"] }
-crossbeam-utils = "0.8.15"
-smallvec = "1.10.0"
 
 [dev-dependencies]
 assert_matches = "1.5"
@@ -59,7 +57,6 @@ once_cell = "1"
 paste = "1.0.12"
 pretty_assertions = "1.3.0"
 rand = "0.8.3"
-schema = { path = "../schema" }
 test_helpers = { version = "0.1.0", path = "../test_helpers", features = ["future_timeout"] }
 tokio = { version = "1", features = ["test-util"] }
 tokio-stream = { version = "0.1.12", default_features = false, features = [] }
@@ -71,8 +68,4 @@ bench = false
 
 [[bench]]
 name = "schema_validator"
-harness = false
-
-[[bench]]
-name = "e2e"
 harness = false
