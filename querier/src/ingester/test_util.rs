@@ -1,13 +1,10 @@
-use crate::cache::namespace::CachedTable;
-
 use super::IngesterConnection;
+use crate::cache::namespace::CachedTable;
 use async_trait::async_trait;
 use data_types::NamespaceId;
-use data_types::ShardIndex;
 use iox_query::util::create_basic_summary;
 use parking_lot::Mutex;
-use schema::Projection;
-use schema::Schema as IOxSchema;
+use schema::{Projection, Schema as IOxSchema};
 use std::{any::Any, sync::Arc};
 use trace::span::Span;
 
@@ -34,7 +31,6 @@ impl MockIngesterConnection {
 impl IngesterConnection for MockIngesterConnection {
     async fn partitions(
         &self,
-        _shard_indexes: Option<Vec<ShardIndex>>,
         _namespace_id: NamespaceId,
         _cached_table: Arc<CachedTable>,
         columns: Vec<String>,

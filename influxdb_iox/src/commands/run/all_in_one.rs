@@ -11,7 +11,7 @@ use clap_blocks::{
     ingester2::Ingester2Config,
     ingester_address::IngesterAddress,
     object_store::{make_object_store, ObjectStoreConfig},
-    querier::{IngesterAddresses, QuerierConfig},
+    querier::QuerierConfig,
     router2::Router2Config,
     run_config::RunConfig,
     socket_addr::SocketAddr,
@@ -425,6 +425,9 @@ impl Config {
             CatalogDsnConfig::new_sqlite(local_catalog_path)
         };
 
+        let ingester_addresses =
+            vec![IngesterAddress::from_str(&ingester_grpc_bind_address.to_string()).unwrap()];
+
         let router_run_config = RunConfig::new(
             logging_config,
             tracing_config,
@@ -458,10 +461,7 @@ impl Config {
         let router_config = Router2Config {
             query_pool_name: QUERY_POOL_NAME.to_string(),
             http_request_limit: 1_000,
-            ingester_addresses: vec![IngesterAddress::from_str(
-                &ingester_grpc_bind_address.to_string(),
-            )
-            .unwrap()],
+            ingester_addresses: ingester_addresses.clone(),
             new_namespace_retention_hours: None, // infinite retention
             namespace_autocreation_enabled: true,
             partition_key_pattern: "%Y-%m-%d".to_string(),
@@ -498,10 +498,8 @@ impl Config {
         };
 
         let querier_config = QuerierConfig {
-            num_query_threads: None,       // will be ignored
-            shard_to_ingesters_file: None, // will be ignored
-            shard_to_ingesters: None,      // will be ignored
-            ingester_addresses: vec![ingester_grpc_bind_address.to_string()], // will be ignored
+            num_query_threads: None, // will be ignored
+            ingester_addresses,
             ram_pool_metadata_bytes: querier_ram_pool_metadata_bytes,
             ram_pool_data_bytes: querier_ram_pool_data_bytes,
             max_concurrent_queries: querier_max_concurrent_queries,
@@ -660,12 +658,7 @@ pub async fn command(config: Config) -> Result<()> {
     )
     .await;
 
-    let ingester_addresses = IngesterAddresses::List(vec![IngesterAddress::from_str(
-        &ingester_run_config.grpc_bind_address.to_string(),
-    )
-    .unwrap()]);
-
-    info!(?ingester_addresses, "starting querier");
+    info!(ingester_addresses = ?querier_config.ingester_addresses, "starting querier");
     let querier = create_querier_server_type(QuerierServerTypeArgs {
         common_state: &common_state,
         metric_registry: Arc::clone(&metrics),
@@ -673,9 +666,7 @@ pub async fn command(config: Config) -> Result<()> {
         object_store,
         exec,
         time_provider,
-        ingester_addresses,
         querier_config,
-        rpc_write: true,
         authz: authz.as_ref().map(Arc::clone),
     })
     .await?;

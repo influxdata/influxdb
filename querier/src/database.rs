@@ -6,13 +6,12 @@ use crate::{
 };
 use async_trait::async_trait;
 use backoff::{Backoff, BackoffConfig};
-use data_types::{Namespace, ShardIndex};
-use iox_catalog::interface::{Catalog, SoftDeletedRows};
+use data_types::Namespace;
+use iox_catalog::interface::SoftDeletedRows;
 use iox_query::exec::Executor;
 use service_common::QueryNamespaceProvider;
-use sharder::JumpHash;
 use snafu::Snafu;
-use std::{collections::BTreeSet, sync::Arc};
+use std::sync::Arc;
 use trace::span::{Span, SpanRecorder};
 use tracker::{
     AsyncSemaphoreMetrics, InstrumentedAsyncOwnedSemaphorePermit, InstrumentedAsyncSemaphore,
@@ -30,8 +29,6 @@ pub enum Error {
     Catalog {
         source: iox_catalog::interface::Error,
     },
-    #[snafu(display("No shards loaded"))]
-    NoShards,
 }
 
 /// Database for the querier.
@@ -68,10 +65,6 @@ pub struct QuerierDatabase {
     /// If the same namespace is requested twice for different queries, it is counted twice.
     query_execution_semaphore: Arc<InstrumentedAsyncSemaphore>,
 
-    /// Sharder to determine which ingesters to query for a particular table and namespace.
-    /// Only relevant when using the write buffer; will be None if using RPC write ingesters.
-    sharder: Option<Arc<JumpHash<Arc<ShardIndex>>>>,
-
     /// Chunk prune metrics.
     prune_metrics: Arc<PruneMetrics>,
 }
@@ -107,7 +100,6 @@ impl QuerierDatabase {
         exec: Arc<Executor>,
         ingester_connection: Option<Arc<dyn IngesterConnection>>,
         max_concurrent_queries: usize,
-        rpc_write: bool,
     ) -> Result<Self, Error> {
         assert!(
             max_concurrent_queries <= Self::MAX_CONCURRENT_QUERIES_MAX,
@@ -121,7 +113,6 @@ impl QuerierDatabase {
         let chunk_adapter = Arc::new(ChunkAdapter::new(
             Arc::clone(&catalog_cache),
             Arc::clone(&metric_registry),
-            rpc_write,
         ));
         let query_log = Arc::new(QueryLog::new(QUERY_LOG_SIZE, catalog_cache.time_provider()));
         let semaphore_metrics = Arc::new(AsyncSemaphoreMetrics::new(
@@ -130,14 +121,6 @@ impl QuerierDatabase {
         ));
         let query_execution_semaphore =
             Arc::new(semaphore_metrics.new_semaphore(max_concurrent_queries));
-
-        let sharder = if rpc_write {
-            None
-        } else {
-            Some(Arc::new(
-                create_sharder(catalog_cache.catalog().as_ref(), backoff_config.clone()).await?,
-            ))
-        };
 
         let prune_metrics = Arc::new(PruneMetrics::new(&metric_registry));
 
@@ -150,7 +133,6 @@ impl QuerierDatabase {
             ingester_connection,
             query_log,
             query_execution_semaphore,
-            sharder,
             prune_metrics,
         })
     }
@@ -179,7 +161,6 @@ impl QuerierDatabase {
             Arc::clone(&self.exec),
             self.ingester_connection.clone(),
             Arc::clone(&self.query_log),
-            self.sharder.clone(),
             Arc::clone(&self.prune_metrics),
         )))
     }
@@ -211,41 +192,11 @@ impl QuerierDatabase {
     }
 }
 
-pub async fn create_sharder(
-    catalog: &dyn Catalog,
-    backoff_config: BackoffConfig,
-) -> Result<JumpHash<Arc<ShardIndex>>, Error> {
-    let shards = Backoff::new(&backoff_config)
-        .retry_all_errors("get shards", || async {
-            catalog.repositories().await.shards().list().await
-        })
-        .await
-        .expect("retry forever");
-
-    // Construct the (ordered) set of shard indexes.
-    //
-    // The sort order must be deterministic in order for all nodes to shard to
-    // the same indexes, therefore we type assert the returned set is of the
-    // ordered variety.
-    let shard_indexes: BTreeSet<_> = shards
-        //             ^ don't change this to an unordered set
-        .into_iter()
-        .map(|shard| shard.shard_index)
-        .collect();
-
-    if shard_indexes.is_empty() {
-        return Err(Error::NoShards);
-    }
-
-    Ok(JumpHash::new(shard_indexes.into_iter().map(Arc::new)))
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
     use crate::create_ingester_connection_for_testing;
     use iox_tests::TestCatalog;
-    use test_helpers::assert_error;
     use tokio::runtime::Handle;
 
     #[tokio::test]
@@ -268,36 +219,9 @@ mod tests {
             catalog.exec(),
             Some(create_ingester_connection_for_testing()),
             QuerierDatabase::MAX_CONCURRENT_QUERIES_MAX.saturating_add(1),
-            true,
         )
         .await
         .unwrap();
-    }
-
-    #[tokio::test]
-    async fn shards_in_catalog_are_required_for_startup() {
-        let catalog = TestCatalog::new();
-
-        let catalog_cache = Arc::new(CatalogCache::new_testing(
-            catalog.catalog(),
-            catalog.time_provider(),
-            catalog.metric_registry(),
-            catalog.object_store(),
-            &Handle::current(),
-        ));
-
-        assert_error!(
-            QuerierDatabase::new(
-                catalog_cache,
-                catalog.metric_registry(),
-                catalog.exec(),
-                Some(create_ingester_connection_for_testing()),
-                QuerierDatabase::MAX_CONCURRENT_QUERIES_MAX,
-                false, // this only applies to the kafka write path
-            )
-            .await,
-            Error::NoShards
-        );
     }
 
     #[tokio::test]
@@ -319,7 +243,6 @@ mod tests {
             catalog.exec(),
             Some(create_ingester_connection_for_testing()),
             QuerierDatabase::MAX_CONCURRENT_QUERIES_MAX,
-            true,
         )
         .await
         .unwrap();
@@ -349,7 +272,6 @@ mod tests {
             catalog.exec(),
             Some(create_ingester_connection_for_testing()),
             QuerierDatabase::MAX_CONCURRENT_QUERIES_MAX,
-            true,
         )
         .await
         .unwrap();

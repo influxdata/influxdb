@@ -4,12 +4,11 @@ use crate::{
     IngesterPartition,
 };
 use arrow::record_batch::RecordBatch;
-use data_types::{ChunkId, SequenceNumber, ShardIndex};
+use data_types::{ChunkId, SequenceNumber};
 use iox_catalog::interface::{get_schema_by_name, SoftDeletedRows};
 use iox_tests::{TestCatalog, TestPartition, TestShard, TestTable};
 use mutable_batch_lp::test_helpers::lp_to_mutable_batch;
 use schema::{sort::SortKey, Projection, Schema};
-use sharder::JumpHash;
 use std::{sync::Arc, time::Duration};
 use tokio::runtime::Handle;
 use uuid::Uuid;
@@ -23,11 +22,7 @@ pub async fn querier_table(catalog: &Arc<TestCatalog>, table: &Arc<TestTable>) -
         catalog.object_store(),
         &Handle::current(),
     ));
-    let chunk_adapter = Arc::new(ChunkAdapter::new(
-        catalog_cache,
-        catalog.metric_registry(),
-        true,
-    ));
+    let chunk_adapter = Arc::new(ChunkAdapter::new(catalog_cache, catalog.metric_registry()));
 
     let mut repos = catalog.catalog.repositories().await;
     let mut catalog_schema = get_schema_by_name(
@@ -48,9 +43,6 @@ pub async fn querier_table(catalog: &Arc<TestCatalog>, table: &Arc<TestTable>) -
         .retention_period_ns
         .map(|retention| Duration::from_nanos(retention as u64));
     QuerierTable::new(QuerierTableArgs {
-        sharder: Some(Arc::new(JumpHash::new(
-            (0..1).map(ShardIndex::new).map(Arc::new),
-        ))),
         namespace_id: table.namespace.namespace.id,
         namespace_name,
         namespace_retention_period,
@@ -74,7 +66,6 @@ pub(crate) struct IngesterPartitionBuilder {
     schema: Schema,
     shard: Arc<TestShard>,
     partition: Arc<TestPartition>,
-    ingester_name: Arc<str>,
     ingester_chunk_id: u128,
 
     partition_sort_key: Option<Arc<SortKey>>,
@@ -93,17 +84,10 @@ impl IngesterPartitionBuilder {
             schema,
             shard: Arc::clone(shard),
             partition: Arc::clone(partition),
-            ingester_name: Arc::from("ingester1"),
             partition_sort_key: None,
             ingester_chunk_id: 1,
             lp: Vec::new(),
         }
-    }
-
-    /// set the partition chunk id to use when creating partitons
-    pub(crate) fn with_ingester_chunk_id(mut self, ingester_chunk_id: u128) -> Self {
-        self.ingester_chunk_id = ingester_chunk_id;
-        self
     }
 
     /// Set the line protocol that will be present in this partition
@@ -132,7 +116,6 @@ impl IngesterPartitionBuilder {
         let data = self.lp.iter().map(|lp| lp_to_record_batch(lp)).collect();
 
         IngesterPartition::new(
-            Arc::clone(&self.ingester_name),
             Some(Uuid::new_v4()),
             self.partition.partition.id,
             self.shard.shard.id,

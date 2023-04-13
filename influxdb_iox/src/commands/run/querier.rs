@@ -29,9 +29,6 @@ pub enum Error {
     #[error("Invalid config: {0}")]
     InvalidConfigCommon(#[from] CommonServerStateError),
 
-    #[error("Invalid config: {0}")]
-    InvalidConfigIngester(#[from] clap_blocks::querier::Error),
-
     #[error("Catalog error: {0}")]
     Catalog(#[from] iox_catalog::interface::Error),
 
@@ -120,7 +117,7 @@ pub async fn command(config: Config) -> Result<(), Error> {
         info!("using the write buffer path");
     }
 
-    let ingester_addresses = config.querier_config.ingester_addresses()?;
+    let ingester_addresses = &config.querier_config.ingester_addresses;
     info!(?ingester_addresses, "using ingester addresses");
 
     let exec = Arc::new(Executor::new(
@@ -135,9 +132,7 @@ pub async fn command(config: Config) -> Result<(), Error> {
         object_store,
         exec,
         time_provider,
-        ingester_addresses,
         querier_config: config.querier_config,
-        rpc_write,
         authz: authz.as_ref().map(Arc::clone),
     })
     .await?;
