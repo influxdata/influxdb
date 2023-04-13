@@ -29,9 +29,9 @@ use arrow_flight::{
     error::{FlightError, Result},
     sql::{
         ActionCreatePreparedStatementRequest, ActionCreatePreparedStatementResult, Any,
-        CommandGetCatalogs, CommandGetDbSchemas, CommandGetExportedKeys, CommandGetImportedKeys,
-        CommandGetPrimaryKeys, CommandGetSqlInfo, CommandGetTableTypes, CommandGetTables,
-        CommandPreparedStatementQuery, CommandStatementQuery, ProstMessageExt,
+        CommandGetCatalogs, CommandGetCrossReference, CommandGetDbSchemas, CommandGetExportedKeys,
+        CommandGetImportedKeys, CommandGetPrimaryKeys, CommandGetSqlInfo, CommandGetTableTypes,
+        CommandGetTables, CommandPreparedStatementQuery, CommandStatementQuery, ProstMessageExt,
     },
     Action, FlightClient, FlightDescriptor, FlightInfo, IpcMessage, Ticket,
 };
@@ -150,6 +150,56 @@ impl FlightSqlClient {
     /// [`CommandGetCatalogs`]: https://github.com/apache/arrow/blob/3a6fc1f9eedd41df2d8ffbcbdfbdab911ff6d82e/format/FlightSql.proto#L1125-L1140
     pub async fn get_catalogs(&mut self) -> Result<FlightRecordBatchStream> {
         let msg = CommandGetCatalogs {};
+        self.do_get_with_cmd(msg.as_any()).await
+    }
+
+    /// List a description of the foreign key columns in the given foreign key table that
+    /// reference the primary key or the columns representing a unique constraint of the
+    /// parent table (could be the same or a different table) on this server using a
+    /// [`CommandGetCrossReference`] message.
+    ///
+    /// # Parameters
+    ///
+    /// Definition from <https://github.com/apache/arrow/blob/f0c8229f5a09fe53186df171d518430243ddf112/format/FlightSql.proto#L1405-L1477>
+    ///
+    /// pk_catalog: The catalog name where the parent table is.
+    /// An empty string retrieves those without a catalog.
+    /// If omitted the catalog name should not be used to narrow the search.
+    ///
+    /// pk_db_schema: The Schema name where the parent table is.
+    /// An empty string retrieves those without a schema.
+    /// If omitted the schema name should not be used to narrow the search.
+    ///
+    /// pk_table: The parent table name. It cannot be null.
+    ///
+    /// fk_catalog: The catalog name where the foreign table is.
+    /// An empty string retrieves those without a catalog.
+    /// If omitted the catalog name should not be used to narrow the search.
+    ///
+    /// fk_db_schema: The schema name where the foreign table is.
+    /// An empty string retrieves those without a schema.
+    /// If omitted the schema name should not be used to narrow the search.
+    ///
+    /// fk_table: The foreign table name. It cannot be null.
+    ///
+    /// This implementation does not support alternate endpoints
+    pub async fn get_cross_reference(
+        &mut self,
+        pk_catalog: Option<impl Into<String> + Send>,
+        pk_db_schema: Option<impl Into<String> + Send>,
+        pk_table: String,
+        fk_catalog: Option<impl Into<String> + Send>,
+        fk_db_schema: Option<impl Into<String> + Send>,
+        fk_table: String,
+    ) -> Result<FlightRecordBatchStream> {
+        let msg = CommandGetCrossReference {
+            pk_catalog: pk_catalog.map(|s| s.into()),
+            pk_db_schema: pk_db_schema.map(|s| s.into()),
+            pk_table,
+            fk_catalog: fk_catalog.map(|s| s.into()),
+            fk_db_schema: fk_db_schema.map(|s| s.into()),
+            fk_table,
+        };
         self.do_get_with_cmd(msg.as_any()).await
     }
 

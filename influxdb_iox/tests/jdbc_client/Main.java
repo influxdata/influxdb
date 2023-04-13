@@ -128,6 +128,11 @@ public class Main {
         print_result_set(md.getCatalogs());
 
         System.out.println("**************");
+        System.out.println("CrossReference");
+        System.out.println("**************");
+        print_result_set(md.getCrossReference(null, null, "system", null, null, "iox"));
+
+        System.out.println("**************");
         System.out.println("Schemas:");
         System.out.println("**************");
         print_result_set(md.getSchemas());

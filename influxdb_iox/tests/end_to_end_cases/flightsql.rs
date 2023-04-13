@@ -340,6 +340,64 @@ async fn flightsql_get_catalogs_matches_information_schema() {
 }
 
 #[tokio::test]
+async fn flightsql_get_cross_reference() {
+    test_helpers::maybe_start_logging();
+    let database_url = maybe_skip_integration!();
+
+    let primary_table_name = "primary_table";
+    let foreign_table_name = "foreign_table";
+
+    // Set up the cluster  ====================================
+    let mut cluster = MiniCluster::create_shared2(database_url).await;
+
+    StepTest::new(
+        &mut cluster,
+        vec![
+            Step::WriteLineProtocol(format!(
+                "{primary_table_name},tag1=A,tag2=B val=42i 123456\n\
+                 {primary_table_name},tag1=A,tag2=C val=43i 123457\n
+                 {foreign_table_name},tag1=B,tag2=D val=42i 123456\n\
+                 {foreign_table_name},tag1=C,tag2=F val=43i 123457"
+            )),
+            Step::Custom(Box::new(move |state: &mut StepTestState| {
+                async move {
+                    let mut client = flightsql_client(state.cluster());
+                    let pk_catalog: Option<String> = None;
+                    let pk_db_schema: Option<String> = None;
+                    let fk_catalog: Option<String> = None;
+                    let fk_db_schema: Option<String> = None;
+
+                    let stream = client
+                        .get_cross_reference(
+                            pk_catalog,
+                            pk_db_schema,
+                            primary_table_name.to_string(),
+                            fk_catalog,
+                            fk_db_schema,
+                            foreign_table_name.to_string(),
+                        )
+                        .await
+                        .unwrap();
+                    let batches = collect_stream(stream).await;
+
+                    insta::assert_yaml_snapshot!(
+                        batches_to_sorted_lines(&batches),
+                        @r###"
+                    ---
+                    - ++
+                    - ++
+                    "###
+                    );
+                }
+                .boxed()
+            })),
+        ],
+    )
+    .run()
+    .await
+}
+
+#[tokio::test]
 async fn flightsql_get_tables() {
     test_helpers::maybe_start_logging();
     let database_url = maybe_skip_integration!();
