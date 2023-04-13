@@ -289,9 +289,6 @@ where
         // complete.
         let latest_schema = match maybe_new_schema {
             Some(v) => {
-                // This call MAY overwrite a more-up-to-date cache entry if
-                // racing with another request for the same namespace, but the
-                // cache will eventually converge in subsequent requests.
                 self.cache.put_schema(namespace.clone(), Arc::clone(&v));
                 trace!(%namespace, "schema cache updated");
                 v

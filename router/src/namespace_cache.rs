@@ -31,8 +31,7 @@ pub trait NamespaceCache: Debug + Send + Sync {
     ) -> Result<Arc<NamespaceSchema>, Self::ReadError>;
 
     /// Place `schema` in the cache, unconditionally overwriting any existing
-    /// [`NamespaceSchema`] mapped to `namespace`, returning
-    /// the previous value, if any
+    /// [`NamespaceSchema`] mapped to `namespace`.
     fn put_schema(
         &self,
         namespace: NamespaceName<'static>,
