@@ -133,6 +133,11 @@ public class Main {
         print_result_set(md.getSchemas());
 
         System.out.println("**************");
+        System.out.println("ExportedKeys");
+        System.out.println("**************");
+        print_result_set(md.getExportedKeys(null, null, "system"));
+
+        System.out.println("**************");
         System.out.println("PrimaryKeys:");
         System.out.println("**************");
         print_result_set(md.getPrimaryKeys(null, null, "system"));
