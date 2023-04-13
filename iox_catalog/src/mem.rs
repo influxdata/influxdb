@@ -692,21 +692,23 @@ impl ShardRepo for MemTxn {
     async fn create_or_get(
         &mut self,
         topic: &TopicMetadata,
-        shard_index: ShardIndex,
+        _shard_index: ShardIndex,
     ) -> Result<Shard> {
         let stage = self.stage();
 
+        // Temporary: only ever create the transition shard, no matter what is asked. Shards are
+        // going away completely soon.
         let shard = match stage
             .shards
             .iter()
-            .find(|s| s.topic_id == topic.id && s.shard_index == shard_index)
+            .find(|s| s.topic_id == topic.id && s.shard_index == TRANSITION_SHARD_INDEX)
         {
             Some(t) => t,
             None => {
                 let shard = Shard {
-                    id: ShardId::new(stage.shards.len() as i64 + 1),
+                    id: TRANSITION_SHARD_ID,
                     topic_id: topic.id,
-                    shard_index,
+                    shard_index: TRANSITION_SHARD_INDEX,
                     min_unpersisted_sequence_number: SequenceNumber::new(0),
                 };
                 stage.shards.push(shard);

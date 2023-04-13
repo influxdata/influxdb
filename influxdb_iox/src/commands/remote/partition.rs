@@ -6,7 +6,7 @@ use clap_blocks::{catalog_dsn::CatalogDsnConfig, object_store::ObjectStoreConfig
 use data_types::{
     ColumnId, ColumnSet, ColumnType, NamespaceId, NamespaceSchema as CatalogNamespaceSchema,
     ParquetFile as CatalogParquetFile, ParquetFileParams, PartitionId, SequenceNumber, ShardId,
-    ShardIndex, TableId, Timestamp,
+    TableId, Timestamp, TRANSITION_SHARD_INDEX,
 };
 use futures::future::join_all;
 use influxdb_iox_client::{
@@ -228,7 +228,6 @@ pub async fn command(connection: Connection, config: Config) -> Result<(), Error
 }
 
 const TOPIC_NAME: &str = "iox-shared";
-const SHARD_INDEX: ShardIndex = ShardIndex::new(0);
 const QUERY_POOL: &str = "iox-shared";
 
 // loads the protobuf namespace schema returned from a remote IOx server into the passed in
@@ -244,7 +243,10 @@ async fn load_schema(
     let topic = repos.topics().create_or_get(TOPIC_NAME).await?;
     let query_pool = repos.query_pools().create_or_get(QUERY_POOL).await?;
     // ensure there's a shard for this partition so it can be used later
-    let _shard = repos.shards().create_or_get(&topic, SHARD_INDEX).await?;
+    let _shard = repos
+        .shards()
+        .create_or_get(&topic, TRANSITION_SHARD_INDEX)
+        .await?;
 
     let namespace = match repos
         .namespaces()
@@ -312,7 +314,7 @@ async fn load_partition(
         .expect("topic should have been inserted earlier");
     let shard = repos
         .shards()
-        .get_by_topic_id_and_shard_index(topic.id, SHARD_INDEX)
+        .get_by_topic_id_and_shard_index(topic.id, TRANSITION_SHARD_INDEX)
         .await?
         .expect("shard should have been inserted earlier");
     let table = schema
@@ -527,7 +529,7 @@ mod tests {
             let query_pool = repos.query_pools().create_or_get(QUERY_POOL).await.unwrap();
             shard = repos
                 .shards()
-                .create_or_get(&topic, SHARD_INDEX)
+                .create_or_get(&topic, TRANSITION_SHARD_INDEX)
                 .await
                 .unwrap();
             namespace = repos
