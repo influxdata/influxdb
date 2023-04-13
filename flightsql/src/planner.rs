@@ -11,8 +11,9 @@ use arrow::{
 use arrow_flight::{
     sql::{
         ActionCreatePreparedStatementRequest, ActionCreatePreparedStatementResult, Any,
-        CommandGetCatalogs, CommandGetDbSchemas, CommandGetExportedKeys, CommandGetPrimaryKeys,
-        CommandGetSqlInfo, CommandGetTableTypes, CommandGetTables, CommandStatementQuery,
+        CommandGetCatalogs, CommandGetDbSchemas, CommandGetExportedKeys, CommandGetImportedKeys,
+        CommandGetPrimaryKeys, CommandGetSqlInfo, CommandGetTableTypes, CommandGetTables,
+        CommandStatementQuery,
     },
     IpcMessage, SchemaAsIpc,
 };
@@ -69,6 +70,9 @@ impl FlightSQLPlanner {
             }
             FlightSQLCommand::CommandGetExportedKeys(CommandGetExportedKeys { .. }) => {
                 encode_schema(&GET_EXPORTED_KEYS_SCHEMA)
+            }
+            FlightSQLCommand::CommandGetImportedKeys(CommandGetImportedKeys { .. }) => {
+                encode_schema(&GET_IMPORTED_KEYS_SCHEMA)
             }
             FlightSQLCommand::CommandGetPrimaryKeys(CommandGetPrimaryKeys { .. }) => {
                 encode_schema(&GET_PRIMARY_KEYS_SCHEMA)
@@ -142,6 +146,20 @@ impl FlightSQLPlanner {
                     "Planning GetExportedKeys query"
                 );
                 let plan = plan_get_exported_keys(ctx, catalog, db_schema, table).await?;
+                Ok(ctx.create_physical_plan(&plan).await?)
+            }
+            FlightSQLCommand::CommandGetImportedKeys(CommandGetImportedKeys {
+                catalog,
+                db_schema,
+                table,
+            }) => {
+                debug!(
+                    ?catalog,
+                    ?db_schema,
+                    ?table,
+                    "Planning CommandGetImportedKeys query"
+                );
+                let plan = plan_get_imported_keys(ctx, catalog, db_schema, table).await?;
                 Ok(ctx.create_physical_plan(&plan).await?)
             }
             FlightSQLCommand::CommandGetPrimaryKeys(CommandGetPrimaryKeys {
@@ -308,6 +326,16 @@ async fn plan_get_exported_keys(
     Ok(ctx.batch_to_logical_plan(batch)?)
 }
 
+async fn plan_get_imported_keys(
+    ctx: &IOxSessionContext,
+    _catalog: Option<String>,
+    _db_schema: Option<String>,
+    _table: String,
+) -> Result<LogicalPlan> {
+    let batch = RecordBatch::new_empty(Arc::clone(&GET_IMPORTED_KEYS_SCHEMA));
+    Ok(ctx.batch_to_logical_plan(batch)?)
+}
+
 async fn plan_get_primary_keys(
     ctx: &IOxSessionContext,
     _catalog: Option<String>,
@@ -373,10 +401,24 @@ static GET_EXPORTED_KEYS_SCHEMA: Lazy<SchemaRef> = Lazy::new(|| {
         Field::new("key_sequence", DataType::Int32, false),
         Field::new("fk_key_name", DataType::Utf8, false),
         Field::new("pk_key_name", DataType::Utf8, false),
-        // According to the definition in https://github.com/apache/arrow/blob/0434ab65075ecd1d2ab9245bcd7ec6038934ed29/format/FlightSql.proto#L1327-L1328
-        // update_rule and delete_rule are in type uint1
-        // However, Rust DataType does not have this type,
-        // the closet is DataType::UInt8
+        Field::new("update_rule", DataType::UInt8, false),
+        Field::new("delete_rule", DataType::UInt8, false),
+    ]))
+});
+
+static GET_IMPORTED_KEYS_SCHEMA: Lazy<SchemaRef> = Lazy::new(|| {
+    Arc::new(Schema::new(vec![
+        Field::new("pk_catalog_name", DataType::Utf8, false),
+        Field::new("pk_db_schema_name", DataType::Utf8, false),
+        Field::new("pk_table_name", DataType::Utf8, false),
+        Field::new("pk_column_name", DataType::Utf8, false),
+        Field::new("fk_catalog_name", DataType::Utf8, false),
+        Field::new("fk_db_schema_name", DataType::Utf8, false),
+        Field::new("fk_table_name", DataType::Utf8, false),
+        Field::new("fk_column_name", DataType::Utf8, false),
+        Field::new("key_sequence", DataType::Int32, false),
+        Field::new("fk_key_name", DataType::Utf8, false),
+        Field::new("pk_key_name", DataType::Utf8, false),
         Field::new("update_rule", DataType::UInt8, false),
         Field::new("delete_rule", DataType::UInt8, false),
     ]))

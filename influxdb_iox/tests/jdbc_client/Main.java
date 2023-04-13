@@ -137,6 +137,12 @@ public class Main {
         System.out.println("**************");
         print_result_set(md.getExportedKeys(null, null, "system"));
 
+
+        System.out.println("**************");
+        System.out.println("ImportedKeys");
+        System.out.println("**************");
+        print_result_set(md.getImportedKeys(null, null, "system"));
+
         System.out.println("**************");
         System.out.println("PrimaryKeys:");
         System.out.println("**************");
