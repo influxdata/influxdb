@@ -36,27 +36,23 @@ RUN \
     du -cshx /usr/local/rustup /usr/local/cargo/registry /usr/local/cargo/git /influxdb_iox/target
 
 
-
 FROM debian:bullseye-slim
 
 RUN apt update \
     && apt install --yes ca-certificates gettext-base libssl1.1 --no-install-recommends \
-    && rm -rf /var/lib/{apt,dpkg,cache,log}
-
-RUN groupadd --gid 1500 iox \
+    && rm -rf /var/lib/{apt,dpkg,cache,log} \
+    && groupadd --gid 1500 iox \
     && useradd --uid 1500 --gid iox --shell /bin/bash --create-home iox
 
 USER iox
 
 RUN mkdir ~/.influxdb_iox
-RUN ls -la ~/.influxdb_iox
 
 ARG PACKAGE=influxdb_iox
 ENV PACKAGE=$PACKAGE
 
 COPY --from=build "/root/$PACKAGE" "/usr/bin/$PACKAGE"
 COPY docker/entrypoint.sh /usr/bin/entrypoint.sh
-
 
 EXPOSE 8080 8082
 
