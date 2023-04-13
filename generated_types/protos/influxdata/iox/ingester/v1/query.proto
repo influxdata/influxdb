@@ -71,20 +71,14 @@ message IngesterQueryResponseMetadata {
   reserved 6;
 
   // Partition id for this batch.
-  //
-  // This field is currently NOT used by the ingester but will be soon.
   int64 partition_id = 7;
 
   // Optional partition status.
   //
   // If this is given, then no schema and no batch will be part of this FlightData object.
-  //
-  // This field is currently NOT used by the ingester but will be soon.
   PartitionStatus status = 8;
 
   // UUID of this ingester instance.
-  //
-  // This field is currently NOT used by the ingester but will be soon.
   string ingester_uuid = 9;
 
   // Number of Parquet files that have been persisted to object storage for this partition.
