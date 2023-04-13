@@ -498,7 +498,7 @@ where
             .map(|v| v.to_str().map_err(Error::NonUtf8ContentHeader))
             .transpose()?;
         let ungzip = match encoding {
-            None => false,
+            None | Some("identity") => false,
             Some("gzip") => true,
             Some(v) => return Err(Error::InvalidContentEncoding(v.to_string())),
         };
@@ -620,11 +620,21 @@ mod tests {
             want_result = $want_result:pat,                 // Expected handler return value (as pattern)
             want_dml_calls = $($want_dml_calls:tt )+        // assert_matches slice pattern for expected DML calls
         ) => {
-            // Generate the two test cases by feed the same inputs, but varying
+            // Generate the three test cases by feed the same inputs, but varying
             // the encoding.
             test_http_handler!(
                 $name,
                 encoding=plain,
+                uri = $uri,
+                body = $body,
+                dml_write_handler = $dml_write_handler,
+                dml_delete_handler = $dml_delete_handler,
+                want_result = $want_result,
+                want_dml_calls = $($want_dml_calls)+
+            );
+            test_http_handler!(
+                $name,
+                encoding=identity,
                 uri = $uri,
                 body = $body,
                 dml_write_handler = $dml_write_handler,
@@ -715,6 +725,9 @@ mod tests {
         (encoding=plain, $body:ident) => {
             $body
         };
+        (encoding=identity, $body:ident) => {
+            $body
+        };
         (encoding=gzip, $body:ident) => {{
             // Apply gzip compression to the body
             let mut e = GzEncoder::new(Vec::new(), Compression::default());
@@ -722,6 +735,12 @@ mod tests {
             e.finish().expect("failed to compress test body")
         }};
         (encoding_header=plain, $request:ident) => {};
+        (encoding_header=identity, $request:ident) => {{
+            // Set the identity content encoding
+            $request
+                .headers_mut()
+                .insert(CONTENT_ENCODING, HeaderValue::from_static("identity"));
+        }};
         (encoding_header=gzip, $request:ident) => {{
             // Set the gzip content encoding
             $request
