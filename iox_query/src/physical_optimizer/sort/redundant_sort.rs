@@ -77,8 +77,7 @@ mod tests {
             None,
             None,
         ));
-        let plan =
-            Arc::new(SortExec::try_new(sort_expr(schema.as_ref()), input, Some(10)).unwrap());
+        let plan = Arc::new(SortExec::new(sort_expr(schema.as_ref()), input).with_fetch(Some(10)));
         let opt = RedundantSort::default();
         insta::assert_yaml_snapshot!(
             OptimizationTest::new(plan, opt),
@@ -114,7 +113,7 @@ mod tests {
             None,
             None,
         ));
-        let plan = Arc::new(SortExec::try_new(sort_expr, input, Some(10)).unwrap());
+        let plan = Arc::new(SortExec::new(sort_expr, input).with_fetch(Some(10)));
         let opt = RedundantSort::default();
         insta::assert_yaml_snapshot!(
             OptimizationTest::new(plan, opt),

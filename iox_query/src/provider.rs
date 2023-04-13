@@ -312,7 +312,7 @@ impl TableProvider for ChunkTableProvider {
         // Sort after filter to reduce potential work.
         let plan = if let Some(output_sort_key) = self.output_sort_key.as_ref() {
             let sort_exprs = arrow_sort_key_exprs(output_sort_key, &self.arrow_schema());
-            Arc::new(SortExec::try_new(sort_exprs, plan, None)?)
+            Arc::new(SortExec::new(sort_exprs, plan))
         } else {
             plan
         };

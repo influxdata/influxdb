@@ -197,12 +197,8 @@ mod tests {
         };
         let inner = ParquetExec::new(base_config, None, None);
         let plan = Arc::new(
-            SortExec::try_new(
-                ordering(["col2", "col1"], &schema),
-                Arc::new(inner),
-                Some(42),
-            )
-            .unwrap(),
+            SortExec::new(ordering(["col2", "col1"], &schema), Arc::new(inner))
+                .with_fetch(Some(42)),
         );
         let opt = ParquetSortness::default();
         insta::assert_yaml_snapshot!(
@@ -271,12 +267,11 @@ mod tests {
             infinite_source: false,
         };
         let inner = ParquetExec::new(base_config, None, None);
-        let plan = Arc::new(SortExec::new_with_partitioning(
-            ordering(["col2", "col1"], &schema),
-            Arc::new(inner),
-            true,
-            Some(42),
-        ));
+        let plan = Arc::new(
+            SortExec::new(ordering(["col2", "col1"], &schema), Arc::new(inner))
+                .with_preserve_partitioning(true)
+                .with_fetch(Some(42)),
+        );
 
         assert_unknown_partitioning(plan.output_partitioning(), 2);
 
@@ -315,12 +310,8 @@ mod tests {
         };
         let inner = ParquetExec::new(base_config, None, None);
         let plan = Arc::new(
-            SortExec::try_new(
-                ordering(["col2", "col1"], &schema),
-                Arc::new(inner),
-                Some(42),
-            )
-            .unwrap(),
+            SortExec::new(ordering(["col2", "col1"], &schema), Arc::new(inner))
+                .with_fetch(Some(42)),
         );
         let opt = ParquetSortness::default();
         insta::assert_yaml_snapshot!(
@@ -354,12 +345,8 @@ mod tests {
         };
         let inner = ParquetExec::new(base_config, None, None);
         let plan = Arc::new(
-            SortExec::try_new(
-                ordering(["col2", "col1"], &schema),
-                Arc::new(inner),
-                Some(42),
-            )
-            .unwrap(),
+            SortExec::new(ordering(["col2", "col1"], &schema), Arc::new(inner))
+                .with_fetch(Some(42)),
         );
         let opt = ParquetSortness::default();
         insta::assert_yaml_snapshot!(
@@ -393,12 +380,8 @@ mod tests {
         };
         let inner = ParquetExec::new(base_config, None, None);
         let plan = Arc::new(
-            SortExec::try_new(
-                ordering(["col2", "col1"], &schema),
-                Arc::new(inner),
-                Some(42),
-            )
-            .unwrap(),
+            SortExec::new(ordering(["col2", "col1"], &schema), Arc::new(inner))
+                .with_fetch(Some(42)),
         );
         let opt = ParquetSortness::default();
         insta::assert_yaml_snapshot!(
@@ -432,12 +415,8 @@ mod tests {
         };
         let inner = ParquetExec::new(base_config, None, None);
         let plan = Arc::new(
-            SortExec::try_new(
-                ordering(["col2", "col1"], &schema),
-                Arc::new(inner),
-                Some(42),
-            )
-            .unwrap(),
+            SortExec::new(ordering(["col2", "col1"], &schema), Arc::new(inner))
+                .with_fetch(Some(42)),
         );
         let opt = ParquetSortness::default();
         let mut config = ConfigOptions::default();
@@ -465,12 +444,8 @@ mod tests {
         let schema = schema();
         let inner = EmptyExec::new(true, Arc::clone(&schema));
         let plan = Arc::new(
-            SortExec::try_new(
-                ordering(["col2", "col1"], &schema),
-                Arc::new(inner),
-                Some(42),
-            )
-            .unwrap(),
+            SortExec::new(ordering(["col2", "col1"], &schema), Arc::new(inner))
+                .with_fetch(Some(42)),
         );
         let opt = ParquetSortness::default();
         insta::assert_yaml_snapshot!(
@@ -532,12 +507,10 @@ mod tests {
             infinite_source: false,
         };
         let plan = Arc::new(ParquetExec::new(base_config, None, None));
-        let plan = Arc::new(
-            SortExec::try_new(ordering(["col2", "col1"], &schema), plan, Some(42)).unwrap(),
-        );
-        let plan = Arc::new(
-            SortExec::try_new(ordering(["col1", "col2"], &schema), plan, Some(42)).unwrap(),
-        );
+        let plan =
+            Arc::new(SortExec::new(ordering(["col2", "col1"], &schema), plan).with_fetch(Some(42)));
+        let plan =
+            Arc::new(SortExec::new(ordering(["col1", "col2"], &schema), plan).with_fetch(Some(42)));
         let opt = ParquetSortness::default();
         insta::assert_yaml_snapshot!(
             OptimizationTest::new(plan, opt),
