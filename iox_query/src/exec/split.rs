@@ -73,9 +73,7 @@ use datafusion::{
     scalar::ScalarValue,
 };
 
-use datafusion_util::{
-    sort_exprs::requirements_from_sort_exprs, watch::WatchedTask, AdapterStream,
-};
+use datafusion_util::{watch::WatchedTask, AdapterStream};
 use futures::StreamExt;
 use observability_deps::tracing::*;
 use parking_lot::Mutex;
@@ -215,7 +213,7 @@ impl ExecutionPlan for StreamSplitExec {
         let requirement = self
             .input
             .output_ordering()
-            .map(requirements_from_sort_exprs);
+            .map(PhysicalSortRequirement::from_sort_exprs);
 
         vec![requirement]
     }

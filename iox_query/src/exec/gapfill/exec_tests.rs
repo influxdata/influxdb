@@ -1175,14 +1175,16 @@ fn phys_fill_strategies(
 
 fn get_params_ms_with_fill_strategy(
     batch: &TestRecords,
-    stride: i64,
+    stride_ms: i64,
     start: Option<i64>,
     end: i64,
     fill_strategy: FillStrategy,
 ) -> GapFillExecParams {
+    // stride is in ms
+    let stride = ScalarValue::new_interval_mdn(0, 0, stride_ms * 1_000_000);
+
     GapFillExecParams {
-        // interval day time is milliseconds in the low 32-bit word
-        stride: phys_lit(ScalarValue::IntervalDayTime(Some(stride))), // milliseconds
+        stride: phys_lit(stride),
         time_column: Column::new("t", batch.group_cols.len()),
         origin: phys_lit(ScalarValue::TimestampNanosecond(Some(0), None)),
         // timestamps are nanos, so scale them accordingly

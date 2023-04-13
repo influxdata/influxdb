@@ -4,7 +4,7 @@ use datafusion::{
     common::tree_node::{Transformed, TreeNode},
     config::ConfigOptions,
     error::Result,
-    physical_expr::PhysicalSortExpr,
+    physical_expr::{PhysicalSortExpr, PhysicalSortRequirement},
     physical_optimizer::PhysicalOptimizerRule,
     physical_plan::{
         file_format::{FileScanConfig, ParquetExec},
@@ -12,7 +12,6 @@ use datafusion::{
         ExecutionPlan,
     },
 };
-use datafusion_util::sort_exprs::requirements_to_sort_exprs;
 use observability_deps::tracing::warn;
 
 use crate::config::IoxConfigExt;
@@ -157,7 +156,7 @@ fn detect_children_with_desired_ordering(
                 required_input_ordering
                     .into_iter()
                     .map(|requirement| requirement.expect("just checked"))
-                    .map(requirements_to_sort_exprs),
+                    .map(PhysicalSortRequirement::to_sort_exprs),
             )
             .collect(),
     )

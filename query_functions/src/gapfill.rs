@@ -43,7 +43,7 @@ pub(crate) static DATE_BIN_GAPFILL: Lazy<Arc<ScalarUDF>> = Lazy::new(|| {
     Arc::new(create_udf(
         DATE_BIN_GAPFILL_UDF_NAME,
         vec![
-            DataType::Interval(IntervalUnit::DayTime),       // stride
+            DataType::Interval(IntervalUnit::MonthDayNano), // stride
             DataType::Timestamp(TimeUnit::Nanosecond, None), // source
             DataType::Timestamp(TimeUnit::Nanosecond, None), // origin
         ],
@@ -113,6 +113,7 @@ fn unimplemented_scalar_impl(name: &'static str) -> ScalarFunctionImplementation
 mod test {
     use arrow::array::{ArrayRef, Float64Array, TimestampNanosecondArray};
     use arrow::record_batch::RecordBatch;
+    use datafusion::common::assert_contains;
     use datafusion::error::Result;
     use datafusion::prelude::{col, lit_timestamp_nano, Expr};
     use datafusion::scalar::ScalarValue;
@@ -127,7 +128,7 @@ mod test {
     }
 
     fn lit_interval_milliseconds(v: i64) -> Expr {
-        Expr::Literal(ScalarValue::IntervalDayTime(Some(v)))
+        Expr::Literal(ScalarValue::new_interval_mdn(0, 0, v * 1_000_000))
     }
 
     #[tokio::test]
@@ -142,10 +143,7 @@ mod test {
         )])?;
         let res = df.collect().await;
         let expected = "date_bin_gapfill is not yet implemented";
-        assert!(res
-            .expect_err("should be an error")
-            .to_string()
-            .contains(expected));
+        assert_contains!(res.expect_err("should be an error").to_string(), expected);
         Ok(())
     }
 
@@ -169,10 +167,7 @@ mod test {
             .unwrap();
         let res = df.collect().await;
         let expected = "locf is not yet implemented";
-        assert!(res
-            .expect_err("should be an error")
-            .to_string()
-            .contains(expected));
+        assert_contains!(res.expect_err("should be an error").to_string(), expected);
     }
 
     fn interpolate(arg: Expr) -> Expr {
