@@ -8,7 +8,7 @@ use iox_catalog::interface::{get_schema_by_name, Catalog, SoftDeletedRows};
 use observability_deps::tracing::*;
 
 use super::memory::CacheMissErr;
-use super::NamespaceCache;
+use super::{NamespaceCache, NamespaceStats};
 
 /// A [`ReadThroughCache`] decorates a [`NamespaceCache`] with read-through
 /// caching behaviour on calls to `self.get_schema()` when contained in an
@@ -90,7 +90,7 @@ where
         &self,
         namespace: NamespaceName<'static>,
         schema: impl Into<Arc<NamespaceSchema>>,
-    ) -> Option<Arc<NamespaceSchema>> {
+    ) -> (Option<Arc<NamespaceSchema>>, NamespaceStats) {
         self.inner_cache.put_schema(namespace, schema)
     }
 }
@@ -126,7 +126,7 @@ mod tests {
             iox_catalog::DEFAULT_MAX_TABLES,
             iox_catalog::DEFAULT_RETENTION_PERIOD,
         );
-        assert_matches!(cache.put_schema(ns.clone(), schema1.clone()), None);
+        assert_matches!(cache.put_schema(ns.clone(), schema1.clone()), (None, _));
 
         // Ensure it is present
         assert_eq!(

@@ -36,5 +36,26 @@ pub trait NamespaceCache: Debug + Send + Sync {
         &self,
         namespace: NamespaceName<'static>,
         schema: impl Into<Arc<NamespaceSchema>>,
-    ) -> Option<Arc<NamespaceSchema>>;
+    ) -> (Option<Arc<NamespaceSchema>>, NamespaceStats);
+}
+
+#[derive(Debug, PartialEq, Eq)]
+/// An encapsulation of statistics associated with a namespace schema.
+pub struct NamespaceStats {
+    /// Number of tables within the namespace
+    pub table_count: u64,
+    /// Total number of columns across all tables within the namespace
+    pub column_count: u64,
+}
+
+impl NamespaceStats {
+    /// Derives a set of [`NamespaceStats`] from the given schema.
+    pub fn new(ns: &NamespaceSchema) -> Self {
+        let table_count = ns.tables.len() as _;
+        let column_count = ns.tables.values().fold(0, |acc, t| acc + t.columns.len()) as _;
+        Self {
+            table_count,
+            column_count,
+        }
+    }
 }

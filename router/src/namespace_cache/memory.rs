@@ -6,7 +6,7 @@ use hashbrown::HashMap;
 use parking_lot::RwLock;
 use thiserror::Error;
 
-use super::NamespaceCache;
+use super::{NamespaceCache, NamespaceStats};
 
 /// An error type indicating that `namespace` is not present in the cache.
 #[derive(Debug, Error)]
@@ -43,33 +43,45 @@ impl NamespaceCache for Arc<MemoryNamespaceCache> {
         &self,
         namespace: NamespaceName<'static>,
         schema: impl Into<Arc<NamespaceSchema>>,
-    ) -> Option<Arc<NamespaceSchema>> {
+    ) -> (Option<Arc<NamespaceSchema>>, NamespaceStats) {
         let mut guard = self.cache.write();
         let new_ns = schema.into();
+        let new_stats = NamespaceStats::new(&new_ns);
+
         match guard.get(&namespace) {
             Some(old_ns) => {
                 // If the previous tenant has a different ID then take the new
                 // schema. The old may have been replaced.
                 if old_ns.id != new_ns.id {
-                    return guard.insert(namespace, new_ns);
+                    return (guard.insert(namespace, new_ns), new_stats);
                 }
 
                 let mut new_ns = (*new_ns).clone();
+                // The column count can be computed as part of the merge process
+                // here to save on additional iteration.
+                let mut new_column_count: u64 = 0;
                 for (table_name, new_table) in &mut new_ns.tables {
+                    new_column_count += new_table.columns.len() as u64;
                     let old_columns = match old_ns.tables.get(table_name) {
                         Some(v) => &v.columns,
                         None => continue,
                     };
+
                     for (column_name, column) in old_columns {
                         if !new_table.columns.contains_key(column_name) {
+                            new_column_count += 1;
                             new_table.columns.insert(column_name.clone(), *column);
                         }
                     }
                 }
 
-                guard.insert(namespace, Arc::new(new_ns))
+                let new_stats = NamespaceStats {
+                    table_count: new_ns.tables.len() as _,
+                    column_count: new_column_count,
+                };
+                (guard.insert(namespace, Arc::new(new_ns)), new_stats)
             }
-            None => guard.insert(namespace, new_ns),
+            None => (guard.insert(namespace, new_ns), new_stats),
         }
     }
 }
@@ -106,7 +118,7 @@ mod tests {
             max_tables: 24,
             retention_period_ns: Some(876),
         };
-        assert!(cache.put_schema(ns.clone(), schema1.clone()).is_none());
+        assert_matches!(cache.put_schema(ns.clone(), schema1.clone()), (None, _));
         assert_eq!(
             *cache.get_schema(&ns).await.expect("lookup failure"),
             schema1
@@ -122,11 +134,12 @@ mod tests {
             retention_period_ns: Some(876),
         };
 
-        assert_eq!(
-            *cache
-                .put_schema(ns.clone(), schema2.clone())
-                .expect("should have existing schema"),
-            schema1
+        assert_matches!(
+            cache
+                .put_schema(ns.clone(), schema2.clone()),
+            (Some(prev), _) => {
+                assert_eq!(*prev, schema1);
+            }
         );
         assert_eq!(
             *cache.get_schema(&ns).await.expect("lookup failure"),
@@ -198,8 +211,18 @@ mod tests {
         let cache_clone = Arc::clone(&cache);
         let ns_clone = ns.clone();
         tokio::task::spawn(async move {
-            cache_clone.put_schema(ns_clone.clone(), schema_update_1);
-            cache_clone.put_schema(ns_clone.clone(), schema_update_2);
+            assert_matches!(cache_clone.put_schema(ns_clone.clone(), schema_update_1), (None, new_stats) => {
+                assert_eq!(new_stats, NamespaceStats{
+                    table_count: 1,
+                    column_count: 1,
+                });
+            });
+            assert_matches!(cache_clone.put_schema(ns_clone.clone(), schema_update_2), (Some(_), new_stats) => {
+                assert_eq!(new_stats, NamespaceStats{
+                    table_count: 1,
+                    column_count: 2,
+                });
+            });
         })
         .await
         .unwrap();
