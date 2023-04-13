@@ -29,8 +29,8 @@ use arrow_flight::{
     error::{FlightError, Result},
     sql::{
         ActionCreatePreparedStatementRequest, ActionCreatePreparedStatementResult, Any,
-        CommandGetCatalogs, CommandGetDbSchemas, CommandGetPrimaryKeys, CommandGetSqlInfo,
-        CommandGetTableTypes, CommandGetTables, CommandPreparedStatementQuery,
+        CommandGetCatalogs, CommandGetDbSchemas, CommandGetExportedKeys, CommandGetPrimaryKeys,
+        CommandGetSqlInfo, CommandGetTableTypes, CommandGetTables, CommandPreparedStatementQuery,
         CommandStatementQuery, ProstMessageExt,
     },
     Action, FlightClient, FlightDescriptor, FlightInfo, IpcMessage, Ticket,
@@ -178,6 +178,39 @@ impl FlightSqlClient {
         let msg = CommandGetDbSchemas {
             catalog: catalog.map(|s| s.into()),
             db_schema_filter_pattern: db_schema_filter_pattern.map(|s| s.into()),
+        };
+        self.do_get_with_cmd(msg.as_any()).await
+    }
+
+    /// List a description of the foreign key columns that reference the given
+    /// table's primary key columns (the foreign keys exported by a table) of a
+    /// table on this server using a [`CommandGetExportedKeys`] message.
+    ///
+    /// # Parameters
+    ///
+    /// Definition from <https://github.com/apache/arrow/blob/0434ab65075ecd1d2ab9245bcd7ec6038934ed29/format/FlightSql.proto#L1307-L1352>
+    ///
+    /// catalog: Specifies the catalog to search for the foreign key table.
+    /// An empty string retrieves those without a catalog.
+    /// If omitted the catalog name should not be used to narrow the search.
+    ///
+    /// db_schema: Specifies the schema to search for the foreign key table.
+    /// An empty string retrieves those without a schema.
+    /// If omitted the schema name should not be used to narrow the search.
+    ///
+    /// table: Specifies the foreign key table to get the foreign keys for.
+    ///
+    /// This implementation does not support alternate endpoints
+    pub async fn get_exported_keys(
+        &mut self,
+        catalog: Option<impl Into<String> + Send>,
+        db_schema: Option<impl Into<String> + Send>,
+        table: String,
+    ) -> Result<FlightRecordBatchStream> {
+        let msg = CommandGetExportedKeys {
+            catalog: catalog.map(|s| s.into()),
+            db_schema: db_schema.map(|s| s.into()),
+            table,
         };
         self.do_get_with_cmd(msg.as_any()).await
     }

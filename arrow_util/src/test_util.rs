@@ -193,7 +193,7 @@ pub fn equalize_batch_schemas(batches: Vec<RecordBatch>) -> Result<Vec<RecordBat
 /// `32/51/216/13452/1d325760-2b20-48de-ab48-2267b034133d.parquet`
 ///
 /// matches `1d325760-2b20-48de-ab48-2267b034133d`
-static REGEX_UUID: Lazy<Regex> = Lazy::new(|| {
+pub static REGEX_UUID: Lazy<Regex> = Lazy::new(|| {
     Regex::new("[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}").expect("UUID regex")
 });
 
@@ -249,6 +249,11 @@ fn normalize_for_variable_width(s: Cow<'_, str>) -> String {
     REGEX_COL.replace_all(&s, "    |").to_string()
 }
 
+pub fn strip_table_lines(s: Cow<'_, str>) -> String {
+    let s = REGEX_LINESEP.replace_all(&s, "----------");
+    REGEX_COL.replace_all(&s, "").to_string()
+}
+
 fn normalize_time_ops(s: &str) -> String {
     REGEX_TIME_OP
         .replace_all(s, |c: &Captures<'_>| {
@@ -276,6 +281,9 @@ pub struct Normalizer {
     /// if true, normalize filter predicates for explain plans
     /// `FilterExec: <REDACTED>`
     pub normalized_filters: bool,
+
+    /// if `true`, render tables without borders.
+    pub no_table_borders: bool,
 }
 
 impl Normalizer {
@@ -402,6 +410,9 @@ impl Normalizer {
         }
         if self.normalized_filters {
             output.push("-- Results After Normalizing Filters".into())
+        }
+        if self.no_table_borders {
+            output.push("-- Results After No Table Borders".into())
         }
     }
 }

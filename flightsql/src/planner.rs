@@ -11,8 +11,8 @@ use arrow::{
 use arrow_flight::{
     sql::{
         ActionCreatePreparedStatementRequest, ActionCreatePreparedStatementResult, Any,
-        CommandGetCatalogs, CommandGetDbSchemas, CommandGetPrimaryKeys, CommandGetSqlInfo,
-        CommandGetTableTypes, CommandGetTables, CommandStatementQuery,
+        CommandGetCatalogs, CommandGetDbSchemas, CommandGetExportedKeys, CommandGetPrimaryKeys,
+        CommandGetSqlInfo, CommandGetTableTypes, CommandGetTables, CommandStatementQuery,
     },
     IpcMessage, SchemaAsIpc,
 };
@@ -66,6 +66,9 @@ impl FlightSQLPlanner {
             }
             FlightSQLCommand::CommandGetDbSchemas(CommandGetDbSchemas { .. }) => {
                 encode_schema(get_db_schemas_schema().as_ref())
+            }
+            FlightSQLCommand::CommandGetExportedKeys(CommandGetExportedKeys { .. }) => {
+                encode_schema(&GET_EXPORTED_KEYS_SCHEMA)
             }
             FlightSQLCommand::CommandGetPrimaryKeys(CommandGetPrimaryKeys { .. }) => {
                 encode_schema(&GET_PRIMARY_KEYS_SCHEMA)
@@ -125,6 +128,20 @@ impl FlightSQLPlanner {
                     "Planning GetDbSchemas query"
                 );
                 let plan = plan_get_db_schemas(ctx, catalog, db_schema_filter_pattern).await?;
+                Ok(ctx.create_physical_plan(&plan).await?)
+            }
+            FlightSQLCommand::CommandGetExportedKeys(CommandGetExportedKeys {
+                catalog,
+                db_schema,
+                table,
+            }) => {
+                debug!(
+                    ?catalog,
+                    ?db_schema,
+                    ?table,
+                    "Planning GetExportedKeys query"
+                );
+                let plan = plan_get_exported_keys(ctx, catalog, db_schema, table).await?;
                 Ok(ctx.create_physical_plan(&plan).await?)
             }
             FlightSQLCommand::CommandGetPrimaryKeys(CommandGetPrimaryKeys {
@@ -281,6 +298,16 @@ async fn plan_get_db_schemas(
     Ok(ctx.batch_to_logical_plan(batch)?)
 }
 
+async fn plan_get_exported_keys(
+    ctx: &IOxSessionContext,
+    _catalog: Option<String>,
+    _db_schema: Option<String>,
+    _table: String,
+) -> Result<LogicalPlan> {
+    let batch = RecordBatch::new_empty(Arc::clone(&GET_EXPORTED_KEYS_SCHEMA));
+    Ok(ctx.batch_to_logical_plan(batch)?)
+}
+
 async fn plan_get_primary_keys(
     ctx: &IOxSessionContext,
     _catalog: Option<String>,
@@ -331,6 +358,28 @@ static TABLE_TYPES_RECORD_BATCH: Lazy<RecordBatch> = Lazy::new(|| {
     // IOx doesn't support LOCAL TEMPORARY yet
     let table_type = Arc::new(StringArray::from_iter_values(["BASE TABLE", "VIEW"])) as ArrayRef;
     RecordBatch::try_new(Arc::clone(&GET_TABLE_TYPE_SCHEMA), vec![table_type]).unwrap()
+});
+
+static GET_EXPORTED_KEYS_SCHEMA: Lazy<SchemaRef> = Lazy::new(|| {
+    Arc::new(Schema::new(vec![
+        Field::new("pk_catalog_name", DataType::Utf8, false),
+        Field::new("pk_db_schema_name", DataType::Utf8, false),
+        Field::new("pk_table_name", DataType::Utf8, false),
+        Field::new("pk_column_name", DataType::Utf8, false),
+        Field::new("fk_catalog_name", DataType::Utf8, false),
+        Field::new("fk_db_schema_name", DataType::Utf8, false),
+        Field::new("fk_table_name", DataType::Utf8, false),
+        Field::new("fk_column_name", DataType::Utf8, false),
+        Field::new("key_sequence", DataType::Int32, false),
+        Field::new("fk_key_name", DataType::Utf8, false),
+        Field::new("pk_key_name", DataType::Utf8, false),
+        // According to the definition in https://github.com/apache/arrow/blob/0434ab65075ecd1d2ab9245bcd7ec6038934ed29/format/FlightSql.proto#L1327-L1328
+        // update_rule and delete_rule are in type uint1
+        // However, Rust DataType does not have this type,
+        // the closet is DataType::UInt8
+        Field::new("update_rule", DataType::UInt8, false),
+        Field::new("delete_rule", DataType::UInt8, false),
+    ]))
 });
 
 static GET_PRIMARY_KEYS_SCHEMA: Lazy<SchemaRef> = Lazy::new(|| {

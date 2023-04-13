@@ -1442,8 +1442,8 @@ dependencies = [
 
 [[package]]
 name = "datafusion"
-version = "21.1.0"
-source = "git+https://github.com/apache/arrow-datafusion.git?rev=b87871fdd1f4ce64201eb1f7c79a0547627f37e9#b87871fdd1f4ce64201eb1f7c79a0547627f37e9"
+version = "22.0.0"
+source = "git+https://github.com/apache/arrow-datafusion.git?rev=34c9bce0146e0ebacfb10334ee7aef13fc8cc94f#34c9bce0146e0ebacfb10334ee7aef13fc8cc94f"
 dependencies = [
  "ahash 0.8.3",
  "arrow",
@@ -1489,8 +1489,8 @@ dependencies = [
 
 [[package]]
 name = "datafusion-common"
-version = "21.1.0"
-source = "git+https://github.com/apache/arrow-datafusion.git?rev=b87871fdd1f4ce64201eb1f7c79a0547627f37e9#b87871fdd1f4ce64201eb1f7c79a0547627f37e9"
+version = "22.0.0"
+source = "git+https://github.com/apache/arrow-datafusion.git?rev=34c9bce0146e0ebacfb10334ee7aef13fc8cc94f#34c9bce0146e0ebacfb10334ee7aef13fc8cc94f"
 dependencies = [
  "arrow",
  "arrow-array",
@@ -1503,8 +1503,8 @@ dependencies = [
 
 [[package]]
 name = "datafusion-execution"
-version = "21.1.0"
-source = "git+https://github.com/apache/arrow-datafusion.git?rev=b87871fdd1f4ce64201eb1f7c79a0547627f37e9#b87871fdd1f4ce64201eb1f7c79a0547627f37e9"
+version = "22.0.0"
+source = "git+https://github.com/apache/arrow-datafusion.git?rev=34c9bce0146e0ebacfb10334ee7aef13fc8cc94f#34c9bce0146e0ebacfb10334ee7aef13fc8cc94f"
 dependencies = [
  "dashmap",
  "datafusion-common",
@@ -1520,8 +1520,8 @@ dependencies = [
 
 [[package]]
 name = "datafusion-expr"
-version = "21.1.0"
-source = "git+https://github.com/apache/arrow-datafusion.git?rev=b87871fdd1f4ce64201eb1f7c79a0547627f37e9#b87871fdd1f4ce64201eb1f7c79a0547627f37e9"
+version = "22.0.0"
+source = "git+https://github.com/apache/arrow-datafusion.git?rev=34c9bce0146e0ebacfb10334ee7aef13fc8cc94f#34c9bce0146e0ebacfb10334ee7aef13fc8cc94f"
 dependencies = [
  "ahash 0.8.3",
  "arrow",
@@ -1531,8 +1531,8 @@ dependencies = [
 
 [[package]]
 name = "datafusion-optimizer"
-version = "21.1.0"
-source = "git+https://github.com/apache/arrow-datafusion.git?rev=b87871fdd1f4ce64201eb1f7c79a0547627f37e9#b87871fdd1f4ce64201eb1f7c79a0547627f37e9"
+version = "22.0.0"
+source = "git+https://github.com/apache/arrow-datafusion.git?rev=34c9bce0146e0ebacfb10334ee7aef13fc8cc94f#34c9bce0146e0ebacfb10334ee7aef13fc8cc94f"
 dependencies = [
  "arrow",
  "async-trait",
@@ -1548,8 +1548,8 @@ dependencies = [
 
 [[package]]
 name = "datafusion-physical-expr"
-version = "21.1.0"
-source = "git+https://github.com/apache/arrow-datafusion.git?rev=b87871fdd1f4ce64201eb1f7c79a0547627f37e9#b87871fdd1f4ce64201eb1f7c79a0547627f37e9"
+version = "22.0.0"
+source = "git+https://github.com/apache/arrow-datafusion.git?rev=34c9bce0146e0ebacfb10334ee7aef13fc8cc94f#34c9bce0146e0ebacfb10334ee7aef13fc8cc94f"
 dependencies = [
  "ahash 0.8.3",
  "arrow",
@@ -1579,8 +1579,8 @@ dependencies = [
 
 [[package]]
 name = "datafusion-proto"
-version = "21.1.0"
-source = "git+https://github.com/apache/arrow-datafusion.git?rev=b87871fdd1f4ce64201eb1f7c79a0547627f37e9#b87871fdd1f4ce64201eb1f7c79a0547627f37e9"
+version = "22.0.0"
+source = "git+https://github.com/apache/arrow-datafusion.git?rev=34c9bce0146e0ebacfb10334ee7aef13fc8cc94f#34c9bce0146e0ebacfb10334ee7aef13fc8cc94f"
 dependencies = [
  "arrow",
  "chrono",
@@ -1593,8 +1593,8 @@ dependencies = [
 
 [[package]]
 name = "datafusion-row"
-version = "21.1.0"
-source = "git+https://github.com/apache/arrow-datafusion.git?rev=b87871fdd1f4ce64201eb1f7c79a0547627f37e9#b87871fdd1f4ce64201eb1f7c79a0547627f37e9"
+version = "22.0.0"
+source = "git+https://github.com/apache/arrow-datafusion.git?rev=34c9bce0146e0ebacfb10334ee7aef13fc8cc94f#34c9bce0146e0ebacfb10334ee7aef13fc8cc94f"
 dependencies = [
  "arrow",
  "datafusion-common",
@@ -1604,9 +1604,10 @@ dependencies = [
 
 [[package]]
 name = "datafusion-sql"
-version = "21.1.0"
-source = "git+https://github.com/apache/arrow-datafusion.git?rev=b87871fdd1f4ce64201eb1f7c79a0547627f37e9#b87871fdd1f4ce64201eb1f7c79a0547627f37e9"
+version = "22.0.0"
+source = "git+https://github.com/apache/arrow-datafusion.git?rev=34c9bce0146e0ebacfb10334ee7aef13fc8cc94f#34c9bce0146e0ebacfb10334ee7aef13fc8cc94f"
 dependencies = [
+ "arrow",
  "arrow-schema",
  "datafusion-common",
  "datafusion-expr",
@@ -4359,9 +4360,9 @@ dependencies = [
 
 [[package]]
 name = "prost"
-version = "0.11.8"
+version = "0.11.9"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "e48e50df39172a3e7eb17e14642445da64996989bc212b583015435d39a58537"
+checksum = "0b82eaa1d779e9a4bc1c3217db8ffbeabaae1dca241bf70183242128d48681cd"
 dependencies = [
  "bytes",
  "prost-derive",
@@ -4369,9 +4370,9 @@ dependencies = [
 
 [[package]]
 name = "prost-build"
-version = "0.11.8"
+version = "0.11.9"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "2c828f93f5ca4826f97fedcbd3f9a536c16b12cff3dbbb4a007f932bbad95b12"
+checksum = "119533552c9a7ffacc21e099c24a0ac8bb19c2a2a3f363de84cd9b844feab270"
 dependencies = [
  "bytes",
  "heck",
@@ -4391,9 +4392,9 @@ dependencies = [
 
 [[package]]
 name = "prost-derive"
-version = "0.11.8"
+version = "0.11.9"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "4ea9b0f8cbe5e15a8a042d030bd96668db28ecb567ec37d691971ff5731d2b1b"
+checksum = "e5d2d8d10f3c6ded6da8b05b5fb3b8a5082514344d56c9f871412d29b4e075b4"
 dependencies = [
  "anyhow",
  "itertools",
@@ -4404,9 +4405,9 @@ dependencies = [
 
 [[package]]
 name = "prost-types"
-version = "0.11.8"
+version = "0.11.9"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "379119666929a1afd7a043aa6cf96fa67a6dce9af60c88095a4686dbce4c9c88"
+checksum = "213622a1460818959ac1181aaeb2dc9c7f63df720db7d788b3e24eacd1983e13"
 dependencies = [
  "prost",
 ]
@@ -4947,9 +4948,9 @@ dependencies = [
 
 [[package]]
 name = "serde_json"
-version = "1.0.95"
+version = "1.0.96"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "d721eca97ac802aa7777b701877c8004d950fc142651367300d21c1cc0194744"
+checksum = "057d394a50403bcac12672b2b18fb387ab6d289d957dab67dd201875391e52f1"
 dependencies = [
  "itoa",
  "ryu",
@@ -5627,6 +5628,7 @@ dependencies = [
  "parking_lot 0.12.1",
  "prost",
  "rand",
+ "regex",
  "reqwest",
  "snafu",
  "sqlx",

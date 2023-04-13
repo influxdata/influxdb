@@ -5,9 +5,7 @@ mod key_ranges;
 use std::{collections::HashSet, fmt, sync::Arc};
 
 use arrow::{error::ArrowError, record_batch::RecordBatch};
-use datafusion_util::{
-    sort_exprs::requirements_from_sort_exprs, watch::WatchedTask, AdapterStream,
-};
+use datafusion_util::{watch::WatchedTask, AdapterStream};
 
 use crate::CHUNK_ORDER_COLUMN_NAME;
 
@@ -194,7 +192,9 @@ impl ExecutionPlan for DeduplicateExec {
     }
 
     fn required_input_ordering(&self) -> Vec<Option<Vec<PhysicalSortRequirement>>> {
-        vec![Some(requirements_from_sort_exprs(&self.input_order))]
+        vec![Some(PhysicalSortRequirement::from_sort_exprs(
+            &self.input_order,
+        ))]
     }
 
     fn maintains_input_order(&self) -> Vec<bool> {
