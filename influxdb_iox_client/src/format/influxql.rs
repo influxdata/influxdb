@@ -1,4 +1,5 @@
-use arrow::array::StringArray;
+use arrow::array::{Array, ArrayData, StringArray};
+use arrow::datatypes::DataType;
 use arrow::error::ArrowError;
 use arrow::record_batch::RecordBatch;
 use arrow::util::display::ArrayFormatter;
@@ -29,9 +30,38 @@ pub enum Error {
 }
 type Result<T, E = Error> = std::result::Result<T, E>;
 
+/// Options for controlling how table borders are rendered.
+#[derive(Debug, Default, Clone, Copy)]
+pub enum TableBorders {
+    /// Use ASCII characters.
+    #[default]
+    Ascii,
+    /// Use UNICODE box-drawing characters.
+    Unicode,
+    /// Do not render borders.
+    None,
+}
+
+/// Options for the [`write_columnar`] function.
+#[derive(Debug, Default)]
+pub struct Options {
+    /// Specify how borders should be rendered.
+    pub borders: TableBorders,
+}
+
+impl Options {
+    fn table_preset(&self) -> &'static str {
+        match self.borders {
+            TableBorders::Ascii => "||--+-++|    ++++++",
+            TableBorders::Unicode => comfy_table::presets::UTF8_FULL,
+            TableBorders::None => comfy_table::presets::NOTHING,
+        }
+    }
+}
+
 /// Write the record batches in a columnar format.
-pub fn write_columnar(mut w: impl Write, batches: &[RecordBatch]) -> Result<()> {
-    let options = arrow::util::display::FormatOptions::default().with_display_error(true);
+pub fn write_columnar(mut w: impl Write, batches: &[RecordBatch], options: Options) -> Result<()> {
+    let arrow_opts = arrow::util::display::FormatOptions::default().with_display_error(true);
 
     let Some(schema) = batches.first().map(|b|b.schema()) else { return Ok(()) };
     let md = schema
@@ -68,7 +98,7 @@ pub fn write_columnar(mut w: impl Write, batches: &[RecordBatch]) -> Result<()> 
 
     let new_table = || {
         let mut table = Table::new();
-        table.load_preset("||--+-++|    ++++++");
+        table.load_preset(options.table_preset());
         table.set_header(header.clone());
         table
     };
@@ -78,7 +108,9 @@ pub fn write_columnar(mut w: impl Write, batches: &[RecordBatch]) -> Result<()> 
     for batch in batches {
         let cols = col_indexes
             .iter()
-            .map(|idx| ArrayFormatter::try_new(batch.column(*idx), &options).map_err(Error::Arrow))
+            .map(|idx| {
+                ArrayFormatter::try_new(batch.column(*idx), &arrow_opts).map_err(Error::Arrow)
+            })
             .collect::<Result<Vec<_>>>()?;
 
         let measurement = batch
@@ -87,6 +119,10 @@ pub fn write_columnar(mut w: impl Write, batches: &[RecordBatch]) -> Result<()> 
             .downcast_ref::<StringArray>()
             .expect("expected measurement column to be a StringArray");
 
+        // create an empty string array for any tag columns that are NULL
+        let empty: StringArray =
+            StringArray::from(ArrayData::new_null(&DataType::Utf8, measurement.len()));
+
         let tag_vals = tag_key_indexes
             .iter()
             .map(|idx| {
@@ -94,7 +130,7 @@ pub fn write_columnar(mut w: impl Write, batches: &[RecordBatch]) -> Result<()> 
                     .column(*idx)
                     .as_any()
                     .downcast_ref::<StringArray>()
-                    .expect("expected tag column to be a StringArray")
+                    .unwrap_or(&empty)
             })
             .collect::<Vec<_>>();
 
@@ -160,7 +196,7 @@ pub fn write_columnar(mut w: impl Write, batches: &[RecordBatch]) -> Result<()> 
 
 #[cfg(test)]
 mod test {
-    use crate::format::influxql::write_columnar;
+    use crate::format::influxql::{write_columnar, Options};
     use arrow::array::{ArrayRef, Float64Array, Int64Array, StringArray, TimestampNanosecondArray};
     use arrow::datatypes::{DataType, Field, Schema, TimeUnit};
     use arrow::record_batch::RecordBatch;
@@ -241,7 +277,7 @@ mod test {
             tag_key_columns: vec![],
         });
         let mut s = Vec::<u8>::new();
-        write_columnar(&mut s, &rb).unwrap();
+        write_columnar(&mut s, &rb, Options::default()).unwrap();
         let res = String::from_utf8(s).unwrap();
         insta::assert_snapshot!(res, @r###"
         name: cpu
@@ -271,7 +307,7 @@ mod test {
             }],
         });
         let mut s = Vec::<u8>::new();
-        write_columnar(&mut s, &rb).unwrap();
+        write_columnar(&mut s, &rb, Options::default()).unwrap();
         let res = String::from_utf8(s).unwrap();
         insta::assert_snapshot!(res, @r###"
         name: cpu
@@ -309,7 +345,7 @@ mod test {
             }],
         });
         let mut s = Vec::<u8>::new();
-        write_columnar(&mut s, &rb).unwrap();
+        write_columnar(&mut s, &rb, Options::default()).unwrap();
         let res = String::from_utf8(s).unwrap();
         insta::assert_snapshot!(res, @r###"
         name: cpu
@@ -354,7 +390,7 @@ mod test {
             ],
         });
         let mut s = Vec::<u8>::new();
-        write_columnar(&mut s, &rb).unwrap();
+        write_columnar(&mut s, &rb, Options::default()).unwrap();
         let res = String::from_utf8(s).unwrap();
         insta::assert_snapshot!(res, @r###"
         name: cpu

@@ -3,7 +3,13 @@ mod queries;
 use crate::{run_sql, snapshot_comparison::queries::TestQueries, try_run_influxql, MiniCluster};
 use arrow::record_batch::RecordBatch;
 use arrow_flight::error::FlightError;
+use arrow_util::test_util::{sort_record_batch, Normalizer, REGEX_UUID};
+use influxdb_iox_client::format::influxql::{write_columnar, Options, TableBorders};
+use once_cell::sync::Lazy;
+use regex::{Captures, Regex};
 use snafu::{OptionExt, ResultExt, Snafu};
+use sqlx::types::Uuid;
+use std::collections::HashMap;
 use std::{
     fmt::{Display, Formatter},
     fs,
@@ -49,11 +55,88 @@ pub enum Error {
 
 pub type Result<T, E = Error> = std::result::Result<T, E>;
 
-#[derive(Debug, Clone, Copy, Default)]
+/// Match the parquet directory names
+/// For example, given
+/// `32/51/216/13452/1d325760-2b20-48de-ab48-2267b034133d.parquet`
+///
+/// matches `32/51/216/13452`
+pub static REGEX_DIRS: Lazy<Regex> =
+    Lazy::new(|| Regex::new(r#"([0-9])+/([0-9])+/([0-9])+/([0-9])+"#).expect("directory regex"));
+
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
 pub enum Language {
     #[default]
     Sql,
     InfluxQL,
+}
+
+impl Language {
+    fn normalize_results(&self, n: &Normalizer, results: Vec<RecordBatch>) -> Vec<String> {
+        match self {
+            Language::Sql => n.normalize_results(results),
+            Language::InfluxQL => {
+                let results = if n.sorted_compare && !results.is_empty() {
+                    let schema = results[0].schema();
+                    let batch = arrow::compute::concat_batches(&schema, &results)
+                        .expect("concatenating batches");
+                    vec![sort_record_batch(batch)]
+                } else {
+                    results
+                };
+
+                let options = if n.no_table_borders {
+                    Options {
+                        borders: TableBorders::None,
+                    }
+                } else {
+                    Options::default()
+                };
+
+                let mut buf = Vec::<u8>::new();
+                write_columnar(&mut buf, &results, options).unwrap();
+
+                let mut seen: HashMap<String, u128> = HashMap::new();
+
+                unsafe { String::from_utf8_unchecked(buf) }
+                    .trim()
+                    .lines()
+                    .map(|s| {
+                        // replace any UUIDs
+                        let s = REGEX_UUID.replace_all(s, |c: &Captures<'_>| {
+                            let next = seen.len() as u128;
+                            Uuid::from_u128(
+                                *seen
+                                    .entry(c.get(0).unwrap().as_str().to_owned())
+                                    .or_insert(next),
+                            )
+                            .to_string()
+                        });
+
+                        let s = REGEX_DIRS.replace_all(&s, |c: &Captures<'_>| {
+                            // this ensures 1/15/232/5 is replaced with a string of the same width
+                            //              1/11/111/1
+                            [
+                                "1".repeat(c.get(1).unwrap().range().len()),
+                                "1".repeat(c.get(2).unwrap().range().len()),
+                                "1".repeat(c.get(3).unwrap().range().len()),
+                                "1".repeat(c.get(4).unwrap().range().len()),
+                            ]
+                            .join("/")
+                        });
+
+                        // Need to remove trailing spaces when using no_borders
+                        let s = if n.no_table_borders {
+                            s.trim_end()
+                        } else {
+                            s.as_ref()
+                        };
+
+                        s.to_string()
+                    })
+                    .collect::<Vec<_>>()
+            }
+        }
+    }
 }
 
 impl Display for Language {
@@ -90,7 +173,7 @@ pub async fn run(
     println!("  expected output in {expected_path:?}");
     println!("Processing contents:\n{contents}");
 
-    let queries = TestQueries::from_lines(contents.lines());
+    let queries = TestQueries::from_lines(contents.lines(), language);
 
     let mut output = vec![];
     output.push(format!("-- Test Setup: {setup_name}"));
@@ -98,7 +181,7 @@ pub async fn run(
     for q in queries.iter() {
         output.push(format!("-- {}: {}", language, q.text()));
         q.add_description(&mut output);
-        let results = run_query(cluster, q, language).await?;
+        let results = run_query(cluster, q).await?;
         output.extend(results);
     }
 
@@ -213,22 +296,21 @@ fn make_absolute(path: &Path) -> PathBuf {
     absolute
 }
 
-async fn run_query(
-    cluster: &MiniCluster,
-    query: &Query,
-    language: Language,
-) -> Result<Vec<String>> {
-    let query_text = query.text();
+async fn run_query(cluster: &MiniCluster, query: &Query) -> Result<Vec<String>> {
+    let (query_text, language) = (query.text(), query.language());
 
-    let (mut batches, schema) = match language {
+    let batches = match language {
         Language::Sql => {
-            run_sql(
+            let (mut batches, schema) = run_sql(
                 query_text,
                 cluster.namespace(),
                 cluster.querier().querier_grpc_connection(),
                 None,
             )
-            .await
+            .await;
+            batches.push(RecordBatch::new_empty(schema));
+
+            batches
         }
         Language::InfluxQL => {
             match try_run_influxql(
@@ -239,7 +321,7 @@ async fn run_query(
             )
             .await
             {
-                Ok(results) => results,
+                Ok((batches, _)) => batches,
                 Err(influxdb_iox_client::flight::Error::ArrowFlightError(FlightError::Tonic(
                     status,
                 ))) if status.code() == Code::InvalidArgument => {
@@ -249,7 +331,6 @@ async fn run_query(
             }
         }
     };
-    batches.push(RecordBatch::new_empty(schema));
 
-    Ok(query.normalize_results(batches))
+    Ok(query.normalize_results(batches, language))
 }

@@ -219,6 +219,14 @@ impl<'a> InfluxQLToLogicalPlan<'a> {
         let schema = LogicalPlan::explain_schema();
         let schema = schema.to_dfschema_ref()?;
 
+        // We'll specify the `plan_type` column as the "measurement name", so that it may be
+        // grouped into tables in the output when formatted as InfluxQL tabular format.
+        let measurement_column_index = schema
+            .index_of_column_by_name(None, "plan_type")?
+            .ok_or_else(|| {
+                DataFusionError::External("internal: unable to find plan_type column".into())
+            })? as u32;
+
         let (analyze, verbose) = match explain.options {
             Some(ExplainOption::AnalyzeVerbose) => (true, true),
             Some(ExplainOption::Analyze) => (true, false),
@@ -226,22 +234,30 @@ impl<'a> InfluxQLToLogicalPlan<'a> {
             None => (false, false),
         };
 
-        if analyze {
-            Ok(LogicalPlan::Analyze(Analyze {
+        let plan = if analyze {
+            LogicalPlan::Analyze(Analyze {
                 verbose,
                 input: plan,
                 schema,
-            }))
+            })
         } else {
             let stringified_plans = vec![plan.to_stringified(PlanType::InitialLogicalPlan)];
-            Ok(LogicalPlan::Explain(Explain {
+            LogicalPlan::Explain(Explain {
                 verbose,
                 plan,
                 stringified_plans,
                 schema,
                 logical_optimization_succeeded: false,
-            }))
-        }
+            })
+        };
+
+        plan_with_metadata(
+            plan,
+            &InfluxQlMetadata {
+                measurement_column_index,
+                tag_key_columns: vec![],
+            },
+        )
     }
 
     fn rewrite_select_statement(&self, select: SelectStatement) -> Result<SelectStatement> {
@@ -1713,7 +1729,6 @@ fn is_aggregate_function(name: &str) -> bool {
             "sample",
             "top",
             // Aggregate functions
-            "count",
             "count",
             "integral",
             "mean",

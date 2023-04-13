@@ -5627,6 +5627,7 @@ dependencies = [
  "parking_lot 0.12.1",
  "prost",
  "rand",
+ "regex",
  "reqwest",
  "snafu",
  "sqlx",

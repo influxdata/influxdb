@@ -7,49 +7,39 @@
 
 -- Validates expected data is returned
 -- Projection wildcard, all tags and fields
--- IOX_COMPARE: sorted
 SELECT * FROM m0;
 
 -- No matching measurement
 SELECT * FROM non_existent;
 
 -- Projection wildcard, only tags
--- IOX_COMPARE: sorted
 SELECT *::tag, f64 FROM m0;
 
 -- Projection wildcard, only fields
--- IOX_COMPARE: sorted
 SELECT *::field FROM m0;
 
 -- Projection regex, mixture of tags and fields
--- IOX_COMPARE: sorted
 SELECT /64|tag0/ FROM m0;
 
 -- Projection specific tags and fields
--- IOX_COMPARE: sorted
 SELECT f64, tag0 FROM m0;
 
 -- Explicitly select time column
--- IOX_COMPARE: sorted
 SELECT f64, tag0, time FROM m0;
 
 -- arithmetic operators
--- IOX_COMPARE: sorted
 SELECT f64, f64 * 2, i64, i64 + i64 FROM m0;
 
 -- bitwise operators
--- IOX_COMPARE: sorted
 SELECT i64, i64 & 1 FROM m0;
 
 -- Automatic type coercion integer → float
--- IOX_COMPARE: sorted
 SELECT f64 + i64 FROM m0;
 
 -- Type cast postfix operator
 SELECT f64, f64::integer FROM m0;
 
 -- Column alias behaviour
--- IOX_COMPARE: sorted
 SELECT f64 AS f64_2, f64, f64, f64 FROM m0 LIMIT 1;
 
 --
@@ -57,55 +47,45 @@ SELECT f64 AS f64_2, f64, f64, f64 FROM m0 LIMIT 1;
 --
 
 -- Single tag
--- IOX_COMPARE: sorted
 SELECT tag0, f64 FROM m0 WHERE tag0 = 'val00';
 
--- IOX_COMPARE: sorted
 SELECT tag0, f64 FROM m0 WHERE tag0 =~ /^val0(1|2)/;
 
 -- Conjunction (AND)
--- IOX_COMPARE: sorted
 SELECT /tag(0|1)/, f64 FROM m0 WHERE tag0 = 'val00' AND tag1 = 'val10';
 
 -- Disjunction (OR)
--- IOX_COMPARE: sorted
 SELECT /tag(0|1)/, f64 FROM m0 WHERE tag0 = 'val00' OR tag1 = 'val10';
 
 -- arithmetic
--- IOX_COMPARE: sorted
 SELECT f64 FROM m0 WHERE f64 > 10 + 10;
 
 -- bitwise
--- IOX_COMPARE: sorted
 SELECT i64 FROM m0 WHERE i64 & 1 = 0;
 
 -- time bounds
 
 -- timestamp format %Y-%M-%D
--- IOX_COMPARE: sorted
 SELECT i64 FROM m0 WHERE time > '2022-10-31';
 
 -- timestamp format %Y-%M-%D %h:%m:%s
--- IOX_COMPARE: sorted
 SELECT i64 FROM m0 WHERE time > '2022-10-31 02:00:10';
 
 -- now() and duration
 -- NOTE: 100000d is > 270 years, so this test should be ok for a while.
 --       However, if this test is still in use in 270 years and it starts failing,
 --       try increasing the number of days 😂
--- IOX_COMPARE: sorted
 SELECT i64 FROM m0 WHERE time > now() - 100000d;
 
 -- NOT NULL test
 -- WHERE tag1 != '' is the equivalent to tag1 IS NOT NULL
 -- TODO(sgc): This is working, but likely by accident
--- IOX_COMPARE: sorted
 SELECT tag1, f64 FROM m0 WHERE tag1 != '';
 
 -- NULL test
 -- WHERE tag1 = '' is the equivalent to tag1 IS NULL
 -- TODO(sgc): Not working, as expected
--- -- IOX_COMPARE: sorted
+--
 -- SELECT tag1, f64 FROM m0 WHERE tag1 = '';
 
 --
@@ -292,6 +272,9 @@ SELECT usage_idle, bytes_free, device, cpu FROM cpu, disk GROUP BY device, cpu;
 SELECT COUNT(f64), SUM(f64), stddev(f64) FROM m0;
 SELECT COUNT(f64), SUM(f64), stddev(f64) FROM m0, m1;
 SELECT COUNT(f64), SUM(f64), stddev(f64) FROM m0 GROUP BY tag0;
+-- IOX_COMPARE: no_borders
+EXPLAIN SELECT COUNT(f64), SUM(f64), stddev(f64) FROM m0, m1 GROUP BY tag0;
+-- TODO(sgc): `sorted` is a workaround for https://github.com/influxdata/influxdb_iox/issues/7513
 -- IOX_COMPARE: sorted
 SELECT COUNT(f64), SUM(f64), stddev(f64) FROM m0, m1 GROUP BY tag0;
 SELECT COUNT(f64), SUM(f64), stddev(f64) FROM m0 GROUP BY tag0, non_existent;
@@ -304,6 +287,7 @@ SELECT COUNT(f64) as the_count, SUM(f64) + SUM(non_existent) as foo FROM m0;
 
 -- measurements with different schema
 SELECT MEAN(usage_idle), MEAN(bytes_free) FROM cpu, disk;
+-- TODO(sgc): `sorted` is a workaround for https://github.com/influxdata/influxdb_iox/issues/7513
 -- IOX_COMPARE: sorted
 SELECT MEAN(usage_idle), MEAN(bytes_free) FROM cpu, disk GROUP BY TIME(10s) FILL(none);
 
@@ -327,6 +311,7 @@ SELECT COUNT(f64), SUM(f64) FROM m0 GROUP BY TIME(30s) FILL(none);
 SELECT COUNT(f64), SUM(f64) FROM m0 GROUP BY TIME(30s, 1s) FILL(none);
 
 SELECT COUNT(usage_idle), COUNT(bytes_free) FROM cpu, disk;
+-- TODO(sgc): `sorted` is a workaround for https://github.com/influxdata/influxdb_iox/issues/7513
 -- IOX_COMPARE: sorted
 SELECT COUNT(usage_idle), COUNT(bytes_free) FROM cpu, disk GROUP BY TIME(1s) FILL(none);
 SELECT COUNT(usage_idle), COUNT(bytes_free) FROM cpu, disk GROUP BY cpu;

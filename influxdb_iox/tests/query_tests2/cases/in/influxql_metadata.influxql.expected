@@ -1,104 +1,204 @@
 -- Test Setup: InfluxQLSelectSupport
 -- InfluxQL: SHOW FIELD KEYS;
-+------------------+--------------+-----------+
-| iox::measurement | fieldKey     | fieldType |
-+------------------+--------------+-----------+
-| cpu              | usage_idle   | float     |
-| cpu              | usage_system | float     |
-| disk             | bytes_free   | integer   |
-| disk             | bytes_used   | integer   |
-| m0               | f64          | float     |
-| m0               | i64          | integer   |
-| m0               | str          | string    |
-| m1               | f64          | float     |
-| m1               | i64          | integer   |
-| m1               | str          | string    |
-| m2               | f64          | float     |
-| m3               | u64          | unsigned  |
-+------------------+--------------+-----------+
+name: cpu
++--------------+-----------+
+| fieldKey     | fieldType |
++--------------+-----------+
+| usage_idle   | float     |
+| usage_system | float     |
++--------------+-----------+
+name: disk
++------------+-----------+
+| fieldKey   | fieldType |
++------------+-----------+
+| bytes_free | integer   |
+| bytes_used | integer   |
++------------+-----------+
+name: m0
++----------+-----------+
+| fieldKey | fieldType |
++----------+-----------+
+| f64      | float     |
+| i64      | integer   |
+| str      | string    |
++----------+-----------+
+name: m1
++----------+-----------+
+| fieldKey | fieldType |
++----------+-----------+
+| f64      | float     |
+| i64      | integer   |
+| str      | string    |
++----------+-----------+
+name: m2
++----------+-----------+
+| fieldKey | fieldType |
++----------+-----------+
+| f64      | float     |
++----------+-----------+
+name: m3
++----------+-----------+
+| fieldKey | fieldType |
++----------+-----------+
+| u64      | unsigned  |
++----------+-----------+
 -- InfluxQL: SHOW FIELD KEYS LIMIT 2;
-+------------------+--------------+-----------+
-| iox::measurement | fieldKey     | fieldType |
-+------------------+--------------+-----------+
-| cpu              | usage_idle   | float     |
-| cpu              | usage_system | float     |
-| disk             | bytes_free   | integer   |
-| disk             | bytes_used   | integer   |
-| m0               | f64          | float     |
-| m0               | i64          | integer   |
-| m1               | f64          | float     |
-| m1               | i64          | integer   |
-| m2               | f64          | float     |
-| m3               | u64          | unsigned  |
-+------------------+--------------+-----------+
+name: cpu
++--------------+-----------+
+| fieldKey     | fieldType |
++--------------+-----------+
+| usage_idle   | float     |
+| usage_system | float     |
++--------------+-----------+
+name: disk
++------------+-----------+
+| fieldKey   | fieldType |
++------------+-----------+
+| bytes_free | integer   |
+| bytes_used | integer   |
++------------+-----------+
+name: m0
++----------+-----------+
+| fieldKey | fieldType |
++----------+-----------+
+| f64      | float     |
+| i64      | integer   |
++----------+-----------+
+name: m1
++----------+-----------+
+| fieldKey | fieldType |
++----------+-----------+
+| f64      | float     |
+| i64      | integer   |
++----------+-----------+
+name: m2
++----------+-----------+
+| fieldKey | fieldType |
++----------+-----------+
+| f64      | float     |
++----------+-----------+
+name: m3
++----------+-----------+
+| fieldKey | fieldType |
++----------+-----------+
+| u64      | unsigned  |
++----------+-----------+
 -- InfluxQL: SHOW FIELD KEYS OFFSET 1;
-+------------------+--------------+-----------+
-| iox::measurement | fieldKey     | fieldType |
-+------------------+--------------+-----------+
-| cpu              | usage_system | float     |
-| disk             | bytes_used   | integer   |
-| m0               | i64          | integer   |
-| m0               | str          | string    |
-| m1               | i64          | integer   |
-| m1               | str          | string    |
-+------------------+--------------+-----------+
+name: cpu
++--------------+-----------+
+| fieldKey     | fieldType |
++--------------+-----------+
+| usage_system | float     |
++--------------+-----------+
+name: disk
++------------+-----------+
+| fieldKey   | fieldType |
++------------+-----------+
+| bytes_used | integer   |
++------------+-----------+
+name: m0
++----------+-----------+
+| fieldKey | fieldType |
++----------+-----------+
+| i64      | integer   |
+| str      | string    |
++----------+-----------+
+name: m1
++----------+-----------+
+| fieldKey | fieldType |
++----------+-----------+
+| i64      | integer   |
+| str      | string    |
++----------+-----------+
 -- InfluxQL: SHOW FIELD KEYS LIMIT 1 OFFSET 2;
-+------------------+----------+-----------+
-| iox::measurement | fieldKey | fieldType |
-+------------------+----------+-----------+
-| m0               | str      | string    |
-| m1               | str      | string    |
-+------------------+----------+-----------+
+name: m0
++----------+-----------+
+| fieldKey | fieldType |
++----------+-----------+
+| str      | string    |
++----------+-----------+
+name: m1
++----------+-----------+
+| fieldKey | fieldType |
++----------+-----------+
+| str      | string    |
++----------+-----------+
 -- InfluxQL: SHOW FIELD KEYS FROM cpu;
-+------------------+--------------+-----------+
-| iox::measurement | fieldKey     | fieldType |
-+------------------+--------------+-----------+
-| cpu              | usage_idle   | float     |
-| cpu              | usage_system | float     |
-+------------------+--------------+-----------+
+name: cpu
++--------------+-----------+
+| fieldKey     | fieldType |
++--------------+-----------+
+| usage_idle   | float     |
+| usage_system | float     |
++--------------+-----------+
 -- InfluxQL: SHOW FIELD KEYS FROM disk,cpu,disk;
-+------------------+--------------+-----------+
-| iox::measurement | fieldKey     | fieldType |
-+------------------+--------------+-----------+
-| cpu              | usage_idle   | float     |
-| cpu              | usage_system | float     |
-| disk             | bytes_free   | integer   |
-| disk             | bytes_used   | integer   |
-+------------------+--------------+-----------+
+name: cpu
++--------------+-----------+
+| fieldKey     | fieldType |
++--------------+-----------+
+| usage_idle   | float     |
+| usage_system | float     |
++--------------+-----------+
+name: disk
++------------+-----------+
+| fieldKey   | fieldType |
++------------+-----------+
+| bytes_free | integer   |
+| bytes_used | integer   |
++------------+-----------+
 -- InfluxQL: SHOW FIELD KEYS FROM cpu,disk,cpu;
-+------------------+--------------+-----------+
-| iox::measurement | fieldKey     | fieldType |
-+------------------+--------------+-----------+
-| cpu              | usage_idle   | float     |
-| cpu              | usage_system | float     |
-| disk             | bytes_free   | integer   |
-| disk             | bytes_used   | integer   |
-+------------------+--------------+-----------+
+name: cpu
++--------------+-----------+
+| fieldKey     | fieldType |
++--------------+-----------+
+| usage_idle   | float     |
+| usage_system | float     |
++--------------+-----------+
+name: disk
++------------+-----------+
+| fieldKey   | fieldType |
++------------+-----------+
+| bytes_free | integer   |
+| bytes_used | integer   |
++------------+-----------+
 -- InfluxQL: SHOW FIELD KEYS FROM /m.*/;
-+------------------+----------+-----------+
-| iox::measurement | fieldKey | fieldType |
-+------------------+----------+-----------+
-| m0               | f64      | float     |
-| m0               | i64      | integer   |
-| m0               | str      | string    |
-| m1               | f64      | float     |
-| m1               | i64      | integer   |
-| m1               | str      | string    |
-| m2               | f64      | float     |
-| m3               | u64      | unsigned  |
-+------------------+----------+-----------+
+name: m0
++----------+-----------+
+| fieldKey | fieldType |
++----------+-----------+
+| f64      | float     |
+| i64      | integer   |
+| str      | string    |
++----------+-----------+
+name: m1
++----------+-----------+
+| fieldKey | fieldType |
++----------+-----------+
+| f64      | float     |
+| i64      | integer   |
+| str      | string    |
++----------+-----------+
+name: m2
++----------+-----------+
+| fieldKey | fieldType |
++----------+-----------+
+| f64      | float     |
++----------+-----------+
+name: m3
++----------+-----------+
+| fieldKey | fieldType |
++----------+-----------+
+| u64      | unsigned  |
++----------+-----------+
 -- InfluxQL: SHOW FIELD KEYS FROM /d\isk/;
-+------------------+------------+-----------+
-| iox::measurement | fieldKey   | fieldType |
-+------------------+------------+-----------+
-| disk             | bytes_free | integer   |
-| disk             | bytes_used | integer   |
-+------------------+------------+-----------+
+name: disk
++------------+-----------+
+| fieldKey   | fieldType |
++------------+-----------+
+| bytes_free | integer   |
+| bytes_used | integer   |
++------------+-----------+
 -- InfluxQL: SHOW FIELD KEYS FROM does_not_exist;
-+------------------+----------+-----------+
-| iox::measurement | fieldKey | fieldType |
-+------------------+----------+-----------+
-+------------------+----------+-----------+
 -- InfluxQL: SHOW FIELD KEYS ON my_db;
 Error while planning query: This feature is not implemented: SHOW FIELD KEYS ON <database>
 -- InfluxQL: SHOW FIELD KEYS FROM x.my_db;
