@@ -81,19 +81,11 @@ pub enum Error {
     ))]
     TooManyFlightSQLDatabases { header_names: Vec<String> },
 
-    #[snafu(display("no 'iox-namespace-name' header in request"))]
-    NoFlightSQLNamespace,
+    #[snafu(display("no 'database' header in request"))]
+    NoFlightSQLDatabase,
 
-    #[snafu(display(
-        "Invalid 'database' or 'bucket' or 'bucket-name' header in request: {}",
-        source
-    ))]
+    #[snafu(display("Invalid 'database' header in request: {}", source))]
     InvalidDatabaseHeader {
-        source: tonic::metadata::errors::ToStrError,
-    },
-
-    #[snafu(display("Invalid 'iox-namespace-name' header in request: {}", source))]
-    InvalidNamespaceHeader {
         source: tonic::metadata::errors::ToStrError,
     },
 
@@ -146,9 +138,8 @@ impl From<Error> for tonic::Status {
             Error::Query { .. } => info!(e=%err, msg),
             Error::Optimize { .. }
             | Error::TooManyFlightSQLDatabases { .. }
-            | Error::NoFlightSQLNamespace
+            | Error::NoFlightSQLDatabase
             | Error::InvalidDatabaseHeader { .. }
-            | Error::InvalidNamespaceHeader { .. }
             | Error::Planning { .. }
             | Error::Deserialization { .. }
             | Error::InternalCreatingTicket { .. }
@@ -175,9 +166,8 @@ impl Error {
             | Self::InvalidHandshake { .. }
             | Self::Deserialization { .. }
             | Self::TooManyFlightSQLDatabases { .. }
-            | Self::NoFlightSQLNamespace
+            | Self::NoFlightSQLDatabase
             | Self::InvalidDatabaseHeader { .. }
-            | Self::InvalidNamespaceHeader { .. }
             | Self::InvalidNamespaceName { .. } => tonic::Code::InvalidArgument,
             Self::Planning { source, .. } | Self::Query { source, .. } => {
                 datafusion_error_to_tonic_code(&source)
@@ -746,33 +736,32 @@ fn cmd_from_descriptor(flight_descriptor: FlightDescriptor) -> Result<FlightSQLC
 /// FlightSQL is using the new header names.
 fn get_flightsql_namespace(metadata: &MetadataMap) -> Result<String> {
     let mut found_header_keys: Vec<String> = vec![];
+
     for key in IOX_FLIGHT_SQL_DATABASE_HEADERS {
         if metadata.contains_key(key) {
             found_header_keys.push(key.to_string());
         }
     }
-    if found_header_keys.len() > 1 {
-        return TooManyFlightSQLDatabasesSnafu {
-            header_names: found_header_keys,
+
+    // if all the keys specify the same database name, return the name
+    let mut database_name: Option<&str> = None;
+    for key in &found_header_keys {
+        if let Some(v) = metadata.get(key) {
+            let v = v.to_str().context(InvalidDatabaseHeaderSnafu)?;
+            if database_name.is_none() {
+                database_name = Some(v);
+            } else if let Some(database_name) = database_name {
+                if database_name != v {
+                    return TooManyFlightSQLDatabasesSnafu {
+                        header_names: found_header_keys,
+                    }
+                    .fail();
+                }
+            }
         }
-        .fail();
     }
 
-    if let Some(v) = metadata.get(IOX_FLIGHT_SQL_DATABASE_HEADERS[0]) {
-        let v = v.to_str().context(InvalidDatabaseHeaderSnafu)?;
-        return Ok(v.to_string());
-    } else if let Some(v) = metadata.get(IOX_FLIGHT_SQL_DATABASE_HEADERS[1]) {
-        let v = v.to_str().context(InvalidDatabaseHeaderSnafu)?;
-        return Ok(v.to_string());
-    } else if let Some(v) = metadata.get(IOX_FLIGHT_SQL_DATABASE_HEADERS[2]) {
-        let v = v.to_str().context(InvalidDatabaseHeaderSnafu)?;
-        return Ok(v.to_string());
-    } else if let Some(v) = metadata.get(IOX_FLIGHT_SQL_DATABASE_HEADERS[3]) {
-        let v = v.to_str().context(InvalidNamespaceHeaderSnafu)?;
-        return Ok(v.to_string());
-    }
-
-    NoFlightSQLNamespaceSnafu.fail()
+    Ok(database_name.context(NoFlightSQLDatabaseSnafu)?.to_string())
 }
 
 /// Retrieve the authorization token associated with the request.
@@ -1293,7 +1282,7 @@ mod tests {
             let mut req =
                 tonic::Request::new(FlightDescriptor::new_cmd(cmd.as_any().encode_to_vec()));
             req.metadata_mut().insert(
-                MetadataKey::from_static("iox-namespace-name"),
+                MetadataKey::from_static("database"),
                 MetadataValue::from_static("bananas"),
             );
             if !authorization.is_empty() {
