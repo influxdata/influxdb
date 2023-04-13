@@ -31,7 +31,7 @@ parking_lot = "0.12"
 predicate = { path = "../predicate" }
 schema = { version = "0.1.0", path = "../schema" }
 serde = "1.0"
-serde_json = "1.0.95"
+serde_json = "1.0.96"
 serde_urlencoded = "0.7"
 server_util = { path = "../server_util" }
 service_grpc_catalog = { path = "../service_grpc_catalog"}
