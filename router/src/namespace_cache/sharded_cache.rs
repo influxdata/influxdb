@@ -4,7 +4,7 @@ use async_trait::async_trait;
 use data_types::{NamespaceName, NamespaceSchema};
 use sharder::JumpHash;
 
-use super::{NamespaceCache, NamespaceStats};
+use super::NamespaceCache;
 
 /// A decorator sharding the [`NamespaceCache`] keyspace into a set of `T`.
 #[derive(Debug)]
@@ -39,8 +39,8 @@ where
     fn put_schema(
         &self,
         namespace: NamespaceName<'static>,
-        schema: impl Into<Arc<NamespaceSchema>>,
-    ) -> (Option<Arc<NamespaceSchema>>, NamespaceStats) {
+        schema: NamespaceSchema,
+    ) -> (Option<Arc<NamespaceSchema>>, Arc<NamespaceSchema>) {
         self.shards.hash(&namespace).put_schema(namespace, schema)
     }
 }

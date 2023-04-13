@@ -7,7 +7,7 @@ use data_types::{NamespaceName, NamespaceSchema};
 use iox_time::{SystemProvider, TimeProvider};
 use metric::{DurationHistogram, Metric, U64Gauge};
 
-use super::{NamespaceCache, NamespaceStats};
+use super::NamespaceCache;
 
 /// An [`InstrumentedCache`] decorates a [`NamespaceCache`] with cache read
 /// hit/miss and cache put insert/update metrics.
@@ -100,12 +100,11 @@ where
     fn put_schema(
         &self,
         namespace: NamespaceName<'static>,
-        schema: impl Into<Arc<NamespaceSchema>>,
-    ) -> (Option<Arc<NamespaceSchema>>, NamespaceStats) {
-        let schema = schema.into();
-
+        schema: NamespaceSchema,
+    ) -> (Option<Arc<NamespaceSchema>>, Arc<NamespaceSchema>) {
         let t = self.time_provider.now();
-        let (previous, new_stats) = self.inner.put_schema(namespace, schema);
+        let (previous, new_schema) = self.inner.put_schema(namespace, schema);
+        let new_stats = NamespaceStats::new(&new_schema);
 
         match previous {
             Some(v) => {
@@ -124,7 +123,7 @@ where
                 self.table_count.delta(table_count_diff);
                 self.column_count.delta(column_count_diff);
 
-                (Some(v), new_stats)
+                (Some(v), new_schema)
             }
             None => {
                 if let Some(delta) = self.time_provider.now().checked_duration_since(t) {
@@ -135,8 +134,29 @@ where
                 self.table_count.inc(new_stats.table_count);
                 self.column_count.inc(new_stats.column_count);
 
-                (None, new_stats)
+                (None, new_schema)
             }
+        }
+    }
+}
+
+#[derive(Debug, PartialEq, Eq)]
+/// An encapsulation of statistics associated with a namespace schema.
+pub struct NamespaceStats {
+    /// Number of tables within the namespace
+    pub table_count: u64,
+    /// Total number of columns across all tables within the namespace
+    pub column_count: u64,
+}
+
+impl NamespaceStats {
+    /// Derives a set of [`NamespaceStats`] from the given schema.
+    pub fn new(ns: &NamespaceSchema) -> Self {
+        let table_count = ns.tables.len() as _;
+        let column_count = ns.tables.values().fold(0, |acc, t| acc + t.columns.len()) as _;
+        Self {
+            table_count,
+            column_count,
         }
     }
 }

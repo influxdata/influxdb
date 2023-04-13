@@ -278,8 +278,7 @@ where
                     SchemaError::UnexpectedCatalogError(e.into_err())
                 }
             }
-        })?
-        .map(Arc::new);
+        })?;
 
         trace!(%namespace, "schema validation complete");
 
@@ -289,9 +288,9 @@ where
         // complete.
         let latest_schema = match maybe_new_schema {
             Some(v) => {
-                self.cache.put_schema(namespace.clone(), Arc::clone(&v));
+                let (_, new_schema) = self.cache.put_schema(namespace.clone(), v);
                 trace!(%namespace, "schema cache updated");
-                v
+                new_schema
             }
             None => {
                 trace!(%namespace, "schema unchanged");

@@ -6,7 +6,7 @@ use hashbrown::HashMap;
 use parking_lot::RwLock;
 use thiserror::Error;
 
-use super::{NamespaceCache, NamespaceStats};
+use super::NamespaceCache;
 
 /// An error type indicating that `namespace` is not present in the cache.
 #[derive(Debug, Error)]
@@ -42,26 +42,20 @@ impl NamespaceCache for Arc<MemoryNamespaceCache> {
     fn put_schema(
         &self,
         namespace: NamespaceName<'static>,
-        schema: impl Into<Arc<NamespaceSchema>>,
-    ) -> (Option<Arc<NamespaceSchema>>, NamespaceStats) {
+        mut schema: NamespaceSchema,
+    ) -> (Option<Arc<NamespaceSchema>>, Arc<NamespaceSchema>) {
         let mut guard = self.cache.write();
-        let new_ns = schema.into();
-        let new_stats = NamespaceStats::new(&new_ns);
 
         match guard.get(&namespace) {
             Some(old_ns) => {
                 // If the previous tenant has a different ID then take the new
                 // schema. The old may have been replaced.
-                if old_ns.id != new_ns.id {
-                    return (guard.insert(namespace, new_ns), new_stats);
+                if old_ns.id != schema.id {
+                    let new_ns = Arc::new(schema);
+                    return (guard.insert(namespace, Arc::clone(&new_ns)), new_ns);
                 }
 
-                let mut new_ns = (*new_ns).clone();
-                // The column count can be computed as part of the merge process
-                // here to save on additional iteration.
-                let mut new_column_count: u64 = 0;
-                for (table_name, new_table) in &mut new_ns.tables {
-                    new_column_count += new_table.columns.len() as u64;
+                for (table_name, new_table) in &mut schema.tables {
                     let old_columns = match old_ns.tables.get(table_name) {
                         Some(v) => &v.columns,
                         None => continue,
@@ -69,19 +63,18 @@ impl NamespaceCache for Arc<MemoryNamespaceCache> {
 
                     for (column_name, column) in old_columns {
                         if !new_table.columns.contains_key(column_name) {
-                            new_column_count += 1;
                             new_table.columns.insert(column_name.clone(), *column);
                         }
                     }
                 }
 
-                let new_stats = NamespaceStats {
-                    table_count: new_ns.tables.len() as _,
-                    column_count: new_column_count,
-                };
-                (guard.insert(namespace, Arc::new(new_ns)), new_stats)
+                let ret = Arc::new(schema);
+                (guard.insert(namespace, Arc::clone(&ret)), ret)
             }
-            None => (guard.insert(namespace, new_ns), new_stats),
+            None => {
+                let new_ns = Arc::new(schema);
+                (guard.insert(namespace, Arc::clone(&new_ns)), new_ns)
+            }
         }
     }
 }
@@ -210,18 +203,13 @@ mod tests {
 
         let cache_clone = Arc::clone(&cache);
         let ns_clone = ns.clone();
+        let final_schema_clone = want_namespace_schema.clone();
         tokio::task::spawn(async move {
-            assert_matches!(cache_clone.put_schema(ns_clone.clone(), schema_update_1), (None, new_stats) => {
-                assert_eq!(new_stats, NamespaceStats{
-                    table_count: 1,
-                    column_count: 1,
-                });
+            assert_matches!(cache_clone.put_schema(ns_clone.clone(), schema_update_1.clone()), (None, new_schema) => {
+                assert_eq!(*new_schema, schema_update_1);
             });
-            assert_matches!(cache_clone.put_schema(ns_clone.clone(), schema_update_2), (Some(_), new_stats) => {
-                assert_eq!(new_stats, NamespaceStats{
-                    table_count: 1,
-                    column_count: 2,
-                });
+            assert_matches!(cache_clone.put_schema(ns_clone.clone(), schema_update_2), (Some(_), new_schema) => {
+                assert_eq!(*new_schema, final_schema_clone);
             });
         })
         .await
