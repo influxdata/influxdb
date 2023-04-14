@@ -118,6 +118,13 @@ pub async fn command(connection: Connection, config: Config) -> Result<(), Error
             Ok(())
         }
         Command::Pull(pull) => {
+            match &pull.object_store.object_store {
+                None | Some(ObjectStoreType::Memory | ObjectStoreType::MemoryThrottled) => {
+                    return Err(Error::SillyObjectStoreConfig);
+                }
+                _ => {}
+            }
+
             let metrics = setup_metric_registry();
             let catalog = pull.catalog_dsn.get_catalog("cli", metrics).await?;
             let mut schema_client = schema::Client::new(connection.clone());
@@ -144,13 +151,6 @@ pub async fn command(connection: Connection, config: Config) -> Result<(), Error
 
             let partition_mapping =
                 load_partition(&catalog, &schema, &pull.table, &partition).await?;
-
-            match &pull.object_store.object_store {
-                None | Some(ObjectStoreType::Memory | ObjectStoreType::MemoryThrottled) => {
-                    return Err(Error::SillyObjectStoreConfig);
-                }
-                _ => {}
-            }
 
             let object_store =
                 make_object_store(&pull.object_store).map_err(Error::ObjectStoreParsing)?;
