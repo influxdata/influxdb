@@ -183,8 +183,7 @@ where
                 //
                 // This MAY return a different instance than `p` if another
                 // thread has already initialised the partition.
-                self.partition_data
-                    .get_or_insert_with(&partition_key, || Arc::new(Mutex::new(p)))
+                self.partition_data.get_or_insert_with(&partition_key, || p)
             }
         };
 
