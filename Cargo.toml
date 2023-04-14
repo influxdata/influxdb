@@ -81,7 +81,6 @@ members = [
     "trogging",
     "wal",
     "workspace-hack",
-    "write_summary",
 ]
 default-members = ["influxdb_iox"]
 
@@ -115,12 +114,18 @@ edition = "2021"
 license = "MIT OR Apache-2.0"
 
 [workspace.dependencies]
-arrow = { version = "36.0.0" }
-arrow-flight = { version = "36.0.0" }
-datafusion = { git = "https://github.com/apache/arrow-datafusion.git", rev="b87871fdd1f4ce64201eb1f7c79a0547627f37e9", default-features = false }
-datafusion-proto = { git = "https://github.com/apache/arrow-datafusion.git", rev="b87871fdd1f4ce64201eb1f7c79a0547627f37e9" }
+arrow = { version = "37.0.0" }
+arrow-flight = { version = "37.0.0" }
+datafusion = { git = "https://github.com/apache/arrow-datafusion.git", rev="6e819d6c2b9280198c67fa16df3e54c79ce46ca2", default-features = false }
+datafusion-proto = { git = "https://github.com/apache/arrow-datafusion.git", rev="6e819d6c2b9280198c67fa16df3e54c79ce46ca2" }
 hashbrown = { version = "0.13.2" }
-parquet = { version = "36.0.0" }
+parquet = { version = "37.0.0" }
+tonic = { version = "0.9.1", features = ["tls", "tls-webpki-roots"] }
+tonic-build = { version = "0.9.1" }
+tonic-health = { version = "0.9.1" }
+tonic-reflection = { version = "0.9.1" }
+
+
 
 # This profile optimizes for runtime performance and small binary size at the expense of longer
 # build times. It's most suitable for final release builds.

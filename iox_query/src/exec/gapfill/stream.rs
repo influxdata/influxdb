@@ -22,9 +22,16 @@ use datafusion::{
 };
 use futures::{ready, Stream, StreamExt};
 
-use super::{algo::GapFiller, params::GapFillParams, GapFillExec};
+use super::{algo::GapFiller, buffered_input::BufferedInput, params::GapFillParams, GapFillExec};
 
 /// An implementation of a gap-filling operator that uses the [Stream] trait.
+///
+/// This type takes responsibility for:
+/// - Reading input record batches
+/// - Accounting for memory
+/// - Extracting arrays for processing by [`GapFiller`]
+/// - Recording metrics
+/// - Sending record batches to next operator (by implementing [`Self::poll_next'])
 #[allow(dead_code)]
 pub(super) struct GapFillStream {
     /// The schema of the input and output.
@@ -38,12 +45,10 @@ pub(super) struct GapFillStream {
     group_expr: Vec<Arc<dyn PhysicalExpr>>,
     /// The aggregate columns from the select list of the original query.
     aggr_expr: Vec<Arc<dyn PhysicalExpr>>,
-    /// The number of rows to produce in each output batch.
-    batch_size: usize,
     /// The producer of the input record batches.
     input: SendableRecordBatchStream,
     /// Input that has been read from the iput stream.
-    buffered_input_batches: Vec<RecordBatch>,
+    buffered_input: BufferedInput,
     /// The thing that does the gap filling.
     gap_filler: GapFiller,
     /// This is true as long as there are more input record batches to read from `input`.
@@ -83,16 +88,19 @@ impl GapFillStream {
             .collect::<Vec<_>>();
         let aggr_expr = aggr_expr.to_owned();
         let time_expr = group_expr.split_off(group_expr.len() - 1).pop().unwrap();
+
+        let group_cols = group_expr.iter().map(expr_to_index).collect::<Vec<_>>();
         let params = GapFillParams::try_new(Arc::clone(&schema), params)?;
-        let gap_filler = GapFiller::new(params);
+        let buffered_input = BufferedInput::new(&params, group_cols);
+
+        let gap_filler = GapFiller::new(params, batch_size);
         Ok(Self {
             schema,
             time_expr,
             group_expr,
             aggr_expr,
-            batch_size,
             input,
-            buffered_input_batches: vec![],
+            buffered_input,
             gap_filler,
             more_input: true,
             reservation,
@@ -112,28 +120,17 @@ impl Stream for GapFillStream {
 
     /// Produces a gap-filled record batch from its input stream.
     ///
-    /// This method starts off by reading input until it has buffered `batch_size` + 2 rows,
-    /// or until there is no more input. Having at least `batch_size` rows ensures that we
-    /// can produce at least one full output batch. We need two additional rows so that we have
-    ///  1) an input row that corresponds to the row before the current output batch. This is
-    ///     needed for the case where we are producing trailing gaps, and we need to use the
-    ///     `take` kernel to build the group columns. There must be at least one row from the
-    ///     corresponding series in the input to take from.
-    ///  2) an input row that corresponds to the next input row that will be read after the
-    ///     current output batch. This tells us if we have processed all of our input for a series
-    ///     but may be in "trailing gaps" mode.
-    ///
-    /// Once input rows have been buffered, it will produce a gap-filled [RecordBatch] with `self.batch_size`
-    /// rows (or less, if there is no more input).
+    /// For details on implementation, see [`GapFiller`].
     fn poll_next(
         mut self: Pin<&mut Self>,
         cx: &mut Context<'_>,
     ) -> Poll<Option<Result<RecordBatch>>> {
-        while self.more_input && self.buffered_input_row_count() < self.batch_size + 2 {
+        let last_output_row_offset = self.gap_filler.last_output_row_offset();
+        while self.more_input && self.buffered_input.need_more(last_output_row_offset)? {
             match ready!(self.input.poll_next_unpin(cx)) {
                 Some(Ok(batch)) => {
                     self.reservation.try_grow(batch.get_array_memory_size())?;
-                    self.buffered_input_batches.push(batch);
+                    self.buffered_input.push(batch);
                 }
                 Some(Err(e)) => {
                     return Poll::Ready(Some(Err(e)));
@@ -162,8 +159,7 @@ impl Stream for GapFillStream {
 
         match self.process(input_batch) {
             Ok((output_batch, remaining_input_batch)) => {
-                self.buffered_input_batches.push(remaining_input_batch);
-                assert_eq!(1, self.buffered_input_batches.len());
+                self.buffered_input.push(remaining_input_batch);
 
                 self.reservation
                     .shrink(output_batch.get_array_memory_size());
@@ -175,30 +171,21 @@ impl Stream for GapFillStream {
 }
 
 impl GapFillStream {
-    /// Count of input rows that are currently buffered.
-    fn buffered_input_row_count(&self) -> usize {
-        self.buffered_input_batches
-            .iter()
-            .map(|rb| rb.num_rows())
-            .sum()
-    }
-
     /// If any buffered input batches are present, concatenates it all together
     /// and returns an owned batch to the caller, leaving `self.buffered_input_batches` empty.
     fn take_buffered_input(&mut self) -> Result<Option<RecordBatch>> {
-        if self.buffered_input_batches.is_empty() {
+        let batches = self.buffered_input.take();
+        if batches.is_empty() {
             return Ok(None);
         }
 
-        let mut v = vec![];
-        std::mem::swap(&mut v, &mut self.buffered_input_batches);
-        let old_size = v.iter().map(|rb| rb.get_array_memory_size()).sum();
+        let old_size = batches.iter().map(|rb| rb.get_array_memory_size()).sum();
 
-        let mut batch = arrow::compute::concat_batches(&self.schema, &v)
+        let mut batch = arrow::compute::concat_batches(&self.schema, &batches)
             .map_err(DataFusionError::ArrowError)?;
         self.reservation.try_grow(batch.get_array_memory_size())?;
 
-        if v.len() > 1 {
+        if batches.len() > 1 {
             // Optimize the dictionaries. The output of this operator uses the take kernel to produce
             // its output. Since the input batches will usually be smaller than the output, it should
             // be less work to optimize here vs optimizing the output.
@@ -234,7 +221,6 @@ impl GapFillStream {
         let output_batch = self
             .gap_filler
             .build_gapfilled_output(
-                self.batch_size,
                 Arc::clone(&self.schema),
                 input_time_array,
                 &group_arrays,

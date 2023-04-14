@@ -1,9 +1,11 @@
+use std::sync::Arc;
+
 use arrow::{
     array::{
         Array, ArrayBuilder, ArrayData, BooleanBuilder, Int32Builder, Int64Builder, Int8Builder,
         ListBuilder, StringBuilder, UnionArray,
     },
-    datatypes::{DataType, Field, UnionMode},
+    datatypes::{DataType, Field, UnionFields, UnionMode},
 };
 use arrow_flight::sql::SqlInfo;
 use once_cell::sync::Lazy;
@@ -118,7 +120,7 @@ static UNION_TYPE: Lazy<DataType> = Lazy::new(|| {
         // treat list as nullable b/c that is what hte builders make
         Field::new(
             "string_list",
-            DataType::List(Box::new(Field::new("item", DataType::Utf8, true))),
+            DataType::List(Arc::new(Field::new("item", DataType::Utf8, true))),
             true,
         ),
     ];
@@ -127,7 +129,7 @@ static UNION_TYPE: Lazy<DataType> = Lazy::new(|| {
     // assume they go from 0 .. num_fields
     let type_ids: Vec<i8> = (0..fields.len()).map(|v| v as i8).collect();
 
-    DataType::Union(fields, type_ids, UnionMode::Dense)
+    DataType::Union(UnionFields::new(type_ids, fields), UnionMode::Dense)
 });
 
 impl SqlInfoUnionBuilder {

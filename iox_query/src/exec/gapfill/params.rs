@@ -2,7 +2,7 @@
 use std::ops::Bound;
 
 use arrow::{
-    datatypes::{IntervalDayTimeType, SchemaRef},
+    datatypes::{IntervalMonthDayNanoType, SchemaRef},
     record_batch::RecordBatch,
 };
 use chrono::Duration;
@@ -133,10 +133,17 @@ fn extract_timestamp_nanos(cv: &ColumnarValue) -> Result<i64> {
 
 fn extract_interval_nanos(cv: &ColumnarValue) -> Result<i64> {
     match cv {
-        ColumnarValue::Scalar(ScalarValue::IntervalDayTime(Some(v))) => {
-            let (days, ms) = IntervalDayTimeType::to_parts(*v);
+        ColumnarValue::Scalar(ScalarValue::IntervalMonthDayNano(Some(v))) => {
+            let (months, days, nanos) = IntervalMonthDayNanoType::to_parts(*v);
+
+            if months != 0 {
+                return Err(DataFusionError::Execution(
+                    "gap filling does not support month intervals".to_string(),
+                ));
+            }
+
             let nanos =
-                (Duration::days(days as i64) + Duration::milliseconds(ms as i64)).num_nanoseconds();
+                (Duration::days(days as i64) + Duration::nanoseconds(nanos)).num_nanoseconds();
             nanos.ok_or_else(|| {
                 DataFusionError::Execution("gap filling argument is too large".to_string())
             })
@@ -261,9 +268,7 @@ mod tests {
     }
 
     fn interval(ns: i64) -> Arc<dyn PhysicalExpr> {
-        Arc::new(Literal::new(ScalarValue::IntervalDayTime(Some(
-            ns / 1_000_000,
-        ))))
+        Arc::new(Literal::new(ScalarValue::new_interval_mdn(0, 0, ns)))
     }
 
     fn timestamp(ns: i64) -> Arc<dyn PhysicalExpr> {

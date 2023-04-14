@@ -90,6 +90,11 @@ impl Span {
     }
 
     /// Create a new child span with the specified name
+    ///
+    /// Note that the created Span will not be emitted
+    /// automatically. The caller must explicitly call [`Self::export`].
+    ///
+    /// See [`SpanRecorder`] for a helper that automatically emits span data.
     pub fn child(&self, name: impl Into<Cow<'static, str>>) -> Self {
         self.ctx.child(name)
     }
@@ -149,10 +154,10 @@ impl From<i64> for MetaValue {
     }
 }
 
-/// `SpanRecorder` is a utility for instrumenting code that produces `Span`
+/// Utility for instrumenting code that produces [`Span`].
 ///
-/// If a `SpanRecorder` is created from a `Span` it will update the start timestamp
-/// of the span on creation, and on Drop will set the finish time and call `Span::export`
+/// If a [`SpanRecorder`] is created from a [`Span`] it will update the start timestamp
+/// of the span on creation, and on Drop will set the finish time and call [`Span::export`]
 ///
 /// If not created with a `Span`, e.g. this request is not being sampled, all operations
 /// called on this `SpanRecorder` will be a no-op
@@ -207,7 +212,7 @@ impl SpanRecorder {
 
     /// If this `SpanRecorder` has a `Span`, creates a new child of that `Span` and
     /// returns a `SpanRecorder` for it. Otherwise returns an empty `SpanRecorder`
-    pub fn child(&self, name: &'static str) -> Self {
+    pub fn child(&self, name: impl Into<Cow<'static, str>>) -> Self {
         Self::new(self.child_span(name))
     }
 
@@ -219,7 +224,7 @@ impl SpanRecorder {
 
     /// Return a child span of the specified name, if this SpanRecorder
     /// has an active span, `None` otherwise.
-    pub fn child_span(&self, name: &'static str) -> Option<Span> {
+    pub fn child_span(&self, name: impl Into<Cow<'static, str>>) -> Option<Span> {
         self.span.as_ref().map(|span| span.child(name))
     }
 

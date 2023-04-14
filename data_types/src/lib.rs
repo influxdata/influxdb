@@ -270,19 +270,6 @@ impl std::str::FromStr for ShardIndex {
     }
 }
 
-/// Potential configurations of ingester connections for the querier to associate with a shard.
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub enum IngesterMapping {
-    /// Deliberately not mapping this shard to an ingester. If the querier gets a query for
-    /// this shard, it should return an error.
-    NotMapped,
-    /// Deliberately not contacting ingesters for this shard. If the querier gets a query for
-    /// this shard, it should only return persisted data.
-    Ignore,
-    /// The address of the ingester to contact for this shard.
-    Addr(Arc<str>),
-}
-
 /// Unique ID for a `Partition`
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, sqlx::Type, sqlx::FromRow)]
 #[sqlx(transparent)]
@@ -2298,20 +2285,6 @@ impl TimestampMinMax {
             || range.contains(self.max)
             || (self.min <= range.start && self.max >= range.end)
     }
-}
-
-/// Specifies the status of data in the ingestion process.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum ShardWriteStatus {
-    /// Nothing is known about this write (e.g. it refers to a shard for which we have no
-    /// information)
-    ShardUnknown,
-    /// The data has not yet been processed by the ingester, and thus is unreadable
-    Durable,
-    /// The data is readable, but not yet persisted
-    Readable,
-    /// The data is both readable and persisted to parquet
-    Persisted,
 }
 
 #[cfg(test)]

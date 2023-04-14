@@ -126,6 +126,8 @@ pub(crate) fn df_to_scalar(
 
 #[cfg(test)]
 mod tests {
+    use std::sync::Arc;
+
     use arrow::datatypes::Field;
     use test_helpers::assert_contains;
 
@@ -194,7 +196,7 @@ mod tests {
     fn test_unsupported_scalar_value() {
         let scalar = datafusion::scalar::ScalarValue::List(
             Some(vec![]),
-            Box::new(Field::new(
+            Arc::new(Field::new(
                 "field",
                 arrow::datatypes::DataType::Float64,
                 true,

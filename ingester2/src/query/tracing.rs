@@ -43,12 +43,11 @@ where
         columns: Vec<String>,
         span: Option<Span>,
     ) -> Result<Self::Response, QueryError> {
-        let span = span.map(|s| s.child(self.name.clone()));
-        let mut recorder = SpanRecorder::new(span.clone());
+        let mut recorder = SpanRecorder::new(span).child(self.name.clone());
 
         match self
             .inner
-            .query_exec(namespace_id, table_id, columns, span)
+            .query_exec(namespace_id, table_id, columns, recorder.span().cloned())
             .await
         {
             Ok(v) => {
@@ -89,7 +88,7 @@ mod tests {
             .spans()
             .into_iter()
             .find(|s| s.name == name)
-            .unwrap_or_else(|| panic!("tracing span {name} not found"));
+            .unwrap_or_else(|| panic!("tracing span {name} not found in\n{traces:#?}"));
 
         assert_eq!(
             span.status, status,

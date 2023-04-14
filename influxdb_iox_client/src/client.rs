@@ -36,8 +36,5 @@ pub mod store;
 /// Client for testing purposes.
 pub mod test;
 
-/// Client for fetching write info
-pub mod write_info;
-
 /// Client for write API
 pub mod write;

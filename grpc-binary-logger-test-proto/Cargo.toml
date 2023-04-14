@@ -7,10 +7,10 @@ license.workspace = true
 
 [dependencies]
 prost = "0.11"
-prost-types = { version = "0.11.7", features = ["std"] }
-tonic = "0.8"
+prost-types = { version = "0.11.9", features = ["std"] }
+tonic = { workspace = true }
 workspace-hack = { version = "0.1", path = "../workspace-hack" }
 
 [build-dependencies]
 prost-build = "0.11"
-tonic-build = "0.8"
+tonic-build = { workspace = true }

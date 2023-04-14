@@ -16,5 +16,4 @@ workspace-hack = { version = "0.1", path = "../workspace-hack" }
 # crates.io dependencies in alphabetical order.
 async-trait = "0.1"
 snafu = "0.7"
-tonic = "0.8"
-
+tonic = { workspace = true }

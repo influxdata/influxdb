@@ -9,7 +9,7 @@ license.workspace = true
 data_types = { path = "../data_types" }
 generated_types = { path = "../generated_types" }
 observability_deps = { path = "../observability_deps" }
-tonic = "0.8"
+tonic = { workspace = true }
 iox_catalog = { path = "../iox_catalog" }
 workspace-hack = { version = "0.1", path = "../workspace-hack" }
 

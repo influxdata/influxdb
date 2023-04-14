@@ -16,7 +16,6 @@ pub mod authz;
 pub mod catalog_dsn;
 pub mod compactor2;
 pub mod garbage_collector;
-pub mod ingest_replica;
 pub mod ingester2;
 pub mod ingester_address;
 pub mod object_store;

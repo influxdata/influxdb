@@ -1,11 +1,15 @@
 -- Gap-filling tests
 -- IOX_SETUP: OneMeasurementTwoSeries
 
--- Input data
--- region=a 2000-05-05T12:20:00Z
--- region=a 2000-05-05T12:40:00Z
--- region=b 2000-05-05T12:31:00Z
--- region=b 2000-05-05T12:39:00Z
+-- Input data (by region, time)
+SELECT *
+FROM cpu
+ORDER BY REGION, TIME;
+
+-- Input data (by time)
+SELECT *
+FROM cpu
+ORDER BY TIME;
 
 -- IOX_COMPARE: uuid
 EXPLAIN SELECT
@@ -74,4 +78,14 @@ SELECT
 from cpu
 where time between timestamp '2000-05-05T12:19:00Z' and timestamp '2000-05-05T12:40:00Z'
 group by minute;
+
+-- cpu.idle has a null value at 12:31. Interpolation should still occur,
+-- overwriting the null value.
+SELECT
+  date_bin_gapfill(interval '4 minutes', time, timestamp '1970-01-01T00:00:00Z') as four_minute,
+  interpolate(min(cpu.idle)),
+  interpolate(min(cpu."user"))
+from cpu
+where time between timestamp '2000-05-05T12:19:00Z' and timestamp '2000-05-05T12:40:00Z'
+group by four_minute;
 

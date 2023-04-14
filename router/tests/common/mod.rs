@@ -12,7 +12,7 @@ use router::{
     dml_handlers::{
         client::mock::MockWriteClient, Chain, DmlHandlerChainExt, FanOutAdaptor,
         InstrumentationDecorator, Partitioned, Partitioner, RetentionValidator, RpcWrite,
-        SchemaValidator, WriteSummaryAdapter,
+        SchemaValidator,
     },
     namespace_cache::{MemoryNamespaceCache, ReadThroughCache, ShardedCache},
     namespace_resolver::{MissingNamespaceAction, NamespaceAutocreation, NamespaceSchemaResolver},
@@ -127,11 +127,9 @@ type HttpDelegateStack = HttpDelegate<
                 >,
                 Partitioner,
             >,
-            WriteSummaryAdapter<
-                FanOutAdaptor<
-                    RpcWrite<Arc<MockWriteClient>>,
-                    Vec<Partitioned<HashMap<TableId, (String, MutableBatch)>>>,
-                >,
+            FanOutAdaptor<
+                RpcWrite<Arc<MockWriteClient>>,
+                Vec<Partitioned<HashMap<TableId, (String, MutableBatch)>>>,
             >,
         >,
     >,
@@ -180,7 +178,7 @@ impl TestContext {
             namespace_autocreation,
         );
 
-        let parallel_write = WriteSummaryAdapter::new(FanOutAdaptor::new(rpc_writer));
+        let parallel_write = FanOutAdaptor::new(rpc_writer);
 
         let handler_stack = retention_validator
             .and_then(schema_validator)

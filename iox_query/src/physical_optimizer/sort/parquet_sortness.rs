@@ -4,7 +4,7 @@ use datafusion::{
     common::tree_node::{Transformed, TreeNode},
     config::ConfigOptions,
     error::Result,
-    physical_expr::PhysicalSortExpr,
+    physical_expr::{PhysicalSortExpr, PhysicalSortRequirement},
     physical_optimizer::PhysicalOptimizerRule,
     physical_plan::{
         file_format::{FileScanConfig, ParquetExec},
@@ -12,7 +12,6 @@ use datafusion::{
         ExecutionPlan,
     },
 };
-use datafusion_util::sort_exprs::requirements_to_sort_exprs;
 use observability_deps::tracing::warn;
 
 use crate::config::IoxConfigExt;
@@ -157,7 +156,7 @@ fn detect_children_with_desired_ordering(
                 required_input_ordering
                     .into_iter()
                     .map(|requirement| requirement.expect("just checked"))
-                    .map(requirements_to_sort_exprs),
+                    .map(PhysicalSortRequirement::to_sort_exprs),
             )
             .collect(),
     )
@@ -165,7 +164,7 @@ fn detect_children_with_desired_ordering(
 
 #[cfg(test)]
 mod tests {
-    use arrow::datatypes::{DataType, Field, Schema, SchemaRef};
+    use arrow::datatypes::{DataType, Field, Fields, Schema, SchemaRef};
     use datafusion::{
         datasource::{listing::PartitionedFile, object_store::ObjectStoreUrl},
         physical_expr::PhysicalSortExpr,
@@ -198,12 +197,8 @@ mod tests {
         };
         let inner = ParquetExec::new(base_config, None, None);
         let plan = Arc::new(
-            SortExec::try_new(
-                ordering(["col2", "col1"], &schema),
-                Arc::new(inner),
-                Some(42),
-            )
-            .unwrap(),
+            SortExec::new(ordering(["col2", "col1"], &schema), Arc::new(inner))
+                .with_fetch(Some(42)),
         );
         let opt = ParquetSortness::default();
         insta::assert_yaml_snapshot!(
@@ -272,12 +267,11 @@ mod tests {
             infinite_source: false,
         };
         let inner = ParquetExec::new(base_config, None, None);
-        let plan = Arc::new(SortExec::new_with_partitioning(
-            ordering(["col2", "col1"], &schema),
-            Arc::new(inner),
-            true,
-            Some(42),
-        ));
+        let plan = Arc::new(
+            SortExec::new(ordering(["col2", "col1"], &schema), Arc::new(inner))
+                .with_preserve_partitioning(true)
+                .with_fetch(Some(42)),
+        );
 
         assert_unknown_partitioning(plan.output_partitioning(), 2);
 
@@ -316,12 +310,8 @@ mod tests {
         };
         let inner = ParquetExec::new(base_config, None, None);
         let plan = Arc::new(
-            SortExec::try_new(
-                ordering(["col2", "col1"], &schema),
-                Arc::new(inner),
-                Some(42),
-            )
-            .unwrap(),
+            SortExec::new(ordering(["col2", "col1"], &schema), Arc::new(inner))
+                .with_fetch(Some(42)),
         );
         let opt = ParquetSortness::default();
         insta::assert_yaml_snapshot!(
@@ -355,12 +345,8 @@ mod tests {
         };
         let inner = ParquetExec::new(base_config, None, None);
         let plan = Arc::new(
-            SortExec::try_new(
-                ordering(["col2", "col1"], &schema),
-                Arc::new(inner),
-                Some(42),
-            )
-            .unwrap(),
+            SortExec::new(ordering(["col2", "col1"], &schema), Arc::new(inner))
+                .with_fetch(Some(42)),
         );
         let opt = ParquetSortness::default();
         insta::assert_yaml_snapshot!(
@@ -394,12 +380,8 @@ mod tests {
         };
         let inner = ParquetExec::new(base_config, None, None);
         let plan = Arc::new(
-            SortExec::try_new(
-                ordering(["col2", "col1"], &schema),
-                Arc::new(inner),
-                Some(42),
-            )
-            .unwrap(),
+            SortExec::new(ordering(["col2", "col1"], &schema), Arc::new(inner))
+                .with_fetch(Some(42)),
         );
         let opt = ParquetSortness::default();
         insta::assert_yaml_snapshot!(
@@ -433,12 +415,8 @@ mod tests {
         };
         let inner = ParquetExec::new(base_config, None, None);
         let plan = Arc::new(
-            SortExec::try_new(
-                ordering(["col2", "col1"], &schema),
-                Arc::new(inner),
-                Some(42),
-            )
-            .unwrap(),
+            SortExec::new(ordering(["col2", "col1"], &schema), Arc::new(inner))
+                .with_fetch(Some(42)),
         );
         let opt = ParquetSortness::default();
         let mut config = ConfigOptions::default();
@@ -466,12 +444,8 @@ mod tests {
         let schema = schema();
         let inner = EmptyExec::new(true, Arc::clone(&schema));
         let plan = Arc::new(
-            SortExec::try_new(
-                ordering(["col2", "col1"], &schema),
-                Arc::new(inner),
-                Some(42),
-            )
-            .unwrap(),
+            SortExec::new(ordering(["col2", "col1"], &schema), Arc::new(inner))
+                .with_fetch(Some(42)),
         );
         let opt = ParquetSortness::default();
         insta::assert_yaml_snapshot!(
@@ -533,12 +507,10 @@ mod tests {
             infinite_source: false,
         };
         let plan = Arc::new(ParquetExec::new(base_config, None, None));
-        let plan = Arc::new(
-            SortExec::try_new(ordering(["col2", "col1"], &schema), plan, Some(42)).unwrap(),
-        );
-        let plan = Arc::new(
-            SortExec::try_new(ordering(["col1", "col2"], &schema), plan, Some(42)).unwrap(),
-        );
+        let plan =
+            Arc::new(SortExec::new(ordering(["col2", "col1"], &schema), plan).with_fetch(Some(42)));
+        let plan =
+            Arc::new(SortExec::new(ordering(["col1", "col2"], &schema), plan).with_fetch(Some(42)));
         let opt = ParquetSortness::default();
         insta::assert_yaml_snapshot!(
             OptimizationTest::new(plan, opt),
@@ -572,7 +544,7 @@ mod tests {
                 .iter()
                 .cloned()
                 .chain(std::iter::once(chunk_order_field()))
-                .collect(),
+                .collect::<Fields>(),
         ))
     }
 

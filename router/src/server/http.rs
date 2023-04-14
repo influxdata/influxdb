@@ -19,7 +19,6 @@ use std::{str::Utf8Error, sync::Arc, time::Instant};
 use thiserror::Error;
 use tokio::sync::{Semaphore, TryAcquireError};
 use trace::ctx::SpanContext;
-use write_summary::WriteSummary;
 
 use self::{
     delete_predicate::parse_http_delete_request,
@@ -34,8 +33,6 @@ use crate::{
     },
     namespace_resolver::NamespaceResolver,
 };
-
-const WRITE_TOKEN_HTTP_HEADER: &str = "X-IOx-Write-Token";
 
 /// Errors returned by the `router` HTTP request handler.
 #[derive(Debug, Error)]
@@ -312,7 +309,7 @@ impl<D, N> HttpDelegate<D, N, SystemProvider> {
 
 impl<D, N, T> HttpDelegate<D, N, T>
 where
-    D: DmlHandler<WriteInput = HashMap<String, MutableBatch>, WriteOutput = WriteSummary>,
+    D: DmlHandler<WriteInput = HashMap<String, MutableBatch>, WriteOutput = ()>,
     N: NamespaceResolver,
     T: TimeProvider,
 {
@@ -349,10 +346,9 @@ where
             (&Method::POST, "/api/v2/delete") => self.delete_handler(req).await,
             _ => return Err(Error::NoHandler),
         }
-        .map(|summary| {
+        .map(|_summary| {
             Response::builder()
                 .status(StatusCode::NO_CONTENT)
-                .header(WRITE_TOKEN_HTTP_HEADER, summary.to_token())
                 .body(Body::empty())
                 .unwrap()
         })
@@ -362,7 +358,7 @@ where
         &self,
         req: Request<Body>,
         write_info: WriteParams,
-    ) -> Result<WriteSummary, Error> {
+    ) -> Result<(), Error> {
         let span_ctx: Option<SpanContext> = req.extensions().get().cloned();
 
         let token = req
@@ -406,7 +402,7 @@ where
             Ok(v) => v,
             Err(mutable_batch_lp::Error::EmptyPayload) => {
                 debug!("nothing to write");
-                return Ok(WriteSummary::default());
+                return Ok(());
             }
             Err(e) => return Err(Error::ParseLineProtocol(e)),
         };
@@ -431,8 +427,7 @@ where
             .get_namespace_id(&write_info.namespace)
             .await?;
 
-        let summary = self
-            .dml_handler
+        self.dml_handler
             .write(&write_info.namespace, namespace_id, batches, span_ctx)
             .await
             .map_err(Into::into)?;
@@ -442,10 +437,10 @@ where
         self.write_metric_tables.inc(num_tables as _);
         self.write_metric_body_size.inc(body.len() as _);
 
-        Ok(summary)
+        Ok(())
     }
 
-    async fn delete_handler(&self, req: Request<Body>) -> Result<WriteSummary, Error> {
+    async fn delete_handler(&self, req: Request<Body>) -> Result<(), Error> {
         let span_ctx: Option<SpanContext> = req.extensions().get().cloned();
         let write_info = self.write_param_extractor.parse_v2(&req)?;
 
@@ -491,9 +486,7 @@ where
 
         self.delete_metric_body_size.inc(body.len() as _);
 
-        // TODO pass back write summaries for deletes as well
-        // https://github.com/influxdata/influxdb_iox/issues/4209
-        Ok(WriteSummary::default())
+        Ok(())
     }
 
     /// Parse the request's body into raw bytes, applying the configured size
@@ -505,7 +498,7 @@ where
             .map(|v| v.to_str().map_err(Error::NonUtf8ContentHeader))
             .transpose()?;
         let ungzip = match encoding {
-            None => false,
+            None | Some("identity") => false,
             Some("gzip") => true,
             Some(v) => return Err(Error::InvalidContentEncoding(v.to_string())),
         };
@@ -589,10 +582,6 @@ mod tests {
     const NAMESPACE_ID: NamespaceId = NamespaceId::new(42);
     static NAMESPACE_NAME: &str = "bananas_test";
 
-    fn summary() -> WriteSummary {
-        WriteSummary::default()
-    }
-
     fn assert_metric_hit(metrics: &metric::Registry, name: &'static str, value: Option<u64>) {
         let counter = metrics
             .get_instrument::<Metric<U64Counter>>(name)
@@ -631,11 +620,21 @@ mod tests {
             want_result = $want_result:pat,                 // Expected handler return value (as pattern)
             want_dml_calls = $($want_dml_calls:tt )+        // assert_matches slice pattern for expected DML calls
         ) => {
-            // Generate the two test cases by feed the same inputs, but varying
+            // Generate the three test cases by feed the same inputs, but varying
             // the encoding.
             test_http_handler!(
                 $name,
                 encoding=plain,
+                uri = $uri,
+                body = $body,
+                dml_write_handler = $dml_write_handler,
+                dml_delete_handler = $dml_delete_handler,
+                want_result = $want_result,
+                want_dml_calls = $($want_dml_calls)+
+            );
+            test_http_handler!(
+                $name,
+                encoding=identity,
                 uri = $uri,
                 body = $body,
                 dml_write_handler = $dml_write_handler,
@@ -726,6 +725,9 @@ mod tests {
         (encoding=plain, $body:ident) => {
             $body
         };
+        (encoding=identity, $body:ident) => {
+            $body
+        };
         (encoding=gzip, $body:ident) => {{
             // Apply gzip compression to the body
             let mut e = GzEncoder::new(Vec::new(), Compression::default());
@@ -733,6 +735,12 @@ mod tests {
             e.finish().expect("failed to compress test body")
         }};
         (encoding_header=plain, $request:ident) => {};
+        (encoding_header=identity, $request:ident) => {{
+            // Set the identity content encoding
+            $request
+                .headers_mut()
+                .insert(CONTENT_ENCODING, HeaderValue::from_static("identity"));
+        }};
         (encoding_header=gzip, $request:ident) => {{
             // Set the gzip content encoding
             $request
@@ -793,7 +801,7 @@ mod tests {
         ok,
         query_string = "?org=bananas&bucket=test",
         body = "platanos,tag1=A,tag2=B val=42i 123456".as_bytes(),
-        dml_handler = [Ok(summary())],
+        dml_handler = [Ok(())],
         want_result = Ok(_),
         want_dml_calls = [MockDmlHandlerCall::Write{namespace, ..}] => {
             assert_eq!(namespace, NAMESPACE_NAME);
@@ -804,7 +812,7 @@ mod tests {
         ok_precision_s,
         query_string = "?org=bananas&bucket=test&precision=s",
         body = "platanos,tag1=A,tag2=B val=42i 1647622847".as_bytes(),
-        dml_handler = [Ok(summary())],
+        dml_handler = [Ok(())],
         want_result = Ok(_),
         want_dml_calls = [MockDmlHandlerCall::Write{namespace, namespace_id, write_input}] => {
             assert_eq!(namespace, NAMESPACE_NAME);
@@ -820,7 +828,7 @@ mod tests {
         ok_precision_ms,
         query_string = "?org=bananas&bucket=test&precision=ms",
         body = "platanos,tag1=A,tag2=B val=42i 1647622847000".as_bytes(),
-        dml_handler = [Ok(summary())],
+        dml_handler = [Ok(())],
         want_result = Ok(_),
         want_dml_calls = [MockDmlHandlerCall::Write{namespace, namespace_id, write_input}] => {
             assert_eq!(namespace, NAMESPACE_NAME);
@@ -836,7 +844,7 @@ mod tests {
         ok_precision_us,
         query_string = "?org=bananas&bucket=test&precision=us",
         body = "platanos,tag1=A,tag2=B val=42i 1647622847000000".as_bytes(),
-        dml_handler = [Ok(summary())],
+        dml_handler = [Ok(())],
         want_result = Ok(_),
         want_dml_calls = [MockDmlHandlerCall::Write{namespace, namespace_id, write_input}] => {
             assert_eq!(namespace, NAMESPACE_NAME);
@@ -852,7 +860,7 @@ mod tests {
         ok_precision_ns,
         query_string = "?org=bananas&bucket=test&precision=ns",
         body = "platanos,tag1=A,tag2=B val=42i 1647622847000000000".as_bytes(),
-        dml_handler = [Ok(summary())],
+        dml_handler = [Ok(())],
         want_result = Ok(_),
         want_dml_calls = [MockDmlHandlerCall::Write{namespace, namespace_id, write_input}] => {
             assert_eq!(namespace, NAMESPACE_NAME);
@@ -869,7 +877,7 @@ mod tests {
         // SECONDS, so multiplies the provided timestamp by 1,000,000,000
         query_string = "?org=bananas&bucket=test&precision=s",
         body = "platanos,tag1=A,tag2=B val=42i 1647622847000000000".as_bytes(),
-        dml_handler = [Ok(summary())],
+        dml_handler = [Ok(())],
         want_result = Err(Error::ParseLineProtocol(_)),
         want_dml_calls = []
     );
@@ -878,7 +886,7 @@ mod tests {
         no_query_params,
         query_string = "",
         body = "platanos,tag1=A,tag2=B val=42i 123456".as_bytes(),
-        dml_handler = [Ok(summary())],
+        dml_handler = [Ok(())],
         want_result = Err(Error::MultiTenantError(
             MultiTenantExtractError::ParseV2Request(V2WriteParseError::NoQueryParams)
         )),
@@ -889,7 +897,7 @@ mod tests {
         no_org_bucket,
         query_string = "?",
         body = "platanos,tag1=A,tag2=B val=42i 123456".as_bytes(),
-        dml_handler = [Ok(summary())],
+        dml_handler = [Ok(())],
         want_result = Err(Error::MultiTenantError(
             MultiTenantExtractError::InvalidOrgAndBucket(
                 OrgBucketMappingError::NoOrgBucketSpecified
@@ -902,7 +910,7 @@ mod tests {
         empty_org_bucket,
         query_string = "?org=&bucket=",
         body = "platanos,tag1=A,tag2=B val=42i 123456".as_bytes(),
-        dml_handler = [Ok(summary())],
+        dml_handler = [Ok(())],
         want_result = Err(Error::MultiTenantError(
             MultiTenantExtractError::InvalidOrgAndBucket(
                 OrgBucketMappingError::NoOrgBucketSpecified
@@ -915,7 +923,7 @@ mod tests {
         invalid_org_bucket,
         query_string = format!("?org=test&bucket={}", "A".repeat(1000)),
         body = "platanos,tag1=A,tag2=B val=42i 123456".as_bytes(),
-        dml_handler = [Ok(summary())],
+        dml_handler = [Ok(())],
         want_result = Err(Error::MultiTenantError(
             MultiTenantExtractError::InvalidOrgAndBucket(
                 OrgBucketMappingError::InvalidNamespaceName(
@@ -930,7 +938,7 @@ mod tests {
         invalid_line_protocol,
         query_string = "?org=bananas&bucket=test",
         body = "not line protocol".as_bytes(),
-        dml_handler = [Ok(summary())],
+        dml_handler = [Ok(())],
         want_result = Err(Error::ParseLineProtocol(_)),
         want_dml_calls = [] // None
     );
@@ -939,7 +947,7 @@ mod tests {
         non_utf8_body,
         query_string = "?org=bananas&bucket=test",
         body = vec![0xc3, 0x28],
-        dml_handler = [Ok(summary())],
+        dml_handler = [Ok(())],
         want_result = Err(Error::NonUtf8Body(_)),
         want_dml_calls = [] // None
     );
@@ -967,7 +975,7 @@ mod tests {
                 .flat_map(|s| s.bytes())
                 .collect::<Vec<u8>>()
         },
-        dml_handler = [Ok(summary())],
+        dml_handler = [Ok(())],
         want_result = Err(Error::RequestSizeExceeded(_)),
         want_dml_calls = [] // None
     );
@@ -998,7 +1006,7 @@ mod tests {
         field_upsert_within_batch,
         query_string = "?org=bananas&bucket=test",
         body = "test field=1u 100\ntest field=2u 100".as_bytes(),
-        dml_handler = [Ok(summary())],
+        dml_handler = [Ok(())],
         want_result = Ok(_),
         want_dml_calls = [MockDmlHandlerCall::Write{namespace, namespace_id, write_input}] => {
             assert_eq!(namespace, NAMESPACE_NAME);
@@ -1151,7 +1159,7 @@ mod tests {
             duplicate_fields_same_value,
             query_string = "?org=bananas&bucket=test",
             body = "whydo InputPower=300i,InputPower=300i".as_bytes(),
-            dml_handler = [Ok(summary())],
+            dml_handler = [Ok(())],
             want_result = Ok(_),
             want_dml_calls = [MockDmlHandlerCall::Write{namespace, write_input, ..}] => {
                 assert_eq!(namespace, NAMESPACE_NAME);
@@ -1168,7 +1176,7 @@ mod tests {
             duplicate_fields_different_value,
             query_string = "?org=bananas&bucket=test",
             body = "whydo InputPower=300i,InputPower=42i".as_bytes(),
-            dml_handler = [Ok(summary())],
+            dml_handler = [Ok(())],
             want_result = Ok(_),
             want_dml_calls = [MockDmlHandlerCall::Write{namespace, write_input, ..}] => {
                 assert_eq!(namespace, NAMESPACE_NAME);
@@ -1423,7 +1431,7 @@ mod tests {
 
         let dml_handler = Arc::new(
             MockDmlHandler::default()
-                .with_write_return([Ok(summary())])
+                .with_write_return([Ok(())])
                 .with_delete_return([]),
         );
         let metrics = Arc::new(metric::Registry::default());
@@ -1505,7 +1513,7 @@ mod tests {
 
         let dml_handler = Arc::new(
             MockDmlHandler::default()
-                .with_write_return([Ok(summary())])
+                .with_write_return([Ok(())])
                 .with_delete_return([]),
         );
         let metrics = Arc::new(metric::Registry::default());
@@ -1554,7 +1562,7 @@ mod tests {
 
         let dml_handler = Arc::new(
             MockDmlHandler::default()
-                .with_write_return([Ok(summary()), Ok(summary()), Ok(summary())])
+                .with_write_return([Ok(()), Ok(()), Ok(())])
                 .with_delete_return([]),
         );
         let metrics = Arc::new(metric::Registry::default());

@@ -2,12 +2,11 @@ use super::QuerierNamespace;
 use crate::{
     cache::namespace::CachedNamespace, create_ingester_connection_for_testing, QuerierCatalogCache,
 };
-use data_types::{ShardIndex, TableId};
+use data_types::TableId;
 use datafusion_util::config::register_iox_object_store;
 use iox_catalog::interface::{get_schema_by_name, SoftDeletedRows};
 use iox_query::exec::ExecutorType;
 use iox_tests::TestNamespace;
-use sharder::JumpHash;
 use std::sync::Arc;
 use tokio::runtime::Handle;
 
@@ -45,8 +44,6 @@ pub async fn querier_namespace(ns: &Arc<TestNamespace>) -> QuerierNamespace {
         Arc::clone(parquet_store.object_store()),
     );
 
-    let sharder = Arc::new(JumpHash::new((0..1).map(ShardIndex::new).map(Arc::new)));
-
     QuerierNamespace::new_testing(
         catalog_cache,
         ns.catalog.metric_registry(),
@@ -54,8 +51,6 @@ pub async fn querier_namespace(ns: &Arc<TestNamespace>) -> QuerierNamespace {
         cached_ns,
         ns.catalog.exec(),
         Some(create_ingester_connection_for_testing()),
-        sharder,
-        true,
     )
 }
 

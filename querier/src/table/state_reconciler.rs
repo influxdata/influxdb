@@ -2,7 +2,7 @@
 
 mod interface;
 
-use data_types::{CompactionLevel, DeletePredicate, PartitionId, ShardId, Tombstone, TombstoneId};
+use data_types::{DeletePredicate, PartitionId, ShardId, Tombstone, TombstoneId};
 use iox_query::QueryChunk;
 use observability_deps::tracing::debug;
 use schema::sort::SortKey;
@@ -18,7 +18,7 @@ use crate::{
     tombstone::QuerierTombstone, IngesterPartition,
 };
 
-use self::interface::{IngesterPartitionInfo, ParquetFileInfo, TombstoneInfo};
+use self::interface::{IngesterPartitionInfo, TombstoneInfo};
 
 #[derive(Snafu, Debug)]
 #[allow(missing_copy_implementations)]
@@ -33,9 +33,6 @@ pub struct Reconciler {
     table_name: Arc<str>,
     namespace_name: Arc<str>,
     catalog_cache: Arc<CatalogCache>,
-    /// Whether the querier is running in RPC write mode. This can be removed when the switch to
-    /// the RPC write design is complete.
-    rpc_write: bool,
 }
 
 impl Reconciler {
@@ -43,13 +40,11 @@ impl Reconciler {
         table_name: Arc<str>,
         namespace_name: Arc<str>,
         catalog_cache: Arc<CatalogCache>,
-        rpc_write: bool,
     ) -> Self {
         Self {
             table_name,
             namespace_name,
             catalog_cache,
-            rpc_write,
         }
     }
 
@@ -118,19 +113,14 @@ impl Reconciler {
                 .push(tombstone);
         }
 
-        // Do not filter based on max sequence number in RPC write mode because sequence numbers
-        // are no longer relevant
-        let parquet_files = if self.rpc_write {
-            parquet_files
-        } else {
-            filter_parquet_files(ingester_partitions, parquet_files)?
-        };
-
         debug!(
             namespace=%self.namespace_name(),
             table_name=%self.table_name(),
             n=parquet_files.len(),
-            parquet_ids=?parquet_files.iter().map(|f| f.meta().parquet_file_id().get()).collect::<Vec<_>>(),
+            parquet_ids=?parquet_files
+                .iter()
+                .map(|f| f.meta().parquet_file_id().get())
+                .collect::<Vec<_>>(),
             "Parquet files after filtering"
         );
 
@@ -331,86 +321,6 @@ impl UpdatableQuerierChunk for IngesterChunk {
     }
 }
 
-/// Filter out parquet files that contain "too new" data.
-///
-/// The caller may only use the returned parquet files.
-///
-/// This will remove files that are part of the catalog but that contain data that the ingester
-/// persisted AFTER the querier contacted it. See module-level documentation about the order in
-/// which the communication and the information processing should take place.
-///
-/// Note that the querier (and this method) do NOT care about the actual age of the parquet files,
-/// since the compactor is free to to process files at any given moment (e.g. to combine them or to
-/// materialize tombstones). However if the compactor combines files in a way that the querier
-/// would need to split it into "desired" data and "too new" data then we will currently bail out
-/// with [`ReconcileError`].
-fn filter_parquet_files<I, P>(
-    ingester_partitions: &[I],
-    parquet_files: Vec<P>,
-) -> Result<Vec<P>, ReconcileError>
-where
-    I: IngesterPartitionInfo,
-    P: ParquetFileInfo,
-{
-    // Build partition-based lookup table.
-    //
-    // Note that we don't need to take the shard ID into account here because each partition is
-    // not only bound to a table but also to a shard.
-    let lookup_table: HashMap<PartitionId, &I> = ingester_partitions
-        .iter()
-        .map(|i| (i.partition_id(), i))
-        .collect();
-
-    // we assume that we filter out a minimal amount of files, so we can use the same capacity
-    let mut result = Vec::with_capacity(parquet_files.len());
-
-    for file in parquet_files {
-        if let Some(ingester_partition) = lookup_table.get(&file.partition_id()) {
-            if let Some(persisted_max) = ingester_partition.parquet_max_sequence_number() {
-                debug!(
-                    file_partition_id=%file.partition_id(),
-                    file_max_seq_num=%file.max_sequence_number().get(),
-                    persisted_max=%persisted_max.get(),
-                    "Comparing parquet file and ingester parquet max"
-                );
-
-                // This is the result of the compactor compacting files persisted by the ingester after persisted_max
-                // The compacted result may include data of before and after persisted_max which prevents
-                // this query to return correct result because it only needs data before persist_max
-                if file.compaction_level() != CompactionLevel::Initial
-                    && file.max_sequence_number() > persisted_max
-                {
-                    return Err(ReconcileError::CompactorConflict);
-                }
-                if file.max_sequence_number() > persisted_max {
-                    // filter out, file is newer
-                    continue;
-                }
-            } else {
-                debug!(
-                    file_partition_id=%file.partition_id(),
-                    file_max_seq_num=%file.max_sequence_number().get(),
-                    "ingester thinks it doesn't have data persisted yet"
-                );
-                // ingester thinks it doesn't have any data persisted yet => can safely ignore file
-                continue;
-            }
-        } else {
-            debug!(
-                file_partition_id=%file.partition_id(),
-                file_max_seq_num=%file.max_sequence_number().get(),
-                "partition was not flagged by the ingester as unpersisted"
-            );
-            // partition was not flagged by the ingester as "unpersisted", so we can keep the
-            // parquet file
-        }
-
-        result.push(file);
-    }
-
-    Ok(result)
-}
-
 /// Generates "exclude" filter for tombstones.
 ///
 /// Since tombstones are shard-wide but data persistence is partition-based (which are
@@ -459,108 +369,8 @@ where
 
 #[cfg(test)]
 mod tests {
-    use super::*;
-    use assert_matches::assert_matches;
+    use super::{interface::ParquetFileInfo, *};
     use data_types::{CompactionLevel, SequenceNumber};
-
-    #[test]
-    fn test_filter_parquet_files_empty() {
-        let actual =
-            filter_parquet_files::<MockIngesterPartitionInfo, MockParquetFileInfo>(&[], vec![])
-                .unwrap();
-        assert_eq!(actual, vec![]);
-    }
-
-    #[test]
-    fn test_filter_parquet_files_compactor_conflict() {
-        let ingester_partitions = &[MockIngesterPartitionInfo {
-            partition_id: PartitionId::new(1),
-            shard_id: ShardId::new(1),
-            parquet_max_sequence_number: Some(SequenceNumber::new(10)),
-            tombstone_max_sequence_number: None,
-        }];
-        let parquet_files = vec![MockParquetFileInfo {
-            partition_id: PartitionId::new(1),
-            max_sequence_number: SequenceNumber::new(11),
-            compaction_level: CompactionLevel::FileNonOverlapped,
-        }];
-        let err = filter_parquet_files(ingester_partitions, parquet_files).unwrap_err();
-        assert_matches!(err, ReconcileError::CompactorConflict);
-    }
-
-    #[test]
-    fn test_filter_parquet_files_many() {
-        let ingester_partitions = &[
-            MockIngesterPartitionInfo {
-                partition_id: PartitionId::new(1),
-                shard_id: ShardId::new(1),
-                parquet_max_sequence_number: Some(SequenceNumber::new(10)),
-                tombstone_max_sequence_number: None,
-            },
-            MockIngesterPartitionInfo {
-                partition_id: PartitionId::new(2),
-                shard_id: ShardId::new(1),
-                parquet_max_sequence_number: None,
-                tombstone_max_sequence_number: None,
-            },
-            MockIngesterPartitionInfo {
-                partition_id: PartitionId::new(3),
-                shard_id: ShardId::new(1),
-                parquet_max_sequence_number: Some(SequenceNumber::new(3)),
-                tombstone_max_sequence_number: None,
-            },
-        ];
-        let pf11 = MockParquetFileInfo {
-            partition_id: PartitionId::new(1),
-            max_sequence_number: SequenceNumber::new(9),
-            compaction_level: CompactionLevel::Initial,
-        };
-        let pf12 = MockParquetFileInfo {
-            partition_id: PartitionId::new(1),
-            max_sequence_number: SequenceNumber::new(10),
-            compaction_level: CompactionLevel::Initial,
-        };
-        // filtered because it was persisted after ingester sent response (11 > 10)
-        let pf13 = MockParquetFileInfo {
-            partition_id: PartitionId::new(1),
-            max_sequence_number: SequenceNumber::new(20),
-            compaction_level: CompactionLevel::Initial,
-        };
-        let pf2 = MockParquetFileInfo {
-            partition_id: PartitionId::new(2),
-            max_sequence_number: SequenceNumber::new(0),
-            compaction_level: CompactionLevel::Initial,
-        };
-        let pf31 = MockParquetFileInfo {
-            partition_id: PartitionId::new(3),
-            max_sequence_number: SequenceNumber::new(3),
-            compaction_level: CompactionLevel::Initial,
-        };
-        // filtered because it was persisted after ingester sent response (4 > 3)
-        let pf32 = MockParquetFileInfo {
-            partition_id: PartitionId::new(3),
-            max_sequence_number: SequenceNumber::new(5),
-            compaction_level: CompactionLevel::Initial,
-        };
-        // passed because it came from a partition (4) the ingester didn't know about
-        let pf4 = MockParquetFileInfo {
-            partition_id: PartitionId::new(4),
-            max_sequence_number: SequenceNumber::new(0),
-            compaction_level: CompactionLevel::Initial,
-        };
-        let parquet_files = vec![
-            pf11.clone(),
-            pf12.clone(),
-            pf13,
-            pf2,
-            pf31.clone(),
-            pf32,
-            pf4.clone(),
-        ];
-        let actual = filter_parquet_files(ingester_partitions, parquet_files).unwrap();
-        let expected = vec![pf11, pf12, pf31, pf4];
-        assert_eq!(actual, expected);
-    }
 
     #[test]
     fn test_filter_tombstones_empty() {

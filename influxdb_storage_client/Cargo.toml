@@ -9,7 +9,7 @@ license.workspace = true
 client_util = { path = "../client_util" }
 generated_types = { path = "../generated_types", default-features=false, features=["data_types"] }
 prost = "0.11"
-tonic = { version = "0.8" }
+tonic = { workspace = true }
 futures-util = { version = "0.3" }
 observability_deps = { path = "../observability_deps"}
 workspace-hack = { version = "0.1", path = "../workspace-hack" }

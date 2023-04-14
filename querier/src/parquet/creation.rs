@@ -33,22 +33,14 @@ pub struct ChunkAdapter {
 
     /// Metric registry.
     metric_registry: Arc<metric::Registry>,
-
-    /// Use RPC-write path (aka router2/ingester2).
-    rpc_write: bool,
 }
 
 impl ChunkAdapter {
     /// Create new adapter with empty cache.
-    pub fn new(
-        catalog_cache: Arc<CatalogCache>,
-        metric_registry: Arc<metric::Registry>,
-        rpc_write: bool,
-    ) -> Self {
+    pub fn new(catalog_cache: Arc<CatalogCache>, metric_registry: Arc<metric::Registry>) -> Self {
         Self {
             catalog_cache,
             metric_registry,
-            rpc_write,
         }
     }
 
@@ -227,11 +219,7 @@ impl ChunkAdapter {
 
         let chunk_id = ChunkId::from(Uuid::from_u128(parquet_file.id.get() as _));
 
-        let order = if self.rpc_write {
-            ChunkOrder::new(parquet_file.max_l0_created_at.get())
-        } else {
-            ChunkOrder::new(parquet_file.max_sequence_number.get())
-        };
+        let order = ChunkOrder::new(parquet_file.max_l0_created_at.get());
 
         let meta = Arc::new(QuerierParquetChunkMeta {
             parquet_file_id: parquet_file.id,

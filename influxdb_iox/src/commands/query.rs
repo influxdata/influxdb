@@ -1,7 +1,7 @@
 use arrow::record_batch::RecordBatch;
 use clap::ValueEnum;
 use futures::TryStreamExt;
-use influxdb_iox_client::format::influxql::write_columnar;
+use influxdb_iox_client::format::influxql::{write_columnar, Options};
 use influxdb_iox_client::{connection::Connection, flight, format::QueryOutputFormat};
 use thiserror::Error;
 
@@ -105,7 +105,7 @@ pub async fn command(connection: Connection, config: Config) -> Result<()> {
 
     match (query_lang, &format) {
         (QueryLanguage::InfluxQL, OutputFormat::Pretty) => {
-            write_columnar(std::io::stdout(), &batches)?
+            write_columnar(std::io::stdout(), &batches, Options::default())?
         }
         _ => {
             let format: QueryOutputFormat = format.into();

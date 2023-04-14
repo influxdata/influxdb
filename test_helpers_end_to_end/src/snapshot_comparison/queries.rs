@@ -1,3 +1,4 @@
+use crate::snapshot_comparison::Language;
 use arrow::record_batch::RecordBatch;
 use arrow_util::test_util::Normalizer;
 
@@ -6,6 +7,9 @@ use arrow_util::test_util::Normalizer;
 pub struct Query {
     /// Describes how query text should be normalized
     normalizer: Normalizer,
+
+    /// Specifies the query language of `text`.
+    language: Language,
 
     /// The query string
     text: String,
@@ -17,12 +21,17 @@ impl Query {
         let text = text.into();
         Self {
             normalizer: Normalizer::new(),
+            language: Language::Sql,
             text,
         }
     }
 
     pub fn text(&self) -> &str {
         &self.text
+    }
+
+    pub fn language(&self) -> Language {
+        self.language
     }
 
     pub fn with_sorted_compare(mut self) -> Self {
@@ -45,9 +54,14 @@ impl Query {
         self
     }
 
+    pub fn with_no_table_borders(mut self) -> Self {
+        self.normalizer.no_table_borders = true;
+        self
+    }
+
     /// Take the output of running the query and apply the specified normalizations to them
-    pub fn normalize_results(&self, results: Vec<RecordBatch>) -> Vec<String> {
-        self.normalizer.normalize_results(results)
+    pub fn normalize_results(&self, results: Vec<RecordBatch>, language: Language) -> Vec<String> {
+        language.normalize_results(&self.normalizer, results)
     }
 
     /// Adds information on what normalizations were applied to the input
@@ -58,12 +72,16 @@ impl Query {
 
 #[derive(Debug, Default)]
 struct QueryBuilder {
+    pub language: Language,
     pub query: Query,
 }
 
 impl QueryBuilder {
-    fn new() -> Self {
-        Default::default()
+    fn new(language: Language) -> Self {
+        Self {
+            language,
+            ..Default::default()
+        }
     }
 
     fn push_str(&mut self, s: &str) {
@@ -80,7 +98,11 @@ impl QueryBuilder {
 
     /// Creates a Query and resets this builder to default
     fn build_and_reset(&mut self) -> Option<Query> {
-        (!self.is_empty()).then(|| std::mem::take(&mut self.query))
+        (!self.is_empty()).then(|| {
+            let mut q = std::mem::take(&mut self.query);
+            q.language = self.language;
+            q
+        })
     }
 }
 
@@ -92,61 +114,65 @@ pub struct TestQueries {
 
 impl TestQueries {
     /// find all queries (more or less a fancy split on `;`
-    pub fn from_lines<I, S>(lines: I) -> Self
+    pub fn from_lines<I, S>(lines: I, language: Language) -> Self
     where
         I: IntoIterator<Item = S>,
         S: AsRef<str>,
     {
         let mut queries = vec![];
 
-        let mut builder = lines
-            .into_iter()
-            .fold(QueryBuilder::new(), |mut builder, line| {
-                let line = line.as_ref().trim();
-                const COMPARE_STR: &str = "-- IOX_COMPARE: ";
-                if line.starts_with(COMPARE_STR) {
-                    let (_, options) = line.split_at(COMPARE_STR.len());
-                    for option in options.split(',') {
-                        let option = option.trim();
-                        match option {
-                            "sorted" => {
-                                builder.query = builder.query.with_sorted_compare();
+        let mut builder =
+            lines
+                .into_iter()
+                .fold(QueryBuilder::new(language), |mut builder, line| {
+                    let line = line.as_ref().trim();
+                    const COMPARE_STR: &str = "-- IOX_COMPARE: ";
+                    if line.starts_with(COMPARE_STR) {
+                        let (_, options) = line.split_at(COMPARE_STR.len());
+                        for option in options.split(',') {
+                            let option = option.trim();
+                            match option {
+                                "sorted" => {
+                                    builder.query = builder.query.with_sorted_compare();
+                                }
+                                "uuid" => {
+                                    builder.query = builder.query.with_normalized_uuids();
+                                }
+                                "metrics" => {
+                                    builder.query = builder.query.with_normalize_metrics();
+                                }
+                                "filters" => {
+                                    builder.query = builder.query.with_normalize_filters();
+                                }
+                                "no_borders" => {
+                                    builder.query = builder.query.with_no_table_borders();
+                                }
+                                _ => {}
                             }
-                            "uuid" => {
-                                builder.query = builder.query.with_normalized_uuids();
-                            }
-                            "metrics" => {
-                                builder.query = builder.query.with_normalize_metrics();
-                            }
-                            "filters" => {
-                                builder.query = builder.query.with_normalize_filters();
-                            }
-                            _ => {}
                         }
                     }
-                }
 
-                if line.starts_with("--") {
-                    return builder;
-                }
-                if line.is_empty() {
-                    return builder;
-                }
-
-                // replace newlines
-                if !builder.is_empty() {
-                    builder.push(' ');
-                }
-                builder.push_str(line);
-
-                // declare queries when we see a semicolon at the end of the line
-                if line.ends_with(';') {
-                    if let Some(q) = builder.build_and_reset() {
-                        queries.push(q);
+                    if line.starts_with("--") {
+                        return builder;
                     }
-                }
-                builder
-            });
+                    if line.is_empty() {
+                        return builder;
+                    }
+
+                    // replace newlines
+                    if !builder.is_empty() {
+                        builder.push(' ');
+                    }
+                    builder.push_str(line);
+
+                    // declare queries when we see a semicolon at the end of the line
+                    if line.ends_with(';') {
+                        if let Some(q) = builder.build_and_reset() {
+                            queries.push(q);
+                        }
+                    }
+                    builder
+                });
 
         // get last one, if any
         if let Some(q) = builder.build_and_reset() {
@@ -177,7 +203,7 @@ select * from bar;
 -- This query has been commented out and should not be seen
 -- select * from baz;
 "#;
-        let queries = TestQueries::from_lines(input.split('\n'));
+        let queries = TestQueries::from_lines(input.split('\n'), Language::Sql);
         assert_eq!(
             queries,
             TestQueries {
@@ -196,7 +222,7 @@ select * from foo;
 -- no ending semi colon
 select * from bar
 "#;
-        let queries = TestQueries::from_lines(input.split('\n'));
+        let queries = TestQueries::from_lines(input.split('\n'), Language::Sql);
         assert_eq!(
             queries,
             TestQueries {
@@ -219,7 +245,7 @@ from
 select * from bar;
 
 "#;
-        let queries = TestQueries::from_lines(input.split('\n'));
+        let queries = TestQueries::from_lines(input.split('\n'), Language::Sql);
         assert_eq!(
             queries,
             TestQueries {
@@ -237,7 +263,7 @@ select * from bar;
 -- This is a test
 -- another comment
 "#;
-        let queries = TestQueries::from_lines(input.split('\n'));
+        let queries = TestQueries::from_lines(input.split('\n'), Language::Sql);
         assert_eq!(queries, TestQueries { queries: vec![] })
     }
 
@@ -258,7 +284,7 @@ select * from baz2;
 select * from waz;
 -- (But the compare should work subsequently)
 "#;
-        let queries = TestQueries::from_lines(input.split('\n'));
+        let queries = TestQueries::from_lines(input.split('\n'), Language::Sql);
         assert_eq!(
             queries,
             TestQueries {
@@ -279,7 +305,7 @@ select * from waz;
 select * from foo;
 -- IOX_COMPARE: sorted
 "#;
-        let queries = TestQueries::from_lines(input.split('\n'));
+        let queries = TestQueries::from_lines(input.split('\n'), Language::Sql);
         assert_eq!(
             queries,
             TestQueries {
@@ -294,7 +320,7 @@ select * from foo;
 -- IOX_COMPARE: something_else
 select * from foo;
 "#;
-        let queries = TestQueries::from_lines(input.split('\n'));
+        let queries = TestQueries::from_lines(input.split('\n'), Language::Sql);
         assert_eq!(
             queries,
             TestQueries {

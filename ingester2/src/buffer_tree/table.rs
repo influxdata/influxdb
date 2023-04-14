@@ -183,8 +183,7 @@ where
                 //
                 // This MAY return a different instance than `p` if another
                 // thread has already initialised the partition.
-                self.partition_data
-                    .get_or_insert_with(&partition_key, || Arc::new(Mutex::new(p)))
+                self.partition_data.get_or_insert_with(&partition_key, || p)
             }
         };
 
@@ -223,8 +222,9 @@ where
         );
 
         // Gather the partition data from all of the partitions in this table.
+        let span = SpanRecorder::new(span);
         let partitions = self.partitions().into_iter().map(move |p| {
-            let mut span = SpanRecorder::new(span.clone().map(|s| s.child("partition read")));
+            let mut span = span.child("partition read");
 
             let (id, completed_persistence_count, data) = {
                 let mut p = p.lock();

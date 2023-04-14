@@ -74,6 +74,11 @@ impl<I: IngesterRpcInterface> std::fmt::Debug for IngesterServerType<I> {
 
 #[async_trait]
 impl<I: IngesterRpcInterface + Sync + Send + Debug + 'static> ServerType for IngesterServerType<I> {
+    /// Human name for this server type
+    fn name(&self) -> &str {
+        "ingester2"
+    }
+
     /// Return the [`metric::Registry`] used by the ingester.
     fn metric_registry(&self) -> Arc<Registry> {
         Arc::clone(&self.metrics)

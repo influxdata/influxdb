@@ -45,16 +45,19 @@ use super::{params::GapFillParams, FillStrategy};
 ///  │                    ╟────╫───┼───┼─────────────╫───┼───┼─────────────╢
 ///  │                  2 ║    ║   │   │             ║   │   │             ║
 ///  │                    ╟────╫───┼───┼─────────────╫───┼───┼─────────────╢
-///  │                  3 ║    ║   │   │             ║   │   │             ║
 ///  │                      .                .                     .
 /// output_batch_size       .                .                     .
 ///  │                      .                .                     .
+///  │                    ╟────╫───┼───┼─────────────╫───┼───┼─────────────╢
 ///  │              n - 1 ║    ║   │   │             ║   │   │             ║
 ///  │                    ╟────╫───┼───┼─────────────╫───┼───┼─────────────╢
 ///  ┴────              n ║    ║   │   │             ║   │   │             ║
 ///                       ╟────╫───┼───┼─────────────╫───┼───┼─────────────╢
-/// trailing row    n + 1 ║    ║   │   │             ║   │   │             ║
-///                       ╙────╨───┴───┴─────────────╨───┴───┴─────────────╜
+/// trailing row(s) n + 1 ║    ║   │   │             ║   │   │             ║
+///                       ╟────╫───┼───┼─────────────╫───┼───┼─────────────╢
+///                         .                .                     .
+///                         .                .                     .
+///                         .                .                     .
 /// ```
 ///
 /// Just before generating output, the cursor will generally point at offset 1
@@ -69,13 +72,19 @@ use super::{params::GapFillParams, FillStrategy};
 ///       (using the [`take`](take::take) kernel) when we are generating trailing gaps, i.e.,
 ///       when all of the input rows have been output for a series in the previous batch,
 ///       but there still remains missing rows to produce at the end.
-/// - Having one additional _trailing row_ at the end ensures that `GapFiller` can
+/// - Having at least one additional _trailing row_ at the end ensures that `GapFiller` can
 ///       infer whether there is trailing gaps to produce at the beginning of the
 ///       next batch, since it can discover if the last row starts a new series.
+/// - If there are columns that have a fill strategy of [`LinearInterpolate`], then more
+///       trailing rows may be necessary to find the next non-null value for the column.
+///
+/// [`LinearInterpolate`]: FillStrategy::LinearInterpolate
 #[derive(Debug)]
 pub(super) struct GapFiller {
     /// The static parameters of gap-filling: time range start, end and the stride.
     params: GapFillParams,
+    /// The number of rows to produce in each output batch.
+    batch_size: usize,
     /// The current state of gap-filling, including the next timestamp,
     /// the offset of the next input row, and remaining space in output batch.
     cursor: Cursor,
@@ -83,9 +92,25 @@ pub(super) struct GapFiller {
 
 impl GapFiller {
     /// Initialize a [GapFiller] at the beginning of an input record batch.
-    pub fn new(params: GapFillParams) -> Self {
+    pub fn new(params: GapFillParams, batch_size: usize) -> Self {
         let cursor = Cursor::new(&params);
-        Self { params, cursor }
+        Self {
+            params,
+            batch_size,
+            cursor,
+        }
+    }
+
+    /// Given that the cursor points at the input row that will be
+    /// the first row in the next output batch, return the offset
+    /// of last input row that could possibly be in the output.
+    ///
+    /// This offset is used by ['BufferedInput`] to determine how many
+    /// rows need to be buffered.
+    ///
+    /// [`BufferedInput`]: super::BufferedInput
+    pub(super) fn last_output_row_offset(&self) -> usize {
+        self.cursor.next_input_offset + self.batch_size - 1
     }
 
     /// Returns true if there are no more output rows to produce given
@@ -100,14 +125,13 @@ impl GapFiller {
     /// schema at member `0`.
     pub fn build_gapfilled_output(
         &mut self,
-        batch_size: usize,
         schema: SchemaRef,
         input_time_array: (usize, &TimestampNanosecondArray),
         group_arrays: &[(usize, ArrayRef)],
         aggr_arrays: &[(usize, ArrayRef)],
     ) -> Result<RecordBatch> {
-        let series_ends = self.plan_output_batch(batch_size, input_time_array.1, group_arrays)?;
-        self.cursor.remaining_output_batch_size = batch_size;
+        let series_ends = self.plan_output_batch(input_time_array.1, group_arrays)?;
+        self.cursor.remaining_output_batch_size = self.batch_size;
         self.build_output(
             schema,
             input_time_array,
@@ -139,7 +163,6 @@ impl GapFiller {
     /// to partition input rows into series.
     fn plan_output_batch(
         &mut self,
-        batch_size: usize,
         input_time_array: &TimestampNanosecondArray,
         group_arr: &[(usize, ArrayRef)],
     ) -> Result<Vec<usize>> {
@@ -165,7 +188,7 @@ impl GapFiller {
 
         let start_offset = cursor.next_input_offset;
         assert!(start_offset <= 1, "input is sliced after it is consumed");
-        while output_row_count < batch_size {
+        while output_row_count < self.batch_size {
             match ranges.next() {
                 Some(Range { end, .. }) => {
                     assert!(

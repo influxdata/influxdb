@@ -99,7 +99,7 @@ use std::{fmt::Debug, sync::Arc};
 
 use arrow::{
     array::ArrayRef,
-    datatypes::{DataType, Field},
+    datatypes::{DataType, Field, Fields},
 };
 use datafusion::{
     error::{DataFusionError, Result as DataFusionResult},
@@ -474,11 +474,11 @@ impl SelectorOutput {
 }
 
 /// Create the struct fields for a selector with DataType `value_type`
-fn make_struct_fields(value_type: DataType) -> Vec<Field> {
-    vec![
+fn make_struct_fields(value_type: DataType) -> Fields {
+    Fields::from(vec![
         Field::new("value", value_type, true),
         Field::new("time", TIME_DATA_TYPE(), true),
-    ]
+    ])
 }
 
 /// Return the value type given the (struct) output data type

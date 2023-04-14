@@ -14,7 +14,7 @@ object_store = "0.5.6"
 observability_deps = { path = "../observability_deps" }
 parquet_file = { path = "../parquet_file" }
 tokio = { version = "1", features = ["rt-multi-thread", "macros"] }
-tonic = "0.8"
+tonic = { workspace = true }
 uuid = { version = "1", features = ["v4"] }
 workspace-hack = { version = "0.1", path = "../workspace-hack" }
 

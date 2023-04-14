@@ -133,7 +133,6 @@ mod tests {
                 catalog.exec(),
                 Some(create_ingester_connection_for_testing()),
                 QuerierDatabase::MAX_CONCURRENT_QUERIES_MAX,
-                true,
             )
             .await
             .unwrap(),
@@ -169,7 +168,6 @@ mod tests {
                 catalog.exec(),
                 Some(create_ingester_connection_for_testing()),
                 QuerierDatabase::MAX_CONCURRENT_QUERIES_MAX,
-                true,
             )
             .await
             .unwrap(),

@@ -9,7 +9,7 @@ license.workspace = true
 arrow = { workspace = true, features = ["prettyprint"] }
 arrow-flight = { workspace = true }
 arrow_util = { path = "../arrow_util" }
-assert_cmd = "2.0.10"
+assert_cmd = "2.0.11"
 bytes = "1.4"
 data_types = { path = "../data_types" }
 dml = { path = "../dml" }
@@ -26,6 +26,7 @@ once_cell = { version = "1.17", features = ["parking_lot"] }
 parking_lot = "0.12"
 prost = "0.11"
 rand = "0.8.3"
+regex = "1.7"
 reqwest = { version = "0.11", default-features = false, features = ["json", "rustls-tls"] }
 snafu = "0.7"
 sqlx = { version = "0.6", features = [ "runtime-tokio-rustls" , "postgres", "uuid" ] }
@@ -33,5 +34,5 @@ tempfile = "3.5.0"
 test_helpers = { path = "../test_helpers", features = ["future_timeout"] }
 tokio = { version = "1.27", features = ["macros", "net", "parking_lot", "rt-multi-thread", "signal", "sync", "time"] }
 tokio-util = "0.7"
-tonic = "0.8"
+tonic = { workspace = true }
 workspace-hack = { version = "0.1", path = "../workspace-hack" }

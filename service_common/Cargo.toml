@@ -16,7 +16,7 @@ flightsql = { path = "../flightsql" }
 metric = { path = "../metric" }
 parking_lot = "0.12"
 predicate = { path = "../predicate" }
-tonic = "0.8"
+tonic = { workspace = true }
 trace = { path = "../trace" }
 tracker = { path = "../tracker" }
 workspace-hack = { version = "0.1", path = "../workspace-hack" }

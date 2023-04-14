@@ -146,6 +146,7 @@ where
         request: Request<Ticket>,
     ) -> Result<Response<Self::DoGetStream>, tonic::Status> {
         let span_ctx: Option<SpanContext> = request.extensions().get().cloned();
+        let span = span_ctx.child_span("ingester query");
 
         // Acquire and hold a permit for the duration of this request, or return
         // an error if the existing requests have already exhausted the
@@ -178,12 +179,7 @@ where
 
         let response = match self
             .query_handler
-            .query_exec(
-                namespace_id,
-                table_id,
-                request.columns,
-                span_ctx.child_span("ingester query"),
-            )
+            .query_exec(namespace_id, table_id, request.columns, span)
             .await
         {
             Ok(v) => v,

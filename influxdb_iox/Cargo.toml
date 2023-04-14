@@ -22,7 +22,6 @@ influxrpc_parser = { path = "../influxrpc_parser"}
 iox_catalog = { path = "../iox_catalog" }
 ioxd_common = { path = "../ioxd_common"}
 ioxd_compactor2 = { path = "../ioxd_compactor2"}
-ioxd_ingest_replica = { path = "../ioxd_ingest_replica" }
 ioxd_ingester2 = { path = "../ioxd_ingester2"}
 ioxd_garbage_collector = { path = "../ioxd_garbage_collector" }
 ioxd_querier = { path = "../ioxd_querier"}
@@ -64,7 +63,7 @@ libc = { version = "0.2" }
 num_cpus = "1.15.0"
 once_cell = { version = "1.17", features = ["parking_lot"] }
 rustyline = { version = "11.0", default-features = false, features = ["with-file-history"]}
-serde_json = "1.0.95"
+serde_json = "1.0.96"
 snafu = "0.7"
 tempfile = "3.5.0"
 thiserror = "1.0.40"
@@ -72,7 +71,7 @@ tikv-jemalloc-ctl = { version = "0.5.0", optional = true }
 tokio = { version = "1.27", features = ["macros", "net", "parking_lot", "rt-multi-thread", "signal", "sync", "time", "io-std"] }
 tokio-stream = { version = "0.1", features = ["net"] }
 tokio-util = { version = "0.7.7", features = ["compat"] }
-tonic = "0.8"
+tonic = { workspace = true }
 uuid = { version = "1", features = ["v4"] }
 # jemalloc-sys with unprefixed_malloc_on_supported_platforms feature and heappy are mutually exclusive
 tikv-jemalloc-sys = { version = "0.5.3", optional = true, features = ["unprefixed_malloc_on_supported_platforms"] }
@@ -81,11 +80,11 @@ workspace-hack = { version = "0.1", path = "../workspace-hack" }
 [dev-dependencies]
 # In alphabetical order
 arrow_util = { path = "../arrow_util" }
-assert_cmd = "2.0.10"
+assert_cmd = "2.0.11"
 assert_matches = "1.5"
 async-trait = "0.1"
 predicate = { path = "../predicate" }
-predicates = "3.0.2"
+predicates = "3.0.3"
 serde = "1.0.159"
 test_helpers = { path = "../test_helpers", features = ["future_timeout"] }
 test_helpers_end_to_end = { path = "../test_helpers_end_to_end" }

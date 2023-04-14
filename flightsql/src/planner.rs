@@ -11,8 +11,9 @@ use arrow::{
 use arrow_flight::{
     sql::{
         ActionCreatePreparedStatementRequest, ActionCreatePreparedStatementResult, Any,
-        CommandGetCatalogs, CommandGetDbSchemas, CommandGetPrimaryKeys, CommandGetSqlInfo,
-        CommandGetTableTypes, CommandGetTables, CommandStatementQuery,
+        CommandGetCatalogs, CommandGetCrossReference, CommandGetDbSchemas, CommandGetExportedKeys,
+        CommandGetImportedKeys, CommandGetPrimaryKeys, CommandGetSqlInfo, CommandGetTableTypes,
+        CommandGetTables, CommandStatementQuery,
     },
     IpcMessage, SchemaAsIpc,
 };
@@ -64,8 +65,17 @@ impl FlightSQLPlanner {
             FlightSQLCommand::CommandGetCatalogs(CommandGetCatalogs {}) => {
                 encode_schema(get_catalogs_schema())
             }
+            FlightSQLCommand::CommandGetCrossReference(CommandGetCrossReference { .. }) => {
+                encode_schema(&GET_CROSS_REFERENCE_SCHEMA)
+            }
             FlightSQLCommand::CommandGetDbSchemas(CommandGetDbSchemas { .. }) => {
                 encode_schema(get_db_schemas_schema().as_ref())
+            }
+            FlightSQLCommand::CommandGetExportedKeys(CommandGetExportedKeys { .. }) => {
+                encode_schema(&GET_EXPORTED_KEYS_SCHEMA)
+            }
+            FlightSQLCommand::CommandGetImportedKeys(CommandGetImportedKeys { .. }) => {
+                encode_schema(&GET_IMPORTED_KEYS_SCHEMA)
             }
             FlightSQLCommand::CommandGetPrimaryKeys(CommandGetPrimaryKeys { .. }) => {
                 encode_schema(&GET_PRIMARY_KEYS_SCHEMA)
@@ -115,6 +125,35 @@ impl FlightSQLPlanner {
                 let plan = plan_get_catalogs(ctx).await?;
                 Ok(ctx.create_physical_plan(&plan).await?)
             }
+            FlightSQLCommand::CommandGetCrossReference(CommandGetCrossReference {
+                pk_catalog,
+                pk_db_schema,
+                pk_table,
+                fk_catalog,
+                fk_db_schema,
+                fk_table,
+            }) => {
+                debug!(
+                    ?pk_catalog,
+                    ?pk_db_schema,
+                    ?pk_table,
+                    ?fk_catalog,
+                    ?fk_db_schema,
+                    ?fk_table,
+                    "Planning CommandGetCrossReference query"
+                );
+                let plan = plan_get_cross_reference(
+                    ctx,
+                    pk_catalog,
+                    pk_db_schema,
+                    pk_table,
+                    fk_catalog,
+                    fk_db_schema,
+                    fk_table,
+                )
+                .await?;
+                Ok(ctx.create_physical_plan(&plan).await?)
+            }
             FlightSQLCommand::CommandGetDbSchemas(CommandGetDbSchemas {
                 catalog,
                 db_schema_filter_pattern,
@@ -125,6 +164,34 @@ impl FlightSQLPlanner {
                     "Planning GetDbSchemas query"
                 );
                 let plan = plan_get_db_schemas(ctx, catalog, db_schema_filter_pattern).await?;
+                Ok(ctx.create_physical_plan(&plan).await?)
+            }
+            FlightSQLCommand::CommandGetExportedKeys(CommandGetExportedKeys {
+                catalog,
+                db_schema,
+                table,
+            }) => {
+                debug!(
+                    ?catalog,
+                    ?db_schema,
+                    ?table,
+                    "Planning GetExportedKeys query"
+                );
+                let plan = plan_get_exported_keys(ctx, catalog, db_schema, table).await?;
+                Ok(ctx.create_physical_plan(&plan).await?)
+            }
+            FlightSQLCommand::CommandGetImportedKeys(CommandGetImportedKeys {
+                catalog,
+                db_schema,
+                table,
+            }) => {
+                debug!(
+                    ?catalog,
+                    ?db_schema,
+                    ?table,
+                    "Planning CommandGetImportedKeys query"
+                );
+                let plan = plan_get_imported_keys(ctx, catalog, db_schema, table).await?;
                 Ok(ctx.create_physical_plan(&plan).await?)
             }
             FlightSQLCommand::CommandGetPrimaryKeys(CommandGetPrimaryKeys {
@@ -272,12 +339,45 @@ async fn plan_get_catalogs(ctx: &IOxSessionContext) -> Result<LogicalPlan> {
     Ok(ctx.batch_to_logical_plan(get_catalogs(ctx.inner())?)?)
 }
 
+async fn plan_get_cross_reference(
+    ctx: &IOxSessionContext,
+    _pk_catalog: Option<String>,
+    _pk_db_schema: Option<String>,
+    _pk_table: String,
+    _fk_catalog: Option<String>,
+    _fk_db_schema: Option<String>,
+    _fk_table: String,
+) -> Result<LogicalPlan> {
+    let batch = RecordBatch::new_empty(Arc::clone(&GET_CROSS_REFERENCE_SCHEMA));
+    Ok(ctx.batch_to_logical_plan(batch)?)
+}
+
 async fn plan_get_db_schemas(
     ctx: &IOxSessionContext,
     catalog: Option<String>,
     db_schema_filter_pattern: Option<String>,
 ) -> Result<LogicalPlan> {
     let batch = get_db_schemas(ctx.inner(), catalog, db_schema_filter_pattern)?;
+    Ok(ctx.batch_to_logical_plan(batch)?)
+}
+
+async fn plan_get_exported_keys(
+    ctx: &IOxSessionContext,
+    _catalog: Option<String>,
+    _db_schema: Option<String>,
+    _table: String,
+) -> Result<LogicalPlan> {
+    let batch = RecordBatch::new_empty(Arc::clone(&GET_EXPORTED_KEYS_SCHEMA));
+    Ok(ctx.batch_to_logical_plan(batch)?)
+}
+
+async fn plan_get_imported_keys(
+    ctx: &IOxSessionContext,
+    _catalog: Option<String>,
+    _db_schema: Option<String>,
+    _table: String,
+) -> Result<LogicalPlan> {
+    let batch = RecordBatch::new_empty(Arc::clone(&GET_IMPORTED_KEYS_SCHEMA));
     Ok(ctx.batch_to_logical_plan(batch)?)
 }
 
@@ -331,6 +431,68 @@ static TABLE_TYPES_RECORD_BATCH: Lazy<RecordBatch> = Lazy::new(|| {
     // IOx doesn't support LOCAL TEMPORARY yet
     let table_type = Arc::new(StringArray::from_iter_values(["BASE TABLE", "VIEW"])) as ArrayRef;
     RecordBatch::try_new(Arc::clone(&GET_TABLE_TYPE_SCHEMA), vec![table_type]).unwrap()
+});
+
+/// The returned data should be ordered by pk_catalog_name, pk_db_schema_name,
+/// pk_table_name, pk_key_name, then key_sequence.
+/// update_rule and delete_rule returns a byte that is equivalent to actions:
+///    - 0 = CASCADE
+///    - 1 = RESTRICT
+///    - 2 = SET NULL
+///    - 3 = NO ACTION
+///    - 4 = SET DEFAULT
+static GET_CROSS_REFERENCE_SCHEMA: Lazy<SchemaRef> = Lazy::new(|| {
+    Arc::new(Schema::new(vec![
+        Field::new("pk_catalog_name", DataType::Utf8, false),
+        Field::new("pk_db_schema_name", DataType::Utf8, false),
+        Field::new("pk_table_name", DataType::Utf8, false),
+        Field::new("pk_column_name", DataType::Utf8, false),
+        Field::new("fk_catalog_name", DataType::Utf8, false),
+        Field::new("fk_db_schema_name", DataType::Utf8, false),
+        Field::new("fk_table_name", DataType::Utf8, false),
+        Field::new("fk_column_name", DataType::Utf8, false),
+        Field::new("key_sequence", DataType::Int32, false),
+        Field::new("fk_key_name", DataType::Utf8, false),
+        Field::new("pk_key_name", DataType::Utf8, false),
+        Field::new("update_rule", DataType::UInt8, false),
+        Field::new("delete_rule", DataType::UInt8, false),
+    ]))
+});
+
+static GET_EXPORTED_KEYS_SCHEMA: Lazy<SchemaRef> = Lazy::new(|| {
+    Arc::new(Schema::new(vec![
+        Field::new("pk_catalog_name", DataType::Utf8, false),
+        Field::new("pk_db_schema_name", DataType::Utf8, false),
+        Field::new("pk_table_name", DataType::Utf8, false),
+        Field::new("pk_column_name", DataType::Utf8, false),
+        Field::new("fk_catalog_name", DataType::Utf8, false),
+        Field::new("fk_db_schema_name", DataType::Utf8, false),
+        Field::new("fk_table_name", DataType::Utf8, false),
+        Field::new("fk_column_name", DataType::Utf8, false),
+        Field::new("key_sequence", DataType::Int32, false),
+        Field::new("fk_key_name", DataType::Utf8, false),
+        Field::new("pk_key_name", DataType::Utf8, false),
+        Field::new("update_rule", DataType::UInt8, false),
+        Field::new("delete_rule", DataType::UInt8, false),
+    ]))
+});
+
+static GET_IMPORTED_KEYS_SCHEMA: Lazy<SchemaRef> = Lazy::new(|| {
+    Arc::new(Schema::new(vec![
+        Field::new("pk_catalog_name", DataType::Utf8, false),
+        Field::new("pk_db_schema_name", DataType::Utf8, false),
+        Field::new("pk_table_name", DataType::Utf8, false),
+        Field::new("pk_column_name", DataType::Utf8, false),
+        Field::new("fk_catalog_name", DataType::Utf8, false),
+        Field::new("fk_db_schema_name", DataType::Utf8, false),
+        Field::new("fk_table_name", DataType::Utf8, false),
+        Field::new("fk_column_name", DataType::Utf8, false),
+        Field::new("key_sequence", DataType::Int32, false),
+        Field::new("fk_key_name", DataType::Utf8, false),
+        Field::new("pk_key_name", DataType::Utf8, false),
+        Field::new("update_rule", DataType::UInt8, false),
+        Field::new("delete_rule", DataType::UInt8, false),
+    ]))
 });
 
 static GET_PRIMARY_KEYS_SCHEMA: Lazy<SchemaRef> = Lazy::new(|| {

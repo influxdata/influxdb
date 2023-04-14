@@ -29,9 +29,9 @@ use arrow_flight::{
     error::{FlightError, Result},
     sql::{
         ActionCreatePreparedStatementRequest, ActionCreatePreparedStatementResult, Any,
-        CommandGetCatalogs, CommandGetDbSchemas, CommandGetPrimaryKeys, CommandGetSqlInfo,
-        CommandGetTableTypes, CommandGetTables, CommandPreparedStatementQuery,
-        CommandStatementQuery, ProstMessageExt,
+        CommandGetCatalogs, CommandGetCrossReference, CommandGetDbSchemas, CommandGetExportedKeys,
+        CommandGetImportedKeys, CommandGetPrimaryKeys, CommandGetSqlInfo, CommandGetTableTypes,
+        CommandGetTables, CommandPreparedStatementQuery, CommandStatementQuery, ProstMessageExt,
     },
     Action, FlightClient, FlightDescriptor, FlightInfo, IpcMessage, Ticket,
 };
@@ -153,6 +153,56 @@ impl FlightSqlClient {
         self.do_get_with_cmd(msg.as_any()).await
     }
 
+    /// List a description of the foreign key columns in the given foreign key table that
+    /// reference the primary key or the columns representing a unique constraint of the
+    /// parent table (could be the same or a different table) on this server using a
+    /// [`CommandGetCrossReference`] message.
+    ///
+    /// # Parameters
+    ///
+    /// Definition from <https://github.com/apache/arrow/blob/f0c8229f5a09fe53186df171d518430243ddf112/format/FlightSql.proto#L1405-L1477>
+    ///
+    /// pk_catalog: The catalog name where the parent table is.
+    /// An empty string retrieves those without a catalog.
+    /// If omitted the catalog name should not be used to narrow the search.
+    ///
+    /// pk_db_schema: The Schema name where the parent table is.
+    /// An empty string retrieves those without a schema.
+    /// If omitted the schema name should not be used to narrow the search.
+    ///
+    /// pk_table: The parent table name. It cannot be null.
+    ///
+    /// fk_catalog: The catalog name where the foreign table is.
+    /// An empty string retrieves those without a catalog.
+    /// If omitted the catalog name should not be used to narrow the search.
+    ///
+    /// fk_db_schema: The schema name where the foreign table is.
+    /// An empty string retrieves those without a schema.
+    /// If omitted the schema name should not be used to narrow the search.
+    ///
+    /// fk_table: The foreign table name. It cannot be null.
+    ///
+    /// This implementation does not support alternate endpoints
+    pub async fn get_cross_reference(
+        &mut self,
+        pk_catalog: Option<impl Into<String> + Send>,
+        pk_db_schema: Option<impl Into<String> + Send>,
+        pk_table: String,
+        fk_catalog: Option<impl Into<String> + Send>,
+        fk_db_schema: Option<impl Into<String> + Send>,
+        fk_table: String,
+    ) -> Result<FlightRecordBatchStream> {
+        let msg = CommandGetCrossReference {
+            pk_catalog: pk_catalog.map(|s| s.into()),
+            pk_db_schema: pk_db_schema.map(|s| s.into()),
+            pk_table,
+            fk_catalog: fk_catalog.map(|s| s.into()),
+            fk_db_schema: fk_db_schema.map(|s| s.into()),
+            fk_table,
+        };
+        self.do_get_with_cmd(msg.as_any()).await
+    }
+
     /// List the schemas on this server
     ///
     /// # Parameters
@@ -178,6 +228,71 @@ impl FlightSqlClient {
         let msg = CommandGetDbSchemas {
             catalog: catalog.map(|s| s.into()),
             db_schema_filter_pattern: db_schema_filter_pattern.map(|s| s.into()),
+        };
+        self.do_get_with_cmd(msg.as_any()).await
+    }
+
+    /// List a description of the foreign key columns that reference the given
+    /// table's primary key columns (the foreign keys exported by a table) of a
+    /// table on this server using a [`CommandGetExportedKeys`] message.
+    ///
+    /// # Parameters
+    ///
+    /// Definition from <https://github.com/apache/arrow/blob/0434ab65075ecd1d2ab9245bcd7ec6038934ed29/format/FlightSql.proto#L1307-L1352>
+    ///
+    /// catalog: Specifies the catalog to search for the foreign key table.
+    /// An empty string retrieves those without a catalog.
+    /// If omitted the catalog name should not be used to narrow the search.
+    ///
+    /// db_schema: Specifies the schema to search for the foreign key table.
+    /// An empty string retrieves those without a schema.
+    /// If omitted the schema name should not be used to narrow the search.
+    ///
+    /// table: Specifies the foreign key table to get the foreign keys for.
+    ///
+    /// This implementation does not support alternate endpoints
+    pub async fn get_exported_keys(
+        &mut self,
+        catalog: Option<impl Into<String> + Send>,
+        db_schema: Option<impl Into<String> + Send>,
+        table: String,
+    ) -> Result<FlightRecordBatchStream> {
+        let msg = CommandGetExportedKeys {
+            catalog: catalog.map(|s| s.into()),
+            db_schema: db_schema.map(|s| s.into()),
+            table,
+        };
+        self.do_get_with_cmd(msg.as_any()).await
+    }
+
+    /// List the foreign keys of a table on this server using a
+    /// [`CommandGetImportedKeys`] message.
+    ///
+    /// # Parameters
+    ///
+    /// Definition from <https://github.com/apache/arrow/blob/196222dbd543d6931f4a1432845add97be0db802/format/FlightSql.proto#L1354-L1403>
+    ///
+    /// catalog: Specifies the catalog to search for the primary key table.
+    /// An empty string retrieves those without a catalog.
+    /// If omitted the catalog name should not be used to narrow the search.
+    ///
+    /// db_schema: Specifies the schema to search for the primary key table.
+    /// An empty string retrieves those without a schema.
+    /// If omitted the schema name should not be used to narrow the search.
+    ///
+    /// table: Specifies the primary key table to get the foreign keys for.
+    ///
+    /// This implementation does not support alternate endpoints
+    pub async fn get_imported_keys(
+        &mut self,
+        catalog: Option<impl Into<String> + Send>,
+        db_schema: Option<impl Into<String> + Send>,
+        table: String,
+    ) -> Result<FlightRecordBatchStream> {
+        let msg = CommandGetImportedKeys {
+            catalog: catalog.map(|s| s.into()),
+            db_schema: db_schema.map(|s| s.into()),
+            table,
         };
         self.do_get_with_cmd(msg.as_any()).await
     }

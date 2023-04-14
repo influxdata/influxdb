@@ -105,6 +105,10 @@ impl Server {
 
 #[async_trait]
 impl ServerType for Server {
+    fn name(&self) -> &str {
+        "gc"
+    }
+
     fn metric_registry(&self) -> Arc<Registry> {
         Arc::clone(&self.metric_registry)
     }
