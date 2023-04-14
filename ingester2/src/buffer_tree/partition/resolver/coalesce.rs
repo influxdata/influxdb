@@ -54,26 +54,6 @@ enum State {
     Resolved(Arc<Mutex<PartitionData>>),
 }
 
-impl State {
-    fn is_resolved(&self) -> bool {
-        matches!(self, Self::Resolved(_))
-    }
-
-    fn unwrap_resolved(&self) -> Arc<Mutex<PartitionData>> {
-        match self {
-            Self::Resolving(_, _) => panic!("unwrap resolving state"),
-            Self::Resolved(v) => Arc::clone(v),
-        }
-    }
-
-    fn unwrap_resolving(&self) -> (Shared<BoxedResolveFuture>, Arc<AtomicBool>) {
-        match self {
-            Self::Resolving(fut, done) => (fut.clone(), Arc::clone(done)),
-            Self::Resolved(_) => panic!("unwrap resolved state"),
-        }
-    }
-}
-
 /// A coalescing [`PartitionProvider`] reducing N partition fetch requests into
 /// a single call to `T` on a per-partition basis.
 ///
@@ -176,11 +156,10 @@ where
 
         // Check if there's an ongoing (or recently completed) resolve.
         let (shared, done) = match self.ongoing.lock().entry(key.clone()) {
-            // A prior call resolved the partition.
-            Entry::Occupied(v) if v.get().is_resolved() => return v.get().unwrap_resolved(),
-            // The partition is actively being resolved.
-            Entry::Occupied(v) => v.get().unwrap_resolving(),
-            // This is the first call to resolve the partition.
+            Entry::Occupied(v) => match v.get() {
+                State::Resolving(fut, done) => (fut.clone(), Arc::clone(done)),
+                State::Resolved(v) => return Arc::clone(v),
+            },
             Entry::Vacant(v) => {
                 // Spawn a future to resolve the partition, and retain a handle
                 // to it.
