@@ -8,7 +8,7 @@ use data_types::CompactionLevel;
 use object_store::memory::InMemory;
 
 use crate::{
-    config::{Config, PartitionsSourceConfig},
+    config::{CompactionType, Config, PartitionsSourceConfig},
     error::ErrorKind,
     object_store::ignore_writes::IgnoreWrites,
 };
@@ -166,7 +166,10 @@ fn make_partitions_source_commit_partition_sink(
         partitions_source,
     );
 
-    let partition_done_sink: Arc<dyn PartitionDoneSink> = if config.shadow_mode {
+    // Temporarily do nothing for cold compaction until we check the cold compaction selection.
+    let shadow_mode = config.shadow_mode || config.compaction_type == CompactionType::Cold;
+
+    let partition_done_sink: Arc<dyn PartitionDoneSink> = if shadow_mode {
         Arc::new(MockPartitionDoneSink::new())
     } else {
         Arc::new(CatalogPartitionDoneSink::new(
@@ -175,7 +178,7 @@ fn make_partitions_source_commit_partition_sink(
         ))
     };
 
-    let commit: Arc<dyn Commit> = if config.shadow_mode {
+    let commit: Arc<dyn Commit> = if shadow_mode {
         Arc::new(MockCommit::new())
     } else {
         Arc::new(CatalogCommit::new(
