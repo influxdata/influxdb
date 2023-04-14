@@ -2,6 +2,7 @@ use std::{fmt::Debug, sync::Arc};
 
 use async_trait::async_trait;
 use data_types::{NamespaceId, PartitionKey, ShardId, TableId};
+use parking_lot::Mutex;
 
 use crate::{
     buffer_tree::{namespace::NamespaceName, partition::PartitionData, table::TableName},
@@ -25,7 +26,7 @@ pub(crate) trait PartitionProvider: Send + Sync + Debug {
         table_id: TableId,
         table_name: Arc<DeferredLoad<TableName>>,
         transition_shard_id: ShardId,
-    ) -> PartitionData;
+    ) -> Arc<Mutex<PartitionData>>;
 }
 
 #[async_trait]
@@ -41,7 +42,7 @@ where
         table_id: TableId,
         table_name: Arc<DeferredLoad<TableName>>,
         transition_shard_id: ShardId,
-    ) -> PartitionData {
+    ) -> Arc<Mutex<PartitionData>> {
         (**self)
             .get_partition(
                 partition_key,
@@ -101,9 +102,12 @@ mod tests {
                 TRANSITION_SHARD_ID,
             )
             .await;
-        assert_eq!(got.partition_id(), partition);
-        assert_eq!(got.namespace_id(), namespace_id);
-        assert_eq!(got.namespace_name().to_string(), namespace_name.to_string());
-        assert_eq!(got.table_name().to_string(), table_name.to_string());
+        assert_eq!(got.lock().partition_id(), partition);
+        assert_eq!(got.lock().namespace_id(), namespace_id);
+        assert_eq!(
+            got.lock().namespace_name().to_string(),
+            namespace_name.to_string()
+        );
+        assert_eq!(got.lock().table_name().to_string(), table_name.to_string());
     }
 }
