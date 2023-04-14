@@ -368,7 +368,7 @@ mod tests {
         );
 
         // Add a single instance of the partition - if more than one call is
-        // made, this will cause a panic.
+        // made to the mock, it will panic.
         let inner = Arc::new(BlockingResolver {
             p: Arc::new(Mutex::new(data)),
         });
