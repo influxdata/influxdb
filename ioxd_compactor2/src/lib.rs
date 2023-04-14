@@ -164,6 +164,16 @@ pub async fn create_compactor2_server_type(
         compactor_config.compaction_cold_partition_minute_threshold,
     );
 
+    // This is annoying to have two types that are so similar and have to convert between them, but
+    // this way compactor2 doesn't have to know about clap_blocks and vice versa. It would also
+    // be nice to have this as a `From` trait implementation, but this crate isn't allowed because
+    // neither type is defined in ioxd_compactor. This feels like the right place to do the
+    // conversion, though.
+    let compaction_type = match compactor_config.compaction_type {
+        CompactionType::Hot => compactor2::config::CompactionType::Hot,
+        CompactionType::Cold => compactor2::config::CompactionType::Cold,
+    };
+
     let shard_id = Config::fetch_shard_id(
         Arc::clone(&catalog),
         backoff_config.clone(),
@@ -172,6 +182,7 @@ pub async fn create_compactor2_server_type(
     )
     .await;
     let compactor = Compactor2::start(Config {
+        compaction_type,
         shard_id,
         metric_registry: Arc::clone(&metric_registry),
         catalog,

@@ -19,6 +19,9 @@ const MIN_COMPACT_SIZE_MULTIPLE: usize = 3;
 /// Config to set up a compactor.
 #[derive(Debug, Clone)]
 pub struct Config {
+    /// Compaction type.
+    pub compaction_type: CompactionType,
+
     /// Shard Id
     pub shard_id: ShardId,
 
@@ -205,6 +208,17 @@ pub struct ShardConfig {
     ///
     /// Starts as 0 and must be smaller than the number of shards.
     pub shard_id: usize,
+}
+
+/// Compaction type.
+#[derive(Debug, Default, Clone, Copy, PartialEq)]
+pub enum CompactionType {
+    /// Compacts recent writes as they come in.
+    #[default]
+    Hot,
+
+    /// Compacts partitions that have not been written to very recently for longer-term storage.
+    Cold,
 }
 
 /// Partitions source config.

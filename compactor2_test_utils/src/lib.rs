@@ -121,6 +121,7 @@ impl TestSetupBuilder<false> {
             .with_invariant_check(Arc::clone(&invariant_check) as _);
 
         let config = Config {
+            compaction_type: Default::default(),
             shard_id: shard.shard.id,
             metric_registry: catalog.metric_registry(),
             catalog: catalog.catalog(),
