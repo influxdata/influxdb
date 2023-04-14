@@ -164,6 +164,13 @@ workflows:
             - build-package-linux-amd64
       - changelog:
           <<: *any_filter
+      - sign-packages:
+          <<: *release_filter
+          requires:
+            - build-package-linux-amd64
+            - build-package-linux-arm64
+            - build-package-darwin-amd64
+            - build-package-windows-amd64
       - s3-publish-packages:
           <<: *release_filter
           requires:
@@ -172,6 +179,7 @@ workflows:
             - build-package-linux-amd64
             - build-package-linux-arm64
             - build-package-windows-amd64
+            - sign-packages
       - s3-publish-changelog:
           <<: *release_filter
           publish-type: release
@@ -517,7 +525,41 @@ jobs:
             - artifacts
       - store_artifacts:
           path: /artifacts
+
           destination: artifacts
+
+  sign-packages:
+    circleci_ip_ranges: true
+    docker:
+      - image: quay.io/influxdb/rsign:latest
+        auth:
+          username: $QUAY_RSIGN_USERNAME
+          password: $QUAY_RSIGN_PASSWORD
+    steps:
+      - add_ssh_keys:
+          fingerprints:
+            - fc:7b:6e:a6:38:7c:63:5a:13:be:cb:bb:fa:33:b3:3c
+      - attach_workspace:
+          at: /tmp/workspace
+      - run: |
+          for target in /tmp/workspace/artifacts/*
+          do
+            case "${target}"
+            in
+              # rsign is shipped on Alpine Linux which uses "busybox ash" instead
+              # of bash. ash is somewhat more posix compliant and is missing some
+              # extensions and niceties from bash.
+              *.deb|*.rpm|*.tar.gz|*.zip)
+                rsign "${target}"
+              ;;
+            esac
+          done
+      - persist_to_workspace:
+          root: /tmp/workspace
+          paths:
+            - artifacts
+      - store_artifacts:
+          path: /tmp/workspace/artifacts
 
   s3-publish-packages:
     docker:
