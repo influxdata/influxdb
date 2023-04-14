@@ -15,12 +15,8 @@
 mod commit_wrapper;
 mod display;
 mod simulator;
-use commit_wrapper::{CommitRecorderBuilder, InvariantCheck};
+
 pub use display::{display_format, display_size, format_files, format_files_split};
-use iox_catalog::interface::Catalog;
-use iox_query::exec::ExecutorType;
-use simulator::ParquetFileSimulator;
-use tracker::AsyncSemaphoreMetrics;
 
 use std::{
     collections::HashSet,
@@ -30,12 +26,23 @@ use std::{
     time::Duration,
 };
 
+use crate::{
+    commit_wrapper::{CommitRecorderBuilder, InvariantCheck},
+    simulator::ParquetFileSimulator,
+};
 use async_trait::async_trait;
 use backoff::BackoffConfig;
+use compactor2::{
+    compact,
+    config::{Config, PartitionsSourceConfig},
+    hardcoded_components, Components, PanicDataFusionPlanner, PartitionInfo,
+};
 use data_types::{ColumnType, CompactionLevel, ParquetFile, TableId, TRANSITION_SHARD_NUMBER};
 use datafusion::arrow::record_batch::RecordBatch;
 use datafusion_util::config::register_iox_object_store;
 use futures::TryStreamExt;
+use iox_catalog::interface::Catalog;
+use iox_query::exec::ExecutorType;
 use iox_tests::{
     ParquetFileBuilder, TestCatalog, TestNamespace, TestParquetFileBuilder, TestPartition,
     TestShard, TestTable,
@@ -44,12 +51,7 @@ use iox_time::{MockProvider, Time, TimeProvider};
 use object_store::{path::Path, DynObjectStore};
 use parquet_file::storage::{ParquetStorage, StorageId};
 use schema::sort::SortKey;
-
-use compactor2::{
-    compact,
-    config::{Config, PartitionsSourceConfig},
-    hardcoded_components, Components, PanicDataFusionPlanner, PartitionInfo,
-};
+use tracker::AsyncSemaphoreMetrics;
 
 // Default values for the test setup builder
 const SHARD_INDEX: i32 = TRANSITION_SHARD_NUMBER;
