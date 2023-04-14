@@ -80,7 +80,7 @@ workspace-hack = { version = "0.1", path = "../workspace-hack" }
 [dev-dependencies]
 # In alphabetical order
 arrow_util = { path = "../arrow_util" }
-assert_cmd = "2.0.10"
+assert_cmd = "2.0.11"
 assert_matches = "1.5"
 async-trait = "0.1"
 predicate = { path = "../predicate" }
