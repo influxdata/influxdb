@@ -2668,8 +2668,11 @@ mod tests {
                 panic!("Unexpected success: {response:?}");
             }
             Err(status) => {
-                assert_eq!(status.code(), tonic::Code::Unknown);
-                assert_contains!(status.message(), "transport error");
+                assert_eq!(status.code(), tonic::Code::Cancelled);
+                assert_contains!(
+                    status.message(),
+                    "http2 error: stream error received: stream no longer needed"
+                );
             }
         };
 
