@@ -24,11 +24,7 @@ The end to end tests are run using the `cargo test --test end_to_end` command, a
 `TEST_INTEGRATION` and `TEST_INFLUXDB_IOX_CATALOG_DSN` environment variables. NOTE if you don't set
 these variables the tests will "pass" locally (really they will be skipped).
 
-By default, the integration tests for the Kafka-based write buffer are not run. To run these
-you need to set the `KAFKA_CONNECT` environment variable and `TEST_INTEGRATION=1`.
-
-For example, you can run this docker compose to get redpanda (a kafka-compatible message queue)
-and postgres running:
+For example, you can run this docker compose to get postgres running:
 
 ```shell
 docker-compose -f integration-docker-compose.yml up
@@ -38,12 +34,11 @@ In another terminal window, you can run:
 
 ```shell
 export TEST_INTEGRATION=1
-export KAFKA_CONNECT=localhost:9092
 export TEST_INFLUXDB_IOX_CATALOG_DSN=postgresql://postgres@localhost:5432/postgres
 cargo test --workspace
 ```
 
-Or for just the end-to-end tests (and not general tests or kafka):
+Or for just the end-to-end tests (and not general tests):
 
 ```shell
 TEST_INTEGRATION=1 TEST_INFLUXDB_IOX_CATALOG_DSN=postgresql://postgres@localhost:5432/postgres cargo test --test end_to_end
@@ -71,31 +66,6 @@ You can also see more logging using the `LOG_FILTER` variable. For example:
 ```shell
 LOG_FILTER=debug,sqlx=warn,h2=warn
 ```
-
-## Object storage
-
-### To run the tests or not run the tests
-
-If you are testing integration with some or all of the object storage options, you'll have more
-setup to do.
-
-By default, `cargo test -p object_store` does not run any tests that actually contact
-any cloud services: tests that do contact the services will silently pass.
-
-To run integration tests, use `TEST_INTEGRATION=1 cargo test -p object_store`, which will run the
-tests that contact the cloud services and fail them if the required environment variables aren't
-set.
-
-### Configuration differences when running the tests
-
-When running `influxdb_iox run`, you can pick one object store to use. When running the tests, you
-can run them against all the possible object stores. There's still only one `INFLUXDB_IOX_BUCKET`
-variable, though, so that will set the bucket name for all configured object stores. Use the same
-bucket name when setting up the different services.
-
-Other than possibly configuring multiple object stores, configuring the tests to use the object
-store services is the same as configuring the server to use an object store service. See the output
-of `influxdb_iox run --help` for instructions.
 
 ## InfluxDB 2 Client
 
