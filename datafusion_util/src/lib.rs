@@ -19,7 +19,7 @@ use std::task::{Context, Poll};
 
 use datafusion::arrow::array::BooleanArray;
 use datafusion::arrow::compute::filter_record_batch;
-use datafusion::arrow::datatypes::DataType;
+use datafusion::arrow::datatypes::{DataType, Fields};
 use datafusion::common::{DataFusionError, ToDFSchema};
 use datafusion::datasource::MemTable;
 use datafusion::execution::context::TaskContext;
@@ -353,12 +353,12 @@ pub fn nullable_schema(schema: SchemaRef) -> SchemaRef {
         schema
     } else {
         // make a new schema with all nullable fields
-        let new_fields = schema
+        let new_fields: Fields = schema
             .fields()
             .iter()
             .map(|f| {
                 // make a copy of the field, but allow it to be nullable
-                f.clone().with_nullable(true)
+                f.as_ref().clone().with_nullable(true)
             })
             .collect();
 

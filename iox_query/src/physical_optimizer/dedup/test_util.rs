@@ -1,6 +1,6 @@
 use std::sync::Arc;
 
-use arrow::datatypes::Schema as ArrowSchema;
+use arrow::datatypes::{Fields, Schema as ArrowSchema};
 use datafusion::physical_plan::ExecutionPlan;
 use schema::Schema;
 
@@ -40,7 +40,7 @@ fn dedup_plan_impl(
                 .iter()
                 .cloned()
                 .chain(std::iter::once(chunk_order_field()))
-                .collect(),
+                .collect::<Fields>(),
         ))
     } else {
         schema.as_arrow()
