@@ -51,7 +51,7 @@ async fn should_delete(
     parquet_files: &mut dyn ParquetFileRepo,
 ) -> Result<bool> {
     if cutoff < item.last_modified {
-        info!(
+        debug!(
             location = %item.location,
             deleting = false,
             reason = "too new",
@@ -74,7 +74,7 @@ async fn should_delete(
 
             if parquet_file.is_some() {
                 // We have a reference to this file; do not delete
-                info!(
+                debug!(
                     location = %item.location,
                     deleting = false,
                     reason = "exists in catalog",
@@ -82,7 +82,7 @@ async fn should_delete(
                 );
                 return Ok(false);
             } else {
-                info!(
+                debug!(
                     location = %item.location,
                     deleting = true,
                     reason = "not in catalog",
@@ -90,7 +90,7 @@ async fn should_delete(
                 );
             }
         } else {
-            info!(
+            debug!(
                 location = %item.location,
                 deleting = true,
                 uuid,
@@ -99,7 +99,7 @@ async fn should_delete(
             );
         }
     } else {
-        info!(
+        debug!(
             location = %item.location,
             deleting = true,
             file_name = %file_name.as_ref(),

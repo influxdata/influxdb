@@ -9,15 +9,27 @@ pub(crate) async fn perform(
     shutdown: CancellationToken,
     catalog: Arc<dyn Catalog>,
     sleep_interval_minutes: u64,
+    dry_run: bool,
 ) -> Result<()> {
     loop {
-        let flagged = catalog
-            .repositories()
-            .await
-            .parquet_files()
-            .flag_for_delete_by_retention()
-            .await
-            .context(FlaggingSnafu)?;
+        let flagged = if !dry_run {
+            catalog
+                .repositories()
+                .await
+                .parquet_files()
+                .flag_for_delete_by_retention()
+                .await
+                .context(FlaggingSnafu)?
+        } else {
+            debug!("dry run enabled for parquet retention flagger");
+            catalog
+                .repositories()
+                .await
+                .parquet_files()
+                .flagged_for_delete_by_retention()
+                .await
+                .context(FlaggingSnafu)?
+        };
         info!(flagged_count = %flagged.len(), "iox_catalog::flag_for_delete_by_retention()");
 
         if flagged.is_empty() {
