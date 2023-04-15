@@ -1,13 +1,11 @@
-use crate::plan::util_copy;
+use crate::plan::{error, util_copy};
 use arrow::datatypes::DataType;
-use datafusion::common::tree_node::{TreeNode, VisitRecursion};
-use datafusion::common::{DFSchema, DFSchemaRef, DataFusionError, Result};
+use datafusion::common::{DFSchema, DFSchemaRef, Result};
 use datafusion::logical_expr::utils::expr_as_column_expr;
 use datafusion::logical_expr::{coalesce, lit, Expr, ExprSchemable, LogicalPlan, Operator};
 use influxdb_influxql_parser::expression::BinaryOperator;
 use influxdb_influxql_parser::literal::Number;
 use influxdb_influxql_parser::string::Regex;
-use once_cell::sync::Lazy;
 use query_functions::clean_non_meta_escapes;
 use schema::Schema;
 use std::sync::Arc;
@@ -29,7 +27,7 @@ pub(in crate::plan) fn binary_operator_to_df_operator(op: BinaryOperator) -> Ope
 pub(in crate::plan) fn schema_from_df(schema: &DFSchema) -> Result<Schema> {
     let s: Arc<arrow::datatypes::Schema> = Arc::new(schema.into());
     s.try_into().map_err(|err| {
-        DataFusionError::Internal(format!(
+        error::map::internal(format!(
             "unable to convert DataFusion schema to IOx schema: {err}"
         ))
     })
@@ -53,9 +51,8 @@ impl Schemas {
 /// Sanitize an InfluxQL regular expression and create a compiled [`regex::Regex`].
 pub(crate) fn parse_regex(re: &Regex) -> Result<regex::Regex> {
     let pattern = clean_non_meta_escapes(re.as_str());
-    regex::Regex::new(&pattern).map_err(|e| {
-        DataFusionError::External(format!("invalid regular expression '{re}': {e}").into())
-    })
+    regex::Regex::new(&pattern)
+        .map_err(|e| error::map::query(format!("invalid regular expression '{re}': {e}")))
 }
 
 /// Returns `n` as a literal expression of the specified `data_type`.
@@ -69,9 +66,7 @@ fn number_to_expr(n: &Number, data_type: DataType) -> Result<Expr> {
         (Number::Float(v), DataType::UInt64) => lit(*v as u64),
         (n, data_type) => {
             // The only output data types expected are Int64, Float64 or UInt64
-            return Err(DataFusionError::Internal(format!(
-                "no conversion from {n} to {data_type}"
-            )));
+            return error::internal(format!("no conversion from {n} to {data_type}"));
         }
     })
 }
@@ -118,52 +113,4 @@ pub(crate) fn rebase_expr(
             })
         })
     }
-}
-
-/// Returns `true` if `expr` is an [`Expr::AggregateUDF`] for one of
-/// the selector functions.
-#[allow(unused)]
-pub(crate) fn is_selector_aggregate_udf(expr: &Expr) -> bool {
-    static FUNCTIONS: Lazy<Vec<&'static str>> = Lazy::new(|| {
-        vec![
-            "selector_first",
-            "selector_last",
-            "selector_max",
-            "selector_min",
-        ]
-    });
-
-    matches!(expr, Expr::AggregateUDF { fun, ..} if FUNCTIONS.contains(&fun.name.as_str()))
-}
-
-/// Collect all the references to selector functions, such as `selector_last`.
-/// They are returned in order of occurrence (depth first), with duplicates omitted.
-#[allow(unused)]
-pub(crate) fn find_aggregate_selector_exprs(exprs: &[Expr]) -> Vec<Expr> {
-    exprs
-        .iter()
-        .flat_map(|expr| {
-            // Contains a list of unique selector UDAFs
-            let mut exprs = vec![];
-
-            expr.apply(&mut |expr| {
-                if is_selector_aggregate_udf(expr) {
-                    if !exprs.contains(expr) {
-                        exprs.push(expr.clone());
-                    }
-                    Ok(VisitRecursion::Skip)
-                } else {
-                    Ok(VisitRecursion::Continue)
-                }
-            })
-            .unwrap();
-
-            exprs
-        })
-        .fold(vec![], |mut acc, expr| {
-            if !acc.contains(&expr) {
-                acc.push(expr)
-            }
-            acc
-        })
 }

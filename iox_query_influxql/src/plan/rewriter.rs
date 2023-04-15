@@ -4,7 +4,7 @@ use crate::plan::expr_type_evaluator::evaluate_type;
 use crate::plan::field::field_name;
 use crate::plan::field_mapper::{field_and_dimensions, FieldTypeMap, TagSet};
 use crate::plan::planner::is_scalar_math_function;
-use crate::plan::{util, SchemaProvider};
+use crate::plan::{error, util, SchemaProvider};
 use datafusion::common::{DataFusionError, Result};
 use influxdb_influxql_parser::common::{MeasurementName, QualifiedMeasurementName};
 use influxdb_influxql_parser::expression::walk::{walk_expr, walk_expr_mut};
@@ -128,9 +128,7 @@ fn from_field_and_dimensions(
             }
             _ => {
                 // Unreachable, as the from clause should be normalised at this point.
-                return Err(DataFusionError::Internal(
-                    "Unexpected MeasurementSelection in from".to_string(),
-                ));
+                return error::internal("Unexpected MeasurementSelection in from");
             }
         }
     }
@@ -342,8 +340,8 @@ fn rewrite_field_list(s: &dyn SchemaProvider, stmt: &mut SelectStatement) -> Res
 
                     match args.first() {
                         Some(Expr::Wildcard(Some(WildcardType::Tag))) => {
-                            return Err(DataFusionError::External(
-                                format!("unable to use tag as wildcard in {name}()").into(),
+                            return error::query(format!(
+                                "unable to use tag as wildcard in {name}()"
                             ));
                         }
                         Some(Expr::Wildcard(_)) => {
@@ -382,10 +380,9 @@ fn rewrite_field_list(s: &dyn SchemaProvider, stmt: &mut SelectStatement) -> Res
                     .is_break();
 
                     if has_wildcard {
-                        return Err(DataFusionError::External(
-                            "unsupported expression: contains a wildcard or regular expression"
-                                .into(),
-                        ));
+                        return error::query(
+                            "unsupported expression: contains a wildcard or regular expression",
+                        );
                     }
 
                     new_fields.push(f.clone());
@@ -491,19 +488,19 @@ macro_rules! check_exp_args {
     ($NAME:expr, $EXP:expr, $ARGS:expr) => {
         let args_len = $ARGS.len();
         if args_len != $EXP {
-            return Err(DataFusionError::Plan(format!(
+            return error::query(format!(
                 "invalid number of arguments for {}, expected {}, got {args_len}",
                 $NAME, $EXP
-            )));
+            ));
         }
     };
     ($NAME:expr, $LO:literal, $HI:literal, $ARGS:expr) => {
         let args_len = $ARGS.len();
         if !($LO..=$HI).contains(&args_len) {
-            return Err(DataFusionError::Plan(format!(
+            return error::query(format!(
                 "invalid number of arguments for {}, expected at least {} but no more than {}, got {args_len}",
                 $NAME, $LO, $HI
-            )));
+            ));
         }
     };
 }
@@ -513,12 +510,7 @@ macro_rules! lit_integer {
     ($NAME:expr, $ARGS:expr, $POS:literal) => {
         match &$ARGS[$POS] {
             Expr::Literal(Literal::Integer(v)) => *v,
-            _ => {
-                return Err(DataFusionError::Plan(format!(
-                    "expected integer argument in {}()",
-                    $NAME
-                )))
-            }
+            _ => return error::query(format!("expected integer argument in {}()", $NAME)),
         }
     };
 
@@ -536,12 +528,7 @@ macro_rules! lit_string {
     ($NAME:expr, $ARGS:expr, $POS:literal) => {
         match &$ARGS[$POS] {
             Expr::Literal(Literal::String(s)) => s.as_str(),
-            _ => {
-                return Err(DataFusionError::Plan(format!(
-                    "expected string argument in {}()",
-                    $NAME
-                )))
-            }
+            _ => return error::query(format!("expected string argument in {}()", $NAME)),
         }
     };
 
@@ -606,22 +593,17 @@ impl FieldChecker {
                 //
                 // See: https://github.com/influxdata/influxdb/blob/98361e207349a3643bcc332d54b009818fe7585f/query/compile.go#L1002-L1012
                 if let Some(fill) = q.fill {
-                    return Err(DataFusionError::Plan(format!(
-                        "{fill} must be used with an aggregate function"
-                    )));
+                    return error::query(format!("{fill} must be used with an aggregate function"));
                 }
 
                 if self.has_group_by_time && !self.inherited_group_by_time {
-                    return Err(DataFusionError::Plan(
-                        "GROUP BY requires at least one aggregate function".to_owned(),
-                    ));
+                    return error::query("GROUP BY requires at least one aggregate function");
                 }
             }
             2.. if self.has_top_bottom => {
-                return Err(DataFusionError::Plan(
-                    "selector functions top and bottom cannot be combined with other functions"
-                        .to_owned(),
-                ))
+                return error::query(
+                    "selector functions top and bottom cannot be combined with other functions",
+                )
             }
             _ => {}
         }
@@ -630,23 +612,19 @@ impl FieldChecker {
         //
         // See: https://github.com/influxdata/influxdb/blob/98361e207349a3643bcc332d54b009818fe7585f/query/compile.go#L1013-L1016
         if self.has_distinct && (self.function_count() != 1 || self.has_non_aggregate_fields) {
-            return Err(DataFusionError::Plan(
-                "aggregate function distinct() cannot be combined with other functions or fields"
-                    .to_owned(),
-            ));
+            return error::query(
+                "aggregate function distinct() cannot be combined with other functions or fields",
+            );
         }
 
         // Validate we are using a selector or raw query if non-aggregate fields are projected.
         if self.has_non_aggregate_fields {
             if self.aggregate_count > 0 {
-                return Err(DataFusionError::Plan(
-                    "mixing aggregate and non-aggregate columns is not supported".to_owned(),
-                ));
+                return error::query("mixing aggregate and non-aggregate columns is not supported");
             } else if self.selector_count > 1 {
-                return Err(DataFusionError::Plan(
-                    "mixing multiple selector functions with tags or fields is not supported"
-                        .to_owned(),
-                ));
+                return error::query(
+                    "mixing multiple selector functions with tags or fields is not supported",
+                );
             }
         }
 
@@ -692,9 +670,9 @@ impl FieldChecker {
                 )
             }
             Expr::Binary(b) => match (&*b.lhs, &*b.rhs) {
-                (Expr::Literal(_), Expr::Literal(_)) => Err(DataFusionError::Plan(
-                    "cannot perform a binary expression on two literals".to_owned(),
-                )),
+                (Expr::Literal(_), Expr::Literal(_)) => {
+                    error::query("cannot perform a binary expression on two literals")
+                }
                 (Expr::Literal(_), other) | (other, Expr::Literal(_)) => self.check_expr(other),
                 (lhs, rhs) => {
                     self.check_expr(lhs)?;
@@ -713,9 +691,7 @@ impl FieldChecker {
                 "internal: unexpected regex".into(),
             )),
             // See: https://github.com/influxdata/influxdb/blob/98361e207349a3643bcc332d54b009818fe7585f/query/compile.go#L347
-            Expr::Literal(_) => Err(DataFusionError::Plan(
-                "field must contain at least one variable".to_owned(),
-            )),
+            Expr::Literal(_) => error::query("field must contain at least one variable"),
         }
     }
 
@@ -755,9 +731,9 @@ impl FieldChecker {
             "percentile" => self.check_percentile(&c.args),
             "sample" => self.check_sample(&c.args),
             "distinct" => self.check_distinct(&c.args, false),
-            "top" | "bottom" if self.has_top_bottom => Err(DataFusionError::Plan(format!(
+            "top" | "bottom" if self.has_top_bottom => error::query(format!(
                 "selector function {name}() cannot be combined with other functions"
-            ))),
+            )),
             "top" | "bottom" => self.check_top_bottom(name, &c.args),
             "derivative" | "non_negative_derivative" => self.check_derivative(name, &c.args),
             "difference" | "non_negative_difference" => self.check_difference(name, &c.args),
@@ -807,9 +783,7 @@ impl FieldChecker {
                 }
                 self.check_symbol(name, &c.args[0])
             }
-            _ => Err(DataFusionError::Plan(format!(
-                "unsupported function {name}()"
-            ))),
+            _ => error::query(format!("unsupported function {name}()")),
         }
     }
 
@@ -821,10 +795,10 @@ impl FieldChecker {
             &args[1],
             Expr::Literal(Literal::Integer(_)) | Expr::Literal(Literal::Float(_))
         ) {
-            return Err(DataFusionError::Plan(format!(
+            return error::query(format!(
                 "expected number for percentile(), got {:?}",
                 &args[1]
-            )));
+            ));
         }
         self.check_symbol("percentile", &args[0])
     }
@@ -838,9 +812,7 @@ impl FieldChecker {
         //
         // See: https://github.com/influxdata/influxdb/blob/98361e207349a3643bcc332d54b009818fe7585f/query/compile.go#L441-L443
         if v <= 1 {
-            return Err(DataFusionError::Plan(format!(
-                "sample window must be greater than 1, got {v}"
-            )));
+            return error::query(format!("sample window must be greater than 1, got {v}"));
         }
 
         self.check_symbol("sample", &args[0])
@@ -852,9 +824,7 @@ impl FieldChecker {
 
         check_exp_args!("distinct", 1, args);
         if !matches!(&args[0], Expr::VarRef(_)) {
-            return Err(DataFusionError::Plan(
-                "expected field argument in distinct()".to_owned(),
-            ));
+            return error::query("expected field argument in distinct()");
         }
 
         if !nested {
@@ -871,10 +841,10 @@ impl FieldChecker {
         self.has_top_bottom = true;
 
         if args.len() < 2 {
-            return Err(DataFusionError::Plan(format!(
+            return error::query(format!(
                 "invalid number of arguments for {name}, expected at least 2, got {}",
                 args.len()
-            )));
+            ));
         }
 
         let (last, args) = args.split_last().expect("length >= 2");
@@ -882,31 +852,29 @@ impl FieldChecker {
         match last {
             Expr::Literal(Literal::Integer(limit)) => {
                 if *limit <= 0 {
-                    return Err(DataFusionError::Plan(format!(
+                    return error::query(format!(
                         "limit ({limit}) for {name} must be greater than 0"
-                    )));
+                    ));
                 }
             }
             got => {
-                return Err(DataFusionError::Plan(format!(
+                return error::query(format!(
                     "expected integer as last argument for {name}, got {got:?}"
-                )))
+                ))
             }
         }
 
         let (first, rest) = args.split_first().expect("length >= 1");
 
         if !matches!(first, Expr::VarRef(_)) {
-            return Err(DataFusionError::Plan(format!(
-                "expected first argument to be a field for {name}"
-            )));
+            return error::query(format!("expected first argument to be a field for {name}"));
         }
 
         for expr in rest {
             if !matches!(expr, Expr::VarRef(_)) {
-                return Err(DataFusionError::Plan(format!(
+                return error::query(format!(
                     "only fields or tags are allow for {name}(), got {expr:?}"
-                )));
+                ));
             }
         }
 
@@ -924,15 +892,13 @@ impl FieldChecker {
         check_exp_args!(name, 1, 2, args);
         match args.get(1) {
             Some(Expr::Literal(Literal::Duration(d))) if **d <= 0 => {
-                return Err(DataFusionError::Plan(format!(
-                    "duration argument must be positive, got {d}"
-                )))
+                return error::query(format!("duration argument must be positive, got {d}"))
             }
             None | Some(Expr::Literal(Literal::Duration(_))) => {}
             Some(got) => {
-                return Err(DataFusionError::Plan(format!(
+                return error::query(format!(
                     "second argument to {name} must be a duration, got {got:?}"
-                )))
+                ))
             }
         }
 
@@ -945,15 +911,13 @@ impl FieldChecker {
 
         match args.get(1) {
             Some(Expr::Literal(Literal::Duration(d))) if **d <= 0 => {
-                return Err(DataFusionError::Plan(format!(
-                    "duration argument must be positive, got {d}"
-                )))
+                return error::query(format!("duration argument must be positive, got {d}"))
             }
             None | Some(Expr::Literal(Literal::Duration(_))) => {}
             Some(got) => {
-                return Err(DataFusionError::Plan(format!(
+                return error::query(format!(
                     "second argument to {name} must be a duration, got {got:?}"
-                )))
+                ))
             }
         }
 
@@ -980,9 +944,9 @@ impl FieldChecker {
 
         let v = lit_integer!("moving_average", args, 1);
         if v <= 1 {
-            return Err(DataFusionError::Plan(format!(
+            return error::query(format!(
                 "moving_average window must be greater than 1, got {v}"
-            )));
+            ));
         }
 
         self.check_nested_symbol("moving_average", &args[0])
@@ -994,22 +958,20 @@ impl FieldChecker {
 
         let v = lit_integer!(name, args, 1);
         if v < 1 {
-            return Err(DataFusionError::Plan(format!(
-                "{name} period must be greater than 1, got {v}"
-            )));
+            return error::query(format!("{name} period must be greater than 1, got {v}"));
         }
 
         if let Some(v) = lit_integer!(name, args, 2?) {
             match (v, name) {
                 (v, "triple_exponential_derivative") if v < 1 && v != -1 => {
-                    return Err(DataFusionError::Plan(format!(
+                    return error::query(format!(
                         "{name} hold period must be greater than or equal to 1"
-                    )))
+                    ))
                 }
                 (v, _) if v < 0 && v != -1 => {
-                    return Err(DataFusionError::Plan(format!(
+                    return error::query(format!(
                         "{name} hold period must be greater than or equal to 0"
-                    )))
+                    ))
                 }
                 _ => {}
             }
@@ -1018,9 +980,9 @@ impl FieldChecker {
         match lit_string!(name, args, 3?) {
             Some("exponential" | "simple") => {}
             Some(warmup) => {
-                return Err(DataFusionError::Plan(format!(
+                return error::query(format!(
                     "{name} warmup type must be one of: 'exponential', 'simple', got {warmup}"
-                )))
+                ))
             }
             None => {}
         }
@@ -1034,16 +996,14 @@ impl FieldChecker {
 
         let v = lit_integer!(name, args, 1);
         if v < 1 {
-            return Err(DataFusionError::Plan(format!(
-                "{name} period must be greater than 1, got {v}"
-            )));
+            return error::query(format!("{name} period must be greater than 1, got {v}"));
         }
 
         if let Some(v) = lit_integer!(name, args, 2?) {
             if v < 0 && v != -1 {
-                return Err(DataFusionError::Plan(format!(
+                return error::query(format!(
                     "{name} hold period must be greater than or equal to 0"
-                )));
+                ));
             }
         }
 
@@ -1056,25 +1016,23 @@ impl FieldChecker {
 
         let v = lit_integer!(name, args, 1);
         if v < 1 {
-            return Err(DataFusionError::Plan(format!(
-                "{name} period must be greater than 1, got {v}"
-            )));
+            return error::query(format!("{name} period must be greater than 1, got {v}"));
         }
 
         if let Some(v) = lit_integer!(name, args, 2?) {
             if v < 0 && v != -1 {
-                return Err(DataFusionError::Plan(format!(
+                return error::query(format!(
                     "{name} hold period must be greater than or equal to 0"
-                )));
+                ));
             }
         }
 
         match lit_string!(name, args, 3?) {
             Some("none" | "exponential" | "simple") => {}
             Some(warmup) => {
-                return Err(DataFusionError::Plan(format!(
+                return error::query(format!(
                 "{name} warmup type must be one of: 'none', 'exponential' or 'simple', got {warmup}"
-            )))
+            ))
             }
             None => {}
         }
@@ -1088,15 +1046,13 @@ impl FieldChecker {
 
         match args.get(1) {
             Some(Expr::Literal(Literal::Duration(d))) if **d <= 0 => {
-                return Err(DataFusionError::Plan(format!(
-                    "duration argument must be positive, got {d}"
-                )))
+                return error::query(format!("duration argument must be positive, got {d}"))
             }
             None | Some(Expr::Literal(Literal::Duration(_))) => {}
             Some(got) => {
-                return Err(DataFusionError::Plan(format!(
+                return error::query(format!(
                     "second argument to {name} must be a duration, got {got:?}"
-                )))
+                ))
             }
         }
 
@@ -1120,26 +1076,20 @@ impl FieldChecker {
 
         let v = lit_integer!(name, args, 1);
         if v < 1 {
-            return Err(DataFusionError::Plan(format!(
-                "{name} N argument must be greater than 0, got {v}"
-            )));
+            return error::query(format!("{name} N argument must be greater than 0, got {v}"));
         }
 
         let v = lit_integer!(name, args, 2);
         if v < 0 {
-            return Err(DataFusionError::Plan(format!(
-                "{name} S argument cannot be negative, got {v}"
-            )));
+            return error::query(format!("{name} S argument cannot be negative, got {v}"));
         }
 
         match &args[0] {
-            Expr::Call(_) if !self.has_group_by_time => Err(DataFusionError::Plan(format!(
-                "{name} aggregate requires a GROUP BY interval"
-            ))),
+            Expr::Call(_) if !self.has_group_by_time => {
+                error::query(format!("{name} aggregate requires a GROUP BY interval"))
+            }
             expr @ Expr::Call(_) => self.check_nested_expr(expr),
-            _ => Err(DataFusionError::Plan(format!(
-                "must use aggregate function with {name}"
-            ))),
+            _ => error::query(format!("must use aggregate function with {name}")),
         }
     }
 
@@ -1168,15 +1118,13 @@ impl FieldChecker {
 
     fn check_nested_symbol(&mut self, name: &str, expr: &Expr) -> Result<()> {
         match expr {
-            Expr::Call(_) if !self.has_group_by_time => Err(DataFusionError::Plan(format!(
-                "{name} aggregate requires a GROUP BY interval"
-            ))),
-            Expr::Call(_) => self.check_nested_expr(expr),
-            _ if self.has_group_by_time && !self.inherited_group_by_time => {
-                Err(DataFusionError::Plan(format!(
-                    "aggregate function required inside the call to {name}"
-                )))
+            Expr::Call(_) if !self.has_group_by_time => {
+                error::query(format!("{name} aggregate requires a GROUP BY interval"))
             }
+            Expr::Call(_) => self.check_nested_expr(expr),
+            _ if self.has_group_by_time && !self.inherited_group_by_time => error::query(format!(
+                "aggregate function required inside the call to {name}"
+            )),
             _ => self.check_symbol(name, expr),
         }
     }
@@ -1189,9 +1137,7 @@ impl FieldChecker {
             Expr::Wildcard(_) | Expr::Literal(Literal::Regex(_)) => Err(DataFusionError::External(
                 "internal: unexpected wildcard or regex".into(),
             )),
-            expr => Err(DataFusionError::Plan(format!(
-                "expected field argument in {name}(), got {expr:?}"
-            ))),
+            expr => error::query(format!("expected field argument in {name}(), got {expr:?}")),
         }
     }
 }
@@ -1825,14 +1771,14 @@ mod test {
         let err = rewrite_statement(&namespace, &stmt).unwrap_err();
         assert_eq!(
             err.to_string(),
-            "External error: unsupported expression: contains a wildcard or regular expression"
+            "Error during planning: unsupported expression: contains a wildcard or regular expression"
         );
 
         let stmt = parse_select("SELECT COUNT(*::tag) FROM cpu");
         let err = rewrite_statement(&namespace, &stmt).unwrap_err();
         assert_eq!(
             err.to_string(),
-            "External error: unable to use tag as wildcard in count()"
+            "Error during planning: unable to use tag as wildcard in count()"
         );
     }
 

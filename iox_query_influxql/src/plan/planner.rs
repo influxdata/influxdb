@@ -20,7 +20,7 @@ use arrow::record_batch::RecordBatch;
 use chrono_tz::Tz;
 use datafusion::catalog::TableReference;
 use datafusion::common::tree_node::{TreeNode, TreeNodeRewriter};
-use datafusion::common::{DFSchema, DFSchemaRef, DataFusionError, Result, ScalarValue, ToDFSchema};
+use datafusion::common::{DFSchema, DFSchemaRef, Result, ScalarValue, ToDFSchema};
 use datafusion::datasource::{provider_as_source, MemTable};
 use datafusion::logical_expr::expr_rewriter::normalize_col;
 use datafusion::logical_expr::logical_plan::builder::project;
@@ -214,9 +214,8 @@ impl<'a> InfluxQLToLogicalPlan<'a> {
         // grouped into tables in the output when formatted as InfluxQL tabular format.
         let measurement_column_index = schema
             .index_of_column_by_name(None, "plan_type")?
-            .ok_or_else(|| {
-                DataFusionError::External("internal: unable to find plan_type column".into())
-            })? as u32;
+            .ok_or_else(|| error::map::internal("unable to find plan_type column"))?
+            as u32;
 
         let (analyze, verbose) = match explain.options {
             Some(ExplainOption::AnalyzeVerbose) => (true, true),
@@ -767,11 +766,11 @@ impl<'a> InfluxQLToLogicalPlan<'a> {
             let limit = limit
                 .map(|v| <u64 as TryInto<i64>>::try_into(*v))
                 .transpose()
-                .map_err(|_| DataFusionError::Plan("limit out of range".to_owned()))?;
+                .map_err(|_| error::map::query("limit out of range"))?;
             let offset = offset
                 .map(|v| <u64 as TryInto<i64>>::try_into(*v))
                 .transpose()
-                .map_err(|_| DataFusionError::Plan("offset out of range".to_owned()))?;
+                .map_err(|_| error::map::query("offset out of range".to_owned()))?;
 
             // a reference to the ROW_NUMBER column.
             let row_alias = IOX_ROW_ALIAS.as_expr();
@@ -835,7 +834,7 @@ impl<'a> InfluxQLToLogicalPlan<'a> {
             return Ok(input);
         }
 
-        Err(DataFusionError::NotImplemented("SLIMIT or SOFFSET".into()))
+        error::not_implemented("SLIMIT or SOFFSET")
     }
 
     /// Map the InfluxQL `SELECT` projection list into a list of DataFusion expressions.
@@ -941,9 +940,7 @@ impl<'a> InfluxQLToLogicalPlan<'a> {
         let iox_schema = &schemas.iox_schema;
         match iql {
             // rewriter is expected to expand wildcard expressions
-            IQLExpr::Wildcard(_) => Err(DataFusionError::Internal(
-                "unexpected wildcard in projection".into(),
-            )),
+            IQLExpr::Wildcard(_) => error::internal("unexpected wildcard in projection"),
             IQLExpr::VarRef(VarRef {
                 name,
                 data_type: opt_dst_type,
@@ -989,7 +986,7 @@ impl<'a> InfluxQLToLogicalPlan<'a> {
                     },
                 })
             }
-            IQLExpr::BindParameter(_) => Err(DataFusionError::NotImplemented("parameter".into())),
+            IQLExpr::BindParameter(_) => error::not_implemented("parameter"),
             IQLExpr::Literal(val) => match val {
                 Literal::Integer(v) => Ok(lit(*v)),
                 Literal::Unsigned(v) => Ok(lit(*v)),
@@ -1000,19 +997,17 @@ impl<'a> InfluxQLToLogicalPlan<'a> {
                     Some(v.timestamp()),
                     None,
                 ))),
-                Literal::Duration(_) => {
-                    Err(DataFusionError::NotImplemented("duration literal".into()))
-                }
+                Literal::Duration(_) => error::not_implemented("duration literal"),
                 Literal::Regex(re) => match ctx.scope {
                     // a regular expression in a projection list is unexpected,
                     // as it should have been expanded by the rewriter.
-                    ExprScope::Projection => Err(DataFusionError::Internal(
-                        "unexpected regular expression found in projection".into(),
-                    )),
+                    ExprScope::Projection => {
+                        error::internal("unexpected regular expression found in projection")
+                    }
                     ExprScope::Where => Ok(lit(clean_non_meta_escapes(re.as_str()))),
                 },
             },
-            IQLExpr::Distinct(_) => Err(DataFusionError::NotImplemented("DISTINCT".into())),
+            IQLExpr::Distinct(_) => error::not_implemented("DISTINCT"),
             IQLExpr::Call(call) => self.call_to_df_expr(ctx, call, schemas),
             IQLExpr::Binary(expr) => self.arithmetic_expr_to_df_expr(ctx, expr, schemas),
             IQLExpr::Nested(e) => self.expr_to_df_expr(ctx, e, schemas),
@@ -1043,12 +1038,10 @@ impl<'a> InfluxQLToLogicalPlan<'a> {
         match ctx.scope {
             ExprScope::Where => {
                 if call.name.eq_ignore_ascii_case("now") {
-                    Err(DataFusionError::NotImplemented("now".into()))
+                    error::not_implemented("now")
                 } else {
                     let name = &call.name;
-                    Err(DataFusionError::External(
-                        format!("invalid function call in condition: {name}").into(),
-                    ))
+                    error::query(format!("invalid function call in condition: {name}"))
                 }
             }
             ExprScope::Projection => self.function_to_df_expr(ctx, call, schemas),
@@ -1064,9 +1057,9 @@ impl<'a> InfluxQLToLogicalPlan<'a> {
         fn check_arg_count(name: &str, args: &[IQLExpr], count: usize) -> Result<()> {
             let got = args.len();
             if got != count {
-                Err(DataFusionError::Plan(format!(
+                error::query(format!(
                     "invalid number of arguments for {name}: expected {count}, got {got}"
-                )))
+                ))
             } else {
                 Ok(())
             }
@@ -1164,9 +1157,7 @@ impl<'a> InfluxQLToLogicalPlan<'a> {
         match BuiltinScalarFunction::from_str(call.name.as_str())? {
             BuiltinScalarFunction::Log => {
                 if args.len() != 2 {
-                    Err(DataFusionError::Plan(
-                        "invalid number of arguments for log, expected 2, got 1".to_owned(),
-                    ))
+                    error::query("invalid number of arguments for log, expected 2, got 1")
                 } else {
                     Ok(Expr::ScalarFunction {
                         fun: BuiltinScalarFunction::Log,
@@ -1233,13 +1224,13 @@ impl<'a> InfluxQLToLogicalPlan<'a> {
                         self.create_table_ref(normalize_identifier(ident))
                     }
                     // rewriter is expected to expand the regular expression
-                    MeasurementName::Regex(_) => Err(DataFusionError::Internal(
-                        "unexpected regular expression in FROM clause".into(),
-                    )),
+                    MeasurementName::Regex(_) => error::internal(
+                        "unexpected regular expression in FROM clause",
+                    ),
                 },
-                MeasurementSelection::Subquery(_) => Err(DataFusionError::NotImplemented(
-                    "subquery in FROM clause".into(),
-                )),
+                MeasurementSelection::Subquery(_) => error::not_implemented(
+                    "subquery in FROM clause",
+                ),
             }? else { continue };
             table_projs.push_back(table_proj);
         }
@@ -1280,14 +1271,10 @@ impl<'a> InfluxQLToLogicalPlan<'a> {
                 let mut out = HashSet::new();
                 for qualified_name in from.iter() {
                     if qualified_name.database.is_some() {
-                        return Err(DataFusionError::NotImplemented(
-                            "database name in from clause".into(),
-                        ));
+                        return error::not_implemented("database name in from clause");
                     }
                     if qualified_name.retention_policy.is_some() {
-                        return Err(DataFusionError::NotImplemented(
-                            "retention policy in from clause".into(),
-                        ));
+                        return error::not_implemented("retention policy in from clause");
                     }
                     match &qualified_name.name {
                         MeasurementName::Name(name) => {
@@ -1320,9 +1307,7 @@ impl<'a> InfluxQLToLogicalPlan<'a> {
     ) -> Result<LogicalPlan> {
         if show_field_keys.database.is_some() {
             // How do we handle this? Do we need to perform cross-namespace queries here?
-            return Err(DataFusionError::NotImplemented(
-                "SHOW FIELD KEYS ON <database>".into(),
-            ));
+            return error::not_implemented("SHOW FIELD KEYS ON <database>");
         }
 
         let field_key_col = "fieldKey";
@@ -1414,9 +1399,7 @@ fn build_gap_fill_node(
     // added by the planner.
     let (stride, time_range, origin) = if date_bin_args.len() == 3 {
         let time_col = date_bin_args[1].try_into_col().map_err(|_| {
-            DataFusionError::Internal(
-                "DATE_BIN requires a column as the source argument".to_string(),
-            )
+            error::map::internal("DATE_BIN requires a column as the source argument")
         })?;
 
         // Ensure that a time range was specified and is valid for gap filling
@@ -1443,10 +1426,10 @@ fn build_gap_fill_node(
     } else {
         // This is an internal error as the date_bin function is added by the planner and should
         // always contain the correct number of arguments.
-        return Err(DataFusionError::Internal(format!(
+        return error::internal(format!(
             "DATE_BIN expects 3 arguments, got {}",
             date_bin_args.len()
-        )));
+        ));
     };
 
     let aggr = Aggregate::try_from_plan(&input)?;
@@ -1487,7 +1470,7 @@ fn build_gap_fill_node(
 fn plan_with_metadata(plan: LogicalPlan, metadata: &InfluxQlMetadata) -> Result<LogicalPlan> {
     fn make_schema(schema: DFSchemaRef, metadata: &InfluxQlMetadata) -> Result<DFSchemaRef> {
         let data = serde_json::to_string(metadata).map_err(|err| {
-            DataFusionError::Internal(format!("error serializing InfluxQL metadata: {err}"))
+            error::map::internal(format!("error serializing InfluxQL metadata: {err}"))
         })?;
 
         let mut md = schema.metadata().clone();
@@ -1592,11 +1575,7 @@ fn plan_with_metadata(plan: LogicalPlan, metadata: &InfluxQlMetadata) -> Result<
                 t.projected_schema = make_schema(Arc::clone(&src.projected_schema), metadata)?;
                 LogicalPlan::TableScan(t)
             }
-            _ => {
-                return Err(DataFusionError::External(
-                    format!("unexpected LogicalPlan: {}", input.display()).into(),
-                ))
-            }
+            _ => return error::internal(format!("unexpected LogicalPlan: {}", input.display())),
         })
     }
 
@@ -1705,9 +1684,7 @@ fn conditional_op_to_operator(op: ConditionalOperator) -> Result<Operator> {
         ConditionalOperator::And => Ok(Operator::And),
         ConditionalOperator::Or => Ok(Operator::Or),
         // NOTE: This is not supported by InfluxQL SELECT expressions, so it is unexpected
-        ConditionalOperator::In => Err(DataFusionError::Internal(
-            "unexpected binary operator: IN".into(),
-        )),
+        ConditionalOperator::In => error::internal("unexpected binary operator: IN"),
     }
 }
 
@@ -1815,7 +1792,7 @@ fn is_time_field(cond: &ConditionalExpression) -> bool {
 
 fn find_expr(cond: &ConditionalExpression) -> Result<&IQLExpr> {
     cond.expr()
-        .ok_or_else(|| DataFusionError::Internal("incomplete conditional expression".into()))
+        .ok_or_else(|| error::map::internal("incomplete conditional expression"))
 }
 
 #[cfg(test)]
