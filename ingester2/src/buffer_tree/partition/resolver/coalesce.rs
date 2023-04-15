@@ -242,34 +242,43 @@ mod tests {
     use assert_matches::assert_matches;
     use data_types::{PartitionId, TRANSITION_SHARD_ID};
     use futures::{stream::FuturesUnordered, StreamExt};
+    use lazy_static::lazy_static;
     use test_helpers::timeout::FutureTimeout;
 
     use crate::buffer_tree::partition::{resolver::mock::MockPartitionProvider, SortKeyState};
 
     use super::*;
 
+    const PARTITION_ID: PartitionId = PartitionId::new(4242);
     const PARTITION_KEY: &str = "bananas";
+    const NAMESPACE_ID: NamespaceId = NamespaceId::new(42);
+    const TABLE_ID: TableId = TableId::new(42);
 
+    lazy_static! {
+        static ref NAMESPACE_NAME: Arc<DeferredLoad<NamespaceName>> =
+            Arc::new(DeferredLoad::new(Duration::from_secs(1), async {
+                NamespaceName::from("ns-platanos")
+            }));
+        static ref TABLE_NAME: Arc<DeferredLoad<TableName>> =
+            Arc::new(DeferredLoad::new(Duration::from_secs(1), async {
+                TableName::from("platanos")
+            }));
+    }
+
+    /// This test proves that parallel queries for the same partition are
+    /// coalesced, returning the same [`PartitionData`] instance and submitting
+    /// a single query to the inner resolver.
     #[tokio::test]
     async fn test_coalesce() {
         const MAX_TASKS: usize = 50;
 
-        let namespace_id = NamespaceId::new(1234);
-        let namespace_name = Arc::new(DeferredLoad::new(Duration::from_secs(1), async {
-            NamespaceName::from("ns-platanos")
-        }));
-        let table_id = TableId::new(24);
-        let table_name = Arc::new(DeferredLoad::new(Duration::from_secs(1), async {
-            TableName::from("platanos")
-        }));
-        let partition = PartitionId::new(4242);
         let data = PartitionData::new(
-            partition,
+            PARTITION_ID,
             PartitionKey::from(PARTITION_KEY),
-            namespace_id,
-            Arc::clone(&namespace_name),
-            table_id,
-            Arc::clone(&table_name),
+            NAMESPACE_ID,
+            Arc::clone(&*NAMESPACE_NAME),
+            TABLE_ID,
+            Arc::clone(&*TABLE_NAME),
             SortKeyState::Provided(None),
             TRANSITION_SHARD_ID,
         );
@@ -281,13 +290,13 @@ mod tests {
 
         let results = (0..MAX_TASKS)
             .map(|_| {
-                let namespace_name = Arc::clone(&namespace_name);
-                let table_name = Arc::clone(&table_name);
+                let namespace_name = Arc::clone(&*NAMESPACE_NAME);
+                let table_name = Arc::clone(&*TABLE_NAME);
                 layer.get_partition(
                     PartitionKey::from(PARTITION_KEY),
-                    namespace_id,
+                    NAMESPACE_ID,
                     namespace_name,
-                    table_id,
+                    TABLE_ID,
                     table_name,
                     TRANSITION_SHARD_ID,
                 )
@@ -343,26 +352,18 @@ mod tests {
         }
     }
 
+    /// This test proves queries for different partitions proceed in parallel.
     #[tokio::test]
     async fn test_disjoint_parallelised() {
         use futures::Future;
 
-        let namespace_id = NamespaceId::new(1234);
-        let namespace_name = Arc::new(DeferredLoad::new(Duration::from_secs(1), async {
-            NamespaceName::from("ns-platanos")
-        }));
-        let table_id = TableId::new(24);
-        let table_name = Arc::new(DeferredLoad::new(Duration::from_secs(1), async {
-            TableName::from("platanos")
-        }));
-        let partition = PartitionId::new(4242);
         let data = PartitionData::new(
-            partition,
+            PARTITION_ID,
             PartitionKey::from(PARTITION_KEY),
-            namespace_id,
-            Arc::clone(&namespace_name),
-            table_id,
-            Arc::clone(&table_name),
+            NAMESPACE_ID,
+            Arc::clone(&*NAMESPACE_NAME),
+            TABLE_ID,
+            Arc::clone(&*TABLE_NAME),
             SortKeyState::Provided(None),
             TRANSITION_SHARD_ID,
         );
@@ -378,18 +379,18 @@ mod tests {
         // neither resolve.
         let pa_1 = layer.get_partition(
             PartitionKey::from(PARTITION_KEY),
-            namespace_id,
-            Arc::clone(&namespace_name),
-            table_id,
-            Arc::clone(&table_name),
+            NAMESPACE_ID,
+            Arc::clone(&*NAMESPACE_NAME),
+            TABLE_ID,
+            Arc::clone(&*TABLE_NAME),
             TRANSITION_SHARD_ID,
         );
         let pa_2 = layer.get_partition(
             PartitionKey::from(PARTITION_KEY),
-            namespace_id,
-            Arc::clone(&namespace_name),
-            table_id,
-            Arc::clone(&table_name),
+            NAMESPACE_ID,
+            Arc::clone(&*NAMESPACE_NAME),
+            TABLE_ID,
+            Arc::clone(&*TABLE_NAME),
             TRANSITION_SHARD_ID,
         );
 
@@ -407,10 +408,10 @@ mod tests {
         let _ = layer
             .get_partition(
                 PartitionKey::from("platanos"),
-                namespace_id,
-                namespace_name,
-                table_id,
-                table_name,
+                NAMESPACE_ID,
+                Arc::clone(&*NAMESPACE_NAME),
+                TABLE_ID,
+                Arc::clone(&*TABLE_NAME),
                 TRANSITION_SHARD_ID,
             )
             .with_timeout_panic(Duration::from_secs(5))
