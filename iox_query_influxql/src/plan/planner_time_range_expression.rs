@@ -593,7 +593,6 @@ mod test {
         ];
 
         for (interval_str, expected_scalar) in cases {
-            println!("Parsing {interval_str}, expecting {expected_scalar:?}");
             let parsed_interval = parse(interval_str).unwrap();
             let DFExpr::Literal(actual_scalar) = parsed_interval  else {
                 panic!("Expected literal Expr, got {parsed_interval:?}");
