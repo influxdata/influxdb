@@ -450,7 +450,7 @@ SELECT FIRST(usage_idle) FROM cpu WHERE time >= '2022-10-31T02:00:00Z' AND time 
 SELECT FIRST(usage_idle), MAX(usage_idle) FROM cpu;
 
 -- Mixing selectors and aggregates,
--- timetamp should be start of each window
+-- timestamp should be start of each window
 SELECT FIRST(usage_idle), COUNT(usage_idle) FROM cpu WHERE time >= '2022-10-31T02:00:00Z' AND time < '2022-10-31T02:02:00Z' GROUP BY TIME(30s), cpu, device LIMIT 1;
 
 --
