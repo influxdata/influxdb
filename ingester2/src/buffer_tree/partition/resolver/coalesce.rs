@@ -199,31 +199,33 @@ where
 
         // As an optimisation, select exactly one thread to acquire the lock and
         // change the state instead of every caller trying to set the state to
-        // "resolved", which involves contending on the lock for all concurrent
+        // "resolved", which involves contending on the lock with all concurrent
         // callers for all concurrent partition fetches.
         //
         // Any caller that has been awaiting the shared future above is a
         // candidate to perform this state change, but only one thread will
-        // attempt to. If the presence of aborted callers waiting on the shared
+        // attempt to. In the presence of aborted callers waiting on the shared
         // future, each completed await caller will attempt to change state
         // (cancellation safe).
-        if done
-            .compare_exchange(false, true, Ordering::AcqRel, Ordering::Relaxed)
-            .is_ok()
-        {
-            // This task should drop the Shared, swapping it for the resolved
-            // state.
-            //
-            // This thread SHOULD NOT fail to perform this action as no other
-            // thread will attempt it now the bool has been toggled.
-            let old = self
-                .ongoing
-                .lock()
-                .insert(key, State::Resolved(Arc::clone(&res)));
+        if !done.load(Ordering::Relaxed) {
+            if done
+                .compare_exchange(false, true, Ordering::AcqRel, Ordering::Relaxed)
+                .is_ok()
+            {
+                // This task should drop the Shared, swapping it for the
+                // resolved state.
+                //
+                // This thread SHOULD NOT fail to perform this action as no
+                // other thread will attempt it now the bool has been toggled.
+                let old = self
+                    .ongoing
+                    .lock()
+                    .insert(key, State::Resolved(Arc::clone(&res)));
 
-            // Invariant: the resolve future must exist in the map, and the
-            // state may only be changed by the thread that won the CAS.
-            assert!(matches!(old, Some(State::Resolving(..))));
+                // Invariant: the resolve future must exist in the map, and the
+                // state may only be changed by the thread that won the CAS.
+                assert!(matches!(old, Some(State::Resolving(..))));
+            }
         }
 
         res
