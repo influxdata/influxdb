@@ -1196,9 +1196,10 @@ impl FieldChecker {
     }
 }
 
-#[derive(Debug, Copy, Clone, Eq, PartialEq)]
+#[derive(Default, Debug, Copy, Clone, Eq, PartialEq)]
 pub(crate) enum ProjectionType {
     /// A query that projects no aggregate or selector functions.
+    #[default]
     Raw,
     /// A query that projects one or more aggregate functions or
     /// two or more selector functions.
@@ -1213,8 +1214,11 @@ pub(crate) enum ProjectionType {
     TopBottomSelector,
 }
 
-#[derive(Debug)]
+/// Holds high-level information as the result of analysing
+/// a `SELECT` query.
+#[derive(Default, Debug, Copy, Clone)]
 pub(crate) struct SelectStatementInfo {
+    /// Identifies the projection type for the `SELECT` query.
     pub projection_type: ProjectionType,
 }
 
@@ -1227,8 +1231,6 @@ pub(crate) struct SelectStatementInfo {
 ///
 /// * All aggregate, selector and window-like functions, such as `sum`, `last` or `difference`,
 ///   specify a field expression as their first argument
-/// * Wildcard and regular expression expansion is not valid for binary expressions, such as
-///   `SELECT COUNT(*) + SUM(*) FROM cpu`
 /// * All projected columns must refer to a field or tag ensuring there are no literal
 ///   projections such as `SELECT 1`
 /// * Argument types and values are valid
