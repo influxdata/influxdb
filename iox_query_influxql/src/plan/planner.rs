@@ -27,8 +27,8 @@ use datafusion::logical_expr::{
     binary_expr, col, date_bin, expr, expr::WindowFunction, lit, lit_timestamp_nano, now,
     window_function, Aggregate, AggregateFunction, AggregateUDF, Between, BinaryExpr,
     BuiltInWindowFunction, BuiltinScalarFunction, EmptyRelation, Explain, Expr, ExprSchemable,
-    Extension, LogicalPlan, LogicalPlanBuilder, Operator, PlanType, ScalarUDF, TableSource,
-    ToStringifiedPlan, WindowFrame, WindowFrameBound, WindowFrameUnits,
+    Extension, GetIndexedField, LogicalPlan, LogicalPlanBuilder, Operator, PlanType, ScalarUDF,
+    TableSource, ToStringifiedPlan, WindowFrame, WindowFrameBound, WindowFrameUnits,
 };
 use datafusion_util::{lit_dict, AsExpr};
 use generated_types::influxdata::iox::querier::v1::InfluxQlMetadata;
@@ -56,7 +56,7 @@ use iox_query::exec::gapfill::{FillStrategy, GapFill, GapFillParams};
 use iox_query::logical_optimizer::range_predicate::find_time_range;
 use itertools::Itertools;
 use once_cell::sync::Lazy;
-use query_functions::clean_non_meta_escapes;
+use query_functions::{clean_non_meta_escapes, selectors::struct_selector_last};
 use schema::{
     InfluxColumnType, InfluxFieldType, Schema, INFLUXQL_MEASUREMENT_COLUMN_NAME,
     INFLUXQL_METADATA_KEY,
@@ -441,11 +441,10 @@ impl<'a> InfluxQLToLogicalPlan<'a> {
         let schemas = Schemas::new(input.schema())?;
 
         // To be consistent with InfluxQL, exclude measurements
-        // when there are no matching fields.
+        // when the projection has no matching fields.
         if !fields.iter().any(|f| {
-            // Walk the expression tree for the field
-            // looking for a reference to one column that
-            // is a field
+            // Walk the expression tree of `f`, looking for a
+            // reference to at least one column that is a field
             walk_expr(&f.expr, &mut |e| match e {
                 IQLExpr::VarRef(VarRef { name, .. }) => {
                     match schemas.iox_schema.field_by_name(name.deref().as_str()) {
@@ -480,7 +479,7 @@ impl<'a> InfluxQLToLogicalPlan<'a> {
         ctx: &Context<'_>,
         input: LogicalPlan,
         fields: &[Field],
-        select_exprs: Vec<Expr>,
+        mut select_exprs: Vec<Expr>,
         group_by_tag_set: &[&str],
         schemas: &Schemas,
     ) -> Result<(LogicalPlan, Vec<Expr>)> {
@@ -488,8 +487,41 @@ impl<'a> InfluxQLToLogicalPlan<'a> {
             return Ok((input, select_exprs));
         }
 
-        let Some(time_column_index) = find_time_column_index(fields) else {
-            return Err(DataFusionError::Internal("unable to find time column".to_owned()))
+        // This section identifies the time column index and updates the time expression
+        // based on the semantics of the projection.
+        let time_column_index = {
+            let Some(time_column_index) = find_time_column_index(fields) else {
+                return Err(DataFusionError::Internal("unable to find time column".to_owned()))
+            };
+
+            // Take ownership of the alias, so we don't reallocate, and temporarily place a literal
+            // `NULL` in its place.
+            let Expr::Alias(_, alias) = std::mem::replace(&mut select_exprs[time_column_index], lit(ScalarValue::Null)) else {
+                return Err(DataFusionError::External("internal: time column is not an alias".into()))
+            };
+
+            // Determine whether the query is projecting the time column or binning the time and
+            // rewrite the time column expression.
+            select_exprs[time_column_index] =
+                if let Some(dim) = ctx.group_by.and_then(|gb| gb.time_dimension()) {
+                    let stride = expr_to_df_interval_dt(&dim.interval)?;
+                    let offset = if let Some(offset) = &dim.offset {
+                        duration_expr_to_nanoseconds(offset)?
+                    } else {
+                        0
+                    };
+
+                    date_bin(
+                        stride,
+                        "time".as_expr(),
+                        lit(ScalarValue::TimestampNanosecond(Some(offset), None)),
+                    )
+                } else {
+                    lit_timestamp_nano(0)
+                }
+                .alias(alias);
+
+            time_column_index
         };
 
         // Find a list of unique aggregate expressions from the projection.
@@ -920,69 +952,45 @@ impl<'a> InfluxQLToLogicalPlan<'a> {
                 data_type: opt_dst_type,
             }) => {
                 let name = normalize_identifier(name);
-                Ok(
-                    if ctx.scope == ExprScope::Where && name.eq_ignore_ascii_case("time") {
-                        // Per the Go implementation, the time column is case-insensitive in the
-                        // `WHERE` clause and disregards any postfix type cast operator.
-                        //
-                        // See: https://github.com/influxdata/influxql/blob/1ba470371ec093d57a726b143fe6ccbacf1b452b/ast.go#L5751-L5753
+                Ok(match (ctx.scope, name.as_str()) {
+                    // Per the Go implementation, the time column is case-insensitive in the
+                    // `WHERE` clause and disregards any postfix type cast operator.
+                    //
+                    // See: https://github.com/influxdata/influxql/blob/1ba470371ec093d57a726b143fe6ccbacf1b452b/ast.go#L5751-L5753
+                    (ExprScope::Where, name) if name.eq_ignore_ascii_case("time") => {
                         "time".as_expr()
-                    } else if ctx.scope == ExprScope::Projection && name == "time" {
-                        if ctx.is_aggregate {
-                            // In the projection, determine whether the query is projecting the time column
-                            // or binning the time.
-                            if let Some(group_by) = ctx.group_by {
-                                if let Some(dim) = group_by.time_dimension() {
-                                    let stride = expr_to_df_interval_dt(&dim.interval)?;
-                                    let offset = if let Some(offset) = &dim.offset {
-                                        duration_expr_to_nanoseconds(offset)?
+                    }
+                    (ExprScope::Projection, "time") => "time".as_expr(),
+                    (_, name) => match iox_schema.field_by_name(name) {
+                        Some((col_type, _)) => {
+                            let column = name.as_expr();
+                            match opt_dst_type {
+                                Some(dst_type) => {
+                                    let src_type = column_type_to_var_ref_data_type(col_type);
+                                    if src_type == *dst_type {
+                                        column
+                                    } else if src_type.is_numeric_type()
+                                        && dst_type.is_numeric_type()
+                                    {
+                                        // InfluxQL only allows casting between numeric types,
+                                        // and it is safe to unconditionally unwrap, as the
+                                        // `is_numeric_type` call guarantees it can be mapped to
+                                        // an Arrow DataType
+                                        column.cast_to(
+                                            &var_ref_data_type_to_data_type(*dst_type).unwrap(),
+                                            &schemas.df_schema,
+                                        )?
                                     } else {
-                                        0
-                                    };
-
-                                    return Ok(date_bin(
-                                        stride,
-                                        "time".as_expr(),
-                                        lit(ScalarValue::TimestampNanosecond(Some(offset), None)),
-                                    ));
-                                }
-                            }
-                            lit_timestamp_nano(0)
-                        } else {
-                            "time".as_expr()
-                        }
-                    } else {
-                        match iox_schema.field_by_name(&name) {
-                            Some((col_type, _)) => {
-                                let column = name.as_expr();
-                                match opt_dst_type {
-                                    Some(dst_type) => {
-                                        let src_type = column_type_to_var_ref_data_type(col_type);
-                                        if src_type == *dst_type {
-                                            column
-                                        } else if src_type.is_numeric_type()
-                                            && dst_type.is_numeric_type()
-                                        {
-                                            // InfluxQL only allows casting between numeric types,
-                                            // and it is safe to unconditionally unwrap, as the
-                                            // `is_numeric_type` call guarantees it can be mapped to
-                                            // an Arrow DataType
-                                            column.cast_to(
-                                                &var_ref_data_type_to_data_type(*dst_type).unwrap(),
-                                                &schemas.df_schema,
-                                            )?
-                                        } else {
-                                            // If the cast is incompatible, evaluates to NULL
-                                            Expr::Literal(ScalarValue::Null)
-                                        }
+                                        // If the cast is incompatible, evaluates to NULL
+                                        Expr::Literal(ScalarValue::Null)
                                     }
-                                    None => column,
                                 }
+                                None => column,
                             }
-                            _ => Expr::Literal(ScalarValue::Null),
                         }
+                        _ => Expr::Literal(ScalarValue::Null),
                     },
-                )
+                })
             }
             IQLExpr::BindParameter(_) => Err(DataFusionError::NotImplemented("parameter".into())),
             IQLExpr::Literal(val) => match val {
@@ -1097,6 +1105,16 @@ impl<'a> InfluxQLToLogicalPlan<'a> {
                         false,
                         None,
                     ))),
+                }
+            }
+            "last" => {
+                let expr = self.expr_to_df_expr(ctx, &args[0], schemas)?;
+                match &expr {
+                    Expr::Literal(ScalarValue::Null) => Ok(expr),
+                    _ => Ok(Expr::GetIndexedField(GetIndexedField {
+                        expr: Box::new(struct_selector_last().call(vec![expr, "time".as_expr()])),
+                        key: ScalarValue::Utf8(Some("value".to_owned())),
+                    })),
                 }
             }
             _ => Err(DataFusionError::Plan(format!("Invalid function '{name}'"))),
@@ -1862,6 +1880,20 @@ mod test {
     /// such as the WHERE clause.
     mod select {
         use super::*;
+
+        mod functions {
+            use super::*;
+
+            mod selector {
+                use super::*;
+
+                #[test]
+                fn test_last() {
+                    let p = plan("SELECT LAST(usage_idle) FROM cpu");
+                    assert!(!p.is_empty());
+                }
+            }
+        }
 
         /// Test InfluxQL-specific behaviour of scalar functions that differ
         /// from DataFusion
