@@ -122,6 +122,7 @@ pub(crate) fn rebase_expr(
 
 /// Returns `true` if `expr` is an [`Expr::AggregateUDF`] for one of
 /// the selector functions.
+#[allow(unused)]
 pub(crate) fn is_selector_aggregate_udf(expr: &Expr) -> bool {
     static FUNCTIONS: Lazy<Vec<&'static str>> = Lazy::new(|| {
         vec![
@@ -137,6 +138,7 @@ pub(crate) fn is_selector_aggregate_udf(expr: &Expr) -> bool {
 
 /// Collect all the references to selector functions, such as `selector_last`.
 /// They are returned in order of occurrence (depth first), with duplicates omitted.
+#[allow(unused)]
 pub(crate) fn find_aggregate_selector_exprs(exprs: &[Expr]) -> Vec<Expr> {
     exprs
         .iter()
