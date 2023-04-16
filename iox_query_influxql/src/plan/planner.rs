@@ -59,8 +59,15 @@ use iox_query::exec::gapfill::{FillStrategy, GapFill, GapFillParams};
 use iox_query::logical_optimizer::range_predicate::find_time_range;
 use itertools::Itertools;
 use once_cell::sync::Lazy;
-use query_functions::selectors::{struct_selector_first, struct_selector_max, struct_selector_min};
-use query_functions::{clean_non_meta_escapes, selectors::struct_selector_last};
+use query_functions::selectors::{
+    selector_first, selector_last, selector_max, selector_min, SelectorOutput,
+};
+use query_functions::{
+    clean_non_meta_escapes,
+    selectors::{
+        struct_selector_first, struct_selector_last, struct_selector_max, struct_selector_min,
+    },
+};
 use schema::{
     InfluxColumnType, InfluxFieldType, Schema, INFLUXQL_MEASUREMENT_COLUMN_NAME,
     INFLUXQL_METADATA_KEY,
@@ -1071,76 +1078,63 @@ impl<'a> InfluxQLToLogicalPlan<'a> {
 
         let Call { name, args } = call;
 
+        let expr = self.expr_to_df_expr(ctx, &args[0], schemas)?;
+        if let Expr::Literal(ScalarValue::Null) = expr {
+            return Ok(expr);
+        }
+
         match name.as_str() {
             "count" => {
                 // TODO(sgc): Handle `COUNT DISTINCT` variants
                 let distinct = false;
 
                 check_arg_count("count", args, 1)?;
-                let expr = self.expr_to_df_expr(ctx, &args[0], schemas)?;
-                match &expr {
-                    Expr::Literal(ScalarValue::Null) => Ok(expr),
-                    _ => Ok(Expr::AggregateFunction(expr::AggregateFunction::new(
-                        AggregateFunction::Count,
-                        vec![expr],
-                        distinct,
-                        None,
-                    ))),
-                }
+                Ok(Expr::AggregateFunction(expr::AggregateFunction::new(
+                    AggregateFunction::Count,
+                    vec![expr],
+                    distinct,
+                    None,
+                )))
             }
             "sum" | "stddev" | "mean" | "median" => {
                 check_arg_count(name, args, 1)?;
-                let expr = self.expr_to_df_expr(ctx, &args[0], schemas)?;
-                match &expr {
-                    Expr::Literal(ScalarValue::Null) => Ok(expr),
-                    _ => Ok(Expr::AggregateFunction(expr::AggregateFunction::new(
-                        AggregateFunction::from_str(name)?,
-                        vec![expr],
-                        false,
-                        None,
-                    ))),
-                }
+                Ok(Expr::AggregateFunction(expr::AggregateFunction::new(
+                    AggregateFunction::from_str(name)?,
+                    vec![expr],
+                    false,
+                    None,
+                )))
             }
-            "first" => {
-                let expr = self.expr_to_df_expr(ctx, &args[0], schemas)?;
-                match &expr {
-                    Expr::Literal(ScalarValue::Null) => Ok(expr),
-                    _ => Ok(Expr::GetIndexedField(GetIndexedField {
-                        expr: Box::new(struct_selector_first().call(vec![expr, "time".as_expr()])),
+            name @ ("first" | "last" | "min" | "max") => Ok(
+                if let ProjectionType::Selector { .. } = ctx.info.projection_type {
+                    // Selector queries use the `struct_selector_<name>`, as they
+                    // will project the value and the time fields of the struct
+                    Expr::GetIndexedField(GetIndexedField {
+                        expr: Box::new(
+                            match name {
+                                "first" => struct_selector_first(),
+                                "last" => struct_selector_last(),
+                                "max" => struct_selector_max(),
+                                "min" => struct_selector_min(),
+                                _ => unreachable!(),
+                            }
+                            .call(vec![expr, "time".as_expr()]),
+                        ),
                         key: ScalarValue::Utf8(Some("value".to_owned())),
-                    })),
-                }
-            }
-            "last" => {
-                let expr = self.expr_to_df_expr(ctx, &args[0], schemas)?;
-                match &expr {
-                    Expr::Literal(ScalarValue::Null) => Ok(expr),
-                    _ => Ok(Expr::GetIndexedField(GetIndexedField {
-                        expr: Box::new(struct_selector_last().call(vec![expr, "time".as_expr()])),
-                        key: ScalarValue::Utf8(Some("value".to_owned())),
-                    })),
-                }
-            }
-            "max" => {
-                let expr = self.expr_to_df_expr(ctx, &args[0], schemas)?;
-                match &expr {
-                    Expr::Literal(ScalarValue::Null) => Ok(expr),
-                    _ => Ok(Expr::GetIndexedField(GetIndexedField {
-                        expr: Box::new(struct_selector_max().call(vec![expr, "time".as_expr()])),
-                        key: ScalarValue::Utf8(Some("value".to_owned())),
-                    })),
-                }
-            }
-            "min" => {
-                let expr = self.expr_to_df_expr(ctx, &args[0], schemas)?;
-                match &expr {
-                    Expr::Literal(ScalarValue::Null) => Ok(expr),
-                    _ => Ok(Expr::GetIndexedField(GetIndexedField {
-                        expr: Box::new(struct_selector_min().call(vec![expr, "time".as_expr()])),
-                        key: ScalarValue::Utf8(Some("value".to_owned())),
-                    })),
-                }
-            }
+                    })
+                } else {
+                    // All other queries only require the value of the selector
+                    let data_type = &expr.get_type(&schemas.df_schema)?;
+                    match name {
+                        "first" => selector_first(&data_type, SelectorOutput::Value),
+                        "last" => selector_last(&data_type, SelectorOutput::Value),
+                        "max" => selector_max(&data_type, SelectorOutput::Value),
+                        "min" => selector_min(&data_type, SelectorOutput::Value),
+                        _ => unreachable!(),
+                    }
+                    .call(vec![expr, "time".as_expr()])
+                },
+            ),
             _ => error::query(format!("Invalid function '{name}'")),
         }
     }
@@ -1907,23 +1901,32 @@ mod test {
                 // aggregate query, as we're grouping by time
                 assert_snapshot!(plan("SELECT LAST(usage_idle) FROM cpu GROUP BY TIME(5s)"), @r###"
                 Sort: time ASC NULLS LAST [iox::measurement:Dictionary(Int32, Utf8), time:Timestamp(Nanosecond, None);N, last:Float64;N]
-                  Projection: Dictionary(Int32, Utf8("cpu")) AS iox::measurement, time, (selector_last(cpu.usage_idle,cpu.time))[value] AS last [iox::measurement:Dictionary(Int32, Utf8), time:Timestamp(Nanosecond, None);N, last:Float64;N]
-                    GapFill: groupBy=[[time]], aggr=[[selector_last(cpu.usage_idle,cpu.time)]], time_column=time, stride=IntervalMonthDayNano("5000000000"), range=Unbounded..Excluded(now()) [time:Timestamp(Nanosecond, None);N, selector_last(cpu.usage_idle,cpu.time):Struct([Field { name: "value", data_type: Float64, nullable: true, dict_id: 0, dict_is_ordered: false, metadata: {} }, Field { name: "time", data_type: Timestamp(Nanosecond, None), nullable: true, dict_id: 0, dict_is_ordered: false, metadata: {} }]);N]
-                      Aggregate: groupBy=[[datebin(IntervalMonthDayNano("5000000000"), cpu.time, TimestampNanosecond(0, None)) AS time]], aggr=[[selector_last(cpu.usage_idle, cpu.time)]] [time:Timestamp(Nanosecond, None);N, selector_last(cpu.usage_idle,cpu.time):Struct([Field { name: "value", data_type: Float64, nullable: true, dict_id: 0, dict_is_ordered: false, metadata: {} }, Field { name: "time", data_type: Timestamp(Nanosecond, None), nullable: true, dict_id: 0, dict_is_ordered: false, metadata: {} }]);N]
+                  Projection: Dictionary(Int32, Utf8("cpu")) AS iox::measurement, time, selector_last_value(cpu.usage_idle,cpu.time) AS last [iox::measurement:Dictionary(Int32, Utf8), time:Timestamp(Nanosecond, None);N, last:Float64;N]
+                    GapFill: groupBy=[[time]], aggr=[[selector_last_value(cpu.usage_idle,cpu.time)]], time_column=time, stride=IntervalMonthDayNano("5000000000"), range=Unbounded..Excluded(now()) [time:Timestamp(Nanosecond, None);N, selector_last_value(cpu.usage_idle,cpu.time):Float64;N]
+                      Aggregate: groupBy=[[datebin(IntervalMonthDayNano("5000000000"), cpu.time, TimestampNanosecond(0, None)) AS time]], aggr=[[selector_last_value(cpu.usage_idle, cpu.time)]] [time:Timestamp(Nanosecond, None);N, selector_last_value(cpu.usage_idle,cpu.time):Float64;N]
+                        TableScan: cpu [cpu:Dictionary(Int32, Utf8);N, host:Dictionary(Int32, Utf8);N, region:Dictionary(Int32, Utf8);N, time:Timestamp(Nanosecond, None), usage_idle:Float64;N, usage_system:Float64;N, usage_user:Float64;N]
+                "###);
+
+                // aggregate query, grouping by time with gap filling
+                assert_snapshot!(plan("SELECT FIRST(usage_idle) FROM cpu GROUP BY TIME(5s) FILL(0)"), @r###"
+                Sort: time ASC NULLS LAST [iox::measurement:Dictionary(Int32, Utf8), time:Timestamp(Nanosecond, None);N, first:Float64;N]
+                  Projection: Dictionary(Int32, Utf8("cpu")) AS iox::measurement, time, coalesce(selector_first_value(cpu.usage_idle,cpu.time), Float64(0)) AS first [iox::measurement:Dictionary(Int32, Utf8), time:Timestamp(Nanosecond, None);N, first:Float64;N]
+                    GapFill: groupBy=[[time]], aggr=[[selector_first_value(cpu.usage_idle,cpu.time)]], time_column=time, stride=IntervalMonthDayNano("5000000000"), range=Unbounded..Excluded(now()) [time:Timestamp(Nanosecond, None);N, selector_first_value(cpu.usage_idle,cpu.time):Float64;N]
+                      Aggregate: groupBy=[[datebin(IntervalMonthDayNano("5000000000"), cpu.time, TimestampNanosecond(0, None)) AS time]], aggr=[[selector_first_value(cpu.usage_idle, cpu.time)]] [time:Timestamp(Nanosecond, None);N, selector_first_value(cpu.usage_idle,cpu.time):Float64;N]
                         TableScan: cpu [cpu:Dictionary(Int32, Utf8);N, host:Dictionary(Int32, Utf8);N, region:Dictionary(Int32, Utf8);N, time:Timestamp(Nanosecond, None), usage_idle:Float64;N, usage_system:Float64;N, usage_user:Float64;N]
                 "###);
 
                 // aggregate query, as we're specifying multiple selectors or aggregates
                 assert_snapshot!(plan("SELECT LAST(usage_idle), FIRST(usage_idle) FROM cpu"), @r###"
                 Sort: time ASC NULLS LAST [iox::measurement:Dictionary(Int32, Utf8), time:Timestamp(Nanosecond, None), last:Float64;N, first:Float64;N]
-                  Projection: Dictionary(Int32, Utf8("cpu")) AS iox::measurement, TimestampNanosecond(0, None) AS time, (selector_last(cpu.usage_idle,cpu.time))[value] AS last, (selector_first(cpu.usage_idle,cpu.time))[value] AS first [iox::measurement:Dictionary(Int32, Utf8), time:Timestamp(Nanosecond, None), last:Float64;N, first:Float64;N]
-                    Aggregate: groupBy=[[]], aggr=[[selector_last(cpu.usage_idle, cpu.time), selector_first(cpu.usage_idle, cpu.time)]] [selector_last(cpu.usage_idle,cpu.time):Struct([Field { name: "value", data_type: Float64, nullable: true, dict_id: 0, dict_is_ordered: false, metadata: {} }, Field { name: "time", data_type: Timestamp(Nanosecond, None), nullable: true, dict_id: 0, dict_is_ordered: false, metadata: {} }]);N, selector_first(cpu.usage_idle,cpu.time):Struct([Field { name: "value", data_type: Float64, nullable: true, dict_id: 0, dict_is_ordered: false, metadata: {} }, Field { name: "time", data_type: Timestamp(Nanosecond, None), nullable: true, dict_id: 0, dict_is_ordered: false, metadata: {} }]);N]
+                  Projection: Dictionary(Int32, Utf8("cpu")) AS iox::measurement, TimestampNanosecond(0, None) AS time, selector_last_value(cpu.usage_idle,cpu.time) AS last, selector_first_value(cpu.usage_idle,cpu.time) AS first [iox::measurement:Dictionary(Int32, Utf8), time:Timestamp(Nanosecond, None), last:Float64;N, first:Float64;N]
+                    Aggregate: groupBy=[[]], aggr=[[selector_last_value(cpu.usage_idle, cpu.time), selector_first_value(cpu.usage_idle, cpu.time)]] [selector_last_value(cpu.usage_idle,cpu.time):Float64;N, selector_first_value(cpu.usage_idle,cpu.time):Float64;N]
                       TableScan: cpu [cpu:Dictionary(Int32, Utf8);N, host:Dictionary(Int32, Utf8);N, region:Dictionary(Int32, Utf8);N, time:Timestamp(Nanosecond, None), usage_idle:Float64;N, usage_system:Float64;N, usage_user:Float64;N]
                 "###);
                 assert_snapshot!(plan("SELECT LAST(usage_idle), COUNT(usage_idle) FROM cpu"), @r###"
                 Sort: time ASC NULLS LAST [iox::measurement:Dictionary(Int32, Utf8), time:Timestamp(Nanosecond, None), last:Float64;N, count:Int64;N]
-                  Projection: Dictionary(Int32, Utf8("cpu")) AS iox::measurement, TimestampNanosecond(0, None) AS time, (selector_last(cpu.usage_idle,cpu.time))[value] AS last, COUNT(cpu.usage_idle) AS count [iox::measurement:Dictionary(Int32, Utf8), time:Timestamp(Nanosecond, None), last:Float64;N, count:Int64;N]
-                    Aggregate: groupBy=[[]], aggr=[[selector_last(cpu.usage_idle, cpu.time), COUNT(cpu.usage_idle)]] [selector_last(cpu.usage_idle,cpu.time):Struct([Field { name: "value", data_type: Float64, nullable: true, dict_id: 0, dict_is_ordered: false, metadata: {} }, Field { name: "time", data_type: Timestamp(Nanosecond, None), nullable: true, dict_id: 0, dict_is_ordered: false, metadata: {} }]);N, COUNT(cpu.usage_idle):Int64;N]
+                  Projection: Dictionary(Int32, Utf8("cpu")) AS iox::measurement, TimestampNanosecond(0, None) AS time, selector_last_value(cpu.usage_idle,cpu.time) AS last, COUNT(cpu.usage_idle) AS count [iox::measurement:Dictionary(Int32, Utf8), time:Timestamp(Nanosecond, None), last:Float64;N, count:Int64;N]
+                    Aggregate: groupBy=[[]], aggr=[[selector_last_value(cpu.usage_idle, cpu.time), COUNT(cpu.usage_idle)]] [selector_last_value(cpu.usage_idle,cpu.time):Float64;N, COUNT(cpu.usage_idle):Int64;N]
                       TableScan: cpu [cpu:Dictionary(Int32, Utf8);N, host:Dictionary(Int32, Utf8);N, region:Dictionary(Int32, Utf8);N, time:Timestamp(Nanosecond, None), usage_idle:Float64;N, usage_system:Float64;N, usage_user:Float64;N]
                 "###);
 

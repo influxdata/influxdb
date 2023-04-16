@@ -633,6 +633,8 @@ impl FieldChecker {
 
         if self.has_top_bottom {
             Ok(ProjectionType::TopBottomSelector)
+        } else if self.has_group_by_time {
+            Ok(ProjectionType::Aggregate)
         } else if self.selector_count == 1 && self.aggregate_count == 0 {
             Ok(ProjectionType::Selector {
                 has_fields: self.has_non_aggregate_fields,
@@ -1242,6 +1244,12 @@ mod test {
             info.projection_type,
             ProjectionType::Selector { has_fields: true }
         );
+
+        let info = select_statement_info(&parse_select(
+            "SELECT last(foo) FROM cpu GROUP BY TIME(10s)",
+        ))
+        .unwrap();
+        assert_matches!(info.projection_type, ProjectionType::Aggregate);
 
         let info =
             select_statement_info(&parse_select("SELECT last(foo), first(foo) FROM cpu")).unwrap();
