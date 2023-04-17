@@ -1126,10 +1126,10 @@ impl<'a> InfluxQLToLogicalPlan<'a> {
                     // All other queries only require the value of the selector
                     let data_type = &expr.get_type(&schemas.df_schema)?;
                     match name {
-                        "first" => selector_first(&data_type, SelectorOutput::Value),
-                        "last" => selector_last(&data_type, SelectorOutput::Value),
-                        "max" => selector_max(&data_type, SelectorOutput::Value),
-                        "min" => selector_min(&data_type, SelectorOutput::Value),
+                        "first" => selector_first(data_type, SelectorOutput::Value),
+                        "last" => selector_last(data_type, SelectorOutput::Value),
+                        "max" => selector_max(data_type, SelectorOutput::Value),
+                        "min" => selector_min(data_type, SelectorOutput::Value),
                         _ => unreachable!(),
                     }
                     .call(vec![expr, "time".as_expr()])
