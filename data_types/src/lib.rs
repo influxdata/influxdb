@@ -144,8 +144,13 @@ impl TableId {
     pub const fn new(v: i64) -> Self {
         Self(v)
     }
+
     pub fn get(&self) -> i64 {
         self.0
+    }
+
+    pub const fn to_be_bytes(&self) -> [u8; 8] {
+        self.0.to_be_bytes()
     }
 }
 
@@ -525,6 +530,8 @@ pub struct ParquetFile {
     pub table_id: TableId,
     /// the partition
     pub partition_id: PartitionId,
+    /// the partition hash ID, if generated
+    pub partition_hash_id: Option<PartitionHashId>,
     /// the uuid used in the object store path for this file
     pub object_store_id: Uuid,
     /// the min timestamp of data in this file
@@ -582,6 +589,7 @@ impl ParquetFile {
             namespace_id: params.namespace_id,
             table_id: params.table_id,
             partition_id: params.partition_id,
+            partition_hash_id: params.partition_hash_id,
             object_store_id: params.object_store_id,
             min_time: params.min_time,
             max_time: params.max_time,
@@ -593,6 +601,15 @@ impl ParquetFile {
             column_set: params.column_set,
             max_l0_created_at: params.max_l0_created_at,
         }
+    }
+
+    /// If this parquet file params will be storing a `PartitionHashId` in the catalog, use that.
+    /// Otherwise, use the database-assigned `PartitionId`.
+    pub fn transition_partition_id(&self) -> TransitionPartitionId {
+        self.partition_hash_id
+            .clone()
+            .map(TransitionPartitionId::Deterministic)
+            .unwrap_or_else(|| TransitionPartitionId::Deprecated(self.partition_id))
     }
 
     /// Estimate the memory consumption of this object and its contents
@@ -621,6 +638,8 @@ pub struct ParquetFileParams {
     pub table_id: TableId,
     /// the partition
     pub partition_id: PartitionId,
+    /// the partition hash ID, if generated
+    pub partition_hash_id: Option<PartitionHashId>,
     /// the uuid used in the object store path for this file
     pub object_store_id: Uuid,
     /// the min timestamp of data in this file
@@ -641,12 +660,24 @@ pub struct ParquetFileParams {
     pub max_l0_created_at: Timestamp,
 }
 
+impl ParquetFileParams {
+    /// If this parquet file params will be storing a `PartitionHashId` in the catalog, use that.
+    /// Otherwise, use the database-assigned `PartitionId`.
+    pub fn transition_partition_id(&self) -> TransitionPartitionId {
+        self.partition_hash_id
+            .clone()
+            .map(TransitionPartitionId::Deterministic)
+            .unwrap_or_else(|| TransitionPartitionId::Deprecated(self.partition_id))
+    }
+}
+
 impl From<ParquetFile> for ParquetFileParams {
     fn from(value: ParquetFile) -> Self {
         Self {
             namespace_id: value.namespace_id,
             table_id: value.table_id,
             partition_id: value.partition_id,
+            partition_hash_id: value.partition_hash_id,
             object_store_id: value.object_store_id,
             min_time: value.min_time,
             max_time: value.max_time,

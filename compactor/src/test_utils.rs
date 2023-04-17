@@ -1,8 +1,8 @@
 use std::sync::Arc;
 
 use data_types::{
-    Column, ColumnId, ColumnType, ColumnsByName, NamespaceId, PartitionId, PartitionKey, Table,
-    TableId, TableSchema,
+    Column, ColumnId, ColumnType, ColumnsByName, NamespaceId, PartitionHashId, PartitionId,
+    PartitionKey, Table, TableId, TableSchema,
 };
 
 use crate::PartitionInfo;
@@ -15,8 +15,11 @@ impl PartitionInfoBuilder {
     pub fn new() -> Self {
         let partition_id = PartitionId::new(1);
         let namespace_id = NamespaceId::new(2);
+        let table_id = TableId::new(3);
+        let partition_key = PartitionKey::from("key");
+        let partition_hash_id = Some(PartitionHashId::new(table_id, &partition_key));
         let table = Arc::new(Table {
-            id: TableId::new(3),
+            id: table_id,
             namespace_id,
             name: String::from("table"),
             partition_template: Default::default(),
@@ -26,12 +29,13 @@ impl PartitionInfoBuilder {
         Self {
             inner: PartitionInfo {
                 partition_id,
+                partition_hash_id,
                 namespace_id,
                 namespace_name: String::from("ns"),
                 table,
                 table_schema,
                 sort_key: None,
-                partition_key: PartitionKey::from("key"),
+                partition_key,
             },
         }
     }

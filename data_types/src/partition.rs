@@ -3,7 +3,29 @@
 use super::{TableId, Timestamp};
 
 use schema::sort::SortKey;
+use sha2::Digest;
 use std::{fmt::Display, sync::Arc};
+
+/// Unique ID for a `Partition` during the transition from catalog-assigned sequential
+/// `PartitionId`s to deterministic `PartitionHashId`s.
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+pub enum TransitionPartitionId {
+    /// The old catalog-assigned sequential `PartitionId`s that are in the process of being
+    /// deprecated.
+    Deprecated(PartitionId),
+    /// The new deterministic, hash-based `PartitionHashId`s that will be the new way to identify
+    /// partitions.
+    Deterministic(PartitionHashId),
+}
+
+impl std::fmt::Display for TransitionPartitionId {
+    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+        match self {
+            Self::Deprecated(old_partition_id) => write!(f, "{}", old_partition_id.0),
+            Self::Deterministic(partition_hash_id) => write!(f, "{}", partition_hash_id),
+        }
+    }
+}
 
 /// Unique ID for a `Partition`
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, sqlx::Type, sqlx::FromRow)]
@@ -26,7 +48,7 @@ impl std::fmt::Display for PartitionId {
     }
 }
 
-/// Defines an partition via an arbitrary string within a table within
+/// Defines a partition via an arbitrary string within a table within
 /// a namespace.
 ///
 /// Implemented as a reference-counted string, serialisable to
@@ -44,6 +66,11 @@ impl PartitionKey {
     /// Returns underlying string.
     pub fn inner(&self) -> &str {
         &self.0
+    }
+
+    /// Returns the bytes of the inner string.
+    pub fn as_bytes(&self) -> &[u8] {
+        self.0.as_bytes()
     }
 }
 
@@ -118,12 +145,104 @@ impl sqlx::Decode<'_, sqlx::Sqlite> for PartitionKey {
     }
 }
 
+const PARTITION_HASH_ID_SIZE_BYTES: usize = 32;
+
+/// Uniquely identify a partition based on its table ID and partition key.
+#[derive(Debug, Clone, PartialEq, Eq, Hash, sqlx::FromRow)]
+#[sqlx(transparent)]
+pub struct PartitionHashId(Arc<[u8; PARTITION_HASH_ID_SIZE_BYTES]>);
+
+impl std::fmt::Display for PartitionHashId {
+    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+        for byte in self.0.iter() {
+            write!(f, "{:02x}", byte)?;
+        }
+        Ok(())
+    }
+}
+
+impl PartitionHashId {
+    /// Create a new `PartitionHashId`.
+    pub fn new(table_id: TableId, partition_key: &PartitionKey) -> Self {
+        // The hash ID of a partition is the SHA-256 of the `TableId` then the `PartitionKey`. This
+        // particular hash format was chosen so that there won't be collisions and this value can
+        // be used to uniquely identify a Partition without needing to go to the catalog to get a
+        // database-assigned ID. Given that users might set their `PartitionKey`, a cryptographic
+        // hash scoped by the `TableId` is needed to prevent malicious users from constructing
+        // collisions. This data will be held in memory across many services, so SHA-256 was chosen
+        // over SHA-512 to get the needed attributes in the smallest amount of space.
+        let mut inner = sha2::Sha256::new();
+
+        let table_bytes = table_id.to_be_bytes();
+        // Avoiding collisions depends on the table ID's bytes always being a fixed size. So even
+        // though the current return type of `TableId::to_be_bytes` is `[u8; 8]`, we're asserting
+        // on the length here to make sure this code's assumptions hold even if the type of
+        // `TableId` changes in the future.
+        assert_eq!(table_bytes.len(), 8);
+        inner.update(table_bytes);
+
+        inner.update(partition_key.as_bytes());
+        Self(Arc::new(inner.finalize().into()))
+    }
+}
+
+impl<'q> sqlx::encode::Encode<'q, sqlx::Postgres> for &'q PartitionHashId {
+    fn encode_by_ref(&self, buf: &mut sqlx::postgres::PgArgumentBuffer) -> sqlx::encode::IsNull {
+        buf.extend_from_slice(self.0.as_ref());
+
+        sqlx::encode::IsNull::No
+    }
+}
+
+impl<'q> sqlx::encode::Encode<'q, sqlx::Sqlite> for &'q PartitionHashId {
+    fn encode_by_ref(
+        &self,
+        args: &mut Vec<sqlx::sqlite::SqliteArgumentValue<'q>>,
+    ) -> sqlx::encode::IsNull {
+        args.push(sqlx::sqlite::SqliteArgumentValue::Blob(
+            std::borrow::Cow::Borrowed(self.0.as_ref()),
+        ));
+
+        sqlx::encode::IsNull::No
+    }
+}
+
+impl<'r, DB: ::sqlx::Database> ::sqlx::decode::Decode<'r, DB> for PartitionHashId
+where
+    &'r [u8]: sqlx::Decode<'r, DB>,
+{
+    fn decode(
+        value: <DB as ::sqlx::database::HasValueRef<'r>>::ValueRef,
+    ) -> ::std::result::Result<
+        Self,
+        ::std::boxed::Box<
+            dyn ::std::error::Error + 'static + ::std::marker::Send + ::std::marker::Sync,
+        >,
+    > {
+        let data = <&[u8] as ::sqlx::decode::Decode<'r, DB>>::decode(value)?;
+        let data: [u8; PARTITION_HASH_ID_SIZE_BYTES] = data.try_into()?;
+        Ok(Self(Arc::new(data)))
+    }
+}
+
+impl<'r, DB: ::sqlx::Database> ::sqlx::Type<DB> for PartitionHashId
+where
+    &'r [u8]: ::sqlx::Type<DB>,
+{
+    fn type_info() -> DB::TypeInfo {
+        <&[u8] as ::sqlx::Type<DB>>::type_info()
+    }
+}
+
 /// Data object for a partition. The combination of table and key are unique (i.e. only one record
 /// can exist for each combo)
 #[derive(Debug, Clone, PartialEq, Eq, sqlx::FromRow)]
 pub struct Partition {
     /// the id of the partition
     pub id: PartitionId,
+    /// The unique hash derived from the table ID and partition key, if available. This will become
+    /// required when partitions without the value have aged out.
+    hash_id: Option<PartitionHashId>,
     /// the table the partition is under
     pub table_id: TableId,
     /// the string key of the partition
@@ -160,6 +279,40 @@ pub struct Partition {
 }
 
 impl Partition {
+    /// Create a new Partition data object from the given attributes. This constructor will take
+    /// care of computing the [`PartitionHashId`].
+    pub fn new(
+        id: PartitionId,
+        table_id: TableId,
+        partition_key: PartitionKey,
+        sort_key: Vec<String>,
+        new_file_at: Option<Timestamp>,
+    ) -> Self {
+        let hash_id = PartitionHashId::new(table_id, &partition_key);
+        Self {
+            id,
+            hash_id: Some(hash_id),
+            table_id,
+            partition_key,
+            sort_key,
+            new_file_at,
+        }
+    }
+
+    /// If this partition has a `PartitionHashId` stored in the catalog, use that. Otherwise, use
+    /// the database-assigned `PartitionId`.
+    pub fn transition_partition_id(&self) -> TransitionPartitionId {
+        self.hash_id
+            .clone()
+            .map(TransitionPartitionId::Deterministic)
+            .unwrap_or_else(|| TransitionPartitionId::Deprecated(self.id))
+    }
+
+    /// The unique hash derived from the table ID and partition key, if it exists in the catalog.
+    pub fn hash_id(&self) -> Option<&PartitionHashId> {
+        self.hash_id.as_ref()
+    }
+
     /// The sort key for the partition, if present, structured as a `SortKey`
     pub fn sort_key(&self) -> Option<SortKey> {
         if self.sort_key.is_empty() {
@@ -167,5 +320,42 @@ impl Partition {
         }
 
         Some(SortKey::from_columns(self.sort_key.iter().map(|s| &**s)))
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use proptest::{prelude::*, proptest};
+
+    #[test]
+    fn display_partition_hash_id_in_hex() {
+        let partition_hash_id =
+            PartitionHashId::new(TableId::new(5), &PartitionKey::from("2023-06-08"));
+
+        assert_eq!(
+            "ebd1041daa7c644c99967b817ae607bdcb754c663f2c415f270d6df720280f7a",
+            partition_hash_id.to_string()
+        );
+    }
+
+    proptest! {
+        #[test]
+        fn partition_hash_id_representations(
+            table_id in 0..i64::MAX,
+            partition_key in any::<String>(),
+        ) {
+            prop_assume!(!partition_key.is_empty());
+
+            let table_id = TableId::new(table_id);
+            let partition_key = PartitionKey::from(partition_key);
+
+            let partition_hash_id = PartitionHashId::new(table_id, &partition_key);
+
+            // The hex string of the bytes is used in the Parquet file path in object storage, and
+            // should always be the same length.
+            let string_representation = partition_hash_id.to_string();
+            assert_eq!(string_representation.len(), 64);
+        }
     }
 }

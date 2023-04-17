@@ -2,7 +2,10 @@
 
 use std::sync::Arc;
 
-use data_types::{NamespaceId, PartitionId, PartitionKey, Table, TableSchema};
+use data_types::{
+    NamespaceId, PartitionHashId, PartitionId, PartitionKey, Table, TableSchema,
+    TransitionPartitionId,
+};
 use schema::sort::SortKey;
 
 /// Information about the Partition being compacted
@@ -10,6 +13,9 @@ use schema::sort::SortKey;
 pub struct PartitionInfo {
     /// the partition
     pub partition_id: PartitionId,
+
+    /// partition hash id
+    pub partition_hash_id: Option<PartitionHashId>,
 
     /// Namespace ID
     pub namespace_id: NamespaceId,
@@ -34,5 +40,14 @@ impl PartitionInfo {
     /// Returns number of columns in the table
     pub fn column_count(&self) -> usize {
         self.table_schema.column_count()
+    }
+
+    /// If this partition has a `PartitionHashId` stored in the catalog, use that. Otherwise, use
+    /// the database-assigned `PartitionId`.
+    pub fn transition_partition_id(&self) -> TransitionPartitionId {
+        self.partition_hash_id
+            .clone()
+            .map(TransitionPartitionId::Deterministic)
+            .unwrap_or_else(|| TransitionPartitionId::Deprecated(self.partition_id))
     }
 }

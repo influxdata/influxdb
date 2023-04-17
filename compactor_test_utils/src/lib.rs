@@ -569,6 +569,7 @@ impl<const WITH_FILES: bool> TestSetupBuilder<WITH_FILES> {
     pub async fn build(self) -> TestSetup {
         let candidate_partition = Arc::new(PartitionInfo {
             partition_id: self.partition.partition.id,
+            partition_hash_id: self.partition.partition.hash_id().cloned(),
             namespace_id: self.ns.namespace.id,
             namespace_name: self.ns.namespace.name.clone(),
             table: Arc::new(self.table.table.clone()),

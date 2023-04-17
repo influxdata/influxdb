@@ -16,6 +16,7 @@ observability_deps = { path = "../observability_deps" }
 once_cell = "1"
 ordered-float = "3"
 schema = { path = "../schema" }
+sha2 = "0.10"
 sqlx = { version = "0.6", features = ["runtime-tokio-rustls", "postgres", "uuid"] }
 thiserror = "1.0.40"
 uuid = { version = "1", features = ["v4"] }

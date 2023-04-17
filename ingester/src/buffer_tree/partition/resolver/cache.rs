@@ -2,7 +2,9 @@ use std::{collections::HashMap, sync::Arc, time::Duration};
 
 use async_trait::async_trait;
 use backoff::BackoffConfig;
-use data_types::{NamespaceId, Partition, PartitionId, PartitionKey, SequenceNumber, TableId};
+use data_types::{
+    NamespaceId, Partition, PartitionHashId, PartitionId, PartitionKey, SequenceNumber, TableId,
+};
 use iox_catalog::interface::Catalog;
 use observability_deps::tracing::debug;
 use parking_lot::Mutex;
@@ -67,7 +69,7 @@ pub(crate) struct PartitionCache<T> {
     /// It's also likely a smaller N (more tables than partition keys) making it
     /// a faster search for cache misses.
     #[allow(clippy::type_complexity)]
-    entries: Mutex<HashMap<PartitionKey, HashMap<TableId, PartitionId>>>,
+    entries: Mutex<HashMap<PartitionKey, HashMap<TableId, (PartitionId, Option<PartitionHashId>)>>>,
 
     /// Data needed to construct the [`SortKeyResolver`] for cached entries.
     catalog: Arc<dyn Catalog>,
@@ -99,12 +101,15 @@ impl<T> PartitionCache<T> {
     where
         P: IntoIterator<Item = Partition>,
     {
-        let mut entries = HashMap::<PartitionKey, HashMap<TableId, PartitionId>>::new();
+        let mut entries =
+            HashMap::<PartitionKey, HashMap<TableId, (PartitionId, Option<PartitionHashId>)>>::new(
+            );
         for p in partitions.into_iter() {
+            let hash_id = p.hash_id().cloned();
             entries
                 .entry(p.partition_key)
                 .or_default()
-                .insert(p.table_id, p.id);
+                .insert(p.table_id, (p.id, hash_id));
         }
 
         // Minimise the overhead of the maps.
@@ -129,7 +134,7 @@ impl<T> PartitionCache<T> {
         &self,
         table_id: TableId,
         partition_key: &PartitionKey,
-    ) -> Option<(PartitionKey, PartitionId)> {
+    ) -> Option<(PartitionKey, PartitionId, Option<PartitionHashId>)> {
         let mut entries = self.entries.lock();
 
         // Look up the partition key provided by the caller.
@@ -142,7 +147,7 @@ impl<T> PartitionCache<T> {
         let key = entries.get_key_value(partition_key)?.0.clone();
         let partition = entries.get_mut(partition_key).unwrap();
 
-        let e = partition.remove(&table_id)?;
+        let (partition_id, partition_hash_id) = partition.remove(&table_id)?;
 
         // As a entry was removed, check if it is now empty.
         if partition.is_empty() {
@@ -152,7 +157,7 @@ impl<T> PartitionCache<T> {
             partition.shrink_to_fit();
         }
 
-        Some((key, e))
+        Some((key, partition_id, partition_hash_id))
     }
 }
 
@@ -172,7 +177,7 @@ where
         // Use the cached PartitionKey instead of the caller's partition_key,
         // instead preferring to reuse the already-shared Arc<str> in the cache.
 
-        if let Some((key, partition_id)) = self.find(table_id, &partition_key) {
+        if let Some((key, partition_id, partition_hash_id)) = self.find(table_id, &partition_key) {
             debug!(%table_id, %partition_key, "partition cache hit");
 
             // Initialise a deferred resolver for the sort key.
@@ -192,6 +197,7 @@ where
             // using the same key!
             return Arc::new(Mutex::new(PartitionData::new(
                 partition_id,
+                partition_hash_id,
                 key,
                 namespace_id,
                 namespace_name,
@@ -227,10 +233,10 @@ mod tests {
     use crate::{
         buffer_tree::partition::resolver::mock::MockPartitionProvider,
         test_util::{
-            arbitrary_partition, defer_namespace_name_1_sec, defer_table_name_1_sec,
-            PartitionDataBuilder, ARBITRARY_NAMESPACE_ID, ARBITRARY_NAMESPACE_NAME,
-            ARBITRARY_PARTITION_ID, ARBITRARY_PARTITION_KEY, ARBITRARY_PARTITION_KEY_STR,
-            ARBITRARY_TABLE_ID, ARBITRARY_TABLE_NAME,
+            defer_namespace_name_1_sec, defer_table_name_1_sec, PartitionDataBuilder,
+            ARBITRARY_NAMESPACE_ID, ARBITRARY_NAMESPACE_NAME, ARBITRARY_PARTITION_ID,
+            ARBITRARY_PARTITION_KEY, ARBITRARY_PARTITION_KEY_STR, ARBITRARY_TABLE_ID,
+            ARBITRARY_TABLE_NAME,
         },
     };
 
@@ -285,11 +291,13 @@ mod tests {
         let inner = MockPartitionProvider::default();
 
         let stored_partition_key = PartitionKey::from(ARBITRARY_PARTITION_KEY_STR);
-        let partition = Partition {
-            partition_key: stored_partition_key.clone(),
-            sort_key: vec!["dos".to_string(), "bananas".to_string()],
-            ..arbitrary_partition()
-        };
+        let partition = Partition::new(
+            ARBITRARY_PARTITION_ID,
+            ARBITRARY_TABLE_ID,
+            stored_partition_key.clone(),
+            vec!["dos".to_string(), "bananas".to_string()],
+            Default::default(),
+        );
 
         let cache = new_cache(inner, [partition]);
 
@@ -342,7 +350,13 @@ mod tests {
                 .build(),
         );
 
-        let partition = arbitrary_partition();
+        let partition = Partition::new(
+            ARBITRARY_PARTITION_ID,
+            ARBITRARY_TABLE_ID,
+            ARBITRARY_PARTITION_KEY.clone(),
+            Default::default(),
+            Default::default(),
+        );
 
         let cache = new_cache(inner, [partition]);
         let got = cache
@@ -372,7 +386,13 @@ mod tests {
                 .build(),
         );
 
-        let partition = arbitrary_partition();
+        let partition = Partition::new(
+            ARBITRARY_PARTITION_ID,
+            ARBITRARY_TABLE_ID,
+            ARBITRARY_PARTITION_KEY.clone(),
+            Default::default(),
+            Default::default(),
+        );
 
         let cache = new_cache(inner, [partition]);
         let got = cache

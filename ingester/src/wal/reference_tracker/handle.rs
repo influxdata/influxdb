@@ -268,6 +268,7 @@ mod tests {
                 namespace_id: NamespaceId::new(1),
                 table_id: TableId::new(2),
                 partition_id: PartitionId::new(3),
+                partition_hash_id: None,
                 object_store_id: Default::default(),
                 min_time: Timestamp::new(42),
                 max_time: Timestamp::new(42),
