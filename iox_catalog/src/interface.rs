@@ -567,16 +567,6 @@ pub trait ParquetFileRepo: Send + Sync {
     /// Flag all parquet files for deletion that are older than their namespace's retention period.
     async fn flag_for_delete_by_retention(&mut self) -> Result<Vec<ParquetFileId>>;
 
-    /// Get all parquet files for a shard with a max_sequence_number greater than the
-    /// one passed in. The ingester will use this on startup to see which files were persisted
-    /// that are greater than its min_unpersisted_number so that it can discard any data in
-    /// these partitions on replay.
-    async fn list_by_shard_greater_than(
-        &mut self,
-        shard_id: ShardId,
-        sequence_number: SequenceNumber,
-    ) -> Result<Vec<ParquetFile>>;
-
     /// List all parquet files within a given namespace that are NOT marked as
     /// [`to_delete`](ParquetFile::to_delete).
     async fn list_by_namespace_not_to_delete(
@@ -2093,19 +2083,6 @@ pub(crate) mod test_helpers {
         assert!(repos.parquet_files().exist(exist_id).await.unwrap());
         assert!(!repos.parquet_files().exist(non_exist_id).await.unwrap());
 
-        let files = repos
-            .parquet_files()
-            .list_by_shard_greater_than(shard.id, SequenceNumber::new(1))
-            .await
-            .unwrap();
-        assert_eq!(vec![parquet_file.clone(), other_file.clone()], files);
-        let files = repos
-            .parquet_files()
-            .list_by_shard_greater_than(shard.id, SequenceNumber::new(150))
-            .await
-            .unwrap();
-        assert_eq!(vec![other_file.clone()], files);
-
         // verify that to_delete is initially set to null and the file does not get deleted
         assert!(parquet_file.to_delete.is_none());
         let older_than = Timestamp::new(
@@ -2130,13 +2107,6 @@ pub(crate) mod test_helpers {
             .flag_for_delete(parquet_file.id)
             .await
             .unwrap();
-        let files = repos
-            .parquet_files()
-            .list_by_shard_greater_than(shard.id, SequenceNumber::new(1))
-            .await
-            .unwrap();
-        let marked_deleted = files.first().unwrap();
-        assert!(marked_deleted.to_delete.is_some());
 
         // test list_by_table that includes soft-deleted file
         // at this time the file is soft-deleted and will be included in the returned list
@@ -2146,6 +2116,8 @@ pub(crate) mod test_helpers {
             .await
             .unwrap();
         assert_eq!(files.len(), 1);
+        let marked_deleted = files.first().unwrap();
+        assert!(marked_deleted.to_delete.is_some());
 
         // File is not deleted if it was marked to be deleted after the specified time
         let before_deleted = Timestamp::new(

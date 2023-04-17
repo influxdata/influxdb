@@ -1040,22 +1040,6 @@ impl ParquetFileRepo for MemTxn {
             .collect())
     }
 
-    async fn list_by_shard_greater_than(
-        &mut self,
-        shard_id: ShardId,
-        sequence_number: SequenceNumber,
-    ) -> Result<Vec<ParquetFile>> {
-        let stage = self.stage();
-
-        let files: Vec<_> = stage
-            .parquet_files
-            .iter()
-            .filter(|f| f.shard_id == shard_id && f.max_sequence_number > sequence_number)
-            .cloned()
-            .collect();
-        Ok(files)
-    }
-
     async fn list_by_namespace_not_to_delete(
         &mut self,
         namespace_id: NamespaceId,

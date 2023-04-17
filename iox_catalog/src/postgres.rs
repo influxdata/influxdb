@@ -1579,31 +1579,6 @@ RETURNING *;
         Ok(flagged)
     }
 
-    async fn list_by_shard_greater_than(
-        &mut self,
-        shard_id: ShardId,
-        sequence_number: SequenceNumber,
-    ) -> Result<Vec<ParquetFile>> {
-        // Deliberately doesn't use `SELECT *` to avoid the performance hit of fetching the large
-        // `parquet_metadata` column!!
-        sqlx::query_as::<_, ParquetFile>(
-            r#"
-SELECT id, shard_id, namespace_id, table_id, partition_id, object_store_id,
-       max_sequence_number, min_time, max_time, to_delete, file_size_bytes,
-       row_count, compaction_level, created_at, column_set, max_l0_created_at
-FROM parquet_file
-WHERE shard_id = $1
-  AND max_sequence_number > $2
-ORDER BY id;
-            "#,
-        )
-        .bind(shard_id) // $1
-        .bind(sequence_number) // $2
-        .fetch_all(&mut self.inner)
-        .await
-        .map_err(|e| Error::SqlxError { source: e })
-    }
-
     async fn list_by_namespace_not_to_delete(
         &mut self,
         namespace_id: NamespaceId,
