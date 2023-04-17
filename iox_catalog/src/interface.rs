@@ -582,10 +582,6 @@ pub trait ParquetFileRepo: Send + Sync {
     /// This is for debug purpose
     async fn list_by_table(&mut self, table_id: TableId) -> Result<Vec<ParquetFile>>;
 
-    /// Delete all parquet files that were marked to be deleted earlier than the specified time.
-    /// Returns the deleted records.
-    async fn delete_old(&mut self, older_than: Timestamp) -> Result<Vec<ParquetFile>>;
-
     /// Delete parquet files that were marked to be deleted earlier than the specified time.
     ///
     /// Returns the deleted IDs only.
@@ -2088,8 +2084,12 @@ pub(crate) mod test_helpers {
         let older_than = Timestamp::new(
             (catalog.time_provider().now() + Duration::from_secs(100)).timestamp_nanos(),
         );
-        let deleted_files = repos.parquet_files().delete_old(older_than).await.unwrap();
-        assert_matches!(deleted_files.as_slice(), []);
+        let deleted = repos
+            .parquet_files()
+            .delete_old_ids_only(older_than)
+            .await
+            .unwrap();
+        assert!(deleted.is_empty());
         assert!(repos.parquet_files().exist(parquet_file.id).await.unwrap());
 
         // test list_by_table that includes soft-deleted file
@@ -2123,12 +2123,12 @@ pub(crate) mod test_helpers {
         let before_deleted = Timestamp::new(
             (catalog.time_provider().now() - Duration::from_secs(100)).timestamp_nanos(),
         );
-        let deleted_files = repos
+        let deleted = repos
             .parquet_files()
-            .delete_old(before_deleted)
+            .delete_old_ids_only(before_deleted)
             .await
             .unwrap();
-        assert!(deleted_files.is_empty());
+        assert!(deleted.is_empty());
         assert!(repos.parquet_files().exist(parquet_file.id).await.unwrap());
 
         // test list_by_table that includes soft-deleted file
@@ -2142,9 +2142,13 @@ pub(crate) mod test_helpers {
         assert_eq!(files.len(), 1);
 
         // File is deleted if it was marked to be deleted before the specified time
-        let deleted_files = repos.parquet_files().delete_old(older_than).await.unwrap();
-        assert_eq!(deleted_files.len(), 1);
-        assert_eq!(marked_deleted, &deleted_files[0]);
+        let deleted = repos
+            .parquet_files()
+            .delete_old_ids_only(older_than)
+            .await
+            .unwrap();
+        assert_eq!(deleted.len(), 1);
+        assert_eq!(marked_deleted.id, deleted[0]);
         assert!(!repos.parquet_files().exist(parquet_file.id).await.unwrap());
 
         // test list_by_table that includes soft-deleted file

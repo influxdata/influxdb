@@ -1519,23 +1519,6 @@ WHERE table_id = $1;
         .collect())
     }
 
-    async fn delete_old(&mut self, older_than: Timestamp) -> Result<Vec<ParquetFile>> {
-        Ok(sqlx::query_as::<_, ParquetFilePod>(
-            r#"
-DELETE FROM parquet_file
-WHERE to_delete < $1
-RETURNING *;
-             "#,
-        )
-        .bind(older_than) // $1
-        .fetch_all(self.inner.get_mut())
-        .await
-        .map_err(|e| Error::SqlxError { source: e })?
-        .into_iter()
-        .map(Into::into)
-        .collect())
-    }
-
     async fn delete_old_ids_only(&mut self, older_than: Timestamp) -> Result<Vec<ParquetFileId>> {
         // see https://www.crunchydata.com/blog/simulating-update-or-delete-with-limit-in-sqlite-ctes-to-the-rescue
         let deleted = sqlx::query(
@@ -2444,7 +2427,7 @@ mod tests {
             .repositories()
             .await
             .parquet_files()
-            .delete_old(now)
+            .delete_old_ids_only(now)
             .await
             .expect("parquet file deletion should succeed");
         let total_file_size_bytes: i64 =
