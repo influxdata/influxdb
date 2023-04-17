@@ -1241,27 +1241,6 @@ RETURNING *
         .context(interface::CouldNotDeleteSkippedCompactionsSnafu)
     }
 
-    async fn update_persisted_sequence_number(
-        &mut self,
-        partition_id: PartitionId,
-        sequence_number: SequenceNumber,
-    ) -> Result<()> {
-        let _ = sqlx::query(
-            r#"
-UPDATE partition
-SET persisted_sequence_number = $1
-WHERE id = $2;
-                "#,
-        )
-        .bind(sequence_number.get()) // $1
-        .bind(partition_id) // $2
-        .execute(self.inner.get_mut())
-        .await
-        .map_err(|e| Error::SqlxError { source: e })?;
-
-        Ok(())
-    }
-
     async fn most_recent_n(&mut self, n: usize) -> Result<Vec<Partition>> {
         Ok(sqlx::query_as::<_, PartitionPod>(
             r#"SELECT * FROM partition ORDER BY id DESC LIMIT $1;"#,

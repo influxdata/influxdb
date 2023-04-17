@@ -899,21 +899,6 @@ impl PartitionRepo for MemTxn {
         }
     }
 
-    async fn update_persisted_sequence_number(
-        &mut self,
-        partition_id: PartitionId,
-        sequence_number: SequenceNumber,
-    ) -> Result<()> {
-        let stage = self.stage();
-        match stage.partitions.iter_mut().find(|p| p.id == partition_id) {
-            Some(p) => {
-                p.persisted_sequence_number = Some(sequence_number);
-                Ok(())
-            }
-            None => Err(Error::PartitionNotFound { id: partition_id }),
-        }
-    }
-
     async fn most_recent_n(&mut self, n: usize) -> Result<Vec<Partition>> {
         let stage = self.stage();
         Ok(stage.partitions.iter().rev().take(n).cloned().collect())

@@ -533,16 +533,6 @@ pub trait PartitionRepo: Send + Sync {
         partition_id: PartitionId,
     ) -> Result<Option<SkippedCompaction>>;
 
-    /// Update the per-partition persistence watermark.
-    ///
-    /// The given `sequence_number` is the inclusive maximum [`SequenceNumber`]
-    /// of the most recently persisted data for this partition.
-    async fn update_persisted_sequence_number(
-        &mut self,
-        partition_id: PartitionId,
-        sequence_number: SequenceNumber,
-    ) -> Result<()>;
-
     /// Return the N most recently created partitions.
     async fn most_recent_n(&mut self, n: usize) -> Result<Vec<Partition>>;
 
@@ -1989,32 +1979,6 @@ pub(crate) mod test_helpers {
         assert!(
             skipped_compactions.is_empty(),
             "Expected no skipped compactions, got: {skipped_compactions:?}"
-        );
-
-        // Test setting and reading the per-partition persistence numbers
-        let partition = repos
-            .partitions()
-            .get_by_id(other_partition.id)
-            .await
-            .unwrap()
-            .unwrap();
-        assert_eq!(partition.persisted_sequence_number, None);
-        // Set
-        repos
-            .partitions()
-            .update_persisted_sequence_number(other_partition.id, SequenceNumber::new(42))
-            .await
-            .unwrap();
-        // Read
-        let partition = repos
-            .partitions()
-            .get_by_id(other_partition.id)
-            .await
-            .unwrap()
-            .unwrap();
-        assert_eq!(
-            partition.persisted_sequence_number,
-            Some(SequenceNumber::new(42))
         );
 
         let recent = repos
