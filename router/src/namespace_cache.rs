@@ -30,10 +30,11 @@ pub trait NamespaceCache: Debug + Send + Sync {
         namespace: &NamespaceName<'static>,
     ) -> Result<Arc<NamespaceSchema>, Self::ReadError>;
 
-    /// Place `schema` in the cache, including any missing columns present for the
-    /// pre-existing [`NamespaceSchema`] mapped to `namespace`, returning the
-    /// previous cache entry (if any) and the new entry complete with
-    /// modifications.
+    /// Place `schema` in the cache, merging the set of tables and their columns
+    /// with the existing entry for `namespace`, if any.
+    ///
+    /// All data except the set of tables/columns have "last writer wins"
+    /// semantics.
     ///
     /// If the entry in the cache for `namespace` resolves to a different ID than
     /// the incoming `schema` the write unconditionally overwrites any pre-existing
