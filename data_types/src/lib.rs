@@ -291,29 +291,6 @@ impl std::fmt::Display for PartitionId {
     }
 }
 
-/// Combination of Shard ID, Table ID, and Partition ID useful for identifying groups of
-/// Parquet files to be compacted together.
-#[derive(Debug, Clone, Copy, PartialEq, PartialOrd, Eq, Ord)]
-pub struct TablePartition {
-    /// The shard ID
-    pub shard_id: ShardId,
-    /// The table ID
-    pub table_id: TableId,
-    /// The partition ID
-    pub partition_id: PartitionId,
-}
-
-impl TablePartition {
-    /// Combine the relevant parts
-    pub fn new(shard_id: ShardId, table_id: TableId, partition_id: PartitionId) -> Self {
-        Self {
-            shard_id,
-            table_id,
-            partition_id,
-        }
-    }
-}
-
 /// A sequence number from a `router::Shard` (kafka partition)
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, sqlx::Type)]
 #[sqlx(transparent)]

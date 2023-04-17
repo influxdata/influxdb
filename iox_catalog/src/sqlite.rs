@@ -15,8 +15,7 @@ use data_types::{
     Column, ColumnId, ColumnSet, ColumnType, CompactionLevel, Namespace, NamespaceId, ParquetFile,
     ParquetFileId, ParquetFileParams, Partition, PartitionId, PartitionKey, PartitionParam,
     QueryPool, QueryPoolId, SequenceNumber, Shard, ShardId, ShardIndex, SkippedCompaction, Table,
-    TableId, TablePartition, Timestamp, TopicId, TopicMetadata, TRANSITION_SHARD_ID,
-    TRANSITION_SHARD_INDEX,
+    TableId, Timestamp, TopicId, TopicMetadata, TRANSITION_SHARD_ID, TRANSITION_SHARD_INDEX,
 };
 use serde::{Deserialize, Serialize};
 use std::ops::Deref;
@@ -1542,43 +1541,6 @@ RETURNING id;
 
         let deleted = deleted.into_iter().map(|row| row.get("id")).collect();
         Ok(deleted)
-    }
-
-    async fn level_1(
-        &mut self,
-        table_partition: TablePartition,
-        min_time: Timestamp,
-        max_time: Timestamp,
-    ) -> Result<Vec<ParquetFile>> {
-        // Deliberately doesn't use `SELECT *` to avoid the performance hit of fetching the large
-        // `parquet_metadata` column!!
-        Ok(sqlx::query_as::<_, ParquetFilePod>(
-            r#"
-SELECT id, shard_id, namespace_id, table_id, partition_id, object_store_id,
-       max_sequence_number, min_time, max_time, to_delete, file_size_bytes,
-       row_count, compaction_level, created_at, column_set, max_l0_created_at
-FROM parquet_file
-WHERE parquet_file.shard_id = $1
-  AND parquet_file.table_id = $2
-  AND parquet_file.partition_id = $3
-  AND parquet_file.compaction_level = $4
-  AND parquet_file.to_delete IS NULL
-  AND ((parquet_file.min_time <= $5 AND parquet_file.max_time >= $5)
-      OR (parquet_file.min_time > $5 AND parquet_file.min_time <= $6));
-        "#,
-        )
-        .bind(table_partition.shard_id) // $1
-        .bind(table_partition.table_id) // $2
-        .bind(table_partition.partition_id) // $3
-        .bind(CompactionLevel::FileNonOverlapped) // $4
-        .bind(min_time) // $5
-        .bind(max_time) // $6
-        .fetch_all(self.inner.get_mut())
-        .await
-        .map_err(|e| Error::SqlxError { source: e })?
-        .into_iter()
-        .map(Into::into)
-        .collect())
     }
 
     async fn recent_highest_throughput_partitions(

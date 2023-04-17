@@ -5,8 +5,7 @@ use data_types::{
     Column, ColumnSchema, ColumnType, CompactionLevel, Namespace, NamespaceId, NamespaceSchema,
     ParquetFile, ParquetFileId, ParquetFileParams, Partition, PartitionId, PartitionKey,
     PartitionParam, QueryPool, QueryPoolId, SequenceNumber, Shard, ShardId, ShardIndex,
-    SkippedCompaction, Table, TableId, TablePartition, TableSchema, Timestamp, TopicId,
-    TopicMetadata,
+    SkippedCompaction, Table, TableId, TableSchema, Timestamp, TopicId, TopicMetadata,
 };
 use iox_time::TimeProvider;
 use snafu::{OptionExt, Snafu};
@@ -590,16 +589,6 @@ pub trait ParquetFileRepo: Send + Sync {
     /// MAY call this method again if the result was NOT empty.
     async fn delete_old_ids_only(&mut self, older_than: Timestamp) -> Result<Vec<ParquetFileId>>;
 
-    /// List parquet files for a given table partition, in a given time range, with compaction
-    /// level 1, and other criteria that define a file as a candidate for compaction with a level 0
-    /// file
-    async fn level_1(
-        &mut self,
-        table_partition: TablePartition,
-        min_time: Timestamp,
-        max_time: Timestamp,
-    ) -> Result<Vec<ParquetFile>>;
-
     // Remove this function: https://github.com/influxdata/influxdb_iox/issues/6518
     /// List the most recent highest throughput partition for a given shard, if specified
     async fn recent_highest_throughput_partitions(
@@ -927,7 +916,6 @@ pub(crate) mod test_helpers {
         test_partition(clean_state().await).await;
         test_parquet_file(clean_state().await).await;
         test_parquet_file_delete_broken(clean_state().await).await;
-        test_parquet_file_compaction_level_1(clean_state().await).await;
         test_recent_highest_throughput_partitions(clean_state().await).await;
         test_partitions_with_small_l1_file_count(clean_state().await).await;
         test_update_to_compaction_level_1(clean_state().await).await;
@@ -2628,240 +2616,6 @@ pub(crate) mod test_helpers {
             .await
             .unwrap();
         assert_eq!(ids, vec![parquet_file_2.id]);
-    }
-
-    async fn test_parquet_file_compaction_level_1(catalog: Arc<dyn Catalog>) {
-        let mut repos = catalog.repositories().await;
-        let topic = repos.topics().create_or_get("foo").await.unwrap();
-        let pool = repos.query_pools().create_or_get("foo").await.unwrap();
-        let namespace = repos
-            .namespaces()
-            .create(
-                "namespace_parquet_file_compaction_level_1_test",
-                None,
-                topic.id,
-                pool.id,
-            )
-            .await
-            .unwrap();
-        let table = repos
-            .tables()
-            .create_or_get("test_table", namespace.id)
-            .await
-            .unwrap();
-        let other_table = repos
-            .tables()
-            .create_or_get("test_table2", namespace.id)
-            .await
-            .unwrap();
-        let shard = repos
-            .shards()
-            .create_or_get(&topic, ShardIndex::new(100))
-            .await
-            .unwrap();
-        let other_shard = repos
-            .shards()
-            .create_or_get(&topic, ShardIndex::new(101))
-            .await
-            .unwrap();
-        let partition = repos
-            .partitions()
-            .create_or_get(
-                "test_parquet_file_compaction_level_1_one".into(),
-                shard.id,
-                table.id,
-            )
-            .await
-            .unwrap();
-        let other_partition = repos
-            .partitions()
-            .create_or_get(
-                "test_parquet_file_compaction_level_1_two".into(),
-                shard.id,
-                table.id,
-            )
-            .await
-            .unwrap();
-
-        // Set up the window of times we're interested in level 1 files for
-        let query_min_time = Timestamp::new(5);
-        let query_max_time = Timestamp::new(10);
-
-        // Create a file with times entirely within the window
-        let parquet_file_params = ParquetFileParams {
-            shard_id: shard.id,
-            namespace_id: namespace.id,
-            table_id: partition.table_id,
-            partition_id: partition.id,
-            object_store_id: Uuid::new_v4(),
-            max_sequence_number: SequenceNumber::new(140),
-            min_time: query_min_time + 1,
-            max_time: query_max_time - 1,
-            file_size_bytes: 1337,
-            row_count: 0,
-            compaction_level: CompactionLevel::Initial,
-            created_at: Timestamp::new(1),
-            column_set: ColumnSet::new([ColumnId::new(1), ColumnId::new(2)]),
-            max_l0_created_at: Timestamp::new(1),
-        };
-        let parquet_file = repos
-            .parquet_files()
-            .create(parquet_file_params.clone())
-            .await
-            .unwrap();
-
-        // Create a file that will remain as level 0
-        let level_0_params = ParquetFileParams {
-            object_store_id: Uuid::new_v4(),
-            ..parquet_file_params.clone()
-        };
-        let _level_0_file = repos.parquet_files().create(level_0_params).await.unwrap();
-
-        // Create a file completely before the window
-        let too_early_params = ParquetFileParams {
-            object_store_id: Uuid::new_v4(),
-            min_time: query_min_time - 2,
-            max_time: query_min_time - 1,
-            ..parquet_file_params.clone()
-        };
-        let too_early_file = repos
-            .parquet_files()
-            .create(too_early_params)
-            .await
-            .unwrap();
-
-        // Create a file overlapping the window on the lower end
-        let overlap_lower_params = ParquetFileParams {
-            object_store_id: Uuid::new_v4(),
-            min_time: query_min_time - 1,
-            max_time: query_min_time + 1,
-            ..parquet_file_params.clone()
-        };
-        let overlap_lower_file = repos
-            .parquet_files()
-            .create(overlap_lower_params)
-            .await
-            .unwrap();
-
-        // Create a file overlapping the window on the upper end
-        let overlap_upper_params = ParquetFileParams {
-            object_store_id: Uuid::new_v4(),
-            min_time: query_max_time - 1,
-            max_time: query_max_time + 1,
-            ..parquet_file_params.clone()
-        };
-        let overlap_upper_file = repos
-            .parquet_files()
-            .create(overlap_upper_params)
-            .await
-            .unwrap();
-
-        // Create a file completely after the window
-        let too_late_params = ParquetFileParams {
-            object_store_id: Uuid::new_v4(),
-            min_time: query_max_time + 1,
-            max_time: query_max_time + 2,
-            ..parquet_file_params.clone()
-        };
-        let too_late_file = repos.parquet_files().create(too_late_params).await.unwrap();
-
-        // Create a file for some other shard
-        let other_shard_params = ParquetFileParams {
-            shard_id: other_shard.id,
-            object_store_id: Uuid::new_v4(),
-            ..parquet_file_params.clone()
-        };
-        let other_shard_file = repos
-            .parquet_files()
-            .create(other_shard_params)
-            .await
-            .unwrap();
-
-        // Create a file for the same shard but a different table
-        let other_table_params = ParquetFileParams {
-            table_id: other_table.id,
-            object_store_id: Uuid::new_v4(),
-            ..parquet_file_params.clone()
-        };
-        let other_table_file = repos
-            .parquet_files()
-            .create(other_table_params)
-            .await
-            .unwrap();
-
-        // Create a file for the same shard and table but a different partition
-        let other_partition_params = ParquetFileParams {
-            partition_id: other_partition.id,
-            object_store_id: Uuid::new_v4(),
-            ..parquet_file_params.clone()
-        };
-        let other_partition_file = repos
-            .parquet_files()
-            .create(other_partition_params)
-            .await
-            .unwrap();
-
-        // Create a file marked to be deleted
-        let to_delete_params = ParquetFileParams {
-            object_store_id: Uuid::new_v4(),
-            ..parquet_file_params.clone()
-        };
-        let to_delete_file = repos
-            .parquet_files()
-            .create(to_delete_params)
-            .await
-            .unwrap();
-        repos
-            .parquet_files()
-            .flag_for_delete(to_delete_file.id)
-            .await
-            .unwrap();
-
-        // Make all but _level_0_file compaction level 1
-        repos
-            .parquet_files()
-            .update_compaction_level(
-                &[
-                    parquet_file.id,
-                    too_early_file.id,
-                    too_late_file.id,
-                    overlap_lower_file.id,
-                    overlap_upper_file.id,
-                    other_shard_file.id,
-                    other_table_file.id,
-                    other_partition_file.id,
-                    to_delete_file.id,
-                ],
-                CompactionLevel::FileNonOverlapped,
-            )
-            .await
-            .unwrap();
-
-        // Level 1 parquet files for a shard should contain only those that match the right
-        // criteria
-        let table_partition = TablePartition::new(shard.id, table.id, partition.id);
-        let level_1 = repos
-            .parquet_files()
-            .level_1(table_partition, query_min_time, query_max_time)
-            .await
-            .unwrap();
-        let mut level_1_ids: Vec<_> = level_1.iter().map(|pf| pf.id).collect();
-        level_1_ids.sort();
-        let expected = vec![parquet_file, overlap_lower_file, overlap_upper_file];
-        let mut expected_ids: Vec<_> = expected.iter().map(|pf| pf.id).collect();
-        expected_ids.sort();
-
-        assert_eq!(
-            level_1_ids, expected_ids,
-            "\nlevel 1: {level_1:#?}\nexpected: {expected:#?}",
-        );
-
-        // drop the namespace to avoid the created data in this tests from affecting other tests
-        repos
-            .namespaces()
-            .soft_delete("namespace_parquet_file_compaction_level_1_test")
-            .await
-            .expect("delete namespace should succeed");
     }
 
     async fn test_most_cold_files_partitions(catalog: Arc<dyn Catalog>) {
@@ -4900,23 +4654,6 @@ pub(crate) mod test_helpers {
             .await
             .unwrap();
         assert_eq!(updated, vec![parquet_file.id]);
-
-        // Level 1 parquet files for a shard should only contain parquet_file
-        let expected = vec![parquet_file];
-        let table_partition = TablePartition::new(shard.id, table.id, partition.id);
-        let level_1 = repos
-            .parquet_files()
-            .level_1(table_partition, query_min_time, query_max_time)
-            .await
-            .unwrap();
-        let mut level_1_ids: Vec<_> = level_1.iter().map(|pf| pf.id).collect();
-        level_1_ids.sort();
-        let mut expected_ids: Vec<_> = expected.iter().map(|pf| pf.id).collect();
-        expected_ids.sort();
-        assert_eq!(
-            level_1_ids, expected_ids,
-            "\nlevel 1: {level_1:#?}\nexpected: {expected:#?}",
-        );
 
         // remove namespace to avoid it from affecting later tests
         repos

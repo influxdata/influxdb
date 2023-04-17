@@ -7,7 +7,7 @@ use arrow::{
 use data_types::{
     Column, ColumnSet, ColumnType, CompactionLevel, Namespace, NamespaceSchema, ParquetFile,
     ParquetFileParams, Partition, PartitionId, QueryPool, SequenceNumber, Shard, ShardIndex, Table,
-    TableId, TablePartition, TableSchema, Timestamp, TopicMetadata,
+    TableId, TableSchema, Timestamp, TopicMetadata,
 };
 use datafusion::physical_plan::metrics::Count;
 use datafusion_util::MemoryStream;
@@ -183,24 +183,6 @@ impl TestCatalog {
     ) -> Arc<TestNamespace> {
         self.create_namespace_with_retention(name, TEST_RETENTION_PERIOD_NS)
             .await
-    }
-
-    /// Count level 1 files
-    pub async fn count_level_1_files(
-        self: &Arc<Self>,
-        table_partition: TablePartition,
-        min_time: Timestamp,
-        max_time: Timestamp,
-    ) -> usize {
-        let level_1 = self
-            .catalog
-            .repositories()
-            .await
-            .parquet_files()
-            .level_1(table_partition, min_time, max_time)
-            .await
-            .unwrap();
-        level_1.len()
     }
 
     /// List all non-deleted files

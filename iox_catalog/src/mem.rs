@@ -15,7 +15,7 @@ use data_types::{
     Column, ColumnId, ColumnType, CompactionLevel, Namespace, NamespaceId, ParquetFile,
     ParquetFileId, ParquetFileParams, Partition, PartitionId, PartitionKey, PartitionParam,
     QueryPool, QueryPoolId, SequenceNumber, Shard, ShardId, ShardIndex, SkippedCompaction, Table,
-    TableId, TablePartition, Timestamp, TopicId, TopicMetadata,
+    TableId, Timestamp, TopicId, TopicMetadata,
 };
 use iox_time::{SystemProvider, TimeProvider};
 use observability_deps::tracing::warn;
@@ -1095,30 +1095,6 @@ impl ParquetFileRepo for MemTxn {
 
         let delete = delete.into_iter().map(|f| f.id).collect();
         Ok(delete)
-    }
-
-    async fn level_1(
-        &mut self,
-        table_partition: TablePartition,
-        min_time: Timestamp,
-        max_time: Timestamp,
-    ) -> Result<Vec<ParquetFile>> {
-        let stage = self.stage();
-
-        Ok(stage
-            .parquet_files
-            .iter()
-            .filter(|f| {
-                f.shard_id == table_partition.shard_id
-                    && f.table_id == table_partition.table_id
-                    && f.partition_id == table_partition.partition_id
-                    && f.compaction_level == CompactionLevel::FileNonOverlapped
-                    && f.to_delete.is_none()
-                    && ((f.min_time <= min_time && f.max_time >= min_time)
-                        || (f.min_time > min_time && f.min_time <= max_time))
-            })
-            .cloned()
-            .collect())
     }
 
     async fn recent_highest_throughput_partitions(
