@@ -47,6 +47,7 @@ use influxdb_influxql_parser::show_field_keys::ShowFieldKeysStatement;
 use influxdb_influxql_parser::show_measurements::{
     ShowMeasurementsStatement, WithMeasurementClause,
 };
+use influxdb_influxql_parser::show_tag_keys::ShowTagKeysStatement;
 use influxdb_influxql_parser::show_tag_values::{ShowTagValuesStatement, WithKeyClause};
 use influxdb_influxql_parser::simple_from_clause::ShowFromClause;
 use influxdb_influxql_parser::{
@@ -203,9 +204,7 @@ impl<'a> InfluxQLToLogicalPlan<'a> {
             Statement::ShowRetentionPolicies(_) => Err(DataFusionError::NotImplemented(
                 "SHOW RETENTION POLICIES".into(),
             )),
-            Statement::ShowTagKeys(_) => {
-                Err(DataFusionError::NotImplemented("SHOW TAG KEYS".into()))
-            }
+            Statement::ShowTagKeys(show_tag_keys) => self.show_tag_keys_to_plan(*show_tag_keys),
             Statement::ShowTagValues(show_tag_values) => {
                 self.show_tag_values_to_plan(*show_tag_values)
             }
@@ -1270,6 +1269,82 @@ impl<'a> InfluxQLToLogicalPlan<'a> {
         }
     }
 
+    fn show_tag_keys_to_plan(&self, show_tag_keys: ShowTagKeysStatement) -> Result<LogicalPlan> {
+        if show_tag_keys.database.is_some() {
+            // How do we handle this? Do we need to perform cross-namespace queries here?
+            return Err(DataFusionError::NotImplemented(
+                "SHOW TAG KEYS ON <database>".into(),
+            ));
+        }
+        if show_tag_keys.condition.is_some() {
+            return Err(DataFusionError::NotImplemented(
+                "SHOW TAG KEYS WHERE <condition>".into(),
+            ));
+        }
+
+        let tag_key_col = "tagKey";
+        let output_schema = Arc::new(ArrowSchema::new(vec![
+            ArrowField::new(
+                INFLUXQL_MEASUREMENT_COLUMN_NAME,
+                (&InfluxColumnType::Tag).into(),
+                false,
+            ),
+            ArrowField::new(tag_key_col, (&InfluxColumnType::Tag).into(), false),
+        ]));
+
+        let tables = self.expand_tables(show_tag_keys.from)?;
+
+        let mut measurement_names_builder = StringDictionaryBuilder::<Int32Type>::new();
+        let mut tag_key_builder = StringDictionaryBuilder::<Int32Type>::new();
+        for table in tables {
+            let Some(table_schema) = self.s.table_schema(&table) else {continue};
+            for (t, f) in table_schema.iter() {
+                match t {
+                    InfluxColumnType::Tag => {}
+                    InfluxColumnType::Field(_) | InfluxColumnType::Timestamp => {
+                        continue;
+                    }
+                }
+                measurement_names_builder.append_value(&table);
+                tag_key_builder.append_value(f.name());
+            }
+        }
+        let plan = LogicalPlanBuilder::scan(
+            "tag_keys",
+            provider_as_source(Arc::new(MemTable::try_new(
+                Arc::clone(&output_schema),
+                vec![vec![RecordBatch::try_new(
+                    Arc::clone(&output_schema),
+                    vec![
+                        Arc::new(measurement_names_builder.finish()),
+                        Arc::new(tag_key_builder.finish()),
+                    ],
+                )?]],
+            )?)),
+            None,
+        )?
+        .build()?;
+        let plan = plan_with_metadata(
+            plan,
+            &InfluxQlMetadata {
+                measurement_column_index: MEASUREMENT_COLUMN_INDEX,
+                tag_key_columns: vec![],
+            },
+        )?;
+
+        let plan = self.limit(
+            plan,
+            show_tag_keys.offset,
+            show_tag_keys.limit,
+            vec![Expr::Column(Column::new_unqualified(tag_key_col)).sort(true, false)],
+            true,
+            &[],
+            &[],
+        )?;
+
+        Ok(plan)
+    }
+
     fn show_field_keys_to_plan(
         &self,
         show_field_keys: ShowFieldKeysStatement,
@@ -2119,7 +2194,6 @@ mod test {
         assert_snapshot!(plan("DROP MEASUREMENT foo"), @"This feature is not implemented: DROP MEASUREMENT");
         assert_snapshot!(plan("SHOW DATABASES"), @"This feature is not implemented: SHOW DATABASES");
         assert_snapshot!(plan("SHOW RETENTION POLICIES"), @"This feature is not implemented: SHOW RETENTION POLICIES");
-        assert_snapshot!(plan("SHOW TAG KEYS"), @"This feature is not implemented: SHOW TAG KEYS");
     }
 
     mod metadata_queries {
@@ -2146,6 +2220,18 @@ mod test {
                 Filter: iox::row BETWEEN Int64(3) AND Int64(3) [iox::measurement:Dictionary(Int32, Utf8), name:Dictionary(Int32, Utf8), iox::row:UInt64;N]
                   WindowAggr: windowExpr=[[ROW_NUMBER() PARTITION BY [measurements.iox::measurement] ORDER BY [measurements.name ASC NULLS LAST] ROWS BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW AS iox::row]] [iox::measurement:Dictionary(Int32, Utf8), name:Dictionary(Int32, Utf8), iox::row:UInt64;N]
                     TableScan: measurements [iox::measurement:Dictionary(Int32, Utf8), name:Dictionary(Int32, Utf8)]
+            "###);
+        }
+
+        #[test]
+        fn test_show_tag_keys() {
+            assert_snapshot!(plan("SHOW TAG KEYS"), @"TableScan: tag_keys [iox::measurement:Dictionary(Int32, Utf8), tagKey:Dictionary(Int32, Utf8)]");
+            assert_snapshot!(plan("SHOW TAG KEYS LIMIT 1 OFFSET 2"), @r###"
+            Sort: tag_keys.iox::measurement ASC NULLS LAST, tag_keys.tagKey ASC NULLS LAST [iox::measurement:Dictionary(Int32, Utf8), tagKey:Dictionary(Int32, Utf8)]
+              Projection: tag_keys.iox::measurement, tag_keys.tagKey [iox::measurement:Dictionary(Int32, Utf8), tagKey:Dictionary(Int32, Utf8)]
+                Filter: iox::row BETWEEN Int64(3) AND Int64(3) [iox::measurement:Dictionary(Int32, Utf8), tagKey:Dictionary(Int32, Utf8), iox::row:UInt64;N]
+                  WindowAggr: windowExpr=[[ROW_NUMBER() PARTITION BY [tag_keys.iox::measurement] ORDER BY [tag_keys.tagKey ASC NULLS LAST] ROWS BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW AS iox::row]] [iox::measurement:Dictionary(Int32, Utf8), tagKey:Dictionary(Int32, Utf8), iox::row:UInt64;N]
+                    TableScan: tag_keys [iox::measurement:Dictionary(Int32, Utf8), tagKey:Dictionary(Int32, Utf8)]
             "###);
         }
 

@@ -337,6 +337,12 @@ name: m2
 | tag0 | val09 |
 | tag0 | val10 |
 +------+-------+
+name: m3
++------+-------+
+| key  | value |
++------+-------+
+| tag0 | a     |
++------+-------+
 -- InfluxQL: SHOW TAG VALUES WITH KEY = "does_not_exist";
 -- Results After Sorting
 -- InfluxQL: SHOW TAG VALUES WITH KEY != "tag0";
@@ -365,6 +371,14 @@ name: m0
 +------+-------+
 | tag1 | val10 |
 | tag1 |       |
++------+-------+
+name: m3
++------+-------+
+| key  | value |
++------+-------+
+| tag1 | b     |
+| tag2 | c     |
+| tag3 | d     |
 +------+-------+
 name: m4
 +---------+-------+
@@ -424,6 +438,15 @@ name: m2
 | tag0 | val09 |
 | tag0 | val10 |
 +------+-------+
+name: m3
++------+-------+
+| key  | value |
++------+-------+
+| tag0 | a     |
+| tag1 | b     |
+| tag2 | c     |
+| tag3 | d     |
++------+-------+
 name: m4
 +---------+-------+
 | key     | value |
@@ -463,6 +486,15 @@ name: m2
 | tag0 | val08 |
 | tag0 | val09 |
 | tag0 | val10 |
++------+-------+
+name: m3
++------+-------+
+| key  | value |
++------+-------+
+| tag0 | a     |
+| tag1 | b     |
+| tag2 | c     |
+| tag3 | d     |
 +------+-------+
 name: m4
 +---------+-------+
@@ -529,6 +561,12 @@ name: m2
 +------+-------+
 | tag0 | val00 |
 | tag0 | val01 |
++------+-------+
+name: m3
++------+-------+
+| key  | value |
++------+-------+
+| tag0 | a     |
 +------+-------+
 -- InfluxQL: SHOW TAG VALUES WITH KEY = "tag0" OFFSET 1;
 -- Results After Sorting
@@ -649,6 +687,12 @@ name: m2
 | tag0 | val09 |
 | tag0 | val10 |
 +------+-------+
+name: m3
++------+-------+
+| key  | value |
++------+-------+
+| tag0 | a     |
++------+-------+
 -- InfluxQL: SHOW TAG VALUES FROM /d\isk/ WITH KEY = "device";
 -- Results After Sorting
 name: disk
@@ -669,3 +713,237 @@ Error while planning query: This feature is not implemented: retention policy in
 Error while planning query: This feature is not implemented: database name in from clause
 -- InfluxQL: SHOW TAG VALUES WITH KEY = "tag0" WHERE tag1 = "foo";
 Error while planning query: This feature is not implemented: SHOW TAG VALUES WHERE <condition>
+-- InfluxQL: SHOW TAG KEYS;
+name: cpu
++--------+
+| tagKey |
++--------+
+| cpu    |
+| host   |
++--------+
+name: disk
++--------+
+| tagKey |
++--------+
+| device |
+| host   |
++--------+
+name: m0
++--------+
+| tagKey |
++--------+
+| tag0   |
+| tag1   |
++--------+
+name: m1
++--------+
+| tagKey |
++--------+
+| tag0   |
++--------+
+name: m2
++--------+
+| tagKey |
++--------+
+| tag0   |
++--------+
+name: m3
++--------+
+| tagKey |
++--------+
+| tag0   |
+| tag1   |
+| tag2   |
+| tag3   |
++--------+
+name: m4
++---------+
+| tagKey  |
++---------+
+| tag.one |
++---------+
+-- InfluxQL: SHOW TAG KEYS LIMIT 1;
+name: cpu
++--------+
+| tagKey |
++--------+
+| cpu    |
++--------+
+name: disk
++--------+
+| tagKey |
++--------+
+| device |
++--------+
+name: m0
++--------+
+| tagKey |
++--------+
+| tag0   |
++--------+
+name: m1
++--------+
+| tagKey |
++--------+
+| tag0   |
++--------+
+name: m2
++--------+
+| tagKey |
++--------+
+| tag0   |
++--------+
+name: m3
++--------+
+| tagKey |
++--------+
+| tag0   |
++--------+
+name: m4
++---------+
+| tagKey  |
++---------+
+| tag.one |
++---------+
+-- InfluxQL: SHOW TAG KEYS OFFSET 1;
+name: cpu
++--------+
+| tagKey |
++--------+
+| host   |
++--------+
+name: disk
++--------+
+| tagKey |
++--------+
+| host   |
++--------+
+name: m0
++--------+
+| tagKey |
++--------+
+| tag1   |
++--------+
+name: m3
++--------+
+| tagKey |
++--------+
+| tag1   |
+| tag2   |
+| tag3   |
++--------+
+-- InfluxQL: SHOW TAG KEYS LIMIT 1 OFFSET 1;
+name: cpu
++--------+
+| tagKey |
++--------+
+| host   |
++--------+
+name: disk
++--------+
+| tagKey |
++--------+
+| host   |
++--------+
+name: m0
++--------+
+| tagKey |
++--------+
+| tag1   |
++--------+
+name: m3
++--------+
+| tagKey |
++--------+
+| tag1   |
++--------+
+-- InfluxQL: SHOW TAG KEYS FROM cpu;
+name: cpu
++--------+
+| tagKey |
++--------+
+| cpu    |
+| host   |
++--------+
+-- InfluxQL: SHOW TAG KEYS FROM disk,cpu,disk;
+name: cpu
++--------+
+| tagKey |
++--------+
+| cpu    |
+| host   |
++--------+
+name: disk
++--------+
+| tagKey |
++--------+
+| device |
+| host   |
++--------+
+-- InfluxQL: SHOW TAG KEYS FROM cpu,disk,cpu;
+name: cpu
++--------+
+| tagKey |
++--------+
+| cpu    |
+| host   |
++--------+
+name: disk
++--------+
+| tagKey |
++--------+
+| device |
+| host   |
++--------+
+-- InfluxQL: SHOW TAG KEYS FROM /m.*/;
+name: m0
++--------+
+| tagKey |
++--------+
+| tag0   |
+| tag1   |
++--------+
+name: m1
++--------+
+| tagKey |
++--------+
+| tag0   |
++--------+
+name: m2
++--------+
+| tagKey |
++--------+
+| tag0   |
++--------+
+name: m3
++--------+
+| tagKey |
++--------+
+| tag0   |
+| tag1   |
+| tag2   |
+| tag3   |
++--------+
+name: m4
++---------+
+| tagKey  |
++---------+
+| tag.one |
++---------+
+-- InfluxQL: SHOW TAG KEYS FROM /d\isk/;
+name: disk
++--------+
+| tagKey |
++--------+
+| device |
+| host   |
++--------+
+-- InfluxQL: SHOW TAG KEYS FROM does_not_exist;
+-- InfluxQL: SHOW TAG KEYS ON my_db;
+Error while planning query: This feature is not implemented: SHOW TAG KEYS ON <database>
+-- InfluxQL: SHOW TAG KEYS FROM x.my_db;
+Error while planning query: This feature is not implemented: retention policy in from clause
+-- InfluxQL: SHOW TAG KEYS FROM x.y.my_db;
+Error while planning query: This feature is not implemented: database name in from clause
+-- InfluxQL: SHOW TAG KEYS WHERE tag1 = "foo";
+Error while planning query: This feature is not implemented: SHOW TAG KEYS WHERE <condition>
