@@ -74,7 +74,7 @@ pub(super) fn make_tag_key_column_meta(
 /// Sort expressions referring to tag keys are always specified in lexicographically ascending order.
 pub(super) fn plan_with_sort(
     plan: LogicalPlan,
-    time_sort_expr: Option<Expr>,
+    mut sort_exprs: Vec<Expr>,
     sort_by_measurement: bool,
     group_by_tag_set: &[&str],
     projection_tag_set: &[&str],
@@ -117,9 +117,7 @@ pub(super) fn plan_with_sort(
         series_sort.extend(map_to_expr(schema, group_by_tag_set));
     };
 
-    if let Some(time_sort_expr) = time_sort_expr {
-        series_sort.push(time_sort_expr);
-    }
+    series_sort.append(&mut sort_exprs);
 
     series_sort.extend(map_to_expr(schema, projection_tag_set));
 

@@ -42,6 +42,12 @@ name: m3
 +----------+-----------+
 | u64      | unsigned  |
 +----------+-----------+
+name: m4
++-----------+-----------+
+| fieldKey  | fieldType |
++-----------+-----------+
+| field.one | float     |
++-----------+-----------+
 -- InfluxQL: SHOW FIELD KEYS LIMIT 2;
 name: cpu
 +--------------+-----------+
@@ -83,6 +89,12 @@ name: m3
 +----------+-----------+
 | u64      | unsigned  |
 +----------+-----------+
+name: m4
++-----------+-----------+
+| fieldKey  | fieldType |
++-----------+-----------+
+| field.one | float     |
++-----------+-----------+
 -- InfluxQL: SHOW FIELD KEYS OFFSET 1;
 name: cpu
 +--------------+-----------+
@@ -190,6 +202,12 @@ name: m3
 +----------+-----------+
 | u64      | unsigned  |
 +----------+-----------+
+name: m4
++-----------+-----------+
+| fieldKey  | fieldType |
++-----------+-----------+
+| field.one | float     |
++-----------+-----------+
 -- InfluxQL: SHOW FIELD KEYS FROM /d\isk/;
 name: disk
 +------------+-----------+
@@ -205,3 +223,367 @@ Error while planning query: This feature is not implemented: SHOW FIELD KEYS ON 
 Error while planning query: This feature is not implemented: retention policy in from clause
 -- InfluxQL: SHOW FIELD KEYS FROM x.y.my_db;
 Error while planning query: This feature is not implemented: database name in from clause
+-- InfluxQL: SHOW TAG VALUES WITH KEY = "tag0";
+-- Results After Sorting
+name: m0
++------+-------+
+| key  | value |
++------+-------+
+| tag0 | val00 |
+| tag0 | val01 |
+| tag0 | val02 |
++------+-------+
+name: m1
++------+-------+
+| key  | value |
++------+-------+
+| tag0 | val00 |
+| tag0 | val01 |
++------+-------+
+name: m2
++------+-------+
+| key  | value |
++------+-------+
+| tag0 | val00 |
+| tag0 | val01 |
+| tag0 | val02 |
+| tag0 | val03 |
+| tag0 | val04 |
+| tag0 | val05 |
+| tag0 | val07 |
+| tag0 | val08 |
+| tag0 | val09 |
+| tag0 | val10 |
++------+-------+
+-- InfluxQL: SHOW TAG VALUES WITH KEY = "does_not_exist";
+-- Results After Sorting
+-- InfluxQL: SHOW TAG VALUES WITH KEY != "tag0";
+-- Results After Sorting
+name: cpu
++------+-----------+
+| key  | value     |
++------+-----------+
+| cpu  | cpu-total |
+| cpu  | cpu0      |
+| cpu  | cpu1      |
+| host | host1     |
++------+-----------+
+name: disk
++--------+---------+
+| key    | value   |
++--------+---------+
+| device | disk1s1 |
+| device | disk1s2 |
+| device | disk1s5 |
+| host   | host1   |
++--------+---------+
+name: m0
++------+-------+
+| key  | value |
++------+-------+
+| tag1 | val10 |
+| tag1 |       |
++------+-------+
+name: m4
++---------+-------+
+| key     | value |
++---------+-------+
+| tag.one | foo   |
++---------+-------+
+-- InfluxQL: SHOW TAG VALUES WITH KEY != "does_not_exist";
+-- Results After Sorting
+name: cpu
++------+-----------+
+| key  | value     |
++------+-----------+
+| cpu  | cpu-total |
+| cpu  | cpu0      |
+| cpu  | cpu1      |
+| host | host1     |
++------+-----------+
+name: disk
++--------+---------+
+| key    | value   |
++--------+---------+
+| device | disk1s1 |
+| device | disk1s2 |
+| device | disk1s5 |
+| host   | host1   |
++--------+---------+
+name: m0
++------+-------+
+| key  | value |
++------+-------+
+| tag0 | val00 |
+| tag0 | val01 |
+| tag0 | val02 |
+| tag1 | val10 |
+| tag1 |       |
++------+-------+
+name: m1
++------+-------+
+| key  | value |
++------+-------+
+| tag0 | val00 |
+| tag0 | val01 |
++------+-------+
+name: m2
++------+-------+
+| key  | value |
++------+-------+
+| tag0 | val00 |
+| tag0 | val01 |
+| tag0 | val02 |
+| tag0 | val03 |
+| tag0 | val04 |
+| tag0 | val05 |
+| tag0 | val07 |
+| tag0 | val08 |
+| tag0 | val09 |
+| tag0 | val10 |
++------+-------+
+name: m4
++---------+-------+
+| key     | value |
++---------+-------+
+| tag.one | foo   |
++---------+-------+
+-- InfluxQL: SHOW TAG VALUES WITH KEY =~ /tag.*/;
+-- Results After Sorting
+name: m0
++------+-------+
+| key  | value |
++------+-------+
+| tag0 | val00 |
+| tag0 | val01 |
+| tag0 | val02 |
+| tag1 | val10 |
+| tag1 |       |
++------+-------+
+name: m1
++------+-------+
+| key  | value |
++------+-------+
+| tag0 | val00 |
+| tag0 | val01 |
++------+-------+
+name: m2
++------+-------+
+| key  | value |
++------+-------+
+| tag0 | val00 |
+| tag0 | val01 |
+| tag0 | val02 |
+| tag0 | val03 |
+| tag0 | val04 |
+| tag0 | val05 |
+| tag0 | val07 |
+| tag0 | val08 |
+| tag0 | val09 |
+| tag0 | val10 |
++------+-------+
+name: m4
++---------+-------+
+| key     | value |
++---------+-------+
+| tag.one | foo   |
++---------+-------+
+-- InfluxQL: SHOW TAG VALUES WITH KEY !~ /tag.*/;
+-- Results After Sorting
+name: cpu
++------+-----------+
+| key  | value     |
++------+-----------+
+| cpu  | cpu-total |
+| cpu  | cpu0      |
+| cpu  | cpu1      |
+| host | host1     |
++------+-----------+
+name: disk
++--------+---------+
+| key    | value   |
++--------+---------+
+| device | disk1s1 |
+| device | disk1s2 |
+| device | disk1s5 |
+| host   | host1   |
++--------+---------+
+-- InfluxQL: SHOW TAG VALUES WITH KEY IN ("device", "host", "device");
+-- Results After Sorting
+name: cpu
++------+-------+
+| key  | value |
++------+-------+
+| host | host1 |
++------+-------+
+name: disk
++--------+---------+
+| key    | value   |
++--------+---------+
+| device | disk1s1 |
+| device | disk1s2 |
+| device | disk1s5 |
+| host   | host1   |
++--------+---------+
+-- InfluxQL: SHOW TAG VALUES WITH KEY = "tag0" LIMIT 2;
+-- Results After Sorting
+name: m0
++------+-------+
+| key  | value |
++------+-------+
+| tag0 | val00 |
+| tag0 | val01 |
++------+-------+
+name: m1
++------+-------+
+| key  | value |
++------+-------+
+| tag0 | val00 |
+| tag0 | val01 |
++------+-------+
+name: m2
++------+-------+
+| key  | value |
++------+-------+
+| tag0 | val00 |
+| tag0 | val01 |
++------+-------+
+-- InfluxQL: SHOW TAG VALUES WITH KEY = "tag0" OFFSET 1;
+-- Results After Sorting
+name: m0
++------+-------+
+| key  | value |
++------+-------+
+| tag0 | val01 |
+| tag0 | val02 |
++------+-------+
+name: m1
++------+-------+
+| key  | value |
++------+-------+
+| tag0 | val01 |
++------+-------+
+name: m2
++------+-------+
+| key  | value |
++------+-------+
+| tag0 | val01 |
+| tag0 | val02 |
+| tag0 | val03 |
+| tag0 | val04 |
+| tag0 | val05 |
+| tag0 | val07 |
+| tag0 | val08 |
+| tag0 | val09 |
+| tag0 | val10 |
++------+-------+
+-- InfluxQL: SHOW TAG VALUES WITH KEY = "tag0" LIMIT 1 OFFSET 2;
+-- Results After Sorting
+name: m0
++------+-------+
+| key  | value |
++------+-------+
+| tag0 | val02 |
++------+-------+
+name: m2
++------+-------+
+| key  | value |
++------+-------+
+| tag0 | val02 |
++------+-------+
+-- InfluxQL: SHOW TAG VALUES FROM m0 WITH KEY = "tag0";
+-- Results After Sorting
+name: m0
++------+-------+
+| key  | value |
++------+-------+
+| tag0 | val00 |
+| tag0 | val01 |
+| tag0 | val02 |
++------+-------+
+-- InfluxQL: SHOW TAG VALUES FROM m0,m1,m0 WITH KEY = "tag0";
+-- Results After Sorting
+name: m0
++------+-------+
+| key  | value |
++------+-------+
+| tag0 | val00 |
+| tag0 | val01 |
+| tag0 | val02 |
++------+-------+
+name: m1
++------+-------+
+| key  | value |
++------+-------+
+| tag0 | val00 |
+| tag0 | val01 |
++------+-------+
+-- InfluxQL: SHOW TAG VALUES FROM m1,m0,m1 WITH KEY = "tag0";
+-- Results After Sorting
+name: m0
++------+-------+
+| key  | value |
++------+-------+
+| tag0 | val00 |
+| tag0 | val01 |
+| tag0 | val02 |
++------+-------+
+name: m1
++------+-------+
+| key  | value |
++------+-------+
+| tag0 | val00 |
+| tag0 | val01 |
++------+-------+
+-- InfluxQL: SHOW TAG VALUES FROM /m.*/ WITH KEY = "tag0";
+-- Results After Sorting
+name: m0
++------+-------+
+| key  | value |
++------+-------+
+| tag0 | val00 |
+| tag0 | val01 |
+| tag0 | val02 |
++------+-------+
+name: m1
++------+-------+
+| key  | value |
++------+-------+
+| tag0 | val00 |
+| tag0 | val01 |
++------+-------+
+name: m2
++------+-------+
+| key  | value |
++------+-------+
+| tag0 | val00 |
+| tag0 | val01 |
+| tag0 | val02 |
+| tag0 | val03 |
+| tag0 | val04 |
+| tag0 | val05 |
+| tag0 | val07 |
+| tag0 | val08 |
+| tag0 | val09 |
+| tag0 | val10 |
++------+-------+
+-- InfluxQL: SHOW TAG VALUES FROM /d\isk/ WITH KEY = "device";
+-- Results After Sorting
+name: disk
++--------+---------+
+| key    | value   |
++--------+---------+
+| device | disk1s1 |
+| device | disk1s2 |
+| device | disk1s5 |
++--------+---------+
+-- InfluxQL: SHOW TAG VALUES FROM does_not_exist WITH KEY = "tag0";
+-- Results After Sorting
+-- InfluxQL: SHOW TAG VALUES ON my_db WITH KEY = "tag0";
+Error while planning query: This feature is not implemented: SHOW TAG VALUES ON <database>
+-- InfluxQL: SHOW TAG VALUES FROM x.my_db WITH KEY = "tag0";
+Error while planning query: This feature is not implemented: retention policy in from clause
+-- InfluxQL: SHOW TAG VALUES FROM x.y.my_db WITH KEY = "tag0";
+Error while planning query: This feature is not implemented: database name in from clause
+-- InfluxQL: SHOW TAG VALUES WITH KEY = "tag0" WHERE tag1 = "foo";
+Error while planning query: This feature is not implemented: SHOW TAG VALUES WHERE <condition>

@@ -16,3 +16,44 @@ SHOW FIELD KEYS FROM does_not_exist;
 SHOW FIELD KEYS ON my_db;
 SHOW FIELD KEYS FROM x.my_db;
 SHOW FIELD KEYS FROM x.y.my_db;
+
+-- SHOW TAG VALUES
+-- Note: need to sort til https://github.com/influxdata/influxdb_iox/issues/7513 is fixed
+-- IOX_COMPARE: sorted
+SHOW TAG VALUES WITH KEY = "tag0";
+-- IOX_COMPARE: sorted
+SHOW TAG VALUES WITH KEY = "does_not_exist";
+-- IOX_COMPARE: sorted
+SHOW TAG VALUES WITH KEY != "tag0";
+-- IOX_COMPARE: sorted
+SHOW TAG VALUES WITH KEY != "does_not_exist";
+-- IOX_COMPARE: sorted
+SHOW TAG VALUES WITH KEY =~ /tag.*/;
+-- IOX_COMPARE: sorted
+SHOW TAG VALUES WITH KEY !~ /tag.*/;
+-- IOX_COMPARE: sorted
+SHOW TAG VALUES WITH KEY IN ("device", "host", "device");
+-- IOX_COMPARE: sorted
+SHOW TAG VALUES WITH KEY = "tag0" LIMIT 2;
+-- IOX_COMPARE: sorted
+SHOW TAG VALUES WITH KEY = "tag0" OFFSET 1;
+-- IOX_COMPARE: sorted
+SHOW TAG VALUES WITH KEY = "tag0" LIMIT 1 OFFSET 2;
+-- IOX_COMPARE: sorted
+SHOW TAG VALUES FROM m0 WITH KEY = "tag0";
+-- IOX_COMPARE: sorted
+SHOW TAG VALUES FROM m0,m1,m0 WITH KEY = "tag0";
+-- IOX_COMPARE: sorted
+SHOW TAG VALUES FROM m1,m0,m1 WITH KEY = "tag0";
+-- IOX_COMPARE: sorted
+SHOW TAG VALUES FROM /m.*/ WITH KEY = "tag0";
+-- IOX_COMPARE: sorted
+SHOW TAG VALUES FROM /d\isk/ WITH KEY = "device";
+-- IOX_COMPARE: sorted
+SHOW TAG VALUES FROM does_not_exist WITH KEY = "tag0";
+
+-- unimplemented features in `SHOW TAG VALUES`
+SHOW TAG VALUES ON my_db WITH KEY = "tag0";
+SHOW TAG VALUES FROM x.my_db WITH KEY = "tag0";
+SHOW TAG VALUES FROM x.y.my_db WITH KEY = "tag0";
+SHOW TAG VALUES WITH KEY = "tag0" WHERE tag1 = "foo";

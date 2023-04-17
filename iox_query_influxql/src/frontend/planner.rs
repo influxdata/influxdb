@@ -1,5 +1,6 @@
 use arrow::datatypes::SchemaRef;
 use influxdb_influxql_parser::show_field_keys::ShowFieldKeysStatement;
+use influxdb_influxql_parser::show_tag_values::ShowTagValuesStatement;
 use std::any::Any;
 use std::collections::{HashMap, HashSet};
 use std::fmt;
@@ -258,6 +259,17 @@ fn find_all_measurements(stmt: &Statement, tables: &[String]) -> Result<HashSet<
 
             Ok(self)
         }
+
+        fn post_visit_show_tag_values_statement(
+            self,
+            stv: &ShowTagValuesStatement,
+        ) -> Result<Self, Self::Error> {
+            if stv.from.is_none() {
+                self.0.extend(self.1.iter().cloned());
+            }
+
+            Ok(self)
+        }
     }
 
     let mut m = HashSet::new();
@@ -319,6 +331,16 @@ mod test {
         // Find all measurements in `SHOW FIELD KEYS`
         assert_eq!(find("SHOW FIELD KEYS"), vec!["bar", "foo", "foobar"]);
         assert_eq!(find("SHOW FIELD KEYS FROM /^foo/"), vec!["foo", "foobar"]);
+
+        // Find all measurements in `SHOW TAG VALUES`
+        assert_eq!(
+            find("SHOW TAG VALUES WITH KEY = \"k\""),
+            vec!["bar", "foo", "foobar"]
+        );
+        assert_eq!(
+            find("SHOW TAG VALUES FROM /^foo/ WITH KEY = \"k\""),
+            vec!["foo", "foobar"]
+        );
 
         // Finds no measurements
         assert!(find("SELECT * FROM none").is_empty());
