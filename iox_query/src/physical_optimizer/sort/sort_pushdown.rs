@@ -38,12 +38,9 @@ impl PhysicalOptimizerRule for SortPushdown {
                             .children()
                             .into_iter()
                             .map(|plan| {
-                                let new_sort_exec = SortExec::new_with_partitioning(
-                                    sort_exec.expr().to_vec(),
-                                    plan,
-                                    true,
-                                    sort_exec.fetch(),
-                                );
+                                let new_sort_exec = SortExec::new(sort_exec.expr().to_vec(), plan)
+                                    .with_preserve_partitioning(true)
+                                    .with_fetch(sort_exec.fetch());
                                 Arc::new(new_sort_exec) as _
                             })
                             .collect::<Vec<_>>(),
@@ -90,12 +87,13 @@ mod tests {
                 .map(|_| Arc::new(EmptyExec::new(true, Arc::clone(&schema))) as _)
                 .collect(),
         ));
-        let plan = Arc::new(SortExec::new_with_partitioning(
-            sort_expr(schema.as_ref()),
-            Arc::new(UnionExec::new(vec![input])),
-            false,
-            Some(10),
-        ));
+        let plan = Arc::new(
+            SortExec::new(
+                sort_expr(schema.as_ref()),
+                Arc::new(UnionExec::new(vec![input])),
+            )
+            .with_fetch(Some(10)),
+        );
         let opt = SortPushdown::default();
         insta::assert_yaml_snapshot!(
             OptimizationTest::new(plan, opt),
@@ -126,12 +124,14 @@ mod tests {
                 .map(|_| Arc::new(EmptyExec::new(true, Arc::clone(&schema))) as _)
                 .collect(),
         ));
-        let plan = Arc::new(SortExec::new_with_partitioning(
-            sort_expr(schema.as_ref()),
-            Arc::new(UnionExec::new(vec![input])),
-            true,
-            Some(10),
-        ));
+        let plan = Arc::new(
+            SortExec::new(
+                sort_expr(schema.as_ref()),
+                Arc::new(UnionExec::new(vec![input])),
+            )
+            .with_preserve_partitioning(true)
+            .with_fetch(Some(10)),
+        );
         let opt = SortPushdown::default();
         insta::assert_yaml_snapshot!(
             OptimizationTest::new(plan, opt),
@@ -167,12 +167,11 @@ mod tests {
             FilterExec::try_new(Arc::new(Literal::new(ScalarValue::from(false))), plan).unwrap(),
         );
         let plan = Arc::new(UnionExec::new(vec![plan]));
-        let plan = Arc::new(SortExec::new_with_partitioning(
-            sort_expr(schema.as_ref()),
-            plan,
-            true,
-            Some(10),
-        ));
+        let plan = Arc::new(
+            SortExec::new(sort_expr(schema.as_ref()), plan)
+                .with_preserve_partitioning(true)
+                .with_fetch(Some(10)),
+        );
 
         assert_unknown_partitioning(plan.output_partitioning(), 2);
 

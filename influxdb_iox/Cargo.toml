@@ -80,11 +80,11 @@ workspace-hack = { version = "0.1", path = "../workspace-hack" }
 [dev-dependencies]
 # In alphabetical order
 arrow_util = { path = "../arrow_util" }
-assert_cmd = "2.0.10"
+assert_cmd = "2.0.11"
 assert_matches = "1.5"
 async-trait = "0.1"
 predicate = { path = "../predicate" }
-predicates = "3.0.2"
+predicates = "3.0.3"
 serde = "1.0.159"
 test_helpers = { path = "../test_helpers", features = ["future_timeout"] }
 test_helpers_end_to_end = { path = "../test_helpers_end_to_end" }

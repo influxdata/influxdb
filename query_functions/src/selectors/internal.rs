@@ -17,7 +17,7 @@ use arrow::{
         max as array_max, max_boolean as array_max_boolean, max_string as array_max_string,
         min as array_min, min_boolean as array_min_boolean, min_string as array_min_string,
     },
-    datatypes::{DataType, Field},
+    datatypes::{DataType, Field, Fields},
 };
 use datafusion::{error::Result as DataFusionResult, scalar::ScalarValue};
 
@@ -113,7 +113,7 @@ fn make_scalar_struct(data_fields: Vec<ScalarValue>) -> ScalarValue {
         Field::new("time", data_fields[1].get_datatype(), true),
     ];
 
-    ScalarValue::Struct(Some(data_fields), Box::new(fields))
+    ScalarValue::Struct(Some(data_fields), Fields::from(fields))
 }
 
 macro_rules! make_first_selector {

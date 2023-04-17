@@ -22,10 +22,10 @@ async fn influxql_returns_error() {
                  {table_name},tag1=A,tag2=C val=43i 123457"
             )),
             Step::InfluxQLExpectingError {
-                query: "SHOW TAG KEYS".into(),
+                query: "SHOW TAG KEYS ON foo".into(),
                 expected_error_code: tonic::Code::InvalidArgument,
                 expected_message:
-                    "Error while planning query: This feature is not implemented: SHOW TAG KEYS"
+                    "Error while planning query: This feature is not implemented: SHOW TAG KEYS ON <database>"
                         .into(),
             },
             Step::InfluxQLExpectingError {

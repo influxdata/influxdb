@@ -59,6 +59,7 @@ pub async fn parse_body(
                 })?;
             match content_encoding {
                 "gzip" => true,
+                "identity" => false,
                 _ => InvalidContentEncodingSnafu { content_encoding }.fail()?,
             }
         }
@@ -124,6 +125,8 @@ mod tests {
 
     use super::*;
 
+    const MAX_BYTES: usize = 1024;
+
     #[tokio::test]
     async fn client_hangup_during_parse() {
         #[derive(Debug, Snafu)]
@@ -154,8 +157,6 @@ mod tests {
 
     #[tokio::test]
     async fn test_read_gzipped_body_truncation() {
-        const MAX_BYTES: usize = 1024;
-
         // Generate a LP string in the form of:
         //
         //  bananas,A=AAAAAAAAAA(repeated)... B=42
@@ -198,5 +199,17 @@ mod tests {
             got,
             Err(ParseBodyError::RequestSizeExceeded { .. })
         ));
+    }
+
+    #[tokio::test]
+    async fn test_accept_identity_content_encoding() {
+        let request = Request::builder()
+            .uri("https://explosions.example/")
+            .header("Content-Encoding", "identity")
+            .body(Body::from("bananas,A=12"))
+            .unwrap();
+
+        let got = parse_body(request, MAX_BYTES).await;
+        assert!(matches!(got, Ok(_)));
     }
 }

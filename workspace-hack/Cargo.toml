@@ -17,11 +17,11 @@ license.workspace = true
 ### BEGIN HAKARI SECTION
 [dependencies]
 ahash = { version = "0.8", default-features = false, features = ["runtime-rng"] }
-arrow = { version = "36", features = ["dyn_cmp_dict", "prettyprint"] }
-arrow-array = { version = "36", default-features = false, features = ["chrono-tz"] }
-arrow-flight = { version = "36", features = ["flight-sql-experimental"] }
-arrow-ord = { version = "36", default-features = false, features = ["dyn_cmp_dict"] }
-arrow-string = { version = "36", default-features = false, features = ["dyn_cmp_dict"] }
+arrow = { version = "37", features = ["dyn_cmp_dict", "prettyprint"] }
+arrow-array = { version = "37", default-features = false, features = ["chrono-tz"] }
+arrow-flight = { version = "37", features = ["flight-sql-experimental"] }
+arrow-ord = { version = "37", default-features = false, features = ["dyn_cmp_dict"] }
+arrow-string = { version = "37", default-features = false, features = ["dyn_cmp_dict"] }
 base64-594e8ee84c453af0 = { package = "base64", version = "0.13" }
 base64-647d43efb71741da = { package = "base64", version = "0.21" }
 bitflags = { version = "1" }
@@ -30,9 +30,9 @@ bytes = { version = "1" }
 chrono = { version = "0.4", default-features = false, features = ["alloc", "clock", "serde"] }
 crossbeam-utils = { version = "0.8" }
 crypto-common = { version = "0.1", default-features = false, features = ["std"] }
-datafusion = { git = "https://github.com/apache/arrow-datafusion.git", rev = "34c9bce0146e0ebacfb10334ee7aef13fc8cc94f" }
-datafusion-optimizer = { git = "https://github.com/apache/arrow-datafusion.git", rev = "34c9bce0146e0ebacfb10334ee7aef13fc8cc94f", default-features = false, features = ["crypto_expressions", "regex_expressions", "unicode_expressions"] }
-datafusion-physical-expr = { git = "https://github.com/apache/arrow-datafusion.git", rev = "34c9bce0146e0ebacfb10334ee7aef13fc8cc94f", default-features = false, features = ["crypto_expressions", "regex_expressions", "unicode_expressions"] }
+datafusion = { git = "https://github.com/apache/arrow-datafusion.git", rev = "ebb839068b9d99d3a3fea0a50a1e4baf4f1a5fca" }
+datafusion-optimizer = { git = "https://github.com/apache/arrow-datafusion.git", rev = "ebb839068b9d99d3a3fea0a50a1e4baf4f1a5fca", default-features = false, features = ["crypto_expressions", "regex_expressions", "unicode_expressions"] }
+datafusion-physical-expr = { git = "https://github.com/apache/arrow-datafusion.git", rev = "ebb839068b9d99d3a3fea0a50a1e4baf4f1a5fca", default-features = false, features = ["crypto_expressions", "regex_expressions", "unicode_expressions"] }
 digest = { version = "0.10", features = ["mac", "std"] }
 either = { version = "1" }
 fixedbitset = { version = "0.4" }
@@ -61,7 +61,7 @@ num-traits = { version = "0.2", features = ["i128", "libm"] }
 object_store = { version = "0.5", default-features = false, features = ["aws", "azure", "gcp"] }
 once_cell = { version = "1", features = ["parking_lot"] }
 parking_lot = { version = "0.12", features = ["arc_lock"] }
-parquet = { version = "36", features = ["async", "experimental"] }
+parquet = { version = "37", features = ["async", "experimental"] }
 petgraph = { version = "0.6" }
 phf_shared = { version = "0.11" }
 predicates = { version = "3" }
@@ -74,7 +74,6 @@ regex = { version = "1" }
 regex-syntax = { version = "0.6" }
 reqwest = { version = "0.11", default-features = false, features = ["json", "rustls-tls", "stream"] }
 ring = { version = "0.16", features = ["std"] }
-rustls = { version = "0.20", features = ["dangerous_configuration"] }
 serde = { version = "1", features = ["derive", "rc"] }
 serde_json = { version = "1", features = ["raw_value"] }
 sha2 = { version = "0.10" }
@@ -86,7 +85,7 @@ thrift = { version = "0.17" }
 tokio = { version = "1", features = ["full", "test-util", "tracing"] }
 tokio-stream = { version = "0.1", features = ["fs", "net"] }
 tokio-util = { version = "0.7", features = ["codec", "compat", "io"] }
-tonic = { version = "0.8", features = ["tls-webpki-roots"] }
+tonic = { version = "0.9", features = ["tls-webpki-roots"] }
 tower = { version = "0.4", features = ["balance", "buffer", "limit", "timeout", "util"] }
 tracing = { version = "0.1", features = ["log", "max_level_trace", "release_max_level_trace"] }
 tracing-core = { version = "0.1" }
@@ -140,7 +139,6 @@ rand_core = { version = "0.6", default-features = false, features = ["std"] }
 regex = { version = "1" }
 regex-syntax = { version = "0.6" }
 ring = { version = "0.16", features = ["std"] }
-rustls = { version = "0.20", features = ["dangerous_configuration"] }
 serde = { version = "1", features = ["derive", "rc"] }
 serde_json = { version = "1", features = ["raw_value"] }
 sha2 = { version = "0.10" }

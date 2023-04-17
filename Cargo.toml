@@ -114,16 +114,17 @@ edition = "2021"
 license = "MIT OR Apache-2.0"
 
 [workspace.dependencies]
-arrow = { version = "36.0.0" }
-arrow-flight = { version = "36.0.0" }
-datafusion = { git = "https://github.com/apache/arrow-datafusion.git", rev="34c9bce0146e0ebacfb10334ee7aef13fc8cc94f", default-features = false }
-datafusion-proto = { git = "https://github.com/apache/arrow-datafusion.git", rev="34c9bce0146e0ebacfb10334ee7aef13fc8cc94f" }
+arrow = { version = "37.0.0" }
+arrow-flight = { version = "37.0.0" }
+chrono-english = { git = "https://github.com/stevedonovan/chrono-english.git", rev = "def5941ebee24b55e1174eb18ab33d91603f907a" }
+datafusion = { git = "https://github.com/apache/arrow-datafusion.git", rev="ebb839068b9d99d3a3fea0a50a1e4baf4f1a5fca", default-features = false }
+datafusion-proto = { git = "https://github.com/apache/arrow-datafusion.git", rev="ebb839068b9d99d3a3fea0a50a1e4baf4f1a5fca" }
 hashbrown = { version = "0.13.2" }
-parquet = { version = "36.0.0" }
-tonic = { version = "0.8.3", features = ["tls", "tls-webpki-roots"] }
-tonic-build = { version = "0.8" }
-tonic-health = { version = "0.8.0" }
-tonic-reflection = { version = "0.6.0" }
+parquet = { version = "37.0.0" }
+tonic = { version = "0.9.1", features = ["tls", "tls-webpki-roots"] }
+tonic-build = { version = "0.9.1" }
+tonic-health = { version = "0.9.1" }
+tonic-reflection = { version = "0.9.1" }
 
 
 

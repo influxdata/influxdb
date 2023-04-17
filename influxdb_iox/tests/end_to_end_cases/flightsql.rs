@@ -2,7 +2,7 @@ use std::{collections::HashMap, path::PathBuf, sync::Arc};
 
 use arrow::{
     array::as_generic_binary_array,
-    datatypes::{DataType, Schema, SchemaRef, TimeUnit},
+    datatypes::{DataType, Fields, Schema, SchemaRef, TimeUnit},
     record_batch::RecordBatch,
 };
 use arrow_flight::{
@@ -330,6 +330,64 @@ async fn flightsql_get_catalogs_matches_information_schema() {
                     );
 
                     assert_eq!(get_catalogs_output, information_schema_output);
+                }
+                .boxed()
+            })),
+        ],
+    )
+    .run()
+    .await
+}
+
+#[tokio::test]
+async fn flightsql_get_cross_reference() {
+    test_helpers::maybe_start_logging();
+    let database_url = maybe_skip_integration!();
+
+    let primary_table_name = "primary_table";
+    let foreign_table_name = "foreign_table";
+
+    // Set up the cluster  ====================================
+    let mut cluster = MiniCluster::create_shared2(database_url).await;
+
+    StepTest::new(
+        &mut cluster,
+        vec![
+            Step::WriteLineProtocol(format!(
+                "{primary_table_name},tag1=A,tag2=B val=42i 123456\n\
+                 {primary_table_name},tag1=A,tag2=C val=43i 123457\n
+                 {foreign_table_name},tag1=B,tag2=D val=42i 123456\n\
+                 {foreign_table_name},tag1=C,tag2=F val=43i 123457"
+            )),
+            Step::Custom(Box::new(move |state: &mut StepTestState| {
+                async move {
+                    let mut client = flightsql_client(state.cluster());
+                    let pk_catalog: Option<String> = None;
+                    let pk_db_schema: Option<String> = None;
+                    let fk_catalog: Option<String> = None;
+                    let fk_db_schema: Option<String> = None;
+
+                    let stream = client
+                        .get_cross_reference(
+                            pk_catalog,
+                            pk_db_schema,
+                            primary_table_name.to_string(),
+                            fk_catalog,
+                            fk_db_schema,
+                            foreign_table_name.to_string(),
+                        )
+                        .await
+                        .unwrap();
+                    let batches = collect_stream(stream).await;
+
+                    insta::assert_yaml_snapshot!(
+                        batches_to_sorted_lines(&batches),
+                        @r###"
+                    ---
+                    - ++
+                    - ++
+                    "###
+                    );
                 }
                 .boxed()
             })),
@@ -985,6 +1043,52 @@ async fn flightsql_get_exported_keys() {
 }
 
 #[tokio::test]
+async fn flightsql_get_imported_keys() {
+    test_helpers::maybe_start_logging();
+    let database_url = maybe_skip_integration!();
+
+    let table_name = "the_table";
+
+    // Set up the cluster  ====================================
+    let mut cluster = MiniCluster::create_shared2(database_url).await;
+
+    StepTest::new(
+        &mut cluster,
+        vec![
+            Step::WriteLineProtocol(format!(
+                "{table_name},tag1=A,tag2=B val=42i 123456\n\
+                 {table_name},tag1=A,tag2=C val=43i 123457"
+            )),
+            Step::Custom(Box::new(move |state: &mut StepTestState| {
+                async move {
+                    let mut client = flightsql_client(state.cluster());
+                    let catalog: Option<String> = None;
+                    let db_schema: Option<String> = None;
+
+                    let stream = client
+                        .get_imported_keys(catalog, db_schema, table_name.to_string())
+                        .await
+                        .unwrap();
+                    let batches = collect_stream(stream).await;
+
+                    insta::assert_yaml_snapshot!(
+                        batches_to_sorted_lines(&batches),
+                        @r###"
+                    ---
+                    - ++
+                    - ++
+                    "###
+                    );
+                }
+                .boxed()
+            })),
+        ],
+    )
+    .run()
+    .await
+}
+
+#[tokio::test]
 async fn flightsql_get_primary_keys() {
     test_helpers::maybe_start_logging();
     let database_url = maybe_skip_integration!();
@@ -1300,10 +1404,10 @@ async fn assert_schema(client: &mut FlightClient, cmd: Any) {
 }
 
 fn strip_metadata(schema: &Schema) -> SchemaRef {
-    let stripped_fields: Vec<_> = schema
+    let stripped_fields: Fields = schema
         .fields()
         .iter()
-        .map(|f| f.clone().with_metadata(HashMap::new()))
+        .map(|f| f.as_ref().clone().with_metadata(HashMap::new()))
         .collect();
 
     Arc::new(Schema::new(stripped_fields))
@@ -1409,7 +1513,58 @@ async fn authz() {
 ///   2. bucket
 ///   3. bucket-name
 #[tokio::test]
-async fn flightsql_client_header_name_database() {
+async fn flightsql_client_header_same_database() {
+    test_helpers::maybe_start_logging();
+    let database_url = maybe_skip_integration!();
+
+    let table_name = "the_table";
+
+    // Set up the cluster  ====================================
+    let mut cluster = MiniCluster::create_shared2(database_url).await;
+
+    StepTest::new(
+        &mut cluster,
+        vec![
+            Step::WriteLineProtocol(format!(
+                "{table_name},tag1=A,tag2=B val=42i 123456\n\
+                 {table_name},tag1=A,tag2=C val=43i 123457"
+            )),
+            Step::Custom(Box::new(move |state: &mut StepTestState| {
+                async move {
+                    let mut client = flightsql_client_helper(state.cluster(), "iox-namespace-name");
+                    for header_name in &["database", "bucket", "bucket-name"] {
+                        // different header names with the same database name
+                        client
+                            .add_header(header_name, state.cluster().namespace())
+                            .unwrap();
+                    }
+
+                    let stream = client.get_table_types().await.unwrap();
+                    let batches = collect_stream(stream).await;
+
+                    insta::assert_yaml_snapshot!(
+                        batches_to_sorted_lines(&batches),
+                        @r###"
+                    ---
+                    - +------------+
+                    - "| table_type |"
+                    - +------------+
+                    - "| BASE TABLE |"
+                    - "| VIEW       |"
+                    - +------------+
+                    "###
+                    );
+                }
+                .boxed()
+            })),
+        ],
+    )
+    .run()
+    .await
+}
+
+#[tokio::test]
+async fn flightsql_client_header_different_database() {
     test_helpers::maybe_start_logging();
     let database_url = maybe_skip_integration!();
 
@@ -1428,21 +1583,16 @@ async fn flightsql_client_header_name_database() {
             Step::Custom(Box::new(move |state: &mut StepTestState| {
                 async move {
                     let mut client = flightsql_client_helper(state.cluster(), "database");
+                    client
+                        .add_header("bucket", "different_database_name")
+                        .unwrap();
 
-                    let stream = client.get_table_types().await.unwrap();
-                    let batches = collect_stream(stream).await;
+                    let err = client.get_table_types().await.unwrap_err();
 
-                    insta::assert_yaml_snapshot!(
-                        batches_to_sorted_lines(&batches),
-                        @r###"
-                    ---
-                    - +------------+
-                    - "| table_type |"
-                    - +------------+
-                    - "| BASE TABLE |"
-                    - "| VIEW       |"
-                    - +------------+
-                    "###
+                    assert_matches!(err, FlightError::Tonic(status) => {
+                        assert_eq!(status.code(), tonic::Code::InvalidArgument);
+                        assert_contains!(status.message(), "More than one headers are found in request");
+                    }
                     );
                 }
                 .boxed()
@@ -1454,7 +1604,7 @@ async fn flightsql_client_header_name_database() {
 }
 
 #[tokio::test]
-async fn flightsql_client_header_name_bucket() {
+async fn flightsql_client_header_no_database() {
     test_helpers::maybe_start_logging();
     let database_url = maybe_skip_integration!();
 
@@ -1472,67 +1622,17 @@ async fn flightsql_client_header_name_bucket() {
             )),
             Step::Custom(Box::new(move |state: &mut StepTestState| {
                 async move {
-                    let mut client = flightsql_client_helper(state.cluster(), "bucket");
+                    let connection = state.cluster().querier().querier_grpc_connection();
+                    let (channel, _headers) = connection.into_grpc_connection().into_parts();
 
-                    let stream = client.get_table_types().await.unwrap();
-                    let batches = collect_stream(stream).await;
+                    let mut client = FlightSqlClient::new(channel);
 
-                    insta::assert_yaml_snapshot!(
-                        batches_to_sorted_lines(&batches),
-                        @r###"
-                    ---
-                    - +------------+
-                    - "| table_type |"
-                    - +------------+
-                    - "| BASE TABLE |"
-                    - "| VIEW       |"
-                    - +------------+
-                    "###
-                    );
-                }
-                .boxed()
-            })),
-        ],
-    )
-    .run()
-    .await
-}
+                    let err = client.get_table_types().await.unwrap_err();
 
-#[tokio::test]
-async fn flightsql_client_header_name_bucket_name() {
-    test_helpers::maybe_start_logging();
-    let database_url = maybe_skip_integration!();
-
-    let table_name = "the_table";
-
-    // Set up the cluster  ====================================
-    let mut cluster = MiniCluster::create_shared2(database_url).await;
-
-    StepTest::new(
-        &mut cluster,
-        vec![
-            Step::WriteLineProtocol(format!(
-                "{table_name},tag1=A,tag2=B val=42i 123456\n\
-                 {table_name},tag1=A,tag2=C val=43i 123457"
-            )),
-            Step::Custom(Box::new(move |state: &mut StepTestState| {
-                async move {
-                    let mut client = flightsql_client_helper(state.cluster(), "bucket-name");
-
-                    let stream = client.get_table_types().await.unwrap();
-                    let batches = collect_stream(stream).await;
-
-                    insta::assert_yaml_snapshot!(
-                        batches_to_sorted_lines(&batches),
-                        @r###"
-                    ---
-                    - +------------+
-                    - "| table_type |"
-                    - +------------+
-                    - "| BASE TABLE |"
-                    - "| VIEW       |"
-                    - +------------+
-                    "###
+                    assert_matches!(err, FlightError::Tonic(status) => {
+                        assert_eq!(status.code(), tonic::Code::InvalidArgument);
+                        assert_contains!(status.message(), "no 'database' header in request");
+                    }
                     );
                 }
                 .boxed()
@@ -1545,7 +1645,7 @@ async fn flightsql_client_header_name_bucket_name() {
 
 /// Return a [`FlightSqlClient`] configured for use
 fn flightsql_client(cluster: &MiniCluster) -> FlightSqlClient {
-    flightsql_client_helper(cluster, "iox-namespace-name")
+    flightsql_client_helper(cluster, "database")
 }
 
 /// Helper function for fn `flightsql_client` that returns a [`FlightSqlClient`] configured for use

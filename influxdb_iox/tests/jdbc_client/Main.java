@@ -128,6 +128,11 @@ public class Main {
         print_result_set(md.getCatalogs());
 
         System.out.println("**************");
+        System.out.println("CrossReference");
+        System.out.println("**************");
+        print_result_set(md.getCrossReference(null, null, "system", null, null, "iox"));
+
+        System.out.println("**************");
         System.out.println("Schemas:");
         System.out.println("**************");
         print_result_set(md.getSchemas());
@@ -136,6 +141,12 @@ public class Main {
         System.out.println("ExportedKeys");
         System.out.println("**************");
         print_result_set(md.getExportedKeys(null, null, "system"));
+
+
+        System.out.println("**************");
+        System.out.println("ImportedKeys");
+        System.out.println("**************");
+        print_result_set(md.getImportedKeys(null, null, "system"));
 
         System.out.println("**************");
         System.out.println("PrimaryKeys:");

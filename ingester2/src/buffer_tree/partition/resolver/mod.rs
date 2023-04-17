@@ -16,5 +16,8 @@ pub(crate) use catalog::*;
 mod sort_key;
 pub(crate) use sort_key::*;
 
+mod coalesce;
+pub(crate) use coalesce::*;
+
 #[cfg(test)]
 pub(crate) mod mock;

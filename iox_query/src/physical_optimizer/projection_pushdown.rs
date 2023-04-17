@@ -169,12 +169,14 @@ impl PhysicalOptimizerRule for ProjectionPushdown {
                         &column_names,
                         Arc::clone(child_sort.input()),
                         |plan| {
-                            Ok(Arc::new(SortExec::new_with_partitioning(
-                                reassign_sort_exprs_columns(child_sort.expr(), &plan.schema())?,
-                                plan,
-                                child_sort.preserve_partitioning(),
-                                child_sort.fetch(),
-                            )))
+                            Ok(Arc::new(
+                                SortExec::new(
+                                    reassign_sort_exprs_columns(child_sort.expr(), &plan.schema())?,
+                                    plan,
+                                )
+                                .with_preserve_partitioning(child_sort.preserve_partitioning())
+                                .with_fetch(child_sort.fetch()),
+                            ))
                         },
                     )?;
 
@@ -930,7 +932,7 @@ mod tests {
             ProjectionExec::try_new(
                 vec![(expr_col("tag1", &schema), String::from("tag1"))],
                 Arc::new(
-                    SortExec::try_new(
+                    SortExec::new(
                         vec![PhysicalSortExpr {
                             expr: expr_col("tag2", &schema),
                             options: SortOptions {
@@ -939,9 +941,8 @@ mod tests {
                             },
                         }],
                         Arc::new(TestExec::new(schema)),
-                        Some(42),
                     )
-                    .unwrap(),
+                    .with_fetch(Some(42)),
                 ),
             )
             .unwrap(),
@@ -971,18 +972,20 @@ mod tests {
         let plan = Arc::new(
             ProjectionExec::try_new(
                 vec![(expr_col("tag1", &schema), String::from("tag1"))],
-                Arc::new(SortExec::new_with_partitioning(
-                    vec![PhysicalSortExpr {
-                        expr: expr_col("tag2", &schema),
-                        options: SortOptions {
-                            descending: true,
-                            ..Default::default()
-                        },
-                    }],
-                    Arc::new(TestExec::new_with_partitions(schema, 2)),
-                    true,
-                    Some(42),
-                )),
+                Arc::new(
+                    SortExec::new(
+                        vec![PhysicalSortExpr {
+                            expr: expr_col("tag2", &schema),
+                            options: SortOptions {
+                                descending: true,
+                                ..Default::default()
+                            },
+                        }],
+                        Arc::new(TestExec::new_with_partitions(schema, 2)),
+                    )
+                    .with_preserve_partitioning(true)
+                    .with_fetch(Some(42)),
+                ),
             )
             .unwrap(),
         );
