@@ -590,10 +590,6 @@ pub trait ParquetFileRepo: Send + Sync {
     /// MAY call this method again if the result was NOT empty.
     async fn delete_old_ids_only(&mut self, older_than: Timestamp) -> Result<Vec<ParquetFileId>>;
 
-    /// List parquet files for a given shard with compaction level 0 and other criteria that
-    /// define a file as a candidate for compaction
-    async fn level_0(&mut self, shard_id: ShardId) -> Result<Vec<ParquetFile>>;
-
     /// List parquet files for a given table partition, in a given time range, with compaction
     /// level 1, and other criteria that define a file as a candidate for compaction with a level 0
     /// file
@@ -931,7 +927,6 @@ pub(crate) mod test_helpers {
         test_partition(clean_state().await).await;
         test_parquet_file(clean_state().await).await;
         test_parquet_file_delete_broken(clean_state().await).await;
-        test_parquet_file_compaction_level_0(clean_state().await).await;
         test_parquet_file_compaction_level_1(clean_state().await).await;
         test_recent_highest_throughput_partitions(clean_state().await).await;
         test_partitions_with_small_l1_file_count(clean_state().await).await;
@@ -2633,131 +2628,6 @@ pub(crate) mod test_helpers {
             .await
             .unwrap();
         assert_eq!(ids, vec![parquet_file_2.id]);
-    }
-
-    async fn test_parquet_file_compaction_level_0(catalog: Arc<dyn Catalog>) {
-        let mut repos = catalog.repositories().await;
-        let topic = repos.topics().create_or_get("foo").await.unwrap();
-        let pool = repos.query_pools().create_or_get("foo").await.unwrap();
-        let namespace = repos
-            .namespaces()
-            .create(
-                "namespace_parquet_file_compaction_level_0_test",
-                None,
-                topic.id,
-                pool.id,
-            )
-            .await
-            .unwrap();
-        let table = repos
-            .tables()
-            .create_or_get("test_table", namespace.id)
-            .await
-            .unwrap();
-        let shard = repos
-            .shards()
-            .create_or_get(&topic, ShardIndex::new(100))
-            .await
-            .unwrap();
-        let other_shard = repos
-            .shards()
-            .create_or_get(&topic, ShardIndex::new(101))
-            .await
-            .unwrap();
-
-        let partition = repos
-            .partitions()
-            .create_or_get("one".into(), shard.id, table.id)
-            .await
-            .unwrap();
-
-        let min_time = Timestamp::new(1);
-        let max_time = Timestamp::new(10);
-
-        let parquet_file_params = ParquetFileParams {
-            shard_id: shard.id,
-            namespace_id: namespace.id,
-            table_id: partition.table_id,
-            partition_id: partition.id,
-            object_store_id: Uuid::new_v4(),
-            max_sequence_number: SequenceNumber::new(140),
-            min_time,
-            max_time,
-            file_size_bytes: 1337,
-            row_count: 0,
-            compaction_level: CompactionLevel::Initial,
-            created_at: Timestamp::new(1),
-            column_set: ColumnSet::new([ColumnId::new(1), ColumnId::new(2)]),
-            max_l0_created_at: Timestamp::new(1),
-        };
-
-        let parquet_file = repos
-            .parquet_files()
-            .create(parquet_file_params.clone())
-            .await
-            .unwrap();
-
-        // Create a compaction level 0 file for some other shard
-        let other_shard_params = ParquetFileParams {
-            shard_id: other_shard.id,
-            object_store_id: Uuid::new_v4(),
-            ..parquet_file_params.clone()
-        };
-
-        let _other_shard_file = repos
-            .parquet_files()
-            .create(other_shard_params)
-            .await
-            .unwrap();
-
-        // Create a compaction level 0 file marked to delete
-        let to_delete_params = ParquetFileParams {
-            object_store_id: Uuid::new_v4(),
-            ..parquet_file_params.clone()
-        };
-        let to_delete_file = repos
-            .parquet_files()
-            .create(to_delete_params)
-            .await
-            .unwrap();
-        repos
-            .parquet_files()
-            .flag_for_delete(to_delete_file.id)
-            .await
-            .unwrap();
-
-        // Create a compaction level 1 file
-        let level_1_params = ParquetFileParams {
-            object_store_id: Uuid::new_v4(),
-            ..parquet_file_params.clone()
-        };
-        let level_1_file = repos.parquet_files().create(level_1_params).await.unwrap();
-        repos
-            .parquet_files()
-            .update_compaction_level(&[level_1_file.id], CompactionLevel::FileNonOverlapped)
-            .await
-            .unwrap();
-
-        // Level 0 parquet files for a shard should contain only those that match the right
-        // criteria
-        let level_0 = repos.parquet_files().level_0(shard.id).await.unwrap();
-        let mut level_0_ids: Vec<_> = level_0.iter().map(|pf| pf.id).collect();
-        level_0_ids.sort();
-        let expected = vec![parquet_file];
-        let mut expected_ids: Vec<_> = expected.iter().map(|pf| pf.id).collect();
-        expected_ids.sort();
-
-        assert_eq!(
-            level_0_ids, expected_ids,
-            "\nlevel 0: {level_0:#?}\nexpected: {expected:#?}",
-        );
-
-        // drop the namespace to avoid the created data in this tests from affecting other tests
-        repos
-            .namespaces()
-            .soft_delete("namespace_parquet_file_compaction_level_0_test")
-            .await
-            .expect("delete namespace should succeed");
     }
 
     async fn test_parquet_file_compaction_level_1(catalog: Arc<dyn Catalog>) {
@@ -5019,18 +4889,6 @@ pub(crate) mod test_helpers {
         // Create a ParquetFileId that doesn't actually exist in the catalog
         let nonexistent_parquet_file_id = ParquetFileId::new(level_0_file.id.get() + 1);
 
-        // Level 0 parquet files should contain both existing files at this point
-        let expected = vec![parquet_file.clone(), level_0_file.clone()];
-        let level_0 = repos.parquet_files().level_0(shard.id).await.unwrap();
-        let mut level_0_ids: Vec<_> = level_0.iter().map(|pf| pf.id).collect();
-        level_0_ids.sort();
-        let mut expected_ids: Vec<_> = expected.iter().map(|pf| pf.id).collect();
-        expected_ids.sort();
-        assert_eq!(
-            level_0_ids, expected_ids,
-            "\nlevel 0: {level_0:#?}\nexpected: {expected:#?}",
-        );
-
         // Make parquet_file compaction level 1, attempt to mark the nonexistent file; operation
         // should succeed
         let updated = repos
@@ -5042,18 +4900,6 @@ pub(crate) mod test_helpers {
             .await
             .unwrap();
         assert_eq!(updated, vec![parquet_file.id]);
-
-        // Level 0 parquet files should only contain level_0_file
-        let expected = vec![level_0_file];
-        let level_0 = repos.parquet_files().level_0(shard.id).await.unwrap();
-        let mut level_0_ids: Vec<_> = level_0.iter().map(|pf| pf.id).collect();
-        level_0_ids.sort();
-        let mut expected_ids: Vec<_> = expected.iter().map(|pf| pf.id).collect();
-        expected_ids.sort();
-        assert_eq!(
-            level_0_ids, expected_ids,
-            "\nlevel 0: {level_0:#?}\nexpected: {expected:#?}",
-        );
 
         // Level 1 parquet files for a shard should only contain parquet_file
         let expected = vec![parquet_file];

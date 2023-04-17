@@ -1097,21 +1097,6 @@ impl ParquetFileRepo for MemTxn {
         Ok(delete)
     }
 
-    async fn level_0(&mut self, shard_id: ShardId) -> Result<Vec<ParquetFile>> {
-        let stage = self.stage();
-
-        Ok(stage
-            .parquet_files
-            .iter()
-            .filter(|f| {
-                f.shard_id == shard_id
-                    && f.compaction_level == CompactionLevel::Initial
-                    && f.to_delete.is_none()
-            })
-            .cloned()
-            .collect())
-    }
-
     async fn level_1(
         &mut self,
         table_partition: TablePartition,

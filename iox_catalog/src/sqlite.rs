@@ -1544,34 +1544,6 @@ RETURNING id;
         Ok(deleted)
     }
 
-    async fn level_0(&mut self, shard_id: ShardId) -> Result<Vec<ParquetFile>> {
-        // this intentionally limits the returned files to 10,000 as it is used to make
-        // a decision on the highest priority partitions. If compaction has never been
-        // run this could end up returning millions of results and taking too long to run.
-        // Deliberately doesn't use `SELECT *` to avoid the performance hit of fetching the large
-        // `parquet_metadata` column!!
-        Ok(sqlx::query_as::<_, ParquetFilePod>(
-            r#"
-SELECT id, shard_id, namespace_id, table_id, partition_id, object_store_id,
-       max_sequence_number, min_time, max_time, to_delete, file_size_bytes,
-       row_count, compaction_level, created_at, column_set, max_l0_created_at
-FROM parquet_file
-WHERE parquet_file.shard_id = $1
-  AND parquet_file.compaction_level = $2
-  AND parquet_file.to_delete IS NULL
-  LIMIT 1000;
-        "#,
-        )
-        .bind(shard_id) // $1
-        .bind(CompactionLevel::Initial) // $2
-        .fetch_all(self.inner.get_mut())
-        .await
-        .map_err(|e| Error::SqlxError { source: e })?
-        .into_iter()
-        .map(Into::into)
-        .collect())
-    }
-
     async fn level_1(
         &mut self,
         table_partition: TablePartition,

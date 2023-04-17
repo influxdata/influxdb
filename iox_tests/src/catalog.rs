@@ -6,8 +6,8 @@ use arrow::{
 };
 use data_types::{
     Column, ColumnSet, ColumnType, CompactionLevel, Namespace, NamespaceSchema, ParquetFile,
-    ParquetFileParams, Partition, PartitionId, QueryPool, SequenceNumber, Shard, ShardId,
-    ShardIndex, Table, TableId, TablePartition, TableSchema, Timestamp, TopicMetadata,
+    ParquetFileParams, Partition, PartitionId, QueryPool, SequenceNumber, Shard, ShardIndex, Table,
+    TableId, TablePartition, TableSchema, Timestamp, TopicMetadata,
 };
 use datafusion::physical_plan::metrics::Count;
 use datafusion_util::MemoryStream;
@@ -183,30 +183,6 @@ impl TestCatalog {
     ) -> Arc<TestNamespace> {
         self.create_namespace_with_retention(name, TEST_RETENTION_PERIOD_NS)
             .await
-    }
-
-    /// List level 0 files
-    pub async fn list_level_0_files(self: &Arc<Self>, shard_id: ShardId) -> Vec<ParquetFile> {
-        self.catalog
-            .repositories()
-            .await
-            .parquet_files()
-            .level_0(shard_id)
-            .await
-            .unwrap()
-    }
-
-    /// Count level 0 files
-    pub async fn count_level_0_files(self: &Arc<Self>, shard_id: ShardId) -> usize {
-        let level_0 = self
-            .catalog
-            .repositories()
-            .await
-            .parquet_files()
-            .level_0(shard_id)
-            .await
-            .unwrap();
-        level_0.len()
     }
 
     /// Count level 1 files
