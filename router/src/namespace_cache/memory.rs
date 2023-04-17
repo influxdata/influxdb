@@ -62,9 +62,10 @@ impl NamespaceCache for Arc<MemoryNamespaceCache> {
                     };
 
                     for (column_name, column) in old_columns {
-                        if !new_table.columns.contains_key(column_name) {
-                            new_table.columns.insert(column_name.clone(), *column);
-                        }
+                        new_table
+                            .columns
+                            .entry(column_name.clone())
+                            .or_insert(*column);
                     }
                 }
 
