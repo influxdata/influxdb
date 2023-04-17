@@ -1,5 +1,6 @@
 use arrow::datatypes::SchemaRef;
 use influxdb_influxql_parser::show_field_keys::ShowFieldKeysStatement;
+use influxdb_influxql_parser::show_measurements::ShowMeasurementsStatement;
 use influxdb_influxql_parser::show_tag_values::ShowTagValuesStatement;
 use std::any::Any;
 use std::collections::{HashMap, HashSet};
@@ -249,6 +250,17 @@ fn find_all_measurements(stmt: &Statement, tables: &[String]) -> Result<HashSet<
             Ok(self)
         }
 
+        fn post_visit_show_measurements_statement(
+            self,
+            sm: &ShowMeasurementsStatement,
+        ) -> Result<Self, Self::Error> {
+            if sm.with_measurement.is_none() {
+                self.0.extend(self.1.iter().cloned());
+            }
+
+            Ok(self)
+        }
+
         fn post_visit_show_field_keys_statement(
             self,
             sfk: &ShowFieldKeysStatement,
@@ -326,6 +338,17 @@ mod test {
         assert_eq!(
             find("SELECT * FROM foo, (SELECT * FROM /bar/)"),
             vec!["bar", "foo", "foobar"]
+        );
+
+        // Find all measurements in `SHOW MEASUREMENTS`
+        assert_eq!(find("SHOW MEASUREMENTS"), vec!["bar", "foo", "foobar"]);
+        assert_eq!(
+            find("SHOW MEASUREMENTS WITH MEASUREMENT = foo"),
+            vec!["foo"]
+        );
+        assert_eq!(
+            find("SHOW MEASUREMENTS WITH MEASUREMENT =~ /^foo/"),
+            vec!["foo", "foobar"]
         );
 
         // Find all measurements in `SHOW FIELD KEYS`

@@ -1,4 +1,86 @@
 -- Test Setup: InfluxQLSelectSupport
+-- InfluxQL: SHOW MEASUREMENTS;
+name: measurements
++------+
+| name |
++------+
+| cpu  |
+| disk |
+| m0   |
+| m1   |
+| m2   |
+| m3   |
+| m4   |
++------+
+-- InfluxQL: SHOW MEASUREMENTS LIMIT 2;
+name: measurements
++------+
+| name |
++------+
+| cpu  |
+| disk |
++------+
+-- InfluxQL: SHOW MEASUREMENTS OFFSET 1;
+name: measurements
++------+
+| name |
++------+
+| disk |
+| m0   |
+| m1   |
+| m2   |
+| m3   |
+| m4   |
++------+
+-- InfluxQL: SHOW MEASUREMENTS LIMIT 1 OFFSET 2;
+name: measurements
++------+
+| name |
++------+
+| m0   |
++------+
+-- InfluxQL: SHOW MEASUREMENTS WITH MEASUREMENT =~ /m.*/;
+name: measurements
++------+
+| name |
++------+
+| m0   |
+| m1   |
+| m2   |
+| m3   |
+| m4   |
++------+
+-- InfluxQL: SHOW MEASUREMENTS WITH MEASUREMENT =~ /d\isk/;
+name: measurements
++------+
+| name |
++------+
+| disk |
++------+
+-- InfluxQL: SHOW MEASUREMENTS WITH MEASUREMENT = disk;
+name: measurements
++------+
+| name |
++------+
+| disk |
++------+
+-- InfluxQL: SHOW MEASUREMENTS WITH MEASUREMENT = does_not_exist;
+-- InfluxQL: SHOW MEASUREMENTS WITH MEASUREMENT = /my_db/;
+Error while planning query: Error during planning: expected string but got regex
+-- InfluxQL: SHOW MEASUREMENTS WITH MEASUREMENT =~ my_db;
+Error while planning query: Error during planning: expected regex but got string
+-- InfluxQL: SHOW MEASUREMENTS ON my_db;
+Error while planning query: This feature is not implemented: SHOW MEASUREMENTS ON <database>
+-- InfluxQL: SHOW MEASUREMENTS WITH MEASUREMENT = x.my_db;
+Error while planning query: This feature is not implemented: retention policy in from clause
+-- InfluxQL: SHOW MEASUREMENTS WITH MEASUREMENT = x.y.my_db;
+Error while planning query: This feature is not implemented: database name in from clause
+-- InfluxQL: SHOW MEASUREMENTS WITH MEASUREMENT =~ x./my_db/;
+Error while planning query: This feature is not implemented: retention policy in from clause
+-- InfluxQL: SHOW MEASUREMENTS WITH MEASUREMENT =~ x.y./my_db/;
+Error while planning query: This feature is not implemented: database name in from clause
+-- InfluxQL: SHOW MEASUREMENTS WHERE "tag0" = 'x';
+Error while planning query: This feature is not implemented: SHOW MEASUREMENTS WHERE <condition>
 -- InfluxQL: SHOW FIELD KEYS;
 name: cpu
 +--------------+-----------+
