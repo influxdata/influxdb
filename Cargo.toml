@@ -116,6 +116,7 @@ license = "MIT OR Apache-2.0"
 [workspace.dependencies]
 arrow = { version = "37.0.0" }
 arrow-flight = { version = "37.0.0" }
+chrono-english = { git = "https://github.com/stevedonovan/chrono-english.git", rev = "def5941ebee24b55e1174eb18ab33d91603f907a" }
 datafusion = { git = "https://github.com/apache/arrow-datafusion.git", rev="ebb839068b9d99d3a3fea0a50a1e4baf4f1a5fca", default-features = false }
 datafusion-proto = { git = "https://github.com/apache/arrow-datafusion.git", rev="ebb839068b9d99d3a3fea0a50a1e4baf4f1a5fca" }
 hashbrown = { version = "0.13.2" }
