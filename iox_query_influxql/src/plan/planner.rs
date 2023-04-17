@@ -1308,14 +1308,10 @@ impl<'a> InfluxQLToLogicalPlan<'a> {
     fn show_tag_keys_to_plan(&self, show_tag_keys: ShowTagKeysStatement) -> Result<LogicalPlan> {
         if show_tag_keys.database.is_some() {
             // How do we handle this? Do we need to perform cross-namespace queries here?
-            return Err(DataFusionError::NotImplemented(
-                "SHOW TAG KEYS ON <database>".into(),
-            ));
+            return error::not_implemented("SHOW TAG KEYS ON <database>");
         }
         if show_tag_keys.condition.is_some() {
-            return Err(DataFusionError::NotImplemented(
-                "SHOW TAG KEYS WHERE <condition>".into(),
-            ));
+            return error::not_implemented("SHOW TAG KEYS WHERE <condition>");
         }
 
         let tag_key_col = "tagKey";
@@ -1465,14 +1461,10 @@ impl<'a> InfluxQLToLogicalPlan<'a> {
     ) -> Result<LogicalPlan> {
         if show_tag_values.database.is_some() {
             // How do we handle this? Do we need to perform cross-namespace queries here?
-            return Err(DataFusionError::NotImplemented(
-                "SHOW TAG VALUES ON <database>".into(),
-            ));
+            return error::not_implemented("SHOW TAG VALUES ON <database>");
         }
         if show_tag_values.condition.is_some() {
-            return Err(DataFusionError::NotImplemented(
-                "SHOW TAG VALUES WHERE <condition>".into(),
-            ));
+            return error::not_implemented("SHOW TAG VALUES WHERE <condition>");
         }
 
         let key_col = "key";
@@ -1563,14 +1555,10 @@ impl<'a> InfluxQLToLogicalPlan<'a> {
     ) -> Result<LogicalPlan> {
         if show_measurements.on.is_some() {
             // How do we handle this? Do we need to perform cross-namespace queries here?
-            return Err(DataFusionError::NotImplemented(
-                "SHOW MEASUREMENTS ON <database>".into(),
-            ));
+            return error::not_implemented("SHOW MEASUREMENTS ON <database>");
         }
         if show_measurements.condition.is_some() {
-            return Err(DataFusionError::NotImplemented(
-                "SHOW MEASUREMENTS WHERE <condition>".into(),
-            ));
+            return error::not_implemented("SHOW MEASUREMENTS WHERE <condition>");
         }
 
         let tables = match show_measurements.with_measurement {
@@ -1578,17 +1566,13 @@ impl<'a> InfluxQLToLogicalPlan<'a> {
                 WithMeasurementClause::Equals(qualified_name)
                 | WithMeasurementClause::Regex(qualified_name),
             ) if qualified_name.database.is_some() => {
-                return Err(DataFusionError::NotImplemented(
-                    "database name in from clause".into(),
-                ));
+                return error::not_implemented("database name in from clause");
             }
             Some(
                 WithMeasurementClause::Equals(qualified_name)
                 | WithMeasurementClause::Regex(qualified_name),
             ) if qualified_name.retention_policy.is_some() => {
-                return Err(DataFusionError::NotImplemented(
-                    "retention policy in from clause".into(),
-                ));
+                return error::not_implemented("retention policy in from clause");
             }
             Some(WithMeasurementClause::Equals(qualified_name)) => match qualified_name.name {
                 MeasurementName::Name(n) => {
@@ -1600,16 +1584,12 @@ impl<'a> InfluxQLToLogicalPlan<'a> {
                     }
                 }
                 MeasurementName::Regex(_) => {
-                    return Err(DataFusionError::Plan(String::from(
-                        "expected string but got regex",
-                    )));
+                    return error::query("expected string but got regex");
                 }
             },
             Some(WithMeasurementClause::Regex(qualified_name)) => match &qualified_name.name {
                 MeasurementName::Name(_) => {
-                    return Err(DataFusionError::Plan(String::from(
-                        "expected regex but got string",
-                    )));
+                    return error::query("expected regex but got string");
                 }
                 MeasurementName::Regex(regex) => {
                     let regex = parse_regex(regex)?;
