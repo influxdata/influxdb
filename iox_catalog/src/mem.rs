@@ -780,23 +780,6 @@ impl PartitionRepo for MemTxn {
             .cloned())
     }
 
-    async fn list_by_namespace(&mut self, namespace_id: NamespaceId) -> Result<Vec<Partition>> {
-        let stage = self.stage();
-
-        let table_ids: HashSet<_> = stage
-            .tables
-            .iter()
-            .filter_map(|table| (table.namespace_id == namespace_id).then_some(table.id))
-            .collect();
-        let partitions: Vec<_> = stage
-            .partitions
-            .iter()
-            .filter(|p| table_ids.contains(&p.table_id))
-            .cloned()
-            .collect();
-        Ok(partitions)
-    }
-
     async fn list_by_table_id(&mut self, table_id: TableId) -> Result<Vec<Partition>> {
         let stage = self.stage();
 

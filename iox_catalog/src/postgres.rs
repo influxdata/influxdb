@@ -1249,21 +1249,6 @@ RETURNING *;
         Ok(Some(partition))
     }
 
-    async fn list_by_namespace(&mut self, namespace_id: NamespaceId) -> Result<Vec<Partition>> {
-        sqlx::query_as::<_, Partition>(
-            r#"
-SELECT partition.*
-FROM table_name
-INNER JOIN partition on partition.table_id = table_name.id
-WHERE table_name.namespace_id = $1;
-            "#,
-        )
-        .bind(namespace_id) // $1
-        .fetch_all(&mut self.inner)
-        .await
-        .map_err(|e| Error::SqlxError { source: e })
-    }
-
     async fn list_by_table_id(&mut self, table_id: TableId) -> Result<Vec<Partition>> {
         sqlx::query_as::<_, Partition>(
             r#"

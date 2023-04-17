@@ -480,9 +480,6 @@ pub trait PartitionRepo: Send + Sync {
     /// get partition by ID
     async fn get_by_id(&mut self, partition_id: PartitionId) -> Result<Option<Partition>>;
 
-    /// return partitions for a given namespace
-    async fn list_by_namespace(&mut self, namespace_id: NamespaceId) -> Result<Vec<Partition>>;
-
     /// return the partitions by table id
     async fn list_by_table_id(&mut self, table_id: TableId) -> Result<Vec<Partition>>;
 
@@ -1808,40 +1805,6 @@ pub(crate) mod test_helpers {
 
         assert_eq!(created.keys().copied().collect::<BTreeSet<_>>(), listed);
 
-        // test list_by_namespace
-        let namespace2 = repos
-            .namespaces()
-            .create("namespace_partition_test2", None, topic.id, pool.id)
-            .await
-            .unwrap();
-        let table2 = repos
-            .tables()
-            .create_or_get("test_table2", namespace2.id)
-            .await
-            .unwrap();
-        repos
-            .partitions()
-            .create_or_get("some_key".into(), shard.id, table2.id)
-            .await
-            .expect("failed to create partition");
-        let listed = repos
-            .partitions()
-            .list_by_namespace(namespace.id)
-            .await
-            .expect("failed to list partitions")
-            .into_iter()
-            .map(|v| (v.id, v))
-            .collect::<BTreeMap<_, _>>();
-        let expected: BTreeMap<_, _> = created
-            .iter()
-            .map(|(k, v)| (*k, v.clone()))
-            .chain(std::iter::once((
-                other_partition.id,
-                other_partition.clone(),
-            )))
-            .collect();
-        assert_eq!(expected, listed);
-
         // sort_key should be empty on creation
         assert!(other_partition.sort_key.is_empty());
 
@@ -2059,14 +2022,14 @@ pub(crate) mod test_helpers {
             .most_recent_n(10)
             .await
             .expect("should list most recent");
-        assert_eq!(recent.len(), 4);
+        assert_eq!(recent.len(), 3);
 
         let recent = repos
             .partitions()
-            .most_recent_n(4)
+            .most_recent_n(3)
             .await
             .expect("should list most recent");
-        assert_eq!(recent.len(), 4);
+        assert_eq!(recent.len(), 3);
 
         let recent = repos
             .partitions()
@@ -2080,14 +2043,14 @@ pub(crate) mod test_helpers {
             .most_recent_n_in_shards(10, &[shard.id, other_shard.id])
             .await
             .expect("should list most recent");
-        assert_eq!(recent.len(), 4);
+        assert_eq!(recent.len(), 3);
 
         let recent = repos
             .partitions()
             .most_recent_n_in_shards(10, &[shard.id])
             .await
             .expect("should list most recent");
-        assert_eq!(recent.len(), 3);
+        assert_eq!(recent.len(), 2);
 
         let recent2 = repos
             .partitions()
@@ -2096,11 +2059,6 @@ pub(crate) mod test_helpers {
             .expect("should list most recent");
         assert_eq!(recent, recent2);
 
-        repos
-            .namespaces()
-            .soft_delete("namespace_partition_test2")
-            .await
-            .expect("delete namespace should succeed");
         repos
             .namespaces()
             .soft_delete("namespace_partition_test")
