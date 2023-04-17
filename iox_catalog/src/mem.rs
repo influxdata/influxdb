@@ -904,22 +904,6 @@ impl PartitionRepo for MemTxn {
         Ok(stage.partitions.iter().rev().take(n).cloned().collect())
     }
 
-    async fn most_recent_n_in_shards(
-        &mut self,
-        n: usize,
-        shards: &[ShardId],
-    ) -> Result<Vec<Partition>> {
-        let stage = self.stage();
-        Ok(stage
-            .partitions
-            .iter()
-            .rev()
-            .filter(|p| shards.contains(&p.shard_id))
-            .take(n)
-            .cloned()
-            .collect())
-    }
-
     async fn partitions_with_recent_created_files(
         &mut self,
         time_in_the_past: Timestamp,

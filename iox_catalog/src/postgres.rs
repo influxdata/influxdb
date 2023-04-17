@@ -1436,21 +1436,6 @@ RETURNING *
             .map_err(|e| Error::SqlxError { source: e })
     }
 
-    async fn most_recent_n_in_shards(
-        &mut self,
-        n: usize,
-        shards: &[ShardId],
-    ) -> Result<Vec<Partition>> {
-        sqlx::query_as(
-            r#"SELECT * FROM partition WHERE shard_id IN (SELECT UNNEST($1)) ORDER BY id DESC LIMIT $2;"#,
-        )
-        .bind(shards.iter().map(|v| v.get()).collect::<Vec<_>>())
-        .bind(n as i64)
-        .fetch_all(&mut self.inner)
-        .await
-        .map_err(|e| Error::SqlxError { source: e })
-    }
-
     async fn partitions_with_recent_created_files(
         &mut self,
         time_in_the_past: Timestamp,

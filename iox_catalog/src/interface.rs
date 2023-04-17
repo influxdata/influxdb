@@ -536,13 +536,6 @@ pub trait PartitionRepo: Send + Sync {
     /// Return the N most recently created partitions.
     async fn most_recent_n(&mut self, n: usize) -> Result<Vec<Partition>>;
 
-    /// Return the N most recently created partitions for the specified shards.
-    async fn most_recent_n_in_shards(
-        &mut self,
-        n: usize,
-        shards: &[ShardId],
-    ) -> Result<Vec<Partition>>;
-
     /// Select partition for cold/warm/hot compaction
     /// These are partitions with files created recently (aka created after the specified time_in_the_past)
     /// These files include all levels of compaction files
@@ -2001,27 +1994,6 @@ pub(crate) mod test_helpers {
             .await
             .expect("should list most recent");
         assert_eq!(recent.len(), 2);
-
-        let recent = repos
-            .partitions()
-            .most_recent_n_in_shards(10, &[shard.id, other_shard.id])
-            .await
-            .expect("should list most recent");
-        assert_eq!(recent.len(), 3);
-
-        let recent = repos
-            .partitions()
-            .most_recent_n_in_shards(10, &[shard.id])
-            .await
-            .expect("should list most recent");
-        assert_eq!(recent.len(), 2);
-
-        let recent2 = repos
-            .partitions()
-            .most_recent_n_in_shards(10, &[shard.id, ShardId::new(42)])
-            .await
-            .expect("should list most recent");
-        assert_eq!(recent, recent2);
 
         repos
             .namespaces()
