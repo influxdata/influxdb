@@ -2,10 +2,10 @@
 
 use async_trait::async_trait;
 use data_types::{
-    Column, ColumnSchema, ColumnType, ColumnTypeCount, CompactionLevel, Namespace, NamespaceId,
-    NamespaceSchema, ParquetFile, ParquetFileId, ParquetFileParams, Partition, PartitionId,
-    PartitionKey, PartitionParam, QueryPool, QueryPoolId, SequenceNumber, Shard, ShardId,
-    ShardIndex, SkippedCompaction, Table, TableId, TablePartition, TableSchema, Timestamp, TopicId,
+    Column, ColumnSchema, ColumnType, CompactionLevel, Namespace, NamespaceId, NamespaceSchema,
+    ParquetFile, ParquetFileId, ParquetFileParams, Partition, PartitionId, PartitionKey,
+    PartitionParam, QueryPool, QueryPoolId, SequenceNumber, Shard, ShardId, ShardIndex,
+    SkippedCompaction, Table, TableId, TablePartition, TableSchema, Timestamp, TopicId,
     TopicMetadata,
 };
 use iox_time::TimeProvider;
@@ -432,12 +432,6 @@ pub trait ColumnRepo: Send + Sync {
 
     /// List all columns.
     async fn list(&mut self) -> Result<Vec<Column>>;
-
-    /// List column types and their count for a table
-    async fn list_type_count_by_table_id(
-        &mut self,
-        table_id: TableId,
-    ) -> Result<Vec<ColumnTypeCount>>;
 }
 
 /// Functions for working with shards in the catalog
@@ -1609,25 +1603,6 @@ pub(crate) mod test_helpers {
             .create_or_get("b", table2.id, ColumnType::Tag)
             .await
             .unwrap();
-        // Listing count of column types
-        let mut col_count = repos
-            .columns()
-            .list_type_count_by_table_id(table2.id)
-            .await
-            .unwrap();
-        let mut expect = vec![
-            ColumnTypeCount {
-                col_type: ColumnType::Tag,
-                count: 1,
-            },
-            ColumnTypeCount {
-                col_type: ColumnType::U64,
-                count: 1,
-            },
-        ];
-        expect.sort_by_key(|c| c.col_type);
-        col_count.sort_by_key(|c| c.col_type);
-        assert_eq!(expect, col_count);
 
         // Listing columns should return all columns in the catalog
         let list = repos.columns().list().await.unwrap();

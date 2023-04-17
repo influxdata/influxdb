@@ -1003,22 +1003,6 @@ pub struct SkippedCompaction {
     pub limit_num_files_first_in_partition: i64,
 }
 
-/// Map of a column type to its count
-#[derive(Debug, Copy, Clone, PartialEq, Eq, sqlx::FromRow)]
-pub struct ColumnTypeCount {
-    /// column type
-    pub col_type: ColumnType,
-    /// count of the column type
-    pub count: i64,
-}
-
-impl ColumnTypeCount {
-    /// make a new ColumnTypeCount
-    pub fn new(col_type: ColumnType, count: i64) -> Self {
-        Self { col_type, count }
-    }
-}
-
 /// Set of columns.
 #[derive(Debug, Clone, PartialEq, Eq, sqlx::Type)]
 #[sqlx(transparent)]

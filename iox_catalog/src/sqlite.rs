@@ -12,11 +12,11 @@ use crate::{
 };
 use async_trait::async_trait;
 use data_types::{
-    Column, ColumnId, ColumnSet, ColumnType, ColumnTypeCount, CompactionLevel, Namespace,
-    NamespaceId, ParquetFile, ParquetFileId, ParquetFileParams, Partition, PartitionId,
-    PartitionKey, PartitionParam, QueryPool, QueryPoolId, SequenceNumber, Shard, ShardId,
-    ShardIndex, SkippedCompaction, Table, TableId, TablePartition, Timestamp, TopicId,
-    TopicMetadata, TRANSITION_SHARD_ID, TRANSITION_SHARD_INDEX,
+    Column, ColumnId, ColumnSet, ColumnType, CompactionLevel, Namespace, NamespaceId, ParquetFile,
+    ParquetFileId, ParquetFileParams, Partition, PartitionId, PartitionKey, PartitionParam,
+    QueryPool, QueryPoolId, SequenceNumber, Shard, ShardId, ShardIndex, SkippedCompaction, Table,
+    TableId, TablePartition, Timestamp, TopicId, TopicMetadata, TRANSITION_SHARD_ID,
+    TRANSITION_SHARD_INDEX,
 };
 use serde::{Deserialize, Serialize};
 use std::ops::Deref;
@@ -869,21 +869,6 @@ RETURNING *;
         }
 
         Ok(out)
-    }
-
-    async fn list_type_count_by_table_id(
-        &mut self,
-        table_id: TableId,
-    ) -> Result<Vec<ColumnTypeCount>> {
-        sqlx::query_as::<_, ColumnTypeCount>(
-            r#"
-select column_type as col_type, count(1) AS count from column_name where table_id = $1 group by 1;
-            "#,
-        )
-        .bind(table_id) // $1
-        .fetch_all(self.inner.get_mut())
-        .await
-        .map_err(|e| Error::SqlxError { source: e })
     }
 }
 
