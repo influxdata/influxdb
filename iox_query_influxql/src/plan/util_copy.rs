@@ -7,7 +7,7 @@
 //! If these APIs are stabilised and made public, they can be removed from IOx.
 //!
 //! NOTE
-use datafusion::common::{DataFusionError, Result};
+use datafusion::common::Result;
 use datafusion::logical_expr::{
     expr::{
         AggregateFunction, Between, BinaryExpr, Case, Cast, Expr, GetIndexedField, GroupingSet,

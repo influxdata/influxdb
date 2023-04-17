@@ -2946,6 +2946,7 @@ dependencies = [
  "serde",
  "serde_json",
  "test_helpers",
+ "thiserror",
  "workspace-hack",
 ]
 

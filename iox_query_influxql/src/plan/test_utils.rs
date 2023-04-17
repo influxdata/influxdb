@@ -1,8 +1,8 @@
 //! APIs for testing.
 #![cfg(test)]
 
-use crate::plan::SchemaProvider;
-use datafusion::common::{DataFusionError, Result as DataFusionResult};
+use crate::plan::{error, SchemaProvider};
+use datafusion::common::Result as DataFusionResult;
 use datafusion::datasource::empty::EmptyTable;
 use datafusion::datasource::provider_as_source;
 use datafusion::logical_expr::{AggregateUDF, ScalarUDF, TableSource};
@@ -156,7 +156,7 @@ impl SchemaProvider for MockSchemaProvider {
         self.tables
             .get(name)
             .map(|(t, _)| Arc::clone(t))
-            .ok_or_else(|| DataFusionError::Plan(format!("measurement does not exist: {name}")))
+            .ok_or_else(|| error::map::query(format!("measurement does not exist: {name}")))
     }
 
     fn get_function_meta(&self, _name: &str) -> Option<Arc<ScalarUDF>> {

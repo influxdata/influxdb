@@ -1,7 +1,7 @@
 use crate::plan::field::field_by_name;
 use crate::plan::field_mapper::map_type;
-use crate::plan::SchemaProvider;
-use datafusion::common::{DataFusionError, Result};
+use crate::plan::{error, SchemaProvider};
+use datafusion::common::Result;
 use influxdb_influxql_parser::common::{MeasurementName, QualifiedMeasurementName};
 use influxdb_influxql_parser::expression::{Call, Expr, VarRef, VarRefDataType};
 use influxdb_influxql_parser::literal::Literal;
@@ -113,9 +113,7 @@ impl<'a> TypeEvaluator<'a> {
                             }
                         }
                         _ => {
-                            return Err(DataFusionError::Internal(
-                                "eval_var_ref: Unexpected MeasurementSelection".to_string(),
-                            ))
+                            return error::internal("eval_var_ref: Unexpected MeasurementSelection")
                         }
                     }
                 }
