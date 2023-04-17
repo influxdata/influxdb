@@ -22,7 +22,6 @@ mod query_log;
 mod server;
 mod system_tables;
 mod table;
-mod tombstone;
 
 pub use cache::CatalogCache as QuerierCatalogCache;
 pub use database::{Error as QuerierDatabaseError, QuerierDatabase};

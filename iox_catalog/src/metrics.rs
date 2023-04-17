@@ -2,16 +2,15 @@
 
 use crate::interface::{
     sealed::TransactionFinalize, CasFailure, ColumnRepo, NamespaceRepo, ParquetFileRepo,
-    PartitionRepo, ProcessedTombstoneRepo, QueryPoolRepo, RepoCollection, Result, ShardRepo,
-    SoftDeletedRows, TableRepo, TombstoneRepo, TopicMetadataRepo,
+    PartitionRepo, QueryPoolRepo, RepoCollection, Result, ShardRepo, SoftDeletedRows, TableRepo,
+    TopicMetadataRepo,
 };
 use async_trait::async_trait;
 use data_types::{
     Column, ColumnType, ColumnTypeCount, CompactionLevel, Namespace, NamespaceId, ParquetFile,
     ParquetFileId, ParquetFileParams, Partition, PartitionId, PartitionKey, PartitionParam,
-    ProcessedTombstone, QueryPool, QueryPoolId, SequenceNumber, Shard, ShardId, ShardIndex,
-    SkippedCompaction, Table, TableId, TablePartition, Timestamp, Tombstone, TombstoneId, TopicId,
-    TopicMetadata,
+    QueryPool, QueryPoolId, SequenceNumber, Shard, ShardId, ShardIndex, SkippedCompaction, Table,
+    TableId, TablePartition, Timestamp, TopicId, TopicMetadata,
 };
 use iox_time::{SystemProvider, TimeProvider};
 use metric::{DurationHistogram, Metric};
@@ -51,8 +50,6 @@ where
         + ColumnRepo
         + ShardRepo
         + PartitionRepo
-        + TombstoneRepo
-        + ProcessedTombstoneRepo
         + ParquetFileRepo
         + Debug,
     P: TimeProvider,
@@ -85,15 +82,7 @@ where
         self
     }
 
-    fn tombstones(&mut self) -> &mut dyn TombstoneRepo {
-        self
-    }
-
     fn parquet_files(&mut self) -> &mut dyn ParquetFileRepo {
-        self
-    }
-
-    fn processed_tombstones(&mut self) -> &mut dyn ProcessedTombstoneRepo {
         self
     }
 }
@@ -260,19 +249,6 @@ decorate!(
 );
 
 decorate!(
-    impl_trait = TombstoneRepo,
-    methods = [
-        "tombstone_create_or_get" = create_or_get( &mut self, table_id: TableId, shard_id: ShardId, sequence_number: SequenceNumber, min_time: Timestamp, max_time: Timestamp, predicate: &str) -> Result<Tombstone>;
-        "tombstone_list_by_namespace" = list_by_namespace(&mut self, namespace_id: NamespaceId) -> Result<Vec<Tombstone>>;
-        "tombstone_list_by_table" = list_by_table(&mut self, table_id: TableId) -> Result<Vec<Tombstone>>;
-        "tombstone_get_by_id" = get_by_id(&mut self, id: TombstoneId) -> Result<Option<Tombstone>>;
-        "tombstone_list_tombstones_by_shard_greater_than" = list_tombstones_by_shard_greater_than(&mut self, shard_id: ShardId, sequence_number: SequenceNumber) -> Result<Vec<Tombstone>>;
-        "tombstone_remove" =  remove(&mut self, tombstone_ids: &[TombstoneId]) -> Result<()>;
-        "tombstone_list_tombstones_for_time_range" = list_tombstones_for_time_range(&mut self, shard_id: ShardId, table_id: TableId, sequence_number: SequenceNumber, min_time: Timestamp, max_time: Timestamp) -> Result<Vec<Tombstone>>;
-    ]
-);
-
-decorate!(
     impl_trait = ParquetFileRepo,
     methods = [
         "parquet_create" = create( &mut self, parquet_file_params: ParquetFileParams) -> Result<ParquetFile>;
@@ -296,15 +272,5 @@ decorate!(
         "recent_highest_throughput_partitions" = recent_highest_throughput_partitions(&mut self, shard_id: Option<ShardId>, time_in_the_past: Timestamp, min_num_files: usize, num_partitions: usize) -> Result<Vec<PartitionParam>>;
         "parquet_partitions_with_small_l1_file_count" = partitions_with_small_l1_file_count(&mut self, shard_id: Option<ShardId>, small_size_threshold_bytes: i64, min_small_file_count: usize, num_partitions: usize) -> Result<Vec<PartitionParam>>;
         "most_cold_files_partitions" =  most_cold_files_partitions(&mut self, shard_id: Option<ShardId>, time_in_the_past: Timestamp, num_partitions: usize) -> Result<Vec<PartitionParam>>;
-    ]
-);
-
-decorate!(
-    impl_trait = ProcessedTombstoneRepo,
-    methods = [
-        "processed_tombstone_create" = create(&mut self, parquet_file_id: ParquetFileId, tombstone_id: TombstoneId) -> Result<ProcessedTombstone>;
-        "processed_tombstone_exist" = exist(&mut self, parquet_file_id: ParquetFileId, tombstone_id: TombstoneId) -> Result<bool>;
-        "processed_tombstone_count" = count(&mut self) -> Result<i64>;
-        "processed_tombstone_count_by_tombstone_id" = count_by_tombstone_id(&mut self, tombstone_id: TombstoneId) -> Result<i64>;
     ]
 );
