@@ -4,9 +4,8 @@
 use crate::{
     interface::{
         sealed::TransactionFinalize, CasFailure, Catalog, ColumnRepo, ColumnTypeMismatchSnafu,
-        Error, NamespaceRepo, ParquetFileRepo, PartitionRepo, ProcessedTombstoneRepo,
-        QueryPoolRepo, RepoCollection, Result, ShardRepo, SoftDeletedRows, TableRepo,
-        TombstoneRepo, TopicMetadataRepo, Transaction,
+        Error, NamespaceRepo, ParquetFileRepo, PartitionRepo, QueryPoolRepo, RepoCollection,
+        Result, ShardRepo, SoftDeletedRows, TableRepo, TopicMetadataRepo, Transaction,
     },
     metrics::MetricDecorator,
     DEFAULT_MAX_COLUMNS_PER_TABLE, DEFAULT_MAX_TABLES,
@@ -15,9 +14,8 @@ use async_trait::async_trait;
 use data_types::{
     Column, ColumnId, ColumnType, ColumnTypeCount, CompactionLevel, Namespace, NamespaceId,
     ParquetFile, ParquetFileId, ParquetFileParams, Partition, PartitionId, PartitionKey,
-    PartitionParam, ProcessedTombstone, QueryPool, QueryPoolId, SequenceNumber, Shard, ShardId,
-    ShardIndex, SkippedCompaction, Table, TableId, TablePartition, Timestamp, Tombstone,
-    TombstoneId, TopicId, TopicMetadata,
+    PartitionParam, QueryPool, QueryPoolId, SequenceNumber, Shard, ShardId, ShardIndex,
+    SkippedCompaction, Table, TableId, TablePartition, Timestamp, TopicId, TopicMetadata,
 };
 use iox_time::{SystemProvider, TimeProvider};
 use observability_deps::tracing::warn;
@@ -73,9 +71,7 @@ struct MemCollections {
     shards: Vec<Shard>,
     partitions: Vec<Partition>,
     skipped_compactions: Vec<SkippedCompaction>,
-    tombstones: Vec<Tombstone>,
     parquet_files: Vec<ParquetFile>,
-    processed_tombstones: Vec<ProcessedTombstone>,
 }
 
 #[derive(Debug)]
@@ -231,15 +227,7 @@ impl RepoCollection for MemTxn {
         self
     }
 
-    fn tombstones(&mut self) -> &mut dyn TombstoneRepo {
-        self
-    }
-
     fn parquet_files(&mut self) -> &mut dyn ParquetFileRepo {
-        self
-    }
-
-    fn processed_tombstones(&mut self) -> &mut dyn ProcessedTombstoneRepo {
         self
     }
 }
@@ -1052,134 +1040,6 @@ impl PartitionRepo for MemTxn {
 }
 
 #[async_trait]
-impl TombstoneRepo for MemTxn {
-    async fn create_or_get(
-        &mut self,
-        table_id: TableId,
-        shard_id: ShardId,
-        sequence_number: SequenceNumber,
-        min_time: Timestamp,
-        max_time: Timestamp,
-        predicate: &str,
-    ) -> Result<Tombstone> {
-        let stage = self.stage();
-
-        let tombstone = match stage.tombstones.iter().find(|t| {
-            t.table_id == table_id && t.shard_id == shard_id && t.sequence_number == sequence_number
-        }) {
-            Some(t) => t,
-            None => {
-                let t = Tombstone {
-                    id: TombstoneId::new(stage.tombstones.len() as i64 + 1),
-                    table_id,
-                    shard_id,
-                    sequence_number,
-                    min_time,
-                    max_time,
-                    serialized_predicate: predicate.to_string(),
-                };
-                stage.tombstones.push(t);
-                stage.tombstones.last().unwrap()
-            }
-        };
-
-        Ok(tombstone.clone())
-    }
-
-    async fn list_by_namespace(&mut self, namespace_id: NamespaceId) -> Result<Vec<Tombstone>> {
-        let stage = self.stage();
-
-        let table_ids: HashSet<_> = stage
-            .tables
-            .iter()
-            .filter_map(|table| (table.namespace_id == namespace_id).then_some(table.id))
-            .collect();
-        let tombstones: Vec<_> = stage
-            .tombstones
-            .iter()
-            .filter(|t| table_ids.contains(&t.table_id))
-            .cloned()
-            .collect();
-        Ok(tombstones)
-    }
-
-    async fn list_by_table(&mut self, table_id: TableId) -> Result<Vec<Tombstone>> {
-        let stage = self.stage();
-
-        let tombstones: Vec<_> = stage
-            .tombstones
-            .iter()
-            .filter(|t| t.table_id == table_id)
-            .cloned()
-            .collect();
-        Ok(tombstones)
-    }
-
-    async fn get_by_id(&mut self, id: TombstoneId) -> Result<Option<Tombstone>> {
-        let stage = self.stage();
-
-        Ok(stage.tombstones.iter().find(|t| t.id == id).cloned())
-    }
-
-    async fn list_tombstones_by_shard_greater_than(
-        &mut self,
-        shard_id: ShardId,
-        sequence_number: SequenceNumber,
-    ) -> Result<Vec<Tombstone>> {
-        let stage = self.stage();
-
-        let tombstones: Vec<_> = stage
-            .tombstones
-            .iter()
-            .filter(|t| t.shard_id == shard_id && t.sequence_number > sequence_number)
-            .cloned()
-            .collect();
-        Ok(tombstones)
-    }
-
-    async fn remove(&mut self, tombstone_ids: &[TombstoneId]) -> Result<()> {
-        let stage = self.stage();
-
-        // remove the processed tombstones first
-        stage
-            .processed_tombstones
-            .retain(|pt| !tombstone_ids.iter().any(|id| *id == pt.tombstone_id));
-
-        // remove the tombstones
-        stage
-            .tombstones
-            .retain(|ts| !tombstone_ids.iter().any(|id| *id == ts.id));
-
-        Ok(())
-    }
-
-    async fn list_tombstones_for_time_range(
-        &mut self,
-        shard_id: ShardId,
-        table_id: TableId,
-        sequence_number: SequenceNumber,
-        min_time: Timestamp,
-        max_time: Timestamp,
-    ) -> Result<Vec<Tombstone>> {
-        let stage = self.stage();
-
-        let tombstones: Vec<_> = stage
-            .tombstones
-            .iter()
-            .filter(|t| {
-                t.shard_id == shard_id
-                    && t.table_id == table_id
-                    && t.sequence_number > sequence_number
-                    && ((t.min_time <= min_time && t.max_time >= min_time)
-                        || (t.min_time > min_time && t.min_time <= max_time))
-            })
-            .cloned()
-            .collect();
-        Ok(tombstones)
-    }
-}
-
-#[async_trait]
 impl ParquetFileRepo for MemTxn {
     async fn create(&mut self, parquet_file_params: ParquetFileParams) -> Result<ParquetFile> {
         let stage = self.stage();
@@ -1712,87 +1572,6 @@ impl ParquetFileRepo for MemTxn {
             .iter()
             .find(|f| f.object_store_id.eq(&object_store_id))
             .cloned())
-    }
-}
-
-#[async_trait]
-impl ProcessedTombstoneRepo for MemTxn {
-    async fn create(
-        &mut self,
-        parquet_file_id: ParquetFileId,
-        tombstone_id: TombstoneId,
-    ) -> Result<ProcessedTombstone> {
-        let stage = self.stage();
-
-        // check if the parquet file available
-        if !stage.parquet_files.iter().any(|f| f.id == parquet_file_id) {
-            return Err(Error::FileNotFound {
-                id: parquet_file_id.get(),
-            });
-        }
-
-        // check if tombstone exists
-        if !stage.tombstones.iter().any(|f| f.id == tombstone_id) {
-            return Err(Error::TombstoneNotFound {
-                id: tombstone_id.get(),
-            });
-        }
-
-        if stage
-            .processed_tombstones
-            .iter()
-            .any(|pt| pt.tombstone_id == tombstone_id && pt.parquet_file_id == parquet_file_id)
-        {
-            // The tombstone was already processed for this file
-            return Err(Error::ProcessTombstoneExists {
-                parquet_file_id: parquet_file_id.get(),
-                tombstone_id: tombstone_id.get(),
-            });
-        }
-
-        let processed_tombstone = ProcessedTombstone {
-            tombstone_id,
-            parquet_file_id,
-        };
-        stage.processed_tombstones.push(processed_tombstone);
-
-        Ok(processed_tombstone)
-    }
-
-    async fn exist(
-        &mut self,
-        parquet_file_id: ParquetFileId,
-        tombstone_id: TombstoneId,
-    ) -> Result<bool> {
-        let stage = self.stage();
-
-        Ok(stage
-            .processed_tombstones
-            .iter()
-            .any(|f| f.parquet_file_id == parquet_file_id && f.tombstone_id == tombstone_id))
-    }
-
-    async fn count(&mut self) -> Result<i64> {
-        let stage = self.stage();
-
-        let count = stage.processed_tombstones.len();
-        let count_i64 = i64::try_from(count);
-        if count_i64.is_err() {
-            return Err(Error::InvalidValue { value: count });
-        }
-        Ok(count_i64.unwrap())
-    }
-
-    async fn count_by_tombstone_id(&mut self, tombstone_id: TombstoneId) -> Result<i64> {
-        let stage = self.stage();
-
-        let count = stage
-            .processed_tombstones
-            .iter()
-            .filter(|p| p.tombstone_id == tombstone_id)
-            .count();
-
-        i64::try_from(count).map_err(|_| Error::InvalidValue { value: count })
     }
 }
 

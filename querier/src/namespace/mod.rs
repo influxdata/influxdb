@@ -21,8 +21,7 @@ mod test_util;
 /// # Data Structures & Sync
 ///
 /// Tables and schemas are created when [`QuerierNamespace`] is created because DataFusion does not
-/// implement async schema inspection. The actual payload (chunks and tombstones) are only queried
-/// on demand.
+/// implement async schema inspection. The actual payload (chunks) is only queried on demand.
 ///
 /// Most accesses to the [IOx Catalog](iox_catalog::interface::Catalog) are cached via
 /// [`CatalogCache`].
