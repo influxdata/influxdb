@@ -505,11 +505,11 @@ impl<'a> InfluxQLToLogicalPlan<'a> {
             };
 
             // Rewrite the `time` column projection based on a series of rules in the following
-            // order. If the query
+            // order. If the query:
             //
             // 1. is binning by time, project the column using the `DATE_BIN` function,
             // 2. is a single-selector query, project the `time` field of the selector aggregate,
-            // 3. project the Unix epoch (0)
+            // 3. otherwise, project the Unix epoch (0)
             select_exprs[time_column_index] = if let Some(dim) = ctx.group_by.and_then(|gb| gb.time_dimension()) {
                 let stride = expr_to_df_interval_dt(&dim.interval)?;
                 let offset = if let Some(offset) = &dim.offset {
