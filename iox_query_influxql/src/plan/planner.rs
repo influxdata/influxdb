@@ -181,6 +181,10 @@ impl<'a> Context<'a> {
             ProjectionType::Aggregate | ProjectionType::Selector { .. }
         )
     }
+
+    fn is_raw_distinct(&self) -> bool {
+        matches!(self.info.projection_type, ProjectionType::RawDistinct)
+    }
 }
 
 #[allow(missing_debug_implementations)]
@@ -459,7 +463,31 @@ impl<'a> InfluxQLToLogicalPlan<'a> {
         let plan = self.plan_where_clause(ctx, &select.condition, input, &schemas)?;
 
         // Transform InfluxQL AST field expressions to a list of DataFusion expressions.
-        let select_exprs = self.field_list_to_exprs(ctx, &plan, fields, &schemas)?;
+        let mut select_exprs = self.field_list_to_exprs(ctx, &plan, fields, &schemas)?;
+
+        if ctx.is_raw_distinct() {
+            // This is a special case, where exactly one column can be projected with a `DISTINCT`
+            // clause or the `distinct` function.
+            //
+            // In addition, the time column is projected as the Unix epoch.
+
+            let Some(time_column_index) = find_time_column_index(fields) else {
+                return error::internal("unable to find time column")
+            };
+
+            // Take ownership of the alias, so we don't reallocate, and temporarily place a literal
+            // `NULL` in its place.
+            let Expr::Alias(_, alias) = std::mem::replace(&mut select_exprs[time_column_index], lit(ScalarValue::Null)) else {
+                return error::internal("time column is not an alias")
+            };
+
+            select_exprs[time_column_index] = lit_timestamp_nano(0).alias(alias);
+
+            // Wrap the plan in a `LogicalPlan::Projection` from the select expressions
+            let plan = project(plan, proj.into_iter().chain(select_exprs.into_iter()))?;
+
+            return LogicalPlanBuilder::from(plan).distinct()?.build();
+        }
 
         let (plan, select_exprs_post_aggr) =
             self.select_aggregate(ctx, plan, fields, select_exprs, group_by_tag_set, &schemas)?;
@@ -1024,7 +1052,8 @@ impl<'a> InfluxQLToLogicalPlan<'a> {
                     ExprScope::Where => Ok(lit(clean_non_meta_escapes(re.as_str()))),
                 },
             },
-            IQLExpr::Distinct(_) => error::not_implemented("DISTINCT"),
+            // A DISTINCT <ident> clause should have been replaced by `rewrite_statement`.
+            IQLExpr::Distinct(_) => error::internal("distinct expression"),
             IQLExpr::Call(call) => self.call_to_df_expr(ctx, call, schemas),
             IQLExpr::Binary(expr) => self.arithmetic_expr_to_df_expr(ctx, expr, schemas),
             IQLExpr::Nested(e) => self.expr_to_df_expr(ctx, e, schemas),
@@ -1084,15 +1113,21 @@ impl<'a> InfluxQLToLogicalPlan<'a> {
 
         let Call { name, args } = call;
 
-        let expr = self.expr_to_df_expr(ctx, &args[0], schemas)?;
-        if let Expr::Literal(ScalarValue::Null) = expr {
-            return Ok(expr);
-        }
-
         match name.as_str() {
+            // The DISTINCT function is handled as a `ProjectionType::RawDistinct`
+            // query, so the planner only needs to project the single column
+            // argument.
+            "distinct" => self.expr_to_df_expr(ctx, &args[0], schemas),
             "count" => {
-                // TODO(sgc): Handle `COUNT DISTINCT` variants
-                let distinct = false;
+                let (expr, distinct) = match &args[0] {
+                    IQLExpr::Call(c) if c.name == "distinct" => {
+                        (self.expr_to_df_expr(ctx, &c.args[0], schemas)?, true)
+                    }
+                    expr => (self.expr_to_df_expr(ctx, expr, schemas)?, false),
+                };
+                if let Expr::Literal(ScalarValue::Null) = expr {
+                    return Ok(expr);
+                }
 
                 check_arg_count("count", args, 1)?;
                 Ok(Expr::AggregateFunction(expr::AggregateFunction::new(
@@ -1103,6 +1138,11 @@ impl<'a> InfluxQLToLogicalPlan<'a> {
                 )))
             }
             "sum" | "stddev" | "mean" | "median" => {
+                let expr = self.expr_to_df_expr(ctx, &args[0], schemas)?;
+                if let Expr::Literal(ScalarValue::Null) = expr {
+                    return Ok(expr);
+                }
+
                 check_arg_count(name, args, 1)?;
                 Ok(Expr::AggregateFunction(expr::AggregateFunction::new(
                     AggregateFunction::from_str(name)?,
@@ -1111,36 +1151,43 @@ impl<'a> InfluxQLToLogicalPlan<'a> {
                     None,
                 )))
             }
-            name @ ("first" | "last" | "min" | "max") => Ok(
-                if let ProjectionType::Selector { .. } = ctx.info.projection_type {
-                    // Selector queries use the `struct_selector_<name>`, as they
-                    // will project the value and the time fields of the struct
-                    Expr::GetIndexedField(GetIndexedField {
-                        expr: Box::new(
-                            match name {
-                                "first" => struct_selector_first(),
-                                "last" => struct_selector_last(),
-                                "max" => struct_selector_max(),
-                                "min" => struct_selector_min(),
-                                _ => unreachable!(),
-                            }
-                            .call(vec![expr, "time".as_expr()]),
-                        ),
-                        key: ScalarValue::Utf8(Some("value".to_owned())),
-                    })
-                } else {
-                    // All other queries only require the value of the selector
-                    let data_type = &expr.get_type(&schemas.df_schema)?;
-                    match name {
-                        "first" => selector_first(data_type, SelectorOutput::Value),
-                        "last" => selector_last(data_type, SelectorOutput::Value),
-                        "max" => selector_max(data_type, SelectorOutput::Value),
-                        "min" => selector_min(data_type, SelectorOutput::Value),
-                        _ => unreachable!(),
-                    }
-                    .call(vec![expr, "time".as_expr()])
-                },
-            ),
+            name @ ("first" | "last" | "min" | "max") => {
+                let expr = self.expr_to_df_expr(ctx, &args[0], schemas)?;
+                if let Expr::Literal(ScalarValue::Null) = expr {
+                    return Ok(expr);
+                }
+
+                Ok(
+                    if let ProjectionType::Selector { .. } = ctx.info.projection_type {
+                        // Selector queries use the `struct_selector_<name>`, as they
+                        // will project the value and the time fields of the struct
+                        Expr::GetIndexedField(GetIndexedField {
+                            expr: Box::new(
+                                match name {
+                                    "first" => struct_selector_first(),
+                                    "last" => struct_selector_last(),
+                                    "max" => struct_selector_max(),
+                                    "min" => struct_selector_min(),
+                                    _ => unreachable!(),
+                                }
+                                .call(vec![expr, "time".as_expr()]),
+                            ),
+                            key: ScalarValue::Utf8(Some("value".to_owned())),
+                        })
+                    } else {
+                        // All other queries only require the value of the selector
+                        let data_type = &expr.get_type(&schemas.df_schema)?;
+                        match name {
+                            "first" => selector_first(data_type, SelectorOutput::Value),
+                            "last" => selector_last(data_type, SelectorOutput::Value),
+                            "max" => selector_max(data_type, SelectorOutput::Value),
+                            "min" => selector_min(data_type, SelectorOutput::Value),
+                            _ => unreachable!(),
+                        }
+                        .call(vec![expr, "time".as_expr()])
+                    },
+                )
+            }
             _ => error::query(format!("Invalid function '{name}'")),
         }
     }
@@ -2263,6 +2310,39 @@ mod test {
     /// such as the WHERE clause.
     mod select {
         use super::*;
+
+        /// Tests for the `DISTINCT` clause and `DISTINCT` function
+        #[test]
+        fn test_distinct() {
+            assert_snapshot!(plan("SELECT DISTINCT usage_idle FROM cpu"), @r###"
+            Sort: time ASC NULLS LAST [iox::measurement:Dictionary(Int32, Utf8), time:Timestamp(Nanosecond, None), distinct:Float64;N]
+              Distinct: [iox::measurement:Dictionary(Int32, Utf8), time:Timestamp(Nanosecond, None), distinct:Float64;N]
+                Projection: Dictionary(Int32, Utf8("cpu")) AS iox::measurement, TimestampNanosecond(0, None) AS time, cpu.usage_idle AS distinct [iox::measurement:Dictionary(Int32, Utf8), time:Timestamp(Nanosecond, None), distinct:Float64;N]
+                  TableScan: cpu [cpu:Dictionary(Int32, Utf8);N, host:Dictionary(Int32, Utf8);N, region:Dictionary(Int32, Utf8);N, time:Timestamp(Nanosecond, None), usage_idle:Float64;N, usage_system:Float64;N, usage_user:Float64;N]
+            "###);
+            assert_snapshot!(plan("SELECT DISTINCT(usage_idle) FROM cpu"), @r###"
+            Sort: time ASC NULLS LAST [iox::measurement:Dictionary(Int32, Utf8), time:Timestamp(Nanosecond, None), distinct:Float64;N]
+              Distinct: [iox::measurement:Dictionary(Int32, Utf8), time:Timestamp(Nanosecond, None), distinct:Float64;N]
+                Projection: Dictionary(Int32, Utf8("cpu")) AS iox::measurement, TimestampNanosecond(0, None) AS time, cpu.usage_idle AS distinct [iox::measurement:Dictionary(Int32, Utf8), time:Timestamp(Nanosecond, None), distinct:Float64;N]
+                  TableScan: cpu [cpu:Dictionary(Int32, Utf8);N, host:Dictionary(Int32, Utf8);N, region:Dictionary(Int32, Utf8);N, time:Timestamp(Nanosecond, None), usage_idle:Float64;N, usage_system:Float64;N, usage_user:Float64;N]
+            "###);
+            assert_snapshot!(plan("SELECT DISTINCT usage_idle FROM cpu GROUP BY cpu"), @r###"
+            Sort: cpu ASC NULLS LAST, time ASC NULLS LAST [iox::measurement:Dictionary(Int32, Utf8), time:Timestamp(Nanosecond, None), cpu:Dictionary(Int32, Utf8);N, distinct:Float64;N]
+              Distinct: [iox::measurement:Dictionary(Int32, Utf8), time:Timestamp(Nanosecond, None), cpu:Dictionary(Int32, Utf8);N, distinct:Float64;N]
+                Projection: Dictionary(Int32, Utf8("cpu")) AS iox::measurement, TimestampNanosecond(0, None) AS time, cpu.cpu AS cpu, cpu.usage_idle AS distinct [iox::measurement:Dictionary(Int32, Utf8), time:Timestamp(Nanosecond, None), cpu:Dictionary(Int32, Utf8);N, distinct:Float64;N]
+                  TableScan: cpu [cpu:Dictionary(Int32, Utf8);N, host:Dictionary(Int32, Utf8);N, region:Dictionary(Int32, Utf8);N, time:Timestamp(Nanosecond, None), usage_idle:Float64;N, usage_system:Float64;N, usage_user:Float64;N]
+            "###);
+            assert_snapshot!(plan("SELECT COUNT(DISTINCT usage_idle) FROM cpu"), @r###"
+            Sort: time ASC NULLS LAST [iox::measurement:Dictionary(Int32, Utf8), time:Timestamp(Nanosecond, None), count:Int64;N]
+              Projection: Dictionary(Int32, Utf8("cpu")) AS iox::measurement, TimestampNanosecond(0, None) AS time, COUNT(DISTINCT cpu.usage_idle) AS count [iox::measurement:Dictionary(Int32, Utf8), time:Timestamp(Nanosecond, None), count:Int64;N]
+                Aggregate: groupBy=[[]], aggr=[[COUNT(DISTINCT cpu.usage_idle)]] [COUNT(DISTINCT cpu.usage_idle):Int64;N]
+                  TableScan: cpu [cpu:Dictionary(Int32, Utf8);N, host:Dictionary(Int32, Utf8);N, region:Dictionary(Int32, Utf8);N, time:Timestamp(Nanosecond, None), usage_idle:Float64;N, usage_system:Float64;N, usage_user:Float64;N]
+            "###);
+
+            // fallible
+            assert_snapshot!(plan("SELECT DISTINCT(usage_idle), DISTINCT(usage_system) FROM cpu"), @"Error during planning: aggregate function distinct() cannot be combined with other functions or fields");
+            assert_snapshot!(plan("SELECT DISTINCT(usage_idle), usage_system FROM cpu"), @"Error during planning: aggregate function distinct() cannot be combined with other functions or fields");
+        }
 
         mod functions {
             use super::*;

@@ -194,6 +194,24 @@ fn rewrite_field_list(s: &dyn SchemaProvider, stmt: &mut SelectStatement) -> Res
         }
     }
 
+    // Rewrite all `DISTINCT <identifier>` expressions to `DISTINCT(<var ref>)`
+    if let ControlFlow::Break(e) = stmt.fields.iter_mut().try_for_each(|f| {
+        walk_expr_mut::<DataFusionError>(&mut f.expr, &mut |e| {
+            if let Expr::Distinct(ident) = e {
+                *e = Expr::Call(Call {
+                    name: "distinct".to_owned(),
+                    args: vec![Expr::VarRef(VarRef {
+                        name: ident.take().into(),
+                        data_type: None,
+                    })],
+                });
+            }
+            ControlFlow::Continue(())
+        })
+    }) {
+        return Err(e);
+    }
+
     // Attempt to rewrite all variable references in the fields with their types, if one
     // hasn't been specified.
     if let ControlFlow::Break(e) = stmt.fields.iter_mut().try_for_each(|f| {
@@ -635,6 +653,8 @@ impl FieldChecker {
             Ok(ProjectionType::TopBottomSelector)
         } else if self.has_group_by_time {
             Ok(ProjectionType::Aggregate)
+        } else if self.has_distinct {
+            Ok(ProjectionType::RawDistinct)
         } else if self.selector_count == 1 && self.aggregate_count == 0 {
             Ok(ProjectionType::Selector {
                 has_fields: self.has_non_aggregate_fields,
@@ -661,16 +681,6 @@ impl FieldChecker {
             }
             Expr::Call(c) if is_scalar_math_function(&c.name) => self.check_math_function(c),
             Expr::Call(c) => self.check_aggregate_function(c),
-            Expr::Distinct(ident) => {
-                self.inc_aggregate_count();
-                self.check_distinct(
-                    &[Expr::VarRef(VarRef {
-                        name: ident.clone(),
-                        data_type: None,
-                    })],
-                    false,
-                )
-            }
             Expr::Binary(b) => match (&*b.lhs, &*b.rhs) {
                 (Expr::Literal(_), Expr::Literal(_)) => {
                     error::query("cannot perform a binary expression on two literals")
@@ -683,15 +693,10 @@ impl FieldChecker {
             },
             Expr::Nested(e) => self.check_expr(e),
             // BindParameter should be substituted prior to validating fields.
-            Expr::BindParameter(_) => Err(DataFusionError::External(
-                "internal: unexpected bind parameter".into(),
-            )),
-            Expr::Wildcard(_) => Err(DataFusionError::External(
-                "internal: unexpected wildcard".into(),
-            )),
-            Expr::Literal(Literal::Regex(_)) => Err(DataFusionError::External(
-                "internal: unexpected regex".into(),
-            )),
+            Expr::BindParameter(_) => error::internal("unexpected bind parameter"),
+            Expr::Wildcard(_) => error::internal("unexpected wildcard"),
+            Expr::Literal(Literal::Regex(_)) => error::internal("unexpected regex"),
+            Expr::Distinct(_) => error::internal("unexpected distinct clause"),
             // See: https://github.com/influxdata/influxdb/blob/98361e207349a3643bcc332d54b009818fe7585f/query/compile.go#L347
             Expr::Literal(_) => error::query("field must contain at least one variable"),
         }
@@ -771,14 +776,8 @@ impl FieldChecker {
                         Expr::Call(c) if c.name == "distinct" => {
                             return self.check_distinct(&c.args, true);
                         }
-                        Expr::Distinct(ident) => {
-                            return self.check_distinct(
-                                &[Expr::VarRef(VarRef {
-                                    name: ident.clone(),
-                                    data_type: None,
-                                })],
-                                true,
-                            );
+                        Expr::Distinct(_) => {
+                            return error::internal("unexpected distinct clause in count");
                         }
                         _ => {}
                     }
@@ -1069,7 +1068,7 @@ impl FieldChecker {
         //
         // See: https://docs.influxdata.com/influxdb/v2.7/query-data/influxql/functions/
         // See: https://docs.influxdata.com/influxdb/v1.8/query_language/functions
-        Err(DataFusionError::NotImplemented("count_hll".to_owned()))
+        error::not_implemented("count_hll")
     }
 
     fn check_holt_winters(&mut self, name: &str, args: &[Expr]) -> Result<()> {
@@ -1107,13 +1106,6 @@ impl FieldChecker {
     fn check_nested_expr(&mut self, expr: &Expr) -> Result<()> {
         match expr {
             Expr::Call(c) if c.name == "distinct" => self.check_distinct(&c.args, true),
-            Expr::Distinct(ident) => self.check_distinct(
-                &[Expr::VarRef(VarRef {
-                    name: ident.clone(),
-                    data_type: None,
-                })],
-                true,
-            ),
             _ => self.check_expr(expr),
         }
     }
@@ -1136,9 +1128,9 @@ impl FieldChecker {
     fn check_symbol(&mut self, name: &str, expr: &Expr) -> Result<()> {
         match expr {
             Expr::VarRef(_) => Ok(()),
-            Expr::Wildcard(_) | Expr::Literal(Literal::Regex(_)) => Err(DataFusionError::External(
-                "internal: unexpected wildcard or regex".into(),
-            )),
+            Expr::Wildcard(_) | Expr::Literal(Literal::Regex(_)) => {
+                error::internal("unexpected wildcard or regex")
+            }
             expr => error::query(format!("expected field argument in {name}(), got {expr:?}")),
         }
     }
@@ -1149,6 +1141,8 @@ pub(crate) enum ProjectionType {
     /// A query that projects no aggregate or selector functions.
     #[default]
     Raw,
+    /// A query that projects a single DISTINCT(field)
+    RawDistinct,
     /// A query that projects one or more aggregate functions or
     /// two or more selector functions.
     Aggregate,
@@ -1233,6 +1227,9 @@ mod test {
         let info = select_statement_info(&parse_select("SELECT foo, bar FROM cpu")).unwrap();
         assert_matches!(info.projection_type, ProjectionType::Raw);
 
+        let info = select_statement_info(&parse_select("SELECT distinct(foo) FROM cpu")).unwrap();
+        assert_matches!(info.projection_type, ProjectionType::RawDistinct);
+
         let info = select_statement_info(&parse_select("SELECT last(foo) FROM cpu")).unwrap();
         assert_matches!(
             info.projection_type,
@@ -1289,6 +1286,8 @@ mod test {
         assert_error!(select_statement_info(&sel), DataFusionError::Plan(ref s) if s == "invalid number of arguments for distinct, expected 1, got 2");
         let sel = parse_select("SELECT distinct(sum(foo)) FROM cpu");
         assert_error!(select_statement_info(&sel), DataFusionError::Plan(ref s) if s == "expected field argument in distinct()");
+        let sel = parse_select("SELECT distinct(foo), distinct(bar) FROM cpu");
+        assert_error!(select_statement_info(&sel), DataFusionError::Plan(ref s) if s == "aggregate function distinct() cannot be combined with other functions or fields");
 
         // top / bottom
         let sel = parse_select("SELECT top(foo, 3) FROM cpu");
@@ -1474,12 +1473,12 @@ mod test {
         }
 
         // count(distinct)
-        let sel = parse_select("SELECT count(distinct foo) FROM cpu");
-        select_statement_info(&sel).unwrap();
         let sel = parse_select("SELECT count(distinct(foo)) FROM cpu");
         select_statement_info(&sel).unwrap();
         let sel = parse_select("SELECT count(distinct('foo')) FROM cpu");
         assert_error!(select_statement_info(&sel), DataFusionError::Plan(ref s) if s == "expected field argument in distinct()");
+        let sel = parse_select("SELECT count(distinct foo) FROM cpu");
+        assert_error!(select_statement_info(&sel), DataFusionError::External(ref s) if s.to_string() == "internal: unexpected distinct clause in count");
 
         // Test rules for math functions
         let sel = parse_select("SELECT abs(usage_idle) FROM cpu");
@@ -1709,6 +1708,23 @@ mod test {
         assert_eq!(
             stmt.to_string(),
             "SELECT -1 * bytes_free::integer AS bytes_free FROM disk"
+        );
+
+        // DISTINCT clause
+
+        // COUNT(DISTINCT)
+        let stmt = parse_select("SELECT COUNT(DISTINCT bytes_free) FROM disk");
+        let stmt = rewrite_statement(&namespace, &stmt).unwrap();
+        assert_eq!(
+            stmt.to_string(),
+            "SELECT count(distinct(bytes_free::integer)) AS count FROM disk"
+        );
+
+        let stmt = parse_select("SELECT DISTINCT bytes_free FROM disk");
+        let stmt = rewrite_statement(&namespace, &stmt).unwrap();
+        assert_eq!(
+            stmt.to_string(),
+            "SELECT distinct(bytes_free::integer) AS \"distinct\" FROM disk"
         );
 
         // Call expressions

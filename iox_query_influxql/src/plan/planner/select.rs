@@ -1,5 +1,6 @@
+use crate::plan::error;
 use arrow::datatypes::DataType;
-use datafusion::common::{DFSchemaRef, DataFusionError, Result};
+use datafusion::common::{DFSchemaRef, Result};
 use datafusion::logical_expr::utils::find_column_exprs;
 use datafusion::logical_expr::{Expr, LogicalPlan, LogicalPlanBuilder};
 use datafusion_util::AsExpr;
@@ -15,15 +16,11 @@ use std::ops::Deref;
 /// column in `columns`.
 pub(crate) fn check_exprs_satisfy_columns(columns: &[Expr], exprs: &[Expr]) -> Result<()> {
     if !columns.iter().all(|c| matches!(c, Expr::Column(_))) {
-        return Err(DataFusionError::Internal(
-            "expected Expr::Column".to_owned(),
-        ));
+        return error::internal("expected Expr::Column");
     }
     let column_exprs = find_column_exprs(exprs);
     if column_exprs.iter().any(|expr| !columns.contains(expr)) {
-        return Err(DataFusionError::Plan(
-            "mixing aggregate and non-aggregate columns is not supported".to_owned(),
-        ));
+        return error::query("mixing aggregate and non-aggregate columns is not supported");
     }
     Ok(())
 }
