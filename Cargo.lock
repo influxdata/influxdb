@@ -2033,7 +2033,6 @@ name = "garbage_collector"
 version = "0.1.0"
 dependencies = [
  "chrono",
- "chrono-english",
  "clap 4.2.2",
  "clap_blocks",
  "data_types",
@@ -4459,7 +4458,6 @@ dependencies = [
  "service_grpc_catalog",
  "service_grpc_object_store",
  "service_grpc_schema",
- "sharder",
  "snafu",
  "test_helpers",
  "thiserror",
@@ -4736,7 +4734,6 @@ dependencies = [
  "iox_catalog",
  "iox_tests",
  "iox_time",
- "ioxd_common",
  "metric",
  "mutable_batch",
  "mutable_batch_lp",
@@ -4909,7 +4906,6 @@ dependencies = [
  "arrow",
  "hashbrown 0.13.2",
  "indexmap",
- "itertools",
  "observability_deps",
  "snafu",
  "workspace-hack",

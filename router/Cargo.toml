@@ -20,7 +20,6 @@ hashbrown = { workspace = true }
 hyper = "0.14"
 iox_catalog = { path = "../iox_catalog" }
 iox_time = { path = "../iox_time" }
-ioxd_common = { path = "../ioxd_common" }
 metric = { path = "../metric" }
 mutable_batch = { path = "../mutable_batch" }
 mutable_batch_lp = { path = "../mutable_batch_lp" }
