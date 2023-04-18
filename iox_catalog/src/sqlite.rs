@@ -1543,43 +1543,6 @@ RETURNING id;
         Ok(deleted)
     }
 
-    async fn partitions_with_small_l1_file_count(
-        &mut self,
-        shard_id: Option<ShardId>,
-        small_size_threshold_bytes: i64,
-        min_small_file_count: usize,
-        num_partitions: usize,
-    ) -> Result<Vec<PartitionParam>> {
-        // This query returns partitions with at least `min_small_file_count` small L1 files,
-        // where "small" means no bigger than `small_size_threshold_bytes`, limited to the top `num_partitions`.
-        sqlx::query_as::<_, PartitionParam>(
-            r#"
-SELECT parquet_file.partition_id, parquet_file.shard_id, parquet_file.namespace_id,
-       parquet_file.table_id,
-       COUNT(1) AS l1_file_count
-FROM   parquet_file
-LEFT OUTER JOIN skipped_compactions ON parquet_file.partition_id = skipped_compactions.partition_id
-WHERE  compaction_level = $5
-AND    to_delete IS NULL
-AND    shard_id = $1
-AND    skipped_compactions.partition_id IS NULL
-AND    file_size_bytes < $3
-GROUP BY 1, 2, 3, 4
-HAVING COUNT(1) >= $2
-ORDER BY l1_file_count DESC
-LIMIT $4;
-            "#,
-        )
-        .bind(shard_id) // $1
-        .bind(min_small_file_count as i32) // $2
-        .bind(small_size_threshold_bytes) // $3
-        .bind(num_partitions as i32) // $4
-        .bind(CompactionLevel::FileNonOverlapped) // $5
-        .fetch_all(self.inner.get_mut())
-        .await
-        .map_err(|e| Error::SqlxError { source: e })
-    }
-
     async fn most_cold_files_partitions(
         &mut self,
         shard_id: Option<ShardId>,
