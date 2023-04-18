@@ -4,7 +4,7 @@ use async_trait::async_trait;
 use data_types::{NamespaceName, NamespaceSchema};
 use sharder::JumpHash;
 
-use super::NamespaceCache;
+use super::{ChangeStats, NamespaceCache};
 
 /// A decorator sharding the [`NamespaceCache`] keyspace into a set of `T`.
 #[derive(Debug)]
@@ -40,7 +40,7 @@ where
         &self,
         namespace: NamespaceName<'static>,
         schema: NamespaceSchema,
-    ) -> (Option<Arc<NamespaceSchema>>, Arc<NamespaceSchema>) {
+    ) -> (Arc<NamespaceSchema>, ChangeStats) {
         self.shards.hash(&namespace).put_schema(namespace, schema)
     }
 }
@@ -107,7 +107,7 @@ mod tests {
         // Populate the cache
         for (name, id) in &names {
             let schema = schema_with_id(*id as _);
-            assert_matches!(cache.put_schema(name.clone(), schema), (None, _));
+            assert_matches!(cache.put_schema(name.clone(), schema), (_, _));
         }
 
         // The mapping should be stable

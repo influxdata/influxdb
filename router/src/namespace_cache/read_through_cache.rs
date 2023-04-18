@@ -8,7 +8,7 @@ use iox_catalog::interface::{get_schema_by_name, Catalog, SoftDeletedRows};
 use observability_deps::tracing::*;
 
 use super::memory::CacheMissErr;
-use super::NamespaceCache;
+use super::{ChangeStats, NamespaceCache};
 
 /// A [`ReadThroughCache`] decorates a [`NamespaceCache`] with read-through
 /// caching behaviour on calls to `self.get_schema()` when contained in an
@@ -78,7 +78,7 @@ where
                     }
                 };
 
-                let (_, new_schema) = self.put_schema(namespace.clone(), schema);
+                let (new_schema, _) = self.put_schema(namespace.clone(), schema);
 
                 trace!(%namespace, "schema cache populated");
                 Ok(new_schema)
@@ -90,7 +90,7 @@ where
         &self,
         namespace: NamespaceName<'static>,
         schema: NamespaceSchema,
-    ) -> (Option<Arc<NamespaceSchema>>, Arc<NamespaceSchema>) {
+    ) -> (Arc<NamespaceSchema>, ChangeStats) {
         self.inner_cache.put_schema(namespace, schema)
     }
 }
@@ -126,7 +126,9 @@ mod tests {
             iox_catalog::DEFAULT_MAX_TABLES,
             iox_catalog::DEFAULT_RETENTION_PERIOD,
         );
-        assert_matches!(cache.put_schema(ns.clone(), schema1.clone()), (None, _));
+        assert_matches!(cache.put_schema(ns.clone(), schema1.clone()), (result, _) => {
+            assert_eq!(*result, schema1);
+        });
 
         // Ensure it is present
         assert_eq!(

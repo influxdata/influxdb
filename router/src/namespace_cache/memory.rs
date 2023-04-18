@@ -6,7 +6,7 @@ use hashbrown::HashMap;
 use parking_lot::RwLock;
 use thiserror::Error;
 
-use super::NamespaceCache;
+use super::{ChangeStats, NamespaceCache};
 
 /// An error type indicating that `namespace` is not present in the cache.
 #[derive(Debug, Error)]
@@ -43,36 +43,98 @@ impl NamespaceCache for Arc<MemoryNamespaceCache> {
         &self,
         namespace: NamespaceName<'static>,
         schema: NamespaceSchema,
-    ) -> (Option<Arc<NamespaceSchema>>, Arc<NamespaceSchema>) {
+    ) -> (Arc<NamespaceSchema>, ChangeStats) {
         let mut guard = self.cache.write();
 
-        let merged_schema = match guard.get(&namespace) {
-            Some(old) => merge_schema(old, schema),
-            None => schema,
+        let (merged_schema, change_stats) = match guard.remove(&namespace) {
+            Some(old) => merge_schema_additive(schema, old),
+            None => {
+                let change_stats = ChangeStats {
+                    new_columns: schema
+                        .tables
+                        .values()
+                        .fold(0, |acc, t| acc + t.columns.len())
+                        as _,
+                    new_tables: schema.tables.len(),
+                };
+                (schema, change_stats)
+            }
         };
 
         let ret = Arc::new(merged_schema);
-        (guard.insert(namespace, Arc::clone(&ret)), ret)
+        guard.insert(namespace, Arc::clone(&ret));
+        (ret, change_stats)
     }
 }
 
-fn merge_schema(old_ns: &Arc<NamespaceSchema>, mut new_ns: NamespaceSchema) -> NamespaceSchema {
+/// Merges into `new_ns` any table or column schema which are
+/// present in `old_ns` but missing in `new_ns`. The newer namespace schema is
+/// prioritised in the case of any conflicting schema definitions.
+fn merge_schema_additive(
+    mut new_ns: NamespaceSchema,
+    old_ns: Arc<NamespaceSchema>,
+) -> (NamespaceSchema, ChangeStats) {
     // invariant: Namespace ID should never change for a given name
     assert_eq!(old_ns.id, new_ns.id);
 
-    for (table_name, new_table) in &mut new_ns.tables {
-        let old_columns = match old_ns.tables.get(table_name) {
-            Some(v) => &v.columns,
-            None => continue,
-        };
-
-        for (column_name, column) in old_columns {
-            if !new_table.columns.contains_key(column_name) {
-                new_table.columns.insert(column_name.to_owned(), *column);
+    let old_table_count = old_ns.tables.len();
+    let mut old_column_count = 0;
+    // In order to avoid un-necessary copies, the merge attempts to own the
+    // value for the old namespace.
+    //
+    // Table schema missing from the new schema are added from the old. If
+    // the table exists in both the new and the old namespace schema then
+    // any column schema missing from the new table schema are added from
+    // the old.
+    //
+    // The two match arms below must merge in the same way, aside from memory
+    // semantics.
+    match Arc::try_unwrap(old_ns) {
+        Ok(owned_old_ns) => {
+            for (old_table_name, old_table) in owned_old_ns.tables {
+                match new_ns.tables.get_mut(&old_table_name) {
+                    Some(new_table) => {
+                        old_column_count += old_table.columns.len();
+                        for (column_name, column) in old_table.columns {
+                            new_table.columns.entry(column_name).or_insert(column);
+                        }
+                    }
+                    None => {
+                        new_ns.tables.insert(old_table_name, old_table);
+                    }
+                }
+            }
+        }
+        Err(old_ns) => {
+            for (old_table_name, old_table) in &old_ns.tables {
+                match new_ns.tables.get_mut(old_table_name) {
+                    Some(new_table) => {
+                        old_column_count += old_table.columns.len();
+                        for (column_name, column) in &old_table.columns {
+                            if !new_table.columns.contains_key(column_name) {
+                                new_table.columns.insert(column_name.to_owned(), *column);
+                            }
+                        }
+                    }
+                    None => {
+                        new_ns
+                            .tables
+                            .insert(old_table_name.to_owned(), old_table.to_owned());
+                    }
+                }
             }
         }
     }
-    new_ns
+
+    let change_stats = ChangeStats {
+        new_tables: new_ns.tables.len() - old_table_count,
+        new_columns: new_ns
+            .tables
+            .values()
+            .fold(0, |acc, t| acc + t.columns.len())
+            - old_column_count,
+    };
+    (new_ns, change_stats)
 }
 
 #[cfg(test)]
@@ -109,7 +171,10 @@ mod tests {
             max_tables: 24,
             retention_period_ns: Some(876),
         };
-        assert_matches!(cache.put_schema(ns.clone(), schema1.clone()), (None, _));
+        assert_matches!(cache.put_schema(ns.clone(), schema1.clone()), (new, s) => {
+            assert_eq!(*new, schema1);
+            assert_eq!(s.new_tables, 0);
+        });
         assert_eq!(
             *cache.get_schema(&ns).await.expect("lookup failure"),
             schema1
@@ -125,13 +190,10 @@ mod tests {
             retention_period_ns: Some(876),
         };
 
-        assert_matches!(
-            cache
-                .put_schema(ns.clone(), schema2.clone()),
-            (Some(prev), _) => {
-                assert_eq!(*prev, schema1);
-            }
-        );
+        assert_matches!(cache.put_schema(ns.clone(), schema2.clone()), (new, s) => {
+            assert_eq!(*new, schema2);
+            assert_eq!(s.new_tables, 0);
+        });
         assert_eq!(
             *cache.get_schema(&ns).await.expect("lookup failure"),
             schema2
@@ -139,7 +201,7 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn test_put_additive_merge() {
+    async fn test_put_additive_merge_columns() {
         let ns = NamespaceName::new("arán").expect("namespace name is valid");
         let table_name = "arán";
         let table_id = TableId::new(1);
@@ -159,24 +221,24 @@ mod tests {
             column_type: ColumnType::String,
         };
 
-        let mut table_schema_1 = TableSchema::new(table_id);
-        table_schema_1.add_column(&column_1);
-        let mut table_schema_2 = TableSchema::new(table_id);
-        table_schema_2.add_column(&column_2);
+        let mut first_write_table_schema = TableSchema::new(table_id);
+        first_write_table_schema.add_column(&column_1);
+        let mut second_write_table_schema = TableSchema::new(table_id);
+        second_write_table_schema.add_column(&column_2);
 
-        assert_ne!(table_schema_1, table_schema_2); // These MUST always be different
+        assert_ne!(first_write_table_schema, second_write_table_schema); // These MUST always be different
 
         let schema_update_1 = NamespaceSchema {
             id: NamespaceId::new(42),
             topic_id: TopicId::new(76),
             query_pool_id: QueryPoolId::new(64),
-            tables: BTreeMap::from([(String::from(table_name), table_schema_1)]),
+            tables: BTreeMap::from([(String::from(table_name), first_write_table_schema)]),
             max_columns_per_table: 50,
             max_tables: 24,
             retention_period_ns: None,
         };
         let schema_update_2 = NamespaceSchema {
-            tables: BTreeMap::from([(String::from(table_name), table_schema_2)]),
+            tables: BTreeMap::from([(String::from(table_name), second_write_table_schema)]),
             ..schema_update_1
         };
 
@@ -199,11 +261,13 @@ mod tests {
             }
         );
 
-        assert_matches!(cache.put_schema(ns.clone(), schema_update_1.clone()), (None, new_schema) => {
+        assert_matches!(cache.put_schema(ns.clone(), schema_update_1.clone()), (new_schema, new_stats) => {
             assert_eq!(*new_schema, schema_update_1);
+            assert_eq!(new_stats, ChangeStats{ new_tables: 1, new_columns: 1});
         });
-        assert_matches!(cache.put_schema(ns.clone(), schema_update_2), (Some(_), new_schema) => {
+        assert_matches!(cache.put_schema(ns.clone(), schema_update_2), (new_schema, new_stats) => {
             assert_eq!(*new_schema, want_namespace_schema);
+            assert_eq!(new_stats, ChangeStats{ new_tables: 0, new_columns: 1});
         });
 
         let got_namespace_schema = cache
@@ -214,6 +278,73 @@ mod tests {
         assert_eq!(
             *got_namespace_schema, want_namespace_schema,
             "table schema for left hand side should contain columns from both writes",
+        );
+    }
+
+    #[tokio::test]
+    async fn test_put_additive_merge_tables() {
+        let ns = NamespaceName::new("arán").expect("namespace name is valid");
+        // Create two distinct namespace schema to put in the cache to simulate
+        // a pair of racy writes with different table additions.
+        let table_1 = TableSchema::new(TableId::new(1));
+        let table_2 = TableSchema::new(TableId::new(2));
+        let table_3 = TableSchema::new(TableId::new(3));
+
+        let schema_update_1 = NamespaceSchema {
+            id: NamespaceId::new(42),
+            topic_id: TopicId::new(76),
+            query_pool_id: QueryPoolId::new(64),
+            tables: BTreeMap::from([
+                (String::from("table_1"), table_1.to_owned()),
+                (String::from("table_2"), table_2.to_owned()),
+            ]),
+            max_columns_per_table: 50,
+            max_tables: 24,
+            retention_period_ns: None,
+        };
+        let schema_update_2 = NamespaceSchema {
+            tables: BTreeMap::from([
+                (String::from("table_1"), table_1.to_owned()),
+                (String::from("table_3"), table_3.to_owned()),
+            ]),
+            ..schema_update_1
+        };
+
+        let want_namespace_schema = NamespaceSchema {
+            tables: BTreeMap::from([
+                (String::from("table_1"), table_1),
+                (String::from("table_2"), table_2),
+                (String::from("table_3"), table_3),
+            ]),
+            ..schema_update_1
+        };
+
+        // Set up the cache and ensure there are no entries for the namespace.
+        let cache = Arc::new(MemoryNamespaceCache::default());
+        assert_matches!(
+            cache.get_schema(&ns).await,
+            Err(CacheMissErr { namespace: got_ns })  => {
+                assert_eq!(got_ns, ns);
+            }
+        );
+
+        assert_matches!(cache.put_schema(ns.clone(), schema_update_1.clone()), (new_schema, new_stats) => {
+            assert_eq!(*new_schema, schema_update_1);
+            assert_eq!(new_stats, ChangeStats{ new_tables: 2, new_columns: 0});
+        });
+        assert_matches!(cache.put_schema(ns.clone(), schema_update_2), (new_schema, new_stats) => {
+            assert_eq!(*new_schema, want_namespace_schema);
+            assert_eq!(new_stats, ChangeStats{ new_tables: 1, new_columns: 0});
+        });
+
+        let got_namespace_schema = cache
+            .get_schema(&ns)
+            .await
+            .expect("a namespace schema should be found");
+
+        assert_eq!(
+            *got_namespace_schema, want_namespace_schema,
+            "table schema for left hand side should contain tables from both writes",
         );
     }
 }

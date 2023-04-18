@@ -288,7 +288,7 @@ where
         // complete.
         let latest_schema = match maybe_new_schema {
             Some(v) => {
-                let (_, new_schema) = self.cache.put_schema(namespace.clone(), v);
+                let (new_schema, _) = self.cache.put_schema(namespace.clone(), v);
                 trace!(%namespace, "schema cache updated");
                 new_schema
             }

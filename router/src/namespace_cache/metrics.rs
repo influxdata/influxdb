@@ -7,7 +7,7 @@ use data_types::{NamespaceName, NamespaceSchema};
 use iox_time::{SystemProvider, TimeProvider};
 use metric::{DurationHistogram, Metric, U64Gauge};
 
-use super::NamespaceCache;
+use super::{ChangeStats, NamespaceCache};
 
 /// An [`InstrumentedCache`] decorates a [`NamespaceCache`] with cache read
 /// hit/miss and cache put insert/update metrics.
@@ -25,10 +25,8 @@ pub struct InstrumentedCache<T, P = SystemProvider> {
     /// A cache read miss
     get_miss: DurationHistogram,
 
-    /// A cache put for a namespace that did not previously exist.
-    put_insert: DurationHistogram,
-    /// A cache put replacing a namespace that previously had a cache entry.
-    put_update: DurationHistogram,
+    /// A cache put
+    put: DurationHistogram,
 }
 
 impl<T> InstrumentedCache<T> {
@@ -41,8 +39,7 @@ impl<T> InstrumentedCache<T> {
 
         let put_counter: Metric<DurationHistogram> =
             registry.register_metric("namespace_cache_put_duration", "cache put call duration");
-        let put_insert = put_counter.recorder(&[("op", "insert")]);
-        let put_update = put_counter.recorder(&[("op", "update")]);
+        let put = put_counter.recorder([]);
 
         let table_count = registry
             .register_metric::<U64Gauge>(
@@ -64,8 +61,7 @@ impl<T> InstrumentedCache<T> {
             column_count,
             get_hit,
             get_miss,
-            put_insert,
-            put_update,
+            put,
         }
     }
 }
@@ -101,63 +97,21 @@ where
         &self,
         namespace: NamespaceName<'static>,
         schema: NamespaceSchema,
-    ) -> (Option<Arc<NamespaceSchema>>, Arc<NamespaceSchema>) {
+    ) -> (Arc<NamespaceSchema>, ChangeStats) {
         let t = self.time_provider.now();
-        let (previous, new_schema) = self.inner.put_schema(namespace, schema);
-        let new_stats = NamespaceStats::new(&new_schema);
+        let (result, change_stats) = self.inner.put_schema(namespace, schema);
 
-        match previous {
-            Some(v) => {
-                if let Some(delta) = self.time_provider.now().checked_duration_since(t) {
-                    self.put_update.record(delta);
-                }
-
-                // Figure out the difference between the new namespace and the
-                // evicted old namespace
-                let old_stats = NamespaceStats::new(&v);
-                let table_count_diff = new_stats.table_count as i64 - old_stats.table_count as i64;
-                let column_count_diff =
-                    new_stats.column_count as i64 - old_stats.column_count as i64;
-
-                // Adjust the metrics to reflect the change
-                self.table_count.delta(table_count_diff);
-                self.column_count.delta(column_count_diff);
-
-                (Some(v), new_schema)
-            }
-            None => {
-                if let Some(delta) = self.time_provider.now().checked_duration_since(t) {
-                    self.put_insert.record(delta);
-                }
-
-                // Add the new namespace stats to the counts.
-                self.table_count.inc(new_stats.table_count);
-                self.column_count.inc(new_stats.column_count);
-
-                (None, new_schema)
-            }
+        if let Some(delta) = self.time_provider.now().checked_duration_since(t) {
+            self.put.record(delta);
         }
-    }
-}
 
-#[derive(Debug, PartialEq, Eq)]
-/// An encapsulation of statistics associated with a namespace schema.
-struct NamespaceStats {
-    /// Number of tables within the namespace
-    table_count: u64,
-    /// Total number of columns across all tables within the namespace
-    column_count: u64,
-}
+        // Figure out the difference between the new namespace and the
+        // evicted old namespace
+        // Adjust the metrics to reflect the change
+        self.table_count.inc(change_stats.new_tables as u64);
+        self.column_count.inc(change_stats.new_columns as u64);
 
-impl NamespaceStats {
-    /// Derives a set of [`NamespaceStats`] from the given schema.
-    fn new(ns: &NamespaceSchema) -> Self {
-        let table_count = ns.tables.len() as _;
-        let column_count = ns.tables.values().fold(0, |acc, t| acc + t.columns.len()) as _;
-        Self {
-            table_count,
-            column_count,
-        }
+        (result, change_stats)
     }
 }
 
@@ -218,13 +172,13 @@ mod tests {
     fn assert_histogram_hit(
         metrics: &metric::Registry,
         metric_name: &'static str,
-        attr: (&'static str, &'static str),
+        attr: impl Into<Attributes>,
         count: u64,
     ) {
         let histogram = metrics
             .get_instrument::<Metric<DurationHistogram>>(metric_name)
             .expect("failed to read metric")
-            .get_observer(&Attributes::from(&[attr]))
+            .get_observer(&attr.into())
             .expect("failed to get observer")
             .fetch();
 
@@ -244,136 +198,55 @@ mod tests {
 
         // No tables
         let schema = new_schema(&[]);
-        assert_matches!(cache.put_schema(ns.clone(), schema), (None, _));
-        assert_histogram_hit(
-            &registry,
-            "namespace_cache_put_duration",
-            ("op", "insert"),
-            1,
-        );
-        assert_histogram_hit(
-            &registry,
-            "namespace_cache_put_duration",
-            ("op", "update"),
-            0,
-        );
+        cache.put_schema(ns.clone(), schema.to_owned());
+        assert_histogram_hit(&registry, "namespace_cache_put_duration", &[], 1);
         assert_eq!(cache.table_count.observe(), Observation::U64Gauge(0));
         assert_eq!(cache.column_count.observe(), Observation::U64Gauge(0));
 
         // Add a table with 1 column
         let schema = new_schema(&[1]);
-        assert_matches!(cache.put_schema(ns.clone(), schema), (Some(_), _));
-        assert_histogram_hit(
-            &registry,
-            "namespace_cache_put_duration",
-            ("op", "insert"),
-            1,
-        ); // Unchanged
-        assert_histogram_hit(
-            &registry,
-            "namespace_cache_put_duration",
-            ("op", "update"),
-            1,
-        );
+        assert_matches!(cache.put_schema(ns.clone(), schema.to_owned()), (result, _) => {
+            assert_eq!(*result, schema);
+        });
+        assert_histogram_hit(&registry, "namespace_cache_put_duration", [], 2);
         assert_eq!(cache.table_count.observe(), Observation::U64Gauge(1));
         assert_eq!(cache.column_count.observe(), Observation::U64Gauge(1));
 
         // Increase the number of columns in this one table
         let schema = new_schema(&[5]);
-        assert_matches!(cache.put_schema(ns.clone(), schema), (Some(_), _));
-        assert_histogram_hit(
-            &registry,
-            "namespace_cache_put_duration",
-            ("op", "insert"),
-            1,
-        ); // Unchanged
-        assert_histogram_hit(
-            &registry,
-            "namespace_cache_put_duration",
-            ("op", "update"),
-            2,
-        );
+        cache.put_schema(ns.clone(), schema);
+        assert_histogram_hit(&registry, "namespace_cache_put_duration", [], 3);
         assert_eq!(cache.table_count.observe(), Observation::U64Gauge(1));
         assert_eq!(cache.column_count.observe(), Observation::U64Gauge(5));
 
         // Add another table
         let schema = new_schema(&[5, 5]);
-        assert_matches!(cache.put_schema(ns.clone(), schema), (Some(_), _));
-        assert_histogram_hit(
-            &registry,
-            "namespace_cache_put_duration",
-            ("op", "insert"),
-            1,
-        ); // Unchanged
-        assert_histogram_hit(
-            &registry,
-            "namespace_cache_put_duration",
-            ("op", "update"),
-            3,
-        );
+        cache.put_schema(ns.clone(), schema);
+        assert_histogram_hit(&registry, "namespace_cache_put_duration", [], 4);
         assert_eq!(cache.table_count.observe(), Observation::U64Gauge(2));
         assert_eq!(cache.column_count.observe(), Observation::U64Gauge(10));
 
         // Add another table and adjust an existing table (increased column count)
         let schema = new_schema(&[5, 10, 4]);
-        assert_matches!(cache.put_schema(ns.clone(), schema), (Some(_), _));
-        assert_histogram_hit(
-            &registry,
-            "namespace_cache_put_duration",
-            ("op", "insert"),
-            1,
-        ); // Unchanged
-        assert_histogram_hit(
-            &registry,
-            "namespace_cache_put_duration",
-            ("op", "update"),
-            4,
-        );
+        cache.put_schema(ns.clone(), schema);
+        assert_histogram_hit(&registry, "namespace_cache_put_duration", [], 5);
         assert_eq!(cache.table_count.observe(), Observation::U64Gauge(3));
         assert_eq!(cache.column_count.observe(), Observation::U64Gauge(19));
-
-        // Remove a table
-        let schema = new_schema(&[5, 10]);
-        assert_matches!(cache.put_schema(ns, schema), (Some(_), _));
-        assert_histogram_hit(
-            &registry,
-            "namespace_cache_put_duration",
-            ("op", "insert"),
-            1,
-        ); // Unchanged
-        assert_histogram_hit(
-            &registry,
-            "namespace_cache_put_duration",
-            ("op", "update"),
-            5,
-        );
-        assert_eq!(cache.table_count.observe(), Observation::U64Gauge(2));
-        assert_eq!(cache.column_count.observe(), Observation::U64Gauge(15));
 
         // Add a new namespace
         let ns = NamespaceName::new("another").expect("namespace name is valid");
         let schema = new_schema(&[10, 12, 9]);
-        assert_matches!(cache.put_schema(ns.clone(), schema), (None, _));
-        assert_histogram_hit(
-            &registry,
-            "namespace_cache_put_duration",
-            ("op", "insert"),
-            2,
-        );
-        assert_histogram_hit(
-            &registry,
-            "namespace_cache_put_duration",
-            ("op", "update"),
-            5,
-        );
-        assert_eq!(cache.table_count.observe(), Observation::U64Gauge(5));
-        assert_eq!(cache.column_count.observe(), Observation::U64Gauge(46)); // 15 + new columns (31)
+        cache.put_schema(ns.clone(), schema);
+        assert_histogram_hit(&registry, "namespace_cache_put_duration", [], 6);
+
+        assert_eq!(cache.table_count.observe(), Observation::U64Gauge(6));
+        assert_eq!(cache.column_count.observe(), Observation::U64Gauge(50)); // 15 + new columns (31)
 
         let _got = cache.get_schema(&ns).await.expect("should exist");
         assert_histogram_hit(
             &registry,
             "namespace_cache_get_duration",
-            ("result", "hit"),
+            &[("result", "hit")],
             1,
         );
     }

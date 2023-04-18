@@ -34,14 +34,22 @@ pub trait NamespaceCache: Debug + Send + Sync {
     /// with the existing entry for `namespace`, if any.
     ///
     /// All data except the set of tables/columns have "last writer wins"
-    /// semantics.
-    ///
-    /// If the entry in the cache for `namespace` resolves to a different ID than
-    /// the incoming `schema` the write unconditionally overwrites any pre-existing
-    /// entry for `namespace`.
+    /// semantics. The resulting merged schema is returned, along with a set
+    /// of change statistics.
     fn put_schema(
         &self,
         namespace: NamespaceName<'static>,
         schema: NamespaceSchema,
-    ) -> (Option<Arc<NamespaceSchema>>, Arc<NamespaceSchema>);
+    ) -> (Arc<NamespaceSchema>, ChangeStats);
+}
+
+/// Change statistics describing how the cache entry was modified by the
+/// associated [`NamespaceCache::put_schema()`] call.
+#[derive(Debug, PartialEq, Eq)]
+pub struct ChangeStats {
+    /// The number of tables added to the cache.
+    pub(crate) new_tables: usize,
+
+    /// The number of columns added to the cache (across all tables).
+    pub(crate) new_columns: usize,
 }
