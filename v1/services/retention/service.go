@@ -163,9 +163,11 @@ func (s *Service) run(ctx context.Context) {
 				}
 			}
 
+			log.Debug("Getting shard ids")
 			// Remove shards if we store them locally
 			for _, id := range s.TSDBStore.ShardIDs() {
 				if info, ok := deletedShardIDs[id]; ok {
+					log.Debug("Attempt to delete shard", zap.Uint64("id", id))
 					if err := s.TSDBStore.DeleteShard(id); err != nil {
 						log.Info("Failed to delete shard",
 							logger.Database(info.db),

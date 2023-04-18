@@ -198,11 +198,13 @@ func (p *SeriesPartition) FileSize() (n int64, err error) {
 // The ids parameter is modified to contain series IDs for all keys belonging to this partition.
 func (p *SeriesPartition) CreateSeriesListIfNotExists(keys [][]byte, keyPartitionIDs []int, ids []uint64) error {
 	var writeRequired bool
+	p.Logger.Debug("series partition acquire RLock")
 	p.mu.RLock()
 	if p.closed {
 		p.mu.RUnlock()
 		return ErrSeriesPartitionClosed
 	}
+	p.Logger.Debug("num keys", zap.Int("size", len(keys)))
 	for i := range keys {
 		if keyPartitionIDs[i] != p.id {
 			continue
@@ -228,6 +230,7 @@ func (p *SeriesPartition) CreateSeriesListIfNotExists(keys [][]byte, keyPartitio
 	newKeyRanges := make([]keyRange, 0, len(keys))
 
 	// Obtain write lock to create new series.
+	p.Logger.Debug("series partition acquire Lock")
 	p.mu.Lock()
 	defer p.mu.Unlock()
 

@@ -768,8 +768,10 @@ func (s *Store) DeleteShard(shardID uint64) error {
 	// shards. Also mark that this shard is currently being deleted in a separate
 	// map so that we do not have to retain the global store lock while deleting
 	// files.
+	s.Logger.Debug("waiting for Store lock")
 	s.mu.Lock()
 	if _, ok := s.pendingShardDeletes[shardID]; ok {
+		s.Logger.Debug("a delete is already pending")
 		// We are already being deleted? This is possible if delete shard
 		// was called twice in sequence before the shard could be removed from
 		// the mapping.
@@ -778,19 +780,20 @@ func (s *Store) DeleteShard(shardID uint64) error {
 		return nil
 	}
 	delete(s.shards, shardID)
-	delete(s.epochs, shardID)
 	s.pendingShardDeletes[shardID] = struct{}{}
 
 	db := sh.Database()
 	// Determine if the shard contained any series that are not present in any
 	// other shards in the database.
 	shards := s.filterShards(byDatabase(db))
+	epoch := s.epochs[shardID]
 	s.mu.Unlock()
 
 	// Ensure the pending deletion flag is cleared on exit.
 	defer func() {
 		s.mu.Lock()
 		defer s.mu.Unlock()
+		delete(s.epochs, shardID)
 		delete(s.pendingShardDeletes, shardID)
 		s.databases[db].removeIndexType(sh.IndexType())
 	}()
@@ -804,6 +807,7 @@ func (s *Store) DeleteShard(shardID uint64) error {
 	ss := index.SeriesIDSet()
 
 	err = s.walkShards(shards, func(sh *Shard) error {
+		s.Logger.Debug("walking shard", zap.Uint64("id", sh.id))
 		index, err := sh.Index()
 		if err != nil {
 			return err
@@ -823,6 +827,7 @@ func (s *Store) DeleteShard(shardID uint64) error {
 		sfile := s.seriesFile(db)
 		if sfile != nil {
 			ss.ForEach(func(id uint64) {
+				s.Logger.Debug("delete series", zap.Uint64("id", id))
 				err = sfile.DeleteSeriesID(id)
 				if err != nil {
 					s.Logger.Error("error deleting series id during DeleteShard operation", zap.Uint64("id", id), zap.Error(err))
@@ -832,16 +837,29 @@ func (s *Store) DeleteShard(shardID uint64) error {
 
 	}
 
+	// enter the epoch tracker
+	guards, gen := epoch.StartWrite()
+	defer epoch.EndWrite(gen)
+
+	// wait for any guards before closing the shard
+	for _, guard := range guards {
+		s.Logger.Debug("waiting on guards")
+		guard.Wait()
+	}
+
 	// Close the shard.
+	s.Logger.Debug("close shard")
 	if err := sh.Close(); err != nil {
 		return err
 	}
 
 	// Remove the on-disk shard data.
+	s.Logger.Debug("remove shard")
 	if err := os.RemoveAll(sh.path); err != nil {
 		return err
 	}
 
+	s.Logger.Debug("remove shard wal")
 	return os.RemoveAll(sh.walPath)
 }
 
