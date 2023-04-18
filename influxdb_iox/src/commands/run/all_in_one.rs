@@ -185,6 +185,17 @@ pub struct Config {
     #[clap(flatten)]
     pub(crate) tracing_config: TracingConfig,
 
+    /// Differential handling based upon deployment to CST vs MT.
+    ///
+    /// At minimum, differs in supports of v1 endpoint. But also includes
+    /// differences in namespace handling, etc.
+    #[clap(
+        long = "single-tenancy",
+        env = "INFLUXDB_IOX_SINGLE_TENANCY",
+        default_value = "false"
+    )]
+    pub single_tenant_deployment: bool,
+
     /// Maximum size of HTTP requests.
     #[clap(
         long = "max-http-request-size",
@@ -371,6 +382,7 @@ impl Config {
             querier_max_concurrent_queries,
             exec_mem_pool_bytes,
             authz_config,
+            single_tenant_deployment,
         } = self;
 
         // Determine where to store files (wal and possibly catalog
@@ -469,7 +481,7 @@ impl Config {
             topic: QUERY_POOL_NAME.to_string(),
             rpc_write_timeout_seconds: Duration::new(3, 0),
             rpc_write_replicas: None,
-            single_tenant_deployment: false,
+            single_tenant_deployment,
             rpc_write_max_outgoing_bytes: ingester_config.rpc_write_max_incoming_bytes,
         };
 
