@@ -12,11 +12,10 @@ use crate::{
 };
 use async_trait::async_trait;
 use data_types::{
-    Column, ColumnId, ColumnSet, ColumnType, ColumnTypeCount, CompactionLevel, Namespace,
-    NamespaceId, ParquetFile, ParquetFileId, ParquetFileParams, Partition, PartitionId,
-    PartitionKey, PartitionParam, QueryPool, QueryPoolId, SequenceNumber, Shard, ShardId,
-    ShardIndex, SkippedCompaction, Table, TableId, TablePartition, Timestamp, TopicId,
-    TopicMetadata, TRANSITION_SHARD_ID, TRANSITION_SHARD_INDEX,
+    Column, ColumnId, ColumnSet, ColumnType, CompactionLevel, Namespace, NamespaceId, ParquetFile,
+    ParquetFileId, ParquetFileParams, Partition, PartitionId, PartitionKey, PartitionParam,
+    QueryPool, QueryPoolId, SequenceNumber, Shard, ShardId, ShardIndex, SkippedCompaction, Table,
+    TableId, Timestamp, TopicId, TopicMetadata, TRANSITION_SHARD_ID, TRANSITION_SHARD_INDEX,
 };
 use serde::{Deserialize, Serialize};
 use std::ops::Deref;
@@ -870,21 +869,6 @@ RETURNING *;
 
         Ok(out)
     }
-
-    async fn list_type_count_by_table_id(
-        &mut self,
-        table_id: TableId,
-    ) -> Result<Vec<ColumnTypeCount>> {
-        sqlx::query_as::<_, ColumnTypeCount>(
-            r#"
-select column_type as col_type, count(1) AS count from column_name where table_id = $1 group by 1;
-            "#,
-        )
-        .bind(table_id) // $1
-        .fetch_all(self.inner.get_mut())
-        .await
-        .map_err(|e| Error::SqlxError { source: e })
-    }
 }
 
 #[async_trait]
@@ -1073,24 +1057,6 @@ RETURNING *;
         Ok(Some(partition.into()))
     }
 
-    async fn list_by_namespace(&mut self, namespace_id: NamespaceId) -> Result<Vec<Partition>> {
-        Ok(sqlx::query_as::<_, PartitionPod>(
-            r#"
-SELECT partition.*
-FROM table_name
-INNER JOIN partition on partition.table_id = table_name.id
-WHERE table_name.namespace_id = $1;
-            "#,
-        )
-        .bind(namespace_id) // $1
-        .fetch_all(self.inner.get_mut())
-        .await
-        .map_err(|e| Error::SqlxError { source: e })?
-        .into_iter()
-        .map(Into::into)
-        .collect())
-    }
-
     async fn list_by_table_id(&mut self, table_id: TableId) -> Result<Vec<Partition>> {
         Ok(sqlx::query_as::<_, PartitionPod>(
             r#"
@@ -1274,27 +1240,6 @@ RETURNING *
         .context(interface::CouldNotDeleteSkippedCompactionsSnafu)
     }
 
-    async fn update_persisted_sequence_number(
-        &mut self,
-        partition_id: PartitionId,
-        sequence_number: SequenceNumber,
-    ) -> Result<()> {
-        let _ = sqlx::query(
-            r#"
-UPDATE partition
-SET persisted_sequence_number = $1
-WHERE id = $2;
-                "#,
-        )
-        .bind(sequence_number.get()) // $1
-        .bind(partition_id) // $2
-        .execute(self.inner.get_mut())
-        .await
-        .map_err(|e| Error::SqlxError { source: e })?;
-
-        Ok(())
-    }
-
     async fn most_recent_n(&mut self, n: usize) -> Result<Vec<Partition>> {
         Ok(sqlx::query_as::<_, PartitionPod>(
             r#"SELECT * FROM partition ORDER BY id DESC LIMIT $1;"#,
@@ -1306,24 +1251,6 @@ WHERE id = $2;
         .into_iter()
         .map(Into::into)
         .collect())
-    }
-
-    async fn most_recent_n_in_shards(
-        &mut self,
-        n: usize,
-        shards: &[ShardId],
-    ) -> Result<Vec<Partition>> {
-        Ok(sqlx::query_as::<_, PartitionPod>(
-            r#"SELECT * FROM partition WHERE shard_id IN (SELECT value FROM json_each($1)) ORDER BY id DESC LIMIT $2;"#,
-        )
-            .bind(&Json(shards.iter().map(|v| v.get()).collect::<Vec<_>>()))
-            .bind(n as i64)
-            .fetch_all(self.inner.get_mut())
-            .await
-            .map_err(|e| Error::SqlxError { source: e })?
-            .into_iter()
-            .map(Into::into)
-            .collect())
     }
 
     async fn partitions_with_recent_created_files(
@@ -1520,34 +1447,6 @@ RETURNING *;
         Ok(flagged)
     }
 
-    async fn list_by_shard_greater_than(
-        &mut self,
-        shard_id: ShardId,
-        sequence_number: SequenceNumber,
-    ) -> Result<Vec<ParquetFile>> {
-        // Deliberately doesn't use `SELECT *` to avoid the performance hit of fetching the large
-        // `parquet_metadata` column!!
-        Ok(sqlx::query_as::<_, ParquetFilePod>(
-            r#"
-SELECT id, shard_id, namespace_id, table_id, partition_id, object_store_id,
-       max_sequence_number, min_time, max_time, to_delete, file_size_bytes,
-       row_count, compaction_level, created_at, column_set, max_l0_created_at
-FROM parquet_file
-WHERE shard_id = $1
-  AND max_sequence_number > $2
-ORDER BY id;
-            "#,
-        )
-        .bind(shard_id) // $1
-        .bind(sequence_number) // $2
-        .fetch_all(self.inner.get_mut())
-        .await
-        .map_err(|e| Error::SqlxError { source: e })?
-        .into_iter()
-        .map(Into::into)
-        .collect())
-    }
-
     async fn list_by_namespace_not_to_delete(
         &mut self,
         namespace_id: NamespaceId,
@@ -1619,23 +1518,6 @@ WHERE table_id = $1;
         .collect())
     }
 
-    async fn delete_old(&mut self, older_than: Timestamp) -> Result<Vec<ParquetFile>> {
-        Ok(sqlx::query_as::<_, ParquetFilePod>(
-            r#"
-DELETE FROM parquet_file
-WHERE to_delete < $1
-RETURNING *;
-             "#,
-        )
-        .bind(older_than) // $1
-        .fetch_all(self.inner.get_mut())
-        .await
-        .map_err(|e| Error::SqlxError { source: e })?
-        .into_iter()
-        .map(Into::into)
-        .collect())
-    }
-
     async fn delete_old_ids_only(&mut self, older_than: Timestamp) -> Result<Vec<ParquetFileId>> {
         // see https://www.crunchydata.com/blog/simulating-update-or-delete-with-limit-in-sqlite-ctes-to-the-rescue
         let deleted = sqlx::query(
@@ -1659,245 +1541,6 @@ RETURNING id;
 
         let deleted = deleted.into_iter().map(|row| row.get("id")).collect();
         Ok(deleted)
-    }
-
-    async fn level_0(&mut self, shard_id: ShardId) -> Result<Vec<ParquetFile>> {
-        // this intentionally limits the returned files to 10,000 as it is used to make
-        // a decision on the highest priority partitions. If compaction has never been
-        // run this could end up returning millions of results and taking too long to run.
-        // Deliberately doesn't use `SELECT *` to avoid the performance hit of fetching the large
-        // `parquet_metadata` column!!
-        Ok(sqlx::query_as::<_, ParquetFilePod>(
-            r#"
-SELECT id, shard_id, namespace_id, table_id, partition_id, object_store_id,
-       max_sequence_number, min_time, max_time, to_delete, file_size_bytes,
-       row_count, compaction_level, created_at, column_set, max_l0_created_at
-FROM parquet_file
-WHERE parquet_file.shard_id = $1
-  AND parquet_file.compaction_level = $2
-  AND parquet_file.to_delete IS NULL
-  LIMIT 1000;
-        "#,
-        )
-        .bind(shard_id) // $1
-        .bind(CompactionLevel::Initial) // $2
-        .fetch_all(self.inner.get_mut())
-        .await
-        .map_err(|e| Error::SqlxError { source: e })?
-        .into_iter()
-        .map(Into::into)
-        .collect())
-    }
-
-    async fn level_1(
-        &mut self,
-        table_partition: TablePartition,
-        min_time: Timestamp,
-        max_time: Timestamp,
-    ) -> Result<Vec<ParquetFile>> {
-        // Deliberately doesn't use `SELECT *` to avoid the performance hit of fetching the large
-        // `parquet_metadata` column!!
-        Ok(sqlx::query_as::<_, ParquetFilePod>(
-            r#"
-SELECT id, shard_id, namespace_id, table_id, partition_id, object_store_id,
-       max_sequence_number, min_time, max_time, to_delete, file_size_bytes,
-       row_count, compaction_level, created_at, column_set, max_l0_created_at
-FROM parquet_file
-WHERE parquet_file.shard_id = $1
-  AND parquet_file.table_id = $2
-  AND parquet_file.partition_id = $3
-  AND parquet_file.compaction_level = $4
-  AND parquet_file.to_delete IS NULL
-  AND ((parquet_file.min_time <= $5 AND parquet_file.max_time >= $5)
-      OR (parquet_file.min_time > $5 AND parquet_file.min_time <= $6));
-        "#,
-        )
-        .bind(table_partition.shard_id) // $1
-        .bind(table_partition.table_id) // $2
-        .bind(table_partition.partition_id) // $3
-        .bind(CompactionLevel::FileNonOverlapped) // $4
-        .bind(min_time) // $5
-        .bind(max_time) // $6
-        .fetch_all(self.inner.get_mut())
-        .await
-        .map_err(|e| Error::SqlxError { source: e })?
-        .into_iter()
-        .map(Into::into)
-        .collect())
-    }
-
-    async fn recent_highest_throughput_partitions(
-        &mut self,
-        shard_id: Option<ShardId>,
-        time_in_the_past: Timestamp,
-        min_num_files: usize,
-        num_partitions: usize,
-    ) -> Result<Vec<PartitionParam>> {
-        let min_num_files = min_num_files as i32;
-        let num_partitions = num_partitions as i32;
-
-        match shard_id {
-            Some(shard_id) => {
-                sqlx::query_as::<_, PartitionParam>(
-                    r#"
-SELECT parquet_file.partition_id, parquet_file.table_id, parquet_file.shard_id,
-       parquet_file.namespace_id, count(parquet_file.id)
-FROM parquet_file
-LEFT OUTER JOIN skipped_compactions ON parquet_file.partition_id = skipped_compactions.partition_id
-WHERE compaction_level = $5
-AND   to_delete is null
-AND   shard_id = $1
-AND   created_at > $2
-AND   skipped_compactions.partition_id IS NULL
-GROUP BY 1, 2, 3, 4
-HAVING count(id) >= $3
-ORDER BY 5 DESC
-LIMIT $4;
-                    "#,
-                )
-                .bind(shard_id) // $1
-                .bind(time_in_the_past) //$2
-                .bind(min_num_files) // $3
-                .bind(num_partitions) // $4
-                .bind(CompactionLevel::Initial) // $5
-                .fetch_all(self.inner.get_mut())
-                .await
-                .map_err(|e| Error::SqlxError { source: e })
-            }
-            None => {
-                sqlx::query_as::<_, PartitionParam>(
-                    r#"
-SELECT parquet_file.partition_id, parquet_file.table_id, parquet_file.shard_id,
-       parquet_file.namespace_id, count(parquet_file.id)
-FROM parquet_file
-LEFT OUTER JOIN skipped_compactions ON parquet_file.partition_id = skipped_compactions.partition_id
-WHERE compaction_level = $4
-AND   to_delete is null
-AND   created_at > $1
-AND   skipped_compactions.partition_id IS NULL
-GROUP BY 1, 2, 3, 4
-HAVING count(id) >= $2
-ORDER BY 5 DESC
-LIMIT $3;
-                    "#,
-                )
-                .bind(time_in_the_past) //$1
-                .bind(min_num_files) // $2
-                .bind(num_partitions) // $3
-                .bind(CompactionLevel::Initial) // $4
-                .fetch_all(self.inner.get_mut())
-                .await
-                .map_err(|e| Error::SqlxError { source: e })
-            }
-        }
-    }
-
-    async fn partitions_with_small_l1_file_count(
-        &mut self,
-        shard_id: Option<ShardId>,
-        small_size_threshold_bytes: i64,
-        min_small_file_count: usize,
-        num_partitions: usize,
-    ) -> Result<Vec<PartitionParam>> {
-        // This query returns partitions with at least `min_small_file_count` small L1 files,
-        // where "small" means no bigger than `small_size_threshold_bytes`, limited to the top `num_partitions`.
-        sqlx::query_as::<_, PartitionParam>(
-            r#"
-SELECT parquet_file.partition_id, parquet_file.shard_id, parquet_file.namespace_id,
-       parquet_file.table_id,
-       COUNT(1) AS l1_file_count
-FROM   parquet_file
-LEFT OUTER JOIN skipped_compactions ON parquet_file.partition_id = skipped_compactions.partition_id
-WHERE  compaction_level = $5
-AND    to_delete IS NULL
-AND    shard_id = $1
-AND    skipped_compactions.partition_id IS NULL
-AND    file_size_bytes < $3
-GROUP BY 1, 2, 3, 4
-HAVING COUNT(1) >= $2
-ORDER BY l1_file_count DESC
-LIMIT $4;
-            "#,
-        )
-        .bind(shard_id) // $1
-        .bind(min_small_file_count as i32) // $2
-        .bind(small_size_threshold_bytes) // $3
-        .bind(num_partitions as i32) // $4
-        .bind(CompactionLevel::FileNonOverlapped) // $5
-        .fetch_all(self.inner.get_mut())
-        .await
-        .map_err(|e| Error::SqlxError { source: e })
-    }
-
-    async fn most_cold_files_partitions(
-        &mut self,
-        shard_id: Option<ShardId>,
-        time_in_the_past: Timestamp,
-        num_partitions: usize,
-    ) -> Result<Vec<PartitionParam>> {
-        let num_partitions = num_partitions as i32;
-
-        // This query returns partitions with most L0+L1 files and all L0 files (both deleted and
-        // non deleted) are either created before the given time ($2) or not available (removed by
-        // garbage collector)
-        match shard_id {
-            Some(shard_id) => {
-                sqlx::query_as::<_, PartitionParam>(
-                    r#"
-SELECT parquet_file.partition_id, parquet_file.shard_id, parquet_file.namespace_id,
-       parquet_file.table_id,
-       count(case when to_delete is null then 1 end) total_count,
-       max(case when compaction_level= $4 then parquet_file.created_at end)
-FROM   parquet_file
-LEFT OUTER JOIN skipped_compactions ON parquet_file.partition_id = skipped_compactions.partition_id
-WHERE  (compaction_level = $4 OR compaction_level = $5)
-AND    shard_id = $1
-AND    skipped_compactions.partition_id IS NULL
-GROUP BY 1, 2, 3, 4
-HAVING count(case when to_delete is null then 1 end) > 0
-       AND ( max(case when compaction_level= $4 then parquet_file.created_at end) < $2  OR
-             max(case when compaction_level= $4 then parquet_file.created_at end) is null)
-ORDER BY total_count DESC
-LIMIT $3;
-                    "#,
-                )
-                .bind(shard_id) // $1
-                .bind(time_in_the_past) // $2
-                .bind(num_partitions) // $3
-                .bind(CompactionLevel::Initial) // $4
-                .bind(CompactionLevel::FileNonOverlapped) // $5
-                .fetch_all(self.inner.get_mut())
-                .await
-                .map_err(|e| Error::SqlxError { source: e })
-            }
-            None => {
-                sqlx::query_as::<_, PartitionParam>(
-                    r#"
-SELECT parquet_file.partition_id, parquet_file.shard_id, parquet_file.namespace_id,
-       parquet_file.table_id,
-       count(case when to_delete is null then 1 end) total_count,
-       max(case when compaction_level= $4 then parquet_file.created_at end)
-FROM   parquet_file
-LEFT OUTER JOIN skipped_compactions ON parquet_file.partition_id = skipped_compactions.partition_id
-WHERE  (compaction_level = $3 OR compaction_level = $4)
-AND    skipped_compactions.partition_id IS NULL
-GROUP BY 1, 2, 3, 4
-HAVING count(case when to_delete is null then 1 end) > 0
-       AND ( max(case when compaction_level= $3 then parquet_file.created_at end) < $1  OR
-             max(case when compaction_level= $3 then parquet_file.created_at end) is null)
-ORDER BY total_count DESC
-LIMIT $2;
-                    "#,
-                )
-                .bind(time_in_the_past) // $1
-                .bind(num_partitions) // $2
-                .bind(CompactionLevel::Initial) // $3
-                .bind(CompactionLevel::FileNonOverlapped) // $4
-                .fetch_all(self.inner.get_mut())
-                .await
-                .map_err(|e| Error::SqlxError { source: e })
-            }
-        }
     }
 
     async fn list_by_partition_not_to_delete(
@@ -1969,71 +1612,6 @@ RETURNING id;
                 .fetch_one(self.inner.get_mut())
                 .await
                 .map_err(|e| Error::SqlxError { source: e })?;
-
-        Ok(read_result.count)
-    }
-
-    async fn count_by_overlaps_with_level_0(
-        &mut self,
-        table_id: TableId,
-        shard_id: ShardId,
-        min_time: Timestamp,
-        max_time: Timestamp,
-        sequence_number: SequenceNumber,
-    ) -> Result<i64> {
-        let read_result = sqlx::query_as::<_, Count>(
-            r#"
-SELECT count(1) as count
-FROM parquet_file
-WHERE table_id = $1
-  AND shard_id = $2
-  AND max_sequence_number < $3
-  AND parquet_file.to_delete IS NULL
-  AND compaction_level = $6
-  AND ((parquet_file.min_time <= $4 AND parquet_file.max_time >= $4)
-  OR (parquet_file.min_time > $4 AND parquet_file.min_time <= $5));
-            "#,
-        )
-        .bind(table_id) // $1
-        .bind(shard_id) // $2
-        .bind(sequence_number) // $3
-        .bind(min_time) // $4
-        .bind(max_time) // $5
-        .bind(CompactionLevel::Initial) // $6
-        .fetch_one(self.inner.get_mut())
-        .await
-        .map_err(|e| Error::SqlxError { source: e })?;
-
-        Ok(read_result.count)
-    }
-
-    async fn count_by_overlaps_with_level_1(
-        &mut self,
-        table_id: TableId,
-        shard_id: ShardId,
-        min_time: Timestamp,
-        max_time: Timestamp,
-    ) -> Result<i64> {
-        let read_result = sqlx::query_as::<_, Count>(
-            r#"
-SELECT count(1) as count
-FROM parquet_file
-WHERE table_id = $1
-  AND shard_id = $2
-  AND parquet_file.to_delete IS NULL
-  AND compaction_level = $5
-  AND ((parquet_file.min_time <= $3 AND parquet_file.max_time >= $3)
-  OR (parquet_file.min_time > $3 AND parquet_file.min_time <= $4));
-            "#,
-        )
-        .bind(table_id) // $1
-        .bind(shard_id) // $2
-        .bind(min_time) // $3
-        .bind(max_time) // $4
-        .bind(CompactionLevel::FileNonOverlapped) // $5
-        .fetch_one(self.inner.get_mut())
-        .await
-        .map_err(|e| Error::SqlxError { source: e })?;
 
         Ok(read_result.count)
     }
@@ -2544,7 +2122,7 @@ mod tests {
             .repositories()
             .await
             .parquet_files()
-            .delete_old(now)
+            .delete_old_ids_only(now)
             .await
             .expect("parquet file deletion should succeed");
         let total_file_size_bytes: i64 =
