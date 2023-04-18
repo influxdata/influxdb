@@ -2378,3 +2378,127 @@ tags: cpu=cpu1
 +---------------------+-------+
 -- InfluxQL: SELECT FIRST(usage_idle), usage_user, usage_system FROM cpu;
 Error while planning query: This feature is not implemented: projections with a single selector and fields: See https://github.com/influxdata/influxdb_iox/issues/7533
+-- InfluxQL: SELECT COUNT(DISTINCT str) FROM m0;
+name: m0
++---------------------+-------+
+| time                | count |
++---------------------+-------+
+| 1970-01-01T00:00:00 | 2     |
++---------------------+-------+
+-- InfluxQL: SELECT COUNT(DISTINCT str) FROM m0 GROUP BY tag0;
+-- Results After Sorting
+name: m0
+tags: tag0=val00
++---------------------+-------+
+| time                | count |
++---------------------+-------+
+| 1970-01-01T00:00:00 | 2     |
++---------------------+-------+
+name: m0
+tags: tag0=val01
++---------------------+-------+
+| time                | count |
++---------------------+-------+
+| 1970-01-01T00:00:00 | 1     |
++---------------------+-------+
+name: m0
+tags: tag0=val02
++---------------------+-------+
+| time                | count |
++---------------------+-------+
+| 1970-01-01T00:00:00 | 1     |
++---------------------+-------+
+-- InfluxQL: SELECT DISTINCT str FROM m0;
+-- Results After Sorting
+name: m0
++---------------------+----------+
+| time                | distinct |
++---------------------+----------+
+| 1970-01-01T00:00:00 | hi       |
+| 1970-01-01T00:00:00 | lo       |
++---------------------+----------+
+-- InfluxQL: SELECT DISTINCT(str) FROM m0;
+-- Results After Sorting
+name: m0
++---------------------+----------+
+| time                | distinct |
++---------------------+----------+
+| 1970-01-01T00:00:00 | hi       |
+| 1970-01-01T00:00:00 | lo       |
++---------------------+----------+
+-- InfluxQL: SELECT DISTINCT str FROM m0 GROUP BY tag0;
+-- Results After Sorting
+name: m0
+tags: tag0=val00
++---------------------+----------+
+| time                | distinct |
++---------------------+----------+
+| 1970-01-01T00:00:00 | hi       |
+| 1970-01-01T00:00:00 | lo       |
++---------------------+----------+
+name: m0
+tags: tag0=val01
++---------------------+----------+
+| time                | distinct |
++---------------------+----------+
+| 1970-01-01T00:00:00 | lo       |
++---------------------+----------+
+name: m0
+tags: tag0=val02
++---------------------+----------+
+| time                | distinct |
++---------------------+----------+
+| 1970-01-01T00:00:00 | lo       |
++---------------------+----------+
+-- InfluxQL: SELECT DISTINCT str FROM m0 GROUP BY tag0 LIMIT 2;
+-- Results After Sorting
+name: m0
+tags: tag0=val00
++---------------------+----------+
+| time                | distinct |
++---------------------+----------+
+| 1970-01-01T00:00:00 | hi       |
+| 1970-01-01T00:00:00 | lo       |
++---------------------+----------+
+name: m0
+tags: tag0=val01
++---------------------+----------+
+| time                | distinct |
++---------------------+----------+
+| 1970-01-01T00:00:00 | lo       |
++---------------------+----------+
+name: m0
+tags: tag0=val02
++---------------------+----------+
+| time                | distinct |
++---------------------+----------+
+| 1970-01-01T00:00:00 | lo       |
++---------------------+----------+
+-- InfluxQL: SELECT DISTINCT i64 FROM m0;
+-- Results After Sorting
+name: m0
++---------------------+----------+
+| time                | distinct |
++---------------------+----------+
+| 1970-01-01T00:00:00 | 101      |
+| 1970-01-01T00:00:00 | 191      |
+| 1970-01-01T00:00:00 | 211      |
+| 1970-01-01T00:00:00 | 392      |
++---------------------+----------+
+-- InfluxQL: SELECT COUNT(DISTINCT i64) FROM m0;
+-- Results After Sorting
+name: m0
++---------------------+-------+
+| time                | count |
++---------------------+-------+
+| 1970-01-01T00:00:00 | 4     |
++---------------------+-------+
+-- InfluxQL: SELECT COUNT(DISTINCT str), COUNT(DISTINCT i64) FROM m0;
+name: m0
++---------------------+-------+---------+
+| time                | count | count_1 |
++---------------------+-------+---------+
+| 1970-01-01T00:00:00 | 2     | 4       |
++---------------------+-------+---------+
+-- InfluxQL: SELECT DISTINCT(str), DISTINCT(i64) FROM m0;
+Error while planning query: Error during planning: aggregate function distinct() cannot be combined with other functions or fields

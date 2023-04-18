@@ -23,8 +23,8 @@ use nom::character::complete::{alpha1, alphanumeric1};
 use nom::combinator::{map, not, recognize};
 use nom::multi::many0_count;
 use nom::sequence::{pair, preceded};
-use std::fmt;
 use std::fmt::{Display, Formatter, Write};
+use std::{fmt, mem};
 
 /// Parse an unquoted InfluxQL identifier.
 pub(crate) fn unquoted_identifier(i: &str) -> ParseResult<&str, &str> {
@@ -53,6 +53,11 @@ impl Identifier {
     /// Returns true if the identifier requires quotes.
     pub fn requires_quotes(&self) -> bool {
         nom::sequence::terminated(unquoted_identifier, nom::combinator::eof)(&self.0).is_err()
+    }
+
+    /// Takes the string value out of the identifier, leaving a default string value in its place.
+    pub fn take(&mut self) -> String {
+        mem::take(&mut self.0)
     }
 }
 
