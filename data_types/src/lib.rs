@@ -291,29 +291,6 @@ impl std::fmt::Display for PartitionId {
     }
 }
 
-/// Combination of Shard ID, Table ID, and Partition ID useful for identifying groups of
-/// Parquet files to be compacted together.
-#[derive(Debug, Clone, Copy, PartialEq, PartialOrd, Eq, Ord)]
-pub struct TablePartition {
-    /// The shard ID
-    pub shard_id: ShardId,
-    /// The table ID
-    pub table_id: TableId,
-    /// The partition ID
-    pub partition_id: PartitionId,
-}
-
-impl TablePartition {
-    /// Combine the relevant parts
-    pub fn new(shard_id: ShardId, table_id: TableId, partition_id: PartitionId) -> Self {
-        Self {
-            shard_id,
-            table_id,
-            partition_id,
-        }
-    }
-}
-
 /// A sequence number from a `router::Shard` (kafka partition)
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, sqlx::Type)]
 #[sqlx(transparent)]
@@ -1001,22 +978,6 @@ pub struct SkippedCompaction {
     pub limit_num_files: i64,
     /// limit on num files for the first file in a partition
     pub limit_num_files_first_in_partition: i64,
-}
-
-/// Map of a column type to its count
-#[derive(Debug, Copy, Clone, PartialEq, Eq, sqlx::FromRow)]
-pub struct ColumnTypeCount {
-    /// column type
-    pub col_type: ColumnType,
-    /// count of the column type
-    pub count: i64,
-}
-
-impl ColumnTypeCount {
-    /// make a new ColumnTypeCount
-    pub fn new(col_type: ColumnType, count: i64) -> Self {
-        Self { col_type, count }
-    }
 }
 
 /// Set of columns.
