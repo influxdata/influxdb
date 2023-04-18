@@ -467,15 +467,23 @@ SELECT FIRST(usage_idle), usage_user, usage_system FROM cpu;
 -- DISTINCT
 --
 
+-- There is no guaranteed order
 SELECT COUNT(DISTINCT str) FROM m0;
+-- IOX_COMPARE: sorted
 SELECT COUNT(DISTINCT str) FROM m0 GROUP BY tag0;
+-- IOX_COMPARE: sorted
 SELECT DISTINCT str FROM m0;
+-- IOX_COMPARE: sorted
 SELECT DISTINCT(str) FROM m0;
+-- IOX_COMPARE: sorted
 SELECT DISTINCT str FROM m0 GROUP BY tag0;
+-- IOX_COMPARE: sorted
 SELECT DISTINCT str FROM m0 GROUP BY tag0 LIMIT 1;
 
 -- test with integers
+-- IOX_COMPARE: sorted
 SELECT DISTINCT i64 FROM m0;
+-- IOX_COMPARE: sorted
 SELECT COUNT(DISTINCT i64) FROM m0;
 
 -- mixed

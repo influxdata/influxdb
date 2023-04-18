@@ -2386,6 +2386,7 @@ name: m0
 | 1970-01-01T00:00:00 | 2     |
 +---------------------+-------+
 -- InfluxQL: SELECT COUNT(DISTINCT str) FROM m0 GROUP BY tag0;
+-- Results After Sorting
 name: m0
 tags: tag0=val00
 +---------------------+-------+
@@ -2408,6 +2409,7 @@ tags: tag0=val02
 | 1970-01-01T00:00:00 | 1     |
 +---------------------+-------+
 -- InfluxQL: SELECT DISTINCT str FROM m0;
+-- Results After Sorting
 name: m0
 +---------------------+----------+
 | time                | distinct |
@@ -2416,6 +2418,7 @@ name: m0
 | 1970-01-01T00:00:00 | lo       |
 +---------------------+----------+
 -- InfluxQL: SELECT DISTINCT(str) FROM m0;
+-- Results After Sorting
 name: m0
 +---------------------+----------+
 | time                | distinct |
@@ -2424,6 +2427,7 @@ name: m0
 | 1970-01-01T00:00:00 | lo       |
 +---------------------+----------+
 -- InfluxQL: SELECT DISTINCT str FROM m0 GROUP BY tag0;
+-- Results After Sorting
 name: m0
 tags: tag0=val00
 +---------------------+----------+
@@ -2447,6 +2451,7 @@ tags: tag0=val02
 | 1970-01-01T00:00:00 | lo       |
 +---------------------+----------+
 -- InfluxQL: SELECT DISTINCT str FROM m0 GROUP BY tag0 LIMIT 1;
+-- Results After Sorting
 name: m0
 tags: tag0=val00
 +---------------------+----------+
@@ -2469,16 +2474,18 @@ tags: tag0=val02
 | 1970-01-01T00:00:00 | lo       |
 +---------------------+----------+
 -- InfluxQL: SELECT DISTINCT i64 FROM m0;
+-- Results After Sorting
 name: m0
 +---------------------+----------+
 | time                | distinct |
 +---------------------+----------+
-| 1970-01-01T00:00:00 | 392      |
-| 1970-01-01T00:00:00 | 211      |
 | 1970-01-01T00:00:00 | 101      |
 | 1970-01-01T00:00:00 | 191      |
+| 1970-01-01T00:00:00 | 211      |
+| 1970-01-01T00:00:00 | 392      |
 +---------------------+----------+
 -- InfluxQL: SELECT COUNT(DISTINCT i64) FROM m0;
+-- Results After Sorting
 name: m0
 +---------------------+-------+
 | time                | count |
