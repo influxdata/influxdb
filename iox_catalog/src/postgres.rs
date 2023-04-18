@@ -1736,40 +1736,6 @@ RETURNING id;
         Ok(read_result.count)
     }
 
-    async fn count_by_overlaps_with_level_0(
-        &mut self,
-        table_id: TableId,
-        shard_id: ShardId,
-        min_time: Timestamp,
-        max_time: Timestamp,
-        sequence_number: SequenceNumber,
-    ) -> Result<i64> {
-        let read_result = sqlx::query_as::<_, Count>(
-            r#"
-SELECT count(1) as count
-FROM parquet_file
-WHERE table_id = $1
-  AND shard_id = $2
-  AND max_sequence_number < $3
-  AND parquet_file.to_delete IS NULL
-  AND compaction_level = $6
-  AND ((parquet_file.min_time <= $4 AND parquet_file.max_time >= $4)
-  OR (parquet_file.min_time > $4 AND parquet_file.min_time <= $5));
-            "#,
-        )
-        .bind(table_id) // $1
-        .bind(shard_id) // $2
-        .bind(sequence_number) // $3
-        .bind(min_time) // $4
-        .bind(max_time) // $5
-        .bind(CompactionLevel::Initial) // $6
-        .fetch_one(&mut self.inner)
-        .await
-        .map_err(|e| Error::SqlxError { source: e })?;
-
-        Ok(read_result.count)
-    }
-
     async fn count_by_overlaps_with_level_1(
         &mut self,
         table_id: TableId,

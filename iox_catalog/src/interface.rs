@@ -611,18 +611,6 @@ pub trait ParquetFileRepo: Send + Sync {
     /// Return count
     async fn count(&mut self) -> Result<i64>;
 
-    /// Return count of level-0 files of given tableId and shardId that
-    /// overlap with the given min_time and max_time and have sequence number
-    /// smaller the given one
-    async fn count_by_overlaps_with_level_0(
-        &mut self,
-        table_id: TableId,
-        shard_id: ShardId,
-        min_time: Timestamp,
-        max_time: Timestamp,
-        sequence_number: SequenceNumber,
-    ) -> Result<i64>;
-
     /// Return count of level-1 files of given tableId and shardId that
     /// overlap with the given min_time and max_time
     async fn count_by_overlaps_with_level_1(
@@ -2221,87 +2209,6 @@ pub(crate) mod test_helpers {
             .await
             .unwrap();
         assert!(files.is_empty());
-
-        // test count_by_overlaps_with_level_0
-        // not time overlap
-        let count = repos
-            .parquet_files()
-            .count_by_overlaps_with_level_0(
-                partition2.table_id,
-                shard.id,
-                Timestamp::new(11),
-                Timestamp::new(20),
-                SequenceNumber::new(20),
-            )
-            .await
-            .unwrap();
-        assert_eq!(count, 0);
-        // overlaps with f1
-        let count = repos
-            .parquet_files()
-            .count_by_overlaps_with_level_0(
-                partition2.table_id,
-                shard.id,
-                Timestamp::new(1),
-                Timestamp::new(10),
-                SequenceNumber::new(20),
-            )
-            .await
-            .unwrap();
-        assert_eq!(count, 1);
-        // overlaps with f1 and f3
-        // f2 is deleted and should not be counted
-        let count = repos
-            .parquet_files()
-            .count_by_overlaps_with_level_0(
-                partition2.table_id,
-                shard.id,
-                Timestamp::new(7),
-                Timestamp::new(55),
-                SequenceNumber::new(20),
-            )
-            .await
-            .unwrap();
-        assert_eq!(count, 2);
-        // overlaps with f1 and f3 but on different time range
-        let count = repos
-            .parquet_files()
-            .count_by_overlaps_with_level_0(
-                partition2.table_id,
-                shard.id,
-                Timestamp::new(1),
-                Timestamp::new(100),
-                SequenceNumber::new(20),
-            )
-            .await
-            .unwrap();
-        assert_eq!(count, 2);
-        // overlaps with f3
-        let count = repos
-            .parquet_files()
-            .count_by_overlaps_with_level_0(
-                partition2.table_id,
-                shard.id,
-                Timestamp::new(15),
-                Timestamp::new(100),
-                SequenceNumber::new(20),
-            )
-            .await
-            .unwrap();
-        assert_eq!(count, 1);
-        // no overlaps due to smaller sequence number
-        let count = repos
-            .parquet_files()
-            .count_by_overlaps_with_level_0(
-                partition2.table_id,
-                shard.id,
-                Timestamp::new(15),
-                Timestamp::new(100),
-                SequenceNumber::new(2),
-            )
-            .await
-            .unwrap();
-        assert_eq!(count, 0);
 
         // test count_by_overlaps_with_level_1
         //
