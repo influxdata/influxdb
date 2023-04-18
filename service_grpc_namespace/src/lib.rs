@@ -1,7 +1,7 @@
 //! Implementation of the namespace gRPC service
 use std::sync::Arc;
 
-use data_types::{Namespace as CatalogNamespace, QueryPoolId, TopicId};
+use data_types::{Namespace as CatalogNamespace, NamespaceName, QueryPoolId, TopicId};
 use generated_types::influxdata::iox::namespace::v1::{
     update_namespace_service_protection_limit_request::LimitUpdate, *,
 };
@@ -69,6 +69,11 @@ impl namespace_service_server::NamespaceService for NamespaceService {
             retention_period_ns,
         } = request.into_inner();
 
+        // Ensure the namespace name is consistently processed within IOx - this
+        // is handled by the NamespaceName type.
+        let namespace_name = NamespaceName::try_from(namespace_name)
+            .map_err(|v| Status::invalid_argument(v.to_string()))?;
+
         let retention_period_ns = map_retention_period(retention_period_ns)?;
 
         debug!(%namespace_name, ?retention_period_ns, "Creating namespace");
@@ -88,7 +93,7 @@ impl namespace_service_server::NamespaceService for NamespaceService {
             })?;
 
         info!(
-            namespace_name,
+            %namespace_name,
             namespace_id = %namespace.id,
             "created namespace"
         );
