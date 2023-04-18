@@ -121,7 +121,7 @@ datafusion = { git = "https://github.com/apache/arrow-datafusion.git", rev="ebb8
 datafusion-proto = { git = "https://github.com/apache/arrow-datafusion.git", rev="ebb839068b9d99d3a3fea0a50a1e4baf4f1a5fca" }
 hashbrown = { version = "0.13.2" }
 parquet = { version = "37.0.0" }
-tonic = { version = "0.9.1", features = ["tls", "tls-webpki-roots"] }
+tonic = { version = "0.9.2", features = ["tls", "tls-webpki-roots"] }
 tonic-build = { version = "0.9.2" }
 tonic-health = { version = "0.9.1" }
 tonic-reflection = { version = "0.9.1" }
