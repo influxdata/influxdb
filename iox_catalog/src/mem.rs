@@ -1149,31 +1149,6 @@ impl ParquetFileRepo for MemTxn {
         Ok(count_i64.unwrap())
     }
 
-    async fn count_by_overlaps_with_level_1(
-        &mut self,
-        table_id: TableId,
-        shard_id: ShardId,
-        min_time: Timestamp,
-        max_time: Timestamp,
-    ) -> Result<i64> {
-        let stage = self.stage();
-
-        let count = stage
-            .parquet_files
-            .iter()
-            .filter(|f| {
-                f.shard_id == shard_id
-                    && f.table_id == table_id
-                    && f.to_delete.is_none()
-                    && f.compaction_level == CompactionLevel::FileNonOverlapped
-                    && ((f.min_time <= min_time && f.max_time >= min_time)
-                        || (f.min_time > min_time && f.min_time <= max_time))
-            })
-            .count();
-
-        i64::try_from(count).map_err(|_| Error::InvalidValue { value: count })
-    }
-
     async fn get_by_object_store_id(
         &mut self,
         object_store_id: Uuid,

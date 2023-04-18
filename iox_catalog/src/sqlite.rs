@@ -1616,37 +1616,6 @@ RETURNING id;
         Ok(read_result.count)
     }
 
-    async fn count_by_overlaps_with_level_1(
-        &mut self,
-        table_id: TableId,
-        shard_id: ShardId,
-        min_time: Timestamp,
-        max_time: Timestamp,
-    ) -> Result<i64> {
-        let read_result = sqlx::query_as::<_, Count>(
-            r#"
-SELECT count(1) as count
-FROM parquet_file
-WHERE table_id = $1
-  AND shard_id = $2
-  AND parquet_file.to_delete IS NULL
-  AND compaction_level = $5
-  AND ((parquet_file.min_time <= $3 AND parquet_file.max_time >= $3)
-  OR (parquet_file.min_time > $3 AND parquet_file.min_time <= $4));
-            "#,
-        )
-        .bind(table_id) // $1
-        .bind(shard_id) // $2
-        .bind(min_time) // $3
-        .bind(max_time) // $4
-        .bind(CompactionLevel::FileNonOverlapped) // $5
-        .fetch_one(self.inner.get_mut())
-        .await
-        .map_err(|e| Error::SqlxError { source: e })?;
-
-        Ok(read_result.count)
-    }
-
     async fn get_by_object_store_id(
         &mut self,
         object_store_id: Uuid,

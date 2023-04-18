@@ -611,16 +611,6 @@ pub trait ParquetFileRepo: Send + Sync {
     /// Return count
     async fn count(&mut self) -> Result<i64>;
 
-    /// Return count of level-1 files of given tableId and shardId that
-    /// overlap with the given min_time and max_time
-    async fn count_by_overlaps_with_level_1(
-        &mut self,
-        table_id: TableId,
-        shard_id: ShardId,
-        min_time: Timestamp,
-        max_time: Timestamp,
-    ) -> Result<i64>;
-
     /// Return the parquet file with the given object store id
     async fn get_by_object_store_id(
         &mut self,
@@ -2209,95 +2199,6 @@ pub(crate) mod test_helpers {
             .await
             .unwrap();
         assert!(files.is_empty());
-
-        // test count_by_overlaps_with_level_1
-        //
-        // no level-1 file -> nothing overlap
-        let count = repos
-            .parquet_files()
-            .count_by_overlaps_with_level_1(
-                partition2.table_id,
-                shard.id,
-                Timestamp::new(1),
-                Timestamp::new(200),
-            )
-            .await
-            .unwrap();
-        assert_eq!(count, 0);
-
-        // Let upgrade all files (only f1 and f3 are not deleted) to level 1
-        repos
-            .parquet_files()
-            .update_compaction_level(&[f1.id], CompactionLevel::FileNonOverlapped)
-            .await
-            .unwrap();
-        repos
-            .parquet_files()
-            .update_compaction_level(&[f3.id], CompactionLevel::FileNonOverlapped)
-            .await
-            .unwrap();
-        //
-        // not overlap with any
-        let count = repos
-            .parquet_files()
-            .count_by_overlaps_with_level_1(
-                partition2.table_id,
-                shard.id,
-                Timestamp::new(11),
-                Timestamp::new(20),
-            )
-            .await
-            .unwrap();
-        assert_eq!(count, 0);
-        // overlaps with f1
-        let count = repos
-            .parquet_files()
-            .count_by_overlaps_with_level_1(
-                partition2.table_id,
-                shard.id,
-                Timestamp::new(1),
-                Timestamp::new(10),
-            )
-            .await
-            .unwrap();
-        assert_eq!(count, 1);
-        // overlaps with f1 and f3
-        // f2 is deleted and should not be counted
-        let count = repos
-            .parquet_files()
-            .count_by_overlaps_with_level_1(
-                partition2.table_id,
-                shard.id,
-                Timestamp::new(7),
-                Timestamp::new(55),
-            )
-            .await
-            .unwrap();
-        assert_eq!(count, 2);
-        // overlaps with f1 and f3 but on different time range
-        let count = repos
-            .parquet_files()
-            .count_by_overlaps_with_level_1(
-                partition2.table_id,
-                shard.id,
-                Timestamp::new(1),
-                Timestamp::new(100),
-            )
-            .await
-            .unwrap();
-        assert_eq!(count, 2);
-        // overlaps with f3
-        let count = repos
-            .parquet_files()
-            .count_by_overlaps_with_level_1(
-                partition2.table_id,
-                shard.id,
-                Timestamp::new(15),
-                Timestamp::new(100),
-            )
-            .await
-            .unwrap();
-        assert_eq!(count, 1);
 
         // test delete_old_ids_only
         let older_than = Timestamp::new(
