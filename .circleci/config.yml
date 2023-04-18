@@ -145,24 +145,37 @@ jobs:
             - packages
 
   sign_packages:
-    machine:
-      enabled: true
-      docker_layer_caching: true
-      image: ubuntu-2004:202107-02
+    circleci_ip_ranges: true
+    docker:
+      - image: quay.io/influxdb/rsign:latest
+        auth:
+          username: $QUAY_RSIGN_USERNAME
+          password: $QUAY_RSIGN_PASSWORD
     steps:
+      - add_ssh_keys:
+          fingerpints:
+            - fc:7b:6e:a6:38:7c:63:5a:13:be:cb:bb:fa:33:b3:3c
       - attach_workspace:
           at: /tmp/workspace
-      - checkout
-      - run:
-          name: Sign Package Artifacts
-          command: |
-            .circleci/scripts/sign-packages
-      - store_artifacts:
-          path: packages/
+      - run: |
+          for target in /tmp/workspace/packages/*
+          do
+            case "${target}"
+            in
+              # rsign is shipped on Alpine Linux which uses "busybox ash" instead
+              # of bash. ash is somewhat more posix compliant and is missing some
+              # extensions and niceties from bash.
+              *.deb|*.rpm|*.tar.gz|*.zip)
+                rsign "${target}"
+              ;;
+            esac
+          done
       - persist_to_workspace:
-          root: .
+          root: /tmp/workspace
           paths:
             - packages
+      - store_artifacts:
+          path: /tmp/workspace/packages
 
   test_pkgs_64bit:
     machine:
