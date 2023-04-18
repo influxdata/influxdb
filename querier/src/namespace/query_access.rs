@@ -186,11 +186,17 @@ impl SchemaProvider for UserSchemaProvider {
 
 impl ExecutionContextProvider for QuerierNamespace {
     fn new_query_context(&self, span_ctx: Option<SpanContext>) -> IOxSessionContext {
-        self.exec
+        let mut cfg = self
+            .exec
             .new_execution_config(ExecutorType::Query)
             .with_default_catalog(Arc::new(QuerierCatalogProvider::from_namespace(self)) as _)
-            .with_span_context(span_ctx)
-            .build()
+            .with_span_context(span_ctx);
+
+        for (k, v) in self.datafusion_config.as_ref() {
+            cfg = cfg.with_config_option(k, v);
+        }
+
+        cfg.build()
     }
 }
 

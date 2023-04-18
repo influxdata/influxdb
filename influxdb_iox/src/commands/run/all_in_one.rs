@@ -505,6 +505,7 @@ impl Config {
             max_concurrent_queries: querier_max_concurrent_queries,
             exec_mem_pool_bytes,
             ingester_circuit_breaker_threshold: u64::MAX, // never for all-in-one-mode
+            datafusion_config: Default::default(),
         };
 
         SpecializedConfig {

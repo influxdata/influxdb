@@ -1,3 +1,5 @@
+use std::{str::FromStr, time::Duration};
+
 use datafusion::{common::extensions_options, config::ConfigExtension};
 
 /// IOx-specific config extension prefix.
@@ -38,9 +40,55 @@ extensions_options! {
         /// [`SortExec`]: datafusion::physical_plan::sorts::sort::SortExec
         /// [`target_partitions`]: datafusion::common::config::ExecutionOptions::target_partitions
         pub max_parquet_fanout: usize, default = 40
+
+        /// Cuttoff date for InfluxQL metadata queries.
+        pub influxql_metadata_cutoff: MetadataCutoff, default = MetadataCutoff::Relative(Duration::from_secs(3600 * 24))
     }
 }
 
 impl ConfigExtension for IoxConfigExt {
     const PREFIX: &'static str = IOX_CONFIG_PREFIX;
+}
+
+/// Optional datetime.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum MetadataCutoff {
+    Absolute(chrono::DateTime<chrono::Utc>),
+    Relative(Duration),
+}
+
+#[derive(Debug)]
+pub struct ParseError(String);
+
+impl std::fmt::Display for ParseError {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{}", self.0)
+    }
+}
+
+impl std::error::Error for ParseError {}
+
+impl FromStr for MetadataCutoff {
+    type Err = ParseError;
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        if let Some(s) = s.strip_prefix('-') {
+            let delta = u64::from_str(s).map_err(|e| ParseError(e.to_string()))?;
+            let delta = Duration::from_nanos(delta);
+            Ok(Self::Relative(delta))
+        } else {
+            let dt = chrono::DateTime::<chrono::Utc>::from_str(s)
+                .map_err(|e| ParseError(e.to_string()))?;
+            Ok(Self::Absolute(dt))
+        }
+    }
+}
+
+impl std::fmt::Display for MetadataCutoff {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Self::Relative(delta) => write!(f, "-{}", delta.as_nanos()),
+            Self::Absolute(dt) => write!(f, "{}", dt),
+        }
+    }
 }
