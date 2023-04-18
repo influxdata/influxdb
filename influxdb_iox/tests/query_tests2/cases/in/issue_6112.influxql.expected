@@ -2450,7 +2450,7 @@ tags: tag0=val02
 +---------------------+----------+
 | 1970-01-01T00:00:00 | lo       |
 +---------------------+----------+
--- InfluxQL: SELECT DISTINCT str FROM m0 GROUP BY tag0 LIMIT 1;
+-- InfluxQL: SELECT DISTINCT str FROM m0 GROUP BY tag0 LIMIT 2;
 -- Results After Sorting
 name: m0
 tags: tag0=val00
@@ -2458,6 +2458,7 @@ tags: tag0=val00
 | time                | distinct |
 +---------------------+----------+
 | 1970-01-01T00:00:00 | hi       |
+| 1970-01-01T00:00:00 | lo       |
 +---------------------+----------+
 name: m0
 tags: tag0=val01
