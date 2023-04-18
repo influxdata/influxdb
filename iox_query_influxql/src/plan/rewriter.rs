@@ -194,6 +194,24 @@ fn rewrite_field_list(s: &dyn SchemaProvider, stmt: &mut SelectStatement) -> Res
         }
     }
 
+    // Rewrite all `DISTINCT <identifier>` expressions to `DISTINCT(<var ref>)`
+    if let ControlFlow::Break(e) = stmt.fields.iter_mut().try_for_each(|f| {
+        walk_expr_mut::<DataFusionError>(&mut f.expr, &mut |e| {
+            if let Expr::Distinct(ident) = e {
+                *e = Expr::Call(Call {
+                    name: "distinct".to_owned(),
+                    args: vec![Expr::VarRef(VarRef {
+                        name: ident.take().into(),
+                        data_type: None,
+                    })],
+                });
+            }
+            ControlFlow::Continue(())
+        })
+    }) {
+        return Err(e);
+    }
+
     // Attempt to rewrite all variable references in the fields with their types, if one
     // hasn't been specified.
     if let ControlFlow::Break(e) = stmt.fields.iter_mut().try_for_each(|f| {
@@ -1709,6 +1727,23 @@ mod test {
         assert_eq!(
             stmt.to_string(),
             "SELECT -1 * bytes_free::integer AS bytes_free FROM disk"
+        );
+
+        // DISTINCT clause
+
+        // COUNT(DISTINCT)
+        let stmt = parse_select("SELECT COUNT(DISTINCT bytes_free) FROM disk");
+        let stmt = rewrite_statement(&namespace, &stmt).unwrap();
+        assert_eq!(
+            stmt.to_string(),
+            "SELECT count(distinct(bytes_free::integer)) AS count FROM disk"
+        );
+
+        let stmt = parse_select("SELECT DISTINCT bytes_free FROM disk");
+        let stmt = rewrite_statement(&namespace, &stmt).unwrap();
+        assert_eq!(
+            stmt.to_string(),
+            "SELECT distinct(bytes_free::integer) AS \"distinct\" FROM disk"
         );
 
         // Call expressions
