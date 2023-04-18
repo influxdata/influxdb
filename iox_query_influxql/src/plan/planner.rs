@@ -1084,15 +1084,17 @@ impl<'a> InfluxQLToLogicalPlan<'a> {
 
         let Call { name, args } = call;
 
-        let expr = self.expr_to_df_expr(ctx, &args[0], schemas)?;
-        if let Expr::Literal(ScalarValue::Null) = expr {
-            return Ok(expr);
-        }
-
         match name.as_str() {
             "count" => {
-                // TODO(sgc): Handle `COUNT DISTINCT` variants
-                let distinct = false;
+                let (expr, distinct) = match &args[0] {
+                    IQLExpr::Call(c) if c.name == "distinct" => {
+                        (self.expr_to_df_expr(ctx, &c.args[0], schemas)?, true)
+                    }
+                    expr => (self.expr_to_df_expr(ctx, expr, schemas)?, false),
+                };
+                if let Expr::Literal(ScalarValue::Null) = expr {
+                    return Ok(expr);
+                }
 
                 check_arg_count("count", args, 1)?;
                 Ok(Expr::AggregateFunction(expr::AggregateFunction::new(
@@ -1103,6 +1105,11 @@ impl<'a> InfluxQLToLogicalPlan<'a> {
                 )))
             }
             "sum" | "stddev" | "mean" | "median" => {
+                let expr = self.expr_to_df_expr(ctx, &args[0], schemas)?;
+                if let Expr::Literal(ScalarValue::Null) = expr {
+                    return Ok(expr);
+                }
+
                 check_arg_count(name, args, 1)?;
                 Ok(Expr::AggregateFunction(expr::AggregateFunction::new(
                     AggregateFunction::from_str(name)?,
@@ -1111,36 +1118,43 @@ impl<'a> InfluxQLToLogicalPlan<'a> {
                     None,
                 )))
             }
-            name @ ("first" | "last" | "min" | "max") => Ok(
-                if let ProjectionType::Selector { .. } = ctx.info.projection_type {
-                    // Selector queries use the `struct_selector_<name>`, as they
-                    // will project the value and the time fields of the struct
-                    Expr::GetIndexedField(GetIndexedField {
-                        expr: Box::new(
-                            match name {
-                                "first" => struct_selector_first(),
-                                "last" => struct_selector_last(),
-                                "max" => struct_selector_max(),
-                                "min" => struct_selector_min(),
-                                _ => unreachable!(),
-                            }
-                            .call(vec![expr, "time".as_expr()]),
-                        ),
-                        key: ScalarValue::Utf8(Some("value".to_owned())),
-                    })
-                } else {
-                    // All other queries only require the value of the selector
-                    let data_type = &expr.get_type(&schemas.df_schema)?;
-                    match name {
-                        "first" => selector_first(data_type, SelectorOutput::Value),
-                        "last" => selector_last(data_type, SelectorOutput::Value),
-                        "max" => selector_max(data_type, SelectorOutput::Value),
-                        "min" => selector_min(data_type, SelectorOutput::Value),
-                        _ => unreachable!(),
-                    }
-                    .call(vec![expr, "time".as_expr()])
-                },
-            ),
+            name @ ("first" | "last" | "min" | "max") => {
+                let expr = self.expr_to_df_expr(ctx, &args[0], schemas)?;
+                if let Expr::Literal(ScalarValue::Null) = expr {
+                    return Ok(expr);
+                }
+
+                Ok(
+                    if let ProjectionType::Selector { .. } = ctx.info.projection_type {
+                        // Selector queries use the `struct_selector_<name>`, as they
+                        // will project the value and the time fields of the struct
+                        Expr::GetIndexedField(GetIndexedField {
+                            expr: Box::new(
+                                match name {
+                                    "first" => struct_selector_first(),
+                                    "last" => struct_selector_last(),
+                                    "max" => struct_selector_max(),
+                                    "min" => struct_selector_min(),
+                                    _ => unreachable!(),
+                                }
+                                .call(vec![expr, "time".as_expr()]),
+                            ),
+                            key: ScalarValue::Utf8(Some("value".to_owned())),
+                        })
+                    } else {
+                        // All other queries only require the value of the selector
+                        let data_type = &expr.get_type(&schemas.df_schema)?;
+                        match name {
+                            "first" => selector_first(data_type, SelectorOutput::Value),
+                            "last" => selector_last(data_type, SelectorOutput::Value),
+                            "max" => selector_max(data_type, SelectorOutput::Value),
+                            "min" => selector_min(data_type, SelectorOutput::Value),
+                            _ => unreachable!(),
+                        }
+                        .call(vec![expr, "time".as_expr()])
+                    },
+                )
+            }
             _ => error::query(format!("Invalid function '{name}'")),
         }
     }
