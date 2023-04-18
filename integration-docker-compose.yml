@@ -1,12 +1,5 @@
 version: "3.9"
 services:
-  redpanda:
-    pull_policy: always
-    image: docker.vectorized.io/vectorized/redpanda:latest
-    ports:
-      - 9092:9092
-      - 9644:9644
-    command: start --overprovisioned --smp 1 --memory 1G --reserve-memory 0M --node-id 0 --check=false
   postgres:
     pull_policy: always
     image: postgres:latest

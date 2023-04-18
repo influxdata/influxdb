@@ -6,7 +6,7 @@ use hashbrown::HashMap;
 use std::{collections::HashSet, sync::Arc};
 
 use arrow::{
-    datatypes::{Schema as ArrowSchema, SchemaRef as ArrowSchemaRef},
+    datatypes::{Fields, Schema as ArrowSchema, SchemaRef as ArrowSchemaRef},
     error::ArrowError,
 };
 use datafusion::{
@@ -222,7 +222,7 @@ impl TableProvider for ChunkTableProvider {
                 .iter()
                 .cloned()
                 .chain(std::iter::once(chunk_order_field()))
-                .collect(),
+                .collect::<Fields>(),
         ));
         let pk = self.iox_schema().primary_key();
         let dedup_sort_key = SortKey::from_columns(pk.iter().copied());

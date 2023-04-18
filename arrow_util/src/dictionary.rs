@@ -153,7 +153,7 @@ impl StringDictionary<i32> {
         ))
         .len(keys.len())
         .add_buffer(keys.collect())
-        .add_child_data(self.storage.to_arrow(dictionary_nulls).data().clone())
+        .add_child_data(self.storage.to_arrow(dictionary_nulls).into_data())
         .nulls(nulls)
         // TODO consider skipping the validation checks by using
         // `build_unchecked()`

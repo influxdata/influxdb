@@ -167,7 +167,7 @@ where
         table_id: TableId,
         table_name: Arc<DeferredLoad<TableName>>,
         transition_shard_id: ShardId,
-    ) -> PartitionData {
+    ) -> Arc<Mutex<PartitionData>> {
         // Use the cached PartitionKey instead of the caller's partition_key,
         // instead preferring to reuse the already-shared Arc<str> in the cache.
 
@@ -188,7 +188,7 @@ where
             // Use the returned partition key instead of the callers - this
             // allows the backing str memory to be reused across all partitions
             // using the same key!
-            return PartitionData::new(
+            return Arc::new(Mutex::new(PartitionData::new(
                 partition_id,
                 key,
                 namespace_id,
@@ -197,7 +197,7 @@ where
                 table_name,
                 SortKeyState::Deferred(Arc::new(sort_key_resolver)),
                 transition_shard_id,
-            );
+            )));
         }
 
         debug!(%table_id, %partition_key, "partition cache miss");
@@ -218,6 +218,9 @@ where
 
 #[cfg(test)]
 mod tests {
+    // Harmless in tests - saves a bunch of extra vars.
+    #![allow(clippy::await_holding_lock)]
+
     use data_types::ShardId;
     use iox_catalog::mem::MemCatalog;
 
@@ -282,10 +285,10 @@ mod tests {
             )
             .await;
 
-        assert_eq!(got.partition_id(), PARTITION_ID);
-        assert_eq!(got.table_id(), TABLE_ID);
-        assert_eq!(&**got.table_name().get().await, TABLE_NAME);
-        assert_eq!(&**got.namespace_name().get().await, NAMESPACE_NAME);
+        assert_eq!(got.lock().partition_id(), PARTITION_ID);
+        assert_eq!(got.lock().table_id(), TABLE_ID);
+        assert_eq!(&**got.lock().table_name().get().await, TABLE_NAME);
+        assert_eq!(&**got.lock().namespace_name().get().await, NAMESPACE_NAME);
         assert!(cache.inner.is_empty());
     }
 
@@ -322,11 +325,14 @@ mod tests {
             )
             .await;
 
-        assert_eq!(got.partition_id(), PARTITION_ID);
-        assert_eq!(got.table_id(), TABLE_ID);
-        assert_eq!(&**got.table_name().get().await, TABLE_NAME);
-        assert_eq!(&**got.namespace_name().get().await, NAMESPACE_NAME);
-        assert_eq!(*got.partition_key(), PartitionKey::from(PARTITION_KEY));
+        assert_eq!(got.lock().partition_id(), PARTITION_ID);
+        assert_eq!(got.lock().table_id(), TABLE_ID);
+        assert_eq!(&**got.lock().table_name().get().await, TABLE_NAME);
+        assert_eq!(&**got.lock().namespace_name().get().await, NAMESPACE_NAME);
+        assert_eq!(
+            *got.lock().partition_key(),
+            PartitionKey::from(PARTITION_KEY)
+        );
 
         // The cache should have been cleaned up as it was consumed.
         assert!(cache.entries.lock().is_empty());
@@ -334,10 +340,10 @@ mod tests {
         // Assert the partition key from the cache was used for the lifetime of
         // the partition, so that it is shared with the cache + other partitions
         // that share the same partition key across all tables.
-        assert!(got.partition_key().ptr_eq(&stored_partition_key));
+        assert!(got.lock().partition_key().ptr_eq(&stored_partition_key));
         // It does not use the short-lived caller's partition key (derived from
         // the DML op it is processing).
-        assert!(!got.partition_key().ptr_eq(&callers_partition_key));
+        assert!(!got.lock().partition_key().ptr_eq(&callers_partition_key));
     }
 
     #[tokio::test]
@@ -385,9 +391,9 @@ mod tests {
             )
             .await;
 
-        assert_eq!(got.partition_id(), other_key_id);
-        assert_eq!(got.table_id(), TABLE_ID);
-        assert_eq!(&**got.table_name().get().await, TABLE_NAME);
+        assert_eq!(got.lock().partition_id(), other_key_id);
+        assert_eq!(got.lock().table_id(), TABLE_ID);
+        assert_eq!(&**got.lock().table_name().get().await, TABLE_NAME);
     }
 
     #[tokio::test]
@@ -434,8 +440,8 @@ mod tests {
             )
             .await;
 
-        assert_eq!(got.partition_id(), PARTITION_ID);
-        assert_eq!(got.table_id(), other_table);
-        assert_eq!(&**got.table_name().get().await, TABLE_NAME);
+        assert_eq!(got.lock().partition_id(), PARTITION_ID);
+        assert_eq!(got.lock().table_id(), other_table);
+        assert_eq!(&**got.lock().table_name().get().await, TABLE_NAME);
     }
 }

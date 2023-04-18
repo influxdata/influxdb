@@ -3,7 +3,7 @@
 use std::{fmt::Debug, marker::PhantomData};
 
 use async_trait::async_trait;
-use data_types::{DeletePredicate, NamespaceId, NamespaceName};
+use data_types::{NamespaceId, NamespaceName};
 use observability_deps::tracing::*;
 use trace::ctx::SpanContext;
 
@@ -25,7 +25,6 @@ where
     T: Debug + Send + Sync,
 {
     type WriteError = DmlError;
-    type DeleteError = DmlError;
     type WriteInput = T;
     type WriteOutput = T;
 
@@ -38,17 +37,5 @@ where
     ) -> Result<Self::WriteOutput, Self::WriteError> {
         info!(%namespace, %namespace_id, ?batches, "dropping write operation");
         Ok(batches)
-    }
-
-    async fn delete(
-        &self,
-        namespace: &NamespaceName<'static>,
-        namespace_id: NamespaceId,
-        table_name: &str,
-        predicate: &DeletePredicate,
-        _span_ctx: Option<SpanContext>,
-    ) -> Result<(), Self::DeleteError> {
-        info!(%namespace, %namespace_id, %table_name, ?predicate, "dropping delete operation");
-        Ok(())
     }
 }

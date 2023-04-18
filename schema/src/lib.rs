@@ -9,8 +9,8 @@ use std::{
 };
 
 use arrow::datatypes::{
-    DataType as ArrowDataType, Field as ArrowField, Schema as ArrowSchema,
-    SchemaRef as ArrowSchemaRef, TimeUnit,
+    DataType as ArrowDataType, Field as ArrowField, FieldRef as ArrowFieldRef, Fields,
+    Schema as ArrowSchema, SchemaRef as ArrowSchemaRef, TimeUnit,
 };
 use hashbrown::HashSet;
 
@@ -27,7 +27,7 @@ pub const INFLUXQL_METADATA_KEY: &str = "iox::influxql::group_key::metadata";
 
 /// The Timezone to use for InfluxDB timezone (should be a constant)
 #[allow(non_snake_case)]
-pub fn TIME_DATA_TIMEZONE() -> Option<String> {
+pub fn TIME_DATA_TIMEZONE() -> Option<Arc<str>> {
     // TODO: we should use the "UTC" timezone as that is what the
     // InfluxDB data model timestamps are relative to. However,
     // DataFusion doesn't currently do a great job with such
@@ -355,7 +355,7 @@ impl Schema {
     /// Resort order of our columns lexicographically by name
     pub fn sort_fields_by_name(self) -> Self {
         // pairs of (orig_index, field_ref)
-        let mut sorted_fields: Vec<(usize, &ArrowField)> =
+        let mut sorted_fields: Vec<(usize, &ArrowFieldRef)> =
             self.inner.fields().iter().enumerate().collect();
         sorted_fields.sort_by(|a, b| a.1.name().cmp(b.1.name()));
 
@@ -369,8 +369,7 @@ impl Schema {
         } else {
             // No way at present to destructure an existing Schema so
             // we have to copy :(
-            let new_fields: Vec<ArrowField> =
-                sorted_fields.iter().map(|pair| pair.1).cloned().collect();
+            let new_fields: Fields = sorted_fields.iter().map(|pair| pair.1).cloned().collect();
 
             let new_meta = self.inner.metadata().clone();
             let new_schema = ArrowSchema::new_with_metadata(new_fields, new_meta);
@@ -502,19 +501,7 @@ impl Schema {
 
         let size_inner = size_of_val(self.inner.as_ref());
 
-        let fields = self.inner.fields();
-        let size_fields = fields.capacity() * size_of::<arrow::datatypes::Field>()
-            + fields
-                .iter()
-                .map(|field| {
-                    field.name().capacity()
-                        + field
-                            .metadata()
-                            .iter()
-                            .map(|(k, v)| k.capacity() + v.capacity())
-                            .sum::<usize>()
-                })
-                .sum::<usize>();
+        let size_fields = self.inner.fields().size();
 
         let metadata = self.inner.metadata();
         let size_metadata = metadata.capacity() * size_of::<(String, String)>()
@@ -1376,6 +1363,6 @@ mod test {
             .unwrap();
 
         // this is mostly a smoke test
-        assert_eq!(schema.estimate_size(), 843);
+        assert_eq!(schema.estimate_size(), 1243);
     }
 }

@@ -8,6 +8,7 @@ use backoff::{Backoff, BackoffConfig};
 use data_types::{NamespaceId, Partition, PartitionKey, ShardId, TableId};
 use iox_catalog::interface::Catalog;
 use observability_deps::tracing::debug;
+use parking_lot::Mutex;
 
 use super::r#trait::PartitionProvider;
 use crate::{
@@ -63,7 +64,7 @@ impl PartitionProvider for CatalogPartitionResolver {
         table_id: TableId,
         table_name: Arc<DeferredLoad<TableName>>,
         transition_shard_id: ShardId,
-    ) -> PartitionData {
+    ) -> Arc<Mutex<PartitionData>> {
         debug!(
             %partition_key,
             %table_id,
@@ -78,7 +79,7 @@ impl PartitionProvider for CatalogPartitionResolver {
             .await
             .expect("retry forever");
 
-        PartitionData::new(
+        Arc::new(Mutex::new(PartitionData::new(
             p.id,
             // Use the caller's partition key instance, as it MAY be shared with
             // other instance, but the instance returned from the catalog
@@ -90,12 +91,15 @@ impl PartitionProvider for CatalogPartitionResolver {
             table_name,
             SortKeyState::Provided(p.sort_key()),
             transition_shard_id,
-        )
+        )))
     }
 }
 
 #[cfg(test)]
 mod tests {
+    // Harmless in tests - saves a bunch of extra vars.
+    #![allow(clippy::await_holding_lock)]
+
     use std::{sync::Arc, time::Duration};
 
     use assert_matches::assert_matches;
@@ -157,18 +161,18 @@ mod tests {
             .await;
 
         // Ensure the table name is available.
-        let _ = got.table_name().get().await;
+        let _ = got.lock().table_name().get().await;
 
-        assert_eq!(got.namespace_id(), namespace_id);
-        assert_eq!(got.table_name().to_string(), table_name.to_string());
-        assert_matches!(got.sort_key(), SortKeyState::Provided(None));
-        assert!(got.partition_key.ptr_eq(&callers_partition_key));
+        assert_eq!(got.lock().namespace_id(), namespace_id);
+        assert_eq!(got.lock().table_name().to_string(), table_name.to_string());
+        assert_matches!(got.lock().sort_key(), SortKeyState::Provided(None));
+        assert!(got.lock().partition_key.ptr_eq(&callers_partition_key));
 
         let got = catalog
             .repositories()
             .await
             .partitions()
-            .get_by_id(got.partition_id)
+            .get_by_id(got.lock().partition_id)
             .await
             .unwrap()
             .expect("partition not created");

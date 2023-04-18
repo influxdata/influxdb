@@ -220,6 +220,7 @@ pub async fn create_querier_server_type(
             args.exec,
             ingester_connections,
             args.querier_config.max_concurrent_queries(),
+            Arc::new(args.querier_config.datafusion_config),
         )
         .await?,
     );

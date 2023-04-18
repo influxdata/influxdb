@@ -1,8 +1,8 @@
 //! Querier Chunks
 
 use data_types::{
-    ChunkId, ChunkOrder, CompactionLevel, DeletePredicate, ParquetFileId, PartitionId,
-    SequenceNumber, ShardId, TableSummary,
+    ChunkId, ChunkOrder, CompactionLevel, DeletePredicate, PartitionId, SequenceNumber,
+    TableSummary,
 };
 use iox_query::util::create_basic_summary;
 use parquet_file::chunk::ParquetChunk;
@@ -17,9 +17,6 @@ pub use creation::ChunkAdapter;
 /// Immutable metadata attached to a [`QuerierParquetChunk`].
 #[derive(Debug)]
 pub struct QuerierParquetChunkMeta {
-    /// ID of the Parquet file of the chunk
-    parquet_file_id: ParquetFileId,
-
     /// The ID of the chunk
     chunk_id: ChunkId,
 
@@ -28,9 +25,6 @@ pub struct QuerierParquetChunkMeta {
 
     /// Sort key.
     sort_key: Option<SortKey>,
-
-    /// Shard that created the data within this chunk.
-    shard_id: ShardId,
 
     /// Partition ID.
     partition_id: PartitionId,
@@ -43,11 +37,6 @@ pub struct QuerierParquetChunkMeta {
 }
 
 impl QuerierParquetChunkMeta {
-    /// ID of the Parquet file of the chunk
-    pub fn parquet_file_id(&self) -> ParquetFileId {
-        self.parquet_file_id
-    }
-
     /// Chunk order.
     pub fn order(&self) -> ChunkOrder {
         self.order
@@ -56,11 +45,6 @@ impl QuerierParquetChunkMeta {
     /// Sort key.
     pub fn sort_key(&self) -> Option<&SortKey> {
         self.sort_key.as_ref()
-    }
-
-    /// Shard that created the data within this chunk.
-    pub fn shard_id(&self) -> ShardId {
-        self.shard_id
     }
 
     /// Partition ID.

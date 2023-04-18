@@ -9,7 +9,6 @@ license.workspace = true
 async-trait = "0.1"
 authz = { path = "../authz" }
 bytes = "1.4"
-client_util = { path = "../client_util" }
 crossbeam-utils = "0.8.15"
 data_types = { path = "../data_types" }
 dml = { path = "../dml" }
@@ -20,7 +19,6 @@ hashbrown = { workspace = true }
 hyper = "0.14"
 iox_catalog = { path = "../iox_catalog" }
 iox_time = { path = "../iox_time" }
-ioxd_common = { path = "../ioxd_common" }
 metric = { path = "../metric" }
 mutable_batch = { path = "../mutable_batch" }
 mutable_batch_lp = { path = "../mutable_batch_lp" }
@@ -28,19 +26,16 @@ mutable_batch_pb = { version = "0.1.0", path = "../mutable_batch_pb" }
 object_store = "0.5.6"
 observability_deps = { path = "../observability_deps" }
 parking_lot = "0.12"
-predicate = { path = "../predicate" }
 schema = { version = "0.1.0", path = "../schema" }
 serde = "1.0"
 serde_json = "1.0.96"
 serde_urlencoded = "0.7"
-server_util = { path = "../server_util" }
 service_grpc_catalog = { path = "../service_grpc_catalog"}
 service_grpc_namespace = { path = "../service_grpc_namespace"}
 service_grpc_object_store = { path = "../service_grpc_object_store" }
 service_grpc_schema = { path = "../service_grpc_schema" }
 sharder = { path = "../sharder" }
 smallvec = "1.10.0"
-snafu = "0.7"
 thiserror = "1.0"
 tokio = { version = "1", features = ["rt-multi-thread", "macros", "time"] }
 tonic = { workspace = true }

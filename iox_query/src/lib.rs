@@ -20,6 +20,7 @@ use datafusion::{error::DataFusionError, prelude::SessionContext};
 use exec::{stringset::StringSet, IOxSessionContext};
 use hashbrown::HashMap;
 use observability_deps::tracing::{debug, trace};
+use once_cell::sync::Lazy;
 use parquet_file::storage::ParquetExecInput;
 use predicate::{rpc_predicate::QueryNamespaceMeta, Predicate, PredicateMatch};
 use schema::{
@@ -45,9 +46,12 @@ pub use query_functions::group_by::{Aggregate, WindowDuration};
 /// The name of the virtual column that represents the chunk order.
 pub const CHUNK_ORDER_COLUMN_NAME: &str = "__chunk_order";
 
+static CHUNK_ORDER_FIELD: Lazy<Arc<Field>> =
+    Lazy::new(|| Arc::new(Field::new(CHUNK_ORDER_COLUMN_NAME, DataType::Int64, false)));
+
 /// Generate [`Field`] for [chunk order column](CHUNK_ORDER_COLUMN_NAME).
-pub fn chunk_order_field() -> Field {
-    Field::new(CHUNK_ORDER_COLUMN_NAME, DataType::Int64, false)
+pub fn chunk_order_field() -> Arc<Field> {
+    Arc::clone(&CHUNK_ORDER_FIELD)
 }
 
 /// Trait for an object (designed to be a Chunk) which can provide

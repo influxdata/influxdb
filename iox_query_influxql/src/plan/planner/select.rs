@@ -1,5 +1,6 @@
+use crate::plan::error;
 use arrow::datatypes::DataType;
-use datafusion::common::{DFSchemaRef, DataFusionError, Result};
+use datafusion::common::{DFSchemaRef, Result};
 use datafusion::logical_expr::utils::find_column_exprs;
 use datafusion::logical_expr::{Expr, LogicalPlan, LogicalPlanBuilder};
 use datafusion_util::AsExpr;
@@ -15,15 +16,11 @@ use std::ops::Deref;
 /// column in `columns`.
 pub(crate) fn check_exprs_satisfy_columns(columns: &[Expr], exprs: &[Expr]) -> Result<()> {
     if !columns.iter().all(|c| matches!(c, Expr::Column(_))) {
-        return Err(DataFusionError::Internal(
-            "expected Expr::Column".to_owned(),
-        ));
+        return error::internal("expected Expr::Column");
     }
     let column_exprs = find_column_exprs(exprs);
     if column_exprs.iter().any(|expr| !columns.contains(expr)) {
-        return Err(DataFusionError::Plan(
-            "mixing aggregate and non-aggregate columns is not supported".to_owned(),
-        ));
+        return error::query("mixing aggregate and non-aggregate columns is not supported");
     }
     Ok(())
 }
@@ -74,7 +71,7 @@ pub(super) fn make_tag_key_column_meta(
 /// Sort expressions referring to tag keys are always specified in lexicographically ascending order.
 pub(super) fn plan_with_sort(
     plan: LogicalPlan,
-    time_sort_expr: Option<Expr>,
+    mut sort_exprs: Vec<Expr>,
     sort_by_measurement: bool,
     group_by_tag_set: &[&str],
     projection_tag_set: &[&str],
@@ -117,9 +114,7 @@ pub(super) fn plan_with_sort(
         series_sort.extend(map_to_expr(schema, group_by_tag_set));
     };
 
-    if let Some(time_sort_expr) = time_sort_expr {
-        series_sort.push(time_sort_expr);
-    }
+    series_sort.append(&mut sort_exprs);
 
     series_sort.extend(map_to_expr(schema, projection_tag_set));
 

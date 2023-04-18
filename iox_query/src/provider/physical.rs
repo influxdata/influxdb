@@ -4,7 +4,7 @@ use crate::{
     provider::record_batch_exec::RecordBatchesExec, util::arrow_sort_key_exprs, QueryChunk,
     QueryChunkData, CHUNK_ORDER_COLUMN_NAME,
 };
-use arrow::datatypes::{DataType, Schema as ArrowSchema, SchemaRef};
+use arrow::datatypes::{DataType, Fields, Schema as ArrowSchema, SchemaRef};
 use datafusion::{
     datasource::{listing::PartitionedFile, object_store::ObjectStoreUrl},
     physical_expr::PhysicalSortExpr,
@@ -243,8 +243,8 @@ pub fn chunks_to_physical_nodes(
                     .fields
                     .iter()
                     .filter(|f| f.name() != CHUNK_ORDER_COLUMN_NAME)
-                    .cloned()
-                    .collect(),
+                    .map(Arc::clone)
+                    .collect::<Fields>(),
             ));
             let output_ordering = Some(
                 output_ordering
@@ -559,7 +559,7 @@ mod tests {
                 .iter()
                 .cloned()
                 .chain(std::iter::once(chunk_order_field()))
-                .collect(),
+                .collect::<Fields>(),
         ));
         let plan =
             chunks_to_physical_nodes(&schema, None, vec![Arc::new(chunk1), Arc::new(chunk2)], 2);

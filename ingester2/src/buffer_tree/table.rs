@@ -90,11 +90,6 @@ pub(crate) struct TableData<O> {
 impl<O> TableData<O> {
     /// Initialize new table buffer identified by [`TableId`] in the catalog.
     ///
-    /// Optionally the given tombstone max [`SequenceNumber`] identifies the
-    /// inclusive upper bound of tombstones associated with this table. Any data
-    /// greater than this value is guaranteed to not (yet) have a delete
-    /// tombstone that must be resolved.
-    ///
     /// The partition provider is used to instantiate a [`PartitionData`]
     /// instance when this [`TableData`] instance observes an op for a partition
     /// for the first time.
@@ -183,8 +178,7 @@ where
                 //
                 // This MAY return a different instance than `p` if another
                 // thread has already initialised the partition.
-                self.partition_data
-                    .get_or_insert_with(&partition_key, || Arc::new(Mutex::new(p)))
+                self.partition_data.get_or_insert_with(&partition_key, || p)
             }
         };
 

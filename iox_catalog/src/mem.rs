@@ -4,20 +4,18 @@
 use crate::{
     interface::{
         sealed::TransactionFinalize, CasFailure, Catalog, ColumnRepo, ColumnTypeMismatchSnafu,
-        Error, NamespaceRepo, ParquetFileRepo, PartitionRepo, ProcessedTombstoneRepo,
-        QueryPoolRepo, RepoCollection, Result, ShardRepo, SoftDeletedRows, TableRepo,
-        TombstoneRepo, TopicMetadataRepo, Transaction,
+        Error, NamespaceRepo, ParquetFileRepo, PartitionRepo, QueryPoolRepo, RepoCollection,
+        Result, ShardRepo, SoftDeletedRows, TableRepo, TopicMetadataRepo, Transaction,
     },
     metrics::MetricDecorator,
     DEFAULT_MAX_COLUMNS_PER_TABLE, DEFAULT_MAX_TABLES,
 };
 use async_trait::async_trait;
 use data_types::{
-    Column, ColumnId, ColumnType, ColumnTypeCount, CompactionLevel, Namespace, NamespaceId,
-    ParquetFile, ParquetFileId, ParquetFileParams, Partition, PartitionId, PartitionKey,
-    PartitionParam, ProcessedTombstone, QueryPool, QueryPoolId, SequenceNumber, Shard, ShardId,
-    ShardIndex, SkippedCompaction, Table, TableId, TablePartition, Timestamp, Tombstone,
-    TombstoneId, TopicId, TopicMetadata,
+    Column, ColumnId, ColumnType, CompactionLevel, Namespace, NamespaceId, ParquetFile,
+    ParquetFileId, ParquetFileParams, Partition, PartitionId, PartitionKey, PartitionParam,
+    QueryPool, QueryPoolId, SequenceNumber, Shard, ShardId, ShardIndex, SkippedCompaction, Table,
+    TableId, Timestamp, TopicId, TopicMetadata,
 };
 use iox_time::{SystemProvider, TimeProvider};
 use observability_deps::tracing::warn;
@@ -73,9 +71,7 @@ struct MemCollections {
     shards: Vec<Shard>,
     partitions: Vec<Partition>,
     skipped_compactions: Vec<SkippedCompaction>,
-    tombstones: Vec<Tombstone>,
     parquet_files: Vec<ParquetFile>,
-    processed_tombstones: Vec<ProcessedTombstone>,
 }
 
 #[derive(Debug)]
@@ -231,15 +227,7 @@ impl RepoCollection for MemTxn {
         self
     }
 
-    fn tombstones(&mut self) -> &mut dyn TombstoneRepo {
-        self
-    }
-
     fn parquet_files(&mut self) -> &mut dyn ParquetFileRepo {
-        self
-    }
-
-    fn processed_tombstones(&mut self) -> &mut dyn ProcessedTombstoneRepo {
         self
     }
 }
@@ -669,37 +657,6 @@ impl ColumnRepo for MemTxn {
         let stage = self.stage();
         Ok(stage.columns.clone())
     }
-
-    async fn list_type_count_by_table_id(
-        &mut self,
-        table_id: TableId,
-    ) -> Result<Vec<ColumnTypeCount>> {
-        let stage = self.stage();
-
-        let columns = stage
-            .columns
-            .iter()
-            .filter(|c| c.table_id == table_id)
-            .map(|c| c.column_type)
-            .collect::<Vec<_>>();
-
-        let mut cols = HashMap::new();
-        for c in columns {
-            cols.entry(c)
-                .and_modify(|counter| *counter += 1)
-                .or_insert(1);
-        }
-
-        let column_type_counts = cols
-            .iter()
-            .map(|c| ColumnTypeCount {
-                col_type: *c.0,
-                count: *c.1,
-            })
-            .collect::<Vec<_>>();
-
-        Ok(column_type_counts)
-    }
 }
 
 #[async_trait]
@@ -823,23 +780,6 @@ impl PartitionRepo for MemTxn {
             .cloned())
     }
 
-    async fn list_by_namespace(&mut self, namespace_id: NamespaceId) -> Result<Vec<Partition>> {
-        let stage = self.stage();
-
-        let table_ids: HashSet<_> = stage
-            .tables
-            .iter()
-            .filter_map(|table| (table.namespace_id == namespace_id).then_some(table.id))
-            .collect();
-        let partitions: Vec<_> = stage
-            .partitions
-            .iter()
-            .filter(|p| table_ids.contains(&p.table_id))
-            .cloned()
-            .collect();
-        Ok(partitions)
-    }
-
     async fn list_by_table_id(&mut self, table_id: TableId) -> Result<Vec<Partition>> {
         let stage = self.stage();
 
@@ -959,40 +899,9 @@ impl PartitionRepo for MemTxn {
         }
     }
 
-    async fn update_persisted_sequence_number(
-        &mut self,
-        partition_id: PartitionId,
-        sequence_number: SequenceNumber,
-    ) -> Result<()> {
-        let stage = self.stage();
-        match stage.partitions.iter_mut().find(|p| p.id == partition_id) {
-            Some(p) => {
-                p.persisted_sequence_number = Some(sequence_number);
-                Ok(())
-            }
-            None => Err(Error::PartitionNotFound { id: partition_id }),
-        }
-    }
-
     async fn most_recent_n(&mut self, n: usize) -> Result<Vec<Partition>> {
         let stage = self.stage();
         Ok(stage.partitions.iter().rev().take(n).cloned().collect())
-    }
-
-    async fn most_recent_n_in_shards(
-        &mut self,
-        n: usize,
-        shards: &[ShardId],
-    ) -> Result<Vec<Partition>> {
-        let stage = self.stage();
-        Ok(stage
-            .partitions
-            .iter()
-            .rev()
-            .filter(|p| shards.contains(&p.shard_id))
-            .take(n)
-            .cloned()
-            .collect())
     }
 
     async fn partitions_with_recent_created_files(
@@ -1048,134 +957,6 @@ impl PartitionRepo for MemTxn {
             .collect();
 
         Ok(partitions)
-    }
-}
-
-#[async_trait]
-impl TombstoneRepo for MemTxn {
-    async fn create_or_get(
-        &mut self,
-        table_id: TableId,
-        shard_id: ShardId,
-        sequence_number: SequenceNumber,
-        min_time: Timestamp,
-        max_time: Timestamp,
-        predicate: &str,
-    ) -> Result<Tombstone> {
-        let stage = self.stage();
-
-        let tombstone = match stage.tombstones.iter().find(|t| {
-            t.table_id == table_id && t.shard_id == shard_id && t.sequence_number == sequence_number
-        }) {
-            Some(t) => t,
-            None => {
-                let t = Tombstone {
-                    id: TombstoneId::new(stage.tombstones.len() as i64 + 1),
-                    table_id,
-                    shard_id,
-                    sequence_number,
-                    min_time,
-                    max_time,
-                    serialized_predicate: predicate.to_string(),
-                };
-                stage.tombstones.push(t);
-                stage.tombstones.last().unwrap()
-            }
-        };
-
-        Ok(tombstone.clone())
-    }
-
-    async fn list_by_namespace(&mut self, namespace_id: NamespaceId) -> Result<Vec<Tombstone>> {
-        let stage = self.stage();
-
-        let table_ids: HashSet<_> = stage
-            .tables
-            .iter()
-            .filter_map(|table| (table.namespace_id == namespace_id).then_some(table.id))
-            .collect();
-        let tombstones: Vec<_> = stage
-            .tombstones
-            .iter()
-            .filter(|t| table_ids.contains(&t.table_id))
-            .cloned()
-            .collect();
-        Ok(tombstones)
-    }
-
-    async fn list_by_table(&mut self, table_id: TableId) -> Result<Vec<Tombstone>> {
-        let stage = self.stage();
-
-        let tombstones: Vec<_> = stage
-            .tombstones
-            .iter()
-            .filter(|t| t.table_id == table_id)
-            .cloned()
-            .collect();
-        Ok(tombstones)
-    }
-
-    async fn get_by_id(&mut self, id: TombstoneId) -> Result<Option<Tombstone>> {
-        let stage = self.stage();
-
-        Ok(stage.tombstones.iter().find(|t| t.id == id).cloned())
-    }
-
-    async fn list_tombstones_by_shard_greater_than(
-        &mut self,
-        shard_id: ShardId,
-        sequence_number: SequenceNumber,
-    ) -> Result<Vec<Tombstone>> {
-        let stage = self.stage();
-
-        let tombstones: Vec<_> = stage
-            .tombstones
-            .iter()
-            .filter(|t| t.shard_id == shard_id && t.sequence_number > sequence_number)
-            .cloned()
-            .collect();
-        Ok(tombstones)
-    }
-
-    async fn remove(&mut self, tombstone_ids: &[TombstoneId]) -> Result<()> {
-        let stage = self.stage();
-
-        // remove the processed tombstones first
-        stage
-            .processed_tombstones
-            .retain(|pt| !tombstone_ids.iter().any(|id| *id == pt.tombstone_id));
-
-        // remove the tombstones
-        stage
-            .tombstones
-            .retain(|ts| !tombstone_ids.iter().any(|id| *id == ts.id));
-
-        Ok(())
-    }
-
-    async fn list_tombstones_for_time_range(
-        &mut self,
-        shard_id: ShardId,
-        table_id: TableId,
-        sequence_number: SequenceNumber,
-        min_time: Timestamp,
-        max_time: Timestamp,
-    ) -> Result<Vec<Tombstone>> {
-        let stage = self.stage();
-
-        let tombstones: Vec<_> = stage
-            .tombstones
-            .iter()
-            .filter(|t| {
-                t.shard_id == shard_id
-                    && t.table_id == table_id
-                    && t.sequence_number > sequence_number
-                    && ((t.min_time <= min_time && t.max_time >= min_time)
-                        || (t.min_time > min_time && t.min_time <= max_time))
-            })
-            .cloned()
-            .collect();
-        Ok(tombstones)
     }
 }
 
@@ -1259,22 +1040,6 @@ impl ParquetFileRepo for MemTxn {
             .collect())
     }
 
-    async fn list_by_shard_greater_than(
-        &mut self,
-        shard_id: ShardId,
-        sequence_number: SequenceNumber,
-    ) -> Result<Vec<ParquetFile>> {
-        let stage = self.stage();
-
-        let files: Vec<_> = stage
-            .parquet_files
-            .iter()
-            .filter(|f| f.shard_id == shard_id && f.max_sequence_number > sequence_number)
-            .cloned()
-            .collect();
-        Ok(files)
-    }
-
     async fn list_by_namespace_not_to_delete(
         &mut self,
         namespace_id: NamespaceId,
@@ -1319,7 +1084,7 @@ impl ParquetFileRepo for MemTxn {
         Ok(parquet_files)
     }
 
-    async fn delete_old(&mut self, older_than: Timestamp) -> Result<Vec<ParquetFile>> {
+    async fn delete_old_ids_only(&mut self, older_than: Timestamp) -> Result<Vec<ParquetFileId>> {
         let stage = self.stage();
 
         let (delete, keep): (Vec<_>, Vec<_>) = stage.parquet_files.iter().cloned().partition(
@@ -1328,273 +1093,8 @@ impl ParquetFileRepo for MemTxn {
 
         stage.parquet_files = keep;
 
+        let delete = delete.into_iter().map(|f| f.id).collect();
         Ok(delete)
-    }
-
-    async fn delete_old_ids_only(&mut self, older_than: Timestamp) -> Result<Vec<ParquetFileId>> {
-        let delete = self
-            .delete_old(older_than)
-            .await
-            .unwrap()
-            .into_iter()
-            .map(|f| f.id)
-            .collect();
-        Ok(delete)
-    }
-
-    async fn level_0(&mut self, shard_id: ShardId) -> Result<Vec<ParquetFile>> {
-        let stage = self.stage();
-
-        Ok(stage
-            .parquet_files
-            .iter()
-            .filter(|f| {
-                f.shard_id == shard_id
-                    && f.compaction_level == CompactionLevel::Initial
-                    && f.to_delete.is_none()
-            })
-            .cloned()
-            .collect())
-    }
-
-    async fn level_1(
-        &mut self,
-        table_partition: TablePartition,
-        min_time: Timestamp,
-        max_time: Timestamp,
-    ) -> Result<Vec<ParquetFile>> {
-        let stage = self.stage();
-
-        Ok(stage
-            .parquet_files
-            .iter()
-            .filter(|f| {
-                f.shard_id == table_partition.shard_id
-                    && f.table_id == table_partition.table_id
-                    && f.partition_id == table_partition.partition_id
-                    && f.compaction_level == CompactionLevel::FileNonOverlapped
-                    && f.to_delete.is_none()
-                    && ((f.min_time <= min_time && f.max_time >= min_time)
-                        || (f.min_time > min_time && f.min_time <= max_time))
-            })
-            .cloned()
-            .collect())
-    }
-
-    async fn recent_highest_throughput_partitions(
-        &mut self,
-        shard_id: Option<ShardId>,
-        time_in_the_past: Timestamp,
-        min_num_files: usize,
-        num_partitions: usize,
-    ) -> Result<Vec<PartitionParam>> {
-        let recent_time = time_in_the_past;
-
-        let stage = self.stage();
-
-        // Get partition info of selected files
-        let partitions = stage
-            .parquet_files
-            .iter()
-            .filter(|f| {
-                let shard_matches_if_specified = if let Some(shard_id) = shard_id {
-                    f.shard_id == shard_id
-                } else {
-                    true
-                };
-
-                shard_matches_if_specified
-                    && f.created_at > recent_time
-                    && f.compaction_level == CompactionLevel::Initial
-                    && f.to_delete.is_none()
-            })
-            .map(|pf| PartitionParam {
-                partition_id: pf.partition_id,
-                shard_id: pf.shard_id,
-                namespace_id: pf.namespace_id,
-                table_id: pf.table_id,
-            })
-            .collect::<Vec<_>>();
-
-        // Count num of files per partition by simply count the number of partition duplicates
-        let mut partition_duplicate_count: HashMap<PartitionParam, usize> =
-            HashMap::with_capacity(partitions.len());
-        for p in partitions {
-            let count = partition_duplicate_count.entry(p).or_insert(0);
-            *count += 1;
-        }
-
-        // Partitions with select file count >= min_num_files that haven't been skipped by the
-        // compactor
-        let skipped_partitions: Vec<_> = stage
-            .skipped_compactions
-            .iter()
-            .map(|s| s.partition_id)
-            .collect();
-        let mut partitions = partition_duplicate_count
-            .iter()
-            .filter(|(_, v)| v >= &&min_num_files)
-            .filter(|(p, _)| !skipped_partitions.contains(&p.partition_id))
-            .collect::<Vec<_>>();
-
-        // Sort partitions by file count
-        partitions.sort_by(|a, b| b.1.cmp(a.1));
-
-        // only return top partitions
-        let partitions = partitions
-            .into_iter()
-            .map(|(k, _)| *k)
-            .take(num_partitions)
-            .collect::<Vec<_>>();
-
-        Ok(partitions)
-    }
-
-    async fn partitions_with_small_l1_file_count(
-        &mut self,
-        shard_id: Option<ShardId>,
-        small_size_threshold_bytes: i64,
-        min_small_file_count: usize,
-        num_partitions: usize,
-    ) -> Result<Vec<PartitionParam>> {
-        let stage = self.stage();
-        let skipped_partitions: Vec<_> = stage
-            .skipped_compactions
-            .iter()
-            .map(|s| s.partition_id)
-            .collect();
-        // get a list of files for the shard that are under the size threshold and don't belong to
-        // a partition that has been skipped by the compactor
-        let relevant_parquet_files = stage
-            .parquet_files
-            .iter()
-            .filter(|f| {
-                let shard_matches_if_specified = if let Some(shard_id) = shard_id {
-                    f.shard_id == shard_id
-                } else {
-                    true
-                };
-
-                shard_matches_if_specified
-                    && f.compaction_level == CompactionLevel::FileNonOverlapped
-                    && f.file_size_bytes < small_size_threshold_bytes
-                    && !skipped_partitions.contains(&f.partition_id)
-            })
-            .collect::<Vec<_>>();
-        // count the number of files per partition & use that to retain only a list of counts that
-        // are above our threshold. the keys then become our partition candidates
-        let mut partition_small_file_count: HashMap<PartitionParam, usize> =
-            HashMap::with_capacity(relevant_parquet_files.len());
-        for pf in relevant_parquet_files {
-            let key = PartitionParam {
-                partition_id: pf.partition_id,
-                shard_id: pf.shard_id,
-                namespace_id: pf.namespace_id,
-                table_id: pf.table_id,
-            };
-            if pf.to_delete.is_none() {
-                let count = partition_small_file_count.entry(key).or_insert(0);
-                *count += 1;
-            }
-        }
-        partition_small_file_count.retain(|_key, c| *c >= min_small_file_count);
-        let mut partitions = partition_small_file_count.iter().collect::<Vec<_>>();
-        // sort and return top N
-        partitions.sort_by(|a, b| b.1.cmp(a.1));
-        Ok(partitions
-            .into_iter()
-            .map(|(k, _)| *k)
-            .take(num_partitions)
-            .collect::<Vec<_>>())
-    }
-
-    async fn most_cold_files_partitions(
-        &mut self,
-        shard_id: Option<ShardId>,
-        time_in_the_past: Timestamp,
-        num_partitions: usize,
-    ) -> Result<Vec<PartitionParam>> {
-        let stage = self.stage();
-        let relevant_parquet_files = stage
-            .parquet_files
-            .iter()
-            .filter(|f| {
-                let shard_matches_if_specified = if let Some(shard_id) = shard_id {
-                    f.shard_id == shard_id
-                } else {
-                    true
-                };
-
-                shard_matches_if_specified
-                    && (f.compaction_level == CompactionLevel::Initial
-                        || f.compaction_level == CompactionLevel::FileNonOverlapped)
-            })
-            .collect::<Vec<_>>();
-
-        // Count num of files per partition by simply count the number of partition duplicates
-        let mut partition_duplicate_count: HashMap<PartitionParam, i32> =
-            HashMap::with_capacity(relevant_parquet_files.len());
-        let mut partition_max_created_at = HashMap::with_capacity(relevant_parquet_files.len());
-        for pf in relevant_parquet_files {
-            let key = PartitionParam {
-                partition_id: pf.partition_id,
-                shard_id: pf.shard_id,
-                namespace_id: pf.namespace_id,
-                table_id: pf.table_id,
-            };
-
-            if pf.to_delete.is_none() {
-                let count = partition_duplicate_count.entry(key).or_insert(0);
-                *count += 1;
-            }
-
-            let created_at = if pf.compaction_level == CompactionLevel::Initial {
-                // the file is level-0, use its created_at time even if it is deleted
-                Some(pf.created_at)
-            } else if pf.to_delete.is_none() {
-                // non deleted level-1,  make it `time_in_the_past - 1` to have this partition always the cold one
-                Some(time_in_the_past - 1)
-            } else {
-                // This is the case of deleted level-1
-                None
-            };
-
-            if let Some(created_at) = created_at {
-                let max_created_at = partition_max_created_at.entry(key).or_insert(created_at);
-                *max_created_at = std::cmp::max(*max_created_at, created_at);
-                if created_at > *max_created_at {
-                    *max_created_at = created_at;
-                }
-            }
-        }
-
-        // Sort partitions whose max created at is older than the limit by their file count
-        let mut partitions = partition_duplicate_count
-            .iter()
-            .filter(|(k, _v)| partition_max_created_at.get(k).unwrap() < &time_in_the_past)
-            .collect::<Vec<_>>();
-        partitions.sort_by(|a, b| b.1.cmp(a.1));
-
-        // Return top partitions with most file counts that haven't been skipped by the compactor
-        let skipped_partitions: Vec<_> = stage
-            .skipped_compactions
-            .iter()
-            .map(|s| s.partition_id)
-            .collect();
-        let partitions = partitions
-            .into_iter()
-            .map(|(k, _)| *k)
-            .filter(|pf| !skipped_partitions.contains(&pf.partition_id))
-            .map(|pf| PartitionParam {
-                partition_id: pf.partition_id,
-                shard_id: pf.shard_id,
-                namespace_id: pf.namespace_id,
-                table_id: pf.table_id,
-            })
-            .take(num_partitions)
-            .collect::<Vec<_>>();
-
-        Ok(partitions)
     }
 
     async fn list_by_partition_not_to_delete(
@@ -1649,58 +1149,6 @@ impl ParquetFileRepo for MemTxn {
         Ok(count_i64.unwrap())
     }
 
-    async fn count_by_overlaps_with_level_0(
-        &mut self,
-        table_id: TableId,
-        shard_id: ShardId,
-        min_time: Timestamp,
-        max_time: Timestamp,
-        sequence_number: SequenceNumber,
-    ) -> Result<i64> {
-        let stage = self.stage();
-
-        let count = stage
-            .parquet_files
-            .iter()
-            .filter(|f| {
-                f.shard_id == shard_id
-                    && f.table_id == table_id
-                    && f.max_sequence_number < sequence_number
-                    && f.to_delete.is_none()
-                    && f.compaction_level == CompactionLevel::Initial
-                    && ((f.min_time <= min_time && f.max_time >= min_time)
-                        || (f.min_time > min_time && f.min_time <= max_time))
-            })
-            .count();
-
-        i64::try_from(count).map_err(|_| Error::InvalidValue { value: count })
-    }
-
-    async fn count_by_overlaps_with_level_1(
-        &mut self,
-        table_id: TableId,
-        shard_id: ShardId,
-        min_time: Timestamp,
-        max_time: Timestamp,
-    ) -> Result<i64> {
-        let stage = self.stage();
-
-        let count = stage
-            .parquet_files
-            .iter()
-            .filter(|f| {
-                f.shard_id == shard_id
-                    && f.table_id == table_id
-                    && f.to_delete.is_none()
-                    && f.compaction_level == CompactionLevel::FileNonOverlapped
-                    && ((f.min_time <= min_time && f.max_time >= min_time)
-                        || (f.min_time > min_time && f.min_time <= max_time))
-            })
-            .count();
-
-        i64::try_from(count).map_err(|_| Error::InvalidValue { value: count })
-    }
-
     async fn get_by_object_store_id(
         &mut self,
         object_store_id: Uuid,
@@ -1712,87 +1160,6 @@ impl ParquetFileRepo for MemTxn {
             .iter()
             .find(|f| f.object_store_id.eq(&object_store_id))
             .cloned())
-    }
-}
-
-#[async_trait]
-impl ProcessedTombstoneRepo for MemTxn {
-    async fn create(
-        &mut self,
-        parquet_file_id: ParquetFileId,
-        tombstone_id: TombstoneId,
-    ) -> Result<ProcessedTombstone> {
-        let stage = self.stage();
-
-        // check if the parquet file available
-        if !stage.parquet_files.iter().any(|f| f.id == parquet_file_id) {
-            return Err(Error::FileNotFound {
-                id: parquet_file_id.get(),
-            });
-        }
-
-        // check if tombstone exists
-        if !stage.tombstones.iter().any(|f| f.id == tombstone_id) {
-            return Err(Error::TombstoneNotFound {
-                id: tombstone_id.get(),
-            });
-        }
-
-        if stage
-            .processed_tombstones
-            .iter()
-            .any(|pt| pt.tombstone_id == tombstone_id && pt.parquet_file_id == parquet_file_id)
-        {
-            // The tombstone was already processed for this file
-            return Err(Error::ProcessTombstoneExists {
-                parquet_file_id: parquet_file_id.get(),
-                tombstone_id: tombstone_id.get(),
-            });
-        }
-
-        let processed_tombstone = ProcessedTombstone {
-            tombstone_id,
-            parquet_file_id,
-        };
-        stage.processed_tombstones.push(processed_tombstone);
-
-        Ok(processed_tombstone)
-    }
-
-    async fn exist(
-        &mut self,
-        parquet_file_id: ParquetFileId,
-        tombstone_id: TombstoneId,
-    ) -> Result<bool> {
-        let stage = self.stage();
-
-        Ok(stage
-            .processed_tombstones
-            .iter()
-            .any(|f| f.parquet_file_id == parquet_file_id && f.tombstone_id == tombstone_id))
-    }
-
-    async fn count(&mut self) -> Result<i64> {
-        let stage = self.stage();
-
-        let count = stage.processed_tombstones.len();
-        let count_i64 = i64::try_from(count);
-        if count_i64.is_err() {
-            return Err(Error::InvalidValue { value: count });
-        }
-        Ok(count_i64.unwrap())
-    }
-
-    async fn count_by_tombstone_id(&mut self, tombstone_id: TombstoneId) -> Result<i64> {
-        let stage = self.stage();
-
-        let count = stage
-            .processed_tombstones
-            .iter()
-            .filter(|p| p.tombstone_id == tombstone_id)
-            .count();
-
-        i64::try_from(count).map_err(|_| Error::InvalidValue { value: count })
     }
 }
 

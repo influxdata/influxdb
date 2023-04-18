@@ -7,7 +7,6 @@ license.workspace = true
 
 [dependencies]
 chrono = { version = "0.4", default-features = false }
-chrono-english = "0.1.4"
 clap = { version = "4", features = ["derive", "env"] }
 clap_blocks = { path = "../clap_blocks" }
 data_types = { path = "../data_types" }

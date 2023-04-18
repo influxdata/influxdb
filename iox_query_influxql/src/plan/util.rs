@@ -1,6 +1,6 @@
-use crate::plan::util_copy;
+use crate::plan::{error, util_copy};
 use arrow::datatypes::DataType;
-use datafusion::common::{DFSchema, DFSchemaRef, DataFusionError, Result};
+use datafusion::common::{DFSchema, DFSchemaRef, Result};
 use datafusion::logical_expr::utils::expr_as_column_expr;
 use datafusion::logical_expr::{coalesce, lit, Expr, ExprSchemable, LogicalPlan, Operator};
 use influxdb_influxql_parser::expression::BinaryOperator;
@@ -27,7 +27,7 @@ pub(in crate::plan) fn binary_operator_to_df_operator(op: BinaryOperator) -> Ope
 pub(in crate::plan) fn schema_from_df(schema: &DFSchema) -> Result<Schema> {
     let s: Arc<arrow::datatypes::Schema> = Arc::new(schema.into());
     s.try_into().map_err(|err| {
-        DataFusionError::Internal(format!(
+        error::map::internal(format!(
             "unable to convert DataFusion schema to IOx schema: {err}"
         ))
     })
@@ -51,9 +51,8 @@ impl Schemas {
 /// Sanitize an InfluxQL regular expression and create a compiled [`regex::Regex`].
 pub(crate) fn parse_regex(re: &Regex) -> Result<regex::Regex> {
     let pattern = clean_non_meta_escapes(re.as_str());
-    regex::Regex::new(&pattern).map_err(|e| {
-        DataFusionError::External(format!("invalid regular expression '{re}': {e}").into())
-    })
+    regex::Regex::new(&pattern)
+        .map_err(|e| error::map::query(format!("invalid regular expression '{re}': {e}")))
 }
 
 /// Returns `n` as a literal expression of the specified `data_type`.
@@ -67,9 +66,7 @@ fn number_to_expr(n: &Number, data_type: DataType) -> Result<Expr> {
         (Number::Float(v), DataType::UInt64) => lit(*v as u64),
         (n, data_type) => {
             // The only output data types expected are Int64, Float64 or UInt64
-            return Err(DataFusionError::Internal(format!(
-                "no conversion from {n} to {data_type}"
-            )));
+            return error::internal(format!("no conversion from {n} to {data_type}"));
         }
     })
 }

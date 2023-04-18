@@ -1,5 +1,6 @@
+use crate::plan::error;
 use chrono::{DateTime, FixedOffset, NaiveDate, NaiveDateTime, NaiveTime, Offset, TimeZone};
-use datafusion::common::{DataFusionError, Result};
+use datafusion::common::Result;
 
 /// Parse the timestamp string and return a DateTime in UTC.
 fn parse_timestamp_utc(s: &str) -> Result<DateTime<FixedOffset>> {
@@ -19,7 +20,7 @@ fn parse_timestamp_utc(s: &str) -> Result<DateTime<FixedOffset>> {
                     .map(|nd| nd.and_time(NaiveTime::default())),
         )
         .map(|ts| DateTime::from_utc(ts, chrono::Utc.fix()))
-        .map_err(|_| DataFusionError::Plan("invalid timestamp string".into()))
+        .map_err(|_| error::map::query("invalid timestamp string"))
 }
 
 /// Parse the timestamp string and return a DateTime in the specified timezone.
@@ -50,7 +51,7 @@ fn parse_timestamp_tz(s: &str, tz: chrono_tz::Tz) -> Result<DateTime<FixedOffset
                 .ok_or(())
         })
         .map(|ts| ts.with_timezone(&ts.offset().fix()))
-        .map_err(|_| DataFusionError::Plan("invalid timestamp string".into()))
+        .map_err(|_| error::map::query("invalid timestamp string"))
 }
 
 /// Parse the string and return a `DateTime` using a fixed offset.

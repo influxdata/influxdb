@@ -16,7 +16,7 @@ use self::{
 
 use super::{DmlHandler, Partitioned};
 use async_trait::async_trait;
-use data_types::{DeletePredicate, NamespaceId, NamespaceName, TableId};
+use data_types::{NamespaceId, NamespaceName, TableId};
 use dml::{DmlMeta, DmlWrite};
 use generated_types::influxdata::iox::ingester::v1::WriteRequest;
 use hashbrown::HashMap;
@@ -50,10 +50,6 @@ pub enum RpcWriteError {
     /// The upstream connection is not established.
     #[error("upstream {0} is not connected")]
     UpstreamNotConnected(String),
-
-    /// A delete request was rejected (not supported).
-    #[error("deletes are not supported")]
-    DeletesUnsupported,
 
     /// The write request was not attempted, because not enough upstream
     /// ingesters needed to satisfy the configured replication factor are
@@ -176,7 +172,6 @@ where
     type WriteOutput = Vec<DmlMeta>;
 
     type WriteError = RpcWriteError;
-    type DeleteError = RpcWriteError;
 
     async fn write(
         &self,
@@ -264,24 +259,6 @@ where
         );
 
         Ok(vec![op.meta().clone()])
-    }
-
-    async fn delete(
-        &self,
-        namespace: &NamespaceName<'static>,
-        namespace_id: NamespaceId,
-        table_name: &str,
-        _predicate: &DeletePredicate,
-        _span_ctx: Option<SpanContext>,
-    ) -> Result<(), RpcWriteError> {
-        warn!(
-            %namespace,
-            %namespace_id,
-            %table_name,
-            "dropping delete request"
-        );
-
-        Err(RpcWriteError::DeletesUnsupported)
     }
 }
 

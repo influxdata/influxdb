@@ -9,7 +9,7 @@ license.workspace = true
 [dependencies]
 bytes = "1.4"
 chrono = { version = "0.4", default-features = false }
-chrono-english = "0.1.4"
+chrono-english = { workspace = true }
 clap = { version = "4", features = ["derive", "env", "cargo"] }
 datafusion_util = { path = "../datafusion_util" }
 futures = "0.3"

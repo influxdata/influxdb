@@ -55,7 +55,7 @@ impl PartitionProvider for MockPartitionProvider {
         table_id: TableId,
         table_name: Arc<DeferredLoad<TableName>>,
         _transition_shard_id: ShardId,
-    ) -> PartitionData {
+    ) -> Arc<Mutex<PartitionData>> {
         let p = self
             .partitions
             .lock()
@@ -67,6 +67,6 @@ impl PartitionProvider for MockPartitionProvider {
         assert_eq!(p.namespace_id(), namespace_id);
         assert_eq!(p.namespace_name().to_string(), namespace_name.to_string());
         assert_eq!(p.table_name().to_string(), table_name.to_string());
-        p
+        Arc::new(Mutex::new(p))
     }
 }

@@ -1,7 +1,5 @@
 use async_trait::async_trait;
-use data_types::{
-    DeletePredicate, NamespaceId, NamespaceName, PartitionKey, PartitionTemplate, TableId,
-};
+use data_types::{NamespaceId, NamespaceName, PartitionKey, PartitionTemplate, TableId};
 use hashbrown::HashMap;
 use mutable_batch::{MutableBatch, PartitionWrite, WritePayload};
 use observability_deps::tracing::*;
@@ -64,7 +62,6 @@ impl Partitioner {
 #[async_trait]
 impl DmlHandler for Partitioner {
     type WriteError = PartitionError;
-    type DeleteError = PartitionError;
 
     type WriteInput = HashMap<TableId, (String, MutableBatch)>;
     type WriteOutput = Vec<Partitioned<Self::WriteInput>>;
@@ -103,18 +100,6 @@ impl DmlHandler for Partitioner {
             .into_iter()
             .map(|(key, batch)| Partitioned::new(key, batch))
             .collect::<Vec<_>>())
-    }
-
-    /// Pass the delete request through unmodified to the next handler.
-    async fn delete(
-        &self,
-        _namespace: &NamespaceName<'static>,
-        _namespace_id: NamespaceId,
-        _table_name: &str,
-        _predicate: &DeletePredicate,
-        _span_ctx: Option<SpanContext>,
-    ) -> Result<(), Self::DeleteError> {
-        Ok(())
     }
 }
 
