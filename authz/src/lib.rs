@@ -24,6 +24,9 @@ use snafu::Snafu;
 mod permission;
 pub use permission::{Action, Permission, Resource};
 
+#[cfg(feature = "http")]
+pub mod http;
+
 /// An authorizer is used to validate the associated with
 /// an authorization token that has been extracted from a request.
 #[async_trait]
