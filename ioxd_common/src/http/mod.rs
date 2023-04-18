@@ -1,5 +1,6 @@
 use std::{convert::Infallible, num::NonZeroI32, sync::Arc};
 
+use authz::http::AuthorizationHeaderExtension;
 use hyper::{
     http::HeaderValue,
     server::conn::{AddrIncoming, AddrStream},
@@ -7,7 +8,6 @@ use hyper::{
 };
 use observability_deps::tracing::{debug, error};
 use serde::Deserialize;
-use server_util::authorization::AuthorizationHeaderExtension;
 use snafu::Snafu;
 use tokio_util::sync::CancellationToken;
 use tower::Layer;

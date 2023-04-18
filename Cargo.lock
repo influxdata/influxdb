@@ -516,6 +516,7 @@ version = "0.1.0"
 dependencies = [
  "async-trait",
  "generated_types",
+ "http",
  "observability_deps",
  "snafu",
  "tonic 0.9.2",
@@ -3011,6 +3012,7 @@ name = "ioxd_common"
 version = "0.1.0"
 dependencies = [
  "async-trait",
+ "authz",
  "bytes",
  "clap 4.2.2",
  "clap_blocks",
@@ -3031,7 +3033,6 @@ dependencies = [
  "serde",
  "serde_json",
  "serde_urlencoded",
- "server_util",
  "service_grpc_testing",
  "snafu",
  "tokio",
@@ -4750,7 +4751,6 @@ dependencies = [
  "serde",
  "serde_json",
  "serde_urlencoded",
- "server_util",
  "service_grpc_catalog",
  "service_grpc_namespace",
  "service_grpc_object_store",
@@ -4995,14 +4995,6 @@ dependencies = [
  "itoa",
  "ryu",
  "serde",
-]
-
-[[package]]
-name = "server_util"
-version = "0.1.0"
-dependencies = [
- "http",
- "workspace-hack",
 ]
 
 [[package]]
