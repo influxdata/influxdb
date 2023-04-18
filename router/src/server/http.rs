@@ -2,7 +2,7 @@
 
 pub mod write;
 
-use authz::{Action, Authorizer, Permission, Resource};
+use authz::{http::AuthorizationHeaderExtension, Action, Authorizer, Permission, Resource};
 use bytes::{Bytes, BytesMut};
 use futures::StreamExt;
 use hashbrown::HashMap;
@@ -12,7 +12,6 @@ use metric::{DurationHistogram, U64Counter};
 use mutable_batch::MutableBatch;
 use mutable_batch_lp::LinesConverter;
 use observability_deps::tracing::*;
-use server_util::authorization::AuthorizationHeaderExtension;
 use std::{str::Utf8Error, sync::Arc, time::Instant};
 use thiserror::Error;
 use tokio::sync::{Semaphore, TryAcquireError};
