@@ -1,7 +1,7 @@
 //! Implementation of the namespace gRPC service
 use std::sync::Arc;
 
-use data_types::{Namespace as CatalogNamespace, QueryPoolId, TopicId};
+use data_types::{Namespace as CatalogNamespace, NamespaceName, QueryPoolId, TopicId};
 use generated_types::influxdata::iox::namespace::v1::{
     update_namespace_service_protection_limit_request::LimitUpdate, *,
 };
@@ -69,6 +69,11 @@ impl namespace_service_server::NamespaceService for NamespaceService {
             retention_period_ns,
         } = request.into_inner();
 
+        // Ensure the namespace name is consistently processed within IOx - this
+        // is handled by the NamespaceName type.
+        let namespace_name = NamespaceName::try_from(namespace_name)
+            .map_err(|v| Status::invalid_argument(v.to_string()))?;
+
         let retention_period_ns = map_retention_period(retention_period_ns)?;
 
         debug!(%namespace_name, ?retention_period_ns, "Creating namespace");
@@ -88,7 +93,7 @@ impl namespace_service_server::NamespaceService for NamespaceService {
             })?;
 
         info!(
-            namespace_name,
+            %namespace_name,
             namespace_id = %namespace.id,
             "created namespace"
         );
@@ -552,4 +557,123 @@ mod tests {
             );
         assert_eq!(status.code(), Code::InvalidArgument);
     }
+
+    macro_rules! test_create_namespace_name {
+        (
+            $test_name:ident,
+            name = $name:expr,  // The input namespace name string
+            want = $($want:tt)+ // A pattern match against Result<str, tonic::Status>
+                                //    where the Ok variant contains the actual namespace
+                                //    name used on the server side (potentially encoded)
+        ) => {
+            paste::paste! {
+                #[tokio::test]
+                async fn [<test_create_namespace_name_ $test_name>]() {
+                    let catalog: Arc<dyn Catalog> =
+                        Arc::new(MemCatalog::new(Arc::new(metric::Registry::default())));
+
+                    let topic = catalog
+                        .repositories()
+                        .await
+                        .topics()
+                        .create_or_get("kafka-topic")
+                        .await
+                        .unwrap();
+                    let query_pool = catalog
+                        .repositories()
+                        .await
+                        .query_pools()
+                        .create_or_get("query-pool")
+                        .await
+                        .unwrap();
+
+                    let handler = NamespaceService::new(catalog, Some(topic.id), Some(query_pool.id));
+
+                    let req = CreateNamespaceRequest {
+                        name: String::from($name),
+                        retention_period_ns: Some(RETENTION),
+                    };
+
+                    let got = handler.create_namespace(Request::new(req)).await;
+
+                    // Map the result into just the name so it's easier for the
+                    // test to assert the correct namespace name was used.
+                    let actual_name_res = got.as_ref().map(|v| {
+                        v.get_ref()
+                            .namespace
+                            .as_ref()
+                            .expect("no namespace in response")
+                            .name
+                            .as_str()
+                    });
+                    assert_matches!(actual_name_res, $($want)+);
+
+                    // Attempt to list the namespaces
+                    let list = handler
+                        .get_namespaces(Request::new(Default::default()))
+                        .await
+                        .expect("must return namespaces")
+                        .into_inner()
+                        .namespaces;
+
+                    // Validate the expected state - if the request succeeded, then the
+                    // namespace MUST exist.
+                    match got {
+                        Ok(got) => {
+                            assert_matches!(list.as_slice(), [ns] => {
+                                assert_eq!(ns, got.get_ref().namespace.as_ref().unwrap());
+                            })
+                        }
+                        Err(_) => assert!(list.is_empty()),
+                    }
+                }
+            }
+        }
+    }
+
+    test_create_namespace_name!(ok, name = "bananas", want = Ok("bananas"));
+
+    test_create_namespace_name!(multi_byte, name = "🍌", want = Ok("🍌"));
+
+    test_create_namespace_name!(
+        tab,
+        name = "it\tis\ttabtasitc",
+        want = Err(e) => {
+            assert_eq!(e.code(), Code::InvalidArgument);
+            assert_eq!(e.message(), "namespace name 'it\tis\ttabtasitc' contains invalid character, character number 2 is a control which is not allowed");
+        }
+    );
+
+    test_create_namespace_name!(
+        null,
+        name = "bad \0 bananas",
+        want = Err(e) => {
+            assert_eq!(e.code(), Code::InvalidArgument);
+            assert_eq!(e.message(), "namespace name 'bad \0 bananas' contains invalid character, character number 4 is a control which is not allowed");
+        }
+    );
+
+    test_create_namespace_name!(
+        length_lower,
+        name = "",
+        want = Err(e) => {
+            assert_eq!(e.code(), Code::InvalidArgument);
+            assert_eq!(e.message(), r#"namespace name  length must be between 1 and 64 characters"#);
+        }
+    );
+
+    test_create_namespace_name!(
+        length_upper_inclusive,
+        name = "A".repeat(64),
+        want = Ok(v) if v == "A".repeat(64)
+    );
+
+    test_create_namespace_name!(
+        length_upper_exclusive,
+        name = "A".repeat(65),
+        want = Err(e) => {
+            assert_eq!(e.code(), Code::InvalidArgument);
+            assert_eq!(e.message(), r#"namespace name AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA length must be between 1 and 64 characters"#);
+        }
+    );
 }

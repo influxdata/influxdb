@@ -5111,6 +5111,7 @@ dependencies = [
  "iox_tests",
  "metric",
  "observability_deps",
+ "paste",
  "tokio",
  "tonic 0.9.2",
  "workspace-hack",
