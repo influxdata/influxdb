@@ -128,7 +128,6 @@ fn is_envoy_unavailable_error(e: &RpcWriteError) -> bool {
         | RpcWriteError::Timeout(_)
         | RpcWriteError::NoUpstreams
         | RpcWriteError::UpstreamNotConnected(_)
-        | RpcWriteError::DeletesUnsupported
         | RpcWriteError::PartialWrite { .. }
         | RpcWriteError::NotEnoughReplicas => false,
     }

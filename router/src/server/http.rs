@@ -1,6 +1,5 @@
 //! HTTP service implementations for `router`.
 
-mod delete_predicate;
 pub mod write;
 
 use authz::{Action, Authorizer, Permission, Resource};
@@ -13,19 +12,15 @@ use metric::{DurationHistogram, U64Counter};
 use mutable_batch::MutableBatch;
 use mutable_batch_lp::LinesConverter;
 use observability_deps::tracing::*;
-use predicate::delete_predicate::parse_delete_predicate;
 use server_util::authorization::AuthorizationHeaderExtension;
 use std::{str::Utf8Error, sync::Arc, time::Instant};
 use thiserror::Error;
 use tokio::sync::{Semaphore, TryAcquireError};
 use trace::ctx::SpanContext;
 
-use self::{
-    delete_predicate::parse_http_delete_request,
-    write::{
-        multi_tenant::MultiTenantExtractError, single_tenant::SingleTenantExtractError,
-        WriteParamExtractor, WriteParams,
-    },
+use self::write::{
+    multi_tenant::MultiTenantExtractError, single_tenant::SingleTenantExtractError,
+    WriteParamExtractor, WriteParams,
 };
 use crate::{
     dml_handlers::{
@@ -40,6 +35,10 @@ pub enum Error {
     /// The requested path has no registered handler.
     #[error("not found")]
     NoHandler,
+
+    /// A delete request was rejected (not supported).
+    #[error("deletes are not supported")]
+    DeletesUnsupported,
 
     /// An error parsing a single-tenant HTTP request.
     #[error(transparent)]
@@ -77,14 +76,6 @@ pub enum Error {
     #[error("failed to parse line protocol: {0}")]
     ParseLineProtocol(mutable_batch_lp::Error),
 
-    /// Failure to parse the request delete predicate.
-    #[error("failed to parse delete predicate: {0}")]
-    ParseDelete(#[from] predicate::delete_predicate::Error),
-
-    /// Failure to parse the delete predicate in the http request
-    #[error("failed to parse delete predicate from http request: {0}")]
-    ParseHttpDelete(#[from] self::delete_predicate::Error),
-
     /// An error returned from the [`DmlHandler`].
     #[error("dml handler error: {0}")]
     DmlHandler(#[from] DmlError),
@@ -120,13 +111,12 @@ impl Error {
     pub fn as_status_code(&self) -> StatusCode {
         match self {
             Error::NoHandler => StatusCode::NOT_FOUND,
+            Error::DeletesUnsupported => StatusCode::NOT_IMPLEMENTED,
             Error::ClientHangup(_) => StatusCode::BAD_REQUEST,
             Error::InvalidGzip(_) => StatusCode::BAD_REQUEST,
             Error::NonUtf8ContentHeader(_) => StatusCode::BAD_REQUEST,
             Error::NonUtf8Body(_) => StatusCode::BAD_REQUEST,
             Error::ParseLineProtocol(_) => StatusCode::BAD_REQUEST,
-            Error::ParseDelete(_) => StatusCode::BAD_REQUEST,
-            Error::ParseHttpDelete(_) => StatusCode::BAD_REQUEST,
             Error::RequestSizeExceeded(_) => StatusCode::PAYLOAD_TOO_LARGE,
             Error::InvalidContentEncoding(_) => {
                 // https://www.rfc-editor.org/rfc/rfc7231#section-6.5.13
@@ -185,7 +175,6 @@ impl From<&DmlError> for StatusCode {
             }
             DmlError::Retention(RetentionError::OutsideRetention(_)) => StatusCode::FORBIDDEN,
             DmlError::RpcWrite(RpcWriteError::Upstream(_)) => StatusCode::INTERNAL_SERVER_ERROR,
-            DmlError::RpcWrite(RpcWriteError::DeletesUnsupported) => StatusCode::NOT_IMPLEMENTED,
             DmlError::RpcWrite(RpcWriteError::Timeout(_)) => StatusCode::GATEWAY_TIMEOUT,
             DmlError::RpcWrite(
                 RpcWriteError::NoUpstreams
@@ -226,7 +215,6 @@ pub struct HttpDelegate<D, N, T = SystemProvider> {
     write_metric_fields: U64Counter,
     write_metric_tables: U64Counter,
     write_metric_body_size: U64Counter,
-    delete_metric_body_size: U64Counter,
     request_limit_rejected: U64Counter,
 }
 
@@ -269,12 +257,6 @@ impl<D, N> HttpDelegate<D, N, SystemProvider> {
                 "cumulative byte size of successfully routed (decompressed) line protocol write requests",
             )
             .recorder(&[]);
-        let delete_metric_body_size = metrics
-            .register_metric::<U64Counter>(
-                "http_delete_body_bytes",
-                "cumulative byte size of successfully routed (decompressed) delete requests",
-            )
-            .recorder(&[]);
         let request_limit_rejected = metrics
             .register_metric::<U64Counter>(
                 "http_request_limit_rejected",
@@ -301,7 +283,6 @@ impl<D, N> HttpDelegate<D, N, SystemProvider> {
             write_metric_fields,
             write_metric_tables,
             write_metric_body_size,
-            delete_metric_body_size,
             request_limit_rejected,
         }
     }
@@ -343,7 +324,7 @@ where
                 let dml_info = self.write_param_extractor.parse_v2(&req)?;
                 self.write_handler(req, dml_info).await
             }
-            (&Method::POST, "/api/v2/delete") => self.delete_handler(req).await,
+            (&Method::POST, "/api/v2/delete") => return Err(Error::DeletesUnsupported),
             _ => return Err(Error::NoHandler),
         }
         .map(|_summary| {
@@ -436,55 +417,6 @@ where
         self.write_metric_fields.inc(stats.num_fields as _);
         self.write_metric_tables.inc(num_tables as _);
         self.write_metric_body_size.inc(body.len() as _);
-
-        Ok(())
-    }
-
-    async fn delete_handler(&self, req: Request<Body>) -> Result<(), Error> {
-        let span_ctx: Option<SpanContext> = req.extensions().get().cloned();
-        let write_info = self.write_param_extractor.parse_v2(&req)?;
-
-        trace!(namespace=%write_info.namespace, "processing delete request");
-
-        // Read the HTTP body and convert it to a str.
-        let body = self.read_body(req).await?;
-        let body = std::str::from_utf8(&body).map_err(Error::NonUtf8Body)?;
-
-        // Parse and extract table name (which can be empty), start, stop, and predicate
-        let parsed_delete = parse_http_delete_request(body)?;
-        let predicate = parse_delete_predicate(
-            &parsed_delete.start_time,
-            &parsed_delete.stop_time,
-            &parsed_delete.predicate,
-        )?;
-
-        debug!(
-            table_name=%parsed_delete.table_name,
-            predicate = %parsed_delete.predicate,
-            start=%parsed_delete.start_time,
-            stop=%parsed_delete.stop_time,
-            body_size=body.len(),
-            namespace=%write_info.namespace,
-            "routing delete"
-        );
-
-        let namespace_id = self
-            .namespace_resolver
-            .get_namespace_id(&write_info.namespace)
-            .await?;
-
-        self.dml_handler
-            .delete(
-                &write_info.namespace,
-                namespace_id,
-                parsed_delete.table_name.as_str(),
-                &predicate,
-                span_ctx,
-            )
-            .await
-            .map_err(Into::into)?;
-
-        self.delete_metric_body_size.inc(body.len() as _);
 
         Ok(())
     }
@@ -687,7 +619,6 @@ mod tests {
                         .with_mapping(NAMESPACE_NAME, NAMESPACE_ID);
                     let dml_handler = Arc::new(MockDmlHandler::default()
                         .with_write_return($dml_write_handler)
-                        .with_delete_return($dml_delete_handler)
                     );
                     let metrics = Arc::new(metric::Registry::default());
                     let delegate = HttpDelegate::new(
@@ -766,30 +697,6 @@ mod tests {
                     body = $body,
                     dml_write_handler = $dml_handler,
                     dml_delete_handler = [],
-                    want_result = $want_result,
-                    want_dml_calls = $($want_dml_calls)+
-                );
-            }
-        };
-    }
-
-    // Wrapper over test_http_handler specifically for delete requests.
-    macro_rules! test_delete_handler {
-        (
-            $name:ident,
-            query_string = $query_string:expr,   // Request URI query string
-            body = $body:expr,                   // Request body content
-            dml_handler = $dml_handler:expr,     // DML delete handler response (if called)
-            want_result = $want_result:pat,
-            want_dml_calls = $($want_dml_calls:tt )+
-        ) => {
-            paste::paste! {
-                test_http_handler!(
-                    [<delete_ $name>],
-                    uri = format!("https://bananas.example/api/v2/delete{}", $query_string),
-                    body = $body,
-                    dml_write_handler = [],
-                    dml_delete_handler = $dml_handler,
                     want_result = $want_result,
                     want_dml_calls = $($want_dml_calls)+
                 );
@@ -1027,118 +934,6 @@ mod tests {
         dml_handler = [],
         want_result = Err(_),
         want_dml_calls = []
-    );
-
-    test_delete_handler!(
-        ok,
-        query_string = "?org=bananas&bucket=test",
-        body = r#"{"start":"2021-04-01T14:00:00Z","stop":"2021-04-02T14:00:00Z", "predicate":"_measurement=its_a_table and location=Boston"}"#.as_bytes(),
-        dml_handler = [Ok(())],
-        want_result = Ok(_),
-        want_dml_calls = [MockDmlHandlerCall::Delete{namespace, namespace_id, table, predicate}] => {
-            assert_eq!(table, "its_a_table");
-            assert_eq!(namespace, NAMESPACE_NAME);
-            assert_eq!(*namespace_id, NAMESPACE_ID);
-            assert!(!predicate.exprs.is_empty());
-        }
-    );
-
-    test_delete_handler!(
-        invalid_delete_body,
-        query_string = "?org=bananas&bucket=test",
-        body = r#"{wat}"#.as_bytes(),
-        dml_handler = [],
-        want_result = Err(Error::ParseHttpDelete(_)),
-        want_dml_calls = []
-    );
-
-    test_delete_handler!(
-        no_query_params,
-        query_string = "",
-        body = "".as_bytes(),
-        dml_handler = [Ok(())],
-        want_result = Err(Error::MultiTenantError(
-            MultiTenantExtractError::ParseV2Request(V2WriteParseError::NoQueryParams)
-        )),
-        want_dml_calls = [] // None
-    );
-
-    test_delete_handler!(
-        no_org_bucket,
-        query_string = "?",
-        body = "".as_bytes(),
-        dml_handler = [Ok(())],
-        want_result = Err(Error::MultiTenantError(
-            MultiTenantExtractError::InvalidOrgAndBucket(
-                OrgBucketMappingError::NoOrgBucketSpecified
-            )
-        )),
-        want_dml_calls = [] // None
-    );
-
-    test_delete_handler!(
-        empty_org_bucket,
-        query_string = "?org=&bucket=",
-        body = "".as_bytes(),
-        dml_handler = [Ok(())],
-        want_result = Err(Error::MultiTenantError(
-            MultiTenantExtractError::InvalidOrgAndBucket(
-                OrgBucketMappingError::NoOrgBucketSpecified
-            )
-        )),
-        want_dml_calls = [] // None
-    );
-
-    test_delete_handler!(
-        invalid_org_bucket,
-        query_string = format!("?org=test&bucket={}", "A".repeat(1000)),
-        body = "".as_bytes(),
-        dml_handler = [Ok(())],
-        want_result = Err(Error::MultiTenantError(
-            MultiTenantExtractError::InvalidOrgAndBucket(
-                OrgBucketMappingError::InvalidNamespaceName(
-                    NamespaceNameError::LengthConstraint { .. }
-                )
-            )
-        )),
-        want_dml_calls = [] // None
-    );
-
-    test_delete_handler!(
-        non_utf8_body,
-        query_string = "?org=bananas&bucket=test",
-        body = vec![0xc3, 0x28],
-        dml_handler = [Ok(())],
-        want_result = Err(Error::NonUtf8Body(_)),
-        want_dml_calls = [] // None
-    );
-
-    test_delete_handler!(
-        db_not_found,
-        query_string = "?org=bananas&bucket=test",
-        body = r#"{"start":"2021-04-01T14:00:00Z","stop":"2021-04-02T14:00:00Z", "predicate":"_measurement=its_a_table and location=Boston"}"#.as_bytes(),
-        dml_handler = [Err(DmlError::NamespaceNotFound(NAMESPACE_NAME.to_string()))],
-        want_result = Err(Error::DmlHandler(DmlError::NamespaceNotFound(_))),
-        want_dml_calls = [MockDmlHandlerCall::Delete{namespace, namespace_id, table, predicate}] => {
-            assert_eq!(table, "its_a_table");
-            assert_eq!(namespace, NAMESPACE_NAME);
-            assert_eq!(*namespace_id, NAMESPACE_ID);
-            assert!(!predicate.exprs.is_empty());
-        }
-    );
-
-    test_delete_handler!(
-        dml_handler_error,
-        query_string = "?org=bananas&bucket=test",
-        body = r#"{"start":"2021-04-01T14:00:00Z","stop":"2021-04-02T14:00:00Z", "predicate":"_measurement=its_a_table and location=Boston"}"#.as_bytes(),
-        dml_handler = [Err(DmlError::Internal("💣".into()))],
-        want_result = Err(Error::DmlHandler(DmlError::Internal(_))),
-        want_dml_calls = [MockDmlHandlerCall::Delete{namespace, namespace_id, table, predicate}] => {
-            assert_eq!(table, "its_a_table");
-            assert_eq!(namespace, NAMESPACE_NAME);
-            assert_eq!(*namespace_id, NAMESPACE_ID);
-            assert!(!predicate.exprs.is_empty());
-        }
     );
 
     test_http_handler!(
@@ -1429,11 +1224,7 @@ mod tests {
         let mock_namespace_resolver =
             MockNamespaceResolver::default().with_mapping(NAMESPACE_NAME, NamespaceId::new(42));
 
-        let dml_handler = Arc::new(
-            MockDmlHandler::default()
-                .with_write_return([Ok(())])
-                .with_delete_return([]),
-        );
+        let dml_handler = Arc::new(MockDmlHandler::default().with_write_return([Ok(())]));
         let metrics = Arc::new(metric::Registry::default());
         let authz = Arc::new(MockAuthorizer {});
         let delegate = HttpDelegate::new(
@@ -1511,11 +1302,7 @@ mod tests {
         let mock_namespace_resolver =
             MockNamespaceResolver::default().with_mapping(NAMESPACE_NAME, NamespaceId::new(42));
 
-        let dml_handler = Arc::new(
-            MockDmlHandler::default()
-                .with_write_return([Ok(())])
-                .with_delete_return([]),
-        );
+        let dml_handler = Arc::new(MockDmlHandler::default().with_write_return([Ok(())]));
         let metrics = Arc::new(metric::Registry::default());
         let delegate = HttpDelegate::new(
             MAX_BYTES,
@@ -1560,11 +1347,8 @@ mod tests {
             }),
         ));
 
-        let dml_handler = Arc::new(
-            MockDmlHandler::default()
-                .with_write_return([Ok(()), Ok(()), Ok(())])
-                .with_delete_return([]),
-        );
+        let dml_handler =
+            Arc::new(MockDmlHandler::default().with_write_return([Ok(()), Ok(()), Ok(())]));
         let metrics = Arc::new(metric::Registry::default());
         let delegate = HttpDelegate::new(
             MAX_BYTES,
@@ -1610,24 +1394,6 @@ mod tests {
         assert_matches!(
             request_parser.calls().as_slice(),
             [MockExtractorCall::V1, MockExtractorCall::V2]
-        );
-
-        // Delete requests hit the v2 parser
-        let request = Request::builder()
-            .uri("https://bananas.example/api/v2/delete")
-            .method("POST")
-            .body(Body::from(""))
-            .unwrap();
-        let _got = delegate.route(request).await;
-
-        // The delete should have hit v2.
-        assert_matches!(
-            request_parser.calls().as_slice(),
-            [
-                MockExtractorCall::V1,
-                MockExtractorCall::V2,
-                MockExtractorCall::V2
-            ]
         );
     }
 
@@ -1680,6 +1446,11 @@ mod tests {
         (
             NoHandler,
             "not found",
+        ),
+
+        (
+            DeletesUnsupported,
+            "deletes are not supported",
         ),
 
         (
@@ -1758,21 +1529,6 @@ mod tests {
         (
             ParseLineProtocol(mutable_batch_lp::Error::TimestampOverflow),
             "failed to parse line protocol: timestamp overflows i64",
-        ),
-
-        (
-            ParseDelete({
-                predicate::delete_predicate::Error::InvalidSyntax { value: "[syntax]".into() }
-            }),
-            "failed to parse delete predicate: Invalid predicate syntax: ([syntax])",
-        ),
-
-        (
-            ParseHttpDelete({
-                delete_predicate::Error::TableInvalid { value: "[table name]".into() }
-            }),
-            "failed to parse delete predicate from http request: \
-             Invalid table name in delete '[table name]'"
         ),
 
         (

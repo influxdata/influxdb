@@ -1,7 +1,7 @@
 use std::{collections::VecDeque, fmt::Debug};
 
 use async_trait::async_trait;
-use data_types::{DeletePredicate, NamespaceId, NamespaceName};
+use data_types::{NamespaceId, NamespaceName};
 use parking_lot::Mutex;
 use trace::ctx::SpanContext;
 
@@ -16,19 +16,12 @@ pub enum MockDmlHandlerCall<W> {
         namespace_id: NamespaceId,
         write_input: W,
     },
-    Delete {
-        namespace: String,
-        namespace_id: NamespaceId,
-        table: String,
-        predicate: DeletePredicate,
-    },
 }
 
 #[derive(Debug)]
 struct Inner<W> {
     calls: Vec<MockDmlHandlerCall<W>>,
     write_return: VecDeque<Result<(), DmlError>>,
-    delete_return: VecDeque<Result<(), DmlError>>,
 }
 
 impl<W> Default for Inner<W> {
@@ -36,7 +29,6 @@ impl<W> Default for Inner<W> {
         Self {
             calls: Default::default(),
             write_return: Default::default(),
-            delete_return: Default::default(),
         }
     }
 }
@@ -65,11 +57,6 @@ where
         self
     }
 
-    pub fn with_delete_return(self, ret: impl Into<VecDeque<Result<(), DmlError>>>) -> Self {
-        self.0.lock().delete_return = ret.into();
-        self
-    }
-
     pub fn calls(&self) -> Vec<MockDmlHandlerCall<W>> {
         self.0.lock().calls.clone()
     }
@@ -93,7 +80,6 @@ where
     W: Debug + Send + Sync,
 {
     type WriteError = DmlError;
-    type DeleteError = DmlError;
     type WriteInput = W;
     type WriteOutput = ();
 
@@ -112,26 +98,6 @@ where
                 write_input,
             },
             write_return
-        )
-    }
-
-    async fn delete(
-        &self,
-        namespace: &NamespaceName<'static>,
-        namespace_id: NamespaceId,
-        table_name: &str,
-        predicate: &DeletePredicate,
-        _span_ctx: Option<SpanContext>,
-    ) -> Result<(), Self::DeleteError> {
-        record_and_return!(
-            self,
-            MockDmlHandlerCall::Delete {
-                namespace: namespace.into(),
-                namespace_id,
-                table: table_name.to_owned(),
-                predicate: predicate.clone(),
-            },
-            delete_return
         )
     }
 }
