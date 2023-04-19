@@ -70,6 +70,33 @@ name: measurements
 | disk |
 +------+
 -- InfluxQL: SHOW MEASUREMENTS WITH MEASUREMENT = does_not_exist;
+-- InfluxQL: SHOW MEASUREMENTS WHERE time >= '2022-10-31T02:00:30Z';
+-- Results After Sorting
+name: measurements
++------+
+| name |
++------+
+| m0   |
++------+
+-- InfluxQL: SHOW MEASUREMENTS WHERE tag0 = 'a';
+-- Results After Sorting
+name: measurements
++-------------+
+| name        |
++-------------+
+| m3          |
+| select_test |
++-------------+
+-- InfluxQL: SHOW MEASUREMENTS WHERE tag0 = 'a' AND tag1 = 'a';
+-- Results After Sorting
+name: measurements
++-------------+
+| name        |
++-------------+
+| select_test |
++-------------+
+-- InfluxQL: SHOW MEASUREMENTS WHERE tag0 = "a";
+-- Results After Sorting
 -- InfluxQL: SHOW MEASUREMENTS WITH MEASUREMENT = /my_db/;
 Error while planning query: Error during planning: expected string but got regex
 -- InfluxQL: SHOW MEASUREMENTS WITH MEASUREMENT =~ my_db;
@@ -84,8 +111,6 @@ Error while planning query: This feature is not implemented: database name in fr
 Error while planning query: This feature is not implemented: retention policy in from clause
 -- InfluxQL: SHOW MEASUREMENTS WITH MEASUREMENT =~ x.y./my_db/;
 Error while planning query: This feature is not implemented: database name in from clause
--- InfluxQL: SHOW MEASUREMENTS WHERE "tag0" = 'x';
-Error while planning query: This feature is not implemented: SHOW MEASUREMENTS WHERE <condition>
 -- InfluxQL: SHOW FIELD KEYS;
 name: cpu
 +--------------+-----------+
