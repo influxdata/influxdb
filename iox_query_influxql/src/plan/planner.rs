@@ -1804,39 +1804,37 @@ fn build_gap_fill_node(
     // Extract the gap-fill parameters from the arguments to the `DATE_BIN` function.
     // Any unexpected conditions represents an internal error, as the `DATE_BIN` function is
     // added by the planner.
-    let (stride, time_range, origin) = if date_bin_args.len() == 3 {
-        let time_col = date_bin_args[1].try_into_col().map_err(|_| {
-            error::map::internal("DATE_BIN requires a column as the source argument")
-        })?;
+    let (stride, time_range, origin) = match date_bin_args.len() {
+        nargs @ (2 | 3) => {
+            let time_col = date_bin_args[1].try_into_col().map_err(|_| {
+                error::map::internal("DATE_BIN requires a column as the source argument")
+            })?;
 
-        // Ensure that a time range was specified and is valid for gap filling
-        let time_range = match find_time_range(input.inputs()[0], &time_col)? {
-            // Follow the InfluxQL behaviour to use an upper bound of `now` when
-            // not found:
-            //
-            // See: https://github.com/influxdata/influxdb/blob/98361e207349a3643bcc332d54b009818fe7585f/query/compile.go#L172-L176
-            Range {
-                start,
-                end: Bound::Unbounded,
-            } => Range {
-                start,
-                end: Bound::Excluded(now()),
-            },
-            time_range => time_range,
-        };
+            // Ensure that a time range was specified and is valid for gap filling
+            let time_range = match find_time_range(input.inputs()[0], &time_col)? {
+                // Follow the InfluxQL behaviour to use an upper bound of `now` when
+                // not found:
+                //
+                // See: https://github.com/influxdata/influxdb/blob/98361e207349a3643bcc332d54b009818fe7585f/query/compile.go#L172-L176
+                Range {
+                    start,
+                    end: Bound::Unbounded,
+                } => Range {
+                    start,
+                    end: Bound::Excluded(now()),
+                },
+                time_range => time_range,
+            };
 
-        (
-            date_bin_args[0].clone(),
-            time_range,
-            date_bin_args[2].clone(),
-        )
-    } else {
-        // This is an internal error as the date_bin function is added by the planner and should
-        // always contain the correct number of arguments.
-        return error::internal(format!(
-            "DATE_BIN expects 3 arguments, got {}",
-            date_bin_args.len()
-        ));
+            let origin = (nargs == 3).then_some(date_bin_args[2].clone());
+
+            (date_bin_args[0].clone(), time_range, origin)
+        }
+        nargs => {
+            // This is an internal error as the date_bin function is added by the planner and should
+            // always contain the correct number of arguments.
+            return error::internal(format!("DATE_BIN expects 2 or 3 arguments, got {nargs}"));
+        }
     };
 
     let aggr = Aggregate::try_from_plan(&input)?;
