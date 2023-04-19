@@ -73,12 +73,25 @@ SHOW TAG VALUES FROM /m.*/ WITH KEY = "tag0";
 SHOW TAG VALUES FROM /d\isk/ WITH KEY = "device";
 -- IOX_COMPARE: sorted
 SHOW TAG VALUES FROM does_not_exist WITH KEY = "tag0";
+-- IOX_COMPARE: sorted
+SHOW TAG VALUES WITH KEY = "tt_tag";
+-- IOX_COMPARE: sorted
+SHOW TAG VALUES WITH KEY = "tt_tag" WHERE time >= '1990-01-01T00:00:00Z';
+-- IOX_COMPARE: sorted
+SHOW TAG VALUES WITH KEY = "tt_tag" WHERE time >= '2022-10-31T02:00:00Z';
+-- IOX_COMPARE: sorted
+SHOW TAG VALUES WITH KEY = "tt_tag" WHERE time >= '1970-01-01T01:00:00Z';
+-- IOX_COMPARE: sorted
+SHOW TAG VALUES WITH KEY = "st_tag" WHERE tag0 = 'a';
+-- IOX_COMPARE: sorted
+SHOW TAG VALUES WITH KEY = "st_tag" WHERE tag0 = 'a' AND tag1 = 'b';
+-- IOX_COMPARE: sorted
+SHOW TAG VALUES WITH KEY = "st_tag" WHERE tag0 = "a";
 
 -- unimplemented features in `SHOW TAG VALUES`
 SHOW TAG VALUES ON my_db WITH KEY = "tag0";
 SHOW TAG VALUES FROM x.my_db WITH KEY = "tag0";
 SHOW TAG VALUES FROM x.y.my_db WITH KEY = "tag0";
-SHOW TAG VALUES WITH KEY = "tag0" WHERE tag1 = "foo";
 
 -- SHOW TAG KEYS
 SHOW TAG KEYS;

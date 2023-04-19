@@ -61,7 +61,9 @@ use influxdb_influxql_parser::{
     select::{Field, FieldList, FromMeasurementClause, MeasurementSelection, SelectStatement},
     statement::Statement,
 };
+use iox_query::config::{IoxConfigExt, MetadataCutoff};
 use iox_query::exec::gapfill::{FillStrategy, GapFill, GapFillParams};
+use iox_query::exec::IOxSessionContext;
 use iox_query::logical_optimizer::range_predicate::find_time_range;
 use itertools::Itertools;
 use once_cell::sync::Lazy;
@@ -191,11 +193,12 @@ impl<'a> Context<'a> {
 /// InfluxQL query planner
 pub struct InfluxQLToLogicalPlan<'a> {
     s: &'a dyn SchemaProvider,
+    iox_ctx: &'a IOxSessionContext,
 }
 
 impl<'a> InfluxQLToLogicalPlan<'a> {
-    pub fn new(s: &'a dyn SchemaProvider) -> Self {
-        Self { s }
+    pub fn new(s: &'a dyn SchemaProvider, iox_ctx: &'a IOxSessionContext) -> Self {
+        Self { s, iox_ctx }
     }
 
     pub fn statement_to_plan(&self, statement: Statement) -> Result<LogicalPlan> {
@@ -1510,9 +1513,6 @@ impl<'a> InfluxQLToLogicalPlan<'a> {
             // How do we handle this? Do we need to perform cross-namespace queries here?
             return error::not_implemented("SHOW TAG VALUES ON <database>");
         }
-        if show_tag_values.condition.is_some() {
-            return error::not_implemented("SHOW TAG VALUES WHERE <condition>");
-        }
 
         let key_col = "key";
         let value_col = "value";
@@ -1523,6 +1523,7 @@ impl<'a> InfluxQLToLogicalPlan<'a> {
         ]));
 
         let tables = self.expand_tables(show_tag_values.from)?;
+        let metadata_cutoff = self.metadata_cutoff();
 
         let mut union_plan = None;
         for table in tables {
@@ -1539,7 +1540,14 @@ impl<'a> InfluxQLToLogicalPlan<'a> {
 
             let Some((plan, measurement_expr)) = self.create_table_ref(table)? else {continue;};
 
-            // TODO: apply WHERE clause, use default time restriction if user did not provide any
+            let schemas = Schemas::new(plan.schema())?;
+            let plan = self.plan_where_clause(
+                &Context::default(),
+                &show_tag_values.condition,
+                plan,
+                &schemas,
+            )?;
+            let plan = add_time_restriction(plan, metadata_cutoff)?;
 
             for key in keys {
                 let idx = plan
@@ -1713,6 +1721,19 @@ impl<'a> InfluxQLToLogicalPlan<'a> {
         )?;
 
         Ok(plan)
+    }
+
+    fn metadata_cutoff(&self) -> MetadataCutoff {
+        self.iox_ctx
+            .inner()
+            .state()
+            .config()
+            .options()
+            .extensions
+            .get::<IoxConfigExt>()
+            .cloned()
+            .unwrap_or_default()
+            .influxql_metadata_cutoff
     }
 }
 
@@ -2131,6 +2152,9 @@ fn find_expr(cond: &ConditionalExpression) -> Result<&IQLExpr> {
         .ok_or_else(|| error::map::internal("incomplete conditional expression"))
 }
 
+/// Evaluate [`WithKeyClause`] on the given list of keys.
+///
+/// This may fail if the clause contains an invalid regex.
 fn eval_with_key_clause<'a>(
     keys: impl IntoIterator<Item = &'a str>,
     clause: &WithKeyClause,
@@ -2165,6 +2189,37 @@ fn eval_with_key_clause<'a>(
                 .filter(|key| idents.contains(key))
                 .collect())
         }
+    }
+}
+
+/// Add time restriction to logical plan if there isn't any.
+///
+/// This must used directly on top of a potential filter plan, e.g. the one produced by [`plan_where_clause`](InfluxQLToLogicalPlan::plan_where_clause).
+fn add_time_restriction(plan: LogicalPlan, cutoff: MetadataCutoff) -> Result<LogicalPlan> {
+    let contains_time = if let LogicalPlan::Filter(filter) = &plan {
+        let cols = filter.predicate.to_columns()?;
+        cols.into_iter().any(|col| col.name == "time")
+    } else {
+        false
+    };
+
+    if contains_time {
+        Ok(plan)
+    } else {
+        let cutoff_expr = match cutoff {
+            MetadataCutoff::Absolute(dt) => lit_timestamp_nano(dt.timestamp_nanos()),
+            MetadataCutoff::Relative(delta) => binary_expr(
+                now(),
+                Operator::Minus,
+                lit(ScalarValue::IntervalMonthDayNano(Some(
+                    i128::try_from(delta.as_nanos())
+                        .map_err(|_| error::map::query("default timespan overflow"))?,
+                ))),
+            ),
+        };
+        LogicalPlanBuilder::from(plan)
+            .filter(col("time").gt_eq(cutoff_expr))?
+            .build()
     }
 }
 
@@ -2210,7 +2265,8 @@ mod test {
                 .unwrap(),
         ]);
 
-        let planner = InfluxQLToLogicalPlan::new(&sp);
+        let iox_ctx = IOxSessionContext::with_testing();
+        let planner = InfluxQLToLogicalPlan::new(&sp, &iox_ctx);
 
         planner.statement_to_plan(statements.pop().unwrap())
     }
@@ -2290,7 +2346,8 @@ mod test {
               Sort: data.bar ASC NULLS LAST [bar:Dictionary(Int32, Utf8);N]
                 Distinct: [bar:Dictionary(Int32, Utf8);N]
                   Projection: data.bar [bar:Dictionary(Int32, Utf8);N]
-                    TableScan: data [TIME:Boolean;N, bar:Dictionary(Int32, Utf8);N, bool_field:Boolean;N, f64_field:Float64;N, foo:Dictionary(Int32, Utf8);N, i64_field:Int64;N, mixedCase:Float64;N, str_field:Utf8;N, time:Timestamp(Nanosecond, None), with space:Float64;N]
+                    Filter: data.time >= now() - IntervalMonthDayNano("86400000000000") [TIME:Boolean;N, bar:Dictionary(Int32, Utf8);N, bool_field:Boolean;N, f64_field:Float64;N, foo:Dictionary(Int32, Utf8);N, i64_field:Int64;N, mixedCase:Float64;N, str_field:Utf8;N, time:Timestamp(Nanosecond, None), with space:Float64;N]
+                      TableScan: data [TIME:Boolean;N, bar:Dictionary(Int32, Utf8);N, bool_field:Boolean;N, f64_field:Float64;N, foo:Dictionary(Int32, Utf8);N, i64_field:Int64;N, mixedCase:Float64;N, str_field:Utf8;N, time:Timestamp(Nanosecond, None), with space:Float64;N]
             "###);
             assert_snapshot!(plan("SHOW TAG VALUES WITH KEY = bar LIMIT 1 OFFSET 2"), @r###"
             Sort: iox::measurement ASC NULLS LAST, key ASC NULLS LAST, value ASC NULLS LAST [iox::measurement:Dictionary(Int32, Utf8), key:Dictionary(Int32, Utf8), value:Dictionary(Int32, Utf8);N]
@@ -2301,7 +2358,25 @@ mod test {
                       Sort: data.bar ASC NULLS LAST [bar:Dictionary(Int32, Utf8);N]
                         Distinct: [bar:Dictionary(Int32, Utf8);N]
                           Projection: data.bar [bar:Dictionary(Int32, Utf8);N]
-                            TableScan: data [TIME:Boolean;N, bar:Dictionary(Int32, Utf8);N, bool_field:Boolean;N, f64_field:Float64;N, foo:Dictionary(Int32, Utf8);N, i64_field:Int64;N, mixedCase:Float64;N, str_field:Utf8;N, time:Timestamp(Nanosecond, None), with space:Float64;N]
+                            Filter: data.time >= now() - IntervalMonthDayNano("86400000000000") [TIME:Boolean;N, bar:Dictionary(Int32, Utf8);N, bool_field:Boolean;N, f64_field:Float64;N, foo:Dictionary(Int32, Utf8);N, i64_field:Int64;N, mixedCase:Float64;N, str_field:Utf8;N, time:Timestamp(Nanosecond, None), with space:Float64;N]
+                              TableScan: data [TIME:Boolean;N, bar:Dictionary(Int32, Utf8);N, bool_field:Boolean;N, f64_field:Float64;N, foo:Dictionary(Int32, Utf8);N, i64_field:Int64;N, mixedCase:Float64;N, str_field:Utf8;N, time:Timestamp(Nanosecond, None), with space:Float64;N]
+            "###);
+            assert_snapshot!(plan("SHOW TAG VALUES WITH KEY = bar WHERE foo = 'some_foo'"), @r###"
+            Projection: Dictionary(Int32, Utf8("data")) AS iox::measurement, Dictionary(Int32, Utf8("bar")) AS key, data.bar AS value [iox::measurement:Dictionary(Int32, Utf8), key:Dictionary(Int32, Utf8), value:Dictionary(Int32, Utf8);N]
+              Sort: data.bar ASC NULLS LAST [bar:Dictionary(Int32, Utf8);N]
+                Distinct: [bar:Dictionary(Int32, Utf8);N]
+                  Projection: data.bar [bar:Dictionary(Int32, Utf8);N]
+                    Filter: data.time >= now() - IntervalMonthDayNano("86400000000000") [TIME:Boolean;N, bar:Dictionary(Int32, Utf8);N, bool_field:Boolean;N, f64_field:Float64;N, foo:Dictionary(Int32, Utf8);N, i64_field:Int64;N, mixedCase:Float64;N, str_field:Utf8;N, time:Timestamp(Nanosecond, None), with space:Float64;N]
+                      Filter: data.foo = Utf8("some_foo") [TIME:Boolean;N, bar:Dictionary(Int32, Utf8);N, bool_field:Boolean;N, f64_field:Float64;N, foo:Dictionary(Int32, Utf8);N, i64_field:Int64;N, mixedCase:Float64;N, str_field:Utf8;N, time:Timestamp(Nanosecond, None), with space:Float64;N]
+                        TableScan: data [TIME:Boolean;N, bar:Dictionary(Int32, Utf8);N, bool_field:Boolean;N, f64_field:Float64;N, foo:Dictionary(Int32, Utf8);N, i64_field:Int64;N, mixedCase:Float64;N, str_field:Utf8;N, time:Timestamp(Nanosecond, None), with space:Float64;N]
+            "###);
+            assert_snapshot!(plan("SHOW TAG VALUES WITH KEY = bar WHERE time > 1337"), @r###"
+            Projection: Dictionary(Int32, Utf8("data")) AS iox::measurement, Dictionary(Int32, Utf8("bar")) AS key, data.bar AS value [iox::measurement:Dictionary(Int32, Utf8), key:Dictionary(Int32, Utf8), value:Dictionary(Int32, Utf8);N]
+              Sort: data.bar ASC NULLS LAST [bar:Dictionary(Int32, Utf8);N]
+                Distinct: [bar:Dictionary(Int32, Utf8);N]
+                  Projection: data.bar [bar:Dictionary(Int32, Utf8);N]
+                    Filter: data.time > TimestampNanosecond(1337, None) [TIME:Boolean;N, bar:Dictionary(Int32, Utf8);N, bool_field:Boolean;N, f64_field:Float64;N, foo:Dictionary(Int32, Utf8);N, i64_field:Int64;N, mixedCase:Float64;N, str_field:Utf8;N, time:Timestamp(Nanosecond, None), with space:Float64;N]
+                      TableScan: data [TIME:Boolean;N, bar:Dictionary(Int32, Utf8);N, bool_field:Boolean;N, f64_field:Float64;N, foo:Dictionary(Int32, Utf8);N, i64_field:Int64;N, mixedCase:Float64;N, str_field:Utf8;N, time:Timestamp(Nanosecond, None), with space:Float64;N]
             "###);
         }
     }
