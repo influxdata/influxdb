@@ -108,7 +108,7 @@ Before you contribute to InfluxDB, please sign our [Individual Contributor Licen
 
 ### Install Go
 
-InfluxDB requires Go 1.18.
+InfluxDB requires Go 1.20.
 
 At InfluxData we find `gvm`, a Go version manager, useful for installing Go.
 For instructions on how to install it see [the gvm page on github](https://github.com/moovweb/gvm).
@@ -116,8 +116,8 @@ For instructions on how to install it see [the gvm page on github](https://githu
 After installing `gvm` you can install and set the default Go version by running the following:
 
 ```bash
-$ gvm install go1.18
-$ gvm use go1.18 --default
+$ gvm install go1.20
+$ gvm use go1.20 --default
 ```
 
 InfluxDB requires Go module support. Set `GO111MODULE=on` or build the project outside of your `GOPATH` for it to succeed. For information about modules, please refer to the [wiki](https://github.com/golang/go/wiki/Modules).
