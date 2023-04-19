@@ -84,8 +84,19 @@ group by minute;
 SELECT
   date_bin_gapfill(interval '4 minutes', time) as four_minute,
   interpolate(min(cpu.idle)),
-  interpolate(min(cpu."user"))
+  interpolate(min(cpu."user")),
+  count(*)
 from cpu
 where time between timestamp '2000-05-05T12:19:00Z' and timestamp '2000-05-05T12:40:00Z'
+group by four_minute;
+
+-- A version of the above query that shows gap filling works with nanosecond precision.
+SELECT
+  date_bin_gapfill(interval '4 minutes 1 nanosecond', time, timestamp '2000-05-05T12:15:59.999999999') as four_minute,
+  interpolate(min(cpu.idle)),
+  interpolate(min(cpu."user")),
+  count(*)
+from cpu
+where time between timestamp '2000-05-05T12:19:00Z' and timestamp '2000-05-05T12:44:00Z'
 group by four_minute;
 
