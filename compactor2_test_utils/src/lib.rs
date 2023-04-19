@@ -15,12 +15,8 @@
 mod commit_wrapper;
 mod display;
 mod simulator;
-use commit_wrapper::{CommitRecorderBuilder, InvariantCheck};
+
 pub use display::{display_format, display_size, format_files, format_files_split};
-use iox_catalog::interface::Catalog;
-use iox_query::exec::ExecutorType;
-use simulator::ParquetFileSimulator;
-use tracker::AsyncSemaphoreMetrics;
 
 use std::{
     collections::HashSet,
@@ -30,12 +26,23 @@ use std::{
     time::Duration,
 };
 
+use crate::{
+    commit_wrapper::{CommitRecorderBuilder, InvariantCheck},
+    simulator::ParquetFileSimulator,
+};
 use async_trait::async_trait;
 use backoff::BackoffConfig;
+use compactor2::{
+    compact,
+    config::{CompactionType, Config, PartitionsSourceConfig},
+    hardcoded_components, Components, PanicDataFusionPlanner, PartitionInfo,
+};
 use data_types::{ColumnType, CompactionLevel, ParquetFile, TableId, TRANSITION_SHARD_NUMBER};
 use datafusion::arrow::record_batch::RecordBatch;
 use datafusion_util::config::register_iox_object_store;
 use futures::TryStreamExt;
+use iox_catalog::interface::Catalog;
+use iox_query::exec::ExecutorType;
 use iox_tests::{
     ParquetFileBuilder, TestCatalog, TestNamespace, TestParquetFileBuilder, TestPartition,
     TestShard, TestTable,
@@ -44,12 +51,7 @@ use iox_time::{MockProvider, Time, TimeProvider};
 use object_store::{path::Path, DynObjectStore};
 use parquet_file::storage::{ParquetStorage, StorageId};
 use schema::sort::SortKey;
-
-use compactor2::{
-    compact,
-    config::{Config, PartitionsSourceConfig},
-    hardcoded_components, Components, PanicDataFusionPlanner, PartitionInfo,
-};
+use tracker::AsyncSemaphoreMetrics;
 
 // Default values for the test setup builder
 const SHARD_INDEX: i32 = TRANSITION_SHARD_NUMBER;
@@ -119,6 +121,7 @@ impl TestSetupBuilder<false> {
             .with_invariant_check(Arc::clone(&invariant_check) as _);
 
         let config = Config {
+            compaction_type: Default::default(),
             shard_id: shard.shard.id,
             metric_registry: catalog.metric_registry(),
             catalog: catalog.catalog(),
@@ -133,12 +136,13 @@ impl TestSetupBuilder<false> {
             partition_concurrency: NonZeroUsize::new(1).unwrap(),
             job_concurrency: NonZeroUsize::new(1).unwrap(),
             partition_scratchpad_concurrency: NonZeroUsize::new(1).unwrap(),
-            partition_threshold: PARTITION_THRESHOLD,
             max_desired_file_size_bytes: MAX_DESIRE_FILE_SIZE,
             percentage_max_file_size: PERCENTAGE_MAX_FILE_SIZE,
             split_percentage: SPLIT_PERCENTAGE,
             partition_timeout: Duration::from_secs(3_600),
-            partitions_source: PartitionsSourceConfig::CatalogRecentWrites,
+            partitions_source: PartitionsSourceConfig::CatalogRecentWrites {
+                threshold: PARTITION_THRESHOLD,
+            },
             shadow_mode: false,
             ignore_partition_skip_marker: false,
             shard_config: None,
@@ -563,6 +567,15 @@ impl<const WITH_FILES: bool> TestSetupBuilder<WITH_FILES> {
     /// Set the compaction timeout
     pub fn with_partition_timeout(mut self, partition_timeout: Duration) -> Self {
         self.config.partition_timeout = partition_timeout;
+        self
+    }
+
+    /// Set to do cold compaction
+    pub fn for_cold_compaction(mut self) -> Self {
+        self.config.compaction_type = CompactionType::Cold;
+        self.config.partitions_source = PartitionsSourceConfig::CatalogColdForWrites {
+            threshold: Duration::from_secs(60 * 60),
+        };
         self
     }
 

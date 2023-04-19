@@ -8,7 +8,7 @@ use data_types::CompactionLevel;
 use object_store::memory::InMemory;
 
 use crate::{
-    config::{Config, PartitionsSourceConfig},
+    config::{CompactionType, Config, PartitionsSourceConfig},
     error::ErrorKind,
     object_store::ignore_writes::IgnoreWrites,
 };
@@ -125,12 +125,22 @@ fn make_partitions_source_commit_partition_sink(
     Arc<dyn PartitionDoneSink>,
 ) {
     let partitions_source: Arc<dyn PartitionsSource> = match &config.partitions_source {
-        PartitionsSourceConfig::CatalogRecentWrites => {
+        PartitionsSourceConfig::CatalogRecentWrites { threshold } => {
             Arc::new(CatalogToCompactPartitionsSource::new(
                 config.backoff_config.clone(),
                 Arc::clone(&config.catalog),
-                config.partition_threshold,
-                None, // Recent writes is `partition_threshold` ago to now
+                *threshold,
+                None, // Recent writes is `threshold` ago to now
+                Arc::clone(&config.time_provider),
+            ))
+        }
+        PartitionsSourceConfig::CatalogColdForWrites { threshold } => {
+            Arc::new(CatalogToCompactPartitionsSource::new(
+                config.backoff_config.clone(),
+                Arc::clone(&config.catalog),
+                // Cold for writes is `threshold * 3` ago to `threshold` ago
+                *threshold * 3,
+                Some(*threshold),
                 Arc::clone(&config.time_provider),
             ))
         }
@@ -156,7 +166,10 @@ fn make_partitions_source_commit_partition_sink(
         partitions_source,
     );
 
-    let partition_done_sink: Arc<dyn PartitionDoneSink> = if config.shadow_mode {
+    // Temporarily do nothing for cold compaction until we check the cold compaction selection.
+    let shadow_mode = config.shadow_mode || config.compaction_type == CompactionType::Cold;
+
+    let partition_done_sink: Arc<dyn PartitionDoneSink> = if shadow_mode {
         Arc::new(MockPartitionDoneSink::new())
     } else {
         Arc::new(CatalogPartitionDoneSink::new(
@@ -165,7 +178,7 @@ fn make_partitions_source_commit_partition_sink(
         ))
     };
 
-    let commit: Arc<dyn Commit> = if config.shadow_mode {
+    let commit: Arc<dyn Commit> = if shadow_mode {
         Arc::new(MockCommit::new())
     } else {
         Arc::new(CatalogCommit::new(
@@ -219,15 +232,18 @@ fn make_partitions_source_commit_partition_sink(
         MetricsPartitionDoneSinkWrapper::new(partition_done_sink, &config.metric_registry),
     ));
 
-    // Note: Place "not empty" wrapper at the very last so that the logging and metric wrapper work even when there
-    //       is not data.
-    let partitions_source =
-        LoggingPartitionsSourceWrapper::new(MetricsPartitionsSourceWrapper::new(
+    // Note: Place "not empty" wrapper at the very last so that the logging and metric wrapper work
+    // even when there is not data.
+    let partitions_source = LoggingPartitionsSourceWrapper::new(
+        config.compaction_type,
+        MetricsPartitionsSourceWrapper::new(
             RandomizeOrderPartitionsSourcesWrapper::new(partitions_source, 1234),
             &config.metric_registry,
-        ));
+        ),
+    );
     let partitions_source: Arc<dyn PartitionsSource> = if config.process_once {
-        // do not wrap into the "not empty" filter because we do NOT wanna throttle in this case but just exit early
+        // do not wrap into the "not empty" filter because we do NOT wanna throttle in this case
+        // but just exit early
         Arc::new(partitions_source)
     } else {
         Arc::new(NotEmptyPartitionsSourceWrapper::new(

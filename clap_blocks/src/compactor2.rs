@@ -2,9 +2,50 @@
 
 use std::num::NonZeroUsize;
 
+/// Compaction type.
+#[derive(Debug, Default, Clone, Copy, PartialEq, clap::ValueEnum)]
+pub enum CompactionType {
+    /// Compacts recent writes as they come in.
+    #[default]
+    Hot,
+
+    /// Compacts partitions that have not been written to very recently for longer-term storage.
+    Cold,
+}
+
 /// CLI config for compactor2
 #[derive(Debug, Clone, clap::Parser)]
 pub struct Compactor2Config {
+    /// Type of compaction to perform.
+    #[clap(
+        value_enum,
+        long = "compaction-type",
+        env = "INFLUXDB_IOX_COMPACTION_TYPE",
+        default_value = "hot",
+        action
+    )]
+    pub compaction_type: CompactionType,
+
+    /// When in "hot" compaction mode, the compactor will only consider compacting partitions that
+    /// have new Parquet files created within this many minutes.
+    #[clap(
+        long = "compaction_partition_minute_threshold",
+        env = "INFLUXDB_IOX_COMPACTION_PARTITION_MINUTE_THRESHOLD",
+        default_value = "10",
+        action
+    )]
+    pub compaction_partition_minute_threshold: u64,
+
+    /// When in "cold" compaction mode, the compactor will only consider compacting partitions that
+    /// have had no new Parquet files created in at least this many minutes.
+    #[clap(
+        long = "compaction_cold_partition_minute_threshold",
+        env = "INFLUXDB_IOX_COMPACTION_COLD_PARTITION_MINUTE_THRESHOLD",
+        default_value = "60",
+        action
+    )]
+    pub compaction_cold_partition_minute_threshold: u64,
+
     /// Number of partitions that should be compacted in parallel.
     ///
     /// This should usually be larger than the compaction job
@@ -39,16 +80,6 @@ pub struct Compactor2Config {
         action
     )]
     pub compaction_partition_scratchpad_concurrency: NonZeroUsize,
-
-    /// The compactor will only consider compacting partitions that
-    /// have new parquet files created within this many minutes.
-    #[clap(
-        long = "compaction_partition_minute_threshold",
-        env = "INFLUXDB_IOX_COMPACTION_PARTITION_MINUTE_THRESHOLD",
-        default_value = "10",
-        action
-    )]
-    pub compaction_partition_minute_threshold: u64,
 
     /// Number of threads to use for the compactor query execution,
     /// compaction and persistence.
@@ -273,4 +304,43 @@ pub struct Compactor2Config {
         action
     )]
     pub max_num_columns_per_table: usize,
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use clap::Parser;
+    use test_helpers::assert_contains;
+
+    #[test]
+    fn default_compaction_type_is_hot() {
+        let config = Compactor2Config::try_parse_from(["my_binary"]).unwrap();
+        assert_eq!(config.compaction_type, CompactionType::Hot);
+    }
+
+    #[test]
+    fn can_specify_hot() {
+        let config =
+            Compactor2Config::try_parse_from(["my_binary", "--compaction-type", "hot"]).unwrap();
+        assert_eq!(config.compaction_type, CompactionType::Hot);
+    }
+
+    #[test]
+    fn can_specify_cold() {
+        let config =
+            Compactor2Config::try_parse_from(["my_binary", "--compaction-type", "cold"]).unwrap();
+        assert_eq!(config.compaction_type, CompactionType::Cold);
+    }
+
+    #[test]
+    fn any_other_compaction_type_string_is_invalid() {
+        let error = Compactor2Config::try_parse_from(["my_binary", "--compaction-type", "hello"])
+            .unwrap_err()
+            .to_string();
+        assert_contains!(
+            &error,
+            "invalid value 'hello' for '--compaction-type <COMPACTION_TYPE>'"
+        );
+        assert_contains!(&error, "[possible values: hot, cold]");
+    }
 }
