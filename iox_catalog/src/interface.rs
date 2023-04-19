@@ -876,10 +876,6 @@ pub(crate) mod test_helpers {
         assert_metric_hit(&catalog.metrics(), "column_create_or_get");
 
         let catalog = clean_state().await;
-        test_shards(Arc::clone(&catalog)).await;
-        assert_metric_hit(&catalog.metrics(), "shard_create_or_get");
-
-        let catalog = clean_state().await;
         test_partition(Arc::clone(&catalog)).await;
         assert_metric_hit(&catalog.metrics(), "partition_create_or_get");
 
@@ -1544,69 +1540,6 @@ pub(crate) mod test_helpers {
             .soft_delete("namespace_column_test")
             .await
             .expect("delete namespace should succeed");
-    }
-
-    async fn test_shards(catalog: Arc<dyn Catalog>) {
-        let mut repos = catalog.repositories().await;
-        let topic = repos.topics().create_or_get("shard_test").await.unwrap();
-
-        // Create 10 shards
-        let mut created = BTreeMap::new();
-        for shard_index in 1..=10 {
-            let shard = repos
-                .shards()
-                .create_or_get(&topic, ShardIndex::new(shard_index))
-                .await
-                .expect("failed to create shard");
-            created.insert(shard.id, shard);
-        }
-
-        // List them and assert they match
-        let listed = repos
-            .shards()
-            .list_by_topic(&topic)
-            .await
-            .expect("failed to list shards")
-            .into_iter()
-            .map(|v| (v.id, v))
-            .collect::<BTreeMap<_, _>>();
-
-        assert_eq!(created, listed);
-
-        // get by the topic and shard index
-        let shard_index = ShardIndex::new(1);
-        let shard = repos
-            .shards()
-            .get_by_topic_id_and_shard_index(topic.id, shard_index)
-            .await
-            .unwrap()
-            .unwrap();
-        assert_eq!(topic.id, shard.topic_id);
-        assert_eq!(shard_index, shard.shard_index);
-
-        // update the number
-        repos
-            .shards()
-            .update_min_unpersisted_sequence_number(shard.id, SequenceNumber::new(53))
-            .await
-            .unwrap();
-        let updated_shard = repos
-            .shards()
-            .create_or_get(&topic, shard_index)
-            .await
-            .unwrap();
-        assert_eq!(updated_shard.id, shard.id);
-        assert_eq!(
-            updated_shard.min_unpersisted_sequence_number,
-            SequenceNumber::new(53)
-        );
-
-        let shard = repos
-            .shards()
-            .get_by_topic_id_and_shard_index(topic.id, ShardIndex::new(523))
-            .await
-            .unwrap();
-        assert!(shard.is_none());
     }
 
     async fn test_partition(catalog: Arc<dyn Catalog>) {
