@@ -103,6 +103,7 @@ impl GarbageCollector {
             sub_config.objectstore_sleep_interval_minutes,
         ));
         let os_checker = tokio::spawn(os_checker::perform(
+            shutdown.clone(),
             Arc::clone(&catalog),
             chrono::Duration::from_std(sub_config.objectstore_cutoff).map_err(|e| {
                 Error::CutoffError {
@@ -113,6 +114,7 @@ impl GarbageCollector {
             tx2,
         ));
         let os_deleter = tokio::spawn(os_deleter::perform(
+            shutdown.clone(),
             object_store,
             dry_run,
             sub_config.objectstore_concurrent_deletes,
