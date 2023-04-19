@@ -1,9 +1,8 @@
 //! Metric instrumentation for catalog implementations.
 
 use crate::interface::{
-    sealed::TransactionFinalize, CasFailure, ColumnRepo, NamespaceRepo, ParquetFileRepo,
-    PartitionRepo, QueryPoolRepo, RepoCollection, Result, ShardRepo, SoftDeletedRows, TableRepo,
-    TopicMetadataRepo,
+    CasFailure, ColumnRepo, NamespaceRepo, ParquetFileRepo, PartitionRepo, QueryPoolRepo,
+    RepoCollection, Result, ShardRepo, SoftDeletedRows, TableRepo, TopicMetadataRepo,
 };
 use async_trait::async_trait;
 use data_types::{
@@ -84,20 +83,6 @@ where
 
     fn parquet_files(&mut self) -> &mut dyn ParquetFileRepo {
         self
-    }
-}
-
-#[async_trait]
-impl<T, P> TransactionFinalize for MetricDecorator<T, P>
-where
-    T: TransactionFinalize,
-    P: TimeProvider,
-{
-    async fn commit_inplace(&mut self) -> Result<(), super::interface::Error> {
-        self.inner.commit_inplace().await
-    }
-    async fn abort_inplace(&mut self) -> Result<(), super::interface::Error> {
-        self.inner.abort_inplace().await
     }
 }
 
@@ -258,5 +243,6 @@ decorate!(
         "parquet_exist" = exist(&mut self, id: ParquetFileId) -> Result<bool>;
         "parquet_count" = count(&mut self) -> Result<i64>;
         "parquet_get_by_object_store_id" = get_by_object_store_id(&mut self, object_store_id: Uuid) -> Result<Option<ParquetFile>>;
+        "parquet_create_upgrade_delete" = create_upgrade_delete(&mut self, _partition_id: PartitionId, delete: &[ParquetFile], upgrade: &[ParquetFile], create: &[ParquetFileParams], target_level: CompactionLevel) -> Result<Vec<ParquetFileId>>;
     ]
 );

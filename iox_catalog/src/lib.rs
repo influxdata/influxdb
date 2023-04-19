@@ -13,7 +13,7 @@
     clippy::dbg_macro
 )]
 
-use crate::interface::{ColumnTypeMismatchSnafu, Error, RepoCollection, Result, Transaction};
+use crate::interface::{ColumnTypeMismatchSnafu, Error, RepoCollection, Result};
 use data_types::{
     ColumnType, NamespaceSchema, QueryPool, Shard, ShardId, ShardIndex, TableSchema, TopicId,
     TopicMetadata,
@@ -215,7 +215,7 @@ where
 /// Used in tests and when creating an in-memory catalog.
 pub async fn create_or_get_default_records(
     shard_count: i32,
-    txn: &mut dyn Transaction,
+    txn: &mut dyn RepoCollection,
 ) -> Result<(TopicMetadata, QueryPool, BTreeMap<ShardId, Shard>)> {
     let topic = txn.topics().create_or_get(SHARED_TOPIC_NAME).await?;
     let query_pool = txn.query_pools().create_or_get(SHARED_QUERY_POOL).await?;
@@ -264,7 +264,7 @@ mod tests {
 
                     let metrics = Arc::new(metric::Registry::default());
                     let repo = MemCatalog::new(metrics);
-                    let mut txn = repo.start_transaction().await.unwrap();
+                    let mut txn = repo.repositories().await;
                     let (topic, query_pool, _) = create_or_get_default_records(
                         2,
                         txn.deref_mut()
