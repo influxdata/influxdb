@@ -20,14 +20,13 @@
 //! produce a plan that fills gaps.
 use std::sync::Arc;
 
-use arrow::datatypes::{DataType, IntervalUnit, TimeUnit};
+use arrow::datatypes::{DataType, TimeUnit};
 use datafusion::{
     error::DataFusionError,
     logical_expr::{
-        ReturnTypeFunction, ScalarFunctionImplementation, ScalarUDF, Signature, TypeSignature,
-        Volatility,
+        function, BuiltinScalarFunction, ReturnTypeFunction, ScalarFunctionImplementation,
+        ScalarUDF, Signature, TypeSignature, Volatility,
     },
-    prelude::create_udf,
 };
 use once_cell::sync::Lazy;
 use schema::InfluxFieldType;
@@ -40,16 +39,19 @@ pub const DATE_BIN_GAPFILL_UDF_NAME: &str = "date_bin_gapfill";
 /// works in conjunction with the logical optimizer rule
 /// `HandleGapFill` to fill gaps in time series data.
 pub(crate) static DATE_BIN_GAPFILL: Lazy<Arc<ScalarUDF>> = Lazy::new(|| {
-    Arc::new(create_udf(
+    // DATE_BIN_GAPFILL should have the same signature as DATE_BIN,
+    // so that just adding _GAPFILL can turn a query into a gap-filling query.
+    let mut signatures = function::signature(&BuiltinScalarFunction::DateBin);
+    // We don't want this to be optimized away before we can give a helpful error message
+    signatures.volatility = Volatility::Volatile;
+
+    let return_type_fn: ReturnTypeFunction =
+        Arc::new(|_| Ok(Arc::new(DataType::Timestamp(TimeUnit::Nanosecond, None))));
+    Arc::new(ScalarUDF::new(
         DATE_BIN_GAPFILL_UDF_NAME,
-        vec![
-            DataType::Interval(IntervalUnit::MonthDayNano), // stride
-            DataType::Timestamp(TimeUnit::Nanosecond, None), // source
-            DataType::Timestamp(TimeUnit::Nanosecond, None), // origin
-        ],
-        Arc::new(DataType::Timestamp(TimeUnit::Nanosecond, None)),
-        Volatility::Volatile,
-        unimplemented_scalar_impl(DATE_BIN_GAPFILL_UDF_NAME),
+        &signatures,
+        &return_type_fn,
+        &unimplemented_scalar_impl(DATE_BIN_GAPFILL_UDF_NAME),
     ))
 });
 

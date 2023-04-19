@@ -1,7 +1,7 @@
 //! Querier-related configs.
 
 use crate::ingester_address::IngesterAddress;
-use std::num::NonZeroUsize;
+use std::{collections::HashMap, num::NonZeroUsize};
 
 /// CLI config for querier configuration
 #[derive(Debug, Clone, PartialEq, Eq, clap::Parser)]
@@ -96,6 +96,16 @@ pub struct QuerierConfig {
         action
     )]
     pub ingester_circuit_breaker_threshold: u64,
+
+    /// DataFusion config.
+    #[clap(
+        long = "datafusion-config",
+        env = "INFLUXDB_IOX_DATAFUSION_CONFIG",
+        default_value = "",
+        value_parser = parse_datafusion_config,
+        action
+    )]
+    pub datafusion_config: HashMap<String, String>,
 }
 
 impl QuerierConfig {
@@ -121,6 +131,37 @@ impl QuerierConfig {
     }
 }
 
+fn parse_datafusion_config(
+    s: &str,
+) -> Result<HashMap<String, String>, Box<dyn std::error::Error + Send + Sync + 'static>> {
+    let s = s.trim();
+    if s.is_empty() {
+        return Ok(HashMap::with_capacity(0));
+    }
+
+    let mut out = HashMap::new();
+    for part in s.split(',') {
+        let kv = part.trim().splitn(2, ':').collect::<Vec<_>>();
+        match kv.as_slice() {
+            [key, value] => {
+                let key_owned = key.trim().to_owned();
+                let value_owned = value.trim().to_owned();
+                let existed = out.insert(key_owned, value_owned).is_some();
+                if existed {
+                    return Err(format!("key '{key}' passed multiple times").into());
+                }
+            }
+            _ => {
+                return Err(
+                    format!("Invalid key value pair - expected 'KEY:VALUE' got '{s}'").into(),
+                );
+            }
+        }
+    }
+
+    Ok(out)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -133,6 +174,7 @@ mod tests {
 
         assert_eq!(actual.num_query_threads(), None);
         assert!(actual.ingester_addresses.is_empty());
+        assert!(actual.datafusion_config.is_empty());
     }
 
     #[test]
@@ -181,6 +223,43 @@ mod tests {
             invalid value '\\ingester-0:8082' \
             for '--ingester-addresses [<INGESTER_ADDRESSES>...]': \
             Invalid: invalid uri character"
+        );
+    }
+
+    #[test]
+    fn test_datafusion_config() {
+        let actual = QuerierConfig::try_parse_from([
+            "my_binary",
+            "--datafusion-config= foo : bar , x:y:z  ",
+        ])
+        .unwrap();
+
+        assert_eq!(
+            actual.datafusion_config,
+            HashMap::from([
+                (String::from("foo"), String::from("bar")),
+                (String::from("x"), String::from("y:z")),
+            ]),
+        );
+    }
+
+    #[test]
+    fn bad_datafusion_config() {
+        let actual = QuerierConfig::try_parse_from(["my_binary", "--datafusion-config=foo"])
+            .unwrap_err()
+            .to_string();
+        assert_contains!(
+            actual,
+            "error: invalid value 'foo' for '--datafusion-config <DATAFUSION_CONFIG>': Invalid key value pair - expected 'KEY:VALUE' got 'foo'"
+        );
+
+        let actual =
+            QuerierConfig::try_parse_from(["my_binary", "--datafusion-config=foo:bar,baz:1,foo:2"])
+                .unwrap_err()
+                .to_string();
+        assert_contains!(
+            actual,
+            "error: invalid value 'foo:bar,baz:1,foo:2' for '--datafusion-config <DATAFUSION_CONFIG>': key 'foo' passed multiple times"
         );
     }
 }

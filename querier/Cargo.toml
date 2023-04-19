@@ -36,7 +36,6 @@ service_grpc_catalog = { path = "../service_grpc_catalog"}
 service_grpc_schema = { path = "../service_grpc_schema" }
 service_grpc_object_store = { path = "../service_grpc_object_store" }
 schema = { path = "../schema" }
-sharder = { path = "../sharder" }
 snafu = "0.7"
 thiserror = "1.0"
 tokio = { version = "1.27", features = ["macros", "parking_lot", "rt-multi-thread", "sync", "time"] }

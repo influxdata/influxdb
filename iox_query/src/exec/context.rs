@@ -9,6 +9,7 @@ use super::{
     split::StreamSplitNode,
 };
 use crate::{
+    config::IoxConfigExt,
     exec::{
         fieldlist::{FieldList, IntoFieldList},
         non_null_checker::NonNullCheckerExec,
@@ -52,7 +53,7 @@ use datafusion::{
 use datafusion_util::config::{iox_session_config, DEFAULT_CATALOG};
 use executor::DedicatedExecutor;
 use futures::{Stream, StreamExt, TryStreamExt};
-use observability_deps::tracing::debug;
+use observability_deps::tracing::{debug, warn};
 use query_functions::{register_scalar_functions, selectors::register_selector_aggregates};
 use std::{convert::TryInto, fmt, num::NonZeroUsize, sync::Arc};
 use trace::{
@@ -188,7 +189,11 @@ impl fmt::Debug for IOxSessionConfig {
 
 impl IOxSessionConfig {
     pub(super) fn new(exec: DedicatedExecutor, runtime: Arc<RuntimeEnv>) -> Self {
-        let session_config = iox_session_config();
+        let mut session_config = iox_session_config();
+        session_config
+            .options_mut()
+            .extensions
+            .insert(IoxConfigExt::default());
 
         Self {
             exec,
@@ -218,6 +223,26 @@ impl IOxSessionConfig {
     /// Set the span context from which to create  distributed tracing spans for this query
     pub fn with_span_context(self, span_ctx: Option<SpanContext>) -> Self {
         Self { span_ctx, ..self }
+    }
+
+    /// Set DataFusion [config option].
+    ///
+    /// May be used to set [IOx-specific] option as well.
+    ///
+    ///
+    /// [config option]: datafusion::common::config::ConfigOptions
+    /// [IOx-specific]: crate::config::IoxConfigExt
+    pub fn with_config_option(mut self, key: &str, value: &str) -> Self {
+        // ignore invalid config
+        if let Err(e) = self.session_config.options_mut().set(key, value) {
+            warn!(
+                key,
+                value,
+                %e,
+                "invalid DataFusion config",
+            );
+        }
+        self
     }
 
     /// Create an ExecutionContext suitable for executing DataFusion plans

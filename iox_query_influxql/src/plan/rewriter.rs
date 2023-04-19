@@ -4,7 +4,7 @@ use crate::plan::expr_type_evaluator::evaluate_type;
 use crate::plan::field::field_name;
 use crate::plan::field_mapper::{field_and_dimensions, FieldTypeMap, TagSet};
 use crate::plan::planner::is_scalar_math_function;
-use crate::plan::{util, SchemaProvider};
+use crate::plan::{error, util, SchemaProvider};
 use datafusion::common::{DataFusionError, Result};
 use influxdb_influxql_parser::common::{MeasurementName, QualifiedMeasurementName};
 use influxdb_influxql_parser::expression::walk::{walk_expr, walk_expr_mut};
@@ -128,9 +128,7 @@ fn from_field_and_dimensions(
             }
             _ => {
                 // Unreachable, as the from clause should be normalised at this point.
-                return Err(DataFusionError::Internal(
-                    "Unexpected MeasurementSelection in from".to_string(),
-                ));
+                return error::internal("Unexpected MeasurementSelection in from");
             }
         }
     }
@@ -194,6 +192,24 @@ fn rewrite_field_list(s: &dyn SchemaProvider, stmt: &mut SelectStatement) -> Res
         if let MeasurementSelection::Subquery(subquery) = ms {
             rewrite_field_list(s, subquery)?;
         }
+    }
+
+    // Rewrite all `DISTINCT <identifier>` expressions to `DISTINCT(<var ref>)`
+    if let ControlFlow::Break(e) = stmt.fields.iter_mut().try_for_each(|f| {
+        walk_expr_mut::<DataFusionError>(&mut f.expr, &mut |e| {
+            if let Expr::Distinct(ident) = e {
+                *e = Expr::Call(Call {
+                    name: "distinct".to_owned(),
+                    args: vec![Expr::VarRef(VarRef {
+                        name: ident.take().into(),
+                        data_type: None,
+                    })],
+                });
+            }
+            ControlFlow::Continue(())
+        })
+    }) {
+        return Err(e);
     }
 
     // Attempt to rewrite all variable references in the fields with their types, if one
@@ -342,8 +358,8 @@ fn rewrite_field_list(s: &dyn SchemaProvider, stmt: &mut SelectStatement) -> Res
 
                     match args.first() {
                         Some(Expr::Wildcard(Some(WildcardType::Tag))) => {
-                            return Err(DataFusionError::External(
-                                format!("unable to use tag as wildcard in {name}()").into(),
+                            return error::query(format!(
+                                "unable to use tag as wildcard in {name}()"
                             ));
                         }
                         Some(Expr::Wildcard(_)) => {
@@ -382,10 +398,9 @@ fn rewrite_field_list(s: &dyn SchemaProvider, stmt: &mut SelectStatement) -> Res
                     .is_break();
 
                     if has_wildcard {
-                        return Err(DataFusionError::External(
-                            "unsupported expression: contains a wildcard or regular expression"
-                                .into(),
-                        ));
+                        return error::query(
+                            "unsupported expression: contains a wildcard or regular expression",
+                        );
                     }
 
                     new_fields.push(f.clone());
@@ -477,8 +492,6 @@ pub(crate) fn rewrite_statement(
     s: &dyn SchemaProvider,
     q: &SelectStatement,
 ) -> Result<SelectStatement> {
-    validate_select(q)?;
-
     let mut stmt = q.clone();
     rewrite_from(s, &mut stmt)?;
     rewrite_field_list(s, &mut stmt)?;
@@ -487,71 +500,25 @@ pub(crate) fn rewrite_statement(
     Ok(stmt)
 }
 
-/// Validate the projection of a `SELECT` statement is semantically correct.
-///
-/// If `validate_select` succeeds, the fields list is guaranteed to adhere a number of conditions.
-///
-/// Generally:
-///
-/// * All aggregate, selector and window-like functions, such as `sum`, `last` or `difference`,
-///   specify a field expression as their first argument
-/// * Wildcard and regular expression expansion is not valid for binary expressions, such as
-///   `SELECT COUNT(*) + SUM(*) FROM cpu`
-/// * All projected columns must refer to a field or tag ensuring there are no literal
-///   projections such as `SELECT 1`
-/// * Argument types and values are valid
-///
-/// When `GROUP BY TIME` is present, the `SelectStatement` is an aggregate query and the
-/// following additional rules apply:
-///
-/// * All projected fields are aggregate or selector expressions
-/// * All window-like functions, such as `difference` or `integral` specify an aggregate
-///   expression, such as `SUM(foo)`, as their first argument
-///
-/// For selector queries, which are those that use selector functions like `last` or `max`:
-///
-/// * Projecting **multiple** selector functions, such as `last` or `first` will not be
-/// combined with non-aggregate columns
-/// * Projecting a **single** selector function, such as `last` or `first` may be combined
-/// with non-aggregate columns
-///
-/// Finally, the `top` and `bottom` function have the following additional restrictions:
-///
-/// * Are not combined with other aggregate, selector or window-like functions and may
-///   only project additional fields
-fn validate_select(q: &SelectStatement) -> Result<()> {
-    let has_group_by_time = q
-        .group_by
-        .as_ref()
-        .and_then(|gb| gb.time_dimension())
-        .is_some();
-
-    StatementChecker {
-        has_group_by_time,
-        inherited_group_by_time: false,
-    }
-    .check_select(q)
-}
-
 /// Check the length of the arguments slice is within
 /// the expected bounds.
 macro_rules! check_exp_args {
     ($NAME:expr, $EXP:expr, $ARGS:expr) => {
         let args_len = $ARGS.len();
         if args_len != $EXP {
-            return Err(DataFusionError::Plan(format!(
+            return error::query(format!(
                 "invalid number of arguments for {}, expected {}, got {args_len}",
                 $NAME, $EXP
-            )));
+            ));
         }
     };
     ($NAME:expr, $LO:literal, $HI:literal, $ARGS:expr) => {
         let args_len = $ARGS.len();
         if !($LO..=$HI).contains(&args_len) {
-            return Err(DataFusionError::Plan(format!(
+            return error::query(format!(
                 "invalid number of arguments for {}, expected at least {} but no more than {}, got {args_len}",
                 $NAME, $LO, $HI
-            )));
+            ));
         }
     };
 }
@@ -561,12 +528,7 @@ macro_rules! lit_integer {
     ($NAME:expr, $ARGS:expr, $POS:literal) => {
         match &$ARGS[$POS] {
             Expr::Literal(Literal::Integer(v)) => *v,
-            _ => {
-                return Err(DataFusionError::Plan(format!(
-                    "expected integer argument in {}()",
-                    $NAME
-                )))
-            }
+            _ => return error::query(format!("expected integer argument in {}()", $NAME)),
         }
     };
 
@@ -584,12 +546,7 @@ macro_rules! lit_string {
     ($NAME:expr, $ARGS:expr, $POS:literal) => {
         match &$ARGS[$POS] {
             Expr::Literal(Literal::String(s)) => s.as_str(),
-            _ => {
-                return Err(DataFusionError::Plan(format!(
-                    "expected string argument in {}()",
-                    $NAME
-                )))
-            }
+            _ => return error::query(format!("expected string argument in {}()", $NAME)),
         }
     };
 
@@ -613,17 +570,8 @@ struct FieldChecker {
     /// a query that shouldn't have an interval to fail.
     inherited_group_by_time: bool,
 
-    /// `true` if wildcard or regular expression field expansion is not permitted.
-    ///
-    /// This flag is set to `true` when recursively processing complex expressions of a single field,
-    /// such as [`Expr::Binary`], which disallows field expansion.
-    deny_wildcards: bool,
-
     /// `true` if the projection contains an invocation of the `TOP` or `BOTTOM` function.
     has_top_bottom: bool,
-
-    /// `true` when there are no aggregate functions.
-    has_only_selectors: bool,
 
     /// `true` when one or more projections do not contain an aggregate expression.
     has_non_aggregate_fields: bool,
@@ -631,78 +579,126 @@ struct FieldChecker {
     /// `true` when the projection contains a `DISTINCT` function or unary `DISTINCT` operator.
     has_distinct: bool,
 
-    /// Accumulator for the number of aggregate, window or selector expressions for the statement.
+    /// Accumulator for the number of aggregate or window expressions for the statement.
     aggregate_count: usize,
+
+    /// Accumulator for the number of selector expressions for the statement.
+    selector_count: usize,
 }
 
 impl FieldChecker {
-    fn check_field(&mut self, f: &Field) -> Result<()> {
-        self.deny_wildcards = false;
+    fn check_fields(&mut self, q: &SelectStatement) -> Result<ProjectionType> {
+        q.fields.iter().try_for_each(|f| self.check_expr(&f.expr))?;
 
-        self.check_expr(&f.expr)
+        match self.function_count() {
+            0 => {
+                // If there are no aggregate functions, the FILL clause does not make sense
+                //
+                // NOTE
+                // This is a deviation from InfluxQL, which allowed `FILL(previous)`, `FILL(<number>)`,
+                // and `FILL(null)` for queries that did not have a `GROUP BY time`. This is
+                // undocumented behaviour, and the `FILL` clause is documented as part of the
+                // `GROUP BY` clause, per https://docs.influxdata.com/influxdb/v1.8/query_language/spec/#clauses
+                //
+                // Normally, `FILL` is associated with gap-filling, and is applied to aggregate
+                // projections only, however, without the `GROUP BY` time clause, and no aggregate
+                // functions, it is applied to all columns, including tags.
+                //
+                //
+                // * `FILL(previous)` carries the previous non-null value forward
+                // * `FILL(<number>)` defaults `NULL` values to `<number>`, including tag columns
+                // * `FILL(null)` is the default behaviour.
+                //
+                // See: https://github.com/influxdata/influxdb/blob/98361e207349a3643bcc332d54b009818fe7585f/query/compile.go#L1002-L1012
+                if let Some(fill) = q.fill {
+                    return error::query(format!("{fill} must be used with an aggregate function"));
+                }
+
+                if self.has_group_by_time && !self.inherited_group_by_time {
+                    return error::query("GROUP BY requires at least one aggregate function");
+                }
+            }
+            2.. if self.has_top_bottom => {
+                return error::query(
+                    "selector functions top and bottom cannot be combined with other functions",
+                )
+            }
+            _ => {}
+        }
+
+        // If a distinct() call is present, ensure there is exactly one aggregate function.
+        //
+        // See: https://github.com/influxdata/influxdb/blob/98361e207349a3643bcc332d54b009818fe7585f/query/compile.go#L1013-L1016
+        if self.has_distinct && (self.function_count() != 1 || self.has_non_aggregate_fields) {
+            return error::query(
+                "aggregate function distinct() cannot be combined with other functions or fields",
+            );
+        }
+
+        // Validate we are using a selector or raw query if non-aggregate fields are projected.
+        if self.has_non_aggregate_fields {
+            if self.aggregate_count > 0 {
+                return error::query("mixing aggregate and non-aggregate columns is not supported");
+            } else if self.selector_count > 1 {
+                return error::query(
+                    "mixing multiple selector functions with tags or fields is not supported",
+                );
+            }
+        }
+
+        // By this point the statement is valid, so lets
+        // determine the projection type
+
+        if self.has_top_bottom {
+            Ok(ProjectionType::TopBottomSelector)
+        } else if self.has_group_by_time {
+            Ok(ProjectionType::Aggregate)
+        } else if self.has_distinct {
+            Ok(ProjectionType::RawDistinct)
+        } else if self.selector_count == 1 && self.aggregate_count == 0 {
+            Ok(ProjectionType::Selector {
+                has_fields: self.has_non_aggregate_fields,
+            })
+        } else if self.selector_count > 1 || self.aggregate_count > 0 {
+            Ok(ProjectionType::Aggregate)
+        } else {
+            Ok(ProjectionType::Raw)
+        }
     }
 
+    /// The total number of functions observed.
+    fn function_count(&self) -> usize {
+        self.aggregate_count + self.selector_count
+    }
+}
+
+impl FieldChecker {
     fn check_expr(&mut self, e: &Expr) -> Result<()> {
         match e {
             Expr::VarRef(_) => {
                 self.has_non_aggregate_fields = true;
                 Ok(())
             }
-            Expr::Wildcard(_) if self.deny_wildcards => Err(DataFusionError::Plan(
-                "unable to use wildcard in a binary expression".to_owned(),
-            )),
-            Expr::Wildcard(_) => {
-                self.has_non_aggregate_fields = true;
-                Ok(())
-            }
-            Expr::Literal(Literal::Regex(_)) if self.deny_wildcards => Err(DataFusionError::Plan(
-                "unable to use regex in a binary expression".to_owned(),
-            )),
-            Expr::Literal(Literal::Regex(_)) => {
-                self.has_non_aggregate_fields = true;
-                Ok(())
-            }
             Expr::Call(c) if is_scalar_math_function(&c.name) => self.check_math_function(c),
             Expr::Call(c) => self.check_aggregate_function(c),
-            Expr::Distinct(ident) => {
-                self.inc_aggregate_count();
-                self.check_distinct(
-                    &[Expr::VarRef(VarRef {
-                        name: ident.clone(),
-                        data_type: None,
-                    })],
-                    false,
-                )
-            }
-            Expr::Binary(b) => {
-                // Wildcards are not supported in binary expressions.
-                //
-                // rewrite_field_list, which expands wildcards, is too complicated if we allow
-                // wildcards inside of expressions.
-                //
-                // See: https://github.com/influxdata/influxdb/blob/98361e207349a3643bcc332d54b009818fe7585f/query/compile.go#L324
-                self.deny_wildcards = true;
-
-                match (&*b.lhs, &*b.rhs) {
-                    (Expr::Literal(_), Expr::Literal(_)) => Err(DataFusionError::Plan(
-                        "cannot perform a binary expression on two literals".to_owned(),
-                    )),
-                    (Expr::Literal(_), other) | (other, Expr::Literal(_)) => self.check_expr(other),
-                    (lhs, rhs) => {
-                        self.check_expr(lhs)?;
-                        self.check_expr(rhs)
-                    }
+            Expr::Binary(b) => match (&*b.lhs, &*b.rhs) {
+                (Expr::Literal(_), Expr::Literal(_)) => {
+                    error::query("cannot perform a binary expression on two literals")
                 }
-            }
+                (Expr::Literal(_), other) | (other, Expr::Literal(_)) => self.check_expr(other),
+                (lhs, rhs) => {
+                    self.check_expr(lhs)?;
+                    self.check_expr(rhs)
+                }
+            },
             Expr::Nested(e) => self.check_expr(e),
-            // See: https://github.com/influxdata/influxdb/blob/98361e207349a3643bcc332d54b009818fe7585f/query/compile.go#L347
-            Expr::Literal(_) => Err(DataFusionError::Plan(
-                "field must contain at least one variable".to_owned(),
-            )),
             // BindParameter should be substituted prior to validating fields.
-            Expr::BindParameter(_) => Err(DataFusionError::External(
-                "internal: unexpected bind parameter".into(),
-            )),
+            Expr::BindParameter(_) => error::internal("unexpected bind parameter"),
+            Expr::Wildcard(_) => error::internal("unexpected wildcard"),
+            Expr::Literal(Literal::Regex(_)) => error::internal("unexpected regex"),
+            Expr::Distinct(_) => error::internal("unexpected distinct clause"),
+            // See: https://github.com/influxdata/influxdb/blob/98361e207349a3643bcc332d54b009818fe7585f/query/compile.go#L347
+            Expr::Literal(_) => error::query("field must contain at least one variable"),
         }
     }
 
@@ -736,17 +732,15 @@ impl FieldChecker {
 
     /// Validate `c` is an aggregate, window aggregate or selector function.
     fn check_aggregate_function(&mut self, c: &Call) -> Result<()> {
-        self.inc_aggregate_count();
-
         let name = c.name.as_str();
 
         match name {
             "percentile" => self.check_percentile(&c.args),
             "sample" => self.check_sample(&c.args),
             "distinct" => self.check_distinct(&c.args, false),
-            "top" | "bottom" if self.has_top_bottom => Err(DataFusionError::Plan(format!(
+            "top" | "bottom" if self.has_top_bottom => error::query(format!(
                 "selector function {name}() cannot be combined with other functions"
-            ))),
+            )),
             "top" | "bottom" => self.check_top_bottom(name, &c.args),
             "derivative" | "non_negative_derivative" => self.check_derivative(name, &c.args),
             "difference" | "non_negative_difference" => self.check_difference(name, &c.args),
@@ -768,12 +762,13 @@ impl FieldChecker {
             "count_hll" => self.check_count_hll(&c.args),
             "holt_winters" | "holt_winters_with_fit" => self.check_holt_winters(name, &c.args),
             "max" | "min" | "first" | "last" => {
+                self.inc_selector_count();
                 check_exp_args!(name, 1, c.args);
                 self.check_symbol(name, &c.args[0])
             }
             "count" | "sum" | "mean" | "median" | "mode" | "stddev" | "spread" | "sum_hll" => {
+                self.inc_aggregate_count();
                 check_exp_args!(name, 1, c.args);
-                self.has_only_selectors = false;
 
                 // If this is a call to count(), allow distinct() to be used as the function argument.
                 if name == "count" {
@@ -781,50 +776,44 @@ impl FieldChecker {
                         Expr::Call(c) if c.name == "distinct" => {
                             return self.check_distinct(&c.args, true);
                         }
-                        Expr::Distinct(ident) => {
-                            return self.check_distinct(
-                                &[Expr::VarRef(VarRef {
-                                    name: ident.clone(),
-                                    data_type: None,
-                                })],
-                                true,
-                            );
+                        Expr::Distinct(_) => {
+                            return error::internal("unexpected distinct clause in count");
                         }
                         _ => {}
                     }
                 }
                 self.check_symbol(name, &c.args[0])
             }
-            _ => Err(DataFusionError::Plan(format!(
-                "unsupported function {name}()"
-            ))),
+            _ => error::query(format!("unsupported function {name}()")),
         }
     }
 
     fn check_percentile(&mut self, args: &[Expr]) -> Result<()> {
+        self.inc_selector_count();
+
         check_exp_args!("percentile", 2, args);
         if !matches!(
             &args[1],
             Expr::Literal(Literal::Integer(_)) | Expr::Literal(Literal::Float(_))
         ) {
-            return Err(DataFusionError::Plan(format!(
+            return error::query(format!(
                 "expected number for percentile(), got {:?}",
                 &args[1]
-            )));
+            ));
         }
         self.check_symbol("percentile", &args[0])
     }
 
     fn check_sample(&mut self, args: &[Expr]) -> Result<()> {
+        self.inc_selector_count();
+
         check_exp_args!("sample", 2, args);
         let v = lit_integer!("sample", args, 1);
         // NOTE: this is a deviation from InfluxQL, which incorrectly performs the check for <= 0
         //
         // See: https://github.com/influxdata/influxdb/blob/98361e207349a3643bcc332d54b009818fe7585f/query/compile.go#L441-L443
         if v <= 1 {
-            return Err(DataFusionError::Plan(format!(
-                "sample window must be greater than 1, got {v}"
-            )));
+            return error::query(format!("sample window must be greater than 1, got {v}"));
         }
 
         self.check_symbol("sample", &args[0])
@@ -832,17 +821,16 @@ impl FieldChecker {
 
     /// Validate the arguments for the `distinct` function call.
     fn check_distinct(&mut self, args: &[Expr], nested: bool) -> Result<()> {
+        self.inc_aggregate_count();
+
         check_exp_args!("distinct", 1, args);
         if !matches!(&args[0], Expr::VarRef(_)) {
-            return Err(DataFusionError::Plan(
-                "expected field argument in distinct()".to_owned(),
-            ));
+            return error::query("expected field argument in distinct()");
         }
 
         if !nested {
             self.has_distinct = true;
         }
-        self.has_only_selectors = false;
 
         Ok(())
     }
@@ -850,13 +838,14 @@ impl FieldChecker {
     fn check_top_bottom(&mut self, name: &str, args: &[Expr]) -> Result<()> {
         assert!(!self.has_top_bottom, "should not be called if true");
 
+        self.inc_selector_count();
         self.has_top_bottom = true;
 
         if args.len() < 2 {
-            return Err(DataFusionError::Plan(format!(
+            return error::query(format!(
                 "invalid number of arguments for {name}, expected at least 2, got {}",
                 args.len()
-            )));
+            ));
         }
 
         let (last, args) = args.split_last().expect("length >= 2");
@@ -864,31 +853,29 @@ impl FieldChecker {
         match last {
             Expr::Literal(Literal::Integer(limit)) => {
                 if *limit <= 0 {
-                    return Err(DataFusionError::Plan(format!(
+                    return error::query(format!(
                         "limit ({limit}) for {name} must be greater than 0"
-                    )));
+                    ));
                 }
             }
             got => {
-                return Err(DataFusionError::Plan(format!(
+                return error::query(format!(
                     "expected integer as last argument for {name}, got {got:?}"
-                )))
+                ))
             }
         }
 
         let (first, rest) = args.split_first().expect("length >= 1");
 
         if !matches!(first, Expr::VarRef(_)) {
-            return Err(DataFusionError::Plan(format!(
-                "expected first argument to be a field for {name}"
-            )));
+            return error::query(format!("expected first argument to be a field for {name}"));
         }
 
         for expr in rest {
             if !matches!(expr, Expr::VarRef(_)) {
-                return Err(DataFusionError::Plan(format!(
+                return error::query(format!(
                     "only fields or tags are allow for {name}(), got {expr:?}"
-                )));
+                ));
             }
         }
 
@@ -901,100 +888,91 @@ impl FieldChecker {
     }
 
     fn check_derivative(&mut self, name: &str, args: &[Expr]) -> Result<()> {
+        self.inc_aggregate_count();
+
         check_exp_args!(name, 1, 2, args);
         match args.get(1) {
             Some(Expr::Literal(Literal::Duration(d))) if **d <= 0 => {
-                return Err(DataFusionError::Plan(format!(
-                    "duration argument must be positive, got {d}"
-                )))
+                return error::query(format!("duration argument must be positive, got {d}"))
             }
             None | Some(Expr::Literal(Literal::Duration(_))) => {}
             Some(got) => {
-                return Err(DataFusionError::Plan(format!(
+                return error::query(format!(
                     "second argument to {name} must be a duration, got {got:?}"
-                )))
+                ))
             }
         }
-
-        self.has_only_selectors = false;
 
         self.check_nested_symbol(name, &args[0])
     }
 
     fn check_elapsed(&mut self, name: &str, args: &[Expr]) -> Result<()> {
+        self.inc_aggregate_count();
         check_exp_args!(name, 1, 2, args);
 
         match args.get(1) {
             Some(Expr::Literal(Literal::Duration(d))) if **d <= 0 => {
-                return Err(DataFusionError::Plan(format!(
-                    "duration argument must be positive, got {d}"
-                )))
+                return error::query(format!("duration argument must be positive, got {d}"))
             }
             None | Some(Expr::Literal(Literal::Duration(_))) => {}
             Some(got) => {
-                return Err(DataFusionError::Plan(format!(
+                return error::query(format!(
                     "second argument to {name} must be a duration, got {got:?}"
-                )))
+                ))
             }
         }
-
-        self.has_only_selectors = false;
 
         self.check_nested_symbol(name, &args[0])
     }
 
     fn check_difference(&mut self, name: &str, args: &[Expr]) -> Result<()> {
+        self.inc_aggregate_count();
         check_exp_args!(name, 1, args);
-
-        self.has_only_selectors = false;
 
         self.check_nested_symbol(name, &args[0])
     }
 
     fn check_cumulative_sum(&mut self, args: &[Expr]) -> Result<()> {
+        self.inc_aggregate_count();
         check_exp_args!("cumulative_sum", 1, args);
-
-        self.has_only_selectors = false;
 
         self.check_nested_symbol("cumulative_sum", &args[0])
     }
 
     fn check_moving_average(&mut self, args: &[Expr]) -> Result<()> {
+        self.inc_aggregate_count();
         check_exp_args!("moving_average", 2, args);
-
-        self.has_only_selectors = false;
 
         let v = lit_integer!("moving_average", args, 1);
         if v <= 1 {
-            return Err(DataFusionError::Plan(format!(
+            return error::query(format!(
                 "moving_average window must be greater than 1, got {v}"
-            )));
+            ));
         }
 
         self.check_nested_symbol("moving_average", &args[0])
     }
 
     fn check_exponential_moving_average(&mut self, name: &str, args: &[Expr]) -> Result<()> {
+        self.inc_aggregate_count();
         check_exp_args!(name, 2, 4, args);
 
         let v = lit_integer!(name, args, 1);
         if v < 1 {
-            return Err(DataFusionError::Plan(format!(
-                "{name} period must be greater than 1, got {v}"
-            )));
+            return error::query(format!("{name} period must be greater than 1, got {v}"));
         }
 
         if let Some(v) = lit_integer!(name, args, 2?) {
             match (v, name) {
                 (v, "triple_exponential_derivative") if v < 1 && v != -1 => {
-                    return Err(DataFusionError::Plan(format!(
+                    return error::query(format!(
                         "{name} hold period must be greater than or equal to 1"
-                    )))
+                    ))
                 }
                 (v, _) if v < 0 && v != -1 => {
-                    return Err(DataFusionError::Plan(format!(
+                    return error::query(format!(
                         "{name} hold period must be greater than or equal to 0"
-                    )))
+                    ))
                 }
                 _ => {}
             }
@@ -1003,88 +981,79 @@ impl FieldChecker {
         match lit_string!(name, args, 3?) {
             Some("exponential" | "simple") => {}
             Some(warmup) => {
-                return Err(DataFusionError::Plan(format!(
+                return error::query(format!(
                     "{name} warmup type must be one of: 'exponential', 'simple', got {warmup}"
-                )))
+                ))
             }
             None => {}
         }
-
-        self.has_only_selectors = false;
 
         self.check_nested_symbol(name, &args[0])
     }
 
     fn check_kaufmans(&mut self, name: &str, args: &[Expr]) -> Result<()> {
+        self.inc_aggregate_count();
         check_exp_args!(name, 2, 3, args);
 
         let v = lit_integer!(name, args, 1);
         if v < 1 {
-            return Err(DataFusionError::Plan(format!(
-                "{name} period must be greater than 1, got {v}"
-            )));
+            return error::query(format!("{name} period must be greater than 1, got {v}"));
         }
 
         if let Some(v) = lit_integer!(name, args, 2?) {
             if v < 0 && v != -1 {
-                return Err(DataFusionError::Plan(format!(
+                return error::query(format!(
                     "{name} hold period must be greater than or equal to 0"
-                )));
+                ));
             }
         }
-
-        self.has_only_selectors = false;
 
         self.check_nested_symbol(name, &args[0])
     }
 
     fn check_chande_momentum_oscillator(&mut self, name: &str, args: &[Expr]) -> Result<()> {
+        self.inc_aggregate_count();
         check_exp_args!(name, 2, 4, args);
 
         let v = lit_integer!(name, args, 1);
         if v < 1 {
-            return Err(DataFusionError::Plan(format!(
-                "{name} period must be greater than 1, got {v}"
-            )));
+            return error::query(format!("{name} period must be greater than 1, got {v}"));
         }
 
         if let Some(v) = lit_integer!(name, args, 2?) {
             if v < 0 && v != -1 {
-                return Err(DataFusionError::Plan(format!(
+                return error::query(format!(
                     "{name} hold period must be greater than or equal to 0"
-                )));
+                ));
             }
         }
 
         match lit_string!(name, args, 3?) {
             Some("none" | "exponential" | "simple") => {}
             Some(warmup) => {
-                return Err(DataFusionError::Plan(format!(
+                return error::query(format!(
                 "{name} warmup type must be one of: 'none', 'exponential' or 'simple', got {warmup}"
-            )))
+            ))
             }
             None => {}
         }
-
-        self.has_only_selectors = false;
 
         self.check_nested_symbol(name, &args[0])
     }
 
     fn check_integral(&mut self, name: &str, args: &[Expr]) -> Result<()> {
+        self.inc_aggregate_count();
         check_exp_args!(name, 1, 2, args);
 
         match args.get(1) {
             Some(Expr::Literal(Literal::Duration(d))) if **d <= 0 => {
-                return Err(DataFusionError::Plan(format!(
-                    "duration argument must be positive, got {d}"
-                )))
+                return error::query(format!("duration argument must be positive, got {d}"))
             }
             None | Some(Expr::Literal(Literal::Duration(_))) => {}
             Some(got) => {
-                return Err(DataFusionError::Plan(format!(
+                return error::query(format!(
                     "second argument to {name} must be a duration, got {got:?}"
-                )))
+                ))
             }
         }
 
@@ -1092,40 +1061,36 @@ impl FieldChecker {
     }
 
     fn check_count_hll(&mut self, _args: &[Expr]) -> Result<()> {
+        self.inc_aggregate_count();
         // The count hyperloglog function is not documented for versions 1.8 or the latest 2.7.
         // If anyone is using it, we'd like to know, so we'll explicitly return a not implemented
         // message.
         //
         // See: https://docs.influxdata.com/influxdb/v2.7/query-data/influxql/functions/
         // See: https://docs.influxdata.com/influxdb/v1.8/query_language/functions
-        Err(DataFusionError::NotImplemented("count_hll".to_owned()))
+        error::not_implemented("count_hll")
     }
 
     fn check_holt_winters(&mut self, name: &str, args: &[Expr]) -> Result<()> {
+        self.inc_aggregate_count();
         check_exp_args!(name, 3, args);
 
         let v = lit_integer!(name, args, 1);
         if v < 1 {
-            return Err(DataFusionError::Plan(format!(
-                "{name} N argument must be greater than 0, got {v}"
-            )));
+            return error::query(format!("{name} N argument must be greater than 0, got {v}"));
         }
 
         let v = lit_integer!(name, args, 2);
         if v < 0 {
-            return Err(DataFusionError::Plan(format!(
-                "{name} S argument cannot be negative, got {v}"
-            )));
+            return error::query(format!("{name} S argument cannot be negative, got {v}"));
         }
 
         match &args[0] {
-            Expr::Call(_) if !self.has_group_by_time => Err(DataFusionError::Plan(format!(
-                "{name} aggregate requires a GROUP BY interval"
-            ))),
+            Expr::Call(_) if !self.has_group_by_time => {
+                error::query(format!("{name} aggregate requires a GROUP BY interval"))
+            }
             expr @ Expr::Call(_) => self.check_nested_expr(expr),
-            _ => Err(DataFusionError::Plan(format!(
-                "must use aggregate function with {name}"
-            ))),
+            _ => error::query(format!("must use aggregate function with {name}")),
         }
     }
 
@@ -1134,31 +1099,26 @@ impl FieldChecker {
         self.aggregate_count += 1
     }
 
+    fn inc_selector_count(&mut self) {
+        self.selector_count += 1
+    }
+
     fn check_nested_expr(&mut self, expr: &Expr) -> Result<()> {
         match expr {
             Expr::Call(c) if c.name == "distinct" => self.check_distinct(&c.args, true),
-            Expr::Distinct(ident) => self.check_distinct(
-                &[Expr::VarRef(VarRef {
-                    name: ident.clone(),
-                    data_type: None,
-                })],
-                true,
-            ),
             _ => self.check_expr(expr),
         }
     }
 
     fn check_nested_symbol(&mut self, name: &str, expr: &Expr) -> Result<()> {
         match expr {
-            Expr::Call(_) if !self.has_group_by_time => Err(DataFusionError::Plan(format!(
-                "{name} aggregate requires a GROUP BY interval"
-            ))),
-            Expr::Call(_) => self.check_nested_expr(expr),
-            _ if self.has_group_by_time && !self.inherited_group_by_time => {
-                Err(DataFusionError::Plan(format!(
-                    "aggregate function required inside the call to {name}"
-                )))
+            Expr::Call(_) if !self.has_group_by_time => {
+                error::query(format!("{name} aggregate requires a GROUP BY interval"))
             }
+            Expr::Call(_) => self.check_nested_expr(expr),
+            _ if self.has_group_by_time && !self.inherited_group_by_time => error::query(format!(
+                "aggregate function required inside the call to {name}"
+            )),
             _ => self.check_symbol(name, expr),
         }
     }
@@ -1168,360 +1128,337 @@ impl FieldChecker {
     fn check_symbol(&mut self, name: &str, expr: &Expr) -> Result<()> {
         match expr {
             Expr::VarRef(_) => Ok(()),
-            Expr::Wildcard(_) => {
-                if self.deny_wildcards {
-                    Err(DataFusionError::Plan(format!(
-                        "unsupported expression with wildcard: {name}()"
-                    )))
-                } else {
-                    self.has_only_selectors = false;
-                    Ok(())
-                }
+            Expr::Wildcard(_) | Expr::Literal(Literal::Regex(_)) => {
+                error::internal("unexpected wildcard or regex")
             }
-            Expr::Literal(Literal::Regex(_)) => {
-                if self.deny_wildcards {
-                    Err(DataFusionError::Plan(format!(
-                        "unsupported expression with regex field: {name}()"
-                    )))
-                } else {
-                    self.has_only_selectors = false;
-                    Ok(())
-                }
-            }
-            expr => Err(DataFusionError::Plan(format!(
-                "expected field argument in {name}(), got {expr:?}"
-            ))),
+            expr => error::query(format!("expected field argument in {name}(), got {expr:?}")),
         }
     }
 }
 
-struct StatementChecker {
-    /// `true` if the statement contains a `GROUP BY TIME` clause.
-    has_group_by_time: bool,
-
-    /// `true` if the `GROUP BY TIME` will be inherited from a parent query.
-    /// If this is set, then an interval that was inherited will not cause
-    /// a query that shouldn't have an interval to fail.
-    inherited_group_by_time: bool,
+#[derive(Default, Debug, Copy, Clone, Eq, PartialEq)]
+pub(crate) enum ProjectionType {
+    /// A query that projects no aggregate or selector functions.
+    #[default]
+    Raw,
+    /// A query that projects a single DISTINCT(field)
+    RawDistinct,
+    /// A query that projects one or more aggregate functions or
+    /// two or more selector functions.
+    Aggregate,
+    /// A query that projects a single selector function,
+    /// such as `last` or `first`.
+    Selector {
+        /// When `true`, the projection contains additional tags or fields.
+        has_fields: bool,
+    },
+    /// A query that projects the `top` or `bottom` selector function.
+    TopBottomSelector,
 }
 
-impl StatementChecker {
-    fn check_select(&self, q: &SelectStatement) -> Result<()> {
-        self.check_fields(q)
-    }
+/// Holds high-level information as the result of analysing
+/// a `SELECT` query.
+#[derive(Default, Debug, Copy, Clone)]
+pub(crate) struct SelectStatementInfo {
+    /// Identifies the projection type for the `SELECT` query.
+    pub projection_type: ProjectionType,
+}
 
-    fn check_fields(&self, q: &SelectStatement) -> Result<()> {
-        let mut fc = FieldChecker {
-            has_group_by_time: self.has_group_by_time,
-            inherited_group_by_time: self.inherited_group_by_time,
-            has_only_selectors: true,
-            ..Default::default()
-        };
+/// Gather information about the semantics of a [`SelectStatement`] and verify
+/// the `SELECT` projection clause is semantically correct.
+///
+/// Upon success the fields list is guaranteed to adhere to a number of conditions.
+///
+/// Generally:
+///
+/// * All aggregate, selector and window-like functions, such as `sum`, `last` or `difference`,
+///   specify a field expression as their first argument
+/// * All projected columns must refer to a field or tag ensuring there are no literal
+///   projections such as `SELECT 1`
+/// * Argument types and values are valid
+///
+/// When `GROUP BY TIME` is present, the `SelectStatement` is an aggregate query and the
+/// following additional rules apply:
+///
+/// * All projected fields are aggregate or selector expressions
+/// * All window-like functions, such as `difference` or `integral` specify an aggregate
+///   expression, such as `SUM(foo)`, as their first argument
+///
+/// For selector queries, which are those that use selector functions like `last` or `max`:
+///
+/// * Projecting **multiple** selector functions, such as `last` or `first` will not be
+/// combined with non-aggregate columns
+/// * Projecting a **single** selector function, such as `last` or `first` may be combined
+/// with non-aggregate columns
+///
+/// Finally, the `top` and `bottom` function have the following additional restrictions:
+///
+/// * Are not combined with other aggregate, selector or window-like functions and may
+///   only project additional fields
+pub(crate) fn select_statement_info(q: &SelectStatement) -> Result<SelectStatementInfo> {
+    let has_group_by_time = q
+        .group_by
+        .as_ref()
+        .and_then(|gb| gb.time_dimension())
+        .is_some();
 
-        q.fields.iter().try_for_each(|f| fc.check_field(f))?;
+    let mut fc = FieldChecker {
+        has_group_by_time,
+        ..Default::default()
+    };
 
-        match fc.aggregate_count {
-            0 => {
-                // If there are no aggregate functions, the FILL clause does not make sense
-                //
-                // NOTE
-                // This is a deviation from InfluxQL, which allowed `FILL(previous)`, `FILL(<number>)`,
-                // and `FILL(null)` for queries that did not have a `GROUP BY time`. This is
-                // undocumented behaviour, and the `FILL` clause is documented as part of the
-                // `GROUP BY` clause, per https://docs.influxdata.com/influxdb/v1.8/query_language/spec/#clauses
-                //
-                // Normally, `FILL` is associated with gap-filling, and is applied to aggregate
-                // projections only, however, without the `GROUP BY` time clause, and no aggregate
-                // functions, it is applied to all columns, including tags.
-                //
-                //
-                // * `FILL(previous)` carries the previous non-null value forward
-                // * `FILL(<number>)` defaults `NULL` values to `<number>`, including tag columns
-                // * `FILL(null)` is the default behaviour.
-                //
-                // See: https://github.com/influxdata/influxdb/blob/98361e207349a3643bcc332d54b009818fe7585f/query/compile.go#L1002-L1012
-                if let Some(fill) = q.fill {
-                    return Err(DataFusionError::Plan(format!(
-                        "{fill} must be used with an aggregate function"
-                    )));
-                }
+    let projection_type = fc.check_fields(q)?;
 
-                if self.has_group_by_time && !self.inherited_group_by_time {
-                    return Err(DataFusionError::Plan(
-                        "GROUP BY requires at least one aggregate function".to_owned(),
-                    ));
-                }
-            }
-            2.. if fc.has_top_bottom => {
-                return Err(DataFusionError::Plan(
-                    "selector functions top and bottom cannot be combined with other functions"
-                        .to_owned(),
-                ))
-            }
-            _ => {}
-        }
-
-        // If a distinct() call is present, ensure there is exactly one aggregate function.
-        //
-        // See: https://github.com/influxdata/influxdb/blob/98361e207349a3643bcc332d54b009818fe7585f/query/compile.go#L1013-L1016
-        if fc.has_distinct && (fc.aggregate_count != 1 || fc.has_non_aggregate_fields) {
-            return Err(DataFusionError::Plan(
-                "aggregate function distinct() cannot be combined with other functions or fields"
-                    .to_owned(),
-            ));
-        }
-
-        // Validate we are using a selector or raw query if non-aggregate fields are projected.
-        if fc.has_non_aggregate_fields {
-            if !fc.has_only_selectors {
-                return Err(DataFusionError::Plan(
-                    "mixing aggregate and non-aggregate columns is not supported".to_owned(),
-                ));
-            } else if fc.aggregate_count > 1 {
-                return Err(DataFusionError::Plan(
-                    "mixing multiple selector functions with tags or fields is not supported"
-                        .to_owned(),
-                ));
-            }
-        }
-
-        for m in q.from.iter() {
-            if let MeasurementSelection::Subquery(subquery) = m {
-                if q.order_by() != subquery.order_by() {
-                    return Err(DataFusionError::Plan(
-                        "subqueries must be ordered the same as the outer query".to_owned(),
-                    ));
-                }
-
-                let has_group_by_time = q
-                    .group_by
-                    .as_ref()
-                    .and_then(|gb| gb.time_dimension())
-                    .is_some();
-
-                let (has_group_by_time, inherited_group_by_time) =
-                    if self.has_group_by_time && !has_group_by_time {
-                        // The subquery does not specify a GROUP BY TIME, but the outer query does,
-                        // so the GROUP BY TIME behaviour is inherited.
-                        //
-                        // See: https://github.com/influxdata/influxdb/blob/98361e207349a3643bcc332d54b009818fe7585f/query/compile.go#L1108
-                        (true, true)
-                    } else {
-                        (has_group_by_time, false)
-                    };
-
-                Self {
-                    has_group_by_time,
-                    inherited_group_by_time,
-                }
-                .check_select(subquery)?;
-            }
-        }
-
-        Ok(())
-    }
+    Ok(SelectStatementInfo { projection_type })
 }
 
 #[cfg(test)]
 mod test {
-    use crate::plan::rewriter::{has_wildcards, rewrite_statement, validate_select};
+    use crate::plan::rewriter::{
+        has_wildcards, rewrite_statement, select_statement_info, ProjectionType,
+    };
     use crate::plan::test_utils::{parse_select, MockSchemaProvider};
+    use assert_matches::assert_matches;
     use datafusion::error::DataFusionError;
     use test_helpers::{assert_contains, assert_error};
 
     #[test]
-    fn test_validate_select() {
+    fn test_select_statement_info() {
+        let info = select_statement_info(&parse_select("SELECT foo, bar FROM cpu")).unwrap();
+        assert_matches!(info.projection_type, ProjectionType::Raw);
+
+        let info = select_statement_info(&parse_select("SELECT distinct(foo) FROM cpu")).unwrap();
+        assert_matches!(info.projection_type, ProjectionType::RawDistinct);
+
+        let info = select_statement_info(&parse_select("SELECT last(foo) FROM cpu")).unwrap();
+        assert_matches!(
+            info.projection_type,
+            ProjectionType::Selector { has_fields: false }
+        );
+
+        let info = select_statement_info(&parse_select("SELECT last(foo), bar FROM cpu")).unwrap();
+        assert_matches!(
+            info.projection_type,
+            ProjectionType::Selector { has_fields: true }
+        );
+
+        let info = select_statement_info(&parse_select(
+            "SELECT last(foo) FROM cpu GROUP BY TIME(10s)",
+        ))
+        .unwrap();
+        assert_matches!(info.projection_type, ProjectionType::Aggregate);
+
+        let info =
+            select_statement_info(&parse_select("SELECT last(foo), first(foo) FROM cpu")).unwrap();
+        assert_matches!(info.projection_type, ProjectionType::Aggregate);
+
+        let info = select_statement_info(&parse_select("SELECT count(foo) FROM cpu")).unwrap();
+        assert_matches!(info.projection_type, ProjectionType::Aggregate);
+
+        let info = select_statement_info(&parse_select("SELECT top(foo, 3) FROM cpu")).unwrap();
+        assert_matches!(info.projection_type, ProjectionType::TopBottomSelector);
+    }
+
+    /// Verify all the aggregate, window-like and selector functions are handled
+    /// by `select_statement_info`.
+    #[test]
+    fn test_select_statement_info_functions() {
         // percentile
         let sel = parse_select("SELECT percentile(foo, 2) FROM cpu");
-        validate_select(&sel).unwrap();
+        select_statement_info(&sel).unwrap();
         let sel = parse_select("SELECT percentile(foo) FROM cpu");
-        assert_error!(validate_select(&sel), DataFusionError::Plan(ref s) if s == "invalid number of arguments for percentile, expected 2, got 1");
+        assert_error!(select_statement_info(&sel), DataFusionError::Plan(ref s) if s == "invalid number of arguments for percentile, expected 2, got 1");
         let sel = parse_select("SELECT percentile('foo', /a/) FROM cpu");
-        assert_error!(validate_select(&sel), DataFusionError::Plan(ref s) if s == "expected number for percentile(), got Literal(Regex(Regex(\"a\")))");
+        assert_error!(select_statement_info(&sel), DataFusionError::Plan(ref s) if s == "expected number for percentile(), got Literal(Regex(Regex(\"a\")))");
 
         // sample
         let sel = parse_select("SELECT sample(foo, 2) FROM cpu");
-        validate_select(&sel).unwrap();
+        select_statement_info(&sel).unwrap();
         let sel = parse_select("SELECT sample(foo) FROM cpu");
-        assert_error!(validate_select(&sel), DataFusionError::Plan(ref s) if s == "invalid number of arguments for sample, expected 2, got 1");
+        assert_error!(select_statement_info(&sel), DataFusionError::Plan(ref s) if s == "invalid number of arguments for sample, expected 2, got 1");
         let sel = parse_select("SELECT sample(foo, -2) FROM cpu");
-        assert_error!(validate_select(&sel), DataFusionError::Plan(ref s) if s == "sample window must be greater than 1, got -2");
+        assert_error!(select_statement_info(&sel), DataFusionError::Plan(ref s) if s == "sample window must be greater than 1, got -2");
 
         // distinct
         let sel = parse_select("SELECT distinct(foo) FROM cpu");
-        validate_select(&sel).unwrap();
+        select_statement_info(&sel).unwrap();
         let sel = parse_select("SELECT distinct(foo, 1) FROM cpu");
-        assert_error!(validate_select(&sel), DataFusionError::Plan(ref s) if s == "invalid number of arguments for distinct, expected 1, got 2");
+        assert_error!(select_statement_info(&sel), DataFusionError::Plan(ref s) if s == "invalid number of arguments for distinct, expected 1, got 2");
         let sel = parse_select("SELECT distinct(sum(foo)) FROM cpu");
-        assert_error!(validate_select(&sel), DataFusionError::Plan(ref s) if s == "expected field argument in distinct()");
+        assert_error!(select_statement_info(&sel), DataFusionError::Plan(ref s) if s == "expected field argument in distinct()");
+        let sel = parse_select("SELECT distinct(foo), distinct(bar) FROM cpu");
+        assert_error!(select_statement_info(&sel), DataFusionError::Plan(ref s) if s == "aggregate function distinct() cannot be combined with other functions or fields");
 
         // top / bottom
         let sel = parse_select("SELECT top(foo, 3) FROM cpu");
-        validate_select(&sel).unwrap();
+        select_statement_info(&sel).unwrap();
         let sel = parse_select("SELECT bottom(foo, 3) FROM cpu");
-        validate_select(&sel).unwrap();
+        select_statement_info(&sel).unwrap();
         let sel = parse_select("SELECT top(foo, 3), bar FROM cpu");
-        validate_select(&sel).unwrap();
+        select_statement_info(&sel).unwrap();
         let sel = parse_select("SELECT top(foo, bar, 3) FROM cpu");
-        validate_select(&sel).unwrap();
+        select_statement_info(&sel).unwrap();
         let sel = parse_select("SELECT top(foo) FROM cpu");
-        assert_error!(validate_select(&sel), DataFusionError::Plan(ref s) if s == "invalid number of arguments for top, expected at least 2, got 1");
+        assert_error!(select_statement_info(&sel), DataFusionError::Plan(ref s) if s == "invalid number of arguments for top, expected at least 2, got 1");
         let sel = parse_select("SELECT bottom(foo) FROM cpu");
-        assert_error!(validate_select(&sel), DataFusionError::Plan(ref s) if s == "invalid number of arguments for bottom, expected at least 2, got 1");
+        assert_error!(select_statement_info(&sel), DataFusionError::Plan(ref s) if s == "invalid number of arguments for bottom, expected at least 2, got 1");
         let sel = parse_select("SELECT top(foo, -2) FROM cpu");
-        assert_error!(validate_select(&sel), DataFusionError::Plan(ref s) if s == "limit (-2) for top must be greater than 0");
+        assert_error!(select_statement_info(&sel), DataFusionError::Plan(ref s) if s == "limit (-2) for top must be greater than 0");
         let sel = parse_select("SELECT top(foo, bar) FROM cpu");
-        assert_error!(validate_select(&sel), DataFusionError::Plan(ref s) if s == "expected integer as last argument for top, got VarRef(VarRef { name: Identifier(\"bar\"), data_type: None })");
+        assert_error!(select_statement_info(&sel), DataFusionError::Plan(ref s) if s == "expected integer as last argument for top, got VarRef(VarRef { name: Identifier(\"bar\"), data_type: None })");
         let sel = parse_select("SELECT top('foo', 3) FROM cpu");
-        assert_error!(validate_select(&sel), DataFusionError::Plan(ref s) if s == "expected first argument to be a field for top");
+        assert_error!(select_statement_info(&sel), DataFusionError::Plan(ref s) if s == "expected first argument to be a field for top");
         let sel = parse_select("SELECT top(foo, 2, 3) FROM cpu");
-        assert_error!(validate_select(&sel), DataFusionError::Plan(ref s) if s == "only fields or tags are allow for top(), got Literal(Integer(2))");
+        assert_error!(select_statement_info(&sel), DataFusionError::Plan(ref s) if s == "only fields or tags are allow for top(), got Literal(Integer(2))");
         let sel = parse_select("SELECT top(foo, 2), mean(bar) FROM cpu");
-        assert_error!(validate_select(&sel), DataFusionError::Plan(ref s) if s == "selector functions top and bottom cannot be combined with other functions");
+        assert_error!(select_statement_info(&sel), DataFusionError::Plan(ref s) if s == "selector functions top and bottom cannot be combined with other functions");
 
         // derivative
         let sel = parse_select("SELECT derivative(foo) FROM cpu");
-        validate_select(&sel).unwrap();
+        select_statement_info(&sel).unwrap();
         let sel = parse_select("SELECT derivative(foo, 2s) FROM cpu");
-        validate_select(&sel).unwrap();
+        select_statement_info(&sel).unwrap();
         let sel = parse_select("SELECT derivative(mean(foo)) FROM cpu GROUP BY TIME(30s)");
-        validate_select(&sel).unwrap();
+        select_statement_info(&sel).unwrap();
         let sel = parse_select("SELECT derivative(foo, 2) FROM cpu");
-        assert_error!(validate_select(&sel), DataFusionError::Plan(ref s) if s == "second argument to derivative must be a duration, got Literal(Integer(2))");
+        assert_error!(select_statement_info(&sel), DataFusionError::Plan(ref s) if s == "second argument to derivative must be a duration, got Literal(Integer(2))");
         let sel = parse_select("SELECT derivative(foo, -2s) FROM cpu");
-        assert_error!(validate_select(&sel), DataFusionError::Plan(ref s) if s == "duration argument must be positive, got -2s");
+        assert_error!(select_statement_info(&sel), DataFusionError::Plan(ref s) if s == "duration argument must be positive, got -2s");
         let sel = parse_select("SELECT derivative(foo, 2s, 1) FROM cpu");
-        assert_error!(validate_select(&sel), DataFusionError::Plan(ref s) if s == "invalid number of arguments for derivative, expected at least 1 but no more than 2, got 3");
+        assert_error!(select_statement_info(&sel), DataFusionError::Plan(ref s) if s == "invalid number of arguments for derivative, expected at least 1 but no more than 2, got 3");
         let sel = parse_select("SELECT derivative(foo) FROM cpu GROUP BY TIME(30s)");
-        assert_error!(validate_select(&sel), DataFusionError::Plan(ref s) if s == "aggregate function required inside the call to derivative");
+        assert_error!(select_statement_info(&sel), DataFusionError::Plan(ref s) if s == "aggregate function required inside the call to derivative");
 
         // elapsed
         let sel = parse_select("SELECT elapsed(foo) FROM cpu");
-        validate_select(&sel).unwrap();
+        select_statement_info(&sel).unwrap();
         let sel = parse_select("SELECT elapsed(foo, 5s) FROM cpu");
-        validate_select(&sel).unwrap();
+        select_statement_info(&sel).unwrap();
         let sel = parse_select("SELECT elapsed(foo, 2) FROM cpu");
-        assert_error!(validate_select(&sel), DataFusionError::Plan(ref s) if s == "second argument to elapsed must be a duration, got Literal(Integer(2))");
+        assert_error!(select_statement_info(&sel), DataFusionError::Plan(ref s) if s == "second argument to elapsed must be a duration, got Literal(Integer(2))");
         let sel = parse_select("SELECT elapsed(foo, -2s) FROM cpu");
-        assert_error!(validate_select(&sel), DataFusionError::Plan(ref s) if s == "duration argument must be positive, got -2s");
+        assert_error!(select_statement_info(&sel), DataFusionError::Plan(ref s) if s == "duration argument must be positive, got -2s");
 
         // difference / non_negative_difference
         let sel = parse_select("SELECT difference(foo) FROM cpu");
-        validate_select(&sel).unwrap();
+        select_statement_info(&sel).unwrap();
         let sel = parse_select("SELECT non_negative_difference(foo) FROM cpu");
-        validate_select(&sel).unwrap();
+        select_statement_info(&sel).unwrap();
         let sel = parse_select("SELECT difference(foo, 2) FROM cpu");
-        assert_error!(validate_select(&sel), DataFusionError::Plan(ref s) if s == "invalid number of arguments for difference, expected 1, got 2");
+        assert_error!(select_statement_info(&sel), DataFusionError::Plan(ref s) if s == "invalid number of arguments for difference, expected 1, got 2");
 
         // cumulative_sum
         let sel = parse_select("SELECT cumulative_sum(foo) FROM cpu");
-        validate_select(&sel).unwrap();
+        select_statement_info(&sel).unwrap();
         let sel = parse_select("SELECT cumulative_sum(foo, 2) FROM cpu");
-        assert_error!(validate_select(&sel), DataFusionError::Plan(ref s) if s == "invalid number of arguments for cumulative_sum, expected 1, got 2");
+        assert_error!(select_statement_info(&sel), DataFusionError::Plan(ref s) if s == "invalid number of arguments for cumulative_sum, expected 1, got 2");
 
         // moving_average
         let sel = parse_select("SELECT moving_average(foo, 2) FROM cpu");
-        validate_select(&sel).unwrap();
+        select_statement_info(&sel).unwrap();
         let sel = parse_select("SELECT moving_average(foo, bar, 3) FROM cpu");
-        assert_error!(validate_select(&sel), DataFusionError::Plan(ref s) if s == "invalid number of arguments for moving_average, expected 2, got 3");
+        assert_error!(select_statement_info(&sel), DataFusionError::Plan(ref s) if s == "invalid number of arguments for moving_average, expected 2, got 3");
         let sel = parse_select("SELECT moving_average(foo, 1) FROM cpu");
-        assert_error!(validate_select(&sel), DataFusionError::Plan(ref s) if s == "moving_average window must be greater than 1, got 1");
+        assert_error!(select_statement_info(&sel), DataFusionError::Plan(ref s) if s == "moving_average window must be greater than 1, got 1");
 
         // exponential_moving_average, double_exponential_moving_average
         // triple_exponential_moving_average, relative_strength_index and triple_exponential_derivative
         let sel = parse_select("SELECT exponential_moving_average(foo, 2) FROM cpu");
-        validate_select(&sel).unwrap();
+        select_statement_info(&sel).unwrap();
         let sel = parse_select("SELECT exponential_moving_average(foo, 2, 3) FROM cpu");
-        validate_select(&sel).unwrap();
+        select_statement_info(&sel).unwrap();
         let sel = parse_select("SELECT exponential_moving_average(foo, 2, -1) FROM cpu");
-        validate_select(&sel).unwrap();
+        select_statement_info(&sel).unwrap();
         let sel =
             parse_select("SELECT exponential_moving_average(foo, 2, 3, 'exponential') FROM cpu");
-        validate_select(&sel).unwrap();
+        select_statement_info(&sel).unwrap();
         let sel = parse_select("SELECT exponential_moving_average(foo, 2, 3, 'simple') FROM cpu");
-        validate_select(&sel).unwrap();
+        select_statement_info(&sel).unwrap();
         // check variants
         let sel = parse_select("SELECT double_exponential_moving_average(foo, 2) FROM cpu");
-        validate_select(&sel).unwrap();
+        select_statement_info(&sel).unwrap();
         let sel = parse_select("SELECT triple_exponential_moving_average(foo, 2) FROM cpu");
-        validate_select(&sel).unwrap();
+        select_statement_info(&sel).unwrap();
         let sel = parse_select("SELECT relative_strength_index(foo, 2) FROM cpu");
-        validate_select(&sel).unwrap();
+        select_statement_info(&sel).unwrap();
         let sel = parse_select("SELECT triple_exponential_derivative(foo, 2) FROM cpu");
-        validate_select(&sel).unwrap();
+        select_statement_info(&sel).unwrap();
 
         let sel = parse_select("SELECT exponential_moving_average(foo) FROM cpu");
-        assert_error!(validate_select(&sel), DataFusionError::Plan(ref s) if s == "invalid number of arguments for exponential_moving_average, expected at least 2 but no more than 4, got 1");
+        assert_error!(select_statement_info(&sel), DataFusionError::Plan(ref s) if s == "invalid number of arguments for exponential_moving_average, expected at least 2 but no more than 4, got 1");
         let sel = parse_select("SELECT exponential_moving_average(foo, 2, 3, 'bad') FROM cpu");
-        assert_error!(validate_select(&sel), DataFusionError::Plan(ref s) if s == "exponential_moving_average warmup type must be one of: 'exponential', 'simple', got bad");
+        assert_error!(select_statement_info(&sel), DataFusionError::Plan(ref s) if s == "exponential_moving_average warmup type must be one of: 'exponential', 'simple', got bad");
         let sel = parse_select("SELECT exponential_moving_average(foo, 2, 3, 4) FROM cpu");
-        assert_error!(validate_select(&sel), DataFusionError::Plan(ref s) if s == "expected string argument in exponential_moving_average()");
+        assert_error!(select_statement_info(&sel), DataFusionError::Plan(ref s) if s == "expected string argument in exponential_moving_average()");
         let sel = parse_select("SELECT exponential_moving_average(foo, 2, -2) FROM cpu");
-        assert_error!(validate_select(&sel), DataFusionError::Plan(ref s) if s == "exponential_moving_average hold period must be greater than or equal to 0");
+        assert_error!(select_statement_info(&sel), DataFusionError::Plan(ref s) if s == "exponential_moving_average hold period must be greater than or equal to 0");
         let sel = parse_select("SELECT triple_exponential_derivative(foo, 2, 0) FROM cpu");
-        assert_error!(validate_select(&sel), DataFusionError::Plan(ref s) if s == "triple_exponential_derivative hold period must be greater than or equal to 1");
+        assert_error!(select_statement_info(&sel), DataFusionError::Plan(ref s) if s == "triple_exponential_derivative hold period must be greater than or equal to 1");
 
         // kaufmans_efficiency_ratio, kaufmans_adaptive_moving_average
         let sel = parse_select("SELECT kaufmans_efficiency_ratio(foo, 2) FROM cpu");
-        validate_select(&sel).unwrap();
+        select_statement_info(&sel).unwrap();
         let sel = parse_select("SELECT kaufmans_adaptive_moving_average(foo, 2) FROM cpu");
-        validate_select(&sel).unwrap();
+        select_statement_info(&sel).unwrap();
         let sel = parse_select("SELECT kaufmans_efficiency_ratio(foo) FROM cpu");
-        assert_error!(validate_select(&sel), DataFusionError::Plan(ref s) if s == "invalid number of arguments for kaufmans_efficiency_ratio, expected at least 2 but no more than 3, got 1");
+        assert_error!(select_statement_info(&sel), DataFusionError::Plan(ref s) if s == "invalid number of arguments for kaufmans_efficiency_ratio, expected at least 2 but no more than 3, got 1");
         let sel = parse_select("SELECT kaufmans_efficiency_ratio(foo, 2, -2) FROM cpu");
-        assert_error!(validate_select(&sel), DataFusionError::Plan(ref s) if s == "kaufmans_efficiency_ratio hold period must be greater than or equal to 0");
+        assert_error!(select_statement_info(&sel), DataFusionError::Plan(ref s) if s == "kaufmans_efficiency_ratio hold period must be greater than or equal to 0");
 
         // chande_momentum_oscillator
         let sel = parse_select("SELECT chande_momentum_oscillator(foo, 2) FROM cpu");
-        validate_select(&sel).unwrap();
+        select_statement_info(&sel).unwrap();
         let sel = parse_select("SELECT chande_momentum_oscillator(foo, 2, 3) FROM cpu");
-        validate_select(&sel).unwrap();
+        select_statement_info(&sel).unwrap();
         let sel = parse_select("SELECT chande_momentum_oscillator(foo, 2, 3, 'none') FROM cpu");
-        validate_select(&sel).unwrap();
+        select_statement_info(&sel).unwrap();
         let sel =
             parse_select("SELECT chande_momentum_oscillator(foo, 2, 3, 'exponential') FROM cpu");
-        validate_select(&sel).unwrap();
+        select_statement_info(&sel).unwrap();
         let sel = parse_select("SELECT chande_momentum_oscillator(foo, 2, 3, 'simple') FROM cpu");
-        validate_select(&sel).unwrap();
+        select_statement_info(&sel).unwrap();
 
         let sel = parse_select("SELECT chande_momentum_oscillator(foo) FROM cpu");
-        assert_error!(validate_select(&sel), DataFusionError::Plan(ref s) if s == "invalid number of arguments for chande_momentum_oscillator, expected at least 2 but no more than 4, got 1");
+        assert_error!(select_statement_info(&sel), DataFusionError::Plan(ref s) if s == "invalid number of arguments for chande_momentum_oscillator, expected at least 2 but no more than 4, got 1");
         let sel = parse_select("SELECT chande_momentum_oscillator(foo, 2, 3, 'bad') FROM cpu");
-        assert_error!(validate_select(&sel), DataFusionError::Plan(ref s) if s == "chande_momentum_oscillator warmup type must be one of: 'none', 'exponential' or 'simple', got bad");
+        assert_error!(select_statement_info(&sel), DataFusionError::Plan(ref s) if s == "chande_momentum_oscillator warmup type must be one of: 'none', 'exponential' or 'simple', got bad");
 
         // integral
         let sel = parse_select("SELECT integral(foo) FROM cpu");
-        validate_select(&sel).unwrap();
+        select_statement_info(&sel).unwrap();
         let sel = parse_select("SELECT integral(foo, 2s) FROM cpu");
-        validate_select(&sel).unwrap();
+        select_statement_info(&sel).unwrap();
 
         let sel = parse_select("SELECT integral(foo, -2s) FROM cpu");
-        assert_error!(validate_select(&sel), DataFusionError::Plan(ref s) if s == "duration argument must be positive, got -2s");
+        assert_error!(select_statement_info(&sel), DataFusionError::Plan(ref s) if s == "duration argument must be positive, got -2s");
         let sel = parse_select("SELECT integral(foo, 2) FROM cpu");
-        assert_error!(validate_select(&sel), DataFusionError::Plan(ref s) if s == "second argument to integral must be a duration, got Literal(Integer(2))");
+        assert_error!(select_statement_info(&sel), DataFusionError::Plan(ref s) if s == "second argument to integral must be a duration, got Literal(Integer(2))");
 
         // count_hll
         let sel = parse_select("SELECT count_hll(foo) FROM cpu");
-        assert_error!(validate_select(&sel), DataFusionError::NotImplemented(_));
+        assert_error!(
+            select_statement_info(&sel),
+            DataFusionError::NotImplemented(_)
+        );
 
         // holt_winters, holt_winters_with_fit
         let sel = parse_select("SELECT holt_winters(mean(foo), 2, 3) FROM cpu GROUP BY time(30s)");
-        validate_select(&sel).unwrap();
+        select_statement_info(&sel).unwrap();
         let sel = parse_select(
             "SELECT holt_winters_with_fit(sum(foo), 2, 3) FROM cpu GROUP BY time(30s)",
         );
-        validate_select(&sel).unwrap();
+        select_statement_info(&sel).unwrap();
 
         let sel = parse_select("SELECT holt_winters(sum(foo), 2, 3) FROM cpu");
-        assert_error!(validate_select(&sel), DataFusionError::Plan(ref s) if s == "holt_winters aggregate requires a GROUP BY interval");
+        assert_error!(select_statement_info(&sel), DataFusionError::Plan(ref s) if s == "holt_winters aggregate requires a GROUP BY interval");
         let sel = parse_select("SELECT holt_winters(foo, 2, 3) FROM cpu GROUP BY time(30s)");
-        assert_error!(validate_select(&sel), DataFusionError::Plan(ref s) if s == "must use aggregate function with holt_winters");
+        assert_error!(select_statement_info(&sel), DataFusionError::Plan(ref s) if s == "must use aggregate function with holt_winters");
         let sel = parse_select("SELECT holt_winters(sum(foo), 2) FROM cpu GROUP BY time(30s)");
-        assert_error!(validate_select(&sel), DataFusionError::Plan(ref s) if s == "invalid number of arguments for holt_winters, expected 3, got 2");
+        assert_error!(select_statement_info(&sel), DataFusionError::Plan(ref s) if s == "invalid number of arguments for holt_winters, expected 3, got 2");
         let sel = parse_select("SELECT holt_winters(foo, 0, 3) FROM cpu GROUP BY time(30s)");
-        assert_error!(validate_select(&sel), DataFusionError::Plan(ref s) if s == "holt_winters N argument must be greater than 0, got 0");
+        assert_error!(select_statement_info(&sel), DataFusionError::Plan(ref s) if s == "holt_winters N argument must be greater than 0, got 0");
         let sel = parse_select("SELECT holt_winters(foo, 1, -3) FROM cpu GROUP BY time(30s)");
-        assert_error!(validate_select(&sel), DataFusionError::Plan(ref s) if s == "holt_winters S argument cannot be negative, got -3");
+        assert_error!(select_statement_info(&sel), DataFusionError::Plan(ref s) if s == "holt_winters S argument cannot be negative, got -3");
 
         // max, min, first, last
         for name in [
@@ -1529,57 +1466,57 @@ mod test {
             "spread", "sum_hll",
         ] {
             let sel = parse_select(&format!("SELECT {name}(foo) FROM cpu"));
-            validate_select(&sel).unwrap();
+            select_statement_info(&sel).unwrap();
             let sel = parse_select(&format!("SELECT {name}(foo, 2) FROM cpu"));
             let exp = format!("invalid number of arguments for {name}, expected 1, got 2");
-            assert_error!(validate_select(&sel), DataFusionError::Plan(ref s) if s == &exp);
+            assert_error!(select_statement_info(&sel), DataFusionError::Plan(ref s) if s == &exp);
         }
 
         // count(distinct)
-        let sel = parse_select("SELECT count(distinct foo) FROM cpu");
-        validate_select(&sel).unwrap();
         let sel = parse_select("SELECT count(distinct(foo)) FROM cpu");
-        validate_select(&sel).unwrap();
+        select_statement_info(&sel).unwrap();
         let sel = parse_select("SELECT count(distinct('foo')) FROM cpu");
-        assert_error!(validate_select(&sel), DataFusionError::Plan(ref s) if s == "expected field argument in distinct()");
+        assert_error!(select_statement_info(&sel), DataFusionError::Plan(ref s) if s == "expected field argument in distinct()");
+        let sel = parse_select("SELECT count(distinct foo) FROM cpu");
+        assert_error!(select_statement_info(&sel), DataFusionError::External(ref s) if s.to_string() == "internal: unexpected distinct clause in count");
 
         // Test rules for math functions
         let sel = parse_select("SELECT abs(usage_idle) FROM cpu");
-        validate_select(&sel).unwrap();
+        select_statement_info(&sel).unwrap();
         let sel = parse_select("SELECT abs(*) + ceil(foo) FROM cpu");
-        assert_error!(validate_select(&sel), DataFusionError::Plan(ref s) if s == "unable to use wildcard in a binary expression");
+        assert_error!(select_statement_info(&sel), DataFusionError::External(ref s) if s.to_string() == "internal: unexpected wildcard");
         let sel = parse_select("SELECT abs(/f/) + ceil(foo) FROM cpu");
-        assert_error!(validate_select(&sel), DataFusionError::Plan(ref s) if s == "unable to use regex in a binary expression");
+        assert_error!(select_statement_info(&sel), DataFusionError::External(ref s) if s.to_string() == "internal: unexpected regex");
 
         // Fallible
 
         // abs expects 1 argument
         let sel = parse_select("SELECT abs(foo, 2) FROM cpu");
-        assert_error!(validate_select(&sel), DataFusionError::Plan(ref s) if s == "invalid number of arguments for abs, expected 1, got 2");
+        assert_error!(select_statement_info(&sel), DataFusionError::Plan(ref s) if s == "invalid number of arguments for abs, expected 1, got 2");
         // pow expects 2 arguments
         let sel = parse_select("SELECT pow(foo, 2, 3) FROM cpu");
-        assert_error!(validate_select(&sel), DataFusionError::Plan(ref s) if s == "invalid number of arguments for pow, expected 2, got 3");
+        assert_error!(select_statement_info(&sel), DataFusionError::Plan(ref s) if s == "invalid number of arguments for pow, expected 2, got 3");
 
         // Cannot perform binary operations on literals
         // See: https://github.com/influxdata/influxdb/blob/98361e207349a3643bcc332d54b009818fe7585f/query/compile.go#L329
         let sel = parse_select("SELECT 1 + 1 FROM cpu");
-        assert_error!(validate_select(&sel), DataFusionError::Plan(ref s) if s == "cannot perform a binary expression on two literals");
+        assert_error!(select_statement_info(&sel), DataFusionError::Plan(ref s) if s == "cannot perform a binary expression on two literals");
 
         // can't project literals
         let sel = parse_select("SELECT foo, 1 FROM cpu");
-        assert_error!(validate_select(&sel), DataFusionError::Plan(ref s) if s == "field must contain at least one variable");
+        assert_error!(select_statement_info(&sel), DataFusionError::Plan(ref s) if s == "field must contain at least one variable");
 
         // wildcard expansion is not supported in binary expressions for aggregates
         let sel = parse_select("SELECT count(*) + count(foo) FROM cpu");
-        assert_error!(validate_select(&sel), DataFusionError::Plan(ref s) if s == "unsupported expression with wildcard: count()");
+        assert_error!(select_statement_info(&sel), DataFusionError::External(ref s) if s.to_string() == "internal: unexpected wildcard or regex");
 
         // regex expansion is not supported in binary expressions
         let sel = parse_select("SELECT sum(/foo/) + count(foo) FROM cpu");
-        assert_error!(validate_select(&sel), DataFusionError::Plan(ref s) if s == "unsupported expression with regex field: sum()");
+        assert_error!(select_statement_info(&sel), DataFusionError::External(ref s) if s.to_string() == "internal: unexpected wildcard or regex");
 
         // aggregate functions require a field reference
         let sel = parse_select("SELECT sum(1) FROM cpu");
-        assert_error!(validate_select(&sel), DataFusionError::Plan(ref s) if s == "expected field argument in sum(), got Literal(Integer(1))");
+        assert_error!(select_statement_info(&sel), DataFusionError::Plan(ref s) if s == "expected field argument in sum(), got Literal(Integer(1))");
     }
 
     #[test]
@@ -1773,6 +1710,23 @@ mod test {
             "SELECT -1 * bytes_free::integer AS bytes_free FROM disk"
         );
 
+        // DISTINCT clause
+
+        // COUNT(DISTINCT)
+        let stmt = parse_select("SELECT COUNT(DISTINCT bytes_free) FROM disk");
+        let stmt = rewrite_statement(&namespace, &stmt).unwrap();
+        assert_eq!(
+            stmt.to_string(),
+            "SELECT count(distinct(bytes_free::integer)) AS count FROM disk"
+        );
+
+        let stmt = parse_select("SELECT DISTINCT bytes_free FROM disk");
+        let stmt = rewrite_statement(&namespace, &stmt).unwrap();
+        assert_eq!(
+            stmt.to_string(),
+            "SELECT distinct(bytes_free::integer) AS \"distinct\" FROM disk"
+        );
+
         // Call expressions
 
         let stmt = parse_select("SELECT COUNT(field_i64) FROM temp_01");
@@ -1841,14 +1795,14 @@ mod test {
         let err = rewrite_statement(&namespace, &stmt).unwrap_err();
         assert_eq!(
             err.to_string(),
-            "Error during planning: unable to use wildcard in a binary expression"
+            "Error during planning: unsupported expression: contains a wildcard or regular expression"
         );
 
         let stmt = parse_select("SELECT COUNT(*::tag) FROM cpu");
         let err = rewrite_statement(&namespace, &stmt).unwrap_err();
         assert_eq!(
             err.to_string(),
-            "External error: unable to use tag as wildcard in count()"
+            "Error during planning: unable to use tag as wildcard in count()"
         );
     }
 

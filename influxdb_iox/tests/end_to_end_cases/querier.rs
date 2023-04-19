@@ -236,10 +236,9 @@ async fn basic_no_ingester_connection() {
 
 #[tokio::test]
 async fn query_after_persist_sees_new_files() {
-    // https://github.com/influxdata/influxdb_iox/issues/4634 added
-    // caching of tombstones and parquet files in the querier. This
-    // test ensures that a query issued after new parquet files are
-    // persisted correctly picks up the new parquet files
+    // https://github.com/influxdata/influxdb_iox/issues/4634 added caching of Parquet files in the
+    // querier. This test ensures that a query issued after new Parquet files are persisted
+    // correctly picks up the new Parquet files.
     test_helpers::maybe_start_logging();
     let database_url = maybe_skip_integration!();
 

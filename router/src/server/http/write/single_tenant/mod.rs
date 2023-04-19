@@ -7,19 +7,26 @@
 //! [V1 Write API]:
 //!     https://docs.influxdata.com/influxdb/v1.8/tools/api/#write-http-endpoint
 
+pub mod auth;
+
+use std::sync::Arc;
+
+use async_trait::async_trait;
+use auth::authorize;
+use authz::{self, Authorizer};
+use data_types::{NamespaceName, NamespaceNameError};
 use hyper::{Body, Request};
 use thiserror::Error;
 
 use super::{
     v1::{RetentionPolicy, V1WriteParseError, WriteParamsV1},
     v2::{V2WriteParseError, WriteParamsV2},
-    WriteParamExtractor, WriteParams,
+    WriteParams, WriteRequestUnifier,
 };
 use crate::server::http::{
     write::v1::V1_NAMESPACE_RP_SEPARATOR,
     Error::{self},
 };
-use data_types::{NamespaceName, NamespaceNameError};
 
 /// Request parsing errors when operating in "single tenant" mode.
 #[derive(Debug, Error)]
@@ -39,6 +46,10 @@ pub enum SingleTenantExtractError {
     /// A [`WriteParamsV2`] failed to be parsed from the HTTP request.
     #[error(transparent)]
     ParseV2Request(#[from] V2WriteParseError),
+
+    /// An error occurred verifying the authorization token.
+    #[error(transparent)]
+    Authorizer(authz::Error),
 }
 
 /// Implement a by-ref conversion to avoid "moving" the inner errors when only
@@ -60,6 +71,11 @@ impl From<&SingleTenantExtractError> for hyper::StatusCode {
             SingleTenantExtractError::ParseV2Request(
                 V2WriteParseError::NoQueryParams | V2WriteParseError::DecodeFail(_),
             ) => Self::BAD_REQUEST,
+            SingleTenantExtractError::Authorizer(e) => match e {
+                authz::Error::Forbidden => Self::FORBIDDEN,
+                authz::Error::NoToken => Self::UNAUTHORIZED,
+                _ => Self::FORBIDDEN,
+            },
         }
     }
 }
@@ -68,7 +84,8 @@ impl From<&SingleTenantExtractError> for hyper::StatusCode {
 ///
 /// This handler respects the [V2 Write API] with the following modifications:
 ///
-///   * The namespace is derived from ONLY the bucket name (org is discarded)
+///   * The namespace is derived from ONLY the bucket name (org is discarded).
+///   * Authorization token is required.
 ///
 /// This handler respects a limited subset of the [V1 Write API] defined in
 /// <https://github.com/influxdata/idpe/issues/17265>.
@@ -77,21 +94,34 @@ impl From<&SingleTenantExtractError> for hyper::StatusCode {
 ///     https://docs.influxdata.com/influxdb/v2.6/api/#operation/PostWrite
 /// [V1 Write API]:
 ///     https://docs.influxdata.com/influxdb/v1.8/tools/api/#write-http-endpoint
-#[derive(Debug, Default)]
-pub struct SingleTenantRequestParser;
+#[derive(Debug)]
+pub struct SingleTenantRequestUnifier {
+    authz: Arc<dyn Authorizer>,
+}
 
-impl WriteParamExtractor for SingleTenantRequestParser {
-    fn parse_v1(&self, req: &Request<Body>) -> Result<WriteParams, Error> {
-        Ok(parse_v1(req)?)
+impl SingleTenantRequestUnifier {
+    /// Creates a new SingleTenantRequestParser
+    pub fn new(authz: Arc<dyn Authorizer>) -> Self {
+        Self { authz }
+    }
+}
+
+#[async_trait]
+impl WriteRequestUnifier for SingleTenantRequestUnifier {
+    async fn parse_v1(&self, req: &Request<Body>) -> Result<WriteParams, Error> {
+        Ok(parse_v1(req, &self.authz).await?)
     }
 
-    fn parse_v2(&self, req: &Request<Body>) -> Result<WriteParams, Error> {
-        Ok(parse_v2(req)?)
+    async fn parse_v2(&self, req: &Request<Body>) -> Result<WriteParams, Error> {
+        Ok(parse_v2(req, &self.authz).await?)
     }
 }
 
 // Parse a V1 write request for single tenant mode.
-fn parse_v1(req: &Request<Body>) -> Result<WriteParams, SingleTenantExtractError> {
+async fn parse_v1(
+    req: &Request<Body>,
+    authz: &Arc<dyn Authorizer>,
+) -> Result<WriteParams, SingleTenantExtractError> {
     // Extract the write parameters.
     let write_params = WriteParamsV1::try_from(req)?;
 
@@ -100,7 +130,7 @@ fn parse_v1(req: &Request<Body>) -> Result<WriteParams, SingleTenantExtractError
     debug_assert!(!write_params.db.contains(V1_NAMESPACE_RP_SEPARATOR));
 
     // Extract or construct the namespace name string from the write parameters
-    let namespace = match write_params.rp {
+    let namespace = NamespaceName::new(match write_params.rp {
         RetentionPolicy::Unspecified | RetentionPolicy::Autogen => write_params.db,
         RetentionPolicy::Named(rp) => {
             format!(
@@ -109,16 +139,22 @@ fn parse_v1(req: &Request<Body>) -> Result<WriteParams, SingleTenantExtractError
                 sep = V1_NAMESPACE_RP_SEPARATOR
             )
         }
-    };
+    })?;
+    authorize(authz, req, &namespace, write_params.password)
+        .await
+        .map_err(SingleTenantExtractError::Authorizer)?;
 
     Ok(WriteParams {
-        namespace: NamespaceName::new(namespace)?,
+        namespace,
         precision: write_params.precision,
     })
 }
 
 // Parse a V2 write request for single tenant mode.
-fn parse_v2(req: &Request<Body>) -> Result<WriteParams, SingleTenantExtractError> {
+async fn parse_v2(
+    req: &Request<Body>,
+    authz: &Arc<dyn Authorizer>,
+) -> Result<WriteParams, SingleTenantExtractError> {
     let write_params = WriteParamsV2::try_from(req)?;
 
     // For V2 requests in "single tenant" mode, only the bucket parameter is
@@ -130,20 +166,66 @@ fn parse_v2(req: &Request<Body>) -> Result<WriteParams, SingleTenantExtractError
     if write_params.bucket.is_empty() {
         return Err(SingleTenantExtractError::NoBucketSpecified);
     }
+    let namespace = NamespaceName::new(write_params.bucket)?;
+    authorize(authz, req, &namespace, None)
+        .await
+        .map_err(SingleTenantExtractError::Authorizer)?;
 
     Ok(WriteParams {
-        namespace: NamespaceName::new(write_params.bucket)?,
+        namespace,
         precision: write_params.precision,
     })
 }
 
 #[cfg(test)]
 mod tests {
+    use assert_matches::assert_matches;
+    use authz::{http::AuthorizationHeaderExtension, Permission};
+    use hyper::header::HeaderValue;
+    use parking_lot::Mutex;
+
+    use super::{
+        auth::mock::{MockAuthorizer, *},
+        *,
+    };
     use crate::server::http::write::Precision;
 
-    use super::*;
+    #[tokio::test]
+    async fn test_delegate_to_authz() {
+        #[derive(Debug)]
+        struct MockCountingAuthorizer {
+            calls_counter: Arc<Mutex<usize>>,
+        }
 
-    use assert_matches::assert_matches;
+        #[async_trait]
+        impl Authorizer for MockCountingAuthorizer {
+            async fn permissions(
+                &self,
+                _token: Option<&[u8]>,
+                perms: &[Permission],
+            ) -> Result<Vec<Permission>, authz::Error> {
+                *self.calls_counter.lock() += 1;
+                Ok(perms.to_vec())
+            }
+        }
+        let counter = Arc::new(Mutex::new(0));
+        let authz: Arc<MockCountingAuthorizer> = Arc::new(MockCountingAuthorizer {
+            calls_counter: Arc::clone(&counter),
+        });
+        let unifier = SingleTenantRequestUnifier::new(authz);
+
+        let request = Request::builder()
+            .uri("https://foo?db=bananas")
+            .method("POST")
+            .extension(AuthorizationHeaderExtension::new(Some(
+                HeaderValue::from_str(format!("Token {MOCK_AUTH_VALID_TOKEN}").as_str()).unwrap(),
+            )))
+            .body(Body::from(""))
+            .unwrap();
+
+        assert!(unifier.parse_v1(&request).await.is_ok());
+        assert_eq!(*counter.lock(), 1);
+    }
 
     macro_rules! test_parse_v1 {
         (
@@ -152,18 +234,22 @@ mod tests {
             want = $($want:tt)+                 // A pattern match for assert_matches!
         ) => {
             paste::paste! {
-                #[test]
-                fn [<test_parse_v1_ $name>]() {
-                    let parser = SingleTenantRequestParser::default();
+                #[tokio::test]
+                async fn [<test_parse_v1_ $name>]() {
+                    let authz = Arc::new(MockAuthorizer::default());
+                    let unifier = SingleTenantRequestUnifier::new(authz);
 
                     let query = $query_string;
                     let request = Request::builder()
                         .uri(format!("https://itsallbroken.com/ignored{query}"))
                         .method("POST")
+                        .extension(AuthorizationHeaderExtension::new(Some(
+                            HeaderValue::from_str(format!("Token {MOCK_AUTH_VALID_TOKEN}").as_str()).unwrap(),
+                        )))
                         .body(Body::from(""))
                         .unwrap();
 
-                    let got = parser.parse_v1(&request);
+                    let got = unifier.parse_v1(&request).await;
                     assert_matches!(got, $($want)+);
                 }
             }
@@ -317,18 +403,22 @@ mod tests {
             want = $($want:tt)+                 // A pattern match for assert_matches!
         ) => {
             paste::paste! {
-                #[test]
-                fn [<test_parse_v2_ $name>]() {
-                    let parser = SingleTenantRequestParser::default();
+                #[tokio::test]
+                async fn [<test_parse_v2_ $name>]() {
+                    let authz = Arc::new(MockAuthorizer::default());
+                    let unifier = SingleTenantRequestUnifier::new(authz);
 
                     let query = $query_string;
                     let request = Request::builder()
                         .uri(format!("https://itsallbroken.com/ignored{query}"))
                         .method("POST")
+                        .extension(AuthorizationHeaderExtension::new(Some(
+                            HeaderValue::from_str(format!("Token {MOCK_AUTH_VALID_TOKEN}").as_str()).unwrap(),
+                        )))
                         .body(Body::from(""))
                         .unwrap();
 
-                    let got = parser.parse_v2(&request);
+                    let got = unifier.parse_v2(&request).await;
                     assert_matches!(got, $($want)+);
                 }
             }

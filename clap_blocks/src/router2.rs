@@ -120,6 +120,15 @@ pub struct Router2Config {
     )]
     pub rpc_write_timeout_seconds: Duration,
 
+    /// Specify the maximum allowed outgoing RPC write message size when
+    /// communicating with the Ingester.
+    #[clap(
+        long = "rpc-write-max-outgoing-bytes",
+        env = "INFLUXDB_IOX_RPC_WRITE_MAX_OUTGOING_BYTES",
+        default_value = "104857600", // 100MiB
+    )]
+    pub rpc_write_max_outgoing_bytes: usize,
+
     /// Specify the optional replication factor for each RPC write.
     ///
     /// The total number of copies of data after replication will be this value,

@@ -137,6 +137,10 @@ impl TestConfig {
         .with_env("INFLUXDB_IOX_RPC_MODE", "2")
         // Hard code query threads so query plans do not vary based on environment
         .with_env("INFLUXDB_IOX_NUM_QUERY_THREADS", "4")
+        .with_env(
+            "INFLUXDB_IOX_DATAFUSION_CONFIG",
+            "iox.influxql_metadata_cutoff:1990-01-01T00:00:00Z",
+        )
     }
 
     /// Create a minimal all in one configuration
@@ -180,9 +184,10 @@ impl TestConfig {
         )
     }
 
-    /// Configure the authorization server.
-    pub fn with_authz_addr(self, addr: impl Into<String>) -> Self {
+    /// Configure the single tenancy mode, including the authorization server.
+    pub fn with_single_tenancy(self, addr: impl Into<String>) -> Self {
         self.with_env("INFLUXDB_IOX_AUTHZ_ADDR", addr)
+            .with_env("INFLUXDB_IOX_SINGLE_TENANCY", "true")
     }
 
     // Get the catalog DSN URL if set.

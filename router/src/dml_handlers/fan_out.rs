@@ -1,7 +1,7 @@
 use std::{fmt::Debug, marker::PhantomData};
 
 use async_trait::async_trait;
-use data_types::{DeletePredicate, NamespaceId, NamespaceName};
+use data_types::{NamespaceId, NamespaceName};
 use futures::{stream::FuturesUnordered, TryStreamExt};
 use trace::ctx::SpanContext;
 
@@ -42,7 +42,6 @@ where
     type WriteInput = I;
     type WriteOutput = ();
     type WriteError = T::WriteError;
-    type DeleteError = T::DeleteError;
 
     /// Concurrently execute the write inputs in `input` against the inner
     /// handler, returning early and aborting in-flight writes if an error
@@ -69,19 +68,5 @@ where
             .try_collect::<Vec<_>>()
             .await?;
         Ok(())
-    }
-
-    /// Pass the delete through to the inner handler.
-    async fn delete(
-        &self,
-        namespace: &NamespaceName<'static>,
-        namespace_id: NamespaceId,
-        table_name: &str,
-        predicate: &DeletePredicate,
-        span_ctx: Option<SpanContext>,
-    ) -> Result<(), Self::DeleteError> {
-        self.inner
-            .delete(namespace, namespace_id, table_name, predicate, span_ctx)
-            .await
     }
 }

@@ -1,5 +1,5 @@
 use async_trait::async_trait;
-use data_types::{DeletePredicate, NamespaceId, NamespaceName};
+use data_types::{NamespaceId, NamespaceName};
 use hashbrown::HashMap;
 use iox_time::{SystemProvider, TimeProvider};
 use mutable_batch::MutableBatch;
@@ -53,7 +53,6 @@ where
     C: NamespaceCache<ReadError = iox_catalog::interface::Error>, // The handler expects the cache to read from the catalog if necessary.
 {
     type WriteError = RetentionError;
-    type DeleteError = RetentionError;
 
     type WriteInput = HashMap<String, MutableBatch>;
     type WriteOutput = Self::WriteInput;
@@ -86,18 +85,6 @@ where
         };
 
         Ok(batch)
-    }
-
-    /// Pass the delete request through unmodified to the next handler.
-    async fn delete(
-        &self,
-        _namespace: &NamespaceName<'static>,
-        _namespace_id: NamespaceId,
-        _table_name: &str,
-        _predicate: &DeletePredicate,
-        _span_ctx: Option<SpanContext>,
-    ) -> Result<(), Self::DeleteError> {
-        Ok(())
     }
 }
 

@@ -1,4 +1,4 @@
-//! Common authorization helpers
+//! HTTP authorisation helpers.
 
 use http::HeaderValue;
 

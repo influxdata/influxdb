@@ -1,7 +1,7 @@
 use std::{ops::DerefMut, sync::Arc};
 
 use async_trait::async_trait;
-use data_types::{DeletePredicate, NamespaceId, NamespaceName, NamespaceSchema, TableId};
+use data_types::{NamespaceId, NamespaceName, NamespaceSchema, TableId};
 use hashbrown::HashMap;
 use iox_catalog::{
     interface::{Catalog, Error as CatalogError},
@@ -145,7 +145,6 @@ where
     C: NamespaceCache<ReadError = iox_catalog::interface::Error>, // The handler expects the cache to read from the catalog if necessary.
 {
     type WriteError = SchemaError;
-    type DeleteError = SchemaError;
 
     // Accepts a map of TableName -> MutableBatch
     type WriteInput = HashMap<String, MutableBatch>;
@@ -315,19 +314,6 @@ where
 
         Ok(batches)
     }
-
-    /// This call is passed through to `D` - no schema validation is performed
-    /// on deletes.
-    async fn delete(
-        &self,
-        _namespace: &NamespaceName<'static>,
-        _namespace_id: NamespaceId,
-        _table_name: &str,
-        _predicate: &DeletePredicate,
-        _span_ctx: Option<SpanContext>,
-    ) -> Result<(), Self::DeleteError> {
-        Ok(())
-    }
 }
 
 /// An error returned by schema limit evaluation against a cached
@@ -461,7 +447,7 @@ mod tests {
     use std::sync::Arc;
 
     use assert_matches::assert_matches;
-    use data_types::{ColumnType, TimestampRange};
+    use data_types::ColumnType;
     use iox_tests::{TestCatalog, TestNamespace};
     use once_cell::sync::Lazy;
 
@@ -955,30 +941,5 @@ mod tests {
 
         assert_matches!(err, SchemaError::ServiceLimit(_));
         assert_eq!(1, handler.service_limit_hit_columns.fetch());
-    }
-
-    #[tokio::test]
-    async fn test_write_delete_passthrough_ok() {
-        const NAMESPACE: &str = "NAMESPACE_IS_NOT_VALIDATED";
-        const TABLE: &str = "bananas";
-
-        let (catalog, _namespace) = test_setup().await;
-        let metrics = Arc::new(metric::Registry::default());
-        let handler = SchemaValidator::new(catalog.catalog(), setup_test_cache(&catalog), &metrics);
-
-        let predicate = DeletePredicate {
-            range: TimestampRange::new(1, 2),
-            exprs: vec![],
-        };
-
-        let ns = NamespaceName::try_from(NAMESPACE).unwrap();
-
-        handler
-            .delete(&ns, NamespaceId::new(42), TABLE, &predicate, None)
-            .await
-            .expect("request should succeed");
-
-        // Deletes have no effect on the cache.
-        assert!(handler.cache.get_schema(&ns).await.is_err());
     }
 }

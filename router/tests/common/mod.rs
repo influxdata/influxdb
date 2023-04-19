@@ -1,3 +1,5 @@
+use std::{iter, string::String, sync::Arc, time::Duration};
+
 use data_types::{PartitionTemplate, QueryPoolId, TableId, TemplatePart, TopicId};
 use generated_types::influxdata::iox::ingester::v1::WriteRequest;
 use hashbrown::HashMap;
@@ -18,16 +20,9 @@ use router::{
     namespace_resolver::{MissingNamespaceAction, NamespaceAutocreation, NamespaceSchemaResolver},
     server::{
         grpc::RpcWriteGrpcDelegate,
-        http::{
-            write::{
-                multi_tenant::MultiTenantRequestParser, single_tenant::SingleTenantRequestParser,
-                WriteParamExtractor,
-            },
-            HttpDelegate,
-        },
+        http::{write::multi_tenant::MultiTenantRequestUnifier, HttpDelegate},
     },
 };
-use std::{iter, string::String, sync::Arc, time::Duration};
 
 /// The topic catalog ID assigned by the namespace auto-creator in the
 /// handler stack for namespaces it has not yet observed.
@@ -187,19 +182,15 @@ impl TestContext {
 
         let handler_stack = InstrumentationDecorator::new("request", &metrics, handler_stack);
 
-        let write_param_extractor: Box<dyn WriteParamExtractor> = match single_tenancy {
-            true => Box::<SingleTenantRequestParser>::default(),
-            false => Box::<MultiTenantRequestParser>::default(),
-        };
+        let write_request_unifier = Box::<MultiTenantRequestUnifier>::default();
 
         let http_delegate = HttpDelegate::new(
             1024,
             100,
             namespace_resolver,
             handler_stack,
-            None,
             &metrics,
-            write_param_extractor,
+            write_request_unifier,
         );
 
         let grpc_delegate = RpcWriteGrpcDelegate::new(

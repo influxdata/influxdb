@@ -30,6 +30,9 @@ const CONNECT_TIMEOUT: Duration = Duration::from_secs(1);
 /// (at most once per [`RETRY_INTERVAL]).
 const RECONNECT_ERROR_COUNT: usize = 10;
 
+/// Define a safe maximum ingester write response size.
+const MAX_INCOMING_MSG_BYTES: usize = 1024 * 1024; // 1 MiB
+
 /// Lazy [`Channel`] connector.
 ///
 /// Connections are attempted in a background thread every [`RETRY_INTERVAL`].
@@ -43,6 +46,12 @@ pub struct LazyConnector {
     addr: Endpoint,
     connection: Arc<Mutex<Option<Channel>>>,
 
+    /// The maximum outgoing message size.
+    ///
+    /// The incoming size remains bounded at [`MAX_INCOMING_MSG_BYTES`] as the
+    /// ingester SHOULD NOT ever generate a response larger than this.
+    max_outgoing_msg_bytes: usize,
+
     /// The number of request errors observed without a single success.
     consecutive_errors: Arc<AtomicUsize>,
     /// A task that periodically opens a new connection to `addr` when
@@ -52,7 +61,7 @@ pub struct LazyConnector {
 
 impl LazyConnector {
     /// Lazily connect to `addr`.
-    pub fn new(addr: Endpoint, request_timeout: Duration) -> Self {
+    pub fn new(addr: Endpoint, request_timeout: Duration, max_outgoing_msg_bytes: usize) -> Self {
         let addr = addr
             .connect_timeout(CONNECT_TIMEOUT)
             .timeout(request_timeout);
@@ -62,6 +71,7 @@ impl LazyConnector {
         let consecutive_errors = Arc::new(AtomicUsize::new(RECONNECT_ERROR_COUNT + 1));
         Self {
             addr: addr.clone(),
+            max_outgoing_msg_bytes,
             connection: Arc::clone(&connection),
             connection_task: tokio::spawn(try_connect(
                 addr,
@@ -89,7 +99,12 @@ impl WriteClient for LazyConnector {
         let conn =
             conn.ok_or_else(|| RpcWriteError::UpstreamNotConnected(self.addr.uri().to_string()))?;
 
-        match WriteServiceClient::new(conn).write(op).await {
+        match WriteServiceClient::new(conn)
+            .max_encoding_message_size(self.max_outgoing_msg_bytes)
+            .max_decoding_message_size(MAX_INCOMING_MSG_BYTES)
+            .write(op)
+            .await
+        {
             Err(e) if is_envoy_unavailable_error(&e) => {
                 warn!(error=%e, "detected envoy proxy upstream network error translation, reconnecting");
                 self.consecutive_errors
@@ -128,7 +143,6 @@ fn is_envoy_unavailable_error(e: &RpcWriteError) -> bool {
         | RpcWriteError::Timeout(_)
         | RpcWriteError::NoUpstreams
         | RpcWriteError::UpstreamNotConnected(_)
-        | RpcWriteError::DeletesUnsupported
         | RpcWriteError::PartialWrite { .. }
         | RpcWriteError::NotEnoughReplicas => false,
     }

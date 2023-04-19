@@ -456,6 +456,7 @@ impl Config {
             persist_max_parallelism,
             persist_queue_depth,
             persist_hot_partition_cost,
+            rpc_write_max_incoming_bytes: 1024 * 1024 * 1024, // 1GiB
         };
 
         let router_config = Router2Config {
@@ -469,6 +470,7 @@ impl Config {
             rpc_write_timeout_seconds: Duration::new(3, 0),
             rpc_write_replicas: None,
             single_tenant_deployment: false,
+            rpc_write_max_outgoing_bytes: ingester_config.rpc_write_max_incoming_bytes,
         };
 
         // create a CompactorConfig for the all in one server based on
@@ -507,6 +509,7 @@ impl Config {
             max_concurrent_queries: querier_max_concurrent_queries,
             exec_mem_pool_bytes,
             ingester_circuit_breaker_threshold: u64::MAX, // never for all-in-one-mode
+            datafusion_config: Default::default(),
         };
 
         SpecializedConfig {

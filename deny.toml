@@ -7,11 +7,6 @@ yanked = "deny"
 unmaintained = "warn"
 notice = "warn"
 ignore = [
-    # title: Potential segfault in the time crate
-    # why needed: used by `chrono`
-    # upstream issue: https://github.com/chronotope/chrono/issues/553
-    "RUSTSEC-2020-0071",
-
     # potential unalinged read in atty
     # https://rustsec.org/advisories/RUSTSEC-2021-0145
     # Acceptable because only dependencies are dev/test (not used in prod code).
@@ -29,9 +24,25 @@ ignore = [
 git-fetch-with-cli = true
 
 [licenses]
-default = "allow"
-unlicensed = "allow"
-copyleft = "allow"
+allow-osi-fsf-free = "either"
+copyleft = "deny"
+unlicensed = "deny"
+default = "deny"
+
+exceptions = [
+    # We should probably NOT bundle CA certs but use the OS ones.
+    { name = "webpki-roots", allow = ["MPL-2.0"] },
+    # Currently needed for testing only via mockito.
+    { name = "colored", allow = ["MPL-2.0"] },
+]
+
+[[licenses.clarify]]
+name = "ring"
+expression = "BSD-4-Clause AND ISC AND MIT AND OpenSSL"
+license-files = [
+    # https://github.com/briansmith/ring/blob/95948b3977013aed16db92ae32e6b8384496a740/LICENSE
+    { path = "LICENSE", hash = 0xbd0eed23 },
+]
 
 [sources.allow-org]
 github = ["influxdata", "apache"]

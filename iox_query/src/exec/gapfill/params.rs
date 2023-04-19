@@ -42,7 +42,11 @@ impl GapFillParams {
     pub(super) fn try_new(schema: SchemaRef, params: &GapFillExecParams) -> Result<Self> {
         let batch = RecordBatch::new_empty(schema);
         let stride = params.stride.evaluate(&batch)?;
-        let origin = params.origin.evaluate(&batch)?;
+        let origin = params
+            .origin
+            .as_ref()
+            .map(|e| e.evaluate(&batch))
+            .transpose()?;
 
         // Evaluate the upper and lower bounds of the time range
         let range = try_map_range(&params.time_range, |b| {
@@ -73,7 +77,10 @@ impl GapFillParams {
 
         // Call date_bin on the timestamps to find the first and last time bins
         // for each series
-        let mut args = vec![stride, i64_to_columnar_ts(first_ts), origin];
+        let mut args = vec![stride, i64_to_columnar_ts(first_ts)];
+        if let Some(v) = origin {
+            args.push(v)
+        }
         let first_ts = first_ts
             .map(|_| extract_timestamp_nanos(&date_bin(&args)?))
             .transpose()?;
@@ -184,6 +191,29 @@ mod tests {
     async fn test_evaluate_params() -> Result<()> {
         test_helpers::maybe_start_logging();
         let actual = plan_statement_and_get_params(
+            "select\
+               \n    date_bin_gapfill(interval '1 minute', time) minute\
+               \nfrom t\
+               \nwhere time >= timestamp '1984-01-01T16:00:00Z' - interval '5 minutes'\
+               \n    and time <= timestamp '1984-01-01T16:00:00Z'\
+               \ngroup by minute",
+        )
+        .await?;
+        let expected = GapFillParams {
+            stride: 60_000_000_000,                  // 1 minute
+            first_ts: Some(441_820_500_000_000_000), // Sunday, January 1, 1984 3:55:00 PM
+            last_ts: 441_820_800_000_000_000,        // Sunday, January 1, 1984 3:59:00 PM
+            fill_strategy: HashMap::new(),
+        };
+        assert_eq!(expected, actual);
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn test_evaluate_params_default_origin() -> Result<()> {
+        // as above but the default origin is explicity specified.
+        test_helpers::maybe_start_logging();
+        let actual = plan_statement_and_get_params(
                 "select\
                \n    date_bin_gapfill(interval '1 minute', time, timestamp '1970-01-01T00:00:00Z') minute\
                \nfrom t\
@@ -205,13 +235,14 @@ mod tests {
     async fn test_evaluate_params_exclude_end() -> Result<()> {
         test_helpers::maybe_start_logging();
         let actual = plan_statement_and_get_params(
-                "select\
-               \n    date_bin_gapfill(interval '1 minute', time, timestamp '1970-01-01T00:00:00Z') minute\
+            "select\
+               \n    date_bin_gapfill(interval '1 minute', time) minute\
                \nfrom t\
                \nwhere time >= timestamp '1984-01-01T16:00:00Z' - interval '5 minutes'\
                \n    and time < timestamp '1984-01-01T16:00:00Z'\
                \ngroup by minute",
-            ).await?;
+        )
+        .await?;
         let expected = GapFillParams {
             stride: 60_000_000_000,                  // 1 minute
             first_ts: Some(441_820_500_000_000_000), // Sunday, January 1, 1984 3:55:00 PM
@@ -227,13 +258,14 @@ mod tests {
     async fn test_evaluate_params_exclude_start() -> Result<()> {
         test_helpers::maybe_start_logging();
         let actual = plan_statement_and_get_params(
-                "select\
-               \n    date_bin_gapfill(interval '1 minute', time, timestamp '1970-01-01T00:00:00Z') minute\
+            "select\
+               \n    date_bin_gapfill(interval '1 minute', time) minute\
                \nfrom t\
                \nwhere time > timestamp '1984-01-01T16:00:00Z' - interval '5 minutes'\
                \n    and time <= timestamp '1984-01-01T16:00:00Z'\
                \ngroup by minute",
-            ).await?;
+        )
+        .await?;
         let expected = GapFillParams {
             stride: 60_000_000_000, // 1 minute
             // First bin not exluded since it truncates to 15:55:00
@@ -283,7 +315,7 @@ mod tests {
         let exec_params = GapFillExecParams {
             stride: interval(1_000_000_000),
             time_column: Column::new("time", 0),
-            origin: timestamp(0),
+            origin: None,
             time_range: Range {
                 start: Bound::Unbounded,
                 end: Bound::Excluded(timestamp(20_000_000_000)),

@@ -186,11 +186,17 @@ impl SchemaProvider for UserSchemaProvider {
 
 impl ExecutionContextProvider for QuerierNamespace {
     fn new_query_context(&self, span_ctx: Option<SpanContext>) -> IOxSessionContext {
-        self.exec
+        let mut cfg = self
+            .exec
             .new_execution_config(ExecutorType::Query)
             .with_default_catalog(Arc::new(QuerierCatalogProvider::from_namespace(self)) as _)
-            .with_span_context(span_ctx)
-            .build()
+            .with_span_context(span_ctx);
+
+        for (k, v) in self.datafusion_config.as_ref() {
+            cfg = cfg.with_config_option(k, v);
+        }
+
+        cfg.build()
     }
 }
 
@@ -290,11 +296,9 @@ mod tests {
             .with_max_time(11);
         partition_cpu_b_1.create_parquet_file(builder).await;
 
-        // row `host=d perc=52 13` will be removed by the tombstone
         let lp = [
             "mem,host=c perc=50 11",
             "mem,host=c perc=51 12",
-            "mem,host=d perc=52 13",
             "mem,host=d perc=53 14",
         ]
         .join("\n");
@@ -318,19 +322,7 @@ mod tests {
             .flag_for_delete()
             .await;
 
-        // will be pruned by the tombstone
-        let builder = TestParquetFileBuilder::default()
-            .with_max_l0_created_at(Time::from_timestamp_nanos(9))
-            .with_line_protocol("mem,host=d perc=55 1")
-            .with_max_seq(7)
-            .with_min_time(1)
-            .with_max_time(1);
-        partition_mem_c_1.create_parquet_file(builder).await;
-
-        table_mem
-            .with_shard(&shard1)
-            .create_tombstone(1000, 1, 13, "host=d")
-            .await;
+        table_mem.with_shard(&shard1);
 
         let querier_namespace = Arc::new(querier_namespace(&ns).await);
 
@@ -511,9 +503,8 @@ mod tests {
         "###
         );
 
-        // 3 chunks but 1 (with time = 1) got pruned by the tombstone  --> 2 chunks left
-        // The 2 participated chunks in the plan do not overlap -> no deduplication, no sort. Final sort is for order by
-        // FilterExec is for the tombstone
+        // The 2 participated chunks in the plan do not overlap -> no deduplication, no sort. Final
+        // sort is for order by.
         insta::assert_yaml_snapshot!(
             format_explain(&querier_namespace, "EXPLAIN SELECT * FROM mem ORDER BY host,time").await,
             @r###"
@@ -524,9 +515,7 @@ mod tests {
         - "| logical_plan    | Sort: mem.host ASC NULLS LAST, mem.time ASC NULLS LAST    |"
         - "|    |   TableScan: mem projection=[host, perc, time]    |"
         - "| physical_plan    | SortExec: expr=[host@0 ASC NULLS LAST,time@2 ASC NULLS LAST]    |"
-        - "|    |   CoalesceBatchesExec: target_batch_size=8192    |"
-        - "|    |     FilterExec: time@2 < 1 OR time@2 > 13 OR NOT host@0 = CAST(d AS Dictionary(Int32, Utf8))    |"
-        - "|    |       ParquetExec: limit=None, partitions={1 group: [[1/1/1/1/00000000-0000-0000-0000-000000000000.parquet, 1/1/1/1/00000000-0000-0000-0000-000000000001.parquet]]}, predicate=time@2 < 1 OR time@2 > 13 OR NOT host@0 = CAST(d AS Dictionary(Int32, Utf8)), projection=[host, perc, time]    |"
+        - "|    |   ParquetExec: limit=None, partitions={1 group: [[1/1/1/1/00000000-0000-0000-0000-000000000000.parquet]]}, output_ordering=[host@0 ASC, time@2 ASC], projection=[host, perc, time]    |"
         - "|    |    |"
         - "----------"
         "###
