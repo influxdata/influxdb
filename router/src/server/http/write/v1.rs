@@ -67,7 +67,7 @@ impl<'de> Deserialize<'de> for RetentionPolicy {
     }
 }
 
-/// Query parameters for v2 write requests.
+/// Query parameters for v1 write requests.
 #[derive(Debug, Deserialize)]
 pub(crate) struct WriteParamsV1 {
     pub(crate) db: String,
@@ -76,6 +76,11 @@ pub(crate) struct WriteParamsV1 {
     pub(crate) precision: Precision,
     #[serde(default)]
     pub(crate) rp: RetentionPolicy,
+
+    // `username` is an optional v1 query parameter, but is ignored
+    // in the CST spec, we treat the `p` parameter as a token
+    #[serde(rename(deserialize = "p"))]
+    pub(crate) password: Option<String>,
 }
 
 impl<T> TryFrom<&Request<T>> for WriteParamsV1 {

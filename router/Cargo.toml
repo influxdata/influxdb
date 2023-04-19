@@ -8,6 +8,7 @@ license.workspace = true
 [dependencies]
 async-trait = "0.1"
 authz = { path = "../authz", features = ["http"] }
+base64 = "0.21.0"
 bytes = "1.4"
 crossbeam-utils = "0.8.15"
 data_types = { path = "../data_types" }

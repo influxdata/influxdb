@@ -4721,6 +4721,7 @@ dependencies = [
  "assert_matches",
  "async-trait",
  "authz",
+ "base64 0.21.0",
  "bytes",
  "criterion",
  "crossbeam-utils",

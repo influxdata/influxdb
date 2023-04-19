@@ -66,6 +66,22 @@ impl MiniCluster {
         }
     }
 
+    pub fn new_based_on_tenancy(is_single_tenant: bool) -> Self {
+        let org_id = rand_id();
+        let bucket_id = rand_id();
+        let namespace = match is_single_tenant {
+            true => bucket_id.clone(),
+            false => format!("{org_id}_{bucket_id}"),
+        };
+
+        Self {
+            org_id,
+            bucket_id,
+            namespace,
+            ..Self::default()
+        }
+    }
+
     /// Create a new MiniCluster that shares the same underlying servers but has a new unique
     /// namespace and set of connections
     ///
@@ -229,12 +245,13 @@ impl MiniCluster {
     ) -> Self {
         let ingester_config = TestConfig::new_ingester2(&database_url);
         let router_config =
-            TestConfig::new_router2(&ingester_config).with_authz_addr(authz_addr.clone());
-        let querier_config = TestConfig::new_querier2(&ingester_config).with_authz_addr(authz_addr);
+            TestConfig::new_router2(&ingester_config).with_single_tenancy(authz_addr.clone());
+        let querier_config =
+            TestConfig::new_querier2(&ingester_config).with_single_tenancy(authz_addr);
         let compactor_config = TestConfig::new_compactor2(&ingester_config);
 
         // Set up the cluster  ====================================
-        Self::new()
+        Self::new_based_on_tenancy(true)
             .with_ingester(ingester_config)
             .await
             .with_router(router_config)

@@ -1,3 +1,8 @@
+use std::{
+    fmt::{Debug, Display},
+    sync::Arc,
+};
+
 use async_trait::async_trait;
 use authz::Authorizer;
 use clap_blocks::router2::Router2Config;
@@ -39,17 +44,13 @@ use router::{
         grpc::RpcWriteGrpcDelegate,
         http::{
             write::{
-                multi_tenant::MultiTenantRequestParser, single_tenant::SingleTenantRequestParser,
-                WriteParamExtractor,
+                multi_tenant::MultiTenantRequestUnifier, single_tenant::SingleTenantRequestUnifier,
+                WriteRequestUnifier,
             },
             HttpDelegate,
         },
         RpcWriteRouterServer,
     },
-};
-use std::{
-    fmt::{Debug, Display},
-    sync::Arc,
 };
 use thiserror::Error;
 use tokio_util::sync::CancellationToken;
@@ -348,19 +349,20 @@ pub async fn create_router2_server_type(
     let handler_stack = InstrumentationDecorator::new("request", &metrics, handler_stack);
 
     // Initialize the HTTP API delegate
-    let write_param_extractor: Box<dyn WriteParamExtractor> =
-        match router_config.single_tenant_deployment {
-            true => Box::<SingleTenantRequestParser>::default(),
-            false => Box::<MultiTenantRequestParser>::default(),
+    let write_request_unifier: Result<Box<dyn WriteRequestUnifier>> =
+        match (router_config.single_tenant_deployment, authz) {
+            (true, Some(auth)) => Ok(Box::new(SingleTenantRequestUnifier::new(auth))),
+            (true, None) => unreachable!("INFLUXDB_IOX_SINGLE_TENANCY is set, but could not create an authz service. Check the INFLUXDB_IOX_AUTHZ_ADDR."),
+            (false, None) => Ok(Box::<MultiTenantRequestUnifier>::default()),
+            (false, Some(_)) => unreachable!("INFLUXDB_IOX_AUTHZ_ADDR is set, but authz only exists for single_tenancy. Check the INFLUXDB_IOX_SINGLE_TENANCY."),
         };
     let http = HttpDelegate::new(
         common_state.run_config().max_http_request_size,
         router_config.http_request_limit,
         namespace_resolver,
         handler_stack,
-        authz,
         &metrics,
-        write_param_extractor,
+        write_request_unifier?,
     );
 
     // Initialize the gRPC API delegate that creates the services relevant to the RPC
