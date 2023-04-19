@@ -11,6 +11,15 @@ pub struct Ingester2Config {
     #[clap(long = "wal-directory", env = "INFLUXDB_IOX_WAL_DIRECTORY", action)]
     pub wal_directory: PathBuf,
 
+    /// Specify the maximum allowed incoming RPC write message size sent by the
+    /// Router.
+    #[clap(
+        long = "rpc-write-max-incoming-bytes",
+        env = "INFLUXDB_IOX_RPC_WRITE_MAX_INCOMING_BYTES",
+        default_value = "104857600", // 100MiB
+    )]
+    pub rpc_write_max_incoming_bytes: usize,
+
     /// The number of seconds between WAL file rotations.
     #[clap(
         long = "wal-rotation-period-seconds",

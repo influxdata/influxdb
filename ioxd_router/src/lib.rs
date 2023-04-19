@@ -200,7 +200,11 @@ pub async fn create_router2_server_type(
         let endpoint = Endpoint::from_shared(hyper::body::Bytes::from(addr.clone()))
             .expect("invalid ingester connection address");
         (
-            LazyConnector::new(endpoint, router_config.rpc_write_timeout_seconds),
+            LazyConnector::new(
+                endpoint,
+                router_config.rpc_write_timeout_seconds,
+                router_config.rpc_write_max_outgoing_bytes,
+            ),
             addr,
         )
     });
