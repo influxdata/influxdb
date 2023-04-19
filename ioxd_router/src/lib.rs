@@ -288,7 +288,7 @@ pub async fn create_router2_server_type(
     // This code / auto-creation is for architecture testing purposes only - a
     // prod deployment would expect namespaces to be explicitly created and this
     // layer would be removed.
-    let mut txn = catalog.start_transaction().await?;
+    let mut txn = catalog.repositories().await;
     let topic_id = txn
         .topics()
         .get_by_name(&router_config.topic)
@@ -306,7 +306,6 @@ pub async fn create_router2_server_type(
                 router_config.query_pool_name, e
             )
         });
-    txn.commit().await?;
 
     let namespace_resolver = NamespaceAutocreation::new(
         namespace_resolver,

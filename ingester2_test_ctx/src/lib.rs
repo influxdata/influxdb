@@ -130,7 +130,7 @@ impl TestContextBuilder {
         //
         // Note that tests should set up their own namespace via
         // ensure_namespace()
-        let mut txn = catalog.start_transaction().await.unwrap();
+        let mut txn = catalog.repositories().await;
         let topic = txn.topics().create_or_get(TEST_TOPIC_NAME).await.unwrap();
         let query_id = txn
             .query_pools()
@@ -138,7 +138,6 @@ impl TestContextBuilder {
             .await
             .unwrap()
             .id;
-        txn.commit().await.unwrap();
 
         // Settings so that the ingester will effectively never persist by itself, only on demand
         let wal_rotation_period = Duration::from_secs(1_000_000);

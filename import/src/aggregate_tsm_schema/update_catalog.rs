@@ -594,51 +594,54 @@ mod tests {
         // init a test catalog stack
         let metrics = Arc::new(metric::Registry::default());
         let catalog: Arc<dyn Catalog> = Arc::new(MemCatalog::new(Arc::clone(&metrics)));
-        let mut txn = catalog
-            .start_transaction()
-            .await
-            .expect("started transaction");
-        txn.topics()
-            .create_or_get("iox-shared")
-            .await
-            .expect("topic created");
-        let (connection, _join_handle, _requests) = create_test_shard_service(MapToShardResponse {
-            shard_id: 0,
-            shard_index: 0,
-        })
-        .await;
+        let connection: Connection;
 
-        // create namespace, table and columns for weather measurement
-        let namespace = txn
-            .namespaces()
-            .create("1234_5678", None, TopicId::new(1), QueryPoolId::new(1))
-            .await
-            .expect("namespace created");
-        let mut table = txn
-            .tables()
-            .create_or_get("weather", namespace.id)
-            .await
-            .map(|t| TableSchema::new(t.id))
-            .expect("table created");
-        let time_col = txn
-            .columns()
-            .create_or_get("time", table.id, ColumnType::Time)
-            .await
-            .expect("column created");
-        table.add_column(&time_col);
-        let location_col = txn
-            .columns()
-            .create_or_get("city", table.id, ColumnType::Tag)
-            .await
-            .expect("column created");
-        let temperature_col = txn
-            .columns()
-            .create_or_get("temperature", table.id, ColumnType::F64)
-            .await
-            .expect("column created");
-        table.add_column(&location_col);
-        table.add_column(&temperature_col);
-        txn.commit().await.unwrap();
+        // We need txn to go out of scope to release the lock before update_iox_catalog
+        {
+            let mut txn = catalog.repositories().await;
+            txn.topics()
+                .create_or_get("iox-shared")
+                .await
+                .expect("topic created");
+
+            let (conn, _join_handle, _requests) = create_test_shard_service(MapToShardResponse {
+                shard_id: 0,
+                shard_index: 0,
+            })
+            .await;
+            connection = conn;
+
+            // create namespace, table and columns for weather measurement
+            let namespace = txn
+                .namespaces()
+                .create("1234_5678", None, TopicId::new(1), QueryPoolId::new(1))
+                .await
+                .expect("namespace created");
+            let mut table = txn
+                .tables()
+                .create_or_get("weather", namespace.id)
+                .await
+                .map(|t| TableSchema::new(t.id))
+                .expect("table created");
+            let time_col = txn
+                .columns()
+                .create_or_get("time", table.id, ColumnType::Time)
+                .await
+                .expect("column created");
+            table.add_column(&time_col);
+            let location_col = txn
+                .columns()
+                .create_or_get("city", table.id, ColumnType::Tag)
+                .await
+                .expect("column created");
+            let temperature_col = txn
+                .columns()
+                .create_or_get("temperature", table.id, ColumnType::F64)
+                .await
+                .expect("column created");
+            table.add_column(&location_col);
+            table.add_column(&temperature_col);
+        }
 
         // merge with aggregate schema that has some overlap
         let json = r#"
@@ -702,45 +705,49 @@ mod tests {
         // init a test catalog stack
         let metrics = Arc::new(metric::Registry::default());
         let catalog: Arc<dyn Catalog> = Arc::new(MemCatalog::new(Arc::clone(&metrics)));
-        let mut txn = catalog
-            .start_transaction()
-            .await
-            .expect("started transaction");
-        txn.topics()
-            .create_or_get("iox-shared")
-            .await
-            .expect("topic created");
-        let (connection, _join_handle, _requests) = create_test_shard_service(MapToShardResponse {
-            shard_id: 0,
-            shard_index: 0,
-        })
-        .await;
 
-        // create namespace, table and columns for weather measurement
-        let namespace = txn
-            .namespaces()
-            .create("1234_5678", None, TopicId::new(1), QueryPoolId::new(1))
-            .await
-            .expect("namespace created");
-        let mut table = txn
-            .tables()
-            .create_or_get("weather", namespace.id)
-            .await
-            .map(|t| TableSchema::new(t.id))
-            .expect("table created");
-        let time_col = txn
-            .columns()
-            .create_or_get("time", table.id, ColumnType::Time)
-            .await
-            .expect("column created");
-        table.add_column(&time_col);
-        let temperature_col = txn
-            .columns()
-            .create_or_get("temperature", table.id, ColumnType::F64)
-            .await
-            .expect("column created");
-        table.add_column(&temperature_col);
-        txn.commit().await.unwrap();
+        let connection: Connection;
+
+        // We need txn to go out of scope to release the lock before update_iox_catalog
+        {
+            let mut txn = catalog.repositories().await;
+            txn.topics()
+                .create_or_get("iox-shared")
+                .await
+                .expect("topic created");
+            let (conn, _join_handle, _requests) = create_test_shard_service(MapToShardResponse {
+                shard_id: 0,
+                shard_index: 0,
+            })
+            .await;
+
+            connection = conn;
+
+            // create namespace, table and columns for weather measurement
+            let namespace = txn
+                .namespaces()
+                .create("1234_5678", None, TopicId::new(1), QueryPoolId::new(1))
+                .await
+                .expect("namespace created");
+            let mut table = txn
+                .tables()
+                .create_or_get("weather", namespace.id)
+                .await
+                .map(|t| TableSchema::new(t.id))
+                .expect("table created");
+            let time_col = txn
+                .columns()
+                .create_or_get("time", table.id, ColumnType::Time)
+                .await
+                .expect("column created");
+            table.add_column(&time_col);
+            let temperature_col = txn
+                .columns()
+                .create_or_get("temperature", table.id, ColumnType::F64)
+                .await
+                .expect("column created");
+            table.add_column(&temperature_col);
+        }
 
         // merge with aggregate schema that has some issue that will trip a catalog error
         let json = r#"
@@ -782,45 +789,49 @@ mod tests {
         // init a test catalog stack
         let metrics = Arc::new(metric::Registry::default());
         let catalog: Arc<dyn Catalog> = Arc::new(MemCatalog::new(Arc::clone(&metrics)));
-        let mut txn = catalog
-            .start_transaction()
-            .await
-            .expect("started transaction");
-        txn.topics()
-            .create_or_get("iox-shared")
-            .await
-            .expect("topic created");
-        let (connection, _join_handle, _requests) = create_test_shard_service(MapToShardResponse {
-            shard_id: 0,
-            shard_index: 0,
-        })
-        .await;
 
-        // create namespace, table and columns for weather measurement
-        let namespace = txn
-            .namespaces()
-            .create("1234_5678", None, TopicId::new(1), QueryPoolId::new(1))
-            .await
-            .expect("namespace created");
-        let mut table = txn
-            .tables()
-            .create_or_get("weather", namespace.id)
-            .await
-            .map(|t| TableSchema::new(t.id))
-            .expect("table created");
-        let time_col = txn
-            .columns()
-            .create_or_get("time", table.id, ColumnType::Time)
-            .await
-            .expect("column created");
-        table.add_column(&time_col);
-        let temperature_col = txn
-            .columns()
-            .create_or_get("temperature", table.id, ColumnType::F64)
-            .await
-            .expect("column created");
-        table.add_column(&temperature_col);
-        txn.commit().await.unwrap();
+        let connection: Connection;
+
+        // We need txn to go out of scope to release the lock before update_iox_catalog
+        {
+            let mut txn = catalog.repositories().await;
+            txn.topics()
+                .create_or_get("iox-shared")
+                .await
+                .expect("topic created");
+            let (conn, _join_handle, _requests) = create_test_shard_service(MapToShardResponse {
+                shard_id: 0,
+                shard_index: 0,
+            })
+            .await;
+
+            connection = conn;
+
+            // create namespace, table and columns for weather measurement
+            let namespace = txn
+                .namespaces()
+                .create("1234_5678", None, TopicId::new(1), QueryPoolId::new(1))
+                .await
+                .expect("namespace created");
+            let mut table = txn
+                .tables()
+                .create_or_get("weather", namespace.id)
+                .await
+                .map(|t| TableSchema::new(t.id))
+                .expect("table created");
+            let time_col = txn
+                .columns()
+                .create_or_get("time", table.id, ColumnType::Time)
+                .await
+                .expect("column created");
+            table.add_column(&time_col);
+            let temperature_col = txn
+                .columns()
+                .create_or_get("temperature", table.id, ColumnType::F64)
+                .await
+                .expect("column created");
+            table.add_column(&temperature_col);
+        }
 
         // merge with aggregate schema that has some issue that will trip a catalog error
         let json = r#"

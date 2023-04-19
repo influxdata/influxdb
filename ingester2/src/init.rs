@@ -236,10 +236,7 @@ where
     F: Future<Output = CancellationToken> + Send + 'static,
 {
     // Create the transition shard.
-    let mut txn = catalog
-        .start_transaction()
-        .await
-        .expect("start transaction");
+    let mut txn = catalog.repositories().await;
     let topic = txn
         .topics()
         .create_or_get("iox-shared")
@@ -250,7 +247,6 @@ where
         .create_or_get(&topic, TRANSITION_SHARD_INDEX)
         .await
         .expect("create transition shard");
-    txn.commit().await.expect("commit transition shard");
 
     // Initialise a random ID for this ingester instance.
     let ingester_id = IngesterId::new();

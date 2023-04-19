@@ -212,11 +212,10 @@ impl CatalogDsnConfig {
             CatalogType::Memory => {
                 let mem = MemCatalog::new(metrics);
 
-                let mut txn = mem.start_transaction().await.context(CatalogSnafu)?;
+                let mut txn = mem.repositories().await;
                 create_or_get_default_records(1, txn.deref_mut())
                     .await
                     .context(CatalogSnafu)?;
-                txn.commit().await.context(CatalogSnafu)?;
 
                 Arc::new(mem) as Arc<dyn Catalog>
             }
