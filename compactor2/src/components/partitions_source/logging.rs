@@ -90,7 +90,7 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn test_fetch_some() {
+    async fn test_fetch_some_hot() {
         let p_1 = PartitionId::new(5);
         let p_2 = PartitionId::new(1);
         let p_3 = PartitionId::new(12);
@@ -106,6 +106,26 @@ mod tests {
         assert_eq!(
             capture.to_string(),
             "level = INFO; message = Fetch partitions; compaction_type = Hot; n_partitions = 3; ",
+        );
+    }
+
+    #[tokio::test]
+    async fn test_fetch_some_cold() {
+        let p_1 = PartitionId::new(5);
+        let p_2 = PartitionId::new(1);
+        let p_3 = PartitionId::new(12);
+        let partitions = vec![p_1, p_2, p_3];
+
+        let source = LoggingPartitionsSourceWrapper::new(
+            CompactionType::Cold,
+            MockPartitionsSource::new(partitions.clone()),
+        );
+        let capture = TracingCapture::new();
+        assert_eq!(source.fetch().await, partitions,);
+        // just the ordinary log message, no warning
+        assert_eq!(
+            capture.to_string(),
+            "level = INFO; message = Fetch partitions; compaction_type = Cold; n_partitions = 3; ",
         );
     }
 }
