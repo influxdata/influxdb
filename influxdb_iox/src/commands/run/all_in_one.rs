@@ -469,6 +469,7 @@ impl Config {
             rpc_write_timeout_seconds: Duration::new(3, 0),
             rpc_write_replicas: None,
             single_tenant_deployment: false,
+            rpc_write_max_outgoing_bytes: 1024 * 1024 * 1024,
         };
 
         // create a CompactorConfig for the all in one server based on
