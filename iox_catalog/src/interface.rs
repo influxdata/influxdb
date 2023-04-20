@@ -2199,6 +2199,78 @@ pub(crate) mod test_helpers {
             .await
             .unwrap();
         assert_eq!(ids.len(), 0); // none left
+
+        // test create_update_delete
+        let f6_params = ParquetFileParams {
+            object_store_id: Uuid::new_v4(),
+            ..f5_params
+        };
+        let f1_uuid = f1.object_store_id;
+        let f5_uuid = f5.object_store_id;
+        let cud = repos
+            .parquet_files()
+            .create_upgrade_delete(
+                f4.partition_id,
+                &[f5.clone()],
+                &[f1.clone()],
+                &[f6_params.clone()],
+                CompactionLevel::Final,
+            )
+            .await
+            .unwrap();
+
+        assert_eq!(cud.len(), 1);
+        let f5_delete = repos
+            .parquet_files()
+            .get_by_object_store_id(f5_uuid)
+            .await
+            .unwrap()
+            .unwrap();
+        assert_matches!(f5_delete.to_delete, Some(_));
+
+        let f1_compaction_level = repos
+            .parquet_files()
+            .get_by_object_store_id(f1_uuid)
+            .await
+            .unwrap()
+            .unwrap();
+        assert_matches!(f1_compaction_level.compaction_level, CompactionLevel::Final);
+
+        let f6 = repos
+            .parquet_files()
+            .get_by_object_store_id(f6_params.object_store_id)
+            .await
+            .unwrap()
+            .unwrap();
+
+        let f6_uuid = f6.object_store_id;
+
+        // test create_update_delete transaction (rollsback because f6 already exists)
+        let cud = repos
+            .parquet_files()
+            .create_upgrade_delete(
+                f4.partition_id,
+                &[f5],
+                &[f2],
+                &[f6_params.clone()],
+                CompactionLevel::Final,
+            )
+            .await;
+
+        assert_matches!(
+            cud,
+            Err(Error::FileExists {
+                object_store_id
+            }) if object_store_id == f6_params.object_store_id
+        );
+
+        let f6_not_delete = repos
+            .parquet_files()
+            .get_by_object_store_id(f6_uuid)
+            .await
+            .unwrap()
+            .unwrap();
+        assert_matches!(f6_not_delete.to_delete, None);
     }
 
     async fn test_parquet_file_delete_broken(catalog: Arc<dyn Catalog>) {
