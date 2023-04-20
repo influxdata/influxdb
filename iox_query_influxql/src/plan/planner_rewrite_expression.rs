@@ -161,6 +161,162 @@ pub(super) fn rewrite_field_expr(expr: Expr, schemas: &Schemas) -> Result<Expr> 
 /// Combining relational operators like `time > now() - 5s` and equality
 /// operators like `time = <timestamp>` with a disjunction (`OR`)
 /// will evaluate to false, like InfluxQL.
+///
+/// # Background
+///
+/// The InfluxQL query engine always promotes the time range expression to filter
+/// all results. It is misleading that time ranges are written in the `WHERE` clause,
+/// as the `WHERE` predicate is not evaluated in its entirety for each row. Rather,
+/// InfluxQL extracts the time range to form a time bound for the entire query and
+/// removes any time range expressions from the filter predicate. The time range
+/// is determined using the `>` and `≥` operators to form the lower bound and
+/// the `<` and `≤` operators to form the upper bound. When multiple instances of
+/// the lower or upper bound operators are found, the time bounds will form the
+/// intersection. For example
+///
+/// ```sql
+/// WHERE time >= 1000 AND time >= 2000 AND time < 10000 and time < 9000
+/// ```
+///
+/// is equivalent to
+///
+/// ```sql
+/// WHERE time >= 2000 AND time < 9000
+/// ```
+///
+/// Further, InfluxQL only allows a single `time = <value>` binary expression. Multiple
+/// occurrences result in an empty result set.
+///
+/// ## Examples
+///
+/// Lets illustrate how InfluxQL applies predicates with a typical example, using the
+/// `metrics.lp` data in the IOx repository:
+///
+/// ```sql
+/// SELECT cpu, usage_idle FROM cpu
+/// WHERE
+///   time > '2020-06-11T16:53:30Z' AND time < '2020-06-11T16:55:00Z' AND cpu = 'cpu0'
+/// ```
+///
+/// InfluxQL first filters rows based on the time range:
+///
+/// ```sql
+/// '2020-06-11T16:53:30Z' < time <  '2020-06-11T16:55:00Z'
+/// ```
+///
+/// and then applies the predicate to the individual rows:
+///
+/// ```sql
+/// cpu = 'cpu0'
+/// ```
+///
+/// Producing the following result:
+///
+/// ```text
+/// name: cpu
+/// time                 cpu  usage_idle
+/// ----                 ---  ----------
+/// 2020-06-11T16:53:40Z cpu0 90.29029029029029
+/// 2020-06-11T16:53:50Z cpu0 89.8
+/// 2020-06-11T16:54:00Z cpu0 90.09009009009009
+/// 2020-06-11T16:54:10Z cpu0 88.82235528942115
+/// ```
+///
+/// The following example is a little more complicated, but shows again how InfluxQL
+/// separates the time ranges from the predicate:
+///
+/// ```sql
+/// SELECT cpu, usage_idle FROM cpu
+/// WHERE
+///   time > '2020-06-11T16:53:30Z' AND time < '2020-06-11T16:55:00Z' AND cpu = 'cpu0' OR cpu = 'cpu1'
+/// ```
+///
+/// InfluxQL first filters rows based on the time range:
+///
+/// ```sql
+/// '2020-06-11T16:53:30Z' < time <  '2020-06-11T16:55:00Z'
+/// ```
+///
+/// and then applies the predicate to the individual rows:
+///
+/// ```sql
+/// cpu = 'cpu0' OR cpu = 'cpu1'
+/// ```
+///
+/// This is certainly quite different to SQL, which would evaluate the predicate as:
+///
+/// ```sql
+/// SELECT cpu, usage_idle FROM cpu
+/// WHERE
+///   (time > '2020-06-11T16:53:30Z' AND time < '2020-06-11T16:55:00Z' AND cpu = 'cpu0') OR cpu = 'cpu1'
+/// ```
+///
+/// ## Time ranges are not normal
+///
+/// Here we demonstrate how the operators combining time ranges do not matter. Using the
+/// original query:
+///
+/// ```sql
+/// SELECT cpu, usage_idle FROM cpu
+/// WHERE
+///   time > '2020-06-11T16:53:30Z' AND time < '2020-06-11T16:55:00Z' AND cpu = 'cpu0'
+/// ```
+///
+/// we replace all `AND` operators with `OR`:
+///
+/// ```sql
+/// SELECT cpu, usage_idle FROM cpu
+/// WHERE
+///   time > '2020-06-11T16:53:30Z' OR time < '2020-06-11T16:55:00Z' OR cpu = 'cpu0'
+/// ```
+///
+/// This should return all rows, but yet it returns the same result 🤯:
+///
+/// ```text
+/// name: cpu
+/// time                 cpu  usage_idle
+/// ----                 ---  ----------
+/// 2020-06-11T16:53:40Z cpu0 90.29029029029029
+/// 2020-06-11T16:53:50Z cpu0 89.8
+/// 2020-06-11T16:54:00Z cpu0 90.09009009009009
+/// 2020-06-11T16:54:10Z cpu0 88.82235528942115
+/// ```
+///
+/// It becomes clearer, if we again review at how InfluxQL OG evaluates the `WHERE`
+/// predicate, InfluxQL first filters rows based on the time range, which uses the
+/// rules previously defined by finding `>` and `≥` to determine the lower bound
+/// and `<` and `≤`:
+///
+/// ```sql
+/// '2020-06-11T16:53:30Z' < time <  '2020-06-11T16:55:00Z'
+/// ```
+///
+/// and then applies the predicate to the individual rows:
+///
+/// ```sql
+/// cpu = 'cpu0'
+/// ```
+///
+/// ## How to think of time ranges intuitively
+///
+/// Imagine a slight variation of InfluxQL has a separate _time bounds clause_.
+/// It could have two forms, first as a `BETWEEN`
+///
+/// ```sql
+/// SELECT cpu, usage_idle FROM cpu
+/// WITH TIME BETWEEN '2020-06-11T16:53:30Z' AND '2020-06-11T16:55:00Z'
+/// WHERE
+///   cpu = 'cpu0'
+/// ```
+///
+/// or as an `IN` to select multiple points:
+///
+/// ```sql
+/// SELECT cpu, usage_idle FROM cpu
+/// WITH TIME IN ('2004-04-09T12:00:00Z', '2004-04-09T12:00:10Z', ...)
+/// WHERE
+///   cpu = 'cpu0'
+/// ```
 fn rewrite_time_range_exprs(expr: Expr) -> Result<Expr> {
     // Perform a quick check to see if there are any OR conditions,
     // as if there aren't, we don't need to rewrite the expression.
