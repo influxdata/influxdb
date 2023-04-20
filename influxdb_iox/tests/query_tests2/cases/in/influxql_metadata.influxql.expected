@@ -1311,11 +1311,89 @@ name: disk
 | tagKey |
 +--------+
 +--------+
+-- InfluxQL: SHOW TAG KEYS FROM time_test WHERE time >= '1990-01-01T00:00:00Z';
+-- Results After Sorting
+name: time_test
++--------------------------+
+| tagKey                   |
++--------------------------+
+| tt_tag                   |
+| tt_tag_at_default_cutoff |
+| tt_tag_late              |
++--------------------------+
+-- InfluxQL: SHOW TAG KEYS FROM time_test WHERE time >= '2022-10-31T02:00:00Z';
+-- Results After Sorting
+name: time_test
++-------------+
+| tagKey      |
++-------------+
+| tt_tag      |
+| tt_tag_late |
++-------------+
+-- InfluxQL: SHOW TAG KEYS FROM time_test WHERE time >= '1970-01-01T01:00:00Z';
+-- Results After Sorting
+name: time_test
++------------------------------+
+| tagKey                       |
++------------------------------+
+| tt_tag                       |
+| tt_tag_at_default_cutoff     |
+| tt_tag_before_default_cutoff |
+| tt_tag_late                  |
++------------------------------+
+-- InfluxQL: SHOW TAG KEYS FROM select_test WHERE tag0 = 'a';
+-- Results After Sorting
+name: select_test
++-----------+
+| tagKey    |
++-----------+
+| st_tag    |
+| st_tag_aa |
+| st_tag_ab |
+| tag0      |
+| tag1      |
++-----------+
+-- InfluxQL: SHOW TAG KEYS FROM select_test WHERE tag0 = 'a' AND tag1 = 'b';
+-- Results After Sorting
+name: select_test
++-----------+
+| tagKey    |
++-----------+
+| st_tag    |
+| st_tag_ab |
+| tag0      |
+| tag1      |
++-----------+
+-- InfluxQL: SHOW TAG KEYS FROM select_test WHERE tag0 = "a";
+-- Results After Sorting
++--------+
+| tagKey |
++--------+
++--------+
+-- InfluxQL: SHOW TAG KEYS WHERE tag0 = 'a';
+-- Results After Sorting
+name: m3
++--------+
+| tagKey |
++--------+
+| tag0   |
+| tag1   |
+| tag2   |
+| tag3   |
++--------+
+name: select_test
++-----------+
+| tagKey    |
++-----------+
+| st_tag    |
+| st_tag_aa |
+| st_tag_ab |
+| tag0      |
+| tag1      |
++-----------+
 -- InfluxQL: SHOW TAG KEYS ON my_db;
 Error while planning query: This feature is not implemented: SHOW TAG KEYS ON <database>
 -- InfluxQL: SHOW TAG KEYS FROM x.my_db;
 Error while planning query: This feature is not implemented: retention policy in from clause
 -- InfluxQL: SHOW TAG KEYS FROM x.y.my_db;
 Error while planning query: This feature is not implemented: database name in from clause
--- InfluxQL: SHOW TAG KEYS WHERE tag1 = "foo";
-Error while planning query: This feature is not implemented: SHOW TAG KEYS WHERE <condition>
