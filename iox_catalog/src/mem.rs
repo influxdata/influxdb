@@ -13,9 +13,9 @@ use crate::{
 use async_trait::async_trait;
 use data_types::{
     Column, ColumnId, ColumnType, CompactionLevel, Namespace, NamespaceId, ParquetFile,
-    ParquetFileId, ParquetFileParams, Partition, PartitionId, PartitionKey, PartitionParam,
-    QueryPool, QueryPoolId, SequenceNumber, Shard, ShardId, ShardIndex, SkippedCompaction, Table,
-    TableId, Timestamp, TopicId, TopicMetadata,
+    ParquetFileId, ParquetFileParams, Partition, PartitionId, PartitionKey, QueryPool, QueryPoolId,
+    SequenceNumber, Shard, ShardId, ShardIndex, SkippedCompaction, Table, TableId, Timestamp,
+    TopicId, TopicMetadata,
 };
 use iox_time::{SystemProvider, TimeProvider};
 use observability_deps::tracing::warn;
@@ -902,39 +902,6 @@ impl PartitionRepo for MemTxn {
     async fn most_recent_n(&mut self, n: usize) -> Result<Vec<Partition>> {
         let stage = self.stage();
         Ok(stage.partitions.iter().rev().take(n).cloned().collect())
-    }
-
-    async fn partitions_with_recent_created_files(
-        &mut self,
-        time_in_the_past: Timestamp,
-        max_num_partitions: usize,
-    ) -> Result<Vec<PartitionParam>> {
-        let stage = self.stage();
-
-        let partitions: Vec<_> = stage
-            .partitions
-            .iter()
-            .filter(|p| p.new_file_at > Some(time_in_the_past))
-            .map(|p| {
-                // get namesapce_id of this partition
-                let namespace_id = stage
-                    .tables
-                    .iter()
-                    .find(|t| t.id == p.table_id)
-                    .map(|t| t.namespace_id)
-                    .unwrap_or(NamespaceId::new(1));
-
-                PartitionParam {
-                    partition_id: p.id,
-                    table_id: p.table_id,
-                    shard_id: ShardId::new(1), // this is unused and will be removed when we remove shard_id
-                    namespace_id,
-                }
-            })
-            .take(max_num_partitions)
-            .collect();
-
-        Ok(partitions)
     }
 
     async fn partitions_new_file_between(

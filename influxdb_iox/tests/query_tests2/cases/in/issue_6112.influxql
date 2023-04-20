@@ -504,3 +504,6 @@ SELECT COUNT(DISTINCT str), COUNT(DISTINCT i64) FROM m0;
 
 -- fallible cases
 SELECT DISTINCT(str), DISTINCT(i64) FROM m0;
+
+-- non-existing table
+SELECT * FROM does_not_exist;

@@ -321,7 +321,11 @@ async fn run_query(cluster: &MiniCluster, query: &Query) -> Result<Vec<String>> 
             )
             .await
             {
-                Ok((batches, _)) => batches,
+                Ok((mut batches, schema)) => {
+                    batches.push(RecordBatch::new_empty(schema));
+
+                    batches
+                }
                 Err(influxdb_iox_client::flight::Error::ArrowFlightError(FlightError::Tonic(
                     status,
                 ))) if status.code() == Code::InvalidArgument => {

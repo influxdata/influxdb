@@ -870,9 +870,9 @@ dependencies = [
 
 [[package]]
 name = "clap"
-version = "4.2.3"
+version = "4.2.4"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "49f9152d70e42172fdb87de2efd7327160beee37886027cf86f30a233d5b30b4"
+checksum = "956ac1f6381d8d82ab4684768f89c0ea3afe66925ceadb4eeb3fc452ffc55d62"
 dependencies = [
  "clap_builder",
  "clap_derive",
@@ -884,7 +884,7 @@ name = "clap_blocks"
 version = "0.1.0"
 dependencies = [
  "authz",
- "clap 4.2.3",
+ "clap 4.2.4",
  "data_types",
  "futures",
  "http",
@@ -908,9 +908,9 @@ dependencies = [
 
 [[package]]
 name = "clap_builder"
-version = "4.2.3"
+version = "4.2.4"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "e067b220911598876eb55d52725ddcc201ffe3f0904018195973bc5b012ea2ca"
+checksum = "84080e799e54cff944f4b4a4b0e71630b0e0443b25b985175c7dddc1a859b749"
 dependencies = [
  "anstream",
  "anstyle",
@@ -2035,7 +2035,7 @@ version = "0.1.0"
 dependencies = [
  "bytes",
  "chrono",
- "clap 4.2.3",
+ "clap 4.2.4",
  "clap_blocks",
  "data_types",
  "filetime",
@@ -2564,7 +2564,7 @@ dependencies = [
  "authz",
  "backtrace",
  "bytes",
- "clap 4.2.3",
+ "clap 4.2.4",
  "clap_blocks",
  "comfy-table",
  "compactor2",
@@ -2863,7 +2863,7 @@ dependencies = [
  "bytes",
  "chrono",
  "chrono-english",
- "clap 4.2.3",
+ "clap 4.2.4",
  "criterion",
  "datafusion_util",
  "futures",
@@ -3015,7 +3015,7 @@ dependencies = [
  "async-trait",
  "authz",
  "bytes",
- "clap 4.2.3",
+ "clap 4.2.4",
  "clap_blocks",
  "flate2",
  "futures",
@@ -3171,7 +3171,7 @@ name = "ioxd_test"
 version = "0.1.0"
 dependencies = [
  "async-trait",
- "clap 4.2.3",
+ "clap 4.2.4",
  "hyper",
  "ioxd_common",
  "metric",
@@ -6048,7 +6048,7 @@ version = "0.1.0"
 dependencies = [
  "async-trait",
  "chrono",
- "clap 4.2.3",
+ "clap 4.2.4",
  "futures",
  "iox_time",
  "observability_deps",
@@ -6187,7 +6187,7 @@ dependencies = [
 name = "trogging"
 version = "0.1.0"
 dependencies = [
- "clap 4.2.3",
+ "clap 4.2.4",
  "is-terminal",
  "logfmt",
  "observability_deps",
