@@ -678,6 +678,50 @@ impl ShardRepo for MemTxn {
 
         Ok(())
     }
+
+    async fn create_transition_shard(
+        &mut self,
+        topic_name: &str,
+        shard_index: ShardIndex,
+    ) -> Result<Shard> {
+        let mut stage = self.inner.clone();
+
+        let topic = match stage.topics.iter().find(|t| t.name == topic_name) {
+            Some(t) => t,
+            None => {
+                let topic = TopicMetadata {
+                    id: TopicId::new(stage.topics.len() as i64 + 1),
+                    name: topic_name.to_string(),
+                };
+                stage.topics.push(topic);
+                stage.topics.last().unwrap()
+            }
+        };
+
+        let shard = match stage
+            .shards
+            .iter()
+            .find(|s| s.topic_id == topic.id && s.shard_index == shard_index)
+        {
+            Some(t) => t,
+            None => {
+                let shard = Shard {
+                    id: ShardId::new(stage.shards.len() as i64 + 1),
+                    topic_id: topic.id,
+                    shard_index,
+                    min_unpersisted_sequence_number: SequenceNumber::new(0),
+                };
+                stage.shards.push(shard);
+                stage.shards.last().unwrap()
+            }
+        };
+
+        let shard = *shard;
+
+        *self.inner = stage;
+
+        Ok(shard)
+    }
 }
 
 #[async_trait]

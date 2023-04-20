@@ -399,6 +399,13 @@ pub trait ShardRepo: Send + Sync {
         shard: ShardId,
         sequence_number: SequenceNumber,
     ) -> Result<()>;
+
+    /// creates the transition shard for the kafkaless path
+    async fn create_transition_shard(
+        &mut self,
+        topic_name: &str,
+        shard_index: ShardIndex,
+    ) -> Result<Shard>;
 }
 
 /// Functions for working with IOx partitions in the catalog. Note that these are how IOx splits up

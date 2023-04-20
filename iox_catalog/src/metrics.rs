@@ -208,6 +208,7 @@ decorate!(
         "shard_list" = list(&mut self) -> Result<Vec<Shard>>;
         "shard_list_by_topic" = list_by_topic(&mut self, topic: &TopicMetadata) -> Result<Vec<Shard>>;
         "shard_update_min_unpersisted_sequence_number" = update_min_unpersisted_sequence_number(&mut self, shard_id: ShardId, sequence_number: SequenceNumber) -> Result<()>;
+        "shard_create_transition_shard" = create_transition_shard(&mut self, topic_name: &str, shard_index: ShardIndex) -> Result<Shard>;
     ]
 );
 

@@ -882,6 +882,62 @@ WHERE id = $2;
 
         Ok(())
     }
+
+    async fn create_transition_shard(
+        &mut self,
+        topic_name: &str,
+        shard_index: ShardIndex,
+    ) -> Result<Shard> {
+        let mut tx = self
+            .inner
+            .get_mut()
+            .pool
+            .begin()
+            .await
+            .map_err(|e| Error::StartTransaction { source: e })?;
+
+        let query = sqlx::query_as::<_, TopicMetadata>(
+            r#"
+INSERT INTO topic ( name )
+VALUES ( $1 )
+ON CONFLICT (name)
+DO UPDATE SET name = topic.name
+RETURNING *;
+        "#,
+        )
+        .bind(topic_name); // $1
+        let topic = query
+            .fetch_one(&mut tx)
+            .await
+            .map_err(|e| Error::SqlxError { source: e })?;
+
+        let query = sqlx::query_as::<_, Shard>(
+            r#"
+INSERT INTO shard
+    ( topic_id, shard_index, min_unpersisted_sequence_number )
+VALUES
+    ( $1, $2, 0 )
+ON CONFLICT (topic_id, shard_index)
+DO UPDATE SET topic_id = shard.topic_id
+RETURNING *;
+        "#,
+        )
+        .bind(topic.id) // $1
+        .bind(shard_index); // $2
+        let shard = query.fetch_one(&mut tx).await.map_err(|e| {
+            if is_fk_violation(&e) {
+                Error::ForeignKeyViolation { source: e }
+            } else {
+                Error::SqlxError { source: e }
+            }
+        })?;
+
+        tx.commit()
+            .await
+            .map_err(|e| Error::FailedToCommit { source: e })?;
+
+        Ok(shard)
+    }
 }
 
 // We can't use [`Partition`], as uses Vec<String> which the Sqlite

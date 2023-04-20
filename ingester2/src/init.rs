@@ -237,14 +237,9 @@ where
 {
     // Create the transition shard.
     let mut txn = catalog.repositories().await;
-    let topic = txn
-        .topics()
-        .create_or_get("iox-shared")
-        .await
-        .expect("get topic");
     let transition_shard = txn
         .shards()
-        .create_or_get(&topic, TRANSITION_SHARD_INDEX)
+        .create_transition_shard("iox-shared", TRANSITION_SHARD_INDEX)
         .await
         .expect("create transition shard");
 
