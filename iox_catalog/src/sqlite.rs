@@ -13,9 +13,9 @@ use crate::{
 use async_trait::async_trait;
 use data_types::{
     Column, ColumnId, ColumnSet, ColumnType, CompactionLevel, Namespace, NamespaceId, ParquetFile,
-    ParquetFileId, ParquetFileParams, Partition, PartitionId, PartitionKey, PartitionParam,
-    QueryPool, QueryPoolId, SequenceNumber, Shard, ShardId, ShardIndex, SkippedCompaction, Table,
-    TableId, Timestamp, TopicId, TopicMetadata, TRANSITION_SHARD_ID, TRANSITION_SHARD_INDEX,
+    ParquetFileId, ParquetFileParams, Partition, PartitionId, PartitionKey, QueryPool, QueryPoolId,
+    SequenceNumber, Shard, ShardId, ShardIndex, SkippedCompaction, Table, TableId, Timestamp,
+    TopicId, TopicMetadata, TRANSITION_SHARD_ID, TRANSITION_SHARD_INDEX,
 };
 use serde::{Deserialize, Serialize};
 use std::ops::Deref;
@@ -1251,27 +1251,6 @@ RETURNING *
         .into_iter()
         .map(Into::into)
         .collect())
-    }
-
-    async fn partitions_with_recent_created_files(
-        &mut self,
-        time_in_the_past: Timestamp,
-        max_num_partitions: usize,
-    ) -> Result<Vec<PartitionParam>> {
-        sqlx::query_as(
-            r#"
-            SELECT p.id as partition_id, p.table_id, t.namespace_id, p.shard_id
-            FROM partition p, table_name t
-            WHERE p.new_file_at > $1
-                AND p.table_id = t.id
-            LIMIT $2;
-            "#,
-        )
-        .bind(time_in_the_past) // $1
-        .bind(max_num_partitions as i64) // $2
-        .fetch_all(self.inner.get_mut())
-        .await
-        .map_err(|e| Error::SqlxError { source: e })
     }
 
     async fn partitions_new_file_between(
