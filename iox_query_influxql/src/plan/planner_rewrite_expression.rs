@@ -184,9 +184,7 @@ fn rewrite_time_range_exprs(expr: Expr) -> Result<Expr> {
         return Ok(expr);
     }
 
-    let mut rw = SeparateTimeRanges {
-        ..Default::default()
-    };
+    let mut rw = SeparateTimeRanges::default();
     expr.visit(&mut rw)?;
 
     // When `expr` contains both time expressions using relational
