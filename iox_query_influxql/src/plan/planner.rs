@@ -375,7 +375,26 @@ impl<'a> InfluxQLToLogicalPlan<'a> {
                         }) => continue,
                         plan => break plan,
                     },
-                    None => return LogicalPlanBuilder::empty(false).build(),
+                    None => {
+                        // empty result, but let's at least have all the strictly necessary metadata
+                        let schema = Arc::new(ArrowSchema::new(vec![ArrowField::new(
+                            INFLUXQL_MEASUREMENT_COLUMN_NAME,
+                            (&InfluxColumnType::Tag).into(),
+                            false,
+                        )]));
+                        let plan = LogicalPlan::EmptyRelation(EmptyRelation {
+                            produce_one_row: false,
+                            schema: schema.to_dfschema_ref()?,
+                        });
+                        let plan = plan_with_metadata(
+                            plan,
+                            &InfluxQlMetadata {
+                                measurement_column_index: MEASUREMENT_COLUMN_INDEX,
+                                tag_key_columns: vec![],
+                            },
+                        )?;
+                        return Ok(plan);
+                    }
                 }
             }
         };
@@ -2746,7 +2765,7 @@ mod test {
             "###);
 
             // nonexistent
-            assert_snapshot!(plan("SELECT host, usage_idle FROM non_existent"), @"EmptyRelation []");
+            assert_snapshot!(plan("SELECT host, usage_idle FROM non_existent"), @"EmptyRelation [iox::measurement:Dictionary(Int32, Utf8)]");
             assert_snapshot!(plan("SELECT host, usage_idle FROM cpu, non_existent"), @r###"
             Sort: time ASC NULLS LAST, host ASC NULLS LAST [iox::measurement:Dictionary(Int32, Utf8), time:Timestamp(Nanosecond, None), host:Dictionary(Int32, Utf8);N, usage_idle:Float64;N]
               Projection: Dictionary(Int32, Utf8("cpu")) AS iox::measurement, cpu.time AS time, cpu.host AS host, cpu.usage_idle AS usage_idle [iox::measurement:Dictionary(Int32, Utf8), time:Timestamp(Nanosecond, None), host:Dictionary(Int32, Utf8);N, usage_idle:Float64;N]
@@ -2873,8 +2892,8 @@ mod test {
             "###);
 
             // invalid column reference
-            assert_snapshot!(plan("SELECT not_exists::tag FROM data"), @"EmptyRelation []");
-            assert_snapshot!(plan("SELECT not_exists::field FROM data"), @"EmptyRelation []");
+            assert_snapshot!(plan("SELECT not_exists::tag FROM data"), @"EmptyRelation [iox::measurement:Dictionary(Int32, Utf8)]");
+            assert_snapshot!(plan("SELECT not_exists::field FROM data"), @"EmptyRelation [iox::measurement:Dictionary(Int32, Utf8)]");
 
             // Returns NULL for invalid casts
             assert_snapshot!(plan("SELECT f64_field::string FROM data"), @r###"

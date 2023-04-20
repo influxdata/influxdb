@@ -70,6 +70,10 @@ name: measurements
 | disk |
 +------+
 -- InfluxQL: SHOW MEASUREMENTS WITH MEASUREMENT = does_not_exist;
++------+
+| name |
++------+
++------+
 -- InfluxQL: SHOW MEASUREMENTS WHERE time >= '2022-10-31T02:00:30Z';
 -- Results After Sorting
 name: measurements
@@ -97,6 +101,10 @@ name: measurements
 +-------------+
 -- InfluxQL: SHOW MEASUREMENTS WHERE tag0 = "a";
 -- Results After Sorting
++------+
+| name |
++------+
++------+
 -- InfluxQL: SHOW MEASUREMENTS WITH MEASUREMENT = /my_db/;
 Error while planning query: Error during planning: expected string but got regex
 -- InfluxQL: SHOW MEASUREMENTS WITH MEASUREMENT =~ my_db;
@@ -400,6 +408,10 @@ name: disk
 | bytes_used | integer   |
 +------------+-----------+
 -- InfluxQL: SHOW FIELD KEYS FROM does_not_exist;
++----------+-----------+
+| fieldKey | fieldType |
++----------+-----------+
++----------+-----------+
 -- InfluxQL: SHOW FIELD KEYS ON my_db;
 Error while planning query: This feature is not implemented: SHOW FIELD KEYS ON <database>
 -- InfluxQL: SHOW FIELD KEYS FROM x.my_db;
@@ -453,6 +465,10 @@ name: select_test
 +------+-------+
 -- InfluxQL: SHOW TAG VALUES WITH KEY = "does_not_exist";
 -- Results After Sorting
++-----+-------+
+| key | value |
++-----+-------+
++-----+-------+
 -- InfluxQL: SHOW TAG VALUES WITH KEY != "tag0";
 -- Results After Sorting
 name: cpu
@@ -923,6 +939,10 @@ name: disk
 +--------+---------+
 -- InfluxQL: SHOW TAG VALUES FROM does_not_exist WITH KEY = "tag0";
 -- Results After Sorting
++-----+-------+
+| key | value |
++-----+-------+
++-----+-------+
 -- InfluxQL: SHOW TAG VALUES WITH KEY = "tt_tag";
 -- Results After Sorting
 name: time_test
@@ -978,6 +998,10 @@ name: select_test
 +--------+-------+
 -- InfluxQL: SHOW TAG VALUES WITH KEY = "st_tag" WHERE tag0 = "a";
 -- Results After Sorting
++-----+-------+
+| key | value |
++-----+-------+
++-----+-------+
 -- InfluxQL: SHOW TAG VALUES ON my_db WITH KEY = "tag0";
 Error while planning query: This feature is not implemented: SHOW TAG VALUES ON <database>
 -- InfluxQL: SHOW TAG VALUES FROM x.my_db WITH KEY = "tag0";
@@ -1283,6 +1307,10 @@ name: disk
 | host   |
 +--------+
 -- InfluxQL: SHOW TAG KEYS FROM does_not_exist;
++--------+
+| tagKey |
++--------+
++--------+
 -- InfluxQL: SHOW TAG KEYS ON my_db;
 Error while planning query: This feature is not implemented: SHOW TAG KEYS ON <database>
 -- InfluxQL: SHOW TAG KEYS FROM x.my_db;
