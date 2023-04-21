@@ -12,18 +12,18 @@ pub(crate) async fn perform(
     dry_run: bool,
 ) -> Result<()> {
     loop {
-        let flagged = if !dry_run {
-            catalog
+        if !dry_run {
+            let flagged = catalog
                 .repositories()
                 .await
                 .parquet_files()
                 .flag_for_delete_by_retention()
                 .await
-                .context(FlaggingSnafu)?
+                .context(FlaggingSnafu)?;
+            info!(flagged_count = %flagged.len(), "iox_catalog::flag_for_delete_by_retention()");
         } else {
             debug!("dry run enabled for parquet retention flagger");
         };
-        info!(flagged_count = %flagged.len(), "iox_catalog::flag_for_delete_by_retention()");
 
         select! {
             _ = shutdown.cancelled() => {
