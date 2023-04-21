@@ -318,25 +318,28 @@ pub(super) fn rewrite_field_expr(expr: Expr, schemas: &Schemas) -> Result<Expr> 
 ///   cpu = 'cpu0'
 /// ```
 fn rewrite_time_range_exprs(expr: Expr) -> Result<Expr> {
-    // Perform a quick check to see if there are any OR conditions,
-    // as if there aren't, we don't need to rewrite the expression.
     let mut has_or = false;
+    let mut has_time_range = false;
     expr.apply(&mut |expr| {
-        if matches!(
-            expr,
+        match expr {
             Expr::BinaryExpr(BinaryExpr {
-                op: Operator::Or,
-                ..
-            })
-        ) {
-            has_or = true;
-            Ok(VisitRecursion::Stop)
-        } else {
-            Ok(VisitRecursion::Continue)
+                op: Operator::Or, ..
+            }) => has_or = true,
+            expr @ Expr::BinaryExpr(_) if is_time_range(expr) => has_time_range = true,
+            _ => return Ok(VisitRecursion::Continue),
         }
+
+        Ok(if has_or && has_time_range {
+            // no need to continue if we've found both
+            VisitRecursion::Stop
+        } else {
+            VisitRecursion::Continue
+        })
     })?;
 
-    if !has_or {
+    // if there is no time range expressions or there are no OR operators,
+    // we don't need to rewrite the expression
+    if !has_time_range || !has_or {
         return Ok(expr);
     }
 
@@ -454,7 +457,9 @@ impl TreeNodeVisitor for SeparateTimeRanges {
             }
 
             node @ Expr::BinaryExpr(BinaryExpr {
-                op: Eq | NotEq | Gt | GtEq | Lt | LtEq,
+                op:
+                    Eq | NotEq | Gt | GtEq | Lt | LtEq | RegexMatch | RegexNotMatch | RegexIMatch
+                    | RegexNotIMatch,
                 ..
             }) => {
                 self.stack.push(Some(node.clone()));
@@ -925,6 +930,17 @@ mod test {
         assert_eq!(
             rewrite(expr),
             r#"(time = TimestampNanosecond(0, None) OR time = TimestampNanosecond(10, None)) AND cpu = Utf8("cpu0")"#
+        );
+
+        // no time
+        let expr = "f64".as_expr().gt_eq(lit(19.5_f64)).or(binary_expr(
+            "f64".as_expr(),
+            Operator::RegexMatch,
+            lit("foo"),
+        ));
+        assert_eq!(
+            rewrite(expr),
+            "f64 >= Float64(19.5) OR (f64 ~ Utf8(\"foo\"))"
         );
 
         // fallible

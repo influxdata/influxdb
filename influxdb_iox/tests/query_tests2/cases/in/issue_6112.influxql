@@ -85,7 +85,6 @@ SELECT cpu, usage_idle FROM cpu WHERE cpu = 'cpu0' OR cpu = 'cpu1' AND time >= 1
 SELECT cpu, usage_idle FROM cpu WHERE time >= 1667181610000000000 OR time = 1667181600000000000;
 
 -- BONUS: InfluxQL now supports combining equality with OR
-SELECT cpu, usage_idle FROM cpu WHERE (time = 1667181610000000000 OR time = 1667181600000000000) AND cpu = 'cpu0';
 SELECT cpu, usage_idle FROM cpu WHERE time = 1667181610000000000 OR time = 1667181600000000000 AND cpu = 'cpu0';
 SELECT cpu, usage_idle FROM cpu WHERE time = 1667181610000000000 OR time = 1667181600000000000;
 
