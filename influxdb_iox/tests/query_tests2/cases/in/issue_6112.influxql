@@ -77,6 +77,18 @@ SELECT i64 FROM m0 WHERE time > '2022-10-31 02:00:10';
 --       try increasing the number of days 😂
 SELECT i64 FROM m0 WHERE time > now() - 100000d;
 
+-- the time range should apply to the the entire result set not just cpu = 'cpu1'
+SELECT cpu, usage_idle FROM cpu WHERE cpu = 'cpu0' OR cpu = 'cpu1' AND time >= 1667181610000000000;
+
+-- combining relational operators for time ranges should return no results, as it
+-- evaluates to false, like InfluxQL
+SELECT cpu, usage_idle FROM cpu WHERE time >= 1667181610000000000 OR time = 1667181600000000000;
+
+-- BONUS: InfluxQL now supports combining equality with OR
+SELECT cpu, usage_idle FROM cpu WHERE time = 1667181610000000000 OR time = 1667181600000000000 AND cpu = 'cpu0';
+SELECT cpu, usage_idle FROM cpu WHERE time = 1667181610000000000 OR time = 1667181600000000000;
+
+
 -- NOT NULL test
 -- WHERE tag1 != '' is the equivalent to tag1 IS NOT NULL
 -- TODO(sgc): This is working, but likely by accident

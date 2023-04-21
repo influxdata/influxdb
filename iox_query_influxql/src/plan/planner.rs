@@ -1,11 +1,9 @@
 mod select;
 
-use crate::plan::error;
 use crate::plan::planner::select::{
     check_exprs_satisfy_columns, fields_to_exprs_no_nulls, make_tag_key_column_meta,
     plan_with_sort, ToSortExpr,
 };
-use crate::plan::planner_rewrite_expression::{rewrite_conditional, rewrite_expr};
 use crate::plan::planner_time_range_expression::{
     duration_expr_to_nanoseconds, expr_to_df_interval_dt, time_range_to_df_expr,
 };
@@ -14,12 +12,12 @@ use crate::plan::rewriter::{
 };
 use crate::plan::util::{binary_operator_to_df_operator, rebase_expr, Schemas};
 use crate::plan::var_ref::{column_type_to_var_ref_data_type, var_ref_data_type_to_data_type};
+use crate::plan::{error, planner_rewrite_expression};
 use arrow::array::{StringBuilder, StringDictionaryBuilder};
 use arrow::datatypes::{DataType, Field as ArrowField, Int32Type, Schema as ArrowSchema};
 use arrow::record_batch::RecordBatch;
 use chrono_tz::Tz;
 use datafusion::catalog::TableReference;
-use datafusion::common::tree_node::{TreeNode, TreeNodeRewriter};
 use datafusion::common::{DFSchema, DFSchemaRef, Result, ScalarValue, ToDFSchema};
 use datafusion::datasource::{provider_as_source, MemTable};
 use datafusion::logical_expr::expr_rewriter::normalize_col;
@@ -28,10 +26,10 @@ use datafusion::logical_expr::logical_plan::Analyze;
 use datafusion::logical_expr::utils::{expr_as_column_expr, find_aggregate_exprs};
 use datafusion::logical_expr::{
     binary_expr, col, date_bin, expr, expr::WindowFunction, lit, lit_timestamp_nano, now,
-    window_function, Aggregate, AggregateFunction, AggregateUDF, Between, BinaryExpr,
-    BuiltInWindowFunction, BuiltinScalarFunction, EmptyRelation, Explain, Expr, ExprSchemable,
-    Extension, GetIndexedField, LogicalPlan, LogicalPlanBuilder, Operator, PlanType, ScalarUDF,
-    TableSource, ToStringifiedPlan, WindowFrame, WindowFrameBound, WindowFrameUnits,
+    window_function, Aggregate, AggregateFunction, AggregateUDF, Between, BuiltInWindowFunction,
+    BuiltinScalarFunction, EmptyRelation, Explain, Expr, ExprSchemable, Extension, GetIndexedField,
+    LogicalPlan, LogicalPlanBuilder, Operator, PlanType, ScalarUDF, TableSource, ToStringifiedPlan,
+    WindowFrame, WindowFrameBound, WindowFrameUnits,
 };
 use datafusion::prelude::{cast, sum, when, Column};
 use datafusion_util::{lit_dict, AsExpr};
@@ -931,7 +929,7 @@ impl<'a> InfluxQLToLogicalPlan<'a> {
     ) -> Result<Expr> {
         let expr =
             self.expr_to_df_expr(&ctx.with_scope(ExprScope::Projection), &field.expr, schemas)?;
-        let expr = rewrite_field_expr(expr, schemas)?;
+        let expr = planner_rewrite_expression::rewrite_field_expr(expr, schemas)?;
         normalize_col(
             if let Some(alias) = &field.alias {
                 expr.alias(alias.deref())
@@ -982,6 +980,14 @@ impl<'a> InfluxQLToLogicalPlan<'a> {
             // one or the other is true
             && (lhs_time ^ rhs_time)
         {
+            // != operator is not supported by InfluxQL, as it results in every point,
+            // except this and is potentially very expensive.
+            //
+            // See: https://github.com/influxdata/influxql/blob/3029b95d4ff5951de68e1d7a1c3039236025815a/ast.go#L5831-L5832
+            if op == Operator::NotEq {
+                return error::query("invalid time comparison operator: !=");
+            }
+
             if lhs_time {
                 (
                     self.conditional_to_df_expr(ctx, lhs, schemas)?,
@@ -1273,7 +1279,8 @@ impl<'a> InfluxQLToLogicalPlan<'a> {
                     where_clause,
                     schemas,
                 )?;
-                let filter_expr = rewrite_conditional_expr(filter_expr, schemas)?;
+                let filter_expr =
+                    planner_rewrite_expression::rewrite_conditional_expr(filter_expr, schemas)?;
                 let plan = LogicalPlanBuilder::from(plan)
                     .filter(filter_expr)?
                     .build()?;
@@ -2111,72 +2118,6 @@ fn find_tag_and_unknown_columns(fields: &FieldList) -> impl Iterator<Item = &str
         }) => Some(name.deref().as_str()),
         _ => None,
     })
-}
-
-/// Perform a series of passes to rewrite `expr` in compliance with InfluxQL behavior
-/// in an effort to ensure the query executes without error.
-fn rewrite_conditional_expr(expr: Expr, schemas: &Schemas) -> Result<Expr> {
-    let expr = expr.rewrite(&mut FixRegularExpressions { schemas })?;
-    rewrite_conditional(expr, schemas)
-}
-
-/// Perform a series of passes to rewrite `expr`, used as a column projection,
-/// to match the behavior of InfluxQL.
-fn rewrite_field_expr(expr: Expr, schemas: &Schemas) -> Result<Expr> {
-    rewrite_expr(expr, schemas)
-}
-
-/// Rewrite regex conditional expressions to match InfluxQL behaviour.
-struct FixRegularExpressions<'a> {
-    schemas: &'a Schemas,
-}
-
-impl<'a> TreeNodeRewriter for FixRegularExpressions<'a> {
-    type N = Expr;
-
-    fn mutate(&mut self, expr: Expr) -> Result<Expr> {
-        match expr {
-            // InfluxQL evaluates regular expression conditions to false if the column is numeric
-            // or the column doesn't exist.
-            Expr::BinaryExpr(BinaryExpr {
-                left,
-                op: op @ (Operator::RegexMatch | Operator::RegexNotMatch),
-                right,
-            }) => {
-                if let Expr::Column(ref col) = *left {
-                    match self.schemas.iox_schema.field_by_name(&col.name) {
-                        Some((InfluxColumnType::Tag, _)) => {
-                            // Regular expressions expect to be compared with a Utf8
-                            let left =
-                                Box::new(left.cast_to(&DataType::Utf8, &self.schemas.df_schema)?);
-                            Ok(Expr::BinaryExpr(BinaryExpr { left, op, right }))
-                        }
-                        Some((InfluxColumnType::Field(InfluxFieldType::String), _)) => {
-                            Ok(Expr::BinaryExpr(BinaryExpr { left, op, right }))
-                        }
-                        // Any other column type should evaluate to false
-                        _ => Ok(lit(false)),
-                    }
-                } else {
-                    // If this is not a simple column expression, evaluate to false,
-                    // to be consistent with InfluxQL.
-                    //
-                    // References:
-                    //
-                    // * https://github.com/influxdata/influxdb/blob/9308b6586a44e5999180f64a96cfb91e372f04dd/tsdb/index.go#L2487-L2488
-                    // * https://github.com/influxdata/influxdb/blob/9308b6586a44e5999180f64a96cfb91e372f04dd/tsdb/index.go#L2509-L2510
-                    //
-                    // The query engine does not correctly evaluate tag keys and values, always evaluating to false.
-                    //
-                    // Reference example:
-                    //
-                    // * `SELECT f64 FROM m0 WHERE tag0 = '' + tag0`
-                    Ok(lit(false))
-                }
-            }
-            _ => Ok(expr),
-        }
-    }
 }
 
 fn conditional_op_to_operator(op: ConditionalOperator) -> Result<Operator> {
@@ -3055,6 +2996,14 @@ mod test {
             "###
             );
 
+            // fallible
+
+            // Unsupported operator
+            assert_snapshot!(plan("SELECT foo, f64_field FROM data where time != 0"), @"Error during planning: invalid time comparison operator: !=")
+        }
+
+        #[test]
+        fn test_regex_in_where() {
             // Regular expression equality tests
 
             assert_snapshot!(plan("SELECT foo, f64_field FROM data where foo =~ /f/"), @r###"
