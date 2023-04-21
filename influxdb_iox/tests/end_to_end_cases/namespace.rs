@@ -176,7 +176,7 @@ async fn soft_deletion() {
             Step::QueryExpectingError {
                 sql: format!("select * from {table_name}"),
                 expected_error_code: tonic::Code::NotFound,
-                expected_message: format!("Namespace '{namespace_name}' not found"),
+                expected_message: format!("Database '{namespace_name}' not found"),
             },
             // Writing now fails
             Step::WriteLineProtocolExpectingError {

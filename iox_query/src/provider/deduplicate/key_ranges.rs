@@ -1,6 +1,7 @@
 //! Implement iterator and comparator to split data into distinct ranges
 
-use arrow::array::{build_compare, ArrayData, DynComparator};
+use arrow::array::{build_compare, DynComparator};
+use arrow::buffer::NullBuffer;
 use arrow::compute::{SortColumn, SortOptions};
 use arrow::error::{ArrowError, Result as ArrowResult};
 
@@ -105,9 +106,9 @@ impl<'a> Iterator for KeyRangeIterator<'a> {
 }
 
 type KeyRangeCompareItem<'a> = (
-    &'a ArrayData, // data
-    DynComparator, // comparator
-    SortOptions,   // sort_option
+    Option<&'a NullBuffer>, // validity of array
+    DynComparator,          // comparator
+    SortOptions,            // sort_option
 );
 
 // Todo: this is the same as LexicographicalComparator.
@@ -118,11 +119,18 @@ pub(super) struct KeyRangeComparator<'a> {
     compare_items: Vec<KeyRangeCompareItem<'a>>,
 }
 
+fn is_valid(nulls: &Option<&NullBuffer>, idx: usize) -> bool {
+    nulls
+        .map(|nulls| nulls.is_valid(idx))
+        // if there is no null buffer, the entry is valid
+        .unwrap_or(true)
+}
+
 impl KeyRangeComparator<'_> {
     /// compare values at the wrapped columns with given indices.
     pub(super) fn compare(&self, a_idx: usize, b_idx: usize) -> Ordering {
-        for (data, comparator, sort_option) in &self.compare_items {
-            match (data.is_valid(a_idx), data.is_valid(b_idx)) {
+        for (nulls, comparator, sort_option) in &self.compare_items {
+            match (is_valid(nulls, a_idx), is_valid(nulls, b_idx)) {
                 (true, true) => {
                     match (comparator)(a_idx, b_idx) {
                         // equal, move on to next column
@@ -165,11 +173,12 @@ impl KeyRangeComparator<'_> {
             .iter()
             .map(|column| {
                 // flatten and convert build comparators
-                // use ArrayData for is_valid checks later to avoid dynamic call
+                // use Nulls for is_valid checks later to avoid dynamic call
                 let values = column.values.as_ref();
-                let data = values.data_ref();
+
+                let nulls = values.nulls();
                 Ok((
-                    data,
+                    nulls,
                     build_compare(values, values)?,
                     column.options.unwrap_or_default(),
                 ))

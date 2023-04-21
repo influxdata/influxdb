@@ -11,7 +11,7 @@ use iox_catalog::interface::SoftDeletedRows;
 use iox_query::exec::Executor;
 use service_common::QueryNamespaceProvider;
 use snafu::Snafu;
-use std::sync::Arc;
+use std::{collections::HashMap, sync::Arc};
 use trace::span::{Span, SpanRecorder};
 use tracker::{
     AsyncSemaphoreMetrics, InstrumentedAsyncOwnedSemaphorePermit, InstrumentedAsyncSemaphore,
@@ -67,6 +67,9 @@ pub struct QuerierDatabase {
 
     /// Chunk prune metrics.
     prune_metrics: Arc<PruneMetrics>,
+
+    /// DataFusion config.
+    datafusion_config: Arc<HashMap<String, String>>,
 }
 
 #[async_trait]
@@ -100,6 +103,7 @@ impl QuerierDatabase {
         exec: Arc<Executor>,
         ingester_connection: Option<Arc<dyn IngesterConnection>>,
         max_concurrent_queries: usize,
+        datafusion_config: Arc<HashMap<String, String>>,
     ) -> Result<Self, Error> {
         assert!(
             max_concurrent_queries <= Self::MAX_CONCURRENT_QUERIES_MAX,
@@ -134,6 +138,7 @@ impl QuerierDatabase {
             query_log,
             query_execution_semaphore,
             prune_metrics,
+            datafusion_config,
         })
     }
 
@@ -162,6 +167,7 @@ impl QuerierDatabase {
             self.ingester_connection.clone(),
             Arc::clone(&self.query_log),
             Arc::clone(&self.prune_metrics),
+            Arc::clone(&self.datafusion_config),
         )))
     }
 
@@ -219,6 +225,7 @@ mod tests {
             catalog.exec(),
             Some(create_ingester_connection_for_testing()),
             QuerierDatabase::MAX_CONCURRENT_QUERIES_MAX.saturating_add(1),
+            Arc::new(HashMap::default()),
         )
         .await
         .unwrap();
@@ -243,6 +250,7 @@ mod tests {
             catalog.exec(),
             Some(create_ingester_connection_for_testing()),
             QuerierDatabase::MAX_CONCURRENT_QUERIES_MAX,
+            Arc::new(HashMap::default()),
         )
         .await
         .unwrap();
@@ -272,6 +280,7 @@ mod tests {
             catalog.exec(),
             Some(create_ingester_connection_for_testing()),
             QuerierDatabase::MAX_CONCURRENT_QUERIES_MAX,
+            Arc::new(HashMap::default()),
         )
         .await
         .unwrap();

@@ -21,8 +21,7 @@ mod test_util;
 /// # Data Structures & Sync
 ///
 /// Tables and schemas are created when [`QuerierNamespace`] is created because DataFusion does not
-/// implement async schema inspection. The actual payload (chunks and tombstones) are only queried
-/// on demand.
+/// implement async schema inspection. The actual payload (chunks) is only queried on demand.
 ///
 /// Most accesses to the [IOx Catalog](iox_catalog::interface::Catalog) are cached via
 /// [`CatalogCache`].
@@ -45,6 +44,9 @@ pub struct QuerierNamespace {
 
     /// Query log.
     query_log: Arc<QueryLog>,
+
+    /// DataFusion config.
+    datafusion_config: Arc<HashMap<String, String>>,
 }
 
 impl QuerierNamespace {
@@ -58,6 +60,7 @@ impl QuerierNamespace {
         ingester_connection: Option<Arc<dyn IngesterConnection>>,
         query_log: Arc<QueryLog>,
         prune_metrics: Arc<PruneMetrics>,
+        datafusion_config: Arc<HashMap<String, String>>,
     ) -> Self {
         let tables: HashMap<_, _> = ns
             .tables
@@ -88,6 +91,7 @@ impl QuerierNamespace {
             exec,
             catalog_cache: Arc::clone(chunk_adapter.catalog_cache()),
             query_log,
+            datafusion_config,
         }
     }
 
@@ -114,6 +118,7 @@ impl QuerierNamespace {
             ingester_connection,
             query_log,
             prune_metrics,
+            Arc::new(HashMap::default()),
         )
     }
 

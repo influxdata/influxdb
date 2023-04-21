@@ -6,9 +6,8 @@ use arrow::{
 };
 use data_types::{
     Column, ColumnSet, ColumnType, CompactionLevel, Namespace, NamespaceSchema, ParquetFile,
-    ParquetFileParams, Partition, PartitionId, QueryPool, SequenceNumber, Shard, ShardId,
-    ShardIndex, Table, TableId, TablePartition, TableSchema, Timestamp, Tombstone, TombstoneId,
-    TopicMetadata,
+    ParquetFileParams, Partition, PartitionId, QueryPool, SequenceNumber, Shard, ShardIndex, Table,
+    TableId, TableSchema, Timestamp, TopicMetadata,
 };
 use datafusion::physical_plan::metrics::Count;
 use datafusion_util::MemoryStream;
@@ -184,83 +183,6 @@ impl TestCatalog {
     ) -> Arc<TestNamespace> {
         self.create_namespace_with_retention(name, TEST_RETENTION_PERIOD_NS)
             .await
-    }
-
-    /// return tombstones of a given table
-    pub async fn list_tombstones_by_table(self: &Arc<Self>, table_id: TableId) -> Vec<Tombstone> {
-        self.catalog
-            .repositories()
-            .await
-            .tombstones()
-            .list_by_table(table_id)
-            .await
-            .unwrap()
-    }
-
-    /// return number of tombstones of a given table
-    pub async fn count_tombstones_for_table(self: &Arc<Self>, table_id: TableId) -> usize {
-        let ts = self
-            .catalog
-            .repositories()
-            .await
-            .tombstones()
-            .list_by_table(table_id)
-            .await
-            .unwrap();
-        ts.len()
-    }
-
-    /// return number of processed tombstones of a tombstones
-    pub async fn count_processed_tombstones(self: &Arc<Self>, tombstone_id: TombstoneId) -> i64 {
-        self.catalog
-            .repositories()
-            .await
-            .processed_tombstones()
-            .count_by_tombstone_id(tombstone_id)
-            .await
-            .unwrap()
-    }
-
-    /// List level 0 files
-    pub async fn list_level_0_files(self: &Arc<Self>, shard_id: ShardId) -> Vec<ParquetFile> {
-        self.catalog
-            .repositories()
-            .await
-            .parquet_files()
-            .level_0(shard_id)
-            .await
-            .unwrap()
-    }
-
-    /// Count level 0 files
-    pub async fn count_level_0_files(self: &Arc<Self>, shard_id: ShardId) -> usize {
-        let level_0 = self
-            .catalog
-            .repositories()
-            .await
-            .parquet_files()
-            .level_0(shard_id)
-            .await
-            .unwrap();
-        level_0.len()
-    }
-
-    /// Count level 1 files
-    pub async fn count_level_1_files(
-        self: &Arc<Self>,
-        table_partition: TablePartition,
-        min_time: Timestamp,
-        max_time: Timestamp,
-    ) -> usize {
-        let level_1 = self
-            .catalog
-            .repositories()
-            .await
-            .parquet_files()
-            .level_1(table_partition, min_time, max_time)
-            .await
-            .unwrap();
-        level_1.len()
     }
 
     /// List all non-deleted files
@@ -540,36 +462,6 @@ impl TestTableBoundShard {
             table: Arc::clone(&self.table),
             shard: Arc::clone(&self.shard),
             partition,
-        })
-    }
-
-    /// Create a tombstone
-    pub async fn create_tombstone(
-        self: &Arc<Self>,
-        sequence_number: i64,
-        min_time: i64,
-        max_time: i64,
-        predicate: &str,
-    ) -> Arc<TestTombstone> {
-        let mut repos = self.catalog.catalog.repositories().await;
-
-        let tombstone = repos
-            .tombstones()
-            .create_or_get(
-                self.table.table.id,
-                self.shard.shard.id,
-                SequenceNumber::new(sequence_number),
-                Timestamp::new(min_time),
-                Timestamp::new(max_time),
-                predicate,
-            )
-            .await
-            .unwrap();
-
-        Arc::new(TestTombstone {
-            catalog: Arc::clone(&self.catalog),
-            namespace: Arc::clone(&self.namespace),
-            tombstone,
         })
     }
 }
@@ -1041,30 +933,6 @@ impl TestParquetFile {
             .collect();
         let table_schema: Schema = table_schema.clone().try_into().unwrap();
         table_schema.select_by_names(&selection).unwrap()
-    }
-}
-
-/// A catalog test tombstone
-#[allow(missing_docs)]
-pub struct TestTombstone {
-    pub catalog: Arc<TestCatalog>,
-    pub namespace: Arc<TestNamespace>,
-    pub tombstone: Tombstone,
-}
-
-impl TestTombstone {
-    /// mark the tombstone proccesed
-    pub async fn mark_processed(self: &Arc<Self>, parquet_file: &TestParquetFile) {
-        assert!(Arc::ptr_eq(&self.catalog, &parquet_file.catalog));
-        assert!(Arc::ptr_eq(&self.namespace, &parquet_file.namespace));
-
-        let mut repos = self.catalog.catalog.repositories().await;
-
-        repos
-            .processed_tombstones()
-            .create(parquet_file.parquet_file.id, self.tombstone.id)
-            .await
-            .unwrap();
     }
 }
 

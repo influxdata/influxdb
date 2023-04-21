@@ -1,8 +1,9 @@
+use crate::plan::error;
 use crate::plan::timestamp::parse_timestamp;
 use crate::plan::util::binary_operator_to_df_operator;
 use datafusion::common::{DataFusionError, Result, ScalarValue};
 use datafusion::logical_expr::{binary_expr, lit, now, BinaryExpr, Expr as DFExpr, Operator};
-use influxdb_influxql_parser::expression::{Binary, BinaryOperator};
+use influxdb_influxql_parser::expression::{Binary, BinaryOperator, Call};
 use influxdb_influxql_parser::{expression::Expr, literal::Literal};
 
 type ExprResult = Result<DFExpr>;
@@ -62,11 +63,7 @@ pub(in crate::plan) fn time_range_to_df_expr(expr: &Expr, tz: Option<chrono_tz::
         DFExpr::Literal(ScalarValue::Int64(Some(v))) => {
             DFExpr::Literal(ScalarValue::TimestampNanosecond(Some(v), None))
         }
-        _ => {
-            return Err(DataFusionError::Plan(
-                "invalid time range expression".into(),
-            ))
-        }
+        _ => return error::query("invalid time range expression"),
     })
 }
 
@@ -85,13 +82,13 @@ pub(super) fn duration_expr_to_nanoseconds(expr: &Expr) -> Result<i64> {
         DFExpr::Literal(ScalarValue::IntervalMonthDayNano(Some(v))) => Ok(v as i64),
         DFExpr::Literal(ScalarValue::Float64(Some(v))) => Ok(v as i64),
         DFExpr::Literal(ScalarValue::Int64(Some(v))) => Ok(v),
-        _ => Err(DataFusionError::Plan("invalid duration expression".into())),
+        _ => error::query("invalid duration expression"),
     }
 }
 
 fn map_expr_err(expr: &Expr) -> impl Fn(DataFusionError) -> DataFusionError + '_ {
     move |err| {
-        DataFusionError::Plan(format!(
+        error::map::query(format!(
             "invalid expression \"{}\": {}",
             expr,
             match err {
@@ -105,11 +102,11 @@ fn map_expr_err(expr: &Expr) -> impl Fn(DataFusionError) -> DataFusionError + '_
 fn reduce_expr(expr: &Expr, tz: Option<chrono_tz::Tz>) -> ExprResult {
     match expr {
         Expr::Binary(v) => reduce_binary_expr(v, tz).map_err(map_expr_err(expr)),
-        Expr::Call (v) => {
-            if !v.name.eq_ignore_ascii_case("now") {
-                return Err(DataFusionError::Plan(
-                    format!("invalid function call '{}'", v.name),
-                ));
+        Expr::Call (Call { name, .. }) => {
+            if !name.eq_ignore_ascii_case("now") {
+                return error::query(
+                    format!("invalid function call '{name}'"),
+                );
             }
             Ok(now())
         }
@@ -123,14 +120,14 @@ fn reduce_expr(expr: &Expr, tz: Option<chrono_tz::Tz>) -> ExprResult {
                 None,
             ))),
             Literal::Duration(v) => Ok(lit(ScalarValue::new_interval_mdn(0, 0, **v))),
-            _ => Err(DataFusionError::Plan(format!(
+            _ => error::query(format!(
                 "found literal '{val}', expected duration, float, integer, or timestamp string"
-            ))),
+            )),
         },
 
-        Expr::VarRef { .. } | Expr::BindParameter(_) | Expr::Wildcard(_) | Expr::Distinct(_) => Err(DataFusionError::Plan(format!(
+        Expr::VarRef { .. } | Expr::BindParameter(_) | Expr::Wildcard(_) | Expr::Distinct(_) => error::query(format!(
             "found symbol '{expr}', expected now() or a literal duration, float, integer and timestamp string"
-        ))),
+        )),
     }
 }
 
@@ -190,9 +187,7 @@ fn reduce_binary_lhs_duration_df_expr(
                 BinaryOperator::Sub => {
                     Ok(lit(ScalarValue::new_interval_mdn(0, 0, (lhs - *d) as i64)))
                 }
-                _ => Err(DataFusionError::Plan(format!(
-                    "found operator '{op}', expected +, -"
-                ))),
+                _ => error::query(format!("found operator '{op}', expected +, -")),
             },
             // durations may only be scaled by float literals
             ScalarValue::Float64(Some(v)) => {
@@ -205,9 +200,7 @@ fn reduce_binary_lhs_duration_df_expr(
                 BinaryOperator::Div => {
                     Ok(lit(ScalarValue::new_interval_mdn(0, 0, lhs as i64 / *v)))
                 }
-                _ => Err(DataFusionError::Plan(format!(
-                    "found operator '{op}', expected *, /"
-                ))),
+                _ => error::query(format!("found operator '{op}', expected *, /")),
             },
             // A timestamp may be added to a duration
             ScalarValue::TimestampNanosecond(Some(v), _) if matches!(op, BinaryOperator::Add) => {
@@ -221,16 +214,16 @@ fn reduce_binary_lhs_duration_df_expr(
             }
             // This should not occur, as all the DataFusion literal values created by this process
             // are handled above.
-            _ => Err(DataFusionError::Internal(format!(
+            _ => error::internal(format!(
                 "unexpected DataFusion literal '{rhs}' for duration expression"
-            ))),
+            )),
         },
         DFExpr::ScalarFunction { .. } => reduce_binary_scalar_df_expr(
             &expr_to_interval_df_expr(&lit(ScalarValue::new_interval_mdn(0, 0, lhs as i64)), tz)?,
             op,
             rhs,
         ),
-        _ => Err(DataFusionError::Plan("invalid duration expression".into())),
+        _ => error::query("invalid duration expression"),
     }
 }
 
@@ -261,7 +254,7 @@ fn reduce_binary_lhs_integer_df_expr(
         DFExpr::Literal(ScalarValue::Utf8(Some(s))) => {
             reduce_binary_lhs_duration_df_expr(lhs.into(), op, &parse_timestamp_df_expr(s, tz)?, tz)
         }
-        _ => Err(DataFusionError::Plan("invalid integer expression".into())),
+        _ => error::query("invalid integer expression"),
     }
 }
 
@@ -272,17 +265,13 @@ fn reduce_binary_lhs_integer_df_expr(
 /// ```
 fn reduce_binary_lhs_float_df_expr(lhs: f64, op: BinaryOperator, rhs: &DFExpr) -> ExprResult {
     Ok(lit(match rhs {
-        DFExpr::Literal(ScalarValue::Float64(Some(rhs))) => {
-            op.try_reduce(lhs, *rhs).ok_or_else(|| {
-                DataFusionError::Plan("invalid operator for float expression".to_string())
-            })?
-        }
-        DFExpr::Literal(ScalarValue::Int64(Some(rhs))) => {
-            op.try_reduce(lhs, *rhs).ok_or_else(|| {
-                DataFusionError::Plan("invalid operator for float expression".to_string())
-            })?
-        }
-        _ => return Err(DataFusionError::Plan("invalid float expression".into())),
+        DFExpr::Literal(ScalarValue::Float64(Some(rhs))) => op
+            .try_reduce(lhs, *rhs)
+            .ok_or_else(|| error::map::query("invalid operator for float expression"))?,
+        DFExpr::Literal(ScalarValue::Int64(Some(rhs))) => op
+            .try_reduce(lhs, *rhs)
+            .ok_or_else(|| error::map::query("invalid operator for float expression"))?,
+        _ => return error::query("invalid float expression"),
     }))
 }
 
@@ -306,9 +295,9 @@ fn reduce_binary_lhs_timestamp_df_expr(
         DFExpr::Literal(ScalarValue::IntervalMonthDayNano(Some(d))) => match op {
             BinaryOperator::Add => Ok(lit(ScalarValue::TimestampNanosecond(Some(lhs + *d as i64), None))),
             BinaryOperator::Sub => Ok(lit(ScalarValue::TimestampNanosecond(Some(lhs - *d as i64), None))),
-            _ => Err(DataFusionError::Plan(
+            _ => error::query(
                 format!("invalid operator '{op}' for timestamp and duration: expected +, -"),
-            )),
+            ),
         }
         DFExpr::Literal(ScalarValue::Int64(_))
         // NOTE: This is a slight deviation from InfluxQL, for which the only valid binary
@@ -321,9 +310,9 @@ fn reduce_binary_lhs_timestamp_df_expr(
             &expr_to_interval_df_expr(rhs, tz)?,
             tz,
         ),
-        _ => Err(DataFusionError::Plan(
+        _ => error::query(
             format!("invalid expression '{rhs}': expected duration, integer or timestamp string"),
-        )),
+        ),
     }
 }
 
@@ -335,9 +324,7 @@ fn reduce_binary_scalar_df_expr(lhs: &DFExpr, op: BinaryOperator, rhs: &DFExpr) 
     match op {
         BinaryOperator::Add => Ok(binary_expr(lhs.clone(), Operator::Plus, rhs.clone())),
         BinaryOperator::Sub => Ok(binary_expr(lhs.clone(), Operator::Minus, rhs.clone())),
-        _ => Err(DataFusionError::Plan(format!(
-            "found operator '{op}', expected +, -"
-        ))),
+        _ => error::query(format!("found operator '{op}', expected +, -")),
     }
 }
 
@@ -351,11 +338,7 @@ fn expr_to_interval_df_expr(expr: &DFExpr, tz: Option<chrono_tz::Tz>) -> ExprRes
             DFExpr::Literal(ScalarValue::Int64(Some(v))) => *v,
             DFExpr::Literal(ScalarValue::TimestampNanosecond(Some(v), _)) => *v,
             DFExpr::Literal(ScalarValue::Utf8(Some(s))) => parse_timestamp_nanos(s, tz)?,
-            _ => {
-                return Err(DataFusionError::Plan(format!(
-                    "unable to cast '{expr}' to duration"
-                )))
-            }
+            _ => return error::query(format!("unable to cast '{expr}' to duration")),
         },
     )))
 }
@@ -383,16 +366,16 @@ fn reduce_binary_lhs_string_df_expr(
         | DFExpr::Literal(ScalarValue::Int64(_)) => {
             reduce_binary_lhs_timestamp_df_expr(parse_timestamp_nanos(lhs, tz)?, op, rhs, tz)
         }
-        _ => Err(DataFusionError::Plan(format!(
+        _ => error::query(format!(
             "found '{rhs}', expected duration, integer or timestamp string"
-        ))),
+        )),
     }
 }
 
 fn parse_timestamp_nanos(s: &str, tz: Option<chrono_tz::Tz>) -> Result<i64> {
     parse_timestamp(s, tz)
         .map(|ts| ts.timestamp_nanos())
-        .map_err(|_| DataFusionError::Plan(format!("'{s}' is not a valid timestamp")))
+        .map_err(|_| error::map::query(format!("'{s}' is not a valid timestamp")))
 }
 
 /// Parse s as a timestamp in the specified timezone and return the timestamp
@@ -593,7 +576,6 @@ mod test {
         ];
 
         for (interval_str, expected_scalar) in cases {
-            println!("Parsing {interval_str}, expecting {expected_scalar:?}");
             let parsed_interval = parse(interval_str).unwrap();
             let DFExpr::Literal(actual_scalar) = parsed_interval  else {
                 panic!("Expected literal Expr, got {parsed_interval:?}");

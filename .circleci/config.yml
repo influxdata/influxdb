@@ -229,8 +229,6 @@ jobs:
     # setup multiple docker images (see https://circleci.com/docs/2.0/configuration-reference/#docker)
     docker:
       - image: quay.io/influxdb/rust:ci
-      - image: vectorized/redpanda:v22.1.5
-        command: redpanda start --overprovisioned --smp 1 --memory 1G --reserve-memory 0M
       - image: postgres
         environment:
           POSTGRES_HOST_AUTH_METHOD: trust
@@ -247,7 +245,6 @@ jobs:
       # Run integration tests
       TEST_INTEGRATION: 1
       INFLUXDB_IOX_INTEGRATION_LOCAL: 1
-      KAFKA_CONNECT: "localhost:9092"
       POSTGRES_USER: postgres
       TEST_INFLUXDB_IOX_CATALOG_DSN: "postgres://postgres@localhost/iox_shared"
       # When removing this, also remove the ignore on the test in trogging/src/cli.rs

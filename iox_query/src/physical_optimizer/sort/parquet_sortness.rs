@@ -164,7 +164,7 @@ fn detect_children_with_desired_ordering(
 
 #[cfg(test)]
 mod tests {
-    use arrow::datatypes::{DataType, Field, Schema, SchemaRef};
+    use arrow::datatypes::{DataType, Field, Fields, Schema, SchemaRef};
     use datafusion::{
         datasource::{listing::PartitionedFile, object_store::ObjectStoreUrl},
         physical_expr::PhysicalSortExpr,
@@ -544,7 +544,7 @@ mod tests {
                 .iter()
                 .cloned()
                 .chain(std::iter::once(chunk_order_field()))
-                .collect(),
+                .collect::<Fields>(),
         ))
     }
 

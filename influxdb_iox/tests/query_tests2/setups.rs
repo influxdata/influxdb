@@ -1256,7 +1256,15 @@ pub static SETUPS: Lazy<HashMap<SetupName, SetupSteps>> = Lazy::new(|| {
                     m2,tag0=val08 f64=7.98 1667181600000000000
                     m2,tag0=val07 f64=8.98 1667181600000000000
                     m2,tag0=val04 f64=9.98 1667181600000000000
-                    m3 u64=1u 1667181600000000000
+                    m3,tag0=a,tag1=b,tag2=c,tag3=d u64=1u 1667181600000000000
+                    m4,tag.one=foo field.one=1 1667181600000000000
+                    time_test,tt_tag=before_default_cutoff,tt_tag_before_default_cutoff=a tt_field="before_default_cutoff",tt_field_before_default_cutoff=1 631151999999999999
+                    time_test,tt_tag=at_default_cutoff,tt_tag_at_default_cutoff=a tt_field="at_default_cutoff",tt_field_at_default_cutoff=1 631152000000000000
+                    time_test,tt_tag=late,tt_tag_late=1 tt_field="late",tt_field_late=1 1667181600000000000
+                    select_test,tag0=a,tag1=a,st_tag=aa,st_tag_aa=x st_field="aa",st_field_aa=1 1667181600000000000
+                    select_test,tag0=a,tag1=b,st_tag=ab,st_tag_ab=x st_field="ab",st_field_ab=1 1667181600000000000
+                    select_test,tag0=b,tag1=a,st_tag=ba,st_tag_ba=x st_field="ba",st_field_ba=1 1667181600000000000
+                    select_test,tag0=b,tag1=b,st_tag=bb,st_tag_bb=x st_field="bb",st_field_bb=1 1667181600000000000
                     "#
                     .to_string(),
                 ),

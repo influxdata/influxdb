@@ -32,6 +32,11 @@ use tokio::sync::oneshot;
 use tokio_util::sync::CancellationToken;
 use trace::TraceCollector;
 
+/// Define a safe maximum ingester write response size.
+///
+/// The ingester SHOULD NOT ever generate a response larger than this.
+const MAX_OUTGOING_MSG_BYTES: usize = 1024 * 1024; // 1 MiB
+
 #[derive(Debug, Error)]
 pub enum Error {
     #[error("error initializing ingester2: {0}")]
@@ -46,6 +51,7 @@ struct IngesterServerType<I: IngesterRpcInterface> {
     metrics: Arc<Registry>,
     trace_collector: Option<Arc<dyn TraceCollector>>,
     max_simultaneous_queries: usize,
+    max_incoming_msg_bytes: usize,
 }
 
 impl<I: IngesterRpcInterface> IngesterServerType<I> {
@@ -54,6 +60,7 @@ impl<I: IngesterRpcInterface> IngesterServerType<I> {
         metrics: Arc<Registry>,
         common_state: &CommonServerState,
         max_simultaneous_queries: usize,
+        max_incoming_msg_bytes: usize,
         shutdown: oneshot::Sender<CancellationToken>,
     ) -> Self {
         Self {
@@ -62,6 +69,7 @@ impl<I: IngesterRpcInterface> IngesterServerType<I> {
             metrics,
             trace_collector: common_state.trace_collector(),
             max_simultaneous_queries,
+            max_incoming_msg_bytes,
         }
     }
 }
@@ -108,6 +116,8 @@ impl<I: IngesterRpcInterface + Sync + Send + Debug + 'static> ServerType for Ing
         add_service!(
             builder,
             WriteServiceServer::new(self.server.rpc().write_service())
+                .max_decoding_message_size(self.max_incoming_msg_bytes)
+                .max_encoding_message_size(MAX_OUTGOING_MSG_BYTES)
         );
         add_service!(
             builder,
@@ -204,6 +214,7 @@ pub async fn create_ingester_server_type(
         metrics,
         common_state,
         ingester_config.concurrent_query_limit,
+        ingester_config.rpc_write_max_incoming_bytes,
         shutdown_tx,
     )))
 }

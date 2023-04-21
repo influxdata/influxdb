@@ -2,7 +2,7 @@ use super::{
     partitioner::PartitionError, retention_validation::RetentionError, RpcWriteError, SchemaError,
 };
 use async_trait::async_trait;
-use data_types::{DeletePredicate, NamespaceId, NamespaceName};
+use data_types::{NamespaceId, NamespaceName};
 use std::{error::Error, fmt::Debug, sync::Arc};
 use thiserror::Error;
 use trace::ctx::SpanContext;
@@ -57,9 +57,6 @@ pub trait DmlHandler: Debug + Send + Sync {
     /// All errors must be mappable into the concrete [`DmlError`] type.
     type WriteError: Error + Into<DmlError> + Send;
 
-    /// The error type of the delete handler.
-    type DeleteError: Error + Into<DmlError> + Send;
-
     /// Write `batches` to `namespace`.
     async fn write(
         &self,
@@ -68,16 +65,6 @@ pub trait DmlHandler: Debug + Send + Sync {
         input: Self::WriteInput,
         span_ctx: Option<SpanContext>,
     ) -> Result<Self::WriteOutput, Self::WriteError>;
-
-    /// Delete the data specified in `delete`.
-    async fn delete(
-        &self,
-        namespace: &NamespaceName<'static>,
-        namespace_id: NamespaceId,
-        table_name: &str,
-        predicate: &DeletePredicate,
-        span_ctx: Option<SpanContext>,
-    ) -> Result<(), Self::DeleteError>;
 }
 
 #[async_trait]
@@ -88,7 +75,6 @@ where
     type WriteInput = T::WriteInput;
     type WriteOutput = T::WriteOutput;
     type WriteError = T::WriteError;
-    type DeleteError = T::DeleteError;
 
     async fn write(
         &self,
@@ -99,20 +85,6 @@ where
     ) -> Result<Self::WriteOutput, Self::WriteError> {
         (**self)
             .write(namespace, namespace_id, input, span_ctx)
-            .await
-    }
-
-    /// Delete the data specified in `delete`.
-    async fn delete(
-        &self,
-        namespace: &NamespaceName<'static>,
-        namespace_id: NamespaceId,
-        table_name: &str,
-        predicate: &DeletePredicate,
-        span_ctx: Option<SpanContext>,
-    ) -> Result<(), Self::DeleteError> {
-        (**self)
-            .delete(namespace, namespace_id, table_name, predicate, span_ctx)
             .await
     }
 }

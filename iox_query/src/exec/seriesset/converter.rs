@@ -4,7 +4,7 @@
 
 use arrow::{
     self,
-    array::{Array, BooleanArray, DictionaryArray, StringArray},
+    array::{downcast_array, Array, BooleanArray, DictionaryArray, StringArray},
     compute,
     datatypes::{DataType, Int32Type, SchemaRef},
     record_batch::RecordBatch,
@@ -188,9 +188,7 @@ impl SeriesSetConverter {
         ])
         .expect("concat");
 
-        // until https://github.com/apache/arrow-rs/issues/2901 is done, use a workaround
-        // to get a `BooleanArray`
-        BooleanArray::from(arr.data().clone())
+        downcast_array(&arr)
     }
 
     /// Creates (column_name, column_value) pairs for each column

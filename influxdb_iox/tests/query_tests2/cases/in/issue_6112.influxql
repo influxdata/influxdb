@@ -77,6 +77,18 @@ SELECT i64 FROM m0 WHERE time > '2022-10-31 02:00:10';
 --       try increasing the number of days 😂
 SELECT i64 FROM m0 WHERE time > now() - 100000d;
 
+-- the time range should apply to the the entire result set not just cpu = 'cpu1'
+SELECT cpu, usage_idle FROM cpu WHERE cpu = 'cpu0' OR cpu = 'cpu1' AND time >= 1667181610000000000;
+
+-- combining relational operators for time ranges should return no results, as it
+-- evaluates to false, like InfluxQL
+SELECT cpu, usage_idle FROM cpu WHERE time >= 1667181610000000000 OR time = 1667181600000000000;
+
+-- BONUS: InfluxQL now supports combining equality with OR
+SELECT cpu, usage_idle FROM cpu WHERE time = 1667181610000000000 OR time = 1667181600000000000 AND cpu = 'cpu0';
+SELECT cpu, usage_idle FROM cpu WHERE time = 1667181610000000000 OR time = 1667181600000000000;
+
+
 -- NOT NULL test
 -- WHERE tag1 != '' is the equivalent to tag1 IS NOT NULL
 -- TODO(sgc): This is working, but likely by accident
@@ -422,3 +434,75 @@ SELECT COUNT(usage_idle), COUNT(bytes_free) FROM cpu, disk WHERE time >= '2022-1
 
 -- aggregate, group by TIME and tag, multiple measurements
 SELECT COUNT(usage_idle), COUNT(bytes_free) FROM cpu, disk WHERE time >= '2022-10-31T02:00:00Z' AND time < '2022-10-31T02:02:00Z' GROUP BY TIME(30s), cpu, device LIMIT 1;
+
+--
+-- Selector functions
+--
+
+-- Single selectors, which should produce a non-zero timestamp
+-- for the matching value of the selector function.
+SELECT FIRST(usage_idle) FROM cpu;
+SELECT LAST(usage_idle) FROM cpu;
+SELECT MAX(usage_idle) FROM cpu;
+SELECT MIN(usage_idle) FROM cpu;
+
+-- Single selectors with a GROUP BY tag should produce non-zero
+-- timestamps for the values in each group
+SELECT FIRST(usage_idle) FROM cpu GROUP BY cpu;
+SELECT LAST(usage_idle) FROM cpu GROUP BY cpu;
+SELECT MAX(usage_idle) FROM cpu GROUP BY cpu;
+SELECT MIN(usage_idle) FROM cpu GROUP BY cpu;
+
+-- Adding group by time means the timestamp
+-- should be the start of each window
+SELECT FIRST(usage_idle) FROM cpu WHERE time >= '2022-10-31T02:00:00Z' AND time < '2022-10-31T02:00:30Z' GROUP BY TIME(10s);
+
+-- Multiple selectors result in an aggregate query and therefore
+-- a zero timestamp value.
+SELECT FIRST(usage_idle), MAX(usage_idle) FROM cpu;
+
+-- Mixing selectors and aggregates,
+-- timestamp should be start of each window
+SELECT FIRST(usage_idle), COUNT(usage_idle) FROM cpu WHERE time >= '2022-10-31T02:00:00Z' AND time < '2022-10-31T02:02:00Z' GROUP BY TIME(30s), cpu LIMIT 1;
+
+-- FILL(0)
+SELECT FIRST(usage_idle) FROM cpu WHERE time >= '2022-10-31T02:00:00Z' AND time < '2022-10-31T02:02:00Z' GROUP BY TIME(30s), cpu FILL(0);
+
+--
+-- Not implemented: Selector queries with tag and field projections
+-- See: https://github.com/influxdata/influxdb_iox/issues/7533
+--
+
+SELECT FIRST(usage_idle), usage_user, usage_system FROM cpu;
+
+--
+-- DISTINCT
+--
+
+-- There is no guaranteed order
+SELECT COUNT(DISTINCT str) FROM m0;
+-- IOX_COMPARE: sorted
+SELECT COUNT(DISTINCT str) FROM m0 GROUP BY tag0;
+-- IOX_COMPARE: sorted
+SELECT DISTINCT str FROM m0;
+-- IOX_COMPARE: sorted
+SELECT DISTINCT(str) FROM m0;
+-- IOX_COMPARE: sorted
+SELECT DISTINCT str FROM m0 GROUP BY tag0;
+-- IOX_COMPARE: sorted
+SELECT DISTINCT str FROM m0 GROUP BY tag0 LIMIT 2;
+
+-- test with integers
+-- IOX_COMPARE: sorted
+SELECT DISTINCT i64 FROM m0;
+-- IOX_COMPARE: sorted
+SELECT COUNT(DISTINCT i64) FROM m0;
+
+-- mixed
+SELECT COUNT(DISTINCT str), COUNT(DISTINCT i64) FROM m0;
+
+-- fallible cases
+SELECT DISTINCT(str), DISTINCT(i64) FROM m0;
+
+-- non-existing table
+SELECT * FROM does_not_exist;

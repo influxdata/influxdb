@@ -195,7 +195,7 @@ mod tests {
     async fn test_observe() {
         let circuit_breaker = Arc::new(MockCircuitBreaker::default());
         let mock_client = Arc::new(MockWriteClient::default().with_ret(Box::new(
-            [Ok(()), Err(RpcWriteError::DeletesUnsupported)].into_iter(),
+            [Ok(()), Err(RpcWriteError::NoUpstreams)].into_iter(),
         )));
         let wrapper = CircuitBreakingClient::new(Arc::clone(&mock_client), "bananas")
             .with_circuit_breaker(Arc::clone(&circuit_breaker));

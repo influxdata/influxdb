@@ -1,5 +1,8 @@
 use arrow::datatypes::SchemaRef;
 use influxdb_influxql_parser::show_field_keys::ShowFieldKeysStatement;
+use influxdb_influxql_parser::show_measurements::ShowMeasurementsStatement;
+use influxdb_influxql_parser::show_tag_keys::ShowTagKeysStatement;
+use influxdb_influxql_parser::show_tag_values::ShowTagValuesStatement;
 use std::any::Any;
 use std::collections::{HashMap, HashSet};
 use std::fmt;
@@ -197,7 +200,7 @@ impl InfluxQLQueryPlanner {
             }
         }
 
-        let planner = InfluxQLToLogicalPlan::new(&sp);
+        let planner = InfluxQLToLogicalPlan::new(&sp, ctx);
         let logical_plan = planner.statement_to_plan(statement)?;
         debug!(plan=%logical_plan.display_graphviz(), "logical plan");
         Ok(logical_plan)
@@ -248,11 +251,44 @@ fn find_all_measurements(stmt: &Statement, tables: &[String]) -> Result<HashSet<
             Ok(self)
         }
 
+        fn post_visit_show_measurements_statement(
+            self,
+            sm: &ShowMeasurementsStatement,
+        ) -> Result<Self, Self::Error> {
+            if sm.with_measurement.is_none() {
+                self.0.extend(self.1.iter().cloned());
+            }
+
+            Ok(self)
+        }
+
         fn post_visit_show_field_keys_statement(
             self,
             sfk: &ShowFieldKeysStatement,
         ) -> Result<Self, Self::Error> {
             if sfk.from.is_none() {
+                self.0.extend(self.1.iter().cloned());
+            }
+
+            Ok(self)
+        }
+
+        fn post_visit_show_tag_values_statement(
+            self,
+            stv: &ShowTagValuesStatement,
+        ) -> Result<Self, Self::Error> {
+            if stv.from.is_none() {
+                self.0.extend(self.1.iter().cloned());
+            }
+
+            Ok(self)
+        }
+
+        fn post_visit_show_tag_keys_statement(
+            self,
+            stk: &ShowTagKeysStatement,
+        ) -> std::result::Result<Self, Self::Error> {
+            if stk.from.is_none() {
                 self.0.extend(self.1.iter().cloned());
             }
 
@@ -316,9 +352,34 @@ mod test {
             vec!["bar", "foo", "foobar"]
         );
 
+        // Find all measurements in `SHOW MEASUREMENTS`
+        assert_eq!(find("SHOW MEASUREMENTS"), vec!["bar", "foo", "foobar"]);
+        assert_eq!(
+            find("SHOW MEASUREMENTS WITH MEASUREMENT = foo"),
+            vec!["foo"]
+        );
+        assert_eq!(
+            find("SHOW MEASUREMENTS WITH MEASUREMENT =~ /^foo/"),
+            vec!["foo", "foobar"]
+        );
+
         // Find all measurements in `SHOW FIELD KEYS`
         assert_eq!(find("SHOW FIELD KEYS"), vec!["bar", "foo", "foobar"]);
         assert_eq!(find("SHOW FIELD KEYS FROM /^foo/"), vec!["foo", "foobar"]);
+
+        // Find all measurements in `SHOW TAG VALUES`
+        assert_eq!(
+            find("SHOW TAG VALUES WITH KEY = \"k\""),
+            vec!["bar", "foo", "foobar"]
+        );
+        assert_eq!(
+            find("SHOW TAG VALUES FROM /^foo/ WITH KEY = \"k\""),
+            vec!["foo", "foobar"]
+        );
+
+        // Find all measurements in `SHOW TAG KEYS`
+        assert_eq!(find("SHOW TAG KEYS"), vec!["bar", "foo", "foobar"]);
+        assert_eq!(find("SHOW TAG KEYS FROM /^foo/"), vec!["foo", "foobar"]);
 
         // Finds no measurements
         assert!(find("SELECT * FROM none").is_empty());

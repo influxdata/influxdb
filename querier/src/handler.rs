@@ -165,7 +165,7 @@ mod tests {
     use iox_query::exec::Executor;
     use iox_time::{MockProvider, Time};
     use object_store::memory::InMemory;
-    use std::time::Duration;
+    use std::{collections::HashMap, time::Duration};
     use tokio::runtime::Handle;
 
     #[tokio::test]
@@ -224,6 +224,7 @@ mod tests {
                     exec,
                     Some(create_ingester_connection_for_testing()),
                     QuerierDatabase::MAX_CONCURRENT_QUERIES_MAX,
+                    Arc::new(HashMap::default()),
                 )
                 .await
                 .unwrap(),

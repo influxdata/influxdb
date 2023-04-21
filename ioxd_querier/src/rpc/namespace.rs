@@ -98,6 +98,8 @@ impl proto::namespace_service_server::NamespaceService for NamespaceServiceImpl 
 
 #[cfg(test)]
 mod tests {
+    use std::collections::HashMap;
+
     use super::*;
     use generated_types::influxdata::iox::namespace::v1::namespace_service_server::NamespaceService;
     use iox_tests::TestCatalog;
@@ -133,6 +135,7 @@ mod tests {
                 catalog.exec(),
                 Some(create_ingester_connection_for_testing()),
                 QuerierDatabase::MAX_CONCURRENT_QUERIES_MAX,
+                Arc::new(HashMap::default()),
             )
             .await
             .unwrap(),
@@ -168,6 +171,7 @@ mod tests {
                 catalog.exec(),
                 Some(create_ingester_connection_for_testing()),
                 QuerierDatabase::MAX_CONCURRENT_QUERIES_MAX,
+                Arc::new(HashMap::default()),
             )
             .await
             .unwrap(),

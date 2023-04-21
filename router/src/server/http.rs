@@ -1,9 +1,9 @@
 //! HTTP service implementations for `router`.
 
-mod delete_predicate;
 pub mod write;
 
-use authz::{Action, Authorizer, Permission, Resource};
+use std::{str::Utf8Error, time::Instant};
+
 use bytes::{Bytes, BytesMut};
 use futures::StreamExt;
 use hashbrown::HashMap;
@@ -13,19 +13,13 @@ use metric::{DurationHistogram, U64Counter};
 use mutable_batch::MutableBatch;
 use mutable_batch_lp::LinesConverter;
 use observability_deps::tracing::*;
-use predicate::delete_predicate::parse_delete_predicate;
-use server_util::authorization::AuthorizationHeaderExtension;
-use std::{str::Utf8Error, sync::Arc, time::Instant};
 use thiserror::Error;
 use tokio::sync::{Semaphore, TryAcquireError};
 use trace::ctx::SpanContext;
 
-use self::{
-    delete_predicate::parse_http_delete_request,
-    write::{
-        multi_tenant::MultiTenantExtractError, single_tenant::SingleTenantExtractError,
-        WriteParamExtractor, WriteParams,
-    },
+use self::write::{
+    multi_tenant::MultiTenantExtractError, single_tenant::SingleTenantExtractError, WriteParams,
+    WriteRequestUnifier,
 };
 use crate::{
     dml_handlers::{
@@ -40,6 +34,10 @@ pub enum Error {
     /// The requested path has no registered handler.
     #[error("not found")]
     NoHandler,
+
+    /// A delete request was rejected (not supported).
+    #[error("deletes are not supported")]
+    DeletesUnsupported,
 
     /// An error parsing a single-tenant HTTP request.
     #[error(transparent)]
@@ -77,14 +75,6 @@ pub enum Error {
     #[error("failed to parse line protocol: {0}")]
     ParseLineProtocol(mutable_batch_lp::Error),
 
-    /// Failure to parse the request delete predicate.
-    #[error("failed to parse delete predicate: {0}")]
-    ParseDelete(#[from] predicate::delete_predicate::Error),
-
-    /// Failure to parse the delete predicate in the http request
-    #[error("failed to parse delete predicate from http request: {0}")]
-    ParseHttpDelete(#[from] self::delete_predicate::Error),
-
     /// An error returned from the [`DmlHandler`].
     #[error("dml handler error: {0}")]
     DmlHandler(#[from] DmlError),
@@ -108,10 +98,6 @@ pub enum Error {
     /// The provided authorization is not sufficient to perform the request.
     #[error("access denied")]
     Forbidden,
-
-    /// An error occurred verifying the authorization token.
-    #[error(transparent)]
-    Authorizer(authz::Error),
 }
 
 impl Error {
@@ -120,13 +106,12 @@ impl Error {
     pub fn as_status_code(&self) -> StatusCode {
         match self {
             Error::NoHandler => StatusCode::NOT_FOUND,
+            Error::DeletesUnsupported => StatusCode::NOT_IMPLEMENTED,
             Error::ClientHangup(_) => StatusCode::BAD_REQUEST,
             Error::InvalidGzip(_) => StatusCode::BAD_REQUEST,
             Error::NonUtf8ContentHeader(_) => StatusCode::BAD_REQUEST,
             Error::NonUtf8Body(_) => StatusCode::BAD_REQUEST,
             Error::ParseLineProtocol(_) => StatusCode::BAD_REQUEST,
-            Error::ParseDelete(_) => StatusCode::BAD_REQUEST,
-            Error::ParseHttpDelete(_) => StatusCode::BAD_REQUEST,
             Error::RequestSizeExceeded(_) => StatusCode::PAYLOAD_TOO_LARGE,
             Error::InvalidContentEncoding(_) => {
                 // https://www.rfc-editor.org/rfc/rfc7231#section-6.5.13
@@ -141,19 +126,8 @@ impl Error {
             Error::RequestLimit => StatusCode::SERVICE_UNAVAILABLE,
             Error::Unauthenticated => StatusCode::UNAUTHORIZED,
             Error::Forbidden => StatusCode::FORBIDDEN,
-            Error::Authorizer(_) => StatusCode::INTERNAL_SERVER_ERROR,
             Error::SingleTenantError(e) => StatusCode::from(e),
             Error::MultiTenantError(e) => StatusCode::from(e),
-        }
-    }
-}
-
-impl From<authz::Error> for Error {
-    fn from(value: authz::Error) -> Self {
-        match value {
-            authz::Error::Forbidden => Self::Forbidden,
-            authz::Error::NoToken => Self::Unauthenticated,
-            e => Self::Authorizer(e),
         }
     }
 }
@@ -185,7 +159,6 @@ impl From<&DmlError> for StatusCode {
             }
             DmlError::Retention(RetentionError::OutsideRetention(_)) => StatusCode::FORBIDDEN,
             DmlError::RpcWrite(RpcWriteError::Upstream(_)) => StatusCode::INTERNAL_SERVER_ERROR,
-            DmlError::RpcWrite(RpcWriteError::DeletesUnsupported) => StatusCode::NOT_IMPLEMENTED,
             DmlError::RpcWrite(RpcWriteError::Timeout(_)) => StatusCode::GATEWAY_TIMEOUT,
             DmlError::RpcWrite(
                 RpcWriteError::NoUpstreams
@@ -209,8 +182,7 @@ pub struct HttpDelegate<D, N, T = SystemProvider> {
     time_provider: T,
     namespace_resolver: N,
     dml_handler: D,
-    authz: Option<Arc<dyn Authorizer>>,
-    write_param_extractor: Box<dyn WriteParamExtractor>,
+    write_request_mode_handler: Box<dyn WriteRequestUnifier>,
 
     // A request limiter to restrict the number of simultaneous requests this
     // router services.
@@ -226,7 +198,6 @@ pub struct HttpDelegate<D, N, T = SystemProvider> {
     write_metric_fields: U64Counter,
     write_metric_tables: U64Counter,
     write_metric_body_size: U64Counter,
-    delete_metric_body_size: U64Counter,
     request_limit_rejected: U64Counter,
 }
 
@@ -241,9 +212,8 @@ impl<D, N> HttpDelegate<D, N, SystemProvider> {
         max_requests: usize,
         namespace_resolver: N,
         dml_handler: D,
-        authz: Option<Arc<dyn Authorizer>>,
         metrics: &metric::Registry,
-        write_param_extractor: Box<dyn WriteParamExtractor>,
+        write_request_mode_handler: Box<dyn WriteRequestUnifier>,
     ) -> Self {
         let write_metric_lines = metrics
             .register_metric::<U64Counter>(
@@ -269,12 +239,6 @@ impl<D, N> HttpDelegate<D, N, SystemProvider> {
                 "cumulative byte size of successfully routed (decompressed) line protocol write requests",
             )
             .recorder(&[]);
-        let delete_metric_body_size = metrics
-            .register_metric::<U64Counter>(
-                "http_delete_body_bytes",
-                "cumulative byte size of successfully routed (decompressed) delete requests",
-            )
-            .recorder(&[]);
         let request_limit_rejected = metrics
             .register_metric::<U64Counter>(
                 "http_request_limit_rejected",
@@ -292,16 +256,14 @@ impl<D, N> HttpDelegate<D, N, SystemProvider> {
             max_request_bytes,
             time_provider: SystemProvider::default(),
             namespace_resolver,
-            write_param_extractor,
+            write_request_mode_handler,
             dml_handler,
-            authz,
             request_sem: Semaphore::new(max_requests),
             write_metric_lines,
             http_line_protocol_parse_duration,
             write_metric_fields,
             write_metric_tables,
             write_metric_body_size,
-            delete_metric_body_size,
             request_limit_rejected,
         }
     }
@@ -336,14 +298,14 @@ where
         // Route the request to a handler.
         match (req.method(), req.uri().path()) {
             (&Method::POST, "/write") => {
-                let dml_info = self.write_param_extractor.parse_v1(&req)?;
+                let dml_info = self.write_request_mode_handler.parse_v1(&req).await?;
                 self.write_handler(req, dml_info).await
             }
             (&Method::POST, "/api/v2/write") => {
-                let dml_info = self.write_param_extractor.parse_v2(&req)?;
+                let dml_info = self.write_request_mode_handler.parse_v2(&req).await?;
                 self.write_handler(req, dml_info).await
             }
-            (&Method::POST, "/api/v2/delete") => self.delete_handler(req).await,
+            (&Method::POST, "/api/v2/delete") => return Err(Error::DeletesUnsupported),
             _ => return Err(Error::NoHandler),
         }
         .map(|_summary| {
@@ -360,27 +322,6 @@ where
         write_info: WriteParams,
     ) -> Result<(), Error> {
         let span_ctx: Option<SpanContext> = req.extensions().get().cloned();
-
-        let token = req
-            .extensions()
-            .get::<AuthorizationHeaderExtension>()
-            .and_then(|v| v.as_ref())
-            .and_then(|v| {
-                let s = v.as_ref();
-                if s.len() < b"Token ".len() {
-                    None
-                } else {
-                    match s.split_at(b"Token ".len()) {
-                        (b"Token ", token) => Some(token),
-                        _ => None,
-                    }
-                }
-            });
-        let perms = [Permission::ResourceAction(
-            Resource::Database(write_info.namespace.to_string()),
-            Action::Write,
-        )];
-        self.authz.require_any_permission(token, &perms).await?;
 
         trace!(
             namespace=%write_info.namespace,
@@ -440,55 +381,6 @@ where
         Ok(())
     }
 
-    async fn delete_handler(&self, req: Request<Body>) -> Result<(), Error> {
-        let span_ctx: Option<SpanContext> = req.extensions().get().cloned();
-        let write_info = self.write_param_extractor.parse_v2(&req)?;
-
-        trace!(namespace=%write_info.namespace, "processing delete request");
-
-        // Read the HTTP body and convert it to a str.
-        let body = self.read_body(req).await?;
-        let body = std::str::from_utf8(&body).map_err(Error::NonUtf8Body)?;
-
-        // Parse and extract table name (which can be empty), start, stop, and predicate
-        let parsed_delete = parse_http_delete_request(body)?;
-        let predicate = parse_delete_predicate(
-            &parsed_delete.start_time,
-            &parsed_delete.stop_time,
-            &parsed_delete.predicate,
-        )?;
-
-        debug!(
-            table_name=%parsed_delete.table_name,
-            predicate = %parsed_delete.predicate,
-            start=%parsed_delete.start_time,
-            stop=%parsed_delete.stop_time,
-            body_size=body.len(),
-            namespace=%write_info.namespace,
-            "routing delete"
-        );
-
-        let namespace_id = self
-            .namespace_resolver
-            .get_namespace_id(&write_info.namespace)
-            .await?;
-
-        self.dml_handler
-            .delete(
-                &write_info.namespace,
-                namespace_id,
-                parsed_delete.table_name.as_str(),
-                &predicate,
-                span_ctx,
-            )
-            .await
-            .map_err(Into::into)?;
-
-        self.delete_metric_body_size.inc(body.len() as _);
-
-        Ok(())
-    }
-
     /// Parse the request's body into raw bytes, applying the configured size
     /// limits and decoding any content encoding.
     async fn read_body(&self, req: hyper::Request<Body>) -> Result<Bytes, Error> {
@@ -498,7 +390,7 @@ where
             .map(|v| v.to_str().map_err(Error::NonUtf8ContentHeader))
             .transpose()?;
         let ungzip = match encoding {
-            None => false,
+            None | Some("identity") => false,
             Some("gzip") => true,
             Some(v) => return Err(Error::InvalidContentEncoding(v.to_string())),
         };
@@ -549,23 +441,9 @@ where
 
 #[cfg(test)]
 mod tests {
-    use super::*;
-    use crate::{
-        dml_handlers::{
-            mock::{MockDmlHandler, MockDmlHandlerCall},
-            CachedServiceProtectionLimit,
-        },
-        namespace_resolver::{mock::MockNamespaceResolver, NamespaceCreationError},
-        server::http::write::{
-            mock::{MockExtractorCall, MockWriteParamsExtractor},
-            multi_tenant::MultiTenantRequestParser,
-            v1::V1WriteParseError,
-            v2::V2WriteParseError,
-            Precision,
-        },
-    };
+    use std::{io::Write, iter, sync::Arc, time::Duration};
+
     use assert_matches::assert_matches;
-    use async_trait::async_trait;
     use data_types::{
         NamespaceId, NamespaceName, NamespaceNameError, OrgBucketMappingError, TableId,
     };
@@ -574,9 +452,24 @@ mod tests {
     use metric::{Attributes, Metric};
     use mutable_batch::column::ColumnData;
     use mutable_batch_lp::LineWriteError;
-    use std::{io::Write, iter, sync::Arc, time::Duration};
     use test_helpers::timeout::FutureTimeout;
     use tokio_stream::wrappers::ReceiverStream;
+
+    use super::*;
+    use crate::{
+        dml_handlers::{
+            mock::{MockDmlHandler, MockDmlHandlerCall},
+            CachedServiceProtectionLimit,
+        },
+        namespace_resolver::{mock::MockNamespaceResolver, NamespaceCreationError},
+        server::http::write::{
+            mock::{MockUnifyingParseCall, MockWriteRequestUnifier},
+            multi_tenant::MultiTenantRequestUnifier,
+            v1::V1WriteParseError,
+            v2::V2WriteParseError,
+            Precision,
+        },
+    };
 
     const MAX_BYTES: usize = 1024;
     const NAMESPACE_ID: NamespaceId = NamespaceId::new(42);
@@ -620,11 +513,21 @@ mod tests {
             want_result = $want_result:pat,                 // Expected handler return value (as pattern)
             want_dml_calls = $($want_dml_calls:tt )+        // assert_matches slice pattern for expected DML calls
         ) => {
-            // Generate the two test cases by feed the same inputs, but varying
+            // Generate the three test cases by feed the same inputs, but varying
             // the encoding.
             test_http_handler!(
                 $name,
                 encoding=plain,
+                uri = $uri,
+                body = $body,
+                dml_write_handler = $dml_write_handler,
+                dml_delete_handler = $dml_delete_handler,
+                want_result = $want_result,
+                want_dml_calls = $($want_dml_calls)+
+            );
+            test_http_handler!(
+                $name,
+                encoding=identity,
                 uri = $uri,
                 body = $body,
                 dml_write_handler = $dml_write_handler,
@@ -677,7 +580,6 @@ mod tests {
                         .with_mapping(NAMESPACE_NAME, NAMESPACE_ID);
                     let dml_handler = Arc::new(MockDmlHandler::default()
                         .with_write_return($dml_write_handler)
-                        .with_delete_return($dml_delete_handler)
                     );
                     let metrics = Arc::new(metric::Registry::default());
                     let delegate = HttpDelegate::new(
@@ -685,9 +587,8 @@ mod tests {
                         100,
                         mock_namespace_resolver,
                         Arc::clone(&dml_handler),
-                        None,
                         &metrics,
-                        Box::<crate::server::http::write::multi_tenant::MultiTenantRequestParser>::default(),
+                        Box::<crate::server::http::write::multi_tenant::MultiTenantRequestUnifier>::default(),
                     );
 
                     let got = delegate.route(request).await;
@@ -715,6 +616,9 @@ mod tests {
         (encoding=plain, $body:ident) => {
             $body
         };
+        (encoding=identity, $body:ident) => {
+            $body
+        };
         (encoding=gzip, $body:ident) => {{
             // Apply gzip compression to the body
             let mut e = GzEncoder::new(Vec::new(), Compression::default());
@@ -722,6 +626,12 @@ mod tests {
             e.finish().expect("failed to compress test body")
         }};
         (encoding_header=plain, $request:ident) => {};
+        (encoding_header=identity, $request:ident) => {{
+            // Set the identity content encoding
+            $request
+                .headers_mut()
+                .insert(CONTENT_ENCODING, HeaderValue::from_static("identity"));
+        }};
         (encoding_header=gzip, $request:ident) => {{
             // Set the gzip content encoding
             $request
@@ -747,30 +657,6 @@ mod tests {
                     body = $body,
                     dml_write_handler = $dml_handler,
                     dml_delete_handler = [],
-                    want_result = $want_result,
-                    want_dml_calls = $($want_dml_calls)+
-                );
-            }
-        };
-    }
-
-    // Wrapper over test_http_handler specifically for delete requests.
-    macro_rules! test_delete_handler {
-        (
-            $name:ident,
-            query_string = $query_string:expr,   // Request URI query string
-            body = $body:expr,                   // Request body content
-            dml_handler = $dml_handler:expr,     // DML delete handler response (if called)
-            want_result = $want_result:pat,
-            want_dml_calls = $($want_dml_calls:tt )+
-        ) => {
-            paste::paste! {
-                test_http_handler!(
-                    [<delete_ $name>],
-                    uri = format!("https://bananas.example/api/v2/delete{}", $query_string),
-                    body = $body,
-                    dml_write_handler = [],
-                    dml_delete_handler = $dml_handler,
                     want_result = $want_result,
                     want_dml_calls = $($want_dml_calls)+
                 );
@@ -1010,118 +896,6 @@ mod tests {
         want_dml_calls = []
     );
 
-    test_delete_handler!(
-        ok,
-        query_string = "?org=bananas&bucket=test",
-        body = r#"{"start":"2021-04-01T14:00:00Z","stop":"2021-04-02T14:00:00Z", "predicate":"_measurement=its_a_table and location=Boston"}"#.as_bytes(),
-        dml_handler = [Ok(())],
-        want_result = Ok(_),
-        want_dml_calls = [MockDmlHandlerCall::Delete{namespace, namespace_id, table, predicate}] => {
-            assert_eq!(table, "its_a_table");
-            assert_eq!(namespace, NAMESPACE_NAME);
-            assert_eq!(*namespace_id, NAMESPACE_ID);
-            assert!(!predicate.exprs.is_empty());
-        }
-    );
-
-    test_delete_handler!(
-        invalid_delete_body,
-        query_string = "?org=bananas&bucket=test",
-        body = r#"{wat}"#.as_bytes(),
-        dml_handler = [],
-        want_result = Err(Error::ParseHttpDelete(_)),
-        want_dml_calls = []
-    );
-
-    test_delete_handler!(
-        no_query_params,
-        query_string = "",
-        body = "".as_bytes(),
-        dml_handler = [Ok(())],
-        want_result = Err(Error::MultiTenantError(
-            MultiTenantExtractError::ParseV2Request(V2WriteParseError::NoQueryParams)
-        )),
-        want_dml_calls = [] // None
-    );
-
-    test_delete_handler!(
-        no_org_bucket,
-        query_string = "?",
-        body = "".as_bytes(),
-        dml_handler = [Ok(())],
-        want_result = Err(Error::MultiTenantError(
-            MultiTenantExtractError::InvalidOrgAndBucket(
-                OrgBucketMappingError::NoOrgBucketSpecified
-            )
-        )),
-        want_dml_calls = [] // None
-    );
-
-    test_delete_handler!(
-        empty_org_bucket,
-        query_string = "?org=&bucket=",
-        body = "".as_bytes(),
-        dml_handler = [Ok(())],
-        want_result = Err(Error::MultiTenantError(
-            MultiTenantExtractError::InvalidOrgAndBucket(
-                OrgBucketMappingError::NoOrgBucketSpecified
-            )
-        )),
-        want_dml_calls = [] // None
-    );
-
-    test_delete_handler!(
-        invalid_org_bucket,
-        query_string = format!("?org=test&bucket={}", "A".repeat(1000)),
-        body = "".as_bytes(),
-        dml_handler = [Ok(())],
-        want_result = Err(Error::MultiTenantError(
-            MultiTenantExtractError::InvalidOrgAndBucket(
-                OrgBucketMappingError::InvalidNamespaceName(
-                    NamespaceNameError::LengthConstraint { .. }
-                )
-            )
-        )),
-        want_dml_calls = [] // None
-    );
-
-    test_delete_handler!(
-        non_utf8_body,
-        query_string = "?org=bananas&bucket=test",
-        body = vec![0xc3, 0x28],
-        dml_handler = [Ok(())],
-        want_result = Err(Error::NonUtf8Body(_)),
-        want_dml_calls = [] // None
-    );
-
-    test_delete_handler!(
-        db_not_found,
-        query_string = "?org=bananas&bucket=test",
-        body = r#"{"start":"2021-04-01T14:00:00Z","stop":"2021-04-02T14:00:00Z", "predicate":"_measurement=its_a_table and location=Boston"}"#.as_bytes(),
-        dml_handler = [Err(DmlError::NamespaceNotFound(NAMESPACE_NAME.to_string()))],
-        want_result = Err(Error::DmlHandler(DmlError::NamespaceNotFound(_))),
-        want_dml_calls = [MockDmlHandlerCall::Delete{namespace, namespace_id, table, predicate}] => {
-            assert_eq!(table, "its_a_table");
-            assert_eq!(namespace, NAMESPACE_NAME);
-            assert_eq!(*namespace_id, NAMESPACE_ID);
-            assert!(!predicate.exprs.is_empty());
-        }
-    );
-
-    test_delete_handler!(
-        dml_handler_error,
-        query_string = "?org=bananas&bucket=test",
-        body = r#"{"start":"2021-04-01T14:00:00Z","stop":"2021-04-02T14:00:00Z", "predicate":"_measurement=its_a_table and location=Boston"}"#.as_bytes(),
-        dml_handler = [Err(DmlError::Internal("💣".into()))],
-        want_result = Err(Error::DmlHandler(DmlError::Internal(_))),
-        want_dml_calls = [MockDmlHandlerCall::Delete{namespace, namespace_id, table, predicate}] => {
-            assert_eq!(table, "its_a_table");
-            assert_eq!(namespace, NAMESPACE_NAME);
-            assert_eq!(*namespace_id, NAMESPACE_ID);
-            assert!(!predicate.exprs.is_empty());
-        }
-    );
-
     test_http_handler!(
         not_found,
         uri = "https://bananas.example/wat",
@@ -1267,10 +1041,9 @@ mod tests {
             1,
             mock_namespace_resolver,
             Arc::clone(&dml_handler),
-            None,
             &metrics,
             Box::new(
-                MockWriteParamsExtractor::default().with_ret(iter::repeat_with(|| {
+                MockWriteRequestUnifier::default().with_ret(iter::repeat_with(|| {
                     Ok(WriteParams {
                         namespace: NamespaceName::new(NAMESPACE_NAME).unwrap(),
                         precision: Precision::default(),
@@ -1386,105 +1159,6 @@ mod tests {
         assert_metric_hit(&metrics, "http_request_limit_rejected", Some(1));
     }
 
-    #[derive(Debug)]
-    struct MockAuthorizer {}
-
-    #[async_trait]
-    impl Authorizer for MockAuthorizer {
-        async fn permissions(
-            &self,
-            token: Option<&[u8]>,
-            perms: &[Permission],
-        ) -> Result<Vec<Permission>, authz::Error> {
-            match token {
-                Some(b"GOOD") => Ok(perms.to_vec()),
-                Some(b"UGLY") => Err(authz::Error::verification("test", "test error")),
-                Some(_) => Ok(vec![]),
-                None => Err(authz::Error::NoToken),
-            }
-        }
-    }
-
-    #[tokio::test]
-    async fn test_authz() {
-        let mock_namespace_resolver =
-            MockNamespaceResolver::default().with_mapping(NAMESPACE_NAME, NamespaceId::new(42));
-
-        let dml_handler = Arc::new(
-            MockDmlHandler::default()
-                .with_write_return([Ok(())])
-                .with_delete_return([]),
-        );
-        let metrics = Arc::new(metric::Registry::default());
-        let authz = Arc::new(MockAuthorizer {});
-        let delegate = HttpDelegate::new(
-            MAX_BYTES,
-            1,
-            mock_namespace_resolver,
-            Arc::clone(&dml_handler),
-            Some(authz),
-            &metrics,
-            Box::new(
-                MockWriteParamsExtractor::default().with_ret(iter::repeat_with(|| {
-                    Ok(WriteParams {
-                        namespace: NamespaceName::new(NAMESPACE_NAME).unwrap(),
-                        precision: Precision::default(),
-                    })
-                })),
-            ),
-        );
-
-        let request = Request::builder()
-            .uri("https://bananas.example/api/v2/write?org=bananas&bucket=test")
-            .method("POST")
-            .extension(AuthorizationHeaderExtension::new(Some(
-                HeaderValue::from_str("Token GOOD").unwrap(),
-            )))
-            .body(Body::from("platanos,tag1=A,tag2=B val=42i 123456"))
-            .unwrap();
-
-        let got = delegate.route(request).await;
-        assert_matches!(got, Ok(_));
-
-        let request = Request::builder()
-            .uri("https://bananas.example/api/v2/write?org=bananas&bucket=test")
-            .method("POST")
-            .extension(AuthorizationHeaderExtension::new(Some(
-                HeaderValue::from_str("Token BAD").unwrap(),
-            )))
-            .body(Body::from(""))
-            .unwrap();
-
-        let got = delegate.route(request).await;
-        assert_matches!(got, Err(Error::Forbidden));
-
-        let request = Request::builder()
-            .uri("https://bananas.example/api/v2/write?org=bananas&bucket=test")
-            .method("POST")
-            .body(Body::from(""))
-            .unwrap();
-
-        let got = delegate.route(request).await;
-        assert_matches!(got, Err(Error::Unauthenticated));
-
-        let request = Request::builder()
-            .uri("https://bananas.example/api/v2/write?org=bananas&bucket=test")
-            .method("POST")
-            .extension(AuthorizationHeaderExtension::new(Some(
-                HeaderValue::from_str("Token UGLY").unwrap(),
-            )))
-            .body(Body::from(""))
-            .unwrap();
-
-        let got = delegate.route(request).await;
-        assert_matches!(got, Err(Error::Authorizer(_)));
-
-        let calls = dml_handler.calls();
-        assert_matches!(calls.as_slice(), [MockDmlHandlerCall::Write{namespace, ..}] => {
-            assert_eq!(namespace, NAMESPACE_NAME);
-        })
-    }
-
     /// Assert the router rejects writes to the V1 endpoint when in
     /// "multi-tenant" mode.
     #[tokio::test]
@@ -1492,28 +1166,20 @@ mod tests {
         let mock_namespace_resolver =
             MockNamespaceResolver::default().with_mapping(NAMESPACE_NAME, NamespaceId::new(42));
 
-        let dml_handler = Arc::new(
-            MockDmlHandler::default()
-                .with_write_return([Ok(())])
-                .with_delete_return([]),
-        );
+        let dml_handler = Arc::new(MockDmlHandler::default().with_write_return([Ok(())]));
         let metrics = Arc::new(metric::Registry::default());
         let delegate = HttpDelegate::new(
             MAX_BYTES,
             1,
             mock_namespace_resolver,
             Arc::clone(&dml_handler),
-            None,
             &metrics,
-            Box::<MultiTenantRequestParser>::default(),
+            Box::<MultiTenantRequestUnifier>::default(),
         );
 
         let request = Request::builder()
             .uri("https://bananas.example/write")
             .method("POST")
-            .extension(AuthorizationHeaderExtension::new(Some(
-                HeaderValue::from_str("Token GOOD").unwrap(),
-            )))
             .body(Body::from("platanos,tag1=A,tag2=B val=42i 123456"))
             .unwrap();
 
@@ -1522,17 +1188,17 @@ mod tests {
     }
 
     /// Assert the router delegates request parsing to the
-    /// [`WriteParamExtractor`] implementation.
+    /// [`WriteRequestUnifier`] implementation.
     ///
     /// By validating request parsing is delegated, behavioural tests for each
     /// implementation can be implemented directly against those implementations
     /// (instead of putting them all here).
     #[tokio::test]
-    async fn test_delegate_to_write_param_extractor_ok() {
+    async fn test_delegate_to_write_request_unifier_ok() {
         let mock_namespace_resolver =
             MockNamespaceResolver::default().with_mapping(NAMESPACE_NAME, NamespaceId::new(42));
 
-        let request_parser = Arc::new(MockWriteParamsExtractor::default().with_ret(
+        let request_unifier = Arc::new(MockWriteRequestUnifier::default().with_ret(
             iter::repeat_with(|| {
                 Ok(WriteParams {
                     namespace: NamespaceName::new(NAMESPACE_NAME).unwrap(),
@@ -1541,20 +1207,16 @@ mod tests {
             }),
         ));
 
-        let dml_handler = Arc::new(
-            MockDmlHandler::default()
-                .with_write_return([Ok(()), Ok(()), Ok(())])
-                .with_delete_return([]),
-        );
+        let dml_handler =
+            Arc::new(MockDmlHandler::default().with_write_return([Ok(()), Ok(()), Ok(())]));
         let metrics = Arc::new(metric::Registry::default());
         let delegate = HttpDelegate::new(
             MAX_BYTES,
             1,
             mock_namespace_resolver,
             Arc::clone(&dml_handler),
-            None,
             &metrics,
-            Box::new(Arc::clone(&request_parser)),
+            Box::new(Arc::clone(&request_unifier)),
         );
 
         // A route miss does not invoke the parser
@@ -1576,7 +1238,10 @@ mod tests {
         assert_matches!(got, Ok(_));
 
         // Only one call was received, and it should be v1.
-        assert_matches!(request_parser.calls().as_slice(), [MockExtractorCall::V1]);
+        assert_matches!(
+            request_unifier.calls().as_slice(),
+            [MockUnifyingParseCall::V1]
+        );
 
         // V2 write parsing is delegated
         let request = Request::builder()
@@ -1589,26 +1254,8 @@ mod tests {
 
         // Both call were received.
         assert_matches!(
-            request_parser.calls().as_slice(),
-            [MockExtractorCall::V1, MockExtractorCall::V2]
-        );
-
-        // Delete requests hit the v2 parser
-        let request = Request::builder()
-            .uri("https://bananas.example/api/v2/delete")
-            .method("POST")
-            .body(Body::from(""))
-            .unwrap();
-        let _got = delegate.route(request).await;
-
-        // The delete should have hit v2.
-        assert_matches!(
-            request_parser.calls().as_slice(),
-            [
-                MockExtractorCall::V1,
-                MockExtractorCall::V2,
-                MockExtractorCall::V2
-            ]
+            request_unifier.calls().as_slice(),
+            [MockUnifyingParseCall::V1, MockUnifyingParseCall::V2]
         );
     }
 
@@ -1661,6 +1308,11 @@ mod tests {
         (
             NoHandler,
             "not found",
+        ),
+
+        (
+            DeletesUnsupported,
+            "deletes are not supported",
         ),
 
         (
@@ -1742,21 +1394,6 @@ mod tests {
         ),
 
         (
-            ParseDelete({
-                predicate::delete_predicate::Error::InvalidSyntax { value: "[syntax]".into() }
-            }),
-            "failed to parse delete predicate: Invalid predicate syntax: ([syntax])",
-        ),
-
-        (
-            ParseHttpDelete({
-                delete_predicate::Error::TableInvalid { value: "[table name]".into() }
-            }),
-            "failed to parse delete predicate from http request: \
-             Invalid table name in delete '[table name]'"
-        ),
-
-        (
             DmlHandler(DmlError::NamespaceNotFound("[namespace name]".into())),
             "dml handler error: namespace [namespace name] does not exist",
         ),
@@ -1790,13 +1427,6 @@ mod tests {
         (
             Forbidden,
             "access denied",
-        ),
-
-        (
-            Authorizer(
-                authz::Error::verification("bananas", NamespaceCreationError::Reject("bananas".to_string()))
-            ),
-            "token verification not possible: bananas",
         ),
 
         (

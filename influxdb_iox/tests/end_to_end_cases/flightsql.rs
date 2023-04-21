@@ -2,7 +2,7 @@ use std::{collections::HashMap, path::PathBuf, sync::Arc};
 
 use arrow::{
     array::as_generic_binary_array,
-    datatypes::{DataType, Schema, SchemaRef, TimeUnit},
+    datatypes::{DataType, Fields, Schema, SchemaRef, TimeUnit},
     record_batch::RecordBatch,
 };
 use arrow_flight::{
@@ -1404,10 +1404,10 @@ async fn assert_schema(client: &mut FlightClient, cmd: Any) {
 }
 
 fn strip_metadata(schema: &Schema) -> SchemaRef {
-    let stripped_fields: Vec<_> = schema
+    let stripped_fields: Fields = schema
         .fields()
         .iter()
-        .map(|f| f.clone().with_metadata(HashMap::new()))
+        .map(|f| f.as_ref().clone().with_metadata(HashMap::new()))
         .collect();
 
     Arc::new(Schema::new(stripped_fields))

@@ -288,9 +288,9 @@ mod tests {
             Box::new(DataType::Utf8),
         ))
         .len(keys.len())
-        .add_buffer(keys.data().buffers()[0].clone())
+        .add_buffer(keys.to_data().buffers()[0].clone())
         .nulls(keys.nulls().cloned())
-        .add_child_data(values.data().clone())
+        .add_child_data(values.into_data())
         .build()
         .unwrap();
 

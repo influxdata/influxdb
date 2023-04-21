@@ -31,7 +31,6 @@ pub(crate) async fn perform(
             },
             _ = sleep(Duration::from_secs(60 * sleep_interval_minutes)) => (),
         }
-
     }
     Ok(())
 }

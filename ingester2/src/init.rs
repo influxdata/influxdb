@@ -26,7 +26,9 @@ use wal::Wal;
 use crate::{
     buffer_tree::{
         namespace::name_resolver::{NamespaceNameProvider, NamespaceNameResolver},
-        partition::resolver::{CatalogPartitionResolver, PartitionCache, PartitionProvider},
+        partition::resolver::{
+            CatalogPartitionResolver, CoalescePartitionResolver, PartitionCache, PartitionProvider,
+        },
         table::name_resolver::{TableNameProvider, TableNameResolver},
         BufferTree,
     },
@@ -281,8 +283,10 @@ where
         .await
         .map_err(InitError::PreWarmPartitions)?;
 
-    // Build the partition provider, wrapped in the partition cache.
+    // Build the partition provider, wrapped in the partition cache and request
+    // coalescer.
     let partition_provider = CatalogPartitionResolver::new(Arc::clone(&catalog));
+    let partition_provider = CoalescePartitionResolver::new(Arc::new(partition_provider));
     let partition_provider = PartitionCache::new(
         partition_provider,
         recent_partitions,

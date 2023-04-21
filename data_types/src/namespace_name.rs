@@ -41,7 +41,7 @@ pub enum NamespaceNameError {
     /// The provided namespace name contains an unacceptable character.
     #[error(
         "namespace name '{}' contains invalid character, character number {} \
-        is a control which is not allowed.",
+        is a control which is not allowed",
         name,
         bad_char_offset
     )]
@@ -256,25 +256,25 @@ mod tests {
     #[test]
     fn test_bad_chars_null() {
         let got = NamespaceName::new("example\x00").unwrap_err();
-        assert_eq!(got.to_string() , "namespace name 'example\x00' contains invalid character, character number 7 is a control which is not allowed.");
+        assert_eq!(got.to_string() , "namespace name 'example\x00' contains invalid character, character number 7 is a control which is not allowed");
     }
 
     #[test]
     fn test_bad_chars_high_control() {
         let got = NamespaceName::new("\u{007f}example").unwrap_err();
-        assert_eq!(got.to_string() , "namespace name '\u{007f}example' contains invalid character, character number 0 is a control which is not allowed.");
+        assert_eq!(got.to_string() , "namespace name '\u{007f}example' contains invalid character, character number 0 is a control which is not allowed");
     }
 
     #[test]
     fn test_bad_chars_tab() {
         let got = NamespaceName::new("example\tdb").unwrap_err();
-        assert_eq!(got.to_string() , "namespace name 'example\tdb' contains invalid character, character number 7 is a control which is not allowed.");
+        assert_eq!(got.to_string() , "namespace name 'example\tdb' contains invalid character, character number 7 is a control which is not allowed");
     }
 
     #[test]
     fn test_bad_chars_newline() {
         let got = NamespaceName::new("my_example\ndb").unwrap_err();
-        assert_eq!(got.to_string() , "namespace name 'my_example\ndb' contains invalid character, character number 10 is a control which is not allowed.");
+        assert_eq!(got.to_string() , "namespace name 'my_example\ndb' contains invalid character, character number 10 is a control which is not allowed");
     }
 
     #[test]

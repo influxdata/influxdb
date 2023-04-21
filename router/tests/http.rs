@@ -8,7 +8,7 @@ use hyper::{Body, Request, StatusCode};
 use iox_catalog::interface::SoftDeletedRows;
 use iox_time::{SystemProvider, TimeProvider};
 use metric::{Attributes, DurationHistogram, Metric, U64Counter};
-use router::dml_handlers::{DmlError, RetentionError, RpcWriteError, SchemaError};
+use router::dml_handlers::{DmlError, RetentionError, SchemaError};
 use std::sync::Arc;
 
 pub mod common;
@@ -384,14 +384,10 @@ async fn test_delete_unsupported() {
 
     assert_matches!(
         &err,
-        e @ router::server::http::Error::DmlHandler(
-            DmlError::RpcWrite(
-                RpcWriteError::DeletesUnsupported
-            )
-        ) => {
+        e @ router::server::http::Error::DeletesUnsupported => {
             assert_eq!(
                 e.to_string(),
-                "dml handler error: deletes are not supported"
+                "deletes are not supported"
             );
         }
     );

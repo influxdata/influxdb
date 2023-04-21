@@ -308,7 +308,18 @@ where
                         line_protocol
                     );
                     let response = state.cluster.write_to_router(line_protocol, None).await;
-                    assert_eq!(response.status(), StatusCode::NO_CONTENT);
+                    let status = response.status();
+                    let body = hyper::body::to_bytes(response.into_body())
+                        .await
+                        .expect("reading response body");
+                    assert!(
+                        status == StatusCode::NO_CONTENT,
+                        "Invalid response code while writing line protocol:\n\nLine Protocol:\n{}\n\nExpected Status: {}\nActual Status: {}\n\nBody:\n{:?}",
+                        line_protocol,
+                        StatusCode::NO_CONTENT,
+                        status,
+                        body,
+                    );
                     info!("====Done writing line protocol");
                 }
                 Step::WriteLineProtocolExpectingError {

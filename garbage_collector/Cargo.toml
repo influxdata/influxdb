@@ -7,7 +7,6 @@ license.workspace = true
 
 [dependencies]
 chrono = { version = "0.4", default-features = false }
-chrono-english = "0.1.4"
 clap = { version = "4", features = ["derive", "env"] }
 clap_blocks = { path = "../clap_blocks" }
 data_types = { path = "../data_types" }
@@ -23,6 +22,7 @@ tokio-util = { version = "0.7.7" }
 uuid = { version = "1", features = ["v4"] }
 
 [dev-dependencies]
+bytes = "1.4"
 data_types = { path = "../data_types" }
 filetime = "0.2"
 metric = { path = "../metric" }

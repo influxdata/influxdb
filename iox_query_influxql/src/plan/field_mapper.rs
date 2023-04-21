@@ -1,5 +1,3 @@
-#![allow(dead_code)]
-
 use crate::plan::var_ref::field_type_to_var_ref_data_type;
 use crate::plan::SchemaProvider;
 use datafusion::common::Result;

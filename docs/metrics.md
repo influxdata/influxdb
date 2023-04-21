@@ -42,26 +42,6 @@ Here are useful metrics
 | query_access_pruned_chunks_total | pruned_chunks | Number of chunks of a table pruned while running queries |
 | query_access_pruned_rows_total  | pruned_rows | Number of chunks of a table pruned while running queries |
 
-
-### Read buffer RUB
-| Metric name |  Code Name | Description |
-| --- | --- | --- |
-| read_buffer_column_total | columns_total | Total number of columns in read buffer |
-| read_buffer_column_values | column_values_total | Total number of values stored in read buffer column encodings, further segmented by nullness |
-| read_buffer_column_raw_bytes | column_raw_bytes_total | Estimated uncompressed data size for read buffer columns, further segmented by nullness |
-
-
-### Ingest Request (from Kafka to Query Server)
-| Metric name |  Code Name | Description |
-| --- | --- | --- |
-| write_buffer_ingest_requests_total | red | Total number of write requests |
-| write_buffer_read_bytes_total | bytes_read | Total number of write requested bytes |
-| write_buffer_last_sequence_number | last_sequence_number | sequence number of last write request |
-| write_buffer_sequence_number_lag  |  sequence_number_lag | The difference between the the last sequence number available (e.g. Kafka offset) and (= minus) last consumed sequence number |
-| write_buffer_last_min_ts | last_min_ts | Minimum timestamp of last write as unix timestamp in nanoseconds |
-| write_buffer_last_max_ts | last_max_ts | Maximum timestamp of last write as unix timestamp in nanoseconds |
-| write_buffer_last_ingest_ts | last_ingest_ts | Last seen ingest timestamp as unix timestamp in nanoseconds |
-
 ### jemalloc
 | Metric name |  Code Name | Description |
 | --- | --- | --- |

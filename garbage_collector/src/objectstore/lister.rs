@@ -12,7 +12,6 @@ pub(crate) async fn perform(
     checker: mpsc::Sender<ObjectMeta>,
     sleep_interval_minutes: u64,
 ) -> Result<()> {
-
     // sleep poll interval to avoid issues with immediately polling the object store at startup
     info!("object store polling will start in {sleep_interval_minutes} configured minutes");
     sleep(Duration::from_secs(60 * sleep_interval_minutes)).await;
@@ -34,9 +33,14 @@ pub(crate) async fn perform(
                         // sleep for the configured time, then list again and go around the loop
                         // again
                         debug!("end of object store item list");
-                        sleep(Duration::from_secs(60 * sleep_interval_minutes)).await;
-                        items = object_store.list(None).await.context(ListingSnafu)?;
-                        continue;
+                        select! {
+                            _ = shutdown.cancelled() => {
+                                break;
+                            }
+                            _ = sleep(Duration::from_secs(60 * sleep_interval_minutes)) => {
+                                items = object_store.list(None).await.context(ListingSnafu)?;
+                            }
+                        }
                     }
                 }
             }
