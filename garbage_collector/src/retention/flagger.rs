@@ -22,26 +22,16 @@ pub(crate) async fn perform(
                 .context(FlaggingSnafu)?
         } else {
             debug!("dry run enabled for parquet retention flagger");
-            catalog
-                .repositories()
-                .await
-                .parquet_files()
-                .flagged_for_delete_by_retention()
-                .await
-                .context(FlaggingSnafu)?
         };
         info!(flagged_count = %flagged.len(), "iox_catalog::flag_for_delete_by_retention()");
 
-        if flagged.is_empty() {
-            select! {
-                _ = shutdown.cancelled() => {
-                    break
-                },
-                _ = sleep(Duration::from_secs(60 * sleep_interval_minutes)) => (),
-            }
-        } else if shutdown.is_cancelled() {
-            break;
+        select! {
+            _ = shutdown.cancelled() => {
+                break
+            },
+            _ = sleep(Duration::from_secs(60 * sleep_interval_minutes)) => (),
         }
+
     }
     Ok(())
 }

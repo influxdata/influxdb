@@ -664,9 +664,6 @@ pub trait ParquetFileRepo: Send + Sync {
     /// Flag all parquet files for deletion that are older than their namespace's retention period.
     async fn flag_for_delete_by_retention(&mut self) -> Result<Vec<ParquetFileId>>;
 
-    /// Get all parquet files flagged for deletion that are older than their namespace's retention period.
-    async fn flagged_for_delete_by_retention(&mut self) -> Result<Vec<ParquetFileId>>;
-
     /// Get all parquet files for a shard with a max_sequence_number greater than the
     /// one passed in. The ingester will use this on startup to see which files were persisted
     /// that are greater than its min_unpersisted_number so that it can discard any data in
