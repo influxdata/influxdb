@@ -37,9 +37,8 @@ pub(crate) async fn authorize(
         .extensions()
         .get::<AuthorizationHeaderExtension>()
         .and_then(|v| v.as_ref())
-        .and_then(|v| {
-            extract_header_token(v).or_else(|| query_param_token.map(|t| t.into_bytes()))
-        });
+        .and_then(extract_header_token)
+        .or_else(|| query_param_token.map(|t| t.into_bytes()));
 
     let perms = [Permission::ResourceAction(
         Resource::Database(namespace.to_string()),

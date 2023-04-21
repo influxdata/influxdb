@@ -227,6 +227,21 @@ mod tests {
         assert_eq!(*counter.lock(), 1);
     }
 
+    #[tokio::test]
+    async fn test_query_param_token() {
+        let authz = Arc::new(MockAuthorizer::default());
+        let unifier = SingleTenantRequestUnifier::new(authz);
+        let request = Request::builder()
+            .uri(format!(
+                "https://itsallbroken.com/write?db=bananas&p={MOCK_AUTH_VALID_TOKEN}"
+            ))
+            .method("POST")
+            .body(Body::from(""))
+            .unwrap();
+
+        assert!(unifier.parse_v1(&request).await.is_ok());
+    }
+
     macro_rules! test_parse_v1 {
         (
             $name:ident,
