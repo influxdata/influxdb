@@ -633,23 +633,26 @@ mod tests {
 
     test_create_namespace_name!(ok, name = "bananas", want = Ok("bananas"));
 
-    test_create_namespace_name!(multi_byte, name = "🍌", want = Ok("🍌"));
+    test_create_namespace_name!(multi_byte, name = "🍌", want = Err(e) => {
+        assert_eq!(e.code(), Code::InvalidArgument);
+        assert_eq!(e.message(), "namespace name '🍌' contains invalid character, character number 0 is not whitelisted");
+    });
 
     test_create_namespace_name!(
         tab,
         name = "it\tis\ttabtasitc",
         want = Err(e) => {
             assert_eq!(e.code(), Code::InvalidArgument);
-            assert_eq!(e.message(), "namespace name 'it\tis\ttabtasitc' contains invalid character, character number 2 is a control which is not allowed");
+            assert_eq!(e.message(), "namespace name 'it\tis\ttabtasitc' contains invalid character, character number 2 is not whitelisted");
         }
     );
 
     test_create_namespace_name!(
         null,
-        name = "bad \0 bananas",
+        name = "bad\0bananas",
         want = Err(e) => {
             assert_eq!(e.code(), Code::InvalidArgument);
-            assert_eq!(e.message(), "namespace name 'bad \0 bananas' contains invalid character, character number 4 is a control which is not allowed");
+            assert_eq!(e.message(), "namespace name 'bad\0bananas' contains invalid character, character number 3 is not whitelisted");
         }
     );
 
