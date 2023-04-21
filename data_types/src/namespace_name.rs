@@ -1,6 +1,5 @@
 use std::{borrow::Cow, ops::RangeInclusive};
 
-use percent_encoding::{utf8_percent_encode, NON_ALPHANUMERIC};
 use thiserror::Error;
 
 /// Length constraints for a [`NamespaceName`] name.
@@ -123,11 +122,7 @@ impl<'a> NamespaceName<'a> {
             return Err(OrgBucketMappingError::NoOrgBucketSpecified);
         }
 
-        let prefix: Cow<'_, str> = utf8_percent_encode(org, NON_ALPHANUMERIC).into();
-        let suffix: Cow<'_, str> = utf8_percent_encode(bucket, NON_ALPHANUMERIC).into();
-
-        let db_name = format!("{}_{}", prefix, suffix);
-        Ok(Self::new(db_name)?)
+        Ok(Self::new(format!("{}_{}", org, bucket))?)
     }
 }
 
@@ -188,34 +183,34 @@ mod tests {
     #[test]
     fn test_org_bucket_map_db_contains_underscore() {
         let got = NamespaceName::from_org_and_bucket("my_org", "bucket").unwrap();
-        assert_eq!(got.as_str(), "my%5Forg_bucket");
+        assert_eq!(got.as_str(), "my_org_bucket");
 
         let got = NamespaceName::from_org_and_bucket("org", "my_bucket").unwrap();
-        assert_eq!(got.as_str(), "org_my%5Fbucket");
+        assert_eq!(got.as_str(), "org_my_bucket");
 
         let got = NamespaceName::from_org_and_bucket("org", "my__bucket").unwrap();
-        assert_eq!(got.as_str(), "org_my%5F%5Fbucket");
+        assert_eq!(got.as_str(), "org_my__bucket");
 
         let got = NamespaceName::from_org_and_bucket("my_org", "my_bucket").unwrap();
-        assert_eq!(got.as_str(), "my%5Forg_my%5Fbucket");
+        assert_eq!(got.as_str(), "my_org_my_bucket");
     }
 
     #[test]
     fn test_org_bucket_map_db_contains_underscore_and_percent() {
         let got = NamespaceName::from_org_and_bucket("my%5Forg", "bucket").unwrap();
-        assert_eq!(got.as_str(), "my%255Forg_bucket");
+        assert_eq!(got.as_str(), "my%5Forg_bucket");
 
         let got = NamespaceName::from_org_and_bucket("my%5Forg_", "bucket").unwrap();
-        assert_eq!(got.as_str(), "my%255Forg%5F_bucket");
+        assert_eq!(got.as_str(), "my%5Forg__bucket");
     }
 
     #[test]
     fn test_bad_namespace_name_is_encoded() {
         let got = NamespaceName::from_org_and_bucket("org", "bucket?").unwrap();
-        assert_eq!(got.as_str(), "org_bucket%3F");
+        assert_eq!(got.as_str(), "org_bucket?");
 
         let got = NamespaceName::from_org_and_bucket("org!", "bucket").unwrap();
-        assert_eq!(got.as_str(), "org%21_bucket");
+        assert_eq!(got.as_str(), "org!_bucket");
     }
 
     #[test]

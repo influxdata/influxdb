@@ -171,7 +171,7 @@ mod tests {
             namespace,
             ..
         }) => {
-            assert_eq!(namespace.as_str(), "cool%5Fconfusing_bucket");
+            assert_eq!(namespace.as_str(), "cool_confusing_bucket");
         }
     );
 
@@ -193,7 +193,7 @@ mod tests {
             namespace,
             ..
         }) => {
-            assert_eq!(namespace.as_str(), "cool%27confusing_bucket");
+            assert_eq!(namespace.as_str(), "cool'confusing_bucket");
         }
     );
 
@@ -204,7 +204,7 @@ mod tests {
             namespace,
             ..
         }) => {
-            assert_eq!(namespace.as_str(), "%5Fcoolconfusing_bucket");
+            assert_eq!(namespace.as_str(), "_coolconfusing_bucket");
         }
     );
 
