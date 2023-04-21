@@ -1546,7 +1546,6 @@ RETURNING *;
                 AND parquet_file.to_delete IS NULL
                 AND parquet_file.max_time < $1 - namespace.retention_period_ns
                 AND namespace.id = parquet_file.namespace_id
-                LIMIT 1000
                 RETURNING parquet_file.id;
             "#,
         )
