@@ -180,7 +180,7 @@ where
 
             Arc::new(NamespaceData::new(
                 namespace_id,
-                self.namespace_name_resolver.for_namespace(namespace_id),
+                Arc::new(self.namespace_name_resolver.for_namespace(namespace_id)),
                 Arc::clone(&self.table_name_resolver),
                 Arc::clone(&self.partition_provider),
                 Arc::clone(&self.post_write_observer),
@@ -286,7 +286,7 @@ mod tests {
         // Init the namespace
         let ns = NamespaceData::new(
             NAMESPACE_ID,
-            DeferredLoad::new(Duration::from_millis(1), async { NAMESPACE_NAME.into() }),
+            Arc::new(DeferredLoad::new(Duration::from_millis(1), async { NAMESPACE_NAME.into() })),
             Arc::new(MockTableNameProvider::new(TABLE_NAME)),
             partition_provider,
             Arc::new(MockPostWriteObserver::default()),

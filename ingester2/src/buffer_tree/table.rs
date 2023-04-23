@@ -95,7 +95,7 @@ impl<O> TableData<O> {
     /// for the first time.
     pub(super) fn new(
         table_id: TableId,
-        table_name: DeferredLoad<TableName>,
+        table_name: Arc<DeferredLoad<TableName>>,
         namespace_id: NamespaceId,
         namespace_name: Arc<DeferredLoad<NamespaceName>>,
         partition_provider: Arc<dyn PartitionProvider>,
@@ -104,7 +104,7 @@ impl<O> TableData<O> {
     ) -> Self {
         Self {
             table_id,
-            table_name: Arc::new(table_name),
+            table_name,
             namespace_id,
             namespace_name,
             partition_data: Default::default(),
@@ -301,9 +301,9 @@ mod tests {
 
         let table = TableData::new(
             TABLE_ID,
-            DeferredLoad::new(Duration::from_secs(1), async {
+            Arc::new(DeferredLoad::new(Duration::from_secs(1), async {
                 TableName::from(TABLE_NAME)
-            }),
+            })),
             NAMESPACE_ID,
             Arc::new(DeferredLoad::new(Duration::from_secs(1), async {
                 NamespaceName::from("platanos")

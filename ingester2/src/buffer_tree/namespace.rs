@@ -85,7 +85,7 @@ impl<O> NamespaceData<O> {
     /// Initialize new tables with default partition template of daily
     pub(super) fn new(
         namespace_id: NamespaceId,
-        namespace_name: DeferredLoad<NamespaceName>,
+        namespace_name: Arc<DeferredLoad<NamespaceName>>,
         table_name_resolver: Arc<dyn TableNameProvider>,
         partition_provider: Arc<dyn PartitionProvider>,
         post_write_observer: Arc<O>,
@@ -101,7 +101,7 @@ impl<O> NamespaceData<O> {
 
         Self {
             namespace_id,
-            namespace_name: Arc::new(namespace_name),
+            namespace_name,
             tables: Default::default(),
             table_name_resolver,
             table_count,
@@ -161,7 +161,7 @@ where
                         self.table_count.inc(1);
                         Arc::new(TableData::new(
                             table_id,
-                            self.table_name_resolver.for_table(table_id),
+                            Arc::new(self.table_name_resolver.for_table(table_id)),
                             self.namespace_id,
                             Arc::clone(&self.namespace_name),
                             Arc::clone(&self.partition_provider),
@@ -276,7 +276,7 @@ mod tests {
 
         let ns = NamespaceData::new(
             NAMESPACE_ID,
-            DeferredLoad::new(Duration::from_millis(1), async { NAMESPACE_NAME.into() }),
+            Arc::new(DeferredLoad::new(Duration::from_millis(1), async { NAMESPACE_NAME.into() })),
             Arc::new(MockTableNameProvider::new(TABLE_NAME)),
             partition_provider,
             Arc::new(MockPostWriteObserver::default()),
