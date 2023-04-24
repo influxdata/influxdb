@@ -65,6 +65,8 @@ expression: "visit_statement!(r#\"SELECT value FROM (SELECT usage FROM cpu WHERE
 - post_visit_conditional_expression
 - pre_visit_conditional_expression
 - pre_visit_expr
+- pre_visit_literal
+- post_visit_literal
 - post_visit_expr
 - post_visit_conditional_expression
 - post_visit_conditional_binary
@@ -79,6 +81,8 @@ expression: "visit_statement!(r#\"SELECT value FROM (SELECT usage FROM cpu WHERE
 - post_visit_conditional_expression
 - pre_visit_conditional_expression
 - pre_visit_expr
+- pre_visit_literal
+- post_visit_literal
 - post_visit_expr
 - post_visit_conditional_expression
 - post_visit_conditional_binary
@@ -90,6 +94,8 @@ expression: "visit_statement!(r#\"SELECT value FROM (SELECT usage FROM cpu WHERE
 - pre_visit_select_dimension
 - pre_visit_select_time_dimension
 - pre_visit_expr
+- pre_visit_literal
+- post_visit_literal
 - post_visit_expr
 - post_visit_select_time_dimension
 - post_visit_select_dimension

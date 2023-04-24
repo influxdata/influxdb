@@ -35,6 +35,7 @@ use crate::explain::ExplainStatement;
 use crate::expression::arithmetic::Expr;
 use crate::expression::conditional::ConditionalExpression;
 use crate::expression::{Binary, Call, ConditionalBinary, VarRef};
+use crate::literal::Literal;
 use crate::select::{
     Dimension, Field, FieldList, FillClause, FromMeasurementClause, GroupByClause,
     MeasurementSelection, SLimitClause, SOffsetClause, SelectStatement, TimeDimension,
@@ -583,6 +584,16 @@ pub trait Visitor: Sized {
 
     /// Invoked after all children of a conditional binary expression are visited.
     fn post_visit_conditional_binary(self, _n: &ConditionalBinary) -> Result<Self, Self::Error> {
+        Ok(self)
+    }
+
+    /// Invoked before any children of a literal are visited.
+    fn pre_visit_literal(self, _n: &Literal) -> Result<Recursion<Self>, Self::Error> {
+        Ok(Continue(self))
+    }
+
+    /// Invoked after a literal is visited.
+    fn post_visit_literal(self, _n: &Literal) -> Result<Self, Self::Error> {
         Ok(self)
     }
 }
@@ -1242,15 +1253,25 @@ impl Visitable for Expr {
             Self::Binary(expr) => expr.accept(visitor),
             Self::Nested(expr) => expr.accept(visitor),
             Self::VarRef(expr) => expr.accept(visitor),
+            Self::Literal(expr) => expr.accept(visitor),
 
             // We explicitly list out each enumeration, to ensure
             // we revisit if new items are added to the Expr enumeration.
-            Self::BindParameter(_) | Self::Literal(_) | Self::Wildcard(_) | Self::Distinct(_) => {
-                Ok(visitor)
-            }
+            Self::BindParameter(_) | Self::Wildcard(_) | Self::Distinct(_) => Ok(visitor),
         }?;
 
         visitor.post_visit_expr(self)
+    }
+}
+
+impl Visitable for Literal {
+    fn accept<V: Visitor>(&self, visitor: V) -> Result<V, V::Error> {
+        let visitor = match visitor.pre_visit_literal(self)? {
+            Continue(visitor) => visitor,
+            Stop(visitor) => return Ok(visitor),
+        };
+
+        visitor.post_visit_literal(self)
     }
 }
 
@@ -1331,6 +1352,7 @@ mod test {
     use crate::expression::arithmetic::Expr;
     use crate::expression::conditional::ConditionalExpression;
     use crate::expression::{Binary, Call, ConditionalBinary, VarRef};
+    use crate::literal::Literal;
     use crate::select::{
         Dimension, Field, FieldList, FillClause, FromMeasurementClause, GroupByClause,
         MeasurementSelection, SLimitClause, SOffsetClause, SelectStatement, TimeDimension,
@@ -1427,6 +1449,7 @@ mod test {
         trace_visit!(call, Call);
         trace_visit!(expr_binary, Binary);
         trace_visit!(conditional_binary, ConditionalBinary);
+        trace_visit!(literal, Literal);
     }
 
     macro_rules! visit_statement {

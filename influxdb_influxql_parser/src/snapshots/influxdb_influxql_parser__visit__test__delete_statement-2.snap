@@ -9,10 +9,14 @@ expression: "visit_statement!(\"DELETE WHERE 'foo bar' =~ /foo/\")"
 - pre_visit_conditional_binary
 - pre_visit_conditional_expression
 - pre_visit_expr
+- pre_visit_literal
+- post_visit_literal
 - post_visit_expr
 - post_visit_conditional_expression
 - pre_visit_conditional_expression
 - pre_visit_expr
+- pre_visit_literal
+- post_visit_literal
 - post_visit_expr
 - post_visit_conditional_expression
 - post_visit_conditional_binary
