@@ -4486,7 +4486,7 @@ dependencies = [
  "observability_deps",
  "once_cell",
  "regex",
- "regex-syntax 0.6.29",
+ "regex-syntax 0.7.1",
  "schema",
  "snafu",
  "tokio",
