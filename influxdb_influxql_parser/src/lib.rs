@@ -30,6 +30,7 @@ pub mod delete;
 pub mod drop;
 pub mod explain;
 pub mod expression;
+pub mod functions;
 pub mod identifier;
 mod internal;
 mod keywords;

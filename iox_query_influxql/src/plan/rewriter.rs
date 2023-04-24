@@ -3,12 +3,12 @@
 use crate::plan::expr_type_evaluator::evaluate_type;
 use crate::plan::field::field_name;
 use crate::plan::field_mapper::{field_and_dimensions, FieldTypeMap, TagSet};
-use crate::plan::planner::is_scalar_math_function;
 use crate::plan::{error, util, SchemaProvider};
 use datafusion::common::{DataFusionError, Result};
 use influxdb_influxql_parser::common::{MeasurementName, QualifiedMeasurementName};
 use influxdb_influxql_parser::expression::walk::{walk_expr, walk_expr_mut};
 use influxdb_influxql_parser::expression::{Call, Expr, VarRef, VarRefDataType, WildcardType};
+use influxdb_influxql_parser::functions::is_scalar_math_function;
 use influxdb_influxql_parser::identifier::Identifier;
 use influxdb_influxql_parser::literal::Literal;
 use influxdb_influxql_parser::select::{

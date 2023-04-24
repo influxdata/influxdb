@@ -3,11 +3,12 @@ use crate::expression::arithmetic::{
     arithmetic, call_expression, var_ref, ArithmeticParsers, Expr,
 };
 use crate::expression::Call;
-use crate::internal::Error as InternalError;
-use crate::internal::{expect, verify, ParseResult};
+use crate::functions::is_scalar_math_function;
+use crate::internal::{expect, verify, Error as InternalError, ParseResult};
 use crate::keywords::keyword;
 use crate::literal::{literal_no_regex, literal_regex, Literal};
 use crate::parameter::parameter;
+use crate::select::is_valid_now_call;
 use nom::branch::alt;
 use nom::bytes::complete::tag;
 use nom::character::complete::char;
@@ -289,21 +290,23 @@ fn reduce_expr(
     })
 }
 
-/// Returns true if `expr` is a valid [`Expr::Call`] expression for the `now` function.
-pub(crate) fn is_valid_now_call(expr: &Expr) -> bool {
-    match expr {
-        Expr::Call(Call { name, args }) => name.to_lowercase() == "now" && args.is_empty(),
-        _ => false,
-    }
+/// Returns true if `expr` is a valid [`Expr::Call`] expression for condtional expressions
+/// in the WHERE clause.
+pub(crate) fn is_valid_conditional_call(expr: &Expr) -> bool {
+    is_valid_now_call(expr)
+        || match expr {
+            Expr::Call(Call { name, .. }) => is_scalar_math_function(name),
+            _ => false,
+        }
 }
 
 impl ConditionalExpression {
     /// Parse the `now()` function call
     fn call(i: &str) -> ParseResult<&str, Expr> {
         verify(
-            "invalid expression, the only valid function call is 'now' with no arguments",
+            "invalid expression, the only valid function calls are 'now' with no arguments, or scalar math functions",
             call_expression::<Self>,
-            is_valid_now_call,
+            is_valid_conditional_call,
         )(i)
     }
 }
@@ -384,16 +387,20 @@ mod test {
         let (_, got) = arithmetic_expression("now() + 3").unwrap();
         assert_eq!(got, binary_op!(call!("now"), Add, 3));
 
+        // arithmetic functions calls are permitted
+        let (_, got) = arithmetic_expression("abs(f) + 3").unwrap();
+        assert_eq!(got, binary_op!(call!("abs", var_ref!("f")), Add, 3));
+
         // Fallible cases
 
         assert_expect_error!(
             arithmetic_expression("sum(foo)"),
-            "invalid expression, the only valid function call is 'now' with no arguments"
+            "invalid expression, the only valid function calls are 'now' with no arguments, or scalar math functions"
         );
 
         assert_expect_error!(
             arithmetic_expression("now(1)"),
-            "invalid expression, the only valid function call is 'now' with no arguments"
+            "invalid expression, the only valid function calls are 'now' with no arguments, or scalar math functions"
         );
     }
 
