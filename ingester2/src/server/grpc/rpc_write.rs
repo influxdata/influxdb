@@ -63,6 +63,7 @@ impl From<DmlError> for tonic::Status {
         match e {
             DmlError::Buffer(e) => map_write_error(e),
             DmlError::Wal(_) => Self::internal(e.to_string()),
+            DmlError::ApplyTimeout => Self::internal(e.to_string()),
         }
     }
 }

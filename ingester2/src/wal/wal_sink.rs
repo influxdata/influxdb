@@ -2,7 +2,7 @@ use async_trait::async_trait;
 use dml::DmlOperation;
 use generated_types::influxdata::iox::wal::v1::sequenced_wal_op::Op;
 use mutable_batch_pb::encode::encode_write;
-use std::sync::Arc;
+use std::{sync::Arc, time::Duration};
 use tokio::sync::watch::Receiver;
 use wal::{SequencedWalOp, WriteResult};
 
@@ -12,6 +12,17 @@ use crate::{
 };
 
 use super::traits::WalAppender;
+
+/// [`DELEGATE_APPLY_TIMEOUT`] defines how long the inner [`DmlSink`] is given
+/// to complete the write [`DmlSink::apply()`] call.
+///
+/// If this limit weren't enforced, a write that does not make progress would
+/// consume resources forever. Instead, a reasonable duration of time is given
+/// to attempt the write before an error is returned to the caller.
+///
+/// In practice, this limit SHOULD only ever be reached as a symptom of a larger
+/// problem (catalog unavailable, etc) preventing a write from making progress.
+const DELEGATE_APPLY_TIMEOUT: Duration = Duration::from_secs(15);
 
 /// A [`DmlSink`] decorator that ensures any [`DmlOperation`] is committed to
 /// the write-ahead log before passing the operation to the inner [`DmlSink`].
@@ -49,7 +60,11 @@ where
         // durable.
         //
         // Ensure that this future is always driven to completion now that the
-        // WAL entry is being committed, otherwise they'll diverge.
+        // WAL entry is being committed, otherwise they'll diverge. At the same
+        // time, do not allow the spawned task to live forever, consuming
+        // resources without making progress - instead shed load after a
+        // reasonable duration of time (DELEGATE_APPLY_TIMEOUT) has passed,
+        // before returning a write error (if the caller is still listening).
         //
         // If this buffer apply fails, the entry remains in the WAL and will be
         // attempted again during WAL replay after a crash. If this can never
@@ -58,9 +73,14 @@ where
         //  https://github.com/influxdata/influxdb_iox/issues/7111
         //
         let inner = self.inner.clone();
-        CancellationSafe::new(async move { inner.apply(op).await })
-            .await
-            .map_err(Into::into)?;
+        CancellationSafe::new(async move {
+            let res = tokio::time::timeout(DELEGATE_APPLY_TIMEOUT, inner.apply(op))
+                .await
+                .map_err(|_| DmlError::ApplyTimeout)?;
+
+            res.map_err(Into::into)
+        })
+        .await?;
 
         // Wait for the write to be durable before returning to the user
         write_result
@@ -101,7 +121,8 @@ impl WalAppender for Arc<wal::Wal> {
 
 #[cfg(test)]
 mod tests {
-    use std::sync::Arc;
+    use core::{future::Future, marker::Send, pin::Pin};
+    use std::{future, sync::Arc};
 
     use assert_matches::assert_matches;
     use data_types::{NamespaceId, PartitionKey, TableId};
@@ -180,5 +201,67 @@ mod tests {
         let want = encode_write(NAMESPACE_ID.get(), &op);
 
         assert_eq!(want, *payload);
+    }
+
+    /// A [`DmlSink`] implementation that hangs forever and never completes.
+    #[derive(Debug, Default, Clone)]
+    struct BlockingDmlSink;
+
+    impl DmlSink for BlockingDmlSink {
+        type Error = DmlError;
+
+        fn apply<'life0, 'async_trait>(
+            &'life0 self,
+            _op: DmlOperation,
+        ) -> Pin<Box<dyn Future<Output = Result<(), Self::Error>> + Send + 'async_trait>>
+        where
+            'life0: 'async_trait,
+            Self: 'async_trait,
+        {
+            Box::pin(future::pending())
+        }
+    }
+
+    #[tokio::test]
+    async fn test_timeout() {
+        let dir = tempfile::tempdir().unwrap();
+
+        // Generate the test op
+        let op = make_write_op(
+            &PartitionKey::from("p1"),
+            NAMESPACE_ID,
+            TABLE_NAME,
+            TABLE_ID,
+            42,
+            r#"bananas,region=Madrid temp=35 4242424242"#,
+        );
+
+        let wal = Wal::new(dir.path())
+            .await
+            .expect("failed to initialise WAL");
+
+        let wal_sink = WalSink::new(BlockingDmlSink::default(), wal);
+
+        // Allow tokio to automatically advance time past the timeout duration,
+        // when all threads are blocked on await points.
+        //
+        // This allows the test to drive the timeout logic without actually
+        // waiting for the timeout duration in the test.
+        tokio::time::pause();
+
+        let start = tokio::time::Instant::now();
+
+        // Apply the op through the decorator, which should time out
+        let err = wal_sink
+            .apply(DmlOperation::Write(op.clone()))
+            .await
+            .expect_err("write should time out");
+
+        assert_matches!(err, DmlError::ApplyTimeout);
+
+        // Ensure that "time" advanced at least the timeout amount of time
+        // before erroring.
+        let duration = tokio::time::Instant::now().duration_since(start);
+        assert!(duration > DELEGATE_APPLY_TIMEOUT);
     }
 }
