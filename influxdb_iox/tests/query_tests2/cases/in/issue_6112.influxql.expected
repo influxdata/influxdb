@@ -439,6 +439,15 @@ name: m0
 +---------------------+------+
 | 2022-10-31T02:00:10 | 21.2 |
 +---------------------+------+
+-- InfluxQL: SELECT time, floor(f64) FROM m0 WHERE floor(f64) = 19.0;
+name: m0
++---------------------+-------+
+| time                | floor |
++---------------------+-------+
+| 2022-10-31T02:00:30 | 19.0  |
++---------------------+-------+
+-- InfluxQL: SELECT *, floor(f64) FROM m0 WHERE sum(f64) > 100.0;
+Error while planning query: Error during planning: invalid expression, the only valid function calls are 'now' with no arguments, or scalar math functions at pos 35
 -- InfluxQL: SELECT tag0, f64, f64 * 0.5, f64 + str FROM m0 WHERE f64 > 19;
 name: m0
 +---------------------+-------+------+-------+---------+

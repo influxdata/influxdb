@@ -1,6 +1,6 @@
 use futures::{StreamExt, TryStreamExt};
 use object_store::{DynObjectStore, ObjectMeta};
-use observability_deps::tracing::{debug, info};
+use observability_deps::tracing::info;
 use snafu::prelude::*;
 use std::sync::Arc;
 use tokio::sync::mpsc;
@@ -23,7 +23,7 @@ pub(crate) async fn perform(
                     info!(?path, "Not deleting due to dry run");
                     Ok(())
                 } else {
-                    debug!("Deleting {path}");
+                    info!("Deleting {path}");
                     object_store
                         .delete(&path)
                         .await

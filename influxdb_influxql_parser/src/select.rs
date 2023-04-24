@@ -11,8 +11,8 @@ use crate::expression::arithmetic::Expr::Wildcard;
 use crate::expression::arithmetic::{
     arithmetic, call_expression, var_ref, ArithmeticParsers, Expr, WildcardType,
 };
-use crate::expression::conditional::is_valid_now_call;
-use crate::expression::VarRef;
+use crate::expression::{Call, VarRef};
+use crate::functions::is_now_function;
 use crate::identifier::{identifier, Identifier};
 use crate::impl_tuple_clause;
 use crate::internal::{expect, map_fail, verify, ParseResult};
@@ -300,6 +300,14 @@ impl ArithmeticParsers for TimeCallIntervalArgument {
 ///
 /// The offset argument accepts either a duration, datetime-like string or `now`.
 struct TimeCallOffsetArgument;
+
+/// Returns true if `expr` is a valid [`Expr::Call`] expression for the `now` function.
+pub(crate) fn is_valid_now_call(expr: &Expr) -> bool {
+    match expr {
+        Expr::Call(Call { name, args }) => is_now_function(&name.to_lowercase()) && args.is_empty(),
+        _ => false,
+    }
+}
 
 impl TimeCallOffsetArgument {
     /// Parse the `now()` function call

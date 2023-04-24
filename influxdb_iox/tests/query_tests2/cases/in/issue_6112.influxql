@@ -233,6 +233,12 @@ SELECT f64 FROM m0 WHERE f64 >= 19.5 AND non_existent = 1;
 SELECT f64 FROM m0 WHERE f64 >= 19.5 AND f64 =~ /foo/;
 SELECT f64 FROM m0 WHERE f64 >= 19.5 OR f64 =~ /foo/;
 
+-- arithmetic scalar function calls work
+SELECT time, floor(f64) FROM m0 WHERE floor(f64) = 19.0;
+
+-- aggregate function calls produce an error
+SELECT *, floor(f64) FROM m0 WHERE sum(f64) > 100.0;
+
 --
 -- Validate column expressions
 --
