@@ -75,7 +75,7 @@ mod tests {
 
         // Init the buffer tree
         let buf = BufferTree::new(
-            Arc::new(MockNamespaceNameProvider::default()),
+            Arc::new(MockNamespaceNameProvider::new(NAMESPACE_NAME)),
             Arc::new(MockTableNameProvider::new(TABLE_NAME)),
             Arc::new(CatalogPartitionResolver::new(Arc::clone(&catalog))),
             Arc::new(MockPostWriteObserver::default()),

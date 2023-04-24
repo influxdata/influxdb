@@ -356,7 +356,7 @@ mod tests {
 
                     // Init the buffer tree
                     let buf = BufferTree::new(
-                        Arc::new(MockNamespaceNameProvider::default()),
+                        Arc::new(MockNamespaceNameProvider::new(NAMESPACE_NAME)),
                         Arc::new(MockTableNameProvider::new(TABLE_NAME)),
                         partition_provider,
                         Arc::new(MockPostWriteObserver::default()),
@@ -699,7 +699,7 @@ mod tests {
 
         // Init the buffer tree
         let buf = BufferTree::new(
-            Arc::new(MockNamespaceNameProvider::default()),
+            Arc::new(MockNamespaceNameProvider::new(NAMESPACE_NAME)),
             Arc::new(MockTableNameProvider::new(TABLE_NAME)),
             partition_provider,
             Arc::new(MockPostWriteObserver::default()),
@@ -808,7 +808,7 @@ mod tests {
 
         // Init the buffer tree
         let buf = BufferTree::new(
-            Arc::new(MockNamespaceNameProvider::default()),
+            Arc::new(MockNamespaceNameProvider::new(NAMESPACE_NAME)),
             Arc::new(MockTableNameProvider::new(TABLE_NAME)),
             partition_provider,
             Arc::new(MockPostWriteObserver::default()),
@@ -893,7 +893,7 @@ mod tests {
 
         // Init the BufferTree
         let buf = BufferTree::new(
-            Arc::new(MockNamespaceNameProvider::default()),
+            Arc::new(MockNamespaceNameProvider::new(NAMESPACE_NAME)),
             Arc::new(MockTableNameProvider::new(TABLE_NAME)),
             partition_provider,
             Arc::new(MockPostWriteObserver::default()),
@@ -992,7 +992,7 @@ mod tests {
 
         // Init the buffer tree
         let buf = BufferTree::new(
-            Arc::new(MockNamespaceNameProvider::default()),
+            Arc::new(MockNamespaceNameProvider::new(NAMESPACE_NAME)),
             Arc::new(MockTableNameProvider::new(TABLE_NAME)),
             partition_provider,
             Arc::new(MockPostWriteObserver::default()),
