@@ -200,7 +200,7 @@ impl InfluxQLQueryPlanner {
             }
         }
 
-        let planner = InfluxQLToLogicalPlan::new(&sp);
+        let planner = InfluxQLToLogicalPlan::new(&sp, ctx);
         let logical_plan = planner.statement_to_plan(statement)?;
         debug!(plan=%logical_plan.display_graphviz(), "logical plan");
         Ok(logical_plan)

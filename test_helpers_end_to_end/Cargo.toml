@@ -26,7 +26,7 @@ once_cell = { version = "1.17", features = ["parking_lot"] }
 parking_lot = "0.12"
 prost = "0.11"
 rand = "0.8.3"
-regex = "1.7"
+regex = "1.8"
 reqwest = { version = "0.11", default-features = false, features = ["json", "rustls-tls"] }
 snafu = "0.7"
 sqlx = { version = "0.6", features = [ "runtime-tokio-rustls" , "postgres", "uuid" ] }

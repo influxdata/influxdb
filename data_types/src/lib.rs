@@ -945,20 +945,6 @@ impl Partition {
     }
 }
 
-/// Data for a partition  chosen from its parquet files
-#[derive(Debug, Copy, Clone, PartialEq, Eq, PartialOrd, Ord, Hash, sqlx::FromRow)]
-pub struct PartitionParam {
-    /// the partition
-    pub partition_id: PartitionId,
-    // Remove this shard_id: https://github.com/influxdata/influxdb_iox/issues/6518
-    /// the partition's shard
-    pub shard_id: ShardId,
-    /// the partition's namespace
-    pub namespace_id: NamespaceId,
-    /// the partition's table
-    pub table_id: TableId,
-}
-
 /// Data recorded when compaction skips a partition.
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash, sqlx::FromRow)]
 pub struct SkippedCompaction {

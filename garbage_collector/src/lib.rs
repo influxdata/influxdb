@@ -103,6 +103,7 @@ impl GarbageCollector {
             sub_config.objectstore_sleep_interval_minutes,
         ));
         let os_checker = tokio::spawn(os_checker::perform(
+            shutdown.clone(),
             Arc::clone(&catalog),
             chrono::Duration::from_std(sub_config.objectstore_cutoff).map_err(|e| {
                 Error::CutoffError {
@@ -113,6 +114,7 @@ impl GarbageCollector {
             tx2,
         ));
         let os_deleter = tokio::spawn(os_deleter::perform(
+            shutdown.clone(),
             object_store,
             dry_run,
             sub_config.objectstore_concurrent_deletes,
@@ -134,6 +136,7 @@ impl GarbageCollector {
             shutdown.clone(),
             catalog,
             sub_config.retention_sleep_interval_minutes,
+            sub_config.dry_run,
         ));
 
         Ok(Self {
@@ -262,7 +265,11 @@ mod tests {
     async fn deletes_untracked_files_older_than_the_cutoff() {
         let setup = OldFileSetup::new();
 
-        let config = build_config(setup.data_dir_arg(), []).await;
+        let config = build_config(
+            setup.data_dir_arg(),
+            ["--objectstore-sleep-interval-minutes=0"],
+        )
+        .await;
         tokio::spawn(async {
             main(config).await.unwrap();
         });

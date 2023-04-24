@@ -17,7 +17,7 @@
 |    |   ProjectionExec: expr=[bar@1 as bar, foo@2 as foo, tag@3 as tag, time@4 as time]    |
 |    |     DeduplicateExec: [tag@3 ASC,time@4 ASC]    |
 |    |       SortPreservingMergeExec: [tag@3 ASC,time@4 ASC,__chunk_order@0 ASC]    |
-|    |         ParquetExec: limit=None, partitions={2 groups: [[1/1/1/1/00000000-0000-0000-0000-000000000000.parquet], [1/1/1/1/00000000-0000-0000-0000-000000000001.parquet]]}, output_ordering=[tag@3 ASC, time@4 ASC, __chunk_order@0 ASC], projection=[__chunk_order, bar, foo, tag, time]    |
+|    |         ParquetExec: limit=None, partitions={2 groups: [[1/1/1/00000000-0000-0000-0000-000000000000.parquet], [1/1/1/00000000-0000-0000-0000-000000000001.parquet]]}, output_ordering=[tag@3 ASC, time@4 ASC, __chunk_order@0 ASC], projection=[__chunk_order, bar, foo, tag, time]    |
 |    |    |
 ----------
 -- SQL: SELECT * FROM "table" WHERE tag='A';
@@ -37,7 +37,7 @@
 |    |     SortPreservingMergeExec: [tag@3 ASC,time@4 ASC,__chunk_order@0 ASC]    |
 |    |       CoalesceBatchesExec: target_batch_size=8192    |
 |    |         FilterExec: tag@3 = A    |
-|    |           ParquetExec: limit=None, partitions={2 groups: [[1/1/1/1/00000000-0000-0000-0000-000000000000.parquet], [1/1/1/1/00000000-0000-0000-0000-000000000001.parquet]]}, predicate=tag@2 = A, pruning_predicate=tag_min@0 <= A AND A <= tag_max@1, output_ordering=[tag@3 ASC, time@4 ASC, __chunk_order@0 ASC], projection=[__chunk_order, bar, foo, tag, time]    |
+|    |           ParquetExec: limit=None, partitions={2 groups: [[1/1/1/00000000-0000-0000-0000-000000000000.parquet], [1/1/1/00000000-0000-0000-0000-000000000001.parquet]]}, predicate=tag@2 = A, pruning_predicate=tag_min@0 <= A AND A <= tag_max@1, output_ordering=[tag@3 ASC, time@4 ASC, __chunk_order@0 ASC], projection=[__chunk_order, bar, foo, tag, time]    |
 |    |    |
 ----------
 -- SQL: SELECT * FROM "table" WHERE foo=1 AND bar=2;
@@ -57,7 +57,7 @@
 |    |     ProjectionExec: expr=[bar@1 as bar, foo@2 as foo, tag@3 as tag, time@4 as time]    |
 |    |       DeduplicateExec: [tag@3 ASC,time@4 ASC]    |
 |    |         SortPreservingMergeExec: [tag@3 ASC,time@4 ASC,__chunk_order@0 ASC]    |
-|    |           ParquetExec: limit=None, partitions={2 groups: [[1/1/1/1/00000000-0000-0000-0000-000000000000.parquet], [1/1/1/1/00000000-0000-0000-0000-000000000001.parquet]]}, output_ordering=[tag@3 ASC, time@4 ASC, __chunk_order@0 ASC], projection=[__chunk_order, bar, foo, tag, time]    |
+|    |           ParquetExec: limit=None, partitions={2 groups: [[1/1/1/00000000-0000-0000-0000-000000000000.parquet], [1/1/1/00000000-0000-0000-0000-000000000001.parquet]]}, output_ordering=[tag@3 ASC, time@4 ASC, __chunk_order@0 ASC], projection=[__chunk_order, bar, foo, tag, time]    |
 |    |    |
 ----------
 -- SQL: SELECT * FROM "table" WHERE time=to_timestamp('1970-01-01T00:00:00.000000000+00:00') ORDER BY tag;
@@ -80,7 +80,7 @@
 |    |       SortPreservingMergeExec: [tag@3 ASC,time@4 ASC,__chunk_order@0 ASC]    |
 |    |         CoalesceBatchesExec: target_batch_size=8192    |
 |    |           FilterExec: time@4 = 0    |
-|    |             ParquetExec: limit=None, partitions={2 groups: [[1/1/1/1/00000000-0000-0000-0000-000000000000.parquet], [1/1/1/1/00000000-0000-0000-0000-000000000001.parquet]]}, predicate=time@3 = 0, pruning_predicate=time_min@0 <= 0 AND 0 <= time_max@1, output_ordering=[tag@3 ASC, time@4 ASC, __chunk_order@0 ASC], projection=[__chunk_order, bar, foo, tag, time]    |
+|    |             ParquetExec: limit=None, partitions={2 groups: [[1/1/1/00000000-0000-0000-0000-000000000000.parquet], [1/1/1/00000000-0000-0000-0000-000000000001.parquet]]}, predicate=time@3 = 0, pruning_predicate=time_min@0 <= 0 AND 0 <= time_max@1, output_ordering=[tag@3 ASC, time@4 ASC, __chunk_order@0 ASC], projection=[__chunk_order, bar, foo, tag, time]    |
 |    |    |
 ----------
 -- SQL: SELECT * FROM "table" WHERE tag='A' AND foo=1 AND time=to_timestamp('1970-01-01T00:00:00.000000000+00:00');
@@ -102,6 +102,6 @@
 |    |         SortPreservingMergeExec: [tag@3 ASC,time@4 ASC,__chunk_order@0 ASC]    |
 |    |           CoalesceBatchesExec: target_batch_size=8192    |
 |    |             FilterExec: tag@3 = A AND time@4 = 0    |
-|    |               ParquetExec: limit=None, partitions={2 groups: [[1/1/1/1/00000000-0000-0000-0000-000000000000.parquet], [1/1/1/1/00000000-0000-0000-0000-000000000001.parquet]]}, predicate=tag@2 = A AND time@3 = 0, pruning_predicate=tag_min@0 <= A AND A <= tag_max@1 AND time_min@2 <= 0 AND 0 <= time_max@3, output_ordering=[tag@3 ASC, time@4 ASC, __chunk_order@0 ASC], projection=[__chunk_order, bar, foo, tag, time]    |
+|    |               ParquetExec: limit=None, partitions={2 groups: [[1/1/1/00000000-0000-0000-0000-000000000000.parquet], [1/1/1/00000000-0000-0000-0000-000000000001.parquet]]}, predicate=tag@2 = A AND time@3 = 0, pruning_predicate=tag_min@0 <= A AND A <= tag_max@1 AND time_min@2 <= 0 AND 0 <= time_max@3, output_ordering=[tag@3 ASC, time@4 ASC, __chunk_order@0 ASC], projection=[__chunk_order, bar, foo, tag, time]    |
 |    |    |
 ----------

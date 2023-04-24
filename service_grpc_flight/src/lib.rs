@@ -61,8 +61,8 @@ pub enum Error {
     #[snafu(display("Invalid handshake. No payload provided"))]
     InvalidHandshake {},
 
-    #[snafu(display("Namespace '{}' not found", namespace_name))]
-    NamespaceNotFound { namespace_name: String },
+    #[snafu(display("Database '{}' not found", namespace_name))]
+    DatabaseNotFound { namespace_name: String },
 
     #[snafu(display(
         "Internal error reading points from namespace {}: {}",
@@ -89,8 +89,8 @@ pub enum Error {
         source: tonic::metadata::errors::ToStrError,
     },
 
-    #[snafu(display("Invalid namespace name: {}", source))]
-    InvalidNamespaceName { source: NamespaceNameError },
+    #[snafu(display("Invalid database name: {}", source))]
+    InvalidDatabaseName { source: NamespaceNameError },
 
     #[snafu(display("Failed to optimize record batch: {}", source))]
     Optimize { source: ArrowError },
@@ -128,13 +128,13 @@ impl From<Error> for tonic::Status {
         // logging is handled for any new error variants.
         let msg = "Error handling Flight gRPC request";
         match err {
-            Error::NamespaceNotFound { .. }
+            Error::DatabaseNotFound { .. }
             | Error::InvalidTicket { .. }
             | Error::InvalidHandshake { .. }
             | Error::Unauthenticated { .. }
             | Error::PermissionDenied { .. }
             // TODO(edd): this should be `debug`. Keeping at info while IOx in early development
-            | Error::InvalidNamespaceName { .. } => info!(e=%err, msg),
+            | Error::InvalidDatabaseName { .. } => info!(e=%err, msg),
             Error::Query { .. } => info!(e=%err, msg),
             Error::Optimize { .. }
             | Error::TooManyFlightSQLDatabases { .. }
@@ -161,14 +161,14 @@ impl Error {
         let msg = self.to_string();
 
         let code = match self {
-            Self::NamespaceNotFound { .. } => tonic::Code::NotFound,
+            Self::DatabaseNotFound { .. } => tonic::Code::NotFound,
             Self::InvalidTicket { .. }
             | Self::InvalidHandshake { .. }
             | Self::Deserialization { .. }
             | Self::TooManyFlightSQLDatabases { .. }
             | Self::NoFlightSQLDatabase
             | Self::InvalidDatabaseHeader { .. }
-            | Self::InvalidNamespaceName { .. } => tonic::Code::InvalidArgument,
+            | Self::InvalidDatabaseName { .. } => tonic::Code::InvalidArgument,
             Self::Planning { source, .. } | Self::Query { source, .. } => {
                 datafusion_error_to_tonic_code(&source)
             }
@@ -401,7 +401,7 @@ where
             .server
             .db(&namespace, span_ctx.child_span("get namespace"))
             .await
-            .context(NamespaceNotFoundSnafu {
+            .context(DatabaseNotFoundSnafu {
                 namespace_name: &namespace,
             })?;
 
@@ -581,7 +581,7 @@ where
             .server
             .db(&namespace_name, span_ctx.child_span("get namespace"))
             .await
-            .context(NamespaceNotFoundSnafu {
+            .context(DatabaseNotFoundSnafu {
                 namespace_name: &namespace_name,
             })?;
 
@@ -670,7 +670,7 @@ where
             .server
             .db(&namespace_name, span_ctx.child_span("get namespace"))
             .await
-            .context(NamespaceNotFoundSnafu {
+            .context(DatabaseNotFoundSnafu {
                 namespace_name: &namespace_name,
             })?;
 

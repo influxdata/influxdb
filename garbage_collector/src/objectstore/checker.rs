@@ -5,12 +5,16 @@ use observability_deps::tracing::*;
 use snafu::prelude::*;
 use std::sync::Arc;
 use tokio::sync::mpsc;
+use tokio_util::sync::CancellationToken;
 
 #[derive(Debug, Snafu)]
 #[allow(missing_docs)]
 pub enum Error {
     #[snafu(display("Expected a file name"))]
     FileNameMissing,
+
+    #[snafu(display("Channel closed unexpectedly"))]
+    ChannelClosed,
 
     #[snafu(display("The catalog could not be queried for {object_store_id}"))]
     GetFile {
@@ -27,6 +31,7 @@ pub enum Error {
 pub(crate) type Result<T, E = Error> = std::result::Result<T, E>;
 
 pub(crate) async fn perform(
+    shutdown: CancellationToken,
     catalog: Arc<dyn Catalog>,
     cutoff: Duration,
     mut items: mpsc::Receiver<ObjectMeta>,
@@ -35,10 +40,26 @@ pub(crate) async fn perform(
     let mut repositories = catalog.repositories().await;
     let parquet_files = repositories.parquet_files();
 
-    while let Some(item) = items.recv().await {
-        let older_than = chrono::offset::Utc::now() - cutoff;
-        if should_delete(&item, older_than, parquet_files).await? {
-            deleter.send(item).await.context(DeleterExitedSnafu)?;
+    loop {
+        tokio::select! {
+            _ = shutdown.cancelled() => {
+                // Exit gracefully
+                break;
+            }
+            res = items.recv() => {
+                match res {
+                    Some(item) => {
+                        let older_than = chrono::offset::Utc::now() - cutoff;
+                        if should_delete(&item, older_than, parquet_files).await? {
+                            deleter.send(item).await.context(DeleterExitedSnafu)?;
+                        }
+                    }
+                    None => {
+                        // The channel has been closed unexpectedly
+                        return Err(Error::ChannelClosed);
+                    }
+                }
+            }
         }
     }
 
@@ -51,7 +72,7 @@ async fn should_delete(
     parquet_files: &mut dyn ParquetFileRepo,
 ) -> Result<bool> {
     if cutoff < item.last_modified {
-        info!(
+        debug!(
             location = %item.location,
             deleting = false,
             reason = "too new",
@@ -74,7 +95,7 @@ async fn should_delete(
 
             if parquet_file.is_some() {
                 // We have a reference to this file; do not delete
-                info!(
+                debug!(
                     location = %item.location,
                     deleting = false,
                     reason = "exists in catalog",
@@ -82,7 +103,7 @@ async fn should_delete(
                 );
                 return Ok(false);
             } else {
-                info!(
+                debug!(
                     location = %item.location,
                     deleting = true,
                     reason = "not in catalog",
@@ -90,7 +111,7 @@ async fn should_delete(
                 );
             }
         } else {
-            info!(
+            debug!(
                 location = %item.location,
                 deleting = true,
                 uuid,
@@ -99,7 +120,7 @@ async fn should_delete(
             );
         }
     } else {
-        info!(
+        debug!(
             location = %item.location,
             deleting = true,
             file_name = %file_name.as_ref(),

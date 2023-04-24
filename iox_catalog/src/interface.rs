@@ -3,9 +3,9 @@
 use async_trait::async_trait;
 use data_types::{
     Column, ColumnSchema, ColumnType, CompactionLevel, Namespace, NamespaceId, NamespaceSchema,
-    ParquetFile, ParquetFileId, ParquetFileParams, Partition, PartitionId, PartitionKey,
-    PartitionParam, QueryPool, QueryPoolId, SequenceNumber, Shard, ShardId, ShardIndex,
-    SkippedCompaction, Table, TableId, TableSchema, Timestamp, TopicId, TopicMetadata,
+    ParquetFile, ParquetFileId, ParquetFileParams, Partition, PartitionId, PartitionKey, QueryPool,
+    QueryPoolId, SequenceNumber, Shard, ShardId, ShardIndex, SkippedCompaction, Table, TableId,
+    TableSchema, Timestamp, TopicId, TopicMetadata,
 };
 use iox_time::TimeProvider;
 use snafu::{OptionExt, Snafu};
@@ -535,15 +535,6 @@ pub trait PartitionRepo: Send + Sync {
     /// Return the N most recently created partitions.
     async fn most_recent_n(&mut self, n: usize) -> Result<Vec<Partition>>;
 
-    /// Select partition for cold/warm/hot compaction
-    /// These are partitions with files created recently (aka created after the specified time_in_the_past)
-    /// These files include all levels of compaction files
-    async fn partitions_with_recent_created_files(
-        &mut self,
-        time_in_the_past: Timestamp,
-        max_num_partitions: usize,
-    ) -> Result<Vec<PartitionParam>>;
-
     /// Select partitions with a `new_file_at` value greater than the minimum time value and, if specified, less than
     /// the maximum time value. Both range ends are exclusive; a timestamp exactly equal to either end will _not_ be
     /// included in the results.
@@ -854,7 +845,7 @@ pub(crate) mod test_helpers {
     {
         test_setup(clean_state().await).await;
         test_namespace_soft_deletion(clean_state().await).await;
-        test_partitions_with_recent_created_files(clean_state().await).await;
+        test_partitions_new_file_between(clean_state().await).await;
         test_query_pool(clean_state().await).await;
         test_column(clean_state().await).await;
         test_partition(clean_state().await).await;
@@ -885,10 +876,6 @@ pub(crate) mod test_helpers {
         assert_metric_hit(&catalog.metrics(), "column_create_or_get");
 
         let catalog = clean_state().await;
-        test_shards(Arc::clone(&catalog)).await;
-        assert_metric_hit(&catalog.metrics(), "shard_create_or_get");
-
-        let catalog = clean_state().await;
         test_partition(Arc::clone(&catalog)).await;
         assert_metric_hit(&catalog.metrics(), "partition_create_or_get");
 
@@ -901,24 +888,22 @@ pub(crate) mod test_helpers {
         catalog.setup().await.expect("first catalog setup");
         catalog.setup().await.expect("second catalog setup");
 
-        if std::env::var("INFLUXDB_IOX_RPC_MODE").is_ok() {
-            let transition_shard = catalog
-                .repositories()
-                .await
-                .shards()
-                .get_by_topic_id_and_shard_index(SHARED_TOPIC_ID, TRANSITION_SHARD_INDEX)
-                .await
-                .expect("transition shard");
+        let transition_shard = catalog
+            .repositories()
+            .await
+            .shards()
+            .get_by_topic_id_and_shard_index(SHARED_TOPIC_ID, TRANSITION_SHARD_INDEX)
+            .await
+            .expect("transition shard");
 
-            assert_matches!(
-                transition_shard,
-                Some(Shard {
-                    id,
-                    shard_index,
-                    ..
-                }) if id == TRANSITION_SHARD_ID && shard_index == TRANSITION_SHARD_INDEX
-            );
-        }
+        assert_matches!(
+            transition_shard,
+            Some(Shard {
+                id,
+                shard_index,
+                ..
+            }) if id == TRANSITION_SHARD_ID && shard_index == TRANSITION_SHARD_INDEX
+        );
     }
 
     async fn test_topic(catalog: Arc<dyn Catalog>) {
@@ -1555,69 +1540,6 @@ pub(crate) mod test_helpers {
             .soft_delete("namespace_column_test")
             .await
             .expect("delete namespace should succeed");
-    }
-
-    async fn test_shards(catalog: Arc<dyn Catalog>) {
-        let mut repos = catalog.repositories().await;
-        let topic = repos.topics().create_or_get("shard_test").await.unwrap();
-
-        // Create 10 shards
-        let mut created = BTreeMap::new();
-        for shard_index in 1..=10 {
-            let shard = repos
-                .shards()
-                .create_or_get(&topic, ShardIndex::new(shard_index))
-                .await
-                .expect("failed to create shard");
-            created.insert(shard.id, shard);
-        }
-
-        // List them and assert they match
-        let listed = repos
-            .shards()
-            .list_by_topic(&topic)
-            .await
-            .expect("failed to list shards")
-            .into_iter()
-            .map(|v| (v.id, v))
-            .collect::<BTreeMap<_, _>>();
-
-        assert_eq!(created, listed);
-
-        // get by the topic and shard index
-        let shard_index = ShardIndex::new(1);
-        let shard = repos
-            .shards()
-            .get_by_topic_id_and_shard_index(topic.id, shard_index)
-            .await
-            .unwrap()
-            .unwrap();
-        assert_eq!(topic.id, shard.topic_id);
-        assert_eq!(shard_index, shard.shard_index);
-
-        // update the number
-        repos
-            .shards()
-            .update_min_unpersisted_sequence_number(shard.id, SequenceNumber::new(53))
-            .await
-            .unwrap();
-        let updated_shard = repos
-            .shards()
-            .create_or_get(&topic, shard_index)
-            .await
-            .unwrap();
-        assert_eq!(updated_shard.id, shard.id);
-        assert_eq!(
-            updated_shard.min_unpersisted_sequence_number,
-            SequenceNumber::new(53)
-        );
-
-        let shard = repos
-            .shards()
-            .get_by_topic_id_and_shard_index(topic.id, ShardIndex::new(523))
-            .await
-            .unwrap();
-        assert!(shard.is_none());
     }
 
     async fn test_partition(catalog: Arc<dyn Catalog>) {
@@ -2390,32 +2312,26 @@ pub(crate) mod test_helpers {
         assert_eq!(ids, vec![parquet_file_2.id]);
     }
 
-    async fn test_partitions_with_recent_created_files(catalog: Arc<dyn Catalog>) {
-        let max_num_partition = 100;
+    async fn test_partitions_new_file_between(catalog: Arc<dyn Catalog>) {
         let mut repos = catalog.repositories().await;
         let topic = repos
             .topics()
-            .create_or_get("recent_created_files")
+            .create_or_get("new_file_between")
             .await
             .unwrap();
         let pool = repos
             .query_pools()
-            .create_or_get("recent_created_files")
+            .create_or_get("new_file_between")
             .await
             .unwrap();
         let namespace = repos
             .namespaces()
-            .create(
-                "test_partitions_with_recent_created_files",
-                None,
-                topic.id,
-                pool.id,
-            )
+            .create("test_partitions_new_file_between", None, topic.id, pool.id)
             .await
             .unwrap();
         let table = repos
             .tables()
-            .create_or_get("test_table_for_recent_created_files", namespace.id)
+            .create_or_get("test_table_for_new_file_between", namespace.id)
             .await
             .unwrap();
         let shard = repos
@@ -2432,11 +2348,10 @@ pub(crate) mod test_helpers {
         let time_five_hour_ago = Timestamp::from(catalog.time_provider().hours_ago(5));
         let time_six_hour_ago = Timestamp::from(catalog.time_provider().hours_ago(6));
 
-        // Db has no partition
-        // get from partition table
+        // Db has no partitions
         let partitions = repos
             .partitions()
-            .partitions_with_recent_created_files(time_two_hour_ago, max_num_partition)
+            .partitions_new_file_between(time_two_hour_ago, None)
             .await
             .unwrap();
         assert!(partitions.is_empty());
@@ -2449,16 +2364,14 @@ pub(crate) mod test_helpers {
             .create_or_get("one".into(), shard.id, table.id)
             .await
             .unwrap();
-        // get from partition table
         let partitions = repos
             .partitions()
-            .partitions_with_recent_created_files(time_two_hour_ago, max_num_partition)
+            .partitions_new_file_between(time_two_hour_ago, None)
             .await
             .unwrap();
         assert!(partitions.is_empty());
 
         // create files for partition one
-
         let parquet_file_params = ParquetFileParams {
             shard_id: shard.id,
             namespace_id: namespace.id,
@@ -2487,14 +2400,6 @@ pub(crate) mod test_helpers {
             .flag_for_delete(delete_l0_file.id)
             .await
             .unwrap();
-        // get from partition table
-        let partitions = repos
-            .partitions()
-            .partitions_with_recent_created_files(time_two_hour_ago, max_num_partition)
-            .await
-            .unwrap();
-        assert!(partitions.is_empty());
-        // read from partition table only
         let partitions = repos
             .partitions()
             .partitions_new_file_between(time_two_hour_ago, None)
@@ -2514,7 +2419,7 @@ pub(crate) mod test_helpers {
             .unwrap();
         assert!(partitions.is_empty());
 
-        // create a deleted L0 file that was created 1 hour ago which is recently
+        // create a deleted L0 file that was created 1 hour ago
         let l0_one_hour_ago_file_params = ParquetFileParams {
             object_store_id: Uuid::new_v4(),
             created_at: time_one_hour_ago,
@@ -2526,15 +2431,6 @@ pub(crate) mod test_helpers {
             .await
             .unwrap();
         // partition one should be returned
-        // get from partition table
-        let partitions = repos
-            .partitions()
-            .partitions_with_recent_created_files(time_two_hour_ago, max_num_partition)
-            .await
-            .unwrap();
-        assert_eq!(partitions.len(), 1);
-        assert_eq!(partitions[0].partition_id, partition1.id);
-        // read from partition table only
         let partitions = repos
             .partitions()
             .partitions_new_file_between(time_two_hour_ago, None)
@@ -2572,15 +2468,6 @@ pub(crate) mod test_helpers {
             .await
             .unwrap();
         // should return partition one only
-        // get from partition table
-        let partitions = repos
-            .partitions()
-            .partitions_with_recent_created_files(time_two_hour_ago, max_num_partition)
-            .await
-            .unwrap();
-        assert_eq!(partitions.len(), 1);
-        assert_eq!(partitions[0].partition_id, partition1.id);
-        // read from partition table only
         let partitions = repos
             .partitions()
             .partitions_new_file_between(time_two_hour_ago, None)
@@ -2596,7 +2483,7 @@ pub(crate) mod test_helpers {
         assert_eq!(partitions.len(), 1);
         assert_eq!(partitions[0], partition1.id);
 
-        // Add a L0 file created non-recently (5 hours ago)
+        // Add a L0 file created 5 hours ago
         let l0_five_hour_ago_file_params = ParquetFileParams {
             object_store_id: Uuid::new_v4(),
             created_at: time_five_hour_ago,
@@ -2609,15 +2496,6 @@ pub(crate) mod test_helpers {
             .await
             .unwrap();
         // still return partition one only
-        // get from partition table
-        let partitions = repos
-            .partitions()
-            .partitions_with_recent_created_files(time_two_hour_ago, max_num_partition)
-            .await
-            .unwrap();
-        assert_eq!(partitions.len(), 1);
-        assert_eq!(partitions[0].partition_id, partition1.id);
-        // read from partition table only
         let partitions = repos
             .partitions()
             .partitions_new_file_between(time_two_hour_ago, None)
@@ -2648,7 +2526,7 @@ pub(crate) mod test_helpers {
         assert_eq!(partitions.len(), 1);
         assert_eq!(partitions[0], partition2.id);
 
-        //  Add a L1 created recently (just now)
+        // Add an L1 file created just now
         let l1_file_params = ParquetFileParams {
             object_store_id: Uuid::new_v4(),
             created_at: time_now,
@@ -2662,29 +2540,17 @@ pub(crate) mod test_helpers {
             .await
             .unwrap();
         // should return both partitions
-        // get from partition table
-        let mut partitions = repos
-            .partitions()
-            .partitions_with_recent_created_files(time_two_hour_ago, max_num_partition)
-            .await
-            .unwrap();
-        assert_eq!(partitions.len(), 2);
-        // sort by partition id
-        partitions.sort_by(|a, b| a.partition_id.cmp(&b.partition_id));
-        assert_eq!(partitions[0].partition_id, partition1.id);
-        assert_eq!(partitions[1].partition_id, partition2.id);
-        // read from partition table only
         let mut partitions = repos
             .partitions()
             .partitions_new_file_between(time_two_hour_ago, None)
             .await
             .unwrap();
         assert_eq!(partitions.len(), 2);
-        // sort by partition id
         partitions.sort();
         assert_eq!(partitions[0], partition1.id);
         assert_eq!(partitions[1], partition2.id);
-        // Only return partition1: the creation time must be strictly less than the maximum time, not equal
+        // Only return partition1: the creation time must be strictly less than the maximum time,
+        // not equal
         let mut partitions = repos
             .partitions()
             .partitions_new_file_between(time_three_hour_ago, Some(time_now))
@@ -2710,29 +2576,17 @@ pub(crate) mod test_helpers {
             .await
             .unwrap();
         // should return partition one and two only
-        // get from partition table
-        let mut partitions = repos
-            .partitions()
-            .partitions_with_recent_created_files(time_two_hour_ago, max_num_partition)
-            .await
-            .unwrap();
-        assert_eq!(partitions.len(), 2);
-        // sort by partition id
-        partitions.sort_by(|a, b| a.partition_id.cmp(&b.partition_id));
-        assert_eq!(partitions[0].partition_id, partition1.id);
-        assert_eq!(partitions[1].partition_id, partition2.id);
-        // read from partition table only
         let mut partitions = repos
             .partitions()
             .partitions_new_file_between(time_two_hour_ago, None)
             .await
             .unwrap();
         assert_eq!(partitions.len(), 2);
-        // sort by partition id
         partitions.sort();
         assert_eq!(partitions[0], partition1.id);
         assert_eq!(partitions[1], partition2.id);
-        // Only return partition1: the creation time must be strictly less than the maximum time, not equal
+        // Only return partition1: the creation time must be strictly less than the maximum time,
+        // not equal
         let partitions = repos
             .partitions()
             .partitions_new_file_between(time_three_hour_ago, Some(time_now))
@@ -2758,8 +2612,8 @@ pub(crate) mod test_helpers {
             .unwrap();
         assert!(partitions.is_empty());
 
-        // Add a L2 created recently (just now) for partition three
-        // Since it is L2, the partition won't get updated
+        // Add an L2 file created just now for partition three
+        // Since the file is L2, the partition won't get updated
         let l2_file_params = ParquetFileParams {
             object_store_id: Uuid::new_v4(),
             created_at: time_now,
@@ -2773,29 +2627,17 @@ pub(crate) mod test_helpers {
             .await
             .unwrap();
         // still should return partition one and two only
-        // get from partition table
-        let mut partitions = repos
-            .partitions()
-            .partitions_with_recent_created_files(time_two_hour_ago, max_num_partition)
-            .await
-            .unwrap();
-        assert_eq!(partitions.len(), 2);
-        // sort by partition id
-        partitions.sort_by(|a, b| a.partition_id.cmp(&b.partition_id));
-        assert_eq!(partitions[0].partition_id, partition1.id);
-        assert_eq!(partitions[1].partition_id, partition2.id);
-        // read from partition table only
         let mut partitions = repos
             .partitions()
             .partitions_new_file_between(time_two_hour_ago, None)
             .await
             .unwrap();
         assert_eq!(partitions.len(), 2);
-        // sort by partition id
         partitions.sort();
         assert_eq!(partitions[0], partition1.id);
         assert_eq!(partitions[1], partition2.id);
-        // Only return partition1: the creation time must be strictly less than the maximum time, not equal
+        // Only return partition1: the creation time must be strictly less than the maximum time,
+        // not equal
         let partitions = repos
             .partitions()
             .partitions_new_file_between(time_three_hour_ago, Some(time_now))
@@ -2811,7 +2653,7 @@ pub(crate) mod test_helpers {
             .unwrap();
         assert!(partitions.is_empty());
 
-        // add an L0 file created recently (one hour ago) for partition three
+        // add an L0 file created one hour ago for partition three
         let l0_one_hour_ago_file_params = ParquetFileParams {
             object_store_id: Uuid::new_v4(),
             created_at: time_one_hour_ago,
@@ -2824,26 +2666,12 @@ pub(crate) mod test_helpers {
             .await
             .unwrap();
         // should return all partitions
-        // get from partition table
-        let mut partitions = repos
-            .partitions()
-            .partitions_with_recent_created_files(time_two_hour_ago, max_num_partition)
-            .await
-            .unwrap();
-        assert_eq!(partitions.len(), 3);
-        // sort by partition id
-        partitions.sort_by(|a, b| a.partition_id.cmp(&b.partition_id));
-        assert_eq!(partitions[0].partition_id, partition1.id);
-        assert_eq!(partitions[1].partition_id, partition2.id);
-        assert_eq!(partitions[2].partition_id, partition3.id);
-        // read from partition table only
         let mut partitions = repos
             .partitions()
             .partitions_new_file_between(time_two_hour_ago, None)
             .await
             .unwrap();
         assert_eq!(partitions.len(), 3);
-        // sort by partition id
         partitions.sort();
         assert_eq!(partitions[0], partition1.id);
         assert_eq!(partitions[1], partition2.id);
@@ -2865,33 +2693,6 @@ pub(crate) mod test_helpers {
             .await
             .unwrap();
         assert!(partitions.is_empty());
-
-        // Limit max num partition
-        let partitions = repos
-            .partitions()
-            .partitions_with_recent_created_files(time_two_hour_ago, 2)
-            .await
-            .unwrap();
-        assert_eq!(partitions.len(), 2);
-        let partitions = repos
-            .partitions()
-            .partitions_with_recent_created_files(time_two_hour_ago, 1)
-            .await
-            .unwrap();
-        assert_eq!(partitions.len(), 1);
-        let partitions = repos
-            .partitions()
-            .partitions_with_recent_created_files(time_two_hour_ago, 0)
-            .await
-            .unwrap();
-        assert_eq!(partitions.len(), 0);
-
-        // drop the namespace to avoid the created data in this tests from affecting other tests
-        repos
-            .namespaces()
-            .soft_delete("test_partitions_with_recent_created_files")
-            .await
-            .expect("delete namespace should succeed");
     }
 
     async fn test_list_by_partiton_not_to_delete(catalog: Arc<dyn Catalog>) {

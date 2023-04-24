@@ -110,13 +110,6 @@ pub async fn command(config: Config) -> Result<(), Error> {
     });
     info!(%num_threads, "using specified number of threads per thread pool");
 
-    let rpc_write = std::env::var("INFLUXDB_IOX_RPC_MODE").is_ok();
-    if rpc_write {
-        info!("using the RPC write path");
-    } else {
-        info!("using the write buffer path");
-    }
-
     let ingester_addresses = &config.querier_config.ingester_addresses;
     info!(?ingester_addresses, "using ingester addresses");
 

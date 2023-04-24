@@ -13,6 +13,9 @@ name: m0
 | 2022-10-31T02:00:30 | 19.2 | 392 | lo  | val00 |       |
 +---------------------+------+-----+-----+-------+-------+
 -- InfluxQL: SELECT * FROM non_existent;
+++
+++
+++
 -- InfluxQL: SELECT *::tag, f64 FROM m0;
 name: m0
 +---------------------+-------+-------+------+
@@ -222,6 +225,39 @@ name: m0
 | 2022-10-31T02:00:20 | 191 |
 | 2022-10-31T02:00:30 | 392 |
 +---------------------+-----+
+-- InfluxQL: SELECT cpu, usage_idle FROM cpu WHERE cpu = 'cpu0' OR cpu = 'cpu1' AND time >= 1667181610000000000;
+name: cpu
++---------------------+------+------------+
+| time                | cpu  | usage_idle |
++---------------------+------+------------+
+| 2022-10-31T02:00:10 | cpu0 | 0.99       |
+| 2022-10-31T02:00:10 | cpu1 | 1.99       |
++---------------------+------+------------+
+-- InfluxQL: SELECT cpu, usage_idle FROM cpu WHERE time >= 1667181610000000000 OR time = 1667181600000000000;
++------+-----+------------+
+| time | cpu | usage_idle |
++------+-----+------------+
++------+-----+------------+
+-- InfluxQL: SELECT cpu, usage_idle FROM cpu WHERE time = 1667181610000000000 OR time = 1667181600000000000 AND cpu = 'cpu0';
+name: cpu
++---------------------+------+------------+
+| time                | cpu  | usage_idle |
++---------------------+------+------------+
+| 2022-10-31T02:00:00 | cpu0 | 0.98       |
+| 2022-10-31T02:00:10 | cpu0 | 0.99       |
++---------------------+------+------------+
+-- InfluxQL: SELECT cpu, usage_idle FROM cpu WHERE time = 1667181610000000000 OR time = 1667181600000000000;
+name: cpu
++---------------------+-----------+------------+
+| time                | cpu       | usage_idle |
++---------------------+-----------+------------+
+| 2022-10-31T02:00:00 | cpu-total | 2.98       |
+| 2022-10-31T02:00:00 | cpu0      | 0.98       |
+| 2022-10-31T02:00:00 | cpu1      | 1.98       |
+| 2022-10-31T02:00:10 | cpu-total | 2.99       |
+| 2022-10-31T02:00:10 | cpu0      | 0.99       |
+| 2022-10-31T02:00:10 | cpu1      | 1.99       |
++---------------------+-----------+------------+
 -- InfluxQL: SELECT tag1, f64 FROM m0 WHERE tag1 != '';
 name: m0
 +---------------------+-------+------+
@@ -375,6 +411,10 @@ name: m0
 | 2022-10-31T02:00:10 | 21.2 |
 +---------------------+------+
 -- InfluxQL: SELECT f64 FROM m0 WHERE f64 >= 19.5 AND str = 1;
++------+-----+
+| time | f64 |
++------+-----+
++------+-----+
 -- InfluxQL: SELECT f64 FROM m0 WHERE f64 >= 19 + 0.5 OR non_existent = 1;
 name: m0
 +---------------------+------+
@@ -383,7 +423,15 @@ name: m0
 | 2022-10-31T02:00:10 | 21.2 |
 +---------------------+------+
 -- InfluxQL: SELECT f64 FROM m0 WHERE f64 >= 19.5 AND non_existent = 1;
++------+-----+
+| time | f64 |
++------+-----+
++------+-----+
 -- InfluxQL: SELECT f64 FROM m0 WHERE f64 >= 19.5 AND f64 =~ /foo/;
++------+-----+
+| time | f64 |
++------+-----+
++------+-----+
 -- InfluxQL: SELECT f64 FROM m0 WHERE f64 >= 19.5 OR f64 =~ /foo/;
 name: m0
 +---------------------+------+
@@ -836,25 +884,23 @@ name: logical_plan
 name: physical_plan
  plan
  SortPreservingMergeExec: [iox::measurement@0 ASC NULLS LAST,tag0@2 ASC NULLS LAST,time@1 ASC NULLS LAST]
-   UnionExec
-     SortExec: expr=[iox::measurement@0 ASC NULLS LAST,tag0@2 ASC NULLS LAST,time@1 ASC NULLS LAST]
+   SortExec: expr=[iox::measurement@0 ASC NULLS LAST,tag0@2 ASC NULLS LAST,time@1 ASC NULLS LAST]
+     InterleaveExec
        ProjectionExec: expr=[m0 as iox::measurement, 0 as time, tag0@0 as tag0, COUNT(m0.f64)@1 as count, SUM(m0.f64)@2 as sum, STDDEV(m0.f64)@3 as stddev]
          AggregateExec: mode=FinalPartitioned, gby=[tag0@0 as tag0], aggr=[COUNT(m0.f64), SUM(m0.f64), STDDEV(m0.f64)]
            CoalesceBatchesExec: target_batch_size=8192
              RepartitionExec: partitioning=Hash([Column { name: "tag0", index: 0 }], 4), input_partitions=4
                RepartitionExec: partitioning=RoundRobinBatch(4), input_partitions=1
                  AggregateExec: mode=Partial, gby=[tag0@1 as tag0], aggr=[COUNT(m0.f64), SUM(m0.f64), STDDEV(m0.f64)]
-                   ParquetExec: limit=None, partitions={1 group: [[1/1/1/1/00000000-0000-0000-0000-000000000000.parquet]]}, output_ordering=[tag0@1 ASC], projection=[f64, tag0]
-     SortExec: expr=[iox::measurement@0 ASC NULLS LAST,tag0@2 ASC NULLS LAST,time@1 ASC NULLS LAST]
+                   ParquetExec: limit=None, partitions={1 group: [[1/1/1/00000000-0000-0000-0000-000000000000.parquet]]}, output_ordering=[tag0@1 ASC], projection=[f64, tag0]
        ProjectionExec: expr=[m1 as iox::measurement, 0 as time, tag0@0 as tag0, COUNT(m1.f64)@1 as count, SUM(m1.f64)@2 as sum, STDDEV(m1.f64)@3 as stddev]
          AggregateExec: mode=FinalPartitioned, gby=[tag0@0 as tag0], aggr=[COUNT(m1.f64), SUM(m1.f64), STDDEV(m1.f64)]
            CoalesceBatchesExec: target_batch_size=8192
              RepartitionExec: partitioning=Hash([Column { name: "tag0", index: 0 }], 4), input_partitions=4
                RepartitionExec: partitioning=RoundRobinBatch(4), input_partitions=1
                  AggregateExec: mode=Partial, gby=[tag0@1 as tag0], aggr=[COUNT(m1.f64), SUM(m1.f64), STDDEV(m1.f64)]
-                   ParquetExec: limit=None, partitions={1 group: [[1/1/1/1/00000000-0000-0000-0000-000000000001.parquet]]}, output_ordering=[tag0@1 ASC], projection=[f64, tag0]
+                   ParquetExec: limit=None, partitions={1 group: [[1/1/1/00000000-0000-0000-0000-000000000001.parquet]]}, output_ordering=[tag0@1 ASC], projection=[f64, tag0]
 -- InfluxQL: SELECT COUNT(f64), SUM(f64), stddev(f64) FROM m0, m1 GROUP BY tag0;
--- Results After Sorting
 name: m0
 tags: tag0=val00
 +---------------------+-------+------+-------------------+
@@ -955,7 +1001,6 @@ name: disk
 | 1970-01-01T00:00:00 |      | 2236.5 |
 +---------------------+------+--------+
 -- InfluxQL: SELECT MEAN(usage_idle), MEAN(bytes_free) FROM cpu, disk GROUP BY TIME(10s) FILL(none);
--- Results After Sorting
 name: cpu
 +---------------------+--------------------+--------+
 | time                | mean               | mean_1 |
@@ -998,6 +1043,9 @@ name: cpu
 | 1970-01-01T00:00:00 | 1.9850000000000003 |                          |
 +---------------------+--------------------+--------------------------+
 -- InfluxQL: SELECT MEAN(foo) FROM cpu;
+++
+++
+++
 -- InfluxQL: SELECT MEAN(usage_idle) + MEAN(foo) FROM cpu GROUP BY cpu;
 name: cpu
 tags: cpu=cpu-total
@@ -1043,6 +1091,9 @@ tags: cpu=cpu1
 | 1970-01-01T00:00:00 | 1.9849999999999999 |                          |
 +---------------------+--------------------+--------------------------+
 -- InfluxQL: SELECT MEAN(foo) FROM cpu GROUP BY cpu;
+++
+++
+++
 -- InfluxQL: SELECT COUNT(f64), SUM(f64) FROM m0 GROUP BY TIME(30s) FILL(none);
 name: m0
 +---------------------+-------+------+
@@ -1073,7 +1124,6 @@ name: disk
 | 1970-01-01T00:00:00 |       | 6       |
 +---------------------+-------+---------+
 -- InfluxQL: SELECT COUNT(usage_idle), COUNT(bytes_free) FROM cpu, disk GROUP BY TIME(1s) FILL(none);
--- Results After Sorting
 name: cpu
 +---------------------+-------+---------+
 | time                | count | count_1 |
@@ -1692,6 +1742,10 @@ tags: cpu=, device=disk1s5
 | 2022-10-31T02:01:30 |       | 3       |
 +---------------------+-------+---------+
 -- InfluxQL: SELECT COUNT(usage_idle) FROM cpu WHERE time >= now() - 2m GROUP BY TIME(30s) FILL(null);
++------+-------+
+| time | count |
++------+-------+
++------+-------+
 -- InfluxQL: SELECT f64 FROM m0 WHERE tag0 = 'val00' LIMIT 3;
 name: m0
 +---------------------+------+
@@ -2045,6 +2099,10 @@ tags: cpu=cpu1
 | 1970-01-01T00:00:00 | 2     |
 +---------------------+-------+
 -- InfluxQL: SELECT COUNT(usage_idle) FROM cpu GROUP BY cpu OFFSET 1;
++------+-------+
+| time | count |
++------+-------+
++------+-------+
 -- InfluxQL: SELECT COUNT(usage_idle) FROM cpu GROUP BY cpu LIMIT 1;
 name: cpu
 tags: cpu=cpu-total
@@ -2068,6 +2126,10 @@ tags: cpu=cpu1
 | 1970-01-01T00:00:00 | 2     |
 +---------------------+-------+
 -- InfluxQL: SELECT COUNT(usage_idle) FROM cpu GROUP BY cpu OFFSET 1;
++------+-------+
+| time | count |
++------+-------+
++------+-------+
 -- InfluxQL: SELECT COUNT(usage_idle) FROM cpu WHERE time >= '2022-10-31T02:00:00Z' AND time < '2022-10-31T02:05:00Z' GROUP BY TIME(30s) LIMIT 2;
 name: cpu
 +---------------------+-------+
@@ -2502,3 +2564,7 @@ name: m0
 +---------------------+-------+---------+
 -- InfluxQL: SELECT DISTINCT(str), DISTINCT(i64) FROM m0;
 Error while planning query: Error during planning: aggregate function distinct() cannot be combined with other functions or fields
+-- InfluxQL: SELECT * FROM does_not_exist;
+++
+++
+++

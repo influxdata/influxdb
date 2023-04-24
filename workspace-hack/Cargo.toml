@@ -30,9 +30,9 @@ bytes = { version = "1" }
 chrono = { version = "0.4", default-features = false, features = ["alloc", "clock", "serde"] }
 crossbeam-utils = { version = "0.8" }
 crypto-common = { version = "0.1", default-features = false, features = ["std"] }
-datafusion = { git = "https://github.com/apache/arrow-datafusion.git", rev = "ebb839068b9d99d3a3fea0a50a1e4baf4f1a5fca" }
-datafusion-optimizer = { git = "https://github.com/apache/arrow-datafusion.git", rev = "ebb839068b9d99d3a3fea0a50a1e4baf4f1a5fca", default-features = false, features = ["crypto_expressions", "regex_expressions", "unicode_expressions"] }
-datafusion-physical-expr = { git = "https://github.com/apache/arrow-datafusion.git", rev = "ebb839068b9d99d3a3fea0a50a1e4baf4f1a5fca", default-features = false, features = ["crypto_expressions", "regex_expressions", "unicode_expressions"] }
+datafusion = { git = "https://github.com/apache/arrow-datafusion.git", rev = "181e5ccf2816ccaa05d8aaef0b375d4b7bbceece" }
+datafusion-optimizer = { git = "https://github.com/apache/arrow-datafusion.git", rev = "181e5ccf2816ccaa05d8aaef0b375d4b7bbceece", default-features = false, features = ["crypto_expressions", "regex_expressions", "unicode_expressions"] }
+datafusion-physical-expr = { git = "https://github.com/apache/arrow-datafusion.git", rev = "181e5ccf2816ccaa05d8aaef0b375d4b7bbceece", default-features = false, features = ["crypto_expressions", "regex_expressions", "unicode_expressions"] }
 digest = { version = "0.10", features = ["mac", "std"] }
 either = { version = "1" }
 fixedbitset = { version = "0.4" }
@@ -71,7 +71,8 @@ prost-types = { version = "0.11" }
 rand = { version = "0.8", features = ["small_rng"] }
 rand_core = { version = "0.6", default-features = false, features = ["std"] }
 regex = { version = "1" }
-regex-syntax = { version = "0.6" }
+regex-syntax-3b31131e45eafb45 = { package = "regex-syntax", version = "0.6" }
+regex-syntax-ca01ad9e24f5d932 = { package = "regex-syntax", version = "0.7" }
 reqwest = { version = "0.11", default-features = false, features = ["json", "rustls-tls", "stream"] }
 ring = { version = "0.16", features = ["std"] }
 serde = { version = "1", features = ["derive", "rc"] }
@@ -137,7 +138,7 @@ prost-types = { version = "0.11" }
 rand = { version = "0.8", features = ["small_rng"] }
 rand_core = { version = "0.6", default-features = false, features = ["std"] }
 regex = { version = "1" }
-regex-syntax = { version = "0.6" }
+regex-syntax-ca01ad9e24f5d932 = { package = "regex-syntax", version = "0.7" }
 ring = { version = "0.16", features = ["std"] }
 serde = { version = "1", features = ["derive", "rc"] }
 serde_json = { version = "1", features = ["raw_value"] }

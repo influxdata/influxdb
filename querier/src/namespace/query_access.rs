@@ -497,7 +497,7 @@ mod tests {
         - "| plan_type    | plan    |"
         - "----------"
         - "| logical_plan    | TableScan: cpu projection=[foo, host, load, time]    |"
-        - "| physical_plan    | ParquetExec: limit=None, partitions={1 group: [[1/1/1/1/00000000-0000-0000-0000-000000000000.parquet, 1/1/1/1/00000000-0000-0000-0000-000000000001.parquet, 1/1/1/1/00000000-0000-0000-0000-000000000002.parquet, 1/1/1/1/00000000-0000-0000-0000-000000000003.parquet, 1/1/1/1/00000000-0000-0000-0000-000000000004.parquet]]}, projection=[foo, host, load, time]    |"
+        - "| physical_plan    | ParquetExec: limit=None, partitions={1 group: [[1/1/1/00000000-0000-0000-0000-000000000000.parquet, 1/1/1/00000000-0000-0000-0000-000000000001.parquet, 1/1/1/00000000-0000-0000-0000-000000000002.parquet, 1/1/1/00000000-0000-0000-0000-000000000003.parquet, 1/1/1/00000000-0000-0000-0000-000000000004.parquet]]}, projection=[foo, host, load, time]    |"
         - "|    |    |"
         - "----------"
         "###
@@ -515,7 +515,7 @@ mod tests {
         - "| logical_plan    | Sort: mem.host ASC NULLS LAST, mem.time ASC NULLS LAST    |"
         - "|    |   TableScan: mem projection=[host, perc, time]    |"
         - "| physical_plan    | SortExec: expr=[host@0 ASC NULLS LAST,time@2 ASC NULLS LAST]    |"
-        - "|    |   ParquetExec: limit=None, partitions={1 group: [[1/1/1/1/00000000-0000-0000-0000-000000000000.parquet]]}, output_ordering=[host@0 ASC, time@2 ASC], projection=[host, perc, time]    |"
+        - "|    |   ParquetExec: limit=None, partitions={1 group: [[1/1/1/00000000-0000-0000-0000-000000000000.parquet]]}, output_ordering=[host@0 ASC, time@2 ASC], projection=[host, perc, time]    |"
         - "|    |    |"
         - "----------"
         "###
@@ -566,11 +566,12 @@ mod tests {
         - "----------"
         - "| logical_plan    | TableScan: cpu projection=[foo, host, load, time]    |"
         - "| physical_plan    | UnionExec    |"
-        - "|    |   ParquetExec: limit=None, partitions={1 group: [[1/1/1/1/00000000-0000-0000-0000-000000000000.parquet, 1/1/1/1/00000000-0000-0000-0000-000000000001.parquet, 1/1/1/1/00000000-0000-0000-0000-000000000002.parquet, 1/1/1/1/00000000-0000-0000-0000-000000000003.parquet]]}, projection=[foo, host, load, time]    |"
+        - "|    |   ParquetExec: limit=None, partitions={1 group: [[1/1/1/00000000-0000-0000-0000-000000000000.parquet]]}, output_ordering=[host@1 ASC, time@3 ASC], projection=[foo, host, load, time]    |"
+        - "|    |   ParquetExec: limit=None, partitions={1 group: [[1/1/1/00000000-0000-0000-0000-000000000001.parquet, 1/1/1/00000000-0000-0000-0000-000000000002.parquet, 1/1/1/00000000-0000-0000-0000-000000000003.parquet]]}, projection=[foo, host, load, time]    |"
         - "|    |   ProjectionExec: expr=[foo@1 as foo, host@2 as host, load@3 as load, time@4 as time]    |"
         - "|    |     DeduplicateExec: [host@2 ASC,time@4 ASC]    |"
         - "|    |       SortPreservingMergeExec: [host@2 ASC,time@4 ASC,__chunk_order@0 ASC]    |"
-        - "|    |         ParquetExec: limit=None, partitions={2 groups: [[1/1/1/1/00000000-0000-0000-0000-000000000004.parquet], [1/1/1/1/00000000-0000-0000-0000-000000000005.parquet]]}, output_ordering=[host@2 ASC, time@4 ASC, __chunk_order@0 ASC], projection=[__chunk_order, foo, host, load, time]    |"
+        - "|    |         ParquetExec: limit=None, partitions={2 groups: [[1/1/1/00000000-0000-0000-0000-000000000004.parquet], [1/1/1/00000000-0000-0000-0000-000000000005.parquet]]}, output_ordering=[host@2 ASC, time@4 ASC, __chunk_order@0 ASC], projection=[__chunk_order, foo, host, load, time]    |"
         - "|    |    |"
         - "----------"
         "###

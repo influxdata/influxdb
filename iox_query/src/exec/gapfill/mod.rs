@@ -57,7 +57,7 @@ pub struct GapFillParams {
     /// The source time column
     pub time_column: Expr,
     /// The origin argument from the call to DATE_BIN_GAPFILL
-    pub origin: Expr,
+    pub origin: Option<Expr>,
     /// The time range of the time column inferred from predicates
     /// in the overall query. The lower bound may be [`Bound::Unbounded`]
     /// which implies that gap-filling should just start from the
@@ -85,18 +85,16 @@ pub enum FillStrategy {
     /// Fill the gaps between points linearly.
     /// Null values will not be considered as missing, so two non-null values
     /// with a null in between will not be filled.
-    #[allow(dead_code)]
     LinearInterpolate,
 }
 
 impl GapFillParams {
     // Extract the expressions so they can be optimized.
     fn expressions(&self) -> Vec<Expr> {
-        let mut exprs = vec![
-            self.stride.clone(),
-            self.time_column.clone(),
-            self.origin.clone(),
-        ];
+        let mut exprs = vec![self.stride.clone(), self.time_column.clone()];
+        if let Some(e) = self.origin.as_ref() {
+            exprs.push(e.clone())
+        }
         if let Some(start) = bound_extract(&self.time_range.start) {
             exprs.push(start.clone());
         }
@@ -117,7 +115,7 @@ impl GapFillParams {
         let mut iter = exprs.iter().cloned();
         let stride = iter.next().unwrap();
         let time_column = iter.next().unwrap();
-        let origin = iter.next().unwrap();
+        let origin = self.origin.as_ref().map(|_| iter.next().unwrap());
         let time_range = try_map_range(&self.time_range, |b| {
             try_map_bound(b.as_ref(), |_| {
                 Ok(iter.next().expect("expr count should match template"))
@@ -300,12 +298,12 @@ pub(crate) fn plan_gap_fill(
         })
     })?;
 
-    let origin = create_physical_expr(
-        &gap_fill.params.origin,
-        input_dfschema,
-        input_schema,
-        execution_props,
-    )?;
+    let origin = gap_fill
+        .params
+        .origin
+        .as_ref()
+        .map(|e| create_physical_expr(e, input_dfschema, input_schema, execution_props))
+        .transpose()?;
 
     let fill_strategy = gap_fill
         .params
@@ -385,7 +383,7 @@ struct GapFillExecParams {
     /// The timestamp column produced by date_bin
     time_column: Column,
     /// The origin argument from the all to DATE_BIN_GAPFILL
-    origin: Arc<dyn PhysicalExpr>,
+    origin: Option<Arc<dyn PhysicalExpr>>,
     /// The time range of source input to DATE_BIN_GAPFILL.
     /// Inferred from predicates in the overall query.
     time_range: Range<Bound<Arc<dyn PhysicalExpr>>>,
@@ -620,7 +618,7 @@ mod test {
             GapFillParams {
                 stride: lit(ScalarValue::IntervalDayTime(Some(60_000))),
                 time_column: col("time"),
-                origin: lit_timestamp_nano(0),
+                origin: None,
                 time_range: Range {
                     start: Bound::Included(lit_timestamp_nano(1000)),
                     end: Bound::Unbounded,
@@ -638,7 +636,8 @@ mod test {
         let exprs = gapfill_as_node.expressions();
         let want_exprs = gapfill.group_expr.len()
             + gapfill.aggr_expr.len()
-            + 3 // stride, time, origin
+            + 2 // stride, time
+            + gapfill.params.origin.iter().count()
             + bound_extract(&gapfill.params.time_range.start).iter().count()
             + bound_extract(&gapfill.params.time_range.end).iter().count();
         assert_eq!(want_exprs, exprs.len());
@@ -654,14 +653,50 @@ mod test {
 
     #[test]
     fn test_from_template() {
-        for time_range in vec![
-            Range {
-                start: Bound::Included(lit_timestamp_nano(1000)),
-                end: Bound::Excluded(lit_timestamp_nano(2000)),
+        for params in vec![
+            // no origin, no start bound
+            GapFillParams {
+                stride: lit(ScalarValue::IntervalDayTime(Some(60_000))),
+                time_column: col("time"),
+                origin: None,
+                time_range: Range {
+                    start: Bound::Unbounded,
+                    end: Bound::Excluded(lit_timestamp_nano(2000)),
+                },
+                fill_strategy: fill_strategy_null(vec![col("temp")]),
             },
-            Range {
-                start: Bound::Unbounded,
-                end: Bound::Excluded(lit_timestamp_nano(2000)),
+            // no origin, yes start bound
+            GapFillParams {
+                stride: lit(ScalarValue::IntervalDayTime(Some(60_000))),
+                time_column: col("time"),
+                origin: None,
+                time_range: Range {
+                    start: Bound::Included(lit_timestamp_nano(1000)),
+                    end: Bound::Excluded(lit_timestamp_nano(2000)),
+                },
+                fill_strategy: fill_strategy_null(vec![col("temp")]),
+            },
+            // yes origin, no start bound
+            GapFillParams {
+                stride: lit(ScalarValue::IntervalDayTime(Some(60_000))),
+                time_column: col("time"),
+                origin: Some(lit_timestamp_nano(1_000_000_000)),
+                time_range: Range {
+                    start: Bound::Unbounded,
+                    end: Bound::Excluded(lit_timestamp_nano(2000)),
+                },
+                fill_strategy: fill_strategy_null(vec![col("temp")]),
+            },
+            // yes origin, yes start bound
+            GapFillParams {
+                stride: lit(ScalarValue::IntervalDayTime(Some(60_000))),
+                time_column: col("time"),
+                origin: Some(lit_timestamp_nano(1_000_000_000)),
+                time_range: Range {
+                    start: Bound::Included(lit_timestamp_nano(1000)),
+                    end: Bound::Excluded(lit_timestamp_nano(2000)),
+                },
+                fill_strategy: fill_strategy_null(vec![col("temp")]),
             },
         ] {
             let scan = table_scan().unwrap();
@@ -669,13 +704,7 @@ mod test {
                 Arc::new(scan.clone()),
                 vec![col("loc"), col("time")],
                 vec![col("temp")],
-                GapFillParams {
-                    stride: lit(ScalarValue::IntervalDayTime(Some(60_000))),
-                    time_column: col("time"),
-                    origin: lit_timestamp_nano(0),
-                    time_range,
-                    fill_strategy: fill_strategy_null(vec![col("temp")]),
-                },
+                params,
             )
             .unwrap();
             assert_gapfill_from_template_roundtrip(&gapfill);
@@ -695,7 +724,7 @@ mod test {
             GapFillParams {
                 stride: lit(ScalarValue::IntervalDayTime(Some(60_000))),
                 time_column: col("time"),
-                origin: lit_timestamp_nano(0),
+                origin: None,
                 time_range: Range {
                     start: Bound::Included(lit_timestamp_nano(1000)),
                     end: Bound::Excluded(lit_timestamp_nano(2000)),

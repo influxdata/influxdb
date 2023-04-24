@@ -1,11 +1,9 @@
 mod select;
 
-use crate::plan::error;
 use crate::plan::planner::select::{
     check_exprs_satisfy_columns, fields_to_exprs_no_nulls, make_tag_key_column_meta,
     plan_with_sort, ToSortExpr,
 };
-use crate::plan::planner_rewrite_expression::{rewrite_conditional, rewrite_expr};
 use crate::plan::planner_time_range_expression::{
     duration_expr_to_nanoseconds, expr_to_df_interval_dt, time_range_to_df_expr,
 };
@@ -14,12 +12,12 @@ use crate::plan::rewriter::{
 };
 use crate::plan::util::{binary_operator_to_df_operator, rebase_expr, Schemas};
 use crate::plan::var_ref::{column_type_to_var_ref_data_type, var_ref_data_type_to_data_type};
+use crate::plan::{error, planner_rewrite_expression};
 use arrow::array::{StringBuilder, StringDictionaryBuilder};
 use arrow::datatypes::{DataType, Field as ArrowField, Int32Type, Schema as ArrowSchema};
 use arrow::record_batch::RecordBatch;
 use chrono_tz::Tz;
 use datafusion::catalog::TableReference;
-use datafusion::common::tree_node::{TreeNode, TreeNodeRewriter};
 use datafusion::common::{DFSchema, DFSchemaRef, Result, ScalarValue, ToDFSchema};
 use datafusion::datasource::{provider_as_source, MemTable};
 use datafusion::logical_expr::expr_rewriter::normalize_col;
@@ -28,12 +26,12 @@ use datafusion::logical_expr::logical_plan::Analyze;
 use datafusion::logical_expr::utils::{expr_as_column_expr, find_aggregate_exprs};
 use datafusion::logical_expr::{
     binary_expr, col, date_bin, expr, expr::WindowFunction, lit, lit_timestamp_nano, now,
-    window_function, Aggregate, AggregateFunction, AggregateUDF, Between, BinaryExpr,
-    BuiltInWindowFunction, BuiltinScalarFunction, EmptyRelation, Explain, Expr, ExprSchemable,
-    Extension, GetIndexedField, LogicalPlan, LogicalPlanBuilder, Operator, PlanType, ScalarUDF,
-    TableSource, ToStringifiedPlan, WindowFrame, WindowFrameBound, WindowFrameUnits,
+    window_function, Aggregate, AggregateFunction, AggregateUDF, Between, BuiltInWindowFunction,
+    BuiltinScalarFunction, EmptyRelation, Explain, Expr, ExprSchemable, Extension, GetIndexedField,
+    LogicalPlan, LogicalPlanBuilder, Operator, PlanType, ScalarUDF, TableSource, ToStringifiedPlan,
+    WindowFrame, WindowFrameBound, WindowFrameUnits,
 };
-use datafusion::prelude::Column;
+use datafusion::prelude::{cast, sum, when, Column};
 use datafusion_util::{lit_dict, AsExpr};
 use generated_types::influxdata::iox::querier::v1::InfluxQlMetadata;
 use influxdb_influxql_parser::common::{LimitClause, OffsetClause};
@@ -61,9 +59,12 @@ use influxdb_influxql_parser::{
     select::{Field, FieldList, FromMeasurementClause, MeasurementSelection, SelectStatement},
     statement::Statement,
 };
+use iox_query::config::{IoxConfigExt, MetadataCutoff};
 use iox_query::exec::gapfill::{FillStrategy, GapFill, GapFillParams};
+use iox_query::exec::IOxSessionContext;
 use iox_query::logical_optimizer::range_predicate::find_time_range;
 use itertools::Itertools;
+use observability_deps::tracing::debug;
 use once_cell::sync::Lazy;
 use query_functions::selectors::{
     selector_first, selector_last, selector_max, selector_min, SelectorOutput,
@@ -191,11 +192,12 @@ impl<'a> Context<'a> {
 /// InfluxQL query planner
 pub struct InfluxQLToLogicalPlan<'a> {
     s: &'a dyn SchemaProvider,
+    iox_ctx: &'a IOxSessionContext,
 }
 
 impl<'a> InfluxQLToLogicalPlan<'a> {
-    pub fn new(s: &'a dyn SchemaProvider) -> Self {
-        Self { s }
+    pub fn new(s: &'a dyn SchemaProvider, iox_ctx: &'a IOxSessionContext) -> Self {
+        Self { s, iox_ctx }
     }
 
     pub fn statement_to_plan(&self, statement: Statement) -> Result<LogicalPlan> {
@@ -371,7 +373,26 @@ impl<'a> InfluxQLToLogicalPlan<'a> {
                         }) => continue,
                         plan => break plan,
                     },
-                    None => return LogicalPlanBuilder::empty(false).build(),
+                    None => {
+                        // empty result, but let's at least have all the strictly necessary metadata
+                        let schema = Arc::new(ArrowSchema::new(vec![ArrowField::new(
+                            INFLUXQL_MEASUREMENT_COLUMN_NAME,
+                            (&InfluxColumnType::Tag).into(),
+                            false,
+                        )]));
+                        let plan = LogicalPlan::EmptyRelation(EmptyRelation {
+                            produce_one_row: false,
+                            schema: schema.to_dfschema_ref()?,
+                        });
+                        let plan = plan_with_metadata(
+                            plan,
+                            &InfluxQlMetadata {
+                                measurement_column_index: MEASUREMENT_COLUMN_INDEX,
+                                tag_key_columns: vec![],
+                            },
+                        )?;
+                        return Ok(plan);
+                    }
                 }
             }
         };
@@ -908,7 +929,7 @@ impl<'a> InfluxQLToLogicalPlan<'a> {
     ) -> Result<Expr> {
         let expr =
             self.expr_to_df_expr(&ctx.with_scope(ExprScope::Projection), &field.expr, schemas)?;
-        let expr = rewrite_field_expr(expr, schemas)?;
+        let expr = planner_rewrite_expression::rewrite_field_expr(expr, schemas)?;
         normalize_col(
             if let Some(alias) = &field.alias {
                 expr.alias(alias.deref())
@@ -959,6 +980,14 @@ impl<'a> InfluxQLToLogicalPlan<'a> {
             // one or the other is true
             && (lhs_time ^ rhs_time)
         {
+            // != operator is not supported by InfluxQL, as it results in every point,
+            // except this and is potentially very expensive.
+            //
+            // See: https://github.com/influxdata/influxql/blob/3029b95d4ff5951de68e1d7a1c3039236025815a/ast.go#L5831-L5832
+            if op == Operator::NotEq {
+                return error::query("invalid time comparison operator: !=");
+            }
+
             if lhs_time {
                 (
                     self.conditional_to_df_expr(ctx, lhs, schemas)?,
@@ -1250,7 +1279,8 @@ impl<'a> InfluxQLToLogicalPlan<'a> {
                     where_clause,
                     schemas,
                 )?;
-                let filter_expr = rewrite_conditional_expr(filter_expr, schemas)?;
+                let filter_expr =
+                    planner_rewrite_expression::rewrite_conditional_expr(filter_expr, schemas)?;
                 let plan = LogicalPlanBuilder::from(plan)
                     .filter(filter_expr)?
                     .build()?;
@@ -1305,7 +1335,7 @@ impl<'a> InfluxQLToLogicalPlan<'a> {
     }
 
     /// Expand tables from `FROM` clause in metadata queries.
-    fn expand_tables(&self, from: Option<ShowFromClause>) -> Result<Vec<String>> {
+    fn expand_show_from_clause(&self, from: Option<ShowFromClause>) -> Result<Vec<String>> {
         match from {
             None => {
                 let mut tables = self
@@ -1352,13 +1382,67 @@ impl<'a> InfluxQLToLogicalPlan<'a> {
         }
     }
 
+    fn expand_with_measurement_clause(
+        &self,
+        with_measurement: Option<WithMeasurementClause>,
+    ) -> Result<Vec<String>> {
+        match with_measurement {
+            Some(
+                WithMeasurementClause::Equals(qualified_name)
+                | WithMeasurementClause::Regex(qualified_name),
+            ) if qualified_name.database.is_some() => {
+                error::not_implemented("database name in from clause")
+            }
+            Some(
+                WithMeasurementClause::Equals(qualified_name)
+                | WithMeasurementClause::Regex(qualified_name),
+            ) if qualified_name.retention_policy.is_some() => {
+                error::not_implemented("retention policy in from clause")
+            }
+            Some(WithMeasurementClause::Equals(qualified_name)) => match qualified_name.name {
+                MeasurementName::Name(n) => {
+                    let names = self.s.table_names();
+                    let tables = if names.into_iter().any(|table| table == n.as_str()) {
+                        vec![n.as_str().to_owned()]
+                    } else {
+                        vec![]
+                    };
+                    Ok(tables)
+                }
+                MeasurementName::Regex(_) => error::query("expected string but got regex"),
+            },
+            Some(WithMeasurementClause::Regex(qualified_name)) => match &qualified_name.name {
+                MeasurementName::Name(_) => error::query("expected regex but got string"),
+                MeasurementName::Regex(regex) => {
+                    let regex = parse_regex(regex)?;
+                    let mut tables = self
+                        .s
+                        .table_names()
+                        .into_iter()
+                        .filter(|s| regex.is_match(s))
+                        .map(|s| s.to_owned())
+                        .collect::<Vec<_>>();
+                    tables.sort();
+                    Ok(tables)
+                }
+            },
+            None => {
+                let mut tables = self
+                    .s
+                    .table_names()
+                    .into_iter()
+                    .map(|s| s.to_owned())
+                    .collect::<Vec<_>>();
+                tables.sort();
+                Ok(tables)
+            }
+        }
+    }
+
     fn show_tag_keys_to_plan(&self, show_tag_keys: ShowTagKeysStatement) -> Result<LogicalPlan> {
         if show_tag_keys.database.is_some() {
             // How do we handle this? Do we need to perform cross-namespace queries here?
             return error::not_implemented("SHOW TAG KEYS ON <database>");
-        }
-        if show_tag_keys.condition.is_some() {
-            return error::not_implemented("SHOW TAG KEYS WHERE <condition>");
         }
 
         let tag_key_col = "tagKey";
@@ -1371,38 +1455,133 @@ impl<'a> InfluxQLToLogicalPlan<'a> {
             ArrowField::new(tag_key_col, (&InfluxColumnType::Tag).into(), false),
         ]));
 
-        let tables = self.expand_tables(show_tag_keys.from)?;
+        let tables = self.expand_show_from_clause(show_tag_keys.from)?;
 
-        let mut measurement_names_builder = StringDictionaryBuilder::<Int32Type>::new();
-        let mut tag_key_builder = StringDictionaryBuilder::<Int32Type>::new();
-        for table in tables {
-            let Some(table_schema) = self.s.table_schema(&table) else {continue};
-            for (t, f) in table_schema.iter() {
-                match t {
-                    InfluxColumnType::Tag => {}
-                    InfluxColumnType::Field(_) | InfluxColumnType::Timestamp => {
-                        continue;
+        let plan = match show_tag_keys.condition {
+            Some(condition) => {
+                debug!("`SHOW TAG KEYS` w/ WHERE-clause, use data scan plan",);
+
+                let condition = Some(condition);
+                let metadata_cutoff = self.metadata_cutoff();
+
+                let mut union_plan = None;
+                for table in tables {
+                    let Some(table_schema) = self.s.table_schema(&table) else {continue};
+                    let Some((plan, measurement_expr)) = self.create_table_ref(table.clone())? else {continue;};
+
+                    let schemas = Schemas::new(plan.schema())?;
+                    let plan =
+                        self.plan_where_clause(&Context::default(), &condition, plan, &schemas)?;
+                    let plan = add_time_restriction(plan, metadata_cutoff)?;
+
+                    let tags = table_schema
+                        .iter()
+                        .filter(|(t, _f)| matches!(t, InfluxColumnType::Tag))
+                        .map(|(_t, f)| f.name().as_str())
+                        .collect::<Vec<_>>();
+
+                    // We want to find all tag columns that had non-null values and create a row for each of them. SQL
+                    // (and DataFusion) don't have a real pivot/transpose operation, but we can work around this by
+                    // using some `make_array`+`unnest` trickery.
+                    let tag_key_df_col = Column::from_name(tag_key_col);
+                    let tag_key_col_expr = Expr::Column(tag_key_df_col.clone());
+                    let plan = LogicalPlanBuilder::from(plan)
+                        // aggregate `SUM(tag IS NOT NULL)` for all tags in one go
+                        //
+                        // we have a single row afterwards because the group expression is empty.
+                        .aggregate(
+                            [] as [Expr; 0],
+                            tags.iter().map(|tag| {
+                                let tag_col = Expr::Column(Column::from_name(*tag));
+
+                                sum(cast(tag_col.is_not_null(), DataType::UInt64)).alias(*tag)
+                            }),
+                        )?
+                        // create array of tag names, where every name is:
+                        // - null if it had no non-null values
+                        // - not null if it had any non-null values
+                        //
+                        // note that since we only have a single row, this is efficient
+                        .project([Expr::ScalarFunction {
+                            fun: BuiltinScalarFunction::MakeArray,
+                            args: tags
+                                .iter()
+                                .map(|tag| {
+                                    let tag_col = Expr::Column(Column::from_name(*tag));
+
+                                    when(tag_col.gt(lit(0)), lit(*tag)).end()
+                                })
+                                .collect::<Result<Vec<_>, _>>()?,
+                        }
+                        .alias(tag_key_col)])?
+                        // roll our single array row into one row per tag key
+                        .unnest_column(tag_key_df_col)?
+                        // filter out tags that had no none-null values
+                        .filter(tag_key_col_expr.clone().is_not_null())?
+                        // build proper output
+                        .project(measurement_expr.into_iter().chain([tag_key_col_expr]))?
+                        .build()?;
+
+                    union_plan = match union_plan {
+                        Some(union_plan) => {
+                            Some(LogicalPlanBuilder::from(union_plan).union(plan)?.build()?)
+                        }
+                        None => Some(plan),
+                    };
+                }
+
+                let plan = match union_plan {
+                    Some(plan) => plan,
+                    None => LogicalPlan::EmptyRelation(EmptyRelation {
+                        produce_one_row: false,
+                        schema: output_schema.to_dfschema_ref()?,
+                    }),
+                };
+
+                LogicalPlanBuilder::from(plan)
+                    .sort([
+                        Expr::Column(Column::new_unqualified(INFLUXQL_MEASUREMENT_COLUMN_NAME))
+                            .sort(true, false),
+                        Expr::Column(Column::new_unqualified(tag_key_col)).sort(true, false),
+                    ])?
+                    .build()?
+            }
+            None => {
+                debug!("`SHOW TAG KEYS` w/o WHERE-clause, use cheap metadata scan",);
+
+                let mut measurement_names_builder = StringDictionaryBuilder::<Int32Type>::new();
+                let mut tag_key_builder = StringDictionaryBuilder::<Int32Type>::new();
+                for table in tables {
+                    let Some(table_schema) = self.s.table_schema(&table) else {continue};
+                    for (t, f) in table_schema.iter() {
+                        match t {
+                            InfluxColumnType::Tag => {}
+                            InfluxColumnType::Field(_) | InfluxColumnType::Timestamp => {
+                                continue;
+                            }
+                        }
+                        measurement_names_builder.append_value(&table);
+                        tag_key_builder.append_value(f.name());
                     }
                 }
-                measurement_names_builder.append_value(&table);
-                tag_key_builder.append_value(f.name());
+                LogicalPlanBuilder::scan(
+                    "tag_keys",
+                    provider_as_source(Arc::new(MemTable::try_new(
+                        Arc::clone(&output_schema),
+                        vec![vec![RecordBatch::try_new(
+                            Arc::clone(&output_schema),
+                            vec![
+                                Arc::new(measurement_names_builder.finish()),
+                                Arc::new(tag_key_builder.finish()),
+                            ],
+                        )?]],
+                    )?)),
+                    None,
+                )?
+                .build()?
             }
-        }
-        let plan = LogicalPlanBuilder::scan(
-            "tag_keys",
-            provider_as_source(Arc::new(MemTable::try_new(
-                Arc::clone(&output_schema),
-                vec![vec![RecordBatch::try_new(
-                    Arc::clone(&output_schema),
-                    vec![
-                        Arc::new(measurement_names_builder.finish()),
-                        Arc::new(tag_key_builder.finish()),
-                    ],
-                )?]],
-            )?)),
-            None,
-        )?
-        .build()?;
+        };
+
         let plan = plan_with_metadata(
             plan,
             &InfluxQlMetadata {
@@ -1440,7 +1619,7 @@ impl<'a> InfluxQLToLogicalPlan<'a> {
             ArrowField::new("fieldType", DataType::Utf8, false),
         ]));
 
-        let tables = self.expand_tables(show_field_keys.from)?;
+        let tables = self.expand_show_from_clause(show_field_keys.from)?;
 
         let mut measurement_names_builder = StringBuilder::new();
         let mut field_key_builder = StringBuilder::new();
@@ -1510,9 +1689,6 @@ impl<'a> InfluxQLToLogicalPlan<'a> {
             // How do we handle this? Do we need to perform cross-namespace queries here?
             return error::not_implemented("SHOW TAG VALUES ON <database>");
         }
-        if show_tag_values.condition.is_some() {
-            return error::not_implemented("SHOW TAG VALUES WHERE <condition>");
-        }
 
         let key_col = "key";
         let value_col = "value";
@@ -1522,7 +1698,8 @@ impl<'a> InfluxQLToLogicalPlan<'a> {
             ArrowField::new(value_col, DataType::Utf8, false),
         ]));
 
-        let tables = self.expand_tables(show_tag_values.from)?;
+        let tables = self.expand_show_from_clause(show_tag_values.from)?;
+        let metadata_cutoff = self.metadata_cutoff();
 
         let mut union_plan = None;
         for table in tables {
@@ -1539,7 +1716,14 @@ impl<'a> InfluxQLToLogicalPlan<'a> {
 
             let Some((plan, measurement_expr)) = self.create_table_ref(table)? else {continue;};
 
-            // TODO: apply WHERE clause, use default time restriction if user did not provide any
+            let schemas = Schemas::new(plan.schema())?;
+            let plan = self.plan_where_clause(
+                &Context::default(),
+                &show_tag_values.condition,
+                plan,
+                &schemas,
+            )?;
+            let plan = add_time_restriction(plan, metadata_cutoff)?;
 
             for key in keys {
                 let idx = plan
@@ -1550,7 +1734,6 @@ impl<'a> InfluxQLToLogicalPlan<'a> {
                 let plan = LogicalPlanBuilder::from(plan.clone())
                     .select([idx])?
                     .distinct()?
-                    .sort([Expr::Column(Column::from_name(key)).sort(true, false)])?
                     .project(measurement_expr.iter().cloned().chain([
                         lit_dict(key).alias(key_col),
                         Expr::Column(Column::from_name(key)).alias(value_col),
@@ -1573,6 +1756,14 @@ impl<'a> InfluxQLToLogicalPlan<'a> {
                 schema: output_schema.to_dfschema_ref()?,
             }),
         };
+        let plan = LogicalPlanBuilder::from(plan)
+            .sort([
+                Expr::Column(Column::new_unqualified(INFLUXQL_MEASUREMENT_COLUMN_NAME))
+                    .sort(true, false),
+                Expr::Column(Column::new_unqualified(key_col)).sort(true, false),
+                Expr::Column(Column::new_unqualified(value_col)).sort(true, false),
+            ])?
+            .build()?;
         let plan = plan_with_metadata(
             plan,
             &InfluxQlMetadata {
@@ -1604,64 +1795,8 @@ impl<'a> InfluxQLToLogicalPlan<'a> {
             // How do we handle this? Do we need to perform cross-namespace queries here?
             return error::not_implemented("SHOW MEASUREMENTS ON <database>");
         }
-        if show_measurements.condition.is_some() {
-            return error::not_implemented("SHOW MEASUREMENTS WHERE <condition>");
-        }
 
-        let tables = match show_measurements.with_measurement {
-            Some(
-                WithMeasurementClause::Equals(qualified_name)
-                | WithMeasurementClause::Regex(qualified_name),
-            ) if qualified_name.database.is_some() => {
-                return error::not_implemented("database name in from clause");
-            }
-            Some(
-                WithMeasurementClause::Equals(qualified_name)
-                | WithMeasurementClause::Regex(qualified_name),
-            ) if qualified_name.retention_policy.is_some() => {
-                return error::not_implemented("retention policy in from clause");
-            }
-            Some(WithMeasurementClause::Equals(qualified_name)) => match qualified_name.name {
-                MeasurementName::Name(n) => {
-                    let names = self.s.table_names();
-                    if names.into_iter().any(|table| table == n.as_str()) {
-                        vec![n.as_str().to_owned()]
-                    } else {
-                        vec![]
-                    }
-                }
-                MeasurementName::Regex(_) => {
-                    return error::query("expected string but got regex");
-                }
-            },
-            Some(WithMeasurementClause::Regex(qualified_name)) => match &qualified_name.name {
-                MeasurementName::Name(_) => {
-                    return error::query("expected regex but got string");
-                }
-                MeasurementName::Regex(regex) => {
-                    let regex = parse_regex(regex)?;
-                    let mut tables = self
-                        .s
-                        .table_names()
-                        .into_iter()
-                        .filter(|s| regex.is_match(s))
-                        .map(|s| s.to_owned())
-                        .collect::<Vec<_>>();
-                    tables.sort();
-                    tables
-                }
-            },
-            None => {
-                let mut tables = self
-                    .s
-                    .table_names()
-                    .into_iter()
-                    .map(|s| s.to_owned())
-                    .collect::<Vec<_>>();
-                tables.sort();
-                tables
-            }
-        };
+        let tables = self.expand_with_measurement_clause(show_measurements.with_measurement)?;
 
         let name_col = "name";
         let output_schema = Arc::new(ArrowSchema::new(vec![
@@ -1672,28 +1807,83 @@ impl<'a> InfluxQLToLogicalPlan<'a> {
             ),
             ArrowField::new(name_col, (&InfluxColumnType::Tag).into(), false),
         ]));
+        let dummy_measurement_name = "measurements";
 
-        let mut dummy_measurement_names_builder = StringDictionaryBuilder::<Int32Type>::new();
-        let mut name_builder = StringDictionaryBuilder::<Int32Type>::new();
-        for table in tables {
-            dummy_measurement_names_builder.append_value("measurements");
-            name_builder.append_value(table);
-        }
-        let plan = LogicalPlanBuilder::scan(
-            "measurements",
-            provider_as_source(Arc::new(MemTable::try_new(
-                Arc::clone(&output_schema),
-                vec![vec![RecordBatch::try_new(
-                    Arc::clone(&output_schema),
-                    vec![
-                        Arc::new(dummy_measurement_names_builder.finish()),
-                        Arc::new(name_builder.finish()),
-                    ],
-                )?]],
-            )?)),
-            None,
-        )?
-        .build()?;
+        let plan = match show_measurements.condition {
+            Some(condition) => {
+                debug!("`SHOW MEASUREMENTS` w/ WHERE-clause, use data scan plan",);
+
+                let condition = Some(condition);
+                let metadata_cutoff = self.metadata_cutoff();
+
+                let mut union_plan = None;
+                for table in tables {
+                    let Some((plan, _measurement_expr)) = self.create_table_ref(table.clone())? else {continue;};
+
+                    let schemas = Schemas::new(plan.schema())?;
+                    let plan =
+                        self.plan_where_clause(&Context::default(), &condition, plan, &schemas)?;
+                    let plan = add_time_restriction(plan, metadata_cutoff)?;
+
+                    let plan = LogicalPlanBuilder::from(plan)
+                        .limit(0, Some(1))?
+                        .project([
+                            lit_dict(dummy_measurement_name)
+                                .alias(INFLUXQL_MEASUREMENT_COLUMN_NAME),
+                            lit_dict(&table).alias(name_col),
+                        ])?
+                        .build()?;
+
+                    union_plan = match union_plan {
+                        Some(union_plan) => {
+                            Some(LogicalPlanBuilder::from(union_plan).union(plan)?.build()?)
+                        }
+                        None => Some(plan),
+                    };
+                }
+
+                let plan = match union_plan {
+                    Some(plan) => plan,
+                    None => LogicalPlan::EmptyRelation(EmptyRelation {
+                        produce_one_row: false,
+                        schema: output_schema.to_dfschema_ref()?,
+                    }),
+                };
+                LogicalPlanBuilder::from(plan)
+                    .sort([
+                        Expr::Column(Column::new_unqualified(INFLUXQL_MEASUREMENT_COLUMN_NAME))
+                            .sort(true, false),
+                        Expr::Column(Column::new_unqualified(name_col)).sort(true, false),
+                    ])?
+                    .build()?
+            }
+            None => {
+                debug!("`SHOW MEASUREMENTS` w/o WHERE-clause, use cheap metadata scan",);
+
+                let mut dummy_measurement_names_builder =
+                    StringDictionaryBuilder::<Int32Type>::new();
+                let mut name_builder = StringDictionaryBuilder::<Int32Type>::new();
+                for table in tables {
+                    dummy_measurement_names_builder.append_value(dummy_measurement_name);
+                    name_builder.append_value(table);
+                }
+                LogicalPlanBuilder::scan(
+                    "measurements",
+                    provider_as_source(Arc::new(MemTable::try_new(
+                        Arc::clone(&output_schema),
+                        vec![vec![RecordBatch::try_new(
+                            Arc::clone(&output_schema),
+                            vec![
+                                Arc::new(dummy_measurement_names_builder.finish()),
+                                Arc::new(name_builder.finish()),
+                            ],
+                        )?]],
+                    )?)),
+                    None,
+                )?
+                .build()?
+            }
+        };
 
         let plan = plan_with_metadata(
             plan,
@@ -1714,6 +1904,19 @@ impl<'a> InfluxQLToLogicalPlan<'a> {
 
         Ok(plan)
     }
+
+    fn metadata_cutoff(&self) -> MetadataCutoff {
+        self.iox_ctx
+            .inner()
+            .state()
+            .config()
+            .options()
+            .extensions
+            .get::<IoxConfigExt>()
+            .cloned()
+            .unwrap_or_default()
+            .influxql_metadata_cutoff
+    }
 }
 
 /// Returns a [`LogicalPlan`] that performs gap-filling for the `input` plan.
@@ -1733,39 +1936,37 @@ fn build_gap_fill_node(
     // Extract the gap-fill parameters from the arguments to the `DATE_BIN` function.
     // Any unexpected conditions represents an internal error, as the `DATE_BIN` function is
     // added by the planner.
-    let (stride, time_range, origin) = if date_bin_args.len() == 3 {
-        let time_col = date_bin_args[1].try_into_col().map_err(|_| {
-            error::map::internal("DATE_BIN requires a column as the source argument")
-        })?;
+    let (stride, time_range, origin) = match date_bin_args.len() {
+        nargs @ (2 | 3) => {
+            let time_col = date_bin_args[1].try_into_col().map_err(|_| {
+                error::map::internal("DATE_BIN requires a column as the source argument")
+            })?;
 
-        // Ensure that a time range was specified and is valid for gap filling
-        let time_range = match find_time_range(input.inputs()[0], &time_col)? {
-            // Follow the InfluxQL behaviour to use an upper bound of `now` when
-            // not found:
-            //
-            // See: https://github.com/influxdata/influxdb/blob/98361e207349a3643bcc332d54b009818fe7585f/query/compile.go#L172-L176
-            Range {
-                start,
-                end: Bound::Unbounded,
-            } => Range {
-                start,
-                end: Bound::Excluded(now()),
-            },
-            time_range => time_range,
-        };
+            // Ensure that a time range was specified and is valid for gap filling
+            let time_range = match find_time_range(input.inputs()[0], &time_col)? {
+                // Follow the InfluxQL behaviour to use an upper bound of `now` when
+                // not found:
+                //
+                // See: https://github.com/influxdata/influxdb/blob/98361e207349a3643bcc332d54b009818fe7585f/query/compile.go#L172-L176
+                Range {
+                    start,
+                    end: Bound::Unbounded,
+                } => Range {
+                    start,
+                    end: Bound::Excluded(now()),
+                },
+                time_range => time_range,
+            };
 
-        (
-            date_bin_args[0].clone(),
-            time_range,
-            date_bin_args[2].clone(),
-        )
-    } else {
-        // This is an internal error as the date_bin function is added by the planner and should
-        // always contain the correct number of arguments.
-        return error::internal(format!(
-            "DATE_BIN expects 3 arguments, got {}",
-            date_bin_args.len()
-        ));
+            let origin = (nargs == 3).then_some(date_bin_args[2].clone());
+
+            (date_bin_args[0].clone(), time_range, origin)
+        }
+        nargs => {
+            // This is an internal error as the date_bin function is added by the planner and should
+            // always contain the correct number of arguments.
+            return error::internal(format!("DATE_BIN expects 2 or 3 arguments, got {nargs}"));
+        }
     };
 
     let aggr = Aggregate::try_from_plan(&input)?;
@@ -1941,72 +2142,6 @@ fn find_tag_and_unknown_columns(fields: &FieldList) -> impl Iterator<Item = &str
     })
 }
 
-/// Perform a series of passes to rewrite `expr` in compliance with InfluxQL behavior
-/// in an effort to ensure the query executes without error.
-fn rewrite_conditional_expr(expr: Expr, schemas: &Schemas) -> Result<Expr> {
-    let expr = expr.rewrite(&mut FixRegularExpressions { schemas })?;
-    rewrite_conditional(expr, schemas)
-}
-
-/// Perform a series of passes to rewrite `expr`, used as a column projection,
-/// to match the behavior of InfluxQL.
-fn rewrite_field_expr(expr: Expr, schemas: &Schemas) -> Result<Expr> {
-    rewrite_expr(expr, schemas)
-}
-
-/// Rewrite regex conditional expressions to match InfluxQL behaviour.
-struct FixRegularExpressions<'a> {
-    schemas: &'a Schemas,
-}
-
-impl<'a> TreeNodeRewriter for FixRegularExpressions<'a> {
-    type N = Expr;
-
-    fn mutate(&mut self, expr: Expr) -> Result<Expr> {
-        match expr {
-            // InfluxQL evaluates regular expression conditions to false if the column is numeric
-            // or the column doesn't exist.
-            Expr::BinaryExpr(BinaryExpr {
-                left,
-                op: op @ (Operator::RegexMatch | Operator::RegexNotMatch),
-                right,
-            }) => {
-                if let Expr::Column(ref col) = *left {
-                    match self.schemas.iox_schema.field_by_name(&col.name) {
-                        Some((InfluxColumnType::Tag, _)) => {
-                            // Regular expressions expect to be compared with a Utf8
-                            let left =
-                                Box::new(left.cast_to(&DataType::Utf8, &self.schemas.df_schema)?);
-                            Ok(Expr::BinaryExpr(BinaryExpr { left, op, right }))
-                        }
-                        Some((InfluxColumnType::Field(InfluxFieldType::String), _)) => {
-                            Ok(Expr::BinaryExpr(BinaryExpr { left, op, right }))
-                        }
-                        // Any other column type should evaluate to false
-                        _ => Ok(lit(false)),
-                    }
-                } else {
-                    // If this is not a simple column expression, evaluate to false,
-                    // to be consistent with InfluxQL.
-                    //
-                    // References:
-                    //
-                    // * https://github.com/influxdata/influxdb/blob/9308b6586a44e5999180f64a96cfb91e372f04dd/tsdb/index.go#L2487-L2488
-                    // * https://github.com/influxdata/influxdb/blob/9308b6586a44e5999180f64a96cfb91e372f04dd/tsdb/index.go#L2509-L2510
-                    //
-                    // The query engine does not correctly evaluate tag keys and values, always evaluating to false.
-                    //
-                    // Reference example:
-                    //
-                    // * `SELECT f64 FROM m0 WHERE tag0 = '' + tag0`
-                    Ok(lit(false))
-                }
-            }
-            _ => Ok(expr),
-        }
-    }
-}
-
 fn conditional_op_to_operator(op: ConditionalOperator) -> Result<Operator> {
     match op {
         ConditionalOperator::Eq => Ok(Operator::Eq),
@@ -2131,6 +2266,9 @@ fn find_expr(cond: &ConditionalExpression) -> Result<&IQLExpr> {
         .ok_or_else(|| error::map::internal("incomplete conditional expression"))
 }
 
+/// Evaluate [`WithKeyClause`] on the given list of keys.
+///
+/// This may fail if the clause contains an invalid regex.
 fn eval_with_key_clause<'a>(
     keys: impl IntoIterator<Item = &'a str>,
     clause: &WithKeyClause,
@@ -2165,6 +2303,37 @@ fn eval_with_key_clause<'a>(
                 .filter(|key| idents.contains(key))
                 .collect())
         }
+    }
+}
+
+/// Add time restriction to logical plan if there isn't any.
+///
+/// This must used directly on top of a potential filter plan, e.g. the one produced by [`plan_where_clause`](InfluxQLToLogicalPlan::plan_where_clause).
+fn add_time_restriction(plan: LogicalPlan, cutoff: MetadataCutoff) -> Result<LogicalPlan> {
+    let contains_time = if let LogicalPlan::Filter(filter) = &plan {
+        let cols = filter.predicate.to_columns()?;
+        cols.into_iter().any(|col| col.name == "time")
+    } else {
+        false
+    };
+
+    if contains_time {
+        Ok(plan)
+    } else {
+        let cutoff_expr = match cutoff {
+            MetadataCutoff::Absolute(dt) => lit_timestamp_nano(dt.timestamp_nanos()),
+            MetadataCutoff::Relative(delta) => binary_expr(
+                now(),
+                Operator::Minus,
+                lit(ScalarValue::IntervalMonthDayNano(Some(
+                    i128::try_from(delta.as_nanos())
+                        .map_err(|_| error::map::query("default timespan overflow"))?,
+                ))),
+            ),
+        };
+        LogicalPlanBuilder::from(plan)
+            .filter(col("time").gt_eq(cutoff_expr))?
+            .build()
     }
 }
 
@@ -2210,7 +2379,8 @@ mod test {
                 .unwrap(),
         ]);
 
-        let planner = InfluxQLToLogicalPlan::new(&sp);
+        let iox_ctx = IOxSessionContext::with_testing();
+        let planner = InfluxQLToLogicalPlan::new(&sp, &iox_ctx);
 
         planner.statement_to_plan(statements.pop().unwrap())
     }
@@ -2269,6 +2439,104 @@ mod test {
                   WindowAggr: windowExpr=[[ROW_NUMBER() PARTITION BY [measurements.iox::measurement] ORDER BY [measurements.name ASC NULLS LAST] ROWS BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW AS iox::row]] [iox::measurement:Dictionary(Int32, Utf8), name:Dictionary(Int32, Utf8), iox::row:UInt64;N]
                     TableScan: measurements [iox::measurement:Dictionary(Int32, Utf8), name:Dictionary(Int32, Utf8)]
             "###);
+            assert_snapshot!(plan("SHOW MEASUREMENTS WHERE foo = 'some_foo'"), @r###"
+            Sort: iox::measurement ASC NULLS LAST, name ASC NULLS LAST [iox::measurement:Dictionary(Int32, Utf8), name:Dictionary(Int32, Utf8)]
+              Union [iox::measurement:Dictionary(Int32, Utf8), name:Dictionary(Int32, Utf8)]
+                Projection: Dictionary(Int32, Utf8("measurements")) AS iox::measurement, Dictionary(Int32, Utf8("all_types")) AS name [iox::measurement:Dictionary(Int32, Utf8), name:Dictionary(Int32, Utf8)]
+                  Limit: skip=0, fetch=1 [bool_field:Boolean;N, f64_field:Float64;N, i64_field:Int64;N, str_field:Utf8;N, tag0:Dictionary(Int32, Utf8);N, tag1:Dictionary(Int32, Utf8);N, time:Timestamp(Nanosecond, None), u64_field:UInt64;N]
+                    Filter: all_types.time >= now() - IntervalMonthDayNano("86400000000000") [bool_field:Boolean;N, f64_field:Float64;N, i64_field:Int64;N, str_field:Utf8;N, tag0:Dictionary(Int32, Utf8);N, tag1:Dictionary(Int32, Utf8);N, time:Timestamp(Nanosecond, None), u64_field:UInt64;N]
+                      Filter: NULL = Utf8("some_foo") [bool_field:Boolean;N, f64_field:Float64;N, i64_field:Int64;N, str_field:Utf8;N, tag0:Dictionary(Int32, Utf8);N, tag1:Dictionary(Int32, Utf8);N, time:Timestamp(Nanosecond, None), u64_field:UInt64;N]
+                        TableScan: all_types [bool_field:Boolean;N, f64_field:Float64;N, i64_field:Int64;N, str_field:Utf8;N, tag0:Dictionary(Int32, Utf8);N, tag1:Dictionary(Int32, Utf8);N, time:Timestamp(Nanosecond, None), u64_field:UInt64;N]
+                Projection: Dictionary(Int32, Utf8("measurements")) AS iox::measurement, Dictionary(Int32, Utf8("cpu")) AS name [iox::measurement:Dictionary(Int32, Utf8), name:Dictionary(Int32, Utf8)]
+                  Limit: skip=0, fetch=1 [cpu:Dictionary(Int32, Utf8);N, host:Dictionary(Int32, Utf8);N, region:Dictionary(Int32, Utf8);N, time:Timestamp(Nanosecond, None), usage_idle:Float64;N, usage_system:Float64;N, usage_user:Float64;N]
+                    Filter: cpu.time >= now() - IntervalMonthDayNano("86400000000000") [cpu:Dictionary(Int32, Utf8);N, host:Dictionary(Int32, Utf8);N, region:Dictionary(Int32, Utf8);N, time:Timestamp(Nanosecond, None), usage_idle:Float64;N, usage_system:Float64;N, usage_user:Float64;N]
+                      Filter: NULL = Utf8("some_foo") [cpu:Dictionary(Int32, Utf8);N, host:Dictionary(Int32, Utf8);N, region:Dictionary(Int32, Utf8);N, time:Timestamp(Nanosecond, None), usage_idle:Float64;N, usage_system:Float64;N, usage_user:Float64;N]
+                        TableScan: cpu [cpu:Dictionary(Int32, Utf8);N, host:Dictionary(Int32, Utf8);N, region:Dictionary(Int32, Utf8);N, time:Timestamp(Nanosecond, None), usage_idle:Float64;N, usage_system:Float64;N, usage_user:Float64;N]
+                Projection: Dictionary(Int32, Utf8("measurements")) AS iox::measurement, Dictionary(Int32, Utf8("data")) AS name [iox::measurement:Dictionary(Int32, Utf8), name:Dictionary(Int32, Utf8)]
+                  Limit: skip=0, fetch=1 [TIME:Boolean;N, bar:Dictionary(Int32, Utf8);N, bool_field:Boolean;N, f64_field:Float64;N, foo:Dictionary(Int32, Utf8);N, i64_field:Int64;N, mixedCase:Float64;N, str_field:Utf8;N, time:Timestamp(Nanosecond, None), with space:Float64;N]
+                    Filter: data.time >= now() - IntervalMonthDayNano("86400000000000") [TIME:Boolean;N, bar:Dictionary(Int32, Utf8);N, bool_field:Boolean;N, f64_field:Float64;N, foo:Dictionary(Int32, Utf8);N, i64_field:Int64;N, mixedCase:Float64;N, str_field:Utf8;N, time:Timestamp(Nanosecond, None), with space:Float64;N]
+                      Filter: data.foo = Utf8("some_foo") [TIME:Boolean;N, bar:Dictionary(Int32, Utf8);N, bool_field:Boolean;N, f64_field:Float64;N, foo:Dictionary(Int32, Utf8);N, i64_field:Int64;N, mixedCase:Float64;N, str_field:Utf8;N, time:Timestamp(Nanosecond, None), with space:Float64;N]
+                        TableScan: data [TIME:Boolean;N, bar:Dictionary(Int32, Utf8);N, bool_field:Boolean;N, f64_field:Float64;N, foo:Dictionary(Int32, Utf8);N, i64_field:Int64;N, mixedCase:Float64;N, str_field:Utf8;N, time:Timestamp(Nanosecond, None), with space:Float64;N]
+                Projection: Dictionary(Int32, Utf8("measurements")) AS iox::measurement, Dictionary(Int32, Utf8("disk")) AS name [iox::measurement:Dictionary(Int32, Utf8), name:Dictionary(Int32, Utf8)]
+                  Limit: skip=0, fetch=1 [bytes_free:Int64;N, bytes_used:Int64;N, device:Dictionary(Int32, Utf8);N, host:Dictionary(Int32, Utf8);N, region:Dictionary(Int32, Utf8);N, time:Timestamp(Nanosecond, None)]
+                    Filter: disk.time >= now() - IntervalMonthDayNano("86400000000000") [bytes_free:Int64;N, bytes_used:Int64;N, device:Dictionary(Int32, Utf8);N, host:Dictionary(Int32, Utf8);N, region:Dictionary(Int32, Utf8);N, time:Timestamp(Nanosecond, None)]
+                      Filter: NULL = Utf8("some_foo") [bytes_free:Int64;N, bytes_used:Int64;N, device:Dictionary(Int32, Utf8);N, host:Dictionary(Int32, Utf8);N, region:Dictionary(Int32, Utf8);N, time:Timestamp(Nanosecond, None)]
+                        TableScan: disk [bytes_free:Int64;N, bytes_used:Int64;N, device:Dictionary(Int32, Utf8);N, host:Dictionary(Int32, Utf8);N, region:Dictionary(Int32, Utf8);N, time:Timestamp(Nanosecond, None)]
+                Projection: Dictionary(Int32, Utf8("measurements")) AS iox::measurement, Dictionary(Int32, Utf8("diskio")) AS name [iox::measurement:Dictionary(Int32, Utf8), name:Dictionary(Int32, Utf8)]
+                  Limit: skip=0, fetch=1 [bytes_read:Int64;N, bytes_written:Int64;N, host:Dictionary(Int32, Utf8);N, is_local:Boolean;N, read_utilization:Float64;N, region:Dictionary(Int32, Utf8);N, status:Dictionary(Int32, Utf8);N, time:Timestamp(Nanosecond, None), write_utilization:Float64;N]
+                    Filter: diskio.time >= now() - IntervalMonthDayNano("86400000000000") [bytes_read:Int64;N, bytes_written:Int64;N, host:Dictionary(Int32, Utf8);N, is_local:Boolean;N, read_utilization:Float64;N, region:Dictionary(Int32, Utf8);N, status:Dictionary(Int32, Utf8);N, time:Timestamp(Nanosecond, None), write_utilization:Float64;N]
+                      Filter: NULL = Utf8("some_foo") [bytes_read:Int64;N, bytes_written:Int64;N, host:Dictionary(Int32, Utf8);N, is_local:Boolean;N, read_utilization:Float64;N, region:Dictionary(Int32, Utf8);N, status:Dictionary(Int32, Utf8);N, time:Timestamp(Nanosecond, None), write_utilization:Float64;N]
+                        TableScan: diskio [bytes_read:Int64;N, bytes_written:Int64;N, host:Dictionary(Int32, Utf8);N, is_local:Boolean;N, read_utilization:Float64;N, region:Dictionary(Int32, Utf8);N, status:Dictionary(Int32, Utf8);N, time:Timestamp(Nanosecond, None), write_utilization:Float64;N]
+                Projection: Dictionary(Int32, Utf8("measurements")) AS iox::measurement, Dictionary(Int32, Utf8("merge_00")) AS name [iox::measurement:Dictionary(Int32, Utf8), name:Dictionary(Int32, Utf8)]
+                  Limit: skip=0, fetch=1 [col0:Dictionary(Int32, Utf8);N, col1:Float64;N, col2:Boolean;N, col3:Utf8;N, time:Timestamp(Nanosecond, None)]
+                    Filter: merge_00.time >= now() - IntervalMonthDayNano("86400000000000") [col0:Dictionary(Int32, Utf8);N, col1:Float64;N, col2:Boolean;N, col3:Utf8;N, time:Timestamp(Nanosecond, None)]
+                      Filter: NULL = Utf8("some_foo") [col0:Dictionary(Int32, Utf8);N, col1:Float64;N, col2:Boolean;N, col3:Utf8;N, time:Timestamp(Nanosecond, None)]
+                        TableScan: merge_00 [col0:Dictionary(Int32, Utf8);N, col1:Float64;N, col2:Boolean;N, col3:Utf8;N, time:Timestamp(Nanosecond, None)]
+                Projection: Dictionary(Int32, Utf8("measurements")) AS iox::measurement, Dictionary(Int32, Utf8("merge_01")) AS name [iox::measurement:Dictionary(Int32, Utf8), name:Dictionary(Int32, Utf8)]
+                  Limit: skip=0, fetch=1 [col0:Float64;N, col1:Dictionary(Int32, Utf8);N, col2:Utf8;N, col3:Boolean;N, time:Timestamp(Nanosecond, None)]
+                    Filter: merge_01.time >= now() - IntervalMonthDayNano("86400000000000") [col0:Float64;N, col1:Dictionary(Int32, Utf8);N, col2:Utf8;N, col3:Boolean;N, time:Timestamp(Nanosecond, None)]
+                      Filter: NULL = Utf8("some_foo") [col0:Float64;N, col1:Dictionary(Int32, Utf8);N, col2:Utf8;N, col3:Boolean;N, time:Timestamp(Nanosecond, None)]
+                        TableScan: merge_01 [col0:Float64;N, col1:Dictionary(Int32, Utf8);N, col2:Utf8;N, col3:Boolean;N, time:Timestamp(Nanosecond, None)]
+                Projection: Dictionary(Int32, Utf8("measurements")) AS iox::measurement, Dictionary(Int32, Utf8("temp_01")) AS name [iox::measurement:Dictionary(Int32, Utf8), name:Dictionary(Int32, Utf8)]
+                  Limit: skip=0, fetch=1 [field_f64:Float64;N, field_i64:Int64;N, field_str:Utf8;N, field_u64:UInt64;N, shared_field0:Float64;N, shared_tag0:Dictionary(Int32, Utf8);N, shared_tag1:Dictionary(Int32, Utf8);N, time:Timestamp(Nanosecond, None)]
+                    Filter: temp_01.time >= now() - IntervalMonthDayNano("86400000000000") [field_f64:Float64;N, field_i64:Int64;N, field_str:Utf8;N, field_u64:UInt64;N, shared_field0:Float64;N, shared_tag0:Dictionary(Int32, Utf8);N, shared_tag1:Dictionary(Int32, Utf8);N, time:Timestamp(Nanosecond, None)]
+                      Filter: NULL = Utf8("some_foo") [field_f64:Float64;N, field_i64:Int64;N, field_str:Utf8;N, field_u64:UInt64;N, shared_field0:Float64;N, shared_tag0:Dictionary(Int32, Utf8);N, shared_tag1:Dictionary(Int32, Utf8);N, time:Timestamp(Nanosecond, None)]
+                        TableScan: temp_01 [field_f64:Float64;N, field_i64:Int64;N, field_str:Utf8;N, field_u64:UInt64;N, shared_field0:Float64;N, shared_tag0:Dictionary(Int32, Utf8);N, shared_tag1:Dictionary(Int32, Utf8);N, time:Timestamp(Nanosecond, None)]
+                Projection: Dictionary(Int32, Utf8("measurements")) AS iox::measurement, Dictionary(Int32, Utf8("temp_02")) AS name [iox::measurement:Dictionary(Int32, Utf8), name:Dictionary(Int32, Utf8)]
+                  Limit: skip=0, fetch=1 [shared_field0:Int64;N, shared_tag0:Dictionary(Int32, Utf8);N, shared_tag1:Dictionary(Int32, Utf8);N, time:Timestamp(Nanosecond, None)]
+                    Filter: temp_02.time >= now() - IntervalMonthDayNano("86400000000000") [shared_field0:Int64;N, shared_tag0:Dictionary(Int32, Utf8);N, shared_tag1:Dictionary(Int32, Utf8);N, time:Timestamp(Nanosecond, None)]
+                      Filter: NULL = Utf8("some_foo") [shared_field0:Int64;N, shared_tag0:Dictionary(Int32, Utf8);N, shared_tag1:Dictionary(Int32, Utf8);N, time:Timestamp(Nanosecond, None)]
+                        TableScan: temp_02 [shared_field0:Int64;N, shared_tag0:Dictionary(Int32, Utf8);N, shared_tag1:Dictionary(Int32, Utf8);N, time:Timestamp(Nanosecond, None)]
+                Projection: Dictionary(Int32, Utf8("measurements")) AS iox::measurement, Dictionary(Int32, Utf8("temp_03")) AS name [iox::measurement:Dictionary(Int32, Utf8), name:Dictionary(Int32, Utf8)]
+                  Limit: skip=0, fetch=1 [shared_field0:Utf8;N, shared_tag0:Dictionary(Int32, Utf8);N, shared_tag1:Dictionary(Int32, Utf8);N, time:Timestamp(Nanosecond, None)]
+                    Filter: temp_03.time >= now() - IntervalMonthDayNano("86400000000000") [shared_field0:Utf8;N, shared_tag0:Dictionary(Int32, Utf8);N, shared_tag1:Dictionary(Int32, Utf8);N, time:Timestamp(Nanosecond, None)]
+                      Filter: NULL = Utf8("some_foo") [shared_field0:Utf8;N, shared_tag0:Dictionary(Int32, Utf8);N, shared_tag1:Dictionary(Int32, Utf8);N, time:Timestamp(Nanosecond, None)]
+                        TableScan: temp_03 [shared_field0:Utf8;N, shared_tag0:Dictionary(Int32, Utf8);N, shared_tag1:Dictionary(Int32, Utf8);N, time:Timestamp(Nanosecond, None)]
+            "###);
+            assert_snapshot!(plan("SHOW MEASUREMENTS WHERE time > 1337"), @r###"
+            Sort: iox::measurement ASC NULLS LAST, name ASC NULLS LAST [iox::measurement:Dictionary(Int32, Utf8), name:Dictionary(Int32, Utf8)]
+              Union [iox::measurement:Dictionary(Int32, Utf8), name:Dictionary(Int32, Utf8)]
+                Projection: Dictionary(Int32, Utf8("measurements")) AS iox::measurement, Dictionary(Int32, Utf8("all_types")) AS name [iox::measurement:Dictionary(Int32, Utf8), name:Dictionary(Int32, Utf8)]
+                  Limit: skip=0, fetch=1 [bool_field:Boolean;N, f64_field:Float64;N, i64_field:Int64;N, str_field:Utf8;N, tag0:Dictionary(Int32, Utf8);N, tag1:Dictionary(Int32, Utf8);N, time:Timestamp(Nanosecond, None), u64_field:UInt64;N]
+                    Filter: all_types.time > TimestampNanosecond(1337, None) [bool_field:Boolean;N, f64_field:Float64;N, i64_field:Int64;N, str_field:Utf8;N, tag0:Dictionary(Int32, Utf8);N, tag1:Dictionary(Int32, Utf8);N, time:Timestamp(Nanosecond, None), u64_field:UInt64;N]
+                      TableScan: all_types [bool_field:Boolean;N, f64_field:Float64;N, i64_field:Int64;N, str_field:Utf8;N, tag0:Dictionary(Int32, Utf8);N, tag1:Dictionary(Int32, Utf8);N, time:Timestamp(Nanosecond, None), u64_field:UInt64;N]
+                Projection: Dictionary(Int32, Utf8("measurements")) AS iox::measurement, Dictionary(Int32, Utf8("cpu")) AS name [iox::measurement:Dictionary(Int32, Utf8), name:Dictionary(Int32, Utf8)]
+                  Limit: skip=0, fetch=1 [cpu:Dictionary(Int32, Utf8);N, host:Dictionary(Int32, Utf8);N, region:Dictionary(Int32, Utf8);N, time:Timestamp(Nanosecond, None), usage_idle:Float64;N, usage_system:Float64;N, usage_user:Float64;N]
+                    Filter: cpu.time > TimestampNanosecond(1337, None) [cpu:Dictionary(Int32, Utf8);N, host:Dictionary(Int32, Utf8);N, region:Dictionary(Int32, Utf8);N, time:Timestamp(Nanosecond, None), usage_idle:Float64;N, usage_system:Float64;N, usage_user:Float64;N]
+                      TableScan: cpu [cpu:Dictionary(Int32, Utf8);N, host:Dictionary(Int32, Utf8);N, region:Dictionary(Int32, Utf8);N, time:Timestamp(Nanosecond, None), usage_idle:Float64;N, usage_system:Float64;N, usage_user:Float64;N]
+                Projection: Dictionary(Int32, Utf8("measurements")) AS iox::measurement, Dictionary(Int32, Utf8("data")) AS name [iox::measurement:Dictionary(Int32, Utf8), name:Dictionary(Int32, Utf8)]
+                  Limit: skip=0, fetch=1 [TIME:Boolean;N, bar:Dictionary(Int32, Utf8);N, bool_field:Boolean;N, f64_field:Float64;N, foo:Dictionary(Int32, Utf8);N, i64_field:Int64;N, mixedCase:Float64;N, str_field:Utf8;N, time:Timestamp(Nanosecond, None), with space:Float64;N]
+                    Filter: data.time > TimestampNanosecond(1337, None) [TIME:Boolean;N, bar:Dictionary(Int32, Utf8);N, bool_field:Boolean;N, f64_field:Float64;N, foo:Dictionary(Int32, Utf8);N, i64_field:Int64;N, mixedCase:Float64;N, str_field:Utf8;N, time:Timestamp(Nanosecond, None), with space:Float64;N]
+                      TableScan: data [TIME:Boolean;N, bar:Dictionary(Int32, Utf8);N, bool_field:Boolean;N, f64_field:Float64;N, foo:Dictionary(Int32, Utf8);N, i64_field:Int64;N, mixedCase:Float64;N, str_field:Utf8;N, time:Timestamp(Nanosecond, None), with space:Float64;N]
+                Projection: Dictionary(Int32, Utf8("measurements")) AS iox::measurement, Dictionary(Int32, Utf8("disk")) AS name [iox::measurement:Dictionary(Int32, Utf8), name:Dictionary(Int32, Utf8)]
+                  Limit: skip=0, fetch=1 [bytes_free:Int64;N, bytes_used:Int64;N, device:Dictionary(Int32, Utf8);N, host:Dictionary(Int32, Utf8);N, region:Dictionary(Int32, Utf8);N, time:Timestamp(Nanosecond, None)]
+                    Filter: disk.time > TimestampNanosecond(1337, None) [bytes_free:Int64;N, bytes_used:Int64;N, device:Dictionary(Int32, Utf8);N, host:Dictionary(Int32, Utf8);N, region:Dictionary(Int32, Utf8);N, time:Timestamp(Nanosecond, None)]
+                      TableScan: disk [bytes_free:Int64;N, bytes_used:Int64;N, device:Dictionary(Int32, Utf8);N, host:Dictionary(Int32, Utf8);N, region:Dictionary(Int32, Utf8);N, time:Timestamp(Nanosecond, None)]
+                Projection: Dictionary(Int32, Utf8("measurements")) AS iox::measurement, Dictionary(Int32, Utf8("diskio")) AS name [iox::measurement:Dictionary(Int32, Utf8), name:Dictionary(Int32, Utf8)]
+                  Limit: skip=0, fetch=1 [bytes_read:Int64;N, bytes_written:Int64;N, host:Dictionary(Int32, Utf8);N, is_local:Boolean;N, read_utilization:Float64;N, region:Dictionary(Int32, Utf8);N, status:Dictionary(Int32, Utf8);N, time:Timestamp(Nanosecond, None), write_utilization:Float64;N]
+                    Filter: diskio.time > TimestampNanosecond(1337, None) [bytes_read:Int64;N, bytes_written:Int64;N, host:Dictionary(Int32, Utf8);N, is_local:Boolean;N, read_utilization:Float64;N, region:Dictionary(Int32, Utf8);N, status:Dictionary(Int32, Utf8);N, time:Timestamp(Nanosecond, None), write_utilization:Float64;N]
+                      TableScan: diskio [bytes_read:Int64;N, bytes_written:Int64;N, host:Dictionary(Int32, Utf8);N, is_local:Boolean;N, read_utilization:Float64;N, region:Dictionary(Int32, Utf8);N, status:Dictionary(Int32, Utf8);N, time:Timestamp(Nanosecond, None), write_utilization:Float64;N]
+                Projection: Dictionary(Int32, Utf8("measurements")) AS iox::measurement, Dictionary(Int32, Utf8("merge_00")) AS name [iox::measurement:Dictionary(Int32, Utf8), name:Dictionary(Int32, Utf8)]
+                  Limit: skip=0, fetch=1 [col0:Dictionary(Int32, Utf8);N, col1:Float64;N, col2:Boolean;N, col3:Utf8;N, time:Timestamp(Nanosecond, None)]
+                    Filter: merge_00.time > TimestampNanosecond(1337, None) [col0:Dictionary(Int32, Utf8);N, col1:Float64;N, col2:Boolean;N, col3:Utf8;N, time:Timestamp(Nanosecond, None)]
+                      TableScan: merge_00 [col0:Dictionary(Int32, Utf8);N, col1:Float64;N, col2:Boolean;N, col3:Utf8;N, time:Timestamp(Nanosecond, None)]
+                Projection: Dictionary(Int32, Utf8("measurements")) AS iox::measurement, Dictionary(Int32, Utf8("merge_01")) AS name [iox::measurement:Dictionary(Int32, Utf8), name:Dictionary(Int32, Utf8)]
+                  Limit: skip=0, fetch=1 [col0:Float64;N, col1:Dictionary(Int32, Utf8);N, col2:Utf8;N, col3:Boolean;N, time:Timestamp(Nanosecond, None)]
+                    Filter: merge_01.time > TimestampNanosecond(1337, None) [col0:Float64;N, col1:Dictionary(Int32, Utf8);N, col2:Utf8;N, col3:Boolean;N, time:Timestamp(Nanosecond, None)]
+                      TableScan: merge_01 [col0:Float64;N, col1:Dictionary(Int32, Utf8);N, col2:Utf8;N, col3:Boolean;N, time:Timestamp(Nanosecond, None)]
+                Projection: Dictionary(Int32, Utf8("measurements")) AS iox::measurement, Dictionary(Int32, Utf8("temp_01")) AS name [iox::measurement:Dictionary(Int32, Utf8), name:Dictionary(Int32, Utf8)]
+                  Limit: skip=0, fetch=1 [field_f64:Float64;N, field_i64:Int64;N, field_str:Utf8;N, field_u64:UInt64;N, shared_field0:Float64;N, shared_tag0:Dictionary(Int32, Utf8);N, shared_tag1:Dictionary(Int32, Utf8);N, time:Timestamp(Nanosecond, None)]
+                    Filter: temp_01.time > TimestampNanosecond(1337, None) [field_f64:Float64;N, field_i64:Int64;N, field_str:Utf8;N, field_u64:UInt64;N, shared_field0:Float64;N, shared_tag0:Dictionary(Int32, Utf8);N, shared_tag1:Dictionary(Int32, Utf8);N, time:Timestamp(Nanosecond, None)]
+                      TableScan: temp_01 [field_f64:Float64;N, field_i64:Int64;N, field_str:Utf8;N, field_u64:UInt64;N, shared_field0:Float64;N, shared_tag0:Dictionary(Int32, Utf8);N, shared_tag1:Dictionary(Int32, Utf8);N, time:Timestamp(Nanosecond, None)]
+                Projection: Dictionary(Int32, Utf8("measurements")) AS iox::measurement, Dictionary(Int32, Utf8("temp_02")) AS name [iox::measurement:Dictionary(Int32, Utf8), name:Dictionary(Int32, Utf8)]
+                  Limit: skip=0, fetch=1 [shared_field0:Int64;N, shared_tag0:Dictionary(Int32, Utf8);N, shared_tag1:Dictionary(Int32, Utf8);N, time:Timestamp(Nanosecond, None)]
+                    Filter: temp_02.time > TimestampNanosecond(1337, None) [shared_field0:Int64;N, shared_tag0:Dictionary(Int32, Utf8);N, shared_tag1:Dictionary(Int32, Utf8);N, time:Timestamp(Nanosecond, None)]
+                      TableScan: temp_02 [shared_field0:Int64;N, shared_tag0:Dictionary(Int32, Utf8);N, shared_tag1:Dictionary(Int32, Utf8);N, time:Timestamp(Nanosecond, None)]
+                Projection: Dictionary(Int32, Utf8("measurements")) AS iox::measurement, Dictionary(Int32, Utf8("temp_03")) AS name [iox::measurement:Dictionary(Int32, Utf8), name:Dictionary(Int32, Utf8)]
+                  Limit: skip=0, fetch=1 [shared_field0:Utf8;N, shared_tag0:Dictionary(Int32, Utf8);N, shared_tag1:Dictionary(Int32, Utf8);N, time:Timestamp(Nanosecond, None)]
+                    Filter: temp_03.time > TimestampNanosecond(1337, None) [shared_field0:Utf8;N, shared_tag0:Dictionary(Int32, Utf8);N, shared_tag1:Dictionary(Int32, Utf8);N, time:Timestamp(Nanosecond, None)]
+                      TableScan: temp_03 [shared_field0:Utf8;N, shared_tag0:Dictionary(Int32, Utf8);N, shared_tag1:Dictionary(Int32, Utf8);N, time:Timestamp(Nanosecond, None)]
+            "###);
         }
 
         #[test]
@@ -2281,27 +2549,204 @@ mod test {
                   WindowAggr: windowExpr=[[ROW_NUMBER() PARTITION BY [tag_keys.iox::measurement] ORDER BY [tag_keys.tagKey ASC NULLS LAST] ROWS BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW AS iox::row]] [iox::measurement:Dictionary(Int32, Utf8), tagKey:Dictionary(Int32, Utf8), iox::row:UInt64;N]
                     TableScan: tag_keys [iox::measurement:Dictionary(Int32, Utf8), tagKey:Dictionary(Int32, Utf8)]
             "###);
+            assert_snapshot!(plan("SHOW TAG KEYS WHERE foo = 'some_foo'"), @r###"
+            Sort: iox::measurement ASC NULLS LAST, tagKey ASC NULLS LAST [iox::measurement:Dictionary(Int32, Utf8), tagKey:Utf8;N]
+              Union [iox::measurement:Dictionary(Int32, Utf8), tagKey:Utf8;N]
+                Projection: Dictionary(Int32, Utf8("all_types")) AS iox::measurement, tagKey [iox::measurement:Dictionary(Int32, Utf8), tagKey:Utf8;N]
+                  Filter: tagKey IS NOT NULL [tagKey:Utf8;N]
+                    Unnest: tagKey [tagKey:Utf8;N]
+                      Projection: makearray(CASE WHEN tag0 > Int32(0) THEN Utf8("tag0") END, CASE WHEN tag1 > Int32(0) THEN Utf8("tag1") END) AS tagKey [tagKey:FixedSizeList(Field { name: "item", data_type: Utf8, nullable: true, dict_id: 0, dict_is_ordered: false, metadata: {} }, 2);N]
+                        Aggregate: groupBy=[[]], aggr=[[SUM(CAST(all_types.tag0 IS NOT NULL AS UInt64)) AS tag0, SUM(CAST(all_types.tag1 IS NOT NULL AS UInt64)) AS tag1]] [tag0:UInt64;N, tag1:UInt64;N]
+                          Filter: all_types.time >= now() - IntervalMonthDayNano("86400000000000") [bool_field:Boolean;N, f64_field:Float64;N, i64_field:Int64;N, str_field:Utf8;N, tag0:Dictionary(Int32, Utf8);N, tag1:Dictionary(Int32, Utf8);N, time:Timestamp(Nanosecond, None), u64_field:UInt64;N]
+                            Filter: NULL = Utf8("some_foo") [bool_field:Boolean;N, f64_field:Float64;N, i64_field:Int64;N, str_field:Utf8;N, tag0:Dictionary(Int32, Utf8);N, tag1:Dictionary(Int32, Utf8);N, time:Timestamp(Nanosecond, None), u64_field:UInt64;N]
+                              TableScan: all_types [bool_field:Boolean;N, f64_field:Float64;N, i64_field:Int64;N, str_field:Utf8;N, tag0:Dictionary(Int32, Utf8);N, tag1:Dictionary(Int32, Utf8);N, time:Timestamp(Nanosecond, None), u64_field:UInt64;N]
+                Projection: Dictionary(Int32, Utf8("cpu")) AS iox::measurement, tagKey [iox::measurement:Dictionary(Int32, Utf8), tagKey:Utf8;N]
+                  Filter: tagKey IS NOT NULL [tagKey:Utf8;N]
+                    Unnest: tagKey [tagKey:Utf8;N]
+                      Projection: makearray(CASE WHEN cpu > Int32(0) THEN Utf8("cpu") END, CASE WHEN host > Int32(0) THEN Utf8("host") END, CASE WHEN region > Int32(0) THEN Utf8("region") END) AS tagKey [tagKey:FixedSizeList(Field { name: "item", data_type: Utf8, nullable: true, dict_id: 0, dict_is_ordered: false, metadata: {} }, 3);N]
+                        Aggregate: groupBy=[[]], aggr=[[SUM(CAST(cpu.cpu IS NOT NULL AS UInt64)) AS cpu, SUM(CAST(cpu.host IS NOT NULL AS UInt64)) AS host, SUM(CAST(cpu.region IS NOT NULL AS UInt64)) AS region]] [cpu:UInt64;N, host:UInt64;N, region:UInt64;N]
+                          Filter: cpu.time >= now() - IntervalMonthDayNano("86400000000000") [cpu:Dictionary(Int32, Utf8);N, host:Dictionary(Int32, Utf8);N, region:Dictionary(Int32, Utf8);N, time:Timestamp(Nanosecond, None), usage_idle:Float64;N, usage_system:Float64;N, usage_user:Float64;N]
+                            Filter: NULL = Utf8("some_foo") [cpu:Dictionary(Int32, Utf8);N, host:Dictionary(Int32, Utf8);N, region:Dictionary(Int32, Utf8);N, time:Timestamp(Nanosecond, None), usage_idle:Float64;N, usage_system:Float64;N, usage_user:Float64;N]
+                              TableScan: cpu [cpu:Dictionary(Int32, Utf8);N, host:Dictionary(Int32, Utf8);N, region:Dictionary(Int32, Utf8);N, time:Timestamp(Nanosecond, None), usage_idle:Float64;N, usage_system:Float64;N, usage_user:Float64;N]
+                Projection: Dictionary(Int32, Utf8("data")) AS iox::measurement, tagKey [iox::measurement:Dictionary(Int32, Utf8), tagKey:Utf8;N]
+                  Filter: tagKey IS NOT NULL [tagKey:Utf8;N]
+                    Unnest: tagKey [tagKey:Utf8;N]
+                      Projection: makearray(CASE WHEN bar > Int32(0) THEN Utf8("bar") END, CASE WHEN foo > Int32(0) THEN Utf8("foo") END) AS tagKey [tagKey:FixedSizeList(Field { name: "item", data_type: Utf8, nullable: true, dict_id: 0, dict_is_ordered: false, metadata: {} }, 2);N]
+                        Aggregate: groupBy=[[]], aggr=[[SUM(CAST(data.bar IS NOT NULL AS UInt64)) AS bar, SUM(CAST(data.foo IS NOT NULL AS UInt64)) AS foo]] [bar:UInt64;N, foo:UInt64;N]
+                          Filter: data.time >= now() - IntervalMonthDayNano("86400000000000") [TIME:Boolean;N, bar:Dictionary(Int32, Utf8);N, bool_field:Boolean;N, f64_field:Float64;N, foo:Dictionary(Int32, Utf8);N, i64_field:Int64;N, mixedCase:Float64;N, str_field:Utf8;N, time:Timestamp(Nanosecond, None), with space:Float64;N]
+                            Filter: data.foo = Utf8("some_foo") [TIME:Boolean;N, bar:Dictionary(Int32, Utf8);N, bool_field:Boolean;N, f64_field:Float64;N, foo:Dictionary(Int32, Utf8);N, i64_field:Int64;N, mixedCase:Float64;N, str_field:Utf8;N, time:Timestamp(Nanosecond, None), with space:Float64;N]
+                              TableScan: data [TIME:Boolean;N, bar:Dictionary(Int32, Utf8);N, bool_field:Boolean;N, f64_field:Float64;N, foo:Dictionary(Int32, Utf8);N, i64_field:Int64;N, mixedCase:Float64;N, str_field:Utf8;N, time:Timestamp(Nanosecond, None), with space:Float64;N]
+                Projection: Dictionary(Int32, Utf8("disk")) AS iox::measurement, tagKey [iox::measurement:Dictionary(Int32, Utf8), tagKey:Utf8;N]
+                  Filter: tagKey IS NOT NULL [tagKey:Utf8;N]
+                    Unnest: tagKey [tagKey:Utf8;N]
+                      Projection: makearray(CASE WHEN device > Int32(0) THEN Utf8("device") END, CASE WHEN host > Int32(0) THEN Utf8("host") END, CASE WHEN region > Int32(0) THEN Utf8("region") END) AS tagKey [tagKey:FixedSizeList(Field { name: "item", data_type: Utf8, nullable: true, dict_id: 0, dict_is_ordered: false, metadata: {} }, 3);N]
+                        Aggregate: groupBy=[[]], aggr=[[SUM(CAST(disk.device IS NOT NULL AS UInt64)) AS device, SUM(CAST(disk.host IS NOT NULL AS UInt64)) AS host, SUM(CAST(disk.region IS NOT NULL AS UInt64)) AS region]] [device:UInt64;N, host:UInt64;N, region:UInt64;N]
+                          Filter: disk.time >= now() - IntervalMonthDayNano("86400000000000") [bytes_free:Int64;N, bytes_used:Int64;N, device:Dictionary(Int32, Utf8);N, host:Dictionary(Int32, Utf8);N, region:Dictionary(Int32, Utf8);N, time:Timestamp(Nanosecond, None)]
+                            Filter: NULL = Utf8("some_foo") [bytes_free:Int64;N, bytes_used:Int64;N, device:Dictionary(Int32, Utf8);N, host:Dictionary(Int32, Utf8);N, region:Dictionary(Int32, Utf8);N, time:Timestamp(Nanosecond, None)]
+                              TableScan: disk [bytes_free:Int64;N, bytes_used:Int64;N, device:Dictionary(Int32, Utf8);N, host:Dictionary(Int32, Utf8);N, region:Dictionary(Int32, Utf8);N, time:Timestamp(Nanosecond, None)]
+                Projection: Dictionary(Int32, Utf8("diskio")) AS iox::measurement, tagKey [iox::measurement:Dictionary(Int32, Utf8), tagKey:Utf8;N]
+                  Filter: tagKey IS NOT NULL [tagKey:Utf8;N]
+                    Unnest: tagKey [tagKey:Utf8;N]
+                      Projection: makearray(CASE WHEN host > Int32(0) THEN Utf8("host") END, CASE WHEN region > Int32(0) THEN Utf8("region") END, CASE WHEN status > Int32(0) THEN Utf8("status") END) AS tagKey [tagKey:FixedSizeList(Field { name: "item", data_type: Utf8, nullable: true, dict_id: 0, dict_is_ordered: false, metadata: {} }, 3);N]
+                        Aggregate: groupBy=[[]], aggr=[[SUM(CAST(diskio.host IS NOT NULL AS UInt64)) AS host, SUM(CAST(diskio.region IS NOT NULL AS UInt64)) AS region, SUM(CAST(diskio.status IS NOT NULL AS UInt64)) AS status]] [host:UInt64;N, region:UInt64;N, status:UInt64;N]
+                          Filter: diskio.time >= now() - IntervalMonthDayNano("86400000000000") [bytes_read:Int64;N, bytes_written:Int64;N, host:Dictionary(Int32, Utf8);N, is_local:Boolean;N, read_utilization:Float64;N, region:Dictionary(Int32, Utf8);N, status:Dictionary(Int32, Utf8);N, time:Timestamp(Nanosecond, None), write_utilization:Float64;N]
+                            Filter: NULL = Utf8("some_foo") [bytes_read:Int64;N, bytes_written:Int64;N, host:Dictionary(Int32, Utf8);N, is_local:Boolean;N, read_utilization:Float64;N, region:Dictionary(Int32, Utf8);N, status:Dictionary(Int32, Utf8);N, time:Timestamp(Nanosecond, None), write_utilization:Float64;N]
+                              TableScan: diskio [bytes_read:Int64;N, bytes_written:Int64;N, host:Dictionary(Int32, Utf8);N, is_local:Boolean;N, read_utilization:Float64;N, region:Dictionary(Int32, Utf8);N, status:Dictionary(Int32, Utf8);N, time:Timestamp(Nanosecond, None), write_utilization:Float64;N]
+                Projection: Dictionary(Int32, Utf8("merge_00")) AS iox::measurement, tagKey [iox::measurement:Dictionary(Int32, Utf8), tagKey:Utf8;N]
+                  Filter: tagKey IS NOT NULL [tagKey:Utf8;N]
+                    Unnest: tagKey [tagKey:Utf8;N]
+                      Projection: makearray(CASE WHEN col0 > Int32(0) THEN Utf8("col0") END) AS tagKey [tagKey:FixedSizeList(Field { name: "item", data_type: Utf8, nullable: true, dict_id: 0, dict_is_ordered: false, metadata: {} }, 1);N]
+                        Aggregate: groupBy=[[]], aggr=[[SUM(CAST(merge_00.col0 IS NOT NULL AS UInt64)) AS col0]] [col0:UInt64;N]
+                          Filter: merge_00.time >= now() - IntervalMonthDayNano("86400000000000") [col0:Dictionary(Int32, Utf8);N, col1:Float64;N, col2:Boolean;N, col3:Utf8;N, time:Timestamp(Nanosecond, None)]
+                            Filter: NULL = Utf8("some_foo") [col0:Dictionary(Int32, Utf8);N, col1:Float64;N, col2:Boolean;N, col3:Utf8;N, time:Timestamp(Nanosecond, None)]
+                              TableScan: merge_00 [col0:Dictionary(Int32, Utf8);N, col1:Float64;N, col2:Boolean;N, col3:Utf8;N, time:Timestamp(Nanosecond, None)]
+                Projection: Dictionary(Int32, Utf8("merge_01")) AS iox::measurement, tagKey [iox::measurement:Dictionary(Int32, Utf8), tagKey:Utf8;N]
+                  Filter: tagKey IS NOT NULL [tagKey:Utf8;N]
+                    Unnest: tagKey [tagKey:Utf8;N]
+                      Projection: makearray(CASE WHEN col1 > Int32(0) THEN Utf8("col1") END) AS tagKey [tagKey:FixedSizeList(Field { name: "item", data_type: Utf8, nullable: true, dict_id: 0, dict_is_ordered: false, metadata: {} }, 1);N]
+                        Aggregate: groupBy=[[]], aggr=[[SUM(CAST(merge_01.col1 IS NOT NULL AS UInt64)) AS col1]] [col1:UInt64;N]
+                          Filter: merge_01.time >= now() - IntervalMonthDayNano("86400000000000") [col0:Float64;N, col1:Dictionary(Int32, Utf8);N, col2:Utf8;N, col3:Boolean;N, time:Timestamp(Nanosecond, None)]
+                            Filter: NULL = Utf8("some_foo") [col0:Float64;N, col1:Dictionary(Int32, Utf8);N, col2:Utf8;N, col3:Boolean;N, time:Timestamp(Nanosecond, None)]
+                              TableScan: merge_01 [col0:Float64;N, col1:Dictionary(Int32, Utf8);N, col2:Utf8;N, col3:Boolean;N, time:Timestamp(Nanosecond, None)]
+                Projection: Dictionary(Int32, Utf8("temp_01")) AS iox::measurement, tagKey [iox::measurement:Dictionary(Int32, Utf8), tagKey:Utf8;N]
+                  Filter: tagKey IS NOT NULL [tagKey:Utf8;N]
+                    Unnest: tagKey [tagKey:Utf8;N]
+                      Projection: makearray(CASE WHEN shared_tag0 > Int32(0) THEN Utf8("shared_tag0") END, CASE WHEN shared_tag1 > Int32(0) THEN Utf8("shared_tag1") END) AS tagKey [tagKey:FixedSizeList(Field { name: "item", data_type: Utf8, nullable: true, dict_id: 0, dict_is_ordered: false, metadata: {} }, 2);N]
+                        Aggregate: groupBy=[[]], aggr=[[SUM(CAST(temp_01.shared_tag0 IS NOT NULL AS UInt64)) AS shared_tag0, SUM(CAST(temp_01.shared_tag1 IS NOT NULL AS UInt64)) AS shared_tag1]] [shared_tag0:UInt64;N, shared_tag1:UInt64;N]
+                          Filter: temp_01.time >= now() - IntervalMonthDayNano("86400000000000") [field_f64:Float64;N, field_i64:Int64;N, field_str:Utf8;N, field_u64:UInt64;N, shared_field0:Float64;N, shared_tag0:Dictionary(Int32, Utf8);N, shared_tag1:Dictionary(Int32, Utf8);N, time:Timestamp(Nanosecond, None)]
+                            Filter: NULL = Utf8("some_foo") [field_f64:Float64;N, field_i64:Int64;N, field_str:Utf8;N, field_u64:UInt64;N, shared_field0:Float64;N, shared_tag0:Dictionary(Int32, Utf8);N, shared_tag1:Dictionary(Int32, Utf8);N, time:Timestamp(Nanosecond, None)]
+                              TableScan: temp_01 [field_f64:Float64;N, field_i64:Int64;N, field_str:Utf8;N, field_u64:UInt64;N, shared_field0:Float64;N, shared_tag0:Dictionary(Int32, Utf8);N, shared_tag1:Dictionary(Int32, Utf8);N, time:Timestamp(Nanosecond, None)]
+                Projection: Dictionary(Int32, Utf8("temp_02")) AS iox::measurement, tagKey [iox::measurement:Dictionary(Int32, Utf8), tagKey:Utf8;N]
+                  Filter: tagKey IS NOT NULL [tagKey:Utf8;N]
+                    Unnest: tagKey [tagKey:Utf8;N]
+                      Projection: makearray(CASE WHEN shared_tag0 > Int32(0) THEN Utf8("shared_tag0") END, CASE WHEN shared_tag1 > Int32(0) THEN Utf8("shared_tag1") END) AS tagKey [tagKey:FixedSizeList(Field { name: "item", data_type: Utf8, nullable: true, dict_id: 0, dict_is_ordered: false, metadata: {} }, 2);N]
+                        Aggregate: groupBy=[[]], aggr=[[SUM(CAST(temp_02.shared_tag0 IS NOT NULL AS UInt64)) AS shared_tag0, SUM(CAST(temp_02.shared_tag1 IS NOT NULL AS UInt64)) AS shared_tag1]] [shared_tag0:UInt64;N, shared_tag1:UInt64;N]
+                          Filter: temp_02.time >= now() - IntervalMonthDayNano("86400000000000") [shared_field0:Int64;N, shared_tag0:Dictionary(Int32, Utf8);N, shared_tag1:Dictionary(Int32, Utf8);N, time:Timestamp(Nanosecond, None)]
+                            Filter: NULL = Utf8("some_foo") [shared_field0:Int64;N, shared_tag0:Dictionary(Int32, Utf8);N, shared_tag1:Dictionary(Int32, Utf8);N, time:Timestamp(Nanosecond, None)]
+                              TableScan: temp_02 [shared_field0:Int64;N, shared_tag0:Dictionary(Int32, Utf8);N, shared_tag1:Dictionary(Int32, Utf8);N, time:Timestamp(Nanosecond, None)]
+                Projection: Dictionary(Int32, Utf8("temp_03")) AS iox::measurement, tagKey [iox::measurement:Dictionary(Int32, Utf8), tagKey:Utf8;N]
+                  Filter: tagKey IS NOT NULL [tagKey:Utf8;N]
+                    Unnest: tagKey [tagKey:Utf8;N]
+                      Projection: makearray(CASE WHEN shared_tag0 > Int32(0) THEN Utf8("shared_tag0") END, CASE WHEN shared_tag1 > Int32(0) THEN Utf8("shared_tag1") END) AS tagKey [tagKey:FixedSizeList(Field { name: "item", data_type: Utf8, nullable: true, dict_id: 0, dict_is_ordered: false, metadata: {} }, 2);N]
+                        Aggregate: groupBy=[[]], aggr=[[SUM(CAST(temp_03.shared_tag0 IS NOT NULL AS UInt64)) AS shared_tag0, SUM(CAST(temp_03.shared_tag1 IS NOT NULL AS UInt64)) AS shared_tag1]] [shared_tag0:UInt64;N, shared_tag1:UInt64;N]
+                          Filter: temp_03.time >= now() - IntervalMonthDayNano("86400000000000") [shared_field0:Utf8;N, shared_tag0:Dictionary(Int32, Utf8);N, shared_tag1:Dictionary(Int32, Utf8);N, time:Timestamp(Nanosecond, None)]
+                            Filter: NULL = Utf8("some_foo") [shared_field0:Utf8;N, shared_tag0:Dictionary(Int32, Utf8);N, shared_tag1:Dictionary(Int32, Utf8);N, time:Timestamp(Nanosecond, None)]
+                              TableScan: temp_03 [shared_field0:Utf8;N, shared_tag0:Dictionary(Int32, Utf8);N, shared_tag1:Dictionary(Int32, Utf8);N, time:Timestamp(Nanosecond, None)]
+            "###);
+            assert_snapshot!(plan("SHOW TAG KEYS WHERE time > 1337"), @r###"
+            Sort: iox::measurement ASC NULLS LAST, tagKey ASC NULLS LAST [iox::measurement:Dictionary(Int32, Utf8), tagKey:Utf8;N]
+              Union [iox::measurement:Dictionary(Int32, Utf8), tagKey:Utf8;N]
+                Projection: Dictionary(Int32, Utf8("all_types")) AS iox::measurement, tagKey [iox::measurement:Dictionary(Int32, Utf8), tagKey:Utf8;N]
+                  Filter: tagKey IS NOT NULL [tagKey:Utf8;N]
+                    Unnest: tagKey [tagKey:Utf8;N]
+                      Projection: makearray(CASE WHEN tag0 > Int32(0) THEN Utf8("tag0") END, CASE WHEN tag1 > Int32(0) THEN Utf8("tag1") END) AS tagKey [tagKey:FixedSizeList(Field { name: "item", data_type: Utf8, nullable: true, dict_id: 0, dict_is_ordered: false, metadata: {} }, 2);N]
+                        Aggregate: groupBy=[[]], aggr=[[SUM(CAST(all_types.tag0 IS NOT NULL AS UInt64)) AS tag0, SUM(CAST(all_types.tag1 IS NOT NULL AS UInt64)) AS tag1]] [tag0:UInt64;N, tag1:UInt64;N]
+                          Filter: all_types.time > TimestampNanosecond(1337, None) [bool_field:Boolean;N, f64_field:Float64;N, i64_field:Int64;N, str_field:Utf8;N, tag0:Dictionary(Int32, Utf8);N, tag1:Dictionary(Int32, Utf8);N, time:Timestamp(Nanosecond, None), u64_field:UInt64;N]
+                            TableScan: all_types [bool_field:Boolean;N, f64_field:Float64;N, i64_field:Int64;N, str_field:Utf8;N, tag0:Dictionary(Int32, Utf8);N, tag1:Dictionary(Int32, Utf8);N, time:Timestamp(Nanosecond, None), u64_field:UInt64;N]
+                Projection: Dictionary(Int32, Utf8("cpu")) AS iox::measurement, tagKey [iox::measurement:Dictionary(Int32, Utf8), tagKey:Utf8;N]
+                  Filter: tagKey IS NOT NULL [tagKey:Utf8;N]
+                    Unnest: tagKey [tagKey:Utf8;N]
+                      Projection: makearray(CASE WHEN cpu > Int32(0) THEN Utf8("cpu") END, CASE WHEN host > Int32(0) THEN Utf8("host") END, CASE WHEN region > Int32(0) THEN Utf8("region") END) AS tagKey [tagKey:FixedSizeList(Field { name: "item", data_type: Utf8, nullable: true, dict_id: 0, dict_is_ordered: false, metadata: {} }, 3);N]
+                        Aggregate: groupBy=[[]], aggr=[[SUM(CAST(cpu.cpu IS NOT NULL AS UInt64)) AS cpu, SUM(CAST(cpu.host IS NOT NULL AS UInt64)) AS host, SUM(CAST(cpu.region IS NOT NULL AS UInt64)) AS region]] [cpu:UInt64;N, host:UInt64;N, region:UInt64;N]
+                          Filter: cpu.time > TimestampNanosecond(1337, None) [cpu:Dictionary(Int32, Utf8);N, host:Dictionary(Int32, Utf8);N, region:Dictionary(Int32, Utf8);N, time:Timestamp(Nanosecond, None), usage_idle:Float64;N, usage_system:Float64;N, usage_user:Float64;N]
+                            TableScan: cpu [cpu:Dictionary(Int32, Utf8);N, host:Dictionary(Int32, Utf8);N, region:Dictionary(Int32, Utf8);N, time:Timestamp(Nanosecond, None), usage_idle:Float64;N, usage_system:Float64;N, usage_user:Float64;N]
+                Projection: Dictionary(Int32, Utf8("data")) AS iox::measurement, tagKey [iox::measurement:Dictionary(Int32, Utf8), tagKey:Utf8;N]
+                  Filter: tagKey IS NOT NULL [tagKey:Utf8;N]
+                    Unnest: tagKey [tagKey:Utf8;N]
+                      Projection: makearray(CASE WHEN bar > Int32(0) THEN Utf8("bar") END, CASE WHEN foo > Int32(0) THEN Utf8("foo") END) AS tagKey [tagKey:FixedSizeList(Field { name: "item", data_type: Utf8, nullable: true, dict_id: 0, dict_is_ordered: false, metadata: {} }, 2);N]
+                        Aggregate: groupBy=[[]], aggr=[[SUM(CAST(data.bar IS NOT NULL AS UInt64)) AS bar, SUM(CAST(data.foo IS NOT NULL AS UInt64)) AS foo]] [bar:UInt64;N, foo:UInt64;N]
+                          Filter: data.time > TimestampNanosecond(1337, None) [TIME:Boolean;N, bar:Dictionary(Int32, Utf8);N, bool_field:Boolean;N, f64_field:Float64;N, foo:Dictionary(Int32, Utf8);N, i64_field:Int64;N, mixedCase:Float64;N, str_field:Utf8;N, time:Timestamp(Nanosecond, None), with space:Float64;N]
+                            TableScan: data [TIME:Boolean;N, bar:Dictionary(Int32, Utf8);N, bool_field:Boolean;N, f64_field:Float64;N, foo:Dictionary(Int32, Utf8);N, i64_field:Int64;N, mixedCase:Float64;N, str_field:Utf8;N, time:Timestamp(Nanosecond, None), with space:Float64;N]
+                Projection: Dictionary(Int32, Utf8("disk")) AS iox::measurement, tagKey [iox::measurement:Dictionary(Int32, Utf8), tagKey:Utf8;N]
+                  Filter: tagKey IS NOT NULL [tagKey:Utf8;N]
+                    Unnest: tagKey [tagKey:Utf8;N]
+                      Projection: makearray(CASE WHEN device > Int32(0) THEN Utf8("device") END, CASE WHEN host > Int32(0) THEN Utf8("host") END, CASE WHEN region > Int32(0) THEN Utf8("region") END) AS tagKey [tagKey:FixedSizeList(Field { name: "item", data_type: Utf8, nullable: true, dict_id: 0, dict_is_ordered: false, metadata: {} }, 3);N]
+                        Aggregate: groupBy=[[]], aggr=[[SUM(CAST(disk.device IS NOT NULL AS UInt64)) AS device, SUM(CAST(disk.host IS NOT NULL AS UInt64)) AS host, SUM(CAST(disk.region IS NOT NULL AS UInt64)) AS region]] [device:UInt64;N, host:UInt64;N, region:UInt64;N]
+                          Filter: disk.time > TimestampNanosecond(1337, None) [bytes_free:Int64;N, bytes_used:Int64;N, device:Dictionary(Int32, Utf8);N, host:Dictionary(Int32, Utf8);N, region:Dictionary(Int32, Utf8);N, time:Timestamp(Nanosecond, None)]
+                            TableScan: disk [bytes_free:Int64;N, bytes_used:Int64;N, device:Dictionary(Int32, Utf8);N, host:Dictionary(Int32, Utf8);N, region:Dictionary(Int32, Utf8);N, time:Timestamp(Nanosecond, None)]
+                Projection: Dictionary(Int32, Utf8("diskio")) AS iox::measurement, tagKey [iox::measurement:Dictionary(Int32, Utf8), tagKey:Utf8;N]
+                  Filter: tagKey IS NOT NULL [tagKey:Utf8;N]
+                    Unnest: tagKey [tagKey:Utf8;N]
+                      Projection: makearray(CASE WHEN host > Int32(0) THEN Utf8("host") END, CASE WHEN region > Int32(0) THEN Utf8("region") END, CASE WHEN status > Int32(0) THEN Utf8("status") END) AS tagKey [tagKey:FixedSizeList(Field { name: "item", data_type: Utf8, nullable: true, dict_id: 0, dict_is_ordered: false, metadata: {} }, 3);N]
+                        Aggregate: groupBy=[[]], aggr=[[SUM(CAST(diskio.host IS NOT NULL AS UInt64)) AS host, SUM(CAST(diskio.region IS NOT NULL AS UInt64)) AS region, SUM(CAST(diskio.status IS NOT NULL AS UInt64)) AS status]] [host:UInt64;N, region:UInt64;N, status:UInt64;N]
+                          Filter: diskio.time > TimestampNanosecond(1337, None) [bytes_read:Int64;N, bytes_written:Int64;N, host:Dictionary(Int32, Utf8);N, is_local:Boolean;N, read_utilization:Float64;N, region:Dictionary(Int32, Utf8);N, status:Dictionary(Int32, Utf8);N, time:Timestamp(Nanosecond, None), write_utilization:Float64;N]
+                            TableScan: diskio [bytes_read:Int64;N, bytes_written:Int64;N, host:Dictionary(Int32, Utf8);N, is_local:Boolean;N, read_utilization:Float64;N, region:Dictionary(Int32, Utf8);N, status:Dictionary(Int32, Utf8);N, time:Timestamp(Nanosecond, None), write_utilization:Float64;N]
+                Projection: Dictionary(Int32, Utf8("merge_00")) AS iox::measurement, tagKey [iox::measurement:Dictionary(Int32, Utf8), tagKey:Utf8;N]
+                  Filter: tagKey IS NOT NULL [tagKey:Utf8;N]
+                    Unnest: tagKey [tagKey:Utf8;N]
+                      Projection: makearray(CASE WHEN col0 > Int32(0) THEN Utf8("col0") END) AS tagKey [tagKey:FixedSizeList(Field { name: "item", data_type: Utf8, nullable: true, dict_id: 0, dict_is_ordered: false, metadata: {} }, 1);N]
+                        Aggregate: groupBy=[[]], aggr=[[SUM(CAST(merge_00.col0 IS NOT NULL AS UInt64)) AS col0]] [col0:UInt64;N]
+                          Filter: merge_00.time > TimestampNanosecond(1337, None) [col0:Dictionary(Int32, Utf8);N, col1:Float64;N, col2:Boolean;N, col3:Utf8;N, time:Timestamp(Nanosecond, None)]
+                            TableScan: merge_00 [col0:Dictionary(Int32, Utf8);N, col1:Float64;N, col2:Boolean;N, col3:Utf8;N, time:Timestamp(Nanosecond, None)]
+                Projection: Dictionary(Int32, Utf8("merge_01")) AS iox::measurement, tagKey [iox::measurement:Dictionary(Int32, Utf8), tagKey:Utf8;N]
+                  Filter: tagKey IS NOT NULL [tagKey:Utf8;N]
+                    Unnest: tagKey [tagKey:Utf8;N]
+                      Projection: makearray(CASE WHEN col1 > Int32(0) THEN Utf8("col1") END) AS tagKey [tagKey:FixedSizeList(Field { name: "item", data_type: Utf8, nullable: true, dict_id: 0, dict_is_ordered: false, metadata: {} }, 1);N]
+                        Aggregate: groupBy=[[]], aggr=[[SUM(CAST(merge_01.col1 IS NOT NULL AS UInt64)) AS col1]] [col1:UInt64;N]
+                          Filter: merge_01.time > TimestampNanosecond(1337, None) [col0:Float64;N, col1:Dictionary(Int32, Utf8);N, col2:Utf8;N, col3:Boolean;N, time:Timestamp(Nanosecond, None)]
+                            TableScan: merge_01 [col0:Float64;N, col1:Dictionary(Int32, Utf8);N, col2:Utf8;N, col3:Boolean;N, time:Timestamp(Nanosecond, None)]
+                Projection: Dictionary(Int32, Utf8("temp_01")) AS iox::measurement, tagKey [iox::measurement:Dictionary(Int32, Utf8), tagKey:Utf8;N]
+                  Filter: tagKey IS NOT NULL [tagKey:Utf8;N]
+                    Unnest: tagKey [tagKey:Utf8;N]
+                      Projection: makearray(CASE WHEN shared_tag0 > Int32(0) THEN Utf8("shared_tag0") END, CASE WHEN shared_tag1 > Int32(0) THEN Utf8("shared_tag1") END) AS tagKey [tagKey:FixedSizeList(Field { name: "item", data_type: Utf8, nullable: true, dict_id: 0, dict_is_ordered: false, metadata: {} }, 2);N]
+                        Aggregate: groupBy=[[]], aggr=[[SUM(CAST(temp_01.shared_tag0 IS NOT NULL AS UInt64)) AS shared_tag0, SUM(CAST(temp_01.shared_tag1 IS NOT NULL AS UInt64)) AS shared_tag1]] [shared_tag0:UInt64;N, shared_tag1:UInt64;N]
+                          Filter: temp_01.time > TimestampNanosecond(1337, None) [field_f64:Float64;N, field_i64:Int64;N, field_str:Utf8;N, field_u64:UInt64;N, shared_field0:Float64;N, shared_tag0:Dictionary(Int32, Utf8);N, shared_tag1:Dictionary(Int32, Utf8);N, time:Timestamp(Nanosecond, None)]
+                            TableScan: temp_01 [field_f64:Float64;N, field_i64:Int64;N, field_str:Utf8;N, field_u64:UInt64;N, shared_field0:Float64;N, shared_tag0:Dictionary(Int32, Utf8);N, shared_tag1:Dictionary(Int32, Utf8);N, time:Timestamp(Nanosecond, None)]
+                Projection: Dictionary(Int32, Utf8("temp_02")) AS iox::measurement, tagKey [iox::measurement:Dictionary(Int32, Utf8), tagKey:Utf8;N]
+                  Filter: tagKey IS NOT NULL [tagKey:Utf8;N]
+                    Unnest: tagKey [tagKey:Utf8;N]
+                      Projection: makearray(CASE WHEN shared_tag0 > Int32(0) THEN Utf8("shared_tag0") END, CASE WHEN shared_tag1 > Int32(0) THEN Utf8("shared_tag1") END) AS tagKey [tagKey:FixedSizeList(Field { name: "item", data_type: Utf8, nullable: true, dict_id: 0, dict_is_ordered: false, metadata: {} }, 2);N]
+                        Aggregate: groupBy=[[]], aggr=[[SUM(CAST(temp_02.shared_tag0 IS NOT NULL AS UInt64)) AS shared_tag0, SUM(CAST(temp_02.shared_tag1 IS NOT NULL AS UInt64)) AS shared_tag1]] [shared_tag0:UInt64;N, shared_tag1:UInt64;N]
+                          Filter: temp_02.time > TimestampNanosecond(1337, None) [shared_field0:Int64;N, shared_tag0:Dictionary(Int32, Utf8);N, shared_tag1:Dictionary(Int32, Utf8);N, time:Timestamp(Nanosecond, None)]
+                            TableScan: temp_02 [shared_field0:Int64;N, shared_tag0:Dictionary(Int32, Utf8);N, shared_tag1:Dictionary(Int32, Utf8);N, time:Timestamp(Nanosecond, None)]
+                Projection: Dictionary(Int32, Utf8("temp_03")) AS iox::measurement, tagKey [iox::measurement:Dictionary(Int32, Utf8), tagKey:Utf8;N]
+                  Filter: tagKey IS NOT NULL [tagKey:Utf8;N]
+                    Unnest: tagKey [tagKey:Utf8;N]
+                      Projection: makearray(CASE WHEN shared_tag0 > Int32(0) THEN Utf8("shared_tag0") END, CASE WHEN shared_tag1 > Int32(0) THEN Utf8("shared_tag1") END) AS tagKey [tagKey:FixedSizeList(Field { name: "item", data_type: Utf8, nullable: true, dict_id: 0, dict_is_ordered: false, metadata: {} }, 2);N]
+                        Aggregate: groupBy=[[]], aggr=[[SUM(CAST(temp_03.shared_tag0 IS NOT NULL AS UInt64)) AS shared_tag0, SUM(CAST(temp_03.shared_tag1 IS NOT NULL AS UInt64)) AS shared_tag1]] [shared_tag0:UInt64;N, shared_tag1:UInt64;N]
+                          Filter: temp_03.time > TimestampNanosecond(1337, None) [shared_field0:Utf8;N, shared_tag0:Dictionary(Int32, Utf8);N, shared_tag1:Dictionary(Int32, Utf8);N, time:Timestamp(Nanosecond, None)]
+                            TableScan: temp_03 [shared_field0:Utf8;N, shared_tag0:Dictionary(Int32, Utf8);N, shared_tag1:Dictionary(Int32, Utf8);N, time:Timestamp(Nanosecond, None)]
+            "###);
         }
 
         #[test]
         fn test_show_tag_values() {
             assert_snapshot!(plan("SHOW TAG VALUES WITH KEY = bar"), @r###"
-            Projection: Dictionary(Int32, Utf8("data")) AS iox::measurement, Dictionary(Int32, Utf8("bar")) AS key, data.bar AS value [iox::measurement:Dictionary(Int32, Utf8), key:Dictionary(Int32, Utf8), value:Dictionary(Int32, Utf8);N]
-              Sort: data.bar ASC NULLS LAST [bar:Dictionary(Int32, Utf8);N]
+            Sort: iox::measurement ASC NULLS LAST, key ASC NULLS LAST, value ASC NULLS LAST [iox::measurement:Dictionary(Int32, Utf8), key:Dictionary(Int32, Utf8), value:Dictionary(Int32, Utf8);N]
+              Projection: Dictionary(Int32, Utf8("data")) AS iox::measurement, Dictionary(Int32, Utf8("bar")) AS key, data.bar AS value [iox::measurement:Dictionary(Int32, Utf8), key:Dictionary(Int32, Utf8), value:Dictionary(Int32, Utf8);N]
                 Distinct: [bar:Dictionary(Int32, Utf8);N]
                   Projection: data.bar [bar:Dictionary(Int32, Utf8);N]
-                    TableScan: data [TIME:Boolean;N, bar:Dictionary(Int32, Utf8);N, bool_field:Boolean;N, f64_field:Float64;N, foo:Dictionary(Int32, Utf8);N, i64_field:Int64;N, mixedCase:Float64;N, str_field:Utf8;N, time:Timestamp(Nanosecond, None), with space:Float64;N]
+                    Filter: data.time >= now() - IntervalMonthDayNano("86400000000000") [TIME:Boolean;N, bar:Dictionary(Int32, Utf8);N, bool_field:Boolean;N, f64_field:Float64;N, foo:Dictionary(Int32, Utf8);N, i64_field:Int64;N, mixedCase:Float64;N, str_field:Utf8;N, time:Timestamp(Nanosecond, None), with space:Float64;N]
+                      TableScan: data [TIME:Boolean;N, bar:Dictionary(Int32, Utf8);N, bool_field:Boolean;N, f64_field:Float64;N, foo:Dictionary(Int32, Utf8);N, i64_field:Int64;N, mixedCase:Float64;N, str_field:Utf8;N, time:Timestamp(Nanosecond, None), with space:Float64;N]
             "###);
             assert_snapshot!(plan("SHOW TAG VALUES WITH KEY = bar LIMIT 1 OFFSET 2"), @r###"
             Sort: iox::measurement ASC NULLS LAST, key ASC NULLS LAST, value ASC NULLS LAST [iox::measurement:Dictionary(Int32, Utf8), key:Dictionary(Int32, Utf8), value:Dictionary(Int32, Utf8);N]
               Projection: iox::measurement, key, value [iox::measurement:Dictionary(Int32, Utf8), key:Dictionary(Int32, Utf8), value:Dictionary(Int32, Utf8);N]
                 Filter: iox::row BETWEEN Int64(3) AND Int64(3) [iox::measurement:Dictionary(Int32, Utf8), key:Dictionary(Int32, Utf8), value:Dictionary(Int32, Utf8);N, iox::row:UInt64;N]
                   WindowAggr: windowExpr=[[ROW_NUMBER() PARTITION BY [iox::measurement] ORDER BY [key ASC NULLS LAST, value ASC NULLS LAST] ROWS BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW AS iox::row]] [iox::measurement:Dictionary(Int32, Utf8), key:Dictionary(Int32, Utf8), value:Dictionary(Int32, Utf8);N, iox::row:UInt64;N]
-                    Projection: Dictionary(Int32, Utf8("data")) AS iox::measurement, Dictionary(Int32, Utf8("bar")) AS key, data.bar AS value [iox::measurement:Dictionary(Int32, Utf8), key:Dictionary(Int32, Utf8), value:Dictionary(Int32, Utf8);N]
-                      Sort: data.bar ASC NULLS LAST [bar:Dictionary(Int32, Utf8);N]
+                    Sort: iox::measurement ASC NULLS LAST, key ASC NULLS LAST, value ASC NULLS LAST [iox::measurement:Dictionary(Int32, Utf8), key:Dictionary(Int32, Utf8), value:Dictionary(Int32, Utf8);N]
+                      Projection: Dictionary(Int32, Utf8("data")) AS iox::measurement, Dictionary(Int32, Utf8("bar")) AS key, data.bar AS value [iox::measurement:Dictionary(Int32, Utf8), key:Dictionary(Int32, Utf8), value:Dictionary(Int32, Utf8);N]
                         Distinct: [bar:Dictionary(Int32, Utf8);N]
                           Projection: data.bar [bar:Dictionary(Int32, Utf8);N]
-                            TableScan: data [TIME:Boolean;N, bar:Dictionary(Int32, Utf8);N, bool_field:Boolean;N, f64_field:Float64;N, foo:Dictionary(Int32, Utf8);N, i64_field:Int64;N, mixedCase:Float64;N, str_field:Utf8;N, time:Timestamp(Nanosecond, None), with space:Float64;N]
+                            Filter: data.time >= now() - IntervalMonthDayNano("86400000000000") [TIME:Boolean;N, bar:Dictionary(Int32, Utf8);N, bool_field:Boolean;N, f64_field:Float64;N, foo:Dictionary(Int32, Utf8);N, i64_field:Int64;N, mixedCase:Float64;N, str_field:Utf8;N, time:Timestamp(Nanosecond, None), with space:Float64;N]
+                              TableScan: data [TIME:Boolean;N, bar:Dictionary(Int32, Utf8);N, bool_field:Boolean;N, f64_field:Float64;N, foo:Dictionary(Int32, Utf8);N, i64_field:Int64;N, mixedCase:Float64;N, str_field:Utf8;N, time:Timestamp(Nanosecond, None), with space:Float64;N]
+            "###);
+            assert_snapshot!(plan("SHOW TAG VALUES WITH KEY = bar WHERE foo = 'some_foo'"), @r###"
+            Sort: iox::measurement ASC NULLS LAST, key ASC NULLS LAST, value ASC NULLS LAST [iox::measurement:Dictionary(Int32, Utf8), key:Dictionary(Int32, Utf8), value:Dictionary(Int32, Utf8);N]
+              Projection: Dictionary(Int32, Utf8("data")) AS iox::measurement, Dictionary(Int32, Utf8("bar")) AS key, data.bar AS value [iox::measurement:Dictionary(Int32, Utf8), key:Dictionary(Int32, Utf8), value:Dictionary(Int32, Utf8);N]
+                Distinct: [bar:Dictionary(Int32, Utf8);N]
+                  Projection: data.bar [bar:Dictionary(Int32, Utf8);N]
+                    Filter: data.time >= now() - IntervalMonthDayNano("86400000000000") [TIME:Boolean;N, bar:Dictionary(Int32, Utf8);N, bool_field:Boolean;N, f64_field:Float64;N, foo:Dictionary(Int32, Utf8);N, i64_field:Int64;N, mixedCase:Float64;N, str_field:Utf8;N, time:Timestamp(Nanosecond, None), with space:Float64;N]
+                      Filter: data.foo = Utf8("some_foo") [TIME:Boolean;N, bar:Dictionary(Int32, Utf8);N, bool_field:Boolean;N, f64_field:Float64;N, foo:Dictionary(Int32, Utf8);N, i64_field:Int64;N, mixedCase:Float64;N, str_field:Utf8;N, time:Timestamp(Nanosecond, None), with space:Float64;N]
+                        TableScan: data [TIME:Boolean;N, bar:Dictionary(Int32, Utf8);N, bool_field:Boolean;N, f64_field:Float64;N, foo:Dictionary(Int32, Utf8);N, i64_field:Int64;N, mixedCase:Float64;N, str_field:Utf8;N, time:Timestamp(Nanosecond, None), with space:Float64;N]
+            "###);
+            assert_snapshot!(plan("SHOW TAG VALUES WITH KEY = bar WHERE time > 1337"), @r###"
+            Sort: iox::measurement ASC NULLS LAST, key ASC NULLS LAST, value ASC NULLS LAST [iox::measurement:Dictionary(Int32, Utf8), key:Dictionary(Int32, Utf8), value:Dictionary(Int32, Utf8);N]
+              Projection: Dictionary(Int32, Utf8("data")) AS iox::measurement, Dictionary(Int32, Utf8("bar")) AS key, data.bar AS value [iox::measurement:Dictionary(Int32, Utf8), key:Dictionary(Int32, Utf8), value:Dictionary(Int32, Utf8);N]
+                Distinct: [bar:Dictionary(Int32, Utf8);N]
+                  Projection: data.bar [bar:Dictionary(Int32, Utf8);N]
+                    Filter: data.time > TimestampNanosecond(1337, None) [TIME:Boolean;N, bar:Dictionary(Int32, Utf8);N, bool_field:Boolean;N, f64_field:Float64;N, foo:Dictionary(Int32, Utf8);N, i64_field:Int64;N, mixedCase:Float64;N, str_field:Utf8;N, time:Timestamp(Nanosecond, None), with space:Float64;N]
+                      TableScan: data [TIME:Boolean;N, bar:Dictionary(Int32, Utf8);N, bool_field:Boolean;N, f64_field:Float64;N, foo:Dictionary(Int32, Utf8);N, i64_field:Int64;N, mixedCase:Float64;N, str_field:Utf8;N, time:Timestamp(Nanosecond, None), with space:Float64;N]
             "###);
         }
     }
@@ -2527,7 +2972,7 @@ mod test {
             "###);
 
             // nonexistent
-            assert_snapshot!(plan("SELECT host, usage_idle FROM non_existent"), @"EmptyRelation []");
+            assert_snapshot!(plan("SELECT host, usage_idle FROM non_existent"), @"EmptyRelation [iox::measurement:Dictionary(Int32, Utf8)]");
             assert_snapshot!(plan("SELECT host, usage_idle FROM cpu, non_existent"), @r###"
             Sort: time ASC NULLS LAST, host ASC NULLS LAST [iox::measurement:Dictionary(Int32, Utf8), time:Timestamp(Nanosecond, None), host:Dictionary(Int32, Utf8);N, usage_idle:Float64;N]
               Projection: Dictionary(Int32, Utf8("cpu")) AS iox::measurement, cpu.time AS time, cpu.host AS host, cpu.usage_idle AS usage_idle [iox::measurement:Dictionary(Int32, Utf8), time:Timestamp(Nanosecond, None), host:Dictionary(Int32, Utf8);N, usage_idle:Float64;N]
@@ -2577,6 +3022,14 @@ mod test {
             "###
             );
 
+            // fallible
+
+            // Unsupported operator
+            assert_snapshot!(plan("SELECT foo, f64_field FROM data where time != 0"), @"Error during planning: invalid time comparison operator: !=")
+        }
+
+        #[test]
+        fn test_regex_in_where() {
             // Regular expression equality tests
 
             assert_snapshot!(plan("SELECT foo, f64_field FROM data where foo =~ /f/"), @r###"
@@ -2654,8 +3107,8 @@ mod test {
             "###);
 
             // invalid column reference
-            assert_snapshot!(plan("SELECT not_exists::tag FROM data"), @"EmptyRelation []");
-            assert_snapshot!(plan("SELECT not_exists::field FROM data"), @"EmptyRelation []");
+            assert_snapshot!(plan("SELECT not_exists::tag FROM data"), @"EmptyRelation [iox::measurement:Dictionary(Int32, Utf8)]");
+            assert_snapshot!(plan("SELECT not_exists::field FROM data"), @"EmptyRelation [iox::measurement:Dictionary(Int32, Utf8)]");
 
             // Returns NULL for invalid casts
             assert_snapshot!(plan("SELECT f64_field::string FROM data"), @r###"

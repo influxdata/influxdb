@@ -77,6 +77,18 @@ SELECT i64 FROM m0 WHERE time > '2022-10-31 02:00:10';
 --       try increasing the number of days 😂
 SELECT i64 FROM m0 WHERE time > now() - 100000d;
 
+-- the time range should apply to the the entire result set not just cpu = 'cpu1'
+SELECT cpu, usage_idle FROM cpu WHERE cpu = 'cpu0' OR cpu = 'cpu1' AND time >= 1667181610000000000;
+
+-- combining relational operators for time ranges should return no results, as it
+-- evaluates to false, like InfluxQL
+SELECT cpu, usage_idle FROM cpu WHERE time >= 1667181610000000000 OR time = 1667181600000000000;
+
+-- BONUS: InfluxQL now supports combining equality with OR
+SELECT cpu, usage_idle FROM cpu WHERE time = 1667181610000000000 OR time = 1667181600000000000 AND cpu = 'cpu0';
+SELECT cpu, usage_idle FROM cpu WHERE time = 1667181610000000000 OR time = 1667181600000000000;
+
+
 -- NOT NULL test
 -- WHERE tag1 != '' is the equivalent to tag1 IS NOT NULL
 -- TODO(sgc): This is working, but likely by accident
@@ -274,8 +286,6 @@ SELECT COUNT(f64), SUM(f64), stddev(f64) FROM m0, m1;
 SELECT COUNT(f64), SUM(f64), stddev(f64) FROM m0 GROUP BY tag0;
 -- IOX_COMPARE: no_borders
 EXPLAIN SELECT COUNT(f64), SUM(f64), stddev(f64) FROM m0, m1 GROUP BY tag0;
--- TODO(sgc): `sorted` is a workaround for https://github.com/influxdata/influxdb_iox/issues/7513
--- IOX_COMPARE: sorted
 SELECT COUNT(f64), SUM(f64), stddev(f64) FROM m0, m1 GROUP BY tag0;
 SELECT COUNT(f64), SUM(f64), stddev(f64) FROM m0 GROUP BY tag0, non_existent;
 SELECT COUNT(f64), SUM(f64), stddev(f64) FROM m0 GROUP BY non_existent;
@@ -287,8 +297,6 @@ SELECT COUNT(f64) as the_count, SUM(f64) + SUM(non_existent) as foo FROM m0;
 
 -- measurements with different schema
 SELECT MEAN(usage_idle), MEAN(bytes_free) FROM cpu, disk;
--- TODO(sgc): `sorted` is a workaround for https://github.com/influxdata/influxdb_iox/issues/7513
--- IOX_COMPARE: sorted
 SELECT MEAN(usage_idle), MEAN(bytes_free) FROM cpu, disk GROUP BY TIME(10s) FILL(none);
 
 -- using aggregates across measurements
@@ -311,8 +319,6 @@ SELECT COUNT(f64), SUM(f64) FROM m0 GROUP BY TIME(30s) FILL(none);
 SELECT COUNT(f64), SUM(f64) FROM m0 GROUP BY TIME(30s, 1s) FILL(none);
 
 SELECT COUNT(usage_idle), COUNT(bytes_free) FROM cpu, disk;
--- TODO(sgc): `sorted` is a workaround for https://github.com/influxdata/influxdb_iox/issues/7513
--- IOX_COMPARE: sorted
 SELECT COUNT(usage_idle), COUNT(bytes_free) FROM cpu, disk GROUP BY TIME(1s) FILL(none);
 SELECT COUNT(usage_idle), COUNT(bytes_free) FROM cpu, disk GROUP BY cpu;
 SELECT COUNT(usage_idle) as count_usage_idle, COUNT(bytes_free) as count_bytes_free FROM cpu, disk WHERE cpu = 'cpu0' OR device = 'disk1s1' GROUP BY cpu;
@@ -491,3 +497,6 @@ SELECT COUNT(DISTINCT str), COUNT(DISTINCT i64) FROM m0;
 
 -- fallible cases
 SELECT DISTINCT(str), DISTINCT(i64) FROM m0;
+
+-- non-existing table
+SELECT * FROM does_not_exist;

@@ -19,6 +19,9 @@ const MIN_COMPACT_SIZE_MULTIPLE: usize = 3;
 /// Config to set up a compactor.
 #[derive(Debug, Clone)]
 pub struct Config {
+    /// Compaction type.
+    pub compaction_type: CompactionType,
+
     /// Shard Id
     pub shard_id: ShardId,
 
@@ -57,9 +60,6 @@ pub struct Config {
 
     /// Number of jobs PER PARTITION that move files in and out of the scratchpad.
     pub partition_scratchpad_concurrency: NonZeroUsize,
-
-    /// Partitions with recent created files this recent duration are selected for compaction.
-    pub partition_threshold: Duration,
 
     /// Desired max size of compacted parquet files
     /// It is a target desired value than a guarantee
@@ -210,11 +210,34 @@ pub struct ShardConfig {
     pub shard_id: usize,
 }
 
+/// Compaction type.
+#[derive(Debug, Default, Clone, Copy, PartialEq)]
+pub enum CompactionType {
+    /// Compacts recent writes as they come in.
+    #[default]
+    Hot,
+
+    /// Compacts partitions that have not been written to very recently for longer-term storage.
+    Cold,
+}
+
 /// Partitions source config.
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq)]
 pub enum PartitionsSourceConfig {
-    /// Use the catalog to determine which partitions have recently received writes.
-    CatalogRecentWrites,
+    /// For "hot" compaction: use the catalog to determine which partitions have recently received
+    /// writes, defined as having a new Parquet file created within the last `threshold`.
+    CatalogRecentWrites {
+        /// The amount of time ago to look for Parquet file creations
+        threshold: Duration,
+    },
+
+    /// For "cold" compaction: use the catalog to determine which partitions have gone cold for
+    /// writing and should undergo final compaction, defined as having no new Parquet files created
+    /// in at least the last `threshold`.
+    CatalogColdForWrites {
+        /// The amount of time ago the last Parquet file creation must have happened
+        threshold: Duration,
+    },
 
     /// Use all partitions from the catalog.
     ///
@@ -230,7 +253,12 @@ pub enum PartitionsSourceConfig {
 impl Display for PartitionsSourceConfig {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
-            Self::CatalogRecentWrites => write!(f, "catalog_recent_writes"),
+            Self::CatalogRecentWrites { threshold } => {
+                write!(f, "catalog_recent_writes({threshold:?})")
+            }
+            Self::CatalogColdForWrites { threshold } => {
+                write!(f, "catalog_cold_for_writes({threshold:?})")
+            }
             Self::CatalogAll => write!(f, "catalog_all"),
             Self::Fixed(p_ids) => {
                 let mut p_ids = p_ids.iter().copied().collect::<Vec<_>>();

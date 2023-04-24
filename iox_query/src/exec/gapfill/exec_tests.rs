@@ -155,6 +155,52 @@ fn test_gapfill_multi_group_simple() {
 }
 
 #[test]
+fn test_gapfill_multi_group_simple_origin() {
+    test_helpers::maybe_start_logging();
+    insta::allow_duplicates! { for output_batch_size in [1, 2, 4, 8, 16] {
+        for input_batch_size in [1, 2, 4] {
+            let records = TestRecords {
+                group_cols: vec![vec![Some("a"), Some("a"), Some("b"), Some("b")]],
+                time_col: vec![Some(1_000), Some(1_100), Some(1_025), Some(1_050)],
+                agg_cols: vec![vec![Some(10), Some(11), Some(20), Some(21)]],
+                input_batch_size,
+            };
+            let params = get_params_ms_with_origin_fill_strategy(&records, 25, Some(975), 1_125, Some(3), FillStrategy::Null);
+            let tc = TestCase {
+                test_records: records,
+                output_batch_size,
+                params,
+            };
+            let batches = tc.run().unwrap();
+            let actual = batches_to_lines(&batches);
+            // timestamps are now offset by 3ms
+            insta::assert_yaml_snapshot!(actual, @r###"
+            ---
+            - +----+--------------------------+----+
+            - "| g0 | time                     | a0 |"
+            - +----+--------------------------+----+
+            - "| a  | 1970-01-01T00:00:00.953Z |    |"
+            - "| a  | 1970-01-01T00:00:00.978Z |    |"
+            - "| a  | 1970-01-01T00:00:01.003Z | 10 |"
+            - "| a  | 1970-01-01T00:00:01.028Z |    |"
+            - "| a  | 1970-01-01T00:00:01.053Z |    |"
+            - "| a  | 1970-01-01T00:00:01.078Z |    |"
+            - "| a  | 1970-01-01T00:00:01.103Z | 11 |"
+            - "| b  | 1970-01-01T00:00:00.953Z |    |"
+            - "| b  | 1970-01-01T00:00:00.978Z |    |"
+            - "| b  | 1970-01-01T00:00:01.003Z |    |"
+            - "| b  | 1970-01-01T00:00:01.028Z | 20 |"
+            - "| b  | 1970-01-01T00:00:01.053Z | 21 |"
+            - "| b  | 1970-01-01T00:00:01.078Z |    |"
+            - "| b  | 1970-01-01T00:00:01.103Z |    |"
+            - +----+--------------------------+----+
+            "###);
+            assert_batch_count(&batches, output_batch_size);
+        }
+    }}
+}
+
+#[test]
 fn test_gapfill_multi_group_with_nulls() {
     test_helpers::maybe_start_logging();
     insta::allow_duplicates! { for output_batch_size in [1, 2, 4, 8, 16, 32] {
@@ -1180,13 +1226,26 @@ fn get_params_ms_with_fill_strategy(
     end: i64,
     fill_strategy: FillStrategy,
 ) -> GapFillExecParams {
+    get_params_ms_with_origin_fill_strategy(batch, stride_ms, start, end, None, fill_strategy)
+}
+
+fn get_params_ms_with_origin_fill_strategy(
+    batch: &TestRecords,
+    stride_ms: i64,
+    start: Option<i64>,
+    end: i64,
+    origin_ms: Option<i64>,
+    fill_strategy: FillStrategy,
+) -> GapFillExecParams {
     // stride is in ms
     let stride = ScalarValue::new_interval_mdn(0, 0, stride_ms * 1_000_000);
+    let origin =
+        origin_ms.map(|o| phys_lit(ScalarValue::TimestampNanosecond(Some(o * 1_000_000), None)));
 
     GapFillExecParams {
         stride: phys_lit(stride),
         time_column: Column::new("t", batch.group_cols.len()),
-        origin: phys_lit(ScalarValue::TimestampNanosecond(Some(0), None)),
+        origin,
         // timestamps are nanos, so scale them accordingly
         time_range: Range {
             start: bound_included_from_option(start.map(|start| {

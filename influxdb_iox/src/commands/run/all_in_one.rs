@@ -185,6 +185,17 @@ pub struct Config {
     #[clap(flatten)]
     pub(crate) tracing_config: TracingConfig,
 
+    /// Differential handling based upon deployment to CST vs MT.
+    ///
+    /// At minimum, differs in supports of v1 endpoint. But also includes
+    /// differences in namespace handling, etc.
+    #[clap(
+        long = "single-tenancy",
+        env = "INFLUXDB_IOX_SINGLE_TENANCY",
+        default_value = "false"
+    )]
+    pub single_tenant_deployment: bool,
+
     /// Maximum size of HTTP requests.
     #[clap(
         long = "max-http-request-size",
@@ -371,6 +382,7 @@ impl Config {
             querier_max_concurrent_queries,
             exec_mem_pool_bytes,
             authz_config,
+            single_tenant_deployment,
         } = self;
 
         // Determine where to store files (wal and possibly catalog
@@ -456,6 +468,7 @@ impl Config {
             persist_max_parallelism,
             persist_queue_depth,
             persist_hot_partition_cost,
+            rpc_write_max_incoming_bytes: 1024 * 1024 * 1024, // 1GiB
         };
 
         let router_config = Router2Config {
@@ -468,17 +481,20 @@ impl Config {
             topic: QUERY_POOL_NAME.to_string(),
             rpc_write_timeout_seconds: Duration::new(3, 0),
             rpc_write_replicas: None,
-            single_tenant_deployment: false,
+            single_tenant_deployment,
+            rpc_write_max_outgoing_bytes: ingester_config.rpc_write_max_incoming_bytes,
         };
 
         // create a CompactorConfig for the all in one server based on
         // settings from other configs. Can't use `#clap(flatten)` as the
         // parameters are redundant with ingester's
         let compactor_config = Compactor2Config {
+            compaction_type: Default::default(),
+            compaction_partition_minute_threshold: 10,
+            compaction_cold_partition_minute_threshold: 60,
             compaction_partition_concurrency: NonZeroUsize::new(1).unwrap(),
             compaction_job_concurrency: NonZeroUsize::new(1).unwrap(),
             compaction_partition_scratchpad_concurrency: NonZeroUsize::new(1).unwrap(),
-            compaction_partition_minute_threshold: 10,
             query_exec_thread_count: Some(NonZeroUsize::new(1).unwrap()),
             exec_mem_pool_bytes,
             max_desired_file_size_bytes: 30_000,

@@ -24,15 +24,11 @@ pub(crate) async fn perform(
             .context(DeletingSnafu)?;
         info!(delete_count = %deleted.len(), "iox_catalog::delete_old()");
 
-        if deleted.is_empty() {
-            select! {
-                _ = shutdown.cancelled() => {
-                    break
-                },
-                _ = sleep(Duration::from_secs(60 * sleep_interval_minutes)) => (),
-            }
-        } else if shutdown.is_cancelled() {
-            break;
+        select! {
+            _ = shutdown.cancelled() => {
+                break
+            },
+            _ = sleep(Duration::from_secs(60 * sleep_interval_minutes)) => (),
         }
     }
     Ok(())

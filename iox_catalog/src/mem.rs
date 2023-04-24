@@ -8,14 +8,14 @@ use crate::{
         Result, ShardRepo, SoftDeletedRows, TableRepo, TopicMetadataRepo, Transaction,
     },
     metrics::MetricDecorator,
-    DEFAULT_MAX_COLUMNS_PER_TABLE, DEFAULT_MAX_TABLES,
+    DEFAULT_MAX_COLUMNS_PER_TABLE, DEFAULT_MAX_TABLES, SHARED_TOPIC_ID, SHARED_TOPIC_NAME,
 };
 use async_trait::async_trait;
 use data_types::{
     Column, ColumnId, ColumnType, CompactionLevel, Namespace, NamespaceId, ParquetFile,
-    ParquetFileId, ParquetFileParams, Partition, PartitionId, PartitionKey, PartitionParam,
-    QueryPool, QueryPoolId, SequenceNumber, Shard, ShardId, ShardIndex, SkippedCompaction, Table,
-    TableId, Timestamp, TopicId, TopicMetadata,
+    ParquetFileId, ParquetFileParams, Partition, PartitionId, PartitionKey, QueryPool, QueryPoolId,
+    SequenceNumber, Shard, ShardId, ShardIndex, SkippedCompaction, Table, TableId, Timestamp,
+    TopicId, TopicMetadata, TRANSITION_SHARD_ID, TRANSITION_SHARD_INDEX,
 };
 use iox_time::{SystemProvider, TimeProvider};
 use observability_deps::tracing::warn;
@@ -123,7 +123,35 @@ impl Display for MemCatalog {
 #[async_trait]
 impl Catalog for MemCatalog {
     async fn setup(&self) -> Result<(), Error> {
-        // nothing to do
+        let guard = Arc::clone(&self.collections).lock_owned().await;
+        let stage = guard.clone();
+        let mut transaction = MemTxn {
+            inner: MemTxnInner::Txn {
+                guard,
+                stage,
+                finalized: false,
+            },
+            time_provider: self.time_provider(),
+        };
+        let stage = transaction.stage();
+
+        // We need to manually insert the topic here so that we can create the transition shard
+        // below.
+        let topic = TopicMetadata {
+            id: SHARED_TOPIC_ID,
+            name: SHARED_TOPIC_NAME.to_string(),
+        };
+        stage.topics.push(topic.clone());
+
+        // The transition shard must exist and must have magic ID and INDEX.
+        let shard = Shard {
+            id: TRANSITION_SHARD_ID,
+            topic_id: topic.id,
+            shard_index: TRANSITION_SHARD_INDEX,
+            min_unpersisted_sequence_number: SequenceNumber::new(0),
+        };
+        stage.shards.push(shard);
+        transaction.commit_inplace().await?;
         Ok(())
     }
 
@@ -664,21 +692,23 @@ impl ShardRepo for MemTxn {
     async fn create_or_get(
         &mut self,
         topic: &TopicMetadata,
-        shard_index: ShardIndex,
+        _shard_index: ShardIndex,
     ) -> Result<Shard> {
         let stage = self.stage();
 
+        // Temporary: only ever create the transition shard, no matter what is asked. Shards are
+        // going away completely soon.
         let shard = match stage
             .shards
             .iter()
-            .find(|s| s.topic_id == topic.id && s.shard_index == shard_index)
+            .find(|s| s.topic_id == topic.id && s.shard_index == TRANSITION_SHARD_INDEX)
         {
             Some(t) => t,
             None => {
                 let shard = Shard {
-                    id: ShardId::new(stage.shards.len() as i64 + 1),
+                    id: TRANSITION_SHARD_ID,
                     topic_id: topic.id,
-                    shard_index,
+                    shard_index: TRANSITION_SHARD_INDEX,
                     min_unpersisted_sequence_number: SequenceNumber::new(0),
                 };
                 stage.shards.push(shard);
@@ -902,39 +932,6 @@ impl PartitionRepo for MemTxn {
     async fn most_recent_n(&mut self, n: usize) -> Result<Vec<Partition>> {
         let stage = self.stage();
         Ok(stage.partitions.iter().rev().take(n).cloned().collect())
-    }
-
-    async fn partitions_with_recent_created_files(
-        &mut self,
-        time_in_the_past: Timestamp,
-        max_num_partitions: usize,
-    ) -> Result<Vec<PartitionParam>> {
-        let stage = self.stage();
-
-        let partitions: Vec<_> = stage
-            .partitions
-            .iter()
-            .filter(|p| p.new_file_at > Some(time_in_the_past))
-            .map(|p| {
-                // get namesapce_id of this partition
-                let namespace_id = stage
-                    .tables
-                    .iter()
-                    .find(|t| t.id == p.table_id)
-                    .map(|t| t.namespace_id)
-                    .unwrap_or(NamespaceId::new(1));
-
-                PartitionParam {
-                    partition_id: p.id,
-                    table_id: p.table_id,
-                    shard_id: ShardId::new(1), // this is unused and will be removed when we remove shard_id
-                    namespace_id,
-                }
-            })
-            .take(max_num_partitions)
-            .collect();
-
-        Ok(partitions)
     }
 
     async fn partitions_new_file_between(
