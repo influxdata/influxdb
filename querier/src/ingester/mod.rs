@@ -1407,7 +1407,6 @@ mod tests {
 
         let p = &partitions[0];
         assert_eq!(p.partition_id.get(), 1);
-        assert_eq!(p.shard_id.get(), 1);
         assert_eq!(p.parquet_max_sequence_number, None);
         assert_eq!(p.chunks.len(), 0);
         assert_eq!(p.ingester_uuid.unwrap(), ingester_uuid);
@@ -1618,7 +1617,6 @@ mod tests {
 
         let p1 = &partitions[0];
         assert_eq!(p1.partition_id.get(), 1);
-        assert_eq!(p1.shard_id.get(), 1);
         assert_eq!(
             p1.parquet_max_sequence_number,
             Some(SequenceNumber::new(11))
@@ -1634,7 +1632,6 @@ mod tests {
 
         let p2 = &partitions[1];
         assert_eq!(p2.partition_id.get(), 2);
-        assert_eq!(p2.shard_id.get(), 1);
         assert_eq!(
             p2.parquet_max_sequence_number,
             Some(SequenceNumber::new(21))
@@ -1646,7 +1643,6 @@ mod tests {
 
         let p3 = &partitions[2];
         assert_eq!(p3.partition_id.get(), 3);
-        assert_eq!(p3.shard_id.get(), 2);
         assert_eq!(
             p3.parquet_max_sequence_number,
             Some(SequenceNumber::new(31))
@@ -1756,7 +1752,6 @@ mod tests {
         assert_eq!(p1.ingester_uuid.unwrap(), ingester_uuid1);
         assert_eq!(p1.completed_persistence_count, 0);
         assert_eq!(p1.partition_id.get(), 1);
-        assert_eq!(p1.shard_id.get(), 1);
         assert_eq!(
             p1.parquet_max_sequence_number,
             Some(SequenceNumber::new(11))
@@ -1766,7 +1761,6 @@ mod tests {
         assert_eq!(p2.ingester_uuid.unwrap(), ingester_uuid1);
         assert_eq!(p2.completed_persistence_count, 42);
         assert_eq!(p2.partition_id.get(), 2);
-        assert_eq!(p2.shard_id.get(), 1);
         assert_eq!(
             p2.parquet_max_sequence_number,
             Some(SequenceNumber::new(21))
@@ -1776,7 +1770,6 @@ mod tests {
         assert_eq!(p3.ingester_uuid.unwrap(), ingester_uuid2);
         assert_eq!(p3.completed_persistence_count, 9000);
         assert_eq!(p3.partition_id.get(), 3);
-        assert_eq!(p3.shard_id.get(), 2);
         assert_eq!(
             p3.parquet_max_sequence_number,
             Some(SequenceNumber::new(31))

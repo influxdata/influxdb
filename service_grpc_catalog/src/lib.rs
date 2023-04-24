@@ -199,8 +199,8 @@ fn to_partition(p: data_types::Partition) -> Partition {
 mod tests {
     use super::*;
     use data_types::{
-        ColumnId, ColumnSet, CompactionLevel, ParquetFileParams, SequenceNumber, ShardIndex,
-        Timestamp,
+        ColumnId, ColumnSet, CompactionLevel, ParquetFileParams, SequenceNumber, Timestamp,
+        TRANSITION_SHARD_INDEX,
     };
     use generated_types::influxdata::iox::catalog::v1::catalog_service_server::CatalogService;
     use iox_catalog::mem::MemCatalog;
@@ -224,7 +224,7 @@ mod tests {
                 .unwrap();
             let shard = repos
                 .shards()
-                .create_or_get(&topic, ShardIndex::new(1))
+                .create_or_get(&topic, TRANSITION_SHARD_INDEX)
                 .await
                 .unwrap();
             let namespace = repos
@@ -289,7 +289,6 @@ mod tests {
         let table_id;
         let partition1;
         let partition2;
-        let partition3;
         let catalog = {
             let metrics = Arc::new(metric::Registry::default());
             let catalog = Arc::new(MemCatalog::new(metrics));
@@ -302,7 +301,7 @@ mod tests {
                 .unwrap();
             let shard = repos
                 .shards()
-                .create_or_get(&topic, ShardIndex::new(1))
+                .create_or_get(&topic, TRANSITION_SHARD_INDEX)
                 .await
                 .unwrap();
             let namespace = repos
@@ -325,16 +324,6 @@ mod tests {
                 .create_or_get("bar".into(), shard.id, table.id)
                 .await
                 .unwrap();
-            let shard2 = repos
-                .shards()
-                .create_or_get(&topic, ShardIndex::new(2))
-                .await
-                .unwrap();
-            partition3 = repos
-                .partitions()
-                .create_or_get("foo".into(), shard2.id, table.id)
-                .await
-                .unwrap();
 
             table_id = table.id;
             Arc::clone(&catalog)
@@ -350,7 +339,7 @@ mod tests {
             .await
             .expect("rpc request should succeed");
         let response = tonic_response.into_inner();
-        let expect: Vec<_> = [partition1, partition2, partition3]
+        let expect: Vec<_> = [partition1, partition2]
             .into_iter()
             .map(to_partition)
             .collect();
