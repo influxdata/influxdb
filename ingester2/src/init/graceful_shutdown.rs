@@ -132,51 +132,29 @@ mod tests {
     use std::{future::ready, sync::Arc, task::Poll};
 
     use assert_matches::assert_matches;
-    use data_types::{NamespaceId, PartitionId, PartitionKey, SequenceNumber, ShardId, TableId};
+    use data_types::SequenceNumber;
     use futures::FutureExt;
-    use lazy_static::lazy_static;
     use mutable_batch_lp::test_helpers::lp_to_mutable_batch;
     use parking_lot::Mutex;
     use test_helpers::timeout::FutureTimeout;
 
     use crate::{
-        buffer_tree::{
-            namespace::NamespaceName, partition::PartitionData, partition::SortKeyState,
-            table::TableName,
-        },
-        deferred_load::DeferredLoad,
+        buffer_tree::partition::PartitionData,
         persist::queue::mock::MockPersistQueue,
+        test_util::{PartitionDataBuilder, ARBITRARY_TABLE_NAME},
     };
 
     use super::*;
 
-    const PARTITION_ID: PartitionId = PartitionId::new(1);
-    const TRANSITION_SHARD_ID: ShardId = ShardId::new(84);
-
-    lazy_static! {
-        static ref PARTITION_KEY: PartitionKey = PartitionKey::from("platanos");
-        static ref TABLE_NAME: TableName = TableName::from("bananas");
-        static ref NAMESPACE_NAME: NamespaceName = NamespaceName::from("namespace-bananas");
-    }
-
     // Initialise a partition containing buffered data.
     fn new_partition() -> Arc<Mutex<PartitionData>> {
-        let mut partition = PartitionData::new(
-            PARTITION_ID,
-            PARTITION_KEY.clone(),
-            NamespaceId::new(3),
-            Arc::new(DeferredLoad::new(Duration::from_secs(1), async {
-                NAMESPACE_NAME.clone()
-            })),
-            TableId::new(4),
-            Arc::new(DeferredLoad::new(Duration::from_secs(1), async {
-                TABLE_NAME.clone()
-            })),
-            SortKeyState::Provided(None),
-            TRANSITION_SHARD_ID,
-        );
+        let mut partition = PartitionDataBuilder::new().build();
 
-        let mb = lp_to_mutable_batch(r#"bananas,city=London people=2,pigeons="millions" 10"#).1;
+        let mb = lp_to_mutable_batch(&format!(
+            r#"{},city=London people=2,pigeons="millions" 10"#,
+            &*ARBITRARY_TABLE_NAME
+        ))
+        .1;
         partition
             .buffer_write(mb, SequenceNumber::new(1))
             .expect("failed to write dummy data");

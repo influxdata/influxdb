@@ -60,54 +60,43 @@ where
 mod tests {
     use std::{sync::Arc, time::Duration};
 
-    use data_types::{PartitionId, ShardId};
+    use data_types::{PartitionId, ShardId, TRANSITION_SHARD_ID};
 
     use super::*;
-    use crate::buffer_tree::partition::{resolver::mock::MockPartitionProvider, SortKeyState};
-
-    const TRANSITION_SHARD_ID: ShardId = ShardId::new(84);
+    use crate::{
+        buffer_tree::partition::{resolver::mock::MockPartitionProvider, SortKeyState},
+        test_util::{
+            PartitionDataBuilder, ARBITRARY_NAMESPACE_ID, ARBITRARY_PARTITION_ID,
+            ARBITRARY_PARTITION_KEY, ARBITRARY_TABLE_ID, DEFER_NAMESPACE_NAME_1_SEC,
+            DEFER_TABLE_NAME_1_SEC,
+        },
+    };
 
     #[tokio::test]
     async fn test_arc_impl() {
-        let key = PartitionKey::from("bananas");
-        let namespace_id = NamespaceId::new(1234);
-        let namespace_name = Arc::new(DeferredLoad::new(Duration::from_secs(1), async {
-            NamespaceName::from("ns-platanos")
-        }));
-        let table_id = TableId::new(24);
-        let table_name = Arc::new(DeferredLoad::new(Duration::from_secs(1), async {
-            TableName::from("platanos")
-        }));
-        let partition = PartitionId::new(4242);
-        let data = PartitionData::new(
-            partition,
-            "bananas".into(),
-            namespace_id,
-            Arc::clone(&namespace_name),
-            table_id,
-            Arc::clone(&table_name),
-            SortKeyState::Provided(None),
-            TRANSITION_SHARD_ID,
-        );
+        let data = PartitionDataBuilder::new().build();
 
         let mock = Arc::new(MockPartitionProvider::default().with_partition(data));
 
         let got = mock
             .get_partition(
-                key,
-                namespace_id,
-                Arc::clone(&namespace_name),
-                table_id,
-                Arc::clone(&table_name),
+                ARBITRARY_PARTITION_KEY.clone(),
+                ARBITRARY_NAMESPACE_ID,
+                Arc::clone(&*DEFER_NAMESPACE_NAME_1_SEC),
+                ARBITRARY_TABLE_ID,
+                Arc::clone(&*DEFER_TABLE_NAME_1_SEC),
                 TRANSITION_SHARD_ID,
             )
             .await;
-        assert_eq!(got.lock().partition_id(), partition);
-        assert_eq!(got.lock().namespace_id(), namespace_id);
+        assert_eq!(got.lock().partition_id(), ARBITRARY_PARTITION_ID);
+        assert_eq!(got.lock().namespace_id(), ARBITRARY_NAMESPACE_ID);
         assert_eq!(
             got.lock().namespace_name().to_string(),
-            namespace_name.to_string()
+            DEFER_NAMESPACE_NAME_1_SEC.to_string()
         );
-        assert_eq!(got.lock().table_name().to_string(), table_name.to_string());
+        assert_eq!(
+            got.lock().table_name().to_string(),
+            DEFER_TABLE_NAME_1_SEC.to_string()
+        );
     }
 }

@@ -15,7 +15,7 @@ mod tests {
     use std::{sync::Arc, time::Duration};
 
     use assert_matches::assert_matches;
-    use data_types::{CompactionLevel, ParquetFile, PartitionKey, SequenceNumber, ShardId};
+    use data_types::{CompactionLevel, ParquetFile, SequenceNumber, TRANSITION_SHARD_ID};
     use dml::DmlOperation;
     use futures::TryStreamExt;
     use iox_catalog::{
@@ -36,28 +36,25 @@ mod tests {
 
     use crate::{
         buffer_tree::{
-            namespace::name_resolver::mock::MockNamespaceNameProvider,
             partition::{resolver::CatalogPartitionResolver, PartitionData, SortKeyState},
             post_write::mock::MockPostWriteObserver,
-            table::name_resolver::mock::MockTableNameProvider,
             BufferTree,
         },
         dml_sink::DmlSink,
         ingest_state::IngestState,
         persist::{completion_observer::mock::MockCompletionObserver, queue::PersistQueue},
-        test_util::{make_write_op, populate_catalog},
+        test_util::{
+            make_write_op, populate_catalog, ARBITRARY_NAMESPACE_NAME,
+            ARBITRARY_NAMESPACE_NAME_PROVIDER, ARBITRARY_PARTITION_KEY, ARBITRARY_TABLE_NAME,
+            ARBITRARY_TABLE_NAME_PROVIDER,
+        },
         TRANSITION_SHARD_INDEX,
     };
 
     use super::handle::PersistHandle;
 
-    const TABLE_NAME: &str = "bananas";
-    const NAMESPACE_NAME: &str = "platanos";
-    const TRANSITION_SHARD_ID: ShardId = ShardId::new(84);
-
     lazy_static! {
         static ref EXEC: Arc<Executor> = Arc::new(Executor::new_testing());
-        static ref PARTITION_KEY: PartitionKey = PartitionKey::from("bananas");
     }
 
     /// Generate a [`PartitionData`] containing one write, and populate the
@@ -68,15 +65,15 @@ mod tests {
         let (_shard_id, namespace_id, table_id) = populate_catalog(
             &*catalog,
             TRANSITION_SHARD_INDEX,
-            NAMESPACE_NAME,
-            TABLE_NAME,
+            &ARBITRARY_NAMESPACE_NAME,
+            &ARBITRARY_TABLE_NAME,
         )
         .await;
 
         // Init the buffer tree
         let buf = BufferTree::new(
-            Arc::new(MockNamespaceNameProvider::new(NAMESPACE_NAME)),
-            Arc::new(MockTableNameProvider::new(TABLE_NAME)),
+            Arc::clone(&*ARBITRARY_NAMESPACE_NAME_PROVIDER),
+            Arc::clone(&*ARBITRARY_TABLE_NAME_PROVIDER),
             Arc::new(CatalogPartitionResolver::new(Arc::clone(&catalog))),
             Arc::new(MockPostWriteObserver::default()),
             Arc::new(metric::Registry::default()),
@@ -84,12 +81,15 @@ mod tests {
         );
 
         let write = make_write_op(
-            &PARTITION_KEY,
+            &ARBITRARY_PARTITION_KEY,
             namespace_id,
-            TABLE_NAME,
+            &ARBITRARY_TABLE_NAME,
             table_id,
             0,
-            r#"bananas,region=Asturias temp=35 4242424242"#,
+            &format!(
+                r#"{},region=Asturias temp=35 4242424242"#,
+                &*ARBITRARY_TABLE_NAME
+            ),
         );
 
         let mut repos = catalog
@@ -103,7 +103,9 @@ mod tests {
 
         // Insert the schema elements into the catalog
         validate_or_insert_schema(
-            write.tables().map(|(_id, data)| (TABLE_NAME, data)),
+            write
+                .tables()
+                .map(|(_id, data)| (&***ARBITRARY_TABLE_NAME, data)),
             &schema,
             &mut *repos,
         )

@@ -1,10 +1,140 @@
-use std::collections::BTreeMap;
+use std::{collections::BTreeMap, sync::Arc, time::Duration};
 
-use data_types::{NamespaceId, PartitionKey, SequenceNumber, ShardId, ShardIndex, TableId};
+use data_types::{
+    NamespaceId, Partition, PartitionId, PartitionKey, SequenceNumber, ShardId, ShardIndex,
+    TableId, TRANSITION_SHARD_ID,
+};
 use dml::{DmlMeta, DmlWrite};
 use iox_catalog::interface::Catalog;
+use lazy_static::lazy_static;
 use mutable_batch_lp::lines_to_batches;
 use schema::Projection;
+
+use crate::{
+    buffer_tree::{
+        namespace::{
+            name_resolver::{mock::MockNamespaceNameProvider, NamespaceNameProvider},
+            NamespaceName,
+        },
+        partition::{PartitionData, SortKeyState},
+        table::{
+            name_resolver::{mock::MockTableNameProvider, TableNameProvider},
+            TableName,
+        },
+    },
+    deferred_load::DeferredLoad,
+};
+
+pub(crate) const ARBITRARY_PARTITION_ID: PartitionId = PartitionId::new(1);
+pub(crate) const ARBITRARY_NAMESPACE_ID: NamespaceId = NamespaceId::new(3);
+pub(crate) const ARBITRARY_TABLE_ID: TableId = TableId::new(4);
+pub(crate) const ARBITRARY_PARTITION_KEY_STR: &str = "platanos";
+
+lazy_static! {
+    pub(crate) static ref ARBITRARY_PARTITION_KEY: PartitionKey =
+        PartitionKey::from(ARBITRARY_PARTITION_KEY_STR);
+    pub(crate) static ref ARBITRARY_NAMESPACE_NAME: NamespaceName =
+        NamespaceName::from("namespace-bananas");
+    pub(crate) static ref DEFER_NAMESPACE_NAME_1_SEC: Arc<DeferredLoad<NamespaceName>> =
+        Arc::new(DeferredLoad::new(Duration::from_secs(1), async {
+            ARBITRARY_NAMESPACE_NAME.clone()
+        }));
+    pub(crate) static ref DEFER_NAMESPACE_NAME_1_MS: Arc<DeferredLoad<NamespaceName>> =
+        Arc::new(DeferredLoad::new(Duration::from_millis(1), async {
+            ARBITRARY_NAMESPACE_NAME.clone()
+        }));
+    pub(crate) static ref ARBITRARY_NAMESPACE_NAME_PROVIDER: Arc<dyn NamespaceNameProvider> =
+        Arc::new(MockNamespaceNameProvider::new(&**ARBITRARY_NAMESPACE_NAME));
+    pub(crate) static ref ARBITRARY_TABLE_NAME: TableName = TableName::from("bananas");
+    pub(crate) static ref DEFER_TABLE_NAME_1_SEC: Arc<DeferredLoad<TableName>> =
+        Arc::new(DeferredLoad::new(Duration::from_secs(1), async {
+            ARBITRARY_TABLE_NAME.clone()
+        }));
+    pub(crate) static ref DEFER_TABLE_NAME_1_MS: Arc<DeferredLoad<TableName>> =
+        Arc::new(DeferredLoad::new(Duration::from_millis(1), async {
+            ARBITRARY_TABLE_NAME.clone()
+        }));
+    pub(crate) static ref ARBITRARY_TABLE_NAME_PROVIDER: Arc<dyn TableNameProvider> =
+        Arc::new(MockTableNameProvider::new(&**ARBITRARY_TABLE_NAME));
+}
+
+/// Build a [`PartitionData`] with mostly arbitrary-yet-valid values for tests.
+#[derive(Debug, Clone, Default)]
+pub(crate) struct PartitionDataBuilder {
+    partition_id: Option<PartitionId>,
+    partition_key: Option<PartitionKey>,
+    namespace_id: Option<NamespaceId>,
+    table_id: Option<TableId>,
+    table_name: Option<Arc<DeferredLoad<TableName>>>,
+    sort_key: Option<SortKeyState>,
+}
+
+impl PartitionDataBuilder {
+    pub(crate) fn new() -> Self {
+        Self::default()
+    }
+
+    pub(crate) fn with_partition_id(mut self, partition_id: PartitionId) -> Self {
+        self.partition_id = Some(partition_id);
+        self
+    }
+
+    pub(crate) fn with_partition_key(mut self, partition_key: PartitionKey) -> Self {
+        self.partition_key = Some(partition_key);
+        self
+    }
+
+    pub(crate) fn with_namespace_id(mut self, namespace_id: NamespaceId) -> Self {
+        self.namespace_id = Some(namespace_id);
+        self
+    }
+
+    pub(crate) fn with_table_id(mut self, table_id: TableId) -> Self {
+        self.table_id = Some(table_id);
+        self
+    }
+
+    pub(crate) fn with_table_name(mut self, table_name: Arc<DeferredLoad<TableName>>) -> Self {
+        self.table_name = Some(table_name);
+        self
+    }
+
+    pub(crate) fn with_sort_key_state(mut self, sort_key_state: SortKeyState) -> Self {
+        self.sort_key = Some(sort_key_state);
+        self
+    }
+
+    /// Generate a valid [`PartitionData`] for use in tests where the exact values (or at least
+    /// some of them) don't particularly matter.
+    pub(crate) fn build(self) -> PartitionData {
+        PartitionData::new(
+            self.partition_id.unwrap_or(ARBITRARY_PARTITION_ID),
+            self.partition_key
+                .unwrap_or_else(|| ARBITRARY_PARTITION_KEY.clone()),
+            self.namespace_id.unwrap_or(ARBITRARY_NAMESPACE_ID),
+            Arc::clone(&*DEFER_NAMESPACE_NAME_1_SEC),
+            self.table_id.unwrap_or(ARBITRARY_TABLE_ID),
+            self.table_name
+                .unwrap_or_else(|| Arc::clone(&*DEFER_TABLE_NAME_1_SEC)),
+            self.sort_key.unwrap_or(SortKeyState::Provided(None)),
+            TRANSITION_SHARD_ID,
+        )
+    }
+}
+
+/// Generate a valid [`Partition`] for use in the tests where the exact values (or at least some of
+/// them) don't particularly matter.
+pub(crate) fn arbitrary_partition() -> Partition {
+    Partition {
+        id: ARBITRARY_PARTITION_ID,
+        shard_id: TRANSITION_SHARD_ID,
+        table_id: ARBITRARY_TABLE_ID,
+        partition_key: ARBITRARY_PARTITION_KEY.clone(),
+        sort_key: Default::default(),
+        persisted_sequence_number: Default::default(),
+        new_file_at: Default::default(),
+    }
+}
 
 /// Generate a [`RecordBatch`] & [`Schema`] with the specified columns and
 /// values:

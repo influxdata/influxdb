@@ -209,20 +209,23 @@ impl PersistHandle {
         let queue_duration = metrics
             .register_metric_with_options::<DurationHistogram, _>(
                 "ingester_persist_enqueue_duration",
-                "the distribution of duration a persist job spent enqueued, waiting to be processed in seconds",
-                || DurationHistogramOptions::new([
-                    Duration::from_millis(500),
-                    Duration::from_secs(1),
-                    Duration::from_secs(2),
-                    Duration::from_secs(4),
-                    Duration::from_secs(8),
-                    Duration::from_secs(16),
-                    Duration::from_secs(32),
-                    Duration::from_secs(64),
-                    Duration::from_secs(128),
-                    Duration::from_secs(256),
-                    DURATION_MAX,
-                ])
+                "the distribution of duration a persist job spent enqueued, \
+                waiting to be processed in seconds",
+                || {
+                    DurationHistogramOptions::new([
+                        Duration::from_millis(500),
+                        Duration::from_secs(1),
+                        Duration::from_secs(2),
+                        Duration::from_secs(4),
+                        Duration::from_secs(8),
+                        Duration::from_secs(16),
+                        Duration::from_secs(32),
+                        Duration::from_secs(64),
+                        Duration::from_secs(128),
+                        Duration::from_secs(256),
+                        DURATION_MAX,
+                    ])
+                },
             )
             .recorder(&[]);
 
@@ -472,7 +475,7 @@ mod tests {
     use std::{sync::Arc, task::Poll, time::Duration};
 
     use assert_matches::assert_matches;
-    use data_types::{NamespaceId, PartitionId, PartitionKey, ShardId, TableId};
+    use data_types::TRANSITION_SHARD_ID;
     use dml::DmlOperation;
     use futures::Future;
     use iox_catalog::mem::MemCatalog;
@@ -486,11 +489,9 @@ mod tests {
     use super::*;
     use crate::{
         buffer_tree::{
-            namespace::{name_resolver::mock::MockNamespaceNameProvider, NamespaceName},
+            namespace::name_resolver::mock::MockNamespaceNameProvider,
             partition::resolver::mock::MockPartitionProvider,
-            post_write::mock::MockPostWriteObserver,
-            table::{name_resolver::mock::MockTableNameProvider, TableName},
-            BufferTree,
+            post_write::mock::MockPostWriteObserver, BufferTree,
         },
         deferred_load::DeferredLoad,
         dml_sink::DmlSink,
@@ -499,49 +500,29 @@ mod tests {
             completion_observer::{mock::MockCompletionObserver, NopObserver},
             tests::{assert_metric_counter, assert_metric_gauge},
         },
-        test_util::make_write_op,
+        test_util::{
+            make_write_op, PartitionDataBuilder, ARBITRARY_NAMESPACE_ID, ARBITRARY_NAMESPACE_NAME,
+            ARBITRARY_PARTITION_ID, ARBITRARY_PARTITION_KEY, ARBITRARY_TABLE_ID,
+            ARBITRARY_TABLE_NAME, ARBITRARY_TABLE_NAME_PROVIDER,
+        },
     };
-
-    const PARTITION_ID: PartitionId = PartitionId::new(42);
-    const NAMESPACE_ID: NamespaceId = NamespaceId::new(24);
-    const TABLE_ID: TableId = TableId::new(2442);
-    const TABLE_NAME: &str = "banana-report";
-    const NAMESPACE_NAME: &str = "platanos";
-    const TRANSITION_SHARD_ID: ShardId = ShardId::new(84);
 
     lazy_static! {
         static ref EXEC: Arc<Executor> = Arc::new(Executor::new_testing());
-        static ref PARTITION_KEY: PartitionKey = PartitionKey::from("bananas");
-        static ref NAMESPACE_NAME_LOADER: Arc<DeferredLoad<NamespaceName>> =
-            Arc::new(DeferredLoad::new(Duration::from_secs(1), async {
-                NamespaceName::from(NAMESPACE_NAME)
-            }));
-        static ref TABLE_NAME_LOADER: Arc<DeferredLoad<TableName>> =
-            Arc::new(DeferredLoad::new(Duration::from_secs(1), async {
-                TableName::from(TABLE_NAME)
-            }));
     }
 
     /// Construct a partition with the above constants, with the given sort key,
     /// and containing a single write.
-    async fn new_partition(
-        partition_id: PartitionId,
-        sort_key: SortKeyState,
-    ) -> Arc<Mutex<PartitionData>> {
+    async fn new_partition(sort_key: SortKeyState) -> Arc<Mutex<PartitionData>> {
         let buffer_tree = BufferTree::new(
-            Arc::new(MockNamespaceNameProvider::new(NAMESPACE_NAME)),
-            Arc::new(MockTableNameProvider::new(TABLE_NAME)),
+            Arc::new(MockNamespaceNameProvider::new(&**ARBITRARY_NAMESPACE_NAME)),
+            Arc::clone(&*ARBITRARY_TABLE_NAME_PROVIDER),
             Arc::new(
-                MockPartitionProvider::default().with_partition(PartitionData::new(
-                    partition_id,
-                    PARTITION_KEY.clone(),
-                    NAMESPACE_ID,
-                    Arc::clone(&NAMESPACE_NAME_LOADER),
-                    TABLE_ID,
-                    Arc::clone(&TABLE_NAME_LOADER),
-                    sort_key,
-                    TRANSITION_SHARD_ID,
-                )),
+                MockPartitionProvider::default().with_partition(
+                    PartitionDataBuilder::new()
+                        .with_sort_key_state(sort_key)
+                        .build(),
+                ),
             ),
             Arc::new(MockPostWriteObserver::default()),
             Default::default(),
@@ -550,12 +531,12 @@ mod tests {
 
         buffer_tree
             .apply(DmlOperation::Write(make_write_op(
-                &PARTITION_KEY,
-                NAMESPACE_ID,
-                TABLE_NAME,
-                TABLE_ID,
+                &ARBITRARY_PARTITION_KEY,
+                ARBITRARY_NAMESPACE_ID,
+                &ARBITRARY_TABLE_NAME,
+                ARBITRARY_TABLE_ID,
                 0,
-                r#"banana-report,good=yes level=1000 4242424242"#,
+                &format!("{},good=yes level=1000 4242424242", &*ARBITRARY_TABLE_NAME),
             )))
             .await
             .expect("failed to write partition test dataa");
@@ -595,7 +576,7 @@ mod tests {
         handle.worker_queues = JumpHash::new([worker1_tx, worker2_tx]);
 
         // Generate a partition with no known sort key.
-        let p = new_partition(PARTITION_ID, SortKeyState::Provided(None)).await;
+        let p = new_partition(SortKeyState::Provided(None)).await;
         let data = p.lock().mark_persisting().unwrap();
 
         // Enqueue it
@@ -616,7 +597,7 @@ mod tests {
                     .expect("message was not found in either worker")
             }
         };
-        assert_eq!(msg.partition_id(), PARTITION_ID);
+        assert_eq!(msg.partition_id(), ARBITRARY_PARTITION_ID);
 
         // Drop the message, and ensure the notification becomes inactive.
         drop(msg);
@@ -626,7 +607,7 @@ mod tests {
         );
 
         // Enqueue another partition for the same ID.
-        let p = new_partition(PARTITION_ID, SortKeyState::Provided(None)).await;
+        let p = new_partition(SortKeyState::Provided(None)).await;
         let data = p.lock().mark_persisting().unwrap();
 
         // Enqueue it
@@ -636,7 +617,7 @@ mod tests {
         let msg = assigned_worker
             .try_recv()
             .expect("message was not found in either worker");
-        assert_eq!(msg.partition_id(), PARTITION_ID);
+        assert_eq!(msg.partition_id(), ARBITRARY_PARTITION_ID);
     }
 
     /// A test that ensures the correct destination of a partition that has no
@@ -671,12 +652,10 @@ mod tests {
         handle.worker_queues = JumpHash::new([worker1_tx, worker2_tx]);
 
         // Generate a partition with a resolved, but empty sort key.
-        let p = new_partition(
-            PARTITION_ID,
-            SortKeyState::Deferred(Arc::new(DeferredLoad::new(Duration::from_secs(1), async {
-                None
-            }))),
-        )
+        let p = new_partition(SortKeyState::Deferred(Arc::new(DeferredLoad::new(
+            Duration::from_secs(1),
+            async { None },
+        ))))
         .await;
         let (loader, data) = {
             let mut p = p.lock();
@@ -703,7 +682,7 @@ mod tests {
                     .expect("message was not found in either worker")
             }
         };
-        assert_eq!(msg.partition_id(), PARTITION_ID);
+        assert_eq!(msg.partition_id(), ARBITRARY_PARTITION_ID);
 
         // Drop the message, and ensure the notification becomes inactive.
         drop(msg);
@@ -714,7 +693,7 @@ mod tests {
 
         // Enqueue another partition for the same ID and same (resolved)
         // deferred load instance.
-        let p = new_partition(PARTITION_ID, loader).await;
+        let p = new_partition(loader).await;
         let data = p.lock().mark_persisting().unwrap();
 
         // Enqueue it
@@ -724,7 +703,7 @@ mod tests {
         let msg = assigned_worker
             .try_recv()
             .expect("message was not found in either worker");
-        assert_eq!(msg.partition_id(), PARTITION_ID);
+        assert_eq!(msg.partition_id(), ARBITRARY_PARTITION_ID);
     }
 
     /// A test that ensures the correct destination of a partition that has an
@@ -760,12 +739,10 @@ mod tests {
 
         // Generate a partition with a resolved sort key that does not reflect
         // the data within the partition's buffer.
-        let p = new_partition(
-            PARTITION_ID,
-            SortKeyState::Deferred(Arc::new(DeferredLoad::new(Duration::from_secs(1), async {
-                Some(SortKey::from_columns(["time", "some-other-column"]))
-            }))),
-        )
+        let p = new_partition(SortKeyState::Deferred(Arc::new(DeferredLoad::new(
+            Duration::from_secs(1),
+            async { Some(SortKey::from_columns(["time", "some-other-column"])) },
+        ))))
         .await;
         let (loader, data) = {
             let mut p = p.lock();
@@ -792,7 +769,7 @@ mod tests {
                     .expect("message was not found in either worker")
             }
         };
-        assert_eq!(msg.partition_id(), PARTITION_ID);
+        assert_eq!(msg.partition_id(), ARBITRARY_PARTITION_ID);
 
         // Drop the message, and ensure the notification becomes inactive.
         drop(msg);
@@ -803,7 +780,7 @@ mod tests {
 
         // Enqueue another partition for the same ID and same (resolved)
         // deferred load instance.
-        let p = new_partition(PARTITION_ID, loader).await;
+        let p = new_partition(loader).await;
         let data = p.lock().mark_persisting().unwrap();
 
         // Enqueue it
@@ -813,7 +790,7 @@ mod tests {
         let msg = assigned_worker
             .try_recv()
             .expect("message was not found in either worker");
-        assert_eq!(msg.partition_id(), PARTITION_ID);
+        assert_eq!(msg.partition_id(), ARBITRARY_PARTITION_ID);
     }
 
     /// A test that a partition that does not require a sort key update is
@@ -848,12 +825,10 @@ mod tests {
 
         // Generate a partition with a resolved sort key that does not reflect
         // the data within the partition's buffer.
-        let p = new_partition(
-            PARTITION_ID,
-            SortKeyState::Deferred(Arc::new(DeferredLoad::new(Duration::from_secs(1), async {
-                Some(SortKey::from_columns(["time", "good"]))
-            }))),
-        )
+        let p = new_partition(SortKeyState::Deferred(Arc::new(DeferredLoad::new(
+            Duration::from_secs(1),
+            async { Some(SortKey::from_columns(["time", "good"])) },
+        ))))
         .await;
         let (loader, data) = {
             let mut p = p.lock();
@@ -873,7 +848,7 @@ mod tests {
         let msg = global_rx
             .try_recv()
             .expect("task should be in global queue");
-        assert_eq!(msg.partition_id(), PARTITION_ID);
+        assert_eq!(msg.partition_id(), ARBITRARY_PARTITION_ID);
 
         // Drop the message, and ensure the notification becomes inactive.
         drop(msg);
@@ -884,7 +859,7 @@ mod tests {
 
         // Enqueue another partition for the same ID and same (resolved)
         // deferred load instance.
-        let p = new_partition(PARTITION_ID, loader).await;
+        let p = new_partition(loader).await;
         let data = p.lock().mark_persisting().unwrap();
 
         // Enqueue it
@@ -894,7 +869,7 @@ mod tests {
         let msg = global_rx
             .try_recv()
             .expect("task should be in global queue");
-        assert_eq!(msg.partition_id(), PARTITION_ID);
+        assert_eq!(msg.partition_id(), ARBITRARY_PARTITION_ID);
     }
 
     /// A test that a ensures tasks waiting to be enqueued (waiting on the
@@ -930,12 +905,10 @@ mod tests {
         handle.worker_queues = JumpHash::new([worker1_tx, worker2_tx]);
 
         // Generate a partition
-        let p = new_partition(
-            PARTITION_ID,
-            SortKeyState::Deferred(Arc::new(DeferredLoad::new(Duration::from_secs(1), async {
-                Some(SortKey::from_columns(["time", "good"]))
-            }))),
-        )
+        let p = new_partition(SortKeyState::Deferred(Arc::new(DeferredLoad::new(
+            Duration::from_secs(1),
+            async { Some(SortKey::from_columns(["time", "good"])) },
+        ))))
         .await;
         let data = p.lock().mark_persisting().unwrap();
 
@@ -943,12 +916,10 @@ mod tests {
         let _notify1 = handle.enqueue(p, data).await;
 
         // Generate a second partition
-        let p = new_partition(
-            PARTITION_ID,
-            SortKeyState::Deferred(Arc::new(DeferredLoad::new(Duration::from_secs(1), async {
-                Some(SortKey::from_columns(["time", "good"]))
-            }))),
-        )
+        let p = new_partition(SortKeyState::Deferred(Arc::new(DeferredLoad::new(
+            Duration::from_secs(1),
+            async { Some(SortKey::from_columns(["time", "good"])) },
+        ))))
         .await;
         let data = p.lock().mark_persisting().unwrap();
 
