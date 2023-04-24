@@ -199,11 +199,11 @@ pub static REGEX_UUID: Lazy<Regex> = Lazy::new(|| {
 
 /// Match the parquet directory names
 /// For example, given
-/// `32/51/216/13452/1d325760-2b20-48de-ab48-2267b034133d.parquet`
+/// `51/216/13452/1d325760-2b20-48de-ab48-2267b034133d.parquet`
 ///
-/// matches `32/51/216/13452`
+/// matches `51/216/13452/`
 static REGEX_DIRS: Lazy<Regex> =
-    Lazy::new(|| Regex::new(r#"[0-9]+/[0-9]+/[0-9]+/[0-9]+"#).expect("directory regex"));
+    Lazy::new(|| Regex::new(r#"[0-9]+/[0-9]+/[0-9]+/"#).expect("directory regex"));
 
 /// Replace table row separators of flexible width with fixed with. This is required
 /// because the original timing values may differ in "printed width", so the table
@@ -314,11 +314,11 @@ impl Normalizer {
             current_results = current_results
                 .into_iter()
                 .map(|s| {
-                    // Rewrite  parquet directory names like
+                    // Rewrite Parquet directory names like
                     // `51/216/13452/1d325760-2b20-48de-ab48-2267b034133d.parquet`
                     //
                     // to:
-                    // 1/1/1/1/00000000-0000-0000-0000-000000000000.parquet
+                    // 1/1/1/00000000-0000-0000-0000-000000000000.parquet
 
                     let s = REGEX_UUID.replace_all(&s, |s: &Captures<'_>| {
                         let next = seen.len() as u128;
@@ -331,7 +331,7 @@ impl Normalizer {
                     });
 
                     let s = normalize_for_variable_width(s);
-                    REGEX_DIRS.replace_all(&s, "1/1/1/1").to_string()
+                    REGEX_DIRS.replace_all(&s, "1/1/1/").to_string()
                 })
                 .collect();
         }
