@@ -147,8 +147,7 @@ where
         let sequence_number = op
             .meta()
             .sequence()
-            .expect("applying unsequenced op")
-            .sequence_number;
+            .expect("applying unsequenced op");
 
         match op {
             DmlOperation::Write(write) => {

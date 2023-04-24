@@ -1,8 +1,6 @@
 use std::collections::BTreeMap;
 
-use data_types::{
-    NamespaceId, PartitionKey, Sequence, SequenceNumber, ShardId, ShardIndex, TableId,
-};
+use data_types::{NamespaceId, PartitionKey, SequenceNumber, ShardId, ShardIndex, TableId};
 use dml::{DmlMeta, DmlWrite};
 use iox_catalog::interface::Catalog;
 use mutable_batch_lp::lines_to_batches;
@@ -147,10 +145,7 @@ pub(crate) fn make_write_op(
         tables_by_id,
         partition_key.clone(),
         DmlMeta::sequenced(
-            Sequence {
-                shard_index: ShardIndex::new(i32::MAX),
-                sequence_number: SequenceNumber::new(sequence_number),
-            },
+            SequenceNumber::new(sequence_number),
             iox_time::Time::MIN,
             None,
             42,
@@ -195,8 +190,8 @@ pub(crate) fn assert_dml_writes_eq(a: DmlWrite, b: DmlWrite) {
     assert_eq!(a.partition_key(), b.partition_key(), "partition key");
 
     // Assert sequence numbers were reassigned
-    let seq_a = a.meta().sequence().map(|s| s.sequence_number);
-    let seq_b = b.meta().sequence().map(|s| s.sequence_number);
+    let seq_a = a.meta().sequence();
+    let seq_b = b.meta().sequence();
     assert_eq!(seq_a, seq_b, "sequence numbers differ");
 
     let a = a.into_tables().collect::<BTreeMap<_, _>>();
