@@ -44,9 +44,15 @@ impl NamespaceCache for Arc<MemoryNamespaceCache> {
         namespace: NamespaceName<'static>,
         schema: NamespaceSchema,
     ) -> (Arc<NamespaceSchema>, ChangeStats) {
-        let mut guard = self.cache.write();
+        let old = self
+            .cache
+            .read()
+            .get(&namespace)
+            // The existing Arc is cloned to allow the merge to be performed without holding
+            // the read-lock on the cache
+            .map(Arc::clone);
 
-        let (merged_schema, change_stats) = match guard.remove(&namespace) {
+        let (merged_schema, change_stats) = match old {
             Some(old) => merge_schema_additive(schema, old),
             None => {
                 let change_stats = ChangeStats {
@@ -62,7 +68,7 @@ impl NamespaceCache for Arc<MemoryNamespaceCache> {
         };
 
         let ret = Arc::new(merged_schema);
-        guard.insert(namespace, Arc::clone(&ret));
+        self.cache.write().insert(namespace, Arc::clone(&ret));
         (ret, change_stats)
     }
 }
@@ -79,49 +85,24 @@ fn merge_schema_additive(
 
     let old_table_count = old_ns.tables.len();
     let mut old_column_count = 0;
-    // In order to avoid un-necessary copies, the merge attempts to own the
-    // value for the old namespace.
-    //
     // Table schema missing from the new schema are added from the old. If
     // the table exists in both the new and the old namespace schema then
     // any column schema missing from the new table schema are added from
     // the old.
-    //
-    // The two match arms below must merge in the same way, aside from memory
-    // semantics.
-    match Arc::try_unwrap(old_ns) {
-        Ok(owned_old_ns) => {
-            for (old_table_name, old_table) in owned_old_ns.tables {
-                match new_ns.tables.get_mut(&old_table_name) {
-                    Some(new_table) => {
-                        old_column_count += old_table.columns.len();
-                        for (column_name, column) in old_table.columns {
-                            new_table.columns.entry(column_name).or_insert(column);
-                        }
-                    }
-                    None => {
-                        new_ns.tables.insert(old_table_name, old_table);
+    for (old_table_name, old_table) in &old_ns.tables {
+        match new_ns.tables.get_mut(old_table_name) {
+            Some(new_table) => {
+                old_column_count += old_table.columns.len();
+                for (column_name, column) in &old_table.columns {
+                    if !new_table.columns.contains_key(column_name) {
+                        new_table.columns.insert(column_name.to_owned(), *column);
                     }
                 }
             }
-        }
-        Err(old_ns) => {
-            for (old_table_name, old_table) in &old_ns.tables {
-                match new_ns.tables.get_mut(old_table_name) {
-                    Some(new_table) => {
-                        old_column_count += old_table.columns.len();
-                        for (column_name, column) in &old_table.columns {
-                            if !new_table.columns.contains_key(column_name) {
-                                new_table.columns.insert(column_name.to_owned(), *column);
-                            }
-                        }
-                    }
-                    None => {
-                        new_ns
-                            .tables
-                            .insert(old_table_name.to_owned(), old_table.to_owned());
-                    }
-                }
+            None => {
+                new_ns
+                    .tables
+                    .insert(old_table_name.to_owned(), old_table.to_owned());
             }
         }
     }
