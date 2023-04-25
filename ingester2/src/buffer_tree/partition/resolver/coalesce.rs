@@ -282,25 +282,15 @@ mod tests {
     use test_helpers::timeout::FutureTimeout;
     use tokio::sync::{Notify, Semaphore};
 
-    use crate::buffer_tree::partition::{resolver::mock::MockPartitionProvider, SortKeyState};
+    use crate::{
+        buffer_tree::partition::{resolver::mock::MockPartitionProvider, SortKeyState},
+        test_util::{
+            PartitionDataBuilder, ARBITRARY_NAMESPACE_ID, ARBITRARY_PARTITION_KEY,
+            ARBITRARY_TABLE_ID, DEFER_NAMESPACE_NAME_1_SEC, DEFER_TABLE_NAME_1_SEC,
+        },
+    };
 
     use super::*;
-
-    const PARTITION_ID: PartitionId = PartitionId::new(4242);
-    const PARTITION_KEY: &str = "bananas";
-    const NAMESPACE_ID: NamespaceId = NamespaceId::new(42);
-    const TABLE_ID: TableId = TableId::new(42);
-
-    lazy_static! {
-        static ref NAMESPACE_NAME: Arc<DeferredLoad<NamespaceName>> =
-            Arc::new(DeferredLoad::new(Duration::from_secs(1), async {
-                NamespaceName::from("ns-platanos")
-            }));
-        static ref TABLE_NAME: Arc<DeferredLoad<TableName>> =
-            Arc::new(DeferredLoad::new(Duration::from_secs(1), async {
-                TableName::from("platanos")
-            }));
-    }
 
     /// This test proves that parallel queries for the same partition are
     /// coalesced, returning the same [`PartitionData`] instance and submitting
@@ -309,16 +299,7 @@ mod tests {
     async fn test_coalesce() {
         const MAX_TASKS: usize = 50;
 
-        let data = PartitionData::new(
-            PARTITION_ID,
-            PartitionKey::from(PARTITION_KEY),
-            NAMESPACE_ID,
-            Arc::clone(&*NAMESPACE_NAME),
-            TABLE_ID,
-            Arc::clone(&*TABLE_NAME),
-            SortKeyState::Provided(None),
-            TRANSITION_SHARD_ID,
-        );
+        let data = PartitionDataBuilder::new().build();
 
         // Add a single instance of the partition - if more than one call is
         // made, this will cause a panic.
@@ -327,14 +308,12 @@ mod tests {
 
         let results = (0..MAX_TASKS)
             .map(|_| {
-                let namespace_name = Arc::clone(&*NAMESPACE_NAME);
-                let table_name = Arc::clone(&*TABLE_NAME);
                 layer.get_partition(
-                    PartitionKey::from(PARTITION_KEY),
-                    NAMESPACE_ID,
-                    namespace_name,
-                    TABLE_ID,
-                    table_name,
+                    ARBITRARY_PARTITION_KEY.clone(),
+                    ARBITRARY_NAMESPACE_ID,
+                    Arc::clone(&*DEFER_NAMESPACE_NAME_1_SEC),
+                    ARBITRARY_TABLE_ID,
+                    Arc::clone(&*DEFER_TABLE_NAME_1_SEC),
                     TRANSITION_SHARD_ID,
                 )
             })
@@ -382,7 +361,7 @@ mod tests {
             'life0: 'async_trait,
             Self: 'async_trait,
         {
-            if partition_key == PartitionKey::from(PARTITION_KEY) {
+            if partition_key == *ARBITRARY_PARTITION_KEY {
                 return future::pending().boxed();
             }
             future::ready(Arc::clone(&self.p)).boxed()
@@ -394,16 +373,7 @@ mod tests {
     async fn test_disjoint_parallelised() {
         use futures::Future;
 
-        let data = PartitionData::new(
-            PARTITION_ID,
-            PartitionKey::from(PARTITION_KEY),
-            NAMESPACE_ID,
-            Arc::clone(&*NAMESPACE_NAME),
-            TABLE_ID,
-            Arc::clone(&*TABLE_NAME),
-            SortKeyState::Provided(None),
-            TRANSITION_SHARD_ID,
-        );
+        let data = PartitionDataBuilder::new().build();
 
         // Add a single instance of the partition - if more than one call is
         // made to the mock, it will panic.
@@ -415,19 +385,19 @@ mod tests {
         // The following two partitions are for the same (blocked) partition and
         // neither resolve.
         let pa_1 = layer.get_partition(
-            PartitionKey::from(PARTITION_KEY),
-            NAMESPACE_ID,
-            Arc::clone(&*NAMESPACE_NAME),
-            TABLE_ID,
-            Arc::clone(&*TABLE_NAME),
+            ARBITRARY_PARTITION_KEY.clone(),
+            ARBITRARY_NAMESPACE_ID,
+            Arc::clone(&*DEFER_NAMESPACE_NAME_1_SEC),
+            ARBITRARY_TABLE_ID,
+            Arc::clone(&*DEFER_TABLE_NAME_1_SEC),
             TRANSITION_SHARD_ID,
         );
         let pa_2 = layer.get_partition(
-            PartitionKey::from(PARTITION_KEY),
-            NAMESPACE_ID,
-            Arc::clone(&*NAMESPACE_NAME),
-            TABLE_ID,
-            Arc::clone(&*TABLE_NAME),
+            ARBITRARY_PARTITION_KEY.clone(),
+            ARBITRARY_NAMESPACE_ID,
+            Arc::clone(&*DEFER_NAMESPACE_NAME_1_SEC),
+            ARBITRARY_TABLE_ID,
+            Arc::clone(&*DEFER_TABLE_NAME_1_SEC),
             TRANSITION_SHARD_ID,
         );
 
@@ -444,11 +414,11 @@ mod tests {
         // But a non-blocked partition is resolved without issue.
         let _ = layer
             .get_partition(
-                PartitionKey::from("platanos"),
-                NAMESPACE_ID,
-                Arc::clone(&*NAMESPACE_NAME),
-                TABLE_ID,
-                Arc::clone(&*TABLE_NAME),
+                PartitionKey::from("orange you glad i didn't say bananas"),
+                ARBITRARY_NAMESPACE_ID,
+                Arc::clone(&*DEFER_NAMESPACE_NAME_1_SEC),
+                ARBITRARY_TABLE_ID,
+                Arc::clone(&*DEFER_TABLE_NAME_1_SEC),
                 TRANSITION_SHARD_ID,
             )
             .with_timeout_panic(Duration::from_secs(5))
@@ -510,26 +480,17 @@ mod tests {
         let inner = Arc::new(SemaphoreResolver {
             sem: Arc::clone(&fake_conn_pool),
             wait: Arc::clone(&notify),
-            p: Arc::new(Mutex::new(PartitionData::new(
-                PARTITION_ID,
-                PartitionKey::from(PARTITION_KEY),
-                NAMESPACE_ID,
-                Arc::clone(&*NAMESPACE_NAME),
-                TABLE_ID,
-                Arc::clone(&*TABLE_NAME),
-                SortKeyState::Provided(None),
-                TRANSITION_SHARD_ID,
-            ))),
+            p: Arc::new(Mutex::new(PartitionDataBuilder::new().build())),
         });
 
         let layer = Arc::new(CoalescePartitionResolver::new(inner));
 
         let fut = layer.get_partition(
-            PartitionKey::from(PARTITION_KEY),
-            NAMESPACE_ID,
-            Arc::clone(&*NAMESPACE_NAME),
-            TABLE_ID,
-            Arc::clone(&*TABLE_NAME),
+            ARBITRARY_PARTITION_KEY.clone(),
+            ARBITRARY_NAMESPACE_ID,
+            Arc::clone(&*DEFER_NAMESPACE_NAME_1_SEC),
+            ARBITRARY_TABLE_ID,
+            Arc::clone(&*DEFER_TABLE_NAME_1_SEC),
             TRANSITION_SHARD_ID,
         );
 

@@ -143,53 +143,25 @@ mod tests {
 
     use assert_matches::assert_matches;
     use async_trait::async_trait;
-    use data_types::{NamespaceId, PartitionId, PartitionKey, SequenceNumber, ShardId, TableId};
-    use lazy_static::lazy_static;
+    use data_types::SequenceNumber;
     use mutable_batch_lp::test_helpers::lp_to_mutable_batch;
     use parking_lot::Mutex;
     use tempfile::tempdir;
     use test_helpers::timeout::FutureTimeout;
     use tokio::sync::oneshot;
 
+    use super::*;
     use crate::{
-        buffer_tree::{
-            namespace::NamespaceName,
-            partition::PartitionData,
-            partition::{persisting::PersistingData, SortKeyState},
-            table::TableName,
-        },
-        deferred_load::DeferredLoad,
+        buffer_tree::{partition::persisting::PersistingData, partition::PartitionData},
         persist::queue::mock::MockPersistQueue,
+        test_util::{PartitionDataBuilder, ARBITRARY_PARTITION_ID},
     };
 
-    use super::*;
-
-    const PARTITION_ID: PartitionId = PartitionId::new(1);
-    const TRANSITION_SHARD_ID: ShardId = ShardId::new(84);
     const TICK_INTERVAL: Duration = Duration::from_millis(10);
-
-    lazy_static! {
-        static ref PARTITION_KEY: PartitionKey = PartitionKey::from("platanos");
-        static ref TABLE_NAME: TableName = TableName::from("bananas");
-        static ref NAMESPACE_NAME: NamespaceName = NamespaceName::from("namespace-bananas");
-    }
 
     #[tokio::test]
     async fn test_persist() {
-        let mut p = PartitionData::new(
-            PARTITION_ID,
-            PARTITION_KEY.clone(),
-            NamespaceId::new(3),
-            Arc::new(DeferredLoad::new(Duration::from_secs(1), async {
-                NAMESPACE_NAME.clone()
-            })),
-            TableId::new(4),
-            Arc::new(DeferredLoad::new(Duration::from_secs(1), async {
-                TABLE_NAME.clone()
-            })),
-            SortKeyState::Provided(None),
-            TRANSITION_SHARD_ID,
-        );
+        let mut p = PartitionDataBuilder::new().build();
 
         // Perform a single write to populate the partition.
         let mb = lp_to_mutable_batch(r#"bananas,city=London people=2,pigeons="millions" 10"#).1;
@@ -271,7 +243,7 @@ mod tests {
 
         assert_matches!(persist.calls().as_slice(), [got] => {
             let guard = got.lock();
-            assert_eq!(guard.partition_id(), PARTITION_ID);
+            assert_eq!(guard.partition_id(), ARBITRARY_PARTITION_ID);
         })
     }
 
@@ -305,20 +277,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_persist_ticks_when_blocked() {
-        let mut p = PartitionData::new(
-            PARTITION_ID,
-            PARTITION_KEY.clone(),
-            NamespaceId::new(3),
-            Arc::new(DeferredLoad::new(Duration::from_secs(1), async {
-                NAMESPACE_NAME.clone()
-            })),
-            TableId::new(4),
-            Arc::new(DeferredLoad::new(Duration::from_secs(1), async {
-                TABLE_NAME.clone()
-            })),
-            SortKeyState::Provided(None),
-            TRANSITION_SHARD_ID,
-        );
+        let mut p = PartitionDataBuilder::new().build();
 
         // Perform a single write to populate the partition.
         let mb = lp_to_mutable_batch(r#"bananas,city=London people=2,pigeons="millions" 10"#).1;

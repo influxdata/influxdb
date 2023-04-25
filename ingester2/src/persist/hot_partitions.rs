@@ -102,52 +102,28 @@ where
 #[cfg(test)]
 mod tests {
     use std::sync::Arc;
-    use std::time::Duration;
 
     use assert_matches::assert_matches;
-    use data_types::{NamespaceId, PartitionId, PartitionKey, SequenceNumber, ShardId, TableId};
-    use lazy_static::lazy_static;
+    use data_types::SequenceNumber;
     use mutable_batch_lp::test_helpers::lp_to_mutable_batch;
     use parking_lot::Mutex;
 
     use crate::{
-        buffer_tree::{
-            namespace::NamespaceName, partition::PartitionData, partition::SortKeyState,
-            table::TableName,
-        },
-        deferred_load::DeferredLoad,
         persist::queue::mock::MockPersistQueue,
+        test_util::{PartitionDataBuilder, ARBITRARY_TABLE_NAME},
     };
 
     use super::*;
 
-    const PARTITION_ID: PartitionId = PartitionId::new(1);
-    const TRANSITION_SHARD_ID: ShardId = ShardId::new(84);
-
-    lazy_static! {
-        static ref PARTITION_KEY: PartitionKey = PartitionKey::from("pohtaytoes");
-        static ref TABLE_NAME: TableName = TableName::from("potatoes");
-        static ref NAMESPACE_NAME: NamespaceName = NamespaceName::from("namespace-potatoes");
-    }
-
     #[tokio::test]
     async fn test_hot_partition_persist() {
-        let mut p = PartitionData::new(
-            PARTITION_ID,
-            PARTITION_KEY.clone(),
-            NamespaceId::new(3),
-            Arc::new(DeferredLoad::new(Duration::from_secs(1), async {
-                NAMESPACE_NAME.clone()
-            })),
-            TableId::new(4),
-            Arc::new(DeferredLoad::new(Duration::from_secs(1), async {
-                TABLE_NAME.clone()
-            })),
-            SortKeyState::Provided(None),
-            TRANSITION_SHARD_ID,
-        );
+        let mut p = PartitionDataBuilder::new().build();
 
-        let mb = lp_to_mutable_batch(r#"potatoes,city=Hereford  people=1,crisps="good" 10"#).1;
+        let mb = lp_to_mutable_batch(&format!(
+            r#"{},city=Hereford  people=1,crisps="good" 10"#,
+            &*ARBITRARY_TABLE_NAME
+        ))
+        .1;
         p.buffer_write(mb, SequenceNumber::new(1))
             .expect("write should succeed");
         let max_cost = p.persist_cost_estimate() + 1; // Require additional data to be buffered before enqueuing
@@ -177,7 +153,11 @@ mod tests {
 
         // Write more data to the partition
         let want_query_data = {
-            let mb = lp_to_mutable_batch(r#"potatoes,city=Worcester people=2,crisps="fine" 5"#).1;
+            let mb = lp_to_mutable_batch(&format!(
+                r#"{},city=Worcester people=2,crisps="fine" 5"#,
+                &*ARBITRARY_TABLE_NAME
+            ))
+            .1;
             let mut guard = p.lock();
             guard
                 .buffer_write(mb, SequenceNumber::new(2))

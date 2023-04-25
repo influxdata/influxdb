@@ -95,7 +95,7 @@ impl<O> TableData<O> {
     /// for the first time.
     pub(super) fn new(
         table_id: TableId,
-        table_name: DeferredLoad<TableName>,
+        table_name: Arc<DeferredLoad<TableName>>,
         namespace_id: NamespaceId,
         namespace_name: Arc<DeferredLoad<NamespaceName>>,
         partition_provider: Arc<dyn PartitionProvider>,
@@ -104,7 +104,7 @@ impl<O> TableData<O> {
     ) -> Self {
         Self {
             table_id,
-            table_name: Arc::new(table_name),
+            table_name,
             namespace_id,
             namespace_name,
             partition_data: Default::default(),
@@ -260,74 +260,63 @@ where
 
 #[cfg(test)]
 mod tests {
-    use std::{sync::Arc, time::Duration};
+    use std::sync::Arc;
 
-    use data_types::PartitionId;
+    use data_types::TRANSITION_SHARD_ID;
     use mutable_batch_lp::lines_to_batches;
 
     use super::*;
-    use crate::buffer_tree::{
-        partition::{resolver::mock::MockPartitionProvider, PartitionData, SortKeyState},
-        post_write::mock::MockPostWriteObserver,
+    use crate::{
+        buffer_tree::{
+            partition::resolver::mock::MockPartitionProvider,
+            post_write::mock::MockPostWriteObserver,
+        },
+        test_util::{
+            PartitionDataBuilder, ARBITRARY_NAMESPACE_ID, ARBITRARY_PARTITION_KEY,
+            ARBITRARY_TABLE_ID, ARBITRARY_TABLE_NAME, DEFER_NAMESPACE_NAME_1_SEC,
+            DEFER_TABLE_NAME_1_SEC,
+        },
     };
-
-    const TABLE_NAME: &str = "bananas";
-    const TABLE_ID: TableId = TableId::new(44);
-    const NAMESPACE_ID: NamespaceId = NamespaceId::new(42);
-    const PARTITION_KEY: &str = "platanos";
-    const PARTITION_ID: PartitionId = PartitionId::new(0);
-    const TRANSITION_SHARD_ID: ShardId = ShardId::new(84);
 
     #[tokio::test]
     async fn test_partition_init() {
-        // Configure the mock partition provider to return a partition for this
-        // table ID.
-        let partition_provider = Arc::new(MockPartitionProvider::default().with_partition(
-            PartitionData::new(
-                PARTITION_ID,
-                PARTITION_KEY.into(),
-                NAMESPACE_ID,
-                Arc::new(DeferredLoad::new(Duration::from_secs(1), async {
-                    NamespaceName::from("platanos")
-                })),
-                TABLE_ID,
-                Arc::new(DeferredLoad::new(Duration::from_secs(1), async {
-                    TableName::from(TABLE_NAME)
-                })),
-                SortKeyState::Provided(None),
-                TRANSITION_SHARD_ID,
-            ),
-        ));
+        // Configure the mock partition provider to return a partition for a table ID.
+        let partition_provider = Arc::new(
+            MockPartitionProvider::default().with_partition(PartitionDataBuilder::new().build()),
+        );
 
         let table = TableData::new(
-            TABLE_ID,
-            DeferredLoad::new(Duration::from_secs(1), async {
-                TableName::from(TABLE_NAME)
-            }),
-            NAMESPACE_ID,
-            Arc::new(DeferredLoad::new(Duration::from_secs(1), async {
-                NamespaceName::from("platanos")
-            })),
+            ARBITRARY_TABLE_ID,
+            Arc::clone(&*DEFER_TABLE_NAME_1_SEC),
+            ARBITRARY_NAMESPACE_ID,
+            Arc::clone(&*DEFER_NAMESPACE_NAME_1_SEC),
             partition_provider,
             Arc::new(MockPostWriteObserver::default()),
             TRANSITION_SHARD_ID,
         );
 
-        let batch = lines_to_batches(r#"bananas,bat=man value=24 42"#, 0)
-            .unwrap()
-            .remove(TABLE_NAME)
-            .unwrap();
+        let batch = lines_to_batches(
+            &format!(r#"{},bat=man value=24 42"#, &*ARBITRARY_TABLE_NAME),
+            0,
+        )
+        .unwrap()
+        .remove(&***ARBITRARY_TABLE_NAME)
+        .unwrap();
 
         // Assert the table does not contain the test partition
-        assert!(table.partition_data.get(&PARTITION_KEY.into()).is_none());
+        assert!(table.partition_data.get(&ARBITRARY_PARTITION_KEY).is_none());
 
         // Write some test data
         table
-            .buffer_table_write(SequenceNumber::new(42), batch, PARTITION_KEY.into())
+            .buffer_table_write(
+                SequenceNumber::new(42),
+                batch,
+                ARBITRARY_PARTITION_KEY.clone(),
+            )
             .await
             .expect("buffer op should succeed");
 
         // Referencing the partition should succeed
-        assert!(table.partition_data.get(&PARTITION_KEY.into()).is_some());
+        assert!(table.partition_data.get(&ARBITRARY_PARTITION_KEY).is_some());
     }
 }

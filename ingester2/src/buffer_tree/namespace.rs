@@ -85,7 +85,7 @@ impl<O> NamespaceData<O> {
     /// Initialize new tables with default partition template of daily
     pub(super) fn new(
         namespace_id: NamespaceId,
-        namespace_name: DeferredLoad<NamespaceName>,
+        namespace_name: Arc<DeferredLoad<NamespaceName>>,
         table_name_resolver: Arc<dyn TableNameProvider>,
         partition_provider: Arc<dyn PartitionProvider>,
         post_write_observer: Arc<O>,
@@ -101,7 +101,7 @@ impl<O> NamespaceData<O> {
 
         Self {
             namespace_id,
-            namespace_name: Arc::new(namespace_name),
+            namespace_name,
             tables: Default::default(),
             table_name_resolver,
             table_count,
@@ -161,7 +161,7 @@ where
                         self.table_count.inc(1);
                         Arc::new(TableData::new(
                             table_id,
-                            self.table_name_resolver.for_table(table_id),
+                            Arc::new(self.table_name_resolver.for_table(table_id)),
                             self.namespace_id,
                             Arc::clone(&self.namespace_name),
                             Arc::clone(&self.partition_provider),
@@ -228,28 +228,24 @@ where
 
 #[cfg(test)]
 mod tests {
-    use std::{sync::Arc, time::Duration};
+    use std::sync::Arc;
 
-    use data_types::{PartitionId, PartitionKey, ShardId};
+    use data_types::TRANSITION_SHARD_ID;
     use metric::{Attributes, Metric};
 
     use super::*;
     use crate::{
         buffer_tree::{
-            namespace::NamespaceData,
-            partition::{resolver::mock::MockPartitionProvider, PartitionData, SortKeyState},
+            namespace::NamespaceData, partition::resolver::mock::MockPartitionProvider,
             post_write::mock::MockPostWriteObserver,
-            table::{name_resolver::mock::MockTableNameProvider, TableName},
         },
-        deferred_load::{self, DeferredLoad},
-        test_util::make_write_op,
+        deferred_load,
+        test_util::{
+            make_write_op, PartitionDataBuilder, ARBITRARY_NAMESPACE_ID, ARBITRARY_NAMESPACE_NAME,
+            ARBITRARY_PARTITION_KEY, ARBITRARY_TABLE_ID, ARBITRARY_TABLE_NAME,
+            ARBITRARY_TABLE_NAME_PROVIDER, DEFER_NAMESPACE_NAME_1_MS,
+        },
     };
-
-    const TABLE_NAME: &str = "bananas";
-    const TABLE_ID: TableId = TableId::new(44);
-    const NAMESPACE_NAME: &str = "platanos";
-    const NAMESPACE_ID: NamespaceId = NamespaceId::new(42);
-    const TRANSITION_SHARD_ID: ShardId = ShardId::new(84);
 
     #[tokio::test]
     async fn test_namespace_init_table() {
@@ -257,27 +253,14 @@ mod tests {
 
         // Configure the mock partition provider to return a partition for this
         // table ID.
-        let partition_provider = Arc::new(MockPartitionProvider::default().with_partition(
-            PartitionData::new(
-                PartitionId::new(0),
-                PartitionKey::from("banana-split"),
-                NAMESPACE_ID,
-                Arc::new(DeferredLoad::new(Duration::from_secs(1), async {
-                    NamespaceName::from(NAMESPACE_NAME)
-                })),
-                TABLE_ID,
-                Arc::new(DeferredLoad::new(Duration::from_secs(1), async {
-                    TableName::from(TABLE_NAME)
-                })),
-                SortKeyState::Provided(None),
-                TRANSITION_SHARD_ID,
-            ),
-        ));
+        let partition_provider = Arc::new(
+            MockPartitionProvider::default().with_partition(PartitionDataBuilder::new().build()),
+        );
 
         let ns = NamespaceData::new(
-            NAMESPACE_ID,
-            DeferredLoad::new(Duration::from_millis(1), async { NAMESPACE_NAME.into() }),
-            Arc::new(MockTableNameProvider::new(TABLE_NAME)),
+            ARBITRARY_NAMESPACE_ID,
+            Arc::clone(&*DEFER_NAMESPACE_NAME_1_MS),
+            Arc::clone(&*ARBITRARY_TABLE_NAME_PROVIDER),
             partition_provider,
             Arc::new(MockPostWriteObserver::default()),
             &metrics,
@@ -287,27 +270,31 @@ mod tests {
         // Assert the namespace name was stored
         let name = ns.namespace_name().to_string();
         assert!(
-            (name == NAMESPACE_NAME) || (name == deferred_load::UNRESOLVED_DISPLAY_STRING),
+            (name.as_str() == &***ARBITRARY_NAMESPACE_NAME)
+                || (name == deferred_load::UNRESOLVED_DISPLAY_STRING),
             "unexpected namespace name: {name}"
         );
 
         // Assert the namespace does not contain the test data
-        assert!(ns.table(TABLE_ID).is_none());
+        assert!(ns.table(ARBITRARY_TABLE_ID).is_none());
 
         // Write some test data
         ns.apply(DmlOperation::Write(make_write_op(
-            &PartitionKey::from("banana-split"),
-            NAMESPACE_ID,
-            TABLE_NAME,
-            TABLE_ID,
+            &ARBITRARY_PARTITION_KEY,
+            ARBITRARY_NAMESPACE_ID,
+            &ARBITRARY_TABLE_NAME,
+            ARBITRARY_TABLE_ID,
             0,
-            r#"bananas,city=Medford day="sun",temp=55 22"#,
+            &format!(
+                r#"{},city=Medford day="sun",temp=55 22"#,
+                &*ARBITRARY_TABLE_NAME
+            ),
         )))
         .await
         .expect("buffer op should succeed");
 
         // Referencing the table should succeed
-        assert!(ns.table(TABLE_ID).is_some());
+        assert!(ns.table(ARBITRARY_TABLE_ID).is_some());
 
         // And the table counter metric should increase
         let tables = metrics
@@ -320,7 +307,10 @@ mod tests {
 
         // Ensure the deferred namespace name is loaded.
         let name = ns.namespace_name().get().await;
-        assert_eq!(&**name, NAMESPACE_NAME);
-        assert_eq!(ns.namespace_name().to_string(), NAMESPACE_NAME);
+        assert_eq!(&*name, &**ARBITRARY_NAMESPACE_NAME);
+        assert_eq!(
+            ns.namespace_name().to_string().as_str(),
+            &***ARBITRARY_NAMESPACE_NAME
+        );
     }
 }

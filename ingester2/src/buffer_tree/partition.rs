@@ -354,20 +354,13 @@ mod tests {
     };
     use datafusion_util::test_collect;
     use iox_catalog::interface::Catalog;
-    use lazy_static::lazy_static;
     use mutable_batch_lp::test_helpers::lp_to_mutable_batch;
 
     use super::*;
-    use crate::{buffer_tree::partition::resolver::SortKeyResolver, test_util::populate_catalog};
-
-    const PARTITION_ID: PartitionId = PartitionId::new(1);
-    const TRANSITION_SHARD_ID: ShardId = ShardId::new(84);
-
-    lazy_static! {
-        static ref PARTITION_KEY: PartitionKey = PartitionKey::from("platanos");
-        static ref TABLE_NAME: TableName = TableName::from("bananas");
-        static ref NAMESPACE_NAME: NamespaceName = NamespaceName::from("namespace-bananas");
-    }
+    use crate::{
+        buffer_tree::partition::resolver::SortKeyResolver,
+        test_util::{populate_catalog, PartitionDataBuilder, ARBITRARY_PARTITION_ID},
+    };
 
     // Write some data and read it back from the buffer.
     //
@@ -375,20 +368,7 @@ mod tests {
     // generation & query all work as intended.
     #[tokio::test]
     async fn test_write_read() {
-        let mut p = PartitionData::new(
-            PARTITION_ID,
-            PARTITION_KEY.clone(),
-            NamespaceId::new(3),
-            Arc::new(DeferredLoad::new(Duration::from_secs(1), async {
-                NAMESPACE_NAME.clone()
-            })),
-            TableId::new(4),
-            Arc::new(DeferredLoad::new(Duration::from_secs(1), async {
-                TABLE_NAME.clone()
-            })),
-            SortKeyState::Provided(None),
-            TRANSITION_SHARD_ID,
-        );
+        let mut p = PartitionDataBuilder::new().build();
 
         // And no data should be returned when queried.
         assert!(p.get_query_data().is_none());
@@ -401,7 +381,7 @@ mod tests {
         // The data should be readable.
         {
             let data = p.get_query_data().expect("should return data");
-            assert_eq!(data.partition_id(), PARTITION_ID);
+            assert_eq!(data.partition_id(), ARBITRARY_PARTITION_ID);
 
             let expected = [
                 "+--------+--------+----------+--------------------------------+",
@@ -430,7 +410,7 @@ mod tests {
         // And finally both writes should be readable.
         {
             let data = p.get_query_data().expect("should contain data");
-            assert_eq!(data.partition_id(), PARTITION_ID);
+            assert_eq!(data.partition_id(), ARBITRARY_PARTITION_ID);
 
             let expected = [
                 "+--------+--------+----------+--------------------------------+",
@@ -456,20 +436,7 @@ mod tests {
     // both before, during, and after a persist takes place.
     #[tokio::test]
     async fn test_persist() {
-        let mut p = PartitionData::new(
-            PARTITION_ID,
-            PARTITION_KEY.clone(),
-            NamespaceId::new(3),
-            Arc::new(DeferredLoad::new(Duration::from_secs(1), async {
-                NAMESPACE_NAME.clone()
-            })),
-            TableId::new(4),
-            Arc::new(DeferredLoad::new(Duration::from_secs(1), async {
-                TABLE_NAME.clone()
-            })),
-            SortKeyState::Provided(None),
-            TRANSITION_SHARD_ID,
-        );
+        let mut p = PartitionDataBuilder::new().build();
 
         assert!(p.get_query_data().is_none());
 
@@ -485,7 +452,7 @@ mod tests {
         // Begin persisting the partition.
         let persisting_data = p.mark_persisting().expect("must contain existing data");
         // And validate the data being persisted.
-        assert_eq!(persisting_data.partition_id(), PARTITION_ID);
+        assert_eq!(persisting_data.partition_id(), ARBITRARY_PARTITION_ID);
         assert_eq!(persisting_data.record_batches().len(), 1);
         let expected = [
             "+--------+--------+----------+--------------------------------+",
@@ -519,7 +486,7 @@ mod tests {
         // Which must be readable, alongside the ongoing persist data.
         {
             let data = p.get_query_data().expect("must have data");
-            assert_eq!(data.partition_id(), PARTITION_ID);
+            assert_eq!(data.partition_id(), ARBITRARY_PARTITION_ID);
             assert_eq!(data.record_batches().len(), 2);
             let expected = [
                 "+--------+--------+----------+--------------------------------+",
@@ -553,7 +520,7 @@ mod tests {
         // Querying the buffer should now return only the second write.
         {
             let data = p.get_query_data().expect("must have data");
-            assert_eq!(data.partition_id(), PARTITION_ID);
+            assert_eq!(data.partition_id(), ARBITRARY_PARTITION_ID);
             assert_eq!(data.record_batches().len(), 1);
             let expected = [
                 "+--------+--------+---------+--------------------------------+",
@@ -604,26 +571,15 @@ mod tests {
             let input = Arc::new(MemoryExec::try_new(&[batch], schema, projection).unwrap());
 
             // Create and run the deduplicator
-            let exec = Arc::new(iox_query::provider::DeduplicateExec::new(input, sort_keys, false));
+            let exec = Arc::new(iox_query::provider::DeduplicateExec::new(
+                input, sort_keys, false,
+            ));
             let got = test_collect(Arc::clone(&exec) as Arc<dyn ExecutionPlan>).await;
 
             assert_batches_eq!(expect, &*got);
         }
 
-        let mut p = PartitionData::new(
-            PARTITION_ID,
-            PARTITION_KEY.clone(),
-            NamespaceId::new(3),
-            Arc::new(DeferredLoad::new(Duration::from_secs(1), async {
-                NAMESPACE_NAME.clone()
-            })),
-            TableId::new(4),
-            Arc::new(DeferredLoad::new(Duration::from_secs(1), async {
-                TABLE_NAME.clone()
-            })),
-            SortKeyState::Provided(None),
-            TRANSITION_SHARD_ID,
-        );
+        let mut p = PartitionDataBuilder::new().build();
 
         // Perform the initial write.
         //
@@ -795,20 +751,7 @@ mod tests {
     // which return the correct SequenceNumberSet instances.
     #[tokio::test]
     async fn test_out_of_order_persist() {
-        let mut p = PartitionData::new(
-            PARTITION_ID,
-            PARTITION_KEY.clone(),
-            NamespaceId::new(3),
-            Arc::new(DeferredLoad::new(Duration::from_secs(1), async {
-                NAMESPACE_NAME.clone()
-            })),
-            TableId::new(4),
-            Arc::new(DeferredLoad::new(Duration::from_secs(1), async {
-                TABLE_NAME.clone()
-            })),
-            SortKeyState::Provided(None),
-            TRANSITION_SHARD_ID,
-        );
+        let mut p = PartitionDataBuilder::new().build();
 
         // Perform the initial write.
         //
@@ -982,20 +925,9 @@ mod tests {
         let starting_state =
             SortKeyState::Provided(Some(SortKey::from_columns(["banana", "time"])));
 
-        let mut p = PartitionData::new(
-            PartitionId::new(1),
-            "bananas".into(),
-            NamespaceId::new(42),
-            Arc::new(DeferredLoad::new(Duration::from_secs(1), async {
-                NAMESPACE_NAME.clone()
-            })),
-            TableId::new(1),
-            Arc::new(DeferredLoad::new(Duration::from_secs(1), async {
-                TableName::from("platanos")
-            })),
-            starting_state,
-            TRANSITION_SHARD_ID,
-        );
+        let mut p = PartitionDataBuilder::new()
+            .with_sort_key_state(starting_state)
+            .build();
 
         let want = Some(SortKey::from_columns(["banana", "platanos", "time"]));
         p.update_sort_key(want.clone());
@@ -1042,20 +974,9 @@ mod tests {
 
         let starting_state = SortKeyState::Deferred(fetcher);
 
-        let mut p = PartitionData::new(
-            PartitionId::new(1),
-            "bananas".into(),
-            NamespaceId::new(42),
-            Arc::new(DeferredLoad::new(Duration::from_secs(1), async {
-                NAMESPACE_NAME.clone()
-            })),
-            TableId::new(1),
-            Arc::new(DeferredLoad::new(Duration::from_secs(1), async {
-                TableName::from("platanos")
-            })),
-            starting_state,
-            shard_id,
-        );
+        let mut p = PartitionDataBuilder::new()
+            .with_sort_key_state(starting_state)
+            .build();
 
         let want = Some(SortKey::from_columns(["banana", "platanos", "time"]));
         p.update_sort_key(want.clone());
@@ -1067,20 +988,7 @@ mod tests {
     // Perform writes with non-monotonic sequence numbers.
     #[tokio::test]
     async fn test_non_monotonic_writes() {
-        let mut p = PartitionData::new(
-            PARTITION_ID,
-            PARTITION_KEY.clone(),
-            NamespaceId::new(3),
-            Arc::new(DeferredLoad::new(Duration::from_secs(1), async {
-                NAMESPACE_NAME.clone()
-            })),
-            TableId::new(4),
-            Arc::new(DeferredLoad::new(Duration::from_secs(1), async {
-                TABLE_NAME.clone()
-            })),
-            SortKeyState::Provided(None),
-            TRANSITION_SHARD_ID,
-        );
+        let mut p = PartitionDataBuilder::new().build();
 
         // Perform out of order writes.
         p.buffer_write(
@@ -1115,40 +1023,14 @@ mod tests {
 
     #[tokio::test]
     async fn test_mark_persisting_no_data() {
-        let mut p = PartitionData::new(
-            PARTITION_ID,
-            PARTITION_KEY.clone(),
-            NamespaceId::new(3),
-            Arc::new(DeferredLoad::new(Duration::from_secs(1), async {
-                NAMESPACE_NAME.clone()
-            })),
-            TableId::new(4),
-            Arc::new(DeferredLoad::new(Duration::from_secs(1), async {
-                TABLE_NAME.clone()
-            })),
-            SortKeyState::Provided(None),
-            TRANSITION_SHARD_ID,
-        );
+        let mut p = PartitionDataBuilder::new().build();
 
         assert!(p.mark_persisting().is_none());
     }
 
     #[tokio::test]
     async fn test_mark_persisting_twice() {
-        let mut p = PartitionData::new(
-            PARTITION_ID,
-            PARTITION_KEY.clone(),
-            NamespaceId::new(3),
-            Arc::new(DeferredLoad::new(Duration::from_secs(1), async {
-                NAMESPACE_NAME.clone()
-            })),
-            TableId::new(4),
-            Arc::new(DeferredLoad::new(Duration::from_secs(1), async {
-                TABLE_NAME.clone()
-            })),
-            SortKeyState::Provided(None),
-            TRANSITION_SHARD_ID,
-        );
+        let mut p = PartitionDataBuilder::new().build();
 
         let mb = lp_to_mutable_batch(r#"bananas,city=London people=2,pigeons="millions" 10"#).1;
         p.buffer_write(mb, SequenceNumber::new(2))
@@ -1162,20 +1044,7 @@ mod tests {
     // QueryAdaptor.
     #[tokio::test]
     async fn test_empty_partition_no_queryadaptor_panic() {
-        let mut p = PartitionData::new(
-            PARTITION_ID,
-            PARTITION_KEY.clone(),
-            NamespaceId::new(3),
-            Arc::new(DeferredLoad::new(Duration::from_secs(1), async {
-                NAMESPACE_NAME.clone()
-            })),
-            TableId::new(4),
-            Arc::new(DeferredLoad::new(Duration::from_secs(1), async {
-                TABLE_NAME.clone()
-            })),
-            SortKeyState::Provided(None),
-            TRANSITION_SHARD_ID,
-        );
+        let mut p = PartitionDataBuilder::new().build();
 
         assert!(p.get_query_data().is_none());
     }
