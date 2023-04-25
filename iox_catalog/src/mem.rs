@@ -6,6 +6,7 @@ use crate::{
         sealed::TransactionFinalize, CasFailure, Catalog, ColumnRepo, ColumnTypeMismatchSnafu,
         Error, NamespaceRepo, ParquetFileRepo, PartitionRepo, QueryPoolRepo, RepoCollection,
         Result, ShardRepo, SoftDeletedRows, TableRepo, TopicMetadataRepo, Transaction,
+        MAX_PARQUET_FILES_SELECTED_ONCE,
     },
     metrics::MetricDecorator,
     DEFAULT_MAX_COLUMNS_PER_TABLE, DEFAULT_MAX_TABLES, SHARED_TOPIC_ID, SHARED_TOPIC_NAME,
@@ -1034,6 +1035,7 @@ impl ParquetFileRepo for MemTxn {
                         })
                     })
             })
+            .take(MAX_PARQUET_FILES_SELECTED_ONCE as usize)
             .collect())
     }
 
@@ -1090,7 +1092,11 @@ impl ParquetFileRepo for MemTxn {
 
         stage.parquet_files = keep;
 
-        let delete = delete.into_iter().map(|f| f.id).collect();
+        let delete = delete
+            .into_iter()
+            .take(MAX_PARQUET_FILES_SELECTED_ONCE as usize)
+            .map(|f| f.id)
+            .collect();
         Ok(delete)
     }
 

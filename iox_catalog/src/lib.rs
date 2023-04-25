@@ -37,7 +37,6 @@ pub const DEFAULT_MAX_COLUMNS_PER_TABLE: i32 = 200;
 /// Default retention period for data in the catalog.
 pub const DEFAULT_RETENTION_PERIOD: Option<i64> = None;
 
-/// A string value representing an infinite retention policy.
 pub mod interface;
 pub mod mem;
 pub mod metrics;

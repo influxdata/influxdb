@@ -5,7 +5,7 @@ use crate::{
         self, sealed::TransactionFinalize, CasFailure, Catalog, ColumnRepo,
         ColumnTypeMismatchSnafu, Error, NamespaceRepo, ParquetFileRepo, PartitionRepo,
         QueryPoolRepo, RepoCollection, Result, ShardRepo, SoftDeletedRows, TableRepo,
-        TopicMetadataRepo, Transaction,
+        TopicMetadataRepo, Transaction, MAX_PARQUET_FILES_SELECTED_ONCE,
     },
     metrics::MetricDecorator,
     DEFAULT_MAX_COLUMNS_PER_TABLE, DEFAULT_MAX_TABLES, SHARED_TOPIC_ID, SHARED_TOPIC_NAME,
@@ -35,9 +35,6 @@ use std::str::FromStr;
 use std::sync::Arc;
 
 static MIGRATOR: Migrator = sqlx::migrate!("sqlite/migrations");
-
-/// Maximum number of files deleted by [`ParquetFileRepo::delete_old_ids_only].
-const MAX_PARQUET_FILES_DELETED_ONCE: i64 = 1_000;
 
 /// SQLite connection options.
 #[derive(Debug, Clone)]
@@ -1405,17 +1402,23 @@ RETURNING *;
         // TODO - include check of table retention period once implemented
         let flagged = sqlx::query(
             r#"
-                UPDATE parquet_file
-                SET to_delete = $1
-                FROM namespace
-                WHERE namespace.retention_period_ns IS NOT NULL
-                AND parquet_file.to_delete IS NULL
-                AND parquet_file.max_time < $1 - namespace.retention_period_ns
-                AND namespace.id = parquet_file.namespace_id
-                RETURNING parquet_file.id;
+WITH parquet_file_ids as (
+    SELECT parquet_file.id
+    FROM namespace, parquet_file
+    WHERE namespace.retention_period_ns IS NOT NULL
+    AND parquet_file.to_delete IS NULL
+    AND parquet_file.max_time < $1 - namespace.retention_period_ns
+    AND namespace.id = parquet_file.namespace_id
+    LIMIT $2
+)
+UPDATE parquet_file
+SET to_delete = $1
+WHERE id IN (SELECT id FROM parquet_file_ids)
+RETURNING id;
             "#,
         )
         .bind(flagged_at) // $1
+        .bind(MAX_PARQUET_FILES_SELECTED_ONCE) // $2
         .fetch_all(self.inner.get_mut())
         .await
         .map_err(|e| Error::SqlxError { source: e })?;
@@ -1511,7 +1514,7 @@ RETURNING id;
              "#,
         )
         .bind(older_than) // $1
-        .bind(MAX_PARQUET_FILES_DELETED_ONCE) // $2
+        .bind(MAX_PARQUET_FILES_SELECTED_ONCE) // $2
         .fetch_all(self.inner.get_mut())
         .await
         .map_err(|e| Error::SqlxError { source: e })?;

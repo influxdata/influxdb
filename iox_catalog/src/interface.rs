@@ -16,6 +16,10 @@ use std::{
 };
 use uuid::Uuid;
 
+/// Maximum number of files deleted by [`ParquetFileRepo::delete_old_ids_only`] and
+/// [`ParquetFileRepo::flag_for_delete_by_retention`] at a time.
+pub const MAX_PARQUET_FILES_SELECTED_ONCE: i64 = 1_000;
+
 /// An error wrapper detailing the reason for a compare-and-swap failure.
 #[derive(Debug)]
 pub enum CasFailure<T> {
@@ -1835,6 +1839,7 @@ pub(crate) mod test_helpers {
             .expect("delete namespace should succeed");
     }
 
+    /// tests many interactions with the catalog and parquet files. See the individual conditions herein
     async fn test_parquet_file(catalog: Arc<dyn Catalog>) {
         let mut repos = catalog.repositories().await;
         let topic = repos.topics().create_or_get("foo").await.unwrap();
@@ -2074,7 +2079,7 @@ pub(crate) mod test_helpers {
             min_time: Timestamp::new(50),
             max_time: Timestamp::new(60),
             max_sequence_number: SequenceNumber::new(11),
-            ..f1_params
+            ..f1_params.clone()
         };
         let f2 = repos
             .parquet_files()
@@ -2219,6 +2224,41 @@ pub(crate) mod test_helpers {
             .await
             .unwrap();
         assert!(ids.is_empty());
+
+        // test that flag_for_delete_by_retention respects UPDATE LIMIT
+        // create limit + the meaning of life parquet files that are all older than the retention (>1hr)
+        const LIMIT: usize = 1000;
+        const MOL: usize = 42;
+        for _ in 0..LIMIT + MOL {
+            let params = ParquetFileParams {
+                object_store_id: Uuid::new_v4(),
+                max_time: Timestamp::new(
+                    // a bit over an hour ago
+                    (catalog.time_provider().now() - Duration::from_secs(60 * 65))
+                        .timestamp_nanos(),
+                ),
+                ..f1_params.clone()
+            };
+            repos.parquet_files().create(params.clone()).await.unwrap();
+        }
+        let ids = repos
+            .parquet_files()
+            .flag_for_delete_by_retention()
+            .await
+            .unwrap();
+        assert_eq!(ids.len(), LIMIT);
+        let ids = repos
+            .parquet_files()
+            .flag_for_delete_by_retention()
+            .await
+            .unwrap();
+        assert_eq!(ids.len(), MOL); // second call took remainder
+        let ids = repos
+            .parquet_files()
+            .flag_for_delete_by_retention()
+            .await
+            .unwrap();
+        assert_eq!(ids.len(), 0); // none left
     }
 
     async fn test_parquet_file_delete_broken(catalog: Arc<dyn Catalog>) {
