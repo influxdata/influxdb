@@ -3,9 +3,7 @@
 use crate::process_info::setup_metric_registry;
 
 use super::main;
-use authz::Authorizer;
 use clap_blocks::{
-    authz::AuthzConfig,
     catalog_dsn::CatalogDsnConfig,
     compactor2::Compactor2Config,
     ingester2::Ingester2Config,
@@ -14,6 +12,9 @@ use clap_blocks::{
     querier::QuerierConfig,
     router2::Router2Config,
     run_config::RunConfig,
+    single_tenant::{
+        CONFIG_AUTHZ_ENV_NAME, CONFIG_AUTHZ_FLAG, CONFIG_CST_ENV_NAME, CONFIG_CST_FLAG,
+    },
     socket_addr::SocketAddr,
 };
 use compactor2::object_store::metrics::MetricsStore;
@@ -88,9 +89,6 @@ pub enum Error {
 
     #[error("Invalid config: {0}")]
     InvalidConfig(#[from] CommonServerStateError),
-
-    #[error("Authz configuration error: {0}")]
-    AuthzConfig(#[from] clap_blocks::authz::Error),
 
     #[error("Authz service error: {0}")]
     AuthzService(#[from] authz::Error),
@@ -173,9 +171,20 @@ pub type Result<T, E = Error> = std::result::Result<T, E>;
 )]
 #[group(skip)]
 pub struct Config {
-    /// Authorizer options.
-    #[clap(flatten)]
-    pub(crate) authz_config: AuthzConfig,
+    #[clap(
+        long = CONFIG_AUTHZ_FLAG,
+        env = CONFIG_AUTHZ_ENV_NAME,
+        requires("single_tenant_deployment"),
+    )]
+    pub(crate) authz_address: Option<String>,
+
+    #[clap(
+        long = CONFIG_CST_FLAG,
+        env = CONFIG_CST_ENV_NAME,
+        default_value = "false",
+        requires_if("true", "authz_address")
+    )]
+    pub(crate) single_tenant_deployment: bool,
 
     /// logging options
     #[clap(flatten)]
@@ -184,17 +193,6 @@ pub struct Config {
     /// tracing options
     #[clap(flatten)]
     pub(crate) tracing_config: TracingConfig,
-
-    /// Differential handling based upon deployment to CST vs MT.
-    ///
-    /// At minimum, differs in supports of v1 endpoint. But also includes
-    /// differences in namespace handling, etc.
-    #[clap(
-        long = "single-tenancy",
-        env = "INFLUXDB_IOX_SINGLE_TENANCY",
-        default_value = "false"
-    )]
-    pub single_tenant_deployment: bool,
 
     /// Maximum size of HTTP requests.
     #[clap(
@@ -361,6 +359,7 @@ impl Config {
     /// configuration for each individual IOx service
     fn specialize(self) -> SpecializedConfig {
         let Self {
+            authz_address,
             logging_config,
             tracing_config,
             max_http_request_size,
@@ -381,7 +380,6 @@ impl Config {
             querier_ram_pool_data_bytes,
             querier_max_concurrent_queries,
             exec_mem_pool_bytes,
-            authz_config,
             single_tenant_deployment,
         } = self;
 
@@ -472,6 +470,8 @@ impl Config {
         };
 
         let router_config = Router2Config {
+            authz_address: authz_address.clone(),
+            single_tenant_deployment,
             query_pool_name: QUERY_POOL_NAME.to_string(),
             http_request_limit: 1_000,
             ingester_addresses: ingester_addresses.clone(),
@@ -481,7 +481,6 @@ impl Config {
             topic: QUERY_POOL_NAME.to_string(),
             rpc_write_timeout_seconds: Duration::new(3, 0),
             rpc_write_replicas: None,
-            single_tenant_deployment,
             rpc_write_max_outgoing_bytes: ingester_config.rpc_write_max_incoming_bytes,
         };
 
@@ -514,6 +513,7 @@ impl Config {
         };
 
         let querier_config = QuerierConfig {
+            authz_address,
             num_query_threads: None, // will be ignored
             ingester_addresses,
             ram_pool_metadata_bytes: querier_ram_pool_metadata_bytes,
@@ -536,7 +536,6 @@ impl Config {
             router_config,
             compactor_config,
             querier_config,
-            authz_config,
         }
     }
 }
@@ -564,7 +563,6 @@ struct SpecializedConfig {
     router_config: Router2Config,
     compactor_config: Compactor2Config,
     querier_config: QuerierConfig,
-    authz_config: AuthzConfig,
 }
 
 pub async fn command(config: Config) -> Result<()> {
@@ -578,7 +576,6 @@ pub async fn command(config: Config) -> Result<()> {
         router_config,
         compactor_config,
         querier_config,
-        authz_config,
     } = config.specialize();
 
     let metrics = setup_metric_registry();
@@ -606,10 +603,6 @@ pub async fn command(config: Config) -> Result<()> {
 
     let time_provider: Arc<dyn TimeProvider> = Arc::new(SystemProvider::new());
 
-    let authz = authz_config.authorizer()?;
-    // Verify the connection to the authorizer, if configured.
-    authz.probe().await?;
-
     // create common state from the router and use it below
     let common_state = CommonServerState::from_config(router_run_config.clone())?;
 
@@ -636,7 +629,6 @@ pub async fn command(config: Config) -> Result<()> {
         Arc::clone(&metrics),
         Arc::clone(&catalog),
         Arc::clone(&object_store),
-        authz.as_ref().map(Arc::clone),
         &router_config,
     )
     .await?;
@@ -684,7 +676,6 @@ pub async fn command(config: Config) -> Result<()> {
         exec,
         time_provider,
         querier_config,
-        authz: authz.as_ref().map(Arc::clone),
     })
     .await?;
 

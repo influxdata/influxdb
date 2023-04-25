@@ -1,10 +1,9 @@
 //! Command line options for running a router2 that uses the RPC write path.
 use super::main;
 use crate::process_info::setup_metric_registry;
-use authz::Authorizer;
 use clap_blocks::{
-    authz::AuthzConfig, catalog_dsn::CatalogDsnConfig, object_store::make_object_store,
-    router2::Router2Config, run_config::RunConfig,
+    catalog_dsn::CatalogDsnConfig, object_store::make_object_store, router2::Router2Config,
+    run_config::RunConfig,
 };
 use iox_time::{SystemProvider, TimeProvider};
 use ioxd_common::{
@@ -36,9 +35,6 @@ pub enum Error {
     #[error("Catalog DSN error: {0}")]
     CatalogDsn(#[from] clap_blocks::catalog_dsn::Error),
 
-    #[error("Authz configuration error: {0}")]
-    AuthzConfig(#[from] clap_blocks::authz::Error),
-
     #[error("Authz service error: {0}")]
     AuthzService(#[from] authz::Error),
 }
@@ -61,9 +57,6 @@ Configuration is loaded from the following sources (highest precedence first):
         - pre-configured default values"
 )]
 pub struct Config {
-    #[clap(flatten)]
-    pub(crate) authz_config: AuthzConfig,
-
     #[clap(flatten)]
     pub(crate) run_config: RunConfig,
 
@@ -98,16 +91,12 @@ pub async fn command(config: Config) -> Result<()> {
         time_provider,
         &metrics,
     ));
-    let authz = config.authz_config.authorizer()?;
-    // Verify the connection to the authorizer, if configured.
-    authz.probe().await?;
 
     let server_type = create_router2_server_type(
         &common_state,
         Arc::clone(&metrics),
         catalog,
         object_store,
-        authz,
         &config.router_config,
     )
     .await?;
