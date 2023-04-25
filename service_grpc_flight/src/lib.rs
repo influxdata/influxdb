@@ -785,6 +785,7 @@ fn flightsql_permissions(namespace_name: &str, cmd: &FlightSQLCommand) -> Vec<au
         FlightSQLCommand::CommandGetPrimaryKeys(_) => authz::Action::ReadSchema,
         FlightSQLCommand::CommandGetTables(_) => authz::Action::ReadSchema,
         FlightSQLCommand::CommandGetTableTypes(_) => authz::Action::ReadSchema,
+        FlightSQLCommand::CommandGetXdbcTypeInfo(_) => authz::Action::ReadSchema,
         FlightSQLCommand::ActionCreatePreparedStatementRequest(_) => authz::Action::Read,
         FlightSQLCommand::ActionClosePreparedStatementRequest(_) => authz::Action::Read,
     };

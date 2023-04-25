@@ -13,7 +13,7 @@ use arrow_flight::{
         ActionCreatePreparedStatementRequest, ActionCreatePreparedStatementResult, Any,
         CommandGetCatalogs, CommandGetCrossReference, CommandGetDbSchemas, CommandGetExportedKeys,
         CommandGetImportedKeys, CommandGetPrimaryKeys, CommandGetSqlInfo, CommandGetTableTypes,
-        CommandGetTables, CommandStatementQuery,
+        CommandGetTables, CommandGetXdbcTypeInfo, CommandStatementQuery,
     },
     IpcMessage, SchemaAsIpc,
 };
@@ -85,6 +85,9 @@ impl FlightSQLPlanner {
             }
             FlightSQLCommand::CommandGetTableTypes(CommandGetTableTypes { .. }) => {
                 encode_schema(&GET_TABLE_TYPE_SCHEMA)
+            }
+            FlightSQLCommand::CommandGetXdbcTypeInfo(CommandGetXdbcTypeInfo { .. }) => {
+                encode_schema(&GET_XDBC_TYPE_INFO_SCHEMA)
             }
             FlightSQLCommand::ActionCreatePreparedStatementRequest(_)
             | FlightSQLCommand::ActionClosePreparedStatementRequest(_) => ProtocolSnafu {
@@ -237,6 +240,11 @@ impl FlightSQLPlanner {
             FlightSQLCommand::CommandGetTableTypes(CommandGetTableTypes {}) => {
                 debug!("Planning GetTableTypes query");
                 let plan = plan_get_table_types(ctx).await?;
+                Ok(ctx.create_physical_plan(&plan).await?)
+            }
+            FlightSQLCommand::CommandGetXdbcTypeInfo(CommandGetXdbcTypeInfo { data_type }) => {
+                debug!(?data_type, "Planning GetXdbcTypeInfo query");
+                let plan = plan_get_xdbc_type_info(ctx, data_type).await?;
                 Ok(ctx.create_physical_plan(&plan).await?)
             }
             FlightSQLCommand::ActionClosePreparedStatementRequest(_)
@@ -417,6 +425,15 @@ async fn plan_get_table_types(ctx: &IOxSessionContext) -> Result<LogicalPlan> {
     Ok(ctx.batch_to_logical_plan(TABLE_TYPES_RECORD_BATCH.clone())?)
 }
 
+/// Return a `LogicalPlan` for GetXdbcTypeInfo
+async fn plan_get_xdbc_type_info(
+    ctx: &IOxSessionContext,
+    _data_type: Option<i32>,
+) -> Result<LogicalPlan> {
+    let batch = RecordBatch::new_empty(Arc::clone(&GET_XDBC_TYPE_INFO_SCHEMA));
+    Ok(ctx.batch_to_logical_plan(batch)?)
+}
+
 /// The schema for GetTableTypes
 static GET_TABLE_TYPE_SCHEMA: Lazy<SchemaRef> = Lazy::new(|| {
     Arc::new(Schema::new(vec![Field::new(
@@ -503,5 +520,34 @@ static GET_PRIMARY_KEYS_SCHEMA: Lazy<SchemaRef> = Lazy::new(|| {
         Field::new("column_name", DataType::Utf8, false),
         Field::new("key_name", DataType::Utf8, false),
         Field::new("key_sequence", DataType::Int32, false),
+    ]))
+});
+
+// From https://github.com/apache/arrow/blob/9588da967c756b2923e213ccc067378ba6c90a86/format/FlightSql.proto#L1064-L1113
+static GET_XDBC_TYPE_INFO_SCHEMA: Lazy<SchemaRef> = Lazy::new(|| {
+    Arc::new(Schema::new(vec![
+        Field::new("type_name", DataType::Utf8, false),
+        Field::new("data_type", DataType::Int32, false),
+        Field::new("column_size", DataType::Int32, true),
+        Field::new("literal_prefix", DataType::Utf8, true),
+        Field::new("literal_suffix", DataType::Utf8, true),
+        Field::new(
+            "create_params",
+            DataType::List(Arc::new(Field::new("item", DataType::Utf8, false))),
+            true,
+        ),
+        Field::new("nullable", DataType::Int32, false), // Nullable enum: https://github.com/apache/arrow/blob/9588da967c756b2923e213ccc067378ba6c90a86/format/FlightSql.proto#L1014-L1029
+        Field::new("case_sensitive", DataType::Boolean, false),
+        Field::new("searchable", DataType::Int32, false), // Searchable enum: https://github.com/apache/arrow/blob/9588da967c756b2923e213ccc067378ba6c90a86/format/FlightSql.proto#L1031-L1056
+        Field::new("unsigned_attribute", DataType::Boolean, true),
+        Field::new("fixed_prec_scale", DataType::Boolean, false),
+        Field::new("auto_increment", DataType::Boolean, true),
+        Field::new("local_type_name", DataType::Utf8, true),
+        Field::new("minimum_scale", DataType::Int32, true),
+        Field::new("maximum_scale", DataType::Int32, true),
+        Field::new("sql_data_type", DataType::Int32, false),
+        Field::new("datetime_subcode", DataType::Int32, true),
+        Field::new("num_prec_radix", DataType::Int32, true),
+        Field::new("interval_precision", DataType::Int32, true),
     ]))
 });
