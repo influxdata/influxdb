@@ -1,12 +1,18 @@
 use std::{borrow::Cow, ops::RangeInclusive};
 
-use percent_encoding::{utf8_percent_encode, NON_ALPHANUMERIC};
 use thiserror::Error;
 
 /// Length constraints for a [`NamespaceName`] name.
 ///
 /// A `RangeInclusive` is a closed interval, covering [1, 64]
 const LENGTH_CONSTRAINT: RangeInclusive<usize> = 1..=64;
+
+/// Allowlist of chars for a [`NamespaceName`] name.
+///
+/// '/' | '_' | '-' are utilized by the platforms.
+fn is_allowed(c: char) -> bool {
+    c.is_alphanumeric() || matches!(c, '/' | '_' | '-')
+}
 
 /// Errors returned when attempting to construct a [`NamespaceName`] from an org
 /// & bucket string pair.
@@ -41,7 +47,7 @@ pub enum NamespaceNameError {
     /// The provided namespace name contains an unacceptable character.
     #[error(
         "namespace name '{}' contains invalid character, character number {} \
-        is a control which is not allowed",
+        is not whitelisted",
         name,
         bad_char_offset
     )]
@@ -92,7 +98,7 @@ impl<'a> NamespaceName<'a> {
         //
         // NOTE: If changing these characters, please update the error message
         // above.
-        if let Some(bad_char_offset) = name.chars().position(|c| c.is_control()) {
+        if let Some(bad_char_offset) = name.chars().position(|c| !is_allowed(c)) {
             return Err(NamespaceNameError::BadChars {
                 bad_char_offset,
                 name: name.to_string(),
@@ -123,11 +129,7 @@ impl<'a> NamespaceName<'a> {
             return Err(OrgBucketMappingError::NoOrgBucketSpecified);
         }
 
-        let prefix: Cow<'_, str> = utf8_percent_encode(org, NON_ALPHANUMERIC).into();
-        let suffix: Cow<'_, str> = utf8_percent_encode(bucket, NON_ALPHANUMERIC).into();
-
-        let db_name = format!("{}_{}", prefix, suffix);
-        Ok(Self::new(db_name)?)
+        Ok(Self::new(format!("{}_{}", org, bucket))?)
     }
 }
 
@@ -188,34 +190,46 @@ mod tests {
     #[test]
     fn test_org_bucket_map_db_contains_underscore() {
         let got = NamespaceName::from_org_and_bucket("my_org", "bucket").unwrap();
-        assert_eq!(got.as_str(), "my%5Forg_bucket");
+        assert_eq!(got.as_str(), "my_org_bucket");
 
         let got = NamespaceName::from_org_and_bucket("org", "my_bucket").unwrap();
-        assert_eq!(got.as_str(), "org_my%5Fbucket");
+        assert_eq!(got.as_str(), "org_my_bucket");
 
         let got = NamespaceName::from_org_and_bucket("org", "my__bucket").unwrap();
-        assert_eq!(got.as_str(), "org_my%5F%5Fbucket");
+        assert_eq!(got.as_str(), "org_my__bucket");
 
         let got = NamespaceName::from_org_and_bucket("my_org", "my_bucket").unwrap();
-        assert_eq!(got.as_str(), "my%5Forg_my%5Fbucket");
+        assert_eq!(got.as_str(), "my_org_my_bucket");
     }
 
     #[test]
     fn test_org_bucket_map_db_contains_underscore_and_percent() {
-        let got = NamespaceName::from_org_and_bucket("my%5Forg", "bucket").unwrap();
-        assert_eq!(got.as_str(), "my%255Forg_bucket");
+        let err = NamespaceName::from_org_and_bucket("my%5Forg", "bucket");
+        assert!(matches!(
+            err,
+            Err(OrgBucketMappingError::InvalidNamespaceName { .. })
+        ));
 
-        let got = NamespaceName::from_org_and_bucket("my%5Forg_", "bucket").unwrap();
-        assert_eq!(got.as_str(), "my%255Forg%5F_bucket");
+        let err = NamespaceName::from_org_and_bucket("my%5Forg_", "bucket");
+        assert!(matches!(
+            err,
+            Err(OrgBucketMappingError::InvalidNamespaceName { .. })
+        ));
     }
 
     #[test]
-    fn test_bad_namespace_name_is_encoded() {
-        let got = NamespaceName::from_org_and_bucket("org", "bucket?").unwrap();
-        assert_eq!(got.as_str(), "org_bucket%3F");
+    fn test_bad_namespace_name_fails_validation() {
+        let err = NamespaceName::from_org_and_bucket("org", "bucket?");
+        assert!(matches!(
+            err,
+            Err(OrgBucketMappingError::InvalidNamespaceName { .. })
+        ));
 
-        let got = NamespaceName::from_org_and_bucket("org!", "bucket").unwrap();
-        assert_eq!(got.as_str(), "org%21_bucket");
+        let err = NamespaceName::from_org_and_bucket("org!", "bucket");
+        assert!(matches!(
+            err,
+            Err(OrgBucketMappingError::InvalidNamespaceName { .. })
+        ));
     }
 
     #[test]
@@ -256,30 +270,50 @@ mod tests {
     #[test]
     fn test_bad_chars_null() {
         let got = NamespaceName::new("example\x00").unwrap_err();
-        assert_eq!(got.to_string() , "namespace name 'example\x00' contains invalid character, character number 7 is a control which is not allowed");
+        assert_eq!(got.to_string() , "namespace name 'example\x00' contains invalid character, character number 7 is not whitelisted");
     }
 
     #[test]
     fn test_bad_chars_high_control() {
         let got = NamespaceName::new("\u{007f}example").unwrap_err();
-        assert_eq!(got.to_string() , "namespace name '\u{007f}example' contains invalid character, character number 0 is a control which is not allowed");
+        assert_eq!(got.to_string() , "namespace name '\u{007f}example' contains invalid character, character number 0 is not whitelisted");
     }
 
     #[test]
     fn test_bad_chars_tab() {
         let got = NamespaceName::new("example\tdb").unwrap_err();
-        assert_eq!(got.to_string() , "namespace name 'example\tdb' contains invalid character, character number 7 is a control which is not allowed");
+        assert_eq!(got.to_string() , "namespace name 'example\tdb' contains invalid character, character number 7 is not whitelisted");
     }
 
     #[test]
     fn test_bad_chars_newline() {
         let got = NamespaceName::new("my_example\ndb").unwrap_err();
-        assert_eq!(got.to_string() , "namespace name 'my_example\ndb' contains invalid character, character number 10 is a control which is not allowed");
+        assert_eq!(got.to_string() , "namespace name 'my_example\ndb' contains invalid character, character number 10 is not whitelisted");
+    }
+
+    #[test]
+    fn test_bad_chars_whitespace() {
+        let got = NamespaceName::new("my_example db").unwrap_err();
+        assert_eq!(got.to_string() , "namespace name 'my_example db' contains invalid character, character number 10 is not whitelisted");
+    }
+
+    #[test]
+    fn test_bad_chars_single_quote() {
+        let got = NamespaceName::new("my_example'db").unwrap_err();
+        assert_eq!(got.to_string() , "namespace name 'my_example\'db' contains invalid character, character number 10 is not whitelisted");
     }
 
     #[test]
     fn test_ok_chars() {
-        let db = NamespaceName::new("my-example-db_with_underscores and spaces").unwrap();
-        assert_eq!(&*db, "my-example-db_with_underscores and spaces");
+        let db =
+            NamespaceName::new("my-example-db_with_underscores/and/fwd/slash/AndCaseSensitive")
+                .unwrap();
+        assert_eq!(
+            &*db,
+            "my-example-db_with_underscores/and/fwd/slash/AndCaseSensitive"
+        );
+
+        let db = NamespaceName::new("a_ã_京").unwrap();
+        assert_eq!(&*db, "a_ã_京");
     }
 }

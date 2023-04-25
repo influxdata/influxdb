@@ -78,6 +78,7 @@ fn parse_v2(req: &Request<Body>) -> Result<WriteParams, MultiTenantExtractError>
 #[cfg(test)]
 mod tests {
     use assert_matches::assert_matches;
+    use data_types::NamespaceNameError;
 
     use super::*;
     use crate::server::http::write::Precision;
@@ -171,7 +172,7 @@ mod tests {
             namespace,
             ..
         }) => {
-            assert_eq!(namespace.as_str(), "cool%5Fconfusing_bucket");
+            assert_eq!(namespace.as_str(), "cool_confusing_bucket");
         }
     );
 
@@ -189,12 +190,11 @@ mod tests {
     test_parse_v2!(
         encoded_quotation,
         query_string = "?org=cool'confusing&bucket=bucket",
-        want = Ok(WriteParams {
-            namespace,
-            ..
-        }) => {
-            assert_eq!(namespace.as_str(), "cool%27confusing_bucket");
-        }
+        want = Err(Error::MultiTenantError(
+            MultiTenantExtractError::InvalidOrgAndBucket(
+                OrgBucketMappingError::InvalidNamespaceName(NamespaceNameError::BadChars { .. })
+            )
+        ))
     );
 
     test_parse_v2!(
@@ -204,7 +204,7 @@ mod tests {
             namespace,
             ..
         }) => {
-            assert_eq!(namespace.as_str(), "%5Fcoolconfusing_bucket");
+            assert_eq!(namespace.as_str(), "_coolconfusing_bucket");
         }
     );
 
