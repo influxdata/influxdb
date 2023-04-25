@@ -3,20 +3,15 @@
 
 mod request;
 
-use arrow::{
-    datatypes::SchemaRef, error::ArrowError, ipc::writer::IpcWriteOptions,
-    record_batch::RecordBatch,
-};
+use arrow::error::ArrowError;
 use arrow_flight::{
     encode::{FlightDataEncoder, FlightDataEncoderBuilder},
     flight_descriptor::DescriptorType,
     flight_service_server::{FlightService as Flight, FlightServiceServer as FlightServer},
     Action, ActionType, Criteria, Empty, FlightData, FlightDescriptor, FlightEndpoint, FlightInfo,
-    HandshakeRequest, HandshakeResponse, PutResult, SchemaAsIpc, SchemaResult, Ticket,
+    HandshakeRequest, HandshakeResponse, PutResult, SchemaResult, Ticket,
 };
-use arrow_util::flight::prepare_schema_for_flight;
 use authz::Authorizer;
-use bytes::Bytes;
 use data_types::NamespaceNameError;
 use datafusion::{error::DataFusionError, physical_plan::ExecutionPlan};
 use flightsql::FlightSQLCommand;
@@ -799,7 +794,7 @@ fn flightsql_permissions(namespace_name: &str, cmd: &FlightSQLCommand) -> Vec<au
 /// Wrapper over a FlightDataEncodeStream that adds IOx specfic
 /// metadata and records completion
 struct GetStream {
-    inner: IOxFlightDataEncoder,
+    inner: FlightDataEncoder,
     #[allow(dead_code)]
     permit: InstrumentedAsyncOwnedSemaphorePermit,
     query_completed_token: QueryCompletedToken,
@@ -830,7 +825,8 @@ impl GetStream {
             });
 
         // setup inner stream
-        let inner = IOxFlightDataEncoderBuilder::new(schema)
+        let inner = FlightDataEncoderBuilder::new()
+            .with_schema(schema)
             .with_metadata(app_metadata.encode_to_vec().into())
             .build(query_results);
 
@@ -840,94 +836,6 @@ impl GetStream {
             query_completed_token,
             done: false,
         })
-    }
-}
-
-/// workaround for <https://github.com/apache/arrow-rs/issues/3591>
-///
-/// data encoder stream that always sends a Schema message even if the
-/// underlying stream is empty
-struct IOxFlightDataEncoder {
-    inner: FlightDataEncoder,
-    // The schema of the inner stream. Set to None when a schema
-    // message has been sent.
-    schema: Option<SchemaRef>,
-    done: bool,
-}
-
-impl IOxFlightDataEncoder {
-    fn new(inner: FlightDataEncoder, schema: SchemaRef) -> Self {
-        Self {
-            inner,
-            schema: Some(schema),
-            done: false,
-        }
-    }
-}
-
-#[derive(Debug)]
-struct IOxFlightDataEncoderBuilder {
-    inner: FlightDataEncoderBuilder,
-    schema: SchemaRef,
-}
-
-impl IOxFlightDataEncoderBuilder {
-    fn new(schema: SchemaRef) -> Self {
-        Self {
-            inner: FlightDataEncoderBuilder::new().with_schema(Arc::clone(&schema)),
-            schema: prepare_schema_for_flight(schema),
-        }
-    }
-
-    pub fn with_metadata(mut self, app_metadata: Bytes) -> Self {
-        self.inner = self.inner.with_metadata(app_metadata);
-        self
-    }
-
-    pub fn build<S>(self, input: S) -> IOxFlightDataEncoder
-    where
-        S: Stream<Item = arrow_flight::error::Result<RecordBatch>> + Send + 'static,
-    {
-        let Self { inner, schema } = self;
-
-        IOxFlightDataEncoder::new(inner.build(input), schema)
-    }
-}
-
-impl Stream for IOxFlightDataEncoder {
-    type Item = arrow_flight::error::Result<FlightData>;
-
-    fn poll_next(
-        mut self: Pin<&mut Self>,
-        cx: &mut std::task::Context<'_>,
-    ) -> Poll<Option<Self::Item>> {
-        loop {
-            if self.done {
-                return Poll::Ready(None);
-            }
-
-            let res = ready!(self.inner.poll_next_unpin(cx));
-            match res {
-                None => {
-                    self.done = true;
-                    // return a schema message if we haven't sent any data
-                    if let Some(schema) = self.schema.take() {
-                        let options = IpcWriteOptions::default();
-                        let data: FlightData = SchemaAsIpc::new(schema.as_ref(), &options).into();
-                        return Poll::Ready(Some(Ok(data)));
-                    }
-                }
-                Some(Ok(data)) => {
-                    // If any data is returned from the underlying stream no need to resend schema
-                    self.schema = None;
-                    return Poll::Ready(Some(Ok(data)));
-                }
-                Some(Err(e)) => {
-                    self.done = true;
-                    return Poll::Ready(Some(Err(e)));
-                }
-            }
-        }
     }
 }
 
