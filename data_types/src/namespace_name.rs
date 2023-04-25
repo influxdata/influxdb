@@ -7,10 +7,10 @@ use thiserror::Error;
 /// A `RangeInclusive` is a closed interval, covering [1, 64]
 const LENGTH_CONSTRAINT: RangeInclusive<usize> = 1..=64;
 
-/// Whitelisted chars for a [`NamespaceName`] name.
+/// Allowlist of chars for a [`NamespaceName`] name.
 ///
 /// '/' | '_' | '-' are utilized by the platforms.
-fn is_whitelisted(c: char) -> bool {
+fn is_allowed(c: char) -> bool {
     c.is_alphanumeric() || matches!(c, '/' | '_' | '-')
 }
 
@@ -98,7 +98,7 @@ impl<'a> NamespaceName<'a> {
         //
         // NOTE: If changing these characters, please update the error message
         // above.
-        if let Some(bad_char_offset) = name.chars().position(|c| !is_whitelisted(c)) {
+        if let Some(bad_char_offset) = name.chars().position(|c| !is_allowed(c)) {
             return Err(NamespaceNameError::BadChars {
                 bad_char_offset,
                 name: name.to_string(),
