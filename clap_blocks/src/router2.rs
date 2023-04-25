@@ -1,6 +1,11 @@
 //! CLI config for the router using the RPC write path
 
-use crate::ingester_address::IngesterAddress;
+use crate::{
+    ingester_address::IngesterAddress,
+    single_tenant::{
+        CONFIG_AUTHZ_ENV_NAME, CONFIG_AUTHZ_FLAG, CONFIG_CST_ENV_NAME, CONFIG_CST_FLAG,
+    },
+};
 use std::{
     num::{NonZeroUsize, ParseIntError},
     time::Duration,
@@ -10,14 +15,23 @@ use std::{
 #[derive(Debug, Clone, clap::Parser)]
 #[allow(missing_copy_implementations)]
 pub struct Router2Config {
+    /// Addr for connection to authz
+    #[clap(
+        long = CONFIG_AUTHZ_FLAG,
+        env = CONFIG_AUTHZ_ENV_NAME,
+        requires("single_tenant_deployment"),
+    )]
+    pub authz_address: Option<String>,
+
     /// Differential handling based upon deployment to CST vs MT.
     ///
     /// At minimum, differs in supports of v1 endpoint. But also includes
     /// differences in namespace handling, etc.
     #[clap(
-        long = "single-tenancy",
-        env = "INFLUXDB_IOX_SINGLE_TENANCY",
-        default_value = "false"
+        long = CONFIG_CST_FLAG,
+        env = CONFIG_CST_ENV_NAME,
+        default_value = "false",
+        requires_if("true", "authz_address")
     )]
     pub single_tenant_deployment: bool,
 

@@ -439,6 +439,15 @@ name: m0
 +---------------------+------+
 | 2022-10-31T02:00:10 | 21.2 |
 +---------------------+------+
+-- InfluxQL: SELECT time, floor(f64) FROM m0 WHERE floor(f64) = 19.0;
+name: m0
++---------------------+-------+
+| time                | floor |
++---------------------+-------+
+| 2022-10-31T02:00:30 | 19.0  |
++---------------------+-------+
+-- InfluxQL: SELECT *, floor(f64) FROM m0 WHERE sum(f64) > 100.0;
+Error while planning query: Error during planning: invalid expression, the only valid function calls are 'now' with no arguments, or scalar math functions at pos 35
 -- InfluxQL: SELECT tag0, f64, f64 * 0.5, f64 + str FROM m0 WHERE f64 > 19;
 name: m0
 +---------------------+-------+------+-------+---------+
@@ -884,25 +893,23 @@ name: logical_plan
 name: physical_plan
  plan
  SortPreservingMergeExec: [iox::measurement@0 ASC NULLS LAST,tag0@2 ASC NULLS LAST,time@1 ASC NULLS LAST]
-   UnionExec
-     SortExec: expr=[iox::measurement@0 ASC NULLS LAST,tag0@2 ASC NULLS LAST,time@1 ASC NULLS LAST]
+   SortExec: expr=[iox::measurement@0 ASC NULLS LAST,tag0@2 ASC NULLS LAST,time@1 ASC NULLS LAST]
+     InterleaveExec
        ProjectionExec: expr=[m0 as iox::measurement, 0 as time, tag0@0 as tag0, COUNT(m0.f64)@1 as count, SUM(m0.f64)@2 as sum, STDDEV(m0.f64)@3 as stddev]
          AggregateExec: mode=FinalPartitioned, gby=[tag0@0 as tag0], aggr=[COUNT(m0.f64), SUM(m0.f64), STDDEV(m0.f64)]
            CoalesceBatchesExec: target_batch_size=8192
              RepartitionExec: partitioning=Hash([Column { name: "tag0", index: 0 }], 4), input_partitions=4
                RepartitionExec: partitioning=RoundRobinBatch(4), input_partitions=1
                  AggregateExec: mode=Partial, gby=[tag0@1 as tag0], aggr=[COUNT(m0.f64), SUM(m0.f64), STDDEV(m0.f64)]
-                   ParquetExec: limit=None, partitions={1 group: [[1/1/1/1/00000000-0000-0000-0000-000000000000.parquet]]}, output_ordering=[tag0@1 ASC], projection=[f64, tag0]
-     SortExec: expr=[iox::measurement@0 ASC NULLS LAST,tag0@2 ASC NULLS LAST,time@1 ASC NULLS LAST]
+                   ParquetExec: limit=None, partitions={1 group: [[1/1/1/00000000-0000-0000-0000-000000000000.parquet]]}, output_ordering=[tag0@1 ASC], projection=[f64, tag0]
        ProjectionExec: expr=[m1 as iox::measurement, 0 as time, tag0@0 as tag0, COUNT(m1.f64)@1 as count, SUM(m1.f64)@2 as sum, STDDEV(m1.f64)@3 as stddev]
          AggregateExec: mode=FinalPartitioned, gby=[tag0@0 as tag0], aggr=[COUNT(m1.f64), SUM(m1.f64), STDDEV(m1.f64)]
            CoalesceBatchesExec: target_batch_size=8192
              RepartitionExec: partitioning=Hash([Column { name: "tag0", index: 0 }], 4), input_partitions=4
                RepartitionExec: partitioning=RoundRobinBatch(4), input_partitions=1
                  AggregateExec: mode=Partial, gby=[tag0@1 as tag0], aggr=[COUNT(m1.f64), SUM(m1.f64), STDDEV(m1.f64)]
-                   ParquetExec: limit=None, partitions={1 group: [[1/1/1/1/00000000-0000-0000-0000-000000000001.parquet]]}, output_ordering=[tag0@1 ASC], projection=[f64, tag0]
+                   ParquetExec: limit=None, partitions={1 group: [[1/1/1/00000000-0000-0000-0000-000000000001.parquet]]}, output_ordering=[tag0@1 ASC], projection=[f64, tag0]
 -- InfluxQL: SELECT COUNT(f64), SUM(f64), stddev(f64) FROM m0, m1 GROUP BY tag0;
--- Results After Sorting
 name: m0
 tags: tag0=val00
 +---------------------+-------+------+-------------------+
@@ -1003,7 +1010,6 @@ name: disk
 | 1970-01-01T00:00:00 |      | 2236.5 |
 +---------------------+------+--------+
 -- InfluxQL: SELECT MEAN(usage_idle), MEAN(bytes_free) FROM cpu, disk GROUP BY TIME(10s) FILL(none);
--- Results After Sorting
 name: cpu
 +---------------------+--------------------+--------+
 | time                | mean               | mean_1 |
@@ -1127,7 +1133,6 @@ name: disk
 | 1970-01-01T00:00:00 |       | 6       |
 +---------------------+-------+---------+
 -- InfluxQL: SELECT COUNT(usage_idle), COUNT(bytes_free) FROM cpu, disk GROUP BY TIME(1s) FILL(none);
--- Results After Sorting
 name: cpu
 +---------------------+-------+---------+
 | time                | count | count_1 |

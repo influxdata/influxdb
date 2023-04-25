@@ -233,6 +233,12 @@ SELECT f64 FROM m0 WHERE f64 >= 19.5 AND non_existent = 1;
 SELECT f64 FROM m0 WHERE f64 >= 19.5 AND f64 =~ /foo/;
 SELECT f64 FROM m0 WHERE f64 >= 19.5 OR f64 =~ /foo/;
 
+-- arithmetic scalar function calls work
+SELECT time, floor(f64) FROM m0 WHERE floor(f64) = 19.0;
+
+-- aggregate function calls produce an error
+SELECT *, floor(f64) FROM m0 WHERE sum(f64) > 100.0;
+
 --
 -- Validate column expressions
 --
@@ -286,8 +292,6 @@ SELECT COUNT(f64), SUM(f64), stddev(f64) FROM m0, m1;
 SELECT COUNT(f64), SUM(f64), stddev(f64) FROM m0 GROUP BY tag0;
 -- IOX_COMPARE: no_borders
 EXPLAIN SELECT COUNT(f64), SUM(f64), stddev(f64) FROM m0, m1 GROUP BY tag0;
--- TODO(sgc): `sorted` is a workaround for https://github.com/influxdata/influxdb_iox/issues/7513
--- IOX_COMPARE: sorted
 SELECT COUNT(f64), SUM(f64), stddev(f64) FROM m0, m1 GROUP BY tag0;
 SELECT COUNT(f64), SUM(f64), stddev(f64) FROM m0 GROUP BY tag0, non_existent;
 SELECT COUNT(f64), SUM(f64), stddev(f64) FROM m0 GROUP BY non_existent;
@@ -299,8 +303,6 @@ SELECT COUNT(f64) as the_count, SUM(f64) + SUM(non_existent) as foo FROM m0;
 
 -- measurements with different schema
 SELECT MEAN(usage_idle), MEAN(bytes_free) FROM cpu, disk;
--- TODO(sgc): `sorted` is a workaround for https://github.com/influxdata/influxdb_iox/issues/7513
--- IOX_COMPARE: sorted
 SELECT MEAN(usage_idle), MEAN(bytes_free) FROM cpu, disk GROUP BY TIME(10s) FILL(none);
 
 -- using aggregates across measurements
@@ -323,8 +325,6 @@ SELECT COUNT(f64), SUM(f64) FROM m0 GROUP BY TIME(30s) FILL(none);
 SELECT COUNT(f64), SUM(f64) FROM m0 GROUP BY TIME(30s, 1s) FILL(none);
 
 SELECT COUNT(usage_idle), COUNT(bytes_free) FROM cpu, disk;
--- TODO(sgc): `sorted` is a workaround for https://github.com/influxdata/influxdb_iox/issues/7513
--- IOX_COMPARE: sorted
 SELECT COUNT(usage_idle), COUNT(bytes_free) FROM cpu, disk GROUP BY TIME(1s) FILL(none);
 SELECT COUNT(usage_idle), COUNT(bytes_free) FROM cpu, disk GROUP BY cpu;
 SELECT COUNT(usage_idle) as count_usage_idle, COUNT(bytes_free) as count_bytes_free FROM cpu, disk WHERE cpu = 'cpu0' OR device = 'disk1s1' GROUP BY cpu;

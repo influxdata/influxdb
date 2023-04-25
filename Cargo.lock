@@ -1426,7 +1426,7 @@ dependencies = [
  "influxdb-line-protocol",
  "iox_time",
  "observability_deps",
- "ordered-float 3.6.0",
+ "ordered-float 3.7.0",
  "percent-encoding",
  "proptest",
  "schema",
@@ -1440,8 +1440,8 @@ dependencies = [
 
 [[package]]
 name = "datafusion"
-version = "22.0.0"
-source = "git+https://github.com/apache/arrow-datafusion.git?rev=ebb839068b9d99d3a3fea0a50a1e4baf4f1a5fca#ebb839068b9d99d3a3fea0a50a1e4baf4f1a5fca"
+version = "23.0.0"
+source = "git+https://github.com/apache/arrow-datafusion.git?rev=181e5ccf2816ccaa05d8aaef0b375d4b7bbceece#181e5ccf2816ccaa05d8aaef0b375d4b7bbceece"
 dependencies = [
  "ahash 0.8.3",
  "arrow",
@@ -1489,8 +1489,8 @@ dependencies = [
 
 [[package]]
 name = "datafusion-common"
-version = "22.0.0"
-source = "git+https://github.com/apache/arrow-datafusion.git?rev=ebb839068b9d99d3a3fea0a50a1e4baf4f1a5fca#ebb839068b9d99d3a3fea0a50a1e4baf4f1a5fca"
+version = "23.0.0"
+source = "git+https://github.com/apache/arrow-datafusion.git?rev=181e5ccf2816ccaa05d8aaef0b375d4b7bbceece#181e5ccf2816ccaa05d8aaef0b375d4b7bbceece"
 dependencies = [
  "arrow",
  "arrow-array",
@@ -1503,8 +1503,8 @@ dependencies = [
 
 [[package]]
 name = "datafusion-execution"
-version = "22.0.0"
-source = "git+https://github.com/apache/arrow-datafusion.git?rev=ebb839068b9d99d3a3fea0a50a1e4baf4f1a5fca#ebb839068b9d99d3a3fea0a50a1e4baf4f1a5fca"
+version = "23.0.0"
+source = "git+https://github.com/apache/arrow-datafusion.git?rev=181e5ccf2816ccaa05d8aaef0b375d4b7bbceece#181e5ccf2816ccaa05d8aaef0b375d4b7bbceece"
 dependencies = [
  "dashmap",
  "datafusion-common",
@@ -1520,8 +1520,8 @@ dependencies = [
 
 [[package]]
 name = "datafusion-expr"
-version = "22.0.0"
-source = "git+https://github.com/apache/arrow-datafusion.git?rev=ebb839068b9d99d3a3fea0a50a1e4baf4f1a5fca#ebb839068b9d99d3a3fea0a50a1e4baf4f1a5fca"
+version = "23.0.0"
+source = "git+https://github.com/apache/arrow-datafusion.git?rev=181e5ccf2816ccaa05d8aaef0b375d4b7bbceece#181e5ccf2816ccaa05d8aaef0b375d4b7bbceece"
 dependencies = [
  "ahash 0.8.3",
  "arrow",
@@ -1531,8 +1531,8 @@ dependencies = [
 
 [[package]]
 name = "datafusion-optimizer"
-version = "22.0.0"
-source = "git+https://github.com/apache/arrow-datafusion.git?rev=ebb839068b9d99d3a3fea0a50a1e4baf4f1a5fca#ebb839068b9d99d3a3fea0a50a1e4baf4f1a5fca"
+version = "23.0.0"
+source = "git+https://github.com/apache/arrow-datafusion.git?rev=181e5ccf2816ccaa05d8aaef0b375d4b7bbceece#181e5ccf2816ccaa05d8aaef0b375d4b7bbceece"
 dependencies = [
  "arrow",
  "async-trait",
@@ -1543,13 +1543,13 @@ dependencies = [
  "hashbrown 0.13.2",
  "itertools",
  "log",
- "regex-syntax 0.6.29",
+ "regex-syntax 0.7.1",
 ]
 
 [[package]]
 name = "datafusion-physical-expr"
-version = "22.0.0"
-source = "git+https://github.com/apache/arrow-datafusion.git?rev=ebb839068b9d99d3a3fea0a50a1e4baf4f1a5fca#ebb839068b9d99d3a3fea0a50a1e4baf4f1a5fca"
+version = "23.0.0"
+source = "git+https://github.com/apache/arrow-datafusion.git?rev=181e5ccf2816ccaa05d8aaef0b375d4b7bbceece#181e5ccf2816ccaa05d8aaef0b375d4b7bbceece"
 dependencies = [
  "ahash 0.8.3",
  "arrow",
@@ -1567,6 +1567,7 @@ dependencies = [
  "indexmap",
  "itertools",
  "lazy_static",
+ "libc",
  "md-5",
  "paste",
  "petgraph",
@@ -1579,8 +1580,8 @@ dependencies = [
 
 [[package]]
 name = "datafusion-proto"
-version = "22.0.0"
-source = "git+https://github.com/apache/arrow-datafusion.git?rev=ebb839068b9d99d3a3fea0a50a1e4baf4f1a5fca#ebb839068b9d99d3a3fea0a50a1e4baf4f1a5fca"
+version = "23.0.0"
+source = "git+https://github.com/apache/arrow-datafusion.git?rev=181e5ccf2816ccaa05d8aaef0b375d4b7bbceece#181e5ccf2816ccaa05d8aaef0b375d4b7bbceece"
 dependencies = [
  "arrow",
  "chrono",
@@ -1593,8 +1594,8 @@ dependencies = [
 
 [[package]]
 name = "datafusion-row"
-version = "22.0.0"
-source = "git+https://github.com/apache/arrow-datafusion.git?rev=ebb839068b9d99d3a3fea0a50a1e4baf4f1a5fca#ebb839068b9d99d3a3fea0a50a1e4baf4f1a5fca"
+version = "23.0.0"
+source = "git+https://github.com/apache/arrow-datafusion.git?rev=181e5ccf2816ccaa05d8aaef0b375d4b7bbceece#181e5ccf2816ccaa05d8aaef0b375d4b7bbceece"
 dependencies = [
  "arrow",
  "datafusion-common",
@@ -1604,8 +1605,8 @@ dependencies = [
 
 [[package]]
 name = "datafusion-sql"
-version = "22.0.0"
-source = "git+https://github.com/apache/arrow-datafusion.git?rev=ebb839068b9d99d3a3fea0a50a1e4baf4f1a5fca#ebb839068b9d99d3a3fea0a50a1e4baf4f1a5fca"
+version = "23.0.0"
+source = "git+https://github.com/apache/arrow-datafusion.git?rev=181e5ccf2816ccaa05d8aaef0b375d4b7bbceece#181e5ccf2816ccaa05d8aaef0b375d4b7bbceece"
 dependencies = [
  "arrow",
  "arrow-schema",
@@ -3842,9 +3843,9 @@ dependencies = [
 
 [[package]]
 name = "ordered-float"
-version = "3.6.0"
+version = "3.7.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "13a384337e997e6860ffbaa83708b2ef329fd8c54cb67a5f64d421e0f943254f"
+checksum = "2fc2dbde8f8a79f2102cc474ceb0ad68e3b80b85289ea62389b60e66777e4213"
 dependencies = [
  "num-traits",
 ]
@@ -4486,7 +4487,7 @@ dependencies = [
  "observability_deps",
  "once_cell",
  "regex",
- "regex-syntax 0.6.29",
+ "regex-syntax 0.7.1",
  "schema",
  "snafu",
  "tokio",
@@ -4625,13 +4626,13 @@ dependencies = [
 
 [[package]]
 name = "regex"
-version = "1.8.0"
+version = "1.8.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "ac6cf59af1067a3fb53fbe5c88c053764e930f932be1d71d3ffe032cbe147f59"
+checksum = "af83e617f331cc6ae2da5443c602dfa5af81e517212d9d611a5b3ba1777b5370"
 dependencies = [
  "aho-corasick",
  "memchr",
- "regex-syntax 0.7.0",
+ "regex-syntax 0.7.1",
 ]
 
 [[package]]
@@ -4651,9 +4652,9 @@ checksum = "f162c6dd7b008981e4d40210aca20b4bd0f9b60ca9271061b07f78537722f2e1"
 
 [[package]]
 name = "regex-syntax"
-version = "0.7.0"
+version = "0.7.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "b6868896879ba532248f33598de5181522d8b3d9d724dfd230911e1a7d4822f5"
+checksum = "a5996294f19bd3aae0453a862ad728f60e6600695733dd5df01da90c54363a3c"
 
 [[package]]
 name = "reqwest"
@@ -4789,9 +4790,9 @@ dependencies = [
 
 [[package]]
 name = "rustix"
-version = "0.37.13"
+version = "0.37.14"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "f79bef90eb6d984c72722595b5b1348ab39275a5e5123faca6863bf07d75a4e0"
+checksum = "d9b864d3c18a5785a05953adeed93e2dca37ed30f18e69bba9f30079d51f363f"
 dependencies = [
  "bitflags",
  "errno",
@@ -6151,9 +6152,9 @@ dependencies = [
 
 [[package]]
 name = "tracing-subscriber"
-version = "0.3.16"
+version = "0.3.17"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "a6176eae26dd70d0c919749377897b54a9276bd7061339665dd68777926b5a70"
+checksum = "30a651bc37f915e81f087d86e62a18eec5f79550c7faff886f7090b4ea757c77"
 dependencies = [
  "matchers",
  "nu-ansi-term 0.46.0",
@@ -6797,7 +6798,7 @@ dependencies = [
  "rand_core",
  "regex",
  "regex-syntax 0.6.29",
- "regex-syntax 0.7.0",
+ "regex-syntax 0.7.1",
  "reqwest",
  "ring",
  "rustix",

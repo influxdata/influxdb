@@ -49,9 +49,7 @@ impl TableNameResolver {
                     .get_by_id(table_id)
                     .await?
                     .unwrap_or_else(|| {
-                        panic!(
-                            "resolving table name for non-existent table id {table_id}"
-                        )
+                        panic!("resolving table name for non-existent table id {table_id}")
                     })
                     .name
                     .into();

@@ -16,6 +16,10 @@ use std::{
 };
 use uuid::Uuid;
 
+/// Maximum number of files deleted by [`ParquetFileRepo::delete_old_ids_only`] and
+/// [`ParquetFileRepo::flag_for_delete_by_retention`] at a time.
+pub const MAX_PARQUET_FILES_SELECTED_ONCE: i64 = 1_000;
+
 /// An error wrapper detailing the reason for a compare-and-swap failure.
 #[derive(Debug)]
 pub enum CasFailure<T> {
@@ -876,10 +880,6 @@ pub(crate) mod test_helpers {
         assert_metric_hit(&catalog.metrics(), "column_create_or_get");
 
         let catalog = clean_state().await;
-        test_shards(Arc::clone(&catalog)).await;
-        assert_metric_hit(&catalog.metrics(), "shard_create_or_get");
-
-        let catalog = clean_state().await;
         test_partition(Arc::clone(&catalog)).await;
         assert_metric_hit(&catalog.metrics(), "partition_create_or_get");
 
@@ -892,24 +892,22 @@ pub(crate) mod test_helpers {
         catalog.setup().await.expect("first catalog setup");
         catalog.setup().await.expect("second catalog setup");
 
-        if std::env::var("INFLUXDB_IOX_RPC_MODE").is_ok() {
-            let transition_shard = catalog
-                .repositories()
-                .await
-                .shards()
-                .get_by_topic_id_and_shard_index(SHARED_TOPIC_ID, TRANSITION_SHARD_INDEX)
-                .await
-                .expect("transition shard");
+        let transition_shard = catalog
+            .repositories()
+            .await
+            .shards()
+            .get_by_topic_id_and_shard_index(SHARED_TOPIC_ID, TRANSITION_SHARD_INDEX)
+            .await
+            .expect("transition shard");
 
-            assert_matches!(
-                transition_shard,
-                Some(Shard {
-                    id,
-                    shard_index,
-                    ..
-                }) if id == TRANSITION_SHARD_ID && shard_index == TRANSITION_SHARD_INDEX
-            );
-        }
+        assert_matches!(
+            transition_shard,
+            Some(Shard {
+                id,
+                shard_index,
+                ..
+            }) if id == TRANSITION_SHARD_ID && shard_index == TRANSITION_SHARD_INDEX
+        );
     }
 
     async fn test_topic(catalog: Arc<dyn Catalog>) {
@@ -1548,69 +1546,6 @@ pub(crate) mod test_helpers {
             .expect("delete namespace should succeed");
     }
 
-    async fn test_shards(catalog: Arc<dyn Catalog>) {
-        let mut repos = catalog.repositories().await;
-        let topic = repos.topics().create_or_get("shard_test").await.unwrap();
-
-        // Create 10 shards
-        let mut created = BTreeMap::new();
-        for shard_index in 1..=10 {
-            let shard = repos
-                .shards()
-                .create_or_get(&topic, ShardIndex::new(shard_index))
-                .await
-                .expect("failed to create shard");
-            created.insert(shard.id, shard);
-        }
-
-        // List them and assert they match
-        let listed = repos
-            .shards()
-            .list_by_topic(&topic)
-            .await
-            .expect("failed to list shards")
-            .into_iter()
-            .map(|v| (v.id, v))
-            .collect::<BTreeMap<_, _>>();
-
-        assert_eq!(created, listed);
-
-        // get by the topic and shard index
-        let shard_index = ShardIndex::new(1);
-        let shard = repos
-            .shards()
-            .get_by_topic_id_and_shard_index(topic.id, shard_index)
-            .await
-            .unwrap()
-            .unwrap();
-        assert_eq!(topic.id, shard.topic_id);
-        assert_eq!(shard_index, shard.shard_index);
-
-        // update the number
-        repos
-            .shards()
-            .update_min_unpersisted_sequence_number(shard.id, SequenceNumber::new(53))
-            .await
-            .unwrap();
-        let updated_shard = repos
-            .shards()
-            .create_or_get(&topic, shard_index)
-            .await
-            .unwrap();
-        assert_eq!(updated_shard.id, shard.id);
-        assert_eq!(
-            updated_shard.min_unpersisted_sequence_number,
-            SequenceNumber::new(53)
-        );
-
-        let shard = repos
-            .shards()
-            .get_by_topic_id_and_shard_index(topic.id, ShardIndex::new(523))
-            .await
-            .unwrap();
-        assert!(shard.is_none());
-    }
-
     async fn test_partition(catalog: Arc<dyn Catalog>) {
         let mut repos = catalog.repositories().await;
         let topic = repos.topics().create_or_get("foo").await.unwrap();
@@ -1904,6 +1839,7 @@ pub(crate) mod test_helpers {
             .expect("delete namespace should succeed");
     }
 
+    /// tests many interactions with the catalog and parquet files. See the individual conditions herein
     async fn test_parquet_file(catalog: Arc<dyn Catalog>) {
         let mut repos = catalog.repositories().await;
         let topic = repos.topics().create_or_get("foo").await.unwrap();
@@ -2143,7 +2079,7 @@ pub(crate) mod test_helpers {
             min_time: Timestamp::new(50),
             max_time: Timestamp::new(60),
             max_sequence_number: SequenceNumber::new(11),
-            ..f1_params
+            ..f1_params.clone()
         };
         let f2 = repos
             .parquet_files()
@@ -2288,6 +2224,41 @@ pub(crate) mod test_helpers {
             .await
             .unwrap();
         assert!(ids.is_empty());
+
+        // test that flag_for_delete_by_retention respects UPDATE LIMIT
+        // create limit + the meaning of life parquet files that are all older than the retention (>1hr)
+        const LIMIT: usize = 1000;
+        const MOL: usize = 42;
+        for _ in 0..LIMIT + MOL {
+            let params = ParquetFileParams {
+                object_store_id: Uuid::new_v4(),
+                max_time: Timestamp::new(
+                    // a bit over an hour ago
+                    (catalog.time_provider().now() - Duration::from_secs(60 * 65))
+                        .timestamp_nanos(),
+                ),
+                ..f1_params.clone()
+            };
+            repos.parquet_files().create(params.clone()).await.unwrap();
+        }
+        let ids = repos
+            .parquet_files()
+            .flag_for_delete_by_retention()
+            .await
+            .unwrap();
+        assert_eq!(ids.len(), LIMIT);
+        let ids = repos
+            .parquet_files()
+            .flag_for_delete_by_retention()
+            .await
+            .unwrap();
+        assert_eq!(ids.len(), MOL); // second call took remainder
+        let ids = repos
+            .parquet_files()
+            .flag_for_delete_by_retention()
+            .await
+            .unwrap();
+        assert_eq!(ids.len(), 0); // none left
     }
 
     async fn test_parquet_file_delete_broken(catalog: Arc<dyn Catalog>) {

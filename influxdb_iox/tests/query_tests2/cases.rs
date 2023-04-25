@@ -50,6 +50,18 @@ async fn basic() {
 }
 
 #[tokio::test]
+async fn date_bin() {
+    test_helpers::maybe_start_logging();
+
+    TestCase {
+        input: "cases/in/date_bin.sql",
+        chunk_stage: ChunkStage::All,
+    }
+    .run()
+    .await;
+}
+
+#[tokio::test]
 async fn dedup_and_predicates_parquet() {
     test_helpers::maybe_start_logging();
 

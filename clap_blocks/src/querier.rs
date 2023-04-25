@@ -1,11 +1,18 @@
 //! Querier-related configs.
 
-use crate::ingester_address::IngesterAddress;
+use crate::{
+    ingester_address::IngesterAddress,
+    single_tenant::{CONFIG_AUTHZ_ENV_NAME, CONFIG_AUTHZ_FLAG},
+};
 use std::{collections::HashMap, num::NonZeroUsize};
 
 /// CLI config for querier configuration
 #[derive(Debug, Clone, PartialEq, Eq, clap::Parser)]
 pub struct QuerierConfig {
+    /// Addr for connection to authz
+    #[clap(long = CONFIG_AUTHZ_FLAG, env = CONFIG_AUTHZ_ENV_NAME)]
+    pub authz_address: Option<String>,
+
     /// The number of threads to use for queries.
     ///
     /// If not specified, defaults to the number of cores on the system

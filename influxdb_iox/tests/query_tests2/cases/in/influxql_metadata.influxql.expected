@@ -75,7 +75,6 @@ name: measurements
 +------+
 +------+
 -- InfluxQL: SHOW MEASUREMENTS WHERE time >= '2022-10-31T02:00:30Z';
--- Results After Sorting
 name: measurements
 +------+
 | name |
@@ -83,7 +82,6 @@ name: measurements
 | m0   |
 +------+
 -- InfluxQL: SHOW MEASUREMENTS WHERE tag0 = 'a';
--- Results After Sorting
 name: measurements
 +-------------+
 | name        |
@@ -92,7 +90,6 @@ name: measurements
 | select_test |
 +-------------+
 -- InfluxQL: SHOW MEASUREMENTS WHERE tag0 = 'a' AND tag1 = 'a';
--- Results After Sorting
 name: measurements
 +-------------+
 | name        |
@@ -100,7 +97,6 @@ name: measurements
 | select_test |
 +-------------+
 -- InfluxQL: SHOW MEASUREMENTS WHERE tag0 = "a";
--- Results After Sorting
 +------+
 | name |
 +------+
@@ -419,7 +415,6 @@ Error while planning query: This feature is not implemented: retention policy in
 -- InfluxQL: SHOW FIELD KEYS FROM x.y.my_db;
 Error while planning query: This feature is not implemented: database name in from clause
 -- InfluxQL: SHOW TAG VALUES WITH KEY = "tag0";
--- Results After Sorting
 name: m0
 +------+-------+
 | key  | value |
@@ -464,13 +459,11 @@ name: select_test
 | tag0 | b     |
 +------+-------+
 -- InfluxQL: SHOW TAG VALUES WITH KEY = "does_not_exist";
--- Results After Sorting
 +-----+-------+
 | key | value |
 +-----+-------+
 +-----+-------+
 -- InfluxQL: SHOW TAG VALUES WITH KEY != "tag0";
--- Results After Sorting
 name: cpu
 +------+-----------+
 | key  | value     |
@@ -542,7 +535,6 @@ name: time_test
 | tt_tag_late                  |                   |
 +------------------------------+-------------------+
 -- InfluxQL: SHOW TAG VALUES WITH KEY != "does_not_exist";
--- Results After Sorting
 name: cpu
 +------+-----------+
 | key  | value     |
@@ -642,7 +634,6 @@ name: time_test
 | tt_tag_late                  |                   |
 +------------------------------+-------------------+
 -- InfluxQL: SHOW TAG VALUES WITH KEY =~ /tag.*/;
--- Results After Sorting
 name: m0
 +------+-------+
 | key  | value |
@@ -724,7 +715,6 @@ name: time_test
 | tt_tag_late                  |                   |
 +------------------------------+-------------------+
 -- InfluxQL: SHOW TAG VALUES WITH KEY !~ /tag.*/;
--- Results After Sorting
 name: cpu
 +------+-----------+
 | key  | value     |
@@ -744,7 +734,6 @@ name: disk
 | host   | host1   |
 +--------+---------+
 -- InfluxQL: SHOW TAG VALUES WITH KEY IN ("device", "host", "device");
--- Results After Sorting
 name: cpu
 +------+-------+
 | key  | value |
@@ -761,7 +750,6 @@ name: disk
 | host   | host1   |
 +--------+---------+
 -- InfluxQL: SHOW TAG VALUES WITH KEY = "tag0" LIMIT 2;
--- Results After Sorting
 name: m0
 +------+-------+
 | key  | value |
@@ -797,7 +785,6 @@ name: select_test
 | tag0 | b     |
 +------+-------+
 -- InfluxQL: SHOW TAG VALUES WITH KEY = "tag0" OFFSET 1;
--- Results After Sorting
 name: m0
 +------+-------+
 | key  | value |
@@ -832,7 +819,6 @@ name: select_test
 | tag0 | b     |
 +------+-------+
 -- InfluxQL: SHOW TAG VALUES WITH KEY = "tag0" LIMIT 1 OFFSET 2;
--- Results After Sorting
 name: m0
 +------+-------+
 | key  | value |
@@ -846,7 +832,6 @@ name: m2
 | tag0 | val02 |
 +------+-------+
 -- InfluxQL: SHOW TAG VALUES FROM m0 WITH KEY = "tag0";
--- Results After Sorting
 name: m0
 +------+-------+
 | key  | value |
@@ -856,7 +841,6 @@ name: m0
 | tag0 | val02 |
 +------+-------+
 -- InfluxQL: SHOW TAG VALUES FROM m0,m1,m0 WITH KEY = "tag0";
--- Results After Sorting
 name: m0
 +------+-------+
 | key  | value |
@@ -873,7 +857,6 @@ name: m1
 | tag0 | val01 |
 +------+-------+
 -- InfluxQL: SHOW TAG VALUES FROM m1,m0,m1 WITH KEY = "tag0";
--- Results After Sorting
 name: m0
 +------+-------+
 | key  | value |
@@ -890,7 +873,6 @@ name: m1
 | tag0 | val01 |
 +------+-------+
 -- InfluxQL: SHOW TAG VALUES FROM /m.*/ WITH KEY = "tag0";
--- Results After Sorting
 name: m0
 +------+-------+
 | key  | value |
@@ -928,7 +910,6 @@ name: m3
 | tag0 | a     |
 +------+-------+
 -- InfluxQL: SHOW TAG VALUES FROM /d\isk/ WITH KEY = "device";
--- Results After Sorting
 name: disk
 +--------+---------+
 | key    | value   |
@@ -938,13 +919,11 @@ name: disk
 | device | disk1s5 |
 +--------+---------+
 -- InfluxQL: SHOW TAG VALUES FROM does_not_exist WITH KEY = "tag0";
--- Results After Sorting
 +-----+-------+
 | key | value |
 +-----+-------+
 +-----+-------+
 -- InfluxQL: SHOW TAG VALUES WITH KEY = "tt_tag";
--- Results After Sorting
 name: time_test
 +--------+-------------------+
 | key    | value             |
@@ -953,7 +932,6 @@ name: time_test
 | tt_tag | late              |
 +--------+-------------------+
 -- InfluxQL: SHOW TAG VALUES WITH KEY = "tt_tag" WHERE time >= '1990-01-01T00:00:00Z';
--- Results After Sorting
 name: time_test
 +--------+-------------------+
 | key    | value             |
@@ -962,7 +940,6 @@ name: time_test
 | tt_tag | late              |
 +--------+-------------------+
 -- InfluxQL: SHOW TAG VALUES WITH KEY = "tt_tag" WHERE time >= '2022-10-31T02:00:00Z';
--- Results After Sorting
 name: time_test
 +--------+-------+
 | key    | value |
@@ -970,7 +947,6 @@ name: time_test
 | tt_tag | late  |
 +--------+-------+
 -- InfluxQL: SHOW TAG VALUES WITH KEY = "tt_tag" WHERE time >= '1970-01-01T01:00:00Z';
--- Results After Sorting
 name: time_test
 +--------+-----------------------+
 | key    | value                 |
@@ -980,7 +956,6 @@ name: time_test
 | tt_tag | late                  |
 +--------+-----------------------+
 -- InfluxQL: SHOW TAG VALUES WITH KEY = "st_tag" WHERE tag0 = 'a';
--- Results After Sorting
 name: select_test
 +--------+-------+
 | key    | value |
@@ -989,7 +964,6 @@ name: select_test
 | st_tag | ab    |
 +--------+-------+
 -- InfluxQL: SHOW TAG VALUES WITH KEY = "st_tag" WHERE tag0 = 'a' AND tag1 = 'b';
--- Results After Sorting
 name: select_test
 +--------+-------+
 | key    | value |
@@ -997,7 +971,6 @@ name: select_test
 | st_tag | ab    |
 +--------+-------+
 -- InfluxQL: SHOW TAG VALUES WITH KEY = "st_tag" WHERE tag0 = "a";
--- Results After Sorting
 +-----+-------+
 | key | value |
 +-----+-------+
@@ -1312,7 +1285,6 @@ name: disk
 +--------+
 +--------+
 -- InfluxQL: SHOW TAG KEYS FROM time_test WHERE time >= '1990-01-01T00:00:00Z';
--- Results After Sorting
 name: time_test
 +--------------------------+
 | tagKey                   |
@@ -1322,7 +1294,6 @@ name: time_test
 | tt_tag_late              |
 +--------------------------+
 -- InfluxQL: SHOW TAG KEYS FROM time_test WHERE time >= '2022-10-31T02:00:00Z';
--- Results After Sorting
 name: time_test
 +-------------+
 | tagKey      |
@@ -1331,7 +1302,6 @@ name: time_test
 | tt_tag_late |
 +-------------+
 -- InfluxQL: SHOW TAG KEYS FROM time_test WHERE time >= '1970-01-01T01:00:00Z';
--- Results After Sorting
 name: time_test
 +------------------------------+
 | tagKey                       |
@@ -1342,7 +1312,6 @@ name: time_test
 | tt_tag_late                  |
 +------------------------------+
 -- InfluxQL: SHOW TAG KEYS FROM select_test WHERE tag0 = 'a';
--- Results After Sorting
 name: select_test
 +-----------+
 | tagKey    |
@@ -1354,7 +1323,6 @@ name: select_test
 | tag1      |
 +-----------+
 -- InfluxQL: SHOW TAG KEYS FROM select_test WHERE tag0 = 'a' AND tag1 = 'b';
--- Results After Sorting
 name: select_test
 +-----------+
 | tagKey    |
@@ -1365,13 +1333,11 @@ name: select_test
 | tag1      |
 +-----------+
 -- InfluxQL: SHOW TAG KEYS FROM select_test WHERE tag0 = "a";
--- Results After Sorting
 +--------+
 | tagKey |
 +--------+
 +--------+
 -- InfluxQL: SHOW TAG KEYS WHERE tag0 = 'a';
--- Results After Sorting
 name: m3
 +--------+
 | tagKey |

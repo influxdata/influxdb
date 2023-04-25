@@ -90,12 +90,6 @@ pub(crate) mod mock {
         }
     }
 
-    impl Default for MockNamespaceNameProvider {
-        fn default() -> Self {
-            Self::new("bananas")
-        }
-    }
-
     impl NamespaceNameProvider for MockNamespaceNameProvider {
         fn for_namespace(&self, _id: NamespaceId) -> DeferredLoad<NamespaceName> {
             let name = self.name.clone();

@@ -6,16 +6,17 @@ use crate::{
         sealed::TransactionFinalize, CasFailure, Catalog, ColumnRepo, ColumnTypeMismatchSnafu,
         Error, NamespaceRepo, ParquetFileRepo, PartitionRepo, QueryPoolRepo, RepoCollection,
         Result, ShardRepo, SoftDeletedRows, TableRepo, TopicMetadataRepo, Transaction,
+        MAX_PARQUET_FILES_SELECTED_ONCE,
     },
     metrics::MetricDecorator,
-    DEFAULT_MAX_COLUMNS_PER_TABLE, DEFAULT_MAX_TABLES,
+    DEFAULT_MAX_COLUMNS_PER_TABLE, DEFAULT_MAX_TABLES, SHARED_TOPIC_ID, SHARED_TOPIC_NAME,
 };
 use async_trait::async_trait;
 use data_types::{
     Column, ColumnId, ColumnType, CompactionLevel, Namespace, NamespaceId, ParquetFile,
     ParquetFileId, ParquetFileParams, Partition, PartitionId, PartitionKey, QueryPool, QueryPoolId,
     SequenceNumber, Shard, ShardId, ShardIndex, SkippedCompaction, Table, TableId, Timestamp,
-    TopicId, TopicMetadata,
+    TopicId, TopicMetadata, TRANSITION_SHARD_ID, TRANSITION_SHARD_INDEX,
 };
 use iox_time::{SystemProvider, TimeProvider};
 use observability_deps::tracing::warn;
@@ -123,7 +124,35 @@ impl Display for MemCatalog {
 #[async_trait]
 impl Catalog for MemCatalog {
     async fn setup(&self) -> Result<(), Error> {
-        // nothing to do
+        let guard = Arc::clone(&self.collections).lock_owned().await;
+        let stage = guard.clone();
+        let mut transaction = MemTxn {
+            inner: MemTxnInner::Txn {
+                guard,
+                stage,
+                finalized: false,
+            },
+            time_provider: self.time_provider(),
+        };
+        let stage = transaction.stage();
+
+        // We need to manually insert the topic here so that we can create the transition shard
+        // below.
+        let topic = TopicMetadata {
+            id: SHARED_TOPIC_ID,
+            name: SHARED_TOPIC_NAME.to_string(),
+        };
+        stage.topics.push(topic.clone());
+
+        // The transition shard must exist and must have magic ID and INDEX.
+        let shard = Shard {
+            id: TRANSITION_SHARD_ID,
+            topic_id: topic.id,
+            shard_index: TRANSITION_SHARD_INDEX,
+            min_unpersisted_sequence_number: SequenceNumber::new(0),
+        };
+        stage.shards.push(shard);
+        transaction.commit_inplace().await?;
         Ok(())
     }
 
@@ -664,21 +693,23 @@ impl ShardRepo for MemTxn {
     async fn create_or_get(
         &mut self,
         topic: &TopicMetadata,
-        shard_index: ShardIndex,
+        _shard_index: ShardIndex,
     ) -> Result<Shard> {
         let stage = self.stage();
 
+        // Temporary: only ever create the transition shard, no matter what is asked. Shards are
+        // going away completely soon.
         let shard = match stage
             .shards
             .iter()
-            .find(|s| s.topic_id == topic.id && s.shard_index == shard_index)
+            .find(|s| s.topic_id == topic.id && s.shard_index == TRANSITION_SHARD_INDEX)
         {
             Some(t) => t,
             None => {
                 let shard = Shard {
-                    id: ShardId::new(stage.shards.len() as i64 + 1),
+                    id: TRANSITION_SHARD_ID,
                     topic_id: topic.id,
-                    shard_index,
+                    shard_index: TRANSITION_SHARD_INDEX,
                     min_unpersisted_sequence_number: SequenceNumber::new(0),
                 };
                 stage.shards.push(shard);
@@ -1004,6 +1035,7 @@ impl ParquetFileRepo for MemTxn {
                         })
                     })
             })
+            .take(MAX_PARQUET_FILES_SELECTED_ONCE as usize)
             .collect())
     }
 
@@ -1060,7 +1092,11 @@ impl ParquetFileRepo for MemTxn {
 
         stage.parquet_files = keep;
 
-        let delete = delete.into_iter().map(|f| f.id).collect();
+        let delete = delete
+            .into_iter()
+            .take(MAX_PARQUET_FILES_SELECTED_ONCE as usize)
+            .map(|f| f.id)
+            .collect();
         Ok(delete)
     }
 

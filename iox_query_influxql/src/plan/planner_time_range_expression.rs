@@ -4,6 +4,7 @@ use crate::plan::util::binary_operator_to_df_operator;
 use datafusion::common::{DataFusionError, Result, ScalarValue};
 use datafusion::logical_expr::{binary_expr, lit, now, BinaryExpr, Expr as DFExpr, Operator};
 use influxdb_influxql_parser::expression::{Binary, BinaryOperator, Call};
+use influxdb_influxql_parser::functions::is_now_function;
 use influxdb_influxql_parser::{expression::Expr, literal::Literal};
 
 type ExprResult = Result<DFExpr>;
@@ -103,7 +104,7 @@ fn reduce_expr(expr: &Expr, tz: Option<chrono_tz::Tz>) -> ExprResult {
     match expr {
         Expr::Binary(v) => reduce_binary_expr(v, tz).map_err(map_expr_err(expr)),
         Expr::Call (Call { name, .. }) => {
-            if !name.eq_ignore_ascii_case("now") {
+            if !is_now_function(name) {
                 return error::query(
                     format!("invalid function call '{name}'"),
                 );

@@ -16,8 +16,8 @@
 use std::time::Duration;
 
 use data_types::{
-    DeletePredicate, NamespaceId, NonEmptyString, PartitionKey, Sequence, StatValues, Statistics,
-    TableId,
+    DeletePredicate, NamespaceId, NonEmptyString, PartitionKey, SequenceNumber, StatValues,
+    Statistics, TableId,
 };
 use hashbrown::HashMap;
 use iox_time::{Time, TimeProvider};
@@ -28,7 +28,7 @@ use trace::ctx::SpanContext;
 #[derive(Debug, Default, Clone, PartialEq)]
 pub struct DmlMeta {
     /// The sequence number associated with this write
-    sequence: Option<Sequence>,
+    sequence_number: Option<SequenceNumber>,
 
     /// When this write was ingested into the write buffer
     producer_ts: Option<Time>,
@@ -43,13 +43,13 @@ pub struct DmlMeta {
 impl DmlMeta {
     /// Create a new [`DmlMeta`] for a sequenced operation
     pub fn sequenced(
-        sequence: Sequence,
+        sequence_number: SequenceNumber,
         producer_ts: Time,
         span_ctx: Option<SpanContext>,
         bytes_read: usize,
     ) -> Self {
         Self {
-            sequence: Some(sequence),
+            sequence_number: Some(sequence_number),
             producer_ts: Some(producer_ts),
             span_ctx,
             bytes_read: Some(bytes_read),
@@ -59,7 +59,7 @@ impl DmlMeta {
     /// Create a new [`DmlMeta`] for an unsequenced operation
     pub fn unsequenced(span_ctx: Option<SpanContext>) -> Self {
         Self {
-            sequence: None,
+            sequence_number: None,
             producer_ts: None,
             span_ctx,
             bytes_read: None,
@@ -67,8 +67,8 @@ impl DmlMeta {
     }
 
     /// Gets the sequence number associated with the write if any
-    pub fn sequence(&self) -> Option<&Sequence> {
-        self.sequence.as_ref()
+    pub fn sequence(&self) -> Option<SequenceNumber> {
+        self.sequence_number
     }
 
     /// Gets the producer timestamp associated with the write if any
@@ -438,7 +438,7 @@ pub mod test_util {
             Time::from_timestamp_millis(timestamp.timestamp_millis()).expect("ts in range");
 
         DmlMeta::sequenced(
-            *m.sequence().unwrap(),
+            m.sequence().unwrap(),
             timestamp,
             m.span_context().cloned(),
             m.bytes_read().unwrap(),

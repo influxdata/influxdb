@@ -9,7 +9,7 @@ use parking_lot::Mutex;
 use super::r#trait::PartitionProvider;
 use crate::{
     buffer_tree::{namespace::NamespaceName, partition::PartitionData, table::TableName},
-    deferred_load::DeferredLoad,
+    deferred_load::{self, DeferredLoad},
 };
 
 /// A mock [`PartitionProvider`] for testing that returns pre-initialised
@@ -65,8 +65,27 @@ impl PartitionProvider for MockPartitionProvider {
             });
 
         assert_eq!(p.namespace_id(), namespace_id);
-        assert_eq!(p.namespace_name().to_string(), namespace_name.to_string());
-        assert_eq!(p.table_name().to_string(), table_name.to_string());
+
+        let actual_namespace_name = p.namespace_name().to_string();
+        let expected_namespace_name = namespace_name.get().await.to_string();
+        assert!(
+            (actual_namespace_name.as_str() == expected_namespace_name)
+                || (actual_namespace_name == deferred_load::UNRESOLVED_DISPLAY_STRING),
+            "unexpected namespace name: {actual_namespace_name}. \
+            expected {expected_namespace_name} or {}",
+            deferred_load::UNRESOLVED_DISPLAY_STRING,
+        );
+
+        let actual_table_name = p.table_name().to_string();
+        let expected_table_name = table_name.get().await.to_string();
+        assert!(
+            (actual_table_name.as_str() == expected_table_name)
+                || (actual_table_name == deferred_load::UNRESOLVED_DISPLAY_STRING),
+            "unexpected table name: {actual_table_name}. \
+            expected {expected_table_name} or {}",
+            deferred_load::UNRESOLVED_DISPLAY_STRING,
+        );
+
         Arc::new(Mutex::new(p))
     }
 }
