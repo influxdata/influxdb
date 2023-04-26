@@ -288,6 +288,11 @@ impl Schema {
         self.find_index_of(name).map(|index| self.field(index))
     }
 
+    /// Return the [`InfluxColumnType`] for the field identified by `name`.
+    pub fn field_type_by_name(&self, name: &str) -> Option<InfluxColumnType> {
+        self.field_by_name(name).map(|(t, _)| t)
+    }
+
     /// Find the index of the column with the given name, if any.
     pub fn find_index_of(&self, name: &str) -> Option<usize> {
         self.inner.index_of(name).ok()
