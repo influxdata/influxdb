@@ -3,29 +3,11 @@
 use std::sync::Arc;
 
 use authz::{
-    self, http::AuthorizationHeaderExtension, Action, Authorizer, Error, Permission, Resource,
+    self, extract_token, http::AuthorizationHeaderExtension, Action, Authorizer, Error, Permission,
+    Resource,
 };
-use base64::{prelude::BASE64_STANDARD, Engine};
 use data_types::NamespaceName;
-use hyper::{header::HeaderValue, Body, Request};
-
-fn extract_header_token(header_value: &'_ HeaderValue) -> Option<Vec<u8>> {
-    let mut parts = header_value.as_bytes().splitn(2, |&v| v == b' ');
-    let token = match parts.next()? {
-        b"Token" | b"Bearer" => parts.next()?.to_vec(),
-        b"Basic" => parts
-            .next()
-            .and_then(|v| BASE64_STANDARD.decode(v).ok())?
-            .splitn(2, |&v| v == b':')
-            .nth(1)?
-            .to_vec(),
-        _ => return None,
-    };
-    if token.is_empty() {
-        return None;
-    }
-    Some(token)
-}
+use hyper::{Body, Request};
 
 pub(crate) async fn authorize(
     authz: &Arc<dyn Authorizer>,
@@ -33,21 +15,19 @@ pub(crate) async fn authorize(
     namespace: &NamespaceName<'_>,
     query_param_token: Option<String>,
 ) -> Result<(), Error> {
-    let token = req
-        .extensions()
-        .get::<AuthorizationHeaderExtension>()
-        .and_then(|v| v.as_ref())
-        .and_then(extract_header_token)
-        .or_else(|| query_param_token.map(|t| t.into_bytes()));
+    let token = extract_token(
+        req.extensions()
+            .get::<AuthorizationHeaderExtension>()
+            .and_then(|v| v.as_ref()),
+    )
+    .or_else(|| query_param_token.map(|t| t.into_bytes()));
 
     let perms = [Permission::ResourceAction(
         Resource::Database(namespace.to_string()),
         Action::Write,
     )];
 
-    authz
-        .require_any_permission(token.as_deref(), &perms)
-        .await?;
+    authz.require_any_permission(token, &perms).await?;
     Ok(())
 }
 
@@ -68,13 +48,16 @@ pub mod mock {
     impl Authorizer for MockAuthorizer {
         async fn permissions(
             &self,
-            token: Option<&[u8]>,
+            token: Option<Vec<u8>>,
             perms: &[Permission],
         ) -> Result<Vec<Permission>, authz::Error> {
             match token {
-                Some(b"GOOD") => Ok(perms.to_vec()),
-                Some(b"UGLY") => Err(authz::Error::verification("test", "test error")),
-                Some(_) => Ok(vec![]),
+                Some(token) => match (&token as &dyn AsRef<[u8]>).as_ref() {
+                    b"GOOD" => Ok(perms.to_vec()),
+                    b"BAD" => Ok(vec![]),
+                    b"UGLY" => Err(authz::Error::verification("test", "test error")),
+                    _ => panic!("unexpected token"),
+                },
                 None => Err(authz::Error::NoToken),
             }
         }
@@ -84,6 +67,7 @@ pub mod mock {
 #[cfg(test)]
 mod tests {
     use assert_matches::assert_matches;
+    use base64::{prelude::BASE64_STANDARD, Engine};
     use data_types::NamespaceId;
     use hyper::header::HeaderValue;
 

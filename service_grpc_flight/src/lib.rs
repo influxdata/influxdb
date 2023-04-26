@@ -11,7 +11,7 @@ use arrow_flight::{
     Action, ActionType, Criteria, Empty, FlightData, FlightDescriptor, FlightEndpoint, FlightInfo,
     HandshakeRequest, HandshakeResponse, PutResult, SchemaResult, Ticket,
 };
-use authz::Authorizer;
+use authz::{extract_token, Authorizer};
 use data_types::NamespaceNameError;
 use datafusion::{error::DataFusionError, physical_plan::ExecutionPlan};
 use flightsql::FlightSQLCommand;
@@ -27,7 +27,10 @@ use request::{IoxGetRequest, RunQuery};
 use service_common::{datafusion_error_to_tonic_code, planner::Planner, QueryNamespaceProvider};
 use snafu::{OptionExt, ResultExt, Snafu};
 use std::{fmt::Debug, pin::Pin, sync::Arc, task::Poll, time::Instant};
-use tonic::{metadata::MetadataMap, Request, Response, Streaming};
+use tonic::{
+    metadata::{AsciiMetadataValue, MetadataMap},
+    Request, Response, Streaming,
+};
 use trace::{ctx::SpanContext, span::SpanExt};
 use trace_http::ctx::{RequestLogContext, RequestLogContextExt};
 use tracker::InstrumentedAsyncOwnedSemaphorePermit;
@@ -486,7 +489,7 @@ where
             )],
         };
         self.authz
-            .require_any_permission(authz_token.as_deref(), &perms)
+            .require_any_permission(authz_token, &perms)
             .await
             .map_err(Error::from)?;
 
@@ -522,18 +525,40 @@ where
         &self,
         request: Request<Streaming<HandshakeRequest>>,
     ) -> Result<Response<Self::HandshakeStream>, tonic::Status> {
+        // Note that the JDBC driver doesn't send the iox-namespace-name metadata
+        // in the handshake request, even if configured in the JDBC URL,
+        // so we cannot actually do any access checking here.
+        let authz_token = get_flight_authz(request.metadata());
+
         let request = request
             .into_inner()
             .message()
             .await?
             .context(InvalidHandshakeSnafu)?;
 
+        // The handshake method is used for authentication. IOx ignores the
+        // username and returns the password itself as the token to use for
+        // subsequent requests
+        let response_header = authz_token
+            .map(|mut v| {
+                let mut nv = b"Bearer ".to_vec();
+                nv.append(&mut v);
+                nv
+            })
+            .map(AsciiMetadataValue::try_from)
+            .transpose()
+            .map_err(|e| tonic::Status::invalid_argument(e.to_string()))?;
+
         let response = HandshakeResponse {
             protocol_version: request.protocol_version,
             payload: request.payload,
         };
         let output = futures::stream::iter(std::iter::once(Ok(response)));
-        Ok(Response::new(Box::pin(output) as Self::HandshakeStream))
+        let mut response = Response::new(Box::pin(output) as Self::HandshakeStream);
+        if let Some(header) = response_header {
+            response.metadata_mut().insert("authorization", header);
+        }
+        Ok(response)
     }
 
     async fn list_flights(
@@ -568,7 +593,7 @@ where
 
         let perms = flightsql_permissions(&namespace_name, &cmd);
         self.authz
-            .require_any_permission(authz_token.as_deref(), &perms)
+            .require_any_permission(authz_token, &perms)
             .await
             .map_err(Error::from)?;
 
@@ -657,7 +682,7 @@ where
 
         let perms = flightsql_permissions(&namespace_name, &cmd);
         self.authz
-            .require_any_permission(authz_token.as_deref(), &perms)
+            .require_any_permission(authz_token, &perms)
             .await
             .map_err(Error::from)?;
 
@@ -761,14 +786,7 @@ fn get_flightsql_namespace(metadata: &MetadataMap) -> Result<String> {
 
 /// Retrieve the authorization token associated with the request.
 fn get_flight_authz(metadata: &MetadataMap) -> Option<Vec<u8>> {
-    let val = metadata.get("authorization")?.as_ref();
-    if val.len() < b"Bearer ".len() {
-        return None;
-    }
-    match val.split_at(b"Bearer ".len()) {
-        (b"Bearer ", token) => Some(token.to_vec()),
-        _ => None,
-    }
+    extract_token(metadata.get("authorization"))
 }
 
 fn flightsql_permissions(namespace_name: &str, cmd: &FlightSQLCommand) -> Vec<authz::Permission> {
@@ -1050,14 +1068,16 @@ mod tests {
     impl Authorizer for MockAuthorizer {
         async fn permissions(
             &self,
-            token: Option<&[u8]>,
+            token: Option<Vec<u8>>,
             perms: &[Permission],
         ) -> Result<Vec<Permission>, authz::Error> {
             match token {
-                Some(b"GOOD") => Ok(perms.to_vec()),
-                Some(b"BAD") => Ok(vec![]),
-                Some(b"UGLY") => Err(authz::Error::verification("test", "test error")),
-                Some(_) => panic!("unexpected token"),
+                Some(token) => match (&token as &dyn AsRef<[u8]>).as_ref() {
+                    b"GOOD" => Ok(perms.to_vec()),
+                    b"BAD" => Ok(vec![]),
+                    b"UGLY" => Err(authz::Error::verification("test", "test error")),
+                    _ => panic!("unexpected token"),
+                },
                 None => Err(authz::Error::NoToken),
             }
         }
