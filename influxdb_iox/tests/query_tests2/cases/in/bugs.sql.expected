@@ -1,0 +1,15 @@
+-- Test Setup: Bugs
+-- SQL: SELECT id FROM checks WHERE id in ('2','3','4','5');
++----+
+| id |
++----+
++----+
+-- SQL: SELECT id FROM checks WHERE id in ('1', '2','3','4','5');
++----+
+| id |
++----+
+| 1  |
+| 1  |
+| 1  |
+| 1  |
++----+
