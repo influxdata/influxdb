@@ -40,7 +40,7 @@ pub(crate) fn field_name(f: &Field) -> String {
 /// This implementation duplicates the behavior of the original implementation, including skipping the
 /// first argument. It is likely the original intended to skip the _last_ argument, which is the number
 /// of rows.
-pub(crate) fn field_by_name(select: &SelectStatement, name: &str) -> Option<Field> {
+pub(crate) fn field_by_name<'a>(select: &'a SelectStatement, name: &str) -> Option<&'a Field> {
     select.fields
         .iter()
         .find(|f| {
@@ -52,7 +52,6 @@ pub(crate) fn field_by_name(select: &SelectStatement, name: &str) -> Option<Fiel
                 _ => false,
             }
         })
-        .cloned()
 }
 
 struct BinaryExprNameVisitor<'a>(&'a mut Vec<String>);
