@@ -3,7 +3,9 @@ use crate::plan::field_mapper::map_type;
 use crate::plan::{error, SchemaProvider};
 use datafusion::common::Result;
 use influxdb_influxql_parser::common::{MeasurementName, QualifiedMeasurementName};
-use influxdb_influxql_parser::expression::{Call, Expr, VarRef, VarRefDataType};
+use influxdb_influxql_parser::expression::{
+    Binary, BinaryOperator, Call, Expr, VarRef, VarRefDataType,
+};
 use influxdb_influxql_parser::literal::Literal;
 use influxdb_influxql_parser::select::{Dimension, FromMeasurementClause, MeasurementSelection};
 use itertools::Itertools;
@@ -33,9 +35,7 @@ impl<'a> TypeEvaluator<'a> {
         Ok(match expr {
             Expr::VarRef(v) => self.eval_var_ref(v)?,
             Expr::Call(v) => self.eval_call(v)?,
-            // NOTE: This is a deviation from https://github.com/influxdata/influxql/blob/1ba470371ec093d57a726b143fe6ccbacf1b452b/ast.go#L4635,
-            // as we'll let DataFusion determine the column type and if the types are compatible.
-            Expr::Binary { .. } => None,
+            Expr::Binary(expr) => self.eval_binary_expr_type(expr)?,
             Expr::Nested(expr) => self.eval_type(expr)?,
             Expr::Literal(Literal::Float(_)) => Some(VarRefDataType::Float),
             Expr::Literal(Literal::Unsigned(_)) => Some(VarRefDataType::Unsigned),
@@ -50,6 +50,34 @@ impl<'a> TypeEvaluator<'a> {
             | Expr::Literal(Literal::Regex(_))
             | Expr::Literal(Literal::Timestamp(_)) => None,
         })
+    }
+
+    fn eval_binary_expr_type(&self, expr: &Binary) -> Result<Option<VarRefDataType>> {
+        let (lhs, op, rhs) = (
+            self.eval_type(&expr.lhs)?,
+            expr.op,
+            self.eval_type(&expr.rhs)?,
+        );
+
+        // Deviation from InfluxQL OG, which fails if one operand is unsigned and the other is
+        // an integer. This will let some additional queries succeed that would otherwise have
+        // failed.
+        //
+        // In this case, we will let DataFusion handle automatic coercion, rather than fail.
+        //
+        // See: https://github.com/influxdata/influxql/blob/802555d6b3a35cd464a6d8afa2a6511002cf3c2c/ast.go#L4729-L4730
+
+        match (lhs, rhs) {
+            (Some(dt), None) | (None, Some(dt)) => Ok(Some(dt)),
+            (None, None) => Ok(None),
+            (Some(lhs), Some(rhs)) => Ok(Some(binary_data_type(lhs, expr.op, rhs).ok_or_else(
+                || {
+                    error::map::query(format!(
+                        "incompatible operands for operator {op}: {lhs} and {rhs}"
+                    ))
+                },
+            )?)),
+        }
     }
 
     /// Returns the type for the specified [`Expr`].
@@ -167,12 +195,120 @@ impl<'a> TypeEvaluator<'a> {
     }
 }
 
+/// Determine the data type of the binary expression using the left and right operands and the operator
+///
+/// This logic is derived from [InfluxQL OG][og].
+///
+/// [og]: https://github.com/influxdata/influxql/blob/802555d6b3a35cd464a6d8afa2a6511002cf3c2c/ast.go#L4192
+fn binary_data_type(
+    lhs: VarRefDataType,
+    op: BinaryOperator,
+    rhs: VarRefDataType,
+) -> Option<VarRefDataType> {
+    use BinaryOperator::*;
+    use VarRefDataType::{Boolean, Float, Integer, Unsigned};
+
+    match (lhs, op, rhs) {
+        // Boolean only supports bitwise operators.
+        //
+        // See:
+        // * https://github.com/influxdata/influxql/blob/802555d6b3a35cd464a6d8afa2a6511002cf3c2c/ast.go#L4210
+        (Boolean, BitwiseAnd | BitwiseOr | BitwiseXor, Boolean) => Some(Boolean),
+
+        // A float for either operand is a float result, but only
+        // support the +, -, * / and % operators.
+        //
+        // See:
+        // * https://github.com/influxdata/influxql/blob/802555d6b3a35cd464a6d8afa2a6511002cf3c2c/ast.go#L4228
+        // * https://github.com/influxdata/influxql/blob/802555d6b3a35cd464a6d8afa2a6511002cf3c2c/ast.go#L4285
+        // * https://github.com/influxdata/influxql/blob/802555d6b3a35cd464a6d8afa2a6511002cf3c2c/ast.go#L4411
+        (Float, Add | Sub | Mul | Div | Mod, Float | Integer | Unsigned)
+        | (Integer | Unsigned, Add | Sub | Mul | Div | Mod, Float) => Some(Float),
+
+        // Integer and unsigned types support all operands and
+        // the result is the same type if both operands are the same.
+        //
+        // See:
+        // * https://github.com/influxdata/influxql/blob/802555d6b3a35cd464a6d8afa2a6511002cf3c2c/ast.go#L4314
+        // * https://github.com/influxdata/influxql/blob/802555d6b3a35cd464a6d8afa2a6511002cf3c2c/ast.go#L4489
+        (Integer, _, Integer) | (Unsigned, _, Unsigned) => Some(lhs),
+
+        // If either side is unsigned, and the other is integer,
+        // the result is unsigned for all operators.
+        //
+        // See:
+        // * https://github.com/influxdata/influxql/blob/802555d6b3a35cd464a6d8afa2a6511002cf3c2c/ast.go#L4358
+        // * https://github.com/influxdata/influxql/blob/802555d6b3a35cd464a6d8afa2a6511002cf3c2c/ast.go#L4440
+        (Unsigned, _, Integer) | (Integer, _, Unsigned) => Some(Unsigned),
+
+        // String or any other combination of operator and operands are invalid
+        //
+        // See:
+        // * https://github.com/influxdata/influxql/blob/802555d6b3a35cd464a6d8afa2a6511002cf3c2c/ast.go#L4562
+        _ => None,
+    }
+}
+
 #[cfg(test)]
 mod test {
-    use crate::plan::expr_type_evaluator::evaluate_type;
+    use crate::plan::expr_type_evaluator::{binary_data_type, evaluate_type};
     use crate::plan::test_utils::{parse_select, MockSchemaProvider};
     use assert_matches::assert_matches;
+    use datafusion::common::DataFusionError;
     use influxdb_influxql_parser::expression::VarRefDataType;
+    use itertools::iproduct;
+
+    #[test]
+    fn test_binary_data_type() {
+        use influxdb_influxql_parser::expression::BinaryOperator::*;
+        use VarRefDataType::{Boolean, Float, Integer, String, Tag, Timestamp, Unsigned};
+
+        // Boolean ok
+        for op in [BitwiseAnd, BitwiseOr, BitwiseXor] {
+            assert_matches!(
+                binary_data_type(Boolean, op, Boolean),
+                Some(VarRefDataType::Boolean)
+            );
+        }
+
+        // Boolean !ok
+        for op in [Add, Sub, Div, Mul, Mod] {
+            assert_matches!(binary_data_type(Boolean, op, Boolean), None);
+        }
+
+        // Float ok
+        for (op, operand) in iproduct!([Add, Sub, Div, Mul, Mod], [Float, Integer, Unsigned]) {
+            assert_matches!(binary_data_type(Float, op, operand), Some(Float));
+            assert_matches!(binary_data_type(operand, op, Float), Some(Float));
+        }
+
+        // Float !ok
+        for (op, operand) in iproduct!(
+            [BitwiseAnd, BitwiseOr, BitwiseXor],
+            [Float, Integer, Unsigned]
+        ) {
+            assert_matches!(binary_data_type(Float, op, operand), None);
+            assert_matches!(binary_data_type(operand, op, Float), None);
+        }
+
+        // Integer op Integer | Unsigned op Unsigned
+        for op in [Add, Sub, Div, Mul, Mod, BitwiseAnd, BitwiseOr, BitwiseXor] {
+            assert_matches!(binary_data_type(Integer, op, Integer), Some(Integer));
+            assert_matches!(binary_data_type(Unsigned, op, Unsigned), Some(Unsigned));
+        }
+
+        // Unsigned op Integer | Integer op Unsigned
+        for op in [Add, Sub, Div, Mul, Mod, BitwiseAnd, BitwiseOr, BitwiseXor] {
+            assert_matches!(binary_data_type(Integer, op, Unsigned), Some(Unsigned));
+            assert_matches!(binary_data_type(Unsigned, op, Integer), Some(Unsigned));
+        }
+
+        // Fallible cases
+
+        assert_matches!(binary_data_type(Tag, Add, Tag), None);
+        assert_matches!(binary_data_type(String, Add, String), None);
+        assert_matches!(binary_data_type(Timestamp, Add, Timestamp), None);
+    }
 
     #[test]
     fn test_evaluate_type() {
@@ -227,6 +363,32 @@ mod test {
             .unwrap()
             .unwrap();
         assert_matches!(res, VarRefDataType::Float);
+
+        //
+        // Binary expressions
+        //
+
+        let stmt = parse_select("SELECT field_f64 + field_i64 FROM all_types");
+        let field = stmt.fields.head().unwrap();
+        let res = evaluate_type(&namespace, &field.expr, &stmt.from)
+            .unwrap()
+            .unwrap();
+        assert_matches!(res, VarRefDataType::Float);
+
+        let stmt = parse_select("SELECT field_bool | field_bool FROM all_types");
+        let field = stmt.fields.head().unwrap();
+        let res = evaluate_type(&namespace, &field.expr, &stmt.from)
+            .unwrap()
+            .unwrap();
+        assert_matches!(res, VarRefDataType::Boolean);
+
+        // Fallible
+
+        // Verify incompatible operators and operator error
+        let stmt = parse_select("SELECT field_f64 & field_i64 FROM all_types");
+        let field = stmt.fields.head().unwrap();
+        let res = evaluate_type(&namespace, &field.expr, &stmt.from);
+        assert_matches!(res, Err(DataFusionError::Plan(ref s)) if s == "incompatible operands for operator &: float and integer");
 
         // data types for functions
         let stmt = parse_select("SELECT SUM(field_f64) FROM temp_01");

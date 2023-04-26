@@ -118,6 +118,18 @@ pub(crate) mod database {
                 .influx_field("col2", InfluxFieldType::String)
                 .build()
                 .unwrap(),
+            // Schema with all types
+            SchemaBuilder::new()
+                .measurement("all_types")
+                .timestamp()
+                .tag("tag0")
+                .influx_field("field_f64", InfluxFieldType::Float)
+                .influx_field("field_i64", InfluxFieldType::Integer)
+                .influx_field("field_u64", InfluxFieldType::UInteger)
+                .influx_field("field_str", InfluxFieldType::String)
+                .influx_field("field_bool", InfluxFieldType::Boolean)
+                .build()
+                .unwrap(),
         ]
     }
 }
