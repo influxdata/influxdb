@@ -90,8 +90,8 @@ use base64::{prelude::BASE64_STANDARD, Engine};
 use bytes::Bytes;
 use data_types::{
     ColumnId, ColumnSet, ColumnSummary, CompactionLevel, InfluxDbType, NamespaceId,
-    ParquetFileParams, PartitionId, PartitionKey, SequenceNumber, ShardId, StatValues, Statistics,
-    TableId, Timestamp,
+    ParquetFileParams, PartitionId, PartitionKey, SequenceNumber, StatValues, Statistics, TableId,
+    Timestamp,
 };
 use generated_types::influxdata::iox::ingester::v1 as proto;
 use iox_time::Time;
@@ -262,9 +262,6 @@ pub struct IoxMetadata {
     /// namespace name of the data
     pub namespace_name: Arc<str>,
 
-    /// shard id of the data
-    pub shard_id: ShardId,
-
     /// table id of the data
     pub table_id: TableId,
 
@@ -339,7 +336,6 @@ impl IoxMetadata {
             creation_timestamp: Some(self.creation_timestamp.date_time().into()),
             namespace_id: self.namespace_id.get(),
             namespace_name: self.namespace_name.to_string(),
-            shard_id: self.shard_id.get(),
             table_id: self.table_id.get(),
             table_name: self.table_name.to_string(),
             partition_id: self.partition_id.get(),
@@ -392,7 +388,6 @@ impl IoxMetadata {
             creation_timestamp,
             namespace_id: NamespaceId::new(proto_msg.namespace_id),
             namespace_name,
-            shard_id: ShardId::new(proto_msg.shard_id),
             table_id: TableId::new(proto_msg.table_id),
             table_name,
             partition_id: PartitionId::new(proto_msg.partition_id),
@@ -418,7 +413,6 @@ impl IoxMetadata {
             creation_timestamp: Time::from_timestamp_nanos(creation_timestamp_ns),
             namespace_id: NamespaceId::new(1),
             namespace_name: "external".into(),
-            shard_id: ShardId::new(1),
             table_id: TableId::new(1),
             table_name: table_name.into(),
             partition_id: PartitionId::new(1),
@@ -501,7 +495,6 @@ impl IoxMetadata {
         };
 
         ParquetFileParams {
-            shard_id: self.shard_id,
             namespace_id: self.namespace_id,
             table_id: self.table_id,
             partition_id: self.partition_id,
@@ -1020,7 +1013,6 @@ mod tests {
             creation_timestamp: create_time,
             namespace_id: NamespaceId::new(2),
             namespace_name: Arc::from("hi"),
-            shard_id: ShardId::new(1),
             table_id: TableId::new(3),
             table_name: Arc::from("weather"),
             partition_id: PartitionId::new(4),
@@ -1045,7 +1037,6 @@ mod tests {
             creation_timestamp: Time::from_timestamp_nanos(42),
             namespace_id: NamespaceId::new(1),
             namespace_name: "bananas".into(),
-            shard_id: ShardId::new(2),
             table_id: TableId::new(3),
             table_name: "platanos".into(),
             partition_id: PartitionId::new(4),

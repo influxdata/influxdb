@@ -385,7 +385,6 @@ fn make_parquet_files_sink(config: &Config) -> Arc<dyn ParquetFilesSink> {
         let parquet_file_sink = Arc::new(LoggingParquetFileSinkWrapper::new(
             DedicatedExecParquetFileSinkWrapper::new(
                 ObjectStoreParquetFileSink::new(
-                    config.shard_id,
                     config.parquet_store_scratchpad.clone(),
                     Arc::clone(&config.time_provider),
                 ),

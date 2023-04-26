@@ -257,7 +257,6 @@ where
     let iox_metadata = IoxMetadata {
         object_store_id,
         creation_timestamp: time_now,
-        shard_id: ctx.transition_shard_id(),
         namespace_id: ctx.namespace_id(),
         namespace_name: Arc::clone(&*ctx.namespace_name().get().await),
         table_id: ctx.table_id(),

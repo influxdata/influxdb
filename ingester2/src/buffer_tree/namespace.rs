@@ -5,7 +5,7 @@ pub(crate) mod name_resolver;
 use std::sync::Arc;
 
 use async_trait::async_trait;
-use data_types::{NamespaceId, ShardId, TableId};
+use data_types::{NamespaceId, TableId};
 use dml::DmlOperation;
 use metric::U64Counter;
 use observability_deps::tracing::warn;
@@ -52,7 +52,7 @@ impl std::fmt::Display for NamespaceName {
     }
 }
 
-/// Data of a Namespace that belongs to a given Shard
+/// Data of a Namespace
 #[derive(Debug)]
 pub(crate) struct NamespaceData<O> {
     namespace_id: NamespaceId,
@@ -77,8 +77,6 @@ pub(crate) struct NamespaceData<O> {
     partition_provider: Arc<dyn PartitionProvider>,
 
     post_write_observer: Arc<O>,
-
-    transition_shard_id: ShardId,
 }
 
 impl<O> NamespaceData<O> {
@@ -90,7 +88,6 @@ impl<O> NamespaceData<O> {
         partition_provider: Arc<dyn PartitionProvider>,
         post_write_observer: Arc<O>,
         metrics: &metric::Registry,
-        transition_shard_id: ShardId,
     ) -> Self {
         let table_count = metrics
             .register_metric::<U64Counter>(
@@ -107,7 +104,6 @@ impl<O> NamespaceData<O> {
             table_count,
             partition_provider,
             post_write_observer,
-            transition_shard_id,
         }
     }
 
@@ -144,10 +140,7 @@ where
     type Error = mutable_batch::Error;
 
     async fn apply(&self, op: DmlOperation) -> Result<(), Self::Error> {
-        let sequence_number = op
-            .meta()
-            .sequence()
-            .expect("applying unsequenced op");
+        let sequence_number = op.meta().sequence().expect("applying unsequenced op");
 
         match op {
             DmlOperation::Write(write) => {
@@ -166,7 +159,6 @@ where
                             Arc::clone(&self.namespace_name),
                             Arc::clone(&self.partition_provider),
                             Arc::clone(&self.post_write_observer),
-                            self.transition_shard_id,
                         ))
                     });
 
@@ -230,7 +222,6 @@ where
 mod tests {
     use std::sync::Arc;
 
-    use data_types::TRANSITION_SHARD_ID;
     use metric::{Attributes, Metric};
 
     use super::*;
@@ -264,7 +255,6 @@ mod tests {
             partition_provider,
             Arc::new(MockPostWriteObserver::default()),
             &metrics,
-            TRANSITION_SHARD_ID,
         );
 
         // Assert the namespace name was stored

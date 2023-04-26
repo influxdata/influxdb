@@ -224,9 +224,6 @@ mod tests {
         // namespace with infinite retention policy
         let ns = catalog.create_namespace_with_retention("ns", None).await;
 
-        let shard1 = ns.create_shard(1).await;
-        let shard2 = ns.create_shard(2).await;
-
         let table_cpu = ns.create_table("cpu").await;
         let table_mem = ns.create_table("mem").await;
 
@@ -238,11 +235,11 @@ mod tests {
         table_mem.create_column("time", ColumnType::Time).await;
         table_mem.create_column("perc", ColumnType::F64).await;
 
-        let partition_cpu_a_1 = table_cpu.with_shard(&shard1).create_partition("a").await;
-        let partition_cpu_a_2 = table_cpu.with_shard(&shard2).create_partition("a").await;
-        let partition_cpu_b_1 = table_cpu.with_shard(&shard1).create_partition("b").await;
-        let partition_mem_c_1 = table_mem.with_shard(&shard1).create_partition("c").await;
-        let partition_mem_c_2 = table_mem.with_shard(&shard2).create_partition("c").await;
+        let partition_cpu_a_1 = table_cpu.create_partition("a").await;
+        let partition_cpu_a_2 = table_cpu.create_partition("a").await;
+        let partition_cpu_b_1 = table_cpu.create_partition("b").await;
+        let partition_mem_c_1 = table_mem.create_partition("c").await;
+        let partition_mem_c_2 = table_mem.create_partition("c").await;
 
         let builder = TestParquetFileBuilder::default()
             .with_max_l0_created_at(Time::from_timestamp_nanos(1))
@@ -321,8 +318,6 @@ mod tests {
             .await
             .flag_for_delete()
             .await;
-
-        table_mem.with_shard(&shard1);
 
         let querier_namespace = Arc::new(querier_namespace(&ns).await);
 

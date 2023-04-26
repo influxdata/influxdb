@@ -64,7 +64,7 @@ mod tests {
     use super::*;
     use bytes::Bytes;
     use chrono::Utc;
-    use data_types::{NamespaceId, PartitionId, ShardId, TableId};
+    use data_types::{NamespaceId, PartitionId, TableId};
     use object_store::path::Path;
     use parquet_file::ParquetFilePath;
     use std::time::Duration;
@@ -146,7 +146,6 @@ mod tests {
         ParquetFilePath::new(
             NamespaceId::new(1),
             TableId::new(2),
-            ShardId::new(3),
             PartitionId::new(4),
             Uuid::new_v4(),
         )

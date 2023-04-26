@@ -6,8 +6,8 @@ use arrow::{
 };
 use data_types::{
     Column, ColumnSet, ColumnType, CompactionLevel, Namespace, NamespaceSchema, ParquetFile,
-    ParquetFileParams, Partition, PartitionId, QueryPool, SequenceNumber, Shard, ShardIndex, Table,
-    TableId, TableSchema, Timestamp, TopicMetadata,
+    ParquetFileParams, Partition, PartitionId, QueryPool, SequenceNumber, Table, TableId,
+    TableSchema, Timestamp, TopicMetadata,
 };
 use datafusion::physical_plan::metrics::Count;
 use datafusion_util::MemoryStream;
@@ -137,21 +137,6 @@ impl TestCatalog {
         Arc::clone(&self.exec)
     }
 
-    /// Create a shard in the catalog
-    pub async fn create_shard(self: &Arc<Self>, shard_index: i32) -> Arc<Shard> {
-        let mut repos = self.catalog.repositories().await;
-
-        let topic = repos.topics().create_or_get("topic").await.unwrap();
-        let shard_index = ShardIndex::new(shard_index);
-        Arc::new(
-            repos
-                .shards()
-                .create_or_get(&topic, shard_index)
-                .await
-                .unwrap(),
-        )
-    }
-
     /// Create namespace with specified retention
     pub async fn create_namespace_with_retention(
         self: &Arc<Self>,
@@ -254,23 +239,6 @@ impl TestNamespace {
         })
     }
 
-    /// Create a shard for this namespace
-    pub async fn create_shard(self: &Arc<Self>, shard_index: i32) -> Arc<TestShard> {
-        let mut repos = self.catalog.catalog.repositories().await;
-
-        let shard = repos
-            .shards()
-            .create_or_get(&self.topic, ShardIndex::new(shard_index))
-            .await
-            .unwrap();
-
-        Arc::new(TestShard {
-            catalog: Arc::clone(&self.catalog),
-            namespace: Arc::clone(self),
-            shard,
-        })
-    }
-
     /// Get namespace schema for this namespace.
     pub async fn schema(&self) -> NamespaceSchema {
         let mut repos = self.catalog.catalog.repositories().await;
@@ -304,15 +272,6 @@ impl TestNamespace {
     }
 }
 
-/// A test shard with its namespace in the catalog
-#[derive(Debug)]
-#[allow(missing_docs)]
-pub struct TestShard {
-    pub catalog: Arc<TestCatalog>,
-    pub namespace: Arc<TestNamespace>,
-    pub shard: Shard,
-}
-
 /// A test table of a namespace in the catalog
 #[allow(missing_docs)]
 #[derive(Debug)]
@@ -323,16 +282,49 @@ pub struct TestTable {
 }
 
 impl TestTable {
-    /// Attach a shard to the table
-    pub fn with_shard(self: &Arc<Self>, shard: &Arc<TestShard>) -> Arc<TestTableBoundShard> {
-        assert!(Arc::ptr_eq(&self.catalog, &shard.catalog));
-        assert!(Arc::ptr_eq(&self.namespace, &shard.namespace));
+    /// Creat a partition for the table
+    pub async fn create_partition(self: &Arc<Self>, key: &str) -> Arc<TestPartition> {
+        let mut repos = self.catalog.catalog.repositories().await;
 
-        Arc::new(TestTableBoundShard {
+        let partition = repos
+            .partitions()
+            .create_or_get(key.into(), self.table.id)
+            .await
+            .unwrap();
+
+        Arc::new(TestPartition {
             catalog: Arc::clone(&self.catalog),
             namespace: Arc::clone(&self.namespace),
             table: Arc::clone(self),
-            shard: Arc::clone(shard),
+            partition,
+        })
+    }
+
+    /// Create a partition with a specified sort key for the table
+    pub async fn create_partition_with_sort_key(
+        self: &Arc<Self>,
+        key: &str,
+        sort_key: &[&str],
+    ) -> Arc<TestPartition> {
+        let mut repos = self.catalog.catalog.repositories().await;
+
+        let partition = repos
+            .partitions()
+            .create_or_get(key.into(), self.table.id)
+            .await
+            .unwrap();
+
+        let partition = repos
+            .partitions()
+            .cas_sort_key(partition.id, None, sort_key)
+            .await
+            .unwrap();
+
+        Arc::new(TestPartition {
+            catalog: Arc::clone(&self.catalog),
+            namespace: Arc::clone(&self.namespace),
+            table: Arc::clone(self),
+            partition,
         })
     }
 
@@ -407,73 +399,13 @@ pub struct TestColumn {
     pub column: Column,
 }
 
-/// A test catalog with specified namespace, shard, and table
-#[allow(missing_docs)]
-pub struct TestTableBoundShard {
-    pub catalog: Arc<TestCatalog>,
-    pub namespace: Arc<TestNamespace>,
-    pub table: Arc<TestTable>,
-    pub shard: Arc<TestShard>,
-}
-
-impl TestTableBoundShard {
-    /// Creat a partition for the table
-    pub async fn create_partition(self: &Arc<Self>, key: &str) -> Arc<TestPartition> {
-        let mut repos = self.catalog.catalog.repositories().await;
-
-        let partition = repos
-            .partitions()
-            .create_or_get(key.into(), self.shard.shard.id, self.table.table.id)
-            .await
-            .unwrap();
-
-        Arc::new(TestPartition {
-            catalog: Arc::clone(&self.catalog),
-            namespace: Arc::clone(&self.namespace),
-            table: Arc::clone(&self.table),
-            shard: Arc::clone(&self.shard),
-            partition,
-        })
-    }
-
-    /// Creat a partition with a specified sort key for the table
-    pub async fn create_partition_with_sort_key(
-        self: &Arc<Self>,
-        key: &str,
-        sort_key: &[&str],
-    ) -> Arc<TestPartition> {
-        let mut repos = self.catalog.catalog.repositories().await;
-
-        let partition = repos
-            .partitions()
-            .create_or_get(key.into(), self.shard.shard.id, self.table.table.id)
-            .await
-            .unwrap();
-
-        let partition = repos
-            .partitions()
-            .cas_sort_key(partition.id, None, sort_key)
-            .await
-            .unwrap();
-
-        Arc::new(TestPartition {
-            catalog: Arc::clone(&self.catalog),
-            namespace: Arc::clone(&self.namespace),
-            table: Arc::clone(&self.table),
-            shard: Arc::clone(&self.shard),
-            partition,
-        })
-    }
-}
-
-/// A test catalog with specified namespace, shard, table, partition
+/// A test catalog with specified namespace, table, partition
 #[allow(missing_docs)]
 #[derive(Debug)]
 pub struct TestPartition {
     pub catalog: Arc<TestCatalog>,
     pub namespace: Arc<TestNamespace>,
     pub table: Arc<TestTable>,
-    pub shard: Arc<TestShard>,
     pub partition: Partition,
 }
 
@@ -510,7 +442,6 @@ impl TestPartition {
             catalog: Arc::clone(&self.catalog),
             namespace: Arc::clone(&self.namespace),
             table: Arc::clone(&self.table),
-            shard: Arc::clone(&self.shard),
             partition,
         })
     }
@@ -562,7 +493,6 @@ impl TestPartition {
             creation_timestamp: now(),
             namespace_id: self.namespace.namespace.id,
             namespace_name: self.namespace.namespace.name.clone().into(),
-            shard_id: self.shard.shard.id,
             table_id: self.table.table.id,
             table_name: self.table.table.name.clone().into(),
             partition_id: self.partition.id,
@@ -651,7 +581,6 @@ impl TestPartition {
         };
 
         let parquet_file_params = ParquetFileParams {
-            shard_id: self.shard.shard.id,
             namespace_id: self.namespace.namespace.id,
             table_id: self.table.table.id,
             partition_id: self.partition.id,
@@ -686,7 +615,6 @@ impl TestPartition {
             catalog: Arc::clone(&self.catalog),
             namespace: Arc::clone(&self.namespace),
             table: Arc::clone(&self.table),
-            shard: Arc::clone(&self.shard),
             partition: Arc::clone(self),
             parquet_file,
             size_override,
@@ -895,7 +823,6 @@ pub struct TestParquetFile {
     pub catalog: Arc<TestCatalog>,
     pub namespace: Arc<TestNamespace>,
     pub table: Arc<TestTable>,
-    pub shard: Arc<TestShard>,
     pub partition: Arc<TestPartition>,
     pub parquet_file: ParquetFile,
     pub size_override: Option<i64>,

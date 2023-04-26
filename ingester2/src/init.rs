@@ -46,7 +46,6 @@ use crate::{
     server::grpc::GrpcDelegate,
     timestamp_oracle::TimestampOracle,
     wal::{rotate_task::periodic_rotation, wal_sink::WalSink},
-    TRANSITION_SHARD_INDEX,
 };
 
 use self::graceful_shutdown::graceful_shutdown_handler;
@@ -235,23 +234,6 @@ pub async fn new<F>(
 where
     F: Future<Output = CancellationToken> + Send + 'static,
 {
-    // Create the transition shard.
-    let mut txn = catalog
-        .start_transaction()
-        .await
-        .expect("start transaction");
-    let topic = txn
-        .topics()
-        .create_or_get("iox-shared")
-        .await
-        .expect("get topic");
-    let transition_shard = txn
-        .shards()
-        .create_or_get(&topic, TRANSITION_SHARD_INDEX)
-        .await
-        .expect("create transition shard");
-    txn.commit().await.expect("commit transition shard");
-
     // Initialise a random ID for this ingester instance.
     let ingester_id = IngesterId::new();
 
@@ -336,7 +318,6 @@ where
         partition_provider,
         Arc::new(hot_partition_persister),
         Arc::clone(&metrics),
-        transition_shard.id,
     ));
 
     // Initialise the WAL

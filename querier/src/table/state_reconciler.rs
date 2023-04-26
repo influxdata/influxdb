@@ -220,22 +220,17 @@ mod tests {
         interface::{IngesterPartitionInfo, ParquetFileInfo},
         *,
     };
-    use data_types::{CompactionLevel, SequenceNumber, ShardId};
+    use data_types::{CompactionLevel, SequenceNumber};
 
     #[derive(Debug)]
     struct MockIngesterPartitionInfo {
         partition_id: PartitionId,
-        shard_id: ShardId,
         parquet_max_sequence_number: Option<SequenceNumber>,
     }
 
     impl IngesterPartitionInfo for MockIngesterPartitionInfo {
         fn partition_id(&self) -> PartitionId {
             self.partition_id
-        }
-
-        fn shard_id(&self) -> ShardId {
-            self.shard_id
         }
 
         fn parquet_max_sequence_number(&self) -> Option<SequenceNumber> {

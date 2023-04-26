@@ -199,8 +199,6 @@
     missing_docs
 )]
 
-use data_types::TRANSITION_SHARD_INDEX;
-
 /// A macro to conditionally prepend `pub` to the inner tokens for benchmarking
 /// purposes, should the `benches` feature be enabled.
 ///

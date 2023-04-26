@@ -1,6 +1,6 @@
 use std::sync::Arc;
 
-use data_types::{NamespaceId, PartitionId, PartitionKey, ShardId, TableId};
+use data_types::{NamespaceId, PartitionId, PartitionKey, TableId};
 use observability_deps::tracing::*;
 use parking_lot::Mutex;
 use schema::sort::SortKey;
@@ -87,8 +87,6 @@ pub(super) struct Context {
     table_id: TableId,
     partition_id: PartitionId,
 
-    transition_shard_id: ShardId,
-
     // The partition key for this partition
     partition_key: PartitionKey,
 
@@ -173,7 +171,6 @@ impl Context {
                 enqueued_at,
                 dequeued_at: Instant::now(),
                 permit,
-                transition_shard_id: guard.transition_shard_id(),
             }
         };
 
@@ -305,9 +302,5 @@ impl Context {
 
     pub(super) fn table_name(&self) -> &DeferredLoad<TableName> {
         self.table_name.as_ref()
-    }
-
-    pub(super) fn transition_shard_id(&self) -> ShardId {
-        self.transition_shard_id
     }
 }
