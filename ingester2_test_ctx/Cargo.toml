@@ -30,7 +30,7 @@ parquet_file = { version = "0.1.0", path = "../parquet_file" }
 prost = { version = "0.11.9", default-features = false, features = ["std"] }
 tempfile = { version = "3.5.0" }
 test_helpers = { path = "../test_helpers", features = ["future_timeout"] }
-tokio = { version = "1.27", features = ["macros", "parking_lot", "rt-multi-thread", "sync", "time"] }
+tokio = { version = "1.28", features = ["macros", "parking_lot", "rt-multi-thread", "sync", "time"] }
 tokio-util = "0.7.8"
 tonic = { workspace = true }
 wal = { version = "0.1.0", path = "../wal" }
