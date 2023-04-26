@@ -1135,6 +1135,48 @@ async fn flightsql_get_primary_keys() {
 }
 
 #[tokio::test]
+async fn flightsql_get_xdbc_type_info() {
+    test_helpers::maybe_start_logging();
+    let database_url = maybe_skip_integration!();
+
+    let table_name = "the_table";
+
+    // Set up the cluster  ====================================
+    let mut cluster = MiniCluster::create_shared2(database_url).await;
+
+    StepTest::new(
+        &mut cluster,
+        vec![
+            Step::WriteLineProtocol(format!(
+                "{table_name},tag1=A,tag2=B val=42i 123456\n\
+                 {table_name},tag1=A,tag2=C val=43i 123457"
+            )),
+            Step::Custom(Box::new(move |state: &mut StepTestState| {
+                async move {
+                    let mut client = flightsql_client(state.cluster());
+                    let data_type: Option<i32> = None;
+
+                    let stream = client.get_xdbc_type_info(data_type).await.unwrap();
+                    let batches = collect_stream(stream).await;
+
+                    insta::assert_yaml_snapshot!(
+                        batches_to_sorted_lines(&batches),
+                        @r###"
+                    ---
+                    - ++
+                    - ++
+                    "###
+                    );
+                }
+                .boxed()
+            })),
+        ],
+    )
+    .run()
+    .await
+}
+
+#[tokio::test]
 /// Runs  the `jdbc_client` program against IOx to verify JDBC via FlightSQL is working
 ///
 /// Example command:

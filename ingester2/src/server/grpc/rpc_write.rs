@@ -1,6 +1,6 @@
 use std::sync::Arc;
 
-use data_types::{NamespaceId, PartitionKey, Sequence, TableId};
+use data_types::{NamespaceId, PartitionKey, TableId};
 use dml::{DmlMeta, DmlOperation, DmlWrite};
 use generated_types::influxdata::iox::ingester::v1::{
     self as proto, write_service_server::WriteService,
@@ -15,7 +15,6 @@ use crate::{
     dml_sink::{DmlError, DmlSink},
     ingest_state::{IngestState, IngestStateError},
     timestamp_oracle::TimestampOracle,
-    TRANSITION_SHARD_INDEX,
 };
 
 /// A list of error states when handling an RPC write request.
@@ -63,6 +62,7 @@ impl From<DmlError> for tonic::Status {
         match e {
             DmlError::Buffer(e) => map_write_error(e),
             DmlError::Wal(_) => Self::internal(e.to_string()),
+            DmlError::ApplyTimeout => Self::internal(e.to_string()),
         }
     }
 }
@@ -188,10 +188,7 @@ where
                 .collect(),
             partition_key,
             DmlMeta::sequenced(
-                Sequence {
-                    shard_index: TRANSITION_SHARD_INDEX, // TODO: remove this from DmlMeta
-                    sequence_number: self.timestamp.next(),
-                },
+                self.timestamp.next(),
                 iox_time::Time::MAX, // TODO: remove this from DmlMeta
                 // The tracing context should be propagated over the RPC boundary.
                 //
@@ -296,7 +293,7 @@ mod tests {
             assert_eq!(w.namespace_id(), NAMESPACE_ID);
             assert_eq!(w.table_count(), 1);
             assert_eq!(*w.partition_key(), PartitionKey::from(PARTITION_KEY));
-            assert_eq!(w.meta().sequence().unwrap().sequence_number.get(), 1);
+            assert_eq!(w.meta().sequence().unwrap().get(), 1);
         }
     );
 
@@ -404,8 +401,8 @@ mod tests {
         assert_matches!(
             *mock.get_calls(),
             [DmlOperation::Write(ref w1), DmlOperation::Write(ref w2)] => {
-                let w1 = w1.meta().sequence().unwrap().sequence_number.get();
-                let w2 = w2.meta().sequence().unwrap().sequence_number.get();
+                let w1 = w1.meta().sequence().unwrap().get();
+                let w2 = w2.meta().sequence().unwrap().get();
                 assert!(w1 < w2);
             }
         );

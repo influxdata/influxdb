@@ -1,7 +1,7 @@
 use std::{num::NonZeroUsize, sync::Arc, time::Duration};
 
 use data_types::{CompactionLevel, ParquetFile, ParquetFileParams, PartitionId};
-use futures::StreamExt;
+use futures::{stream, StreamExt, TryStreamExt};
 use observability_deps::tracing::info;
 use parquet_file::ParquetFilePath;
 use tokio::sync::watch::Sender;
@@ -327,25 +327,32 @@ async fn run_plans(
         split_or_compact,
         input_uuids_inpad,
     );
-    let capacity = plans.iter().map(|p| p.n_output_files()).sum();
-    let mut created_file_params = Vec::with_capacity(capacity);
 
-    for plan_ir in plans
-        .into_iter()
-        .filter(|plan| !matches!(plan, PlanIR::None { .. }))
-    {
-        created_file_params.extend(
-            execute_plan(
-                plan_ir,
-                partition_info,
-                components,
-                Arc::clone(&job_semaphore),
-            )
-            .await?,
+    info!(
+        partition_id = partition_info.partition_id.get(),
+        plan_count = plans.len(),
+        concurrency_limit = job_semaphore.total_permits(),
+        "compacting plans concurrently",
+    );
+
+    let created_file_params: Vec<Vec<_>> = stream::iter(
+        plans
+            .into_iter()
+            .filter(|plan| !matches!(plan, PlanIR::None { .. })),
+    )
+    .map(|plan_ir| {
+        execute_plan(
+            plan_ir,
+            partition_info,
+            components,
+            Arc::clone(&job_semaphore),
         )
-    }
+    })
+    .buffer_unordered(job_semaphore.total_permits())
+    .try_collect()
+    .await?;
 
-    Ok(created_file_params)
+    Ok(created_file_params.into_iter().flatten().collect())
 }
 
 async fn execute_plan(

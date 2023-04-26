@@ -1,4 +1,4 @@
-use data_types::{NamespaceId, PartitionKey, Sequence, SequenceNumber, TableId};
+use data_types::{NamespaceId, PartitionKey, SequenceNumber, TableId};
 use dml::{DmlMeta, DmlOperation, DmlWrite};
 use generated_types::influxdata::iox::wal::v1::sequenced_wal_op::Op;
 use metric::U64Counter;
@@ -12,7 +12,6 @@ use crate::{
     dml_sink::{DmlError, DmlSink},
     partition_iter::PartitionIter,
     persist::{drain_buffer::persist_partitions, queue::PersistQueue},
-    TRANSITION_SHARD_INDEX,
 };
 
 /// Errors returned when replaying the write-ahead log.
@@ -235,10 +234,7 @@ where
                 partition_key,
                 // The tracing context should be propagated over the RPC boundary.
                 DmlMeta::sequenced(
-                    Sequence {
-                        shard_index: TRANSITION_SHARD_INDEX, // TODO: remove this from DmlMeta
-                        sequence_number,
-                    },
+                    sequence_number,
                     iox_time::Time::MAX, // TODO: remove this from DmlMeta
                     // TODO: A tracing context should be added for WAL replay.
                     None,
@@ -258,31 +254,27 @@ where
 
 #[cfg(test)]
 mod tests {
-    use std::{sync::Arc, time::Duration};
+    use std::sync::Arc;
 
     use assert_matches::assert_matches;
     use async_trait::async_trait;
-    use data_types::{NamespaceId, PartitionId, PartitionKey, ShardId, TableId};
     use metric::{Attributes, Metric};
     use parking_lot::Mutex;
     use wal::Wal;
 
     use crate::{
-        buffer_tree::partition::{PartitionData, SortKeyState},
-        deferred_load::DeferredLoad,
+        buffer_tree::partition::PartitionData,
         dml_sink::mock_sink::MockDmlSink,
         persist::queue::mock::MockPersistQueue,
-        test_util::{assert_dml_writes_eq, make_write_op},
+        test_util::{
+            assert_dml_writes_eq, make_write_op, PartitionDataBuilder, ARBITRARY_NAMESPACE_ID,
+            ARBITRARY_PARTITION_ID, ARBITRARY_PARTITION_KEY, ARBITRARY_TABLE_ID,
+            ARBITRARY_TABLE_NAME,
+        },
         wal::wal_sink::WalSink,
     };
 
     use super::*;
-
-    const PARTITION_ID: PartitionId = PartitionId::new(42);
-    const TABLE_ID: TableId = TableId::new(44);
-    const TABLE_NAME: &str = "bananas";
-    const NAMESPACE_NAME: &str = "platanos";
-    const NAMESPACE_ID: NamespaceId = NamespaceId::new(42);
 
     #[derive(Debug)]
     struct MockIter {
@@ -311,28 +303,38 @@ mod tests {
 
         // Generate the test ops that will be appended and read back
         let op1 = make_write_op(
-            &PartitionKey::from("p1"),
-            NAMESPACE_ID,
-            TABLE_NAME,
-            TABLE_ID,
+            &ARBITRARY_PARTITION_KEY,
+            ARBITRARY_NAMESPACE_ID,
+            &ARBITRARY_TABLE_NAME,
+            ARBITRARY_TABLE_ID,
             24,
-            r#"bananas,region=Madrid temp=35 4242424242"#,
+            &format!(
+                r#"{},region=Madrid temp=35 4242424242"#,
+                &*ARBITRARY_TABLE_NAME
+            ),
         );
         let op2 = make_write_op(
-            &PartitionKey::from("p1"),
-            NAMESPACE_ID,
-            TABLE_NAME,
-            TABLE_ID,
+            &ARBITRARY_PARTITION_KEY,
+            ARBITRARY_NAMESPACE_ID,
+            &ARBITRARY_TABLE_NAME,
+            ARBITRARY_TABLE_ID,
             25,
-            r#"bananas,region=Asturias temp=25 4242424242"#,
+            &format!(
+                r#"{},region=Asturias temp=25 4242424242"#,
+                &*ARBITRARY_TABLE_NAME
+            ),
         );
         let op3 = make_write_op(
-            &PartitionKey::from("p1"),
-            NAMESPACE_ID,
-            TABLE_NAME,
-            TABLE_ID,
+            &ARBITRARY_PARTITION_KEY,
+            ARBITRARY_NAMESPACE_ID,
+            &ARBITRARY_TABLE_NAME,
+            ARBITRARY_TABLE_ID,
             42,
-            r#"bananas,region=Asturias temp=15 4242424242"#, // Overwrite op2
+            // Overwrite op2
+            &format!(
+                r#"{},region=Asturias temp=15 4242424242"#,
+                &*ARBITRARY_TABLE_NAME
+            ),
         );
 
         // The write portion of this test.
@@ -384,20 +386,7 @@ mod tests {
         // Replay the results into a mock to capture the DmlWrites and returns
         // some dummy partitions when iterated over.
         let mock_sink = MockDmlSink::default().with_apply_return(vec![Ok(()), Ok(()), Ok(())]);
-        let mut partition = PartitionData::new(
-            PARTITION_ID,
-            PartitionKey::from("bananas"),
-            NAMESPACE_ID,
-            Arc::new(DeferredLoad::new(Duration::from_secs(1), async {
-                NAMESPACE_NAME.into()
-            })),
-            TABLE_ID,
-            Arc::new(DeferredLoad::new(Duration::from_secs(1), async {
-                TABLE_NAME.into()
-            })),
-            SortKeyState::Provided(None),
-            ShardId::new(1234),
-        );
+        let mut partition = PartitionDataBuilder::new().build();
         // Put at least one write into the buffer so it is a candidate for persistence
         partition
             .buffer_write(
@@ -419,16 +408,23 @@ mod tests {
 
         // Assert the ops were pushed into the DmlSink exactly as generated.
         let ops = mock_iter.sink.get_calls();
-        assert_matches!(&*ops, &[DmlOperation::Write(ref w1),DmlOperation::Write(ref w2),DmlOperation::Write(ref w3)] => {
-            assert_dml_writes_eq(w1.clone(), op1);
-            assert_dml_writes_eq(w2.clone(), op2);
-            assert_dml_writes_eq(w3.clone(), op3);
-        });
+        assert_matches!(
+            &*ops,
+            &[
+                DmlOperation::Write(ref w1),
+                DmlOperation::Write(ref w2),
+                DmlOperation::Write(ref w3)
+            ] => {
+                assert_dml_writes_eq(w1.clone(), op1);
+                assert_dml_writes_eq(w2.clone(), op2);
+                assert_dml_writes_eq(w3.clone(), op3);
+            }
+        );
 
         // Ensure all partitions were persisted
         let calls = persist.calls();
         assert_matches!(&*calls, [p] => {
-            assert_eq!(p.lock().partition_id(), PARTITION_ID);
+            assert_eq!(p.lock().partition_id(), ARBITRARY_PARTITION_ID);
         });
 
         // Ensure there were no partition persist panics.

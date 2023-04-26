@@ -50,6 +50,18 @@ async fn basic() {
 }
 
 #[tokio::test]
+async fn date_bin() {
+    test_helpers::maybe_start_logging();
+
+    TestCase {
+        input: "cases/in/date_bin.sql",
+        chunk_stage: ChunkStage::All,
+    }
+    .run()
+    .await;
+}
+
+#[tokio::test]
 async fn dedup_and_predicates_parquet() {
     test_helpers::maybe_start_logging();
 
@@ -307,6 +319,18 @@ async fn different_tag_sets() {
 
     TestCase {
         input: "cases/in/different_tag_sets.sql",
+        chunk_stage: ChunkStage::Ingester,
+    }
+    .run()
+    .await;
+}
+
+#[tokio::test]
+async fn bugs() {
+    test_helpers::maybe_start_logging();
+
+    TestCase {
+        input: "cases/in/bugs.sql",
         chunk_stage: ChunkStage::Ingester,
     }
     .run()

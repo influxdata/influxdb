@@ -15,6 +15,8 @@ expression: "visit_statement!(\"SHOW MEASUREMENTS WHERE host = 'west'\")"
 - post_visit_conditional_expression
 - pre_visit_conditional_expression
 - pre_visit_expr
+- pre_visit_literal
+- post_visit_literal
 - post_visit_expr
 - post_visit_conditional_expression
 - post_visit_conditional_binary

@@ -12,7 +12,6 @@
     clippy::todo,
     clippy::dbg_macro
 )]
-pub mod authz;
 pub mod catalog_dsn;
 pub mod compactor2;
 pub mod garbage_collector;
@@ -22,4 +21,5 @@ pub mod object_store;
 pub mod querier;
 pub mod router2;
 pub mod run_config;
+pub mod single_tenant;
 pub mod socket_addr;

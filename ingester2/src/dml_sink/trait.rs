@@ -16,6 +16,11 @@ pub enum DmlError {
     /// An error appending the [`DmlOperation`] to the write-ahead log.
     #[error("wal commit failure: {0}")]
     Wal(String),
+
+    /// The write has hit an internal timeout designed to prevent writes from
+    /// retrying indefinitely.
+    #[error("buffer apply request timeout")]
+    ApplyTimeout,
 }
 
 /// A [`DmlSink`] handles [`DmlOperation`] instances in some abstract way.

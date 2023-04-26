@@ -221,19 +221,19 @@ mod tests {
     // Harmless in tests - saves a bunch of extra vars.
     #![allow(clippy::await_holding_lock)]
 
-    use data_types::ShardId;
+    use data_types::{ShardId, TRANSITION_SHARD_ID};
     use iox_catalog::mem::MemCatalog;
 
     use super::*;
-    use crate::buffer_tree::partition::resolver::mock::MockPartitionProvider;
-
-    const PARTITION_KEY: &str = "bananas";
-    const PARTITION_ID: PartitionId = PartitionId::new(42);
-    const NAMESPACE_ID: NamespaceId = NamespaceId::new(2);
-    const NAMESPACE_NAME: &str = "ns-bananas";
-    const TABLE_ID: TableId = TableId::new(3);
-    const TABLE_NAME: &str = "platanos";
-    const TRANSITION_SHARD_ID: ShardId = ShardId::new(84);
+    use crate::{
+        buffer_tree::partition::resolver::mock::MockPartitionProvider,
+        test_util::{
+            arbitrary_partition, PartitionDataBuilder, ARBITRARY_NAMESPACE_ID,
+            ARBITRARY_NAMESPACE_NAME, ARBITRARY_PARTITION_ID, ARBITRARY_PARTITION_KEY,
+            ARBITRARY_PARTITION_KEY_STR, ARBITRARY_TABLE_ID, ARBITRARY_TABLE_NAME,
+            DEFER_NAMESPACE_NAME_1_SEC, DEFER_TABLE_NAME_1_SEC,
+        },
+    };
 
     fn new_cache<P>(
         inner: MockPartitionProvider,
@@ -253,42 +253,31 @@ mod tests {
 
     #[tokio::test]
     async fn test_miss() {
-        let data = PartitionData::new(
-            PARTITION_ID,
-            PARTITION_KEY.into(),
-            NAMESPACE_ID,
-            Arc::new(DeferredLoad::new(Duration::from_secs(1), async {
-                NamespaceName::from(NAMESPACE_NAME)
-            })),
-            TABLE_ID,
-            Arc::new(DeferredLoad::new(Duration::from_secs(1), async {
-                TableName::from(TABLE_NAME)
-            })),
-            SortKeyState::Provided(None),
-            TRANSITION_SHARD_ID,
-        );
+        let data = PartitionDataBuilder::new().build();
         let inner = MockPartitionProvider::default().with_partition(data);
 
         let cache = new_cache(inner, []);
         let got = cache
             .get_partition(
-                PARTITION_KEY.into(),
-                NAMESPACE_ID,
-                Arc::new(DeferredLoad::new(Duration::from_secs(1), async {
-                    NamespaceName::from(NAMESPACE_NAME)
-                })),
-                TABLE_ID,
-                Arc::new(DeferredLoad::new(Duration::from_secs(1), async {
-                    TableName::from(TABLE_NAME)
-                })),
+                ARBITRARY_PARTITION_KEY.clone(),
+                ARBITRARY_NAMESPACE_ID,
+                Arc::clone(&*DEFER_NAMESPACE_NAME_1_SEC),
+                ARBITRARY_TABLE_ID,
+                Arc::clone(&*DEFER_TABLE_NAME_1_SEC),
                 TRANSITION_SHARD_ID,
             )
             .await;
 
-        assert_eq!(got.lock().partition_id(), PARTITION_ID);
-        assert_eq!(got.lock().table_id(), TABLE_ID);
-        assert_eq!(&**got.lock().table_name().get().await, TABLE_NAME);
-        assert_eq!(&**got.lock().namespace_name().get().await, NAMESPACE_NAME);
+        assert_eq!(got.lock().partition_id(), ARBITRARY_PARTITION_ID);
+        assert_eq!(got.lock().table_id(), ARBITRARY_TABLE_ID);
+        assert_eq!(
+            &**got.lock().table_name().get().await,
+            &***ARBITRARY_TABLE_NAME
+        );
+        assert_eq!(
+            &**got.lock().namespace_name().get().await,
+            &***ARBITRARY_NAMESPACE_NAME
+        );
         assert!(cache.inner.is_empty());
     }
 
@@ -296,42 +285,40 @@ mod tests {
     async fn test_hit() {
         let inner = MockPartitionProvider::default();
 
-        let stored_partition_key = PartitionKey::from(PARTITION_KEY);
+        let stored_partition_key = PartitionKey::from(ARBITRARY_PARTITION_KEY_STR);
         let partition = Partition {
-            id: PARTITION_ID,
-            shard_id: TRANSITION_SHARD_ID,
-            table_id: TABLE_ID,
             partition_key: stored_partition_key.clone(),
             sort_key: vec!["dos".to_string(), "bananas".to_string()],
-            persisted_sequence_number: Default::default(),
-            new_file_at: Default::default(),
+            ..arbitrary_partition()
         };
 
         let cache = new_cache(inner, [partition]);
 
-        let callers_partition_key = PartitionKey::from(PARTITION_KEY);
+        let callers_partition_key = PartitionKey::from(ARBITRARY_PARTITION_KEY_STR);
         let got = cache
             .get_partition(
                 callers_partition_key.clone(),
-                NAMESPACE_ID,
-                Arc::new(DeferredLoad::new(Duration::from_secs(1), async {
-                    NamespaceName::from(NAMESPACE_NAME)
-                })),
-                TABLE_ID,
-                Arc::new(DeferredLoad::new(Duration::from_secs(1), async {
-                    TableName::from(TABLE_NAME)
-                })),
+                ARBITRARY_NAMESPACE_ID,
+                Arc::clone(&*DEFER_NAMESPACE_NAME_1_SEC),
+                ARBITRARY_TABLE_ID,
+                Arc::clone(&*DEFER_TABLE_NAME_1_SEC),
                 TRANSITION_SHARD_ID,
             )
             .await;
 
-        assert_eq!(got.lock().partition_id(), PARTITION_ID);
-        assert_eq!(got.lock().table_id(), TABLE_ID);
-        assert_eq!(&**got.lock().table_name().get().await, TABLE_NAME);
-        assert_eq!(&**got.lock().namespace_name().get().await, NAMESPACE_NAME);
+        assert_eq!(got.lock().partition_id(), ARBITRARY_PARTITION_ID);
+        assert_eq!(got.lock().table_id(), ARBITRARY_TABLE_ID);
+        assert_eq!(
+            &**got.lock().table_name().get().await,
+            &***ARBITRARY_TABLE_NAME
+        );
+        assert_eq!(
+            &**got.lock().namespace_name().get().await,
+            &***ARBITRARY_NAMESPACE_NAME
+        );
         assert_eq!(
             *got.lock().partition_key(),
-            PartitionKey::from(PARTITION_KEY)
+            PartitionKey::from(ARBITRARY_PARTITION_KEY_STR)
         );
 
         // The cache should have been cleaned up as it was consumed.
@@ -350,98 +337,63 @@ mod tests {
     async fn test_miss_partition_key() {
         let other_key = PartitionKey::from("test");
         let other_key_id = PartitionId::new(99);
-        let inner = MockPartitionProvider::default().with_partition(PartitionData::new(
-            other_key_id,
-            other_key.clone(),
-            NAMESPACE_ID,
-            Arc::new(DeferredLoad::new(Duration::from_secs(1), async {
-                NamespaceName::from(NAMESPACE_NAME)
-            })),
-            TABLE_ID,
-            Arc::new(DeferredLoad::new(Duration::from_secs(1), async {
-                TableName::from(TABLE_NAME)
-            })),
-            SortKeyState::Provided(None),
-            TRANSITION_SHARD_ID,
-        ));
+        let inner = MockPartitionProvider::default().with_partition(
+            PartitionDataBuilder::new()
+                .with_partition_key(other_key.clone())
+                .with_partition_id(other_key_id)
+                .build(),
+        );
 
-        let partition = Partition {
-            id: PARTITION_ID,
-            shard_id: TRANSITION_SHARD_ID,
-            table_id: TABLE_ID,
-            partition_key: PARTITION_KEY.into(),
-            sort_key: Default::default(),
-            persisted_sequence_number: Default::default(),
-            new_file_at: Default::default(),
-        };
+        let partition = arbitrary_partition();
 
         let cache = new_cache(inner, [partition]);
         let got = cache
             .get_partition(
-                other_key.clone(),
-                NAMESPACE_ID,
-                Arc::new(DeferredLoad::new(Duration::from_secs(1), async {
-                    NamespaceName::from(NAMESPACE_NAME)
-                })),
-                TABLE_ID,
-                Arc::new(DeferredLoad::new(Duration::from_secs(1), async {
-                    TableName::from(TABLE_NAME)
-                })),
+                other_key,
+                ARBITRARY_NAMESPACE_ID,
+                Arc::clone(&*DEFER_NAMESPACE_NAME_1_SEC),
+                ARBITRARY_TABLE_ID,
+                Arc::clone(&*DEFER_TABLE_NAME_1_SEC),
                 TRANSITION_SHARD_ID,
             )
             .await;
 
         assert_eq!(got.lock().partition_id(), other_key_id);
-        assert_eq!(got.lock().table_id(), TABLE_ID);
-        assert_eq!(&**got.lock().table_name().get().await, TABLE_NAME);
+        assert_eq!(got.lock().table_id(), ARBITRARY_TABLE_ID);
+        assert_eq!(
+            &**got.lock().table_name().get().await,
+            &***ARBITRARY_TABLE_NAME
+        );
     }
 
     #[tokio::test]
     async fn test_miss_table_id() {
         let other_table = TableId::new(1234);
-        let inner = MockPartitionProvider::default().with_partition(PartitionData::new(
-            PARTITION_ID,
-            PARTITION_KEY.into(),
-            NAMESPACE_ID,
-            Arc::new(DeferredLoad::new(Duration::from_secs(1), async {
-                NamespaceName::from(NAMESPACE_NAME)
-            })),
-            other_table,
-            Arc::new(DeferredLoad::new(Duration::from_secs(1), async {
-                TableName::from(TABLE_NAME)
-            })),
-            SortKeyState::Provided(None),
-            TRANSITION_SHARD_ID,
-        ));
+        let inner = MockPartitionProvider::default().with_partition(
+            PartitionDataBuilder::new()
+                .with_table_id(other_table)
+                .build(),
+        );
 
-        let partition = Partition {
-            id: PARTITION_ID,
-            shard_id: TRANSITION_SHARD_ID,
-            table_id: TABLE_ID,
-            partition_key: PARTITION_KEY.into(),
-            sort_key: Default::default(),
-            persisted_sequence_number: Default::default(),
-            new_file_at: Default::default(),
-        };
+        let partition = arbitrary_partition();
 
         let cache = new_cache(inner, [partition]);
         let got = cache
             .get_partition(
-                PARTITION_KEY.into(),
-                NAMESPACE_ID,
-                Arc::new(DeferredLoad::new(Duration::from_secs(1), async {
-                    NamespaceName::from(NAMESPACE_NAME)
-                })),
+                ARBITRARY_PARTITION_KEY.clone(),
+                ARBITRARY_NAMESPACE_ID,
+                Arc::clone(&*DEFER_NAMESPACE_NAME_1_SEC),
                 other_table,
-                Arc::new(DeferredLoad::new(Duration::from_secs(1), async {
-                    TableName::from(TABLE_NAME)
-                })),
+                Arc::clone(&*DEFER_TABLE_NAME_1_SEC),
                 TRANSITION_SHARD_ID,
             )
             .await;
 
-        assert_eq!(got.lock().partition_id(), PARTITION_ID);
+        assert_eq!(got.lock().partition_id(), ARBITRARY_PARTITION_ID);
         assert_eq!(got.lock().table_id(), other_table);
-        assert_eq!(&**got.lock().table_name().get().await, TABLE_NAME);
+        assert_eq!(
+            &**got.lock().table_name().get().await,
+            &***ARBITRARY_TABLE_NAME
+        );
     }
 }

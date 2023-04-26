@@ -17,8 +17,8 @@ use std::{collections::HashMap, sync::Arc, time::Duration};
 use arrow::record_batch::RecordBatch;
 use arrow_flight::{decode::FlightRecordBatchStream, flight_service_server::FlightService, Ticket};
 use data_types::{
-    Namespace, NamespaceId, NamespaceSchema, ParquetFile, PartitionKey, QueryPoolId, Sequence,
-    SequenceNumber, ShardIndex, TableId, TopicId,
+    Namespace, NamespaceId, NamespaceSchema, ParquetFile, PartitionKey, QueryPoolId,
+    SequenceNumber, TableId, TopicId,
 };
 use dml::{DmlMeta, DmlWrite};
 use futures::{stream::FuturesUnordered, FutureExt, StreamExt, TryStreamExt};
@@ -179,8 +179,6 @@ impl TestContextBuilder {
     }
 }
 
-const SHARD_INDEX: ShardIndex = ShardIndex::new(42);
-
 /// A command interface to the underlying [`ingester2`] instance.
 ///
 /// When the [`TestContext`] is dropped, the underlying [`ingester2`] instance
@@ -309,7 +307,7 @@ where
             batches_by_ids,
             partition_key,
             DmlMeta::sequenced(
-                Sequence::new(SHARD_INDEX, SequenceNumber::new(sequence_number)),
+                SequenceNumber::new(sequence_number),
                 iox_time::SystemProvider::new().now(),
                 None,
                 50,

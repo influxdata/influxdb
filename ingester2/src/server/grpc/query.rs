@@ -174,7 +174,7 @@ where
 
         // Predicate pushdown is part of the API, but not implemented.
         if let Some(p) = request.predicate {
-            warn!(predicate=?p, "ignoring query predicate (unsupported)");
+            debug!(predicate=?p, "ignoring query predicate (unsupported)");
         }
 
         let response = match self

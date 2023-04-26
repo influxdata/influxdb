@@ -22,6 +22,25 @@ static RETENTION_SETUP: Lazy<RetentionSetup> = Lazy::new(RetentionSetup::new);
 pub static SETUPS: Lazy<HashMap<SetupName, SetupSteps>> = Lazy::new(|| {
     HashMap::from([
         (
+            "Bugs",
+            vec![
+                Step::RecordNumParquetFiles,
+                Step::WriteLineProtocol(
+                    [
+                        r#"checks,id=1,method=POST,name=Writes,url="https://example.com",user_id=1 elapsed=66909i,status=204i 1678578528255989730"#,
+                        r#"checks,id=1,method=POST,name=Writes,url="https://example.com",user_id=1 elapsed=112928i,status=204i 1678578532192972168"#,
+                        r#"checks,id=1,method=POST,name=Writes,url="https://example.com",user_id=1 elapsed=147683i,status=204i 1678578588416052133"#,
+                        r#"checks,id=1,method=POST,name=Writes,url="https://example.com",user_id=1 elapsed=78000i,status=204i 1678578592147893402"#,
+                    ]
+                    .join("\n"),
+                ),
+                Step::Persist,
+                Step::WaitForPersisted2 {
+                    expected_increase: 1,
+                },
+            ],
+        ),
+        (
             "TwoMeasurements",
             vec![
                 Step::RecordNumParquetFiles,

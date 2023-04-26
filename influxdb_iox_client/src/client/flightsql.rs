@@ -31,7 +31,8 @@ use arrow_flight::{
         ActionCreatePreparedStatementRequest, ActionCreatePreparedStatementResult, Any,
         CommandGetCatalogs, CommandGetCrossReference, CommandGetDbSchemas, CommandGetExportedKeys,
         CommandGetImportedKeys, CommandGetPrimaryKeys, CommandGetSqlInfo, CommandGetTableTypes,
-        CommandGetTables, CommandPreparedStatementQuery, CommandStatementQuery, ProstMessageExt,
+        CommandGetTables, CommandGetXdbcTypeInfo, CommandPreparedStatementQuery,
+        CommandStatementQuery, ProstMessageExt,
     },
     Action, FlightClient, FlightDescriptor, FlightInfo, IpcMessage, Ticket,
 };
@@ -358,6 +359,26 @@ impl FlightSqlClient {
     /// [`CommandGetTableTypes`]: https://github.com/apache/arrow/blob/44edc27e549d82db930421b0d4c76098941afd71/format/FlightSql.proto#L1243-L1259
     pub async fn get_table_types(&mut self) -> Result<FlightRecordBatchStream> {
         let msg = CommandGetTableTypes {};
+        self.do_get_with_cmd(msg.as_any()).await
+    }
+
+    /// List information about data type supported on this server
+    /// using a [`CommandGetXdbcTypeInfo`] message.
+    ///
+    /// # Parameters
+    ///
+    /// Definition from <https://github.com/apache/arrow/blob/9588da967c756b2923e213ccc067378ba6c90a86/format/FlightSql.proto#L1058-L1123>
+    ///
+    /// data_type: Specifies the data type to search for the info.
+    ///
+    /// This implementation does not support alternate endpoints
+    pub async fn get_xdbc_type_info(
+        &mut self,
+        data_type: Option<impl Into<i32> + Send>,
+    ) -> Result<FlightRecordBatchStream> {
+        let msg = CommandGetXdbcTypeInfo {
+            data_type: data_type.map(|dt| dt.into()),
+        };
         self.do_get_with_cmd(msg.as_any()).await
     }
 

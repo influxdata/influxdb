@@ -4,7 +4,7 @@ use std::{
 };
 
 use async_trait::async_trait;
-use authz::Authorizer;
+use authz::{Authorizer, IoxAuthorizer};
 use clap_blocks::router2::Router2Config;
 use data_types::{NamespaceName, PartitionTemplate, TemplatePart};
 use hashbrown::HashMap;
@@ -66,6 +66,12 @@ pub enum Error {
 
     #[error("No topic named '{topic_name}' found in the catalog")]
     TopicCatalogLookup { topic_name: String },
+
+    #[error("authz configuration error for '{addr}': '{source}'")]
+    AuthzConfig {
+        source: Box<dyn std::error::Error>,
+        addr: String,
+    },
 }
 
 pub type Result<T, E = Error> = std::result::Result<T, E>;
@@ -193,7 +199,6 @@ pub async fn create_router2_server_type(
     metrics: Arc<metric::Registry>,
     catalog: Arc<dyn Catalog>,
     object_store: Arc<DynObjectStore>,
-    authz: Option<Arc<dyn Authorizer>>,
     router_config: &Router2Config,
 ) -> Result<Arc<dyn ServerType>> {
     let ingester_connections = router_config.ingester_addresses.iter().map(|addr| {
@@ -349,13 +354,35 @@ pub async fn create_router2_server_type(
     let handler_stack = InstrumentationDecorator::new("request", &metrics, handler_stack);
 
     // Initialize the HTTP API delegate
-    let write_request_unifier: Result<Box<dyn WriteRequestUnifier>> =
-        match (router_config.single_tenant_deployment, authz) {
-            (true, Some(auth)) => Ok(Box::new(SingleTenantRequestUnifier::new(auth))),
-            (true, None) => unreachable!("INFLUXDB_IOX_SINGLE_TENANCY is set, but could not create an authz service. Check the INFLUXDB_IOX_AUTHZ_ADDR."),
-            (false, None) => Ok(Box::<MultiTenantRequestUnifier>::default()),
-            (false, Some(_)) => unreachable!("INFLUXDB_IOX_AUTHZ_ADDR is set, but authz only exists for single_tenancy. Check the INFLUXDB_IOX_SINGLE_TENANCY."),
-        };
+    let write_request_unifier: Result<Box<dyn WriteRequestUnifier>> = match (
+        router_config.single_tenant_deployment,
+        &router_config.authz_address,
+    ) {
+        (true, Some(addr)) => {
+            let authz = IoxAuthorizer::connect_lazy(addr.clone())
+                .map(|c| Arc::new(c) as Arc<dyn Authorizer>)
+                .map_err(|source| Error::AuthzConfig {
+                    source,
+                    addr: addr.clone(),
+                })?;
+            authz.probe().await.expect("Authz connection test failed.");
+
+            Ok(Box::new(SingleTenantRequestUnifier::new(authz)))
+        }
+        (true, None) => {
+            // Single tenancy was requested, but no auth was provided - the
+            // router's clap flag parse configuration should not allow this
+            // combination to be accepted and therefore execution should
+            // never reach here.
+            unreachable!("INFLUXDB_IOX_SINGLE_TENANCY is set, but could not create an authz service. Check the INFLUXDB_IOX_AUTHZ_ADDR")
+        }
+        (false, None) => Ok(Box::<MultiTenantRequestUnifier>::default()),
+        (false, Some(_)) => {
+            // As above, this combination should be prevented by the
+            // router's clap flag parse configuration.
+            unreachable!("INFLUXDB_IOX_AUTHZ_ADDR is set, but authz only exists for single_tenancy. Check the INFLUXDB_IOX_SINGLE_TENANCY")
+        }
+    };
     let http = HttpDelegate::new(
         common_state.run_config().max_http_request_size,
         router_config.http_request_limit,

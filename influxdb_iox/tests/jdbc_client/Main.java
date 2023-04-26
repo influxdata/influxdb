@@ -169,12 +169,15 @@ public class Main {
         System.out.println("**************");
         print_result_set(md.getTableTypes());
 
+        System.out.println("**************");
+        System.out.println("getColumns:");
+        System.out.println("**************");
+        print_result_set(md.getColumns(null, null, null, null));
 
-        // TODO uncomment when GetTables is implemented
-        //System.out.println("**************");
-        //System.out.println("getColumns:");
-        //System.out.println("**************");
-        //print_result_set(md.getColumns(null, null, null, null));
+        System.out.println("**************");
+        System.out.println("Type Info:");
+        System.out.println("**************");
+        print_result_set(md.getTypeInfo());
 
         System.out.println("**************");
         System.out.println("getFunctions:");

@@ -2039,25 +2039,6 @@ impl TableSummary {
     }
 }
 
-/// Shard index plus offset
-#[derive(Debug, Copy, Clone, Eq, PartialEq)]
-pub struct Sequence {
-    /// The shard index
-    pub shard_index: ShardIndex,
-    /// The sequence number
-    pub sequence_number: SequenceNumber,
-}
-
-impl Sequence {
-    /// Create a new Sequence
-    pub fn new(shard_index: ShardIndex, sequence_number: SequenceNumber) -> Self {
-        Self {
-            shard_index,
-            sequence_number,
-        }
-    }
-}
-
 /// minimum time that can be represented.
 ///
 /// 1677-09-21 00:12:43.145224194 +0000 UTC

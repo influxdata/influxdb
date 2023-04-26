@@ -381,9 +381,9 @@ mod tests {
     test_parse_v1!(
         encoded_quotation,
         query_string = "?db=ban'anas",
-        want = Ok(WriteParams{ namespace, precision: _ }) => {
-            assert_eq!(namespace.as_str(), "ban'anas");
-        }
+        want = Err(Error::SingleTenantError(
+            SingleTenantExtractError::InvalidNamespace(NamespaceNameError::BadChars { .. })
+        ))
     );
 
     test_parse_v1!(
@@ -483,15 +483,22 @@ mod tests {
         ))
     );
 
-    // Do not encode potentially problematic input.
     test_parse_v2!(
-        no_encoding,
+        url_encoding,
         // URL-encoded input that is decoded in the HTTP layer
-        query_string = "?bucket=cool%2Fconfusing%F0%9F%8D%8C&prg=org",
+        query_string = "?bucket=cool%2Fconfusing&prg=org",
         want = Ok(WriteParams {namespace, ..}) => {
             // Yielding a not-encoded string as the namespace.
-            assert_eq!(namespace.as_str(), "cool/confusing🍌");
+            assert_eq!(namespace.as_str(), "cool/confusing");
         }
+    );
+
+    test_parse_v2!(
+        encoded_emoji,
+        query_string = "?bucket=confusing%F0%9F%8D%8C&prg=org",
+        want = Err(Error::SingleTenantError(
+            SingleTenantExtractError::InvalidNamespace(NamespaceNameError::BadChars { .. })
+        ))
     );
 
     test_parse_v2!(
@@ -518,14 +525,11 @@ mod tests {
     );
 
     test_parse_v2!(
-        encoded_quotation,
+        single_quotation,
         query_string = "?bucket=buc'ket",
-        want = Ok(WriteParams {
-            namespace,
-            ..
-        }) => {
-            assert_eq!(namespace.as_str(), "buc'ket");
-        }
+        want = Err(Error::SingleTenantError(
+            SingleTenantExtractError::InvalidNamespace(NamespaceNameError::BadChars { .. })
+        ))
     );
 
     test_parse_v2!(
