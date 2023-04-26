@@ -515,6 +515,7 @@ name = "authz"
 version = "0.1.0"
 dependencies = [
  "async-trait",
+ "base64 0.21.0",
  "generated_types",
  "http",
  "observability_deps",

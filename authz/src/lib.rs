@@ -17,6 +17,7 @@
 #![allow(rustdoc::private_intra_doc_links)]
 
 use async_trait::async_trait;
+use base64::{prelude::BASE64_STANDARD, Engine};
 use generated_types::influxdata::iox::authz::v1 as proto;
 use observability_deps::tracing::warn;
 use snafu::Snafu;
@@ -26,6 +27,26 @@ pub use permission::{Action, Permission, Resource};
 
 #[cfg(feature = "http")]
 pub mod http;
+
+/// Extract a token from an HTTP header or gRPC metadata value.
+pub fn extract_token<T: AsRef<[u8]> + ?Sized>(value: Option<&T>) -> Option<Vec<u8>> {
+    let mut parts = value?.as_ref().splitn(2, |&v| v == b' ');
+    let token = match parts.next()? {
+        b"Token" | b"Bearer" => parts.next()?.to_vec(),
+        b"Basic" => parts
+            .next()
+            .and_then(|v| BASE64_STANDARD.decode(v).ok())?
+            .splitn(2, |&v| v == b':')
+            .nth(1)?
+            .to_vec(),
+        _ => return None,
+    };
+    if token.is_empty() {
+        None
+    } else {
+        Some(token)
+    }
+}
 
 /// An authorizer is used to validate the associated with
 /// an authorization token that has been extracted from a request.
@@ -41,14 +62,14 @@ pub trait Authorizer: std::fmt::Debug + Send + Sync {
     /// empty permission sets.
     async fn permissions(
         &self,
-        token: Option<&[u8]>,
+        token: Option<Vec<u8>>,
         perms: &[Permission],
     ) -> Result<Vec<Permission>, Error>;
 
     /// Make a test request that determines if end-to-end communication
     /// with the service is working.
     async fn probe(&self) -> Result<(), Error> {
-        self.permissions(Some(b""), &[]).await?;
+        self.permissions(Some(b"".to_vec()), &[]).await?;
         Ok(())
     }
 
@@ -58,7 +79,7 @@ pub trait Authorizer: std::fmt::Debug + Send + Sync {
     /// error is returned.
     async fn require_any_permission(
         &self,
-        token: Option<&[u8]>,
+        token: Option<Vec<u8>>,
         perms: &[Permission],
     ) -> Result<(), Error> {
         if self.permissions(token, perms).await?.is_empty() {
@@ -73,7 +94,7 @@ pub trait Authorizer: std::fmt::Debug + Send + Sync {
 impl<T: Authorizer> Authorizer for Option<T> {
     async fn permissions(
         &self,
-        token: Option<&[u8]>,
+        token: Option<Vec<u8>>,
         perms: &[Permission],
     ) -> Result<Vec<Permission>, Error> {
         match self {
@@ -87,7 +108,7 @@ impl<T: Authorizer> Authorizer for Option<T> {
 impl<T: AsRef<dyn Authorizer> + std::fmt::Debug + Send + Sync> Authorizer for T {
     async fn permissions(
         &self,
-        token: Option<&[u8]>,
+        token: Option<Vec<u8>>,
         perms: &[Permission],
     ) -> Result<Vec<Permission>, Error> {
         self.as_ref().permissions(token, perms).await
@@ -120,11 +141,11 @@ impl IoxAuthorizer {
 impl Authorizer for IoxAuthorizer {
     async fn permissions(
         &self,
-        token: Option<&[u8]>,
+        token: Option<Vec<u8>>,
         perms: &[Permission],
     ) -> Result<Vec<Permission>, Error> {
         let req = proto::AuthorizeRequest {
-            token: token.ok_or(Error::NoToken)?.to_vec(),
+            token: token.ok_or(Error::NoToken)?,
             permissions: perms
                 .iter()
                 .filter_map(|p| p.clone().try_into().ok())
@@ -199,5 +220,32 @@ mod tests {
             "token verification not possible: test error",
             format!("{e}")
         )
+    }
+
+    #[test]
+    fn test_extract_token() {
+        assert_eq!(None, extract_token::<&str>(None));
+        assert_eq!(None, extract_token(Some("")));
+        assert_eq!(None, extract_token(Some("Basic")));
+        assert_eq!(None, extract_token(Some("Basic Og=="))); // ":"
+        assert_eq!(None, extract_token(Some("Basic dXNlcm5hbWU6"))); // "username:"
+        assert_eq!(None, extract_token(Some("Basic Og=="))); // ":"
+        assert_eq!(
+            Some(b"password".to_vec()),
+            extract_token(Some("Basic OnBhc3N3b3Jk"))
+        ); // ":password"
+        assert_eq!(
+            Some(b"password2".to_vec()),
+            extract_token(Some("Basic dXNlcm5hbWU6cGFzc3dvcmQy"))
+        ); // "username:password2"
+        assert_eq!(None, extract_token(Some("Bearer")));
+        assert_eq!(None, extract_token(Some("Bearer ")));
+        assert_eq!(Some(b"token".to_vec()), extract_token(Some("Bearer token")));
+        assert_eq!(None, extract_token(Some("Token")));
+        assert_eq!(None, extract_token(Some("Token ")));
+        assert_eq!(
+            Some(b"token2".to_vec()),
+            extract_token(Some("Token token2"))
+        );
     }
 }
