@@ -55,4 +55,8 @@ pub struct ChangeStats {
 
     /// The number of columns added to the cache (across all tables).
     pub(crate) new_columns: usize,
+
+    /// Indicates whether the change took place when an entry already
+    /// existed.
+    pub(crate) did_update: bool,
 }

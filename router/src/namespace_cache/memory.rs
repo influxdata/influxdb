@@ -62,6 +62,7 @@ impl NamespaceCache for Arc<MemoryNamespaceCache> {
                         .fold(0, |acc, t| acc + t.columns.len())
                         as _,
                     new_tables: schema.tables.len(),
+                    did_update: false,
                 };
                 (schema, change_stats)
             }
@@ -89,7 +90,7 @@ fn merge_schema_additive(
     // table exists in both the new and the old namespace schema then any column
     // schema missing from the new table schema are added from the old.
     //
-    // This code performs get() & insert() operations to populate `new_ns`,
+    // This code performs get_mut() & insert() operations to populate `new_ns`,
     // instead of using the BTreeMap's entry() API. This allows this loop to
     // avoid allocating/cloning the table / column name string to give an owned
     // string to the entry() call for every table/column, where the vast
@@ -116,13 +117,18 @@ fn merge_schema_additive(
         }
     }
 
+    // To compute the change stats for the merge it is still necessary to iterate
+    // over the tables present in the new schema. The new schema may have
+    // introduced additional tables that won't be visited by the merge logic's logic.
     let change_stats = ChangeStats {
         new_tables: new_ns.tables.len() - old_table_count,
         new_columns: new_ns
             .tables
             .values()
-            .fold(0, |acc, t| acc + t.columns.len())
+            .map(|v| v.columns.len())
+            .sum::<usize>()
             - old_column_count,
+        did_update: true,
     };
     (new_ns, change_stats)
 }
@@ -253,11 +259,11 @@ mod tests {
 
         assert_matches!(cache.put_schema(ns.clone(), schema_update_1.clone()), (new_schema, new_stats) => {
             assert_eq!(*new_schema, schema_update_1);
-            assert_eq!(new_stats, ChangeStats{ new_tables: 1, new_columns: 1});
+            assert_eq!(new_stats, ChangeStats{ new_tables: 1, new_columns: 1, did_update: false});
         });
         assert_matches!(cache.put_schema(ns.clone(), schema_update_2), (new_schema, new_stats) => {
             assert_eq!(*new_schema, want_namespace_schema);
-            assert_eq!(new_stats, ChangeStats{ new_tables: 0, new_columns: 1});
+            assert_eq!(new_stats, ChangeStats{ new_tables: 0, new_columns: 1, did_update: true});
         });
 
         let got_namespace_schema = cache
@@ -320,11 +326,11 @@ mod tests {
 
         assert_matches!(cache.put_schema(ns.clone(), schema_update_1.clone()), (new_schema, new_stats) => {
             assert_eq!(*new_schema, schema_update_1);
-            assert_eq!(new_stats, ChangeStats{ new_tables: 2, new_columns: 0});
+            assert_eq!(new_stats, ChangeStats{ new_tables: 2, new_columns: 0, did_update: false});
         });
         assert_matches!(cache.put_schema(ns.clone(), schema_update_2), (new_schema, new_stats) => {
             assert_eq!(*new_schema, want_namespace_schema);
-            assert_eq!(new_stats, ChangeStats{ new_tables: 1, new_columns: 0});
+            assert_eq!(new_stats, ChangeStats{ new_tables: 1, new_columns: 0, did_update: true});
         });
 
         let got_namespace_schema = cache
