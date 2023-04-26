@@ -59,8 +59,8 @@ impl NamespaceCache for Arc<MemoryNamespaceCache> {
                     new_columns: schema
                         .tables
                         .values()
-                        .fold(0, |acc, t| acc + t.columns.len())
-                        as _,
+                        .map(|v| v.columns.len())
+                        .sum::<usize>(),
                     new_tables: schema.tables.len(),
                     did_update: false,
                 };
