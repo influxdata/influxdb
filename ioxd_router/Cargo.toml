@@ -21,6 +21,6 @@ router = { path = "../router" }
 sharder = { path = "../sharder" }
 thiserror = "1.0.40"
 tokio = { version = "1.27", features = ["macros", "net", "parking_lot", "rt-multi-thread", "signal", "sync", "time"] }
-tokio-util = { version = "0.7.7" }
+tokio-util = { version = "0.7.8" }
 trace = { path = "../trace" }
 workspace-hack = { version = "0.1", path = "../workspace-hack" }

@@ -31,7 +31,7 @@ thiserror = "1.0.40"
 tokio = { version = "1.27", features = ["macros", "net", "parking_lot", "rt-multi-thread", "signal", "sync", "time"] }
 tonic = { workspace = true }
 workspace-hack = { version = "0.1", path = "../workspace-hack" }
-tokio-util = "0.7.7"
+tokio-util = "0.7.8"
 
 [dev-dependencies]
 # Workspace dependencies, in alphabetical order
