@@ -85,10 +85,19 @@ fn merge_schema_additive(
 
     let old_table_count = old_ns.tables.len();
     let mut old_column_count = 0;
-    // Table schema missing from the new schema are added from the old. If
-    // the table exists in both the new and the old namespace schema then
-    // any column schema missing from the new table schema are added from
-    // the old.
+    // Table schema missing from the new schema are added from the old. If the
+    // table exists in both the new and the old namespace schema then any column
+    // schema missing from the new table schema are added from the old.
+    //
+    // This code performs get() & insert() operations to populate `new_ns`,
+    // instead of using the BTreeMap's entry() API. This allows this loop to
+    // avoid allocating/cloning the table / column name string to give an owned
+    // string to the entry() call for every table/column, where the vast
+    // majority will likely be already present in the map, wasting the
+    // allocation. Instead this block prefers to perform the additional lookup
+    // for the insert() call, knowing these cases will be far fewer, amortising
+    // to 0 as the schemas become fully populated, leaving the common path free
+    // of overhead.
     for (old_table_name, old_table) in &old_ns.tables {
         match new_ns.tables.get_mut(old_table_name) {
             Some(new_table) => {
