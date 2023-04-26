@@ -100,9 +100,9 @@ fn merge_schema_additive(
     // to 0 as the schemas become fully populated, leaving the common path free
     // of overhead.
     for (old_table_name, old_table) in &old_ns.tables {
+        old_column_count += old_table.columns.len();
         match new_ns.tables.get_mut(old_table_name) {
             Some(new_table) => {
-                old_column_count += old_table.columns.len();
                 for (column_name, column) in &old_table.columns {
                     if !new_table.columns.contains_key(column_name) {
                         new_table.columns.insert(column_name.to_owned(), *column);
@@ -203,7 +203,7 @@ mod tests {
         let table_id = TableId::new(1);
 
         // Create two distinct namespace schema to put in the cache to simulate
-        // a pair of racy writes with different column additions.
+        // a pair of writes with different column additions.
         let column_1 = Column {
             id: ColumnId::new(1),
             table_id,
@@ -281,10 +281,31 @@ mod tests {
     async fn test_put_additive_merge_tables() {
         let ns = NamespaceName::new("arán").expect("namespace name is valid");
         // Create two distinct namespace schema to put in the cache to simulate
-        // a pair of racy writes with different table additions.
-        let table_1 = TableSchema::new(TableId::new(1));
-        let table_2 = TableSchema::new(TableId::new(2));
-        let table_3 = TableSchema::new(TableId::new(3));
+        // a pair of writes with different table additions.
+        //
+        // Each table has been given a column to assert the table merge logic
+        // produces the correct metrics.
+        let mut table_1 = TableSchema::new(TableId::new(1));
+        table_1.add_column(&Column {
+            id: ColumnId::new(1),
+            table_id: TableId::new(1),
+            name: "column_a".to_string(),
+            column_type: ColumnType::String,
+        });
+        let mut table_2 = TableSchema::new(TableId::new(2));
+        table_2.add_column(&Column {
+            id: ColumnId::new(2),
+            table_id: TableId::new(2),
+            name: "column_b".to_string(),
+            column_type: ColumnType::String,
+        });
+        let mut table_3 = TableSchema::new(TableId::new(3));
+        table_3.add_column(&Column {
+            id: ColumnId::new(3),
+            table_id: TableId::new(3),
+            name: "column_c".to_string(),
+            column_type: ColumnType::String,
+        });
 
         let schema_update_1 = NamespaceSchema {
             id: NamespaceId::new(42),
@@ -326,11 +347,11 @@ mod tests {
 
         assert_matches!(cache.put_schema(ns.clone(), schema_update_1.clone()), (new_schema, new_stats) => {
             assert_eq!(*new_schema, schema_update_1);
-            assert_eq!(new_stats, ChangeStats{ new_tables: 2, new_columns: 0, did_update: false});
+            assert_eq!(new_stats, ChangeStats{ new_tables: 2, new_columns: 2, did_update: false});
         });
         assert_matches!(cache.put_schema(ns.clone(), schema_update_2), (new_schema, new_stats) => {
             assert_eq!(*new_schema, want_namespace_schema);
-            assert_eq!(new_stats, ChangeStats{ new_tables: 1, new_columns: 0, did_update: true});
+            assert_eq!(new_stats, ChangeStats{ new_tables: 1, new_columns: 1, did_update: true});
         });
 
         let got_namespace_schema = cache
