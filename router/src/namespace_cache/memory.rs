@@ -135,12 +135,14 @@ fn merge_schema_additive(
 
 #[cfg(test)]
 mod tests {
-    use std::collections::BTreeMap;
+    use std::collections::{BTreeMap, HashSet};
 
     use assert_matches::assert_matches;
     use data_types::{
-        Column, ColumnId, ColumnType, NamespaceId, QueryPoolId, TableId, TableSchema, TopicId,
+        Column, ColumnId, ColumnSchema, ColumnType, NamespaceId, QueryPoolId, TableId, TableSchema,
+        TopicId,
     };
+    use proptest::{prelude::*, prop_compose, proptest};
 
     use super::*;
 
@@ -363,5 +365,118 @@ mod tests {
             *got_namespace_schema, want_namespace_schema,
             "table schema for left hand side should contain tables from both writes",
         );
+    }
+
+    /// A set of table and column names from which arbitrary names are selected
+    /// in prop tests, instead of using random values that have a low
+    /// probability of overlap.
+    const TEST_TABLE_NAME_SET: &[&str] = &["bananas", "quiero", "un", "platano"];
+    const TEST_COLUMN_NAME_SET: &[&str] = &["A", "B", "C", "D", "E", "F"];
+
+    prop_compose! {
+        fn arbitrary_column_schema()(id in any::<i64>(), disctim in 1_i16..=7) -> ColumnSchema {
+            let col_type = ColumnType::try_from(disctim).expect("valid discriminator range");
+            ColumnSchema { id: ColumnId::new(id), column_type: col_type }
+        }
+    }
+
+    prop_compose! {
+        /// Generate an arbitrary TableSchema with up to 10 columns.
+        fn arbitrary_table_schema()(
+            id in any::<i64>(),
+            columns in proptest::collection::btree_map(
+                proptest::sample::select(TEST_COLUMN_NAME_SET),
+                arbitrary_column_schema(),
+                (0, 10) // Set size range
+            ),
+        ) -> TableSchema {
+            let columns = columns.into_iter().map(|(k, v)| (k.to_string(), v)).collect();
+            TableSchema { id: TableId::new(id), columns }
+        }
+    }
+
+    prop_compose! {
+        fn arbitrary_namespace_schema()(
+            tables in proptest::collection::btree_map(
+                proptest::sample::select(TEST_TABLE_NAME_SET),
+                arbitrary_table_schema(),
+                (0, 10) // Set size range
+            ),
+            max_columns_per_table in any::<usize>(),
+            max_tables in any::<usize>(),
+            retention_period_ns in any::<Option<i64>>(),
+        ) -> NamespaceSchema {
+            let tables = tables.into_iter().map(|(k, v)| (k.to_string(), v)).collect();
+            NamespaceSchema {
+                id: TEST_NAMESPACE_ID,
+                tables,
+                topic_id: TopicId::new(1), // Ignored
+                query_pool_id: QueryPoolId::new(1), // Ignored
+                max_columns_per_table,
+                max_tables,
+                retention_period_ns,
+            }
+        }
+    }
+
+    /// Reduce `ns` into a set of `(table_name, column_name)` for all tables &
+    /// columns.
+    fn into_set(ns: &NamespaceSchema) -> HashSet<(String, String)> {
+        ns.tables
+            .iter()
+            .flat_map(|(table_name, col_set)| {
+                // Build a set of tuples in the form (table_name, column_name)
+                col_set
+                    .columns
+                    .keys()
+                    .map(|col_name| (table_name.to_string(), col_name.to_string()))
+            })
+            .collect()
+    }
+
+    proptest! {
+        #[test]
+        fn prop_schema_merge(
+                a in arbitrary_namespace_schema(),
+                b in arbitrary_namespace_schema()
+            ) {
+            // Convert inputs into sets
+            let known_a = into_set(&a);
+            let known_b = into_set(&b);
+
+            // Compute the union set of the input schema sets.
+            //
+            // This is the expected result of the cache merging operation.
+            let want = known_a.union(&known_b).map(|v| v.to_owned()).collect::<HashSet<_>>();
+
+            // Merge the schemas using the cache merge logic.
+            let name = NamespaceName::try_from("bananas").unwrap();
+            let cache = Arc::new(MemoryNamespaceCache::default());
+            let (got, stats_1) = cache.put_schema(name.clone(), a.clone());
+            assert_eq!(*got, a); // The new namespace should be unchanged
+
+            // Drive the merging logic
+            let (got, stats_2) = cache.put_schema(name, b.clone());
+
+            // Reduce the merged schema into a comparable set.
+            let got_set = into_set(&got);
+
+            // Assert the table/column sets merged by the known good hashset
+            // union implementation, and the cache merging logic are the same.
+            assert_eq!(got_set, want);
+
+            // Assert the "last writer wins" in terms of all other namespace
+            // values.
+            assert_eq!(got.max_columns_per_table, b.max_columns_per_table);
+            assert_eq!(got.max_tables, b.max_tables);
+            assert_eq!(got.retention_period_ns, b.retention_period_ns);
+
+            // Finally, assert the reported "newly added" statistics sum to the
+            // total of the inputs.
+            assert_eq!(stats_1.new_columns + stats_2.new_columns, want.len());
+
+            let tables = a.tables.keys().chain(b.tables.keys()).collect::<HashSet<_>>();
+            assert_eq!(stats_1.new_tables + stats_2.new_tables, tables.len());
+        }
     }
 }

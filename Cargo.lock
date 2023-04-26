@@ -4753,6 +4753,7 @@ dependencies = [
  "parking_lot 0.12.1",
  "paste",
  "pretty_assertions",
+ "proptest",
  "rand",
  "schema",
  "serde",
