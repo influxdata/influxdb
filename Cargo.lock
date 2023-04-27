@@ -519,6 +519,8 @@ dependencies = [
  "base64 0.21.0",
  "generated_types",
  "http",
+ "iox_time",
+ "metric",
  "observability_deps",
  "paste",
  "snafu",

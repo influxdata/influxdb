@@ -24,6 +24,8 @@ mod authorizer;
 pub use authorizer::Authorizer;
 mod iox_authorizer;
 pub use iox_authorizer::{Error, IoxAuthorizer};
+mod instrumentation;
+pub use instrumentation::AuthorizerInstrumentation;
 mod permission;
 pub use permission::{Action, Permission, Resource};
 
