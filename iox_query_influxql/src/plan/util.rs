@@ -1,12 +1,14 @@
 use crate::plan::{error, util_copy};
-use arrow::datatypes::DataType;
+use arrow::datatypes::{DataType, TimeUnit};
 use datafusion::common::{DFSchema, DFSchemaRef, Result};
 use datafusion::logical_expr::utils::expr_as_column_expr;
-use datafusion::logical_expr::{coalesce, lit, Expr, ExprSchemable, LogicalPlan, Operator};
+use datafusion::logical_expr::{lit, Expr, ExprSchemable, LogicalPlan, Operator};
+use datafusion::scalar::ScalarValue;
 use influxdb_influxql_parser::expression::BinaryOperator;
 use influxdb_influxql_parser::literal::Number;
 use influxdb_influxql_parser::string::Regex;
 use query_functions::clean_non_meta_escapes;
+use query_functions::coalesce_struct::coalesce_struct;
 use schema::Schema;
 use std::sync::Arc;
 
@@ -55,15 +57,30 @@ pub(crate) fn parse_regex(re: &Regex) -> Result<regex::Regex> {
         .map_err(|e| error::map::query(format!("invalid regular expression '{re}': {e}")))
 }
 
-/// Returns `n` as a literal expression of the specified `data_type`.
-fn number_to_expr(n: &Number, data_type: DataType) -> Result<Expr> {
+/// Returns `n` as a scalar value of the specified `data_type`.
+fn number_to_scalar(n: &Number, data_type: &DataType) -> Result<ScalarValue> {
     Ok(match (n, data_type) {
-        (Number::Integer(v), DataType::Int64) => lit(*v),
-        (Number::Integer(v), DataType::Float64) => lit(*v as f64),
-        (Number::Integer(v), DataType::UInt64) => lit(*v as u64),
-        (Number::Float(v), DataType::Int64) => lit(*v as i64),
-        (Number::Float(v), DataType::Float64) => lit(*v),
-        (Number::Float(v), DataType::UInt64) => lit(*v as u64),
+        (Number::Integer(v), DataType::Int64) => ScalarValue::from(*v),
+        (Number::Integer(v), DataType::Float64) => ScalarValue::from(*v as f64),
+        (Number::Integer(v), DataType::UInt64) => ScalarValue::from(*v as u64),
+        (Number::Integer(v), DataType::Timestamp(TimeUnit::Nanosecond, tz)) => {
+            ScalarValue::TimestampNanosecond(Some(*v), tz.clone())
+        }
+        (Number::Float(v), DataType::Int64) => ScalarValue::from(*v as i64),
+        (Number::Float(v), DataType::Float64) => ScalarValue::from(*v),
+        (Number::Float(v), DataType::UInt64) => ScalarValue::from(*v as u64),
+        (Number::Float(v), DataType::Timestamp(TimeUnit::Nanosecond, tz)) => {
+            ScalarValue::TimestampNanosecond(Some(*v as i64), tz.clone())
+        }
+        (n, DataType::Struct(fields)) => ScalarValue::Struct(
+            Some(
+                fields
+                    .iter()
+                    .map(|f| number_to_scalar(n, f.data_type()))
+                    .collect::<Result<Vec<_>>>()?,
+            ),
+            fields.clone(),
+        ),
         (n, data_type) => {
             // The only output data types expected are Int64, Float64 or UInt64
             return error::internal(format!("no conversion from {n} to {data_type}"));
@@ -99,7 +116,10 @@ pub(crate) fn rebase_expr(
             Ok(if base_exprs.contains(nested_expr) {
                 let col_expr = expr_as_column_expr(nested_expr, plan)?;
                 let data_type = col_expr.get_type(plan.schema())?;
-                Some(coalesce(vec![col_expr, number_to_expr(value, data_type)?]))
+                Some(coalesce_struct(vec![
+                    col_expr,
+                    lit(number_to_scalar(value, &data_type)?),
+                ]))
             } else {
                 None
             })
