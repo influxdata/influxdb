@@ -82,7 +82,7 @@ impl DmlHandler for Partitioner {
             // Partition the table batch according to the configured partition
             // template and write it into the partition-keyed map.
             for (partition_key, partition_payload) in
-                PartitionWrite::partition(&table_name, &batch, &self.partition_template)
+                PartitionWrite::partition(&batch, &self.partition_template)
             {
                 let partition = partitions.entry(partition_key).or_default();
                 let table_batch = partition

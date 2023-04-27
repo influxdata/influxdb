@@ -433,7 +433,6 @@ fn test_partition_write() {
     };
 
     let partitioned = PartitionWrite::partition(
-        "table",
         &batch,
         &PartitionTemplate {
             parts: vec![TemplatePart::Column("b1".to_string())],

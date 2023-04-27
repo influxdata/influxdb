@@ -1077,13 +1077,12 @@ impl ChunkOrder {
     }
 }
 
-/// `PartitionTemplate` is used to compute the partition key of each row that
-/// gets written. It can consist of the table name, a column name and its value,
-/// a formatted time, or a string column and regex captures of its value. For
-/// columns that do not appear in the input row, a blank value is output.
+/// `PartitionTemplate` is used to compute the partition key of each row that gets written. It can
+/// consist of a column name and its value, a formatted time, or a string column and regex captures
+/// of its value. For columns that do not appear in the input row, a blank value is output.
 ///
-/// The key is constructed in order of the template parts; thus ordering changes
-/// what partition key is generated.
+/// The key is constructed in order of the template parts; thus ordering changes what partition key
+/// is generated.
 #[derive(Debug, Default, Eq, PartialEq, Clone)]
 #[allow(missing_docs)]
 pub struct PartitionTemplate {
@@ -1094,8 +1093,6 @@ pub struct PartitionTemplate {
 /// part of a partition key.
 #[derive(Debug, Eq, PartialEq, Clone)]
 pub enum TemplatePart {
-    /// The name of a table
-    Table,
     /// The value in a named column
     Column(String),
     /// Applies a  `strftime` format to the "time" column.

@@ -121,7 +121,6 @@ fn test_encode_decode_null_columns_issue_4272() {
     writer.commit();
 
     let mut partitions = PartitionWrite::partition(
-        "test",
         &batch,
         &PartitionTemplate {
             parts: vec![TemplatePart::TimeFormat("%Y-%m-%d".to_owned())],

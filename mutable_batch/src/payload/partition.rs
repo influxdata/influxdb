@@ -14,10 +14,9 @@ use std::ops::Range;
 /// Returns an iterator identifying consecutive ranges for a given partition key
 pub fn partition_batch<'a>(
     batch: &'a MutableBatch,
-    table_name: &'a str,
     template: &'a PartitionTemplate,
 ) -> impl Iterator<Item = (String, Range<usize>)> + 'a {
-    range_encode(partition_keys(batch, table_name, template))
+    range_encode(partition_keys(batch, template))
 }
 
 /// A [`PartitionTemplate`] is made up of one of more [`TemplatePart`] that are rendered and
@@ -29,7 +28,6 @@ pub fn partition_batch<'a>(
 /// [`Template::fmt_row`] can then be used to render the template for that particular row
 /// to the provided string, without performing any additional column lookups
 enum Template<'a> {
-    Table(&'a str),
     Column(&'a Column, &'a str),
     MissingColumn(&'a str),
     TimeFormat(&'a [i64], StrftimeItems<'a>),
@@ -39,7 +37,6 @@ impl<'a> Template<'a> {
     /// Renders this template to `out` for the row `idx`
     fn fmt_row<W: std::fmt::Write>(&self, out: &mut W, idx: usize) -> std::fmt::Result {
         match self {
-            Template::Table(table_name) => write!(out, "{table_name}"),
             Template::Column(col, col_name) if col.valid.get(idx) => {
                 out.write_str(col_name)?;
                 out.write_char('_')?;
@@ -75,7 +72,6 @@ impl<'a> Template<'a> {
 /// Returns an iterator of partition keys for the given table batch
 fn partition_keys<'a>(
     batch: &'a MutableBatch,
-    table_name: &'a str,
     template: &'a PartitionTemplate,
 ) -> impl Iterator<Item = String> + 'a {
     let time = batch.column(TIME_COLUMN_NAME).expect("time column");
@@ -88,7 +84,6 @@ fn partition_keys<'a>(
         .parts
         .iter()
         .map(|part| match part {
-            TemplatePart::Table => Template::Table(table_name),
             TemplatePart::Column(name) => batch.column(name).map_or_else(
                 |_| Template::MissingColumn(name),
                 |col| Template::Column(col, name),
@@ -209,7 +204,6 @@ mod tests {
 
         let template = PartitionTemplate {
             parts: vec![
-                TemplatePart::Table,
                 TemplatePart::TimeFormat("%Y-%m-%d %H:%M:%S".to_string()),
                 TemplatePart::Column("f64".to_string()),
                 TemplatePart::Column("region".to_string()),
@@ -219,16 +213,16 @@ mod tests {
 
         writer.commit();
 
-        let keys: Vec<_> = partition_keys(&batch, "foo", &template).collect();
+        let keys: Vec<_> = partition_keys(&batch, &template).collect();
 
         assert_eq!(
             keys,
             vec![
-                "foo-1970-01-01 00:00:00-f64_2-region-bananas".to_string(),
-                "foo-1970-01-01 00:00:00-f64_4.5-region_west-bananas".to_string(),
-                "foo-1970-01-01 00:00:00-f64_6-region-bananas".to_string(),
-                "foo-1970-01-01 00:00:00-f64_3-region_east-bananas".to_string(),
-                "foo-1970-01-01 00:00:00-f64_6-region-bananas".to_string()
+                "1970-01-01 00:00:00-f64_2-region-bananas".to_string(),
+                "1970-01-01 00:00:00-f64_4.5-region_west-bananas".to_string(),
+                "1970-01-01 00:00:00-f64_6-region-bananas".to_string(),
+                "1970-01-01 00:00:00-f64_3-region_east-bananas".to_string(),
+                "1970-01-01 00:00:00-f64_6-region-bananas".to_string()
             ]
         )
     }
