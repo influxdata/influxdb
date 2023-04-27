@@ -49,11 +49,11 @@ pub struct Config {
     /// compaction jobs.
     pub partition_concurrency: NonZeroUsize,
 
-    /// Number of concurrent compaction jobs.
+    /// Number of compaction jobs concurrently scheduled to DataFusion.
     ///
     /// This should usually be smaller than the partition concurrency since one partition can spawn multiple compaction
     /// jobs.
-    pub job_concurrency: NonZeroUsize,
+    pub df_concurrency: NonZeroUsize,
 
     /// Number of jobs PER PARTITION that move files in and out of the scratchpad.
     pub partition_scratchpad_concurrency: NonZeroUsize,

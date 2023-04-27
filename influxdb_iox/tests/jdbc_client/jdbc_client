@@ -8,24 +8,16 @@
 # https://stackoverflow.com/questions/59895/how-do-i-get-the-directory-where-a-bash-script-is-located-from-within-the-script
 SCRIPT_DIR=$( cd -- "$( dirname -- "${BASH_SOURCE[0]}" )" &> /dev/null && pwd )
 
-JDBC_DRIVER_URL="https://search.maven.org/remotecontent?filepath=org/apache/arrow/flight-sql-jdbc-driver/10.0.0/flight-sql-jdbc-driver-10.0.0.jar"
-JDBC_DRIVER_PATH="$SCRIPT_DIR/flight-sql-jdbc-driver-10.0.0.jar"
+JDBC_DRIVER="flight-sql-jdbc-driver-10.0.0.jar"
 
 # download driver if not present
-if [ ! -e "$JDBC_DRIVER_PATH" ]; then
-    echo "Downloading JDBC driver from $JDBC_DRIVER_URL"
-    curl -L "$JDBC_DRIVER_URL" --output $JDBC_DRIVER_PATH
-fi
+make -C $SCRIPT_DIR $JDBC_DRIVER
 
 # Help track down https://github.com/influxdata/influxdb_iox/issues/6967
 ls -ltr
 
-# Verify the download
-# To update, run: shasum flight-sql-jdbc-driver-10.0.0.jar  > flight-sql-jdbc-driver-10.0.0.jar.sha
-(cd $SCRIPT_DIR && shasum -c flight-sql-jdbc-driver-10.0.0.jar.sha)
-
 # Compile
-(cd "$SCRIPT_DIR" && javac Main.java)
+make -C $SCRIPT_DIR Main.class
 
 # Run the code and pass along command line arguments
-java --add-opens=java.base/java.nio=ALL-UNNAMED -classpath "$SCRIPT_DIR:$JDBC_DRIVER_PATH" Main "$@"
+java --add-opens=java.base/java.nio=ALL-UNNAMED -classpath "$SCRIPT_DIR:$SCRIPT_DIR/$JDBC_DRIVER" Main "$@"

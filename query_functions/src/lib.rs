@@ -18,6 +18,8 @@ use datafusion::{
 use group_by::WindowDuration;
 use window::EncodedWindowDuration;
 
+pub mod coalesce_struct;
+
 /// Grouping by structs
 pub mod group_by;
 

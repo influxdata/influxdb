@@ -30,7 +30,7 @@ use object_store::DynObjectStore;
 use observability_deps::tracing::*;
 use snafu::prelude::*;
 use std::{fmt::Debug, sync::Arc};
-use tokio::sync::mpsc;
+use tokio::{select, sync::mpsc};
 use tokio_util::sync::CancellationToken;
 
 /// Logic for listing, checking and deleting files in object storage
@@ -96,12 +96,23 @@ impl GarbageCollector {
         let (tx1, rx1) = mpsc::channel(BUFFER_SIZE);
         let (tx2, rx2) = mpsc::channel(BUFFER_SIZE);
 
-        let os_lister = tokio::spawn(os_lister::perform(
-            shutdown.clone(),
-            Arc::clone(&object_store),
-            tx1,
-            sub_config.objectstore_sleep_interval_minutes,
-        ));
+        let sdt = shutdown.clone();
+        let osa = Arc::clone(&object_store);
+
+        let os_lister = tokio::spawn(async move {
+            select! {
+                ret = os_lister::perform(
+                    osa,
+                    tx1,
+                    sub_config.objectstore_sleep_interval_minutes,
+                ) => {
+                    ret
+                },
+                _ = sdt.cancelled() => {
+                    Ok(())
+                },
+            }
+        });
         let os_checker = tokio::spawn(os_checker::perform(
             shutdown.clone(),
             Arc::clone(&catalog),

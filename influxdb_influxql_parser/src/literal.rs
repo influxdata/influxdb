@@ -295,7 +295,7 @@ fn single_duration(i: &str) -> ParseResult<&str, i64> {
             integer,
             alt((
                 value(Nanosecond, tag("ns")),  // nanoseconds
-                value(Microsecond, tag("µ")), // microseconds
+                value(Microsecond, tag("µ")),  // microseconds
                 value(Microsecond, tag("u")),  // microseconds
                 value(Millisecond, tag("ms")), // milliseconds
                 value(Second, tag("s")),       // seconds

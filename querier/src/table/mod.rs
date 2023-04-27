@@ -18,6 +18,7 @@ use std::{
     sync::Arc,
     time::Duration,
 };
+use tokio_util::sync::CancellationToken;
 use trace::span::{Span, SpanRecorder};
 use uuid::Uuid;
 
@@ -207,19 +208,35 @@ impl QuerierTable {
 
         let catalog_cache = self.chunk_adapter.catalog_cache();
 
-        // ask ingesters for data, also optimistically fetching catalog
-        // contents at the same time to pre-warm cache
-        let (partitions, _parquet_files) = join!(
-            self.ingester_partitions(
-                &predicate,
-                span_recorder.child_span("ingester partitions"),
-                projection,
-            ),
-            catalog_cache.parquet_file().get(
-                self.id(),
-                None,
-                span_recorder.child_span("cache GET parquet_file (pre-warm")
-            ),
+        // Ask ingesters for data, also optimistically fetching catalog
+        // contents at the same time to pre-warm cache.
+        //
+        // We don't wanna wait for the cache though because we have a the actual cache request later anyways that might
+        // even invalidate what we did during warm-up. The cache system keeps requests running in the background
+        // anyways, so if the warm-up fetched up-to-date data, we'll get that from the cache later.
+        let ingester_ready = CancellationToken::new();
+        let (partitions, _) = join!(
+            async {
+                let partitions = self
+                    .ingester_partitions(
+                        &predicate,
+                        span_recorder.child_span("ingester partitions"),
+                        projection,
+                    )
+                    .await;
+                ingester_ready.cancel();
+                partitions
+            },
+            async {
+                tokio::select! {
+                    _ = catalog_cache.parquet_file().get(
+                        self.id(),
+                        None,
+                        span_recorder.child_span("cache GET parquet_file (pre-warm")
+                    ) => {},
+                    _ = ingester_ready.cancelled() => {},
+                }
+            },
         );
 
         // handle errors / cache refresh

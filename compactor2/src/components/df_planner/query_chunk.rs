@@ -25,19 +25,16 @@ pub struct QueryableParquetChunk {
     delete_predicates: Vec<Arc<DeletePredicate>>,
     partition_id: PartitionId,
     sort_key: Option<SortKey>,
-    partition_sort_key: Option<SortKey>,
     order: ChunkOrder,
     summary: Arc<TableSummary>,
 }
 
 impl QueryableParquetChunk {
     /// Initialize a QueryableParquetChunk
-    #[allow(clippy::too_many_arguments)]
     pub fn new(
         partition_id: PartitionId,
         data: Arc<ParquetChunk>,
         sort_key: Option<SortKey>,
-        partition_sort_key: Option<SortKey>,
         order: ChunkOrder,
     ) -> Self {
         let summary = Arc::new(create_basic_summary(
@@ -50,7 +47,6 @@ impl QueryableParquetChunk {
             delete_predicates: vec![],
             partition_id,
             sort_key,
-            partition_sort_key,
             order,
             summary,
         }
@@ -78,10 +74,6 @@ impl QueryChunkMeta for QueryableParquetChunk {
 
     fn schema(&self) -> &Schema {
         self.data.schema()
-    }
-
-    fn partition_sort_key(&self) -> Option<&SortKey> {
-        self.partition_sort_key.as_ref()
     }
 
     fn partition_id(&self) -> PartitionId {
@@ -218,11 +210,5 @@ fn to_queryable_parquet_chunk(
     );
 
     let parquet_chunk = ParquetChunk::new(Arc::new(file.file.clone()), schema, store);
-    QueryableParquetChunk::new(
-        partition_id,
-        Arc::new(parquet_chunk),
-        sort_key,
-        partition_info.sort_key.clone(),
-        file.order,
-    )
+    QueryableParquetChunk::new(partition_id, Arc::new(parquet_chunk), sort_key, file.order)
 }

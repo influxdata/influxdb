@@ -1,4 +1,4 @@
-use std::fmt::Display;
+use std::{fmt::Display, sync::Arc};
 
 use async_trait::async_trait;
 use parquet_file::ParquetFilePath;
@@ -23,8 +23,8 @@ impl Display for NoopScratchpadGen {
 }
 
 impl ScratchpadGen for NoopScratchpadGen {
-    fn pad(&self) -> Box<dyn Scratchpad> {
-        Box::new(NoopScratchpad)
+    fn pad(&self) -> Arc<dyn Scratchpad> {
+        Arc::new(NoopScratchpad)
     }
 }
 
@@ -33,15 +33,15 @@ struct NoopScratchpad;
 
 #[async_trait]
 impl Scratchpad for NoopScratchpad {
-    async fn load_to_scratchpad(&mut self, files: &[ParquetFilePath]) -> Vec<Uuid> {
+    async fn load_to_scratchpad(&self, files: &[ParquetFilePath]) -> Vec<Uuid> {
         files.iter().map(|f| f.objest_store_id()).collect()
     }
 
-    async fn make_public(&mut self, files: &[ParquetFilePath]) -> Vec<Uuid> {
+    async fn make_public(&self, files: &[ParquetFilePath]) -> Vec<Uuid> {
         files.iter().map(|f| f.objest_store_id()).collect()
     }
 
-    async fn clean_from_scratchpad(&mut self, _files: &[ParquetFilePath]) {}
+    async fn clean_from_scratchpad(&self, _files: &[ParquetFilePath]) {}
 
-    async fn clean(&mut self) {}
+    async fn clean(&self) {}
 }
