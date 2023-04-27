@@ -25,7 +25,7 @@ use crate::{
 pub async fn compact(
     partition_concurrency: NonZeroUsize,
     partition_timeout: Duration,
-    job_semaphore: Arc<InstrumentedAsyncSemaphore>,
+    df_semaphore: Arc<InstrumentedAsyncSemaphore>,
     components: &Arc<Components>,
 ) {
     components
@@ -37,7 +37,7 @@ pub async fn compact(
             compact_partition(
                 partition_id,
                 partition_timeout,
-                Arc::clone(&job_semaphore),
+                Arc::clone(&df_semaphore),
                 components,
             )
         })
@@ -49,7 +49,7 @@ pub async fn compact(
 async fn compact_partition(
     partition_id: PartitionId,
     partition_timeout: Duration,
-    job_semaphore: Arc<InstrumentedAsyncSemaphore>,
+    df_semaphore: Arc<InstrumentedAsyncSemaphore>,
     components: Arc<Components>,
 ) {
     info!(partition_id = partition_id.get(), "compact partition",);
@@ -61,7 +61,7 @@ async fn compact_partition(
         async {
             try_compact_partition(
                 partition_id,
-                job_semaphore,
+                df_semaphore,
                 components,
                 scratchpad,
                 transmit_progress_signal,
@@ -185,7 +185,7 @@ async fn compact_partition(
 ///   . Round 2 happens or not depends on the stop condition
 async fn try_compact_partition(
     partition_id: PartitionId,
-    job_semaphore: Arc<InstrumentedAsyncSemaphore>,
+    df_semaphore: Arc<InstrumentedAsyncSemaphore>,
     components: Arc<Components>,
     scratchpad_ctx: Arc<dyn Scratchpad>,
     transmit_progress_signal: Sender<bool>,
@@ -226,7 +226,7 @@ async fn try_compact_partition(
             .map(|branch| {
                 let partition_info = Arc::clone(&partition_info);
                 let components = Arc::clone(&components);
-                let job_semaphore = Arc::clone(&job_semaphore);
+                let df_semaphore = Arc::clone(&df_semaphore);
                 let transmit_progress_signal = Arc::clone(&transmit_progress_signal);
                 let scratchpad = Arc::clone(&scratchpad_ctx);
 
@@ -234,7 +234,7 @@ async fn try_compact_partition(
                     execute_branch(
                         partition_id,
                         branch,
-                        job_semaphore,
+                        df_semaphore,
                         components,
                         scratchpad,
                         partition_info,
@@ -244,7 +244,7 @@ async fn try_compact_partition(
                     .await
                 }
             })
-            .buffer_unordered(job_semaphore.total_permits())
+            .buffer_unordered(df_semaphore.total_permits())
             .try_collect()
             .await?;
 
@@ -257,7 +257,7 @@ async fn try_compact_partition(
 async fn execute_branch(
     partition_id: PartitionId,
     branch: Vec<ParquetFile>,
-    job_semaphore: Arc<InstrumentedAsyncSemaphore>,
+    df_semaphore: Arc<InstrumentedAsyncSemaphore>,
     components: Arc<Components>,
     scratchpad_ctx: Arc<dyn Scratchpad>,
     partition_info: Arc<PartitionInfo>,
@@ -309,7 +309,7 @@ async fn execute_branch(
         &partition_info,
         &components,
         target_level,
-        Arc::clone(&job_semaphore),
+        Arc::clone(&df_semaphore),
         Arc::<dyn Scratchpad>::clone(&scratchpad_ctx),
     )
     .await?;
@@ -359,7 +359,7 @@ async fn run_plans(
     partition_info: &Arc<PartitionInfo>,
     components: &Arc<Components>,
     target_level: CompactionLevel,
-    job_semaphore: Arc<InstrumentedAsyncSemaphore>,
+    df_semaphore: Arc<InstrumentedAsyncSemaphore>,
     scratchpad_ctx: Arc<dyn Scratchpad>,
 ) -> Result<Vec<ParquetFileParams>, DynError> {
     // stage files
@@ -377,7 +377,7 @@ async fn run_plans(
     info!(
         partition_id = partition_info.partition_id.get(),
         plan_count = plans.len(),
-        concurrency_limit = job_semaphore.total_permits(),
+        concurrency_limit = df_semaphore.total_permits(),
         "compacting plans concurrently",
     );
 
@@ -391,10 +391,10 @@ async fn run_plans(
             plan_ir,
             partition_info,
             components,
-            Arc::clone(&job_semaphore),
+            Arc::clone(&df_semaphore),
         )
     })
-    .buffer_unordered(job_semaphore.total_permits())
+    .buffer_unordered(df_semaphore.total_permits())
     .try_collect()
     .await?;
 
@@ -405,19 +405,19 @@ async fn execute_plan(
     plan_ir: PlanIR,
     partition_info: &Arc<PartitionInfo>,
     components: &Arc<Components>,
-    job_semaphore: Arc<InstrumentedAsyncSemaphore>,
+    df_semaphore: Arc<InstrumentedAsyncSemaphore>,
 ) -> Result<Vec<ParquetFileParams>, DynError> {
     let create = {
         // Adjust concurrency based on the column count in the partition.
-        let permits = compute_permits(job_semaphore.total_permits(), partition_info.column_count());
+        let permits = compute_permits(df_semaphore.total_permits(), partition_info.column_count());
 
         info!(
             partition_id = partition_info.partition_id.get(),
-            jobs_running = job_semaphore.holders_acquired(),
-            jobs_pending = job_semaphore.holders_pending(),
+            jobs_running = df_semaphore.holders_acquired(),
+            jobs_pending = df_semaphore.holders_pending(),
             permits_needed = permits,
-            permits_acquired = job_semaphore.permits_acquired(),
-            permits_pending = job_semaphore.permits_pending(),
+            permits_acquired = df_semaphore.permits_acquired(),
+            permits_pending = df_semaphore.permits_pending(),
             "requesting job semaphore",
         );
 
@@ -427,7 +427,7 @@ async fn execute_plan(
         // We guard the DataFusion planning (that doesn't perform any IO) via the semaphore as well in case
         // DataFusion ever starts to pre-allocate buffers during the physical planning. To the best of our
         // knowledge, this is currently (2023-01-25) not the case but if this ever changes, then we are prepared.
-        let permit = job_semaphore
+        let permit = df_semaphore
             .acquire_many(permits, None)
             .await
             .expect("semaphore not closed");
