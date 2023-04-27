@@ -2,7 +2,7 @@ use std::{
     collections::{hash_map::Entry, HashMap},
     fmt::Display,
     num::NonZeroUsize,
-    sync::Arc,
+    sync::{Arc, RwLock},
 };
 
 use async_trait::async_trait;
@@ -50,21 +50,21 @@ impl Display for ProdScratchpadGen {
     }
 }
 
+/// ScratchpadGen is the factory pattern; it creates Scratchpads
 impl ScratchpadGen for ProdScratchpadGen {
-    fn pad(&self) -> Box<dyn Scratchpad> {
-        Box::new(ProdScratchpad {
+    fn pad(&self) -> Arc<dyn Scratchpad> {
+        Arc::new(ProdScratchpad {
             concurrency: self.concurrency,
             backoff_config: self.backoff_config.clone(),
             store_input: Arc::clone(&self.store_input),
             store_scratchpad: Arc::clone(&self.store_scratchpad),
             store_output: Arc::clone(&self.store_output),
             mask: Uuid::new_v4(),
-            files_unmasked: HashMap::default(),
+            files_unmasked: RwLock::new(HashMap::default()),
         })
     }
 }
 
-#[derive(Debug)]
 struct ProdScratchpad {
     concurrency: NonZeroUsize,
     backoff_config: BackoffConfig,
@@ -77,7 +77,22 @@ struct ProdScratchpad {
     ///
     /// If the file is part of this map, it is in the scratchpad. If the boolean key is set, it was already copied to
     /// the output store
-    files_unmasked: HashMap<ParquetFilePath, bool>,
+    files_unmasked: RwLock<HashMap<ParquetFilePath, bool>>,
+}
+
+impl std::fmt::Debug for ProdScratchpad {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        let ref_files_unmasked = self.files_unmasked.read().unwrap();
+        f.debug_struct("ProdScratchpad")
+            .field("concurrency", &self.concurrency)
+            .field("backoff_config", &self.backoff_config)
+            .field("store_input", &self.store_input)
+            .field("store_scratchpad", &self.store_scratchpad)
+            .field("store_output", &self.store_output)
+            .field("mask", &self.mask)
+            .field("files_unmasked", &ref_files_unmasked)
+            .finish()
+    }
 }
 
 impl ProdScratchpad {
@@ -97,16 +112,18 @@ impl ProdScratchpad {
     }
 
     fn check_known(
-        &mut self,
+        &self,
         files_unmasked: &[ParquetFilePath],
         files_masked: &[ParquetFilePath],
         output: bool,
     ) -> (Vec<ParquetFilePath>, Vec<ParquetFilePath>) {
+        let mut ref_files_unmasked = self.files_unmasked.write().unwrap();
+
         files_unmasked
             .iter()
             .zip(files_masked)
             .filter(
-                |(f_unmasked, _f_masked)| match self.files_unmasked.entry(**f_unmasked) {
+                |(f_unmasked, _f_masked)| match ref_files_unmasked.entry(**f_unmasked) {
                     Entry::Occupied(mut o) => {
                         let old_var = *o.get();
                         *o.get_mut() |= output;
@@ -124,14 +141,15 @@ impl ProdScratchpad {
 
 impl Drop for ProdScratchpad {
     fn drop(&mut self) {
-        if !self.files_unmasked.is_empty() {
+        let mut ref_files_unmasked = self.files_unmasked.write().unwrap();
+
+        if !ref_files_unmasked.is_empty() {
             warn!("scratchpad context not cleaned, may leak resources");
 
             // clean up eventually
             // Note: Use manual clean up code and do not create yet-another ProdScratchpad to avoid infinite recursions
             //       during drop.
-            let files = self
-                .files_unmasked
+            let files = ref_files_unmasked
                 .drain()
                 .map(|(k, _in_out)| k)
                 .collect::<Vec<_>>();
@@ -154,7 +172,7 @@ impl Drop for ProdScratchpad {
 
 #[async_trait]
 impl Scratchpad for ProdScratchpad {
-    async fn load_to_scratchpad(&mut self, files: &[ParquetFilePath]) -> Vec<Uuid> {
+    async fn load_to_scratchpad(&self, files: &[ParquetFilePath]) -> Vec<Uuid> {
         let (files_to, uuids) = self.apply_mask(files);
         let (files_from, files_to) = self.check_known(files, &files_to, false);
         copy_files(
@@ -169,7 +187,7 @@ impl Scratchpad for ProdScratchpad {
         uuids
     }
 
-    async fn make_public(&mut self, files: &[ParquetFilePath]) -> Vec<Uuid> {
+    async fn make_public(&self, files: &[ParquetFilePath]) -> Vec<Uuid> {
         let (files_to, uuids) = self.apply_mask(files);
 
         // only keep files that we did not know about, all others we've already synced it between the two stores
@@ -187,10 +205,15 @@ impl Scratchpad for ProdScratchpad {
         uuids
     }
 
-    async fn clean_from_scratchpad(&mut self, files: &[ParquetFilePath]) {
+    // clean_from_scratchpad selectively removes some files from the scratchpad.
+    // This should be called after uploading files to objectstore.
+    // Cleaning should be done regularly, so the scratchpad doesn't get too big.
+    async fn clean_from_scratchpad(&self, files: &[ParquetFilePath]) {
+        let mut ref_files_unmasked = self.files_unmasked.read().unwrap().clone();
+
         let files = files
             .iter()
-            .filter(|f| self.files_unmasked.remove(f).is_some())
+            .filter(|f| ref_files_unmasked.remove(f).is_some())
             .cloned()
             .collect::<Vec<_>>();
         let (files_masked, _uuids) = self.apply_mask(&files);
@@ -203,10 +226,16 @@ impl Scratchpad for ProdScratchpad {
         .await;
     }
 
-    async fn clean(&mut self) {
-        let files: Vec<_> = self.files_unmasked.keys().cloned().collect();
+    async fn clean(&self) {
+        let files: Vec<_> = self
+            .files_unmasked
+            .read()
+            .unwrap()
+            .keys()
+            .cloned()
+            .collect();
         self.clean_from_scratchpad(&files).await;
-        self.files_unmasked.clear();
+        self.files_unmasked.write().unwrap().clear();
     }
 }
 
@@ -246,7 +275,7 @@ mod tests {
             Arc::clone(&store_scratchpad),
             Arc::clone(&store_output),
         );
-        let mut pad = gen.pad();
+        let pad = gen.pad();
 
         let f1 = file_path(1);
         let f2 = file_path(2);
@@ -359,8 +388,8 @@ mod tests {
             Arc::clone(&store_output),
         );
 
-        let mut pad1 = gen.pad();
-        let mut pad2 = gen.pad();
+        let pad1 = gen.pad();
+        let pad2 = gen.pad();
 
         let f = file_path(1);
 
@@ -394,7 +423,7 @@ mod tests {
             Arc::clone(&store_scratchpad),
             Arc::clone(&store_output),
         );
-        let mut pad = gen.pad();
+        let pad = gen.pad();
 
         let f = file_path(1);
 
@@ -440,7 +469,7 @@ mod tests {
             Arc::clone(&store_scratchpad),
             Arc::clone(&store_output),
         );
-        let mut pad = gen.pad();
+        let pad = gen.pad();
 
         let f = file_path(1);
 
