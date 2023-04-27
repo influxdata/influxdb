@@ -18,10 +18,6 @@ impl QueryChunkMeta for QuerierParquetChunk {
         self.parquet_chunk.schema()
     }
 
-    fn partition_sort_key(&self) -> Option<&SortKey> {
-        self.partition_sort_key.as_ref().map(|sk| sk.as_ref())
-    }
-
     fn partition_id(&self) -> PartitionId {
         self.meta().partition_id()
     }

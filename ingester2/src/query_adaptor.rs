@@ -127,10 +127,6 @@ impl QueryChunkMeta for QueryAdaptor {
         &self.schema
     }
 
-    fn partition_sort_key(&self) -> Option<&SortKey> {
-        None // Ingester data has not persisted yet and should not be attached to any partition
-    }
-
     fn partition_id(&self) -> PartitionId {
         self.partition_id
     }

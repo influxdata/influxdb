@@ -236,7 +236,6 @@ struct IngesterResponseOk {
 struct ObserveIngesterRequest<'a> {
     res: Option<Result<IngesterResponseOk, ()>>,
     t_start: Time,
-    time_provider: Arc<dyn TimeProvider>,
     metrics: Arc<IngesterConnectionMetrics>,
     request: GetPartitionForIngester<'a>,
     span_recorder: SpanRecorder,
@@ -248,14 +247,12 @@ impl<'a> ObserveIngesterRequest<'a> {
         metrics: Arc<IngesterConnectionMetrics>,
         span_recorder: &SpanRecorder,
     ) -> Self {
-        let time_provider = request.catalog_cache.time_provider();
-        let t_start = time_provider.now();
+        let t_start = request.time_provider.now();
         let span_recorder = span_recorder.child("flight request");
 
         Self {
             res: None,
             t_start,
-            time_provider,
             metrics,
             request,
             span_recorder,
@@ -279,7 +276,7 @@ impl<'a> ObserveIngesterRequest<'a> {
 
 impl<'a> Drop for ObserveIngesterRequest<'a> {
     fn drop(&mut self) {
-        let t_end = self.time_provider.now();
+        let t_end = self.request.time_provider.now();
 
         if let Some(ingester_duration) = t_end.checked_duration_since(self.t_start) {
             let (metric, status, ok_status) = match self.res {
@@ -314,7 +311,7 @@ impl<'a> Drop for ObserveIngesterRequest<'a> {
 pub struct IngesterConnectionImpl {
     unique_ingester_addresses: HashSet<Arc<str>>,
     flight_client: Arc<dyn IngesterFlightClient>,
-    catalog_cache: Arc<CatalogCache>,
+    time_provider: Arc<dyn TimeProvider>,
     metrics: Arc<IngesterConnectionMetrics>,
     backoff_config: BackoffConfig,
 }
@@ -362,7 +359,7 @@ impl IngesterConnectionImpl {
         Self {
             unique_ingester_addresses: ingester_addresses.into_iter().collect(),
             flight_client,
-            catalog_cache,
+            time_provider: catalog_cache.time_provider(),
             metrics,
             backoff_config,
         }
@@ -373,7 +370,7 @@ impl IngesterConnectionImpl {
 #[derive(Debug, Clone)]
 struct GetPartitionForIngester<'a> {
     flight_client: Arc<dyn IngesterFlightClient>,
-    catalog_cache: Arc<CatalogCache>,
+    time_provider: Arc<dyn TimeProvider>,
     ingester_address: Arc<str>,
     namespace_id: NamespaceId,
     columns: Vec<String>,
@@ -388,7 +385,7 @@ async fn execute(
 ) -> Result<Vec<IngesterPartition>> {
     let GetPartitionForIngester {
         flight_client,
-        catalog_cache,
+        time_provider: _,
         ingester_address,
         namespace_id,
         columns,
@@ -477,15 +474,14 @@ async fn execute(
     // reconstruct partitions
     let mut decoder = IngesterStreamDecoder::new(
         ingester_address,
-        catalog_cache,
         cached_table,
         span_recorder.child_span("IngesterStreamDecoder"),
     );
     for (msg, md) in messages {
-        decoder.register(msg, md).await?;
+        decoder.register(msg, md)?;
     }
 
-    decoder.finalize().await
+    decoder.finalize()
 }
 
 /// Helper to disassemble the data from the ingester Apache Flight arrow stream.
@@ -497,25 +493,18 @@ struct IngesterStreamDecoder {
     current_partition: Option<IngesterPartition>,
     current_chunk: Option<(Schema, Vec<RecordBatch>)>,
     ingester_address: Arc<str>,
-    catalog_cache: Arc<CatalogCache>,
     cached_table: Arc<CachedTable>,
     span_recorder: SpanRecorder,
 }
 
 impl IngesterStreamDecoder {
     /// Create empty decoder.
-    fn new(
-        ingester_address: Arc<str>,
-        catalog_cache: Arc<CatalogCache>,
-        cached_table: Arc<CachedTable>,
-        span: Option<Span>,
-    ) -> Self {
+    fn new(ingester_address: Arc<str>, cached_table: Arc<CachedTable>, span: Option<Span>) -> Self {
         Self {
             finished_partitions: HashMap::new(),
             current_partition: None,
             current_chunk: None,
             ingester_address,
-            catalog_cache,
             cached_table,
             span_recorder: SpanRecorder::new(span),
         }
@@ -538,40 +527,10 @@ impl IngesterStreamDecoder {
     /// Flush current partition, if any.
     ///
     /// This will also flush the current chunk.
-    async fn flush_partition(&mut self) -> Result<()> {
+    fn flush_partition(&mut self) -> Result<()> {
         self.flush_chunk()?;
 
         if let Some(current_partition) = self.current_partition.take() {
-            let schemas: Vec<_> = current_partition
-                .chunks()
-                .iter()
-                .map(|c| c.schema())
-                .collect();
-            let primary_keys: Vec<_> = schemas.iter().map(|s| s.primary_key()).collect();
-            let primary_key: Vec<_> = primary_keys
-                .iter()
-                .flat_map(|pk| pk.iter())
-                // cache may be older then the ingester response status, so some entries might be missing
-                .filter_map(|name| {
-                    self.cached_table
-                        .column_id_map_rev
-                        .get(&Arc::from(name.to_owned()))
-                })
-                .copied()
-                .collect();
-            let partition_sort_key = self
-                .catalog_cache
-                .partition()
-                .sort_key(
-                    Arc::clone(&self.cached_table),
-                    current_partition.partition_id(),
-                    &primary_key,
-                    self.span_recorder
-                        .child_span("cache GET partition sort key"),
-                )
-                .await
-                .map(|sort_key| Arc::clone(&sort_key.sort_key));
-            let current_partition = current_partition.with_partition_sort_key(partition_sort_key);
             self.finished_partitions
                 .insert(current_partition.partition_id, current_partition);
         }
@@ -580,7 +539,7 @@ impl IngesterStreamDecoder {
     }
 
     /// Register a new message and its metadata from the Flight stream.
-    async fn register(
+    fn register(
         &mut self,
         msg: DecodedPayload,
         md: IngesterQueryResponseMetadata,
@@ -588,7 +547,7 @@ impl IngesterStreamDecoder {
         match msg {
             DecodedPayload::None => {
                 // new partition announced
-                self.flush_partition().await?;
+                self.flush_partition()?;
 
                 let partition_id = PartitionId::new(md.partition_id);
                 let status = md.status.context(PartitionStatusMissingSnafu {
@@ -664,8 +623,8 @@ impl IngesterStreamDecoder {
     }
 
     /// Flush internal state and return sorted set of partitions.
-    async fn finalize(mut self) -> Result<Vec<IngesterPartition>> {
-        self.flush_partition().await?;
+    fn finalize(mut self) -> Result<Vec<IngesterPartition>> {
+        self.flush_partition()?;
 
         let mut ids: Vec<_> = self.finished_partitions.keys().copied().collect();
         ids.sort();
@@ -718,7 +677,7 @@ impl IngesterConnection for IngesterConnectionImpl {
             let metrics = Arc::clone(&metrics);
             let request = GetPartitionForIngester {
                 flight_client: Arc::clone(&self.flight_client),
-                catalog_cache: Arc::clone(&self.catalog_cache),
+                time_provider: Arc::clone(&self.time_provider),
                 ingester_address: Arc::clone(&ingester_address),
                 namespace_id,
                 cached_table: Arc::clone(&cached_table),
@@ -901,19 +860,6 @@ impl IngesterPartition {
         Ok(self)
     }
 
-    /// Update partition sort key
-    pub(crate) fn with_partition_sort_key(self, partition_sort_key: Option<Arc<SortKey>>) -> Self {
-        Self {
-            partition_sort_key: partition_sort_key.clone(),
-            chunks: self
-                .chunks
-                .into_iter()
-                .map(|c| c.with_partition_sort_key(partition_sort_key.clone()))
-                .collect(),
-            ..self
-        }
-    }
-
     pub(crate) fn ingester_uuid(&self) -> Option<Uuid> {
         self.ingester_uuid
     }
@@ -978,21 +924,6 @@ pub struct IngesterChunk {
 }
 
 impl IngesterChunk {
-    /// [`Arc`]ed version of the partition sort key.
-    ///
-    /// Note that this might NOT be the up-to-date sort key of the partition but the one that existed when the chunk was
-    /// created. You must sync the keys to use the chunks.
-    pub(crate) fn partition_sort_key_arc(&self) -> Option<Arc<SortKey>> {
-        self.partition_sort_key.clone()
-    }
-
-    pub(crate) fn with_partition_sort_key(self, partition_sort_key: Option<Arc<SortKey>>) -> Self {
-        Self {
-            partition_sort_key,
-            ..self
-        }
-    }
-
     pub(crate) fn estimate_size(&self) -> usize {
         self.batches
             .iter()
@@ -1022,10 +953,6 @@ impl QueryChunkMeta for IngesterChunk {
     fn schema(&self) -> &Schema {
         trace!(schema=?self.schema, "IngesterChunk schema");
         &self.schema
-    }
-
-    fn partition_sort_key(&self) -> Option<&SortKey> {
-        self.partition_sort_key.as_ref().map(|sk| sk.as_ref())
     }
 
     fn partition_id(&self) -> PartitionId {
