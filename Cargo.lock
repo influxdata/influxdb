@@ -2035,6 +2035,7 @@ dependencies = [
 name = "garbage_collector"
 version = "0.1.0"
 dependencies = [
+ "backoff",
  "bytes",
  "chrono",
  "clap 4.2.4",
