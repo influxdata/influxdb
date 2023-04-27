@@ -461,25 +461,6 @@ impl<'a> InfluxQLToLogicalPlan<'a> {
     ) -> Result<LogicalPlan> {
         let schemas = Schemas::new(input.schema())?;
 
-        // To be consistent with InfluxQL, exclude measurements
-        // when the projection has no matching fields.
-        if !fields.iter().any(|f| {
-            // Walk the expression tree of `f`, looking for a
-            // reference to at least one column that is a field
-            walk_expr(&f.expr, &mut |e| match e {
-                IQLExpr::VarRef(VarRef { name, .. }) => {
-                    match schemas.iox_schema.field_by_name(name.deref().as_str()) {
-                        Some((InfluxColumnType::Field(_), _)) => ControlFlow::Break(()),
-                        _ => ControlFlow::Continue(()),
-                    }
-                }
-                _ => ControlFlow::Continue(()),
-            })
-            .is_break()
-        }) {
-            return LogicalPlanBuilder::empty(false).build();
-        }
-
         let plan = self.plan_where_clause(ctx, &select.condition, input, &schemas)?;
 
         // Transform InfluxQL AST field expressions to a list of DataFusion expressions.

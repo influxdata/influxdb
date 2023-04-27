@@ -1,7 +1,7 @@
 #![allow(dead_code)]
 
 use crate::plan::expr_type_evaluator::evaluate_type;
-use crate::plan::field::field_name;
+use crate::plan::field::{field_by_name, field_name};
 use crate::plan::field_mapper::{field_and_dimensions, FieldTypeMap, TagSet};
 use crate::plan::{error, util, SchemaProvider};
 use datafusion::common::{DataFusionError, Result};
@@ -21,7 +21,7 @@ use std::collections::{HashMap, HashSet};
 use std::ops::{ControlFlow, Deref};
 
 /// Recursively expand the `from` clause of `stmt` and any subqueries.
-fn rewrite_from(s: &dyn SchemaProvider, stmt: &mut SelectStatement) -> Result<()> {
+fn from_expand_wildcards(s: &dyn SchemaProvider, stmt: &mut SelectStatement) -> Result<()> {
     let mut new_from = Vec::new();
     for ms in stmt.from.iter() {
         match ms {
@@ -53,13 +53,64 @@ fn rewrite_from(s: &dyn SchemaProvider, stmt: &mut SelectStatement) -> Result<()
             },
             MeasurementSelection::Subquery(q) => {
                 let mut q = *q.clone();
-                rewrite_from(s, &mut q)?;
+                from_expand_wildcards(s, &mut q)?;
                 new_from.push(MeasurementSelection::Subquery(Box::new(q)))
             }
         }
     }
     stmt.from = FromMeasurementClause::new(new_from);
     Ok(())
+}
+
+/// Recursively drop any measurements of the `from` clause of `stmt` that do not project
+/// any fields.
+fn from_drop_empty(s: &dyn SchemaProvider, stmt: &mut SelectStatement) {
+    use schema::InfluxColumnType;
+    let mut from = stmt.from.take();
+    from.retain_mut(|ms| {
+        match ms {
+            MeasurementSelection::Name(QualifiedMeasurementName {
+                name: MeasurementName::Name(name),
+                ..
+            }) => {
+                // drop any measurements that have no matching fields in the
+                // projection
+
+                if let Some(table) = s.table_schema(name.deref()) {
+                    stmt.fields.iter().any(|f| {
+                        walk_expr(&f.expr, &mut |e| {
+                            if matches!(e, Expr::VarRef(VarRef { name, ..}) if matches!(table.field_type_by_name(name.deref()), Some(InfluxColumnType::Field(_)))) {
+                                ControlFlow::Break(())
+                            } else {
+                                ControlFlow::Continue(())
+                            }
+                        }).is_break()
+                    })
+                } else {
+                    false
+                }
+            }
+            MeasurementSelection::Subquery(q) => {
+                from_drop_empty(s, q);
+                if q.from.is_empty() {
+                    return false;
+                }
+
+                stmt.fields.iter().any(|f| {
+                    walk_expr(&f.expr, &mut |e| {
+                        if matches!(e, Expr::VarRef(VarRef{ name, ..}) if matches!(field_by_name(q, name.deref()), Some(_))) {
+                            ControlFlow::Break(())
+                        } else {
+                            ControlFlow::Continue(())
+                        }
+                    }).is_break()
+                })
+            },
+            _ => unreachable!("wildcards should have been expanded"),
+        }
+    });
+
+    stmt.from.replace(from);
 }
 
 /// Determine the merged fields and tags of the `FROM` clause.
@@ -186,11 +237,11 @@ fn has_wildcards(stmt: &SelectStatement) -> (bool, bool) {
 ///   underlying schema.
 ///
 /// Derived from [Go implementation](https://github.com/influxdata/influxql/blob/1ba470371ec093d57a726b143fe6ccbacf1b452b/ast.go#L1185).
-fn rewrite_field_list(s: &dyn SchemaProvider, stmt: &mut SelectStatement) -> Result<()> {
+fn field_list_expand_wildcards(s: &dyn SchemaProvider, stmt: &mut SelectStatement) -> Result<()> {
     // Iterate through the `FROM` clause and rewrite any subqueries first.
     for ms in stmt.from.iter_mut() {
         if let MeasurementSelection::Subquery(subquery) = ms {
-            rewrite_field_list(s, subquery)?;
+            field_list_expand_wildcards(s, subquery)?;
         }
     }
 
@@ -454,7 +505,7 @@ fn rewrite_field_list(s: &dyn SchemaProvider, stmt: &mut SelectStatement) -> Res
 /// [original implementation]. The names are assigned to the `alias` field of the [`Field`] struct.
 ///
 /// [original implementation]: https://github.com/influxdata/influxql/blob/1ba470371ec093d57a726b143fe6ccbacf1b452b/ast.go#L1651
-fn rewrite_field_list_aliases(field_list: &mut FieldList) -> Result<()> {
+fn field_list_rewrite_aliases(field_list: &mut FieldList) -> Result<()> {
     let names = field_list.iter().map(field_name).collect::<Vec<_>>();
     let mut column_aliases = HashMap::<&str, _>::from_iter(names.iter().map(|f| (f.as_str(), 0)));
     names
@@ -493,9 +544,10 @@ pub(crate) fn rewrite_statement(
     q: &SelectStatement,
 ) -> Result<SelectStatement> {
     let mut stmt = q.clone();
-    rewrite_from(s, &mut stmt)?;
-    rewrite_field_list(s, &mut stmt)?;
-    rewrite_field_list_aliases(&mut stmt.fields)?;
+    from_expand_wildcards(s, &mut stmt)?;
+    field_list_expand_wildcards(s, &mut stmt)?;
+    from_drop_empty(s, &mut stmt);
+    field_list_rewrite_aliases(&mut stmt.fields)?;
 
     Ok(stmt)
 }
@@ -1552,14 +1604,30 @@ mod test {
         let stmt = rewrite_statement(&namespace, &stmt).unwrap();
         assert_eq!(stmt.to_string(), "SELECT usage_user::float AS usage_user_1, usage_user::float AS usage_user, usage_user::float AS usage_user_3, usage_user::float AS usage_user_2, usage_user::float AS usage_user_4, usage_user_2 AS usage_user_2_1 FROM cpu");
 
+        // Only include measurements with at least one field projection
+        let stmt = parse_select("SELECT usage_idle FROM cpu, disk");
+        let stmt = rewrite_statement(&namespace, &stmt).unwrap();
+        assert_eq!(
+            stmt.to_string(),
+            "SELECT usage_idle::float AS usage_idle FROM cpu"
+        );
+
         // Rewriting FROM clause
 
-        // Regex, match
+        // Regex, match, fields from multiple measurements
+        let stmt = parse_select("SELECT bytes_free, bytes_read FROM /d/");
+        let stmt = rewrite_statement(&namespace, &stmt).unwrap();
+        assert_eq!(
+            stmt.to_string(),
+            "SELECT bytes_free::integer AS bytes_free, bytes_read::integer AS bytes_read FROM disk, diskio"
+        );
+
+        // Regex matches multiple measurement, but only one has a matching field
         let stmt = parse_select("SELECT bytes_free FROM /d/");
         let stmt = rewrite_statement(&namespace, &stmt).unwrap();
         assert_eq!(
             stmt.to_string(),
-            "SELECT bytes_free::integer AS bytes_free FROM disk, diskio"
+            "SELECT bytes_free::integer AS bytes_free FROM disk"
         );
 
         // Exact, no match
@@ -1598,12 +1666,17 @@ mod test {
         );
 
         // Selective wildcard for tags
-        let stmt = parse_select("SELECT *::tag FROM cpu");
+        let stmt = parse_select("SELECT *::tag, usage_idle FROM cpu");
         let stmt = rewrite_statement(&namespace, &stmt).unwrap();
         assert_eq!(
             stmt.to_string(),
-            "SELECT cpu::tag AS cpu, host::tag AS host, region::tag AS region FROM cpu"
+            "SELECT cpu::tag AS cpu, host::tag AS host, region::tag AS region, usage_idle::float AS usage_idle FROM cpu"
         );
+
+        // Selective wildcard for tags only should not select any measurements
+        let stmt = parse_select("SELECT *::tag FROM cpu");
+        let stmt = rewrite_statement(&namespace, &stmt).unwrap();
+        assert!(stmt.from.is_empty());
 
         // Selective wildcard for fields
         let stmt = parse_select("SELECT *::field FROM cpu");
@@ -1671,28 +1744,22 @@ mod test {
         );
 
         // Subquery, regex, match
-        let stmt = parse_select("SELECT bytes_free FROM (SELECT bytes_free FROM /d/)");
+        let stmt = parse_select("SELECT bytes_free FROM (SELECT bytes_free, bytes_read FROM /d/)");
         let stmt = rewrite_statement(&namespace, &stmt).unwrap();
         assert_eq!(
             stmt.to_string(),
-            "SELECT bytes_free::integer AS bytes_free FROM (SELECT bytes_free::integer FROM disk, diskio)"
+            "SELECT bytes_free::integer AS bytes_free FROM (SELECT bytes_free::integer, bytes_read::integer FROM disk, diskio)"
         );
 
         // Subquery, exact, no match
         let stmt = parse_select("SELECT usage_idle FROM (SELECT usage_idle FROM foo)");
         let stmt = rewrite_statement(&namespace, &stmt).unwrap();
-        assert_eq!(
-            stmt.to_string(),
-            "SELECT usage_idle AS usage_idle FROM (SELECT usage_idle )"
-        );
+        assert!(stmt.from.is_empty());
 
         // Subquery, regex, no match
         let stmt = parse_select("SELECT bytes_free FROM (SELECT bytes_free FROM /^d$/)");
         let stmt = rewrite_statement(&namespace, &stmt).unwrap();
-        assert_eq!(
-            stmt.to_string(),
-            "SELECT bytes_free AS bytes_free FROM (SELECT bytes_free )"
-        );
+        assert!(stmt.from.is_empty());
 
         // Correct data type is resolved from subquery
         let stmt = parse_select("SELECT *::field FROM (SELECT usage_system + usage_idle FROM cpu)");
@@ -1701,6 +1768,28 @@ mod test {
             stmt.to_string(),
             "SELECT usage_system_usage_idle::float AS usage_system_usage_idle FROM (SELECT usage_system::float + usage_idle::float FROM cpu)"
         );
+
+        // Subquery, no fields projected should be dropped
+        let stmt = parse_select("SELECT usage_idle FROM cpu, (SELECT usage_system FROM cpu)");
+        let stmt = rewrite_statement(&namespace, &stmt).unwrap();
+        assert_eq!(
+            stmt.to_string(),
+            "SELECT usage_idle::float AS usage_idle FROM cpu"
+        );
+
+        // Outer query are permitted to project tags only, as long as there are other fields
+        // in the subquery
+        let stmt = parse_select("SELECT cpu FROM (SELECT cpu, usage_system FROM cpu)");
+        let stmt = rewrite_statement(&namespace, &stmt).unwrap();
+        assert_eq!(
+            stmt.to_string(),
+            "SELECT cpu::tag AS cpu FROM (SELECT cpu::tag, usage_system::float FROM cpu)"
+        );
+
+        // Outer FROM should be empty, as the subquery does not project any fields
+        let stmt = parse_select("SELECT cpu FROM (SELECT cpu FROM cpu)");
+        let stmt = rewrite_statement(&namespace, &stmt).unwrap();
+        assert!(stmt.from.is_empty());
 
         // Binary expression
         let stmt = parse_select("SELECT bytes_free+bytes_used FROM disk");
@@ -1790,11 +1879,12 @@ mod test {
             "SELECT col0::float AS col0, col0::tag AS col0_1, col1::float AS col1, col1::tag AS col1_1, col2::string AS col2, col3::string AS col3 FROM merge_00, merge_01"
         );
 
+        // This should only select merge_01, as col0 is a tag in merge_00
         let stmt = parse_select("SELECT /col0/ FROM merge_00, merge_01");
         let stmt = rewrite_statement(&namespace, &stmt).unwrap();
         assert_eq!(
             stmt.to_string(),
-            "SELECT col0::float AS col0, col0::tag AS col0_1 FROM merge_00, merge_01"
+            "SELECT col0::float AS col0, col0::tag AS col0_1 FROM merge_01"
         );
 
         // Fallible cases
