@@ -1,5 +1,3 @@
-#![allow(dead_code)]
-
 use crate::plan::expr_type_evaluator::evaluate_type;
 use crate::plan::field::{field_by_name, field_name};
 use crate::plan::field_mapper::{field_and_dimensions, FieldTypeMap, TagSet};
