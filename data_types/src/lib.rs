@@ -1083,10 +1083,18 @@ impl ChunkOrder {
 ///
 /// The key is constructed in order of the template parts; thus ordering changes what partition key
 /// is generated.
-#[derive(Debug, Default, Eq, PartialEq, Clone)]
+#[derive(Debug, Eq, PartialEq, Clone)]
 #[allow(missing_docs)]
 pub struct PartitionTemplate {
     pub parts: Vec<TemplatePart>,
+}
+
+impl Default for PartitionTemplate {
+    fn default() -> Self {
+        Self {
+            parts: vec![TemplatePart::TimeFormat("%Y-%m-%d".to_owned())],
+        }
+    }
 }
 
 /// `TemplatePart` specifies what part of a row should be used to compute this

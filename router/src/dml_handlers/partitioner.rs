@@ -106,7 +106,6 @@ impl DmlHandler for Partitioner {
 #[cfg(test)]
 mod tests {
     use assert_matches::assert_matches;
-    use data_types::TemplatePart;
 
     use super::*;
 
@@ -136,9 +135,7 @@ mod tests {
             paste::paste! {
                 #[tokio::test]
                 async fn [<test_write_ $name>]() {
-                    let partition_template = PartitionTemplate {
-                        parts: vec![TemplatePart::TimeFormat("%Y-%m-%d".to_owned())],
-                    };
+                    let partition_template = PartitionTemplate::default();
 
                     let partitioner = Partitioner::new(partition_template);
                     let ns = NamespaceName::new("bananas").expect("valid db name");

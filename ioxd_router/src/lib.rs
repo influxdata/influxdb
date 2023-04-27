@@ -6,7 +6,7 @@ use std::{
 use async_trait::async_trait;
 use authz::{Authorizer, IoxAuthorizer};
 use clap_blocks::router2::Router2Config;
-use data_types::{NamespaceName, PartitionTemplate, TemplatePart};
+use data_types::{NamespaceName, PartitionTemplate};
 use hashbrown::HashMap;
 use hyper::{Body, Request, Response};
 use iox_catalog::interface::Catalog;
@@ -257,12 +257,8 @@ pub async fn create_router2_server_type(
     // # Write partitioner
     //
     // Add a write partitioner into the handler stack that splits by the date
-    // portion of the write's timestamp.
-    let partitioner = Partitioner::new(PartitionTemplate {
-        parts: vec![TemplatePart::TimeFormat(
-            router_config.partition_key_pattern.clone(),
-        )],
-    });
+    // portion of the write's timestamp (the default [`PartitionTemplate`]).
+    let partitioner = Partitioner::new(PartitionTemplate::default());
     let partitioner = InstrumentationDecorator::new("partitioner", &metrics, partitioner);
 
     // # Namespace resolver
