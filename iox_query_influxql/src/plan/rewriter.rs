@@ -1530,15 +1530,15 @@ mod test {
         let sel = parse_select("SELECT count(distinct('foo')) FROM cpu");
         assert_error!(select_statement_info(&sel), DataFusionError::Plan(ref s) if s == "expected field argument in distinct()");
         let sel = parse_select("SELECT count(distinct foo) FROM cpu");
-        assert_error!(select_statement_info(&sel), DataFusionError::External(ref s) if s.to_string() == "internal: unexpected distinct clause in count");
+        assert_error!(select_statement_info(&sel), DataFusionError::External(ref s) if s.to_string() == "InfluxQL internal error: unexpected distinct clause in count");
 
         // Test rules for math functions
         let sel = parse_select("SELECT abs(usage_idle) FROM cpu");
         select_statement_info(&sel).unwrap();
         let sel = parse_select("SELECT abs(*) + ceil(foo) FROM cpu");
-        assert_error!(select_statement_info(&sel), DataFusionError::External(ref s) if s.to_string() == "internal: unexpected wildcard");
+        assert_error!(select_statement_info(&sel), DataFusionError::External(ref s) if s.to_string() == "InfluxQL internal error: unexpected wildcard");
         let sel = parse_select("SELECT abs(/f/) + ceil(foo) FROM cpu");
-        assert_error!(select_statement_info(&sel), DataFusionError::External(ref s) if s.to_string() == "internal: unexpected regex");
+        assert_error!(select_statement_info(&sel), DataFusionError::External(ref s) if s.to_string() == "InfluxQL internal error: unexpected regex");
 
         // Fallible
 
@@ -1560,11 +1560,11 @@ mod test {
 
         // wildcard expansion is not supported in binary expressions for aggregates
         let sel = parse_select("SELECT count(*) + count(foo) FROM cpu");
-        assert_error!(select_statement_info(&sel), DataFusionError::External(ref s) if s.to_string() == "internal: unexpected wildcard or regex");
+        assert_error!(select_statement_info(&sel), DataFusionError::External(ref s) if s.to_string() == "InfluxQL internal error: unexpected wildcard or regex");
 
         // regex expansion is not supported in binary expressions
         let sel = parse_select("SELECT sum(/foo/) + count(foo) FROM cpu");
-        assert_error!(select_statement_info(&sel), DataFusionError::External(ref s) if s.to_string() == "internal: unexpected wildcard or regex");
+        assert_error!(select_statement_info(&sel), DataFusionError::External(ref s) if s.to_string() == "InfluxQL internal error: unexpected wildcard or regex");
 
         // aggregate functions require a field reference
         let sel = parse_select("SELECT sum(1) FROM cpu");
