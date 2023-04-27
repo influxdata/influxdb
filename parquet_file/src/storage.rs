@@ -323,7 +323,7 @@ mod tests {
         array::{ArrayRef, Int64Array, StringArray},
         record_batch::RecordBatch,
     };
-    use data_types::{CompactionLevel, NamespaceId, PartitionId, SequenceNumber, ShardId, TableId};
+    use data_types::{CompactionLevel, NamespaceId, PartitionId, SequenceNumber, TableId};
     use datafusion::common::DataFusionError;
     use datafusion_util::MemoryStream;
     use iox_time::Time;
@@ -575,7 +575,6 @@ mod tests {
             creation_timestamp: Time::from_timestamp_nanos(42),
             namespace_id: NamespaceId::new(1),
             namespace_name: "bananas".into(),
-            shard_id: ShardId::new(2),
             table_id: TableId::new(3),
             table_name: "platanos".into(),
             partition_id: PartitionId::new(4),

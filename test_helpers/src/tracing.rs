@@ -19,8 +19,7 @@ use parking_lot::Mutex;
 pub struct TracingCapture {
     /// The raw logs are captured as a list of strings
     logs: Arc<Mutex<Vec<String>>>,
-    #[allow(dead_code)]
-    guard: DefaultGuard,
+    guards: Mutex<Vec<DefaultGuard>>,
 }
 
 impl TracingCapture {
@@ -29,15 +28,27 @@ impl TracingCapture {
     pub fn new() -> Self {
         let logs = Arc::new(Mutex::new(Vec::new()));
 
+        let this = Self {
+            logs,
+            guards: Default::default(),
+        };
+
+        this.register_in_current_thread();
+
+        this
+    }
+
+    /// Registers capture in current thread.
+    pub fn register_in_current_thread(&self) {
         // Register a subscriber to actually capture the log messages
         let my_subscriber = TracingCaptureSubscriber {
-            logs: Arc::clone(&logs),
+            logs: Arc::clone(&self.logs),
         };
 
         // install the subscriber (is uninstalled when the guard is dropped)
         let guard = tracing::subscriber::set_default(my_subscriber);
 
-        Self { logs, guard }
+        self.guards.lock().push(guard);
     }
 }
 

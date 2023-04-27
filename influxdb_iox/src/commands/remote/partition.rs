@@ -5,8 +5,8 @@ use clap_blocks::object_store::{make_object_store, ObjectStoreType};
 use clap_blocks::{catalog_dsn::CatalogDsnConfig, object_store::ObjectStoreConfig};
 use data_types::{
     ColumnId, ColumnSet, ColumnType, NamespaceId, NamespaceSchema as CatalogNamespaceSchema,
-    ParquetFile as CatalogParquetFile, ParquetFileParams, PartitionId, SequenceNumber, ShardId,
-    TableId, Timestamp, TRANSITION_SHARD_INDEX,
+    ParquetFile as CatalogParquetFile, ParquetFileParams, PartitionId, SequenceNumber, TableId,
+    Timestamp,
 };
 use futures::future::join_all;
 use influxdb_iox_client::{
@@ -172,7 +172,6 @@ pub async fn command(connection: Connection, config: Config) -> Result<(), Error
                 let path = ParquetFilePath::new(
                     parquet_file.namespace_id,
                     parquet_file.table_id,
-                    parquet_file.shard_id,
                     parquet_file.partition_id,
                     parquet_file.object_store_id,
                 );
@@ -242,11 +241,6 @@ async fn load_schema(
     let mut repos = catalog.repositories().await;
     let topic = repos.topics().create_or_get(TOPIC_NAME).await?;
     let query_pool = repos.query_pools().create_or_get(QUERY_POOL).await?;
-    // ensure there's a shard for this partition so it can be used later
-    let _shard = repos
-        .shards()
-        .create_or_get(&topic, TRANSITION_SHARD_INDEX)
-        .await?;
 
     let namespace = match repos
         .namespaces()
@@ -307,27 +301,16 @@ async fn load_partition(
     remote_partition: &Partition,
 ) -> Result<PartitionMapping, Error> {
     let mut repos = catalog.repositories().await;
-    let topic = repos
-        .topics()
-        .get_by_name(TOPIC_NAME)
-        .await?
-        .expect("topic should have been inserted earlier");
-    let shard = repos
-        .shards()
-        .get_by_topic_id_and_shard_index(topic.id, TRANSITION_SHARD_INDEX)
-        .await?
-        .expect("shard should have been inserted earlier");
     let table = schema
         .tables
         .get(table_name)
         .expect("table should have been loaded");
     let partition = repos
         .partitions()
-        .create_or_get(remote_partition.key.clone().into(), shard.id, table.id)
+        .create_or_get(remote_partition.key.clone().into(), table.id)
         .await?;
 
     Ok(PartitionMapping {
-        shard_id: shard.id,
         table_id: table.id,
         partition_id: partition.id,
         remote_partition_id: remote_partition.id,
@@ -353,7 +336,6 @@ async fn load_parquet_files(
             None => {
                 println!("creating file {uuid} in catalog");
                 let params = ParquetFileParams {
-                    shard_id: partition_mapping.shard_id,
                     namespace_id,
                     table_id: partition_mapping.table_id,
                     partition_id: partition_mapping.partition_id,
@@ -382,9 +364,8 @@ async fn load_parquet_files(
     Ok(files)
 }
 
-// keeps a mapping of the locally created partition and shard to the remote partition id
+// keeps a mapping of the locally created partition to the remote partition id
 struct PartitionMapping {
-    shard_id: ShardId,
     table_id: TableId,
     partition_id: PartitionId,
     remote_partition_id: i64,
@@ -518,7 +499,6 @@ mod tests {
     async fn load_parquet_files() {
         let metrics = Arc::new(metric::Registry::new());
         let catalog: Arc<dyn Catalog> = Arc::new(MemCatalog::new(Arc::clone(&metrics)));
-        let shard;
         let namespace;
         let table;
         let partition;
@@ -527,11 +507,6 @@ mod tests {
             let mut repos = catalog.repositories().await;
             let topic = repos.topics().create_or_get(TOPIC_NAME).await.unwrap();
             let query_pool = repos.query_pools().create_or_get(QUERY_POOL).await.unwrap();
-            shard = repos
-                .shards()
-                .create_or_get(&topic, TRANSITION_SHARD_INDEX)
-                .await
-                .unwrap();
             namespace = repos
                 .namespaces()
                 .create("load_parquet_files", None, topic.id, query_pool.id)
@@ -544,13 +519,12 @@ mod tests {
                 .unwrap();
             partition = repos
                 .partitions()
-                .create_or_get("1970-01-01".into(), shard.id, table.id)
+                .create_or_get("1970-01-01".into(), table.id)
                 .await
                 .unwrap();
         }
 
         let partition_mapping = PartitionMapping {
-            shard_id: shard.id,
             table_id: table.id,
             partition_id: partition.id,
             remote_partition_id: 4,
@@ -589,12 +563,11 @@ mod tests {
         .await
         .unwrap();
 
-        // the inserted parquet file should have shard, namespace, table, and partition ids
+        // the inserted parquet file should have namespace, table, and partition ids
         // that match with the ones in the catalog, not the remote. The other values should
         // match those of the remote.
         let expected = vec![CatalogParquetFile {
             id: ParquetFileId::new(1),
-            shard_id: shard.id,
             namespace_id: namespace.id,
             table_id: table.id,
             partition_id: partition.id,

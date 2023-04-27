@@ -1,4 +1,5 @@
 use std::fmt::{Debug, Display};
+use std::sync::Arc;
 
 use async_trait::async_trait;
 use parquet_file::ParquetFilePath;
@@ -13,7 +14,7 @@ mod test_util;
 
 /// Create a [`Scratchpad`] for use as intermediate storage
 pub trait ScratchpadGen: Debug + Display + Send + Sync {
-    fn pad(&self) -> Box<dyn Scratchpad>;
+    fn pad(&self) -> Arc<dyn Scratchpad>;
 }
 
 /// An intermediate in-memory store (can be a disk later if we want)
@@ -45,9 +46,9 @@ pub trait ScratchpadGen: Debug + Display + Send + Sync {
 /// Note that we assume here that the input parquet files are WAY
 /// SMALLER than the uncompressed Arrow data during compaction itself.
 #[async_trait]
-pub trait Scratchpad: Debug + Send {
-    async fn load_to_scratchpad(&mut self, files: &[ParquetFilePath]) -> Vec<Uuid>;
-    async fn make_public(&mut self, files: &[ParquetFilePath]) -> Vec<Uuid>;
-    async fn clean_from_scratchpad(&mut self, files: &[ParquetFilePath]);
-    async fn clean(&mut self);
+pub trait Scratchpad: Debug + Send + Sync + 'static {
+    async fn load_to_scratchpad(&self, files: &[ParquetFilePath]) -> Vec<Uuid>;
+    async fn make_public(&self, files: &[ParquetFilePath]) -> Vec<Uuid>;
+    async fn clean_from_scratchpad(&self, files: &[ParquetFilePath]);
+    async fn clean(&self);
 }

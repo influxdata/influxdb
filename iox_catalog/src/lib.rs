@@ -14,15 +14,9 @@
 )]
 
 use crate::interface::{ColumnTypeMismatchSnafu, Error, RepoCollection, Result};
-use data_types::{
-    ColumnType, NamespaceSchema, QueryPool, Shard, ShardId, ShardIndex, TableSchema, TopicId,
-    TopicMetadata,
-};
+use data_types::{ColumnType, NamespaceSchema, QueryPool, TableSchema, TopicId, TopicMetadata};
 use mutable_batch::MutableBatch;
-use std::{
-    borrow::Cow,
-    collections::{BTreeMap, HashMap},
-};
+use std::{borrow::Cow, collections::HashMap};
 use thiserror::Error;
 
 const SHARED_TOPIC_NAME: &str = "iox-shared";
@@ -38,6 +32,7 @@ pub const DEFAULT_MAX_COLUMNS_PER_TABLE: i32 = 200;
 pub const DEFAULT_RETENTION_PERIOD: Option<i64> = None;
 
 pub mod interface;
+pub(crate) mod kafkaless_transition;
 pub mod mem;
 pub mod metrics;
 pub mod postgres;
@@ -209,37 +204,28 @@ where
     Ok(())
 }
 
-/// Creates or gets records in the catalog for the shared topic, query pool, and shards
-/// for each of the partitions.
+/// Creates or gets records in the catalog for the shared topic and query pool for each of the
+/// partitions.
 ///
 /// Used in tests and when creating an in-memory catalog.
 pub async fn create_or_get_default_records(
-    shard_count: i32,
     txn: &mut dyn RepoCollection,
-) -> Result<(TopicMetadata, QueryPool, BTreeMap<ShardId, Shard>)> {
+) -> Result<(TopicMetadata, QueryPool)> {
     let topic = txn.topics().create_or_get(SHARED_TOPIC_NAME).await?;
     let query_pool = txn.query_pools().create_or_get(SHARED_QUERY_POOL).await?;
 
-    let mut shards = BTreeMap::new();
-    // Start at 0 to match the one write buffer shard index used in all-in-one mode
-    for shard_index in 0..shard_count {
-        let shard = txn
-            .shards()
-            .create_or_get(&topic, ShardIndex::new(shard_index))
-            .await?;
-        shards.insert(shard.id, shard);
-    }
-
-    Ok((topic, query_pool, shards))
+    Ok((topic, query_pool))
 }
 
 #[cfg(test)]
 mod tests {
-    use std::sync::Arc;
+    use std::{collections::BTreeMap, sync::Arc};
 
     use super::*;
-    use crate::interface::{get_schema_by_name, SoftDeletedRows};
-    use crate::mem::MemCatalog;
+    use crate::{
+        interface::{get_schema_by_name, SoftDeletedRows},
+        mem::MemCatalog,
+    };
 
     // Generate a test that simulates multiple, sequential writes in `lp` and
     // asserts the resulting schema.
@@ -265,8 +251,7 @@ mod tests {
                     let metrics = Arc::new(metric::Registry::default());
                     let repo = MemCatalog::new(metrics);
                     let mut txn = repo.repositories().await;
-                    let (topic, query_pool, _) = create_or_get_default_records(
-                        2,
+                    let (topic, query_pool) = create_or_get_default_records(
                         txn.deref_mut()
                     ).await.unwrap();
 

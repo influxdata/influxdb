@@ -3,9 +3,10 @@
 use crate::{
     interface::{
         self, CasFailure, Catalog, ColumnRepo, ColumnTypeMismatchSnafu, Error, NamespaceRepo,
-        ParquetFileRepo, PartitionRepo, QueryPoolRepo, RepoCollection, Result, ShardRepo,
-        SoftDeletedRows, TableRepo, TopicMetadataRepo, MAX_PARQUET_FILES_SELECTED_ONCE,
+        ParquetFileRepo, PartitionRepo, QueryPoolRepo, RepoCollection, Result, SoftDeletedRows,
+        TableRepo, TopicMetadataRepo, MAX_PARQUET_FILES_SELECTED_ONCE,
     },
+    kafkaless_transition::{TRANSITION_SHARD_ID, TRANSITION_SHARD_INDEX},
     metrics::MetricDecorator,
     DEFAULT_MAX_COLUMNS_PER_TABLE, DEFAULT_MAX_TABLES, SHARED_TOPIC_ID, SHARED_TOPIC_NAME,
 };
@@ -13,8 +14,7 @@ use async_trait::async_trait;
 use data_types::{
     Column, ColumnId, ColumnSet, ColumnType, CompactionLevel, Namespace, NamespaceId, ParquetFile,
     ParquetFileId, ParquetFileParams, Partition, PartitionId, PartitionKey, QueryPool, QueryPoolId,
-    SequenceNumber, Shard, ShardId, ShardIndex, SkippedCompaction, Table, TableId, Timestamp,
-    TopicId, TopicMetadata, TRANSITION_SHARD_ID, TRANSITION_SHARD_INDEX,
+    SequenceNumber, SkippedCompaction, Table, TableId, Timestamp, TopicId, TopicMetadata,
 };
 use serde::{Deserialize, Serialize};
 use std::collections::HashSet;
@@ -238,10 +238,6 @@ impl RepoCollection for SqliteTxn {
     }
 
     fn columns(&mut self) -> &mut dyn ColumnRepo {
-        self
-    }
-
-    fn shards(&mut self) -> &mut dyn ShardRepo {
         self
     }
 
@@ -789,164 +785,12 @@ RETURNING *;
     }
 }
 
-#[async_trait]
-impl ShardRepo for SqliteTxn {
-    async fn create_or_get(
-        &mut self,
-        topic: &TopicMetadata,
-        shard_index: ShardIndex,
-    ) -> Result<Shard> {
-        sqlx::query_as::<_, Shard>(
-            r#"
-INSERT INTO shard
-    ( topic_id, shard_index, min_unpersisted_sequence_number )
-VALUES
-    ( $1, $2, 0 )
-ON CONFLICT (topic_id, shard_index)
-DO UPDATE SET topic_id = shard.topic_id
-RETURNING *;
-        "#,
-        )
-        .bind(topic.id) // $1
-        .bind(shard_index) // $2
-        .fetch_one(self.inner.get_mut())
-        .await
-        .map_err(|e| {
-            if is_fk_violation(&e) {
-                Error::ForeignKeyViolation { source: e }
-            } else {
-                Error::SqlxError { source: e }
-            }
-        })
-    }
-
-    async fn get_by_topic_id_and_shard_index(
-        &mut self,
-        topic_id: TopicId,
-        shard_index: ShardIndex,
-    ) -> Result<Option<Shard>> {
-        let rec = sqlx::query_as::<_, Shard>(
-            r#"
-SELECT *
-FROM shard
-WHERE topic_id = $1
-  AND shard_index = $2;
-        "#,
-        )
-        .bind(topic_id) // $1
-        .bind(shard_index) // $2
-        .fetch_one(self.inner.get_mut())
-        .await;
-
-        if let Err(sqlx::Error::RowNotFound) = rec {
-            return Ok(None);
-        }
-
-        let shard = rec.map_err(|e| Error::SqlxError { source: e })?;
-
-        Ok(Some(shard))
-    }
-
-    async fn list(&mut self) -> Result<Vec<Shard>> {
-        sqlx::query_as::<_, Shard>(r#"SELECT * FROM shard;"#)
-            .fetch_all(self.inner.get_mut())
-            .await
-            .map_err(|e| Error::SqlxError { source: e })
-    }
-
-    async fn list_by_topic(&mut self, topic: &TopicMetadata) -> Result<Vec<Shard>> {
-        sqlx::query_as::<_, Shard>(r#"SELECT * FROM shard WHERE topic_id = $1;"#)
-            .bind(topic.id) // $1
-            .fetch_all(self.inner.get_mut())
-            .await
-            .map_err(|e| Error::SqlxError { source: e })
-    }
-
-    async fn update_min_unpersisted_sequence_number(
-        &mut self,
-        shard_id: ShardId,
-        sequence_number: SequenceNumber,
-    ) -> Result<()> {
-        let _ = sqlx::query(
-            r#"
-UPDATE shard
-SET min_unpersisted_sequence_number = $1
-WHERE id = $2;
-                "#,
-        )
-        .bind(sequence_number.get()) // $1
-        .bind(shard_id) // $2
-        .execute(self.inner.get_mut())
-        .await
-        .map_err(|e| Error::SqlxError { source: e })?;
-
-        Ok(())
-    }
-
-    async fn create_transition_shard(
-        &mut self,
-        topic_name: &str,
-        shard_index: ShardIndex,
-    ) -> Result<Shard> {
-        let mut tx = self
-            .inner
-            .get_mut()
-            .pool
-            .begin()
-            .await
-            .map_err(|e| Error::StartTransaction { source: e })?;
-
-        let query = sqlx::query_as::<_, TopicMetadata>(
-            r#"
-INSERT INTO topic ( name )
-VALUES ( $1 )
-ON CONFLICT (name)
-DO UPDATE SET name = topic.name
-RETURNING *;
-        "#,
-        )
-        .bind(topic_name); // $1
-        let topic = query
-            .fetch_one(&mut tx)
-            .await
-            .map_err(|e| Error::SqlxError { source: e })?;
-
-        let query = sqlx::query_as::<_, Shard>(
-            r#"
-INSERT INTO shard
-    ( topic_id, shard_index, min_unpersisted_sequence_number )
-VALUES
-    ( $1, $2, 0 )
-ON CONFLICT (topic_id, shard_index)
-DO UPDATE SET topic_id = shard.topic_id
-RETURNING *;
-        "#,
-        )
-        .bind(topic.id) // $1
-        .bind(shard_index); // $2
-        let shard = query.fetch_one(&mut tx).await.map_err(|e| {
-            if is_fk_violation(&e) {
-                Error::ForeignKeyViolation { source: e }
-            } else {
-                Error::SqlxError { source: e }
-            }
-        })?;
-
-        tx.commit()
-            .await
-            .map_err(|e| Error::FailedToCommit { source: e })?;
-
-        Ok(shard)
-    }
-}
-
 // We can't use [`Partition`], as uses Vec<String> which the Sqlite
 // driver cannot serialise
 
 #[derive(Debug, Clone, PartialEq, Eq, sqlx::FromRow)]
 struct PartitionPod {
     id: PartitionId,
-    shard_id: ShardId,
     table_id: TableId,
     partition_key: PartitionKey,
     sort_key: Json<Vec<String>>,
@@ -958,7 +802,6 @@ impl From<PartitionPod> for Partition {
     fn from(value: PartitionPod) -> Self {
         Self {
             id: value.id,
-            shard_id: value.shard_id,
             table_id: value.table_id,
             partition_key: value.partition_key,
             sort_key: value.sort_key.0,
@@ -970,12 +813,7 @@ impl From<PartitionPod> for Partition {
 
 #[async_trait]
 impl PartitionRepo for SqliteTxn {
-    async fn create_or_get(
-        &mut self,
-        key: PartitionKey,
-        shard_id: ShardId,
-        table_id: TableId,
-    ) -> Result<Partition> {
+    async fn create_or_get(&mut self, key: PartitionKey, table_id: TableId) -> Result<Partition> {
         // Note: since sort_key is now an array, we must explicitly insert '{}' which is an empty
         // array rather than NULL which sqlx will throw `UnexpectedNullError` while is is doing
         // `ColumnDecode`
@@ -988,11 +826,11 @@ VALUES
     ( $1, $2, $3, '[]')
 ON CONFLICT (table_id, partition_key)
 DO UPDATE SET partition_key = partition.partition_key
-RETURNING *;
+RETURNING id, table_id, partition_key, sort_key, persisted_sequence_number, new_file_at;
         "#,
         )
         .bind(key) // $1
-        .bind(shard_id) // $2
+        .bind(TRANSITION_SHARD_ID) // $2
         .bind(table_id) // $3
         .fetch_one(self.inner.get_mut())
         .await
@@ -1004,23 +842,20 @@ RETURNING *;
             }
         })?;
 
-        // If the partition_key_unique constraint was hit because there was an
-        // existing record for (table_id, partition_key) ensure the partition
-        // key in the DB is mapped to the same shard_id the caller
-        // requested.
-        assert_eq!(
-            v.shard_id, shard_id,
-            "attempted to overwrite partition with different shard ID"
-        );
-
         Ok(v.into())
     }
 
     async fn get_by_id(&mut self, partition_id: PartitionId) -> Result<Option<Partition>> {
-        let rec = sqlx::query_as::<_, PartitionPod>(r#"SELECT * FROM partition WHERE id = $1;"#)
-            .bind(partition_id) // $1
-            .fetch_one(self.inner.get_mut())
-            .await;
+        let rec = sqlx::query_as::<_, PartitionPod>(
+            r#"
+SELECT id, table_id, partition_key, sort_key, persisted_sequence_number, new_file_at
+FROM partition
+WHERE id = $1;
+            "#,
+        )
+        .bind(partition_id) // $1
+        .fetch_one(self.inner.get_mut())
+        .await;
 
         if let Err(sqlx::Error::RowNotFound) = rec {
             return Ok(None);
@@ -1034,7 +869,7 @@ RETURNING *;
     async fn list_by_table_id(&mut self, table_id: TableId) -> Result<Vec<Partition>> {
         Ok(sqlx::query_as::<_, PartitionPod>(
             r#"
-SELECT *
+SELECT id, table_id, partition_key, sort_key, persisted_sequence_number, new_file_at
 FROM partition
 WHERE table_id = $1;
             "#,
@@ -1078,7 +913,7 @@ WHERE table_id = $1;
 UPDATE partition
 SET sort_key = $1
 WHERE id = $2 AND sort_key = $3
-RETURNING *;
+RETURNING id, table_id, partition_key, sort_key, persisted_sequence_number, new_file_at;
         "#,
         )
         .bind(Json(new_sort_key)) // $1
@@ -1216,7 +1051,12 @@ RETURNING *
 
     async fn most_recent_n(&mut self, n: usize) -> Result<Vec<Partition>> {
         Ok(sqlx::query_as::<_, PartitionPod>(
-            r#"SELECT * FROM partition ORDER BY id DESC LIMIT $1;"#,
+            r#"
+SELECT id, table_id, partition_key, sort_key, persisted_sequence_number, new_file_at
+FROM partition
+ORDER BY id DESC
+LIMIT $1;
+        "#,
         )
         .bind(n as i64) // $1
         .fetch_all(self.inner.get_mut())
@@ -1264,7 +1104,6 @@ fn to_column_set(v: &Json<Vec<i64>>) -> ColumnSet {
 #[derive(Debug, Clone, PartialEq, Eq, sqlx::FromRow)]
 struct ParquetFilePod {
     id: ParquetFileId,
-    shard_id: ShardId,
     namespace_id: NamespaceId,
     table_id: TableId,
     partition_id: PartitionId,
@@ -1285,7 +1124,6 @@ impl From<ParquetFilePod> for ParquetFile {
     fn from(value: ParquetFilePod) -> Self {
         Self {
             id: value.id,
-            shard_id: value.shard_id,
             namespace_id: value.namespace_id,
             table_id: value.table_id,
             partition_id: value.partition_id,
@@ -1356,33 +1194,30 @@ RETURNING id;
         // `parquet_metadata` column!!
         Ok(sqlx::query_as::<_, ParquetFilePod>(
             r#"
-SELECT parquet_file.id, parquet_file.shard_id, parquet_file.namespace_id,
-       parquet_file.table_id, parquet_file.partition_id, parquet_file.object_store_id,
-       parquet_file.max_sequence_number, parquet_file.min_time,
-       parquet_file.max_time, parquet_file.to_delete, parquet_file.file_size_bytes,
-       parquet_file.row_count, parquet_file.compaction_level, parquet_file.created_at, parquet_file.column_set,
-       parquet_file.max_l0_created_at
+SELECT parquet_file.id, parquet_file.namespace_id, parquet_file.table_id,
+       parquet_file.partition_id, parquet_file.object_store_id, parquet_file.max_sequence_number,
+       parquet_file.min_time, parquet_file.max_time, parquet_file.to_delete,
+       parquet_file.file_size_bytes, parquet_file.row_count, parquet_file.compaction_level,
+       parquet_file.created_at, parquet_file.column_set, parquet_file.max_l0_created_at
 FROM parquet_file
 INNER JOIN table_name on table_name.id = parquet_file.table_id
 WHERE table_name.namespace_id = $1
   AND parquet_file.to_delete IS NULL;
              "#,
         )
-            .bind(namespace_id) // $1
-            .fetch_all(self.inner.get_mut())
-            .await
-            .map_err(|e| Error::SqlxError { source: e })?
-            .into_iter()
-            .map(Into::into)
-            .collect())
+        .bind(namespace_id) // $1
+        .fetch_all(self.inner.get_mut())
+        .await
+        .map_err(|e| Error::SqlxError { source: e })?
+        .into_iter()
+        .map(Into::into)
+        .collect())
     }
 
     async fn list_by_table_not_to_delete(&mut self, table_id: TableId) -> Result<Vec<ParquetFile>> {
-        // Deliberately doesn't use `SELECT *` to avoid the performance hit of fetching the large
-        // `parquet_metadata` column!!
         Ok(sqlx::query_as::<_, ParquetFilePod>(
             r#"
-SELECT id, shard_id, namespace_id, table_id, partition_id, object_store_id,
+SELECT id, namespace_id, table_id, partition_id, object_store_id,
        max_sequence_number, min_time, max_time, to_delete, file_size_bytes,
        row_count, compaction_level, created_at, column_set, max_l0_created_at
 FROM parquet_file
@@ -1448,11 +1283,9 @@ RETURNING id;
         &mut self,
         partition_id: PartitionId,
     ) -> Result<Vec<ParquetFile>> {
-        // Deliberately doesn't use `SELECT *` to avoid the performance hit of fetching the large
-        // `parquet_metadata` column!!
         Ok(sqlx::query_as::<_, ParquetFilePod>(
             r#"
-SELECT id, shard_id, namespace_id, table_id, partition_id, object_store_id,
+SELECT id, namespace_id, table_id, partition_id, object_store_id,
        max_sequence_number, min_time, max_time, to_delete, file_size_bytes,
        row_count, compaction_level, created_at, column_set, max_l0_created_at
 FROM parquet_file
@@ -1504,11 +1337,9 @@ WHERE parquet_file.partition_id = $1
         &mut self,
         object_store_id: Uuid,
     ) -> Result<Option<ParquetFile>> {
-        // Deliberately doesn't use `SELECT *` to avoid the performance hit of fetching the large
-        // `parquet_metadata` column!!
         let rec = sqlx::query_as::<_, ParquetFilePod>(
             r#"
-SELECT id, shard_id, namespace_id, table_id, partition_id, object_store_id,
+SELECT id, namespace_id, table_id, partition_id, object_store_id,
        max_sequence_number, min_time, max_time, to_delete, file_size_bytes,
        row_count, compaction_level, created_at, column_set, max_l0_created_at
 FROM parquet_file
@@ -1589,7 +1420,6 @@ where
     E: Executor<'q, Database = Sqlite>,
 {
     let ParquetFileParams {
-        shard_id,
         namespace_id,
         table_id,
         partition_id,
@@ -1618,7 +1448,7 @@ RETURNING
     row_count, compaction_level, created_at, namespace_id, column_set, max_l0_created_at;
         "#,
     )
-    .bind(shard_id) // $1
+    .bind(TRANSITION_SHARD_ID) // $1
     .bind(table_id) // $2
     .bind(partition_id) // $3
     .bind(object_store_id) // $4
@@ -1773,7 +1603,7 @@ mod tests {
 
         let sqlite: Arc<dyn Catalog> = Arc::new(sqlite);
         let mut txn = sqlite.repositories().await;
-        let (kafka, query, shards) = create_or_get_default_records(1, txn.deref_mut())
+        let (kafka, query) = create_or_get_default_records(txn.deref_mut())
             .await
             .expect("db init failed");
 
@@ -1795,90 +1625,23 @@ mod tests {
             .id;
 
         let key = "bananas";
-        let shard_id = *shards.keys().next().expect("no shard");
 
         let a = sqlite
             .repositories()
             .await
             .partitions()
-            .create_or_get(key.into(), shard_id, table_id)
+            .create_or_get(key.into(), table_id)
             .await
             .expect("should create OK");
 
-        // Call create_or_get for the same (key, table_id, shard_id)
-        // triplet, setting the same shard ID to ensure the write is
-        // idempotent.
+        // Call create_or_get for the same (key, table_id) pair, to ensure the write is idempotent.
         let b = sqlite
             .repositories()
             .await
             .partitions()
-            .create_or_get(key.into(), shard_id, table_id)
+            .create_or_get(key.into(), table_id)
             .await
             .expect("idempotent write should succeed");
-
-        assert_eq!(a, b);
-    }
-
-    #[tokio::test]
-    #[should_panic = "attempted to overwrite partition"]
-    async fn test_partition_create_or_get_no_overwrite() {
-        let sqlite = setup_db().await;
-
-        let sqlite: Arc<dyn Catalog> = Arc::new(sqlite);
-        let mut txn = sqlite.repositories().await;
-        let (kafka, query, _) = create_or_get_default_records(2, txn.deref_mut())
-            .await
-            .expect("db init failed");
-
-        let namespace_id = sqlite
-            .repositories()
-            .await
-            .namespaces()
-            .create("ns3", None, kafka.id, query.id)
-            .await
-            .expect("namespace create failed")
-            .id;
-        let table_id = sqlite
-            .repositories()
-            .await
-            .tables()
-            .create_or_get("table", namespace_id)
-            .await
-            .expect("create table failed")
-            .id;
-
-        let key = "bananas";
-
-        let shards = sqlite
-            .repositories()
-            .await
-            .shards()
-            .list()
-            .await
-            .expect("failed to list shards");
-        assert!(
-            shards.len() > 1,
-            "expected more shards to be created, got {}",
-            shards.len()
-        );
-
-        let a = sqlite
-            .repositories()
-            .await
-            .partitions()
-            .create_or_get(key.into(), shards[0].id, table_id)
-            .await
-            .expect("should create OK");
-
-        // Call create_or_get for the same (key, table_id) tuple, setting a
-        // different shard ID
-        let b = sqlite
-            .repositories()
-            .await
-            .partitions()
-            .create_or_get(key.into(), shards[1].id, table_id)
-            .await
-            .expect("result should not be evaluated");
 
         assert_eq!(a, b);
     }
@@ -1897,7 +1660,7 @@ mod tests {
 
                     let sqlite: Arc<dyn Catalog> = Arc::new(sqlite);
                     let mut txn = sqlite.repositories().await;
-                    let (kafka, query, _shards) = create_or_get_default_records(1, txn.deref_mut())
+                    let (kafka, query) = create_or_get_default_records(txn.deref_mut())
                         .await
                         .expect("db init failed");
 
@@ -2063,7 +1826,7 @@ mod tests {
 
         let sqlite: Arc<dyn Catalog> = Arc::new(sqlite);
         let mut txn = sqlite.repositories().await;
-        let (kafka, query, shards) = create_or_get_default_records(1, txn.deref_mut())
+        let (kafka, query) = create_or_get_default_records(txn.deref_mut())
             .await
             .expect("db init failed");
 
@@ -2085,13 +1848,12 @@ mod tests {
             .id;
 
         let key = "bananas";
-        let shard_id = *shards.keys().next().expect("no shard");
 
         let partition_id = sqlite
             .repositories()
             .await
             .partitions()
-            .create_or_get(key.into(), shard_id, table_id)
+            .create_or_get(key.into(), table_id)
             .await
             .expect("should create OK")
             .id;
@@ -2101,7 +1863,6 @@ mod tests {
         let time_provider = Arc::new(SystemProvider::new());
         let time_now = Timestamp::from(time_provider.now());
         let mut p1 = ParquetFileParams {
-            shard_id,
             namespace_id,
             table_id,
             partition_id,

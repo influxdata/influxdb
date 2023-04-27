@@ -63,10 +63,6 @@ pub trait QueryChunkMeta {
     /// return a reference to the summary of the data held in this chunk
     fn schema(&self) -> &Schema;
 
-    /// Return a reference to the chunk's partition sort key if any.
-    /// Only persisted chunk has its partition sort key
-    fn partition_sort_key(&self) -> Option<&SortKey>;
-
     /// Return partition id for this chunk
     fn partition_id(&self) -> PartitionId;
 
@@ -317,10 +313,6 @@ where
         self.as_ref().sort_key()
     }
 
-    fn partition_sort_key(&self) -> Option<&SortKey> {
-        self.as_ref().partition_sort_key()
-    }
-
     fn delete_predicates(&self) -> &[Arc<DeletePredicate>] {
         let pred = self.as_ref().delete_predicates();
         debug!(?pred, "Delete predicate in QueryChunkMeta");
@@ -344,10 +336,6 @@ impl QueryChunkMeta for Arc<dyn QueryChunk> {
 
     fn sort_key(&self) -> Option<&SortKey> {
         self.as_ref().sort_key()
-    }
-
-    fn partition_sort_key(&self) -> Option<&SortKey> {
-        self.as_ref().partition_sort_key()
     }
 
     fn delete_predicates(&self) -> &[Arc<DeletePredicate>] {

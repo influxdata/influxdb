@@ -14,8 +14,7 @@
 
 mod catalog;
 pub use catalog::{
-    TestCatalog, TestNamespace, TestParquetFile, TestParquetFileBuilder, TestPartition, TestShard,
-    TestTable,
+    TestCatalog, TestNamespace, TestParquetFile, TestParquetFileBuilder, TestPartition, TestTable,
 };
 
 mod builders;

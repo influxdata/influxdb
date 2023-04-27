@@ -53,16 +53,17 @@ async fn compact_partition(
     components: Arc<Components>,
 ) {
     info!(partition_id = partition_id.get(), "compact partition",);
-    let mut scratchpad = components.scratchpad_gen.pad();
+    let scratchpad = components.scratchpad_gen.pad();
 
     let res = timeout_with_progress_checking(partition_timeout, |transmit_progress_signal| {
         let components = Arc::clone(&components);
+        let scratchpad = Arc::clone(&scratchpad);
         async {
             try_compact_partition(
                 partition_id,
                 job_semaphore,
                 components,
-                scratchpad.as_mut(),
+                scratchpad,
                 transmit_progress_signal,
             )
             .await
@@ -186,7 +187,7 @@ async fn try_compact_partition(
     partition_id: PartitionId,
     job_semaphore: Arc<InstrumentedAsyncSemaphore>,
     components: Arc<Components>,
-    scratchpad_ctx: &mut dyn Scratchpad,
+    scratchpad_ctx: Arc<dyn Scratchpad>,
     transmit_progress_signal: Sender<bool>,
 ) -> Result<(), DynError> {
     let mut files = components.partition_files_source.fetch(partition_id).await;
@@ -265,13 +266,16 @@ async fn try_compact_partition(
                 &components,
                 target_level,
                 Arc::clone(&job_semaphore),
-                scratchpad_ctx,
+                Arc::<dyn Scratchpad>::clone(&scratchpad_ctx),
             )
             .await?;
 
             // upload files to real object store
-            let created_file_params =
-                upload_files_to_object_store(created_file_params, scratchpad_ctx).await;
+            let created_file_params = upload_files_to_object_store(
+                created_file_params,
+                Arc::<dyn Scratchpad>::clone(&scratchpad_ctx),
+            )
+            .await;
 
             // clean scratchpad
             scratchpad_ctx.clean_from_scratchpad(&input_paths).await;
@@ -314,7 +318,7 @@ async fn run_plans(
     components: &Arc<Components>,
     target_level: CompactionLevel,
     job_semaphore: Arc<InstrumentedAsyncSemaphore>,
-    scratchpad_ctx: &mut dyn Scratchpad,
+    scratchpad_ctx: Arc<dyn Scratchpad>,
 ) -> Result<Vec<ParquetFileParams>, DynError> {
     // stage files
     let input_uuids_inpad = scratchpad_ctx
@@ -419,7 +423,7 @@ async fn execute_plan(
 
 async fn upload_files_to_object_store(
     created_file_params: Vec<ParquetFileParams>,
-    scratchpad_ctx: &mut dyn Scratchpad,
+    scratchpad_ctx: Arc<dyn Scratchpad>,
 ) -> Vec<ParquetFileParams> {
     // Ipload files to real object store
     let output_files: Vec<ParquetFilePath> = created_file_params.iter().map(|p| p.into()).collect();

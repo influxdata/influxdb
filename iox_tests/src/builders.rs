@@ -1,6 +1,6 @@
 use data_types::{
     ColumnSet, CompactionLevel, NamespaceId, ParquetFile, ParquetFileId, Partition, PartitionId,
-    PartitionKey, SequenceNumber, ShardId, SkippedCompaction, Table, TableId, Timestamp,
+    PartitionKey, SequenceNumber, SkippedCompaction, Table, TableId, Timestamp,
 };
 use uuid::Uuid;
 
@@ -17,7 +17,6 @@ impl ParquetFileBuilder {
         Self {
             file: ParquetFile {
                 id: ParquetFileId::new(id),
-                shard_id: ShardId::new(0),
                 namespace_id: NamespaceId::new(0),
                 table_id: TableId::new(0),
                 partition_id: PartitionId::new(0),
@@ -155,7 +154,6 @@ impl PartitionBuilder {
         Self {
             partition: Partition {
                 id: PartitionId::new(id),
-                shard_id: ShardId::new(0),
                 table_id: TableId::new(0),
                 partition_key: PartitionKey::from("key"),
                 sort_key: vec![],

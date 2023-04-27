@@ -18,6 +18,7 @@ use std::{
     sync::Arc,
     time::Duration,
 };
+use tokio_util::sync::CancellationToken;
 use trace::span::{Span, SpanRecorder};
 use uuid::Uuid;
 
@@ -207,19 +208,35 @@ impl QuerierTable {
 
         let catalog_cache = self.chunk_adapter.catalog_cache();
 
-        // ask ingesters for data, also optimistically fetching catalog
-        // contents at the same time to pre-warm cache
-        let (partitions, _parquet_files) = join!(
-            self.ingester_partitions(
-                &predicate,
-                span_recorder.child_span("ingester partitions"),
-                projection,
-            ),
-            catalog_cache.parquet_file().get(
-                self.id(),
-                None,
-                span_recorder.child_span("cache GET parquet_file (pre-warm")
-            ),
+        // Ask ingesters for data, also optimistically fetching catalog
+        // contents at the same time to pre-warm cache.
+        //
+        // We don't wanna wait for the cache though because we have a the actual cache request later anyways that might
+        // even invalidate what we did during warm-up. The cache system keeps requests running in the background
+        // anyways, so if the warm-up fetched up-to-date data, we'll get that from the cache later.
+        let ingester_ready = CancellationToken::new();
+        let (partitions, _) = join!(
+            async {
+                let partitions = self
+                    .ingester_partitions(
+                        &predicate,
+                        span_recorder.child_span("ingester partitions"),
+                        projection,
+                    )
+                    .await;
+                ingester_ready.cancel();
+                partitions
+            },
+            async {
+                tokio::select! {
+                    _ = catalog_cache.parquet_file().get(
+                        self.id(),
+                        None,
+                        span_recorder.child_span("cache GET parquet_file (pre-warm")
+                    ) => {},
+                    _ = ingester_ready.cancelled() => {},
+                }
+            },
         );
 
         // handle errors / cache refresh
@@ -491,14 +508,13 @@ mod tests {
         let outside_retention =
             inside_retention - Duration::from_secs(2 * 60 * 60).as_nanos() as i64; // 2 hours ago
 
-        let shard = ns.create_shard(1).await;
         let table = ns.create_table("cpu").await;
 
         table.create_column("host", ColumnType::Tag).await;
         table.create_column("time", ColumnType::Time).await;
         table.create_column("load", ColumnType::F64).await;
 
-        let partition = table.with_shard(&shard).create_partition("a").await;
+        let partition = table.create_partition("a").await;
 
         let querier_table = TestQuerierTable::new(&catalog, &table).await;
 
@@ -577,12 +593,9 @@ mod tests {
         let table1 = ns.create_table("table1").await;
         let table2 = ns.create_table("table2").await;
 
-        let shard1 = ns.create_shard(1).await;
-        let shard2 = ns.create_shard(2).await;
-
-        let partition11 = table1.with_shard(&shard1).create_partition("k").await;
-        let partition12 = table1.with_shard(&shard2).create_partition("k").await;
-        let partition21 = table2.with_shard(&shard1).create_partition("k").await;
+        let partition11 = table1.create_partition("k").await;
+        let partition12 = table1.create_partition("k").await;
+        let partition21 = table2.create_partition("k").await;
 
         table1.create_column("time", ColumnType::Time).await;
         table1.create_column("foo", ColumnType::F64).await;
@@ -704,12 +717,11 @@ mod tests {
         let catalog = TestCatalog::new();
         let ns = catalog.create_namespace_1hr_retention("ns").await;
         let table = ns.create_table("table").await;
-        let shard = ns.create_shard(1).await;
-        let partition = table.with_shard(&shard).create_partition("k").await;
+        let partition = table.create_partition("k").await;
         let schema = make_schema_two_fields_two_tags(&table).await;
 
         // let add a partion from the ingester
-        let builder = IngesterPartitionBuilder::new(schema, &shard, &partition)
+        let builder = IngesterPartitionBuilder::new(schema, &partition)
             .with_lp(["table,tag1=val1,tag2=val2 foo=3,bar=4 11"]);
 
         let ingester_partition =
@@ -773,12 +785,10 @@ mod tests {
         let catalog = TestCatalog::new();
         let ns = catalog.create_namespace_1hr_retention("ns").await;
         let table = ns.create_table("table1").await;
-        let shard = ns.create_shard(1).await;
-        let partition = table.with_shard(&shard).create_partition("k").await;
+        let partition = table.create_partition("k").await;
         let schema = make_schema(&table).await;
 
-        let builder =
-            IngesterPartitionBuilder::new(schema, &shard, &partition).with_lp(["table foo=1 1"]);
+        let builder = IngesterPartitionBuilder::new(schema, &partition).with_lp(["table foo=1 1"]);
 
         // Parquet file between with max sequence number 2
         let pf_builder = TestParquetFileBuilder::default()

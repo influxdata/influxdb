@@ -2,14 +2,13 @@
 
 use crate::interface::{
     CasFailure, ColumnRepo, NamespaceRepo, ParquetFileRepo, PartitionRepo, QueryPoolRepo,
-    RepoCollection, Result, ShardRepo, SoftDeletedRows, TableRepo, TopicMetadataRepo,
+    RepoCollection, Result, SoftDeletedRows, TableRepo, TopicMetadataRepo,
 };
 use async_trait::async_trait;
 use data_types::{
     Column, ColumnType, CompactionLevel, Namespace, NamespaceId, ParquetFile, ParquetFileId,
     ParquetFileParams, Partition, PartitionId, PartitionKey, QueryPool, QueryPoolId,
-    SequenceNumber, Shard, ShardId, ShardIndex, SkippedCompaction, Table, TableId, Timestamp,
-    TopicId, TopicMetadata,
+    SkippedCompaction, Table, TableId, Timestamp, TopicId, TopicMetadata,
 };
 use iox_time::{SystemProvider, TimeProvider};
 use metric::{DurationHistogram, Metric};
@@ -47,7 +46,6 @@ where
         + NamespaceRepo
         + TableRepo
         + ColumnRepo
-        + ShardRepo
         + PartitionRepo
         + ParquetFileRepo
         + Debug,
@@ -70,10 +68,6 @@ where
     }
 
     fn columns(&mut self) -> &mut dyn ColumnRepo {
-        self
-    }
-
-    fn shards(&mut self) -> &mut dyn ShardRepo {
         self
     }
 
@@ -201,21 +195,9 @@ decorate!(
 );
 
 decorate!(
-    impl_trait = ShardRepo,
-    methods = [
-        "shard_create_or_get" = create_or_get(&mut self, topic: &TopicMetadata, shard_index: ShardIndex) -> Result<Shard>;
-        "shard_get_by_topic_id_and_shard_index" = get_by_topic_id_and_shard_index(&mut self, topic_id: TopicId, shard_index: ShardIndex) -> Result<Option<Shard>>;
-        "shard_list" = list(&mut self) -> Result<Vec<Shard>>;
-        "shard_list_by_topic" = list_by_topic(&mut self, topic: &TopicMetadata) -> Result<Vec<Shard>>;
-        "shard_update_min_unpersisted_sequence_number" = update_min_unpersisted_sequence_number(&mut self, shard_id: ShardId, sequence_number: SequenceNumber) -> Result<()>;
-        "shard_create_transition_shard" = create_transition_shard(&mut self, topic_name: &str, shard_index: ShardIndex) -> Result<Shard>;
-    ]
-);
-
-decorate!(
     impl_trait = PartitionRepo,
     methods = [
-        "partition_create_or_get" = create_or_get(&mut self, key: PartitionKey, shard_id: ShardId, table_id: TableId) -> Result<Partition>;
+        "partition_create_or_get" = create_or_get(&mut self, key: PartitionKey, table_id: TableId) -> Result<Partition>;
         "partition_get_by_id" = get_by_id(&mut self, partition_id: PartitionId) -> Result<Option<Partition>>;
         "partition_list_by_table_id" = list_by_table_id(&mut self, table_id: TableId) -> Result<Vec<Partition>>;
         "partition_list_ids" = list_ids(&mut self) -> Result<Vec<PartitionId>>;

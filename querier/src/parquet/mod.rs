@@ -71,9 +71,6 @@ pub struct QuerierParquetChunk {
     /// Delete predicates to be combined with the chunk
     delete_predicates: Vec<Arc<DeletePredicate>>,
 
-    /// Partition sort key (how does the read buffer use this?)
-    partition_sort_key: Option<Arc<SortKey>>,
-
     /// Chunk of the Parquet file
     parquet_chunk: Arc<ParquetChunk>,
 
@@ -83,11 +80,7 @@ pub struct QuerierParquetChunk {
 
 impl QuerierParquetChunk {
     /// Create new parquet-backed chunk (object store data).
-    pub fn new(
-        parquet_chunk: Arc<ParquetChunk>,
-        meta: Arc<QuerierParquetChunkMeta>,
-        partition_sort_key: Option<Arc<SortKey>>,
-    ) -> Self {
+    pub fn new(parquet_chunk: Arc<ParquetChunk>, meta: Arc<QuerierParquetChunkMeta>) -> Self {
         let table_summary = Arc::new(create_basic_summary(
             parquet_chunk.rows() as u64,
             parquet_chunk.schema(),
@@ -97,7 +90,6 @@ impl QuerierParquetChunk {
         Self {
             meta,
             delete_predicates: Vec::new(),
-            partition_sort_key,
             parquet_chunk,
             table_summary,
         }
@@ -114,22 +106,6 @@ impl QuerierParquetChunk {
     /// Get metadata attached to the given chunk.
     pub fn meta(&self) -> &QuerierParquetChunkMeta {
         self.meta.as_ref()
-    }
-
-    /// [`Arc`]ed version of the partition sort key.
-    ///
-    /// Note that this might NOT be the up-to-date sort key of the partition but the one that existed when the chunk was
-    /// created. You must sync the keys to use the chunks.
-    pub fn partition_sort_key_arc(&self) -> Option<Arc<SortKey>> {
-        self.partition_sort_key.clone()
-    }
-
-    /// Set partition sort key
-    pub fn with_partition_sort_key(self, partition_sort_key: Option<Arc<SortKey>>) -> Self {
-        Self {
-            partition_sort_key,
-            ..self
-        }
     }
 
     pub fn estimate_size(&self) -> usize {
@@ -233,7 +209,6 @@ pub mod tests {
             ]
             .join("\n");
             let ns = catalog.create_namespace_1hr_retention("ns").await;
-            let shard = ns.create_shard(1).await;
             let table = ns.create_table("table").await;
             table.create_column("tag1", ColumnType::Tag).await;
             table.create_column("tag2", ColumnType::Tag).await;
@@ -243,7 +218,6 @@ pub mod tests {
             table.create_column("field_float", ColumnType::F64).await;
             table.create_column("time", ColumnType::Time).await;
             let partition = table
-                .with_shard(&shard)
                 .create_partition("part")
                 .await
                 .update_sort_key(SortKey::from_columns(["tag1", "tag2", "tag4", "time"]))

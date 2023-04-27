@@ -1,7 +1,7 @@
 use std::{fmt::Display, sync::Arc};
 
 use async_trait::async_trait;
-use data_types::{CompactionLevel, ParquetFileParams, SequenceNumber, ShardId};
+use data_types::{CompactionLevel, ParquetFileParams, SequenceNumber};
 use datafusion::{error::DataFusionError, physical_plan::SendableRecordBatchStream};
 use iox_time::{Time, TimeProvider};
 use parquet_file::{
@@ -20,19 +20,13 @@ const MAX_SEQUENCE_NUMBER: i64 = 0;
 
 #[derive(Debug)]
 pub struct ObjectStoreParquetFileSink {
-    shared_id: ShardId,
     store: ParquetStorage,
     time_provider: Arc<dyn TimeProvider>,
 }
 
 impl ObjectStoreParquetFileSink {
-    pub fn new(
-        shared_id: ShardId,
-        store: ParquetStorage,
-        time_provider: Arc<dyn TimeProvider>,
-    ) -> Self {
+    pub fn new(store: ParquetStorage, time_provider: Arc<dyn TimeProvider>) -> Self {
         Self {
-            shared_id,
             store,
             time_provider,
         }
@@ -57,7 +51,6 @@ impl ParquetFileSink for ObjectStoreParquetFileSink {
         let meta = IoxMetadata {
             object_store_id: Uuid::new_v4(),
             creation_timestamp: self.time_provider.now(),
-            shard_id: self.shared_id,
             namespace_id: partition.namespace_id,
             namespace_name: partition.namespace_name.clone().into(),
             table_id: partition.table.id,

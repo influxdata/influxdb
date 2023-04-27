@@ -15,7 +15,7 @@ use arrow_flight::{
     FlightClient, FlightDescriptor, IpcMessage,
 };
 use arrow_util::test_util::batches_to_sorted_lines;
-use assert_cmd::Command;
+use assert_cmd::assert::OutputAssertExt;
 use assert_matches::assert_matches;
 use bytes::Bytes;
 use datafusion::common::assert_contains;
@@ -26,6 +26,7 @@ use prost::Message;
 use test_helpers_end_to_end::{
     maybe_skip_integration, Authorizer, MiniCluster, Step, StepTest, StepTestState,
 };
+use tokio::process::Command;
 
 #[tokio::test]
 async fn flightsql_adhoc_query() {
@@ -300,9 +301,6 @@ async fn flightsql_get_catalogs_matches_information_schema() {
                     // output of get_catalogs  is built manually in
                     // IOx, so it is important it remains in sync with
                     // the actual contents of the information schema
-                    fn no_filter() -> Option<String> {
-                        None
-                    }
                     let stream = client
                         .get_catalogs()
                         .await
@@ -779,9 +777,6 @@ async fn flightsql_get_table_types_matches_information_schema() {
                     // output of get_table_types is built manually in
                     // IOx, so it is important it remains in sync with
                     // the actual contents of the information schema
-                    fn no_filter() -> Option<String> {
-                        None
-                    }
                     let stream = client
                         .get_table_types()
                         .await
@@ -1135,6 +1130,48 @@ async fn flightsql_get_primary_keys() {
 }
 
 #[tokio::test]
+async fn flightsql_get_xdbc_type_info() {
+    test_helpers::maybe_start_logging();
+    let database_url = maybe_skip_integration!();
+
+    let table_name = "the_table";
+
+    // Set up the cluster  ====================================
+    let mut cluster = MiniCluster::create_shared2(database_url).await;
+
+    StepTest::new(
+        &mut cluster,
+        vec![
+            Step::WriteLineProtocol(format!(
+                "{table_name},tag1=A,tag2=B val=42i 123456\n\
+                 {table_name},tag1=A,tag2=C val=43i 123457"
+            )),
+            Step::Custom(Box::new(move |state: &mut StepTestState| {
+                async move {
+                    let mut client = flightsql_client(state.cluster());
+                    let data_type: Option<i32> = None;
+
+                    let stream = client.get_xdbc_type_info(data_type).await.unwrap();
+                    let batches = collect_stream(stream).await;
+
+                    insta::assert_yaml_snapshot!(
+                        batches_to_sorted_lines(&batches),
+                        @r###"
+                    ---
+                    - ++
+                    - ++
+                    "###
+                    );
+                }
+                .boxed()
+            })),
+        ],
+    )
+    .run()
+    .await
+}
+
+#[tokio::test]
 /// Runs  the `jdbc_client` program against IOx to verify JDBC via FlightSQL is working
 ///
 /// Example command:
@@ -1178,106 +1215,7 @@ async fn flightsql_jdbc() {
                     let jdbc_url =
                         format!("{jdbc_addr}?useEncryption=false&iox-namespace-name={namespace}");
                     println!("jdbc_url {jdbc_url}");
-
-                    // find the jdbc_client to run
-                    let path = PathBuf::from(std::env::var("PWD").expect("can not get PWD"))
-                        .join("influxdb_iox/tests/jdbc_client/jdbc_client");
-                    println!("Path to jdbc client: {path:?}");
-
-                    // Validate basic query: jdbc_client <url> query 'sql'
-                    Command::from_std(std::process::Command::new(&path))
-                        .arg(&jdbc_url)
-                        .arg("query")
-                        .arg(format!("select * from {table_name} order by time"))
-                        .arg(&querier_addr)
-                        .assert()
-                        .success()
-                        .stdout(predicate::str::contains("Running SQL Query"))
-                        .stdout(predicate::str::contains(
-                            "A,  B,  1970-01-01 00:00:00.000123456,  42",
-                        ))
-                        .stdout(predicate::str::contains(
-                            "A,  C,  1970-01-01 00:00:00.000123457,  43",
-                        ));
-
-                    // Validate prepared query: jdbc_client <url> prepared_query 'sql'
-                    Command::from_std(std::process::Command::new(&path))
-                        .arg(&jdbc_url)
-                        .arg("prepared_query")
-                        .arg(format!("select tag1, tag2 from {table_name} order by time"))
-                        .arg(&querier_addr)
-                        .assert()
-                        .success()
-                        .stdout(predicate::str::contains("Running Prepared SQL Query"))
-                        .stdout(predicate::str::contains("A,  B"));
-
-                    // CommandGetCatalogs output
-                    let expected_catalogs = "**************\n\
-                                             Catalogs:\n\
-                                             **************\n\
-                                             TABLE_CAT\n\
-                                             ------------\n\
-                                             public";
-
-                    // CommandGetSchemas output
-                    let expected_schemas = "**************\n\
-                                            Schemas:\n\
-                                            **************\n\
-                                            TABLE_SCHEM,  TABLE_CATALOG\n\
-                                            ------------\n\
-                                            information_schema,  public\n\
-                                            iox,  public\n\
-                                            system,  public";
-
-                    // CommandGetTables output
-                    let expected_tables_no_filter = "**************\n\
-                                           Tables:\n\
-                                           **************\n\
-                                           TABLE_CAT,  TABLE_SCHEM,  TABLE_NAME,  TABLE_TYPE,  REMARKS,  TYPE_CAT,  TYPE_SCHEM,  TYPE_NAME,  SELF_REFERENCING_COL_NAME,  REF_GENERATION\n\
-                                           ------------\n\
-                                           public,  information_schema,  columns,  VIEW,  null,  null,  null,  null,  null,  null\n\
-                                           public,  information_schema,  df_settings,  VIEW,  null,  null,  null,  null,  null,  null\n\
-                                           public,  information_schema,  tables,  VIEW,  null,  null,  null,  null,  null,  null\n\
-                                           public,  information_schema,  views,  VIEW,  null,  null,  null,  null,  null,  null\n\
-                                           public,  iox,  the_table,  BASE TABLE,  null,  null,  null,  null,  null,  null\n\
-                                           public,  system,  queries,  BASE TABLE,  null,  null,  null,  null,  null,  null";
-
-                    // CommandGetTables output
-                    let expected_tables_with_filters = "**************\n\
-                                            Tables (system table filter):\n\
-                                            **************\n\
-                                            TABLE_CAT,  TABLE_SCHEM,  TABLE_NAME,  TABLE_TYPE,  REMARKS,  TYPE_CAT,  TYPE_SCHEM,  TYPE_NAME,  SELF_REFERENCING_COL_NAME,  REF_GENERATION\n\
-                                            ------------\n\
-                                            public,  system,  queries,  BASE TABLE,  null,  null,  null,  null,  null,  null";
-
-                    // CommandGetTableTypes output
-                    let expected_table_types = "**************\n\
-                                                Table Types:\n\
-                                                **************\n\
-                                                TABLE_TYPE\n\
-                                                ------------\n\
-                                                BASE TABLE\n\
-                                                VIEW";
-
-                    // Validate metadata: jdbc_client <url> metadata
-                    let mut assert = Command::from_std(std::process::Command::new(&path))
-                        .arg(&jdbc_url)
-                        .arg("metadata")
-                        .assert()
-                        .success()
-                        .stdout(predicate::str::contains(expected_catalogs))
-                        .stdout(predicate::str::contains(expected_schemas))
-                        .stdout(predicate::str::contains(expected_tables_no_filter))
-                        .stdout(predicate::str::contains(expected_tables_with_filters))
-                        .stdout(predicate::str::contains(expected_table_types));
-
-                    let expected_metadata = EXPECTED_METADATA
-                        .trim()
-                        .replace("REPLACE_ME_WITH_JBDC_URL", &jdbc_url);
-
-                    for expected in expected_metadata.lines() {
-                        assert = assert.stdout(predicate::str::contains(expected));
-                    }
+                    jdbc_tests(&jdbc_url, table_name).await;
                 }
                 .boxed()
             })),
@@ -1285,6 +1223,251 @@ async fn flightsql_jdbc() {
     )
     .run()
     .await
+}
+
+#[tokio::test]
+/// Runs  the `jdbc_client` program against IOx to verify authenticated JDBC via FlightSQL is working
+///
+/// Example command:
+///
+/// ```shell
+/// TEST_INFLUXDB_JDBC=true TEST_INFLUXDB_IOX_CATALOG_DSN=postgresql://postgres@localhost:5432/postgres cargo test --test end_to_end  jdbc
+/// ```
+async fn flightsql_jdbc_authz_token() {
+    test_helpers::maybe_start_logging();
+    let database_url = maybe_skip_integration!();
+
+    if std::env::var("TEST_INFLUXDB_JDBC").ok().is_none() {
+        println!("Skipping JDBC test because TEST_INFLUXDB_JDBC is not set");
+        return;
+    }
+
+    let table_name = "the_table";
+
+    // Set up the authorizer  =================================
+    let mut authz = Authorizer::create().await;
+
+    // Set up the cluster  ====================================
+    let mut cluster = MiniCluster::create_non_shared2_with_authz(database_url, authz.addr()).await;
+
+    let write_token = authz.create_token_for(cluster.namespace(), &["ACTION_WRITE"]);
+    let read_token =
+        authz.create_token_for(cluster.namespace(), &["ACTION_READ", "ACTION_READ_SCHEMA"]);
+
+    StepTest::new(
+        &mut cluster,
+        vec![
+            Step::WriteLineProtocolWithAuthorization {
+                line_protocol: format!(
+                    "{table_name},tag1=A,tag2=B val=42i 123456\n\
+                 {table_name},tag1=A,tag2=C val=43i 123457"
+                ),
+                authorization: format!("Token {}", write_token.clone()),
+            },
+            Step::Custom(Box::new(move |state: &mut StepTestState| {
+                let token = read_token.clone();
+                // satisfy the borrow checker
+                async move {
+                    let namespace = state.cluster().namespace();
+
+                    // querier_addr looks like: http://127.0.0.1:8092
+                    let querier_addr = state.cluster().querier().querier_grpc_base().to_string();
+                    println!("Querier {querier_addr}, namespace {namespace}");
+
+                    // JDBC URL looks like this:
+                    // jdbc:arrow-flight-sql://localhost:8082?useEncryption=false&iox-namespace-name=26f7e5a4b7be365b_917b97a92e883afc
+                    let jdbc_addr = querier_addr.replace("http://", "jdbc:arrow-flight-sql://");
+                    let jdbc_url =
+                        format!("{jdbc_addr}?useEncryption=false&iox-namespace-name={namespace}&token={token}");
+                    println!("jdbc_url {jdbc_url}");
+                    jdbc_tests(&jdbc_url, table_name).await;
+                }
+                .boxed()
+            })),
+        ],
+    )
+    .run()
+    .await;
+
+    authz.close().await;
+}
+
+#[tokio::test]
+/// Runs  the `jdbc_client` program against IOx to verify authenticated JDBC via FlightSQL is working
+///
+/// In this mode the username is empty and password is the authorization token
+///
+/// Example command:
+///
+/// ```shell
+/// TEST_INFLUXDB_JDBC=true TEST_INFLUXDB_IOX_CATALOG_DSN=postgresql://postgres@localhost:5432/postgres cargo test --test end_to_end  jdbc
+/// ```
+async fn flightsql_jdbc_authz_handshake() {
+    test_helpers::maybe_start_logging();
+    let database_url = maybe_skip_integration!();
+
+    if std::env::var("TEST_INFLUXDB_JDBC").ok().is_none() {
+        println!("Skipping JDBC test because TEST_INFLUXDB_JDBC is not set");
+        return;
+    }
+
+    let table_name = "the_table";
+
+    // Set up the authorizer  =================================
+    let mut authz = Authorizer::create().await;
+
+    // Set up the cluster  ====================================
+    let mut cluster = MiniCluster::create_non_shared2_with_authz(database_url, authz.addr()).await;
+
+    let write_token = authz.create_token_for(cluster.namespace(), &["ACTION_WRITE"]);
+    let read_token =
+        authz.create_token_for(cluster.namespace(), &["ACTION_READ", "ACTION_READ_SCHEMA"]);
+
+    StepTest::new(
+        &mut cluster,
+        vec![
+            Step::WriteLineProtocolWithAuthorization {
+                line_protocol: format!(
+                    "{table_name},tag1=A,tag2=B val=42i 123456\n\
+                 {table_name},tag1=A,tag2=C val=43i 123457"
+                ),
+                authorization: format!("Token {}", write_token.clone()),
+            },
+            Step::Custom(Box::new(move |state: &mut StepTestState| {
+                let token = read_token.clone();
+                // satisfy the borrow checker
+                async move {
+                    let namespace = state.cluster().namespace();
+
+                    // querier_addr looks like: http://127.0.0.1:8092
+                    let querier_addr = state.cluster().querier().querier_grpc_base().to_string();
+                    println!("Querier {querier_addr}, namespace {namespace}");
+
+                    // JDBC URL looks like this:
+                    // jdbc:arrow-flight-sql://localhost:8082?useEncryption=false&iox-namespace-name=26f7e5a4b7be365b_917b97a92e883afc
+                    let jdbc_addr = querier_addr.replace("http://", "jdbc:arrow-flight-sql://");
+                    let jdbc_url =
+                        format!("{jdbc_addr}?useEncryption=false&iox-namespace-name={namespace}&user=&password={token}");
+                    println!("jdbc_url {jdbc_url}");
+                    jdbc_tests(&jdbc_url, table_name).await;
+                }
+                .boxed()
+            })),
+        ],
+    )
+    .run()
+    .await;
+
+    authz.close().await;
+}
+
+async fn jdbc_tests(jdbc_url: &str, table_name: &str) {
+    // find the jdbc_client to run
+    let path = PathBuf::from(std::env::var("PWD").expect("can not get PWD"))
+        .join("influxdb_iox/tests/jdbc_client/jdbc_client");
+    println!("Path to jdbc client: {path:?}");
+
+    // Validate basic query: jdbc_client <url> query 'sql'
+    Command::new(&path)
+        .arg(jdbc_url)
+        .arg("query")
+        .arg(format!("select * from {table_name} order by time"))
+        .output()
+        .await
+        .unwrap()
+        .assert()
+        .success()
+        .stdout(predicate::str::contains("Running SQL Query"))
+        .stdout(predicate::str::contains(
+            "A,  B,  1970-01-01 00:00:00.000123456,  42",
+        ))
+        .stdout(predicate::str::contains(
+            "A,  C,  1970-01-01 00:00:00.000123457,  43",
+        ));
+
+    // Validate prepared query: jdbc_client <url> prepared_query 'sql'
+    Command::new(&path)
+        .arg(jdbc_url)
+        .arg("prepared_query")
+        .arg(format!("select tag1, tag2 from {table_name} order by time"))
+        .output()
+        .await
+        .unwrap()
+        .assert()
+        .success()
+        .stdout(predicate::str::contains("Running Prepared SQL Query"))
+        .stdout(predicate::str::contains("A,  B"));
+
+    // CommandGetCatalogs output
+    let expected_catalogs = "**************\n\
+                             Catalogs:\n\
+                             **************\n\
+                             TABLE_CAT\n\
+                             ------------\n\
+                             public";
+
+    // CommandGetSchemas output
+    let expected_schemas = "**************\n\
+                            Schemas:\n\
+                            **************\n\
+                            TABLE_SCHEM,  TABLE_CATALOG\n\
+                            ------------\n\
+                            information_schema,  public\n\
+                            iox,  public\n\
+                            system,  public";
+
+    // CommandGetTables output
+    let expected_tables_no_filter = "**************\n\
+                                     Tables:\n\
+                                     **************\n\
+                                     TABLE_CAT,  TABLE_SCHEM,  TABLE_NAME,  TABLE_TYPE,  REMARKS,  TYPE_CAT,  TYPE_SCHEM,  TYPE_NAME,  SELF_REFERENCING_COL_NAME,  REF_GENERATION\n\
+                                     ------------\n\
+                                     public,  information_schema,  columns,  VIEW,  null,  null,  null,  null,  null,  null\n\
+                                     public,  information_schema,  df_settings,  VIEW,  null,  null,  null,  null,  null,  null\n\
+                                     public,  information_schema,  tables,  VIEW,  null,  null,  null,  null,  null,  null\n\
+                                     public,  information_schema,  views,  VIEW,  null,  null,  null,  null,  null,  null\n\
+                                     public,  iox,  the_table,  BASE TABLE,  null,  null,  null,  null,  null,  null\n\
+                                     public,  system,  queries,  BASE TABLE,  null,  null,  null,  null,  null,  null";
+
+    // CommandGetTables output
+    let expected_tables_with_filters = "**************\n\
+                                        Tables (system table filter):\n\
+                                        **************\n\
+                                        TABLE_CAT,  TABLE_SCHEM,  TABLE_NAME,  TABLE_TYPE,  REMARKS,  TYPE_CAT,  TYPE_SCHEM,  TYPE_NAME,  SELF_REFERENCING_COL_NAME,  REF_GENERATION\n\
+                                        ------------\n\
+                                        public,  system,  queries,  BASE TABLE,  null,  null,  null,  null,  null,  null";
+
+    // CommandGetTableTypes output
+    let expected_table_types = "**************\n\
+                                Table Types:\n\
+                                **************\n\
+                                TABLE_TYPE\n\
+                                ------------\n\
+                                BASE TABLE\n\
+                                VIEW";
+
+    // Validate metadata: jdbc_client <url> metadata
+    let mut assert = Command::new(&path)
+        .arg(jdbc_url)
+        .arg("metadata")
+        .output()
+        .await
+        .unwrap()
+        .assert()
+        .success()
+        .stdout(predicate::str::contains(expected_catalogs))
+        .stdout(predicate::str::contains(expected_schemas))
+        .stdout(predicate::str::contains(expected_tables_no_filter))
+        .stdout(predicate::str::contains(expected_tables_with_filters))
+        .stdout(predicate::str::contains(expected_table_types));
+
+    let expected_metadata = EXPECTED_METADATA
+        .trim()
+        .replace("REPLACE_ME_WITH_JBDC_URL", jdbc_url);
+
+    for expected in expected_metadata.lines() {
+        assert = assert.stdout(predicate::str::contains(expected));
+    }
 }
 
 /// Ensures that the schema returned as part of GetFlightInfo matches
@@ -1726,7 +1909,6 @@ getStringFunctions: arrow_typeof, ascii, bit_length, btrim, char_length, charact
 getSystemFunctions: array, arrow_typeof, struct
 getTimeDateFunctions: current_date, current_time, date_bin, date_part, date_trunc, datepart, datetrunc, from_unixtime, now, to_timestamp, to_timestamp_micros, to_timestamp_millis, to_timestamp_seconds
 getURL: REPLACE_ME_WITH_JBDC_URL
-getUserName: test
 isCatalogAtStart: false
 isReadOnly: true
 locatorsUpdateCopy: false

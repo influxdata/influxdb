@@ -9,3 +9,6 @@ license.workspace = true
 metric = { path = "../metric" }
 observability_deps = { path = "../observability_deps" }
 workspace-hack = { version = "0.1", path = "../workspace-hack" }
+
+[dev-dependencies]
+test_helpers = { path = "../test_helpers" }

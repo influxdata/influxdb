@@ -1694,6 +1694,14 @@ mod test {
             "SELECT bytes_free AS bytes_free FROM (SELECT bytes_free )"
         );
 
+        // Correct data type is resolved from subquery
+        let stmt = parse_select("SELECT *::field FROM (SELECT usage_system + usage_idle FROM cpu)");
+        let stmt = rewrite_statement(&namespace, &stmt).unwrap();
+        assert_eq!(
+            stmt.to_string(),
+            "SELECT usage_system_usage_idle::float AS usage_system_usage_idle FROM (SELECT usage_system::float + usage_idle::float FROM cpu)"
+        );
+
         // Binary expression
         let stmt = parse_select("SELECT bytes_free+bytes_used FROM disk");
         let stmt = rewrite_statement(&namespace, &stmt).unwrap();

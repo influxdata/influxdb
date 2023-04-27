@@ -475,7 +475,6 @@ mod tests {
     use std::{sync::Arc, task::Poll, time::Duration};
 
     use assert_matches::assert_matches;
-    use data_types::TRANSITION_SHARD_ID;
     use dml::DmlOperation;
     use futures::Future;
     use iox_catalog::mem::MemCatalog;
@@ -526,7 +525,6 @@ mod tests {
             ),
             Arc::new(MockPostWriteObserver::default()),
             Default::default(),
-            TRANSITION_SHARD_ID,
         );
 
         buffer_tree

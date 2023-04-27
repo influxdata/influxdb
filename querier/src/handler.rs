@@ -160,7 +160,6 @@ impl Drop for QuerierHandlerImpl {
 mod tests {
     use super::*;
     use crate::{cache::CatalogCache, create_ingester_connection_for_testing};
-    use data_types::ShardIndex;
     use iox_catalog::mem::MemCatalog;
     use iox_query::exec::Executor;
     use iox_time::{MockProvider, Time};
@@ -204,18 +203,6 @@ mod tests {
                 Arc::clone(&object_store),
                 &Handle::current(),
             ));
-            // QuerierDatabase::new returns an error if there are no shards in the catalog
-            {
-                let mut repos = catalog.repositories().await;
-
-                let topic = repos.topics().create_or_get("topic").await.unwrap();
-                let shard_index = ShardIndex::new(0);
-                repos
-                    .shards()
-                    .create_or_get(&topic, shard_index)
-                    .await
-                    .unwrap();
-            }
 
             let database = Arc::new(
                 QuerierDatabase::new(

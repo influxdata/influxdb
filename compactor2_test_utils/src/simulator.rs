@@ -8,7 +8,7 @@ use std::{
 
 use async_trait::async_trait;
 use data_types::{
-    ColumnSet, CompactionLevel, ParquetFile, ParquetFileParams, SequenceNumber, ShardId, Timestamp,
+    ColumnSet, CompactionLevel, ParquetFile, ParquetFileParams, SequenceNumber, Timestamp,
 };
 use datafusion::physical_plan::SendableRecordBatchStream;
 use iox_time::Time;
@@ -202,7 +202,6 @@ impl SimulatedFile {
         } = self;
 
         ParquetFileParams {
-            shard_id: ShardId::new(1),
             namespace_id: partition_info.namespace_id,
             table_id: partition_info.table.id,
             partition_id: partition_info.partition_id,

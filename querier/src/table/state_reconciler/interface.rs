@@ -1,7 +1,7 @@
 //! Interface for reconciling Ingester and catalog state
 
 use crate::{ingester::IngesterPartition, parquet::QuerierParquetChunk};
-use data_types::{CompactionLevel, ParquetFile, PartitionId, SequenceNumber, ShardId};
+use data_types::{CompactionLevel, ParquetFile, PartitionId, SequenceNumber};
 use std::{ops::Deref, sync::Arc};
 
 /// Information about an ingester partition.
@@ -9,17 +9,12 @@ use std::{ops::Deref, sync::Arc};
 /// This is mostly the same as [`IngesterPartition`] but allows easier mocking.
 pub trait IngesterPartitionInfo {
     fn partition_id(&self) -> PartitionId;
-    fn shard_id(&self) -> ShardId;
     fn parquet_max_sequence_number(&self) -> Option<SequenceNumber>;
 }
 
 impl IngesterPartitionInfo for IngesterPartition {
     fn partition_id(&self) -> PartitionId {
         self.deref().partition_id()
-    }
-
-    fn shard_id(&self) -> ShardId {
-        self.deref().shard_id()
     }
 
     fn parquet_max_sequence_number(&self) -> Option<SequenceNumber> {
@@ -33,10 +28,6 @@ where
 {
     fn partition_id(&self) -> PartitionId {
         self.deref().partition_id()
-    }
-
-    fn shard_id(&self) -> ShardId {
-        self.deref().shard_id()
     }
 
     fn parquet_max_sequence_number(&self) -> Option<SequenceNumber> {

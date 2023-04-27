@@ -24,7 +24,6 @@ use schema::{
     builder::SchemaBuilder, sort::SortKey, InfluxColumnType, InfluxFieldType, Schema,
     TIME_COLUMN_NAME,
 };
-use serde::Deserialize;
 use sqlx::postgres::PgHasArrayType;
 use std::{
     borrow::Borrow,
@@ -37,13 +36,6 @@ use std::{
     sync::Arc,
 };
 use uuid::Uuid;
-
-/// Magic number to be used shard indices and shard ids in "kafkaless".
-pub const TRANSITION_SHARD_NUMBER: i32 = 1234;
-/// In kafkaless mode all new persisted data uses this shard id.
-pub const TRANSITION_SHARD_ID: ShardId = ShardId::new(TRANSITION_SHARD_NUMBER as i64);
-/// In kafkaless mode all new persisted data uses this shard index.
-pub const TRANSITION_SHARD_INDEX: ShardIndex = ShardIndex::new(TRANSITION_SHARD_NUMBER);
 
 /// Compaction levels
 #[derive(Debug, PartialEq, Eq, PartialOrd, Ord, Clone, Copy, Hash, sqlx::Type)]
@@ -212,61 +204,6 @@ impl ColumnId {
 impl PgHasArrayType for ColumnId {
     fn array_type_info() -> sqlx::postgres::PgTypeInfo {
         <i64 as PgHasArrayType>::array_type_info()
-    }
-}
-
-/// Unique ID for a `Shard`, assigned by the catalog. Joins to other catalog tables to uniquely
-/// identify shards independently of the underlying write buffer implementation.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, sqlx::Type)]
-#[sqlx(transparent)]
-pub struct ShardId(i64);
-
-#[allow(missing_docs)]
-impl ShardId {
-    pub const fn new(v: i64) -> Self {
-        Self(v)
-    }
-    pub fn get(&self) -> i64 {
-        self.0
-    }
-}
-
-impl std::fmt::Display for ShardId {
-    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
-        write!(f, "{}", self.0)
-    }
-}
-
-/// The index of the shard in the set of shards. When Kafka is used as the write buffer, this is
-/// the Kafka Partition ID. Used by the router and write buffer to shard requests to a particular
-/// index in a set of shards.
-#[derive(Debug, Deserialize, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, sqlx::Type)]
-#[sqlx(transparent)]
-#[serde(transparent)]
-pub struct ShardIndex(i32);
-
-#[allow(missing_docs)]
-impl ShardIndex {
-    pub const fn new(v: i32) -> Self {
-        Self(v)
-    }
-    pub fn get(&self) -> i32 {
-        self.0
-    }
-}
-
-impl std::fmt::Display for ShardIndex {
-    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
-        write!(f, "{}", self.0)
-    }
-}
-
-impl std::str::FromStr for ShardIndex {
-    type Err = std::num::ParseIntError;
-
-    fn from_str(s: &str) -> Result<Self, Self::Err> {
-        let v: i32 = s.parse()?;
-        Ok(Self(v))
     }
 }
 
@@ -769,24 +706,6 @@ pub fn column_type_from_field(field_value: &FieldValue) -> ColumnType {
     }
 }
 
-/// Data object for a shard. Only one shard record can exist for a given topic and shard
-/// index (enforced via uniqueness constraint).
-#[derive(Debug, Copy, Clone, PartialEq, Eq, sqlx::FromRow)]
-pub struct Shard {
-    /// the id of the shard, assigned by the catalog
-    pub id: ShardId,
-    /// the topic the shard is reading from
-    pub topic_id: TopicId,
-    /// the shard index of the shard the sequence numbers are coming from, sharded by the router
-    /// and write buffer
-    pub shard_index: ShardIndex,
-    /// The minimum unpersisted sequence number. Because different tables
-    /// can be persisted at different times, it is possible some data has been persisted
-    /// with a higher sequence number than this. However, all data with a sequence number
-    /// lower than this must have been persisted to Parquet.
-    pub min_unpersisted_sequence_number: SequenceNumber,
-}
-
 /// Defines an partition via an arbitrary string within a table within
 /// a namespace.
 ///
@@ -880,8 +799,6 @@ impl sqlx::Decode<'_, sqlx::Sqlite> for PartitionKey {
 pub struct Partition {
     /// the id of the partition
     pub id: PartitionId,
-    /// the shard the data in the partition arrived from
-    pub shard_id: ShardId,
     /// the table the partition is under
     pub table_id: TableId,
     /// the string key of the partition
@@ -1020,8 +937,6 @@ impl Deref for ColumnSet {
 pub struct ParquetFile {
     /// the id of the file in the catalog
     pub id: ParquetFileId,
-    /// the shard that sequenced writes that went into this file
-    pub shard_id: ShardId,
     /// the namespace
     pub namespace_id: NamespaceId,
     /// the table
@@ -1084,7 +999,6 @@ impl ParquetFile {
     pub fn from_params(params: ParquetFileParams, id: ParquetFileId) -> Self {
         Self {
             id,
-            shard_id: params.shard_id,
             namespace_id: params.namespace_id,
             table_id: params.table_id,
             partition_id: params.partition_id,
@@ -1122,8 +1036,6 @@ impl ParquetFile {
 /// Data for a parquet file to be inserted into the catalog.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ParquetFileParams {
-    /// the shard that sequenced writes that went into this file
-    pub shard_id: ShardId,
     /// the namespace
     pub namespace_id: NamespaceId,
     /// the table
@@ -1155,7 +1067,6 @@ pub struct ParquetFileParams {
 impl From<ParquetFile> for ParquetFileParams {
     fn from(value: ParquetFile) -> Self {
         Self {
-            shard_id: value.shard_id,
             namespace_id: value.namespace_id,
             table_id: value.table_id,
             partition_id: value.partition_id,

@@ -343,9 +343,6 @@ pub struct TestChunk {
     /// The sort key of this chunk
     sort_key: Option<SortKey>,
 
-    /// The partition sort key of this chunk
-    partition_sort_key: Option<SortKey>,
-
     /// Suppress output
     quiet: bool,
 }
@@ -427,7 +424,6 @@ impl TestChunk {
             delete_predicates: Default::default(),
             order: ChunkOrder::MIN,
             sort_key: None,
-            partition_sort_key: None,
             partition_id: PartitionId::new(0),
             quiet: false,
         }
@@ -1133,14 +1129,6 @@ impl TestChunk {
         }
     }
 
-    /// Set the partition sort key for this chunk
-    pub fn with_partition_sort_key(self, sort_key: SortKey) -> Self {
-        Self {
-            partition_sort_key: Some(sort_key),
-            ..self
-        }
-    }
-
     /// Returns all columns of the table
     pub fn all_column_names(&self) -> StringSet {
         self.schema
@@ -1250,10 +1238,6 @@ impl QueryChunkMeta for TestChunk {
 
     fn schema(&self) -> &Schema {
         &self.schema
-    }
-
-    fn partition_sort_key(&self) -> Option<&SortKey> {
-        self.partition_sort_key.as_ref()
     }
 
     fn partition_id(&self) -> PartitionId {

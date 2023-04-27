@@ -1,4 +1,3 @@
-use influxdb_iox_client::connection::Connection;
 use thiserror::Error;
 
 mod schema;
@@ -23,9 +22,9 @@ pub enum Command {
 }
 
 /// Handle variants of the schema command.
-pub async fn command(connection: Connection, config: Config) -> Result<(), ImportError> {
+pub async fn command(config: Config) -> Result<(), ImportError> {
     match config.command {
-        Command::Schema(schema_config) => schema::command(connection, *schema_config)
+        Command::Schema(schema_config) => schema::command(*schema_config)
             .await
             .map_err(ImportError::SchemaError),
     }

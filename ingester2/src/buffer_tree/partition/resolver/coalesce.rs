@@ -8,7 +8,7 @@ use std::{
 
 use arrow::compute::kernels::partition;
 use async_trait::async_trait;
-use data_types::{NamespaceId, PartitionKey, ShardId, TableId};
+use data_types::{NamespaceId, PartitionKey, TableId};
 use futures::{future::Shared, FutureExt};
 use hashbrown::{hash_map::Entry, HashMap};
 use parking_lot::Mutex;
@@ -147,7 +147,6 @@ where
         namespace_name: Arc<DeferredLoad<NamespaceName>>,
         table_id: TableId,
         table_name: Arc<DeferredLoad<TableName>>,
-        transition_shard_id: ShardId,
     ) -> Arc<Mutex<PartitionData>> {
         let key = Key {
             namespace_id,
@@ -172,7 +171,6 @@ where
                     namespace_name,
                     table_id,
                     table_name,
-                    transition_shard_id,
                 ));
 
                 // Make the future poll-able by many callers, all of which
@@ -236,7 +234,6 @@ async fn do_fetch<T>(
     namespace_name: Arc<DeferredLoad<NamespaceName>>,
     table_id: TableId,
     table_name: Arc<DeferredLoad<TableName>>,
-    transition_shard_id: ShardId,
 ) -> Arc<Mutex<PartitionData>>
 where
     T: PartitionProvider + 'static,
@@ -257,7 +254,6 @@ where
                 namespace_name,
                 table_id,
                 table_name,
-                transition_shard_id,
             )
             .await
     })
@@ -275,7 +271,7 @@ mod tests {
     };
 
     use assert_matches::assert_matches;
-    use data_types::{PartitionId, TRANSITION_SHARD_ID};
+    use data_types::PartitionId;
     use futures::Future;
     use futures::{stream::FuturesUnordered, StreamExt};
     use lazy_static::lazy_static;
@@ -314,7 +310,6 @@ mod tests {
                     Arc::clone(&*DEFER_NAMESPACE_NAME_1_SEC),
                     ARBITRARY_TABLE_ID,
                     Arc::clone(&*DEFER_TABLE_NAME_1_SEC),
-                    TRANSITION_SHARD_ID,
                 )
             })
             .collect::<FuturesUnordered<_>>()
@@ -349,7 +344,6 @@ mod tests {
             _namespace_name: Arc<DeferredLoad<NamespaceName>>,
             _table_id: TableId,
             _table_name: Arc<DeferredLoad<TableName>>,
-            _transition_shard_id: ShardId,
         ) -> core::pin::Pin<
             Box<
                 dyn core::future::Future<Output = Arc<Mutex<PartitionData>>>
@@ -390,7 +384,6 @@ mod tests {
             Arc::clone(&*DEFER_NAMESPACE_NAME_1_SEC),
             ARBITRARY_TABLE_ID,
             Arc::clone(&*DEFER_TABLE_NAME_1_SEC),
-            TRANSITION_SHARD_ID,
         );
         let pa_2 = layer.get_partition(
             ARBITRARY_PARTITION_KEY.clone(),
@@ -398,7 +391,6 @@ mod tests {
             Arc::clone(&*DEFER_NAMESPACE_NAME_1_SEC),
             ARBITRARY_TABLE_ID,
             Arc::clone(&*DEFER_TABLE_NAME_1_SEC),
-            TRANSITION_SHARD_ID,
         );
 
         let waker = futures::task::noop_waker();
@@ -419,7 +411,6 @@ mod tests {
                 Arc::clone(&*DEFER_NAMESPACE_NAME_1_SEC),
                 ARBITRARY_TABLE_ID,
                 Arc::clone(&*DEFER_TABLE_NAME_1_SEC),
-                TRANSITION_SHARD_ID,
             )
             .with_timeout_panic(Duration::from_secs(5))
             .await;
@@ -450,7 +441,6 @@ mod tests {
             _namespace_name: Arc<DeferredLoad<NamespaceName>>,
             _table_id: TableId,
             _table_name: Arc<DeferredLoad<TableName>>,
-            _transition_shard_id: ShardId,
         ) -> Arc<Mutex<PartitionData>> {
             let waker = self.wait.notified();
             let permit = self.sem.acquire().await.unwrap();
@@ -491,7 +481,6 @@ mod tests {
             Arc::clone(&*DEFER_NAMESPACE_NAME_1_SEC),
             ARBITRARY_TABLE_ID,
             Arc::clone(&*DEFER_TABLE_NAME_1_SEC),
-            TRANSITION_SHARD_ID,
         );
 
         let waker = futures::task::noop_waker();

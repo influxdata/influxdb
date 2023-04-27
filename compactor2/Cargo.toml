@@ -25,7 +25,7 @@ rand = "0.8.3"
 schema = { path = "../schema" }
 sharder = { path = "../sharder" }
 tokio = { version = "1", features = ["macros", "rt", "sync"] }
-tokio-util = { version = "0.7.7" }
+tokio-util = { version = "0.7.8" }
 tracker = { path = "../tracker" }
 uuid = { version = "1", features = ["v4"] }
 workspace-hack = { version = "0.1", path = "../workspace-hack" }

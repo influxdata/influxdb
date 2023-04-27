@@ -16,6 +16,9 @@ message IoxMetadata {
   // Renamed to shard_id
   reserved 5;
   reserved "sequencer_id";
+  // shard_id was removed
+  reserved 17;
+  reserved "shard_id";
 
   // Object store ID. Used in the parquet filename. 16 bytes in big-endian order.
   bytes object_store_id = 1;
@@ -28,9 +31,6 @@ message IoxMetadata {
 
   // Unique name of the namespace.
   string namespace_name = 4;
-
-  // Unique shard ID.
-  int64 shard_id = 17;
 
   // Unique table ID.
   int64 table_id = 6;

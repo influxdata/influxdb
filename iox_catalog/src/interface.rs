@@ -4,8 +4,7 @@ use async_trait::async_trait;
 use data_types::{
     Column, ColumnSchema, ColumnType, CompactionLevel, Namespace, NamespaceId, NamespaceSchema,
     ParquetFile, ParquetFileId, ParquetFileParams, Partition, PartitionId, PartitionKey, QueryPool,
-    QueryPoolId, SequenceNumber, Shard, ShardId, ShardIndex, SkippedCompaction, Table, TableId,
-    TableSchema, Timestamp, TopicId, TopicMetadata,
+    QueryPoolId, SkippedCompaction, Table, TableId, TableSchema, Timestamp, TopicId, TopicMetadata,
 };
 use iox_time::TimeProvider;
 use snafu::{OptionExt, Snafu};
@@ -234,9 +233,6 @@ pub trait RepoCollection: Send + Sync + Debug {
     /// Repository for [columns](data_types::Column).
     fn columns(&mut self) -> &mut dyn ColumnRepo;
 
-    /// Repository for [shards](data_types::Shard).
-    fn shards(&mut self) -> &mut dyn ShardRepo;
-
     /// Repository for [partitions](data_types::Partition).
     fn partitions(&mut self) -> &mut dyn PartitionRepo;
 
@@ -370,55 +366,12 @@ pub trait ColumnRepo: Send + Sync {
     async fn list(&mut self) -> Result<Vec<Column>>;
 }
 
-/// Functions for working with shards in the catalog
-#[async_trait]
-pub trait ShardRepo: Send + Sync {
-    /// create a shard record for the topic and shard index or return the existing record
-    async fn create_or_get(
-        &mut self,
-        topic: &TopicMetadata,
-        shard_index: ShardIndex,
-    ) -> Result<Shard>;
-
-    /// get the shard record by `TopicId` and `ShardIndex`
-    async fn get_by_topic_id_and_shard_index(
-        &mut self,
-        topic_id: TopicId,
-        shard_index: ShardIndex,
-    ) -> Result<Option<Shard>>;
-
-    /// list all shards
-    async fn list(&mut self) -> Result<Vec<Shard>>;
-
-    /// list all shards for a given topic
-    async fn list_by_topic(&mut self, topic: &TopicMetadata) -> Result<Vec<Shard>>;
-
-    /// updates the `min_unpersisted_sequence_number` for a shard
-    async fn update_min_unpersisted_sequence_number(
-        &mut self,
-        shard: ShardId,
-        sequence_number: SequenceNumber,
-    ) -> Result<()>;
-
-    /// creates the transition shard for the kafkaless path
-    async fn create_transition_shard(
-        &mut self,
-        topic_name: &str,
-        shard_index: ShardIndex,
-    ) -> Result<Shard>;
-}
-
 /// Functions for working with IOx partitions in the catalog. Note that these are how IOx splits up
 /// data within a namespace, which is different than Kafka partitions.
 #[async_trait]
 pub trait PartitionRepo: Send + Sync {
     /// create or get a partition record for the given partition key, shard and table
-    async fn create_or_get(
-        &mut self,
-        key: PartitionKey,
-        shard_id: ShardId,
-        table_id: TableId,
-    ) -> Result<Partition>;
+    async fn create_or_get(&mut self, key: PartitionKey, table_id: TableId) -> Result<Partition>;
 
     /// get partition by ID
     async fn get_by_id(&mut self, partition_id: PartitionId) -> Result<Option<Partition>>;
@@ -520,8 +473,8 @@ pub trait ParquetFileRepo: Send + Sync {
     ///
     /// Returns the deleted IDs only.
     ///
-    /// This deletion is limited to a certain (backend-specific) number of files to avoid overlarge changes. The caller
-    /// MAY call this method again if the result was NOT empty.
+    /// This deletion is limited to a certain (backend-specific) number of files to avoid overlarge
+    /// changes. The caller MAY call this method again if the result was NOT empty.
     async fn delete_old_ids_only(&mut self, older_than: Timestamp) -> Result<Vec<ParquetFileId>>;
 
     /// List parquet files for a given partition that are NOT marked as
@@ -777,16 +730,11 @@ pub async fn list_schemas(
 
 #[cfg(test)]
 pub(crate) mod test_helpers {
-    use crate::{
-        validate_or_insert_schema, DEFAULT_MAX_COLUMNS_PER_TABLE, DEFAULT_MAX_TABLES,
-        SHARED_TOPIC_ID,
-    };
+    use crate::{validate_or_insert_schema, DEFAULT_MAX_COLUMNS_PER_TABLE, DEFAULT_MAX_TABLES};
 
     use super::*;
     use assert_matches::assert_matches;
-    use data_types::{
-        ColumnId, ColumnSet, CompactionLevel, TRANSITION_SHARD_ID, TRANSITION_SHARD_INDEX,
-    };
+    use data_types::{ColumnId, ColumnSet, CompactionLevel, SequenceNumber};
     use futures::Future;
     use metric::{Attributes, DurationHistogram, Metric};
     use std::{collections::BTreeSet, ops::DerefMut, sync::Arc, time::Duration};
@@ -838,23 +786,6 @@ pub(crate) mod test_helpers {
     async fn test_setup(catalog: Arc<dyn Catalog>) {
         catalog.setup().await.expect("first catalog setup");
         catalog.setup().await.expect("second catalog setup");
-
-        let transition_shard = catalog
-            .repositories()
-            .await
-            .shards()
-            .get_by_topic_id_and_shard_index(SHARED_TOPIC_ID, TRANSITION_SHARD_INDEX)
-            .await
-            .expect("transition shard");
-
-        assert_matches!(
-            transition_shard,
-            Some(Shard {
-                id,
-                shard_index,
-                ..
-            }) if id == TRANSITION_SHARD_ID && shard_index == TRANSITION_SHARD_INDEX
-        );
     }
 
     async fn test_topic(catalog: Arc<dyn Catalog>) {
@@ -1507,29 +1438,19 @@ pub(crate) mod test_helpers {
             .create_or_get("test_table", namespace.id)
             .await
             .unwrap();
-        let shard = repos
-            .shards()
-            .create_or_get(&topic, ShardIndex::new(1))
-            .await
-            .unwrap();
-        let other_shard = repos
-            .shards()
-            .create_or_get(&topic, ShardIndex::new(2))
-            .await
-            .unwrap();
 
         let mut created = BTreeMap::new();
         for key in ["foo", "bar"] {
             let partition = repos
                 .partitions()
-                .create_or_get(key.into(), shard.id, table.id)
+                .create_or_get(key.into(), table.id)
                 .await
                 .expect("failed to create partition");
             created.insert(partition.id, partition);
         }
         let other_partition = repos
             .partitions()
-            .create_or_get("asdf".into(), other_shard.id, table.id)
+            .create_or_get("asdf".into(), table.id)
             .await
             .unwrap();
 
@@ -1806,24 +1727,18 @@ pub(crate) mod test_helpers {
             .create_or_get("other", namespace.id)
             .await
             .unwrap();
-        let shard = repos
-            .shards()
-            .create_or_get(&topic, ShardIndex::new(1))
-            .await
-            .unwrap();
         let partition = repos
             .partitions()
-            .create_or_get("one".into(), shard.id, table.id)
+            .create_or_get("one".into(), table.id)
             .await
             .unwrap();
         let other_partition = repos
             .partitions()
-            .create_or_get("one".into(), shard.id, other_table.id)
+            .create_or_get("one".into(), other_table.id)
             .await
             .unwrap();
 
         let parquet_file_params = ParquetFileParams {
-            shard_id: shard.id,
             namespace_id: namespace.id,
             table_id: partition.table_id,
             partition_id: partition.id,
@@ -1996,7 +1911,7 @@ pub(crate) mod test_helpers {
             .unwrap();
         let partition2 = repos
             .partitions()
-            .create_or_get("foo".into(), shard.id, table2.id)
+            .create_or_get("foo".into(), table2.id)
             .await
             .unwrap();
         let files = repos
@@ -2304,24 +2219,18 @@ pub(crate) mod test_helpers {
             .create_or_get("test_table", namespace_2.id)
             .await
             .unwrap();
-        let shard = repos
-            .shards()
-            .create_or_get(&topic, ShardIndex::new(1))
-            .await
-            .unwrap();
         let partition_1 = repos
             .partitions()
-            .create_or_get("one".into(), shard.id, table_1.id)
+            .create_or_get("one".into(), table_1.id)
             .await
             .unwrap();
         let partition_2 = repos
             .partitions()
-            .create_or_get("one".into(), shard.id, table_2.id)
+            .create_or_get("one".into(), table_2.id)
             .await
             .unwrap();
 
         let parquet_file_params_1 = ParquetFileParams {
-            shard_id: shard.id,
             namespace_id: namespace_1.id,
             table_id: table_1.id,
             partition_id: partition_1.id,
@@ -2337,7 +2246,6 @@ pub(crate) mod test_helpers {
             max_l0_created_at: Timestamp::new(1),
         };
         let parquet_file_params_2 = ParquetFileParams {
-            shard_id: shard.id,
             namespace_id: namespace_2.id,
             table_id: table_2.id,
             partition_id: partition_2.id,
@@ -2393,11 +2301,6 @@ pub(crate) mod test_helpers {
             .create_or_get("test_table_for_new_file_between", namespace.id)
             .await
             .unwrap();
-        let shard = repos
-            .shards()
-            .create_or_get(&topic, ShardIndex::new(101))
-            .await
-            .unwrap();
 
         // param for the tests
         let time_now = Timestamp::from(catalog.time_provider().now());
@@ -2420,7 +2323,7 @@ pub(crate) mod test_helpers {
         // The DB has 1 partition but it does not have any file
         let partition1 = repos
             .partitions()
-            .create_or_get("one".into(), shard.id, table.id)
+            .create_or_get("one".into(), table.id)
             .await
             .unwrap();
         let partitions = repos
@@ -2432,7 +2335,6 @@ pub(crate) mod test_helpers {
 
         // create files for partition one
         let parquet_file_params = ParquetFileParams {
-            shard_id: shard.id,
             namespace_id: namespace.id,
             table_id: partition1.table_id,
             partition_id: partition1.id,
@@ -2523,7 +2425,7 @@ pub(crate) mod test_helpers {
         // Partition two without any file
         let partition2 = repos
             .partitions()
-            .create_or_get("two".into(), shard.id, table.id)
+            .create_or_get("two".into(), table.id)
             .await
             .unwrap();
         // should return partition one only
@@ -2631,7 +2533,7 @@ pub(crate) mod test_helpers {
         // Partition three without any file
         let partition3 = repos
             .partitions()
-            .create_or_get("three".into(), shard.id, table.id)
+            .create_or_get("three".into(), table.id)
             .await
             .unwrap();
         // should return partition one and two only
@@ -2773,28 +2675,15 @@ pub(crate) mod test_helpers {
             .create_or_get("test_table", namespace.id)
             .await
             .unwrap();
-        let shard = repos
-            .shards()
-            .create_or_get(&topic, ShardIndex::new(100))
-            .await
-            .unwrap();
 
         let partition = repos
             .partitions()
-            .create_or_get(
-                "test_list_by_partiton_not_to_delete_one".into(),
-                shard.id,
-                table.id,
-            )
+            .create_or_get("test_list_by_partiton_not_to_delete_one".into(), table.id)
             .await
             .unwrap();
         let partition2 = repos
             .partitions()
-            .create_or_get(
-                "test_list_by_partiton_not_to_delete_two".into(),
-                shard.id,
-                table.id,
-            )
+            .create_or_get("test_list_by_partiton_not_to_delete_two".into(), table.id)
             .await
             .unwrap();
 
@@ -2802,7 +2691,6 @@ pub(crate) mod test_helpers {
         let max_time = Timestamp::new(10);
 
         let parquet_file_params = ParquetFileParams {
-            shard_id: shard.id,
             namespace_id: namespace.id,
             table_id: partition.table_id,
             partition_id: partition.id,
@@ -2902,18 +2790,9 @@ pub(crate) mod test_helpers {
             .create_or_get("update_table", namespace.id)
             .await
             .unwrap();
-        let shard = repos
-            .shards()
-            .create_or_get(&topic, ShardIndex::new(1000))
-            .await
-            .unwrap();
         let partition = repos
             .partitions()
-            .create_or_get(
-                "test_update_to_compaction_level_1_one".into(),
-                shard.id,
-                table.id,
-            )
+            .create_or_get("test_update_to_compaction_level_1_one".into(), table.id)
             .await
             .unwrap();
 
@@ -2923,12 +2802,10 @@ pub(crate) mod test_helpers {
 
         // Create a file with times entirely within the window
         let parquet_file_params = ParquetFileParams {
-            shard_id: shard.id,
             namespace_id: namespace.id,
             table_id: partition.table_id,
             partition_id: partition.id,
             object_store_id: Uuid::new_v4(),
-
             max_sequence_number: SequenceNumber::new(140),
             min_time: query_min_time + 1,
             max_time: query_max_time - 1,
@@ -3007,21 +2884,15 @@ pub(crate) mod test_helpers {
             .create_or_get("column_test_1", table_1.id, ColumnType::Tag)
             .await
             .unwrap();
-        let shard = repos
-            .shards()
-            .create_or_get(&topic, ShardIndex::new(1))
-            .await
-            .unwrap();
         let partition_1 = repos
             .partitions()
-            .create_or_get("test_delete_namespace_one".into(), shard.id, table_1.id)
+            .create_or_get("test_delete_namespace_one".into(), table_1.id)
             .await
             .unwrap();
 
         // parquet files
         let parquet_file_params = ParquetFileParams {
             namespace_id: namespace_1.id,
-            shard_id: shard.id,
             table_id: partition_1.table_id,
             partition_id: partition_1.id,
             object_store_id: Uuid::new_v4(),
@@ -3070,21 +2941,15 @@ pub(crate) mod test_helpers {
             .create_or_get("column_test_2", table_2.id, ColumnType::Tag)
             .await
             .unwrap();
-        let shard = repos
-            .shards()
-            .create_or_get(&topic, ShardIndex::new(1))
-            .await
-            .unwrap();
         let partition_2 = repos
             .partitions()
-            .create_or_get("test_delete_namespace_two".into(), shard.id, table_2.id)
+            .create_or_get("test_delete_namespace_two".into(), table_2.id)
             .await
             .unwrap();
 
         // parquet files
         let parquet_file_params = ParquetFileParams {
             namespace_id: namespace_2.id,
-            shard_id: shard.id,
             table_id: partition_2.table_id,
             partition_id: partition_2.id,
             object_store_id: Uuid::new_v4(),

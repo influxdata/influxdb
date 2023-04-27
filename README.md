@@ -325,7 +325,6 @@ influxdata.iox.ingester.v1.WriteService
 influxdata.iox.namespace.v1.NamespaceService
 influxdata.iox.object_store.v1.ObjectStoreService
 influxdata.iox.schema.v1.SchemaService
-influxdata.iox.sharder.v1.ShardService
 influxdata.platform.storage.IOxTesting
 influxdata.platform.storage.Storage
 ```

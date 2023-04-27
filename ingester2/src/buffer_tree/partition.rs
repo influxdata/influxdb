@@ -4,7 +4,7 @@ use std::{collections::VecDeque, sync::Arc};
 
 use data_types::{
     sequence_number_set::SequenceNumberSet, NamespaceId, PartitionId, PartitionKey, SequenceNumber,
-    ShardId, TableId,
+    TableId,
 };
 use mutable_batch::MutableBatch;
 use observability_deps::tracing::*;
@@ -41,8 +41,7 @@ impl SortKeyState {
     }
 }
 
-/// Data of an IOx Partition of a given Table of a Namespace that belongs to a
-/// given Shard
+/// Data of an IOx Partition of a given Table of a Namespace
 #[derive(Debug)]
 pub struct PartitionData {
     /// The catalog ID of the partition this buffer is for.
@@ -92,8 +91,6 @@ pub struct PartitionData {
     /// The number of persist operations completed over the lifetime of this
     /// [`PartitionData`].
     completed_persistence_count: u64,
-
-    transition_shard_id: ShardId,
 }
 
 impl PartitionData {
@@ -107,7 +104,6 @@ impl PartitionData {
         table_id: TableId,
         table_name: Arc<DeferredLoad<TableName>>,
         sort_key: SortKeyState,
-        transition_shard_id: ShardId,
     ) -> Self {
         Self {
             partition_id: id,
@@ -121,7 +117,6 @@ impl PartitionData {
             persisting: VecDeque::with_capacity(1),
             started_persistence_count: BatchIdent::default(),
             completed_persistence_count: 0,
-            transition_shard_id,
         }
     }
 
@@ -305,11 +300,6 @@ impl PartitionData {
         &self.partition_key
     }
 
-    /// Return the transition_shard_id for this partition.
-    pub(crate) fn transition_shard_id(&self) -> ShardId {
-        self.transition_shard_id
-    }
-
     /// Return the [`NamespaceId`] this partition is a part of.
     pub(crate) fn namespace_id(&self) -> NamespaceId {
         self.namespace_id
@@ -347,7 +337,6 @@ mod tests {
     use arrow_util::assert_batches_eq;
     use assert_matches::assert_matches;
     use backoff::BackoffConfig;
-    use data_types::ShardIndex;
     use datafusion::{
         physical_expr::PhysicalSortExpr,
         physical_plan::{expressions::col, memory::MemoryExec, ExecutionPlan},
@@ -944,15 +933,14 @@ mod tests {
         let catalog: Arc<dyn Catalog> =
             Arc::new(iox_catalog::mem::MemCatalog::new(Arc::clone(&metrics)));
 
-        // Populate the catalog with the shard / namespace / table
-        let (shard_id, _ns_id, table_id) =
-            populate_catalog(&*catalog, ShardIndex::new(1), "bananas", "platanos").await;
+        // Populate the catalog with the namespace / table
+        let (_ns_id, table_id) = populate_catalog(&*catalog, "bananas", "platanos").await;
 
         let partition_id = catalog
             .repositories()
             .await
             .partitions()
-            .create_or_get("test".into(), shard_id, table_id)
+            .create_or_get("test".into(), table_id)
             .await
             .expect("should create")
             .id;

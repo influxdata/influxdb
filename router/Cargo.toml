@@ -51,10 +51,11 @@ iox_tests = { path = "../iox_tests" }
 once_cell = "1"
 paste = "1.0.12"
 pretty_assertions = "1.3.0"
+proptest = "1.1.0"
 rand = "0.8.3"
 test_helpers = { version = "0.1.0", path = "../test_helpers", features = ["future_timeout"] }
 tokio = { version = "1", features = ["test-util"] }
-tokio-stream = { version = "0.1.12", default_features = false, features = [] }
+tokio-stream = { version = "0.1.13", default_features = false, features = [] }
 
 [lib]
 # Allow --save-baseline to work

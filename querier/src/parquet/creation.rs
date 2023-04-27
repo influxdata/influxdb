@@ -236,10 +236,6 @@ impl ChunkAdapter {
             self.catalog_cache.parquet_store(),
         ));
 
-        Some(QuerierParquetChunk::new(
-            parquet_chunk,
-            meta,
-            Some(Arc::clone(&partition_sort_key.sort_key)),
-        ))
+        Some(QuerierParquetChunk::new(parquet_chunk, meta))
     }
 }

@@ -3,9 +3,10 @@
 use crate::{
     interface::{
         self, CasFailure, Catalog, ColumnRepo, ColumnTypeMismatchSnafu, Error, NamespaceRepo,
-        ParquetFileRepo, PartitionRepo, QueryPoolRepo, RepoCollection, Result, ShardRepo,
-        SoftDeletedRows, TableRepo, TopicMetadataRepo, MAX_PARQUET_FILES_SELECTED_ONCE,
+        ParquetFileRepo, PartitionRepo, QueryPoolRepo, RepoCollection, Result, SoftDeletedRows,
+        TableRepo, TopicMetadataRepo, MAX_PARQUET_FILES_SELECTED_ONCE,
     },
+    kafkaless_transition::{TRANSITION_SHARD_ID, TRANSITION_SHARD_INDEX},
     metrics::MetricDecorator,
     DEFAULT_MAX_COLUMNS_PER_TABLE, DEFAULT_MAX_TABLES, SHARED_TOPIC_ID, SHARED_TOPIC_NAME,
 };
@@ -13,8 +14,7 @@ use async_trait::async_trait;
 use data_types::{
     Column, ColumnType, CompactionLevel, Namespace, NamespaceId, ParquetFile, ParquetFileId,
     ParquetFileParams, Partition, PartitionId, PartitionKey, QueryPool, QueryPoolId,
-    SequenceNumber, Shard, ShardId, ShardIndex, SkippedCompaction, Table, TableId, Timestamp,
-    TopicId, TopicMetadata, TRANSITION_SHARD_ID, TRANSITION_SHARD_INDEX,
+    SkippedCompaction, Table, TableId, Timestamp, TopicId, TopicMetadata,
 };
 use iox_time::{SystemProvider, TimeProvider};
 use observability_deps::tracing::{debug, info, warn};
@@ -466,10 +466,6 @@ impl RepoCollection for PostgresTxn {
     }
 
     fn columns(&mut self) -> &mut dyn ColumnRepo {
-        self
-    }
-
-    fn shards(&mut self) -> &mut dyn ShardRepo {
         self
     }
 
@@ -1009,163 +1005,8 @@ RETURNING *;
 }
 
 #[async_trait]
-impl ShardRepo for PostgresTxn {
-    async fn create_or_get(
-        &mut self,
-        topic: &TopicMetadata,
-        shard_index: ShardIndex,
-    ) -> Result<Shard> {
-        sqlx::query_as::<_, Shard>(
-            r#"
-INSERT INTO shard
-    ( topic_id, shard_index, min_unpersisted_sequence_number )
-VALUES
-    ( $1, $2, 0 )
-ON CONFLICT ON CONSTRAINT shard_unique
-DO UPDATE SET topic_id = shard.topic_id
-RETURNING *;;
-        "#,
-        )
-        .bind(topic.id) // $1
-        .bind(shard_index) // $2
-        .fetch_one(&mut self.inner)
-        .await
-        .map_err(|e| {
-            if is_fk_violation(&e) {
-                Error::ForeignKeyViolation { source: e }
-            } else {
-                Error::SqlxError { source: e }
-            }
-        })
-    }
-
-    async fn get_by_topic_id_and_shard_index(
-        &mut self,
-        topic_id: TopicId,
-        shard_index: ShardIndex,
-    ) -> Result<Option<Shard>> {
-        let rec = sqlx::query_as::<_, Shard>(
-            r#"
-SELECT *
-FROM shard
-WHERE topic_id = $1
-  AND shard_index = $2;
-        "#,
-        )
-        .bind(topic_id) // $1
-        .bind(shard_index) // $2
-        .fetch_one(&mut self.inner)
-        .await;
-
-        if let Err(sqlx::Error::RowNotFound) = rec {
-            return Ok(None);
-        }
-
-        let shard = rec.map_err(|e| Error::SqlxError { source: e })?;
-
-        Ok(Some(shard))
-    }
-
-    async fn list(&mut self) -> Result<Vec<Shard>> {
-        sqlx::query_as::<_, Shard>(r#"SELECT * FROM shard;"#)
-            .fetch_all(&mut self.inner)
-            .await
-            .map_err(|e| Error::SqlxError { source: e })
-    }
-
-    async fn list_by_topic(&mut self, topic: &TopicMetadata) -> Result<Vec<Shard>> {
-        sqlx::query_as::<_, Shard>(r#"SELECT * FROM shard WHERE topic_id = $1;"#)
-            .bind(topic.id) // $1
-            .fetch_all(&mut self.inner)
-            .await
-            .map_err(|e| Error::SqlxError { source: e })
-    }
-
-    async fn update_min_unpersisted_sequence_number(
-        &mut self,
-        shard_id: ShardId,
-        sequence_number: SequenceNumber,
-    ) -> Result<()> {
-        let _ = sqlx::query(
-            r#"
-UPDATE shard
-SET min_unpersisted_sequence_number = $1
-WHERE id = $2;
-                "#,
-        )
-        .bind(sequence_number.get()) // $1
-        .bind(shard_id) // $2
-        .execute(&mut self.inner)
-        .await
-        .map_err(|e| Error::SqlxError { source: e })?;
-
-        Ok(())
-    }
-
-    async fn create_transition_shard(
-        &mut self,
-        topic_name: &str,
-        shard_index: ShardIndex,
-    ) -> Result<Shard> {
-        let mut tx = self
-            .inner
-            .pool
-            .begin()
-            .await
-            .map_err(|e| Error::StartTransaction { source: e })?;
-
-        let query = sqlx::query_as::<_, TopicMetadata>(
-            r#"
-INSERT INTO topic ( name )
-VALUES ( $1 )
-ON CONFLICT ON CONSTRAINT topic_name_unique
-DO UPDATE SET name = topic.name
-RETURNING *;
-        "#,
-        )
-        .bind(topic_name); // $1
-        let topic = query
-            .fetch_one(&mut tx)
-            .await
-            .map_err(|e| Error::SqlxError { source: e })?;
-
-        let query = sqlx::query_as::<_, Shard>(
-            r#"
-INSERT INTO shard
-    ( topic_id, shard_index, min_unpersisted_sequence_number )
-VALUES
-    ( $1, $2, 0 )
-ON CONFLICT ON CONSTRAINT shard_unique
-DO UPDATE SET topic_id = shard.topic_id
-RETURNING *;;
-        "#,
-        )
-        .bind(topic.id) // $1
-        .bind(shard_index); // $2
-        let shard = query.fetch_one(&mut tx).await.map_err(|e| {
-            if is_fk_violation(&e) {
-                Error::ForeignKeyViolation { source: e }
-            } else {
-                Error::SqlxError { source: e }
-            }
-        })?;
-
-        tx.commit()
-            .await
-            .map_err(|e| Error::FailedToCommit { source: e })?;
-
-        Ok(shard)
-    }
-}
-
-#[async_trait]
 impl PartitionRepo for PostgresTxn {
-    async fn create_or_get(
-        &mut self,
-        key: PartitionKey,
-        shard_id: ShardId,
-        table_id: TableId,
-    ) -> Result<Partition> {
+    async fn create_or_get(&mut self, key: PartitionKey, table_id: TableId) -> Result<Partition> {
         // Note: since sort_key is now an array, we must explicitly insert '{}' which is an empty
         // array rather than NULL which sqlx will throw `UnexpectedNullError` while is is doing
         // `ColumnDecode`
@@ -1178,11 +1019,11 @@ VALUES
     ( $1, $2, $3, '{}')
 ON CONFLICT ON CONSTRAINT partition_key_unique
 DO UPDATE SET partition_key = partition.partition_key
-RETURNING *;
+RETURNING id, table_id, partition_key, sort_key, persisted_sequence_number, new_file_at;
         "#,
         )
         .bind(key) // $1
-        .bind(shard_id) // $2
+        .bind(TRANSITION_SHARD_ID) // $2
         .bind(table_id) // $3
         .fetch_one(&mut self.inner)
         .await
@@ -1194,23 +1035,20 @@ RETURNING *;
             }
         })?;
 
-        // If the partition_key_unique constraint was hit because there was an
-        // existing record for (table_id, partition_key) ensure the partition
-        // key in the DB is mapped to the same shard_id the caller
-        // requested.
-        assert_eq!(
-            v.shard_id, shard_id,
-            "attempted to overwrite partition with different shard ID"
-        );
-
         Ok(v)
     }
 
     async fn get_by_id(&mut self, partition_id: PartitionId) -> Result<Option<Partition>> {
-        let rec = sqlx::query_as::<_, Partition>(r#"SELECT * FROM partition WHERE id = $1;"#)
-            .bind(partition_id) // $1
-            .fetch_one(&mut self.inner)
-            .await;
+        let rec = sqlx::query_as::<_, Partition>(
+            r#"
+SELECT id, table_id, partition_key, sort_key, persisted_sequence_number, new_file_at
+FROM partition
+WHERE id = $1;
+        "#,
+        )
+        .bind(partition_id) // $1
+        .fetch_one(&mut self.inner)
+        .await;
 
         if let Err(sqlx::Error::RowNotFound) = rec {
             return Ok(None);
@@ -1224,7 +1062,7 @@ RETURNING *;
     async fn list_by_table_id(&mut self, table_id: TableId) -> Result<Vec<Partition>> {
         sqlx::query_as::<_, Partition>(
             r#"
-SELECT *
+SELECT id, table_id, partition_key, sort_key, persisted_sequence_number, new_file_at
 FROM partition
 WHERE table_id = $1;
             "#,
@@ -1265,7 +1103,7 @@ WHERE table_id = $1;
 UPDATE partition
 SET sort_key = $1
 WHERE id = $2 AND sort_key = $3
-RETURNING *;
+RETURNING id, table_id, partition_key, sort_key, persisted_sequence_number, new_file_at;
         "#,
         )
         .bind(new_sort_key) // $1
@@ -1482,16 +1320,14 @@ RETURNING id;
         &mut self,
         namespace_id: NamespaceId,
     ) -> Result<Vec<ParquetFile>> {
-        // Deliberately doesn't use `SELECT *` to avoid the performance hit of fetching the large
-        // `parquet_metadata` column!!
         sqlx::query_as::<_, ParquetFile>(
             r#"
-SELECT parquet_file.id, parquet_file.shard_id, parquet_file.namespace_id,
+SELECT parquet_file.id, parquet_file.namespace_id,
        parquet_file.table_id, parquet_file.partition_id, parquet_file.object_store_id,
        parquet_file.max_sequence_number, parquet_file.min_time,
        parquet_file.max_time, parquet_file.to_delete, parquet_file.file_size_bytes,
-       parquet_file.row_count, parquet_file.compaction_level, parquet_file.created_at, parquet_file.column_set,
-       parquet_file.max_l0_created_at
+       parquet_file.row_count, parquet_file.compaction_level, parquet_file.created_at,
+       parquet_file.column_set, parquet_file.max_l0_created_at
 FROM parquet_file
 INNER JOIN table_name on table_name.id = parquet_file.table_id
 WHERE table_name.namespace_id = $1
@@ -1505,11 +1341,9 @@ WHERE table_name.namespace_id = $1
     }
 
     async fn list_by_table_not_to_delete(&mut self, table_id: TableId) -> Result<Vec<ParquetFile>> {
-        // Deliberately doesn't use `SELECT *` to avoid the performance hit of fetching the large
-        // `parquet_metadata` column!!
         sqlx::query_as::<_, ParquetFile>(
             r#"
-SELECT id, shard_id, namespace_id, table_id, partition_id, object_store_id,
+SELECT id, namespace_id, table_id, partition_id, object_store_id,
        max_sequence_number, min_time, max_time, to_delete, file_size_bytes,
        row_count, compaction_level, created_at, column_set, max_l0_created_at
 FROM parquet_file
@@ -1569,11 +1403,9 @@ RETURNING id;
         &mut self,
         partition_id: PartitionId,
     ) -> Result<Vec<ParquetFile>> {
-        // Deliberately doesn't use `SELECT *` to avoid the performance hit of fetching the large
-        // `parquet_metadata` column!!
         sqlx::query_as::<_, ParquetFile>(
             r#"
-SELECT id, shard_id, namespace_id, table_id, partition_id, object_store_id,
+SELECT id, namespace_id, table_id, partition_id, object_store_id,
        max_sequence_number, min_time, max_time, to_delete, file_size_bytes,
        row_count, compaction_level, created_at, column_set, max_l0_created_at
 FROM parquet_file
@@ -1622,11 +1454,9 @@ WHERE parquet_file.partition_id = $1
         &mut self,
         object_store_id: Uuid,
     ) -> Result<Option<ParquetFile>> {
-        // Deliberately doesn't use `SELECT *` to avoid the performance hit of fetching the large
-        // `parquet_metadata` column!!
         let rec = sqlx::query_as::<_, ParquetFile>(
             r#"
-SELECT id, shard_id, namespace_id, table_id, partition_id, object_store_id,
+SELECT id, namespace_id, table_id, partition_id, object_store_id,
        max_sequence_number, min_time, max_time, to_delete, file_size_bytes,
        row_count, compaction_level, created_at, column_set, max_l0_created_at
 FROM parquet_file
@@ -1708,7 +1538,6 @@ where
     E: Executor<'q, Database = Postgres>,
 {
     let ParquetFileParams {
-        shard_id,
         namespace_id,
         table_id,
         partition_id,
@@ -1737,7 +1566,7 @@ RETURNING
     row_count, compaction_level, created_at, namespace_id, column_set, max_l0_created_at;
         "#,
     )
-    .bind(shard_id) // $1
+    .bind(TRANSITION_SHARD_ID) // $1
     .bind(table_id) // $2
     .bind(partition_id) // $3
     .bind(object_store_id) // $4
@@ -1847,7 +1676,7 @@ mod tests {
     use super::*;
     use crate::create_or_get_default_records;
     use assert_matches::assert_matches;
-    use data_types::{ColumnId, ColumnSet};
+    use data_types::{ColumnId, ColumnSet, SequenceNumber};
     use metric::{Attributes, DurationHistogram, Metric};
     use rand::Rng;
     use sqlx::migrate::MigrateDatabase;
@@ -1975,9 +1804,6 @@ mod tests {
 
     #[tokio::test]
     async fn test_catalog() {
-        // If running an integration test on your laptop, this requires that you have Postgres
-        // running and that you've done the sqlx migrations. See the README in this crate for
-        // info to set it up.
         maybe_skip_integration!();
 
         let postgres = setup_db().await;
@@ -2028,23 +1854,13 @@ mod tests {
 
     #[tokio::test]
     async fn test_partition_create_or_get_idempotent() {
-        // If running an integration test on your laptop, this requires that you have Postgres running
-        //
-        // This is a command to run this test on your laptop
-        //    TEST_INTEGRATION=1 TEST_INFLUXDB_IOX_CATALOG_DSN=postgres:postgres://$USER@localhost/iox_shared RUST_BACKTRACE=1 cargo test --package iox_catalog --lib -- postgres::tests::test_partition_create_or_get_idempotent --exact --nocapture
-        //
-        // If you do not have Postgres's iox_shared db, here are commands to install Postgres (on mac) and create iox_shared db
-        //    brew install postgresql
-        //    initdb pg
-        //    createdb iox_shared
-
         maybe_skip_integration!();
 
         let postgres = setup_db().await;
 
         let postgres: Arc<dyn Catalog> = Arc::new(postgres);
         let mut txn = postgres.repositories().await;
-        let (kafka, query, shards) = create_or_get_default_records(1, txn.deref_mut())
+        let (kafka, query) = create_or_get_default_records(txn.deref_mut())
             .await
             .expect("db init failed");
 
@@ -2066,95 +1882,23 @@ mod tests {
             .id;
 
         let key = "bananas";
-        let shard_id = *shards.keys().next().expect("no shard");
 
         let a = postgres
             .repositories()
             .await
             .partitions()
-            .create_or_get(key.into(), shard_id, table_id)
+            .create_or_get(key.into(), table_id)
             .await
             .expect("should create OK");
 
-        // Call create_or_get for the same (key, table_id, shard_id)
-        // triplet, setting the same shard ID to ensure the write is
-        // idempotent.
+        // Call create_or_get for the same (key, table_id) pair, to ensure the write is idempotent.
         let b = postgres
             .repositories()
             .await
             .partitions()
-            .create_or_get(key.into(), shard_id, table_id)
+            .create_or_get(key.into(), table_id)
             .await
             .expect("idempotent write should succeed");
-
-        assert_eq!(a, b);
-    }
-
-    #[tokio::test]
-    #[should_panic = "attempted to overwrite partition"]
-    async fn test_partition_create_or_get_no_overwrite() {
-        // If running an integration test on your laptop, this requires that you have Postgres
-        // running and that you've done the sqlx migrations. See the README in this crate for
-        // info to set it up.
-        maybe_skip_integration!("attempted to overwrite partition");
-
-        let postgres = setup_db().await;
-
-        let postgres: Arc<dyn Catalog> = Arc::new(postgres);
-        let mut txn = postgres.repositories().await;
-        let (kafka, query, _) = create_or_get_default_records(2, txn.deref_mut())
-            .await
-            .expect("db init failed");
-
-        let namespace_id = postgres
-            .repositories()
-            .await
-            .namespaces()
-            .create("ns3", None, kafka.id, query.id)
-            .await
-            .expect("namespace create failed")
-            .id;
-        let table_id = postgres
-            .repositories()
-            .await
-            .tables()
-            .create_or_get("table", namespace_id)
-            .await
-            .expect("create table failed")
-            .id;
-
-        let key = "bananas";
-
-        let shards = postgres
-            .repositories()
-            .await
-            .shards()
-            .list()
-            .await
-            .expect("failed to list shards");
-        assert!(
-            shards.len() > 1,
-            "expected more shards to be created, got {}",
-            shards.len()
-        );
-
-        let a = postgres
-            .repositories()
-            .await
-            .partitions()
-            .create_or_get(key.into(), shards[0].id, table_id)
-            .await
-            .expect("should create OK");
-
-        // Call create_or_get for the same (key, table_id) tuple, setting a
-        // different shard ID
-        let b = postgres
-            .repositories()
-            .await
-            .partitions()
-            .create_or_get(key.into(), shards[1].id, table_id)
-            .await
-            .expect("result should not be evaluated");
 
         assert_eq!(a, b);
     }
@@ -2252,9 +1996,6 @@ mod tests {
             paste::paste! {
                 #[tokio::test]
                 async fn [<test_column_create_or_get_many_unchecked_ $name>]() {
-                    // If running an integration test on your laptop, this requires that you have
-                    // Postgres running and that you've done the sqlx migrations. See the README in
-                    // this crate for info to set it up.
                     maybe_skip_integration!();
 
                     let postgres = setup_db().await;
@@ -2262,7 +2003,7 @@ mod tests {
 
                     let postgres: Arc<dyn Catalog> = Arc::new(postgres);
                     let mut txn = postgres.repositories().await;
-                    let (kafka, query, _shards) = create_or_get_default_records(1, txn.deref_mut())
+                    let (kafka, query) = create_or_get_default_records(txn.deref_mut())
                         .await
                         .expect("db init failed");
 
@@ -2423,19 +2164,6 @@ mod tests {
 
     #[tokio::test]
     async fn test_billing_summary_on_parqet_file_creation() {
-        // If running an integration test on your laptop, this requires that you have Postgres running
-        //
-        // This is a command to run this test on your laptop
-        //    TEST_INTEGRATION=1 TEST_INFLUXDB_IOX_CATALOG_DSN=postgres:postgres://$USER@localhost/iox_shared RUST_BACKTRACE=1 cargo test --package iox_catalog --lib -- postgres::tests::test_billing_summary_on_parqet_file_creation --exact --nocapture
-        //
-        // If you do not have Postgres's iox_shared db, here are commands to install Postgres (on mac) and create iox_shared db
-        //    brew install postgresql
-        //    initdb pg
-        //    createdb iox_shared
-        //
-        // Or if you're on Linux or otherwise don't mind using Docker:
-        //    ./scripts/docker_catalog.sh
-
         maybe_skip_integration!();
 
         let postgres = setup_db().await;
@@ -2443,7 +2171,7 @@ mod tests {
 
         let postgres: Arc<dyn Catalog> = Arc::new(postgres);
         let mut txn = postgres.repositories().await;
-        let (kafka, query, shards) = create_or_get_default_records(1, txn.deref_mut())
+        let (kafka, query) = create_or_get_default_records(txn.deref_mut())
             .await
             .expect("db init failed");
 
@@ -2465,13 +2193,12 @@ mod tests {
             .id;
 
         let key = "bananas";
-        let shard_id = *shards.keys().next().expect("no shard");
 
         let partition_id = postgres
             .repositories()
             .await
             .partitions()
-            .create_or_get(key.into(), shard_id, table_id)
+            .create_or_get(key.into(), table_id)
             .await
             .expect("should create OK")
             .id;
@@ -2481,7 +2208,6 @@ mod tests {
         let time_provider = Arc::new(SystemProvider::new());
         let time_now = Timestamp::from(time_provider.now());
         let mut p1 = ParquetFileParams {
-            shard_id,
             namespace_id,
             table_id,
             partition_id,

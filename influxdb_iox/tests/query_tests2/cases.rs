@@ -325,6 +325,18 @@ async fn different_tag_sets() {
     .await;
 }
 
+#[tokio::test]
+async fn bugs() {
+    test_helpers::maybe_start_logging();
+
+    TestCase {
+        input: "cases/in/bugs.sql",
+        chunk_stage: ChunkStage::Ingester,
+    }
+    .run()
+    .await;
+}
+
 mod influxql {
     use super::*;
 

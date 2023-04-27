@@ -37,7 +37,7 @@ use compactor2::{
     config::{CompactionType, Config, PartitionsSourceConfig},
     hardcoded_components, Components, PanicDataFusionPlanner, PartitionInfo,
 };
-use data_types::{ColumnType, CompactionLevel, ParquetFile, TableId, TRANSITION_SHARD_NUMBER};
+use data_types::{ColumnType, CompactionLevel, ParquetFile, TableId};
 use datafusion::arrow::record_batch::RecordBatch;
 use datafusion_util::config::register_iox_object_store;
 use futures::TryStreamExt;
@@ -45,7 +45,7 @@ use iox_catalog::interface::Catalog;
 use iox_query::exec::ExecutorType;
 use iox_tests::{
     ParquetFileBuilder, TestCatalog, TestNamespace, TestParquetFileBuilder, TestPartition,
-    TestShard, TestTable,
+    TestTable,
 };
 use iox_time::{MockProvider, Time, TimeProvider};
 use object_store::{path::Path, DynObjectStore};
@@ -54,7 +54,6 @@ use schema::sort::SortKey;
 use tracker::AsyncSemaphoreMetrics;
 
 // Default values for the test setup builder
-const SHARD_INDEX: i32 = TRANSITION_SHARD_NUMBER;
 const PARTITION_THRESHOLD: Duration = Duration::from_secs(10 * 60); // 10min
 const MAX_DESIRE_FILE_SIZE: u64 = 100 * 1024;
 const PERCENTAGE_MAX_FILE_SIZE: u16 = 5;
@@ -70,7 +69,6 @@ pub struct TestSetupBuilder<const WITH_FILES: bool> {
     config: Config,
     catalog: Arc<TestCatalog>,
     ns: Arc<TestNamespace>,
-    shard: Arc<TestShard>,
     table: Arc<TestTable>,
     partition: Arc<TestPartition>,
     files: Vec<ParquetFile>,
@@ -88,7 +86,6 @@ impl TestSetupBuilder<false> {
     pub async fn new() -> Self {
         let catalog = TestCatalog::new();
         let ns = catalog.create_namespace_1hr_retention("ns").await;
-        let shard = ns.create_shard(SHARD_INDEX).await;
         let table = ns.create_table("table").await;
         table.create_column("field_int", ColumnType::I64).await;
         table.create_column("tag1", ColumnType::Tag).await;
@@ -96,10 +93,7 @@ impl TestSetupBuilder<false> {
         table.create_column("tag3", ColumnType::Tag).await;
         table.create_column("time", ColumnType::Time).await;
 
-        let partition = table
-            .with_shard(&shard)
-            .create_partition("2022-07-13")
-            .await;
+        let partition = table.create_partition("2022-07-13").await;
 
         // The sort key comes from the catalog and should be the union of all tags the
         // ingester has seen
@@ -122,7 +116,6 @@ impl TestSetupBuilder<false> {
 
         let config = Config {
             compaction_type: Default::default(),
-            shard_id: shard.shard.id,
             metric_registry: catalog.metric_registry(),
             catalog: catalog.catalog(),
             parquet_store_real: catalog.parquet_store.clone(),
@@ -162,7 +155,6 @@ impl TestSetupBuilder<false> {
             config,
             catalog,
             ns,
-            shard,
             table,
             partition,
             files: vec![],
@@ -299,7 +291,6 @@ impl TestSetupBuilder<false> {
             config: self.config,
             catalog: self.catalog,
             ns: self.ns,
-            shard: self.shard,
             table: self.table,
             partition: self.partition,
             files,
@@ -333,7 +324,6 @@ impl TestSetupBuilder<false> {
             config: self.config.clone(),
             catalog: Arc::clone(&self.catalog),
             ns: Arc::clone(&self.ns),
-            shard: Arc::clone(&self.shard),
             table: Arc::clone(&self.table),
             partition: Arc::clone(&self.partition),
             files,
@@ -368,7 +358,6 @@ impl TestSetupBuilder<false> {
             config: self.config.clone(),
             catalog: Arc::clone(&self.catalog),
             ns: Arc::clone(&self.ns),
-            shard: Arc::clone(&self.shard),
             table: Arc::clone(&self.table),
             partition: Arc::clone(&self.partition),
             files,

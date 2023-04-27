@@ -16,5 +16,5 @@ async-trait = "0.1"
 clap = { version = "4", features = ["derive", "env"] }
 hyper = "0.14"
 snafu = "0.7"
-tokio-util = "0.7.7"
+tokio-util = "0.7.8"
 workspace-hack = { version = "0.1", path = "../workspace-hack" }

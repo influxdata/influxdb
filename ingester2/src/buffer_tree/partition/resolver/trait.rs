@@ -1,7 +1,7 @@
 use std::{fmt::Debug, sync::Arc};
 
 use async_trait::async_trait;
-use data_types::{NamespaceId, PartitionKey, ShardId, TableId};
+use data_types::{NamespaceId, PartitionKey, TableId};
 use parking_lot::Mutex;
 
 use crate::{
@@ -25,7 +25,6 @@ pub(crate) trait PartitionProvider: Send + Sync + Debug {
         namespace_name: Arc<DeferredLoad<NamespaceName>>,
         table_id: TableId,
         table_name: Arc<DeferredLoad<TableName>>,
-        transition_shard_id: ShardId,
     ) -> Arc<Mutex<PartitionData>>;
 }
 
@@ -41,7 +40,6 @@ where
         namespace_name: Arc<DeferredLoad<NamespaceName>>,
         table_id: TableId,
         table_name: Arc<DeferredLoad<TableName>>,
-        transition_shard_id: ShardId,
     ) -> Arc<Mutex<PartitionData>> {
         (**self)
             .get_partition(
@@ -50,7 +48,6 @@ where
                 namespace_name,
                 table_id,
                 table_name,
-                transition_shard_id,
             )
             .await
     }
@@ -59,8 +56,6 @@ where
 #[cfg(test)]
 mod tests {
     use std::{sync::Arc, time::Duration};
-
-    use data_types::{PartitionId, ShardId, TRANSITION_SHARD_ID};
 
     use super::*;
     use crate::{
@@ -85,7 +80,6 @@ mod tests {
                 Arc::clone(&*DEFER_NAMESPACE_NAME_1_SEC),
                 ARBITRARY_TABLE_ID,
                 Arc::clone(&*DEFER_TABLE_NAME_1_SEC),
-                TRANSITION_SHARD_ID,
             )
             .await;
         assert_eq!(got.lock().partition_id(), ARBITRARY_PARTITION_ID);

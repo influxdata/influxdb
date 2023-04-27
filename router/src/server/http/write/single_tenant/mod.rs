@@ -201,7 +201,7 @@ mod tests {
         impl Authorizer for MockCountingAuthorizer {
             async fn permissions(
                 &self,
-                _token: Option<&[u8]>,
+                _token: Option<Vec<u8>>,
                 perms: &[Permission],
             ) -> Result<Vec<Permission>, authz::Error> {
                 *self.calls_counter.lock() += 1;
