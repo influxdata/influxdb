@@ -67,9 +67,11 @@ pub mod mock {
 #[cfg(test)]
 mod tests {
     use assert_matches::assert_matches;
+    use authz::AuthorizerInstrumentation;
     use base64::{prelude::BASE64_STANDARD, Engine};
     use data_types::NamespaceId;
     use hyper::header::HeaderValue;
+    use metric::{Attributes, DurationHistogram, Metric};
 
     use super::{mock::*, *};
     use crate::{
@@ -167,6 +169,75 @@ mod tests {
         assert_matches!(calls.as_slice(), [MockDmlHandlerCall::Write{namespace, ..}] => {
             assert_eq!(namespace, NAMESPACE_NAME);
         })
+    }
+
+    #[tokio::test]
+    async fn test_authz_metric() {
+        static NAMESPACE_NAME: &str = "test";
+        let mock_namespace_resolver =
+            MockNamespaceResolver::default().with_mapping(NAMESPACE_NAME, NamespaceId::new(42));
+        let dml_handler = Arc::new(MockDmlHandler::default().with_write_return([Ok(())]));
+
+        let metrics = Arc::new(metric::Registry::default());
+        let topic = "topic";
+        let decorator = Arc::new(AuthorizerInstrumentation::new(
+            topic,
+            "describe it",
+            &metrics,
+            MockAuthorizer::default(),
+        ));
+
+        let delegate = HttpDelegate::new(
+            MAX_BYTES,
+            1,
+            mock_namespace_resolver,
+            Arc::clone(&dml_handler),
+            &metrics,
+            Box::new(SingleTenantRequestUnifier::new(decorator)),
+        );
+
+        let request = Request::builder()
+            .uri("https://bananas.example/api/v2/write?org=bananas&bucket=test")
+            .method("POST")
+            .extension(AuthorizationHeaderExtension::new(Some(
+                HeaderValue::from_str(format!("Token {MOCK_AUTH_VALID_TOKEN}").as_str()).unwrap(),
+            )))
+            .body(Body::from("platanos,tag1=A,tag2=B val=42i 123456"))
+            .unwrap();
+        let got = delegate.route(request).await;
+        assert!(got.is_ok());
+
+        let request = Request::builder()
+            .uri("https://bananas.example/api/v2/write?org=bananas&bucket=test")
+            .method("POST")
+            .extension(AuthorizationHeaderExtension::new(Some(
+                HeaderValue::from_str(format!("Token {MOCK_AUTH_INVALID_TOKEN}").as_str()).unwrap(),
+            )))
+            .body(Body::from("platanos,tag1=A,tag2=B val=42i 123456"))
+            .unwrap();
+        let got = delegate.route(request).await;
+        assert!(got.is_err());
+
+        let histogram = &metrics
+            .get_instrument::<Metric<DurationHistogram>>(topic)
+            .expect("failed to read metric");
+
+        assert_eq!(
+            histogram
+                .get_observer(&Attributes::from(&[("result", "success"),]))
+                .expect("failed to get observer")
+                .fetch()
+                .sample_count(),
+            1
+        );
+        assert_eq!(
+            histogram
+                .get_observer(&Attributes::from(&[("result", "error"),]))
+                .expect("failed to get observer")
+                .fetch()
+                .sample_count(),
+            1
+        );
     }
 
     macro_rules! test_authorize {
