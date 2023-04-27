@@ -301,9 +301,6 @@ async fn flightsql_get_catalogs_matches_information_schema() {
                     // output of get_catalogs  is built manually in
                     // IOx, so it is important it remains in sync with
                     // the actual contents of the information schema
-                    fn no_filter() -> Option<String> {
-                        None
-                    }
                     let stream = client
                         .get_catalogs()
                         .await
@@ -780,9 +777,6 @@ async fn flightsql_get_table_types_matches_information_schema() {
                     // output of get_table_types is built manually in
                     // IOx, so it is important it remains in sync with
                     // the actual contents of the information schema
-                    fn no_filter() -> Option<String> {
-                        None
-                    }
                     let stream = client
                         .get_table_types()
                         .await
