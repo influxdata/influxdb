@@ -17,7 +17,7 @@ use crate::{
     error::{DynError, ErrorKind, SimpleError},
     file_classification::{FileClassification, FilesForProgress, FilesToSplitOrCompact},
     partition_info::PartitionInfo,
-    PlanIR,
+    PlanIR, RoundInfo,
 };
 
 /// Tries to compact all eligible partitions, up to
@@ -192,6 +192,7 @@ async fn try_compact_partition(
 ) -> Result<(), DynError> {
     let mut files = components.partition_files_source.fetch(partition_id).await;
     let partition_info = components.partition_info_source.fetch(partition_id).await?;
+    let transmit_progress_signal = Arc::new(transmit_progress_signal);
 
     // loop for each "Round", consider each file in the partition
     loop {
@@ -218,97 +219,138 @@ async fn try_compact_partition(
             .divide(files_now, round_info)
             .into_iter();
 
-        let mut files_next = files_later;
-        // loop for each "Branch"
-        for branch in branches {
-            // Keep the current state as a check to make sure this is the only compactor modifying this branch's
-            // files. Check that the catalog state for the files in this set is the same before committing and, if not,
-            // throw away the compaction work we've done.
-            let saved_parquet_file_state = SavedParquetFileState::from(&branch);
+        files = files_later;
 
-            let input_paths: Vec<ParquetFilePath> =
-                branch.iter().map(ParquetFilePath::from).collect();
+        // concurrently run the branches.
+        let branches_output: Vec<Vec<ParquetFile>> = stream::iter(branches.into_iter())
+            .map(|branch| {
+                let partition_info = Arc::clone(&partition_info);
+                let components = Arc::clone(&components);
+                let job_semaphore = Arc::clone(&job_semaphore);
+                let transmit_progress_signal = Arc::clone(&transmit_progress_signal);
+                let scratchpad = Arc::clone(&scratchpad_ctx);
 
-            // Identify the target level and files that should be
-            // compacted together, upgraded, and kept for next round of
-            // compaction
-            let FileClassification {
-                target_level,
-                files_to_make_progress_on,
-                files_to_keep,
-            } = components
-                .file_classifier
-                .classify(&partition_info, &round_info, branch);
-
-            // Evaluate whether there's work to do or not based on the files classified for
-            // making progress on. If there's no work to do, return early.
-            //
-            // Currently, no work to do mostly means we are unable to compact this partition due to
-            // some limitation such as a large file with single timestamp that we cannot split in
-            // order to further compact.
-            if !components
-                .post_classification_partition_filter
-                .apply(&partition_info, &files_to_make_progress_on)
-                .await?
-            {
-                return Ok(());
-            }
-
-            let FilesForProgress {
-                upgrade,
-                split_or_compact,
-            } = files_to_make_progress_on;
-
-            // Compact
-            let created_file_params = run_plans(
-                split_or_compact.clone(),
-                &partition_info,
-                &components,
-                target_level,
-                Arc::clone(&job_semaphore),
-                Arc::<dyn Scratchpad>::clone(&scratchpad_ctx),
-            )
+                async move {
+                    execute_branch(
+                        partition_id,
+                        branch,
+                        job_semaphore,
+                        components,
+                        scratchpad,
+                        partition_info,
+                        round_info,
+                        transmit_progress_signal,
+                    )
+                    .await
+                }
+            })
+            .buffer_unordered(job_semaphore.total_permits())
+            .try_collect()
             .await?;
 
-            // upload files to real object store
-            let created_file_params = upload_files_to_object_store(
-                created_file_params,
-                Arc::<dyn Scratchpad>::clone(&scratchpad_ctx),
-            )
-            .await;
-
-            // clean scratchpad
-            scratchpad_ctx.clean_from_scratchpad(&input_paths).await;
-
-            // Update the catalog to reflect the newly created files, soft delete the compacted
-            // files and update the upgraded files
-            let files_to_delete = split_or_compact.into_files();
-            let (created_files, upgraded_files) = update_catalog(
-                Arc::clone(&components),
-                partition_id,
-                saved_parquet_file_state,
-                files_to_delete,
-                upgrade,
-                created_file_params,
-                target_level,
-            )
-            .await;
-
-            // Extend created files, upgraded files and files_to_keep to files_next
-            files_next.extend(created_files);
-            files_next.extend(upgraded_files);
-            files_next.extend(files_to_keep);
-
-            // Report to `timeout_with_progress_checking` that some progress has been made; stop
-            // if sending this signal fails because something has gone terribly wrong for the other
-            // end of the channel to not be listening anymore.
-            if let Err(e) = transmit_progress_signal.send(true) {
-                return Err(Box::new(e));
-            }
-        }
-
-        files = files_next;
+        files.extend(branches_output.into_iter().flatten());
     }
+}
+
+/// Compact or split given files
+#[allow(clippy::too_many_arguments)]
+async fn execute_branch(
+    partition_id: PartitionId,
+    branch: Vec<ParquetFile>,
+    job_semaphore: Arc<InstrumentedAsyncSemaphore>,
+    components: Arc<Components>,
+    scratchpad_ctx: Arc<dyn Scratchpad>,
+    partition_info: Arc<PartitionInfo>,
+    round_info: RoundInfo,
+    transmit_progress_signal: Arc<Sender<bool>>,
+) -> Result<Vec<ParquetFile>, DynError> {
+    let files_next: Vec<ParquetFile> = Vec::new();
+
+    // Keep the current state as a check to make sure this is the only compactor modifying this branch's
+    // files. Check that the catalog state for the files in this set is the same before committing and, if not,
+    // throw away the compaction work we've done.
+    let saved_parquet_file_state = SavedParquetFileState::from(&branch);
+
+    let input_paths: Vec<ParquetFilePath> = branch.iter().map(ParquetFilePath::from).collect();
+
+    // Identify the target level and files that should be
+    // compacted together, upgraded, and kept for next round of
+    // compaction
+    let FileClassification {
+        target_level,
+        files_to_make_progress_on,
+        files_to_keep,
+    } = components
+        .file_classifier
+        .classify(&partition_info, &round_info, branch);
+
+    // Evaluate whether there's work to do or not based on the files classified for
+    // making progress on. If there's no work to do, return early.
+    //
+    // Currently, no work to do mostly means we are unable to compact this partition due to
+    // some limitation such as a large file with single timestamp that we cannot split in
+    // order to further compact.
+    if !components
+        .post_classification_partition_filter
+        .apply(&partition_info, &files_to_make_progress_on)
+        .await?
+    {
+        return Ok(files_next);
+    }
+
+    let FilesForProgress {
+        upgrade,
+        split_or_compact,
+    } = files_to_make_progress_on;
+
+    // Compact
+    let created_file_params = run_plans(
+        split_or_compact.clone(),
+        &partition_info,
+        &components,
+        target_level,
+        Arc::clone(&job_semaphore),
+        Arc::<dyn Scratchpad>::clone(&scratchpad_ctx),
+    )
+    .await?;
+
+    // upload files to real object store
+    let created_file_params = upload_files_to_object_store(
+        created_file_params,
+        Arc::<dyn Scratchpad>::clone(&scratchpad_ctx),
+    )
+    .await;
+
+    // clean scratchpad
+    scratchpad_ctx.clean_from_scratchpad(&input_paths).await;
+
+    // Update the catalog to reflect the newly created files, soft delete the compacted
+    // files and update the upgraded files
+    let files_to_delete = split_or_compact.into_files();
+    let (created_files, upgraded_files) = update_catalog(
+        Arc::clone(&components),
+        partition_id,
+        saved_parquet_file_state,
+        files_to_delete,
+        upgrade,
+        created_file_params,
+        target_level,
+    )
+    .await;
+
+    // Report to `timeout_with_progress_checking` that some progress has been made; stop
+    // if sending this signal fails because something has gone terribly wrong for the other
+    // end of the channel to not be listening anymore.
+    if let Err(e) = transmit_progress_signal.send(true) {
+        return Err(Box::new(e));
+    }
+
+    // Extend created files, upgraded files and files_to_keep to files_next
+    let mut files_next = created_files;
+    files_next.extend(upgraded_files);
+    files_next.extend(files_to_keep);
+
+    Ok(files_next)
 }
 
 /// Compact or split given files
