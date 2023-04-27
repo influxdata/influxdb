@@ -222,8 +222,6 @@ mod tests {
     /// No healthy nodes prevents a snapshot from being returned.
     #[tokio::test]
     async fn test_balancer_empty_iter() {
-        const BALANCER_CALLS: usize = 10;
-
         // Initialise 3 RPC clients and configure their mock circuit breakers;
         // all are unhealthy and should not be probed.
         let circuit_err_1 = Arc::new(MockCircuitBreaker::default());
@@ -380,8 +378,6 @@ mod tests {
     /// An unhealthy node that recovers is yielded to the caller.
     #[tokio::test]
     async fn test_balancer_upstream_recovery() {
-        const BALANCER_CALLS: usize = 10;
-
         // Initialise a single client and configure its mock circuit breaker to
         // return unhealthy.
         let circuit = Arc::new(MockCircuitBreaker::default());
