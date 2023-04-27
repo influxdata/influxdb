@@ -3878,6 +3878,7 @@ version = "0.1.0"
 dependencies = [
  "metric",
  "observability_deps",
+ "test_helpers",
  "workspace-hack",
 ]
 
