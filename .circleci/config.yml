@@ -272,6 +272,9 @@ jobs:
       - rust_components
       - cache_restore
       - run:
+          name: Download flight-sql-jdbc-driver-10.0.0.jar
+          command: make -C influxdb_iox/tests/jdbc_client flight-sql-jdbc-driver-10.0.0.jar
+      - run:
           name: cargo test -p influxdb2_client
           command: cargo test -p influxdb2_client
       - run:
