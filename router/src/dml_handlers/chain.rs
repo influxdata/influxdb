@@ -1,5 +1,6 @@
 use async_trait::async_trait;
-use data_types::{NamespaceId, NamespaceName};
+use data_types::{NamespaceId, NamespaceName, PartitionTemplate};
+use std::sync::Arc;
 use trace::ctx::SpanContext;
 
 use super::{DmlError, DmlHandler};
@@ -59,17 +60,30 @@ where
         &self,
         namespace: &NamespaceName<'static>,
         namespace_id: NamespaceId,
+        namespace_partition_template: Option<Arc<PartitionTemplate>>,
         input: Self::WriteInput,
         span_ctx: Option<SpanContext>,
     ) -> Result<Self::WriteOutput, Self::WriteError> {
         let output = self
             .first
-            .write(namespace, namespace_id, input, span_ctx.clone())
+            .write(
+                namespace,
+                namespace_id,
+                namespace_partition_template.clone(),
+                input,
+                span_ctx.clone(),
+            )
             .await
             .map_err(Into::into)?;
 
         self.second
-            .write(namespace, namespace_id, output, span_ctx)
+            .write(
+                namespace,
+                namespace_id,
+                namespace_partition_template,
+                output,
+                span_ctx,
+            )
             .await
             .map_err(Into::into)
     }

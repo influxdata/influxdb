@@ -1,9 +1,9 @@
 //! A NOP implementation of [`DmlHandler`].
 
-use std::{fmt::Debug, marker::PhantomData};
+use std::{fmt::Debug, marker::PhantomData, sync::Arc};
 
 use async_trait::async_trait;
-use data_types::{NamespaceId, NamespaceName};
+use data_types::{NamespaceId, NamespaceName, PartitionTemplate};
 use observability_deps::tracing::*;
 use trace::ctx::SpanContext;
 
@@ -32,6 +32,7 @@ where
         &self,
         namespace: &NamespaceName<'static>,
         namespace_id: NamespaceId,
+        _namespace_partition_template: Option<Arc<PartitionTemplate>>,
         batches: Self::WriteInput,
         _span_ctx: Option<SpanContext>,
     ) -> Result<Self::WriteOutput, Self::WriteError> {

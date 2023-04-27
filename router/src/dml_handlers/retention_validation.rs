@@ -1,9 +1,10 @@
 use async_trait::async_trait;
-use data_types::{NamespaceId, NamespaceName};
+use data_types::{NamespaceId, NamespaceName, PartitionTemplate};
 use hashbrown::HashMap;
 use iox_time::{SystemProvider, TimeProvider};
 use mutable_batch::MutableBatch;
 use observability_deps::tracing::*;
+use std::sync::Arc;
 use thiserror::Error;
 use trace::ctx::SpanContext;
 
@@ -62,6 +63,7 @@ where
         &self,
         namespace: &NamespaceName<'static>,
         _namespace_id: NamespaceId,
+        _namespace_partition_template: Option<Arc<PartitionTemplate>>,
         batch: Self::WriteInput,
         _span_ctx: Option<SpanContext>,
     ) -> Result<Self::WriteOutput, Self::WriteError> {
@@ -129,7 +131,7 @@ mod tests {
         let writes = lp_to_writes(&line);
 
         let result = handler
-            .write(&NAMESPACE, NamespaceId::new(42), writes, None)
+            .write(&NAMESPACE, NamespaceId::new(42), None, writes, None)
             .await;
 
         // no error means the time is inside the retention period
@@ -155,7 +157,7 @@ mod tests {
         let writes = lp_to_writes(&line);
 
         let result = handler
-            .write(&NAMESPACE, NamespaceId::new(42), writes, None)
+            .write(&NAMESPACE, NamespaceId::new(42), None, writes, None)
             .await;
 
         // error means the time is outside the retention period
@@ -191,7 +193,7 @@ mod tests {
 
         let writes = lp_to_writes(&lp);
         let result = handler
-            .write(&NAMESPACE, NamespaceId::new(42), writes, None)
+            .write(&NAMESPACE, NamespaceId::new(42), None, writes, None)
             .await;
 
         // error means the time is outside the retention period
@@ -227,7 +229,7 @@ mod tests {
 
         let writes = lp_to_writes(&lp);
         let result = handler
-            .write(&NAMESPACE, NamespaceId::new(42), writes, None)
+            .write(&NAMESPACE, NamespaceId::new(42), None, writes, None)
             .await;
 
         // error means the time is outside the retention period

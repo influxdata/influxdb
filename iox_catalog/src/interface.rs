@@ -4,7 +4,7 @@ use async_trait::async_trait;
 use data_types::{
     Column, ColumnSchema, ColumnType, CompactionLevel, Namespace, NamespaceId, NamespaceSchema,
     ParquetFile, ParquetFileId, ParquetFileParams, Partition, PartitionId, PartitionKey,
-    SkippedCompaction, Table, TableId, TableSchema, Timestamp,
+    SkippedCompaction, Table, TableId, TableInfo, TableSchema, Timestamp,
 };
 use iox_time::TimeProvider;
 use snafu::{OptionExt, Snafu};
@@ -588,21 +588,17 @@ where
     let columns = repos.columns().list_by_namespace_id(namespace.id).await?;
     let tables = repos.tables().list_by_namespace_id(namespace.id).await?;
 
-    let mut namespace = NamespaceSchema::new(
-        namespace.id,
-        namespace.max_columns_per_table,
-        namespace.max_tables,
-        namespace.retention_period_ns,
-    );
+    let mut namespace = NamespaceSchema::from(&namespace);
 
-    let mut table_id_to_schema = BTreeMap::new();
+    let mut table_id_to_info = BTreeMap::new();
     for t in tables {
-        table_id_to_schema.insert(t.id, (t.name, TableSchema::new(t.id)));
+        let table_info = TableInfo::from(&t);
+        table_id_to_info.insert(t.id, (t.name, table_info));
     }
 
     for c in columns {
-        let (_, t) = table_id_to_schema.get_mut(&c.table_id).unwrap();
-        t.columns.insert(
+        let (_, t) = table_id_to_info.get_mut(&c.table_id).unwrap();
+        t.columns_mut().insert(
             c.name,
             ColumnSchema {
                 id: c.id,
@@ -611,7 +607,7 @@ where
         );
     }
 
-    for (_, (table_name, schema)) in table_id_to_schema {
+    for (_, (table_name, schema)) in table_id_to_info {
         namespace.tables.insert(table_name, schema);
     }
 
@@ -705,23 +701,23 @@ pub async fn list_schemas(
     });
 
     // A set of tables within a single namespace.
-    type NamespaceTables = BTreeMap<String, TableSchema>;
+    type NamespaceTables = BTreeMap<String, TableInfo>;
 
     let mut joined = HashMap::<NamespaceId, NamespaceTables>::default();
     for column in columns {
         // Resolve the table this column references
         let table = tables.get(&column.table_id).expect("no table for column");
 
-        let table_schema = joined
+        let table_info = joined
             // Find or create a record in the joined <NamespaceId, Tables> map
             // for this namespace ID.
             .entry(table.namespace_id)
             .or_default()
             // Fetch the schema record for this table, or create an empty one.
             .entry(table.name.clone())
-            .or_insert_with(|| TableSchema::new(column.table_id));
+            .or_insert_with(|| TableInfo::from(table));
 
-        table_schema.add_column(&column);
+        table_info.add_column(&column);
     }
 
     // The table map is no longer needed - immediately reclaim the memory.
@@ -739,12 +735,8 @@ pub async fn list_schemas(
             // The catalog call explicitly asked for no soft deleted records.
             assert!(v.deleted_at.is_none());
 
-            let mut ns = NamespaceSchema::new(
-                v.id,
-                v.max_columns_per_table,
-                v.max_tables,
-                v.retention_period_ns,
-            );
+            let mut ns = NamespaceSchema::from(&v);
+
             ns.tables = joined.remove(&v.id)?;
             Some((v, ns))
         });
@@ -3049,12 +3041,7 @@ pub(crate) mod test_helpers {
 
         let batches = mutable_batch_lp::lines_to_batches(lines, 42).unwrap();
         let batches = batches.iter().map(|(table, batch)| (table.as_str(), batch));
-        let ns = NamespaceSchema::new(
-            namespace.id,
-            namespace.max_columns_per_table,
-            namespace.max_tables,
-            namespace.retention_period_ns,
-        );
+        let ns = NamespaceSchema::from(&namespace);
 
         let schema = validate_or_insert_schema(batches, &ns, repos)
             .await

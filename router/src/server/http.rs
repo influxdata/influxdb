@@ -363,13 +363,19 @@ where
         );
 
         // Retrieve the namespace ID for this namespace.
-        let namespace_id = self
+        let (namespace_id, namespace_partition_template) = self
             .namespace_resolver
-            .get_namespace_id(&write_info.namespace)
+            .get_namespace_info(&write_info.namespace)
             .await?;
 
         self.dml_handler
-            .write(&write_info.namespace, namespace_id, batches, span_ctx)
+            .write(
+                &write_info.namespace,
+                namespace_id,
+                namespace_partition_template,
+                batches,
+                span_ctx,
+            )
             .await
             .map_err(Into::into)?;
 
@@ -670,7 +676,9 @@ mod tests {
         body = "platanos,tag1=A,tag2=B val=42i 123456".as_bytes(),
         dml_handler = [Ok(())],
         want_result = Ok(_),
-        want_dml_calls = [MockDmlHandlerCall::Write{namespace, ..}] => {
+        want_dml_calls = [
+            MockDmlHandlerCall::Write { namespace, .. }
+        ] => {
             assert_eq!(namespace, NAMESPACE_NAME);
         }
     );
@@ -681,7 +689,9 @@ mod tests {
         body = "platanos,tag1=A,tag2=B val=42i 1647622847".as_bytes(),
         dml_handler = [Ok(())],
         want_result = Ok(_),
-        want_dml_calls = [MockDmlHandlerCall::Write{namespace, namespace_id, write_input}] => {
+        want_dml_calls = [
+            MockDmlHandlerCall::Write { namespace, namespace_id, write_input, .. }
+        ] => {
             assert_eq!(namespace, NAMESPACE_NAME);
             assert_eq!(*namespace_id, NAMESPACE_ID);
 
@@ -697,7 +707,9 @@ mod tests {
         body = "platanos,tag1=A,tag2=B val=42i 1647622847000".as_bytes(),
         dml_handler = [Ok(())],
         want_result = Ok(_),
-        want_dml_calls = [MockDmlHandlerCall::Write{namespace, namespace_id, write_input}] => {
+        want_dml_calls = [
+            MockDmlHandlerCall::Write { namespace, namespace_id, write_input, .. }
+        ] => {
             assert_eq!(namespace, NAMESPACE_NAME);
             assert_eq!(*namespace_id, NAMESPACE_ID);
 
@@ -713,7 +725,9 @@ mod tests {
         body = "platanos,tag1=A,tag2=B val=42i 1647622847000000".as_bytes(),
         dml_handler = [Ok(())],
         want_result = Ok(_),
-        want_dml_calls = [MockDmlHandlerCall::Write{namespace, namespace_id, write_input}] => {
+        want_dml_calls = [
+            MockDmlHandlerCall::Write { namespace, namespace_id, write_input, .. }
+        ] => {
             assert_eq!(namespace, NAMESPACE_NAME);
             assert_eq!(*namespace_id, NAMESPACE_ID);
 
@@ -729,7 +743,9 @@ mod tests {
         body = "platanos,tag1=A,tag2=B val=42i 1647622847000000000".as_bytes(),
         dml_handler = [Ok(())],
         want_result = Ok(_),
-        want_dml_calls = [MockDmlHandlerCall::Write{namespace, namespace_id, write_input}] => {
+        want_dml_calls = [
+            MockDmlHandlerCall::Write { namespace, namespace_id, write_input, .. }
+        ] => {
             assert_eq!(namespace, NAMESPACE_NAME);
             assert_eq!(*namespace_id, NAMESPACE_ID);
 
@@ -853,7 +869,7 @@ mod tests {
         body = "platanos,tag1=A,tag2=B val=42i 123456".as_bytes(),
         dml_handler = [Err(DmlError::NamespaceNotFound(NAMESPACE_NAME.to_string()))],
         want_result = Err(Error::DmlHandler(DmlError::NamespaceNotFound(_))),
-        want_dml_calls = [MockDmlHandlerCall::Write{namespace, ..}] => {
+        want_dml_calls = [MockDmlHandlerCall::Write { namespace, .. }] => {
             assert_eq!(namespace, NAMESPACE_NAME);
         }
     );
@@ -864,7 +880,7 @@ mod tests {
         body = "platanos,tag1=A,tag2=B val=42i 123456".as_bytes(),
         dml_handler = [Err(DmlError::Internal("💣".into()))],
         want_result = Err(Error::DmlHandler(DmlError::Internal(_))),
-        want_dml_calls = [MockDmlHandlerCall::Write{namespace, ..}] => {
+        want_dml_calls = [MockDmlHandlerCall::Write { namespace, .. }] => {
             assert_eq!(namespace, NAMESPACE_NAME);
         }
     );
@@ -875,7 +891,9 @@ mod tests {
         body = "test field=1u 100\ntest field=2u 100".as_bytes(),
         dml_handler = [Ok(())],
         want_result = Ok(_),
-        want_dml_calls = [MockDmlHandlerCall::Write{namespace, namespace_id, write_input}] => {
+        want_dml_calls = [
+            MockDmlHandlerCall::Write { namespace, namespace_id, write_input, .. }
+        ] => {
             assert_eq!(namespace, NAMESPACE_NAME);
             assert_eq!(*namespace_id, NAMESPACE_ID);
             let table = write_input.get("test").expect("table not in write");
@@ -916,7 +934,7 @@ mod tests {
             body = "whydo InputPower=300i,InputPower=300i".as_bytes(),
             dml_handler = [Ok(())],
             want_result = Ok(_),
-            want_dml_calls = [MockDmlHandlerCall::Write{namespace, write_input, ..}] => {
+            want_dml_calls = [MockDmlHandlerCall::Write { namespace, write_input, .. }] => {
                 assert_eq!(namespace, NAMESPACE_NAME);
                 let table = write_input.get("whydo").expect("table not in write");
                 let col = table.column("InputPower").expect("column missing");
@@ -933,7 +951,7 @@ mod tests {
             body = "whydo InputPower=300i,InputPower=42i".as_bytes(),
             dml_handler = [Ok(())],
             want_result = Ok(_),
-            want_dml_calls = [MockDmlHandlerCall::Write{namespace, write_input, ..}] => {
+            want_dml_calls = [MockDmlHandlerCall::Write { namespace, write_input, .. }] => {
                 assert_eq!(namespace, NAMESPACE_NAME);
                 let table = write_input.get("whydo").expect("table not in write");
                 let col = table.column("InputPower").expect("column missing");

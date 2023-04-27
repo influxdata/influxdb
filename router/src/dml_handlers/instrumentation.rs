@@ -1,7 +1,8 @@
 use async_trait::async_trait;
-use data_types::{NamespaceId, NamespaceName};
+use data_types::{NamespaceId, NamespaceName, PartitionTemplate};
 use iox_time::{SystemProvider, TimeProvider};
 use metric::{DurationHistogram, Metric};
+use std::sync::Arc;
 use trace::{ctx::SpanContext, span::SpanRecorder};
 
 use super::DmlHandler;
@@ -53,6 +54,7 @@ where
         &self,
         namespace: &NamespaceName<'static>,
         namespace_id: NamespaceId,
+        namespace_partition_template: Option<Arc<PartitionTemplate>>,
         input: Self::WriteInput,
         span_ctx: Option<SpanContext>,
     ) -> Result<Self::WriteOutput, Self::WriteError> {
@@ -64,7 +66,13 @@ where
 
         let res = self
             .inner
-            .write(namespace, namespace_id, input, span_ctx)
+            .write(
+                namespace,
+                namespace_id,
+                namespace_partition_template,
+                input,
+                span_ctx,
+            )
             .await;
 
         // Avoid exploding if time goes backwards - simply drop the measurement
@@ -148,7 +156,7 @@ mod tests {
         let decorator = InstrumentationDecorator::new(HANDLER_NAME, &metrics, handler);
 
         decorator
-            .write(&ns, NamespaceId::new(42), (), Some(span))
+            .write(&ns, NamespaceId::new(42), None, (), Some(span))
             .await
             .expect("inner handler configured to succeed");
 
@@ -171,7 +179,7 @@ mod tests {
         let decorator = InstrumentationDecorator::new(HANDLER_NAME, &metrics, handler);
 
         let err = decorator
-            .write(&ns, NamespaceId::new(42), (), Some(span))
+            .write(&ns, NamespaceId::new(42), None, (), Some(span))
             .await
             .expect_err("inner handler configured to fail");
 

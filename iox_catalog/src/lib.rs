@@ -14,7 +14,7 @@
 )]
 
 use crate::interface::{ColumnTypeMismatchSnafu, Error, RepoCollection, Result};
-use data_types::{ColumnType, NamespaceSchema, TableSchema};
+use data_types::{ColumnType, NamespaceSchema, TableInfo};
 use mutable_batch::MutableBatch;
 use std::{borrow::Cow, collections::HashMap};
 use thiserror::Error;
@@ -118,12 +118,12 @@ where
                 .tables()
                 .create_or_get(table_name, schema.id)
                 .await
-                .map(|t| TableSchema::new(t.id))?;
+                .map(|t| TableInfo::from(&t))?;
 
             // Always add a time column to all new tables.
             let time_col = repos
                 .columns()
-                .create_or_get(TIME_COLUMN, table.id, ColumnType::Time)
+                .create_or_get(TIME_COLUMN, table.id(), ColumnType::Time)
                 .await?;
 
             table.add_column(&time_col);
@@ -152,7 +152,7 @@ where
         // If it does, validate it. If it does not exist, create it and insert
         // it into the cached schema.
 
-        match table.columns.get(name.as_str()) {
+        match table.columns().get(name.as_str()) {
             Some(existing) if existing.matches_type(col.influx_type()) => {
                 // No action is needed as the column matches the existing column
                 // schema.
@@ -182,7 +182,7 @@ where
     if !column_batch.is_empty() {
         repos
             .columns()
-            .create_or_get_many_unchecked(table.id, column_batch)
+            .create_or_get_many_unchecked(table.id(), column_batch)
             .await?
             .into_iter()
             .for_each(|c| table.to_mut().add_column(&c));
@@ -242,12 +242,7 @@ mod tests {
                         .await
                         .unwrap();
 
-                    let schema = NamespaceSchema::new(
-                        namespace.id,
-                        namespace.max_columns_per_table,
-                        namespace.max_tables,
-                        namespace.retention_period_ns,
-                    );
+                    let schema = NamespaceSchema::from(&namespace);
 
                     // Apply all the lp literals as individual writes, feeding
                     // the result of one validation into the next to drive
@@ -295,7 +290,7 @@ mod tests {
                         .iter()
                         .map(|(table, table_schema)| {
                             let desired_cols = table_schema
-                                .columns
+                                .columns()
                                 .iter()
                                 .map(|(column, column_schema)| (column.clone(), column_schema.column_type))
                                 .collect::<BTreeMap<_, _>>();

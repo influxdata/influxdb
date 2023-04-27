@@ -91,7 +91,7 @@ where
             .await
             .ok_or_else::<DynError, _>(|| String::from("Cannot find namespace schema").into())?;
 
-        let table_schema = namespace_schema
+        let table_info = namespace_schema
             .tables
             .get(&table.name)
             .ok_or_else::<DynError, _>(|| String::from("Cannot find table schema").into())?;
@@ -101,7 +101,7 @@ where
             namespace_id: table.namespace_id,
             namespace_name: namespace.name,
             table: Arc::new(table),
-            table_schema: Arc::new(table_schema.clone()),
+            table_info: Arc::new(table_info.clone()),
             sort_key: partition.sort_key(),
             partition_key: partition.partition_key,
         }))

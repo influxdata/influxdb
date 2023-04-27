@@ -37,7 +37,7 @@ use compactor::{
     config::{CompactionType, Config, PartitionsSourceConfig},
     hardcoded_components, Components, PanicDataFusionPlanner, PartitionInfo,
 };
-use data_types::{ColumnType, CompactionLevel, ParquetFile, TableId};
+use data_types::{ColumnType, CompactionLevel, ParquetFile, TableId, TableInfo};
 use datafusion::arrow::record_batch::RecordBatch;
 use datafusion_util::config::register_iox_object_store;
 use futures::TryStreamExt;
@@ -575,7 +575,7 @@ impl<const WITH_FILES: bool> TestSetupBuilder<WITH_FILES> {
             namespace_id: self.ns.namespace.id,
             namespace_name: self.ns.namespace.name.clone(),
             table: Arc::new(self.table.table.clone()),
-            table_schema: Arc::new(self.table.catalog_schema().await),
+            table_info: Arc::new(TableInfo::from(&self.table.table)),
             sort_key: self.partition.partition.sort_key(),
             partition_key: self.partition.partition.partition_key.clone(),
         });

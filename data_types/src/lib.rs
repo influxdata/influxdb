@@ -330,7 +330,7 @@ pub struct NamespaceSchema {
     /// the namespace id
     pub id: NamespaceId,
     /// the tables in the namespace by name
-    pub tables: BTreeMap<String, TableSchema>,
+    pub tables: BTreeMap<String, TableInfo>,
     /// the number of columns per table this namespace allows
     pub max_columns_per_table: usize,
     /// The maximum number of tables permitted in this namespace.
@@ -338,25 +338,34 @@ pub struct NamespaceSchema {
     /// The retention period in ns.
     /// None represents infinite duration (i.e. never drop data).
     pub retention_period_ns: Option<i64>,
+    /// The optionally-specified partition template to use for writes in this namespace.
+    pub partition_template: Option<Arc<PartitionTemplate>>,
 }
 
-impl NamespaceSchema {
-    /// Create a new `NamespaceSchema`
-    pub fn new(
-        id: NamespaceId,
-        max_columns_per_table: i32,
-        max_tables: i32,
-        retention_period_ns: Option<i64>,
-    ) -> Self {
+impl From<&Namespace> for NamespaceSchema {
+    fn from(namespace: &Namespace) -> Self {
+        let &Namespace {
+            id,
+            retention_period_ns,
+            max_tables,
+            max_columns_per_table,
+            ..
+        } = namespace;
+
         Self {
             id,
             tables: BTreeMap::new(),
             max_columns_per_table: max_columns_per_table as usize,
             max_tables: max_tables as usize,
             retention_period_ns,
+
+            // TODO: Store and retrieve PartitionTemplate from the database
+            partition_template: None,
         }
     }
+}
 
+impl NamespaceSchema {
     /// Estimated Size in bytes including `self`.
     pub fn size(&self) -> usize {
         std::mem::size_of_val(self)
@@ -377,6 +386,108 @@ pub struct Table {
     pub namespace_id: NamespaceId,
     /// The name of the table, which is unique within the associated namespace
     pub name: String,
+}
+
+/// Useful table information to cache, including the table's partition template if any, and the
+/// table's columns.
+#[derive(Debug, Clone, Eq, PartialEq)]
+pub struct TableInfo {
+    table_schema: TableSchema,
+    /// This table's partition template
+    pub partition_template: Option<Arc<PartitionTemplate>>,
+}
+
+impl TableInfo {
+    /// Create new table info with the given table schema and no partition template specified.
+    pub fn new(table_schema: TableSchema) -> Self {
+        Self {
+            table_schema,
+            partition_template: None,
+        }
+    }
+
+    /// This table's ID
+    pub fn id(&self) -> TableId {
+        self.table_schema.id
+    }
+
+    /// This table's schema
+    pub fn schema(&self) -> &TableSchema {
+        &self.table_schema
+    }
+
+    /// This table's columns
+    pub fn columns(&self) -> &BTreeMap<String, ColumnSchema> {
+        &self.table_schema.columns
+    }
+
+    /// Mutable access to his table's columns
+    pub fn columns_mut(&mut self) -> &mut BTreeMap<String, ColumnSchema> {
+        &mut self.table_schema.columns
+    }
+
+    /// Add `col` to this table schema.
+    ///
+    /// # Panics
+    ///
+    /// This method panics if a column of the same name already exists in
+    /// `self`.
+    pub fn add_column(&mut self, col: &Column) {
+        let old = self
+            .table_schema
+            .columns
+            .insert(col.name.clone(), ColumnSchema::from(col));
+        assert!(old.is_none());
+    }
+
+    /// Estimated Size in bytes including `self`.
+    pub fn size(&self) -> usize {
+        size_of_val(self)
+            + size_of_val(&self.partition_template)
+            + self
+                .table_schema
+                .columns
+                .iter()
+                .map(|(k, v)| size_of_val(k) + k.capacity() + size_of_val(v))
+                .sum::<usize>()
+    }
+
+    /// Create `ID->name` map for columns.
+    pub fn column_id_map(&self) -> HashMap<ColumnId, &str> {
+        self.table_schema
+            .columns
+            .iter()
+            .map(|(name, c)| (c.id, name.as_str()))
+            .collect()
+    }
+
+    /// Return the set of column names for this table. Used in combination with a write operation's
+    /// column names to determine whether a write would exceed the max allowed columns.
+    pub fn column_names(&self) -> BTreeSet<&str> {
+        self.table_schema
+            .columns
+            .keys()
+            .map(|name| name.as_str())
+            .collect()
+    }
+
+    /// Return number of columns of the table
+    pub fn column_count(&self) -> usize {
+        self.table_schema.columns.len()
+    }
+}
+
+impl From<&Table> for TableInfo {
+    fn from(table: &Table) -> Self {
+        let &Table { id, .. } = table;
+
+        Self {
+            table_schema: TableSchema::new(id),
+
+            // TODO: Store and retrieve PartitionTemplate from the database
+            partition_template: None,
+        }
+    }
 }
 
 /// Column definitions for a table
@@ -599,10 +710,10 @@ impl From<ColumnType> for InfluxColumnType {
     }
 }
 
-impl TryFrom<TableSchema> for Schema {
+impl TryFrom<&TableSchema> for Schema {
     type Error = schema::builder::Error;
 
-    fn try_from(value: TableSchema) -> Result<Self, Self::Error> {
+    fn try_from(value: &TableSchema) -> Result<Self, Self::Error> {
         let mut builder = SchemaBuilder::new();
 
         for (column_name, column_schema) in &value.columns {
@@ -611,6 +722,14 @@ impl TryFrom<TableSchema> for Schema {
         }
 
         builder.build()
+    }
+}
+
+impl TryFrom<TableSchema> for Schema {
+    type Error = schema::builder::Error;
+
+    fn try_from(value: TableSchema) -> Result<Self, Self::Error> {
+        Self::try_from(&value)
     }
 }
 
@@ -2918,13 +3037,24 @@ mod tests {
             max_columns_per_table: 4,
             max_tables: 42,
             retention_period_ns: None,
+            partition_template: None,
         };
         let schema2 = NamespaceSchema {
             id: NamespaceId::new(1),
-            tables: BTreeMap::from([(String::from("foo"), TableSchema::new(TableId::new(1)))]),
+            tables: BTreeMap::from([(
+                String::from("foo"),
+                TableInfo {
+                    table_schema: TableSchema {
+                        id: TableId::new(1),
+                        columns: BTreeMap::new(),
+                    },
+                    partition_template: None,
+                },
+            )]),
             max_columns_per_table: 4,
             max_tables: 42,
             retention_period_ns: None,
+            partition_template: None,
         };
         assert!(schema1.size() < schema2.size());
     }

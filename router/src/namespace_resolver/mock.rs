@@ -2,10 +2,10 @@
 
 #![allow(missing_docs)]
 
-use std::collections::HashMap;
+use std::{collections::HashMap, sync::Arc};
 
 use async_trait::async_trait;
-use data_types::{NamespaceId, NamespaceName};
+use data_types::{NamespaceId, NamespaceName, PartitionTemplate};
 use parking_lot::Mutex;
 
 use super::NamespaceResolver;
@@ -31,15 +31,17 @@ impl MockNamespaceResolver {
 
 #[async_trait]
 impl NamespaceResolver for MockNamespaceResolver {
-    /// Return the [`NamespaceId`] for the given [`NamespaceName`].
-    async fn get_namespace_id(
+    async fn get_namespace_info(
         &self,
         namespace: &NamespaceName<'static>,
-    ) -> Result<NamespaceId, super::Error> {
-        Ok(*self.map.lock().get(namespace).ok_or(super::Error::Lookup(
-            iox_catalog::interface::Error::NamespaceNotFoundByName {
-                name: namespace.to_string(),
-            },
-        ))?)
+    ) -> Result<(NamespaceId, Option<Arc<PartitionTemplate>>), super::Error> {
+        Ok((
+            *self.map.lock().get(namespace).ok_or(super::Error::Lookup(
+                iox_catalog::interface::Error::NamespaceNotFoundByName {
+                    name: namespace.to_string(),
+                },
+            ))?,
+            None,
+        ))
     }
 }

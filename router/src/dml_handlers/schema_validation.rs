@@ -1,7 +1,7 @@
 use std::{ops::DerefMut, sync::Arc};
 
 use async_trait::async_trait;
-use data_types::{NamespaceId, NamespaceName, NamespaceSchema, TableId};
+use data_types::{NamespaceId, NamespaceName, NamespaceSchema, PartitionTemplate, TableId};
 use hashbrown::HashMap;
 use iox_catalog::{
     interface::{Catalog, Error as CatalogError},
@@ -148,8 +148,8 @@ where
 
     // Accepts a map of TableName -> MutableBatch
     type WriteInput = HashMap<String, MutableBatch>;
-    // And returns a map of TableId -> (TableName, MutableBatch)
-    type WriteOutput = HashMap<TableId, (String, MutableBatch)>;
+    // And returns a map of TableId -> (TableName, OptionalTablePartitionTemplate, MutableBatch)
+    type WriteOutput = HashMap<TableId, (String, Option<Arc<PartitionTemplate>>, MutableBatch)>;
 
     /// Validate the schema of all the writes in `batches`.
     ///
@@ -170,6 +170,7 @@ where
         &self,
         namespace: &NamespaceName<'static>,
         namespace_id: NamespaceId,
+        _namespace_partition_template: Option<Arc<PartitionTemplate>>,
         batches: Self::WriteInput,
         _span_ctx: Option<SpanContext>,
     ) -> Result<Self::WriteOutput, Self::WriteError> {
@@ -297,14 +298,16 @@ where
             }
         };
 
-        // Map the "TableName -> Data" into "TableId -> (TableName, Data)" for
-        // downstream handlers.
+        // Map the "TableName -> Data" into "TableId -> (TableName, OptionalTablePartitionTemplate,
+        // Data)" for downstream handlers.
         let batches = batches
             .into_iter()
             .map(|(name, data)| {
-                let id = latest_schema.tables.get(&name).unwrap().id;
+                let table = latest_schema.tables.get(&name).unwrap();
+                let id = table.id();
+                let table_partition_template = table.partition_template.clone();
 
-                (id, (name, data))
+                (id, (name, table_partition_template, data))
             })
             .collect();
 
@@ -564,12 +567,12 @@ mod tests {
             // namespace schema gets cached
             let writes1_valid = lp_to_writes("dragonfruit val=42i 123456");
             handler1
-                .write(&NAMESPACE, NamespaceId::new(42), writes1_valid, None)
+                .write(&NAMESPACE, NamespaceId::new(42), None, writes1_valid, None)
                 .await
                 .expect("request should succeed");
             let writes2_valid = lp_to_writes("dragonfruit val=43i 123457");
             handler2
-                .write(&NAMESPACE, NamespaceId::new(42), writes2_valid, None)
+                .write(&NAMESPACE, NamespaceId::new(42), None, writes2_valid, None)
                 .await
                 .expect("request should succeed");
 
@@ -577,12 +580,24 @@ mod tests {
             // putting the table over the limit
             let writes1_add_column = lp_to_writes("dragonfruit,tag1=A val=42i 123456");
             handler1
-                .write(&NAMESPACE, NamespaceId::new(42), writes1_add_column, None)
+                .write(
+                    &NAMESPACE,
+                    NamespaceId::new(42),
+                    None,
+                    writes1_add_column,
+                    None,
+                )
                 .await
                 .expect("request should succeed");
             let writes2_add_column = lp_to_writes("dragonfruit,tag2=B val=43i 123457");
             handler2
-                .write(&NAMESPACE, NamespaceId::new(42), writes2_add_column, None)
+                .write(
+                    &NAMESPACE,
+                    NamespaceId::new(42),
+                    None,
+                    writes2_add_column,
+                    None,
+                )
                 .await
                 .expect("request should succeed");
 
@@ -759,7 +774,7 @@ mod tests {
         let table = ns.tables.get(table).expect("table should exist in cache");
         assert_eq!(
             table
-                .columns
+                .columns()
                 .get(col)
                 .expect("column not cached")
                 .column_type,
@@ -779,7 +794,7 @@ mod tests {
 
         let writes = lp_to_writes("bananas,tag1=A,tag2=B val=42i 123456");
         let got = handler
-            .write(&NAMESPACE, NamespaceId::new(42), writes, None)
+            .write(&NAMESPACE, NamespaceId::new(42), None, writes, None)
             .await
             .expect("request should succeed");
 
@@ -790,7 +805,7 @@ mod tests {
         assert_cache(&handler, "bananas", "time", ColumnType::Time).await;
 
         // Validate the table ID mapping.
-        let (name, _data) = got.get(&want_id).expect("table not in output");
+        let (name, _partition_template, _data) = got.get(&want_id).expect("table not in output");
         assert_eq!(name, "bananas");
     }
 
@@ -804,7 +819,7 @@ mod tests {
 
         let writes = lp_to_writes("bananas,tag1=A,tag2=B val=42i 123456");
         let err = handler
-            .write(&ns, NamespaceId::new(42), writes, None)
+            .write(&ns, NamespaceId::new(42), None, writes, None)
             .await
             .expect_err("request should fail");
 
@@ -823,7 +838,7 @@ mod tests {
         // First write sets the schema
         let writes = lp_to_writes("bananas,tag1=A,tag2=B val=42i 123456"); // val=i64
         let got = handler
-            .write(&NAMESPACE, NamespaceId::new(42), writes.clone(), None)
+            .write(&NAMESPACE, NamespaceId::new(42), None, writes.clone(), None)
             .await
             .expect("request should succeed");
         assert_eq!(writes.len(), got.len());
@@ -831,7 +846,7 @@ mod tests {
         // Second write attempts to violate it causing an error
         let writes = lp_to_writes("bananas,tag1=A,tag2=B val=42.0 123456"); // val=float
         let err = handler
-            .write(&NAMESPACE, NamespaceId::new(42), writes, None)
+            .write(&NAMESPACE, NamespaceId::new(42), None, writes, None)
             .await
             .expect_err("request should fail");
 
@@ -857,7 +872,7 @@ mod tests {
         // First write sets the schema
         let writes = lp_to_writes("bananas,tag1=A,tag2=B val=42i 123456");
         let got = handler
-            .write(&NAMESPACE, NamespaceId::new(42), writes.clone(), None)
+            .write(&NAMESPACE, NamespaceId::new(42), None, writes.clone(), None)
             .await
             .expect("request should succeed");
         assert_eq!(writes.len(), got.len());
@@ -875,7 +890,7 @@ mod tests {
         // Second write attempts to violate limits, causing an error
         let writes = lp_to_writes("bananas2,tag1=A,tag2=B val=42i 123456");
         let err = handler
-            .write(&NAMESPACE, NamespaceId::new(42), writes, None)
+            .write(&NAMESPACE, NamespaceId::new(42), None, writes, None)
             .await
             .expect_err("request should fail");
 
@@ -892,7 +907,7 @@ mod tests {
         // First write sets the schema
         let writes = lp_to_writes("bananas,tag1=A,tag2=B val=42i 123456");
         let got = handler
-            .write(&NAMESPACE, NamespaceId::new(42), writes.clone(), None)
+            .write(&NAMESPACE, NamespaceId::new(42), None, writes.clone(), None)
             .await
             .expect("request should succeed");
         assert_eq!(writes.len(), got.len());
@@ -904,7 +919,7 @@ mod tests {
         // Second write attempts to violate limits, causing an error
         let writes = lp_to_writes("bananas,tag1=A,tag2=B val=42i,val2=42i 123456");
         let err = handler
-            .write(&NAMESPACE, NamespaceId::new(42), writes, None)
+            .write(&NAMESPACE, NamespaceId::new(42), None, writes, None)
             .await
             .expect_err("request should fail");
 
@@ -931,7 +946,7 @@ mod tests {
         // First write attempts to add columns over the limit, causing an error
         let writes = lp_to_writes("bananas,tag1=A,tag2=B val=42i,val2=42i 123456");
         let err = handler
-            .write(&NAMESPACE, NamespaceId::new(42), writes, None)
+            .write(&NAMESPACE, NamespaceId::new(42), None, writes, None)
             .await
             .expect_err("request should fail");
 

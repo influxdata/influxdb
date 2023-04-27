@@ -16,7 +16,7 @@ use self::{
 
 use super::{DmlHandler, Partitioned};
 use async_trait::async_trait;
-use data_types::{NamespaceId, NamespaceName, TableId};
+use data_types::{NamespaceId, NamespaceName, PartitionTemplate, TableId};
 use dml::{DmlMeta, DmlWrite};
 use generated_types::influxdata::iox::ingester::v1::WriteRequest;
 use hashbrown::HashMap;
@@ -177,6 +177,7 @@ where
         &self,
         namespace: &NamespaceName<'static>,
         namespace_id: NamespaceId,
+        _namespace_partition_template: Option<Arc<PartitionTemplate>>,
         writes: Self::WriteInput,
         span_ctx: Option<SpanContext>,
     ) -> Result<Self::WriteOutput, RpcWriteError> {
@@ -385,6 +386,7 @@ mod tests {
             .write(
                 &NamespaceName::new(NAMESPACE_NAME).unwrap(),
                 NAMESPACE_ID,
+                None,
                 input,
                 None,
             )
@@ -419,6 +421,7 @@ mod tests {
             .write(
                 &NamespaceName::new(NAMESPACE_NAME).unwrap(),
                 NAMESPACE_ID,
+                None,
                 input,
                 None,
             )
@@ -481,6 +484,7 @@ mod tests {
             .write(
                 &NamespaceName::new(NAMESPACE_NAME).unwrap(),
                 NAMESPACE_ID,
+                None,
                 input,
                 None,
             )
@@ -549,6 +553,7 @@ mod tests {
             .write(
                 &NamespaceName::new(NAMESPACE_NAME).unwrap(),
                 NAMESPACE_ID,
+                None,
                 input,
                 None,
             )

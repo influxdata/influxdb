@@ -55,9 +55,9 @@ fn schema_to_proto(schema: Arc<data_types::NamespaceSchema>) -> GetSchemaRespons
                     (
                         name.clone(),
                         TableSchema {
-                            id: t.id.get(),
+                            id: t.id().get(),
                             columns: t
-                                .columns
+                                .columns()
                                 .iter()
                                 .map(|(name, c)| {
                                     (

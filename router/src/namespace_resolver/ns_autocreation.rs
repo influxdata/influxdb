@@ -1,7 +1,7 @@
 use std::{fmt::Debug, sync::Arc};
 
 use async_trait::async_trait;
-use data_types::{NamespaceId, NamespaceName};
+use data_types::{NamespaceId, NamespaceName, PartitionTemplate};
 use iox_catalog::interface::Catalog;
 use observability_deps::tracing::*;
 use thiserror::Error;
@@ -78,10 +78,10 @@ where
 {
     /// Force the creation of `namespace` if it does not already exist in the
     /// cache, before passing the request through to the inner delegate.
-    async fn get_namespace_id(
+    async fn get_namespace_info(
         &self,
         namespace: &NamespaceName<'static>,
-    ) -> Result<NamespaceId, super::Error> {
+    ) -> Result<(NamespaceId, Option<Arc<PartitionTemplate>>), super::Error> {
         if self.cache.get_schema(namespace).await.is_err() {
             trace!(%namespace, "namespace not found in cache");
 
@@ -90,7 +90,7 @@ where
                     // The namespace is not cached, but may exist in the
                     // catalog. Delegate discovery down to the inner handler,
                     // and map the lookup error to a reject error.
-                    match self.inner.get_namespace_id(namespace).await {
+                    match self.inner.get_namespace_info(namespace).await {
                         Ok(v) => return Ok(v),
                         Err(super::Error::Lookup(
                             iox_catalog::interface::Error::NamespaceNotFoundByName { .. },
@@ -128,7 +128,7 @@ where
             }
         }
 
-        self.inner.get_namespace_id(namespace).await
+        self.inner.get_namespace_info(namespace).await
     }
 }
 
@@ -171,6 +171,7 @@ mod tests {
                 max_columns_per_table: 4,
                 max_tables: 42,
                 retention_period_ns: None,
+                partition_template: None,
             },
         );
 
@@ -182,11 +183,11 @@ mod tests {
         );
 
         // Drive the code under test
-        let got = creator
-            .get_namespace_id(&ns)
+        let (got_id, _got_partition_template) = creator
+            .get_namespace_info(&ns)
             .await
             .expect("handler should succeed");
-        assert_eq!(got, NAMESPACE_ID);
+        assert_eq!(got_id, NAMESPACE_ID);
 
         // The cache hit should mean the catalog SHOULD NOT see a create request
         // for the namespace.
@@ -221,8 +222,8 @@ mod tests {
             MissingNamespaceAction::AutoCreate(TEST_RETENTION_PERIOD_NS),
         );
 
-        let created_id = creator
-            .get_namespace_id(&ns)
+        let (created_id, _created_partition_template) = creator
+            .get_namespace_info(&ns)
             .await
             .expect("handler should succeed");
 
@@ -270,7 +271,7 @@ mod tests {
 
         // It should not autocreate because we specified "rejection" behaviour, above
         assert_matches!(
-            creator.get_namespace_id(&ns).await,
+            creator.get_namespace_info(&ns).await,
             Err(crate::namespace_resolver::Error::Create(
                 NamespaceCreationError::Reject(_ns)
             ))
@@ -307,7 +308,7 @@ mod tests {
         );
 
         let created_id = creator
-            .get_namespace_id(&ns)
+            .get_namespace_info(&ns)
             .await
             .expect("handler should succeed");
 
@@ -321,7 +322,7 @@ mod tests {
 
         // It should not autocreate because we specified "rejection" behaviour, above
         let id = creator
-            .get_namespace_id(&ns)
+            .get_namespace_info(&ns)
             .await
             .expect("should allow existing namespace from catalog");
         assert_eq!(created_id, id);

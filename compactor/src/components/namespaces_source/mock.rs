@@ -49,7 +49,7 @@ impl NamespacesSource for MockNamespacesSource {
 mod tests {
     use std::collections::BTreeMap;
 
-    use data_types::{ColumnId, ColumnSchema, ColumnType, TableId, TableSchema};
+    use data_types::{ColumnId, ColumnSchema, ColumnType, TableId, TableInfo, TableSchema};
 
     use super::*;
 
@@ -128,7 +128,7 @@ mod tests {
             let tables = BTreeMap::from([
                 (
                     "table1".to_string(),
-                    TableSchema {
+                    TableInfo::new(TableSchema {
                         id: TableId::new(1),
                         columns: BTreeMap::from([
                             (
@@ -146,11 +146,11 @@ mod tests {
                                 },
                             ),
                         ]),
-                    },
+                    }),
                 ),
                 (
                     "table2".to_string(),
-                    TableSchema {
+                    TableInfo::new(TableSchema {
                         id: TableId::new(2),
                         columns: BTreeMap::from([
                             (
@@ -175,7 +175,7 @@ mod tests {
                                 },
                             ),
                         ]),
-                    },
+                    }),
                 ),
             ]);
 
@@ -196,6 +196,7 @@ mod tests {
                         max_columns_per_table: 10,
                         max_tables: 42,
                         retention_period_ns: None,
+                        partition_template: None,
                     },
                 },
             }

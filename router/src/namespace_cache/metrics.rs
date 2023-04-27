@@ -128,7 +128,9 @@ mod tests {
     use std::collections::BTreeMap;
 
     use assert_matches::assert_matches;
-    use data_types::{ColumnId, ColumnSchema, ColumnType, NamespaceId, TableId, TableSchema};
+    use data_types::{
+        ColumnId, ColumnSchema, ColumnType, NamespaceId, TableId, TableInfo, TableSchema,
+    };
     use metric::{Attributes, MetricObserver, Observation};
 
     use super::*;
@@ -156,10 +158,10 @@ mod tests {
 
                 (
                     i.to_string(),
-                    TableSchema {
+                    TableInfo::new(TableSchema {
                         id: TableId::new(i as _),
                         columns,
-                    },
+                    }),
                 )
             })
             .collect();
@@ -170,6 +172,7 @@ mod tests {
             max_columns_per_table: 100,
             max_tables: 42,
             retention_period_ns: None,
+            partition_template: None,
         }
     }
 

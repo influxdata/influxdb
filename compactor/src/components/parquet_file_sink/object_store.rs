@@ -80,8 +80,8 @@ impl ParquetFileSink for ObjectStoreParquetFileSink {
         let parquet_file =
             meta.to_parquet_file(partition.partition_id, file_size, &parquet_meta, |name| {
                 partition
-                    .table_schema
-                    .columns
+                    .table_info
+                    .columns()
                     .get(name)
                     .expect("unknown column")
                     .id

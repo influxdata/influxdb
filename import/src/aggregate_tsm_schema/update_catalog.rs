@@ -2,7 +2,7 @@ use crate::{AggregateTSMMeasurement, AggregateTSMSchema};
 use chrono::{format::StrftimeItems, offset::FixedOffset, DateTime, Duration};
 use data_types::{
     ColumnType, Namespace, NamespaceName, NamespaceSchema, OrgBucketMappingError, Partition,
-    PartitionKey, TableSchema,
+    PartitionKey, TableInfo,
 };
 use iox_catalog::interface::{
     get_schema_by_name, CasFailure, Catalog, RepoCollection, SoftDeletedRows,
@@ -126,10 +126,10 @@ where
                     .tables()
                     .create_or_get(measurement_name, iox_schema.id)
                     .await
-                    .map(|t| TableSchema::new(t.id))?;
+                    .map(|t| TableInfo::from(&t))?;
                 let time_col = repos
                     .columns()
-                    .create_or_get("time", table.id, ColumnType::Time)
+                    .create_or_get("time", table.id(), ColumnType::Time)
                     .await?;
                 table.add_column(&time_col);
                 table
@@ -140,7 +140,7 @@ where
         // fields and tags are both columns; tag is a special type of column.
         // check that the schema has all these columns or update accordingly.
         for tag in measurement.tags.values() {
-            match table.columns.get(tag.name.as_str()) {
+            match table.columns().get(tag.name.as_str()) {
                 Some(c) if c.is_tag() => {
                     // nothing to do, all good
                 }
@@ -178,7 +178,7 @@ where
                         field.name, field_type, e,
                     ))
                 })?);
-            match table.columns.get(field.name.as_str()) {
+            match table.columns().get(field.name.as_str()) {
                 Some(c) if c.matches_type(influx_column_type) => {
                     // nothing to do, all good
                 }
@@ -210,7 +210,7 @@ where
             // figure it's okay.
             repos
                 .columns()
-                .create_or_get_many_unchecked(table.id, column_batch)
+                .create_or_get_many_unchecked(table.id(), column_batch)
                 .await?;
         }
         // create a partition for every day in the date range.
@@ -223,7 +223,7 @@ where
             // gets matched as `None`` in the code below
             let partition = repos
                 .partitions()
-                .create_or_get(partition_key, table.id)
+                .create_or_get(partition_key, table.id())
                 .await
                 .map_err(UpdateCatalogError::CatalogError)?;
             // get the sort key from the partition, if it exists. create it or update it as
@@ -384,10 +384,10 @@ mod tests {
         .expect("got schema");
         assert_eq!(iox_schema.tables.len(), 1);
         let table = iox_schema.tables.get("cpu").expect("got table");
-        assert_eq!(table.columns.len(), 3); // one tag & one field, plus time
-        let tag = table.columns.get("host").expect("got tag");
+        assert_eq!(table.columns().len(), 3); // one tag & one field, plus time
+        let tag = table.columns().get("host").expect("got tag");
         assert!(tag.is_tag());
-        let field = table.columns.get("usage").expect("got field");
+        let field = table.columns().get("usage").expect("got field");
         assert_eq!(
             field.column_type,
             InfluxColumnType::Field(InfluxFieldType::Float)
@@ -395,7 +395,7 @@ mod tests {
         // check that the partitions were created and the sort keys are correct
         let partitions = repos
             .partitions()
-            .list_by_table_id(table.id)
+            .list_by_table_id(table.id())
             .await
             .expect("got partitions");
         // number of days in the date range of the schema
@@ -435,22 +435,22 @@ mod tests {
             .tables()
             .create_or_get("weather", namespace.id)
             .await
-            .map(|t| TableSchema::new(t.id))
+            .map(|t| TableInfo::from(&t))
             .expect("table created");
         let time_col = txn
             .columns()
-            .create_or_get("time", table.id, ColumnType::Time)
+            .create_or_get("time", table.id(), ColumnType::Time)
             .await
             .expect("column created");
         table.add_column(&time_col);
         let location_col = txn
             .columns()
-            .create_or_get("city", table.id, ColumnType::Tag)
+            .create_or_get("city", table.id(), ColumnType::Tag)
             .await
             .expect("column created");
         let temperature_col = txn
             .columns()
-            .create_or_get("temperature", table.id, ColumnType::F64)
+            .create_or_get("temperature", table.id(), ColumnType::F64)
             .await
             .expect("column created");
         table.add_column(&location_col);
@@ -491,17 +491,17 @@ mod tests {
         .expect("got schema");
         assert_eq!(iox_schema.tables.len(), 1);
         let table = iox_schema.tables.get("weather").expect("got table");
-        assert_eq!(table.columns.len(), 5); // two tags, two fields, plus time
-        let tag1 = table.columns.get("city").expect("got tag");
+        assert_eq!(table.columns().len(), 5); // two tags, two fields, plus time
+        let tag1 = table.columns().get("city").expect("got tag");
         assert!(tag1.is_tag());
-        let tag2 = table.columns.get("country").expect("got tag");
+        let tag2 = table.columns().get("country").expect("got tag");
         assert!(tag2.is_tag());
-        let field1 = table.columns.get("temperature").expect("got field");
+        let field1 = table.columns().get("temperature").expect("got field");
         assert_eq!(
             field1.column_type,
             InfluxColumnType::Field(InfluxFieldType::Float)
         );
-        let field2 = table.columns.get("humidity").expect("got field");
+        let field2 = table.columns().get("humidity").expect("got field");
         assert_eq!(
             field2.column_type,
             InfluxColumnType::Field(InfluxFieldType::Float)
@@ -527,17 +527,17 @@ mod tests {
             .tables()
             .create_or_get("weather", namespace.id)
             .await
-            .map(|t| TableSchema::new(t.id))
+            .map(|t| TableInfo::from(&t))
             .expect("table created");
         let time_col = txn
             .columns()
-            .create_or_get("time", table.id, ColumnType::Time)
+            .create_or_get("time", table.id(), ColumnType::Time)
             .await
             .expect("column created");
         table.add_column(&time_col);
         let temperature_col = txn
             .columns()
-            .create_or_get("temperature", table.id, ColumnType::F64)
+            .create_or_get("temperature", table.id(), ColumnType::F64)
             .await
             .expect("column created");
         table.add_column(&temperature_col);
@@ -592,17 +592,17 @@ mod tests {
             .tables()
             .create_or_get("weather", namespace.id)
             .await
-            .map(|t| TableSchema::new(t.id))
+            .map(|t| TableInfo::from(&t))
             .expect("table created");
         let time_col = txn
             .columns()
-            .create_or_get("time", table.id, ColumnType::Time)
+            .create_or_get("time", table.id(), ColumnType::Time)
             .await
             .expect("column created");
         table.add_column(&time_col);
         let temperature_col = txn
             .columns()
-            .create_or_get("temperature", table.id, ColumnType::F64)
+            .create_or_get("temperature", table.id(), ColumnType::F64)
             .await
             .expect("column created");
         table.add_column(&temperature_col);

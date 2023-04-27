@@ -1,8 +1,9 @@
 //! An trait to abstract resolving a[`NamespaceName`] to [`NamespaceId`], and a
 //! collection of composable implementations.
 use async_trait::async_trait;
-use data_types::{NamespaceId, NamespaceName};
+use data_types::{NamespaceId, NamespaceName, PartitionTemplate};
 use observability_deps::tracing::*;
+use std::sync::Arc;
 use thiserror::Error;
 
 use crate::namespace_cache::NamespaceCache;
@@ -26,11 +27,11 @@ pub enum Error {
 /// An abstract resolver of [`NamespaceName`] to [`NamespaceId`].
 #[async_trait]
 pub trait NamespaceResolver: std::fmt::Debug + Send + Sync {
-    /// Return the [`NamespaceId`] for the given [`NamespaceName`].
-    async fn get_namespace_id(
+    /// Return the [`NamespaceId`] and [`PartitionTemplate`] for the given [`NamespaceName`].
+    async fn get_namespace_info(
         &self,
         namespace: &NamespaceName<'static>,
-    ) -> Result<NamespaceId, Error>;
+    ) -> Result<(NamespaceId, Option<Arc<PartitionTemplate>>), Error>;
 }
 
 /// An implementation of [`NamespaceResolver`] that resolves the [`NamespaceId`]
@@ -53,14 +54,13 @@ impl<C> NamespaceResolver for NamespaceSchemaResolver<C>
 where
     C: NamespaceCache<ReadError = iox_catalog::interface::Error>,
 {
-    async fn get_namespace_id(
+    async fn get_namespace_info(
         &self,
         namespace: &NamespaceName<'static>,
-    ) -> Result<NamespaceId, Error> {
-        // Load the namespace schema from the cache, falling back to pulling it
-        // from the global catalog (if it exists).
+    ) -> Result<(NamespaceId, Option<Arc<PartitionTemplate>>), Error> {
+        // Load the namespace schema from the cache.
         match self.cache.get_schema(namespace).await {
-            Ok(v) => Ok(v.id),
+            Ok(v) => Ok((v.id, v.partition_template.clone())),
             Err(e) => return Err(Error::Lookup(e)),
         }
     }
@@ -100,6 +100,7 @@ mod tests {
                 max_columns_per_table: 4,
                 max_tables: 42,
                 retention_period_ns: None,
+                partition_template: None,
             },
         );
 
@@ -107,7 +108,7 @@ mod tests {
 
         // Drive the code under test
         resolver
-            .get_namespace_id(&ns)
+            .get_namespace_info(&ns)
             .await
             .expect("lookup should succeed");
 
@@ -151,7 +152,7 @@ mod tests {
         let resolver = NamespaceSchemaResolver::new(Arc::clone(&cache));
 
         resolver
-            .get_namespace_id(&ns)
+            .get_namespace_info(&ns)
             .await
             .expect("lookup should succeed");
 
@@ -188,7 +189,7 @@ mod tests {
         let resolver = NamespaceSchemaResolver::new(Arc::clone(&cache));
 
         let err = resolver
-            .get_namespace_id(&ns)
+            .get_namespace_info(&ns)
             .await
             .expect_err("lookup should succeed");
         assert_matches!(
@@ -214,7 +215,7 @@ mod tests {
         let resolver = NamespaceSchemaResolver::new(Arc::clone(&cache));
 
         let err = resolver
-            .get_namespace_id(&ns)
+            .get_namespace_info(&ns)
             .await
             .expect_err("lookup should error");
 
