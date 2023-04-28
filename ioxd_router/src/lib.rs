@@ -317,12 +317,7 @@ pub async fn create_router_server_type(
         (true, Some(addr)) => {
             let authz = IoxAuthorizer::connect_lazy(addr.clone())
                 .map(|c| {
-                    Arc::new(AuthorizerInstrumentation::new(
-                        "dml_authz_permissions_duration",
-                        "duration of authz permissions check on dml requests",
-                        &metrics,
-                        c,
-                    )) as Arc<dyn Authorizer>
+                    Arc::new(AuthorizerInstrumentation::new(&metrics, c)) as Arc<dyn Authorizer>
                 })
                 .map_err(|source| Error::AuthzConfig {
                     source,

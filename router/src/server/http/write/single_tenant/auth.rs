@@ -179,10 +179,7 @@ mod tests {
         let dml_handler = Arc::new(MockDmlHandler::default().with_write_return([Ok(())]));
 
         let metrics = Arc::new(metric::Registry::default());
-        let topic = "topic";
         let decorator = Arc::new(AuthorizerInstrumentation::new(
-            topic,
-            "describe it",
             &metrics,
             MockAuthorizer::default(),
         ));
@@ -219,7 +216,7 @@ mod tests {
         assert!(got.is_err());
 
         let histogram = &metrics
-            .get_instrument::<Metric<DurationHistogram>>(topic)
+            .get_instrument::<Metric<DurationHistogram>>("authz_permissions_duration")
             .expect("failed to read metric");
 
         assert_eq!(

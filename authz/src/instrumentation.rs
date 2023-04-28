@@ -4,6 +4,8 @@ use metric::{DurationHistogram, Metric, Registry};
 
 use super::{Authorizer, Error, Permission};
 
+const AUTHZ_DURATION_METRIC: &str = "authz_permissions_duration";
+
 /// An instrumentation decorator over a [`Authorizer`] implementation.
 ///
 /// This wrapper captures the latency distribution of the decorated
@@ -22,13 +24,9 @@ pub struct AuthorizerInstrumentation<T, P = SystemProvider> {
 
 impl<T> AuthorizerInstrumentation<T> {
     /// Record permissions-check duration metrics, broken down by result.
-    pub fn new(
-        title: &'static str,
-        description: &'static str,
-        registry: &Registry,
-        inner: T,
-    ) -> Self {
-        let metric: Metric<DurationHistogram> = registry.register_metric(title, description);
+    pub fn new(registry: &Registry, inner: T) -> Self {
+        let metric: Metric<DurationHistogram> =
+            registry.register_metric(AUTHZ_DURATION_METRIC, "duration of authz permissions check");
 
         let ioxauth_rpc_duration_success = metric.recorder(&[("result", "success")]);
         let ioxauth_rpc_duration_error = metric.recorder(&[("result", "error")]);
@@ -125,14 +123,9 @@ mod test {
     }
 
     #[allow(dead_code)]
-    fn assert_metric_counts(
-        metrics: &Registry,
-        topic: &'static str,
-        expected_success: u64,
-        expected_err: u64,
-    ) -> bool {
+    fn assert_metric_counts(metrics: &Registry, expected_success: u64, expected_err: u64) -> bool {
         let histogram = &metrics
-            .get_instrument::<Metric<DurationHistogram>>(topic)
+            .get_instrument::<Metric<DurationHistogram>>(AUTHZ_DURATION_METRIC)
             .expect("failed to read metric");
 
         assert_eq!(
@@ -158,14 +151,8 @@ mod test {
 
     #[tokio::test]
     async fn test_authz_metric_record_for_all_exposed_interfaces() {
-        let topic = "wordz";
         let metrics = Registry::default();
-        let decorated_authz = AuthorizerInstrumentation::new(
-            topic,
-            "describe it",
-            &metrics,
-            MockAuthorizer::default(),
-        );
+        let decorated_authz = AuthorizerInstrumentation::new(&metrics, MockAuthorizer::default());
 
         let token_good: Vec<u8> = IoxAuthPermissions::Good.into();
         let got = decorated_authz
@@ -173,7 +160,7 @@ mod test {
             .await;
         assert!(got.is_ok());
         assert!(
-            assert_metric_counts(&metrics, topic, 1, 0),
+            assert_metric_counts(&metrics, 1, 0),
             "Authorizer::permissions() calls are recorded"
         );
 
@@ -182,7 +169,7 @@ mod test {
             .await;
         assert!(got.is_ok());
         assert!(
-            assert_metric_counts(&metrics, topic, 2, 0),
+            assert_metric_counts(&metrics, 2, 0),
             "Authorizer::require_any_permission() calls are recorded"
         );
 
@@ -191,22 +178,13 @@ mod test {
             .require_any_permission(Some(token_err_perms), &[])
             .await;
         assert!(err.is_err());
-        assert!(
-            assert_metric_counts(&metrics, topic, 2, 1),
-            "errors are recorded"
-        );
+        assert!(assert_metric_counts(&metrics, 2, 1), "errors are recorded");
     }
 
     #[tokio::test]
     async fn test_metric_records_only_rpc_errors() {
-        let topic = "wordz";
         let metrics = Registry::default();
-        let decorated_authz = AuthorizerInstrumentation::new(
-            topic,
-            "describe it",
-            &metrics,
-            MockAuthorizer::default(),
-        );
+        let decorated_authz = AuthorizerInstrumentation::new(&metrics, MockAuthorizer::default());
 
         let token_err_rpc: Vec<u8> = IoxAuthPermissions::Err.into();
         let err = decorated_authz
@@ -214,7 +192,7 @@ mod test {
             .await;
         assert!(err.is_err());
         assert!(
-            assert_metric_counts(&metrics, topic, 0, 1),
+            assert_metric_counts(&metrics, 0, 1),
             "rpc errors are recorded"
         );
 
@@ -227,7 +205,7 @@ mod test {
             "post-rpc check of permission, should return error"
         );
         assert!(
-            assert_metric_counts(&metrics, topic, 1, 1),
+            assert_metric_counts(&metrics, 1, 1),
             "no rpc error recorded"
         );
     }
