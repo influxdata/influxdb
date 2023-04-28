@@ -19,6 +19,8 @@ pub(crate) async fn perform(
     checker: mpsc::Sender<ObjectMeta>,
     sleep_interval_minutes: u64,
 ) -> Result<()> {
+    info!("beginning object store listing");
+
     loop {
         let mut backoff = Backoff::new(&BackoffConfig::default());
 
@@ -29,7 +31,7 @@ pub(crate) async fn perform(
             .await
             .expect("backoff retries forever");
 
-        let mut chunked_items = items.chunks(MAX_ITEMS_PROCESSED_PER_LOOP).boxed();
+        let mut chunked_items = items.chunks(MAX_ITEMS_PROCESSED_PER_LOOP);
 
         while let Some(v) = chunked_items.next().await {
             // relist and sleep on an error to allow time for transient errors to dissipate
@@ -40,8 +42,10 @@ pub(crate) async fn perform(
                 break;
             }
             sleep(Duration::from_secs(60 * sleep_interval_minutes)).await;
+            info!("starting next chunk of listed files");
             // next chunk
         }
+        info!("end of object store item list: will relist in {sleep_interval_minutes} minutes");
         sleep(Duration::from_secs(60 * sleep_interval_minutes)).await;
     }
 }
@@ -50,12 +54,14 @@ async fn process_item_list(
     items: Vec<object_store::Result<ObjectMeta>>,
     checker: &mpsc::Sender<ObjectMeta>,
 ) -> Result<()> {
+    let mut i = 0;
     for item in items {
         let item = item.context(MalformedSnafu)?;
         debug!(location = %item.location, "Object store item");
         checker.send(item).await?;
+        i += 1;
     }
-    debug!("end of object store item list");
+    info!("processed {i} files of listed chunk");
     Ok(())
 }
 
