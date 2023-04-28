@@ -50,7 +50,7 @@ impl Compactor2 {
             &config.metric_registry,
             &[("semaphore", "job")],
         ));
-        let job_semaphore = Arc::new(semaphore_metrics.new_semaphore(config.job_concurrency.get()));
+        let df_semaphore = Arc::new(semaphore_metrics.new_semaphore(config.df_concurrency.get()));
 
         let worker = tokio::spawn(async move {
             tokio::select! {
@@ -59,7 +59,7 @@ impl Compactor2 {
                     compact(
                         config.partition_concurrency,
                         config.partition_timeout,
-                        Arc::clone(&job_semaphore),
+                        Arc::clone(&df_semaphore),
                         &components
                     ).await;
 

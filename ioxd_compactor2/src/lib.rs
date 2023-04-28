@@ -180,7 +180,7 @@ pub async fn create_compactor2_server_type(
         time_provider,
         backoff_config,
         partition_concurrency: compactor_config.compaction_partition_concurrency,
-        job_concurrency: compactor_config.compaction_job_concurrency,
+        df_concurrency: compactor_config.compaction_df_concurrency,
         partition_scratchpad_concurrency: compactor_config
             .compaction_partition_scratchpad_concurrency,
         max_desired_file_size_bytes: compactor_config.max_desired_file_size_bytes,

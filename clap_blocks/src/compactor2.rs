@@ -59,17 +59,17 @@ pub struct Compactor2Config {
     )]
     pub compaction_partition_concurrency: NonZeroUsize,
 
-    /// Number of concurrent compaction jobs.
+    /// Number of concurrent compaction jobs scheduled to DataFusion.
     ///
     /// This should usually be smaller than the partition concurrency
-    /// since one partition can spawn multiple compaction jobs.
+    /// since one partition can spawn multiple DF compaction jobs.
     #[clap(
-        long = "compaction-job-concurrency",
-        env = "INFLUXDB_IOX_COMPACTION_JOB_CONCURRENCY",
+        long = "compaction-df-concurrency",
+        env = "INFLUXDB_IOX_COMPACTION_DF_CONCURRENCY",
         default_value = "10",
         action
     )]
-    pub compaction_job_concurrency: NonZeroUsize,
+    pub compaction_df_concurrency: NonZeroUsize,
 
     /// Number of jobs PER PARTITION that move files in and out of the
     /// scratchpad.

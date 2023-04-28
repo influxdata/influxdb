@@ -127,7 +127,7 @@ impl TestSetupBuilder<false> {
             exec: Arc::clone(&catalog.exec),
             backoff_config: BackoffConfig::default(),
             partition_concurrency: NonZeroUsize::new(1).unwrap(),
-            job_concurrency: NonZeroUsize::new(1).unwrap(),
+            df_concurrency: NonZeroUsize::new(1).unwrap(),
             partition_scratchpad_concurrency: NonZeroUsize::new(1).unwrap(),
             max_desired_file_size_bytes: MAX_DESIRE_FILE_SIZE,
             percentage_max_file_size: PERCENTAGE_MAX_FILE_SIZE,
@@ -670,7 +670,7 @@ impl TestSetup {
         self.run_log.lock().unwrap().clear();
 
         let config = Arc::clone(&self.config);
-        let job_semaphore = Arc::new(
+        let df_semaphore = Arc::new(
             Arc::new(AsyncSemaphoreMetrics::new(&config.metric_registry, [])).new_semaphore(10),
         );
 
@@ -690,7 +690,7 @@ impl TestSetup {
         compact(
             NonZeroUsize::new(10).unwrap(),
             config.partition_timeout,
-            job_semaphore,
+            df_semaphore,
             &components,
         )
         .await;

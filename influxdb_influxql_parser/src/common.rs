@@ -14,6 +14,7 @@ use nom::combinator::{map, opt, recognize, value};
 use nom::multi::{fold_many0, fold_many1, separated_list1};
 use nom::sequence::{delimited, pair, preceded, terminated};
 use std::fmt::{Display, Formatter};
+use std::mem;
 use std::ops::{Deref, DerefMut};
 
 /// A error returned when parsing an InfluxQL query, expressions.
@@ -507,6 +508,17 @@ impl<T> ZeroOrMore<T> {
     /// Returns true if the container has no elements.
     pub fn is_empty(&self) -> bool {
         self.contents.is_empty()
+    }
+
+    /// Takes the vector out of the receiver, leaving a default vector value in its place.
+    pub fn take(&mut self) -> Vec<T> {
+        mem::take(&mut self.contents)
+    }
+
+    /// Replaces the actual value in the receiver by the value given in parameter,
+    /// returning the old value if present.
+    pub fn replace(&mut self, value: Vec<T>) -> Vec<T> {
+        mem::replace(&mut self.contents, value)
     }
 }
 
