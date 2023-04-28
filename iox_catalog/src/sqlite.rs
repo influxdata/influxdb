@@ -1444,7 +1444,7 @@ INSERT INTO parquet_file (
 VALUES ( $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14 )
 RETURNING
     id, table_id, partition_id, object_store_id,
-    min_time, max_time, to_delete, file_size_bytes,
+    max_sequence_number, min_time, max_time, to_delete, file_size_bytes,
     row_count, compaction_level, created_at, namespace_id, column_set, max_l0_created_at;
         "#,
     )
