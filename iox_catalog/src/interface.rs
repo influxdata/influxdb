@@ -598,7 +598,7 @@ where
 
     for c in columns {
         let (_, t) = table_id_to_info.get_mut(&c.table_id).unwrap();
-        t.columns_mut().insert(
+        t.schema.columns.insert(
             c.name,
             ColumnSchema {
                 id: c.id,
@@ -717,7 +717,7 @@ pub async fn list_schemas(
             .entry(table.name.clone())
             .or_insert_with(|| TableInfo::from(table));
 
-        table_info.add_column(&column);
+        table_info.schema.add_column(&column);
     }
 
     // The table map is no longer needed - immediately reclaim the memory.

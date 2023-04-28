@@ -94,14 +94,14 @@ where
         let table_info = namespace_schema
             .tables
             .get(&table.name)
-            .ok_or_else::<DynError, _>(|| String::from("Cannot find table schema").into())?;
+            .ok_or_else::<DynError, _>(|| String::from("Cannot find table info").into())?;
 
         Ok(Arc::new(PartitionInfo {
             partition_id,
             namespace_id: table.namespace_id,
             namespace_name: namespace.name,
             table: Arc::new(table),
-            table_info: Arc::new(table_info.clone()),
+            table_schema: Arc::new(table_info.schema.clone()),
             sort_key: partition.sort_key(),
             partition_key: partition.partition_key,
         }))

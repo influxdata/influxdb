@@ -392,88 +392,21 @@ pub struct Table {
 /// table's columns.
 #[derive(Debug, Clone, Eq, PartialEq)]
 pub struct TableInfo {
-    table_schema: TableSchema,
+    /// This table's schema
+    pub schema: TableSchema,
     /// This table's partition template
     pub partition_template: Option<Arc<PartitionTemplate>>,
 }
 
 impl TableInfo {
-    /// Create new table info with the given table schema and no partition template specified.
-    pub fn new(table_schema: TableSchema) -> Self {
-        Self {
-            table_schema,
-            partition_template: None,
-        }
-    }
-
     /// This table's ID
     pub fn id(&self) -> TableId {
-        self.table_schema.id
-    }
-
-    /// This table's schema
-    pub fn schema(&self) -> &TableSchema {
-        &self.table_schema
-    }
-
-    /// This table's columns
-    pub fn columns(&self) -> &BTreeMap<String, ColumnSchema> {
-        &self.table_schema.columns
-    }
-
-    /// Mutable access to his table's columns
-    pub fn columns_mut(&mut self) -> &mut BTreeMap<String, ColumnSchema> {
-        &mut self.table_schema.columns
-    }
-
-    /// Add `col` to this table schema.
-    ///
-    /// # Panics
-    ///
-    /// This method panics if a column of the same name already exists in
-    /// `self`.
-    pub fn add_column(&mut self, col: &Column) {
-        let old = self
-            .table_schema
-            .columns
-            .insert(col.name.clone(), ColumnSchema::from(col));
-        assert!(old.is_none());
+        self.schema.id
     }
 
     /// Estimated Size in bytes including `self`.
     pub fn size(&self) -> usize {
-        size_of_val(self)
-            + size_of_val(&self.partition_template)
-            + self
-                .table_schema
-                .columns
-                .iter()
-                .map(|(k, v)| size_of_val(k) + k.capacity() + size_of_val(v))
-                .sum::<usize>()
-    }
-
-    /// Create `ID->name` map for columns.
-    pub fn column_id_map(&self) -> HashMap<ColumnId, &str> {
-        self.table_schema
-            .columns
-            .iter()
-            .map(|(name, c)| (c.id, name.as_str()))
-            .collect()
-    }
-
-    /// Return the set of column names for this table. Used in combination with a write operation's
-    /// column names to determine whether a write would exceed the max allowed columns.
-    pub fn column_names(&self) -> BTreeSet<&str> {
-        self.table_schema
-            .columns
-            .keys()
-            .map(|name| name.as_str())
-            .collect()
-    }
-
-    /// Return number of columns of the table
-    pub fn column_count(&self) -> usize {
-        self.table_schema.columns.len()
+        size_of_val(self) + size_of_val(&self.partition_template) + self.schema.size()
     }
 }
 
@@ -482,7 +415,7 @@ impl From<&Table> for TableInfo {
         let &Table { id, .. } = table;
 
         Self {
-            table_schema: TableSchema::new(id),
+            schema: TableSchema::new(id),
 
             // TODO: Store and retrieve PartitionTemplate from the database
             partition_template: None,
@@ -3044,7 +2977,7 @@ mod tests {
             tables: BTreeMap::from([(
                 String::from("foo"),
                 TableInfo {
-                    table_schema: TableSchema {
+                    schema: TableSchema {
                         id: TableId::new(1),
                         columns: BTreeMap::new(),
                     },

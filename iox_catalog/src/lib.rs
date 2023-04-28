@@ -126,7 +126,7 @@ where
                 .create_or_get(TIME_COLUMN, table.id(), ColumnType::Time)
                 .await?;
 
-            table.add_column(&time_col);
+            table.schema.add_column(&time_col);
 
             assert!(schema
                 .to_mut()
@@ -152,7 +152,7 @@ where
         // If it does, validate it. If it does not exist, create it and insert
         // it into the cached schema.
 
-        match table.columns().get(name.as_str()) {
+        match table.schema.columns.get(name.as_str()) {
             Some(existing) if existing.matches_type(col.influx_type()) => {
                 // No action is needed as the column matches the existing column
                 // schema.
@@ -185,7 +185,7 @@ where
             .create_or_get_many_unchecked(table.id(), column_batch)
             .await?
             .into_iter()
-            .for_each(|c| table.to_mut().add_column(&c));
+            .for_each(|c| table.to_mut().schema.add_column(&c));
     }
 
     if let Cow::Owned(table) = table {
@@ -288,9 +288,10 @@ mod tests {
                     let actual_tables: BTreeMap<String, BTreeMap<String, ColumnType>> = schema
                         .tables
                         .iter()
-                        .map(|(table, table_schema)| {
-                            let desired_cols = table_schema
-                                .columns()
+                        .map(|(table, table_info)| {
+                            let desired_cols = table_info
+                                .schema
+                                .columns
                                 .iter()
                                 .map(|(column, column_schema)| (column.clone(), column_schema.column_type))
                                 .collect::<BTreeMap<_, _>>();

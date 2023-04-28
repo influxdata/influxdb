@@ -174,21 +174,20 @@ fn to_queryable_parquet_chunk(
     partition_info: &PartitionInfo,
     store: ParquetStorage,
 ) -> QueryableParquetChunk {
-    let column_id_lookup = partition_info.table_info.column_id_map();
+    let column_id_lookup = partition_info.table_schema.column_id_map();
     let selection: Vec<_> = file
         .file
         .column_set
         .iter()
         .flat_map(|id| column_id_lookup.get(id).copied())
         .collect();
-    let table_info: Schema = partition_info
-        .table_info
+    let table_schema: Schema = partition_info
+        .table_schema
         .as_ref()
         .clone()
-        .schema()
         .try_into()
-        .expect("table info is broken");
-    let schema = table_info
+        .expect("table schema is broken");
+    let schema = table_schema
         .select_by_names(&selection)
         .expect("schema in-sync");
     let pk = schema.primary_key();

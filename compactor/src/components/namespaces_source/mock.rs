@@ -128,54 +128,60 @@ mod tests {
             let tables = BTreeMap::from([
                 (
                     "table1".to_string(),
-                    TableInfo::new(TableSchema {
-                        id: TableId::new(1),
-                        columns: BTreeMap::from([
-                            (
-                                "col1".to_string(),
-                                ColumnSchema {
-                                    id: ColumnId::new(1),
-                                    column_type: ColumnType::I64,
-                                },
-                            ),
-                            (
-                                "col2".to_string(),
-                                ColumnSchema {
-                                    id: ColumnId::new(2),
-                                    column_type: ColumnType::String,
-                                },
-                            ),
-                        ]),
-                    }),
+                    TableInfo {
+                        schema: TableSchema {
+                            id: TableId::new(1),
+                            columns: BTreeMap::from([
+                                (
+                                    "col1".to_string(),
+                                    ColumnSchema {
+                                        id: ColumnId::new(1),
+                                        column_type: ColumnType::I64,
+                                    },
+                                ),
+                                (
+                                    "col2".to_string(),
+                                    ColumnSchema {
+                                        id: ColumnId::new(2),
+                                        column_type: ColumnType::String,
+                                    },
+                                ),
+                            ]),
+                        },
+                        partition_template: None,
+                    },
                 ),
                 (
                     "table2".to_string(),
-                    TableInfo::new(TableSchema {
-                        id: TableId::new(2),
-                        columns: BTreeMap::from([
-                            (
-                                "col1".to_string(),
-                                ColumnSchema {
-                                    id: ColumnId::new(3),
-                                    column_type: ColumnType::I64,
-                                },
-                            ),
-                            (
-                                "col2".to_string(),
-                                ColumnSchema {
-                                    id: ColumnId::new(4),
-                                    column_type: ColumnType::String,
-                                },
-                            ),
-                            (
-                                "col3".to_string(),
-                                ColumnSchema {
-                                    id: ColumnId::new(5),
-                                    column_type: ColumnType::F64,
-                                },
-                            ),
-                        ]),
-                    }),
+                    TableInfo {
+                        schema: TableSchema {
+                            id: TableId::new(2),
+                            columns: BTreeMap::from([
+                                (
+                                    "col1".to_string(),
+                                    ColumnSchema {
+                                        id: ColumnId::new(3),
+                                        column_type: ColumnType::I64,
+                                    },
+                                ),
+                                (
+                                    "col2".to_string(),
+                                    ColumnSchema {
+                                        id: ColumnId::new(4),
+                                        column_type: ColumnType::String,
+                                    },
+                                ),
+                                (
+                                    "col3".to_string(),
+                                    ColumnSchema {
+                                        id: ColumnId::new(5),
+                                        column_type: ColumnType::F64,
+                                    },
+                                ),
+                            ]),
+                        },
+                        partition_template: None,
+                    },
                 ),
             ]);
 

@@ -2,7 +2,7 @@ use std::{collections::BTreeMap, sync::Arc};
 
 use data_types::{
     ColumnId, ColumnSchema, ColumnType, NamespaceId, PartitionId, PartitionKey, Table, TableId,
-    TableInfo, TableSchema,
+    TableSchema,
 };
 
 use crate::PartitionInfo;
@@ -27,10 +27,10 @@ impl PartitionInfoBuilder {
                     namespace_id,
                     name: String::from("table"),
                 }),
-                table_info: Arc::new(TableInfo::new(TableSchema {
+                table_schema: Arc::new(TableSchema {
                     id: table_id,
                     columns: BTreeMap::new(),
-                })),
+                }),
                 sort_key: None,
                 partition_key: PartitionKey::from("key"),
             },
@@ -52,11 +52,11 @@ impl PartitionInfoBuilder {
             columns.insert(i.to_string(), col);
         }
 
-        let table_info = Arc::new(TableInfo::new(TableSchema {
+        let table_schema = Arc::new(TableSchema {
             id: self.inner.table.id,
             columns,
-        }));
-        self.inner.table_info = table_info;
+        });
+        self.inner.table_schema = table_schema;
 
         self
     }

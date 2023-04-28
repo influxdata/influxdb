@@ -372,7 +372,7 @@ fn validate_schema_limits(
     for (table_name, batch) in batches {
         // Get the column set for this table from the schema.
         let mut existing_columns = match schema.tables.get(table_name) {
-            Some(v) => v.column_names(),
+            Some(v) => v.schema.column_names(),
             None if batch.columns().len() > schema.max_columns_per_table => {
                 // The table does not exist, therefore all the columns in this
                 // write must be created - there's no need to perform a set
@@ -774,7 +774,8 @@ mod tests {
         let table = ns.tables.get(table).expect("table should exist in cache");
         assert_eq!(
             table
-                .columns()
+                .schema
+                .columns
                 .get(col)
                 .expect("column not cached")
                 .column_type,

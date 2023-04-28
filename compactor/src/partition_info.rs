@@ -2,7 +2,7 @@
 
 use std::sync::Arc;
 
-use data_types::{NamespaceId, PartitionId, PartitionKey, Table, TableInfo};
+use data_types::{NamespaceId, PartitionId, PartitionKey, Table, TableSchema};
 use schema::sort::SortKey;
 
 /// Information about the Partition being compacted
@@ -20,8 +20,8 @@ pub struct PartitionInfo {
     /// Table.
     pub table: Arc<Table>,
 
-    /// Table info
-    pub table_info: Arc<TableInfo>,
+    /// Table schema
+    pub table_schema: Arc<TableSchema>,
 
     /// Sort key of the partition
     pub sort_key: Option<SortKey>,
@@ -33,6 +33,6 @@ pub struct PartitionInfo {
 impl PartitionInfo {
     /// Returns number of columns in the table
     pub fn column_count(&self) -> usize {
-        self.table_info.column_count()
+        self.table_schema.column_count()
     }
 }

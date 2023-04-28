@@ -131,7 +131,7 @@ where
                     .columns()
                     .create_or_get("time", table.id(), ColumnType::Time)
                     .await?;
-                table.add_column(&time_col);
+                table.schema.add_column(&time_col);
                 table
             }
         };
@@ -140,7 +140,7 @@ where
         // fields and tags are both columns; tag is a special type of column.
         // check that the schema has all these columns or update accordingly.
         for tag in measurement.tags.values() {
-            match table.columns().get(tag.name.as_str()) {
+            match table.schema.columns.get(tag.name.as_str()) {
                 Some(c) if c.is_tag() => {
                     // nothing to do, all good
                 }
@@ -178,7 +178,7 @@ where
                         field.name, field_type, e,
                     ))
                 })?);
-            match table.columns().get(field.name.as_str()) {
+            match table.schema.columns.get(field.name.as_str()) {
                 Some(c) if c.matches_type(influx_column_type) => {
                     // nothing to do, all good
                 }
@@ -384,10 +384,10 @@ mod tests {
         .expect("got schema");
         assert_eq!(iox_schema.tables.len(), 1);
         let table = iox_schema.tables.get("cpu").expect("got table");
-        assert_eq!(table.columns().len(), 3); // one tag & one field, plus time
-        let tag = table.columns().get("host").expect("got tag");
+        assert_eq!(table.schema.columns.len(), 3); // one tag & one field, plus time
+        let tag = table.schema.columns.get("host").expect("got tag");
         assert!(tag.is_tag());
-        let field = table.columns().get("usage").expect("got field");
+        let field = table.schema.columns.get("usage").expect("got field");
         assert_eq!(
             field.column_type,
             InfluxColumnType::Field(InfluxFieldType::Float)
@@ -442,7 +442,7 @@ mod tests {
             .create_or_get("time", table.id(), ColumnType::Time)
             .await
             .expect("column created");
-        table.add_column(&time_col);
+        table.schema.add_column(&time_col);
         let location_col = txn
             .columns()
             .create_or_get("city", table.id(), ColumnType::Tag)
@@ -453,8 +453,8 @@ mod tests {
             .create_or_get("temperature", table.id(), ColumnType::F64)
             .await
             .expect("column created");
-        table.add_column(&location_col);
-        table.add_column(&temperature_col);
+        table.schema.add_column(&location_col);
+        table.schema.add_column(&temperature_col);
         txn.commit().await.unwrap();
 
         // merge with aggregate schema that has some overlap
@@ -491,17 +491,17 @@ mod tests {
         .expect("got schema");
         assert_eq!(iox_schema.tables.len(), 1);
         let table = iox_schema.tables.get("weather").expect("got table");
-        assert_eq!(table.columns().len(), 5); // two tags, two fields, plus time
-        let tag1 = table.columns().get("city").expect("got tag");
+        assert_eq!(table.schema.columns.len(), 5); // two tags, two fields, plus time
+        let tag1 = table.schema.columns.get("city").expect("got tag");
         assert!(tag1.is_tag());
-        let tag2 = table.columns().get("country").expect("got tag");
+        let tag2 = table.schema.columns.get("country").expect("got tag");
         assert!(tag2.is_tag());
-        let field1 = table.columns().get("temperature").expect("got field");
+        let field1 = table.schema.columns.get("temperature").expect("got field");
         assert_eq!(
             field1.column_type,
             InfluxColumnType::Field(InfluxFieldType::Float)
         );
-        let field2 = table.columns().get("humidity").expect("got field");
+        let field2 = table.schema.columns.get("humidity").expect("got field");
         assert_eq!(
             field2.column_type,
             InfluxColumnType::Field(InfluxFieldType::Float)
@@ -534,13 +534,13 @@ mod tests {
             .create_or_get("time", table.id(), ColumnType::Time)
             .await
             .expect("column created");
-        table.add_column(&time_col);
+        table.schema.add_column(&time_col);
         let temperature_col = txn
             .columns()
             .create_or_get("temperature", table.id(), ColumnType::F64)
             .await
             .expect("column created");
-        table.add_column(&temperature_col);
+        table.schema.add_column(&temperature_col);
         txn.commit().await.unwrap();
 
         // merge with aggregate schema that has some issue that will trip a catalog error
@@ -599,13 +599,13 @@ mod tests {
             .create_or_get("time", table.id(), ColumnType::Time)
             .await
             .expect("column created");
-        table.add_column(&time_col);
+        table.schema.add_column(&time_col);
         let temperature_col = txn
             .columns()
             .create_or_get("temperature", table.id(), ColumnType::F64)
             .await
             .expect("column created");
-        table.add_column(&temperature_col);
+        table.schema.add_column(&temperature_col);
         txn.commit().await.unwrap();
 
         // merge with aggregate schema that has some issue that will trip a catalog error

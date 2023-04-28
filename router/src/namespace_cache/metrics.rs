@@ -158,10 +158,13 @@ mod tests {
 
                 (
                     i.to_string(),
-                    TableInfo::new(TableSchema {
-                        id: TableId::new(i as _),
-                        columns,
-                    }),
+                    TableInfo {
+                        schema: TableSchema {
+                            id: TableId::new(i as _),
+                            columns,
+                        },
+                        partition_template: None,
+                    },
                 )
             })
             .collect();
