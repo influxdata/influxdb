@@ -871,9 +871,9 @@ dependencies = [
 
 [[package]]
 name = "clap"
-version = "4.2.4"
+version = "4.2.5"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "956ac1f6381d8d82ab4684768f89c0ea3afe66925ceadb4eeb3fc452ffc55d62"
+checksum = "8a1f23fa97e1d1641371b51f35535cb26959b8e27ab50d167a8b996b5bada819"
 dependencies = [
  "clap_builder",
  "clap_derive",
@@ -885,7 +885,7 @@ name = "clap_blocks"
 version = "0.1.0"
 dependencies = [
  "authz",
- "clap 4.2.4",
+ "clap 4.2.5",
  "data_types",
  "futures",
  "http",
@@ -909,9 +909,9 @@ dependencies = [
 
 [[package]]
 name = "clap_builder"
-version = "4.2.4"
+version = "4.2.5"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "84080e799e54cff944f4b4a4b0e71630b0e0443b25b985175c7dddc1a859b749"
+checksum = "0fdc5d93c358224b4d6867ef1356d740de2303e9892edc06c5340daeccd96bab"
 dependencies = [
  "anstream",
  "anstyle",
@@ -2038,7 +2038,7 @@ dependencies = [
  "backoff",
  "bytes",
  "chrono",
- "clap 4.2.4",
+ "clap 4.2.5",
  "clap_blocks",
  "data_types",
  "filetime",
@@ -2567,7 +2567,7 @@ dependencies = [
  "authz",
  "backtrace",
  "bytes",
- "clap 4.2.4",
+ "clap 4.2.5",
  "clap_blocks",
  "comfy-table",
  "compactor2",
@@ -2866,7 +2866,7 @@ dependencies = [
  "bytes",
  "chrono",
  "chrono-english",
- "clap 4.2.4",
+ "clap 4.2.5",
  "criterion",
  "datafusion_util",
  "futures",
@@ -3018,7 +3018,7 @@ dependencies = [
  "async-trait",
  "authz",
  "bytes",
- "clap 4.2.4",
+ "clap 4.2.5",
  "clap_blocks",
  "flate2",
  "futures",
@@ -3174,7 +3174,7 @@ name = "ioxd_test"
 version = "0.1.0"
 dependencies = [
  "async-trait",
- "clap 4.2.4",
+ "clap 4.2.5",
  "hyper",
  "ioxd_common",
  "metric",
@@ -6059,7 +6059,7 @@ version = "0.1.0"
 dependencies = [
  "async-trait",
  "chrono",
- "clap 4.2.4",
+ "clap 4.2.5",
  "futures",
  "iox_time",
  "observability_deps",
@@ -6197,7 +6197,7 @@ dependencies = [
 name = "trogging"
 version = "0.1.0"
 dependencies = [
- "clap 4.2.4",
+ "clap 4.2.5",
  "is-terminal",
  "logfmt",
  "observability_deps",
