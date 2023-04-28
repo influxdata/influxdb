@@ -11,7 +11,7 @@ use crate::plan::rewriter::{
     rewrite_statement, select_statement_info, ProjectionType, SelectStatementInfo,
 };
 use crate::plan::util::{binary_operator_to_df_operator, rebase_expr, Schemas};
-use crate::plan::var_ref::{column_type_to_var_ref_data_type, var_ref_data_type_to_data_type};
+use crate::plan::var_ref::{data_type_to_var_ref_data_type, var_ref_data_type_to_data_type};
 use crate::plan::{error, planner_rewrite_expression};
 use arrow::array::{StringBuilder, StringDictionaryBuilder};
 use arrow::datatypes::{DataType, Field as ArrowField, Int32Type, Schema as ArrowSchema};
@@ -599,11 +599,7 @@ impl<'a> InfluxQLToLogicalPlan<'a> {
 
             // Exclude tags that do not exist in the current table schema.
             group_by_exprs.extend(group_by_tag_set.iter().filter_map(|name| {
-                if schemas
-                    .iox_schema
-                    .field_by_name(name)
-                    .map_or(false, |(dt, _)| dt == InfluxColumnType::Tag)
-                {
+                if schemas.is_tag_field(name) {
                     Some(name.as_expr())
                 } else {
                     None
@@ -991,7 +987,7 @@ impl<'a> InfluxQLToLogicalPlan<'a> {
 
     /// Map an InfluxQL [`IQLExpr`] to a DataFusion [`Expr`].
     fn expr_to_df_expr(&self, ctx: &Context<'_>, iql: &IQLExpr, schemas: &Schemas) -> Result<Expr> {
-        let iox_schema = &schemas.iox_schema;
+        let schema = &schemas.df_schema;
         match iql {
             // rewriter is expected to expand wildcard expressions
             IQLExpr::Wildcard(_) => error::internal("unexpected wildcard in projection"),
@@ -1009,12 +1005,16 @@ impl<'a> InfluxQLToLogicalPlan<'a> {
                         "time".as_expr()
                     }
                     (ExprScope::Projection, "time") => "time".as_expr(),
-                    (_, name) => match iox_schema.field_by_name(name) {
-                        Some((col_type, _)) => {
+                    (_, name) => match schema
+                        .fields_with_unqualified_name(name)
+                        .first()
+                        .map(|f| f.data_type().clone())
+                    {
+                        Some(col_type) => {
                             let column = name.as_expr();
+                            let src_type = data_type_to_var_ref_data_type(col_type)?;
                             match opt_dst_type {
                                 Some(dst_type) => {
-                                    let src_type = column_type_to_var_ref_data_type(col_type);
                                     if src_type == *dst_type {
                                         column
                                     } else if src_type.is_numeric_type()
