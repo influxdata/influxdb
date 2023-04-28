@@ -6774,6 +6774,7 @@ dependencies = [
  "hashbrown 0.12.3",
  "hashbrown 0.13.2",
  "heck",
+ "hyper",
  "indexmap",
  "io-lifetimes",
  "itertools",

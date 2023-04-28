@@ -154,6 +154,7 @@ url = { version = "2" }
 uuid = { version = "1", features = ["v4"] }
 
 [target.x86_64-unknown-linux-gnu.dependencies]
+hyper = { version = "0.14", features = ["full"] }
 io-lifetimes = { version = "1" }
 nix = { version = "0.26" }
 once_cell = { version = "1", default-features = false, features = ["unstable"] }
@@ -165,6 +166,7 @@ once_cell = { version = "1", default-features = false, features = ["unstable"] }
 rustix = { version = "0.37", features = ["fs", "termios"] }
 
 [target.x86_64-apple-darwin.dependencies]
+hyper = { version = "0.14", features = ["full"] }
 io-lifetimes = { version = "1" }
 nix = { version = "0.26" }
 once_cell = { version = "1", default-features = false, features = ["unstable"] }
@@ -176,6 +178,7 @@ once_cell = { version = "1", default-features = false, features = ["unstable"] }
 rustix = { version = "0.37", features = ["fs", "termios"] }
 
 [target.aarch64-apple-darwin.dependencies]
+hyper = { version = "0.14", features = ["full"] }
 io-lifetimes = { version = "1" }
 nix = { version = "0.26" }
 once_cell = { version = "1", default-features = false, features = ["unstable"] }
@@ -187,6 +190,7 @@ once_cell = { version = "1", default-features = false, features = ["unstable"] }
 rustix = { version = "0.37", features = ["fs", "termios"] }
 
 [target.x86_64-pc-windows-msvc.dependencies]
+hyper = { version = "0.14", features = ["full"] }
 once_cell = { version = "1", default-features = false, features = ["unstable"] }
 scopeguard = { version = "1" }
 winapi = { version = "0.3", default-features = false, features = ["basetsd", "consoleapi", "errhandlingapi", "fileapi", "handleapi", "impl-debug", "impl-default", "knownfolders", "minwinbase", "minwindef", "ntsecapi", "ntstatus", "objbase", "processenv", "shellapi", "shlobj", "std", "stringapiset", "synchapi", "timezoneapi", "winbase", "wincon", "winerror", "winnt", "winreg", "winuser", "ws2ipdef", "ws2tcpip", "wtypesbase"] }
