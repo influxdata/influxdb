@@ -884,7 +884,6 @@ dependencies = [
 name = "clap_blocks"
 version = "0.1.0"
 dependencies = [
- "authz",
  "clap 4.2.5",
  "data_types",
  "futures",
@@ -6775,6 +6774,7 @@ dependencies = [
  "hashbrown 0.12.3",
  "hashbrown 0.13.2",
  "heck",
+ "hyper",
  "indexmap",
  "io-lifetimes",
  "itertools",
