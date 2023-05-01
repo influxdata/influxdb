@@ -21,6 +21,7 @@ tokio = { version = "1", features = ["macros", "rt", "sync"] }
 tokio-stream = "0.1"
 tokio-util = { version = "0.7.8" }
 uuid = { version = "1", features = ["v4"] }
+workspace-hack = { version = "0.1", path = "../workspace-hack" }
 
 [dev-dependencies]
 bytes = "1.4"
