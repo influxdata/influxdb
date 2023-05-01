@@ -56,5 +56,8 @@ deny = [
     # If you're hitting this, you might want to take a look at what new
     # dependencies you have introduced and check if there's a way to depend on
     # rustls instead of OpenSSL (tip: check the crate's feature flags).
-    { name = "openssl-sys" }
+    { name = "openssl-sys" },
+    # We've decided to use the `humantime` crate to parse and generate friendly time formats; use
+    # that rather than chrono-english.
+    { name = "chrono-english" },
 ]
