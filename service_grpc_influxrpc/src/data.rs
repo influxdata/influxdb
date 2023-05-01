@@ -8,7 +8,7 @@ use arrow::datatypes::DataType as ArrowDataType;
 use futures::{stream::BoxStream, Stream, StreamExt};
 use iox_query::exec::{
     fieldlist::FieldList,
-    seriesset::series::{self, Either},
+    seriesset::series::{self, Batch, Either},
 };
 use predicate::rpc_predicate::{FIELD_COLUMN_NAME, MEASUREMENT_COLUMN_NAME};
 
@@ -101,42 +101,72 @@ fn series_to_frames(
 ) -> impl Stream<Item = Frame> {
     let series::Series { tags, data } = series;
 
-    let (data_type, data_frame) = match data {
-        series::Data::FloatPoints { timestamps, values } => (
+    let (data_type, data_frames): (DataType, Vec<Frame>) = match data {
+        series::Data::FloatPoints(batches) => (
             DataType::Float,
-            Data::FloatPoints(FloatPointsFrame { timestamps, values }),
+            batches
+                .into_iter()
+                .map(|Batch { timestamps, values }| Frame {
+                    data: Some(Data::FloatPoints(FloatPointsFrame { timestamps, values })),
+                })
+                .collect(),
         ),
-        series::Data::IntegerPoints { timestamps, values } => (
+        series::Data::IntegerPoints(batches) => (
             DataType::Integer,
-            Data::IntegerPoints(IntegerPointsFrame { timestamps, values }),
+            batches
+                .into_iter()
+                .map(|Batch { timestamps, values }| Frame {
+                    data: Some(Data::IntegerPoints(IntegerPointsFrame {
+                        timestamps,
+                        values,
+                    })),
+                })
+                .collect(),
         ),
-        series::Data::UnsignedPoints { timestamps, values } => (
+        series::Data::UnsignedPoints(batches) => (
             DataType::Unsigned,
-            Data::UnsignedPoints(UnsignedPointsFrame { timestamps, values }),
+            batches
+                .into_iter()
+                .map(|Batch { timestamps, values }| Frame {
+                    data: Some(Data::UnsignedPoints(UnsignedPointsFrame {
+                        timestamps,
+                        values,
+                    })),
+                })
+                .collect(),
         ),
-        series::Data::BooleanPoints { timestamps, values } => (
+        series::Data::BooleanPoints(batches) => (
             DataType::Boolean,
-            Data::BooleanPoints(BooleanPointsFrame { timestamps, values }),
+            batches
+                .into_iter()
+                .map(|Batch { timestamps, values }| Frame {
+                    data: Some(Data::BooleanPoints(BooleanPointsFrame {
+                        timestamps,
+                        values,
+                    })),
+                })
+                .collect(),
         ),
-        series::Data::StringPoints { timestamps, values } => (
+        series::Data::StringPoints(batches) => (
             DataType::String,
-            Data::StringPoints(StringPointsFrame { timestamps, values }),
+            batches
+                .into_iter()
+                .map(|Batch { timestamps, values }| Frame {
+                    data: Some(Data::StringPoints(StringPointsFrame { timestamps, values })),
+                })
+                .collect(),
         ),
     };
 
-    let series_frame = Data::Series(SeriesFrame {
-        tags: convert_tags(tags, tag_key_binary_format),
-        data_type: data_type.into(),
-    });
-
-    futures::stream::iter([
-        Frame {
-            data: Some(series_frame),
-        },
-        Frame {
-            data: Some(data_frame),
-        },
-    ])
+    futures::stream::iter(
+        std::iter::once(Frame {
+            data: Some(Data::Series(SeriesFrame {
+                tags: convert_tags(tags, tag_key_binary_format),
+                data_type: data_type.into(),
+            })),
+        })
+        .chain(data_frames.into_iter()),
+    )
 }
 
 /// Converts a [`series::Group`] into a storage gRPC `GroupFrame`
@@ -220,7 +250,7 @@ fn datatype_to_measurement_field_enum(data_type: &ArrowDataType) -> Result<Field
 
 #[cfg(test)]
 mod tests {
-    use std::{convert::TryInto, fmt};
+    use std::fmt;
 
     use arrow::{
         array::{
@@ -276,12 +306,12 @@ mod tests {
             tags: vec![(Arc::from("tag1"), Arc::from("val1"))],
             field_indexes: FieldIndexes::from_timestamp_and_value_indexes(5, &[0, 1, 2, 3, 4]),
             start_row: 1,
-            num_rows: 2,
+            num_rows: 4,
             batch: make_record_batch(),
         };
 
         let series: Vec<Series> = series_set
-            .try_into()
+            .try_into_series(3)
             .expect("Correctly converted series set");
         let series: Vec<Either> = series.into_iter().map(|s| s.into()).collect();
 
@@ -295,15 +325,20 @@ mod tests {
         let dumped_frames = dump_frames(&frames);
         let expected_frames = vec![
             "SeriesFrame, tags: _field=string_field,_measurement=the_table,tag1=val1, type: 4",
-            "StringPointsFrame, timestamps: [2000, 3000], values: bar,baz",
+            "StringPointsFrame, timestamps: [2000, 3000, 4000], values: bar,baz,bar",
+            "StringPointsFrame, timestamps: [5000], values: baz",
             "SeriesFrame, tags: _field=int_field,_measurement=the_table,tag1=val1, type: 1",
-            "IntegerPointsFrame, timestamps: [2000, 3000], values: \"2,3\"",
+            "IntegerPointsFrame, timestamps: [2000, 3000, 4000], values: \"2,2,3\"",
+            "IntegerPointsFrame, timestamps: [5000], values: \"3\"",
             "SeriesFrame, tags: _field=uint_field,_measurement=the_table,tag1=val1, type: 2",
-            "UnsignedPointsFrame, timestamps: [2000, 3000], values: \"22,33\"",
+            "UnsignedPointsFrame, timestamps: [2000, 3000, 4000], values: \"22,22,33\"",
+            "UnsignedPointsFrame, timestamps: [5000], values: \"33\"",
             "SeriesFrame, tags: _field=float_field,_measurement=the_table,tag1=val1, type: 0",
-            "FloatPointsFrame, timestamps: [2000, 3000], values: \"20.1,30.1\"",
+            "FloatPointsFrame, timestamps: [2000, 3000, 4000], values: \"20.1,21.1,30.1\"",
+            "FloatPointsFrame, timestamps: [5000], values: \"31.1\"",
             "SeriesFrame, tags: _field=boolean_field,_measurement=the_table,tag1=val1, type: 3",
-            "BooleanPointsFrame, timestamps: [2000, 3000], values: false,true",
+            "BooleanPointsFrame, timestamps: [2000, 3000, 4000], values: false,false,true",
+            "BooleanPointsFrame, timestamps: [5000], values: true",
         ];
 
         assert_eq!(
@@ -322,16 +357,21 @@ mod tests {
                 .unwrap();
         let dumped_frames = dump_frames(&frames);
         let expected_frames = vec![
-            "SeriesFrame, tags: \x00=the_table,tag1=val1,�=string_field, type: 4",
-            "StringPointsFrame, timestamps: [2000, 3000], values: bar,baz",
-            "SeriesFrame, tags: \x00=the_table,tag1=val1,�=int_field, type: 1",
-            "IntegerPointsFrame, timestamps: [2000, 3000], values: \"2,3\"",
-            "SeriesFrame, tags: \x00=the_table,tag1=val1,�=uint_field, type: 2",
-            "UnsignedPointsFrame, timestamps: [2000, 3000], values: \"22,33\"",
-            "SeriesFrame, tags: \x00=the_table,tag1=val1,�=float_field, type: 0",
-            "FloatPointsFrame, timestamps: [2000, 3000], values: \"20.1,30.1\"",
-            "SeriesFrame, tags: \x00=the_table,tag1=val1,�=boolean_field, type: 3",
-            "BooleanPointsFrame, timestamps: [2000, 3000], values: false,true",
+            "SeriesFrame, tags: \0=the_table,tag1=val1,�=string_field, type: 4",
+            "StringPointsFrame, timestamps: [2000, 3000, 4000], values: bar,baz,bar",
+            "StringPointsFrame, timestamps: [5000], values: baz",
+            "SeriesFrame, tags: \0=the_table,tag1=val1,�=int_field, type: 1",
+            "IntegerPointsFrame, timestamps: [2000, 3000, 4000], values: \"2,2,3\"",
+            "IntegerPointsFrame, timestamps: [5000], values: \"3\"",
+            "SeriesFrame, tags: \0=the_table,tag1=val1,�=uint_field, type: 2",
+            "UnsignedPointsFrame, timestamps: [2000, 3000, 4000], values: \"22,22,33\"",
+            "UnsignedPointsFrame, timestamps: [5000], values: \"33\"",
+            "SeriesFrame, tags: \0=the_table,tag1=val1,�=float_field, type: 0",
+            "FloatPointsFrame, timestamps: [2000, 3000, 4000], values: \"20.1,21.1,30.1\"",
+            "FloatPointsFrame, timestamps: [5000], values: \"31.1\"",
+            "SeriesFrame, tags: \0=the_table,tag1=val1,�=boolean_field, type: 3",
+            "BooleanPointsFrame, timestamps: [2000, 3000, 4000], values: false,false,true",
+            "BooleanPointsFrame, timestamps: [5000], values: true",
         ];
 
         assert_eq!(
@@ -465,14 +505,20 @@ mod tests {
     }
 
     fn make_record_batch() -> RecordBatch {
-        let string_array: ArrayRef = Arc::new(StringArray::from(vec!["foo", "bar", "baz", "foo"]));
-        let int_array: ArrayRef = Arc::new(Int64Array::from(vec![1, 2, 3, 4]));
-        let uint_array: ArrayRef = Arc::new(UInt64Array::from(vec![11, 22, 33, 44]));
-        let float_array: ArrayRef = Arc::new(Float64Array::from(vec![10.1, 20.1, 30.1, 40.1]));
-        let bool_array: ArrayRef = Arc::new(BooleanArray::from(vec![true, false, true, false]));
+        let string_array: ArrayRef = Arc::new(StringArray::from(vec![
+            "foo", "bar", "baz", "bar", "baz", "foo",
+        ]));
+        let int_array: ArrayRef = Arc::new(Int64Array::from(vec![1, 2, 2, 3, 3, 4]));
+        let uint_array: ArrayRef = Arc::new(UInt64Array::from(vec![11, 22, 22, 33, 33, 44]));
+        let float_array: ArrayRef =
+            Arc::new(Float64Array::from(vec![10.1, 20.1, 21.1, 30.1, 31.1, 40.1]));
+        let bool_array: ArrayRef = Arc::new(BooleanArray::from(vec![
+            true, false, false, true, true, false,
+        ]));
 
-        let timestamp_array: ArrayRef =
-            Arc::new(TimestampNanosecondArray::from(vec![1000, 2000, 3000, 4000]));
+        let timestamp_array: ArrayRef = Arc::new(TimestampNanosecondArray::from(vec![
+            1000, 2000, 3000, 4000, 5000, 6000,
+        ]));
 
         RecordBatch::try_from_iter_with_nullable(vec![
             ("string_field", string_array, true),

@@ -1,7 +1,7 @@
 //! This module contains the native Rust version of the Data frames
 //! that are sent back in the storage gRPC format.
 
-use std::{convert::TryFrom, fmt, sync::Arc};
+use std::{fmt, sync::Arc};
 
 use arrow::{
     array::{
@@ -59,6 +59,16 @@ pub struct Series {
 }
 
 impl Series {
+    pub fn num_batches(&self) -> usize {
+        match &self.data {
+            Data::FloatPoints(batches) => batches.len(),
+            Data::IntegerPoints(batches) => batches.len(),
+            Data::UnsignedPoints(batches) => batches.len(),
+            Data::BooleanPoints(batches) => batches.len(),
+            Data::StringPoints(batches) => batches.len(),
+        }
+    }
+
     /// Memory usage in bytes, including `self`.
     pub fn size(&self) -> usize {
         std::mem::size_of_val(self)
@@ -93,109 +103,43 @@ impl fmt::Display for Series {
 /// Typed data for a particular timeseries
 #[derive(Clone, Debug)]
 pub enum Data {
-    FloatPoints {
-        timestamps: Vec<i64>,
-        values: Vec<f64>,
-    },
-
-    IntegerPoints {
-        timestamps: Vec<i64>,
-        values: Vec<i64>,
-    },
-
-    UnsignedPoints {
-        timestamps: Vec<i64>,
-        values: Vec<u64>,
-    },
-
-    BooleanPoints {
-        timestamps: Vec<i64>,
-        values: Vec<bool>,
-    },
-
-    StringPoints {
-        timestamps: Vec<i64>,
-        values: Vec<String>,
-    },
+    FloatPoints(Vec<Batch<f64>>),
+    IntegerPoints(Vec<Batch<i64>>),
+    UnsignedPoints(Vec<Batch<u64>>),
+    BooleanPoints(Vec<Batch<bool>>),
+    StringPoints(Vec<Batch<String>>),
 }
 
 impl Data {
     /// Memory usage in bytes, including `self`.
     pub fn size(&self) -> usize {
-        std::mem::size_of_val(self)
-            + match self {
-                Self::FloatPoints { timestamps, values } => {
-                    primitive_vec_size(timestamps) + primitive_vec_size(values)
-                }
-                Self::IntegerPoints { timestamps, values } => {
-                    primitive_vec_size(timestamps) + primitive_vec_size(values)
-                }
-                Self::UnsignedPoints { timestamps, values } => {
-                    primitive_vec_size(timestamps) + primitive_vec_size(values)
-                }
-                Self::BooleanPoints { timestamps, values } => {
-                    primitive_vec_size(timestamps) + primitive_vec_size(values)
-                }
-                Self::StringPoints { timestamps, values } => {
-                    primitive_vec_size(timestamps) + primitive_vec_size(values)
-                }
-            }
+        let data_sz: usize = match self {
+            Self::FloatPoints(points_vec) => points_vec.iter().map(|ps| ps.size()).sum(),
+            Self::IntegerPoints(points_vec) => points_vec.iter().map(|ps| ps.size()).sum(),
+            Self::UnsignedPoints(points_vec) => points_vec.iter().map(|ps| ps.size()).sum(),
+            Self::BooleanPoints(points_vec) => points_vec.iter().map(|ps| ps.size()).sum(),
+            Self::StringPoints(points_vec) => points_vec.iter().map(|ps| ps.size()).sum(),
+        };
+        std::mem::size_of_val(self) + data_sz
     }
 }
 
 impl PartialEq for Data {
     fn eq(&self, other: &Self) -> bool {
         match (self, other) {
-            (
-                Self::FloatPoints {
-                    timestamps: l_timestamps,
-                    values: l_values,
-                },
-                Self::FloatPoints {
-                    timestamps: r_timestamps,
-                    values: r_values,
-                },
-            ) => l_timestamps == r_timestamps && l_values == r_values,
-            (
-                Self::IntegerPoints {
-                    timestamps: l_timestamps,
-                    values: l_values,
-                },
-                Self::IntegerPoints {
-                    timestamps: r_timestamps,
-                    values: r_values,
-                },
-            ) => l_timestamps == r_timestamps && l_values == r_values,
-            (
-                Self::UnsignedPoints {
-                    timestamps: l_timestamps,
-                    values: l_values,
-                },
-                Self::UnsignedPoints {
-                    timestamps: r_timestamps,
-                    values: r_values,
-                },
-            ) => l_timestamps == r_timestamps && l_values == r_values,
-            (
-                Self::BooleanPoints {
-                    timestamps: l_timestamps,
-                    values: l_values,
-                },
-                Self::BooleanPoints {
-                    timestamps: r_timestamps,
-                    values: r_values,
-                },
-            ) => l_timestamps == r_timestamps && l_values == r_values,
-            (
-                Self::StringPoints {
-                    timestamps: l_timestamps,
-                    values: l_values,
-                },
-                Self::StringPoints {
-                    timestamps: r_timestamps,
-                    values: r_values,
-                },
-            ) => l_timestamps == r_timestamps && l_values == r_values,
+            (Self::FloatPoints(l_batches), Self::FloatPoints(r_batches)) => l_batches == r_batches,
+            (Self::IntegerPoints(l_batches), Self::IntegerPoints(r_batches)) => {
+                l_batches == r_batches
+            }
+            (Self::UnsignedPoints(l_batches), Self::UnsignedPoints(r_batches)) => {
+                l_batches == r_batches
+            }
+            (Self::BooleanPoints(l_batches), Self::BooleanPoints(r_batches)) => {
+                l_batches == r_batches
+            }
+            (Self::StringPoints(l_batches), Self::StringPoints(r_batches)) => {
+                l_batches == r_batches
+            }
             _ => false,
         }
     }
@@ -211,41 +155,26 @@ fn primitive_vec_size<T>(vec: &Vec<T>) -> usize {
 impl fmt::Display for Data {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
-            Self::FloatPoints { timestamps, values } => write!(
-                f,
-                "FloatPoints timestamps: {timestamps:?}, values: {values:?}"
-            ),
-            Self::IntegerPoints { timestamps, values } => write!(
-                f,
-                "IntegerPoints timestamps: {timestamps:?}, values: {values:?}"
-            ),
-            Self::UnsignedPoints { timestamps, values } => write!(
-                f,
-                "UnsignedPoints timestamps: {timestamps:?}, values: {values:?}"
-            ),
-            Self::BooleanPoints { timestamps, values } => write!(
-                f,
-                "BooleanPoints timestamps: {timestamps:?}, values: {values:?}"
-            ),
-            Self::StringPoints { timestamps, values } => write!(
-                f,
-                "StringPoints timestamps: {timestamps:?}, values: {values:?}"
-            ),
+            Self::FloatPoints(batches) => write!(f, "FloatPoints batches: {batches:?}"),
+            Self::IntegerPoints(batches) => write!(f, "IntegerPoints batches: {batches:?}"),
+            Self::UnsignedPoints(batches) => write!(f, "UnsignedPoints batches: {batches:?}"),
+            Self::BooleanPoints(batches) => write!(f, "BooleanPoints batches: {batches:?}"),
+            Self::StringPoints(batches) => write!(f, "StringPoints batches: {batches:?}"),
         }
     }
 }
 
-impl TryFrom<SeriesSet> for Vec<Series> {
-    type Error = Error;
+#[derive(Clone, Debug, PartialEq)]
+pub struct Batch<T> {
+    pub timestamps: Vec<i64>,
+    pub values: Vec<T>,
+}
 
-    /// Converts a particular SeriesSet into a Vec of Series. Note the
-    /// order is important
-    fn try_from(value: SeriesSet) -> Result<Self, Self::Error> {
-        value
-            .field_indexes
-            .iter()
-            .filter_map(|index| value.field_to_series(index).transpose())
-            .collect()
+impl<T> Batch<T> {
+    fn size(&self) -> usize {
+        std::mem::size_of_val(self)
+            + primitive_vec_size(&self.timestamps)
+            + primitive_vec_size(&self.values)
     }
 }
 
@@ -263,9 +192,16 @@ impl SeriesSet {
         })
     }
 
+    pub fn try_into_series(self, batch_size: usize) -> Result<Vec<Series>> {
+        self.field_indexes
+            .iter()
+            .filter_map(|index| self.field_to_series(index, batch_size).transpose())
+            .collect()
+    }
+
     // Convert and append the values from a single field to a Series
     // appended to `frames`
-    fn field_to_series(&self, index: &FieldIndex) -> Result<Option<Series>> {
+    fn field_to_series(&self, index: &FieldIndex, batch_size: usize) -> Result<Option<Series>> {
         let batch = self.batch.slice(self.start_row, self.num_rows);
         let schema = batch.schema();
 
@@ -288,59 +224,49 @@ impl SeriesSet {
         .as_any()
         .downcast_ref::<TimestampNanosecondArray>()
         .unwrap()
-        .extract_values();
+        .extract_batched_values(batch_size);
         timestamps.shrink_to_fit();
 
         let data = match array.data_type() {
             ArrowDataType::Utf8 => {
-                let mut values = array
+                let values = array
                     .as_any()
                     .downcast_ref::<StringArray>()
                     .unwrap()
-                    .extract_values();
-                values.shrink_to_fit();
-
-                Data::StringPoints { timestamps, values }
+                    .extract_batched_values(batch_size);
+                Data::StringPoints(build_batches(timestamps, values))
             }
             ArrowDataType::Float64 => {
-                let mut values = array
+                let values = array
                     .as_any()
                     .downcast_ref::<Float64Array>()
                     .unwrap()
-                    .extract_values();
-                values.shrink_to_fit();
-
-                Data::FloatPoints { timestamps, values }
+                    .extract_batched_values(batch_size);
+                Data::FloatPoints(build_batches(timestamps, values))
             }
             ArrowDataType::Int64 => {
-                let mut values = array
+                let values = array
                     .as_any()
                     .downcast_ref::<Int64Array>()
                     .unwrap()
-                    .extract_values();
-                values.shrink_to_fit();
-
-                Data::IntegerPoints { timestamps, values }
+                    .extract_batched_values(batch_size);
+                Data::IntegerPoints(build_batches(timestamps, values))
             }
             ArrowDataType::UInt64 => {
-                let mut values = array
+                let values = array
                     .as_any()
                     .downcast_ref::<UInt64Array>()
                     .unwrap()
-                    .extract_values();
-                values.shrink_to_fit();
-
-                Data::UnsignedPoints { timestamps, values }
+                    .extract_batched_values(batch_size);
+                Data::UnsignedPoints(build_batches(timestamps, values))
             }
             ArrowDataType::Boolean => {
-                let mut values = array
+                let values = array
                     .as_any()
                     .downcast_ref::<BooleanArray>()
                     .unwrap()
-                    .extract_values();
-                values.shrink_to_fit();
-
-                Data::BooleanPoints { timestamps, values }
+                    .extract_batched_values(batch_size);
+                Data::BooleanPoints(build_batches(timestamps, values))
             }
             _ => {
                 return UnsupportedDataTypeSnafu {
@@ -383,6 +309,15 @@ impl SeriesSet {
             .map(|(key, value)| Tag { key, value })
             .collect()
     }
+}
+
+/// Zip together nested vectors of timestamps and values to create batches of points
+fn build_batches<T>(timestamps: Vec<Vec<i64>>, values: Vec<Vec<T>>) -> Vec<Batch<T>> {
+    timestamps
+        .into_iter()
+        .zip(values.into_iter())
+        .map(|(timestamps, values)| Batch { timestamps, values })
+        .collect()
 }
 
 /// Represents a group of `Series`
@@ -452,58 +387,84 @@ fn fmt_strings(f: &mut fmt::Formatter<'_>, strings: &[Arc<str>]) -> fmt::Result 
     })
 }
 
-trait ExtractValues<T> {
+trait ExtractBatchedValues<T> {
     /// Extracts rows as a vector,
     /// for all rows `i` where `valid[i]` is set
-    fn extract_values(&self) -> Vec<T>;
+    fn extract_batched_values(&self, batch_size: usize) -> Vec<Vec<T>>;
 }
 
-/// Implements extract_values for a particular type of array that
-macro_rules! extract_values_impl {
+/// Implements extract_batched_values for Arrow arrays.
+macro_rules! extract_batched_values_impl {
     ($DATA_TYPE:ty) => {
-        fn extract_values(&self) -> Vec<$DATA_TYPE> {
-            self.iter().flatten().collect()
+        extract_batched_values_impl! { $DATA_TYPE, identity }
+    };
+    ($DATA_TYPE:ty, $ITER_ADAPTER:expr) => {
+        fn extract_batched_values(&self, batch_size: usize) -> Vec<Vec<$DATA_TYPE>> {
+            let num_batches = 1 + self.len() / batch_size;
+            let mut batches = Vec::with_capacity(num_batches);
+
+            let mut v = Vec::with_capacity(batch_size);
+            for e in $ITER_ADAPTER(self.iter().flatten()) {
+                if v.len() >= batch_size {
+                    batches.push(v);
+                    v = Vec::with_capacity(batch_size);
+                }
+                v.push(e);
+            }
+            if !v.is_empty() {
+                v.shrink_to_fit();
+                batches.push(v);
+            }
+            batches.shrink_to_fit();
+            batches
         }
     };
 }
 
-impl ExtractValues<String> for StringArray {
-    fn extract_values(&self) -> Vec<String> {
-        self.iter().flatten().map(str::to_string).collect()
-    }
+fn identity<T>(t: T) -> T {
+    t
 }
 
-impl ExtractValues<i64> for Int64Array {
-    extract_values_impl! {i64}
+fn to_owned_string<'a, I>(i: I) -> impl Iterator<Item = String>
+where
+    I: Iterator<Item = &'a str>,
+{
+    i.map(str::to_string)
 }
 
-impl ExtractValues<u64> for UInt64Array {
-    extract_values_impl! {u64}
+impl ExtractBatchedValues<String> for StringArray {
+    extract_batched_values_impl! { String,  to_owned_string }
 }
 
-impl ExtractValues<f64> for Float64Array {
-    extract_values_impl! {f64}
+impl ExtractBatchedValues<i64> for Int64Array {
+    extract_batched_values_impl! {i64}
 }
 
-impl ExtractValues<bool> for BooleanArray {
-    extract_values_impl! {bool}
+impl ExtractBatchedValues<u64> for UInt64Array {
+    extract_batched_values_impl! {u64}
 }
 
-impl ExtractValues<i64> for TimestampNanosecondArray {
-    extract_values_impl! {i64}
+impl ExtractBatchedValues<f64> for Float64Array {
+    extract_batched_values_impl! {f64}
+}
+
+impl ExtractBatchedValues<bool> for BooleanArray {
+    extract_batched_values_impl! {bool}
+}
+
+impl ExtractBatchedValues<i64> for TimestampNanosecondArray {
+    extract_batched_values_impl! {i64}
 }
 
 #[cfg(test)]
 mod tests {
-    use std::convert::TryInto;
-
     use crate::exec::field::FieldIndexes;
-    use arrow::record_batch::RecordBatch;
+    use arrow::{compute::concat_batches, record_batch::RecordBatch};
 
     use super::*;
 
-    fn series_set_to_series_strings(series_set: SeriesSet) -> Vec<String> {
-        let series: Vec<Series> = series_set.try_into().unwrap();
+    fn series_set_to_series_strings(series_set: SeriesSet, batch_size: usize) -> Vec<String> {
+        let series: Vec<Series> = series_set.try_into_series(batch_size).unwrap();
 
         let series: Vec<String> = series.into_iter().map(|s| s.to_string()).collect();
 
@@ -521,23 +482,23 @@ mod tests {
             tags: vec![(Arc::from("tag1"), Arc::from("val1"))],
             field_indexes: FieldIndexes::from_timestamp_and_value_indexes(5, &[0, 1, 2, 3, 4]),
             start_row: 1,
-            num_rows: 2,
+            num_rows: 4,
             batch: make_record_batch(),
         };
 
-        let series_strings = series_set_to_series_strings(series_set);
+        let series_strings = series_set_to_series_strings(series_set, 3);
 
         let expected = vec![
             "Series tags={_field=string_field, _measurement=the_table, tag1=val1}",
-            "  StringPoints timestamps: [2000, 3000], values: [\"bar\", \"baz\"]",
+            "  StringPoints batches: [Batch { timestamps: [2000, 3000, 4000], values: [\"bar\", \"baz\", \"bar\"] }, Batch { timestamps: [5000], values: [\"baz\"] }]",
             "Series tags={_field=int_field, _measurement=the_table, tag1=val1}",
-            "  IntegerPoints timestamps: [2000, 3000], values: [2, 3]",
+            "  IntegerPoints batches: [Batch { timestamps: [2000, 3000, 4000], values: [2, 3, 4] }, Batch { timestamps: [5000], values: [5] }]",
             "Series tags={_field=uint_field, _measurement=the_table, tag1=val1}",
-            "  UnsignedPoints timestamps: [2000, 3000], values: [22, 33]",
+            "  UnsignedPoints batches: [Batch { timestamps: [2000, 3000, 4000], values: [22, 33, 44] }, Batch { timestamps: [5000], values: [55] }]",
             "Series tags={_field=float_field, _measurement=the_table, tag1=val1}",
-            "  FloatPoints timestamps: [2000, 3000], values: [20.1, 30.1]",
+            "  FloatPoints batches: [Batch { timestamps: [2000, 3000, 4000], values: [20.1, 30.1, 40.1] }, Batch { timestamps: [5000], values: [50.1] }]",
             "Series tags={_field=boolean_field, _measurement=the_table, tag1=val1}",
-            "  BooleanPoints timestamps: [2000, 3000], values: [false, true]",
+            "  BooleanPoints batches: [Batch { timestamps: [2000, 3000, 4000], values: [false, true, false] }, Batch { timestamps: [5000], values: [true] }]",
         ];
 
         assert_eq!(
@@ -570,13 +531,13 @@ mod tests {
             batch,
         };
 
-        let series_strings = series_set_to_series_strings(series_set);
+        let series_strings = series_set_to_series_strings(series_set, 100);
 
         // expect  CAPITAL_TAG is before `_field` and `_measurement` tags
         // (as that is the correct lexicographical ordering)
         let expected = vec![
             "Series tags={CAPITAL_TAG=the_value, _field=string_field1, _measurement=the_table, tag1=val1}",
-            "  StringPoints timestamps: [2, 3], values: [\"bar\", \"baz\"]",
+            "  StringPoints batches: [Batch { timestamps: [2, 3], values: [\"bar\", \"baz\"] }]",
         ];
 
         assert_eq!(
@@ -610,13 +571,13 @@ mod tests {
             batch,
         };
 
-        let series_strings = series_set_to_series_strings(series_set);
+        let series_strings = series_set_to_series_strings(series_set, 100);
 
         let expected = vec![
             "Series tags={_field=string_field2, _measurement=the_table, tag1=val1}",
-            "  StringPoints timestamps: [4, 5], values: [\"far\", \"faz\"]",
+            "  StringPoints batches: [Batch { timestamps: [4, 5], values: [\"far\", \"faz\"] }]",
             "Series tags={_field=string_field1, _measurement=the_table, tag1=val1}",
-            "  StringPoints timestamps: [2, 3], values: [\"bar\", \"baz\"]",
+            "  StringPoints batches: [Batch { timestamps: [2, 3], values: [\"bar\", \"baz\"] }]",
         ];
 
         assert_eq!(
@@ -654,16 +615,39 @@ mod tests {
             field_indexes: FieldIndexes::from_timestamp_and_value_indexes(3, &[1, 2]),
             start_row: 0,
             num_rows: batch.num_rows(),
-            batch,
+            batch: batch.clone(),
         };
 
         // Expect only a single series (for the data in float_field, int_field is all
         // nulls)
-        let series_strings = series_set_to_series_strings(series_set);
+        let series_strings = series_set_to_series_strings(series_set, 100);
 
         let expected = vec![
             "Series tags={_field=float_field, _measurement=the_table, state=MA}",
-            "  FloatPoints timestamps: [1000, 2000, 4000], values: [10.1, 20.1, 40.1]",
+            "  FloatPoints batches: [Batch { timestamps: [1000, 2000, 4000], values: [10.1, 20.1, 40.1] }]",
+        ];
+
+        assert_eq!(
+            series_strings, expected,
+            "Expected:\n{expected:#?}\nActual:\n{series_strings:#?}"
+        );
+
+        // Multi-batch case
+        // We can just append record batches here because the tag field does not change
+        let batch = repeat_batch(3, &batch);
+        let series_set = SeriesSet {
+            table_name: Arc::from("the_table"),
+            tags: vec![(Arc::from("state"), Arc::from("MA"))],
+            field_indexes: FieldIndexes::from_timestamp_and_value_indexes(3, &[1, 2]),
+            start_row: 0,
+            num_rows: batch.num_rows(),
+            batch,
+        };
+
+        let series_strings = series_set_to_series_strings(series_set, 4);
+        let expected = vec![
+            "Series tags={_field=float_field, _measurement=the_table, state=MA}",
+            "  FloatPoints batches: [Batch { timestamps: [1000, 2000, 4000, 1000], values: [10.1, 20.1, 40.1, 10.1] }, Batch { timestamps: [2000, 4000, 1000, 2000], values: [20.1, 40.1, 10.1, 20.1] }, Batch { timestamps: [4000], values: [40.1] }]",
         ];
 
         assert_eq!(
@@ -701,24 +685,58 @@ mod tests {
             field_indexes: FieldIndexes::from_timestamp_and_value_indexes(6, &[1, 2, 3, 4, 5]),
             start_row: 0,
             num_rows: batch.num_rows(),
-            batch,
+            batch: batch.clone(),
         };
 
         // Expect only a single series (for the data in float_field, int_field is all
         // nulls)
-        let series_strings = series_set_to_series_strings(series_set);
+        let series_strings = series_set_to_series_strings(series_set, 100);
 
         let expected = vec![
             "Series tags={_field=string_field, _measurement=the_table, state=MA}",
-            "  StringPoints timestamps: [2000], values: [\"foo\"]",
+            "  StringPoints batches: [Batch { timestamps: [2000], values: [\"foo\"] }]",
             "Series tags={_field=float_field, _measurement=the_table, state=MA}",
-            "  FloatPoints timestamps: [2000], values: [1.0]",
+            "  FloatPoints batches: [Batch { timestamps: [2000], values: [1.0] }]",
             "Series tags={_field=int_field, _measurement=the_table, state=MA}",
-            "  IntegerPoints timestamps: [2000], values: [-10]",
+            "  IntegerPoints batches: [Batch { timestamps: [2000], values: [-10] }]",
             "Series tags={_field=uint_field, _measurement=the_table, state=MA}",
-            "  UnsignedPoints timestamps: [2000], values: [100]",
+            "  UnsignedPoints batches: [Batch { timestamps: [2000], values: [100] }]",
             "Series tags={_field=bool_field, _measurement=the_table, state=MA}",
-            "  BooleanPoints timestamps: [2000], values: [true]",
+            "  BooleanPoints batches: [Batch { timestamps: [2000], values: [true] }]",
+        ];
+
+        assert_eq!(
+            series_strings, expected,
+            "Expected:\n{expected:#?}\nActual:\n{series_strings:#?}"
+        );
+
+        // multi-batch case
+
+        // the tag columns have just a single value so we can just repeat the original batch to
+        // generate more rows
+        let batch = repeat_batch(4, &batch);
+        let series_set = SeriesSet {
+            table_name: Arc::from("the_table"),
+            tags: vec![(Arc::from("state"), Arc::from("MA"))],
+            field_indexes: FieldIndexes::from_timestamp_and_value_indexes(6, &[1, 2, 3, 4, 5]),
+            start_row: 0,
+            num_rows: batch.num_rows(),
+            batch,
+        };
+
+        let series_strings = series_set_to_series_strings(series_set, 3);
+
+        let expected = vec![
+            "Series tags={_field=string_field, _measurement=the_table, state=MA}",
+            "  StringPoints batches: [Batch { timestamps: [2000, 2000, 2000], values: [\"foo\", \"foo\", \"foo\"] }, Batch { timestamps: [2000], values: [\"foo\"] }]",
+            "Series tags={_field=float_field, _measurement=the_table, state=MA}",
+            "  FloatPoints batches: [Batch { timestamps: [2000, 2000, 2000], values: [1.0, 1.0, 1.0] }, Batch { timestamps: [2000], values: [1.0] }]",
+            "Series tags={_field=int_field, _measurement=the_table, state=MA}",
+            "  IntegerPoints batches: [Batch { timestamps: [2000, 2000, 2000], values: [-10, -10, -10] }, Batch { timestamps: [2000], values: [-10] }]",
+            "Series tags={_field=uint_field, _measurement=the_table, state=MA}",
+            "  UnsignedPoints batches: [Batch { timestamps: [2000, 2000, 2000], values: [100, 100, 100] }, Batch { timestamps: [2000], values: [100] }]",
+            "Series tags={_field=bool_field, _measurement=the_table, state=MA}",
+            "  BooleanPoints batches: [Batch { timestamps: [2000, 2000, 2000], values: [true, true, true] }, Batch { timestamps: [2000], values: [true] }]",
         ];
 
         assert_eq!(
@@ -728,14 +746,20 @@ mod tests {
     }
 
     fn make_record_batch() -> RecordBatch {
-        let string_array: ArrayRef = Arc::new(StringArray::from(vec!["foo", "bar", "baz", "foo"]));
-        let int_array: ArrayRef = Arc::new(Int64Array::from(vec![1, 2, 3, 4]));
-        let uint_array: ArrayRef = Arc::new(UInt64Array::from(vec![11, 22, 33, 44]));
-        let float_array: ArrayRef = Arc::new(Float64Array::from(vec![10.1, 20.1, 30.1, 40.1]));
-        let bool_array: ArrayRef = Arc::new(BooleanArray::from(vec![true, false, true, false]));
+        let string_array: ArrayRef = Arc::new(StringArray::from(vec![
+            "foo", "bar", "baz", "bar", "baz", "foo",
+        ]));
+        let int_array: ArrayRef = Arc::new(Int64Array::from(vec![1, 2, 3, 4, 5, 6]));
+        let uint_array: ArrayRef = Arc::new(UInt64Array::from(vec![11, 22, 33, 44, 55, 66]));
+        let float_array: ArrayRef =
+            Arc::new(Float64Array::from(vec![10.1, 20.1, 30.1, 40.1, 50.1, 60.1]));
+        let bool_array: ArrayRef = Arc::new(BooleanArray::from(vec![
+            true, false, true, false, true, false,
+        ]));
 
-        let timestamp_array: ArrayRef =
-            Arc::new(TimestampNanosecondArray::from(vec![1000, 2000, 3000, 4000]));
+        let timestamp_array: ArrayRef = Arc::new(TimestampNanosecondArray::from(vec![
+            1000, 2000, 3000, 4000, 5000, 6000,
+        ]));
 
         RecordBatch::try_from_iter_with_nullable(vec![
             ("string_field", string_array, true),
@@ -746,5 +770,9 @@ mod tests {
             ("time", timestamp_array, true),
         ])
         .expect("created new record batch")
+    }
+
+    fn repeat_batch(count: usize, rb: &RecordBatch) -> RecordBatch {
+        concat_batches(&rb.schema(), std::iter::repeat(rb).take(count)).unwrap()
     }
 }
