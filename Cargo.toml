@@ -115,7 +115,6 @@ license = "MIT OR Apache-2.0"
 [workspace.dependencies]
 arrow = { version = "38.0.0" }
 arrow-flight = { version = "38.0.0" }
-chrono-english = { git = "https://github.com/stevedonovan/chrono-english.git", rev = "def5941ebee24b55e1174eb18ab33d91603f907a" }
 datafusion = { git = "https://github.com/apache/arrow-datafusion.git", rev="451e81eafe5e404de50f6ede1bebf25ed90f5eb0", default-features = false }
 datafusion-proto = { git = "https://github.com/apache/arrow-datafusion.git", rev="451e81eafe5e404de50f6ede1bebf25ed90f5eb0" }
 hashbrown = { version = "0.13.2" }
@@ -124,8 +123,6 @@ tonic = { version = "0.9.2", features = ["tls", "tls-webpki-roots"] }
 tonic-build = { version = "0.9.2" }
 tonic-health = { version = "0.9.2" }
 tonic-reflection = { version = "0.9.2" }
-
-
 
 # This profile optimizes for runtime performance and small binary size at the expense of longer
 # build times. It's most suitable for final release builds.

@@ -800,15 +800,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "chrono-english"
-version = "0.1.6"
-source = "git+https://github.com/stevedonovan/chrono-english.git?rev=def5941ebee24b55e1174eb18ab33d91603f907a#def5941ebee24b55e1174eb18ab33d91603f907a"
-dependencies = [
- "chrono",
- "scanlex",
-]
-
-[[package]]
 name = "chrono-tz"
 version = "0.8.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -2865,7 +2856,6 @@ version = "0.1.0"
 dependencies = [
  "bytes",
  "chrono",
- "chrono-english",
  "clap 4.2.5",
  "criterion",
  "datafusion_util",
@@ -4911,12 +4901,6 @@ checksum = "93fc1dc3aaa9bfed95e02e6eadabb4baf7e3078b0bd1b4d7b6b0b68378900502"
 dependencies = [
  "winapi-util",
 ]
-
-[[package]]
-name = "scanlex"
-version = "0.1.4"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "088c5d71572124929ea7549a8ce98e1a6fd33d0a38367b09027b382e67c033db"
 
 [[package]]
 name = "schema"
