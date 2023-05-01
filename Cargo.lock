@@ -522,6 +522,7 @@ dependencies = [
  "iox_time",
  "metric",
  "observability_deps",
+ "parking_lot 0.12.1",
  "paste",
  "snafu",
  "test_helpers_end_to_end",

@@ -64,61 +64,48 @@ where
     }
 }
 
+#[cfg(test)]
 mod test {
+    use std::collections::VecDeque;
+
     use metric::{Attributes, Registry};
+    use parking_lot::Mutex;
 
     use super::*;
     use crate::{Action, Resource};
 
-    enum IoxAuthPermissions {
-        Good,
-        Err,
-        NoPerms,
-    }
-    impl From<IoxAuthPermissions> for Vec<u8> {
-        fn from(value: IoxAuthPermissions) -> Self {
-            match value {
-                IoxAuthPermissions::Good => b"GOOD".to_vec(),
-                IoxAuthPermissions::NoPerms => b"IoxAuthReturnsOkWithNoPerms".to_vec(),
-                IoxAuthPermissions::Err => b"IoxAuthReturnsErr".to_vec(),
-            }
-        }
-    }
-    impl TryFrom<Vec<u8>> for IoxAuthPermissions {
-        type Error = ();
-        fn try_from(value: Vec<u8>) -> Result<Self, Self::Error> {
-            match value.as_slice() {
-                b"GOOD" => Ok(Self::Good),
-                b"IoxAuthReturnsOkWithNoPerms" => Ok(Self::NoPerms),
-                b"IoxAuthReturnsErr" => Ok(Self::Err),
-                _ => Err(()),
-            }
-        }
+    #[derive(Debug, Default)]
+    struct MockAuthorizerState {
+        ret: VecDeque<Result<Vec<Permission>, Error>>,
     }
 
     #[derive(Debug, Default)]
-    struct MockAuthorizer;
+    struct MockAuthorizer {
+        state: Mutex<MockAuthorizerState>,
+    }
+
+    impl MockAuthorizer {
+        pub(crate) fn with_permissions_return(
+            self,
+            ret: impl Into<VecDeque<Result<Vec<Permission>, Error>>>,
+        ) -> Self {
+            self.state.lock().ret = ret.into();
+            self
+        }
+    }
 
     #[async_trait]
     impl Authorizer for MockAuthorizer {
         async fn permissions(
             &self,
-            token: Option<Vec<u8>>,
+            _token: Option<Vec<u8>>,
             _perms: &[Permission],
         ) -> Result<Vec<Permission>, Error> {
-            match token {
-                Some(token) => match IoxAuthPermissions::try_from(token) {
-                    Ok(IoxAuthPermissions::Good) => Ok(vec![Permission::ResourceAction(
-                        Resource::Database("foo".to_string()),
-                        Action::Write,
-                    )]),
-                    Ok(IoxAuthPermissions::NoPerms) => Ok(vec![]),
-                    Ok(IoxAuthPermissions::Err) | Err(_) => {
-                        Err(Error::verification("test", "test error"))
-                    }
-                },
-                None => Err(Error::NoToken),
-            }
+            self.state
+                .lock()
+                .ret
+                .pop_front()
+                .expect("no mock sink value to return")
         }
     }
 
@@ -152,61 +139,89 @@ mod test {
     #[tokio::test]
     async fn test_authz_metric_record_for_all_exposed_interfaces() {
         let metrics = Registry::default();
-        let decorated_authz = AuthorizerInstrumentation::new(&metrics, MockAuthorizer::default());
+        let decorated_authz = AuthorizerInstrumentation::new(
+            &metrics,
+            MockAuthorizer::default().with_permissions_return([
+                Ok(vec![]),
+                Ok(vec![Permission::ResourceAction(
+                    Resource::Database("foo".to_string()),
+                    Action::Write,
+                )]),
+            ]),
+        );
 
-        let token_good: Vec<u8> = IoxAuthPermissions::Good.into();
-        let got = decorated_authz
-            .permissions(Some(token_good.clone()), &[])
-            .await;
+        let any_token = Some(vec![]);
+
+        let got = decorated_authz.permissions(any_token.clone(), &[]).await;
         assert!(got.is_ok());
         assert!(
             assert_metric_counts(&metrics, 1, 0),
             "Authorizer::permissions() calls are recorded"
         );
 
-        let got = decorated_authz
-            .require_any_permission(Some(token_good), &[])
-            .await;
+        let got = decorated_authz.require_any_permission(any_token, &[]).await;
         assert!(got.is_ok());
         assert!(
             assert_metric_counts(&metrics, 2, 0),
             "Authorizer::require_any_permission() calls are recorded"
         );
-
-        let token_err_perms: Vec<u8> = IoxAuthPermissions::Err.into();
-        let err = decorated_authz
-            .require_any_permission(Some(token_err_perms), &[])
-            .await;
-        assert!(err.is_err());
-        assert!(assert_metric_counts(&metrics, 2, 1), "errors are recorded");
     }
 
-    #[tokio::test]
-    async fn test_metric_records_only_rpc_errors() {
-        let metrics = Registry::default();
-        let decorated_authz = AuthorizerInstrumentation::new(&metrics, MockAuthorizer::default());
+    macro_rules! test_authorizer_metric {
+        (
+            $name:ident,
+            $rpc_response:expr,
+            $will_pass_auth:expr,
+            $expected_success_cnt:expr,
+            $expected_error_cnt:expr,
+        ) => {
+            paste::paste! {
+                #[tokio::test]
+                async fn [<test_authorizer_metric_ $name>]() {
+                    let metrics = Registry::default();
+                    let decorated_authz = AuthorizerInstrumentation::new(
+                        &metrics,
+                        MockAuthorizer::default().with_permissions_return([$rpc_response])
+                    );
 
-        let token_err_rpc: Vec<u8> = IoxAuthPermissions::Err.into();
-        let err = decorated_authz
-            .require_any_permission(Some(token_err_rpc), &[])
-            .await;
-        assert!(err.is_err());
-        assert!(
-            assert_metric_counts(&metrics, 0, 1),
-            "rpc errors are recorded"
-        );
-
-        let token_rpc_fine_only_missing_perms: Vec<u8> = IoxAuthPermissions::NoPerms.into();
-        let err = decorated_authz
-            .require_any_permission(Some(token_rpc_fine_only_missing_perms), &[])
-            .await;
-        assert!(
-            err.is_err(),
-            "post-rpc check of permission, should return error"
-        );
-        assert!(
-            assert_metric_counts(&metrics, 1, 1),
-            "no rpc error recorded"
-        );
+                    let token = "any".as_bytes().to_vec();
+                    let got = decorated_authz
+                        .require_any_permission(Some(token), &[])
+                        .await;
+                    assert_eq!(got.is_ok(), $will_pass_auth);
+                    assert!(
+                        assert_metric_counts(&metrics, $expected_success_cnt, $expected_error_cnt),
+                        "rpc errors are recorded"
+                    );
+                }
+            }
+        };
     }
+
+    test_authorizer_metric!(
+        ok,
+        Ok(vec![Permission::ResourceAction(
+            Resource::Database("foo".to_string()),
+            Action::Write,
+        )]),
+        true,
+        1,
+        0,
+    );
+
+    test_authorizer_metric!(
+        will_record_failure_if_rpc_fails,
+        Err(Error::verification("test", "test error")),
+        false,
+        0,
+        1,
+    );
+
+    test_authorizer_metric!(
+        will_record_success_if_rpc_pass_but_auth_fails,
+        Ok(vec![]),
+        false,
+        1,
+        0,
+    );
 }
