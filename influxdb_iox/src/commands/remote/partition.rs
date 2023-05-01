@@ -74,7 +74,7 @@ pub struct Config {
 /// Show the parqet_files of a partition
 #[derive(Debug, clap::Parser)]
 struct Show {
-    /// The id of the partition
+    /// The id of the partition. If not specified, all parquet files are shown
     #[clap(action)]
     id: i64,
 }
