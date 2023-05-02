@@ -10,20 +10,6 @@
 //! # WAL
 //!
 //! This crate provides a local-disk WAL for the IOx ingestion pipeline.
-
-use crate::blocking::{
-    ClosedSegmentFileReader as RawClosedSegmentFileReader, OpenSegmentFileWriter,
-};
-use data_types::sequence_number_set::SequenceNumberSet;
-use generated_types::{
-    google::{FieldViolation, OptionalField},
-    influxdata::iox::wal::v1::{
-        sequenced_wal_op::Op as WalOp, SequencedWalOp as ProtoSequencedWalOp,
-    },
-};
-use observability_deps::tracing::info;
-use parking_lot::Mutex;
-use snafu::prelude::*;
 use std::{
     collections::BTreeMap,
     fs::File,
@@ -32,8 +18,26 @@ use std::{
     sync::{atomic::AtomicU64, Arc},
     time::Duration,
 };
+
+use data_types::{sequence_number_set::SequenceNumberSet, NamespaceId};
+use generated_types::{
+    google::{FieldViolation, OptionalField},
+    influxdata::iox::wal::v1::{
+        sequenced_wal_op::Op as WalOp, SequencedWalOp as ProtoSequencedWalOp,
+    },
+};
+use hashbrown::HashMap;
+use mutable_batch::MutableBatch;
+use mutable_batch_pb::decode::decode_database_batch;
+use observability_deps::tracing::info;
+use parking_lot::Mutex;
+use snafu::prelude::*;
 use tokio::{sync::watch, task::JoinHandle};
 use writer_thread::WriterIoThreadHandle;
+
+use crate::blocking::{
+    ClosedSegmentFileReader as RawClosedSegmentFileReader, OpenSegmentFileWriter,
+};
 
 pub mod blocking;
 mod writer_thread;
@@ -129,6 +133,10 @@ pub enum Error {
 
     UnableToCreateSegmentFile {
         source: blocking::WriterError,
+    },
+
+    UnableToDecodeRecordBatch {
+        source: mutable_batch_pb::decode::Error,
     },
 }
 
@@ -551,6 +559,44 @@ impl std::fmt::Debug for ClosedSegmentFileReader {
         f.debug_struct("ClosedSegmentFileReader")
             .field("id", &self.id)
             .finish()
+    }
+}
+
+#[derive(Debug)]
+pub struct WriteOpEntry {
+    pub namespace: NamespaceId,
+    pub table_batches: HashMap<i64, MutableBatch>,
+}
+
+#[derive(Debug)]
+pub struct WriteOpDecoder {
+    reader: ClosedSegmentFileReader,
+}
+
+impl WriteOpDecoder {
+    pub fn from_closed_segment(reader: ClosedSegmentFileReader) -> Self {
+        Self { reader }
+    }
+
+    pub fn next_write_entry_batch(&mut self) -> Result<Option<Vec<WriteOpEntry>>> {
+        match self.reader.next_batch()? {
+            Some(batch) => Ok(batch
+                .into_iter()
+                .filter_map(|sequenced_op| match sequenced_op.op {
+                    WalOp::Write(w) => Some(w),
+                    _ => None,
+                })
+                .map(|w| -> Result<WriteOpEntry> {
+                    Ok(WriteOpEntry {
+                        namespace: NamespaceId::new(w.database_id),
+                        table_batches: decode_database_batch(&w)
+                            .context(UnableToDecodeRecordBatchSnafu)?,
+                    })
+                })
+                .collect::<Result<Vec<WriteOpEntry>>>()?
+                .into()),
+            None => Ok(None),
+        }
     }
 }
 

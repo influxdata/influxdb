@@ -10,7 +10,7 @@ use influxdb_line_protocol::{builder::FieldValue, FieldValue as LPFieldValue};
 use schema::{InfluxColumnType, InfluxFieldType, Schema};
 
 /// Converts a [`RecordBatch`] into line protocol lines.
-pub(crate) fn convert_to_lines(
+pub fn convert_to_lines(
     measurement_name: &str,
     iox_schema: &Schema,
     batch: &RecordBatch,
