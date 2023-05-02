@@ -216,7 +216,7 @@ mod tests {
         assert!(got.is_err());
 
         let histogram = &metrics
-            .get_instrument::<Metric<DurationHistogram>>("authz_permissions_duration")
+            .get_instrument::<Metric<DurationHistogram>>("authz_permission_check_duration")
             .expect("failed to read metric");
 
         assert_eq!(
