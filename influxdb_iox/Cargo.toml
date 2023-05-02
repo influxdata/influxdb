@@ -50,13 +50,13 @@ bytes = "1.4"
 clap = { version = "4", features = ["derive", "env"] }
 comfy-table = { version = "6.1", default-features = false }
 console-subscriber = { version = "0.1.8", optional = true, features = ["parking_lot"] }
-dirs = "5.0.0"
 dotenvy = "0.15.7"
 futures = "0.3"
 futures-util = { version = "0.3" }
 flate2 = "1.0"
 hashbrown = { workspace = true }
 http = "0.2.9"
+home = "0.5.5"
 humantime = "2.1.0"
 itertools = "0.10.5"
 libc = { version = "0.2" }

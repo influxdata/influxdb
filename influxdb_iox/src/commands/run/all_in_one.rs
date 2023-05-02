@@ -389,7 +389,7 @@ impl Config {
             .database_directory
             .clone()
             .unwrap_or_else(|| {
-                dirs::home_dir()
+                home::home_dir()
                     .expect("No data-dir specified but could not find user's home directory")
                     .join(DEFAULT_DATA_DIRECTORY_NAME)
             });
