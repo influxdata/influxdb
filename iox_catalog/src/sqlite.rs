@@ -39,8 +39,8 @@ static MIGRATOR: Migrator = sqlx::migrate!("sqlite/migrations");
 /// SQLite connection options.
 #[derive(Debug, Clone)]
 pub struct SqliteConnectionOptions {
-    /// DSN.
-    pub dsn: String,
+    /// local file path to .sqlite file
+    pub file_path: String,
 }
 
 /// SQLite catalog.
@@ -198,7 +198,7 @@ impl TransactionFinalize for SqliteTxn {
 impl SqliteCatalog {
     /// Connect to the catalog store.
     pub async fn connect(options: SqliteConnectionOptions, metrics: Arc<Registry>) -> Result<Self> {
-        let opts = SqliteConnectOptions::from_str(&options.dsn)
+        let opts = SqliteConnectOptions::from_str(&options.file_path)
             .map_err(|e| Error::SqlxError { source: e })?
             .create_if_missing(true);
 
@@ -216,7 +216,7 @@ impl SqliteCatalog {
 
 impl Display for SqliteCatalog {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "Sqlite(dsn='{}')", self.options.dsn)
+        write!(f, "Sqlite(dsn='{}')", self.options.file_path)
     }
 }
 
@@ -1571,7 +1571,7 @@ mod tests {
     async fn setup_db() -> SqliteCatalog {
         let dsn =
             std::env::var("TEST_INFLUXDB_SQLITE_DSN").unwrap_or("sqlite::memory:".to_string());
-        let options = SqliteConnectionOptions { dsn };
+        let options = SqliteConnectionOptions { file_path: dsn };
         let metrics = Arc::new(Registry::default());
         let cat = SqliteCatalog::connect(options, metrics)
             .await

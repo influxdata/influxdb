@@ -344,7 +344,7 @@ mod tests {
         #[rustfmt::skip]
         let cfg = CatalogDsnConfig::parse_from([
             "dummy-program-name",
-            "--catalog", "memory",
+            "--catalog-dsn", "memory",
         ]);
 
         let metrics = metric::Registry::default().into();
