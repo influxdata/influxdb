@@ -5,7 +5,9 @@ use crate::plan::{error, util, SchemaProvider};
 use datafusion::common::{DataFusionError, Result};
 use influxdb_influxql_parser::common::{MeasurementName, QualifiedMeasurementName};
 use influxdb_influxql_parser::expression::walk::{walk_expr, walk_expr_mut};
-use influxdb_influxql_parser::expression::{Call, Expr, VarRef, VarRefDataType, WildcardType};
+use influxdb_influxql_parser::expression::{
+    AsVarRefExpr, Call, Expr, VarRef, VarRefDataType, WildcardType,
+};
 use influxdb_influxql_parser::functions::is_scalar_math_function;
 use influxdb_influxql_parser::identifier::Identifier;
 use influxdb_influxql_parser::literal::Literal;
@@ -17,6 +19,73 @@ use itertools::Itertools;
 use std::borrow::Borrow;
 use std::collections::{HashMap, HashSet};
 use std::ops::{ControlFlow, Deref};
+
+/// Recursively rewrite the specified [`SelectStatement`] by performing a series of passes
+/// to validate and normalize the statement.
+pub(crate) fn rewrite_statement(
+    s: &dyn SchemaProvider,
+    q: &SelectStatement,
+) -> Result<SelectStatement> {
+    let mut stmt = q.clone();
+    from_expand_wildcards(s, &mut stmt)?;
+    field_list_expand_wildcards(s, &mut stmt)?;
+    from_drop_empty(s, &mut stmt);
+    field_list_normalize_time(&mut stmt);
+    field_list_rewrite_aliases(&mut stmt.fields)?;
+
+    Ok(stmt)
+}
+
+/// Ensure the time field is added to all projections,
+/// and is moved to the first position, which is a requirement
+/// for InfluxQL compatibility.
+fn field_list_normalize_time(stmt: &mut SelectStatement) {
+    fn normalize_time(stmt: &mut SelectStatement, is_subquery: bool) {
+        let mut fields = stmt.fields.take();
+
+        if let Some(f) = match fields
+            .iter()
+            .find_position(
+                |f| matches!(&f.expr, Expr::VarRef(VarRef { name, .. }) if name.deref() == "time"),
+            )
+            .map(|(i, _)| i)
+        {
+            Some(0) => None,
+            Some(idx) => Some(fields.remove(idx)),
+            None => Some(Field {
+                expr: "time".to_var_ref_expr(),
+                alias: None,
+            }),
+        } {
+            fields.insert(0, f)
+        }
+
+        let f = &mut fields[0];
+
+        // time aliases in subqueries is ignored
+        if f.alias.is_none() || is_subquery {
+            f.alias = Some("time".into())
+        }
+
+        if let Expr::VarRef(VarRef {
+            ref mut data_type, ..
+        }) = f.expr
+        {
+            *data_type = Some(VarRefDataType::Timestamp);
+        }
+
+        stmt.fields.replace(fields);
+    }
+
+    normalize_time(stmt, false);
+
+    for stmt in stmt.from.iter_mut().filter_map(|ms| match ms {
+        MeasurementSelection::Subquery(stmt) => Some(stmt),
+        _ => None,
+    }) {
+        normalize_time(stmt, true)
+    }
+}
 
 /// Recursively expand the `from` clause of `stmt` and any subqueries.
 fn from_expand_wildcards(s: &dyn SchemaProvider, stmt: &mut SelectStatement) -> Result<()> {
@@ -533,21 +602,6 @@ fn field_list_rewrite_aliases(field_list: &mut FieldList) -> Result<()> {
         });
 
     Ok(())
-}
-
-/// Recursively rewrite the specified [`SelectStatement`], expanding any wildcards or regular expressions
-/// found in the projection list, `FROM` clause or `GROUP BY` clause.
-pub(crate) fn rewrite_statement(
-    s: &dyn SchemaProvider,
-    q: &SelectStatement,
-) -> Result<SelectStatement> {
-    let mut stmt = q.clone();
-    from_expand_wildcards(s, &mut stmt)?;
-    field_list_expand_wildcards(s, &mut stmt)?;
-    from_drop_empty(s, &mut stmt);
-    field_list_rewrite_aliases(&mut stmt.fields)?;
-
-    Ok(stmt)
 }
 
 /// Check the length of the arguments slice is within
@@ -1265,12 +1319,51 @@ pub(crate) fn select_statement_info(q: &SelectStatement) -> Result<SelectStateme
 #[cfg(test)]
 mod test {
     use crate::plan::rewriter::{
-        has_wildcards, rewrite_statement, select_statement_info, ProjectionType,
+        field_list_normalize_time, has_wildcards, rewrite_statement, select_statement_info,
+        ProjectionType,
     };
     use crate::plan::test_utils::{parse_select, MockSchemaProvider};
     use assert_matches::assert_matches;
     use datafusion::error::DataFusionError;
     use test_helpers::{assert_contains, assert_error};
+
+    #[test]
+    fn test_field_list_normalize_time() {
+        // adds time to to first position
+        let mut sel = parse_select("SELECT foo, bar FROM cpu");
+        field_list_normalize_time(&mut sel);
+        assert_eq!(
+            sel.to_string(),
+            "SELECT time::timestamp AS time, foo, bar FROM cpu"
+        );
+
+        // moves time to first position
+        let mut sel = parse_select("SELECT foo, time, bar FROM cpu");
+        field_list_normalize_time(&mut sel);
+        assert_eq!(
+            sel.to_string(),
+            "SELECT time::timestamp AS time, foo, bar FROM cpu"
+        );
+
+        let mut sel = parse_select("SELECT time as ts, foo, bar FROM cpu");
+        field_list_normalize_time(&mut sel);
+        assert_eq!(
+            sel.to_string(),
+            "SELECT time::timestamp AS ts, foo, bar FROM cpu"
+        );
+
+        // subqueries
+
+        // adds time to to first position
+        let mut sel = parse_select("SELECT foo FROM (SELECT foo, bar FROM cpu)");
+        field_list_normalize_time(&mut sel);
+        assert_eq!(
+            sel.to_string(),
+            "SELECT time::timestamp AS time, foo FROM (SELECT time::timestamp AS time, foo, bar FROM cpu)"
+        );
+
+        // TODO(sgc): add remaining subquery tests
+    }
 
     #[test]
     fn test_select_statement_info() {
