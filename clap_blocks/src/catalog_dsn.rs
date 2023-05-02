@@ -6,18 +6,18 @@ use iox_catalog::{
     mem::MemCatalog,
     postgres::{PostgresCatalog, PostgresConnectionOptions},
 };
-use observability_deps::tracing::info;
-use snafu::{ResultExt, Snafu};
+use observability_deps::tracing::*;
+use snafu::{OptionExt, ResultExt, Snafu};
 use std::{ops::DerefMut, sync::Arc, time::Duration};
 
 #[derive(Debug, Snafu)]
 #[allow(missing_docs)]
 pub enum Error {
-    #[snafu(display("Unknown Catalog DSN {dsn}. Expected a string like 'postgresql://postgres@localhost:5432/postgres' or 'sqlite:///tmp/catalog.sqlite'"))]
-    UnknownCatalogDsn { dsn: String },
+    #[snafu(display("A Postgres connection string in --catalog-dsn is required."))]
+    ConnectionStringRequired,
 
-    #[snafu(display("Catalog DSN not specified. Expected a string like 'postgresql://postgres@localhost:5432/postgres' or 'sqlite:///tmp/catalog.sqlite'"))]
-    DsnNotSpecified {},
+    #[snafu(display("A SQLite connection string in --catalog-dsn is required."))]
+    ConnectionStringSqliteRequired,
 
     #[snafu(display("A catalog error occurred: {}", source))]
     Catalog {
@@ -50,16 +50,23 @@ fn default_hotswap_poll_interval_timeout() -> &'static str {
 /// CLI config for catalog DSN.
 #[derive(Debug, Clone, Default, clap::Parser)]
 pub struct CatalogDsnConfig {
-    /// Catalog connection string.
+    /// The type of catalog to use. "memory" is only useful for testing purposes.
+    #[clap(
+        value_enum,
+        long = "catalog",
+        env = "INFLUXDB_IOX_CATALOG_TYPE",
+        default_value = "postgres",
+        action
+    )]
+    pub(crate) catalog_type_: CatalogType,
+
+    /// Catalog connection string. Required if catalog is set to postgres.
     ///
-    /// The dsn determines the type of catalog used.
+    /// The dsn is interpreted based on the type of catalog used.
     ///
     /// PostgreSQL: `postgresql://postgres@localhost:5432/postgres`
     ///
-    /// Sqlite (a local filename /tmp/foo.sqlite): `sqlite:///tmp/foo.sqlite`
-    ///
-    /// Memory (ephemeral, only useful for testing): `memory`
-    ///
+    /// Sqlite (a local filename): '/tmp/foo.sqlite'
     #[clap(long = "catalog-dsn", env = "INFLUXDB_IOX_CATALOG_DSN", action)]
     pub dsn: Option<String>,
 
@@ -112,59 +119,123 @@ pub struct CatalogDsnConfig {
     pub hotswap_poll_interval: Duration,
 }
 
+/// Catalog type.
+#[derive(Debug, Copy, Clone, Default, PartialEq, Eq, PartialOrd, Ord, clap::ValueEnum)]
+pub enum CatalogType {
+    /// PostgreSQL.
+    ///
+    /// Example dsn: `"postgresql://postgres@localhost:5432/postgres"`
+    #[default]
+    Postgres,
+
+    /// In-memory.
+    ///
+    /// Example dsn: None
+    Memory,
+
+    /// SQLite.
+    ///
+    /// The dsn is a path to local file.
+    ///
+    /// Example dsn: `"/tmp/foo.sqlite"`
+    ///
+    Sqlite,
+}
+
 impl CatalogDsnConfig {
+    /// Create a new memory instance for all-in-one mode if a catalog DSN is not specified, setting
+    /// the default for arguments that are irrelevant
+    pub fn new_memory() -> Self {
+        info!("Catalog: In-memory");
+
+        Self {
+            catalog_type_: CatalogType::Memory,
+            ..Self::default()
+        }
+    }
+
+    /// Create a new Postgres instance for all-in-one mode if a
+    /// catalog DSN is specified
+    pub fn new_postgres(dsn: String, postgres_schema_name: String) -> Self {
+        info!("Catalog: Postgres at `{}`", dsn);
+
+        Self {
+            catalog_type_: CatalogType::Postgres,
+            dsn: Some(dsn),
+            max_catalog_connections: PostgresConnectionOptions::DEFAULT_MAX_CONNS,
+            postgres_schema_name,
+            connect_timeout: PostgresConnectionOptions::DEFAULT_CONNECT_TIMEOUT,
+            idle_timeout: PostgresConnectionOptions::DEFAULT_IDLE_TIMEOUT,
+            hotswap_poll_interval: PostgresConnectionOptions::DEFAULT_HOTSWAP_POLL_INTERVAL,
+        }
+    }
+
+    /// Create a new Sqlite instance for all-in-one mode
+    pub fn new_sqlite(dsn: impl Into<String>) -> Self {
+        let dsn = dsn.into();
+        info!("Catalog: SQLite at `{}`", dsn);
+
+        Self {
+            catalog_type_: CatalogType::Sqlite,
+            dsn: Some(dsn),
+            ..Self::default()
+        }
+    }
+
     /// Get config-dependent catalog.
     pub async fn get_catalog(
         &self,
         app_name: &'static str,
         metrics: Arc<metric::Registry>,
     ) -> Result<Arc<dyn Catalog>, Error> {
-        let Some(dsn) = self.dsn.as_ref() else {
-            return Err(Error::DsnNotSpecified {});
+        let catalog = match self.catalog_type_ {
+            CatalogType::Postgres => {
+                let options = PostgresConnectionOptions {
+                    app_name: app_name.to_string(),
+                    schema_name: self.postgres_schema_name.clone(),
+                    dsn: self
+                        .dsn
+                        .as_ref()
+                        .context(ConnectionStringRequiredSnafu)?
+                        .clone(),
+                    max_conns: self.max_catalog_connections,
+                    connect_timeout: self.connect_timeout,
+                    idle_timeout: self.idle_timeout,
+                    hotswap_poll_interval: self.hotswap_poll_interval,
+                };
+                Arc::new(
+                    PostgresCatalog::connect(options, metrics)
+                        .await
+                        .context(CatalogSnafu)?,
+                ) as Arc<dyn Catalog>
+            }
+            CatalogType::Memory => {
+                let mem = MemCatalog::new(metrics);
+
+                let mut txn = mem.start_transaction().await.context(CatalogSnafu)?;
+                create_or_get_default_records(txn.deref_mut())
+                    .await
+                    .context(CatalogSnafu)?;
+                txn.commit().await.context(CatalogSnafu)?;
+
+                Arc::new(mem) as Arc<dyn Catalog>
+            }
+            CatalogType::Sqlite => {
+                let options = SqliteConnectionOptions {
+                    dsn: self
+                        .dsn
+                        .as_ref()
+                        .context(ConnectionStringSqliteRequiredSnafu)?
+                        .clone(),
+                };
+                Arc::new(
+                    SqliteCatalog::connect(options, metrics)
+                        .await
+                        .context(CatalogSnafu)?,
+                ) as Arc<dyn Catalog>
+            }
         };
 
-        if dsn.starts_with("postgres") {
-            // do not log entire postgres dsn as it may contain credentials
-            info!(postgres_schema_name=%self.postgres_schema_name, "Catalog: Postgres");
-            let options = PostgresConnectionOptions {
-                app_name: app_name.to_string(),
-                schema_name: self.postgres_schema_name.clone(),
-                dsn: dsn.clone(),
-                max_conns: self.max_catalog_connections,
-                connect_timeout: self.connect_timeout,
-                idle_timeout: self.idle_timeout,
-                hotswap_poll_interval: self.hotswap_poll_interval,
-            };
-            Ok(Arc::new(
-                PostgresCatalog::connect(options, metrics)
-                    .await
-                    .context(CatalogSnafu)?,
-            ) as Arc<dyn Catalog>)
-        } else if dsn == "memory" {
-            info!("Catalog: In-memory");
-            let mem = MemCatalog::new(metrics);
-
-            let mut txn = mem.start_transaction().await.context(CatalogSnafu)?;
-            create_or_get_default_records(txn.deref_mut())
-                .await
-                .context(CatalogSnafu)?;
-            txn.commit().await.context(CatalogSnafu)?;
-
-            Ok(Arc::new(mem) as Arc<dyn Catalog>)
-        } else if let Some(file_path) = dsn.strip_prefix("sqlite://") {
-            info!(file_path, "Catalog: Sqlite");
-            let options = SqliteConnectionOptions {
-                file_path: file_path.to_string(),
-            };
-            Ok(Arc::new(
-                SqliteCatalog::connect(options, metrics)
-                    .await
-                    .context(CatalogSnafu)?,
-            ) as Arc<dyn Catalog>)
-        } else {
-            Err(Error::UnknownCatalogDsn {
-                dsn: dsn.to_string(),
-            })
-        }
+        Ok(catalog)
     }
 }

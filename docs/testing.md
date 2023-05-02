@@ -44,22 +44,6 @@ Or for just the end-to-end tests (and not general tests):
 TEST_INTEGRATION=1 TEST_INFLUXDB_IOX_CATALOG_DSN=postgresql://postgres@localhost:5432/postgres cargo test --test end_to_end
 ```
 
-#### Running without Postgres
-
-It is possible to run the end to end tests without postgres by using
-the sqlite file based catalog. To do so pass `sqlite` as the catalog dsn:
-
-```shell
-TEST_INTEGRATION=1 TEST_INFLUXDB_IOX_CATALOG_DSN=sqlite cargo test --test end_to_end
-```
-
-NOTE that this not fully supported and will sometimes generate errors
-related to "namespace not found" or "file locked". See
-https://github.com/influxdata/influxdb_iox/issues/7709 for more
-details (and hopefully to help fix it!)
-
-#### Debugging Hints
-
 If you are debugging a failing end-to-end test, you will likely want to run with `--nocapture` to also get the logs from the test execution in addition to the server:
 
 ```

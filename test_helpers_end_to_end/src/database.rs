@@ -19,19 +19,12 @@ pub async fn initialize_db(dsn: &str, schema_name: &str) {
         return;
     }
 
-    info!(%dsn, %schema_name, "Initializing database...");
+    info!("Initializing database...");
 
     // Create the catalog database if it doesn't exist
-    if dsn.starts_with("postgres") && !Postgres::database_exists(dsn).await.unwrap() {
-        info!("Creating postgres database...");
-        match Postgres::create_database(dsn).await {
-            Err(e) => {
-                panic!("Database initialization failed: {e}.");
-            }
-            Ok(_) => {
-                info!("Database initialization succeeded");
-            }
-        }
+    if !Postgres::database_exists(dsn).await.unwrap() {
+        info!("Creating database...");
+        Postgres::create_database(dsn).await.unwrap();
     }
 
     // Set up the catalog
