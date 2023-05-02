@@ -1345,6 +1345,7 @@ mod test {
             "SELECT time::timestamp AS time, foo, bar FROM cpu"
         );
 
+        // Maintains alias for time column
         let mut sel = parse_select("SELECT time as ts, foo, bar FROM cpu");
         field_list_normalize_time(&mut sel);
         assert_eq!(
@@ -1354,7 +1355,7 @@ mod test {
 
         // subqueries
 
-        // adds time to to first position
+        // adds time to to first position of root and subquery
         let mut sel = parse_select("SELECT foo FROM (SELECT foo, bar FROM cpu)");
         field_list_normalize_time(&mut sel);
         assert_eq!(
@@ -1362,7 +1363,15 @@ mod test {
             "SELECT time::timestamp AS time, foo FROM (SELECT time::timestamp AS time, foo, bar FROM cpu)"
         );
 
-        // TODO(sgc): add remaining subquery tests
+        // Removes and ignores alias of time column within subquery, ignores alias in root and adds time column
+        //
+        // Whilst confusing, this matching InfluxQL behaviour
+        let mut sel = parse_select("SELECT ts, foo FROM (SELECT time as ts, foo, bar FROM cpu)");
+        field_list_normalize_time(&mut sel);
+        assert_eq!(
+            sel.to_string(),
+            "SELECT time::timestamp AS time, ts, foo FROM (SELECT time::timestamp AS time, foo, bar FROM cpu)"
+        );
     }
 
     #[test]
