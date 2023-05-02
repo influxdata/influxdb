@@ -342,8 +342,9 @@ async fn query_error_handling() {
                         .assert()
                         .failure()
                         .stderr(predicate::str::contains(
-                            "Error while planning query: This feature is not \
-                            implemented: DropTable",
+                            "Error while planning query: \
+                             This feature is not implemented: \
+                             Unsupported logical plan: DropTable",
                         ));
                 }
                 .boxed()

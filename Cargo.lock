@@ -1432,7 +1432,7 @@ dependencies = [
 [[package]]
 name = "datafusion"
 version = "23.0.0"
-source = "git+https://github.com/apache/arrow-datafusion.git?rev=451e81eafe5e404de50f6ede1bebf25ed90f5eb0#451e81eafe5e404de50f6ede1bebf25ed90f5eb0"
+source = "git+https://github.com/apache/arrow-datafusion.git?rev=fd785b20ab0d8e1d7e0bafbae42158bc2e3f3ce3#fd785b20ab0d8e1d7e0bafbae42158bc2e3f3ce3"
 dependencies = [
  "ahash 0.8.3",
  "arrow",
@@ -1481,7 +1481,7 @@ dependencies = [
 [[package]]
 name = "datafusion-common"
 version = "23.0.0"
-source = "git+https://github.com/apache/arrow-datafusion.git?rev=451e81eafe5e404de50f6ede1bebf25ed90f5eb0#451e81eafe5e404de50f6ede1bebf25ed90f5eb0"
+source = "git+https://github.com/apache/arrow-datafusion.git?rev=fd785b20ab0d8e1d7e0bafbae42158bc2e3f3ce3#fd785b20ab0d8e1d7e0bafbae42158bc2e3f3ce3"
 dependencies = [
  "arrow",
  "arrow-array",
@@ -1495,7 +1495,7 @@ dependencies = [
 [[package]]
 name = "datafusion-execution"
 version = "23.0.0"
-source = "git+https://github.com/apache/arrow-datafusion.git?rev=451e81eafe5e404de50f6ede1bebf25ed90f5eb0#451e81eafe5e404de50f6ede1bebf25ed90f5eb0"
+source = "git+https://github.com/apache/arrow-datafusion.git?rev=fd785b20ab0d8e1d7e0bafbae42158bc2e3f3ce3#fd785b20ab0d8e1d7e0bafbae42158bc2e3f3ce3"
 dependencies = [
  "dashmap",
  "datafusion-common",
@@ -1512,7 +1512,7 @@ dependencies = [
 [[package]]
 name = "datafusion-expr"
 version = "23.0.0"
-source = "git+https://github.com/apache/arrow-datafusion.git?rev=451e81eafe5e404de50f6ede1bebf25ed90f5eb0#451e81eafe5e404de50f6ede1bebf25ed90f5eb0"
+source = "git+https://github.com/apache/arrow-datafusion.git?rev=fd785b20ab0d8e1d7e0bafbae42158bc2e3f3ce3#fd785b20ab0d8e1d7e0bafbae42158bc2e3f3ce3"
 dependencies = [
  "ahash 0.8.3",
  "arrow",
@@ -1523,7 +1523,7 @@ dependencies = [
 [[package]]
 name = "datafusion-optimizer"
 version = "23.0.0"
-source = "git+https://github.com/apache/arrow-datafusion.git?rev=451e81eafe5e404de50f6ede1bebf25ed90f5eb0#451e81eafe5e404de50f6ede1bebf25ed90f5eb0"
+source = "git+https://github.com/apache/arrow-datafusion.git?rev=fd785b20ab0d8e1d7e0bafbae42158bc2e3f3ce3#fd785b20ab0d8e1d7e0bafbae42158bc2e3f3ce3"
 dependencies = [
  "arrow",
  "async-trait",
@@ -1540,7 +1540,7 @@ dependencies = [
 [[package]]
 name = "datafusion-physical-expr"
 version = "23.0.0"
-source = "git+https://github.com/apache/arrow-datafusion.git?rev=451e81eafe5e404de50f6ede1bebf25ed90f5eb0#451e81eafe5e404de50f6ede1bebf25ed90f5eb0"
+source = "git+https://github.com/apache/arrow-datafusion.git?rev=fd785b20ab0d8e1d7e0bafbae42158bc2e3f3ce3#fd785b20ab0d8e1d7e0bafbae42158bc2e3f3ce3"
 dependencies = [
  "ahash 0.8.3",
  "arrow",
@@ -1572,7 +1572,7 @@ dependencies = [
 [[package]]
 name = "datafusion-proto"
 version = "23.0.0"
-source = "git+https://github.com/apache/arrow-datafusion.git?rev=451e81eafe5e404de50f6ede1bebf25ed90f5eb0#451e81eafe5e404de50f6ede1bebf25ed90f5eb0"
+source = "git+https://github.com/apache/arrow-datafusion.git?rev=fd785b20ab0d8e1d7e0bafbae42158bc2e3f3ce3#fd785b20ab0d8e1d7e0bafbae42158bc2e3f3ce3"
 dependencies = [
  "arrow",
  "chrono",
@@ -1586,7 +1586,7 @@ dependencies = [
 [[package]]
 name = "datafusion-row"
 version = "23.0.0"
-source = "git+https://github.com/apache/arrow-datafusion.git?rev=451e81eafe5e404de50f6ede1bebf25ed90f5eb0#451e81eafe5e404de50f6ede1bebf25ed90f5eb0"
+source = "git+https://github.com/apache/arrow-datafusion.git?rev=fd785b20ab0d8e1d7e0bafbae42158bc2e3f3ce3#fd785b20ab0d8e1d7e0bafbae42158bc2e3f3ce3"
 dependencies = [
  "arrow",
  "datafusion-common",
@@ -1597,7 +1597,7 @@ dependencies = [
 [[package]]
 name = "datafusion-sql"
 version = "23.0.0"
-source = "git+https://github.com/apache/arrow-datafusion.git?rev=451e81eafe5e404de50f6ede1bebf25ed90f5eb0#451e81eafe5e404de50f6ede1bebf25ed90f5eb0"
+source = "git+https://github.com/apache/arrow-datafusion.git?rev=fd785b20ab0d8e1d7e0bafbae42158bc2e3f3ce3#fd785b20ab0d8e1d7e0bafbae42158bc2e3f3ce3"
 dependencies = [
  "arrow",
  "arrow-schema",
@@ -3943,6 +3943,7 @@ dependencies = [
  "lz4",
  "num",
  "num-bigint",
+ "object_store",
  "paste",
  "seq-macro",
  "snap",

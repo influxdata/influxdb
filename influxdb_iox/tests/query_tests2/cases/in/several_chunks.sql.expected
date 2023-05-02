@@ -51,7 +51,7 @@
 | logical_plan    | Projection: h2o.temp, h2o.other_temp, h2o.time    |
 |    |   TableScan: h2o projection=[other_temp, temp, time]    |
 | physical_plan    | UnionExec    |
-|    |   ParquetExec: limit=None, partitions={1 group: [[1/1/1/00000000-0000-0000-0000-000000000000.parquet]]}, output_ordering=[], projection=[temp, other_temp, time]    |
+|    |   ParquetExec: limit=None, partitions={1 group: [[1/1/1/00000000-0000-0000-0000-000000000000.parquet]]}, projection=[temp, other_temp, time]    |
 |    |   ProjectionExec: expr=[temp@3 as temp, other_temp@4 as other_temp, time@5 as time]    |
 |    |     DeduplicateExec: [city@1 ASC,state@2 ASC,time@5 ASC]    |
 |    |       SortPreservingMergeExec: [city@1 ASC,state@2 ASC,time@5 ASC,__chunk_order@0 ASC]    |
