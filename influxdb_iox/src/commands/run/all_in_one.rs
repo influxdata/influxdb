@@ -365,7 +365,7 @@ impl Config {
             max_http_request_size,
             object_store_config,
             wal_directory,
-            mut catalog_dsn,
+            catalog_dsn,
             wal_rotation_period_seconds,
             concurrent_query_limit,
             persist_max_parallelism,
@@ -419,19 +419,20 @@ impl Config {
         });
         ensure_directory_exists(&wal_directory);
 
-        if catalog_dsn.dsn.is_none() {
+        let catalog_dsn = if catalog_dsn.dsn.is_some() {
+            catalog_dsn
+        } else {
             let local_catalog_path = database_directory
                 .join(DEFAULT_CATALOG_FILENAME)
                 .to_string_lossy()
                 .to_string();
 
-            let dsn = format!("sqlite://{local_catalog_path}");
             debug!(
-                ?dsn,
+                ?local_catalog_path,
                 "No catalog dsn specified, using default sqlite catalog"
             );
 
-            catalog_dsn.dsn = Some(dsn);
+            CatalogDsnConfig::new_sqlite(local_catalog_path)
         };
 
         let ingester_addresses =

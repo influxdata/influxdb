@@ -1,6 +1,5 @@
 use crate::{addrs::BindAddresses, ServerType, UdpCapture};
 use http::{header::HeaderName, HeaderValue};
-use observability_deps::tracing::info;
 use rand::Rng;
 use std::{collections::HashMap, num::NonZeroUsize, sync::Arc};
 use tempfile::TempDir;
@@ -29,9 +28,6 @@ pub struct TestConfig {
     /// WAL directory, if needed.
     wal_dir: Option<Arc<TempDir>>,
 
-    /// Catalog directory, if needed
-    catalog_dir: Option<Arc<TempDir>>,
-
     /// Which ports this server should use
     addrs: Arc<BindAddresses>,
 }
@@ -44,42 +40,29 @@ impl TestConfig {
         dsn: Option<String>,
         catalog_schema_name: impl Into<String>,
     ) -> Self {
-        let catalog_schema_name = catalog_schema_name.into();
-
-        let (dsn, catalog_dir) = specialize_dsn_if_needed(dsn, &catalog_schema_name);
-
         Self {
             env: HashMap::new(),
             client_headers: vec![],
             server_type,
             dsn,
-            catalog_schema_name,
+            catalog_schema_name: catalog_schema_name.into(),
             object_store_dir: None,
             wal_dir: None,
-            catalog_dir,
             addrs: Arc::new(BindAddresses::default()),
         }
-    }
-
-    /// Creates a new TestConfig of `server_type` with the same catalog as `other`
-    fn new_with_existing_catalog(server_type: ServerType, other: &TestConfig) -> Self {
-        Self::new(
-            server_type,
-            other.dsn.clone(),
-            other.catalog_schema_name.clone(),
-        )
-        // also copy a reference to the temp dir, if any, so it isn't
-        // deleted too soon
-        .with_catalog_dir(other.catalog_dir.as_ref().map(Arc::clone))
     }
 
     /// Create a minimal router2 configuration sharing configuration with the ingester2 config
     pub fn new_router2(ingester_config: &TestConfig) -> Self {
         assert_eq!(ingester_config.server_type(), ServerType::Ingester2);
 
-        Self::new_with_existing_catalog(ServerType::Router2, ingester_config)
-            .with_existing_object_store(ingester_config)
-            .with_ingester_addresses(&[ingester_config.ingester_base()])
+        Self::new(
+            ServerType::Router2,
+            ingester_config.dsn().to_owned(),
+            ingester_config.catalog_schema_name(),
+        )
+        .with_existing_object_store(ingester_config)
+        .with_ingester_addresses(&[ingester_config.ingester_base()])
     }
 
     /// Create a minimal ingester2 configuration, using the dsn configuration specified. Set the
@@ -115,7 +98,6 @@ impl TestConfig {
             catalog_schema_name: ingester_config.catalog_schema_name.clone(),
             object_store_dir: None,
             wal_dir: None,
-            catalog_dir: ingester_config.catalog_dir.as_ref().map(Arc::clone),
             addrs: Arc::new(BindAddresses::default()),
         }
         .with_existing_object_store(ingester_config)
@@ -133,21 +115,29 @@ impl TestConfig {
 
     /// Create a minimal compactor configuration, using the dsn configuration from other
     pub fn new_compactor2(other: &TestConfig) -> Self {
-        Self::new_with_existing_catalog(ServerType::Compactor2, other)
-            .with_existing_object_store(other)
+        Self::new(
+            ServerType::Compactor2,
+            other.dsn().to_owned(),
+            other.catalog_schema_name(),
+        )
+        .with_existing_object_store(other)
     }
 
     /// Create a minimal querier2 configuration from the specified ingester2 configuration, using
     /// the same dsn and object store, but without specifying the ingester2 addresses
     pub fn new_querier2_without_ingester2(ingester_config: &TestConfig) -> Self {
-        Self::new_with_existing_catalog(ServerType::Querier2, ingester_config)
-            .with_existing_object_store(ingester_config)
-            // Hard code query threads so query plans do not vary based on environment
-            .with_env("INFLUXDB_IOX_NUM_QUERY_THREADS", "4")
-            .with_env(
-                "INFLUXDB_IOX_DATAFUSION_CONFIG",
-                "iox.influxql_metadata_cutoff:1990-01-01T00:00:00Z",
-            )
+        Self::new(
+            ServerType::Querier2,
+            ingester_config.dsn().to_owned(),
+            ingester_config.catalog_schema_name(),
+        )
+        .with_existing_object_store(ingester_config)
+        // Hard code query threads so query plans do not vary based on environment
+        .with_env("INFLUXDB_IOX_NUM_QUERY_THREADS", "4")
+        .with_env(
+            "INFLUXDB_IOX_DATAFUSION_CONFIG",
+            "iox.influxql_metadata_cutoff:1990-01-01T00:00:00Z",
+        )
     }
 
     /// Create a minimal all in one configuration
@@ -205,12 +195,6 @@ impl TestConfig {
     // Get the catalog postgres schema name
     pub fn catalog_schema_name(&self) -> &str {
         &self.catalog_schema_name
-    }
-
-    // copy a reference to the catalog temp dir, if any
-    fn with_catalog_dir(mut self, catalog_dir: Option<Arc<TempDir>>) -> Self {
-        self.catalog_dir = catalog_dir;
-        self
     }
 
     /// add a name=value environment variable when starting the server
@@ -325,33 +309,4 @@ fn random_catalog_schema_name() -> String {
         .take(20)
         .map(char::from)
         .collect::<String>()
-}
-
-/// Rewrites the special "sqlite" catalog DSN to a new
-/// temporary sqlite filename in a new temporary directory such as
-///
-/// sqlite:///tmp/XygUWHUwBhSdIUNXblXo.sqlite
-///
-///
-/// This is needed to isolate different test runs from each other
-/// (there is no "schema" within a sqlite database, it is the name of
-/// the file).
-///
-/// returns (dsn, catalog_dir)
-fn specialize_dsn_if_needed(
-    dsn: Option<String>,
-    catalog_schema_name: &str,
-) -> (Option<String>, Option<Arc<TempDir>>) {
-    if dsn.as_deref() == Some("sqlite") {
-        let tmpdir = TempDir::new().expect("cannot create tmp dir for catalog");
-        let catalog_dir = Arc::new(tmpdir);
-        let dsn = format!(
-            "sqlite://{}/{catalog_schema_name}.sqlite",
-            catalog_dir.path().display()
-        );
-        info!(%dsn, "rewrote 'sqlite' to temporary file");
-        (Some(dsn), Some(catalog_dir))
-    } else {
-        (dsn, None)
-    }
 }
