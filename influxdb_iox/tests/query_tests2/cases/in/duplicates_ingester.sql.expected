@@ -90,7 +90,7 @@
 |    |             RecordBatchesExec: batches_groups=1 batches=1 total_rows=6    |
 |    |   ProjectionExec: expr=[city@0 as name]    |
 |    |     UnionExec    |
-|    |       ParquetExec: limit=None, partitions={1 group: [[1/1/1/00000000-0000-0000-0000-000000000000.parquet]]}, output_ordering=[city@0 ASC], projection=[city]    |
+|    |       ParquetExec: limit=None, partitions={1 group: [[1/1/1/00000000-0000-0000-0000-000000000000.parquet]]}, output_ordering=[], projection=[city]    |
 |    |       ProjectionExec: expr=[city@1 as city]    |
 |    |         DeduplicateExec: [state@2 ASC,city@1 ASC,time@3 ASC]    |
 |    |           SortPreservingMergeExec: [state@2 ASC,city@1 ASC,time@3 ASC,__chunk_order@0 ASC]    |
