@@ -14,7 +14,7 @@
 )]
 
 use crate::interface::{ColumnTypeMismatchSnafu, Error, RepoCollection, Result};
-use data_types::{ColumnType, NamespaceSchema, TableInfo};
+use data_types::{ColumnType, NamespaceSchema, TableSchema};
 use mutable_batch::MutableBatch;
 use std::{borrow::Cow, collections::HashMap};
 use thiserror::Error;
@@ -118,15 +118,15 @@ where
                 .tables()
                 .create_or_get(table_name, schema.id)
                 .await
-                .map(|t| TableInfo::from(&t))?;
+                .map(|t| TableSchema::new_empty_from(&t))?;
 
             // Always add a time column to all new tables.
             let time_col = repos
                 .columns()
-                .create_or_get(TIME_COLUMN, table.id(), ColumnType::Time)
+                .create_or_get(TIME_COLUMN, table.id, ColumnType::Time)
                 .await?;
 
-            table.schema.add_column(&time_col);
+            table.add_column(&time_col);
 
             assert!(schema
                 .to_mut()
@@ -152,7 +152,7 @@ where
         // If it does, validate it. If it does not exist, create it and insert
         // it into the cached schema.
 
-        match table.schema.columns.get(name.as_str()) {
+        match table.columns.get(name.as_str()) {
             Some(existing) if existing.matches_type(col.influx_type()) => {
                 // No action is needed as the column matches the existing column
                 // schema.
@@ -182,10 +182,10 @@ where
     if !column_batch.is_empty() {
         repos
             .columns()
-            .create_or_get_many_unchecked(table.id(), column_batch)
+            .create_or_get_many_unchecked(table.id, column_batch)
             .await?
             .into_iter()
-            .for_each(|c| table.to_mut().schema.add_column(&c));
+            .for_each(|c| table.to_mut().add_column(&c));
     }
 
     if let Cow::Owned(table) = table {
@@ -288,9 +288,8 @@ mod tests {
                     let actual_tables: BTreeMap<String, BTreeMap<String, ColumnType>> = schema
                         .tables
                         .iter()
-                        .map(|(table, table_info)| {
-                            let desired_cols = table_info
-                                .schema
+                        .map(|(table, table_schema)| {
+                            let desired_cols = table_schema
                                 .columns
                                 .iter()
                                 .map(|(column, column_schema)| (column.clone(), column_schema.column_type))

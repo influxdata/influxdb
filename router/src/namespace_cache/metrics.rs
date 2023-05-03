@@ -127,7 +127,7 @@ where
 mod tests {
     use assert_matches::assert_matches;
     use data_types::{
-        Column, ColumnId, ColumnType, ColumnsByName, NamespaceId, TableId, TableInfo, TableSchema,
+        Column, ColumnId, ColumnType, ColumnsByName, NamespaceId, TableId, TableSchema,
     };
     use metric::{Attributes, MetricObserver, Observation};
 
@@ -153,12 +153,10 @@ mod tests {
 
                 (
                     i.to_string(),
-                    TableInfo {
-                        schema: TableSchema {
-                            id: TableId::new(i as _),
-                            columns: ColumnsByName::new(&columns),
-                        },
+                    TableSchema {
+                        id: TableId::new(i as _),
                         partition_template: None,
+                        columns: ColumnsByName::new(&columns),
                     },
                 )
             })

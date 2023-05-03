@@ -330,7 +330,7 @@ pub struct NamespaceSchema {
     /// the namespace id
     pub id: NamespaceId,
     /// the tables in the namespace by name
-    pub tables: BTreeMap<String, TableInfo>,
+    pub tables: BTreeMap<String, TableSchema>,
     /// the number of columns per table this namespace allows
     pub max_columns_per_table: usize,
     /// The maximum number of tables permitted in this namespace.
@@ -388,41 +388,6 @@ pub struct Table {
     pub namespace_id: NamespaceId,
     /// The name of the table, which is unique within the associated namespace
     pub name: String,
-}
-
-/// Useful table information to cache, including the table's partition template if any, and the
-/// table's columns.
-#[derive(Debug, Clone, Eq, PartialEq)]
-pub struct TableInfo {
-    /// This table's schema
-    pub schema: TableSchema,
-    /// This table's partition template
-    pub partition_template: Option<Arc<PartitionTemplate>>,
-}
-
-impl TableInfo {
-    /// This table's ID
-    pub fn id(&self) -> TableId {
-        self.schema.id
-    }
-
-    /// Estimated Size in bytes including `self`.
-    pub fn size(&self) -> usize {
-        size_of_val(self) + size_of_val(&self.partition_template) + self.schema.size()
-    }
-}
-
-impl From<&Table> for TableInfo {
-    fn from(table: &Table) -> Self {
-        let &Table { id, .. } = table;
-
-        Self {
-            schema: TableSchema::new(id),
-
-            // TODO: Store and retrieve PartitionTemplate from the database
-            partition_template: None,
-        }
-    }
 }
 
 /// Column definitions for a table indexed by their name
@@ -518,15 +483,30 @@ impl TryFrom<ColumnsByName> for Schema {
 pub struct TableSchema {
     /// the table id
     pub id: TableId,
+
+    /// the table's partition template
+    pub partition_template: Option<Arc<PartitionTemplate>>,
+
     /// the table's columns by their name
     pub columns: ColumnsByName,
 }
 
 impl TableSchema {
-    /// Initialize new `TableSchema`
+    /// Initialize new `TableSchema` with the given `TableId`.
     pub fn new(id: TableId) -> Self {
         Self {
             id,
+            partition_template: None,
+            columns: ColumnsByName::new(&[]),
+        }
+    }
+
+    /// Initialize new `TableSchema` from the information in the given `Table`.
+    pub fn new_empty_from(table: &Table) -> Self {
+        Self {
+            id: table.id,
+            // TODO: Store and retrieve PartitionTemplate from the database
+            partition_template: None,
             columns: ColumnsByName::new(&[]),
         }
     }
@@ -3028,10 +3008,12 @@ mod tests {
     fn test_table_schema_size() {
         let schema1 = TableSchema {
             id: TableId::new(1),
+            partition_template: None,
             columns: ColumnsByName::new(&[]),
         };
         let schema2 = TableSchema {
             id: TableId::new(2),
+            partition_template: None,
             columns: ColumnsByName::new(&[Column {
                 id: ColumnId::new(1),
                 table_id: TableId::new(2),
@@ -3056,11 +3038,9 @@ mod tests {
             id: NamespaceId::new(1),
             tables: BTreeMap::from([(
                 String::from("foo"),
-                TableInfo {
-                    schema: TableSchema {
-                        id: TableId::new(1),
-                        columns: ColumnsByName::new(&[]),
-                    },
+                TableSchema {
+                    id: TableId::new(1),
+                    columns: ColumnsByName::new(&[]),
                     partition_template: None,
                 },
             )]),

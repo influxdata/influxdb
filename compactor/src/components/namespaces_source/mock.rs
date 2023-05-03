@@ -49,9 +49,7 @@ impl NamespacesSource for MockNamespacesSource {
 mod tests {
     use std::collections::BTreeMap;
 
-    use data_types::{
-        Column, ColumnId, ColumnType, ColumnsByName, TableId, TableInfo, TableSchema,
-    };
+    use data_types::{Column, ColumnId, ColumnType, ColumnsByName, TableId, TableSchema};
 
     use super::*;
 
@@ -130,54 +128,50 @@ mod tests {
             let tables = BTreeMap::from([
                 (
                     "table1".to_string(),
-                    TableInfo {
-                        schema: TableSchema {
-                            id: TableId::new(1),
-                            columns: ColumnsByName::new(&[
-                                Column {
-                                    name: "col1".to_string(),
-                                    id: ColumnId::new(1),
-                                    column_type: ColumnType::I64,
-                                    table_id: TableId::new(1),
-                                },
-                                Column {
-                                    name: "col2".to_string(),
-                                    id: ColumnId::new(2),
-                                    column_type: ColumnType::String,
-                                    table_id: TableId::new(1),
-                                },
-                            ]),
-                        },
+                    TableSchema {
+                        id: TableId::new(1),
                         partition_template: None,
+                        columns: ColumnsByName::new(&[
+                            Column {
+                                name: "col1".to_string(),
+                                id: ColumnId::new(1),
+                                column_type: ColumnType::I64,
+                                table_id: TableId::new(1),
+                            },
+                            Column {
+                                name: "col2".to_string(),
+                                id: ColumnId::new(2),
+                                column_type: ColumnType::String,
+                                table_id: TableId::new(1),
+                            },
+                        ]),
                     },
                 ),
                 (
                     "table2".to_string(),
-                    TableInfo {
-                        schema: TableSchema {
-                            id: TableId::new(2),
-                            columns: ColumnsByName::new(&[
-                                Column {
-                                    name: "col1".to_string(),
-                                    id: ColumnId::new(3),
-                                    column_type: ColumnType::I64,
-                                    table_id: TableId::new(2),
-                                },
-                                Column {
-                                    name: "col2".to_string(),
-                                    id: ColumnId::new(4),
-                                    column_type: ColumnType::String,
-                                    table_id: TableId::new(2),
-                                },
-                                Column {
-                                    name: "col3".to_string(),
-                                    id: ColumnId::new(5),
-                                    column_type: ColumnType::F64,
-                                    table_id: TableId::new(2),
-                                },
-                            ]),
-                        },
+                    TableSchema {
+                        id: TableId::new(2),
                         partition_template: None,
+                        columns: ColumnsByName::new(&[
+                            Column {
+                                name: "col1".to_string(),
+                                id: ColumnId::new(3),
+                                column_type: ColumnType::I64,
+                                table_id: TableId::new(2),
+                            },
+                            Column {
+                                name: "col2".to_string(),
+                                id: ColumnId::new(4),
+                                column_type: ColumnType::String,
+                                table_id: TableId::new(2),
+                            },
+                            Column {
+                                name: "col3".to_string(),
+                                id: ColumnId::new(5),
+                                column_type: ColumnType::F64,
+                                table_id: TableId::new(2),
+                            },
+                        ]),
                     },
                 ),
             ]);

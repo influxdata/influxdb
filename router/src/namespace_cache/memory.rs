@@ -59,7 +59,7 @@ impl NamespaceCache for Arc<MemoryNamespaceCache> {
                     new_columns: schema
                         .tables
                         .values()
-                        .map(|v| v.schema.column_count())
+                        .map(|v| v.column_count())
                         .sum::<usize>(),
                     new_tables: schema.tables.len(),
                     did_update: false,
@@ -100,12 +100,12 @@ fn merge_schema_additive(
     // to 0 as the schemas become fully populated, leaving the common path free
     // of overhead.
     for (old_table_name, old_table) in &old_ns.tables {
-        old_column_count += old_table.schema.column_count();
+        old_column_count += old_table.column_count();
         match new_ns.tables.get_mut(old_table_name) {
             Some(new_table) => {
-                for (column_name, column) in old_table.schema.columns.iter() {
-                    if !new_table.schema.contains_column_name(column_name) {
-                        new_table.schema.add_column_schema(column_name, column);
+                for (column_name, column) in old_table.columns.iter() {
+                    if !new_table.contains_column_name(column_name) {
+                        new_table.add_column_schema(column_name, column);
                     }
                 }
             }
@@ -125,7 +125,7 @@ fn merge_schema_additive(
         new_columns: new_ns
             .tables
             .values()
-            .map(|v| v.schema.column_count())
+            .map(|v| v.column_count())
             .sum::<usize>()
             - old_column_count,
         did_update: true,
@@ -139,7 +139,7 @@ mod tests {
 
     use assert_matches::assert_matches;
     use data_types::{
-        Column, ColumnId, ColumnSchema, ColumnType, ColumnsByName, NamespaceId, TableId, TableInfo,
+        Column, ColumnId, ColumnSchema, ColumnType, ColumnsByName, NamespaceId, TableId,
         TableSchema,
     };
     use proptest::{prelude::*, prop_compose, proptest};
@@ -225,25 +225,16 @@ mod tests {
         // These MUST always be different
         assert_ne!(first_write_table_schema, second_write_table_schema);
 
-        let first_write_table_info = TableInfo {
-            schema: first_write_table_schema,
-            partition_template: None,
-        };
-        let second_write_table_info = TableInfo {
-            schema: second_write_table_schema,
-            partition_template: None,
-        };
-
         let schema_update_1 = NamespaceSchema {
             id: NamespaceId::new(42),
-            tables: BTreeMap::from([(String::from(table_name), first_write_table_info)]),
+            tables: BTreeMap::from([(String::from(table_name), first_write_table_schema)]),
             max_columns_per_table: 50,
             max_tables: 24,
             retention_period_ns: None,
             partition_template: None,
         };
         let schema_update_2 = NamespaceSchema {
-            tables: BTreeMap::from([(String::from(table_name), second_write_table_info)]),
+            tables: BTreeMap::from([(String::from(table_name), second_write_table_schema)]),
             ..schema_update_1.clone()
         };
 
@@ -251,10 +242,6 @@ mod tests {
             let mut want_table_schema = TableSchema::new(table_id);
             want_table_schema.add_column(&column_1);
             want_table_schema.add_column(&column_2);
-            let want_table_schema = TableInfo {
-                schema: want_table_schema,
-                partition_template: None,
-            };
             NamespaceSchema {
                 tables: BTreeMap::from([(String::from(table_name), want_table_schema)]),
                 ..schema_update_1.clone()
@@ -311,10 +298,6 @@ mod tests {
             name: "column_a".to_string(),
             column_type: ColumnType::String,
         });
-        let table_1 = TableInfo {
-            schema: table_1,
-            partition_template: None,
-        };
         let mut table_2 = TableSchema::new(TableId::new(2));
         table_2.add_column(&Column {
             id: ColumnId::new(2),
@@ -322,10 +305,6 @@ mod tests {
             name: "column_b".to_string(),
             column_type: ColumnType::String,
         });
-        let table_2 = TableInfo {
-            schema: table_2,
-            partition_template: None,
-        };
         let mut table_3 = TableSchema::new(TableId::new(3));
         table_3.add_column(&Column {
             id: ColumnId::new(3),
@@ -333,10 +312,6 @@ mod tests {
             name: "column_c".to_string(),
             column_type: ColumnType::String,
         });
-        let table_3 = TableInfo {
-            schema: table_3,
-            partition_template: None,
-        };
 
         let schema_update_1 = NamespaceSchema {
             id: NamespaceId::new(42),
@@ -415,7 +390,7 @@ mod tests {
     }
 
     prop_compose! {
-        /// Generate an arbitrary TableInfo with up to 10 columns.
+        /// Generate an arbitrary TableSchema with up to 10 columns.
         fn arbitrary_table_schema()(
             id in any::<i64>(),
             columns in proptest::collection::btree_map(
@@ -423,11 +398,12 @@ mod tests {
                 arbitrary_column_schema(),
                 (0, 10) // Set size range
             ),
-        ) -> TableInfo {
+        ) -> TableSchema {
             let columns = ColumnsByName::from(columns);
-            TableInfo {
-                schema: TableSchema { id: TableId::new(id), columns },
+            TableSchema {
+                id: TableId::new(id),
                 partition_template: None,
+                columns,
             }
         }
     }
@@ -463,7 +439,6 @@ mod tests {
             .flat_map(|(table_name, col_set)| {
                 // Build a set of tuples in the form (table_name, column_name)
                 col_set
-                    .schema
                     .columns
                     .names()
                     .into_iter()

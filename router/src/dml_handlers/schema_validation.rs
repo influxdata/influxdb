@@ -304,7 +304,7 @@ where
             .into_iter()
             .map(|(name, data)| {
                 let table = latest_schema.tables.get(&name).unwrap();
-                let id = table.id();
+                let id = table.id;
                 let table_partition_template = table.partition_template.clone();
 
                 (id, (name, table_partition_template, data))
@@ -372,7 +372,7 @@ fn validate_schema_limits(
     for (table_name, batch) in batches {
         // Get the column set for this table from the schema.
         let mut existing_columns = match schema.tables.get(table_name) {
-            Some(v) => v.schema.column_names(),
+            Some(v) => v.column_names(),
             None if batch.columns().len() > schema.max_columns_per_table => {
                 // The table does not exist, therefore all the columns in this
                 // write must be created - there's no need to perform a set
@@ -774,7 +774,6 @@ mod tests {
         let table = ns.tables.get(table).expect("table should exist in cache");
         assert_eq!(
             table
-                .schema
                 .columns
                 .get(col)
                 .expect("column not cached")

@@ -13,7 +13,7 @@ use cache_system::{
     loader::{metrics::MetricsLoader, FunctionLoader},
     resource_consumption::FunctionEstimator,
 };
-use data_types::{ColumnId, NamespaceId, NamespaceSchema, TableId, TableInfo};
+use data_types::{ColumnId, NamespaceId, NamespaceSchema, TableId, TableSchema};
 use iox_catalog::interface::{get_schema_by_name, Catalog, SoftDeletedRows};
 use iox_time::TimeProvider;
 use schema::Schema;
@@ -238,19 +238,17 @@ impl CachedTable {
     }
 }
 
-impl From<TableInfo> for CachedTable {
-    fn from(table: TableInfo) -> Self {
+impl From<TableSchema> for CachedTable {
+    fn from(table: TableSchema) -> Self {
         let mut column_id_map: HashMap<ColumnId, Arc<str>> = table
-            .schema
             .column_id_map()
             .iter()
             .map(|(&c_id, &name)| (c_id, Arc::from(name)))
             .collect();
         column_id_map.shrink_to_fit();
 
-        let id = table.id();
+        let id = table.id;
         let schema: Schema = table
-            .schema
             .columns
             .try_into()
             .expect("Catalog table schema broken");

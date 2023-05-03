@@ -27,10 +27,7 @@ impl PartitionInfoBuilder {
                     namespace_id,
                     name: String::from("table"),
                 }),
-                table_schema: Arc::new(TableSchema {
-                    id: table_id,
-                    columns: ColumnsByName::new(&[]),
-                }),
+                table_schema: Arc::new(TableSchema::new(table_id)),
                 sort_key: None,
                 partition_key: PartitionKey::from("key"),
             },
@@ -54,6 +51,7 @@ impl PartitionInfoBuilder {
 
         let table_schema = Arc::new(TableSchema {
             id: self.inner.table.id,
+            partition_template: None,
             columns: ColumnsByName::new(&columns),
         });
         self.inner.table_schema = table_schema;

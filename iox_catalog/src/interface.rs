@@ -4,7 +4,7 @@ use async_trait::async_trait;
 use data_types::{
     Column, ColumnType, ColumnsByName, CompactionLevel, Namespace, NamespaceId, NamespaceSchema,
     ParquetFile, ParquetFileId, ParquetFileParams, Partition, PartitionId, PartitionKey,
-    SkippedCompaction, Table, TableId, TableInfo, Timestamp,
+    SkippedCompaction, Table, TableId, TableSchema, Timestamp,
 };
 use iox_time::TimeProvider;
 use snafu::{OptionExt, Snafu};
@@ -590,18 +590,18 @@ where
 
     let mut namespace = NamespaceSchema::new_empty_from(&namespace);
 
-    let mut table_id_to_info = BTreeMap::new();
+    let mut table_id_to_schema = BTreeMap::new();
     for t in tables {
-        let table_info = TableInfo::from(&t);
-        table_id_to_info.insert(t.id, (t.name, table_info));
+        let table_schema = TableSchema::new_empty_from(&t);
+        table_id_to_schema.insert(t.id, (t.name, table_schema));
     }
 
     for c in columns {
-        let (_, t) = table_id_to_info.get_mut(&c.table_id).unwrap();
-        t.schema.add_column(&c);
+        let (_, t) = table_id_to_schema.get_mut(&c.table_id).unwrap();
+        t.add_column(&c);
     }
 
-    for (_, (table_name, schema)) in table_id_to_info {
+    for (_, (table_name, schema)) in table_id_to_schema {
         namespace.tables.insert(table_name, schema);
     }
 
@@ -684,23 +684,23 @@ pub async fn list_schemas(
     });
 
     // A set of tables within a single namespace.
-    type NamespaceTables = BTreeMap<String, TableInfo>;
+    type NamespaceTables = BTreeMap<String, TableSchema>;
 
     let mut joined = HashMap::<NamespaceId, NamespaceTables>::default();
     for column in columns {
         // Resolve the table this column references
         let table = tables.get(&column.table_id).expect("no table for column");
 
-        let table_info = joined
+        let table_schema = joined
             // Find or create a record in the joined <NamespaceId, Tables> map
             // for this namespace ID.
             .entry(table.namespace_id)
             .or_default()
             // Fetch the schema record for this table, or create an empty one.
             .entry(table.name.clone())
-            .or_insert_with(|| TableInfo::from(table));
+            .or_insert_with(|| TableSchema::new_empty_from(table));
 
-        table_info.schema.add_column(&column);
+        table_schema.add_column(&column);
     }
 
     // The table map is no longer needed - immediately reclaim the memory.
