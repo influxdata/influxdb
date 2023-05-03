@@ -94,32 +94,14 @@ impl PhysicalOptimizerRule for ProjectionPushdown {
                             .collect::<Result<Vec<_>>>()?,
                         None => column_indices,
                     };
-                    let output_ordering = match &child_parquet.base_config().output_ordering {
-                        Some(sort_exprs) => {
-                            let projected_schema = projection_exec.schema();
-
-                            // filter out sort exprs columns that got projected away
-                            let known_columns = projected_schema
-                                .all_fields()
-                                .iter()
-                                .map(|f| f.name().as_str())
-                                .collect::<HashSet<_>>();
-                            let sort_exprs = sort_exprs
-                                .iter()
-                                .filter(|expr| {
-                                    if let Some(col) = expr.expr.as_any().downcast_ref::<Column>() {
-                                        known_columns.contains(col.name())
-                                    } else {
-                                        true
-                                    }
-                                })
-                                .cloned()
-                                .collect::<Vec<_>>();
-
-                            Some(reassign_sort_exprs_columns(&sort_exprs, &projected_schema)?)
-                        }
-                        None => None,
-                    };
+                    let output_ordering = child_parquet
+                        .base_config()
+                        .output_ordering
+                        .as_ref()
+                        .map(|output_ordering| {
+                            project_output_ordering(output_ordering, projection_exec.schema())
+                        })
+                        .transpose()?;
                     let base_config = FileScanConfig {
                         projection: Some(projection),
                         output_ordering,
@@ -272,6 +254,56 @@ impl PhysicalOptimizerRule for ProjectionPushdown {
     }
 }
 
+/// Given the output ordering and a projected schema, returns the
+/// largest prefix of the ordering that is in the projection
+///
+/// For example,
+///
+/// ```text
+/// output_ordering: a, b, c
+/// projection: a, c
+/// returns --> a
+/// ```
+///
+/// To see why the input has to be a prefix, consider this input:
+///
+/// ```text
+/// a    b
+/// 1    1
+/// 2    2
+/// 3    1
+/// ``
+///
+/// It is sorted on `a,b` but *not* sorted on `b`
+fn project_output_ordering(
+    output_ordering: &[PhysicalSortExpr],
+    projected_schema: SchemaRef,
+) -> Result<Vec<PhysicalSortExpr>> {
+    // filter out sort exprs columns that got projected away
+    let known_columns = projected_schema
+        .all_fields()
+        .iter()
+        .map(|f| f.name().as_str())
+        .collect::<HashSet<_>>();
+
+    // take longest prefix
+    let sort_exprs = output_ordering
+        .iter()
+        .take_while(|expr| {
+            if let Some(col) = expr.expr.as_any().downcast_ref::<Column>() {
+                known_columns.contains(col.name())
+            } else {
+                // do not keep exprs like `a+1` or `-a` as they may
+                // not maintain ordering
+                false
+            }
+        })
+        .cloned()
+        .collect::<Vec<_>>();
+
+    reassign_sort_exprs_columns(&sort_exprs, &projected_schema)
+}
+
 fn schema_name_projection(
     schema: &SchemaRef,
     cols: &[&str],
@@ -395,7 +427,7 @@ fn reassign_sort_exprs_columns(
 mod tests {
     use arrow::{
         compute::SortOptions,
-        datatypes::{DataType, Field, Schema, SchemaRef},
+        datatypes::{DataType, Field, Fields, Schema, SchemaRef},
     };
     use datafusion::{
         datasource::object_store::ObjectStoreUrl,
@@ -406,6 +438,7 @@ mod tests {
         },
         scalar::ScalarValue,
     };
+    use serde::Serialize;
 
     use crate::{
         physical_optimizer::test_util::{assert_unknown_partitioning, OptimizationTest},
@@ -734,7 +767,7 @@ mod tests {
           - "   ParquetExec: limit=None, partitions={0 groups: []}, predicate=tag1@0 = foo, pruning_predicate=tag1_min@0 <= foo AND foo <= tag1_max@1, output_ordering=[tag3@1 ASC, field@0 ASC, tag2@2 ASC], projection=[field, tag3, tag2]"
         output:
           Ok:
-            - " ParquetExec: limit=None, partitions={0 groups: []}, predicate=tag1@0 = foo, pruning_predicate=tag1_min@0 <= foo AND foo <= tag1_max@1, output_ordering=[tag3@1 ASC, tag2@0 ASC], projection=[tag2, tag3]"
+            - " ParquetExec: limit=None, partitions={0 groups: []}, predicate=tag1@0 = foo, pruning_predicate=tag1_min@0 <= foo AND foo <= tag1_max@1, output_ordering=[tag3@1 ASC], projection=[tag2, tag3]"
         "###
         );
 
@@ -1349,12 +1382,248 @@ mod tests {
         );
     }
 
+    #[test]
+    fn test_project_output_ordering_keep() {
+        let schema = schema();
+        let projection = vec!["tag1", "tag2"];
+        let output_ordering = vec![
+            PhysicalSortExpr {
+                expr: expr_col("tag1", &schema),
+                options: Default::default(),
+            },
+            PhysicalSortExpr {
+                expr: expr_col("tag2", &schema),
+                options: Default::default(),
+            },
+        ];
+
+        insta::assert_yaml_snapshot!(
+            ProjectOutputOrdering::new(&schema, output_ordering, projection),
+            @r###"
+        ---
+        output_ordering:
+          - tag1@0
+          - tag2@1
+        projection:
+          - tag1
+          - tag2
+        projected_ordering:
+          - tag1@0
+          - tag2@1
+        "###
+        );
+    }
+
+    #[test]
+    fn test_project_output_ordering_project_prefix() {
+        let schema = schema();
+        let projection = vec!["tag1"]; // prefix of the sort key
+        let output_ordering = vec![
+            PhysicalSortExpr {
+                expr: expr_col("tag1", &schema),
+                options: Default::default(),
+            },
+            PhysicalSortExpr {
+                expr: expr_col("tag2", &schema),
+                options: Default::default(),
+            },
+        ];
+
+        insta::assert_yaml_snapshot!(
+            ProjectOutputOrdering::new(&schema, output_ordering, projection),
+            @r###"
+        ---
+        output_ordering:
+          - tag1@0
+          - tag2@1
+        projection:
+          - tag1
+        projected_ordering:
+          - tag1@0
+        "###
+        );
+    }
+
+    #[test]
+    fn test_project_output_ordering_project_non_prefix() {
+        let schema = schema();
+        let projection = vec!["tag2"]; // in sort key, but not prefix
+        let output_ordering = vec![
+            PhysicalSortExpr {
+                expr: expr_col("tag1", &schema),
+                options: Default::default(),
+            },
+            PhysicalSortExpr {
+                expr: expr_col("tag2", &schema),
+                options: Default::default(),
+            },
+        ];
+
+        insta::assert_yaml_snapshot!(
+            ProjectOutputOrdering::new(&schema, output_ordering, projection),
+            @r###"
+        ---
+        output_ordering:
+          - tag1@0
+          - tag2@1
+        projection:
+          - tag2
+        projected_ordering: []
+        "###
+        );
+    }
+
+    #[test]
+    fn test_project_output_ordering_projection_reorder() {
+        let schema = schema();
+        let projection = vec!["tag2", "tag1", "field"]; // in different order than sort key
+        let output_ordering = vec![
+            PhysicalSortExpr {
+                expr: expr_col("tag1", &schema),
+                options: Default::default(),
+            },
+            PhysicalSortExpr {
+                expr: expr_col("tag2", &schema),
+                options: Default::default(),
+            },
+        ];
+
+        insta::assert_yaml_snapshot!(
+            ProjectOutputOrdering::new(&schema, output_ordering, projection),
+            @r###"
+        ---
+        output_ordering:
+          - tag1@0
+          - tag2@1
+        projection:
+          - tag2
+          - tag1
+          - field
+        projected_ordering:
+          - tag1@1
+          - tag2@0
+        "###
+        );
+    }
+
+    #[test]
+    fn test_project_output_ordering_constant() {
+        let schema = schema();
+        let projection = vec!["tag2"];
+        let output_ordering = vec![
+            // ordering by a constant is ignored
+            PhysicalSortExpr {
+                expr: datafusion::physical_plan::expressions::lit(1),
+                options: Default::default(),
+            },
+            PhysicalSortExpr {
+                expr: expr_col("tag2", &schema),
+                options: Default::default(),
+            },
+        ];
+
+        insta::assert_yaml_snapshot!(
+            ProjectOutputOrdering::new(&schema, output_ordering, projection),
+            @r###"
+        ---
+        output_ordering:
+          - "1"
+          - tag2@1
+        projection:
+          - tag2
+        projected_ordering: []
+        "###
+        );
+    }
+
+    #[test]
+    fn test_project_output_ordering_constant_second_position() {
+        let schema = schema();
+        let projection = vec!["tag2"];
+        let output_ordering = vec![
+            PhysicalSortExpr {
+                expr: expr_col("tag2", &schema),
+                options: Default::default(),
+            },
+            // ordering by a constant is ignored
+            PhysicalSortExpr {
+                expr: datafusion::physical_plan::expressions::lit(1),
+                options: Default::default(),
+            },
+        ];
+
+        insta::assert_yaml_snapshot!(
+            ProjectOutputOrdering::new(&schema, output_ordering, projection),
+            @r###"
+        ---
+        output_ordering:
+          - tag2@1
+          - "1"
+        projection:
+          - tag2
+        projected_ordering:
+          - tag2@0
+        "###
+        );
+    }
+
+    /// project the output_ordering with the projection,
+    // derive serde to make a nice 'insta' snapshot
+    #[derive(Debug, Serialize)]
+    struct ProjectOutputOrdering {
+        output_ordering: Vec<String>,
+        projection: Vec<String>,
+        projected_ordering: Vec<String>,
+    }
+
+    impl ProjectOutputOrdering {
+        fn new(
+            schema: &Schema,
+            output_ordering: Vec<PhysicalSortExpr>,
+            projection: Vec<&'static str>,
+        ) -> Self {
+            let projected_fields: Fields = projection
+                .iter()
+                .map(|field_name| {
+                    schema
+                        .field_with_name(field_name)
+                        .expect("finding field")
+                        .clone()
+                })
+                .collect();
+            let projected_schema = Arc::new(Schema::new(projected_fields));
+
+            let projected_ordering = project_output_ordering(&output_ordering, projected_schema);
+
+            let projected_ordering = match projected_ordering {
+                Ok(projected_ordering) => format_sort_exprs(&projected_ordering),
+                Err(e) => vec![e.to_string()],
+            };
+
+            Self {
+                output_ordering: format_sort_exprs(&output_ordering),
+                projection: projection.iter().map(|s| s.to_string()).collect(),
+                projected_ordering,
+            }
+        }
+    }
+
     fn schema() -> SchemaRef {
         Arc::new(Schema::new(vec![
             Field::new("tag1", DataType::Utf8, true),
             Field::new("tag2", DataType::Utf8, true),
             Field::new("field", DataType::UInt64, true),
         ]))
+    }
+
+    fn format_sort_exprs(sort_exprs: &[PhysicalSortExpr]) -> Vec<String> {
+        sort_exprs
+            .iter()
+            .map(|expr| {
+                let PhysicalSortExpr { expr, options: _ } = expr;
+                expr.to_string()
+            })
+            .collect::<Vec<_>>()
     }
 
     fn expr_col(name: &str, schema: &SchemaRef) -> Arc<dyn PhysicalExpr> {

@@ -55,7 +55,7 @@ use executor::DedicatedExecutor;
 use futures::{Stream, StreamExt, TryStreamExt};
 use observability_deps::tracing::{debug, warn};
 use query_functions::{register_scalar_functions, selectors::register_selector_aggregates};
-use std::{convert::TryInto, fmt, num::NonZeroUsize, sync::Arc};
+use std::{fmt, num::NonZeroUsize, sync::Arc};
 use trace::{
     ctx::SpanContext,
     span::{MetaValue, Span, SpanExt, SpanRecorder},
@@ -371,30 +371,6 @@ impl IOxSessionContext {
         &self,
         logical_plan: &LogicalPlan,
     ) -> Result<Arc<dyn ExecutionPlan>> {
-        // Make nicer erorrs for unsupported SQL
-        // (By default datafusion returns Internal Error)
-        match &logical_plan {
-            LogicalPlan::CreateCatalog(_) => {
-                return Err(Error::NotImplemented("CreateCatalog".to_string()));
-            }
-            LogicalPlan::CreateCatalogSchema(_) => {
-                return Err(Error::NotImplemented("CreateCatalogSchema".to_string()));
-            }
-            LogicalPlan::CreateMemoryTable(_) => {
-                return Err(Error::NotImplemented("CreateMemoryTable".to_string()));
-            }
-            LogicalPlan::DropTable(_) => {
-                return Err(Error::NotImplemented("DropTable".to_string()));
-            }
-            LogicalPlan::DropView(_) => {
-                return Err(Error::NotImplemented("DropView".to_string()));
-            }
-            LogicalPlan::CreateView(_) => {
-                return Err(Error::NotImplemented("CreateView".to_string()));
-            }
-            _ => (),
-        }
-
         let mut ctx = self.child_ctx("create_physical_plan");
         debug!(text=%logical_plan.display_indent_schema(), "create_physical_plan: initial plan");
         let physical_plan = ctx.inner.state().create_physical_plan(logical_plan).await?;
@@ -484,6 +460,7 @@ impl IOxSessionContext {
         &self,
         series_set_plans: SeriesSetPlans,
         memory_pool: Arc<dyn MemoryPool>,
+        points_per_batch: usize,
     ) -> Result<impl Stream<Item = Result<Either>>> {
         let SeriesSetPlans {
             mut plans,
@@ -530,7 +507,7 @@ impl IOxSessionContext {
                 }
             })
             .try_flatten()
-            .try_filter_map(|series_set: SeriesSet| async move {
+            .try_filter_map(move |series_set: SeriesSet| async move {
                 // If all timestamps of returned columns are nulls,
                 // there must be no data. We need to check this because
                 // aggregate (e.g. count, min, max) returns one row that are
@@ -542,7 +519,7 @@ impl IOxSessionContext {
                 }
 
                 let series: Vec<Series> = series_set
-                    .try_into()
+                    .try_into_series(points_per_batch)
                     .map_err(|e| Error::Execution(format!("Error converting to series: {e}")))?;
                 Ok(Some(futures::stream::iter(series).map(Ok)))
             })

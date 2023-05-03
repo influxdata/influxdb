@@ -209,14 +209,22 @@ impl Scratchpad for ProdScratchpad {
     // This should be called after uploading files to objectstore.
     // Cleaning should be done regularly, so the scratchpad doesn't get too big.
     async fn clean_from_scratchpad(&self, files: &[ParquetFilePath]) {
-        let mut ref_files_unmasked = self.files_unmasked.read().unwrap().clone();
+        let files_masked: Vec<ParquetFilePath>;
+        let _uuid: Vec<Uuid>;
 
-        let files = files
-            .iter()
-            .filter(|f| ref_files_unmasked.remove(f).is_some())
-            .cloned()
-            .collect::<Vec<_>>();
-        let (files_masked, _uuids) = self.apply_mask(&files);
+        // scope the files_unmasked lock to protect manipulation of the scratchpad's state, but release it
+        // before doing the async delete of files removed from the scratchpad.
+        {
+            let mut ref_files_unmasked = self.files_unmasked.write().unwrap();
+
+            let files = files
+                .iter()
+                .filter(|f| ref_files_unmasked.remove(f).is_some())
+                .cloned()
+                .collect::<Vec<_>>();
+            (files_masked, _uuid) = self.apply_mask(&files);
+        }
+
         delete_files(
             &files_masked,
             Arc::clone(&self.store_scratchpad),
@@ -227,6 +235,7 @@ impl Scratchpad for ProdScratchpad {
     }
 
     async fn clean(&self) {
+        // clean will remove all files in the scratchpad as of the time files_unmasked is locked.
         let files: Vec<_> = self
             .files_unmasked
             .read()
@@ -234,8 +243,10 @@ impl Scratchpad for ProdScratchpad {
             .keys()
             .cloned()
             .collect();
+
+        // self.files_unmasked is locked again in clean_from_scratchpad.  If another thread removes a file
+        // between this relock, clean_from_scratchpad will skip it.
         self.clean_from_scratchpad(&files).await;
-        self.files_unmasked.write().unwrap().clear();
     }
 }
 
@@ -362,10 +373,17 @@ mod tests {
 
         pad.clean_from_scratchpad(&[f1, f5]).await;
 
+        // Reload a cleaned file back into the scratchpad, simulating a backlogged partition that
+        // requires several compaction loops (where the output of one compaction is later the input
+        // to a subsequent compaction).
+        let uuids = pad.load_to_scratchpad(&[f1]).await;
+        assert_eq!(uuids.len(), 1);
+        assert_eq!(f1_masked.objest_store_id(), uuids[0]);
+
         assert_content(&store_input, [&f1, &f2, &f3, &f4]).await;
         assert_content(
             &store_scratchpad,
-            [&f2_masked, &f3_masked, &f6_masked, &f7_masked],
+            [&f1_masked, &f2_masked, &f3_masked, &f6_masked, &f7_masked],
         )
         .await;
         assert_content(&store_output, [&f1, &f5, &f6]).await;

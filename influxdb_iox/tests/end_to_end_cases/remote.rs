@@ -235,7 +235,6 @@ async fn remote_store_get_table() {
 ///
 /// - `remote partition show`
 /// - `remote store get`
-/// - `remote partition pull`
 #[tokio::test]
 async fn remote_partition_and_get_from_store_and_pull() {
     test_helpers::maybe_start_logging();
@@ -261,7 +260,6 @@ async fn remote_partition_and_get_from_store_and_pull() {
             Step::Custom(Box::new(|state: &mut StepTestState| {
                 async {
                     let router_addr = state.cluster().router().router_grpc_base().to_string();
-                    let namespace = state.cluster().namespace().to_string();
 
                     // Validate the output of the remote partition CLI command
                     //
@@ -317,52 +315,6 @@ async fn remote_partition_and_get_from_store_and_pull() {
                         .stdout(
                             predicate::str::contains("wrote")
                                 .and(predicate::str::contains(filename)),
-                        );
-
-                    // Ensure a warning is emitted when specifying (or
-                    // defaulting to) in-memory file storage.
-                    Command::cargo_bin("influxdb_iox")
-                        .unwrap()
-                        .arg("-h")
-                        .arg(&router_addr)
-                        .arg("remote")
-                        .arg("partition")
-                        .arg("pull")
-                        .arg("--catalog")
-                        .arg("memory")
-                        .arg("--object-store")
-                        .arg("memory")
-                        .arg(&namespace)
-                        .arg("my_awesome_table")
-                        .arg("1970-01-01")
-                        .assert()
-                        .failure()
-                        .stderr(predicate::str::contains("try passing --object-store=file"));
-
-                    // Ensure files are actually wrote to the filesystem
-                    let dir = tempfile::tempdir().expect("could not get temporary directory");
-
-                    Command::cargo_bin("influxdb_iox")
-                        .unwrap()
-                        .arg("-h")
-                        .arg(&router_addr)
-                        .arg("remote")
-                        .arg("partition")
-                        .arg("pull")
-                        .arg("--catalog")
-                        .arg("memory")
-                        .arg("--object-store")
-                        .arg("file")
-                        .arg("--data-dir")
-                        .arg(dir.path().to_str().unwrap())
-                        .arg(&namespace)
-                        .arg("my_awesome_table")
-                        .arg("1970-01-01")
-                        .assert()
-                        .success()
-                        .stdout(
-                            predicate::str::contains("wrote file")
-                                .and(predicate::str::contains(&object_store_id)),
                         );
                 }
                 .boxed()

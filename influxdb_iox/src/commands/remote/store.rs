@@ -2,7 +2,11 @@
 
 use futures::StreamExt;
 use futures_util::TryStreamExt;
-use influxdb_iox_client::{catalog, connection::Connection, store};
+use influxdb_iox_client::{
+    catalog::{self, generated_types::ParquetFile},
+    connection::Connection,
+    store,
+};
 use std::path::PathBuf;
 use thiserror::Error;
 use tokio::{
@@ -54,6 +58,10 @@ struct GetTable {
     #[clap(action)]
     table: String,
 
+    /// If specified, only files from the specified partitions are downloaded
+    #[clap(action, short, long)]
+    partition_id: Option<i64>,
+
     /// The output directory to use. If not specified, files will be placed in a directory named
     /// after the table in the current working directory.
     #[clap(action, short)]
@@ -83,31 +91,36 @@ pub async fn command(connection: Connection, config: Config) -> Result<(), Error
 
             Ok(())
         }
-        Command::GetTable(get_table) => {
-            let directory = get_table
-                .output_directory
-                .unwrap_or_else(|| PathBuf::from(&get_table.table));
+        Command::GetTable(GetTable {
+            namespace,
+            table,
+            partition_id,
+            output_directory,
+        }) => {
+            let directory = output_directory.unwrap_or_else(|| PathBuf::from(&table));
             fs::create_dir_all(&directory).await?;
             let mut catalog_client = catalog::Client::new(connection.clone());
             let mut store_client = store::Client::new(connection);
 
             let parquet_files = catalog_client
-                .get_parquet_files_by_namespace_table(
-                    get_table.namespace.clone(),
-                    get_table.table.clone(),
-                )
+                .get_parquet_files_by_namespace_table(namespace.clone(), table.clone())
                 .await?;
+
             let num_parquet_files = parquet_files.len();
             println!("found {num_parquet_files} Parquet files, downloading...");
             let indexed_parquet_file_metadata = parquet_files.into_iter().enumerate();
 
+            if let Some(partition_id) = partition_id {
+                println!("Filtering by partition {partition_id}");
+            }
+
             for (index, parquet_file) in indexed_parquet_file_metadata {
-                let uuid = parquet_file.object_store_id;
-                let partition_id = parquet_file.partition_id;
+                let uuid = &parquet_file.object_store_id;
+                let file_partition_id = parquet_file.partition_id;
                 let file_size_bytes = parquet_file.file_size_bytes as u64;
 
                 let index = index + 1;
-                let filename = format!("{uuid}.{partition_id}.parquet");
+                let filename = format!("{uuid}.{file_partition_id}.parquet");
                 let file_path = directory.join(&filename);
 
                 if fs::metadata(&file_path)
@@ -116,6 +129,10 @@ pub async fn command(connection: Connection, config: Config) -> Result<(), Error
                 {
                     println!(
                         "skipping file {index} of {num_parquet_files} ({filename} already exists)"
+                    );
+                } else if !download_partition(&parquet_file, partition_id) {
+                    println!(
+                        "skipping file {index} of {num_parquet_files} ({file_partition_id} does not match request)"
                     );
                 } else {
                     println!("downloading file {index} of {num_parquet_files} ({filename})...");
@@ -136,4 +153,16 @@ pub async fn command(connection: Connection, config: Config) -> Result<(), Error
             Ok(())
         }
     }
+}
+
+/// evaluate the partition_filter on this file
+fn download_partition(parquet_file: &ParquetFile, partition_id: Option<i64>) -> bool {
+    partition_id
+        .map(|partition_id| {
+            // if a partition_id was specified, only download the file if
+            // the partition matches
+            parquet_file.partition_id == partition_id
+        })
+        // download files if there is no partition
+        .unwrap_or(true)
 }

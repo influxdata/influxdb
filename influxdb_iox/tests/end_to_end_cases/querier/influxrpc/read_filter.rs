@@ -5,6 +5,7 @@ use generated_types::{
     node::Logical, read_response::frame::Data, storage_client::StorageClient, ReadFilterRequest,
 };
 use influxdb_iox_client::connection::GrpcConnection;
+use itertools::Itertools;
 use std::sync::Arc;
 use test_helpers_end_to_end::{
     maybe_skip_integration, DataGenerator, GrpcRequestBuilder, MiniCluster, Step, StepTest,
@@ -302,6 +303,55 @@ pub async fn read_filter_periods_multi_field_predicate2() {
             "SeriesFrame, tags: _field=temp.foo,_measurement=h2o,state=CA,state.city=LA, type: 0",
             "FloatPointsFrame, timestamps: [400], values: \"92\"",
         ],
+    )
+    .await
+}
+
+// Test for https://github.com/influxdata/influxdb_iox/issues/7663
+#[tokio::test]
+pub async fn read_filter_multi_data_frame() {
+    // there will be 1000 points per frame, so
+    // this number of points will return 3 frames
+    // with the last containing just one point.
+    let num_points: i64 = 2001;
+    let input_lines: Vec<String> = (0..num_points)
+        .map(|i| {
+            format!(
+                "h2o,tagk0=tagv0 f0={} {}",
+                i,
+                1_000_000_000 + i * 1_000_000_000
+            )
+        })
+        .collect();
+    let input_lines: Vec<&str> = input_lines.iter().map(String::as_ref).collect();
+
+    let mut expected = vec!["SeriesFrame, tags: _field=f0,_measurement=h2o,tagk0=tagv0, type: 0"];
+    let ts_vec = (0..num_points)
+        .map(|i| 1_000_000_000 + i * 1_000_000_000)
+        .collect::<Vec<_>>();
+    let values_vec = (0..num_points).collect::<Vec<_>>();
+    let mut data_frames: Vec<String> = vec![];
+    for (ts_chunk, v_chunk) in ts_vec.chunks(1000).zip(values_vec.chunks(1000)) {
+        let ts_str = ts_chunk.iter().map(|ts| ts.to_string()).join(", ");
+        let v_str = v_chunk.iter().map(|v| v.to_string()).join(",");
+        data_frames.push(format!(
+            "FloatPointsFrame, timestamps: [{}], values: \"{}\"",
+            ts_str, v_str
+        ));
+    }
+    data_frames
+        .iter()
+        .for_each(|line| expected.push(line.as_ref()));
+
+    // response should be broken into three frames
+    assert_eq!(3, data_frames.len());
+
+    do_read_filter_test(
+        input_lines,
+        GrpcRequestBuilder::new()
+            .field_predicate("f0")
+            .timestamp_range(0, num_points * 1_000_000_000_000),
+        expected,
     )
     .await
 }

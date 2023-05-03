@@ -59,6 +59,10 @@ use tracker::InstrumentedAsyncOwnedSemaphorePermit;
 /// this size (there's a bit of additional encoding overhead on top of that, but that should be OK).
 const MAX_READ_RESPONSE_SIZE: usize = 4194304 - 100_000; // 4MB - <wiggle room>
 
+/// The max number of points allowed in each output data frame. This is the same value TSM uses,
+/// and is used to avoid overlarge individual gRPC messages.
+const MAX_POINTS_PER_FRAME: usize = 1000;
+
 #[derive(Debug, Snafu)]
 pub enum Error {
     #[snafu(display("Namespace not found: {}", db_name))]
@@ -1370,6 +1374,7 @@ where
         .to_series_and_groups(
             series_plan,
             Arc::clone(&ctx.inner().runtime_env().memory_pool),
+            MAX_POINTS_PER_FRAME,
         )
         .await
         .context(FilteringSeriesSnafu {
@@ -1438,6 +1443,7 @@ where
         .to_series_and_groups(
             grouped_series_set_plan,
             Arc::clone(&ctx.inner().runtime_env().memory_pool),
+            MAX_POINTS_PER_FRAME,
         )
         .await
         .context(GroupingSeriesSnafu {

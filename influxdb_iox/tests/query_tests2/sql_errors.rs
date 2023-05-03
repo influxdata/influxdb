@@ -43,8 +43,9 @@ async fn create_schema() {
         setup_name: "OneMeasurementWithTags",
         sql: "CREATE SCHEMA foo",
         expected_error_code: tonic::Code::InvalidArgument,
-        expected_message: "Error while planning query: This feature is not implemented: \
-        CreateCatalogSchema",
+        expected_message: "Error while planning query: \
+                           This feature is not implemented: \
+                           Unsupported logical plan: CreateCatalogSchema",
     }
     .run()
     .await;
