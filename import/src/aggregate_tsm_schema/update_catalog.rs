@@ -1023,7 +1023,6 @@ mod tests {
         let partition = Partition {
             id: PartitionId::new(1),
             table_id: TableId::new(1),
-            persisted_sequence_number: None,
             partition_key: PartitionKey::from("2022-06-21"),
             sort_key: Vec::new(),
             new_file_at: None,
@@ -1070,7 +1069,6 @@ mod tests {
         let partition = Partition {
             id: PartitionId::new(1),
             table_id: TableId::new(1),
-            persisted_sequence_number: None,
             partition_key: PartitionKey::from("2022-06-21"),
             // N.B. sort key is already what it will computed to; here we're testing the `adjust_sort_key_columns` code path
             sort_key: vec!["host".to_string(), "arch".to_string(), "time".to_string()],
@@ -1117,7 +1115,6 @@ mod tests {
         let partition = Partition {
             id: PartitionId::new(1),
             table_id: TableId::new(1),
-            persisted_sequence_number: None,
             partition_key: PartitionKey::from("2022-06-21"),
             // N.B. is missing host so will need updating
             sort_key: vec!["arch".to_string(), "time".to_string()],
@@ -1166,7 +1163,6 @@ mod tests {
         let partition = Partition {
             id: PartitionId::new(1),
             table_id: TableId::new(1),
-            persisted_sequence_number: None,
             partition_key: PartitionKey::from("2022-06-21"),
             // N.B. is missing arch so will need updating
             sort_key: vec!["host".to_string(), "time".to_string()],

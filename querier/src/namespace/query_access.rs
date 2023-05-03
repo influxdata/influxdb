@@ -244,7 +244,6 @@ mod tests {
         let builder = TestParquetFileBuilder::default()
             .with_max_l0_created_at(Time::from_timestamp_nanos(1))
             .with_line_protocol("cpu,host=a load=1 11")
-            .with_max_seq(1)
             .with_min_time(11)
             .with_max_time(11);
         partition_cpu_a_1.create_parquet_file(builder).await;
@@ -252,7 +251,6 @@ mod tests {
         let builder = TestParquetFileBuilder::default()
             .with_max_l0_created_at(Time::from_timestamp_nanos(2))
             .with_line_protocol("cpu,host=a load=2 22")
-            .with_max_seq(2)
             .with_min_time(22)
             .with_max_time(22);
         partition_cpu_a_1
@@ -264,7 +262,6 @@ mod tests {
         let builder = TestParquetFileBuilder::default()
             .with_max_l0_created_at(Time::from_timestamp_nanos(3))
             .with_line_protocol("cpu,host=z load=0 0")
-            .with_max_seq(2)
             .with_min_time(22)
             .with_max_time(22);
         partition_cpu_a_1.create_parquet_file(builder).await;
@@ -272,7 +269,6 @@ mod tests {
         let builder = TestParquetFileBuilder::default()
             .with_max_l0_created_at(Time::from_timestamp_nanos(4))
             .with_line_protocol("cpu,host=a load=3 33")
-            .with_max_seq(3)
             .with_min_time(33)
             .with_max_time(33);
         partition_cpu_a_1.create_parquet_file(builder).await;
@@ -280,7 +276,6 @@ mod tests {
         let builder = TestParquetFileBuilder::default()
             .with_max_l0_created_at(Time::from_timestamp_nanos(5))
             .with_line_protocol("cpu,host=a load=4 10001")
-            .with_max_seq(4)
             .with_min_time(10_001)
             .with_max_time(10_001);
         partition_cpu_a_2.create_parquet_file(builder).await;
@@ -288,7 +283,6 @@ mod tests {
         let builder = TestParquetFileBuilder::default()
             .with_creation_time(Time::from_timestamp_nanos(6))
             .with_line_protocol("cpu,host=b load=5 11")
-            .with_max_seq(5)
             .with_min_time(11)
             .with_max_time(11);
         partition_cpu_b_1.create_parquet_file(builder).await;
@@ -302,7 +296,6 @@ mod tests {
         let builder = TestParquetFileBuilder::default()
             .with_max_l0_created_at(Time::from_timestamp_nanos(7))
             .with_line_protocol(&lp)
-            .with_max_seq(6)
             .with_min_time(11)
             .with_max_time(14);
         partition_mem_c_1.create_parquet_file(builder).await;
@@ -310,7 +303,6 @@ mod tests {
         let builder = TestParquetFileBuilder::default()
             .with_max_l0_created_at(Time::from_timestamp_nanos(8))
             .with_line_protocol("mem,host=c perc=50 1001")
-            .with_max_seq(7)
             .with_min_time(1001)
             .with_max_time(1001);
         partition_mem_c_2
@@ -523,7 +515,6 @@ mod tests {
             .with_max_l0_created_at(Time::from_timestamp_nanos(10))
             // duplicate row with different field value (load=14)
             .with_line_protocol("cpu,host=a load=14 10001")
-            .with_max_seq(2_000)
             .with_min_time(10_001)
             .with_max_time(10_001);
         partition_cpu_a_2.create_parquet_file(builder).await;

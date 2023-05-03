@@ -7,9 +7,7 @@ use std::{
 };
 
 use async_trait::async_trait;
-use data_types::{
-    ColumnSet, CompactionLevel, ParquetFile, ParquetFileParams, SequenceNumber, Timestamp,
-};
+use data_types::{ColumnSet, CompactionLevel, ParquetFile, ParquetFileParams, Timestamp};
 use datafusion::physical_plan::SendableRecordBatchStream;
 use iox_time::Time;
 use observability_deps::tracing::info;
@@ -206,7 +204,6 @@ impl SimulatedFile {
             table_id: partition_info.table.id,
             partition_id: partition_info.partition_id,
             object_store_id: Uuid::new_v4(),
-            max_sequence_number: SequenceNumber::new(0),
             min_time,
             max_time,
             file_size_bytes,

@@ -792,7 +792,7 @@ pub(crate) mod test_helpers {
     use super::*;
     use ::test_helpers::{assert_contains, tracing::TracingCapture};
     use assert_matches::assert_matches;
-    use data_types::{ColumnId, ColumnSet, CompactionLevel, SequenceNumber};
+    use data_types::{ColumnId, ColumnSet, CompactionLevel};
     use futures::Future;
     use metric::{Attributes, DurationHistogram, Metric};
     use std::{collections::BTreeSet, ops::DerefMut, sync::Arc, time::Duration};
@@ -1803,7 +1803,6 @@ pub(crate) mod test_helpers {
             table_id: partition.table_id,
             partition_id: partition.id,
             object_store_id: Uuid::new_v4(),
-            max_sequence_number: SequenceNumber::new(140),
             min_time: Timestamp::new(1),
             max_time: Timestamp::new(10),
             file_size_bytes: 1337,
@@ -1839,7 +1838,6 @@ pub(crate) mod test_helpers {
             table_id: other_partition.table_id,
             partition_id: other_partition.id,
             object_store_id: Uuid::new_v4(),
-            max_sequence_number: SequenceNumber::new(200),
             min_time: Timestamp::new(50),
             max_time: Timestamp::new(60),
             ..parquet_file_params.clone()
@@ -1987,7 +1985,6 @@ pub(crate) mod test_helpers {
             object_store_id: Uuid::new_v4(),
             min_time: Timestamp::new(1),
             max_time: Timestamp::new(10),
-            max_sequence_number: SequenceNumber::new(10),
             ..parquet_file_params
         };
         let f1 = repos
@@ -2000,7 +1997,6 @@ pub(crate) mod test_helpers {
             object_store_id: Uuid::new_v4(),
             min_time: Timestamp::new(50),
             max_time: Timestamp::new(60),
-            max_sequence_number: SequenceNumber::new(11),
             ..f1_params.clone()
         };
         let f2 = repos
@@ -2019,7 +2015,6 @@ pub(crate) mod test_helpers {
             object_store_id: Uuid::new_v4(),
             min_time: Timestamp::new(50),
             max_time: Timestamp::new(60),
-            max_sequence_number: SequenceNumber::new(12),
             ..f2_params
         };
         let f3 = repos
@@ -2223,7 +2218,6 @@ pub(crate) mod test_helpers {
             table_id: table_1.id,
             partition_id: partition_1.id,
             object_store_id: Uuid::new_v4(),
-            max_sequence_number: SequenceNumber::new(140),
             min_time: Timestamp::new(1),
             max_time: Timestamp::new(10),
             file_size_bytes: 1337,
@@ -2238,7 +2232,6 @@ pub(crate) mod test_helpers {
             table_id: table_2.id,
             partition_id: partition_2.id,
             object_store_id: Uuid::new_v4(),
-            max_sequence_number: SequenceNumber::new(140),
             min_time: Timestamp::new(1),
             max_time: Timestamp::new(10),
             file_size_bytes: 1337,
@@ -2327,7 +2320,6 @@ pub(crate) mod test_helpers {
             table_id: partition1.table_id,
             partition_id: partition1.id,
             object_store_id: Uuid::new_v4(),
-            max_sequence_number: SequenceNumber::new(140),
             min_time: Timestamp::new(1),
             max_time: Timestamp::new(10),
             file_size_bytes: 1337,
@@ -2683,7 +2675,6 @@ pub(crate) mod test_helpers {
             table_id: partition.table_id,
             partition_id: partition.id,
             object_store_id: Uuid::new_v4(),
-            max_sequence_number: SequenceNumber::new(140),
             min_time,
             max_time,
             file_size_bytes: 1337,
@@ -2794,7 +2785,6 @@ pub(crate) mod test_helpers {
             table_id: partition.table_id,
             partition_id: partition.id,
             object_store_id: Uuid::new_v4(),
-            max_sequence_number: SequenceNumber::new(140),
             min_time: query_min_time + 1,
             max_time: query_max_time - 1,
             file_size_bytes: 1337,
@@ -2884,7 +2874,6 @@ pub(crate) mod test_helpers {
             table_id: partition_1.table_id,
             partition_id: partition_1.id,
             object_store_id: Uuid::new_v4(),
-            max_sequence_number: SequenceNumber::new(1),
             min_time: Timestamp::new(100),
             max_time: Timestamp::new(250),
             file_size_bytes: 1337,
@@ -2901,7 +2890,6 @@ pub(crate) mod test_helpers {
             .unwrap();
         let parquet_file_params_2 = ParquetFileParams {
             object_store_id: Uuid::new_v4(),
-            max_sequence_number: SequenceNumber::new(3),
             min_time: Timestamp::new(200),
             max_time: Timestamp::new(300),
             ..parquet_file_params
@@ -2941,7 +2929,6 @@ pub(crate) mod test_helpers {
             table_id: partition_2.table_id,
             partition_id: partition_2.id,
             object_store_id: Uuid::new_v4(),
-            max_sequence_number: SequenceNumber::new(1),
             min_time: Timestamp::new(100),
             max_time: Timestamp::new(250),
             file_size_bytes: 1337,
@@ -2958,7 +2945,6 @@ pub(crate) mod test_helpers {
             .unwrap();
         let parquet_file_params_2 = ParquetFileParams {
             object_store_id: Uuid::new_v4(),
-            max_sequence_number: SequenceNumber::new(3),
             min_time: Timestamp::new(200),
             max_time: Timestamp::new(300),
             ..parquet_file_params
