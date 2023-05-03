@@ -16,12 +16,14 @@
 )]
 #![allow(rustdoc::private_intra_doc_links)]
 
-use async_trait::async_trait;
 use base64::{prelude::BASE64_STANDARD, Engine};
-use generated_types::influxdata::iox::authz::v1 as proto;
+use generated_types::influxdata::iox::authz::v1::{self as proto};
 use observability_deps::tracing::warn;
-use snafu::Snafu;
 
+mod authorizer;
+pub use authorizer::Authorizer;
+mod iox_authorizer;
+pub use iox_authorizer::{Error, IoxAuthorizer};
 mod permission;
 pub use permission::{Action, Permission, Resource};
 
@@ -45,163 +47,6 @@ pub fn extract_token<T: AsRef<[u8]> + ?Sized>(value: Option<&T>) -> Option<Vec<u
         None
     } else {
         Some(token)
-    }
-}
-
-/// An authorizer is used to validate the associated with
-/// an authorization token that has been extracted from a request.
-#[async_trait]
-pub trait Authorizer: std::fmt::Debug + Send + Sync {
-    /// Determine the permissions associated with a request token.
-    ///
-    /// The returned list of permissions is the intersection of the permissions
-    /// requested and the permissions associated with the token.
-    ///
-    /// Implementations of this trait should only error if:
-    ///     * there is a failure processing the token.
-    ///     * there is not any intersection of permissions.
-    async fn permissions(
-        &self,
-        token: Option<Vec<u8>>,
-        perms: &[Permission],
-    ) -> Result<Vec<Permission>, Error>;
-
-    /// Make a test request that determines if end-to-end communication
-    /// with the service is working.
-    async fn probe(&self) -> Result<(), Error> {
-        self.permissions(Some(b"".to_vec()), &[]).await?;
-        Ok(())
-    }
-}
-
-/// Wrapped `Option<dyn Authorizer>`
-/// Provides response to inner `IoxAuthorizer::permissions()`
-#[async_trait]
-impl<T: Authorizer> Authorizer for Option<T> {
-    async fn permissions(
-        &self,
-        token: Option<Vec<u8>>,
-        perms: &[Permission],
-    ) -> Result<Vec<Permission>, Error> {
-        match self {
-            Some(authz) => authz.permissions(token, perms).await,
-            // no authz rpc service => return same perms requested. Used for testing.
-            None => Ok(perms.to_vec()),
-        }
-    }
-}
-
-#[async_trait]
-impl<T: AsRef<dyn Authorizer> + std::fmt::Debug + Send + Sync> Authorizer for T {
-    async fn permissions(
-        &self,
-        token: Option<Vec<u8>>,
-        perms: &[Permission],
-    ) -> Result<Vec<Permission>, Error> {
-        self.as_ref().permissions(token, perms).await
-    }
-}
-
-/// Authorizer implementation using influxdata.iox.authz.v1 protocol.
-#[derive(Clone, Debug)]
-pub struct IoxAuthorizer {
-    client:
-        proto::iox_authorizer_service_client::IoxAuthorizerServiceClient<tonic::transport::Channel>,
-}
-
-impl IoxAuthorizer {
-    /// Attempt to create a new client by connecting to a given endpoint.
-    pub fn connect_lazy<D>(dst: D) -> Result<Self, Box<dyn std::error::Error>>
-    where
-        D: TryInto<tonic::transport::Endpoint> + Send,
-        D::Error: Into<tonic::codegen::StdError>,
-    {
-        let ep = tonic::transport::Endpoint::new(dst)?;
-        let client = proto::iox_authorizer_service_client::IoxAuthorizerServiceClient::new(
-            ep.connect_lazy(),
-        );
-        Ok(Self { client })
-    }
-}
-
-#[async_trait]
-impl Authorizer for IoxAuthorizer {
-    async fn permissions(
-        &self,
-        token: Option<Vec<u8>>,
-        requested_perms: &[Permission],
-    ) -> Result<Vec<Permission>, Error> {
-        let req = proto::AuthorizeRequest {
-            token: token.ok_or(Error::NoToken)?,
-            permissions: requested_perms
-                .iter()
-                .filter_map(|p| p.clone().try_into().ok())
-                .collect(),
-        };
-        let mut client = self.client.clone();
-        let authz_rpc_result = client.authorize(req).await?;
-
-        let intersected_perms: Vec<Permission> = authz_rpc_result
-            .into_inner()
-            .permissions
-            .into_iter()
-            .filter_map(|p| match p.try_into() {
-                Ok(p) => Some(p),
-                Err(e) => {
-                    warn!(error=%e, "authz service returned incompatible permission");
-                    None
-                }
-            })
-            .collect();
-
-        match (requested_perms, &intersected_perms[..]) {
-            // used in connection `Authorizer::probe()`
-            ([], _) => Ok(vec![]),
-            // token does not have any of the requested_perms
-            (_, []) => Err(Error::Forbidden),
-            // if token has `any_of` the requested_perms => return ok
-            _ => Ok(intersected_perms),
-        }
-    }
-}
-
-/// Authorization related error.
-#[derive(Debug, Snafu)]
-pub enum Error {
-    /// Communication error when verifying a token.
-    #[snafu(display("token verification not possible: {msg}"))]
-    Verification {
-        /// Message describing the error.
-        msg: String,
-        /// Source of the error.
-        source: Box<dyn std::error::Error + Send + Sync + 'static>,
-    },
-
-    /// The token's permissions do not allow the operation.
-    #[snafu(display("forbidden"))]
-    Forbidden,
-
-    /// No token has been supplied, but is required.
-    #[snafu(display("no token"))]
-    NoToken,
-}
-
-impl Error {
-    /// Create new Error::Verification.
-    pub fn verification(
-        msg: impl Into<String>,
-        source: impl Into<Box<dyn std::error::Error + Send + Sync + 'static>>,
-    ) -> Self {
-        Self::Verification {
-            msg: msg.into(),
-            source: source.into(),
-        }
-    }
-}
-
-impl From<tonic::Status> for Error {
-    fn from(value: tonic::Status) -> Self {
-        Self::verification(value.message(), value.clone())
     }
 }
 

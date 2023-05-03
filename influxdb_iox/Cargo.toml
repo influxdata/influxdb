@@ -75,6 +75,7 @@ uuid = { version = "1", features = ["v4"] }
 # jemalloc-sys with unprefixed_malloc_on_supported_platforms feature and heappy are mutually exclusive
 tikv-jemalloc-sys = { version = "0.5.3", optional = true, features = ["unprefixed_malloc_on_supported_platforms"] }
 workspace-hack = { version = "0.1", path = "../workspace-hack" }
+parking_lot = "0.12.1"
 
 [dev-dependencies]
 # In alphabetical order
