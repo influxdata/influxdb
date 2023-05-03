@@ -15,7 +15,7 @@ use async_trait::async_trait;
 use data_types::{
     Column, ColumnId, ColumnSet, ColumnType, CompactionLevel, Namespace, NamespaceId, ParquetFile,
     ParquetFileId, ParquetFileParams, Partition, PartitionId, PartitionKey, QueryPool, QueryPoolId,
-    SequenceNumber, SkippedCompaction, Table, TableId, Timestamp, TopicId, TopicMetadata,
+    SkippedCompaction, Table, TableId, Timestamp, TopicId, TopicMetadata,
 };
 use serde::{Deserialize, Serialize};
 use std::ops::Deref;
@@ -871,7 +871,6 @@ struct PartitionPod {
     table_id: TableId,
     partition_key: PartitionKey,
     sort_key: Json<Vec<String>>,
-    persisted_sequence_number: Option<SequenceNumber>,
     new_file_at: Option<Timestamp>,
 }
 
@@ -882,7 +881,6 @@ impl From<PartitionPod> for Partition {
             table_id: value.table_id,
             partition_key: value.partition_key,
             sort_key: value.sort_key.0,
-            persisted_sequence_number: value.persisted_sequence_number,
             new_file_at: value.new_file_at,
         }
     }
@@ -903,7 +901,7 @@ VALUES
     ( $1, $2, $3, '[]')
 ON CONFLICT (table_id, partition_key)
 DO UPDATE SET partition_key = partition.partition_key
-RETURNING id, table_id, partition_key, sort_key, persisted_sequence_number, new_file_at;
+RETURNING id, table_id, partition_key, sort_key, new_file_at;
         "#,
         )
         .bind(key) // $1
@@ -925,7 +923,7 @@ RETURNING id, table_id, partition_key, sort_key, persisted_sequence_number, new_
     async fn get_by_id(&mut self, partition_id: PartitionId) -> Result<Option<Partition>> {
         let rec = sqlx::query_as::<_, PartitionPod>(
             r#"
-SELECT id, table_id, partition_key, sort_key, persisted_sequence_number, new_file_at
+SELECT id, table_id, partition_key, sort_key, new_file_at
 FROM partition
 WHERE id = $1;
             "#,
@@ -946,7 +944,7 @@ WHERE id = $1;
     async fn list_by_table_id(&mut self, table_id: TableId) -> Result<Vec<Partition>> {
         Ok(sqlx::query_as::<_, PartitionPod>(
             r#"
-SELECT id, table_id, partition_key, sort_key, persisted_sequence_number, new_file_at
+SELECT id, table_id, partition_key, sort_key, new_file_at
 FROM partition
 WHERE table_id = $1;
             "#,
@@ -990,7 +988,7 @@ WHERE table_id = $1;
 UPDATE partition
 SET sort_key = $1
 WHERE id = $2 AND sort_key = $3
-RETURNING id, table_id, partition_key, sort_key, persisted_sequence_number, new_file_at;
+RETURNING id, table_id, partition_key, sort_key, new_file_at;
         "#,
         )
         .bind(Json(new_sort_key)) // $1
@@ -1129,7 +1127,7 @@ RETURNING *
     async fn most_recent_n(&mut self, n: usize) -> Result<Vec<Partition>> {
         Ok(sqlx::query_as::<_, PartitionPod>(
             r#"
-SELECT id, table_id, partition_key, sort_key, persisted_sequence_number, new_file_at
+SELECT id, table_id, partition_key, sort_key, new_file_at
 FROM partition
 ORDER BY id DESC
 LIMIT $1;
@@ -1185,7 +1183,6 @@ struct ParquetFilePod {
     table_id: TableId,
     partition_id: PartitionId,
     object_store_id: Uuid,
-    max_sequence_number: SequenceNumber,
     min_time: Timestamp,
     max_time: Timestamp,
     to_delete: Option<Timestamp>,
@@ -1205,7 +1202,6 @@ impl From<ParquetFilePod> for ParquetFile {
             table_id: value.table_id,
             partition_id: value.partition_id,
             object_store_id: value.object_store_id,
-            max_sequence_number: value.max_sequence_number,
             min_time: value.min_time,
             max_time: value.max_time,
             to_delete: value.to_delete,
@@ -1227,7 +1223,6 @@ impl ParquetFileRepo for SqliteTxn {
             table_id,
             partition_id,
             object_store_id,
-            max_sequence_number,
             min_time,
             max_time,
             file_size_bytes,
@@ -1242,12 +1237,12 @@ impl ParquetFileRepo for SqliteTxn {
             r#"
 INSERT INTO parquet_file (
     shard_id, table_id, partition_id, object_store_id,
-    max_sequence_number, min_time, max_time, file_size_bytes,
+    min_time, max_time, file_size_bytes,
     row_count, compaction_level, created_at, namespace_id, column_set, max_l0_created_at )
-VALUES ( $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14 )
+VALUES ( $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13 )
 RETURNING
     id, table_id, partition_id, object_store_id,
-    max_sequence_number, min_time, max_time, to_delete, file_size_bytes,
+    min_time, max_time, to_delete, file_size_bytes,
     row_count, compaction_level, created_at, namespace_id, column_set, max_l0_created_at;
         "#,
         )
@@ -1255,16 +1250,15 @@ RETURNING
         .bind(table_id) // $2
         .bind(partition_id) // $3
         .bind(object_store_id) // $4
-        .bind(max_sequence_number) // $5
-        .bind(min_time) // $6
-        .bind(max_time) // $7
-        .bind(file_size_bytes) // $8
-        .bind(row_count) // $9
-        .bind(compaction_level) // $10
-        .bind(created_at) // $11
-        .bind(namespace_id) // $12
-        .bind(from_column_set(&column_set)) // $13
-        .bind(max_l0_created_at) // $14
+        .bind(min_time) // $5
+        .bind(max_time) // $6
+        .bind(file_size_bytes) // $7
+        .bind(row_count) // $8
+        .bind(compaction_level) // $9
+        .bind(created_at) // $10
+        .bind(namespace_id) // $11
+        .bind(from_column_set(&column_set)) // $12
+        .bind(max_l0_created_at) // $13
         .fetch_one(self.inner.get_mut())
         .await
         .map_err(|e| {
@@ -1332,7 +1326,7 @@ RETURNING id;
         Ok(sqlx::query_as::<_, ParquetFilePod>(
             r#"
 SELECT parquet_file.id, parquet_file.namespace_id, parquet_file.table_id,
-       parquet_file.partition_id, parquet_file.object_store_id, parquet_file.max_sequence_number,
+       parquet_file.partition_id, parquet_file.object_store_id,
        parquet_file.min_time, parquet_file.max_time, parquet_file.to_delete,
        parquet_file.file_size_bytes, parquet_file.row_count, parquet_file.compaction_level,
        parquet_file.created_at, parquet_file.column_set, parquet_file.max_l0_created_at
@@ -1355,7 +1349,7 @@ WHERE table_name.namespace_id = $1
         Ok(sqlx::query_as::<_, ParquetFilePod>(
             r#"
 SELECT id, namespace_id, table_id, partition_id, object_store_id,
-       max_sequence_number, min_time, max_time, to_delete, file_size_bytes,
+       min_time, max_time, to_delete, file_size_bytes,
        row_count, compaction_level, created_at, column_set, max_l0_created_at
 FROM parquet_file
 WHERE table_id = $1 AND to_delete IS NULL;
@@ -1423,7 +1417,7 @@ RETURNING id;
         Ok(sqlx::query_as::<_, ParquetFilePod>(
             r#"
 SELECT id, namespace_id, table_id, partition_id, object_store_id,
-       max_sequence_number, min_time, max_time, to_delete, file_size_bytes,
+       min_time, max_time, to_delete, file_size_bytes,
        row_count, compaction_level, created_at, column_set, max_l0_created_at
 FROM parquet_file
 WHERE parquet_file.partition_id = $1
@@ -1494,7 +1488,7 @@ RETURNING id;
         let rec = sqlx::query_as::<_, ParquetFilePod>(
             r#"
 SELECT id, namespace_id, table_id, partition_id, object_store_id,
-       max_sequence_number, min_time, max_time, to_delete, file_size_bytes,
+       min_time, max_time, to_delete, file_size_bytes,
        row_count, compaction_level, created_at, column_set, max_l0_created_at
 FROM parquet_file
 WHERE object_store_id = $1;
@@ -1863,7 +1857,6 @@ mod tests {
             table_id,
             partition_id,
             object_store_id: Uuid::new_v4(),
-            max_sequence_number: SequenceNumber::new(100),
             min_time: Timestamp::new(1),
             max_time: Timestamp::new(5),
             file_size_bytes: 1337,

@@ -13,8 +13,7 @@ use async_trait::async_trait;
 use backoff::{Backoff, BackoffConfig, BackoffError};
 use client_util::connection;
 use data_types::{
-    ChunkId, ChunkOrder, DeletePredicate, NamespaceId, PartitionId, SequenceNumber, TableSummary,
-    TimestampMinMax,
+    ChunkId, ChunkOrder, DeletePredicate, NamespaceId, PartitionId, TableSummary, TimestampMinMax,
 };
 use datafusion::error::DataFusionError;
 use futures::{stream::FuturesUnordered, TryStreamExt};
@@ -103,14 +102,6 @@ pub enum Error {
         write_token: String,
         #[snafu(source(from(influxdb_iox_client::error::Error, Box::new)))]
         source: Box<influxdb_iox_client::error::Error>,
-    },
-
-    #[snafu(display(
-        "Partition status missing for partition {partition_id}, ingestger: {ingester_address}"
-    ))]
-    PartitionStatusMissing {
-        partition_id: PartitionId,
-        ingester_address: String,
     },
 
     #[snafu(display("Got batch without chunk information from ingester: {ingester_address}"))]
@@ -550,10 +541,6 @@ impl IngesterStreamDecoder {
                 self.flush_partition()?;
 
                 let partition_id = PartitionId::new(md.partition_id);
-                let status = md.status.context(PartitionStatusMissingSnafu {
-                    partition_id,
-                    ingester_address: self.ingester_address.as_ref(),
-                })?;
                 ensure!(
                     !self.finished_partitions.contains_key(&partition_id),
                     DuplicatePartitionInfoSnafu {
@@ -567,22 +554,15 @@ impl IngesterStreamDecoder {
                 // columns that the sort key must cover.
                 let partition_sort_key = None;
 
-                let ingester_uuid = if md.ingester_uuid.is_empty() {
-                    // Using the write buffer path, no UUID specified
-                    None
-                } else {
-                    Some(
-                        Uuid::parse_str(&md.ingester_uuid).context(IngesterUuidSnafu {
-                            ingester_uuid: md.ingester_uuid,
-                        })?,
-                    )
-                };
+                let ingester_uuid =
+                    Uuid::parse_str(&md.ingester_uuid).context(IngesterUuidSnafu {
+                        ingester_uuid: md.ingester_uuid,
+                    })?;
 
                 let partition = IngesterPartition::new(
                     ingester_uuid,
                     partition_id,
                     md.completed_persistence_count,
-                    status.parquet_max_sequence_number.map(SequenceNumber::new),
                     partition_sort_key,
                 );
                 self.current_partition = Some(partition);
@@ -767,22 +747,16 @@ impl IngesterConnection for IngesterConnectionImpl {
 /// more than one IngesterPartition for each table the ingester knows about.
 #[derive(Debug, Clone)]
 pub struct IngesterPartition {
-    /// If using ingester2/rpc write path, the ingester UUID will be present and will identify
-    /// whether this ingester has restarted since the last time it was queried or not.
-    ///
-    /// When we fully switch over to always using the RPC write path, the `Option` in this type can
-    /// be removed.
-    ingester_uuid: Option<Uuid>,
+    /// The ingester UUID that identifies whether this ingester has restarted since the last time
+    /// it was queried or not, which affects whether we can compare the
+    /// `completed_persistence_count` with a previous count for this ingester to know if we need
+    /// to refresh the catalog cache or not.
+    ingester_uuid: Uuid,
 
     partition_id: PartitionId,
 
-    /// If using ingester2/rpc write path, this will be the number of Parquet files this ingester
-    /// UUID has persisted for this partition.
+    /// The number of Parquet files this ingester UUID has persisted for this partition.
     completed_persistence_count: u64,
-
-    /// Maximum sequence number of parquet files the ingester has
-    /// persisted for this partition
-    parquet_max_sequence_number: Option<SequenceNumber>,
 
     /// Partition-wide sort key.
     partition_sort_key: Option<Arc<SortKey>>,
@@ -795,17 +769,15 @@ impl IngesterPartition {
     /// `RecordBatches` into the correct types
     #[allow(clippy::too_many_arguments)]
     pub fn new(
-        ingester_uuid: Option<Uuid>,
+        ingester_uuid: Uuid,
         partition_id: PartitionId,
         completed_persistence_count: u64,
-        parquet_max_sequence_number: Option<SequenceNumber>,
         partition_sort_key: Option<Arc<SortKey>>,
     ) -> Self {
         Self {
             ingester_uuid,
             partition_id,
             completed_persistence_count,
-            parquet_max_sequence_number,
             partition_sort_key,
             chunks: vec![],
         }
@@ -860,7 +832,7 @@ impl IngesterPartition {
         Ok(self)
     }
 
-    pub(crate) fn ingester_uuid(&self) -> Option<Uuid> {
+    pub(crate) fn ingester_uuid(&self) -> Uuid {
         self.ingester_uuid
     }
 
@@ -870,10 +842,6 @@ impl IngesterPartition {
 
     pub(crate) fn completed_persistence_count(&self) -> u64 {
         self.completed_persistence_count
-    }
-
-    pub(crate) fn parquet_max_sequence_number(&self) -> Option<SequenceNumber> {
-        self.parquet_max_sequence_number
     }
 
     pub(crate) fn chunks(&self) -> &[IngesterChunk] {
@@ -1085,7 +1053,6 @@ mod tests {
     };
     use assert_matches::assert_matches;
     use data_types::TableId;
-    use generated_types::influxdata::iox::ingester::v1::PartitionStatus;
     use influxdb_iox_client::flight::generated_types::IngesterQueryResponseMetadata;
     use iox_tests::TestCatalog;
     use metric::Attributes;
@@ -1179,14 +1146,7 @@ mod tests {
             MockFlightClient::new([(
                 "addr1",
                 Ok(MockQueryData {
-                    results: vec![metadata(
-                        1,
-                        Some(PartitionStatus {
-                            parquet_max_sequence_number: None,
-                        }),
-                        ingester_uuid.to_string(),
-                        5,
-                    )],
+                    results: vec![metadata(1, ingester_uuid.to_string(), 5)],
                 }),
             )])
             .await,
@@ -1198,28 +1158,9 @@ mod tests {
 
         let p = &partitions[0];
         assert_eq!(p.partition_id.get(), 1);
-        assert_eq!(p.parquet_max_sequence_number, None);
         assert_eq!(p.chunks.len(), 0);
-        assert_eq!(p.ingester_uuid.unwrap(), ingester_uuid);
+        assert_eq!(p.ingester_uuid, ingester_uuid);
         assert_eq!(p.completed_persistence_count, 5);
-    }
-
-    #[tokio::test]
-    async fn test_flight_err_partition_status_missing() {
-        let ingester_uuid = Uuid::new_v4();
-
-        let mock_flight_client = Arc::new(
-            MockFlightClient::new([(
-                "addr1",
-                Ok(MockQueryData {
-                    results: vec![metadata(1, None, ingester_uuid.to_string(), 5)],
-                }),
-            )])
-            .await,
-        );
-        let ingester_conn = mock_flight_client.ingester_conn().await;
-        let err = get_partitions(&ingester_conn).await.unwrap_err();
-        assert_matches!(err, Error::PartitionStatusMissing { .. });
     }
 
     #[tokio::test]
@@ -1231,30 +1172,9 @@ mod tests {
                 "addr1",
                 Ok(MockQueryData {
                     results: vec![
-                        metadata(
-                            1,
-                            Some(PartitionStatus {
-                                parquet_max_sequence_number: None,
-                            }),
-                            ingester_uuid.to_string(),
-                            3,
-                        ),
-                        metadata(
-                            2,
-                            Some(PartitionStatus {
-                                parquet_max_sequence_number: None,
-                            }),
-                            ingester_uuid.to_string(),
-                            4,
-                        ),
-                        metadata(
-                            1,
-                            Some(PartitionStatus {
-                                parquet_max_sequence_number: None,
-                            }),
-                            ingester_uuid.to_string(),
-                            5,
-                        ),
+                        metadata(1, ingester_uuid.to_string(), 3),
+                        metadata(2, ingester_uuid.to_string(), 4),
+                        metadata(1, ingester_uuid.to_string(), 5),
                     ],
                 }),
             )])
@@ -1328,14 +1248,7 @@ mod tests {
                     "addr1",
                     Ok(MockQueryData {
                         results: vec![
-                            metadata(
-                                1,
-                                Some(PartitionStatus {
-                                    parquet_max_sequence_number: Some(11),
-                                }),
-                                ingester_uuid1.to_string(),
-                                3,
-                            ),
+                            metadata(1, ingester_uuid1.to_string(), 3),
                             Ok((
                                 DecodedPayload::Schema(Arc::clone(&schema_1_1)),
                                 IngesterQueryResponseMetadata::default(),
@@ -1356,14 +1269,7 @@ mod tests {
                                 DecodedPayload::RecordBatch(record_batch_1_2),
                                 IngesterQueryResponseMetadata::default(),
                             )),
-                            metadata(
-                                2,
-                                Some(PartitionStatus {
-                                    parquet_max_sequence_number: Some(21),
-                                }),
-                                ingester_uuid1.to_string(),
-                                4,
-                            ),
+                            metadata(2, ingester_uuid1.to_string(), 4),
                             Ok((
                                 DecodedPayload::Schema(Arc::clone(&schema_2_1)),
                                 IngesterQueryResponseMetadata::default(),
@@ -1379,14 +1285,7 @@ mod tests {
                     "addr2",
                     Ok(MockQueryData {
                         results: vec![
-                            metadata(
-                                3,
-                                Some(PartitionStatus {
-                                    parquet_max_sequence_number: Some(31),
-                                }),
-                                ingester_uuid2.to_string(),
-                                5,
-                            ),
+                            metadata(3, ingester_uuid2.to_string(), 5),
                             Ok((
                                 DecodedPayload::Schema(Arc::clone(&schema_3_1)),
                                 IngesterQueryResponseMetadata::default(),
@@ -1408,10 +1307,6 @@ mod tests {
 
         let p1 = &partitions[0];
         assert_eq!(p1.partition_id.get(), 1);
-        assert_eq!(
-            p1.parquet_max_sequence_number,
-            Some(SequenceNumber::new(11))
-        );
         assert_eq!(p1.chunks.len(), 2);
         assert_eq!(p1.chunks[0].schema().as_arrow(), schema_1_1);
         assert_eq!(p1.chunks[0].batches.len(), 2);
@@ -1423,10 +1318,6 @@ mod tests {
 
         let p2 = &partitions[1];
         assert_eq!(p2.partition_id.get(), 2);
-        assert_eq!(
-            p2.parquet_max_sequence_number,
-            Some(SequenceNumber::new(21))
-        );
         assert_eq!(p2.chunks.len(), 1);
         assert_eq!(p2.chunks[0].schema().as_arrow(), schema_2_1);
         assert_eq!(p2.chunks[0].batches.len(), 1);
@@ -1434,10 +1325,6 @@ mod tests {
 
         let p3 = &partitions[2];
         assert_eq!(p3.partition_id.get(), 3);
-        assert_eq!(
-            p3.parquet_max_sequence_number,
-            Some(SequenceNumber::new(31))
-        );
         assert_eq!(p3.chunks.len(), 1);
         assert_eq!(p3.chunks[0].schema().as_arrow(), schema_3_1);
         assert_eq!(p3.chunks[0].batches.len(), 1);
@@ -1450,14 +1337,7 @@ mod tests {
             MockFlightClient::new([(
                 "addr1",
                 Ok(MockQueryData {
-                    results: vec![metadata(
-                        1,
-                        Some(PartitionStatus {
-                            parquet_max_sequence_number: Some(11),
-                        }),
-                        "not-a-valid-uuid",
-                        42,
-                    )],
+                    results: vec![metadata(1, "not-a-valid-uuid", 42)],
                 }),
             )])
             .await,
@@ -1489,36 +1369,15 @@ mod tests {
                     "addr1",
                     Ok(MockQueryData {
                         results: vec![
-                            metadata(
-                                1,
-                                Some(PartitionStatus {
-                                    parquet_max_sequence_number: Some(11),
-                                }),
-                                ingester_uuid1.to_string(),
-                                0,
-                            ),
-                            metadata(
-                                2,
-                                Some(PartitionStatus {
-                                    parquet_max_sequence_number: Some(21),
-                                }),
-                                ingester_uuid1.to_string(),
-                                42,
-                            ),
+                            metadata(1, ingester_uuid1.to_string(), 0),
+                            metadata(2, ingester_uuid1.to_string(), 42),
                         ],
                     }),
                 ),
                 (
                     "addr2",
                     Ok(MockQueryData {
-                        results: vec![metadata(
-                            3,
-                            Some(PartitionStatus {
-                                parquet_max_sequence_number: Some(31),
-                            }),
-                            ingester_uuid2.to_string(),
-                            9000,
-                        )],
+                        results: vec![metadata(3, ingester_uuid2.to_string(), 9000)],
                     }),
                 ),
             ])
@@ -1540,31 +1399,19 @@ mod tests {
         assert_eq!(partitions.len(), 3);
 
         let p1 = &partitions[0];
-        assert_eq!(p1.ingester_uuid.unwrap(), ingester_uuid1);
+        assert_eq!(p1.ingester_uuid, ingester_uuid1);
         assert_eq!(p1.completed_persistence_count, 0);
         assert_eq!(p1.partition_id.get(), 1);
-        assert_eq!(
-            p1.parquet_max_sequence_number,
-            Some(SequenceNumber::new(11))
-        );
 
         let p2 = &partitions[1];
-        assert_eq!(p2.ingester_uuid.unwrap(), ingester_uuid1);
+        assert_eq!(p2.ingester_uuid, ingester_uuid1);
         assert_eq!(p2.completed_persistence_count, 42);
         assert_eq!(p2.partition_id.get(), 2);
-        assert_eq!(
-            p2.parquet_max_sequence_number,
-            Some(SequenceNumber::new(21))
-        );
 
         let p3 = &partitions[2];
-        assert_eq!(p3.ingester_uuid.unwrap(), ingester_uuid2);
+        assert_eq!(p3.ingester_uuid, ingester_uuid2);
         assert_eq!(p3.completed_persistence_count, 9000);
         assert_eq!(p3.partition_id.get(), 3);
-        assert_eq!(
-            p3.parquet_max_sequence_number,
-            Some(SequenceNumber::new(31))
-        );
     }
 
     #[tokio::test]
@@ -1702,7 +1549,6 @@ mod tests {
 
     fn metadata(
         partition_id: i64,
-        status: Option<PartitionStatus>,
         ingester_uuid: impl Into<String>,
         completed_persistence_count: u64,
     ) -> MockFlightResult {
@@ -1710,7 +1556,6 @@ mod tests {
             DecodedPayload::None,
             IngesterQueryResponseMetadata {
                 partition_id,
-                status,
                 ingester_uuid: ingester_uuid.into(),
                 completed_persistence_count,
             },
@@ -1821,17 +1666,11 @@ mod tests {
         ];
 
         for case in cases {
-            let parquet_max_sequence_number = None;
             // Construct a partition and ensure it doesn't error
-            let ingester_partition = IngesterPartition::new(
-                Some(ingester_uuid),
-                PartitionId::new(1),
-                0,
-                parquet_max_sequence_number,
-                None,
-            )
-            .try_add_chunk(ChunkId::new(), expected_schema.clone(), vec![case])
-            .unwrap();
+            let ingester_partition =
+                IngesterPartition::new(ingester_uuid, PartitionId::new(1), 0, None)
+                    .try_add_chunk(ChunkId::new(), expected_schema.clone(), vec![case])
+                    .unwrap();
 
             for batch in &ingester_partition.chunks[0].batches {
                 assert_eq!(batch.schema(), expected_schema.as_arrow());
@@ -1851,16 +1690,9 @@ mod tests {
         let batch =
             RecordBatch::try_from_iter(vec![("b", int64_array()), ("time", ts_array())]).unwrap();
 
-        let parquet_max_sequence_number = None;
-        let err = IngesterPartition::new(
-            Some(ingester_uuid),
-            PartitionId::new(1),
-            0,
-            parquet_max_sequence_number,
-            None,
-        )
-        .try_add_chunk(ChunkId::new(), expected_schema, vec![batch])
-        .unwrap_err();
+        let err = IngesterPartition::new(ingester_uuid, PartitionId::new(1), 0, None)
+            .try_add_chunk(ChunkId::new(), expected_schema, vec![batch])
+            .unwrap_err();
 
         assert_matches!(err, Error::RecordBatchType { .. });
     }

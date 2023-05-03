@@ -9,7 +9,7 @@ use arrow_flight::{
 use data_types::{NamespaceId, PartitionId, TableId};
 use flatbuffers::FlatBufferBuilder;
 use futures::{Stream, StreamExt, TryStreamExt};
-use generated_types::influxdata::iox::ingester::v1::{self as proto, PartitionStatus};
+use generated_types::influxdata::iox::ingester::v1 as proto;
 use metric::U64Counter;
 use observability_deps::tracing::*;
 use prost::Message;
@@ -259,8 +259,6 @@ where
 fn encode_partition(
     // Partition ID.
     partition_id: PartitionId,
-    // Partition persistence status.
-    status: PartitionStatus,
     // Count of persisted Parquet files for the [`PartitionData`] instance this
     // [`PartitionResponse`] was generated from.
     //
@@ -272,9 +270,6 @@ fn encode_partition(
     let mut bytes = bytes::BytesMut::new();
     let app_metadata = proto::IngesterQueryResponseMetadata {
         partition_id: partition_id.get(),
-        status: Some(proto::PartitionStatus {
-            parquet_max_sequence_number: status.parquet_max_sequence_number,
-        }),
         ingester_uuid: ingester_id.to_string(),
         completed_persistence_count,
     };
@@ -312,14 +307,7 @@ fn encode_response(
         let partition_id = partition.id();
         let completed_persistence_count = partition.completed_persistence_count();
         let head = futures::stream::once(async move {
-            encode_partition(
-                partition_id,
-                PartitionStatus {
-                    parquet_max_sequence_number: None,
-                },
-                completed_persistence_count,
-                ingester_id,
-            )
+            encode_partition(partition_id, completed_persistence_count, ingester_id)
         });
 
         match partition.into_record_batch_stream() {

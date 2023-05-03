@@ -66,11 +66,26 @@ fn num_shards_without_shard_id_is_invalid() {
         .arg("compactor2")
         .env("INFLUXDB_IOX_COMPACTION_SHARD_COUNT", "1") // only provide shard count
         .env("INFLUXDB_IOX_CATALOG_TYPE", "memory")
+        .env_remove("HOSTNAME")
         .assert()
         .failure()
         .stderr(predicate::str::contains(
             "must provide or not provide shard ID and count",
         ));
+}
+
+#[test]
+fn num_shards_with_hostname_is_valid() {
+    Command::cargo_bin("influxdb_iox")
+        .unwrap()
+        .arg("run")
+        .arg("compactor2")
+        .env("INFLUXDB_IOX_COMPACTION_SHARD_COUNT", "3") // provide shard count
+        .env("HOSTNAME", "iox-shared-compactor-8") // provide shard id via hostname
+        .env("INFLUXDB_IOX_CATALOG_TYPE", "memory")
+        .assert()
+        .failure()
+        .stderr(predicate::str::contains("shard_id out of range"));
 }
 
 #[tokio::test]

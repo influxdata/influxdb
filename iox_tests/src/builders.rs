@@ -1,6 +1,6 @@
 use data_types::{
     ColumnSet, CompactionLevel, NamespaceId, ParquetFile, ParquetFileId, Partition, PartitionId,
-    PartitionKey, SequenceNumber, SkippedCompaction, Table, TableId, Timestamp,
+    PartitionKey, SkippedCompaction, Table, TableId, Timestamp,
 };
 use uuid::Uuid;
 
@@ -21,7 +21,6 @@ impl ParquetFileBuilder {
                 table_id: TableId::new(0),
                 partition_id: PartitionId::new(0),
                 object_store_id: Uuid::from_u128(id.try_into().expect("invalid id")),
-                max_sequence_number: SequenceNumber::new(0),
                 min_time: Timestamp::new(0),
                 max_time: Timestamp::new(0),
                 to_delete: None,
@@ -157,7 +156,6 @@ impl PartitionBuilder {
                 table_id: TableId::new(0),
                 partition_key: PartitionKey::from("key"),
                 sort_key: vec![],
-                persisted_sequence_number: None,
                 new_file_at: None,
             },
         }

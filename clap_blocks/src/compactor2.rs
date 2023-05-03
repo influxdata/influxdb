@@ -235,6 +235,7 @@ pub struct Compactor2Config {
     /// Number of shards.
     ///
     /// If this is set then the shard ID MUST also be set. If both are not provided, sharding is disabled.
+    /// (shard ID can be provided by the host name)
     #[clap(
         long = "compaction-shard-count",
         env = "INFLUXDB_IOX_COMPACTION_SHARD_COUNT",
@@ -253,6 +254,13 @@ pub struct Compactor2Config {
         action
     )]
     pub shard_id: Option<usize>,
+
+    /// Host Name
+    ///
+    /// comprised of leading text (e.g. 'iox-shared-compactor-'), ending with shard_id (e.g. '0').
+    /// When shard_count is specified, but shard_id is not specified, the id is extracted from hostname.
+    #[clap(long = "hostname", env = "HOSTNAME", action)]
+    pub hostname: Option<String>,
 
     /// Minimum number of L1 files to compact to L2.
     ///

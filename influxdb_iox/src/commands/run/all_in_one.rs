@@ -505,6 +505,7 @@ impl Config {
             ignore_partition_skip_marker: false,
             shard_count: None,
             shard_id: None,
+            hostname: None,
             min_num_l1_files_to_compact: 1,
             process_once: false,
             process_all_partitions: false,

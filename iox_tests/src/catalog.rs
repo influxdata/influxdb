@@ -6,8 +6,8 @@ use arrow::{
 };
 use data_types::{
     Column, ColumnSet, ColumnType, CompactionLevel, Namespace, NamespaceSchema, ParquetFile,
-    ParquetFileParams, Partition, PartitionId, QueryPool, SequenceNumber, Table, TableId,
-    TableSchema, Timestamp, TopicMetadata,
+    ParquetFileParams, Partition, PartitionId, QueryPool, Table, TableId, TableSchema, Timestamp,
+    TopicMetadata,
 };
 use datafusion::physical_plan::metrics::Count;
 use datafusion_util::MemoryStream;
@@ -456,7 +456,6 @@ impl TestPartition {
             record_batch,
             table,
             schema,
-            max_sequence_number,
             min_time,
             max_time,
             file_size_bytes,
@@ -497,7 +496,6 @@ impl TestPartition {
             table_name: self.table.table.name.clone().into(),
             partition_id: self.partition.id,
             partition_key: self.partition.partition_key.clone(),
-            max_sequence_number,
             compaction_level: CompactionLevel::Initial,
             sort_key: Some(sort_key.clone()),
             max_l0_created_at: Time::from_timestamp_nanos(max_l0_created_at),
@@ -516,7 +514,6 @@ impl TestPartition {
             record_batch: Some(record_batch),
             table: Some(table),
             schema: Some(schema),
-            max_sequence_number,
             min_time,
             max_time,
             file_size_bytes: Some(file_size_bytes.unwrap_or(real_file_size_bytes as u64)),
@@ -543,7 +540,6 @@ impl TestPartition {
     ) -> TestParquetFile {
         let TestParquetFileBuilder {
             record_batch,
-            max_sequence_number,
             min_time,
             max_time,
             file_size_bytes,
@@ -585,7 +581,6 @@ impl TestPartition {
             table_id: self.table.table.id,
             partition_id: self.partition.id,
             object_store_id: object_store_id.unwrap_or_else(Uuid::new_v4),
-            max_sequence_number,
             min_time: Timestamp::new(min_time),
             max_time: Timestamp::new(max_time),
             file_size_bytes: file_size_bytes.unwrap_or(0) as i64,
@@ -628,7 +623,6 @@ pub struct TestParquetFileBuilder {
     record_batch: Option<RecordBatch>,
     table: Option<String>,
     schema: Option<Schema>,
-    max_sequence_number: SequenceNumber,
     min_time: i64,
     max_time: i64,
     file_size_bytes: Option<u64>,
@@ -647,7 +641,6 @@ impl Default for TestParquetFileBuilder {
             record_batch: None,
             table: None,
             schema: None,
-            max_sequence_number: SequenceNumber::new(100),
             min_time: now().timestamp_nanos(),
             max_time: now().timestamp_nanos(),
             file_size_bytes: None,
@@ -687,12 +680,6 @@ impl TestParquetFileBuilder {
 
     fn with_schema(mut self, schema: Schema) -> Self {
         self.schema = Some(schema);
-        self
-    }
-
-    /// Specify the maximum sequence number for the parquet file metadata.
-    pub fn with_max_seq(mut self, max_seq: i64) -> Self {
-        self.max_sequence_number = SequenceNumber::new(max_seq);
         self
     }
 
