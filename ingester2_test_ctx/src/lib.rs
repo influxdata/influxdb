@@ -18,7 +18,7 @@ use arrow::record_batch::RecordBatch;
 use arrow_flight::{decode::FlightRecordBatchStream, flight_service_server::FlightService, Ticket};
 use data_types::{
     Namespace, NamespaceId, NamespaceSchema, ParquetFile, PartitionKey, QueryPoolId,
-    SequenceNumber, TableId, TopicId,
+    SequenceNumber, TableId, TopicId, TopicMetadata,
 };
 use dml::{DmlMeta, DmlWrite};
 use futures::{stream::FuturesUnordered, FutureExt, StreamExt, TryStreamExt};
@@ -130,14 +130,19 @@ impl TestContextBuilder {
         //
         // Note that tests should set up their own namespace via
         // ensure_namespace()
-        let mut txn = catalog.repositories().await;
-        let topic = txn.topics().create_or_get(TEST_TOPIC_NAME).await.unwrap();
-        let query_id = txn
-            .query_pools()
-            .create_or_get("banana-query-pool")
-            .await
-            .unwrap()
-            .id;
+        let topic: TopicMetadata;
+        let query_id: QueryPoolId;
+        // txn must go out of scope so the lock is released for `ingester2::new`
+        {
+            let mut txn = catalog.repositories().await;
+            topic = txn.topics().create_or_get(TEST_TOPIC_NAME).await.unwrap();
+            query_id = txn
+                .query_pools()
+                .create_or_get("banana-query-pool")
+                .await
+                .unwrap()
+                .id;
+        }
 
         // Settings so that the ingester will effectively never persist by itself, only on demand
         let wal_rotation_period = Duration::from_secs(1_000_000);
