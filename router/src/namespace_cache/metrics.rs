@@ -125,11 +125,9 @@ where
 
 #[cfg(test)]
 mod tests {
-    use std::collections::BTreeMap;
-
     use assert_matches::assert_matches;
     use data_types::{
-        ColumnId, ColumnSchema, ColumnType, NamespaceId, TableId, TableInfo, TableSchema,
+        Column, ColumnId, ColumnType, ColumnsByName, NamespaceId, TableId, TableInfo, TableSchema,
     };
     use metric::{Attributes, MetricObserver, Observation};
 
@@ -145,23 +143,20 @@ mod tests {
             .map(|(i, &n)| {
                 let columns = (0..n)
                     .enumerate()
-                    .map(|(i, _)| {
-                        (
-                            i.to_string(),
-                            ColumnSchema {
-                                id: ColumnId::new(i as _),
-                                column_type: ColumnType::Bool,
-                            },
-                        )
+                    .map(|(i, _)| Column {
+                        id: ColumnId::new(i as _),
+                        column_type: ColumnType::Bool,
+                        name: i.to_string(),
+                        table_id: TableId::new(i as _),
                     })
-                    .collect::<BTreeMap<String, ColumnSchema>>();
+                    .collect::<Vec<_>>();
 
                 (
                     i.to_string(),
                     TableInfo {
                         schema: TableSchema {
                             id: TableId::new(i as _),
-                            columns,
+                            columns: ColumnsByName::new(&columns),
                         },
                         partition_template: None,
                     },

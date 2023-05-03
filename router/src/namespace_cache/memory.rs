@@ -59,7 +59,7 @@ impl NamespaceCache for Arc<MemoryNamespaceCache> {
                     new_columns: schema
                         .tables
                         .values()
-                        .map(|v| v.schema.columns.len())
+                        .map(|v| v.schema.column_count())
                         .sum::<usize>(),
                     new_tables: schema.tables.len(),
                     did_update: false,
@@ -100,15 +100,12 @@ fn merge_schema_additive(
     // to 0 as the schemas become fully populated, leaving the common path free
     // of overhead.
     for (old_table_name, old_table) in &old_ns.tables {
-        old_column_count += old_table.schema.columns.len();
+        old_column_count += old_table.schema.column_count();
         match new_ns.tables.get_mut(old_table_name) {
             Some(new_table) => {
-                for (column_name, column) in &old_table.schema.columns {
-                    if !new_table.schema.columns.contains_key(column_name) {
-                        new_table
-                            .schema
-                            .columns
-                            .insert(column_name.to_owned(), *column);
+                for (column_name, column) in old_table.schema.columns.iter() {
+                    if !new_table.schema.contains_column_name(column_name) {
+                        new_table.schema.add_column_schema(column_name, column);
                     }
                 }
             }
@@ -128,7 +125,7 @@ fn merge_schema_additive(
         new_columns: new_ns
             .tables
             .values()
-            .map(|v| v.schema.columns.len())
+            .map(|v| v.schema.column_count())
             .sum::<usize>()
             - old_column_count,
         did_update: true,
@@ -142,7 +139,8 @@ mod tests {
 
     use assert_matches::assert_matches;
     use data_types::{
-        Column, ColumnId, ColumnSchema, ColumnType, NamespaceId, TableId, TableInfo, TableSchema,
+        Column, ColumnId, ColumnSchema, ColumnType, ColumnsByName, NamespaceId, TableId, TableInfo,
+        TableSchema,
     };
     use proptest::{prelude::*, prop_compose, proptest};
 
@@ -426,7 +424,7 @@ mod tests {
                 (0, 10) // Set size range
             ),
         ) -> TableInfo {
-            let columns = columns.into_iter().map(|(k, v)| (k.to_string(), v)).collect();
+            let columns = ColumnsByName::from(columns);
             TableInfo {
                 schema: TableSchema { id: TableId::new(id), columns },
                 partition_template: None,
@@ -467,7 +465,8 @@ mod tests {
                 col_set
                     .schema
                     .columns
-                    .keys()
+                    .names()
+                    .into_iter()
                     .map(|col_name| (table_name.to_string(), col_name.to_string()))
             })
             .collect()

@@ -242,15 +242,16 @@ impl From<TableInfo> for CachedTable {
     fn from(table: TableInfo) -> Self {
         let mut column_id_map: HashMap<ColumnId, Arc<str>> = table
             .schema
-            .columns
+            .column_id_map()
             .iter()
-            .map(|(name, c)| (c.id, Arc::from(name.clone())))
+            .map(|(&c_id, &name)| (c_id, Arc::from(name)))
             .collect();
         column_id_map.shrink_to_fit();
 
         let id = table.id();
         let schema: Schema = table
             .schema
+            .columns
             .try_into()
             .expect("Catalog table schema broken");
 

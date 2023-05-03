@@ -425,13 +425,101 @@ impl From<&Table> for TableInfo {
     }
 }
 
+/// Column definitions for a table indexed by their name
+#[derive(Debug, Clone, Eq, PartialEq)]
+pub struct ColumnsByName(BTreeMap<String, ColumnSchema>);
+
+impl From<BTreeMap<&str, ColumnSchema>> for ColumnsByName {
+    fn from(value: BTreeMap<&str, ColumnSchema>) -> Self {
+        Self(
+            value
+                .into_iter()
+                .map(|(name, column)| (name.to_owned(), column))
+                .collect(),
+        )
+    }
+}
+
+impl ColumnsByName {
+    /// Create a new instance holding the given [`Column`]s.
+    pub fn new(columns: &[Column]) -> Self {
+        Self(
+            columns
+                .iter()
+                .map(|c| {
+                    (
+                        c.name.to_owned(),
+                        ColumnSchema {
+                            id: c.id,
+                            column_type: c.column_type,
+                        },
+                    )
+                })
+                .collect(),
+        )
+    }
+
+    /// Iterate over the names and columns.
+    pub fn iter(&self) -> impl Iterator<Item = (&String, &ColumnSchema)> {
+        self.0.iter()
+    }
+
+    /// Return the set of column names. Used in combination with a write operation's
+    /// column names to determine whether a write would exceed the max allowed columns.
+    pub fn names(&self) -> BTreeSet<&str> {
+        self.0.keys().map(|name| name.as_str()).collect()
+    }
+
+    /// Return the set of column IDs.
+    pub fn ids(&self) -> Vec<ColumnId> {
+        self.0.values().map(|c| c.id).collect()
+    }
+
+    /// Get a column by its name.
+    pub fn get(&self, name: &str) -> Option<&ColumnSchema> {
+        self.0.get(name)
+    }
+
+    /// Create `ID->name` map for columns.
+    pub fn id_map(&self) -> HashMap<ColumnId, &str> {
+        self.0
+            .iter()
+            .map(|(name, c)| (c.id, name.as_str()))
+            .collect()
+    }
+}
+
+// ColumnsByName is a newtype so that we can implement this `TryFrom` in this crate
+impl TryFrom<&ColumnsByName> for Schema {
+    type Error = schema::builder::Error;
+
+    fn try_from(value: &ColumnsByName) -> Result<Self, Self::Error> {
+        let mut builder = SchemaBuilder::new();
+
+        for (column_name, column_schema) in value.iter() {
+            let t = InfluxColumnType::from(column_schema.column_type);
+            builder.influx_column(column_name, t);
+        }
+
+        builder.build()
+    }
+}
+
+impl TryFrom<ColumnsByName> for Schema {
+    type Error = schema::builder::Error;
+
+    fn try_from(value: ColumnsByName) -> Result<Self, Self::Error> {
+        Self::try_from(&value)
+    }
+}
+
 /// Column definitions for a table
 #[derive(Debug, Clone, Eq, PartialEq)]
 pub struct TableSchema {
     /// the table id
     pub id: TableId,
     /// the table's columns by their name
-    pub columns: BTreeMap<String, ColumnSchema>,
+    pub columns: ColumnsByName,
 }
 
 impl TableSchema {
@@ -439,7 +527,7 @@ impl TableSchema {
     pub fn new(id: TableId) -> Self {
         Self {
             id,
-            columns: BTreeMap::new(),
+            columns: ColumnsByName::new(&[]),
         }
     }
 
@@ -452,7 +540,19 @@ impl TableSchema {
     pub fn add_column(&mut self, col: &Column) {
         let old = self
             .columns
+            .0
             .insert(col.name.clone(), ColumnSchema::from(col));
+        assert!(old.is_none());
+    }
+
+    /// Add the name and column schema to this table's schema.
+    ///
+    /// # Panics
+    ///
+    /// This method panics if a column of the same name already exists in
+    /// `self`.
+    pub fn add_column_schema(&mut self, name: &str, column_schema: &ColumnSchema) {
+        let old = self.columns.0.insert(name.into(), column_schema.to_owned());
         assert!(old.is_none());
     }
 
@@ -468,21 +568,23 @@ impl TableSchema {
 
     /// Create `ID->name` map for columns.
     pub fn column_id_map(&self) -> HashMap<ColumnId, &str> {
-        self.columns
-            .iter()
-            .map(|(name, c)| (c.id, name.as_str()))
-            .collect()
+        self.columns.id_map()
+    }
+
+    /// Whether a column with this name is in the schema.
+    pub fn contains_column_name(&self, name: &str) -> bool {
+        self.columns.0.contains_key(name)
     }
 
     /// Return the set of column names for this table. Used in combination with a write operation's
     /// column names to determine whether a write would exceed the max allowed columns.
     pub fn column_names(&self) -> BTreeSet<&str> {
-        self.columns.keys().map(|name| name.as_str()).collect()
+        self.columns.names()
     }
 
     /// Return number of columns of the table
     pub fn column_count(&self) -> usize {
-        self.columns.len()
+        self.columns.0.len()
     }
 }
 
@@ -642,29 +744,6 @@ impl From<ColumnType> for InfluxColumnType {
             ColumnType::Time => Self::Timestamp,
             ColumnType::Tag => Self::Tag,
         }
-    }
-}
-
-impl TryFrom<&TableSchema> for Schema {
-    type Error = schema::builder::Error;
-
-    fn try_from(value: &TableSchema) -> Result<Self, Self::Error> {
-        let mut builder = SchemaBuilder::new();
-
-        for (column_name, column_schema) in &value.columns {
-            let t = InfluxColumnType::from(column_schema.column_type);
-            builder.influx_column(column_name, t);
-        }
-
-        builder.build()
-    }
-}
-
-impl TryFrom<TableSchema> for Schema {
-    type Error = schema::builder::Error;
-
-    fn try_from(value: TableSchema) -> Result<Self, Self::Error> {
-        Self::try_from(&value)
     }
 }
 
@@ -2949,17 +3028,16 @@ mod tests {
     fn test_table_schema_size() {
         let schema1 = TableSchema {
             id: TableId::new(1),
-            columns: BTreeMap::from([]),
+            columns: ColumnsByName::new(&[]),
         };
         let schema2 = TableSchema {
             id: TableId::new(2),
-            columns: BTreeMap::from([(
-                String::from("foo"),
-                ColumnSchema {
-                    id: ColumnId::new(1),
-                    column_type: ColumnType::Bool,
-                },
-            )]),
+            columns: ColumnsByName::new(&[Column {
+                id: ColumnId::new(1),
+                table_id: TableId::new(2),
+                name: String::from("foo"),
+                column_type: ColumnType::Bool,
+            }]),
         };
         assert!(schema1.size() < schema2.size());
     }
@@ -2981,7 +3059,7 @@ mod tests {
                 TableInfo {
                     schema: TableSchema {
                         id: TableId::new(1),
-                        columns: BTreeMap::new(),
+                        columns: ColumnsByName::new(&[]),
                     },
                     partition_template: None,
                 },

@@ -384,7 +384,7 @@ mod tests {
         .expect("got schema");
         assert_eq!(iox_schema.tables.len(), 1);
         let table = iox_schema.tables.get("cpu").expect("got table");
-        assert_eq!(table.schema.columns.len(), 3); // one tag & one field, plus time
+        assert_eq!(table.schema.column_count(), 3); // one tag & one field, plus time
         let tag = table.schema.columns.get("host").expect("got tag");
         assert!(tag.is_tag());
         let field = table.schema.columns.get("usage").expect("got field");
@@ -491,7 +491,7 @@ mod tests {
         .expect("got schema");
         assert_eq!(iox_schema.tables.len(), 1);
         let table = iox_schema.tables.get("weather").expect("got table");
-        assert_eq!(table.schema.columns.len(), 5); // two tags, two fields, plus time
+        assert_eq!(table.schema.column_count(), 5); // two tags, two fields, plus time
         let tag1 = table.schema.columns.get("city").expect("got tag");
         assert!(tag1.is_tag());
         let tag2 = table.schema.columns.get("country").expect("got tag");

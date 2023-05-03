@@ -33,7 +33,7 @@ pub async fn querier_table(catalog: &Arc<TestCatalog>, table: &Arc<TestTable>) -
     .await
     .unwrap();
     let table_info = catalog_schema.tables.remove(&table.table.name).unwrap();
-    let schema = Schema::try_from(table_info.schema).unwrap();
+    let schema = Schema::try_from(table_info.schema.columns).unwrap();
 
     let namespace_name = Arc::from(table.namespace.namespace.name.as_str());
 

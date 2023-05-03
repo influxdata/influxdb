@@ -2,9 +2,9 @@
 
 use async_trait::async_trait;
 use data_types::{
-    Column, ColumnSchema, ColumnType, CompactionLevel, Namespace, NamespaceId, NamespaceSchema,
+    Column, ColumnType, ColumnsByName, CompactionLevel, Namespace, NamespaceId, NamespaceSchema,
     ParquetFile, ParquetFileId, ParquetFileParams, Partition, PartitionId, PartitionKey,
-    SkippedCompaction, Table, TableId, TableInfo, TableSchema, Timestamp,
+    SkippedCompaction, Table, TableId, TableInfo, Timestamp,
 };
 use iox_time::TimeProvider;
 use snafu::{OptionExt, Snafu};
@@ -598,13 +598,7 @@ where
 
     for c in columns {
         let (_, t) = table_id_to_info.get_mut(&c.table_id).unwrap();
-        t.schema.columns.insert(
-            c.name,
-            ColumnSchema {
-                id: c.id,
-                column_type: c.column_type,
-            },
-        );
+        t.schema.add_column(&c);
     }
 
     for (_, (table_name, schema)) in table_id_to_info {
@@ -614,25 +608,14 @@ where
     Ok(namespace)
 }
 
-/// Gets the table schema including all columns.
-pub async fn get_table_schema_by_id<R>(id: TableId, repos: &mut R) -> Result<TableSchema>
+/// Gets all the table's columns.
+pub async fn get_table_columns_by_id<R>(id: TableId, repos: &mut R) -> Result<ColumnsByName>
 where
     R: RepoCollection + ?Sized,
 {
     let columns = repos.columns().list_by_table_id(id).await?;
-    let mut schema = TableSchema::new(id);
 
-    for c in columns {
-        schema.columns.insert(
-            c.name,
-            ColumnSchema {
-                id: c.id,
-                column_type: c.column_type,
-            },
-        );
-    }
-
-    Ok(schema)
+    Ok(ColumnsByName::new(&columns))
 }
 
 /// Fetch all [`NamespaceSchema`] in the catalog.
