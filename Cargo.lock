@@ -6328,6 +6328,7 @@ dependencies = [
 name = "wal"
 version = "0.1.0"
 dependencies = [
+ "assert_matches",
  "async-trait",
  "byteorder",
  "bytes",

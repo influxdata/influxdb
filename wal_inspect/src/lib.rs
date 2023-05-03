@@ -127,12 +127,12 @@ mod tests {
         iox::wal::v1::sequenced_wal_op::Op, pbdata::v1::DatabaseBatch,
     };
     use mutable_batch_lp::lines_to_batches;
-    use wal::{Error as WalError, SequencedWalOp, WriteOpDecoder};
+    use wal::{Error as WalError, SequencedWalOp, WriteOpEntryDecoder};
 
     use super::*;
 
     #[tokio::test]
-    async fn translate_good_wal() {
+    async fn translate_good_wal_segment_file() {
         let test_dir = test_helpers::tmp_dir().expect("failed to create test dir");
         let wal = wal::Wal::new(test_dir.path()).await.unwrap();
 
@@ -163,7 +163,7 @@ mod tests {
         // Rotate the WAL and create the translator.
         let (closed, _) = wal.rotate().expect("failed to rotate WAL");
 
-        let mut decoder = WriteOpDecoder::from_closed_segment(
+        let mut decoder = WriteOpEntryDecoder::from_closed_segment(
             wal.reader_for_segment(closed.id())
                 .expect("failed to open reader for closed segment"),
         );
@@ -172,7 +172,7 @@ mod tests {
         let mut decoded_entries = 0;
         let mut decoded_ops = 0;
         while let Some(new_entries) = decoder
-            .next_write_entry_batch()
+            .next_write_op_entry_batch()
             .expect("decoder error should not occur")
         {
             decoded_entries += 1;
@@ -213,7 +213,7 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn partial_translate_bad_wal() {
+    async fn partial_translate_bad_wal_segment_file() {
         let test_dir = test_helpers::tmp_dir().expect("failed to create test dir");
         let wal = wal::Wal::new(test_dir.path()).await.unwrap();
 
@@ -269,7 +269,7 @@ mod tests {
         }
 
         // Create the translator and read as much as possible out of the bad segment file
-        let mut decoder = WriteOpDecoder::from_closed_segment(
+        let mut decoder = WriteOpEntryDecoder::from_closed_segment(
             wal.reader_for_segment(closed.id())
                 .expect("failed to open reader for closed segment"),
         );
@@ -278,7 +278,7 @@ mod tests {
         let mut decoded_entries = 0;
         let mut decoded_ops = 0;
         loop {
-            match decoder.next_write_entry_batch() {
+            match decoder.next_write_op_entry_batch() {
                 // If the translator returns `None` indicating successful translation
                 // then something is broken.
                 Ok(v) => assert_matches!(v, Some(new_entries) => {
