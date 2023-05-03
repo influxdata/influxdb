@@ -498,37 +498,43 @@ async fn unsupported_sql_returns_error() {
     // Set up the cluster  ====================================
     let mut cluster = MiniCluster::create_shared2(database_url).await;
 
+    fn make_error_message(name: &str) -> String {
+        format!("Error while planning query: This feature is not implemented: Unsupported logical plan: {name}")
+    }
+
     StepTest::new(
         &mut cluster,
         vec![
             Step::WriteLineProtocol("this_table_does_exist,tag=A val=\"foo\" 1".into()),
             Step::QueryExpectingError {
-                sql: "drop table this_table_doesnt_exist".into(),
+                sql: "drop table this_table_does_exist".into(),
                 expected_error_code: tonic::Code::InvalidArgument,
-                expected_message: "Error while planning query: This feature is not implemented: \
-                    DropTable"
-                    .into(),
+                expected_message: make_error_message("DropTable"),
             },
             Step::QueryExpectingError {
                 sql: "create view some_view as select * from this_table_does_exist".into(),
                 expected_error_code: tonic::Code::InvalidArgument,
-                expected_message: "Error while planning query: This feature is not implemented: \
-                    CreateView"
-                    .into(),
+                expected_message: make_error_message("CreateView"),
+            },
+            Step::QueryExpectingError {
+                sql: "drop view some_view".into(),
+                expected_error_code: tonic::Code::InvalidArgument,
+                expected_message: make_error_message("DropView"),
             },
             Step::QueryExpectingError {
                 sql: "create database my_new_database".into(),
                 expected_error_code: tonic::Code::InvalidArgument,
-                expected_message: "Error while planning query: This feature is not implemented: \
-                    CreateCatalog"
-                    .into(),
+                expected_message: make_error_message("CreateCatalog"),
             },
             Step::QueryExpectingError {
                 sql: "create schema foo".into(),
                 expected_error_code: tonic::Code::InvalidArgument,
-                expected_message: "Error while planning query: This feature is not implemented: \
-                                    CreateCatalogSchema"
-                    .into(),
+                expected_message: make_error_message("CreateCatalogSchema"),
+            },
+            Step::QueryExpectingError {
+                sql: "create external table foo stored as csv location '/etc/hosts'".into(),
+                expected_error_code: tonic::Code::InvalidArgument,
+                expected_message: make_error_message("CreateExternalTable"),
             },
         ],
     )

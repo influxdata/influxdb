@@ -221,6 +221,13 @@ async fn try_compact_partition(
 
         files = files_later;
 
+        info!(
+            partition_id = partition_info.partition_id.get(),
+            branch_count = branches.len(),
+            concurrency_limit = df_semaphore.total_permits(),
+            "compacting branches concurrently",
+        );
+
         // concurrently run the branches.
         let branches_output: Vec<Vec<ParquetFile>> = stream::iter(branches.into_iter())
             .map(|branch| {
@@ -320,6 +327,14 @@ async fn execute_branch(
         Arc::<dyn Scratchpad>::clone(&scratchpad_ctx),
     )
     .await;
+
+    for file_param in &created_file_params {
+        info!(
+            partition_id = partition_info.partition_id.get(),
+            uuid = file_param.object_store_id.to_string(),
+            "uploaded file to objectstore",
+        );
+    }
 
     // clean scratchpad
     scratchpad_ctx.clean_from_scratchpad(&input_paths).await;

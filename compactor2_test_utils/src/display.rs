@@ -324,10 +324,10 @@ pub fn display_size(sz: i64) -> String {
     if sz < kbyte {
         format!("{sz}b")
     } else if sz < mbyte {
-        let kb = round(sz / kbyte, 2);
+        let kb = round(sz / kbyte, 0);
         format!("{kb}kb")
     } else if sz < gbyte {
-        let mb = round(sz / mbyte, 2);
+        let mb = round(sz / mbyte, 0);
         format!("{mb}mb")
     } else {
         let gb = round(sz / gbyte, 2);

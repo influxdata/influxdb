@@ -851,7 +851,7 @@ mod tests {
     use itertools::Itertools;
     use test_helpers::str_vec_to_arc_vec;
 
-    use crate::exec::seriesset::series::{Data, Tag};
+    use crate::exec::seriesset::series::{Batch, Data, Tag};
 
     use super::*;
 
@@ -1612,10 +1612,10 @@ mod tests {
                 key: Arc::from("g"),
                 value: Arc::from("x"),
             }],
-            data: Data::FloatPoints {
+            data: Data::FloatPoints(vec![Batch {
                 timestamps: vec![],
                 values: vec![],
-            },
+            }]),
         })]);
         let err = match ggen.group(input).await {
             Ok(stream) => stream.try_collect::<Vec<_>>().await.unwrap_err(),
@@ -1635,40 +1635,40 @@ mod tests {
                     key: Arc::from("g"),
                     value: Arc::from("x"),
                 }],
-                data: Data::IntegerPoints {
+                data: Data::IntegerPoints(vec![Batch {
                     timestamps: vec![1],
                     values: vec![1],
-                },
+                }]),
             }),
             Ok(Series {
                 tags: vec![Tag {
                     key: Arc::from("g"),
                     value: Arc::from("y"),
                 }],
-                data: Data::IntegerPoints {
+                data: Data::IntegerPoints(vec![Batch {
                     timestamps: vec![2],
                     values: vec![2],
-                },
+                }]),
             }),
             Ok(Series {
                 tags: vec![Tag {
                     key: Arc::from("g"),
                     value: Arc::from("x"),
                 }],
-                data: Data::IntegerPoints {
+                data: Data::IntegerPoints(vec![Batch {
                     timestamps: vec![3],
                     values: vec![3],
-                },
+                }]),
             }),
             Ok(Series {
                 tags: vec![Tag {
                     key: Arc::from("g"),
                     value: Arc::from("x"),
                 }],
-                data: Data::IntegerPoints {
+                data: Data::IntegerPoints(vec![Batch {
                     timestamps: vec![4],
                     values: vec![4],
-                },
+                }]),
             }),
         ]);
         let actual = ggen
@@ -1688,30 +1688,30 @@ mod tests {
                     key: Arc::from("g"),
                     value: Arc::from("x"),
                 }],
-                data: Data::IntegerPoints {
+                data: Data::IntegerPoints(vec![Batch {
                     timestamps: vec![1],
                     values: vec![1],
-                },
+                }]),
             }),
             Either::Series(Series {
                 tags: vec![Tag {
                     key: Arc::from("g"),
                     value: Arc::from("x"),
                 }],
-                data: Data::IntegerPoints {
+                data: Data::IntegerPoints(vec![Batch {
                     timestamps: vec![3],
                     values: vec![3],
-                },
+                }]),
             }),
             Either::Series(Series {
                 tags: vec![Tag {
                     key: Arc::from("g"),
                     value: Arc::from("x"),
                 }],
-                data: Data::IntegerPoints {
+                data: Data::IntegerPoints(vec![Batch {
                     timestamps: vec![4],
                     values: vec![4],
-                },
+                }]),
             }),
             Either::Group(Group {
                 tag_keys: vec![Arc::from("g")],
@@ -1722,10 +1722,10 @@ mod tests {
                     key: Arc::from("g"),
                     value: Arc::from("y"),
                 }],
-                data: Data::IntegerPoints {
+                data: Data::IntegerPoints(vec![Batch {
                     timestamps: vec![2],
                     values: vec![2],
-                },
+                }]),
             }),
         ];
         assert_eq!(actual, expected);
