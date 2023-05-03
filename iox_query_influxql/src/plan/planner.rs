@@ -59,7 +59,7 @@ use influxdb_influxql_parser::{
     expression::Expr as IQLExpr,
     identifier::Identifier,
     literal::Literal,
-    select::{Field, FieldList, FromMeasurementClause, MeasurementSelection, SelectStatement},
+    select::{Field, FromMeasurementClause, MeasurementSelection, SelectStatement},
     statement::Statement,
 };
 use iox_query::config::{IoxConfigExt, MetadataCutoff};
@@ -284,18 +284,10 @@ impl<'a> InfluxQLToLogicalPlan<'a> {
             .with_timezone(select.timezone)
             .with_group_by_fill(select);
 
-        // The `time` column is always present in the result set
-        let mut fields = if find_time_column_index(&select.fields).is_none() {
-            vec![Field {
-                expr: IQLExpr::VarRef(VarRef {
-                    name: "time".into(),
-                    data_type: Some(VarRefDataType::Timestamp),
-                }),
-                alias: Some("time".into()),
-            }]
-        } else {
-            vec![]
-        };
+        // Skip the `time` column
+        let fields_no_time = &select.fields[1..];
+        // always start with the time column
+        let mut fields = vec![select.fields.first().cloned().unwrap()];
 
         // group_by_tag_set   : a list of tag columns specified in the GROUP BY clause
         // projection_tag_set : a list of tag columns specified exclusively in the SELECT projection
@@ -304,7 +296,7 @@ impl<'a> InfluxQLToLogicalPlan<'a> {
         let (group_by_tag_set, projection_tag_set, is_projected) =
             if let Some(group_by) = &select.group_by {
                 let mut tag_columns =
-                    find_tag_and_unknown_columns(&select.fields).collect::<HashSet<_>>();
+                    find_tag_and_unknown_columns(fields_no_time).collect::<HashSet<_>>();
 
                 // Find the list of tag keys specified in the `GROUP BY` clause, and
                 // whether any of the tag keys are also projected in the SELECT list.
@@ -344,13 +336,13 @@ impl<'a> InfluxQLToLogicalPlan<'a> {
                     is_projected,
                 )
             } else {
-                let tag_columns = find_tag_and_unknown_columns(&select.fields)
+                let tag_columns = find_tag_and_unknown_columns(fields_no_time)
                     .sorted()
                     .collect::<Vec<_>>();
                 (vec![], tag_columns, vec![])
             };
 
-        fields.extend(select.fields.iter().cloned());
+        fields.extend(fields_no_time.iter().cloned());
 
         // Build the first non-empty plan
         let plan = {
@@ -2095,7 +2087,7 @@ fn is_aggregate_field(f: &Field) -> bool {
 
 /// Find all the columns where the resolved data type
 /// is a tag or is [`None`], which is unknown.
-fn find_tag_and_unknown_columns(fields: &FieldList) -> impl Iterator<Item = &str> {
+fn find_tag_and_unknown_columns(fields: &[Field]) -> impl Iterator<Item = &str> {
     fields.iter().filter_map(|f| match &f.expr {
         IQLExpr::VarRef(VarRef {
             name,
