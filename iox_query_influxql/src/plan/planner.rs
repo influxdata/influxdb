@@ -1,8 +1,7 @@
 mod select;
 
 use crate::plan::planner::select::{
-    check_exprs_satisfy_columns, fields_to_exprs_no_nulls, make_tag_key_column_meta,
-    plan_with_sort, ToSortExpr,
+    check_exprs_satisfy_columns, fields_to_exprs_no_nulls, make_tag_key_column_meta, plan_with_sort,
 };
 use crate::plan::planner_time_range_expression::{
     duration_expr_to_nanoseconds, expr_to_df_interval_dt, time_range_to_df_expr,
@@ -34,7 +33,7 @@ use datafusion::logical_expr::{
 use datafusion::prelude::{cast, sum, when, Column};
 use datafusion_util::{lit_dict, AsExpr};
 use generated_types::influxdata::iox::querier::v1::InfluxQlMetadata;
-use influxdb_influxql_parser::common::{LimitClause, OffsetClause};
+use influxdb_influxql_parser::common::{LimitClause, OffsetClause, OrderByClause};
 use influxdb_influxql_parser::explain::{ExplainOption, ExplainStatement};
 use influxdb_influxql_parser::expression::walk::walk_expr;
 use influxdb_influxql_parser::expression::{
@@ -419,9 +418,26 @@ impl<'a> InfluxQLToLogicalPlan<'a> {
         // The UNION operator indicates the result set produces multiple tables or measurements.
         let is_multiple_measurements = matches!(plan, LogicalPlan::Union(_));
 
+        // the sort planner node must refer to the time column using
+        // the alias that was specified
+        let time_alias = fields[0]
+            .alias
+            .as_ref()
+            .map(|id| id.deref().as_str())
+            .unwrap_or("time");
+
+        let time_sort_expr = time_alias.as_expr().sort(
+            match select.order_by {
+                // Default behaviour is to sort by time in ascending order if there is no ORDER BY
+                None | Some(OrderByClause::Ascending) => true,
+                Some(OrderByClause::Descending) => false,
+            },
+            false,
+        );
+
         let plan = plan_with_sort(
             plan,
-            vec![select.order_by.to_sort_expr()],
+            vec![time_sort_expr.clone()],
             is_multiple_measurements,
             &group_by_tag_set,
             &projection_tag_set,
@@ -431,7 +447,7 @@ impl<'a> InfluxQLToLogicalPlan<'a> {
             plan,
             select.offset,
             select.limit,
-            vec![select.order_by.to_sort_expr()],
+            vec![time_sort_expr],
             is_multiple_measurements,
             &group_by_tag_set,
             &projection_tag_set,
@@ -2649,6 +2665,23 @@ mod test {
     mod select {
         use super::*;
 
+        #[test]
+        fn test_time_column() {
+            // validate time column is explicitly projected
+            assert_snapshot!(plan("SELECT usage_idle, time FROM cpu"), @r###"
+            Sort: time ASC NULLS LAST [iox::measurement:Dictionary(Int32, Utf8), time:Timestamp(Nanosecond, None), usage_idle:Float64;N]
+              Projection: Dictionary(Int32, Utf8("cpu")) AS iox::measurement, cpu.time AS time, cpu.usage_idle AS usage_idle [iox::measurement:Dictionary(Int32, Utf8), time:Timestamp(Nanosecond, None), usage_idle:Float64;N]
+                TableScan: cpu [cpu:Dictionary(Int32, Utf8);N, host:Dictionary(Int32, Utf8);N, region:Dictionary(Int32, Utf8);N, time:Timestamp(Nanosecond, None), usage_idle:Float64;N, usage_system:Float64;N, usage_user:Float64;N]
+            "###);
+
+            // validate time column may be aliased
+            assert_snapshot!(plan("SELECT usage_idle, time AS timestamp FROM cpu"), @r###"
+            Sort: timestamp ASC NULLS LAST [iox::measurement:Dictionary(Int32, Utf8), timestamp:Timestamp(Nanosecond, None), usage_idle:Float64;N]
+              Projection: Dictionary(Int32, Utf8("cpu")) AS iox::measurement, cpu.time AS timestamp, cpu.usage_idle AS usage_idle [iox::measurement:Dictionary(Int32, Utf8), timestamp:Timestamp(Nanosecond, None), usage_idle:Float64;N]
+                TableScan: cpu [cpu:Dictionary(Int32, Utf8);N, host:Dictionary(Int32, Utf8);N, region:Dictionary(Int32, Utf8);N, time:Timestamp(Nanosecond, None), usage_idle:Float64;N, usage_system:Float64;N, usage_user:Float64;N]
+            "###);
+        }
+
         /// Tests for the `DISTINCT` clause and `DISTINCT` function
         #[test]
         fn test_distinct() {
@@ -3477,10 +3510,9 @@ mod test {
                 TableScan: data [TIME:Boolean;N, bar:Dictionary(Int32, Utf8);N, bool_field:Boolean;N, f64_field:Float64;N, foo:Dictionary(Int32, Utf8);N, i64_field:Int64;N, mixedCase:Float64;N, str_field:Utf8;N, time:Timestamp(Nanosecond, None), with space:Float64;N]
             "###);
             assert_snapshot!(plan("SELECT time as timestamp, f64_field FROM data"), @r###"
-            Projection: iox::measurement, timestamp, f64_field [iox::measurement:Dictionary(Int32, Utf8), timestamp:Timestamp(Nanosecond, None), f64_field:Float64;N]
-              Sort: data.time ASC NULLS LAST [iox::measurement:Dictionary(Int32, Utf8), timestamp:Timestamp(Nanosecond, None), f64_field:Float64;N, time:Timestamp(Nanosecond, None)]
-                Projection: Dictionary(Int32, Utf8("data")) AS iox::measurement, data.time AS timestamp, data.f64_field AS f64_field, data.time [iox::measurement:Dictionary(Int32, Utf8), timestamp:Timestamp(Nanosecond, None), f64_field:Float64;N, time:Timestamp(Nanosecond, None)]
-                  TableScan: data [TIME:Boolean;N, bar:Dictionary(Int32, Utf8);N, bool_field:Boolean;N, f64_field:Float64;N, foo:Dictionary(Int32, Utf8);N, i64_field:Int64;N, mixedCase:Float64;N, str_field:Utf8;N, time:Timestamp(Nanosecond, None), with space:Float64;N]
+            Sort: timestamp ASC NULLS LAST [iox::measurement:Dictionary(Int32, Utf8), timestamp:Timestamp(Nanosecond, None), f64_field:Float64;N]
+              Projection: Dictionary(Int32, Utf8("data")) AS iox::measurement, data.time AS timestamp, data.f64_field AS f64_field [iox::measurement:Dictionary(Int32, Utf8), timestamp:Timestamp(Nanosecond, None), f64_field:Float64;N]
+                TableScan: data [TIME:Boolean;N, bar:Dictionary(Int32, Utf8);N, bool_field:Boolean;N, f64_field:Float64;N, foo:Dictionary(Int32, Utf8);N, i64_field:Int64;N, mixedCase:Float64;N, str_field:Utf8;N, time:Timestamp(Nanosecond, None), with space:Float64;N]
             "###);
             assert_snapshot!(plan("SELECT foo, f64_field FROM data"), @r###"
             Sort: time ASC NULLS LAST, foo ASC NULLS LAST [iox::measurement:Dictionary(Int32, Utf8), time:Timestamp(Nanosecond, None), foo:Dictionary(Int32, Utf8);N, f64_field:Float64;N]

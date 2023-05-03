@@ -5,7 +5,6 @@ use datafusion::logical_expr::utils::find_column_exprs;
 use datafusion::logical_expr::{Expr, LogicalPlan, LogicalPlanBuilder};
 use datafusion_util::AsExpr;
 use generated_types::influxdata::iox::querier::v1::influx_ql_metadata::TagKeyColumn;
-use influxdb_influxql_parser::common::OrderByClause;
 use influxdb_influxql_parser::expression::{Expr as IQLExpr, VarRef, VarRefDataType};
 use influxdb_influxql_parser::select::Field;
 use schema::INFLUXQL_MEASUREMENT_COLUMN_NAME;
@@ -119,25 +118,6 @@ pub(super) fn plan_with_sort(
     series_sort.extend(map_to_expr(schema, projection_tag_set));
 
     LogicalPlanBuilder::from(plan).sort(series_sort)?.build()
-}
-
-/// Trait to convert the receiver to a [`Expr::Sort`] expression.
-pub(super) trait ToSortExpr {
-    /// Create a sort expression.
-    fn to_sort_expr(&self) -> Expr;
-}
-
-impl ToSortExpr for Option<OrderByClause> {
-    fn to_sort_expr(&self) -> Expr {
-        "time".as_expr().sort(
-            match self {
-                // Default behaviour is to sort by time in ascending order if there is no ORDER BY
-                None | Some(OrderByClause::Ascending) => true,
-                Some(OrderByClause::Descending) => false,
-            },
-            false,
-        )
-    }
 }
 
 /// Map the fields to DataFusion [`Expr::Column`] expressions, excluding those columns that
