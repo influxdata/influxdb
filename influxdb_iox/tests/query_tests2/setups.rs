@@ -270,6 +270,28 @@ pub static SETUPS: Lazy<HashMap<SetupName, SetupSteps>> = Lazy::new(|| {
                 .collect::<Vec<_>>(),
         ),
         (
+            "FiftySortedSameParquetFiles",
+            (0..50)
+                .flat_map(|_i| {
+
+                    let write = Step::WriteLineProtocol(
+                        "m,tag1=A,tag2=B,tag3=C,tag4=D f1=1,f2=2 2001".into(), // duplicated across all chunks
+                    );
+
+                    [
+                        Step::RecordNumParquetFiles,
+                        write,
+                        Step::Persist,
+                        Step::WaitForPersisted2 {
+                            expected_increase: 1,
+                        },
+                    ]
+                    .into_iter()
+                })
+                .collect::<Vec<_>>(),
+        ),
+
+        (
             "OneMeasurementManyFields",
             vec![
                 Step::RecordNumParquetFiles,
