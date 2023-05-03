@@ -408,6 +408,11 @@ name: disk
 | fieldKey | fieldType |
 +----------+-----------+
 +----------+-----------+
+-- InfluxQL: SHOW FIELD KEYS FROM "";
++----------+-----------+
+| fieldKey | fieldType |
++----------+-----------+
++----------+-----------+
 -- InfluxQL: SHOW FIELD KEYS ON my_db;
 Error while planning query: This feature is not implemented: SHOW FIELD KEYS ON <database>
 -- InfluxQL: SHOW FIELD KEYS FROM x.my_db;
@@ -923,6 +928,11 @@ name: disk
 | key | value |
 +-----+-------+
 +-----+-------+
+-- InfluxQL: SHOW TAG VALUES FROM "" WITH KEY = "tag0";
++-----+-------+
+| key | value |
++-----+-------+
++-----+-------+
 -- InfluxQL: SHOW TAG VALUES WITH KEY = "tt_tag";
 name: time_test
 +--------+-------------------+
@@ -1280,6 +1290,11 @@ name: disk
 | host   |
 +--------+
 -- InfluxQL: SHOW TAG KEYS FROM does_not_exist;
++--------+
+| tagKey |
++--------+
++--------+
+-- InfluxQL: SHOW TAG KEYS FROM "";
 +--------+
 | tagKey |
 +--------+
