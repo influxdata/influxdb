@@ -588,7 +588,7 @@ where
     let columns = repos.columns().list_by_namespace_id(namespace.id).await?;
     let tables = repos.tables().list_by_namespace_id(namespace.id).await?;
 
-    let mut namespace = NamespaceSchema::from(&namespace);
+    let mut namespace = NamespaceSchema::new_empty_from(&namespace);
 
     let mut table_id_to_info = BTreeMap::new();
     for t in tables {
@@ -735,7 +735,7 @@ pub async fn list_schemas(
             // The catalog call explicitly asked for no soft deleted records.
             assert!(v.deleted_at.is_none());
 
-            let mut ns = NamespaceSchema::from(&v);
+            let mut ns = NamespaceSchema::new_empty_from(&v);
 
             ns.tables = joined.remove(&v.id)?;
             Some((v, ns))
@@ -3041,7 +3041,7 @@ pub(crate) mod test_helpers {
 
         let batches = mutable_batch_lp::lines_to_batches(lines, 42).unwrap();
         let batches = batches.iter().map(|(table, batch)| (table.as_str(), batch));
-        let ns = NamespaceSchema::from(&namespace);
+        let ns = NamespaceSchema::new_empty_from(&namespace);
 
         let schema = validate_or_insert_schema(batches, &ns, repos)
             .await

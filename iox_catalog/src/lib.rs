@@ -242,7 +242,7 @@ mod tests {
                         .await
                         .unwrap();
 
-                    let schema = NamespaceSchema::from(&namespace);
+                    let schema = NamespaceSchema::new_empty_from(&namespace);
 
                     // Apply all the lp literals as individual writes, feeding
                     // the result of one validation into the next to drive

@@ -342,8 +342,10 @@ pub struct NamespaceSchema {
     pub partition_template: Option<Arc<PartitionTemplate>>,
 }
 
-impl From<&Namespace> for NamespaceSchema {
-    fn from(namespace: &Namespace) -> Self {
+impl NamespaceSchema {
+    /// Start a new `NamespaceSchema` with empty `tables` but the rest of the information populated
+    /// from the given `Namespace`.
+    pub fn new_empty_from(namespace: &Namespace) -> Self {
         let &Namespace {
             id,
             retention_period_ns,
