@@ -55,11 +55,11 @@ pub trait Authorizer: std::fmt::Debug + Send + Sync {
     /// Determine the permissions associated with a request token.
     ///
     /// The returned list of permissions is the intersection of the permissions
-    /// requested and the permissions associated with the token. An error
-    /// will only be returned if there is a failure processing the token.
-    /// An invalid token is taken to have no permissions, so these along
-    /// with tokens that match none of the requested permissions will return
-    /// empty permission sets.
+    /// requested and the permissions associated with the token.
+    ///
+    /// Implementations of this trait should only error if:
+    ///     * there is a failure processing the token.
+    ///     * there is not any intersection of permissions.
     async fn permissions(
         &self,
         token: Option<Vec<u8>>,
@@ -72,24 +72,10 @@ pub trait Authorizer: std::fmt::Debug + Send + Sync {
         self.permissions(Some(b"".to_vec()), &[]).await?;
         Ok(())
     }
-
-    /// Determine if a token has any of the requested permissions.
-    ///
-    /// If the token has none of the permissions requested then a Forbidden
-    /// error is returned.
-    async fn require_any_permission(
-        &self,
-        token: Option<Vec<u8>>,
-        perms: &[Permission],
-    ) -> Result<(), Error> {
-        if self.permissions(token, perms).await?.is_empty() {
-            Err(Error::Forbidden)
-        } else {
-            Ok(())
-        }
-    }
 }
 
+/// Wrapped `Option<dyn Authorizer>`
+/// Provides response to inner `IoxAuthorizer::permissions()`
 #[async_trait]
 impl<T: Authorizer> Authorizer for Option<T> {
     async fn permissions(
@@ -99,6 +85,7 @@ impl<T: Authorizer> Authorizer for Option<T> {
     ) -> Result<Vec<Permission>, Error> {
         match self {
             Some(authz) => authz.permissions(token, perms).await,
+            // no authz rpc service => return same perms requested. Used for testing.
             None => Ok(perms.to_vec()),
         }
     }
@@ -142,18 +129,19 @@ impl Authorizer for IoxAuthorizer {
     async fn permissions(
         &self,
         token: Option<Vec<u8>>,
-        perms: &[Permission],
+        requested_perms: &[Permission],
     ) -> Result<Vec<Permission>, Error> {
         let req = proto::AuthorizeRequest {
             token: token.ok_or(Error::NoToken)?,
-            permissions: perms
+            permissions: requested_perms
                 .iter()
                 .filter_map(|p| p.clone().try_into().ok())
                 .collect(),
         };
         let mut client = self.client.clone();
-        let resp = client.authorize(req).await?;
-        Ok(resp
+        let authz_rpc_result = client.authorize(req).await?;
+
+        let intersected_perms: Vec<Permission> = authz_rpc_result
             .into_inner()
             .permissions
             .into_iter()
@@ -164,7 +152,16 @@ impl Authorizer for IoxAuthorizer {
                     None
                 }
             })
-            .collect())
+            .collect();
+
+        match (requested_perms, &intersected_perms[..]) {
+            // used in connection `Authorizer::probe()`
+            ([], _) => Ok(vec![]),
+            // token does not have any of the requested_perms
+            (_, []) => Err(Error::Forbidden),
+            // if token has `any_of` the requested_perms => return ok
+            _ => Ok(intersected_perms),
+        }
     }
 }
 
