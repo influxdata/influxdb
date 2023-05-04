@@ -43,9 +43,7 @@ use influxdb_influxql_parser::expression::{
 use influxdb_influxql_parser::functions::{
     is_aggregate_function, is_now_function, is_scalar_math_function,
 };
-use influxdb_influxql_parser::select::{
-    FillClause, GroupByClause, SLimitClause, SOffsetClause, TimeZoneClause,
-};
+use influxdb_influxql_parser::select::{FillClause, GroupByClause, TimeZoneClause};
 use influxdb_influxql_parser::show_field_keys::ShowFieldKeysStatement;
 use influxdb_influxql_parser::show_measurements::{
     ShowMeasurementsStatement, WithMeasurementClause,
@@ -450,8 +448,6 @@ impl<'a> InfluxQLToLogicalPlan<'a> {
             &group_by_tag_set,
             &projection_tag_set,
         )?;
-
-        let plan = self.slimit(plan, select.series_offset, select.series_limit)?;
 
         Ok(plan)
     }
@@ -862,27 +858,6 @@ impl<'a> InfluxQLToLogicalPlan<'a> {
                 projection_tag_set,
             )
         }
-    }
-
-    /// Verifies the `SLIMIT` and `SOFFSET` clauses are `None`; otherwise, return a
-    /// `NotImplemented` error.
-    ///
-    /// ## Why?
-    /// * `SLIMIT` and `SOFFSET` don't work as expected per issue [#7571]
-    /// * This issue [is noted](https://docs.influxdata.com/influxdb/v1.8/query_language/explore-data/#the-slimit-clause) in our official documentation
-    ///
-    /// [#7571]: https://github.com/influxdata/influxdb/issues/7571
-    fn slimit(
-        &self,
-        input: LogicalPlan,
-        offset: Option<SOffsetClause>,
-        limit: Option<SLimitClause>,
-    ) -> Result<LogicalPlan> {
-        if offset.is_none() && limit.is_none() {
-            return Ok(input);
-        }
-
-        error::not_implemented("SLIMIT or SOFFSET")
     }
 
     /// Map the InfluxQL `SELECT` projection list into a list of DataFusion expressions.

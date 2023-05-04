@@ -35,12 +35,15 @@ pub(super) fn rewrite_statement(
 }
 
 /// Map a `SelectStatement` to a `Select`, which is an intermediate representation to be
-/// used by the InfluxQL planner.
+/// used by the InfluxQL planner. Mapping also expands any wildcards in the `FROM` and
+/// projection clauses.
 ///
 /// # NOTE
 ///
 /// The goal is that `Select` will eventually be used by the InfluxQL planner.
 pub(super) fn map_select(s: &dyn SchemaProvider, stmt: &SelectStatement) -> Result<Select> {
+    check_features(stmt)?;
+
     let mut sel = Select {
         fields: vec![],
         from: vec![],
@@ -56,6 +59,24 @@ pub(super) fn map_select(s: &dyn SchemaProvider, stmt: &SelectStatement) -> Resu
     field_list_expand_wildcards(s, stmt, &mut sel)?;
 
     Ok(sel)
+}
+
+/// Asserts that the `SELECT` statement does not use any unimplemented features.
+///
+/// The list of unimplemented or unsupported features are listed below.
+///
+/// # `SLIMIT` and `SOFFSET`
+///
+/// * `SLIMIT` and `SOFFSET` don't work as expected per issue [#7571]
+/// * This issue [is noted](https://docs.influxdata.com/influxdb/v1.8/query_language/explore-data/#the-slimit-clause) in our official documentation
+///
+/// [#7571]: https://github.com/influxdata/influxdb/issues/7571
+fn check_features(stmt: &SelectStatement) -> Result<()> {
+    if stmt.series_limit.is_some() || stmt.series_offset.is_some() {
+        return error::not_implemented("SLIMIT or SOFFSET");
+    }
+
+    Ok(())
 }
 
 /// Ensure the time field is added to all projections,
@@ -1954,6 +1975,20 @@ mod test {
         assert_eq!(
             err.to_string(),
             "Error during planning: unable to use tag as wildcard in count()"
+        );
+
+        let stmt = parse_select("SELECT usage_idle FROM cpu SLIMIT 1");
+        let err = rewrite_statement(&namespace, &stmt).unwrap_err();
+        assert_eq!(
+            err.to_string(),
+            "This feature is not implemented: SLIMIT or SOFFSET"
+        );
+
+        let stmt = parse_select("SELECT usage_idle FROM cpu SOFFSET 1");
+        let err = rewrite_statement(&namespace, &stmt).unwrap_err();
+        assert_eq!(
+            err.to_string(),
+            "This feature is not implemented: SLIMIT or SOFFSET"
         );
     }
 
