@@ -24,8 +24,14 @@ SELECT /64|tag0/ FROM m0;
 -- Projection specific tags and fields
 SELECT f64, tag0 FROM m0;
 
--- Explicitly select time column
+-- Explicitly select time column, should appear in first column
 SELECT f64, tag0, time FROM m0;
+
+-- Alias time column
+SELECT f64, tag0, time as timestamp FROM m0;
+
+-- Alias field and tag columns
+SELECT f64 as f, tag0 as t FROM m0;
 
 -- arithmetic operators
 SELECT f64, f64 * 2, i64, i64 + i64 FROM m0;

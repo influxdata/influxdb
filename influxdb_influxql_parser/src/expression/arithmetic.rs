@@ -194,6 +194,22 @@ impl Display for Expr {
     }
 }
 
+/// Traits to help creating InfluxQL [`Expr`]s containing
+/// a [`VarRef`].
+pub trait AsVarRefExpr {
+    /// Creates an InfluxQL [`VarRef`] expression.
+    fn to_var_ref_expr(&self) -> Expr;
+}
+
+impl AsVarRefExpr for str {
+    fn to_var_ref_expr(&self) -> Expr {
+        Expr::VarRef(VarRef {
+            name: self.into(),
+            data_type: None,
+        })
+    }
+}
+
 /// Specifies the data type of a wildcard (`*`) when using the `::` operator.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum WildcardType {
