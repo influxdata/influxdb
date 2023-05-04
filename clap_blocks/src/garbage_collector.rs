@@ -32,7 +32,8 @@ pub struct GarbageCollectorConfig {
     )]
     pub objectstore_concurrent_deletes: usize,
 
-    /// Number of minutes to sleep between iterations of the objectstore deletion loop.
+    /// Number of minutes to sleep between iterations of the objectstore list loop.
+    /// This is the sleep between entirely fresh list operations.
     /// Defaults to 30 minutes.
     #[clap(
         long,
@@ -40,6 +41,16 @@ pub struct GarbageCollectorConfig {
         env = "INFLUXDB_IOX_GC_OBJECTSTORE_SLEEP_INTERVAL_MINUTES"
     )]
     pub objectstore_sleep_interval_minutes: u64,
+
+    /// Number of milliseconds to sleep between listing consecutive chunks of objecstore files.
+    /// Object store listing is processed in batches; this is the sleep between batches.
+    /// Defaults to 1000 milliseconds.
+    #[clap(
+        long,
+        default_value_t = 1000,
+        env = "INFLUXDB_IOX_GC_OBJECTSTORE_SLEEP_INTERVAL_BATCH_MILLISECONDS"
+    )]
+    pub objectstore_sleep_interval_batch_milliseconds: u64,
 
     /// Parquet file rows in the catalog flagged for deletion before this duration will be deleted.
     /// Parsed with <https://docs.rs/humantime/latest/humantime/fn.parse_duration.html>
