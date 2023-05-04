@@ -53,10 +53,18 @@ impl Authorizer for IoxAuthorizer {
     ) -> Result<Vec<Permission>, Error> {
         let authz_rpc_result = self
             .request(token.ok_or(Error::NoToken)?, requested_perms)
-            .await?;
+            .await
+            .map_err(|status| Error::Verification {
+                msg: status.message().to_string(),
+                source: Box::new(status),
+            })?
+            .into_inner();
+
+        if !authz_rpc_result.valid {
+            return Err(Error::InvalidToken);
+        }
 
         let intersected_perms: Vec<Permission> = authz_rpc_result
-            .into_inner()
             .permissions
             .into_iter()
             .filter_map(|p| match p.try_into() {
@@ -68,14 +76,10 @@ impl Authorizer for IoxAuthorizer {
             })
             .collect();
 
-        match (requested_perms, &intersected_perms[..]) {
-            // used in connection `Authorizer::probe()`
-            ([], _) => Ok(vec![]),
-            // token does not have any of the requested_perms
-            (_, []) => Err(Error::Forbidden),
-            // if token has `any_of` the requested_perms => return ok
-            _ => Ok(intersected_perms),
+        if intersected_perms.is_empty() {
+            return Err(Error::Forbidden);
         }
+        Ok(intersected_perms)
     }
 }
 
@@ -90,6 +94,10 @@ pub enum Error {
         /// Source of the error.
         source: Box<dyn std::error::Error + Send + Sync + 'static>,
     },
+
+    /// Token is invalid.
+    #[snafu(display("invalid token"))]
+    InvalidToken,
 
     /// The token's permissions do not allow the operation.
     #[snafu(display("forbidden"))]

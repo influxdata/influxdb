@@ -2,8 +2,9 @@ use async_trait::async_trait;
 
 use super::{Error, Permission};
 
-/// An authorizer is used to validate the associated with
-/// an authorization token that has been extracted from a request.
+/// An authorizer is used to validate a request
+/// (+ associated permissions needed to fulfill the request)
+/// with an authorization token that has been extracted from the request.
 #[async_trait]
 pub trait Authorizer: std::fmt::Debug + Send + Sync {
     /// Determine the permissions associated with a request token.
@@ -13,6 +14,7 @@ pub trait Authorizer: std::fmt::Debug + Send + Sync {
     ///
     /// Implementations of this trait should only error if:
     ///     * there is a failure processing the token.
+    ///     * the token is invalid.
     ///     * there is not any intersection of permissions.
     async fn permissions(
         &self,
@@ -23,8 +25,12 @@ pub trait Authorizer: std::fmt::Debug + Send + Sync {
     /// Make a test request that determines if end-to-end communication
     /// with the service is working.
     async fn probe(&self) -> Result<(), Error> {
-        self.permissions(Some(b"".to_vec()), &[]).await?;
-        Ok(())
+        match self.permissions(Some(b"".to_vec()), &[]).await {
+            // got response from authorizer server
+            Ok(_) | Err(Error::Forbidden) | Err(Error::InvalidToken) => Ok(()),
+            // other errors, including Error::Verification
+            Err(e) => Err(e),
+        }
     }
 }
 
