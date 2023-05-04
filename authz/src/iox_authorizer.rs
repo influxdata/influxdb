@@ -193,4 +193,38 @@ mod test {
         ],
         want = Ok(_)
     );
+
+    #[tokio::test]
+    async fn test_invalid_token() {
+        let authz_server = AuthorizerServer::create().await;
+        let authz = IoxAuthorizer::connect_lazy(authz_server.addr())
+            .expect("Failed to create IoxAuthorizer client.");
+
+        /*
+         * FIXME:
+         * with this test case, the rpc calls is returning back a valid true.
+         *
+         * authz_rpc_result =
+         *      Response {
+         *          metadata: MetadataMap { headers: {"content-type": "application/grpc", "date": "Thu, 04 May 2023 18:48:19 GMT", "grpc-status": "0"} },
+         *          message: AuthorizeResponse { valid: true, subject: None, permissions: [] },
+         *          extensions: Extensions
+         *      }
+         *
+         * as a result, it's returning a Error::Forbidden, not an Error::InvalidToken
+         */
+        let invalid_token = b"UGLY";
+
+        let got = authz
+            .permissions(
+                Some(invalid_token.to_vec()),
+                &[Permission::ResourceAction(
+                    Resource::Database(NAMESPACE.to_string()),
+                    Action::Read,
+                )],
+            )
+            .await;
+
+        assert_matches!(got, Err(Error::Forbidden));
+    }
 }
