@@ -1149,6 +1149,7 @@ async fn flightsql_get_xdbc_type_info() {
             Step::Custom(Box::new(move |state: &mut StepTestState| {
                 async move {
                     let mut client = flightsql_client(state.cluster());
+                    // TODO chunchun: search by data_type test case
                     let data_type: Option<i32> = None;
 
                     let stream = client.get_xdbc_type_info(data_type).await.unwrap();
@@ -1158,8 +1159,15 @@ async fn flightsql_get_xdbc_type_info() {
                         batches_to_sorted_lines(&batches),
                         @r###"
                     ---
-                    - ++
-                    - ++
+                    - +-----------+-----------+-------------+----------------+----------------+---------------+----------+----------------+------------+--------------------+------------------+----------------+-----------------+---------------+---------------+---------------+------------------+----------------+--------------------+
+                    - "| type_name | data_type | column_size | literal_prefix | literal_suffix | create_params | nullable | case_sensitive | searchable | unsigned_attribute | fixed_prec_scale | auto_increment | local_type_name | minimum_scale | maximum_scale | sql_data_type | datetime_subcode | num_prec_radix | interval_precision |"
+                    - +-----------+-----------+-------------+----------------+----------------+---------------+----------+----------------+------------+--------------------+------------------+----------------+-----------------+---------------+---------------+---------------+------------------+----------------+--------------------+
+                    - "| FLOAT     | 6         | 24          |                |                |               | 1        | false          | 3          | false              | false            | false          | FLOAT           |               |               | 6             |                  | 2              |                    |"
+                    - "| INTEGER   | 4         | 32          |                |                |               | 1        | false          | 3          | false              | false            | false          | INTEGER         |               |               | 4             |                  | 2              |                    |"
+                    - "| INTERVAL  | 10        | 2147483647  | '              | '              |               | 1        | false          | 3          |                    | false            |                | INTERVAL        |               |               | 10            | 0                |                |                    |"
+                    - "| TIMESTAMP | 93        | 2147483647  | '              | '              |               | 1        | false          | 3          |                    | false            |                | TIMESTAMP       |               |               | 93            |                  |                |                    |"
+                    - "| VARCHAR   | 12        | 2147483647  | '              | '              | [length]      | 1        | true           | 3          |                    | false            |                | VARCHAR         |               |               | 12            |                  |                |                    |"
+                    - +-----------+-----------+-------------+----------------+----------------+---------------+----------+----------------+------------+--------------------+------------------+----------------+-----------------+---------------+---------------+---------------+------------------+----------------+--------------------+
                     "###
                     );
                 }
@@ -1446,6 +1454,12 @@ async fn jdbc_tests(jdbc_url: &str, table_name: &str) {
                                 BASE TABLE\n\
                                 VIEW";
 
+    let expected_xdbc_type_info = "**************\n\
+                                        Type Info:\n\
+                                        **************\n\
+                                        TYPE_NAME,  DATA_TYPE,  PRECISION,  LITERAL_PREFIX,  LITERAL_SUFFIX,  CREATE_PARAMS,  NULLABLE,  CASE_SENSITIVE,  SEARCHABLE,  UNSIGNED_ATTRIBUTE,  FIXED_PREC_SCALE,  AUTO_INCREMENT,  LOCAL_TYPE_NAME,  MINIMUM_SCALE,  MAXIMUM_SCALE,  SQL_DATA_TYPE,  SQL_DATETIME_SUB,  NUM_PREC_RADIX\n\
+                                        ------------";
+
     // Validate metadata: jdbc_client <url> metadata
     let mut assert = Command::new(&path)
         .arg(jdbc_url)
@@ -1459,7 +1473,8 @@ async fn jdbc_tests(jdbc_url: &str, table_name: &str) {
         .stdout(predicate::str::contains(expected_schemas))
         .stdout(predicate::str::contains(expected_tables_no_filter))
         .stdout(predicate::str::contains(expected_tables_with_filters))
-        .stdout(predicate::str::contains(expected_table_types));
+        .stdout(predicate::str::contains(expected_table_types))
+        .stdout(predicate::str::contains(expected_xdbc_type_info));
 
     let expected_metadata = EXPECTED_METADATA
         .trim()
