@@ -129,42 +129,6 @@ impl std::fmt::Display for NamespaceId {
     }
 }
 
-/// Unique ID for a Topic, assigned by the catalog and used in [`TopicMetadata`]
-#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, sqlx::Type)]
-#[sqlx(transparent)]
-pub struct TopicId(i64);
-
-#[allow(missing_docs)]
-impl TopicId {
-    pub const fn new(v: i64) -> Self {
-        Self(v)
-    }
-    pub fn get(&self) -> i64 {
-        self.0
-    }
-}
-
-impl std::fmt::Display for TopicId {
-    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
-        write!(f, "{}", self.0)
-    }
-}
-
-/// Unique ID for a `QueryPool`
-#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, sqlx::Type)]
-#[sqlx(transparent)]
-pub struct QueryPoolId(i64);
-
-#[allow(missing_docs)]
-impl QueryPoolId {
-    pub fn new(v: i64) -> Self {
-        Self(v)
-    }
-    pub fn get(&self) -> i64 {
-        self.0
-    }
-}
-
 /// Unique ID for a `Table`
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, sqlx::Type)]
 #[sqlx(transparent)]
@@ -341,25 +305,6 @@ impl std::fmt::Display for ParquetFileId {
     }
 }
 
-/// Data object for a topic. When Kafka is used as the write buffer, this is the Kafka topic name
-/// plus a catalog-assigned ID.
-#[derive(Debug, Clone, Eq, PartialEq, sqlx::FromRow)]
-pub struct TopicMetadata {
-    /// The id of the topic
-    pub id: TopicId,
-    /// The unique name of the topic
-    pub name: String,
-}
-
-/// Data object for a query pool
-#[derive(Debug, Clone, Eq, PartialEq, sqlx::FromRow)]
-pub struct QueryPool {
-    /// The id of the pool
-    pub id: QueryPoolId,
-    /// The unique name of the pool
-    pub name: String,
-}
-
 /// Data object for a namespace
 #[derive(Debug, Clone, Eq, PartialEq, sqlx::FromRow)]
 pub struct Namespace {
@@ -370,10 +315,6 @@ pub struct Namespace {
     #[sqlx(default)]
     /// The retention period in ns. None represents infinite duration (i.e. never drop data).
     pub retention_period_ns: Option<i64>,
-    /// The topic that writes to this namespace will land in
-    pub topic_id: TopicId,
-    /// The query pool assigned to answer queries for this namespace
-    pub query_pool_id: QueryPoolId,
     /// The maximum number of tables that can exist in this namespace
     pub max_tables: i32,
     /// The maximum number of columns per table in this namespace
@@ -388,10 +329,6 @@ pub struct Namespace {
 pub struct NamespaceSchema {
     /// the namespace id
     pub id: NamespaceId,
-    /// the topic this namespace gets data written to
-    pub topic_id: TopicId,
-    /// the query pool assigned to answer queries for this namespace
-    pub query_pool_id: QueryPoolId,
     /// the tables in the namespace by name
     pub tables: BTreeMap<String, TableSchema>,
     /// the number of columns per table this namespace allows
@@ -407,8 +344,6 @@ impl NamespaceSchema {
     /// Create a new `NamespaceSchema`
     pub fn new(
         id: NamespaceId,
-        topic_id: TopicId,
-        query_pool_id: QueryPoolId,
         max_columns_per_table: i32,
         max_tables: i32,
         retention_period_ns: Option<i64>,
@@ -416,8 +351,6 @@ impl NamespaceSchema {
         Self {
             id,
             tables: BTreeMap::new(),
-            topic_id,
-            query_pool_id,
             max_columns_per_table: max_columns_per_table as usize,
             max_tables: max_tables as usize,
             retention_period_ns,
@@ -3006,8 +2939,6 @@ mod tests {
     fn test_namespace_schema_size() {
         let schema1 = NamespaceSchema {
             id: NamespaceId::new(1),
-            topic_id: TopicId::new(2),
-            query_pool_id: QueryPoolId::new(3),
             tables: BTreeMap::from([]),
             max_columns_per_table: 4,
             max_tables: 42,
@@ -3015,8 +2946,6 @@ mod tests {
         };
         let schema2 = NamespaceSchema {
             id: NamespaceId::new(1),
-            topic_id: TopicId::new(2),
-            query_pool_id: QueryPoolId::new(3),
             tables: BTreeMap::from([(String::from("foo"), TableSchema::new(TableId::new(1)))]),
             max_columns_per_table: 4,
             max_tables: 42,

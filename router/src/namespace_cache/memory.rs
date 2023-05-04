@@ -139,8 +139,7 @@ mod tests {
 
     use assert_matches::assert_matches;
     use data_types::{
-        Column, ColumnId, ColumnSchema, ColumnType, NamespaceId, QueryPoolId, TableId, TableSchema,
-        TopicId,
+        Column, ColumnId, ColumnSchema, ColumnType, NamespaceId, TableId, TableSchema,
     };
     use proptest::{prelude::*, prop_compose, proptest};
 
@@ -162,8 +161,6 @@ mod tests {
 
         let schema1 = NamespaceSchema {
             id: TEST_NAMESPACE_ID,
-            topic_id: TopicId::new(24),
-            query_pool_id: QueryPoolId::new(1234),
             tables: Default::default(),
             max_columns_per_table: 50,
             max_tables: 24,
@@ -180,8 +177,6 @@ mod tests {
 
         let schema2 = NamespaceSchema {
             id: TEST_NAMESPACE_ID,
-            topic_id: TopicId::new(2),
-            query_pool_id: QueryPoolId::new(2),
             tables: Default::default(),
             max_columns_per_table: 10,
             max_tables: 42,
@@ -228,8 +223,6 @@ mod tests {
 
         let schema_update_1 = NamespaceSchema {
             id: NamespaceId::new(42),
-            topic_id: TopicId::new(76),
-            query_pool_id: QueryPoolId::new(64),
             tables: BTreeMap::from([(String::from(table_name), first_write_table_schema)]),
             max_columns_per_table: 50,
             max_tables: 24,
@@ -311,8 +304,6 @@ mod tests {
 
         let schema_update_1 = NamespaceSchema {
             id: NamespaceId::new(42),
-            topic_id: TopicId::new(76),
-            query_pool_id: QueryPoolId::new(64),
             tables: BTreeMap::from([
                 (String::from("table_1"), table_1.to_owned()),
                 (String::from("table_2"), table_2.to_owned()),
@@ -410,8 +401,6 @@ mod tests {
             NamespaceSchema {
                 id: TEST_NAMESPACE_ID,
                 tables,
-                topic_id: TopicId::new(1), // Ignored
-                query_pool_id: QueryPoolId::new(1), // Ignored
                 max_columns_per_table,
                 max_tables,
                 retention_period_ns,

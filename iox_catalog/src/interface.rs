@@ -3,8 +3,8 @@
 use async_trait::async_trait;
 use data_types::{
     Column, ColumnSchema, ColumnType, CompactionLevel, Namespace, NamespaceId, NamespaceSchema,
-    ParquetFile, ParquetFileId, ParquetFileParams, Partition, PartitionId, PartitionKey, QueryPool,
-    QueryPoolId, SkippedCompaction, Table, TableId, TableSchema, Timestamp, TopicId, TopicMetadata,
+    ParquetFile, ParquetFileId, ParquetFileParams, Partition, PartitionId, PartitionKey,
+    SkippedCompaction, Table, TableId, TableSchema, Timestamp,
 };
 use iox_time::TimeProvider;
 use snafu::{OptionExt, Snafu};
@@ -285,12 +285,6 @@ impl<T> Transaction for T where T: Send + Sync + Debug + sealed::TransactionFina
 /// should and must not care how these are implemented.
 #[async_trait]
 pub trait RepoCollection: Send + Sync + Debug {
-    /// Repository for [topics](data_types::TopicMetadata).
-    fn topics(&mut self) -> &mut dyn TopicMetadataRepo;
-
-    /// Repository for [query pools](data_types::QueryPool).
-    fn query_pools(&mut self) -> &mut dyn QueryPoolRepo;
-
     /// Repository for [namespaces](data_types::Namespace).
     fn namespaces(&mut self) -> &mut dyn NamespaceRepo;
 
@@ -307,36 +301,13 @@ pub trait RepoCollection: Send + Sync + Debug {
     fn parquet_files(&mut self) -> &mut dyn ParquetFileRepo;
 }
 
-/// Functions for working with topics in the catalog.
-#[async_trait]
-pub trait TopicMetadataRepo: Send + Sync {
-    /// Creates the topic in the catalog or gets the existing record by name.
-    async fn create_or_get(&mut self, name: &str) -> Result<TopicMetadata>;
-
-    /// Gets the topic by its unique name
-    async fn get_by_name(&mut self, name: &str) -> Result<Option<TopicMetadata>>;
-}
-
-/// Functions for working with query pools in the catalog.
-#[async_trait]
-pub trait QueryPoolRepo: Send + Sync {
-    /// Creates the query pool in the catalog or gets the existing record by name.
-    async fn create_or_get(&mut self, name: &str) -> Result<QueryPool>;
-}
-
 /// Functions for working with namespaces in the catalog
 #[async_trait]
 pub trait NamespaceRepo: Send + Sync {
     /// Creates the namespace in the catalog. If one by the same name already exists, an
     /// error is returned.
     /// Specify `None` for `retention_period_ns` to get infinite retention.
-    async fn create(
-        &mut self,
-        name: &str,
-        retention_period_ns: Option<i64>,
-        topic_id: TopicId,
-        query_pool_id: QueryPoolId,
-    ) -> Result<Namespace>;
+    async fn create(&mut self, name: &str, retention_period_ns: Option<i64>) -> Result<Namespace>;
 
     /// Update retention period for a namespace
     async fn update_retention_period(
@@ -619,8 +590,6 @@ where
 
     let mut namespace = NamespaceSchema::new(
         namespace.id,
-        namespace.topic_id,
-        namespace.query_pool_id,
         namespace.max_columns_per_table,
         namespace.max_tables,
         namespace.retention_period_ns,
@@ -772,8 +741,6 @@ pub async fn list_schemas(
 
             let mut ns = NamespaceSchema::new(
                 v.id,
-                v.topic_id,
-                v.query_pool_id,
                 v.max_columns_per_table,
                 v.max_tables,
                 v.retention_period_ns,
@@ -805,7 +772,6 @@ pub(crate) mod test_helpers {
         test_setup(clean_state().await).await;
         test_namespace_soft_deletion(clean_state().await).await;
         test_partitions_new_file_between(clean_state().await).await;
-        test_query_pool(clean_state().await).await;
         test_column(clean_state().await).await;
         test_partition(clean_state().await).await;
         test_parquet_file(clean_state().await).await;
@@ -817,10 +783,6 @@ pub(crate) mod test_helpers {
         test_list_schemas(clean_state().await).await;
         test_list_schemas_soft_deleted_rows(clean_state().await).await;
         test_delete_namespace(clean_state().await).await;
-
-        let catalog = clean_state().await;
-        test_topic(Arc::clone(&catalog)).await;
-        assert_metric_hit(&catalog.metrics(), "topic_create_or_get");
 
         let catalog = clean_state().await;
         test_namespace(Arc::clone(&catalog)).await;
@@ -848,41 +810,12 @@ pub(crate) mod test_helpers {
         catalog.setup().await.expect("second catalog setup");
     }
 
-    async fn test_topic(catalog: Arc<dyn Catalog>) {
-        let mut repos = catalog.repositories().await;
-        let topic_repo = repos.topics();
-
-        let k = topic_repo.create_or_get("foo").await.unwrap();
-        assert!(k.id > TopicId::new(0));
-        assert_eq!(k.name, "foo");
-        let k2 = topic_repo.create_or_get("foo").await.unwrap();
-        assert_eq!(k, k2);
-        let k3 = topic_repo.get_by_name("foo").await.unwrap().unwrap();
-        assert_eq!(k3, k);
-        let k3 = topic_repo.get_by_name("asdf").await.unwrap();
-        assert!(k3.is_none());
-    }
-
-    async fn test_query_pool(catalog: Arc<dyn Catalog>) {
-        let mut repos = catalog.repositories().await;
-        let query_repo = repos.query_pools();
-
-        let q = query_repo.create_or_get("foo").await.unwrap();
-        assert!(q.id > QueryPoolId::new(0));
-        assert_eq!(q.name, "foo");
-        let q2 = query_repo.create_or_get("foo").await.unwrap();
-        assert_eq!(q, q2);
-    }
-
     async fn test_namespace(catalog: Arc<dyn Catalog>) {
         let mut repos = catalog.repositories().await;
-        let topic = repos.topics().create_or_get("foo").await.unwrap();
-        let pool = repos.query_pools().create_or_get("foo").await.unwrap();
-
         let namespace_name = "test_namespace";
         let namespace = repos
             .namespaces()
-            .create(namespace_name, None, topic.id, pool.id)
+            .create(namespace_name, None)
             .await
             .unwrap();
         assert!(namespace.id > NamespaceId::new(0));
@@ -895,10 +828,7 @@ pub(crate) mod test_helpers {
             DEFAULT_MAX_COLUMNS_PER_TABLE
         );
 
-        let conflict = repos
-            .namespaces()
-            .create(namespace_name, None, topic.id, pool.id)
-            .await;
+        let conflict = repos.namespaces().create(namespace_name, None).await;
         assert!(matches!(
             conflict.unwrap_err(),
             Error::NameExists { name: _ }
@@ -937,7 +867,7 @@ pub(crate) mod test_helpers {
         let namespace2_name = "test_namespace2";
         let namespace2 = repos
             .namespaces()
-            .create(namespace2_name, None, topic.id, pool.id)
+            .create(namespace2_name, None)
             .await
             .unwrap();
         let mut namespaces = repos
@@ -986,7 +916,7 @@ pub(crate) mod test_helpers {
         let namespace3_name = "test_namespace3";
         let namespace3 = repos
             .namespaces()
-            .create(namespace3_name, None, topic.id, pool.id)
+            .create(namespace3_name, None)
             .await
             .expect("namespace with NULL retention should be created");
         assert!(namespace3.retention_period_ns.is_none());
@@ -995,12 +925,7 @@ pub(crate) mod test_helpers {
         let namespace4_name = "test_namespace4";
         let namespace4 = repos
             .namespaces()
-            .create(
-                namespace4_name,
-                Some(NEW_RETENTION_PERIOD_NS),
-                topic.id,
-                pool.id,
-            )
+            .create(namespace4_name, Some(NEW_RETENTION_PERIOD_NS))
             .await
             .expect("namespace with 5-hour retention should be created");
         assert_eq!(
@@ -1046,19 +971,9 @@ pub(crate) mod test_helpers {
     /// the expected rows for all three states of [`SoftDeletedRows`].
     async fn test_namespace_soft_deletion(catalog: Arc<dyn Catalog>) {
         let mut repos = catalog.repositories().await;
-        let topic = repos.topics().create_or_get("foo").await.unwrap();
-        let pool = repos.query_pools().create_or_get("foo").await.unwrap();
 
-        let deleted_ns = repos
-            .namespaces()
-            .create("deleted-ns", None, topic.id, pool.id)
-            .await
-            .unwrap();
-        let active_ns = repos
-            .namespaces()
-            .create("active-ns", None, topic.id, pool.id)
-            .await
-            .unwrap();
+        let deleted_ns = repos.namespaces().create("deleted-ns", None).await.unwrap();
+        let active_ns = repos.namespaces().create("active-ns", None).await.unwrap();
 
         // Mark "deleted-ns" as soft-deleted.
         repos.namespaces().soft_delete("deleted-ns").await.unwrap();
@@ -1212,11 +1127,9 @@ pub(crate) mod test_helpers {
 
     async fn test_table(catalog: Arc<dyn Catalog>) {
         let mut repos = catalog.repositories().await;
-        let topic = repos.topics().create_or_get("foo").await.unwrap();
-        let pool = repos.query_pools().create_or_get("foo").await.unwrap();
         let namespace = repos
             .namespaces()
-            .create("namespace_table_test", None, topic.id, pool.id)
+            .create("namespace_table_test", None)
             .await
             .unwrap();
 
@@ -1251,11 +1164,7 @@ pub(crate) mod test_helpers {
         assert_eq!(vec![t.clone()], tables);
 
         // test we can create a table of the same name in a different namespace
-        let namespace2 = repos
-            .namespaces()
-            .create("two", None, topic.id, pool.id)
-            .await
-            .unwrap();
+        let namespace2 = repos.namespaces().create("two", None).await.unwrap();
         assert_ne!(namespace, namespace2);
         let test_table = repos
             .tables()
@@ -1351,11 +1260,9 @@ pub(crate) mod test_helpers {
 
     async fn test_column(catalog: Arc<dyn Catalog>) {
         let mut repos = catalog.repositories().await;
-        let topic = repos.topics().create_or_get("foo").await.unwrap();
-        let pool = repos.query_pools().create_or_get("foo").await.unwrap();
         let namespace = repos
             .namespaces()
-            .create("namespace_column_test", None, topic.id, pool.id)
+            .create("namespace_column_test", None)
             .await
             .unwrap();
         let table = repos
@@ -1486,11 +1393,9 @@ pub(crate) mod test_helpers {
 
     async fn test_partition(catalog: Arc<dyn Catalog>) {
         let mut repos = catalog.repositories().await;
-        let topic = repos.topics().create_or_get("foo").await.unwrap();
-        let pool = repos.query_pools().create_or_get("foo").await.unwrap();
         let namespace = repos
             .namespaces()
-            .create("namespace_partition_test", None, topic.id, pool.id)
+            .create("namespace_partition_test", None)
             .await
             .unwrap();
         let table = repos
@@ -1770,11 +1675,9 @@ pub(crate) mod test_helpers {
     /// tests many interactions with the catalog and parquet files. See the individual conditions herein
     async fn test_parquet_file(catalog: Arc<dyn Catalog>) {
         let mut repos = catalog.repositories().await;
-        let topic = repos.topics().create_or_get("foo").await.unwrap();
-        let pool = repos.query_pools().create_or_get("foo").await.unwrap();
         let namespace = repos
             .namespaces()
-            .create("namespace_parquet_file_test", None, topic.id, pool.id)
+            .create("namespace_parquet_file_test", None)
             .await
             .unwrap();
         let table = repos
@@ -1959,7 +1862,7 @@ pub(crate) mod test_helpers {
         // test list_by_namespace_not_to_delete
         let namespace2 = repos
             .namespaces()
-            .create("namespace_parquet_file_test1", None, topic.id, pool.id)
+            .create("namespace_parquet_file_test1", None)
             .await
             .unwrap();
         let table2 = repos
@@ -2180,16 +2083,14 @@ pub(crate) mod test_helpers {
 
     async fn test_parquet_file_delete_broken(catalog: Arc<dyn Catalog>) {
         let mut repos = catalog.repositories().await;
-        let topic = repos.topics().create_or_get("foo").await.unwrap();
-        let pool = repos.query_pools().create_or_get("foo").await.unwrap();
         let namespace_1 = repos
             .namespaces()
-            .create("retention_broken_1", None, topic.id, pool.id)
+            .create("retention_broken_1", None)
             .await
             .unwrap();
         let namespace_2 = repos
             .namespaces()
-            .create("retention_broken_2", Some(1), topic.id, pool.id)
+            .create("retention_broken_2", Some(1))
             .await
             .unwrap();
         let table_1 = repos
@@ -2262,19 +2163,9 @@ pub(crate) mod test_helpers {
 
     async fn test_partitions_new_file_between(catalog: Arc<dyn Catalog>) {
         let mut repos = catalog.repositories().await;
-        let topic = repos
-            .topics()
-            .create_or_get("new_file_between")
-            .await
-            .unwrap();
-        let pool = repos
-            .query_pools()
-            .create_or_get("new_file_between")
-            .await
-            .unwrap();
         let namespace = repos
             .namespaces()
-            .create("test_partitions_new_file_between", None, topic.id, pool.id)
+            .create("test_partitions_new_file_between", None)
             .await
             .unwrap();
         let table = repos
@@ -2638,15 +2529,11 @@ pub(crate) mod test_helpers {
 
     async fn test_list_by_partiton_not_to_delete(catalog: Arc<dyn Catalog>) {
         let mut repos = catalog.repositories().await;
-        let topic = repos.topics().create_or_get("foo").await.unwrap();
-        let pool = repos.query_pools().create_or_get("foo").await.unwrap();
         let namespace = repos
             .namespaces()
             .create(
                 "namespace_parquet_file_test_list_by_partiton_not_to_delete",
                 None,
-                topic.id,
-                pool.id,
             )
             .await
             .unwrap();
@@ -2752,16 +2639,9 @@ pub(crate) mod test_helpers {
 
     async fn test_update_to_compaction_level_1(catalog: Arc<dyn Catalog>) {
         let mut repos = catalog.repositories().await;
-        let topic = repos.topics().create_or_get("foo").await.unwrap();
-        let pool = repos.query_pools().create_or_get("foo").await.unwrap();
         let namespace = repos
             .namespaces()
-            .create(
-                "namespace_update_to_compaction_level_1_test",
-                None,
-                topic.id,
-                pool.id,
-            )
+            .create("namespace_update_to_compaction_level_1_test", None)
             .await
             .unwrap();
         let table = repos
@@ -2845,11 +2725,9 @@ pub(crate) mod test_helpers {
     /// effective.
     async fn test_delete_namespace(catalog: Arc<dyn Catalog>) {
         let mut repos = catalog.repositories().await;
-        let topic = repos.topics().create_or_get("foo").await.unwrap();
-        let pool = repos.query_pools().create_or_get("foo").await.unwrap();
         let namespace_1 = repos
             .namespaces()
-            .create("namespace_test_delete_namespace_1", None, topic.id, pool.id)
+            .create("namespace_test_delete_namespace_1", None)
             .await
             .unwrap();
         let table_1 = repos
@@ -2904,7 +2782,7 @@ pub(crate) mod test_helpers {
         // it, let's create another so we can ensure that doesn't get deleted.
         let namespace_2 = repos
             .namespaces()
-            .create("namespace_test_delete_namespace_2", None, topic.id, pool.id)
+            .create("namespace_test_delete_namespace_2", None)
             .await
             .unwrap();
         let table_2 = repos
@@ -3089,8 +2967,8 @@ pub(crate) mod test_helpers {
             barrier_captured.wait().await;
 
             let mut txn = catalog_captured.start_transaction().await.unwrap();
-            txn.topics()
-                .create_or_get("test_txn_isolation")
+            txn.namespaces()
+                .create("test_txn_isolation", None)
                 .await
                 .unwrap();
 
@@ -3103,30 +2981,33 @@ pub(crate) mod test_helpers {
         barrier.wait().await;
         tokio::time::sleep(Duration::from_millis(100)).await;
 
-        let topic = txn
-            .topics()
-            .get_by_name("test_txn_isolation")
+        let namespace = txn
+            .namespaces()
+            .get_by_name("test_txn_isolation", SoftDeletedRows::AllRows)
             .await
             .unwrap();
-        assert!(topic.is_none());
+        assert!(namespace.is_none());
         txn.abort().await.unwrap();
 
         insertion_task.await.unwrap();
 
         let mut txn = catalog.start_transaction().await.unwrap();
-        let topic = txn
-            .topics()
-            .get_by_name("test_txn_isolation")
+        let namespace = txn
+            .namespaces()
+            .get_by_name("test_txn_isolation", SoftDeletedRows::AllRows)
             .await
             .unwrap();
-        assert!(topic.is_none());
+        assert!(namespace.is_none());
         txn.abort().await.unwrap();
     }
 
     async fn test_txn_drop(catalog: Arc<dyn Catalog>) {
         let capture = TracingCapture::new();
         let mut txn = catalog.start_transaction().await.unwrap();
-        txn.topics().create_or_get("test_txn_drop").await.unwrap();
+        txn.namespaces()
+            .create("test_txn_drop", None)
+            .await
+            .unwrap();
         drop(txn);
 
         // got a warning
@@ -3135,8 +3016,12 @@ pub(crate) mod test_helpers {
 
         // data is NOT committed
         let mut txn = catalog.start_transaction().await.unwrap();
-        let topic = txn.topics().get_by_name("test_txn_drop").await.unwrap();
-        assert!(topic.is_none());
+        let namespace = txn
+            .namespaces()
+            .get_by_name("test_txn_drop", SoftDeletedRows::AllRows)
+            .await
+            .unwrap();
+        assert!(namespace.is_none());
         txn.abort().await.unwrap();
     }
 
@@ -3149,12 +3034,7 @@ pub(crate) mod test_helpers {
     where
         R: RepoCollection + ?Sized,
     {
-        let topic = repos.topics().create_or_get("foo").await.unwrap();
-        let pool = repos.query_pools().create_or_get("foo").await.unwrap();
-        let namespace = repos
-            .namespaces()
-            .create(namespace_name, None, topic.id, pool.id)
-            .await;
+        let namespace = repos.namespaces().create(namespace_name, None).await;
 
         let namespace = match namespace {
             Ok(v) => v,
@@ -3171,8 +3051,6 @@ pub(crate) mod test_helpers {
         let batches = batches.iter().map(|(table, batch)| (table.as_str(), batch));
         let ns = NamespaceSchema::new(
             namespace.id,
-            topic.id,
-            pool.id,
             namespace.max_columns_per_table,
             namespace.max_tables,
             namespace.retention_period_ns,

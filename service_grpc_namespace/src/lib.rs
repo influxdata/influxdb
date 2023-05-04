@@ -1,7 +1,7 @@
 //! Implementation of the namespace gRPC service
 use std::sync::Arc;
 
-use data_types::{Namespace as CatalogNamespace, NamespaceName, QueryPoolId, TopicId};
+use data_types::{Namespace as CatalogNamespace, NamespaceName};
 use generated_types::influxdata::iox::namespace::v1::{
     update_namespace_service_protection_limit_request::LimitUpdate, *,
 };
@@ -14,21 +14,11 @@ use tonic::{Request, Response, Status};
 pub struct NamespaceService {
     /// Catalog.
     catalog: Arc<dyn Catalog>,
-    topic_id: Option<TopicId>,
-    query_id: Option<QueryPoolId>,
 }
 
 impl NamespaceService {
-    pub fn new(
-        catalog: Arc<dyn Catalog>,
-        topic_id: Option<TopicId>,
-        query_id: Option<QueryPoolId>,
-    ) -> Self {
-        Self {
-            catalog,
-            topic_id,
-            query_id,
-        }
+    pub fn new(catalog: Arc<dyn Catalog>) -> Self {
+        Self { catalog }
     }
 }
 
@@ -58,10 +48,6 @@ impl namespace_service_server::NamespaceService for NamespaceService {
         &self,
         request: Request<CreateNamespaceRequest>,
     ) -> Result<Response<CreateNamespaceResponse>, Status> {
-        if self.topic_id.is_none() || self.query_id.is_none() {
-            return Err(Status::invalid_argument("topic_id or query_id not set"));
-        }
-
         let mut repos = self.catalog.repositories().await;
 
         let CreateNamespaceRequest {
@@ -80,12 +66,7 @@ impl namespace_service_server::NamespaceService for NamespaceService {
 
         let namespace = repos
             .namespaces()
-            .create(
-                &namespace_name,
-                retention_period_ns,
-                self.topic_id.unwrap(),
-                self.query_id.unwrap(),
-            )
+            .create(&namespace_name, retention_period_ns)
             .await
             .map_err(|e| {
                 warn!(error=%e, %namespace_name, "failed to create namespace");
@@ -349,22 +330,7 @@ mod tests {
         let catalog: Arc<dyn Catalog> =
             Arc::new(MemCatalog::new(Arc::new(metric::Registry::default())));
 
-        let topic = catalog
-            .repositories()
-            .await
-            .topics()
-            .create_or_get("kafka-topic")
-            .await
-            .unwrap();
-        let query_pool = catalog
-            .repositories()
-            .await
-            .query_pools()
-            .create_or_get("query-pool")
-            .await
-            .unwrap();
-
-        let handler = NamespaceService::new(catalog, Some(topic.id), Some(query_pool.id));
+        let handler = NamespaceService::new(catalog);
 
         // There should be no namespaces to start with.
         {
@@ -499,22 +465,7 @@ mod tests {
         let catalog: Arc<dyn Catalog> =
             Arc::new(MemCatalog::new(Arc::new(metric::Registry::default())));
 
-        let topic = catalog
-            .repositories()
-            .await
-            .topics()
-            .create_or_get("kafka-topic")
-            .await
-            .unwrap();
-        let query_pool = catalog
-            .repositories()
-            .await
-            .query_pools()
-            .create_or_get("query-pool")
-            .await
-            .unwrap();
-
-        let handler = NamespaceService::new(catalog, Some(topic.id), Some(query_pool.id));
+        let handler = NamespaceService::new(catalog);
         let req = CreateNamespaceRequest {
             name: NS_NAME.to_string(),
             retention_period_ns: Some(RETENTION),
@@ -572,22 +523,7 @@ mod tests {
                     let catalog: Arc<dyn Catalog> =
                         Arc::new(MemCatalog::new(Arc::new(metric::Registry::default())));
 
-                    let topic = catalog
-                        .repositories()
-                        .await
-                        .topics()
-                        .create_or_get("kafka-topic")
-                        .await
-                        .unwrap();
-                    let query_pool = catalog
-                        .repositories()
-                        .await
-                        .query_pools()
-                        .create_or_get("query-pool")
-                        .await
-                        .unwrap();
-
-                    let handler = NamespaceService::new(catalog, Some(topic.id), Some(query_pool.id));
+                    let handler = NamespaceService::new(catalog);
 
                     let req = CreateNamespaceRequest {
                         name: String::from($name),

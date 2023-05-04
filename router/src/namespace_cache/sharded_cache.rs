@@ -51,7 +51,7 @@ mod tests {
     use std::{collections::HashMap, iter};
 
     use assert_matches::assert_matches;
-    use data_types::{NamespaceId, QueryPoolId, TopicId};
+    use data_types::NamespaceId;
     use rand::{distributions::Alphanumeric, thread_rng, Rng};
 
     use super::*;
@@ -70,8 +70,6 @@ mod tests {
     fn schema_with_id(id: i64) -> NamespaceSchema {
         NamespaceSchema {
             id: NamespaceId::new(id),
-            topic_id: TopicId::new(1),
-            query_pool_id: QueryPoolId::new(1),
             tables: Default::default(),
             max_columns_per_table: 7,
             max_tables: 42,

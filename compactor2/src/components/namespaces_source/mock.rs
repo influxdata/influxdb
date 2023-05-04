@@ -49,9 +49,7 @@ impl NamespacesSource for MockNamespacesSource {
 mod tests {
     use std::collections::BTreeMap;
 
-    use data_types::{
-        ColumnId, ColumnSchema, ColumnType, QueryPoolId, TableId, TableSchema, TopicId,
-    };
+    use data_types::{ColumnId, ColumnSchema, ColumnType, TableId, TableSchema};
 
     use super::*;
 
@@ -182,15 +180,11 @@ mod tests {
             ]);
 
             let id = NamespaceId::new(id);
-            let topic_id = TopicId::new(0);
-            let query_pool_id = QueryPoolId::new(0);
             Self {
                 namespace: NamespaceWrapper {
                     ns: Namespace {
                         id,
                         name: "ns".to_string(),
-                        topic_id,
-                        query_pool_id,
                         max_tables: 10,
                         max_columns_per_table: 10,
                         retention_period_ns: None,
@@ -198,8 +192,6 @@ mod tests {
                     },
                     schema: NamespaceSchema {
                         id,
-                        topic_id,
-                        query_pool_id,
                         tables,
                         max_columns_per_table: 10,
                         max_tables: 42,

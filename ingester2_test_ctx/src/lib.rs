@@ -17,8 +17,7 @@ use std::{collections::HashMap, sync::Arc, time::Duration};
 use arrow::record_batch::RecordBatch;
 use arrow_flight::{decode::FlightRecordBatchStream, flight_service_server::FlightService, Ticket};
 use data_types::{
-    Namespace, NamespaceId, NamespaceSchema, ParquetFile, PartitionKey, QueryPoolId,
-    SequenceNumber, TableId, TopicId,
+    Namespace, NamespaceId, NamespaceSchema, ParquetFile, PartitionKey, SequenceNumber, TableId,
 };
 use dml::{DmlMeta, DmlWrite};
 use futures::{stream::FuturesUnordered, FutureExt, StreamExt, TryStreamExt};
@@ -43,15 +42,17 @@ use tokio::sync::oneshot;
 use tokio_util::sync::CancellationToken;
 use tonic::Request;
 
-/// The (legacy) topic name this ingester uses.
-pub const TEST_TOPIC_NAME: &str = "banana-topics";
-
 /// The default max persist queue depth - configurable with
 /// [`TestContextBuilder::with_max_persist_queue_depth()`].
 pub const DEFAULT_MAX_PERSIST_QUEUE_DEPTH: usize = 5;
 /// The default partition hot persist cost - configurable with
 /// [`TestContextBuilder::with_persist_hot_partition_cost()`].
 pub const DEFAULT_PERSIST_HOT_PARTITION_COST: usize = 20_000_000;
+
+/// Construct a new [`TestContextBuilder`] to make a [`TestContext`] for an [`ingester2`] instance.
+pub fn test_context() -> TestContextBuilder {
+    TestContextBuilder::default()
+}
 
 /// Configure and construct a [`TestContext`] containing an [`ingester2`] instance.
 #[derive(Debug)]
@@ -126,20 +127,6 @@ impl TestContextBuilder {
         let storage =
             ParquetStorage::new(object_store, parquet_file::storage::StorageId::from("iox"));
 
-        // Initialise a topic and query pool.
-        //
-        // Note that tests should set up their own namespace via
-        // ensure_namespace()
-        let mut txn = catalog.start_transaction().await.unwrap();
-        let topic = txn.topics().create_or_get(TEST_TOPIC_NAME).await.unwrap();
-        let query_id = txn
-            .query_pools()
-            .create_or_get("banana-query-pool")
-            .await
-            .unwrap()
-            .id;
-        txn.commit().await.unwrap();
-
         // Settings so that the ingester will effectively never persist by itself, only on demand
         let wal_rotation_period = Duration::from_secs(1_000_000);
 
@@ -171,8 +158,6 @@ impl TestContextBuilder {
             _dir: dir,
             catalog,
             _storage: storage,
-            query_id,
-            topic_id: topic.id,
             metrics,
             namespaces: Default::default(),
         }
@@ -189,8 +174,6 @@ pub struct TestContext<T> {
     shutdown_tx: oneshot::Sender<CancellationToken>,
     catalog: Arc<dyn Catalog>,
     _storage: ParquetStorage,
-    query_id: QueryPoolId,
-    topic_id: TopicId,
     metrics: Arc<metric::Registry>,
 
     /// Once the last [`TempDir`] reference is dropped, the directory it
@@ -224,7 +207,7 @@ where
             .repositories()
             .await
             .namespaces()
-            .create(name, None, self.topic_id, self.query_id)
+            .create(name, None)
             .await
             .expect("failed to create test namespace");
 
@@ -234,8 +217,6 @@ where
                     ns.id,
                     NamespaceSchema::new(
                         ns.id,
-                        self.topic_id,
-                        self.query_id,
                         iox_catalog::DEFAULT_MAX_COLUMNS_PER_TABLE,
                         iox_catalog::DEFAULT_MAX_TABLES,
                         retention_period_ns,

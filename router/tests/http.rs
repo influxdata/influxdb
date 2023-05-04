@@ -1,6 +1,6 @@
-use crate::common::{TestContextBuilder, TEST_QUERY_POOL_ID, TEST_RETENTION_PERIOD, TEST_TOPIC_ID};
+use crate::common::{TestContextBuilder, TEST_RETENTION_PERIOD};
 use assert_matches::assert_matches;
-use data_types::{ColumnType, QueryPoolId, TopicId};
+use data_types::ColumnType;
 use futures::{stream::FuturesUnordered, StreamExt};
 use generated_types::influxdata::{iox::ingester::v1::WriteRequest, pbdata::v1::DatabaseBatch};
 use hashbrown::HashMap;
@@ -62,8 +62,6 @@ async fn test_write_ok() {
         .expect("query should succeed")
         .expect("namespace not found");
     assert_eq!(ns.name, "bananas_test");
-    assert_eq!(ns.topic_id, TopicId::new(TEST_TOPIC_ID));
-    assert_eq!(ns.query_pool_id, QueryPoolId::new(TEST_QUERY_POOL_ID));
     assert_eq!(ns.retention_period_ns, None);
 
     // Ensure the metric instrumentation was hit
@@ -272,12 +270,7 @@ async fn test_write_propagate_ids() {
         .repositories()
         .await
         .namespaces()
-        .create(
-            "bananas_test",
-            None,
-            TopicId::new(TEST_TOPIC_ID),
-            QueryPoolId::new(TEST_QUERY_POOL_ID),
-        )
+        .create("bananas_test", None)
         .await
         .expect("failed to update table limit");
 
@@ -359,12 +352,7 @@ async fn test_delete_unsupported() {
         .repositories()
         .await
         .namespaces()
-        .create(
-            "bananas_test",
-            None,
-            TopicId::new(TEST_TOPIC_ID),
-            QueryPoolId::new(TEST_QUERY_POOL_ID),
-        )
+        .create("bananas_test", None)
         .await
         .expect("failed to update table limit");
 

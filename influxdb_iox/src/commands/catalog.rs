@@ -5,14 +5,9 @@ use thiserror::Error;
 
 use crate::process_info::setup_metric_registry;
 
-mod topic;
-
 #[allow(clippy::enum_variant_names)]
 #[derive(Debug, Error)]
 pub enum Error {
-    #[error("Error in topic subcommand: {0}")]
-    Topic(#[from] topic::Error),
-
     #[error("Catalog error: {0}")]
     Catalog(#[from] iox_catalog::interface::Error),
 
@@ -39,9 +34,6 @@ struct Setup {
 enum Command {
     /// Run database migrations
     Setup(Setup),
-
-    /// Manage topic
-    Topic(topic::Config),
 }
 
 pub async fn command(config: Config) -> Result<(), Error> {
@@ -51,9 +43,6 @@ pub async fn command(config: Config) -> Result<(), Error> {
             let catalog = command.catalog_dsn.get_catalog("cli", metrics).await?;
             catalog.setup().await?;
             println!("OK");
-        }
-        Command::Topic(config) => {
-            topic::command(config).await?;
         }
     }
 

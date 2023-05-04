@@ -110,15 +110,9 @@ mod tests {
             let metrics = Arc::new(metric::Registry::default());
             let catalog = Arc::new(MemCatalog::new(metrics));
             let mut repos = catalog.repositories().await;
-            let topic = repos.topics().create_or_get("iox-shared").await.unwrap();
-            let pool = repos
-                .query_pools()
-                .create_or_get("iox-shared")
-                .await
-                .unwrap();
             let namespace = repos
                 .namespaces()
-                .create("catalog_partition_test", None, topic.id, pool.id)
+                .create("catalog_partition_test", None)
                 .await
                 .unwrap();
             let table = repos

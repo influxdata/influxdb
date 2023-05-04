@@ -84,26 +84,6 @@ pub struct MergeConfig {
     #[clap(flatten)]
     catalog_dsn: CatalogDsnConfig,
 
-    /// Write buffer topic/database that should be used.
-    // This isn't really relevant to the RPC write path and will be removed eventually.
-    #[clap(
-        long = "write-buffer-topic",
-        env = "INFLUXDB_IOX_WRITE_BUFFER_TOPIC",
-        default_value = "iox-shared",
-        action
-    )]
-    pub topic: String,
-
-    /// Query pool name to dispatch writes to.
-    // This isn't really relevant to the RPC write path and will be removed eventually.
-    #[clap(
-        long = "query-pool",
-        env = "INFLUXDB_IOX_QUERY_POOL_NAME",
-        default_value = "iox-shared",
-        action
-    )]
-    pub query_pool_name: String,
-
     #[clap(long)]
     /// Retention setting setting (used only if we need to create the namespace)
     retention: Option<String>,
@@ -192,13 +172,7 @@ pub async fn command(config: Config) -> Result<(), SchemaCommandError> {
 
             // given we have a valid aggregate TSM schema, fetch the schema for the namespace from
             // the IOx catalog, if it exists, and update it with our aggregate schema
-            update_iox_catalog(
-                &merged_tsm_schema,
-                &merge_config.topic,
-                &merge_config.query_pool_name,
-                Arc::clone(&catalog),
-            )
-            .await?;
+            update_iox_catalog(&merged_tsm_schema, Arc::clone(&catalog)).await?;
 
             Ok(())
         }
