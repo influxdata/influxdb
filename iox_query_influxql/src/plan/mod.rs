@@ -2,6 +2,7 @@ mod error;
 mod expr_type_evaluator;
 mod field;
 mod field_mapper;
+mod ir;
 mod planner;
 mod planner_rewrite_expression;
 mod planner_time_range_expression;

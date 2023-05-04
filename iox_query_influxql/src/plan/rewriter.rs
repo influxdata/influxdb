@@ -1,6 +1,7 @@
 use crate::plan::expr_type_evaluator::evaluate_type;
 use crate::plan::field::{field_by_name, field_name};
 use crate::plan::field_mapper::{field_and_dimensions, FieldTypeMap, TagSet};
+use crate::plan::ir::{Select, TableReference};
 use crate::plan::{error, util, SchemaProvider};
 use datafusion::common::{DataFusionError, Result};
 use influxdb_influxql_parser::common::{MeasurementName, QualifiedMeasurementName};
@@ -12,8 +13,7 @@ use influxdb_influxql_parser::functions::is_scalar_math_function;
 use influxdb_influxql_parser::identifier::Identifier;
 use influxdb_influxql_parser::literal::Literal;
 use influxdb_influxql_parser::select::{
-    Dimension, Field, FieldList, FromMeasurementClause, GroupByClause, MeasurementSelection,
-    SelectStatement,
+    Dimension, Field, FromMeasurementClause, GroupByClause, MeasurementSelection, SelectStatement,
 };
 use itertools::Itertools;
 use std::borrow::Borrow;
@@ -22,28 +22,49 @@ use std::ops::{ControlFlow, Deref};
 
 /// Recursively rewrite the specified [`SelectStatement`] by performing a series of passes
 /// to validate and normalize the statement.
-pub(crate) fn rewrite_statement(
+pub(super) fn rewrite_statement(
     s: &dyn SchemaProvider,
     q: &SelectStatement,
 ) -> Result<SelectStatement> {
-    let mut stmt = q.clone();
-    from_expand_wildcards(s, &mut stmt)?;
-    field_list_expand_wildcards(s, &mut stmt)?;
+    let mut stmt = map_select(s, q)?;
     from_drop_empty(s, &mut stmt);
     field_list_normalize_time(&mut stmt);
     field_list_rewrite_aliases(&mut stmt.fields)?;
 
-    Ok(stmt)
+    Ok(stmt.into())
+}
+
+/// Map a `SelectStatement` to a `Select`, which is an intermediate representation to be
+/// used by the InfluxQL planner.
+///
+/// # NOTE
+///
+/// The goal is that `Select` will eventually be used by the InfluxQL planner.
+pub(super) fn map_select(s: &dyn SchemaProvider, stmt: &SelectStatement) -> Result<Select> {
+    let mut sel = Select {
+        fields: vec![],
+        from: vec![],
+        condition: stmt.condition.as_ref().map(|v| (**v).clone()),
+        group_by: stmt.group_by.clone(),
+        fill: stmt.fill,
+        order_by: stmt.order_by,
+        limit: stmt.limit.map(|v| *v),
+        offset: stmt.offset.map(|v| *v),
+        timezone: stmt.timezone.map(|v| *v),
+    };
+    from_expand_wildcards(s, stmt, &mut sel)?;
+    field_list_expand_wildcards(s, stmt, &mut sel)?;
+
+    Ok(sel)
 }
 
 /// Ensure the time field is added to all projections,
 /// and is moved to the first position, which is a requirement
 /// for InfluxQL compatibility.
-fn field_list_normalize_time(stmt: &mut SelectStatement) {
-    fn normalize_time(stmt: &mut SelectStatement, is_subquery: bool) {
-        let mut fields = stmt.fields.take();
-
-        if let Some(f) = match fields
+fn field_list_normalize_time(stmt: &mut Select) {
+    fn normalize_time(stmt: &mut Select, is_subquery: bool) {
+        if let Some(f) = match stmt
+            .fields
             .iter()
             .find_position(
                 |f| matches!(&f.expr, Expr::VarRef(VarRef { name, .. }) if name.deref() == "time"),
@@ -51,16 +72,16 @@ fn field_list_normalize_time(stmt: &mut SelectStatement) {
             .map(|(i, _)| i)
         {
             Some(0) => None,
-            Some(idx) => Some(fields.remove(idx)),
+            Some(idx) => Some(stmt.fields.remove(idx)),
             None => Some(Field {
                 expr: "time".to_var_ref_expr(),
                 alias: None,
             }),
         } {
-            fields.insert(0, f)
+            stmt.fields.insert(0, f)
         }
 
-        let f = &mut fields[0];
+        let f = &mut stmt.fields[0];
 
         // time aliases in subqueries is ignored
         if f.alias.is_none() || is_subquery {
@@ -73,14 +94,12 @@ fn field_list_normalize_time(stmt: &mut SelectStatement) {
         {
             *data_type = Some(VarRefDataType::Timestamp);
         }
-
-        stmt.fields.replace(fields);
     }
 
     normalize_time(stmt, false);
 
     for stmt in stmt.from.iter_mut().filter_map(|ms| match ms {
-        MeasurementSelection::Subquery(stmt) => Some(stmt),
+        TableReference::Subquery(stmt) => Some(stmt),
         _ => None,
     }) {
         normalize_time(stmt, true)
@@ -88,7 +107,11 @@ fn field_list_normalize_time(stmt: &mut SelectStatement) {
 }
 
 /// Recursively expand the `from` clause of `stmt` and any subqueries.
-fn from_expand_wildcards(s: &dyn SchemaProvider, stmt: &mut SelectStatement) -> Result<()> {
+fn from_expand_wildcards(
+    s: &dyn SchemaProvider,
+    stmt: &SelectStatement,
+    sel: &mut Select,
+) -> Result<()> {
     let mut new_from = Vec::new();
     for ms in stmt.from.iter() {
         match ms {
@@ -98,7 +121,7 @@ fn from_expand_wildcards(s: &dyn SchemaProvider, stmt: &mut SelectStatement) -> 
                     ..
                 } => {
                     if s.table_exists(name) {
-                        new_from.push(ms.clone())
+                        new_from.push(TableReference::Name(name.deref().to_owned()))
                     }
                 }
                 QualifiedMeasurementName {
@@ -109,41 +132,29 @@ fn from_expand_wildcards(s: &dyn SchemaProvider, stmt: &mut SelectStatement) -> 
                     s.table_names()
                         .into_iter()
                         .filter(|table| re.is_match(table))
-                        .for_each(|table| {
-                            new_from.push(MeasurementSelection::Name(QualifiedMeasurementName {
-                                database: None,
-                                retention_policy: None,
-                                name: MeasurementName::Name(table.into()),
-                            }))
-                        });
+                        .for_each(|table| new_from.push(TableReference::Name(table.to_owned())));
                 }
             },
             MeasurementSelection::Subquery(q) => {
-                let mut q = *q.clone();
-                from_expand_wildcards(s, &mut q)?;
-                new_from.push(MeasurementSelection::Subquery(Box::new(q)))
+                new_from.push(TableReference::Subquery(Box::new(map_select(s, q)?)))
             }
         }
     }
-    stmt.from = FromMeasurementClause::new(new_from);
+    sel.from = new_from;
     Ok(())
 }
 
 /// Recursively drop any measurements of the `from` clause of `stmt` that do not project
 /// any fields.
-fn from_drop_empty(s: &dyn SchemaProvider, stmt: &mut SelectStatement) {
+fn from_drop_empty(s: &dyn SchemaProvider, stmt: &mut Select) {
     use schema::InfluxColumnType;
-    let mut from = stmt.from.take();
-    from.retain_mut(|ms| {
-        match ms {
-            MeasurementSelection::Name(QualifiedMeasurementName {
-                name: MeasurementName::Name(name),
-                ..
-            }) => {
+    stmt.from.retain_mut(|tr| {
+        match tr {
+            TableReference::Name(name) => {
                 // drop any measurements that have no matching fields in the
                 // projection
 
-                if let Some(table) = s.table_schema(name.deref()) {
+                if let Some(table) = s.table_schema(name.as_str()) {
                     stmt.fields.iter().any(|f| {
                         walk_expr(&f.expr, &mut |e| {
                             if matches!(e, Expr::VarRef(VarRef { name, ..}) if matches!(table.field_type_by_name(name.deref()), Some(InfluxColumnType::Field(_)))) {
@@ -157,7 +168,7 @@ fn from_drop_empty(s: &dyn SchemaProvider, stmt: &mut SelectStatement) {
                     false
                 }
             }
-            MeasurementSelection::Subquery(q) => {
+            TableReference::Subquery(q) => {
                 from_drop_empty(s, q);
                 if q.from.is_empty() {
                     return false;
@@ -165,35 +176,29 @@ fn from_drop_empty(s: &dyn SchemaProvider, stmt: &mut SelectStatement) {
 
                 stmt.fields.iter().any(|f| {
                     walk_expr(&f.expr, &mut |e| {
-                        if matches!(e, Expr::VarRef(VarRef{ name, ..}) if matches!(field_by_name(q, name.deref()), Some(_))) {
+                        if matches!(e, Expr::VarRef(VarRef{ name, ..}) if matches!(field_by_name(&q.fields, name.as_str()), Some(_))) {
                             ControlFlow::Break(())
                         } else {
                             ControlFlow::Continue(())
                         }
                     }).is_break()
                 })
-            },
-            _ => unreachable!("wildcards should have been expanded"),
+            }
         }
     });
-
-    stmt.from.replace(from);
 }
 
 /// Determine the merged fields and tags of the `FROM` clause.
 fn from_field_and_dimensions(
     s: &dyn SchemaProvider,
-    from: &FromMeasurementClause,
+    from: &[TableReference],
 ) -> Result<(FieldTypeMap, TagSet)> {
     let mut fs = FieldTypeMap::new();
     let mut ts = TagSet::new();
 
-    for ms in from.deref() {
-        match ms {
-            MeasurementSelection::Name(QualifiedMeasurementName {
-                name: MeasurementName::Name(name),
-                ..
-            }) => {
+    for tr in from {
+        match tr {
+            TableReference::Name(name) => {
                 let (field_set, tag_set) = match field_and_dimensions(s, name.as_str())? {
                     Some(res) => res,
                     None => continue,
@@ -215,8 +220,8 @@ fn from_field_and_dimensions(
 
                 ts.extend(tag_set);
             }
-            MeasurementSelection::Subquery(select) => {
-                for f in select.fields.iter() {
+            TableReference::Subquery(select) => {
+                for f in &select.fields {
                     let dt = match evaluate_type(s, &f.expr, &select.from)? {
                         Some(dt) => dt,
                         None => continue,
@@ -243,10 +248,6 @@ fn from_field_and_dimensions(
                         _ => None,
                     }));
                 }
-            }
-            _ => {
-                // Unreachable, as the from clause should be normalised at this point.
-                return error::internal("Unexpected MeasurementSelection in from");
             }
         }
     }
@@ -304,16 +305,14 @@ fn has_wildcards(stmt: &SelectStatement) -> (bool, bool) {
 ///   underlying schema.
 ///
 /// Derived from [Go implementation](https://github.com/influxdata/influxql/blob/1ba470371ec093d57a726b143fe6ccbacf1b452b/ast.go#L1185).
-fn field_list_expand_wildcards(s: &dyn SchemaProvider, stmt: &mut SelectStatement) -> Result<()> {
-    // Iterate through the `FROM` clause and rewrite any subqueries first.
-    for ms in stmt.from.iter_mut() {
-        if let MeasurementSelection::Subquery(subquery) = ms {
-            field_list_expand_wildcards(s, subquery)?;
-        }
-    }
-
+fn field_list_expand_wildcards(
+    s: &dyn SchemaProvider,
+    stmt: &SelectStatement,
+    sel: &mut Select,
+) -> Result<()> {
+    sel.fields = stmt.fields.iter().cloned().collect::<Vec<_>>();
     // Rewrite all `DISTINCT <identifier>` expressions to `DISTINCT(<var ref>)`
-    if let ControlFlow::Break(e) = stmt.fields.iter_mut().try_for_each(|f| {
+    if let ControlFlow::Break(e) = sel.fields.iter_mut().try_for_each(|f| {
         walk_expr_mut::<DataFusionError>(&mut f.expr, &mut |e| {
             if let Expr::Distinct(ident) = e {
                 *e = Expr::Call(Call {
@@ -332,10 +331,10 @@ fn field_list_expand_wildcards(s: &dyn SchemaProvider, stmt: &mut SelectStatemen
 
     // Attempt to rewrite all variable references in the fields with their types, if one
     // hasn't been specified.
-    if let ControlFlow::Break(e) = stmt.fields.iter_mut().try_for_each(|f| {
+    if let ControlFlow::Break(e) = sel.fields.iter_mut().try_for_each(|f| {
         walk_expr_mut::<DataFusionError>(&mut f.expr, &mut |e| {
             if matches!(e, Expr::VarRef(_)) {
-                let new_type = match evaluate_type(s, e.borrow(), &stmt.from) {
+                let new_type = match evaluate_type(s, e.borrow(), &sel.from) {
                     Err(e) => ControlFlow::Break(e)?,
                     Ok(v) => v,
                 };
@@ -355,7 +354,7 @@ fn field_list_expand_wildcards(s: &dyn SchemaProvider, stmt: &mut SelectStatemen
         return Ok(());
     }
 
-    let (field_set, mut tag_set) = from_field_and_dimensions(s, &stmt.from)?;
+    let (field_set, mut tag_set) = from_field_and_dimensions(s, &sel.from)?;
 
     if !has_group_by_wildcard {
         if let Some(group_by) = &stmt.group_by {
@@ -393,7 +392,7 @@ fn field_list_expand_wildcards(s: &dyn SchemaProvider, stmt: &mut SelectStatemen
     if has_field_wildcard {
         let mut new_fields = Vec::new();
 
-        for f in stmt.fields.iter() {
+        for f in &sel.fields {
             let add_field = |f: &VarRef| {
                 new_fields.push(Field {
                     expr: Expr::VarRef(f.clone()),
@@ -528,7 +527,7 @@ fn field_list_expand_wildcards(s: &dyn SchemaProvider, stmt: &mut SelectStatemen
             }
         }
 
-        stmt.fields = FieldList::new(new_fields);
+        sel.fields = new_fields;
     }
 
     if has_group_by_wildcard {
@@ -561,7 +560,7 @@ fn field_list_expand_wildcards(s: &dyn SchemaProvider, stmt: &mut SelectStatemen
                     _ => new_dimensions.push(dim.clone()),
                 }
             }
-            stmt.group_by = Some(GroupByClause::new(new_dimensions));
+            sel.group_by = Some(GroupByClause::new(new_dimensions));
         }
     }
 
@@ -572,7 +571,7 @@ fn field_list_expand_wildcards(s: &dyn SchemaProvider, stmt: &mut SelectStatemen
 /// [original implementation]. The names are assigned to the `alias` field of the [`Field`] struct.
 ///
 /// [original implementation]: https://github.com/influxdata/influxql/blob/1ba470371ec093d57a726b143fe6ccbacf1b452b/ast.go#L1651
-fn field_list_rewrite_aliases(field_list: &mut FieldList) -> Result<()> {
+fn field_list_rewrite_aliases(field_list: &mut [Field]) -> Result<()> {
     let names = field_list.iter().map(field_name).collect::<Vec<_>>();
     let mut column_aliases = HashMap::<&str, _>::from_iter(names.iter().map(|f| (f.as_str(), 0)));
     names
@@ -1321,60 +1320,12 @@ pub(crate) fn select_statement_info(q: &SelectStatement) -> Result<SelectStateme
 #[cfg(test)]
 mod test {
     use crate::plan::rewriter::{
-        field_list_normalize_time, has_wildcards, rewrite_statement, select_statement_info,
-        ProjectionType,
+        has_wildcards, rewrite_statement, select_statement_info, ProjectionType,
     };
     use crate::plan::test_utils::{parse_select, MockSchemaProvider};
     use assert_matches::assert_matches;
     use datafusion::error::DataFusionError;
     use test_helpers::{assert_contains, assert_error};
-
-    #[test]
-    fn test_field_list_normalize_time() {
-        // adds time to to first position
-        let mut sel = parse_select("SELECT foo, bar FROM cpu");
-        field_list_normalize_time(&mut sel);
-        assert_eq!(
-            sel.to_string(),
-            "SELECT time::timestamp AS time, foo, bar FROM cpu"
-        );
-
-        // moves time to first position
-        let mut sel = parse_select("SELECT foo, time, bar FROM cpu");
-        field_list_normalize_time(&mut sel);
-        assert_eq!(
-            sel.to_string(),
-            "SELECT time::timestamp AS time, foo, bar FROM cpu"
-        );
-
-        // Maintains alias for time column
-        let mut sel = parse_select("SELECT time as ts, foo, bar FROM cpu");
-        field_list_normalize_time(&mut sel);
-        assert_eq!(
-            sel.to_string(),
-            "SELECT time::timestamp AS ts, foo, bar FROM cpu"
-        );
-
-        // subqueries
-
-        // adds time to to first position of root and subquery
-        let mut sel = parse_select("SELECT foo FROM (SELECT foo, bar FROM cpu)");
-        field_list_normalize_time(&mut sel);
-        assert_eq!(
-            sel.to_string(),
-            "SELECT time::timestamp AS time, foo FROM (SELECT time::timestamp AS time, foo, bar FROM cpu)"
-        );
-
-        // Removes and ignores alias of time column within subquery, ignores alias in root and adds time column
-        //
-        // Whilst confusing, this matching InfluxQL behaviour
-        let mut sel = parse_select("SELECT ts, foo FROM (SELECT time as ts, foo, bar FROM cpu)");
-        field_list_normalize_time(&mut sel);
-        assert_eq!(
-            sel.to_string(),
-            "SELECT time::timestamp AS time, ts, foo FROM (SELECT time::timestamp AS time, foo, bar FROM cpu)"
-        );
-    }
 
     #[test]
     fn test_select_statement_info() {

@@ -1,5 +1,5 @@
 use influxdb_influxql_parser::expression::{Call, Expr, VarRef};
-use influxdb_influxql_parser::select::{Field, SelectStatement};
+use influxdb_influxql_parser::select::Field;
 use influxdb_influxql_parser::visit::{Recursion, Visitable, Visitor};
 use std::ops::Deref;
 
@@ -40,8 +40,8 @@ pub(crate) fn field_name(f: &Field) -> String {
 /// This implementation duplicates the behavior of the original implementation, including skipping the
 /// first argument. It is likely the original intended to skip the _last_ argument, which is the number
 /// of rows.
-pub(crate) fn field_by_name<'a>(select: &'a SelectStatement, name: &str) -> Option<&'a Field> {
-    select.fields
+pub(crate) fn field_by_name<'a>(fields: &'a [Field], name: &str) -> Option<&'a Field> {
+    fields
         .iter()
         .find(|f| {
             field_name(f) == name || match &f.expr {
@@ -128,47 +128,50 @@ mod test {
     fn test_field_by_name() {
         let stmt = parse_select("SELECT usage, idle FROM cpu");
         assert_eq!(
-            format!("{}", field_by_name(&stmt, "usage").unwrap()),
+            format!("{}", field_by_name(&stmt.fields, "usage").unwrap()),
             "usage"
         );
 
         let stmt = parse_select("SELECT usage as foo, usage FROM cpu");
         assert_eq!(
-            format!("{}", field_by_name(&stmt, "foo").unwrap()),
+            format!("{}", field_by_name(&stmt.fields, "foo").unwrap()),
             "usage AS foo"
         );
 
         let stmt = parse_select("SELECT top(idle, usage, 5), usage FROM cpu");
         assert_eq!(
-            format!("{}", field_by_name(&stmt, "usage").unwrap()),
+            format!("{}", field_by_name(&stmt.fields, "usage").unwrap()),
             "top(idle, usage, 5)"
         );
 
         let stmt = parse_select("SELECT bottom(idle, usage, 5), usage FROM cpu");
         assert_eq!(
-            format!("{}", field_by_name(&stmt, "usage").unwrap()),
+            format!("{}", field_by_name(&stmt.fields, "usage").unwrap()),
             "bottom(idle, usage, 5)"
         );
 
         let stmt = parse_select("SELECT top(idle, usage, 5) as foo, usage FROM cpu");
         assert_eq!(
-            format!("{}", field_by_name(&stmt, "usage").unwrap()),
+            format!("{}", field_by_name(&stmt.fields, "usage").unwrap()),
             "top(idle, usage, 5) AS foo"
         );
         assert_eq!(
-            format!("{}", field_by_name(&stmt, "foo").unwrap()),
+            format!("{}", field_by_name(&stmt.fields, "foo").unwrap()),
             "top(idle, usage, 5) AS foo"
         );
 
         // Not exists
 
         let stmt = parse_select("SELECT usage, idle FROM cpu");
-        assert_matches!(field_by_name(&stmt, "bar"), None);
+        assert_matches!(field_by_name(&stmt.fields, "bar"), None);
 
         // Does not match name by first argument to top or bottom, per
         // bug in original implementation.
         let stmt = parse_select("SELECT top(foo, usage, 5), idle FROM cpu");
-        assert_matches!(field_by_name(&stmt, "foo"), None);
-        assert_eq!(format!("{}", field_by_name(&stmt, "idle").unwrap()), "idle");
+        assert_matches!(field_by_name(&stmt.fields, "foo"), None);
+        assert_eq!(
+            format!("{}", field_by_name(&stmt.fields, "idle").unwrap()),
+            "idle"
+        );
     }
 }
