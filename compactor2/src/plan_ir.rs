@@ -60,6 +60,15 @@ impl PlanIR {
         }
     }
 
+    /// return the number of input files that will be compacted together
+    pub fn n_input_files(&self) -> usize {
+        match self {
+            Self::Compact { files, .. } => files.len(),
+            Self::Split { files, .. } => files.len(),
+            Self::None { .. } => 0,
+        }
+    }
+
     /// return the input files that will be compacted together
     pub fn input_files(&self) -> &[FileIR] {
         match self {
