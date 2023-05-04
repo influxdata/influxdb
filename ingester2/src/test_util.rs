@@ -283,14 +283,7 @@ pub(crate) async fn populate_catalog(
     table: &str,
 ) -> (NamespaceId, TableId) {
     let mut c = catalog.repositories().await;
-    let topic = c.topics().create_or_get("kafka-topic").await.unwrap();
-    let query_pool = c.query_pools().create_or_get("query-pool").await.unwrap();
-    let ns_id = c
-        .namespaces()
-        .create(namespace, None, topic.id, query_pool.id)
-        .await
-        .unwrap()
-        .id;
+    let ns_id = c.namespaces().create(namespace, None).await.unwrap().id;
     let table_id = c.tables().create_or_get(table, ns_id).await.unwrap().id;
 
     (ns_id, table_id)

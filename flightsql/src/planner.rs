@@ -31,6 +31,7 @@ use crate::{
     get_db_schemas::{get_db_schemas, get_db_schemas_schema},
     get_tables::{get_tables, get_tables_schema},
     sql_info::iox_sql_info_list,
+    xdbc_type_info::TYPE_INFO_RECORD_BATCH,
 };
 use crate::{FlightSQLCommand, PreparedStatementHandle};
 
@@ -428,10 +429,13 @@ async fn plan_get_table_types(ctx: &IOxSessionContext) -> Result<LogicalPlan> {
 /// Return a `LogicalPlan` for GetXdbcTypeInfo
 async fn plan_get_xdbc_type_info(
     ctx: &IOxSessionContext,
-    _data_type: Option<i32>,
+    data_type: Option<i32>,
 ) -> Result<LogicalPlan> {
-    let batch = RecordBatch::new_empty(Arc::clone(&GET_XDBC_TYPE_INFO_SCHEMA));
-    Ok(ctx.batch_to_logical_plan(batch)?)
+    match data_type {
+        None => Ok(ctx.batch_to_logical_plan(TYPE_INFO_RECORD_BATCH.clone())?),
+        // TODO chunchun: support search by data_type
+        Some(_data_type) => unimplemented!("filter by data_type is not implemented yet"),
+    }
 }
 
 /// The schema for GetTableTypes
@@ -523,6 +527,7 @@ static GET_PRIMARY_KEYS_SCHEMA: Lazy<SchemaRef> = Lazy::new(|| {
     ]))
 });
 
+/// The schema for GetXdbcTypeInfo
 // From https://github.com/apache/arrow/blob/9588da967c756b2923e213ccc067378ba6c90a86/format/FlightSql.proto#L1064-L1113
 static GET_XDBC_TYPE_INFO_SCHEMA: Lazy<SchemaRef> = Lazy::new(|| {
     Arc::new(Schema::new(vec![

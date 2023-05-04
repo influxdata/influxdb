@@ -13,15 +13,12 @@
     clippy::dbg_macro
 )]
 
-use crate::interface::{ColumnTypeMismatchSnafu, Error, RepoCollection, Result, Transaction};
-use data_types::{ColumnType, NamespaceSchema, QueryPool, TableSchema, TopicId, TopicMetadata};
+use crate::interface::{ColumnTypeMismatchSnafu, Error, RepoCollection, Result};
+use data_types::{ColumnType, NamespaceSchema, TableSchema};
 use mutable_batch::MutableBatch;
 use std::{borrow::Cow, collections::HashMap};
 use thiserror::Error;
 
-const SHARED_TOPIC_NAME: &str = "iox-shared";
-const SHARED_TOPIC_ID: TopicId = TopicId::new(1);
-const SHARED_QUERY_POOL: &str = SHARED_TOPIC_NAME;
 const TIME_COLUMN: &str = "time";
 
 /// Default per-namespace table count service protection limit.
@@ -204,19 +201,6 @@ where
     Ok(())
 }
 
-/// Creates or gets records in the catalog for the shared topic and query pool for each of the
-/// partitions.
-///
-/// Used in tests and when creating an in-memory catalog.
-pub async fn create_or_get_default_records(
-    txn: &mut dyn Transaction,
-) -> Result<(TopicMetadata, QueryPool)> {
-    let topic = txn.topics().create_or_get(SHARED_TOPIC_NAME).await?;
-    let query_pool = txn.query_pools().create_or_get(SHARED_QUERY_POOL).await?;
-
-    Ok((topic, query_pool))
-}
-
 #[cfg(test)]
 mod tests {
     use std::{collections::BTreeMap, sync::Arc};
@@ -251,20 +235,15 @@ mod tests {
                     let metrics = Arc::new(metric::Registry::default());
                     let repo = MemCatalog::new(metrics);
                     let mut txn = repo.start_transaction().await.unwrap();
-                    let (topic, query_pool) = create_or_get_default_records(
-                        txn.deref_mut()
-                    ).await.unwrap();
 
                     let namespace = txn
                         .namespaces()
-                        .create(NAMESPACE_NAME, None, topic.id, query_pool.id)
+                        .create(NAMESPACE_NAME, None)
                         .await
                         .unwrap();
 
                     let schema = NamespaceSchema::new(
                         namespace.id,
-                        namespace.topic_id,
-                        namespace.query_pool_id,
                         namespace.max_columns_per_table,
                         namespace.max_tables,
                         namespace.retention_period_ns,

@@ -6,8 +6,7 @@ use arrow::{
 };
 use data_types::{
     Column, ColumnSet, ColumnType, CompactionLevel, Namespace, NamespaceSchema, ParquetFile,
-    ParquetFileParams, Partition, PartitionId, QueryPool, Table, TableId, TableSchema, Timestamp,
-    TopicMetadata,
+    ParquetFileParams, Partition, PartitionId, Table, TableId, TableSchema, Timestamp,
 };
 use datafusion::physical_plan::metrics::Count;
 use datafusion_util::MemoryStream;
@@ -144,19 +143,14 @@ impl TestCatalog {
         retention_period_ns: Option<i64>,
     ) -> Arc<TestNamespace> {
         let mut repos = self.catalog.repositories().await;
-
-        let topic = repos.topics().create_or_get("topic").await.unwrap();
-        let query_pool = repos.query_pools().create_or_get("pool").await.unwrap();
         let namespace = repos
             .namespaces()
-            .create(name, retention_period_ns, topic.id, query_pool.id)
+            .create(name, retention_period_ns)
             .await
             .unwrap();
 
         Arc::new(TestNamespace {
             catalog: Arc::clone(self),
-            topic,
-            query_pool,
             namespace,
         })
     }
@@ -216,8 +210,6 @@ impl TestCatalog {
 #[allow(missing_docs)]
 pub struct TestNamespace {
     pub catalog: Arc<TestCatalog>,
-    pub topic: TopicMetadata,
-    pub query_pool: QueryPool,
     pub namespace: Namespace,
 }
 

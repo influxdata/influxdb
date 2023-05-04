@@ -143,8 +143,6 @@ $ influxdb_iox namespace list
 $ influxdb_iox debug schema get 26f7e5a4b7be365b_917b97a92e883afc
 {
   "id": "1",
-  "topicId": "1",
-  "queryPoolId": "1",
   "tables": {
     "cpu": {
       "id": "5",

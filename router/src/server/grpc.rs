@@ -1,6 +1,5 @@
 //! gRPC service implementations for `router`.
 
-use data_types::{QueryPoolId, TopicId};
 use generated_types::influxdata::iox::{catalog::v1::*, namespace::v1::*, object_store::v1::*};
 use iox_catalog::interface::Catalog;
 use object_store::DynObjectStore;
@@ -15,25 +14,14 @@ use std::sync::Arc;
 pub struct RpcWriteGrpcDelegate {
     catalog: Arc<dyn Catalog>,
     object_store: Arc<DynObjectStore>,
-
-    // Temporary values during kafka -> kafkaless transition.
-    topic_id: TopicId,
-    query_id: QueryPoolId,
 }
 
 impl RpcWriteGrpcDelegate {
     /// Create a new gRPC handler
-    pub fn new(
-        catalog: Arc<dyn Catalog>,
-        object_store: Arc<DynObjectStore>,
-        topic_id: TopicId,
-        query_id: QueryPoolId,
-    ) -> Self {
+    pub fn new(catalog: Arc<dyn Catalog>, object_store: Arc<DynObjectStore>) -> Self {
         Self {
             catalog,
             object_store,
-            topic_id,
-            query_id,
         }
     }
 
@@ -62,10 +50,6 @@ impl RpcWriteGrpcDelegate {
     ///
     /// [`NamespaceService`]: generated_types::influxdata::iox::namespace::v1::namespace_service_server::NamespaceService.
     pub fn namespace_service(&self) -> impl namespace_service_server::NamespaceService {
-        NamespaceService::new(
-            Arc::clone(&self.catalog),
-            Some(self.topic_id),
-            Some(self.query_id),
-        )
+        NamespaceService::new(Arc::clone(&self.catalog))
     }
 }

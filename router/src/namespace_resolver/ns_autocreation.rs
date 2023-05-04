@@ -1,7 +1,7 @@
 use std::{fmt::Debug, sync::Arc};
 
 use async_trait::async_trait;
-use data_types::{NamespaceId, NamespaceName, QueryPoolId, TopicId};
+use data_types::{NamespaceId, NamespaceName};
 use iox_catalog::interface::Catalog;
 use observability_deps::tracing::*;
 use thiserror::Error;
@@ -43,8 +43,6 @@ pub struct NamespaceAutocreation<C, T> {
     cache: C,
     catalog: Arc<dyn Catalog>,
 
-    topic_id: TopicId,
-    query_id: QueryPoolId,
     action: MissingNamespaceAction,
 }
 
@@ -53,7 +51,7 @@ impl<C, T> NamespaceAutocreation<C, T> {
     /// namespace exists in `catalog`.
     ///
     /// If the namespace does not exist, it is created with the specified
-    /// `topic_id`, `query_id` and `retention` policy.
+    /// `retention` policy.
     ///
     /// Namespaces are looked up in `cache`, skipping the creation request to
     /// the catalog if there's a hit.
@@ -61,16 +59,12 @@ impl<C, T> NamespaceAutocreation<C, T> {
         inner: T,
         cache: C,
         catalog: Arc<dyn Catalog>,
-        topic_id: TopicId,
-        query_id: QueryPoolId,
         action: MissingNamespaceAction,
     ) -> Self {
         Self {
             inner,
             cache,
             catalog,
-            topic_id,
-            query_id,
             action,
         }
     }
@@ -113,12 +107,7 @@ where
                         .repositories()
                         .await
                         .namespaces()
-                        .create(
-                            namespace.as_str(),
-                            retention_period_ns,
-                            self.topic_id,
-                            self.query_id,
-                        )
+                        .create(namespace.as_str(), retention_period_ns)
                         .await
                     {
                         Ok(_) => {
@@ -178,8 +167,6 @@ mod tests {
             ns.clone(),
             NamespaceSchema {
                 id: NAMESPACE_ID,
-                topic_id: TopicId::new(2),
-                query_pool_id: QueryPoolId::new(3),
                 tables: Default::default(),
                 max_columns_per_table: 4,
                 max_tables: 42,
@@ -191,8 +178,6 @@ mod tests {
             MockNamespaceResolver::default().with_mapping(ns.clone(), NAMESPACE_ID),
             cache,
             Arc::clone(&catalog),
-            TopicId::new(42),
-            QueryPoolId::new(42),
             MissingNamespaceAction::AutoCreate(TEST_RETENTION_PERIOD_NS),
         );
 
@@ -233,8 +218,6 @@ mod tests {
             MockNamespaceResolver::default().with_mapping(ns.clone(), NamespaceId::new(1)),
             cache,
             Arc::clone(&catalog),
-            TopicId::new(42),
-            QueryPoolId::new(42),
             MissingNamespaceAction::AutoCreate(TEST_RETENTION_PERIOD_NS),
         );
 
@@ -259,8 +242,6 @@ mod tests {
             Namespace {
                 id: NamespaceId::new(1),
                 name: ns.to_string(),
-                topic_id: TopicId::new(42),
-                query_pool_id: QueryPoolId::new(42),
                 max_tables: iox_catalog::DEFAULT_MAX_TABLES,
                 max_columns_per_table: iox_catalog::DEFAULT_MAX_COLUMNS_PER_TABLE,
                 retention_period_ns: TEST_RETENTION_PERIOD_NS,
@@ -284,8 +265,6 @@ mod tests {
             MockNamespaceResolver::default(),
             cache,
             Arc::clone(&catalog),
-            TopicId::new(42),
-            QueryPoolId::new(42),
             MissingNamespaceAction::Reject,
         );
 
@@ -324,8 +303,6 @@ mod tests {
             NamespaceSchemaResolver::new(Arc::clone(&cache)),
             Arc::clone(&cache),
             Arc::clone(&catalog),
-            TopicId::new(42),
-            QueryPoolId::new(42),
             MissingNamespaceAction::AutoCreate(TEST_RETENTION_PERIOD_NS),
         );
 
@@ -339,8 +316,6 @@ mod tests {
             NamespaceSchemaResolver::new(Arc::clone(&cache)),
             cache,
             Arc::clone(&catalog),
-            TopicId::new(42),
-            QueryPoolId::new(42),
             MissingNamespaceAction::Reject,
         );
 

@@ -6,6 +6,7 @@ mod get_db_schemas;
 mod get_tables;
 mod planner;
 mod sql_info;
+mod xdbc_type_info;
 
 pub use cmd::{FlightSQLCommand, PreparedStatementHandle};
 pub use error::{Error, Result};

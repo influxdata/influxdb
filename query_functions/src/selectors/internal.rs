@@ -23,7 +23,7 @@ use datafusion::{error::Result as DataFusionResult, scalar::ScalarValue};
 
 use observability_deps::tracing::debug;
 
-use super::{Selector, SelectorOutput};
+use super::Selector;
 
 /// Trait for comparing values in arrays with their native
 /// representation. This so the same comparison expression can be used
@@ -116,235 +116,169 @@ fn make_scalar_struct(data_fields: Vec<ScalarValue>) -> ScalarValue {
     ScalarValue::Struct(Some(data_fields), Fields::from(fields))
 }
 
-macro_rules! make_first_selector {
-    ($STRUCTNAME:ident, $RUSTTYPE:ident, $ARROWTYPE:expr, $ARRTYPE:ident, $MINFUNC:ident, $TO_SCALARVALUE: expr) => {
-        #[derive(Debug)]
-        pub struct $STRUCTNAME {
-            value: Option<$RUSTTYPE>,
-            time: Option<i64>,
-        }
-
-        impl Default for $STRUCTNAME {
-            fn default() -> Self {
-                Self {
-                    value: None,
-                    time: None,
-                }
-            }
-        }
-
-        impl Selector for $STRUCTNAME {
-            fn value_data_type() -> DataType {
-                $ARROWTYPE
-            }
-
-            fn datafusion_state(&self) -> DataFusionResult<Vec<ScalarValue>> {
-                Ok(vec![
-                    $TO_SCALARVALUE(self.value.clone()),
-                    ScalarValue::TimestampNanosecond(self.time, None),
-                ])
-            }
-
-            fn evaluate(&self, output: &SelectorOutput) -> DataFusionResult<ScalarValue> {
-                match output {
-                    SelectorOutput::Value => Ok($TO_SCALARVALUE(self.value.clone())),
-                    SelectorOutput::Time => Ok(ScalarValue::TimestampNanosecond(self.time, None)),
-                    SelectorOutput::Struct => Ok(make_scalar_struct(vec![
-                        $TO_SCALARVALUE(self.value.clone()),
-                        ScalarValue::TimestampNanosecond(self.time, None),
-                    ])),
-                }
-            }
-
-            fn update_batch(
-                &mut self,
-                value_arr: &ArrayRef,
-                time_arr: &ArrayRef,
-            ) -> DataFusionResult<()> {
-                let value_arr = value_arr
-                    .as_any()
-                    .downcast_ref::<$ARRTYPE>()
-                    // the input type arguments should be ensured by datafusion
-                    .expect("First argument was value");
-
-                let time_arr = time_arr
-                    .as_any()
-                    .downcast_ref::<TimestampNanosecondArray>()
-                    // the input type arguments should be ensured by datafusion
-                    .expect("Second argument was time");
-
-                // Only look for times where the array also has a non
-                // null value (the time array should have no nulls itself)
-                //
-                // For example, for the following input, the correct
-                // current min time is 200 (not 100)
-                //
-                // value | time
-                // --------------
-                // NULL  | 100
-                // A     | 200
-                // B     | 300
-                //
-                // Note this could likely be faster if we used `ArrayData` APIs
-                let time_arr: TimestampNanosecondArray = time_arr
-                    .iter()
-                    .zip(value_arr.iter())
-                    .map(|(ts, value)| if value.is_some() { ts } else { None })
-                    .collect();
-
-                let cur_min_time = $MINFUNC(&time_arr);
-
-                let need_update = match (&self.time, &cur_min_time) {
-                    (Some(time), Some(cur_min_time)) => cur_min_time < time,
-                    // No existing minimum, so update needed
-                    (None, Some(_)) => true,
-                    // No actual minimum time found, so no update needed
-                    (_, None) => false,
-                };
-
-                if need_update {
-                    let index = time_arr
-                        .iter()
-                        // arrow doesn't tell us what index had the
-                        // minimum, so need to find it ourselves see also
-                        // https://github.com/apache/arrow-datafusion/issues/600
-                        .enumerate()
-                        .find(|(_, time)| cur_min_time == *time)
-                        .map(|(idx, _)| idx)
-                        .unwrap(); // value always exists
-
-                    self.time = cur_min_time;
-                    self.value = if value_arr.is_null(index) {
-                        None
-                    } else {
-                        Some(value_arr.value(index).to_owned())
-                    };
-                }
-
-                Ok(())
-            }
-
-            fn size(&self) -> usize {
-                // no nested types
-                std::mem::size_of_val(self)
-            }
-        }
-    };
+#[derive(Debug)]
+pub struct FirstSelector {
+    value: ScalarValue,
+    time: Option<i64>,
 }
 
-macro_rules! make_last_selector {
-    ($STRUCTNAME:ident, $RUSTTYPE:ident, $ARROWTYPE:expr, $ARRTYPE:ident, $MAXFUNC:ident, $TO_SCALARVALUE: expr) => {
-        #[derive(Debug)]
-        pub struct $STRUCTNAME {
-            value: Option<$RUSTTYPE>,
-            time: Option<i64>,
+impl FirstSelector {
+    pub fn new(data_type: &DataType) -> DataFusionResult<Self> {
+        Ok(Self {
+            value: ScalarValue::try_from(data_type)?,
+            time: None,
+        })
+    }
+}
+
+impl Selector for FirstSelector {
+    fn datafusion_state(&self) -> DataFusionResult<Vec<ScalarValue>> {
+        Ok(vec![
+            self.value.clone(),
+            ScalarValue::TimestampNanosecond(self.time, None),
+        ])
+    }
+
+    fn evaluate(&self) -> DataFusionResult<ScalarValue> {
+        Ok(make_scalar_struct(vec![
+            self.value.clone(),
+            ScalarValue::TimestampNanosecond(self.time, None),
+        ]))
+    }
+
+    fn update_batch(&mut self, value_arr: &ArrayRef, time_arr: &ArrayRef) -> DataFusionResult<()> {
+        // Only look for times where the array also has a non
+        // null value (the time array should have no nulls itself)
+        //
+        // For example, for the following input, the correct
+        // current min time is 200 (not 100)
+        //
+        // value | time
+        // --------------
+        // NULL  | 100
+        // A     | 200
+        // B     | 300
+        //
+        let time_arr = arrow::compute::nullif(time_arr, &arrow::compute::is_null(&value_arr)?)?;
+
+        let time_arr = time_arr
+            .as_any()
+            .downcast_ref::<TimestampNanosecondArray>()
+            // the input type arguments should be ensured by datafusion
+            .expect("Second argument was time");
+        let cur_min_time = array_min(time_arr);
+
+        let need_update = match (&self.time, &cur_min_time) {
+            (Some(time), Some(cur_min_time)) => cur_min_time < time,
+            // No existing minimum, so update needed
+            (None, Some(_)) => true,
+            // No actual minimum time found, so no update needed
+            (_, None) => false,
+        };
+
+        if need_update {
+            let index = time_arr
+                .iter()
+                // arrow doesn't tell us what index had the
+                // minimum, so need to find it ourselves see also
+                // https://github.com/apache/arrow-datafusion/issues/600
+                .enumerate()
+                .find(|(_, time)| cur_min_time == *time)
+                .map(|(idx, _)| idx)
+                .unwrap(); // value always exists
+
+            self.time = cur_min_time;
+            self.value = ScalarValue::try_from_array(&value_arr, index)?;
         }
 
-        impl Default for $STRUCTNAME {
-            fn default() -> Self {
-                Self {
-                    value: None,
-                    time: None,
-                }
-            }
+        Ok(())
+    }
+
+    fn size(&self) -> usize {
+        std::mem::size_of_val(self) - std::mem::size_of_val(&self.value) + self.value.size()
+    }
+}
+
+#[derive(Debug)]
+pub struct LastSelector {
+    value: ScalarValue,
+    time: Option<i64>,
+}
+
+impl LastSelector {
+    pub fn new(data_type: &DataType) -> DataFusionResult<Self> {
+        Ok(Self {
+            value: ScalarValue::try_from(data_type)?,
+            time: None,
+        })
+    }
+}
+
+impl Selector for LastSelector {
+    fn datafusion_state(&self) -> DataFusionResult<Vec<ScalarValue>> {
+        Ok(vec![
+            self.value.clone(),
+            ScalarValue::TimestampNanosecond(self.time, None),
+        ])
+    }
+
+    fn evaluate(&self) -> DataFusionResult<ScalarValue> {
+        Ok(make_scalar_struct(vec![
+            self.value.clone(),
+            ScalarValue::TimestampNanosecond(self.time, None),
+        ]))
+    }
+
+    fn update_batch(&mut self, value_arr: &ArrayRef, time_arr: &ArrayRef) -> DataFusionResult<()> {
+        // Only look for times where the array also has a non
+        // null value (the time array should have no nulls itself)
+        //
+        // For example, for the following input, the correct
+        // current max time is 200 (not 300)
+        //
+        // value | time
+        // --------------
+        // A     | 100
+        // B     | 200
+        // NULL  | 300
+        //
+        let time_arr = arrow::compute::nullif(time_arr, &arrow::compute::is_null(&value_arr)?)?;
+
+        let time_arr = time_arr
+            .as_any()
+            .downcast_ref::<TimestampNanosecondArray>()
+            // the input type arguments should be ensured by datafusion
+            .expect("Second argument was time");
+        let cur_max_time = array_max(time_arr);
+
+        let need_update = match (&self.time, &cur_max_time) {
+            (Some(time), Some(cur_max_time)) => time < cur_max_time,
+            // No existing maximum, so update needed
+            (None, Some(_)) => true,
+            // No actual maximum value found, so no update needed
+            (_, None) => false,
+        };
+
+        if need_update {
+            let index = time_arr
+                .iter()
+                // arrow doesn't tell us what index had the
+                // maximum, so need to find it ourselves
+                .enumerate()
+                .find(|(_, time)| cur_max_time == *time)
+                .map(|(idx, _)| idx)
+                .unwrap(); // value always exists
+
+            self.time = cur_max_time;
+            self.value = ScalarValue::try_from_array(&value_arr, index)?;
         }
 
-        impl Selector for $STRUCTNAME {
-            fn value_data_type() -> DataType {
-                $ARROWTYPE
-            }
+        Ok(())
+    }
 
-            fn datafusion_state(&self) -> DataFusionResult<Vec<ScalarValue>> {
-                Ok(vec![
-                    $TO_SCALARVALUE(self.value.clone()),
-                    ScalarValue::TimestampNanosecond(self.time, None),
-                ])
-            }
-
-            fn evaluate(&self, output: &SelectorOutput) -> DataFusionResult<ScalarValue> {
-                match output {
-                    SelectorOutput::Value => Ok($TO_SCALARVALUE(self.value.clone())),
-                    SelectorOutput::Time => Ok(ScalarValue::TimestampNanosecond(self.time, None)),
-                    SelectorOutput::Struct => Ok(make_scalar_struct(vec![
-                        $TO_SCALARVALUE(self.value.clone()),
-                        ScalarValue::TimestampNanosecond(self.time, None),
-                    ])),
-                }
-            }
-
-            fn update_batch(
-                &mut self,
-                value_arr: &ArrayRef,
-                time_arr: &ArrayRef,
-            ) -> DataFusionResult<()> {
-                let value_arr = value_arr
-                    .as_any()
-                    .downcast_ref::<$ARRTYPE>()
-                    // the input type arguments should be ensured by datafusion
-                    .expect("First argument was value");
-
-                let time_arr = time_arr
-                    .as_any()
-                    .downcast_ref::<TimestampNanosecondArray>()
-                    // the input type arguments should be ensured by datafusion
-                    .expect("Second argument was time");
-
-                // Only look for times where the array also has a non
-                // null value (the time array should have no nulls itself)
-                //
-                // For example, for the following input, the correct
-                // current max time is 200 (not 300)
-                //
-                // value | time
-                // --------------
-                // A     | 100
-                // B     | 200
-                // NULL  | 300
-                //
-                // Note this could likely be faster if we used `ArrayData` APIs
-                let time_arr: TimestampNanosecondArray = time_arr
-                    .iter()
-                    .zip(value_arr.iter())
-                    .map(|(ts, value)| if value.is_some() { ts } else { None })
-                    .collect();
-
-                let cur_max_time = $MAXFUNC(&time_arr);
-
-                let need_update = match (&self.time, &cur_max_time) {
-                    (Some(time), Some(cur_max_time)) => time < cur_max_time,
-                    // No existing maximum, so update needed
-                    (None, Some(_)) => true,
-                    // No actual maximum value found, so no update needed
-                    (_, None) => false,
-                };
-
-                if need_update {
-                    let index = time_arr
-                        .iter()
-                        // arrow doesn't tell us what index had the
-                        // maximum, so need to find it ourselves
-                        .enumerate()
-                        .find(|(_, time)| cur_max_time == *time)
-                        .map(|(idx, _)| idx)
-                        .unwrap(); // value always exists
-
-                    self.time = cur_max_time;
-                    self.value = if value_arr.is_null(index) {
-                        None
-                    } else {
-                        Some(value_arr.value(index).to_owned())
-                    };
-                }
-
-                Ok(())
-            }
-
-            fn size(&self) -> usize {
-                // no nested types
-                std::mem::size_of_val(self)
-            }
-        }
-    };
+    fn size(&self) -> usize {
+        std::mem::size_of_val(self) - std::mem::size_of_val(&self.value) + self.value.size()
+    }
 }
 
 /// Did we find a new min/max
@@ -373,7 +307,7 @@ impl ActionNeeded {
 }
 
 macro_rules! make_min_selector {
-    ($STRUCTNAME:ident, $RUSTTYPE:ident, $ARROWTYPE:expr, $ARRTYPE:ident, $MINFUNC:ident, $TO_SCALARVALUE: expr) => {
+    ($STRUCTNAME:ident, $RUSTTYPE:ident, $ARRTYPE:ident, $MINFUNC:ident, $TO_SCALARVALUE: expr) => {
         #[derive(Debug)]
         pub struct $STRUCTNAME {
             value: Option<$RUSTTYPE>,
@@ -390,10 +324,6 @@ macro_rules! make_min_selector {
         }
 
         impl Selector for $STRUCTNAME {
-            fn value_data_type() -> DataType {
-                $ARROWTYPE
-            }
-
             fn datafusion_state(&self) -> DataFusionResult<Vec<ScalarValue>> {
                 Ok(vec![
                     $TO_SCALARVALUE(self.value.clone()),
@@ -401,15 +331,11 @@ macro_rules! make_min_selector {
                 ])
             }
 
-            fn evaluate(&self, output: &SelectorOutput) -> DataFusionResult<ScalarValue> {
-                match output {
-                    SelectorOutput::Value => Ok($TO_SCALARVALUE(self.value.clone())),
-                    SelectorOutput::Time => Ok(ScalarValue::TimestampNanosecond(self.time, None)),
-                    SelectorOutput::Struct => Ok(make_scalar_struct(vec![
-                        $TO_SCALARVALUE(self.value.clone()),
-                        ScalarValue::TimestampNanosecond(self.time, None),
-                    ])),
-                }
+            fn evaluate(&self) -> DataFusionResult<ScalarValue> {
+                Ok(make_scalar_struct(vec![
+                    $TO_SCALARVALUE(self.value.clone()),
+                    ScalarValue::TimestampNanosecond(self.time, None),
+                ]))
             }
 
             fn update_batch(
@@ -494,7 +420,7 @@ macro_rules! make_min_selector {
 }
 
 macro_rules! make_max_selector {
-    ($STRUCTNAME:ident, $RUSTTYPE:ident, $ARROWTYPE:expr, $ARRTYPE:ident, $MAXFUNC:ident, $TO_SCALARVALUE: expr) => {
+    ($STRUCTNAME:ident, $RUSTTYPE:ident, $ARRTYPE:ident, $MAXFUNC:ident, $TO_SCALARVALUE: expr) => {
         #[derive(Debug)]
         pub struct $STRUCTNAME {
             value: Option<$RUSTTYPE>,
@@ -511,10 +437,6 @@ macro_rules! make_max_selector {
         }
 
         impl Selector for $STRUCTNAME {
-            fn value_data_type() -> DataType {
-                $ARROWTYPE
-            }
-
             fn datafusion_state(&self) -> DataFusionResult<Vec<ScalarValue>> {
                 Ok(vec![
                     $TO_SCALARVALUE(self.value.clone()),
@@ -522,15 +444,11 @@ macro_rules! make_max_selector {
                 ])
             }
 
-            fn evaluate(&self, output: &SelectorOutput) -> DataFusionResult<ScalarValue> {
-                match output {
-                    SelectorOutput::Value => Ok($TO_SCALARVALUE(self.value.clone())),
-                    SelectorOutput::Time => Ok(ScalarValue::TimestampNanosecond(self.time, None)),
-                    SelectorOutput::Struct => Ok(make_scalar_struct(vec![
-                        $TO_SCALARVALUE(self.value.clone()),
-                        ScalarValue::TimestampNanosecond(self.time, None),
-                    ])),
-                }
+            fn evaluate(&self) -> DataFusionResult<ScalarValue> {
+                Ok(make_scalar_struct(vec![
+                    $TO_SCALARVALUE(self.value.clone()),
+                    ScalarValue::TimestampNanosecond(self.time, None),
+                ]))
             }
 
             fn update_batch(
@@ -615,98 +533,11 @@ macro_rules! make_max_selector {
     };
 }
 
-// FIRST
-
-make_first_selector!(
-    F64FirstSelector,
-    f64,
-    DataType::Float64,
-    Float64Array,
-    array_min,
-    ScalarValue::Float64
-);
-make_first_selector!(
-    I64FirstSelector,
-    i64,
-    DataType::Int64,
-    Int64Array,
-    array_min,
-    ScalarValue::Int64
-);
-make_first_selector!(
-    U64FirstSelector,
-    u64,
-    DataType::UInt64,
-    UInt64Array,
-    array_min,
-    ScalarValue::UInt64
-);
-make_first_selector!(
-    Utf8FirstSelector,
-    String,
-    DataType::Utf8,
-    StringArray,
-    array_min,
-    ScalarValue::Utf8
-);
-make_first_selector!(
-    BooleanFirstSelector,
-    bool,
-    DataType::Boolean,
-    BooleanArray,
-    array_min,
-    ScalarValue::Boolean
-);
-
-// LAST
-
-make_last_selector!(
-    F64LastSelector,
-    f64,
-    DataType::Float64,
-    Float64Array,
-    array_max,
-    ScalarValue::Float64
-);
-make_last_selector!(
-    I64LastSelector,
-    i64,
-    DataType::Int64,
-    Int64Array,
-    array_max,
-    ScalarValue::Int64
-);
-make_last_selector!(
-    U64LastSelector,
-    u64,
-    DataType::UInt64,
-    UInt64Array,
-    array_max,
-    ScalarValue::UInt64
-);
-make_last_selector!(
-    Utf8LastSelector,
-    String,
-    DataType::Utf8,
-    StringArray,
-    array_max,
-    ScalarValue::Utf8
-);
-make_last_selector!(
-    BooleanLastSelector,
-    bool,
-    DataType::Boolean,
-    BooleanArray,
-    array_max,
-    ScalarValue::Boolean
-);
-
 // MIN
 
 make_min_selector!(
     F64MinSelector,
     f64,
-    DataType::Float64,
     Float64Array,
     array_min,
     ScalarValue::Float64
@@ -714,7 +545,6 @@ make_min_selector!(
 make_min_selector!(
     I64MinSelector,
     i64,
-    DataType::Int64,
     Int64Array,
     array_min,
     ScalarValue::Int64
@@ -722,7 +552,6 @@ make_min_selector!(
 make_min_selector!(
     U64MinSelector,
     u64,
-    DataType::UInt64,
     UInt64Array,
     array_min,
     ScalarValue::UInt64
@@ -730,7 +559,6 @@ make_min_selector!(
 make_min_selector!(
     Utf8MinSelector,
     String,
-    DataType::Utf8,
     StringArray,
     array_min_string,
     ScalarValue::Utf8
@@ -738,7 +566,6 @@ make_min_selector!(
 make_min_selector!(
     BooleanMinSelector,
     bool,
-    DataType::Boolean,
     BooleanArray,
     array_min_boolean,
     ScalarValue::Boolean
@@ -749,7 +576,6 @@ make_min_selector!(
 make_max_selector!(
     F64MaxSelector,
     f64,
-    DataType::Float64,
     Float64Array,
     array_max,
     ScalarValue::Float64
@@ -757,7 +583,6 @@ make_max_selector!(
 make_max_selector!(
     I64MaxSelector,
     i64,
-    DataType::Int64,
     Int64Array,
     array_max,
     ScalarValue::Int64
@@ -765,7 +590,6 @@ make_max_selector!(
 make_max_selector!(
     U64MaxSelector,
     u64,
-    DataType::UInt64,
     UInt64Array,
     array_max,
     ScalarValue::UInt64
@@ -773,7 +597,6 @@ make_max_selector!(
 make_max_selector!(
     Utf8MaxSelector,
     String,
-    DataType::Utf8,
     StringArray,
     array_max_string,
     ScalarValue::Utf8
@@ -781,7 +604,6 @@ make_max_selector!(
 make_max_selector!(
     BooleanMaxSelector,
     bool,
-    DataType::Boolean,
     BooleanArray,
     array_max_boolean,
     ScalarValue::Boolean

@@ -94,8 +94,6 @@ fn partition_keys<'a>(
                 |col| Template::Column(col, name),
             ),
             TemplatePart::TimeFormat(fmt) => Template::TimeFormat(time, StrftimeItems::new(fmt)),
-            TemplatePart::RegexCapture(_) => unimplemented!(),
-            TemplatePart::StrftimeColumn(_) => unimplemented!(),
         })
         .collect();
 

@@ -69,9 +69,7 @@ use itertools::Itertools;
 use observability_deps::tracing::debug;
 use query_functions::{
     clean_non_meta_escapes,
-    selectors::{
-        struct_selector_first, struct_selector_last, struct_selector_max, struct_selector_min,
-    },
+    selectors::{selector_first, selector_last, selector_max, selector_min},
 };
 use schema::{
     InfluxColumnType, InfluxFieldType, Schema, INFLUXQL_MEASUREMENT_COLUMN_NAME,
@@ -1175,10 +1173,10 @@ impl<'a> InfluxQLToLogicalPlan<'a> {
                 }
 
                 let selector_udf = match name {
-                    "first" => struct_selector_first(),
-                    "last" => struct_selector_last(),
-                    "max" => struct_selector_max(),
-                    "min" => struct_selector_min(),
+                    "first" => selector_first(),
+                    "last" => selector_last(),
+                    "max" => selector_max(),
+                    "min" => selector_min(),
                     _ => unreachable!(),
                 }
                 .call(vec![expr, "time".as_expr()]);

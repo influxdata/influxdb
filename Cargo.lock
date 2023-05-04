@@ -5616,6 +5616,7 @@ dependencies = [
  "http",
  "hyper",
  "influxdb_iox_client",
+ "iox_catalog",
  "mutable_batch_lp",
  "mutable_batch_pb",
  "nix",

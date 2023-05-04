@@ -105,6 +105,7 @@ impl GarbageCollector {
                     osa,
                     tx1,
                     sub_config.objectstore_sleep_interval_minutes,
+                    sub_config.objectstore_sleep_interval_batch_milliseconds,
                 ) => {
                     ret
                 },
