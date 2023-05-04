@@ -48,13 +48,6 @@ OBJECT_STORE=file \
 DATABASE_DIRECTORY=~/data_dir \
 LOG_FILTER=debug \
 ./target/release/influxdb_iox catalog setup
-
-# initialize the topic
-INFLUXDB_IOX_CATALOG_DSN=postgres://postgres@localhost:5432/postgres \
-OBJECT_STORE=file \
-DATABASE_DIRECTORY=~/data_dir \
-LOG_FILTER=debug \
-./target/release/influxdb_iox catalog topic update iox-shared
 ```
 
 ## Inspecting Catalog state

@@ -71,26 +71,6 @@ pub struct Router2Config {
     )]
     pub ingester_addresses: Vec<IngesterAddress>,
 
-    /// Write buffer topic/database that should be used.
-    // This isn't really relevant to the RPC write path and will be removed eventually.
-    #[clap(
-        long = "write-buffer-topic",
-        env = "INFLUXDB_IOX_WRITE_BUFFER_TOPIC",
-        default_value = "iox-shared",
-        action
-    )]
-    pub topic: String,
-
-    /// Query pool name to dispatch writes to.
-    // This isn't really relevant to the RPC write path and will be removed eventually.
-    #[clap(
-        long = "query-pool",
-        env = "INFLUXDB_IOX_QUERY_POOL_NAME",
-        default_value = "iox-shared",
-        action
-    )]
-    pub query_pool_name: String,
-
     /// Retention period to use when auto-creating namespaces.
     /// For infinite retention, leave this unset and it will default to `None`.
     /// Setting it to zero will not make it infinite.

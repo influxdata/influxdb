@@ -1,14 +1,14 @@
 //! Metric instrumentation for catalog implementations.
 
 use crate::interface::{
-    CasFailure, ColumnRepo, NamespaceRepo, ParquetFileRepo, PartitionRepo, QueryPoolRepo,
-    RepoCollection, Result, SoftDeletedRows, TableRepo, TopicMetadataRepo,
+    CasFailure, ColumnRepo, NamespaceRepo, ParquetFileRepo, PartitionRepo, RepoCollection, Result,
+    SoftDeletedRows, TableRepo,
 };
 use async_trait::async_trait;
 use data_types::{
     Column, ColumnType, CompactionLevel, Namespace, NamespaceId, ParquetFile, ParquetFileId,
-    ParquetFileParams, Partition, PartitionId, PartitionKey, QueryPool, QueryPoolId,
-    SkippedCompaction, Table, TableId, Timestamp, TopicId, TopicMetadata,
+    ParquetFileParams, Partition, PartitionId, PartitionKey, SkippedCompaction, Table, TableId,
+    Timestamp,
 };
 use iox_time::{SystemProvider, TimeProvider};
 use metric::{DurationHistogram, Metric};
@@ -41,24 +41,9 @@ impl<T> MetricDecorator<T> {
 
 impl<T, P> RepoCollection for MetricDecorator<T, P>
 where
-    T: TopicMetadataRepo
-        + QueryPoolRepo
-        + NamespaceRepo
-        + TableRepo
-        + ColumnRepo
-        + PartitionRepo
-        + ParquetFileRepo
-        + Debug,
+    T: NamespaceRepo + TableRepo + ColumnRepo + PartitionRepo + ParquetFileRepo + Debug,
     P: TimeProvider,
 {
-    fn topics(&mut self) -> &mut dyn TopicMetadataRepo {
-        self
-    }
-
-    fn query_pools(&mut self) -> &mut dyn QueryPoolRepo {
-        self
-    }
-
     fn namespaces(&mut self) -> &mut dyn NamespaceRepo {
         self
     }
@@ -144,24 +129,9 @@ macro_rules! decorate {
 }
 
 decorate!(
-    impl_trait = TopicMetadataRepo,
-    methods = [
-        "topic_create_or_get" = create_or_get(&mut self, name: &str) -> Result<TopicMetadata>;
-        "topic_get_by_name" = get_by_name(&mut self, name: &str) -> Result<Option<TopicMetadata>>;
-    ]
-);
-
-decorate!(
-    impl_trait = QueryPoolRepo,
-    methods = [
-        "query_create_or_get" = create_or_get(&mut self, name: &str) -> Result<QueryPool>;
-    ]
-);
-
-decorate!(
     impl_trait = NamespaceRepo,
     methods = [
-        "namespace_create" = create(&mut self, name: &str, retention_period_ns: Option<i64>, topic_id: TopicId, query_pool_id: QueryPoolId) -> Result<Namespace>;
+        "namespace_create" = create(&mut self, name: &str, retention_period_ns: Option<i64>) -> Result<Namespace>;
         "namespace_update_retention_period" = update_retention_period(&mut self, name: &str, retention_period_ns: Option<i64>) -> Result<Namespace>;
         "namespace_list" = list(&mut self, deleted: SoftDeletedRows) -> Result<Vec<Namespace>>;
         "namespace_get_by_id" = get_by_id(&mut self, id: NamespaceId, deleted: SoftDeletedRows) -> Result<Option<Namespace>>;

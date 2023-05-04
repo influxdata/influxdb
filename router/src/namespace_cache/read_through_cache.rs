@@ -98,7 +98,7 @@ where
 #[cfg(test)]
 mod tests {
     use assert_matches::assert_matches;
-    use data_types::{NamespaceId, QueryPoolId, TopicId};
+    use data_types::NamespaceId;
     use iox_catalog::mem::MemCatalog;
 
     use super::*;
@@ -120,8 +120,6 @@ mod tests {
         // Place a schema in the cache for that name
         let schema1 = NamespaceSchema::new(
             NamespaceId::new(1),
-            TopicId::new(2),
-            QueryPoolId::new(3),
             iox_catalog::DEFAULT_MAX_COLUMNS_PER_TABLE,
             iox_catalog::DEFAULT_MAX_TABLES,
             iox_catalog::DEFAULT_RETENTION_PERIOD,
@@ -156,8 +154,6 @@ mod tests {
         // Place a schema in the catalog for that name
         let schema1 = NamespaceSchema::new(
             NamespaceId::new(1),
-            TopicId::new(2),
-            QueryPoolId::new(3),
             iox_catalog::DEFAULT_MAX_COLUMNS_PER_TABLE,
             iox_catalog::DEFAULT_MAX_TABLES,
             iox_catalog::DEFAULT_RETENTION_PERIOD,
@@ -167,12 +163,7 @@ mod tests {
                 .repositories()
                 .await
                 .namespaces()
-                .create(
-                    &ns,
-                    iox_catalog::DEFAULT_RETENTION_PERIOD,
-                    schema1.topic_id,
-                    schema1.query_pool_id,
-                )
+                .create(&ns, iox_catalog::DEFAULT_RETENTION_PERIOD,)
                 .await,
             Ok(_)
         );

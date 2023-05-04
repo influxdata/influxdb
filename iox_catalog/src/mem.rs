@@ -4,18 +4,18 @@
 use crate::{
     interface::{
         CasFailure, Catalog, ColumnRepo, ColumnTypeMismatchSnafu, Error, NamespaceRepo,
-        ParquetFileRepo, PartitionRepo, QueryPoolRepo, RepoCollection, Result, SoftDeletedRows,
-        TableRepo, TopicMetadataRepo, MAX_PARQUET_FILES_SELECTED_ONCE,
+        ParquetFileRepo, PartitionRepo, RepoCollection, Result, SoftDeletedRows, TableRepo,
+        MAX_PARQUET_FILES_SELECTED_ONCE,
     },
-    kafkaless_transition::{Shard, TRANSITION_SHARD_ID, TRANSITION_SHARD_INDEX},
+    kafkaless_transition::{Shard, SHARED_TOPIC_ID, TRANSITION_SHARD_ID, TRANSITION_SHARD_INDEX},
     metrics::MetricDecorator,
-    DEFAULT_MAX_COLUMNS_PER_TABLE, DEFAULT_MAX_TABLES, SHARED_TOPIC_ID, SHARED_TOPIC_NAME,
+    DEFAULT_MAX_COLUMNS_PER_TABLE, DEFAULT_MAX_TABLES,
 };
 use async_trait::async_trait;
 use data_types::{
     Column, ColumnId, ColumnType, CompactionLevel, Namespace, NamespaceId, ParquetFile,
-    ParquetFileId, ParquetFileParams, Partition, PartitionId, PartitionKey, QueryPool, QueryPoolId,
-    SkippedCompaction, Table, TableId, Timestamp, TopicId, TopicMetadata,
+    ParquetFileId, ParquetFileParams, Partition, PartitionId, PartitionKey, SkippedCompaction,
+    Table, TableId, Timestamp,
 };
 use iox_time::{SystemProvider, TimeProvider};
 use snafu::ensure;
@@ -62,8 +62,6 @@ impl std::fmt::Debug for MemCatalog {
 
 #[derive(Default, Debug, Clone)]
 struct MemCollections {
-    topics: Vec<TopicMetadata>,
-    query_pools: Vec<QueryPool>,
     namespaces: Vec<Namespace>,
     tables: Vec<Table>,
     columns: Vec<Column>,
@@ -98,18 +96,10 @@ impl Catalog for MemCatalog {
         let mut guard = Arc::clone(&self.collections).lock_owned().await;
         let mut stage = guard.clone();
 
-        // We need to manually insert the topic here so that we can create the transition shard
-        // below.
-        let topic = TopicMetadata {
-            id: SHARED_TOPIC_ID,
-            name: SHARED_TOPIC_NAME.to_string(),
-        };
-        stage.topics.push(topic.clone());
-
         // The transition shard must exist and must have magic ID and INDEX.
         let shard = Shard {
             id: TRANSITION_SHARD_ID,
-            topic_id: topic.id,
+            topic_id: SHARED_TOPIC_ID,
             shard_index: TRANSITION_SHARD_INDEX,
         };
         stage.shards.push(shard);
@@ -139,14 +129,6 @@ impl Catalog for MemCatalog {
 
 #[async_trait]
 impl RepoCollection for MemTxn {
-    fn topics(&mut self) -> &mut dyn TopicMetadataRepo {
-        self
-    }
-
-    fn query_pools(&mut self) -> &mut dyn QueryPoolRepo {
-        self
-    }
-
     fn namespaces(&mut self) -> &mut dyn NamespaceRepo {
         self
     }
@@ -169,63 +151,8 @@ impl RepoCollection for MemTxn {
 }
 
 #[async_trait]
-impl TopicMetadataRepo for MemTxn {
-    async fn create_or_get(&mut self, name: &str) -> Result<TopicMetadata> {
-        let stage = self.stage();
-
-        let topic = match stage.topics.iter().find(|t| t.name == name) {
-            Some(t) => t,
-            None => {
-                let topic = TopicMetadata {
-                    id: TopicId::new(stage.topics.len() as i64 + 1),
-                    name: name.to_string(),
-                };
-                stage.topics.push(topic);
-                stage.topics.last().unwrap()
-            }
-        };
-
-        Ok(topic.clone())
-    }
-
-    async fn get_by_name(&mut self, name: &str) -> Result<Option<TopicMetadata>> {
-        let stage = self.stage();
-
-        let topic = stage.topics.iter().find(|t| t.name == name).cloned();
-        Ok(topic)
-    }
-}
-
-#[async_trait]
-impl QueryPoolRepo for MemTxn {
-    async fn create_or_get(&mut self, name: &str) -> Result<QueryPool> {
-        let stage = self.stage();
-
-        let pool = match stage.query_pools.iter().find(|t| t.name == name) {
-            Some(t) => t,
-            None => {
-                let pool = QueryPool {
-                    id: QueryPoolId::new(stage.query_pools.len() as i64 + 1),
-                    name: name.to_string(),
-                };
-                stage.query_pools.push(pool);
-                stage.query_pools.last().unwrap()
-            }
-        };
-
-        Ok(pool.clone())
-    }
-}
-
-#[async_trait]
 impl NamespaceRepo for MemTxn {
-    async fn create(
-        &mut self,
-        name: &str,
-        retention_period_ns: Option<i64>,
-        topic_id: TopicId,
-        query_pool_id: QueryPoolId,
-    ) -> Result<Namespace> {
+    async fn create(&mut self, name: &str, retention_period_ns: Option<i64>) -> Result<Namespace> {
         let stage = self.stage();
 
         if stage.namespaces.iter().any(|n| n.name == name) {
@@ -237,8 +164,6 @@ impl NamespaceRepo for MemTxn {
         let namespace = Namespace {
             id: NamespaceId::new(stage.namespaces.len() as i64 + 1),
             name: name.to_string(),
-            topic_id,
-            query_pool_id,
             max_tables: DEFAULT_MAX_TABLES,
             max_columns_per_table: DEFAULT_MAX_COLUMNS_PER_TABLE,
             retention_period_ns,

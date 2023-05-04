@@ -71,7 +71,7 @@ mod tests {
     use std::sync::Arc;
 
     use assert_matches::assert_matches;
-    use data_types::{NamespaceId, NamespaceSchema, QueryPoolId, TopicId};
+    use data_types::{NamespaceId, NamespaceSchema};
     use iox_catalog::{
         interface::{Catalog, SoftDeletedRows},
         mem::MemCatalog,
@@ -96,8 +96,6 @@ mod tests {
             ns.clone(),
             NamespaceSchema {
                 id: NamespaceId::new(42),
-                topic_id: TopicId::new(2),
-                query_pool_id: QueryPoolId::new(3),
                 tables: Default::default(),
                 max_columns_per_table: 4,
                 max_tables: 42,
@@ -143,11 +141,9 @@ mod tests {
         // Create the namespace in the catalog
         {
             let mut repos = catalog.repositories().await;
-            let topic = repos.topics().create_or_get("bananas").await.unwrap();
-            let query_pool = repos.query_pools().create_or_get("platanos").await.unwrap();
             repos
                 .namespaces()
-                .create(&ns, None, topic.id, query_pool.id)
+                .create(&ns, None)
                 .await
                 .expect("failed to setup catalog state");
         }
@@ -177,11 +173,9 @@ mod tests {
         // Create the namespace in the catalog and mark it as deleted
         {
             let mut repos = catalog.repositories().await;
-            let topic = repos.topics().create_or_get("bananas").await.unwrap();
-            let query_pool = repos.query_pools().create_or_get("platanos").await.unwrap();
             repos
                 .namespaces()
-                .create(&ns, None, topic.id, query_pool.id)
+                .create(&ns, None)
                 .await
                 .expect("failed to setup catalog state");
             repos

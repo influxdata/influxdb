@@ -155,11 +155,9 @@ mod tests {
         let metric_registry = Arc::new(metric::Registry::new());
         let catalog = Arc::new(MemCatalog::new(Arc::clone(&metric_registry)));
         let mut repos = catalog.repositories().await;
-        let topic = repos.topics().create_or_get("foo").await.unwrap();
-        let pool = repos.query_pools().create_or_get("foo").await.unwrap();
         let namespace = repos
             .namespaces()
-            .create("namespace_parquet_file_test", None, topic.id, pool.id)
+            .create("namespace_parquet_file_test", None)
             .await
             .unwrap();
         let table = repos

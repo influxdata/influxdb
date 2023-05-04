@@ -1,6 +1,6 @@
 use std::{iter, string::String, sync::Arc, time::Duration};
 
-use data_types::{PartitionTemplate, QueryPoolId, TableId, TemplatePart, TopicId};
+use data_types::{PartitionTemplate, TableId, TemplatePart};
 use generated_types::influxdata::iox::ingester::v1::WriteRequest;
 use hashbrown::HashMap;
 use hyper::{Body, Request, Response};
@@ -23,14 +23,6 @@ use router::{
         http::{write::multi_tenant::MultiTenantRequestUnifier, HttpDelegate},
     },
 };
-
-/// The topic catalog ID assigned by the namespace auto-creator in the
-/// handler stack for namespaces it has not yet observed.
-pub const TEST_TOPIC_ID: i64 = 1;
-
-/// The query pool catalog ID assigned by the namespace auto-creator in the
-/// handler stack for namespaces it has not yet observed.
-pub const TEST_QUERY_POOL_ID: i64 = 1;
 
 /// Common retention period value we'll use in tests
 pub const TEST_RETENTION_PERIOD: Duration = Duration::from_secs(3600);
@@ -168,8 +160,6 @@ impl TestContext {
             namespace_resolver,
             Arc::clone(&ns_cache),
             Arc::clone(&catalog),
-            TopicId::new(TEST_TOPIC_ID),
-            QueryPoolId::new(TEST_QUERY_POOL_ID),
             namespace_autocreation,
         );
 
@@ -193,12 +183,8 @@ impl TestContext {
             write_request_unifier,
         );
 
-        let grpc_delegate = RpcWriteGrpcDelegate::new(
-            Arc::clone(&catalog),
-            Arc::new(InMemory::default()),
-            TopicId::new(TEST_TOPIC_ID),
-            QueryPoolId::new(TEST_QUERY_POOL_ID),
-        );
+        let grpc_delegate =
+            RpcWriteGrpcDelegate::new(Arc::clone(&catalog), Arc::new(InMemory::default()));
 
         Self {
             client,

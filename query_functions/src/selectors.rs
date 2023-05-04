@@ -112,10 +112,8 @@ use datafusion::{
 /// Internal implementations of the selector functions
 mod internal;
 use internal::{
-    BooleanFirstSelector, BooleanLastSelector, BooleanMaxSelector, BooleanMinSelector,
-    F64FirstSelector, F64LastSelector, F64MaxSelector, F64MinSelector, I64FirstSelector,
-    I64LastSelector, I64MaxSelector, I64MinSelector, U64FirstSelector, U64LastSelector,
-    U64MaxSelector, U64MinSelector, Utf8FirstSelector, Utf8LastSelector, Utf8MaxSelector,
+    BooleanMaxSelector, BooleanMinSelector, F64MaxSelector, F64MinSelector, FirstSelector,
+    I64MaxSelector, I64MinSelector, LastSelector, U64MaxSelector, U64MinSelector, Utf8MaxSelector,
     Utf8MinSelector,
 };
 use schema::TIME_DATA_TYPE;
@@ -255,40 +253,29 @@ impl FactoryBuilder {
 
             let accumulator: Box<dyn Accumulator> = match (selector_type, value_type) {
                 // First
-                (SelectorType::First, DataType::Float64) => {
-                    Box::new(SelectorAccumulator::<F64FirstSelector>::new())
+                (SelectorType::First, value_type) => {
+                    Box::new(SelectorAccumulator::new(FirstSelector::new(value_type)?))
                 }
-                (SelectorType::First, DataType::Int64) => Box::new(SelectorAccumulator::<I64FirstSelector>::new()),
-                (SelectorType::First, DataType::UInt64) => Box::new(SelectorAccumulator::<U64FirstSelector>::new()),
-                (SelectorType::First, DataType::Utf8) => Box::new(SelectorAccumulator::<Utf8FirstSelector>::new()),
-                (SelectorType::First, DataType::Boolean) => Box::new(SelectorAccumulator::<BooleanFirstSelector>::new(
-                )),
 
                 // Last
-                (SelectorType::Last, DataType::Float64) => Box::new(SelectorAccumulator::<F64LastSelector>::new()),
-                (SelectorType::Last, DataType::Int64) => Box::new(SelectorAccumulator::<I64LastSelector>::new()),
-                (SelectorType::Last, DataType::UInt64) => Box::new(SelectorAccumulator::<U64LastSelector>::new()),
-                (SelectorType::Last, DataType::Utf8) => Box::new(SelectorAccumulator::<Utf8LastSelector>::new()),
-                (SelectorType::Last, DataType::Boolean) => {
-                    Box::new(SelectorAccumulator::<BooleanLastSelector>::new())
-                },
+                (SelectorType::Last, data_type) => Box::new(SelectorAccumulator::new(LastSelector::new(data_type)?)),
 
                 // Min
-                (SelectorType::Min, DataType::Float64) => Box::new(SelectorAccumulator::<F64MinSelector>::new()),
-                (SelectorType::Min, DataType::Int64) => Box::new(SelectorAccumulator::<I64MinSelector>::new()),
-                (SelectorType::Min, DataType::UInt64) => Box::new(SelectorAccumulator::<U64MinSelector>::new()),
-                (SelectorType::Min, DataType::Utf8) => Box::new(SelectorAccumulator::<Utf8MinSelector>::new()),
+                (SelectorType::Min, DataType::Float64) => Box::new(SelectorAccumulator::new(F64MinSelector::default())),
+                (SelectorType::Min, DataType::Int64) => Box::new(SelectorAccumulator::new(I64MinSelector::default())),
+                (SelectorType::Min, DataType::UInt64) => Box::new(SelectorAccumulator::new(U64MinSelector::default())),
+                (SelectorType::Min, DataType::Utf8) => Box::new(SelectorAccumulator::new(Utf8MinSelector::default())),
                 (SelectorType::Min, DataType::Boolean) => {
-                    Box::new(SelectorAccumulator::<BooleanMinSelector>::new())
+                    Box::new(SelectorAccumulator::<>::new(BooleanMinSelector::default()))
                 },
 
                 // Max
-                (SelectorType::Max, DataType::Float64) => Box::new(SelectorAccumulator::<F64MaxSelector>::new()),
-                (SelectorType::Max, DataType::Int64) => Box::new(SelectorAccumulator::<I64MaxSelector>::new()),
-                (SelectorType::Max, DataType::UInt64) => Box::new(SelectorAccumulator::<U64MaxSelector>::new()),
-                (SelectorType::Max, DataType::Utf8) => Box::new(SelectorAccumulator::<Utf8MaxSelector>::new()),
+                (SelectorType::Max, DataType::Float64) => Box::new(SelectorAccumulator::new(F64MaxSelector::default())),
+                (SelectorType::Max, DataType::Int64) => Box::new(SelectorAccumulator::new(I64MaxSelector::default())),
+                (SelectorType::Max, DataType::UInt64) => Box::new(SelectorAccumulator::new(U64MaxSelector::default())),
+                (SelectorType::Max, DataType::Utf8) => Box::new(SelectorAccumulator::new(Utf8MaxSelector::default())),
                 (SelectorType::Max, DataType::Boolean) => {
-                    Box::new(SelectorAccumulator::<BooleanMaxSelector>::new())
+                    Box::new(SelectorAccumulator::new(BooleanMaxSelector::default()))
                 },
                 // Catch
                 (selector_type, value_type) => return Err(DataFusionError::Internal(format!(
@@ -303,7 +290,7 @@ impl FactoryBuilder {
 /// Implements the logic of the specific selector function (this is a
 /// cutdown version of the Accumulator DataFusion trait, to allow
 /// sharing between implementations)
-trait Selector: Debug + Default + Send + Sync {
+trait Selector: Debug + Send + Sync {
     /// return state in a form that DataFusion can store during execution
     fn datafusion_state(&self) -> DataFusionResult<Vec<ScalarValue>>;
 
@@ -412,10 +399,8 @@ impl<SELECTOR> SelectorAccumulator<SELECTOR>
 where
     SELECTOR: Selector,
 {
-    pub fn new() -> Self {
-        Self {
-            selector: SELECTOR::default(),
-        }
+    pub fn new(selector: SELECTOR) -> Self {
+        Self { selector }
     }
 }
 

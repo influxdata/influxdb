@@ -40,17 +40,5 @@ pub async fn initialize_db(dsn: &str, schema_name: &str) {
         .ok()
         .unwrap();
 
-    // Create the shared topic in the catalog
-    Command::cargo_bin("influxdb_iox")
-        .unwrap()
-        .arg("catalog")
-        .arg("topic")
-        .arg("update")
-        .arg("iox-shared")
-        .env("INFLUXDB_IOX_CATALOG_DSN", dsn)
-        .env("INFLUXDB_IOX_CATALOG_POSTGRES_SCHEMA_NAME", schema_name)
-        .ok()
-        .unwrap();
-
     init.insert(schema_name.into());
 }

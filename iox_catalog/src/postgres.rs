@@ -3,18 +3,21 @@
 use crate::{
     interface::{
         self, CasFailure, Catalog, ColumnRepo, ColumnTypeMismatchSnafu, Error, NamespaceRepo,
-        ParquetFileRepo, PartitionRepo, QueryPoolRepo, RepoCollection, Result, SoftDeletedRows,
-        TableRepo, TopicMetadataRepo, MAX_PARQUET_FILES_SELECTED_ONCE,
+        ParquetFileRepo, PartitionRepo, RepoCollection, Result, SoftDeletedRows, TableRepo,
+        MAX_PARQUET_FILES_SELECTED_ONCE,
     },
-    kafkaless_transition::{TRANSITION_SHARD_ID, TRANSITION_SHARD_INDEX},
+    kafkaless_transition::{
+        SHARED_QUERY_POOL, SHARED_QUERY_POOL_ID, SHARED_TOPIC_ID, SHARED_TOPIC_NAME,
+        TRANSITION_SHARD_ID, TRANSITION_SHARD_INDEX,
+    },
     metrics::MetricDecorator,
-    DEFAULT_MAX_COLUMNS_PER_TABLE, DEFAULT_MAX_TABLES, SHARED_TOPIC_ID, SHARED_TOPIC_NAME,
+    DEFAULT_MAX_COLUMNS_PER_TABLE, DEFAULT_MAX_TABLES,
 };
 use async_trait::async_trait;
 use data_types::{
     Column, ColumnType, CompactionLevel, Namespace, NamespaceId, ParquetFile, ParquetFileId,
-    ParquetFileParams, Partition, PartitionId, PartitionKey, QueryPool, QueryPoolId,
-    SkippedCompaction, Table, TableId, Timestamp, TopicId, TopicMetadata,
+    ParquetFileParams, Partition, PartitionId, PartitionKey, SkippedCompaction, Table, TableId,
+    Timestamp,
 };
 use iox_time::{SystemProvider, TimeProvider};
 use observability_deps::tracing::{debug, info, warn};
@@ -240,7 +243,8 @@ impl Catalog for PostgresCatalog {
             .await
             .map_err(|e| Error::Setup { source: e.into() })?;
 
-        // We need to manually insert the topic here so that we can create the transition shard below.
+        // We need to manually insert the topic here so that we can create the transition shard
+        // below.
         sqlx::query(
             r#"
 INSERT INTO topic (name)
@@ -267,6 +271,21 @@ DO NOTHING;
         .bind(TRANSITION_SHARD_ID)
         .bind(SHARED_TOPIC_ID)
         .bind(TRANSITION_SHARD_INDEX)
+        .execute(&self.pool)
+        .await
+        .map_err(|e| Error::Setup { source: e })?;
+
+        // We need to manually insert the query pool here so that we can create namespaces that
+        // reference it.
+        sqlx::query(
+            r#"
+INSERT INTO query_pool (name)
+VALUES ($1)
+ON CONFLICT ON CONSTRAINT query_pool_name_unique
+DO NOTHING;
+        "#,
+        )
+        .bind(SHARED_QUERY_POOL)
         .execute(&self.pool)
         .await
         .map_err(|e| Error::Setup { source: e })?;
@@ -458,14 +477,6 @@ fn get_dsn_file_path(dsn: &str) -> Option<String> {
 
 #[async_trait]
 impl RepoCollection for PostgresTxn {
-    fn topics(&mut self) -> &mut dyn TopicMetadataRepo {
-        self
-    }
-
-    fn query_pools(&mut self) -> &mut dyn QueryPoolRepo {
-        self
-    }
-
     fn namespaces(&mut self) -> &mut dyn NamespaceRepo {
         self
     }
@@ -488,87 +499,18 @@ impl RepoCollection for PostgresTxn {
 }
 
 #[async_trait]
-impl TopicMetadataRepo for PostgresTxn {
-    async fn create_or_get(&mut self, name: &str) -> Result<TopicMetadata> {
-        let rec = sqlx::query_as::<_, TopicMetadata>(
-            r#"
-INSERT INTO topic ( name )
-VALUES ( $1 )
-ON CONFLICT ON CONSTRAINT topic_name_unique
-DO UPDATE SET name = topic.name
-RETURNING *;
-        "#,
-        )
-        .bind(name) // $1
-        .fetch_one(&mut self.inner)
-        .await
-        .map_err(|e| Error::SqlxError { source: e })?;
-
-        Ok(rec)
-    }
-
-    async fn get_by_name(&mut self, name: &str) -> Result<Option<TopicMetadata>> {
-        let rec = sqlx::query_as::<_, TopicMetadata>(
-            r#"
-SELECT *
-FROM topic
-WHERE name = $1;
-        "#,
-        )
-        .bind(name) // $1
-        .fetch_one(&mut self.inner)
-        .await;
-
-        if let Err(sqlx::Error::RowNotFound) = rec {
-            return Ok(None);
-        }
-
-        let topic = rec.map_err(|e| Error::SqlxError { source: e })?;
-
-        Ok(Some(topic))
-    }
-}
-
-#[async_trait]
-impl QueryPoolRepo for PostgresTxn {
-    async fn create_or_get(&mut self, name: &str) -> Result<QueryPool> {
-        let rec = sqlx::query_as::<_, QueryPool>(
-            r#"
-INSERT INTO query_pool ( name )
-VALUES ( $1 )
-ON CONFLICT ON CONSTRAINT query_pool_name_unique
-DO UPDATE SET name = query_pool.name
-RETURNING *;
-        "#,
-        )
-        .bind(name) // $1
-        .fetch_one(&mut self.inner)
-        .await
-        .map_err(|e| Error::SqlxError { source: e })?;
-
-        Ok(rec)
-    }
-}
-
-#[async_trait]
 impl NamespaceRepo for PostgresTxn {
-    async fn create(
-        &mut self,
-        name: &str,
-        retention_period_ns: Option<i64>,
-        topic_id: TopicId,
-        query_pool_id: QueryPoolId,
-    ) -> Result<Namespace> {
+    async fn create(&mut self, name: &str, retention_period_ns: Option<i64>) -> Result<Namespace> {
         let rec = sqlx::query_as::<_, Namespace>(
             r#"
                 INSERT INTO namespace ( name, topic_id, query_pool_id, retention_period_ns, max_tables )
                 VALUES ( $1, $2, $3, $4, $5 )
-                RETURNING *;
+                RETURNING id, name, retention_period_ns, max_tables, max_columns_per_table, deleted_at;
             "#,
         )
         .bind(name) // $1
-        .bind(topic_id) // $2
-        .bind(query_pool_id) // $3
+        .bind(SHARED_TOPIC_ID) // $2
+        .bind(SHARED_QUERY_POOL_ID) // $3
         .bind(retention_period_ns) // $4
         .bind(DEFAULT_MAX_TABLES); // $5
 
@@ -594,7 +536,11 @@ impl NamespaceRepo for PostgresTxn {
     async fn list(&mut self, deleted: SoftDeletedRows) -> Result<Vec<Namespace>> {
         let rec = sqlx::query_as::<_, Namespace>(
             format!(
-                r#"SELECT * FROM namespace WHERE {v};"#,
+                r#"
+SELECT id, name, retention_period_ns, max_tables, max_columns_per_table, deleted_at
+FROM namespace
+WHERE {v};
+                "#,
                 v = deleted.as_sql_predicate()
             )
             .as_str(),
@@ -613,7 +559,11 @@ impl NamespaceRepo for PostgresTxn {
     ) -> Result<Option<Namespace>> {
         let rec = sqlx::query_as::<_, Namespace>(
             format!(
-                r#"SELECT * FROM namespace WHERE id=$1 AND {v};"#,
+                r#"
+SELECT id, name, retention_period_ns, max_tables, max_columns_per_table, deleted_at
+FROM namespace
+WHERE id=$1 AND {v};
+                "#,
                 v = deleted.as_sql_predicate()
             )
             .as_str(),
@@ -638,7 +588,11 @@ impl NamespaceRepo for PostgresTxn {
     ) -> Result<Option<Namespace>> {
         let rec = sqlx::query_as::<_, Namespace>(
             format!(
-                r#"SELECT * FROM namespace WHERE name=$1 AND {v};"#,
+                r#"
+SELECT id, name, retention_period_ns, max_tables, max_columns_per_table, deleted_at
+FROM namespace
+WHERE name=$1 AND {v};
+                "#,
                 v = deleted.as_sql_predicate()
             )
             .as_str(),
@@ -675,7 +629,7 @@ impl NamespaceRepo for PostgresTxn {
 UPDATE namespace
 SET max_tables = $1
 WHERE name = $2
-RETURNING *;
+RETURNING id, name, retention_period_ns, max_tables, max_columns_per_table, deleted_at;
         "#,
         )
         .bind(new_max)
@@ -699,7 +653,7 @@ RETURNING *;
 UPDATE namespace
 SET max_columns_per_table = $1
 WHERE name = $2
-RETURNING *;
+RETURNING id, name, retention_period_ns, max_tables, max_columns_per_table, deleted_at;
         "#,
         )
         .bind(new_max)
@@ -723,7 +677,12 @@ RETURNING *;
         retention_period_ns: Option<i64>,
     ) -> Result<Namespace> {
         let rec = sqlx::query_as::<_, Namespace>(
-            r#"UPDATE namespace SET retention_period_ns = $1 WHERE name = $2 RETURNING *;"#,
+            r#"
+UPDATE namespace
+SET retention_period_ns = $1
+WHERE name = $2
+RETURNING id, name, retention_period_ns, max_tables, max_columns_per_table, deleted_at;
+        "#,
         )
         .bind(retention_period_ns) // $1
         .bind(name) // $2
@@ -1567,7 +1526,7 @@ INSERT INTO parquet_file (
     shard_id, table_id, partition_id, object_store_id,
     min_time, max_time, file_size_bytes,
     row_count, compaction_level, created_at, namespace_id, column_set, max_l0_created_at )
-VALUES ( $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14 )
+VALUES ( $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13 )
 RETURNING
     id, table_id, partition_id, object_store_id,
     min_time, max_time, to_delete, file_size_bytes,
@@ -1681,13 +1640,12 @@ fn is_fk_violation(e: &sqlx::Error) -> bool {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::create_or_get_default_records;
     use assert_matches::assert_matches;
     use data_types::{ColumnId, ColumnSet};
     use metric::{Attributes, DurationHistogram, Metric};
     use rand::Rng;
     use sqlx::migrate::MigrateDatabase;
-    use std::{env, io::Write, ops::DerefMut, sync::Arc, time::Instant};
+    use std::{env, io::Write, sync::Arc, time::Instant};
     use tempfile::NamedTempFile;
 
     // Helper macro to skip tests if TEST_INTEGRATION and TEST_INFLUXDB_IOX_CATALOG_DSN environment
@@ -1864,18 +1822,13 @@ mod tests {
         maybe_skip_integration!();
 
         let postgres = setup_db().await;
-
         let postgres: Arc<dyn Catalog> = Arc::new(postgres);
-        let mut txn = postgres.repositories().await;
-        let (kafka, query) = create_or_get_default_records(txn.deref_mut())
-            .await
-            .expect("db init failed");
 
         let namespace_id = postgres
             .repositories()
             .await
             .namespaces()
-            .create("ns4", None, kafka.id, query.id)
+            .create("ns4", None)
             .await
             .expect("namespace create failed")
             .id;
@@ -2007,18 +1960,13 @@ mod tests {
 
                     let postgres = setup_db().await;
                     let metrics = Arc::clone(&postgres.metrics);
-
                     let postgres: Arc<dyn Catalog> = Arc::new(postgres);
-                    let mut txn = postgres.repositories().await;
-                    let (kafka, query) = create_or_get_default_records(txn.deref_mut())
-                        .await
-                        .expect("db init failed");
 
                     let namespace_id = postgres
                         .repositories()
                         .await
                         .namespaces()
-                        .create("ns4", None, kafka.id, query.id)
+                        .create("ns4", None)
                         .await
                         .expect("namespace create failed")
                         .id;
@@ -2175,18 +2123,13 @@ mod tests {
 
         let postgres = setup_db().await;
         let pool = postgres.pool.clone();
-
         let postgres: Arc<dyn Catalog> = Arc::new(postgres);
-        let mut txn = postgres.repositories().await;
-        let (kafka, query) = create_or_get_default_records(txn.deref_mut())
-            .await
-            .expect("db init failed");
 
         let namespace_id = postgres
             .repositories()
             .await
             .namespaces()
-            .create("ns4", None, kafka.id, query.id)
+            .create("ns4", None)
             .await
             .expect("namespace create failed")
             .id;

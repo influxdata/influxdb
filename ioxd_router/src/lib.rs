@@ -64,9 +64,6 @@ pub enum Error {
     #[error("Catalog DSN error: {0}")]
     CatalogDsn(#[from] clap_blocks::catalog_dsn::Error),
 
-    #[error("No topic named '{topic_name}' found in the catalog")]
-    TopicCatalogLookup { topic_name: String },
-
     #[error("authz configuration error for '{addr}': '{source}'")]
     AuthzConfig {
         source: Box<dyn std::error::Error>,
@@ -273,46 +270,10 @@ pub async fn create_router2_server_type(
     // Initialise the Namespace ID lookup + cache
     let namespace_resolver = NamespaceSchemaResolver::new(Arc::clone(&ns_cache));
 
-    ////////////////////////////////////////////////////////////////////////////
-    //
-    // THIS CODE IS FOR TESTING ONLY.
-    //
-    // The source of truth for the topics & query pools will be read from
-    // the DB, rather than CLI args for a prod deployment.
-    //
-    ////////////////////////////////////////////////////////////////////////////
-    //
-    // Look up the topic ID needed to populate namespace creation
-    // requests.
-    //
-    // This code / auto-creation is for architecture testing purposes only - a
-    // prod deployment would expect namespaces to be explicitly created and this
-    // layer would be removed.
-    let mut txn = catalog.repositories().await;
-    let topic_id = txn
-        .topics()
-        .get_by_name(&router_config.topic)
-        .await?
-        .map(|v| v.id)
-        .unwrap_or_else(|| panic!("no topic named {} in catalog", router_config.topic));
-    let query_id = txn
-        .query_pools()
-        .create_or_get(&router_config.query_pool_name)
-        .await
-        .map(|v| v.id)
-        .unwrap_or_else(|e| {
-            panic!(
-                "failed to upsert query pool {} in catalog: {}",
-                router_config.query_pool_name, e
-            )
-        });
-
     let namespace_resolver = NamespaceAutocreation::new(
         namespace_resolver,
         Arc::clone(&ns_cache),
         Arc::clone(&catalog),
-        topic_id,
-        query_id,
         {
             if router_config.namespace_autocreation_enabled {
                 MissingNamespaceAction::AutoCreate(
@@ -394,7 +355,7 @@ pub async fn create_router2_server_type(
     // Initialize the gRPC API delegate that creates the services relevant to the RPC
     // write router path and use it to create the relevant `RpcWriteRouterServer` and
     // `RpcWriteRouterServerType`.
-    let grpc = RpcWriteGrpcDelegate::new(catalog, object_store, topic_id, query_id);
+    let grpc = RpcWriteGrpcDelegate::new(catalog, object_store);
 
     let router_server =
         RpcWriteRouterServer::new(http, grpc, metrics, common_state.trace_collector());
@@ -434,13 +395,7 @@ mod tests {
         let catalog = Arc::new(MemCatalog::new(Default::default()));
 
         let mut repos = catalog.repositories().await;
-        let topic = repos.topics().create_or_get("foo").await.unwrap();
-        let pool = repos.query_pools().create_or_get("foo").await.unwrap();
-        let namespace = repos
-            .namespaces()
-            .create("test_ns", None, topic.id, pool.id)
-            .await
-            .unwrap();
+        let namespace = repos.namespaces().create("test_ns", None).await.unwrap();
 
         let table = repos
             .tables()
