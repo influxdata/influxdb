@@ -432,6 +432,18 @@ async fn new_raw_pool(
     Ok(pool)
 }
 
+/// Parse a postgres catalog dsn, handling the special `dsn-file://`
+/// syntax (see [`new_pool`] for more details).
+///
+/// Returns an error if the dsn-file could not be read correctly.
+pub fn parse_dsn(dsn: &str) -> Result<String, sqlx::Error> {
+    let dsn = match get_dsn_file_path(dsn) {
+        Some(filename) => std::fs::read_to_string(filename)?,
+        None => dsn.to_string(),
+    };
+    Ok(dsn)
+}
+
 /// Creates a new HotSwapPool
 ///
 /// This function understands the IDPE specific `dsn-file://` dsn uri scheme
@@ -447,10 +459,7 @@ async fn new_raw_pool(
 async fn new_pool(
     options: &PostgresConnectionOptions,
 ) -> Result<HotSwapPool<Postgres>, sqlx::Error> {
-    let parsed_dsn = match get_dsn_file_path(&options.dsn) {
-        Some(filename) => std::fs::read_to_string(filename)?,
-        None => options.dsn.clone(),
-    };
+    let parsed_dsn = parse_dsn(&options.dsn)?;
     let pool = HotSwapPool::new(new_raw_pool(options, &parsed_dsn).await?);
     let polling_interval = options.hotswap_poll_interval;
 
