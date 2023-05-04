@@ -70,6 +70,7 @@ impl namespace_service_server::NamespaceService for NamespaceService {
         let CreateNamespaceRequest {
             name: namespace_name,
             retention_period_ns,
+            partition_template: _,
         } = request.into_inner();
 
         // Ensure the namespace name is consistently processed within IOx - this
@@ -363,6 +364,7 @@ mod tests {
         let req = CreateNamespaceRequest {
             name: NS_NAME.to_string(),
             retention_period_ns: Some(RETENTION),
+            partition_template: None,
         };
         let created_ns = handler
             .create_namespace(Request::new(req))
@@ -486,6 +488,7 @@ mod tests {
         let req = CreateNamespaceRequest {
             name: NS_NAME.to_string(),
             retention_period_ns: Some(RETENTION),
+            partition_template: None,
         };
         let created_ns = handler
             .create_namespace(Request::new(req))
@@ -545,6 +548,7 @@ mod tests {
                     let req = CreateNamespaceRequest {
                         name: String::from($name),
                         retention_period_ns: Some(RETENTION),
+                        partition_template: None,
                     };
 
                     let got = handler.create_namespace(Request::new(req)).await;

@@ -50,6 +50,7 @@ impl Client {
             .create_namespace(CreateNamespaceRequest {
                 name: namespace.to_string(),
                 retention_period_ns,
+                partition_template: None,
             })
             .await?;
 
