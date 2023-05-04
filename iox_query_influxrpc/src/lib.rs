@@ -38,9 +38,7 @@ use predicate::{
 use query_functions::{
     group_by::{Aggregate, WindowDuration},
     make_window_bound_expr,
-    selectors::{
-        struct_selector_first, struct_selector_last, struct_selector_max, struct_selector_min,
-    },
+    selectors::{selector_first, selector_last, selector_max, selector_min},
 };
 use schema::{InfluxColumnType, Projection, Schema, TIME_COLUMN_NAME};
 use snafu::{ensure, OptionExt, ResultExt, Snafu};
@@ -1873,10 +1871,10 @@ fn make_agg_expr(agg: Aggregate, field_expr: FieldExpr<'_>) -> Result<Expr> {
 ///
 fn make_selector_expr(agg: Aggregate, field: FieldExpr<'_>) -> Result<Expr> {
     let uda = match agg {
-        Aggregate::First => struct_selector_first(),
-        Aggregate::Last => struct_selector_last(),
-        Aggregate::Min => struct_selector_min(),
-        Aggregate::Max => struct_selector_max(),
+        Aggregate::First => selector_first(),
+        Aggregate::Last => selector_last(),
+        Aggregate::Min => selector_min(),
+        Aggregate::Max => selector_max(),
         _ => return InternalAggregateNotSelectorSnafu { agg }.fail(),
     };
 
