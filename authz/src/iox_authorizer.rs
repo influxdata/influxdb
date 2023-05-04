@@ -118,3 +118,71 @@ impl From<tonic::Status> for Error {
         Self::verification(value.message(), value.clone())
     }
 }
+
+#[cfg(test)]
+mod test {
+    use assert_matches::assert_matches;
+    use test_helpers_end_to_end::Authorizer as AuthorizerServer;
+
+    use super::*;
+    use crate::{Action, Authorizer, Permission, Resource};
+
+    const NAMESPACE: &str = "bananas";
+
+    macro_rules! test_iox_authorizer {
+        (
+            $name:ident,
+            token_permissions = $token_permissions:expr,
+            permissions_required = $permissions_required:expr,
+            want = $want:pat
+        ) => {
+            paste::paste! {
+                #[tokio::test]
+                async fn [<test_iox_authorizer_ $name>]() {
+                    let mut authz_server = AuthorizerServer::create().await;
+                    let authz = IoxAuthorizer::connect_lazy(authz_server.addr())
+                            .expect("Failed to create IoxAuthorizer client.");
+
+                    let token = authz_server.create_token_for(NAMESPACE, $token_permissions);
+
+                    let got = authz.permissions(
+                        Some(token.as_bytes().to_vec()),
+                        $permissions_required
+                    ).await;
+
+                    assert_matches!(got, $want);
+                }
+            }
+        };
+    }
+
+    test_iox_authorizer!(
+        ok,
+        token_permissions = &["ACTION_WRITE"],
+        permissions_required = &[Permission::ResourceAction(
+            Resource::Database(NAMESPACE.to_string()),
+            Action::Write,
+        )],
+        want = Ok(_)
+    );
+
+    test_iox_authorizer!(
+        insufficient_perms,
+        token_permissions = &["ACTION_READ"],
+        permissions_required = &[Permission::ResourceAction(
+            Resource::Database(NAMESPACE.to_string()),
+            Action::Write,
+        )],
+        want = Err(Error::Forbidden)
+    );
+
+    test_iox_authorizer!(
+        any_of_required_perms,
+        token_permissions = &["ACTION_WRITE"],
+        permissions_required = &[
+            Permission::ResourceAction(Resource::Database(NAMESPACE.to_string()), Action::Write,),
+            Permission::ResourceAction(Resource::Database(NAMESPACE.to_string()), Action::Create,)
+        ],
+        want = Ok(_)
+    );
+}
