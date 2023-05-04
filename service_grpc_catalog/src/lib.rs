@@ -172,7 +172,6 @@ fn to_parquet_file(p: data_types::ParquetFile) -> ParquetFile {
         table_id: p.table_id.get(),
         partition_id: p.partition_id.get(),
         object_store_id: p.object_store_id.to_string(),
-        max_sequence_number: p.max_sequence_number.get(),
         min_time: p.min_time.get(),
         max_time: p.max_time.get(),
         to_delete: p.to_delete.map(|t| t.get()).unwrap_or(0),
@@ -198,9 +197,7 @@ fn to_partition(p: data_types::Partition) -> Partition {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use data_types::{
-        ColumnId, ColumnSet, CompactionLevel, ParquetFileParams, SequenceNumber, Timestamp,
-    };
+    use data_types::{ColumnId, ColumnSet, CompactionLevel, ParquetFileParams, Timestamp};
     use generated_types::influxdata::iox::catalog::v1::catalog_service_server::CatalogService;
     use iox_catalog::mem::MemCatalog;
     use uuid::Uuid;
@@ -241,7 +238,6 @@ mod tests {
                 table_id: table.id,
                 partition_id: partition.id,
                 object_store_id: Uuid::new_v4(),
-                max_sequence_number: SequenceNumber::new(40),
                 min_time: Timestamp::new(1),
                 max_time: Timestamp::new(5),
                 file_size_bytes: 2343,
@@ -253,7 +249,6 @@ mod tests {
             };
             let p2params = ParquetFileParams {
                 object_store_id: Uuid::new_v4(),
-                max_sequence_number: SequenceNumber::new(70),
                 ..p1params.clone()
             };
             p1 = repos.parquet_files().create(p1params).await.unwrap();

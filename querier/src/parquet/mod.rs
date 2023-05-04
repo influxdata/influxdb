@@ -1,8 +1,7 @@
 //! Querier Chunks
 
 use data_types::{
-    ChunkId, ChunkOrder, CompactionLevel, DeletePredicate, PartitionId, SequenceNumber,
-    TableSummary,
+    ChunkId, ChunkOrder, CompactionLevel, DeletePredicate, PartitionId, TableSummary,
 };
 use iox_query::util::create_basic_summary;
 use parquet_file::chunk::ParquetChunk;
@@ -29,9 +28,6 @@ pub struct QuerierParquetChunkMeta {
     /// Partition ID.
     partition_id: PartitionId,
 
-    /// The maximum sequence number within this chunk.
-    max_sequence_number: SequenceNumber,
-
     /// Compaction level of the parquet file of the chunk
     compaction_level: CompactionLevel,
 }
@@ -50,11 +46,6 @@ impl QuerierParquetChunkMeta {
     /// Partition ID.
     pub fn partition_id(&self) -> PartitionId {
         self.partition_id
-    }
-
-    /// The maximum sequence number within this chunk.
-    pub fn max_sequence_number(&self) -> SequenceNumber {
-        self.max_sequence_number
     }
 
     /// Compaction level of the parquet file of the chunk

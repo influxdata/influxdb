@@ -96,9 +96,7 @@ impl object_store_service_server::ObjectStoreService for ObjectStoreService {
 mod tests {
     use super::*;
     use bytes::Bytes;
-    use data_types::{
-        ColumnId, ColumnSet, CompactionLevel, ParquetFileParams, SequenceNumber, Timestamp,
-    };
+    use data_types::{ColumnId, ColumnSet, CompactionLevel, ParquetFileParams, Timestamp};
     use generated_types::influxdata::iox::object_store::v1::object_store_service_server::ObjectStoreService;
     use iox_catalog::mem::MemCatalog;
     use object_store::{memory::InMemory, ObjectStore};
@@ -138,7 +136,6 @@ mod tests {
                 table_id: table.id,
                 partition_id: partition.id,
                 object_store_id: Uuid::new_v4(),
-                max_sequence_number: SequenceNumber::new(40),
                 min_time: Timestamp::new(1),
                 max_time: Timestamp::new(5),
                 file_size_bytes: 2343,

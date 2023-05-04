@@ -6,6 +6,7 @@ use std::{sync::Arc, time::Duration};
 
 use data_types::CompactionLevel;
 use object_store::memory::InMemory;
+use observability_deps::tracing::info;
 
 use crate::{
     config::{CompactionType, Config, PartitionsSourceConfig},
@@ -156,6 +157,10 @@ fn make_partitions_source_commit_partition_sink(
     let mut id_only_partition_filters: Vec<Arc<dyn IdOnlyPartitionFilter>> = vec![];
     if let Some(shard_config) = &config.shard_config {
         // add shard filter before performing any catalog IO
+        info!(
+            "starting compactor {} of {}",
+            shard_config.shard_id, shard_config.n_shards
+        );
         id_only_partition_filters.push(Arc::new(ShardPartitionFilter::new(
             shard_config.n_shards,
             shard_config.shard_id,

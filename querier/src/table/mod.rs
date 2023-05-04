@@ -441,15 +441,13 @@ impl QuerierTable {
 // therefore needs to refresh its view of the catalog.
 fn collect_persisted_file_counts(
     capacity: usize,
-    partitions: impl Iterator<Item = (Option<Uuid>, u64)>,
+    partitions: impl Iterator<Item = (Uuid, u64)>,
 ) -> HashMap<Uuid, u64> {
     partitions.fold(
         HashMap::with_capacity(capacity),
         |mut map, (uuid, count)| {
-            if let Some(uuid) = uuid {
-                let sum = map.entry(uuid).or_default();
-                *sum += count;
-            }
+            let sum = map.entry(uuid).or_default();
+            *sum += count;
             map
         },
     )
@@ -463,7 +461,7 @@ mod tests {
         table::test_util::{querier_table, IngesterPartitionBuilder},
     };
     use arrow_util::assert_batches_eq;
-    use data_types::{ChunkId, ColumnType, SequenceNumber};
+    use data_types::{ChunkId, ColumnType};
     use iox_query::exec::IOxSessionContext;
     use iox_tests::{TestCatalog, TestParquetFileBuilder, TestTable};
     use iox_time::TimeProvider;
@@ -481,19 +479,13 @@ mod tests {
             "Expected output to be empty, instead was: {output:?}"
         );
 
-        // If there's no UUIDs, don't count anything
-        let input = [(None, 10)];
+        let uuid1 = Uuid::new_v4();
+        let uuid2 = Uuid::new_v4();
+        let input = [(uuid1, 20), (uuid1, 22), (uuid2, 30)];
         let output = collect_persisted_file_counts(input.len(), input.into_iter());
-        assert!(
-            output.is_empty(),
-            "Expected output to be empty, instead was: {output:?}"
-        );
-
-        let uuid = Uuid::new_v4();
-        let input = [(Some(uuid), 20), (Some(uuid), 22), (None, 10)];
-        let output = collect_persisted_file_counts(input.len(), input.into_iter());
-        assert_eq!(output.len(), 1);
-        assert_eq!(*output.get(&uuid).unwrap(), 42);
+        assert_eq!(output.len(), 2);
+        assert_eq!(*output.get(&uuid1).unwrap(), 42);
+        assert_eq!(*output.get(&uuid2).unwrap(), 30);
     }
 
     #[tokio::test]
@@ -530,7 +522,6 @@ mod tests {
         );
         let builder = TestParquetFileBuilder::default()
             .with_line_protocol(&lp)
-            .with_max_seq(1)
             .with_min_time(outside_retention)
             .with_max_time(inside_retention);
         let file_partially_inside = partition.create_parquet_file(builder).await;
@@ -544,7 +535,6 @@ mod tests {
         );
         let builder = TestParquetFileBuilder::default()
             .with_line_protocol(&lp)
-            .with_max_seq(2)
             .with_min_time(inside_retention)
             .with_max_time(inside_retention);
         let file_fully_inside = partition.create_parquet_file(builder).await;
@@ -558,7 +548,6 @@ mod tests {
         );
         let builder = TestParquetFileBuilder::default()
             .with_line_protocol(&lp)
-            .with_max_seq(3)
             .with_min_time(outside_retention)
             .with_max_time(outside_retention);
         let _file_fully_outside = partition.create_parquet_file(builder).await;
@@ -609,63 +598,54 @@ mod tests {
 
         let builder = TestParquetFileBuilder::default()
             .with_line_protocol("table1 foo=1 11")
-            .with_max_seq(2)
             .with_min_time(11)
             .with_max_time(11);
         let file111 = partition11.create_parquet_file(builder).await;
 
         let builder = TestParquetFileBuilder::default()
             .with_line_protocol("table1 foo=2 22")
-            .with_max_seq(4)
             .with_min_time(22)
             .with_max_time(22);
         let file112 = partition11.create_parquet_file(builder).await;
 
         let builder = TestParquetFileBuilder::default()
             .with_line_protocol("table1 foo=3 33")
-            .with_max_seq(6)
             .with_min_time(33)
             .with_max_time(33);
         let file113 = partition11.create_parquet_file(builder).await;
 
         let builder = TestParquetFileBuilder::default()
             .with_line_protocol("table1 foo=4 44")
-            .with_max_seq(8)
             .with_min_time(44)
             .with_max_time(44);
         let file114 = partition11.create_parquet_file(builder).await;
 
         let builder = TestParquetFileBuilder::default()
             .with_line_protocol("table1 foo=5 55")
-            .with_max_seq(10)
             .with_min_time(55)
             .with_max_time(55);
         let file115 = partition11.create_parquet_file(builder).await;
 
         let builder = TestParquetFileBuilder::default()
             .with_line_protocol("table1 foo=5 55")
-            .with_max_seq(2)
             .with_min_time(55)
             .with_max_time(55);
         let file121 = partition12.create_parquet_file(builder).await;
 
         let builder = TestParquetFileBuilder::default()
             .with_line_protocol("table1 foo=10 100")
-            .with_max_seq(2)
             .with_min_time(99)
             .with_max_time(99);
         let file122 = partition12.create_parquet_file(builder).await;
 
         let builder = TestParquetFileBuilder::default()
             .with_line_protocol("table1 foo=10 100")
-            .with_max_seq(2)
             .with_min_time(100)
             .with_max_time(100);
         let _file123 = partition12.create_parquet_file(builder).await;
 
         let builder = TestParquetFileBuilder::default()
             .with_line_protocol("table2 foo=6 66")
-            .with_max_seq(2)
             .with_min_time(66)
             .with_max_time(66);
         let _file211 = partition21.create_parquet_file(builder).await;
@@ -724,8 +704,7 @@ mod tests {
         let builder = IngesterPartitionBuilder::new(schema, &partition)
             .with_lp(["table,tag1=val1,tag2=val2 foo=3,bar=4 11"]);
 
-        let ingester_partition =
-            builder.build_with_max_parquet_sequence_number(Some(SequenceNumber::new(1)));
+        let ingester_partition = builder.build();
 
         let querier_table = TestQuerierTable::new(&catalog, &table)
             .await
@@ -791,13 +770,10 @@ mod tests {
         let builder = IngesterPartitionBuilder::new(schema, &partition).with_lp(["table foo=1 1"]);
 
         // Parquet file between with max sequence number 2
-        let pf_builder = TestParquetFileBuilder::default()
-            .with_line_protocol("table1 foo=1 11")
-            .with_max_seq(2);
+        let pf_builder = TestParquetFileBuilder::default().with_line_protocol("table1 foo=1 11");
         partition.create_parquet_file(pf_builder).await;
 
-        let ingester_partition =
-            builder.build_with_max_parquet_sequence_number(Some(SequenceNumber::new(2)));
+        let ingester_partition = builder.build();
 
         let querier_table = TestQuerierTable::new(&catalog, &table)
             .await
@@ -808,9 +784,7 @@ mod tests {
         assert_eq!(chunks.len(), 2);
 
         // Now, make a second chunk with max sequence number 3
-        let pf_builder = TestParquetFileBuilder::default()
-            .with_line_protocol("table1 foo=1 22")
-            .with_max_seq(3);
+        let pf_builder = TestParquetFileBuilder::default().with_line_protocol("table1 foo=1 22");
         partition.create_parquet_file(pf_builder).await;
 
         // With the same ingester response, still expect 2 chunks: one
@@ -818,10 +792,8 @@ mod tests {
         let chunks = querier_table.chunks().await.unwrap();
         assert_eq!(chunks.len(), 2);
 
-        // update the ingester response to return a new max parquet
-        // sequence number that includes the new file (3)
-        let ingester_partition =
-            builder.build_with_max_parquet_sequence_number(Some(SequenceNumber::new(3)));
+        // update the ingester response
+        let ingester_partition = builder.build();
 
         let querier_table = querier_table
             .clear_ingester_partitions()

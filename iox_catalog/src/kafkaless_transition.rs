@@ -1,4 +1,4 @@
-use data_types::{SequenceNumber, TopicId};
+use data_types::TopicId;
 
 /// Magic number to be used shard indices and shard ids in "kafkaless".
 pub(crate) const TRANSITION_SHARD_NUMBER: i32 = 1234;
@@ -66,18 +66,4 @@ pub(crate) struct Shard {
     /// the shard index of the shard the sequence numbers are coming from, sharded by the router
     /// and write buffer
     pub(crate) shard_index: ShardIndex,
-    /// The minimum unpersisted sequence number. Because different tables
-    /// can be persisted at different times, it is possible some data has been persisted
-    /// with a higher sequence number than this. However, all data with a sequence number
-    /// lower than this must have been persisted to Parquet.
-    pub(crate) min_unpersisted_sequence_number: SequenceNumber,
-}
-
-/// Shard index plus offset
-#[derive(Debug, Copy, Clone, Eq, PartialEq)]
-pub(crate) struct Sequence {
-    /// The shard index
-    pub(crate) shard_index: ShardIndex,
-    /// The sequence number
-    pub(crate) sequence_number: SequenceNumber,
 }

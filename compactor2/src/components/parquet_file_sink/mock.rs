@@ -4,7 +4,7 @@ use std::{
 };
 
 use async_trait::async_trait;
-use data_types::{ColumnSet, CompactionLevel, ParquetFileParams, SequenceNumber, Timestamp};
+use data_types::{ColumnSet, CompactionLevel, ParquetFileParams, Timestamp};
 use datafusion::{
     arrow::{datatypes::SchemaRef, record_batch::RecordBatch},
     error::DataFusionError,
@@ -72,7 +72,6 @@ impl ParquetFileSink for MockParquetFileSink {
             table_id: partition.table.id,
             partition_id: partition.partition_id,
             object_store_id: Uuid::from_u128(guard.len() as u128),
-            max_sequence_number: SequenceNumber::new(0),
             min_time: Timestamp::new(0),
             max_time: Timestamp::new(0),
             file_size_bytes: 1,
@@ -168,7 +167,6 @@ mod tests {
                 table_id: TableId::new(3),
                 partition_id: PartitionId::new(1),
                 object_store_id: Uuid::from_u128(2),
-                max_sequence_number: SequenceNumber::new(0),
                 min_time: Timestamp::new(0),
                 max_time: Timestamp::new(0),
                 file_size_bytes: 1,
@@ -231,7 +229,6 @@ mod tests {
                 table_id: TableId::new(3),
                 partition_id: PartitionId::new(1),
                 object_store_id: Uuid::from_u128(0),
-                max_sequence_number: SequenceNumber::new(0),
                 min_time: Timestamp::new(0),
                 max_time: Timestamp::new(0),
                 file_size_bytes: 1,

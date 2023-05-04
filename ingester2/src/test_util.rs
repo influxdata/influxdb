@@ -126,7 +126,6 @@ pub(crate) fn arbitrary_partition() -> Partition {
         table_id: ARBITRARY_TABLE_ID,
         partition_key: ARBITRARY_PARTITION_KEY.clone(),
         sort_key: Default::default(),
-        persisted_sequence_number: Default::default(),
         new_file_at: Default::default(),
     }
 }

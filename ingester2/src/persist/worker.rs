@@ -2,7 +2,7 @@ use std::{ops::ControlFlow, sync::Arc};
 
 use async_channel::RecvError;
 use backoff::Backoff;
-use data_types::{CompactionLevel, ParquetFileParams, SequenceNumber};
+use data_types::{CompactionLevel, ParquetFileParams};
 use iox_catalog::interface::{get_table_schema_by_id, CasFailure, Catalog};
 use iox_query::exec::Executor;
 use iox_time::{SystemProvider, TimeProvider};
@@ -263,7 +263,6 @@ where
         table_name: Arc::clone(&*ctx.table_name().get().await),
         partition_id: ctx.partition_id(),
         partition_key: ctx.partition_key().clone(),
-        max_sequence_number: SequenceNumber::new(0), // TODO: not ordered!
         compaction_level: CompactionLevel::Initial,
         sort_key: Some(data_sort_key),
         max_l0_created_at: time_now,

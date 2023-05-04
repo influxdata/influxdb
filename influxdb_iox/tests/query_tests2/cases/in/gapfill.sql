@@ -100,3 +100,11 @@ from cpu
 where time between timestamp '2000-05-05T12:19:00Z' and timestamp '2000-05-05T12:44:00Z'
 group by four_minute;
 
+-- With an aliased aggregate column
+SELECT
+  region,
+  date_bin_gapfill('10 minute', time) as minute,
+  locf(avg(cpu.user)) as locf_avg_user
+from cpu
+where time between timestamp '2000-05-05T12:00:00Z' and timestamp '2000-05-05T12:59:00Z'
+group by region, minute;

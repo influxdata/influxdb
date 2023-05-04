@@ -15,7 +15,7 @@ use async_trait::async_trait;
 use data_types::{
     Column, ColumnId, ColumnType, CompactionLevel, Namespace, NamespaceId, ParquetFile,
     ParquetFileId, ParquetFileParams, Partition, PartitionId, PartitionKey, QueryPool, QueryPoolId,
-    SequenceNumber, SkippedCompaction, Table, TableId, Timestamp, TopicId, TopicMetadata,
+    SkippedCompaction, Table, TableId, Timestamp, TopicId, TopicMetadata,
 };
 use iox_time::{SystemProvider, TimeProvider};
 use snafu::ensure;
@@ -111,7 +111,6 @@ impl Catalog for MemCatalog {
             id: TRANSITION_SHARD_ID,
             topic_id: topic.id,
             shard_index: TRANSITION_SHARD_INDEX,
-            min_unpersisted_sequence_number: SequenceNumber::new(0),
         };
         stage.shards.push(shard);
         *guard = stage;
@@ -613,7 +612,6 @@ impl PartitionRepo for MemTxn {
                     table_id,
                     partition_key: key,
                     sort_key: vec![],
-                    persisted_sequence_number: None,
                     new_file_at: None,
                 };
                 stage.partitions.push(p);

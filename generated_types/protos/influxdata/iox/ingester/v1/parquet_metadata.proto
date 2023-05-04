@@ -19,6 +19,9 @@ message IoxMetadata {
   // shard_id was removed
   reserved 17;
   reserved "shard_id";
+  // max_sequence_number was removed
+  reserved 13;
+  reserved "max_sequence_number";
 
   // Object store ID. Used in the parquet filename. 16 bytes in big-endian order.
   bytes object_store_id = 1;
@@ -43,9 +46,6 @@ message IoxMetadata {
 
   // Partition key of the partition that holds this parquet file.
   string partition_key = 9;
-
-  // The maximum sequence number from a shard in this parquet file.
-  int64 max_sequence_number = 13;
 
   // The sort key of this chunk
   SortKey sort_key = 15;

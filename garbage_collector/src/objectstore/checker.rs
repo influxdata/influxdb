@@ -138,7 +138,7 @@ mod tests {
     use chrono::TimeZone;
     use data_types::{
         ColumnId, ColumnSet, CompactionLevel, NamespaceId, ParquetFile, ParquetFileParams,
-        PartitionId, SequenceNumber, TableId, Timestamp,
+        PartitionId, TableId, Timestamp,
     };
     use iox_catalog::{interface::Catalog, mem::MemCatalog};
     use object_store::path::Path;
@@ -178,7 +178,6 @@ mod tests {
             table_id: partition.table_id,
             partition_id: partition.id,
             object_store_id: Uuid::new_v4(),
-            max_sequence_number: SequenceNumber::new(140),
             min_time: Timestamp::new(1),
             max_time: Timestamp::new(10),
             file_size_bytes: 1337,

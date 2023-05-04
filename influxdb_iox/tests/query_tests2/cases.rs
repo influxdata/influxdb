@@ -122,6 +122,18 @@ async fn duplicates_parquet_many() {
 }
 
 #[tokio::test]
+async fn duplicates_parquet_50() {
+    test_helpers::maybe_start_logging();
+
+    TestCase {
+        input: "cases/in/duplicates_parquet_50_files.sql",
+        chunk_stage: ChunkStage::Parquet,
+    }
+    .run()
+    .await;
+}
+
+#[tokio::test]
 async fn gapfill() {
     test_helpers::maybe_start_logging();
 

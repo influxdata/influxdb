@@ -90,8 +90,7 @@ use base64::{prelude::BASE64_STANDARD, Engine};
 use bytes::Bytes;
 use data_types::{
     ColumnId, ColumnSet, ColumnSummary, CompactionLevel, InfluxDbType, NamespaceId,
-    ParquetFileParams, PartitionId, PartitionKey, SequenceNumber, StatValues, Statistics, TableId,
-    Timestamp,
+    ParquetFileParams, PartitionId, PartitionKey, StatValues, Statistics, TableId, Timestamp,
 };
 use generated_types::influxdata::iox::ingester::v1 as proto;
 use iox_time::Time;
@@ -274,9 +273,6 @@ pub struct IoxMetadata {
     /// partition key of the data
     pub partition_key: PartitionKey,
 
-    /// sequence number of the last write
-    pub max_sequence_number: SequenceNumber,
-
     /// The compaction level of the file.
     ///
     ///  * 0 (`CompactionLevel::Initial`): represents a level-0 file that is persisted by an
@@ -340,7 +336,6 @@ impl IoxMetadata {
             table_name: self.table_name.to_string(),
             partition_id: self.partition_id.get(),
             partition_key: self.partition_key.to_string(),
-            max_sequence_number: self.max_sequence_number.get(),
             sort_key,
             compaction_level: self.compaction_level as i32,
             max_l0_created_at: Some(self.max_l0_created_at.date_time().into()),
@@ -392,7 +387,6 @@ impl IoxMetadata {
             table_name,
             partition_id: PartitionId::new(proto_msg.partition_id),
             partition_key,
-            max_sequence_number: SequenceNumber::new(proto_msg.max_sequence_number),
             sort_key,
             compaction_level: proto_msg.compaction_level.try_into().context(
                 InvalidCompactionLevelSnafu {
@@ -417,7 +411,6 @@ impl IoxMetadata {
             table_name: table_name.into(),
             partition_id: PartitionId::new(1),
             partition_key: "unknown".into(),
-            max_sequence_number: SequenceNumber::new(1),
             compaction_level: CompactionLevel::Initial,
             sort_key: None,
             max_l0_created_at: Time::from_timestamp_nanos(creation_timestamp_ns),
@@ -499,7 +492,6 @@ impl IoxMetadata {
             table_id: self.table_id,
             partition_id: self.partition_id,
             object_store_id: self.object_store_id,
-            max_sequence_number: self.max_sequence_number,
             min_time,
             max_time,
             file_size_bytes: file_size_bytes as i64,
@@ -1017,7 +1009,6 @@ mod tests {
             table_name: Arc::from("weather"),
             partition_id: PartitionId::new(4),
             partition_key: PartitionKey::from("part"),
-            max_sequence_number: SequenceNumber::new(6),
             compaction_level: CompactionLevel::Initial,
             sort_key: Some(sort_key),
             max_l0_created_at: create_time,
@@ -1041,7 +1032,6 @@ mod tests {
             table_name: "platanos".into(),
             partition_id: PartitionId::new(4),
             partition_key: "potato".into(),
-            max_sequence_number: SequenceNumber::new(11),
             compaction_level: CompactionLevel::FileNonOverlapped,
             sort_key: None,
             max_l0_created_at: Time::from_timestamp_nanos(42),

@@ -24,7 +24,11 @@ pub(crate) mod map {
     #[derive(Debug, Error)]
     enum PlannerError {
         /// An unexpected error that represents a bug in IOx.
-        #[error("internal: {0}")]
+        ///
+        /// The message is prefixed with `InfluxQL internal error: `,
+        /// which may be used by clients to identify internal InfluxQL
+        /// errors.
+        #[error("InfluxQL internal error: {0}")]
         Internal(String),
     }
 
@@ -41,5 +45,18 @@ pub(crate) mod map {
     /// The specified `feature` is not implemented.
     pub(crate) fn not_implemented(feature: impl Into<String>) -> DataFusionError {
         DataFusionError::NotImplemented(feature.into())
+    }
+
+    #[cfg(test)]
+    mod test {
+        use crate::plan::error::map::PlannerError;
+
+        #[test]
+        fn test_planner_error_display() {
+            // The InfluxQL internal error:
+            assert!(PlannerError::Internal("****".to_owned())
+                .to_string()
+                .starts_with("InfluxQL internal error: "))
+        }
     }
 }

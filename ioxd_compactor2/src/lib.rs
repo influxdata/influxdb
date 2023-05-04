@@ -143,11 +143,31 @@ pub async fn create_compactor2_server_type(
 ) -> Arc<dyn ServerType> {
     let backoff_config = BackoffConfig::default();
 
+    // if shard_count is specified, shard_id must be provided also.
+    // shard_id may be specified explicitly or extracted from the host name.
+    let mut shard_id = compactor_config.shard_id;
+    if shard_id.is_none()
+        && compactor_config.shard_count.is_some()
+        && compactor_config.hostname.is_some()
+    {
+        let parsed_id = compactor_config
+            .hostname
+            .unwrap()
+            .chars()
+            .skip_while(|ch| !ch.is_ascii_digit())
+            .take_while(|ch| ch.is_ascii_digit())
+            .fold(None, |acc, ch| {
+                ch.to_digit(10).map(|b| acc.unwrap_or(0) * 10 + b)
+            });
+        if parsed_id.is_some() {
+            shard_id = Some(parsed_id.unwrap() as usize);
+        }
+    }
     assert!(
-        compactor_config.shard_id.is_some() == compactor_config.shard_count.is_some(),
+        shard_id.is_some() == compactor_config.shard_count.is_some(),
         "must provide or not provide shard ID and count"
     );
-    let shard_config = compactor_config.shard_id.map(|shard_id| ShardConfig {
+    let shard_config = shard_id.map(|shard_id| ShardConfig {
         shard_id,
         n_shards: compactor_config.shard_count.expect("just checked"),
     });

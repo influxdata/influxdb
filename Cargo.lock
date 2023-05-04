@@ -1432,7 +1432,7 @@ dependencies = [
 [[package]]
 name = "datafusion"
 version = "23.0.0"
-source = "git+https://github.com/apache/arrow-datafusion.git?rev=beee1d91303d5eff220fadd08b2c28404c2b3e5a#beee1d91303d5eff220fadd08b2c28404c2b3e5a"
+source = "git+https://github.com/apache/arrow-datafusion.git?rev=2787e7a36a6be83d91201df20827d3695f933300#2787e7a36a6be83d91201df20827d3695f933300"
 dependencies = [
  "ahash 0.8.3",
  "arrow",
@@ -1481,7 +1481,7 @@ dependencies = [
 [[package]]
 name = "datafusion-common"
 version = "23.0.0"
-source = "git+https://github.com/apache/arrow-datafusion.git?rev=beee1d91303d5eff220fadd08b2c28404c2b3e5a#beee1d91303d5eff220fadd08b2c28404c2b3e5a"
+source = "git+https://github.com/apache/arrow-datafusion.git?rev=2787e7a36a6be83d91201df20827d3695f933300#2787e7a36a6be83d91201df20827d3695f933300"
 dependencies = [
  "arrow",
  "arrow-array",
@@ -1495,7 +1495,7 @@ dependencies = [
 [[package]]
 name = "datafusion-execution"
 version = "23.0.0"
-source = "git+https://github.com/apache/arrow-datafusion.git?rev=beee1d91303d5eff220fadd08b2c28404c2b3e5a#beee1d91303d5eff220fadd08b2c28404c2b3e5a"
+source = "git+https://github.com/apache/arrow-datafusion.git?rev=2787e7a36a6be83d91201df20827d3695f933300#2787e7a36a6be83d91201df20827d3695f933300"
 dependencies = [
  "dashmap",
  "datafusion-common",
@@ -1512,7 +1512,7 @@ dependencies = [
 [[package]]
 name = "datafusion-expr"
 version = "23.0.0"
-source = "git+https://github.com/apache/arrow-datafusion.git?rev=beee1d91303d5eff220fadd08b2c28404c2b3e5a#beee1d91303d5eff220fadd08b2c28404c2b3e5a"
+source = "git+https://github.com/apache/arrow-datafusion.git?rev=2787e7a36a6be83d91201df20827d3695f933300#2787e7a36a6be83d91201df20827d3695f933300"
 dependencies = [
  "ahash 0.8.3",
  "arrow",
@@ -1523,7 +1523,7 @@ dependencies = [
 [[package]]
 name = "datafusion-optimizer"
 version = "23.0.0"
-source = "git+https://github.com/apache/arrow-datafusion.git?rev=beee1d91303d5eff220fadd08b2c28404c2b3e5a#beee1d91303d5eff220fadd08b2c28404c2b3e5a"
+source = "git+https://github.com/apache/arrow-datafusion.git?rev=2787e7a36a6be83d91201df20827d3695f933300#2787e7a36a6be83d91201df20827d3695f933300"
 dependencies = [
  "arrow",
  "async-trait",
@@ -1540,7 +1540,7 @@ dependencies = [
 [[package]]
 name = "datafusion-physical-expr"
 version = "23.0.0"
-source = "git+https://github.com/apache/arrow-datafusion.git?rev=beee1d91303d5eff220fadd08b2c28404c2b3e5a#beee1d91303d5eff220fadd08b2c28404c2b3e5a"
+source = "git+https://github.com/apache/arrow-datafusion.git?rev=2787e7a36a6be83d91201df20827d3695f933300#2787e7a36a6be83d91201df20827d3695f933300"
 dependencies = [
  "ahash 0.8.3",
  "arrow",
@@ -1572,7 +1572,7 @@ dependencies = [
 [[package]]
 name = "datafusion-proto"
 version = "23.0.0"
-source = "git+https://github.com/apache/arrow-datafusion.git?rev=beee1d91303d5eff220fadd08b2c28404c2b3e5a#beee1d91303d5eff220fadd08b2c28404c2b3e5a"
+source = "git+https://github.com/apache/arrow-datafusion.git?rev=2787e7a36a6be83d91201df20827d3695f933300#2787e7a36a6be83d91201df20827d3695f933300"
 dependencies = [
  "arrow",
  "chrono",
@@ -1586,7 +1586,7 @@ dependencies = [
 [[package]]
 name = "datafusion-row"
 version = "23.0.0"
-source = "git+https://github.com/apache/arrow-datafusion.git?rev=beee1d91303d5eff220fadd08b2c28404c2b3e5a#beee1d91303d5eff220fadd08b2c28404c2b3e5a"
+source = "git+https://github.com/apache/arrow-datafusion.git?rev=2787e7a36a6be83d91201df20827d3695f933300#2787e7a36a6be83d91201df20827d3695f933300"
 dependencies = [
  "arrow",
  "datafusion-common",
@@ -1597,7 +1597,7 @@ dependencies = [
 [[package]]
 name = "datafusion-sql"
 version = "23.0.0"
-source = "git+https://github.com/apache/arrow-datafusion.git?rev=beee1d91303d5eff220fadd08b2c28404c2b3e5a#beee1d91303d5eff220fadd08b2c28404c2b3e5a"
+source = "git+https://github.com/apache/arrow-datafusion.git?rev=2787e7a36a6be83d91201df20827d3695f933300#2787e7a36a6be83d91201df20827d3695f933300"
 dependencies = [
  "arrow",
  "arrow-schema",
@@ -5616,6 +5616,7 @@ dependencies = [
  "http",
  "hyper",
  "influxdb_iox_client",
+ "iox_catalog",
  "mutable_batch_lp",
  "mutable_batch_pb",
  "nix",
