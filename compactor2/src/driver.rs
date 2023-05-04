@@ -448,7 +448,10 @@ async fn execute_plan(
             .expect("semaphore not closed");
         info!(
             partition_id = partition_info.partition_id.get(),
-            permits, "job semaphore acquired",
+            column_count = partition_info.column_count(),
+            input_files = plan_ir.n_input_files(),
+            permits,
+            "job semaphore acquired",
         );
 
         let plan = components
