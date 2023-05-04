@@ -27,6 +27,33 @@ from cpu
 where time between timestamp '2000-05-05T12:00:00Z' and timestamp '2000-05-05T12:59:00Z'
 group by minute;
 
+-- Missing time bounds
+-- Expect to fail because missing both time bounds
+SELECT
+  region,
+  date_bin_gapfill('10 minute', time) as minute,
+  locf(avg(cpu.user))
+from cpu
+group by region, minute;
+
+-- Expect to fail because missing upper time bound
+SELECT
+  region,
+  date_bin_gapfill('10 minute', time) as minute,
+  locf(avg(cpu.user))
+from cpu
+where time >= timestamp '2000-05-05T12:00:00Z'
+group by region, minute;
+
+-- Expect to fail because missing lower time bound
+SELECT
+  region,
+  date_bin_gapfill('10 minute', time) as minute,
+  locf(avg(cpu.user))
+from cpu
+where time < timestamp '2000-05-05T13:00:00Z'
+group by region, minute;
+
 -- Gap filling with no other group keys and no aggregates
 SELECT
   date_bin_gapfill(interval '10 minute', time) as minute

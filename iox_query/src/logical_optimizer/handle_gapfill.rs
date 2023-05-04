@@ -233,14 +233,14 @@ fn validate_time_range(range: &Range<Bound<Expr>>) -> Result<()> {
     let (start, end) = match (start, end) {
         (Bound::Unbounded, Bound::Unbounded) => {
             return Err(DataFusionError::Plan(
-                "no time bounds found for gap fill query".to_string(),
+                "gap-filling query is missing both upper and lower time bounds".to_string(),
             ))
         }
         (Bound::Unbounded, _) => Err(DataFusionError::Plan(
-            "no lower time bound found for gap fill query".to_string(),
+            "gap-filling query is missing lower time bound".to_string(),
         )),
         (_, Bound::Unbounded) => Err(DataFusionError::Plan(
-            "no upper time bound found for gap fill query".to_string(),
+            "gap-filling query is missing upper time bound".to_string(),
         )),
         (
             Bound::Included(start) | Bound::Excluded(start),
@@ -788,15 +788,15 @@ mod test {
         let cases = vec![
             (
                 lit(true),
-                "Error during planning: no time bounds found for gap fill query",
+                "Error during planning: gap-filling query is missing both upper and lower time bounds",
             ),
             (
                 col("time").gt_eq(lit_timestamp_nano(1000)),
-                "Error during planning: no upper time bound found for gap fill query",
+                "Error during planning: gap-filling query is missing upper time bound",
             ),
             (
                 col("time").lt(lit_timestamp_nano(2000)),
-                "Error during planning: no lower time bound found for gap fill query",
+                "Error during planning: gap-filling query is missing lower time bound",
             ),
             (
                 col("time").gt_eq(col("time2")).and(
