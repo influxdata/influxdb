@@ -134,9 +134,18 @@ pub enum Error {
     UnableToCreateSegmentFile {
         source: blocking::WriterError,
     },
+}
 
-    UnableToDecodeRecordBatch {
+/// Errors that occur when decoding internal types from a WAL file.
+#[derive(Debug, Snafu)]
+#[snafu(visibility(pub(crate)))]
+pub enum DecodeError {
+    UnableToCreateMutableBatch {
         source: mutable_batch_pb::decode::Error,
+    },
+
+    FailedToReadWal {
+        source: Error,
     },
 }
 
@@ -588,22 +597,22 @@ impl WriteOpEntryDecoder {
     /// more entries to be decoded from the underlying segment. A zero-length vector
     /// may be returned if there are no writes in a WAL entry batch, but does not
     /// indicate the decoder is consumed.
-    pub fn next_write_op_entry_batch(&mut self) -> Result<Option<Vec<WriteOpEntry>>> {
-        match self.reader.next_batch()? {
+    pub fn next_write_op_entry_batch(&mut self) -> Result<Option<Vec<WriteOpEntry>>, DecodeError> {
+        match self.reader.next_batch().context(FailedToReadWalSnafu)? {
             Some(batch) => Ok(batch
                 .into_iter()
                 .filter_map(|sequenced_op| match sequenced_op.op {
                     WalOp::Write(w) => Some(w),
                     _ => None,
                 })
-                .map(|w| -> Result<WriteOpEntry> {
+                .map(|w| -> Result<WriteOpEntry, DecodeError> {
                     Ok(WriteOpEntry {
                         namespace: NamespaceId::new(w.database_id),
                         table_batches: decode_database_batch(&w)
-                            .context(UnableToDecodeRecordBatchSnafu)?,
+                            .context(UnableToCreateMutableBatchSnafu)?,
                     })
                 })
-                .collect::<Result<Vec<WriteOpEntry>>>()?
+                .collect::<Result<Vec<WriteOpEntry>, DecodeError>>()?
                 .into()),
             None => Ok(None),
         }

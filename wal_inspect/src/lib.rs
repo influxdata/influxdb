@@ -127,7 +127,7 @@ mod tests {
         iox::wal::v1::sequenced_wal_op::Op, pbdata::v1::DatabaseBatch,
     };
     use mutable_batch_lp::lines_to_batches;
-    use wal::{Error as WalError, SequencedWalOp, WriteOpEntryDecoder};
+    use wal::{DecodeError, SequencedWalOp, WriteOpEntryDecoder};
 
     use super::*;
 
@@ -289,7 +289,7 @@ mod tests {
                     }
                 }),
                 Err(e) => {
-                    assert_matches!(e, WalError::UnableToReadNextOps { .. });
+                    assert_matches!(e, DecodeError::FailedToReadWal { .. });
                     break;
                 }
             };
