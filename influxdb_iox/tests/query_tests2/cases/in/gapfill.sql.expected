@@ -51,6 +51,18 @@
 | 2000-05-05T12:40:00Z | 1               |
 | 2000-05-05T12:50:00Z |                 |
 +----------------------+-----------------+
+-- SQL: SELECT region, date_bin_gapfill('10 minute', time) as minute, locf(avg(cpu.user)) from cpu group by region, minute;
+Error while planning query: Optimizer rule 'handle_gap_fill' failed
+caused by
+Error during planning: gap-filling query is missing both upper and lower time bounds
+-- SQL: SELECT region, date_bin_gapfill('10 minute', time) as minute, locf(avg(cpu.user)) from cpu where time >= timestamp '2000-05-05T12:00:00Z' group by region, minute;
+Error while planning query: Optimizer rule 'handle_gap_fill' failed
+caused by
+Error during planning: gap-filling query is missing upper time bound
+-- SQL: SELECT region, date_bin_gapfill('10 minute', time) as minute, locf(avg(cpu.user)) from cpu where time < timestamp '2000-05-05T13:00:00Z' group by region, minute;
+Error while planning query: Optimizer rule 'handle_gap_fill' failed
+caused by
+Error during planning: gap-filling query is missing lower time bound
 -- SQL: SELECT date_bin_gapfill(interval '10 minute', time) as minute from cpu where time between timestamp '2000-05-05T12:00:00Z' and timestamp '2000-05-05T12:59:00Z' group by minute;
 +----------------------+
 | minute               |
