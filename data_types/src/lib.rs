@@ -1104,35 +1104,6 @@ pub enum TemplatePart {
     /// partition key parts such as "2021-03-14 12:25:21" and
     /// "2021-04-14 12:24:21"
     TimeFormat(String),
-    /// Applies a regex to the value in a string column
-    RegexCapture(RegexCapture),
-    /// Applies a `strftime` pattern to some column other than "time"
-    StrftimeColumn(StrftimeColumn),
-}
-
-/// `RegexCapture` is for pulling parts of a string column into the partition
-/// key.
-#[derive(Debug, Eq, PartialEq, Clone)]
-#[allow(missing_docs)]
-pub struct RegexCapture {
-    pub column: String,
-    pub regex: String,
-}
-
-/// [`StrftimeColumn`] is used to create a time based partition key off some
-/// column other than the builtin `time` column.
-///
-/// The value of the named column is formatted using a `strftime`
-/// style string.
-///
-/// For example, a time format of "%Y-%m-%d %H:%M:%S" will produce
-/// partition key parts such as "2021-03-14 12:25:21" and
-/// "2021-04-14 12:24:21"
-#[derive(Debug, Eq, PartialEq, Clone)]
-#[allow(missing_docs)]
-pub struct StrftimeColumn {
-    pub column: String,
-    pub format: String,
 }
 
 /// Represents a parsed delete predicate for evaluation by the InfluxDB IOx
