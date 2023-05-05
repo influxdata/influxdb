@@ -462,7 +462,7 @@ impl<'a> InfluxQLToLogicalPlan<'a> {
         }
 
         let (plan, select_exprs_post_aggr) =
-            self.select_aggregate(ctx, plan, fields, select_exprs, group_by_tag_set, &schemas)?;
+            self.select_aggregate(ctx, ds, plan, fields, select_exprs, group_by_tag_set)?;
 
         // Wrap the plan in a `LogicalPlan::Projection` from the select expressions
         project(
@@ -474,11 +474,11 @@ impl<'a> InfluxQLToLogicalPlan<'a> {
     fn select_aggregate(
         &self,
         ctx: &Context<'_>,
+        ds: &DataSource,
         input: LogicalPlan,
         fields: &[Field],
         mut select_exprs: Vec<Expr>,
         group_by_tag_set: &[&str],
-        schemas: &Schemas,
     ) -> Result<(LogicalPlan, Vec<Expr>)> {
         if !ctx.is_aggregate() {
             return Ok((input, select_exprs));
@@ -568,14 +568,22 @@ impl<'a> InfluxQLToLogicalPlan<'a> {
                 group_by_exprs.push(select_exprs[time_column_index].clone());
             }
 
-            // Exclude tags that do not exist in the current table schema.
-            group_by_exprs.extend(group_by_tag_set.iter().filter_map(|name| {
-                if schemas.is_tag_field(name) {
-                    Some(name.as_expr())
-                } else {
-                    None
-                }
-            }));
+            if let DataSource::Table(table_name) = ds {
+                // If this is a table, exclude tags that do not exist in the current schema
+                let schema = self
+                    .s
+                    .table_schema(table_name)
+                    .ok_or_else(|| error::map::internal("expected table"))?;
+                group_by_exprs.extend(group_by_tag_set.iter().filter_map(|name| {
+                    if let Some(InfluxColumnType::Tag) = schema.field_type_by_name(name) {
+                        Some(name.as_expr())
+                    } else {
+                        None
+                    }
+                }));
+            } else {
+                group_by_exprs.extend(group_by_tag_set.iter().map(|name| name.as_expr()));
+            }
 
             group_by_exprs
         } else {
