@@ -85,7 +85,7 @@ assert_matches = "1.5"
 async-trait = "0.1"
 predicate = { path = "../predicate" }
 predicates = "3.0.3"
-serde = "1.0.159"
+serde = "1.0.162"
 test_helpers = { path = "../test_helpers", features = ["future_timeout"] }
 test_helpers_end_to_end = { path = "../test_helpers_end_to_end" }
 insta = { version = "1", features = ["yaml"] }
