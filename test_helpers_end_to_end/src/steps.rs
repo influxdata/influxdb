@@ -161,8 +161,7 @@ pub enum Step {
     Persist,
 
     /// Wait for all previously written data to be persisted by observing an increase in the number
-    /// of Parquet files in the catalog as specified for this cluster's namespace. Needed for
-    /// router2/ingester2/querier2.
+    /// of Parquet files in the catalog as specified for this cluster's namespace.
     WaitForPersisted2 { expected_increase: usize },
 
     /// Set the namespace retention interval to a retention period,

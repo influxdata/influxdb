@@ -149,7 +149,7 @@
 //!
 //! ## Write Reordering
 //!
-//! A write that enters an `ingester2` instance can be reordered arbitrarily
+//! A write that enters an `ingester` instance can be reordered arbitrarily
 //! with concurrent write requests.
 //!
 //! For example, two gRPC writes can race to be committed to the [`wal`], and

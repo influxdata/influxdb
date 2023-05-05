@@ -6,7 +6,7 @@ use super::main;
 use clap_blocks::{
     catalog_dsn::CatalogDsnConfig,
     compactor2::Compactor2Config,
-    ingester2::Ingester2Config,
+    ingester::IngesterConfig,
     ingester_address::IngesterAddress,
     object_store::{make_object_store, ObjectStoreConfig},
     querier::QuerierConfig,
@@ -456,7 +456,7 @@ impl Config {
             .clone()
             .with_grpc_bind_address(compactor_grpc_bind_address);
 
-        let ingester_config = Ingester2Config {
+        let ingester_config = IngesterConfig {
             wal_directory,
             wal_rotation_period_seconds,
             concurrent_query_limit,
@@ -555,7 +555,7 @@ struct SpecializedConfig {
     compactor_run_config: RunConfig,
 
     catalog_dsn: CatalogDsnConfig,
-    ingester_config: Ingester2Config,
+    ingester_config: IngesterConfig,
     router_config: Router2Config,
     compactor_config: Compactor2Config,
     querier_config: QuerierConfig,

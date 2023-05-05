@@ -1,4 +1,4 @@
-# ingester2
+# ingester
 
 ## Quick run
 
@@ -15,10 +15,10 @@ psql 'dbname=iox_shared options=-csearch_path=public,iox_catalog' -c "insert int
 ```
 
 
-Run ingester2:
+Run ingester:
 
 ```bash
-./target/debug/influxdb_iox run ingester2 --api-bind=127.0.0.1:8081 --grpc-bind=127.0.0.1:8042 --wal-directory /tmp/iox/wal  --catalog-dsn postgres:///iox_shared --object-store=file --data-dir=/tmp/iox/obj -v
+./target/debug/influxdb_iox run ingester --api-bind=127.0.0.1:8081 --grpc-bind=127.0.0.1:8042 --wal-directory /tmp/iox/wal  --catalog-dsn postgres:///iox_shared --object-store=file --data-dir=/tmp/iox/obj -v
 ```
 
 Run router2:

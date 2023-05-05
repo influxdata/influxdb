@@ -12,7 +12,7 @@ async fn basic_multi_ingesters() {
     let database_url = maybe_skip_integration!();
     test_helpers::maybe_start_logging();
 
-    let ingester1_config = TestConfig::new_ingester2_never_persist(&database_url);
+    let ingester1_config = TestConfig::new_ingester_never_persist(&database_url);
     let ingester2_config = TestConfig::another_ingester(&ingester1_config);
     let ingester_configs = [ingester1_config, ingester2_config];
 
@@ -95,7 +95,7 @@ async fn write_replication() {
 
     let table_name = "some_table";
 
-    let ingester1_config = TestConfig::new_ingester2_never_persist(&database_url);
+    let ingester1_config = TestConfig::new_ingester_never_persist(&database_url);
     let ingester2_config = TestConfig::another_ingester(&ingester1_config);
     let ingester_configs = [ingester1_config, ingester2_config];
 

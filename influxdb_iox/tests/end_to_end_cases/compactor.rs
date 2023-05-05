@@ -10,7 +10,7 @@ async fn shard_id_greater_than_num_shards_is_invalid() {
     test_helpers::maybe_start_logging();
     let database_url = maybe_skip_integration!();
 
-    let ingester_config = TestConfig::new_ingester2(&database_url);
+    let ingester_config = TestConfig::new_ingester(&database_url);
     let router_config = TestConfig::new_router2(&ingester_config);
     let querier_config = TestConfig::new_querier2(&ingester_config).with_querier_mem_pool_bytes(1);
     let compactor_config = TestConfig::new_compactor2(&ingester_config).with_compactor_shards(
@@ -95,7 +95,7 @@ async fn sharded_compactor_0_always_compacts_partition_1() {
 
     // The test below assumes a specific partition id, and it needs to customize the compactor
     // config, so use a non-shared minicluster here.
-    let ingester_config = TestConfig::new_ingester2(&database_url);
+    let ingester_config = TestConfig::new_ingester(&database_url);
     let router_config = TestConfig::new_router2(&ingester_config);
     let querier_config = TestConfig::new_querier2(&ingester_config).with_querier_mem_pool_bytes(1);
     let compactor_config = TestConfig::new_compactor2(&ingester_config).with_compactor_shards(
@@ -178,7 +178,7 @@ async fn sharded_compactor_1_never_compacts_partition_1() {
 
     // The test below assumes a specific partition id, and it needs to customize the compactor
     // config, so use a non-shared minicluster here.
-    let ingester_config = TestConfig::new_ingester2(&database_url);
+    let ingester_config = TestConfig::new_ingester(&database_url);
     let router_config = TestConfig::new_router2(&ingester_config);
     let querier_config = TestConfig::new_querier2(&ingester_config).with_querier_mem_pool_bytes(1);
     let compactor_config = TestConfig::new_compactor2(&ingester_config).with_compactor_shards(

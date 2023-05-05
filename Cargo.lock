@@ -2679,7 +2679,7 @@ dependencies = [
 ]
 
 [[package]]
-name = "ingester2"
+name = "ingester"
 version = "0.1.0"
 dependencies = [
  "arrow",
@@ -2748,7 +2748,7 @@ dependencies = [
  "generated_types",
  "hashbrown 0.13.2",
  "influxdb_iox_client",
- "ingester2",
+ "ingester",
  "iox_catalog",
  "iox_query",
  "iox_time",
@@ -3081,7 +3081,7 @@ dependencies = [
  "futures",
  "generated_types",
  "hyper",
- "ingester2",
+ "ingester",
  "iox_catalog",
  "iox_query",
  "ioxd_common",

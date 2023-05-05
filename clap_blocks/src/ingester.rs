@@ -5,7 +5,7 @@ use std::path::PathBuf;
 /// CLI config for the ingester using the RPC write path
 #[derive(Debug, Clone, clap::Parser)]
 #[allow(missing_copy_implementations)]
-pub struct Ingester2Config {
+pub struct IngesterConfig {
     /// Where this ingester instance should store its write-ahead log files. Each ingester instance
     /// must have its own directory.
     #[clap(long = "wal-directory", env = "INFLUXDB_IOX_WAL_DIRECTORY", action)]

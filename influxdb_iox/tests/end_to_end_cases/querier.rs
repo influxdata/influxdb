@@ -125,10 +125,10 @@ async fn basic_empty() {
     let table_name = "the_table";
 
     // Set up the cluster  ====================================
-    let ingester_config = TestConfig::new_ingester2(&database_url);
+    let ingester_config = TestConfig::new_ingester(&database_url);
     let router_config = TestConfig::new_router2(&ingester_config);
-    // specially create a querier2 config that is NOT connected to the ingester2
-    let querier_config = TestConfig::new_querier2_without_ingester2(&ingester_config);
+    // specially create a querier2 config that is NOT connected to the ingester
+    let querier_config = TestConfig::new_querier2_without_ingester(&ingester_config);
 
     let mut cluster = MiniCluster::new()
         .with_ingester(ingester_config)
@@ -196,10 +196,10 @@ async fn basic_no_ingester_connection() {
     let table_name = "the_table";
 
     // Set up the cluster  ====================================
-    let ingester_config = TestConfig::new_ingester2(&database_url);
+    let ingester_config = TestConfig::new_ingester(&database_url);
     let router_config = TestConfig::new_router2(&ingester_config);
-    // specially create a querier2 config that is NOT connected to the ingester2
-    let querier_config = TestConfig::new_querier2_without_ingester2(&ingester_config);
+    // specially create a querier2 config that is NOT connected to the ingester
+    let querier_config = TestConfig::new_querier2_without_ingester(&ingester_config);
 
     let mut cluster = MiniCluster::new()
         .with_ingester(ingester_config)
@@ -636,7 +636,7 @@ async fn oom_protection() {
     let table_name = "the_table";
 
     // Set up the cluster  ====================================
-    let ingester_config = TestConfig::new_ingester2(&database_url);
+    let ingester_config = TestConfig::new_ingester(&database_url);
     let router_config = TestConfig::new_router2(&ingester_config);
     let querier_config = TestConfig::new_querier2(&ingester_config).with_querier_mem_pool_bytes(1);
     let mut cluster = MiniCluster::new()

@@ -25,7 +25,7 @@ use generated_types::influxdata::iox::ingester::v1::{
     write_service_server::WriteService, WriteRequest,
 };
 use influxdb_iox_client::flight;
-use ingester2::{IngesterGuard, IngesterRpcInterface};
+use ingester::{IngesterGuard, IngesterRpcInterface};
 use iox_catalog::{
     interface::{Catalog, SoftDeletedRows},
     validate_or_insert_schema,
@@ -49,12 +49,12 @@ pub const DEFAULT_MAX_PERSIST_QUEUE_DEPTH: usize = 5;
 /// [`TestContextBuilder::with_persist_hot_partition_cost()`].
 pub const DEFAULT_PERSIST_HOT_PARTITION_COST: usize = 20_000_000;
 
-/// Construct a new [`TestContextBuilder`] to make a [`TestContext`] for an [`ingester2`] instance.
+/// Construct a new [`TestContextBuilder`] to make a [`TestContext`] for an [`ingester`] instance.
 pub fn test_context() -> TestContextBuilder {
     TestContextBuilder::default()
 }
 
-/// Configure and construct a [`TestContext`] containing an [`ingester2`] instance.
+/// Configure and construct a [`TestContext`] containing an [`ingester`] instance.
 #[derive(Debug)]
 pub struct TestContextBuilder {
     wal_dir: Option<Arc<TempDir>>,
@@ -105,7 +105,7 @@ impl TestContextBuilder {
         self
     }
 
-    /// Initialise the [`ingester2`] instance and return a [`TestContext`] for it.
+    /// Initialise the [`ingester`] instance and return a [`TestContext`] for it.
     pub async fn build(self) -> TestContext<impl IngesterRpcInterface> {
         let Self {
             wal_dir,
@@ -136,7 +136,7 @@ impl TestContextBuilder {
 
         let (shutdown_tx, shutdown_rx) = oneshot::channel();
 
-        let ingester = ingester2::new(
+        let ingester = ingester::new(
             Arc::clone(&catalog),
             Arc::clone(&metrics),
             persist_background_fetch_time,
@@ -164,9 +164,9 @@ impl TestContextBuilder {
     }
 }
 
-/// A command interface to the underlying [`ingester2`] instance.
+/// A command interface to the underlying [`ingester`] instance.
 ///
-/// When the [`TestContext`] is dropped, the underlying [`ingester2`] instance
+/// When the [`TestContext`] is dropped, the underlying [`ingester`] instance
 /// it controls is (ungracefully) stopped.
 #[derive(Debug)]
 pub struct TestContext<T> {

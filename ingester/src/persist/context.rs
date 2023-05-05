@@ -203,7 +203,7 @@ impl Context {
             guard.update_sort_key(Some(new_sort_key.clone()));
         };
 
-        // Assert the internal (to this ingester2 instance) serialisation of
+        // Assert the internal (to this ingester instance) serialisation of
         // sort key updates.
         //
         // Both of these get() should not block due to both of the values having
