@@ -73,7 +73,7 @@ use schema::{
     InfluxColumnType, InfluxFieldType, Schema, INFLUXQL_MEASUREMENT_COLUMN_NAME,
     INFLUXQL_METADATA_KEY,
 };
-use std::collections::{HashSet, VecDeque};
+use std::collections::HashSet;
 use std::fmt::Debug;
 use std::iter;
 use std::ops::{Bound, ControlFlow, Deref, Range};
@@ -272,8 +272,6 @@ impl<'a> InfluxQLToLogicalPlan<'a> {
 
     /// Create a [`LogicalPlan`] from the specified InfluxQL `SELECT` statement.
     fn select_statement_to_plan(&self, select: &Select) -> Result<LogicalPlan> {
-        let mut plans = self.plan_from_tables(&select.from)?;
-
         let ctx = Context::new(select_statement_info(select)?)
             .with_timezone(select.timezone)
             .with_group_by_fill(select);
@@ -338,65 +336,37 @@ impl<'a> InfluxQLToLogicalPlan<'a> {
 
         fields.extend(fields_no_time.iter().cloned());
 
-        // Build the first non-empty plan
         let plan = {
-            loop {
-                match plans.pop_front() {
-                    Some((plan, proj)) => match self.project_select(
-                        &ctx,
+            let mut iter = select.from.iter();
+            let plan = match iter.next() {
+                Some(ds) => self.project_select(&ctx, ds, select, &fields, &group_by_tag_set),
+                None => {
+                    // empty result, but let's at least have all the strictly necessary metadata
+                    let schema = Arc::new(ArrowSchema::new(vec![ArrowField::new(
+                        INFLUXQL_MEASUREMENT_COLUMN_NAME,
+                        (&InfluxColumnType::Tag).into(),
+                        false,
+                    )]));
+                    let plan = LogicalPlan::EmptyRelation(EmptyRelation {
+                        produce_one_row: false,
+                        schema: schema.to_dfschema_ref()?,
+                    });
+                    let plan = plan_with_metadata(
                         plan,
-                        proj,
-                        select,
-                        &fields,
-                        &group_by_tag_set,
-                    )? {
-                        // Exclude any plans that produce no data, which is
-                        // consistent with InfluxQL.
-                        LogicalPlan::EmptyRelation(EmptyRelation {
-                            produce_one_row: false,
-                            ..
-                        }) => continue,
-                        plan => break plan,
-                    },
-                    None => {
-                        // empty result, but let's at least have all the strictly necessary metadata
-                        let schema = Arc::new(ArrowSchema::new(vec![ArrowField::new(
-                            INFLUXQL_MEASUREMENT_COLUMN_NAME,
-                            (&InfluxColumnType::Tag).into(),
-                            false,
-                        )]));
-                        let plan = LogicalPlan::EmptyRelation(EmptyRelation {
-                            produce_one_row: false,
-                            schema: schema.to_dfschema_ref()?,
-                        });
-                        let plan = plan_with_metadata(
-                            plan,
-                            &InfluxQlMetadata {
-                                measurement_column_index: MEASUREMENT_COLUMN_INDEX,
-                                tag_key_columns: vec![],
-                            },
-                        )?;
-                        return Ok(plan);
-                    }
+                        &InfluxQlMetadata {
+                            measurement_column_index: MEASUREMENT_COLUMN_INDEX,
+                            tag_key_columns: vec![],
+                        },
+                    )?;
+                    return Ok(plan);
                 }
-            }
-        };
+            }?;
 
-        // UNION the remaining plans
-        let plan = plans.into_iter().try_fold(plan, |prev, (next, proj)| {
-            let next = self.project_select(&ctx, next, proj, select, &fields, &group_by_tag_set)?;
-            if let LogicalPlan::EmptyRelation(EmptyRelation {
-                produce_one_row: false,
-                ..
-            }) = next
-            {
-                // Exclude any plans that produce no data, which is
-                // consistent with InfluxQL.
-                Ok(prev)
-            } else {
+            iter.try_fold(plan, |prev, ds| {
+                let next = self.project_select(&ctx, ds, select, &fields, &group_by_tag_set)?;
                 LogicalPlanBuilder::from(prev).union(next)?.build()
-            }
-        })?;
+            })?
+        };
 
         let plan = plan_with_metadata(
             plan,
@@ -454,15 +424,16 @@ impl<'a> InfluxQLToLogicalPlan<'a> {
     fn project_select(
         &self,
         ctx: &Context<'_>,
-        input: LogicalPlan,
-        proj: Vec<Expr>,
+        ds: &DataSource,
         select: &Select,
         fields: &[Field],
         group_by_tag_set: &[&str],
     ) -> Result<LogicalPlan> {
-        let schemas = Schemas::new(input.schema())?;
+        let (plan, proj) = self.plan_from_data_source(ds)?;
 
-        let plan = self.plan_where_clause(ctx, &select.condition, input, &schemas)?;
+        let schemas = Schemas::new(plan.schema())?;
+
+        let plan = self.plan_where_clause(ctx, &select.condition, plan, &schemas)?;
 
         // Transform InfluxQL AST field expressions to a list of DataFusion expressions.
         let mut select_exprs = self.field_list_to_exprs(ctx, &plan, fields, &schemas)?;
@@ -1234,19 +1205,19 @@ impl<'a> InfluxQLToLogicalPlan<'a> {
 
     /// Generate a list of logical plans for each of the tables references in the `FROM`
     /// clause.
-    fn plan_from_tables(&self, from: &[DataSource]) -> Result<VecDeque<(LogicalPlan, Vec<Expr>)>> {
-        // A list of scans and their initial projections
-        let mut table_projs = VecDeque::new();
-        for ds in from.iter() {
-            let Some(table_proj) = match ds {
-                DataSource::Table(name) => self.create_table_ref(name),
-                DataSource::Subquery(_) => error::not_implemented(
-                    "subquery in FROM clause",
-                ),
-            }? else { continue };
-            table_projs.push_back(table_proj);
+    fn plan_from_data_source(&self, ds: &DataSource) -> Result<(LogicalPlan, Vec<Expr>)> {
+        match ds {
+            DataSource::Table(table_name) => {
+                // `rewrite_statement` guarantees the table should exist
+                let source = self.s.get_table_provider(table_name)?;
+                let table_ref = TableReference::bare(table_name.to_owned());
+                Ok((
+                    LogicalPlanBuilder::scan(table_ref, source, None)?.build()?,
+                    vec![lit_dict(table_name).alias(INFLUXQL_MEASUREMENT_COLUMN_NAME)],
+                ))
+            }
+            DataSource::Subquery(_) => error::not_implemented("subquery in FROM clause"),
         }
-        Ok(table_projs)
     }
 
     /// Create a [LogicalPlan] that refers to the specified `table_name`.
