@@ -1,6 +1,6 @@
 mod select;
 
-use crate::plan::ir::{DataSource, Select};
+use crate::plan::ir::{DataSource, Select, SelectQuery};
 use crate::plan::planner::select::{
     check_exprs_satisfy_columns, fields_to_exprs_no_nulls, make_tag_key_column_meta, plan_with_sort,
 };
@@ -266,12 +266,14 @@ impl<'a> InfluxQLToLogicalPlan<'a> {
         )
     }
 
-    fn rewrite_select_statement(&self, select: SelectStatement) -> Result<Select> {
+    fn rewrite_select_statement(&self, select: SelectStatement) -> Result<SelectQuery> {
         rewrite_statement(self.s, &select)
     }
 
     /// Create a [`LogicalPlan`] from the specified InfluxQL `SELECT` statement.
-    fn select_statement_to_plan(&self, select: &Select) -> Result<LogicalPlan> {
+    fn select_statement_to_plan(&self, query: &SelectQuery) -> Result<LogicalPlan> {
+        let select = &query.select;
+
         let ctx = Context::new(select_statement_info(select)?)
             .with_timezone(select.timezone)
             .with_group_by_fill(select);
@@ -380,9 +382,6 @@ impl<'a> InfluxQLToLogicalPlan<'a> {
             },
         )?;
 
-        // The UNION operator indicates the result set produces multiple tables or measurements.
-        let is_multiple_measurements = matches!(plan, LogicalPlan::Union(_));
-
         // the sort planner node must refer to the time column using
         // the alias that was specified
         let time_alias = fields[0]
@@ -403,7 +402,7 @@ impl<'a> InfluxQLToLogicalPlan<'a> {
         let plan = plan_with_sort(
             plan,
             vec![time_sort_expr.clone()],
-            is_multiple_measurements,
+            query.has_multiple_measurements,
             &group_by_tag_set,
             &projection_tag_set,
         )?;
@@ -413,7 +412,7 @@ impl<'a> InfluxQLToLogicalPlan<'a> {
             select.offset,
             select.limit,
             vec![time_sort_expr],
-            is_multiple_measurements,
+            query.has_multiple_measurements,
             &group_by_tag_set,
             &projection_tag_set,
         )?;
@@ -704,7 +703,7 @@ impl<'a> InfluxQLToLogicalPlan<'a> {
     /// - `offset`: The number of input rows to skip.
     /// - `limit`: The maximum number of rows to return in the output plan per group.
     /// - `time_sort_expr`: An `Expr::Sort` referring to the `time` column of the input.
-    /// - `is_multiple_measurements`: `true` if the `input` produces multiple measurements,
+    /// - `has_multiple_measurements`: `true` if the `input` produces multiple measurements,
     ///   and therefore the limit should be applied per measurement and any additional group tags.
     /// - `group_by_tag_set`: Tag columns from the `input` plan that should be used to partition
     ///   the `input` plan and sort the `output` plan.
@@ -717,7 +716,7 @@ impl<'a> InfluxQLToLogicalPlan<'a> {
         offset: Option<OffsetClause>,
         limit: Option<LimitClause>,
         sort_exprs: Vec<Expr>,
-        is_multiple_measurements: bool,
+        has_multiple_measurements: bool,
         group_by_tag_set: &[&str],
         projection_tag_set: &[&str],
     ) -> Result<LogicalPlan> {
@@ -725,7 +724,7 @@ impl<'a> InfluxQLToLogicalPlan<'a> {
             return Ok(input);
         }
 
-        if group_by_tag_set.is_empty() && !is_multiple_measurements {
+        if group_by_tag_set.is_empty() && !has_multiple_measurements {
             // If the query is not grouping by tags, and is a single measurement, the DataFusion
             // Limit operator is sufficient.
             let skip = offset.map_or(0, |v| *v as usize);
@@ -823,7 +822,7 @@ impl<'a> InfluxQLToLogicalPlan<'a> {
             plan_with_sort(
                 plan,
                 sort_exprs,
-                is_multiple_measurements,
+                has_multiple_measurements,
                 group_by_tag_set,
                 projection_tag_set,
             )
@@ -2831,7 +2830,7 @@ mod test {
 
             // multiple of same measurement
             assert_snapshot!(plan("SELECT host, usage_idle FROM cpu, cpu"), @r###"
-            Sort: iox::measurement ASC NULLS LAST, time ASC NULLS LAST, host ASC NULLS LAST [iox::measurement:Dictionary(Int32, Utf8), time:Timestamp(Nanosecond, None), host:Dictionary(Int32, Utf8);N, usage_idle:Float64;N]
+            Sort: time ASC NULLS LAST, host ASC NULLS LAST [iox::measurement:Dictionary(Int32, Utf8), time:Timestamp(Nanosecond, None), host:Dictionary(Int32, Utf8);N, usage_idle:Float64;N]
               Union [iox::measurement:Dictionary(Int32, Utf8), time:Timestamp(Nanosecond, None), host:Dictionary(Int32, Utf8);N, usage_idle:Float64;N]
                 Projection: Dictionary(Int32, Utf8("cpu")) AS iox::measurement, cpu.time AS time, cpu.host AS host, cpu.usage_idle AS usage_idle [iox::measurement:Dictionary(Int32, Utf8), time:Timestamp(Nanosecond, None), host:Dictionary(Int32, Utf8);N, usage_idle:Float64;N]
                   TableScan: cpu [cpu:Dictionary(Int32, Utf8);N, host:Dictionary(Int32, Utf8);N, region:Dictionary(Int32, Utf8);N, time:Timestamp(Nanosecond, None), usage_idle:Float64;N, usage_system:Float64;N, usage_user:Float64;N]

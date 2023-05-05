@@ -1,7 +1,7 @@
 use crate::plan::expr_type_evaluator::TypeEvaluator;
 use crate::plan::field::{field_by_name, field_name};
 use crate::plan::field_mapper::{field_and_dimensions, FieldTypeMap, TagSet};
-use crate::plan::ir::{DataSource, Select};
+use crate::plan::ir::{DataSource, Select, SelectQuery};
 use crate::plan::{error, util, SchemaProvider};
 use datafusion::common::{DataFusionError, Result};
 use influxdb_influxql_parser::common::{MeasurementName, QualifiedMeasurementName};
@@ -21,13 +21,41 @@ use std::ops::{ControlFlow, Deref};
 
 /// Recursively rewrite the specified [`SelectStatement`] by performing a series of passes
 /// to validate and normalize the statement.
-pub(super) fn rewrite_statement(s: &dyn SchemaProvider, q: &SelectStatement) -> Result<Select> {
-    let mut stmt = map_select(s, q)?;
-    from_drop_empty(s, &mut stmt);
-    field_list_normalize_time(&mut stmt);
-    field_list_rewrite_aliases(&mut stmt.fields)?;
+pub(super) fn rewrite_statement(
+    s: &dyn SchemaProvider,
+    q: &SelectStatement,
+) -> Result<SelectQuery> {
+    let mut select = map_select(s, q)?;
+    from_drop_empty(s, &mut select);
+    field_list_normalize_time(&mut select);
+    field_list_rewrite_aliases(&mut select.fields)?;
 
-    Ok(stmt)
+    let has_multiple_measurements = has_multiple_measurements(&select);
+
+    Ok(SelectQuery {
+        select,
+        has_multiple_measurements,
+    })
+}
+
+/// Determines if s projects more than a single unique table
+fn has_multiple_measurements(s: &Select) -> bool {
+    let mut data_sources = vec![s.from.as_slice()];
+    let mut table_name: Option<&str> = None;
+    while let Some(from) = data_sources.pop() {
+        for ds in from {
+            match ds {
+                DataSource::Table(name) if matches!(table_name, None) => table_name = Some(name),
+                DataSource::Table(name) => {
+                    if name != table_name.unwrap() {
+                        return true;
+                    }
+                }
+                DataSource::Subquery(q) => data_sources.push(q.from.as_slice()),
+            }
+        }
+    }
+    false
 }
 
 /// Map a `SelectStatement` to a `Select`, which is an intermediate representation to be
@@ -1650,7 +1678,7 @@ mod test {
             q: &SelectStatement,
         ) -> Result<SelectStatement> {
             let stmt = super::rewrite_statement(s, q)?;
-            Ok(stmt.into())
+            Ok(stmt.select.into())
         }
 
         /// Validating types for simple projections
