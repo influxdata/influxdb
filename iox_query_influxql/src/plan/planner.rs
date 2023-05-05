@@ -1,5 +1,6 @@
 mod select;
 
+use crate::plan::ir::{DataSource, Select};
 use crate::plan::planner::select::{
     check_exprs_satisfy_columns, fields_to_exprs_no_nulls, make_tag_key_column_meta, plan_with_sort,
 };
@@ -43,9 +44,7 @@ use influxdb_influxql_parser::expression::{
 use influxdb_influxql_parser::functions::{
     is_aggregate_function, is_now_function, is_scalar_math_function,
 };
-use influxdb_influxql_parser::select::{
-    FillClause, GroupByClause, SLimitClause, SOffsetClause, TimeZoneClause,
-};
+use influxdb_influxql_parser::select::{FillClause, GroupByClause};
 use influxdb_influxql_parser::show_field_keys::ShowFieldKeysStatement;
 use influxdb_influxql_parser::show_measurements::{
     ShowMeasurementsStatement, WithMeasurementClause,
@@ -56,9 +55,8 @@ use influxdb_influxql_parser::simple_from_clause::ShowFromClause;
 use influxdb_influxql_parser::{
     common::{MeasurementName, WhereClause},
     expression::Expr as IQLExpr,
-    identifier::Identifier,
     literal::Literal,
-    select::{Field, FromMeasurementClause, MeasurementSelection, SelectStatement},
+    select::{Field, SelectStatement},
     statement::Statement,
 };
 use iox_query::config::{IoxConfigExt, MetadataCutoff};
@@ -75,7 +73,7 @@ use schema::{
     InfluxColumnType, InfluxFieldType, Schema, INFLUXQL_MEASUREMENT_COLUMN_NAME,
     INFLUXQL_METADATA_KEY,
 };
-use std::collections::{HashSet, VecDeque};
+use std::collections::HashSet;
 use std::fmt::Debug;
 use std::iter;
 use std::ops::{Bound, ControlFlow, Deref, Range};
@@ -155,12 +153,11 @@ impl<'a> Context<'a> {
         Self { scope, ..*self }
     }
 
-    fn with_timezone(&self, timezone: Option<TimeZoneClause>) -> Self {
-        let tz = timezone.as_deref().cloned();
+    fn with_timezone(&self, tz: Option<Tz>) -> Self {
         Self { tz, ..*self }
     }
 
-    fn with_group_by_fill(&self, select: &'a SelectStatement) -> Self {
+    fn with_group_by_fill(&self, select: &'a Select) -> Self {
         Self {
             group_by: select.group_by.as_ref(),
             fill: select.fill,
@@ -269,14 +266,12 @@ impl<'a> InfluxQLToLogicalPlan<'a> {
         )
     }
 
-    fn rewrite_select_statement(&self, select: SelectStatement) -> Result<SelectStatement> {
+    fn rewrite_select_statement(&self, select: SelectStatement) -> Result<Select> {
         rewrite_statement(self.s, &select)
     }
 
     /// Create a [`LogicalPlan`] from the specified InfluxQL `SELECT` statement.
-    fn select_statement_to_plan(&self, select: &SelectStatement) -> Result<LogicalPlan> {
-        let mut plans = self.plan_from_tables(&select.from)?;
-
+    fn select_statement_to_plan(&self, select: &Select) -> Result<LogicalPlan> {
         let ctx = Context::new(select_statement_info(select)?)
             .with_timezone(select.timezone)
             .with_group_by_fill(select);
@@ -341,65 +336,37 @@ impl<'a> InfluxQLToLogicalPlan<'a> {
 
         fields.extend(fields_no_time.iter().cloned());
 
-        // Build the first non-empty plan
         let plan = {
-            loop {
-                match plans.pop_front() {
-                    Some((plan, proj)) => match self.project_select(
-                        &ctx,
+            let mut iter = select.from.iter();
+            let plan = match iter.next() {
+                Some(ds) => self.project_select(&ctx, ds, select, &fields, &group_by_tag_set),
+                None => {
+                    // empty result, but let's at least have all the strictly necessary metadata
+                    let schema = Arc::new(ArrowSchema::new(vec![ArrowField::new(
+                        INFLUXQL_MEASUREMENT_COLUMN_NAME,
+                        (&InfluxColumnType::Tag).into(),
+                        false,
+                    )]));
+                    let plan = LogicalPlan::EmptyRelation(EmptyRelation {
+                        produce_one_row: false,
+                        schema: schema.to_dfschema_ref()?,
+                    });
+                    let plan = plan_with_metadata(
                         plan,
-                        proj,
-                        select,
-                        &fields,
-                        &group_by_tag_set,
-                    )? {
-                        // Exclude any plans that produce no data, which is
-                        // consistent with InfluxQL.
-                        LogicalPlan::EmptyRelation(EmptyRelation {
-                            produce_one_row: false,
-                            ..
-                        }) => continue,
-                        plan => break plan,
-                    },
-                    None => {
-                        // empty result, but let's at least have all the strictly necessary metadata
-                        let schema = Arc::new(ArrowSchema::new(vec![ArrowField::new(
-                            INFLUXQL_MEASUREMENT_COLUMN_NAME,
-                            (&InfluxColumnType::Tag).into(),
-                            false,
-                        )]));
-                        let plan = LogicalPlan::EmptyRelation(EmptyRelation {
-                            produce_one_row: false,
-                            schema: schema.to_dfschema_ref()?,
-                        });
-                        let plan = plan_with_metadata(
-                            plan,
-                            &InfluxQlMetadata {
-                                measurement_column_index: MEASUREMENT_COLUMN_INDEX,
-                                tag_key_columns: vec![],
-                            },
-                        )?;
-                        return Ok(plan);
-                    }
+                        &InfluxQlMetadata {
+                            measurement_column_index: MEASUREMENT_COLUMN_INDEX,
+                            tag_key_columns: vec![],
+                        },
+                    )?;
+                    return Ok(plan);
                 }
-            }
-        };
+            }?;
 
-        // UNION the remaining plans
-        let plan = plans.into_iter().try_fold(plan, |prev, (next, proj)| {
-            let next = self.project_select(&ctx, next, proj, select, &fields, &group_by_tag_set)?;
-            if let LogicalPlan::EmptyRelation(EmptyRelation {
-                produce_one_row: false,
-                ..
-            }) = next
-            {
-                // Exclude any plans that produce no data, which is
-                // consistent with InfluxQL.
-                Ok(prev)
-            } else {
+            iter.try_fold(plan, |prev, ds| {
+                let next = self.project_select(&ctx, ds, select, &fields, &group_by_tag_set)?;
                 LogicalPlanBuilder::from(prev).union(next)?.build()
-            }
-        })?;
+            })?
+        };
 
         let plan = plan_with_metadata(
             plan,
@@ -451,23 +418,22 @@ impl<'a> InfluxQLToLogicalPlan<'a> {
             &projection_tag_set,
         )?;
 
-        let plan = self.slimit(plan, select.series_offset, select.series_limit)?;
-
         Ok(plan)
     }
 
     fn project_select(
         &self,
         ctx: &Context<'_>,
-        input: LogicalPlan,
-        proj: Vec<Expr>,
-        select: &SelectStatement,
+        ds: &DataSource,
+        select: &Select,
         fields: &[Field],
         group_by_tag_set: &[&str],
     ) -> Result<LogicalPlan> {
-        let schemas = Schemas::new(input.schema())?;
+        let (plan, proj) = self.plan_from_data_source(ds)?;
 
-        let plan = self.plan_where_clause(ctx, &select.condition, input, &schemas)?;
+        let schemas = Schemas::new(plan.schema())?;
+
+        let plan = self.plan_where_clause(ctx, &select.condition, plan, &schemas)?;
 
         // Transform InfluxQL AST field expressions to a list of DataFusion expressions.
         let mut select_exprs = self.field_list_to_exprs(ctx, &plan, fields, &schemas)?;
@@ -864,27 +830,6 @@ impl<'a> InfluxQLToLogicalPlan<'a> {
         }
     }
 
-    /// Verifies the `SLIMIT` and `SOFFSET` clauses are `None`; otherwise, return a
-    /// `NotImplemented` error.
-    ///
-    /// ## Why?
-    /// * `SLIMIT` and `SOFFSET` don't work as expected per issue [#7571]
-    /// * This issue [is noted](https://docs.influxdata.com/influxdb/v1.8/query_language/explore-data/#the-slimit-clause) in our official documentation
-    ///
-    /// [#7571]: https://github.com/influxdata/influxdb/issues/7571
-    fn slimit(
-        &self,
-        input: LogicalPlan,
-        offset: Option<SOffsetClause>,
-        limit: Option<SLimitClause>,
-    ) -> Result<LogicalPlan> {
-        if offset.is_none() && limit.is_none() {
-            return Ok(input);
-        }
-
-        error::not_implemented("SLIMIT or SOFFSET")
-    }
-
     /// Map the InfluxQL `SELECT` projection list into a list of DataFusion expressions.
     fn field_list_to_exprs(
         &self,
@@ -1001,8 +946,7 @@ impl<'a> InfluxQLToLogicalPlan<'a> {
                 name,
                 data_type: opt_dst_type,
             }) => {
-                let name = normalize_identifier(name);
-                Ok(match (ctx.scope, name.as_str()) {
+                Ok(match (ctx.scope, name.deref().as_str()) {
                     // Per the Go implementation, the time column is case-insensitive in the
                     // `WHERE` clause and disregards any postfix type cast operator.
                     //
@@ -1261,42 +1205,31 @@ impl<'a> InfluxQLToLogicalPlan<'a> {
 
     /// Generate a list of logical plans for each of the tables references in the `FROM`
     /// clause.
-    fn plan_from_tables(
-        &self,
-        from: &FromMeasurementClause,
-    ) -> Result<VecDeque<(LogicalPlan, Vec<Expr>)>> {
-        // A list of scans and their initial projections
-        let mut table_projs = VecDeque::new();
-        for ms in from.iter() {
-            let Some(table_proj) = match ms {
-                MeasurementSelection::Name(qn) => match qn.name {
-                    MeasurementName::Name(ref ident) => {
-                        self.create_table_ref(normalize_identifier(ident))
-                    }
-                    // rewriter is expected to expand the regular expression
-                    MeasurementName::Regex(_) => error::internal(
-                        "unexpected regular expression in FROM clause",
-                    ),
-                },
-                MeasurementSelection::Subquery(_) => error::not_implemented(
-                    "subquery in FROM clause",
-                ),
-            }? else { continue };
-            table_projs.push_back(table_proj);
+    fn plan_from_data_source(&self, ds: &DataSource) -> Result<(LogicalPlan, Vec<Expr>)> {
+        match ds {
+            DataSource::Table(table_name) => {
+                // `rewrite_statement` guarantees the table should exist
+                let source = self.s.get_table_provider(table_name)?;
+                let table_ref = TableReference::bare(table_name.to_owned());
+                Ok((
+                    LogicalPlanBuilder::scan(table_ref, source, None)?.build()?,
+                    vec![lit_dict(table_name).alias(INFLUXQL_MEASUREMENT_COLUMN_NAME)],
+                ))
+            }
+            DataSource::Subquery(_) => error::not_implemented("subquery in FROM clause"),
         }
-        Ok(table_projs)
     }
 
     /// Create a [LogicalPlan] that refers to the specified `table_name`.
     ///
     /// Normally, this functions will not return a `None`, as tables have been matched]
     /// by the [`rewrite_statement`] function.
-    fn create_table_ref(&self, table_name: String) -> Result<Option<(LogicalPlan, Vec<Expr>)>> {
-        Ok(if let Ok(source) = self.s.get_table_provider(&table_name) {
-            let table_ref = TableReference::bare(table_name.to_string());
+    fn create_table_ref(&self, table_name: &str) -> Result<Option<(LogicalPlan, Vec<Expr>)>> {
+        Ok(if let Ok(source) = self.s.get_table_provider(table_name) {
+            let table_ref = TableReference::bare(table_name.to_owned());
             Some((
                 LogicalPlanBuilder::scan(table_ref, source, None)?.build()?,
-                vec![lit_dict(&table_name).alias(INFLUXQL_MEASUREMENT_COLUMN_NAME)],
+                vec![lit_dict(table_name).alias(INFLUXQL_MEASUREMENT_COLUMN_NAME)],
             ))
         } else {
             None
@@ -1436,7 +1369,7 @@ impl<'a> InfluxQLToLogicalPlan<'a> {
                 let mut union_plan = None;
                 for table in tables {
                     let Some(table_schema) = self.s.table_schema(&table) else {continue};
-                    let Some((plan, measurement_expr)) = self.create_table_ref(table.clone())? else {continue;};
+                    let Some((plan, measurement_expr)) = self.create_table_ref(&table)? else {continue;};
 
                     let schemas = Schemas::new(plan.schema())?;
                     let plan =
@@ -1683,7 +1616,7 @@ impl<'a> InfluxQLToLogicalPlan<'a> {
                 continue;
             }
 
-            let Some((plan, measurement_expr)) = self.create_table_ref(table)? else {continue;};
+            let Some((plan, measurement_expr)) = self.create_table_ref(&table)? else {continue;};
 
             let schemas = Schemas::new(plan.schema())?;
             let plan = self.plan_where_clause(
@@ -1787,7 +1720,7 @@ impl<'a> InfluxQLToLogicalPlan<'a> {
 
                 let mut union_plan = None;
                 for table in tables {
-                    let Some((plan, _measurement_expr)) = self.create_table_ref(table.clone())? else {continue;};
+                    let Some((plan, _measurement_expr)) = self.create_table_ref(&table)? else {continue;};
 
                     let schemas = Schemas::new(plan.schema())?;
                     let plan =
@@ -2126,13 +2059,6 @@ fn conditional_op_to_operator(op: ConditionalOperator) -> Result<Operator> {
         // NOTE: This is not supported by InfluxQL SELECT expressions, so it is unexpected
         ConditionalOperator::In => error::internal("unexpected binary operator: IN"),
     }
-}
-
-// Normalize an identifier. Identifiers in InfluxQL are case sensitive,
-// and therefore not transformed to lower case.
-fn normalize_identifier(ident: &Identifier) -> String {
-    // Dereference the identifier to return the unquoted value.
-    ident.deref().clone()
 }
 
 /// Find the index of the time column in the fields list.
@@ -3264,11 +3190,11 @@ mod test {
 
                 // The `COUNT(f64_field)` aggregate is only projected ones in the Aggregate and reused in the projection
                 assert_snapshot!(plan("SELECT COUNT(f64_field), COUNT(f64_field) + COUNT(f64_field), COUNT(f64_field) * 3 FROM data"), @r###"
-            Sort: time ASC NULLS LAST [iox::measurement:Dictionary(Int32, Utf8), time:Timestamp(Nanosecond, None), count:Int64;N, count_f64_field_count_f64_field:Int64;N, count_f64_field:Int64;N]
-              Projection: Dictionary(Int32, Utf8("data")) AS iox::measurement, TimestampNanosecond(0, None) AS time, COUNT(data.f64_field) AS count, COUNT(data.f64_field) + COUNT(data.f64_field) AS count_f64_field_count_f64_field, COUNT(data.f64_field) * Int64(3) AS count_f64_field [iox::measurement:Dictionary(Int32, Utf8), time:Timestamp(Nanosecond, None), count:Int64;N, count_f64_field_count_f64_field:Int64;N, count_f64_field:Int64;N]
-                Aggregate: groupBy=[[]], aggr=[[COUNT(data.f64_field)]] [COUNT(data.f64_field):Int64;N]
-                  TableScan: data [TIME:Boolean;N, bar:Dictionary(Int32, Utf8);N, bool_field:Boolean;N, f64_field:Float64;N, foo:Dictionary(Int32, Utf8);N, i64_field:Int64;N, mixedCase:Float64;N, str_field:Utf8;N, time:Timestamp(Nanosecond, None), with space:Float64;N]
-            "###);
+                Sort: time ASC NULLS LAST [iox::measurement:Dictionary(Int32, Utf8), time:Timestamp(Nanosecond, None), count:Int64;N, count_count:Int64;N, count_1:Int64;N]
+                  Projection: Dictionary(Int32, Utf8("data")) AS iox::measurement, TimestampNanosecond(0, None) AS time, COUNT(data.f64_field) AS count, COUNT(data.f64_field) + COUNT(data.f64_field) AS count_count, COUNT(data.f64_field) * Int64(3) AS count_1 [iox::measurement:Dictionary(Int32, Utf8), time:Timestamp(Nanosecond, None), count:Int64;N, count_count:Int64;N, count_1:Int64;N]
+                    Aggregate: groupBy=[[]], aggr=[[COUNT(data.f64_field)]] [COUNT(data.f64_field):Int64;N]
+                      TableScan: data [TIME:Boolean;N, bar:Dictionary(Int32, Utf8);N, bool_field:Boolean;N, f64_field:Float64;N, foo:Dictionary(Int32, Utf8);N, i64_field:Int64;N, mixedCase:Float64;N, str_field:Utf8;N, time:Timestamp(Nanosecond, None), with space:Float64;N]
+                "###);
 
                 // non-existent tags are excluded from the Aggregate groupBy and Sort operators
                 assert_snapshot!(plan("SELECT COUNT(f64_field) FROM data GROUP BY foo, non_existent"), @r###"
@@ -3280,31 +3206,31 @@ mod test {
 
                 // Aggregate expression is projected once and reused in final projection
                 assert_snapshot!(plan("SELECT COUNT(f64_field),  COUNT(f64_field) * 2 FROM data"), @r###"
-                Sort: time ASC NULLS LAST [iox::measurement:Dictionary(Int32, Utf8), time:Timestamp(Nanosecond, None), count:Int64;N, count_f64_field:Int64;N]
-                  Projection: Dictionary(Int32, Utf8("data")) AS iox::measurement, TimestampNanosecond(0, None) AS time, COUNT(data.f64_field) AS count, COUNT(data.f64_field) * Int64(2) AS count_f64_field [iox::measurement:Dictionary(Int32, Utf8), time:Timestamp(Nanosecond, None), count:Int64;N, count_f64_field:Int64;N]
+                Sort: time ASC NULLS LAST [iox::measurement:Dictionary(Int32, Utf8), time:Timestamp(Nanosecond, None), count:Int64;N, count_1:Int64;N]
+                  Projection: Dictionary(Int32, Utf8("data")) AS iox::measurement, TimestampNanosecond(0, None) AS time, COUNT(data.f64_field) AS count, COUNT(data.f64_field) * Int64(2) AS count_1 [iox::measurement:Dictionary(Int32, Utf8), time:Timestamp(Nanosecond, None), count:Int64;N, count_1:Int64;N]
                     Aggregate: groupBy=[[]], aggr=[[COUNT(data.f64_field)]] [COUNT(data.f64_field):Int64;N]
                       TableScan: data [TIME:Boolean;N, bar:Dictionary(Int32, Utf8);N, bool_field:Boolean;N, f64_field:Float64;N, foo:Dictionary(Int32, Utf8);N, i64_field:Int64;N, mixedCase:Float64;N, str_field:Utf8;N, time:Timestamp(Nanosecond, None), with space:Float64;N]
                 "###);
 
                 // Aggregate expression selecting non-existent field
                 assert_snapshot!(plan("SELECT MEAN(f64_field) + MEAN(non_existent) FROM data"), @r###"
-                Sort: time ASC NULLS LAST [iox::measurement:Dictionary(Int32, Utf8), time:Timestamp(Nanosecond, None), mean_f64_field_mean_non_existent:Null;N]
-                  Projection: Dictionary(Int32, Utf8("data")) AS iox::measurement, TimestampNanosecond(0, None) AS time, NULL AS mean_f64_field_mean_non_existent [iox::measurement:Dictionary(Int32, Utf8), time:Timestamp(Nanosecond, None), mean_f64_field_mean_non_existent:Null;N]
+                Sort: time ASC NULLS LAST [iox::measurement:Dictionary(Int32, Utf8), time:Timestamp(Nanosecond, None), mean_mean:Null;N]
+                  Projection: Dictionary(Int32, Utf8("data")) AS iox::measurement, TimestampNanosecond(0, None) AS time, NULL AS mean_mean [iox::measurement:Dictionary(Int32, Utf8), time:Timestamp(Nanosecond, None), mean_mean:Null;N]
                     EmptyRelation []
                 "###);
 
                 // Aggregate expression with GROUP BY and non-existent field
                 assert_snapshot!(plan("SELECT MEAN(f64_field) + MEAN(non_existent) FROM data GROUP BY foo"), @r###"
-                Sort: foo ASC NULLS LAST, time ASC NULLS LAST [iox::measurement:Dictionary(Int32, Utf8), time:Timestamp(Nanosecond, None), foo:Dictionary(Int32, Utf8);N, mean_f64_field_mean_non_existent:Null;N]
-                  Projection: Dictionary(Int32, Utf8("data")) AS iox::measurement, TimestampNanosecond(0, None) AS time, data.foo AS foo, NULL AS mean_f64_field_mean_non_existent [iox::measurement:Dictionary(Int32, Utf8), time:Timestamp(Nanosecond, None), foo:Dictionary(Int32, Utf8);N, mean_f64_field_mean_non_existent:Null;N]
+                Sort: foo ASC NULLS LAST, time ASC NULLS LAST [iox::measurement:Dictionary(Int32, Utf8), time:Timestamp(Nanosecond, None), foo:Dictionary(Int32, Utf8);N, mean_mean:Null;N]
+                  Projection: Dictionary(Int32, Utf8("data")) AS iox::measurement, TimestampNanosecond(0, None) AS time, data.foo AS foo, NULL AS mean_mean [iox::measurement:Dictionary(Int32, Utf8), time:Timestamp(Nanosecond, None), foo:Dictionary(Int32, Utf8);N, mean_mean:Null;N]
                     Aggregate: groupBy=[[data.foo]], aggr=[[]] [foo:Dictionary(Int32, Utf8);N]
                       TableScan: data [TIME:Boolean;N, bar:Dictionary(Int32, Utf8);N, bool_field:Boolean;N, f64_field:Float64;N, foo:Dictionary(Int32, Utf8);N, i64_field:Int64;N, mixedCase:Float64;N, str_field:Utf8;N, time:Timestamp(Nanosecond, None), with space:Float64;N]
                 "###);
 
                 // Aggregate expression selecting tag, should treat as non-existent
                 assert_snapshot!(plan("SELECT MEAN(f64_field), MEAN(f64_field) + MEAN(non_existent) FROM data"), @r###"
-                Sort: time ASC NULLS LAST [iox::measurement:Dictionary(Int32, Utf8), time:Timestamp(Nanosecond, None), mean:Float64;N, mean_f64_field_mean_non_existent:Null;N]
-                  Projection: Dictionary(Int32, Utf8("data")) AS iox::measurement, TimestampNanosecond(0, None) AS time, AVG(data.f64_field) AS mean, NULL AS mean_f64_field_mean_non_existent [iox::measurement:Dictionary(Int32, Utf8), time:Timestamp(Nanosecond, None), mean:Float64;N, mean_f64_field_mean_non_existent:Null;N]
+                Sort: time ASC NULLS LAST [iox::measurement:Dictionary(Int32, Utf8), time:Timestamp(Nanosecond, None), mean:Float64;N, mean_mean:Null;N]
+                  Projection: Dictionary(Int32, Utf8("data")) AS iox::measurement, TimestampNanosecond(0, None) AS time, AVG(data.f64_field) AS mean, NULL AS mean_mean [iox::measurement:Dictionary(Int32, Utf8), time:Timestamp(Nanosecond, None), mean:Float64;N, mean_mean:Null;N]
                     Aggregate: groupBy=[[]], aggr=[[AVG(data.f64_field)]] [AVG(data.f64_field):Float64;N]
                       TableScan: data [TIME:Boolean;N, bar:Dictionary(Int32, Utf8);N, bool_field:Boolean;N, f64_field:Float64;N, foo:Dictionary(Int32, Utf8);N, i64_field:Int64;N, mixedCase:Float64;N, str_field:Utf8;N, time:Timestamp(Nanosecond, None), with space:Float64;N]
                 "###);
@@ -3421,8 +3347,8 @@ mod test {
 
                 // Aggregates as part of a binary expression
                 assert_snapshot!(plan("SELECT COUNT(f64_field) + MEAN(f64_field) FROM data GROUP BY TIME(10s) FILL(3.2)"), @r###"
-                Sort: time ASC NULLS LAST [iox::measurement:Dictionary(Int32, Utf8), time:Timestamp(Nanosecond, None);N, count_f64_field_mean_f64_field:Float64;N]
-                  Projection: Dictionary(Int32, Utf8("data")) AS iox::measurement, time, coalesce_struct(COUNT(data.f64_field), Int64(3)) + coalesce_struct(AVG(data.f64_field), Float64(3.2)) AS count_f64_field_mean_f64_field [iox::measurement:Dictionary(Int32, Utf8), time:Timestamp(Nanosecond, None);N, count_f64_field_mean_f64_field:Float64;N]
+                Sort: time ASC NULLS LAST [iox::measurement:Dictionary(Int32, Utf8), time:Timestamp(Nanosecond, None);N, count_mean:Float64;N]
+                  Projection: Dictionary(Int32, Utf8("data")) AS iox::measurement, time, coalesce_struct(COUNT(data.f64_field), Int64(3)) + coalesce_struct(AVG(data.f64_field), Float64(3.2)) AS count_mean [iox::measurement:Dictionary(Int32, Utf8), time:Timestamp(Nanosecond, None);N, count_mean:Float64;N]
                     GapFill: groupBy=[[time]], aggr=[[COUNT(data.f64_field), AVG(data.f64_field)]], time_column=time, stride=IntervalMonthDayNano("10000000000"), range=Unbounded..Excluded(now()) [time:Timestamp(Nanosecond, None);N, COUNT(data.f64_field):Int64;N, AVG(data.f64_field):Float64;N]
                       Aggregate: groupBy=[[datebin(IntervalMonthDayNano("10000000000"), data.time, TimestampNanosecond(0, None)) AS time]], aggr=[[COUNT(data.f64_field), AVG(data.f64_field)]] [time:Timestamp(Nanosecond, None);N, COUNT(data.f64_field):Int64;N, AVG(data.f64_field):Float64;N]
                         TableScan: data [TIME:Boolean;N, bar:Dictionary(Int32, Utf8);N, bool_field:Boolean;N, f64_field:Float64;N, foo:Dictionary(Int32, Utf8);N, i64_field:Int64;N, mixedCase:Float64;N, str_field:Utf8;N, time:Timestamp(Nanosecond, None), with space:Float64;N]

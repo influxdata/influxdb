@@ -66,7 +66,7 @@ impl<'a> Visitor for BinaryExprNameVisitor<'a> {
 
     fn pre_visit_call(self, n: &Call) -> Result<Recursion<Self>, Self::Error> {
         self.0.push(n.name.clone());
-        Ok(Recursion::Continue(self))
+        Ok(Recursion::Stop(self))
     }
 }
 
@@ -102,7 +102,7 @@ mod test {
         assert_eq!(field_name(&f), "count");
 
         let f = get_first_field("SELECT COUNT(usage) + SUM(usage_idle) FROM cpu");
-        assert_eq!(field_name(&f), "count_usage_sum_usage_idle");
+        assert_eq!(field_name(&f), "count_sum");
 
         let f = get_first_field("SELECT 1+2 FROM cpu");
         assert_eq!(field_name(&f), "");

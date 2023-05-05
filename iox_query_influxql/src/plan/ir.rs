@@ -5,7 +5,6 @@ use influxdb_influxql_parser::common::{
     LimitClause, MeasurementName, OffsetClause, OrderByClause, QualifiedMeasurementName,
     WhereClause,
 };
-use influxdb_influxql_parser::expression::ConditionalExpression;
 use influxdb_influxql_parser::select::{
     Field, FieldList, FillClause, FromMeasurementClause, GroupByClause, MeasurementSelection,
     SelectStatement, TimeZoneClause,
@@ -19,17 +18,17 @@ pub(super) struct Select {
     /// Projection clause of the selection.
     pub(super) fields: Vec<Field>,
 
-    /// A list of tables or subqueries used as the source data for the selection.
-    pub(super) from: Vec<TableReference>,
+    /// A list of data sources for the selection.
+    pub(super) from: Vec<DataSource>,
 
     /// A conditional expression to filter the selection.
-    pub(super) condition: Option<ConditionalExpression>,
+    pub(super) condition: Option<WhereClause>,
 
     /// The GROUP BY clause of the selection.
     pub(super) group_by: Option<GroupByClause>,
 
     /// The [fill] clause specifies the fill behaviour for the selection. If the value is [`None`],
-    /// it is the same behavior as `fill(none)`.
+    /// it is the same behavior as `fill(null)`.
     ///
     /// [fill]: https://docs.influxdata.com/influxdb/v1.8/query_language/explore-data/#group-by-time-intervals-and-fill
     pub(super) fill: Option<FillClause>,
@@ -38,10 +37,10 @@ pub(super) struct Select {
     pub(super) order_by: Option<OrderByClause>,
 
     /// A value to restrict the number of rows returned.
-    pub(super) limit: Option<u64>,
+    pub(super) limit: Option<LimitClause>,
 
     /// A value to specify an offset to start retrieving rows.
-    pub(super) offset: Option<u64>,
+    pub(super) offset: Option<OffsetClause>,
 
     /// The timezone for the query, specified as [`tz('<time zone>')`][time_zone_clause].
     ///
@@ -58,25 +57,25 @@ impl From<Select> for SelectStatement {
                     .from
                     .into_iter()
                     .map(|tr| match tr {
-                        TableReference::Name(name) => {
+                        DataSource::Table(name) => {
                             MeasurementSelection::Name(QualifiedMeasurementName {
                                 database: None,
                                 retention_policy: None,
                                 name: MeasurementName::Name(name.as_str().into()),
                             })
                         }
-                        TableReference::Subquery(q) => {
+                        DataSource::Subquery(q) => {
                             MeasurementSelection::Subquery(Box::new((*q).into()))
                         }
                     })
                     .collect(),
             ),
-            condition: value.condition.map(WhereClause::new),
+            condition: value.condition,
             group_by: value.group_by,
             fill: value.fill,
             order_by: value.order_by,
-            limit: value.limit.map(LimitClause::new),
-            offset: value.offset.map(OffsetClause::new),
+            limit: value.limit,
+            offset: value.offset,
             series_limit: None,
             series_offset: None,
             timezone: value.timezone.map(TimeZoneClause::new),
@@ -84,9 +83,9 @@ impl From<Select> for SelectStatement {
     }
 }
 
-/// Represents a concrete reference to a table in a [`Select`] from clause.
+/// Represents a data source that is either a table or a subquery in a [`Select`] from clause.
 #[derive(Debug, Clone)]
-pub(super) enum TableReference {
-    Name(String),
+pub(super) enum DataSource {
+    Table(String),
     Subquery(Box<Select>),
 }
