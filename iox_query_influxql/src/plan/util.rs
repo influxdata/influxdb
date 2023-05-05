@@ -35,14 +35,6 @@ impl Schemas {
             df_schema: Arc::clone(df_schema),
         })
     }
-
-    /// Returns `true` if the field `name` is a tag type.
-    pub(super) fn is_tag_field(&self, name: &str) -> bool {
-        self.df_schema
-            .fields()
-            .iter()
-            .any(|f| f.name() == name && matches!(f.data_type(), DataType::Dictionary(..)))
-    }
 }
 
 /// Sanitize an InfluxQL regular expression and create a compiled [`regex::Regex`].

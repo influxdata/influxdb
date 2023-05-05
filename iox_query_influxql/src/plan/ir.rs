@@ -10,6 +10,15 @@ use influxdb_influxql_parser::select::{
     SelectStatement, TimeZoneClause,
 };
 
+/// Represents a validated and normalized top-level [`SelectStatement]`.
+#[derive(Debug, Default, Clone)]
+pub(super) struct SelectQuery {
+    pub(super) select: Select,
+
+    /// `true` if the query projects from more than one unique measurement.
+    pub(super) has_multiple_measurements: bool,
+}
+
 #[derive(Debug, Default, Clone)]
 pub(super) struct Select {
     /// The schema of the selection.
