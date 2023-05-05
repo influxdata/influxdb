@@ -200,19 +200,6 @@ mod test {
         let authz = IoxAuthorizer::connect_lazy(authz_server.addr())
             .expect("Failed to create IoxAuthorizer client.");
 
-        /*
-         * FIXME:
-         * with this test case, the rpc calls is returning back a valid true.
-         *
-         * authz_rpc_result =
-         *      Response {
-         *          metadata: MetadataMap { headers: {"content-type": "application/grpc", "date": "Thu, 04 May 2023 18:48:19 GMT", "grpc-status": "0"} },
-         *          message: AuthorizeResponse { valid: true, subject: None, permissions: [] },
-         *          extensions: Extensions
-         *      }
-         *
-         * as a result, it's returning a Error::Forbidden, not an Error::InvalidToken
-         */
         let invalid_token = b"UGLY";
 
         let got = authz
@@ -225,6 +212,6 @@ mod test {
             )
             .await;
 
-        assert_matches!(got, Err(Error::Forbidden));
+        assert_matches!(got, Err(Error::InvalidToken));
     }
 }
