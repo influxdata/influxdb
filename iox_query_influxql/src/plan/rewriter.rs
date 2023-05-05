@@ -16,7 +16,6 @@ use influxdb_influxql_parser::select::{
     Dimension, Field, FromMeasurementClause, GroupByClause, MeasurementSelection, SelectStatement,
 };
 use itertools::Itertools;
-use std::borrow::Borrow;
 use std::collections::{HashMap, HashSet};
 use std::ops::{ControlFlow, Deref};
 
@@ -355,7 +354,7 @@ fn field_list_expand_wildcards(
     if let ControlFlow::Break(e) = sel.fields.iter_mut().try_for_each(|f| {
         walk_expr_mut::<DataFusionError>(&mut f.expr, &mut |e| {
             if matches!(e, Expr::VarRef(_)) {
-                let new_type = match evaluate_type(s, e.borrow(), &sel.from) {
+                let new_type = match evaluate_type(s, e, &sel.from) {
                     Err(e) => ControlFlow::Break(e)?,
                     Ok(v) => v,
                 };
