@@ -74,6 +74,7 @@ enum Command {
     Router2(router2::Config),
 
     /// Run the server in ingester mode
+    #[clap(alias = "ingester2")]
     Ingester(ingester::Config),
 
     /// Run the server in "all in one" mode (Default)
