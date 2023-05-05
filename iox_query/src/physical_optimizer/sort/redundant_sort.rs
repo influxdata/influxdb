@@ -85,11 +85,11 @@ mod tests {
         ---
         input:
           - " SortExec: fetch=10, expr=[col@0 ASC]"
-          - "   ParquetExec: limit=None, partitions={0 groups: []}, projection=[col]"
+          - "   ParquetExec: file_groups={0 groups: []}, projection=[col]"
         output:
           Ok:
             - " SortExec: fetch=10, expr=[col@0 ASC]"
-            - "   ParquetExec: limit=None, partitions={0 groups: []}, projection=[col]"
+            - "   ParquetExec: file_groups={0 groups: []}, projection=[col]"
         "###
         );
     }
@@ -121,10 +121,10 @@ mod tests {
         ---
         input:
           - " SortExec: fetch=10, expr=[col@0 ASC]"
-          - "   ParquetExec: limit=None, partitions={0 groups: []}, output_ordering=[col@0 ASC], projection=[col]"
+          - "   ParquetExec: file_groups={0 groups: []}, projection=[col], output_ordering=[col@0 ASC]"
         output:
           Ok:
-            - " ParquetExec: limit=None, partitions={0 groups: []}, output_ordering=[col@0 ASC], projection=[col]"
+            - " ParquetExec: file_groups={0 groups: []}, projection=[col], output_ordering=[col@0 ASC]"
         "###
         );
     }
