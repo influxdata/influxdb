@@ -45,7 +45,7 @@ pub struct SelectStatement {
     pub group_by: Option<GroupByClause>,
 
     /// The [fill] clause specifies the fill behaviour for the selection. If the value is [`None`],
-    /// it is the same behavior as `fill(none)`.
+    /// it is the same behavior as `fill(null)`.
     ///
     /// [fill]: https://docs.influxdata.com/influxdb/v1.8/query_language/explore-data/#group-by-time-intervals-and-fill
     pub fill: Option<FillClause>,
