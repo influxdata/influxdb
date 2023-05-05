@@ -40,6 +40,18 @@ pub enum WriteError {
     IoError(#[from] std::io::Error),
 }
 
+/// A [`NamespacedBatchWriter`] takes a namespace and a set of associated table
+/// batch writes and writes them elsewhere.
+pub trait NamespacedBatchWriter {
+    /// Writes out each table batch to a destination associated with the given
+    /// namespace ID.
+    fn write_namespaced_table_batches(
+        &mut self,
+        ns: NamespaceId,
+        table_batches: HashMap<i64, MutableBatch>,
+    ) -> Result<(), WriteError>;
+}
+
 /// Provides namespaced write functionality from table-based mutable batches
 /// to namespaced line protocol output.
 #[derive(Debug)]
@@ -98,10 +110,16 @@ where
             table_name_index,
         }
     }
+}
 
+impl<W, F> NamespacedBatchWriter for LineProtoWriter<W, F>
+where
+    W: Write,
+    F: Fn(NamespaceId) -> Result<W, WriteError>,
+{
     /// Writes the provided set of table batches as line protocol write entries
     /// to the destination for the provided namespace ID.
-    pub fn write_namespaced_table_batches(
+    fn write_namespaced_table_batches(
         &mut self,
         ns: NamespaceId,
         table_batches: HashMap<i64, MutableBatch>,
