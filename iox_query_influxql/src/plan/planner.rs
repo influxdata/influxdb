@@ -1,5 +1,6 @@
 mod select;
 
+use crate::plan::ir::{DataSource, Select};
 use crate::plan::planner::select::{
     check_exprs_satisfy_columns, fields_to_exprs_no_nulls, make_tag_key_column_meta, plan_with_sort,
 };
@@ -43,7 +44,7 @@ use influxdb_influxql_parser::expression::{
 use influxdb_influxql_parser::functions::{
     is_aggregate_function, is_now_function, is_scalar_math_function,
 };
-use influxdb_influxql_parser::select::{FillClause, GroupByClause, TimeZoneClause};
+use influxdb_influxql_parser::select::{FillClause, GroupByClause};
 use influxdb_influxql_parser::show_field_keys::ShowFieldKeysStatement;
 use influxdb_influxql_parser::show_measurements::{
     ShowMeasurementsStatement, WithMeasurementClause,
@@ -54,9 +55,8 @@ use influxdb_influxql_parser::simple_from_clause::ShowFromClause;
 use influxdb_influxql_parser::{
     common::{MeasurementName, WhereClause},
     expression::Expr as IQLExpr,
-    identifier::Identifier,
     literal::Literal,
-    select::{Field, FromMeasurementClause, MeasurementSelection, SelectStatement},
+    select::{Field, SelectStatement},
     statement::Statement,
 };
 use iox_query::config::{IoxConfigExt, MetadataCutoff};
@@ -153,12 +153,11 @@ impl<'a> Context<'a> {
         Self { scope, ..*self }
     }
 
-    fn with_timezone(&self, timezone: Option<TimeZoneClause>) -> Self {
-        let tz = timezone.as_deref().cloned();
+    fn with_timezone(&self, tz: Option<Tz>) -> Self {
         Self { tz, ..*self }
     }
 
-    fn with_group_by_fill(&self, select: &'a SelectStatement) -> Self {
+    fn with_group_by_fill(&self, select: &'a Select) -> Self {
         Self {
             group_by: select.group_by.as_ref(),
             fill: select.fill,
@@ -267,12 +266,12 @@ impl<'a> InfluxQLToLogicalPlan<'a> {
         )
     }
 
-    fn rewrite_select_statement(&self, select: SelectStatement) -> Result<SelectStatement> {
+    fn rewrite_select_statement(&self, select: SelectStatement) -> Result<Select> {
         rewrite_statement(self.s, &select)
     }
 
     /// Create a [`LogicalPlan`] from the specified InfluxQL `SELECT` statement.
-    fn select_statement_to_plan(&self, select: &SelectStatement) -> Result<LogicalPlan> {
+    fn select_statement_to_plan(&self, select: &Select) -> Result<LogicalPlan> {
         let mut plans = self.plan_from_tables(&select.from)?;
 
         let ctx = Context::new(select_statement_info(select)?)
@@ -457,7 +456,7 @@ impl<'a> InfluxQLToLogicalPlan<'a> {
         ctx: &Context<'_>,
         input: LogicalPlan,
         proj: Vec<Expr>,
-        select: &SelectStatement,
+        select: &Select,
         fields: &[Field],
         group_by_tag_set: &[&str],
     ) -> Result<LogicalPlan> {
@@ -976,8 +975,7 @@ impl<'a> InfluxQLToLogicalPlan<'a> {
                 name,
                 data_type: opt_dst_type,
             }) => {
-                let name = normalize_identifier(name);
-                Ok(match (ctx.scope, name.as_str()) {
+                Ok(match (ctx.scope, name.deref().as_str()) {
                     // Per the Go implementation, the time column is case-insensitive in the
                     // `WHERE` clause and disregards any postfix type cast operator.
                     //
@@ -1236,24 +1234,13 @@ impl<'a> InfluxQLToLogicalPlan<'a> {
 
     /// Generate a list of logical plans for each of the tables references in the `FROM`
     /// clause.
-    fn plan_from_tables(
-        &self,
-        from: &FromMeasurementClause,
-    ) -> Result<VecDeque<(LogicalPlan, Vec<Expr>)>> {
+    fn plan_from_tables(&self, from: &[DataSource]) -> Result<VecDeque<(LogicalPlan, Vec<Expr>)>> {
         // A list of scans and their initial projections
         let mut table_projs = VecDeque::new();
-        for ms in from.iter() {
-            let Some(table_proj) = match ms {
-                MeasurementSelection::Name(qn) => match qn.name {
-                    MeasurementName::Name(ref ident) => {
-                        self.create_table_ref(normalize_identifier(ident))
-                    }
-                    // rewriter is expected to expand the regular expression
-                    MeasurementName::Regex(_) => error::internal(
-                        "unexpected regular expression in FROM clause",
-                    ),
-                },
-                MeasurementSelection::Subquery(_) => error::not_implemented(
+        for ds in from.iter() {
+            let Some(table_proj) = match ds {
+                DataSource::Table(name) => self.create_table_ref(name),
+                DataSource::Subquery(_) => error::not_implemented(
                     "subquery in FROM clause",
                 ),
             }? else { continue };
@@ -1266,12 +1253,12 @@ impl<'a> InfluxQLToLogicalPlan<'a> {
     ///
     /// Normally, this functions will not return a `None`, as tables have been matched]
     /// by the [`rewrite_statement`] function.
-    fn create_table_ref(&self, table_name: String) -> Result<Option<(LogicalPlan, Vec<Expr>)>> {
-        Ok(if let Ok(source) = self.s.get_table_provider(&table_name) {
-            let table_ref = TableReference::bare(table_name.to_string());
+    fn create_table_ref(&self, table_name: &str) -> Result<Option<(LogicalPlan, Vec<Expr>)>> {
+        Ok(if let Ok(source) = self.s.get_table_provider(table_name) {
+            let table_ref = TableReference::bare(table_name.to_owned());
             Some((
                 LogicalPlanBuilder::scan(table_ref, source, None)?.build()?,
-                vec![lit_dict(&table_name).alias(INFLUXQL_MEASUREMENT_COLUMN_NAME)],
+                vec![lit_dict(table_name).alias(INFLUXQL_MEASUREMENT_COLUMN_NAME)],
             ))
         } else {
             None
@@ -1411,7 +1398,7 @@ impl<'a> InfluxQLToLogicalPlan<'a> {
                 let mut union_plan = None;
                 for table in tables {
                     let Some(table_schema) = self.s.table_schema(&table) else {continue};
-                    let Some((plan, measurement_expr)) = self.create_table_ref(table.clone())? else {continue;};
+                    let Some((plan, measurement_expr)) = self.create_table_ref(&table)? else {continue;};
 
                     let schemas = Schemas::new(plan.schema())?;
                     let plan =
@@ -1658,7 +1645,7 @@ impl<'a> InfluxQLToLogicalPlan<'a> {
                 continue;
             }
 
-            let Some((plan, measurement_expr)) = self.create_table_ref(table)? else {continue;};
+            let Some((plan, measurement_expr)) = self.create_table_ref(&table)? else {continue;};
 
             let schemas = Schemas::new(plan.schema())?;
             let plan = self.plan_where_clause(
@@ -1762,7 +1749,7 @@ impl<'a> InfluxQLToLogicalPlan<'a> {
 
                 let mut union_plan = None;
                 for table in tables {
-                    let Some((plan, _measurement_expr)) = self.create_table_ref(table.clone())? else {continue;};
+                    let Some((plan, _measurement_expr)) = self.create_table_ref(&table)? else {continue;};
 
                     let schemas = Schemas::new(plan.schema())?;
                     let plan =
@@ -2101,13 +2088,6 @@ fn conditional_op_to_operator(op: ConditionalOperator) -> Result<Operator> {
         // NOTE: This is not supported by InfluxQL SELECT expressions, so it is unexpected
         ConditionalOperator::In => error::internal("unexpected binary operator: IN"),
     }
-}
-
-// Normalize an identifier. Identifiers in InfluxQL are case sensitive,
-// and therefore not transformed to lower case.
-fn normalize_identifier(ident: &Identifier) -> String {
-    // Dereference the identifier to return the unquoted value.
-    ident.deref().clone()
 }
 
 /// Find the index of the time column in the fields list.

@@ -5,7 +5,6 @@ use influxdb_influxql_parser::common::{
     LimitClause, MeasurementName, OffsetClause, OrderByClause, QualifiedMeasurementName,
     WhereClause,
 };
-use influxdb_influxql_parser::expression::ConditionalExpression;
 use influxdb_influxql_parser::select::{
     Field, FieldList, FillClause, FromMeasurementClause, GroupByClause, MeasurementSelection,
     SelectStatement, TimeZoneClause,
@@ -23,7 +22,7 @@ pub(super) struct Select {
     pub(super) from: Vec<DataSource>,
 
     /// A conditional expression to filter the selection.
-    pub(super) condition: Option<ConditionalExpression>,
+    pub(super) condition: Option<WhereClause>,
 
     /// The GROUP BY clause of the selection.
     pub(super) group_by: Option<GroupByClause>,
@@ -38,10 +37,10 @@ pub(super) struct Select {
     pub(super) order_by: Option<OrderByClause>,
 
     /// A value to restrict the number of rows returned.
-    pub(super) limit: Option<u64>,
+    pub(super) limit: Option<LimitClause>,
 
     /// A value to specify an offset to start retrieving rows.
-    pub(super) offset: Option<u64>,
+    pub(super) offset: Option<OffsetClause>,
 
     /// The timezone for the query, specified as [`tz('<time zone>')`][time_zone_clause].
     ///
@@ -71,12 +70,12 @@ impl From<Select> for SelectStatement {
                     })
                     .collect(),
             ),
-            condition: value.condition.map(WhereClause::new),
+            condition: value.condition,
             group_by: value.group_by,
             fill: value.fill,
             order_by: value.order_by,
-            limit: value.limit.map(LimitClause::new),
-            offset: value.offset.map(OffsetClause::new),
+            limit: value.limit,
+            offset: value.offset,
             series_limit: None,
             series_offset: None,
             timezone: value.timezone.map(TimeZoneClause::new),

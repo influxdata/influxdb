@@ -21,16 +21,13 @@ use std::ops::{ControlFlow, Deref};
 
 /// Recursively rewrite the specified [`SelectStatement`] by performing a series of passes
 /// to validate and normalize the statement.
-pub(super) fn rewrite_statement(
-    s: &dyn SchemaProvider,
-    q: &SelectStatement,
-) -> Result<SelectStatement> {
+pub(super) fn rewrite_statement(s: &dyn SchemaProvider, q: &SelectStatement) -> Result<Select> {
     let mut stmt = map_select(s, q)?;
     from_drop_empty(s, &mut stmt);
     field_list_normalize_time(&mut stmt);
     field_list_rewrite_aliases(&mut stmt.fields)?;
 
-    Ok(stmt.into())
+    Ok(stmt)
 }
 
 /// Map a `SelectStatement` to a `Select`, which is an intermediate representation to be
@@ -46,12 +43,12 @@ pub(super) fn map_select(s: &dyn SchemaProvider, stmt: &SelectStatement) -> Resu
     let mut sel = Select {
         fields: vec![],
         from: vec![],
-        condition: stmt.condition.as_ref().map(|v| (**v).clone()),
+        condition: stmt.condition.clone(),
         group_by: stmt.group_by.clone(),
         fill: stmt.fill,
         order_by: stmt.order_by,
-        limit: stmt.limit.map(|v| *v),
-        offset: stmt.offset.map(|v| *v),
+        limit: stmt.limit,
+        offset: stmt.offset,
         timezone: stmt.timezone.map(|v| *v),
     };
     from_expand_wildcards(s, stmt, &mut sel)?;
@@ -708,7 +705,7 @@ struct FieldChecker {
 }
 
 impl FieldChecker {
-    fn check_fields(&mut self, q: &SelectStatement) -> Result<ProjectionType> {
+    fn check_fields(&mut self, q: &Select) -> Result<ProjectionType> {
         q.fields.iter().try_for_each(|f| self.check_expr(&f.expr))?;
 
         match self.function_count() {
@@ -1318,7 +1315,7 @@ pub(crate) struct SelectStatementInfo {
 ///
 /// * Are not combined with other aggregate, selector or window-like functions and may
 ///   only project additional fields
-pub(crate) fn select_statement_info(q: &SelectStatement) -> Result<SelectStatementInfo> {
+pub(super) fn select_statement_info(q: &Select) -> Result<SelectStatementInfo> {
     let has_group_by_time = q
         .group_by
         .as_ref()
@@ -1337,8 +1334,9 @@ pub(crate) fn select_statement_info(q: &SelectStatement) -> Result<SelectStateme
 
 #[cfg(test)]
 mod test {
+    use crate::plan::ir::Select;
     use crate::plan::rewriter::{
-        has_wildcards, rewrite_statement, select_statement_info, ProjectionType,
+        has_wildcards, map_select, rewrite_statement, select_statement_info, ProjectionType,
     };
     use crate::plan::test_utils::{parse_select, MockSchemaProvider};
     use assert_matches::assert_matches;
@@ -1347,6 +1345,12 @@ mod test {
 
     #[test]
     fn test_select_statement_info() {
+        let namespace = MockSchemaProvider::default();
+        let parse_select = |s: &str| -> Select {
+            let select = parse_select(s);
+            map_select(&namespace, &select).unwrap()
+        };
+
         let info = select_statement_info(&parse_select("SELECT foo, bar FROM cpu")).unwrap();
         assert_matches!(info.projection_type, ProjectionType::Raw);
 
@@ -1386,6 +1390,12 @@ mod test {
     /// by `select_statement_info`.
     #[test]
     fn test_select_statement_info_functions() {
+        let namespace = MockSchemaProvider::default();
+        let parse_select = |s: &str| -> Select {
+            let select = parse_select(s);
+            map_select(&namespace, &select).unwrap()
+        };
+
         // percentile
         let sel = parse_select("SELECT percentile(foo, 2) FROM cpu");
         select_statement_info(&sel).unwrap();
@@ -1600,16 +1610,10 @@ mod test {
         select_statement_info(&sel).unwrap();
         let sel = parse_select("SELECT count(distinct('foo')) FROM cpu");
         assert_error!(select_statement_info(&sel), DataFusionError::Plan(ref s) if s == "expected field argument in distinct()");
-        let sel = parse_select("SELECT count(distinct foo) FROM cpu");
-        assert_error!(select_statement_info(&sel), DataFusionError::External(ref s) if s.to_string() == "InfluxQL internal error: unexpected distinct clause in count");
 
         // Test rules for math functions
         let sel = parse_select("SELECT abs(usage_idle) FROM cpu");
         select_statement_info(&sel).unwrap();
-        let sel = parse_select("SELECT abs(*) + ceil(foo) FROM cpu");
-        assert_error!(select_statement_info(&sel), DataFusionError::External(ref s) if s.to_string() == "InfluxQL internal error: unexpected wildcard");
-        let sel = parse_select("SELECT abs(/f/) + ceil(foo) FROM cpu");
-        assert_error!(select_statement_info(&sel), DataFusionError::External(ref s) if s.to_string() == "InfluxQL internal error: unexpected regex");
 
         // Fallible
 
@@ -1629,14 +1633,6 @@ mod test {
         let sel = parse_select("SELECT foo, 1 FROM cpu");
         assert_error!(select_statement_info(&sel), DataFusionError::Plan(ref s) if s == "field must contain at least one variable");
 
-        // wildcard expansion is not supported in binary expressions for aggregates
-        let sel = parse_select("SELECT count(*) + count(foo) FROM cpu");
-        assert_error!(select_statement_info(&sel), DataFusionError::External(ref s) if s.to_string() == "InfluxQL internal error: unexpected wildcard or regex");
-
-        // regex expansion is not supported in binary expressions
-        let sel = parse_select("SELECT sum(/foo/) + count(foo) FROM cpu");
-        assert_error!(select_statement_info(&sel), DataFusionError::External(ref s) if s.to_string() == "InfluxQL internal error: unexpected wildcard or regex");
-
         // aggregate functions require a field reference
         let sel = parse_select("SELECT sum(1) FROM cpu");
         assert_error!(select_statement_info(&sel), DataFusionError::Plan(ref s) if s == "expected field argument in sum(), got Literal(Integer(1))");
@@ -1644,11 +1640,24 @@ mod test {
 
     mod rewrite_statement {
         use super::*;
+        use datafusion::common::Result;
+        use influxdb_influxql_parser::select::SelectStatement;
+
+        /// Test implementation that converts `Select` to `SelectStatement` so that it can be
+        /// converted back to a string.
+        fn rewrite_statement(
+            s: &MockSchemaProvider,
+            q: &SelectStatement,
+        ) -> Result<SelectStatement> {
+            let stmt = super::rewrite_statement(s, q)?;
+            Ok(stmt.into())
+        }
 
         /// Validating types for simple projections
         #[test]
         fn projection_simple() {
             let namespace = MockSchemaProvider::default();
+
             // Exact, match
             let stmt = parse_select("SELECT usage_user FROM cpu");
             let stmt = rewrite_statement(&namespace, &stmt).unwrap();
