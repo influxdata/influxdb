@@ -1,4 +1,4 @@
-use crate::plan::expr_type_evaluator::evaluate_type;
+use crate::plan::expr_type_evaluator::TypeEvaluator;
 use crate::plan::field::{field_by_name, field_name};
 use crate::plan::field_mapper::{field_and_dimensions, FieldTypeMap, TagSet};
 use crate::plan::ir::{Select, TableReference};
@@ -241,10 +241,10 @@ fn from_field_and_dimensions(
                 ts.extend(tag_set);
             }
             TableReference::Subquery(select) => {
+                let tv = TypeEvaluator::new(s, &select.from);
                 for f in &select.fields {
-                    let dt = match evaluate_type(s, &f.expr, &select.from)? {
-                        Some(dt) => dt,
-                        None => continue,
+                    let Some(dt) = tv.eval_type(&f.expr)? else {
+                        continue
                     };
 
                     let name = field_name(f);
@@ -352,16 +352,14 @@ fn field_list_expand_wildcards(
     // Attempt to rewrite all variable references in the fields with their types, if one
     // hasn't been specified.
     if let ControlFlow::Break(e) = sel.fields.iter_mut().try_for_each(|f| {
-        walk_expr_mut::<DataFusionError>(&mut f.expr, &mut |e| {
-            if matches!(e, Expr::VarRef(_)) {
-                let new_type = match evaluate_type(s, e, &sel.from) {
-                    Err(e) => ControlFlow::Break(e)?,
-                    Ok(v) => v,
-                };
+        let tv = TypeEvaluator::new(s, &sel.from);
 
-                if let Expr::VarRef(v) = e {
-                    v.data_type = new_type;
-                }
+        walk_expr_mut::<DataFusionError>(&mut f.expr, &mut |e| {
+            if let Expr::VarRef(ref mut v) = e {
+                v.data_type = match tv.eval_var_ref(v) {
+                    Ok(v) => v,
+                    Err(e) => ControlFlow::Break(e)?,
+                };
             }
             ControlFlow::Continue(())
         })
@@ -1687,6 +1685,22 @@ mod test {
             assert_eq!(
                 stmt.to_string(),
                 "SELECT time::timestamp AS time, usage_idle::float AS usage_idle FROM cpu"
+            );
+
+            // Field does not exist in single measurement
+            let stmt = parse_select("SELECT usage_idle, bytes_free FROM cpu");
+            let stmt = rewrite_statement(&namespace, &stmt).unwrap();
+            assert_eq!(
+                stmt.to_string(),
+                "SELECT time::timestamp AS time, usage_idle::float AS usage_idle, bytes_free AS bytes_free FROM cpu"
+            );
+
+            // Field exists in each measurement
+            let stmt = parse_select("SELECT usage_idle, bytes_free FROM cpu, disk");
+            let stmt = rewrite_statement(&namespace, &stmt).unwrap();
+            assert_eq!(
+                stmt.to_string(),
+                "SELECT time::timestamp AS time, usage_idle::float AS usage_idle, bytes_free::integer AS bytes_free FROM cpu, disk"
             );
         }
 

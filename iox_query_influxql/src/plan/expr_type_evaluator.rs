@@ -18,20 +18,23 @@ pub(super) fn evaluate_type(
     expr: &Expr,
     from: &[TableReference],
 ) -> Result<Option<VarRefDataType>> {
-    TypeEvaluator::new(from, s).eval_type(expr)
+    TypeEvaluator::new(s, from).eval_type(expr)
 }
 
-struct TypeEvaluator<'a> {
+/// Evaluate the type of the specified expression.
+///
+/// Derived from [Go implementation](https://github.com/influxdata/influxql/blob/1ba470371ec093d57a726b143fe6ccbacf1b452b/ast.go#L4796-L4797).
+pub(super) struct TypeEvaluator<'a> {
     s: &'a dyn SchemaProvider,
     from: &'a [TableReference],
 }
 
 impl<'a> TypeEvaluator<'a> {
-    fn new(from: &'a [TableReference], s: &'a dyn SchemaProvider) -> Self {
+    pub(super) fn new(s: &'a dyn SchemaProvider, from: &'a [TableReference]) -> Self {
         Self { from, s }
     }
 
-    fn eval_type(&self, expr: &Expr) -> Result<Option<VarRefDataType>> {
+    pub(super) fn eval_type(&self, expr: &Expr) -> Result<Option<VarRefDataType>> {
         Ok(match expr {
             Expr::VarRef(v) => self.eval_var_ref(v)?,
             Expr::Call(v) => self.eval_call(v)?,
@@ -80,9 +83,10 @@ impl<'a> TypeEvaluator<'a> {
         }
     }
 
-    /// Returns the type for the specified [`Expr`].
+    /// Returns the type for the specified [`VarRef`].
+    ///
     /// This function assumes that the expression has already been reduced.
-    fn eval_var_ref(&self, expr: &VarRef) -> Result<Option<VarRefDataType>> {
+    pub(super) fn eval_var_ref(&self, expr: &VarRef) -> Result<Option<VarRefDataType>> {
         Ok(match expr.data_type {
             Some(dt)
                 if matches!(
