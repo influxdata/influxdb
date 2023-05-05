@@ -426,6 +426,9 @@ async fn execute_plan(
         // Adjust concurrency based on the column count in the partition.
         let permits = compute_permits(df_semaphore.total_permits(), partition_info.column_count());
 
+        // use the address of the plan as a uniq identifier so logs can be matched despite the concurrency.
+        let plan_id = format!("{:p}", &plan_ir);
+
         info!(
             partition_id = partition_info.partition_id.get(),
             jobs_running = df_semaphore.holders_acquired(),
@@ -433,6 +436,7 @@ async fn execute_plan(
             permits_needed = permits,
             permits_acquired = df_semaphore.permits_acquired(),
             permits_pending = df_semaphore.permits_pending(),
+            plan_id,
             "requesting job semaphore",
         );
 
@@ -451,6 +455,7 @@ async fn execute_plan(
             column_count = partition_info.column_count(),
             input_files = plan_ir.n_input_files(),
             permits,
+            plan_id,
             "job semaphore acquired",
         );
 
@@ -472,7 +477,7 @@ async fn execute_plan(
         drop(permit);
         info!(
             partition_id = partition_info.partition_id.get(),
-            "job semaphore released",
+            plan_id, "job semaphore released",
         );
 
         res?
