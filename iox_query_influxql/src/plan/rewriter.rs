@@ -1,7 +1,7 @@
 use crate::plan::expr_type_evaluator::TypeEvaluator;
 use crate::plan::field::{field_by_name, field_name};
 use crate::plan::field_mapper::{field_and_dimensions, FieldTypeMap, TagSet};
-use crate::plan::ir::{Select, TableReference};
+use crate::plan::ir::{DataSource, Select};
 use crate::plan::{error, util, SchemaProvider};
 use datafusion::common::{DataFusionError, Result};
 use influxdb_influxql_parser::common::{MeasurementName, QualifiedMeasurementName};
@@ -119,7 +119,7 @@ fn field_list_normalize_time(stmt: &mut Select) {
     normalize_time(stmt, false);
 
     for stmt in stmt.from.iter_mut().filter_map(|ms| match ms {
-        TableReference::Subquery(stmt) => Some(stmt),
+        DataSource::Subquery(stmt) => Some(stmt),
         _ => None,
     }) {
         normalize_time(stmt, true)
@@ -141,7 +141,7 @@ fn from_expand_wildcards(
                     ..
                 } => {
                     if s.table_exists(name) {
-                        new_from.push(TableReference::Name(name.deref().to_owned()))
+                        new_from.push(DataSource::Table(name.deref().to_owned()))
                     }
                 }
                 QualifiedMeasurementName {
@@ -152,11 +152,11 @@ fn from_expand_wildcards(
                     s.table_names()
                         .into_iter()
                         .filter(|table| re.is_match(table))
-                        .for_each(|table| new_from.push(TableReference::Name(table.to_owned())));
+                        .for_each(|table| new_from.push(DataSource::Table(table.to_owned())));
                 }
             },
             MeasurementSelection::Subquery(q) => {
-                new_from.push(TableReference::Subquery(Box::new(map_select(s, q)?)))
+                new_from.push(DataSource::Subquery(Box::new(map_select(s, q)?)))
             }
         }
     }
@@ -170,7 +170,7 @@ fn from_drop_empty(s: &dyn SchemaProvider, stmt: &mut Select) {
     use schema::InfluxColumnType;
     stmt.from.retain_mut(|tr| {
         match tr {
-            TableReference::Name(name) => {
+            DataSource::Table(name) => {
                 // drop any measurements that have no matching fields in the
                 // projection
 
@@ -188,7 +188,7 @@ fn from_drop_empty(s: &dyn SchemaProvider, stmt: &mut Select) {
                     false
                 }
             }
-            TableReference::Subquery(q) => {
+            DataSource::Subquery(q) => {
                 from_drop_empty(s, q);
                 if q.from.is_empty() {
                     return false;
@@ -211,14 +211,14 @@ fn from_drop_empty(s: &dyn SchemaProvider, stmt: &mut Select) {
 /// Determine the merged fields and tags of the `FROM` clause.
 fn from_field_and_dimensions(
     s: &dyn SchemaProvider,
-    from: &[TableReference],
+    from: &[DataSource],
 ) -> Result<(FieldTypeMap, TagSet)> {
     let mut fs = FieldTypeMap::new();
     let mut ts = TagSet::new();
 
     for tr in from {
         match tr {
-            TableReference::Name(name) => {
+            DataSource::Table(name) => {
                 let (field_set, tag_set) = match field_and_dimensions(s, name.as_str())? {
                     Some(res) => res,
                     None => continue,
@@ -240,7 +240,7 @@ fn from_field_and_dimensions(
 
                 ts.extend(tag_set);
             }
-            TableReference::Subquery(select) => {
+            DataSource::Subquery(select) => {
                 let tv = TypeEvaluator::new(s, &select.from);
                 for f in &select.fields {
                     let Some(dt) = tv.eval_type(&f.expr)? else {

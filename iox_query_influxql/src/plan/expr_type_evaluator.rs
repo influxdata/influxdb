@@ -1,6 +1,6 @@
 use crate::plan::field::field_by_name;
 use crate::plan::field_mapper::map_type;
-use crate::plan::ir::TableReference;
+use crate::plan::ir::DataSource;
 use crate::plan::{error, SchemaProvider};
 use datafusion::common::Result;
 use influxdb_influxql_parser::expression::{
@@ -16,7 +16,7 @@ use itertools::Itertools;
 pub(super) fn evaluate_type(
     s: &dyn SchemaProvider,
     expr: &Expr,
-    from: &[TableReference],
+    from: &[DataSource],
 ) -> Result<Option<VarRefDataType>> {
     TypeEvaluator::new(s, from).eval_type(expr)
 }
@@ -26,11 +26,11 @@ pub(super) fn evaluate_type(
 /// Derived from [Go implementation](https://github.com/influxdata/influxql/blob/1ba470371ec093d57a726b143fe6ccbacf1b452b/ast.go#L4796-L4797).
 pub(super) struct TypeEvaluator<'a> {
     s: &'a dyn SchemaProvider,
-    from: &'a [TableReference],
+    from: &'a [DataSource],
 }
 
 impl<'a> TypeEvaluator<'a> {
-    pub(super) fn new(s: &'a dyn SchemaProvider, from: &'a [TableReference]) -> Self {
+    pub(super) fn new(s: &'a dyn SchemaProvider, from: &'a [DataSource]) -> Self {
         Self { from, s }
     }
 
@@ -104,7 +104,7 @@ impl<'a> TypeEvaluator<'a> {
                 let mut data_type: Option<VarRefDataType> = None;
                 for tr in self.from.iter() {
                     match tr {
-                        TableReference::Name(name) => match (
+                        DataSource::Table(name) => match (
                             data_type,
                             map_type(self.s, name.as_str(), expr.name.as_str())?,
                         ) {
@@ -116,7 +116,7 @@ impl<'a> TypeEvaluator<'a> {
                             (None, Some(res)) => data_type = Some(res),
                             _ => continue,
                         },
-                        TableReference::Subquery(select) => {
+                        DataSource::Subquery(select) => {
                             // find the field by name
                             if let Some(field) = field_by_name(&select.fields, expr.name.as_str()) {
                                 match (data_type, evaluate_type(self.s, &field.expr, &select.from)?)
