@@ -246,9 +246,9 @@ mod tests {
         deferred_load::{self, DeferredLoad},
         query::partition_response::PartitionResponse,
         test_util::{
-            make_write_op, PartitionDataBuilder, ARBITRARY_NAMESPACE_ID, ARBITRARY_NAMESPACE_NAME,
-            ARBITRARY_PARTITION_KEY, ARBITRARY_TABLE_ID, ARBITRARY_TABLE_NAME,
-            ARBITRARY_TABLE_NAME_PROVIDER, DEFER_NAMESPACE_NAME_1_MS,
+            defer_namespace_name_1_ms, make_write_op, PartitionDataBuilder, ARBITRARY_NAMESPACE_ID,
+            ARBITRARY_NAMESPACE_NAME, ARBITRARY_PARTITION_KEY, ARBITRARY_TABLE_ID,
+            ARBITRARY_TABLE_NAME, ARBITRARY_TABLE_NAME_PROVIDER,
         },
     };
 
@@ -265,7 +265,7 @@ mod tests {
         // Init the namespace
         let ns = NamespaceData::new(
             ARBITRARY_NAMESPACE_ID,
-            Arc::clone(&*DEFER_NAMESPACE_NAME_1_MS),
+            defer_namespace_name_1_ms(),
             Arc::clone(&*ARBITRARY_TABLE_NAME_PROVIDER),
             partition_provider,
             Arc::new(MockPostWriteObserver::default()),
@@ -703,7 +703,7 @@ mod tests {
                         .with_partition_id(PartitionId::new(2))
                         .with_partition_key(PartitionKey::from("p3"))
                         .with_table_id(TABLE2_ID)
-                        .with_table_name(Arc::new(DeferredLoad::new(
+                        .with_table_name_loader(Arc::new(DeferredLoad::new(
                             Duration::from_secs(1),
                             async move { TableName::from(TABLE2_NAME) },
                         )))

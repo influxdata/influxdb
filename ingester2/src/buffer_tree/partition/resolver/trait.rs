@@ -61,15 +61,21 @@ mod tests {
     use crate::{
         buffer_tree::partition::{resolver::mock::MockPartitionProvider, SortKeyState},
         test_util::{
-            PartitionDataBuilder, ARBITRARY_NAMESPACE_ID, ARBITRARY_PARTITION_ID,
-            ARBITRARY_PARTITION_KEY, ARBITRARY_TABLE_ID, DEFER_NAMESPACE_NAME_1_SEC,
-            DEFER_TABLE_NAME_1_SEC,
+            defer_namespace_name_1_sec, defer_table_name_1_sec, PartitionDataBuilder,
+            ARBITRARY_NAMESPACE_ID, ARBITRARY_PARTITION_ID, ARBITRARY_PARTITION_KEY,
+            ARBITRARY_TABLE_ID,
         },
     };
 
     #[tokio::test]
     async fn test_arc_impl() {
-        let data = PartitionDataBuilder::new().build();
+        let namespace_loader = defer_namespace_name_1_sec();
+        let table_name_loader = defer_table_name_1_sec();
+
+        let data = PartitionDataBuilder::new()
+            .with_table_name_loader(Arc::clone(&table_name_loader))
+            .with_namespace_loader(Arc::clone(&namespace_loader))
+            .build();
 
         let mock = Arc::new(MockPartitionProvider::default().with_partition(data));
 
@@ -77,20 +83,20 @@ mod tests {
             .get_partition(
                 ARBITRARY_PARTITION_KEY.clone(),
                 ARBITRARY_NAMESPACE_ID,
-                Arc::clone(&*DEFER_NAMESPACE_NAME_1_SEC),
+                Arc::clone(&namespace_loader),
                 ARBITRARY_TABLE_ID,
-                Arc::clone(&*DEFER_TABLE_NAME_1_SEC),
+                Arc::clone(&table_name_loader),
             )
             .await;
         assert_eq!(got.lock().partition_id(), ARBITRARY_PARTITION_ID);
         assert_eq!(got.lock().namespace_id(), ARBITRARY_NAMESPACE_ID);
         assert_eq!(
             got.lock().namespace_name().to_string(),
-            DEFER_NAMESPACE_NAME_1_SEC.to_string()
+            namespace_loader.to_string()
         );
         assert_eq!(
             got.lock().table_name().to_string(),
-            DEFER_TABLE_NAME_1_SEC.to_string()
+            table_name_loader.to_string()
         );
     }
 }
