@@ -28,7 +28,6 @@ pub(super) fn rewrite_statement(
     let mut select = map_select(s, q)?;
     from_drop_empty(s, &mut select);
     field_list_normalize_time(&mut select);
-    field_list_rewrite_aliases(&mut select.fields)?;
 
     let has_multiple_measurements = has_multiple_measurements(&select);
 
@@ -81,6 +80,7 @@ pub(super) fn map_select(s: &dyn SchemaProvider, stmt: &SelectStatement) -> Resu
     };
     from_expand_wildcards(s, stmt, &mut sel)?;
     field_list_expand_wildcards(s, stmt, &mut sel)?;
+    field_list_rewrite_aliases(&mut sel.fields)?;
 
     Ok(sel)
 }
@@ -610,7 +610,7 @@ fn field_list_expand_wildcards(
     Ok(())
 }
 
-/// Resolve the outer-most `SELECT` projection list column names in accordance with the
+/// Resolve the projection list column names in accordance with the
 /// [original implementation]. The names are assigned to the `alias` field of the [`Field`] struct.
 ///
 /// [original implementation]: https://github.com/influxdata/influxql/blob/1ba470371ec093d57a726b143fe6ccbacf1b452b/ast.go#L1651
@@ -1930,7 +1930,7 @@ mod test {
             let stmt = rewrite_statement(&namespace, &stmt).unwrap();
             assert_eq!(
                 stmt.to_string(),
-                "SELECT time::timestamp AS time, usage_idle::float AS usage_idle FROM (SELECT time::timestamp AS time, usage_idle::float FROM cpu)"
+                "SELECT time::timestamp AS time, usage_idle::float AS usage_idle FROM (SELECT time::timestamp AS time, usage_idle::float AS usage_idle FROM cpu)"
             );
 
             // Subquery, regex, match
@@ -1939,7 +1939,7 @@ mod test {
             let stmt = rewrite_statement(&namespace, &stmt).unwrap();
             assert_eq!(
                 stmt.to_string(),
-                "SELECT time::timestamp AS time, bytes_free::integer AS bytes_free FROM (SELECT time::timestamp AS time, bytes_free::integer, bytes_read::integer FROM disk, diskio)"
+                "SELECT time::timestamp AS time, bytes_free::integer AS bytes_free FROM (SELECT time::timestamp AS time, bytes_free::integer AS bytes_free, bytes_read::integer AS bytes_read FROM disk, diskio)"
             );
 
             // Subquery, exact, no match
@@ -1958,7 +1958,7 @@ mod test {
             let stmt = rewrite_statement(&namespace, &stmt).unwrap();
             assert_eq!(
                 stmt.to_string(),
-                "SELECT time::timestamp AS time, usage_system_usage_idle::float AS usage_system_usage_idle FROM (SELECT time::timestamp AS time, usage_system::float + usage_idle::float FROM cpu)"
+                "SELECT time::timestamp AS time, usage_system_usage_idle::float AS usage_system_usage_idle FROM (SELECT time::timestamp AS time, usage_system::float + usage_idle::float AS usage_system_usage_idle FROM cpu)"
             );
 
             // Subquery, no fields projected should be dropped
@@ -1975,7 +1975,7 @@ mod test {
             let stmt = rewrite_statement(&namespace, &stmt).unwrap();
             assert_eq!(
                 stmt.to_string(),
-                "SELECT time::timestamp AS time, cpu::tag AS cpu FROM (SELECT time::timestamp AS time, cpu::tag, usage_system::float FROM cpu)"
+                "SELECT time::timestamp AS time, cpu::tag AS cpu FROM (SELECT time::timestamp AS time, cpu::tag AS cpu, usage_system::float AS usage_system FROM cpu)"
             );
 
             // Outer FROM should be empty, as the subquery does not project any fields
