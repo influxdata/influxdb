@@ -48,10 +48,10 @@ impl From<BTreeMap<&str, ColumnSchema>> for ColumnsByName {
 
 impl ColumnsByName {
     /// Create a new instance holding the given [`Column`]s.
-    pub fn new(columns: &[Column]) -> Self {
+    pub fn new(columns: impl IntoIterator<Item = Column>) -> Self {
         Self(
             columns
-                .iter()
+                .into_iter()
                 .map(|c| {
                     (
                         c.name.to_owned(),

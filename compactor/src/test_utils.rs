@@ -52,7 +52,7 @@ impl PartitionInfoBuilder {
         let table_schema = Arc::new(TableSchema {
             id: self.inner.table.id,
             partition_template: None,
-            columns: ColumnsByName::new(&columns),
+            columns: ColumnsByName::new(columns),
         });
         self.inner.table_schema = table_schema;
 

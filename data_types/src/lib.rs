@@ -385,7 +385,7 @@ impl TableSchema {
         Self {
             id,
             partition_template: None,
-            columns: ColumnsByName::new(&[]),
+            columns: ColumnsByName::new([]),
         }
     }
 
@@ -395,7 +395,7 @@ impl TableSchema {
             id: table.id,
             // TODO: Store and retrieve PartitionTemplate from the database
             partition_template: None,
-            columns: ColumnsByName::new(&[]),
+            columns: ColumnsByName::new([]),
         }
     }
 
@@ -2659,17 +2659,20 @@ mod tests {
         let schema1 = TableSchema {
             id: TableId::new(1),
             partition_template: None,
-            columns: ColumnsByName::new(&[]),
+            columns: ColumnsByName::new([]),
         };
         let schema2 = TableSchema {
             id: TableId::new(2),
             partition_template: None,
-            columns: ColumnsByName::new(&[Column {
-                id: ColumnId::new(1),
-                table_id: TableId::new(2),
-                name: String::from("foo"),
-                column_type: ColumnType::Bool,
-            }]),
+            columns: ColumnsByName::new(
+                [Column {
+                    id: ColumnId::new(1),
+                    table_id: TableId::new(2),
+                    name: String::from("foo"),
+                    column_type: ColumnType::Bool,
+                }]
+                .into_iter(),
+            ),
         };
         assert!(schema1.size() < schema2.size());
     }
@@ -2690,7 +2693,7 @@ mod tests {
                 String::from("foo"),
                 TableSchema {
                     id: TableId::new(1),
-                    columns: ColumnsByName::new(&[]),
+                    columns: ColumnsByName::new([]),
                     partition_template: None,
                 },
             )]),

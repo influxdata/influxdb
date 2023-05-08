@@ -615,7 +615,7 @@ where
 {
     let columns = repos.columns().list_by_table_id(id).await?;
 
-    Ok(ColumnsByName::new(&columns))
+    Ok(ColumnsByName::new(columns))
 }
 
 /// Fetch all [`NamespaceSchema`] in the catalog.

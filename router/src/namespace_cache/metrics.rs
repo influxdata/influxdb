@@ -156,7 +156,7 @@ mod tests {
                     TableSchema {
                         id: TableId::new(i as _),
                         partition_template: None,
-                        columns: ColumnsByName::new(&columns),
+                        columns: ColumnsByName::new(columns),
                     },
                 )
             })
