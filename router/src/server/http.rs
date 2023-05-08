@@ -362,11 +362,14 @@ where
             "routing write",
         );
 
-        // Retrieve the namespace ID for this namespace.
-        let (namespace_id, namespace_partition_template) = self
+        // Retrieve the namespace schema for this namespace.
+        let namespace_schema = self
             .namespace_resolver
-            .get_namespace_info(&write_info.namespace)
+            .get_namespace_schema(&write_info.namespace)
             .await?;
+
+        let namespace_id = namespace_schema.id;
+        let namespace_partition_template = namespace_schema.partition_template.as_ref().cloned();
 
         self.dml_handler
             .write(
