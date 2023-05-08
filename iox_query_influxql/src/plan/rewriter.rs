@@ -58,12 +58,8 @@ fn has_multiple_measurements(s: &Select) -> bool {
 }
 
 /// Map a `SelectStatement` to a `Select`, which is an intermediate representation to be
-/// used by the InfluxQL planner. Mapping also expands any wildcards in the `FROM` and
-/// projection clauses.
-///
-/// # NOTE
-///
-/// The goal is that `Select` will eventually be used by the InfluxQL planner.
+/// used by the InfluxQL planner. Mapping may perform other transformations, such as also
+/// expanding wildcards.
 pub(super) fn map_select(s: &dyn SchemaProvider, stmt: &SelectStatement) -> Result<Select> {
     check_features(stmt)?;
 
