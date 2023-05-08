@@ -13,7 +13,8 @@ use influxdb_influxql_parser::functions::is_scalar_math_function;
 use influxdb_influxql_parser::identifier::Identifier;
 use influxdb_influxql_parser::literal::Literal;
 use influxdb_influxql_parser::select::{
-    Dimension, Field, FromMeasurementClause, GroupByClause, MeasurementSelection, SelectStatement,
+    Dimension, Field, FillClause, FromMeasurementClause, GroupByClause, MeasurementSelection,
+    SelectStatement,
 };
 use itertools::Itertools;
 use std::collections::{HashMap, HashSet};
@@ -67,7 +68,11 @@ pub(super) fn map_select(s: &dyn SchemaProvider, stmt: &SelectStatement) -> Resu
     let (mut fields, group_by) = field_list_expand_wildcards(s, stmt, &from)?;
     field_list_rewrite_aliases(&mut fields)?;
 
+    let SelectStatementInfo { projection_type } =
+        select_statement_info(&fields, &group_by, stmt.fill)?;
+
     Ok(Select {
+        projection_type,
         fields,
         from,
         condition: stmt.condition.clone(),
@@ -728,31 +733,30 @@ struct FieldChecker {
 }
 
 impl FieldChecker {
-    fn check_fields(&mut self, q: &Select) -> Result<ProjectionType> {
-        q.fields.iter().try_for_each(|f| self.check_expr(&f.expr))?;
+    fn check_fields(
+        &mut self,
+        fields: &[Field],
+        fill: Option<FillClause>,
+    ) -> Result<ProjectionType> {
+        fields.iter().try_for_each(|f| self.check_expr(&f.expr))?;
 
         match self.function_count() {
             0 => {
-                // If there are no aggregate functions, the FILL clause does not make sense
-                //
-                // NOTE
-                // This is a deviation from InfluxQL, which allowed `FILL(previous)`, `FILL(<number>)`,
-                // and `FILL(null)` for queries that did not have a `GROUP BY time`. This is
-                // undocumented behaviour, and the `FILL` clause is documented as part of the
-                // `GROUP BY` clause, per https://docs.influxdata.com/influxdb/v1.8/query_language/spec/#clauses
-                //
-                // Normally, `FILL` is associated with gap-filling, and is applied to aggregate
-                // projections only, however, without the `GROUP BY` time clause, and no aggregate
-                // functions, it is applied to all columns, including tags.
-                //
-                //
-                // * `FILL(previous)` carries the previous non-null value forward
-                // * `FILL(<number>)` defaults `NULL` values to `<number>`, including tag columns
-                // * `FILL(null)` is the default behaviour.
+                // FILL(PREVIOUS) and FILL(<value>) are both supported for non-aggregate queries
                 //
                 // See: https://github.com/influxdata/influxdb/blob/98361e207349a3643bcc332d54b009818fe7585f/query/compile.go#L1002-L1012
-                if let Some(fill) = q.fill {
-                    return error::query(format!("{fill} must be used with an aggregate function"));
+                match fill {
+                    Some(FillClause::None) => {
+                        return error::query(
+                            "FILL(none) must be used with an aggregate or selector function",
+                        )
+                    }
+                    Some(FillClause::Linear) => {
+                        return error::query(
+                            "FILL(linear) must be used with an aggregate or selector function",
+                        )
+                    }
+                    _ => {}
                 }
 
                 if self.has_group_by_time && !self.inherited_group_by_time {
@@ -1338,9 +1342,12 @@ pub(crate) struct SelectStatementInfo {
 ///
 /// * Are not combined with other aggregate, selector or window-like functions and may
 ///   only project additional fields
-pub(super) fn select_statement_info(q: &Select) -> Result<SelectStatementInfo> {
-    let has_group_by_time = q
-        .group_by
+fn select_statement_info(
+    fields: &[Field],
+    group_by: &Option<GroupByClause>,
+    fill: Option<FillClause>,
+) -> Result<SelectStatementInfo> {
+    let has_group_by_time = group_by
         .as_ref()
         .and_then(|gb| gb.time_dimension())
         .is_some();
@@ -1350,20 +1357,23 @@ pub(super) fn select_statement_info(q: &Select) -> Result<SelectStatementInfo> {
         ..Default::default()
     };
 
-    let projection_type = fc.check_fields(q)?;
+    let projection_type = fc.check_fields(fields, fill)?;
 
     Ok(SelectStatementInfo { projection_type })
 }
 
 #[cfg(test)]
 mod test {
+    use super::Result;
     use crate::plan::ir::Select;
     use crate::plan::rewriter::{
         has_wildcards, map_select, rewrite_statement, select_statement_info, ProjectionType,
+        SelectStatementInfo,
     };
     use crate::plan::test_utils::{parse_select, MockSchemaProvider};
     use assert_matches::assert_matches;
     use datafusion::error::DataFusionError;
+    use influxdb_influxql_parser::select::SelectStatement;
     use test_helpers::{assert_contains, assert_error};
 
     #[test]
@@ -1373,6 +1383,10 @@ mod test {
             let select = parse_select(s);
             map_select(&namespace, &select).unwrap()
         };
+
+        fn select_statement_info(q: &Select) -> Result<SelectStatementInfo> {
+            super::select_statement_info(&q.fields, &q.group_by, q.fill)
+        }
 
         let info = select_statement_info(&parse_select("SELECT foo, bar FROM cpu")).unwrap();
         assert_matches!(info.projection_type, ProjectionType::Raw);
@@ -1413,11 +1427,9 @@ mod test {
     /// by `select_statement_info`.
     #[test]
     fn test_select_statement_info_functions() {
-        let namespace = MockSchemaProvider::default();
-        let parse_select = |s: &str| -> Select {
-            let select = parse_select(s);
-            map_select(&namespace, &select).unwrap()
-        };
+        fn select_statement_info(q: &SelectStatement) -> Result<SelectStatementInfo> {
+            super::select_statement_info(&q.fields, &q.group_by, q.fill)
+        }
 
         // percentile
         let sel = parse_select("SELECT percentile(foo, 2) FROM cpu");

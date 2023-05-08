@@ -567,27 +567,25 @@ mod test {
         assert_matches!(res, VarRefDataType::Integer);
 
         // Float functions
-        for name in [
-            "median",
-            "integral",
-            "stddev",
-            "derivative",
-            "non_negative_derivative",
-            "moving_average",
-            "exponential_moving_average",
-            "double_exponential_moving_average",
-            "triple_exponential_moving_average",
-            "relative_strength_index",
-            "triple_exponential_derivative",
-            "kaufmans_efficiency_ratio",
-            "kaufmans_adaptive_moving_average",
-            "chande_momentum_oscillator",
-            "holt_winters",
-            "holt_winters_with_fit",
+        for call in [
+            "median(field_i64)",
+            "integral(field_i64)",
+            "stddev(field_i64)",
+            "derivative(field_i64)",
+            "non_negative_derivative(field_i64)",
+            "moving_average(field_i64, 2)",
+            "exponential_moving_average(field_i64, 2)",
+            "double_exponential_moving_average(field_i64, 2)",
+            "triple_exponential_moving_average(field_i64, 2)",
+            "relative_strength_index(field_i64, 2)",
+            "triple_exponential_derivative(field_i64, 2)",
+            "kaufmans_efficiency_ratio(field_i64, 2)",
+            "kaufmans_adaptive_moving_average(field_i64, 2)",
+            "chande_momentum_oscillator(field_i64, 2)",
         ] {
             let stmt = map_select(
                 &namespace,
-                &parse_select(&format!("SELECT {name}(field_i64) FROM temp_01")),
+                &parse_select(&format!("SELECT {call} FROM temp_01")),
             )
             .unwrap();
             let field = stmt.fields.first().unwrap();
@@ -596,6 +594,34 @@ mod test {
                 .unwrap();
             assert_matches!(res, VarRefDataType::Float);
         }
+
+        // holt_winters
+        let stmt = map_select(
+            &namespace,
+            &parse_select(&format!(
+                "SELECT holt_winters(mean(field_i64), 2, 3) FROM temp_01 GROUP BY TIME(10s)"
+            )),
+        )
+        .unwrap();
+        let field = stmt.fields.first().unwrap();
+        let res = evaluate_type(&namespace, &field.expr, &stmt.from)
+            .unwrap()
+            .unwrap();
+        assert_matches!(res, VarRefDataType::Float);
+
+        // holt_winters_with_fit
+        let stmt = map_select(
+            &namespace,
+            &parse_select(&format!(
+                "SELECT holt_winters_with_fit(mean(field_i64), 2, 3) FROM temp_01 GROUP BY TIME(10s)"
+            )),
+        )
+        .unwrap();
+        let field = stmt.fields.first().unwrap();
+        let res = evaluate_type(&namespace, &field.expr, &stmt.from)
+            .unwrap()
+            .unwrap();
+        assert_matches!(res, VarRefDataType::Float);
 
         // Integer functions
         let stmt = map_select(
@@ -608,18 +634,6 @@ mod test {
             .unwrap()
             .unwrap();
         assert_matches!(res, VarRefDataType::Integer);
-
-        // Invalid function
-        let stmt = map_select(
-            &namespace,
-            &parse_select("SELECT not_valid(field_i64) FROM temp_01"),
-        )
-        .unwrap();
-        let field = stmt.fields.first().unwrap();
-        let res = evaluate_type(&namespace, &field.expr, &stmt.from)
-            .unwrap()
-            .is_none();
-        assert!(res);
 
         // subqueries
 

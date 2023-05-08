@@ -7,9 +7,7 @@ use crate::plan::planner::select::{
 use crate::plan::planner_time_range_expression::{
     duration_expr_to_nanoseconds, expr_to_df_interval_dt, time_range_to_df_expr,
 };
-use crate::plan::rewriter::{
-    rewrite_statement, select_statement_info, ProjectionType, SelectStatementInfo,
-};
+use crate::plan::rewriter::{rewrite_statement, ProjectionType};
 use crate::plan::util::{binary_operator_to_df_operator, rebase_expr, Schemas};
 use crate::plan::var_ref::{data_type_to_var_ref_data_type, var_ref_data_type_to_data_type};
 use crate::plan::{error, planner_rewrite_expression};
@@ -129,12 +127,12 @@ enum ExprScope {
 #[allow(dead_code)]
 #[derive(Debug, Default, Clone)]
 struct Context<'a> {
+    projection_type: ProjectionType,
     /// `true` if this is a subquery `SELECT` statement.
     is_subquery: bool,
+    has_multiple_measurements: bool,
     scope: ExprScope,
     tz: Option<Tz>,
-
-    info: SelectStatementInfo,
 
     // GROUP BY information
     group_by: Option<&'a GroupByClause>,
@@ -142,10 +140,14 @@ struct Context<'a> {
 }
 
 impl<'a> Context<'a> {
-    fn new(info: SelectStatementInfo) -> Self {
+    fn new() -> Self {
+        Default::default()
+    }
+
+    fn with_projection_type(&self, projection_type: ProjectionType) -> Self {
         Self {
-            info,
-            ..Default::default()
+            projection_type,
+            ..*self
         }
     }
 
@@ -165,19 +167,26 @@ impl<'a> Context<'a> {
         }
     }
 
+    fn with_has_multiple_measurements(&self, has_multiple_measurements: bool) -> Self {
+        Self {
+            has_multiple_measurements,
+            ..*self
+        }
+    }
+
     fn fill(&self) -> FillClause {
         self.fill.unwrap_or_default()
     }
 
     fn is_aggregate(&self) -> bool {
         matches!(
-            self.info.projection_type,
+            self.projection_type,
             ProjectionType::Aggregate | ProjectionType::Selector { .. }
         )
     }
 
     fn is_raw_distinct(&self) -> bool {
-        matches!(self.info.projection_type, ProjectionType::RawDistinct)
+        matches!(self.projection_type, ProjectionType::RawDistinct)
     }
 }
 
@@ -200,7 +209,7 @@ impl<'a> InfluxQLToLogicalPlan<'a> {
             Statement::DropMeasurement(_) => error::not_implemented("DROP MEASUREMENT"),
             Statement::Explain(explain) => self.explain_statement_to_plan(*explain),
             Statement::Select(select) => {
-                self.select_statement_to_plan(&self.rewrite_select_statement(*select)?)
+                self.select_query_to_plan(&self.rewrite_select_statement(*select)?)
             }
             Statement::ShowDatabases(_) => error::not_implemented("SHOW DATABASES"),
             Statement::ShowMeasurements(show_measurements) => {
@@ -220,8 +229,7 @@ impl<'a> InfluxQLToLogicalPlan<'a> {
     }
 
     fn explain_statement_to_plan(&self, explain: ExplainStatement) -> Result<LogicalPlan> {
-        let plan =
-            self.select_statement_to_plan(&self.rewrite_select_statement(*explain.select)?)?;
+        let plan = self.select_query_to_plan(&self.rewrite_select_statement(*explain.select)?)?;
         let plan = Arc::new(plan);
         let schema = LogicalPlan::explain_schema();
         let schema = schema.to_dfschema_ref()?;
@@ -271,12 +279,14 @@ impl<'a> InfluxQLToLogicalPlan<'a> {
     }
 
     /// Create a [`LogicalPlan`] from the specified InfluxQL `SELECT` statement.
-    fn select_statement_to_plan(&self, query: &SelectQuery) -> Result<LogicalPlan> {
+    fn select_query_to_plan(&self, query: &SelectQuery) -> Result<LogicalPlan> {
         let select = &query.select;
 
-        let ctx = Context::new(select_statement_info(select)?)
+        let ctx = Context::new()
+            .with_projection_type(select.projection_type)
             .with_timezone(select.timezone)
-            .with_group_by_fill(select);
+            .with_group_by_fill(select)
+            .with_has_multiple_measurements(query.has_multiple_measurements);
 
         // Skip the `time` column
         let fields_no_time = &select.fields[1..];
@@ -402,7 +412,7 @@ impl<'a> InfluxQLToLogicalPlan<'a> {
         let plan = plan_with_sort(
             plan,
             vec![time_sort_expr.clone()],
-            query.has_multiple_measurements,
+            ctx.has_multiple_measurements,
             &group_by_tag_set,
             &projection_tag_set,
         )?;
@@ -412,7 +422,144 @@ impl<'a> InfluxQLToLogicalPlan<'a> {
             select.offset,
             select.limit,
             vec![time_sort_expr],
-            query.has_multiple_measurements,
+            ctx.has_multiple_measurements,
+            &group_by_tag_set,
+            &projection_tag_set,
+        )?;
+
+        Ok(plan)
+    }
+
+    fn select_to_plan(&self, ctx: &Context<'_>, select: &Select) -> Result<LogicalPlan> {
+        let ctx = Context::new()
+            .with_projection_type(select.projection_type)
+            .with_timezone(select.timezone)
+            .with_group_by_fill(select)
+            .with_has_multiple_measurements(ctx.has_multiple_measurements);
+
+        // Skip the `time` column
+        let fields_no_time = &select.fields[1..];
+        // always start with the time column
+        let mut fields = vec![select.fields.first().cloned().unwrap()];
+
+        // group_by_tag_set   : a list of tag columns specified in the GROUP BY clause
+        // projection_tag_set : a list of tag columns specified exclusively in the SELECT projection
+        // is_projected       : a list of booleans indicating whether matching elements in the
+        //                      group_by_tag_set are also projected in the query
+        let (group_by_tag_set, projection_tag_set, is_projected) =
+            if let Some(group_by) = &select.group_by {
+                let mut tag_columns =
+                    find_tag_and_unknown_columns(fields_no_time).collect::<HashSet<_>>();
+
+                // Find the list of tag keys specified in the `GROUP BY` clause, and
+                // whether any of the tag keys are also projected in the SELECT list.
+                let (tag_set, is_projected): (Vec<_>, Vec<_>) = group_by
+                    .tags()
+                    .map(|t| t.deref().as_str())
+                    .map(|s| (s, tag_columns.contains(s)))
+                    // We sort the tag set, to ensure correct ordering of the results. The tag columns
+                    // referenced in the `tag_set` variable are added to the sort operator in
+                    // lexicographically ascending order.
+                    .sorted_by(|a, b| a.0.cmp(b.0))
+                    .unzip();
+
+                // Tags specified in the `GROUP BY` clause that are not already added to the
+                // projection must be projected, so they can be used in the group key.
+                //
+                // At the end of the loop, the `tag_columns` set will contain the tag columns that
+                // exist in the projection and not in the `GROUP BY`.
+                fields.extend(
+                    tag_set
+                        .iter()
+                        .filter_map(|col| match tag_columns.remove(*col) {
+                            true => None,
+                            false => Some(Field {
+                                expr: IQLExpr::VarRef(VarRef {
+                                    name: (*col).into(),
+                                    data_type: Some(VarRefDataType::Tag),
+                                }),
+                                alias: Some((*col).into()),
+                            }),
+                        }),
+                );
+
+                (
+                    tag_set,
+                    tag_columns.into_iter().sorted().collect::<Vec<_>>(),
+                    is_projected,
+                )
+            } else {
+                let tag_columns = find_tag_and_unknown_columns(fields_no_time)
+                    .sorted()
+                    .collect::<Vec<_>>();
+                (vec![], tag_columns, vec![])
+            };
+
+        fields.extend(fields_no_time.iter().cloned());
+
+        let plan = {
+            let mut iter = select.from.iter();
+            let plan = match iter.next() {
+                Some(ds) => self.project_select(&ctx, ds, select, &fields, &group_by_tag_set),
+                None => {
+                    // empty result, but let's at least have all the strictly necessary metadata
+                    let schema = Arc::new(ArrowSchema::new(vec![ArrowField::new(
+                        INFLUXQL_MEASUREMENT_COLUMN_NAME,
+                        (&InfluxColumnType::Tag).into(),
+                        false,
+                    )]));
+                    let plan = LogicalPlan::EmptyRelation(EmptyRelation {
+                        produce_one_row: false,
+                        schema: schema.to_dfschema_ref()?,
+                    });
+                    let plan = plan_with_metadata(
+                        plan,
+                        &InfluxQlMetadata {
+                            measurement_column_index: MEASUREMENT_COLUMN_INDEX,
+                            tag_key_columns: vec![],
+                        },
+                    )?;
+                    return Ok(plan);
+                }
+            }?;
+
+            iter.try_fold(plan, |prev, ds| {
+                let next = self.project_select(&ctx, ds, select, &fields, &group_by_tag_set)?;
+                LogicalPlanBuilder::from(prev).union(next)?.build()
+            })?
+        };
+
+        // the sort planner node must refer to the time column using
+        // the alias that was specified
+        let time_alias = fields[0]
+            .alias
+            .as_ref()
+            .map(|id| id.deref().as_str())
+            .unwrap_or("time");
+
+        let time_sort_expr = time_alias.as_expr().sort(
+            match select.order_by {
+                // Default behaviour is to sort by time in ascending order if there is no ORDER BY
+                None | Some(OrderByClause::Ascending) => true,
+                Some(OrderByClause::Descending) => false,
+            },
+            false,
+        );
+
+        let plan = plan_with_sort(
+            plan,
+            vec![time_sort_expr.clone()],
+            ctx.has_multiple_measurements,
+            &group_by_tag_set,
+            &projection_tag_set,
+        )?;
+
+        let plan = self.limit(
+            plan,
+            select.offset,
+            select.limit,
+            vec![time_sort_expr],
+            ctx.has_multiple_measurements,
             &group_by_tag_set,
             &projection_tag_set,
         )?;
@@ -428,7 +575,7 @@ impl<'a> InfluxQLToLogicalPlan<'a> {
         fields: &[Field],
         group_by_tag_set: &[&str],
     ) -> Result<LogicalPlan> {
-        let (plan, proj) = self.plan_from_data_source(ds)?;
+        let (plan, proj) = self.plan_from_data_source(ctx, ds)?;
 
         let schemas = Schemas::new(plan.schema())?;
 
@@ -534,7 +681,7 @@ impl<'a> InfluxQLToLogicalPlan<'a> {
                     lit(ScalarValue::TimestampNanosecond(Some(offset), None)),
                 )
             } else if let ProjectionType::Selector { has_fields } =
-                ctx.info.projection_type
+                ctx.projection_type
             {
                 if has_fields {
                     return error::not_implemented("projections with a single selector and fields: See https://github.com/influxdata/influxdb_iox/issues/7533");
@@ -560,34 +707,43 @@ impl<'a> InfluxQLToLogicalPlan<'a> {
             time_column_index
         };
 
-        let aggr_group_by_exprs = if let Some(group_by) = ctx.group_by {
-            let mut group_by_exprs = Vec::new();
-
-            if group_by.time_dimension().is_some() {
-                // Include the GROUP BY TIME(..) expression
-                group_by_exprs.push(select_exprs[time_column_index].clone());
-            }
-
-            if let DataSource::Table(table_name) = ds {
-                // If this is a table, exclude tags that do not exist in the current schema
-                let schema = self
-                    .s
-                    .table_schema(table_name)
-                    .ok_or_else(|| error::map::internal("expected table"))?;
-                group_by_exprs.extend(group_by_tag_set.iter().filter_map(|name| {
-                    if let Some(InfluxColumnType::Tag) = schema.field_type_by_name(name) {
-                        Some(name.as_expr())
-                    } else {
-                        None
-                    }
-                }));
+        let aggr_group_by_exprs = {
+            // If the input schema contains the iox::measurement column,
+            // it must be included in the group by expressions
+            let mut group_by_exprs = if input
+                .schema()
+                .has_column_with_unqualified_name(INFLUXQL_MEASUREMENT_COLUMN_NAME)
+            {
+                vec![INFLUXQL_MEASUREMENT_COLUMN_NAME.as_expr()]
             } else {
-                group_by_exprs.extend(group_by_tag_set.iter().map(|name| name.as_expr()));
+                vec![]
+            };
+
+            if let Some(group_by) = ctx.group_by {
+                if group_by.time_dimension().is_some() {
+                    // Include the GROUP BY TIME(..) expression
+                    group_by_exprs.push(select_exprs[time_column_index].clone());
+                }
+
+                if let DataSource::Table(table_name) = ds {
+                    // If this is a table, exclude tags that do not exist in the current schema
+                    let schema = self
+                        .s
+                        .table_schema(table_name)
+                        .ok_or_else(|| error::map::internal("expected table"))?;
+                    group_by_exprs.extend(group_by_tag_set.iter().filter_map(|name| {
+                        if let Some(InfluxColumnType::Tag) = schema.field_type_by_name(name) {
+                            Some(name.as_expr())
+                        } else {
+                            None
+                        }
+                    }));
+                } else {
+                    group_by_exprs.extend(group_by_tag_set.iter().map(|name| name.as_expr()));
+                }
             }
 
             group_by_exprs
-        } else {
-            vec![]
         };
 
         if aggr_exprs.is_empty() && aggr_group_by_exprs.is_empty() {
@@ -1212,7 +1368,11 @@ impl<'a> InfluxQLToLogicalPlan<'a> {
 
     /// Generate a list of logical plans for each of the tables references in the `FROM`
     /// clause.
-    fn plan_from_data_source(&self, ds: &DataSource) -> Result<(LogicalPlan, Vec<Expr>)> {
+    fn plan_from_data_source(
+        &self,
+        ctx: &Context<'_>,
+        ds: &DataSource,
+    ) -> Result<(LogicalPlan, Vec<Expr>)> {
         match ds {
             DataSource::Table(table_name) => {
                 // `rewrite_statement` guarantees the table should exist
@@ -1223,7 +1383,10 @@ impl<'a> InfluxQLToLogicalPlan<'a> {
                     vec![lit_dict(table_name).alias(INFLUXQL_MEASUREMENT_COLUMN_NAME)],
                 ))
             }
-            DataSource::Subquery(_) => error::not_implemented("subquery in FROM clause"),
+            DataSource::Subquery(select) => Ok((
+                self.select_to_plan(ctx, select)?,
+                vec![INFLUXQL_MEASUREMENT_COLUMN_NAME.as_expr()],
+            )),
         }
     }
 

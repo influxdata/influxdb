@@ -1,6 +1,7 @@
 //! Defines data structures which represent an InfluxQL
 //! statement after it has been processed
 
+use crate::plan::rewriter::ProjectionType;
 use influxdb_influxql_parser::common::{
     LimitClause, MeasurementName, OffsetClause, OrderByClause, QualifiedMeasurementName,
     WhereClause,
@@ -23,6 +24,7 @@ pub(super) struct SelectQuery {
 pub(super) struct Select {
     /// The schema of the selection.
     // pub(super) schema: Todo,
+    pub(super) projection_type: ProjectionType,
 
     /// Projection clause of the selection.
     pub(super) fields: Vec<Field>,
