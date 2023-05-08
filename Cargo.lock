@@ -1417,6 +1417,7 @@ dependencies = [
  "influxdb-line-protocol",
  "iox_time",
  "observability_deps",
+ "once_cell",
  "ordered-float 3.7.0",
  "percent-encoding",
  "proptest",

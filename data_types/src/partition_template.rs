@@ -1,3 +1,43 @@
+use once_cell::sync::Lazy;
+use std::sync::Arc;
+
+/// A partition template specified by a namespace record.
+#[derive(Debug, Eq, PartialEq, Clone)]
+pub struct NamespacePartitionTemplateOverride(PartitionTemplate);
+
+impl NamespacePartitionTemplateOverride {
+    /// Create a new, immutable override for a namespace's partition template.
+    pub fn new(partition_template: PartitionTemplate) -> Self {
+        Self(partition_template)
+    }
+}
+
+/// A partition template specified by a table record.
+#[derive(Debug, Eq, PartialEq, Clone)]
+pub struct TablePartitionTemplateOverride(PartitionTemplate);
+
+impl TablePartitionTemplateOverride {
+    /// Create a new, immutable override for a table's partition template.
+    pub fn new(partition_template: PartitionTemplate) -> Self {
+        Self(partition_template)
+    }
+}
+
+/// A partition template specified as the default to be used in the absence of any overrides.
+#[derive(Debug, Eq, PartialEq, Clone, Copy)]
+pub struct DefaultPartitionTemplate(&'static PartitionTemplate);
+
+impl Default for DefaultPartitionTemplate {
+    fn default() -> Self {
+        Self(&PARTITION_BY_DAY)
+    }
+}
+
+/// The default partitioning scheme is by each day according to the "time" column.
+pub static PARTITION_BY_DAY: Lazy<PartitionTemplate> = Lazy::new(|| PartitionTemplate {
+    parts: vec![TemplatePart::TimeFormat("%Y-%m-%d".to_owned())],
+});
+
 /// `PartitionTemplate` is used to compute the partition key of each row that gets written. It can
 /// consist of a column name and its value or a formatted time. For columns that do not appear in
 /// the input row, a blank value is output.
@@ -10,11 +50,19 @@ pub struct PartitionTemplate {
     pub parts: Vec<TemplatePart>,
 }
 
-impl Default for PartitionTemplate {
-    fn default() -> Self {
-        Self {
-            parts: vec![TemplatePart::TimeFormat("%Y-%m-%d".to_owned())],
-        }
+impl PartitionTemplate {
+    /// If the table has a partition template, use that. Otherwise, if the namespace has a
+    /// partition template, use that. If neither the table nor the namespace has a template,
+    /// use the default template.
+    pub fn determine_precedence<'a>(
+        table: Option<&'a Arc<TablePartitionTemplateOverride>>,
+        namespace: Option<&'a Arc<NamespacePartitionTemplateOverride>>,
+        default: &'a DefaultPartitionTemplate,
+    ) -> &'a PartitionTemplate {
+        table
+            .map(|t| &t.0)
+            .or(namespace.map(|n| &n.0))
+            .unwrap_or(default.0)
     }
 }
 

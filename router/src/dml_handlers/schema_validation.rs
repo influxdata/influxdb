@@ -1,7 +1,7 @@
 use std::{ops::DerefMut, sync::Arc};
 
 use async_trait::async_trait;
-use data_types::{NamespaceName, NamespaceSchema, PartitionTemplate, TableId};
+use data_types::{NamespaceName, NamespaceSchema, TableId, TablePartitionTemplateOverride};
 use hashbrown::HashMap;
 use iox_catalog::{
     interface::{Catalog, Error as CatalogError},
@@ -145,7 +145,14 @@ where
     // Accepts a map of TableName -> MutableBatch
     type WriteInput = HashMap<String, MutableBatch>;
     // And returns a map of TableId -> (TableName, OptionalTablePartitionTemplate, MutableBatch)
-    type WriteOutput = HashMap<TableId, (String, Option<Arc<PartitionTemplate>>, MutableBatch)>;
+    type WriteOutput = HashMap<
+        TableId,
+        (
+            String,
+            Option<Arc<TablePartitionTemplateOverride>>,
+            MutableBatch,
+        ),
+    >;
 
     /// Validate the schema of all the writes in `batches`.
     ///

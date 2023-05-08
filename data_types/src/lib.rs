@@ -317,7 +317,7 @@ pub struct NamespaceSchema {
     /// None represents infinite duration (i.e. never drop data).
     pub retention_period_ns: Option<i64>,
     /// The optionally-specified partition template to use for writes in this namespace.
-    pub partition_template: Option<Arc<PartitionTemplate>>,
+    pub partition_template: Option<Arc<NamespacePartitionTemplateOverride>>,
 }
 
 impl NamespaceSchema {
@@ -375,7 +375,7 @@ pub struct TableSchema {
     pub id: TableId,
 
     /// the table's partition template
-    pub partition_template: Option<Arc<PartitionTemplate>>,
+    pub partition_template: Option<Arc<TablePartitionTemplateOverride>>,
 
     /// the table's columns by their name
     pub columns: ColumnsByName,
