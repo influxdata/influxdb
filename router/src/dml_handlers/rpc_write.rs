@@ -46,7 +46,7 @@ pub enum RpcWriteError {
 
     /// There are no healthy ingesters to route a write to.
     #[error("no healthy upstream ingesters available")]
-    NoUpstreams,
+    NoHealthyUpstreams,
 
     /// The write request was not attempted, because not enough upstream
     /// ingesters needed to satisfy the configured replication factor are
@@ -205,7 +205,7 @@ where
         let mut snap = self
             .endpoints
             .endpoints()
-            .ok_or(RpcWriteError::NoUpstreams)?;
+            .ok_or(RpcWriteError::NoHealthyUpstreams)?;
 
         // Validate the required number of writes is possible given the current
         // number of healthy endpoints.
@@ -234,10 +234,10 @@ where
                     // This error is an internal implementation detail - the
                     // meaningful error for the user is "there's no healthy
                     // upstreams".
-                    RpcWriteError::Client(_) => RpcWriteError::NoUpstreams,
+                    RpcWriteError::Client(_) => RpcWriteError::NoHealthyUpstreams,
                     // The number of upstreams no longer satisfies the desired
                     // replication factor.
-                    RpcWriteError::NoUpstreams => RpcWriteError::NotEnoughReplicas,
+                    RpcWriteError::NoHealthyUpstreams => RpcWriteError::NotEnoughReplicas,
                     // All other errors pass through.
                     v => v,
                 }
@@ -284,7 +284,7 @@ where
         loop {
             match endpoints
                 .next()
-                .ok_or(RpcWriteError::NoUpstreams)?
+                .ok_or(RpcWriteError::NoHealthyUpstreams)?
                 .write(req.clone())
                 .await
             {
@@ -607,7 +607,7 @@ mod tests {
         )
         .await;
 
-        assert_matches!(got, Err(RpcWriteError::NoUpstreams));
+        assert_matches!(got, Err(RpcWriteError::NoHealthyUpstreams));
     }
 
     /// Assert the error response when the only upstream continuously returns an
@@ -628,7 +628,7 @@ mod tests {
         )
         .await;
 
-        assert_matches!(got, Err(RpcWriteError::NoUpstreams));
+        assert_matches!(got, Err(RpcWriteError::NoHealthyUpstreams));
     }
 
     /// Assert that an [`RpcWriteClientError::UpstreamNotConnected`] error is mapped
@@ -649,7 +649,7 @@ mod tests {
         )
         .await;
 
-        assert_matches!(got, Err(RpcWriteError::NoUpstreams));
+        assert_matches!(got, Err(RpcWriteError::NoHealthyUpstreams));
     }
 
     /// Assert that an error is returned without any RPC request being made when
