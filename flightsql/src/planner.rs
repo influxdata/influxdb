@@ -19,7 +19,7 @@ use arrow_flight::{
 };
 use arrow_util::flight::prepare_schema_for_flight;
 use bytes::Bytes;
-use datafusion::{logical_expr::LogicalPlan, physical_plan::ExecutionPlan};
+use datafusion::{error::DataFusionError, logical_expr::LogicalPlan, physical_plan::ExecutionPlan};
 use iox_query::{exec::IOxSessionContext, QueryNamespace};
 use observability_deps::tracing::debug;
 use once_cell::sync::Lazy;
@@ -434,7 +434,9 @@ async fn plan_get_xdbc_type_info(
     match data_type {
         None => Ok(ctx.batch_to_logical_plan(TYPE_INFO_RECORD_BATCH.clone())?),
         // TODO chunchun: support search by data_type
-        Some(_data_type) => unimplemented!("filter by data_type is not implemented yet"),
+        Some(_data_type) => Err(Error::from(DataFusionError::NotImplemented(
+            "GetXdbcTypeInfo does not yet support filtering by data_type".to_string(),
+        ))),
     }
 }
 

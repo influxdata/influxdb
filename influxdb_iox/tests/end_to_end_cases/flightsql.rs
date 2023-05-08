@@ -1149,7 +1149,6 @@ async fn flightsql_get_xdbc_type_info() {
             Step::Custom(Box::new(move |state: &mut StepTestState| {
                 async move {
                     let mut client = flightsql_client(state.cluster());
-                    // TODO chunchun: search by data_type test case
                     let data_type: Option<i32> = None;
 
                     let stream = client.get_xdbc_type_info(data_type).await.unwrap();
@@ -1170,6 +1169,20 @@ async fn flightsql_get_xdbc_type_info() {
                     - +-----------+-----------+-------------+----------------+----------------+---------------+----------+----------------+------------+--------------------+------------------+----------------+-----------------+---------------+---------------+---------------+------------------+----------------+--------------------+
                     "###
                     );
+                }
+                .boxed()
+            })),
+            Step::Custom(Box::new(move |state: &mut StepTestState| {
+                async move {
+                    let mut client = flightsql_client(state.cluster());
+                    // TODO chunchun: search by data_type test case
+                    let data_type: Option<i32> = Some(6);
+
+                    let err = client.get_xdbc_type_info(data_type).await.unwrap_err();
+
+                    assert_matches!(err, FlightError::Tonic(..));
+                    assert_contains!(err.to_string(), "GetXdbcTypeInfo does not yet support filtering by data_type");
+
                 }
                 .boxed()
             })),
