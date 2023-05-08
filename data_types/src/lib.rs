@@ -435,9 +435,9 @@ impl ColumnsByName {
         self.0.keys().map(|name| name.as_str()).collect()
     }
 
-    /// Return the set of column IDs.
-    pub fn ids(&self) -> Vec<ColumnId> {
-        self.0.values().map(|c| c.id).collect()
+    /// Return an iterator of the set of column IDs.
+    pub fn ids(&self) -> impl Iterator<Item = ColumnId> + '_ {
+        self.0.values().map(|c| c.id)
     }
 
     /// Get a column by its name.
