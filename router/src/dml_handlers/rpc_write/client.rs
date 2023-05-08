@@ -44,6 +44,7 @@ pub mod mock {
     struct State {
         calls: Vec<WriteRequest>,
         ret: Box<dyn Iterator<Item = Result<(), RpcWriteClientError>> + Send + Sync>,
+        returned_oks: usize,
     }
 
     /// A mock implementation of the [`WriteClient`] for testing purposes.
@@ -66,6 +67,7 @@ pub mod mock {
                 state: Mutex::new(State {
                     calls: Default::default(),
                     ret: Box::new(iter::repeat_with(|| Ok(()))),
+                    returned_oks: 0,
                 }),
             }
         }
@@ -75,6 +77,12 @@ pub mod mock {
         /// Retrieve the requests that this mock received.
         pub fn calls(&self) -> Vec<WriteRequest> {
             self.state.lock().calls.clone()
+        }
+
+        /// Retrieve the number of times this mock returned [`Ok`] to a write
+        /// request.
+        pub fn success_count(&self) -> usize {
+            self.state.lock().returned_oks
         }
 
         /// Read values off of the provided iterator and return them for calls
@@ -95,7 +103,14 @@ pub mod mock {
         async fn write(&self, op: WriteRequest) -> Result<(), RpcWriteClientError> {
             let mut guard = self.state.lock();
             guard.calls.push(op);
-            guard.ret.next().expect("no mock response")
+
+            let ret = guard.ret.next().expect("no mock response");
+
+            if ret.is_ok() {
+                guard.returned_oks += 1;
+            }
+
+            ret
         }
     }
 }
