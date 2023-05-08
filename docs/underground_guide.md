@@ -108,7 +108,7 @@ INFLUXDB_IOX_MAX_HTTP_REQUEST_SIZE=100000000 \
 OBJECT_STORE=file \
 DATABASE_DIRECTORY=~/data_dir \
 LOG_FILTER=info \
-./target/release/influxdb_iox run ingester2
+./target/release/influxdb_iox run ingester
 ```
 
 ## Run Router on port 8080/8081 (http/grpc)

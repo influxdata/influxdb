@@ -4,7 +4,7 @@ option go_package = "github.com/influxdata/iox/ingester/v1";
 
 import "influxdata/pbdata/v1/influxdb_pb_data_protocol.proto";
 
-// A service provided by Ingester2 instances, called by Ingester Replicas.
+// A service provided by Ingester instances, called by Ingester Replicas.
 service PartitionBufferService {
   // Acquire the full in-memory state of the recipient ingester, returning the
   // data of all known partitions.
@@ -19,13 +19,13 @@ message GetPartitionBuffersRequest {}
 message GetPartitionBuffersResponse {
   // The unique, per-instance UUID of the ingester pushing this operation.
   string ingester_uuid = 1;
-  
+
   // The catalog ID of the namespace this partition belongs to.
   int64 namespace_id = 2;
-  
+
   // The catalog ID of the table this partition belongs to.
   int64 table_id = 3;
-  
+
   // The catalog ID of this partition.
   int64 partition_id = 4;
 
@@ -41,7 +41,7 @@ message GetPartitionBuffersResponse {
 }
 
 // A service provided by Ingester Replica instances to accept pushed events from
-// an Ingester2 instance.
+// an Ingester instance.
 service ReplicationService {
   // Push the provided write request to the replica.
   rpc Replicate(ReplicateRequest) returns (ReplicateResponse);
@@ -70,10 +70,10 @@ message ReplicateResponse {}
 message PersistCompleteRequest {
   // The unique, per-instance UUID of the ingester pushing this operation.
   string ingester_uuid = 1;
-  
+
   // The catalog ID of the namespace that has had data persisted.
   int64 namespace_id = 2;
-  
+
   // The catalog ID of the table that has had data persisted.
   int64 table_id = 3;
 

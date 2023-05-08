@@ -3,7 +3,7 @@
 use super::main;
 use crate::process_info::{setup_metric_registry, USIZE_MAX};
 use clap_blocks::{
-    catalog_dsn::CatalogDsnConfig, ingester2::Ingester2Config, object_store::make_object_store,
+    catalog_dsn::CatalogDsnConfig, ingester::IngesterConfig, object_store::make_object_store,
     run_config::RunConfig,
 };
 use iox_query::exec::Executor;
@@ -32,7 +32,7 @@ pub enum Error {
     #[error("cannot parse object store config: {0}")]
     ObjectStoreParsing(#[from] clap_blocks::object_store::ParseError),
 
-    #[error("error initializing ingester2: {0}")]
+    #[error("error initializing ingester: {0}")]
     Ingester(#[from] ioxd_ingester2::Error),
 
     #[error("catalog DSN error: {0}")]
@@ -63,7 +63,7 @@ pub struct Config {
     pub(crate) catalog_dsn: CatalogDsnConfig,
 
     #[clap(flatten)]
-    pub(crate) ingester_config: Ingester2Config,
+    pub(crate) ingester_config: IngesterConfig,
 
     /// Specify the size of the thread-pool for query execution, and the
     /// separate compaction thread-pool.
@@ -125,7 +125,7 @@ pub async fn command(config: Config) -> Result<()> {
     )
     .await?;
 
-    info!("starting ingester2");
+    info!("starting ingester");
 
     let services = vec![Service::create(server_type, common_state.run_config())];
     Ok(main::main(common_state, services, metric_registry).await?)

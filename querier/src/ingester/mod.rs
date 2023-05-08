@@ -1359,7 +1359,7 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn ingester2_uuid_completed_persistence_count() {
+    async fn ingester_uuid_completed_persistence_count() {
         let ingester_uuid1 = Uuid::new_v4();
         let ingester_uuid2 = Uuid::new_v4();
 

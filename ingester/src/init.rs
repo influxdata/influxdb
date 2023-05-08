@@ -87,7 +87,7 @@ pub trait IngesterRpcInterface: Send + Sync + std::fmt::Debug {
     fn query_service(&self, max_simultaneous_requests: usize) -> Self::FlightHandler;
 }
 
-/// A RAII guard to clean up `ingester2` instance resources when dropped.
+/// A RAII guard to clean up `ingester` instance resources when dropped.
 #[must_use = "ingester stops when guard is dropped"]
 #[derive(Debug)]
 pub struct IngesterGuard<T> {
@@ -128,7 +128,7 @@ impl<T> Drop for IngesterGuard<T> {
     }
 }
 
-/// Errors that occur during initialisation of an `ingester2` instance.
+/// Errors that occur during initialisation of an `ingester` instance.
 #[derive(Debug, Error)]
 pub enum InitError {
     /// A catalog error occurred while fetching the most recent partitions for
@@ -145,14 +145,14 @@ pub enum InitError {
     WalReplay(Box<dyn std::error::Error>),
 }
 
-/// Initialise a new `ingester2` instance, returning the gRPC service handler
+/// Initialise a new `ingester` instance, returning the gRPC service handler
 /// implementations to be bound by the caller.
 ///
 /// ## WAL Replay
 ///
-/// Writes through an `ingester2` instance commit to a durable write-ahead log.
+/// Writes through an `ingester` instance commit to a durable write-ahead log.
 ///
-/// During initialisation of an `ingester2` instance, any files in
+/// During initialisation of an `ingester` instance, any files in
 /// `wal_directory` are read assuming they are redo log files from the
 /// write-ahead log.
 ///

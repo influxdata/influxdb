@@ -29,7 +29,7 @@ members = [
     "influxdb2_client",
     "influxrpc_parser",
     "ingester2_test_ctx",
-    "ingester2",
+    "ingester",
     "iox_catalog",
     "iox_data_generator",
     "iox_query_influxql",

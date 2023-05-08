@@ -1,6 +1,6 @@
 use arrow_flight::flight_service_server::FlightServiceServer;
 use async_trait::async_trait;
-use clap_blocks::ingester2::Ingester2Config;
+use clap_blocks::ingester::IngesterConfig;
 use futures::FutureExt;
 use generated_types::influxdata::iox::{
     catalog::v1::catalog_service_server::CatalogServiceServer,
@@ -9,7 +9,7 @@ use generated_types::influxdata::iox::{
     },
 };
 use hyper::{Body, Request, Response};
-use ingester2::{IngesterGuard, IngesterRpcInterface};
+use ingester::{IngesterGuard, IngesterRpcInterface};
 use iox_catalog::interface::Catalog;
 use iox_query::exec::Executor;
 use ioxd_common::{
@@ -39,8 +39,8 @@ const MAX_OUTGOING_MSG_BYTES: usize = 1024 * 1024; // 1 MiB
 
 #[derive(Debug, Error)]
 pub enum Error {
-    #[error("error initializing ingester2: {0}")]
-    Ingester(#[from] ingester2::InitError),
+    #[error("error initializing ingester: {0}")]
+    Ingester(#[from] ingester::InitError),
 }
 
 pub type Result<T, E = Error> = std::result::Result<T, E>;
@@ -76,7 +76,7 @@ impl<I: IngesterRpcInterface> IngesterServerType<I> {
 
 impl<I: IngesterRpcInterface> std::fmt::Debug for IngesterServerType<I> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "Ingester2")
+        write!(f, "Ingester")
     }
 }
 
@@ -84,7 +84,7 @@ impl<I: IngesterRpcInterface> std::fmt::Debug for IngesterServerType<I> {
 impl<I: IngesterRpcInterface + Sync + Send + Debug + 'static> ServerType for IngesterServerType<I> {
     /// Human name for this server type
     fn name(&self) -> &str {
-        "ingester2"
+        "ingester"
     }
 
     /// Return the [`metric::Registry`] used by the ingester.
@@ -188,13 +188,13 @@ pub async fn create_ingester_server_type(
     common_state: &CommonServerState,
     catalog: Arc<dyn Catalog>,
     metrics: Arc<Registry>,
-    ingester_config: &Ingester2Config,
+    ingester_config: &IngesterConfig,
     exec: Arc<Executor>,
     object_store: ParquetStorage,
 ) -> Result<Arc<dyn ServerType>> {
     let (shutdown_tx, shutdown_rx) = oneshot::channel();
 
-    let grpc = ingester2::new(
+    let grpc = ingester::new(
         catalog,
         Arc::clone(&metrics),
         PERSIST_BACKGROUND_FETCH_TIME,
