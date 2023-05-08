@@ -83,6 +83,8 @@ fn merge_schema_additive(
 ) -> (NamespaceSchema, ChangeStats) {
     // invariant: Namespace ID should never change for a given name
     assert_eq!(old_ns.id, new_ns.id);
+    // invariant: Namespace partition template override should never change for a given name
+    assert_eq!(old_ns.partition_template, new_ns.partition_template);
 
     let old_table_count = old_ns.tables.len();
     let mut old_column_count = 0;
