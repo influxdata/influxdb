@@ -137,12 +137,6 @@ impl From<&DmlError> for StatusCode {
         match e {
             DmlError::NamespaceNotFound(_) => StatusCode::NOT_FOUND,
 
-            // Schema validation error cases
-            DmlError::Schema(SchemaError::NamespaceLookup(_)) => {
-                // While the [`NamespaceAutocreation`] layer is in use, this is
-                // an internal error as the namespace should always exist.
-                StatusCode::INTERNAL_SERVER_ERROR
-            }
             DmlError::Schema(SchemaError::ServiceLimit(_)) => {
                 // https://docs.influxdata.com/influxdb/cloud/account-management/limits/#api-error-responses
                 StatusCode::BAD_REQUEST
@@ -154,9 +148,6 @@ impl From<&DmlError> for StatusCode {
 
             DmlError::Internal(_) => StatusCode::INTERNAL_SERVER_ERROR,
             DmlError::Partition(PartitionError::BatchWrite(_)) => StatusCode::INTERNAL_SERVER_ERROR,
-            DmlError::Retention(RetentionError::NamespaceLookup(_)) => {
-                StatusCode::INTERNAL_SERVER_ERROR
-            }
             DmlError::Retention(RetentionError::OutsideRetention(_)) => StatusCode::FORBIDDEN,
             DmlError::RpcWrite(RpcWriteError::Upstream(_)) => StatusCode::INTERNAL_SERVER_ERROR,
             DmlError::RpcWrite(RpcWriteError::Timeout(_)) => StatusCode::GATEWAY_TIMEOUT,
@@ -368,17 +359,8 @@ where
             .get_namespace_schema(&write_info.namespace)
             .await?;
 
-        let namespace_id = namespace_schema.id;
-        let namespace_partition_template = namespace_schema.partition_template.as_ref().cloned();
-
         self.dml_handler
-            .write(
-                &write_info.namespace,
-                namespace_id,
-                namespace_partition_template,
-                batches,
-                span_ctx,
-            )
+            .write(&write_info.namespace, namespace_schema, batches, span_ctx)
             .await
             .map_err(Into::into)?;
 
@@ -693,10 +675,10 @@ mod tests {
         dml_handler = [Ok(())],
         want_result = Ok(_),
         want_dml_calls = [
-            MockDmlHandlerCall::Write { namespace, namespace_id, write_input, .. }
+            MockDmlHandlerCall::Write { namespace, namespace_schema, write_input, .. }
         ] => {
             assert_eq!(namespace, NAMESPACE_NAME);
-            assert_eq!(*namespace_id, NAMESPACE_ID);
+            assert_eq!(namespace_schema.id, NAMESPACE_ID);
 
             let table = write_input.get("platanos").expect("table not found");
             let ts = table.timestamp_summary().expect("no timestamp summary");
@@ -711,10 +693,10 @@ mod tests {
         dml_handler = [Ok(())],
         want_result = Ok(_),
         want_dml_calls = [
-            MockDmlHandlerCall::Write { namespace, namespace_id, write_input, .. }
+            MockDmlHandlerCall::Write { namespace, namespace_schema, write_input, .. }
         ] => {
             assert_eq!(namespace, NAMESPACE_NAME);
-            assert_eq!(*namespace_id, NAMESPACE_ID);
+            assert_eq!(namespace_schema.id, NAMESPACE_ID);
 
             let table = write_input.get("platanos").expect("table not found");
             let ts = table.timestamp_summary().expect("no timestamp summary");
@@ -729,10 +711,10 @@ mod tests {
         dml_handler = [Ok(())],
         want_result = Ok(_),
         want_dml_calls = [
-            MockDmlHandlerCall::Write { namespace, namespace_id, write_input, .. }
+            MockDmlHandlerCall::Write { namespace, namespace_schema, write_input, .. }
         ] => {
             assert_eq!(namespace, NAMESPACE_NAME);
-            assert_eq!(*namespace_id, NAMESPACE_ID);
+            assert_eq!(namespace_schema.id, NAMESPACE_ID);
 
             let table = write_input.get("platanos").expect("table not found");
             let ts = table.timestamp_summary().expect("no timestamp summary");
@@ -747,10 +729,10 @@ mod tests {
         dml_handler = [Ok(())],
         want_result = Ok(_),
         want_dml_calls = [
-            MockDmlHandlerCall::Write { namespace, namespace_id, write_input, .. }
+            MockDmlHandlerCall::Write { namespace, namespace_schema, write_input, .. }
         ] => {
             assert_eq!(namespace, NAMESPACE_NAME);
-            assert_eq!(*namespace_id, NAMESPACE_ID);
+            assert_eq!(namespace_schema.id, NAMESPACE_ID);
 
             let table = write_input.get("platanos").expect("table not found");
             let ts = table.timestamp_summary().expect("no timestamp summary");
@@ -895,10 +877,10 @@ mod tests {
         dml_handler = [Ok(())],
         want_result = Ok(_),
         want_dml_calls = [
-            MockDmlHandlerCall::Write { namespace, namespace_id, write_input, .. }
+            MockDmlHandlerCall::Write { namespace, namespace_schema, write_input, .. }
         ] => {
             assert_eq!(namespace, NAMESPACE_NAME);
-            assert_eq!(*namespace_id, NAMESPACE_ID);
+            assert_eq!(namespace_schema.id, NAMESPACE_ID);
             let table = write_input.get("test").expect("table not in write");
             let col = table.column("field").expect("column missing");
             assert_matches!(col.data(), ColumnData::U64(data, _) => {

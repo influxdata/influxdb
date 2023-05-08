@@ -105,9 +105,7 @@ type HttpDelegateStack = HttpDelegate<
         Chain<
             Chain<
                 Chain<
-                    RetentionValidator<
-                        Arc<ReadThroughCache<Arc<ShardedCache<Arc<MemoryNamespaceCache>>>>>,
-                    >,
+                    RetentionValidator,
                     SchemaValidator<
                         Arc<ReadThroughCache<Arc<ShardedCache<Arc<MemoryNamespaceCache>>>>>,
                     >,
@@ -149,7 +147,7 @@ impl TestContext {
         let schema_validator =
             SchemaValidator::new(Arc::clone(&catalog), Arc::clone(&ns_cache), &metrics);
 
-        let retention_validator = RetentionValidator::new(Arc::clone(&ns_cache));
+        let retention_validator = RetentionValidator::new();
 
         let partitioner = Partitioner::new(PartitionTemplate::default());
 

@@ -1,7 +1,7 @@
 use std::{ops::DerefMut, sync::Arc};
 
 use async_trait::async_trait;
-use data_types::{NamespaceId, NamespaceName, NamespaceSchema, PartitionTemplate, TableId};
+use data_types::{NamespaceName, NamespaceSchema, PartitionTemplate, TableId};
 use hashbrown::HashMap;
 use iox_catalog::{
     interface::{Catalog, Error as CatalogError},
@@ -19,10 +19,6 @@ use crate::namespace_cache::NamespaceCache;
 /// Errors emitted during schema validation.
 #[derive(Debug, Error)]
 pub enum SchemaError {
-    /// The requested namespace could not be found in the catalog.
-    #[error("failed to read namespace schema from catalog: {0}")]
-    NamespaceLookup(iox_catalog::interface::Error),
-
     /// The user has hit their column/table limit.
     #[error("service limit reached: {0}")]
     ServiceLimit(Box<dyn std::error::Error + Send + Sync + 'static>),
@@ -155,9 +151,6 @@ where
     ///
     /// # Errors
     ///
-    /// If `namespace` does not exist, [`SchemaError::NamespaceLookup`] is
-    /// returned.
-    ///
     /// If the schema validation fails due to a schema conflict in the request,
     /// [`SchemaError::Conflict`] is returned.
     ///
@@ -169,18 +162,12 @@ where
     async fn write(
         &self,
         namespace: &NamespaceName<'static>,
-        namespace_id: NamespaceId,
-        _namespace_partition_template: Option<Arc<PartitionTemplate>>,
+        namespace_schema: Arc<NamespaceSchema>,
         batches: Self::WriteInput,
         _span_ctx: Option<SpanContext>,
     ) -> Result<Self::WriteOutput, Self::WriteError> {
-        // Try to fetch the namespace schema through the cache.
-        let schema = match self.cache.get_schema(namespace).await {
-            Ok(v) => v,
-            Err(e) => return Err(SchemaError::NamespaceLookup(e)),
-        };
-
-        validate_schema_limits(&batches, &schema).map_err(|e| {
+        let namespace_id = namespace_schema.id;
+        validate_schema_limits(&batches, &namespace_schema).map_err(|e| {
             match &e {
                 CachedServiceProtectionLimit::Column {
                     table_name,
@@ -222,7 +209,7 @@ where
 
         let maybe_new_schema = validate_or_insert_schema(
             batches.iter().map(|(k, v)| (k.as_str(), v)),
-            &schema,
+            &namespace_schema,
             repos.deref_mut(),
         )
         .await
@@ -294,7 +281,7 @@ where
             }
             None => {
                 trace!(%namespace, "schema unchanged");
-                schema
+                namespace_schema
             }
         };
 
@@ -552,14 +539,16 @@ mod tests {
         // Table exists and is over the column limit because of the race condition,
         {
             // Make two schema validator instances each with their own cache
+            let cache1 = setup_test_cache(&catalog);
             let handler1 = SchemaValidator::new(
                 catalog.catalog(),
-                setup_test_cache(&catalog),
+                Arc::clone(&cache1),
                 &catalog.metric_registry,
             );
+            let cache2 = setup_test_cache(&catalog);
             let handler2 = SchemaValidator::new(
                 catalog.catalog(),
-                setup_test_cache(&catalog),
+                Arc::clone(&cache2),
                 &catalog.metric_registry,
             );
 
@@ -567,12 +556,22 @@ mod tests {
             // namespace schema gets cached
             let writes1_valid = lp_to_writes("dragonfruit val=42i 123456");
             handler1
-                .write(&NAMESPACE, NamespaceId::new(42), None, writes1_valid, None)
+                .write(
+                    &NAMESPACE,
+                    cache1.get_schema(&NAMESPACE).await.unwrap(),
+                    writes1_valid,
+                    None,
+                )
                 .await
                 .expect("request should succeed");
             let writes2_valid = lp_to_writes("dragonfruit val=43i 123457");
             handler2
-                .write(&NAMESPACE, NamespaceId::new(42), None, writes2_valid, None)
+                .write(
+                    &NAMESPACE,
+                    cache2.get_schema(&NAMESPACE).await.unwrap(),
+                    writes2_valid,
+                    None,
+                )
                 .await
                 .expect("request should succeed");
 
@@ -582,8 +581,7 @@ mod tests {
             handler1
                 .write(
                     &NAMESPACE,
-                    NamespaceId::new(42),
-                    None,
+                    cache1.get_schema(&NAMESPACE).await.unwrap(),
                     writes1_add_column,
                     None,
                 )
@@ -593,8 +591,7 @@ mod tests {
             handler2
                 .write(
                     &NAMESPACE,
-                    NamespaceId::new(42),
-                    None,
+                    cache2.get_schema(&NAMESPACE).await.unwrap(),
                     writes2_add_column,
                     None,
                 )
@@ -790,11 +787,17 @@ mod tests {
         let want_id = namespace.create_table("bananas").await.table.id;
 
         let metrics = Arc::new(metric::Registry::default());
-        let handler = SchemaValidator::new(catalog.catalog(), setup_test_cache(&catalog), &metrics);
+        let cache = setup_test_cache(&catalog);
+        let handler = SchemaValidator::new(catalog.catalog(), Arc::clone(&cache), &metrics);
 
         let writes = lp_to_writes("bananas,tag1=A,tag2=B val=42i 123456");
         let got = handler
-            .write(&NAMESPACE, NamespaceId::new(42), None, writes, None)
+            .write(
+                &NAMESPACE,
+                cache.get_schema(&NAMESPACE).await.unwrap(),
+                writes,
+                None,
+            )
             .await
             .expect("request should succeed");
 
@@ -810,35 +813,20 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn test_write_schema_not_found() {
-        let (catalog, _namespace) = test_setup().await;
-        let metrics = Arc::new(metric::Registry::default());
-        let handler = SchemaValidator::new(catalog.catalog(), setup_test_cache(&catalog), &metrics);
-
-        let ns = NamespaceName::try_from("A_DIFFERENT_NAMESPACE").unwrap();
-
-        let writes = lp_to_writes("bananas,tag1=A,tag2=B val=42i 123456");
-        let err = handler
-            .write(&ns, NamespaceId::new(42), None, writes, None)
-            .await
-            .expect_err("request should fail");
-
-        assert_matches!(err, SchemaError::NamespaceLookup(_));
-
-        // The cache should not have retained the schema.
-        assert!(handler.cache.get_schema(&ns).await.is_err());
-    }
-
-    #[tokio::test]
     async fn test_write_validation_failure() {
-        let (catalog, _namespace) = test_setup().await;
+        let (catalog, namespace) = test_setup().await;
         let metrics = Arc::new(metric::Registry::default());
         let handler = SchemaValidator::new(catalog.catalog(), setup_test_cache(&catalog), &metrics);
 
         // First write sets the schema
         let writes = lp_to_writes("bananas,tag1=A,tag2=B val=42i 123456"); // val=i64
         let got = handler
-            .write(&NAMESPACE, NamespaceId::new(42), None, writes.clone(), None)
+            .write(
+                &NAMESPACE,
+                namespace.schema().await.into(),
+                writes.clone(),
+                None,
+            )
             .await
             .expect("request should succeed");
         assert_eq!(writes.len(), got.len());
@@ -846,7 +834,7 @@ mod tests {
         // Second write attempts to violate it causing an error
         let writes = lp_to_writes("bananas,tag1=A,tag2=B val=42.0 123456"); // val=float
         let err = handler
-            .write(&NAMESPACE, NamespaceId::new(42), None, writes, None)
+            .write(&NAMESPACE, namespace.schema().await.into(), writes, None)
             .await
             .expect_err("request should fail");
 
@@ -865,14 +853,19 @@ mod tests {
 
     #[tokio::test]
     async fn test_write_table_service_limit() {
-        let (catalog, _namespace) = test_setup().await;
+        let (catalog, namespace) = test_setup().await;
         let metrics = Arc::new(metric::Registry::default());
         let handler = SchemaValidator::new(catalog.catalog(), setup_test_cache(&catalog), &metrics);
 
         // First write sets the schema
         let writes = lp_to_writes("bananas,tag1=A,tag2=B val=42i 123456");
         let got = handler
-            .write(&NAMESPACE, NamespaceId::new(42), None, writes.clone(), None)
+            .write(
+                &NAMESPACE,
+                namespace.schema().await.into(),
+                writes.clone(),
+                None,
+            )
             .await
             .expect("request should succeed");
         assert_eq!(writes.len(), got.len());
@@ -890,7 +883,7 @@ mod tests {
         // Second write attempts to violate limits, causing an error
         let writes = lp_to_writes("bananas2,tag1=A,tag2=B val=42i 123456");
         let err = handler
-            .write(&NAMESPACE, NamespaceId::new(42), None, writes, None)
+            .write(&NAMESPACE, namespace.schema().await.into(), writes, None)
             .await
             .expect_err("request should fail");
 
@@ -907,7 +900,12 @@ mod tests {
         // First write sets the schema
         let writes = lp_to_writes("bananas,tag1=A,tag2=B val=42i 123456");
         let got = handler
-            .write(&NAMESPACE, NamespaceId::new(42), None, writes.clone(), None)
+            .write(
+                &NAMESPACE,
+                namespace.schema().await.into(),
+                writes.clone(),
+                None,
+            )
             .await
             .expect("request should succeed");
         assert_eq!(writes.len(), got.len());
@@ -919,7 +917,7 @@ mod tests {
         // Second write attempts to violate limits, causing an error
         let writes = lp_to_writes("bananas,tag1=A,tag2=B val=42i,val2=42i 123456");
         let err = handler
-            .write(&NAMESPACE, NamespaceId::new(42), None, writes, None)
+            .write(&NAMESPACE, namespace.schema().await.into(), writes, None)
             .await
             .expect_err("request should fail");
 
@@ -929,7 +927,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_first_write_many_columns_service_limit() {
-        let (catalog, _namespace) = test_setup().await;
+        let (catalog, namespace) = test_setup().await;
         let metrics = Arc::new(metric::Registry::default());
         let handler = SchemaValidator::new(catalog.catalog(), setup_test_cache(&catalog), &metrics);
 
@@ -946,7 +944,7 @@ mod tests {
         // First write attempts to add columns over the limit, causing an error
         let writes = lp_to_writes("bananas,tag1=A,tag2=B val=42i,val2=42i 123456");
         let err = handler
-            .write(&NAMESPACE, NamespaceId::new(42), None, writes, None)
+            .write(&NAMESPACE, namespace.schema().await.into(), writes, None)
             .await
             .expect_err("request should fail");
 

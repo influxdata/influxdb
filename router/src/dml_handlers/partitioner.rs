@@ -1,5 +1,5 @@
 use async_trait::async_trait;
-use data_types::{NamespaceId, NamespaceName, PartitionKey, PartitionTemplate, TableId};
+use data_types::{NamespaceName, NamespaceSchema, PartitionKey, PartitionTemplate, TableId};
 use hashbrown::HashMap;
 use mutable_batch::{MutableBatch, PartitionWrite, WritePayload};
 use observability_deps::tracing::*;
@@ -73,11 +73,11 @@ impl DmlHandler for Partitioner {
     async fn write(
         &self,
         _namespace: &NamespaceName<'static>,
-        _namespace_id: NamespaceId,
-        namespace_partition_template: Option<Arc<PartitionTemplate>>,
+        namespace_schema: Arc<NamespaceSchema>,
         batch: Self::WriteInput,
         _span_ctx: Option<SpanContext>,
     ) -> Result<Self::WriteOutput, Self::WriteError> {
+        let namespace_partition_template = &namespace_schema.partition_template;
         // A collection of partition-keyed, per-table MutableBatch instances.
         let mut partitions: HashMap<PartitionKey, HashMap<_, (String, MutableBatch)>> =
             HashMap::default();
@@ -119,8 +119,7 @@ impl DmlHandler for Partitioner {
 #[cfg(test)]
 mod tests {
     use assert_matches::assert_matches;
-
-    use data_types::TemplatePart;
+    use data_types::{NamespaceId, TemplatePart};
 
     use super::*;
 
@@ -136,6 +135,22 @@ mod tests {
             .enumerate()
             .map(|(i, (name, data))| (TableId::new(i as _), (name, None, data)))
             .collect()
+    }
+
+    // Start a new `NamespaceSchema` with only the given ID and partition template override; the
+    // rest of the fields are arbitrary.
+    fn namespace_schema(
+        id: i64,
+        partition_template: Option<Arc<PartitionTemplate>>,
+    ) -> Arc<NamespaceSchema> {
+        Arc::new(NamespaceSchema {
+            id: NamespaceId::new(id),
+            tables: Default::default(),
+            max_columns_per_table: 500,
+            max_tables: 200,
+            retention_period_ns: None,
+            partition_template,
+        })
     }
 
     // Generate a test case that partitions "lp".
@@ -161,8 +176,7 @@ mod tests {
 
                     let handler_ret = partitioner.write(
                         &ns,
-                        NamespaceId::new(42),
-                        None,
+                        namespace_schema(42, None),
                         writes,
                         None
                     ).await;
@@ -320,6 +334,7 @@ mod tests {
                 TemplatePart::Column("nonanas".to_string()),
             ],
         }));
+        let namespace_schema = namespace_schema(42, namespace_partition_template);
 
         let writes = lp_to_writes(
             "
@@ -331,15 +346,7 @@ mod tests {
         ",
         );
 
-        let handler_ret = partitioner
-            .write(
-                &ns,
-                NamespaceId::new(42),
-                namespace_partition_template,
-                writes,
-                None,
-            )
-            .await;
+        let handler_ret = partitioner.write(&ns, namespace_schema, writes, None).await;
 
         // Check the partition -> table mapping.
         let got = handler_ret
@@ -390,6 +397,7 @@ mod tests {
                 TemplatePart::Column("nonanas".to_string()),
             ],
         }));
+        let namespace_schema = namespace_schema(42, namespace_partition_template);
         let bananas_table_template = Some(Arc::new(PartitionTemplate {
             parts: vec![
                 TemplatePart::Column("oranges".to_string()),
@@ -421,15 +429,7 @@ mod tests {
             })
             .collect();
 
-        let handler_ret = partitioner
-            .write(
-                &ns,
-                NamespaceId::new(42),
-                namespace_partition_template,
-                writes,
-                None,
-            )
-            .await;
+        let handler_ret = partitioner.write(&ns, namespace_schema, writes, None).await;
 
         // Check the partition -> table mapping.
         let got = handler_ret
@@ -477,7 +477,7 @@ mod tests {
         let ns = NamespaceName::new("bananas").expect("valid db name");
 
         // No namespace partition means the platanos table will fall back to the default
-        let namespace_partition_template = None;
+        let namespace_schema = namespace_schema(42, None);
 
         let bananas_table_template = Some(Arc::new(PartitionTemplate {
             parts: vec![
@@ -510,15 +510,7 @@ mod tests {
             })
             .collect();
 
-        let handler_ret = partitioner
-            .write(
-                &ns,
-                NamespaceId::new(42),
-                namespace_partition_template,
-                writes,
-                None,
-            )
-            .await;
+        let handler_ret = partitioner.write(&ns, namespace_schema, writes, None).await;
 
         // Check the partition -> table mapping.
         let got = handler_ret

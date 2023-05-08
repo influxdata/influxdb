@@ -1,7 +1,7 @@
 use std::{fmt::Debug, marker::PhantomData, sync::Arc};
 
 use async_trait::async_trait;
-use data_types::{NamespaceId, NamespaceName, PartitionTemplate};
+use data_types::{NamespaceName, NamespaceSchema};
 use futures::{stream::FuturesUnordered, TryStreamExt};
 use trace::ctx::SpanContext;
 
@@ -49,8 +49,7 @@ where
     async fn write(
         &self,
         namespace: &NamespaceName<'static>,
-        namespace_id: NamespaceId,
-        namespace_partition_template: Option<Arc<PartitionTemplate>>,
+        namespace_schema: Arc<NamespaceSchema>,
         input: Self::WriteInput,
         span_ctx: Option<SpanContext>,
     ) -> Result<Self::WriteOutput, Self::WriteError> {
@@ -58,17 +57,11 @@ where
             .into_iter()
             .map(|v| {
                 let namespace = namespace.clone();
+                let namespace_schema = Arc::clone(&namespace_schema);
                 let span_ctx = span_ctx.clone();
-                let namespace_partition_template = namespace_partition_template.clone();
                 async move {
                     self.inner
-                        .write(
-                            &namespace,
-                            namespace_id,
-                            namespace_partition_template,
-                            v,
-                            span_ctx,
-                        )
+                        .write(&namespace, namespace_schema, v, span_ctx)
                         .await
                 }
             })
