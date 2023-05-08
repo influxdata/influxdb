@@ -126,7 +126,7 @@ where
                 .create_or_get(TIME_COLUMN, table.id, ColumnType::Time)
                 .await?;
 
-            table.add_column(&time_col);
+            table.add_column(time_col);
 
             assert!(schema
                 .to_mut()
@@ -185,7 +185,7 @@ where
             .create_or_get_many_unchecked(table.id, column_batch)
             .await?
             .into_iter()
-            .for_each(|c| table.to_mut().add_column(&c));
+            .for_each(|c| table.to_mut().add_column(c));
     }
 
     if let Cow::Owned(table) = table {

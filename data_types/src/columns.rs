@@ -70,12 +70,8 @@ impl ColumnsByName {
     /// # Panics
     ///
     /// This method panics if a column of the same name already exists in `self`.
-    pub fn add_column(
-        &mut self,
-        column_name: impl Into<String>,
-        column_schema: impl Into<ColumnSchema>,
-    ) {
-        let old = self.0.insert(column_name.into(), column_schema.into());
+    pub fn add_column(&mut self, column_name: String, column_schema: ColumnSchema) {
+        let old = self.0.insert(column_name, column_schema);
         assert!(old.is_none());
     }
 
@@ -204,19 +200,6 @@ impl ColumnSchema {
     /// Returns true if `mb_column` is of the same type as `self`.
     pub fn matches_type(&self, mb_column_influx_type: InfluxColumnType) -> bool {
         self.column_type == mb_column_influx_type
-    }
-}
-
-impl From<&Column> for ColumnSchema {
-    fn from(c: &Column) -> Self {
-        let Column {
-            id, column_type, ..
-        } = c;
-
-        Self {
-            id: *id,
-            column_type: *column_type,
-        }
     }
 }
 

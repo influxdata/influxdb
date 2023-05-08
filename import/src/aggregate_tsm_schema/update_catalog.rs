@@ -131,7 +131,7 @@ where
                     .columns()
                     .create_or_get("time", table.id, ColumnType::Time)
                     .await?;
-                table.add_column(&time_col);
+                table.add_column(time_col);
                 table
             }
         };
@@ -442,7 +442,7 @@ mod tests {
             .create_or_get("time", table.id, ColumnType::Time)
             .await
             .expect("column created");
-        table.add_column(&time_col);
+        table.add_column(time_col);
         let location_col = txn
             .columns()
             .create_or_get("city", table.id, ColumnType::Tag)
@@ -453,8 +453,8 @@ mod tests {
             .create_or_get("temperature", table.id, ColumnType::F64)
             .await
             .expect("column created");
-        table.add_column(&location_col);
-        table.add_column(&temperature_col);
+        table.add_column(location_col);
+        table.add_column(temperature_col);
         txn.commit().await.unwrap();
 
         // merge with aggregate schema that has some overlap
@@ -534,13 +534,13 @@ mod tests {
             .create_or_get("time", table.id, ColumnType::Time)
             .await
             .expect("column created");
-        table.add_column(&time_col);
+        table.add_column(time_col);
         let temperature_col = txn
             .columns()
             .create_or_get("temperature", table.id, ColumnType::F64)
             .await
             .expect("column created");
-        table.add_column(&temperature_col);
+        table.add_column(temperature_col);
         txn.commit().await.unwrap();
 
         // merge with aggregate schema that has some issue that will trip a catalog error
@@ -599,13 +599,13 @@ mod tests {
             .create_or_get("time", table.id, ColumnType::Time)
             .await
             .expect("column created");
-        table.add_column(&time_col);
+        table.add_column(time_col);
         let temperature_col = txn
             .columns()
             .create_or_get("temperature", table.id, ColumnType::F64)
             .await
             .expect("column created");
-        table.add_column(&temperature_col);
+        table.add_column(temperature_col);
         txn.commit().await.unwrap();
 
         // merge with aggregate schema that has some issue that will trip a catalog error

@@ -598,7 +598,7 @@ where
 
     for c in columns {
         let (_, t) = table_id_to_schema.get_mut(&c.table_id).unwrap();
-        t.add_column(&c);
+        t.add_column(c);
     }
 
     for (_, (table_name, schema)) in table_id_to_schema {
@@ -700,7 +700,7 @@ pub async fn list_schemas(
             .entry(table.name.clone())
             .or_insert_with(|| TableSchema::new_empty_from(table));
 
-        table_schema.add_column(&column);
+        table_schema.add_column(column);
     }
 
     // The table map is no longer needed - immediately reclaim the memory.

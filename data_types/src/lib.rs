@@ -405,8 +405,16 @@ impl TableSchema {
     ///
     /// This method panics if a column of the same name already exists in
     /// `self`.
-    pub fn add_column(&mut self, col: &Column) {
-        self.columns.add_column(&col.name, col);
+    pub fn add_column(&mut self, col: Column) {
+        let Column {
+            id,
+            name,
+            column_type,
+            ..
+        } = col;
+
+        let column_schema = ColumnSchema { id, column_type };
+        self.add_column_schema(name, column_schema);
     }
 
     /// Add the name and column schema to this table's schema.
@@ -415,8 +423,8 @@ impl TableSchema {
     ///
     /// This method panics if a column of the same name already exists in
     /// `self`.
-    pub fn add_column_schema(&mut self, name: &str, column_schema: &ColumnSchema) {
-        self.columns.add_column(name, column_schema.to_owned());
+    pub fn add_column_schema(&mut self, column_name: String, column_schema: ColumnSchema) {
+        self.columns.add_column(column_name, column_schema);
     }
 
     /// Estimated Size in bytes including `self`.

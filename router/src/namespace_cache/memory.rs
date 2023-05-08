@@ -105,7 +105,7 @@ fn merge_schema_additive(
             Some(new_table) => {
                 for (column_name, column) in old_table.columns.iter() {
                     if !new_table.contains_column_name(column_name) {
-                        new_table.add_column_schema(column_name, column);
+                        new_table.add_column_schema(column_name.to_string(), *column);
                     }
                 }
             }
@@ -218,9 +218,9 @@ mod tests {
         };
 
         let mut first_write_table_schema = TableSchema::new(table_id);
-        first_write_table_schema.add_column(&column_1);
+        first_write_table_schema.add_column(column_1.clone());
         let mut second_write_table_schema = TableSchema::new(table_id);
-        second_write_table_schema.add_column(&column_2);
+        second_write_table_schema.add_column(column_2.clone());
 
         // These MUST always be different
         assert_ne!(first_write_table_schema, second_write_table_schema);
@@ -240,8 +240,8 @@ mod tests {
 
         let want_namespace_schema = {
             let mut want_table_schema = TableSchema::new(table_id);
-            want_table_schema.add_column(&column_1);
-            want_table_schema.add_column(&column_2);
+            want_table_schema.add_column(column_1);
+            want_table_schema.add_column(column_2);
             NamespaceSchema {
                 tables: BTreeMap::from([(String::from(table_name), want_table_schema)]),
                 ..schema_update_1.clone()
@@ -292,21 +292,21 @@ mod tests {
         // Each table has been given a column to assert the table merge logic
         // produces the correct metrics.
         let mut table_1 = TableSchema::new(TableId::new(1));
-        table_1.add_column(&Column {
+        table_1.add_column(Column {
             id: ColumnId::new(1),
             table_id: TableId::new(1),
             name: "column_a".to_string(),
             column_type: ColumnType::String,
         });
         let mut table_2 = TableSchema::new(TableId::new(2));
-        table_2.add_column(&Column {
+        table_2.add_column(Column {
             id: ColumnId::new(2),
             table_id: TableId::new(2),
             name: "column_b".to_string(),
             column_type: ColumnType::String,
         });
         let mut table_3 = TableSchema::new(TableId::new(3));
-        table_3.add_column(&Column {
+        table_3.add_column(Column {
             id: ColumnId::new(3),
             table_id: TableId::new(3),
             name: "column_c".to_string(),
