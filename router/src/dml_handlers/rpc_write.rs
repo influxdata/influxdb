@@ -235,9 +235,6 @@ where
                     // meaningful error for the user is "there's no healthy
                     // upstreams".
                     RpcWriteError::Client(_) => RpcWriteError::NoHealthyUpstreams,
-                    // The number of upstreams no longer satisfies the desired
-                    // replication factor.
-                    RpcWriteError::NoHealthyUpstreams => RpcWriteError::NotEnoughReplicas,
                     // All other errors pass through.
                     v => v,
                 }
@@ -267,6 +264,11 @@ where
 ///
 /// If at least one upstream request has failed (returning an error), the most
 /// recent error is returned.
+///
+/// # Panics
+///
+/// This function panics if `endpoints.next()` returns [`None`] (the number of
+/// upstreams should be validated before starting the write loop).
 async fn write_loop<T>(
     endpoints: &mut UpstreamSnapshot<'_, T>,
     req: &WriteRequest,
@@ -282,9 +284,15 @@ where
         // request succeeds or this async call times out.
         let mut delay = Duration::from_millis(50);
         loop {
+            // Because the number of candidate upstreams is validated to be
+            // greater-than-or-equal-to the number of desired data copies before
+            // starting the write loop, and because the parallelism of the write
+            // loop matches the number of desired data copies, it's not possible
+            // for any thread to observe an empty snapshot, because transitively
+            // the number of upstreams matches or exceeds the parallelism.
             match endpoints
                 .next()
-                .ok_or(RpcWriteError::NoHealthyUpstreams)?
+                .expect("not enough replicas in snapshot to satisfy replication factor")
                 .write(req.clone())
                 .await
             {
