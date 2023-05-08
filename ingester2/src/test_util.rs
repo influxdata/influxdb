@@ -27,30 +27,32 @@ pub(crate) const ARBITRARY_NAMESPACE_ID: NamespaceId = NamespaceId::new(3);
 pub(crate) const ARBITRARY_TABLE_ID: TableId = TableId::new(4);
 pub(crate) const ARBITRARY_PARTITION_KEY_STR: &str = "platanos";
 
+pub(crate) fn defer_namespace_name_1_sec() -> Arc<DeferredLoad<NamespaceName>> {
+    Arc::new(DeferredLoad::new(Duration::from_secs(1), async {
+        ARBITRARY_NAMESPACE_NAME.clone()
+    }))
+}
+
+pub(crate) fn defer_namespace_name_1_ms() -> Arc<DeferredLoad<NamespaceName>> {
+    Arc::new(DeferredLoad::new(Duration::from_millis(1), async {
+        ARBITRARY_NAMESPACE_NAME.clone()
+    }))
+}
+
+pub(crate) fn defer_table_name_1_sec() -> Arc<DeferredLoad<TableName>> {
+    Arc::new(DeferredLoad::new(Duration::from_secs(1), async {
+        ARBITRARY_TABLE_NAME.clone()
+    }))
+}
+
 lazy_static! {
     pub(crate) static ref ARBITRARY_PARTITION_KEY: PartitionKey =
         PartitionKey::from(ARBITRARY_PARTITION_KEY_STR);
     pub(crate) static ref ARBITRARY_NAMESPACE_NAME: NamespaceName =
         NamespaceName::from("namespace-bananas");
-    pub(crate) static ref DEFER_NAMESPACE_NAME_1_SEC: Arc<DeferredLoad<NamespaceName>> =
-        Arc::new(DeferredLoad::new(Duration::from_secs(1), async {
-            ARBITRARY_NAMESPACE_NAME.clone()
-        }));
-    pub(crate) static ref DEFER_NAMESPACE_NAME_1_MS: Arc<DeferredLoad<NamespaceName>> =
-        Arc::new(DeferredLoad::new(Duration::from_millis(1), async {
-            ARBITRARY_NAMESPACE_NAME.clone()
-        }));
     pub(crate) static ref ARBITRARY_NAMESPACE_NAME_PROVIDER: Arc<dyn NamespaceNameProvider> =
         Arc::new(MockNamespaceNameProvider::new(&**ARBITRARY_NAMESPACE_NAME));
     pub(crate) static ref ARBITRARY_TABLE_NAME: TableName = TableName::from("bananas");
-    pub(crate) static ref DEFER_TABLE_NAME_1_SEC: Arc<DeferredLoad<TableName>> =
-        Arc::new(DeferredLoad::new(Duration::from_secs(1), async {
-            ARBITRARY_TABLE_NAME.clone()
-        }));
-    pub(crate) static ref DEFER_TABLE_NAME_1_MS: Arc<DeferredLoad<TableName>> =
-        Arc::new(DeferredLoad::new(Duration::from_millis(1), async {
-            ARBITRARY_TABLE_NAME.clone()
-        }));
     pub(crate) static ref ARBITRARY_TABLE_NAME_PROVIDER: Arc<dyn TableNameProvider> =
         Arc::new(MockTableNameProvider::new(&**ARBITRARY_TABLE_NAME));
 }
@@ -62,7 +64,8 @@ pub(crate) struct PartitionDataBuilder {
     partition_key: Option<PartitionKey>,
     namespace_id: Option<NamespaceId>,
     table_id: Option<TableId>,
-    table_name: Option<Arc<DeferredLoad<TableName>>>,
+    table_name_loader: Option<Arc<DeferredLoad<TableName>>>,
+    namespace_loader: Option<Arc<DeferredLoad<NamespaceName>>>,
     sort_key: Option<SortKeyState>,
 }
 
@@ -91,8 +94,19 @@ impl PartitionDataBuilder {
         self
     }
 
-    pub(crate) fn with_table_name(mut self, table_name: Arc<DeferredLoad<TableName>>) -> Self {
-        self.table_name = Some(table_name);
+    pub(crate) fn with_table_name_loader(
+        mut self,
+        table_name_loader: Arc<DeferredLoad<TableName>>,
+    ) -> Self {
+        self.table_name_loader = Some(table_name_loader);
+        self
+    }
+
+    pub(crate) fn with_namespace_loader(
+        mut self,
+        namespace_loader: Arc<DeferredLoad<NamespaceName>>,
+    ) -> Self {
+        self.namespace_loader = Some(namespace_loader);
         self
     }
 
@@ -109,10 +123,11 @@ impl PartitionDataBuilder {
             self.partition_key
                 .unwrap_or_else(|| ARBITRARY_PARTITION_KEY.clone()),
             self.namespace_id.unwrap_or(ARBITRARY_NAMESPACE_ID),
-            Arc::clone(&*DEFER_NAMESPACE_NAME_1_SEC),
+            self.namespace_loader
+                .unwrap_or_else(defer_namespace_name_1_sec),
             self.table_id.unwrap_or(ARBITRARY_TABLE_ID),
-            self.table_name
-                .unwrap_or_else(|| Arc::clone(&*DEFER_TABLE_NAME_1_SEC)),
+            self.table_name_loader
+                .unwrap_or_else(defer_table_name_1_sec),
             self.sort_key.unwrap_or(SortKeyState::Provided(None)),
         )
     }

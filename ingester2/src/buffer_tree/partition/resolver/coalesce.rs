@@ -281,8 +281,8 @@ mod tests {
     use crate::{
         buffer_tree::partition::{resolver::mock::MockPartitionProvider, SortKeyState},
         test_util::{
-            PartitionDataBuilder, ARBITRARY_NAMESPACE_ID, ARBITRARY_PARTITION_KEY,
-            ARBITRARY_TABLE_ID, DEFER_NAMESPACE_NAME_1_SEC, DEFER_TABLE_NAME_1_SEC,
+            defer_namespace_name_1_sec, defer_table_name_1_sec, PartitionDataBuilder,
+            ARBITRARY_NAMESPACE_ID, ARBITRARY_PARTITION_KEY, ARBITRARY_TABLE_ID,
         },
     };
 
@@ -307,9 +307,9 @@ mod tests {
                 layer.get_partition(
                     ARBITRARY_PARTITION_KEY.clone(),
                     ARBITRARY_NAMESPACE_ID,
-                    Arc::clone(&*DEFER_NAMESPACE_NAME_1_SEC),
+                    defer_namespace_name_1_sec(),
                     ARBITRARY_TABLE_ID,
-                    Arc::clone(&*DEFER_TABLE_NAME_1_SEC),
+                    defer_table_name_1_sec(),
                 )
             })
             .collect::<FuturesUnordered<_>>()
@@ -368,6 +368,8 @@ mod tests {
         use futures::Future;
 
         let data = PartitionDataBuilder::new().build();
+        let namespace_loader = defer_namespace_name_1_sec();
+        let table_name_loader = defer_table_name_1_sec();
 
         // Add a single instance of the partition - if more than one call is
         // made to the mock, it will panic.
@@ -381,16 +383,16 @@ mod tests {
         let pa_1 = layer.get_partition(
             ARBITRARY_PARTITION_KEY.clone(),
             ARBITRARY_NAMESPACE_ID,
-            Arc::clone(&*DEFER_NAMESPACE_NAME_1_SEC),
+            Arc::clone(&namespace_loader),
             ARBITRARY_TABLE_ID,
-            Arc::clone(&*DEFER_TABLE_NAME_1_SEC),
+            Arc::clone(&table_name_loader),
         );
         let pa_2 = layer.get_partition(
             ARBITRARY_PARTITION_KEY.clone(),
             ARBITRARY_NAMESPACE_ID,
-            Arc::clone(&*DEFER_NAMESPACE_NAME_1_SEC),
+            Arc::clone(&namespace_loader),
             ARBITRARY_TABLE_ID,
-            Arc::clone(&*DEFER_TABLE_NAME_1_SEC),
+            Arc::clone(&table_name_loader),
         );
 
         let waker = futures::task::noop_waker();
@@ -408,9 +410,9 @@ mod tests {
             .get_partition(
                 PartitionKey::from("orange you glad i didn't say bananas"),
                 ARBITRARY_NAMESPACE_ID,
-                Arc::clone(&*DEFER_NAMESPACE_NAME_1_SEC),
+                namespace_loader,
                 ARBITRARY_TABLE_ID,
-                Arc::clone(&*DEFER_TABLE_NAME_1_SEC),
+                table_name_loader,
             )
             .with_timeout_panic(Duration::from_secs(5))
             .await;
@@ -478,9 +480,9 @@ mod tests {
         let fut = layer.get_partition(
             ARBITRARY_PARTITION_KEY.clone(),
             ARBITRARY_NAMESPACE_ID,
-            Arc::clone(&*DEFER_NAMESPACE_NAME_1_SEC),
+            defer_namespace_name_1_sec(),
             ARBITRARY_TABLE_ID,
-            Arc::clone(&*DEFER_TABLE_NAME_1_SEC),
+            defer_table_name_1_sec(),
         );
 
         let waker = futures::task::noop_waker();

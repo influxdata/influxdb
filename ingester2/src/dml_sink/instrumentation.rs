@@ -73,7 +73,6 @@ mod tests {
 
     use assert_matches::assert_matches;
     use data_types::{NamespaceId, PartitionId, PartitionKey, TableId};
-    use iox_query::exec::Executor;
     use lazy_static::lazy_static;
     use metric::Attributes;
 
@@ -92,7 +91,6 @@ mod tests {
     const NAMESPACE_NAME: &str = "platanos";
 
     lazy_static! {
-        static ref EXEC: Arc<Executor> = Arc::new(Executor::new_testing());
         static ref PARTITION_KEY: PartitionKey = PartitionKey::from("bananas");
         static ref NAMESPACE_NAME_LOADER: Arc<DeferredLoad<NamespaceName>> =
             Arc::new(DeferredLoad::new(Duration::from_secs(1), async {

@@ -42,6 +42,7 @@ mod tests {
         },
         dml_sink::DmlSink,
         ingest_state::IngestState,
+        persist::handle::PersistHandle,
         persist::{completion_observer::mock::MockCompletionObserver, queue::PersistQueue},
         test_util::{
             make_write_op, populate_catalog, ARBITRARY_NAMESPACE_NAME,
@@ -49,8 +50,6 @@ mod tests {
             ARBITRARY_TABLE_NAME_PROVIDER,
         },
     };
-
-    use super::handle::PersistHandle;
 
     lazy_static! {
         static ref EXEC: Arc<Executor> = Arc::new(Executor::new_testing());
@@ -178,7 +177,7 @@ mod tests {
             1,
             2,
             Arc::clone(&ingest_state),
-            Arc::clone(&EXEC),
+            Arc::new(Executor::new_testing()),
             storage,
             Arc::clone(&catalog),
             Arc::clone(&completion_observer),
@@ -314,7 +313,7 @@ mod tests {
             1,
             2,
             Arc::clone(&ingest_state),
-            Arc::clone(&EXEC),
+            Arc::new(Executor::new_testing()),
             storage,
             Arc::clone(&catalog),
             Arc::clone(&completion_observer),

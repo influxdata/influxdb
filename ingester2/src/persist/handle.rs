@@ -478,7 +478,6 @@ mod tests {
     use dml::DmlOperation;
     use futures::Future;
     use iox_catalog::mem::MemCatalog;
-    use lazy_static::lazy_static;
     use object_store::memory::InMemory;
     use parquet_file::storage::StorageId;
     use schema::sort::SortKey;
@@ -505,10 +504,6 @@ mod tests {
             ARBITRARY_TABLE_NAME, ARBITRARY_TABLE_NAME_PROVIDER,
         },
     };
-
-    lazy_static! {
-        static ref EXEC: Arc<Executor> = Arc::new(Executor::new_testing());
-    }
 
     /// Construct a partition with the above constants, with the given sort key,
     /// and containing a single write.
@@ -555,7 +550,7 @@ mod tests {
             1,
             2,
             Arc::new(IngestState::default()),
-            Arc::clone(&EXEC),
+            Arc::new(Executor::new_testing()),
             storage,
             catalog,
             Arc::new(MockCompletionObserver::default()),
@@ -631,7 +626,7 @@ mod tests {
             1,
             2,
             Arc::new(IngestState::default()),
-            Arc::clone(&EXEC),
+            Arc::new(Executor::new_testing()),
             storage,
             catalog,
             Arc::new(MockCompletionObserver::default()),
@@ -717,7 +712,7 @@ mod tests {
             1,
             2,
             Arc::new(IngestState::default()),
-            Arc::clone(&EXEC),
+            Arc::new(Executor::new_testing()),
             storage,
             catalog,
             Arc::new(MockCompletionObserver::default()),
@@ -803,7 +798,7 @@ mod tests {
             1,
             2,
             Arc::new(IngestState::default()),
-            Arc::clone(&EXEC),
+            Arc::new(Executor::new_testing()),
             storage,
             catalog,
             Arc::new(MockCompletionObserver::default()),
@@ -883,7 +878,7 @@ mod tests {
             1,
             1,
             Arc::clone(&ingest_state),
-            Arc::clone(&EXEC),
+            Arc::new(Executor::new_testing()),
             storage,
             catalog,
             NopObserver::default(),
@@ -951,7 +946,7 @@ mod tests {
             5,
             42,
             Arc::clone(&ingest_state),
-            Arc::clone(&EXEC),
+            Arc::new(Executor::new_testing()),
             storage,
             catalog,
             NopObserver::default(),

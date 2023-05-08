@@ -222,10 +222,10 @@ mod tests {
     use crate::{
         buffer_tree::partition::resolver::mock::MockPartitionProvider,
         test_util::{
-            arbitrary_partition, PartitionDataBuilder, ARBITRARY_NAMESPACE_ID,
-            ARBITRARY_NAMESPACE_NAME, ARBITRARY_PARTITION_ID, ARBITRARY_PARTITION_KEY,
-            ARBITRARY_PARTITION_KEY_STR, ARBITRARY_TABLE_ID, ARBITRARY_TABLE_NAME,
-            DEFER_NAMESPACE_NAME_1_SEC, DEFER_TABLE_NAME_1_SEC,
+            arbitrary_partition, defer_namespace_name_1_sec, defer_table_name_1_sec,
+            PartitionDataBuilder, ARBITRARY_NAMESPACE_ID, ARBITRARY_NAMESPACE_NAME,
+            ARBITRARY_PARTITION_ID, ARBITRARY_PARTITION_KEY, ARBITRARY_PARTITION_KEY_STR,
+            ARBITRARY_TABLE_ID, ARBITRARY_TABLE_NAME,
         },
     };
 
@@ -255,9 +255,9 @@ mod tests {
             .get_partition(
                 ARBITRARY_PARTITION_KEY.clone(),
                 ARBITRARY_NAMESPACE_ID,
-                Arc::clone(&*DEFER_NAMESPACE_NAME_1_SEC),
+                defer_namespace_name_1_sec(),
                 ARBITRARY_TABLE_ID,
-                Arc::clone(&*DEFER_TABLE_NAME_1_SEC),
+                defer_table_name_1_sec(),
             )
             .await;
 
@@ -292,9 +292,9 @@ mod tests {
             .get_partition(
                 callers_partition_key.clone(),
                 ARBITRARY_NAMESPACE_ID,
-                Arc::clone(&*DEFER_NAMESPACE_NAME_1_SEC),
+                defer_namespace_name_1_sec(),
                 ARBITRARY_TABLE_ID,
-                Arc::clone(&*DEFER_TABLE_NAME_1_SEC),
+                defer_table_name_1_sec(),
             )
             .await;
 
@@ -343,9 +343,9 @@ mod tests {
             .get_partition(
                 other_key,
                 ARBITRARY_NAMESPACE_ID,
-                Arc::clone(&*DEFER_NAMESPACE_NAME_1_SEC),
+                defer_namespace_name_1_sec(),
                 ARBITRARY_TABLE_ID,
-                Arc::clone(&*DEFER_TABLE_NAME_1_SEC),
+                defer_table_name_1_sec(),
             )
             .await;
 
@@ -373,9 +373,9 @@ mod tests {
             .get_partition(
                 ARBITRARY_PARTITION_KEY.clone(),
                 ARBITRARY_NAMESPACE_ID,
-                Arc::clone(&*DEFER_NAMESPACE_NAME_1_SEC),
+                defer_namespace_name_1_sec(),
                 other_table,
-                Arc::clone(&*DEFER_TABLE_NAME_1_SEC),
+                defer_table_name_1_sec(),
             )
             .await;
 
