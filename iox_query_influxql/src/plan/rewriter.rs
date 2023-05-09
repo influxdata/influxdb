@@ -353,42 +353,48 @@ fn field_list_expand_wildcards(
     stmt: &SelectStatement,
     from: &[DataSource],
 ) -> Result<(Vec<Field>, Option<GroupByClause>)> {
-    let mut fields = stmt.fields.iter().cloned().collect::<Vec<_>>();
-    // Rewrite all `DISTINCT <identifier>` expressions to `DISTINCT(<var ref>)`
-    if let ControlFlow::Break(e) = fields.iter_mut().try_for_each(|f| {
-        walk_expr_mut::<DataFusionError>(&mut f.expr, &mut |e| {
-            if let Expr::Distinct(ident) = e {
-                *e = Expr::Call(Call {
-                    name: "distinct".to_owned(),
-                    args: vec![Expr::VarRef(VarRef {
+    let tv = TypeEvaluator::new(s, from);
+    let mut fields = stmt
+        .fields
+        .iter()
+        .map(|f| (f.expr.clone(), f.alias.clone()))
+        .map(|(mut expr, alias)| {
+            match walk_expr_mut::<_>(&mut expr, &mut |e| match e {
+                // Rewrite all `DISTINCT <identifier>` expressions to `DISTINCT(VarRef)`
+                Expr::Distinct(ident) => {
+                    let mut v = VarRef {
                         name: ident.take().into(),
                         data_type: None,
-                    })],
-                });
-            }
-            ControlFlow::Continue(())
-        })
-    }) {
-        return Err(e);
-    }
+                    };
+                    v.data_type = match tv.eval_var_ref(&v) {
+                        Ok(v) => v,
+                        Err(e) => ControlFlow::Break(e)?,
+                    };
 
-    // Attempt to rewrite all variable references in the fields with their types, if one
-    // hasn't been specified.
-    if let ControlFlow::Break(e) = fields.iter_mut().try_for_each(|f| {
-        let tv = TypeEvaluator::new(s, from);
+                    *e = Expr::Call(Call {
+                        name: "distinct".to_owned(),
+                        args: vec![Expr::VarRef(v)],
+                    });
+                    ControlFlow::Continue(())
+                }
 
-        walk_expr_mut::<DataFusionError>(&mut f.expr, &mut |e| {
-            if let Expr::VarRef(ref mut v) = e {
-                v.data_type = match tv.eval_var_ref(v) {
-                    Ok(v) => v,
-                    Err(e) => ControlFlow::Break(e)?,
-                };
+                // Attempt to rewrite all variable references with their concrete types, if one
+                // hasn't been specified.
+                Expr::VarRef(ref mut v) => {
+                    v.data_type = match tv.eval_var_ref(v) {
+                        Ok(v) => v,
+                        Err(e) => ControlFlow::Break(e)?,
+                    };
+                    ControlFlow::Continue(())
+                }
+
+                _ => ControlFlow::Continue(()),
+            }) {
+                ControlFlow::Break(err) => Err(err),
+                ControlFlow::Continue(()) => Ok(Field { expr, alias }),
             }
-            ControlFlow::Continue(())
         })
-    }) {
-        return Err(e);
-    }
+        .collect::<Result<Vec<_>>>()?;
 
     let (has_field_wildcard, has_group_by_wildcard) = has_wildcards(stmt);
     if (has_field_wildcard, has_group_by_wildcard) == (false, false) {
@@ -410,7 +416,9 @@ fn field_list_expand_wildcards(
     }
 
     let fields = if has_field_wildcard {
-        let var_refs = if !field_set.is_empty() {
+        let var_refs = if field_set.is_empty() {
+            vec![]
+        } else {
             let fields_iter = field_set.iter().map(|(k, v)| VarRef {
                 name: k.clone().into(),
                 data_type: Some(*v),
@@ -427,13 +435,11 @@ fn field_list_expand_wildcards(
             } else {
                 fields_iter.sorted().collect::<Vec<_>>()
             }
-        } else {
-            vec![]
         };
 
         let mut new_fields = Vec::new();
 
-        for f in &fields {
+        for f in fields {
             let add_field = |f: &VarRef| {
                 new_fields.push(Field {
                     expr: Expr::VarRef(f.clone()),
@@ -510,7 +516,7 @@ fn field_list_expand_wildcards(
                                 name: name.clone(),
                                 args,
                             }),
-                            alias: Some(format!("{}_{}", field_name(f), v.name).into()),
+                            alias: Some(format!("{}_{}", field_name(&f), v.name).into()),
                         })
                     };
 
@@ -537,7 +543,7 @@ fn field_list_expand_wildcards(
                                 .for_each(add_field);
                         }
                         _ => {
-                            new_fields.push(f.clone());
+                            new_fields.push(f);
                             continue;
                         }
                     }
@@ -561,10 +567,10 @@ fn field_list_expand_wildcards(
                         );
                     }
 
-                    new_fields.push(f.clone());
+                    new_fields.push(f);
                 }
 
-                _ => new_fields.push(f.clone()),
+                _ => new_fields.push(f),
             }
         }
 
@@ -1367,8 +1373,7 @@ mod test {
     use super::Result;
     use crate::plan::ir::Select;
     use crate::plan::rewriter::{
-        has_wildcards, map_select, rewrite_statement, select_statement_info, ProjectionType,
-        SelectStatementInfo,
+        has_wildcards, map_select, rewrite_statement, ProjectionType, SelectStatementInfo,
     };
     use crate::plan::test_utils::{parse_select, MockSchemaProvider};
     use assert_matches::assert_matches;
