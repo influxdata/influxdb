@@ -32,7 +32,7 @@ use crate::{
 };
 use async_trait::async_trait;
 use backoff::BackoffConfig;
-use compactor2::{
+use compactor::{
     compact,
     config::{CompactionType, Config, PartitionsSourceConfig},
     hardcoded_components, Components, PanicDataFusionPlanner, PartitionInfo,
@@ -595,7 +595,7 @@ impl<const WITH_FILES: bool> TestSetupBuilder<WITH_FILES> {
     }
 }
 
-/// Contains state for running compactor2 integration tests with a
+/// Contains state for running compactor integration tests with a
 /// single partition full of files.
 pub struct TestSetup {
     /// The parquet files in the partition
@@ -608,7 +608,7 @@ pub struct TestSetup {
     pub table: Arc<TestTable>,
     /// a test partition
     pub partition: Arc<TestPartition>,
-    /// The compactor2 configuration
+    /// The compactor configuration
     pub config: Arc<Config>,
     /// allows optionally suppressing output of running the test
     pub suppress_run_output: bool,

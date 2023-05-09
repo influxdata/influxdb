@@ -1,8 +1,8 @@
 use async_trait::async_trait;
 use backoff::BackoffConfig;
-use clap_blocks::compactor2::{CompactionType, Compactor2Config};
-use compactor2::{
-    compactor::Compactor2,
+use clap_blocks::compactor::{CompactionType, CompactorConfig};
+use compactor::{
+    compactor::Compactor,
     config::{Config, PartitionsSourceConfig, ShardConfig},
 };
 use data_types::PartitionId;
@@ -29,20 +29,20 @@ use tokio_util::sync::CancellationToken;
 use trace::TraceCollector;
 
 pub struct Compactor2ServerType {
-    compactor: Compactor2,
+    compactor: Compactor,
     metric_registry: Arc<Registry>,
     trace_collector: Option<Arc<dyn TraceCollector>>,
 }
 
 impl std::fmt::Debug for Compactor2ServerType {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "Compactor2")
+        write!(f, "Compactor")
     }
 }
 
 impl Compactor2ServerType {
     pub fn new(
-        compactor: Compactor2,
+        compactor: Compactor,
         metric_registry: Arc<metric::Registry>,
         common_state: &CommonServerState,
     ) -> Self {
@@ -129,7 +129,7 @@ impl HttpApiErrorSource for IoxHttpError {
     }
 }
 
-/// Instantiate a compactor2 server that uses the RPC write path
+/// Instantiate a compactor server
 #[allow(clippy::too_many_arguments)]
 pub async fn create_compactor2_server_type(
     common_state: &CommonServerState,
@@ -139,7 +139,7 @@ pub async fn create_compactor2_server_type(
     parquet_store_scratchpad: ParquetStorage,
     exec: Arc<Executor>,
     time_provider: Arc<dyn TimeProvider>,
-    compactor_config: Compactor2Config,
+    compactor_config: CompactorConfig,
 ) -> Arc<dyn ServerType> {
     let backoff_config = BackoffConfig::default();
 
@@ -181,16 +181,16 @@ pub async fn create_compactor2_server_type(
     );
 
     // This is annoying to have two types that are so similar and have to convert between them, but
-    // this way compactor2 doesn't have to know about clap_blocks and vice versa. It would also
+    // this way compactor doesn't have to know about clap_blocks and vice versa. It would also
     // be nice to have this as a `From` trait implementation, but this crate isn't allowed because
     // neither type is defined in ioxd_compactor. This feels like the right place to do the
     // conversion, though.
     let compaction_type = match compactor_config.compaction_type {
-        CompactionType::Hot => compactor2::config::CompactionType::Hot,
-        CompactionType::Cold => compactor2::config::CompactionType::Cold,
+        CompactionType::Hot => compactor::config::CompactionType::Hot,
+        CompactionType::Cold => compactor::config::CompactionType::Cold,
     };
 
-    let compactor = Compactor2::start(Config {
+    let compactor = Compactor::start(Config {
         compaction_type,
         metric_registry: Arc::clone(&metric_registry),
         catalog,

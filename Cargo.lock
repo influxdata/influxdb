@@ -1002,7 +1002,7 @@ dependencies = [
 ]
 
 [[package]]
-name = "compactor2"
+name = "compactor"
 version = "0.1.0"
 dependencies = [
  "arrow_util",
@@ -1042,7 +1042,7 @@ version = "0.1.0"
 dependencies = [
  "async-trait",
  "backoff",
- "compactor2",
+ "compactor",
  "data_types",
  "datafusion",
  "datafusion_util",
@@ -2550,7 +2550,7 @@ dependencies = [
  "clap 4.2.7",
  "clap_blocks",
  "comfy-table",
- "compactor2",
+ "compactor",
  "console-subscriber",
  "data_types",
  "datafusion",
@@ -3039,7 +3039,7 @@ dependencies = [
  "async-trait",
  "backoff",
  "clap_blocks",
- "compactor2",
+ "compactor",
  "data_types",
  "hyper",
  "iox_catalog",

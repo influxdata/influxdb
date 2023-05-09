@@ -1,5 +1,5 @@
 [package]
-name = "compactor2"
+name = "compactor"
 version.workspace = true
 authors.workspace = true
 edition.workspace = true

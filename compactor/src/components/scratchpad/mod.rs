@@ -41,7 +41,7 @@ pub trait ScratchpadGen: Debug + Display + Send + Sync {
 /// object store IO. This was limiting our throughput substantially.
 ///
 /// **shadow mode**: De-coupling the stores in this way makes it easier
-/// to implement compactor2: shadow mode #6645.
+/// to implement compactor: shadow mode #6645.
 ///
 /// Note that we assume here that the input parquet files are WAY
 /// SMALLER than the uncompressed Arrow data during compaction itself.

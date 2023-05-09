@@ -2,7 +2,7 @@ use snafu::{ResultExt, Snafu};
 use trogging::cli::LoggingConfig;
 
 pub(crate) mod all_in_one;
-mod compactor2;
+mod compactor;
 mod garbage_collector;
 mod ingester;
 mod main;
@@ -13,8 +13,8 @@ mod test;
 #[derive(Debug, Snafu)]
 #[allow(clippy::enum_variant_names)]
 pub enum Error {
-    #[snafu(display("Error in compactor2 subcommand: {}", source))]
-    Compactor2Error { source: compactor2::Error },
+    #[snafu(display("Error in compactor subcommand: {}", source))]
+    CompactorError { source: compactor::Error },
 
     #[snafu(display("Error in garbage collector subcommand: {}", source))]
     GarbageCollectorError { source: garbage_collector::Error },
@@ -51,7 +51,7 @@ impl Config {
     pub fn logging_config(&self) -> &LoggingConfig {
         match &self.command {
             None => &self.all_in_one_config.logging_config,
-            Some(Command::Compactor2(config)) => config.run_config.logging_config(),
+            Some(Command::Compactor(config)) => config.run_config.logging_config(),
             Some(Command::GarbageCollector(config)) => config.run_config.logging_config(),
             Some(Command::Querier(config)) => config.run_config.logging_config(),
             Some(Command::Router2(config)) => config.run_config.logging_config(),
@@ -64,8 +64,9 @@ impl Config {
 
 #[derive(Debug, clap::Parser)]
 enum Command {
-    /// Run the server in compactor2 mode
-    Compactor2(compactor2::Config),
+    /// Run the server in compactor mode
+    #[clap(alias = "compactor2")]
+    Compactor(compactor::Config),
 
     /// Run the server in querier mode
     Querier(querier::Config),
@@ -92,8 +93,8 @@ pub async fn command(config: Config) -> Result<()> {
         None => all_in_one::command(config.all_in_one_config)
             .await
             .context(AllInOneSnafu),
-        Some(Command::Compactor2(config)) => {
-            compactor2::command(config).await.context(Compactor2Snafu)
+        Some(Command::Compactor(config)) => {
+            compactor::command(config).await.context(CompactorSnafu)
         }
         Some(Command::GarbageCollector(config)) => garbage_collector::command(config)
             .await

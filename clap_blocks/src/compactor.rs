@@ -1,4 +1,4 @@
-//! CLI config for compactor2-related commands
+//! CLI config for compactor-related commands
 
 use std::num::NonZeroUsize;
 
@@ -13,9 +13,9 @@ pub enum CompactionType {
     Cold,
 }
 
-/// CLI config for compactor2
+/// CLI config for compactor
 #[derive(Debug, Clone, clap::Parser)]
-pub struct Compactor2Config {
+pub struct CompactorConfig {
     /// Type of compaction to perform.
     #[clap(
         value_enum,
@@ -322,27 +322,27 @@ mod tests {
 
     #[test]
     fn default_compaction_type_is_hot() {
-        let config = Compactor2Config::try_parse_from(["my_binary"]).unwrap();
+        let config = CompactorConfig::try_parse_from(["my_binary"]).unwrap();
         assert_eq!(config.compaction_type, CompactionType::Hot);
     }
 
     #[test]
     fn can_specify_hot() {
         let config =
-            Compactor2Config::try_parse_from(["my_binary", "--compaction-type", "hot"]).unwrap();
+            CompactorConfig::try_parse_from(["my_binary", "--compaction-type", "hot"]).unwrap();
         assert_eq!(config.compaction_type, CompactionType::Hot);
     }
 
     #[test]
     fn can_specify_cold() {
         let config =
-            Compactor2Config::try_parse_from(["my_binary", "--compaction-type", "cold"]).unwrap();
+            CompactorConfig::try_parse_from(["my_binary", "--compaction-type", "cold"]).unwrap();
         assert_eq!(config.compaction_type, CompactionType::Cold);
     }
 
     #[test]
     fn any_other_compaction_type_string_is_invalid() {
-        let error = Compactor2Config::try_parse_from(["my_binary", "--compaction-type", "hello"])
+        let error = CompactorConfig::try_parse_from(["my_binary", "--compaction-type", "hello"])
             .unwrap_err()
             .to_string();
         assert_contains!(

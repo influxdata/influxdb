@@ -1,12 +1,12 @@
-//! Command line options for running compactor2 in RPC write mode
+//! Command line options for running compactor
 
 use super::main;
 use crate::process_info::setup_metric_registry;
 use clap_blocks::{
-    catalog_dsn::CatalogDsnConfig, compactor2::Compactor2Config, object_store::make_object_store,
+    catalog_dsn::CatalogDsnConfig, compactor::CompactorConfig, object_store::make_object_store,
     run_config::RunConfig,
 };
-use compactor2::object_store::metrics::MetricsStore;
+use compactor::object_store::metrics::MetricsStore;
 use iox_query::exec::{Executor, ExecutorConfig};
 use iox_time::{SystemProvider, TimeProvider};
 use ioxd_common::{
@@ -63,7 +63,7 @@ pub struct Config {
     pub(crate) catalog_dsn: CatalogDsnConfig,
 
     #[clap(flatten)]
-    pub(crate) compactor_config: Compactor2Config,
+    pub(crate) compactor_config: CompactorConfig,
 }
 
 pub async fn command(config: Config) -> Result<(), Error> {
@@ -136,7 +136,7 @@ pub async fn command(config: Config) -> Result<(), Error> {
     let res = main::main(common_state, services, metric_registry).await;
     match res {
         Ok(()) => Ok(()),
-        // compactor2 is allowed to shut itself down
+        // compactor is allowed to shut itself down
         Err(main::Error::Wrapper {
             source: _source @ ioxd_common::Error::LostServer,
         }) if process_once => Ok(()),

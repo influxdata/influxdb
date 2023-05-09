@@ -114,9 +114,9 @@ impl TestConfig {
     }
 
     /// Create a minimal compactor configuration, using the dsn configuration from other
-    pub fn new_compactor2(other: &TestConfig) -> Self {
+    pub fn new_compactor(other: &TestConfig) -> Self {
         Self::new(
-            ServerType::Compactor2,
+            ServerType::Compactor,
             other.dsn().to_owned(),
             other.catalog_schema_name(),
         )

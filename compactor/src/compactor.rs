@@ -29,12 +29,12 @@ fn shared_handle(handle: JoinHandle<()>) -> SharedJoinHandle {
 
 /// Main compactor driver.
 #[derive(Debug)]
-pub struct Compactor2 {
+pub struct Compactor {
     shutdown: CancellationToken,
     worker: SharedJoinHandle,
 }
 
-impl Compactor2 {
+impl Compactor {
     /// Start compactor.
     pub fn start(config: Config) -> Self {
         info!("compactor starting");
@@ -84,7 +84,7 @@ impl Compactor2 {
     }
 }
 
-impl Drop for Compactor2 {
+impl Drop for Compactor {
     fn drop(&mut self) {
         if self.worker.clone().now_or_never().is_none() {
             warn!("Compactor was not shut down properly");

@@ -5,7 +5,7 @@ use crate::process_info::setup_metric_registry;
 use super::main;
 use clap_blocks::{
     catalog_dsn::CatalogDsnConfig,
-    compactor2::Compactor2Config,
+    compactor::CompactorConfig,
     ingester::IngesterConfig,
     ingester_address::IngesterAddress,
     object_store::{make_object_store, ObjectStoreConfig},
@@ -17,7 +17,7 @@ use clap_blocks::{
     },
     socket_addr::SocketAddr,
 };
-use compactor2::object_store::metrics::MetricsStore;
+use compactor::object_store::metrics::MetricsStore;
 use iox_query::exec::{Executor, ExecutorConfig};
 use iox_time::{SystemProvider, TimeProvider};
 use ioxd_common::{
@@ -482,7 +482,7 @@ impl Config {
         // create a CompactorConfig for the all in one server based on
         // settings from other configs. Can't use `#clap(flatten)` as the
         // parameters are redundant with ingester's
-        let compactor_config = Compactor2Config {
+        let compactor_config = CompactorConfig {
             compaction_type: Default::default(),
             compaction_partition_minute_threshold: 10,
             compaction_cold_partition_minute_threshold: 60,
@@ -557,7 +557,7 @@ struct SpecializedConfig {
     catalog_dsn: CatalogDsnConfig,
     ingester_config: IngesterConfig,
     router_config: Router2Config,
-    compactor_config: Compactor2Config,
+    compactor_config: CompactorConfig,
     querier_config: QuerierConfig,
 }
 

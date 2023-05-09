@@ -8,7 +8,7 @@ members = [
     "clap_blocks",
     "client_util",
     "compactor2_test_utils",
-    "compactor2",
+    "compactor",
     "data_types",
     "datafusion_util",
     "dml",

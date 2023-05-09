@@ -13,7 +13,7 @@ use iox_time::Time;
 use observability_deps::tracing::info;
 use uuid::Uuid;
 
-use compactor2::{DynError, ParquetFilesSink, PartitionInfo, PlanIR};
+use compactor::{DynError, ParquetFilesSink, PartitionInfo, PlanIR};
 
 use crate::{display::total_size, display_size, format_files};
 

@@ -1,6 +1,6 @@
 [package]
 name = "compactor2_test_utils"
-description = "Utilities for writing tests for compactor2"
+description = "Utilities for writing tests for compactor"
 version.workspace = true
 authors.workspace = true
 edition.workspace = true
@@ -9,7 +9,7 @@ license.workspace = true
 [dependencies]
 async-trait = "0.1.68"
 backoff = { path = "../backoff" }
-compactor2 = { path = "../compactor2" }
+compactor = { path = "../compactor" }
 datafusion = { workspace = true }
 datafusion_util = { path = "../datafusion_util" }
 data_types = { path = "../data_types" }
