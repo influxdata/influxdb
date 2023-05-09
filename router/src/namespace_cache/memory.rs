@@ -396,7 +396,7 @@ mod tests {
         fn arbitrary_table_schema()(
             id in any::<i64>(),
             columns in proptest::collection::btree_map(
-                proptest::sample::select(TEST_COLUMN_NAME_SET),
+                proptest::sample::select(TEST_COLUMN_NAME_SET).prop_map(ToString::to_string),
                 arbitrary_column_schema(),
                 (0, 10) // Set size range
             ),

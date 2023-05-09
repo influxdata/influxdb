@@ -35,14 +35,9 @@ impl PgHasArrayType for ColumnId {
 #[derive(Debug, Clone, Eq, PartialEq)]
 pub struct ColumnsByName(BTreeMap<String, ColumnSchema>);
 
-impl From<BTreeMap<&str, ColumnSchema>> for ColumnsByName {
-    fn from(value: BTreeMap<&str, ColumnSchema>) -> Self {
-        Self(
-            value
-                .into_iter()
-                .map(|(name, column)| (name.to_owned(), column))
-                .collect(),
-        )
+impl From<BTreeMap<String, ColumnSchema>> for ColumnsByName {
+    fn from(value: BTreeMap<String, ColumnSchema>) -> Self {
+        Self(value)
     }
 }
 
