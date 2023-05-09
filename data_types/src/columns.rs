@@ -49,7 +49,7 @@ impl ColumnsByName {
                 .into_iter()
                 .map(|c| {
                     (
-                        c.name.to_owned(),
+                        c.name,
                         ColumnSchema {
                             id: c.id,
                             column_type: c.column_type,
