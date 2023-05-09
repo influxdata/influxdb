@@ -99,7 +99,6 @@ impl<'a> PartitionWrite<'a> {
     /// Create a collection of [`PartitionWrite`] indexed by partition key
     /// from a [`MutableBatch`] and [`PartitionTemplate`]
     pub fn partition(
-        table_name: &str,
         batch: &'a MutableBatch,
         partition_template: &PartitionTemplate,
     ) -> HashMap<PartitionKey, Self> {
@@ -107,8 +106,7 @@ impl<'a> PartitionWrite<'a> {
         let time = get_time_column(batch);
 
         let mut partition_ranges = HashMap::new();
-        for (partition, range) in partition::partition_batch(batch, table_name, partition_template)
-        {
+        for (partition, range) in partition::partition_batch(batch, partition_template) {
             let row_count = NonZeroUsize::new(range.end - range.start).unwrap();
             let (min_timestamp, max_timestamp) = min_max_time(&time[range.clone()]);
 

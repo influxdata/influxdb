@@ -115,15 +115,15 @@ mod tests {
           - " UnionExec"
           - "   UnionExec"
           - "     RecordBatchesExec: batches_groups=1 batches=0 total_rows=0"
-          - "     ParquetExec: limit=None, partitions={1 group: [[2.parquet]]}, projection=[]"
+          - "     ParquetExec: file_groups={1 group: [[2.parquet]]}"
           - "   UnionExec"
           - "     RecordBatchesExec: batches_groups=1 batches=0 total_rows=0"
-          - "     ParquetExec: limit=None, partitions={2 groups: [[4.parquet], [5.parquet]]}, projection=[]"
+          - "     ParquetExec: file_groups={2 groups: [[4.parquet], [5.parquet]]}"
         output:
           Ok:
             - " UnionExec"
             - "   RecordBatchesExec: batches_groups=2 batches=0 total_rows=0"
-            - "   ParquetExec: limit=None, partitions={2 groups: [[2.parquet, 5.parquet], [4.parquet]]}, projection=[]"
+            - "   ParquetExec: file_groups={2 groups: [[2.parquet, 5.parquet], [4.parquet]]}"
         "###
         );
     }
@@ -153,19 +153,19 @@ mod tests {
         input:
           - " UnionExec"
           - "   UnionExec"
-          - "     ParquetExec: limit=None, partitions={1 group: [[1.parquet]]}, projection=[]"
+          - "     ParquetExec: file_groups={1 group: [[1.parquet]]}"
           - "   UnionExec"
-          - "     ParquetExec: limit=None, partitions={1 group: [[1.parquet]]}, projection=[]"
+          - "     ParquetExec: file_groups={1 group: [[1.parquet]]}"
           - "   FilterExec: false"
           - "     UnionExec"
-          - "       ParquetExec: limit=None, partitions={1 group: [[1.parquet]]}, projection=[]"
+          - "       ParquetExec: file_groups={1 group: [[1.parquet]]}"
         output:
           Ok:
             - " UnionExec"
-            - "   ParquetExec: limit=None, partitions={2 groups: [[1.parquet], [1.parquet]]}, projection=[]"
+            - "   ParquetExec: file_groups={2 groups: [[1.parquet], [1.parquet]]}"
             - "   FilterExec: false"
             - "     UnionExec"
-            - "       ParquetExec: limit=None, partitions={1 group: [[1.parquet]]}, projection=[]"
+            - "       ParquetExec: file_groups={1 group: [[1.parquet]]}"
         "###
         );
     }

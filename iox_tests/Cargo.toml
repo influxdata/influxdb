@@ -22,7 +22,6 @@ parquet_file = { path = "../parquet_file" }
 predicate = { path = "../predicate" }
 iox_query = { path = "../iox_query" }
 schema = { path = "../schema" }
-sharder = { path = "../sharder" }
 uuid = { version = "1", features = ["v4"] }
 workspace-hack = { version = "0.1", path = "../workspace-hack" }
 futures = "0.3.28"

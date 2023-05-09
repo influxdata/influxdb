@@ -126,12 +126,12 @@ where
                     .tables()
                     .create_or_get(measurement_name, iox_schema.id)
                     .await
-                    .map(|t| TableSchema::new(t.id))?;
+                    .map(|t| TableSchema::new_empty_from(&t))?;
                 let time_col = repos
                     .columns()
                     .create_or_get("time", table.id, ColumnType::Time)
                     .await?;
-                table.add_column(&time_col);
+                table.add_column(time_col);
                 table
             }
         };
@@ -384,7 +384,7 @@ mod tests {
         .expect("got schema");
         assert_eq!(iox_schema.tables.len(), 1);
         let table = iox_schema.tables.get("cpu").expect("got table");
-        assert_eq!(table.columns.len(), 3); // one tag & one field, plus time
+        assert_eq!(table.column_count(), 3); // one tag & one field, plus time
         let tag = table.columns.get("host").expect("got tag");
         assert!(tag.is_tag());
         let field = table.columns.get("usage").expect("got field");
@@ -434,14 +434,14 @@ mod tests {
                 .tables()
                 .create_or_get("weather", namespace.id)
                 .await
-                .map(|t| TableSchema::new(t.id))
+                .map(|t| TableSchema::new_empty_from(&t))
                 .expect("table created");
             let time_col = txn
                 .columns()
                 .create_or_get("time", table.id, ColumnType::Time)
                 .await
                 .expect("column created");
-            table.add_column(&time_col);
+            table.add_column(time_col);
             let location_col = txn
                 .columns()
                 .create_or_get("city", table.id, ColumnType::Tag)
@@ -452,8 +452,8 @@ mod tests {
                 .create_or_get("temperature", table.id, ColumnType::F64)
                 .await
                 .expect("column created");
-            table.add_column(&location_col);
-            table.add_column(&temperature_col);
+            table.add_column(location_col);
+            table.add_column(temperature_col);
         }
 
         // merge with aggregate schema that has some overlap
@@ -490,7 +490,7 @@ mod tests {
         .expect("got schema");
         assert_eq!(iox_schema.tables.len(), 1);
         let table = iox_schema.tables.get("weather").expect("got table");
-        assert_eq!(table.columns.len(), 5); // two tags, two fields, plus time
+        assert_eq!(table.column_count(), 5); // two tags, two fields, plus time
         let tag1 = table.columns.get("city").expect("got tag");
         assert!(tag1.is_tag());
         let tag2 = table.columns.get("country").expect("got tag");
@@ -512,7 +512,6 @@ mod tests {
         // init a test catalog stack
         let metrics = Arc::new(metric::Registry::default());
         let catalog: Arc<dyn Catalog> = Arc::new(MemCatalog::new(Arc::clone(&metrics)));
-
         // We need txn to go out of scope to release the lock before update_iox_catalog
         {
             let mut txn = catalog.repositories().await;
@@ -526,20 +525,20 @@ mod tests {
                 .tables()
                 .create_or_get("weather", namespace.id)
                 .await
-                .map(|t| TableSchema::new(t.id))
+                .map(|t| TableSchema::new_empty_from(&t))
                 .expect("table created");
             let time_col = txn
                 .columns()
                 .create_or_get("time", table.id, ColumnType::Time)
                 .await
                 .expect("column created");
-            table.add_column(&time_col);
+            table.add_column(time_col);
             let temperature_col = txn
                 .columns()
                 .create_or_get("temperature", table.id, ColumnType::F64)
                 .await
                 .expect("column created");
-            table.add_column(&temperature_col);
+            table.add_column(temperature_col);
         }
 
         // merge with aggregate schema that has some issue that will trip a catalog error
@@ -580,7 +579,6 @@ mod tests {
         // We need txn to go out of scope to release the lock before update_iox_catalog
         {
             let mut txn = catalog.repositories().await;
-
             // create namespace, table and columns for weather measurement
             let namespace = txn
                 .namespaces()
@@ -591,20 +589,20 @@ mod tests {
                 .tables()
                 .create_or_get("weather", namespace.id)
                 .await
-                .map(|t| TableSchema::new(t.id))
+                .map(|t| TableSchema::new_empty_from(&t))
                 .expect("table created");
             let time_col = txn
                 .columns()
                 .create_or_get("time", table.id, ColumnType::Time)
                 .await
                 .expect("column created");
-            table.add_column(&time_col);
+            table.add_column(time_col);
             let temperature_col = txn
                 .columns()
                 .create_or_get("temperature", table.id, ColumnType::F64)
                 .await
                 .expect("column created");
-            table.add_column(&temperature_col);
+            table.add_column(temperature_col);
         }
 
         // merge with aggregate schema that has some issue that will trip a catalog error

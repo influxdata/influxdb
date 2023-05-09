@@ -52,9 +52,9 @@ impl TestConfig {
         }
     }
 
-    /// Create a minimal router2 configuration sharing configuration with the ingester2 config
+    /// Create a minimal router2 configuration sharing configuration with the ingester config
     pub fn new_router2(ingester_config: &TestConfig) -> Self {
-        assert_eq!(ingester_config.server_type(), ServerType::Ingester2);
+        assert_eq!(ingester_config.server_type(), ServerType::Ingester);
 
         Self::new(
             ServerType::Router2,
@@ -65,22 +65,22 @@ impl TestConfig {
         .with_ingester_addresses(&[ingester_config.ingester_base()])
     }
 
-    /// Create a minimal ingester2 configuration, using the dsn configuration specified. Set the
+    /// Create a minimal ingester configuration, using the dsn configuration specified. Set the
     /// persistence options such that it will persist as quickly as possible.
-    pub fn new_ingester2(dsn: impl Into<String>) -> Self {
+    pub fn new_ingester(dsn: impl Into<String>) -> Self {
         let dsn = Some(dsn.into());
-        Self::new(ServerType::Ingester2, dsn, random_catalog_schema_name())
+        Self::new(ServerType::Ingester, dsn, random_catalog_schema_name())
             .with_new_object_store()
             .with_new_wal()
             .with_env("INFLUXDB_IOX_WAL_ROTATION_PERIOD_SECONDS", "1")
     }
 
-    /// Create a minimal ingester2 configuration, using the dsn configuration specified. Set the
+    /// Create a minimal ingester configuration, using the dsn configuration specified. Set the
     /// persistence options such that it will likely never persist, to be able to test when data
     /// only exists in the ingester's memory.
-    pub fn new_ingester2_never_persist(dsn: impl Into<String>) -> Self {
+    pub fn new_ingester_never_persist(dsn: impl Into<String>) -> Self {
         let dsn = Some(dsn.into());
-        Self::new(ServerType::Ingester2, dsn, random_catalog_schema_name())
+        Self::new(ServerType::Ingester, dsn, random_catalog_schema_name())
             .with_new_object_store()
             .with_new_wal()
             // I didn't run my tests for a day, because that would be too long
@@ -93,7 +93,7 @@ impl TestConfig {
         Self {
             env: ingester_config.env.clone(),
             client_headers: ingester_config.client_headers.clone(),
-            server_type: ServerType::Ingester2,
+            server_type: ServerType::Ingester,
             dsn: ingester_config.dsn.clone(),
             catalog_schema_name: ingester_config.catalog_schema_name.clone(),
             object_store_dir: None,
@@ -104,28 +104,28 @@ impl TestConfig {
         .with_new_wal()
     }
 
-    /// Create a minimal querier2 configuration from the specified ingester2 configuration, using
+    /// Create a minimal querier2 configuration from the specified ingester configuration, using
     /// the same dsn and object store, and pointing at the specified ingester.
     pub fn new_querier2(ingester_config: &TestConfig) -> Self {
-        assert_eq!(ingester_config.server_type(), ServerType::Ingester2);
+        assert_eq!(ingester_config.server_type(), ServerType::Ingester);
 
-        Self::new_querier2_without_ingester2(ingester_config)
+        Self::new_querier2_without_ingester(ingester_config)
             .with_ingester_addresses(&[ingester_config.ingester_base()])
     }
 
     /// Create a minimal compactor configuration, using the dsn configuration from other
-    pub fn new_compactor2(other: &TestConfig) -> Self {
+    pub fn new_compactor(other: &TestConfig) -> Self {
         Self::new(
-            ServerType::Compactor2,
+            ServerType::Compactor,
             other.dsn().to_owned(),
             other.catalog_schema_name(),
         )
         .with_existing_object_store(other)
     }
 
-    /// Create a minimal querier2 configuration from the specified ingester2 configuration, using
-    /// the same dsn and object store, but without specifying the ingester2 addresses
-    pub fn new_querier2_without_ingester2(ingester_config: &TestConfig) -> Self {
+    /// Create a minimal querier2 configuration from the specified ingester configuration, using
+    /// the same dsn and object store, but without specifying the ingester addresses
+    pub fn new_querier2_without_ingester(ingester_config: &TestConfig) -> Self {
         Self::new(
             ServerType::Querier2,
             ingester_config.dsn().to_owned(),

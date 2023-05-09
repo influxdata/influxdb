@@ -4,6 +4,7 @@ mod all_in_one;
 mod catalog;
 #[cfg(not(feature = "heappy"))]
 mod cli;
+mod command_rename_support;
 mod compactor;
 mod debug;
 mod error;

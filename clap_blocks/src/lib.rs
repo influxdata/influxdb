@@ -13,9 +13,9 @@
     clippy::dbg_macro
 )]
 pub mod catalog_dsn;
-pub mod compactor2;
+pub mod compactor;
 pub mod garbage_collector;
-pub mod ingester2;
+pub mod ingester;
 pub mod ingester_address;
 pub mod object_store;
 pub mod querier;

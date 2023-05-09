@@ -478,7 +478,7 @@ mod tests {
             @r###"
         ---
         - " UnionExec"
-        - "   ParquetExec: limit=None, partitions={1 group: [[0.parquet]]}, projection=[]"
+        - "   ParquetExec: file_groups={1 group: [[0.parquet]]}"
         "###
         );
     }
@@ -500,7 +500,7 @@ mod tests {
             @r###"
         ---
         - " UnionExec"
-        - "   ParquetExec: limit=None, partitions={2 groups: [[0.parquet, 2.parquet], [1.parquet]]}, projection=[]"
+        - "   ParquetExec: file_groups={2 groups: [[0.parquet, 2.parquet], [1.parquet]]}"
         "###
         );
     }
@@ -521,8 +521,8 @@ mod tests {
             @r###"
         ---
         - " UnionExec"
-        - "   ParquetExec: limit=None, partitions={1 group: [[0.parquet]]}, projection=[]"
-        - "   ParquetExec: limit=None, partitions={1 group: [[1.parquet]]}, projection=[]"
+        - "   ParquetExec: file_groups={1 group: [[0.parquet]]}"
+        - "   ParquetExec: file_groups={1 group: [[1.parquet]]}"
         "###
         );
     }
@@ -540,7 +540,7 @@ mod tests {
         ---
         - " UnionExec"
         - "   RecordBatchesExec: batches_groups=1 batches=0 total_rows=0"
-        - "   ParquetExec: limit=None, partitions={1 group: [[0.parquet]]}, projection=[]"
+        - "   ParquetExec: file_groups={1 group: [[0.parquet]]}"
         "###
         );
     }
@@ -569,7 +569,7 @@ mod tests {
         ---
         - " UnionExec"
         - "   RecordBatchesExec: batches_groups=1 batches=0 total_rows=0"
-        - "   ParquetExec: limit=None, partitions={1 group: [[0.parquet]]}, output_ordering=[__chunk_order@1 ASC], projection=[tag, __chunk_order]"
+        - "   ParquetExec: file_groups={1 group: [[0.parquet]]}, projection=[tag, __chunk_order], output_ordering=[__chunk_order@1 ASC]"
         "###
         );
     }

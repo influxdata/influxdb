@@ -7,8 +7,8 @@ members = [
     "cache_system",
     "clap_blocks",
     "client_util",
-    "compactor2_test_utils",
-    "compactor2",
+    "compactor_test_utils",
+    "compactor",
     "data_types",
     "datafusion_util",
     "dml",
@@ -28,8 +28,8 @@ members = [
     "influxdb_tsm",
     "influxdb2_client",
     "influxrpc_parser",
-    "ingester2_test_ctx",
-    "ingester2",
+    "ingester_test_ctx",
+    "ingester",
     "iox_catalog",
     "iox_data_generator",
     "iox_query_influxql",
@@ -38,9 +38,9 @@ members = [
     "iox_tests",
     "iox_time",
     "ioxd_common",
-    "ioxd_compactor2",
+    "ioxd_compactor",
     "ioxd_garbage_collector",
-    "ioxd_ingester2",
+    "ioxd_ingester",
     "ioxd_querier",
     "ioxd_router",
     "ioxd_test",
@@ -115,8 +115,8 @@ license = "MIT OR Apache-2.0"
 [workspace.dependencies]
 arrow = { version = "38.0.0" }
 arrow-flight = { version = "38.0.0" }
-datafusion = { git = "https://github.com/apache/arrow-datafusion.git", rev="2787e7a36a6be83d91201df20827d3695f933300", default-features = false }
-datafusion-proto = { git = "https://github.com/apache/arrow-datafusion.git", rev="2787e7a36a6be83d91201df20827d3695f933300" }
+datafusion = { git = "https://github.com/apache/arrow-datafusion.git", rev="06e9f53637f20dd91bef43b74942ec36c38c22d5", default-features = false }
+datafusion-proto = { git = "https://github.com/apache/arrow-datafusion.git", rev="06e9f53637f20dd91bef43b74942ec36c38c22d5" }
 hashbrown = { version = "0.13.2" }
 parquet = { version = "38.0.0" }
 tonic = { version = "0.9.2", features = ["tls", "tls-webpki-roots"] }

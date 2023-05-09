@@ -207,11 +207,11 @@ mod tests {
         ---
         input:
           - " SortExec: fetch=42, expr=[col2@1 ASC,col1@0 ASC]"
-          - "   ParquetExec: limit=None, partitions={1 group: [[1.parquet, 2.parquet]]}, output_ordering=[col2@1 ASC, col1@0 ASC], projection=[col1, col2, col3]"
+          - "   ParquetExec: file_groups={1 group: [[1.parquet, 2.parquet]]}, projection=[col1, col2, col3], output_ordering=[col2@1 ASC, col1@0 ASC]"
         output:
           Ok:
             - " SortExec: fetch=42, expr=[col2@1 ASC,col1@0 ASC]"
-            - "   ParquetExec: limit=None, partitions={2 groups: [[1.parquet], [2.parquet]]}, output_ordering=[col2@1 ASC, col1@0 ASC], projection=[col1, col2, col3]"
+            - "   ParquetExec: file_groups={2 groups: [[1.parquet], [2.parquet]]}, projection=[col1, col2, col3], output_ordering=[col2@1 ASC, col1@0 ASC]"
         "###
         );
     }
@@ -243,11 +243,11 @@ mod tests {
         ---
         input:
           - " DeduplicateExec: [col2@1 ASC,col1@0 ASC]"
-          - "   ParquetExec: limit=None, partitions={1 group: [[1.parquet, 2.parquet]]}, output_ordering=[col2@1 ASC, col1@0 ASC, __chunk_order@3 ASC], projection=[col1, col2, col3, __chunk_order]"
+          - "   ParquetExec: file_groups={1 group: [[1.parquet, 2.parquet]]}, projection=[col1, col2, col3, __chunk_order], output_ordering=[col2@1 ASC, col1@0 ASC, __chunk_order@3 ASC]"
         output:
           Ok:
             - " DeduplicateExec: [col2@1 ASC,col1@0 ASC]"
-            - "   ParquetExec: limit=None, partitions={2 groups: [[1.parquet], [2.parquet]]}, output_ordering=[col2@1 ASC, col1@0 ASC, __chunk_order@3 ASC], projection=[col1, col2, col3, __chunk_order]"
+            - "   ParquetExec: file_groups={2 groups: [[1.parquet], [2.parquet]]}, projection=[col1, col2, col3, __chunk_order], output_ordering=[col2@1 ASC, col1@0 ASC, __chunk_order@3 ASC]"
         "###
         );
     }
@@ -283,11 +283,11 @@ mod tests {
         ---
         input:
           - " SortExec: fetch=42, expr=[col2@1 ASC,col1@0 ASC]"
-          - "   ParquetExec: limit=None, partitions={2 groups: [[1.parquet, 2.parquet], [3.parquet]]}, output_ordering=[col2@1 ASC, col1@0 ASC], projection=[col1, col2, col3]"
+          - "   ParquetExec: file_groups={2 groups: [[1.parquet, 2.parquet], [3.parquet]]}, projection=[col1, col2, col3], output_ordering=[col2@1 ASC, col1@0 ASC]"
         output:
           Ok:
             - " SortExec: fetch=42, expr=[col2@1 ASC,col1@0 ASC]"
-            - "   ParquetExec: limit=None, partitions={3 groups: [[1.parquet], [2.parquet], [3.parquet]]}, output_ordering=[col2@1 ASC, col1@0 ASC], projection=[col1, col2, col3]"
+            - "   ParquetExec: file_groups={3 groups: [[1.parquet], [2.parquet], [3.parquet]]}, projection=[col1, col2, col3], output_ordering=[col2@1 ASC, col1@0 ASC]"
         "###
         );
 
@@ -320,11 +320,11 @@ mod tests {
         ---
         input:
           - " SortExec: fetch=42, expr=[col2@1 ASC,col1@0 ASC]"
-          - "   ParquetExec: limit=None, partitions={2 groups: [[1.parquet], [2.parquet]]}, output_ordering=[col2@1 ASC, col1@0 ASC], projection=[col1, col2, col3]"
+          - "   ParquetExec: file_groups={2 groups: [[1.parquet], [2.parquet]]}, projection=[col1, col2, col3], output_ordering=[col2@1 ASC, col1@0 ASC]"
         output:
           Ok:
             - " SortExec: fetch=42, expr=[col2@1 ASC,col1@0 ASC]"
-            - "   ParquetExec: limit=None, partitions={2 groups: [[1.parquet], [2.parquet]]}, output_ordering=[col2@1 ASC, col1@0 ASC], projection=[col1, col2, col3]"
+            - "   ParquetExec: file_groups={2 groups: [[1.parquet], [2.parquet]]}, projection=[col1, col2, col3], output_ordering=[col2@1 ASC, col1@0 ASC]"
         "###
         );
     }
@@ -355,11 +355,11 @@ mod tests {
         ---
         input:
           - " SortExec: fetch=42, expr=[col2@1 ASC,col1@0 ASC]"
-          - "   ParquetExec: limit=None, partitions={1 group: [[1.parquet, 2.parquet]]}, output_ordering=[col1@0 ASC, col2@1 ASC], projection=[col1, col2, col3]"
+          - "   ParquetExec: file_groups={1 group: [[1.parquet, 2.parquet]]}, projection=[col1, col2, col3], output_ordering=[col1@0 ASC, col2@1 ASC]"
         output:
           Ok:
             - " SortExec: fetch=42, expr=[col2@1 ASC,col1@0 ASC]"
-            - "   ParquetExec: limit=None, partitions={1 group: [[1.parquet, 2.parquet]]}, output_ordering=[col1@0 ASC, col2@1 ASC], projection=[col1, col2, col3]"
+            - "   ParquetExec: file_groups={1 group: [[1.parquet, 2.parquet]]}, projection=[col1, col2, col3], output_ordering=[col1@0 ASC, col2@1 ASC]"
         "###
         );
     }
@@ -390,11 +390,11 @@ mod tests {
         ---
         input:
           - " SortExec: fetch=42, expr=[col2@1 ASC,col1@0 ASC]"
-          - "   ParquetExec: limit=None, partitions={1 group: [[1.parquet, 2.parquet]]}, projection=[col1, col2, col3]"
+          - "   ParquetExec: file_groups={1 group: [[1.parquet, 2.parquet]]}, projection=[col1, col2, col3]"
         output:
           Ok:
             - " SortExec: fetch=42, expr=[col2@1 ASC,col1@0 ASC]"
-            - "   ParquetExec: limit=None, partitions={1 group: [[1.parquet, 2.parquet]]}, projection=[col1, col2, col3]"
+            - "   ParquetExec: file_groups={1 group: [[1.parquet, 2.parquet]]}, projection=[col1, col2, col3]"
         "###
         );
     }
@@ -430,11 +430,11 @@ mod tests {
         ---
         input:
           - " SortExec: fetch=42, expr=[col2@1 ASC,col1@0 ASC]"
-          - "   ParquetExec: limit=None, partitions={1 group: [[1.parquet, 2.parquet, 3.parquet]]}, output_ordering=[col2@1 ASC, col1@0 ASC], projection=[col1, col2, col3]"
+          - "   ParquetExec: file_groups={1 group: [[1.parquet, 2.parquet, 3.parquet]]}, projection=[col1, col2, col3], output_ordering=[col2@1 ASC, col1@0 ASC]"
         output:
           Ok:
             - " SortExec: fetch=42, expr=[col2@1 ASC,col1@0 ASC]"
-            - "   ParquetExec: limit=None, partitions={1 group: [[1.parquet, 2.parquet, 3.parquet]]}, output_ordering=[col2@1 ASC, col1@0 ASC], projection=[col1, col2, col3]"
+            - "   ParquetExec: file_groups={1 group: [[1.parquet, 2.parquet, 3.parquet]]}, projection=[col1, col2, col3], output_ordering=[col2@1 ASC, col1@0 ASC]"
         "###
         );
     }
@@ -484,10 +484,10 @@ mod tests {
             @r###"
         ---
         input:
-          - " ParquetExec: limit=None, partitions={1 group: [[1.parquet, 2.parquet]]}, output_ordering=[col2@1 ASC, col1@0 ASC], projection=[col1, col2, col3]"
+          - " ParquetExec: file_groups={1 group: [[1.parquet, 2.parquet]]}, projection=[col1, col2, col3], output_ordering=[col2@1 ASC, col1@0 ASC]"
         output:
           Ok:
-            - " ParquetExec: limit=None, partitions={1 group: [[1.parquet, 2.parquet]]}, output_ordering=[col2@1 ASC, col1@0 ASC], projection=[col1, col2, col3]"
+            - " ParquetExec: file_groups={1 group: [[1.parquet, 2.parquet]]}, projection=[col1, col2, col3], output_ordering=[col2@1 ASC, col1@0 ASC]"
         "###
         );
     }
@@ -519,12 +519,12 @@ mod tests {
         input:
           - " SortExec: fetch=42, expr=[col1@0 ASC,col2@1 ASC]"
           - "   SortExec: fetch=42, expr=[col2@1 ASC,col1@0 ASC]"
-          - "     ParquetExec: limit=None, partitions={1 group: [[1.parquet, 2.parquet]]}, output_ordering=[col1@0 ASC, col2@1 ASC], projection=[col1, col2, col3]"
+          - "     ParquetExec: file_groups={1 group: [[1.parquet, 2.parquet]]}, projection=[col1, col2, col3], output_ordering=[col1@0 ASC, col2@1 ASC]"
         output:
           Ok:
             - " SortExec: fetch=42, expr=[col1@0 ASC,col2@1 ASC]"
             - "   SortExec: fetch=42, expr=[col2@1 ASC,col1@0 ASC]"
-            - "     ParquetExec: limit=None, partitions={1 group: [[1.parquet, 2.parquet]]}, output_ordering=[col1@0 ASC, col2@1 ASC], projection=[col1, col2, col3]"
+            - "     ParquetExec: file_groups={1 group: [[1.parquet, 2.parquet]]}, projection=[col1, col2, col3], output_ordering=[col1@0 ASC, col2@1 ASC]"
         "###
         );
     }

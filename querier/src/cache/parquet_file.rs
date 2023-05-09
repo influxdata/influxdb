@@ -364,7 +364,7 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn ingester2_uuid_file_counts() {
+    async fn ingester_uuid_file_counts() {
         let (catalog, table, _partition) = make_catalog().await;
         let uuid = Uuid::new_v4();
         let table_id = table.table.id;

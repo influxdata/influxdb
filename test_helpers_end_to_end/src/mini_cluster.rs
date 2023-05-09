@@ -197,10 +197,10 @@ impl MiniCluster {
     /// querier. Save config for a compactor, but the compactor service should be run on-demand in
     /// tests using `compactor run-once` rather than using `run compactor`.
     pub async fn create_non_shared2(database_url: String) -> Self {
-        let ingester_config = TestConfig::new_ingester2(&database_url);
+        let ingester_config = TestConfig::new_ingester(&database_url);
         let router_config = TestConfig::new_router2(&ingester_config);
         let querier_config = TestConfig::new_querier2(&ingester_config);
-        let compactor_config = TestConfig::new_compactor2(&ingester_config);
+        let compactor_config = TestConfig::new_compactor(&ingester_config);
 
         // Set up the cluster  ====================================
         Self::new()
@@ -218,10 +218,10 @@ impl MiniCluster {
     /// compactor service should be run on-demand in tests using `compactor run-once` rather than
     /// using `run compactor`.
     pub async fn create_non_shared2_never_persist(database_url: String) -> Self {
-        let ingester_config = TestConfig::new_ingester2_never_persist(&database_url);
+        let ingester_config = TestConfig::new_ingester_never_persist(&database_url);
         let router_config = TestConfig::new_router2(&ingester_config);
         let querier_config = TestConfig::new_querier2(&ingester_config);
-        let compactor_config = TestConfig::new_compactor2(&ingester_config);
+        let compactor_config = TestConfig::new_compactor(&ingester_config);
 
         // Set up the cluster  ====================================
         Self::new()
@@ -243,12 +243,12 @@ impl MiniCluster {
         database_url: String,
         authz_addr: impl Into<String> + Clone,
     ) -> Self {
-        let ingester_config = TestConfig::new_ingester2(&database_url);
+        let ingester_config = TestConfig::new_ingester(&database_url);
         let router_config =
             TestConfig::new_router2(&ingester_config).with_single_tenancy(authz_addr.clone());
         let querier_config =
             TestConfig::new_querier2(&ingester_config).with_single_tenancy(authz_addr);
-        let compactor_config = TestConfig::new_compactor2(&ingester_config);
+        let compactor_config = TestConfig::new_compactor(&ingester_config);
 
         // Set up the cluster  ====================================
         Self::new_based_on_tenancy(true)
@@ -522,7 +522,7 @@ impl MiniCluster {
         let mut command = Command::cargo_bin("influxdb_iox").unwrap();
         let command = command
             .arg("run")
-            .arg("compactor2")
+            .arg("compactor")
             .arg("--compaction-process-once")
             .arg("--compaction-process-all-partitions")
             .env("LOG_FILTER", log_filter)

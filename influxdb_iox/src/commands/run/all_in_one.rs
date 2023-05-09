@@ -5,8 +5,8 @@ use crate::process_info::setup_metric_registry;
 use super::main;
 use clap_blocks::{
     catalog_dsn::CatalogDsnConfig,
-    compactor2::Compactor2Config,
-    ingester2::Ingester2Config,
+    compactor::CompactorConfig,
+    ingester::IngesterConfig,
     ingester_address::IngesterAddress,
     object_store::{make_object_store, ObjectStoreConfig},
     querier::QuerierConfig,
@@ -17,15 +17,15 @@ use clap_blocks::{
     },
     socket_addr::SocketAddr,
 };
-use compactor2::object_store::metrics::MetricsStore;
+use compactor::object_store::metrics::MetricsStore;
 use iox_query::exec::{Executor, ExecutorConfig};
 use iox_time::{SystemProvider, TimeProvider};
 use ioxd_common::{
     server_type::{CommonServerState, CommonServerStateError},
     Service,
 };
-use ioxd_compactor2::create_compactor2_server_type as create_compactor_server_type;
-use ioxd_ingester2::create_ingester_server_type;
+use ioxd_compactor::create_compactor_server_type;
+use ioxd_ingester::create_ingester_server_type;
 use ioxd_querier::{create_querier_server_type, QuerierServerTypeArgs};
 use ioxd_router::create_router2_server_type;
 use object_store::DynObjectStore;
@@ -456,7 +456,7 @@ impl Config {
             .clone()
             .with_grpc_bind_address(compactor_grpc_bind_address);
 
-        let ingester_config = Ingester2Config {
+        let ingester_config = IngesterConfig {
             wal_directory,
             wal_rotation_period_seconds,
             concurrent_query_limit,
@@ -473,7 +473,6 @@ impl Config {
             ingester_addresses: ingester_addresses.clone(),
             new_namespace_retention_hours: None, // infinite retention
             namespace_autocreation_enabled: true,
-            partition_key_pattern: "%Y-%m-%d".to_string(),
             rpc_write_timeout_seconds: Duration::new(3, 0),
             rpc_write_replicas: None,
             rpc_write_max_outgoing_bytes: ingester_config.rpc_write_max_incoming_bytes,
@@ -482,7 +481,7 @@ impl Config {
         // create a CompactorConfig for the all in one server based on
         // settings from other configs. Can't use `#clap(flatten)` as the
         // parameters are redundant with ingester's
-        let compactor_config = Compactor2Config {
+        let compactor_config = CompactorConfig {
             compaction_type: Default::default(),
             compaction_partition_minute_threshold: 10,
             compaction_cold_partition_minute_threshold: 60,
@@ -555,9 +554,9 @@ struct SpecializedConfig {
     compactor_run_config: RunConfig,
 
     catalog_dsn: CatalogDsnConfig,
-    ingester_config: Ingester2Config,
+    ingester_config: IngesterConfig,
     router_config: Router2Config,
-    compactor_config: Compactor2Config,
+    compactor_config: CompactorConfig,
     querier_config: QuerierConfig,
 }
 

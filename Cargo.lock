@@ -1002,7 +1002,7 @@ dependencies = [
 ]
 
 [[package]]
-name = "compactor2"
+name = "compactor"
 version = "0.1.0"
 dependencies = [
  "arrow_util",
@@ -1010,7 +1010,7 @@ dependencies = [
  "async-trait",
  "backoff",
  "bytes",
- "compactor2_test_utils",
+ "compactor_test_utils",
  "data_types",
  "datafusion",
  "futures",
@@ -1037,12 +1037,12 @@ dependencies = [
 ]
 
 [[package]]
-name = "compactor2_test_utils"
+name = "compactor_test_utils"
 version = "0.1.0"
 dependencies = [
  "async-trait",
  "backoff",
- "compactor2",
+ "compactor",
  "data_types",
  "datafusion",
  "datafusion_util",
@@ -1417,6 +1417,7 @@ dependencies = [
  "influxdb-line-protocol",
  "iox_time",
  "observability_deps",
+ "once_cell",
  "ordered-float 3.7.0",
  "percent-encoding",
  "proptest",
@@ -1432,7 +1433,7 @@ dependencies = [
 [[package]]
 name = "datafusion"
 version = "23.0.0"
-source = "git+https://github.com/apache/arrow-datafusion.git?rev=2787e7a36a6be83d91201df20827d3695f933300#2787e7a36a6be83d91201df20827d3695f933300"
+source = "git+https://github.com/apache/arrow-datafusion.git?rev=06e9f53637f20dd91bef43b74942ec36c38c22d5#06e9f53637f20dd91bef43b74942ec36c38c22d5"
 dependencies = [
  "ahash 0.8.3",
  "arrow",
@@ -1481,7 +1482,7 @@ dependencies = [
 [[package]]
 name = "datafusion-common"
 version = "23.0.0"
-source = "git+https://github.com/apache/arrow-datafusion.git?rev=2787e7a36a6be83d91201df20827d3695f933300#2787e7a36a6be83d91201df20827d3695f933300"
+source = "git+https://github.com/apache/arrow-datafusion.git?rev=06e9f53637f20dd91bef43b74942ec36c38c22d5#06e9f53637f20dd91bef43b74942ec36c38c22d5"
 dependencies = [
  "arrow",
  "arrow-array",
@@ -1495,7 +1496,7 @@ dependencies = [
 [[package]]
 name = "datafusion-execution"
 version = "23.0.0"
-source = "git+https://github.com/apache/arrow-datafusion.git?rev=2787e7a36a6be83d91201df20827d3695f933300#2787e7a36a6be83d91201df20827d3695f933300"
+source = "git+https://github.com/apache/arrow-datafusion.git?rev=06e9f53637f20dd91bef43b74942ec36c38c22d5#06e9f53637f20dd91bef43b74942ec36c38c22d5"
 dependencies = [
  "dashmap",
  "datafusion-common",
@@ -1512,7 +1513,7 @@ dependencies = [
 [[package]]
 name = "datafusion-expr"
 version = "23.0.0"
-source = "git+https://github.com/apache/arrow-datafusion.git?rev=2787e7a36a6be83d91201df20827d3695f933300#2787e7a36a6be83d91201df20827d3695f933300"
+source = "git+https://github.com/apache/arrow-datafusion.git?rev=06e9f53637f20dd91bef43b74942ec36c38c22d5#06e9f53637f20dd91bef43b74942ec36c38c22d5"
 dependencies = [
  "ahash 0.8.3",
  "arrow",
@@ -1523,7 +1524,7 @@ dependencies = [
 [[package]]
 name = "datafusion-optimizer"
 version = "23.0.0"
-source = "git+https://github.com/apache/arrow-datafusion.git?rev=2787e7a36a6be83d91201df20827d3695f933300#2787e7a36a6be83d91201df20827d3695f933300"
+source = "git+https://github.com/apache/arrow-datafusion.git?rev=06e9f53637f20dd91bef43b74942ec36c38c22d5#06e9f53637f20dd91bef43b74942ec36c38c22d5"
 dependencies = [
  "arrow",
  "async-trait",
@@ -1540,7 +1541,7 @@ dependencies = [
 [[package]]
 name = "datafusion-physical-expr"
 version = "23.0.0"
-source = "git+https://github.com/apache/arrow-datafusion.git?rev=2787e7a36a6be83d91201df20827d3695f933300#2787e7a36a6be83d91201df20827d3695f933300"
+source = "git+https://github.com/apache/arrow-datafusion.git?rev=06e9f53637f20dd91bef43b74942ec36c38c22d5#06e9f53637f20dd91bef43b74942ec36c38c22d5"
 dependencies = [
  "ahash 0.8.3",
  "arrow",
@@ -1572,7 +1573,7 @@ dependencies = [
 [[package]]
 name = "datafusion-proto"
 version = "23.0.0"
-source = "git+https://github.com/apache/arrow-datafusion.git?rev=2787e7a36a6be83d91201df20827d3695f933300#2787e7a36a6be83d91201df20827d3695f933300"
+source = "git+https://github.com/apache/arrow-datafusion.git?rev=06e9f53637f20dd91bef43b74942ec36c38c22d5#06e9f53637f20dd91bef43b74942ec36c38c22d5"
 dependencies = [
  "arrow",
  "chrono",
@@ -1586,7 +1587,7 @@ dependencies = [
 [[package]]
 name = "datafusion-row"
 version = "23.0.0"
-source = "git+https://github.com/apache/arrow-datafusion.git?rev=2787e7a36a6be83d91201df20827d3695f933300#2787e7a36a6be83d91201df20827d3695f933300"
+source = "git+https://github.com/apache/arrow-datafusion.git?rev=06e9f53637f20dd91bef43b74942ec36c38c22d5#06e9f53637f20dd91bef43b74942ec36c38c22d5"
 dependencies = [
  "arrow",
  "datafusion-common",
@@ -1597,7 +1598,7 @@ dependencies = [
 [[package]]
 name = "datafusion-sql"
 version = "23.0.0"
-source = "git+https://github.com/apache/arrow-datafusion.git?rev=2787e7a36a6be83d91201df20827d3695f933300#2787e7a36a6be83d91201df20827d3695f933300"
+source = "git+https://github.com/apache/arrow-datafusion.git?rev=06e9f53637f20dd91bef43b74942ec36c38c22d5#06e9f53637f20dd91bef43b74942ec36c38c22d5"
 dependencies = [
  "arrow",
  "arrow-schema",
@@ -2443,8 +2444,6 @@ dependencies = [
  "client_util",
  "data_types",
  "futures",
- "generated_types",
- "influxdb_iox_client",
  "iox_catalog",
  "metric",
  "object_store",
@@ -2455,7 +2454,6 @@ dependencies = [
  "thiserror",
  "tokio",
  "tokio-stream",
- "tonic 0.9.2",
  "workspace-hack",
 ]
 
@@ -2550,7 +2548,7 @@ dependencies = [
  "clap 4.2.7",
  "clap_blocks",
  "comfy-table",
- "compactor2",
+ "compactor",
  "console-subscriber",
  "data_types",
  "datafusion",
@@ -2572,9 +2570,9 @@ dependencies = [
  "iox_query",
  "iox_time",
  "ioxd_common",
- "ioxd_compactor2",
+ "ioxd_compactor",
  "ioxd_garbage_collector",
- "ioxd_ingester2",
+ "ioxd_ingester",
  "ioxd_querier",
  "ioxd_router",
  "ioxd_test",
@@ -2597,7 +2595,6 @@ dependencies = [
  "schema",
  "serde",
  "serde_json",
- "sharder",
  "snafu",
  "tempfile",
  "test_helpers",
@@ -2679,7 +2676,7 @@ dependencies = [
 ]
 
 [[package]]
-name = "ingester2"
+name = "ingester"
 version = "0.1.0"
 dependencies = [
  "arrow",
@@ -2701,7 +2698,7 @@ dependencies = [
  "generated_types",
  "hashbrown 0.13.2",
  "influxdb_iox_client",
- "ingester2_test_ctx",
+ "ingester_test_ctx",
  "iox_catalog",
  "iox_query",
  "iox_time",
@@ -2736,7 +2733,7 @@ dependencies = [
 ]
 
 [[package]]
-name = "ingester2_test_ctx"
+name = "ingester_test_ctx"
 version = "0.1.0"
 dependencies = [
  "arrow",
@@ -2748,7 +2745,7 @@ dependencies = [
  "generated_types",
  "hashbrown 0.13.2",
  "influxdb_iox_client",
- "ingester2",
+ "ingester",
  "iox_catalog",
  "iox_query",
  "iox_time",
@@ -2975,7 +2972,6 @@ dependencies = [
  "parquet_file",
  "predicate",
  "schema",
- "sharder",
  "uuid",
  "workspace-hack",
 ]
@@ -3033,13 +3029,13 @@ dependencies = [
 ]
 
 [[package]]
-name = "ioxd_compactor2"
+name = "ioxd_compactor"
 version = "0.1.0"
 dependencies = [
  "async-trait",
  "backoff",
  "clap_blocks",
- "compactor2",
+ "compactor",
  "data_types",
  "hyper",
  "iox_catalog",
@@ -3072,7 +3068,7 @@ dependencies = [
 ]
 
 [[package]]
-name = "ioxd_ingester2"
+name = "ioxd_ingester"
 version = "0.1.0"
 dependencies = [
  "arrow-flight",
@@ -3081,7 +3077,7 @@ dependencies = [
  "futures",
  "generated_types",
  "hyper",
- "ingester2",
+ "ingester",
  "iox_catalog",
  "iox_query",
  "ioxd_common",
@@ -3286,9 +3282,9 @@ dependencies = [
 
 [[package]]
 name = "libc"
-version = "0.2.142"
+version = "0.2.144"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "6a987beff54b60ffa6d51982e1aa1146bc42f19bd26be28b0586f252fccf5317"
+checksum = "2b00cc1c228a6782d0f076e7b232802e0c5689d41bb5df366f2a6b6621cfdfe1"
 
 [[package]]
 name = "libm"
@@ -4783,9 +4779,9 @@ dependencies = [
 
 [[package]]
 name = "rustix"
-version = "0.37.18"
+version = "0.37.19"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "8bbfc1d1c7c40c01715f47d71444744a81669ca84e8b63e25a55e169b1f86433"
+checksum = "acf8729d8542766f1b2cf77eb034d52f40d375bb8b615d0b147089946e16613d"
 dependencies = [
  "bitflags",
  "errno",
@@ -4940,18 +4936,18 @@ checksum = "e6b44e8fc93a14e66336d230954dda83d18b4605ccace8fe09bc7514a71ad0bc"
 
 [[package]]
 name = "serde"
-version = "1.0.160"
+version = "1.0.162"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "bb2f3770c8bce3bcda7e149193a069a0f4365bda1fa5cd88e03bca26afc1216c"
+checksum = "71b2f6e1ab5c2b98c05f0f35b236b22e8df7ead6ffbf51d7808da7f8817e7ab6"
 dependencies = [
  "serde_derive",
 ]
 
 [[package]]
 name = "serde_derive"
-version = "1.0.160"
+version = "1.0.162"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "291a097c63d8497e00160b166a967a4a79c64f3facdd01cbd7502231688d77df"
+checksum = "a2a0814352fd64b58489904a44ea8d90cb1a91dcb6b4f5ebabc32c8318e93cb6"
 dependencies = [
  "proc-macro2",
  "quote",

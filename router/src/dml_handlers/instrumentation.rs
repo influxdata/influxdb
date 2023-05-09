@@ -1,7 +1,8 @@
 use async_trait::async_trait;
-use data_types::{NamespaceId, NamespaceName};
+use data_types::{NamespaceName, NamespaceSchema};
 use iox_time::{SystemProvider, TimeProvider};
 use metric::{DurationHistogram, Metric};
+use std::sync::Arc;
 use trace::{ctx::SpanContext, span::SpanRecorder};
 
 use super::DmlHandler;
@@ -52,7 +53,7 @@ where
     async fn write(
         &self,
         namespace: &NamespaceName<'static>,
-        namespace_id: NamespaceId,
+        namespace_schema: Arc<NamespaceSchema>,
         input: Self::WriteInput,
         span_ctx: Option<SpanContext>,
     ) -> Result<Self::WriteOutput, Self::WriteError> {
@@ -64,7 +65,7 @@ where
 
         let res = self
             .inner
-            .write(namespace, namespace_id, input, span_ctx)
+            .write(namespace, namespace_schema, input, span_ctx)
             .await;
 
         // Avoid exploding if time goes backwards - simply drop the measurement
@@ -91,6 +92,7 @@ mod tests {
     use std::sync::Arc;
 
     use assert_matches::assert_matches;
+    use data_types::NamespaceId;
     use metric::Attributes;
     use trace::{span::SpanStatus, RingBufferTraceCollector, TraceCollector};
 
@@ -98,6 +100,18 @@ mod tests {
     use crate::dml_handlers::{mock::MockDmlHandler, DmlError};
 
     const HANDLER_NAME: &str = "bananas";
+
+    // Start a new `NamespaceSchema` with only the given ID; the rest of the fields are arbitrary.
+    fn new_empty_namespace_schema(id: i64) -> Arc<NamespaceSchema> {
+        Arc::new(NamespaceSchema {
+            id: NamespaceId::new(id),
+            tables: Default::default(),
+            max_columns_per_table: 500,
+            max_tables: 200,
+            retention_period_ns: None,
+            partition_template: None,
+        })
+    }
 
     fn assert_metric_hit(
         metrics: &metric::Registry,
@@ -148,7 +162,7 @@ mod tests {
         let decorator = InstrumentationDecorator::new(HANDLER_NAME, &metrics, handler);
 
         decorator
-            .write(&ns, NamespaceId::new(42), (), Some(span))
+            .write(&ns, new_empty_namespace_schema(42), (), Some(span))
             .await
             .expect("inner handler configured to succeed");
 
@@ -171,7 +185,7 @@ mod tests {
         let decorator = InstrumentationDecorator::new(HANDLER_NAME, &metrics, handler);
 
         let err = decorator
-            .write(&ns, NamespaceId::new(42), (), Some(span))
+            .write(&ns, new_empty_namespace_schema(42), (), Some(span))
             .await
             .expect_err("inner handler configured to fail");
 
