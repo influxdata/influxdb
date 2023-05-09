@@ -21,7 +21,7 @@ use tonic::{
     Code,
 };
 
-use super::{client::WriteClient, RpcWriteError};
+use super::client::{RpcWriteClientError, WriteClient};
 
 const RETRY_INTERVAL: Duration = Duration::from_secs(1);
 const CONNECT_TIMEOUT: Duration = Duration::from_secs(1);
@@ -39,7 +39,7 @@ const MAX_INCOMING_MSG_BYTES: usize = 1024 * 1024; // 1 MiB
 /// once a connection has been established, the [`Channel`] internally handles
 /// reconnections as needed.
 ///
-/// Returns [`RpcWriteError::UpstreamNotConnected`] when no connection is
+/// Returns [`RpcWriteClientError::UpstreamNotConnected`] when no connection is
 /// available.
 #[derive(Debug)]
 pub struct LazyConnector {
@@ -94,10 +94,11 @@ impl LazyConnector {
 
 #[async_trait]
 impl WriteClient for LazyConnector {
-    async fn write(&self, op: WriteRequest) -> Result<(), RpcWriteError> {
+    async fn write(&self, op: WriteRequest) -> Result<(), RpcWriteClientError> {
         let conn = self.connection.lock().clone();
-        let conn =
-            conn.ok_or_else(|| RpcWriteError::UpstreamNotConnected(self.addr.uri().to_string()))?;
+        let conn = conn.ok_or_else(|| {
+            RpcWriteClientError::UpstreamNotConnected(self.addr.uri().to_string())
+        })?;
 
         match WriteServiceClient::new(conn)
             .max_encoding_message_size(self.max_outgoing_msg_bytes)
@@ -132,19 +133,15 @@ impl WriteClient for LazyConnector {
 /// HTTP proxy would. Unfortunately this is a breaking change in behaviour for
 /// networking code like [`tonic`]'s transport implementation, which can no
 /// longer easily differentiate network errors from actual application errors.
-fn is_envoy_unavailable_error(e: &RpcWriteError) -> bool {
+fn is_envoy_unavailable_error(e: &RpcWriteClientError) -> bool {
     match e {
-        RpcWriteError::Upstream(e) if e.code() == Code::Unavailable => e
+        RpcWriteClientError::Upstream(e) if e.code() == Code::Unavailable => e
             .metadata()
             .get("server")
             .map(|v| v == AsciiMetadataValue::from_static("envoy"))
             .unwrap_or(false),
-        RpcWriteError::Upstream(_)
-        | RpcWriteError::Timeout(_)
-        | RpcWriteError::NoUpstreams
-        | RpcWriteError::UpstreamNotConnected(_)
-        | RpcWriteError::PartialWrite { .. }
-        | RpcWriteError::NotEnoughReplicas => false,
+        RpcWriteClientError::Upstream(_) => false,
+        RpcWriteClientError::UpstreamNotConnected(_) => unreachable!(),
     }
 }
 

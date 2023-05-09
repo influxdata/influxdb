@@ -11,6 +11,7 @@ use self::{
     balancer::Balancer,
     circuit_breaker::CircuitBreaker,
     circuit_breaking_client::{CircuitBreakerState, CircuitBreakingClient},
+    client::RpcWriteClientError,
     upstream_snapshot::UpstreamSnapshot,
 };
 
@@ -35,9 +36,9 @@ pub const RPC_TIMEOUT: Duration = Duration::from_secs(5);
 /// Errors experienced when submitting an RPC write request to an Ingester.
 #[derive(Debug, Error)]
 pub enum RpcWriteError {
-    /// The upstream ingester returned an error response.
-    #[error("upstream ingester error: {0}")]
-    Upstream(#[from] tonic::Status),
+    /// The RPC client returned an error.
+    #[error(transparent)]
+    Client(#[from] RpcWriteClientError),
 
     /// The RPC call timed out after [`RPC_TIMEOUT`] length of time.
     #[error("timeout writing to upstream ingester")]
@@ -46,10 +47,6 @@ pub enum RpcWriteError {
     /// There are no healthy ingesters to route a write to.
     #[error("no healthy upstream ingesters available")]
     NoUpstreams,
-
-    /// The upstream connection is not established.
-    #[error("upstream {0} is not connected")]
-    UpstreamNotConnected(String),
 
     /// The write request was not attempted, because not enough upstream
     /// ingesters needed to satisfy the configured replication factor are
@@ -236,7 +233,7 @@ where
                     // This error is an internal implementation detail - the
                     // meaningful error for the user is "there's no healthy
                     // upstreams".
-                    RpcWriteError::UpstreamNotConnected(_) => RpcWriteError::NoUpstreams,
+                    RpcWriteError::Client(_) => RpcWriteError::NoUpstreams,
                     // The number of upstreams no longer satisfies the desired
                     // replication factor.
                     RpcWriteError::NoUpstreams => RpcWriteError::NotEnoughReplicas,
@@ -303,7 +300,7 @@ where
     .await
     .map_err(|e| match last_err {
         // Any other error is returned as-is.
-        Some(v) => v,
+        Some(v) => RpcWriteError::Client(v),
         // If the entire write attempt fails during the first RPC write
         // request, then the per-request timeout is greater than the write
         // attempt timeout, and therefore only one upstream is ever tried.
@@ -462,7 +459,7 @@ mod tests {
 
         // Init the write handler with a mock client to capture the rpc calls.
         let client1 = Arc::new(MockWriteClient::default().with_ret(iter::once(Err(
-            RpcWriteError::Upstream(tonic::Status::internal("")),
+            RpcWriteClientError::Upstream(tonic::Status::internal("")),
         ))));
         let client2 = Arc::new(MockWriteClient::default());
         let client3 = Arc::new(MockWriteClient::default());
@@ -527,12 +524,12 @@ mod tests {
         // The first client in line fails the first request, but will succeed
         // the second try.
         let client1 = Arc::new(MockWriteClient::default().with_ret([
-            Err(RpcWriteError::Upstream(tonic::Status::internal(""))),
+            Err(RpcWriteClientError::Upstream(tonic::Status::internal(""))),
             Ok(()),
         ]));
         // This client always errors.
         let client2 = Arc::new(MockWriteClient::default().with_ret(iter::repeat_with(|| {
-            Err(RpcWriteError::Upstream(tonic::Status::internal("")))
+            Err(RpcWriteClientError::Upstream(tonic::Status::internal("")))
         })));
 
         let handler = RpcWrite::new(
@@ -605,7 +602,9 @@ mod tests {
     #[tokio::test]
     async fn test_write_upstream_error() {
         let client_1 = Arc::new(MockWriteClient::default().with_ret(iter::repeat_with(|| {
-            Err(RpcWriteError::Upstream(tonic::Status::internal("bananas")))
+            Err(RpcWriteClientError::Upstream(tonic::Status::internal(
+                "bananas",
+            )))
         })));
         let circuit_1 = Arc::new(MockCircuitBreaker::default());
         circuit_1.set_healthy(true);
@@ -616,18 +615,17 @@ mod tests {
         )
         .await;
 
-        assert_matches!(got, Err(RpcWriteError::Upstream(s)) => {
-            assert_eq!(s.code(), tonic::Code::Internal);
-            assert_eq!(s.message(), "bananas");
-        });
+        assert_matches!(got, Err(RpcWriteError::NoUpstreams));
     }
 
-    /// Assert that an [`RpcWriteError::UpstreamNotConnected`] error is mapped
+    /// Assert that an [`RpcWriteClientError::UpstreamNotConnected`] error is mapped
     /// to a user-friendly [`RpcWriteError::NoUpstreams`] for consistency.
     #[tokio::test]
     async fn test_write_map_upstream_not_connected_error() {
         let client_1 = Arc::new(MockWriteClient::default().with_ret(iter::repeat_with(|| {
-            Err(RpcWriteError::UpstreamNotConnected("bananas".to_string()))
+            Err(RpcWriteClientError::UpstreamNotConnected(
+                "bananas".to_string(),
+            ))
         })));
         let circuit_1 = Arc::new(MockCircuitBreaker::default());
         circuit_1.set_healthy(true);
@@ -648,13 +646,17 @@ mod tests {
     async fn test_write_not_enough_upstreams_for_replication() {
         // Initialise two upstreams, 1 healthy, 1 not.
         let client_1 = Arc::new(MockWriteClient::default().with_ret(iter::repeat_with(|| {
-            Err(RpcWriteError::UpstreamNotConnected("bananas".to_string()))
+            Err(RpcWriteClientError::UpstreamNotConnected(
+                "bananas".to_string(),
+            ))
         })));
         let circuit_1 = Arc::new(MockCircuitBreaker::default());
         circuit_1.set_healthy(true);
 
         let client_2 = Arc::new(MockWriteClient::default().with_ret(iter::repeat_with(|| {
-            Err(RpcWriteError::UpstreamNotConnected("bananas".to_string()))
+            Err(RpcWriteClientError::UpstreamNotConnected(
+                "bananas".to_string(),
+            ))
         })));
         let circuit_2 = Arc::new(MockCircuitBreaker::default());
         circuit_2.set_healthy(false);
@@ -713,7 +715,9 @@ mod tests {
         circuit_1.set_healthy(true);
 
         let client_2 = Arc::new(MockWriteClient::default().with_ret(iter::repeat_with(|| {
-            Err(RpcWriteError::Upstream(tonic::Status::internal("bananas")))
+            Err(RpcWriteClientError::Upstream(tonic::Status::internal(
+                "bananas",
+            )))
         })));
         let circuit_2 = Arc::new(MockCircuitBreaker::default());
         circuit_2.set_healthy(true);
@@ -755,7 +759,9 @@ mod tests {
         circuit_1.set_healthy(true);
 
         let client_2 = Arc::new(MockWriteClient::default().with_ret([
-            Err(RpcWriteError::Upstream(tonic::Status::internal("bananas"))),
+            Err(RpcWriteClientError::Upstream(tonic::Status::internal(
+                "bananas",
+            ))),
             Ok(()),
         ]));
         let circuit_2 = Arc::new(MockCircuitBreaker::default());
@@ -798,8 +804,12 @@ mod tests {
 
         // This client sometimes errors (2 times)
         let client_2 = Arc::new(MockWriteClient::default().with_ret([
-            Err(RpcWriteError::Upstream(tonic::Status::internal("bananas"))),
-            Err(RpcWriteError::Upstream(tonic::Status::internal("bananas"))),
+            Err(RpcWriteClientError::Upstream(tonic::Status::internal(
+                "bananas",
+            ))),
+            Err(RpcWriteClientError::Upstream(tonic::Status::internal(
+                "bananas",
+            ))),
             Ok(()),
         ]));
         let circuit_2 = Arc::new(MockCircuitBreaker::default());
@@ -807,7 +817,9 @@ mod tests {
 
         // This client always errors
         let client_3 = Arc::new(MockWriteClient::default().with_ret(iter::repeat_with(|| {
-            Err(RpcWriteError::UpstreamNotConnected("bananas".to_string()))
+            Err(RpcWriteClientError::UpstreamNotConnected(
+                "bananas".to_string(),
+            ))
         })));
         let circuit_3 = Arc::new(MockCircuitBreaker::default());
         circuit_3.set_healthy(true);
