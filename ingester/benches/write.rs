@@ -9,7 +9,7 @@ use generated_types::influxdata::{
 };
 use influxdb_iox_client::ingester::generated_types::WriteRequest;
 use ingester::IngesterRpcInterface;
-use ingester2_test_ctx::{TestContext, TestContextBuilder};
+use ingester_test_ctx::{TestContext, TestContextBuilder};
 use iox_time::TimeProvider;
 use mutable_batch_lp::lines_to_batches;
 use mutable_batch_pb::encode::encode_write;

@@ -12,7 +12,7 @@ use ioxd_common::{
     server_type::{CommonServerState, CommonServerStateError},
     Service,
 };
-use ioxd_ingester2::create_ingester_server_type;
+use ioxd_ingester::create_ingester_server_type;
 use object_store::DynObjectStore;
 use object_store_metrics::ObjectStoreMetrics;
 use observability_deps::tracing::*;
@@ -33,7 +33,7 @@ pub enum Error {
     ObjectStoreParsing(#[from] clap_blocks::object_store::ParseError),
 
     #[error("error initializing ingester: {0}")]
-    Ingester(#[from] ioxd_ingester2::Error),
+    Ingester(#[from] ioxd_ingester::Error),
 
     #[error("catalog DSN error: {0}")]
     CatalogDsn(#[from] clap_blocks::catalog_dsn::Error),

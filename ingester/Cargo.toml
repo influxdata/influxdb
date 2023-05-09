@@ -55,7 +55,7 @@ assert_matches = "1.5.0"
 criterion = { version = "0.4", default-features = false, features = ["async_tokio"]}
 datafusion_util = { path = "../datafusion_util" }
 influxdb_iox_client = { path = "../influxdb_iox_client" }
-ingester2_test_ctx = { path = "../ingester2_test_ctx" }
+ingester_test_ctx = { path = "../ingester_test_ctx" }
 lazy_static = "1.4.0"
 mutable_batch_lp = { path = "../mutable_batch_lp" }
 paste = "1.0.12"

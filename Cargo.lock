@@ -2574,7 +2574,7 @@ dependencies = [
  "ioxd_common",
  "ioxd_compactor2",
  "ioxd_garbage_collector",
- "ioxd_ingester2",
+ "ioxd_ingester",
  "ioxd_querier",
  "ioxd_router",
  "ioxd_test",
@@ -2701,7 +2701,7 @@ dependencies = [
  "generated_types",
  "hashbrown 0.13.2",
  "influxdb_iox_client",
- "ingester2_test_ctx",
+ "ingester_test_ctx",
  "iox_catalog",
  "iox_query",
  "iox_time",
@@ -2736,7 +2736,7 @@ dependencies = [
 ]
 
 [[package]]
-name = "ingester2_test_ctx"
+name = "ingester_test_ctx"
 version = "0.1.0"
 dependencies = [
  "arrow",
@@ -3072,7 +3072,7 @@ dependencies = [
 ]
 
 [[package]]
-name = "ioxd_ingester2"
+name = "ioxd_ingester"
 version = "0.1.0"
 dependencies = [
  "arrow-flight",
