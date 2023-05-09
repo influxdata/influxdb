@@ -1,5 +1,7 @@
 //! Abstraction over RPC client
 
+use std::sync::Arc;
+
 use async_trait::async_trait;
 use generated_types::influxdata::iox::ingester::v1::{
     write_service_client::WriteServiceClient, WriteRequest,
@@ -24,6 +26,16 @@ pub enum RpcWriteClientError {
 pub(super) trait WriteClient: Send + Sync + std::fmt::Debug {
     /// Write `op` and wait for a response.
     async fn write(&self, op: WriteRequest) -> Result<(), RpcWriteClientError>;
+}
+
+#[async_trait]
+impl<T> WriteClient for Arc<T>
+where
+    T: WriteClient,
+{
+    async fn write(&self, op: WriteRequest) -> Result<(), RpcWriteClientError> {
+        (**self).write(op).await
+    }
 }
 
 /// An implementation of [`WriteClient`] for the tonic gRPC client.

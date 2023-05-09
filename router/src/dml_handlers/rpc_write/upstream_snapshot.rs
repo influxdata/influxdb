@@ -6,12 +6,12 @@ use smallvec::SmallVec;
 /// The last yielded element can be removed from the iterator by calling
 /// [`UpstreamSnapshot::remove_last_unstable()`].
 #[derive(Debug)]
-pub(super) struct UpstreamSnapshot<'a, C> {
-    clients: SmallVec<[&'a C; 3]>,
+pub(super) struct UpstreamSnapshot<C> {
+    clients: SmallVec<[C; 3]>,
     idx: usize,
 }
 
-impl<'a, C> UpstreamSnapshot<'a, C> {
+impl<C> UpstreamSnapshot<C> {
     /// Initialise a new snapshot, yielding the 0-indexed `i`-th element of
     /// `clients` next (or wrapping around if `i` is out-of-bounds).
     ///
@@ -19,8 +19,8 @@ impl<'a, C> UpstreamSnapshot<'a, C> {
     /// allocation during construction.
     ///
     /// If `clients` is empty, this method returns [`None`].
-    pub(super) fn new(clients: impl Iterator<Item = &'a C>, i: usize) -> Option<Self> {
-        let clients: SmallVec<[&'a C; 3]> = clients.collect();
+    pub(super) fn new(clients: impl Iterator<Item = C>, i: usize) -> Option<Self> {
+        let clients: SmallVec<[C; 3]> = clients.collect();
         if clients.is_empty() {
             return None;
         }
@@ -63,15 +63,18 @@ impl<'a, C> UpstreamSnapshot<'a, C> {
     }
 }
 
-impl<'a, C> Iterator for UpstreamSnapshot<'a, C> {
-    type Item = &'a C;
+impl<C> Iterator for UpstreamSnapshot<C>
+where
+    C: Clone,
+{
+    type Item = C;
 
     fn next(&mut self) -> Option<Self::Item> {
         if self.clients.is_empty() {
             return None;
         }
         self.idx = self.idx.wrapping_add(1);
-        Some(self.clients[self.idx()])
+        Some(self.clients[self.idx()].clone())
     }
 
     fn size_hint(&self) -> (usize, Option<usize>) {
@@ -233,8 +236,8 @@ mod tests {
 
     #[test]
     fn test_empty_snap() {
-        assert!(UpstreamSnapshot::<usize>::new([].iter(), 0).is_none());
-        assert!(UpstreamSnapshot::<usize>::new([].iter(), 1).is_none());
+        assert!(UpstreamSnapshot::<usize>::new(std::iter::empty(), 0).is_none());
+        assert!(UpstreamSnapshot::<usize>::new(std::iter::empty(), 1).is_none());
     }
 
     proptest! {

@@ -270,11 +270,11 @@ where
 /// This function panics if `endpoints.next()` returns [`None`] (the number of
 /// upstreams should be validated before starting the write loop).
 async fn write_loop<T>(
-    endpoints: &mut UpstreamSnapshot<'_, T>,
+    endpoints: &mut UpstreamSnapshot<T>,
     req: &WriteRequest,
 ) -> Result<(), RpcWriteError>
 where
-    T: WriteClient,
+    T: WriteClient + Clone,
 {
     // The last error returned from an upstream write request attempt.
     let mut last_err = None;
