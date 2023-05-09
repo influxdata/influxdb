@@ -28,3 +28,25 @@ async fn ingester2_runs_ingester() {
             "InfluxDB IOx Ingester server ready",
         ));
 }
+
+#[tokio::test]
+async fn compactor2_runs_compactor() {
+    let tmpdir = tempdir().unwrap();
+    let addrs = BindAddresses::default();
+
+    Command::cargo_bin("influxdb_iox")
+        .unwrap()
+        .args(["run", "compactor2", "-v"])
+        .env_clear()
+        .env("HOME", tmpdir.path())
+        .env("INFLUXDB_IOX_WAL_DIRECTORY", tmpdir.path())
+        .env("INFLUXDB_IOX_CATALOG_TYPE", "memory")
+        .add_addr_env(ServerType::Compactor, &addrs)
+        .timeout(Duration::from_secs(5))
+        .assert()
+        .failure()
+        .stderr(predicate::str::contains("error: unrecognized subcommand 'compactor2'").not())
+        .stdout(predicate::str::contains(
+            "InfluxDB IOx Compactor server ready",
+        ));
+}

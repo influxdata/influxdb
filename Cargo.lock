@@ -1002,7 +1002,7 @@ dependencies = [
 ]
 
 [[package]]
-name = "compactor2"
+name = "compactor"
 version = "0.1.0"
 dependencies = [
  "arrow_util",
@@ -1010,7 +1010,7 @@ dependencies = [
  "async-trait",
  "backoff",
  "bytes",
- "compactor2_test_utils",
+ "compactor_test_utils",
  "data_types",
  "datafusion",
  "futures",
@@ -1037,12 +1037,12 @@ dependencies = [
 ]
 
 [[package]]
-name = "compactor2_test_utils"
+name = "compactor_test_utils"
 version = "0.1.0"
 dependencies = [
  "async-trait",
  "backoff",
- "compactor2",
+ "compactor",
  "data_types",
  "datafusion",
  "datafusion_util",
@@ -2550,7 +2550,7 @@ dependencies = [
  "clap 4.2.7",
  "clap_blocks",
  "comfy-table",
- "compactor2",
+ "compactor",
  "console-subscriber",
  "data_types",
  "datafusion",
@@ -2572,7 +2572,7 @@ dependencies = [
  "iox_query",
  "iox_time",
  "ioxd_common",
- "ioxd_compactor2",
+ "ioxd_compactor",
  "ioxd_garbage_collector",
  "ioxd_ingester",
  "ioxd_querier",
@@ -3033,13 +3033,13 @@ dependencies = [
 ]
 
 [[package]]
-name = "ioxd_compactor2"
+name = "ioxd_compactor"
 version = "0.1.0"
 dependencies = [
  "async-trait",
  "backoff",
  "clap_blocks",
- "compactor2",
+ "compactor",
  "data_types",
  "hyper",
  "iox_catalog",
