@@ -1,5 +1,5 @@
 [package]
-name = "ioxd_ingester2"
+name = "ioxd_ingester"
 version.workspace = true
 authors.workspace = true
 edition.workspace = true

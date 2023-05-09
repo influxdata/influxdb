@@ -25,7 +25,7 @@ use ioxd_common::{
     Service,
 };
 use ioxd_compactor2::create_compactor2_server_type as create_compactor_server_type;
-use ioxd_ingester2::create_ingester_server_type;
+use ioxd_ingester::create_ingester_server_type;
 use ioxd_querier::{create_querier_server_type, QuerierServerTypeArgs};
 use ioxd_router::create_router2_server_type;
 use object_store::DynObjectStore;
