@@ -49,7 +49,7 @@ impl NamespacesSource for MockNamespacesSource {
 mod tests {
     use std::collections::BTreeMap;
 
-    use data_types::{ColumnId, ColumnSchema, ColumnType, TableId, TableSchema};
+    use data_types::{Column, ColumnId, ColumnType, ColumnsByName, TableId, TableSchema};
 
     use super::*;
 
@@ -130,21 +130,20 @@ mod tests {
                     "table1".to_string(),
                     TableSchema {
                         id: TableId::new(1),
-                        columns: BTreeMap::from([
-                            (
-                                "col1".to_string(),
-                                ColumnSchema {
-                                    id: ColumnId::new(1),
-                                    column_type: ColumnType::I64,
-                                },
-                            ),
-                            (
-                                "col2".to_string(),
-                                ColumnSchema {
-                                    id: ColumnId::new(2),
-                                    column_type: ColumnType::String,
-                                },
-                            ),
+                        partition_template: None,
+                        columns: ColumnsByName::new([
+                            Column {
+                                name: "col1".to_string(),
+                                id: ColumnId::new(1),
+                                column_type: ColumnType::I64,
+                                table_id: TableId::new(1),
+                            },
+                            Column {
+                                name: "col2".to_string(),
+                                id: ColumnId::new(2),
+                                column_type: ColumnType::String,
+                                table_id: TableId::new(1),
+                            },
                         ]),
                     },
                 ),
@@ -152,28 +151,26 @@ mod tests {
                     "table2".to_string(),
                     TableSchema {
                         id: TableId::new(2),
-                        columns: BTreeMap::from([
-                            (
-                                "col1".to_string(),
-                                ColumnSchema {
-                                    id: ColumnId::new(3),
-                                    column_type: ColumnType::I64,
-                                },
-                            ),
-                            (
-                                "col2".to_string(),
-                                ColumnSchema {
-                                    id: ColumnId::new(4),
-                                    column_type: ColumnType::String,
-                                },
-                            ),
-                            (
-                                "col3".to_string(),
-                                ColumnSchema {
-                                    id: ColumnId::new(5),
-                                    column_type: ColumnType::F64,
-                                },
-                            ),
+                        partition_template: None,
+                        columns: ColumnsByName::new([
+                            Column {
+                                name: "col1".to_string(),
+                                id: ColumnId::new(3),
+                                column_type: ColumnType::I64,
+                                table_id: TableId::new(2),
+                            },
+                            Column {
+                                name: "col2".to_string(),
+                                id: ColumnId::new(4),
+                                column_type: ColumnType::String,
+                                table_id: TableId::new(2),
+                            },
+                            Column {
+                                name: "col3".to_string(),
+                                id: ColumnId::new(5),
+                                column_type: ColumnType::F64,
+                                table_id: TableId::new(2),
+                            },
                         ]),
                     },
                 ),
@@ -196,6 +193,7 @@ mod tests {
                         max_columns_per_table: 10,
                         max_tables: 42,
                         retention_period_ns: None,
+                        partition_template: None,
                     },
                 },
             }

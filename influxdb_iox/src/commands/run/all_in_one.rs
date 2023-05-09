@@ -473,7 +473,6 @@ impl Config {
             ingester_addresses: ingester_addresses.clone(),
             new_namespace_retention_hours: None, // infinite retention
             namespace_autocreation_enabled: true,
-            partition_key_pattern: "%Y-%m-%d".to_string(),
             rpc_write_timeout_seconds: Duration::new(3, 0),
             rpc_write_replicas: None,
             rpc_write_max_outgoing_bytes: ingester_config.rpc_write_max_incoming_bytes,

@@ -118,12 +118,14 @@ mod tests {
         assert_matches!(cache.get_schema(&ns).await, Err(_));
 
         // Place a schema in the cache for that name
-        let schema1 = NamespaceSchema::new(
-            NamespaceId::new(1),
-            iox_catalog::DEFAULT_MAX_COLUMNS_PER_TABLE,
-            iox_catalog::DEFAULT_MAX_TABLES,
-            iox_catalog::DEFAULT_RETENTION_PERIOD,
-        );
+        let schema1 = NamespaceSchema {
+            id: NamespaceId::new(1),
+            tables: Default::default(),
+            max_columns_per_table: iox_catalog::DEFAULT_MAX_COLUMNS_PER_TABLE as usize,
+            max_tables: iox_catalog::DEFAULT_MAX_TABLES as usize,
+            retention_period_ns: iox_catalog::DEFAULT_RETENTION_PERIOD,
+            partition_template: None,
+        };
         assert_matches!(cache.put_schema(ns.clone(), schema1.clone()), (result, _) => {
             assert_eq!(*result, schema1);
         });
@@ -152,12 +154,15 @@ mod tests {
         assert_matches!(cache.get_schema(&ns).await, Err(_));
 
         // Place a schema in the catalog for that name
-        let schema1 = NamespaceSchema::new(
-            NamespaceId::new(1),
-            iox_catalog::DEFAULT_MAX_COLUMNS_PER_TABLE,
-            iox_catalog::DEFAULT_MAX_TABLES,
-            iox_catalog::DEFAULT_RETENTION_PERIOD,
-        );
+        let schema1 = NamespaceSchema {
+            id: NamespaceId::new(1),
+            tables: Default::default(),
+            max_columns_per_table: iox_catalog::DEFAULT_MAX_COLUMNS_PER_TABLE as usize,
+            max_tables: iox_catalog::DEFAULT_MAX_TABLES as usize,
+            retention_period_ns: iox_catalog::DEFAULT_RETENTION_PERIOD,
+            partition_template: None,
+        };
+
         assert_matches!(
             catalog
                 .repositories()

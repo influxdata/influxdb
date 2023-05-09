@@ -92,18 +92,6 @@ pub struct Router2Config {
     )]
     pub namespace_autocreation_enabled: bool,
 
-    /// A "strftime" format string used to derive the partition key from the row
-    /// timestamps.
-    ///
-    /// Changing this from the default value is experimental.
-    #[clap(
-        long = "partition-key-pattern",
-        env = "INFLUXDB_IOX_PARTITION_KEY_PATTERN",
-        default_value = "%Y-%m-%d",
-        action
-    )]
-    pub partition_key_pattern: String,
-
     /// Specify the timeout in seconds for a single RPC write request to an
     /// ingester.
     #[clap(

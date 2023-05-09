@@ -3,7 +3,7 @@ use std::{ops::ControlFlow, sync::Arc};
 use async_channel::RecvError;
 use backoff::Backoff;
 use data_types::{CompactionLevel, ParquetFileParams};
-use iox_catalog::interface::{get_table_schema_by_id, CasFailure, Catalog};
+use iox_catalog::interface::{get_table_columns_by_id, CasFailure, Catalog};
 use iox_query::exec::Executor;
 use iox_time::{SystemProvider, TimeProvider};
 use metric::DurationHistogram;
@@ -289,12 +289,11 @@ where
         "partition parquet uploaded"
     );
 
-    // Read the table schema from the catalog to act as a map of column name
-    // -> column IDs.
-    let table_schema = Backoff::new(&Default::default())
+    // Read the table's columns from the catalog to get a map of column name -> column IDs.
+    let columns = Backoff::new(&Default::default())
         .retry_all_errors("get table schema", || async {
             let mut repos = worker_state.catalog.repositories().await;
-            get_table_schema_by_id(ctx.table_id(), repos.as_mut()).await
+            get_table_columns_by_id(ctx.table_id(), repos.as_mut()).await
         })
         .await
         .expect("retry forever");
@@ -303,8 +302,7 @@ where
     // table in order to make the file visible to queriers.
     let parquet_table_data =
         iox_metadata.to_parquet_file(ctx.partition_id(), file_size, &md, |name| {
-            table_schema
-                .columns
+            columns
                 .get(name)
                 .unwrap_or_else(|| {
                     panic!(
