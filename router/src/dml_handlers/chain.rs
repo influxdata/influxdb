@@ -1,5 +1,6 @@
 use async_trait::async_trait;
-use data_types::{NamespaceId, NamespaceName};
+use data_types::{NamespaceName, NamespaceSchema};
+use std::sync::Arc;
 use trace::ctx::SpanContext;
 
 use super::{DmlError, DmlHandler};
@@ -58,18 +59,23 @@ where
     async fn write(
         &self,
         namespace: &NamespaceName<'static>,
-        namespace_id: NamespaceId,
+        namespace_schema: Arc<NamespaceSchema>,
         input: Self::WriteInput,
         span_ctx: Option<SpanContext>,
     ) -> Result<Self::WriteOutput, Self::WriteError> {
         let output = self
             .first
-            .write(namespace, namespace_id, input, span_ctx.clone())
+            .write(
+                namespace,
+                Arc::clone(&namespace_schema),
+                input,
+                span_ctx.clone(),
+            )
             .await
             .map_err(Into::into)?;
 
         self.second
-            .write(namespace, namespace_id, output, span_ctx)
+            .write(namespace, namespace_schema, output, span_ctx)
             .await
             .map_err(Into::into)
     }

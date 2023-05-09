@@ -17,7 +17,7 @@ use self::{
 
 use super::{DmlHandler, Partitioned};
 use async_trait::async_trait;
-use data_types::{NamespaceId, NamespaceName, TableId};
+use data_types::{NamespaceName, NamespaceSchema, TableId};
 use dml::{DmlMeta, DmlWrite};
 use generated_types::influxdata::iox::ingester::v1::WriteRequest;
 use hashbrown::HashMap;
@@ -173,10 +173,11 @@ where
     async fn write(
         &self,
         namespace: &NamespaceName<'static>,
-        namespace_id: NamespaceId,
+        namespace_schema: Arc<NamespaceSchema>,
         writes: Self::WriteInput,
         span_ctx: Option<SpanContext>,
     ) -> Result<Self::WriteOutput, RpcWriteError> {
+        let namespace_id = namespace_schema.id;
         // Extract the partition key & DML writes.
         let (partition_key, writes) = writes.into_parts();
 
@@ -323,7 +324,7 @@ mod tests {
     use std::{collections::HashSet, iter, sync::Arc};
 
     use assert_matches::assert_matches;
-    use data_types::PartitionKey;
+    use data_types::{NamespaceId, PartitionKey};
     use rand::seq::SliceRandom;
 
     use crate::dml_handlers::rpc_write::circuit_breaking_client::mock::MockCircuitBreaker;
@@ -344,6 +345,18 @@ mod tests {
 
     const NAMESPACE_NAME: &str = "bananas";
     const NAMESPACE_ID: NamespaceId = NamespaceId::new(42);
+
+    // Start a new `NamespaceSchema` with only the given ID; the rest of the fields are arbitrary.
+    fn new_empty_namespace_schema() -> Arc<NamespaceSchema> {
+        Arc::new(NamespaceSchema {
+            id: NAMESPACE_ID,
+            tables: Default::default(),
+            max_columns_per_table: 500,
+            max_tables: 200,
+            retention_period_ns: None,
+            partition_template: None,
+        })
+    }
 
     /// A helper function to perform an arbitrary write against `endpoints`,
     /// with the given number of desired distinct data copies.
@@ -381,7 +394,7 @@ mod tests {
         handler
             .write(
                 &NamespaceName::new(NAMESPACE_NAME).unwrap(),
-                NAMESPACE_ID,
+                new_empty_namespace_schema(),
                 input,
                 None,
             )
@@ -415,7 +428,7 @@ mod tests {
         let got = handler
             .write(
                 &NamespaceName::new(NAMESPACE_NAME).unwrap(),
-                NAMESPACE_ID,
+                new_empty_namespace_schema(),
                 input,
                 None,
             )
@@ -477,7 +490,7 @@ mod tests {
         let got = handler
             .write(
                 &NamespaceName::new(NAMESPACE_NAME).unwrap(),
-                NAMESPACE_ID,
+                new_empty_namespace_schema(),
                 input,
                 None,
             )
@@ -545,7 +558,7 @@ mod tests {
         let got = handler
             .write(
                 &NamespaceName::new(NAMESPACE_NAME).unwrap(),
-                NAMESPACE_ID,
+                new_empty_namespace_schema(),
                 input,
                 None,
             )

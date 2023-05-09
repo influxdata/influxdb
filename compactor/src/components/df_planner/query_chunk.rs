@@ -184,6 +184,7 @@ fn to_queryable_parquet_chunk(
     let table_schema: Schema = partition_info
         .table_schema
         .as_ref()
+        .columns
         .clone()
         .try_into()
         .expect("table schema is broken");

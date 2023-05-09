@@ -1,8 +1,8 @@
-use std::{collections::BTreeMap, sync::Arc};
+use std::sync::Arc;
 
 use data_types::{
-    ColumnId, ColumnSchema, ColumnType, NamespaceId, PartitionId, PartitionKey, Table, TableId,
-    TableSchema,
+    Column, ColumnId, ColumnType, ColumnsByName, NamespaceId, PartitionId, PartitionKey, Table,
+    TableId, TableSchema,
 };
 
 use crate::PartitionInfo;
@@ -27,10 +27,7 @@ impl PartitionInfoBuilder {
                     namespace_id,
                     name: String::from("table"),
                 }),
-                table_schema: Arc::new(TableSchema {
-                    id: table_id,
-                    columns: BTreeMap::new(),
-                }),
+                table_schema: Arc::new(TableSchema::new(table_id)),
                 sort_key: None,
                 partition_key: PartitionKey::from("key"),
             },
@@ -43,18 +40,19 @@ impl PartitionInfoBuilder {
     }
 
     pub fn with_num_columns(mut self, num_cols: usize) -> Self {
-        let mut columns = BTreeMap::new();
-        for i in 0..num_cols {
-            let col = ColumnSchema {
+        let columns: Vec<_> = (0..num_cols)
+            .map(|i| Column {
                 id: ColumnId::new(i as i64),
+                name: i.to_string(),
                 column_type: ColumnType::I64,
-            };
-            columns.insert(i.to_string(), col);
-        }
+                table_id: self.inner.table.id,
+            })
+            .collect();
 
         let table_schema = Arc::new(TableSchema {
             id: self.inner.table.id,
-            columns,
+            partition_template: None,
+            columns: ColumnsByName::new(columns),
         });
         self.inner.table_schema = table_schema;
 

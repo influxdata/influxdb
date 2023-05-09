@@ -215,12 +215,14 @@ where
             self.namespaces
                 .insert(
                     ns.id,
-                    NamespaceSchema::new(
-                        ns.id,
-                        iox_catalog::DEFAULT_MAX_COLUMNS_PER_TABLE,
-                        iox_catalog::DEFAULT_MAX_TABLES,
+                    NamespaceSchema {
+                        id: ns.id,
+                        tables: Default::default(),
+                        max_columns_per_table: iox_catalog::DEFAULT_MAX_COLUMNS_PER_TABLE as usize,
+                        max_tables: iox_catalog::DEFAULT_MAX_TABLES as usize,
                         retention_period_ns,
-                    ),
+                        partition_template: None,
+                    },
                 )
                 .is_none(),
             "namespace must not be duplicated"

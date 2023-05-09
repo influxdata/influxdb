@@ -241,14 +241,17 @@ impl CachedTable {
 impl From<TableSchema> for CachedTable {
     fn from(table: TableSchema) -> Self {
         let mut column_id_map: HashMap<ColumnId, Arc<str>> = table
-            .columns
+            .column_id_map()
             .iter()
-            .map(|(name, c)| (c.id, Arc::from(name.clone())))
+            .map(|(&c_id, &name)| (c_id, Arc::from(name)))
             .collect();
         column_id_map.shrink_to_fit();
 
         let id = table.id;
-        let schema: Schema = table.try_into().expect("Catalog table schema broken");
+        let schema: Schema = table
+            .columns
+            .try_into()
+            .expect("Catalog table schema broken");
 
         let mut column_id_map_rev: HashMap<Arc<str>, ColumnId> = column_id_map
             .iter()

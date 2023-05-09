@@ -5,14 +5,14 @@ use arrow::{
     record_batch::RecordBatch,
 };
 use data_types::{
-    Column, ColumnSet, ColumnType, CompactionLevel, Namespace, NamespaceSchema, ParquetFile,
-    ParquetFileParams, Partition, PartitionId, Table, TableId, TableSchema, Timestamp,
+    Column, ColumnSet, ColumnType, ColumnsByName, CompactionLevel, Namespace, NamespaceSchema,
+    ParquetFile, ParquetFileParams, Partition, PartitionId, Table, TableId, TableSchema, Timestamp,
 };
 use datafusion::physical_plan::metrics::Count;
 use datafusion_util::MemoryStream;
 use iox_catalog::{
     interface::{
-        get_schema_by_id, get_table_schema_by_id, Catalog, PartitionRepo, SoftDeletedRows,
+        get_schema_by_id, get_table_columns_by_id, Catalog, PartitionRepo, SoftDeletedRows,
     },
     mem::MemCatalog,
 };
@@ -342,25 +342,34 @@ impl TestTable {
         })
     }
 
-    /// Get catalog schema.
+    /// Get the TableSchema from the catalog.
     pub async fn catalog_schema(&self) -> TableSchema {
+        TableSchema {
+            id: self.table.id,
+            partition_template: None,
+            columns: self.catalog_columns().await,
+        }
+    }
+
+    /// Get columns from the catalog.
+    pub async fn catalog_columns(&self) -> ColumnsByName {
         let mut repos = self.catalog.catalog.repositories().await;
 
-        get_table_schema_by_id(self.table.id, repos.as_mut())
+        get_table_columns_by_id(self.table.id, repos.as_mut())
             .await
             .unwrap()
     }
 
     /// Get schema for this table.
     pub async fn schema(&self) -> Schema {
-        self.catalog_schema().await.try_into().unwrap()
+        self.catalog_columns().await.try_into().unwrap()
     }
 
     /// Read the record batches from the specified Parquet File associated with this table.
     pub async fn read_parquet_file(&self, file: ParquetFile) -> Vec<RecordBatch> {
         // get schema
-        let table_catalog_schema = self.catalog_schema().await;
-        let column_id_lookup = table_catalog_schema.column_id_map();
+        let table_catalog_columns = self.catalog_columns().await;
+        let column_id_lookup = table_catalog_columns.id_map();
         let table_schema = self.schema().await;
         let selection: Vec<_> = file
             .column_set
@@ -545,12 +554,11 @@ impl TestPartition {
             ..
         } = builder;
 
-        let table_catalog_schema = self.table.catalog_schema().await;
+        let table_catalog_columns = self.table.catalog_columns().await;
 
         let (row_count, column_set) = if let Some(record_batch) = record_batch {
             let column_set = ColumnSet::new(record_batch.schema().fields().iter().map(|f| {
-                table_catalog_schema
-                    .columns
+                table_catalog_columns
                     .get(f.name())
                     .unwrap_or_else(|| panic!("Column {} is not registered", f.name()))
                     .id
@@ -563,8 +571,7 @@ impl TestPartition {
 
             (record_batch.num_rows(), column_set)
         } else {
-            let column_set =
-                ColumnSet::new(table_catalog_schema.columns.values().map(|col| col.id));
+            let column_set = ColumnSet::new(table_catalog_columns.ids());
             (row_count.unwrap_or(0), column_set)
         };
 
@@ -829,15 +836,15 @@ impl TestParquetFile {
 
     /// Get Parquet file schema.
     pub async fn schema(&self) -> Schema {
-        let table_schema = self.table.catalog_schema().await;
-        let column_id_lookup = table_schema.column_id_map();
+        let table_columns = self.table.catalog_columns().await;
+        let column_id_lookup = table_columns.id_map();
         let selection: Vec<_> = self
             .parquet_file
             .column_set
             .iter()
             .map(|id| *column_id_lookup.get(id).unwrap())
             .collect();
-        let table_schema: Schema = table_schema.clone().try_into().unwrap();
+        let table_schema: Schema = table_columns.clone().try_into().unwrap();
         table_schema.select_by_names(&selection).unwrap()
     }
 }
