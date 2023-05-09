@@ -1,6 +1,5 @@
 use crate::plan::var_ref::field_type_to_var_ref_data_type;
 use crate::plan::SchemaProvider;
-use datafusion::common::Result;
 use influxdb_influxql_parser::expression::VarRefDataType;
 use schema::InfluxColumnType;
 use std::collections::{HashMap, HashSet};
@@ -32,15 +31,15 @@ pub(crate) fn map_type(
     s: &dyn SchemaProvider,
     measurement_name: &str,
     field: &str,
-) -> Result<Option<VarRefDataType>> {
+) -> Option<VarRefDataType> {
     match s.table_schema(measurement_name) {
-        Some(iox) => Ok(match iox.field_by_name(field) {
+        Some(iox) => match iox.field_by_name(field) {
             Some((InfluxColumnType::Field(ft), _)) => Some(field_type_to_var_ref_data_type(ft)),
             Some((InfluxColumnType::Tag, _)) => Some(VarRefDataType::Tag),
             Some((InfluxColumnType::Timestamp, _)) => Some(VarRefDataType::Timestamp),
             None => None,
-        }),
-        None => Ok(None),
+        },
+        None => None,
     }
 }
 
@@ -76,24 +75,20 @@ mod test {
 
         // Returns expected type
         assert_matches!(
-            map_type(&namespace, "cpu", "usage_user").unwrap(),
+            map_type(&namespace, "cpu", "usage_user"),
             Some(VarRefDataType::Float)
         );
         assert_matches!(
-            map_type(&namespace, "cpu", "host").unwrap(),
+            map_type(&namespace, "cpu", "host"),
             Some(VarRefDataType::Tag)
         );
         assert_matches!(
-            map_type(&namespace, "cpu", "time").unwrap(),
+            map_type(&namespace, "cpu", "time"),
             Some(VarRefDataType::Timestamp)
         );
         // Returns None for nonexistent field
-        assert!(map_type(&namespace, "cpu", "nonexistent")
-            .unwrap()
-            .is_none());
+        assert!(map_type(&namespace, "cpu", "nonexistent").is_none());
         // Returns None for nonexistent measurement
-        assert!(map_type(&namespace, "nonexistent", "usage")
-            .unwrap()
-            .is_none());
+        assert!(map_type(&namespace, "nonexistent", "usage").is_none());
     }
 }

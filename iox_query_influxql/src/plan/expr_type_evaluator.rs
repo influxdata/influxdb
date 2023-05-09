@@ -107,7 +107,7 @@ impl<'a> TypeEvaluator<'a> {
                     match tr {
                         DataSource::Table(name) => match (
                             data_type,
-                            map_type(self.s, name.as_str(), expr.name.as_str())?,
+                            map_type(self.s, name.as_str(), expr.name.as_str()),
                         ) {
                             (Some(existing), Some(res)) => {
                                 if res < existing {
