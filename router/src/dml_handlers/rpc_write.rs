@@ -209,7 +209,7 @@ where
 
         // Validate the required number of writes is possible given the current
         // number of healthy endpoints.
-        if snap.len() < self.n_copies {
+        if snap.initial_len() < self.n_copies {
             return Err(RpcWriteError::NotEnoughReplicas);
         }
 
@@ -239,9 +239,6 @@ where
                     v => v,
                 }
             })?;
-            // Remove the upstream that was successfully wrote to from the
-            // candidates
-            snap.remove_last_unstable();
         }
 
         debug!(
@@ -274,7 +271,7 @@ async fn write_loop<T>(
     req: &WriteRequest,
 ) -> Result<(), RpcWriteError>
 where
-    T: WriteClient + Clone,
+    T: WriteClient,
 {
     // The last error returned from an upstream write request attempt.
     let mut last_err = None;
@@ -290,18 +287,25 @@ where
             // loop matches the number of desired data copies, it's not possible
             // for any thread to observe an empty snapshot, because transitively
             // the number of upstreams matches or exceeds the parallelism.
-            match endpoints
+            let client = endpoints
                 .next()
-                .expect("not enough replicas in snapshot to satisfy replication factor")
-                .write(req.clone())
-                .await
-            {
-                Ok(()) => return Ok(()),
+                .expect("not enough replicas in snapshot to satisfy replication factor");
+
+            match client.write(req.clone()).await {
+                Ok(()) => {
+                    endpoints.remove(client);
+                    return Ok(());
+                }
                 Err(e) => {
                     warn!(error=%e, "failed ingester rpc write");
                     last_err = Some(e);
                 }
             };
+
+            // Drop the client so that it is returned to the UpstreamSet and may
+            // be retried by another thread before the sleep expires.
+            drop(client);
+
             tokio::time::sleep(delay).await;
             delay = delay.saturating_mul(2);
         }
