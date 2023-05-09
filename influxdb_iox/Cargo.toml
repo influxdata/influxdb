@@ -37,7 +37,6 @@ parquet_to_line_protocol = { path = "../parquet_to_line_protocol" }
 prost = { version = "0.11" }
 iox_query = { path = "../iox_query" }
 schema = { path = "../schema" }
-sharder = { path = "../sharder" }
 iox_time = { path = "../iox_time" }
 trace_exporters = { path = "../trace_exporters" }
 trogging = { path = "../trogging", default-features = false, features = ["clap"] }

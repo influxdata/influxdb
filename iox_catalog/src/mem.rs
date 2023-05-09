@@ -7,7 +7,6 @@ use crate::{
         Error, NamespaceRepo, ParquetFileRepo, PartitionRepo, RepoCollection, Result,
         SoftDeletedRows, TableRepo, Transaction, MAX_PARQUET_FILES_SELECTED_ONCE,
     },
-    kafkaless_transition::{Shard, SHARED_TOPIC_ID, TRANSITION_SHARD_ID, TRANSITION_SHARD_INDEX},
     metrics::MetricDecorator,
     DEFAULT_MAX_COLUMNS_PER_TABLE, DEFAULT_MAX_TABLES,
 };
@@ -66,7 +65,6 @@ struct MemCollections {
     namespaces: Vec<Namespace>,
     tables: Vec<Table>,
     columns: Vec<Column>,
-    shards: Vec<Shard>,
     partitions: Vec<Partition>,
     skipped_compactions: Vec<SkippedCompaction>,
     parquet_files: Vec<ParquetFile>,
@@ -121,26 +119,6 @@ impl Display for MemCatalog {
 #[async_trait]
 impl Catalog for MemCatalog {
     async fn setup(&self) -> Result<(), Error> {
-        let guard = Arc::clone(&self.collections).lock_owned().await;
-        let stage = guard.clone();
-        let mut transaction = MemTxn {
-            inner: MemTxnInner::Txn {
-                guard,
-                stage,
-                finalized: false,
-            },
-            time_provider: self.time_provider(),
-        };
-        let stage = transaction.stage();
-
-        // The transition shard must exist and must have magic ID and INDEX.
-        let shard = Shard {
-            id: TRANSITION_SHARD_ID,
-            topic_id: SHARED_TOPIC_ID,
-            shard_index: TRANSITION_SHARD_INDEX,
-        };
-        stage.shards.push(shard);
-        transaction.commit_inplace().await?;
         Ok(())
     }
 

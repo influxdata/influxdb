@@ -2,18 +2,14 @@
 
 ## Quick run
 
-Set-up empty catalog db:
+Set up empty catalog db:
 
 ```bash
 mkdir -p /tmp/iox/{wal,obj}
 
 createdb iox_shared
 ./target/debug/influxdb_iox catalog setup --catalog-dsn postgres:///iox_shared
-
-# there has to exist one "topic", see https://github.com/influxdata/influxdb_iox/issues/6420
-psql 'dbname=iox_shared options=-csearch_path=public,iox_catalog' -c "insert into topic (name) values ('iox-shared')"
 ```
-
 
 Run ingester:
 

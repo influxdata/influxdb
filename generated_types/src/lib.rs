@@ -173,19 +173,6 @@ pub mod influxdata {
                 include!(concat!(env!("OUT_DIR"), "/influxdata.iox.wal.v1.serde.rs"));
             }
         }
-
-        pub mod write_buffer {
-            pub mod v1 {
-                include!(concat!(
-                    env!("OUT_DIR"),
-                    "/influxdata.iox.write_buffer.v1.rs"
-                ));
-                include!(concat!(
-                    env!("OUT_DIR"),
-                    "/influxdata.iox.write_buffer.v1.serde.rs"
-                ));
-            }
-        }
     }
 
     pub mod pbdata {
