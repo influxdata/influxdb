@@ -13,7 +13,7 @@ use ioxd_common::{
     server_type::{CommonServerState, CommonServerStateError},
     Service,
 };
-use ioxd_compactor2::create_compactor2_server_type;
+use ioxd_compactor::create_compactor_server_type;
 use object_store::DynObjectStore;
 use object_store_metrics::ObjectStoreMetrics;
 use observability_deps::tracing::*;
@@ -117,7 +117,7 @@ pub async fn command(config: Config) -> Result<(), Error> {
     let time_provider = Arc::new(SystemProvider::new());
 
     let process_once = config.compactor_config.process_once;
-    let server_type = create_compactor2_server_type(
+    let server_type = create_compactor_server_type(
         &common_state,
         Arc::clone(&metric_registry),
         catalog,

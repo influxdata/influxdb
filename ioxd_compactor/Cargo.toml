@@ -1,5 +1,5 @@
 [package]
-name = "ioxd_compactor2"
+name = "ioxd_compactor"
 version.workspace = true
 authors.workspace = true
 edition.workspace = true

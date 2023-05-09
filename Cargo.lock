@@ -2572,7 +2572,7 @@ dependencies = [
  "iox_query",
  "iox_time",
  "ioxd_common",
- "ioxd_compactor2",
+ "ioxd_compactor",
  "ioxd_garbage_collector",
  "ioxd_ingester",
  "ioxd_querier",
@@ -3033,7 +3033,7 @@ dependencies = [
 ]
 
 [[package]]
-name = "ioxd_compactor2"
+name = "ioxd_compactor"
 version = "0.1.0"
 dependencies = [
  "async-trait",

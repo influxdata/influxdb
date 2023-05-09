@@ -28,19 +28,19 @@ use std::{
 use tokio_util::sync::CancellationToken;
 use trace::TraceCollector;
 
-pub struct Compactor2ServerType {
+pub struct CompactorServerType {
     compactor: Compactor,
     metric_registry: Arc<Registry>,
     trace_collector: Option<Arc<dyn TraceCollector>>,
 }
 
-impl std::fmt::Debug for Compactor2ServerType {
+impl std::fmt::Debug for CompactorServerType {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         write!(f, "Compactor")
     }
 }
 
-impl Compactor2ServerType {
+impl CompactorServerType {
     pub fn new(
         compactor: Compactor,
         metric_registry: Arc<metric::Registry>,
@@ -55,10 +55,10 @@ impl Compactor2ServerType {
 }
 
 #[async_trait]
-impl ServerType for Compactor2ServerType {
+impl ServerType for CompactorServerType {
     /// Human name for this server type
     fn name(&self) -> &str {
-        "compactor2"
+        "compactor"
     }
 
     /// Return the [`metric::Registry`] used by the compactor.
@@ -131,7 +131,7 @@ impl HttpApiErrorSource for IoxHttpError {
 
 /// Instantiate a compactor server
 #[allow(clippy::too_many_arguments)]
-pub async fn create_compactor2_server_type(
+pub async fn create_compactor_server_type(
     common_state: &CommonServerState,
     metric_registry: Arc<metric::Registry>,
     catalog: Arc<dyn Catalog>,
@@ -221,7 +221,7 @@ pub async fn create_compactor2_server_type(
         max_num_files_per_plan: compactor_config.max_num_files_per_plan,
     });
 
-    Arc::new(Compactor2ServerType::new(
+    Arc::new(CompactorServerType::new(
         compactor,
         metric_registry,
         common_state,
