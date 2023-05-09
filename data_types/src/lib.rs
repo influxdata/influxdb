@@ -406,14 +406,16 @@ impl TableSchema {
     /// # Panics
     ///
     /// This method panics if a column of the same name already exists in
-    /// `self`.
+    /// `self`, or if `col` references a different `table_id`.
     pub fn add_column(&mut self, col: Column) {
         let Column {
             id,
             name,
             column_type,
-            ..
+            table_id,
         } = col;
+
+        assert_eq!(table_id, self.id);
 
         let column_schema = ColumnSchema { id, column_type };
         self.add_column_schema(name, column_schema);
