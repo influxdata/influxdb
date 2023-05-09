@@ -5,7 +5,7 @@
 //!
 //! See [crate::layout] module for detailed documentation
 
-use compactor2_test_utils::format_files;
+use compactor_test_utils::format_files;
 use data_types::CompactionLevel;
 use iox_time::Time;
 

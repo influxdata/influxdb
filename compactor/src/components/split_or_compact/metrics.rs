@@ -99,7 +99,7 @@ mod tests {
 
     use std::sync::Arc;
 
-    use compactor2_test_utils::{create_overlapped_l0_l1_files_2, create_overlapped_l1_l2_files_2};
+    use compactor_test_utils::{create_overlapped_l0_l1_files_2, create_overlapped_l1_l2_files_2};
     use data_types::CompactionLevel;
     use metric::{assert_counter, assert_histogram};
 

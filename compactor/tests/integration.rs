@@ -1,5 +1,5 @@
 use arrow_util::assert_batches_sorted_eq;
-use compactor2_test_utils::{format_files, list_object_store, TestSetup, TestSetupBuilder};
+use compactor_test_utils::{format_files, list_object_store, TestSetup, TestSetupBuilder};
 use data_types::{CompactionLevel, ParquetFile, PartitionId};
 use iox_tests::TestParquetFileBuilder;
 use test_helpers::{assert_contains, tracing::TracingCapture};

@@ -140,7 +140,7 @@ impl FilesSplit for UpgradeSplit {
 #[cfg(test)]
 mod tests {
 
-    use compactor2_test_utils::{
+    use compactor_test_utils::{
         create_l0_files, create_l1_files, create_l1_files_mix_size, create_overlapped_files,
         create_overlapped_files_2, create_overlapped_files_3, create_overlapped_files_3_mix_size,
         create_overlapped_l0_l1_files, create_overlapped_l1_l2_files,

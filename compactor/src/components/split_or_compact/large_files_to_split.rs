@@ -69,7 +69,7 @@ pub fn compute_split_times_for_large_files(
 mod tests {
     use std::sync::Arc;
 
-    use compactor2_test_utils::{
+    use compactor_test_utils::{
         create_overlapped_l0_l1_files_3, create_overlapped_two_overlapped_files, format_files,
         format_files_split, TestTimes,
     };

@@ -1,5 +1,5 @@
 [package]
-name = "compactor2_test_utils"
+name = "compactor_test_utils"
 description = "Utilities for writing tests for compactor"
 version.workspace = true
 authors.workspace = true

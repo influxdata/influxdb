@@ -59,7 +59,7 @@ mod tests {
     use iox_time::{MockProvider, Time};
 
     use crate::components::partitions_source::mock::MockPartitionsSource;
-    use compactor2_test_utils::AssertFutureExt;
+    use compactor_test_utils::AssertFutureExt;
 
     use super::*;
 

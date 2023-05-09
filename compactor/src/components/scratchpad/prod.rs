@@ -257,7 +257,7 @@ mod tests {
     use test_helpers::{maybe_start_logging, tracing::TracingCapture};
 
     use crate::components::scratchpad::test_util::{assert_content, file_path, stores};
-    use compactor2_test_utils::list_object_store;
+    use compactor_test_utils::list_object_store;
 
     use super::*;
 

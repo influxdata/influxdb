@@ -35,7 +35,7 @@ impl FilesSplit for TargetLevelSplit {
 #[cfg(test)]
 mod tests {
 
-    use compactor2_test_utils::{
+    use compactor_test_utils::{
         create_l0_files, create_l1_files, create_l2_files, create_overlapped_files, format_files,
         format_files_split,
     };

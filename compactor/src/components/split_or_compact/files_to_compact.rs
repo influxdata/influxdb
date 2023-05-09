@@ -63,7 +63,7 @@ use crate::components::{
 ///  4. Largest compacting set: All input files
 ///    - files_to_compact: All input files
 ///    - files_to_keep: None
-///  
+///
 pub fn limit_files_to_compact(
     max_compact_size: usize,
     files: Vec<ParquetFile>,
@@ -232,7 +232,7 @@ pub enum CompactOrFurtherSplit {
 
 #[cfg(test)]
 mod tests {
-    use compactor2_test_utils::{
+    use compactor_test_utils::{
         create_l1_files, create_overlapped_files, create_overlapped_l0_l1_files_2,
         create_overlapped_l0_l1_files_3, create_overlapped_start_target_files, format_files,
         format_files_split,

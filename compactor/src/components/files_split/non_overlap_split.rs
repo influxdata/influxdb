@@ -128,7 +128,7 @@ impl FilesSplit for NonOverlapSplit {
 #[cfg(test)]
 mod tests {
 
-    use compactor2_test_utils::{
+    use compactor_test_utils::{
         create_l1_files, create_overlapped_files, create_overlapped_files_2,
         create_overlapped_l0_l1_files, create_overlapped_l1_l2_files, format_files,
         format_files_split,

@@ -417,7 +417,7 @@ pub fn identify_start_level_files_to_split(
 
 #[cfg(test)]
 mod tests {
-    use compactor2_test_utils::{
+    use compactor_test_utils::{
         create_l1_files, create_overlapped_files, create_overlapped_l0_l1_files_2, format_files,
         format_files_split,
     };

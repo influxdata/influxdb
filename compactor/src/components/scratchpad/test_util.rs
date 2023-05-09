@@ -5,7 +5,7 @@ use object_store::{memory::InMemory, DynObjectStore};
 use parquet_file::ParquetFilePath;
 use uuid::Uuid;
 
-use compactor2_test_utils::list_object_store;
+use compactor_test_utils::list_object_store;
 
 pub fn stores() -> (
     Arc<DynObjectStore>,

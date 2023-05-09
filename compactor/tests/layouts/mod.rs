@@ -60,7 +60,7 @@ mod single_timestamp;
 
 use std::{sync::atomic::Ordering, time::Duration};
 
-use compactor2_test_utils::{display_size, format_files, TestSetup, TestSetupBuilder};
+use compactor_test_utils::{display_size, format_files, TestSetup, TestSetupBuilder};
 use data_types::{CompactionLevel, ParquetFile};
 use iox_tests::TestParquetFileBuilder;
 use iox_time::Time;

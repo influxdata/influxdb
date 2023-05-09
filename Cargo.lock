@@ -1010,7 +1010,7 @@ dependencies = [
  "async-trait",
  "backoff",
  "bytes",
- "compactor2_test_utils",
+ "compactor_test_utils",
  "data_types",
  "datafusion",
  "futures",
@@ -1037,7 +1037,7 @@ dependencies = [
 ]
 
 [[package]]
-name = "compactor2_test_utils"
+name = "compactor_test_utils"
 version = "0.1.0"
 dependencies = [
  "async-trait",
