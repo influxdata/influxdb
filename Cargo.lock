@@ -2701,7 +2701,7 @@ dependencies = [
  "generated_types",
  "hashbrown 0.13.2",
  "influxdb_iox_client",
- "ingester2_test_ctx",
+ "ingester_test_ctx",
  "iox_catalog",
  "iox_query",
  "iox_time",
@@ -2736,7 +2736,7 @@ dependencies = [
 ]
 
 [[package]]
-name = "ingester2_test_ctx"
+name = "ingester_test_ctx"
 version = "0.1.0"
 dependencies = [
  "arrow",

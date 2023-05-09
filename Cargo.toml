@@ -28,7 +28,7 @@ members = [
     "influxdb_tsm",
     "influxdb2_client",
     "influxrpc_parser",
-    "ingester2_test_ctx",
+    "ingester_test_ctx",
     "ingester",
     "iox_catalog",
     "iox_data_generator",
