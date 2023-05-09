@@ -11,9 +11,9 @@ pub(crate) type TagSet = HashSet<String>;
 pub(crate) fn field_and_dimensions(
     s: &dyn SchemaProvider,
     name: &str,
-) -> Result<Option<(FieldTypeMap, TagSet)>> {
+) -> Option<(FieldTypeMap, TagSet)> {
     match s.table_schema(name) {
-        Some(iox) => Ok(Some((
+        Some(iox) => Some((
             FieldTypeMap::from_iter(iox.iter().filter_map(|(col_type, f)| match col_type {
                 InfluxColumnType::Field(ft) => {
                     Some((f.name().clone(), field_type_to_var_ref_data_type(ft)))
@@ -23,8 +23,8 @@ pub(crate) fn field_and_dimensions(
             iox.tags_iter()
                 .map(|f| f.name().clone())
                 .collect::<TagSet>(),
-        ))),
-        None => Ok(None),
+        )),
+        None => None,
     }
 }
 
@@ -55,7 +55,7 @@ mod test {
         let namespace = MockSchemaProvider::default();
 
         // Measurement exists
-        let (field_set, tag_set) = field_and_dimensions(&namespace, "cpu").unwrap().unwrap();
+        let (field_set, tag_set) = field_and_dimensions(&namespace, "cpu").unwrap();
         assert_eq!(
             field_set,
             FieldTypeMap::from([
@@ -70,7 +70,7 @@ mod test {
         );
 
         // Measurement does not exist
-        assert!(field_and_dimensions(&namespace, "cpu2").unwrap().is_none());
+        assert!(field_and_dimensions(&namespace, "cpu2").is_none());
 
         // `map_type` API calls
 
