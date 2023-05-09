@@ -19,6 +19,7 @@ use super::{DmlHandler, Partitioned};
 use async_trait::async_trait;
 use data_types::{NamespaceName, NamespaceSchema, TableId};
 use dml::{DmlMeta, DmlWrite};
+use futures::{stream::FuturesUnordered, StreamExt};
 use generated_types::influxdata::iox::ingester::v1::WriteRequest;
 use hashbrown::HashMap;
 use mutable_batch::MutableBatch;
@@ -202,7 +203,7 @@ where
 
         // Obtain a snapshot of currently-healthy upstreams (and potentially
         // some that need probing)
-        let mut snap = self
+        let snap = self
             .endpoints
             .endpoints()
             .ok_or(RpcWriteError::NoHealthyUpstreams)?;
@@ -213,32 +214,48 @@ where
             return Err(RpcWriteError::NotEnoughReplicas);
         }
 
-        // Write the desired number of copies of `req`.
-        for i in 0..self.n_copies {
-            // Perform the gRPC write to an ingester.
-            //
-            // This call is bounded to at most RPC_TIMEOUT duration of time.
-            write_loop(&mut snap, &req).await.map_err(|e| {
-                // In all cases, if at least one write succeeded, then this
-                // becomes a partial write error.
-                if i > 0 {
-                    return RpcWriteError::PartialWrite {
+        // Concurrently write to the required number of replicas to reach the
+        // desired replication factor.
+        let mut result_stream = (0..self.n_copies)
+            .map(|_| {
+                // Acquire a request-scoped snapshot that synchronises with
+                // other clone instances to uphold the disjoint replica hosts
+                // invariant.
+                let mut snap = snap.clone();
+                let req = req.clone();
+                async move { write_loop(&mut snap, &req).await }
+            })
+            .collect::<FuturesUnordered<_>>()
+            .enumerate();
+
+        // Consume the result stream, eagerly returning if an error is observed.
+        //
+        // Because partial writes have different semantics to outright failures
+        // (principally that you may expect your write to turn up in queries, even though
+        // the overall request failed), return a PartialWrite error if at least
+        // one write success has been observed. This is best-effort! It's always
+        // possible that PartialWrite is not returned, even though a partial
+        // write has occurred (for example, the next result in the stream is an
+        // already-completed write ACK).
+        while let Some((i, res)) = result_stream.next().await {
+            match res {
+                Ok(_) => {}
+                Err(_e) if i > 0 => {
+                    // In all cases, if at least one write succeeded, then this
+                    // becomes a partial write error.
+                    return Err(RpcWriteError::PartialWrite {
                         want_n_copies: self.n_copies,
                         acks: i,
-                    };
+                    });
                 }
-
-                // This error was for the first request - there have been no
-                // ACKs received.
-                match e {
+                Err(RpcWriteError::Client(_)) => {
                     // This error is an internal implementation detail - the
                     // meaningful error for the user is "there's no healthy
                     // upstreams".
-                    RpcWriteError::Client(_) => RpcWriteError::NoHealthyUpstreams,
-                    // All other errors pass through.
-                    v => v,
+                    return Err(RpcWriteError::NoHealthyUpstreams);
                 }
-            })?;
+                Err(e) => return Err(e),
+            }
         }
 
         debug!(
