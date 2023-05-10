@@ -34,7 +34,7 @@ pub struct TestConfig {
 
 impl TestConfig {
     /// Create a new TestConfig. Tests should use one of the specific
-    /// configuration setup below, such as [new_router2](Self::new_router2).
+    /// configuration setup below, such as [new_router](Self::new_router).
     fn new(
         server_type: ServerType,
         dsn: Option<String>,
@@ -52,12 +52,12 @@ impl TestConfig {
         }
     }
 
-    /// Create a minimal router2 configuration sharing configuration with the ingester config
-    pub fn new_router2(ingester_config: &TestConfig) -> Self {
+    /// Create a minimal router configuration sharing configuration with the ingester config
+    pub fn new_router(ingester_config: &TestConfig) -> Self {
         assert_eq!(ingester_config.server_type(), ServerType::Ingester);
 
         Self::new(
-            ServerType::Router2,
+            ServerType::Router,
             ingester_config.dsn().to_owned(),
             ingester_config.catalog_schema_name(),
         )

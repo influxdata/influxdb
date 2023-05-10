@@ -126,7 +126,7 @@ async fn basic_empty() {
 
     // Set up the cluster  ====================================
     let ingester_config = TestConfig::new_ingester(&database_url);
-    let router_config = TestConfig::new_router2(&ingester_config);
+    let router_config = TestConfig::new_router(&ingester_config);
     // specially create a querier config that is NOT connected to the ingester
     let querier_config = TestConfig::new_querier_without_ingester(&ingester_config);
 
@@ -197,7 +197,7 @@ async fn basic_no_ingester_connection() {
 
     // Set up the cluster  ====================================
     let ingester_config = TestConfig::new_ingester(&database_url);
-    let router_config = TestConfig::new_router2(&ingester_config);
+    let router_config = TestConfig::new_router(&ingester_config);
     // specially create a querier config that is NOT connected to the ingester
     let querier_config = TestConfig::new_querier_without_ingester(&ingester_config);
 
@@ -637,7 +637,7 @@ async fn oom_protection() {
 
     // Set up the cluster  ====================================
     let ingester_config = TestConfig::new_ingester(&database_url);
-    let router_config = TestConfig::new_router2(&ingester_config);
+    let router_config = TestConfig::new_router(&ingester_config);
     let querier_config = TestConfig::new_querier(&ingester_config).with_querier_mem_pool_bytes(1);
     let mut cluster = MiniCluster::new()
         .with_router(router_config)

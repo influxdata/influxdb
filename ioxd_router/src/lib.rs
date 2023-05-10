@@ -5,7 +5,7 @@ use std::{
 
 use async_trait::async_trait;
 use authz::{Authorizer, IoxAuthorizer};
-use clap_blocks::router2::Router2Config;
+use clap_blocks::router::RouterConfig;
 use data_types::{DefaultPartitionTemplate, NamespaceName};
 use hashbrown::HashMap;
 use hyper::{Body, Request, Response};
@@ -91,7 +91,7 @@ impl<D, N> RpcWriteRouterServerType<D, N> {
 
 impl<D, N> std::fmt::Debug for RpcWriteRouterServerType<D, N> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "RpcWriteRouter")
+        write!(f, "Router")
     }
 }
 
@@ -191,12 +191,12 @@ impl HttpApiErrorSource for IoxHttpErrorAdaptor {
 }
 
 /// Instantiate a router server that uses the RPC write path
-pub async fn create_router2_server_type(
+pub async fn create_router_server_type(
     common_state: &CommonServerState,
     metrics: Arc<metric::Registry>,
     catalog: Arc<dyn Catalog>,
     object_store: Arc<DynObjectStore>,
-    router_config: &Router2Config,
+    router_config: &RouterConfig,
 ) -> Result<Arc<dyn ServerType>> {
     let ingester_connections = router_config.ingester_addresses.iter().map(|addr| {
         let addr = addr.to_string();

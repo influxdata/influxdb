@@ -184,7 +184,7 @@ impl Connections {
         let server_type = test_config.server_type();
 
         self.router_grpc_connection = match server_type {
-            ServerType::AllInOne | ServerType::Router2 => {
+            ServerType::AllInOne | ServerType::Router => {
                 let client_base = test_config.addrs().router_grpc_api().client_base();
                 Some(
                     grpc_channel(test_config, client_base.as_ref())
@@ -482,7 +482,7 @@ impl TestServer {
                         `influxdb_iox compactor run-once` instead"
                     );
                 }
-                ServerType::Router2 => {
+                ServerType::Router => {
                     if check_catalog_service_health(
                         server_type,
                         connections.router_grpc_connection(),

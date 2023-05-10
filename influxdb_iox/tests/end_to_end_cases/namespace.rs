@@ -13,7 +13,7 @@ async fn querier_namespace_client() {
     let table_name = "the_table";
 
     let ingester_config = TestConfig::new_ingester(&database_url);
-    let router_config = TestConfig::new_router2(&ingester_config);
+    let router_config = TestConfig::new_router(&ingester_config);
     let querier_config = TestConfig::new_querier(&ingester_config);
 
     // Set up the cluster  ====================================

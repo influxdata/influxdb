@@ -4,7 +4,7 @@ use super::addrs::BindAddresses;
 pub enum ServerType {
     AllInOne,
     Ingester,
-    Router2,
+    Router,
     Querier,
     Compactor,
 }
@@ -15,7 +15,7 @@ impl ServerType {
         match self {
             Self::AllInOne => "all-in-one",
             Self::Ingester => "ingester",
-            Self::Router2 => "router2",
+            Self::Router => "router",
             Self::Querier => "querier",
             Self::Compactor => "compactor",
         }
@@ -73,7 +73,7 @@ fn addr_envs(server_type: ServerType, addrs: &BindAddresses) -> Vec<(&'static st
                 addrs.ingester_grpc_api().bind_addr().to_string(),
             ),
         ],
-        ServerType::Router2 => vec![
+        ServerType::Router => vec![
             (
                 "INFLUXDB_IOX_BIND_ADDR",
                 addrs.router_http_api().bind_addr().to_string(),

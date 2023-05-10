@@ -10,7 +10,7 @@ use clap_blocks::{
     ingester_address::IngesterAddress,
     object_store::{make_object_store, ObjectStoreConfig},
     querier::QuerierConfig,
-    router2::Router2Config,
+    router::RouterConfig,
     run_config::RunConfig,
     single_tenant::{
         CONFIG_AUTHZ_ENV_NAME, CONFIG_AUTHZ_FLAG, CONFIG_CST_ENV_NAME, CONFIG_CST_FLAG,
@@ -27,7 +27,7 @@ use ioxd_common::{
 use ioxd_compactor::create_compactor_server_type;
 use ioxd_ingester::create_ingester_server_type;
 use ioxd_querier::{create_querier_server_type, QuerierServerTypeArgs};
-use ioxd_router::create_router2_server_type;
+use ioxd_router::create_router_server_type;
 use object_store::DynObjectStore;
 use observability_deps::tracing::*;
 use parquet_file::storage::{ParquetStorage, StorageId};
@@ -466,7 +466,7 @@ impl Config {
             rpc_write_max_incoming_bytes: 1024 * 1024 * 1024, // 1GiB
         };
 
-        let router_config = Router2Config {
+        let router_config = RouterConfig {
             authz_address: authz_address.clone(),
             single_tenant_deployment,
             http_request_limit: 1_000,
@@ -555,7 +555,7 @@ struct SpecializedConfig {
 
     catalog_dsn: CatalogDsnConfig,
     ingester_config: IngesterConfig,
-    router_config: Router2Config,
+    router_config: RouterConfig,
     compactor_config: CompactorConfig,
     querier_config: QuerierConfig,
 }
@@ -611,7 +611,7 @@ pub async fn command(config: Config) -> Result<()> {
     }));
 
     info!("starting router");
-    let router = create_router2_server_type(
+    let router = create_router_server_type(
         &common_state,
         Arc::clone(&metrics),
         Arc::clone(&catalog),

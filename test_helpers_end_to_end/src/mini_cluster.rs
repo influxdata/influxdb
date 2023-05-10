@@ -198,7 +198,7 @@ impl MiniCluster {
     /// tests using `compactor run-once` rather than using `run compactor`.
     pub async fn create_non_shared2(database_url: String) -> Self {
         let ingester_config = TestConfig::new_ingester(&database_url);
-        let router_config = TestConfig::new_router2(&ingester_config);
+        let router_config = TestConfig::new_router(&ingester_config);
         let querier_config = TestConfig::new_querier(&ingester_config);
         let compactor_config = TestConfig::new_compactor(&ingester_config);
 
@@ -219,7 +219,7 @@ impl MiniCluster {
     /// using `run compactor`.
     pub async fn create_non_shared2_never_persist(database_url: String) -> Self {
         let ingester_config = TestConfig::new_ingester_never_persist(&database_url);
-        let router_config = TestConfig::new_router2(&ingester_config);
+        let router_config = TestConfig::new_router(&ingester_config);
         let querier_config = TestConfig::new_querier(&ingester_config);
         let compactor_config = TestConfig::new_compactor(&ingester_config);
 
@@ -245,7 +245,7 @@ impl MiniCluster {
     ) -> Self {
         let ingester_config = TestConfig::new_ingester(&database_url);
         let router_config =
-            TestConfig::new_router2(&ingester_config).with_single_tenancy(authz_addr.clone());
+            TestConfig::new_router(&ingester_config).with_single_tenancy(authz_addr.clone());
         let querier_config =
             TestConfig::new_querier(&ingester_config).with_single_tenancy(authz_addr);
         let compactor_config = TestConfig::new_compactor(&ingester_config);
@@ -680,7 +680,7 @@ fn server_from_weak(server: Option<&Weak<TestServer>>) -> Option<Option<Arc<Test
 }
 
 // For the new server versions. `GLOBAL_SHARED_SERVERS` can be removed and this can be renamed
-// when the migration to router2/etc is complete.
+// when the migration to router/etc is complete.
 static GLOBAL_SHARED_SERVERS2: Lazy<Mutex<Option<SharedServers>>> = Lazy::new(|| Mutex::new(None));
 static GLOBAL_SHARED_SERVERS2_NEVER_PERSIST: Lazy<Mutex<Option<SharedServers>>> =
     Lazy::new(|| Mutex::new(None));
