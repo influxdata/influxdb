@@ -4,8 +4,8 @@
 
 use crate::common::{
     limit_clause, offset_clause, order_by_clause, qualified_measurement_name, where_clause, ws0,
-    ws1, LimitClause, OffsetClause, OrderByClause, Parser, QualifiedMeasurementName, WhereClause,
-    ZeroOrMore,
+    ws1, LimitClause, OffsetClause, OrderByClause, ParseError, Parser, QualifiedMeasurementName,
+    WhereClause, ZeroOrMore,
 };
 use crate::expression::arithmetic::Expr::Wildcard;
 use crate::expression::arithmetic::{
@@ -26,8 +26,10 @@ use nom::bytes::complete::tag;
 use nom::character::complete::char;
 use nom::combinator::{map, opt, value};
 use nom::sequence::{delimited, pair, preceded, tuple};
+use nom::Offset;
 use std::fmt;
 use std::fmt::{Display, Formatter, Write};
+use std::str::FromStr;
 
 /// Represents a `SELECT` statement.
 #[derive(Clone, Debug, PartialEq)]
@@ -514,6 +516,64 @@ impl Parser for Field {
     }
 }
 
+/// Parse the input completely and return a [`Field`].
+///
+/// All leading and trailing whitespace is consumed. If any input remains after parsing,
+/// an error is returned.
+pub fn parse_field(input: &str) -> Result<Field, ParseError> {
+    let mut i: &str = input;
+
+    // Consume whitespace from the input
+    (i, _) = ws0(i).expect("ws0 is infallible");
+
+    if i.is_empty() {
+        return Err(ParseError {
+            message: "unexpected eof".into(),
+            pos: 0,
+        });
+    }
+
+    let (mut i, cond) = match Field::parse(i) {
+        Ok((i1, cond)) => (i1, cond),
+        Err(nom::Err::Failure(crate::InternalError::Syntax {
+            input: pos,
+            message,
+        })) => {
+            return Err(ParseError {
+                message: message.into(),
+                pos: input.offset(pos),
+            })
+        }
+        // any other error indicates an invalid expression
+        Err(_) => {
+            return Err(ParseError {
+                message: "invalid field expression".into(),
+                pos: input.offset(i),
+            })
+        }
+    };
+
+    // Consume remaining whitespace from the input
+    (i, _) = ws0(i).expect("ws0 is infallible");
+
+    if !i.is_empty() {
+        return Err(ParseError {
+            message: "invalid field expression".into(),
+            pos: input.offset(i),
+        });
+    }
+
+    Ok(cond)
+}
+
+impl FromStr for Field {
+    type Err = ParseError;
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        parse_field(s)
+    }
+}
+
 /// Parse a wildcard expression.
 ///
 /// wildcard ::= "*" ( "::" ("field" | "tag")?
@@ -748,6 +808,7 @@ mod test {
     use super::*;
     use crate::{assert_expect_error, binary_op, call, distinct, regex, var_ref, wildcard};
     use assert_matches::assert_matches;
+    use test_helpers::assert_error;
 
     #[test]
     fn test_select_statement() {
@@ -1312,5 +1373,24 @@ mod test {
             wildcard("*::foo"),
             "invalid wildcard type specifier, expected TAG or FIELD"
         );
+    }
+
+    #[test]
+    fn test_parse_field() {
+        assert_eq!(parse_field("a as foo").unwrap().to_string(), "a AS foo");
+
+        // with leading and trailing whitespace
+        assert_eq!(
+            parse_field("  a+3 as foo  ").unwrap().to_string(),
+            "a + 3 AS foo"
+        );
+
+        // fallible
+        assert_error!(parse_field("  a+3 as "), ref e @ ParseError { .. } if e.pos == 8);
+
+        // FromStr
+
+        let field = " sum(a) as foo  ".parse::<Field>().unwrap();
+        assert_eq!(field.to_string(), "sum(a) AS foo");
     }
 }
