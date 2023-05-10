@@ -11,12 +11,13 @@ use self::{
     balancer::Balancer,
     circuit_breaker::CircuitBreaker,
     circuit_breaking_client::{CircuitBreakerState, CircuitBreakingClient},
+    client::RpcWriteClientError,
     upstream_snapshot::UpstreamSnapshot,
 };
 
 use super::{DmlHandler, Partitioned};
 use async_trait::async_trait;
-use data_types::{NamespaceId, NamespaceName, TableId};
+use data_types::{NamespaceName, NamespaceSchema, TableId};
 use dml::{DmlMeta, DmlWrite};
 use generated_types::influxdata::iox::ingester::v1::WriteRequest;
 use hashbrown::HashMap;
@@ -35,9 +36,9 @@ pub const RPC_TIMEOUT: Duration = Duration::from_secs(5);
 /// Errors experienced when submitting an RPC write request to an Ingester.
 #[derive(Debug, Error)]
 pub enum RpcWriteError {
-    /// The upstream ingester returned an error response.
-    #[error("upstream ingester error: {0}")]
-    Upstream(#[from] tonic::Status),
+    /// The RPC client returned an error.
+    #[error(transparent)]
+    Client(#[from] RpcWriteClientError),
 
     /// The RPC call timed out after [`RPC_TIMEOUT`] length of time.
     #[error("timeout writing to upstream ingester")]
@@ -46,10 +47,6 @@ pub enum RpcWriteError {
     /// There are no healthy ingesters to route a write to.
     #[error("no healthy upstream ingesters available")]
     NoUpstreams,
-
-    /// The upstream connection is not established.
-    #[error("upstream {0} is not connected")]
-    UpstreamNotConnected(String),
 
     /// The write request was not attempted, because not enough upstream
     /// ingesters needed to satisfy the configured replication factor are
@@ -176,10 +173,11 @@ where
     async fn write(
         &self,
         namespace: &NamespaceName<'static>,
-        namespace_id: NamespaceId,
+        namespace_schema: Arc<NamespaceSchema>,
         writes: Self::WriteInput,
         span_ctx: Option<SpanContext>,
     ) -> Result<Self::WriteOutput, RpcWriteError> {
+        let namespace_id = namespace_schema.id;
         // Extract the partition key & DML writes.
         let (partition_key, writes) = writes.into_parts();
 
@@ -236,7 +234,7 @@ where
                     // This error is an internal implementation detail - the
                     // meaningful error for the user is "there's no healthy
                     // upstreams".
-                    RpcWriteError::UpstreamNotConnected(_) => RpcWriteError::NoUpstreams,
+                    RpcWriteError::Client(_) => RpcWriteError::NoUpstreams,
                     // The number of upstreams no longer satisfies the desired
                     // replication factor.
                     RpcWriteError::NoUpstreams => RpcWriteError::NotEnoughReplicas,
@@ -303,7 +301,7 @@ where
     .await
     .map_err(|e| match last_err {
         // Any other error is returned as-is.
-        Some(v) => v,
+        Some(v) => RpcWriteError::Client(v),
         // If the entire write attempt fails during the first RPC write
         // request, then the per-request timeout is greater than the write
         // attempt timeout, and therefore only one upstream is ever tried.
@@ -326,7 +324,7 @@ mod tests {
     use std::{collections::HashSet, iter, sync::Arc};
 
     use assert_matches::assert_matches;
-    use data_types::PartitionKey;
+    use data_types::{NamespaceId, PartitionKey};
     use rand::seq::SliceRandom;
 
     use crate::dml_handlers::rpc_write::circuit_breaking_client::mock::MockCircuitBreaker;
@@ -347,6 +345,18 @@ mod tests {
 
     const NAMESPACE_NAME: &str = "bananas";
     const NAMESPACE_ID: NamespaceId = NamespaceId::new(42);
+
+    // Start a new `NamespaceSchema` with only the given ID; the rest of the fields are arbitrary.
+    fn new_empty_namespace_schema() -> Arc<NamespaceSchema> {
+        Arc::new(NamespaceSchema {
+            id: NAMESPACE_ID,
+            tables: Default::default(),
+            max_columns_per_table: 500,
+            max_tables: 200,
+            retention_period_ns: None,
+            partition_template: None,
+        })
+    }
 
     /// A helper function to perform an arbitrary write against `endpoints`,
     /// with the given number of desired distinct data copies.
@@ -384,7 +394,7 @@ mod tests {
         handler
             .write(
                 &NamespaceName::new(NAMESPACE_NAME).unwrap(),
-                NAMESPACE_ID,
+                new_empty_namespace_schema(),
                 input,
                 None,
             )
@@ -418,7 +428,7 @@ mod tests {
         let got = handler
             .write(
                 &NamespaceName::new(NAMESPACE_NAME).unwrap(),
-                NAMESPACE_ID,
+                new_empty_namespace_schema(),
                 input,
                 None,
             )
@@ -462,7 +472,7 @@ mod tests {
 
         // Init the write handler with a mock client to capture the rpc calls.
         let client1 = Arc::new(MockWriteClient::default().with_ret(iter::once(Err(
-            RpcWriteError::Upstream(tonic::Status::internal("")),
+            RpcWriteClientError::Upstream(tonic::Status::internal("")),
         ))));
         let client2 = Arc::new(MockWriteClient::default());
         let client3 = Arc::new(MockWriteClient::default());
@@ -480,7 +490,7 @@ mod tests {
         let got = handler
             .write(
                 &NamespaceName::new(NAMESPACE_NAME).unwrap(),
-                NAMESPACE_ID,
+                new_empty_namespace_schema(),
                 input,
                 None,
             )
@@ -527,12 +537,12 @@ mod tests {
         // The first client in line fails the first request, but will succeed
         // the second try.
         let client1 = Arc::new(MockWriteClient::default().with_ret([
-            Err(RpcWriteError::Upstream(tonic::Status::internal(""))),
+            Err(RpcWriteClientError::Upstream(tonic::Status::internal(""))),
             Ok(()),
         ]));
         // This client always errors.
         let client2 = Arc::new(MockWriteClient::default().with_ret(iter::repeat_with(|| {
-            Err(RpcWriteError::Upstream(tonic::Status::internal("")))
+            Err(RpcWriteClientError::Upstream(tonic::Status::internal("")))
         })));
 
         let handler = RpcWrite::new(
@@ -548,7 +558,7 @@ mod tests {
         let got = handler
             .write(
                 &NamespaceName::new(NAMESPACE_NAME).unwrap(),
-                NAMESPACE_ID,
+                new_empty_namespace_schema(),
                 input,
                 None,
             )
@@ -605,7 +615,9 @@ mod tests {
     #[tokio::test]
     async fn test_write_upstream_error() {
         let client_1 = Arc::new(MockWriteClient::default().with_ret(iter::repeat_with(|| {
-            Err(RpcWriteError::Upstream(tonic::Status::internal("bananas")))
+            Err(RpcWriteClientError::Upstream(tonic::Status::internal(
+                "bananas",
+            )))
         })));
         let circuit_1 = Arc::new(MockCircuitBreaker::default());
         circuit_1.set_healthy(true);
@@ -616,18 +628,17 @@ mod tests {
         )
         .await;
 
-        assert_matches!(got, Err(RpcWriteError::Upstream(s)) => {
-            assert_eq!(s.code(), tonic::Code::Internal);
-            assert_eq!(s.message(), "bananas");
-        });
+        assert_matches!(got, Err(RpcWriteError::NoUpstreams));
     }
 
-    /// Assert that an [`RpcWriteError::UpstreamNotConnected`] error is mapped
+    /// Assert that an [`RpcWriteClientError::UpstreamNotConnected`] error is mapped
     /// to a user-friendly [`RpcWriteError::NoUpstreams`] for consistency.
     #[tokio::test]
     async fn test_write_map_upstream_not_connected_error() {
         let client_1 = Arc::new(MockWriteClient::default().with_ret(iter::repeat_with(|| {
-            Err(RpcWriteError::UpstreamNotConnected("bananas".to_string()))
+            Err(RpcWriteClientError::UpstreamNotConnected(
+                "bananas".to_string(),
+            ))
         })));
         let circuit_1 = Arc::new(MockCircuitBreaker::default());
         circuit_1.set_healthy(true);
@@ -648,13 +659,17 @@ mod tests {
     async fn test_write_not_enough_upstreams_for_replication() {
         // Initialise two upstreams, 1 healthy, 1 not.
         let client_1 = Arc::new(MockWriteClient::default().with_ret(iter::repeat_with(|| {
-            Err(RpcWriteError::UpstreamNotConnected("bananas".to_string()))
+            Err(RpcWriteClientError::UpstreamNotConnected(
+                "bananas".to_string(),
+            ))
         })));
         let circuit_1 = Arc::new(MockCircuitBreaker::default());
         circuit_1.set_healthy(true);
 
         let client_2 = Arc::new(MockWriteClient::default().with_ret(iter::repeat_with(|| {
-            Err(RpcWriteError::UpstreamNotConnected("bananas".to_string()))
+            Err(RpcWriteClientError::UpstreamNotConnected(
+                "bananas".to_string(),
+            ))
         })));
         let circuit_2 = Arc::new(MockCircuitBreaker::default());
         circuit_2.set_healthy(false);
@@ -713,7 +728,9 @@ mod tests {
         circuit_1.set_healthy(true);
 
         let client_2 = Arc::new(MockWriteClient::default().with_ret(iter::repeat_with(|| {
-            Err(RpcWriteError::Upstream(tonic::Status::internal("bananas")))
+            Err(RpcWriteClientError::Upstream(tonic::Status::internal(
+                "bananas",
+            )))
         })));
         let circuit_2 = Arc::new(MockCircuitBreaker::default());
         circuit_2.set_healthy(true);
@@ -755,7 +772,9 @@ mod tests {
         circuit_1.set_healthy(true);
 
         let client_2 = Arc::new(MockWriteClient::default().with_ret([
-            Err(RpcWriteError::Upstream(tonic::Status::internal("bananas"))),
+            Err(RpcWriteClientError::Upstream(tonic::Status::internal(
+                "bananas",
+            ))),
             Ok(()),
         ]));
         let circuit_2 = Arc::new(MockCircuitBreaker::default());
@@ -798,8 +817,12 @@ mod tests {
 
         // This client sometimes errors (2 times)
         let client_2 = Arc::new(MockWriteClient::default().with_ret([
-            Err(RpcWriteError::Upstream(tonic::Status::internal("bananas"))),
-            Err(RpcWriteError::Upstream(tonic::Status::internal("bananas"))),
+            Err(RpcWriteClientError::Upstream(tonic::Status::internal(
+                "bananas",
+            ))),
+            Err(RpcWriteClientError::Upstream(tonic::Status::internal(
+                "bananas",
+            ))),
             Ok(()),
         ]));
         let circuit_2 = Arc::new(MockCircuitBreaker::default());
@@ -807,7 +830,9 @@ mod tests {
 
         // This client always errors
         let client_3 = Arc::new(MockWriteClient::default().with_ret(iter::repeat_with(|| {
-            Err(RpcWriteError::UpstreamNotConnected("bananas".to_string()))
+            Err(RpcWriteClientError::UpstreamNotConnected(
+                "bananas".to_string(),
+            ))
         })));
         let circuit_3 = Arc::new(MockCircuitBreaker::default());
         circuit_3.set_healthy(true);

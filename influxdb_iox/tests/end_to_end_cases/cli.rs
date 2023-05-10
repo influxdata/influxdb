@@ -60,7 +60,7 @@ async fn parquet_to_lp() {
     // The test below assumes a specific partition id, so use a
     // non-shared one here so concurrent tests don't interfere with
     // each other
-    let mut cluster = MiniCluster::create_non_shared2(database_url).await;
+    let mut cluster = MiniCluster::create_non_shared(database_url).await;
 
     let line_protocol = "my_awesome_table,tag1=A,tag2=B val=42i 123456";
 
@@ -83,7 +83,6 @@ async fn parquet_to_lp() {
                     // Looks like:
                     // {
                     //     "id": "1",
-                    //     "shardId": 1,
                     //     "namespaceId": 1,
                     //     "tableId": 1,
                     //     "partitionId": "1",
@@ -185,7 +184,7 @@ async fn schema_cli() {
     test_helpers::maybe_start_logging();
     let database_url = maybe_skip_integration!();
 
-    let mut cluster = MiniCluster::create_shared2(database_url).await;
+    let mut cluster = MiniCluster::create_shared(database_url).await;
 
     StepTest::new(
         &mut cluster,
@@ -246,7 +245,7 @@ async fn write_and_query() {
     test_helpers::maybe_start_logging();
     let database_url = maybe_skip_integration!();
 
-    let mut cluster = MiniCluster::create_shared2(database_url).await;
+    let mut cluster = MiniCluster::create_shared(database_url).await;
 
     StepTest::new(
         &mut cluster,
@@ -321,7 +320,7 @@ async fn query_error_handling() {
     test_helpers::maybe_start_logging();
     let database_url = maybe_skip_integration!();
 
-    let mut cluster = MiniCluster::create_shared2(database_url).await;
+    let mut cluster = MiniCluster::create_shared(database_url).await;
 
     StepTest::new(
         &mut cluster,
@@ -361,7 +360,7 @@ async fn influxql_error_handling() {
     test_helpers::maybe_start_logging();
     let database_url = maybe_skip_integration!();
 
-    let mut cluster = MiniCluster::create_shared2(database_url).await;
+    let mut cluster = MiniCluster::create_shared(database_url).await;
 
     StepTest::new(
         &mut cluster,
@@ -481,7 +480,7 @@ async fn namespaces_cli() {
     test_helpers::maybe_start_logging();
     let database_url = maybe_skip_integration!();
 
-    let mut cluster = MiniCluster::create_shared2(database_url).await;
+    let mut cluster = MiniCluster::create_shared(database_url).await;
 
     StepTest::new(
         &mut cluster,
@@ -517,7 +516,7 @@ async fn namespaces_cli() {
 async fn namespace_retention() {
     test_helpers::maybe_start_logging();
     let database_url = maybe_skip_integration!();
-    let mut cluster = MiniCluster::create_shared2(database_url).await;
+    let mut cluster = MiniCluster::create_shared(database_url).await;
 
     StepTest::new(
         &mut cluster,
@@ -697,7 +696,7 @@ async fn namespace_retention() {
 async fn namespace_deletion() {
     test_helpers::maybe_start_logging();
     let database_url = maybe_skip_integration!();
-    let mut cluster = MiniCluster::create_shared2(database_url).await;
+    let mut cluster = MiniCluster::create_shared(database_url).await;
 
     StepTest::new(
         &mut cluster,
@@ -785,7 +784,7 @@ async fn query_ingester() {
     test_helpers::maybe_start_logging();
     let database_url = maybe_skip_integration!();
 
-    let mut cluster = MiniCluster::create_shared2(database_url).await;
+    let mut cluster = MiniCluster::create_shared(database_url).await;
 
     StepTest::new(
         &mut cluster,
@@ -906,7 +905,7 @@ async fn query_ingester() {
 async fn namespace_update_service_limit() {
     test_helpers::maybe_start_logging();
     let database_url = maybe_skip_integration!();
-    let mut cluster = MiniCluster::create_shared2(database_url).await;
+    let mut cluster = MiniCluster::create_shared(database_url).await;
 
     StepTest::new(
         &mut cluster,

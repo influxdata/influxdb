@@ -34,7 +34,7 @@ pub struct TestConfig {
 
 impl TestConfig {
     /// Create a new TestConfig. Tests should use one of the specific
-    /// configuration setup below, such as [new_router2](Self::new_router2).
+    /// configuration setup below, such as [new_router](Self::new_router).
     fn new(
         server_type: ServerType,
         dsn: Option<String>,
@@ -52,12 +52,12 @@ impl TestConfig {
         }
     }
 
-    /// Create a minimal router2 configuration sharing configuration with the ingester config
-    pub fn new_router2(ingester_config: &TestConfig) -> Self {
+    /// Create a minimal router configuration sharing configuration with the ingester config
+    pub fn new_router(ingester_config: &TestConfig) -> Self {
         assert_eq!(ingester_config.server_type(), ServerType::Ingester);
 
         Self::new(
-            ServerType::Router2,
+            ServerType::Router,
             ingester_config.dsn().to_owned(),
             ingester_config.catalog_schema_name(),
         )
@@ -104,30 +104,30 @@ impl TestConfig {
         .with_new_wal()
     }
 
-    /// Create a minimal querier2 configuration from the specified ingester configuration, using
+    /// Create a minimal querier configuration from the specified ingester configuration, using
     /// the same dsn and object store, and pointing at the specified ingester.
-    pub fn new_querier2(ingester_config: &TestConfig) -> Self {
+    pub fn new_querier(ingester_config: &TestConfig) -> Self {
         assert_eq!(ingester_config.server_type(), ServerType::Ingester);
 
-        Self::new_querier2_without_ingester(ingester_config)
+        Self::new_querier_without_ingester(ingester_config)
             .with_ingester_addresses(&[ingester_config.ingester_base()])
     }
 
     /// Create a minimal compactor configuration, using the dsn configuration from other
-    pub fn new_compactor2(other: &TestConfig) -> Self {
+    pub fn new_compactor(other: &TestConfig) -> Self {
         Self::new(
-            ServerType::Compactor2,
+            ServerType::Compactor,
             other.dsn().to_owned(),
             other.catalog_schema_name(),
         )
         .with_existing_object_store(other)
     }
 
-    /// Create a minimal querier2 configuration from the specified ingester configuration, using
+    /// Create a minimal querier configuration from the specified ingester configuration, using
     /// the same dsn and object store, but without specifying the ingester addresses
-    pub fn new_querier2_without_ingester(ingester_config: &TestConfig) -> Self {
+    pub fn new_querier_without_ingester(ingester_config: &TestConfig) -> Self {
         Self::new(
-            ServerType::Querier2,
+            ServerType::Querier,
             ingester_config.dsn().to_owned(),
             ingester_config.catalog_schema_name(),
         )

@@ -19,7 +19,6 @@ observability_deps = { path = "../observability_deps" }
 serde = { version = "1.0", features = ["derive"] }
 serde_json = "1.0.96"
 snafu = "0.7"
-tempfile = "3.5.0"
 trace = { path = "../trace" }
 trace_exporters = { path = "../trace_exporters" }
 trogging = { path = "../trogging", default-features = false, features = ["clap"] }
@@ -27,6 +26,7 @@ uuid = { version = "1", features = ["v4"] }
 workspace-hack = { version = "0.1", path = "../workspace-hack" }
 
 [dev-dependencies]
+tempfile = "3.5.0"
 test_helpers = { path = "../test_helpers" }
 
 [features]

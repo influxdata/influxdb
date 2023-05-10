@@ -1,9 +1,9 @@
 //! A NOP implementation of [`DmlHandler`].
 
-use std::{fmt::Debug, marker::PhantomData};
+use std::{fmt::Debug, marker::PhantomData, sync::Arc};
 
 use async_trait::async_trait;
-use data_types::{NamespaceId, NamespaceName};
+use data_types::{NamespaceName, NamespaceSchema};
 use observability_deps::tracing::*;
 use trace::ctx::SpanContext;
 
@@ -31,11 +31,11 @@ where
     async fn write(
         &self,
         namespace: &NamespaceName<'static>,
-        namespace_id: NamespaceId,
+        namespace_schema: Arc<NamespaceSchema>,
         batches: Self::WriteInput,
         _span_ctx: Option<SpanContext>,
     ) -> Result<Self::WriteOutput, Self::WriteError> {
-        info!(%namespace, %namespace_id, ?batches, "dropping write operation");
+        info!(%namespace, %namespace_schema.id, ?batches, "dropping write operation");
         Ok(batches)
     }
 }

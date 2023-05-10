@@ -225,14 +225,6 @@ jobs:
       # When removing this, also remove the ignore on the test in trogging/src/cli.rs
       RUST_LOG: debug,,hyper::proto::h1=info,h2=info
       LOG_FILTER: debug,,hyper::proto::h1=info,h2=info
-      # TEMPORARY: Can be removed when the ingester that uses the write buffer is removed. Tests
-      # need to spin up separate servers because I've only been able to implement a "persist
-      # everything" API, and if tests run in parallel using a shared server, they interfere with
-      # each other. Starting separate servers with the maximum number of Rust test threads uses up
-      # all the Postgres connections in CI, so limit the parallelization until we switch completely
-      # to ingester2, which does have a "persist-per-namespace" API that means tests can run on
-      # shared MiniClusters.
-      RUST_TEST_THREADS: 8
       # Run the JDBC tests
       TEST_INFLUXDB_JDBC: "true"
     steps:

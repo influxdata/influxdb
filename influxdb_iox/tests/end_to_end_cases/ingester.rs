@@ -13,7 +13,7 @@ async fn persist_on_demand() {
     let database_url = maybe_skip_integration!();
 
     let table_name = "mytable";
-    let mut cluster = MiniCluster::create_shared2_never_persist(database_url).await;
+    let mut cluster = MiniCluster::create_shared_never_persist(database_url).await;
 
     StepTest::new(
         &mut cluster,
@@ -98,7 +98,7 @@ async fn ingester_flight_api() {
 
     // Set up cluster
     // Don't use a shared cluster because the ingester is going to be restarted
-    let mut cluster = MiniCluster::create_non_shared2(database_url).await;
+    let mut cluster = MiniCluster::create_non_shared(database_url).await;
 
     // Write some data into the v2 HTTP API to set up the namespace and schema ==============
     let lp = format!("{table_name},tag1=A,tag2=B val=42i 123456");
@@ -176,7 +176,7 @@ async fn ingester_flight_api_namespace_not_found() {
     let database_url = maybe_skip_integration!();
 
     // Set up cluster
-    let cluster = MiniCluster::create_shared2(database_url).await;
+    let cluster = MiniCluster::create_shared(database_url).await;
 
     // query the ingester
     let query = IngesterQueryRequest::new(
@@ -204,7 +204,7 @@ async fn ingester_flight_api_table_not_found() {
     let database_url = maybe_skip_integration!();
 
     // Set up cluster
-    let cluster = MiniCluster::create_shared2(database_url).await;
+    let cluster = MiniCluster::create_shared(database_url).await;
 
     // Write some data into the v2 HTTP API ==============
     let lp = String::from("my_table,tag1=A,tag2=B val=42i 123456");

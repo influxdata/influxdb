@@ -38,8 +38,7 @@ pub struct IngesterQueryRequest {
 }
 
 impl IngesterQueryRequest {
-    /// Make a request to return data for a specified table for
-    /// all shards an ingester is responsible for
+    /// Make a request to return data for a specified table
     pub fn new(
         namespace_id: NamespaceId,
         table_id: TableId,

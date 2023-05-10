@@ -1,8 +1,9 @@
-//! An trait to abstract resolving a[`NamespaceName`] to [`NamespaceId`], and a
+//! An trait to abstract resolving a[`NamespaceName`] to [`NamespaceSchema`], and a
 //! collection of composable implementations.
 use async_trait::async_trait;
-use data_types::{NamespaceId, NamespaceName};
+use data_types::{NamespaceName, NamespaceSchema};
 use observability_deps::tracing::*;
+use std::sync::Arc;
 use thiserror::Error;
 
 use crate::namespace_cache::NamespaceCache;
@@ -11,7 +12,7 @@ pub mod mock;
 pub(crate) mod ns_autocreation;
 pub use ns_autocreation::*;
 
-/// Error states encountered during [`NamespaceId`] lookup.
+/// Error states encountered during [`NamespaceSchema`] lookup.
 #[derive(Debug, Error)]
 pub enum Error {
     /// An error occured when attempting to fetch the namespace ID.
@@ -23,17 +24,17 @@ pub enum Error {
     Create(#[from] NamespaceCreationError),
 }
 
-/// An abstract resolver of [`NamespaceName`] to [`NamespaceId`].
+/// An abstract resolver of [`NamespaceName`] to [`NamespaceSchema`].
 #[async_trait]
 pub trait NamespaceResolver: std::fmt::Debug + Send + Sync {
-    /// Return the [`NamespaceId`] for the given [`NamespaceName`].
-    async fn get_namespace_id(
+    /// Return the [`NamespaceSchema`] for the given [`NamespaceName`].
+    async fn get_namespace_schema(
         &self,
         namespace: &NamespaceName<'static>,
-    ) -> Result<NamespaceId, Error>;
+    ) -> Result<Arc<NamespaceSchema>, Error>;
 }
 
-/// An implementation of [`NamespaceResolver`] that resolves the [`NamespaceId`]
+/// An implementation of [`NamespaceResolver`] that resolves the [`NamespaceSchema`]
 /// for a given name through a [`NamespaceCache`].
 #[derive(Debug)]
 pub struct NamespaceSchemaResolver<C> {
@@ -41,7 +42,7 @@ pub struct NamespaceSchemaResolver<C> {
 }
 
 impl<C> NamespaceSchemaResolver<C> {
-    /// Construct a new [`NamespaceSchemaResolver`] that resolves namespace IDs
+    /// Construct a new [`NamespaceSchemaResolver`] that resolves namespace schemas
     /// using `cache`.
     pub fn new(cache: C) -> Self {
         Self { cache }
@@ -53,14 +54,13 @@ impl<C> NamespaceResolver for NamespaceSchemaResolver<C>
 where
     C: NamespaceCache<ReadError = iox_catalog::interface::Error>,
 {
-    async fn get_namespace_id(
+    async fn get_namespace_schema(
         &self,
         namespace: &NamespaceName<'static>,
-    ) -> Result<NamespaceId, Error> {
-        // Load the namespace schema from the cache, falling back to pulling it
-        // from the global catalog (if it exists).
+    ) -> Result<Arc<NamespaceSchema>, Error> {
+        // Load the namespace schema from the cache.
         match self.cache.get_schema(namespace).await {
-            Ok(v) => Ok(v.id),
+            Ok(v) => Ok(v),
             Err(e) => return Err(Error::Lookup(e)),
         }
     }
@@ -100,6 +100,7 @@ mod tests {
                 max_columns_per_table: 4,
                 max_tables: 42,
                 retention_period_ns: None,
+                partition_template: None,
             },
         );
 
@@ -107,7 +108,7 @@ mod tests {
 
         // Drive the code under test
         resolver
-            .get_namespace_id(&ns)
+            .get_namespace_schema(&ns)
             .await
             .expect("lookup should succeed");
 
@@ -151,7 +152,7 @@ mod tests {
         let resolver = NamespaceSchemaResolver::new(Arc::clone(&cache));
 
         resolver
-            .get_namespace_id(&ns)
+            .get_namespace_schema(&ns)
             .await
             .expect("lookup should succeed");
 
@@ -188,7 +189,7 @@ mod tests {
         let resolver = NamespaceSchemaResolver::new(Arc::clone(&cache));
 
         let err = resolver
-            .get_namespace_id(&ns)
+            .get_namespace_schema(&ns)
             .await
             .expect_err("lookup should succeed");
         assert_matches!(
@@ -214,7 +215,7 @@ mod tests {
         let resolver = NamespaceSchemaResolver::new(Arc::clone(&cache));
 
         let err = resolver
-            .get_namespace_id(&ns)
+            .get_namespace_schema(&ns)
             .await
             .expect_err("lookup should error");
 

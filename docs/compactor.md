@@ -1,6 +1,6 @@
 # Job of a Compactor
 
-Compactor is one of the servers in an IOx cluster and its main job is to compact many small and time-overlapped files into larger and non-time-overlapped files. Duplicated and soft deleted data will also be removed during compaction. There may be one or many Compactors in a cluster, each will be responsible for compacting files of a set of specified shards.
+Compactor is one of the servers in an IOx cluster and its main job is to compact many small and time-overlapped files into larger and non-time-overlapped files. Duplicated and soft deleted data will also be removed during compaction. There may be one or many Compactors in a cluster.
 
 - The purpose of compaction to increase query performance by
    1. Avoiding reading too many small files
@@ -46,8 +46,7 @@ If increasing memory a lot does not help, consider changing one or a combination
 These are [up-to-date configurable parameters](https://github.com/influxdata/influxdb_iox/blob/main/clap_blocks/src/compactor.rs). Here are a few key parameters you may want to tune for your needs:
 
  - **Size of the files:** The compactor cannot control the sizes of level-0 files but they are usually small and can be adjusted by config params of the Ingesters. The compactor decides the max desired size of level-1 and level-2 files which is around `INFLUXDB_IOX_COMPACTION_MAX_DESIRED_FILE_SIZE_BYTES * (100 + INFLUXDB_IOX_COMPACTION_PERCENTAGE_MAX_FILE_SIZE) / 100`.
- - **Map a compactor to several shards:**  Depending on your Ingester setup, there may be several shards. A compactor can be set up to compact all or a fraction of the shards. Use range `[INFLUXDB_IOX_SHARD_INDEX_RANGE_START, INFLUXDB_IOX_SHARD_INDEX_RANGE_END]` to map them.
-- **Number of partitions considered to compact per shard:** If there is enough memory, which is usually the case, the compactor will compact many partitions of the same or different shards concurrently. Depending on how many shards a compactor handles and how much memory that compactor is configured to use, you can increase/reduce the concurrent compaction level by increasing/reducing the number of partitions per shard by adjusting `INFLUXDB_IOX_COMPACTION_MAX_NUMBER_PARTITIONS_PER_SHARD`.
+- **Number of partitions considered to compact:** If there is enough memory, which is usually the case, the compactor will compact many partitions concurrently. Depending on how much memory that compactor is configured to use, you can increase/reduce the concurrent compaction level by increasing/reducing the number of partitions.
 - **Concurrency capacity:** to configure this based on your available memory, you need to understand how IOx estimates memory to compact files in the next section.
 
 # Memory Estimation
@@ -196,15 +195,15 @@ SELECT * FROM skipped_compactions;
 -- remove partitions from the skipped_compactions
 DELETE FROM skipped_compactions WHERE partition_id in ([your_ids]);
 
--- Content of skipped_compactions with their shard index, partition key and table id
-SELECT shard_index, table_id, partition_id, partition_key, left(reason, 25),
+-- Content of skipped_compactions with their partition key and table id
+SELECT table_id, partition_id, partition_key, left(reason, 25),
    num_files, limit_num_files, estimated_bytes, limit_bytes, to_timestamp(skipped_at) skipped_at
-FROM skipped_compactions, partition, shard
-WHERE partition.id = skipped_compactions.partition_id and partition.shard_id = shard.id
-ORDER BY shard_index, table_id, partition_key, skipped_at;
+FROM skipped_compactions, partition
+WHERE partition.id = skipped_compactions.partition_id
+ORDER BY table_id, partition_key, skipped_at;
 
 -- Number of files per level for top 50 partitions with most files of a specified day
-SELECT s.shard_index, pf.table_id, pf.partition_id, p.partition_key,
+SELECT pf.table_id, pf.partition_id, p.partition_key,
    count(case when pf.to_delete is null then 1 end) total_not_deleted,
    count(case when pf.compaction_level=0 and pf.to_delete is null then 1 end) num_l0,
    count(case when pf.compaction_level=1 and pf.to_delete is null then 1 end) num_l1,
@@ -212,10 +211,10 @@ SELECT s.shard_index, pf.table_id, pf.partition_id, p.partition_key,
    count(case when pf.compaction_level=0 and pf.to_delete is not null then 1 end) deleted_num_l0,
    count(case when pf.compaction_level=1 and pf.to_delete is not null then 1 end) deleted_num_l1,
    count(case when pf.compaction_level=2 and pf.to_delete is not null then 1 end) deleted_num_l2
-FROM parquet_file pf, partition p, shard s
-WHERE pf.partition_id = p.id AND pf.shard_id = s.id
+FROM parquet_file pf, partition p
+WHERE pf.partition_id = p.id
   AND p.partition_key = '2022-10-11'
-GROUP BY s.shard_index, pf.table_id, pf.partition_id, p.partition_key
+GROUP BY pf.table_id, pf.partition_id, p.partition_key
 ORDER BY count(case when pf.to_delete is null then 1 end) DESC
 LIMIT 50;
 

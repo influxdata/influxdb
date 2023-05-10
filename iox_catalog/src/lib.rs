@@ -118,7 +118,7 @@ where
                 .tables()
                 .create_or_get(table_name, schema.id)
                 .await
-                .map(|t| TableSchema::new(t.id))?;
+                .map(|t| TableSchema::new_empty_from(&t))?;
 
             // Always add a time column to all new tables.
             let time_col = repos
@@ -126,7 +126,7 @@ where
                 .create_or_get(TIME_COLUMN, table.id, ColumnType::Time)
                 .await?;
 
-            table.add_column(&time_col);
+            table.add_column(time_col);
 
             assert!(schema
                 .to_mut()
@@ -185,7 +185,7 @@ where
             .create_or_get_many_unchecked(table.id, column_batch)
             .await?
             .into_iter()
-            .for_each(|c| table.to_mut().add_column(&c));
+            .for_each(|c| table.to_mut().add_column(c));
     }
 
     if let Cow::Owned(table) = table {
@@ -242,12 +242,7 @@ mod tests {
                         .await
                         .unwrap();
 
-                    let schema = NamespaceSchema::new(
-                        namespace.id,
-                        namespace.max_columns_per_table,
-                        namespace.max_tables,
-                        namespace.retention_period_ns,
-                    );
+                    let schema = NamespaceSchema::new_empty_from(&namespace);
 
                     // Apply all the lp literals as individual writes, feeding
                     // the result of one validation into the next to drive

@@ -5,29 +5,29 @@ use crate::process_info::setup_metric_registry;
 use super::main;
 use clap_blocks::{
     catalog_dsn::CatalogDsnConfig,
-    compactor2::Compactor2Config,
+    compactor::CompactorConfig,
     ingester::IngesterConfig,
     ingester_address::IngesterAddress,
     object_store::{make_object_store, ObjectStoreConfig},
     querier::QuerierConfig,
-    router2::Router2Config,
+    router::RouterConfig,
     run_config::RunConfig,
     single_tenant::{
         CONFIG_AUTHZ_ENV_NAME, CONFIG_AUTHZ_FLAG, CONFIG_CST_ENV_NAME, CONFIG_CST_FLAG,
     },
     socket_addr::SocketAddr,
 };
-use compactor2::object_store::metrics::MetricsStore;
+use compactor::object_store::metrics::MetricsStore;
 use iox_query::exec::{Executor, ExecutorConfig};
 use iox_time::{SystemProvider, TimeProvider};
 use ioxd_common::{
     server_type::{CommonServerState, CommonServerStateError},
     Service,
 };
-use ioxd_compactor2::create_compactor2_server_type as create_compactor_server_type;
-use ioxd_ingester2::create_ingester_server_type;
+use ioxd_compactor::create_compactor_server_type;
+use ioxd_ingester::create_ingester_server_type;
 use ioxd_querier::{create_querier_server_type, QuerierServerTypeArgs};
-use ioxd_router::create_router2_server_type;
+use ioxd_router::create_router_server_type;
 use object_store::DynObjectStore;
 use observability_deps::tracing::*;
 use parquet_file::storage::{ParquetStorage, StorageId};
@@ -466,14 +466,13 @@ impl Config {
             rpc_write_max_incoming_bytes: 1024 * 1024 * 1024, // 1GiB
         };
 
-        let router_config = Router2Config {
+        let router_config = RouterConfig {
             authz_address: authz_address.clone(),
             single_tenant_deployment,
             http_request_limit: 1_000,
             ingester_addresses: ingester_addresses.clone(),
             new_namespace_retention_hours: None, // infinite retention
             namespace_autocreation_enabled: true,
-            partition_key_pattern: "%Y-%m-%d".to_string(),
             rpc_write_timeout_seconds: Duration::new(3, 0),
             rpc_write_replicas: None,
             rpc_write_max_outgoing_bytes: ingester_config.rpc_write_max_incoming_bytes,
@@ -482,7 +481,7 @@ impl Config {
         // create a CompactorConfig for the all in one server based on
         // settings from other configs. Can't use `#clap(flatten)` as the
         // parameters are redundant with ingester's
-        let compactor_config = Compactor2Config {
+        let compactor_config = CompactorConfig {
             compaction_type: Default::default(),
             compaction_partition_minute_threshold: 10,
             compaction_cold_partition_minute_threshold: 60,
@@ -556,8 +555,8 @@ struct SpecializedConfig {
 
     catalog_dsn: CatalogDsnConfig,
     ingester_config: IngesterConfig,
-    router_config: Router2Config,
-    compactor_config: Compactor2Config,
+    router_config: RouterConfig,
+    compactor_config: CompactorConfig,
     querier_config: QuerierConfig,
 }
 
@@ -612,7 +611,7 @@ pub async fn command(config: Config) -> Result<()> {
     }));
 
     info!("starting router");
-    let router = create_router2_server_type(
+    let router = create_router_server_type(
         &common_state,
         Arc::clone(&metrics),
         Arc::clone(&catalog),

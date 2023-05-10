@@ -2,7 +2,7 @@
 
 use async_trait::async_trait;
 use data_types::{
-    Column, ColumnSchema, ColumnType, CompactionLevel, Namespace, NamespaceId, NamespaceSchema,
+    Column, ColumnType, ColumnsByName, CompactionLevel, Namespace, NamespaceId, NamespaceSchema,
     ParquetFile, ParquetFileId, ParquetFileParams, Partition, PartitionId, PartitionKey,
     SkippedCompaction, Table, TableId, TableSchema, Timestamp,
 };
@@ -404,11 +404,11 @@ pub trait ColumnRepo: Send + Sync {
     async fn list(&mut self) -> Result<Vec<Column>>;
 }
 
-/// Functions for working with IOx partitions in the catalog. Note that these are how IOx splits up
-/// data within a namespace, which is different than Kafka partitions.
+/// Functions for working with IOx partitions in the catalog. These are how IOx splits up
+/// data within a namespace.
 #[async_trait]
 pub trait PartitionRepo: Send + Sync {
-    /// create or get a partition record for the given partition key, shard and table
+    /// create or get a partition record for the given partition key and table
     async fn create_or_get(&mut self, key: PartitionKey, table_id: TableId) -> Result<Partition>;
 
     /// get partition by ID
@@ -588,27 +588,17 @@ where
     let columns = repos.columns().list_by_namespace_id(namespace.id).await?;
     let tables = repos.tables().list_by_namespace_id(namespace.id).await?;
 
-    let mut namespace = NamespaceSchema::new(
-        namespace.id,
-        namespace.max_columns_per_table,
-        namespace.max_tables,
-        namespace.retention_period_ns,
-    );
+    let mut namespace = NamespaceSchema::new_empty_from(&namespace);
 
     let mut table_id_to_schema = BTreeMap::new();
     for t in tables {
-        table_id_to_schema.insert(t.id, (t.name, TableSchema::new(t.id)));
+        let table_schema = TableSchema::new_empty_from(&t);
+        table_id_to_schema.insert(t.id, (t.name, table_schema));
     }
 
     for c in columns {
         let (_, t) = table_id_to_schema.get_mut(&c.table_id).unwrap();
-        t.columns.insert(
-            c.name,
-            ColumnSchema {
-                id: c.id,
-                column_type: c.column_type,
-            },
-        );
+        t.add_column(c);
     }
 
     for (_, (table_name, schema)) in table_id_to_schema {
@@ -618,25 +608,14 @@ where
     Ok(namespace)
 }
 
-/// Gets the table schema including all columns.
-pub async fn get_table_schema_by_id<R>(id: TableId, repos: &mut R) -> Result<TableSchema>
+/// Gets all the table's columns.
+pub async fn get_table_columns_by_id<R>(id: TableId, repos: &mut R) -> Result<ColumnsByName>
 where
     R: RepoCollection + ?Sized,
 {
     let columns = repos.columns().list_by_table_id(id).await?;
-    let mut schema = TableSchema::new(id);
 
-    for c in columns {
-        schema.columns.insert(
-            c.name,
-            ColumnSchema {
-                id: c.id,
-                column_type: c.column_type,
-            },
-        );
-    }
-
-    Ok(schema)
+    Ok(ColumnsByName::new(columns))
 }
 
 /// Fetch all [`NamespaceSchema`] in the catalog.
@@ -719,9 +698,9 @@ pub async fn list_schemas(
             .or_default()
             // Fetch the schema record for this table, or create an empty one.
             .entry(table.name.clone())
-            .or_insert_with(|| TableSchema::new(column.table_id));
+            .or_insert_with(|| TableSchema::new_empty_from(table));
 
-        table_schema.add_column(&column);
+        table_schema.add_column(column);
     }
 
     // The table map is no longer needed - immediately reclaim the memory.
@@ -739,12 +718,8 @@ pub async fn list_schemas(
             // The catalog call explicitly asked for no soft deleted records.
             assert!(v.deleted_at.is_none());
 
-            let mut ns = NamespaceSchema::new(
-                v.id,
-                v.max_columns_per_table,
-                v.max_tables,
-                v.retention_period_ns,
-            );
+            let mut ns = NamespaceSchema::new_empty_from(&v);
+
             ns.tables = joined.remove(&v.id)?;
             Some((v, ns))
         });
@@ -3049,12 +3024,7 @@ pub(crate) mod test_helpers {
 
         let batches = mutable_batch_lp::lines_to_batches(lines, 42).unwrap();
         let batches = batches.iter().map(|(table, batch)| (table.as_str(), batch));
-        let ns = NamespaceSchema::new(
-            namespace.id,
-            namespace.max_columns_per_table,
-            namespace.max_tables,
-            namespace.retention_period_ns,
-        );
+        let ns = NamespaceSchema::new_empty_from(&namespace);
 
         let schema = validate_or_insert_schema(batches, &ns, repos)
             .await
