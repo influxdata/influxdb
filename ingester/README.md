@@ -17,10 +17,10 @@ Run ingester:
 ./target/debug/influxdb_iox run ingester --api-bind=127.0.0.1:8081 --grpc-bind=127.0.0.1:8042 --wal-directory /tmp/iox/wal  --catalog-dsn postgres:///iox_shared --object-store=file --data-dir=/tmp/iox/obj -v
 ```
 
-Run router2:
+Run router:
 
 ```bash
-./target/debug/influxdb_iox run router2 --api-bind=127.0.0.1:8080 --grpc-bind=127.0.0.1:8085 --ingester-addresses=127.0.0.1:8042 --catalog-dsn postgres:///iox_shared -v
+./target/debug/influxdb_iox run router --api-bind=127.0.0.1:8080 --grpc-bind=127.0.0.1:8085 --ingester-addresses=127.0.0.1:8042 --catalog-dsn postgres:///iox_shared -v
 ```
 
 Run querier:

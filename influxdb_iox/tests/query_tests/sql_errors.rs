@@ -1,6 +1,6 @@
 //! Tests of SQL queries that are expected to return particular errors.
 
-use crate::query_tests2::setups::SETUPS;
+use crate::query_tests::setups::SETUPS;
 use observability_deps::tracing::*;
 use test_helpers_end_to_end::{maybe_skip_integration, MiniCluster, Step, StepTest};
 
@@ -94,7 +94,7 @@ impl SqlErrorTest {
         info!("Using setup {setup_name}");
 
         // Set up the cluster  ====================================
-        let mut cluster = MiniCluster::create_shared2_never_persist(database_url.clone()).await;
+        let mut cluster = MiniCluster::create_shared_never_persist(database_url.clone()).await;
 
         let setup_steps = SETUPS
             .get(setup_name)

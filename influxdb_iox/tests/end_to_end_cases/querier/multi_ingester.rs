@@ -21,9 +21,9 @@ async fn basic_multi_ingesters() {
         .map(|ingester_config| ingester_config.ingester_base())
         .collect();
     let router_config =
-        TestConfig::new_router2(&ingester_configs[0]).with_ingester_addresses(&ingester_addresses);
+        TestConfig::new_router(&ingester_configs[0]).with_ingester_addresses(&ingester_addresses);
     let querier_config =
-        TestConfig::new_querier2(&ingester_configs[0]).with_ingester_addresses(&ingester_addresses);
+        TestConfig::new_querier(&ingester_configs[0]).with_ingester_addresses(&ingester_addresses);
 
     let mut cluster = MiniCluster::new();
     for ingester_config in ingester_configs {
@@ -103,12 +103,12 @@ async fn write_replication() {
         .iter()
         .map(|ingester_config| ingester_config.ingester_base())
         .collect();
-    let router_config = TestConfig::new_router2(&ingester_configs[0])
+    let router_config = TestConfig::new_router(&ingester_configs[0])
         .with_ingester_addresses(&ingester_addresses)
         // Require both ingesters to get this write to be counted as a full write
         .with_rpc_write_replicas(NonZeroUsize::new(2).unwrap());
     let querier_config =
-        TestConfig::new_querier2(&ingester_configs[0]).with_ingester_addresses(&ingester_addresses);
+        TestConfig::new_querier(&ingester_configs[0]).with_ingester_addresses(&ingester_addresses);
 
     let mut cluster = MiniCluster::new();
     for ingester_config in ingester_configs {
