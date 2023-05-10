@@ -475,21 +475,9 @@ name: m0
 -- InfluxQL: SELECT *, floor(f64) FROM m0 WHERE sum(f64) > 100.0;
 Error while planning query: Error during planning: invalid expression, the only valid function calls are 'now' with no arguments, or scalar math functions at pos 35
 -- InfluxQL: SELECT tag0, f64, f64 * 0.5, f64 + str FROM m0 WHERE f64 > 19;
-name: m0
-+---------------------+-------+------+-------+---------+
-| time                | tag0  | f64  | f64_1 | f64_str |
-+---------------------+-------+------+-------+---------+
-| 2022-10-31T02:00:10 | val00 | 21.2 | 10.6  |         |
-| 2022-10-31T02:00:30 | val00 | 19.2 | 9.6   |         |
-+---------------------+-------+------+-------+---------+
+Error while planning query: Error during planning: incompatible operands for operator +: float and string
 -- InfluxQL: SELECT tag0, str, str + 'foo', str * 5 FROM m0 WHERE f64 > 19;
-name: m0
-+---------------------+-------+-----+-------+-------+
-| time                | tag0  | str | str_1 | str_2 |
-+---------------------+-------+-----+-------+-------+
-| 2022-10-31T02:00:10 | val00 | hi  | hifoo |       |
-| 2022-10-31T02:00:30 | val00 | lo  | lofoo |       |
-+---------------------+-------+-----+-------+-------+
+Error while planning query: Error during planning: incompatible operands for operator +: string and string
 -- InfluxQL: SELECT tag0, i64, i64 * 0.5, i64 + f64::integer, i64 & 1 FROM m0 WHERE f64 > 19;
 name: m0
 +---------------------+-------+-----+-------+---------+-------+
@@ -1462,7 +1450,7 @@ name: disk
 -- InfluxQL: SELECT COUNT(bytes_free) as a, SUM(bytes_free) as b, COUNT(bytes_free) + SUM(bytes_free) as "a+b" FROM disk WHERE time >= '2022-10-31T02:00:00Z' AND time < '2022-10-31T02:02:00Z' GROUP BY TIME(30s) FILL(5);
 name: disk
 +---------------------+---+-------+-------+
-| time                | a | b     | "a+b" |
+| time                | a | b     | a+b   |
 +---------------------+---+-------+-------+
 | 2022-10-31T02:00:00 | 6 | 13419 | 13425 |
 | 2022-10-31T02:00:30 | 5 | 5     | 10    |

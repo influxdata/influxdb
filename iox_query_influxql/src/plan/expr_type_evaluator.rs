@@ -1,6 +1,7 @@
 use crate::plan::field::field_by_name;
 use crate::plan::field_mapper::map_type;
 use crate::plan::ir::DataSource;
+use crate::plan::var_ref::influx_type_to_var_ref_data_type;
 use crate::plan::{error, SchemaProvider};
 use datafusion::common::Result;
 use influxdb_influxql_parser::expression::{
@@ -9,17 +10,6 @@ use influxdb_influxql_parser::expression::{
 use influxdb_influxql_parser::literal::Literal;
 use influxdb_influxql_parser::select::Dimension;
 use itertools::Itertools;
-
-/// Evaluate the type of the specified expression.
-///
-/// Derived from [Go implementation](https://github.com/influxdata/influxql/blob/1ba470371ec093d57a726b143fe6ccbacf1b452b/ast.go#L4796-L4797).
-pub(super) fn evaluate_type(
-    s: &dyn SchemaProvider,
-    expr: &Expr,
-    from: &[DataSource],
-) -> Result<Option<VarRefDataType>> {
-    TypeEvaluator::new(s, from).eval_type(expr)
-}
 
 /// Evaluate the type of the specified expression.
 ///
@@ -120,7 +110,7 @@ impl<'a> TypeEvaluator<'a> {
                         DataSource::Subquery(select) => {
                             // find the field by name
                             if let Some(field) = field_by_name(&select.fields, expr.name.as_str()) {
-                                match (data_type, evaluate_type(self.s, &field.expr, &select.from)?)
+                                match (data_type, influx_type_to_var_ref_data_type(field.data_type))
                                 {
                                     (Some(existing), Some(res)) => {
                                         if res < existing {
@@ -250,12 +240,14 @@ fn binary_data_type(
 
 #[cfg(test)]
 mod test {
-    use crate::plan::expr_type_evaluator::{binary_data_type, evaluate_type};
-    use crate::plan::rewriter::map_select;
-    use crate::plan::test_utils::{parse_select, MockSchemaProvider};
+    use super::*;
+    use crate::plan::expr_type_evaluator::binary_data_type;
+    use crate::plan::ir::DataSource;
+    use crate::plan::test_utils::MockSchemaProvider;
     use assert_matches::assert_matches;
     use datafusion::common::DataFusionError;
     use influxdb_influxql_parser::expression::VarRefDataType;
+    use influxdb_influxql_parser::select::Field;
     use itertools::iproduct;
 
     #[test]
@@ -314,257 +306,253 @@ mod test {
     fn test_evaluate_type() {
         let namespace = MockSchemaProvider::default();
 
-        let stmt = map_select(
+        fn evaluate_type(
+            s: &dyn SchemaProvider,
+            expr: &Expr,
+            from: &[DataSource],
+        ) -> Result<Option<VarRefDataType>> {
+            TypeEvaluator::new(s, from).eval_type(expr)
+        }
+
+        let Field { expr, .. } = "shared_field0".parse().unwrap();
+        let res = evaluate_type(
             &namespace,
-            &parse_select("SELECT shared_field0 FROM temp_01"),
+            &expr,
+            &[DataSource::Table("temp_01".to_owned())],
         )
+        .unwrap()
         .unwrap();
-        let field = stmt.fields.first().unwrap();
-        let res = evaluate_type(&namespace, &field.expr, &stmt.from)
-            .unwrap()
-            .unwrap();
         assert_matches!(res, VarRefDataType::Float);
 
-        let stmt =
-            map_select(&namespace, &parse_select("SELECT shared_tag0 FROM temp_01")).unwrap();
-        let field = stmt.fields.first().unwrap();
-        let res = evaluate_type(&namespace, &field.expr, &stmt.from)
-            .unwrap()
-            .unwrap();
+        let Field { expr, .. } = "shared_tag0".parse().unwrap();
+        let res = evaluate_type(
+            &namespace,
+            &expr,
+            &[DataSource::Table("temp_01".to_owned())],
+        )
+        .unwrap()
+        .unwrap();
         assert_matches!(res, VarRefDataType::Tag);
 
         // Unknown
-        let stmt = map_select(&namespace, &parse_select("SELECT not_exists FROM temp_01")).unwrap();
-        let field = stmt.fields.first().unwrap();
-        let res = evaluate_type(&namespace, &field.expr, &stmt.from).unwrap();
+        let Field { expr, .. } = "not_exists".parse().unwrap();
+        let res = evaluate_type(
+            &namespace,
+            &expr,
+            &[DataSource::Table("temp_01".to_owned())],
+        )
+        .unwrap();
         assert!(res.is_none());
 
-        let stmt = map_select(
+        let Field { expr, .. } = "shared_field0".parse().unwrap();
+        let res = evaluate_type(
             &namespace,
-            &parse_select("SELECT shared_field0 FROM temp_02"),
+            &expr,
+            &[DataSource::Table("temp_02".to_owned())],
         )
+        .unwrap()
         .unwrap();
-        let field = stmt.fields.first().unwrap();
-        let res = evaluate_type(&namespace, &field.expr, &stmt.from)
-            .unwrap()
-            .unwrap();
         assert_matches!(res, VarRefDataType::Integer);
 
-        let stmt = map_select(
+        let Field { expr, .. } = "shared_field0".parse().unwrap();
+        let res = evaluate_type(
             &namespace,
-            &parse_select("SELECT shared_field0 FROM temp_02"),
+            &expr,
+            &[DataSource::Table("temp_02".to_owned())],
         )
+        .unwrap()
         .unwrap();
-        let field = stmt.fields.first().unwrap();
-        let res = evaluate_type(&namespace, &field.expr, &stmt.from)
-            .unwrap()
-            .unwrap();
         assert_matches!(res, VarRefDataType::Integer);
 
         // Same field across multiple measurements resolves to the highest precedence (float)
-        let stmt = map_select(
+        let Field { expr, .. } = "shared_field0".parse().unwrap();
+        let res = evaluate_type(
             &namespace,
-            &parse_select("SELECT shared_field0 FROM temp_01, temp_02"),
+            &expr,
+            &[
+                DataSource::Table("temp_01".to_owned()),
+                DataSource::Table("temp_02".to_owned()),
+            ],
         )
+        .unwrap()
         .unwrap();
-        let field = stmt.fields.first().unwrap();
-        let res = evaluate_type(&namespace, &field.expr, &stmt.from)
-            .unwrap()
-            .unwrap();
         assert_matches!(res, VarRefDataType::Float);
 
         // Explicit cast of integer field to float
-        let stmt = map_select(
+        let Field { expr, .. } = "SUM(field_i64::float)".parse().unwrap();
+        let res = evaluate_type(
             &namespace,
-            &parse_select("SELECT SUM(field_i64::float) FROM temp_01"),
+            &expr,
+            &[DataSource::Table("temp_01".to_owned())],
         )
+        .unwrap()
         .unwrap();
-        let field = stmt.fields.first().unwrap();
-        let res = evaluate_type(&namespace, &field.expr, &stmt.from)
-            .unwrap()
-            .unwrap();
         assert_matches!(res, VarRefDataType::Float);
 
         //
         // Binary expressions
         //
 
-        let stmt = map_select(
+        let Field { expr, .. } = "field_f64 + field_i64".parse().unwrap();
+        let res = evaluate_type(
             &namespace,
-            &parse_select("SELECT field_f64 + field_i64 FROM all_types"),
+            &expr,
+            &[DataSource::Table("all_types".to_owned())],
         )
+        .unwrap()
         .unwrap();
-        let field = stmt.fields.first().unwrap();
-        let res = evaluate_type(&namespace, &field.expr, &stmt.from)
-            .unwrap()
-            .unwrap();
         assert_matches!(res, VarRefDataType::Float);
 
-        let stmt = map_select(
+        let Field { expr, .. } = "field_bool | field_bool".parse().unwrap();
+        let res = evaluate_type(
             &namespace,
-            &parse_select("SELECT field_bool | field_bool FROM all_types"),
+            &expr,
+            &[DataSource::Table("all_types".to_owned())],
         )
+        .unwrap()
         .unwrap();
-        let field = stmt.fields.first().unwrap();
-        let res = evaluate_type(&namespace, &field.expr, &stmt.from)
-            .unwrap()
-            .unwrap();
         assert_matches!(res, VarRefDataType::Boolean);
 
         // Fallible
 
         // Verify incompatible operators and operator error
-        let stmt = map_select(
+        let Field { expr, .. } = "field_f64 & field_i64".parse().unwrap();
+        let res = evaluate_type(
             &namespace,
-            &parse_select("SELECT field_f64 & field_i64 FROM all_types"),
-        )
-        .unwrap();
-        let field = stmt.fields.first().unwrap();
-        let res = evaluate_type(&namespace, &field.expr, &stmt.from);
+            &expr,
+            &[DataSource::Table("all_types".to_owned())],
+        );
         assert_matches!(res, Err(DataFusionError::Plan(ref s)) if s == "incompatible operands for operator &: float and integer");
 
         // data types for functions
-        let stmt = map_select(
+        let Field { expr, .. } = "SUM(field_f64)".parse().unwrap();
+        let res = evaluate_type(
             &namespace,
-            &parse_select("SELECT SUM(field_f64) FROM temp_01"),
+            &expr,
+            &[DataSource::Table("temp_01".to_owned())],
         )
+        .unwrap()
         .unwrap();
-        let field = stmt.fields.first().unwrap();
-        let res = evaluate_type(&namespace, &field.expr, &stmt.from)
-            .unwrap()
-            .unwrap();
         assert_matches!(res, VarRefDataType::Float);
 
-        let stmt = map_select(
+        let Field { expr, .. } = "SUM(field_i64)".parse().unwrap();
+        let res = evaluate_type(
             &namespace,
-            &parse_select("SELECT SUM(field_i64) FROM temp_01"),
+            &expr,
+            &[DataSource::Table("temp_01".to_owned())],
         )
+        .unwrap()
         .unwrap();
-        let field = stmt.fields.first().unwrap();
-        let res = evaluate_type(&namespace, &field.expr, &stmt.from)
-            .unwrap()
-            .unwrap();
         assert_matches!(res, VarRefDataType::Integer);
 
-        let stmt = map_select(
+        let Field { expr, .. } = "SUM(field_u64)".parse().unwrap();
+        let res = evaluate_type(
             &namespace,
-            &parse_select("SELECT SUM(field_u64) FROM temp_01"),
+            &expr,
+            &[DataSource::Table("temp_01".to_owned())],
         )
+        .unwrap()
         .unwrap();
-        let field = stmt.fields.first().unwrap();
-        let res = evaluate_type(&namespace, &field.expr, &stmt.from)
-            .unwrap()
-            .unwrap();
         assert_matches!(res, VarRefDataType::Unsigned);
 
-        let stmt = map_select(
+        let Field { expr, .. } = "MIN(field_f64)".parse().unwrap();
+        let res = evaluate_type(
             &namespace,
-            &parse_select("SELECT MIN(field_f64) FROM temp_01"),
+            &expr,
+            &[DataSource::Table("temp_01".to_owned())],
         )
+        .unwrap()
         .unwrap();
-        let field = stmt.fields.first().unwrap();
-        let res = evaluate_type(&namespace, &field.expr, &stmt.from)
-            .unwrap()
-            .unwrap();
         assert_matches!(res, VarRefDataType::Float);
 
-        let stmt = map_select(
+        let Field { expr, .. } = "MAX(field_i64)".parse().unwrap();
+        let res = evaluate_type(
             &namespace,
-            &parse_select("SELECT MAX(field_i64) FROM temp_01"),
+            &expr,
+            &[DataSource::Table("temp_01".to_owned())],
         )
+        .unwrap()
         .unwrap();
-        let field = stmt.fields.first().unwrap();
-        let res = evaluate_type(&namespace, &field.expr, &stmt.from)
-            .unwrap()
-            .unwrap();
         assert_matches!(res, VarRefDataType::Integer);
 
-        let stmt = map_select(
+        let Field { expr, .. } = "FIRST(field_str)".parse().unwrap();
+        let res = evaluate_type(
             &namespace,
-            &parse_select("SELECT FIRST(field_str) FROM temp_01"),
+            &expr,
+            &[DataSource::Table("temp_01".to_owned())],
         )
+        .unwrap()
         .unwrap();
-        let field = stmt.fields.first().unwrap();
-        let res = evaluate_type(&namespace, &field.expr, &stmt.from)
-            .unwrap()
-            .unwrap();
         assert_matches!(res, VarRefDataType::String);
 
-        let stmt = map_select(
+        let Field { expr, .. } = "LAST(field_str)".parse().unwrap();
+        let res = evaluate_type(
             &namespace,
-            &parse_select("SELECT LAST(field_str) FROM temp_01"),
+            &expr,
+            &[DataSource::Table("temp_01".to_owned())],
         )
+        .unwrap()
         .unwrap();
-        let field = stmt.fields.first().unwrap();
-        let res = evaluate_type(&namespace, &field.expr, &stmt.from)
-            .unwrap()
-            .unwrap();
         assert_matches!(res, VarRefDataType::String);
 
-        let stmt = map_select(
+        let Field { expr, .. } = "MEAN(field_i64)".parse().unwrap();
+        let res = evaluate_type(
             &namespace,
-            &parse_select("SELECT MEAN(field_i64) FROM temp_01"),
+            &expr,
+            &[DataSource::Table("temp_01".to_owned())],
         )
+        .unwrap()
         .unwrap();
-        let field = stmt.fields.first().unwrap();
-        let res = evaluate_type(&namespace, &field.expr, &stmt.from)
-            .unwrap()
-            .unwrap();
         assert_matches!(res, VarRefDataType::Float);
 
-        let stmt = map_select(
+        let Field { expr, .. } = "MEAN(field_u64)".parse().unwrap();
+        let res = evaluate_type(
             &namespace,
-            &parse_select("SELECT MEAN(field_u64) FROM temp_01"),
+            &expr,
+            &[DataSource::Table("temp_01".to_owned())],
         )
+        .unwrap()
         .unwrap();
-        let field = stmt.fields.first().unwrap();
-        let res = evaluate_type(&namespace, &field.expr, &stmt.from)
-            .unwrap()
-            .unwrap();
         assert_matches!(res, VarRefDataType::Float);
 
-        let stmt = map_select(
+        let Field { expr, .. } = "COUNT(field_f64)".parse().unwrap();
+        let res = evaluate_type(
             &namespace,
-            &parse_select("SELECT COUNT(field_f64) FROM temp_01"),
+            &expr,
+            &[DataSource::Table("temp_01".to_owned())],
         )
+        .unwrap()
         .unwrap();
-        let field = stmt.fields.first().unwrap();
-        let res = evaluate_type(&namespace, &field.expr, &stmt.from)
-            .unwrap()
-            .unwrap();
         assert_matches!(res, VarRefDataType::Integer);
 
-        let stmt = map_select(
+        let Field { expr, .. } = "COUNT(field_i64)".parse().unwrap();
+        let res = evaluate_type(
             &namespace,
-            &parse_select("SELECT COUNT(field_i64) FROM temp_01"),
+            &expr,
+            &[DataSource::Table("temp_01".to_owned())],
         )
+        .unwrap()
         .unwrap();
-        let field = stmt.fields.first().unwrap();
-        let res = evaluate_type(&namespace, &field.expr, &stmt.from)
-            .unwrap()
-            .unwrap();
         assert_matches!(res, VarRefDataType::Integer);
 
-        let stmt = map_select(
+        let Field { expr, .. } = "COUNT(field_u64)".parse().unwrap();
+        let res = evaluate_type(
             &namespace,
-            &parse_select("SELECT COUNT(field_u64) FROM temp_01"),
+            &expr,
+            &[DataSource::Table("temp_01".to_owned())],
         )
+        .unwrap()
         .unwrap();
-        let field = stmt.fields.first().unwrap();
-        let res = evaluate_type(&namespace, &field.expr, &stmt.from)
-            .unwrap()
-            .unwrap();
         assert_matches!(res, VarRefDataType::Integer);
 
-        let stmt = map_select(
+        let Field { expr, .. } = "COUNT(field_str)".parse().unwrap();
+        let res = evaluate_type(
             &namespace,
-            &parse_select("SELECT COUNT(field_str) FROM temp_01"),
+            &expr,
+            &[DataSource::Table("temp_01".to_owned())],
         )
+        .unwrap()
         .unwrap();
-        let field = stmt.fields.first().unwrap();
-        let res = evaluate_type(&namespace, &field.expr, &stmt.from)
-            .unwrap()
-            .unwrap();
         assert_matches!(res, VarRefDataType::Integer);
 
         // Float functions
@@ -584,91 +572,50 @@ mod test {
             "kaufmans_adaptive_moving_average(field_i64, 2)",
             "chande_momentum_oscillator(field_i64, 2)",
         ] {
-            let stmt = map_select(
+            let Field { expr, .. } = call.parse().unwrap();
+            let res = evaluate_type(
                 &namespace,
-                &parse_select(&format!("SELECT {call} FROM temp_01")),
+                &expr,
+                &[DataSource::Table("temp_01".to_owned())],
             )
+            .unwrap()
             .unwrap();
-            let field = stmt.fields.first().unwrap();
-            let res = evaluate_type(&namespace, &field.expr, &stmt.from)
-                .unwrap()
-                .unwrap();
             assert_matches!(res, VarRefDataType::Float);
         }
 
         // holt_winters
-        let stmt = map_select(
+        let Field { expr, .. } = "holt_winters(mean(field_i64), 2, 3)".parse().unwrap();
+        let res = evaluate_type(
             &namespace,
-            &parse_select(&format!(
-                "SELECT holt_winters(mean(field_i64), 2, 3) FROM temp_01 GROUP BY TIME(10s)"
-            )),
+            &expr,
+            &[DataSource::Table("temp_01".to_owned())],
         )
+        .unwrap()
         .unwrap();
-        let field = stmt.fields.first().unwrap();
-        let res = evaluate_type(&namespace, &field.expr, &stmt.from)
-            .unwrap()
-            .unwrap();
         assert_matches!(res, VarRefDataType::Float);
 
         // holt_winters_with_fit
-        let stmt = map_select(
-            &namespace,
-            &parse_select(&format!(
-                "SELECT holt_winters_with_fit(mean(field_i64), 2, 3) FROM temp_01 GROUP BY TIME(10s)"
-            )),
-        )
-        .unwrap();
-        let field = stmt.fields.first().unwrap();
-        let res = evaluate_type(&namespace, &field.expr, &stmt.from)
-            .unwrap()
+        let Field { expr, .. } = "holt_winters_with_fit(mean(field_i64), 2, 3)"
+            .parse()
             .unwrap();
+        let res = evaluate_type(
+            &namespace,
+            &expr,
+            &[DataSource::Table("temp_01".to_owned())],
+        )
+        .unwrap()
+        .unwrap();
         assert_matches!(res, VarRefDataType::Float);
 
         // Integer functions
-        let stmt = map_select(
+        let Field { expr, .. } = "elapsed(field_i64)".parse().unwrap();
+        let res = evaluate_type(
             &namespace,
-            &parse_select("SELECT elapsed(field_i64) FROM temp_01"),
+            &expr,
+            &[DataSource::Table("temp_01".to_owned())],
         )
+        .unwrap()
         .unwrap();
-        let field = stmt.fields.first().unwrap();
-        let res = evaluate_type(&namespace, &field.expr, &stmt.from)
-            .unwrap()
-            .unwrap();
         assert_matches!(res, VarRefDataType::Integer);
-
-        // subqueries
-
-        let stmt = map_select(
-            &namespace,
-            &parse_select("SELECT inner FROM (SELECT field_f64 as inner FROM temp_01)"),
-        )
-        .unwrap();
-        let field = stmt.fields.first().unwrap();
-        let res = evaluate_type(&namespace, &field.expr, &stmt.from)
-            .unwrap()
-            .unwrap();
-        assert_matches!(res, VarRefDataType::Float);
-
-        let stmt = map_select(
-            &namespace,
-            &parse_select(
-                "SELECT inner FROM (SELECT shared_tag0, field_f64 as inner FROM temp_01)",
-            ),
-        )
-        .unwrap();
-        let field = stmt.fields.first().unwrap();
-        let res = evaluate_type(&namespace, &field.expr, &stmt.from)
-            .unwrap()
-            .unwrap();
-        assert_matches!(res, VarRefDataType::Float);
-
-        let stmt = map_select(&namespace, &parse_select(
-            "SELECT shared_tag0, inner FROM (SELECT shared_tag0, field_f64 as inner FROM temp_01)",
-        )).unwrap();
-        let field = stmt.fields.first().unwrap();
-        let res = evaluate_type(&namespace, &field.expr, &stmt.from)
-            .unwrap()
-            .unwrap();
-        assert_matches!(res, VarRefDataType::Tag);
     }
 }

@@ -1,15 +1,21 @@
 //! Defines data structures which represent an InfluxQL
 //! statement after it has been processed
 
+use crate::plan::field::field_by_name;
 use crate::plan::rewriter::ProjectionType;
+use crate::plan::{error, SchemaProvider};
+use datafusion::common::Result;
 use influxdb_influxql_parser::common::{
     LimitClause, MeasurementName, OffsetClause, OrderByClause, QualifiedMeasurementName,
     WhereClause,
 };
+use influxdb_influxql_parser::expression::Expr;
 use influxdb_influxql_parser::select::{
-    Field, FieldList, FillClause, FromMeasurementClause, GroupByClause, MeasurementSelection,
+    FieldList, FillClause, FromMeasurementClause, GroupByClause, MeasurementSelection,
     SelectStatement, TimeZoneClause,
 };
+use schema::{InfluxColumnType, Schema};
+use std::fmt::{Display, Formatter};
 
 /// Represents a validated and normalized top-level [`SelectStatement]`.
 #[derive(Debug, Default, Clone)]
@@ -62,7 +68,16 @@ pub(super) struct Select {
 impl From<Select> for SelectStatement {
     fn from(value: Select) -> Self {
         Self {
-            fields: FieldList::new(value.fields),
+            fields: FieldList::new(
+                value
+                    .fields
+                    .into_iter()
+                    .map(|c| influxdb_influxql_parser::select::Field {
+                        expr: c.expr,
+                        alias: Some(c.name.into()),
+                    })
+                    .collect(),
+            ),
             from: FromMeasurementClause::new(
                 value
                     .from
@@ -99,4 +114,46 @@ impl From<Select> for SelectStatement {
 pub(super) enum DataSource {
     Table(String),
     Subquery(Box<Select>),
+}
+
+impl DataSource {
+    pub(super) fn schema(&self, s: &dyn SchemaProvider) -> Result<DataSourceSchema<'_>> {
+        match self {
+            Self::Table(table_name) => s
+                .table_schema(table_name)
+                .map(DataSourceSchema::Table)
+                .ok_or_else(|| error::map::internal("expected table")),
+            Self::Subquery(q) => Ok(DataSourceSchema::Subquery(q)),
+        }
+    }
+}
+
+pub(super) enum DataSourceSchema<'a> {
+    Table(Schema),
+    Subquery(&'a Select),
+}
+
+impl<'a> DataSourceSchema<'a> {
+    pub(super) fn field_type_by_name(&self, name: &str) -> Option<InfluxColumnType> {
+        match self {
+            DataSourceSchema::Table(s) => s.field_type_by_name(name),
+            DataSourceSchema::Subquery(q) => {
+                field_by_name(&q.fields, name).and_then(|f| f.data_type)
+            }
+        }
+    }
+}
+
+#[derive(Debug, Clone)]
+pub(super) struct Field {
+    pub(super) expr: Expr,
+    pub(super) name: String,
+    pub(super) data_type: Option<InfluxColumnType>,
+}
+
+impl Display for Field {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        Display::fmt(&self.expr, f)?;
+        write!(f, " AS {}", self.name)
+    }
 }

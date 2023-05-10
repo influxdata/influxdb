@@ -1,4 +1,4 @@
-use crate::plan::var_ref::field_type_to_var_ref_data_type;
+use crate::plan::var_ref::{field_type_to_var_ref_data_type, influx_type_to_var_ref_data_type};
 use crate::plan::SchemaProvider;
 use influxdb_influxql_parser::expression::VarRefDataType;
 use schema::InfluxColumnType;
@@ -11,8 +11,8 @@ pub(crate) fn field_and_dimensions(
     s: &dyn SchemaProvider,
     name: &str,
 ) -> Option<(FieldTypeMap, TagSet)> {
-    match s.table_schema(name) {
-        Some(iox) => Some((
+    s.table_schema(name).map(|iox| {
+        (
             FieldTypeMap::from_iter(iox.iter().filter_map(|(col_type, f)| match col_type {
                 InfluxColumnType::Field(ft) => {
                     Some((f.name().clone(), field_type_to_var_ref_data_type(ft)))
@@ -22,9 +22,8 @@ pub(crate) fn field_and_dimensions(
             iox.tags_iter()
                 .map(|f| f.name().clone())
                 .collect::<TagSet>(),
-        )),
-        None => None,
-    }
+        )
+    })
 }
 
 pub(crate) fn map_type(
@@ -32,15 +31,10 @@ pub(crate) fn map_type(
     measurement_name: &str,
     field: &str,
 ) -> Option<VarRefDataType> {
-    match s.table_schema(measurement_name) {
-        Some(iox) => match iox.field_by_name(field) {
-            Some((InfluxColumnType::Field(ft), _)) => Some(field_type_to_var_ref_data_type(ft)),
-            Some((InfluxColumnType::Tag, _)) => Some(VarRefDataType::Tag),
-            Some((InfluxColumnType::Timestamp, _)) => Some(VarRefDataType::Timestamp),
-            None => None,
-        },
-        None => None,
-    }
+    s.table_schema(measurement_name).and_then(|iox| {
+        iox.field_by_name(field)
+            .and_then(|(dt, _)| influx_type_to_var_ref_data_type(Some(dt)))
+    })
 }
 
 #[cfg(test)]

@@ -1,4 +1,5 @@
 use crate::plan::error;
+use crate::plan::ir::Field;
 use arrow::datatypes::DataType;
 use datafusion::common::{DFSchemaRef, Result};
 use datafusion::logical_expr::utils::find_column_exprs;
@@ -6,7 +7,6 @@ use datafusion::logical_expr::{Expr, LogicalPlan, LogicalPlanBuilder};
 use datafusion_util::AsExpr;
 use generated_types::influxdata::iox::querier::v1::influx_ql_metadata::TagKeyColumn;
 use influxdb_influxql_parser::expression::{Expr as IQLExpr, VarRef, VarRefDataType};
-use influxdb_influxql_parser::select::Field;
 use schema::INFLUXQL_MEASUREMENT_COLUMN_NAME;
 use std::collections::HashMap;
 use std::ops::Deref;

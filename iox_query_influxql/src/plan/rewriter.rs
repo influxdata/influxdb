@@ -1,7 +1,8 @@
 use crate::plan::expr_type_evaluator::TypeEvaluator;
 use crate::plan::field::{field_by_name, field_name};
 use crate::plan::field_mapper::{field_and_dimensions, FieldTypeMap, TagSet};
-use crate::plan::ir::{DataSource, Select, SelectQuery};
+use crate::plan::ir::{DataSource, Field, Select, SelectQuery};
+use crate::plan::var_ref::{influx_type_to_var_ref_data_type, var_ref_data_type_to_influx_type};
 use crate::plan::{error, util, SchemaProvider};
 use datafusion::common::{DataFusionError, Result};
 use influxdb_influxql_parser::common::{MeasurementName, QualifiedMeasurementName};
@@ -13,11 +14,13 @@ use influxdb_influxql_parser::functions::is_scalar_math_function;
 use influxdb_influxql_parser::identifier::Identifier;
 use influxdb_influxql_parser::literal::Literal;
 use influxdb_influxql_parser::select::{
-    Dimension, Field, FillClause, FromMeasurementClause, GroupByClause, MeasurementSelection,
+    Dimension, FillClause, FromMeasurementClause, GroupByClause, MeasurementSelection,
     SelectStatement,
 };
 use itertools::Itertools;
+use schema::InfluxColumnType;
 use std::collections::{HashMap, HashSet};
+use std::fmt::Debug;
 use std::ops::{ControlFlow, Deref};
 
 /// Recursively rewrite the specified [`SelectStatement`] by performing a series of passes
@@ -61,12 +64,11 @@ fn has_multiple_measurements(s: &Select) -> bool {
 /// Map a `SelectStatement` to a `Select`, which is an intermediate representation to be
 /// used by the InfluxQL planner. Mapping may perform other transformations, such as also
 /// expanding wildcards.
-pub(super) fn map_select(s: &dyn SchemaProvider, stmt: &SelectStatement) -> Result<Select> {
+fn map_select(s: &dyn SchemaProvider, stmt: &SelectStatement) -> Result<Select> {
     check_features(stmt)?;
 
-    let from = from_expand_wildcards(s, stmt)?;
-    let (mut fields, group_by) = field_list_expand_wildcards(s, stmt, &from)?;
-    field_list_rewrite_aliases(&mut fields)?;
+    let from = expand_from(s, stmt)?;
+    let (fields, group_by) = expand_projection(s, stmt, &from)?;
 
     let SelectStatementInfo { projection_type } =
         select_statement_info(&fields, &group_by, stmt.fill)?;
@@ -112,7 +114,7 @@ fn field_list_normalize_time(stmt: &mut Select) {
             .fields
             .iter()
             .find_position(
-                |f| matches!(&f.expr, Expr::VarRef(VarRef { name, .. }) if name.deref() == "time"),
+                |c| matches!(&c.expr, Expr::VarRef(VarRef { name, .. }) if name.deref() == "time"),
             )
             .map(|(i, _)| i)
         {
@@ -120,22 +122,24 @@ fn field_list_normalize_time(stmt: &mut Select) {
             Some(idx) => Some(stmt.fields.remove(idx)),
             None => Some(Field {
                 expr: "time".to_var_ref_expr(),
-                alias: None,
+                name: "time".to_owned(),
+                data_type: None,
             }),
         } {
             stmt.fields.insert(0, f)
         }
 
-        let f = &mut stmt.fields[0];
+        let c = &mut stmt.fields[0];
+        c.data_type = Some(InfluxColumnType::Timestamp);
 
         // time aliases in subqueries is ignored
-        if f.alias.is_none() || is_subquery {
-            f.alias = Some("time".into())
+        if is_subquery {
+            c.name = "time".to_owned()
         }
 
         if let Expr::VarRef(VarRef {
             ref mut data_type, ..
-        }) = f.expr
+        }) = c.expr
         {
             *data_type = Some(VarRefDataType::Timestamp);
         }
@@ -152,10 +156,7 @@ fn field_list_normalize_time(stmt: &mut Select) {
 }
 
 /// Recursively expand the `from` clause of `stmt` and any subqueries.
-fn from_expand_wildcards(
-    s: &dyn SchemaProvider,
-    stmt: &SelectStatement,
-) -> Result<Vec<DataSource>> {
+fn expand_from(s: &dyn SchemaProvider, stmt: &SelectStatement) -> Result<Vec<DataSource>> {
     let mut new_from = Vec::new();
     for ms in stmt.from.iter() {
         match ms {
@@ -190,7 +191,6 @@ fn from_expand_wildcards(
 /// Recursively drop any measurements of the `from` clause of `stmt` that do not project
 /// any fields.
 fn from_drop_empty(s: &dyn SchemaProvider, stmt: &mut Select) {
-    use schema::InfluxColumnType;
     stmt.from.retain_mut(|tr| {
         match tr {
             DataSource::Table(name) => {
@@ -264,22 +264,20 @@ fn from_field_and_dimensions(
                 ts.extend(tag_set);
             }
             DataSource::Subquery(select) => {
-                let tv = TypeEvaluator::new(s, &select.from);
                 for f in &select.fields {
-                    let Some(dt) = tv.eval_type(&f.expr)? else {
-                        continue
-                    };
-
-                    let name = field_name(f);
+                    let Field {
+                        name, data_type, ..
+                    } = f;
+                    let Some(dt) = influx_type_to_var_ref_data_type(*data_type) else { continue };
 
                     match fs.get(name.as_str()) {
                         Some(existing_type) => {
                             if dt < *existing_type {
-                                fs.insert(name, dt);
+                                fs.insert(name.to_owned(), dt);
                             }
                         }
                         None => {
-                            fs.insert(name, dt);
+                            fs.insert(name.to_owned(), dt);
                         }
                     }
                 }
@@ -339,6 +337,148 @@ fn has_wildcards(stmt: &SelectStatement) -> (bool, bool) {
     (res.0, res.1)
 }
 
+/// Traverse expressions of all `fields` and expand wildcard or regular expressions
+/// either at the top-level or as the first argument of function calls, such as `SUM(*)`.
+///
+/// `var_refs` contains the list of
+fn fields_expand_wildcards(
+    fields: Vec<influxdb_influxql_parser::select::Field>,
+    var_refs: Vec<VarRef>,
+) -> Result<Vec<influxdb_influxql_parser::select::Field>> {
+    let mut new_fields = Vec::new();
+
+    for f in fields {
+        let add_field = |f: &VarRef| {
+            new_fields.push(influxdb_influxql_parser::select::Field {
+                expr: Expr::VarRef(f.clone()),
+                alias: None,
+            })
+        };
+
+        match &f.expr {
+            Expr::Wildcard(wct) => {
+                let filter: fn(&&VarRef) -> bool = match wct {
+                    None => |_| true,
+                    Some(WildcardType::Tag) => |v| v.data_type.map_or(false, |dt| dt.is_tag_type()),
+                    Some(WildcardType::Field) => {
+                        |v| v.data_type.map_or(false, |dt| dt.is_field_type())
+                    }
+                };
+
+                var_refs.iter().filter(filter).for_each(add_field);
+            }
+
+            Expr::Literal(Literal::Regex(re)) => {
+                let re = util::parse_regex(re)?;
+                var_refs
+                    .iter()
+                    .filter(|v| re.is_match(v.name.as_str()))
+                    .for_each(add_field);
+            }
+
+            Expr::Call(Call { name, args }) => {
+                let mut name = name;
+                let mut args = args;
+
+                // Search for the call with a wildcard by continuously descending until
+                // we no longer have a call.
+                while let Some(Expr::Call(Call {
+                    name: inner_name,
+                    args: inner_args,
+                })) = args.first()
+                {
+                    name = inner_name;
+                    args = inner_args;
+                }
+
+                // a list of supported types that may be selected from the var_refs
+                // vector when expanding wildcards in functions.
+                let mut supported_types = HashSet::from([
+                    Some(VarRefDataType::Float),
+                    Some(VarRefDataType::Integer),
+                    Some(VarRefDataType::Unsigned),
+                ]);
+
+                // Modify the supported types for certain functions.
+                match name.to_lowercase().as_str() {
+                    "count" | "first" | "last" | "distinct" | "elapsed" | "mode" | "sample" => {
+                        supported_types
+                            .extend([Some(VarRefDataType::String), Some(VarRefDataType::Boolean)]);
+                    }
+                    "min" | "max" => {
+                        supported_types.insert(Some(VarRefDataType::Boolean));
+                    }
+                    "holt_winters" | "holt_winters_with_fit" => {
+                        supported_types.remove(&Some(VarRefDataType::Unsigned));
+                    }
+                    _ => {}
+                }
+
+                let add_field = |v: &VarRef| {
+                    let mut args = args.clone();
+                    args[0] = Expr::VarRef(v.clone());
+                    new_fields.push(influxdb_influxql_parser::select::Field {
+                        expr: Expr::Call(Call {
+                            name: name.clone(),
+                            args,
+                        }),
+                        alias: Some(format!("{}_{}", field_name(&f), v.name).into()),
+                    })
+                };
+
+                match args.first() {
+                    Some(Expr::Wildcard(Some(WildcardType::Tag))) => {
+                        return error::query(format!("unable to use tag as wildcard in {name}()"));
+                    }
+                    Some(Expr::Wildcard(_)) => {
+                        var_refs
+                            .iter()
+                            .filter(|v| supported_types.contains(&v.data_type))
+                            .for_each(add_field);
+                    }
+                    Some(Expr::Literal(Literal::Regex(re))) => {
+                        let re = util::parse_regex(re)?;
+                        var_refs
+                            .iter()
+                            .filter(|v| {
+                                supported_types.contains(&v.data_type)
+                                    && re.is_match(v.name.as_str())
+                            })
+                            .for_each(add_field);
+                    }
+                    _ => {
+                        new_fields.push(f);
+                        continue;
+                    }
+                }
+            }
+
+            Expr::Binary { .. } => {
+                let has_wildcard = walk_expr(&f.expr, &mut |e| {
+                    if matches!(e, Expr::Wildcard(_) | Expr::Literal(Literal::Regex(_))) {
+                        ControlFlow::Break(())
+                    } else {
+                        ControlFlow::Continue(())
+                    }
+                })
+                .is_break();
+
+                if has_wildcard {
+                    return error::query(
+                        "unsupported binary expression: contains a wildcard or regular expression",
+                    );
+                }
+
+                new_fields.push(f);
+            }
+
+            _ => new_fields.push(f),
+        }
+    }
+
+    Ok(new_fields)
+}
+
 /// Rewrite the projection list and GROUP BY of the specified `SELECT` statement.
 ///
 /// The following transformations are performed:
@@ -348,13 +488,13 @@ fn has_wildcards(stmt: &SelectStatement) -> (bool, bool) {
 ///   underlying schema.
 ///
 /// Derived from [Go implementation](https://github.com/influxdata/influxql/blob/1ba470371ec093d57a726b143fe6ccbacf1b452b/ast.go#L1185).
-fn field_list_expand_wildcards(
+fn expand_projection(
     s: &dyn SchemaProvider,
     stmt: &SelectStatement,
     from: &[DataSource],
 ) -> Result<(Vec<Field>, Option<GroupByClause>)> {
     let tv = TypeEvaluator::new(s, from);
-    let mut fields = stmt
+    let fields = stmt
         .fields
         .iter()
         .map(|f| (f.expr.clone(), f.alias.clone()))
@@ -391,265 +531,151 @@ fn field_list_expand_wildcards(
                 _ => ControlFlow::Continue(()),
             }) {
                 ControlFlow::Break(err) => Err(err),
-                ControlFlow::Continue(()) => Ok(Field { expr, alias }),
+                ControlFlow::Continue(()) => {
+                    Ok(influxdb_influxql_parser::select::Field { expr, alias })
+                }
             }
         })
         .collect::<Result<Vec<_>>>()?;
 
     let (has_field_wildcard, has_group_by_wildcard) = has_wildcards(stmt);
-    if (has_field_wildcard, has_group_by_wildcard) == (false, false) {
-        return Ok((fields, stmt.group_by.clone()));
-    }
 
-    let (field_set, mut tag_set) = from_field_and_dimensions(s, from)?;
+    let (fields, group_by) = if has_field_wildcard || has_group_by_wildcard {
+        let (field_set, mut tag_set) = from_field_and_dimensions(s, from)?;
 
-    if !has_group_by_wildcard {
-        if let Some(group_by) = &stmt.group_by {
-            // Remove any explicitly listed tags in the GROUP BY clause, so they are not expanded
-            // in the wildcard specified in the SELECT projection list
-            group_by.iter().for_each(|dim| {
-                if let Dimension::Tag(ident) = dim {
-                    tag_set.remove(ident.as_str());
-                }
-            });
-        }
-    }
-
-    let fields = if has_field_wildcard {
-        let var_refs = if field_set.is_empty() {
-            vec![]
-        } else {
-            let fields_iter = field_set.iter().map(|(k, v)| VarRef {
-                name: k.clone().into(),
-                data_type: Some(*v),
-            });
-
-            if !has_group_by_wildcard {
-                fields_iter
-                    .chain(tag_set.iter().map(|tag| VarRef {
-                        name: tag.clone().into(),
-                        data_type: Some(VarRefDataType::Tag),
-                    }))
-                    .sorted()
-                    .collect::<Vec<_>>()
-            } else {
-                fields_iter.sorted().collect::<Vec<_>>()
+        if !has_group_by_wildcard {
+            if let Some(group_by) = &stmt.group_by {
+                // Remove any explicitly listed tags in the GROUP BY clause, so they are not expanded
+                // in the wildcard specified in the SELECT projection list
+                group_by.iter().for_each(|dim| {
+                    if let Dimension::Tag(ident) = dim {
+                        tag_set.remove(ident.as_str());
+                    }
+                });
             }
-        };
+        }
 
-        let mut new_fields = Vec::new();
+        let fields = if has_field_wildcard {
+            let var_refs = if field_set.is_empty() {
+                vec![]
+            } else {
+                let fields_iter = field_set.iter().map(|(k, v)| VarRef {
+                    name: k.clone().into(),
+                    data_type: Some(*v),
+                });
 
-        for f in fields {
-            let add_field = |f: &VarRef| {
-                new_fields.push(Field {
-                    expr: Expr::VarRef(f.clone()),
-                    alias: None,
-                })
+                if !has_group_by_wildcard {
+                    fields_iter
+                        .chain(tag_set.iter().map(|tag| VarRef {
+                            name: tag.clone().into(),
+                            data_type: Some(VarRefDataType::Tag),
+                        }))
+                        .sorted()
+                        .collect::<Vec<_>>()
+                } else {
+                    fields_iter.sorted().collect::<Vec<_>>()
+                }
             };
 
-            match &f.expr {
-                Expr::Wildcard(wct) => {
-                    let filter: fn(&&VarRef) -> bool = match wct {
-                        None => |_| true,
-                        Some(WildcardType::Tag) => {
-                            |v| v.data_type.map_or(false, |dt| dt.is_tag_type())
-                        }
-                        Some(WildcardType::Field) => {
-                            |v| v.data_type.map_or(false, |dt| dt.is_field_type())
-                        }
+            fields_expand_wildcards(fields, var_refs)?
+        } else {
+            fields
+        };
+
+        let group_by = match (&stmt.group_by, has_group_by_wildcard) {
+            // GROUP BY with a wildcard
+            (Some(group_by), true) => {
+                let group_by_tags = tag_set.into_iter().sorted().collect::<Vec<_>>();
+                let mut new_dimensions = Vec::new();
+
+                for dim in group_by.iter() {
+                    let add_dim = |dim: &String| {
+                        new_dimensions.push(Dimension::Tag(Identifier::new(dim.clone())))
                     };
 
-                    var_refs.iter().filter(filter).for_each(add_field);
-                }
-
-                Expr::Literal(Literal::Regex(re)) => {
-                    let re = util::parse_regex(re)?;
-                    var_refs
-                        .iter()
-                        .filter(|v| re.is_match(v.name.as_str()))
-                        .for_each(add_field);
-                }
-
-                Expr::Call(Call { name, args }) => {
-                    let mut name = name;
-                    let mut args = args;
-
-                    // Search for the call with a wildcard by continuously descending until
-                    // we no longer have a call.
-                    while let Some(Expr::Call(Call {
-                        name: inner_name,
-                        args: inner_args,
-                    })) = args.first()
-                    {
-                        name = inner_name;
-                        args = inner_args;
-                    }
-
-                    let mut supported_types = HashSet::from([
-                        Some(VarRefDataType::Float),
-                        Some(VarRefDataType::Integer),
-                        Some(VarRefDataType::Unsigned),
-                    ]);
-
-                    // Add additional types for certain functions.
-                    match name.to_lowercase().as_str() {
-                        "count" | "first" | "last" | "distinct" | "elapsed" | "mode" | "sample" => {
-                            supported_types.extend([
-                                Some(VarRefDataType::String),
-                                Some(VarRefDataType::Boolean),
-                            ]);
+                    match dim {
+                        Dimension::Wildcard => {
+                            group_by_tags.iter().for_each(add_dim);
                         }
-                        "min" | "max" => {
-                            supported_types.insert(Some(VarRefDataType::Boolean));
-                        }
-                        "holt_winters" | "holt_winters_with_fit" => {
-                            supported_types.remove(&Some(VarRefDataType::Unsigned));
-                        }
-                        _ => {}
-                    }
-
-                    let add_field = |v: &VarRef| {
-                        let mut args = args.clone();
-                        args[0] = Expr::VarRef(v.clone());
-                        new_fields.push(Field {
-                            expr: Expr::Call(Call {
-                                name: name.clone(),
-                                args,
-                            }),
-                            alias: Some(format!("{}_{}", field_name(&f), v.name).into()),
-                        })
-                    };
-
-                    match args.first() {
-                        Some(Expr::Wildcard(Some(WildcardType::Tag))) => {
-                            return error::query(format!(
-                                "unable to use tag as wildcard in {name}()"
-                            ));
-                        }
-                        Some(Expr::Wildcard(_)) => {
-                            var_refs
-                                .iter()
-                                .filter(|v| supported_types.contains(&v.data_type))
-                                .for_each(add_field);
-                        }
-                        Some(Expr::Literal(Literal::Regex(re))) => {
+                        Dimension::Regex(re) => {
                             let re = util::parse_regex(re)?;
-                            var_refs
+
+                            group_by_tags
                                 .iter()
-                                .filter(|v| {
-                                    supported_types.contains(&v.data_type)
-                                        && re.is_match(v.name.as_str())
-                                })
-                                .for_each(add_field);
+                                .filter(|dim| re.is_match(dim.as_str()))
+                                .for_each(add_dim);
                         }
-                        _ => {
-                            new_fields.push(f);
-                            continue;
-                        }
+                        _ => new_dimensions.push(dim.clone()),
                     }
                 }
-
-                Expr::Binary { .. } => {
-                    let has_wildcard = walk_expr(&f.expr, &mut |e| {
-                        match e {
-                            Expr::Wildcard(_) | Expr::Literal(Literal::Regex(_)) => {
-                                return ControlFlow::Break(())
-                            }
-                            _ => {}
-                        }
-                        ControlFlow::Continue(())
-                    })
-                    .is_break();
-
-                    if has_wildcard {
-                        return error::query(
-                            "unsupported expression: contains a wildcard or regular expression",
-                        );
-                    }
-
-                    new_fields.push(f);
-                }
-
-                _ => new_fields.push(f),
+                Some(GroupByClause::new(new_dimensions))
             }
-        }
+            // GROUP BY no wildcard
+            (Some(group_by), false) => Some(group_by.clone()),
+            // No GROUP BY
+            (None, _) => None,
+        };
 
-        new_fields
+        (fields, group_by)
     } else {
-        fields
+        (fields, stmt.group_by.clone())
     };
 
-    let group_by = match (&stmt.group_by, has_group_by_wildcard) {
-        // GROUP BY with a wildcard
-        (Some(group_by), true) => {
-            let group_by_tags = tag_set.into_iter().sorted().collect::<Vec<_>>();
-            let mut new_dimensions = Vec::new();
-
-            for dim in group_by.iter() {
-                let add_dim = |dim: &String| {
-                    new_dimensions.push(Dimension::Tag(Identifier::new(dim.clone())))
-                };
-
-                match dim {
-                    Dimension::Wildcard => {
-                        group_by_tags.iter().for_each(add_dim);
-                    }
-                    Dimension::Regex(re) => {
-                        let re = util::parse_regex(re)?;
-
-                        group_by_tags
-                            .iter()
-                            .filter(|dim| re.is_match(dim.as_str()))
-                            .for_each(add_dim);
-                    }
-                    _ => new_dimensions.push(dim.clone()),
-                }
-            }
-            Some(GroupByClause::new(new_dimensions))
-        }
-        // GROUP BY no wildcard
-        (Some(group_by), false) => Some(group_by.clone()),
-        // No GROUP BY
-        (None, _) => None,
-    };
-
-    Ok((fields, group_by))
+    Ok((fields_resolve_aliases_and_types(s, fields, from)?, group_by))
 }
 
-/// Resolve the projection list column names in accordance with the
-/// [original implementation]. The names are assigned to the `alias` field of the [`Field`] struct.
+/// Resolve the projection list column names and data types.
+/// Column names are resolved in accordance with the [original implementation].
 ///
 /// [original implementation]: https://github.com/influxdata/influxql/blob/1ba470371ec093d57a726b143fe6ccbacf1b452b/ast.go#L1651
-fn field_list_rewrite_aliases(field_list: &mut [Field]) -> Result<()> {
-    let names = field_list.iter().map(field_name).collect::<Vec<_>>();
+fn fields_resolve_aliases_and_types(
+    s: &dyn SchemaProvider,
+    fields: Vec<influxdb_influxql_parser::select::Field>,
+    from: &[DataSource],
+) -> Result<Vec<Field>> {
+    let names = fields.iter().map(field_name).collect::<Vec<_>>();
     let mut column_aliases = HashMap::<&str, _>::from_iter(names.iter().map(|f| (f.as_str(), 0)));
+
+    let tv = TypeEvaluator::new(s, from);
+
     names
         .iter()
-        .zip(field_list.iter_mut())
-        .for_each(|(name, field)| {
-            // Generate a new name if there is an existing alias
-            field.alias = Some(match column_aliases.get(name.as_str()) {
+        .zip(fields.into_iter())
+        .map(|(name, field)| {
+            let expr = field.expr;
+            let data_type = tv.eval_type(&expr)?;
+            let name = match column_aliases.get(name.as_str()) {
                 Some(0) => {
                     column_aliases.insert(name, 1);
-                    name.as_str().into()
+                    name.to_owned()
                 }
                 Some(count) => {
                     let mut count = *count;
+                    let mut resolved_name = name.to_owned();
+                    resolved_name.push('_');
+                    let orig_len = resolved_name.len();
+
                     loop {
-                        let resolved_name = format!("{name}_{count}");
+                        resolved_name.push_str(count.to_string().as_str());
                         if column_aliases.contains_key(resolved_name.as_str()) {
                             count += 1;
+                            resolved_name.truncate(orig_len)
                         } else {
                             column_aliases.insert(name, count + 1);
-                            break resolved_name.as_str().into();
+                            break resolved_name;
                         }
                     }
                 }
                 None => unreachable!(),
-            })
-        });
+            };
 
-    Ok(())
+            Ok(Field {
+                expr,
+                name,
+                data_type: var_ref_data_type_to_influx_type(data_type),
+            })
+        })
+        .collect::<Result<Vec<_>>>()
 }
 
 /// Check the length of the arguments slice is within
@@ -1371,7 +1397,7 @@ fn select_statement_info(
 #[cfg(test)]
 mod test {
     use super::Result;
-    use crate::plan::ir::Select;
+    use crate::plan::ir::{Field, Select};
     use crate::plan::rewriter::{
         has_wildcards, map_select, rewrite_statement, ProjectionType, SelectStatementInfo,
     };
@@ -1433,7 +1459,16 @@ mod test {
     #[test]
     fn test_select_statement_info_functions() {
         fn select_statement_info(q: &SelectStatement) -> Result<SelectStatementInfo> {
-            super::select_statement_info(&q.fields, &q.group_by, q.fill)
+            let columns = q
+                .fields
+                .iter()
+                .map(|f| Field {
+                    expr: f.expr.clone(),
+                    name: "".to_owned(),
+                    data_type: None,
+                })
+                .collect::<Vec<_>>();
+            super::select_statement_info(&columns, &q.group_by, q.fill)
         }
 
         // percentile
@@ -1898,6 +1933,22 @@ mod test {
         fn fallible() {
             let namespace = MockSchemaProvider::default();
 
+            // invalid expression, combining float and string fields
+            let stmt = parse_select("SELECT field_f64 + field_str FROM all_types");
+            let err = rewrite_statement(&namespace, &stmt).unwrap_err();
+            assert_contains!(
+                err.to_string(),
+                "Error during planning: incompatible operands for operator +: float and string"
+            );
+
+            // invalid expression, combining string and string fields, which is compatible with InfluxQL
+            let stmt = parse_select("SELECT field_str + field_str FROM all_types");
+            let err = rewrite_statement(&namespace, &stmt).unwrap_err();
+            assert_contains!(
+                err.to_string(),
+                "Error during planning: incompatible operands for operator +: string and string"
+            );
+
             // Invalid regex
             let stmt = parse_select("SELECT usage_idle FROM /(not/");
             let err = rewrite_statement(&namespace, &stmt).unwrap_err();
@@ -1907,7 +1958,14 @@ mod test {
             let err = rewrite_statement(&namespace, &stmt).unwrap_err();
             assert_eq!(
                 err.to_string(),
-                "Error during planning: unsupported expression: contains a wildcard or regular expression"
+                "Error during planning: unsupported binary expression: contains a wildcard or regular expression"
+            );
+
+            let stmt = parse_select("SELECT COUNT(*) + SUM(usage_idle) FROM cpu");
+            let err = rewrite_statement(&namespace, &stmt).unwrap_err();
+            assert_eq!(
+                err.to_string(),
+                "Error during planning: unsupported binary expression: contains a wildcard or regular expression"
             );
 
             let stmt = parse_select("SELECT COUNT(*::tag) FROM cpu");

@@ -1,6 +1,6 @@
 mod select;
 
-use crate::plan::ir::{DataSource, Select, SelectQuery};
+use crate::plan::ir::{DataSource, Field, Select, SelectQuery};
 use crate::plan::planner::select::{
     check_exprs_satisfy_columns, fields_to_exprs_no_nulls, make_tag_key_column_meta, plan_with_sort,
 };
@@ -54,7 +54,7 @@ use influxdb_influxql_parser::{
     common::{MeasurementName, WhereClause},
     expression::Expr as IQLExpr,
     literal::Literal,
-    select::{Field, SelectStatement},
+    select::SelectStatement,
     statement::Statement,
 };
 use iox_query::config::{IoxConfigExt, MetadataCutoff};
@@ -329,7 +329,8 @@ impl<'a> InfluxQLToLogicalPlan<'a> {
                                     name: (*col).into(),
                                     data_type: Some(VarRefDataType::Tag),
                                 }),
-                                alias: Some((*col).into()),
+                                name: col.to_string(),
+                                data_type: Some(InfluxColumnType::Tag),
                             }),
                         }),
                 );
@@ -394,11 +395,7 @@ impl<'a> InfluxQLToLogicalPlan<'a> {
 
         // the sort planner node must refer to the time column using
         // the alias that was specified
-        let time_alias = fields[0]
-            .alias
-            .as_ref()
-            .map(|id| id.deref().as_str())
-            .unwrap_or("time");
+        let time_alias = fields[0].name.as_str();
 
         let time_sort_expr = time_alias.as_expr().sort(
             match select.order_by {
@@ -478,7 +475,8 @@ impl<'a> InfluxQLToLogicalPlan<'a> {
                                     name: (*col).into(),
                                     data_type: Some(VarRefDataType::Tag),
                                 }),
-                                alias: Some((*col).into()),
+                                name: col.to_string(),
+                                data_type: Some(InfluxColumnType::Tag),
                             }),
                         }),
                 );
@@ -531,11 +529,7 @@ impl<'a> InfluxQLToLogicalPlan<'a> {
 
         // the sort planner node must refer to the time column using
         // the alias that was specified
-        let time_alias = fields[0]
-            .alias
-            .as_ref()
-            .map(|id| id.deref().as_str())
-            .unwrap_or("time");
+        let time_alias = fields[0].name.as_str();
 
         let time_sort_expr = time_alias.as_expr().sort(
             match select.order_by {
@@ -725,22 +719,14 @@ impl<'a> InfluxQLToLogicalPlan<'a> {
                     group_by_exprs.push(select_exprs[time_column_index].clone());
                 }
 
-                if let DataSource::Table(table_name) = ds {
-                    // If this is a table, exclude tags that do not exist in the current schema
-                    let schema = self
-                        .s
-                        .table_schema(table_name)
-                        .ok_or_else(|| error::map::internal("expected table"))?;
-                    group_by_exprs.extend(group_by_tag_set.iter().filter_map(|name| {
-                        if let Some(InfluxColumnType::Tag) = schema.field_type_by_name(name) {
-                            Some(name.as_expr())
-                        } else {
-                            None
-                        }
-                    }));
-                } else {
-                    group_by_exprs.extend(group_by_tag_set.iter().map(|name| name.as_expr()));
-                }
+                let schema = ds.schema(self.s)?;
+                group_by_exprs.extend(group_by_tag_set.iter().filter_map(|name| {
+                    if let Some(InfluxColumnType::Tag) = schema.field_type_by_name(name) {
+                        Some(name.as_expr())
+                    } else {
+                        None
+                    }
+                }));
             }
 
             group_by_exprs
@@ -1020,14 +1006,7 @@ impl<'a> InfluxQLToLogicalPlan<'a> {
         let expr =
             self.expr_to_df_expr(&ctx.with_scope(ExprScope::Projection), &field.expr, schemas)?;
         let expr = planner_rewrite_expression::rewrite_field_expr(expr, schemas)?;
-        normalize_col(
-            if let Some(alias) = &field.alias {
-                expr.alias(alias.deref())
-            } else {
-                expr
-            },
-            plan,
-        )
+        normalize_col(expr.alias(&field.name), plan)
     }
 
     /// Map an InfluxQL [`ConditionalExpression`] to a DataFusion [`Expr`].
@@ -2237,12 +2216,10 @@ fn conditional_op_to_operator(op: ConditionalOperator) -> Result<Operator> {
 /// >
 /// > To match InfluxQL, the `time` column must not exist as part of a
 /// > complex expression.
-pub(crate) fn find_time_column_index(fields: &[Field]) -> Option<usize> {
+fn find_time_column_index(fields: &[Field]) -> Option<usize> {
     fields
         .iter()
-        .find_position(
-            |f| matches!(&f.expr, IQLExpr::VarRef(VarRef { name, .. }) if name.deref() == "time"),
-        )
+        .find_position(|f| matches!(f.data_type, Some(InfluxColumnType::Timestamp)))
         .map(|(i, _)| i)
 }
 
