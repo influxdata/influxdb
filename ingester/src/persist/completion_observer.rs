@@ -1,7 +1,9 @@
-use std::{fmt::Debug, sync::Arc};
+use std::{fmt::Debug, sync::Arc, time::Duration};
 
 use async_trait::async_trait;
-use data_types::{sequence_number_set::SequenceNumberSet, NamespaceId, PartitionId, TableId};
+use data_types::{
+    sequence_number_set::SequenceNumberSet, NamespaceId, ParquetFileParams, PartitionId, TableId,
+};
 
 /// An abstract observer of persistence completion events.
 ///
@@ -24,10 +26,8 @@ pub(crate) trait PersistCompletionObserver: Send + Sync + Debug {
 /// A set of details describing the persisted data.
 #[derive(Debug)]
 pub struct CompletedPersist {
-    /// The catalog identifiers for the persisted partition.
-    namespace_id: NamespaceId,
-    table_id: TableId,
-    partition_id: PartitionId,
+    /// The catalog metadata for the persist operation.
+    meta: ParquetFileParams,
 
     /// The [`SequenceNumberSet`] of the persisted data.
     sequence_numbers: SequenceNumberSet,
@@ -35,33 +35,26 @@ pub struct CompletedPersist {
 
 impl CompletedPersist {
     /// Construct a new completion notification.
-    pub(crate) fn new(
-        namespace_id: NamespaceId,
-        table_id: TableId,
-        partition_id: PartitionId,
-        sequence_numbers: SequenceNumberSet,
-    ) -> Self {
+    pub(crate) fn new(meta: ParquetFileParams, sequence_numbers: SequenceNumberSet) -> Self {
         Self {
-            namespace_id,
-            table_id,
-            partition_id,
+            meta,
             sequence_numbers,
         }
     }
 
     /// Returns the [`NamespaceId`] of the persisted data.
     pub(crate) fn namespace_id(&self) -> NamespaceId {
-        self.namespace_id
+        self.meta.namespace_id
     }
 
     /// Returns the [`TableId`] of the persisted data.
     pub(crate) fn table_id(&self) -> TableId {
-        self.table_id
+        self.meta.table_id
     }
 
     /// Returns the [`PartitionId`] of the persisted data.
     pub(crate) fn partition_id(&self) -> PartitionId {
-        self.partition_id
+        self.meta.partition_id
     }
 
     /// Returns the [`SequenceNumberSet`] of the persisted data.
@@ -84,6 +77,31 @@ impl CompletedPersist {
         Arc::try_unwrap(self)
             .map(|v| v.into_sequence_numbers())
             .unwrap_or_else(|v| v.sequence_numbers().clone())
+    }
+
+    /// The number of rows persisted.
+    pub fn row_count(&self) -> usize {
+        self.meta.row_count as _
+    }
+
+    /// The number of rows persisted.
+    pub fn column_count(&self) -> usize {
+        self.meta.column_set.len()
+    }
+
+    /// The number of rows persisted.
+    pub fn parquet_file_bytes(&self) -> usize {
+        self.meta.file_size_bytes as _
+    }
+
+    /// The duration of time covered by this file (difference between min
+    /// timestamp, and max timestamp).
+    pub fn timestamp_range(&self) -> Duration {
+        let min = iox_time::Time::from(self.meta.min_time);
+        let max = iox_time::Time::from(self.meta.max_time);
+
+        max.checked_duration_since(min)
+            .expect("parquet min/max file timestamp difference is negative")
     }
 }
 
@@ -138,9 +156,30 @@ pub(crate) mod mock {
 
 #[cfg(test)]
 mod tests {
-    use data_types::SequenceNumber;
+    use data_types::{ColumnId, ColumnSet, SequenceNumber, Timestamp};
 
     use super::*;
+
+    const NAMESPACE_ID: NamespaceId = NamespaceId::new(1);
+    const TABLE_ID: TableId = TableId::new(1);
+    const PARTITION_ID: PartitionId = PartitionId::new(1);
+
+    fn arbitrary_file_meta() -> ParquetFileParams {
+        ParquetFileParams {
+            namespace_id: NAMESPACE_ID,
+            table_id: TABLE_ID,
+            partition_id: PARTITION_ID,
+            object_store_id: Default::default(),
+            min_time: Timestamp::new(42),
+            max_time: Timestamp::new(42),
+            file_size_bytes: 42424242,
+            row_count: 24,
+            compaction_level: data_types::CompactionLevel::Initial,
+            created_at: Timestamp::new(1234),
+            column_set: ColumnSet::new([1, 2, 3, 4].into_iter().map(ColumnId::new)),
+            max_l0_created_at: Timestamp::new(42),
+        }
+    }
 
     #[test]
     fn test_owned_sequence_numbers_only_ref() {
@@ -149,9 +188,7 @@ mod tests {
             .collect::<SequenceNumberSet>();
 
         let note = Arc::new(CompletedPersist::new(
-            NamespaceId::new(1),
-            TableId::new(2),
-            PartitionId::new(3),
+            arbitrary_file_meta(),
             orig_set.clone(),
         ));
 
@@ -165,9 +202,7 @@ mod tests {
             .collect::<SequenceNumberSet>();
 
         let note = Arc::new(CompletedPersist::new(
-            NamespaceId::new(1),
-            TableId::new(2),
-            PartitionId::new(3),
+            arbitrary_file_meta(),
             orig_set.clone(),
         ));
 
@@ -175,5 +210,54 @@ mod tests {
 
         assert_eq!(orig_set, note.owned_sequence_numbers());
         assert_eq!(orig_set, note2.owned_sequence_numbers());
+    }
+
+    #[test]
+    fn test_accessors() {
+        let meta = arbitrary_file_meta();
+
+        let note = CompletedPersist::new(meta.clone(), Default::default());
+
+        assert_eq!(note.namespace_id(), meta.namespace_id);
+        assert_eq!(note.table_id(), meta.table_id);
+        assert_eq!(note.partition_id(), meta.partition_id);
+
+        assert_eq!(note.column_count(), meta.column_set.len());
+        assert_eq!(note.row_count(), meta.row_count as usize);
+        assert_eq!(note.parquet_file_bytes(), meta.file_size_bytes as usize);
+    }
+
+    #[test]
+    fn test_timestamp_range() {
+        const RANGE: Duration = Duration::from_secs(42);
+
+        let min = iox_time::Time::from_timestamp_nanos(0);
+        let max = min.checked_add(RANGE).unwrap();
+
+        let mut meta = arbitrary_file_meta();
+        meta.min_time = Timestamp::from(min);
+        meta.max_time = Timestamp::from(max);
+
+        let note = CompletedPersist::new(meta, Default::default());
+
+        assert_eq!(note.timestamp_range(), RANGE);
+    }
+
+    #[test]
+    #[should_panic(expected = "parquet min/max file timestamp difference is negative")]
+    fn test_timestamp_range_negative() {
+        const RANGE: Duration = Duration::from_secs(42);
+
+        let min = iox_time::Time::from_timestamp_nanos(0);
+        let max = min.checked_add(RANGE).unwrap();
+
+        let mut meta = arbitrary_file_meta();
+
+        // Values are the wrong way around!
+        meta.max_time = Timestamp::from(min);
+        meta.min_time = Timestamp::from(max);
+
+        let note = CompletedPersist::new(meta, Default::default());
+        let _ = note.timestamp_range();
     }
 }

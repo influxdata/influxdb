@@ -1,6 +1,6 @@
 use std::sync::Arc;
 
-use data_types::{NamespaceId, PartitionId, PartitionKey, TableId};
+use data_types::{NamespaceId, ParquetFileParams, PartitionId, PartitionKey, TableId};
 use observability_deps::tracing::*;
 use parking_lot::Mutex;
 use schema::sort::SortKey;
@@ -217,8 +217,12 @@ impl Context {
     // Call [`PartitionData::mark_complete`] to finalise the persistence job,
     // emit a log for the user, and notify the observer of this persistence
     // task, if any.
-    pub(super) async fn mark_complete<O>(self, object_store_id: Uuid, completion_observer: &O)
-    where
+    pub(super) async fn mark_complete<O>(
+        self,
+        object_store_id: Uuid,
+        metadata: ParquetFileParams,
+        completion_observer: &O,
+    ) where
         O: PersistCompletionObserver,
     {
         // Mark the partition as having completed persistence, causing it to
@@ -234,12 +238,7 @@ impl Context {
         // Dispatch the completion notification into the observer chain before
         // completing the persist operation.
         completion_observer
-            .persist_complete(Arc::new(CompletedPersist::new(
-                self.namespace_id,
-                self.table_id,
-                self.partition_id,
-                sequence_numbers,
-            )))
+            .persist_complete(Arc::new(CompletedPersist::new(metadata, sequence_numbers)))
             .await;
 
         let now = Instant::now();
