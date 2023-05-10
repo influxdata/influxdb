@@ -69,9 +69,9 @@ impl TestCase {
             // Setup that differs by chunk stage.
             let mut cluster = match chunk_stage {
                 ChunkStage::Ingester => {
-                    MiniCluster::create_shared2_never_persist(database_url.clone()).await
+                    MiniCluster::create_shared_never_persist(database_url.clone()).await
                 }
-                ChunkStage::Parquet => MiniCluster::create_shared2(database_url.clone()).await,
+                ChunkStage::Parquet => MiniCluster::create_shared(database_url.clone()).await,
                 ChunkStage::All => unreachable!("See `impl IntoIterator for ChunkStage`"),
             };
 

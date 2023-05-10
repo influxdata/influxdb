@@ -24,7 +24,7 @@ async fn basic_ingester() {
     let table_name = "the_table";
 
     // Set up the cluster  ====================================
-    let mut cluster = MiniCluster::create_shared2_never_persist(database_url).await;
+    let mut cluster = MiniCluster::create_shared_never_persist(database_url).await;
 
     StepTest::new(
         &mut cluster,
@@ -62,7 +62,7 @@ async fn never_persist_really_never_persists() {
     let table_name = "the_table";
 
     // Set up the cluster  ====================================
-    let mut cluster = MiniCluster::create_shared2_never_persist(database_url).await;
+    let mut cluster = MiniCluster::create_shared_never_persist(database_url).await;
 
     StepTest::new(
         &mut cluster,
@@ -90,7 +90,7 @@ async fn basic_on_parquet() {
     let table_name = "the_table";
 
     // Set up the cluster  ====================================
-    let mut cluster = MiniCluster::create_shared2(database_url).await;
+    let mut cluster = MiniCluster::create_shared(database_url).await;
 
     StepTest::new(
         &mut cluster,
@@ -245,7 +245,7 @@ async fn query_after_persist_sees_new_files() {
     let table_name = "the_table";
 
     // Set up the cluster  ====================================
-    let mut cluster = MiniCluster::create_shared2(database_url).await;
+    let mut cluster = MiniCluster::create_shared(database_url).await;
 
     let steps = vec![
         Step::RecordNumParquetFiles,
@@ -308,7 +308,7 @@ async fn table_not_found_on_ingester() {
 
     // Set up the cluster  ====================================
     // cannot use shared cluster because we're restarting the ingester
-    let mut cluster = MiniCluster::create_non_shared2(database_url).await;
+    let mut cluster = MiniCluster::create_non_shared(database_url).await;
 
     StepTest::new(
         &mut cluster,
@@ -363,7 +363,7 @@ async fn issue_4631_a() {
 
     let database_url = maybe_skip_integration!();
     // Set up a cluster configured to never persist automatically
-    let mut cluster = MiniCluster::create_shared2_never_persist(database_url).await;
+    let mut cluster = MiniCluster::create_shared_never_persist(database_url).await;
 
     let steps = vec![
         Step::RecordNumParquetFiles,
@@ -434,7 +434,7 @@ async fn issue_4631_b() {
     let table_name = "the_table";
 
     // Set up the cluster  ====================================
-    let mut cluster = MiniCluster::create_shared2(database_url).await;
+    let mut cluster = MiniCluster::create_shared(database_url).await;
 
     StepTest::new(
         &mut cluster,
@@ -496,7 +496,7 @@ async fn unsupported_sql_returns_error() {
     let database_url = maybe_skip_integration!();
 
     // Set up the cluster  ====================================
-    let mut cluster = MiniCluster::create_shared2(database_url).await;
+    let mut cluster = MiniCluster::create_shared(database_url).await;
 
     fn make_error_message(name: &str) -> String {
         format!("Error while planning query: This feature is not implemented: Unsupported logical plan: {name}")
@@ -548,7 +548,7 @@ async fn table_or_namespace_not_found() {
     let database_url = maybe_skip_integration!();
 
     // Set up the cluster  ====================================
-    let mut cluster = MiniCluster::create_shared2(database_url).await;
+    let mut cluster = MiniCluster::create_shared(database_url).await;
 
     StepTest::new(
         &mut cluster,
@@ -714,7 +714,7 @@ async fn authz() {
     let mut authz = Authorizer::create().await;
 
     // Set up the cluster  ====================================
-    let mut cluster = MiniCluster::create_non_shared2_with_authz(database_url, authz.addr()).await;
+    let mut cluster = MiniCluster::create_non_shared_with_authz(database_url, authz.addr()).await;
 
     let write_token = authz.create_token_for(cluster.namespace(), &["ACTION_WRITE"]);
     let read_token = authz.create_token_for(cluster.namespace(), &["ACTION_READ"]);

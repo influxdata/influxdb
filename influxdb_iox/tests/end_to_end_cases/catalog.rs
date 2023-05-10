@@ -25,7 +25,7 @@ async fn dsn_file() {
     println!("databse_url is {database_url}");
 
     // Set up the cluster  ====================================
-    let mut cluster = MiniCluster::create_non_shared2(database_url).await;
+    let mut cluster = MiniCluster::create_non_shared(database_url).await;
 
     StepTest::new(
         &mut cluster,

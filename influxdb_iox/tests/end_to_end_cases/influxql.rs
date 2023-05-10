@@ -12,7 +12,7 @@ async fn influxql_returns_error() {
     let table_name = "the_table";
 
     // Set up the cluster  ====================================
-    let mut cluster = MiniCluster::create_shared2(database_url).await;
+    let mut cluster = MiniCluster::create_shared(database_url).await;
 
     StepTest::new(
         &mut cluster,
@@ -49,7 +49,7 @@ async fn influxql_select_returns_results() {
     let table_name = "the_table";
 
     // Set up the cluster  ====================================
-    let mut cluster = MiniCluster::create_shared2(database_url).await;
+    let mut cluster = MiniCluster::create_shared(database_url).await;
 
     StepTest::new(
         &mut cluster,
@@ -86,7 +86,7 @@ async fn authz() {
     let mut authz = Authorizer::create().await;
 
     // Set up the cluster  ====================================
-    let mut cluster = MiniCluster::create_non_shared2_with_authz(database_url, authz.addr()).await;
+    let mut cluster = MiniCluster::create_non_shared_with_authz(database_url, authz.addr()).await;
 
     let write_token = authz.create_token_for(cluster.namespace(), &["ACTION_WRITE"]);
     let read_token = authz.create_token_for(cluster.namespace(), &["ACTION_READ"]);

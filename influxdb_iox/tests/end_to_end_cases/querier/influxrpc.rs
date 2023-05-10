@@ -21,7 +21,7 @@ pub(crate) async fn run_no_data_test(custom: FCustom) {
     let database_url = maybe_skip_integration!();
 
     // Set up the cluster  ====================================
-    let mut cluster = MiniCluster::create_shared2(database_url).await;
+    let mut cluster = MiniCluster::create_shared(database_url).await;
 
     StepTest::new(&mut cluster, vec![Step::Custom(custom)])
         .run()
@@ -34,7 +34,7 @@ pub(crate) async fn run_data_test(generator: Arc<DataGenerator>, custom: FCustom
     let database_url = maybe_skip_integration!();
 
     // Set up the cluster  ====================================
-    let mut cluster = MiniCluster::create_shared2(database_url).await;
+    let mut cluster = MiniCluster::create_shared(database_url).await;
 
     StepTest::new(
         &mut cluster,
@@ -90,7 +90,7 @@ trait InfluxRpcTest: Send + Sync + 'static {
         info!("Using setup {setup_name}");
 
         // Set up the cluster  ====================================
-        let mut cluster = MiniCluster::create_shared2_never_persist(database_url.clone()).await;
+        let mut cluster = MiniCluster::create_shared_never_persist(database_url.clone()).await;
 
         let setup_steps = SETUPS
             .get(setup_name)

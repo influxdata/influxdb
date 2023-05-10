@@ -49,7 +49,7 @@ async fn soft_deletion() {
 
     // Set up the cluster  ====================================
     // cannot use shared cluster because we're going to restart services
-    let mut cluster = MiniCluster::create_non_shared2(database_url).await;
+    let mut cluster = MiniCluster::create_non_shared(database_url).await;
 
     let namespace_name = cluster.namespace().to_string();
     let table_name = "ananas";
