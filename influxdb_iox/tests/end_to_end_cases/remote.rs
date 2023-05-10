@@ -16,7 +16,7 @@ async fn remote_store_get_table() {
     let table_name = "my_awesome_table";
     let other_table_name = "my_ordinary_table";
 
-    let mut cluster = MiniCluster::create_shared2(database_url).await;
+    let mut cluster = MiniCluster::create_shared(database_url).await;
 
     StepTest::new(
         &mut cluster,
@@ -243,7 +243,7 @@ async fn remote_partition_and_get_from_store_and_pull() {
     // The test below assumes a specific partition id, so use a
     // non-shared one here so concurrent tests don't interfere with
     // each other
-    let mut cluster = MiniCluster::create_non_shared2(database_url).await;
+    let mut cluster = MiniCluster::create_non_shared(database_url).await;
 
     StepTest::new(
         &mut cluster,

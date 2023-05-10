@@ -120,7 +120,7 @@ INFLUXDB_IOX_CATALOG_DSN=postgres://postgres@localhost:5432/postgres \
 OBJECT_STORE=file \
 DATABASE_DIRECTORY=~/data_dir \
 LOG_FILTER=info \
-./target/release/influxdb_iox run router2
+./target/release/influxdb_iox run router
 ```
 
 # Step 5: Ingest data
