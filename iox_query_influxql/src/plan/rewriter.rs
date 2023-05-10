@@ -1717,6 +1717,7 @@ mod test {
         use super::*;
         use datafusion::common::Result;
         use influxdb_influxql_parser::select::SelectStatement;
+        use schema::{InfluxColumnType, InfluxFieldType};
 
         /// Test implementation that converts `Select` to `SelectStatement` so that it can be
         /// converted back to a string.
@@ -1726,6 +1727,44 @@ mod test {
         ) -> Result<SelectStatement> {
             let stmt = rewrite_statement(s, q)?;
             Ok(stmt.select.into())
+        }
+
+        #[test]
+        fn projection_schema() {
+            let namespace = MockSchemaProvider::default();
+
+            let stmt = parse_select("SELECT usage_idle, usage_idle + usage_system, cpu FROM cpu");
+            let q = rewrite_statement(&namespace, &stmt).unwrap();
+            // first field is always the time column and thus a Timestamp
+            assert_matches!(
+                q.select.fields[0].data_type,
+                Some(InfluxColumnType::Timestamp)
+            );
+            // usage_idle is a Float
+            assert_matches!(
+                q.select.fields[1].data_type,
+                Some(InfluxColumnType::Field(InfluxFieldType::Float))
+            );
+            // The expression usage_idle + usage_system is a Float
+            assert_matches!(
+                q.select.fields[2].data_type,
+                Some(InfluxColumnType::Field(InfluxFieldType::Float))
+            );
+            // cpu is a Tag
+            assert_matches!(q.select.fields[3].data_type, Some(InfluxColumnType::Tag));
+
+            let stmt = parse_select("SELECT field_i64 + field_f64 FROM all_types");
+            let q = rewrite_statement(&namespace, &stmt).unwrap();
+            // first field is always the time column and thus a Timestamp
+            assert_matches!(
+                q.select.fields[0].data_type,
+                Some(InfluxColumnType::Timestamp)
+            );
+            // Expression is promoted to a Float
+            assert_matches!(
+                q.select.fields[1].data_type,
+                Some(InfluxColumnType::Field(InfluxFieldType::Float))
+            );
         }
 
         /// Validating types for simple projections
