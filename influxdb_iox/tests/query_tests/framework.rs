@@ -76,7 +76,7 @@ impl TestCase {
             };
 
             let given_input_path: PathBuf = self.input.into();
-            let mut input_path = PathBuf::from("tests/query_tests2/");
+            let mut input_path = PathBuf::from("tests/query_tests/");
             input_path.push(given_input_path.clone());
             let contents = fs::read_to_string(&input_path).unwrap_or_else(|_| {
                 panic!("Could not read test case file `{}`", input_path.display())

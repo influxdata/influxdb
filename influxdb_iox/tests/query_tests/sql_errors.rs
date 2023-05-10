@@ -1,6 +1,6 @@
 //! Tests of SQL queries that are expected to return particular errors.
 
-use crate::query_tests2::setups::SETUPS;
+use crate::query_tests::setups::SETUPS;
 use observability_deps::tracing::*;
 use test_helpers_end_to_end::{maybe_skip_integration, MiniCluster, Step, StepTest};
 

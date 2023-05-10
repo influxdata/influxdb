@@ -1,4 +1,4 @@
-use crate::query_tests2::setups::SETUPS;
+use crate::query_tests::setups::SETUPS;
 use data_types::ColumnType;
 use futures::FutureExt;
 use observability_deps::tracing::*;

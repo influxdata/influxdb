@@ -6,7 +6,7 @@ mod read_filter;
 mod read_group;
 mod read_window_aggregate;
 
-use crate::query_tests2::setups::SETUPS;
+use crate::query_tests::setups::SETUPS;
 use async_trait::async_trait;
 use futures::FutureExt;
 use observability_deps::tracing::*;

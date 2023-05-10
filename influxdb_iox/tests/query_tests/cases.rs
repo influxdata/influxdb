@@ -33,7 +33,7 @@
 //! -- IOX_SETUP: OneMeasurementFourChunksWithDuplicates
 //! ```
 //!
-//! To add a new setup, follow the pattern in `influxdb_iox/tests/query_tests2/setups.rs`.
+//! To add a new setup, follow the pattern in `influxdb_iox/tests/query_tests/setups.rs`.
 
 use super::framework::{ChunkStage, TestCase};
 
