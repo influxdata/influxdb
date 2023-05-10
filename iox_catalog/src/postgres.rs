@@ -713,7 +713,7 @@ RETURNING id, name, retention_period_ns, max_tables, max_columns_per_table, dele
 
 #[async_trait]
 impl TableRepo for PostgresTxn {
-    async fn create_or_get(&mut self, name: &str, namespace_id: NamespaceId) -> Result<Table> {
+    async fn create(&mut self, name: &str, namespace_id: NamespaceId) -> Result<Table> {
         // A simple insert statement becomes quite complicated in order to avoid checking the table
         // limits in a select and then conditionally inserting (which would be racey).
         //
@@ -732,8 +732,6 @@ SELECT $1, id FROM (
     WHERE namespace.id = $2
     GROUP BY namespace.max_tables, table_name.namespace_id, namespace.id
 ) AS get_count WHERE count < max_tables
-ON CONFLICT ON CONSTRAINT table_name_unique
-DO UPDATE SET name = table_name.name
 RETURNING *;
         "#,
         )
@@ -747,7 +745,12 @@ RETURNING *;
                 namespace_id,
             },
             _ => {
-                if is_fk_violation(&e) {
+                if is_unique_violation(&e) {
+                    Error::TableNameExists {
+                        name: name.to_string(),
+                        namespace_id,
+                    }
+                } else if is_fk_violation(&e) {
                     Error::ForeignKeyViolation { source: e }
                 } else {
                     Error::SqlxError { source: e }

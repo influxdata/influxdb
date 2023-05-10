@@ -278,7 +278,7 @@ async fn test_write_propagate_ids() {
                     .repositories()
                     .await
                     .tables()
-                    .create_or_get(t, ns.id)
+                    .create(t, ns.id)
                     .await
                     .unwrap();
                 (*t, table.id)

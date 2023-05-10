@@ -42,6 +42,12 @@ pub enum Error {
     #[snafu(display("name {} already exists", name))]
     NameExists { name: String },
 
+    #[snafu(display("A table named {name} already exists in namespace {namespace_id}"))]
+    TableNameExists {
+        name: String,
+        namespace_id: NamespaceId,
+    },
+
     #[snafu(display("unhandled sqlx error: {}", source))]
     SqlxError { source: sqlx::Error },
 
@@ -288,8 +294,9 @@ pub trait NamespaceRepo: Send + Sync {
 /// Functions for working with tables in the catalog
 #[async_trait]
 pub trait TableRepo: Send + Sync {
-    /// Creates the table in the catalog or get the existing record by name.
-    async fn create_or_get(&mut self, name: &str, namespace_id: NamespaceId) -> Result<Table>;
+    /// Creates the table in the catalog. If one in the same namespace with the same name already
+    /// exists, an error is returned.
+    async fn create(&mut self, name: &str, namespace_id: NamespaceId) -> Result<Table>;
 
     /// get table by ID
     async fn get_by_id(&mut self, table_id: TableId) -> Result<Option<Table>>;
@@ -676,6 +683,7 @@ pub(crate) mod test_helpers {
     };
 
     use super::*;
+    use ::test_helpers::assert_error;
     use assert_matches::assert_matches;
     use data_types::{ColumnId, ColumnSet, CompactionLevel};
     use futures::Future;
@@ -707,7 +715,7 @@ pub(crate) mod test_helpers {
 
         let catalog = clean_state().await;
         test_table(Arc::clone(&catalog)).await;
-        assert_metric_hit(&catalog.metrics(), "table_create_or_get");
+        assert_metric_hit(&catalog.metrics(), "table_create");
 
         let catalog = clean_state().await;
         test_column(Arc::clone(&catalog)).await;
@@ -1062,11 +1070,17 @@ pub(crate) mod test_helpers {
         let mut repos = catalog.repositories().await;
         let namespace = arbitrary_namespace(&mut *repos, "namespace_table_test").await;
 
-        // test we can create or get a table
+        // test we can create a table
         let t = arbitrary_table(&mut *repos, "test_table", &namespace).await;
-        let tt = arbitrary_table(&mut *repos, "test_table", &namespace).await;
         assert!(t.id > TableId::new(0));
-        assert_eq!(t, tt);
+
+        // test we get an error if we try to create it again
+        let err = repos.tables().create("test_table", namespace.id).await;
+        assert_error!(
+            err,
+            Error::TableNameExists { ref name, namespace_id }
+                if name == "test_table" && namespace_id == namespace.id
+        );
 
         // get by id
         assert_eq!(t, repos.tables().get_by_id(t.id).await.unwrap().unwrap());
@@ -1088,7 +1102,7 @@ pub(crate) mod test_helpers {
         let namespace2 = arbitrary_namespace(&mut *repos, "two").await;
         assert_ne!(namespace, namespace2);
         let test_table = arbitrary_table(&mut *repos, "test_table", &namespace2).await;
-        assert_ne!(tt, test_table);
+        assert_ne!(t.id, test_table.id);
         assert_eq!(test_table.namespace_id, namespace2.id);
 
         // test get by namespace and name
@@ -1137,8 +1151,11 @@ pub(crate) mod test_helpers {
         );
 
         // All tables should be returned by list(), regardless of namespace
-        let list = repos.tables().list().await.unwrap();
-        assert_eq!(list.as_slice(), [tt, test_table, foo_table]);
+        let mut list = repos.tables().list().await.unwrap();
+        list.sort_by_key(|t| t.id);
+        let mut expected = [t, test_table, foo_table];
+        expected.sort_by_key(|t| t.id);
+        assert_eq!(&list, &expected);
 
         // test per-namespace table limits
         let latest = repos
@@ -1148,7 +1165,7 @@ pub(crate) mod test_helpers {
             .expect("namespace should be updateable");
         let err = repos
             .tables()
-            .create_or_get("definitely_unique", latest.id)
+            .create("definitely_unique", latest.id)
             .await
             .expect_err("should error with table create limit error");
         assert!(matches!(

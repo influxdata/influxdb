@@ -270,16 +270,27 @@ where
             .map(|(table_name, batch)| {
                 let catalog = Arc::clone(&self.catalog);
                 async move {
-                    let id = catalog
+                    match catalog
                         .repositories()
                         .await
                         .tables()
-                        .create_or_get(table_name.as_str(), namespace_id)
+                        .get_by_namespace_and_name(namespace_id, table_name.as_str())
                         .await
-                        .expect("table should create OK")
-                        .id;
-
-                    (id, batch)
+                        .unwrap()
+                    {
+                        Some(table) => (table.id, batch),
+                        None => {
+                            let id = catalog
+                                .repositories()
+                                .await
+                                .tables()
+                                .create(table_name.as_str(), namespace_id)
+                                .await
+                                .expect("table should create OK")
+                                .id;
+                            (id, batch)
+                        }
+                    }
                 }
             })
             .collect::<FuturesUnordered<_>>()

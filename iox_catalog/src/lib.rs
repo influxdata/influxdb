@@ -117,13 +117,18 @@ where
         None => {
             // The table does not exist in the cached schema.
             //
-            // Attempt to create the table in the catalog, or load an existing
-            // table from the catalog to populate the cache.
-            let mut table = repos
+            // Attempt to load an existing table from the catalog or create a new table in the
+            // catalog to populate the cache.
+
+            let table = match repos
                 .tables()
-                .create_or_get(table_name, schema.id)
-                .await
-                .map(|t| TableSchema::new_empty_from(&t))?;
+                .get_by_namespace_and_name(schema.id, table_name)
+                .await?
+            {
+                Some(table) => table,
+                None => repos.tables().create(table_name, schema.id).await?,
+            };
+            let mut table = TableSchema::new_empty_from(&table);
 
             // Always add a time column to all new tables.
             let time_col = repos
@@ -236,23 +241,19 @@ pub mod test_helpers {
     /// When the details of the table don't matter; the test just needs *a* catalog table
     /// with a particular name in a particular namespace.
     ///
-    /// Use [`TableRepo::create_or_get`] directly if:
+    /// Use [`TableRepo::create`] directly if:
     ///
     /// - The values of the parameters to `create_or_get` need to be different than what's here
     /// - The values of the parameters to `create_or_get` are relevant to the behavior under test
     /// - You expect table creation to fail in the test
     ///
-    /// [`TableRepo::create_or_get`]: crate::interface::TableRepo::create_or_get
+    /// [`TableRepo::create`]: crate::interface::TableRepo::create
     pub async fn arbitrary_table<R: RepoCollection + ?Sized>(
         repos: &mut R,
         name: &str,
         namespace: &Namespace,
     ) -> Table {
-        repos
-            .tables()
-            .create_or_get(name, namespace.id)
-            .await
-            .unwrap()
+        repos.tables().create(name, namespace.id).await.unwrap()
     }
 }
 

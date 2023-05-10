@@ -260,7 +260,7 @@ impl NamespaceRepo for MemTxn {
 
 #[async_trait]
 impl TableRepo for MemTxn {
-    async fn create_or_get(&mut self, name: &str, namespace_id: NamespaceId) -> Result<Table> {
+    async fn create(&mut self, name: &str, namespace_id: NamespaceId) -> Result<Table> {
         let stage = self.stage();
 
         // this block is just to ensure the mem impl correctly creates TableCreateLimitError in
@@ -296,7 +296,12 @@ impl TableRepo for MemTxn {
             .iter()
             .find(|t| t.name == name && t.namespace_id == namespace_id)
         {
-            Some(t) => t,
+            Some(_t) => {
+                return Err(Error::TableNameExists {
+                    name: name.to_string(),
+                    namespace_id,
+                })
+            }
             None => {
                 let table = Table {
                     id: TableId::new(stage.tables.len() as i64 + 1),
