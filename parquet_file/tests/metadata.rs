@@ -62,7 +62,7 @@ async fn test_decoded_iox_metadata() {
 
     let mut schema_builder = SchemaBuilder::new();
     for (name, _array, column_type) in &data {
-        schema_builder.influx_column(name, *column_type);
+        schema_builder.influx_column(*name, *column_type);
     }
     let schema = schema_builder.build().unwrap();
 
