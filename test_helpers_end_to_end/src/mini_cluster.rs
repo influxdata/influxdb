@@ -199,7 +199,7 @@ impl MiniCluster {
     pub async fn create_non_shared2(database_url: String) -> Self {
         let ingester_config = TestConfig::new_ingester(&database_url);
         let router_config = TestConfig::new_router2(&ingester_config);
-        let querier_config = TestConfig::new_querier2(&ingester_config);
+        let querier_config = TestConfig::new_querier(&ingester_config);
         let compactor_config = TestConfig::new_compactor(&ingester_config);
 
         // Set up the cluster  ====================================
@@ -220,7 +220,7 @@ impl MiniCluster {
     pub async fn create_non_shared2_never_persist(database_url: String) -> Self {
         let ingester_config = TestConfig::new_ingester_never_persist(&database_url);
         let router_config = TestConfig::new_router2(&ingester_config);
-        let querier_config = TestConfig::new_querier2(&ingester_config);
+        let querier_config = TestConfig::new_querier(&ingester_config);
         let compactor_config = TestConfig::new_compactor(&ingester_config);
 
         // Set up the cluster  ====================================
@@ -247,7 +247,7 @@ impl MiniCluster {
         let router_config =
             TestConfig::new_router2(&ingester_config).with_single_tenancy(authz_addr.clone());
         let querier_config =
-            TestConfig::new_querier2(&ingester_config).with_single_tenancy(authz_addr);
+            TestConfig::new_querier(&ingester_config).with_single_tenancy(authz_addr);
         let compactor_config = TestConfig::new_compactor(&ingester_config);
 
         // Set up the cluster  ====================================

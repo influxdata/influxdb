@@ -104,12 +104,12 @@ impl TestConfig {
         .with_new_wal()
     }
 
-    /// Create a minimal querier2 configuration from the specified ingester configuration, using
+    /// Create a minimal querier configuration from the specified ingester configuration, using
     /// the same dsn and object store, and pointing at the specified ingester.
-    pub fn new_querier2(ingester_config: &TestConfig) -> Self {
+    pub fn new_querier(ingester_config: &TestConfig) -> Self {
         assert_eq!(ingester_config.server_type(), ServerType::Ingester);
 
-        Self::new_querier2_without_ingester(ingester_config)
+        Self::new_querier_without_ingester(ingester_config)
             .with_ingester_addresses(&[ingester_config.ingester_base()])
     }
 
@@ -123,11 +123,11 @@ impl TestConfig {
         .with_existing_object_store(other)
     }
 
-    /// Create a minimal querier2 configuration from the specified ingester configuration, using
+    /// Create a minimal querier configuration from the specified ingester configuration, using
     /// the same dsn and object store, but without specifying the ingester addresses
-    pub fn new_querier2_without_ingester(ingester_config: &TestConfig) -> Self {
+    pub fn new_querier_without_ingester(ingester_config: &TestConfig) -> Self {
         Self::new(
-            ServerType::Querier2,
+            ServerType::Querier,
             ingester_config.dsn().to_owned(),
             ingester_config.catalog_schema_name(),
         )

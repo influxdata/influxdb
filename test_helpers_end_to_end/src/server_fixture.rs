@@ -208,7 +208,7 @@ impl Connections {
         };
 
         self.querier_grpc_connection = match server_type {
-            ServerType::AllInOne | ServerType::Querier2 => {
+            ServerType::AllInOne | ServerType::Querier => {
                 let client_base = test_config.addrs().querier_grpc_api().client_base();
                 Some(
                     grpc_channel(test_config, client_base.as_ref())
@@ -502,7 +502,7 @@ impl TestServer {
                         return;
                     }
                 }
-                ServerType::Querier2 => {
+                ServerType::Querier => {
                     if check_arrow_service_health(
                         server_type,
                         connections.querier_grpc_connection(),
