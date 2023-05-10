@@ -80,7 +80,7 @@ async fn do_read_window_aggregate_test(
     let expected_frames: Vec<String> = expected_frames.into_iter().map(|s| s.to_string()).collect();
 
     // Set up the cluster  ====================================
-    let mut cluster = MiniCluster::create_shared2(database_url).await;
+    let mut cluster = MiniCluster::create_shared(database_url).await;
 
     let line_protocol = input_lines.join("\n");
     StepTest::new(

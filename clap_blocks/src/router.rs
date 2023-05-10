@@ -14,7 +14,7 @@ use std::{
 /// CLI config for the router using the RPC write path
 #[derive(Debug, Clone, clap::Parser)]
 #[allow(missing_copy_implementations)]
-pub struct Router2Config {
+pub struct RouterConfig {
     /// Addr for connection to authz
     #[clap(
         long = CONFIG_AUTHZ_FLAG,
