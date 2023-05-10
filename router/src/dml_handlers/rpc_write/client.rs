@@ -4,20 +4,32 @@ use async_trait::async_trait;
 use generated_types::influxdata::iox::ingester::v1::{
     write_service_client::WriteServiceClient, WriteRequest,
 };
+use thiserror::Error;
 
-use super::RpcWriteError;
+/// Request errors returned by [`WriteClient`] implementations.
+#[derive(Debug, Error)]
+pub enum RpcWriteClientError {
+    /// The upstream connection is not established (lazy connection
+    /// establishment).
+    #[error("upstream {0} is not connected")]
+    UpstreamNotConnected(String),
+
+    /// The upstream ingester returned an error response.
+    #[error("upstream ingester error: {0}")]
+    Upstream(#[from] tonic::Status),
+}
 
 /// An abstract RPC client that pushes `op` to an opaque receiver.
 #[async_trait]
 pub(super) trait WriteClient: Send + Sync + std::fmt::Debug {
     /// Write `op` and wait for a response.
-    async fn write(&self, op: WriteRequest) -> Result<(), RpcWriteError>;
+    async fn write(&self, op: WriteRequest) -> Result<(), RpcWriteClientError>;
 }
 
 /// An implementation of [`WriteClient`] for the tonic gRPC client.
 #[async_trait]
 impl WriteClient for WriteServiceClient<tonic::transport::Channel> {
-    async fn write(&self, op: WriteRequest) -> Result<(), RpcWriteError> {
+    async fn write(&self, op: WriteRequest) -> Result<(), RpcWriteClientError> {
         WriteServiceClient::write(&mut self.clone(), op).await?;
         Ok(())
     }
@@ -31,7 +43,7 @@ pub mod mock {
 
     struct State {
         calls: Vec<WriteRequest>,
-        ret: Box<dyn Iterator<Item = Result<(), RpcWriteError>> + Send + Sync>,
+        ret: Box<dyn Iterator<Item = Result<(), RpcWriteClientError>> + Send + Sync>,
     }
 
     /// A mock implementation of the [`WriteClient`] for testing purposes.
@@ -71,7 +83,7 @@ pub mod mock {
         pub(crate) fn with_ret<T, U>(self, ret: T) -> Self
         where
             T: IntoIterator<IntoIter = U>,
-            U: Iterator<Item = Result<(), RpcWriteError>> + Send + Sync + 'static,
+            U: Iterator<Item = Result<(), RpcWriteClientError>> + Send + Sync + 'static,
         {
             self.state.lock().ret = Box::new(ret.into_iter());
             self
@@ -80,7 +92,7 @@ pub mod mock {
 
     #[async_trait]
     impl WriteClient for Arc<MockWriteClient> {
-        async fn write(&self, op: WriteRequest) -> Result<(), RpcWriteError> {
+        async fn write(&self, op: WriteRequest) -> Result<(), RpcWriteClientError> {
             let mut guard = self.state.lock();
             guard.calls.push(op);
             guard.ret.next().expect("no mock response")
