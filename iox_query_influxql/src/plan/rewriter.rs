@@ -1,7 +1,7 @@
 use crate::plan::expr_type_evaluator::TypeEvaluator;
 use crate::plan::field::{field_by_name, field_name};
-use crate::plan::field_mapper::{field_and_dimensions, FieldTypeMap, TagSet};
-use crate::plan::ir::{DataSource, Field, Select, SelectQuery};
+use crate::plan::field_mapper::{field_and_dimensions, FieldTypeMap};
+use crate::plan::ir::{DataSource, Field, Select, SelectQuery, TagSet};
 use crate::plan::var_ref::{influx_type_to_var_ref_data_type, var_ref_data_type_to_influx_type};
 use crate::plan::{error, util, SchemaProvider};
 use datafusion::common::{DataFusionError, Result};
@@ -284,10 +284,7 @@ fn from_field_and_dimensions(
 
                 if let Some(group_by) = &select.group_by {
                     // Merge the dimensions from the subquery
-                    ts.extend(group_by.iter().filter_map(|d| match d {
-                        Dimension::Tag(ident) => Some(ident.to_string()),
-                        _ => None,
-                    }));
+                    ts.extend(group_by.tags().map(|i| i.deref().to_string()));
                 }
             }
         }
@@ -547,10 +544,8 @@ fn expand_projection(
             if let Some(group_by) = &stmt.group_by {
                 // Remove any explicitly listed tags in the GROUP BY clause, so they are not expanded
                 // in the wildcard specified in the SELECT projection list
-                group_by.iter().for_each(|dim| {
-                    if let Dimension::Tag(ident) = dim {
-                        tag_set.remove(ident.as_str());
-                    }
+                group_by.tags().for_each(|ident| {
+                    tag_set.remove(ident.as_str());
                 });
             }
         }

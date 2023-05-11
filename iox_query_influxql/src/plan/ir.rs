@@ -15,7 +15,11 @@ use influxdb_influxql_parser::select::{
     SelectStatement, TimeZoneClause,
 };
 use schema::{InfluxColumnType, Schema};
+use std::collections::HashSet;
 use std::fmt::{Display, Formatter};
+
+/// A set of tag keys.
+pub(super) type TagSet = HashSet<String>;
 
 /// Represents a validated and normalized top-level [`SelectStatement]`.
 #[derive(Debug, Default, Clone)]

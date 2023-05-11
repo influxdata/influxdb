@@ -1,28 +1,32 @@
+use crate::plan::ir::TagSet;
 use crate::plan::var_ref::{field_type_to_var_ref_data_type, influx_type_to_var_ref_data_type};
 use crate::plan::SchemaProvider;
 use influxdb_influxql_parser::expression::VarRefDataType;
 use schema::InfluxColumnType;
-use std::collections::{HashMap, HashSet};
+use std::collections::HashMap;
 
 pub(crate) type FieldTypeMap = HashMap<String, VarRefDataType>;
-pub(crate) type TagSet = HashSet<String>;
 
 pub(crate) fn field_and_dimensions(
     s: &dyn SchemaProvider,
     name: &str,
 ) -> Option<(FieldTypeMap, TagSet)> {
     s.table_schema(name).map(|iox| {
-        (
-            FieldTypeMap::from_iter(iox.iter().filter_map(|(col_type, f)| match col_type {
-                InfluxColumnType::Field(ft) => {
-                    Some((f.name().clone(), field_type_to_var_ref_data_type(ft)))
+        let mut field_set = FieldTypeMap::new();
+        let mut tag_set = TagSet::new();
+
+        for col in iox.iter() {
+            match col {
+                (InfluxColumnType::Field(ft), f) => {
+                    field_set.insert(f.name().to_owned(), field_type_to_var_ref_data_type(ft));
                 }
-                _ => None,
-            })),
-            iox.tags_iter()
-                .map(|f| f.name().clone())
-                .collect::<TagSet>(),
-        )
+                (InfluxColumnType::Tag, f) => {
+                    tag_set.insert(f.name().to_owned());
+                }
+                (InfluxColumnType::Timestamp, _) => {}
+            }
+        }
+        (field_set, tag_set)
     })
 }
 
