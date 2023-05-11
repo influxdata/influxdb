@@ -1,4 +1,4 @@
-use crate::query_tests2::setups::SETUPS;
+use crate::query_tests::setups::SETUPS;
 use data_types::ColumnType;
 use futures::FutureExt;
 use observability_deps::tracing::*;
@@ -35,7 +35,7 @@ impl SchemaTest {
         info!("Using setup {setup_name}");
 
         // Set up the cluster  ====================================
-        let mut cluster = MiniCluster::create_shared2_never_persist(database_url.clone()).await;
+        let mut cluster = MiniCluster::create_shared_never_persist(database_url.clone()).await;
 
         let setup_steps = SETUPS
             .get(setup_name)

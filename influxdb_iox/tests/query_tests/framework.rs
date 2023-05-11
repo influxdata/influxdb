@@ -69,14 +69,14 @@ impl TestCase {
             // Setup that differs by chunk stage.
             let mut cluster = match chunk_stage {
                 ChunkStage::Ingester => {
-                    MiniCluster::create_shared2_never_persist(database_url.clone()).await
+                    MiniCluster::create_shared_never_persist(database_url.clone()).await
                 }
-                ChunkStage::Parquet => MiniCluster::create_shared2(database_url.clone()).await,
+                ChunkStage::Parquet => MiniCluster::create_shared(database_url.clone()).await,
                 ChunkStage::All => unreachable!("See `impl IntoIterator for ChunkStage`"),
             };
 
             let given_input_path: PathBuf = self.input.into();
-            let mut input_path = PathBuf::from("tests/query_tests2/");
+            let mut input_path = PathBuf::from("tests/query_tests/");
             input_path.push(given_input_path.clone());
             let contents = fs::read_to_string(&input_path).unwrap_or_else(|_| {
                 panic!("Could not read test case file `{}`", input_path.display())

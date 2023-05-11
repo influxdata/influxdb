@@ -1,5 +1,5 @@
 //! Tests that we still support running using deprecated names so that deployments continue to work
-//! while transitioning.
+//! while transitioning. There was never a `querier2` command, so there isn't a test for it here.
 
 use assert_cmd::Command;
 use predicates::prelude::*;
@@ -27,6 +27,26 @@ async fn ingester2_runs_ingester() {
         .stdout(predicate::str::contains(
             "InfluxDB IOx Ingester server ready",
         ));
+}
+
+#[tokio::test]
+async fn router2_runs_router() {
+    let tmpdir = tempdir().unwrap();
+    let addrs = BindAddresses::default();
+
+    Command::cargo_bin("influxdb_iox")
+        .unwrap()
+        .args(["run", "router2", "-v"])
+        .env_clear()
+        .env("HOME", tmpdir.path())
+        .env("INFLUXDB_IOX_WAL_DIRECTORY", tmpdir.path())
+        .env("INFLUXDB_IOX_CATALOG_TYPE", "memory")
+        .add_addr_env(ServerType::Router, &addrs)
+        .timeout(Duration::from_secs(5))
+        .assert()
+        .failure()
+        .stderr(predicate::str::contains("error: unrecognized subcommand 'router2'").not())
+        .stdout(predicate::str::contains("InfluxDB IOx Router server ready"));
 }
 
 #[tokio::test]

@@ -1,8 +1,8 @@
-//! Command line options for running a router2 that uses the RPC write path.
+//! Command line options for running a router that uses the RPC write path.
 use super::main;
 use crate::process_info::setup_metric_registry;
 use clap_blocks::{
-    catalog_dsn::CatalogDsnConfig, object_store::make_object_store, router2::Router2Config,
+    catalog_dsn::CatalogDsnConfig, object_store::make_object_store, router::RouterConfig,
     run_config::RunConfig,
 };
 use iox_time::{SystemProvider, TimeProvider};
@@ -10,7 +10,7 @@ use ioxd_common::{
     server_type::{CommonServerState, CommonServerStateError},
     Service,
 };
-use ioxd_router::create_router2_server_type;
+use ioxd_router::create_router_server_type;
 use object_store::DynObjectStore;
 use object_store_metrics::ObjectStoreMetrics;
 use observability_deps::tracing::*;
@@ -64,7 +64,7 @@ pub struct Config {
     pub(crate) catalog_dsn: CatalogDsnConfig,
 
     #[clap(flatten)]
-    pub(crate) router_config: Router2Config,
+    pub(crate) router_config: RouterConfig,
 }
 
 pub async fn command(config: Config) -> Result<()> {
@@ -80,7 +80,7 @@ pub async fn command(config: Config) -> Result<()> {
 
     let catalog = config
         .catalog_dsn
-        .get_catalog("router2", Arc::clone(&metrics))
+        .get_catalog("router", Arc::clone(&metrics))
         .await?;
 
     let object_store = make_object_store(config.run_config.object_store_config())
@@ -92,7 +92,7 @@ pub async fn command(config: Config) -> Result<()> {
         &metrics,
     ));
 
-    let server_type = create_router2_server_type(
+    let server_type = create_router_server_type(
         &common_state,
         Arc::clone(&metrics),
         catalog,
@@ -101,7 +101,7 @@ pub async fn command(config: Config) -> Result<()> {
     )
     .await?;
 
-    info!("starting router2");
+    info!("starting router");
     let services = vec![Service::create(server_type, common_state.run_config())];
     Ok(main::main(common_state, services, metrics).await?)
 }

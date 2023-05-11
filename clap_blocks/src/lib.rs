@@ -19,7 +19,7 @@ pub mod ingester;
 pub mod ingester_address;
 pub mod object_store;
 pub mod querier;
-pub mod router2;
+pub mod router;
 pub mod run_config;
 pub mod single_tenant;
 pub mod socket_addr;

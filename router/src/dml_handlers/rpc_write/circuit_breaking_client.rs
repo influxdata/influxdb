@@ -3,7 +3,10 @@ use std::{fmt::Debug, sync::Arc};
 use async_trait::async_trait;
 use generated_types::influxdata::iox::ingester::v1::WriteRequest;
 
-use super::{circuit_breaker::CircuitBreaker, client::WriteClient, RpcWriteError};
+use super::{
+    circuit_breaker::CircuitBreaker,
+    client::{RpcWriteClientError, WriteClient},
+};
 
 /// An internal abstraction over the health probing & result recording
 /// functionality of a circuit breaker.
@@ -95,7 +98,7 @@ where
     T: WriteClient,
     C: CircuitBreakerState,
 {
-    async fn write(&self, op: WriteRequest) -> Result<(), RpcWriteError> {
+    async fn write(&self, op: WriteRequest) -> Result<(), RpcWriteClientError> {
         let res = self.inner.write(op).await;
         self.state.observe(&res);
         res
@@ -194,9 +197,17 @@ mod tests {
     #[tokio::test]
     async fn test_observe() {
         let circuit_breaker = Arc::new(MockCircuitBreaker::default());
-        let mock_client = Arc::new(MockWriteClient::default().with_ret(Box::new(
-            [Ok(()), Err(RpcWriteError::NoUpstreams)].into_iter(),
-        )));
+        let mock_client = Arc::new(
+            MockWriteClient::default().with_ret(Box::new(
+                [
+                    Ok(()),
+                    Err(RpcWriteClientError::UpstreamNotConnected(
+                        "bananas".to_string(),
+                    )),
+                ]
+                .into_iter(),
+            )),
+        );
         let wrapper = CircuitBreakingClient::new(Arc::clone(&mock_client), "bananas")
             .with_circuit_breaker(Arc::clone(&circuit_breaker));
 
