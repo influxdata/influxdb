@@ -1451,14 +1451,8 @@ WHERE object_store_id = $1;
         create: &[ParquetFileParams],
         target_level: CompactionLevel,
     ) -> Result<Vec<ParquetFileId>> {
-        let mut delete_set = HashSet::new();
-        let mut upgrade_set = HashSet::new();
-        for d in delete {
-            delete_set.insert(d.id.get());
-        }
-        for u in upgrade {
-            upgrade_set.insert(u.id.get());
-        }
+        let delete_set: HashSet<_> = delete.iter().map(|d| d.id.get()).collect();
+        let upgrade_set: HashSet<_> = upgrade.iter().map(|u| u.id.get()).collect();
 
         assert!(
             delete_set.is_disjoint(&upgrade_set),
@@ -1474,8 +1468,8 @@ WHERE object_store_id = $1;
 
         let upgrade = upgrade.iter().map(|f| f.id).collect::<Vec<_>>();
 
+        let marked_at = Timestamp::from(self.time_provider.now());
         for file in delete {
-            let marked_at = Timestamp::from(self.time_provider.now());
             flag_for_delete(&mut tx, file.id, marked_at).await?;
         }
 
@@ -1487,11 +1481,9 @@ WHERE object_store_id = $1;
             ids.push(pf.id);
         }
 
-        let res = tx.commit().await;
-        if let Err(e) = res {
-            return Err(Error::FailedToCommit { source: e });
-        }
-
+        tx.commit()
+            .await
+            .map_err(|source| Error::FailedToCommit { source })?;
         Ok(ids)
     }
 }
