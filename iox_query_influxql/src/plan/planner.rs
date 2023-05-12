@@ -747,21 +747,19 @@ impl<'a> InfluxQLToLogicalPlan<'a> {
                 vec![]
             };
 
-            if let Some(group_by) = ctx.group_by {
-                if group_by.time_dimension().is_some() {
-                    // Include the GROUP BY TIME(..) expression
-                    group_by_exprs.push(select_exprs[time_column_index].clone());
-                }
-
-                let schema = ds.schema(self.s)?;
-                group_by_exprs.extend(group_by_tag_set.iter().filter_map(|name| {
-                    if let Some(InfluxColumnType::Tag) = schema.field_type_by_name(name) {
-                        Some(name.as_expr())
-                    } else {
-                        None
-                    }
-                }));
+            if ctx.group_by.and_then(|v| v.time_dimension()).is_some() {
+                // Include the GROUP BY TIME(..) expression
+                group_by_exprs.push(select_exprs[time_column_index].clone());
             }
+
+            let schema = ds.schema(self.s)?;
+            group_by_exprs.extend(group_by_tag_set.iter().filter_map(|name| {
+                if let Some(InfluxColumnType::Tag) = schema.field_type_by_name(name) {
+                    Some(name.as_expr())
+                } else {
+                    None
+                }
+            }));
 
             group_by_exprs
         };
