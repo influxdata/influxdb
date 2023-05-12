@@ -222,7 +222,7 @@ where
                         max_columns_per_table: iox_catalog::DEFAULT_MAX_COLUMNS_PER_TABLE as usize,
                         max_tables: iox_catalog::DEFAULT_MAX_TABLES as usize,
                         retention_period_ns,
-                        partition_template: None,
+                        partition_template: Default::default(),
                     },
                 )
                 .is_none(),

@@ -186,6 +186,7 @@ mod tests {
                         max_columns_per_table: 10,
                         retention_period_ns: None,
                         deleted_at: None,
+                        partition_template: Default::default(),
                     },
                     schema: NamespaceSchema {
                         id,
@@ -193,7 +194,7 @@ mod tests {
                         max_columns_per_table: 10,
                         max_tables: 42,
                         retention_period_ns: None,
-                        partition_template: None,
+                        partition_template: Default::default(),
                     },
                 },
             }

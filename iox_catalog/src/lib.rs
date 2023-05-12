@@ -228,7 +228,7 @@ pub mod test_helpers {
         let namespace_name = NamespaceName::new(name).unwrap();
         repos
             .namespaces()
-            .create(&namespace_name, None)
+            .create(&namespace_name, None, None)
             .await
             .unwrap()
     }
@@ -293,7 +293,6 @@ mod tests {
 
                     let namespace = arbitrary_namespace(&mut *txn, NAMESPACE_NAME)
                         .await;
-
                     let schema = NamespaceSchema::new_empty_from(&namespace);
 
                     // Apply all the lp literals as individual writes, feeding

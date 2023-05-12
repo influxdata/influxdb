@@ -2812,6 +2812,7 @@ dependencies = [
  "data_types",
  "dotenvy",
  "futures",
+ "generated_types",
  "iox_time",
  "log",
  "metric",

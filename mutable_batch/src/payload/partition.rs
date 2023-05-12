@@ -28,8 +28,8 @@ pub fn partition_batch<'a>(
 /// [`Template::fmt_row`] can then be used to render the template for that particular row
 /// to the provided string, without performing any additional column lookups
 enum Template<'a> {
-    Column(&'a Column, &'a str),
-    MissingColumn(&'a str),
+    TagValue(&'a Column, &'a str),
+    MissingTag(&'a str),
     TimeFormat(&'a [i64], StrftimeItems<'a>),
 }
 
@@ -37,7 +37,7 @@ impl<'a> Template<'a> {
     /// Renders this template to `out` for the row `idx`
     fn fmt_row<W: std::fmt::Write>(&self, out: &mut W, idx: usize) -> std::fmt::Result {
         match self {
-            Template::Column(col, col_name) if col.valid.get(idx) => {
+            Template::TagValue(col, col_name) if col.valid.get(idx) => {
                 out.write_str(col_name)?;
                 out.write_char('_')?;
                 match &col.data {
@@ -56,7 +56,7 @@ impl<'a> Template<'a> {
                     }
                 }
             }
-            Template::Column(_, col_name) | Template::MissingColumn(col_name) => {
+            Template::TagValue(_, col_name) | Template::MissingTag(col_name) => {
                 out.write_str(col_name)
             }
             Template::TimeFormat(t, format) => {
@@ -84,9 +84,9 @@ fn partition_keys<'a>(
         .parts
         .iter()
         .map(|part| match part {
-            TemplatePart::Column(name) => batch.column(name).map_or_else(
-                |_| Template::MissingColumn(name),
-                |col| Template::Column(col, name),
+            TemplatePart::TagValue(name) => batch.column(name).map_or_else(
+                |_| Template::MissingTag(name),
+                |col| Template::TagValue(col, name),
             ),
             TemplatePart::TimeFormat(fmt) => Template::TimeFormat(time, StrftimeItems::new(fmt)),
         })
@@ -205,9 +205,9 @@ mod tests {
         let template = PartitionTemplate {
             parts: vec![
                 TemplatePart::TimeFormat("%Y-%m-%d %H:%M:%S".to_string()),
-                TemplatePart::Column("f64".to_string()),
-                TemplatePart::Column("region".to_string()),
-                TemplatePart::Column("bananas".to_string()),
+                TemplatePart::TagValue("f64".to_string()),
+                TemplatePart::TagValue("region".to_string()),
+                TemplatePart::TagValue("bananas".to_string()),
             ],
         };
 

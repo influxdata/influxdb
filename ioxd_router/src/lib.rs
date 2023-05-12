@@ -413,7 +413,6 @@ mod tests {
 
         let mut repos = catalog.repositories().await;
         let namespace = arbitrary_namespace(&mut *repos, "test_ns").await;
-
         let table = arbitrary_table(&mut *repos, "name", &namespace).await;
         let _column = repos
             .columns()

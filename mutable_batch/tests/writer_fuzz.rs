@@ -435,7 +435,7 @@ fn test_partition_write() {
     let partitioned = PartitionWrite::partition(
         &batch,
         &PartitionTemplate {
-            parts: vec![TemplatePart::Column("b1".to_string())],
+            parts: vec![TemplatePart::TagValue("b1".to_string())],
         },
     );
 

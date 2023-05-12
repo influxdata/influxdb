@@ -13,8 +13,8 @@ use crate::{
 use async_trait::async_trait;
 use data_types::{
     Column, ColumnId, ColumnType, CompactionLevel, Namespace, NamespaceId, NamespaceName,
-    ParquetFile, ParquetFileId, ParquetFileParams, Partition, PartitionId, PartitionKey,
-    SkippedCompaction, Table, TableId, Timestamp,
+    NamespacePartitionTemplateOverride, ParquetFile, ParquetFileId, ParquetFileParams, Partition,
+    PartitionId, PartitionKey, SkippedCompaction, Table, TableId, Timestamp,
 };
 use iox_time::{SystemProvider, TimeProvider};
 use snafu::ensure;
@@ -141,6 +141,7 @@ impl NamespaceRepo for MemTxn {
     async fn create(
         &mut self,
         name: &NamespaceName,
+        partition_template: Option<NamespacePartitionTemplateOverride>,
         retention_period_ns: Option<i64>,
     ) -> Result<Namespace> {
         let stage = self.stage();
@@ -158,6 +159,7 @@ impl NamespaceRepo for MemTxn {
             max_columns_per_table: DEFAULT_MAX_COLUMNS_PER_TABLE,
             retention_period_ns,
             deleted_at: None,
+            partition_template: partition_template.unwrap_or_default(),
         };
         stage.namespaces.push(namespace);
         Ok(stage.namespaces.last().unwrap().clone())

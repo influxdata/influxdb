@@ -349,6 +349,7 @@ async fn test_delete_unsupported() {
         .create(
             &data_types::NamespaceName::new("bananas_test").unwrap(),
             None,
+            None,
         )
         .await
         .expect("failed to update table limit");

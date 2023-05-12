@@ -289,7 +289,7 @@ impl std::fmt::Display for ParquetFileId {
 }
 
 /// Data object for a namespace
-#[derive(Debug, Clone, Eq, PartialEq, sqlx::FromRow)]
+#[derive(Debug, Clone, PartialEq, sqlx::FromRow)]
 pub struct Namespace {
     /// The id of the namespace
     pub id: NamespaceId,
@@ -304,11 +304,15 @@ pub struct Namespace {
     pub max_columns_per_table: i32,
     /// When this file was marked for deletion.
     pub deleted_at: Option<Timestamp>,
+    #[sqlx(default)]
+    /// The partition template to use for new tables in this namespace either created implicitly or
+    /// created without specifying a partition template.
+    pub partition_template: NamespacePartitionTemplateOverride,
 }
 
 /// Schema collection for a namespace. This is an in-memory object useful for a schema
 /// cache.
-#[derive(Debug, Clone, Eq, PartialEq)]
+#[derive(Debug, Clone, PartialEq)]
 pub struct NamespaceSchema {
     /// the namespace id
     pub id: NamespaceId,
@@ -321,8 +325,9 @@ pub struct NamespaceSchema {
     /// The retention period in ns.
     /// None represents infinite duration (i.e. never drop data).
     pub retention_period_ns: Option<i64>,
-    /// The optionally-specified partition template to use for writes in this namespace.
-    pub partition_template: Option<Arc<NamespacePartitionTemplateOverride>>,
+    /// The partition template to use for new tables in this namespace either created implicitly or
+    /// created without specifying a partition template.
+    pub partition_template: NamespacePartitionTemplateOverride,
 }
 
 impl NamespaceSchema {
@@ -334,6 +339,7 @@ impl NamespaceSchema {
             retention_period_ns,
             max_tables,
             max_columns_per_table,
+            ref partition_template,
             ..
         } = namespace;
 
@@ -343,9 +349,7 @@ impl NamespaceSchema {
             max_columns_per_table: max_columns_per_table as usize,
             max_tables: max_tables as usize,
             retention_period_ns,
-
-            // TODO: Store and retrieve PartitionTemplate from the database
-            partition_template: None,
+            partition_template: partition_template.clone(),
         }
     }
 }
@@ -2695,7 +2699,7 @@ mod tests {
             max_columns_per_table: 4,
             max_tables: 42,
             retention_period_ns: None,
-            partition_template: None,
+            partition_template: Default::default(),
         };
         let schema2 = NamespaceSchema {
             id: NamespaceId::new(1),
@@ -2704,13 +2708,13 @@ mod tests {
                 TableSchema {
                     id: TableId::new(1),
                     columns: ColumnsByName::new([]),
-                    partition_template: None,
+                    partition_template: Default::default(),
                 },
             )]),
             max_columns_per_table: 4,
             max_tables: 42,
             retention_period_ns: None,
-            partition_template: None,
+            partition_template: Default::default(),
         };
         assert!(schema1.size() < schema2.size());
     }

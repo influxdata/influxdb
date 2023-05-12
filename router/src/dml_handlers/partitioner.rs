@@ -1,7 +1,7 @@
 use async_trait::async_trait;
 use data_types::{
-    DefaultPartitionTemplate, NamespaceName, NamespaceSchema, PartitionKey, PartitionTemplate,
-    TableId, TablePartitionTemplateOverride,
+    DefaultPartitionTemplate, NamespaceName, NamespaceSchema, PartitionKey, TableId,
+    TablePartitionTemplateOverride,
 };
 use hashbrown::HashMap;
 use mutable_batch::{MutableBatch, PartitionWrite, WritePayload};
@@ -52,7 +52,7 @@ impl<T> Partitioned<T> {
 /// occurs during partitioning.
 #[derive(Debug)]
 pub struct Partitioner {
-    partition_template: Arc<DefaultPartitionTemplate>,
+    _partition_template: Arc<DefaultPartitionTemplate>,
 }
 
 impl Partitioner {
@@ -60,7 +60,7 @@ impl Partitioner {
     /// specified [`DefaultPartitionTemplate`].
     pub fn new(partition_template: DefaultPartitionTemplate) -> Self {
         Self {
-            partition_template: Arc::new(partition_template),
+            _partition_template: Arc::new(partition_template),
         }
     }
 }
@@ -83,11 +83,10 @@ impl DmlHandler for Partitioner {
     async fn write(
         &self,
         _namespace: &NamespaceName<'static>,
-        namespace_schema: Arc<NamespaceSchema>,
+        _namespace_schema: Arc<NamespaceSchema>,
         batch: Self::WriteInput,
         _span_ctx: Option<SpanContext>,
     ) -> Result<Self::WriteOutput, Self::WriteError> {
-        let namespace_partition_template = &namespace_schema.partition_template;
         // A collection of partition-keyed, per-table MutableBatch instances.
         let mut partitions: HashMap<PartitionKey, HashMap<_, (String, MutableBatch)>> =
             HashMap::default();
@@ -96,11 +95,7 @@ impl DmlHandler for Partitioner {
             // Partition the table batch according to the configured partition
             // template and write it into the partition-keyed map.
 
-            let partition_template = PartitionTemplate::determine_precedence(
-                table_partition_template.as_ref(),
-                namespace_partition_template.as_ref(),
-                &self.partition_template,
-            );
+            let partition_template = &table_partition_template.as_ref().unwrap().0;
 
             for (partition_key, partition_payload) in
                 PartitionWrite::partition(&batch, partition_template)
@@ -127,7 +122,7 @@ impl DmlHandler for Partitioner {
 #[cfg(test)]
 mod tests {
     use assert_matches::assert_matches;
-    use data_types::{NamespaceId, NamespacePartitionTemplateOverride, TemplatePart};
+    use data_types::{NamespaceId, PartitionTemplate, TemplatePart};
 
     use super::*;
 
@@ -152,19 +147,15 @@ mod tests {
             .collect()
     }
 
-    // Start a new `NamespaceSchema` with only the given ID and partition template override; the
-    // rest of the fields are arbitrary.
-    fn namespace_schema(
-        id: i64,
-        partition_template: Option<Arc<NamespacePartitionTemplateOverride>>,
-    ) -> Arc<NamespaceSchema> {
+    // Start a new `NamespaceSchema` with only the given ID; the rest of the fields are arbitrary.
+    fn namespace_schema(id: i64) -> Arc<NamespaceSchema> {
         Arc::new(NamespaceSchema {
             id: NamespaceId::new(id),
             tables: Default::default(),
             max_columns_per_table: 500,
             max_tables: 200,
             retention_period_ns: None,
-            partition_template,
+            partition_template: Default::default(),
         })
     }
 
@@ -191,7 +182,7 @@ mod tests {
 
                     let handler_ret = partitioner.write(
                         &ns,
-                        namespace_schema(42, None),
+                        namespace_schema(42),
                         writes,
                         None
                     ).await;
@@ -338,174 +329,18 @@ mod tests {
     );
 
     #[tokio::test]
-    async fn test_write_namespace_partition_template() {
+    async fn test_write_table_partition_template() {
         let partitioner = Partitioner::new(DefaultPartitionTemplate::default());
         let ns = NamespaceName::new("bananas").expect("valid db name");
 
-        let namespace_partition_template = Some(Arc::new(NamespacePartitionTemplateOverride::new(
-            PartitionTemplate {
-                parts: vec![
-                    TemplatePart::TimeFormat("%Y".to_string()),
-                    TemplatePart::Column("tag1".to_string()),
-                    TemplatePart::Column("nonanas".to_string()),
-                ],
-            },
-        )));
-        let namespace_schema = namespace_schema(42, namespace_partition_template);
-
-        let writes = lp_to_writes(
-            "
-            bananas,tag1=A,tag2=C val=42i 1\n\
-            platanos,tag1=B,tag2=C value=42i 1465839830100400200\n\
-            platanos,tag1=A,tag2=D value=42i 1\n\
-            bananas,tag1=B,tag2=D value=42i 1465839830100400200\n\
-            bananas,tag1=A,tag2=D value=42i 1465839830100400200\n\
-        ",
-        );
-
-        let handler_ret = partitioner.write(&ns, namespace_schema, writes, None).await;
-
-        // Check the partition -> table mapping.
-        let got = handler_ret
-            .unwrap_or_default()
-            .into_iter()
-            .map(|partition| {
-                // Extract the table names in this partition
-                let mut tables = partition
-                    .payload
-                    .values()
-                    .map(|v| v.0.clone())
-                    .collect::<Vec<String>>();
-
-                tables.sort();
-
-                (partition.key, tables)
-            })
-            .collect::<HashMap<_, _>>();
-
-        let expected = HashMap::from([
-            (
-                PartitionKey::from("2016-tag1_B-nonanas"),
-                vec!["bananas".into(), "platanos".into()],
-            ),
-            (
-                PartitionKey::from("1970-tag1_A-nonanas"),
-                vec!["bananas".into(), "platanos".into()],
-            ),
-            (
-                PartitionKey::from("2016-tag1_A-nonanas"),
-                vec!["bananas".into()],
-            ),
-        ]);
-
-        pretty_assertions::assert_eq!(expected, got);
-    }
-
-    #[tokio::test]
-    async fn test_write_namespace_and_table_partition_template() {
-        let partitioner = Partitioner::new(DefaultPartitionTemplate::default());
-        let ns = NamespaceName::new("bananas").expect("valid db name");
-
-        // Specify this but the table partition will take precedence for bananas.
-        let namespace_partition_template = Some(Arc::new(NamespacePartitionTemplateOverride::new(
-            PartitionTemplate {
-                parts: vec![
-                    TemplatePart::TimeFormat("%Y".to_string()),
-                    TemplatePart::Column("tag1".to_string()),
-                    TemplatePart::Column("nonanas".to_string()),
-                ],
-            },
-        )));
-        let namespace_schema = namespace_schema(42, namespace_partition_template);
-        let bananas_table_template = Some(Arc::new(TablePartitionTemplateOverride::new(
-            PartitionTemplate {
-                parts: vec![
-                    TemplatePart::Column("oranges".to_string()),
-                    TemplatePart::TimeFormat("%Y-%m".to_string()),
-                    TemplatePart::Column("tag2".to_string()),
-                ],
-            },
-        )));
-
-        let lp = "
-            bananas,tag1=A,tag2=C val=42i 1\n\
-            platanos,tag1=B,tag2=C value=42i 1465839830100400200\n\
-            platanos,tag1=A,tag2=D value=42i 1\n\
-            bananas,tag1=B,tag2=D value=42i 1465839830100400200\n\
-            bananas,tag1=A,tag2=D value=42i 1465839830100400200\n\
-        ";
-
-        let (writes, _) = mutable_batch_lp::lines_to_batches_stats(lp, 42)
-            .expect("failed to build test writes from LP");
-
-        let writes = writes
-            .into_iter()
-            .enumerate()
-            .map(|(i, (name, data))| {
-                let table_partition_template = match name.as_str() {
-                    "bananas" => bananas_table_template.clone(),
-                    _ => None,
-                };
-                (TableId::new(i as _), (name, table_partition_template, data))
-            })
-            .collect();
-
-        let handler_ret = partitioner.write(&ns, namespace_schema, writes, None).await;
-
-        // Check the partition -> table mapping.
-        let got = handler_ret
-            .unwrap_or_default()
-            .into_iter()
-            .map(|partition| {
-                // Extract the table names in this partition
-                let mut tables = partition
-                    .payload
-                    .values()
-                    .map(|v| v.0.clone())
-                    .collect::<Vec<String>>();
-
-                tables.sort();
-
-                (partition.key, tables)
-            })
-            .collect::<HashMap<_, _>>();
-
-        let expected = HashMap::from([
-            (
-                PartitionKey::from("oranges-1970-01-tag2_C"),
-                vec!["bananas".into()],
-            ),
-            (
-                PartitionKey::from("oranges-2016-06-tag2_D"),
-                vec!["bananas".into()],
-            ),
-            (
-                PartitionKey::from("1970-tag1_A-nonanas"),
-                vec!["platanos".into()],
-            ),
-            (
-                PartitionKey::from("2016-tag1_B-nonanas"),
-                vec!["platanos".into()],
-            ),
-        ]);
-
-        pretty_assertions::assert_eq!(expected, got);
-    }
-
-    #[tokio::test]
-    async fn test_write_only_table_partition_template() {
-        let partitioner = Partitioner::new(DefaultPartitionTemplate::default());
-        let ns = NamespaceName::new("bananas").expect("valid db name");
-
-        // No namespace partition means the platanos table will fall back to the default
-        let namespace_schema = namespace_schema(42, None);
+        let namespace_schema = namespace_schema(42);
 
         let bananas_table_template = Some(Arc::new(TablePartitionTemplateOverride::new(
             PartitionTemplate {
                 parts: vec![
-                    TemplatePart::Column("oranges".to_string()),
+                    TemplatePart::TagValue("oranges".to_string()),
                     TemplatePart::TimeFormat("%Y-%m".to_string()),
-                    TemplatePart::Column("tag2".to_string()),
+                    TemplatePart::TagValue("tag2".to_string()),
                 ],
             },
         )));

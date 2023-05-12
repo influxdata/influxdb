@@ -74,7 +74,7 @@ mod tests {
             max_columns_per_table: 7,
             max_tables: 42,
             retention_period_ns: None,
-            partition_template: None,
+            partition_template: Default::default(),
         }
     }
 

@@ -45,7 +45,7 @@ fn new_empty_namespace_schema(id: NamespaceId) -> NamespaceSchema {
         max_columns_per_table: 500,
         max_tables: 200,
         retention_period_ns: None,
-        partition_template: None,
+        partition_template: Default::default(),
     }
 }
 

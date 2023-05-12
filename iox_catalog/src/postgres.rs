@@ -15,9 +15,9 @@ use crate::{
 };
 use async_trait::async_trait;
 use data_types::{
-    Column, ColumnType, CompactionLevel, Namespace, NamespaceId, NamespaceName, ParquetFile,
-    ParquetFileId, ParquetFileParams, Partition, PartitionId, PartitionKey, SkippedCompaction,
-    Table, TableId, Timestamp,
+    Column, ColumnType, CompactionLevel, Namespace, NamespaceId, NamespaceName,
+    NamespacePartitionTemplateOverride, ParquetFile, ParquetFileId, ParquetFileParams, Partition,
+    PartitionId, PartitionKey, SkippedCompaction, Table, TableId, Timestamp,
 };
 use iox_time::{SystemProvider, TimeProvider};
 use observability_deps::tracing::{debug, info, warn};
@@ -497,20 +497,27 @@ impl NamespaceRepo for PostgresTxn {
     async fn create(
         &mut self,
         name: &NamespaceName,
+        partition_template: Option<NamespacePartitionTemplateOverride>,
         retention_period_ns: Option<i64>,
     ) -> Result<Namespace> {
+        let partition_template = partition_template.unwrap_or_default();
+
         let rec = sqlx::query_as::<_, Namespace>(
             r#"
-                INSERT INTO namespace ( name, topic_id, query_pool_id, retention_period_ns, max_tables )
-                VALUES ( $1, $2, $3, $4, $5 )
-                RETURNING id, name, retention_period_ns, max_tables, max_columns_per_table, deleted_at;
+INSERT INTO namespace (
+    name, topic_id, query_pool_id, retention_period_ns, max_tables, partition_template
+)
+VALUES ( $1, $2, $3, $4, $5, $6 )
+RETURNING id, name, retention_period_ns, max_tables, max_columns_per_table, deleted_at,
+          partition_template;
             "#,
         )
         .bind(name.as_str()) // $1
         .bind(SHARED_TOPIC_ID) // $2
         .bind(SHARED_QUERY_POOL_ID) // $3
         .bind(retention_period_ns) // $4
-        .bind(DEFAULT_MAX_TABLES); // $5
+        .bind(DEFAULT_MAX_TABLES) // $5
+        .bind(partition_template); // $6
 
         let rec = rec.fetch_one(&mut self.inner).await.map_err(|e| {
             if is_unique_violation(&e) {
@@ -535,7 +542,8 @@ impl NamespaceRepo for PostgresTxn {
         let rec = sqlx::query_as::<_, Namespace>(
             format!(
                 r#"
-SELECT id, name, retention_period_ns, max_tables, max_columns_per_table, deleted_at
+SELECT id, name, retention_period_ns, max_tables, max_columns_per_table, deleted_at,
+       partition_template
 FROM namespace
 WHERE {v};
                 "#,
@@ -558,7 +566,8 @@ WHERE {v};
         let rec = sqlx::query_as::<_, Namespace>(
             format!(
                 r#"
-SELECT id, name, retention_period_ns, max_tables, max_columns_per_table, deleted_at
+SELECT id, name, retention_period_ns, max_tables, max_columns_per_table, deleted_at,
+       partition_template
 FROM namespace
 WHERE id=$1 AND {v};
                 "#,
@@ -587,7 +596,8 @@ WHERE id=$1 AND {v};
         let rec = sqlx::query_as::<_, Namespace>(
             format!(
                 r#"
-SELECT id, name, retention_period_ns, max_tables, max_columns_per_table, deleted_at
+SELECT id, name, retention_period_ns, max_tables, max_columns_per_table, deleted_at,
+       partition_template
 FROM namespace
 WHERE name=$1 AND {v};
                 "#,
@@ -627,7 +637,8 @@ WHERE name=$1 AND {v};
 UPDATE namespace
 SET max_tables = $1
 WHERE name = $2
-RETURNING id, name, retention_period_ns, max_tables, max_columns_per_table, deleted_at;
+RETURNING id, name, retention_period_ns, max_tables, max_columns_per_table, deleted_at,
+          partition_template;
         "#,
         )
         .bind(new_max)
@@ -651,7 +662,8 @@ RETURNING id, name, retention_period_ns, max_tables, max_columns_per_table, dele
 UPDATE namespace
 SET max_columns_per_table = $1
 WHERE name = $2
-RETURNING id, name, retention_period_ns, max_tables, max_columns_per_table, deleted_at;
+RETURNING id, name, retention_period_ns, max_tables, max_columns_per_table, deleted_at,
+          partition_template;
         "#,
         )
         .bind(new_max)
@@ -679,7 +691,8 @@ RETURNING id, name, retention_period_ns, max_tables, max_columns_per_table, dele
 UPDATE namespace
 SET retention_period_ns = $1
 WHERE name = $2
-RETURNING id, name, retention_period_ns, max_tables, max_columns_per_table, deleted_at;
+RETURNING id, name, retention_period_ns, max_tables, max_columns_per_table, deleted_at,
+          partition_template;
         "#,
         )
         .bind(retention_period_ns) // $1

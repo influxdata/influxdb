@@ -3,8 +3,9 @@
 use async_trait::async_trait;
 use data_types::{
     Column, ColumnType, ColumnsByName, CompactionLevel, Namespace, NamespaceId, NamespaceName,
-    NamespaceSchema, ParquetFile, ParquetFileId, ParquetFileParams, Partition, PartitionId,
-    PartitionKey, SkippedCompaction, Table, TableId, TableSchema, Timestamp,
+    NamespacePartitionTemplateOverride, NamespaceSchema, ParquetFile, ParquetFileId,
+    ParquetFileParams, Partition, PartitionId, PartitionKey, SkippedCompaction, Table, TableId,
+    TableSchema, Timestamp,
 };
 use iox_time::TimeProvider;
 use snafu::{OptionExt, Snafu};
@@ -246,6 +247,7 @@ pub trait NamespaceRepo: Send + Sync {
     async fn create(
         &mut self,
         name: &NamespaceName,
+        partition_template: Option<NamespacePartitionTemplateOverride>,
         retention_period_ns: Option<i64>,
     ) -> Result<Namespace>;
 
@@ -677,6 +679,7 @@ pub(crate) mod test_helpers {
     use assert_matches::assert_matches;
     use data_types::{ColumnId, ColumnSet, CompactionLevel};
     use futures::Future;
+    use generated_types::influxdata::iox::partition_template::v1 as proto;
     use metric::{Attributes, DurationHistogram, Metric};
     use std::{collections::BTreeSet, ops::DerefMut, sync::Arc, time::Duration};
 
@@ -729,11 +732,15 @@ pub(crate) mod test_helpers {
         let namespace_name = NamespaceName::new("test_namespace").unwrap();
         let namespace = repos
             .namespaces()
-            .create(&namespace_name, None)
+            .create(&namespace_name, None, None)
             .await
             .unwrap();
         assert!(namespace.id > NamespaceId::new(0));
         assert_eq!(namespace.name, namespace_name.as_str());
+        assert_eq!(
+            namespace.partition_template,
+            NamespacePartitionTemplateOverride::default()
+        );
 
         // Assert default values for service protection limits.
         assert_eq!(namespace.max_tables, DEFAULT_MAX_TABLES);
@@ -742,7 +749,7 @@ pub(crate) mod test_helpers {
             DEFAULT_MAX_COLUMNS_PER_TABLE
         );
 
-        let conflict = repos.namespaces().create(&namespace_name, None).await;
+        let conflict = repos.namespaces().create(&namespace_name, None, None).await;
         assert!(matches!(
             conflict.unwrap_err(),
             Error::NameExists { name: _ }
@@ -829,7 +836,7 @@ pub(crate) mod test_helpers {
         let namespace4_name = NamespaceName::new("test_namespace4").unwrap();
         let namespace4 = repos
             .namespaces()
-            .create(&namespace4_name, Some(NEW_RETENTION_PERIOD_NS))
+            .create(&namespace4_name, None, Some(NEW_RETENTION_PERIOD_NS))
             .await
             .expect("namespace with 5-hour retention should be created");
         assert_eq!(
@@ -842,6 +849,28 @@ pub(crate) mod test_helpers {
             .update_retention_period(&namespace4_name, None)
             .await
             .expect("namespace should be updateable");
+
+        // create a namespace with a PartitionTemplate other than the default
+        let tag_partition_template =
+            NamespacePartitionTemplateOverride::from(proto::PartitionTemplate {
+                parts: vec![proto::TemplatePart {
+                    part: Some(proto::template_part::Part::TagValue("tag1".into())),
+                }],
+            });
+        let namespace5_name = NamespaceName::new("test_namespace5").unwrap();
+        let namespace5 = repos
+            .namespaces()
+            .create(&namespace5_name, Some(tag_partition_template.clone()), None)
+            .await
+            .unwrap();
+        assert_eq!(namespace5.partition_template, tag_partition_template);
+        let lookup_namespace5 = repos
+            .namespaces()
+            .get_by_name(&namespace5_name, SoftDeletedRows::ExcludeDeleted)
+            .await
+            .unwrap()
+            .unwrap();
+        assert_eq!(namespace5, lookup_namespace5);
 
         // remove namespace to avoid it from affecting later tests
         repos
@@ -1972,7 +2001,11 @@ pub(crate) mod test_helpers {
         let namespace_1 = arbitrary_namespace(&mut *repos, "retention_broken_1").await;
         let namespace_2 = repos
             .namespaces()
-            .create(&NamespaceName::new("retention_broken_2").unwrap(), Some(1))
+            .create(
+                &NamespaceName::new("retention_broken_2").unwrap(),
+                None,
+                Some(1),
+            )
             .await
             .unwrap();
         let table_1 = arbitrary_table(&mut *repos, "test_table", &namespace_1).await;
@@ -2795,7 +2828,7 @@ pub(crate) mod test_helpers {
     {
         let namespace = repos
             .namespaces()
-            .create(&NamespaceName::new(namespace_name).unwrap(), None)
+            .create(&NamespaceName::new(namespace_name).unwrap(), None, None)
             .await;
 
         let namespace = match namespace {

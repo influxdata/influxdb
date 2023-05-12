@@ -148,7 +148,7 @@ impl TestCatalog {
         let namespace_name = NamespaceName::new(name).unwrap();
         let namespace = repos
             .namespaces()
-            .create(&namespace_name, retention_period_ns)
+            .create(&namespace_name, None, retention_period_ns)
             .await
             .unwrap();
 

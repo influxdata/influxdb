@@ -168,7 +168,7 @@ mod tests {
             max_columns_per_table: 50,
             max_tables: 24,
             retention_period_ns: Some(876),
-            partition_template: None,
+            partition_template: Default::default(),
         };
         assert_matches!(cache.put_schema(ns.clone(), schema1.clone()), (new, s) => {
             assert_eq!(*new, schema1);
@@ -185,7 +185,7 @@ mod tests {
             max_columns_per_table: 10,
             max_tables: 42,
             retention_period_ns: Some(876),
-            partition_template: None,
+            partition_template: Default::default(),
         };
 
         assert_matches!(cache.put_schema(ns.clone(), schema2.clone()), (new, s) => {
@@ -233,7 +233,7 @@ mod tests {
             max_columns_per_table: 50,
             max_tables: 24,
             retention_period_ns: None,
-            partition_template: None,
+            partition_template: Default::default(),
         };
         let schema_update_2 = NamespaceSchema {
             tables: BTreeMap::from([(String::from(table_name), second_write_table_schema)]),
@@ -324,7 +324,7 @@ mod tests {
             max_columns_per_table: 50,
             max_tables: 24,
             retention_period_ns: None,
-            partition_template: None,
+            partition_template: Default::default(),
         };
         let schema_update_2 = NamespaceSchema {
             tables: BTreeMap::from([
@@ -428,7 +428,7 @@ mod tests {
                 max_columns_per_table,
                 max_tables,
                 retention_period_ns,
-                partition_template: None,
+                partition_template: Default::default(),
             }
         }
     }
