@@ -623,6 +623,33 @@ pub struct SkippedCompaction {
     pub limit_num_files_first_in_partition: i64,
 }
 
+use generated_types::influxdata::iox::compactor::v1 as compactor_proto;
+impl From<SkippedCompaction> for compactor_proto::SkippedCompaction {
+    fn from(skipped_compaction: SkippedCompaction) -> Self {
+        let SkippedCompaction {
+            partition_id,
+            reason,
+            skipped_at,
+            estimated_bytes,
+            limit_bytes,
+            num_files,
+            limit_num_files,
+            limit_num_files_first_in_partition,
+        } = skipped_compaction;
+
+        Self {
+            partition_id: partition_id.get(),
+            reason,
+            skipped_at: skipped_at.get(),
+            estimated_bytes,
+            limit_bytes,
+            num_files,
+            limit_num_files,
+            limit_num_files_first_in_partition: Some(limit_num_files_first_in_partition),
+        }
+    }
+}
+
 /// Data for a parquet file reference that has been inserted in the catalog.
 #[derive(Debug, Clone, PartialEq, Eq, sqlx::FromRow)]
 pub struct ParquetFile {

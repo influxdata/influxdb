@@ -1414,6 +1414,7 @@ name = "data_types"
 version = "0.1.0"
 dependencies = [
  "croaring",
+ "generated_types",
  "influxdb-line-protocol",
  "iox_time",
  "observability_deps",
@@ -2036,7 +2037,6 @@ version = "0.1.0"
 dependencies = [
  "base64 0.21.0",
  "bytes",
- "data_types",
  "observability_deps",
  "pbjson",
  "pbjson-build",
@@ -6735,7 +6735,6 @@ dependencies = [
  "hashbrown 0.12.3",
  "hashbrown 0.13.2",
  "heck",
- "hyper",
  "indexmap",
  "io-lifetimes",
  "itertools",

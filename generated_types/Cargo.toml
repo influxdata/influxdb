@@ -8,7 +8,6 @@ license.workspace = true
 [dependencies] # In alphabetical order
 base64 = "0.21"
 bytes = "1.4"
-data_types = { path = "../data_types", optional = true }
 observability_deps = { path = "../observability_deps" }
 pbjson = "0.5"
 pbjson-types = "0.5"
@@ -22,10 +21,3 @@ workspace-hack = { version = "0.1", path = "../workspace-hack" }
 tonic-build = { workspace = true }
 prost-build = "0.11"
 pbjson-build = "0.5"
-
-[dev-dependencies]
-data_types = { path = "../data_types" }
-
-[features]
-default = ["data_types_conversions"]
-data_types_conversions = ["data_types"]

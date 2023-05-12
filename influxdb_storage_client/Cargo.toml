@@ -7,7 +7,7 @@ license.workspace = true
 
 [dependencies]
 client_util = { path = "../client_util" }
-generated_types = { path = "../generated_types", default-features=false, features=["data_types"] }
+generated_types = { path = "../generated_types" }
 prost = "0.11"
 tonic = { workspace = true }
 futures-util = { version = "0.3" }
