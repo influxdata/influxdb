@@ -179,6 +179,95 @@ impl<'a> TypeEvaluator<'a> {
             | "holt_winters"
             | "holt_winters_with_fit" => Some(VarRefDataType::Float),
             "elapsed" => Some(VarRefDataType::Integer),
+
+            // scalar functions
+            // See: https://github.com/influxdata/influxdb/blob/343ce4223810ecdbc7f4de68f2509a51b28f2c56/query/math.go#L24
+
+            // These functions require a single numeric as input and return a float
+            name @ ("sin" | "cos" | "tan" | "atan" | "exp" | "log" | "ln" | "log2" | "log10"
+            | "sqrt") => {
+                match arg_types
+                    .get(0)
+                    .ok_or_else(|| error::map::query(format!("{name} expects 1 argument")))?
+                {
+                    Some(
+                        VarRefDataType::Float | VarRefDataType::Integer | VarRefDataType::Unsigned,
+                    )
+                    | None => Some(VarRefDataType::Float),
+                    Some(arg0) => {
+                        return error::query(format!(
+                            "invalid argument type for {name}: expected a number, got {arg0}"
+                        ))
+                    }
+                }
+            }
+
+            // These functions require a single float as input and return a float
+            name @ ("asin" | "acos") => {
+                match arg_types
+                    .get(0)
+                    .ok_or_else(|| error::map::query(format!("{name} expects 1 argument")))?
+                {
+                    Some(VarRefDataType::Float) | None => Some(VarRefDataType::Float),
+                    Some(arg0) => {
+                        return error::query(format!(
+                            "invalid argument type for {name}: expected a number, got {arg0}"
+                        ))
+                    }
+                }
+            }
+
+            // These functions require two numeric arguments and return a float
+            name @ ("atan2" | "pow") => {
+                let (Some(arg0), Some(arg1)) = (arg_types
+                    .get(0), arg_types.get(1)) else {
+                    return error::query(format!("{name} expects 2 arguments"))
+                };
+
+                if !matches!(
+                    arg0,
+                    Some(
+                        VarRefDataType::Float | VarRefDataType::Integer | VarRefDataType::Unsigned
+                    ) | None
+                ) {
+                    return error::query(format!(
+                        "invalid argument type for {name}: expected a number for first argument, got {arg0:?}"
+                    ));
+                }
+                if !matches!(
+                    arg1,
+                    Some(
+                        VarRefDataType::Float | VarRefDataType::Integer | VarRefDataType::Unsigned
+                    ) | None
+                ) {
+                    return error::query(format!(
+                        "invalid argument type for {name}: expected a number for second argument, got {arg1:?}"
+                    ));
+                }
+
+                Some(VarRefDataType::Float)
+            }
+
+            // These functions return the same data type as their input
+            name @ ("abs" | "floor" | "ceil" | "round") => {
+                match arg_types
+                    .get(0)
+                    .cloned()
+                    .ok_or_else(|| error::map::query(format!("{name} expects 1 argument")))?
+                {
+                    // Return the same data type as the input
+                    dt @ Some(
+                        VarRefDataType::Float | VarRefDataType::Integer | VarRefDataType::Unsigned,
+                    ) => dt,
+                    // If the input is unknown, default to float
+                    None => Some(VarRefDataType::Float),
+                    Some(arg0) => {
+                        return error::query(format!(
+                            "invalid argument type for {name}: expected a number, got {arg0}"
+                        ))
+                    }
+                }
+            }
             _ => None,
         })
     }
@@ -308,251 +397,138 @@ mod test {
 
         fn evaluate_type(
             s: &dyn SchemaProvider,
-            expr: &Expr,
-            from: &[DataSource],
+            expr: &str,
+            from: &[&str],
         ) -> Result<Option<VarRefDataType>> {
-            TypeEvaluator::new(s, from).eval_type(expr)
+            let from = from
+                .into_iter()
+                .map(ToString::to_string)
+                .map(DataSource::Table)
+                .collect::<Vec<_>>();
+            let Field { expr, .. } = expr.parse().unwrap();
+            TypeEvaluator::new(s, &from).eval_type(&expr)
         }
 
-        let Field { expr, .. } = "shared_field0".parse().unwrap();
-        let res = evaluate_type(
-            &namespace,
-            &expr,
-            &[DataSource::Table("temp_01".to_owned())],
-        )
-        .unwrap()
-        .unwrap();
+        let res = evaluate_type(&namespace, "shared_field0", &["temp_01"])
+            .unwrap()
+            .unwrap();
         assert_matches!(res, VarRefDataType::Float);
 
-        let Field { expr, .. } = "shared_tag0".parse().unwrap();
-        let res = evaluate_type(
-            &namespace,
-            &expr,
-            &[DataSource::Table("temp_01".to_owned())],
-        )
-        .unwrap()
-        .unwrap();
+        let res = evaluate_type(&namespace, "shared_tag0", &["temp_01"])
+            .unwrap()
+            .unwrap();
         assert_matches!(res, VarRefDataType::Tag);
 
         // Unknown
-        let Field { expr, .. } = "not_exists".parse().unwrap();
-        let res = evaluate_type(
-            &namespace,
-            &expr,
-            &[DataSource::Table("temp_01".to_owned())],
-        )
-        .unwrap();
+        let res = evaluate_type(&namespace, "not_exists", &["temp_01"]).unwrap();
         assert!(res.is_none());
 
-        let Field { expr, .. } = "shared_field0".parse().unwrap();
-        let res = evaluate_type(
-            &namespace,
-            &expr,
-            &[DataSource::Table("temp_02".to_owned())],
-        )
-        .unwrap()
-        .unwrap();
+        let res = evaluate_type(&namespace, "shared_field0", &["temp_02"])
+            .unwrap()
+            .unwrap();
         assert_matches!(res, VarRefDataType::Integer);
 
-        let Field { expr, .. } = "shared_field0".parse().unwrap();
-        let res = evaluate_type(
-            &namespace,
-            &expr,
-            &[DataSource::Table("temp_02".to_owned())],
-        )
-        .unwrap()
-        .unwrap();
+        let res = evaluate_type(&namespace, "shared_field0", &["temp_02"])
+            .unwrap()
+            .unwrap();
         assert_matches!(res, VarRefDataType::Integer);
 
         // Same field across multiple measurements resolves to the highest precedence (float)
-        let Field { expr, .. } = "shared_field0".parse().unwrap();
-        let res = evaluate_type(
-            &namespace,
-            &expr,
-            &[
-                DataSource::Table("temp_01".to_owned()),
-                DataSource::Table("temp_02".to_owned()),
-            ],
-        )
-        .unwrap()
-        .unwrap();
+        let res = evaluate_type(&namespace, "shared_field0", &["temp_01", "temp_02"])
+            .unwrap()
+            .unwrap();
         assert_matches!(res, VarRefDataType::Float);
 
         // Explicit cast of integer field to float
-        let Field { expr, .. } = "SUM(field_i64::float)".parse().unwrap();
-        let res = evaluate_type(
-            &namespace,
-            &expr,
-            &[DataSource::Table("temp_01".to_owned())],
-        )
-        .unwrap()
-        .unwrap();
+        let res = evaluate_type(&namespace, "SUM(field_i64::float)", &["temp_01"])
+            .unwrap()
+            .unwrap();
         assert_matches!(res, VarRefDataType::Float);
 
         //
         // Binary expressions
         //
 
-        let Field { expr, .. } = "field_f64 + field_i64".parse().unwrap();
-        let res = evaluate_type(
-            &namespace,
-            &expr,
-            &[DataSource::Table("all_types".to_owned())],
-        )
-        .unwrap()
-        .unwrap();
+        let res = evaluate_type(&namespace, "field_f64 + field_i64", &["all_types"])
+            .unwrap()
+            .unwrap();
         assert_matches!(res, VarRefDataType::Float);
 
-        let Field { expr, .. } = "field_bool | field_bool".parse().unwrap();
-        let res = evaluate_type(
-            &namespace,
-            &expr,
-            &[DataSource::Table("all_types".to_owned())],
-        )
-        .unwrap()
-        .unwrap();
+        let res = evaluate_type(&namespace, "field_bool | field_bool", &["all_types"])
+            .unwrap()
+            .unwrap();
         assert_matches!(res, VarRefDataType::Boolean);
 
         // Fallible
 
         // Verify incompatible operators and operator error
-        let Field { expr, .. } = "field_f64 & field_i64".parse().unwrap();
-        let res = evaluate_type(
-            &namespace,
-            &expr,
-            &[DataSource::Table("all_types".to_owned())],
-        );
+        let res = evaluate_type(&namespace, "field_f64 & field_i64", &["all_types"]);
         assert_matches!(res, Err(DataFusionError::Plan(ref s)) if s == "incompatible operands for operator &: float and integer");
 
         // data types for functions
-        let Field { expr, .. } = "SUM(field_f64)".parse().unwrap();
-        let res = evaluate_type(
-            &namespace,
-            &expr,
-            &[DataSource::Table("temp_01".to_owned())],
-        )
-        .unwrap()
-        .unwrap();
+        let res = evaluate_type(&namespace, "SUM(field_f64)", &["temp_01"])
+            .unwrap()
+            .unwrap();
         assert_matches!(res, VarRefDataType::Float);
 
-        let Field { expr, .. } = "SUM(field_i64)".parse().unwrap();
-        let res = evaluate_type(
-            &namespace,
-            &expr,
-            &[DataSource::Table("temp_01".to_owned())],
-        )
-        .unwrap()
-        .unwrap();
+        let res = evaluate_type(&namespace, "SUM(field_i64)", &["temp_01"])
+            .unwrap()
+            .unwrap();
         assert_matches!(res, VarRefDataType::Integer);
 
-        let Field { expr, .. } = "SUM(field_u64)".parse().unwrap();
-        let res = evaluate_type(
-            &namespace,
-            &expr,
-            &[DataSource::Table("temp_01".to_owned())],
-        )
-        .unwrap()
-        .unwrap();
+        let res = evaluate_type(&namespace, "SUM(field_u64)", &["temp_01"])
+            .unwrap()
+            .unwrap();
         assert_matches!(res, VarRefDataType::Unsigned);
 
-        let Field { expr, .. } = "MIN(field_f64)".parse().unwrap();
-        let res = evaluate_type(
-            &namespace,
-            &expr,
-            &[DataSource::Table("temp_01".to_owned())],
-        )
-        .unwrap()
-        .unwrap();
+        let res = evaluate_type(&namespace, "MIN(field_f64)", &["temp_01"])
+            .unwrap()
+            .unwrap();
         assert_matches!(res, VarRefDataType::Float);
 
-        let Field { expr, .. } = "MAX(field_i64)".parse().unwrap();
-        let res = evaluate_type(
-            &namespace,
-            &expr,
-            &[DataSource::Table("temp_01".to_owned())],
-        )
-        .unwrap()
-        .unwrap();
+        let res = evaluate_type(&namespace, "MAX(field_i64)", &["temp_01"])
+            .unwrap()
+            .unwrap();
         assert_matches!(res, VarRefDataType::Integer);
 
-        let Field { expr, .. } = "FIRST(field_str)".parse().unwrap();
-        let res = evaluate_type(
-            &namespace,
-            &expr,
-            &[DataSource::Table("temp_01".to_owned())],
-        )
-        .unwrap()
-        .unwrap();
+        let res = evaluate_type(&namespace, "FIRST(field_str)", &["temp_01"])
+            .unwrap()
+            .unwrap();
         assert_matches!(res, VarRefDataType::String);
 
-        let Field { expr, .. } = "LAST(field_str)".parse().unwrap();
-        let res = evaluate_type(
-            &namespace,
-            &expr,
-            &[DataSource::Table("temp_01".to_owned())],
-        )
-        .unwrap()
-        .unwrap();
+        let res = evaluate_type(&namespace, "LAST(field_str)", &["temp_01"])
+            .unwrap()
+            .unwrap();
         assert_matches!(res, VarRefDataType::String);
 
-        let Field { expr, .. } = "MEAN(field_i64)".parse().unwrap();
-        let res = evaluate_type(
-            &namespace,
-            &expr,
-            &[DataSource::Table("temp_01".to_owned())],
-        )
-        .unwrap()
-        .unwrap();
+        let res = evaluate_type(&namespace, "MEAN(field_i64)", &["temp_01"])
+            .unwrap()
+            .unwrap();
         assert_matches!(res, VarRefDataType::Float);
 
-        let Field { expr, .. } = "MEAN(field_u64)".parse().unwrap();
-        let res = evaluate_type(
-            &namespace,
-            &expr,
-            &[DataSource::Table("temp_01".to_owned())],
-        )
-        .unwrap()
-        .unwrap();
+        let res = evaluate_type(&namespace, "MEAN(field_u64)", &["temp_01"])
+            .unwrap()
+            .unwrap();
         assert_matches!(res, VarRefDataType::Float);
 
-        let Field { expr, .. } = "COUNT(field_f64)".parse().unwrap();
-        let res = evaluate_type(
-            &namespace,
-            &expr,
-            &[DataSource::Table("temp_01".to_owned())],
-        )
-        .unwrap()
-        .unwrap();
+        let res = evaluate_type(&namespace, "COUNT(field_f64)", &["temp_01"])
+            .unwrap()
+            .unwrap();
         assert_matches!(res, VarRefDataType::Integer);
 
-        let Field { expr, .. } = "COUNT(field_i64)".parse().unwrap();
-        let res = evaluate_type(
-            &namespace,
-            &expr,
-            &[DataSource::Table("temp_01".to_owned())],
-        )
-        .unwrap()
-        .unwrap();
+        let res = evaluate_type(&namespace, "COUNT(field_i64)", &["temp_01"])
+            .unwrap()
+            .unwrap();
         assert_matches!(res, VarRefDataType::Integer);
 
-        let Field { expr, .. } = "COUNT(field_u64)".parse().unwrap();
-        let res = evaluate_type(
-            &namespace,
-            &expr,
-            &[DataSource::Table("temp_01".to_owned())],
-        )
-        .unwrap()
-        .unwrap();
+        let res = evaluate_type(&namespace, "COUNT(field_u64)", &["temp_01"])
+            .unwrap()
+            .unwrap();
         assert_matches!(res, VarRefDataType::Integer);
 
-        let Field { expr, .. } = "COUNT(field_str)".parse().unwrap();
-        let res = evaluate_type(
-            &namespace,
-            &expr,
-            &[DataSource::Table("temp_01".to_owned())],
-        )
-        .unwrap()
-        .unwrap();
+        let res = evaluate_type(&namespace, "COUNT(field_str)", &["temp_01"])
+            .unwrap()
+            .unwrap();
         assert_matches!(res, VarRefDataType::Integer);
 
         // Float functions
@@ -572,50 +548,80 @@ mod test {
             "kaufmans_adaptive_moving_average(field_i64, 2)",
             "chande_momentum_oscillator(field_i64, 2)",
         ] {
-            let Field { expr, .. } = call.parse().unwrap();
-            let res = evaluate_type(
-                &namespace,
-                &expr,
-                &[DataSource::Table("temp_01".to_owned())],
-            )
-            .unwrap()
-            .unwrap();
+            let res = evaluate_type(&namespace, call, &["temp_01"])
+                .unwrap()
+                .unwrap();
             assert_matches!(res, VarRefDataType::Float);
         }
 
         // holt_winters
-        let Field { expr, .. } = "holt_winters(mean(field_i64), 2, 3)".parse().unwrap();
         let res = evaluate_type(
             &namespace,
-            &expr,
-            &[DataSource::Table("temp_01".to_owned())],
+            "holt_winters(mean(field_i64), 2, 3)",
+            &["temp_01"],
         )
         .unwrap()
         .unwrap();
         assert_matches!(res, VarRefDataType::Float);
 
         // holt_winters_with_fit
-        let Field { expr, .. } = "holt_winters_with_fit(mean(field_i64), 2, 3)"
-            .parse()
-            .unwrap();
         let res = evaluate_type(
             &namespace,
-            &expr,
-            &[DataSource::Table("temp_01".to_owned())],
+            "holt_winters_with_fit(mean(field_i64), 2, 3)",
+            &["temp_01"],
         )
         .unwrap()
         .unwrap();
         assert_matches!(res, VarRefDataType::Float);
 
         // Integer functions
-        let Field { expr, .. } = "elapsed(field_i64)".parse().unwrap();
-        let res = evaluate_type(
-            &namespace,
-            &expr,
-            &[DataSource::Table("temp_01".to_owned())],
-        )
-        .unwrap()
-        .unwrap();
+        let res = evaluate_type(&namespace, "elapsed(field_i64)", &["temp_01"])
+            .unwrap()
+            .unwrap();
         assert_matches!(res, VarRefDataType::Integer);
+
+        // scalar functions
+
+        // These require a single numeric input and return a float
+        let res = evaluate_type(&namespace, "sin(field_f64)", &["temp_01"])
+            .unwrap()
+            .unwrap();
+        assert_matches!(res, VarRefDataType::Float);
+        let res = evaluate_type(&namespace, "sin(field_i64)", &["temp_01"])
+            .unwrap()
+            .unwrap();
+        assert_matches!(res, VarRefDataType::Float);
+        evaluate_type(&namespace, "sin()", &["temp_01"]).unwrap_err();
+        evaluate_type(&namespace, "sin(field_str)", &["temp_01"]).unwrap_err();
+
+        // These require a single float as input and return a float
+        let res = evaluate_type(&namespace, "asin(field_f64)", &["temp_01"])
+            .unwrap()
+            .unwrap();
+        assert_matches!(res, VarRefDataType::Float);
+        evaluate_type(&namespace, "asin(field_i64)", &["temp_01"]).unwrap_err();
+
+        // These require two numeric arguments as input and return a float
+        let res = evaluate_type(&namespace, "atan2(field_f64, 3)", &["temp_01"])
+            .unwrap()
+            .unwrap();
+        assert_matches!(res, VarRefDataType::Float);
+        evaluate_type(&namespace, "atan2(field_f64)", &["temp_01"]).unwrap_err();
+        evaluate_type(&namespace, "atan2(field_str, 3)", &["temp_01"]).unwrap_err();
+        evaluate_type(&namespace, "atan2(field_i64, 'str')", &["temp_01"]).unwrap_err();
+
+        // These require a numeric argument as input and return the same type
+        let res = evaluate_type(&namespace, "abs(field_f64)", &["temp_01"])
+            .unwrap()
+            .unwrap();
+        assert_matches!(res, VarRefDataType::Float);
+        let res = evaluate_type(&namespace, "abs(field_i64)", &["temp_01"])
+            .unwrap()
+            .unwrap();
+        assert_matches!(res, VarRefDataType::Integer);
+        let res = evaluate_type(&namespace, "abs(field_u64)", &["temp_01"])
+            .unwrap()
+            .unwrap();
+        assert_matches!(res, VarRefDataType::Unsigned);
     }
 }
