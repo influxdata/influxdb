@@ -1721,6 +1721,7 @@ mod test {
             Ok(stmt.select.into())
         }
 
+        /// Validate the data types of the fields of a [`Select`].
         #[test]
         fn projection_schema() {
             let namespace = MockSchemaProvider::default();
@@ -2112,6 +2113,54 @@ mod test {
             assert_eq!(
                 stmt.to_string(),
                 "SELECT time::timestamp AS time, cpu::tag AS cpu, foo::tag AS foo, usage_system::float AS usage_system FROM (SELECT time::timestamp AS time, cpu::tag AS foo, usage_system::float AS usage_system FROM cpu GROUP BY cpu)"
+            );
+
+            // Projects non-existent foo as a tag in the outer query
+            let stmt = parse_select(
+                "SELECT * FROM (SELECT usage_idle FROM cpu GROUP BY foo) GROUP BY cpu",
+            );
+            let stmt = rewrite_select_statement(&namespace, &stmt).unwrap();
+            assert_eq!(
+                stmt.to_string(),
+                "SELECT time::timestamp AS time, foo::tag AS foo, usage_idle::float AS usage_idle FROM (SELECT time::timestamp AS time, usage_idle::float AS usage_idle FROM cpu GROUP BY foo) GROUP BY cpu"
+            );
+
+            // Projects non-existent tag, "bytes_free" from cpu and also bytes_free field from disk
+            // NOTE: InfluxQL OG does something really strange and arguably incorrect
+            //
+            // ```
+            // SELECT * FROM (SELECT usage_idle FROM cpu GROUP BY bytes_free), (SELECT bytes_free FROM disk) GROUP BY cpu
+            // ```
+            //
+            // The output shows that InfluxQL expanded the non-existent bytes_free tag (bytes_free1)
+            // from the cpu measurement, and the bytes_free field from the disk measurement as two
+            // separate columns but when producing the results, read the data from the `bytes_free`
+            // field for the disk table.
+            //
+            // ```
+            // name: cpu
+            // tags: cpu=cpu-total
+            // time                bytes_free bytes_free_1 usage_idle
+            // ----                ---------- ------------ ----------
+            // 1667181600000000000                         2.98
+            // 1667181610000000000                         2.99
+            // ... trimmed for brevity
+            //
+            // name: disk
+            // tags: cpu=
+            // time                bytes_free bytes_free_1 usage_idle
+            // ----                ---------- ------------ ----------
+            // 1667181600000000000 1234       1234
+            // 1667181600000000000 3234       3234
+            // ... trimmed for brevity
+            // ```
+            let stmt = parse_select(
+                "SELECT * FROM (SELECT usage_idle FROM cpu GROUP BY bytes_free), (SELECT bytes_free FROM disk) GROUP BY cpu",
+            );
+            let stmt = rewrite_select_statement(&namespace, &stmt).unwrap();
+            assert_eq!(
+                stmt.to_string(),
+                "SELECT time::timestamp AS time, bytes_free::integer AS bytes_free, bytes_free::tag AS bytes_free_1, usage_idle::float AS usage_idle FROM (SELECT time::timestamp AS time, usage_idle::float AS usage_idle FROM cpu GROUP BY bytes_free), (SELECT time::timestamp AS time, bytes_free::integer AS bytes_free FROM disk) GROUP BY cpu"
             );
         }
 
