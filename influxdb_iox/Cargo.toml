@@ -19,6 +19,7 @@ import = { path = "../import" }
 influxdb_iox_client = { path = "../influxdb_iox_client", features = ["flight", "format"] }
 influxdb_storage_client = { path = "../influxdb_storage_client" }
 influxrpc_parser = { path = "../influxrpc_parser"}
+ingester_query_grpc = { path = "../ingester_query_grpc" }
 iox_catalog = { path = "../iox_catalog" }
 ioxd_common = { path = "../ioxd_common"}
 ioxd_compactor = { path = "../ioxd_compactor"}

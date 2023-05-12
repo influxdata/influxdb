@@ -1,7 +1,7 @@
 use arrow_util::assert_batches_sorted_eq;
 use assert_matches::assert_matches;
 use data_types::PartitionKey;
-use influxdb_iox_client::flight::generated_types::IngesterQueryRequest;
+use ingester_query_grpc::influxdata::iox::ingester::v1::IngesterQueryRequest;
 use ingester_test_ctx::TestContextBuilder;
 use iox_catalog::interface::Catalog;
 use metric::{DurationHistogram, U64Histogram};

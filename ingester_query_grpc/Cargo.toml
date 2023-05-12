@@ -1,5 +1,5 @@
 [package]
-name = "generated_types"
+name = "ingester_query_grpc"
 version.workspace = true
 authors.workspace = true
 edition.workspace = true
@@ -7,15 +7,16 @@ license.workspace = true
 
 [dependencies] # In alphabetical order
 base64 = "0.21"
-bytes = "1.4"
-data_types = { path = "../data_types", optional = true }
-observability_deps = { path = "../observability_deps" }
+data_types = { path = "../data_types" }
+datafusion = { workspace = true }
+datafusion-proto = { workspace = true }
 pbjson = "0.5"
 pbjson-types = "0.5"
+predicate = { path = "../predicate" }
 prost = "0.11"
+query_functions = { path = "../query_functions" }
 serde = { version = "1.0", features = ["derive"] }
 snafu = "0.7"
-tonic = { workspace = true }
 workspace-hack = { version = "0.1", path = "../workspace-hack" }
 
 [build-dependencies] # In alphabetical order
@@ -23,9 +24,3 @@ tonic-build = { workspace = true }
 prost-build = "0.11"
 pbjson-build = "0.5"
 
-[dev-dependencies]
-data_types = { path = "../data_types" }
-
-[features]
-default = ["data_types_conversions"]
-data_types_conversions = ["data_types"]
