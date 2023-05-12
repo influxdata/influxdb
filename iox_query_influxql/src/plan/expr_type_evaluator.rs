@@ -156,7 +156,8 @@ impl<'a> TypeEvaluator<'a> {
             // See: https://github.com/influxdata/influxdb/blob/e484c4d87193a475466c0285c018d16f168139e6/query/functions.go#L54-L60
             "mean" => Some(VarRefDataType::Float),
             "count" => Some(VarRefDataType::Integer),
-            "min" | "max" | "sum" | "first" | "last" => match arg_types.first() {
+            // These functions return the same type as their first argument
+            "min" | "max" | "sum" | "first" | "last" | "distinct" => match arg_types.first() {
                 Some(v) => *v,
                 None => None,
             },
@@ -497,6 +498,11 @@ mod test {
         assert_matches!(res, VarRefDataType::String);
 
         let res = evaluate_type(&namespace, "LAST(field_str)", &["temp_01"])
+            .unwrap()
+            .unwrap();
+        assert_matches!(res, VarRefDataType::String);
+
+        let res = evaluate_type(&namespace, "DISTINCT(field_str)", &["temp_01"])
             .unwrap()
             .unwrap();
         assert_matches!(res, VarRefDataType::String);
