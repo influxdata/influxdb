@@ -12,10 +12,20 @@ pub trait Authorizer: std::fmt::Debug + Send + Sync {
     /// The returned list of permissions is the intersection of the permissions
     /// requested and the permissions associated with the token.
     ///
-    /// Implementations of this trait should only error if:
-    ///     * there is a failure processing the token.
-    ///     * the token is invalid.
-    ///     * there is not any intersection of permissions.
+    /// Implementations of this trait should return the specified errors under
+    /// the following conditions:
+    ///
+    /// * [`Error::InvalidToken`]: the token is invalid / in an incorrect
+    ///       format / otherwise corrupt and a permission check cannot be
+    ///       performed
+    ///
+    /// * [`Error::NoToken`]: the token was not provided
+    ///
+    /// * [`Error::Forbidden`]: the token was well formed, but lacks
+    ///       authorisation to perform the requested action
+    ///
+    /// * [`Error::Verification`]: the token permissions were not possible
+    ///       to validate - an internal error has occurred
     async fn permissions(
         &self,
         token: Option<Vec<u8>>,
