@@ -242,10 +242,7 @@ fn from_field_and_dimensions(
     for tr in from {
         match tr {
             DataSource::Table(name) => {
-                let (field_set, tag_set) = match field_and_dimensions(s, name.as_str()) {
-                    Some(res) => res,
-                    None => continue,
-                };
+                let Some((field_set, tag_set)) = field_and_dimensions(s, name.as_str()) else { continue };
 
                 // Merge field_set with existing
                 for (name, ft) in &field_set {
