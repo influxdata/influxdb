@@ -9,7 +9,7 @@ use crate::plan::planner_time_range_expression::{
 };
 use crate::plan::rewriter::{rewrite_statement, ProjectionType};
 use crate::plan::util::{binary_operator_to_df_operator, rebase_expr, Schemas};
-use crate::plan::var_ref::{data_type_to_var_ref_data_type, var_ref_data_type_to_data_type};
+use crate::plan::var_ref::var_ref_data_type_to_data_type;
 use crate::plan::{error, planner_rewrite_expression};
 use arrow::array::{StringBuilder, StringDictionaryBuilder};
 use arrow::datatypes::{DataType, Field as ArrowField, Int32Type, Schema as ArrowSchema};
@@ -1102,24 +1102,29 @@ impl<'a> InfluxQLToLogicalPlan<'a> {
                         .first()
                         .map(|f| f.data_type().clone())
                     {
-                        Some(col_type) => {
+                        Some(src_type) => {
                             let column = name.as_expr();
-                            let src_type = data_type_to_var_ref_data_type(col_type)?;
-                            match opt_dst_type {
+
+                            match opt_dst_type
+                                .deref()
+                                .and_then(var_ref_data_type_to_data_type)
+                            {
                                 Some(dst_type) => {
-                                    if src_type == *dst_type {
+                                    fn is_numeric(dt: &DataType) -> bool {
+                                        matches!(
+                                            dt,
+                                            DataType::Int64 | DataType::Float64 | DataType::UInt64
+                                        )
+                                    }
+
+                                    if src_type == dst_type {
                                         column
-                                    } else if src_type.is_numeric_type()
-                                        && dst_type.is_numeric_type()
-                                    {
+                                    } else if is_numeric(&src_type) && is_numeric(&dst_type) {
                                         // InfluxQL only allows casting between numeric types,
                                         // and it is safe to unconditionally unwrap, as the
                                         // `is_numeric_type` call guarantees it can be mapped to
                                         // an Arrow DataType
-                                        column.cast_to(
-                                            &var_ref_data_type_to_data_type(*dst_type).unwrap(),
-                                            &schemas.df_schema,
-                                        )?
+                                        column.cast_to(&dst_type, &schemas.df_schema)?
                                     } else {
                                         // If the cast is incompatible, evaluates to NULL
                                         Expr::Literal(ScalarValue::Null)
