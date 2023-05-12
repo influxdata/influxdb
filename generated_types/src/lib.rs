@@ -242,8 +242,6 @@ pub mod google;
 #[cfg(any(feature = "data_types_conversions", test))]
 pub mod compactor;
 #[cfg(any(feature = "data_types_conversions", test))]
-pub mod delete_predicate;
-#[cfg(any(feature = "data_types_conversions", test))]
 pub mod ingester;
 
 pub use prost::{DecodeError, EncodeError};
