@@ -512,3 +512,39 @@ SELECT DISTINCT(str), DISTINCT(i64) FROM m0;
 
 -- non-existing table
 SELECT * FROM does_not_exist;
+
+--
+-- Subqueries
+--
+
+SELECT * FROM (SELECT usage_idle FROM cpu);
+
+SELECT * FROM (SELECT usage_idle FROM cpu GROUP BY cpu);
+
+-- GROUP BY should be pushed to subquery
+SELECT * FROM (SELECT usage_idle FROM cpu) GROUP BY cpu;
+
+SELECT cpu, usage_idle FROM (SELECT usage_idle FROM cpu GROUP BY cpu);
+
+SELECT * FROM (SELECT COUNT(usage_idle) FROM cpu);
+
+SELECT count FROM (SELECT COUNT(usage_idle) FROM cpu);
+
+SELECT * FROM (SELECT COUNT(usage_idle) FROM cpu GROUP BY cpu);
+
+SELECT * FROM (SELECT cpu AS foo, usage_idle FROM cpu);
+
+SELECT * FROM (SELECT cpu AS foo, usage_idle FROM cpu GROUP BY cpu);
+
+SELECT * FROM (SELECT cpu AS foo, usage_idle FROM cpu GROUP BY cpu) GROUP BY cpu;
+
+SELECT * FROM (SELECT cpu AS foo, usage_idle FROM cpu) GROUP BY cpu;
+
+-- group by should be pushed to subquery, resulting in COUNTs that are grouped
+-- TODO(sgc): Fix this
+-- SELECT * FROM (SELECT COUNT(usage_idle) FROM cpu) GROUP BY cpu;
+
+SELECT * FROM (SELECT usage_idle FROM cpu GROUP BY cpu) GROUP BY cpu;
+
+-- GROUP BY should be pushed to subquery
+SELECT * FROM (SELECT usage_idle FROM cpu) GROUP BY cpu;

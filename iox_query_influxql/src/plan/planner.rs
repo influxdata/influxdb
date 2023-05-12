@@ -137,6 +137,10 @@ struct Context<'a> {
     // GROUP BY information
     group_by: Option<&'a GroupByClause>,
     fill: Option<FillClause>,
+
+    /// The set of tags specified in the top-level `SELECT` statement
+    /// which represent the tag set used for grouping output.
+    root_group_by_tags: &'a [&'a str],
 }
 
 impl<'a> Context<'a> {
@@ -171,6 +175,29 @@ impl<'a> Context<'a> {
         Self {
             has_multiple_measurements,
             ..*self
+        }
+    }
+
+    fn with_root_group_by_tags(&self, root_group_by_tags: &'a [&'a str]) -> Self {
+        Self {
+            root_group_by_tags,
+            ..*self
+        }
+    }
+
+    /// Returns the combined GROUP BY tags clause from the root
+    /// and current statement. The list is sorted and guaranteed to be unique.
+    fn group_by_tags(&self) -> Vec<&str> {
+        match (self.root_group_by_tags.is_empty(), self.group_by) {
+            (true, None) => vec![],
+            (false, None) => self.root_group_by_tags.to_vec(),
+            (_, Some(group_by)) => group_by
+                .tags()
+                .map(|ident| ident.deref().as_str())
+                .chain(self.root_group_by_tags.iter().map(|s| *s))
+                .sorted()
+                .dedup()
+                .collect(),
         }
     }
 
@@ -282,11 +309,21 @@ impl<'a> InfluxQLToLogicalPlan<'a> {
     fn select_query_to_plan(&self, query: &SelectQuery) -> Result<LogicalPlan> {
         let select = &query.select;
 
+        let group_by_tags = if let Some(group_by) = select.group_by.as_ref() {
+            group_by
+                .tags()
+                .map(|ident| ident.deref().as_str())
+                .collect()
+        } else {
+            vec![]
+        };
+
         let ctx = Context::new()
             .with_projection_type(select.projection_type)
             .with_timezone(select.timezone)
             .with_group_by_fill(select)
-            .with_has_multiple_measurements(query.has_multiple_measurements);
+            .with_has_multiple_measurements(query.has_multiple_measurements)
+            .with_root_group_by_tags(&group_by_tags);
 
         // Skip the `time` column
         let fields_no_time = &select.fields[1..];
@@ -432,7 +469,8 @@ impl<'a> InfluxQLToLogicalPlan<'a> {
             .with_projection_type(select.projection_type)
             .with_timezone(select.timezone)
             .with_group_by_fill(select)
-            .with_has_multiple_measurements(ctx.has_multiple_measurements);
+            .with_has_multiple_measurements(ctx.has_multiple_measurements)
+            .with_root_group_by_tags(ctx.root_group_by_tags);
 
         // Skip the `time` column
         let fields_no_time = &select.fields[1..];
@@ -443,55 +481,51 @@ impl<'a> InfluxQLToLogicalPlan<'a> {
         // projection_tag_set : a list of tag columns specified exclusively in the SELECT projection
         // is_projected       : a list of booleans indicating whether matching elements in the
         //                      group_by_tag_set are also projected in the query
-        let (group_by_tag_set, projection_tag_set, is_projected) =
-            if let Some(group_by) = &select.group_by {
-                let mut tag_columns =
-                    find_tag_and_unknown_columns(fields_no_time).collect::<HashSet<_>>();
 
-                // Find the list of tag keys specified in the `GROUP BY` clause, and
-                // whether any of the tag keys are also projected in the SELECT list.
-                let (tag_set, is_projected): (Vec<_>, Vec<_>) = group_by
-                    .tags()
-                    .map(|t| t.deref().as_str())
-                    .map(|s| (s, tag_columns.contains(s)))
-                    // We sort the tag set, to ensure correct ordering of the results. The tag columns
-                    // referenced in the `tag_set` variable are added to the sort operator in
-                    // lexicographically ascending order.
-                    .sorted_by(|a, b| a.0.cmp(b.0))
-                    .unzip();
+        let group_by_tags = ctx.group_by_tags();
+        let (group_by_tag_set, projection_tag_set, is_projected) = if group_by_tags.is_empty() {
+            let tag_columns = find_tag_and_unknown_columns(fields_no_time)
+                .sorted()
+                .collect::<Vec<_>>();
+            (vec![], tag_columns, vec![])
+        } else {
+            let mut tag_columns =
+                find_tag_and_unknown_columns(fields_no_time).collect::<HashSet<_>>();
 
-                // Tags specified in the `GROUP BY` clause that are not already added to the
-                // projection must be projected, so they can be used in the group key.
-                //
-                // At the end of the loop, the `tag_columns` set will contain the tag columns that
-                // exist in the projection and not in the `GROUP BY`.
-                fields.extend(
-                    tag_set
-                        .iter()
-                        .filter_map(|col| match tag_columns.remove(*col) {
-                            true => None,
-                            false => Some(Field {
-                                expr: IQLExpr::VarRef(VarRef {
-                                    name: (*col).into(),
-                                    data_type: Some(VarRefDataType::Tag),
-                                }),
-                                name: col.to_string(),
-                                data_type: Some(InfluxColumnType::Tag),
+            // Find the list of tag keys specified in the `GROUP BY` clause, and
+            // whether any of the tag keys are also projected in the SELECT list.
+            let (tag_set, is_projected): (Vec<_>, Vec<_>) = group_by_tags
+                .into_iter()
+                .map(|s| (s, tag_columns.contains(s)))
+                .unzip();
+
+            // Tags specified in the `GROUP BY` clause that are not already added to the
+            // projection must be projected, so they can be used in the group key.
+            //
+            // At the end of the loop, the `tag_columns` set will contain the tag columns that
+            // exist in the projection and not in the `GROUP BY`.
+            fields.extend(
+                tag_set
+                    .iter()
+                    .filter_map(|col| match tag_columns.remove(*col) {
+                        true => None,
+                        false => Some(Field {
+                            expr: IQLExpr::VarRef(VarRef {
+                                name: (*col).into(),
+                                data_type: Some(VarRefDataType::Tag),
                             }),
+                            name: col.to_string(),
+                            data_type: Some(InfluxColumnType::Tag),
                         }),
-                );
+                    }),
+            );
 
-                (
-                    tag_set,
-                    tag_columns.into_iter().sorted().collect::<Vec<_>>(),
-                    is_projected,
-                )
-            } else {
-                let tag_columns = find_tag_and_unknown_columns(fields_no_time)
-                    .sorted()
-                    .collect::<Vec<_>>();
-                (vec![], tag_columns, vec![])
-            };
+            (
+                tag_set,
+                tag_columns.into_iter().sorted().collect::<Vec<_>>(),
+                is_projected,
+            )
+        };
 
         fields.extend(fields_no_time.iter().cloned());
 
