@@ -2184,11 +2184,8 @@ fn is_aggregate_field(f: &Field) -> bool {
 /// Find all the columns where the resolved data type
 /// is a tag or is [`None`], which is unknown.
 fn find_tag_and_unknown_columns(fields: &[Field]) -> impl Iterator<Item = &str> {
-    fields.iter().filter_map(|f| match &f.expr {
-        IQLExpr::VarRef(VarRef {
-            name,
-            data_type: Some(VarRefDataType::Tag) | None,
-        }) => Some(name.deref().as_str()),
+    fields.iter().filter_map(|f| match f.data_type {
+        Some(InfluxColumnType::Tag) | None => Some(f.name.as_str()),
         _ => None,
     })
 }
