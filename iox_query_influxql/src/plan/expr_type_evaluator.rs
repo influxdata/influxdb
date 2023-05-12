@@ -17,11 +17,26 @@ use itertools::Itertools;
 pub(super) struct TypeEvaluator<'a> {
     s: &'a dyn SchemaProvider,
     from: &'a [DataSource],
+    /// Setting this to `true` will ensure scalar functions return errors for invalid data types.
+    /// The default is false, to ensure compatibility with InfluxQL OG.
+    call_type_is_strict: bool,
 }
 
 impl<'a> TypeEvaluator<'a> {
     pub(super) fn new(s: &'a dyn SchemaProvider, from: &'a [DataSource]) -> Self {
-        Self { from, s }
+        Self {
+            from,
+            s,
+            call_type_is_strict: false,
+        }
+    }
+
+    pub(super) fn new_strict(s: &'a dyn SchemaProvider, from: &'a [DataSource]) -> Self {
+        Self {
+            from,
+            s,
+            call_type_is_strict: true,
+        }
     }
 
     pub(super) fn eval_type(&self, expr: &Expr) -> Result<Option<VarRefDataType>> {
@@ -181,9 +196,85 @@ impl<'a> TypeEvaluator<'a> {
             | "holt_winters_with_fit" => Some(VarRefDataType::Float),
             "elapsed" => Some(VarRefDataType::Integer),
 
-            // scalar functions
-            // See: https://github.com/influxdata/influxdb/blob/343ce4223810ecdbc7f4de68f2509a51b28f2c56/query/math.go#L24
+            name => self.eval_scalar(name, &arg_types)?,
+        })
+    }
 
+    /// Evaluate the data type of a scalar function
+    ///
+    /// See: https://github.com/influxdata/influxdb/blob/343ce4223810ecdbc7f4de68f2509a51b28f2c56/query/math.go#L24
+    ///
+    /// 💥InfluxQL OG has a bug that it does not evaluate call types correctly, and returns
+    /// the incorrect type by unconditionally using the first argument. It does not even call the
+    /// mapper to evaluate scalar functions. We must replicate the InfluxQL OG behaviour,
+    /// or queries will fail, that would ordinarily succeed.
+    ///
+    /// The bug may be traced through the OG source as follows.
+    ///
+    /// Prior to executing a `SELECT`, the following steps occur to validate all the field
+    /// expression types.
+    ///
+    /// 1. Calls `validateTypes` to ensure all field data types are valid:
+    ///    https://github.com/influxdata/influxdb/blob/f365bb7e3a9c5e227dbf66d84adf674d3d127176/query/compile.go#L1186-L1187
+    ///
+    /// 2. Uses a `MultiTypeMapper` to evaluate types, combining:
+    ///
+    ///    * a `FunctionTypeMapper` for sum, min, max, etc
+    ///    * a `MathTypeMapper` for scalar functions like log, abs, etc
+    ///
+    ///    ⚠️NOTE: the order is important. `FunctionTypeMapper` is called first.
+    ///
+    ///    See: https://github.com/influxdata/influxdb/blob/f365bb7e3a9c5e227dbf66d84adf674d3d127176/query/select.go#L973-L976
+    ///
+    /// 3. Call `EvalType` for each field:
+    ///
+    ///    See: https://github.com/influxdata/influxdb/blob/f365bb7e3a9c5e227dbf66d84adf674d3d127176/query/select.go#L979
+    ///
+    /// 4. For fields that have call expressions, the `evalCallExprType` function is ultimately called
+    ///
+    ///    See: https://github.com/influxdata/influxql/blob/802555d6b3a35cd464a6d8afa2a6511002cf3c2c/ast.go#L4697
+    ///
+    /// 5. Because the `TypeMapper` is a `CallTypeMapper`, `evalCallExprType` eventually calls `CallType`:
+    ///
+    ///    See: https://github.com/influxdata/influxql/blob/802555d6b3a35cd464a6d8afa2a6511002cf3c2c/ast.go#L4715
+    ///
+    /// 6. The `TypeMapper` is a `multiTypeMapper` and thus calls `CallType` for each instance. The first
+    ///    inner call that returns no error and the `typ` is not `Unknown` will be returned to the caller
+    ///
+    ///    See: https://github.com/influxdata/influxql/blob/802555d6b3a35cd464a6d8afa2a6511002cf3c2c/ast.go#L4610-L4615
+    ///
+    /// 7. Recall, the first `TypeMapper` is `FunctionTypeMapper`, so it's `CallType` is
+    ///    called first.
+    ///
+    ///    🪳Here is the bug, which is that `FunctionTypeMapper::CallType` always returns
+    ///      the type of the first argument:
+    ///
+    ///    See: https://github.com/influxdata/influxdb/blob/f365bb7e3a9c5e227dbf66d84adf674d3d127176/query/functions.go#L98-L99
+    fn eval_scalar(
+        &self,
+        name: &str,
+        arg_types: &[Option<VarRefDataType>],
+    ) -> Result<Option<VarRefDataType>> {
+        if self.call_type_is_strict {
+            self.eval_scalar_strict(name, arg_types)
+        } else {
+            self.eval_scalar_compatible(arg_types)
+        }
+    }
+
+    fn eval_scalar_compatible(
+        &self,
+        arg_types: &[Option<VarRefDataType>],
+    ) -> Result<Option<VarRefDataType>> {
+        Ok(arg_types.first().and_then(|v| v.clone()))
+    }
+
+    fn eval_scalar_strict(
+        &self,
+        name: &str,
+        arg_types: &[Option<VarRefDataType>],
+    ) -> Result<Option<VarRefDataType>> {
+        match name {
             // These functions require a single numeric as input and return a float
             name @ ("sin" | "cos" | "tan" | "atan" | "exp" | "log" | "ln" | "log2" | "log10"
             | "sqrt") => {
@@ -194,12 +285,11 @@ impl<'a> TypeEvaluator<'a> {
                     Some(
                         VarRefDataType::Float | VarRefDataType::Integer | VarRefDataType::Unsigned,
                     )
-                    | None => Some(VarRefDataType::Float),
-                    Some(arg0) => {
-                        return error::query(format!(
-                            "invalid argument type for {name}: expected a number, got {arg0}"
-                        ))
-                    }
+                    | None => Ok(Some(VarRefDataType::Float)),
+                    Some(arg0) if self.call_type_is_strict => error::query(format!(
+                        "invalid argument type for {name}: expected a number, got {arg0}"
+                    )),
+                    _ => Ok(None),
                 }
             }
 
@@ -209,44 +299,36 @@ impl<'a> TypeEvaluator<'a> {
                     .get(0)
                     .ok_or_else(|| error::map::query(format!("{name} expects 1 argument")))?
                 {
-                    Some(VarRefDataType::Float) | None => Some(VarRefDataType::Float),
-                    Some(arg0) => {
-                        return error::query(format!(
-                            "invalid argument type for {name}: expected a number, got {arg0}"
-                        ))
-                    }
+                    Some(VarRefDataType::Float) | None => Ok(Some(VarRefDataType::Float)),
+                    Some(arg0) if self.call_type_is_strict => error::query(format!(
+                        "invalid argument type for {name}: expected a float, got {arg0}"
+                    )),
+                    _ => Ok(None),
                 }
             }
 
             // These functions require two numeric arguments and return a float
             name @ ("atan2" | "pow") => {
                 let (Some(arg0), Some(arg1)) = (arg_types
-                    .get(0), arg_types.get(1)) else {
+                                                    .get(0), arg_types.get(1)) else {
                     return error::query(format!("{name} expects 2 arguments"))
                 };
 
-                if !matches!(
-                    arg0,
-                    Some(
-                        VarRefDataType::Float | VarRefDataType::Integer | VarRefDataType::Unsigned
-                    ) | None
-                ) {
-                    return error::query(format!(
-                        "invalid argument type for {name}: expected a number for first argument, got {arg0:?}"
-                    ));
+                match (arg0, arg1) {
+                    (Some(
+                        VarRefDataType::Float
+                        | VarRefDataType::Integer
+                        | VarRefDataType::Unsigned
+                    ) | None, Some(
+                        VarRefDataType::Float
+                        | VarRefDataType::Integer
+                        | VarRefDataType::Unsigned
+                    ) | None) => Ok(Some(VarRefDataType::Float)),
+                    (arg0, arg1) if self.call_type_is_strict => error::query(format!(
+                        "invalid argument types for {name}: expected a number for both arguments, got ({arg0:?}, {arg1:?})"
+                    )),
+                    _ => Ok(None),
                 }
-                if !matches!(
-                    arg1,
-                    Some(
-                        VarRefDataType::Float | VarRefDataType::Integer | VarRefDataType::Unsigned
-                    ) | None
-                ) {
-                    return error::query(format!(
-                        "invalid argument type for {name}: expected a number for second argument, got {arg1:?}"
-                    ));
-                }
-
-                Some(VarRefDataType::Float)
             }
 
             // These functions return the same data type as their input
@@ -259,18 +341,19 @@ impl<'a> TypeEvaluator<'a> {
                     // Return the same data type as the input
                     dt @ Some(
                         VarRefDataType::Float | VarRefDataType::Integer | VarRefDataType::Unsigned,
-                    ) => dt,
+                    ) => Ok(dt),
                     // If the input is unknown, default to float
-                    None => Some(VarRefDataType::Float),
-                    Some(arg0) => {
+                    None => Ok(Some(VarRefDataType::Float)),
+                    Some(arg0) if self.call_type_is_strict => {
                         return error::query(format!(
                             "invalid argument type for {name}: expected a number, got {arg0}"
                         ))
                     }
+                    _ => Ok(None),
                 }
             }
-            _ => None,
-        })
+            _ => Ok(None),
+        }
     }
 }
 
@@ -593,28 +676,18 @@ mod test {
             .unwrap()
             .unwrap();
         assert_matches!(res, VarRefDataType::Float);
-        let res = evaluate_type(&namespace, "sin(field_i64)", &["temp_01"])
-            .unwrap()
-            .unwrap();
-        assert_matches!(res, VarRefDataType::Float);
-        evaluate_type(&namespace, "sin()", &["temp_01"]).unwrap_err();
-        evaluate_type(&namespace, "sin(field_str)", &["temp_01"]).unwrap_err();
 
         // These require a single float as input and return a float
         let res = evaluate_type(&namespace, "asin(field_f64)", &["temp_01"])
             .unwrap()
             .unwrap();
         assert_matches!(res, VarRefDataType::Float);
-        evaluate_type(&namespace, "asin(field_i64)", &["temp_01"]).unwrap_err();
 
         // These require two numeric arguments as input and return a float
         let res = evaluate_type(&namespace, "atan2(field_f64, 3)", &["temp_01"])
             .unwrap()
             .unwrap();
         assert_matches!(res, VarRefDataType::Float);
-        evaluate_type(&namespace, "atan2(field_f64)", &["temp_01"]).unwrap_err();
-        evaluate_type(&namespace, "atan2(field_str, 3)", &["temp_01"]).unwrap_err();
-        evaluate_type(&namespace, "atan2(field_i64, 'str')", &["temp_01"]).unwrap_err();
 
         // These require a numeric argument as input and return the same type
         let res = evaluate_type(&namespace, "abs(field_f64)", &["temp_01"])
@@ -629,5 +702,84 @@ mod test {
             .unwrap()
             .unwrap();
         assert_matches!(res, VarRefDataType::Unsigned);
+    }
+
+    /// Validate InfluxQL OG compatible behavior for scalar functions
+    #[test]
+    fn test_evaluate_type_compat() {
+        let namespace = MockSchemaProvider::default();
+
+        fn evaluate_type(
+            s: &dyn SchemaProvider,
+            expr: &str,
+            from: &[&str],
+        ) -> Result<Option<VarRefDataType>> {
+            let from = from
+                .into_iter()
+                .map(ToString::to_string)
+                .map(DataSource::Table)
+                .collect::<Vec<_>>();
+            let Field { expr, .. } = expr.parse().unwrap();
+            TypeEvaluator::new(s, &from).eval_type(&expr)
+        }
+
+        let res = evaluate_type(&namespace, "sin(field_i64)", &["temp_01"])
+            .unwrap()
+            .unwrap();
+        assert_matches!(res, VarRefDataType::Integer);
+        let res = evaluate_type(&namespace, "sin(field_str)", &["temp_01"])
+            .unwrap()
+            .unwrap();
+        assert_matches!(res, VarRefDataType::String);
+
+        let res = evaluate_type(&namespace, "asin(field_i64)", &["temp_01"])
+            .unwrap()
+            .unwrap();
+        assert_matches!(res, VarRefDataType::Integer);
+
+        // invalid number of arguments, still returns data type of first arg
+        let res = evaluate_type(&namespace, "atan2(field_f64)", &["temp_01"])
+            .unwrap()
+            .unwrap();
+        assert_matches!(res, VarRefDataType::Float);
+
+        let res = evaluate_type(&namespace, "atan2(field_str, 3)", &["temp_01"])
+            .unwrap()
+            .unwrap();
+        assert_matches!(res, VarRefDataType::String);
+        let res = evaluate_type(&namespace, "atan2(field_i64, 'str')", &["temp_01"])
+            .unwrap()
+            .unwrap();
+        assert_matches!(res, VarRefDataType::Integer);
+    }
+
+    /// Validates `TypeEvaluator` when in strict mode.
+    #[test]
+    fn test_evaluate_type_strict() {
+        let namespace = MockSchemaProvider::default();
+
+        fn evaluate_type(
+            s: &dyn SchemaProvider,
+            expr: &str,
+            from: &[&str],
+        ) -> Result<Option<VarRefDataType>> {
+            let from = from
+                .into_iter()
+                .map(ToString::to_string)
+                .map(DataSource::Table)
+                .collect::<Vec<_>>();
+            let Field { expr, .. } = expr.parse().unwrap();
+            TypeEvaluator::new_strict(s, &from).eval_type(&expr)
+        }
+
+        // In struct mode, these scalar functions should return an error when the arguments are an
+        // invalid data type.
+
+        evaluate_type(&namespace, "sin(field_str)", &["temp_01"]).unwrap_err();
+        evaluate_type(&namespace, "asin(field_i64)", &["temp_01"]).unwrap_err();
+        evaluate_type(&namespace, "atan2(field_f64)", &["temp_01"]).unwrap_err();
+        evaluate_type(&namespace, "atan2(field_str, 3)", &["temp_01"]).unwrap_err();
+        evaluate_type(&namespace, "atan2(field_i64, 'str')", &["temp_01"]).unwrap_err();
+        evaluate_type(&namespace, "abs(field_str)", &["temp_01"]).unwrap_err();
     }
 }
