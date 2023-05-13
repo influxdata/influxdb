@@ -111,10 +111,10 @@ impl ColumnsByName {
 }
 
 // ColumnsByName is a newtype so that we can implement this `TryFrom` in this crate
-impl TryFrom<&ColumnsByName> for Schema {
+impl TryFrom<ColumnsByName> for Schema {
     type Error = schema::builder::Error;
 
-    fn try_from(value: &ColumnsByName) -> Result<Self, Self::Error> {
+    fn try_from(value: ColumnsByName) -> Result<Self, Self::Error> {
         let mut builder = SchemaBuilder::new();
 
         for (column_name, column_schema) in value.iter() {
@@ -123,14 +123,6 @@ impl TryFrom<&ColumnsByName> for Schema {
         }
 
         builder.build()
-    }
-}
-
-impl TryFrom<ColumnsByName> for Schema {
-    type Error = schema::builder::Error;
-
-    fn try_from(value: ColumnsByName) -> Result<Self, Self::Error> {
-        Self::try_from(&value)
     }
 }
 
