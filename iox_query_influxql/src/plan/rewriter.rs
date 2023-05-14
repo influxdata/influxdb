@@ -147,11 +147,16 @@ fn field_list_normalize_time(stmt: &mut Select) {
 
     normalize_time(stmt, false);
 
-    for stmt in stmt.from.iter_mut().filter_map(|ms| match ms {
-        DataSource::Subquery(stmt) => Some(stmt),
-        _ => None,
-    }) {
-        normalize_time(stmt, true)
+    // traverse all the subqueries
+    let mut data_sources = vec![stmt.from.as_mut_slice()];
+    while let Some(from) = data_sources.pop() {
+        for sel in from.iter_mut().filter_map(|ds| match ds {
+            DataSource::Subquery(q) => Some(q),
+            _ => None,
+        }) {
+            normalize_time(sel, true);
+            data_sources.push(&mut sel.from);
+        }
     }
 }
 
@@ -2123,6 +2128,15 @@ mod test {
             assert_eq!(
                 stmt.to_string(),
                 "SELECT time::timestamp AS time, foo::tag AS foo, usage_idle::float AS usage_idle FROM (SELECT time::timestamp AS time, usage_idle::float AS usage_idle FROM cpu GROUP BY foo) GROUP BY cpu"
+            );
+            // Normalises time to all leaf subqueries
+            let stmt = parse_select(
+                "SELECT * FROM (SELECT MAX(value) FROM (SELECT DISTINCT(usage_idle) AS value FROM cpu)) GROUP BY cpu",
+            );
+            let stmt = rewrite_select_statement(&namespace, &stmt).unwrap();
+            assert_eq!(
+                stmt.to_string(),
+                "SELECT time::timestamp AS time, max::float AS max FROM (SELECT time::timestamp AS time, max(value::float) AS max FROM (SELECT time::timestamp AS time, distinct(usage_idle::float) AS value FROM cpu)) GROUP BY cpu"
             );
 
             // Projects non-existent tag, "bytes_free" from cpu and also bytes_free field from disk
