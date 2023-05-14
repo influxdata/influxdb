@@ -347,8 +347,8 @@ mod tests {
         partition.create_parquet_file(builder).await;
         let table_id = table.table.id;
 
-        let single_file_size = 216;
-        let two_file_size = 392;
+        let single_file_size = 200;
+        let two_file_size = 360;
         assert!(single_file_size < two_file_size);
 
         let cache = make_cache(&catalog);

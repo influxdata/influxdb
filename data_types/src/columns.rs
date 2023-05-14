@@ -1,6 +1,6 @@
 //! Types having to do with columns.
 
-use super::{ChunkId, TableId};
+use super::TableId;
 use influxdb_line_protocol::FieldValue;
 use schema::{builder::SchemaBuilder, InfluxColumnType, InfluxFieldType, Schema};
 use sqlx::postgres::PgHasArrayType;
@@ -336,7 +336,7 @@ impl ColumnSet {
 
     /// Estimate the memory consumption of this object and its contents
     pub fn size(&self) -> usize {
-        std::mem::size_of_val(self) + (std::mem::size_of::<ChunkId>() * self.0.capacity())
+        std::mem::size_of_val(self) + (std::mem::size_of::<ColumnId>() * self.0.capacity())
     }
 }
 
