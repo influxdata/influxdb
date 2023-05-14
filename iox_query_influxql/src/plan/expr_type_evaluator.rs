@@ -23,6 +23,10 @@ pub(super) struct TypeEvaluator<'a> {
 }
 
 impl<'a> TypeEvaluator<'a> {
+    /// Create a `TypeEvaluator` with behavior compatible with InfluxQL OG.
+    ///
+    /// This behavior includes limited evaluation of [`Call`] expressions, as described
+    /// by [`TypeEvaluator::eval_scalar`].
     pub(super) fn new(s: &'a dyn SchemaProvider, from: &'a [DataSource]) -> Self {
         Self {
             from,
@@ -31,7 +35,12 @@ impl<'a> TypeEvaluator<'a> {
         }
     }
 
-    pub(super) fn new_strict(s: &'a dyn SchemaProvider, from: &'a [DataSource]) -> Self {
+    /// Create a `TypeEvaluator` with strict behavior.
+    ///
+    /// This behavior includes strict evaluation of [`Call`] expressions, that are
+    /// not compatible with InfluxQL OG, but may be enabled in the future to improve
+    /// the user experience.
+    fn new_strict(s: &'a dyn SchemaProvider, from: &'a [DataSource]) -> Self {
         Self {
             from,
             s,

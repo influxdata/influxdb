@@ -541,10 +541,11 @@ SELECT * FROM (SELECT cpu AS foo, usage_idle FROM cpu GROUP BY cpu) GROUP BY cpu
 SELECT * FROM (SELECT cpu AS foo, usage_idle FROM cpu) GROUP BY cpu;
 
 -- group by should be pushed to subquery, resulting in COUNTs that are grouped
--- TODO(sgc): Fix this
 SELECT * FROM (SELECT COUNT(usage_idle) FROM cpu) GROUP BY cpu;
 
 SELECT * FROM (SELECT usage_idle FROM cpu GROUP BY cpu) GROUP BY cpu;
 
 -- GROUP BY should be pushed to subquery
 SELECT * FROM (SELECT usage_idle FROM cpu) GROUP BY cpu;
+
+SELECT * FROM (SELECT MAX(value) FROM (SELECT DISTINCT(usage_idle) AS value FROM cpu)) GROUP BY cpu;
