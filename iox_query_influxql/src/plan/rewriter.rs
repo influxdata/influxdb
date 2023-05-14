@@ -69,6 +69,7 @@ fn map_select(s: &dyn SchemaProvider, stmt: &SelectStatement) -> Result<Select> 
 
     let from = expand_from(s, stmt)?;
     let (fields, group_by) = expand_projection(s, stmt, &from)?;
+    let tag_set = select_tag_set(s, &from);
 
     let SelectStatementInfo { projection_type } =
         select_statement_info(&fields, &group_by, stmt.fill)?;
@@ -79,6 +80,7 @@ fn map_select(s: &dyn SchemaProvider, stmt: &SelectStatement) -> Result<Select> 
         from,
         condition: stmt.condition.clone(),
         group_by,
+        tag_set,
         fill: stmt.fill,
         order_by: stmt.order_by,
         limit: stmt.limit,
@@ -234,6 +236,24 @@ fn from_drop_empty(s: &dyn SchemaProvider, stmt: &mut Select) {
             }
         }
     });
+}
+
+/// Determine the combined tag set for the specified `from`.
+fn select_tag_set(s: &dyn SchemaProvider, from: &[DataSource]) -> TagSet {
+    let mut tag_set = TagSet::new();
+
+    for ds in from {
+        match ds {
+            DataSource::Table(table_name) => {
+                if let Some(table) = s.table_schema(table_name) {
+                    tag_set.extend(table.tags_iter().map(|f| f.name().to_owned()))
+                }
+            }
+            DataSource::Subquery(q) => tag_set.extend(q.tag_set.clone()),
+        }
+    }
+
+    tag_set
 }
 
 /// Determine the merged fields and tags of the `FROM` clause.
@@ -1712,6 +1732,7 @@ mod test {
 
     mod rewrite_statement {
         use super::*;
+        use crate::plan::ir::TagSet;
         use datafusion::common::Result;
         use influxdb_influxql_parser::select::SelectStatement;
         use schema::{InfluxColumnType, InfluxFieldType};
@@ -1763,6 +1784,31 @@ mod test {
                 q.select.fields[1].data_type,
                 Some(InfluxColumnType::Field(InfluxFieldType::Float))
             );
+        }
+
+        /// Validate the tag_set field of a [`Select]`
+        #[test]
+        fn tag_set_schema() {
+            let namespace = MockSchemaProvider::default();
+
+            macro_rules! assert_tag_set {
+                ($Q:ident, $($TAG:literal),*) => {
+                    assert_eq!($Q.select.tag_set, TagSet::from([$($TAG.to_owned(),)*]))
+                };
+            }
+
+            let stmt = parse_select("SELECT usage_system FROM cpu");
+            let q = rewrite_statement(&namespace, &stmt).unwrap();
+            assert_tag_set!(q, "cpu", "host", "region");
+
+            let stmt = parse_select("SELECT usage_system FROM cpu, disk");
+            let q = rewrite_statement(&namespace, &stmt).unwrap();
+            assert_tag_set!(q, "cpu", "host", "region", "device");
+
+            let stmt =
+                parse_select("SELECT usage_system FROM (select * from cpu), (select * from disk)");
+            let q = rewrite_statement(&namespace, &stmt).unwrap();
+            assert_tag_set!(q, "cpu", "host", "region", "device");
         }
 
         /// Validating types for simple projections

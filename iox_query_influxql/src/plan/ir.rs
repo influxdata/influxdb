@@ -1,7 +1,6 @@
 //! Defines data structures which represent an InfluxQL
 //! statement after it has been processed
 
-use crate::plan::field::field_by_name;
 use crate::plan::rewriter::ProjectionType;
 use crate::plan::{error, SchemaProvider};
 use datafusion::common::Result;
@@ -47,6 +46,10 @@ pub(super) struct Select {
 
     /// The GROUP BY clause of the selection.
     pub(super) group_by: Option<GroupByClause>,
+
+    /// The set of possible tags for the selection, by combining
+    /// the tag sets of all inputs via the `FROM` clause.
+    pub(super) tag_set: TagSet,
 
     /// The [fill] clause specifies the fill behaviour for the selection. If the value is [`None`],
     /// it is the same behavior as `fill(null)`.
@@ -138,12 +141,14 @@ pub(super) enum DataSourceSchema<'a> {
 }
 
 impl<'a> DataSourceSchema<'a> {
-    pub(super) fn field_type_by_name(&self, name: &str) -> Option<InfluxColumnType> {
+    /// Returns `true` if the specified name is a tag field or a projection of a tag field if
+    /// the `DataSource` is a subquery.
+    pub(super) fn is_tag_field(&self, name: &str) -> bool {
         match self {
-            DataSourceSchema::Table(s) => s.field_type_by_name(name),
-            DataSourceSchema::Subquery(q) => {
-                field_by_name(&q.fields, name).and_then(|f| f.data_type)
+            DataSourceSchema::Table(s) => {
+                matches!(s.field_type_by_name(name), Some(InfluxColumnType::Tag))
             }
+            DataSourceSchema::Subquery(q) => q.tag_set.contains(name),
         }
     }
 }
