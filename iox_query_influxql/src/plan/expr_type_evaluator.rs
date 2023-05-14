@@ -40,6 +40,12 @@ impl<'a> TypeEvaluator<'a> {
     /// This behavior includes strict evaluation of [`Call`] expressions, that are
     /// not compatible with InfluxQL OG, but may be enabled in the future to improve
     /// the user experience.
+    ///
+    /// # NOTE
+    ///
+    /// This behaviour is unused in production, but may be enabled to improve the
+    /// user experience of InfluxQL.
+    #[cfg(test)]
     fn new_strict(s: &'a dyn SchemaProvider, from: &'a [DataSource]) -> Self {
         Self {
             from,
