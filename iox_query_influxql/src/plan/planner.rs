@@ -2,7 +2,7 @@ mod select;
 
 use crate::plan::ir::{DataSource, Field, Select, SelectQuery};
 use crate::plan::planner::select::{
-    check_exprs_satisfy_columns, fields_to_exprs_no_nulls, make_tag_key_column_meta, plan_with_sort,
+    fields_to_exprs_no_nulls, make_tag_key_column_meta, plan_with_sort,
 };
 use crate::plan::planner_time_range_expression::{
     duration_expr_to_nanoseconds, expr_to_df_interval_dt, time_range_to_df_expr,
@@ -21,7 +21,7 @@ use datafusion::datasource::{provider_as_source, MemTable};
 use datafusion::logical_expr::expr_rewriter::normalize_col;
 use datafusion::logical_expr::logical_plan::builder::project;
 use datafusion::logical_expr::logical_plan::Analyze;
-use datafusion::logical_expr::utils::{expr_as_column_expr, find_aggregate_exprs};
+use datafusion::logical_expr::utils::find_aggregate_exprs;
 use datafusion::logical_expr::{
     binary_expr, col, date_bin, expr, expr::WindowFunction, lit, lit_timestamp_nano, now,
     window_function, Aggregate, AggregateFunction, AggregateUDF, Between, BuiltInWindowFunction,
@@ -754,7 +754,7 @@ impl<'a> InfluxQLToLogicalPlan<'a> {
 
             let schema = ds.schema(self.s)?;
             group_by_exprs.extend(group_by_tag_set.iter().filter_map(|name| {
-                if let Some(InfluxColumnType::Tag) = schema.field_type_by_name(name) {
+                if schema.is_tag_field(name) {
                     Some(name.as_expr())
                 } else {
                     None
@@ -818,13 +818,6 @@ impl<'a> InfluxQLToLogicalPlan<'a> {
         // the final projection from the aggregate operator.
         let aggr_projection_exprs = [aggr_group_by_exprs, aggr_exprs].concat();
 
-        // Replace any expressions that are not a column with a column referencing
-        // an output column from the aggregate schema.
-        let column_exprs_post_aggr = aggr_projection_exprs
-            .iter()
-            .map(|expr| expr_as_column_expr(expr, &plan))
-            .collect::<Result<Vec<Expr>>>()?;
-
         // Create a literal expression for `value` if the strategy
         // is `FILL(<value>)`
         let fill_if_null = match fill_option {
@@ -849,29 +842,6 @@ impl<'a> InfluxQLToLogicalPlan<'a> {
                 rebase_expr(expr, &aggr_projection_exprs, &fill_if_null, &plan)
             })
             .collect::<Result<Vec<Expr>>>()?;
-
-        // Strip the NULL columns, which are tags that do not exist in the aggregate
-        // table schema. The NULL columns are projected as scalar values in the final
-        // projection.
-        let select_exprs_post_aggr_no_nulls = select_exprs_post_aggr
-            .iter()
-            .filter(|expr| match expr {
-                Expr::Alias(expr, _) => !matches!(**expr, Expr::Literal(ScalarValue::Null)),
-                _ => true,
-            })
-            .cloned()
-            .collect::<Vec<_>>();
-
-        // Finally, we ensure that the re-written projection can be resolved
-        // from the aggregate output columns and that there are no
-        // column references that are not aggregates.
-        //
-        // This will identify issues such as:
-        //
-        // SELECT COUNT(field), field FROM foo
-        //
-        // where the field without the aggregate is not valid.
-        check_exprs_satisfy_columns(&column_exprs_post_aggr, &select_exprs_post_aggr_no_nulls)?;
 
         Ok((plan, select_exprs_post_aggr))
     }
