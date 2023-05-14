@@ -339,7 +339,7 @@ fn has_wildcards(stmt: &SelectStatement) -> (bool, bool) {
 /// Traverse expressions of all `fields` and expand wildcard or regular expressions
 /// either at the top-level or as the first argument of function calls, such as `SUM(*)`.
 ///
-/// `var_refs` contains the list of
+/// `var_refs` contains the list of field and tags that should be expanded by wildcards.
 fn fields_expand_wildcards(
     fields: Vec<influxdb_influxql_parser::select::Field>,
     var_refs: Vec<VarRef>,
@@ -517,8 +517,8 @@ fn expand_projection(
                     ControlFlow::Continue(())
                 }
 
-                // Attempt to rewrite all variable references with their concrete types, if one
-                // hasn't been specified.
+                // Attempt to rewrite all variable (column) references with their concrete types,
+                // if one hasn't been specified.
                 Expr::VarRef(ref mut v) => {
                     v.data_type = match tv.eval_var_ref(v) {
                         Ok(v) => v,
@@ -544,8 +544,8 @@ fn expand_projection(
 
         if !has_group_by_wildcard {
             if let Some(group_by) = &stmt.group_by {
-                // Remove any explicitly listed tags in the GROUP BY clause, so they are not expanded
-                // in the wildcard specified in the SELECT projection list
+                // Remove any explicitly listed tags in the GROUP BY clause, so they are not
+                // expanded by any wildcards specified in the SELECT projection list
                 group_by.tags().for_each(|ident| {
                     tag_set.remove(ident.as_str());
                 });
