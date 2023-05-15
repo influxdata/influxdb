@@ -21,10 +21,7 @@ use crate::connection::Connection;
 
 /// Re-export generated_types
 pub mod generated_types {
-    pub use generated_types::influxdata::iox::{
-        ingester::v1::{IngesterQueryRequest, IngesterQueryResponseMetadata, Predicate},
-        querier::v1::*,
-    };
+    pub use generated_types::influxdata::iox::querier::v1::*;
 }
 
 /// Error responses when querying an IOx namespace using the IOx Flight API.

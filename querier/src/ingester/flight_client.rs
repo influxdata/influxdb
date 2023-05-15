@@ -5,8 +5,7 @@ use arrow_flight::{
 use async_trait::async_trait;
 use client_util::connection::{self, Connection};
 use futures::StreamExt;
-use generated_types::ingester::IngesterQueryRequest;
-use influxdb_iox_client::flight::generated_types as proto;
+use ingester_query_grpc::{influxdata::iox::ingester::v1 as proto, IngesterQueryRequest};
 use observability_deps::tracing::{debug, warn};
 use prost::Message;
 use snafu::{ResultExt, Snafu};
@@ -33,7 +32,7 @@ pub enum Error {
 
     #[snafu(display("Internal error creating flight request : {}", source))]
     CreatingRequest {
-        source: influxdb_iox_client::google::FieldViolation,
+        source: ingester_query_grpc::FieldViolation,
     },
 
     #[snafu(display("Failed to perform flight request: {}", source))]

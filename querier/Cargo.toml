@@ -17,11 +17,11 @@ data_types = { path = "../data_types" }
 datafusion = { workspace = true }
 datafusion_util = { path = "../datafusion_util" }
 futures = "0.3"
-generated_types = { path = "../generated_types" }
 influxdb_iox_client = { path = "../influxdb_iox_client" }
 iox_catalog = { path = "../iox_catalog" }
 iox_query = { path = "../iox_query" }
 iox_time = { path = "../iox_time" }
+ingester_query_grpc = { path = "../ingester_query_grpc" }
 metric = { path = "../metric" }
 object_store = "0.5.6"
 observability_deps = { path = "../observability_deps" }

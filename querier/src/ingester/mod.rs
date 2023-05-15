@@ -17,8 +17,10 @@ use data_types::{
 };
 use datafusion::error::DataFusionError;
 use futures::{stream::FuturesUnordered, TryStreamExt};
-use generated_types::ingester::{encode_proto_predicate_as_base64, IngesterQueryRequest};
-use influxdb_iox_client::flight::generated_types::IngesterQueryResponseMetadata;
+use ingester_query_grpc::{
+    encode_proto_predicate_as_base64, influxdata::iox::ingester::v1::IngesterQueryResponseMetadata,
+    IngesterQueryRequest,
+};
 use iox_query::{
     exec::{stringset::StringSet, IOxSessionContext},
     util::{compute_timenanosecond_min_max, create_basic_summary},
@@ -623,7 +625,7 @@ impl IngesterStreamDecoder {
 }
 
 fn encode_predicate_as_base64(predicate: &Predicate) -> String {
-    use generated_types::influxdata::iox::ingester::v1::Predicate as ProtoPredicate;
+    use ingester_query_grpc::influxdata::iox::ingester::v1::Predicate as ProtoPredicate;
 
     let predicate = match ProtoPredicate::try_from(predicate.clone()) {
         Ok(predicate) => predicate,
@@ -1053,7 +1055,7 @@ mod tests {
     };
     use assert_matches::assert_matches;
     use data_types::TableId;
-    use influxdb_iox_client::flight::generated_types::IngesterQueryResponseMetadata;
+    use ingester_query_grpc::influxdata::iox::ingester::v1::IngesterQueryResponseMetadata;
     use iox_tests::TestCatalog;
     use metric::Attributes;
     use mutable_batch_lp::test_helpers::lp_to_mutable_batch;
