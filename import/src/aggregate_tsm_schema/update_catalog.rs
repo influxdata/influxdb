@@ -345,7 +345,7 @@ mod tests {
     use crate::{AggregateTSMField, AggregateTSMTag};
     use assert_matches::assert_matches;
     use data_types::{PartitionId, TableId};
-    use iox_catalog::mem::MemCatalog;
+    use iox_catalog::{mem::MemCatalog, test_helpers::arbitrary_namespace};
     use std::collections::HashSet;
 
     #[tokio::test]
@@ -428,11 +428,7 @@ mod tests {
             .await
             .expect("started transaction");
         // create namespace, table and columns for weather measurement
-        let namespace = txn
-            .namespaces()
-            .create(&NamespaceName::new("1234_5678").unwrap(), None)
-            .await
-            .expect("namespace created");
+        let namespace = arbitrary_namespace(&mut *txn, "1234_5678").await;
         let mut table = txn
             .tables()
             .create_or_get("weather", namespace.id)
@@ -520,11 +516,7 @@ mod tests {
             .await
             .expect("started transaction");
         // create namespace, table and columns for weather measurement
-        let namespace = txn
-            .namespaces()
-            .create(&NamespaceName::new("1234_5678").unwrap(), None)
-            .await
-            .expect("namespace created");
+        let namespace = arbitrary_namespace(&mut *txn, "1234_5678").await;
         let mut table = txn
             .tables()
             .create_or_get("weather", namespace.id)
@@ -585,11 +577,7 @@ mod tests {
             .expect("started transaction");
 
         // create namespace, table and columns for weather measurement
-        let namespace = txn
-            .namespaces()
-            .create(&NamespaceName::new("1234_5678").unwrap(), None)
-            .await
-            .expect("namespace created");
+        let namespace = arbitrary_namespace(&mut *txn, "1234_5678").await;
         let mut table = txn
             .tables()
             .create_or_get("weather", namespace.id)

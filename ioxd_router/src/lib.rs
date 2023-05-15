@@ -382,7 +382,7 @@ where
 #[cfg(test)]
 mod tests {
     use data_types::ColumnType;
-    use iox_catalog::mem::MemCatalog;
+    use iox_catalog::{mem::MemCatalog, test_helpers::arbitrary_namespace};
 
     use super::*;
 
@@ -391,11 +391,7 @@ mod tests {
         let catalog = Arc::new(MemCatalog::new(Default::default()));
 
         let mut repos = catalog.repositories().await;
-        let namespace = repos
-            .namespaces()
-            .create(&NamespaceName::new("test_ns").unwrap(), None)
-            .await
-            .unwrap();
+        let namespace = arbitrary_namespace(&mut *repos, "test_ns").await;
 
         let table = repos
             .tables()

@@ -137,10 +137,10 @@ mod tests {
     use super::*;
     use chrono::TimeZone;
     use data_types::{
-        ColumnId, ColumnSet, CompactionLevel, NamespaceId, NamespaceName, ParquetFile,
-        ParquetFileParams, PartitionId, TableId, Timestamp,
+        ColumnId, ColumnSet, CompactionLevel, NamespaceId, ParquetFile, ParquetFileParams,
+        PartitionId, TableId, Timestamp,
     };
-    use iox_catalog::{interface::Catalog, mem::MemCatalog};
+    use iox_catalog::{interface::Catalog, mem::MemCatalog, test_helpers::arbitrary_namespace};
     use object_store::path::Path;
     use once_cell::sync::Lazy;
     use parquet_file::ParquetFilePath;
@@ -155,14 +155,7 @@ mod tests {
         let metric_registry = Arc::new(metric::Registry::new());
         let catalog = Arc::new(MemCatalog::new(Arc::clone(&metric_registry)));
         let mut repos = catalog.repositories().await;
-        let namespace = repos
-            .namespaces()
-            .create(
-                &NamespaceName::new("namespace_parquet_file_test").unwrap(),
-                None,
-            )
-            .await
-            .unwrap();
+        let namespace = arbitrary_namespace(&mut *repos, "namespace_parquet_file_test").await;
         let table = repos
             .tables()
             .create_or_get("test_table", namespace.id)
