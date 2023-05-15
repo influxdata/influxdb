@@ -87,7 +87,9 @@ async fn create_namespace<R>(name: &str, repos: &mut R) -> Result<Namespace, Upd
 where
     R: RepoCollection + ?Sized,
 {
-    match repos.namespaces().create(name, None).await {
+    let namespace_name = NamespaceName::new(name)
+        .map_err(|_| UpdateCatalogError::NamespaceCreationError(name.to_string()))?;
+    match repos.namespaces().create(&namespace_name, None).await {
         Ok(ns) => Ok(ns),
         Err(iox_catalog::interface::Error::NameExists { .. }) => {
             // presumably it got created in the meantime?
@@ -428,7 +430,7 @@ mod tests {
         // create namespace, table and columns for weather measurement
         let namespace = txn
             .namespaces()
-            .create("1234_5678", None)
+            .create(&NamespaceName::new("1234_5678").unwrap(), None)
             .await
             .expect("namespace created");
         let mut table = txn
@@ -520,7 +522,7 @@ mod tests {
         // create namespace, table and columns for weather measurement
         let namespace = txn
             .namespaces()
-            .create("1234_5678", None)
+            .create(&NamespaceName::new("1234_5678").unwrap(), None)
             .await
             .expect("namespace created");
         let mut table = txn
@@ -585,7 +587,7 @@ mod tests {
         // create namespace, table and columns for weather measurement
         let namespace = txn
             .namespaces()
-            .create("1234_5678", None)
+            .create(&NamespaceName::new("1234_5678").unwrap(), None)
             .await
             .expect("namespace created");
         let mut table = txn

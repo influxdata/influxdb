@@ -270,7 +270,10 @@ async fn test_write_propagate_ids() {
         .repositories()
         .await
         .namespaces()
-        .create("bananas_test", None)
+        .create(
+            &data_types::NamespaceName::new("bananas_test").unwrap(),
+            None,
+        )
         .await
         .expect("failed to update table limit");
 
@@ -352,7 +355,10 @@ async fn test_delete_unsupported() {
         .repositories()
         .await
         .namespaces()
-        .create("bananas_test", None)
+        .create(
+            &data_types::NamespaceName::new("bananas_test").unwrap(),
+            None,
+        )
         .await
         .expect("failed to update table limit");
 
