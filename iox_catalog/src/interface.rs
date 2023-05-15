@@ -737,8 +737,8 @@ pub async fn list_schemas(
 #[cfg(test)]
 pub(crate) mod test_helpers {
     use crate::{
-        test_helpers::arbitrary_namespace, validate_or_insert_schema,
-        DEFAULT_MAX_COLUMNS_PER_TABLE, DEFAULT_MAX_TABLES,
+        test_helpers::{arbitrary_namespace, arbitrary_table},
+        validate_or_insert_schema, DEFAULT_MAX_COLUMNS_PER_TABLE, DEFAULT_MAX_TABLES,
     };
 
     use super::*;
@@ -1105,16 +1105,8 @@ pub(crate) mod test_helpers {
         let namespace = arbitrary_namespace(&mut *repos, "namespace_table_test").await;
 
         // test we can create or get a table
-        let t = repos
-            .tables()
-            .create_or_get("test_table", namespace.id)
-            .await
-            .unwrap();
-        let tt = repos
-            .tables()
-            .create_or_get("test_table", namespace.id)
-            .await
-            .unwrap();
+        let t = arbitrary_table(&mut *repos, "test_table", &namespace).await;
+        let tt = arbitrary_table(&mut *repos, "test_table", &namespace).await;
         assert!(t.id > TableId::new(0));
         assert_eq!(t, tt);
 
@@ -1137,20 +1129,12 @@ pub(crate) mod test_helpers {
         // test we can create a table of the same name in a different namespace
         let namespace2 = arbitrary_namespace(&mut *repos, "two").await;
         assert_ne!(namespace, namespace2);
-        let test_table = repos
-            .tables()
-            .create_or_get("test_table", namespace2.id)
-            .await
-            .unwrap();
+        let test_table = arbitrary_table(&mut *repos, "test_table", &namespace2).await;
         assert_ne!(tt, test_table);
         assert_eq!(test_table.namespace_id, namespace2.id);
 
         // test get by namespace and name
-        let foo_table = repos
-            .tables()
-            .create_or_get("foo", namespace2.id)
-            .await
-            .unwrap();
+        let foo_table = arbitrary_table(&mut *repos, "foo", &namespace2).await;
         assert_eq!(
             repos
                 .tables()
@@ -1232,11 +1216,7 @@ pub(crate) mod test_helpers {
     async fn test_column(catalog: Arc<dyn Catalog>) {
         let mut repos = catalog.repositories().await;
         let namespace = arbitrary_namespace(&mut *repos, "namespace_column_test").await;
-        let table = repos
-            .tables()
-            .create_or_get("test_table", namespace.id)
-            .await
-            .unwrap();
+        let table = arbitrary_table(&mut *repos, "test_table", &namespace).await;
         assert_eq!(table.namespace_id, namespace.id);
 
         // test we can create or get a column
@@ -1263,11 +1243,7 @@ pub(crate) mod test_helpers {
         assert!(matches!(err, Error::ColumnTypeMismatch { .. }));
 
         // test that we can create a column of the same name under a different table
-        let table2 = repos
-            .tables()
-            .create_or_get("test_table_2", namespace.id)
-            .await
-            .unwrap();
+        let table2 = arbitrary_table(&mut *repos, "test_table_2", &namespace).await;
         let ccc = repos
             .columns()
             .create_or_get("column_test", table2.id, ColumnType::U64)
@@ -1334,11 +1310,7 @@ pub(crate) mod test_helpers {
         ));
 
         // test per-namespace column limits are NOT enforced with create_or_get_many_unchecked
-        let table3 = repos
-            .tables()
-            .create_or_get("test_table_3", namespace.id)
-            .await
-            .unwrap();
+        let table3 = arbitrary_table(&mut *repos, "test_table_3", &namespace).await;
         let mut columns = HashMap::new();
         columns.insert("apples", ColumnType::Tag);
         columns.insert("oranges", ColumnType::Tag);
@@ -1361,11 +1333,7 @@ pub(crate) mod test_helpers {
     async fn test_partition(catalog: Arc<dyn Catalog>) {
         let mut repos = catalog.repositories().await;
         let namespace = arbitrary_namespace(&mut *repos, "namespace_partition_test").await;
-        let table = repos
-            .tables()
-            .create_or_get("test_table", namespace.id)
-            .await
-            .unwrap();
+        let table = arbitrary_table(&mut *repos, "test_table", &namespace).await;
 
         let mut created = BTreeMap::new();
         for key in ["foo", "bar"] {
@@ -1639,16 +1607,8 @@ pub(crate) mod test_helpers {
     async fn test_parquet_file(catalog: Arc<dyn Catalog>) {
         let mut repos = catalog.repositories().await;
         let namespace = arbitrary_namespace(&mut *repos, "namespace_parquet_file_test").await;
-        let table = repos
-            .tables()
-            .create_or_get("test_table", namespace.id)
-            .await
-            .unwrap();
-        let other_table = repos
-            .tables()
-            .create_or_get("other", namespace.id)
-            .await
-            .unwrap();
+        let table = arbitrary_table(&mut *repos, "test_table", &namespace).await;
+        let other_table = arbitrary_table(&mut *repos, "other", &namespace).await;
         let partition = repos
             .partitions()
             .create_or_get("one".into(), table.id)
@@ -1820,11 +1780,7 @@ pub(crate) mod test_helpers {
 
         // test list_by_namespace_not_to_delete
         let namespace2 = arbitrary_namespace(&mut *repos, "namespace_parquet_file_test1").await;
-        let table2 = repos
-            .tables()
-            .create_or_get("test_table2", namespace2.id)
-            .await
-            .unwrap();
+        let table2 = arbitrary_table(&mut *repos, "test_table2", &namespace2).await;
         let partition2 = repos
             .partitions()
             .create_or_get("foo".into(), table2.id)
@@ -2044,16 +2000,8 @@ pub(crate) mod test_helpers {
             .create(&NamespaceName::new("retention_broken_2").unwrap(), Some(1))
             .await
             .unwrap();
-        let table_1 = repos
-            .tables()
-            .create_or_get("test_table", namespace_1.id)
-            .await
-            .unwrap();
-        let table_2 = repos
-            .tables()
-            .create_or_get("test_table", namespace_2.id)
-            .await
-            .unwrap();
+        let table_1 = arbitrary_table(&mut *repos, "test_table", &namespace_1).await;
+        let table_2 = arbitrary_table(&mut *repos, "test_table", &namespace_2).await;
         let partition_1 = repos
             .partitions()
             .create_or_get("one".into(), table_1.id)
@@ -2115,11 +2063,8 @@ pub(crate) mod test_helpers {
     async fn test_partitions_new_file_between(catalog: Arc<dyn Catalog>) {
         let mut repos = catalog.repositories().await;
         let namespace = arbitrary_namespace(&mut *repos, "test_partitions_new_file_between").await;
-        let table = repos
-            .tables()
-            .create_or_get("test_table_for_new_file_between", namespace.id)
-            .await
-            .unwrap();
+        let table =
+            arbitrary_table(&mut *repos, "test_table_for_new_file_between", &namespace).await;
 
         // param for the tests
         let time_now = Timestamp::from(catalog.time_provider().now());
@@ -2481,11 +2426,7 @@ pub(crate) mod test_helpers {
             "namespace_parquet_file_test_list_by_partiton_not_to_delete",
         )
         .await;
-        let table = repos
-            .tables()
-            .create_or_get("test_table", namespace.id)
-            .await
-            .unwrap();
+        let table = arbitrary_table(&mut *repos, "test_table", &namespace).await;
 
         let partition = repos
             .partitions()
@@ -2585,11 +2526,7 @@ pub(crate) mod test_helpers {
         let mut repos = catalog.repositories().await;
         let namespace =
             arbitrary_namespace(&mut *repos, "namespace_update_to_compaction_level_1_test").await;
-        let table = repos
-            .tables()
-            .create_or_get("update_table", namespace.id)
-            .await
-            .unwrap();
+        let table = arbitrary_table(&mut *repos, "update_table", &namespace).await;
         let partition = repos
             .partitions()
             .create_or_get("test_update_to_compaction_level_1_one".into(), table.id)
@@ -2668,11 +2605,7 @@ pub(crate) mod test_helpers {
         let mut repos = catalog.repositories().await;
         let namespace_1 =
             arbitrary_namespace(&mut *repos, "namespace_test_delete_namespace_1").await;
-        let table_1 = repos
-            .tables()
-            .create_or_get("test_table_1", namespace_1.id)
-            .await
-            .unwrap();
+        let table_1 = arbitrary_table(&mut *repos, "test_table_1", &namespace_1).await;
         let _c = repos
             .columns()
             .create_or_get("column_test_1", table_1.id, ColumnType::Tag)
@@ -2720,11 +2653,7 @@ pub(crate) mod test_helpers {
         // it, let's create another so we can ensure that doesn't get deleted.
         let namespace_2 =
             arbitrary_namespace(&mut *repos, "namespace_test_delete_namespace_2").await;
-        let table_2 = repos
-            .tables()
-            .create_or_get("test_table_2", namespace_2.id)
-            .await
-            .unwrap();
+        let table_2 = arbitrary_table(&mut *repos, "test_table_2", &namespace_2).await;
         let _c = repos
             .columns()
             .create_or_get("column_test_2", table_2.id, ColumnType::Tag)

@@ -345,7 +345,10 @@ mod tests {
     use crate::{AggregateTSMField, AggregateTSMTag};
     use assert_matches::assert_matches;
     use data_types::{PartitionId, TableId};
-    use iox_catalog::{mem::MemCatalog, test_helpers::arbitrary_namespace};
+    use iox_catalog::{
+        mem::MemCatalog,
+        test_helpers::{arbitrary_namespace, arbitrary_table},
+    };
     use std::collections::HashSet;
 
     #[tokio::test]
@@ -429,12 +432,8 @@ mod tests {
             .expect("started transaction");
         // create namespace, table and columns for weather measurement
         let namespace = arbitrary_namespace(&mut *txn, "1234_5678").await;
-        let mut table = txn
-            .tables()
-            .create_or_get("weather", namespace.id)
-            .await
-            .map(|t| TableSchema::new_empty_from(&t))
-            .expect("table created");
+        let table = arbitrary_table(&mut *txn, "weather", &namespace).await;
+        let mut table = TableSchema::new_empty_from(&table);
         let time_col = txn
             .columns()
             .create_or_get("time", table.id, ColumnType::Time)
@@ -517,12 +516,8 @@ mod tests {
             .expect("started transaction");
         // create namespace, table and columns for weather measurement
         let namespace = arbitrary_namespace(&mut *txn, "1234_5678").await;
-        let mut table = txn
-            .tables()
-            .create_or_get("weather", namespace.id)
-            .await
-            .map(|t| TableSchema::new_empty_from(&t))
-            .expect("table created");
+        let table = arbitrary_table(&mut *txn, "weather", &namespace).await;
+        let mut table = TableSchema::new_empty_from(&table);
         let time_col = txn
             .columns()
             .create_or_get("time", table.id, ColumnType::Time)
@@ -578,12 +573,8 @@ mod tests {
 
         // create namespace, table and columns for weather measurement
         let namespace = arbitrary_namespace(&mut *txn, "1234_5678").await;
-        let mut table = txn
-            .tables()
-            .create_or_get("weather", namespace.id)
-            .await
-            .map(|t| TableSchema::new_empty_from(&t))
-            .expect("table created");
+        let table = arbitrary_table(&mut *txn, "weather", &namespace).await;
+        let mut table = TableSchema::new_empty_from(&table);
         let time_col = txn
             .columns()
             .create_or_get("time", table.id, ColumnType::Time)

@@ -204,7 +204,7 @@ where
 /// Catalog helper functions for creation of catalog objects
 pub mod test_helpers {
     use crate::RepoCollection;
-    use data_types::{Namespace, NamespaceName};
+    use data_types::{Namespace, NamespaceName, Table};
 
     /// When the details of the namespace don't matter; the test just needs *a* catalog namespace
     /// with a particular name.
@@ -224,6 +224,28 @@ pub mod test_helpers {
         repos
             .namespaces()
             .create(&namespace_name, None)
+            .await
+            .unwrap()
+    }
+
+    /// When the details of the table don't matter; the test just needs *a* catalog table
+    /// with a particular name in a particular namespace.
+    ///
+    /// Use [`TableRepo::create_or_get`] directly if:
+    ///
+    /// - The values of the parameters to `create_or_get` need to be different than what's here
+    /// - The values of the parameters to `create_or_get` are relevant to the behavior under test
+    /// - You expect table creation to fail in the test
+    ///
+    /// [`TableRepo::create_or_get`]: crate::interface::TableRepo::create_or_get
+    pub async fn arbitrary_table<R: RepoCollection + ?Sized>(
+        repos: &mut R,
+        name: &str,
+        namespace: &Namespace,
+    ) -> Table {
+        repos
+            .tables()
+            .create_or_get(name, namespace.id)
             .await
             .unwrap()
     }

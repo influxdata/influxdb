@@ -1638,7 +1638,7 @@ fn is_fk_violation(e: &sqlx::Error) -> bool {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::test_helpers::arbitrary_namespace;
+    use crate::test_helpers::{arbitrary_namespace, arbitrary_table};
     use assert_matches::assert_matches;
     use data_types::{ColumnId, ColumnSet};
     use metric::{Attributes, DurationHistogram, Metric};
@@ -1824,13 +1824,8 @@ mod tests {
         let postgres: Arc<dyn Catalog> = Arc::new(postgres);
         let mut repos = postgres.repositories().await;
 
-        let namespace_id = arbitrary_namespace(&mut *repos, "ns4").await.id;
-        let table_id = repos
-            .tables()
-            .create_or_get("table", namespace_id)
-            .await
-            .expect("create table failed")
-            .id;
+        let namespace = arbitrary_namespace(&mut *repos, "ns4").await;
+        let table_id = arbitrary_table(&mut *repos, "table", &namespace).await.id;
 
         let key = "bananas";
 
@@ -1950,14 +1945,10 @@ mod tests {
                     let postgres: Arc<dyn Catalog> = Arc::new(postgres);
                     let mut repos = postgres.repositories().await;
 
-                    let namespace_id = arbitrary_namespace(&mut *repos, "ns4")
+                    let namespace = arbitrary_namespace(&mut *repos, "ns4")
+                        .await;
+                    let table_id = arbitrary_table(&mut *repos, "table", &namespace)
                         .await
-                        .id;
-                    let table_id = repos
-                        .tables()
-                        .create_or_get("table", namespace_id)
-                        .await
-                        .expect("create table failed")
                         .id;
 
                     $(
@@ -2104,13 +2095,9 @@ mod tests {
         let pool = postgres.pool.clone();
         let postgres: Arc<dyn Catalog> = Arc::new(postgres);
         let mut repos = postgres.repositories().await;
-        let namespace_id = arbitrary_namespace(&mut *repos, "ns4").await.id;
-        let table_id = repos
-            .tables()
-            .create_or_get("table", namespace_id)
-            .await
-            .expect("create table failed")
-            .id;
+        let namespace = arbitrary_namespace(&mut *repos, "ns4").await;
+        let namespace_id = namespace.id;
+        let table_id = arbitrary_table(&mut *repos, "table", &namespace).await.id;
 
         let key = "bananas";
 

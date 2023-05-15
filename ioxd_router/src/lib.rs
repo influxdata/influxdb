@@ -382,7 +382,10 @@ where
 #[cfg(test)]
 mod tests {
     use data_types::ColumnType;
-    use iox_catalog::{mem::MemCatalog, test_helpers::arbitrary_namespace};
+    use iox_catalog::{
+        mem::MemCatalog,
+        test_helpers::{arbitrary_namespace, arbitrary_table},
+    };
 
     use super::*;
 
@@ -393,11 +396,7 @@ mod tests {
         let mut repos = catalog.repositories().await;
         let namespace = arbitrary_namespace(&mut *repos, "test_ns").await;
 
-        let table = repos
-            .tables()
-            .create_or_get("name", namespace.id)
-            .await
-            .unwrap();
+        let table = arbitrary_table(&mut *repos, "name", &namespace).await;
         let _column = repos
             .columns()
             .create_or_get("name", table.id, ColumnType::U64)

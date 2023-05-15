@@ -98,7 +98,10 @@ mod tests {
     use bytes::Bytes;
     use data_types::{ColumnId, ColumnSet, CompactionLevel, ParquetFileParams, Timestamp};
     use generated_types::influxdata::iox::object_store::v1::object_store_service_server::ObjectStoreService;
-    use iox_catalog::{mem::MemCatalog, test_helpers::arbitrary_namespace};
+    use iox_catalog::{
+        mem::MemCatalog,
+        test_helpers::{arbitrary_namespace, arbitrary_table},
+    };
     use object_store::{memory::InMemory, ObjectStore};
     use uuid::Uuid;
 
@@ -111,11 +114,7 @@ mod tests {
             let catalog = Arc::new(MemCatalog::new(metrics));
             let mut repos = catalog.repositories().await;
             let namespace = arbitrary_namespace(&mut *repos, "catalog_partition_test").await;
-            let table = repos
-                .tables()
-                .create_or_get("schema_test_table", namespace.id)
-                .await
-                .unwrap();
+            let table = arbitrary_table(&mut *repos, "schema_test_table", &namespace).await;
             let partition = repos
                 .partitions()
                 .create_or_get("foo".into(), table.id)

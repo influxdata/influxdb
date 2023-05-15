@@ -1508,7 +1508,7 @@ fn is_unique_violation(e: &sqlx::Error) -> bool {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::test_helpers::arbitrary_namespace;
+    use crate::test_helpers::{arbitrary_namespace, arbitrary_table};
     use assert_matches::assert_matches;
     use metric::{Attributes, DurationHistogram, Metric};
     use std::sync::Arc;
@@ -1553,13 +1553,8 @@ mod tests {
         let sqlite: Arc<dyn Catalog> = Arc::new(sqlite);
         let mut repos = sqlite.repositories().await;
 
-        let namespace_id = arbitrary_namespace(&mut *repos, "ns4").await.id;
-        let table_id = repos
-            .tables()
-            .create_or_get("table", namespace_id)
-            .await
-            .expect("create table failed")
-            .id;
+        let namespace = arbitrary_namespace(&mut *repos, "ns4").await;
+        let table_id = arbitrary_table(&mut *repos, "table", &namespace).await.id;
 
         let key = "bananas";
 
@@ -1593,14 +1588,10 @@ mod tests {
                     let sqlite: Arc<dyn Catalog> = Arc::new(sqlite);
                     let mut repos = sqlite.repositories().await;
 
-                    let namespace_id = arbitrary_namespace(&mut *repos, "ns4")
+                    let namespace = arbitrary_namespace(&mut *repos, "ns4")
+                        .await;
+                    let table_id = arbitrary_table(&mut *repos, "table", &namespace)
                         .await
-                        .id;
-                    let table_id = repos
-                        .tables()
-                        .create_or_get("table", namespace_id)
-                        .await
-                        .expect("create table failed")
                         .id;
 
                     $(
@@ -1746,13 +1737,9 @@ mod tests {
         let sqlite: Arc<dyn Catalog> = Arc::new(sqlite);
         let mut repos = sqlite.repositories().await;
 
-        let namespace_id = arbitrary_namespace(&mut *repos, "ns4").await.id;
-        let table_id = repos
-            .tables()
-            .create_or_get("table", namespace_id)
-            .await
-            .expect("create table failed")
-            .id;
+        let namespace = arbitrary_namespace(&mut *repos, "ns4").await;
+        let namespace_id = namespace.id;
+        let table_id = arbitrary_table(&mut *repos, "table", &namespace).await.id;
 
         let key = "bananas";
 
