@@ -126,7 +126,7 @@ impl TryFrom<ColumnsByName> for Schema {
     fn try_from(value: ColumnsByName) -> Result<Self, Self::Error> {
         let mut builder = SchemaBuilder::new();
 
-        for (column_name, column_schema) in value.iter() {
+        for (column_name, column_schema) in value.into_iter() {
             let t = InfluxColumnType::from(column_schema.column_type);
             builder.influx_column(column_name, t);
         }
