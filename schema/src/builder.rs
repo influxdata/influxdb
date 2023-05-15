@@ -35,7 +35,7 @@ impl SchemaBuilder {
     /// Add a new tag column to this schema. By default tags are
     /// potentially nullable as they are not guaranteed to be present
     /// for all rows
-    pub fn tag(&mut self, column_name: &str) -> &mut Self {
+    pub fn tag(&mut self, column_name: impl Into<String>) -> &mut Self {
         let influxdb_column_type = InfluxColumnType::Tag;
         let arrow_type = (&influxdb_column_type).into();
 
@@ -45,7 +45,7 @@ impl SchemaBuilder {
     /// Add a new field column with the specified InfluxDB data model type
     pub fn influx_field(
         &mut self,
-        column_name: &str,
+        column_name: impl Into<String>,
         influxdb_field_type: InfluxFieldType,
     ) -> &mut Self {
         let arrow_type: ArrowDataType = influxdb_field_type.into();
@@ -58,7 +58,11 @@ impl SchemaBuilder {
     }
 
     /// Add a new field column with the specified InfluxDB data model type
-    pub fn influx_column(&mut self, column_name: &str, column_type: InfluxColumnType) -> &mut Self {
+    pub fn influx_column(
+        &mut self,
+        column_name: impl Into<String>,
+        column_type: InfluxColumnType,
+    ) -> &mut Self {
         match column_type {
             InfluxColumnType::Tag => self.tag(column_name),
             InfluxColumnType::Field(influx_field_type) => self
@@ -71,7 +75,7 @@ impl SchemaBuilder {
     /// Add a new nullable field column with the specified Arrow datatype.
     pub fn field(
         &mut self,
-        column_name: &str,
+        column_name: impl Into<String>,
         arrow_type: ArrowDataType,
     ) -> Result<&mut Self, &'static str> {
         let influxdb_column_type = arrow_type.clone().try_into().map(InfluxColumnType::Field)?;
@@ -127,7 +131,7 @@ impl SchemaBuilder {
     /// Internal helper method to add a column definition
     fn add_column(
         &mut self,
-        column_name: &str,
+        column_name: impl Into<String>,
         nullable: bool,
         column_type: InfluxColumnType,
         arrow_type: ArrowDataType,

@@ -17,15 +17,16 @@ use std::{collections::HashMap, sync::Arc, time::Duration};
 use arrow::record_batch::RecordBatch;
 use arrow_flight::{decode::FlightRecordBatchStream, flight_service_server::FlightService, Ticket};
 use data_types::{
-    Namespace, NamespaceId, NamespaceSchema, ParquetFile, PartitionKey, SequenceNumber, TableId,
+    Namespace, NamespaceId, NamespaceName, NamespaceSchema, ParquetFile, PartitionKey,
+    SequenceNumber, TableId,
 };
 use dml::{DmlMeta, DmlWrite};
 use futures::{stream::FuturesUnordered, FutureExt, StreamExt, TryStreamExt};
 use generated_types::influxdata::iox::ingester::v1::{
     write_service_server::WriteService, WriteRequest,
 };
-use influxdb_iox_client::flight;
 use ingester::{IngesterGuard, IngesterRpcInterface};
+use ingester_query_grpc::influxdata::iox::ingester::v1::IngesterQueryRequest;
 use iox_catalog::{
     interface::{Catalog, SoftDeletedRows},
     validate_or_insert_schema,
@@ -207,7 +208,7 @@ where
             .repositories()
             .await
             .namespaces()
-            .create(name, None)
+            .create(&NamespaceName::new(name).unwrap(), None)
             .await
             .expect("failed to create test namespace");
 
@@ -341,7 +342,7 @@ where
     /// Submit a query to the ingester's public query interface.
     pub async fn query(
         &self,
-        request: flight::generated_types::IngesterQueryRequest,
+        request: IngesterQueryRequest,
     ) -> Result<Vec<RecordBatch>, influxdb_iox_client::flight::Error> {
         let mut bytes = bytes::BytesMut::new();
         prost::Message::encode(&request, &mut bytes)?;

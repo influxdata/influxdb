@@ -81,7 +81,7 @@ fn schema_to_proto(schema: Arc<data_types::NamespaceSchema>) -> GetSchemaRespons
 #[cfg(test)]
 mod tests {
     use super::*;
-    use data_types::ColumnType;
+    use data_types::{ColumnType, NamespaceName};
     use generated_types::influxdata::iox::schema::v1::schema_service_server::SchemaService;
     use iox_catalog::mem::MemCatalog;
     use std::sync::Arc;
@@ -95,7 +95,7 @@ mod tests {
             let mut repos = catalog.repositories().await;
             let namespace = repos
                 .namespaces()
-                .create("namespace_schema_test", None)
+                .create(&NamespaceName::new("namespace_schema_test").unwrap(), None)
                 .await
                 .unwrap();
             let table = repos

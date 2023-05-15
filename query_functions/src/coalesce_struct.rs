@@ -181,10 +181,10 @@ fn scalar_coalesce_struct(scalar1: ScalarValue, scalar2: &ScalarValue) -> Scalar
 ///
 /// See [module-level docs](self) for more information.
 pub fn coalesce_struct(args: Vec<Expr>) -> Expr {
-    Expr::ScalarUDF {
+    Expr::ScalarUDF(datafusion::logical_expr::expr::ScalarUDF {
         fun: Arc::clone(&COALESCE_STRUCT_UDF),
         args,
-    }
+    })
 }
 
 #[cfg(test)]
