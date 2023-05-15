@@ -35,6 +35,7 @@ use iox_time::TimeProvider;
 use metric::{Attributes, Metric, MetricObserver};
 use mutable_batch_lp::lines_to_batches;
 use mutable_batch_pb::encode::encode_write;
+use object_store::ObjectStore;
 use observability_deps::tracing::*;
 use parquet_file::storage::ParquetStorage;
 use tempfile::TempDir;
@@ -158,7 +159,7 @@ impl TestContextBuilder {
             shutdown_tx,
             _dir: dir,
             catalog,
-            _storage: storage,
+            storage,
             metrics,
             namespaces: Default::default(),
         }
@@ -174,7 +175,7 @@ pub struct TestContext<T> {
     ingester: IngesterGuard<T>,
     shutdown_tx: oneshot::Sender<CancellationToken>,
     catalog: Arc<dyn Catalog>,
-    _storage: ParquetStorage,
+    storage: ParquetStorage,
     metrics: Arc<metric::Registry>,
 
     /// Once the last [`TempDir`] reference is dropped, the directory it
@@ -415,6 +416,11 @@ where
             .recorder()
     }
 
+    /// Return the metric recorder for the [`TestContext`].
+    pub fn metrics(&self) -> &metric::Registry {
+        &self.metrics
+    }
+
     /// Retrieve the Parquet files in the catalog for the specified namespace.
     pub async fn catalog_parquet_file_records(&self, namespace: &str) -> Vec<ParquetFile> {
         let namespace_id = self.namespace_id(namespace).await;
@@ -430,6 +436,11 @@ where
     /// Return the [`Catalog`] for this [`TestContext`].
     pub fn catalog(&self) -> Arc<dyn Catalog> {
         Arc::clone(&self.catalog)
+    }
+
+    /// Return the [`ObjectStore`] for this [`TestContext`].
+    pub fn object_store(&self) -> Arc<dyn ObjectStore> {
+        Arc::clone(self.storage.object_store())
     }
 
     /// Return the [`IngesterRpcInterface`] for this [`TestContext`].
