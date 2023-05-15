@@ -210,6 +210,7 @@ mod tests {
         interface::{get_schema_by_name, SoftDeletedRows},
         mem::MemCatalog,
     };
+    use data_types::NamespaceName;
 
     // Generate a test that simulates multiple, sequential writes in `lp` and
     // asserts the resulting schema.
@@ -231,6 +232,7 @@ mod tests {
                     use std::ops::DerefMut;
                     use pretty_assertions::assert_eq;
                     const NAMESPACE_NAME: &str = "bananas";
+                    let ns_name = NamespaceName::new(NAMESPACE_NAME).unwrap();
 
                     let metrics = Arc::new(metric::Registry::default());
                     let repo = MemCatalog::new(metrics);
@@ -238,7 +240,7 @@ mod tests {
 
                     let namespace = txn
                         .namespaces()
-                        .create(NAMESPACE_NAME, None)
+                        .create(&ns_name, None)
                         .await
                         .unwrap();
 

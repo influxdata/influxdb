@@ -15,9 +15,9 @@ use crate::{
 };
 use async_trait::async_trait;
 use data_types::{
-    Column, ColumnId, ColumnSet, ColumnType, CompactionLevel, Namespace, NamespaceId, ParquetFile,
-    ParquetFileId, ParquetFileParams, Partition, PartitionId, PartitionKey, SkippedCompaction,
-    Table, TableId, Timestamp,
+    Column, ColumnId, ColumnSet, ColumnType, CompactionLevel, Namespace, NamespaceId,
+    NamespaceName, ParquetFile, ParquetFileId, ParquetFileParams, Partition, PartitionId,
+    PartitionKey, SkippedCompaction, Table, TableId, Timestamp,
 };
 use serde::{Deserialize, Serialize};
 use std::collections::HashSet;
@@ -263,7 +263,11 @@ impl RepoCollection for SqliteTxn {
 
 #[async_trait]
 impl NamespaceRepo for SqliteTxn {
-    async fn create(&mut self, name: &str, retention_period_ns: Option<i64>) -> Result<Namespace> {
+    async fn create(
+        &mut self,
+        name: &NamespaceName,
+        retention_period_ns: Option<i64>,
+    ) -> Result<Namespace> {
         let rec = sqlx::query_as::<_, Namespace>(
             r#"
 INSERT INTO namespace ( name, topic_id, query_pool_id, retention_period_ns, max_tables )
@@ -271,7 +275,7 @@ VALUES ( $1, $2, $3, $4, $5 )
 RETURNING id, name, retention_period_ns, max_tables, max_columns_per_table, deleted_at;
             "#,
         )
-        .bind(name) // $1
+        .bind(name.as_str()) // $1
         .bind(SHARED_TOPIC_ID) // $2
         .bind(SHARED_QUERY_POOL_ID) // $3
         .bind(retention_period_ns) // $4
@@ -1559,7 +1563,7 @@ mod tests {
             .repositories()
             .await
             .namespaces()
-            .create("ns4", None)
+            .create(&NamespaceName::new("ns4").unwrap(), None)
             .await
             .expect("namespace create failed")
             .id;
@@ -1612,7 +1616,7 @@ mod tests {
                         .repositories()
                         .await
                         .namespaces()
-                        .create("ns4", None)
+                        .create(&NamespaceName::new("ns4").unwrap(), None)
                         .await
                         .expect("namespace create failed")
                         .id;
@@ -1774,7 +1778,7 @@ mod tests {
             .repositories()
             .await
             .namespaces()
-            .create("ns4", None)
+            .create(&NamespaceName::new("ns4").unwrap(), None)
             .await
             .expect("namespace create failed")
             .id;

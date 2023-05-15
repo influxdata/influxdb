@@ -2,9 +2,9 @@
 
 use async_trait::async_trait;
 use data_types::{
-    Column, ColumnType, ColumnsByName, CompactionLevel, Namespace, NamespaceId, NamespaceSchema,
-    ParquetFile, ParquetFileId, ParquetFileParams, Partition, PartitionId, PartitionKey,
-    SkippedCompaction, Table, TableId, TableSchema, Timestamp,
+    Column, ColumnType, ColumnsByName, CompactionLevel, Namespace, NamespaceId, NamespaceName,
+    NamespaceSchema, ParquetFile, ParquetFileId, ParquetFileParams, Partition, PartitionId,
+    PartitionKey, SkippedCompaction, Table, TableId, TableSchema, Timestamp,
 };
 use iox_time::TimeProvider;
 use snafu::{OptionExt, Snafu};
@@ -35,6 +35,9 @@ pub enum CasFailure<T> {
 #[allow(missing_copy_implementations, missing_docs)]
 #[snafu(visibility(pub(crate)))]
 pub enum Error {
+    #[snafu(display("invalid name: {}", name))]
+    InvalidName { name: String },
+
     #[snafu(display("name {} already exists", name))]
     NameExists { name: String },
 
@@ -240,7 +243,11 @@ pub trait NamespaceRepo: Send + Sync {
     /// Creates the namespace in the catalog. If one by the same name already exists, an
     /// error is returned.
     /// Specify `None` for `retention_period_ns` to get infinite retention.
-    async fn create(&mut self, name: &str, retention_period_ns: Option<i64>) -> Result<Namespace>;
+    async fn create(
+        &mut self,
+        name: &NamespaceName,
+        retention_period_ns: Option<i64>,
+    ) -> Result<Namespace>;
 
     /// Update retention period for a namespace
     async fn update_retention_period(
@@ -727,14 +734,14 @@ pub(crate) mod test_helpers {
 
     async fn test_namespace(catalog: Arc<dyn Catalog>) {
         let mut repos = catalog.repositories().await;
-        let namespace_name = "test_namespace";
+        let namespace_name = NamespaceName::new("test_namespace").unwrap();
         let namespace = repos
             .namespaces()
-            .create(namespace_name, None)
+            .create(&namespace_name, None)
             .await
             .unwrap();
         assert!(namespace.id > NamespaceId::new(0));
-        assert_eq!(namespace.name, namespace_name);
+        assert_eq!(namespace.name, namespace_name.as_str());
 
         // Assert default values for service protection limits.
         assert_eq!(namespace.max_tables, DEFAULT_MAX_TABLES);
@@ -743,7 +750,7 @@ pub(crate) mod test_helpers {
             DEFAULT_MAX_COLUMNS_PER_TABLE
         );
 
-        let conflict = repos.namespaces().create(namespace_name, None).await;
+        let conflict = repos.namespaces().create(&namespace_name, None).await;
         assert!(matches!(
             conflict.unwrap_err(),
             Error::NameExists { name: _ }
@@ -766,7 +773,7 @@ pub(crate) mod test_helpers {
 
         let found = repos
             .namespaces()
-            .get_by_name(namespace_name, SoftDeletedRows::ExcludeDeleted)
+            .get_by_name(&namespace_name, SoftDeletedRows::ExcludeDeleted)
             .await
             .unwrap()
             .expect("namespace should be there");
@@ -779,10 +786,10 @@ pub(crate) mod test_helpers {
             .unwrap();
         assert!(not_found.is_none());
 
-        let namespace2_name = "test_namespace2";
+        let namespace2_name = NamespaceName::new("test_namespace2").unwrap();
         let namespace2 = repos
             .namespaces()
-            .create(namespace2_name, None)
+            .create(&namespace2_name, None)
             .await
             .unwrap();
         let mut namespaces = repos
@@ -796,7 +803,7 @@ pub(crate) mod test_helpers {
         const NEW_TABLE_LIMIT: i32 = 15000;
         let modified = repos
             .namespaces()
-            .update_table_limit(namespace_name, NEW_TABLE_LIMIT)
+            .update_table_limit(namespace_name.as_str(), NEW_TABLE_LIMIT)
             .await
             .expect("namespace should be updateable");
         assert_eq!(NEW_TABLE_LIMIT, modified.max_tables);
@@ -804,7 +811,7 @@ pub(crate) mod test_helpers {
         const NEW_COLUMN_LIMIT: i32 = 1500;
         let modified = repos
             .namespaces()
-            .update_column_limit(namespace_name, NEW_COLUMN_LIMIT)
+            .update_column_limit(namespace_name.as_str(), NEW_COLUMN_LIMIT)
             .await
             .expect("namespace should be updateable");
         assert_eq!(NEW_COLUMN_LIMIT, modified.max_columns_per_table);
@@ -812,7 +819,7 @@ pub(crate) mod test_helpers {
         const NEW_RETENTION_PERIOD_NS: i64 = 5 * 60 * 60 * 1000 * 1000 * 1000;
         let modified = repos
             .namespaces()
-            .update_retention_period(namespace_name, Some(NEW_RETENTION_PERIOD_NS))
+            .update_retention_period(namespace_name.as_str(), Some(NEW_RETENTION_PERIOD_NS))
             .await
             .expect("namespace should be updateable");
         assert_eq!(
@@ -822,25 +829,25 @@ pub(crate) mod test_helpers {
 
         let modified = repos
             .namespaces()
-            .update_retention_period(namespace_name, None)
+            .update_retention_period(namespace_name.as_str(), None)
             .await
             .expect("namespace should be updateable");
         assert!(modified.retention_period_ns.is_none());
 
         // create namespace with retention period NULL
-        let namespace3_name = "test_namespace3";
+        let namespace3_name = NamespaceName::new("test_namespace3").unwrap();
         let namespace3 = repos
             .namespaces()
-            .create(namespace3_name, None)
+            .create(&namespace3_name, None)
             .await
             .expect("namespace with NULL retention should be created");
         assert!(namespace3.retention_period_ns.is_none());
 
         // create namespace with retention period
-        let namespace4_name = "test_namespace4";
+        let namespace4_name = NamespaceName::new("test_namespace4").unwrap();
         let namespace4 = repos
             .namespaces()
-            .create(namespace4_name, Some(NEW_RETENTION_PERIOD_NS))
+            .create(&namespace4_name, Some(NEW_RETENTION_PERIOD_NS))
             .await
             .expect("namespace with 5-hour retention should be created");
         assert_eq!(
@@ -850,7 +857,7 @@ pub(crate) mod test_helpers {
         // reset retention period to NULL to avoid affecting later tests
         repos
             .namespaces()
-            .update_retention_period(namespace4_name, None)
+            .update_retention_period(&namespace4_name, None)
             .await
             .expect("namespace should be updateable");
 
@@ -887,8 +894,16 @@ pub(crate) mod test_helpers {
     async fn test_namespace_soft_deletion(catalog: Arc<dyn Catalog>) {
         let mut repos = catalog.repositories().await;
 
-        let deleted_ns = repos.namespaces().create("deleted-ns", None).await.unwrap();
-        let active_ns = repos.namespaces().create("active-ns", None).await.unwrap();
+        let deleted_ns = repos
+            .namespaces()
+            .create(&"deleted-ns".try_into().unwrap(), None)
+            .await
+            .unwrap();
+        let active_ns = repos
+            .namespaces()
+            .create(&"active-ns".try_into().unwrap(), None)
+            .await
+            .unwrap();
 
         // Mark "deleted-ns" as soft-deleted.
         repos.namespaces().soft_delete("deleted-ns").await.unwrap();
@@ -1044,7 +1059,7 @@ pub(crate) mod test_helpers {
         let mut repos = catalog.repositories().await;
         let namespace = repos
             .namespaces()
-            .create("namespace_table_test", None)
+            .create(&NamespaceName::new("namespace_table_test").unwrap(), None)
             .await
             .unwrap();
 
@@ -1079,7 +1094,11 @@ pub(crate) mod test_helpers {
         assert_eq!(vec![t.clone()], tables);
 
         // test we can create a table of the same name in a different namespace
-        let namespace2 = repos.namespaces().create("two", None).await.unwrap();
+        let namespace2 = repos
+            .namespaces()
+            .create(&NamespaceName::new("two").unwrap(), None)
+            .await
+            .unwrap();
         assert_ne!(namespace, namespace2);
         let test_table = repos
             .tables()
@@ -1177,7 +1196,7 @@ pub(crate) mod test_helpers {
         let mut repos = catalog.repositories().await;
         let namespace = repos
             .namespaces()
-            .create("namespace_column_test", None)
+            .create(&NamespaceName::new("namespace_column_test").unwrap(), None)
             .await
             .unwrap();
         let table = repos
@@ -1310,7 +1329,10 @@ pub(crate) mod test_helpers {
         let mut repos = catalog.repositories().await;
         let namespace = repos
             .namespaces()
-            .create("namespace_partition_test", None)
+            .create(
+                &NamespaceName::new("namespace_partition_test").unwrap(),
+                None,
+            )
             .await
             .unwrap();
         let table = repos
@@ -1592,7 +1614,10 @@ pub(crate) mod test_helpers {
         let mut repos = catalog.repositories().await;
         let namespace = repos
             .namespaces()
-            .create("namespace_parquet_file_test", None)
+            .create(
+                &NamespaceName::new("namespace_parquet_file_test").unwrap(),
+                None,
+            )
             .await
             .unwrap();
         let table = repos
@@ -1777,7 +1802,10 @@ pub(crate) mod test_helpers {
         // test list_by_namespace_not_to_delete
         let namespace2 = repos
             .namespaces()
-            .create("namespace_parquet_file_test1", None)
+            .create(
+                &NamespaceName::new("namespace_parquet_file_test1").unwrap(),
+                None,
+            )
             .await
             .unwrap();
         let table2 = repos
@@ -2072,12 +2100,12 @@ pub(crate) mod test_helpers {
         let mut repos = catalog.repositories().await;
         let namespace_1 = repos
             .namespaces()
-            .create("retention_broken_1", None)
+            .create(&NamespaceName::new("retention_broken_1").unwrap(), None)
             .await
             .unwrap();
         let namespace_2 = repos
             .namespaces()
-            .create("retention_broken_2", Some(1))
+            .create(&NamespaceName::new("retention_broken_2").unwrap(), Some(1))
             .await
             .unwrap();
         let table_1 = repos
@@ -2152,7 +2180,10 @@ pub(crate) mod test_helpers {
         let mut repos = catalog.repositories().await;
         let namespace = repos
             .namespaces()
-            .create("test_partitions_new_file_between", None)
+            .create(
+                &NamespaceName::new("test_partitions_new_file_between").unwrap(),
+                None,
+            )
             .await
             .unwrap();
         let table = repos
@@ -2519,7 +2550,8 @@ pub(crate) mod test_helpers {
         let namespace = repos
             .namespaces()
             .create(
-                "namespace_parquet_file_test_list_by_partiton_not_to_delete",
+                &NamespaceName::new("namespace_parquet_file_test_list_by_partiton_not_to_delete")
+                    .unwrap(),
                 None,
             )
             .await
@@ -2628,7 +2660,10 @@ pub(crate) mod test_helpers {
         let mut repos = catalog.repositories().await;
         let namespace = repos
             .namespaces()
-            .create("namespace_update_to_compaction_level_1_test", None)
+            .create(
+                &NamespaceName::new("namespace_update_to_compaction_level_1_test").unwrap(),
+                None,
+            )
             .await
             .unwrap();
         let table = repos
@@ -2714,7 +2749,10 @@ pub(crate) mod test_helpers {
         let mut repos = catalog.repositories().await;
         let namespace_1 = repos
             .namespaces()
-            .create("namespace_test_delete_namespace_1", None)
+            .create(
+                &NamespaceName::new("namespace_test_delete_namespace_1").unwrap(),
+                None,
+            )
             .await
             .unwrap();
         let table_1 = repos
@@ -2769,7 +2807,10 @@ pub(crate) mod test_helpers {
         // it, let's create another so we can ensure that doesn't get deleted.
         let namespace_2 = repos
             .namespaces()
-            .create("namespace_test_delete_namespace_2", None)
+            .create(
+                &NamespaceName::new("namespace_test_delete_namespace_2").unwrap(),
+                None,
+            )
             .await
             .unwrap();
         let table_2 = repos
@@ -2954,7 +2995,10 @@ pub(crate) mod test_helpers {
     where
         R: RepoCollection + ?Sized,
     {
-        let namespace = repos.namespaces().create(namespace_name, None).await;
+        let namespace = repos
+            .namespaces()
+            .create(&NamespaceName::new(namespace_name).unwrap(), None)
+            .await;
 
         let namespace = match namespace {
             Ok(v) => v,

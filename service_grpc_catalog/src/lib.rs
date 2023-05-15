@@ -197,7 +197,9 @@ fn to_partition(p: data_types::Partition) -> Partition {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use data_types::{ColumnId, ColumnSet, CompactionLevel, ParquetFileParams, Timestamp};
+    use data_types::{
+        ColumnId, ColumnSet, CompactionLevel, NamespaceName, ParquetFileParams, Timestamp,
+    };
     use generated_types::influxdata::iox::catalog::v1::catalog_service_server::CatalogService;
     use iox_catalog::mem::MemCatalog;
     use uuid::Uuid;
@@ -214,7 +216,7 @@ mod tests {
             let mut repos = catalog.repositories().await;
             let namespace = repos
                 .namespaces()
-                .create("catalog_partition_test", None)
+                .create(&NamespaceName::new("catalog_partition_test").unwrap(), None)
                 .await
                 .unwrap();
             let table = repos
@@ -277,7 +279,7 @@ mod tests {
             let mut repos = catalog.repositories().await;
             let namespace = repos
                 .namespaces()
-                .create("catalog_partition_test", None)
+                .create(&NamespaceName::new("catalog_partition_test").unwrap(), None)
                 .await
                 .unwrap();
             let table = repos

@@ -298,7 +298,13 @@ pub(crate) async fn populate_catalog(
     table: &str,
 ) -> (NamespaceId, TableId) {
     let mut c = catalog.repositories().await;
-    let ns_id = c.namespaces().create(namespace, None).await.unwrap().id;
+    let namespace_name = data_types::NamespaceName::new(namespace).unwrap();
+    let ns_id = c
+        .namespaces()
+        .create(&namespace_name, None)
+        .await
+        .unwrap()
+        .id;
     let table_id = c.tables().create_or_get(table, ns_id).await.unwrap().id;
 
     (ns_id, table_id)

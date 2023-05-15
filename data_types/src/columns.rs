@@ -1,6 +1,6 @@
 //! Types having to do with columns.
 
-use super::{ChunkId, TableId};
+use super::TableId;
 use influxdb_line_protocol::FieldValue;
 use schema::{builder::SchemaBuilder, InfluxColumnType, InfluxFieldType, Schema};
 use sqlx::postgres::PgHasArrayType;
@@ -110,27 +110,28 @@ impl ColumnsByName {
     }
 }
 
+impl IntoIterator for ColumnsByName {
+    type Item = (String, ColumnSchema);
+    type IntoIter = std::collections::btree_map::IntoIter<String, ColumnSchema>;
+
+    fn into_iter(self) -> Self::IntoIter {
+        self.0.into_iter()
+    }
+}
+
 // ColumnsByName is a newtype so that we can implement this `TryFrom` in this crate
-impl TryFrom<&ColumnsByName> for Schema {
+impl TryFrom<ColumnsByName> for Schema {
     type Error = schema::builder::Error;
 
-    fn try_from(value: &ColumnsByName) -> Result<Self, Self::Error> {
+    fn try_from(value: ColumnsByName) -> Result<Self, Self::Error> {
         let mut builder = SchemaBuilder::new();
 
-        for (column_name, column_schema) in value.iter() {
+        for (column_name, column_schema) in value.into_iter() {
             let t = InfluxColumnType::from(column_schema.column_type);
             builder.influx_column(column_name, t);
         }
 
         builder.build()
-    }
-}
-
-impl TryFrom<ColumnsByName> for Schema {
-    type Error = schema::builder::Error;
-
-    fn try_from(value: ColumnsByName) -> Result<Self, Self::Error> {
-        Self::try_from(&value)
     }
 }
 
@@ -336,7 +337,7 @@ impl ColumnSet {
 
     /// Estimate the memory consumption of this object and its contents
     pub fn size(&self) -> usize {
-        std::mem::size_of_val(self) + (std::mem::size_of::<ChunkId>() * self.0.capacity())
+        std::mem::size_of_val(self) + (std::mem::size_of::<ColumnId>() * self.0.capacity())
     }
 }
 

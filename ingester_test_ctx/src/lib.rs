@@ -17,7 +17,8 @@ use std::{collections::HashMap, sync::Arc, time::Duration};
 use arrow::record_batch::RecordBatch;
 use arrow_flight::{decode::FlightRecordBatchStream, flight_service_server::FlightService, Ticket};
 use data_types::{
-    Namespace, NamespaceId, NamespaceSchema, ParquetFile, PartitionKey, SequenceNumber, TableId,
+    Namespace, NamespaceId, NamespaceName, NamespaceSchema, ParquetFile, PartitionKey,
+    SequenceNumber, TableId,
 };
 use dml::{DmlMeta, DmlWrite};
 use futures::{stream::FuturesUnordered, FutureExt, StreamExt, TryStreamExt};
@@ -207,7 +208,7 @@ where
             .repositories()
             .await
             .namespaces()
-            .create(name, None)
+            .create(&NamespaceName::new(name).unwrap(), None)
             .await
             .expect("failed to create test namespace");
 
