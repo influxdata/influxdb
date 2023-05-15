@@ -585,36 +585,43 @@ pub struct WriteOpEntryDecoder {
     reader: ClosedSegmentFileReader,
 }
 
-impl WriteOpEntryDecoder {
+impl From<ClosedSegmentFileReader> for WriteOpEntryDecoder {
     /// Creates a decoder which will use the closed segment file of `reader` to
     /// decode write ops from their on-disk format.
-    pub fn from_closed_segment(reader: ClosedSegmentFileReader) -> Self {
+    fn from(reader: ClosedSegmentFileReader) -> Self {
         Self { reader }
     }
+}
+
+impl Iterator for WriteOpEntryDecoder {
+    type Item = Result<Vec<WriteOpEntry>, DecodeError>;
 
     /// Reads a collection of write op entries in the next WAL entry batch from the
     /// underlying closed segment. A returned Ok(None) indicates that there are no
     /// more entries to be decoded from the underlying segment. A zero-length vector
     /// may be returned if there are no writes in a WAL entry batch, but does not
     /// indicate the decoder is consumed.
-    pub fn next_write_op_entry_batch(&mut self) -> Result<Option<Vec<WriteOpEntry>>, DecodeError> {
-        match self.reader.next_batch().context(FailedToReadWalSnafu)? {
-            Some(batch) => Ok(batch
-                .into_iter()
-                .filter_map(|sequenced_op| match sequenced_op.op {
-                    WalOp::Write(w) => Some(w),
-                    _ => None,
-                })
-                .map(|w| -> Result<WriteOpEntry, DecodeError> {
-                    Ok(WriteOpEntry {
-                        namespace: NamespaceId::new(w.database_id),
-                        table_batches: decode_database_batch(&w)
-                            .context(UnableToCreateMutableBatchSnafu)?,
+    fn next(&mut self) -> Option<Self::Item> {
+        match self.reader.next_batch().context(FailedToReadWalSnafu) {
+            Ok(Some(batch)) => Some(
+                batch
+                    .into_iter()
+                    .filter_map(|sequenced_op| match sequenced_op.op {
+                        WalOp::Write(w) => Some(w),
+                        WalOp::Delete(..) => None,
+                        WalOp::Persist(..) => None,
                     })
-                })
-                .collect::<Result<Vec<WriteOpEntry>, DecodeError>>()?
-                .into()),
-            None => Ok(None),
+                    .map(|w| -> Result<WriteOpEntry, DecodeError> {
+                        Ok(WriteOpEntry {
+                            namespace: NamespaceId::new(w.database_id),
+                            table_batches: decode_database_batch(&w)
+                                .context(UnableToCreateMutableBatchSnafu)?,
+                        })
+                    })
+                    .collect::<Self::Item>(),
+            ),
+            Ok(None) => None,
+            Err(e) => Some(Err(e)),
         }
     }
 }
@@ -783,15 +790,15 @@ mod tests {
 
         let (closed, _) = wal.rotate().unwrap();
 
-        let mut decoder = WriteOpEntryDecoder::from_closed_segment(
+        let decoder = WriteOpEntryDecoder::from(
             wal.reader_for_segment(closed.id)
                 .expect("failed to open reader for closed WAL segment"),
         );
 
-        let mut write_op_entries = vec![];
-        while let Ok(Some(mut entry_batch)) = decoder.next_write_op_entry_batch() {
-            write_op_entries.append(&mut entry_batch);
-        }
+        let write_op_entries = decoder
+            .into_iter()
+            .flat_map(|r| r.expect("unexpected bad entry"))
+            .collect::<Vec<_>>();
         // The decoder should find 2 entries, each containing a single table write
         assert_eq!(write_op_entries.len(), 2);
         assert_matches!(write_op_entries.get(0), Some(got_op1) => {

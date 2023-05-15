@@ -43,11 +43,36 @@ pub enum WriteError {
 /// Provides namespaced write functionality from table-based mutable batches
 /// to namespaced line protocol output.
 #[derive(Debug)]
-pub struct LineProtoWriter<W, F> {
+pub struct LineProtoWriter<W, F>
+where
+    W: Write,
+{
     namespaced_output: HashMap<NamespaceId, W>,
     new_write_sink: F,
 
     table_name_index: HashMap<TableId, String>,
+}
+
+impl<W, F> LineProtoWriter<W, F>
+where
+    W: Write,
+{
+    /// Flushes all write destinations opened by the [`LineProtoWriter`].
+    pub fn flush(&mut self) -> Result<(), WriteError> {
+        for w in self.namespaced_output.values_mut() {
+            w.flush()?
+        }
+        Ok(())
+    }
+}
+
+impl<W, F> Drop for LineProtoWriter<W, F>
+where
+    W: Write,
+{
+    fn drop(&mut self) {
+        _ = self.flush()
+    }
 }
 
 impl<W, F> LineProtoWriter<W, F>
@@ -80,13 +105,7 @@ where
             .entry(ns)
             .or_insert((self.new_write_sink)(ns)?);
 
-        match write_batches_as_line_proto(sink, &self.table_name_index, table_batches) {
-            Ok(_) => sink.flush().map_err(WriteError::IoError),
-            Err(e) => {
-                _ = sink.flush();
-                Err(e)
-            }
-        }
+        write_batches_as_line_proto(sink, &self.table_name_index, table_batches)
     }
 }
 
@@ -127,7 +146,7 @@ mod tests {
         iox::wal::v1::sequenced_wal_op::Op, pbdata::v1::DatabaseBatch,
     };
     use mutable_batch_lp::lines_to_batches;
-    use wal::{DecodeError, SequencedWalOp, WriteOpEntryDecoder};
+    use wal::{DecodeError, SequencedWalOp, WriteOpEntry, WriteOpEntryDecoder};
 
     use super::*;
 
@@ -163,32 +182,31 @@ mod tests {
         // Rotate the WAL and create the translator.
         let (closed, _) = wal.rotate().expect("failed to rotate WAL");
 
-        let mut decoder = WriteOpEntryDecoder::from_closed_segment(
+        let decoder = WriteOpEntryDecoder::from(
             wal.reader_for_segment(closed.id())
                 .expect("failed to open reader for closed segment"),
         );
         let mut writer = LineProtoWriter::new(|_| Ok(Vec::<u8>::new()), table_name_index);
 
-        let mut decoded_entries = 0;
-        let mut decoded_ops = 0;
-        while let Some(new_entries) = decoder
-            .next_write_op_entry_batch()
-            .expect("decoder error should not occur")
-        {
-            decoded_entries += 1;
-            decoded_ops += new_entries.len();
+        let decoded_entries = decoder
+            .into_iter()
+            .map(|r| r.expect("unexpected bad entry"))
+            .collect::<Vec<_>>();
+        assert_eq!(decoded_entries.len(), 1);
+        let decoded_ops = decoded_entries
+            .into_iter()
+            .flatten()
+            .collect::<Vec<WriteOpEntry>>();
+        assert_eq!(decoded_ops.len(), 3);
 
-            for entry in new_entries {
-                writer
-                    .write_namespaced_table_batches(entry.namespace, entry.table_batches)
-                    .expect("batch write should not fail");
-            }
+        for entry in decoded_ops {
+            writer
+                .write_namespaced_table_batches(entry.namespace, entry.table_batches)
+                .expect("batch write should not fail");
         }
         // The WAL has been given a single entry containing three write ops
-        assert_eq!(decoded_entries, 1);
-        assert_eq!(decoded_ops, 3);
 
-        let results = writer.namespaced_output;
+        let results = &writer.namespaced_output;
 
         // Assert that the namespaced writes contain ONLY the following:
         //
@@ -269,36 +287,36 @@ mod tests {
         }
 
         // Create the translator and read as much as possible out of the bad segment file
-        let mut decoder = WriteOpEntryDecoder::from_closed_segment(
+        let decoder = WriteOpEntryDecoder::from(
             wal.reader_for_segment(closed.id())
                 .expect("failed to open reader for closed segment"),
         );
         let mut writer = LineProtoWriter::new(|_| Ok(Vec::<u8>::new()), table_name_index);
 
-        let mut decoded_entries = 0;
-        let mut decoded_ops = 0;
-        loop {
-            match decoder.next_write_op_entry_batch() {
-                // If the translator returns `None` indicating successful translation
-                // then something is broken.
-                Ok(v) => assert_matches!(v, Some(new_entries) => {
-                    decoded_entries += 1;
-                    decoded_ops += new_entries.len();
-                    for entry in new_entries {
-                        writer.write_namespaced_table_batches(entry.namespace, entry.table_batches).expect("batch write should not fail");
-                    }
-                }),
-                Err(e) => {
-                    assert_matches!(e, DecodeError::FailedToReadWal { .. });
-                    break;
-                }
-            };
+        // The translator should be able to read all 2 good entries containing 4 write ops
+        let decoded_entries = decoder
+            .into_iter()
+            .map_while(|r| {
+                r.map_err(|e| match e {
+                    DecodeError::FailedToReadWal { .. } => None::<()>,
+                    _ => panic!("unexpected error"),
+                })
+                .ok()
+            })
+            .collect::<Vec<_>>();
+        assert_eq!(decoded_entries.len(), 2);
+        let decoded_ops = decoded_entries
+            .into_iter()
+            .flatten()
+            .collect::<Vec<WriteOpEntry>>();
+        assert_eq!(decoded_ops.len(), 4);
+        for entry in decoded_ops {
+            writer
+                .write_namespaced_table_batches(entry.namespace, entry.table_batches)
+                .expect("batch write should not fail");
         }
-        // The translator should have read all 2 good entries containing 4 write ops
-        assert_eq!(decoded_entries, 2);
-        assert_eq!(decoded_ops, 4);
 
-        let results = writer.namespaced_output;
+        let results = &writer.namespaced_output;
 
         // Assert that the namespaced writes contain ONLY the following:
         //
