@@ -5,8 +5,9 @@ use arrow::{
     record_batch::RecordBatch,
 };
 use data_types::{
-    Column, ColumnSet, ColumnType, ColumnsByName, CompactionLevel, Namespace, NamespaceSchema,
-    ParquetFile, ParquetFileParams, Partition, PartitionId, Table, TableId, TableSchema, Timestamp,
+    Column, ColumnSet, ColumnType, ColumnsByName, CompactionLevel, Namespace, NamespaceName,
+    NamespaceSchema, ParquetFile, ParquetFileParams, Partition, PartitionId, Table, TableId,
+    TableSchema, Timestamp,
 };
 use datafusion::physical_plan::metrics::Count;
 use datafusion_util::MemoryStream;
@@ -143,9 +144,10 @@ impl TestCatalog {
         retention_period_ns: Option<i64>,
     ) -> Arc<TestNamespace> {
         let mut repos = self.catalog.repositories().await;
+        let namespace_name = NamespaceName::new(name).unwrap();
         let namespace = repos
             .namespaces()
-            .create(name, retention_period_ns)
+            .create(&namespace_name, retention_period_ns)
             .await
             .unwrap();
 

@@ -137,8 +137,8 @@ mod tests {
     use super::*;
     use chrono::TimeZone;
     use data_types::{
-        ColumnId, ColumnSet, CompactionLevel, NamespaceId, ParquetFile, ParquetFileParams,
-        PartitionId, TableId, Timestamp,
+        ColumnId, ColumnSet, CompactionLevel, NamespaceId, NamespaceName, ParquetFile,
+        ParquetFileParams, PartitionId, TableId, Timestamp,
     };
     use iox_catalog::{interface::Catalog, mem::MemCatalog};
     use object_store::path::Path;
@@ -157,7 +157,10 @@ mod tests {
         let mut repos = catalog.repositories().await;
         let namespace = repos
             .namespaces()
-            .create("namespace_parquet_file_test", None)
+            .create(
+                &NamespaceName::new("namespace_parquet_file_test").unwrap(),
+                None,
+            )
             .await
             .unwrap();
         let table = repos
