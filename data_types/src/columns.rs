@@ -110,6 +110,15 @@ impl ColumnsByName {
     }
 }
 
+impl IntoIterator for ColumnsByName {
+    type Item = (String, ColumnSchema);
+    type IntoIter = std::collections::btree_map::IntoIter<String, ColumnSchema>;
+
+    fn into_iter(self) -> Self::IntoIter {
+        self.0.into_iter()
+    }
+}
+
 // ColumnsByName is a newtype so that we can implement this `TryFrom` in this crate
 impl TryFrom<ColumnsByName> for Schema {
     type Error = schema::builder::Error;
