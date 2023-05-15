@@ -19,7 +19,7 @@ client_util = { path = "../client_util" }
 comfy-table = { version = "6.1", default-features = false}
 futures-util = { version = "0.3" }
 influxdb-line-protocol = { path = "../influxdb_line_protocol"}
-generated_types = { path = "../generated_types", default-features = false, features = ["data_types_conversions"] }
+generated_types = { path = "../generated_types" }
 prost = "0.11"
 rand = "0.8.3"
 reqwest = { version = "0.11", default-features = false, features = ["stream", "rustls-tls"] }

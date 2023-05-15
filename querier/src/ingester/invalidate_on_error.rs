@@ -1,7 +1,7 @@
 use std::sync::Arc;
 
 use async_trait::async_trait;
-use generated_types::ingester::IngesterQueryRequest;
+use ingester_query_grpc::IngesterQueryRequest;
 use trace::{ctx::SpanContext, span::SpanRecorder};
 
 use crate::ingester::flight_client::{Error as FlightClientError, IngesterFlightClient, QueryData};

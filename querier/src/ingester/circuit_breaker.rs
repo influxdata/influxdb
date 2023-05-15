@@ -12,7 +12,7 @@ use std::{
 
 use async_trait::async_trait;
 use backoff::{Backoff, BackoffConfig};
-use generated_types::ingester::IngesterQueryRequest;
+use ingester_query_grpc::IngesterQueryRequest;
 use iox_time::{Time, TimeProvider};
 use metric::{Metric, Registry, U64Gauge};
 use observability_deps::tracing::{info, warn};
@@ -505,8 +505,9 @@ mod tests {
     use arrow_flight::decode::DecodedPayload;
     use assert_matches::assert_matches;
     use data_types::{NamespaceId, TableId};
-    use generated_types::google::FieldViolation;
-    use influxdb_iox_client::flight::generated_types::IngesterQueryResponseMetadata;
+    use ingester_query_grpc::{
+        influxdata::iox::ingester::v1::IngesterQueryResponseMetadata, FieldViolation,
+    };
     use iox_time::MockProvider;
     use metric::Attributes;
     use test_helpers::maybe_start_logging;

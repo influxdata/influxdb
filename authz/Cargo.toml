@@ -20,5 +20,11 @@ base64 = "0.21.0"
 snafu = "0.7"
 tonic = { workspace = true }
 
+[dev-dependencies]
+assert_matches = "1.5.0"
+paste = "1.0.12"
+test_helpers_end_to_end = { path = "../test_helpers_end_to_end" }
+tokio = "1.28.0"
+
 [features]
 http = ["dep:http"]

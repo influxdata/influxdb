@@ -1,6 +1,7 @@
 //! Types having to do with columns.
 
 use super::TableId;
+use generated_types::influxdata::iox::schema::v1 as proto;
 use influxdb_line_protocol::FieldValue;
 use schema::{builder::SchemaBuilder, InfluxColumnType, InfluxFieldType, Schema};
 use sqlx::postgres::PgHasArrayType;
@@ -306,6 +307,25 @@ pub fn column_type_from_field(field_value: &FieldValue) -> ColumnType {
     }
 }
 
+impl TryFrom<proto::column_schema::ColumnType> for ColumnType {
+    type Error = Box<dyn std::error::Error>;
+
+    fn try_from(value: proto::column_schema::ColumnType) -> Result<Self, Self::Error> {
+        Ok(match value {
+            proto::column_schema::ColumnType::I64 => ColumnType::I64,
+            proto::column_schema::ColumnType::U64 => ColumnType::U64,
+            proto::column_schema::ColumnType::F64 => ColumnType::F64,
+            proto::column_schema::ColumnType::Bool => ColumnType::Bool,
+            proto::column_schema::ColumnType::String => ColumnType::String,
+            proto::column_schema::ColumnType::Time => ColumnType::Time,
+            proto::column_schema::ColumnType::Tag => ColumnType::Tag,
+            proto::column_schema::ColumnType::Unspecified => {
+                return Err("unknown column type".into())
+            }
+        })
+    }
+}
+
 /// Set of columns.
 #[derive(Debug, Clone, PartialEq, Eq, sqlx::Type)]
 #[sqlx(transparent)]
@@ -363,5 +383,39 @@ mod tests {
     #[should_panic = "set contains duplicates"]
     fn test_column_set_duplicates() {
         ColumnSet::new([ColumnId::new(1), ColumnId::new(2), ColumnId::new(1)]);
+    }
+
+    #[test]
+    fn test_column_schema() {
+        assert_eq!(
+            ColumnType::try_from(proto::column_schema::ColumnType::I64).unwrap(),
+            ColumnType::I64,
+        );
+        assert_eq!(
+            ColumnType::try_from(proto::column_schema::ColumnType::U64).unwrap(),
+            ColumnType::U64,
+        );
+        assert_eq!(
+            ColumnType::try_from(proto::column_schema::ColumnType::F64).unwrap(),
+            ColumnType::F64,
+        );
+        assert_eq!(
+            ColumnType::try_from(proto::column_schema::ColumnType::Bool).unwrap(),
+            ColumnType::Bool,
+        );
+        assert_eq!(
+            ColumnType::try_from(proto::column_schema::ColumnType::String).unwrap(),
+            ColumnType::String,
+        );
+        assert_eq!(
+            ColumnType::try_from(proto::column_schema::ColumnType::Time).unwrap(),
+            ColumnType::Time,
+        );
+        assert_eq!(
+            ColumnType::try_from(proto::column_schema::ColumnType::Tag).unwrap(),
+            ColumnType::Tag,
+        );
+
+        assert!(ColumnType::try_from(proto::column_schema::ColumnType::Unspecified).is_err());
     }
 }

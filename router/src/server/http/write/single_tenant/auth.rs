@@ -27,7 +27,7 @@ pub(crate) async fn authorize(
         Action::Write,
     )];
 
-    authz.require_any_permission(token, &perms).await?;
+    authz.permissions(token, &perms).await?;
     Ok(())
 }
 
@@ -54,7 +54,7 @@ pub mod mock {
             match token {
                 Some(token) => match (&token as &dyn AsRef<[u8]>).as_ref() {
                     b"GOOD" => Ok(perms.to_vec()),
-                    b"BAD" => Ok(vec![]),
+                    b"BAD" => Err(authz::Error::Forbidden),
                     b"UGLY" => Err(authz::Error::verification("test", "test error")),
                     _ => panic!("unexpected token"),
                 },

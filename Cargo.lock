@@ -514,12 +514,16 @@ dependencies = [
 name = "authz"
 version = "0.1.0"
 dependencies = [
+ "assert_matches",
  "async-trait",
  "base64 0.21.0",
  "generated_types",
  "http",
  "observability_deps",
+ "paste",
  "snafu",
+ "test_helpers_end_to_end",
+ "tokio",
  "tonic",
  "workspace-hack",
 ]
@@ -1414,6 +1418,7 @@ name = "data_types"
 version = "0.1.0"
 dependencies = [
  "croaring",
+ "generated_types",
  "influxdb-line-protocol",
  "iox_time",
  "observability_deps",
@@ -2036,17 +2041,12 @@ version = "0.1.0"
 dependencies = [
  "base64 0.21.0",
  "bytes",
- "data_types",
- "datafusion",
- "datafusion-proto",
  "observability_deps",
  "pbjson",
  "pbjson-build",
  "pbjson-types",
- "predicate",
  "prost",
  "prost-build",
- "query_functions",
  "serde",
  "snafu",
  "tonic",
@@ -2565,6 +2565,7 @@ dependencies = [
  "influxdb_iox_client",
  "influxdb_storage_client",
  "influxrpc_parser",
+ "ingester_query_grpc",
  "insta",
  "iox_catalog",
  "iox_query",
@@ -2586,6 +2587,7 @@ dependencies = [
  "observability_deps",
  "once_cell",
  "panic_logging",
+ "parking_lot 0.12.1",
  "parquet_file",
  "parquet_to_line_protocol",
  "predicate",
@@ -2698,6 +2700,7 @@ dependencies = [
  "generated_types",
  "hashbrown 0.13.2",
  "influxdb_iox_client",
+ "ingester_query_grpc",
  "ingester_test_ctx",
  "iox_catalog",
  "iox_query",
@@ -2733,6 +2736,27 @@ dependencies = [
 ]
 
 [[package]]
+name = "ingester_query_grpc"
+version = "0.1.0"
+dependencies = [
+ "base64 0.21.0",
+ "data_types",
+ "datafusion",
+ "datafusion-proto",
+ "pbjson",
+ "pbjson-build",
+ "pbjson-types",
+ "predicate",
+ "prost",
+ "prost-build",
+ "query_functions",
+ "serde",
+ "snafu",
+ "tonic-build",
+ "workspace-hack",
+]
+
+[[package]]
 name = "ingester_test_ctx"
 version = "0.1.0"
 dependencies = [
@@ -2746,6 +2770,7 @@ dependencies = [
  "hashbrown 0.13.2",
  "influxdb_iox_client",
  "ingester",
+ "ingester_query_grpc",
  "iox_catalog",
  "iox_query",
  "iox_time",
@@ -4426,8 +4451,8 @@ dependencies = [
  "datafusion",
  "datafusion_util",
  "futures",
- "generated_types",
  "influxdb_iox_client",
+ "ingester_query_grpc",
  "insta",
  "iox_catalog",
  "iox_query",
@@ -5612,6 +5637,7 @@ dependencies = [
  "http",
  "hyper",
  "influxdb_iox_client",
+ "ingester_query_grpc",
  "iox_catalog",
  "mutable_batch_lp",
  "mutable_batch_pb",
@@ -6714,7 +6740,6 @@ dependencies = [
  "hashbrown 0.12.3",
  "hashbrown 0.13.2",
  "heck",
- "hyper",
  "indexmap",
  "io-lifetimes",
  "itertools",
@@ -6751,6 +6776,7 @@ dependencies = [
  "sha2",
  "similar",
  "smallvec",
+ "sqlparser",
  "sqlx",
  "sqlx-core",
  "sqlx-macros",

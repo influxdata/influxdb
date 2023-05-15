@@ -1,4 +1,10 @@
-use crate::{google::FieldViolation, influxdata::iox::ingester::v1 as proto};
+// This crate deliberately does not use the same linting rules as the other
+// crates because of all the generated code it contains that we don't have much
+// control over.
+#![deny(rustdoc::broken_intra_doc_links, rustdoc::bare_urls)]
+#![allow(clippy::derive_partial_eq_without_eq, clippy::needless_borrow)]
+
+use crate::influxdata::iox::ingester::v1 as proto;
 use base64::{prelude::BASE64_STANDARD, Engine};
 use data_types::{NamespaceId, TableId, TimestampRange};
 use datafusion::{common::DataFusionError, prelude::Expr};
@@ -6,6 +12,67 @@ use datafusion_proto::bytes::Serializeable;
 use predicate::{Predicate, ValueExpr};
 use prost::Message;
 use snafu::{ResultExt, Snafu};
+
+/// This module imports the generated protobuf code into a Rust module
+/// hierarchy that matches the namespace hierarchy of the protobuf
+/// definitions
+pub mod influxdata {
+    pub mod iox {
+        pub mod ingester {
+            pub mod v1 {
+                include!(concat!(env!("OUT_DIR"), "/influxdata.iox.ingester.v1.rs"));
+                include!(concat!(
+                    env!("OUT_DIR"),
+                    "/influxdata.iox.ingester.v1.serde.rs"
+                ));
+            }
+        }
+    }
+}
+
+/// Error returned if a request field has an invalid value. Includes
+/// machinery to add parent field names for context -- thus it will
+/// report `rules.write_timeout` than simply `write_timeout`.
+#[derive(Debug, Default, Clone, PartialEq)]
+pub struct FieldViolation {
+    pub field: String,
+    pub description: String,
+}
+
+impl FieldViolation {
+    pub fn required(field: impl Into<String>) -> Self {
+        Self {
+            field: field.into(),
+            description: "Field is required".to_string(),
+        }
+    }
+
+    /// Re-scopes this error as the child of another field
+    pub fn scope(self, field: impl Into<String>) -> Self {
+        let field = if self.field.is_empty() {
+            field.into()
+        } else {
+            [field.into(), self.field].join(".")
+        };
+
+        Self {
+            field,
+            description: self.description,
+        }
+    }
+}
+
+impl std::error::Error for FieldViolation {}
+
+impl std::fmt::Display for FieldViolation {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(
+            f,
+            "Violation for field \"{}\": {}",
+            self.field, self.description
+        )
+    }
+}
 
 fn expr_to_bytes_violation(field: impl Into<String>, e: DataFusionError) -> FieldViolation {
     FieldViolation {

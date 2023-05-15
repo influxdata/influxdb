@@ -30,6 +30,7 @@ members = [
     "influxrpc_parser",
     "ingester_test_ctx",
     "ingester",
+    "ingester_query_grpc",
     "iox_catalog",
     "iox_data_generator",
     "iox_query_influxql",

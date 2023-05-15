@@ -129,16 +129,17 @@ impl IoxAuthorizerService for AuthorizerService {
         request: tonic::Request<AuthorizeRequest>,
     ) -> Result<tonic::Response<AuthorizeResponse>, tonic::Status> {
         let request = request.into_inner();
-        let perms = self
+        let recognized = self
             .tokens
             .lock()
             .map_err(|e| tonic::Status::internal(e.to_string()))?
             .get(&request.token)
-            .cloned()
-            .unwrap_or_default();
+            .cloned();
+        let valid = recognized.is_some();
+        let perms = recognized.unwrap_or_default();
 
         Ok(tonic::Response::new(AuthorizeResponse {
-            valid: true,
+            valid,
             subject: None,
             permissions: request
                 .permissions
