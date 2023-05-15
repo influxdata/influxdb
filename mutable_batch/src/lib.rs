@@ -102,7 +102,7 @@ impl MutableBatch {
             Projection::Some(cols) => {
                 for col in cols {
                     let column = self.column(col)?;
-                    schema_builder.influx_column(col, column.influx_type());
+                    schema_builder.influx_column(*col, column.influx_type());
                 }
                 schema_builder.build().context(InternalSchemaSnafu)?
             }

@@ -114,9 +114,10 @@ mod tests {
 
         let (namespace_id, table_id) = {
             let mut repos = catalog.repositories().await;
+            let table_ns_name = data_types::NamespaceName::new(TABLE_NAME).unwrap();
             let ns = repos
                 .namespaces()
-                .create(TABLE_NAME, None)
+                .create(&table_ns_name, None)
                 .await
                 .unwrap();
 
