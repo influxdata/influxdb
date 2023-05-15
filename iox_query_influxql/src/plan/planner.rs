@@ -20,6 +20,7 @@ use chrono_tz::Tz;
 use datafusion::catalog::TableReference;
 use datafusion::common::{DFSchema, DFSchemaRef, Result, ScalarValue, ToDFSchema};
 use datafusion::datasource::{provider_as_source, MemTable};
+use datafusion::logical_expr::expr::ScalarFunction;
 use datafusion::logical_expr::expr_rewriter::normalize_col;
 use datafusion::logical_expr::logical_plan::builder::project;
 use datafusion::logical_expr::logical_plan::Analyze;
@@ -617,10 +618,10 @@ impl<'a> InfluxQLToLogicalPlan<'a> {
             && fill_option != FillClause::None
         {
             let args = match select_exprs[time_column_index].clone().unalias() {
-                Expr::ScalarFunction {
+                Expr::ScalarFunction(ScalarFunction {
                     fun: BuiltinScalarFunction::DateBin,
                     args,
-                } => args,
+                }) => args,
                 _ => {
                     // The InfluxQL planner adds the `date_bin` function,
                     // so this condition represents an internal failure.
@@ -1159,13 +1160,13 @@ impl<'a> InfluxQLToLogicalPlan<'a> {
                 if args.len() != 2 {
                     error::query("invalid number of arguments for log, expected 2, got 1")
                 } else {
-                    Ok(Expr::ScalarFunction {
+                    Ok(Expr::ScalarFunction(ScalarFunction {
                         fun: BuiltinScalarFunction::Log,
                         args: args.into_iter().rev().collect(),
-                    })
+                    }))
                 }
             }
-            fun => Ok(Expr::ScalarFunction { fun, args }),
+            fun => Ok(Expr::ScalarFunction(ScalarFunction { fun, args })),
         }
     }
 
@@ -1411,7 +1412,7 @@ impl<'a> InfluxQLToLogicalPlan<'a> {
                         // - not null if it had any non-null values
                         //
                         // note that since we only have a single row, this is efficient
-                        .project([Expr::ScalarFunction {
+                        .project([Expr::ScalarFunction(ScalarFunction {
                             fun: BuiltinScalarFunction::MakeArray,
                             args: tags
                                 .iter()
@@ -1421,7 +1422,7 @@ impl<'a> InfluxQLToLogicalPlan<'a> {
                                     when(tag_col.gt(lit(0)), lit(*tag)).end()
                                 })
                                 .collect::<Result<Vec<_>, _>>()?,
-                        }
+                        })
                         .alias(tag_key_col)])?
                         // roll our single array row into one row per tag key
                         .unnest_column(tag_key_df_col)?
