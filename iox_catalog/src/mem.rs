@@ -14,7 +14,8 @@ use async_trait::async_trait;
 use data_types::{
     Column, ColumnId, ColumnType, CompactionLevel, Namespace, NamespaceId, NamespaceName,
     NamespacePartitionTemplateOverride, ParquetFile, ParquetFileId, ParquetFileParams, Partition,
-    PartitionId, PartitionKey, SkippedCompaction, Table, TableId, Timestamp,
+    PartitionId, PartitionKey, SkippedCompaction, Table, TableId, TablePartitionTemplateOverride,
+    Timestamp,
 };
 use iox_time::{SystemProvider, TimeProvider};
 use snafu::ensure;
@@ -260,7 +261,12 @@ impl NamespaceRepo for MemTxn {
 
 #[async_trait]
 impl TableRepo for MemTxn {
-    async fn create(&mut self, name: &str, namespace_id: NamespaceId) -> Result<Table> {
+    async fn create(
+        &mut self,
+        name: &str,
+        partition_template: TablePartitionTemplateOverride,
+        namespace_id: NamespaceId,
+    ) -> Result<Table> {
         let stage = self.stage();
 
         // this block is just to ensure the mem impl correctly creates TableCreateLimitError in
@@ -307,6 +313,7 @@ impl TableRepo for MemTxn {
                     id: TableId::new(stage.tables.len() as i64 + 1),
                     namespace_id,
                     name: name.to_string(),
+                    partition_template,
                 };
                 stage.tables.push(table);
                 stage.tables.last().unwrap()

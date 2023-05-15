@@ -7,20 +7,20 @@ use crate::{
     MutableBatch,
 };
 use chrono::{format::StrftimeItems, TimeZone, Utc};
-use data_types::{PartitionTemplate, TemplatePart};
+use data_types::{TablePartitionTemplateOverride, TemplatePart};
 use schema::TIME_COLUMN_NAME;
 use std::ops::Range;
 
 /// Returns an iterator identifying consecutive ranges for a given partition key
 pub fn partition_batch<'a>(
     batch: &'a MutableBatch,
-    template: &'a PartitionTemplate,
+    template: &'a TablePartitionTemplateOverride,
 ) -> impl Iterator<Item = (String, Range<usize>)> + 'a {
-    range_encode(partition_keys(batch, template))
+    range_encode(partition_keys(batch, template.parts()))
 }
 
-/// A [`PartitionTemplate`] is made up of one of more [`TemplatePart`] that are rendered and
-/// joined together by hyphens to form a single partition key
+/// A [`TablePartitionTemplateOverride`] is made up of one of more [`TemplatePart`]s that are
+/// rendered and joined together by hyphens to form a single partition key.
 ///
 /// To avoid allocating intermediate strings, and performing column lookups for every row,
 /// each [`TemplatePart`] is converted to a [`Template`].
@@ -72,7 +72,7 @@ impl<'a> Template<'a> {
 /// Returns an iterator of partition keys for the given table batch
 fn partition_keys<'a>(
     batch: &'a MutableBatch,
-    template: &'a PartitionTemplate,
+    template_parts: impl Iterator<Item = TemplatePart<'a>>,
 ) -> impl Iterator<Item = String> + 'a {
     let time = batch.column(TIME_COLUMN_NAME).expect("time column");
     let time = match &time.data {
@@ -80,9 +80,7 @@ fn partition_keys<'a>(
         x => unreachable!("expected i32 for time got {}", x),
     };
 
-    let cols: Vec<_> = template
-        .parts
-        .iter()
+    let cols: Vec<_> = template_parts
         .map(|part| match part {
             TemplatePart::TagValue(name) => batch.column(name).map_or_else(
                 |_| Template::MissingTag(name),
@@ -202,18 +200,16 @@ mod tests {
             )
             .unwrap();
 
-        let template = PartitionTemplate {
-            parts: vec![
-                TemplatePart::TimeFormat("%Y-%m-%d %H:%M:%S".to_string()),
-                TemplatePart::TagValue("f64".to_string()),
-                TemplatePart::TagValue("region".to_string()),
-                TemplatePart::TagValue("bananas".to_string()),
-            ],
-        };
+        let template_parts = [
+            TemplatePart::TimeFormat("%Y-%m-%d %H:%M:%S"),
+            TemplatePart::TagValue("f64"),
+            TemplatePart::TagValue("region"),
+            TemplatePart::TagValue("bananas"),
+        ];
 
         writer.commit();
 
-        let keys: Vec<_> = partition_keys(&batch, &template).collect();
+        let keys: Vec<_> = partition_keys(&batch, template_parts.into_iter()).collect();
 
         assert_eq!(
             keys,

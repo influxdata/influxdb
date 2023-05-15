@@ -334,7 +334,7 @@ impl TestTable {
     pub async fn catalog_schema(&self) -> TableSchema {
         TableSchema {
             id: self.table.id,
-            partition_template: None,
+            partition_template: Default::default(),
             columns: self.catalog_columns().await,
         }
     }

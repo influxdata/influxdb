@@ -15,19 +15,21 @@ impl PartitionInfoBuilder {
     pub fn new() -> Self {
         let partition_id = PartitionId::new(1);
         let namespace_id = NamespaceId::new(2);
-        let table_id = TableId::new(3);
+        let table = Arc::new(Table {
+            id: TableId::new(3),
+            namespace_id,
+            name: String::from("table"),
+            partition_template: Default::default(),
+        });
+        let table_schema = Arc::new(TableSchema::new_empty_from(&table));
 
         Self {
             inner: PartitionInfo {
                 partition_id,
                 namespace_id,
                 namespace_name: String::from("ns"),
-                table: Arc::new(Table {
-                    id: TableId::new(3),
-                    namespace_id,
-                    name: String::from("table"),
-                }),
-                table_schema: Arc::new(TableSchema::new(table_id)),
+                table,
+                table_schema,
                 sort_key: None,
                 partition_key: PartitionKey::from("key"),
             },
@@ -51,7 +53,7 @@ impl PartitionInfoBuilder {
 
         let table_schema = Arc::new(TableSchema {
             id: self.inner.table.id,
-            partition_template: None,
+            partition_template: Default::default(),
             columns: ColumnsByName::new(columns),
         });
         self.inner.table_schema = table_schema;

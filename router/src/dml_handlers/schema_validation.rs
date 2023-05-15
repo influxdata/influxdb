@@ -144,15 +144,8 @@ where
 
     // Accepts a map of TableName -> MutableBatch
     type WriteInput = HashMap<String, MutableBatch>;
-    // And returns a map of TableId -> (TableName, OptionalTablePartitionTemplate, MutableBatch)
-    type WriteOutput = HashMap<
-        TableId,
-        (
-            String,
-            Option<Arc<TablePartitionTemplateOverride>>,
-            MutableBatch,
-        ),
-    >;
+    // And returns a map of TableId -> (TableName, TablePartitionTemplate, MutableBatch)
+    type WriteOutput = HashMap<TableId, (String, TablePartitionTemplateOverride, MutableBatch)>;
 
     /// Validate the schema of all the writes in `batches`.
     ///
@@ -292,7 +285,7 @@ where
             }
         };
 
-        // Map the "TableName -> Data" into "TableId -> (TableName, OptionalTablePartitionTemplate,
+        // Map the "TableName -> Data" into "TableId -> (TableName, TablePartitionTemplate,
         // Data)" for downstream handlers.
         let batches = batches
             .into_iter()

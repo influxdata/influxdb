@@ -367,7 +367,7 @@ impl NamespaceSchema {
 }
 
 /// Data object for a table
-#[derive(Debug, Clone, sqlx::FromRow, Eq, PartialEq)]
+#[derive(Debug, Clone, sqlx::FromRow, PartialEq)]
 pub struct Table {
     /// The id of the table
     pub id: TableId,
@@ -375,37 +375,30 @@ pub struct Table {
     pub namespace_id: NamespaceId,
     /// The name of the table, which is unique within the associated namespace
     pub name: String,
+    #[sqlx(default)]
+    /// The partition template to use for writes in this table.
+    pub partition_template: TablePartitionTemplateOverride,
 }
 
 /// Column definitions for a table
-#[derive(Debug, Clone, Eq, PartialEq)]
+#[derive(Debug, Clone, PartialEq)]
 pub struct TableSchema {
     /// the table id
     pub id: TableId,
 
-    /// the table's partition template
-    pub partition_template: Option<Arc<TablePartitionTemplateOverride>>,
+    /// The partition template to use for writes in this table.
+    pub partition_template: TablePartitionTemplateOverride,
 
     /// the table's columns by their name
     pub columns: ColumnsByName,
 }
 
 impl TableSchema {
-    /// Initialize new `TableSchema` with the given `TableId`.
-    pub fn new(id: TableId) -> Self {
-        Self {
-            id,
-            partition_template: None,
-            columns: ColumnsByName::new([]),
-        }
-    }
-
     /// Initialize new `TableSchema` from the information in the given `Table`.
     pub fn new_empty_from(table: &Table) -> Self {
         Self {
             id: table.id,
-            // TODO: Store and retrieve PartitionTemplate from the database
-            partition_template: None,
+            partition_template: table.partition_template.clone(),
             columns: ColumnsByName::new([]),
         }
     }
@@ -2672,12 +2665,12 @@ mod tests {
     fn test_table_schema_size() {
         let schema1 = TableSchema {
             id: TableId::new(1),
-            partition_template: None,
+            partition_template: Default::default(),
             columns: ColumnsByName::new([]),
         };
         let schema2 = TableSchema {
             id: TableId::new(2),
-            partition_template: None,
+            partition_template: Default::default(),
             columns: ColumnsByName::new(
                 [Column {
                     id: ColumnId::new(1),

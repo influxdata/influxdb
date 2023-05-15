@@ -1,7 +1,6 @@
 use async_trait::async_trait;
 use data_types::{
-    DefaultPartitionTemplate, NamespaceName, NamespaceSchema, PartitionKey, TableId,
-    TablePartitionTemplateOverride,
+    NamespaceName, NamespaceSchema, PartitionKey, TableId, TablePartitionTemplateOverride,
 };
 use hashbrown::HashMap;
 use mutable_batch::{MutableBatch, PartitionWrite, WritePayload};
@@ -45,23 +44,24 @@ impl<T> Partitioned<T> {
 }
 
 /// A [`DmlHandler`] implementation that splits per-table [`MutableBatch`] into
-/// partitioned per-table [`MutableBatch`] instances according to a configured
-/// [`DefaultPartitionTemplate`]. Deletes pass through unmodified.
+/// partitioned per-table [`MutableBatch`] instances according to the tables' partition templates.
+/// Deletes pass through unmodified.
 ///
 /// A vector of partitions are returned to the caller, or the first error that
 /// occurs during partitioning.
 #[derive(Debug)]
-pub struct Partitioner {
-    _partition_template: Arc<DefaultPartitionTemplate>,
-}
+pub struct Partitioner {}
 
 impl Partitioner {
-    /// Initialise a new [`Partitioner`], splitting writes according to the
-    /// specified [`DefaultPartitionTemplate`].
-    pub fn new(partition_template: DefaultPartitionTemplate) -> Self {
-        Self {
-            _partition_template: Arc::new(partition_template),
-        }
+    /// Initialise a new [`Partitioner`].
+    pub fn new() -> Self {
+        Self {}
+    }
+}
+
+impl Default for Partitioner {
+    fn default() -> Self {
+        Self::new()
     }
 }
 
@@ -69,14 +69,7 @@ impl Partitioner {
 impl DmlHandler for Partitioner {
     type WriteError = PartitionError;
 
-    type WriteInput = HashMap<
-        TableId,
-        (
-            String,
-            Option<Arc<TablePartitionTemplateOverride>>,
-            MutableBatch,
-        ),
-    >;
+    type WriteInput = HashMap<TableId, (String, TablePartitionTemplateOverride, MutableBatch)>;
     type WriteOutput = Vec<Partitioned<HashMap<TableId, (String, MutableBatch)>>>;
 
     /// Partition the per-table [`MutableBatch`].
@@ -94,11 +87,8 @@ impl DmlHandler for Partitioner {
         for (table_id, (table_name, table_partition_template, batch)) in batch {
             // Partition the table batch according to the configured partition
             // template and write it into the partition-keyed map.
-
-            let partition_template = &table_partition_template.as_ref().unwrap().0;
-
             for (partition_key, partition_payload) in
-                PartitionWrite::partition(&batch, partition_template)
+                PartitionWrite::partition(&batch, &table_partition_template)
             {
                 let partition = partitions.entry(partition_key).or_default();
                 let table_batch = partition
@@ -122,28 +112,21 @@ impl DmlHandler for Partitioner {
 #[cfg(test)]
 mod tests {
     use assert_matches::assert_matches;
-    use data_types::{NamespaceId, PartitionTemplate, TemplatePart};
+    use data_types::{test_table_partition_override, NamespaceId, TemplatePart};
 
     use super::*;
 
     // Parse `lp` into a table-keyed MutableBatch map.
     pub(crate) fn lp_to_writes(
         lp: &str,
-    ) -> HashMap<
-        TableId,
-        (
-            String,
-            Option<Arc<TablePartitionTemplateOverride>>,
-            MutableBatch,
-        ),
-    > {
+    ) -> HashMap<TableId, (String, TablePartitionTemplateOverride, MutableBatch)> {
         let (writes, _) = mutable_batch_lp::lines_to_batches_stats(lp, 42)
             .expect("failed to build test writes from LP");
 
         writes
             .into_iter()
             .enumerate()
-            .map(|(i, (name, data))| (TableId::new(i as _), (name, None, data)))
+            .map(|(i, (name, data))| (TableId::new(i as _), (name, Default::default(), data)))
             .collect()
     }
 
@@ -173,9 +156,7 @@ mod tests {
             paste::paste! {
                 #[tokio::test]
                 async fn [<test_write_ $name>]() {
-                    let partition_template = DefaultPartitionTemplate::default();
-
-                    let partitioner = Partitioner::new(partition_template);
+                    let partitioner = Partitioner::new();
                     let ns = NamespaceName::new("bananas").expect("valid db name");
 
                     let writes = lp_to_writes($lp);
@@ -330,20 +311,16 @@ mod tests {
 
     #[tokio::test]
     async fn test_write_table_partition_template() {
-        let partitioner = Partitioner::new(DefaultPartitionTemplate::default());
+        let partitioner = Partitioner::new();
         let ns = NamespaceName::new("bananas").expect("valid db name");
 
         let namespace_schema = namespace_schema(42);
 
-        let bananas_table_template = Some(Arc::new(TablePartitionTemplateOverride::new(
-            PartitionTemplate {
-                parts: vec![
-                    TemplatePart::TagValue("oranges".to_string()),
-                    TemplatePart::TimeFormat("%Y-%m".to_string()),
-                    TemplatePart::TagValue("tag2".to_string()),
-                ],
-            },
-        )));
+        let bananas_table_template = test_table_partition_override(vec![
+            TemplatePart::TagValue("oranges"),
+            TemplatePart::TimeFormat("%Y-%m"),
+            TemplatePart::TagValue("tag2"),
+        ]);
 
         let lp = "
             bananas,tag1=A,tag2=C val=42i 1\n\
@@ -362,7 +339,7 @@ mod tests {
             .map(|(i, (name, data))| {
                 let table_partition_template = match name.as_str() {
                     "bananas" => bananas_table_template.clone(),
-                    _ => None,
+                    _ => Default::default(),
                 };
                 (TableId::new(i as _), (name, table_partition_template, data))
             })

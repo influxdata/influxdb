@@ -1,4 +1,4 @@
-use generated_types::{google::FieldViolation, influxdata::iox::partition_template::v1 as proto};
+use generated_types::influxdata::iox::partition_template::v1 as proto;
 use once_cell::sync::Lazy;
 use std::sync::Arc;
 
@@ -63,23 +63,122 @@ where
 }
 
 /// A partition template specified by a table record.
-#[derive(Debug, Eq, PartialEq, Clone)]
-pub struct TablePartitionTemplateOverride(pub PartitionTemplate);
+#[derive(Debug, PartialEq, Clone)]
+pub struct TablePartitionTemplateOverride(Arc<proto::PartitionTemplate>);
 
-impl TablePartitionTemplateOverride {
-    /// Create a new, immutable override for a table's partition template.
-    pub fn new(partition_template: PartitionTemplate) -> Self {
-        Self(partition_template)
+impl Default for TablePartitionTemplateOverride {
+    fn default() -> Self {
+        Self(Arc::clone(&PARTITION_BY_DAY_PROTO))
     }
 }
 
-/// A partition template specified as the default to be used in the absence of any overrides.
-#[derive(Debug, PartialEq, Clone, Copy)]
-pub struct DefaultPartitionTemplate(&'static proto::PartitionTemplate);
+impl TablePartitionTemplateOverride {
+    /// When a table is being explicitly created, the creation request might have contained a
+    /// custom partition template for that table. If the custom partition template is present, use
+    /// it. Otherwise, use the namespace's partition template.
+    #[allow(dead_code)] // This will be used by the as-yet unwritten create table gRPC API.
+    pub fn new(
+        custom_table_template: Option<proto::PartitionTemplate>,
+        namespace_template: &NamespacePartitionTemplateOverride,
+    ) -> Self {
+        custom_table_template
+            .map(Arc::new)
+            .map(Self)
+            .unwrap_or_else(|| namespace_template.into())
+    }
 
-impl Default for DefaultPartitionTemplate {
-    fn default() -> Self {
-        Self(&PARTITION_BY_DAY_PROTO)
+    /// Iterate through the protobuf parts and lend out what the `mutable_batch` crate needs to
+    /// build `PartitionKey`s.
+    pub fn parts(&self) -> impl Iterator<Item = TemplatePart<'_>> {
+        self.0
+            .parts
+            .iter()
+            .flat_map(|part| part.part.as_ref())
+            .map(|part| match part {
+                proto::template_part::Part::TagValue(value) => TemplatePart::TagValue(value),
+                proto::template_part::Part::TimeFormat(fmt) => TemplatePart::TimeFormat(fmt),
+            })
+    }
+}
+
+/// In production code, the template should come from protobuf that is either from the database or
+/// from a gRPC request. In tests, building protobuf is painful, so here's an easier way to create
+/// a `TablePartitionTemplateOverride`.
+pub fn test_table_partition_override(
+    parts: Vec<TemplatePart<'static>>,
+) -> TablePartitionTemplateOverride {
+    let parts = parts
+        .into_iter()
+        .map(|part| {
+            let part = match part {
+                TemplatePart::TagValue(value) => proto::template_part::Part::TagValue(value.into()),
+                TemplatePart::TimeFormat(fmt) => proto::template_part::Part::TimeFormat(fmt.into()),
+            };
+
+            proto::TemplatePart { part: Some(part) }
+        })
+        .collect();
+
+    let proto = Arc::new(proto::PartitionTemplate { parts });
+    TablePartitionTemplateOverride(proto)
+}
+
+/// Allocationless and protobufless access to the parts of a template needed to actually do
+/// partitioning.
+#[derive(Debug)]
+#[allow(missing_docs)]
+pub enum TemplatePart<'a> {
+    TagValue(&'a str),
+    TimeFormat(&'a str),
+}
+
+/// When a table is being created implicitly by a write, there is no possibility of a user-supplied
+/// partition template, so the table will get the namespace's partition template.
+impl From<&NamespacePartitionTemplateOverride> for TablePartitionTemplateOverride {
+    fn from(namespace_template: &NamespacePartitionTemplateOverride) -> Self {
+        Self(Arc::clone(&namespace_template.0))
+    }
+}
+
+impl<DB> sqlx::Type<DB> for TablePartitionTemplateOverride
+where
+    sqlx::types::Json<Self>: sqlx::Type<DB>,
+    DB: sqlx::Database,
+{
+    fn type_info() -> DB::TypeInfo {
+        <sqlx::types::Json<Self> as sqlx::Type<DB>>::type_info()
+    }
+}
+
+impl<'q, DB> sqlx::Encode<'q, DB> for TablePartitionTemplateOverride
+where
+    DB: sqlx::Database,
+    for<'b> sqlx::types::Json<&'b proto::PartitionTemplate>: sqlx::Encode<'q, DB>,
+{
+    fn encode_by_ref(
+        &self,
+        buf: &mut <DB as sqlx::database::HasArguments<'q>>::ArgumentBuffer,
+    ) -> sqlx::encode::IsNull {
+        <sqlx::types::Json<&proto::PartitionTemplate> as sqlx::Encode<'_, DB>>::encode_by_ref(
+            &sqlx::types::Json(&self.0),
+            buf,
+        )
+    }
+}
+
+impl<'q, DB> sqlx::Decode<'q, DB> for TablePartitionTemplateOverride
+where
+    DB: sqlx::Database,
+    sqlx::types::Json<proto::PartitionTemplate>: sqlx::Decode<'q, DB>,
+{
+    fn decode(
+        value: <DB as sqlx::database::HasValueRef<'q>>::ValueRef,
+    ) -> Result<Self, Box<dyn std::error::Error + 'static + Send + Sync>> {
+        Ok(Self(
+            <sqlx::types::Json<proto::PartitionTemplate> as sqlx::Decode<'_, DB>>::decode(value)?
+                .0
+                .into(),
+        ))
     }
 }
 
@@ -94,75 +193,80 @@ pub static PARTITION_BY_DAY_PROTO: Lazy<Arc<proto::PartitionTemplate>> = Lazy::n
     })
 });
 
-/// The default partitioning scheme is by each day according to the "time" column.
-pub static PARTITION_BY_DAY: Lazy<Arc<PartitionTemplate>> =
-    Lazy::new(|| Arc::new(PARTITION_BY_DAY_PROTO.as_ref().try_into().unwrap()));
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use sqlx::Encode;
 
-impl TryFrom<&proto::PartitionTemplate> for PartitionTemplate {
-    type Error = FieldViolation;
+    #[test]
+    fn no_custom_table_template_specified_gets_namespace_template() {
+        let namespace_template =
+            NamespacePartitionTemplateOverride::from(proto::PartitionTemplate {
+                parts: vec![proto::TemplatePart {
+                    part: Some(proto::template_part::Part::TimeFormat("year-%Y".into())),
+                }],
+            });
+        let table_template = TablePartitionTemplateOverride::new(None, &namespace_template);
 
-    fn try_from(value: &proto::PartitionTemplate) -> Result<Self, Self::Error> {
-        Ok(Self {
-            parts: value
-                .parts
-                .iter()
-                .map(TryFrom::try_from)
-                .collect::<Result<Vec<_>, _>>()?,
-        })
+        assert_eq!(table_template.0, namespace_template.0);
     }
-}
 
-impl TryFrom<&proto::TemplatePart> for TemplatePart {
-    type Error = FieldViolation;
+    #[test]
+    fn custom_table_template_specified_ignores_namespace_template() {
+        let custom_table_template = proto::PartitionTemplate {
+            parts: vec![proto::TemplatePart {
+                part: Some(proto::template_part::Part::TagValue("region".into())),
+            }],
+        };
+        let namespace_template =
+            NamespacePartitionTemplateOverride::from(proto::PartitionTemplate {
+                parts: vec![proto::TemplatePart {
+                    part: Some(proto::template_part::Part::TimeFormat("year-%Y".into())),
+                }],
+            });
+        let table_template = TablePartitionTemplateOverride::new(
+            Some(custom_table_template.clone()),
+            &namespace_template,
+        );
 
-    fn try_from(value: &proto::TemplatePart) -> Result<Self, Self::Error> {
-        let part = value
-            .part
-            .as_ref()
-            .ok_or_else(|| FieldViolation::required(String::from("value")))?;
-
-        Ok(match part {
-            proto::template_part::Part::TagValue(value) => Self::TagValue(value.into()),
-            proto::template_part::Part::TimeFormat(value) => Self::TimeFormat(value.into()),
-        })
+        assert_eq!(table_template.0.as_ref(), &custom_table_template);
     }
-}
 
-/// `PartitionTemplate` is used to compute the partition key of each row that gets written. It can
-/// consist of a column name and its value or a formatted time. For columns that do not appear in
-/// the input row, a blank value is output.
-///
-/// The key is constructed in order of the template parts; thus ordering changes what partition key
-/// is generated.
-#[derive(Debug, Eq, PartialEq, Clone)]
-#[allow(missing_docs)]
-pub struct PartitionTemplate {
-    pub parts: Vec<TemplatePart>,
-}
+    // The JSON representation of the partition template protobuf is stored in the database, so
+    // the encode/decode implementations need to be stable if we want to avoid having to
+    // migrate the values stored in the database.
 
-impl PartitionTemplate {
-    /// If the table has a partition template, use that. Otherwise, if the namespace has a
-    /// partition template, use that. If neither the table nor the namespace has a template,
-    /// use the default template.
-    pub fn determine_precedence<'a>(
-        _table: Option<&'a Arc<TablePartitionTemplateOverride>>,
-        _namespace: Option<&'a Arc<NamespacePartitionTemplateOverride>>,
-        _default: &'a DefaultPartitionTemplate,
-    ) -> &'a PartitionTemplate {
-        unimplemented!()
+    #[test]
+    fn proto_encode_json_stability() {
+        let custom_template = proto::PartitionTemplate {
+            parts: vec![
+                proto::TemplatePart {
+                    part: Some(proto::template_part::Part::TagValue("region".into())),
+                },
+                proto::TemplatePart {
+                    part: Some(proto::template_part::Part::TimeFormat("year-%Y".into())),
+                },
+            ],
+        };
+        let expected_json_str = "\u{1}{\"parts\":[\
+            {\"tagValue\":\"region\"},\
+            {\"timeFormat\":\"year-%Y\"}\
+        ]}";
+
+        let namespace = NamespacePartitionTemplateOverride::from(custom_template);
+        let mut buf = Default::default();
+        let _ = <NamespacePartitionTemplateOverride as Encode<'_, sqlx::Postgres>>::encode_by_ref(
+            &namespace, &mut buf,
+        );
+        let namespace_json_str = String::from_utf8_lossy(&buf);
+        assert_eq!(namespace_json_str, expected_json_str);
+
+        let table = TablePartitionTemplateOverride::from(&namespace);
+        let mut buf = Default::default();
+        let _ = <TablePartitionTemplateOverride as Encode<'_, sqlx::Postgres>>::encode_by_ref(
+            &table, &mut buf,
+        );
+        let table_json_str = String::from_utf8_lossy(&buf);
+        assert_eq!(table_json_str, expected_json_str);
     }
-}
-
-/// `TemplatePart` specifies what part of a row should be used to compute this
-/// part of a partition key.
-#[derive(Debug, Eq, PartialEq, Clone)]
-pub enum TemplatePart {
-    /// The value in the named tag, or the tag name if the value isn't present.
-    TagValue(String),
-    /// Applies a  `strftime` format to the "time" column.
-    ///
-    /// For example, a time format of "%Y-%m-%d %H:%M:%S" will produce
-    /// partition key parts such as "2021-03-14 12:25:21" and
-    /// "2021-04-14 12:24:21"
-    TimeFormat(String),
 }

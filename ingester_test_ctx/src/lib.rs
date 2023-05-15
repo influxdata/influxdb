@@ -23,6 +23,7 @@ use arrow::record_batch::RecordBatch;
 use arrow_flight::{decode::FlightRecordBatchStream, flight_service_server::FlightService, Ticket};
 use data_types::{
     Namespace, NamespaceId, NamespaceSchema, ParquetFile, PartitionKey, SequenceNumber, TableId,
+    TablePartitionTemplateOverride,
 };
 use dml::{DmlMeta, DmlWrite};
 use futures::{stream::FuturesUnordered, FutureExt, StreamExt, TryStreamExt};
@@ -250,6 +251,7 @@ where
             .namespaces
             .get_mut(&namespace_id)
             .expect("namespace does not exist");
+        let partition_template = TablePartitionTemplateOverride::from(&schema.partition_template);
 
         let batches = lines_to_batches(lp, 0).unwrap();
 
@@ -269,6 +271,7 @@ where
             .into_iter()
             .map(|(table_name, batch)| {
                 let catalog = Arc::clone(&self.catalog);
+                let partition_template = partition_template.clone();
                 async move {
                     match catalog
                         .repositories()
@@ -284,7 +287,7 @@ where
                                 .repositories()
                                 .await
                                 .tables()
-                                .create(table_name.as_str(), namespace_id)
+                                .create(table_name.as_str(), partition_template, namespace_id)
                                 .await
                                 .expect("table should create OK")
                                 .id;

@@ -155,7 +155,7 @@ mod tests {
                     i.to_string(),
                     TableSchema {
                         id: TableId::new(i as _),
-                        partition_template: None,
+                        partition_template: Default::default(),
                         columns: ColumnsByName::new(columns),
                     },
                 )

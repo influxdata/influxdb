@@ -19,7 +19,7 @@
 use workspace_hack as _;
 
 use crate::interface::{ColumnTypeMismatchSnafu, Error, RepoCollection, Result};
-use data_types::{ColumnType, NamespaceSchema, TableSchema};
+use data_types::{ColumnType, NamespaceSchema, TablePartitionTemplateOverride, TableSchema};
 use mutable_batch::MutableBatch;
 use std::{borrow::Cow, collections::HashMap};
 use thiserror::Error;
@@ -126,7 +126,16 @@ where
                 .await?
             {
                 Some(table) => table,
-                None => repos.tables().create(table_name, schema.id).await?,
+                None => {
+                    repos
+                        .tables()
+                        .create(
+                            table_name,
+                            TablePartitionTemplateOverride::from(&schema.partition_template),
+                            schema.id,
+                        )
+                        .await?
+                }
             };
             let mut table = TableSchema::new_empty_from(&table);
 
@@ -214,7 +223,7 @@ where
 /// Catalog helper functions for creation of catalog objects
 pub mod test_helpers {
     use crate::RepoCollection;
-    use data_types::{Namespace, NamespaceName, Table};
+    use data_types::{Namespace, NamespaceName, Table, TablePartitionTemplateOverride};
 
     /// When the details of the namespace don't matter; the test just needs *a* catalog namespace
     /// with a particular name.
@@ -253,7 +262,15 @@ pub mod test_helpers {
         name: &str,
         namespace: &Namespace,
     ) -> Table {
-        repos.tables().create(name, namespace.id).await.unwrap()
+        repos
+            .tables()
+            .create(
+                name,
+                TablePartitionTemplateOverride::from(&namespace.partition_template),
+                namespace.id,
+            )
+            .await
+            .unwrap()
     }
 }
 

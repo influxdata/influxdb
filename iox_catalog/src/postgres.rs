@@ -17,7 +17,8 @@ use async_trait::async_trait;
 use data_types::{
     Column, ColumnType, CompactionLevel, Namespace, NamespaceId, NamespaceName,
     NamespacePartitionTemplateOverride, ParquetFile, ParquetFileId, ParquetFileParams, Partition,
-    PartitionId, PartitionKey, SkippedCompaction, Table, TableId, Timestamp,
+    PartitionId, PartitionKey, SkippedCompaction, Table, TableId, TablePartitionTemplateOverride,
+    Timestamp,
 };
 use iox_time::{SystemProvider, TimeProvider};
 use observability_deps::tracing::{debug, info, warn};
@@ -713,7 +714,12 @@ RETURNING id, name, retention_period_ns, max_tables, max_columns_per_table, dele
 
 #[async_trait]
 impl TableRepo for PostgresTxn {
-    async fn create(&mut self, name: &str, namespace_id: NamespaceId) -> Result<Table> {
+    async fn create(
+        &mut self,
+        name: &str,
+        partition_template: TablePartitionTemplateOverride,
+        namespace_id: NamespaceId,
+    ) -> Result<Table> {
         // A simple insert statement becomes quite complicated in order to avoid checking the table
         // limits in a select and then conditionally inserting (which would be racey).
         //
@@ -725,18 +731,19 @@ impl TableRepo for PostgresTxn {
         // nothing was inserted. Not pretty!
         let rec = sqlx::query_as::<_, Table>(
             r#"
-INSERT INTO table_name ( name, namespace_id )
-SELECT $1, id FROM (
+INSERT INTO table_name ( name, namespace_id, partition_template )
+SELECT $1, id, $2 FROM (
     SELECT namespace.id AS id, max_tables, COUNT(table_name.*) AS count
     FROM namespace LEFT JOIN table_name ON namespace.id = table_name.namespace_id
-    WHERE namespace.id = $2
+    WHERE namespace.id = $3
     GROUP BY namespace.max_tables, table_name.namespace_id, namespace.id
 ) AS get_count WHERE count < max_tables
 RETURNING *;
         "#,
         )
         .bind(name) // $1
-        .bind(namespace_id) // $2
+        .bind(partition_template) // $2
+        .bind(namespace_id) // $3
         .fetch_one(&mut self.inner)
         .await
         .map_err(|e| match e {

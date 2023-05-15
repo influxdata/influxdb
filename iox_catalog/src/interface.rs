@@ -5,7 +5,7 @@ use data_types::{
     Column, ColumnType, ColumnsByName, CompactionLevel, Namespace, NamespaceId, NamespaceName,
     NamespacePartitionTemplateOverride, NamespaceSchema, ParquetFile, ParquetFileId,
     ParquetFileParams, Partition, PartitionId, PartitionKey, SkippedCompaction, Table, TableId,
-    TableSchema, Timestamp,
+    TablePartitionTemplateOverride, TableSchema, Timestamp,
 };
 use iox_time::TimeProvider;
 use snafu::{OptionExt, Snafu};
@@ -296,7 +296,12 @@ pub trait NamespaceRepo: Send + Sync {
 pub trait TableRepo: Send + Sync {
     /// Creates the table in the catalog. If one in the same namespace with the same name already
     /// exists, an error is returned.
-    async fn create(&mut self, name: &str, namespace_id: NamespaceId) -> Result<Table>;
+    async fn create(
+        &mut self,
+        name: &str,
+        partition_template: TablePartitionTemplateOverride,
+        namespace_id: NamespaceId,
+    ) -> Result<Table>;
 
     /// get table by ID
     async fn get_by_id(&mut self, table_id: TableId) -> Result<Option<Table>>;
@@ -1073,9 +1078,20 @@ pub(crate) mod test_helpers {
         // test we can create a table
         let t = arbitrary_table(&mut *repos, "test_table", &namespace).await;
         assert!(t.id > TableId::new(0));
+        assert_eq!(
+            t.partition_template,
+            TablePartitionTemplateOverride::default()
+        );
 
         // test we get an error if we try to create it again
-        let err = repos.tables().create("test_table", namespace.id).await;
+        let err = repos
+            .tables()
+            .create(
+                "test_table",
+                TablePartitionTemplateOverride::from(&namespace.partition_template),
+                namespace.id,
+            )
+            .await;
         assert_error!(
             err,
             Error::TableNameExists { ref name, namespace_id }
@@ -1165,7 +1181,11 @@ pub(crate) mod test_helpers {
             .expect("namespace should be updateable");
         let err = repos
             .tables()
-            .create("definitely_unique", latest.id)
+            .create(
+                "definitely_unique",
+                TablePartitionTemplateOverride::from(&latest.partition_template),
+                latest.id,
+            )
             .await
             .expect_err("should error with table create limit error");
         assert!(matches!(
@@ -1175,6 +1195,33 @@ pub(crate) mod test_helpers {
                 namespace_id: _
             }
         ));
+
+        // Create a table with a partition template other than the default
+        let custom_table_template = TablePartitionTemplateOverride::new(
+            Some(proto::PartitionTemplate {
+                parts: vec![proto::TemplatePart {
+                    part: Some(proto::template_part::Part::TagValue("tag1".into())),
+                }],
+            }),
+            &namespace.partition_template,
+        );
+        let templated = repos
+            .tables()
+            .create(
+                "use_a_template",
+                custom_table_template.clone(),
+                namespace2.id,
+            )
+            .await
+            .unwrap();
+        assert_eq!(templated.partition_template, custom_table_template);
+        let lookup_templated = repos
+            .tables()
+            .get_by_namespace_and_name(namespace2.id, "use_a_template")
+            .await
+            .unwrap()
+            .unwrap();
+        assert_eq!(templated, lookup_templated);
 
         repos
             .namespaces()

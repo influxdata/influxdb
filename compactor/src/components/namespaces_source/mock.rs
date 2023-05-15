@@ -130,7 +130,7 @@ mod tests {
                     "table1".to_string(),
                     TableSchema {
                         id: TableId::new(1),
-                        partition_template: None,
+                        partition_template: Default::default(),
                         columns: ColumnsByName::new([
                             Column {
                                 name: "col1".to_string(),
@@ -151,7 +151,7 @@ mod tests {
                     "table2".to_string(),
                     TableSchema {
                         id: TableId::new(2),
-                        partition_template: None,
+                        partition_template: Default::default(),
                         columns: ColumnsByName::new([
                             Column {
                                 name: "col1".to_string(),

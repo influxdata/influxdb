@@ -22,7 +22,7 @@ use std::{
 use async_trait::async_trait;
 use authz::{Authorizer, AuthorizerInstrumentation, IoxAuthorizer};
 use clap_blocks::router::RouterConfig;
-use data_types::{DefaultPartitionTemplate, NamespaceName};
+use data_types::NamespaceName;
 use hashbrown::HashMap;
 use hyper::{Body, Request, Response};
 use iox_catalog::interface::Catalog;
@@ -273,8 +273,8 @@ pub async fn create_router_server_type(
     // # Write partitioner
     //
     // Add a write partitioner into the handler stack that splits by the date
-    // portion of the write's timestamp (the default [`PartitionTemplate`]).
-    let partitioner = Partitioner::new(DefaultPartitionTemplate::default());
+    // portion of the write's timestamp (the default table partition template)
+    let partitioner = Partitioner::new();
     let partitioner = InstrumentationDecorator::new("partitioner", &metrics, partitioner);
 
     // # Namespace resolver
