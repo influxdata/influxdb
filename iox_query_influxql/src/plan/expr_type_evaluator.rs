@@ -217,7 +217,7 @@ impl<'a> TypeEvaluator<'a> {
 
     /// Evaluate the data type of a scalar function
     ///
-    /// See: https://github.com/influxdata/influxdb/blob/343ce4223810ecdbc7f4de68f2509a51b28f2c56/query/math.go#L24
+    /// See: <https://github.com/influxdata/influxdb/blob/343ce4223810ecdbc7f4de68f2509a51b28f2c56/query/math.go#L24>
     ///
     /// 💥InfluxQL OG has a bug that it does not evaluate call types correctly, and returns
     /// the incorrect type by unconditionally using the first argument. It does not even call the
@@ -230,7 +230,7 @@ impl<'a> TypeEvaluator<'a> {
     /// expression types.
     ///
     /// 1. Calls `validateTypes` to ensure all field data types are valid:
-    ///    https://github.com/influxdata/influxdb/blob/f365bb7e3a9c5e227dbf66d84adf674d3d127176/query/compile.go#L1186-L1187
+    ///    <https://github.com/influxdata/influxdb/blob/f365bb7e3a9c5e227dbf66d84adf674d3d127176/query/compile.go#L1186-L1187>
     ///
     /// 2. Uses a `MultiTypeMapper` to evaluate types, combining:
     ///
