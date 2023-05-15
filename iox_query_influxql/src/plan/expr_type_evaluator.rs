@@ -239,24 +239,24 @@ impl<'a> TypeEvaluator<'a> {
     ///
     ///    ⚠️NOTE: the order is important. `FunctionTypeMapper` is called first.
     ///
-    ///    See: https://github.com/influxdata/influxdb/blob/f365bb7e3a9c5e227dbf66d84adf674d3d127176/query/select.go#L973-L976
+    ///    See: <https://github.com/influxdata/influxdb/blob/f365bb7e3a9c5e227dbf66d84adf674d3d127176/query/select.go#L973-L976>
     ///
     /// 3. Call `EvalType` for each field:
     ///
-    ///    See: https://github.com/influxdata/influxdb/blob/f365bb7e3a9c5e227dbf66d84adf674d3d127176/query/select.go#L979
+    ///    See: <https://github.com/influxdata/influxdb/blob/f365bb7e3a9c5e227dbf66d84adf674d3d127176/query/select.go#L979>
     ///
     /// 4. For fields that have call expressions, the `evalCallExprType` function is ultimately called
     ///
-    ///    See: https://github.com/influxdata/influxql/blob/802555d6b3a35cd464a6d8afa2a6511002cf3c2c/ast.go#L4697
+    ///    See: <https://github.com/influxdata/influxql/blob/802555d6b3a35cd464a6d8afa2a6511002cf3c2c/ast.go#L4697>
     ///
     /// 5. Because the `TypeMapper` is a `CallTypeMapper`, `evalCallExprType` eventually calls `CallType`:
     ///
-    ///    See: https://github.com/influxdata/influxql/blob/802555d6b3a35cd464a6d8afa2a6511002cf3c2c/ast.go#L4715
+    ///    See: <https://github.com/influxdata/influxql/blob/802555d6b3a35cd464a6d8afa2a6511002cf3c2c/ast.go#L4715>
     ///
     /// 6. The `TypeMapper` is a `multiTypeMapper` and thus calls `CallType` for each instance. The first
     ///    inner call that returns no error and the `typ` is not `Unknown` will be returned to the caller
     ///
-    ///    See: https://github.com/influxdata/influxql/blob/802555d6b3a35cd464a6d8afa2a6511002cf3c2c/ast.go#L4610-L4615
+    ///    See: <https://github.com/influxdata/influxql/blob/802555d6b3a35cd464a6d8afa2a6511002cf3c2c/ast.go#L4610-L4615>
     ///
     /// 7. Recall, the first `TypeMapper` is `FunctionTypeMapper`, so it's `CallType` is
     ///    called first.
@@ -264,7 +264,7 @@ impl<'a> TypeEvaluator<'a> {
     ///    🪳Here is the bug, which is that `FunctionTypeMapper::CallType` always returns
     ///      the type of the first argument:
     ///
-    ///    See: https://github.com/influxdata/influxdb/blob/f365bb7e3a9c5e227dbf66d84adf674d3d127176/query/functions.go#L98-L99
+    ///    See: <https://github.com/influxdata/influxdb/blob/f365bb7e3a9c5e227dbf66d84adf674d3d127176/query/functions.go#L98-L99>
     fn eval_scalar(
         &self,
         name: &str,
