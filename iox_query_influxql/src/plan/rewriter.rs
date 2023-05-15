@@ -29,7 +29,7 @@ pub(super) fn rewrite_statement(
     s: &dyn SchemaProvider,
     q: &SelectStatement,
 ) -> Result<SelectQuery> {
-    let mut select = map_select(s, q)?;
+    let mut select = rewrite_select(s, q)?;
     from_drop_empty(s, &mut select);
     field_list_normalize_time(&mut select);
 
@@ -61,32 +61,11 @@ fn has_multiple_measurements(s: &Select) -> bool {
     false
 }
 
-/// Map a `SelectStatement` to a `Select`, which is an intermediate representation to be
-/// used by the InfluxQL planner. Mapping may perform other transformations, such as also
-/// expanding wildcards.
-fn map_select(s: &dyn SchemaProvider, stmt: &SelectStatement) -> Result<Select> {
-    check_features(stmt)?;
-
-    let from = expand_from(s, stmt)?;
-    let (fields, group_by) = expand_projection(s, stmt, &from)?;
-    let tag_set = select_tag_set(s, &from);
-
-    let SelectStatementInfo { projection_type } =
-        select_statement_info(&fields, &group_by, stmt.fill)?;
-
-    Ok(Select {
-        projection_type,
-        fields,
-        from,
-        condition: stmt.condition.clone(),
-        group_by,
-        tag_set,
-        fill: stmt.fill,
-        order_by: stmt.order_by,
-        limit: stmt.limit,
-        offset: stmt.offset,
-        timezone: stmt.timezone.map(|v| *v),
-    })
+/// Transform a `SelectStatement` to a `Select`, which is an intermediate representation used by
+/// the InfluxQL planner. Transformations include expanding wildcards.
+fn rewrite_select(s: &dyn SchemaProvider, stmt: &SelectStatement) -> Result<Select> {
+    let rw = RewriteSelect::default();
+    rw.rewrite(s, stmt)
 }
 
 /// Asserts that the `SELECT` statement does not use any unimplemented features.
@@ -105,6 +84,243 @@ fn check_features(stmt: &SelectStatement) -> Result<()> {
     }
 
     Ok(())
+}
+
+#[derive(Default)]
+struct RewriteSelect {
+    /// The depth
+    depth: u32,
+}
+
+impl RewriteSelect {
+    /// Transform a `SelectStatement` to a `Select`, which is an intermediate representation used by
+    /// the InfluxQL planner. Transformations include expanding wildcards.
+    fn rewrite(&self, s: &dyn SchemaProvider, stmt: &SelectStatement) -> Result<Select> {
+        check_features(stmt)?;
+
+        let from = self.expand_from(s, stmt)?;
+        let (fields, group_by) = self.expand_projection(s, stmt, &from)?;
+        let tag_set = select_tag_set(s, &from);
+
+        let SelectStatementInfo { projection_type } =
+            select_statement_info(&fields, &group_by, stmt.fill)?;
+
+        // Following InfluxQL OG behaviour, if this is a subquery, and the fill strategy equates
+        // to `FILL(null)`, switch to `FILL(none)`.
+        //
+        // See: https://github.com/influxdata/influxdb/blob/f365bb7e3a9c5e227dbf66d84adf674d3d127176/query/iterator.go#L757-L765
+        let fill = if projection_type != ProjectionType::Raw
+            && self.depth > 0
+            && matches!(stmt.fill, Some(FillClause::Null) | None)
+        {
+            Some(FillClause::None)
+        } else {
+            stmt.fill
+        };
+
+        Ok(Select {
+            projection_type,
+            fields,
+            from,
+            condition: stmt.condition.clone(),
+            group_by,
+            tag_set,
+            fill,
+            order_by: stmt.order_by,
+            limit: stmt.limit,
+            offset: stmt.offset,
+            timezone: stmt.timezone.map(|v| *v),
+        })
+    }
+
+    /// Rewrite the projection list and GROUP BY of the specified `SELECT` statement.
+    ///
+    /// The following transformations are performed:
+    ///
+    /// * Wildcards and regular expressions in the `SELECT` projection list and `GROUP BY` are expanded.
+    /// * Any fields with no type specifier are rewritten with the appropriate type, if they exist in the
+    ///   underlying schema.
+    ///
+    /// Derived from [Go implementation](https://github.com/influxdata/influxql/blob/1ba470371ec093d57a726b143fe6ccbacf1b452b/ast.go#L1185).
+    fn expand_projection(
+        &self,
+        s: &dyn SchemaProvider,
+        stmt: &SelectStatement,
+        from: &[DataSource],
+    ) -> Result<(Vec<Field>, Option<GroupByClause>)> {
+        let tv = TypeEvaluator::new(s, from);
+        let fields = stmt
+            .fields
+            .iter()
+            .map(|f| (f.expr.clone(), f.alias.clone()))
+            .map(|(mut expr, alias)| {
+                match walk_expr_mut::<_>(&mut expr, &mut |e| match e {
+                    // Rewrite all `DISTINCT <identifier>` expressions to `DISTINCT(VarRef)`
+                    Expr::Distinct(ident) => {
+                        let mut v = VarRef {
+                            name: ident.take().into(),
+                            data_type: None,
+                        };
+                        v.data_type = match tv.eval_var_ref(&v) {
+                            Ok(v) => v,
+                            Err(e) => ControlFlow::Break(e)?,
+                        };
+
+                        *e = Expr::Call(Call {
+                            name: "distinct".to_owned(),
+                            args: vec![Expr::VarRef(v)],
+                        });
+                        ControlFlow::Continue(())
+                    }
+
+                    // Attempt to rewrite all variable (column) references with their concrete types,
+                    // if one hasn't been specified.
+                    Expr::VarRef(ref mut v) => {
+                        v.data_type = match tv.eval_var_ref(v) {
+                            Ok(v) => v,
+                            Err(e) => ControlFlow::Break(e)?,
+                        };
+                        ControlFlow::Continue(())
+                    }
+
+                    _ => ControlFlow::Continue(()),
+                }) {
+                    ControlFlow::Break(err) => Err(err),
+                    ControlFlow::Continue(()) => {
+                        Ok(influxdb_influxql_parser::select::Field { expr, alias })
+                    }
+                }
+            })
+            .collect::<Result<Vec<_>>>()?;
+
+        let (has_field_wildcard, has_group_by_wildcard) = has_wildcards(stmt);
+
+        let (fields, group_by) = if has_field_wildcard || has_group_by_wildcard {
+            let (field_set, mut tag_set) = from_field_and_dimensions(s, from)?;
+
+            if !has_group_by_wildcard {
+                if let Some(group_by) = &stmt.group_by {
+                    // Remove any explicitly listed tags in the GROUP BY clause, so they are not
+                    // expanded by any wildcards specified in the SELECT projection list
+                    group_by.tags().for_each(|ident| {
+                        tag_set.remove(ident.as_str());
+                    });
+                }
+            }
+
+            let fields = if has_field_wildcard {
+                let var_refs = if field_set.is_empty() {
+                    vec![]
+                } else {
+                    let fields_iter = field_set.iter().map(|(k, v)| VarRef {
+                        name: k.clone().into(),
+                        data_type: Some(*v),
+                    });
+
+                    if !has_group_by_wildcard {
+                        fields_iter
+                            .chain(tag_set.iter().map(|tag| VarRef {
+                                name: tag.clone().into(),
+                                data_type: Some(VarRefDataType::Tag),
+                            }))
+                            .sorted()
+                            .collect::<Vec<_>>()
+                    } else {
+                        fields_iter.sorted().collect::<Vec<_>>()
+                    }
+                };
+
+                fields_expand_wildcards(fields, var_refs)?
+            } else {
+                fields
+            };
+
+            let group_by = match (&stmt.group_by, has_group_by_wildcard) {
+                // GROUP BY with a wildcard
+                (Some(group_by), true) => {
+                    let group_by_tags = tag_set.into_iter().sorted().collect::<Vec<_>>();
+                    let mut new_dimensions = Vec::new();
+
+                    for dim in group_by.iter() {
+                        let add_dim = |dim: &String| {
+                            new_dimensions.push(Dimension::Tag(Identifier::new(dim.clone())))
+                        };
+
+                        match dim {
+                            Dimension::Wildcard => {
+                                group_by_tags.iter().for_each(add_dim);
+                            }
+                            Dimension::Regex(re) => {
+                                let re = util::parse_regex(re)?;
+
+                                group_by_tags
+                                    .iter()
+                                    .filter(|dim| re.is_match(dim.as_str()))
+                                    .for_each(add_dim);
+                            }
+                            _ => new_dimensions.push(dim.clone()),
+                        }
+                    }
+                    Some(GroupByClause::new(new_dimensions))
+                }
+                // GROUP BY no wildcard
+                (Some(group_by), false) => Some(group_by.clone()),
+                // No GROUP BY
+                (None, _) => None,
+            };
+
+            (fields, group_by)
+        } else {
+            (fields, stmt.group_by.clone())
+        };
+
+        Ok((fields_resolve_aliases_and_types(s, fields, from)?, group_by))
+    }
+
+    fn rewrite_subquery(&self, s: &dyn SchemaProvider, stmt: &SelectStatement) -> Result<Select> {
+        let rw = Self {
+            depth: self.depth + 1,
+        };
+
+        rw.rewrite(s, stmt)
+    }
+
+    /// Recursively expand the `from` clause of `stmt` and any subqueries.
+    fn expand_from(
+        &self,
+        s: &dyn SchemaProvider,
+        stmt: &SelectStatement,
+    ) -> Result<Vec<DataSource>> {
+        let mut new_from = Vec::new();
+        for ms in stmt.from.iter() {
+            match ms {
+                MeasurementSelection::Name(qmn) => match qmn {
+                    QualifiedMeasurementName {
+                        name: MeasurementName::Name(name),
+                        ..
+                    } => {
+                        if s.table_exists(name) {
+                            new_from.push(DataSource::Table(name.deref().to_owned()))
+                        }
+                    }
+                    QualifiedMeasurementName {
+                        name: MeasurementName::Regex(re),
+                        ..
+                    } => {
+                        let re = util::parse_regex(re)?;
+                        s.table_names()
+                            .into_iter()
+                            .filter(|table| re.is_match(table))
+                            .for_each(|table| new_from.push(DataSource::Table(table.to_owned())));
+                    }
+                },
+                MeasurementSelection::Subquery(q) => {
+                    new_from.push(DataSource::Subquery(Box::new(self.rewrite_subquery(s, q)?)))
+                }
+            }
+        }
+        Ok(new_from)
+    }
 }
 
 /// Ensure the time field is added to all projections,
@@ -160,39 +376,6 @@ fn field_list_normalize_time(stmt: &mut Select) {
             data_sources.push(&mut sel.from);
         }
     }
-}
-
-/// Recursively expand the `from` clause of `stmt` and any subqueries.
-fn expand_from(s: &dyn SchemaProvider, stmt: &SelectStatement) -> Result<Vec<DataSource>> {
-    let mut new_from = Vec::new();
-    for ms in stmt.from.iter() {
-        match ms {
-            MeasurementSelection::Name(qmn) => match qmn {
-                QualifiedMeasurementName {
-                    name: MeasurementName::Name(name),
-                    ..
-                } => {
-                    if s.table_exists(name) {
-                        new_from.push(DataSource::Table(name.deref().to_owned()))
-                    }
-                }
-                QualifiedMeasurementName {
-                    name: MeasurementName::Regex(re),
-                    ..
-                } => {
-                    let re = util::parse_regex(re)?;
-                    s.table_names()
-                        .into_iter()
-                        .filter(|table| re.is_match(table))
-                        .for_each(|table| new_from.push(DataSource::Table(table.to_owned())));
-                }
-            },
-            MeasurementSelection::Subquery(q) => {
-                new_from.push(DataSource::Subquery(Box::new(map_select(s, q)?)))
-            }
-        }
-    }
-    Ok(new_from)
 }
 
 /// Recursively drop any measurements of the `from` clause of `stmt` that do not project
@@ -496,149 +679,6 @@ fn fields_expand_wildcards(
     }
 
     Ok(new_fields)
-}
-
-/// Rewrite the projection list and GROUP BY of the specified `SELECT` statement.
-///
-/// The following transformations are performed:
-///
-/// * Wildcards and regular expressions in the `SELECT` projection list and `GROUP BY` are expanded.
-/// * Any fields with no type specifier are rewritten with the appropriate type, if they exist in the
-///   underlying schema.
-///
-/// Derived from [Go implementation](https://github.com/influxdata/influxql/blob/1ba470371ec093d57a726b143fe6ccbacf1b452b/ast.go#L1185).
-fn expand_projection(
-    s: &dyn SchemaProvider,
-    stmt: &SelectStatement,
-    from: &[DataSource],
-) -> Result<(Vec<Field>, Option<GroupByClause>)> {
-    let tv = TypeEvaluator::new(s, from);
-    let fields = stmt
-        .fields
-        .iter()
-        .map(|f| (f.expr.clone(), f.alias.clone()))
-        .map(|(mut expr, alias)| {
-            match walk_expr_mut::<_>(&mut expr, &mut |e| match e {
-                // Rewrite all `DISTINCT <identifier>` expressions to `DISTINCT(VarRef)`
-                Expr::Distinct(ident) => {
-                    let mut v = VarRef {
-                        name: ident.take().into(),
-                        data_type: None,
-                    };
-                    v.data_type = match tv.eval_var_ref(&v) {
-                        Ok(v) => v,
-                        Err(e) => ControlFlow::Break(e)?,
-                    };
-
-                    *e = Expr::Call(Call {
-                        name: "distinct".to_owned(),
-                        args: vec![Expr::VarRef(v)],
-                    });
-                    ControlFlow::Continue(())
-                }
-
-                // Attempt to rewrite all variable (column) references with their concrete types,
-                // if one hasn't been specified.
-                Expr::VarRef(ref mut v) => {
-                    v.data_type = match tv.eval_var_ref(v) {
-                        Ok(v) => v,
-                        Err(e) => ControlFlow::Break(e)?,
-                    };
-                    ControlFlow::Continue(())
-                }
-
-                _ => ControlFlow::Continue(()),
-            }) {
-                ControlFlow::Break(err) => Err(err),
-                ControlFlow::Continue(()) => {
-                    Ok(influxdb_influxql_parser::select::Field { expr, alias })
-                }
-            }
-        })
-        .collect::<Result<Vec<_>>>()?;
-
-    let (has_field_wildcard, has_group_by_wildcard) = has_wildcards(stmt);
-
-    let (fields, group_by) = if has_field_wildcard || has_group_by_wildcard {
-        let (field_set, mut tag_set) = from_field_and_dimensions(s, from)?;
-
-        if !has_group_by_wildcard {
-            if let Some(group_by) = &stmt.group_by {
-                // Remove any explicitly listed tags in the GROUP BY clause, so they are not
-                // expanded by any wildcards specified in the SELECT projection list
-                group_by.tags().for_each(|ident| {
-                    tag_set.remove(ident.as_str());
-                });
-            }
-        }
-
-        let fields = if has_field_wildcard {
-            let var_refs = if field_set.is_empty() {
-                vec![]
-            } else {
-                let fields_iter = field_set.iter().map(|(k, v)| VarRef {
-                    name: k.clone().into(),
-                    data_type: Some(*v),
-                });
-
-                if !has_group_by_wildcard {
-                    fields_iter
-                        .chain(tag_set.iter().map(|tag| VarRef {
-                            name: tag.clone().into(),
-                            data_type: Some(VarRefDataType::Tag),
-                        }))
-                        .sorted()
-                        .collect::<Vec<_>>()
-                } else {
-                    fields_iter.sorted().collect::<Vec<_>>()
-                }
-            };
-
-            fields_expand_wildcards(fields, var_refs)?
-        } else {
-            fields
-        };
-
-        let group_by = match (&stmt.group_by, has_group_by_wildcard) {
-            // GROUP BY with a wildcard
-            (Some(group_by), true) => {
-                let group_by_tags = tag_set.into_iter().sorted().collect::<Vec<_>>();
-                let mut new_dimensions = Vec::new();
-
-                for dim in group_by.iter() {
-                    let add_dim = |dim: &String| {
-                        new_dimensions.push(Dimension::Tag(Identifier::new(dim.clone())))
-                    };
-
-                    match dim {
-                        Dimension::Wildcard => {
-                            group_by_tags.iter().for_each(add_dim);
-                        }
-                        Dimension::Regex(re) => {
-                            let re = util::parse_regex(re)?;
-
-                            group_by_tags
-                                .iter()
-                                .filter(|dim| re.is_match(dim.as_str()))
-                                .for_each(add_dim);
-                        }
-                        _ => new_dimensions.push(dim.clone()),
-                    }
-                }
-                Some(GroupByClause::new(new_dimensions))
-            }
-            // GROUP BY no wildcard
-            (Some(group_by), false) => Some(group_by.clone()),
-            // No GROUP BY
-            (None, _) => None,
-        };
-
-        (fields, group_by)
-    } else {
-        (fields, stmt.group_by.clone())
-    };
-
-    Ok((fields_resolve_aliases_and_types(s, fields, from)?, group_by))
 }
 
 /// Resolve the projection list column names and data types.
@@ -1416,7 +1456,7 @@ mod test {
     use super::Result;
     use crate::plan::ir::{Field, Select};
     use crate::plan::rewriter::{
-        has_wildcards, map_select, rewrite_statement, ProjectionType, SelectStatementInfo,
+        has_wildcards, rewrite_select, rewrite_statement, ProjectionType, SelectStatementInfo,
     };
     use crate::plan::test_utils::{parse_select, MockSchemaProvider};
     use assert_matches::assert_matches;
@@ -1429,7 +1469,7 @@ mod test {
         let namespace = MockSchemaProvider::default();
         let parse_select = |s: &str| -> Select {
             let select = parse_select(s);
-            map_select(&namespace, &select).unwrap()
+            rewrite_select(&namespace, &select).unwrap()
         };
 
         fn select_statement_info(q: &Select) -> Result<SelectStatementInfo> {
@@ -2182,7 +2222,7 @@ mod test {
             let stmt = rewrite_select_statement(&namespace, &stmt).unwrap();
             assert_eq!(
                 stmt.to_string(),
-                "SELECT time::timestamp AS time, max::float AS max FROM (SELECT time::timestamp AS time, max(value::float) AS max FROM (SELECT time::timestamp AS time, distinct(usage_idle::float) AS value FROM cpu)) GROUP BY cpu"
+                "SELECT time::timestamp AS time, max::float AS max FROM (SELECT time::timestamp AS time, max(value::float) AS max FROM (SELECT time::timestamp AS time, distinct(usage_idle::float) AS value FROM cpu FILL(NONE)) FILL(NONE)) GROUP BY cpu"
             );
 
             // Projects non-existent tag, "bytes_free" from cpu and also bytes_free field from disk

@@ -2740,6 +2740,92 @@ mod test {
     mod select {
         use super::*;
 
+        mod subqueries {
+            use super::*;
+
+            /// Projecting subqueries that do not use aggregate or selector functions.
+            #[test]
+            fn raw() {
+                // project an aliased column
+                assert_snapshot!(plan("SELECT value FROM (SELECT usage_idle AS value FROM cpu)"), @r###"
+                Sort: time AS time ASC NULLS LAST [iox::measurement:Dictionary(Int32, Utf8), time:Timestamp(Nanosecond, None), value:Float64;N]
+                  Projection: iox::measurement, time AS time, value AS value [iox::measurement:Dictionary(Int32, Utf8), time:Timestamp(Nanosecond, None), value:Float64;N]
+                    Sort: time ASC NULLS LAST [iox::measurement:Dictionary(Int32, Utf8), time:Timestamp(Nanosecond, None), value:Float64;N]
+                      Projection: Dictionary(Int32, Utf8("cpu")) AS iox::measurement, cpu.time AS time, cpu.usage_idle AS value [iox::measurement:Dictionary(Int32, Utf8), time:Timestamp(Nanosecond, None), value:Float64;N]
+                        TableScan: cpu [cpu:Dictionary(Int32, Utf8);N, host:Dictionary(Int32, Utf8);N, region:Dictionary(Int32, Utf8);N, time:Timestamp(Nanosecond, None), usage_idle:Float64;N, usage_system:Float64;N, usage_user:Float64;N]
+                "###);
+
+                // project a wildcard
+                assert_snapshot!(plan("SELECT * FROM (SELECT usage_idle, usage_system AS value FROM cpu)"), @r###"
+                Sort: time AS time ASC NULLS LAST [iox::measurement:Dictionary(Int32, Utf8), time:Timestamp(Nanosecond, None), usage_idle:Float64;N, value:Float64;N]
+                  Projection: iox::measurement, time AS time, usage_idle AS usage_idle, value AS value [iox::measurement:Dictionary(Int32, Utf8), time:Timestamp(Nanosecond, None), usage_idle:Float64;N, value:Float64;N]
+                    Sort: time ASC NULLS LAST [iox::measurement:Dictionary(Int32, Utf8), time:Timestamp(Nanosecond, None), usage_idle:Float64;N, value:Float64;N]
+                      Projection: Dictionary(Int32, Utf8("cpu")) AS iox::measurement, cpu.time AS time, cpu.usage_idle AS usage_idle, cpu.usage_system AS value [iox::measurement:Dictionary(Int32, Utf8), time:Timestamp(Nanosecond, None), usage_idle:Float64;N, value:Float64;N]
+                        TableScan: cpu [cpu:Dictionary(Int32, Utf8);N, host:Dictionary(Int32, Utf8);N, region:Dictionary(Int32, Utf8);N, time:Timestamp(Nanosecond, None), usage_idle:Float64;N, usage_system:Float64;N, usage_user:Float64;N]
+                "###);
+            }
+
+            /// Projecting subqueries that do not use aggregate or selector functions.
+            #[test]
+            fn aggregates() {
+                // project an aggregate
+                assert_snapshot!(plan("SELECT value FROM (SELECT mean(usage_idle) AS value FROM cpu)"), @r###"
+                Sort: time AS time ASC NULLS LAST [iox::measurement:Dictionary(Int32, Utf8), time:Timestamp(Nanosecond, None), value:Float64;N]
+                  Projection: iox::measurement, time AS time, value AS value [iox::measurement:Dictionary(Int32, Utf8), time:Timestamp(Nanosecond, None), value:Float64;N]
+                    Sort: time ASC NULLS LAST [iox::measurement:Dictionary(Int32, Utf8), time:Timestamp(Nanosecond, None), value:Float64;N]
+                      Projection: Dictionary(Int32, Utf8("cpu")) AS iox::measurement, TimestampNanosecond(0, None) AS time, AVG(cpu.usage_idle) AS value [iox::measurement:Dictionary(Int32, Utf8), time:Timestamp(Nanosecond, None), value:Float64;N]
+                        Aggregate: groupBy=[[]], aggr=[[AVG(cpu.usage_idle)]] [AVG(cpu.usage_idle):Float64;N]
+                          TableScan: cpu [cpu:Dictionary(Int32, Utf8);N, host:Dictionary(Int32, Utf8);N, region:Dictionary(Int32, Utf8);N, time:Timestamp(Nanosecond, None), usage_idle:Float64;N, usage_system:Float64;N, usage_user:Float64;N]
+                "###);
+
+                assert_snapshot!(plan("SELECT value FROM (SELECT mean(usage_idle) AS value FROM cpu GROUP BY TIME(10s))"), @r###"
+                Sort: time AS time ASC NULLS LAST [iox::measurement:Dictionary(Int32, Utf8), time:Timestamp(Nanosecond, None);N, value:Float64;N]
+                  Projection: iox::measurement, time AS time, value AS value [iox::measurement:Dictionary(Int32, Utf8), time:Timestamp(Nanosecond, None);N, value:Float64;N]
+                    Sort: time ASC NULLS LAST [iox::measurement:Dictionary(Int32, Utf8), time:Timestamp(Nanosecond, None);N, value:Float64;N]
+                      Projection: Dictionary(Int32, Utf8("cpu")) AS iox::measurement, time, AVG(cpu.usage_idle) AS value [iox::measurement:Dictionary(Int32, Utf8), time:Timestamp(Nanosecond, None);N, value:Float64;N]
+                        Aggregate: groupBy=[[datebin(IntervalMonthDayNano("10000000000"), cpu.time, TimestampNanosecond(0, None)) AS time]], aggr=[[AVG(cpu.usage_idle)]] [time:Timestamp(Nanosecond, None);N, AVG(cpu.usage_idle):Float64;N]
+                          TableScan: cpu [cpu:Dictionary(Int32, Utf8);N, host:Dictionary(Int32, Utf8);N, region:Dictionary(Int32, Utf8);N, time:Timestamp(Nanosecond, None), usage_idle:Float64;N, usage_system:Float64;N, usage_user:Float64;N]
+                "###);
+            }
+
+            /// Projecting subqueries that use the `DISTINCT` function / operator.
+            #[test]
+            fn distinct() {
+                // Subquery is a DISTINCT
+                assert_snapshot!(plan("SELECT value FROM (SELECT DISTINCT(usage_idle) AS value FROM cpu)"), @r###"
+            Sort: time AS time ASC NULLS LAST [iox::measurement:Dictionary(Int32, Utf8), time:Timestamp(Nanosecond, None), value:Float64;N]
+              Projection: iox::measurement, time AS time, value AS value [iox::measurement:Dictionary(Int32, Utf8), time:Timestamp(Nanosecond, None), value:Float64;N]
+                Sort: time ASC NULLS LAST [iox::measurement:Dictionary(Int32, Utf8), time:Timestamp(Nanosecond, None), value:Float64;N]
+                  Distinct: [iox::measurement:Dictionary(Int32, Utf8), time:Timestamp(Nanosecond, None), value:Float64;N]
+                    Projection: Dictionary(Int32, Utf8("cpu")) AS iox::measurement, TimestampNanosecond(0, None) AS time, cpu.usage_idle AS value [iox::measurement:Dictionary(Int32, Utf8), time:Timestamp(Nanosecond, None), value:Float64;N]
+                      TableScan: cpu [cpu:Dictionary(Int32, Utf8);N, host:Dictionary(Int32, Utf8);N, region:Dictionary(Int32, Utf8);N, time:Timestamp(Nanosecond, None), usage_idle:Float64;N, usage_system:Float64;N, usage_user:Float64;N]
+            "###);
+
+                // Outer query projects subquery with binary expressions
+                assert_snapshot!(plan("SELECT value * 0.99 FROM (SELECT DISTINCT(usage_idle) AS value FROM cpu)"), @r###"
+            Sort: time AS time ASC NULLS LAST [iox::measurement:Dictionary(Int32, Utf8), time:Timestamp(Nanosecond, None), value:Float64;N]
+              Projection: iox::measurement, time AS time, value * Float64(0.99) AS value [iox::measurement:Dictionary(Int32, Utf8), time:Timestamp(Nanosecond, None), value:Float64;N]
+                Sort: time ASC NULLS LAST [iox::measurement:Dictionary(Int32, Utf8), time:Timestamp(Nanosecond, None), value:Float64;N]
+                  Distinct: [iox::measurement:Dictionary(Int32, Utf8), time:Timestamp(Nanosecond, None), value:Float64;N]
+                    Projection: Dictionary(Int32, Utf8("cpu")) AS iox::measurement, TimestampNanosecond(0, None) AS time, cpu.usage_idle AS value [iox::measurement:Dictionary(Int32, Utf8), time:Timestamp(Nanosecond, None), value:Float64;N]
+                      TableScan: cpu [cpu:Dictionary(Int32, Utf8);N, host:Dictionary(Int32, Utf8);N, region:Dictionary(Int32, Utf8);N, time:Timestamp(Nanosecond, None), usage_idle:Float64;N, usage_system:Float64;N, usage_user:Float64;N]
+            "###);
+
+                // Outer query groups by the `cpu` tag, which should be pushed all the way to inner-most subquery
+                assert_snapshot!(plan("SELECT * FROM (SELECT MAX(value) FROM (SELECT DISTINCT(usage_idle) AS value FROM cpu)) GROUP BY cpu"), @r###"
+            Sort: cpu AS cpu ASC NULLS LAST, time AS time ASC NULLS LAST [iox::measurement:Dictionary(Int32, Utf8), time:Timestamp(Nanosecond, None);N, cpu:Dictionary(Int32, Utf8);N, max:Float64;N]
+              Projection: iox::measurement, time AS time, cpu AS cpu, max AS max [iox::measurement:Dictionary(Int32, Utf8), time:Timestamp(Nanosecond, None);N, cpu:Dictionary(Int32, Utf8);N, max:Float64;N]
+                Sort: cpu AS cpu ASC NULLS LAST, time ASC NULLS LAST [iox::measurement:Dictionary(Int32, Utf8), time:Timestamp(Nanosecond, None);N, cpu:Dictionary(Int32, Utf8);N, max:Float64;N]
+                  Projection: iox::measurement, (selector_max(value,time))[time] AS time, cpu AS cpu, (selector_max(value,time))[value] AS max [iox::measurement:Dictionary(Int32, Utf8), time:Timestamp(Nanosecond, None);N, cpu:Dictionary(Int32, Utf8);N, max:Float64;N]
+                    Aggregate: groupBy=[[iox::measurement, cpu]], aggr=[[selector_max(value, time)]] [iox::measurement:Dictionary(Int32, Utf8), cpu:Dictionary(Int32, Utf8);N, selector_max(value,time):Struct([Field { name: "value", data_type: Float64, nullable: true, dict_id: 0, dict_is_ordered: false, metadata: {} }, Field { name: "time", data_type: Timestamp(Nanosecond, None), nullable: true, dict_id: 0, dict_is_ordered: false, metadata: {} }]);N]
+                      Sort: cpu ASC NULLS LAST, time ASC NULLS LAST [iox::measurement:Dictionary(Int32, Utf8), time:Timestamp(Nanosecond, None), cpu:Dictionary(Int32, Utf8);N, value:Float64;N]
+                        Distinct: [iox::measurement:Dictionary(Int32, Utf8), time:Timestamp(Nanosecond, None), cpu:Dictionary(Int32, Utf8);N, value:Float64;N]
+                          Projection: Dictionary(Int32, Utf8("cpu")) AS iox::measurement, TimestampNanosecond(0, None) AS time, cpu.cpu AS cpu, cpu.usage_idle AS value [iox::measurement:Dictionary(Int32, Utf8), time:Timestamp(Nanosecond, None), cpu:Dictionary(Int32, Utf8);N, value:Float64;N]
+                            TableScan: cpu [cpu:Dictionary(Int32, Utf8);N, host:Dictionary(Int32, Utf8);N, region:Dictionary(Int32, Utf8);N, time:Timestamp(Nanosecond, None), usage_idle:Float64;N, usage_system:Float64;N, usage_user:Float64;N]
+            "###);
+            }
+        }
+
         #[test]
         fn test_time_column() {
             // validate time column is explicitly projected

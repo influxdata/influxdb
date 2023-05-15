@@ -549,3 +549,6 @@ SELECT * FROM (SELECT usage_idle FROM cpu GROUP BY cpu) GROUP BY cpu;
 SELECT * FROM (SELECT usage_idle FROM cpu) GROUP BY cpu;
 
 SELECT * FROM (SELECT MAX(value) FROM (SELECT DISTINCT(usage_idle) AS value FROM cpu)) GROUP BY cpu;
+
+-- GROUP BY time with default FILL(none) for subquery
+SELECT value FROM (SELECT mean(usage_idle) AS value FROM cpu GROUP BY TIME(10s));
