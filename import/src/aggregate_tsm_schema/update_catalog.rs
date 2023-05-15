@@ -430,7 +430,6 @@ mod tests {
             let namespace = txn
                 .namespaces()
                 .create(&NamespaceName::new("1234_5678").unwrap(), None)
-                .create("1234_5678", None)
                 .await
                 .expect("namespace created");
             let mut table = txn
