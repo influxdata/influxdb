@@ -88,7 +88,7 @@ fn check_features(stmt: &SelectStatement) -> Result<()> {
 
 #[derive(Default)]
 struct RewriteSelect {
-    /// The depth
+    /// The depth of the `SELECT` statement currently processed by the rewriter.
     depth: u32,
 }
 
@@ -110,7 +110,7 @@ impl RewriteSelect {
         //
         // See: https://github.com/influxdata/influxdb/blob/f365bb7e3a9c5e227dbf66d84adf674d3d127176/query/iterator.go#L757-L765
         let fill = if projection_type != ProjectionType::Raw
-            && self.depth > 0
+            && self.is_subquery()
             && matches!(stmt.fill, Some(FillClause::Null) | None)
         {
             Some(FillClause::None)
@@ -119,6 +119,7 @@ impl RewriteSelect {
         };
 
         Ok(Select {
+            depth: self.depth,
             projection_type,
             fields,
             from,
@@ -131,6 +132,21 @@ impl RewriteSelect {
             offset: stmt.offset,
             timezone: stmt.timezone.map(|v| *v),
         })
+    }
+
+    /// Returns true if the receiver is processing a subquery.
+    #[inline]
+    fn is_subquery(&self) -> bool {
+        self.depth > 0
+    }
+
+    /// Rewrite the `SELECT` statement by applying specific rules for subqueries.
+    fn rewrite_subquery(&self, s: &dyn SchemaProvider, stmt: &SelectStatement) -> Result<Select> {
+        let rw = Self {
+            depth: self.depth + 1,
+        };
+
+        rw.rewrite(s, stmt)
     }
 
     /// Rewrite the projection list and GROUP BY of the specified `SELECT` statement.
@@ -275,14 +291,6 @@ impl RewriteSelect {
         };
 
         Ok((fields_resolve_aliases_and_types(s, fields, from)?, group_by))
-    }
-
-    fn rewrite_subquery(&self, s: &dyn SchemaProvider, stmt: &SelectStatement) -> Result<Select> {
-        let rw = Self {
-            depth: self.depth + 1,
-        };
-
-        rw.rewrite(s, stmt)
     }
 
     /// Recursively expand the `from` clause of `stmt` and any subqueries.

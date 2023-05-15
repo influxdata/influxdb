@@ -281,7 +281,7 @@ impl<'a> TypeEvaluator<'a> {
         &self,
         arg_types: &[Option<VarRefDataType>],
     ) -> Result<Option<VarRefDataType>> {
-        Ok(arg_types.first().and_then(|v| v.clone()))
+        Ok(arg_types.first().and_then(|v| *v))
     }
 
     fn eval_scalar_strict(
@@ -359,11 +359,9 @@ impl<'a> TypeEvaluator<'a> {
                     ) => Ok(dt),
                     // If the input is unknown, default to float
                     None => Ok(Some(VarRefDataType::Float)),
-                    Some(arg0) if self.call_type_is_strict => {
-                        return error::query(format!(
-                            "invalid argument type for {name}: expected a number, got {arg0}"
-                        ))
-                    }
+                    Some(arg0) if self.call_type_is_strict => error::query(format!(
+                        "invalid argument type for {name}: expected a number, got {arg0}"
+                    )),
                     _ => Ok(None),
                 }
             }
@@ -500,7 +498,7 @@ mod test {
             from: &[&str],
         ) -> Result<Option<VarRefDataType>> {
             let from = from
-                .into_iter()
+                .iter()
                 .map(ToString::to_string)
                 .map(DataSource::Table)
                 .collect::<Vec<_>>();
@@ -730,7 +728,7 @@ mod test {
             from: &[&str],
         ) -> Result<Option<VarRefDataType>> {
             let from = from
-                .into_iter()
+                .iter()
                 .map(ToString::to_string)
                 .map(DataSource::Table)
                 .collect::<Vec<_>>();
@@ -779,7 +777,7 @@ mod test {
             from: &[&str],
         ) -> Result<Option<VarRefDataType>> {
             let from = from
-                .into_iter()
+                .iter()
                 .map(ToString::to_string)
                 .map(DataSource::Table)
                 .collect::<Vec<_>>();

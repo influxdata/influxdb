@@ -194,7 +194,7 @@ impl<'a> Context<'a> {
             (_, Some(group_by)) => group_by
                 .tags()
                 .map(|ident| ident.deref().as_str())
-                .chain(self.root_group_by_tags.iter().map(|s| *s))
+                .chain(self.root_group_by_tags.iter().copied())
                 .sorted()
                 .dedup()
                 .collect(),
@@ -532,7 +532,7 @@ impl<'a> InfluxQLToLogicalPlan<'a> {
         let plan = {
             let mut iter = select.from.iter();
             let plan = match iter.next() {
-                Some(ds) => self.project_select(&ctx, ds, select, &fields, &group_by_tag_set),
+                Some(ds) => self.project_select(ctx, ds, select, &fields, &group_by_tag_set),
                 None => {
                     // empty result, but let's at least have all the strictly necessary metadata
                     let schema = Arc::new(ArrowSchema::new(vec![ArrowField::new(
@@ -556,7 +556,7 @@ impl<'a> InfluxQLToLogicalPlan<'a> {
             }?;
 
             iter.try_fold(plan, |prev, ds| {
-                let next = self.project_select(&ctx, ds, select, &fields, &group_by_tag_set)?;
+                let next = self.project_select(ctx, ds, select, &fields, &group_by_tag_set)?;
                 LogicalPlanBuilder::from(prev).union(next)?.build()
             })?
         };
