@@ -1,6 +1,6 @@
 use arrow_util::assert_batches_sorted_eq;
 use futures::FutureExt;
-use generated_types::{influxdata::iox::ingester::v1 as proto, ingester::IngesterQueryRequest};
+use ingester_query_grpc::{influxdata::iox::ingester::v1 as proto, IngesterQueryRequest};
 use std::num::NonZeroUsize;
 use test_helpers_end_to_end::{
     maybe_skip_integration, MiniCluster, Step, StepTest, StepTestState, TestConfig,

@@ -514,12 +514,16 @@ dependencies = [
 name = "authz"
 version = "0.1.0"
 dependencies = [
+ "assert_matches",
  "async-trait",
  "base64 0.21.0",
  "generated_types",
  "http",
  "observability_deps",
+ "paste",
  "snafu",
+ "test_helpers_end_to_end",
+ "tokio",
  "tonic",
  "workspace-hack",
 ]
@@ -1414,6 +1418,7 @@ name = "data_types"
 version = "0.1.0"
 dependencies = [
  "croaring",
+ "generated_types",
  "influxdb-line-protocol",
  "iox_time",
  "observability_deps",
@@ -1432,8 +1437,8 @@ dependencies = [
 
 [[package]]
 name = "datafusion"
-version = "23.0.0"
-source = "git+https://github.com/apache/arrow-datafusion.git?rev=06e9f53637f20dd91bef43b74942ec36c38c22d5#06e9f53637f20dd91bef43b74942ec36c38c22d5"
+version = "24.0.0"
+source = "git+https://github.com/apache/arrow-datafusion.git?rev=496fc399de700ae14fab436fdff8711cd3132436#496fc399de700ae14fab436fdff8711cd3132436"
 dependencies = [
  "ahash 0.8.3",
  "arrow",
@@ -1481,8 +1486,8 @@ dependencies = [
 
 [[package]]
 name = "datafusion-common"
-version = "23.0.0"
-source = "git+https://github.com/apache/arrow-datafusion.git?rev=06e9f53637f20dd91bef43b74942ec36c38c22d5#06e9f53637f20dd91bef43b74942ec36c38c22d5"
+version = "24.0.0"
+source = "git+https://github.com/apache/arrow-datafusion.git?rev=496fc399de700ae14fab436fdff8711cd3132436#496fc399de700ae14fab436fdff8711cd3132436"
 dependencies = [
  "arrow",
  "arrow-array",
@@ -1495,8 +1500,8 @@ dependencies = [
 
 [[package]]
 name = "datafusion-execution"
-version = "23.0.0"
-source = "git+https://github.com/apache/arrow-datafusion.git?rev=06e9f53637f20dd91bef43b74942ec36c38c22d5#06e9f53637f20dd91bef43b74942ec36c38c22d5"
+version = "24.0.0"
+source = "git+https://github.com/apache/arrow-datafusion.git?rev=496fc399de700ae14fab436fdff8711cd3132436#496fc399de700ae14fab436fdff8711cd3132436"
 dependencies = [
  "dashmap",
  "datafusion-common",
@@ -1512,8 +1517,8 @@ dependencies = [
 
 [[package]]
 name = "datafusion-expr"
-version = "23.0.0"
-source = "git+https://github.com/apache/arrow-datafusion.git?rev=06e9f53637f20dd91bef43b74942ec36c38c22d5#06e9f53637f20dd91bef43b74942ec36c38c22d5"
+version = "24.0.0"
+source = "git+https://github.com/apache/arrow-datafusion.git?rev=496fc399de700ae14fab436fdff8711cd3132436#496fc399de700ae14fab436fdff8711cd3132436"
 dependencies = [
  "ahash 0.8.3",
  "arrow",
@@ -1523,8 +1528,8 @@ dependencies = [
 
 [[package]]
 name = "datafusion-optimizer"
-version = "23.0.0"
-source = "git+https://github.com/apache/arrow-datafusion.git?rev=06e9f53637f20dd91bef43b74942ec36c38c22d5#06e9f53637f20dd91bef43b74942ec36c38c22d5"
+version = "24.0.0"
+source = "git+https://github.com/apache/arrow-datafusion.git?rev=496fc399de700ae14fab436fdff8711cd3132436#496fc399de700ae14fab436fdff8711cd3132436"
 dependencies = [
  "arrow",
  "async-trait",
@@ -1540,8 +1545,8 @@ dependencies = [
 
 [[package]]
 name = "datafusion-physical-expr"
-version = "23.0.0"
-source = "git+https://github.com/apache/arrow-datafusion.git?rev=06e9f53637f20dd91bef43b74942ec36c38c22d5#06e9f53637f20dd91bef43b74942ec36c38c22d5"
+version = "24.0.0"
+source = "git+https://github.com/apache/arrow-datafusion.git?rev=496fc399de700ae14fab436fdff8711cd3132436#496fc399de700ae14fab436fdff8711cd3132436"
 dependencies = [
  "ahash 0.8.3",
  "arrow",
@@ -1572,8 +1577,8 @@ dependencies = [
 
 [[package]]
 name = "datafusion-proto"
-version = "23.0.0"
-source = "git+https://github.com/apache/arrow-datafusion.git?rev=06e9f53637f20dd91bef43b74942ec36c38c22d5#06e9f53637f20dd91bef43b74942ec36c38c22d5"
+version = "24.0.0"
+source = "git+https://github.com/apache/arrow-datafusion.git?rev=496fc399de700ae14fab436fdff8711cd3132436#496fc399de700ae14fab436fdff8711cd3132436"
 dependencies = [
  "arrow",
  "chrono",
@@ -1586,8 +1591,8 @@ dependencies = [
 
 [[package]]
 name = "datafusion-row"
-version = "23.0.0"
-source = "git+https://github.com/apache/arrow-datafusion.git?rev=06e9f53637f20dd91bef43b74942ec36c38c22d5#06e9f53637f20dd91bef43b74942ec36c38c22d5"
+version = "24.0.0"
+source = "git+https://github.com/apache/arrow-datafusion.git?rev=496fc399de700ae14fab436fdff8711cd3132436#496fc399de700ae14fab436fdff8711cd3132436"
 dependencies = [
  "arrow",
  "datafusion-common",
@@ -1597,8 +1602,8 @@ dependencies = [
 
 [[package]]
 name = "datafusion-sql"
-version = "23.0.0"
-source = "git+https://github.com/apache/arrow-datafusion.git?rev=06e9f53637f20dd91bef43b74942ec36c38c22d5#06e9f53637f20dd91bef43b74942ec36c38c22d5"
+version = "24.0.0"
+source = "git+https://github.com/apache/arrow-datafusion.git?rev=496fc399de700ae14fab436fdff8711cd3132436#496fc399de700ae14fab436fdff8711cd3132436"
 dependencies = [
  "arrow",
  "arrow-schema",
@@ -2036,17 +2041,12 @@ version = "0.1.0"
 dependencies = [
  "base64 0.21.0",
  "bytes",
- "data_types",
- "datafusion",
- "datafusion-proto",
  "observability_deps",
  "pbjson",
  "pbjson-build",
  "pbjson-types",
- "predicate",
  "prost",
  "prost-build",
- "query_functions",
  "serde",
  "snafu",
  "tonic",
@@ -2565,6 +2565,7 @@ dependencies = [
  "influxdb_iox_client",
  "influxdb_storage_client",
  "influxrpc_parser",
+ "ingester_query_grpc",
  "insta",
  "iox_catalog",
  "iox_query",
@@ -2586,6 +2587,7 @@ dependencies = [
  "observability_deps",
  "once_cell",
  "panic_logging",
+ "parking_lot 0.12.1",
  "parquet_file",
  "parquet_to_line_protocol",
  "predicate",
@@ -2698,6 +2700,7 @@ dependencies = [
  "generated_types",
  "hashbrown 0.13.2",
  "influxdb_iox_client",
+ "ingester_query_grpc",
  "ingester_test_ctx",
  "iox_catalog",
  "iox_query",
@@ -2733,6 +2736,27 @@ dependencies = [
 ]
 
 [[package]]
+name = "ingester_query_grpc"
+version = "0.1.0"
+dependencies = [
+ "base64 0.21.0",
+ "data_types",
+ "datafusion",
+ "datafusion-proto",
+ "pbjson",
+ "pbjson-build",
+ "pbjson-types",
+ "predicate",
+ "prost",
+ "prost-build",
+ "query_functions",
+ "serde",
+ "snafu",
+ "tonic-build",
+ "workspace-hack",
+]
+
+[[package]]
 name = "ingester_test_ctx"
 version = "0.1.0"
 dependencies = [
@@ -2746,6 +2770,7 @@ dependencies = [
  "hashbrown 0.13.2",
  "influxdb_iox_client",
  "ingester",
+ "ingester_query_grpc",
  "iox_catalog",
  "iox_query",
  "iox_time",
@@ -4159,22 +4184,22 @@ dependencies = [
 
 [[package]]
 name = "pin-project"
-version = "1.0.12"
+version = "1.1.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "ad29a609b6bcd67fee905812e544992d216af9d755757c05ed2d0e15a74c6ecc"
+checksum = "c95a7476719eab1e366eaf73d0260af3021184f18177925b07f54b30089ceead"
 dependencies = [
  "pin-project-internal",
 ]
 
 [[package]]
 name = "pin-project-internal"
-version = "1.0.12"
+version = "1.1.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "069bdb1e05adc7a8990dce9cc75370895fbe4e3d58b9b73bf1aee56359344a55"
+checksum = "39407670928234ebc5e6e580247dd567ad73a3578460c5990f9503df207e8f07"
 dependencies = [
  "proc-macro2",
  "quote",
- "syn 1.0.109",
+ "syn 2.0.15",
 ]
 
 [[package]]
@@ -4426,8 +4451,8 @@ dependencies = [
  "datafusion",
  "datafusion_util",
  "futures",
- "generated_types",
  "influxdb_iox_client",
+ "ingester_query_grpc",
  "insta",
  "iox_catalog",
  "iox_query",
@@ -5612,6 +5637,7 @@ dependencies = [
  "http",
  "hyper",
  "influxdb_iox_client",
+ "ingester_query_grpc",
  "iox_catalog",
  "mutable_batch_lp",
  "mutable_batch_pb",
@@ -6714,7 +6740,6 @@ dependencies = [
  "hashbrown 0.12.3",
  "hashbrown 0.13.2",
  "heck",
- "hyper",
  "indexmap",
  "io-lifetimes",
  "itertools",
@@ -6751,6 +6776,7 @@ dependencies = [
  "sha2",
  "similar",
  "smallvec",
+ "sqlparser",
  "sqlx",
  "sqlx-core",
  "sqlx-macros",

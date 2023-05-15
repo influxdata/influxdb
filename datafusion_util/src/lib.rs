@@ -23,13 +23,10 @@ use datafusion::arrow::datatypes::{DataType, Fields};
 use datafusion::common::{DataFusionError, ToDFSchema};
 use datafusion::datasource::MemTable;
 use datafusion::execution::context::TaskContext;
-use datafusion::execution::memory_pool::UnboundedMemoryPool;
 use datafusion::logical_expr::expr::Sort;
 use datafusion::physical_expr::execution_props::ExecutionProps;
 use datafusion::physical_expr::{create_physical_expr, PhysicalExpr};
 use datafusion::physical_optimizer::pruning::PruningPredicate;
-use datafusion::physical_plan::common::SizedRecordBatchStream;
-use datafusion::physical_plan::metrics::{ExecutionPlanMetricsSet, MemTrackingMetrics};
 use datafusion::physical_plan::{collect, EmptyRecordBatchStream, ExecutionPlan};
 use datafusion::prelude::{lit, Column, Expr, SessionContext};
 use datafusion::{
@@ -245,24 +242,18 @@ where
 
 /// Create a SendableRecordBatchStream a RecordBatch
 pub fn stream_from_batch(schema: SchemaRef, batch: RecordBatch) -> SendableRecordBatchStream {
-    stream_from_batches(schema, vec![Arc::new(batch)])
+    stream_from_batches(schema, vec![batch])
 }
 
 /// Create a SendableRecordBatchStream from Vec of RecordBatches with the same schema
 pub fn stream_from_batches(
     schema: SchemaRef,
-    batches: Vec<Arc<RecordBatch>>,
+    batches: Vec<RecordBatch>,
 ) -> SendableRecordBatchStream {
     if batches.is_empty() {
         return Box::pin(EmptyRecordBatchStream::new(schema));
     }
-
-    // TODO should track this memory properly
-    let dummy_pool = Arc::new(UnboundedMemoryPool::default()) as _;
-    let dummy_metrics = ExecutionPlanMetricsSet::new();
-    let mem_metrics = MemTrackingMetrics::new(&dummy_metrics, &dummy_pool, 0);
-    let stream = SizedRecordBatchStream::new(batches[0].schema(), batches, mem_metrics);
-    Box::pin(stream)
+    Box::pin(MemoryStream::new_with_schema(batches, schema))
 }
 
 /// Create a SendableRecordBatchStream that sends back no RecordBatches with a specific schema

@@ -30,6 +30,7 @@ members = [
     "influxrpc_parser",
     "ingester_test_ctx",
     "ingester",
+    "ingester_query_grpc",
     "iox_catalog",
     "iox_data_generator",
     "iox_query_influxql",
@@ -115,8 +116,8 @@ license = "MIT OR Apache-2.0"
 [workspace.dependencies]
 arrow = { version = "38.0.0" }
 arrow-flight = { version = "38.0.0" }
-datafusion = { git = "https://github.com/apache/arrow-datafusion.git", rev="06e9f53637f20dd91bef43b74942ec36c38c22d5", default-features = false }
-datafusion-proto = { git = "https://github.com/apache/arrow-datafusion.git", rev="06e9f53637f20dd91bef43b74942ec36c38c22d5" }
+datafusion = { git = "https://github.com/apache/arrow-datafusion.git", rev="496fc399de700ae14fab436fdff8711cd3132436", default-features = false }
+datafusion-proto = { git = "https://github.com/apache/arrow-datafusion.git", rev="496fc399de700ae14fab436fdff8711cd3132436" }
 hashbrown = { version = "0.13.2" }
 parquet = { version = "38.0.0" }
 tonic = { version = "0.9.2", features = ["tls", "tls-webpki-roots"] }

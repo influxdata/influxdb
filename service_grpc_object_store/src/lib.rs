@@ -96,7 +96,9 @@ impl object_store_service_server::ObjectStoreService for ObjectStoreService {
 mod tests {
     use super::*;
     use bytes::Bytes;
-    use data_types::{ColumnId, ColumnSet, CompactionLevel, ParquetFileParams, Timestamp};
+    use data_types::{
+        ColumnId, ColumnSet, CompactionLevel, NamespaceName, ParquetFileParams, Timestamp,
+    };
     use generated_types::influxdata::iox::object_store::v1::object_store_service_server::ObjectStoreService;
     use iox_catalog::mem::MemCatalog;
     use object_store::{memory::InMemory, ObjectStore};
@@ -112,7 +114,7 @@ mod tests {
             let mut repos = catalog.repositories().await;
             let namespace = repos
                 .namespaces()
-                .create("catalog_partition_test", None)
+                .create(&NamespaceName::new("catalog_partition_test").unwrap(), None)
                 .await
                 .unwrap();
             let table = repos

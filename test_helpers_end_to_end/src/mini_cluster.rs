@@ -15,8 +15,10 @@ use http::Response;
 use hyper::Body;
 use influxdb_iox_client::{
     connection::{Connection, GrpcConnection},
-    flight::generated_types::{IngesterQueryRequest, IngesterQueryResponseMetadata},
     schema::generated_types::{schema_service_client::SchemaServiceClient, GetSchemaRequest},
+};
+use ingester_query_grpc::influxdata::iox::ingester::v1::{
+    IngesterQueryRequest, IngesterQueryResponseMetadata,
 };
 use observability_deps::tracing::{debug, info};
 use once_cell::sync::Lazy;

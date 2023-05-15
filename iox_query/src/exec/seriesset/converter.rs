@@ -1281,7 +1281,7 @@ mod tests {
             .map(|batches| {
                 let batches = batches
                     .into_iter()
-                    .map(|chunk| Arc::new(parse_to_record_batch(Arc::clone(&schema), &chunk)))
+                    .map(|chunk| parse_to_record_batch(Arc::clone(&schema), &chunk))
                     .collect::<Vec<_>>();
 
                 stream_from_batches(Arc::clone(&schema), batches)

@@ -1,12 +1,9 @@
 use arrow_flight::Ticket;
 use futures::TryStreamExt;
-use generated_types::ingester::{
-    decode_proto_predicate_from_base64, DecodeProtoPredicateFromBase64Error,
-};
-use influxdb_iox_client::{
-    connection::Connection,
-    flight::{self},
-    format::QueryOutputFormat,
+use influxdb_iox_client::{connection::Connection, format::QueryOutputFormat};
+use ingester_query_grpc::{
+    decode_proto_predicate_from_base64, influxdata::iox::ingester::v1::IngesterQueryRequest,
+    DecodeProtoPredicateFromBase64Error,
 };
 use prost::Message;
 use std::str::FromStr;
@@ -73,7 +70,7 @@ pub async fn command(connection: Connection, config: Config) -> Result<()> {
         None
     };
 
-    let request = flight::generated_types::IngesterQueryRequest {
+    let request = IngesterQueryRequest {
         table_id,
         columns,
         predicate,

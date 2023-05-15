@@ -391,7 +391,11 @@ mod tests {
         let catalog = Arc::new(MemCatalog::new(Default::default()));
 
         let mut repos = catalog.repositories().await;
-        let namespace = repos.namespaces().create("test_ns", None).await.unwrap();
+        let namespace = repos
+            .namespaces()
+            .create(&NamespaceName::new("test_ns").unwrap(), None)
+            .await
+            .unwrap();
 
         let table = repos
             .tables()

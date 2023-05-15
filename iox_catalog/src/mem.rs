@@ -12,9 +12,9 @@ use crate::{
 };
 use async_trait::async_trait;
 use data_types::{
-    Column, ColumnId, ColumnType, CompactionLevel, Namespace, NamespaceId, ParquetFile,
-    ParquetFileId, ParquetFileParams, Partition, PartitionId, PartitionKey, SkippedCompaction,
-    Table, TableId, Timestamp,
+    Column, ColumnId, ColumnType, CompactionLevel, Namespace, NamespaceId, NamespaceName,
+    ParquetFile, ParquetFileId, ParquetFileParams, Partition, PartitionId, PartitionKey,
+    SkippedCompaction, Table, TableId, Timestamp,
 };
 use iox_time::{SystemProvider, TimeProvider};
 use observability_deps::tracing::warn;
@@ -217,10 +217,14 @@ impl RepoCollection for MemTxn {
 
 #[async_trait]
 impl NamespaceRepo for MemTxn {
-    async fn create(&mut self, name: &str, retention_period_ns: Option<i64>) -> Result<Namespace> {
+    async fn create(
+        &mut self,
+        name: &NamespaceName,
+        retention_period_ns: Option<i64>,
+    ) -> Result<Namespace> {
         let stage = self.stage();
 
-        if stage.namespaces.iter().any(|n| n.name == name) {
+        if stage.namespaces.iter().any(|n| n.name == name.as_str()) {
             return Err(Error::NameExists {
                 name: name.to_string(),
             });
