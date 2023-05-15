@@ -221,7 +221,10 @@ mod tests {
 
         assert_eq!(
             histogram
-                .get_observer(&Attributes::from(&[("result", "success"),]))
+                .get_observer(&Attributes::from(&[
+                    ("result", "success"),
+                    ("auth_state", "authorised")
+                ]))
                 .expect("failed to get observer")
                 .fetch()
                 .sample_count(),
@@ -229,7 +232,10 @@ mod tests {
         );
         assert_eq!(
             histogram
-                .get_observer(&Attributes::from(&[("result", "error"),]))
+                .get_observer(&Attributes::from(&[
+                    ("result", "error"),
+                    ("auth_state", "unauthorised")
+                ]))
                 .expect("failed to get observer")
                 .fetch()
                 .sample_count(),
