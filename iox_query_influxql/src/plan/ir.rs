@@ -31,8 +31,11 @@ pub(super) struct SelectQuery {
 
 #[derive(Debug, Default, Clone)]
 pub(super) struct Select {
-    /// The schema of the selection.
-    // pub(super) schema: Todo,
+    /// The depth of the selection, where a value > 0 indicates
+    /// this is a subquery.
+    pub(super) depth: u32,
+
+    /// The projection type of the selection.
     pub(super) projection_type: ProjectionType,
 
     /// Projection clause of the selection.
