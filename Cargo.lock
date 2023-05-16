@@ -6309,6 +6309,7 @@ dependencies = [
 name = "wal"
 version = "0.1.0"
 dependencies = [
+ "assert_matches",
  "async-trait",
  "byteorder",
  "bytes",
@@ -6317,6 +6318,8 @@ dependencies = [
  "dml",
  "futures",
  "generated_types",
+ "hashbrown 0.13.2",
+ "mutable_batch",
  "mutable_batch_lp",
  "mutable_batch_pb",
  "observability_deps",
@@ -6330,6 +6333,27 @@ dependencies = [
  "test_helpers",
  "tokio",
  "tokio-util",
+ "workspace-hack",
+]
+
+[[package]]
+name = "wal_inspect"
+version = "0.1.0"
+dependencies = [
+ "assert_matches",
+ "data_types",
+ "dml",
+ "generated_types",
+ "hashbrown 0.13.2",
+ "mutable_batch",
+ "mutable_batch_lp",
+ "mutable_batch_pb",
+ "parquet_to_line_protocol",
+ "schema",
+ "test_helpers",
+ "thiserror",
+ "tokio",
+ "wal",
  "workspace-hack",
 ]
 
