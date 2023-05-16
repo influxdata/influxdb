@@ -39,6 +39,7 @@ fn generate_grpc_types(root: &Path) -> Result<()> {
     let ingester_path = root.join("influxdata/iox/ingester/v1");
     let namespace_path = root.join("influxdata/iox/namespace/v1");
     let object_store_path = root.join("influxdata/iox/object_store/v1");
+    let partition_template_path = root.join("influxdata/iox/partition_template/v1");
     let predicate_path = root.join("influxdata/iox/predicate/v1");
     let querier_path = root.join("influxdata/iox/querier/v1");
     let schema_path = root.join("influxdata/iox/schema/v1");
@@ -58,6 +59,7 @@ fn generate_grpc_types(root: &Path) -> Result<()> {
         ingester_path.join("write.proto"),
         namespace_path.join("service.proto"),
         object_store_path.join("service.proto"),
+        partition_template_path.join("template.proto"),
         predicate_path.join("predicate.proto"),
         querier_path.join("flight.proto"),
         root.join("google/longrunning/operations.proto"),
