@@ -57,10 +57,16 @@ impl<W, F> LineProtoWriter<W, F>
 where
     W: Write,
 {
-    /// Flushes all write destinations opened by the [`LineProtoWriter`].
-    pub fn flush(&mut self) -> Result<(), WriteError> {
+    /// Performs a best effort flush of all write destinations opened by the [`LineProtoWriter`].
+    pub fn flush(&mut self) -> Result<(), Vec<WriteError>> {
+        let mut errs = Vec::<WriteError>::new();
         for w in self.namespaced_output.values_mut() {
-            w.flush()?
+            if let Err(e) = w.flush() {
+                errs.push(WriteError::IoError(e));
+            }
+        }
+        if !errs.is_empty() {
+            return Err(errs);
         }
         Ok(())
     }
