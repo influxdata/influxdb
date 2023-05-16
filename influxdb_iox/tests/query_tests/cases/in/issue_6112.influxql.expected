@@ -2869,21 +2869,6 @@ name: cpu
 | 2022-10-31T02:00:00 | 2.98     | 2.2        |
 | 2022-10-31T02:00:10 | 2.99     | 2.1        |
 +---------------------+----------+------------+
--- InfluxQL: SELECT last(sum_idle), last(sum_system) FROM (SELECT sum(usage_idle) AS sum_idle, sum(usage_system) AS sum_system FROM cpu WHERE cpu = 'cpu-total' GROUP BY time(10s));
-name: cpu
-+---------------------+------+--------+
-| time                | last | last_1 |
-+---------------------+------+--------+
-| 1970-01-01T00:00:00 | 2.99 | 2.1    |
-+---------------------+------+--------+
--- InfluxQL: SELECT last(sum_idle), last(sum_system) FROM (SELECT sum(usage_idle) AS sum_idle, sum(usage_system) AS sum_system FROM cpu WHERE cpu = 'cpu-total' GROUP BY time(10s)) GROUP BY time(10s) FILL(none);
-name: cpu
-+---------------------+------+--------+
-| time                | last | last_1 |
-+---------------------+------+--------+
-| 2022-10-31T02:00:00 | 2.98 | 2.2    |
-| 2022-10-31T02:00:10 | 2.99 | 2.1    |
-+---------------------+------+--------+
 -- InfluxQL: SELECT P / 99.99 FROM (SELECT max(usage_system) AS P, mean(usage_idle) AS S FROM cpu GROUP BY time(10s)) WHERE S > 0.50 AND S < 1.50 AND P > 0.0 AND P < 1.0 GROUP BY cpu FILL(null);
 name: cpu
 tags: cpu=cpu0
@@ -2902,3 +2887,18 @@ name: cpu
 | 1970-01-01T00:00:00 | cpu0      |
 | 1970-01-01T00:00:00 | cpu1      |
 +---------------------+-----------+
+-- InfluxQL: SELECT last(sum_idle), last(sum_system) FROM (SELECT sum(usage_idle) AS sum_idle, sum(usage_system) AS sum_system FROM cpu WHERE cpu = 'cpu-total' GROUP BY time(10s));
+name: cpu
++---------------------+------+--------+
+| time                | last | last_1 |
++---------------------+------+--------+
+| 1970-01-01T00:00:00 | 2.99 | 2.1    |
++---------------------+------+--------+
+-- InfluxQL: SELECT last(sum_idle), last(sum_system) FROM (SELECT sum(usage_idle) AS sum_idle, sum(usage_system) AS sum_system FROM cpu WHERE cpu = 'cpu-total' GROUP BY time(10s)) GROUP BY time(10s) FILL(none);
+name: cpu
++---------------------+------+--------+
+| time                | last | last_1 |
++---------------------+------+--------+
+| 2022-10-31T02:00:00 | 2.98 | 2.2    |
+| 2022-10-31T02:00:10 | 2.99 | 2.1    |
++---------------------+------+--------+
