@@ -1,4 +1,4 @@
-use crate::{
+use crate::tsm::{
     AggregateTSMField, AggregateTSMMeasurement, AggregateTSMSchema, AggregateTSMSchemaOverride,
     AggregateTSMTag,
 };

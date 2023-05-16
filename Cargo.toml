@@ -19,7 +19,7 @@ members = [
     "grpc-binary-logger-proto",
     "grpc-binary-logger-test-proto",
     "grpc-binary-logger",
-    "import",
+    "import_export",
     "influxdb_influxql_parser",
     "influxdb_iox_client",
     "influxdb_iox",

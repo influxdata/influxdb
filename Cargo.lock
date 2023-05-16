@@ -2436,7 +2436,7 @@ dependencies = [
 ]
 
 [[package]]
-name = "import"
+name = "import_export"
 version = "0.1.0"
 dependencies = [
  "assert_matches",
@@ -2561,7 +2561,7 @@ dependencies = [
  "home",
  "http",
  "humantime",
- "import",
+ "import_export",
  "influxdb_iox_client",
  "influxdb_storage_client",
  "influxrpc_parser",

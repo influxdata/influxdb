@@ -5,7 +5,7 @@ use object_store::{path::Path, DynObjectStore, GetResult};
 use thiserror::Error;
 use tokio::select;
 
-use crate::AggregateTSMSchema;
+use crate::tsm::AggregateTSMSchema;
 
 // Possible errors from schema commands
 #[derive(Debug, Error)]
