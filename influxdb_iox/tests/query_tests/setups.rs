@@ -420,6 +420,18 @@ pub static SETUPS: Lazy<HashMap<SetupName, SetupSteps>> = Lazy::new(|| {
             )],
         ),
         (
+            "EqualInMeasurements",
+            vec![Step::WriteLineProtocol(
+                [
+                    "measurement=one,tag=value field=1.0 \
+                    1609459201000000001",
+                    "measurement=one,tag=value2 field=1.0 \
+                    1609459201000000002",
+                ]
+                .join("\n"),
+            )],
+        ),
+        (
             "PeriodsInNames",
             vec![Step::WriteLineProtocol(
                 [

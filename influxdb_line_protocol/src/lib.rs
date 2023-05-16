@@ -97,6 +97,9 @@ pub enum Error {
     #[snafu(display(r#"Must not contain duplicate tags, but "{}" was repeated"#, tag_key))]
     DuplicateTag { tag_key: String },
 
+    #[snafu(display(r#"Invalid measurement was provided"#))]
+    MeasurementValueInvalid,
+
     #[snafu(display(r#"No fields were provided"#))]
     FieldSetMissing,
 
@@ -255,7 +258,7 @@ impl<'a> Display for ParsedLine<'a> {
 #[derive(Debug)]
 pub struct Series<'a> {
     raw_input: &'a str,
-    pub measurement: EscapedStr<'a>,
+    pub measurement: Measurement<'a>,
     pub tag_set: Option<TagSet<'a>>,
 }
 
@@ -347,6 +350,8 @@ impl<'a> Series<'a> {
         }
     }
 }
+
+pub type Measurement<'a> = EscapedStr<'a>;
 
 /// The [field] keys and values that appear in the line of line protocol.
 ///
@@ -640,16 +645,21 @@ fn series(i: &str) -> IResult<&str, Series<'_>> {
     )(i)
 }
 
-fn measurement(i: &str) -> IResult<&str, EscapedStr<'_>> {
-    let normal_char = take_while1(|c| !is_whitespace_boundary_char(c) && c != ',' && c != '\\');
+fn measurement(i: &str) -> IResult<&str, Measurement<'_>, Error> {
+    let normal_char = take_while1(|c| {
+        !is_whitespace_boundary_char(c) && !is_null_char(c) && c != ',' && c != '\\'
+    });
 
     let space = map(tag(" "), |_| " ");
     let comma = map(tag(","), |_| ",");
     let backslash = map(tag("\\"), |_| "\\");
 
-    let escaped = alt((space, comma, backslash));
+    let escaped = alt((comma, space, backslash));
 
-    escape_or_fallback(normal_char, "\\", escaped)(i)
+    match escape_or_fallback(normal_char, "\\", escaped)(i) {
+        Err(nom::Err::Error(_)) => MeasurementValueInvalidSnafu.fail().map_err(nom::Err::Error),
+        other => other,
+    }
 }
 
 fn tag_set(i: &str) -> IResult<&str, TagSet<'_>> {
@@ -822,6 +832,10 @@ fn whitespace(i: &str) -> IResult<&str, &str> {
 
 fn is_whitespace_boundary_char(c: char) -> bool {
     c == ' ' || c == '\t' || c == '\n'
+}
+
+fn is_null_char(c: char) -> bool {
+    c == '\0'
 }
 
 /// While not all of these escape characters are required to be
@@ -1247,11 +1261,65 @@ mod test {
     }
 
     #[test]
+    fn parse_no_measurement() {
+        let input = ",tag1=1,tag2=2 value=1 123";
+        let vals = parse(input);
+        assert!(matches!(vals, Err(Error::MeasurementValueInvalid)));
+
+        // accepts `field=1` as measurement, and errors on missing field
+        let input = "field=1 1234";
+        let vals = parse(input);
+        assert!(matches!(vals, Err(Error::FieldSetMissing)));
+    }
+
+    // matches behavior in influxdb golang parser
+    #[test]
+    fn parse_measurement_with_eq() {
+        let input = "tag1=1 field=1 1234";
+        let vals = parse(input);
+        assert!(matches!(vals, Ok(_)));
+
+        let input = "tag1=1,tag2=2 value=1 123";
+        let vals = parse(input);
+        assert!(matches!(vals, Ok(_)));
+    }
+
+    #[test]
+    fn parse_null_measurement() {
+        let input = "\0 field=1 1234";
+        let vals = parse(input);
+        assert!(matches!(vals, Err(Error::MeasurementValueInvalid)));
+
+        let input = "\0,tag1=1,tag2=2 value=1 123";
+        let vals = parse(input);
+        assert!(matches!(vals, Err(Error::MeasurementValueInvalid)));
+    }
+
+    #[test]
+    fn parse_where_nulls_accepted() {
+        let input = "m,tag\x001=one,tag2=2 value=1 123
+            m,tag1=o\0ne,tag2=2 value=1 123
+            m,tag1=one,tag2=\0 value=1 123
+            m,tag1=one,tag2=2 val\0ue=1 123
+            m,tag1=one,tag2=2 value=\"v\0\" 123";
+        let vals = parse(input);
+        assert!(vals.is_ok());
+        assert_eq!(vals.unwrap().len(), 5);
+    }
+
+    #[test]
     fn parse_no_fields() {
         let input = "foo 1234";
         let vals = parse(input);
 
         assert!(matches!(vals, Err(super::Error::FieldSetMissing)));
+    }
+
+    #[test]
+    fn parse_null_in_field_value() {
+        let input = "m,tag1=one,tag2=2 value=\0 123";
+        let vals = parse(input);
+        assert!(vals.is_err());
     }
 
     #[test]

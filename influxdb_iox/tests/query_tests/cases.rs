@@ -170,6 +170,18 @@ async fn periods() {
 }
 
 #[tokio::test]
+async fn equals() {
+    test_helpers::maybe_start_logging();
+
+    TestCase {
+        input: "cases/in/equals.sql",
+        chunk_stage: ChunkStage::Ingester,
+    }
+    .run()
+    .await;
+}
+
+#[tokio::test]
 async fn pushdown() {
     test_helpers::maybe_start_logging();
 
