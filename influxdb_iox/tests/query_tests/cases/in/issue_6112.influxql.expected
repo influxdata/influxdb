@@ -2887,7 +2887,7 @@ name: cpu
 | 1970-01-01T00:00:00 | cpu0      |
 | 1970-01-01T00:00:00 | cpu1      |
 +---------------------+-----------+
--- InfluxQL: SELECT last(sum_idle), last(sum_system) FROM (SELECT sum(usage_idle) AS sum_idle, sum(usage_system) AS sum_system FROM cpu WHERE cpu = 'cpu-total' GROUP BY time(10s));
+-- InfluxQL: SELECT last(usage_idle), last(usage_system) FROM (SELECT usage_idle, usage_system FROM cpu WHERE cpu = 'cpu-total');
 name: cpu
 +---------------------+------+--------+
 | time                | last | last_1 |
