@@ -284,7 +284,7 @@ mod tests {
 
                     let metrics = Arc::new(metric::Registry::default());
                     let repo = MemCatalog::new(metrics);
-                    let mut txn = repo.start_transaction().await.unwrap();
+                    let mut txn = repo.repositories().await;
 
                     let namespace = arbitrary_namespace(&mut *txn, NAMESPACE_NAME)
                         .await;

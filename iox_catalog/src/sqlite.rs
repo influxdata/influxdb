@@ -2,9 +2,8 @@
 
 use crate::{
     interface::{
-        self, sealed::TransactionFinalize, CasFailure, Catalog, ColumnRepo,
-        ColumnTypeMismatchSnafu, Error, NamespaceRepo, ParquetFileRepo, PartitionRepo,
-        RepoCollection, Result, SoftDeletedRows, TableRepo, Transaction,
+        self, CasFailure, Catalog, ColumnRepo, ColumnTypeMismatchSnafu, Error, NamespaceRepo,
+        ParquetFileRepo, PartitionRepo, RepoCollection, Result, SoftDeletedRows, TableRepo,
         MAX_PARQUET_FILES_SELECTED_ONCE,
     },
     kafkaless_transition::{
@@ -21,12 +20,12 @@ use data_types::{
     PartitionKey, SkippedCompaction, Table, TableId, Timestamp,
 };
 use serde::{Deserialize, Serialize};
-use std::ops::Deref;
+use std::collections::HashSet;
 use std::{collections::HashMap, fmt::Display};
 
 use iox_time::{SystemProvider, TimeProvider};
 use metric::Registry;
-use observability_deps::tracing::{debug, warn};
+use observability_deps::tracing::debug;
 use parking_lot::Mutex;
 use snafu::prelude::*;
 use sqlx::types::Json;
@@ -69,10 +68,8 @@ pub struct SqliteTxn {
 }
 
 #[derive(Debug)]
-#[allow(clippy::large_enum_variant)]
-enum SqliteTxnInner {
-    Txn(Option<sqlx::Transaction<'static, Sqlite>>),
-    Oneshot(Pool<Sqlite>),
+struct SqliteTxnInner {
+    pool: Pool<Sqlite>,
 }
 
 impl<'c> Executor<'c> for &'c mut SqliteTxnInner {
@@ -96,10 +93,7 @@ impl<'c> Executor<'c> for &'c mut SqliteTxnInner {
         'c: 'e,
         E: sqlx::Execute<'q, Self::Database>,
     {
-        match self {
-            SqliteTxnInner::Txn(txn) => txn.as_mut().expect("Not yet finalized").fetch_many(query),
-            SqliteTxnInner::Oneshot(pool) => pool.fetch_many(query),
-        }
+        self.pool.fetch_many(query)
     }
 
     fn fetch_optional<'e, 'q: 'e, E: 'q>(
@@ -113,13 +107,7 @@ impl<'c> Executor<'c> for &'c mut SqliteTxnInner {
         'c: 'e,
         E: sqlx::Execute<'q, Self::Database>,
     {
-        match self {
-            SqliteTxnInner::Txn(txn) => txn
-                .as_mut()
-                .expect("Not yet finalized")
-                .fetch_optional(query),
-            SqliteTxnInner::Oneshot(pool) => pool.fetch_optional(query),
-        }
+        self.pool.fetch_optional(query)
     }
 
     fn prepare_with<'e, 'q: 'e>(
@@ -133,13 +121,7 @@ impl<'c> Executor<'c> for &'c mut SqliteTxnInner {
     where
         'c: 'e,
     {
-        match self {
-            SqliteTxnInner::Txn(txn) => txn
-                .as_mut()
-                .expect("Not yet finalized")
-                .prepare_with(sql, parameters),
-            SqliteTxnInner::Oneshot(pool) => pool.prepare_with(sql, parameters),
-        }
+        self.pool.prepare_with(sql, parameters)
     }
 
     fn describe<'e, 'q: 'e>(
@@ -149,52 +131,7 @@ impl<'c> Executor<'c> for &'c mut SqliteTxnInner {
     where
         'c: 'e,
     {
-        match self {
-            SqliteTxnInner::Txn(txn) => txn.as_mut().expect("Not yet finalized").describe(sql),
-            SqliteTxnInner::Oneshot(pool) => pool.describe(sql),
-        }
-    }
-}
-
-impl Drop for SqliteTxn {
-    fn drop(&mut self) {
-        if let SqliteTxnInner::Txn(Some(_)) = self.inner.lock().deref() {
-            warn!("Dropping SqliteTxn w/o finalizing (commit or abort)");
-
-            // SQLx ensures that the inner transaction enqueues a rollback when it is dropped, so
-            // we don't need to spawn a task here to call `rollback` manually.
-        }
-    }
-}
-
-#[async_trait]
-impl TransactionFinalize for SqliteTxn {
-    async fn commit_inplace(&mut self) -> Result<(), Error> {
-        match self.inner.get_mut() {
-            SqliteTxnInner::Txn(txn) => txn
-                .take()
-                .expect("Not yet finalized")
-                .commit()
-                .await
-                .map_err(|e| Error::SqlxError { source: e }),
-            SqliteTxnInner::Oneshot(_) => {
-                panic!("cannot commit oneshot");
-            }
-        }
-    }
-
-    async fn abort_inplace(&mut self) -> Result<(), Error> {
-        match self.inner.get_mut() {
-            SqliteTxnInner::Txn(txn) => txn
-                .take()
-                .expect("Not yet finalized")
-                .rollback()
-                .await
-                .map_err(|e| Error::SqlxError { source: e }),
-            SqliteTxnInner::Oneshot(_) => {
-                panic!("cannot abort oneshot");
-            }
-        }
+        self.pool.describe(sql)
     }
 }
 
@@ -280,26 +217,12 @@ DO NOTHING;
         Ok(())
     }
 
-    async fn start_transaction(&self) -> Result<Box<dyn Transaction>> {
-        let transaction = self
-            .pool
-            .begin()
-            .await
-            .map_err(|e| Error::SqlxError { source: e })?;
-
-        Ok(Box::new(MetricDecorator::new(
-            SqliteTxn {
-                inner: Mutex::new(SqliteTxnInner::Txn(Some(transaction))),
-                time_provider: Arc::clone(&self.time_provider),
-            },
-            Arc::clone(&self.metrics),
-        )))
-    }
-
     async fn repositories(&self) -> Box<dyn RepoCollection> {
         Box::new(MetricDecorator::new(
             SqliteTxn {
-                inner: Mutex::new(SqliteTxnInner::Oneshot(self.pool.clone())),
+                inner: Mutex::new(SqliteTxnInner {
+                    pool: self.pool.clone(),
+                }),
                 time_provider: Arc::clone(&self.time_provider),
             },
             Arc::clone(&self.metrics),
@@ -1181,73 +1104,15 @@ impl From<ParquetFilePod> for ParquetFile {
 #[async_trait]
 impl ParquetFileRepo for SqliteTxn {
     async fn create(&mut self, parquet_file_params: ParquetFileParams) -> Result<ParquetFile> {
-        let ParquetFileParams {
-            namespace_id,
-            table_id,
-            partition_id,
-            object_store_id,
-            min_time,
-            max_time,
-            file_size_bytes,
-            row_count,
-            compaction_level,
-            created_at,
-            column_set,
-            max_l0_created_at,
-        } = parquet_file_params;
-
-        let rec = sqlx::query_as::<_, ParquetFilePod>(
-            r#"
-INSERT INTO parquet_file (
-    shard_id, table_id, partition_id, object_store_id,
-    min_time, max_time, file_size_bytes,
-    row_count, compaction_level, created_at, namespace_id, column_set, max_l0_created_at )
-VALUES ( $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13 )
-RETURNING
-    id, table_id, partition_id, object_store_id,
-    min_time, max_time, to_delete, file_size_bytes,
-    row_count, compaction_level, created_at, namespace_id, column_set, max_l0_created_at;
-        "#,
-        )
-        .bind(TRANSITION_SHARD_ID) // $1
-        .bind(table_id) // $2
-        .bind(partition_id) // $3
-        .bind(object_store_id) // $4
-        .bind(min_time) // $5
-        .bind(max_time) // $6
-        .bind(file_size_bytes) // $7
-        .bind(row_count) // $8
-        .bind(compaction_level) // $9
-        .bind(created_at) // $10
-        .bind(namespace_id) // $11
-        .bind(from_column_set(&column_set)) // $12
-        .bind(max_l0_created_at) // $13
-        .fetch_one(self.inner.get_mut())
-        .await
-        .map_err(|e| {
-            if is_unique_violation(&e) {
-                Error::FileExists { object_store_id }
-            } else if is_fk_violation(&e) {
-                Error::ForeignKeyViolation { source: e }
-            } else {
-                Error::SqlxError { source: e }
-            }
-        })?;
-
-        Ok(rec.into())
+        let executor = self.inner.get_mut();
+        create_parquet_file(executor, parquet_file_params).await
     }
 
     async fn flag_for_delete(&mut self, id: ParquetFileId) -> Result<()> {
         let marked_at = Timestamp::from(self.time_provider.now());
+        let executor = self.inner.get_mut();
 
-        let _ = sqlx::query(r#"UPDATE parquet_file SET to_delete = $1 WHERE id = $2;"#)
-            .bind(marked_at) // $1
-            .bind(id) // $2
-            .execute(self.inner.get_mut())
-            .await
-            .map_err(|e| Error::SqlxError { source: e })?;
-
-        Ok(())
+        flag_for_delete(executor, id, marked_at).await
     }
 
     async fn flag_for_delete_by_retention(&mut self) -> Result<Vec<ParquetFileId>> {
@@ -1401,25 +1266,8 @@ WHERE parquet_file.partition_id = $1
         parquet_file_ids: &[ParquetFileId],
         compaction_level: CompactionLevel,
     ) -> Result<Vec<ParquetFileId>> {
-        // If I try to do `.bind(parquet_file_ids)` directly, I get a compile error from sqlx.
-        // See https://github.com/launchbadge/sqlx/issues/1744
-        let ids: Vec<_> = parquet_file_ids.iter().map(|p| p.get()).collect();
-        let updated = sqlx::query(
-            r#"
-UPDATE parquet_file
-SET compaction_level = $1
-WHERE id IN (SELECT value FROM json_each($2))
-RETURNING id;
-        "#,
-        )
-        .bind(compaction_level) // $1
-        .bind(Json(&ids[..])) // $2
-        .fetch_all(self.inner.get_mut())
-        .await
-        .map_err(|e| Error::SqlxError { source: e })?;
-
-        let updated = updated.into_iter().map(|row| row.get("id")).collect();
-        Ok(updated)
+        let executor = self.inner.get_mut();
+        update_compaction_level(executor, parquet_file_ids, compaction_level).await
     }
 
     async fn exist(&mut self, id: ParquetFileId) -> Result<bool> {
@@ -1469,6 +1317,165 @@ WHERE object_store_id = $1;
 
         Ok(Some(parquet_file.into()))
     }
+
+    async fn create_upgrade_delete(
+        &mut self,
+        _partition_id: PartitionId,
+        delete: &[ParquetFile],
+        upgrade: &[ParquetFile],
+        create: &[ParquetFileParams],
+        target_level: CompactionLevel,
+    ) -> Result<Vec<ParquetFileId>> {
+        let mut delete_set = HashSet::new();
+        let mut upgrade_set = HashSet::new();
+        for d in delete {
+            delete_set.insert(d.id.get());
+        }
+        for u in upgrade {
+            upgrade_set.insert(u.id.get());
+        }
+
+        assert!(
+            delete_set.is_disjoint(&upgrade_set),
+            "attempted to upgrade a file scheduled for delete"
+        );
+        let mut tx = self
+            .inner
+            .get_mut()
+            .pool
+            .begin()
+            .await
+            .map_err(|e| Error::StartTransaction { source: e })?;
+
+        let upgrade = upgrade.iter().map(|f| f.id).collect::<Vec<_>>();
+
+        for file in delete {
+            let marked_at = Timestamp::from(self.time_provider.now());
+            flag_for_delete(&mut tx, file.id, marked_at).await?;
+        }
+
+        update_compaction_level(&mut tx, &upgrade, target_level).await?;
+
+        let mut ids = Vec::with_capacity(create.len());
+        for file in create {
+            let res = create_parquet_file(&mut tx, file.clone()).await?;
+            ids.push(res.id);
+        }
+        tx.commit()
+            .await
+            .map_err(|e| Error::FailedToCommit { source: e })?;
+
+        Ok(ids)
+    }
+}
+
+// The following three functions are helpers to the create_upgrade_delete method.
+// They are also used by the respective create/flag_for_delete/update_compaction_level methods.
+async fn create_parquet_file<'q, E>(
+    executor: E,
+    parquet_file_params: ParquetFileParams,
+) -> Result<ParquetFile>
+where
+    E: Executor<'q, Database = Sqlite>,
+{
+    let ParquetFileParams {
+        namespace_id,
+        table_id,
+        partition_id,
+        object_store_id,
+        min_time,
+        max_time,
+        file_size_bytes,
+        row_count,
+        compaction_level,
+        created_at,
+        column_set,
+        max_l0_created_at,
+    } = parquet_file_params;
+
+    let query = sqlx::query_as::<_, ParquetFilePod>(
+        r#"
+INSERT INTO parquet_file (
+    shard_id, table_id, partition_id, object_store_id,
+    min_time, max_time, file_size_bytes,
+    row_count, compaction_level, created_at, namespace_id, column_set, max_l0_created_at )
+VALUES ( $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13 )
+RETURNING
+    id, table_id, partition_id, object_store_id,
+    min_time, max_time, to_delete, file_size_bytes,
+    row_count, compaction_level, created_at, namespace_id, column_set, max_l0_created_at;
+        "#,
+    )
+    .bind(TRANSITION_SHARD_ID) // $1
+    .bind(table_id) // $2
+    .bind(partition_id) // $3
+    .bind(object_store_id) // $4
+    .bind(min_time) // $5
+    .bind(max_time) // $6
+    .bind(file_size_bytes) // $7
+    .bind(row_count) // $8
+    .bind(compaction_level) // $9
+    .bind(created_at) // $10
+    .bind(namespace_id) // $11
+    .bind(from_column_set(&column_set)) // $12
+    .bind(max_l0_created_at); // $13
+    let rec = query.fetch_one(executor).await.map_err(|e| {
+        if is_unique_violation(&e) {
+            Error::FileExists { object_store_id }
+        } else if is_fk_violation(&e) {
+            Error::ForeignKeyViolation { source: e }
+        } else {
+            Error::SqlxError { source: e }
+        }
+    })?;
+
+    Ok(rec.into())
+}
+
+async fn flag_for_delete<'q, E>(executor: E, id: ParquetFileId, marked_at: Timestamp) -> Result<()>
+where
+    E: Executor<'q, Database = Sqlite>,
+{
+    let query = sqlx::query(r#"UPDATE parquet_file SET to_delete = $1 WHERE id = $2;"#)
+        .bind(marked_at) // $1
+        .bind(id); // $2
+
+    query
+        .execute(executor)
+        .await
+        .map_err(|e| Error::SqlxError { source: e })?;
+
+    Ok(())
+}
+
+async fn update_compaction_level<'q, E>(
+    executor: E,
+    parquet_file_ids: &[ParquetFileId],
+    compaction_level: CompactionLevel,
+) -> Result<Vec<ParquetFileId>>
+where
+    E: Executor<'q, Database = Sqlite>,
+{
+    // If I try to do `.bind(parquet_file_ids)` directly, I get a compile error from sqlx.
+    // See https://github.com/launchbadge/sqlx/issues/1744
+    let ids: Vec<_> = parquet_file_ids.iter().map(|p| p.get()).collect();
+    let query = sqlx::query(
+        r#"
+UPDATE parquet_file
+SET compaction_level = $1
+WHERE id IN (SELECT value FROM json_each($2))
+RETURNING id;
+        "#,
+    )
+    .bind(compaction_level) // $1
+    .bind(Json(&ids[..])); // $2
+    let updated = query
+        .fetch_all(executor)
+        .await
+        .map_err(|e| Error::SqlxError { source: e })?;
+
+    let updated = updated.into_iter().map(|row| row.get("id")).collect();
+    Ok(updated)
 }
 
 /// The error code returned by SQLite for a unique constraint violation.
