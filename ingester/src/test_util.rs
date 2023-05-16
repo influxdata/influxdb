@@ -2,7 +2,7 @@ use std::{collections::BTreeMap, sync::Arc, time::Duration};
 
 use data_types::{NamespaceId, Partition, PartitionId, PartitionKey, SequenceNumber, TableId};
 use dml::{DmlMeta, DmlWrite};
-use iox_catalog::interface::Catalog;
+use iox_catalog::{interface::Catalog, test_helpers::arbitrary_namespace};
 use lazy_static::lazy_static;
 use mutable_batch_lp::lines_to_batches;
 use schema::Projection;
@@ -298,13 +298,7 @@ pub(crate) async fn populate_catalog(
     table: &str,
 ) -> (NamespaceId, TableId) {
     let mut c = catalog.repositories().await;
-    let namespace_name = data_types::NamespaceName::new(namespace).unwrap();
-    let ns_id = c
-        .namespaces()
-        .create(&namespace_name, None)
-        .await
-        .unwrap()
-        .id;
+    let ns_id = arbitrary_namespace(&mut *c, namespace).await.id;
     let table_id = c.tables().create_or_get(table, ns_id).await.unwrap().id;
 
     (ns_id, table_id)

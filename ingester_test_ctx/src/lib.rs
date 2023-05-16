@@ -17,8 +17,7 @@ use std::{collections::HashMap, sync::Arc, time::Duration};
 use arrow::record_batch::RecordBatch;
 use arrow_flight::{decode::FlightRecordBatchStream, flight_service_server::FlightService, Ticket};
 use data_types::{
-    Namespace, NamespaceId, NamespaceName, NamespaceSchema, ParquetFile, PartitionKey,
-    SequenceNumber, TableId,
+    Namespace, NamespaceId, NamespaceSchema, ParquetFile, PartitionKey, SequenceNumber, TableId,
 };
 use dml::{DmlMeta, DmlWrite};
 use futures::{stream::FuturesUnordered, FutureExt, StreamExt, TryStreamExt};
@@ -29,6 +28,7 @@ use ingester::{IngesterGuard, IngesterRpcInterface};
 use ingester_query_grpc::influxdata::iox::ingester::v1::IngesterQueryRequest;
 use iox_catalog::{
     interface::{Catalog, SoftDeletedRows},
+    test_helpers::arbitrary_namespace,
     validate_or_insert_schema,
 };
 use iox_time::TimeProvider;
@@ -203,14 +203,8 @@ where
         name: &str,
         retention_period_ns: Option<i64>,
     ) -> Namespace {
-        let ns = self
-            .catalog
-            .repositories()
-            .await
-            .namespaces()
-            .create(&NamespaceName::new(name).unwrap(), None)
-            .await
-            .expect("failed to create test namespace");
+        let mut repos = self.catalog.repositories().await;
+        let ns = arbitrary_namespace(&mut *repos, name).await;
 
         assert!(
             self.namespaces
