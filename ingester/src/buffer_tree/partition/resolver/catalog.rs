@@ -99,6 +99,7 @@ mod tests {
     use std::{sync::Arc, time::Duration};
 
     use assert_matches::assert_matches;
+    use iox_catalog::test_helpers::{arbitrary_namespace, arbitrary_table};
 
     use super::*;
 
@@ -114,18 +115,10 @@ mod tests {
 
         let (namespace_id, table_id) = {
             let mut repos = catalog.repositories().await;
-            let table_ns_name = data_types::NamespaceName::new(TABLE_NAME).unwrap();
-            let ns = repos
-                .namespaces()
-                .create(&table_ns_name, None)
-                .await
-                .unwrap();
+            let ns = arbitrary_namespace(&mut *repos, NAMESPACE_NAME).await;
 
-            let table = repos
-                .tables()
-                .create_or_get(TABLE_NAME, ns.id)
-                .await
-                .unwrap();
+            let table = arbitrary_table(&mut *repos, TABLE_NAME, &ns)
+                .await;
 
             (ns.id, table.id)
         };

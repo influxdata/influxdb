@@ -209,7 +209,9 @@ mod tests {
 
     use assert_matches::assert_matches;
     use async_trait::async_trait;
-    use data_types::{NamespaceId, PartitionId, TableId};
+    use data_types::{
+        ColumnId, ColumnSet, NamespaceId, ParquetFileParams, PartitionId, TableId, Timestamp,
+    };
     use futures::{task::Context, Future, FutureExt};
     use metric::{assert_counter, U64Gauge};
     use parking_lot::Mutex;
@@ -262,9 +264,20 @@ mod tests {
         T: IntoIterator<Item = i64>,
     {
         Arc::new(CompletedPersist::new(
-            NamespaceId::new(1),
-            TableId::new(2),
-            PartitionId::new(3),
+            ParquetFileParams {
+                namespace_id: NamespaceId::new(1),
+                table_id: TableId::new(2),
+                partition_id: PartitionId::new(3),
+                object_store_id: Default::default(),
+                min_time: Timestamp::new(42),
+                max_time: Timestamp::new(42),
+                file_size_bytes: 42424242,
+                row_count: 24,
+                compaction_level: data_types::CompactionLevel::Initial,
+                created_at: Timestamp::new(1234),
+                column_set: ColumnSet::new([1, 2, 3, 4].into_iter().map(ColumnId::new)),
+                max_l0_created_at: Timestamp::new(42),
+            },
             new_set(vals),
         ))
     }

@@ -17,11 +17,11 @@ license.workspace = true
 ### BEGIN HAKARI SECTION
 [dependencies]
 ahash = { version = "0.8", default-features = false, features = ["runtime-rng"] }
-arrow = { version = "38", features = ["dyn_cmp_dict", "prettyprint"] }
-arrow-array = { version = "38", default-features = false, features = ["chrono-tz"] }
-arrow-flight = { version = "38", features = ["flight-sql-experimental"] }
-arrow-ord = { version = "38", default-features = false, features = ["dyn_cmp_dict"] }
-arrow-string = { version = "38", default-features = false, features = ["dyn_cmp_dict"] }
+arrow = { version = "39", features = ["dyn_cmp_dict", "prettyprint"] }
+arrow-array = { version = "39", default-features = false, features = ["chrono-tz"] }
+arrow-flight = { version = "39", features = ["flight-sql-experimental"] }
+arrow-ord = { version = "39", default-features = false, features = ["dyn_cmp_dict"] }
+arrow-string = { version = "39", default-features = false, features = ["dyn_cmp_dict"] }
 base64-594e8ee84c453af0 = { package = "base64", version = "0.13" }
 base64-647d43efb71741da = { package = "base64", version = "0.21" }
 bitflags = { version = "1" }
@@ -30,9 +30,9 @@ bytes = { version = "1" }
 chrono = { version = "0.4", default-features = false, features = ["alloc", "clock", "serde"] }
 crossbeam-utils = { version = "0.8" }
 crypto-common = { version = "0.1", default-features = false, features = ["std"] }
-datafusion = { git = "https://github.com/apache/arrow-datafusion.git", rev = "496fc399de700ae14fab436fdff8711cd3132436" }
-datafusion-optimizer = { git = "https://github.com/apache/arrow-datafusion.git", rev = "496fc399de700ae14fab436fdff8711cd3132436", default-features = false, features = ["crypto_expressions", "regex_expressions", "unicode_expressions"] }
-datafusion-physical-expr = { git = "https://github.com/apache/arrow-datafusion.git", rev = "496fc399de700ae14fab436fdff8711cd3132436", default-features = false, features = ["crypto_expressions", "regex_expressions", "unicode_expressions"] }
+datafusion = { git = "https://github.com/apache/arrow-datafusion.git", rev = "e6d7e46dedbe5046e4606bfd3d7a1199dd0aaae2" }
+datafusion-optimizer = { git = "https://github.com/apache/arrow-datafusion.git", rev = "e6d7e46dedbe5046e4606bfd3d7a1199dd0aaae2", default-features = false, features = ["crypto_expressions", "regex_expressions", "unicode_expressions"] }
+datafusion-physical-expr = { git = "https://github.com/apache/arrow-datafusion.git", rev = "e6d7e46dedbe5046e4606bfd3d7a1199dd0aaae2", default-features = false, features = ["crypto_expressions", "regex_expressions", "unicode_expressions"] }
 digest = { version = "0.10", features = ["mac", "std"] }
 either = { version = "1" }
 fixedbitset = { version = "0.4" }
@@ -61,7 +61,7 @@ num-traits = { version = "0.2", features = ["i128", "libm"] }
 object_store = { version = "0.5", default-features = false, features = ["aws", "azure", "gcp"] }
 once_cell = { version = "1", features = ["parking_lot"] }
 parking_lot = { version = "0.12", features = ["arc_lock"] }
-parquet = { version = "38", features = ["experimental", "object_store"] }
+parquet = { version = "39", features = ["experimental", "object_store"] }
 petgraph = { version = "0.6" }
 phf_shared = { version = "0.11" }
 predicates = { version = "3" }
@@ -71,8 +71,7 @@ prost-types = { version = "0.11" }
 rand = { version = "0.8", features = ["small_rng"] }
 rand_core = { version = "0.6", default-features = false, features = ["std"] }
 regex = { version = "1" }
-regex-syntax-3b31131e45eafb45 = { package = "regex-syntax", version = "0.6" }
-regex-syntax-ca01ad9e24f5d932 = { package = "regex-syntax", version = "0.7" }
+regex-syntax = { version = "0.7" }
 reqwest = { version = "0.11", default-features = false, features = ["json", "rustls-tls", "stream"] }
 ring = { version = "0.16", features = ["std"] }
 serde = { version = "1", features = ["derive", "rc"] }
@@ -139,7 +138,7 @@ prost-types = { version = "0.11" }
 rand = { version = "0.8", features = ["small_rng"] }
 rand_core = { version = "0.6", default-features = false, features = ["std"] }
 regex = { version = "1" }
-regex-syntax-ca01ad9e24f5d932 = { package = "regex-syntax", version = "0.7" }
+regex-syntax = { version = "0.7" }
 ring = { version = "0.16", features = ["std"] }
 serde = { version = "1", features = ["derive", "rc"] }
 serde_json = { version = "1", features = ["raw_value"] }

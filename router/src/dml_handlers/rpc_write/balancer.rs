@@ -36,7 +36,7 @@ const METRIC_EVAL_INTERVAL: Duration = Duration::from_secs(3);
 /// threads) an approximately uniform distribution is achieved.
 #[derive(Debug)]
 pub(super) struct Balancer<T, C = CircuitBreaker> {
-    endpoints: Arc<[CircuitBreakingClient<T, C>]>,
+    endpoints: Arc<[Arc<CircuitBreakingClient<T, C>>]>,
 
     /// An optional metric exporter task that evaluates the state of this
     /// [`Balancer`] every [`METRIC_EVAL_INTERVAL`].
@@ -54,7 +54,7 @@ where
         endpoints: impl IntoIterator<Item = CircuitBreakingClient<T, C>>,
         metrics: Option<&metric::Registry>,
     ) -> Self {
-        let endpoints = endpoints.into_iter().collect();
+        let endpoints = endpoints.into_iter().map(Arc::new).collect();
         Self {
             metric_task: metrics.map(|m| tokio::spawn(metric_task(m, Arc::clone(&endpoints)))),
             endpoints,
@@ -73,7 +73,7 @@ where
     /// evaluated at this point and the result is returned to the caller as an
     /// infinite / cycling iterator. A node that becomes unavailable after the
     /// snapshot was taken will continue to be returned by the iterator.
-    pub(super) fn endpoints(&self) -> Option<UpstreamSnapshot<'_, CircuitBreakingClient<T, C>>> {
+    pub(super) fn endpoints(&self) -> Option<UpstreamSnapshot<Arc<CircuitBreakingClient<T, C>>>> {
         // Grab and increment the current counter.
         let counter = COUNTER.with(|cell| {
             let mut cell = cell.borrow_mut();
@@ -96,7 +96,7 @@ where
         let mut healthy = Vec::with_capacity(self.endpoints.len());
         for e in &*self.endpoints {
             if e.is_healthy() {
-                healthy.push(e);
+                healthy.push(Arc::clone(e));
                 continue;
             }
 
@@ -104,7 +104,7 @@ where
             // probe request - therefore it is added to the front of the
             // iter/request queue.
             if probe.is_none() && e.should_probe() {
-                probe = Some(e);
+                probe = Some(Arc::clone(e));
             }
         }
 
@@ -128,7 +128,7 @@ where
 /// health evaluation future that updates it.
 fn metric_task<T, C>(
     metrics: &metric::Registry,
-    endpoints: Arc<[CircuitBreakingClient<T, C>]>,
+    endpoints: Arc<[Arc<CircuitBreakingClient<T, C>>]>,
 ) -> impl Future<Output = ()> + Send
 where
     T: Send + Sync + 'static,
@@ -144,7 +144,7 @@ where
 
 async fn metric_loop<T, C>(
     metric: metric::Metric<U64Gauge>,
-    endpoints: Arc<[CircuitBreakingClient<T, C>]>,
+    endpoints: Arc<[Arc<CircuitBreakingClient<T, C>>]>,
 ) where
     T: Send + Sync + 'static,
     C: CircuitBreakerState + 'static,

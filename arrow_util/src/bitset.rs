@@ -495,8 +495,8 @@ mod tests {
         mask.append_bits(bools.len(), &collected);
         let mask_buffer = mask.to_arrow();
 
-        assert_eq!(collected.as_slice(), buffer.as_slice());
-        assert_eq!(buffer.as_slice(), mask_buffer.into_inner().as_slice());
+        assert_eq!(collected.as_slice(), buffer.values());
+        assert_eq!(buffer.values(), mask_buffer.into_inner().as_slice());
     }
 
     #[test]

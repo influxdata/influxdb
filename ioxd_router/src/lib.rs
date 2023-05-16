@@ -4,7 +4,7 @@ use std::{
 };
 
 use async_trait::async_trait;
-use authz::{Authorizer, IoxAuthorizer};
+use authz::{Authorizer, AuthorizerInstrumentation, IoxAuthorizer};
 use clap_blocks::router::RouterConfig;
 use data_types::{DefaultPartitionTemplate, NamespaceName};
 use hashbrown::HashMap;
@@ -316,7 +316,9 @@ pub async fn create_router_server_type(
     ) {
         (true, Some(addr)) => {
             let authz = IoxAuthorizer::connect_lazy(addr.clone())
-                .map(|c| Arc::new(c) as Arc<dyn Authorizer>)
+                .map(|c| {
+                    Arc::new(AuthorizerInstrumentation::new(&metrics, c)) as Arc<dyn Authorizer>
+                })
                 .map_err(|source| Error::AuthzConfig {
                     source,
                     addr: addr.clone(),
@@ -382,7 +384,10 @@ where
 #[cfg(test)]
 mod tests {
     use data_types::ColumnType;
-    use iox_catalog::mem::MemCatalog;
+    use iox_catalog::{
+        mem::MemCatalog,
+        test_helpers::{arbitrary_namespace, arbitrary_table},
+    };
 
     use super::*;
 
@@ -391,17 +396,9 @@ mod tests {
         let catalog = Arc::new(MemCatalog::new(Default::default()));
 
         let mut repos = catalog.repositories().await;
-        let namespace = repos
-            .namespaces()
-            .create(&NamespaceName::new("test_ns").unwrap(), None)
-            .await
-            .unwrap();
+        let namespace = arbitrary_namespace(&mut *repos, "test_ns").await;
 
-        let table = repos
-            .tables()
-            .create_or_get("name", namespace.id)
-            .await
-            .unwrap();
+        let table = arbitrary_table(&mut *repos, "name", &namespace).await;
         let _column = repos
             .columns()
             .create_or_get("name", table.id, ColumnType::U64)

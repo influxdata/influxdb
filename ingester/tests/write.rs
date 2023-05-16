@@ -1,11 +1,14 @@
 use arrow_util::assert_batches_sorted_eq;
 use assert_matches::assert_matches;
-use data_types::PartitionKey;
+use data_types::{PartitionKey, TableId, Timestamp};
 use ingester_query_grpc::influxdata::iox::ingester::v1::IngesterQueryRequest;
-use ingester_test_ctx::TestContextBuilder;
+use ingester_test_ctx::{TestContextBuilder, DEFAULT_MAX_PERSIST_QUEUE_DEPTH};
 use iox_catalog::interface::Catalog;
-use metric::{DurationHistogram, U64Histogram};
-use std::sync::Arc;
+use metric::{
+    assert_counter, assert_histogram, DurationHistogram, U64Counter, U64Gauge, U64Histogram,
+};
+use parquet_file::ParquetFilePath;
+use std::{sync::Arc, time::Duration};
 
 // Write data to an ingester through the RPC interface and query the data, validating the contents.
 #[tokio::test]
@@ -87,6 +90,161 @@ async fn write_query() {
         .fetch();
     assert_eq!(hist.sample_count(), 1);
     assert_eq!(hist.total, 2);
+}
+
+// Write data to an ingester through the RPC interface and persist the data.
+#[tokio::test]
+async fn write_persist() {
+    let namespace_name = "write_query_test_namespace";
+    let mut ctx = TestContextBuilder::default().build().await;
+    let ns = ctx.ensure_namespace(namespace_name, None).await;
+
+    let partition_key = PartitionKey::from("1970-01-01");
+    ctx.write_lp(
+        namespace_name,
+        r#"bananas count=42,greatness="inf" 200"#,
+        partition_key.clone(),
+        42,
+    )
+    .await;
+
+    // Perform a query to validate the actual data buffered.
+    let table_id = ctx.table_id(namespace_name, "bananas").await.get();
+    let data: Vec<_> = ctx
+        .query(IngesterQueryRequest {
+            namespace_id: ns.id.get(),
+            table_id,
+            columns: vec![],
+            predicate: None,
+        })
+        .await
+        .expect("query request failed");
+
+    let expected = vec![
+        "+-------+-----------+--------------------------------+",
+        "| count | greatness | time                           |",
+        "+-------+-----------+--------------------------------+",
+        "| 42.0  | inf       | 1970-01-01T00:00:00.000000200Z |",
+        "+-------+-----------+--------------------------------+",
+    ];
+    assert_batches_sorted_eq!(&expected, &data);
+
+    // Persist the data.
+    ctx.persist(namespace_name).await;
+
+    // Ensure the data is no longer buffered.
+    let data: Vec<_> = ctx
+        .query(IngesterQueryRequest {
+            namespace_id: ns.id.get(),
+            table_id,
+            columns: vec![],
+            predicate: None,
+        })
+        .await
+        .expect("query request failed");
+    assert!(data.is_empty());
+
+    // Validate the parquet file was added to the catalog
+    let parquet_files = ctx.catalog_parquet_file_records(namespace_name).await;
+    let (path, want_file_size) = assert_matches!(parquet_files.as_slice(), [f] => {
+        assert_eq!(f.namespace_id, ns.id);
+        assert_eq!(f.table_id, TableId::new(table_id));
+        assert_eq!(f.min_time, Timestamp::new(200));
+        assert_eq!(f.max_time, Timestamp::new(200));
+        assert_eq!(f.to_delete, None);
+        assert_eq!(f.row_count, 1);
+        assert_eq!(f.column_set.len(), 3);
+        assert_eq!(f.max_l0_created_at, f.created_at);
+
+        (ParquetFilePath::from(f), f.file_size_bytes)
+    });
+
+    // Validate the file exists at the expected object store path.
+    let file_size = ctx
+        .object_store()
+        .get(&path.object_store_path())
+        .await
+        .expect("parquet file must exist in object store")
+        .bytes()
+        .await
+        .expect("failed to read parquet file bytes")
+        .len();
+    assert_eq!(file_size, want_file_size as usize);
+
+    // And that the persist metrics were recorded.
+    let metrics = ctx.metrics();
+
+    ////////////////////////////////////////////////////////////////////////////
+    // Config reflection metrics
+    assert_counter!(
+        metrics,
+        U64Gauge,
+        "ingester_persist_max_parallelism",
+        value = 5,
+    );
+
+    assert_counter!(
+        metrics,
+        U64Gauge,
+        "ingester_persist_max_queue_depth",
+        value = DEFAULT_MAX_PERSIST_QUEUE_DEPTH as u64,
+    );
+
+    ////////////////////////////////////////////////////////////////////////////
+    // Persist worker metrics
+    assert_histogram!(
+        metrics,
+        DurationHistogram,
+        "ingester_persist_active_duration",
+        samples = 1,
+    );
+
+    assert_histogram!(
+        metrics,
+        DurationHistogram,
+        "ingester_persist_enqueue_duration",
+        samples = 1,
+    );
+
+    assert_counter!(
+        metrics,
+        U64Counter,
+        "ingester_persist_enqueued_jobs",
+        value = 1,
+    );
+
+    ////////////////////////////////////////////////////////////////////////////
+    // Parquet file metrics
+    assert_histogram!(
+        metrics,
+        DurationHistogram,
+        "ingester_persist_parquet_file_time_range",
+        samples = 1,
+        sum = Duration::from_secs(0),
+    );
+
+    assert_histogram!(
+        metrics,
+        U64Histogram,
+        "ingester_persist_parquet_file_size_bytes",
+        samples = 1,
+    );
+
+    assert_histogram!(
+        metrics,
+        U64Histogram,
+        "ingester_persist_parquet_file_row_count",
+        samples = 1,
+        sum = 1,
+    );
+
+    assert_histogram!(
+        metrics,
+        U64Histogram,
+        "ingester_persist_parquet_file_column_count",
+        samples = 1,
+        sum = 3,
+    );
 }
 
 // Write data to the ingester, which writes it to the WAL, then drop and recreate the WAL and

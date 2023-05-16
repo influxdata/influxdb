@@ -114,6 +114,9 @@ pub enum Error {
     #[snafu(display("no transaction provided"))]
     NoTransaction,
 
+    #[snafu(display("transaction failed to commit: {}", source))]
+    FailedToCommit { source: sqlx::Error },
+
     #[snafu(display("error while converting usize {} to i64", value))]
     InvalidValue { value: usize },
 
@@ -194,14 +197,6 @@ pub trait Catalog: Send + Sync + Debug + Display {
     /// Setup catalog for usage and apply possible migrations.
     async fn setup(&self) -> Result<(), Error>;
 
-    /// Creates a new [`Transaction`].
-    ///
-    /// Creating transactions is potentially expensive. Holding one consumes resources. The number
-    /// of parallel active transactions might be limited per catalog, so you MUST NOT rely on the
-    /// ability to create multiple transactions in parallel for correctness. Parallel transactions
-    /// must only be used for scaling.
-    async fn start_transaction(&self) -> Result<Box<dyn Transaction>, Error>;
-
     /// Accesses the repositories without a transaction scope.
     async fn repositories(&self) -> Box<dyn RepoCollection>;
 
@@ -211,68 +206,6 @@ pub trait Catalog: Send + Sync + Debug + Display {
     /// Gets the time provider associated with this catalog.
     fn time_provider(&self) -> Arc<dyn TimeProvider>;
 }
-
-/// Secret module for [sealed traits].
-///
-/// [sealed traits]: https://rust-lang.github.io/api-guidelines/future-proofing.html#sealed-traits-protect-against-downstream-implementations-c-sealed
-#[doc(hidden)]
-pub(crate) mod sealed {
-    use super::*;
-
-    /// Helper trait to implement commit and abort of an transaction.
-    ///
-    /// The problem is that both methods cannot take `self` directly, otherwise the [`Transaction`]
-    /// would not be object safe. Therefore we can only take a reference. To avoid that a user uses
-    /// a transaction after calling one of the finalizers, we use a tiny trick and take `Box<dyn
-    /// Transaction>` in our public interface and use a sealed trait for the actual implementation.
-    #[async_trait]
-    pub trait TransactionFinalize: Send + Sync + Debug {
-        async fn commit_inplace(&mut self) -> Result<(), Error>;
-        async fn abort_inplace(&mut self) -> Result<(), Error>;
-    }
-}
-
-/// Transaction in a [`Catalog`] (similar to a database transaction).
-///
-/// A transaction provides a consistent view on data and stages writes.
-/// To finalize a transaction, call [commit](Self::commit) or [abort](Self::abort).
-///
-/// Repositories can cheaply be borrowed from it.
-///
-/// Note that after any method in this transaction (including all repositories derived from it)
-/// returns an error, the transaction MIGHT be poisoned and will return errors for all operations,
-/// depending on the backend.
-///
-///
-/// # Drop
-///
-/// Dropping a transaction without calling [`commit`](Self::commit) or [`abort`](Self::abort) will
-/// abort the transaction. However resources might not be released immediately, so it is adviced to
-/// always call [`abort`](Self::abort) when you want to enforce that. Dropping w/o
-/// commiting/aborting will also log a warning.
-#[async_trait]
-pub trait Transaction: Send + Sync + Debug + sealed::TransactionFinalize + RepoCollection {
-    /// Commits a transaction.
-    ///
-    /// # Error Handling
-    ///
-    /// If successful, all changes will be visible to other transactions.
-    ///
-    /// If an error is returned, the transaction may or or not be committed. This might be due to
-    /// IO errors after the transaction was finished. However in either case, the transaction is
-    /// atomic and can only succeed or fail entirely.
-    async fn commit(mut self: Box<Self>) -> Result<(), Error> {
-        self.commit_inplace().await
-    }
-
-    /// Aborts the transaction, throwing away all changes.
-    async fn abort(mut self: Box<Self>) -> Result<(), Error> {
-        self.abort_inplace().await
-    }
-}
-
-impl<T> Transaction for T where T: Send + Sync + Debug + sealed::TransactionFinalize + RepoCollection
-{}
 
 /// Methods for working with the catalog's various repositories (collections of entities).
 ///
@@ -549,6 +482,16 @@ pub trait ParquetFileRepo: Send + Sync {
         &mut self,
         object_store_id: Uuid,
     ) -> Result<Option<ParquetFile>>;
+
+    /// Commit deletions, upgrades and creations in a single transaction.
+    async fn create_upgrade_delete(
+        &mut self,
+        _partition_id: PartitionId,
+        delete: &[ParquetFile],
+        upgrade: &[ParquetFile],
+        create: &[ParquetFileParams],
+        target_level: CompactionLevel,
+    ) -> Result<Vec<ParquetFileId>>;
 }
 
 /// Gets the namespace schema including all tables and columns.
@@ -736,10 +679,12 @@ pub async fn list_schemas(
 
 #[cfg(test)]
 pub(crate) mod test_helpers {
-    use crate::{validate_or_insert_schema, DEFAULT_MAX_COLUMNS_PER_TABLE, DEFAULT_MAX_TABLES};
+    use crate::{
+        test_helpers::{arbitrary_namespace, arbitrary_table},
+        validate_or_insert_schema, DEFAULT_MAX_COLUMNS_PER_TABLE, DEFAULT_MAX_TABLES,
+    };
 
     use super::*;
-    use ::test_helpers::{assert_contains, tracing::TracingCapture};
     use assert_matches::assert_matches;
     use data_types::{ColumnId, ColumnSet, CompactionLevel};
     use futures::Future;
@@ -760,8 +705,6 @@ pub(crate) mod test_helpers {
         test_parquet_file_delete_broken(clean_state().await).await;
         test_update_to_compaction_level_1(clean_state().await).await;
         test_list_by_partiton_not_to_delete(clean_state().await).await;
-        test_txn_isolation(clean_state().await).await;
-        test_txn_drop(clean_state().await).await;
         test_list_schemas(clean_state().await).await;
         test_list_schemas_soft_deleted_rows(clean_state().await).await;
         test_delete_namespace(clean_state().await).await;
@@ -846,12 +789,7 @@ pub(crate) mod test_helpers {
             .unwrap();
         assert!(not_found.is_none());
 
-        let namespace2_name = NamespaceName::new("test_namespace2").unwrap();
-        let namespace2 = repos
-            .namespaces()
-            .create(&namespace2_name, None)
-            .await
-            .unwrap();
+        let namespace2 = arbitrary_namespace(&mut *repos, "test_namespace2").await;
         let mut namespaces = repos
             .namespaces()
             .list(SoftDeletedRows::ExcludeDeleted)
@@ -894,13 +832,8 @@ pub(crate) mod test_helpers {
             .expect("namespace should be updateable");
         assert!(modified.retention_period_ns.is_none());
 
-        // create namespace with retention period NULL
-        let namespace3_name = NamespaceName::new("test_namespace3").unwrap();
-        let namespace3 = repos
-            .namespaces()
-            .create(&namespace3_name, None)
-            .await
-            .expect("namespace with NULL retention should be created");
+        // create namespace with retention period NULL (the default)
+        let namespace3 = arbitrary_namespace(&mut *repos, "test_namespace3").await;
         assert!(namespace3.retention_period_ns.is_none());
 
         // create namespace with retention period
@@ -954,16 +887,8 @@ pub(crate) mod test_helpers {
     async fn test_namespace_soft_deletion(catalog: Arc<dyn Catalog>) {
         let mut repos = catalog.repositories().await;
 
-        let deleted_ns = repos
-            .namespaces()
-            .create(&"deleted-ns".try_into().unwrap(), None)
-            .await
-            .unwrap();
-        let active_ns = repos
-            .namespaces()
-            .create(&"active-ns".try_into().unwrap(), None)
-            .await
-            .unwrap();
+        let deleted_ns = arbitrary_namespace(&mut *repos, "deleted-ns").await;
+        let active_ns = arbitrary_namespace(&mut *repos, "active-ns").await;
 
         // Mark "deleted-ns" as soft-deleted.
         repos.namespaces().soft_delete("deleted-ns").await.unwrap();
@@ -1117,23 +1042,11 @@ pub(crate) mod test_helpers {
 
     async fn test_table(catalog: Arc<dyn Catalog>) {
         let mut repos = catalog.repositories().await;
-        let namespace = repos
-            .namespaces()
-            .create(&NamespaceName::new("namespace_table_test").unwrap(), None)
-            .await
-            .unwrap();
+        let namespace = arbitrary_namespace(&mut *repos, "namespace_table_test").await;
 
         // test we can create or get a table
-        let t = repos
-            .tables()
-            .create_or_get("test_table", namespace.id)
-            .await
-            .unwrap();
-        let tt = repos
-            .tables()
-            .create_or_get("test_table", namespace.id)
-            .await
-            .unwrap();
+        let t = arbitrary_table(&mut *repos, "test_table", &namespace).await;
+        let tt = arbitrary_table(&mut *repos, "test_table", &namespace).await;
         assert!(t.id > TableId::new(0));
         assert_eq!(t, tt);
 
@@ -1154,26 +1067,14 @@ pub(crate) mod test_helpers {
         assert_eq!(vec![t.clone()], tables);
 
         // test we can create a table of the same name in a different namespace
-        let namespace2 = repos
-            .namespaces()
-            .create(&NamespaceName::new("two").unwrap(), None)
-            .await
-            .unwrap();
+        let namespace2 = arbitrary_namespace(&mut *repos, "two").await;
         assert_ne!(namespace, namespace2);
-        let test_table = repos
-            .tables()
-            .create_or_get("test_table", namespace2.id)
-            .await
-            .unwrap();
+        let test_table = arbitrary_table(&mut *repos, "test_table", &namespace2).await;
         assert_ne!(tt, test_table);
         assert_eq!(test_table.namespace_id, namespace2.id);
 
         // test get by namespace and name
-        let foo_table = repos
-            .tables()
-            .create_or_get("foo", namespace2.id)
-            .await
-            .unwrap();
+        let foo_table = arbitrary_table(&mut *repos, "foo", &namespace2).await;
         assert_eq!(
             repos
                 .tables()
@@ -1254,16 +1155,8 @@ pub(crate) mod test_helpers {
 
     async fn test_column(catalog: Arc<dyn Catalog>) {
         let mut repos = catalog.repositories().await;
-        let namespace = repos
-            .namespaces()
-            .create(&NamespaceName::new("namespace_column_test").unwrap(), None)
-            .await
-            .unwrap();
-        let table = repos
-            .tables()
-            .create_or_get("test_table", namespace.id)
-            .await
-            .unwrap();
+        let namespace = arbitrary_namespace(&mut *repos, "namespace_column_test").await;
+        let table = arbitrary_table(&mut *repos, "test_table", &namespace).await;
         assert_eq!(table.namespace_id, namespace.id);
 
         // test we can create or get a column
@@ -1290,11 +1183,7 @@ pub(crate) mod test_helpers {
         assert!(matches!(err, Error::ColumnTypeMismatch { .. }));
 
         // test that we can create a column of the same name under a different table
-        let table2 = repos
-            .tables()
-            .create_or_get("test_table_2", namespace.id)
-            .await
-            .unwrap();
+        let table2 = arbitrary_table(&mut *repos, "test_table_2", &namespace).await;
         let ccc = repos
             .columns()
             .create_or_get("column_test", table2.id, ColumnType::U64)
@@ -1361,11 +1250,7 @@ pub(crate) mod test_helpers {
         ));
 
         // test per-namespace column limits are NOT enforced with create_or_get_many_unchecked
-        let table3 = repos
-            .tables()
-            .create_or_get("test_table_3", namespace.id)
-            .await
-            .unwrap();
+        let table3 = arbitrary_table(&mut *repos, "test_table_3", &namespace).await;
         let mut columns = HashMap::new();
         columns.insert("apples", ColumnType::Tag);
         columns.insert("oranges", ColumnType::Tag);
@@ -1387,19 +1272,8 @@ pub(crate) mod test_helpers {
 
     async fn test_partition(catalog: Arc<dyn Catalog>) {
         let mut repos = catalog.repositories().await;
-        let namespace = repos
-            .namespaces()
-            .create(
-                &NamespaceName::new("namespace_partition_test").unwrap(),
-                None,
-            )
-            .await
-            .unwrap();
-        let table = repos
-            .tables()
-            .create_or_get("test_table", namespace.id)
-            .await
-            .unwrap();
+        let namespace = arbitrary_namespace(&mut *repos, "namespace_partition_test").await;
+        let table = arbitrary_table(&mut *repos, "test_table", &namespace).await;
 
         let mut created = BTreeMap::new();
         for key in ["foo", "bar"] {
@@ -1672,24 +1546,9 @@ pub(crate) mod test_helpers {
     /// tests many interactions with the catalog and parquet files. See the individual conditions herein
     async fn test_parquet_file(catalog: Arc<dyn Catalog>) {
         let mut repos = catalog.repositories().await;
-        let namespace = repos
-            .namespaces()
-            .create(
-                &NamespaceName::new("namespace_parquet_file_test").unwrap(),
-                None,
-            )
-            .await
-            .unwrap();
-        let table = repos
-            .tables()
-            .create_or_get("test_table", namespace.id)
-            .await
-            .unwrap();
-        let other_table = repos
-            .tables()
-            .create_or_get("other", namespace.id)
-            .await
-            .unwrap();
+        let namespace = arbitrary_namespace(&mut *repos, "namespace_parquet_file_test").await;
+        let table = arbitrary_table(&mut *repos, "test_table", &namespace).await;
+        let other_table = arbitrary_table(&mut *repos, "other", &namespace).await;
         let partition = repos
             .partitions()
             .create_or_get("one".into(), table.id)
@@ -1860,19 +1719,8 @@ pub(crate) mod test_helpers {
         assert_eq!(files.len(), 1);
 
         // test list_by_namespace_not_to_delete
-        let namespace2 = repos
-            .namespaces()
-            .create(
-                &NamespaceName::new("namespace_parquet_file_test1").unwrap(),
-                None,
-            )
-            .await
-            .unwrap();
-        let table2 = repos
-            .tables()
-            .create_or_get("test_table2", namespace2.id)
-            .await
-            .unwrap();
+        let namespace2 = arbitrary_namespace(&mut *repos, "namespace_parquet_file_test1").await;
+        let table2 = arbitrary_table(&mut *repos, "test_table2", &namespace2).await;
         let partition2 = repos
             .partitions()
             .create_or_get("foo".into(), table2.id)
@@ -2082,30 +1930,90 @@ pub(crate) mod test_helpers {
             .await
             .unwrap();
         assert_eq!(ids.len(), 0); // none left
+
+        // test create_update_delete
+        let f6_params = ParquetFileParams {
+            object_store_id: Uuid::new_v4(),
+            ..f5_params
+        };
+        let f1_uuid = f1.object_store_id;
+        let f5_uuid = f5.object_store_id;
+        let cud = repos
+            .parquet_files()
+            .create_upgrade_delete(
+                f4.partition_id,
+                &[f5.clone()],
+                &[f1.clone()],
+                &[f6_params.clone()],
+                CompactionLevel::Final,
+            )
+            .await
+            .unwrap();
+
+        assert_eq!(cud.len(), 1);
+        let f5_delete = repos
+            .parquet_files()
+            .get_by_object_store_id(f5_uuid)
+            .await
+            .unwrap()
+            .unwrap();
+        assert_matches!(f5_delete.to_delete, Some(_));
+
+        let f1_compaction_level = repos
+            .parquet_files()
+            .get_by_object_store_id(f1_uuid)
+            .await
+            .unwrap()
+            .unwrap();
+        assert_matches!(f1_compaction_level.compaction_level, CompactionLevel::Final);
+
+        let f6 = repos
+            .parquet_files()
+            .get_by_object_store_id(f6_params.object_store_id)
+            .await
+            .unwrap()
+            .unwrap();
+
+        let f6_uuid = f6.object_store_id;
+
+        // test create_update_delete transaction (rollsback because f6 already exists)
+        let cud = repos
+            .parquet_files()
+            .create_upgrade_delete(
+                f4.partition_id,
+                &[f5],
+                &[f2],
+                &[f6_params.clone()],
+                CompactionLevel::Final,
+            )
+            .await;
+
+        assert_matches!(
+            cud,
+            Err(Error::FileExists {
+                object_store_id
+            }) if object_store_id == f6_params.object_store_id
+        );
+
+        let f6_not_delete = repos
+            .parquet_files()
+            .get_by_object_store_id(f6_uuid)
+            .await
+            .unwrap()
+            .unwrap();
+        assert_matches!(f6_not_delete.to_delete, None);
     }
 
     async fn test_parquet_file_delete_broken(catalog: Arc<dyn Catalog>) {
         let mut repos = catalog.repositories().await;
-        let namespace_1 = repos
-            .namespaces()
-            .create(&NamespaceName::new("retention_broken_1").unwrap(), None)
-            .await
-            .unwrap();
+        let namespace_1 = arbitrary_namespace(&mut *repos, "retention_broken_1").await;
         let namespace_2 = repos
             .namespaces()
             .create(&NamespaceName::new("retention_broken_2").unwrap(), Some(1))
             .await
             .unwrap();
-        let table_1 = repos
-            .tables()
-            .create_or_get("test_table", namespace_1.id)
-            .await
-            .unwrap();
-        let table_2 = repos
-            .tables()
-            .create_or_get("test_table", namespace_2.id)
-            .await
-            .unwrap();
+        let table_1 = arbitrary_table(&mut *repos, "test_table", &namespace_1).await;
+        let table_2 = arbitrary_table(&mut *repos, "test_table", &namespace_2).await;
         let partition_1 = repos
             .partitions()
             .create_or_get("one".into(), table_1.id)
@@ -2166,19 +2074,9 @@ pub(crate) mod test_helpers {
 
     async fn test_partitions_new_file_between(catalog: Arc<dyn Catalog>) {
         let mut repos = catalog.repositories().await;
-        let namespace = repos
-            .namespaces()
-            .create(
-                &NamespaceName::new("test_partitions_new_file_between").unwrap(),
-                None,
-            )
-            .await
-            .unwrap();
-        let table = repos
-            .tables()
-            .create_or_get("test_table_for_new_file_between", namespace.id)
-            .await
-            .unwrap();
+        let namespace = arbitrary_namespace(&mut *repos, "test_partitions_new_file_between").await;
+        let table =
+            arbitrary_table(&mut *repos, "test_table_for_new_file_between", &namespace).await;
 
         // param for the tests
         let time_now = Timestamp::from(catalog.time_provider().now());
@@ -2535,20 +2433,12 @@ pub(crate) mod test_helpers {
 
     async fn test_list_by_partiton_not_to_delete(catalog: Arc<dyn Catalog>) {
         let mut repos = catalog.repositories().await;
-        let namespace = repos
-            .namespaces()
-            .create(
-                &NamespaceName::new("namespace_parquet_file_test_list_by_partiton_not_to_delete")
-                    .unwrap(),
-                None,
-            )
-            .await
-            .unwrap();
-        let table = repos
-            .tables()
-            .create_or_get("test_table", namespace.id)
-            .await
-            .unwrap();
+        let namespace = arbitrary_namespace(
+            &mut *repos,
+            "namespace_parquet_file_test_list_by_partiton_not_to_delete",
+        )
+        .await;
+        let table = arbitrary_table(&mut *repos, "test_table", &namespace).await;
 
         let partition = repos
             .partitions()
@@ -2646,19 +2536,9 @@ pub(crate) mod test_helpers {
 
     async fn test_update_to_compaction_level_1(catalog: Arc<dyn Catalog>) {
         let mut repos = catalog.repositories().await;
-        let namespace = repos
-            .namespaces()
-            .create(
-                &NamespaceName::new("namespace_update_to_compaction_level_1_test").unwrap(),
-                None,
-            )
-            .await
-            .unwrap();
-        let table = repos
-            .tables()
-            .create_or_get("update_table", namespace.id)
-            .await
-            .unwrap();
+        let namespace =
+            arbitrary_namespace(&mut *repos, "namespace_update_to_compaction_level_1_test").await;
+        let table = arbitrary_table(&mut *repos, "update_table", &namespace).await;
         let partition = repos
             .partitions()
             .create_or_get("test_update_to_compaction_level_1_one".into(), table.id)
@@ -2735,19 +2615,9 @@ pub(crate) mod test_helpers {
     /// effective.
     async fn test_delete_namespace(catalog: Arc<dyn Catalog>) {
         let mut repos = catalog.repositories().await;
-        let namespace_1 = repos
-            .namespaces()
-            .create(
-                &NamespaceName::new("namespace_test_delete_namespace_1").unwrap(),
-                None,
-            )
-            .await
-            .unwrap();
-        let table_1 = repos
-            .tables()
-            .create_or_get("test_table_1", namespace_1.id)
-            .await
-            .unwrap();
+        let namespace_1 =
+            arbitrary_namespace(&mut *repos, "namespace_test_delete_namespace_1").await;
+        let table_1 = arbitrary_table(&mut *repos, "test_table_1", &namespace_1).await;
         let _c = repos
             .columns()
             .create_or_get("column_test_1", table_1.id, ColumnType::Tag)
@@ -2793,19 +2663,9 @@ pub(crate) mod test_helpers {
 
         // we've now created a namespace with a table and parquet files. before we test deleting
         // it, let's create another so we can ensure that doesn't get deleted.
-        let namespace_2 = repos
-            .namespaces()
-            .create(
-                &NamespaceName::new("namespace_test_delete_namespace_2").unwrap(),
-                None,
-            )
-            .await
-            .unwrap();
-        let table_2 = repos
-            .tables()
-            .create_or_get("test_table_2", namespace_2.id)
-            .await
-            .unwrap();
+        let namespace_2 =
+            arbitrary_namespace(&mut *repos, "namespace_test_delete_namespace_2").await;
+        let table_2 = arbitrary_table(&mut *repos, "test_table_2", &namespace_2).await;
         let _c = repos
             .columns()
             .create_or_get("column_test_2", table_2.id, ColumnType::Tag)
@@ -2972,73 +2832,6 @@ pub(crate) mod test_helpers {
             .exist(p2_n2.id)
             .await
             .expect("parquet file exists check should succeed"));
-    }
-
-    async fn test_txn_isolation(catalog: Arc<dyn Catalog>) {
-        let barrier = Arc::new(tokio::sync::Barrier::new(2));
-
-        let barrier_captured = Arc::clone(&barrier);
-        let catalog_captured = Arc::clone(&catalog);
-        let insertion_task = tokio::spawn(async move {
-            barrier_captured.wait().await;
-
-            let mut txn = catalog_captured.start_transaction().await.unwrap();
-            txn.namespaces()
-                .create(&NamespaceName::new("test_txn_isolation").unwrap(), None)
-                .await
-                .unwrap();
-
-            tokio::time::sleep(Duration::from_millis(200)).await;
-            txn.abort().await.unwrap();
-        });
-
-        let mut txn = catalog.start_transaction().await.unwrap();
-
-        barrier.wait().await;
-        tokio::time::sleep(Duration::from_millis(100)).await;
-
-        let namespace = txn
-            .namespaces()
-            .get_by_name("test_txn_isolation", SoftDeletedRows::AllRows)
-            .await
-            .unwrap();
-        assert!(namespace.is_none());
-        txn.abort().await.unwrap();
-
-        insertion_task.await.unwrap();
-
-        let mut txn = catalog.start_transaction().await.unwrap();
-        let namespace = txn
-            .namespaces()
-            .get_by_name("test_txn_isolation", SoftDeletedRows::AllRows)
-            .await
-            .unwrap();
-        assert!(namespace.is_none());
-        txn.abort().await.unwrap();
-    }
-
-    async fn test_txn_drop(catalog: Arc<dyn Catalog>) {
-        let capture = TracingCapture::new();
-        let mut txn = catalog.start_transaction().await.unwrap();
-        txn.namespaces()
-            .create(&NamespaceName::new("test_txn_drop").unwrap(), None)
-            .await
-            .unwrap();
-        drop(txn);
-
-        // got a warning
-        assert_contains!(capture.to_string(), "Dropping ");
-        assert_contains!(capture.to_string(), " w/o finalizing (commit or abort)");
-
-        // data is NOT committed
-        let mut txn = catalog.start_transaction().await.unwrap();
-        let namespace = txn
-            .namespaces()
-            .get_by_name("test_txn_drop", SoftDeletedRows::AllRows)
-            .await
-            .unwrap();
-        assert!(namespace.is_none());
-        txn.abort().await.unwrap();
     }
 
     /// Upsert a namespace called `namespace_name` and write `lines` to it.
