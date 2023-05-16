@@ -158,7 +158,7 @@ impl From<&DmlError> for StatusCode {
             )) => StatusCode::SERVICE_UNAVAILABLE,
             DmlError::RpcWrite(RpcWriteError::Timeout(_)) => StatusCode::GATEWAY_TIMEOUT,
             DmlError::RpcWrite(
-                RpcWriteError::NoUpstreams
+                RpcWriteError::NoHealthyUpstreams
                 | RpcWriteError::NotEnoughReplicas
                 | RpcWriteError::PartialWrite { .. },
             ) => StatusCode::SERVICE_UNAVAILABLE,
