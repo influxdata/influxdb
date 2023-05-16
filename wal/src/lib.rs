@@ -10,20 +10,6 @@
 //! # WAL
 //!
 //! This crate provides a local-disk WAL for the IOx ingestion pipeline.
-
-use crate::blocking::{
-    ClosedSegmentFileReader as RawClosedSegmentFileReader, OpenSegmentFileWriter,
-};
-use data_types::sequence_number_set::SequenceNumberSet;
-use generated_types::{
-    google::{FieldViolation, OptionalField},
-    influxdata::iox::wal::v1::{
-        sequenced_wal_op::Op as WalOp, SequencedWalOp as ProtoSequencedWalOp,
-    },
-};
-use observability_deps::tracing::info;
-use parking_lot::Mutex;
-use snafu::prelude::*;
 use std::{
     collections::BTreeMap,
     fs::File,
@@ -32,8 +18,26 @@ use std::{
     sync::{atomic::AtomicU64, Arc},
     time::Duration,
 };
+
+use data_types::{sequence_number_set::SequenceNumberSet, NamespaceId};
+use generated_types::{
+    google::{FieldViolation, OptionalField},
+    influxdata::iox::wal::v1::{
+        sequenced_wal_op::Op as WalOp, SequencedWalOp as ProtoSequencedWalOp,
+    },
+};
+use hashbrown::HashMap;
+use mutable_batch::MutableBatch;
+use mutable_batch_pb::decode::decode_database_batch;
+use observability_deps::tracing::info;
+use parking_lot::Mutex;
+use snafu::prelude::*;
 use tokio::{sync::watch, task::JoinHandle};
 use writer_thread::WriterIoThreadHandle;
+
+use crate::blocking::{
+    ClosedSegmentFileReader as RawClosedSegmentFileReader, OpenSegmentFileWriter,
+};
 
 pub mod blocking;
 mod writer_thread;
@@ -129,6 +133,19 @@ pub enum Error {
 
     UnableToCreateSegmentFile {
         source: blocking::WriterError,
+    },
+}
+
+/// Errors that occur when decoding internal types from a WAL file.
+#[derive(Debug, Snafu)]
+#[snafu(visibility(pub(crate)))]
+pub enum DecodeError {
+    UnableToCreateMutableBatch {
+        source: mutable_batch_pb::decode::Error,
+    },
+
+    FailedToReadWal {
+        source: Error,
     },
 }
 
@@ -554,6 +571,62 @@ impl std::fmt::Debug for ClosedSegmentFileReader {
     }
 }
 
+/// An in-memory representation of a WAL write operation entry.
+#[derive(Debug)]
+pub struct WriteOpEntry {
+    pub namespace: NamespaceId,
+    pub table_batches: HashMap<i64, MutableBatch>,
+}
+
+/// A decoder that reads from a closed segment file and parses write
+/// operations from their on-disk format to an internal format.
+#[derive(Debug)]
+pub struct WriteOpEntryDecoder {
+    reader: ClosedSegmentFileReader,
+}
+
+impl From<ClosedSegmentFileReader> for WriteOpEntryDecoder {
+    /// Creates a decoder which will use the closed segment file of `reader` to
+    /// decode write ops from their on-disk format.
+    fn from(reader: ClosedSegmentFileReader) -> Self {
+        Self { reader }
+    }
+}
+
+impl Iterator for WriteOpEntryDecoder {
+    type Item = Result<Vec<WriteOpEntry>, DecodeError>;
+
+    /// Reads a collection of write op entries in the next WAL entry batch from the
+    /// underlying closed segment. A returned Ok(None) indicates that there are no
+    /// more entries to be decoded from the underlying segment. A zero-length vector
+    /// may be returned if there are no writes in a WAL entry batch, but does not
+    /// indicate the decoder is consumed.
+    fn next(&mut self) -> Option<Self::Item> {
+        self.reader
+            .next_batch()
+            .context(FailedToReadWalSnafu)
+            .transpose()?
+            .map(|batch| {
+                batch
+                    .into_iter()
+                    .filter_map(|sequenced_op| match sequenced_op.op {
+                        WalOp::Write(w) => Some(w),
+                        WalOp::Delete(..) => None,
+                        WalOp::Persist(..) => None,
+                    })
+                    .map(|w| {
+                        Ok(WriteOpEntry {
+                            namespace: NamespaceId::new(w.database_id),
+                            table_batches: decode_database_batch(&w)
+                                .context(UnableToCreateMutableBatchSnafu)?,
+                        })
+                    })
+                    .collect::<Self::Item>()
+            })
+            .ok()
+    }
+}
+
 /// Metadata for a WAL segment that is no longer accepting writes, but can be read for replay
 /// purposes.
 #[derive(Debug, Clone)]
@@ -575,7 +648,9 @@ impl ClosedSegment {
 
 #[cfg(test)]
 mod tests {
-    use super::*;
+    use std::collections::BTreeSet;
+
+    use assert_matches::assert_matches;
     use data_types::{NamespaceId, SequenceNumber, TableId};
     use dml::DmlWrite;
     use generated_types::influxdata::{
@@ -583,6 +658,10 @@ mod tests {
         pbdata::v1::DatabaseBatch,
     };
     use mutable_batch_lp::lines_to_batches;
+
+    use super::*;
+
+    const TEST_NAMESPACE_ID: NamespaceId = NamespaceId::new(42);
 
     #[tokio::test]
     async fn wal_write_and_read_ops() {
@@ -681,6 +760,89 @@ mod tests {
         );
     }
 
+    #[tokio::test]
+    async fn decode_write_op_entries() {
+        let dir = test_helpers::tmp_dir().unwrap();
+        let wal = Wal::new(&dir.path()).await.unwrap();
+
+        let w1 = test_data("m1,t=foo v=1i 1");
+        let w2 = test_data("m2,u=foo w=2i 2");
+        let w3 = test_data("m1,t=foo v=3i 3");
+
+        let op1 = SequencedWalOp {
+            sequence_number: 0,
+            op: WalOp::Write(w1.to_owned()),
+        };
+        let op2 = SequencedWalOp {
+            sequence_number: 1,
+            op: WalOp::Write(w2.to_owned()),
+        };
+        let op3 = SequencedWalOp {
+            sequence_number: 2,
+            op: WalOp::Delete(test_delete()),
+        };
+        let op4 = SequencedWalOp {
+            sequence_number: 2,
+            op: WalOp::Persist(test_persist()),
+        };
+        // A third write entry coming after a delete and persist entry must still be yielded
+        let op5 = SequencedWalOp {
+            sequence_number: 3,
+            op: WalOp::Write(w3.to_owned()),
+        };
+
+        wal.write_op(op1.clone());
+        wal.write_op(op2.clone());
+        wal.write_op(op3.clone()).changed().await.unwrap();
+        wal.write_op(op4.clone());
+        wal.write_op(op5.clone()).changed().await.unwrap();
+
+        let (closed, _) = wal.rotate().unwrap();
+
+        let decoder = WriteOpEntryDecoder::from(
+            wal.reader_for_segment(closed.id)
+                .expect("failed to open reader for closed WAL segment"),
+        );
+
+        let wal_entries = decoder
+            .into_iter()
+            .map(|r| r.expect("unexpected bad entry"))
+            .collect::<Vec<_>>();
+        // The decoder should find 2 entries, with a total of 3 write ops
+        assert_eq!(wal_entries.len(), 2);
+        let write_op_entries = wal_entries.into_iter().flatten().collect::<Vec<_>>();
+        assert_eq!(write_op_entries.len(), 3);
+        assert_matches!(write_op_entries.get(0), Some(got_op1) => {
+            assert_op_shape(got_op1, &w1);
+        });
+        assert_matches!(write_op_entries.get(1), Some(got_op2) => {
+            assert_op_shape(got_op2, &w2);
+        });
+        assert_matches!(write_op_entries.get(2), Some(got_op3) => {
+            assert_op_shape(got_op3, &w3);
+        });
+    }
+
+    fn assert_op_shape(left: &WriteOpEntry, right: &DatabaseBatch) {
+        assert_eq!(left.namespace, NamespaceId::new(right.database_id));
+        assert_eq!(left.table_batches.len(), right.table_batches.len());
+        for right_tb in &right.table_batches {
+            let right_key = right_tb.table_id;
+            let left_mb = left
+                .table_batches
+                .get(&right_key)
+                .unwrap_or_else(|| panic!("left value missing table batch for key {right_key}"));
+            assert_eq!(
+                left_mb.column_names(),
+                right_tb
+                    .columns
+                    .iter()
+                    .map(|c| c.column_name.as_str())
+                    .collect::<BTreeSet<_>>()
+            )
+        }
+    }
+
     fn test_data(lp: &str) -> DatabaseBatch {
         let batches = lines_to_batches(lp, 0).unwrap();
         let batches = batches
@@ -690,7 +852,7 @@ mod tests {
             .collect();
 
         let write = DmlWrite::new(
-            NamespaceId::new(42),
+            TEST_NAMESPACE_ID,
             batches,
             "bananas".into(),
             Default::default(),
@@ -701,7 +863,7 @@ mod tests {
 
     fn test_delete() -> DeletePayload {
         DeletePayload {
-            database_id: 42,
+            database_id: TEST_NAMESPACE_ID.get(),
             predicate: None,
             table_name: "bananas".into(),
         }
@@ -709,7 +871,7 @@ mod tests {
 
     fn test_persist() -> PersistOp {
         PersistOp {
-            namespace_id: 42,
+            namespace_id: TEST_NAMESPACE_ID.get(),
             parquet_file_uuid: "b4N4N4Z".into(),
             partition_id: 43,
             table_id: 44,

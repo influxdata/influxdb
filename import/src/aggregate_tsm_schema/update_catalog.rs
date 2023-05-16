@@ -345,7 +345,10 @@ mod tests {
     use crate::{AggregateTSMField, AggregateTSMTag};
     use assert_matches::assert_matches;
     use data_types::{PartitionId, TableId};
-    use iox_catalog::mem::MemCatalog;
+    use iox_catalog::{
+        mem::MemCatalog,
+        test_helpers::{arbitrary_namespace, arbitrary_table},
+    };
     use std::collections::HashSet;
 
     #[tokio::test]
@@ -427,17 +430,8 @@ mod tests {
         {
             let mut txn = catalog.repositories().await;
             // create namespace, table and columns for weather measurement
-            let namespace = txn
-                .namespaces()
-                .create(&NamespaceName::new("1234_5678").unwrap(), None)
-                .await
-                .expect("namespace created");
-            let mut table = txn
-                .tables()
-                .create_or_get("weather", namespace.id)
-                .await
-                .map(|t| TableSchema::new_empty_from(&t))
-                .expect("table created");
+            let namespace = arbitrary_namespace(&mut *txn, "1234_5678").await;
+            let table = arbitrary_table(&mut *txn, "weather", &namespace).await;
             let time_col = txn
                 .columns()
                 .create_or_get("time", table.id, ColumnType::Time)
@@ -518,17 +512,8 @@ mod tests {
         {
             let mut txn = catalog.repositories().await;
             // create namespace, table and columns for weather measurement
-            let namespace = txn
-                .namespaces()
-                .create(&NamespaceName::new("1234_5678").unwrap(), None)
-                .await
-                .expect("namespace created");
-            let mut table = txn
-                .tables()
-                .create_or_get("weather", namespace.id)
-                .await
-                .map(|t| TableSchema::new_empty_from(&t))
-                .expect("table created");
+            let namespace = arbitrary_namespace(&mut *txn, "1234_5678").await;
+            let table = arbitrary_table(&mut *txn, "weather", &namespace).await;
             let time_col = txn
                 .columns()
                 .create_or_get("time", table.id, ColumnType::Time)
@@ -582,17 +567,8 @@ mod tests {
         {
             let mut txn = catalog.repositories().await;
             // create namespace, table and columns for weather measurement
-            let namespace = txn
-                .namespaces()
-                .create(&NamespaceName::new("1234_5678").unwrap(), None)
-                .await
-                .expect("namespace created");
-            let mut table = txn
-                .tables()
-                .create_or_get("weather", namespace.id)
-                .await
-                .map(|t| TableSchema::new_empty_from(&t))
-                .expect("table created");
+            let namespace = arbitrary_namespace(&mut *txn, "1234_5678").await;
+            let table = arbitrary_table(&mut *txn, "weather", &namespace).await;
             let time_col = txn
                 .columns()
                 .create_or_get("time", table.id, ColumnType::Time)

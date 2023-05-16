@@ -1,5 +1,7 @@
 //! Abstraction over RPC client
 
+use std::sync::Arc;
+
 use async_trait::async_trait;
 use generated_types::influxdata::iox::ingester::v1::{
     write_service_client::WriteServiceClient, WriteRequest,
@@ -26,6 +28,16 @@ pub(super) trait WriteClient: Send + Sync + std::fmt::Debug {
     async fn write(&self, op: WriteRequest) -> Result<(), RpcWriteClientError>;
 }
 
+#[async_trait]
+impl<T> WriteClient for Arc<T>
+where
+    T: WriteClient,
+{
+    async fn write(&self, op: WriteRequest) -> Result<(), RpcWriteClientError> {
+        (**self).write(op).await
+    }
+}
+
 /// An implementation of [`WriteClient`] for the tonic gRPC client.
 #[async_trait]
 impl WriteClient for WriteServiceClient<tonic::transport::Channel> {
@@ -44,6 +56,7 @@ pub mod mock {
     struct State {
         calls: Vec<WriteRequest>,
         ret: Box<dyn Iterator<Item = Result<(), RpcWriteClientError>> + Send + Sync>,
+        returned_oks: usize,
     }
 
     /// A mock implementation of the [`WriteClient`] for testing purposes.
@@ -66,6 +79,7 @@ pub mod mock {
                 state: Mutex::new(State {
                     calls: Default::default(),
                     ret: Box::new(iter::repeat_with(|| Ok(()))),
+                    returned_oks: 0,
                 }),
             }
         }
@@ -75,6 +89,12 @@ pub mod mock {
         /// Retrieve the requests that this mock received.
         pub fn calls(&self) -> Vec<WriteRequest> {
             self.state.lock().calls.clone()
+        }
+
+        /// Retrieve the number of times this mock returned [`Ok`] to a write
+        /// request.
+        pub fn success_count(&self) -> usize {
+            self.state.lock().returned_oks
         }
 
         /// Read values off of the provided iterator and return them for calls
@@ -95,7 +115,14 @@ pub mod mock {
         async fn write(&self, op: WriteRequest) -> Result<(), RpcWriteClientError> {
             let mut guard = self.state.lock();
             guard.calls.push(op);
-            guard.ret.next().expect("no mock response")
+
+            let ret = guard.ret.next().expect("no mock response");
+
+            if ret.is_ok() {
+                guard.returned_oks += 1;
+            }
+
+            ret
         }
     }
 }

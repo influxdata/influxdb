@@ -201,6 +201,56 @@ where
     Ok(())
 }
 
+/// Catalog helper functions for creation of catalog objects
+pub mod test_helpers {
+    use crate::RepoCollection;
+    use data_types::{Namespace, NamespaceName, Table};
+
+    /// When the details of the namespace don't matter; the test just needs *a* catalog namespace
+    /// with a particular name.
+    ///
+    /// Use [`NamespaceRepo::create`] directly if:
+    ///
+    /// - The values of the parameters to `create` need to be different than what's here
+    /// - The values of the parameters to `create` are relevant to the behavior under test
+    /// - You expect namespace creation to fail in the test
+    ///
+    /// [`NamespaceRepo::create`]: crate::interface::NamespaceRepo::create
+    pub async fn arbitrary_namespace<R: RepoCollection + ?Sized>(
+        repos: &mut R,
+        name: &str,
+    ) -> Namespace {
+        let namespace_name = NamespaceName::new(name).unwrap();
+        repos
+            .namespaces()
+            .create(&namespace_name, None)
+            .await
+            .unwrap()
+    }
+
+    /// When the details of the table don't matter; the test just needs *a* catalog table
+    /// with a particular name in a particular namespace.
+    ///
+    /// Use [`TableRepo::create_or_get`] directly if:
+    ///
+    /// - The values of the parameters to `create_or_get` need to be different than what's here
+    /// - The values of the parameters to `create_or_get` are relevant to the behavior under test
+    /// - You expect table creation to fail in the test
+    ///
+    /// [`TableRepo::create_or_get`]: crate::interface::TableRepo::create_or_get
+    pub async fn arbitrary_table<R: RepoCollection + ?Sized>(
+        repos: &mut R,
+        name: &str,
+        namespace: &Namespace,
+    ) -> Table {
+        repos
+            .tables()
+            .create_or_get(name, namespace.id)
+            .await
+            .unwrap()
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use std::{collections::BTreeMap, sync::Arc};
@@ -210,7 +260,6 @@ mod tests {
         interface::{get_schema_by_name, SoftDeletedRows},
         mem::MemCatalog,
     };
-    use data_types::NamespaceName;
 
     // Generate a test that simulates multiple, sequential writes in `lp` and
     // asserts the resulting schema.
@@ -228,21 +277,17 @@ mod tests {
                 #[allow(clippy::bool_assert_comparison)]
                 #[tokio::test]
                 async fn [<test_validate_schema_ $name>]() {
-                    use crate::interface::Catalog;
+                    use crate::{interface::Catalog, test_helpers::arbitrary_namespace};
                     use std::ops::DerefMut;
                     use pretty_assertions::assert_eq;
                     const NAMESPACE_NAME: &str = "bananas";
-                    let ns_name = NamespaceName::new(NAMESPACE_NAME).unwrap();
 
                     let metrics = Arc::new(metric::Registry::default());
                     let repo = MemCatalog::new(metrics);
                     let mut txn = repo.repositories().await;
 
-                    let namespace = txn
-                        .namespaces()
-                        .create(&ns_name, None)
-                        .await
-                        .unwrap();
+                    let namespace = arbitrary_namespace(&mut *txn, NAMESPACE_NAME)
+                        .await;
 
                     let schema = NamespaceSchema::new_empty_from(&namespace);
 

@@ -80,6 +80,7 @@ members = [
     "tracker",
     "trogging",
     "wal",
+    "wal_inspect",
     "workspace-hack",
 ]
 default-members = ["influxdb_iox"]

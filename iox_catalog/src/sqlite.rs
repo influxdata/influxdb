@@ -1515,6 +1515,7 @@ fn is_unique_violation(e: &sqlx::Error) -> bool {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::test_helpers::{arbitrary_namespace, arbitrary_table};
     use assert_matches::assert_matches;
     use metric::{Attributes, DurationHistogram, Metric};
     use std::sync::Arc;
@@ -1556,40 +1557,22 @@ mod tests {
     #[tokio::test]
     async fn test_partition_create_or_get_idempotent() {
         let sqlite = setup_db().await;
-
         let sqlite: Arc<dyn Catalog> = Arc::new(sqlite);
+        let mut repos = sqlite.repositories().await;
 
-        let namespace_id = sqlite
-            .repositories()
-            .await
-            .namespaces()
-            .create(&NamespaceName::new("ns4").unwrap(), None)
-            .await
-            .expect("namespace create failed")
-            .id;
-        let table_id = sqlite
-            .repositories()
-            .await
-            .tables()
-            .create_or_get("table", namespace_id)
-            .await
-            .expect("create table failed")
-            .id;
+        let namespace = arbitrary_namespace(&mut *repos, "ns4").await;
+        let table_id = arbitrary_table(&mut *repos, "table", &namespace).await.id;
 
         let key = "bananas";
 
-        let a = sqlite
-            .repositories()
-            .await
+        let a = repos
             .partitions()
             .create_or_get(key.into(), table_id)
             .await
             .expect("should create OK");
 
         // Call create_or_get for the same (key, table_id) pair, to ensure the write is idempotent.
-        let b = sqlite
-            .repositories()
-            .await
+        let b = repos
             .partitions()
             .create_or_get(key.into(), table_id)
             .await
@@ -1609,24 +1592,13 @@ mod tests {
                 async fn [<test_column_create_or_get_many_unchecked_ $name>]() {
                     let sqlite = setup_db().await;
                     let metrics = Arc::clone(&sqlite.metrics);
-
                     let sqlite: Arc<dyn Catalog> = Arc::new(sqlite);
+                    let mut repos = sqlite.repositories().await;
 
-                    let namespace_id = sqlite
-                        .repositories()
+                    let namespace = arbitrary_namespace(&mut *repos, "ns4")
+                        .await;
+                    let table_id = arbitrary_table(&mut *repos, "table", &namespace)
                         .await
-                        .namespaces()
-                        .create(&NamespaceName::new("ns4").unwrap(), None)
-                        .await
-                        .expect("namespace create failed")
-                        .id;
-                    let table_id = sqlite
-                        .repositories()
-                        .await
-                        .tables()
-                        .create_or_get("table", namespace_id)
-                        .await
-                        .expect("create table failed")
                         .id;
 
                     $(
@@ -1635,9 +1607,7 @@ mod tests {
                             insert.insert($col_name, $col_type);
                         )+
 
-                        let got = sqlite
-                            .repositories()
-                            .await
+                        let got = repos
                             .columns()
                             .create_or_get_many_unchecked(table_id, insert.clone())
                             .await;
@@ -1771,31 +1741,16 @@ mod tests {
     async fn test_billing_summary_on_parqet_file_creation() {
         let sqlite = setup_db().await;
         let pool = sqlite.pool.clone();
-
         let sqlite: Arc<dyn Catalog> = Arc::new(sqlite);
+        let mut repos = sqlite.repositories().await;
 
-        let namespace_id = sqlite
-            .repositories()
-            .await
-            .namespaces()
-            .create(&NamespaceName::new("ns4").unwrap(), None)
-            .await
-            .expect("namespace create failed")
-            .id;
-        let table_id = sqlite
-            .repositories()
-            .await
-            .tables()
-            .create_or_get("table", namespace_id)
-            .await
-            .expect("create table failed")
-            .id;
+        let namespace = arbitrary_namespace(&mut *repos, "ns4").await;
+        let namespace_id = namespace.id;
+        let table_id = arbitrary_table(&mut *repos, "table", &namespace).await.id;
 
         let key = "bananas";
 
-        let partition_id = sqlite
-            .repositories()
-            .await
+        let partition_id = repos
             .partitions()
             .create_or_get(key.into(), table_id)
             .await
@@ -1820,9 +1775,7 @@ mod tests {
             column_set: ColumnSet::new([ColumnId::new(1), ColumnId::new(2)]),
             max_l0_created_at: time_now,
         };
-        let f1 = sqlite
-            .repositories()
-            .await
+        let f1 = repos
             .parquet_files()
             .create(p1.clone())
             .await
@@ -1830,9 +1783,7 @@ mod tests {
         // insert the same again with a different size; we should then have 3x1337 as total file size
         p1.object_store_id = Uuid::new_v4();
         p1.file_size_bytes *= 2;
-        let _f2 = sqlite
-            .repositories()
-            .await
+        let _f2 = repos
             .parquet_files()
             .create(p1.clone())
             .await
@@ -1847,9 +1798,7 @@ mod tests {
         assert_eq!(total_file_size_bytes, 1337 * 3);
 
         // flag f1 for deletion and assert that the total file size is reduced accordingly.
-        sqlite
-            .repositories()
-            .await
+        repos
             .parquet_files()
             .flag_for_delete(f1.id)
             .await
@@ -1864,9 +1813,7 @@ mod tests {
 
         // actually deleting shouldn't change the total
         let now = Timestamp::from(time_provider.now());
-        sqlite
-            .repositories()
-            .await
+        repos
             .parquet_files()
             .delete_old_ids_only(now)
             .await
