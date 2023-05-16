@@ -437,6 +437,7 @@ mod tests {
                 .create_or_get("time", table.id, ColumnType::Time)
                 .await
                 .expect("column created");
+            let mut table = TableSchema::new_empty_from(&table);
             table.add_column(time_col);
             let location_col = txn
                 .columns()
@@ -519,6 +520,7 @@ mod tests {
                 .create_or_get("time", table.id, ColumnType::Time)
                 .await
                 .expect("column created");
+            let mut table = TableSchema::new_empty_from(&table);
             table.add_column(time_col);
             let temperature_col = txn
                 .columns()
@@ -574,6 +576,7 @@ mod tests {
                 .create_or_get("time", table.id, ColumnType::Time)
                 .await
                 .expect("column created");
+            let mut table = TableSchema::new_empty_from(&table);
             table.add_column(time_col);
             let temperature_col = txn
                 .columns()
