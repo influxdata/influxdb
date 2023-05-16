@@ -15,14 +15,9 @@ use object_store::{path::Path, DynObjectStore};
 use object_store_metrics::ObjectStoreMetrics;
 use thiserror::Error;
 
-use import::{
-    aggregate_tsm_schema::{
-        fetch::{fetch_schema, FetchError},
-        merge::{SchemaMergeError, SchemaMerger},
-        update_catalog::{update_iox_catalog, UpdateCatalogError},
-        validate::{validate_schema, ValidationError},
-    },
-    AggregateTSMSchemaOverride,
+use import_export::tsm::{
+    fetch_schema, update_iox_catalog, validate_schema, AggregateTSMSchemaOverride, FetchError,
+    SchemaMergeError, SchemaMerger, UpdateCatalogError, ValidationError,
 };
 
 use crate::process_info::setup_metric_registry;

@@ -17,8 +17,7 @@ use std::{collections::HashMap, sync::Arc, time::Duration};
 use arrow::record_batch::RecordBatch;
 use arrow_flight::{decode::FlightRecordBatchStream, flight_service_server::FlightService, Ticket};
 use data_types::{
-    Namespace, NamespaceId, NamespaceName, NamespaceSchema, ParquetFile, PartitionKey,
-    SequenceNumber, TableId,
+    Namespace, NamespaceId, NamespaceSchema, ParquetFile, PartitionKey, SequenceNumber, TableId,
 };
 use dml::{DmlMeta, DmlWrite};
 use futures::{stream::FuturesUnordered, FutureExt, StreamExt, TryStreamExt};
@@ -29,12 +28,14 @@ use ingester::{IngesterGuard, IngesterRpcInterface};
 use ingester_query_grpc::influxdata::iox::ingester::v1::IngesterQueryRequest;
 use iox_catalog::{
     interface::{Catalog, SoftDeletedRows},
+    test_helpers::arbitrary_namespace,
     validate_or_insert_schema,
 };
 use iox_time::TimeProvider;
 use metric::{Attributes, Metric, MetricObserver};
 use mutable_batch_lp::lines_to_batches;
 use mutable_batch_pb::encode::encode_write;
+use object_store::ObjectStore;
 use observability_deps::tracing::*;
 use parquet_file::storage::ParquetStorage;
 use tempfile::TempDir;
@@ -158,7 +159,7 @@ impl TestContextBuilder {
             shutdown_tx,
             _dir: dir,
             catalog,
-            _storage: storage,
+            storage,
             metrics,
             namespaces: Default::default(),
         }
@@ -174,7 +175,7 @@ pub struct TestContext<T> {
     ingester: IngesterGuard<T>,
     shutdown_tx: oneshot::Sender<CancellationToken>,
     catalog: Arc<dyn Catalog>,
-    _storage: ParquetStorage,
+    storage: ParquetStorage,
     metrics: Arc<metric::Registry>,
 
     /// Once the last [`TempDir`] reference is dropped, the directory it
@@ -203,14 +204,8 @@ where
         name: &str,
         retention_period_ns: Option<i64>,
     ) -> Namespace {
-        let ns = self
-            .catalog
-            .repositories()
-            .await
-            .namespaces()
-            .create(&NamespaceName::new(name).unwrap(), None)
-            .await
-            .expect("failed to create test namespace");
+        let mut repos = self.catalog.repositories().await;
+        let ns = arbitrary_namespace(&mut *repos, name).await;
 
         assert!(
             self.namespaces
@@ -421,6 +416,11 @@ where
             .recorder()
     }
 
+    /// Return the metric recorder for the [`TestContext`].
+    pub fn metrics(&self) -> &metric::Registry {
+        &self.metrics
+    }
+
     /// Retrieve the Parquet files in the catalog for the specified namespace.
     pub async fn catalog_parquet_file_records(&self, namespace: &str) -> Vec<ParquetFile> {
         let namespace_id = self.namespace_id(namespace).await;
@@ -436,6 +436,11 @@ where
     /// Return the [`Catalog`] for this [`TestContext`].
     pub fn catalog(&self) -> Arc<dyn Catalog> {
         Arc::clone(&self.catalog)
+    }
+
+    /// Return the [`ObjectStore`] for this [`TestContext`].
+    pub fn object_store(&self) -> Arc<dyn ObjectStore> {
+        Arc::clone(self.storage.object_store())
     }
 
     /// Return the [`IngesterRpcInterface`] for this [`TestContext`].

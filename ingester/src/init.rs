@@ -36,8 +36,8 @@ use crate::{
     ingest_state::IngestState,
     ingester_id::IngesterId,
     persist::{
-        completion_observer::NopObserver, handle::PersistHandle,
-        hot_partitions::HotPartitionPersister,
+        completion_observer::NopObserver, file_metrics::ParquetFileInstrumentation,
+        handle::PersistHandle, hot_partitions::HotPartitionPersister,
     },
     query::{
         exec_instrumentation::QueryExecInstrumentation,
@@ -292,7 +292,9 @@ where
         persist_executor,
         object_store,
         Arc::clone(&catalog),
-        NopObserver::default(),
+        // Register a post-persistence observer that emits Parquet file
+        // attributes as metrics.
+        ParquetFileInstrumentation::new(NopObserver::default(), &metrics),
         &metrics,
     );
     let persist_handle = Arc::new(persist_handle);

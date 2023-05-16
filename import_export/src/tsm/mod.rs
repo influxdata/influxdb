@@ -5,7 +5,15 @@ use serde::ser::{Serialize, Serializer};
 use serde::*;
 use std::collections::{HashMap, HashSet};
 
-pub mod aggregate_tsm_schema;
+mod tsm_schema;
+
+// Public API
+pub use tsm_schema::{
+    fetch::{fetch_schema, FetchError},
+    merge::{SchemaMergeError, SchemaMerger},
+    update_catalog::{update_iox_catalog, UpdateCatalogError},
+    validate::{validate_schema, ValidationError},
+};
 
 /// This struct is used to build up schemas from TSM snapshots that we are going to use to bulk
 /// ingest. They will be merged, then validated to check for anomalies that will complicate bulk

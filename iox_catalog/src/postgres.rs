@@ -2,9 +2,8 @@
 
 use crate::{
     interface::{
-        self, sealed::TransactionFinalize, CasFailure, Catalog, ColumnRepo,
-        ColumnTypeMismatchSnafu, Error, NamespaceRepo, ParquetFileRepo, PartitionRepo,
-        RepoCollection, Result, SoftDeletedRows, TableRepo, Transaction,
+        self, CasFailure, Catalog, ColumnRepo, ColumnTypeMismatchSnafu, Error, NamespaceRepo,
+        ParquetFileRepo, PartitionRepo, RepoCollection, Result, SoftDeletedRows, TableRepo,
         MAX_PARQUET_FILES_SELECTED_ONCE,
     },
     kafkaless_transition::{
@@ -30,6 +29,7 @@ use sqlx::{
     Acquire, ConnectOptions, Executor, Postgres, Row,
 };
 use sqlx_hotswap_pool::HotSwapPool;
+use std::collections::HashSet;
 use std::{collections::HashMap, fmt::Display, str::FromStr, sync::Arc, time::Duration};
 
 static MIGRATOR: Migrator = sqlx::migrate!();
@@ -154,10 +154,8 @@ pub struct PostgresTxn {
 }
 
 #[derive(Debug)]
-#[allow(clippy::large_enum_variant)]
-enum PostgresTxnInner {
-    Txn(Option<sqlx::Transaction<'static, Postgres>>),
-    Oneshot(HotSwapPool<Postgres>),
+struct PostgresTxnInner {
+    pool: HotSwapPool<Postgres>,
 }
 
 impl<'c> Executor<'c> for &'c mut PostgresTxnInner {
@@ -181,12 +179,7 @@ impl<'c> Executor<'c> for &'c mut PostgresTxnInner {
         'c: 'e,
         E: sqlx::Execute<'q, Self::Database>,
     {
-        match self {
-            PostgresTxnInner::Txn(txn) => {
-                txn.as_mut().expect("Not yet finalized").fetch_many(query)
-            }
-            PostgresTxnInner::Oneshot(pool) => pool.fetch_many(query),
-        }
+        self.pool.fetch_many(query)
     }
 
     fn fetch_optional<'e, 'q: 'e, E: 'q>(
@@ -200,13 +193,7 @@ impl<'c> Executor<'c> for &'c mut PostgresTxnInner {
         'c: 'e,
         E: sqlx::Execute<'q, Self::Database>,
     {
-        match self {
-            PostgresTxnInner::Txn(txn) => txn
-                .as_mut()
-                .expect("Not yet finalized")
-                .fetch_optional(query),
-            PostgresTxnInner::Oneshot(pool) => pool.fetch_optional(query),
-        }
+        self.pool.fetch_optional(query)
     }
 
     fn prepare_with<'e, 'q: 'e>(
@@ -220,13 +207,7 @@ impl<'c> Executor<'c> for &'c mut PostgresTxnInner {
     where
         'c: 'e,
     {
-        match self {
-            PostgresTxnInner::Txn(txn) => txn
-                .as_mut()
-                .expect("Not yet finalized")
-                .prepare_with(sql, parameters),
-            PostgresTxnInner::Oneshot(pool) => pool.prepare_with(sql, parameters),
-        }
+        self.pool.prepare_with(sql, parameters)
     }
 
     fn describe<'e, 'q: 'e>(
@@ -236,52 +217,7 @@ impl<'c> Executor<'c> for &'c mut PostgresTxnInner {
     where
         'c: 'e,
     {
-        match self {
-            PostgresTxnInner::Txn(txn) => txn.as_mut().expect("Not yet finalized").describe(sql),
-            PostgresTxnInner::Oneshot(pool) => pool.describe(sql),
-        }
-    }
-}
-
-impl Drop for PostgresTxn {
-    fn drop(&mut self) {
-        if let PostgresTxnInner::Txn(Some(_)) = self.inner {
-            warn!("Dropping PostgresTxn w/o finalizing (commit or abort)");
-
-            // SQLx ensures that the inner transaction enqueues a rollback when it is dropped, so
-            // we don't need to spawn a task here to call `rollback` manually.
-        }
-    }
-}
-
-#[async_trait]
-impl TransactionFinalize for PostgresTxn {
-    async fn commit_inplace(&mut self) -> Result<(), Error> {
-        match &mut self.inner {
-            PostgresTxnInner::Txn(txn) => txn
-                .take()
-                .expect("Not yet finalized")
-                .commit()
-                .await
-                .map_err(|e| Error::SqlxError { source: e }),
-            PostgresTxnInner::Oneshot(_) => {
-                panic!("cannot commit oneshot");
-            }
-        }
-    }
-
-    async fn abort_inplace(&mut self) -> Result<(), Error> {
-        match &mut self.inner {
-            PostgresTxnInner::Txn(txn) => txn
-                .take()
-                .expect("Not yet finalized")
-                .rollback()
-                .await
-                .map_err(|e| Error::SqlxError { source: e }),
-            PostgresTxnInner::Oneshot(_) => {
-                panic!("cannot abort oneshot");
-            }
-        }
+        self.pool.describe(sql)
     }
 }
 
@@ -357,26 +293,12 @@ DO NOTHING;
         Ok(())
     }
 
-    async fn start_transaction(&self) -> Result<Box<dyn Transaction>, Error> {
-        let transaction = self
-            .pool
-            .begin()
-            .await
-            .map_err(|e| Error::SqlxError { source: e })?;
-
-        Ok(Box::new(MetricDecorator::new(
-            PostgresTxn {
-                inner: PostgresTxnInner::Txn(Some(transaction)),
-                time_provider: Arc::clone(&self.time_provider),
-            },
-            Arc::clone(&self.metrics),
-        )))
-    }
-
     async fn repositories(&self) -> Box<dyn RepoCollection> {
         Box::new(MetricDecorator::new(
             PostgresTxn {
-                inner: PostgresTxnInner::Oneshot(self.pool.clone()),
+                inner: PostgresTxnInner {
+                    pool: self.pool.clone(),
+                },
                 time_provider: Arc::clone(&self.time_provider),
             },
             Arc::clone(&self.metrics),
@@ -1325,73 +1247,15 @@ RETURNING *
 #[async_trait]
 impl ParquetFileRepo for PostgresTxn {
     async fn create(&mut self, parquet_file_params: ParquetFileParams) -> Result<ParquetFile> {
-        let ParquetFileParams {
-            namespace_id,
-            table_id,
-            partition_id,
-            object_store_id,
-            min_time,
-            max_time,
-            file_size_bytes,
-            row_count,
-            compaction_level,
-            created_at,
-            column_set,
-            max_l0_created_at,
-        } = parquet_file_params;
-
-        let rec = sqlx::query_as::<_, ParquetFile>(
-            r#"
-INSERT INTO parquet_file (
-    shard_id, table_id, partition_id, object_store_id,
-    min_time, max_time, file_size_bytes,
-    row_count, compaction_level, created_at, namespace_id, column_set, max_l0_created_at )
-VALUES ( $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13 )
-RETURNING
-    id, table_id, partition_id, object_store_id,
-    min_time, max_time, to_delete, file_size_bytes,
-    row_count, compaction_level, created_at, namespace_id, column_set, max_l0_created_at;
-        "#,
-        )
-        .bind(TRANSITION_SHARD_ID) // $1
-        .bind(table_id) // $2
-        .bind(partition_id) // $3
-        .bind(object_store_id) // $4
-        .bind(min_time) // $5
-        .bind(max_time) // $6
-        .bind(file_size_bytes) // $7
-        .bind(row_count) // $8
-        .bind(compaction_level) // $9
-        .bind(created_at) // $10
-        .bind(namespace_id) // $11
-        .bind(column_set) // $12
-        .bind(max_l0_created_at) // $13
-        .fetch_one(&mut self.inner)
-        .await
-        .map_err(|e| {
-            if is_unique_violation(&e) {
-                Error::FileExists { object_store_id }
-            } else if is_fk_violation(&e) {
-                Error::ForeignKeyViolation { source: e }
-            } else {
-                Error::SqlxError { source: e }
-            }
-        })?;
-
-        Ok(rec)
+        let executor = &mut self.inner;
+        create_parquet_file(executor, parquet_file_params).await
     }
 
     async fn flag_for_delete(&mut self, id: ParquetFileId) -> Result<()> {
         let marked_at = Timestamp::from(self.time_provider.now());
+        let executor = &mut self.inner;
 
-        let _ = sqlx::query(r#"UPDATE parquet_file SET to_delete = $1 WHERE id = $2;"#)
-            .bind(marked_at) // $1
-            .bind(id) // $2
-            .execute(&mut self.inner)
-            .await
-            .map_err(|e| Error::SqlxError { source: e })?;
-
-        Ok(())
+        flag_for_delete(executor, id, marked_at).await
     }
 
     async fn flag_for_delete_by_retention(&mut self) -> Result<Vec<ParquetFileId>> {
@@ -1532,25 +1396,8 @@ WHERE parquet_file.partition_id = $1
         parquet_file_ids: &[ParquetFileId],
         compaction_level: CompactionLevel,
     ) -> Result<Vec<ParquetFileId>> {
-        // If I try to do `.bind(parquet_file_ids)` directly, I get a compile error from sqlx.
-        // See https://github.com/launchbadge/sqlx/issues/1744
-        let ids: Vec<_> = parquet_file_ids.iter().map(|p| p.get()).collect();
-        let updated = sqlx::query(
-            r#"
-UPDATE parquet_file
-SET compaction_level = $1
-WHERE id = ANY($2)
-RETURNING id;
-        "#,
-        )
-        .bind(compaction_level) // $1
-        .bind(&ids[..]) // $2
-        .fetch_all(&mut self.inner)
-        .await
-        .map_err(|e| Error::SqlxError { source: e })?;
-
-        let updated = updated.into_iter().map(|row| row.get("id")).collect();
-        Ok(updated)
+        let executor = &mut self.inner;
+        update_compaction_level(executor, parquet_file_ids, compaction_level).await
     }
 
     async fn exist(&mut self, id: ParquetFileId) -> Result<bool> {
@@ -1600,6 +1447,157 @@ WHERE object_store_id = $1;
 
         Ok(Some(parquet_file))
     }
+    async fn create_upgrade_delete(
+        &mut self,
+        _partition_id: PartitionId,
+        delete: &[ParquetFile],
+        upgrade: &[ParquetFile],
+        create: &[ParquetFileParams],
+        target_level: CompactionLevel,
+    ) -> Result<Vec<ParquetFileId>> {
+        let delete_set: HashSet<_> = delete.iter().map(|d| d.id.get()).collect();
+        let upgrade_set: HashSet<_> = upgrade.iter().map(|u| u.id.get()).collect();
+
+        assert!(
+            delete_set.is_disjoint(&upgrade_set),
+            "attempted to upgrade a file scheduled for delete"
+        );
+
+        let mut tx = self
+            .inner
+            .pool
+            .begin()
+            .await
+            .map_err(|e| Error::StartTransaction { source: e })?;
+
+        let upgrade = upgrade.iter().map(|f| f.id).collect::<Vec<_>>();
+
+        let marked_at = Timestamp::from(self.time_provider.now());
+        for file in delete {
+            flag_for_delete(&mut tx, file.id, marked_at).await?;
+        }
+
+        update_compaction_level(&mut tx, &upgrade, target_level).await?;
+
+        let mut ids = Vec::with_capacity(create.len());
+        for file in create {
+            let pf = create_parquet_file(&mut tx, file.clone()).await?;
+            ids.push(pf.id);
+        }
+
+        tx.commit()
+            .await
+            .map_err(|source| Error::FailedToCommit { source })?;
+        Ok(ids)
+    }
+}
+
+// The following three functions are helpers to the create_upgrade_delete method.
+// They are also used by the respective create/flag_for_delete/update_compaction_level methods.
+async fn create_parquet_file<'q, E>(
+    executor: E,
+    parquet_file_params: ParquetFileParams,
+) -> Result<ParquetFile>
+where
+    E: Executor<'q, Database = Postgres>,
+{
+    let ParquetFileParams {
+        namespace_id,
+        table_id,
+        partition_id,
+        object_store_id,
+        min_time,
+        max_time,
+        file_size_bytes,
+        row_count,
+        compaction_level,
+        created_at,
+        column_set,
+        max_l0_created_at,
+    } = parquet_file_params;
+
+    let query = sqlx::query_as::<_, ParquetFile>(
+        r#"
+INSERT INTO parquet_file (
+    shard_id, table_id, partition_id, object_store_id,
+    min_time, max_time, file_size_bytes,
+    row_count, compaction_level, created_at, namespace_id, column_set, max_l0_created_at )
+VALUES ( $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13 )
+RETURNING
+    id, table_id, partition_id, object_store_id,
+    min_time, max_time, to_delete, file_size_bytes,
+    row_count, compaction_level, created_at, namespace_id, column_set, max_l0_created_at;
+        "#,
+    )
+    .bind(TRANSITION_SHARD_ID) // $1
+    .bind(table_id) // $2
+    .bind(partition_id) // $3
+    .bind(object_store_id) // $4
+    .bind(min_time) // $5
+    .bind(max_time) // $6
+    .bind(file_size_bytes) // $7
+    .bind(row_count) // $8
+    .bind(compaction_level) // $9
+    .bind(created_at) // $10
+    .bind(namespace_id) // $11
+    .bind(column_set) // $12
+    .bind(max_l0_created_at); // $13
+    let parquet_file = query.fetch_one(executor).await.map_err(|e| {
+        if is_unique_violation(&e) {
+            Error::FileExists { object_store_id }
+        } else if is_fk_violation(&e) {
+            Error::ForeignKeyViolation { source: e }
+        } else {
+            Error::SqlxError { source: e }
+        }
+    })?;
+
+    Ok(parquet_file)
+}
+
+async fn flag_for_delete<'q, E>(executor: E, id: ParquetFileId, marked_at: Timestamp) -> Result<()>
+where
+    E: Executor<'q, Database = Postgres>,
+{
+    let query = sqlx::query(r#"UPDATE parquet_file SET to_delete = $1 WHERE id = $2;"#)
+        .bind(marked_at) // $1
+        .bind(id); // $2
+    query
+        .execute(executor)
+        .await
+        .map_err(|e| Error::SqlxError { source: e })?;
+
+    Ok(())
+}
+
+async fn update_compaction_level<'q, E>(
+    executor: E,
+    parquet_file_ids: &[ParquetFileId],
+    compaction_level: CompactionLevel,
+) -> Result<Vec<ParquetFileId>>
+where
+    E: Executor<'q, Database = Postgres>,
+{
+    // If I try to do `.bind(parquet_file_ids)` directly, I get a compile error from sqlx.
+    // See https://github.com/launchbadge/sqlx/issues/1744
+    let ids: Vec<_> = parquet_file_ids.iter().map(|p| p.get()).collect();
+    let query = sqlx::query(
+        r#"
+UPDATE parquet_file
+SET compaction_level = $1
+WHERE id = ANY($2)
+RETURNING id;
+        "#,
+    )
+    .bind(compaction_level) // $1
+    .bind(&ids[..]); // $2
+    let updated = query
+        .fetch_all(executor)
+        .await
+        .map_err(|e| Error::SqlxError { source: e })?;
+
+    let updated = updated.into_iter().map(|row| row.get("id")).collect();
+    Ok(updated)
 }
 
 /// The error code returned by Postgres for a unique constraint violation.
@@ -1638,6 +1636,7 @@ fn is_fk_violation(e: &sqlx::Error) -> bool {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::test_helpers::{arbitrary_namespace, arbitrary_table};
     use assert_matches::assert_matches;
     use data_types::{ColumnId, ColumnSet};
     use metric::{Attributes, DurationHistogram, Metric};
@@ -1821,38 +1820,21 @@ mod tests {
 
         let postgres = setup_db().await;
         let postgres: Arc<dyn Catalog> = Arc::new(postgres);
+        let mut repos = postgres.repositories().await;
 
-        let namespace_id = postgres
-            .repositories()
-            .await
-            .namespaces()
-            .create(&NamespaceName::new("ns4").unwrap(), None)
-            .await
-            .expect("namespace create failed")
-            .id;
-        let table_id = postgres
-            .repositories()
-            .await
-            .tables()
-            .create_or_get("table", namespace_id)
-            .await
-            .expect("create table failed")
-            .id;
+        let namespace = arbitrary_namespace(&mut *repos, "ns4").await;
+        let table_id = arbitrary_table(&mut *repos, "table", &namespace).await.id;
 
         let key = "bananas";
 
-        let a = postgres
-            .repositories()
-            .await
+        let a = repos
             .partitions()
             .create_or_get(key.into(), table_id)
             .await
             .expect("should create OK");
 
         // Call create_or_get for the same (key, table_id) pair, to ensure the write is idempotent.
-        let b = postgres
-            .repositories()
-            .await
+        let b = repos
             .partitions()
             .create_or_get(key.into(), table_id)
             .await
@@ -1959,22 +1941,12 @@ mod tests {
                     let postgres = setup_db().await;
                     let metrics = Arc::clone(&postgres.metrics);
                     let postgres: Arc<dyn Catalog> = Arc::new(postgres);
+                    let mut repos = postgres.repositories().await;
 
-                    let namespace_id = postgres
-                        .repositories()
+                    let namespace = arbitrary_namespace(&mut *repos, "ns4")
+                        .await;
+                    let table_id = arbitrary_table(&mut *repos, "table", &namespace)
                         .await
-                        .namespaces()
-                        .create(&NamespaceName::new("ns4").unwrap(), None)
-                        .await
-                        .expect("namespace create failed")
-                        .id;
-                    let table_id = postgres
-                        .repositories()
-                        .await
-                        .tables()
-                        .create_or_get("table", namespace_id)
-                        .await
-                        .expect("create table failed")
                         .id;
 
                     $(
@@ -1983,9 +1955,7 @@ mod tests {
                             insert.insert($col_name, $col_type);
                         )+
 
-                        let got = postgres
-                            .repositories()
-                            .await
+                        let got = repos
                             .columns()
                             .create_or_get_many_unchecked(table_id, insert.clone())
                             .await;
@@ -2122,29 +2092,14 @@ mod tests {
         let postgres = setup_db().await;
         let pool = postgres.pool.clone();
         let postgres: Arc<dyn Catalog> = Arc::new(postgres);
-
-        let namespace_id = postgres
-            .repositories()
-            .await
-            .namespaces()
-            .create(&NamespaceName::new("ns4").unwrap(), None)
-            .await
-            .expect("namespace create failed")
-            .id;
-        let table_id = postgres
-            .repositories()
-            .await
-            .tables()
-            .create_or_get("table", namespace_id)
-            .await
-            .expect("create table failed")
-            .id;
+        let mut repos = postgres.repositories().await;
+        let namespace = arbitrary_namespace(&mut *repos, "ns4").await;
+        let namespace_id = namespace.id;
+        let table_id = arbitrary_table(&mut *repos, "table", &namespace).await.id;
 
         let key = "bananas";
 
-        let partition_id = postgres
-            .repositories()
-            .await
+        let partition_id = repos
             .partitions()
             .create_or_get(key.into(), table_id)
             .await
@@ -2169,9 +2124,7 @@ mod tests {
             column_set: ColumnSet::new([ColumnId::new(1), ColumnId::new(2)]),
             max_l0_created_at: time_now,
         };
-        let f1 = postgres
-            .repositories()
-            .await
+        let f1 = repos
             .parquet_files()
             .create(p1.clone())
             .await
@@ -2179,9 +2132,7 @@ mod tests {
         // insert the same again with a different size; we should then have 3x1337 as total file size
         p1.object_store_id = Uuid::new_v4();
         p1.file_size_bytes *= 2;
-        let _f2 = postgres
-            .repositories()
-            .await
+        let _f2 = repos
             .parquet_files()
             .create(p1.clone())
             .await
@@ -2196,9 +2147,7 @@ mod tests {
         assert_eq!(total_file_size_bytes, 1337 * 3);
 
         // flag f1 for deletion and assert that the total file size is reduced accordingly.
-        postgres
-            .repositories()
-            .await
+        repos
             .parquet_files()
             .flag_for_delete(f1.id)
             .await
@@ -2213,9 +2162,7 @@ mod tests {
 
         // actually deleting shouldn't change the total
         let now = Timestamp::from(time_provider.now());
-        postgres
-            .repositories()
-            .await
+        repos
             .parquet_files()
             .delete_old_ids_only(now)
             .await
