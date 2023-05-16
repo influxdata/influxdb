@@ -84,12 +84,12 @@ impl CompletedPersist {
         self.meta.row_count as _
     }
 
-    /// The number of rows persisted.
+    /// The number of columns persisted.
     pub fn column_count(&self) -> usize {
         self.meta.column_set.len()
     }
 
-    /// The number of rows persisted.
+    /// The byte size of the generated Parquet file.
     pub fn parquet_file_bytes(&self) -> usize {
         self.meta.file_size_bytes as _
     }
