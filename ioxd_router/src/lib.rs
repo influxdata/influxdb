@@ -4,7 +4,7 @@ use std::{
 };
 
 use async_trait::async_trait;
-use authz::{Authorizer, IoxAuthorizer};
+use authz::{Authorizer, AuthorizerInstrumentation, IoxAuthorizer};
 use clap_blocks::router::RouterConfig;
 use data_types::{DefaultPartitionTemplate, NamespaceName};
 use hashbrown::HashMap;
@@ -316,7 +316,9 @@ pub async fn create_router_server_type(
     ) {
         (true, Some(addr)) => {
             let authz = IoxAuthorizer::connect_lazy(addr.clone())
-                .map(|c| Arc::new(c) as Arc<dyn Authorizer>)
+                .map(|c| {
+                    Arc::new(AuthorizerInstrumentation::new(&metrics, c)) as Arc<dyn Authorizer>
+                })
                 .map_err(|source| Error::AuthzConfig {
                     source,
                     addr: addr.clone(),
