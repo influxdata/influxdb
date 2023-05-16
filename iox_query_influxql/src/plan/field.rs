@@ -42,8 +42,8 @@ pub(crate) fn field_name(f: &influxdb_influxql_parser::select::Field) -> String 
 /// of rows.
 pub(super) fn field_by_name<'a>(fields: &'a [Field], name: &str) -> Option<&'a Field> {
     fields.iter().find(|f| f.name == name || match &f.expr {
-        Expr::Call(Call{ name: func_name, args }) if (func_name.eq_ignore_ascii_case("top")
-            || func_name.eq_ignore_ascii_case("bottom"))
+        Expr::Call(Call{ name: func_name, args }) if (func_name == "top"
+            || func_name == "bottom")
             && args.len() > 2 =>
             args[1..].iter().any(|f| matches!(f, Expr::VarRef(VarRef{ name: field_name, .. }) if field_name.as_str() == name)),
         _ => false,
@@ -162,7 +162,9 @@ mod test {
             "bottom(idle, usage, 5) AS bottom"
         );
 
-        let stmt = parse_fields(vec!["top(idle, usage, 5) as foo", "usage"]);
+        // TOP is in uppercase, to ensure we can expect the function name to be
+        // uniformly lowercase.
+        let stmt = parse_fields(vec!["TOP(idle, usage, 5) as foo", "usage"]);
         assert_eq!(
             format!("{}", field_by_name(&stmt, "usage").unwrap()),
             "top(idle, usage, 5) AS foo"

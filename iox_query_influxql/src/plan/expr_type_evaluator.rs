@@ -301,10 +301,9 @@ impl<'a> TypeEvaluator<'a> {
                         VarRefDataType::Float | VarRefDataType::Integer | VarRefDataType::Unsigned,
                     )
                     | None => Ok(Some(VarRefDataType::Float)),
-                    Some(arg0) if self.call_type_is_strict => error::query(format!(
+                    Some(arg0) => error::query(format!(
                         "invalid argument type for {name}: expected a number, got {arg0}"
                     )),
-                    _ => Ok(None),
                 }
             }
 
