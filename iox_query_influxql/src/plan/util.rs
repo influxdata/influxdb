@@ -1,6 +1,6 @@
 use crate::plan::{error, util_copy};
 use arrow::datatypes::{DataType, TimeUnit};
-use datafusion::common::{DFSchema, DFSchemaRef, Result};
+use datafusion::common::{DFSchemaRef, Result};
 use datafusion::logical_expr::utils::expr_as_column_expr;
 use datafusion::logical_expr::{lit, Expr, ExprSchemable, LogicalPlan, Operator};
 use datafusion::scalar::ScalarValue;
@@ -9,7 +9,6 @@ use influxdb_influxql_parser::literal::Number;
 use influxdb_influxql_parser::string::Regex;
 use query_functions::clean_non_meta_escapes;
 use query_functions::coalesce_struct::coalesce_struct;
-use schema::Schema;
 use std::sync::Arc;
 
 pub(in crate::plan) fn binary_operator_to_df_operator(op: BinaryOperator) -> Operator {
@@ -25,27 +24,15 @@ pub(in crate::plan) fn binary_operator_to_df_operator(op: BinaryOperator) -> Ope
     }
 }
 
-/// Return the IOx schema for the specified DataFusion schema.
-pub(in crate::plan) fn schema_from_df(schema: &DFSchema) -> Result<Schema> {
-    let s: Arc<arrow::datatypes::Schema> = Arc::new(schema.into());
-    s.try_into().map_err(|err| {
-        error::map::internal(format!(
-            "unable to convert DataFusion schema to IOx schema: {err}"
-        ))
-    })
-}
-
 /// Container for both the DataFusion and equivalent IOx schema.
 pub(in crate::plan) struct Schemas {
     pub(in crate::plan) df_schema: DFSchemaRef,
-    pub(in crate::plan) iox_schema: Schema,
 }
 
 impl Schemas {
     pub(in crate::plan) fn new(df_schema: &DFSchemaRef) -> Result<Self> {
         Ok(Self {
             df_schema: Arc::clone(df_schema),
-            iox_schema: schema_from_df(df_schema)?,
         })
     }
 }

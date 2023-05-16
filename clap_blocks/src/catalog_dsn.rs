@@ -1,14 +1,13 @@
 //! Catalog-DSN-related configs.
 use iox_catalog::sqlite::{SqliteCatalog, SqliteConnectionOptions};
 use iox_catalog::{
-    create_or_get_default_records,
     interface::Catalog,
     mem::MemCatalog,
     postgres::{PostgresCatalog, PostgresConnectionOptions},
 };
 use observability_deps::tracing::*;
 use snafu::{OptionExt, ResultExt, Snafu};
-use std::{ops::DerefMut, sync::Arc, time::Duration};
+use std::{sync::Arc, time::Duration};
 
 #[derive(Debug, Snafu)]
 #[allow(missing_docs)]
@@ -211,13 +210,6 @@ impl CatalogDsnConfig {
             }
             CatalogType::Memory => {
                 let mem = MemCatalog::new(metrics);
-
-                let mut txn = mem.start_transaction().await.context(CatalogSnafu)?;
-                create_or_get_default_records(txn.deref_mut())
-                    .await
-                    .context(CatalogSnafu)?;
-                txn.commit().await.context(CatalogSnafu)?;
-
                 Arc::new(mem) as Arc<dyn Catalog>
             }
             CatalogType::Sqlite => {

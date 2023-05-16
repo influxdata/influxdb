@@ -1,0 +1,107 @@
+-- Test Setup: TwoChunksDedupWeirdnessParquet
+-- SQL: SELECT * FROM "table" ORDER BY tag;
++-----+-----+-----+----------------------+
+| bar | foo | tag | time                 |
++-----+-----+-----+----------------------+
+| 2.0 | 1.0 | A   | 1970-01-01T00:00:00Z |
+|     | 1.0 | B   | 1970-01-01T00:00:00Z |
++-----+-----+-----+----------------------+
+-- SQL: EXPLAIN SELECT * FROM "table" ORDER BY tag;
+-- Results After Normalizing UUIDs
+----------
+| plan_type    | plan    |
+----------
+| logical_plan    | Sort: table.tag ASC NULLS LAST    |
+|    |   TableScan: table projection=[bar, foo, tag, time]    |
+| physical_plan    | SortExec: expr=[tag@2 ASC NULLS LAST]    |
+|    |   ProjectionExec: expr=[bar@1 as bar, foo@2 as foo, tag@3 as tag, time@4 as time]    |
+|    |     DeduplicateExec: [tag@3 ASC,time@4 ASC]    |
+|    |       SortPreservingMergeExec: [tag@3 ASC,time@4 ASC,__chunk_order@0 ASC]    |
+|    |         ParquetExec: file_groups={2 groups: [[1/1/1/00000000-0000-0000-0000-000000000000.parquet], [1/1/1/00000000-0000-0000-0000-000000000001.parquet]]}, projection=[__chunk_order, bar, foo, tag, time], output_ordering=[tag@3 ASC, time@4 ASC, __chunk_order@0 ASC]    |
+|    |    |
+----------
+-- SQL: SELECT * FROM "table" WHERE tag='A';
++-----+-----+-----+----------------------+
+| bar | foo | tag | time                 |
++-----+-----+-----+----------------------+
+| 2.0 | 1.0 | A   | 1970-01-01T00:00:00Z |
++-----+-----+-----+----------------------+
+-- SQL: EXPLAIN SELECT * FROM "table" WHERE tag='A';
+-- Results After Normalizing UUIDs
+----------
+| plan_type    | plan    |
+----------
+| logical_plan    | TableScan: table projection=[bar, foo, tag, time], full_filters=[table.tag = Dictionary(Int32, Utf8("A"))]    |
+| physical_plan    | ProjectionExec: expr=[bar@1 as bar, foo@2 as foo, tag@3 as tag, time@4 as time]    |
+|    |   DeduplicateExec: [tag@3 ASC,time@4 ASC]    |
+|    |     SortPreservingMergeExec: [tag@3 ASC,time@4 ASC,__chunk_order@0 ASC]    |
+|    |       CoalesceBatchesExec: target_batch_size=8192    |
+|    |         FilterExec: tag@3 = A    |
+|    |           ParquetExec: file_groups={2 groups: [[1/1/1/00000000-0000-0000-0000-000000000000.parquet], [1/1/1/00000000-0000-0000-0000-000000000001.parquet]]}, projection=[__chunk_order, bar, foo, tag, time], output_ordering=[tag@3 ASC, time@4 ASC, __chunk_order@0 ASC], predicate=tag@2 = A, pruning_predicate=tag_min@0 <= A AND A <= tag_max@1    |
+|    |    |
+----------
+-- SQL: SELECT * FROM "table" WHERE foo=1 AND bar=2;
++-----+-----+-----+----------------------+
+| bar | foo | tag | time                 |
++-----+-----+-----+----------------------+
+| 2.0 | 1.0 | A   | 1970-01-01T00:00:00Z |
++-----+-----+-----+----------------------+
+-- SQL: EXPLAIN SELECT * FROM "table" WHERE foo=1 AND bar=2;
+-- Results After Normalizing UUIDs
+----------
+| plan_type    | plan    |
+----------
+| logical_plan    | TableScan: table projection=[bar, foo, tag, time], full_filters=[table.foo = Float64(1), table.bar = Float64(2)]    |
+| physical_plan    | CoalesceBatchesExec: target_batch_size=8192    |
+|    |   FilterExec: foo@1 = 1 AND bar@0 = 2    |
+|    |     ProjectionExec: expr=[bar@1 as bar, foo@2 as foo, tag@3 as tag, time@4 as time]    |
+|    |       DeduplicateExec: [tag@3 ASC,time@4 ASC]    |
+|    |         SortPreservingMergeExec: [tag@3 ASC,time@4 ASC,__chunk_order@0 ASC]    |
+|    |           ParquetExec: file_groups={2 groups: [[1/1/1/00000000-0000-0000-0000-000000000000.parquet], [1/1/1/00000000-0000-0000-0000-000000000001.parquet]]}, projection=[__chunk_order, bar, foo, tag, time], output_ordering=[tag@3 ASC, time@4 ASC, __chunk_order@0 ASC]    |
+|    |    |
+----------
+-- SQL: SELECT * FROM "table" WHERE time=to_timestamp('1970-01-01T00:00:00.000000000+00:00') ORDER BY tag;
++-----+-----+-----+----------------------+
+| bar | foo | tag | time                 |
++-----+-----+-----+----------------------+
+| 2.0 | 1.0 | A   | 1970-01-01T00:00:00Z |
+|     | 1.0 | B   | 1970-01-01T00:00:00Z |
++-----+-----+-----+----------------------+
+-- SQL: EXPLAIN SELECT * FROM "table" WHERE time=to_timestamp('1970-01-01T00:00:00.000000000+00:00') ORDER BY tag;
+-- Results After Normalizing UUIDs
+----------
+| plan_type    | plan    |
+----------
+| logical_plan    | Sort: table.tag ASC NULLS LAST    |
+|    |   TableScan: table projection=[bar, foo, tag, time], full_filters=[table.time = TimestampNanosecond(0, None)]    |
+| physical_plan    | SortExec: expr=[tag@2 ASC NULLS LAST]    |
+|    |   ProjectionExec: expr=[bar@1 as bar, foo@2 as foo, tag@3 as tag, time@4 as time]    |
+|    |     DeduplicateExec: [tag@3 ASC,time@4 ASC]    |
+|    |       SortPreservingMergeExec: [tag@3 ASC,time@4 ASC,__chunk_order@0 ASC]    |
+|    |         CoalesceBatchesExec: target_batch_size=8192    |
+|    |           FilterExec: time@4 = 0    |
+|    |             ParquetExec: file_groups={2 groups: [[1/1/1/00000000-0000-0000-0000-000000000000.parquet], [1/1/1/00000000-0000-0000-0000-000000000001.parquet]]}, projection=[__chunk_order, bar, foo, tag, time], output_ordering=[tag@3 ASC, time@4 ASC, __chunk_order@0 ASC], predicate=time@3 = 0, pruning_predicate=time_min@0 <= 0 AND 0 <= time_max@1    |
+|    |    |
+----------
+-- SQL: SELECT * FROM "table" WHERE tag='A' AND foo=1 AND time=to_timestamp('1970-01-01T00:00:00.000000000+00:00');
++-----+-----+-----+----------------------+
+| bar | foo | tag | time                 |
++-----+-----+-----+----------------------+
+| 2.0 | 1.0 | A   | 1970-01-01T00:00:00Z |
++-----+-----+-----+----------------------+
+-- SQL: EXPLAIN SELECT * FROM "table" WHERE tag='A' AND foo=1 AND time=to_timestamp('1970-01-01T00:00:00.000000000+00:00');
+-- Results After Normalizing UUIDs
+----------
+| plan_type    | plan    |
+----------
+| logical_plan    | TableScan: table projection=[bar, foo, tag, time], full_filters=[table.tag = Dictionary(Int32, Utf8("A")), table.foo = Float64(1), table.time = TimestampNanosecond(0, None)]    |
+| physical_plan    | CoalesceBatchesExec: target_batch_size=8192    |
+|    |   FilterExec: foo@1 = 1    |
+|    |     ProjectionExec: expr=[bar@1 as bar, foo@2 as foo, tag@3 as tag, time@4 as time]    |
+|    |       DeduplicateExec: [tag@3 ASC,time@4 ASC]    |
+|    |         SortPreservingMergeExec: [tag@3 ASC,time@4 ASC,__chunk_order@0 ASC]    |
+|    |           CoalesceBatchesExec: target_batch_size=8192    |
+|    |             FilterExec: tag@3 = A AND time@4 = 0    |
+|    |               ParquetExec: file_groups={2 groups: [[1/1/1/00000000-0000-0000-0000-000000000000.parquet], [1/1/1/00000000-0000-0000-0000-000000000001.parquet]]}, projection=[__chunk_order, bar, foo, tag, time], output_ordering=[tag@3 ASC, time@4 ASC, __chunk_order@0 ASC], predicate=tag@2 = A AND time@3 = 0, pruning_predicate=tag_min@0 <= A AND A <= tag_max@1 AND time_min@2 <= 0 AND 0 <= time_max@3    |
+|    |    |
+----------

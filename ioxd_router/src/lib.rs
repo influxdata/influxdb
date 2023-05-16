@@ -5,8 +5,8 @@ use std::{
 
 use async_trait::async_trait;
 use authz::{Authorizer, IoxAuthorizer};
-use clap_blocks::router2::Router2Config;
-use data_types::{NamespaceName, PartitionTemplate, TemplatePart};
+use clap_blocks::router::RouterConfig;
+use data_types::{DefaultPartitionTemplate, NamespaceName};
 use hashbrown::HashMap;
 use hyper::{Body, Request, Response};
 use iox_catalog::interface::Catalog;
@@ -64,9 +64,6 @@ pub enum Error {
     #[error("Catalog DSN error: {0}")]
     CatalogDsn(#[from] clap_blocks::catalog_dsn::Error),
 
-    #[error("No topic named '{topic_name}' found in the catalog")]
-    TopicCatalogLookup { topic_name: String },
-
     #[error("authz configuration error for '{addr}': '{source}'")]
     AuthzConfig {
         source: Box<dyn std::error::Error>,
@@ -94,7 +91,7 @@ impl<D, N> RpcWriteRouterServerType<D, N> {
 
 impl<D, N> std::fmt::Debug for RpcWriteRouterServerType<D, N> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "RpcWriteRouter")
+        write!(f, "Router")
     }
 }
 
@@ -194,12 +191,12 @@ impl HttpApiErrorSource for IoxHttpErrorAdaptor {
 }
 
 /// Instantiate a router server that uses the RPC write path
-pub async fn create_router2_server_type(
+pub async fn create_router_server_type(
     common_state: &CommonServerState,
     metrics: Arc<metric::Registry>,
     catalog: Arc<dyn Catalog>,
     object_store: Arc<DynObjectStore>,
-    router_config: &Router2Config,
+    router_config: &RouterConfig,
 ) -> Result<Arc<dyn ServerType>> {
     let ingester_connections = router_config.ingester_addresses.iter().map(|addr| {
         let addr = addr.to_string();
@@ -253,19 +250,15 @@ pub async fn create_router2_server_type(
     // # Retention validator
     //
     // Add a retention validator into handler stack to reject data outside the retention period
-    let retention_validator = RetentionValidator::new(Arc::clone(&ns_cache));
+    let retention_validator = RetentionValidator::new();
     let retention_validator =
         InstrumentationDecorator::new("retention_validator", &metrics, retention_validator);
 
     // # Write partitioner
     //
     // Add a write partitioner into the handler stack that splits by the date
-    // portion of the write's timestamp.
-    let partitioner = Partitioner::new(PartitionTemplate {
-        parts: vec![TemplatePart::TimeFormat(
-            router_config.partition_key_pattern.clone(),
-        )],
-    });
+    // portion of the write's timestamp (the default [`PartitionTemplate`]).
+    let partitioner = Partitioner::new(DefaultPartitionTemplate::default());
     let partitioner = InstrumentationDecorator::new("partitioner", &metrics, partitioner);
 
     // # Namespace resolver
@@ -273,47 +266,10 @@ pub async fn create_router2_server_type(
     // Initialise the Namespace ID lookup + cache
     let namespace_resolver = NamespaceSchemaResolver::new(Arc::clone(&ns_cache));
 
-    ////////////////////////////////////////////////////////////////////////////
-    //
-    // THIS CODE IS FOR TESTING ONLY.
-    //
-    // The source of truth for the topics & query pools will be read from
-    // the DB, rather than CLI args for a prod deployment.
-    //
-    ////////////////////////////////////////////////////////////////////////////
-    //
-    // Look up the topic ID needed to populate namespace creation
-    // requests.
-    //
-    // This code / auto-creation is for architecture testing purposes only - a
-    // prod deployment would expect namespaces to be explicitly created and this
-    // layer would be removed.
-    let mut txn = catalog.start_transaction().await?;
-    let topic_id = txn
-        .topics()
-        .get_by_name(&router_config.topic)
-        .await?
-        .map(|v| v.id)
-        .unwrap_or_else(|| panic!("no topic named {} in catalog", router_config.topic));
-    let query_id = txn
-        .query_pools()
-        .create_or_get(&router_config.query_pool_name)
-        .await
-        .map(|v| v.id)
-        .unwrap_or_else(|e| {
-            panic!(
-                "failed to upsert query pool {} in catalog: {}",
-                router_config.query_pool_name, e
-            )
-        });
-    txn.commit().await?;
-
     let namespace_resolver = NamespaceAutocreation::new(
         namespace_resolver,
         Arc::clone(&ns_cache),
         Arc::clone(&catalog),
-        topic_id,
-        query_id,
         {
             if router_config.namespace_autocreation_enabled {
                 MissingNamespaceAction::AutoCreate(
@@ -395,7 +351,7 @@ pub async fn create_router2_server_type(
     // Initialize the gRPC API delegate that creates the services relevant to the RPC
     // write router path and use it to create the relevant `RpcWriteRouterServer` and
     // `RpcWriteRouterServerType`.
-    let grpc = RpcWriteGrpcDelegate::new(catalog, object_store, topic_id, query_id);
+    let grpc = RpcWriteGrpcDelegate::new(catalog, object_store);
 
     let router_server =
         RpcWriteRouterServer::new(http, grpc, metrics, common_state.trace_collector());
@@ -426,7 +382,10 @@ where
 #[cfg(test)]
 mod tests {
     use data_types::ColumnType;
-    use iox_catalog::mem::MemCatalog;
+    use iox_catalog::{
+        mem::MemCatalog,
+        test_helpers::{arbitrary_namespace, arbitrary_table},
+    };
 
     use super::*;
 
@@ -435,19 +394,9 @@ mod tests {
         let catalog = Arc::new(MemCatalog::new(Default::default()));
 
         let mut repos = catalog.repositories().await;
-        let topic = repos.topics().create_or_get("foo").await.unwrap();
-        let pool = repos.query_pools().create_or_get("foo").await.unwrap();
-        let namespace = repos
-            .namespaces()
-            .create("test_ns", None, topic.id, pool.id)
-            .await
-            .unwrap();
+        let namespace = arbitrary_namespace(&mut *repos, "test_ns").await;
 
-        let table = repos
-            .tables()
-            .create_or_get("name", namespace.id)
-            .await
-            .unwrap();
+        let table = arbitrary_table(&mut *repos, "name", &namespace).await;
         let _column = repos
             .columns()
             .create_or_get("name", table.id, ColumnType::U64)

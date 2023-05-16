@@ -96,11 +96,12 @@ impl object_store_service_server::ObjectStoreService for ObjectStoreService {
 mod tests {
     use super::*;
     use bytes::Bytes;
-    use data_types::{
-        ColumnId, ColumnSet, CompactionLevel, ParquetFileParams, SequenceNumber, Timestamp,
-    };
+    use data_types::{ColumnId, ColumnSet, CompactionLevel, ParquetFileParams, Timestamp};
     use generated_types::influxdata::iox::object_store::v1::object_store_service_server::ObjectStoreService;
-    use iox_catalog::mem::MemCatalog;
+    use iox_catalog::{
+        mem::MemCatalog,
+        test_helpers::{arbitrary_namespace, arbitrary_table},
+    };
     use object_store::{memory::InMemory, ObjectStore};
     use uuid::Uuid;
 
@@ -112,22 +113,8 @@ mod tests {
             let metrics = Arc::new(metric::Registry::default());
             let catalog = Arc::new(MemCatalog::new(metrics));
             let mut repos = catalog.repositories().await;
-            let topic = repos.topics().create_or_get("iox-shared").await.unwrap();
-            let pool = repos
-                .query_pools()
-                .create_or_get("iox-shared")
-                .await
-                .unwrap();
-            let namespace = repos
-                .namespaces()
-                .create("catalog_partition_test", None, topic.id, pool.id)
-                .await
-                .unwrap();
-            let table = repos
-                .tables()
-                .create_or_get("schema_test_table", namespace.id)
-                .await
-                .unwrap();
+            let namespace = arbitrary_namespace(&mut *repos, "catalog_partition_test").await;
+            let table = arbitrary_table(&mut *repos, "schema_test_table", &namespace).await;
             let partition = repos
                 .partitions()
                 .create_or_get("foo".into(), table.id)
@@ -138,7 +125,6 @@ mod tests {
                 table_id: table.id,
                 partition_id: partition.id,
                 object_store_id: Uuid::new_v4(),
-                max_sequence_number: SequenceNumber::new(40),
                 min_time: Timestamp::new(1),
                 max_time: Timestamp::new(5),
                 file_size_bytes: 2343,

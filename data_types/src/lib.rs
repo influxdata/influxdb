@@ -15,16 +15,15 @@
 
 pub mod sequence_number_set;
 
+mod columns;
+pub use columns::*;
 mod namespace_name;
 pub use namespace_name::*;
+mod partition_template;
+pub use partition_template::*;
 
-use influxdb_line_protocol::FieldValue;
 use observability_deps::tracing::warn;
-use schema::{
-    builder::SchemaBuilder, sort::SortKey, InfluxColumnType, InfluxFieldType, Schema,
-    TIME_COLUMN_NAME,
-};
-use sqlx::postgres::PgHasArrayType;
+use schema::{sort::SortKey, TIME_COLUMN_NAME};
 use std::{
     borrow::Borrow,
     collections::{BTreeMap, BTreeSet, HashMap},
@@ -129,42 +128,6 @@ impl std::fmt::Display for NamespaceId {
     }
 }
 
-/// Unique ID for a Topic, assigned by the catalog and used in [`TopicMetadata`]
-#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, sqlx::Type)]
-#[sqlx(transparent)]
-pub struct TopicId(i64);
-
-#[allow(missing_docs)]
-impl TopicId {
-    pub const fn new(v: i64) -> Self {
-        Self(v)
-    }
-    pub fn get(&self) -> i64 {
-        self.0
-    }
-}
-
-impl std::fmt::Display for TopicId {
-    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
-        write!(f, "{}", self.0)
-    }
-}
-
-/// Unique ID for a `QueryPool`
-#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, sqlx::Type)]
-#[sqlx(transparent)]
-pub struct QueryPoolId(i64);
-
-#[allow(missing_docs)]
-impl QueryPoolId {
-    pub fn new(v: i64) -> Self {
-        Self(v)
-    }
-    pub fn get(&self) -> i64 {
-        self.0
-    }
-}
-
 /// Unique ID for a `Table`
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, sqlx::Type)]
 #[sqlx(transparent)]
@@ -183,27 +146,6 @@ impl TableId {
 impl std::fmt::Display for TableId {
     fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
         write!(f, "{}", self.0)
-    }
-}
-
-/// Unique ID for a `Column`
-#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, sqlx::Type)]
-#[sqlx(transparent)]
-pub struct ColumnId(i64);
-
-#[allow(missing_docs)]
-impl ColumnId {
-    pub fn new(v: i64) -> Self {
-        Self(v)
-    }
-    pub fn get(&self) -> i64 {
-        self.0
-    }
-}
-
-impl PgHasArrayType for ColumnId {
-    fn array_type_info() -> sqlx::postgres::PgTypeInfo {
-        <i64 as PgHasArrayType>::array_type_info()
     }
 }
 
@@ -341,25 +283,6 @@ impl std::fmt::Display for ParquetFileId {
     }
 }
 
-/// Data object for a topic. When Kafka is used as the write buffer, this is the Kafka topic name
-/// plus a catalog-assigned ID.
-#[derive(Debug, Clone, Eq, PartialEq, sqlx::FromRow)]
-pub struct TopicMetadata {
-    /// The id of the topic
-    pub id: TopicId,
-    /// The unique name of the topic
-    pub name: String,
-}
-
-/// Data object for a query pool
-#[derive(Debug, Clone, Eq, PartialEq, sqlx::FromRow)]
-pub struct QueryPool {
-    /// The id of the pool
-    pub id: QueryPoolId,
-    /// The unique name of the pool
-    pub name: String,
-}
-
 /// Data object for a namespace
 #[derive(Debug, Clone, Eq, PartialEq, sqlx::FromRow)]
 pub struct Namespace {
@@ -370,10 +293,6 @@ pub struct Namespace {
     #[sqlx(default)]
     /// The retention period in ns. None represents infinite duration (i.e. never drop data).
     pub retention_period_ns: Option<i64>,
-    /// The topic that writes to this namespace will land in
-    pub topic_id: TopicId,
-    /// The query pool assigned to answer queries for this namespace
-    pub query_pool_id: QueryPoolId,
     /// The maximum number of tables that can exist in this namespace
     pub max_tables: i32,
     /// The maximum number of columns per table in this namespace
@@ -388,10 +307,6 @@ pub struct Namespace {
 pub struct NamespaceSchema {
     /// the namespace id
     pub id: NamespaceId,
-    /// the topic this namespace gets data written to
-    pub topic_id: TopicId,
-    /// the query pool assigned to answer queries for this namespace
-    pub query_pool_id: QueryPoolId,
     /// the tables in the namespace by name
     pub tables: BTreeMap<String, TableSchema>,
     /// the number of columns per table this namespace allows
@@ -401,29 +316,36 @@ pub struct NamespaceSchema {
     /// The retention period in ns.
     /// None represents infinite duration (i.e. never drop data).
     pub retention_period_ns: Option<i64>,
+    /// The optionally-specified partition template to use for writes in this namespace.
+    pub partition_template: Option<Arc<NamespacePartitionTemplateOverride>>,
 }
 
 impl NamespaceSchema {
-    /// Create a new `NamespaceSchema`
-    pub fn new(
-        id: NamespaceId,
-        topic_id: TopicId,
-        query_pool_id: QueryPoolId,
-        max_columns_per_table: i32,
-        max_tables: i32,
-        retention_period_ns: Option<i64>,
-    ) -> Self {
+    /// Start a new `NamespaceSchema` with empty `tables` but the rest of the information populated
+    /// from the given `Namespace`.
+    pub fn new_empty_from(namespace: &Namespace) -> Self {
+        let &Namespace {
+            id,
+            retention_period_ns,
+            max_tables,
+            max_columns_per_table,
+            ..
+        } = namespace;
+
         Self {
             id,
             tables: BTreeMap::new(),
-            topic_id,
-            query_pool_id,
             max_columns_per_table: max_columns_per_table as usize,
             max_tables: max_tables as usize,
             retention_period_ns,
+
+            // TODO: Store and retrieve PartitionTemplate from the database
+            partition_template: None,
         }
     }
+}
 
+impl NamespaceSchema {
     /// Estimated Size in bytes including `self`.
     pub fn size(&self) -> usize {
         std::mem::size_of_val(self)
@@ -451,16 +373,31 @@ pub struct Table {
 pub struct TableSchema {
     /// the table id
     pub id: TableId,
+
+    /// the table's partition template
+    pub partition_template: Option<Arc<TablePartitionTemplateOverride>>,
+
     /// the table's columns by their name
-    pub columns: BTreeMap<String, ColumnSchema>,
+    pub columns: ColumnsByName,
 }
 
 impl TableSchema {
-    /// Initialize new `TableSchema`
+    /// Initialize new `TableSchema` with the given `TableId`.
     pub fn new(id: TableId) -> Self {
         Self {
             id,
-            columns: BTreeMap::new(),
+            partition_template: None,
+            columns: ColumnsByName::new([]),
+        }
+    }
+
+    /// Initialize new `TableSchema` from the information in the given `Table`.
+    pub fn new_empty_from(table: &Table) -> Self {
+        Self {
+            id: table.id,
+            // TODO: Store and retrieve PartitionTemplate from the database
+            partition_template: None,
+            columns: ColumnsByName::new([]),
         }
     }
 
@@ -469,12 +406,29 @@ impl TableSchema {
     /// # Panics
     ///
     /// This method panics if a column of the same name already exists in
+    /// `self`, or if `col` references a different `table_id`.
+    pub fn add_column(&mut self, col: Column) {
+        let Column {
+            id,
+            name,
+            column_type,
+            table_id,
+        } = col;
+
+        assert_eq!(table_id, self.id);
+
+        let column_schema = ColumnSchema { id, column_type };
+        self.add_column_schema(name, column_schema);
+    }
+
+    /// Add the name and column schema to this table's schema.
+    ///
+    /// # Panics
+    ///
+    /// This method panics if a column of the same name already exists in
     /// `self`.
-    pub fn add_column(&mut self, col: &Column) {
-        let old = self
-            .columns
-            .insert(col.name.clone(), ColumnSchema::from(col));
-        assert!(old.is_none());
+    pub fn add_column_schema(&mut self, column_name: String, column_schema: ColumnSchema) {
+        self.columns.add_column(column_name, column_schema);
     }
 
     /// Estimated Size in bytes including `self`.
@@ -489,220 +443,23 @@ impl TableSchema {
 
     /// Create `ID->name` map for columns.
     pub fn column_id_map(&self) -> HashMap<ColumnId, &str> {
-        self.columns
-            .iter()
-            .map(|(name, c)| (c.id, name.as_str()))
-            .collect()
+        self.columns.id_map()
+    }
+
+    /// Whether a column with this name is in the schema.
+    pub fn contains_column_name(&self, name: &str) -> bool {
+        self.columns.contains_column_name(name)
     }
 
     /// Return the set of column names for this table. Used in combination with a write operation's
     /// column names to determine whether a write would exceed the max allowed columns.
     pub fn column_names(&self) -> BTreeSet<&str> {
-        self.columns.keys().map(|name| name.as_str()).collect()
+        self.columns.names()
     }
 
     /// Return number of columns of the table
     pub fn column_count(&self) -> usize {
-        self.columns.len()
-    }
-}
-
-/// Data object for a column
-#[derive(Debug, Clone, sqlx::FromRow, Eq, PartialEq)]
-pub struct Column {
-    /// the column id
-    pub id: ColumnId,
-    /// the table id the column is in
-    pub table_id: TableId,
-    /// the name of the column, which is unique in the table
-    pub name: String,
-    /// the logical type of the column
-    pub column_type: ColumnType,
-}
-
-impl Column {
-    /// returns true if the column type is a tag
-    pub fn is_tag(&self) -> bool {
-        self.column_type == ColumnType::Tag
-    }
-
-    /// returns true if the column type matches the line protocol field value type
-    pub fn matches_field_type(&self, field_value: &FieldValue) -> bool {
-        match field_value {
-            FieldValue::I64(_) => self.column_type == ColumnType::I64,
-            FieldValue::U64(_) => self.column_type == ColumnType::U64,
-            FieldValue::F64(_) => self.column_type == ColumnType::F64,
-            FieldValue::String(_) => self.column_type == ColumnType::String,
-            FieldValue::Boolean(_) => self.column_type == ColumnType::Bool,
-        }
-    }
-}
-
-/// The column id and its type for a column
-#[derive(Debug, Copy, Clone, Eq, PartialEq)]
-pub struct ColumnSchema {
-    /// the column id
-    pub id: ColumnId,
-    /// the column type
-    pub column_type: ColumnType,
-}
-
-impl ColumnSchema {
-    /// returns true if the column is a tag
-    pub fn is_tag(&self) -> bool {
-        self.column_type == ColumnType::Tag
-    }
-
-    /// returns true if the column matches the line protocol field value type
-    pub fn matches_field_type(&self, field_value: &FieldValue) -> bool {
-        matches!(
-            (field_value, self.column_type),
-            (FieldValue::I64(_), ColumnType::I64)
-                | (FieldValue::U64(_), ColumnType::U64)
-                | (FieldValue::F64(_), ColumnType::F64)
-                | (FieldValue::String(_), ColumnType::String)
-                | (FieldValue::Boolean(_), ColumnType::Bool)
-        )
-    }
-
-    /// Returns true if `mb_column` is of the same type as `self`.
-    pub fn matches_type(&self, mb_column_influx_type: InfluxColumnType) -> bool {
-        self.column_type == mb_column_influx_type
-    }
-}
-
-impl From<&Column> for ColumnSchema {
-    fn from(c: &Column) -> Self {
-        let Column {
-            id, column_type, ..
-        } = c;
-
-        Self {
-            id: *id,
-            column_type: *column_type,
-        }
-    }
-}
-
-/// The column data type
-#[allow(missing_docs)]
-#[derive(Debug, Copy, Clone, Eq, PartialEq, PartialOrd, Ord, Hash, sqlx::Type)]
-#[repr(i16)]
-pub enum ColumnType {
-    I64 = 1,
-    U64 = 2,
-    F64 = 3,
-    Bool = 4,
-    String = 5,
-    Time = 6,
-    Tag = 7,
-}
-
-impl ColumnType {
-    /// the short string description of the type
-    pub fn as_str(&self) -> &'static str {
-        match self {
-            Self::I64 => "i64",
-            Self::U64 => "u64",
-            Self::F64 => "f64",
-            Self::Bool => "bool",
-            Self::String => "string",
-            Self::Time => "time",
-            Self::Tag => "tag",
-        }
-    }
-}
-
-impl std::fmt::Display for ColumnType {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        let s = self.as_str();
-
-        write!(f, "{s}")
-    }
-}
-
-impl TryFrom<i16> for ColumnType {
-    type Error = Box<dyn std::error::Error>;
-
-    fn try_from(value: i16) -> Result<Self, Self::Error> {
-        match value {
-            x if x == Self::I64 as i16 => Ok(Self::I64),
-            x if x == Self::U64 as i16 => Ok(Self::U64),
-            x if x == Self::F64 as i16 => Ok(Self::F64),
-            x if x == Self::Bool as i16 => Ok(Self::Bool),
-            x if x == Self::String as i16 => Ok(Self::String),
-            x if x == Self::Time as i16 => Ok(Self::Time),
-            x if x == Self::Tag as i16 => Ok(Self::Tag),
-            _ => Err("invalid column value".into()),
-        }
-    }
-}
-
-impl From<InfluxColumnType> for ColumnType {
-    fn from(value: InfluxColumnType) -> Self {
-        match value {
-            InfluxColumnType::Tag => Self::Tag,
-            InfluxColumnType::Field(InfluxFieldType::Float) => Self::F64,
-            InfluxColumnType::Field(InfluxFieldType::Integer) => Self::I64,
-            InfluxColumnType::Field(InfluxFieldType::UInteger) => Self::U64,
-            InfluxColumnType::Field(InfluxFieldType::String) => Self::String,
-            InfluxColumnType::Field(InfluxFieldType::Boolean) => Self::Bool,
-            InfluxColumnType::Timestamp => Self::Time,
-        }
-    }
-}
-
-impl From<ColumnType> for InfluxColumnType {
-    fn from(value: ColumnType) -> Self {
-        match value {
-            ColumnType::I64 => Self::Field(InfluxFieldType::Integer),
-            ColumnType::U64 => Self::Field(InfluxFieldType::UInteger),
-            ColumnType::F64 => Self::Field(InfluxFieldType::Float),
-            ColumnType::Bool => Self::Field(InfluxFieldType::Boolean),
-            ColumnType::String => Self::Field(InfluxFieldType::String),
-            ColumnType::Time => Self::Timestamp,
-            ColumnType::Tag => Self::Tag,
-        }
-    }
-}
-
-impl TryFrom<TableSchema> for Schema {
-    type Error = schema::builder::Error;
-
-    fn try_from(value: TableSchema) -> Result<Self, Self::Error> {
-        let mut builder = SchemaBuilder::new();
-
-        for (column_name, column_schema) in &value.columns {
-            let t = InfluxColumnType::from(column_schema.column_type);
-            builder.influx_column(column_name, t);
-        }
-
-        builder.build()
-    }
-}
-
-impl PartialEq<InfluxColumnType> for ColumnType {
-    fn eq(&self, got: &InfluxColumnType) -> bool {
-        match self {
-            Self::I64 => matches!(got, InfluxColumnType::Field(InfluxFieldType::Integer)),
-            Self::U64 => matches!(got, InfluxColumnType::Field(InfluxFieldType::UInteger)),
-            Self::F64 => matches!(got, InfluxColumnType::Field(InfluxFieldType::Float)),
-            Self::Bool => matches!(got, InfluxColumnType::Field(InfluxFieldType::Boolean)),
-            Self::String => matches!(got, InfluxColumnType::Field(InfluxFieldType::String)),
-            Self::Time => matches!(got, InfluxColumnType::Timestamp),
-            Self::Tag => matches!(got, InfluxColumnType::Tag),
-        }
-    }
-}
-
-/// Returns the `ColumnType` for the passed in line protocol `FieldValue` type
-pub fn column_type_from_field(field_value: &FieldValue) -> ColumnType {
-    match field_value {
-        FieldValue::I64(_) => ColumnType::I64,
-        FieldValue::U64(_) => ColumnType::U64,
-        FieldValue::F64(_) => ColumnType::F64,
-        FieldValue::String(_) => ColumnType::String,
-        FieldValue::Boolean(_) => ColumnType::Bool,
+        self.columns.column_count()
     }
 }
 
@@ -793,8 +550,8 @@ impl sqlx::Decode<'_, sqlx::Sqlite> for PartitionKey {
     }
 }
 
-/// Data object for a partition. The combination of shard, table and key are unique (i.e. only
-/// one record can exist for each combo)
+/// Data object for a partition. The combination of table and key are unique (i.e. only one record
+/// can exist for each combo)
 #[derive(Debug, Clone, PartialEq, Eq, sqlx::FromRow)]
 pub struct Partition {
     /// the id of the partition
@@ -829,23 +586,6 @@ pub struct Partition {
     /// is legal. However, updating to `A,C,D,B` is not because the
     /// relative order of B and C have been reversed.
     pub sort_key: Vec<String>,
-
-    /// The inclusive maximum [`SequenceNumber`] of the most recently persisted
-    /// data for this partition.
-    ///
-    /// All writes with a [`SequenceNumber`] less than and equal to this
-    /// [`SequenceNumber`] have been persisted to the object store. The inverse
-    /// is not guaranteed to be true due to update ordering; some files for this
-    /// partition may exist in the `parquet_files` table that have a greater
-    /// [`SequenceNumber`] than is specified here - the system will converge so
-    /// long as the ingester progresses.
-    ///
-    /// It is a system invariant that this value monotonically increases over
-    /// time - wrote another way, it is an invariant that partitions are
-    /// persisted (or at least made visible) in sequence order.
-    ///
-    /// If [`None`] no data has been persisted for this partition.
-    pub persisted_sequence_number: Option<SequenceNumber>,
 
     /// The time at which the newest file of the partition is created
     pub new_file_at: Option<Timestamp>,
@@ -883,52 +623,30 @@ pub struct SkippedCompaction {
     pub limit_num_files_first_in_partition: i64,
 }
 
-/// Set of columns.
-#[derive(Debug, Clone, PartialEq, Eq, sqlx::Type)]
-#[sqlx(transparent)]
-pub struct ColumnSet(Vec<ColumnId>);
+use generated_types::influxdata::iox::compactor::v1 as compactor_proto;
+impl From<SkippedCompaction> for compactor_proto::SkippedCompaction {
+    fn from(skipped_compaction: SkippedCompaction) -> Self {
+        let SkippedCompaction {
+            partition_id,
+            reason,
+            skipped_at,
+            estimated_bytes,
+            limit_bytes,
+            num_files,
+            limit_num_files,
+            limit_num_files_first_in_partition,
+        } = skipped_compaction;
 
-impl ColumnSet {
-    /// Create new column set.
-    ///
-    /// The order of the passed columns will NOT be preserved.
-    ///
-    /// # Panic
-    /// Panics when the set of passed columns contains duplicates.
-    pub fn new<I>(columns: I) -> Self
-    where
-        I: IntoIterator<Item = ColumnId>,
-    {
-        let mut columns: Vec<ColumnId> = columns.into_iter().collect();
-        columns.sort();
-
-        let len_pre_dedup = columns.len();
-        columns.dedup();
-        let len_post_dedup = columns.len();
-        assert_eq!(len_pre_dedup, len_post_dedup, "set contains duplicates");
-
-        columns.shrink_to_fit();
-
-        Self(columns)
-    }
-
-    /// Estimate the memory consumption of this object and its contents
-    pub fn size(&self) -> usize {
-        std::mem::size_of_val(self) + (std::mem::size_of::<ChunkId>() * self.0.capacity())
-    }
-}
-
-impl From<ColumnSet> for Vec<ColumnId> {
-    fn from(set: ColumnSet) -> Self {
-        set.0
-    }
-}
-
-impl Deref for ColumnSet {
-    type Target = [ColumnId];
-
-    fn deref(&self) -> &Self::Target {
-        self.0.deref()
+        Self {
+            partition_id: partition_id.get(),
+            reason,
+            skipped_at: skipped_at.get(),
+            estimated_bytes,
+            limit_bytes,
+            num_files,
+            limit_num_files,
+            limit_num_files_first_in_partition: Some(limit_num_files_first_in_partition),
+        }
     }
 }
 
@@ -945,8 +663,6 @@ pub struct ParquetFile {
     pub partition_id: PartitionId,
     /// the uuid used in the object store path for this file
     pub object_store_id: Uuid,
-    /// the maximum sequence number from a record in this file
-    pub max_sequence_number: SequenceNumber,
     /// the min timestamp of data in this file
     pub min_time: Timestamp,
     /// the max timestamp of data in this file
@@ -1003,7 +719,6 @@ impl ParquetFile {
             table_id: params.table_id,
             partition_id: params.partition_id,
             object_store_id: params.object_store_id,
-            max_sequence_number: params.max_sequence_number,
             min_time: params.min_time,
             max_time: params.max_time,
             to_delete: None,
@@ -1044,8 +759,6 @@ pub struct ParquetFileParams {
     pub partition_id: PartitionId,
     /// the uuid used in the object store path for this file
     pub object_store_id: Uuid,
-    /// the maximum sequence number from a record in this file
-    pub max_sequence_number: SequenceNumber,
     /// the min timestamp of data in this file
     pub min_time: Timestamp,
     /// the max timestamp of data in this file
@@ -1071,7 +784,6 @@ impl From<ParquetFile> for ParquetFileParams {
             table_id: value.table_id,
             partition_id: value.partition_id,
             object_store_id: value.object_store_id,
-            max_sequence_number: value.max_sequence_number,
             min_time: value.min_time,
             max_time: value.max_time,
             file_size_bytes: value.file_size_bytes,
@@ -1165,64 +877,6 @@ impl ChunkOrder {
     pub fn get(&self) -> i64 {
         self.0
     }
-}
-
-/// `PartitionTemplate` is used to compute the partition key of each row that
-/// gets written. It can consist of the table name, a column name and its value,
-/// a formatted time, or a string column and regex captures of its value. For
-/// columns that do not appear in the input row, a blank value is output.
-///
-/// The key is constructed in order of the template parts; thus ordering changes
-/// what partition key is generated.
-#[derive(Debug, Default, Eq, PartialEq, Clone)]
-#[allow(missing_docs)]
-pub struct PartitionTemplate {
-    pub parts: Vec<TemplatePart>,
-}
-
-/// `TemplatePart` specifies what part of a row should be used to compute this
-/// part of a partition key.
-#[derive(Debug, Eq, PartialEq, Clone)]
-pub enum TemplatePart {
-    /// The name of a table
-    Table,
-    /// The value in a named column
-    Column(String),
-    /// Applies a  `strftime` format to the "time" column.
-    ///
-    /// For example, a time format of "%Y-%m-%d %H:%M:%S" will produce
-    /// partition key parts such as "2021-03-14 12:25:21" and
-    /// "2021-04-14 12:24:21"
-    TimeFormat(String),
-    /// Applies a regex to the value in a string column
-    RegexCapture(RegexCapture),
-    /// Applies a `strftime` pattern to some column other than "time"
-    StrftimeColumn(StrftimeColumn),
-}
-
-/// `RegexCapture` is for pulling parts of a string column into the partition
-/// key.
-#[derive(Debug, Eq, PartialEq, Clone)]
-#[allow(missing_docs)]
-pub struct RegexCapture {
-    pub column: String,
-    pub regex: String,
-}
-
-/// [`StrftimeColumn`] is used to create a time based partition key off some
-/// column other than the builtin `time` column.
-///
-/// The value of the named column is formatted using a `strftime`
-/// style string.
-///
-/// For example, a time format of "%Y-%m-%d %H:%M:%S" will produce
-/// partition key parts such as "2021-03-14 12:25:21" and
-/// "2021-04-14 12:24:21"
-#[derive(Debug, Eq, PartialEq, Clone)]
-#[allow(missing_docs)]
-pub struct StrftimeColumn {
-    pub column: String,
-    pub format: String,
 }
 
 /// Represents a parsed delete predicate for evaluation by the InfluxDB IOx
@@ -1968,10 +1622,9 @@ pub const MIN_NANO_TIME: i64 = i64::MIN + 2;
 ///
 /// 2262-04-11 23:47:16.854775806 +0000 UTC
 ///
-/// The highest time represented by a nanosecond needs to be used for an
-/// exclusive range in the shard group, so the maximum time needs to be one
-/// less than the possible maximum number of nanoseconds representable by an
-/// int64 so that we don't lose a point at that one time.
+/// The highest time represented by a nanosecond needs to be used for an exclusive range, so the
+/// maximum time needs to be one less than the possible maximum number of nanoseconds representable
+/// by an int64 so that we don't lose a point at that one time.
 /// Source: [influxdb](https://github.com/influxdata/influxdb/blob/540bb66e1381a48a6d1ede4fc3e49c75a7d9f4af/models/time.go#L12-L34)
 pub const MAX_NANO_TIME: i64 = i64::MAX - 1;
 
@@ -3010,17 +2663,21 @@ mod tests {
     fn test_table_schema_size() {
         let schema1 = TableSchema {
             id: TableId::new(1),
-            columns: BTreeMap::from([]),
+            partition_template: None,
+            columns: ColumnsByName::new([]),
         };
         let schema2 = TableSchema {
             id: TableId::new(2),
-            columns: BTreeMap::from([(
-                String::from("foo"),
-                ColumnSchema {
+            partition_template: None,
+            columns: ColumnsByName::new(
+                [Column {
                     id: ColumnId::new(1),
+                    table_id: TableId::new(2),
+                    name: String::from("foo"),
                     column_type: ColumnType::Bool,
-                },
-            )]),
+                }]
+                .into_iter(),
+            ),
         };
         assert!(schema1.size() < schema2.size());
     }
@@ -3029,21 +2686,26 @@ mod tests {
     fn test_namespace_schema_size() {
         let schema1 = NamespaceSchema {
             id: NamespaceId::new(1),
-            topic_id: TopicId::new(2),
-            query_pool_id: QueryPoolId::new(3),
             tables: BTreeMap::from([]),
             max_columns_per_table: 4,
             max_tables: 42,
             retention_period_ns: None,
+            partition_template: None,
         };
         let schema2 = NamespaceSchema {
             id: NamespaceId::new(1),
-            topic_id: TopicId::new(2),
-            query_pool_id: QueryPoolId::new(3),
-            tables: BTreeMap::from([(String::from("foo"), TableSchema::new(TableId::new(1)))]),
+            tables: BTreeMap::from([(
+                String::from("foo"),
+                TableSchema {
+                    id: TableId::new(1),
+                    columns: ColumnsByName::new([]),
+                    partition_template: None,
+                },
+            )]),
             max_columns_per_table: 4,
             max_tables: 42,
             retention_period_ns: None,
+            partition_template: None,
         };
         assert!(schema1.size() < schema2.size());
     }
@@ -3070,12 +2732,6 @@ mod tests {
     #[should_panic = "timestamp wraparound"]
     fn test_timestamp_wraparound_panic_sub_timestamp() {
         let _ = Timestamp::new(i64::MIN) - Timestamp::new(1);
-    }
-
-    #[test]
-    #[should_panic = "set contains duplicates"]
-    fn test_column_set_duplicates() {
-        ColumnSet::new([ColumnId::new(1), ColumnId::new(2), ColumnId::new(1)]);
     }
 
     #[test]

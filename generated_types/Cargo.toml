@@ -8,15 +8,10 @@ license.workspace = true
 [dependencies] # In alphabetical order
 base64 = "0.21"
 bytes = "1.4"
-data_types = { path = "../data_types", optional = true }
-datafusion = { workspace = true, optional = true }
-datafusion-proto = { workspace = true, optional = true }
 observability_deps = { path = "../observability_deps" }
 pbjson = "0.5"
 pbjson-types = "0.5"
-predicate = { path = "../predicate", optional = true }
 prost = "0.11"
-query_functions = { path = "../query_functions" }
 serde = { version = "1.0", features = ["derive"] }
 snafu = "0.7"
 tonic = { workspace = true }
@@ -26,12 +21,3 @@ workspace-hack = { version = "0.1", path = "../workspace-hack" }
 tonic-build = { workspace = true }
 prost-build = "0.11"
 pbjson-build = "0.5"
-
-[dev-dependencies]
-data_types = { path = "../data_types" }
-datafusion = { workspace = true }
-predicate = { path = "../predicate" }
-
-[features]
-default = ["data_types_conversions"]
-data_types_conversions = ["data_types", "datafusion", "datafusion-proto", "predicate"]

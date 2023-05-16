@@ -20,13 +20,15 @@ message NamespaceSchema {
   // Renamed to topic_id
   reserved 2;
   reserved "kafka_topic_id";
+  // Removed topic ID
+  reserved 5;
+  reserved "topic_id";
+  // Removed query pool ID
+  reserved 3;
+  reserved "query_pool_id";
 
   // Namespace ID
   int64 id = 1;
-  // Topic ID
-  int64 topic_id = 5;
-  // Query Pool ID
-  int64 query_pool_id = 3;
   // Map of Table Name -> Table Schema
   map<string, TableSchema> tables = 4;
 }

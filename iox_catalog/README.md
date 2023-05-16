@@ -27,7 +27,6 @@ You'll then need to create the database. You can do this via the sqlx command li
 cargo install sqlx-cli
 DATABASE_URL=<dsn> sqlx database create
 cargo run -q -- catalog setup
-cargo run -- catalog topic update iox-shared
 ```
 
 This will set up the database based on the files in `./migrations` in this crate. SQLx also creates

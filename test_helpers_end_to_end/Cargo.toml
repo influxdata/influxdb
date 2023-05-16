@@ -18,6 +18,8 @@ generated_types = { path = "../generated_types" }
 http = "0.2.9"
 hyper = "0.14"
 influxdb_iox_client = { path = "../influxdb_iox_client", features = ["flight", "format"] }
+ingester_query_grpc = { path = "../ingester_query_grpc" }
+iox_catalog = { path = "../iox_catalog" }
 mutable_batch_lp = { path = "../mutable_batch_lp" }
 mutable_batch_pb = { path = "../mutable_batch_pb" }
 nix = "0.26"

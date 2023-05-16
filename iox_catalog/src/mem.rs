@@ -4,19 +4,17 @@
 use crate::{
     interface::{
         sealed::TransactionFinalize, CasFailure, Catalog, ColumnRepo, ColumnTypeMismatchSnafu,
-        Error, NamespaceRepo, ParquetFileRepo, PartitionRepo, QueryPoolRepo, RepoCollection,
-        Result, SoftDeletedRows, TableRepo, TopicMetadataRepo, Transaction,
-        MAX_PARQUET_FILES_SELECTED_ONCE,
+        Error, NamespaceRepo, ParquetFileRepo, PartitionRepo, RepoCollection, Result,
+        SoftDeletedRows, TableRepo, Transaction, MAX_PARQUET_FILES_SELECTED_ONCE,
     },
-    kafkaless_transition::{Shard, TRANSITION_SHARD_ID, TRANSITION_SHARD_INDEX},
     metrics::MetricDecorator,
-    DEFAULT_MAX_COLUMNS_PER_TABLE, DEFAULT_MAX_TABLES, SHARED_TOPIC_ID, SHARED_TOPIC_NAME,
+    DEFAULT_MAX_COLUMNS_PER_TABLE, DEFAULT_MAX_TABLES,
 };
 use async_trait::async_trait;
 use data_types::{
-    Column, ColumnId, ColumnType, CompactionLevel, Namespace, NamespaceId, ParquetFile,
-    ParquetFileId, ParquetFileParams, Partition, PartitionId, PartitionKey, QueryPool, QueryPoolId,
-    SequenceNumber, SkippedCompaction, Table, TableId, Timestamp, TopicId, TopicMetadata,
+    Column, ColumnId, ColumnType, CompactionLevel, Namespace, NamespaceId, NamespaceName,
+    ParquetFile, ParquetFileId, ParquetFileParams, Partition, PartitionId, PartitionKey,
+    SkippedCompaction, Table, TableId, Timestamp,
 };
 use iox_time::{SystemProvider, TimeProvider};
 use observability_deps::tracing::warn;
@@ -64,12 +62,9 @@ impl std::fmt::Debug for MemCatalog {
 
 #[derive(Default, Debug, Clone)]
 struct MemCollections {
-    topics: Vec<TopicMetadata>,
-    query_pools: Vec<QueryPool>,
     namespaces: Vec<Namespace>,
     tables: Vec<Table>,
     columns: Vec<Column>,
-    shards: Vec<Shard>,
     partitions: Vec<Partition>,
     skipped_compactions: Vec<SkippedCompaction>,
     parquet_files: Vec<ParquetFile>,
@@ -124,35 +119,6 @@ impl Display for MemCatalog {
 #[async_trait]
 impl Catalog for MemCatalog {
     async fn setup(&self) -> Result<(), Error> {
-        let guard = Arc::clone(&self.collections).lock_owned().await;
-        let stage = guard.clone();
-        let mut transaction = MemTxn {
-            inner: MemTxnInner::Txn {
-                guard,
-                stage,
-                finalized: false,
-            },
-            time_provider: self.time_provider(),
-        };
-        let stage = transaction.stage();
-
-        // We need to manually insert the topic here so that we can create the transition shard
-        // below.
-        let topic = TopicMetadata {
-            id: SHARED_TOPIC_ID,
-            name: SHARED_TOPIC_NAME.to_string(),
-        };
-        stage.topics.push(topic.clone());
-
-        // The transition shard must exist and must have magic ID and INDEX.
-        let shard = Shard {
-            id: TRANSITION_SHARD_ID,
-            topic_id: topic.id,
-            shard_index: TRANSITION_SHARD_INDEX,
-            min_unpersisted_sequence_number: SequenceNumber::new(0),
-        };
-        stage.shards.push(shard);
-        transaction.commit_inplace().await?;
         Ok(())
     }
 
@@ -228,14 +194,6 @@ impl TransactionFinalize for MemTxn {
 
 #[async_trait]
 impl RepoCollection for MemTxn {
-    fn topics(&mut self) -> &mut dyn TopicMetadataRepo {
-        self
-    }
-
-    fn query_pools(&mut self) -> &mut dyn QueryPoolRepo {
-        self
-    }
-
     fn namespaces(&mut self) -> &mut dyn NamespaceRepo {
         self
     }
@@ -258,66 +216,15 @@ impl RepoCollection for MemTxn {
 }
 
 #[async_trait]
-impl TopicMetadataRepo for MemTxn {
-    async fn create_or_get(&mut self, name: &str) -> Result<TopicMetadata> {
-        let stage = self.stage();
-
-        let topic = match stage.topics.iter().find(|t| t.name == name) {
-            Some(t) => t,
-            None => {
-                let topic = TopicMetadata {
-                    id: TopicId::new(stage.topics.len() as i64 + 1),
-                    name: name.to_string(),
-                };
-                stage.topics.push(topic);
-                stage.topics.last().unwrap()
-            }
-        };
-
-        Ok(topic.clone())
-    }
-
-    async fn get_by_name(&mut self, name: &str) -> Result<Option<TopicMetadata>> {
-        let stage = self.stage();
-
-        let topic = stage.topics.iter().find(|t| t.name == name).cloned();
-        Ok(topic)
-    }
-}
-
-#[async_trait]
-impl QueryPoolRepo for MemTxn {
-    async fn create_or_get(&mut self, name: &str) -> Result<QueryPool> {
-        let stage = self.stage();
-
-        let pool = match stage.query_pools.iter().find(|t| t.name == name) {
-            Some(t) => t,
-            None => {
-                let pool = QueryPool {
-                    id: QueryPoolId::new(stage.query_pools.len() as i64 + 1),
-                    name: name.to_string(),
-                };
-                stage.query_pools.push(pool);
-                stage.query_pools.last().unwrap()
-            }
-        };
-
-        Ok(pool.clone())
-    }
-}
-
-#[async_trait]
 impl NamespaceRepo for MemTxn {
     async fn create(
         &mut self,
-        name: &str,
+        name: &NamespaceName,
         retention_period_ns: Option<i64>,
-        topic_id: TopicId,
-        query_pool_id: QueryPoolId,
     ) -> Result<Namespace> {
         let stage = self.stage();
 
-        if stage.namespaces.iter().any(|n| n.name == name) {
+        if stage.namespaces.iter().any(|n| n.name == name.as_str()) {
             return Err(Error::NameExists {
                 name: name.to_string(),
             });
@@ -326,8 +233,6 @@ impl NamespaceRepo for MemTxn {
         let namespace = Namespace {
             id: NamespaceId::new(stage.namespaces.len() as i64 + 1),
             name: name.to_string(),
-            topic_id,
-            query_pool_id,
             max_tables: DEFAULT_MAX_TABLES,
             max_columns_per_table: DEFAULT_MAX_COLUMNS_PER_TABLE,
             retention_period_ns,
@@ -701,7 +606,6 @@ impl PartitionRepo for MemTxn {
                     table_id,
                     partition_key: key,
                     sort_key: vec![],
-                    persisted_sequence_number: None,
                     new_file_at: None,
                 };
                 stage.partitions.push(p);

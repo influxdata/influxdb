@@ -1,0 +1,49 @@
+-- Test Setup: TwoMeasurementsManyFieldsTwoChunks
+-- SQL: SELECT * from h2o;
+-- Results After Sorting
++--------+------------+-------+------+--------------------------------+
+| city   | other_temp | state | temp | time                           |
++--------+------------+-------+------+--------------------------------+
+| Boston | 70.4       | MA    |      | 1970-01-01T00:00:00.000000250Z |
+| Boston | 72.4       | CA    |      | 1970-01-01T00:00:00.000000150Z |
+| Boston |            | MA    | 70.4 | 1970-01-01T00:00:00.000000050Z |
++--------+------------+-------+------+--------------------------------+
+-- SQL: EXPLAIN SELECT * from h2o;
+-- Results After Normalizing UUIDs
+----------
+| plan_type    | plan    |
+----------
+| logical_plan    | TableScan: h2o projection=[city, other_temp, state, temp, time]    |
+| physical_plan    | ProjectionExec: expr=[city@1 as city, other_temp@2 as other_temp, state@3 as state, temp@4 as temp, time@5 as time]    |
+|    |   DeduplicateExec: [city@1 ASC,state@3 ASC,time@5 ASC]    |
+|    |     SortPreservingMergeExec: [city@1 ASC,state@3 ASC,time@5 ASC,__chunk_order@0 ASC]    |
+|    |       UnionExec    |
+|    |         SortExec: expr=[city@1 ASC,state@3 ASC,time@5 ASC,__chunk_order@0 ASC]    |
+|    |           RecordBatchesExec: batches_groups=1 batches=1 total_rows=1    |
+|    |         ParquetExec: file_groups={1 group: [[1/1/1/00000000-0000-0000-0000-000000000000.parquet]]}, projection=[__chunk_order, city, other_temp, state, temp, time], output_ordering=[city@1 ASC, state@3 ASC, time@5 ASC, __chunk_order@0 ASC]    |
+|    |    |
+----------
+-- SQL: select temp, other_temp, time from h2o;
++------+------------+--------------------------------+
+| temp | other_temp | time                           |
++------+------------+--------------------------------+
+|      | 72.4       | 1970-01-01T00:00:00.000000150Z |
+| 70.4 |            | 1970-01-01T00:00:00.000000050Z |
+|      | 70.4       | 1970-01-01T00:00:00.000000250Z |
++------+------------+--------------------------------+
+-- SQL: EXPLAIN select temp, other_temp, time from h2o;
+-- Results After Normalizing UUIDs
+----------
+| plan_type    | plan    |
+----------
+| logical_plan    | Projection: h2o.temp, h2o.other_temp, h2o.time    |
+|    |   TableScan: h2o projection=[other_temp, temp, time]    |
+| physical_plan    | ProjectionExec: expr=[temp@3 as temp, other_temp@4 as other_temp, time@5 as time]    |
+|    |   DeduplicateExec: [city@1 ASC,state@2 ASC,time@5 ASC]    |
+|    |     SortPreservingMergeExec: [city@1 ASC,state@2 ASC,time@5 ASC,__chunk_order@0 ASC]    |
+|    |       UnionExec    |
+|    |         SortExec: expr=[city@1 ASC,state@2 ASC,time@5 ASC,__chunk_order@0 ASC]    |
+|    |           RecordBatchesExec: batches_groups=1 batches=1 total_rows=1    |
+|    |         ParquetExec: file_groups={1 group: [[1/1/1/00000000-0000-0000-0000-000000000000.parquet]]}, projection=[__chunk_order, city, state, temp, other_temp, time], output_ordering=[city@1 ASC, state@2 ASC, time@5 ASC, __chunk_order@0 ASC]    |
+|    |    |
+----------

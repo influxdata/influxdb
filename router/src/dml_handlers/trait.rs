@@ -2,7 +2,7 @@ use super::{
     partitioner::PartitionError, retention_validation::RetentionError, RpcWriteError, SchemaError,
 };
 use async_trait::async_trait;
-use data_types::{NamespaceId, NamespaceName};
+use data_types::{NamespaceName, NamespaceSchema};
 use std::{error::Error, fmt::Debug, sync::Arc};
 use thiserror::Error;
 use trace::ctx::SpanContext;
@@ -61,7 +61,7 @@ pub trait DmlHandler: Debug + Send + Sync {
     async fn write(
         &self,
         namespace: &NamespaceName<'static>,
-        namespace_id: NamespaceId,
+        namespace_schema: Arc<NamespaceSchema>,
         input: Self::WriteInput,
         span_ctx: Option<SpanContext>,
     ) -> Result<Self::WriteOutput, Self::WriteError>;
@@ -79,12 +79,12 @@ where
     async fn write(
         &self,
         namespace: &NamespaceName<'static>,
-        namespace_id: NamespaceId,
+        namespace_schema: Arc<NamespaceSchema>,
         input: Self::WriteInput,
         span_ctx: Option<SpanContext>,
     ) -> Result<Self::WriteOutput, Self::WriteError> {
         (**self)
-            .write(namespace, namespace_id, input, span_ctx)
+            .write(namespace, namespace_schema, input, span_ctx)
             .await
     }
 }

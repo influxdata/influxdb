@@ -1,6 +1,6 @@
 use std::{iter, string::String, sync::Arc, time::Duration};
 
-use data_types::{PartitionTemplate, QueryPoolId, TableId, TemplatePart, TopicId};
+use data_types::{DefaultPartitionTemplate, TableId};
 use generated_types::influxdata::iox::ingester::v1::WriteRequest;
 use hashbrown::HashMap;
 use hyper::{Body, Request, Response};
@@ -23,14 +23,6 @@ use router::{
         http::{write::multi_tenant::MultiTenantRequestUnifier, HttpDelegate},
     },
 };
-
-/// The topic catalog ID assigned by the namespace auto-creator in the
-/// handler stack for namespaces it has not yet observed.
-pub const TEST_TOPIC_ID: i64 = 1;
-
-/// The query pool catalog ID assigned by the namespace auto-creator in the
-/// handler stack for namespaces it has not yet observed.
-pub const TEST_QUERY_POOL_ID: i64 = 1;
 
 /// Common retention period value we'll use in tests
 pub const TEST_RETENTION_PERIOD: Duration = Duration::from_secs(3600);
@@ -113,9 +105,7 @@ type HttpDelegateStack = HttpDelegate<
         Chain<
             Chain<
                 Chain<
-                    RetentionValidator<
-                        Arc<ReadThroughCache<Arc<ShardedCache<Arc<MemoryNamespaceCache>>>>>,
-                    >,
+                    RetentionValidator,
                     SchemaValidator<
                         Arc<ReadThroughCache<Arc<ShardedCache<Arc<MemoryNamespaceCache>>>>>,
                     >,
@@ -157,19 +147,15 @@ impl TestContext {
         let schema_validator =
             SchemaValidator::new(Arc::clone(&catalog), Arc::clone(&ns_cache), &metrics);
 
-        let retention_validator = RetentionValidator::new(Arc::clone(&ns_cache));
+        let retention_validator = RetentionValidator::new();
 
-        let partitioner = Partitioner::new(PartitionTemplate {
-            parts: vec![TemplatePart::TimeFormat("%Y-%m-%d".to_owned())],
-        });
+        let partitioner = Partitioner::new(DefaultPartitionTemplate::default());
 
         let namespace_resolver = NamespaceSchemaResolver::new(Arc::clone(&ns_cache));
         let namespace_resolver = NamespaceAutocreation::new(
             namespace_resolver,
             Arc::clone(&ns_cache),
             Arc::clone(&catalog),
-            TopicId::new(TEST_TOPIC_ID),
-            QueryPoolId::new(TEST_QUERY_POOL_ID),
             namespace_autocreation,
         );
 
@@ -193,12 +179,8 @@ impl TestContext {
             write_request_unifier,
         );
 
-        let grpc_delegate = RpcWriteGrpcDelegate::new(
-            Arc::clone(&catalog),
-            Arc::new(InMemory::default()),
-            TopicId::new(TEST_TOPIC_ID),
-            QueryPoolId::new(TEST_QUERY_POOL_ID),
-        );
+        let grpc_delegate =
+            RpcWriteGrpcDelegate::new(Arc::clone(&catalog), Arc::new(InMemory::default()));
 
         Self {
             client,

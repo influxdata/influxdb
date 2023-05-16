@@ -2,7 +2,7 @@ use crate::{AggregateTSMMeasurement, AggregateTSMSchema};
 use chrono::{format::StrftimeItems, offset::FixedOffset, DateTime, Duration};
 use data_types::{
     ColumnType, Namespace, NamespaceName, NamespaceSchema, OrgBucketMappingError, Partition,
-    PartitionKey, QueryPoolId, TableSchema, TopicId,
+    PartitionKey, TableSchema,
 };
 use iox_catalog::interface::{
     get_schema_by_name, CasFailure, Catalog, RepoCollection, SoftDeletedRows,
@@ -25,9 +25,6 @@ pub enum UpdateCatalogError {
     #[error("Couldn't construct namespace from org and bucket: {0}")]
     InvalidOrgBucket(#[from] OrgBucketMappingError),
 
-    #[error("No topic named '{topic_name}' found in the catalog")]
-    TopicCatalogLookup { topic_name: String },
-
     #[error("No namespace named {0} in Catalog")]
     NamespaceNotFound(String),
 
@@ -43,14 +40,10 @@ pub enum UpdateCatalogError {
 
 /// Given a merged schema, update the IOx catalog to either merge that schema into the existing one
 /// for the namespace, or create the namespace and schema using the merged schema.
-/// Will error if the namespace needs to be created but the user hasn't explicitly set the query
-/// pool name and retention setting, allowing the user to not provide them if they're not needed.
-/// Would have done the same for `topic` but that comes from the shared clap block and isn't
-/// an `Option`.
-pub async fn update_iox_catalog<'a>(
-    merged_tsm_schema: &'a AggregateTSMSchema,
-    topic: &'a str,
-    query_pool_name: &'a str,
+/// Will error if the namespace needs to be created but the user hasn't explicitly set the
+/// retention setting, allowing the user to not provide it if it's not needed.
+pub async fn update_iox_catalog(
+    merged_tsm_schema: &AggregateTSMSchema,
     catalog: Arc<dyn Catalog>,
 ) -> Result<(), UpdateCatalogError> {
     let namespace_name =
@@ -67,15 +60,7 @@ pub async fn update_iox_catalog<'a>(
         Ok(iox_schema) => iox_schema,
         Err(iox_catalog::interface::Error::NamespaceNotFoundByName { .. }) => {
             // create the namespace
-            let (topic_id, query_id) =
-                get_topic_id_and_query_id(repos.deref_mut(), topic, query_pool_name).await?;
-            let _namespace = create_namespace(
-                namespace_name.as_str(),
-                topic_id,
-                query_id,
-                repos.deref_mut(),
-            )
-            .await?;
+            let _namespace = create_namespace(namespace_name.as_str(), repos.deref_mut()).await?;
             // fetch the newly-created schema (which will be empty except for the time column,
             // which won't impact the merge we're about to do)
             match get_schema_by_name(
@@ -98,46 +83,13 @@ pub async fn update_iox_catalog<'a>(
     Ok(())
 }
 
-async fn get_topic_id_and_query_id<'a, R>(
-    repos: &mut R,
-    topic_name: &'a str,
-    query_pool_name: &'a str,
-) -> Result<(TopicId, QueryPoolId), UpdateCatalogError>
+async fn create_namespace<R>(name: &str, repos: &mut R) -> Result<Namespace, UpdateCatalogError>
 where
     R: RepoCollection + ?Sized,
 {
-    let topic_id = repos
-        .topics()
-        .get_by_name(topic_name)
-        .await
-        .map_err(UpdateCatalogError::CatalogError)?
-        .map(|v| v.id)
-        .ok_or_else(|| UpdateCatalogError::TopicCatalogLookup {
-            topic_name: topic_name.to_string(),
-        })?;
-    let query_id = repos
-        .query_pools()
-        .create_or_get(query_pool_name)
-        .await
-        .map(|v| v.id)
-        .map_err(UpdateCatalogError::CatalogError)?;
-    Ok((topic_id, query_id))
-}
-
-async fn create_namespace<R>(
-    name: &str,
-    topic_id: TopicId,
-    query_id: QueryPoolId,
-    repos: &mut R,
-) -> Result<Namespace, UpdateCatalogError>
-where
-    R: RepoCollection + ?Sized,
-{
-    match repos
-        .namespaces()
-        .create(name, None, topic_id, query_id)
-        .await
-    {
+    let namespace_name = NamespaceName::new(name)
+        .map_err(|_| UpdateCatalogError::NamespaceCreationError(name.to_string()))?;
+    match repos.namespaces().create(&namespace_name, None).await {
         Ok(ns) => Ok(ns),
         Err(iox_catalog::interface::Error::NameExists { .. }) => {
             // presumably it got created in the meantime?
@@ -176,12 +128,12 @@ where
                     .tables()
                     .create_or_get(measurement_name, iox_schema.id)
                     .await
-                    .map(|t| TableSchema::new(t.id))?;
+                    .map(|t| TableSchema::new_empty_from(&t))?;
                 let time_col = repos
                     .columns()
                     .create_or_get("time", table.id, ColumnType::Time)
                     .await?;
-                table.add_column(&time_col);
+                table.add_column(time_col);
                 table
             }
         };
@@ -393,7 +345,10 @@ mod tests {
     use crate::{AggregateTSMField, AggregateTSMTag};
     use assert_matches::assert_matches;
     use data_types::{PartitionId, TableId};
-    use iox_catalog::mem::MemCatalog;
+    use iox_catalog::{
+        mem::MemCatalog,
+        test_helpers::{arbitrary_namespace, arbitrary_table},
+    };
     use std::collections::HashSet;
 
     #[tokio::test]
@@ -401,13 +356,6 @@ mod tests {
         // init a test catalog stack
         let metrics = Arc::new(metric::Registry::default());
         let catalog: Arc<dyn Catalog> = Arc::new(MemCatalog::new(Arc::clone(&metrics)));
-        catalog
-            .repositories()
-            .await
-            .topics()
-            .create_or_get("iox-shared")
-            .await
-            .expect("topic created");
 
         let json = r#"
         {
@@ -428,14 +376,9 @@ mod tests {
         }
         "#;
         let agg_schema: AggregateTSMSchema = json.try_into().unwrap();
-        update_iox_catalog(
-            &agg_schema,
-            "iox-shared",
-            "iox-shared",
-            Arc::clone(&catalog),
-        )
-        .await
-        .expect("schema update worked");
+        update_iox_catalog(&agg_schema, Arc::clone(&catalog))
+            .await
+            .expect("schema update worked");
         let mut repos = catalog.repositories().await;
         let iox_schema = get_schema_by_name(
             "1234_5678",
@@ -446,7 +389,7 @@ mod tests {
         .expect("got schema");
         assert_eq!(iox_schema.tables.len(), 1);
         let table = iox_schema.tables.get("cpu").expect("got table");
-        assert_eq!(table.columns.len(), 3); // one tag & one field, plus time
+        assert_eq!(table.column_count(), 3); // one tag & one field, plus time
         let tag = table.columns.get("host").expect("got tag");
         assert!(tag.is_tag());
         let field = table.columns.get("usage").expect("got field");
@@ -487,29 +430,16 @@ mod tests {
             .start_transaction()
             .await
             .expect("started transaction");
-        txn.topics()
-            .create_or_get("iox-shared")
-            .await
-            .expect("topic created");
-
         // create namespace, table and columns for weather measurement
-        let namespace = txn
-            .namespaces()
-            .create("1234_5678", None, TopicId::new(1), QueryPoolId::new(1))
-            .await
-            .expect("namespace created");
-        let mut table = txn
-            .tables()
-            .create_or_get("weather", namespace.id)
-            .await
-            .map(|t| TableSchema::new(t.id))
-            .expect("table created");
+        let namespace = arbitrary_namespace(&mut *txn, "1234_5678").await;
+        let table = arbitrary_table(&mut *txn, "weather", &namespace).await;
+        let mut table = TableSchema::new_empty_from(&table);
         let time_col = txn
             .columns()
             .create_or_get("time", table.id, ColumnType::Time)
             .await
             .expect("column created");
-        table.add_column(&time_col);
+        table.add_column(time_col);
         let location_col = txn
             .columns()
             .create_or_get("city", table.id, ColumnType::Tag)
@@ -520,8 +450,8 @@ mod tests {
             .create_or_get("temperature", table.id, ColumnType::F64)
             .await
             .expect("column created");
-        table.add_column(&location_col);
-        table.add_column(&temperature_col);
+        table.add_column(location_col);
+        table.add_column(temperature_col);
         txn.commit().await.unwrap();
 
         // merge with aggregate schema that has some overlap
@@ -545,14 +475,9 @@ mod tests {
         }
         "#;
         let agg_schema: AggregateTSMSchema = json.try_into().unwrap();
-        update_iox_catalog(
-            &agg_schema,
-            "iox-shared",
-            "iox-shared",
-            Arc::clone(&catalog),
-        )
-        .await
-        .expect("schema update worked");
+        update_iox_catalog(&agg_schema, Arc::clone(&catalog))
+            .await
+            .expect("schema update worked");
         let mut repos = catalog.repositories().await;
         let iox_schema = get_schema_by_name(
             "1234_5678",
@@ -563,7 +488,7 @@ mod tests {
         .expect("got schema");
         assert_eq!(iox_schema.tables.len(), 1);
         let table = iox_schema.tables.get("weather").expect("got table");
-        assert_eq!(table.columns.len(), 5); // two tags, two fields, plus time
+        assert_eq!(table.column_count(), 5); // two tags, two fields, plus time
         let tag1 = table.columns.get("city").expect("got tag");
         assert!(tag1.is_tag());
         let tag2 = table.columns.get("country").expect("got tag");
@@ -589,35 +514,22 @@ mod tests {
             .start_transaction()
             .await
             .expect("started transaction");
-        txn.topics()
-            .create_or_get("iox-shared")
-            .await
-            .expect("topic created");
-
         // create namespace, table and columns for weather measurement
-        let namespace = txn
-            .namespaces()
-            .create("1234_5678", None, TopicId::new(1), QueryPoolId::new(1))
-            .await
-            .expect("namespace created");
-        let mut table = txn
-            .tables()
-            .create_or_get("weather", namespace.id)
-            .await
-            .map(|t| TableSchema::new(t.id))
-            .expect("table created");
+        let namespace = arbitrary_namespace(&mut *txn, "1234_5678").await;
+        let table = arbitrary_table(&mut *txn, "weather", &namespace).await;
+        let mut table = TableSchema::new_empty_from(&table);
         let time_col = txn
             .columns()
             .create_or_get("time", table.id, ColumnType::Time)
             .await
             .expect("column created");
-        table.add_column(&time_col);
+        table.add_column(time_col);
         let temperature_col = txn
             .columns()
             .create_or_get("temperature", table.id, ColumnType::F64)
             .await
             .expect("column created");
-        table.add_column(&temperature_col);
+        table.add_column(temperature_col);
         txn.commit().await.unwrap();
 
         // merge with aggregate schema that has some issue that will trip a catalog error
@@ -640,14 +552,9 @@ mod tests {
         }
         "#;
         let agg_schema: AggregateTSMSchema = json.try_into().unwrap();
-        let err = update_iox_catalog(
-            &agg_schema,
-            "iox-shared",
-            "iox-shared",
-            Arc::clone(&catalog),
-        )
-        .await
-        .expect_err("should fail catalog update");
+        let err = update_iox_catalog(&agg_schema, Arc::clone(&catalog))
+            .await
+            .expect_err("should fail catalog update");
         assert_matches!(err, UpdateCatalogError::SchemaUpdateError(_));
         assert!(err
             .to_string()
@@ -663,35 +570,23 @@ mod tests {
             .start_transaction()
             .await
             .expect("started transaction");
-        txn.topics()
-            .create_or_get("iox-shared")
-            .await
-            .expect("topic created");
 
         // create namespace, table and columns for weather measurement
-        let namespace = txn
-            .namespaces()
-            .create("1234_5678", None, TopicId::new(1), QueryPoolId::new(1))
-            .await
-            .expect("namespace created");
-        let mut table = txn
-            .tables()
-            .create_or_get("weather", namespace.id)
-            .await
-            .map(|t| TableSchema::new(t.id))
-            .expect("table created");
+        let namespace = arbitrary_namespace(&mut *txn, "1234_5678").await;
+        let table = arbitrary_table(&mut *txn, "weather", &namespace).await;
+        let mut table = TableSchema::new_empty_from(&table);
         let time_col = txn
             .columns()
             .create_or_get("time", table.id, ColumnType::Time)
             .await
             .expect("column created");
-        table.add_column(&time_col);
+        table.add_column(time_col);
         let temperature_col = txn
             .columns()
             .create_or_get("temperature", table.id, ColumnType::F64)
             .await
             .expect("column created");
-        table.add_column(&temperature_col);
+        table.add_column(temperature_col);
         txn.commit().await.unwrap();
 
         // merge with aggregate schema that has some issue that will trip a catalog error
@@ -713,14 +608,9 @@ mod tests {
         }
         "#;
         let agg_schema: AggregateTSMSchema = json.try_into().unwrap();
-        let err = update_iox_catalog(
-            &agg_schema,
-            "iox-shared",
-            "iox-shared",
-            Arc::clone(&catalog),
-        )
-        .await
-        .expect_err("should fail catalog update");
+        let err = update_iox_catalog(&agg_schema, Arc::clone(&catalog))
+            .await
+            .expect_err("should fail catalog update");
         assert_matches!(err, UpdateCatalogError::SchemaUpdateError(_));
         assert!(err.to_string().ends_with(
             "a column with name temperature already exists in the schema with a different type"
@@ -1023,7 +913,6 @@ mod tests {
         let partition = Partition {
             id: PartitionId::new(1),
             table_id: TableId::new(1),
-            persisted_sequence_number: None,
             partition_key: PartitionKey::from("2022-06-21"),
             sort_key: Vec::new(),
             new_file_at: None,
@@ -1070,7 +959,6 @@ mod tests {
         let partition = Partition {
             id: PartitionId::new(1),
             table_id: TableId::new(1),
-            persisted_sequence_number: None,
             partition_key: PartitionKey::from("2022-06-21"),
             // N.B. sort key is already what it will computed to; here we're testing the `adjust_sort_key_columns` code path
             sort_key: vec!["host".to_string(), "arch".to_string(), "time".to_string()],
@@ -1117,7 +1005,6 @@ mod tests {
         let partition = Partition {
             id: PartitionId::new(1),
             table_id: TableId::new(1),
-            persisted_sequence_number: None,
             partition_key: PartitionKey::from("2022-06-21"),
             // N.B. is missing host so will need updating
             sort_key: vec!["arch".to_string(), "time".to_string()],
@@ -1166,7 +1053,6 @@ mod tests {
         let partition = Partition {
             id: PartitionId::new(1),
             table_id: TableId::new(1),
-            persisted_sequence_number: None,
             partition_key: PartitionKey::from("2022-06-21"),
             // N.B. is missing arch so will need updating
             sort_key: vec!["host".to_string(), "time".to_string()],

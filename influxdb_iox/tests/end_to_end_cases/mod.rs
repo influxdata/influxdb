@@ -1,8 +1,10 @@
 mod all_in_one;
 // CLI errors when run with heappy (only works via `cargo run`):
 // loading shared libraries: libjemalloc.so.2: cannot open shared object file: No such file or directory"
+mod catalog;
 #[cfg(not(feature = "heappy"))]
 mod cli;
+mod command_rename_support;
 mod compactor;
 mod debug;
 mod error;

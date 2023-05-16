@@ -1,6 +1,8 @@
 mod queries;
 
-use crate::{run_sql, snapshot_comparison::queries::TestQueries, try_run_influxql, MiniCluster};
+use crate::{
+    snapshot_comparison::queries::TestQueries, try_run_influxql, try_run_sql, MiniCluster,
+};
 use arrow::record_batch::RecordBatch;
 use arrow_flight::error::FlightError;
 use arrow_util::test_util::{sort_record_batch, Normalizer, REGEX_UUID};
@@ -297,42 +299,38 @@ fn make_absolute(path: &Path) -> PathBuf {
 
 async fn run_query(cluster: &MiniCluster, query: &Query) -> Result<Vec<String>> {
     let (query_text, language) = (query.text(), query.language());
-
-    let batches = match language {
+    let result = match language {
         Language::Sql => {
-            let (mut batches, schema) = run_sql(
-                query_text,
-                cluster.namespace(),
-                cluster.querier().querier_grpc_connection(),
-                None,
-            )
-            .await;
-            batches.push(RecordBatch::new_empty(schema));
-
-            batches
-        }
-        Language::InfluxQL => {
-            match try_run_influxql(
+            try_run_sql(
                 query_text,
                 cluster.namespace(),
                 cluster.querier().querier_grpc_connection(),
                 None,
             )
             .await
-            {
-                Ok((mut batches, schema)) => {
-                    batches.push(RecordBatch::new_empty(schema));
-
-                    batches
-                }
-                Err(influxdb_iox_client::flight::Error::ArrowFlightError(FlightError::Tonic(
-                    status,
-                ))) if status.code() == Code::InvalidArgument => {
-                    return Ok(vec![status.message().to_owned()])
-                }
-                Err(err) => return Ok(vec![err.to_string()]),
-            }
         }
+        Language::InfluxQL => {
+            try_run_influxql(
+                query_text,
+                cluster.namespace(),
+                cluster.querier().querier_grpc_connection(),
+                None,
+            )
+            .await
+        }
+    };
+
+    let batches = match result {
+        Ok((mut batches, schema)) => {
+            batches.push(RecordBatch::new_empty(schema));
+            batches
+        }
+        Err(influxdb_iox_client::flight::Error::ArrowFlightError(FlightError::Tonic(status)))
+            if status.code() == Code::InvalidArgument =>
+        {
+            return Ok(status.message().lines().map(str::to_string).collect())
+        }
+        Err(e) => panic!("error running query: {e}"),
     };
 
     Ok(query.normalize_results(batches, language))

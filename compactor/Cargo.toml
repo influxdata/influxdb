@@ -1,0 +1,39 @@
+[package]
+name = "compactor"
+version.workspace = true
+authors.workspace = true
+edition.workspace = true
+license.workspace = true
+
+[dependencies]
+async-trait = "0.1.68"
+backoff = { path = "../backoff" }
+bytes = "1.4"
+datafusion = { workspace = true }
+data_types = { path = "../data_types" }
+futures = "0.3"
+iox_catalog = { path = "../iox_catalog" }
+iox_query = { path = "../iox_query" }
+iox_time = { path = "../iox_time" }
+itertools = "0.10.5"
+metric = { path = "../metric" }
+object_store = "0.5.6"
+observability_deps = { path = "../observability_deps" }
+parquet_file = { path = "../parquet_file" }
+predicate = { path = "../predicate" }
+rand = "0.8.3"
+schema = { path = "../schema" }
+sharder = { path = "../sharder" }
+tokio = { version = "1", features = ["macros", "rt", "sync"] }
+tokio-util = { version = "0.7.8" }
+tracker = { path = "../tracker" }
+uuid = { version = "1", features = ["v4"] }
+workspace-hack = { version = "0.1", path = "../workspace-hack" }
+
+[dev-dependencies]
+arrow_util = { path = "../arrow_util" }
+assert_matches = "1"
+compactor_test_utils = { path = "../compactor_test_utils" }
+iox_tests = { path = "../iox_tests" }
+test_helpers = { path = "../test_helpers"}
+insta = { version = "1.29.0", features = ["yaml"] }

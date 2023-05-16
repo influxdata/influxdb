@@ -132,7 +132,6 @@ use datafusion::logical_expr::{
     binary_expr, cast, coalesce, lit, BinaryExpr, Expr, ExprSchemable, Operator,
 };
 use datafusion::optimizer::utils::{conjunction, disjunction};
-use schema::{InfluxColumnType, InfluxFieldType};
 
 /// Perform a series of passes to rewrite `expr` in compliance with InfluxQL behavior
 /// in an effort to ensure the query executes without error.
@@ -770,19 +769,17 @@ impl<'a> TreeNodeRewriter for FixRegularExpressions<'a> {
                 op: op @ (Operator::RegexMatch | Operator::RegexNotMatch),
                 right,
             }) => {
-                if let Expr::Column(ref col) = *left {
-                    match self.schemas.iox_schema.field_by_name(&col.name) {
-                        Some((InfluxColumnType::Tag, _)) => {
+                Ok(if let Expr::Column(ref col) = *left {
+                    match self.schemas.df_schema.field_from_column(col)?.data_type() {
+                        DataType::Dictionary(..) => {
                             // Regular expressions expect to be compared with a Utf8
                             let left =
                                 Box::new(left.cast_to(&DataType::Utf8, &self.schemas.df_schema)?);
-                            Ok(Expr::BinaryExpr(BinaryExpr { left, op, right }))
+                            Expr::BinaryExpr(BinaryExpr { left, op, right })
                         }
-                        Some((InfluxColumnType::Field(InfluxFieldType::String), _)) => {
-                            Ok(Expr::BinaryExpr(BinaryExpr { left, op, right }))
-                        }
+                        DataType::Utf8 => Expr::BinaryExpr(BinaryExpr { left, op, right }),
                         // Any other column type should evaluate to false
-                        _ => Ok(lit(false)),
+                        _ => lit(false),
                     }
                 } else {
                     // If this is not a simple column expression, evaluate to false,
@@ -798,8 +795,8 @@ impl<'a> TreeNodeRewriter for FixRegularExpressions<'a> {
                     // Reference example:
                     //
                     // * `SELECT f64 FROM m0 WHERE tag0 = '' + tag0`
-                    Ok(lit(false))
-                }
+                    lit(false)
+                })
             }
             _ => Ok(expr),
         }
@@ -829,10 +826,7 @@ mod test {
             .build()
             .expect("schema failed");
         let df_schema: DFSchemaRef = Arc::clone(iox_schema.inner()).to_dfschema_ref().unwrap();
-        Schemas {
-            df_schema,
-            iox_schema,
-        }
+        Schemas { df_schema }
     }
 
     #[test]

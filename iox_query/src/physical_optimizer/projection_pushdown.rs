@@ -764,10 +764,10 @@ mod tests {
         ---
         input:
           - " ProjectionExec: expr=[tag2@2 as tag2, tag3@1 as tag3]"
-          - "   ParquetExec: limit=None, partitions={0 groups: []}, predicate=tag1@0 = foo, pruning_predicate=tag1_min@0 <= foo AND foo <= tag1_max@1, output_ordering=[tag3@1 ASC, field@0 ASC, tag2@2 ASC], projection=[field, tag3, tag2]"
+          - "   ParquetExec: file_groups={0 groups: []}, projection=[field, tag3, tag2], output_ordering=[tag3@1 ASC, field@0 ASC, tag2@2 ASC], predicate=tag1@0 = foo, pruning_predicate=tag1_min@0 <= foo AND foo <= tag1_max@1"
         output:
           Ok:
-            - " ParquetExec: limit=None, partitions={0 groups: []}, predicate=tag1@0 = foo, pruning_predicate=tag1_min@0 <= foo AND foo <= tag1_max@1, output_ordering=[tag3@1 ASC], projection=[tag2, tag3]"
+            - " ParquetExec: file_groups={0 groups: []}, projection=[tag2, tag3], output_ordering=[tag3@1 ASC], predicate=tag1@0 = foo, pruning_predicate=tag1_min@0 <= foo AND foo <= tag1_max@1"
         "###
         );
 
@@ -1369,7 +1369,7 @@ mod tests {
           - "   FilterExec: tag2@1 = foo"
           - "     DeduplicateExec: [tag1@0 ASC,tag2@1 ASC]"
           - "       UnionExec"
-          - "         ParquetExec: limit=None, partitions={0 groups: []}, projection=[tag1, tag2, field1, field2]"
+          - "         ParquetExec: file_groups={0 groups: []}, projection=[tag1, tag2, field1, field2]"
         output:
           Ok:
             - " ProjectionExec: expr=[field1@0 as field1]"
@@ -1377,7 +1377,7 @@ mod tests {
             - "     ProjectionExec: expr=[field1@0 as field1, tag2@2 as tag2]"
             - "       DeduplicateExec: [tag1@1 ASC,tag2@2 ASC]"
             - "         UnionExec"
-            - "           ParquetExec: limit=None, partitions={0 groups: []}, projection=[field1, tag1, tag2]"
+            - "           ParquetExec: file_groups={0 groups: []}, projection=[field1, tag1, tag2]"
         "###
         );
     }

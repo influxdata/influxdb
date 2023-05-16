@@ -1,0 +1,281 @@
+-- Test Setup: TwoMeasurementsPredicatePushDown
+-- SQL: SELECT * from restaurant;
+-- Results After Sorting
++-------+--------+--------------------------------+-----------+
+| count | system | time                           | town      |
++-------+--------+--------------------------------+-----------+
+| 189   | 7.0    | 1970-01-01T00:00:00.000000110Z | bedford   |
+| 372   | 5.0    | 1970-01-01T00:00:00.000000100Z | lexington |
+| 471   | 6.0    | 1970-01-01T00:00:00.000000110Z | tewsbury  |
+| 632   | 5.0    | 1970-01-01T00:00:00.000000120Z | reading   |
+| 632   | 6.0    | 1970-01-01T00:00:00.000000130Z | reading   |
+| 872   | 6.0    | 1970-01-01T00:00:00.000000110Z | lawrence  |
+| 40000 | 5.0    | 1970-01-01T00:00:00.000000100Z | andover   |
++-------+--------+--------------------------------+-----------+
+-- SQL: EXPLAIN SELECT * from restaurant;
+-- Results After Normalizing UUIDs
+----------
+| plan_type    | plan    |
+----------
+| logical_plan    | TableScan: restaurant projection=[count, system, time, town]    |
+| physical_plan    | ParquetExec: file_groups={1 group: [[1/1/1/00000000-0000-0000-0000-000000000000.parquet]]}, projection=[count, system, time, town], output_ordering=[town@3 ASC, time@2 ASC]    |
+|    |    |
+----------
+-- SQL: SELECT * from restaurant where count > 200;
+-- Results After Sorting
++-------+--------+--------------------------------+-----------+
+| count | system | time                           | town      |
++-------+--------+--------------------------------+-----------+
+| 372   | 5.0    | 1970-01-01T00:00:00.000000100Z | lexington |
+| 471   | 6.0    | 1970-01-01T00:00:00.000000110Z | tewsbury  |
+| 632   | 5.0    | 1970-01-01T00:00:00.000000120Z | reading   |
+| 632   | 6.0    | 1970-01-01T00:00:00.000000130Z | reading   |
+| 872   | 6.0    | 1970-01-01T00:00:00.000000110Z | lawrence  |
+| 40000 | 5.0    | 1970-01-01T00:00:00.000000100Z | andover   |
++-------+--------+--------------------------------+-----------+
+-- SQL: EXPLAIN SELECT * from restaurant where count > 200;
+-- Results After Normalizing UUIDs
+----------
+| plan_type    | plan    |
+----------
+| logical_plan    | TableScan: restaurant projection=[count, system, time, town], full_filters=[restaurant.count > UInt64(200)]    |
+| physical_plan    | CoalesceBatchesExec: target_batch_size=8192    |
+|    |   FilterExec: count@0 > 200    |
+|    |     ParquetExec: file_groups={1 group: [[1/1/1/00000000-0000-0000-0000-000000000000.parquet]]}, projection=[count, system, time, town], output_ordering=[town@3 ASC, time@2 ASC], predicate=count@0 > 200, pruning_predicate=count_max@0 > 200    |
+|    |    |
+----------
+-- SQL: EXPLAIN SELECT * from restaurant where count > 200.0;
+-- Results After Normalizing UUIDs
+----------
+| plan_type    | plan    |
+----------
+| logical_plan    | TableScan: restaurant projection=[count, system, time, town], full_filters=[CAST(restaurant.count AS Float64) > Float64(200)]    |
+| physical_plan    | CoalesceBatchesExec: target_batch_size=8192    |
+|    |   FilterExec: CAST(count@0 AS Float64) > 200    |
+|    |     ParquetExec: file_groups={1 group: [[1/1/1/00000000-0000-0000-0000-000000000000.parquet]]}, projection=[count, system, time, town], output_ordering=[town@3 ASC, time@2 ASC], predicate=CAST(count@0 AS Float64) > 200    |
+|    |    |
+----------
+-- SQL: EXPLAIN SELECT * from restaurant where system > 4.0;
+-- Results After Normalizing UUIDs
+----------
+| plan_type    | plan    |
+----------
+| logical_plan    | TableScan: restaurant projection=[count, system, time, town], full_filters=[restaurant.system > Float64(4)]    |
+| physical_plan    | CoalesceBatchesExec: target_batch_size=8192    |
+|    |   FilterExec: system@1 > 4    |
+|    |     ParquetExec: file_groups={1 group: [[1/1/1/00000000-0000-0000-0000-000000000000.parquet]]}, projection=[count, system, time, town], output_ordering=[town@3 ASC, time@2 ASC], predicate=system@1 > 4, pruning_predicate=system_max@0 > 4    |
+|    |    |
+----------
+-- SQL: SELECT * from restaurant where count > 200 and town != 'tewsbury';
+-- Results After Sorting
++-------+--------+--------------------------------+-----------+
+| count | system | time                           | town      |
++-------+--------+--------------------------------+-----------+
+| 372   | 5.0    | 1970-01-01T00:00:00.000000100Z | lexington |
+| 632   | 5.0    | 1970-01-01T00:00:00.000000120Z | reading   |
+| 632   | 6.0    | 1970-01-01T00:00:00.000000130Z | reading   |
+| 872   | 6.0    | 1970-01-01T00:00:00.000000110Z | lawrence  |
+| 40000 | 5.0    | 1970-01-01T00:00:00.000000100Z | andover   |
++-------+--------+--------------------------------+-----------+
+-- SQL: EXPLAIN SELECT * from restaurant where count > 200 and town != 'tewsbury';
+-- Results After Normalizing UUIDs
+----------
+| plan_type    | plan    |
+----------
+| logical_plan    | TableScan: restaurant projection=[count, system, time, town], full_filters=[restaurant.count > UInt64(200), restaurant.town != Dictionary(Int32, Utf8("tewsbury"))]    |
+| physical_plan    | CoalesceBatchesExec: target_batch_size=8192    |
+|    |   FilterExec: count@0 > 200 AND town@3 != tewsbury    |
+|    |     ParquetExec: file_groups={1 group: [[1/1/1/00000000-0000-0000-0000-000000000000.parquet]]}, projection=[count, system, time, town], output_ordering=[town@3 ASC, time@2 ASC], predicate=count@0 > 200 AND town@3 != tewsbury, pruning_predicate=count_max@0 > 200 AND (town_min@1 != tewsbury OR tewsbury != town_max@2)    |
+|    |    |
+----------
+-- SQL: SELECT * from restaurant where count > 200 and town != 'tewsbury' and (system =5 or town = 'lawrence');
+-- Results After Sorting
++-------+--------+--------------------------------+-----------+
+| count | system | time                           | town      |
++-------+--------+--------------------------------+-----------+
+| 372   | 5.0    | 1970-01-01T00:00:00.000000100Z | lexington |
+| 632   | 5.0    | 1970-01-01T00:00:00.000000120Z | reading   |
+| 872   | 6.0    | 1970-01-01T00:00:00.000000110Z | lawrence  |
+| 40000 | 5.0    | 1970-01-01T00:00:00.000000100Z | andover   |
++-------+--------+--------------------------------+-----------+
+-- SQL: EXPLAIN SELECT * from restaurant where count > 200 and town != 'tewsbury' and (system =5 or town = 'lawrence');
+-- Results After Normalizing UUIDs
+----------
+| plan_type    | plan    |
+----------
+| logical_plan    | TableScan: restaurant projection=[count, system, time, town], full_filters=[restaurant.count > UInt64(200), restaurant.town != Dictionary(Int32, Utf8("tewsbury")), restaurant.system = Float64(5) OR restaurant.town = Dictionary(Int32, Utf8("lawrence"))]    |
+| physical_plan    | CoalesceBatchesExec: target_batch_size=8192    |
+|    |   FilterExec: count@0 > 200 AND town@3 != tewsbury AND (system@1 = 5 OR town@3 = lawrence)    |
+|    |     ParquetExec: file_groups={1 group: [[1/1/1/00000000-0000-0000-0000-000000000000.parquet]]}, projection=[count, system, time, town], output_ordering=[town@3 ASC, time@2 ASC], predicate=count@0 > 200 AND town@3 != tewsbury AND (system@1 = 5 OR town@3 = lawrence), pruning_predicate=count_max@0 > 200 AND (town_min@1 != tewsbury OR tewsbury != town_max@2) AND (system_min@3 <= 5 AND 5 <= system_max@4 OR town_min@1 <= lawrence AND lawrence <= town_max@2)    |
+|    |    |
+----------
+-- SQL: SELECT * from restaurant where count > 200 and town != 'tewsbury' and (system =5 or town = 'lawrence') and count < 40000;
+-- Results After Sorting
++-------+--------+--------------------------------+-----------+
+| count | system | time                           | town      |
++-------+--------+--------------------------------+-----------+
+| 372   | 5.0    | 1970-01-01T00:00:00.000000100Z | lexington |
+| 632   | 5.0    | 1970-01-01T00:00:00.000000120Z | reading   |
+| 872   | 6.0    | 1970-01-01T00:00:00.000000110Z | lawrence  |
++-------+--------+--------------------------------+-----------+
+-- SQL: EXPLAIN SELECT * from restaurant where count > 200 and town != 'tewsbury' and (system =5 or town = 'lawrence') and count < 40000;
+-- Results After Normalizing UUIDs
+----------
+| plan_type    | plan    |
+----------
+| logical_plan    | TableScan: restaurant projection=[count, system, time, town], full_filters=[restaurant.count > UInt64(200), restaurant.town != Dictionary(Int32, Utf8("tewsbury")), restaurant.system = Float64(5) OR restaurant.town = Dictionary(Int32, Utf8("lawrence")), restaurant.count < UInt64(40000)]    |
+| physical_plan    | CoalesceBatchesExec: target_batch_size=8192    |
+|    |   FilterExec: count@0 > 200 AND town@3 != tewsbury AND (system@1 = 5 OR town@3 = lawrence) AND count@0 < 40000    |
+|    |     ParquetExec: file_groups={1 group: [[1/1/1/00000000-0000-0000-0000-000000000000.parquet]]}, projection=[count, system, time, town], output_ordering=[town@3 ASC, time@2 ASC], predicate=count@0 > 200 AND town@3 != tewsbury AND (system@1 = 5 OR town@3 = lawrence) AND count@0 < 40000, pruning_predicate=count_max@0 > 200 AND (town_min@1 != tewsbury OR tewsbury != town_max@2) AND (system_min@3 <= 5 AND 5 <= system_max@4 OR town_min@1 <= lawrence AND lawrence <= town_max@2) AND count_min@5 < 40000    |
+|    |    |
+----------
+-- SQL: SELECT * from restaurant where count > 200  and count < 40000;
+-- Results After Sorting
++-------+--------+--------------------------------+-----------+
+| count | system | time                           | town      |
++-------+--------+--------------------------------+-----------+
+| 372   | 5.0    | 1970-01-01T00:00:00.000000100Z | lexington |
+| 471   | 6.0    | 1970-01-01T00:00:00.000000110Z | tewsbury  |
+| 632   | 5.0    | 1970-01-01T00:00:00.000000120Z | reading   |
+| 632   | 6.0    | 1970-01-01T00:00:00.000000130Z | reading   |
+| 872   | 6.0    | 1970-01-01T00:00:00.000000110Z | lawrence  |
++-------+--------+--------------------------------+-----------+
+-- SQL: EXPLAIN SELECT * from restaurant where count > 200  and count < 40000;
+-- Results After Normalizing UUIDs
+----------
+| plan_type    | plan    |
+----------
+| logical_plan    | TableScan: restaurant projection=[count, system, time, town], full_filters=[restaurant.count > UInt64(200), restaurant.count < UInt64(40000)]    |
+| physical_plan    | CoalesceBatchesExec: target_batch_size=8192    |
+|    |   FilterExec: count@0 > 200 AND count@0 < 40000    |
+|    |     ParquetExec: file_groups={1 group: [[1/1/1/00000000-0000-0000-0000-000000000000.parquet]]}, projection=[count, system, time, town], output_ordering=[town@3 ASC, time@2 ASC], predicate=count@0 > 200 AND count@0 < 40000, pruning_predicate=count_max@0 > 200 AND count_min@1 < 40000    |
+|    |    |
+----------
+-- SQL: SELECT * from restaurant where system > 4.0 and system < 7.0;
+-- Results After Sorting
++-------+--------+--------------------------------+-----------+
+| count | system | time                           | town      |
++-------+--------+--------------------------------+-----------+
+| 372   | 5.0    | 1970-01-01T00:00:00.000000100Z | lexington |
+| 471   | 6.0    | 1970-01-01T00:00:00.000000110Z | tewsbury  |
+| 632   | 5.0    | 1970-01-01T00:00:00.000000120Z | reading   |
+| 632   | 6.0    | 1970-01-01T00:00:00.000000130Z | reading   |
+| 872   | 6.0    | 1970-01-01T00:00:00.000000110Z | lawrence  |
+| 40000 | 5.0    | 1970-01-01T00:00:00.000000100Z | andover   |
++-------+--------+--------------------------------+-----------+
+-- SQL: EXPLAIN SELECT * from restaurant where system > 4.0 and system < 7.0;
+-- Results After Normalizing UUIDs
+----------
+| plan_type    | plan    |
+----------
+| logical_plan    | TableScan: restaurant projection=[count, system, time, town], full_filters=[restaurant.system > Float64(4), restaurant.system < Float64(7)]    |
+| physical_plan    | CoalesceBatchesExec: target_batch_size=8192    |
+|    |   FilterExec: system@1 > 4 AND system@1 < 7    |
+|    |     ParquetExec: file_groups={1 group: [[1/1/1/00000000-0000-0000-0000-000000000000.parquet]]}, projection=[count, system, time, town], output_ordering=[town@3 ASC, time@2 ASC], predicate=system@1 > 4 AND system@1 < 7, pruning_predicate=system_max@0 > 4 AND system_min@1 < 7    |
+|    |    |
+----------
+-- SQL: SELECT * from restaurant where system > 5.0 and system < 7.0;
+-- Results After Sorting
++-------+--------+--------------------------------+----------+
+| count | system | time                           | town     |
++-------+--------+--------------------------------+----------+
+| 471   | 6.0    | 1970-01-01T00:00:00.000000110Z | tewsbury |
+| 632   | 6.0    | 1970-01-01T00:00:00.000000130Z | reading  |
+| 872   | 6.0    | 1970-01-01T00:00:00.000000110Z | lawrence |
++-------+--------+--------------------------------+----------+
+-- SQL: EXPLAIN SELECT * from restaurant where system > 5.0 and system < 7.0;
+-- Results After Normalizing UUIDs
+----------
+| plan_type    | plan    |
+----------
+| logical_plan    | TableScan: restaurant projection=[count, system, time, town], full_filters=[restaurant.system > Float64(5), restaurant.system < Float64(7)]    |
+| physical_plan    | CoalesceBatchesExec: target_batch_size=8192    |
+|    |   FilterExec: system@1 > 5 AND system@1 < 7    |
+|    |     ParquetExec: file_groups={1 group: [[1/1/1/00000000-0000-0000-0000-000000000000.parquet]]}, projection=[count, system, time, town], output_ordering=[town@3 ASC, time@2 ASC], predicate=system@1 > 5 AND system@1 < 7, pruning_predicate=system_max@0 > 5 AND system_min@1 < 7    |
+|    |    |
+----------
+-- SQL: SELECT * from restaurant where system > 5.0 and town != 'tewsbury' and 7.0 > system;
+-- Results After Sorting
++-------+--------+--------------------------------+----------+
+| count | system | time                           | town     |
++-------+--------+--------------------------------+----------+
+| 632   | 6.0    | 1970-01-01T00:00:00.000000130Z | reading  |
+| 872   | 6.0    | 1970-01-01T00:00:00.000000110Z | lawrence |
++-------+--------+--------------------------------+----------+
+-- SQL: EXPLAIN SELECT * from restaurant where system > 5.0 and town != 'tewsbury' and 7.0 > system;
+-- Results After Normalizing UUIDs
+----------
+| plan_type    | plan    |
+----------
+| logical_plan    | TableScan: restaurant projection=[count, system, time, town], full_filters=[restaurant.system > Float64(5), restaurant.town != Dictionary(Int32, Utf8("tewsbury")), Float64(7) > restaurant.system]    |
+| physical_plan    | CoalesceBatchesExec: target_batch_size=8192    |
+|    |   FilterExec: system@1 > 5 AND town@3 != tewsbury AND 7 > system@1    |
+|    |     ParquetExec: file_groups={1 group: [[1/1/1/00000000-0000-0000-0000-000000000000.parquet]]}, projection=[count, system, time, town], output_ordering=[town@3 ASC, time@2 ASC], predicate=system@1 > 5 AND town@3 != tewsbury AND 7 > system@1, pruning_predicate=system_max@0 > 5 AND (town_min@1 != tewsbury OR tewsbury != town_max@2) AND system_min@3 < 7    |
+|    |    |
+----------
+-- SQL: SELECT * from restaurant where system > 5.0 and 'tewsbury' != town and system < 7.0 and (count = 632 or town = 'reading');
+-- Results After Sorting
++-------+--------+--------------------------------+---------+
+| count | system | time                           | town    |
++-------+--------+--------------------------------+---------+
+| 632   | 6.0    | 1970-01-01T00:00:00.000000130Z | reading |
++-------+--------+--------------------------------+---------+
+-- SQL: EXPLAIN SELECT * from restaurant where system > 5.0 and 'tewsbury' != town and system < 7.0 and (count = 632 or town = 'reading');
+-- Results After Normalizing UUIDs
+----------
+| plan_type    | plan    |
+----------
+| logical_plan    | TableScan: restaurant projection=[count, system, time, town], full_filters=[restaurant.system > Float64(5), Dictionary(Int32, Utf8("tewsbury")) != restaurant.town, restaurant.system < Float64(7), restaurant.count = UInt64(632) OR restaurant.town = Dictionary(Int32, Utf8("reading"))]    |
+| physical_plan    | CoalesceBatchesExec: target_batch_size=8192    |
+|    |   FilterExec: system@1 > 5 AND tewsbury != town@3 AND system@1 < 7 AND (count@0 = 632 OR town@3 = reading)    |
+|    |     ParquetExec: file_groups={1 group: [[1/1/1/00000000-0000-0000-0000-000000000000.parquet]]}, projection=[count, system, time, town], output_ordering=[town@3 ASC, time@2 ASC], predicate=system@1 > 5 AND tewsbury != town@3 AND system@1 < 7 AND (count@0 = 632 OR town@3 = reading), pruning_predicate=system_max@0 > 5 AND (town_min@1 != tewsbury OR tewsbury != town_max@2) AND system_min@3 < 7 AND (count_min@4 <= 632 AND 632 <= count_max@5 OR town_min@1 <= reading AND reading <= town_max@2)    |
+|    |    |
+----------
+-- SQL: SELECT * from restaurant where 5.0 < system and town != 'tewsbury' and system < 7.0 and (count = 632 or town = 'reading') and time > to_timestamp('1970-01-01T00:00:00.000000130+00:00');
+-- Results After Sorting
++-------+--------+------+------+
+| count | system | time | town |
++-------+--------+------+------+
++-------+--------+------+------+
+-- SQL: EXPLAIN SELECT * from restaurant where 5.0 < system and town != 'tewsbury' and system < 7.0 and (count = 632 or town = 'reading') and time > to_timestamp('1970-01-01T00:00:00.000000130+00:00');
+-- Results After Normalizing UUIDs
+----------
+| plan_type    | plan    |
+----------
+| logical_plan    | TableScan: restaurant projection=[count, system, time, town], full_filters=[Float64(5) < restaurant.system, restaurant.town != Dictionary(Int32, Utf8("tewsbury")), restaurant.system < Float64(7), restaurant.count = UInt64(632) OR restaurant.town = Dictionary(Int32, Utf8("reading")), restaurant.time > TimestampNanosecond(130, None)]    |
+| physical_plan    | EmptyExec: produce_one_row=false    |
+|    |    |
+----------
+-- SQL: SELECT * from restaurant where system > 5.0 and 'tewsbury' != town and system < 7.0 and town = 'reading';
+-- Results After Sorting
++-------+--------+--------------------------------+---------+
+| count | system | time                           | town    |
++-------+--------+--------------------------------+---------+
+| 632   | 6.0    | 1970-01-01T00:00:00.000000130Z | reading |
++-------+--------+--------------------------------+---------+
+-- SQL: SELECT * from restaurant where system > 5.0 and system < 7.0 and town = 'reading';
+-- Results After Sorting
++-------+--------+--------------------------------+---------+
+| count | system | time                           | town    |
++-------+--------+--------------------------------+---------+
+| 632   | 6.0    | 1970-01-01T00:00:00.000000130Z | reading |
++-------+--------+--------------------------------+---------+
+-- SQL: SELECT * from restaurant where count > 500.76 and count < 640.0;
+-- Results After Sorting
++-------+--------+--------------------------------+---------+
+| count | system | time                           | town    |
++-------+--------+--------------------------------+---------+
+| 632   | 5.0    | 1970-01-01T00:00:00.000000120Z | reading |
+| 632   | 6.0    | 1970-01-01T00:00:00.000000130Z | reading |
++-------+--------+--------------------------------+---------+
+-- SQL: EXPLAIN SELECT * from restaurant where influx_regex_match(town, 'foo|bar|baz') and influx_regex_not_match(town, 'one|two');
+-- Results After Normalizing UUIDs
+----------
+| plan_type    | plan    |
+----------
+| logical_plan    | TableScan: restaurant projection=[count, system, time, town], full_filters=[CAST(restaurant.town AS Utf8) AS restaurant.town LIKE Utf8("%foo%") OR CAST(restaurant.town AS Utf8) AS restaurant.town LIKE Utf8("%bar%") OR CAST(restaurant.town AS Utf8) AS restaurant.town LIKE Utf8("%baz%") AS influx_regex_match(restaurant.town,Utf8("foo|bar|baz")), CAST(restaurant.town AS Utf8) AS restaurant.town NOT LIKE Utf8("%one%") AND CAST(restaurant.town AS Utf8) AS restaurant.town NOT LIKE Utf8("%two%") AS influx_regex_not_match(restaurant.town,Utf8("one|two"))]    |
+| physical_plan    | CoalesceBatchesExec: target_batch_size=8192    |
+|    |   FilterExec: (CAST(town@3 AS Utf8) LIKE %foo% OR CAST(town@3 AS Utf8) LIKE %bar% OR CAST(town@3 AS Utf8) LIKE %baz%) AND CAST(town@3 AS Utf8) NOT LIKE %one% AND CAST(town@3 AS Utf8) NOT LIKE %two%    |
+|    |     ParquetExec: file_groups={1 group: [[1/1/1/00000000-0000-0000-0000-000000000000.parquet]]}, projection=[count, system, time, town], output_ordering=[town@3 ASC, time@2 ASC], predicate=(CAST(town@3 AS Utf8) LIKE %foo% OR CAST(town@3 AS Utf8) LIKE %bar% OR CAST(town@3 AS Utf8) LIKE %baz%) AND CAST(town@3 AS Utf8) NOT LIKE %one% AND CAST(town@3 AS Utf8) NOT LIKE %two%    |
+|    |    |
+----------

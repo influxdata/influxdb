@@ -2,9 +2,9 @@
 
 use async_trait::async_trait;
 use data_types::{
-    Column, ColumnSchema, ColumnType, CompactionLevel, Namespace, NamespaceId, NamespaceSchema,
-    ParquetFile, ParquetFileId, ParquetFileParams, Partition, PartitionId, PartitionKey, QueryPool,
-    QueryPoolId, SkippedCompaction, Table, TableId, TableSchema, Timestamp, TopicId, TopicMetadata,
+    Column, ColumnType, ColumnsByName, CompactionLevel, Namespace, NamespaceId, NamespaceName,
+    NamespaceSchema, ParquetFile, ParquetFileId, ParquetFileParams, Partition, PartitionId,
+    PartitionKey, SkippedCompaction, Table, TableId, TableSchema, Timestamp,
 };
 use iox_time::TimeProvider;
 use snafu::{OptionExt, Snafu};
@@ -35,6 +35,9 @@ pub enum CasFailure<T> {
 #[allow(missing_copy_implementations, missing_docs)]
 #[snafu(visibility(pub(crate)))]
 pub enum Error {
+    #[snafu(display("invalid name: {}", name))]
+    InvalidName { name: String },
+
     #[snafu(display("name {} already exists", name))]
     NameExists { name: String },
 
@@ -285,12 +288,6 @@ impl<T> Transaction for T where T: Send + Sync + Debug + sealed::TransactionFina
 /// should and must not care how these are implemented.
 #[async_trait]
 pub trait RepoCollection: Send + Sync + Debug {
-    /// Repository for [topics](data_types::TopicMetadata).
-    fn topics(&mut self) -> &mut dyn TopicMetadataRepo;
-
-    /// Repository for [query pools](data_types::QueryPool).
-    fn query_pools(&mut self) -> &mut dyn QueryPoolRepo;
-
     /// Repository for [namespaces](data_types::Namespace).
     fn namespaces(&mut self) -> &mut dyn NamespaceRepo;
 
@@ -307,23 +304,6 @@ pub trait RepoCollection: Send + Sync + Debug {
     fn parquet_files(&mut self) -> &mut dyn ParquetFileRepo;
 }
 
-/// Functions for working with topics in the catalog.
-#[async_trait]
-pub trait TopicMetadataRepo: Send + Sync {
-    /// Creates the topic in the catalog or gets the existing record by name.
-    async fn create_or_get(&mut self, name: &str) -> Result<TopicMetadata>;
-
-    /// Gets the topic by its unique name
-    async fn get_by_name(&mut self, name: &str) -> Result<Option<TopicMetadata>>;
-}
-
-/// Functions for working with query pools in the catalog.
-#[async_trait]
-pub trait QueryPoolRepo: Send + Sync {
-    /// Creates the query pool in the catalog or gets the existing record by name.
-    async fn create_or_get(&mut self, name: &str) -> Result<QueryPool>;
-}
-
 /// Functions for working with namespaces in the catalog
 #[async_trait]
 pub trait NamespaceRepo: Send + Sync {
@@ -332,10 +312,8 @@ pub trait NamespaceRepo: Send + Sync {
     /// Specify `None` for `retention_period_ns` to get infinite retention.
     async fn create(
         &mut self,
-        name: &str,
+        name: &NamespaceName,
         retention_period_ns: Option<i64>,
-        topic_id: TopicId,
-        query_pool_id: QueryPoolId,
     ) -> Result<Namespace>;
 
     /// Update retention period for a namespace
@@ -433,11 +411,11 @@ pub trait ColumnRepo: Send + Sync {
     async fn list(&mut self) -> Result<Vec<Column>>;
 }
 
-/// Functions for working with IOx partitions in the catalog. Note that these are how IOx splits up
-/// data within a namespace, which is different than Kafka partitions.
+/// Functions for working with IOx partitions in the catalog. These are how IOx splits up
+/// data within a namespace.
 #[async_trait]
 pub trait PartitionRepo: Send + Sync {
-    /// create or get a partition record for the given partition key, shard and table
+    /// create or get a partition record for the given partition key and table
     async fn create_or_get(&mut self, key: PartitionKey, table_id: TableId) -> Result<Partition>;
 
     /// get partition by ID
@@ -617,29 +595,17 @@ where
     let columns = repos.columns().list_by_namespace_id(namespace.id).await?;
     let tables = repos.tables().list_by_namespace_id(namespace.id).await?;
 
-    let mut namespace = NamespaceSchema::new(
-        namespace.id,
-        namespace.topic_id,
-        namespace.query_pool_id,
-        namespace.max_columns_per_table,
-        namespace.max_tables,
-        namespace.retention_period_ns,
-    );
+    let mut namespace = NamespaceSchema::new_empty_from(&namespace);
 
     let mut table_id_to_schema = BTreeMap::new();
     for t in tables {
-        table_id_to_schema.insert(t.id, (t.name, TableSchema::new(t.id)));
+        let table_schema = TableSchema::new_empty_from(&t);
+        table_id_to_schema.insert(t.id, (t.name, table_schema));
     }
 
     for c in columns {
         let (_, t) = table_id_to_schema.get_mut(&c.table_id).unwrap();
-        t.columns.insert(
-            c.name,
-            ColumnSchema {
-                id: c.id,
-                column_type: c.column_type,
-            },
-        );
+        t.add_column(c);
     }
 
     for (_, (table_name, schema)) in table_id_to_schema {
@@ -649,25 +615,14 @@ where
     Ok(namespace)
 }
 
-/// Gets the table schema including all columns.
-pub async fn get_table_schema_by_id<R>(id: TableId, repos: &mut R) -> Result<TableSchema>
+/// Gets all the table's columns.
+pub async fn get_table_columns_by_id<R>(id: TableId, repos: &mut R) -> Result<ColumnsByName>
 where
     R: RepoCollection + ?Sized,
 {
     let columns = repos.columns().list_by_table_id(id).await?;
-    let mut schema = TableSchema::new(id);
 
-    for c in columns {
-        schema.columns.insert(
-            c.name,
-            ColumnSchema {
-                id: c.id,
-                column_type: c.column_type,
-            },
-        );
-    }
-
-    Ok(schema)
+    Ok(ColumnsByName::new(columns))
 }
 
 /// Fetch all [`NamespaceSchema`] in the catalog.
@@ -750,9 +705,9 @@ pub async fn list_schemas(
             .or_default()
             // Fetch the schema record for this table, or create an empty one.
             .entry(table.name.clone())
-            .or_insert_with(|| TableSchema::new(column.table_id));
+            .or_insert_with(|| TableSchema::new_empty_from(table));
 
-        table_schema.add_column(&column);
+        table_schema.add_column(column);
     }
 
     // The table map is no longer needed - immediately reclaim the memory.
@@ -770,14 +725,8 @@ pub async fn list_schemas(
             // The catalog call explicitly asked for no soft deleted records.
             assert!(v.deleted_at.is_none());
 
-            let mut ns = NamespaceSchema::new(
-                v.id,
-                v.topic_id,
-                v.query_pool_id,
-                v.max_columns_per_table,
-                v.max_tables,
-                v.retention_period_ns,
-            );
+            let mut ns = NamespaceSchema::new_empty_from(&v);
+
             ns.tables = joined.remove(&v.id)?;
             Some((v, ns))
         });
@@ -787,12 +736,15 @@ pub async fn list_schemas(
 
 #[cfg(test)]
 pub(crate) mod test_helpers {
-    use crate::{validate_or_insert_schema, DEFAULT_MAX_COLUMNS_PER_TABLE, DEFAULT_MAX_TABLES};
+    use crate::{
+        test_helpers::{arbitrary_namespace, arbitrary_table},
+        validate_or_insert_schema, DEFAULT_MAX_COLUMNS_PER_TABLE, DEFAULT_MAX_TABLES,
+    };
 
     use super::*;
     use ::test_helpers::{assert_contains, tracing::TracingCapture};
     use assert_matches::assert_matches;
-    use data_types::{ColumnId, ColumnSet, CompactionLevel, SequenceNumber};
+    use data_types::{ColumnId, ColumnSet, CompactionLevel};
     use futures::Future;
     use metric::{Attributes, DurationHistogram, Metric};
     use std::{collections::BTreeSet, ops::DerefMut, sync::Arc, time::Duration};
@@ -805,7 +757,6 @@ pub(crate) mod test_helpers {
         test_setup(clean_state().await).await;
         test_namespace_soft_deletion(clean_state().await).await;
         test_partitions_new_file_between(clean_state().await).await;
-        test_query_pool(clean_state().await).await;
         test_column(clean_state().await).await;
         test_partition(clean_state().await).await;
         test_parquet_file(clean_state().await).await;
@@ -817,10 +768,6 @@ pub(crate) mod test_helpers {
         test_list_schemas(clean_state().await).await;
         test_list_schemas_soft_deleted_rows(clean_state().await).await;
         test_delete_namespace(clean_state().await).await;
-
-        let catalog = clean_state().await;
-        test_topic(Arc::clone(&catalog)).await;
-        assert_metric_hit(&catalog.metrics(), "topic_create_or_get");
 
         let catalog = clean_state().await;
         test_namespace(Arc::clone(&catalog)).await;
@@ -848,45 +795,16 @@ pub(crate) mod test_helpers {
         catalog.setup().await.expect("second catalog setup");
     }
 
-    async fn test_topic(catalog: Arc<dyn Catalog>) {
-        let mut repos = catalog.repositories().await;
-        let topic_repo = repos.topics();
-
-        let k = topic_repo.create_or_get("foo").await.unwrap();
-        assert!(k.id > TopicId::new(0));
-        assert_eq!(k.name, "foo");
-        let k2 = topic_repo.create_or_get("foo").await.unwrap();
-        assert_eq!(k, k2);
-        let k3 = topic_repo.get_by_name("foo").await.unwrap().unwrap();
-        assert_eq!(k3, k);
-        let k3 = topic_repo.get_by_name("asdf").await.unwrap();
-        assert!(k3.is_none());
-    }
-
-    async fn test_query_pool(catalog: Arc<dyn Catalog>) {
-        let mut repos = catalog.repositories().await;
-        let query_repo = repos.query_pools();
-
-        let q = query_repo.create_or_get("foo").await.unwrap();
-        assert!(q.id > QueryPoolId::new(0));
-        assert_eq!(q.name, "foo");
-        let q2 = query_repo.create_or_get("foo").await.unwrap();
-        assert_eq!(q, q2);
-    }
-
     async fn test_namespace(catalog: Arc<dyn Catalog>) {
         let mut repos = catalog.repositories().await;
-        let topic = repos.topics().create_or_get("foo").await.unwrap();
-        let pool = repos.query_pools().create_or_get("foo").await.unwrap();
-
-        let namespace_name = "test_namespace";
+        let namespace_name = NamespaceName::new("test_namespace").unwrap();
         let namespace = repos
             .namespaces()
-            .create(namespace_name, None, topic.id, pool.id)
+            .create(&namespace_name, None)
             .await
             .unwrap();
         assert!(namespace.id > NamespaceId::new(0));
-        assert_eq!(namespace.name, namespace_name);
+        assert_eq!(namespace.name, namespace_name.as_str());
 
         // Assert default values for service protection limits.
         assert_eq!(namespace.max_tables, DEFAULT_MAX_TABLES);
@@ -895,10 +813,7 @@ pub(crate) mod test_helpers {
             DEFAULT_MAX_COLUMNS_PER_TABLE
         );
 
-        let conflict = repos
-            .namespaces()
-            .create(namespace_name, None, topic.id, pool.id)
-            .await;
+        let conflict = repos.namespaces().create(&namespace_name, None).await;
         assert!(matches!(
             conflict.unwrap_err(),
             Error::NameExists { name: _ }
@@ -921,7 +836,7 @@ pub(crate) mod test_helpers {
 
         let found = repos
             .namespaces()
-            .get_by_name(namespace_name, SoftDeletedRows::ExcludeDeleted)
+            .get_by_name(&namespace_name, SoftDeletedRows::ExcludeDeleted)
             .await
             .unwrap()
             .expect("namespace should be there");
@@ -934,12 +849,7 @@ pub(crate) mod test_helpers {
             .unwrap();
         assert!(not_found.is_none());
 
-        let namespace2_name = "test_namespace2";
-        let namespace2 = repos
-            .namespaces()
-            .create(namespace2_name, None, topic.id, pool.id)
-            .await
-            .unwrap();
+        let namespace2 = arbitrary_namespace(&mut *repos, "test_namespace2").await;
         let mut namespaces = repos
             .namespaces()
             .list(SoftDeletedRows::ExcludeDeleted)
@@ -951,7 +861,7 @@ pub(crate) mod test_helpers {
         const NEW_TABLE_LIMIT: i32 = 15000;
         let modified = repos
             .namespaces()
-            .update_table_limit(namespace_name, NEW_TABLE_LIMIT)
+            .update_table_limit(namespace_name.as_str(), NEW_TABLE_LIMIT)
             .await
             .expect("namespace should be updateable");
         assert_eq!(NEW_TABLE_LIMIT, modified.max_tables);
@@ -959,7 +869,7 @@ pub(crate) mod test_helpers {
         const NEW_COLUMN_LIMIT: i32 = 1500;
         let modified = repos
             .namespaces()
-            .update_column_limit(namespace_name, NEW_COLUMN_LIMIT)
+            .update_column_limit(namespace_name.as_str(), NEW_COLUMN_LIMIT)
             .await
             .expect("namespace should be updateable");
         assert_eq!(NEW_COLUMN_LIMIT, modified.max_columns_per_table);
@@ -967,7 +877,7 @@ pub(crate) mod test_helpers {
         const NEW_RETENTION_PERIOD_NS: i64 = 5 * 60 * 60 * 1000 * 1000 * 1000;
         let modified = repos
             .namespaces()
-            .update_retention_period(namespace_name, Some(NEW_RETENTION_PERIOD_NS))
+            .update_retention_period(namespace_name.as_str(), Some(NEW_RETENTION_PERIOD_NS))
             .await
             .expect("namespace should be updateable");
         assert_eq!(
@@ -977,30 +887,20 @@ pub(crate) mod test_helpers {
 
         let modified = repos
             .namespaces()
-            .update_retention_period(namespace_name, None)
+            .update_retention_period(namespace_name.as_str(), None)
             .await
             .expect("namespace should be updateable");
         assert!(modified.retention_period_ns.is_none());
 
-        // create namespace with retention period NULL
-        let namespace3_name = "test_namespace3";
-        let namespace3 = repos
-            .namespaces()
-            .create(namespace3_name, None, topic.id, pool.id)
-            .await
-            .expect("namespace with NULL retention should be created");
+        // create namespace with retention period NULL (the default)
+        let namespace3 = arbitrary_namespace(&mut *repos, "test_namespace3").await;
         assert!(namespace3.retention_period_ns.is_none());
 
         // create namespace with retention period
-        let namespace4_name = "test_namespace4";
+        let namespace4_name = NamespaceName::new("test_namespace4").unwrap();
         let namespace4 = repos
             .namespaces()
-            .create(
-                namespace4_name,
-                Some(NEW_RETENTION_PERIOD_NS),
-                topic.id,
-                pool.id,
-            )
+            .create(&namespace4_name, Some(NEW_RETENTION_PERIOD_NS))
             .await
             .expect("namespace with 5-hour retention should be created");
         assert_eq!(
@@ -1010,7 +910,7 @@ pub(crate) mod test_helpers {
         // reset retention period to NULL to avoid affecting later tests
         repos
             .namespaces()
-            .update_retention_period(namespace4_name, None)
+            .update_retention_period(&namespace4_name, None)
             .await
             .expect("namespace should be updateable");
 
@@ -1046,19 +946,9 @@ pub(crate) mod test_helpers {
     /// the expected rows for all three states of [`SoftDeletedRows`].
     async fn test_namespace_soft_deletion(catalog: Arc<dyn Catalog>) {
         let mut repos = catalog.repositories().await;
-        let topic = repos.topics().create_or_get("foo").await.unwrap();
-        let pool = repos.query_pools().create_or_get("foo").await.unwrap();
 
-        let deleted_ns = repos
-            .namespaces()
-            .create("deleted-ns", None, topic.id, pool.id)
-            .await
-            .unwrap();
-        let active_ns = repos
-            .namespaces()
-            .create("active-ns", None, topic.id, pool.id)
-            .await
-            .unwrap();
+        let deleted_ns = arbitrary_namespace(&mut *repos, "deleted-ns").await;
+        let active_ns = arbitrary_namespace(&mut *repos, "active-ns").await;
 
         // Mark "deleted-ns" as soft-deleted.
         repos.namespaces().soft_delete("deleted-ns").await.unwrap();
@@ -1212,25 +1102,11 @@ pub(crate) mod test_helpers {
 
     async fn test_table(catalog: Arc<dyn Catalog>) {
         let mut repos = catalog.repositories().await;
-        let topic = repos.topics().create_or_get("foo").await.unwrap();
-        let pool = repos.query_pools().create_or_get("foo").await.unwrap();
-        let namespace = repos
-            .namespaces()
-            .create("namespace_table_test", None, topic.id, pool.id)
-            .await
-            .unwrap();
+        let namespace = arbitrary_namespace(&mut *repos, "namespace_table_test").await;
 
         // test we can create or get a table
-        let t = repos
-            .tables()
-            .create_or_get("test_table", namespace.id)
-            .await
-            .unwrap();
-        let tt = repos
-            .tables()
-            .create_or_get("test_table", namespace.id)
-            .await
-            .unwrap();
+        let t = arbitrary_table(&mut *repos, "test_table", &namespace).await;
+        let tt = arbitrary_table(&mut *repos, "test_table", &namespace).await;
         assert!(t.id > TableId::new(0));
         assert_eq!(t, tt);
 
@@ -1251,26 +1127,14 @@ pub(crate) mod test_helpers {
         assert_eq!(vec![t.clone()], tables);
 
         // test we can create a table of the same name in a different namespace
-        let namespace2 = repos
-            .namespaces()
-            .create("two", None, topic.id, pool.id)
-            .await
-            .unwrap();
+        let namespace2 = arbitrary_namespace(&mut *repos, "two").await;
         assert_ne!(namespace, namespace2);
-        let test_table = repos
-            .tables()
-            .create_or_get("test_table", namespace2.id)
-            .await
-            .unwrap();
+        let test_table = arbitrary_table(&mut *repos, "test_table", &namespace2).await;
         assert_ne!(tt, test_table);
         assert_eq!(test_table.namespace_id, namespace2.id);
 
         // test get by namespace and name
-        let foo_table = repos
-            .tables()
-            .create_or_get("foo", namespace2.id)
-            .await
-            .unwrap();
+        let foo_table = arbitrary_table(&mut *repos, "foo", &namespace2).await;
         assert_eq!(
             repos
                 .tables()
@@ -1351,18 +1215,8 @@ pub(crate) mod test_helpers {
 
     async fn test_column(catalog: Arc<dyn Catalog>) {
         let mut repos = catalog.repositories().await;
-        let topic = repos.topics().create_or_get("foo").await.unwrap();
-        let pool = repos.query_pools().create_or_get("foo").await.unwrap();
-        let namespace = repos
-            .namespaces()
-            .create("namespace_column_test", None, topic.id, pool.id)
-            .await
-            .unwrap();
-        let table = repos
-            .tables()
-            .create_or_get("test_table", namespace.id)
-            .await
-            .unwrap();
+        let namespace = arbitrary_namespace(&mut *repos, "namespace_column_test").await;
+        let table = arbitrary_table(&mut *repos, "test_table", &namespace).await;
         assert_eq!(table.namespace_id, namespace.id);
 
         // test we can create or get a column
@@ -1389,11 +1243,7 @@ pub(crate) mod test_helpers {
         assert!(matches!(err, Error::ColumnTypeMismatch { .. }));
 
         // test that we can create a column of the same name under a different table
-        let table2 = repos
-            .tables()
-            .create_or_get("test_table_2", namespace.id)
-            .await
-            .unwrap();
+        let table2 = arbitrary_table(&mut *repos, "test_table_2", &namespace).await;
         let ccc = repos
             .columns()
             .create_or_get("column_test", table2.id, ColumnType::U64)
@@ -1460,11 +1310,7 @@ pub(crate) mod test_helpers {
         ));
 
         // test per-namespace column limits are NOT enforced with create_or_get_many_unchecked
-        let table3 = repos
-            .tables()
-            .create_or_get("test_table_3", namespace.id)
-            .await
-            .unwrap();
+        let table3 = arbitrary_table(&mut *repos, "test_table_3", &namespace).await;
         let mut columns = HashMap::new();
         columns.insert("apples", ColumnType::Tag);
         columns.insert("oranges", ColumnType::Tag);
@@ -1486,18 +1332,8 @@ pub(crate) mod test_helpers {
 
     async fn test_partition(catalog: Arc<dyn Catalog>) {
         let mut repos = catalog.repositories().await;
-        let topic = repos.topics().create_or_get("foo").await.unwrap();
-        let pool = repos.query_pools().create_or_get("foo").await.unwrap();
-        let namespace = repos
-            .namespaces()
-            .create("namespace_partition_test", None, topic.id, pool.id)
-            .await
-            .unwrap();
-        let table = repos
-            .tables()
-            .create_or_get("test_table", namespace.id)
-            .await
-            .unwrap();
+        let namespace = arbitrary_namespace(&mut *repos, "namespace_partition_test").await;
+        let table = arbitrary_table(&mut *repos, "test_table", &namespace).await;
 
         let mut created = BTreeMap::new();
         for key in ["foo", "bar"] {
@@ -1770,23 +1606,9 @@ pub(crate) mod test_helpers {
     /// tests many interactions with the catalog and parquet files. See the individual conditions herein
     async fn test_parquet_file(catalog: Arc<dyn Catalog>) {
         let mut repos = catalog.repositories().await;
-        let topic = repos.topics().create_or_get("foo").await.unwrap();
-        let pool = repos.query_pools().create_or_get("foo").await.unwrap();
-        let namespace = repos
-            .namespaces()
-            .create("namespace_parquet_file_test", None, topic.id, pool.id)
-            .await
-            .unwrap();
-        let table = repos
-            .tables()
-            .create_or_get("test_table", namespace.id)
-            .await
-            .unwrap();
-        let other_table = repos
-            .tables()
-            .create_or_get("other", namespace.id)
-            .await
-            .unwrap();
+        let namespace = arbitrary_namespace(&mut *repos, "namespace_parquet_file_test").await;
+        let table = arbitrary_table(&mut *repos, "test_table", &namespace).await;
+        let other_table = arbitrary_table(&mut *repos, "other", &namespace).await;
         let partition = repos
             .partitions()
             .create_or_get("one".into(), table.id)
@@ -1803,7 +1625,6 @@ pub(crate) mod test_helpers {
             table_id: partition.table_id,
             partition_id: partition.id,
             object_store_id: Uuid::new_v4(),
-            max_sequence_number: SequenceNumber::new(140),
             min_time: Timestamp::new(1),
             max_time: Timestamp::new(10),
             file_size_bytes: 1337,
@@ -1839,7 +1660,6 @@ pub(crate) mod test_helpers {
             table_id: other_partition.table_id,
             partition_id: other_partition.id,
             object_store_id: Uuid::new_v4(),
-            max_sequence_number: SequenceNumber::new(200),
             min_time: Timestamp::new(50),
             max_time: Timestamp::new(60),
             ..parquet_file_params.clone()
@@ -1959,16 +1779,8 @@ pub(crate) mod test_helpers {
         assert_eq!(files.len(), 1);
 
         // test list_by_namespace_not_to_delete
-        let namespace2 = repos
-            .namespaces()
-            .create("namespace_parquet_file_test1", None, topic.id, pool.id)
-            .await
-            .unwrap();
-        let table2 = repos
-            .tables()
-            .create_or_get("test_table2", namespace2.id)
-            .await
-            .unwrap();
+        let namespace2 = arbitrary_namespace(&mut *repos, "namespace_parquet_file_test1").await;
+        let table2 = arbitrary_table(&mut *repos, "test_table2", &namespace2).await;
         let partition2 = repos
             .partitions()
             .create_or_get("foo".into(), table2.id)
@@ -1987,7 +1799,6 @@ pub(crate) mod test_helpers {
             object_store_id: Uuid::new_v4(),
             min_time: Timestamp::new(1),
             max_time: Timestamp::new(10),
-            max_sequence_number: SequenceNumber::new(10),
             ..parquet_file_params
         };
         let f1 = repos
@@ -2000,7 +1811,6 @@ pub(crate) mod test_helpers {
             object_store_id: Uuid::new_v4(),
             min_time: Timestamp::new(50),
             max_time: Timestamp::new(60),
-            max_sequence_number: SequenceNumber::new(11),
             ..f1_params.clone()
         };
         let f2 = repos
@@ -2019,7 +1829,6 @@ pub(crate) mod test_helpers {
             object_store_id: Uuid::new_v4(),
             min_time: Timestamp::new(50),
             max_time: Timestamp::new(60),
-            max_sequence_number: SequenceNumber::new(12),
             ..f2_params
         };
         let f3 = repos
@@ -2185,28 +1994,14 @@ pub(crate) mod test_helpers {
 
     async fn test_parquet_file_delete_broken(catalog: Arc<dyn Catalog>) {
         let mut repos = catalog.repositories().await;
-        let topic = repos.topics().create_or_get("foo").await.unwrap();
-        let pool = repos.query_pools().create_or_get("foo").await.unwrap();
-        let namespace_1 = repos
-            .namespaces()
-            .create("retention_broken_1", None, topic.id, pool.id)
-            .await
-            .unwrap();
+        let namespace_1 = arbitrary_namespace(&mut *repos, "retention_broken_1").await;
         let namespace_2 = repos
             .namespaces()
-            .create("retention_broken_2", Some(1), topic.id, pool.id)
+            .create(&NamespaceName::new("retention_broken_2").unwrap(), Some(1))
             .await
             .unwrap();
-        let table_1 = repos
-            .tables()
-            .create_or_get("test_table", namespace_1.id)
-            .await
-            .unwrap();
-        let table_2 = repos
-            .tables()
-            .create_or_get("test_table", namespace_2.id)
-            .await
-            .unwrap();
+        let table_1 = arbitrary_table(&mut *repos, "test_table", &namespace_1).await;
+        let table_2 = arbitrary_table(&mut *repos, "test_table", &namespace_2).await;
         let partition_1 = repos
             .partitions()
             .create_or_get("one".into(), table_1.id)
@@ -2223,7 +2018,6 @@ pub(crate) mod test_helpers {
             table_id: table_1.id,
             partition_id: partition_1.id,
             object_store_id: Uuid::new_v4(),
-            max_sequence_number: SequenceNumber::new(140),
             min_time: Timestamp::new(1),
             max_time: Timestamp::new(10),
             file_size_bytes: 1337,
@@ -2238,7 +2032,6 @@ pub(crate) mod test_helpers {
             table_id: table_2.id,
             partition_id: partition_2.id,
             object_store_id: Uuid::new_v4(),
-            max_sequence_number: SequenceNumber::new(140),
             min_time: Timestamp::new(1),
             max_time: Timestamp::new(10),
             file_size_bytes: 1337,
@@ -2269,26 +2062,9 @@ pub(crate) mod test_helpers {
 
     async fn test_partitions_new_file_between(catalog: Arc<dyn Catalog>) {
         let mut repos = catalog.repositories().await;
-        let topic = repos
-            .topics()
-            .create_or_get("new_file_between")
-            .await
-            .unwrap();
-        let pool = repos
-            .query_pools()
-            .create_or_get("new_file_between")
-            .await
-            .unwrap();
-        let namespace = repos
-            .namespaces()
-            .create("test_partitions_new_file_between", None, topic.id, pool.id)
-            .await
-            .unwrap();
-        let table = repos
-            .tables()
-            .create_or_get("test_table_for_new_file_between", namespace.id)
-            .await
-            .unwrap();
+        let namespace = arbitrary_namespace(&mut *repos, "test_partitions_new_file_between").await;
+        let table =
+            arbitrary_table(&mut *repos, "test_table_for_new_file_between", &namespace).await;
 
         // param for the tests
         let time_now = Timestamp::from(catalog.time_provider().now());
@@ -2327,7 +2103,6 @@ pub(crate) mod test_helpers {
             table_id: partition1.table_id,
             partition_id: partition1.id,
             object_store_id: Uuid::new_v4(),
-            max_sequence_number: SequenceNumber::new(140),
             min_time: Timestamp::new(1),
             max_time: Timestamp::new(10),
             file_size_bytes: 1337,
@@ -2646,23 +2421,12 @@ pub(crate) mod test_helpers {
 
     async fn test_list_by_partiton_not_to_delete(catalog: Arc<dyn Catalog>) {
         let mut repos = catalog.repositories().await;
-        let topic = repos.topics().create_or_get("foo").await.unwrap();
-        let pool = repos.query_pools().create_or_get("foo").await.unwrap();
-        let namespace = repos
-            .namespaces()
-            .create(
-                "namespace_parquet_file_test_list_by_partiton_not_to_delete",
-                None,
-                topic.id,
-                pool.id,
-            )
-            .await
-            .unwrap();
-        let table = repos
-            .tables()
-            .create_or_get("test_table", namespace.id)
-            .await
-            .unwrap();
+        let namespace = arbitrary_namespace(
+            &mut *repos,
+            "namespace_parquet_file_test_list_by_partiton_not_to_delete",
+        )
+        .await;
+        let table = arbitrary_table(&mut *repos, "test_table", &namespace).await;
 
         let partition = repos
             .partitions()
@@ -2683,7 +2447,6 @@ pub(crate) mod test_helpers {
             table_id: partition.table_id,
             partition_id: partition.id,
             object_store_id: Uuid::new_v4(),
-            max_sequence_number: SequenceNumber::new(140),
             min_time,
             max_time,
             file_size_bytes: 1337,
@@ -2761,23 +2524,9 @@ pub(crate) mod test_helpers {
 
     async fn test_update_to_compaction_level_1(catalog: Arc<dyn Catalog>) {
         let mut repos = catalog.repositories().await;
-        let topic = repos.topics().create_or_get("foo").await.unwrap();
-        let pool = repos.query_pools().create_or_get("foo").await.unwrap();
-        let namespace = repos
-            .namespaces()
-            .create(
-                "namespace_update_to_compaction_level_1_test",
-                None,
-                topic.id,
-                pool.id,
-            )
-            .await
-            .unwrap();
-        let table = repos
-            .tables()
-            .create_or_get("update_table", namespace.id)
-            .await
-            .unwrap();
+        let namespace =
+            arbitrary_namespace(&mut *repos, "namespace_update_to_compaction_level_1_test").await;
+        let table = arbitrary_table(&mut *repos, "update_table", &namespace).await;
         let partition = repos
             .partitions()
             .create_or_get("test_update_to_compaction_level_1_one".into(), table.id)
@@ -2794,7 +2543,6 @@ pub(crate) mod test_helpers {
             table_id: partition.table_id,
             partition_id: partition.id,
             object_store_id: Uuid::new_v4(),
-            max_sequence_number: SequenceNumber::new(140),
             min_time: query_min_time + 1,
             max_time: query_max_time - 1,
             file_size_bytes: 1337,
@@ -2855,18 +2603,9 @@ pub(crate) mod test_helpers {
     /// effective.
     async fn test_delete_namespace(catalog: Arc<dyn Catalog>) {
         let mut repos = catalog.repositories().await;
-        let topic = repos.topics().create_or_get("foo").await.unwrap();
-        let pool = repos.query_pools().create_or_get("foo").await.unwrap();
-        let namespace_1 = repos
-            .namespaces()
-            .create("namespace_test_delete_namespace_1", None, topic.id, pool.id)
-            .await
-            .unwrap();
-        let table_1 = repos
-            .tables()
-            .create_or_get("test_table_1", namespace_1.id)
-            .await
-            .unwrap();
+        let namespace_1 =
+            arbitrary_namespace(&mut *repos, "namespace_test_delete_namespace_1").await;
+        let table_1 = arbitrary_table(&mut *repos, "test_table_1", &namespace_1).await;
         let _c = repos
             .columns()
             .create_or_get("column_test_1", table_1.id, ColumnType::Tag)
@@ -2884,7 +2623,6 @@ pub(crate) mod test_helpers {
             table_id: partition_1.table_id,
             partition_id: partition_1.id,
             object_store_id: Uuid::new_v4(),
-            max_sequence_number: SequenceNumber::new(1),
             min_time: Timestamp::new(100),
             max_time: Timestamp::new(250),
             file_size_bytes: 1337,
@@ -2901,7 +2639,6 @@ pub(crate) mod test_helpers {
             .unwrap();
         let parquet_file_params_2 = ParquetFileParams {
             object_store_id: Uuid::new_v4(),
-            max_sequence_number: SequenceNumber::new(3),
             min_time: Timestamp::new(200),
             max_time: Timestamp::new(300),
             ..parquet_file_params
@@ -2914,16 +2651,9 @@ pub(crate) mod test_helpers {
 
         // we've now created a namespace with a table and parquet files. before we test deleting
         // it, let's create another so we can ensure that doesn't get deleted.
-        let namespace_2 = repos
-            .namespaces()
-            .create("namespace_test_delete_namespace_2", None, topic.id, pool.id)
-            .await
-            .unwrap();
-        let table_2 = repos
-            .tables()
-            .create_or_get("test_table_2", namespace_2.id)
-            .await
-            .unwrap();
+        let namespace_2 =
+            arbitrary_namespace(&mut *repos, "namespace_test_delete_namespace_2").await;
+        let table_2 = arbitrary_table(&mut *repos, "test_table_2", &namespace_2).await;
         let _c = repos
             .columns()
             .create_or_get("column_test_2", table_2.id, ColumnType::Tag)
@@ -2941,7 +2671,6 @@ pub(crate) mod test_helpers {
             table_id: partition_2.table_id,
             partition_id: partition_2.id,
             object_store_id: Uuid::new_v4(),
-            max_sequence_number: SequenceNumber::new(1),
             min_time: Timestamp::new(100),
             max_time: Timestamp::new(250),
             file_size_bytes: 1337,
@@ -2958,7 +2687,6 @@ pub(crate) mod test_helpers {
             .unwrap();
         let parquet_file_params_2 = ParquetFileParams {
             object_store_id: Uuid::new_v4(),
-            max_sequence_number: SequenceNumber::new(3),
             min_time: Timestamp::new(200),
             max_time: Timestamp::new(300),
             ..parquet_file_params
@@ -3103,10 +2831,7 @@ pub(crate) mod test_helpers {
             barrier_captured.wait().await;
 
             let mut txn = catalog_captured.start_transaction().await.unwrap();
-            txn.topics()
-                .create_or_get("test_txn_isolation")
-                .await
-                .unwrap();
+            arbitrary_namespace(&mut *txn, "test_txn_isolation").await;
 
             tokio::time::sleep(Duration::from_millis(200)).await;
             txn.abort().await.unwrap();
@@ -3117,30 +2842,30 @@ pub(crate) mod test_helpers {
         barrier.wait().await;
         tokio::time::sleep(Duration::from_millis(100)).await;
 
-        let topic = txn
-            .topics()
-            .get_by_name("test_txn_isolation")
+        let namespace = txn
+            .namespaces()
+            .get_by_name("test_txn_isolation", SoftDeletedRows::AllRows)
             .await
             .unwrap();
-        assert!(topic.is_none());
+        assert!(namespace.is_none());
         txn.abort().await.unwrap();
 
         insertion_task.await.unwrap();
 
         let mut txn = catalog.start_transaction().await.unwrap();
-        let topic = txn
-            .topics()
-            .get_by_name("test_txn_isolation")
+        let namespace = txn
+            .namespaces()
+            .get_by_name("test_txn_isolation", SoftDeletedRows::AllRows)
             .await
             .unwrap();
-        assert!(topic.is_none());
+        assert!(namespace.is_none());
         txn.abort().await.unwrap();
     }
 
     async fn test_txn_drop(catalog: Arc<dyn Catalog>) {
         let capture = TracingCapture::new();
         let mut txn = catalog.start_transaction().await.unwrap();
-        txn.topics().create_or_get("test_txn_drop").await.unwrap();
+        arbitrary_namespace(&mut *txn, "test_txn_drop").await;
         drop(txn);
 
         // got a warning
@@ -3149,8 +2874,12 @@ pub(crate) mod test_helpers {
 
         // data is NOT committed
         let mut txn = catalog.start_transaction().await.unwrap();
-        let topic = txn.topics().get_by_name("test_txn_drop").await.unwrap();
-        assert!(topic.is_none());
+        let namespace = txn
+            .namespaces()
+            .get_by_name("test_txn_drop", SoftDeletedRows::AllRows)
+            .await
+            .unwrap();
+        assert!(namespace.is_none());
         txn.abort().await.unwrap();
     }
 
@@ -3163,11 +2892,9 @@ pub(crate) mod test_helpers {
     where
         R: RepoCollection + ?Sized,
     {
-        let topic = repos.topics().create_or_get("foo").await.unwrap();
-        let pool = repos.query_pools().create_or_get("foo").await.unwrap();
         let namespace = repos
             .namespaces()
-            .create(namespace_name, None, topic.id, pool.id)
+            .create(&NamespaceName::new(namespace_name).unwrap(), None)
             .await;
 
         let namespace = match namespace {
@@ -3183,14 +2910,7 @@ pub(crate) mod test_helpers {
 
         let batches = mutable_batch_lp::lines_to_batches(lines, 42).unwrap();
         let batches = batches.iter().map(|(table, batch)| (table.as_str(), batch));
-        let ns = NamespaceSchema::new(
-            namespace.id,
-            topic.id,
-            pool.id,
-            namespace.max_columns_per_table,
-            namespace.max_tables,
-            namespace.retention_period_ns,
-        );
+        let ns = NamespaceSchema::new_empty_from(&namespace);
 
         let schema = validate_or_insert_schema(batches, &ns, repos)
             .await

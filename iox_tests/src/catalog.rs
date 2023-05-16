@@ -5,17 +5,18 @@ use arrow::{
     record_batch::RecordBatch,
 };
 use data_types::{
-    Column, ColumnSet, ColumnType, CompactionLevel, Namespace, NamespaceSchema, ParquetFile,
-    ParquetFileParams, Partition, PartitionId, QueryPool, SequenceNumber, Table, TableId,
-    TableSchema, Timestamp, TopicMetadata,
+    Column, ColumnSet, ColumnType, ColumnsByName, CompactionLevel, Namespace, NamespaceName,
+    NamespaceSchema, ParquetFile, ParquetFileParams, Partition, PartitionId, Table, TableId,
+    TableSchema, Timestamp,
 };
 use datafusion::physical_plan::metrics::Count;
 use datafusion_util::MemoryStream;
 use iox_catalog::{
     interface::{
-        get_schema_by_id, get_table_schema_by_id, Catalog, PartitionRepo, SoftDeletedRows,
+        get_schema_by_id, get_table_columns_by_id, Catalog, PartitionRepo, SoftDeletedRows,
     },
     mem::MemCatalog,
+    test_helpers::arbitrary_table,
 };
 use iox_query::{
     exec::{DedicatedExecutors, Executor, ExecutorConfig},
@@ -144,19 +145,15 @@ impl TestCatalog {
         retention_period_ns: Option<i64>,
     ) -> Arc<TestNamespace> {
         let mut repos = self.catalog.repositories().await;
-
-        let topic = repos.topics().create_or_get("topic").await.unwrap();
-        let query_pool = repos.query_pools().create_or_get("pool").await.unwrap();
+        let namespace_name = NamespaceName::new(name).unwrap();
         let namespace = repos
             .namespaces()
-            .create(name, retention_period_ns, topic.id, query_pool.id)
+            .create(&namespace_name, retention_period_ns)
             .await
             .unwrap();
 
         Arc::new(TestNamespace {
             catalog: Arc::clone(self),
-            topic,
-            query_pool,
             namespace,
         })
     }
@@ -216,8 +213,6 @@ impl TestCatalog {
 #[allow(missing_docs)]
 pub struct TestNamespace {
     pub catalog: Arc<TestCatalog>,
-    pub topic: TopicMetadata,
-    pub query_pool: QueryPool,
     pub namespace: Namespace,
 }
 
@@ -226,11 +221,7 @@ impl TestNamespace {
     pub async fn create_table(self: &Arc<Self>, name: &str) -> Arc<TestTable> {
         let mut repos = self.catalog.catalog.repositories().await;
 
-        let table = repos
-            .tables()
-            .create_or_get(name, self.namespace.id)
-            .await
-            .unwrap();
+        let table = arbitrary_table(&mut *repos, name, &self.namespace).await;
 
         Arc::new(TestTable {
             catalog: Arc::clone(&self.catalog),
@@ -350,25 +341,34 @@ impl TestTable {
         })
     }
 
-    /// Get catalog schema.
+    /// Get the TableSchema from the catalog.
     pub async fn catalog_schema(&self) -> TableSchema {
+        TableSchema {
+            id: self.table.id,
+            partition_template: None,
+            columns: self.catalog_columns().await,
+        }
+    }
+
+    /// Get columns from the catalog.
+    pub async fn catalog_columns(&self) -> ColumnsByName {
         let mut repos = self.catalog.catalog.repositories().await;
 
-        get_table_schema_by_id(self.table.id, repos.as_mut())
+        get_table_columns_by_id(self.table.id, repos.as_mut())
             .await
             .unwrap()
     }
 
     /// Get schema for this table.
     pub async fn schema(&self) -> Schema {
-        self.catalog_schema().await.try_into().unwrap()
+        self.catalog_columns().await.try_into().unwrap()
     }
 
     /// Read the record batches from the specified Parquet File associated with this table.
     pub async fn read_parquet_file(&self, file: ParquetFile) -> Vec<RecordBatch> {
         // get schema
-        let table_catalog_schema = self.catalog_schema().await;
-        let column_id_lookup = table_catalog_schema.column_id_map();
+        let table_catalog_columns = self.catalog_columns().await;
+        let column_id_lookup = table_catalog_columns.id_map();
         let table_schema = self.schema().await;
         let selection: Vec<_> = file
             .column_set
@@ -456,7 +456,6 @@ impl TestPartition {
             record_batch,
             table,
             schema,
-            max_sequence_number,
             min_time,
             max_time,
             file_size_bytes,
@@ -497,7 +496,6 @@ impl TestPartition {
             table_name: self.table.table.name.clone().into(),
             partition_id: self.partition.id,
             partition_key: self.partition.partition_key.clone(),
-            max_sequence_number,
             compaction_level: CompactionLevel::Initial,
             sort_key: Some(sort_key.clone()),
             max_l0_created_at: Time::from_timestamp_nanos(max_l0_created_at),
@@ -516,7 +514,6 @@ impl TestPartition {
             record_batch: Some(record_batch),
             table: Some(table),
             schema: Some(schema),
-            max_sequence_number,
             min_time,
             max_time,
             file_size_bytes: Some(file_size_bytes.unwrap_or(real_file_size_bytes as u64)),
@@ -543,7 +540,6 @@ impl TestPartition {
     ) -> TestParquetFile {
         let TestParquetFileBuilder {
             record_batch,
-            max_sequence_number,
             min_time,
             max_time,
             file_size_bytes,
@@ -557,12 +553,11 @@ impl TestPartition {
             ..
         } = builder;
 
-        let table_catalog_schema = self.table.catalog_schema().await;
+        let table_catalog_columns = self.table.catalog_columns().await;
 
         let (row_count, column_set) = if let Some(record_batch) = record_batch {
             let column_set = ColumnSet::new(record_batch.schema().fields().iter().map(|f| {
-                table_catalog_schema
-                    .columns
+                table_catalog_columns
                     .get(f.name())
                     .unwrap_or_else(|| panic!("Column {} is not registered", f.name()))
                     .id
@@ -575,8 +570,7 @@ impl TestPartition {
 
             (record_batch.num_rows(), column_set)
         } else {
-            let column_set =
-                ColumnSet::new(table_catalog_schema.columns.values().map(|col| col.id));
+            let column_set = ColumnSet::new(table_catalog_columns.ids());
             (row_count.unwrap_or(0), column_set)
         };
 
@@ -585,7 +579,6 @@ impl TestPartition {
             table_id: self.table.table.id,
             partition_id: self.partition.id,
             object_store_id: object_store_id.unwrap_or_else(Uuid::new_v4),
-            max_sequence_number,
             min_time: Timestamp::new(min_time),
             max_time: Timestamp::new(max_time),
             file_size_bytes: file_size_bytes.unwrap_or(0) as i64,
@@ -628,7 +621,6 @@ pub struct TestParquetFileBuilder {
     record_batch: Option<RecordBatch>,
     table: Option<String>,
     schema: Option<Schema>,
-    max_sequence_number: SequenceNumber,
     min_time: i64,
     max_time: i64,
     file_size_bytes: Option<u64>,
@@ -647,7 +639,6 @@ impl Default for TestParquetFileBuilder {
             record_batch: None,
             table: None,
             schema: None,
-            max_sequence_number: SequenceNumber::new(100),
             min_time: now().timestamp_nanos(),
             max_time: now().timestamp_nanos(),
             file_size_bytes: None,
@@ -687,12 +678,6 @@ impl TestParquetFileBuilder {
 
     fn with_schema(mut self, schema: Schema) -> Self {
         self.schema = Some(schema);
-        self
-    }
-
-    /// Specify the maximum sequence number for the parquet file metadata.
-    pub fn with_max_seq(mut self, max_seq: i64) -> Self {
-        self.max_sequence_number = SequenceNumber::new(max_seq);
         self
     }
 
@@ -850,15 +835,15 @@ impl TestParquetFile {
 
     /// Get Parquet file schema.
     pub async fn schema(&self) -> Schema {
-        let table_schema = self.table.catalog_schema().await;
-        let column_id_lookup = table_schema.column_id_map();
+        let table_columns = self.table.catalog_columns().await;
+        let column_id_lookup = table_columns.id_map();
         let selection: Vec<_> = self
             .parquet_file
             .column_set
             .iter()
             .map(|id| *column_id_lookup.get(id).unwrap())
             .collect();
-        let table_schema: Schema = table_schema.clone().try_into().unwrap();
+        let table_schema: Schema = table_columns.clone().try_into().unwrap();
         table_schema.select_by_names(&selection).unwrap()
     }
 }

@@ -138,9 +138,13 @@ mod tests {
     use chrono::TimeZone;
     use data_types::{
         ColumnId, ColumnSet, CompactionLevel, NamespaceId, ParquetFile, ParquetFileParams,
-        PartitionId, SequenceNumber, TableId, Timestamp,
+        PartitionId, TableId, Timestamp,
     };
-    use iox_catalog::{interface::Catalog, mem::MemCatalog};
+    use iox_catalog::{
+        interface::Catalog,
+        mem::MemCatalog,
+        test_helpers::{arbitrary_namespace, arbitrary_table},
+    };
     use object_store::path::Path;
     use once_cell::sync::Lazy;
     use parquet_file::ParquetFilePath;
@@ -155,18 +159,8 @@ mod tests {
         let metric_registry = Arc::new(metric::Registry::new());
         let catalog = Arc::new(MemCatalog::new(Arc::clone(&metric_registry)));
         let mut repos = catalog.repositories().await;
-        let topic = repos.topics().create_or_get("foo").await.unwrap();
-        let pool = repos.query_pools().create_or_get("foo").await.unwrap();
-        let namespace = repos
-            .namespaces()
-            .create("namespace_parquet_file_test", None, topic.id, pool.id)
-            .await
-            .unwrap();
-        let table = repos
-            .tables()
-            .create_or_get("test_table", namespace.id)
-            .await
-            .unwrap();
+        let namespace = arbitrary_namespace(&mut *repos, "namespace_parquet_file_test").await;
+        let table = arbitrary_table(&mut *repos, "test_table", &namespace).await;
         let partition = repos
             .partitions()
             .create_or_get("one".into(), table.id)
@@ -178,7 +172,6 @@ mod tests {
             table_id: partition.table_id,
             partition_id: partition.id,
             object_store_id: Uuid::new_v4(),
-            max_sequence_number: SequenceNumber::new(140),
             min_time: Timestamp::new(1),
             max_time: Timestamp::new(10),
             file_size_bytes: 1337,

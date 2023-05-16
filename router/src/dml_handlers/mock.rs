@@ -1,7 +1,7 @@
-use std::{collections::VecDeque, fmt::Debug};
+use std::{collections::VecDeque, fmt::Debug, sync::Arc};
 
 use async_trait::async_trait;
-use data_types::{NamespaceId, NamespaceName};
+use data_types::{NamespaceName, NamespaceSchema};
 use parking_lot::Mutex;
 use trace::ctx::SpanContext;
 
@@ -13,7 +13,7 @@ use super::{DmlError, DmlHandler};
 pub enum MockDmlHandlerCall<W> {
     Write {
         namespace: String,
-        namespace_id: NamespaceId,
+        namespace_schema: Arc<NamespaceSchema>,
         write_input: W,
     },
 }
@@ -86,7 +86,7 @@ where
     async fn write(
         &self,
         namespace: &NamespaceName<'static>,
-        namespace_id: NamespaceId,
+        namespace_schema: Arc<NamespaceSchema>,
         write_input: Self::WriteInput,
         _span_ctx: Option<SpanContext>,
     ) -> Result<Self::WriteOutput, Self::WriteError> {
@@ -94,7 +94,7 @@ where
             self,
             MockDmlHandlerCall::Write {
                 namespace: namespace.into(),
-                namespace_id,
+                namespace_schema,
                 write_input,
             },
             write_return

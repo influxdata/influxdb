@@ -489,7 +489,7 @@ where
             )],
         };
         self.authz
-            .require_any_permission(authz_token, &perms)
+            .permissions(authz_token, &perms)
             .await
             .map_err(Error::from)?;
 
@@ -593,7 +593,7 @@ where
 
         let perms = flightsql_permissions(&namespace_name, &cmd);
         self.authz
-            .require_any_permission(authz_token, &perms)
+            .permissions(authz_token, &perms)
             .await
             .map_err(Error::from)?;
 
@@ -682,7 +682,7 @@ where
 
         let perms = flightsql_permissions(&namespace_name, &cmd);
         self.authz
-            .require_any_permission(authz_token, &perms)
+            .permissions(authz_token, &perms)
             .await
             .map_err(Error::from)?;
 
@@ -1074,7 +1074,7 @@ mod tests {
             match token {
                 Some(token) => match (&token as &dyn AsRef<[u8]>).as_ref() {
                     b"GOOD" => Ok(perms.to_vec()),
-                    b"BAD" => Ok(vec![]),
+                    b"BAD" => Err(authz::Error::Forbidden),
                     b"UGLY" => Err(authz::Error::verification("test", "test error")),
                     _ => panic!("unexpected token"),
                 },

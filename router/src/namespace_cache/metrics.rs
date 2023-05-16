@@ -125,11 +125,9 @@ where
 
 #[cfg(test)]
 mod tests {
-    use std::collections::BTreeMap;
-
     use assert_matches::assert_matches;
     use data_types::{
-        ColumnId, ColumnSchema, ColumnType, NamespaceId, QueryPoolId, TableId, TableSchema, TopicId,
+        Column, ColumnId, ColumnType, ColumnsByName, NamespaceId, TableId, TableSchema,
     };
     use metric::{Attributes, MetricObserver, Observation};
 
@@ -145,22 +143,20 @@ mod tests {
             .map(|(i, &n)| {
                 let columns = (0..n)
                     .enumerate()
-                    .map(|(i, _)| {
-                        (
-                            i.to_string(),
-                            ColumnSchema {
-                                id: ColumnId::new(i as _),
-                                column_type: ColumnType::Bool,
-                            },
-                        )
+                    .map(|(i, _)| Column {
+                        id: ColumnId::new(i as _),
+                        column_type: ColumnType::Bool,
+                        name: i.to_string(),
+                        table_id: TableId::new(i as _),
                     })
-                    .collect::<BTreeMap<String, ColumnSchema>>();
+                    .collect::<Vec<_>>();
 
                 (
                     i.to_string(),
                     TableSchema {
                         id: TableId::new(i as _),
-                        columns,
+                        partition_template: None,
+                        columns: ColumnsByName::new(columns),
                     },
                 )
             })
@@ -168,12 +164,11 @@ mod tests {
 
         NamespaceSchema {
             id: NamespaceId::new(42),
-            topic_id: TopicId::new(24),
-            query_pool_id: QueryPoolId::new(1234),
             tables,
             max_columns_per_table: 100,
             max_tables: 42,
             retention_period_ns: None,
+            partition_template: None,
         }
     }
 

@@ -1,6 +1,8 @@
+use crate::plan::error;
 use arrow::datatypes::DataType;
+use datafusion::common::Result;
 use influxdb_influxql_parser::expression::VarRefDataType;
-use schema::{InfluxColumnType, InfluxFieldType};
+use schema::InfluxFieldType;
 
 pub(crate) fn var_ref_data_type_to_data_type(v: VarRefDataType) -> Option<DataType> {
     match v {
@@ -25,12 +27,17 @@ pub(crate) fn field_type_to_var_ref_data_type(v: InfluxFieldType) -> VarRefDataT
     }
 }
 
-/// Maps an [`InfluxColumnType`] to a [`VarRefDataType`].
-pub(crate) fn column_type_to_var_ref_data_type(v: InfluxColumnType) -> VarRefDataType {
-    match v {
-        InfluxColumnType::Tag => VarRefDataType::Tag,
-        InfluxColumnType::Field(ft) => field_type_to_var_ref_data_type(ft),
-        InfluxColumnType::Timestamp => VarRefDataType::Timestamp,
+/// Maps an Arrow [`DataType`] to a [`VarRefDataType`].
+pub(crate) fn data_type_to_var_ref_data_type(dt: DataType) -> Result<VarRefDataType> {
+    match dt {
+        DataType::Dictionary(..) => Ok(VarRefDataType::Tag),
+        DataType::Timestamp(..) => Ok(VarRefDataType::Timestamp),
+        DataType::Utf8 => Ok(VarRefDataType::String),
+        DataType::Int64 => Ok(VarRefDataType::Integer),
+        DataType::UInt64 => Ok(VarRefDataType::Unsigned),
+        DataType::Float64 => Ok(VarRefDataType::Float),
+        DataType::Boolean => Ok(VarRefDataType::Boolean),
+        _ => error::internal(format!("unable to map Arrow type {dt} to VarRefDataType")),
     }
 }
 

@@ -1,7 +1,7 @@
 use std::{fmt::Debug, sync::Arc};
 
 use async_trait::async_trait;
-use data_types::{NamespaceId, NamespaceName, QueryPoolId, TopicId};
+use data_types::{NamespaceName, NamespaceSchema};
 use iox_catalog::interface::Catalog;
 use observability_deps::tracing::*;
 use thiserror::Error;
@@ -43,8 +43,6 @@ pub struct NamespaceAutocreation<C, T> {
     cache: C,
     catalog: Arc<dyn Catalog>,
 
-    topic_id: TopicId,
-    query_id: QueryPoolId,
     action: MissingNamespaceAction,
 }
 
@@ -53,7 +51,7 @@ impl<C, T> NamespaceAutocreation<C, T> {
     /// namespace exists in `catalog`.
     ///
     /// If the namespace does not exist, it is created with the specified
-    /// `topic_id`, `query_id` and `retention` policy.
+    /// `retention` policy.
     ///
     /// Namespaces are looked up in `cache`, skipping the creation request to
     /// the catalog if there's a hit.
@@ -61,16 +59,12 @@ impl<C, T> NamespaceAutocreation<C, T> {
         inner: T,
         cache: C,
         catalog: Arc<dyn Catalog>,
-        topic_id: TopicId,
-        query_id: QueryPoolId,
         action: MissingNamespaceAction,
     ) -> Self {
         Self {
             inner,
             cache,
             catalog,
-            topic_id,
-            query_id,
             action,
         }
     }
@@ -84,10 +78,10 @@ where
 {
     /// Force the creation of `namespace` if it does not already exist in the
     /// cache, before passing the request through to the inner delegate.
-    async fn get_namespace_id(
+    async fn get_namespace_schema(
         &self,
         namespace: &NamespaceName<'static>,
-    ) -> Result<NamespaceId, super::Error> {
+    ) -> Result<Arc<NamespaceSchema>, super::Error> {
         if self.cache.get_schema(namespace).await.is_err() {
             trace!(%namespace, "namespace not found in cache");
 
@@ -96,7 +90,7 @@ where
                     // The namespace is not cached, but may exist in the
                     // catalog. Delegate discovery down to the inner handler,
                     // and map the lookup error to a reject error.
-                    match self.inner.get_namespace_id(namespace).await {
+                    match self.inner.get_namespace_schema(namespace).await {
                         Ok(v) => return Ok(v),
                         Err(super::Error::Lookup(
                             iox_catalog::interface::Error::NamespaceNotFoundByName { .. },
@@ -113,12 +107,7 @@ where
                         .repositories()
                         .await
                         .namespaces()
-                        .create(
-                            namespace.as_str(),
-                            retention_period_ns,
-                            self.topic_id,
-                            self.query_id,
-                        )
+                        .create(namespace, retention_period_ns)
                         .await
                     {
                         Ok(_) => {
@@ -139,7 +128,7 @@ where
             }
         }
 
-        self.inner.get_namespace_id(namespace).await
+        self.inner.get_namespace_schema(namespace).await
     }
 }
 
@@ -178,12 +167,11 @@ mod tests {
             ns.clone(),
             NamespaceSchema {
                 id: NAMESPACE_ID,
-                topic_id: TopicId::new(2),
-                query_pool_id: QueryPoolId::new(3),
                 tables: Default::default(),
                 max_columns_per_table: 4,
                 max_tables: 42,
                 retention_period_ns: None,
+                partition_template: None,
             },
         );
 
@@ -191,17 +179,15 @@ mod tests {
             MockNamespaceResolver::default().with_mapping(ns.clone(), NAMESPACE_ID),
             cache,
             Arc::clone(&catalog),
-            TopicId::new(42),
-            QueryPoolId::new(42),
             MissingNamespaceAction::AutoCreate(TEST_RETENTION_PERIOD_NS),
         );
 
         // Drive the code under test
-        let got = creator
-            .get_namespace_id(&ns)
+        let got_namespace_schema = creator
+            .get_namespace_schema(&ns)
             .await
             .expect("handler should succeed");
-        assert_eq!(got, NAMESPACE_ID);
+        assert_eq!(got_namespace_schema.id, NAMESPACE_ID);
 
         // The cache hit should mean the catalog SHOULD NOT see a create request
         // for the namespace.
@@ -233,13 +219,11 @@ mod tests {
             MockNamespaceResolver::default().with_mapping(ns.clone(), NamespaceId::new(1)),
             cache,
             Arc::clone(&catalog),
-            TopicId::new(42),
-            QueryPoolId::new(42),
             MissingNamespaceAction::AutoCreate(TEST_RETENTION_PERIOD_NS),
         );
 
-        let created_id = creator
-            .get_namespace_id(&ns)
+        let created_namespace_schema = creator
+            .get_namespace_schema(&ns)
             .await
             .expect("handler should succeed");
 
@@ -253,14 +237,12 @@ mod tests {
             .expect("lookup should not error")
             .expect("creation request should be sent to catalog");
 
-        assert_eq!(got.id, created_id);
+        assert_eq!(got.id, created_namespace_schema.id);
         assert_eq!(
             got,
             Namespace {
                 id: NamespaceId::new(1),
                 name: ns.to_string(),
-                topic_id: TopicId::new(42),
-                query_pool_id: QueryPoolId::new(42),
                 max_tables: iox_catalog::DEFAULT_MAX_TABLES,
                 max_columns_per_table: iox_catalog::DEFAULT_MAX_COLUMNS_PER_TABLE,
                 retention_period_ns: TEST_RETENTION_PERIOD_NS,
@@ -284,14 +266,12 @@ mod tests {
             MockNamespaceResolver::default(),
             cache,
             Arc::clone(&catalog),
-            TopicId::new(42),
-            QueryPoolId::new(42),
             MissingNamespaceAction::Reject,
         );
 
         // It should not autocreate because we specified "rejection" behaviour, above
         assert_matches!(
-            creator.get_namespace_id(&ns).await,
+            creator.get_namespace_schema(&ns).await,
             Err(crate::namespace_resolver::Error::Create(
                 NamespaceCreationError::Reject(_ns)
             ))
@@ -324,13 +304,11 @@ mod tests {
             NamespaceSchemaResolver::new(Arc::clone(&cache)),
             Arc::clone(&cache),
             Arc::clone(&catalog),
-            TopicId::new(42),
-            QueryPoolId::new(42),
             MissingNamespaceAction::AutoCreate(TEST_RETENTION_PERIOD_NS),
         );
 
         let created_id = creator
-            .get_namespace_id(&ns)
+            .get_namespace_schema(&ns)
             .await
             .expect("handler should succeed");
 
@@ -339,14 +317,12 @@ mod tests {
             NamespaceSchemaResolver::new(Arc::clone(&cache)),
             cache,
             Arc::clone(&catalog),
-            TopicId::new(42),
-            QueryPoolId::new(42),
             MissingNamespaceAction::Reject,
         );
 
         // It should not autocreate because we specified "rejection" behaviour, above
         let id = creator
-            .get_namespace_id(&ns)
+            .get_namespace_schema(&ns)
             .await
             .expect("should allow existing namespace from catalog");
         assert_eq!(created_id, id);

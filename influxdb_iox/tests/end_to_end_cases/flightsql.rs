@@ -36,7 +36,7 @@ async fn flightsql_adhoc_query() {
     let table_name = "the_table";
 
     // Set up the cluster  ====================================
-    let mut cluster = MiniCluster::create_shared2(database_url).await;
+    let mut cluster = MiniCluster::create_shared(database_url).await;
 
     StepTest::new(
         &mut cluster,
@@ -79,7 +79,7 @@ async fn flightsql_adhoc_query_error() {
     let database_url = maybe_skip_integration!();
 
     // Set up the cluster  ====================================
-    let mut cluster = MiniCluster::create_shared2(database_url).await;
+    let mut cluster = MiniCluster::create_shared(database_url).await;
 
     StepTest::new(
         &mut cluster,
@@ -119,7 +119,7 @@ async fn flightsql_prepared_query() {
     let table_name = "the_table";
 
     // Set up the cluster  ====================================
-    let mut cluster = MiniCluster::create_shared2(database_url).await;
+    let mut cluster = MiniCluster::create_shared(database_url).await;
 
     StepTest::new(
         &mut cluster,
@@ -166,7 +166,7 @@ async fn flightsql_get_sql_infos() {
     let table_name = "the_table";
 
     // Set up the cluster  ====================================
-    let mut cluster = MiniCluster::create_shared2(database_url).await;
+    let mut cluster = MiniCluster::create_shared(database_url).await;
 
     StepTest::new(
         &mut cluster,
@@ -242,7 +242,7 @@ async fn flightsql_get_catalogs() {
     let table_name = "the_table";
 
     // Set up the cluster  ====================================
-    let mut cluster = MiniCluster::create_shared2(database_url).await;
+    let mut cluster = MiniCluster::create_shared(database_url).await;
 
     StepTest::new(
         &mut cluster,
@@ -286,7 +286,7 @@ async fn flightsql_get_catalogs_matches_information_schema() {
     let table_name = "the_table";
 
     // Set up the cluster  ====================================
-    let mut cluster = MiniCluster::create_shared2(database_url).await;
+    let mut cluster = MiniCluster::create_shared(database_url).await;
 
     StepTest::new(
         &mut cluster,
@@ -346,7 +346,7 @@ async fn flightsql_get_cross_reference() {
     let foreign_table_name = "foreign_table";
 
     // Set up the cluster  ====================================
-    let mut cluster = MiniCluster::create_shared2(database_url).await;
+    let mut cluster = MiniCluster::create_shared(database_url).await;
 
     StepTest::new(
         &mut cluster,
@@ -403,7 +403,7 @@ async fn flightsql_get_tables() {
     let table_name = "the_table";
 
     // Set up the cluster  ====================================
-    let mut cluster = MiniCluster::create_shared2(database_url).await;
+    let mut cluster = MiniCluster::create_shared(database_url).await;
 
     StepTest::new(
         &mut cluster,
@@ -573,7 +573,7 @@ async fn flightsql_get_tables_decoded_table_schema() {
     let database_url = maybe_skip_integration!();
 
     // Set up the cluster  ====================================
-    let mut cluster = MiniCluster::create_shared2(database_url).await;
+    let mut cluster = MiniCluster::create_shared(database_url).await;
 
     StepTest::new(
         &mut cluster,
@@ -646,7 +646,7 @@ async fn flightsql_get_tables_matches_information_schema() {
     let table_name = "the_table";
 
     // Set up the cluster  ====================================
-    let mut cluster = MiniCluster::create_shared2(database_url).await;
+    let mut cluster = MiniCluster::create_shared(database_url).await;
 
     StepTest::new(
         &mut cluster,
@@ -716,7 +716,7 @@ async fn flightsql_get_table_types() {
     let table_name = "the_table";
 
     // Set up the cluster  ====================================
-    let mut cluster = MiniCluster::create_shared2(database_url).await;
+    let mut cluster = MiniCluster::create_shared(database_url).await;
 
     StepTest::new(
         &mut cluster,
@@ -761,7 +761,7 @@ async fn flightsql_get_table_types_matches_information_schema() {
     let table_name = "the_table";
 
     // Set up the cluster  ====================================
-    let mut cluster = MiniCluster::create_shared2(database_url).await;
+    let mut cluster = MiniCluster::create_shared(database_url).await;
 
     StepTest::new(
         &mut cluster,
@@ -822,7 +822,7 @@ async fn flightsql_get_db_schemas() {
     let table_name = "the_table";
 
     // Set up the cluster  ====================================
-    let mut cluster = MiniCluster::create_shared2(database_url).await;
+    let mut cluster = MiniCluster::create_shared(database_url).await;
 
     StepTest::new(
         &mut cluster,
@@ -932,7 +932,7 @@ async fn flightsql_get_db_schema_matches_information_schema() {
     let table_name = "the_table";
 
     // Set up the cluster  ====================================
-    let mut cluster = MiniCluster::create_shared2(database_url).await;
+    let mut cluster = MiniCluster::create_shared(database_url).await;
 
     StepTest::new(
         &mut cluster,
@@ -999,7 +999,7 @@ async fn flightsql_get_exported_keys() {
     let table_name = "the_table";
 
     // Set up the cluster  ====================================
-    let mut cluster = MiniCluster::create_shared2(database_url).await;
+    let mut cluster = MiniCluster::create_shared(database_url).await;
 
     StepTest::new(
         &mut cluster,
@@ -1045,7 +1045,7 @@ async fn flightsql_get_imported_keys() {
     let table_name = "the_table";
 
     // Set up the cluster  ====================================
-    let mut cluster = MiniCluster::create_shared2(database_url).await;
+    let mut cluster = MiniCluster::create_shared(database_url).await;
 
     StepTest::new(
         &mut cluster,
@@ -1091,7 +1091,7 @@ async fn flightsql_get_primary_keys() {
     let table_name = "the_table";
 
     // Set up the cluster  ====================================
-    let mut cluster = MiniCluster::create_shared2(database_url).await;
+    let mut cluster = MiniCluster::create_shared(database_url).await;
 
     StepTest::new(
         &mut cluster,
@@ -1137,7 +1137,7 @@ async fn flightsql_get_xdbc_type_info() {
     let table_name = "the_table";
 
     // Set up the cluster  ====================================
-    let mut cluster = MiniCluster::create_shared2(database_url).await;
+    let mut cluster = MiniCluster::create_shared(database_url).await;
 
     StepTest::new(
         &mut cluster,
@@ -1158,10 +1158,31 @@ async fn flightsql_get_xdbc_type_info() {
                         batches_to_sorted_lines(&batches),
                         @r###"
                     ---
-                    - ++
-                    - ++
+                    - +-----------+-----------+-------------+----------------+----------------+---------------+----------+----------------+------------+--------------------+------------------+----------------+-----------------+---------------+---------------+---------------+------------------+----------------+--------------------+
+                    - "| type_name | data_type | column_size | literal_prefix | literal_suffix | create_params | nullable | case_sensitive | searchable | unsigned_attribute | fixed_prec_scale | auto_increment | local_type_name | minimum_scale | maximum_scale | sql_data_type | datetime_subcode | num_prec_radix | interval_precision |"
+                    - +-----------+-----------+-------------+----------------+----------------+---------------+----------+----------------+------------+--------------------+------------------+----------------+-----------------+---------------+---------------+---------------+------------------+----------------+--------------------+
+                    - "| FLOAT     | 6         | 24          |                |                |               | 1        | false          | 3          | false              | false            | false          | FLOAT           |               |               | 6             |                  | 2              |                    |"
+                    - "| INTEGER   | 4         | 32          |                |                |               | 1        | false          | 3          | false              | false            | false          | INTEGER         |               |               | 4             |                  | 2              |                    |"
+                    - "| INTERVAL  | 10        | 2147483647  | '              | '              |               | 1        | false          | 3          |                    | false            |                | INTERVAL        |               |               | 10            | 0                |                |                    |"
+                    - "| TIMESTAMP | 93        | 2147483647  | '              | '              |               | 1        | false          | 3          |                    | false            |                | TIMESTAMP       |               |               | 93            |                  |                |                    |"
+                    - "| VARCHAR   | 12        | 2147483647  | '              | '              | [length]      | 1        | true           | 3          |                    | false            |                | VARCHAR         |               |               | 12            |                  |                |                    |"
+                    - +-----------+-----------+-------------+----------------+----------------+---------------+----------+----------------+------------+--------------------+------------------+----------------+-----------------+---------------+---------------+---------------+------------------+----------------+--------------------+
                     "###
                     );
+                }
+                .boxed()
+            })),
+            Step::Custom(Box::new(move |state: &mut StepTestState| {
+                async move {
+                    let mut client = flightsql_client(state.cluster());
+                    // TODO chunchun: search by data_type test case
+                    let data_type: Option<i32> = Some(6);
+
+                    let err = client.get_xdbc_type_info(data_type).await.unwrap_err();
+
+                    assert_matches!(err, FlightError::Tonic(..));
+                    assert_contains!(err.to_string(), "GetXdbcTypeInfo does not yet support filtering by data_type");
+
                 }
                 .boxed()
             })),
@@ -1191,7 +1212,7 @@ async fn flightsql_jdbc() {
     let table_name = "the_table";
 
     // Set up the cluster  ====================================
-    let mut cluster = MiniCluster::create_shared2(database_url).await;
+    let mut cluster = MiniCluster::create_shared(database_url).await;
 
     StepTest::new(
         &mut cluster,
@@ -1248,7 +1269,7 @@ async fn flightsql_jdbc_authz_token() {
     let mut authz = Authorizer::create().await;
 
     // Set up the cluster  ====================================
-    let mut cluster = MiniCluster::create_non_shared2_with_authz(database_url, authz.addr()).await;
+    let mut cluster = MiniCluster::create_non_shared_with_authz(database_url, authz.addr()).await;
 
     let write_token = authz.create_token_for(cluster.namespace(), &["ACTION_WRITE"]);
     let read_token =
@@ -1317,7 +1338,7 @@ async fn flightsql_jdbc_authz_handshake() {
     let mut authz = Authorizer::create().await;
 
     // Set up the cluster  ====================================
-    let mut cluster = MiniCluster::create_non_shared2_with_authz(database_url, authz.addr()).await;
+    let mut cluster = MiniCluster::create_non_shared_with_authz(database_url, authz.addr()).await;
 
     let write_token = authz.create_token_for(cluster.namespace(), &["ACTION_WRITE"]);
     let read_token =
@@ -1446,6 +1467,12 @@ async fn jdbc_tests(jdbc_url: &str, table_name: &str) {
                                 BASE TABLE\n\
                                 VIEW";
 
+    let expected_xdbc_type_info = "**************\n\
+                                        Type Info:\n\
+                                        **************\n\
+                                        TYPE_NAME,  DATA_TYPE,  PRECISION,  LITERAL_PREFIX,  LITERAL_SUFFIX,  CREATE_PARAMS,  NULLABLE,  CASE_SENSITIVE,  SEARCHABLE,  UNSIGNED_ATTRIBUTE,  FIXED_PREC_SCALE,  AUTO_INCREMENT,  LOCAL_TYPE_NAME,  MINIMUM_SCALE,  MAXIMUM_SCALE,  SQL_DATA_TYPE,  SQL_DATETIME_SUB,  NUM_PREC_RADIX\n\
+                                        ------------";
+
     // Validate metadata: jdbc_client <url> metadata
     let mut assert = Command::new(&path)
         .arg(jdbc_url)
@@ -1459,7 +1486,8 @@ async fn jdbc_tests(jdbc_url: &str, table_name: &str) {
         .stdout(predicate::str::contains(expected_schemas))
         .stdout(predicate::str::contains(expected_tables_no_filter))
         .stdout(predicate::str::contains(expected_tables_with_filters))
-        .stdout(predicate::str::contains(expected_table_types));
+        .stdout(predicate::str::contains(expected_table_types))
+        .stdout(predicate::str::contains(expected_xdbc_type_info));
 
     let expected_metadata = EXPECTED_METADATA
         .trim()
@@ -1481,7 +1509,7 @@ async fn flightsql_schema_matches() {
     let table_name = "the_table";
 
     // Set up the cluster  ====================================
-    let mut cluster = MiniCluster::create_shared2(database_url).await;
+    let mut cluster = MiniCluster::create_shared(database_url).await;
 
     StepTest::new(
         &mut cluster,
@@ -1607,7 +1635,7 @@ async fn authz() {
     let mut authz = Authorizer::create().await;
 
     // Set up the cluster  ====================================
-    let mut cluster = MiniCluster::create_non_shared2_with_authz(database_url, authz.addr()).await;
+    let mut cluster = MiniCluster::create_non_shared_with_authz(database_url, authz.addr()).await;
 
     let write_token = authz.create_token_for(cluster.namespace(), &["ACTION_WRITE"]);
     let read_token = authz.create_token_for(cluster.namespace(), &["ACTION_READ_SCHEMA"]);
@@ -1703,7 +1731,7 @@ async fn flightsql_client_header_same_database() {
     let table_name = "the_table";
 
     // Set up the cluster  ====================================
-    let mut cluster = MiniCluster::create_shared2(database_url).await;
+    let mut cluster = MiniCluster::create_shared(database_url).await;
 
     StepTest::new(
         &mut cluster,
@@ -1754,7 +1782,7 @@ async fn flightsql_client_header_different_database() {
     let table_name = "the_table";
 
     // Set up the cluster  ====================================
-    let mut cluster = MiniCluster::create_shared2(database_url).await;
+    let mut cluster = MiniCluster::create_shared(database_url).await;
 
     StepTest::new(
         &mut cluster,
@@ -1794,7 +1822,7 @@ async fn flightsql_client_header_no_database() {
     let table_name = "the_table";
 
     // Set up the cluster  ====================================
-    let mut cluster = MiniCluster::create_shared2(database_url).await;
+    let mut cluster = MiniCluster::create_shared(database_url).await;
 
     StepTest::new(
         &mut cluster,

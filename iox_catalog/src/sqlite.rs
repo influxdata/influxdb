@@ -4,18 +4,21 @@ use crate::{
     interface::{
         self, sealed::TransactionFinalize, CasFailure, Catalog, ColumnRepo,
         ColumnTypeMismatchSnafu, Error, NamespaceRepo, ParquetFileRepo, PartitionRepo,
-        QueryPoolRepo, RepoCollection, Result, SoftDeletedRows, TableRepo, TopicMetadataRepo,
-        Transaction, MAX_PARQUET_FILES_SELECTED_ONCE,
+        RepoCollection, Result, SoftDeletedRows, TableRepo, Transaction,
+        MAX_PARQUET_FILES_SELECTED_ONCE,
     },
-    kafkaless_transition::{TRANSITION_SHARD_ID, TRANSITION_SHARD_INDEX},
+    kafkaless_transition::{
+        SHARED_QUERY_POOL, SHARED_QUERY_POOL_ID, SHARED_TOPIC_ID, SHARED_TOPIC_NAME,
+        TRANSITION_SHARD_ID, TRANSITION_SHARD_INDEX,
+    },
     metrics::MetricDecorator,
-    DEFAULT_MAX_COLUMNS_PER_TABLE, DEFAULT_MAX_TABLES, SHARED_TOPIC_ID, SHARED_TOPIC_NAME,
+    DEFAULT_MAX_COLUMNS_PER_TABLE, DEFAULT_MAX_TABLES,
 };
 use async_trait::async_trait;
 use data_types::{
-    Column, ColumnId, ColumnSet, ColumnType, CompactionLevel, Namespace, NamespaceId, ParquetFile,
-    ParquetFileId, ParquetFileParams, Partition, PartitionId, PartitionKey, QueryPool, QueryPoolId,
-    SequenceNumber, SkippedCompaction, Table, TableId, Timestamp, TopicId, TopicMetadata,
+    Column, ColumnId, ColumnSet, ColumnType, CompactionLevel, Namespace, NamespaceId,
+    NamespaceName, ParquetFile, ParquetFileId, ParquetFileParams, Partition, PartitionId,
+    PartitionKey, SkippedCompaction, Table, TableId, Timestamp,
 };
 use serde::{Deserialize, Serialize};
 use std::ops::Deref;
@@ -228,7 +231,8 @@ impl Catalog for SqliteCatalog {
             .await
             .map_err(|e| Error::Setup { source: e.into() })?;
 
-        // We need to manually insert the topic here so that we can create the transition shard below.
+        // We need to manually insert the topic here so that we can create the transition shard
+        // below.
         sqlx::query(
             r#"
 INSERT INTO topic (name)
@@ -254,6 +258,21 @@ DO NOTHING;
         .bind(TRANSITION_SHARD_ID)
         .bind(SHARED_TOPIC_ID)
         .bind(TRANSITION_SHARD_INDEX)
+        .execute(&self.pool)
+        .await
+        .map_err(|e| Error::Setup { source: e })?;
+
+        // We need to manually insert the query pool here so that we can create namespaces that
+        // reference it.
+        sqlx::query(
+            r#"
+INSERT INTO query_pool (name)
+VALUES ($1)
+ON CONFLICT (name)
+DO NOTHING;
+        "#,
+        )
+        .bind(SHARED_QUERY_POOL)
         .execute(&self.pool)
         .await
         .map_err(|e| Error::Setup { source: e })?;
@@ -298,14 +317,6 @@ DO NOTHING;
 
 #[async_trait]
 impl RepoCollection for SqliteTxn {
-    fn topics(&mut self) -> &mut dyn TopicMetadataRepo {
-        self
-    }
-
-    fn query_pools(&mut self) -> &mut dyn QueryPoolRepo {
-        self
-    }
-
     fn namespaces(&mut self) -> &mut dyn NamespaceRepo {
         self
     }
@@ -328,89 +339,24 @@ impl RepoCollection for SqliteTxn {
 }
 
 #[async_trait]
-impl TopicMetadataRepo for SqliteTxn {
-    async fn create_or_get(&mut self, name: &str) -> Result<TopicMetadata> {
-        let rec = sqlx::query_as::<_, TopicMetadata>(
-            r#"
-INSERT INTO topic ( name )
-VALUES ( $1 )
-ON CONFLICT (name)
-DO UPDATE SET name = topic.name
-RETURNING *;
-        "#,
-        )
-        .bind(name) // $1
-        .fetch_one(self.inner.get_mut())
-        .await
-        .map_err(|e| Error::SqlxError { source: e })?;
-
-        Ok(rec)
-    }
-
-    async fn get_by_name(&mut self, name: &str) -> Result<Option<TopicMetadata>> {
-        let rec = sqlx::query_as::<_, TopicMetadata>(
-            r#"
-SELECT *
-FROM topic
-WHERE name = $1;
-        "#,
-        )
-        .bind(name) // $1
-        .fetch_one(self.inner.get_mut())
-        .await;
-
-        if let Err(sqlx::Error::RowNotFound) = rec {
-            return Ok(None);
-        }
-
-        let topic = rec.map_err(|e| Error::SqlxError { source: e })?;
-
-        Ok(Some(topic))
-    }
-}
-
-#[async_trait]
-impl QueryPoolRepo for SqliteTxn {
-    async fn create_or_get(&mut self, name: &str) -> Result<QueryPool> {
-        let rec = sqlx::query_as::<_, QueryPool>(
-            r#"
-INSERT INTO query_pool ( name )
-VALUES ( $1 )
-ON CONFLICT (name)
-DO UPDATE SET name = query_pool.name
-RETURNING *;
-        "#,
-        )
-        .bind(name) // $1
-        .fetch_one(self.inner.get_mut())
-        .await
-        .map_err(|e| Error::SqlxError { source: e })?;
-
-        Ok(rec)
-    }
-}
-
-#[async_trait]
 impl NamespaceRepo for SqliteTxn {
     async fn create(
         &mut self,
-        name: &str,
+        name: &NamespaceName,
         retention_period_ns: Option<i64>,
-        topic_id: TopicId,
-        query_pool_id: QueryPoolId,
     ) -> Result<Namespace> {
         let rec = sqlx::query_as::<_, Namespace>(
             r#"
-                INSERT INTO namespace ( name, topic_id, query_pool_id, retention_period_ns, max_tables )
-                VALUES ( $1, $2, $3, $4, $5 )
-                RETURNING *;
+INSERT INTO namespace ( name, topic_id, query_pool_id, retention_period_ns, max_tables )
+VALUES ( $1, $2, $3, $4, $5 )
+RETURNING id, name, retention_period_ns, max_tables, max_columns_per_table, deleted_at;
             "#,
         )
-            .bind(name) // $1
-            .bind(topic_id) // $2
-            .bind(query_pool_id) // $3
-            .bind(retention_period_ns) // $4
-            .bind(DEFAULT_MAX_TABLES); // $5
+        .bind(name.as_str()) // $1
+        .bind(SHARED_TOPIC_ID) // $2
+        .bind(SHARED_QUERY_POOL_ID) // $3
+        .bind(retention_period_ns) // $4
+        .bind(DEFAULT_MAX_TABLES); // $5
 
         let rec = rec.fetch_one(self.inner.get_mut()).await.map_err(|e| {
             if is_unique_violation(&e) {
@@ -434,7 +380,11 @@ impl NamespaceRepo for SqliteTxn {
     async fn list(&mut self, deleted: SoftDeletedRows) -> Result<Vec<Namespace>> {
         let rec = sqlx::query_as::<_, Namespace>(
             format!(
-                r#"SELECT * FROM namespace WHERE {v};"#,
+                r#"
+SELECT id, name, retention_period_ns, max_tables, max_columns_per_table, deleted_at
+FROM namespace
+WHERE {v};
+                "#,
                 v = deleted.as_sql_predicate()
             )
             .as_str(),
@@ -453,7 +403,11 @@ impl NamespaceRepo for SqliteTxn {
     ) -> Result<Option<Namespace>> {
         let rec = sqlx::query_as::<_, Namespace>(
             format!(
-                r#"SELECT * FROM namespace WHERE id=$1 AND {v};"#,
+                r#"
+SELECT id, name, retention_period_ns, max_tables, max_columns_per_table, deleted_at
+FROM namespace
+WHERE id=$1 AND {v};
+                "#,
                 v = deleted.as_sql_predicate()
             )
             .as_str(),
@@ -478,7 +432,11 @@ impl NamespaceRepo for SqliteTxn {
     ) -> Result<Option<Namespace>> {
         let rec = sqlx::query_as::<_, Namespace>(
             format!(
-                r#"SELECT * FROM namespace WHERE name=$1 AND {v};"#,
+                r#"
+SELECT id, name, retention_period_ns, max_tables, max_columns_per_table, deleted_at
+FROM namespace
+WHERE name=$1 AND {v};
+                "#,
                 v = deleted.as_sql_predicate()
             )
             .as_str(),
@@ -515,7 +473,7 @@ impl NamespaceRepo for SqliteTxn {
 UPDATE namespace
 SET max_tables = $1
 WHERE name = $2
-RETURNING *;
+RETURNING id, name, retention_period_ns, max_tables, max_columns_per_table, deleted_at;
         "#,
         )
         .bind(new_max)
@@ -539,7 +497,7 @@ RETURNING *;
 UPDATE namespace
 SET max_columns_per_table = $1
 WHERE name = $2
-RETURNING *;
+RETURNING id, name, retention_period_ns, max_tables, max_columns_per_table, deleted_at;
         "#,
         )
         .bind(new_max)
@@ -563,7 +521,12 @@ RETURNING *;
         retention_period_ns: Option<i64>,
     ) -> Result<Namespace> {
         let rec = sqlx::query_as::<_, Namespace>(
-            r#"UPDATE namespace SET retention_period_ns = $1 WHERE name = $2 RETURNING *;"#,
+            r#"
+UPDATE namespace
+SET retention_period_ns = $1
+WHERE name = $2
+RETURNING id, name, retention_period_ns, max_tables, max_columns_per_table, deleted_at;
+            "#,
         )
         .bind(retention_period_ns) // $1
         .bind(name) // $2
@@ -871,7 +834,6 @@ struct PartitionPod {
     table_id: TableId,
     partition_key: PartitionKey,
     sort_key: Json<Vec<String>>,
-    persisted_sequence_number: Option<SequenceNumber>,
     new_file_at: Option<Timestamp>,
 }
 
@@ -882,7 +844,6 @@ impl From<PartitionPod> for Partition {
             table_id: value.table_id,
             partition_key: value.partition_key,
             sort_key: value.sort_key.0,
-            persisted_sequence_number: value.persisted_sequence_number,
             new_file_at: value.new_file_at,
         }
     }
@@ -903,7 +864,7 @@ VALUES
     ( $1, $2, $3, '[]')
 ON CONFLICT (table_id, partition_key)
 DO UPDATE SET partition_key = partition.partition_key
-RETURNING id, table_id, partition_key, sort_key, persisted_sequence_number, new_file_at;
+RETURNING id, table_id, partition_key, sort_key, new_file_at;
         "#,
         )
         .bind(key) // $1
@@ -925,7 +886,7 @@ RETURNING id, table_id, partition_key, sort_key, persisted_sequence_number, new_
     async fn get_by_id(&mut self, partition_id: PartitionId) -> Result<Option<Partition>> {
         let rec = sqlx::query_as::<_, PartitionPod>(
             r#"
-SELECT id, table_id, partition_key, sort_key, persisted_sequence_number, new_file_at
+SELECT id, table_id, partition_key, sort_key, new_file_at
 FROM partition
 WHERE id = $1;
             "#,
@@ -946,7 +907,7 @@ WHERE id = $1;
     async fn list_by_table_id(&mut self, table_id: TableId) -> Result<Vec<Partition>> {
         Ok(sqlx::query_as::<_, PartitionPod>(
             r#"
-SELECT id, table_id, partition_key, sort_key, persisted_sequence_number, new_file_at
+SELECT id, table_id, partition_key, sort_key, new_file_at
 FROM partition
 WHERE table_id = $1;
             "#,
@@ -990,7 +951,7 @@ WHERE table_id = $1;
 UPDATE partition
 SET sort_key = $1
 WHERE id = $2 AND sort_key = $3
-RETURNING id, table_id, partition_key, sort_key, persisted_sequence_number, new_file_at;
+RETURNING id, table_id, partition_key, sort_key, new_file_at;
         "#,
         )
         .bind(Json(new_sort_key)) // $1
@@ -1129,7 +1090,7 @@ RETURNING *
     async fn most_recent_n(&mut self, n: usize) -> Result<Vec<Partition>> {
         Ok(sqlx::query_as::<_, PartitionPod>(
             r#"
-SELECT id, table_id, partition_key, sort_key, persisted_sequence_number, new_file_at
+SELECT id, table_id, partition_key, sort_key, new_file_at
 FROM partition
 ORDER BY id DESC
 LIMIT $1;
@@ -1185,7 +1146,6 @@ struct ParquetFilePod {
     table_id: TableId,
     partition_id: PartitionId,
     object_store_id: Uuid,
-    max_sequence_number: SequenceNumber,
     min_time: Timestamp,
     max_time: Timestamp,
     to_delete: Option<Timestamp>,
@@ -1205,7 +1165,6 @@ impl From<ParquetFilePod> for ParquetFile {
             table_id: value.table_id,
             partition_id: value.partition_id,
             object_store_id: value.object_store_id,
-            max_sequence_number: value.max_sequence_number,
             min_time: value.min_time,
             max_time: value.max_time,
             to_delete: value.to_delete,
@@ -1227,7 +1186,6 @@ impl ParquetFileRepo for SqliteTxn {
             table_id,
             partition_id,
             object_store_id,
-            max_sequence_number,
             min_time,
             max_time,
             file_size_bytes,
@@ -1242,12 +1200,12 @@ impl ParquetFileRepo for SqliteTxn {
             r#"
 INSERT INTO parquet_file (
     shard_id, table_id, partition_id, object_store_id,
-    max_sequence_number, min_time, max_time, file_size_bytes,
+    min_time, max_time, file_size_bytes,
     row_count, compaction_level, created_at, namespace_id, column_set, max_l0_created_at )
-VALUES ( $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14 )
+VALUES ( $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13 )
 RETURNING
     id, table_id, partition_id, object_store_id,
-    max_sequence_number, min_time, max_time, to_delete, file_size_bytes,
+    min_time, max_time, to_delete, file_size_bytes,
     row_count, compaction_level, created_at, namespace_id, column_set, max_l0_created_at;
         "#,
         )
@@ -1255,16 +1213,15 @@ RETURNING
         .bind(table_id) // $2
         .bind(partition_id) // $3
         .bind(object_store_id) // $4
-        .bind(max_sequence_number) // $5
-        .bind(min_time) // $6
-        .bind(max_time) // $7
-        .bind(file_size_bytes) // $8
-        .bind(row_count) // $9
-        .bind(compaction_level) // $10
-        .bind(created_at) // $11
-        .bind(namespace_id) // $12
-        .bind(from_column_set(&column_set)) // $13
-        .bind(max_l0_created_at) // $14
+        .bind(min_time) // $5
+        .bind(max_time) // $6
+        .bind(file_size_bytes) // $7
+        .bind(row_count) // $8
+        .bind(compaction_level) // $9
+        .bind(created_at) // $10
+        .bind(namespace_id) // $11
+        .bind(from_column_set(&column_set)) // $12
+        .bind(max_l0_created_at) // $13
         .fetch_one(self.inner.get_mut())
         .await
         .map_err(|e| {
@@ -1332,7 +1289,7 @@ RETURNING id;
         Ok(sqlx::query_as::<_, ParquetFilePod>(
             r#"
 SELECT parquet_file.id, parquet_file.namespace_id, parquet_file.table_id,
-       parquet_file.partition_id, parquet_file.object_store_id, parquet_file.max_sequence_number,
+       parquet_file.partition_id, parquet_file.object_store_id,
        parquet_file.min_time, parquet_file.max_time, parquet_file.to_delete,
        parquet_file.file_size_bytes, parquet_file.row_count, parquet_file.compaction_level,
        parquet_file.created_at, parquet_file.column_set, parquet_file.max_l0_created_at
@@ -1355,7 +1312,7 @@ WHERE table_name.namespace_id = $1
         Ok(sqlx::query_as::<_, ParquetFilePod>(
             r#"
 SELECT id, namespace_id, table_id, partition_id, object_store_id,
-       max_sequence_number, min_time, max_time, to_delete, file_size_bytes,
+       min_time, max_time, to_delete, file_size_bytes,
        row_count, compaction_level, created_at, column_set, max_l0_created_at
 FROM parquet_file
 WHERE table_id = $1 AND to_delete IS NULL;
@@ -1423,7 +1380,7 @@ RETURNING id;
         Ok(sqlx::query_as::<_, ParquetFilePod>(
             r#"
 SELECT id, namespace_id, table_id, partition_id, object_store_id,
-       max_sequence_number, min_time, max_time, to_delete, file_size_bytes,
+       min_time, max_time, to_delete, file_size_bytes,
        row_count, compaction_level, created_at, column_set, max_l0_created_at
 FROM parquet_file
 WHERE parquet_file.partition_id = $1
@@ -1494,7 +1451,7 @@ RETURNING id;
         let rec = sqlx::query_as::<_, ParquetFilePod>(
             r#"
 SELECT id, namespace_id, table_id, partition_id, object_store_id,
-       max_sequence_number, min_time, max_time, to_delete, file_size_bytes,
+       min_time, max_time, to_delete, file_size_bytes,
        row_count, compaction_level, created_at, column_set, max_l0_created_at
 FROM parquet_file
 WHERE object_store_id = $1;
@@ -1551,10 +1508,10 @@ fn is_unique_violation(e: &sqlx::Error) -> bool {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::create_or_get_default_records;
+    use crate::test_helpers::{arbitrary_namespace, arbitrary_table};
     use assert_matches::assert_matches;
     use metric::{Attributes, DurationHistogram, Metric};
-    use std::{ops::DerefMut, sync::Arc};
+    use std::sync::Arc;
 
     fn assert_metric_hit(metrics: &Registry, name: &'static str) {
         let histogram = metrics
@@ -1593,45 +1550,22 @@ mod tests {
     #[tokio::test]
     async fn test_partition_create_or_get_idempotent() {
         let sqlite = setup_db().await;
-
         let sqlite: Arc<dyn Catalog> = Arc::new(sqlite);
-        let mut txn = sqlite.start_transaction().await.expect("txn start");
-        let (kafka, query) = create_or_get_default_records(txn.deref_mut())
-            .await
-            .expect("db init failed");
-        txn.commit().await.expect("txn commit");
+        let mut repos = sqlite.repositories().await;
 
-        let namespace_id = sqlite
-            .repositories()
-            .await
-            .namespaces()
-            .create("ns4", None, kafka.id, query.id)
-            .await
-            .expect("namespace create failed")
-            .id;
-        let table_id = sqlite
-            .repositories()
-            .await
-            .tables()
-            .create_or_get("table", namespace_id)
-            .await
-            .expect("create table failed")
-            .id;
+        let namespace = arbitrary_namespace(&mut *repos, "ns4").await;
+        let table_id = arbitrary_table(&mut *repos, "table", &namespace).await.id;
 
         let key = "bananas";
 
-        let a = sqlite
-            .repositories()
-            .await
+        let a = repos
             .partitions()
             .create_or_get(key.into(), table_id)
             .await
             .expect("should create OK");
 
         // Call create_or_get for the same (key, table_id) pair, to ensure the write is idempotent.
-        let b = sqlite
-            .repositories()
-            .await
+        let b = repos
             .partitions()
             .create_or_get(key.into(), table_id)
             .await
@@ -1651,29 +1585,13 @@ mod tests {
                 async fn [<test_column_create_or_get_many_unchecked_ $name>]() {
                     let sqlite = setup_db().await;
                     let metrics = Arc::clone(&sqlite.metrics);
-
                     let sqlite: Arc<dyn Catalog> = Arc::new(sqlite);
-                    let mut txn = sqlite.start_transaction().await.expect("txn start");
-                    let (kafka, query) = create_or_get_default_records(txn.deref_mut())
-                        .await
-                        .expect("db init failed");
-                    txn.commit().await.expect("txn commit");
+                    let mut repos = sqlite.repositories().await;
 
-                    let namespace_id = sqlite
-                        .repositories()
+                    let namespace = arbitrary_namespace(&mut *repos, "ns4")
+                        .await;
+                    let table_id = arbitrary_table(&mut *repos, "table", &namespace)
                         .await
-                        .namespaces()
-                        .create("ns4", None, kafka.id, query.id)
-                        .await
-                        .expect("namespace create failed")
-                        .id;
-                    let table_id = sqlite
-                        .repositories()
-                        .await
-                        .tables()
-                        .create_or_get("table", namespace_id)
-                        .await
-                        .expect("create table failed")
                         .id;
 
                     $(
@@ -1682,9 +1600,7 @@ mod tests {
                             insert.insert($col_name, $col_type);
                         )+
 
-                        let got = sqlite
-                            .repositories()
-                            .await
+                        let got = repos
                             .columns()
                             .create_or_get_many_unchecked(table_id, insert.clone())
                             .await;
@@ -1818,36 +1734,16 @@ mod tests {
     async fn test_billing_summary_on_parqet_file_creation() {
         let sqlite = setup_db().await;
         let pool = sqlite.pool.clone();
-
         let sqlite: Arc<dyn Catalog> = Arc::new(sqlite);
-        let mut txn = sqlite.start_transaction().await.expect("txn start");
-        let (kafka, query) = create_or_get_default_records(txn.deref_mut())
-            .await
-            .expect("db init failed");
-        txn.commit().await.expect("txn commit");
+        let mut repos = sqlite.repositories().await;
 
-        let namespace_id = sqlite
-            .repositories()
-            .await
-            .namespaces()
-            .create("ns4", None, kafka.id, query.id)
-            .await
-            .expect("namespace create failed")
-            .id;
-        let table_id = sqlite
-            .repositories()
-            .await
-            .tables()
-            .create_or_get("table", namespace_id)
-            .await
-            .expect("create table failed")
-            .id;
+        let namespace = arbitrary_namespace(&mut *repos, "ns4").await;
+        let namespace_id = namespace.id;
+        let table_id = arbitrary_table(&mut *repos, "table", &namespace).await.id;
 
         let key = "bananas";
 
-        let partition_id = sqlite
-            .repositories()
-            .await
+        let partition_id = repos
             .partitions()
             .create_or_get(key.into(), table_id)
             .await
@@ -1863,7 +1759,6 @@ mod tests {
             table_id,
             partition_id,
             object_store_id: Uuid::new_v4(),
-            max_sequence_number: SequenceNumber::new(100),
             min_time: Timestamp::new(1),
             max_time: Timestamp::new(5),
             file_size_bytes: 1337,
@@ -1873,9 +1768,7 @@ mod tests {
             column_set: ColumnSet::new([ColumnId::new(1), ColumnId::new(2)]),
             max_l0_created_at: time_now,
         };
-        let f1 = sqlite
-            .repositories()
-            .await
+        let f1 = repos
             .parquet_files()
             .create(p1.clone())
             .await
@@ -1883,9 +1776,7 @@ mod tests {
         // insert the same again with a different size; we should then have 3x1337 as total file size
         p1.object_store_id = Uuid::new_v4();
         p1.file_size_bytes *= 2;
-        let _f2 = sqlite
-            .repositories()
-            .await
+        let _f2 = repos
             .parquet_files()
             .create(p1.clone())
             .await
@@ -1900,9 +1791,7 @@ mod tests {
         assert_eq!(total_file_size_bytes, 1337 * 3);
 
         // flag f1 for deletion and assert that the total file size is reduced accordingly.
-        sqlite
-            .repositories()
-            .await
+        repos
             .parquet_files()
             .flag_for_delete(f1.id)
             .await
@@ -1917,9 +1806,7 @@ mod tests {
 
         // actually deleting shouldn't change the total
         let now = Timestamp::from(time_provider.now());
-        sqlite
-            .repositories()
-            .await
+        repos
             .parquet_files()
             .delete_old_ids_only(now)
             .await

@@ -212,12 +212,12 @@ mod tests {
         input:
           - " DeduplicateExec: [tag1@1 ASC,tag2@2 ASC,time@3 ASC]"
           - "   UnionExec"
-          - "     ParquetExec: limit=None, partitions={1 group: [[1.parquet]]}, projection=[field, tag1, tag2, time]"
+          - "     ParquetExec: file_groups={1 group: [[1.parquet]]}, projection=[field, tag1, tag2, time]"
         output:
           Ok:
             - " DeduplicateExec: [tag1@1 ASC,tag2@2 ASC,time@3 ASC]"
             - "   UnionExec"
-            - "     ParquetExec: limit=None, partitions={1 group: [[1.parquet]]}, projection=[field, tag1, tag2, time]"
+            - "     ParquetExec: file_groups={1 group: [[1.parquet]]}, projection=[field, tag1, tag2, time]"
         "###
         );
     }
@@ -241,12 +241,12 @@ mod tests {
         input:
           - " DeduplicateExec: [tag1@1 ASC,tag2@2 ASC,time@3 ASC]"
           - "   UnionExec"
-          - "     ParquetExec: limit=None, partitions={1 group: [[1.parquet]]}, output_ordering=[tag2@2 ASC, tag1@1 ASC, time@3 ASC], projection=[field, tag1, tag2, time]"
+          - "     ParquetExec: file_groups={1 group: [[1.parquet]]}, projection=[field, tag1, tag2, time], output_ordering=[tag2@2 ASC, tag1@1 ASC, time@3 ASC]"
         output:
           Ok:
             - " DeduplicateExec: [tag2@2 ASC,tag1@1 ASC,time@3 ASC]"
             - "   UnionExec"
-            - "     ParquetExec: limit=None, partitions={1 group: [[1.parquet]]}, output_ordering=[tag2@2 ASC, tag1@1 ASC, time@3 ASC], projection=[field, tag1, tag2, time]"
+            - "     ParquetExec: file_groups={1 group: [[1.parquet]]}, projection=[field, tag1, tag2, time], output_ordering=[tag2@2 ASC, tag1@1 ASC, time@3 ASC]"
         "###
         );
     }
@@ -270,12 +270,12 @@ mod tests {
         input:
           - " DeduplicateExec: [tag1@1 ASC,tag2@2 ASC,time@3 ASC]"
           - "   UnionExec"
-          - "     ParquetExec: limit=None, partitions={1 group: [[1.parquet]]}, output_ordering=[tag2@2 ASC, tag1@1 ASC, time@3 ASC, __chunk_order@4 ASC], projection=[field, tag1, tag2, time, __chunk_order]"
+          - "     ParquetExec: file_groups={1 group: [[1.parquet]]}, projection=[field, tag1, tag2, time, __chunk_order], output_ordering=[tag2@2 ASC, tag1@1 ASC, time@3 ASC, __chunk_order@4 ASC]"
         output:
           Ok:
             - " DeduplicateExec: [tag2@2 ASC,tag1@1 ASC,time@3 ASC]"
             - "   UnionExec"
-            - "     ParquetExec: limit=None, partitions={1 group: [[1.parquet]]}, output_ordering=[tag2@2 ASC, tag1@1 ASC, time@3 ASC, __chunk_order@4 ASC], projection=[field, tag1, tag2, time, __chunk_order]"
+            - "     ParquetExec: file_groups={1 group: [[1.parquet]]}, projection=[field, tag1, tag2, time, __chunk_order], output_ordering=[tag2@2 ASC, tag1@1 ASC, time@3 ASC, __chunk_order@4 ASC]"
         "###
         );
     }
@@ -299,12 +299,12 @@ mod tests {
         input:
           - " DeduplicateExec: [tag1@1 ASC,tag2@2 ASC,time@3 ASC]"
           - "   UnionExec"
-          - "     ParquetExec: limit=None, partitions={1 group: [[1.parquet]]}, output_ordering=[time@3 ASC, tag1@1 ASC, tag2@2 ASC], projection=[field, tag1, tag2, time]"
+          - "     ParquetExec: file_groups={1 group: [[1.parquet]]}, projection=[field, tag1, tag2, time], output_ordering=[time@3 ASC, tag1@1 ASC, tag2@2 ASC]"
         output:
           Ok:
             - " DeduplicateExec: [time@3 ASC,tag1@1 ASC,tag2@2 ASC]"
             - "   UnionExec"
-            - "     ParquetExec: limit=None, partitions={1 group: [[1.parquet]]}, output_ordering=[time@3 ASC, tag1@1 ASC, tag2@2 ASC], projection=[field, tag1, tag2, time]"
+            - "     ParquetExec: file_groups={1 group: [[1.parquet]]}, projection=[field, tag1, tag2, time], output_ordering=[time@3 ASC, tag1@1 ASC, tag2@2 ASC]"
         "###
         );
     }
@@ -328,12 +328,12 @@ mod tests {
         input:
           - " DeduplicateExec: [tag1@1 ASC,tag2@2 ASC,zzz@4 ASC,time@3 ASC]"
           - "   UnionExec"
-          - "     ParquetExec: limit=None, partitions={1 group: [[1.parquet]]}, output_ordering=[tag2@2 ASC, tag1@1 ASC], projection=[field, tag1, tag2, time, zzz]"
+          - "     ParquetExec: file_groups={1 group: [[1.parquet]]}, projection=[field, tag1, tag2, time, zzz], output_ordering=[tag2@2 ASC, tag1@1 ASC]"
         output:
           Ok:
             - " DeduplicateExec: [tag2@2 ASC,tag1@1 ASC,zzz@4 ASC,time@3 ASC]"
             - "   UnionExec"
-            - "     ParquetExec: limit=None, partitions={1 group: [[1.parquet]]}, projection=[field, tag1, tag2, time, zzz]"
+            - "     ParquetExec: file_groups={1 group: [[1.parquet]]}, projection=[field, tag1, tag2, time, zzz]"
         "###
         );
     }
@@ -361,12 +361,12 @@ mod tests {
         input:
           - " DeduplicateExec: [tag1@0 ASC,tag2@1 ASC,zzz@2 ASC,time@3 ASC]"
           - "   UnionExec"
-          - "     ParquetExec: limit=None, partitions={1 group: [[1.parquet]]}, output_ordering=[tag1@0 ASC], projection=[tag1, tag2, zzz, time]"
+          - "     ParquetExec: file_groups={1 group: [[1.parquet]]}, projection=[tag1, tag2, zzz, time], output_ordering=[tag1@0 ASC]"
         output:
           Ok:
             - " DeduplicateExec: [tag1@0 ASC,tag2@1 ASC,zzz@2 ASC,time@3 ASC]"
             - "   UnionExec"
-            - "     ParquetExec: limit=None, partitions={1 group: [[1.parquet]]}, output_ordering=[tag1@0 ASC, tag2@1 ASC, zzz@2 ASC, time@3 ASC], projection=[tag1, tag2, zzz, time]"
+            - "     ParquetExec: file_groups={1 group: [[1.parquet]]}, projection=[tag1, tag2, zzz, time], output_ordering=[tag1@0 ASC, tag2@1 ASC, zzz@2 ASC, time@3 ASC]"
         "###
         );
     }
@@ -397,12 +397,12 @@ mod tests {
         input:
           - " DeduplicateExec: [tag1@1 ASC,tag2@2 ASC,time@3 ASC]"
           - "   UnionExec"
-          - "     ParquetExec: limit=None, partitions={2 groups: [[1.parquet], [2.parquet]]}, projection=[field, tag1, tag2, time]"
+          - "     ParquetExec: file_groups={2 groups: [[1.parquet], [2.parquet]]}, projection=[field, tag1, tag2, time]"
         output:
           Ok:
             - " DeduplicateExec: [tag1@1 ASC,tag2@2 ASC,time@3 ASC]"
             - "   UnionExec"
-            - "     ParquetExec: limit=None, partitions={2 groups: [[1.parquet], [2.parquet]]}, projection=[field, tag1, tag2, time]"
+            - "     ParquetExec: file_groups={2 groups: [[1.parquet], [2.parquet]]}, projection=[field, tag1, tag2, time]"
         "###
         );
     }
@@ -432,12 +432,12 @@ mod tests {
         input:
           - " DeduplicateExec: [tag1@1 ASC,tag2@2 ASC,time@3 ASC]"
           - "   UnionExec"
-          - "     ParquetExec: limit=None, partitions={2 groups: [[1.parquet], [2.parquet]]}, output_ordering=[tag2@2 ASC, tag1@1 ASC, time@3 ASC], projection=[field, tag1, tag2, time]"
+          - "     ParquetExec: file_groups={2 groups: [[1.parquet], [2.parquet]]}, projection=[field, tag1, tag2, time], output_ordering=[tag2@2 ASC, tag1@1 ASC, time@3 ASC]"
         output:
           Ok:
             - " DeduplicateExec: [tag2@2 ASC,tag1@1 ASC,time@3 ASC]"
             - "   UnionExec"
-            - "     ParquetExec: limit=None, partitions={2 groups: [[1.parquet], [2.parquet]]}, projection=[field, tag1, tag2, time]"
+            - "     ParquetExec: file_groups={2 groups: [[1.parquet], [2.parquet]]}, projection=[field, tag1, tag2, time]"
         "###
         );
     }
@@ -462,12 +462,12 @@ mod tests {
         input:
           - " DeduplicateExec: [tag1@1 ASC,tag2@2 ASC,time@3 ASC]"
           - "   UnionExec"
-          - "     ParquetExec: limit=None, partitions={2 groups: [[1.parquet], [2.parquet]]}, projection=[field, tag1, tag2, time]"
+          - "     ParquetExec: file_groups={2 groups: [[1.parquet], [2.parquet]]}, projection=[field, tag1, tag2, time]"
         output:
           Ok:
             - " DeduplicateExec: [tag2@2 ASC,tag1@1 ASC,time@3 ASC]"
             - "   UnionExec"
-            - "     ParquetExec: limit=None, partitions={2 groups: [[1.parquet], [2.parquet]]}, projection=[field, tag1, tag2, time]"
+            - "     ParquetExec: file_groups={2 groups: [[1.parquet], [2.parquet]]}, projection=[field, tag1, tag2, time]"
         "###
         );
     }
@@ -519,12 +519,12 @@ mod tests {
         input:
           - " DeduplicateExec: [tag1@0 ASC,tag2@1 ASC,tag3@2 ASC,time@3 ASC]"
           - "   UnionExec"
-          - "     ParquetExec: limit=None, partitions={2 groups: [[1.parquet, 3.parquet], [2.parquet]]}, projection=[tag1, tag2, tag3, time]"
+          - "     ParquetExec: file_groups={2 groups: [[1.parquet, 3.parquet], [2.parquet]]}, projection=[tag1, tag2, tag3, time]"
         output:
           Ok:
             - " DeduplicateExec: [tag2@1 ASC,tag3@2 ASC,tag1@0 ASC,time@3 ASC]"
             - "   UnionExec"
-            - "     ParquetExec: limit=None, partitions={3 groups: [[1.parquet], [3.parquet], [2.parquet]]}, output_ordering=[tag2@1 ASC, tag3@2 ASC, tag1@0 ASC, time@3 ASC], projection=[tag1, tag2, tag3, time]"
+            - "     ParquetExec: file_groups={3 groups: [[1.parquet], [3.parquet], [2.parquet]]}, projection=[tag1, tag2, tag3, time], output_ordering=[tag2@1 ASC, tag3@2 ASC, tag1@0 ASC, time@3 ASC]"
         "###
         );
     }
@@ -570,12 +570,12 @@ mod tests {
         input:
           - " DeduplicateExec: [tag1@0 ASC,tag2@1 ASC,time@2 ASC]"
           - "   UnionExec"
-          - "     ParquetExec: limit=None, partitions={2 groups: [[1.parquet, 3.parquet], [2.parquet]]}, output_ordering=[tag2@1 ASC, tag1@0 ASC, time@2 ASC], projection=[tag1, tag2, time]"
+          - "     ParquetExec: file_groups={2 groups: [[1.parquet, 3.parquet], [2.parquet]]}, projection=[tag1, tag2, time], output_ordering=[tag2@1 ASC, tag1@0 ASC, time@2 ASC]"
         output:
           Ok:
             - " DeduplicateExec: [tag2@1 ASC,tag1@0 ASC,time@2 ASC]"
             - "   UnionExec"
-            - "     ParquetExec: limit=None, partitions={3 groups: [[1.parquet], [3.parquet], [2.parquet]]}, output_ordering=[tag2@1 ASC, tag1@0 ASC, time@2 ASC], projection=[tag1, tag2, time]"
+            - "     ParquetExec: file_groups={3 groups: [[1.parquet], [3.parquet], [2.parquet]]}, projection=[tag1, tag2, time], output_ordering=[tag2@1 ASC, tag1@0 ASC, time@2 ASC]"
         "###
         );
     }
@@ -623,12 +623,12 @@ mod tests {
         input:
           - " DeduplicateExec: [tag1@0 ASC,tag2@1 ASC,time@2 ASC]"
           - "   UnionExec"
-          - "     ParquetExec: limit=None, partitions={2 groups: [[1.parquet, 3.parquet], [2.parquet]]}, output_ordering=[tag2@1 ASC, tag1@0 ASC, time@2 ASC], projection=[tag1, tag2, time]"
+          - "     ParquetExec: file_groups={2 groups: [[1.parquet, 3.parquet], [2.parquet]]}, projection=[tag1, tag2, time], output_ordering=[tag2@1 ASC, tag1@0 ASC, time@2 ASC]"
         output:
           Ok:
             - " DeduplicateExec: [tag2@1 ASC,tag1@0 ASC,time@2 ASC]"
             - "   UnionExec"
-            - "     ParquetExec: limit=None, partitions={3 groups: [[1.parquet], [3.parquet], [2.parquet]]}, projection=[tag1, tag2, time]"
+            - "     ParquetExec: file_groups={3 groups: [[1.parquet], [3.parquet], [2.parquet]]}, projection=[tag1, tag2, time]"
         "###
         );
     }

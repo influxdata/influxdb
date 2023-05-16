@@ -4,7 +4,7 @@ use crate::{
     IngesterPartition,
 };
 use arrow::record_batch::RecordBatch;
-use data_types::{ChunkId, SequenceNumber};
+use data_types::ChunkId;
 use iox_catalog::interface::{get_schema_by_name, SoftDeletedRows};
 use iox_tests::{TestCatalog, TestPartition, TestTable};
 use mutable_batch_lp::test_helpers::lp_to_mutable_batch;
@@ -32,8 +32,8 @@ pub async fn querier_table(catalog: &Arc<TestCatalog>, table: &Arc<TestTable>) -
     )
     .await
     .unwrap();
-    let schema = catalog_schema.tables.remove(&table.table.name).unwrap();
-    let schema = Schema::try_from(schema).unwrap();
+    let table_info = catalog_schema.tables.remove(&table.table.name).unwrap();
+    let schema = Schema::try_from(table_info.columns).unwrap();
 
     let namespace_name = Arc::from(table.namespace.namespace.name.as_str());
 
@@ -91,26 +91,14 @@ impl IngesterPartitionBuilder {
         self
     }
 
-    /// Create a ingester partition with the specified max parquet sequence number
-    pub(crate) fn build_with_max_parquet_sequence_number(
-        &self,
-        parquet_max_sequence_number: Option<SequenceNumber>,
-    ) -> IngesterPartition {
-        self.build(parquet_max_sequence_number)
-    }
-
     /// Create an ingester partition with the specified field values
-    pub(crate) fn build(
-        &self,
-        parquet_max_sequence_number: Option<SequenceNumber>,
-    ) -> IngesterPartition {
+    pub(crate) fn build(&self) -> IngesterPartition {
         let data = self.lp.iter().map(|lp| lp_to_record_batch(lp)).collect();
 
         IngesterPartition::new(
-            Some(Uuid::new_v4()),
+            Uuid::new_v4(),
             self.partition.partition.id,
             0,
-            parquet_max_sequence_number,
             self.partition_sort_key.clone(),
         )
         .try_add_chunk(

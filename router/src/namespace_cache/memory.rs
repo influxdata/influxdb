@@ -59,7 +59,7 @@ impl NamespaceCache for Arc<MemoryNamespaceCache> {
                     new_columns: schema
                         .tables
                         .values()
-                        .map(|v| v.columns.len())
+                        .map(|v| v.column_count())
                         .sum::<usize>(),
                     new_tables: schema.tables.len(),
                     did_update: false,
@@ -83,6 +83,8 @@ fn merge_schema_additive(
 ) -> (NamespaceSchema, ChangeStats) {
     // invariant: Namespace ID should never change for a given name
     assert_eq!(old_ns.id, new_ns.id);
+    // invariant: Namespace partition template override should never change for a given name
+    assert_eq!(old_ns.partition_template, new_ns.partition_template);
 
     let old_table_count = old_ns.tables.len();
     let mut old_column_count = 0;
@@ -100,12 +102,12 @@ fn merge_schema_additive(
     // to 0 as the schemas become fully populated, leaving the common path free
     // of overhead.
     for (old_table_name, old_table) in &old_ns.tables {
-        old_column_count += old_table.columns.len();
+        old_column_count += old_table.column_count();
         match new_ns.tables.get_mut(old_table_name) {
             Some(new_table) => {
-                for (column_name, column) in &old_table.columns {
-                    if !new_table.columns.contains_key(column_name) {
-                        new_table.columns.insert(column_name.to_owned(), *column);
+                for (column_name, column) in old_table.columns.iter() {
+                    if !new_table.contains_column_name(column_name) {
+                        new_table.add_column_schema(column_name.to_string(), *column);
                     }
                 }
             }
@@ -125,7 +127,7 @@ fn merge_schema_additive(
         new_columns: new_ns
             .tables
             .values()
-            .map(|v| v.columns.len())
+            .map(|v| v.column_count())
             .sum::<usize>()
             - old_column_count,
         did_update: true,
@@ -139,8 +141,8 @@ mod tests {
 
     use assert_matches::assert_matches;
     use data_types::{
-        Column, ColumnId, ColumnSchema, ColumnType, NamespaceId, QueryPoolId, TableId, TableSchema,
-        TopicId,
+        Column, ColumnId, ColumnSchema, ColumnType, ColumnsByName, NamespaceId, TableId,
+        TableSchema,
     };
     use proptest::{prelude::*, prop_compose, proptest};
 
@@ -162,12 +164,11 @@ mod tests {
 
         let schema1 = NamespaceSchema {
             id: TEST_NAMESPACE_ID,
-            topic_id: TopicId::new(24),
-            query_pool_id: QueryPoolId::new(1234),
             tables: Default::default(),
             max_columns_per_table: 50,
             max_tables: 24,
             retention_period_ns: Some(876),
+            partition_template: None,
         };
         assert_matches!(cache.put_schema(ns.clone(), schema1.clone()), (new, s) => {
             assert_eq!(*new, schema1);
@@ -180,12 +181,11 @@ mod tests {
 
         let schema2 = NamespaceSchema {
             id: TEST_NAMESPACE_ID,
-            topic_id: TopicId::new(2),
-            query_pool_id: QueryPoolId::new(2),
             tables: Default::default(),
             max_columns_per_table: 10,
             max_tables: 42,
             retention_period_ns: Some(876),
+            partition_template: None,
         };
 
         assert_matches!(cache.put_schema(ns.clone(), schema2.clone()), (new, s) => {
@@ -220,33 +220,33 @@ mod tests {
         };
 
         let mut first_write_table_schema = TableSchema::new(table_id);
-        first_write_table_schema.add_column(&column_1);
+        first_write_table_schema.add_column(column_1.clone());
         let mut second_write_table_schema = TableSchema::new(table_id);
-        second_write_table_schema.add_column(&column_2);
+        second_write_table_schema.add_column(column_2.clone());
 
-        assert_ne!(first_write_table_schema, second_write_table_schema); // These MUST always be different
+        // These MUST always be different
+        assert_ne!(first_write_table_schema, second_write_table_schema);
 
         let schema_update_1 = NamespaceSchema {
             id: NamespaceId::new(42),
-            topic_id: TopicId::new(76),
-            query_pool_id: QueryPoolId::new(64),
             tables: BTreeMap::from([(String::from(table_name), first_write_table_schema)]),
             max_columns_per_table: 50,
             max_tables: 24,
             retention_period_ns: None,
+            partition_template: None,
         };
         let schema_update_2 = NamespaceSchema {
             tables: BTreeMap::from([(String::from(table_name), second_write_table_schema)]),
-            ..schema_update_1
+            ..schema_update_1.clone()
         };
 
         let want_namespace_schema = {
             let mut want_table_schema = TableSchema::new(table_id);
-            want_table_schema.add_column(&column_1);
-            want_table_schema.add_column(&column_2);
+            want_table_schema.add_column(column_1);
+            want_table_schema.add_column(column_2);
             NamespaceSchema {
                 tables: BTreeMap::from([(String::from(table_name), want_table_schema)]),
-                ..schema_update_1
+                ..schema_update_1.clone()
             }
         };
 
@@ -259,10 +259,16 @@ mod tests {
             }
         );
 
-        assert_matches!(cache.put_schema(ns.clone(), schema_update_1.clone()), (new_schema, new_stats) => {
-            assert_eq!(*new_schema, schema_update_1);
-            assert_eq!(new_stats, ChangeStats{ new_tables: 1, new_columns: 1, did_update: false});
-        });
+        assert_matches!(
+            cache.put_schema(ns.clone(), schema_update_1.clone()),
+            (new_schema, new_stats) => {
+                assert_eq!(*new_schema, schema_update_1);
+                assert_eq!(
+                    new_stats,
+                    ChangeStats { new_tables: 1, new_columns: 1, did_update: false }
+                );
+            }
+        );
         assert_matches!(cache.put_schema(ns.clone(), schema_update_2), (new_schema, new_stats) => {
             assert_eq!(*new_schema, want_namespace_schema);
             assert_eq!(new_stats, ChangeStats{ new_tables: 0, new_columns: 1, did_update: true});
@@ -288,21 +294,21 @@ mod tests {
         // Each table has been given a column to assert the table merge logic
         // produces the correct metrics.
         let mut table_1 = TableSchema::new(TableId::new(1));
-        table_1.add_column(&Column {
+        table_1.add_column(Column {
             id: ColumnId::new(1),
             table_id: TableId::new(1),
             name: "column_a".to_string(),
             column_type: ColumnType::String,
         });
         let mut table_2 = TableSchema::new(TableId::new(2));
-        table_2.add_column(&Column {
+        table_2.add_column(Column {
             id: ColumnId::new(2),
             table_id: TableId::new(2),
             name: "column_b".to_string(),
             column_type: ColumnType::String,
         });
         let mut table_3 = TableSchema::new(TableId::new(3));
-        table_3.add_column(&Column {
+        table_3.add_column(Column {
             id: ColumnId::new(3),
             table_id: TableId::new(3),
             name: "column_c".to_string(),
@@ -311,8 +317,6 @@ mod tests {
 
         let schema_update_1 = NamespaceSchema {
             id: NamespaceId::new(42),
-            topic_id: TopicId::new(76),
-            query_pool_id: QueryPoolId::new(64),
             tables: BTreeMap::from([
                 (String::from("table_1"), table_1.to_owned()),
                 (String::from("table_2"), table_2.to_owned()),
@@ -320,13 +324,14 @@ mod tests {
             max_columns_per_table: 50,
             max_tables: 24,
             retention_period_ns: None,
+            partition_template: None,
         };
         let schema_update_2 = NamespaceSchema {
             tables: BTreeMap::from([
                 (String::from("table_1"), table_1.to_owned()),
                 (String::from("table_3"), table_3.to_owned()),
             ]),
-            ..schema_update_1
+            ..schema_update_1.clone()
         };
 
         let want_namespace_schema = NamespaceSchema {
@@ -335,7 +340,7 @@ mod tests {
                 (String::from("table_2"), table_2),
                 (String::from("table_3"), table_3),
             ]),
-            ..schema_update_1
+            ..schema_update_1.clone()
         };
 
         // Set up the cache and ensure there are no entries for the namespace.
@@ -347,10 +352,16 @@ mod tests {
             }
         );
 
-        assert_matches!(cache.put_schema(ns.clone(), schema_update_1.clone()), (new_schema, new_stats) => {
-            assert_eq!(*new_schema, schema_update_1);
-            assert_eq!(new_stats, ChangeStats{ new_tables: 2, new_columns: 2, did_update: false});
-        });
+        assert_matches!(
+            cache.put_schema(ns.clone(), schema_update_1.clone()),
+            (new_schema, new_stats) => {
+                assert_eq!(*new_schema, schema_update_1);
+                assert_eq!(
+                    new_stats,
+                    ChangeStats { new_tables: 2, new_columns: 2, did_update: false }
+                );
+            }
+        );
         assert_matches!(cache.put_schema(ns.clone(), schema_update_2), (new_schema, new_stats) => {
             assert_eq!(*new_schema, want_namespace_schema);
             assert_eq!(new_stats, ChangeStats{ new_tables: 1, new_columns: 1, did_update: true});
@@ -385,13 +396,17 @@ mod tests {
         fn arbitrary_table_schema()(
             id in any::<i64>(),
             columns in proptest::collection::btree_map(
-                proptest::sample::select(TEST_COLUMN_NAME_SET),
+                proptest::sample::select(TEST_COLUMN_NAME_SET).prop_map(ToString::to_string),
                 arbitrary_column_schema(),
                 (0, 10) // Set size range
             ),
         ) -> TableSchema {
-            let columns = columns.into_iter().map(|(k, v)| (k.to_string(), v)).collect();
-            TableSchema { id: TableId::new(id), columns }
+            let columns = ColumnsByName::from(columns);
+            TableSchema {
+                id: TableId::new(id),
+                partition_template: None,
+                columns,
+            }
         }
     }
 
@@ -410,11 +425,10 @@ mod tests {
             NamespaceSchema {
                 id: TEST_NAMESPACE_ID,
                 tables,
-                topic_id: TopicId::new(1), // Ignored
-                query_pool_id: QueryPoolId::new(1), // Ignored
                 max_columns_per_table,
                 max_tables,
                 retention_period_ns,
+                partition_template: None,
             }
         }
     }
@@ -428,7 +442,8 @@ mod tests {
                 // Build a set of tuples in the form (table_name, column_name)
                 col_set
                     .columns
-                    .keys()
+                    .names()
+                    .into_iter()
                     .map(|col_name| (table_name.to_string(), col_name.to_string()))
             })
             .collect()

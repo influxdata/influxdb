@@ -21,8 +21,11 @@ pub async fn initialize_db(dsn: &str, schema_name: &str) {
 
     info!("Initializing database...");
 
+    let dsn = iox_catalog::postgres::parse_dsn(dsn).unwrap();
+    let dsn = &dsn;
+
     // Create the catalog database if it doesn't exist
-    if !Postgres::database_exists(dsn).await.unwrap() {
+    if dsn.starts_with("posgresql") && !Postgres::database_exists(dsn).await.unwrap() {
         info!("Creating database...");
         Postgres::create_database(dsn).await.unwrap();
     }
@@ -32,18 +35,6 @@ pub async fn initialize_db(dsn: &str, schema_name: &str) {
         .unwrap()
         .arg("catalog")
         .arg("setup")
-        .env("INFLUXDB_IOX_CATALOG_DSN", dsn)
-        .env("INFLUXDB_IOX_CATALOG_POSTGRES_SCHEMA_NAME", schema_name)
-        .ok()
-        .unwrap();
-
-    // Create the shared topic in the catalog
-    Command::cargo_bin("influxdb_iox")
-        .unwrap()
-        .arg("catalog")
-        .arg("topic")
-        .arg("update")
-        .arg("iox-shared")
         .env("INFLUXDB_IOX_CATALOG_DSN", dsn)
         .env("INFLUXDB_IOX_CATALOG_POSTGRES_SCHEMA_NAME", schema_name)
         .ok()

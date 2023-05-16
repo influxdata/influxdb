@@ -44,8 +44,8 @@ pub struct SelectStatement {
     /// Expressions used for grouping the selection.
     pub group_by: Option<GroupByClause>,
 
-    /// The [fill clause] specifies the fill behaviour for the selection. If the value is [`None`],
-    /// it is the same behavior as `fill(none)`.
+    /// The [fill] clause specifies the fill behaviour for the selection. If the value is [`None`],
+    /// it is the same behavior as `fill(null)`.
     ///
     /// [fill]: https://docs.influxdata.com/influxdb/v1.8/query_language/explore-data/#group-by-time-intervals-and-fill
     pub fill: Option<FillClause>,
@@ -72,13 +72,6 @@ pub struct SelectStatement {
 }
 
 impl SelectStatement {
-    /// Return the `FILL` behaviour for the `SELECT` statement.
-    ///
-    /// The default when no `FILL` clause present is `FILL(null)`.
-    pub fn fill(&self) -> FillClause {
-        self.fill.unwrap_or_default()
-    }
-
     /// Return the sort order for the `SELECT` statement.
     ///
     /// The default when no `ORDER BY` clause present is `TIME ASC`.
@@ -760,8 +753,6 @@ mod test {
     fn test_select_statement() {
         let (_, got) = select_statement("SELECT value FROM foo").unwrap();
         assert_eq!(got.to_string(), "SELECT value FROM foo");
-        // Assert default behaviour when `FILL` is omitted
-        assert_eq!(got.fill(), FillClause::Null);
 
         let (_, got) =
             select_statement(r#"SELECT f1,/f2/, f3 AS "a field" FROM foo WHERE host =~ /c1/"#)
@@ -798,7 +789,7 @@ mod test {
             got.to_string(),
             r#"SELECT sum(value) FROM foo GROUP BY TIME(5m), host FILL(PREVIOUS)"#
         );
-        assert_eq!(got.fill(), FillClause::Previous);
+        assert_matches!(got.fill, Some(FillClause::Previous));
 
         let (_, got) = select_statement("SELECT value FROM foo ORDER BY DESC").unwrap();
         assert_eq!(

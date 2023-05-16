@@ -67,24 +67,6 @@ commands:
             cargo clippy --version
             cargo install cargo-hakari && cargo hakari --version
 
-  cache_restore:
-    description: Restore Cargo Cache
-    steps:
-      - restore_cache:
-          name: Restoring Cargo Cache
-          keys:
-            - cargo-cache-{{ arch }}-{{ .Branch }}-{{ checksum "Cargo.lock" }}
-            - cargo-cache-{{ arch }}-{{ .Branch }}
-            - cargo-cache
-  cache_save:
-    description: Save Cargo Cache
-    steps:
-      - save_cache:
-          name: Save Cargo Cache
-          paths:
-            - /usr/local/cargo/registry
-          key: cargo-cache-{{ arch }}-{{ .Branch }}-{{ checksum "Cargo.lock" }}
-
   login_to_gcloud:
     steps:
       - run:
@@ -110,11 +92,9 @@ jobs:
     steps:
       - checkout
       - rust_components
-      - cache_restore
       - run:
           name: Rust fmt
           command: cargo fmt --all -- --check
-      - cache_save
   lint:
     docker:
       - image: quay.io/influxdb/rust:ci
@@ -129,7 +109,6 @@ jobs:
     steps:
       - checkout
       - rust_components
-      - cache_restore
       - run:
           name: Clippy
           command: cargo clippy --all-targets --all-features --workspace -- -D warnings
@@ -139,7 +118,6 @@ jobs:
       - run:
           name: Yamllint
           command: yamllint --config-file .circleci/yamllint.yml --strict .
-      - cache_save
   cargo_audit:
     docker:
       - image: quay.io/influxdb/rust:ci
@@ -154,14 +132,12 @@ jobs:
     steps:
       - checkout
       - rust_components
-      - cache_restore
       - run:
           name: Install cargo-deny
           command: cargo install cargo-deny
       - run:
           name: cargo-deny Checks
           command: cargo deny check -s
-      - cache_save
   doc:
     docker:
       - image: quay.io/influxdb/rust:ci
@@ -179,11 +155,9 @@ jobs:
     steps:
       - checkout
       - rust_components
-      - cache_restore
       - run:
           name: Cargo doc
           command: cargo doc --document-private-items --no-deps --workspace
-      - cache_save
       - run:
           name: Compress Docs
           command: tar -cvzf rustdoc.tar.gz target/doc/
@@ -201,7 +175,6 @@ jobs:
             - "77:99:88:4a:ac:1f:55:9e:39:c7:1f:e4:7f:1e:60:4b"
       - checkout
       - rust_components
-      - cache_restore
       - run:
           name: Configure git
           command: |
@@ -252,14 +225,6 @@ jobs:
       # When removing this, also remove the ignore on the test in trogging/src/cli.rs
       RUST_LOG: debug,,hyper::proto::h1=info,h2=info
       LOG_FILTER: debug,,hyper::proto::h1=info,h2=info
-      # TEMPORARY: Can be removed when the ingester that uses the write buffer is removed. Tests
-      # need to spin up separate servers because I've only been able to implement a "persist
-      # everything" API, and if tests run in parallel using a shared server, they interfere with
-      # each other. Starting separate servers with the maximum number of Rust test threads uses up
-      # all the Postgres connections in CI, so limit the parallelization until we switch completely
-      # to ingester2, which does have a "persist-per-namespace" API that means tests can run on
-      # shared MiniClusters.
-      RUST_TEST_THREADS: 8
       # Run the JDBC tests
       TEST_INFLUXDB_JDBC: "true"
     steps:
@@ -270,7 +235,6 @@ jobs:
             sudo apt-get update
             sudo apt-get install openjdk-11-jdk -y
       - rust_components
-      - cache_restore
       - run:
           name: Download flight-sql-jdbc-driver-10.0.0.jar
           command: make -C influxdb_iox/tests/jdbc_client flight-sql-jdbc-driver-10.0.0.jar
@@ -283,7 +247,6 @@ jobs:
       - run:
           name: cargo test --test end_to_end
           command: cargo test --test end_to_end
-      - cache_save
 
   # Run all tests (without external dependencies, like a developer would)
   test:
@@ -302,11 +265,9 @@ jobs:
     steps:
       - checkout
       - rust_components
-      - cache_restore
       - run:
           name: cargo test --workspace
           command: cargo test --workspace
-      - cache_save
 
 
   # end to end tests with Heappy (heap profiling enabled)
@@ -326,11 +287,9 @@ jobs:
     steps:
       - checkout
       - rust_components
-      - cache_restore
       - run:
           name: cargo test --no-default-features --features=heappy end_to_end
           command: cargo test --no-default-features --features=heappy end_to_end
-      - cache_save
 
   # Build a dev binary.
   #
@@ -355,7 +314,6 @@ jobs:
     steps:
       - checkout
       - rust_components
-      - cache_restore
       - run:
           name: Cargo build
           command: cargo build --workspace
@@ -369,7 +327,6 @@ jobs:
           # Validate that the data generator compiles (in the same way as it does in release builds)
           name: Check iox_data_generator compiles
           command: cargo check  --package="iox_data_generator"  --no-default-features
-      - cache_save
 
   # Lint protobufs.
   protobuf-lint:
@@ -470,7 +427,6 @@ jobs:
           root: /tmp/images
           paths:
             - "*.tar.gz"
-      - cache_save
 
   deploy_release:
     docker:

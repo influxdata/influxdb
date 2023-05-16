@@ -8,16 +8,17 @@ use tokio::{sync::mpsc, time::sleep};
 
 /// Object store implementations will generally list all objects in the bucket/prefix. This limits
 /// the total items pulled (assuming lazy streams) at a time to limit impact on the catalog.
-/// Consider increasing this if throughput is an issue or shortening the loop sleep interval.
+/// Consider increasing this if throughput is an issue or shortening the loop/list sleep intervals.
 /// Listing will list all files, including those not to be deleted, which may be a very large number.
-const MAX_ITEMS_PROCESSED_PER_LOOP: usize = 1_000;
+const MAX_ITEMS_PROCESSED_PER_LOOP: usize = 10_000;
 
-/// perform a object store list, limiting to 1000 files per loop iteration, waiting sleep interval
-/// per loop.
+/// perform a object store list, limiting to ['MAX_ITEMS_PROCESSED_PER_LOOP'] files at a time,
+/// waiting sleep interval before listing afresh.
 pub(crate) async fn perform(
     object_store: Arc<DynObjectStore>,
     checker: mpsc::Sender<ObjectMeta>,
-    sleep_interval_minutes: u64,
+    sleep_interval_iteration_minutes: u64,
+    sleep_interval_list_page_milliseconds: u64,
 ) -> Result<()> {
     info!("beginning object store listing");
 
@@ -33,27 +34,32 @@ pub(crate) async fn perform(
 
         let mut chunked_items = items.chunks(MAX_ITEMS_PROCESSED_PER_LOOP);
 
+        let mut count = 0;
         while let Some(v) = chunked_items.next().await {
             // relist and sleep on an error to allow time for transient errors to dissipate
             // todo(pjb): react differently to different errors
-            if let Err(e) = process_item_list(v, &checker).await {
-                warn!("error processing items from object store, continuing: {e}");
-                // go back to start of loop to list again, hopefully to get past error.
-                break;
+            match process_item_list(v, &checker).await {
+                Err(e) => {
+                    warn!("error processing items from object store, continuing: {e}");
+                    // go back to start of loop to list again, hopefully to get past error.
+                    break;
+                }
+                Ok(i) => {
+                    count += i;
+                }
             }
-            sleep(Duration::from_secs(60 * sleep_interval_minutes)).await;
-            info!("starting next chunk of listed files");
-            // next chunk
+            sleep(Duration::from_millis(sleep_interval_list_page_milliseconds)).await;
+            debug!("starting next chunk of listed files");
         }
-        info!("end of object store item list: will relist in {sleep_interval_minutes} minutes");
-        sleep(Duration::from_secs(60 * sleep_interval_minutes)).await;
+        info!("end of object store item list; listed {count} files: will relist in {sleep_interval_iteration_minutes} minutes");
+        sleep(Duration::from_secs(60 * sleep_interval_iteration_minutes)).await;
     }
 }
 
 async fn process_item_list(
     items: Vec<object_store::Result<ObjectMeta>>,
     checker: &mpsc::Sender<ObjectMeta>,
-) -> Result<()> {
+) -> Result<i32> {
     let mut i = 0;
     for item in items {
         let item = item.context(MalformedSnafu)?;
@@ -61,8 +67,8 @@ async fn process_item_list(
         checker.send(item).await?;
         i += 1;
     }
-    info!("processed {i} files of listed chunk");
-    Ok(())
+    debug!("processed {i} files of listed chunk");
+    Ok(i)
 }
 
 #[derive(Debug, Snafu)]

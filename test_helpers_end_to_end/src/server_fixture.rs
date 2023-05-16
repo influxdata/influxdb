@@ -184,7 +184,7 @@ impl Connections {
         let server_type = test_config.server_type();
 
         self.router_grpc_connection = match server_type {
-            ServerType::AllInOne | ServerType::Router2 => {
+            ServerType::AllInOne | ServerType::Router => {
                 let client_base = test_config.addrs().router_grpc_api().client_base();
                 Some(
                     grpc_channel(test_config, client_base.as_ref())
@@ -196,7 +196,7 @@ impl Connections {
         };
 
         self.ingester_grpc_connection = match server_type {
-            ServerType::AllInOne | ServerType::Ingester2 => {
+            ServerType::AllInOne | ServerType::Ingester => {
                 let client_base = test_config.addrs().ingester_grpc_api().client_base();
                 Some(
                     grpc_channel(test_config, client_base.as_ref())
@@ -208,7 +208,7 @@ impl Connections {
         };
 
         self.querier_grpc_connection = match server_type {
-            ServerType::AllInOne | ServerType::Querier2 => {
+            ServerType::AllInOne | ServerType::Querier => {
                 let client_base = test_config.addrs().querier_grpc_api().client_base();
                 Some(
                     grpc_channel(test_config, client_base.as_ref())
@@ -476,13 +476,13 @@ impl TestServer {
             }
 
             match server_type {
-                ServerType::Compactor2 => {
+                ServerType::Compactor => {
                     unimplemented!(
                         "Don't use a long-running compactor and gRPC in e2e tests; use \
                         `influxdb_iox compactor run-once` instead"
                     );
                 }
-                ServerType::Router2 => {
+                ServerType::Router => {
                     if check_catalog_service_health(
                         server_type,
                         connections.router_grpc_connection(),
@@ -492,7 +492,7 @@ impl TestServer {
                         return;
                     }
                 }
-                ServerType::Ingester2 => {
+                ServerType::Ingester => {
                     if check_arrow_service_health(
                         server_type,
                         connections.ingester_grpc_connection(),
@@ -502,7 +502,7 @@ impl TestServer {
                         return;
                     }
                 }
-                ServerType::Querier2 => {
+                ServerType::Querier => {
                     if check_arrow_service_health(
                         server_type,
                         connections.querier_grpc_connection(),

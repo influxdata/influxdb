@@ -13,15 +13,12 @@
     clippy::dbg_macro
 )]
 
-use crate::interface::{ColumnTypeMismatchSnafu, Error, RepoCollection, Result, Transaction};
-use data_types::{ColumnType, NamespaceSchema, QueryPool, TableSchema, TopicId, TopicMetadata};
+use crate::interface::{ColumnTypeMismatchSnafu, Error, RepoCollection, Result};
+use data_types::{ColumnType, NamespaceSchema, TableSchema};
 use mutable_batch::MutableBatch;
 use std::{borrow::Cow, collections::HashMap};
 use thiserror::Error;
 
-const SHARED_TOPIC_NAME: &str = "iox-shared";
-const SHARED_TOPIC_ID: TopicId = TopicId::new(1);
-const SHARED_QUERY_POOL: &str = SHARED_TOPIC_NAME;
 const TIME_COLUMN: &str = "time";
 
 /// Default per-namespace table count service protection limit.
@@ -121,7 +118,7 @@ where
                 .tables()
                 .create_or_get(table_name, schema.id)
                 .await
-                .map(|t| TableSchema::new(t.id))?;
+                .map(|t| TableSchema::new_empty_from(&t))?;
 
             // Always add a time column to all new tables.
             let time_col = repos
@@ -129,7 +126,7 @@ where
                 .create_or_get(TIME_COLUMN, table.id, ColumnType::Time)
                 .await?;
 
-            table.add_column(&time_col);
+            table.add_column(time_col);
 
             assert!(schema
                 .to_mut()
@@ -188,7 +185,7 @@ where
             .create_or_get_many_unchecked(table.id, column_batch)
             .await?
             .into_iter()
-            .for_each(|c| table.to_mut().add_column(&c));
+            .for_each(|c| table.to_mut().add_column(c));
     }
 
     if let Cow::Owned(table) = table {
@@ -204,17 +201,54 @@ where
     Ok(())
 }
 
-/// Creates or gets records in the catalog for the shared topic and query pool for each of the
-/// partitions.
-///
-/// Used in tests and when creating an in-memory catalog.
-pub async fn create_or_get_default_records(
-    txn: &mut dyn Transaction,
-) -> Result<(TopicMetadata, QueryPool)> {
-    let topic = txn.topics().create_or_get(SHARED_TOPIC_NAME).await?;
-    let query_pool = txn.query_pools().create_or_get(SHARED_QUERY_POOL).await?;
+/// Catalog helper functions for creation of catalog objects
+pub mod test_helpers {
+    use crate::RepoCollection;
+    use data_types::{Namespace, NamespaceName, Table};
 
-    Ok((topic, query_pool))
+    /// When the details of the namespace don't matter; the test just needs *a* catalog namespace
+    /// with a particular name.
+    ///
+    /// Use [`NamespaceRepo::create`] directly if:
+    ///
+    /// - The values of the parameters to `create` need to be different than what's here
+    /// - The values of the parameters to `create` are relevant to the behavior under test
+    /// - You expect namespace creation to fail in the test
+    ///
+    /// [`NamespaceRepo::create`]: crate::interface::NamespaceRepo::create
+    pub async fn arbitrary_namespace<R: RepoCollection + ?Sized>(
+        repos: &mut R,
+        name: &str,
+    ) -> Namespace {
+        let namespace_name = NamespaceName::new(name).unwrap();
+        repos
+            .namespaces()
+            .create(&namespace_name, None)
+            .await
+            .unwrap()
+    }
+
+    /// When the details of the table don't matter; the test just needs *a* catalog table
+    /// with a particular name in a particular namespace.
+    ///
+    /// Use [`TableRepo::create_or_get`] directly if:
+    ///
+    /// - The values of the parameters to `create_or_get` need to be different than what's here
+    /// - The values of the parameters to `create_or_get` are relevant to the behavior under test
+    /// - You expect table creation to fail in the test
+    ///
+    /// [`TableRepo::create_or_get`]: crate::interface::TableRepo::create_or_get
+    pub async fn arbitrary_table<R: RepoCollection + ?Sized>(
+        repos: &mut R,
+        name: &str,
+        namespace: &Namespace,
+    ) -> Table {
+        repos
+            .tables()
+            .create_or_get(name, namespace.id)
+            .await
+            .unwrap()
+    }
 }
 
 #[cfg(test)]
@@ -243,7 +277,7 @@ mod tests {
                 #[allow(clippy::bool_assert_comparison)]
                 #[tokio::test]
                 async fn [<test_validate_schema_ $name>]() {
-                    use crate::interface::Catalog;
+                    use crate::{interface::Catalog, test_helpers::arbitrary_namespace};
                     use std::ops::DerefMut;
                     use pretty_assertions::assert_eq;
                     const NAMESPACE_NAME: &str = "bananas";
@@ -251,24 +285,11 @@ mod tests {
                     let metrics = Arc::new(metric::Registry::default());
                     let repo = MemCatalog::new(metrics);
                     let mut txn = repo.start_transaction().await.unwrap();
-                    let (topic, query_pool) = create_or_get_default_records(
-                        txn.deref_mut()
-                    ).await.unwrap();
 
-                    let namespace = txn
-                        .namespaces()
-                        .create(NAMESPACE_NAME, None, topic.id, query_pool.id)
-                        .await
-                        .unwrap();
+                    let namespace = arbitrary_namespace(&mut *txn, NAMESPACE_NAME)
+                        .await;
 
-                    let schema = NamespaceSchema::new(
-                        namespace.id,
-                        namespace.topic_id,
-                        namespace.query_pool_id,
-                        namespace.max_columns_per_table,
-                        namespace.max_tables,
-                        namespace.retention_period_ns,
-                    );
+                    let schema = NamespaceSchema::new_empty_from(&namespace);
 
                     // Apply all the lp literals as individual writes, feeding
                     // the result of one validation into the next to drive

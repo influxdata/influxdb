@@ -226,7 +226,6 @@ impl ChunkAdapter {
             order,
             sort_key: Some(sort_key),
             partition_id: parquet_file.partition_id,
-            max_sequence_number: parquet_file.max_sequence_number,
             compaction_level: parquet_file.compaction_level,
         });
 

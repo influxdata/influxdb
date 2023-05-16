@@ -48,13 +48,6 @@ OBJECT_STORE=file \
 DATABASE_DIRECTORY=~/data_dir \
 LOG_FILTER=debug \
 ./target/release/influxdb_iox catalog setup
-
-# initialize the topic
-INFLUXDB_IOX_CATALOG_DSN=postgres://postgres@localhost:5432/postgres \
-OBJECT_STORE=file \
-DATABASE_DIRECTORY=~/data_dir \
-LOG_FILTER=debug \
-./target/release/influxdb_iox catalog topic update iox-shared
 ```
 
 ## Inspecting Catalog state
@@ -115,7 +108,7 @@ INFLUXDB_IOX_MAX_HTTP_REQUEST_SIZE=100000000 \
 OBJECT_STORE=file \
 DATABASE_DIRECTORY=~/data_dir \
 LOG_FILTER=info \
-./target/release/influxdb_iox run ingester2
+./target/release/influxdb_iox run ingester
 ```
 
 ## Run Router on port 8080/8081 (http/grpc)
@@ -127,7 +120,7 @@ INFLUXDB_IOX_CATALOG_DSN=postgres://postgres@localhost:5432/postgres \
 OBJECT_STORE=file \
 DATABASE_DIRECTORY=~/data_dir \
 LOG_FILTER=info \
-./target/release/influxdb_iox run router2
+./target/release/influxdb_iox run router
 ```
 
 # Step 5: Ingest data
