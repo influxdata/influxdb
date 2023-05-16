@@ -146,6 +146,78 @@ func TestPoint_Tags(t *testing.T) {
 	}
 }
 
+func TestPoint_Nulls(t *testing.T) {
+	examples := []struct {
+		Point string
+		Err   error
+	}{
+		{"cpu,tag1=v0 value=1", nil},
+		{"cpu,tag\x001=v0 value=1", nil},
+		{"cpu,tag0=\x00,tag1=v0 value=1", nil},
+		{"cpu,tag0=v0 val\x00ue=1", nil},
+		{"cpu,tag0=v0,tag1=v0 value=\x00", errors.New("unable to parse 'cpu,tag0=v0,tag1=v0 value=\x00': invalid boolean")},
+		{"\x00,tag0=v0,tag1=v0 value=1", errors.New("unable to parse ',tag0=v0,tag1=v0 value=1': missing measurement")},
+	}
+
+	for _, example := range examples {
+		t.Run(example.Point, func(t *testing.T) {
+			pts, err := models.ParsePointsString(example.Point)
+			if err != nil {
+				if !reflect.DeepEqual(example.Err, err) {
+					t.Fatalf("expected %#v, found %#v", example.Err, err)
+				}
+				return
+			}
+
+			if len(pts) != 1 {
+				t.Fatalf("parsed %d points, expected 1", len(pts))
+			}
+		})
+	}
+}
+
+func TestPoint_EqPattern_Measurement(t *testing.T) {
+	examples := []struct {
+		Point string
+		Name  string
+		Tags  models.Tags
+		Err   error
+	}{
+		{"cpu value=1", "cpu", models.Tags{}, nil},
+		{"cpu,tag0=v0 value=1", "cpu", models.NewTags(map[string]string{"tag0": "v0"}), nil},
+		{"measurement=withEq,tag0=v0 value=1", "measurement=withEq", models.NewTags(map[string]string{"tag0": "v0"}), nil},
+		{"tag0=v0 value=1", "tag0=v0", models.Tags{}, nil},
+	}
+
+	for _, example := range examples {
+		t.Run(example.Point, func(t *testing.T) {
+			pts, err := models.ParsePointsString(example.Point)
+			if err != nil {
+				if !reflect.DeepEqual(example.Err, err) {
+					t.Fatalf("expected %#v, found %#v", example.Err, err)
+				}
+				return
+			}
+
+			if len(pts) != 1 {
+				t.Fatalf("parsed %d points, expected 1", len(pts))
+			}
+
+			if !reflect.DeepEqual(example.Name, string(pts[0].Name())) {
+				t.Fatalf("expected %#v, found %#v", example.Name, string(pts[0].Name()))
+			}
+
+			// Repeat to test Tags() caching
+			for i := 0; i < 2; i++ {
+				tags := pts[0].Tags()
+				if !reflect.DeepEqual(tags, example.Tags) {
+					t.Fatalf("tag mismatch\ngot %s - %#v\nexp %s - %#v", tags.String(), tags, example.Tags.String(), example.Tags)
+				}
+			}
+		})
+	}
+}
+
 func TestPoint_StringSize(t *testing.T) {
 	testPoint_cube(t, func(p models.Point) {
 		l := p.StringSize()
