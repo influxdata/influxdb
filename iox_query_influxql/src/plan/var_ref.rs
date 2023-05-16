@@ -1,9 +1,8 @@
-use crate::plan::error;
 use arrow::datatypes::DataType;
-use datafusion::common::Result;
 use influxdb_influxql_parser::expression::VarRefDataType;
-use schema::InfluxFieldType;
+use schema::{InfluxColumnType, InfluxFieldType};
 
+/// Map a field-like data type to an equivalent Arrow data type.
 pub(crate) fn var_ref_data_type_to_data_type(v: VarRefDataType) -> Option<DataType> {
     match v {
         VarRefDataType::Float => Some(DataType::Float64),
@@ -11,8 +10,7 @@ pub(crate) fn var_ref_data_type_to_data_type(v: VarRefDataType) -> Option<DataTy
         VarRefDataType::Unsigned => Some(DataType::UInt64),
         VarRefDataType::String => Some(DataType::Utf8),
         VarRefDataType::Boolean => Some(DataType::Boolean),
-        VarRefDataType::Tag => Some(DataType::Utf8),
-        VarRefDataType::Field | VarRefDataType::Timestamp => None,
+        VarRefDataType::Tag | VarRefDataType::Field | VarRefDataType::Timestamp => None,
     }
 }
 
@@ -27,17 +25,31 @@ pub(crate) fn field_type_to_var_ref_data_type(v: InfluxFieldType) -> VarRefDataT
     }
 }
 
-/// Maps an Arrow [`DataType`] to a [`VarRefDataType`].
-pub(crate) fn data_type_to_var_ref_data_type(dt: DataType) -> Result<VarRefDataType> {
-    match dt {
-        DataType::Dictionary(..) => Ok(VarRefDataType::Tag),
-        DataType::Timestamp(..) => Ok(VarRefDataType::Timestamp),
-        DataType::Utf8 => Ok(VarRefDataType::String),
-        DataType::Int64 => Ok(VarRefDataType::Integer),
-        DataType::UInt64 => Ok(VarRefDataType::Unsigned),
-        DataType::Float64 => Ok(VarRefDataType::Float),
-        DataType::Boolean => Ok(VarRefDataType::Boolean),
-        _ => error::internal(format!("unable to map Arrow type {dt} to VarRefDataType")),
+/// Maps an [`InfluxFieldType`] to a [`VarRefDataType`].
+pub(crate) fn influx_type_to_var_ref_data_type(
+    v: Option<InfluxColumnType>,
+) -> Option<VarRefDataType> {
+    match v {
+        None => None,
+        Some(InfluxColumnType::Tag) => Some(VarRefDataType::Tag),
+        Some(InfluxColumnType::Field(ft)) => Some(field_type_to_var_ref_data_type(ft)),
+        Some(InfluxColumnType::Timestamp) => Some(VarRefDataType::Timestamp),
+    }
+}
+
+/// Maps an [`VarRefDataType`] to an [`InfluxColumnType`].
+pub(crate) fn var_ref_data_type_to_influx_type(
+    v: Option<VarRefDataType>,
+) -> Option<InfluxColumnType> {
+    match v {
+        Some(VarRefDataType::Float) => Some(InfluxColumnType::Field(InfluxFieldType::Float)),
+        Some(VarRefDataType::Integer) => Some(InfluxColumnType::Field(InfluxFieldType::Integer)),
+        Some(VarRefDataType::Unsigned) => Some(InfluxColumnType::Field(InfluxFieldType::UInteger)),
+        Some(VarRefDataType::String) => Some(InfluxColumnType::Field(InfluxFieldType::String)),
+        Some(VarRefDataType::Boolean) => Some(InfluxColumnType::Field(InfluxFieldType::Boolean)),
+        Some(VarRefDataType::Tag) => Some(InfluxColumnType::Tag),
+        Some(VarRefDataType::Timestamp) => Some(InfluxColumnType::Timestamp),
+        Some(VarRefDataType::Field) | None => None,
     }
 }
 

@@ -1,7 +1,8 @@
 use crate::plan::expr_type_evaluator::TypeEvaluator;
 use crate::plan::field::{field_by_name, field_name};
-use crate::plan::field_mapper::{field_and_dimensions, FieldTypeMap, TagSet};
-use crate::plan::ir::{DataSource, Select, SelectQuery};
+use crate::plan::field_mapper::{field_and_dimensions, FieldTypeMap};
+use crate::plan::ir::{DataSource, Field, Select, SelectQuery, TagSet};
+use crate::plan::var_ref::{influx_type_to_var_ref_data_type, var_ref_data_type_to_influx_type};
 use crate::plan::{error, util, SchemaProvider};
 use datafusion::common::{DataFusionError, Result};
 use influxdb_influxql_parser::common::{MeasurementName, QualifiedMeasurementName};
@@ -13,10 +14,13 @@ use influxdb_influxql_parser::functions::is_scalar_math_function;
 use influxdb_influxql_parser::identifier::Identifier;
 use influxdb_influxql_parser::literal::Literal;
 use influxdb_influxql_parser::select::{
-    Dimension, Field, FromMeasurementClause, GroupByClause, MeasurementSelection, SelectStatement,
+    Dimension, FillClause, FromMeasurementClause, GroupByClause, MeasurementSelection,
+    SelectStatement,
 };
 use itertools::Itertools;
+use schema::InfluxColumnType;
 use std::collections::{HashMap, HashSet};
+use std::fmt::Debug;
 use std::ops::{ControlFlow, Deref};
 
 /// Recursively rewrite the specified [`SelectStatement`] by performing a series of passes
@@ -25,10 +29,9 @@ pub(super) fn rewrite_statement(
     s: &dyn SchemaProvider,
     q: &SelectStatement,
 ) -> Result<SelectQuery> {
-    let mut select = map_select(s, q)?;
+    let mut select = rewrite_select(s, q)?;
     from_drop_empty(s, &mut select);
     field_list_normalize_time(&mut select);
-    field_list_rewrite_aliases(&mut select.fields)?;
 
     let has_multiple_measurements = has_multiple_measurements(&select);
 
@@ -58,31 +61,11 @@ fn has_multiple_measurements(s: &Select) -> bool {
     false
 }
 
-/// Map a `SelectStatement` to a `Select`, which is an intermediate representation to be
-/// used by the InfluxQL planner. Mapping also expands any wildcards in the `FROM` and
-/// projection clauses.
-///
-/// # NOTE
-///
-/// The goal is that `Select` will eventually be used by the InfluxQL planner.
-pub(super) fn map_select(s: &dyn SchemaProvider, stmt: &SelectStatement) -> Result<Select> {
-    check_features(stmt)?;
-
-    let mut sel = Select {
-        fields: vec![],
-        from: vec![],
-        condition: stmt.condition.clone(),
-        group_by: stmt.group_by.clone(),
-        fill: stmt.fill,
-        order_by: stmt.order_by,
-        limit: stmt.limit,
-        offset: stmt.offset,
-        timezone: stmt.timezone.map(|v| *v),
-    };
-    from_expand_wildcards(s, stmt, &mut sel)?;
-    field_list_expand_wildcards(s, stmt, &mut sel)?;
-
-    Ok(sel)
+/// Transform a `SelectStatement` to a `Select`, which is an intermediate representation used by
+/// the InfluxQL planner. Transformations include expanding wildcards.
+fn rewrite_select(s: &dyn SchemaProvider, stmt: &SelectStatement) -> Result<Select> {
+    let rw = RewriteSelect::default();
+    rw.rewrite(s, stmt)
 }
 
 /// Asserts that the `SELECT` statement does not use any unimplemented features.
@@ -103,6 +86,251 @@ fn check_features(stmt: &SelectStatement) -> Result<()> {
     Ok(())
 }
 
+#[derive(Default)]
+struct RewriteSelect {
+    /// The depth of the `SELECT` statement currently processed by the rewriter.
+    depth: u32,
+}
+
+impl RewriteSelect {
+    /// Transform a `SelectStatement` to a `Select`, which is an intermediate representation used by
+    /// the InfluxQL planner. Transformations include expanding wildcards.
+    fn rewrite(&self, s: &dyn SchemaProvider, stmt: &SelectStatement) -> Result<Select> {
+        check_features(stmt)?;
+
+        let from = self.expand_from(s, stmt)?;
+        let (fields, group_by) = self.expand_projection(s, stmt, &from)?;
+        let tag_set = select_tag_set(s, &from);
+
+        let SelectStatementInfo { projection_type } =
+            select_statement_info(&fields, &group_by, stmt.fill)?;
+
+        // Following InfluxQL OG behaviour, if this is a subquery, and the fill strategy equates
+        // to `FILL(null)`, switch to `FILL(none)`.
+        //
+        // See: https://github.com/influxdata/influxdb/blob/f365bb7e3a9c5e227dbf66d84adf674d3d127176/query/iterator.go#L757-L765
+        let fill = if projection_type != ProjectionType::Raw
+            && self.is_subquery()
+            && matches!(stmt.fill, Some(FillClause::Null) | None)
+        {
+            Some(FillClause::None)
+        } else {
+            stmt.fill
+        };
+
+        Ok(Select {
+            depth: self.depth,
+            projection_type,
+            fields,
+            from,
+            condition: stmt.condition.clone(),
+            group_by,
+            tag_set,
+            fill,
+            order_by: stmt.order_by,
+            limit: stmt.limit,
+            offset: stmt.offset,
+            timezone: stmt.timezone.map(|v| *v),
+        })
+    }
+
+    /// Returns true if the receiver is processing a subquery.
+    #[inline]
+    fn is_subquery(&self) -> bool {
+        self.depth > 0
+    }
+
+    /// Rewrite the `SELECT` statement by applying specific rules for subqueries.
+    fn rewrite_subquery(&self, s: &dyn SchemaProvider, stmt: &SelectStatement) -> Result<Select> {
+        let rw = Self {
+            depth: self.depth + 1,
+        };
+
+        rw.rewrite(s, stmt)
+    }
+
+    /// Rewrite the projection list and GROUP BY of the specified `SELECT` statement.
+    ///
+    /// The following transformations are performed:
+    ///
+    /// * Wildcards and regular expressions in the `SELECT` projection list and `GROUP BY` are expanded.
+    /// * Any fields with no type specifier are rewritten with the appropriate type, if they exist in the
+    ///   underlying schema.
+    ///
+    /// Derived from [Go implementation](https://github.com/influxdata/influxql/blob/1ba470371ec093d57a726b143fe6ccbacf1b452b/ast.go#L1185).
+    fn expand_projection(
+        &self,
+        s: &dyn SchemaProvider,
+        stmt: &SelectStatement,
+        from: &[DataSource],
+    ) -> Result<(Vec<Field>, Option<GroupByClause>)> {
+        let tv = TypeEvaluator::new(s, from);
+        let fields = stmt
+            .fields
+            .iter()
+            .map(|f| (f.expr.clone(), f.alias.clone()))
+            .map(|(mut expr, alias)| {
+                match walk_expr_mut::<_>(&mut expr, &mut |e| match e {
+                    // Rewrite all `DISTINCT <identifier>` expressions to `DISTINCT(VarRef)`
+                    Expr::Distinct(ident) => {
+                        let mut v = VarRef {
+                            name: ident.take().into(),
+                            data_type: None,
+                        };
+                        v.data_type = match tv.eval_var_ref(&v) {
+                            Ok(v) => v,
+                            Err(e) => ControlFlow::Break(e)?,
+                        };
+
+                        *e = Expr::Call(Call {
+                            name: "distinct".to_owned(),
+                            args: vec![Expr::VarRef(v)],
+                        });
+                        ControlFlow::Continue(())
+                    }
+
+                    // Attempt to rewrite all variable (column) references with their concrete types,
+                    // if one hasn't been specified.
+                    Expr::VarRef(ref mut v) => {
+                        v.data_type = match tv.eval_var_ref(v) {
+                            Ok(v) => v,
+                            Err(e) => ControlFlow::Break(e)?,
+                        };
+                        ControlFlow::Continue(())
+                    }
+
+                    _ => ControlFlow::Continue(()),
+                }) {
+                    ControlFlow::Break(err) => Err(err),
+                    ControlFlow::Continue(()) => {
+                        Ok(influxdb_influxql_parser::select::Field { expr, alias })
+                    }
+                }
+            })
+            .collect::<Result<Vec<_>>>()?;
+
+        let (has_field_wildcard, has_group_by_wildcard) = has_wildcards(stmt);
+
+        let (fields, group_by) = if has_field_wildcard || has_group_by_wildcard {
+            let (field_set, mut tag_set) = from_field_and_dimensions(s, from)?;
+
+            if !has_group_by_wildcard {
+                if let Some(group_by) = &stmt.group_by {
+                    // Remove any explicitly listed tags in the GROUP BY clause, so they are not
+                    // expanded by any wildcards specified in the SELECT projection list
+                    group_by.tags().for_each(|ident| {
+                        tag_set.remove(ident.as_str());
+                    });
+                }
+            }
+
+            let fields = if has_field_wildcard {
+                let var_refs = if field_set.is_empty() {
+                    vec![]
+                } else {
+                    let fields_iter = field_set.iter().map(|(k, v)| VarRef {
+                        name: k.clone().into(),
+                        data_type: Some(*v),
+                    });
+
+                    if !has_group_by_wildcard {
+                        fields_iter
+                            .chain(tag_set.iter().map(|tag| VarRef {
+                                name: tag.clone().into(),
+                                data_type: Some(VarRefDataType::Tag),
+                            }))
+                            .sorted()
+                            .collect::<Vec<_>>()
+                    } else {
+                        fields_iter.sorted().collect::<Vec<_>>()
+                    }
+                };
+
+                fields_expand_wildcards(fields, var_refs)?
+            } else {
+                fields
+            };
+
+            let group_by = match (&stmt.group_by, has_group_by_wildcard) {
+                // GROUP BY with a wildcard
+                (Some(group_by), true) => {
+                    let group_by_tags = tag_set.into_iter().sorted().collect::<Vec<_>>();
+                    let mut new_dimensions = Vec::new();
+
+                    for dim in group_by.iter() {
+                        let add_dim = |dim: &String| {
+                            new_dimensions.push(Dimension::Tag(Identifier::new(dim.clone())))
+                        };
+
+                        match dim {
+                            Dimension::Wildcard => {
+                                group_by_tags.iter().for_each(add_dim);
+                            }
+                            Dimension::Regex(re) => {
+                                let re = util::parse_regex(re)?;
+
+                                group_by_tags
+                                    .iter()
+                                    .filter(|dim| re.is_match(dim.as_str()))
+                                    .for_each(add_dim);
+                            }
+                            _ => new_dimensions.push(dim.clone()),
+                        }
+                    }
+                    Some(GroupByClause::new(new_dimensions))
+                }
+                // GROUP BY no wildcard
+                (Some(group_by), false) => Some(group_by.clone()),
+                // No GROUP BY
+                (None, _) => None,
+            };
+
+            (fields, group_by)
+        } else {
+            (fields, stmt.group_by.clone())
+        };
+
+        Ok((fields_resolve_aliases_and_types(s, fields, from)?, group_by))
+    }
+
+    /// Recursively expand the `from` clause of `stmt` and any subqueries.
+    fn expand_from(
+        &self,
+        s: &dyn SchemaProvider,
+        stmt: &SelectStatement,
+    ) -> Result<Vec<DataSource>> {
+        let mut new_from = Vec::new();
+        for ms in stmt.from.iter() {
+            match ms {
+                MeasurementSelection::Name(qmn) => match qmn {
+                    QualifiedMeasurementName {
+                        name: MeasurementName::Name(name),
+                        ..
+                    } => {
+                        if s.table_exists(name) {
+                            new_from.push(DataSource::Table(name.deref().to_owned()))
+                        }
+                    }
+                    QualifiedMeasurementName {
+                        name: MeasurementName::Regex(re),
+                        ..
+                    } => {
+                        let re = util::parse_regex(re)?;
+                        s.table_names()
+                            .into_iter()
+                            .filter(|table| re.is_match(table))
+                            .for_each(|table| new_from.push(DataSource::Table(table.to_owned())));
+                    }
+                },
+                MeasurementSelection::Subquery(q) => {
+                    new_from.push(DataSource::Subquery(Box::new(self.rewrite_subquery(s, q)?)))
+                }
+            }
+        }
+        Ok(new_from)
+    }
+}
+
 /// Ensure the time field is added to all projections,
 /// and is moved to the first position, which is a requirement
 /// for InfluxQL compatibility.
@@ -112,7 +340,7 @@ fn field_list_normalize_time(stmt: &mut Select) {
             .fields
             .iter()
             .find_position(
-                |f| matches!(&f.expr, Expr::VarRef(VarRef { name, .. }) if name.deref() == "time"),
+                |c| matches!(&c.expr, Expr::VarRef(VarRef { name, .. }) if name.deref() == "time"),
             )
             .map(|(i, _)| i)
         {
@@ -120,22 +348,24 @@ fn field_list_normalize_time(stmt: &mut Select) {
             Some(idx) => Some(stmt.fields.remove(idx)),
             None => Some(Field {
                 expr: "time".to_var_ref_expr(),
-                alias: None,
+                name: "time".to_owned(),
+                data_type: None,
             }),
         } {
             stmt.fields.insert(0, f)
         }
 
-        let f = &mut stmt.fields[0];
+        let c = &mut stmt.fields[0];
+        c.data_type = Some(InfluxColumnType::Timestamp);
 
         // time aliases in subqueries is ignored
-        if f.alias.is_none() || is_subquery {
-            f.alias = Some("time".into())
+        if is_subquery {
+            c.name = "time".to_owned()
         }
 
         if let Expr::VarRef(VarRef {
             ref mut data_type, ..
-        }) = f.expr
+        }) = c.expr
         {
             *data_type = Some(VarRefDataType::Timestamp);
         }
@@ -143,56 +373,22 @@ fn field_list_normalize_time(stmt: &mut Select) {
 
     normalize_time(stmt, false);
 
-    for stmt in stmt.from.iter_mut().filter_map(|ms| match ms {
-        DataSource::Subquery(stmt) => Some(stmt),
-        _ => None,
-    }) {
-        normalize_time(stmt, true)
-    }
-}
-
-/// Recursively expand the `from` clause of `stmt` and any subqueries.
-fn from_expand_wildcards(
-    s: &dyn SchemaProvider,
-    stmt: &SelectStatement,
-    sel: &mut Select,
-) -> Result<()> {
-    let mut new_from = Vec::new();
-    for ms in stmt.from.iter() {
-        match ms {
-            MeasurementSelection::Name(qmn) => match qmn {
-                QualifiedMeasurementName {
-                    name: MeasurementName::Name(name),
-                    ..
-                } => {
-                    if s.table_exists(name) {
-                        new_from.push(DataSource::Table(name.deref().to_owned()))
-                    }
-                }
-                QualifiedMeasurementName {
-                    name: MeasurementName::Regex(re),
-                    ..
-                } => {
-                    let re = util::parse_regex(re)?;
-                    s.table_names()
-                        .into_iter()
-                        .filter(|table| re.is_match(table))
-                        .for_each(|table| new_from.push(DataSource::Table(table.to_owned())));
-                }
-            },
-            MeasurementSelection::Subquery(q) => {
-                new_from.push(DataSource::Subquery(Box::new(map_select(s, q)?)))
-            }
+    // traverse all the subqueries
+    let mut data_sources = vec![stmt.from.as_mut_slice()];
+    while let Some(from) = data_sources.pop() {
+        for sel in from.iter_mut().filter_map(|ds| match ds {
+            DataSource::Subquery(q) => Some(q),
+            _ => None,
+        }) {
+            normalize_time(sel, true);
+            data_sources.push(&mut sel.from);
         }
     }
-    sel.from = new_from;
-    Ok(())
 }
 
 /// Recursively drop any measurements of the `from` clause of `stmt` that do not project
 /// any fields.
 fn from_drop_empty(s: &dyn SchemaProvider, stmt: &mut Select) {
-    use schema::InfluxColumnType;
     stmt.from.retain_mut(|tr| {
         match tr {
             DataSource::Table(name) => {
@@ -233,6 +429,24 @@ fn from_drop_empty(s: &dyn SchemaProvider, stmt: &mut Select) {
     });
 }
 
+/// Determine the combined tag set for the specified `from`.
+fn select_tag_set(s: &dyn SchemaProvider, from: &[DataSource]) -> TagSet {
+    let mut tag_set = TagSet::new();
+
+    for ds in from {
+        match ds {
+            DataSource::Table(table_name) => {
+                if let Some(table) = s.table_schema(table_name) {
+                    tag_set.extend(table.tags_iter().map(|f| f.name().to_owned()))
+                }
+            }
+            DataSource::Subquery(q) => tag_set.extend(q.tag_set.clone()),
+        }
+    }
+
+    tag_set
+}
+
 /// Determine the merged fields and tags of the `FROM` clause.
 fn from_field_and_dimensions(
     s: &dyn SchemaProvider,
@@ -244,10 +458,7 @@ fn from_field_and_dimensions(
     for tr in from {
         match tr {
             DataSource::Table(name) => {
-                let (field_set, tag_set) = match field_and_dimensions(s, name.as_str())? {
-                    Some(res) => res,
-                    None => continue,
-                };
+                let Some((field_set, tag_set)) = field_and_dimensions(s, name.as_str()) else { continue };
 
                 // Merge field_set with existing
                 for (name, ft) in &field_set {
@@ -266,32 +477,27 @@ fn from_field_and_dimensions(
                 ts.extend(tag_set);
             }
             DataSource::Subquery(select) => {
-                let tv = TypeEvaluator::new(s, &select.from);
                 for f in &select.fields {
-                    let Some(dt) = tv.eval_type(&f.expr)? else {
-                        continue
-                    };
-
-                    let name = field_name(f);
+                    let Field {
+                        name, data_type, ..
+                    } = f;
+                    let Some(dt) = influx_type_to_var_ref_data_type(*data_type) else { continue };
 
                     match fs.get(name.as_str()) {
                         Some(existing_type) => {
                             if dt < *existing_type {
-                                fs.insert(name, dt);
+                                fs.insert(name.to_owned(), dt);
                             }
                         }
                         None => {
-                            fs.insert(name, dt);
+                            fs.insert(name.to_owned(), dt);
                         }
                     }
                 }
 
                 if let Some(group_by) = &select.group_by {
                     // Merge the dimensions from the subquery
-                    ts.extend(group_by.iter().filter_map(|d| match d {
-                        Dimension::Tag(ident) => Some(ident.to_string()),
-                        _ => None,
-                    }));
+                    ts.extend(group_by.tags().map(|i| i.deref().to_string()));
                 }
             }
         }
@@ -341,309 +547,200 @@ fn has_wildcards(stmt: &SelectStatement) -> (bool, bool) {
     (res.0, res.1)
 }
 
-/// Rewrite the projection list and GROUP BY of the specified `SELECT` statement.
+/// Traverse expressions of all `fields` and expand wildcard or regular expressions
+/// either at the top-level or as the first argument of function calls, such as `SUM(*)`.
 ///
-/// The following transformations are performed:
-///
-/// * Wildcards and regular expressions in the `SELECT` projection list and `GROUP BY` are expanded.
-/// * Any fields with no type specifier are rewritten with the appropriate type, if they exist in the
-///   underlying schema.
-///
-/// Derived from [Go implementation](https://github.com/influxdata/influxql/blob/1ba470371ec093d57a726b143fe6ccbacf1b452b/ast.go#L1185).
-fn field_list_expand_wildcards(
-    s: &dyn SchemaProvider,
-    stmt: &SelectStatement,
-    sel: &mut Select,
-) -> Result<()> {
-    sel.fields = stmt.fields.iter().cloned().collect::<Vec<_>>();
-    // Rewrite all `DISTINCT <identifier>` expressions to `DISTINCT(<var ref>)`
-    if let ControlFlow::Break(e) = sel.fields.iter_mut().try_for_each(|f| {
-        walk_expr_mut::<DataFusionError>(&mut f.expr, &mut |e| {
-            if let Expr::Distinct(ident) = e {
-                *e = Expr::Call(Call {
-                    name: "distinct".to_owned(),
-                    args: vec![Expr::VarRef(VarRef {
-                        name: ident.take().into(),
-                        data_type: None,
-                    })],
-                });
-            }
-            ControlFlow::Continue(())
-        })
-    }) {
-        return Err(e);
-    }
+/// `var_refs` contains the list of field and tags that should be expanded by wildcards.
+fn fields_expand_wildcards(
+    fields: Vec<influxdb_influxql_parser::select::Field>,
+    var_refs: Vec<VarRef>,
+) -> Result<Vec<influxdb_influxql_parser::select::Field>> {
+    let mut new_fields = Vec::new();
 
-    // Attempt to rewrite all variable references in the fields with their types, if one
-    // hasn't been specified.
-    if let ControlFlow::Break(e) = sel.fields.iter_mut().try_for_each(|f| {
-        let tv = TypeEvaluator::new(s, &sel.from);
-
-        walk_expr_mut::<DataFusionError>(&mut f.expr, &mut |e| {
-            if let Expr::VarRef(ref mut v) = e {
-                v.data_type = match tv.eval_var_ref(v) {
-                    Ok(v) => v,
-                    Err(e) => ControlFlow::Break(e)?,
-                };
-            }
-            ControlFlow::Continue(())
-        })
-    }) {
-        return Err(e);
-    }
-
-    let (has_field_wildcard, has_group_by_wildcard) = has_wildcards(stmt);
-    if (has_field_wildcard, has_group_by_wildcard) == (false, false) {
-        return Ok(());
-    }
-
-    let (field_set, mut tag_set) = from_field_and_dimensions(s, &sel.from)?;
-
-    if !has_group_by_wildcard {
-        if let Some(group_by) = &stmt.group_by {
-            // Remove any explicitly listed tags in the GROUP BY clause, so they are not expanded
-            // in the wildcard specified in the SELECT projection list
-            group_by.iter().for_each(|dim| {
-                if let Dimension::Tag(ident) = dim {
-                    tag_set.remove(ident.as_str());
-                }
-            });
-        }
-    }
-
-    let fields = if !field_set.is_empty() {
-        let fields_iter = field_set.iter().map(|(k, v)| VarRef {
-            name: k.clone().into(),
-            data_type: Some(*v),
-        });
-
-        if !has_group_by_wildcard {
-            fields_iter
-                .chain(tag_set.iter().map(|tag| VarRef {
-                    name: tag.clone().into(),
-                    data_type: Some(VarRefDataType::Tag),
-                }))
-                .sorted()
-                .collect::<Vec<_>>()
-        } else {
-            fields_iter.sorted().collect::<Vec<_>>()
-        }
-    } else {
-        vec![]
-    };
-
-    if has_field_wildcard {
-        let mut new_fields = Vec::new();
-
-        for f in &sel.fields {
-            let add_field = |f: &VarRef| {
-                new_fields.push(Field {
-                    expr: Expr::VarRef(f.clone()),
-                    alias: None,
-                })
-            };
-
-            match &f.expr {
-                Expr::Wildcard(wct) => {
-                    let filter: fn(&&VarRef) -> bool = match wct {
-                        None => |_| true,
-                        Some(WildcardType::Tag) => {
-                            |v| v.data_type.map_or(false, |dt| dt.is_tag_type())
-                        }
-                        Some(WildcardType::Field) => {
-                            |v| v.data_type.map_or(false, |dt| dt.is_field_type())
-                        }
-                    };
-
-                    fields.iter().filter(filter).for_each(add_field);
-                }
-
-                Expr::Literal(Literal::Regex(re)) => {
-                    let re = util::parse_regex(re)?;
-                    fields
-                        .iter()
-                        .filter(|v| re.is_match(v.name.as_str()))
-                        .for_each(add_field);
-                }
-
-                Expr::Call(Call { name, args }) => {
-                    let mut name = name;
-                    let mut args = args;
-
-                    // Search for the call with a wildcard by continuously descending until
-                    // we no longer have a call.
-                    while let Some(Expr::Call(Call {
-                        name: inner_name,
-                        args: inner_args,
-                    })) = args.first()
-                    {
-                        name = inner_name;
-                        args = inner_args;
-                    }
-
-                    let mut supported_types = HashSet::from([
-                        Some(VarRefDataType::Float),
-                        Some(VarRefDataType::Integer),
-                        Some(VarRefDataType::Unsigned),
-                    ]);
-
-                    // Add additional types for certain functions.
-                    match name.to_lowercase().as_str() {
-                        "count" | "first" | "last" | "distinct" | "elapsed" | "mode" | "sample" => {
-                            supported_types.extend([
-                                Some(VarRefDataType::String),
-                                Some(VarRefDataType::Boolean),
-                            ]);
-                        }
-                        "min" | "max" => {
-                            supported_types.insert(Some(VarRefDataType::Boolean));
-                        }
-                        "holt_winters" | "holt_winters_with_fit" => {
-                            supported_types.remove(&Some(VarRefDataType::Unsigned));
-                        }
-                        _ => {}
-                    }
-
-                    let add_field = |v: &VarRef| {
-                        let mut args = args.clone();
-                        args[0] = Expr::VarRef(v.clone());
-                        new_fields.push(Field {
-                            expr: Expr::Call(Call {
-                                name: name.clone(),
-                                args,
-                            }),
-                            alias: Some(format!("{}_{}", field_name(f), v.name).into()),
-                        })
-                    };
-
-                    match args.first() {
-                        Some(Expr::Wildcard(Some(WildcardType::Tag))) => {
-                            return error::query(format!(
-                                "unable to use tag as wildcard in {name}()"
-                            ));
-                        }
-                        Some(Expr::Wildcard(_)) => {
-                            fields
-                                .iter()
-                                .filter(|v| supported_types.contains(&v.data_type))
-                                .for_each(add_field);
-                        }
-                        Some(Expr::Literal(Literal::Regex(re))) => {
-                            let re = util::parse_regex(re)?;
-                            fields
-                                .iter()
-                                .filter(|v| {
-                                    supported_types.contains(&v.data_type)
-                                        && re.is_match(v.name.as_str())
-                                })
-                                .for_each(add_field);
-                        }
-                        _ => {
-                            new_fields.push(f.clone());
-                            continue;
-                        }
-                    }
-                }
-
-                Expr::Binary { .. } => {
-                    let has_wildcard = walk_expr(&f.expr, &mut |e| {
-                        match e {
-                            Expr::Wildcard(_) | Expr::Literal(Literal::Regex(_)) => {
-                                return ControlFlow::Break(())
-                            }
-                            _ => {}
-                        }
-                        ControlFlow::Continue(())
-                    })
-                    .is_break();
-
-                    if has_wildcard {
-                        return error::query(
-                            "unsupported expression: contains a wildcard or regular expression",
-                        );
-                    }
-
-                    new_fields.push(f.clone());
-                }
-
-                _ => new_fields.push(f.clone()),
-            }
-        }
-
-        sel.fields = new_fields;
-    }
-
-    if has_group_by_wildcard {
-        let group_by_tags = if has_group_by_wildcard {
-            tag_set.into_iter().sorted().collect::<Vec<_>>()
-        } else {
-            vec![]
+    for f in fields {
+        let add_field = |f: &VarRef| {
+            new_fields.push(influxdb_influxql_parser::select::Field {
+                expr: Expr::VarRef(f.clone()),
+                alias: None,
+            })
         };
 
-        if let Some(group_by) = &stmt.group_by {
-            let mut new_dimensions = Vec::new();
-
-            for dim in group_by.iter() {
-                let add_dim = |dim: &String| {
-                    new_dimensions.push(Dimension::Tag(Identifier::new(dim.clone())))
+        match &f.expr {
+            Expr::Wildcard(wct) => {
+                let filter: fn(&&VarRef) -> bool = match wct {
+                    None => |_| true,
+                    Some(WildcardType::Tag) => |v| v.data_type.map_or(false, |dt| dt.is_tag_type()),
+                    Some(WildcardType::Field) => {
+                        |v| v.data_type.map_or(false, |dt| dt.is_field_type())
+                    }
                 };
 
-                match dim {
-                    Dimension::Wildcard => {
-                        group_by_tags.iter().for_each(add_dim);
-                    }
-                    Dimension::Regex(re) => {
-                        let re = util::parse_regex(re)?;
+                var_refs.iter().filter(filter).for_each(add_field);
+            }
 
-                        group_by_tags
-                            .iter()
-                            .filter(|dim| re.is_match(dim.as_str()))
-                            .for_each(add_dim);
+            Expr::Literal(Literal::Regex(re)) => {
+                let re = util::parse_regex(re)?;
+                var_refs
+                    .iter()
+                    .filter(|v| re.is_match(v.name.as_str()))
+                    .for_each(add_field);
+            }
+
+            Expr::Call(Call { name, args }) => {
+                let mut name = name;
+                let mut args = args;
+
+                // Search for the call with a wildcard by continuously descending until
+                // we no longer have a call.
+                while let Some(Expr::Call(Call {
+                    name: inner_name,
+                    args: inner_args,
+                })) = args.first()
+                {
+                    name = inner_name;
+                    args = inner_args;
+                }
+
+                // a list of supported types that may be selected from the var_refs
+                // vector when expanding wildcards in functions.
+                let mut supported_types = HashSet::from([
+                    Some(VarRefDataType::Float),
+                    Some(VarRefDataType::Integer),
+                    Some(VarRefDataType::Unsigned),
+                ]);
+
+                // Modify the supported types for certain functions.
+                match name.to_lowercase().as_str() {
+                    "count" | "first" | "last" | "distinct" | "elapsed" | "mode" | "sample" => {
+                        supported_types
+                            .extend([Some(VarRefDataType::String), Some(VarRefDataType::Boolean)]);
                     }
-                    _ => new_dimensions.push(dim.clone()),
+                    "min" | "max" => {
+                        supported_types.insert(Some(VarRefDataType::Boolean));
+                    }
+                    "holt_winters" | "holt_winters_with_fit" => {
+                        supported_types.remove(&Some(VarRefDataType::Unsigned));
+                    }
+                    _ => {}
+                }
+
+                let add_field = |v: &VarRef| {
+                    let mut args = args.clone();
+                    args[0] = Expr::VarRef(v.clone());
+                    new_fields.push(influxdb_influxql_parser::select::Field {
+                        expr: Expr::Call(Call {
+                            name: name.clone(),
+                            args,
+                        }),
+                        alias: Some(format!("{}_{}", field_name(&f), v.name).into()),
+                    })
+                };
+
+                match args.first() {
+                    Some(Expr::Wildcard(Some(WildcardType::Tag))) => {
+                        return error::query(format!("unable to use tag as wildcard in {name}()"));
+                    }
+                    Some(Expr::Wildcard(_)) => {
+                        var_refs
+                            .iter()
+                            .filter(|v| supported_types.contains(&v.data_type))
+                            .for_each(add_field);
+                    }
+                    Some(Expr::Literal(Literal::Regex(re))) => {
+                        let re = util::parse_regex(re)?;
+                        var_refs
+                            .iter()
+                            .filter(|v| {
+                                supported_types.contains(&v.data_type)
+                                    && re.is_match(v.name.as_str())
+                            })
+                            .for_each(add_field);
+                    }
+                    _ => {
+                        new_fields.push(f);
+                        continue;
+                    }
                 }
             }
-            sel.group_by = Some(GroupByClause::new(new_dimensions));
+
+            Expr::Binary { .. } => {
+                let has_wildcard = walk_expr(&f.expr, &mut |e| {
+                    if matches!(e, Expr::Wildcard(_) | Expr::Literal(Literal::Regex(_))) {
+                        ControlFlow::Break(())
+                    } else {
+                        ControlFlow::Continue(())
+                    }
+                })
+                .is_break();
+
+                if has_wildcard {
+                    return error::query(
+                        "unsupported binary expression: contains a wildcard or regular expression",
+                    );
+                }
+
+                new_fields.push(f);
+            }
+
+            _ => new_fields.push(f),
         }
     }
 
-    Ok(())
+    Ok(new_fields)
 }
 
-/// Resolve the outer-most `SELECT` projection list column names in accordance with the
-/// [original implementation]. The names are assigned to the `alias` field of the [`Field`] struct.
+/// Resolve the projection list column names and data types.
+/// Column names are resolved in accordance with the [original implementation].
 ///
 /// [original implementation]: https://github.com/influxdata/influxql/blob/1ba470371ec093d57a726b143fe6ccbacf1b452b/ast.go#L1651
-fn field_list_rewrite_aliases(field_list: &mut [Field]) -> Result<()> {
-    let names = field_list.iter().map(field_name).collect::<Vec<_>>();
+fn fields_resolve_aliases_and_types(
+    s: &dyn SchemaProvider,
+    fields: Vec<influxdb_influxql_parser::select::Field>,
+    from: &[DataSource],
+) -> Result<Vec<Field>> {
+    let names = fields.iter().map(field_name).collect::<Vec<_>>();
     let mut column_aliases = HashMap::<&str, _>::from_iter(names.iter().map(|f| (f.as_str(), 0)));
+
+    let tv = TypeEvaluator::new(s, from);
+
     names
         .iter()
-        .zip(field_list.iter_mut())
-        .for_each(|(name, field)| {
-            // Generate a new name if there is an existing alias
-            field.alias = Some(match column_aliases.get(name.as_str()) {
+        .zip(fields.into_iter())
+        .map(|(name, field)| {
+            let expr = field.expr;
+            let data_type = tv.eval_type(&expr)?;
+            let name = match column_aliases.get(name.as_str()) {
                 Some(0) => {
                     column_aliases.insert(name, 1);
-                    name.as_str().into()
+                    name.to_owned()
                 }
                 Some(count) => {
                     let mut count = *count;
+                    let mut resolved_name = name.to_owned();
+                    resolved_name.push('_');
+                    let orig_len = resolved_name.len();
+
                     loop {
-                        let resolved_name = format!("{name}_{count}");
+                        resolved_name.push_str(count.to_string().as_str());
                         if column_aliases.contains_key(resolved_name.as_str()) {
                             count += 1;
+                            resolved_name.truncate(orig_len)
                         } else {
                             column_aliases.insert(name, count + 1);
-                            break resolved_name.as_str().into();
+                            break resolved_name;
                         }
                     }
                 }
                 None => unreachable!(),
-            })
-        });
+            };
 
-    Ok(())
+            Ok(Field {
+                expr,
+                name,
+                data_type: var_ref_data_type_to_influx_type(data_type),
+            })
+        })
+        .collect::<Result<Vec<_>>>()
 }
 
 /// Check the length of the arguments slice is within
@@ -733,31 +830,30 @@ struct FieldChecker {
 }
 
 impl FieldChecker {
-    fn check_fields(&mut self, q: &Select) -> Result<ProjectionType> {
-        q.fields.iter().try_for_each(|f| self.check_expr(&f.expr))?;
+    fn check_fields(
+        &mut self,
+        fields: &[Field],
+        fill: Option<FillClause>,
+    ) -> Result<ProjectionType> {
+        fields.iter().try_for_each(|f| self.check_expr(&f.expr))?;
 
         match self.function_count() {
             0 => {
-                // If there are no aggregate functions, the FILL clause does not make sense
-                //
-                // NOTE
-                // This is a deviation from InfluxQL, which allowed `FILL(previous)`, `FILL(<number>)`,
-                // and `FILL(null)` for queries that did not have a `GROUP BY time`. This is
-                // undocumented behaviour, and the `FILL` clause is documented as part of the
-                // `GROUP BY` clause, per https://docs.influxdata.com/influxdb/v1.8/query_language/spec/#clauses
-                //
-                // Normally, `FILL` is associated with gap-filling, and is applied to aggregate
-                // projections only, however, without the `GROUP BY` time clause, and no aggregate
-                // functions, it is applied to all columns, including tags.
-                //
-                //
-                // * `FILL(previous)` carries the previous non-null value forward
-                // * `FILL(<number>)` defaults `NULL` values to `<number>`, including tag columns
-                // * `FILL(null)` is the default behaviour.
+                // FILL(PREVIOUS) and FILL(<value>) are both supported for non-aggregate queries
                 //
                 // See: https://github.com/influxdata/influxdb/blob/98361e207349a3643bcc332d54b009818fe7585f/query/compile.go#L1002-L1012
-                if let Some(fill) = q.fill {
-                    return error::query(format!("{fill} must be used with an aggregate function"));
+                match fill {
+                    Some(FillClause::None) => {
+                        return error::query(
+                            "FILL(none) must be used with an aggregate or selector function",
+                        )
+                    }
+                    Some(FillClause::Linear) => {
+                        return error::query(
+                            "FILL(linear) must be used with an aggregate or selector function",
+                        )
+                    }
+                    _ => {}
                 }
 
                 if self.has_group_by_time && !self.inherited_group_by_time {
@@ -1343,9 +1439,12 @@ pub(crate) struct SelectStatementInfo {
 ///
 /// * Are not combined with other aggregate, selector or window-like functions and may
 ///   only project additional fields
-pub(super) fn select_statement_info(q: &Select) -> Result<SelectStatementInfo> {
-    let has_group_by_time = q
-        .group_by
+fn select_statement_info(
+    fields: &[Field],
+    group_by: &Option<GroupByClause>,
+    fill: Option<FillClause>,
+) -> Result<SelectStatementInfo> {
+    let has_group_by_time = group_by
         .as_ref()
         .and_then(|gb| gb.time_dimension())
         .is_some();
@@ -1355,20 +1454,22 @@ pub(super) fn select_statement_info(q: &Select) -> Result<SelectStatementInfo> {
         ..Default::default()
     };
 
-    let projection_type = fc.check_fields(q)?;
+    let projection_type = fc.check_fields(fields, fill)?;
 
     Ok(SelectStatementInfo { projection_type })
 }
 
 #[cfg(test)]
 mod test {
-    use crate::plan::ir::Select;
+    use super::Result;
+    use crate::plan::ir::{Field, Select};
     use crate::plan::rewriter::{
-        has_wildcards, map_select, rewrite_statement, select_statement_info, ProjectionType,
+        has_wildcards, rewrite_select, rewrite_statement, ProjectionType, SelectStatementInfo,
     };
     use crate::plan::test_utils::{parse_select, MockSchemaProvider};
     use assert_matches::assert_matches;
     use datafusion::error::DataFusionError;
+    use influxdb_influxql_parser::select::SelectStatement;
     use test_helpers::{assert_contains, assert_error};
 
     #[test]
@@ -1376,8 +1477,12 @@ mod test {
         let namespace = MockSchemaProvider::default();
         let parse_select = |s: &str| -> Select {
             let select = parse_select(s);
-            map_select(&namespace, &select).unwrap()
+            rewrite_select(&namespace, &select).unwrap()
         };
+
+        fn select_statement_info(q: &Select) -> Result<SelectStatementInfo> {
+            super::select_statement_info(&q.fields, &q.group_by, q.fill)
+        }
 
         let info = select_statement_info(&parse_select("SELECT foo, bar FROM cpu")).unwrap();
         assert_matches!(info.projection_type, ProjectionType::Raw);
@@ -1418,11 +1523,18 @@ mod test {
     /// by `select_statement_info`.
     #[test]
     fn test_select_statement_info_functions() {
-        let namespace = MockSchemaProvider::default();
-        let parse_select = |s: &str| -> Select {
-            let select = parse_select(s);
-            map_select(&namespace, &select).unwrap()
-        };
+        fn select_statement_info(q: &SelectStatement) -> Result<SelectStatementInfo> {
+            let columns = q
+                .fields
+                .iter()
+                .map(|f| Field {
+                    expr: f.expr.clone(),
+                    name: "".to_owned(),
+                    data_type: None,
+                })
+                .collect::<Vec<_>>();
+            super::select_statement_info(&columns, &q.group_by, q.fill)
+        }
 
         // percentile
         let sel = parse_select("SELECT percentile(foo, 2) FROM cpu");
@@ -1668,17 +1780,83 @@ mod test {
 
     mod rewrite_statement {
         use super::*;
+        use crate::plan::ir::TagSet;
         use datafusion::common::Result;
         use influxdb_influxql_parser::select::SelectStatement;
+        use schema::{InfluxColumnType, InfluxFieldType};
 
         /// Test implementation that converts `Select` to `SelectStatement` so that it can be
         /// converted back to a string.
-        fn rewrite_statement(
+        fn rewrite_select_statement(
             s: &MockSchemaProvider,
             q: &SelectStatement,
         ) -> Result<SelectStatement> {
-            let stmt = super::rewrite_statement(s, q)?;
+            let stmt = rewrite_statement(s, q)?;
             Ok(stmt.select.into())
+        }
+
+        /// Validate the data types of the fields of a [`Select`].
+        #[test]
+        fn projection_schema() {
+            let namespace = MockSchemaProvider::default();
+
+            let stmt = parse_select("SELECT usage_idle, usage_idle + usage_system, cpu FROM cpu");
+            let q = rewrite_statement(&namespace, &stmt).unwrap();
+            // first field is always the time column and thus a Timestamp
+            assert_matches!(
+                q.select.fields[0].data_type,
+                Some(InfluxColumnType::Timestamp)
+            );
+            // usage_idle is a Float
+            assert_matches!(
+                q.select.fields[1].data_type,
+                Some(InfluxColumnType::Field(InfluxFieldType::Float))
+            );
+            // The expression usage_idle + usage_system is a Float
+            assert_matches!(
+                q.select.fields[2].data_type,
+                Some(InfluxColumnType::Field(InfluxFieldType::Float))
+            );
+            // cpu is a Tag
+            assert_matches!(q.select.fields[3].data_type, Some(InfluxColumnType::Tag));
+
+            let stmt = parse_select("SELECT field_i64 + field_f64 FROM all_types");
+            let q = rewrite_statement(&namespace, &stmt).unwrap();
+            // first field is always the time column and thus a Timestamp
+            assert_matches!(
+                q.select.fields[0].data_type,
+                Some(InfluxColumnType::Timestamp)
+            );
+            // Expression is promoted to a Float
+            assert_matches!(
+                q.select.fields[1].data_type,
+                Some(InfluxColumnType::Field(InfluxFieldType::Float))
+            );
+        }
+
+        /// Validate the tag_set field of a [`Select]`
+        #[test]
+        fn tag_set_schema() {
+            let namespace = MockSchemaProvider::default();
+
+            macro_rules! assert_tag_set {
+                ($Q:ident, $($TAG:literal),*) => {
+                    assert_eq!($Q.select.tag_set, TagSet::from([$($TAG.to_owned(),)*]))
+                };
+            }
+
+            let stmt = parse_select("SELECT usage_system FROM cpu");
+            let q = rewrite_statement(&namespace, &stmt).unwrap();
+            assert_tag_set!(q, "cpu", "host", "region");
+
+            let stmt = parse_select("SELECT usage_system FROM cpu, disk");
+            let q = rewrite_statement(&namespace, &stmt).unwrap();
+            assert_tag_set!(q, "cpu", "host", "region", "device");
+
+            let stmt =
+                parse_select("SELECT usage_system FROM (select * from cpu), (select * from disk)");
+            let q = rewrite_statement(&namespace, &stmt).unwrap();
+            assert_tag_set!(q, "cpu", "host", "region", "device");
         }
 
         /// Validating types for simple projections
@@ -1688,7 +1866,7 @@ mod test {
 
             // Exact, match
             let stmt = parse_select("SELECT usage_user FROM cpu");
-            let stmt = rewrite_statement(&namespace, &stmt).unwrap();
+            let stmt = rewrite_select_statement(&namespace, &stmt).unwrap();
             assert_eq!(
                 stmt.to_string(),
                 "SELECT time::timestamp AS time, usage_user::float AS usage_user FROM cpu"
@@ -1696,7 +1874,7 @@ mod test {
 
             // Duplicate columns do not have conflicting aliases
             let stmt = parse_select("SELECT usage_user, usage_user FROM cpu");
-            let stmt = rewrite_statement(&namespace, &stmt).unwrap();
+            let stmt = rewrite_select_statement(&namespace, &stmt).unwrap();
             assert_eq!(
                 stmt.to_string(),
                 "SELECT time::timestamp AS time, usage_user::float AS usage_user, usage_user::float AS usage_user_1 FROM cpu"
@@ -1704,7 +1882,7 @@ mod test {
 
             // Multiple aliases with no conflicts
             let stmt = parse_select("SELECT usage_user as usage_user_1, usage_user FROM cpu");
-            let stmt = rewrite_statement(&namespace, &stmt).unwrap();
+            let stmt = rewrite_select_statement(&namespace, &stmt).unwrap();
             assert_eq!(
                 stmt.to_string(),
                 "SELECT time::timestamp AS time, usage_user::float AS usage_user_1, usage_user::float AS usage_user FROM cpu"
@@ -1713,12 +1891,12 @@ mod test {
             // Multiple aliases with conflicts
             let stmt =
                 parse_select("SELECT usage_user as usage_user_1, usage_user, usage_user, usage_user as usage_user_2, usage_user, usage_user_2 FROM cpu");
-            let stmt = rewrite_statement(&namespace, &stmt).unwrap();
+            let stmt = rewrite_select_statement(&namespace, &stmt).unwrap();
             assert_eq!(stmt.to_string(), "SELECT time::timestamp AS time, usage_user::float AS usage_user_1, usage_user::float AS usage_user, usage_user::float AS usage_user_3, usage_user::float AS usage_user_2, usage_user::float AS usage_user_4, usage_user_2 AS usage_user_2_1 FROM cpu");
 
             // Only include measurements with at least one field projection
             let stmt = parse_select("SELECT usage_idle FROM cpu, disk");
-            let stmt = rewrite_statement(&namespace, &stmt).unwrap();
+            let stmt = rewrite_select_statement(&namespace, &stmt).unwrap();
             assert_eq!(
                 stmt.to_string(),
                 "SELECT time::timestamp AS time, usage_idle::float AS usage_idle FROM cpu"
@@ -1726,7 +1904,7 @@ mod test {
 
             // Field does not exist in single measurement
             let stmt = parse_select("SELECT usage_idle, bytes_free FROM cpu");
-            let stmt = rewrite_statement(&namespace, &stmt).unwrap();
+            let stmt = rewrite_select_statement(&namespace, &stmt).unwrap();
             assert_eq!(
                 stmt.to_string(),
                 "SELECT time::timestamp AS time, usage_idle::float AS usage_idle, bytes_free AS bytes_free FROM cpu"
@@ -1734,7 +1912,7 @@ mod test {
 
             // Field exists in each measurement
             let stmt = parse_select("SELECT usage_idle, bytes_free FROM cpu, disk");
-            let stmt = rewrite_statement(&namespace, &stmt).unwrap();
+            let stmt = rewrite_select_statement(&namespace, &stmt).unwrap();
             assert_eq!(
                 stmt.to_string(),
                 "SELECT time::timestamp AS time, usage_idle::float AS usage_idle, bytes_free::integer AS bytes_free FROM cpu, disk"
@@ -1748,7 +1926,7 @@ mod test {
 
             // Regex, match, fields from multiple measurements
             let stmt = parse_select("SELECT bytes_free, bytes_read FROM /d/");
-            let stmt = rewrite_statement(&namespace, &stmt).unwrap();
+            let stmt = rewrite_select_statement(&namespace, &stmt).unwrap();
             assert_eq!(
                 stmt.to_string(),
                 "SELECT time::timestamp AS time, bytes_free::integer AS bytes_free, bytes_read::integer AS bytes_read FROM disk, diskio"
@@ -1756,7 +1934,7 @@ mod test {
 
             // Regex matches multiple measurement, but only one has a matching field
             let stmt = parse_select("SELECT bytes_free FROM /d/");
-            let stmt = rewrite_statement(&namespace, &stmt).unwrap();
+            let stmt = rewrite_select_statement(&namespace, &stmt).unwrap();
             assert_eq!(
                 stmt.to_string(),
                 "SELECT time::timestamp AS time, bytes_free::integer AS bytes_free FROM disk"
@@ -1764,12 +1942,12 @@ mod test {
 
             // Exact, no match
             let stmt = parse_select("SELECT usage_idle FROM foo");
-            let stmt = rewrite_statement(&namespace, &stmt).unwrap();
+            let stmt = rewrite_select_statement(&namespace, &stmt).unwrap();
             assert!(stmt.from.is_empty());
 
             // Regex, no match
             let stmt = parse_select("SELECT bytes_free FROM /^d$/");
-            let stmt = rewrite_statement(&namespace, &stmt).unwrap();
+            let stmt = rewrite_select_statement(&namespace, &stmt).unwrap();
             assert!(stmt.from.is_empty());
         }
 
@@ -1780,14 +1958,14 @@ mod test {
 
             // Single wildcard, single measurement
             let stmt = parse_select("SELECT * FROM cpu");
-            let stmt = rewrite_statement(&namespace, &stmt).unwrap();
+            let stmt = rewrite_select_statement(&namespace, &stmt).unwrap();
             assert_eq!(
                 stmt.to_string(),
                 "SELECT time::timestamp AS time, cpu::tag AS cpu, host::tag AS host, region::tag AS region, usage_idle::float AS usage_idle, usage_system::float AS usage_system, usage_user::float AS usage_user FROM cpu"
             );
 
             let stmt = parse_select("SELECT * FROM cpu, disk");
-            let stmt = rewrite_statement(&namespace, &stmt).unwrap();
+            let stmt = rewrite_select_statement(&namespace, &stmt).unwrap();
             assert_eq!(
                 stmt.to_string(),
                 "SELECT time::timestamp AS time, bytes_free::integer AS bytes_free, bytes_used::integer AS bytes_used, cpu::tag AS cpu, device::tag AS device, host::tag AS host, region::tag AS region, usage_idle::float AS usage_idle, usage_system::float AS usage_system, usage_user::float AS usage_user FROM cpu, disk"
@@ -1795,7 +1973,7 @@ mod test {
 
             // Regular expression selects fields from multiple measurements
             let stmt = parse_select("SELECT /usage|bytes/ FROM cpu, disk");
-            let stmt = rewrite_statement(&namespace, &stmt).unwrap();
+            let stmt = rewrite_select_statement(&namespace, &stmt).unwrap();
             assert_eq!(
                 stmt.to_string(),
                 "SELECT time::timestamp AS time, bytes_free::integer AS bytes_free, bytes_used::integer AS bytes_used, usage_idle::float AS usage_idle, usage_system::float AS usage_system, usage_user::float AS usage_user FROM cpu, disk"
@@ -1803,7 +1981,7 @@ mod test {
 
             // Selective wildcard for tags
             let stmt = parse_select("SELECT *::tag, usage_idle FROM cpu");
-            let stmt = rewrite_statement(&namespace, &stmt).unwrap();
+            let stmt = rewrite_select_statement(&namespace, &stmt).unwrap();
             assert_eq!(
                 stmt.to_string(),
                 "SELECT time::timestamp AS time, cpu::tag AS cpu, host::tag AS host, region::tag AS region, usage_idle::float AS usage_idle FROM cpu"
@@ -1811,12 +1989,12 @@ mod test {
 
             // Selective wildcard for tags only should not select any measurements
             let stmt = parse_select("SELECT *::tag FROM cpu");
-            let stmt = rewrite_statement(&namespace, &stmt).unwrap();
+            let stmt = rewrite_select_statement(&namespace, &stmt).unwrap();
             assert!(stmt.from.is_empty());
 
             // Selective wildcard for fields
             let stmt = parse_select("SELECT *::field FROM cpu");
-            let stmt = rewrite_statement(&namespace, &stmt).unwrap();
+            let stmt = rewrite_select_statement(&namespace, &stmt).unwrap();
             assert_eq!(
                 stmt.to_string(),
                 "SELECT time::timestamp AS time, usage_idle::float AS usage_idle, usage_system::float AS usage_system, usage_user::float AS usage_user FROM cpu"
@@ -1824,14 +2002,14 @@ mod test {
 
             // Mixed fields and wildcards
             let stmt = parse_select("SELECT usage_idle, *::tag FROM cpu");
-            let stmt = rewrite_statement(&namespace, &stmt).unwrap();
+            let stmt = rewrite_select_statement(&namespace, &stmt).unwrap();
             assert_eq!(
                 stmt.to_string(),
                 "SELECT time::timestamp AS time, usage_idle::float AS usage_idle, cpu::tag AS cpu, host::tag AS host, region::tag AS region FROM cpu"
             );
 
             let stmt = parse_select("SELECT * FROM merge_00, merge_01");
-            let stmt = rewrite_statement(&namespace, &stmt).unwrap();
+            let stmt = rewrite_select_statement(&namespace, &stmt).unwrap();
             assert_eq!(
                 stmt.to_string(),
                 "SELECT time::timestamp AS time, col0::float AS col0, col0::tag AS col0_1, col1::float AS col1, col1::tag AS col1_1, col2::string AS col2, col3::string AS col3 FROM merge_00, merge_01"
@@ -1839,7 +2017,7 @@ mod test {
 
             // This should only select merge_01, as col0 is a tag in merge_00
             let stmt = parse_select("SELECT /col0/ FROM merge_00, merge_01");
-            let stmt = rewrite_statement(&namespace, &stmt).unwrap();
+            let stmt = rewrite_select_statement(&namespace, &stmt).unwrap();
             assert_eq!(
                 stmt.to_string(),
                 "SELECT time::timestamp AS time, col0::float AS col0, col0::tag AS col0_1 FROM merge_01"
@@ -1851,14 +2029,14 @@ mod test {
             let namespace = MockSchemaProvider::default();
 
             let stmt = parse_select("SELECT usage_idle FROM cpu GROUP BY host");
-            let stmt = rewrite_statement(&namespace, &stmt).unwrap();
+            let stmt = rewrite_select_statement(&namespace, &stmt).unwrap();
             assert_eq!(
                 stmt.to_string(),
                 "SELECT time::timestamp AS time, usage_idle::float AS usage_idle FROM cpu GROUP BY host"
             );
 
             let stmt = parse_select("SELECT usage_idle FROM cpu GROUP BY *");
-            let stmt = rewrite_statement(&namespace, &stmt).unwrap();
+            let stmt = rewrite_select_statement(&namespace, &stmt).unwrap();
             assert_eq!(
                 stmt.to_string(),
                 "SELECT time::timestamp AS time, usage_idle::float AS usage_idle FROM cpu GROUP BY cpu, host, region"
@@ -1866,7 +2044,7 @@ mod test {
 
             // Does not include tags in projection when expanded in GROUP BY
             let stmt = parse_select("SELECT * FROM cpu GROUP BY *");
-            let stmt = rewrite_statement(&namespace, &stmt).unwrap();
+            let stmt = rewrite_select_statement(&namespace, &stmt).unwrap();
             assert_eq!(
                 stmt.to_string(),
                 "SELECT time::timestamp AS time, usage_idle::float AS usage_idle, usage_system::float AS usage_system, usage_user::float AS usage_user FROM cpu GROUP BY cpu, host, region"
@@ -1874,7 +2052,7 @@ mod test {
 
             // Does include explicitly listed tags in projection
             let stmt = parse_select("SELECT host, * FROM cpu GROUP BY *");
-            let stmt = rewrite_statement(&namespace, &stmt).unwrap();
+            let stmt = rewrite_select_statement(&namespace, &stmt).unwrap();
             assert_eq!(
                 stmt.to_string(),
                 "SELECT time::timestamp AS time, host::tag AS host, usage_idle::float AS usage_idle, usage_system::float AS usage_system, usage_user::float AS usage_user FROM cpu GROUP BY cpu, host, region"
@@ -1886,34 +2064,57 @@ mod test {
         fn fallible() {
             let namespace = MockSchemaProvider::default();
 
+            // invalid expression, combining float and string fields
+            let stmt = parse_select("SELECT field_f64 + field_str FROM all_types");
+            let err = rewrite_select_statement(&namespace, &stmt).unwrap_err();
+            assert_contains!(
+                err.to_string(),
+                "Error during planning: incompatible operands for operator +: float and string"
+            );
+
+            // invalid expression, combining string and string fields, which is compatible with InfluxQL
+            let stmt = parse_select("SELECT field_str + field_str FROM all_types");
+            let err = rewrite_select_statement(&namespace, &stmt).unwrap_err();
+            assert_contains!(
+                err.to_string(),
+                "Error during planning: incompatible operands for operator +: string and string"
+            );
+
             // Invalid regex
             let stmt = parse_select("SELECT usage_idle FROM /(not/");
-            let err = rewrite_statement(&namespace, &stmt).unwrap_err();
+            let err = rewrite_select_statement(&namespace, &stmt).unwrap_err();
             assert_contains!(err.to_string(), "invalid regular expression");
 
             let stmt = parse_select("SELECT *::field + *::tag FROM cpu");
-            let err = rewrite_statement(&namespace, &stmt).unwrap_err();
+            let err = rewrite_select_statement(&namespace, &stmt).unwrap_err();
             assert_eq!(
                 err.to_string(),
-                "Error during planning: unsupported expression: contains a wildcard or regular expression"
+                "Error during planning: unsupported binary expression: contains a wildcard or regular expression"
+            );
+
+            let stmt = parse_select("SELECT COUNT(*) + SUM(usage_idle) FROM cpu");
+            let err = rewrite_select_statement(&namespace, &stmt).unwrap_err();
+            assert_eq!(
+                err.to_string(),
+                "Error during planning: unsupported binary expression: contains a wildcard or regular expression"
             );
 
             let stmt = parse_select("SELECT COUNT(*::tag) FROM cpu");
-            let err = rewrite_statement(&namespace, &stmt).unwrap_err();
+            let err = rewrite_select_statement(&namespace, &stmt).unwrap_err();
             assert_eq!(
                 err.to_string(),
                 "Error during planning: unable to use tag as wildcard in count()"
             );
 
             let stmt = parse_select("SELECT usage_idle FROM cpu SLIMIT 1");
-            let err = rewrite_statement(&namespace, &stmt).unwrap_err();
+            let err = rewrite_select_statement(&namespace, &stmt).unwrap_err();
             assert_eq!(
                 err.to_string(),
                 "This feature is not implemented: SLIMIT or SOFFSET"
             );
 
             let stmt = parse_select("SELECT usage_idle FROM cpu SOFFSET 1");
-            let err = rewrite_statement(&namespace, &stmt).unwrap_err();
+            let err = rewrite_select_statement(&namespace, &stmt).unwrap_err();
             assert_eq!(
                 err.to_string(),
                 "This feature is not implemented: SLIMIT or SOFFSET"
@@ -1927,43 +2128,43 @@ mod test {
 
             // Subquery, exact, match
             let stmt = parse_select("SELECT usage_idle FROM (SELECT usage_idle FROM cpu)");
-            let stmt = rewrite_statement(&namespace, &stmt).unwrap();
+            let stmt = rewrite_select_statement(&namespace, &stmt).unwrap();
             assert_eq!(
                 stmt.to_string(),
-                "SELECT time::timestamp AS time, usage_idle::float AS usage_idle FROM (SELECT time::timestamp AS time, usage_idle::float FROM cpu)"
+                "SELECT time::timestamp AS time, usage_idle::float AS usage_idle FROM (SELECT time::timestamp AS time, usage_idle::float AS usage_idle FROM cpu)"
             );
 
             // Subquery, regex, match
             let stmt =
                 parse_select("SELECT bytes_free FROM (SELECT bytes_free, bytes_read FROM /d/)");
-            let stmt = rewrite_statement(&namespace, &stmt).unwrap();
+            let stmt = rewrite_select_statement(&namespace, &stmt).unwrap();
             assert_eq!(
                 stmt.to_string(),
-                "SELECT time::timestamp AS time, bytes_free::integer AS bytes_free FROM (SELECT time::timestamp AS time, bytes_free::integer, bytes_read::integer FROM disk, diskio)"
+                "SELECT time::timestamp AS time, bytes_free::integer AS bytes_free FROM (SELECT time::timestamp AS time, bytes_free::integer AS bytes_free, bytes_read::integer AS bytes_read FROM disk, diskio)"
             );
 
             // Subquery, exact, no match
             let stmt = parse_select("SELECT usage_idle FROM (SELECT usage_idle FROM foo)");
-            let stmt = rewrite_statement(&namespace, &stmt).unwrap();
+            let stmt = rewrite_select_statement(&namespace, &stmt).unwrap();
             assert!(stmt.from.is_empty());
 
             // Subquery, regex, no match
             let stmt = parse_select("SELECT bytes_free FROM (SELECT bytes_free FROM /^d$/)");
-            let stmt = rewrite_statement(&namespace, &stmt).unwrap();
+            let stmt = rewrite_select_statement(&namespace, &stmt).unwrap();
             assert!(stmt.from.is_empty());
 
             // Correct data type is resolved from subquery
             let stmt =
                 parse_select("SELECT *::field FROM (SELECT usage_system + usage_idle FROM cpu)");
-            let stmt = rewrite_statement(&namespace, &stmt).unwrap();
+            let stmt = rewrite_select_statement(&namespace, &stmt).unwrap();
             assert_eq!(
                 stmt.to_string(),
-                "SELECT time::timestamp AS time, usage_system_usage_idle::float AS usage_system_usage_idle FROM (SELECT time::timestamp AS time, usage_system::float + usage_idle::float FROM cpu)"
+                "SELECT time::timestamp AS time, usage_system_usage_idle::float AS usage_system_usage_idle FROM (SELECT time::timestamp AS time, usage_system::float + usage_idle::float AS usage_system_usage_idle FROM cpu)"
             );
 
             // Subquery, no fields projected should be dropped
             let stmt = parse_select("SELECT usage_idle FROM cpu, (SELECT usage_system FROM cpu)");
-            let stmt = rewrite_statement(&namespace, &stmt).unwrap();
+            let stmt = rewrite_select_statement(&namespace, &stmt).unwrap();
             assert_eq!(
                 stmt.to_string(),
                 "SELECT time::timestamp AS time, usage_idle::float AS usage_idle FROM cpu"
@@ -1972,16 +2173,103 @@ mod test {
             // Outer query are permitted to project tags only, as long as there are other fields
             // in the subquery
             let stmt = parse_select("SELECT cpu FROM (SELECT cpu, usage_system FROM cpu)");
-            let stmt = rewrite_statement(&namespace, &stmt).unwrap();
+            let stmt = rewrite_select_statement(&namespace, &stmt).unwrap();
             assert_eq!(
                 stmt.to_string(),
-                "SELECT time::timestamp AS time, cpu::tag AS cpu FROM (SELECT time::timestamp AS time, cpu::tag, usage_system::float FROM cpu)"
+                "SELECT time::timestamp AS time, cpu::tag AS cpu FROM (SELECT time::timestamp AS time, cpu::tag AS cpu, usage_system::float AS usage_system FROM cpu)"
             );
 
             // Outer FROM should be empty, as the subquery does not project any fields
             let stmt = parse_select("SELECT cpu FROM (SELECT cpu FROM cpu)");
-            let stmt = rewrite_statement(&namespace, &stmt).unwrap();
+            let stmt = rewrite_select_statement(&namespace, &stmt).unwrap();
             assert!(stmt.from.is_empty());
+
+            // GROUP BY clauses
+
+            // Projects cpu tag in outer query, as it was specified in the GROUP BY of the subquery
+            let stmt = parse_select("SELECT * FROM (SELECT usage_system FROM cpu GROUP BY cpu)");
+            let stmt = rewrite_select_statement(&namespace, &stmt).unwrap();
+            assert_eq!(
+                stmt.to_string(),
+                "SELECT time::timestamp AS time, cpu::tag AS cpu, usage_system::float AS usage_system FROM (SELECT time::timestamp AS time, usage_system::float AS usage_system FROM cpu GROUP BY cpu)"
+            );
+
+            // Specifically project cpu tag from GROUP BY
+            let stmt = parse_select(
+                "SELECT cpu, usage_system FROM (SELECT usage_system FROM cpu GROUP BY cpu)",
+            );
+            let stmt = rewrite_select_statement(&namespace, &stmt).unwrap();
+            assert_eq!(
+                stmt.to_string(),
+                "SELECT time::timestamp AS time, cpu::tag AS cpu, usage_system::float AS usage_system FROM (SELECT time::timestamp AS time, usage_system::float AS usage_system FROM cpu GROUP BY cpu)"
+            );
+
+            // Projects cpu tag in outer query separately from aliased cpu tag "foo"
+            let stmt = parse_select(
+                "SELECT * FROM (SELECT cpu as foo, usage_system FROM cpu GROUP BY cpu)",
+            );
+            let stmt = rewrite_select_statement(&namespace, &stmt).unwrap();
+            assert_eq!(
+                stmt.to_string(),
+                "SELECT time::timestamp AS time, cpu::tag AS cpu, foo::tag AS foo, usage_system::float AS usage_system FROM (SELECT time::timestamp AS time, cpu::tag AS foo, usage_system::float AS usage_system FROM cpu GROUP BY cpu)"
+            );
+
+            // Projects non-existent foo as a tag in the outer query
+            let stmt = parse_select(
+                "SELECT * FROM (SELECT usage_idle FROM cpu GROUP BY foo) GROUP BY cpu",
+            );
+            let stmt = rewrite_select_statement(&namespace, &stmt).unwrap();
+            assert_eq!(
+                stmt.to_string(),
+                "SELECT time::timestamp AS time, foo::tag AS foo, usage_idle::float AS usage_idle FROM (SELECT time::timestamp AS time, usage_idle::float AS usage_idle FROM cpu GROUP BY foo) GROUP BY cpu"
+            );
+            // Normalises time to all leaf subqueries
+            let stmt = parse_select(
+                "SELECT * FROM (SELECT MAX(value) FROM (SELECT DISTINCT(usage_idle) AS value FROM cpu)) GROUP BY cpu",
+            );
+            let stmt = rewrite_select_statement(&namespace, &stmt).unwrap();
+            assert_eq!(
+                stmt.to_string(),
+                "SELECT time::timestamp AS time, max::float AS max FROM (SELECT time::timestamp AS time, max(value::float) AS max FROM (SELECT time::timestamp AS time, distinct(usage_idle::float) AS value FROM cpu FILL(NONE)) FILL(NONE)) GROUP BY cpu"
+            );
+
+            // Projects non-existent tag, "bytes_free" from cpu and also bytes_free field from disk
+            // NOTE: InfluxQL OG does something really strange and arguably incorrect
+            //
+            // ```
+            // SELECT * FROM (SELECT usage_idle FROM cpu GROUP BY bytes_free), (SELECT bytes_free FROM disk) GROUP BY cpu
+            // ```
+            //
+            // The output shows that InfluxQL expanded the non-existent bytes_free tag (bytes_free1)
+            // from the cpu measurement, and the bytes_free field from the disk measurement as two
+            // separate columns but when producing the results, read the data from the `bytes_free`
+            // field for the disk table.
+            //
+            // ```
+            // name: cpu
+            // tags: cpu=cpu-total
+            // time                bytes_free bytes_free_1 usage_idle
+            // ----                ---------- ------------ ----------
+            // 1667181600000000000                         2.98
+            // 1667181610000000000                         2.99
+            // ... trimmed for brevity
+            //
+            // name: disk
+            // tags: cpu=
+            // time                bytes_free bytes_free_1 usage_idle
+            // ----                ---------- ------------ ----------
+            // 1667181600000000000 1234       1234
+            // 1667181600000000000 3234       3234
+            // ... trimmed for brevity
+            // ```
+            let stmt = parse_select(
+                "SELECT * FROM (SELECT usage_idle FROM cpu GROUP BY bytes_free), (SELECT bytes_free FROM disk) GROUP BY cpu",
+            );
+            let stmt = rewrite_select_statement(&namespace, &stmt).unwrap();
+            assert_eq!(
+                stmt.to_string(),
+                "SELECT time::timestamp AS time, bytes_free::integer AS bytes_free, bytes_free::tag AS bytes_free_1, usage_idle::float AS usage_idle FROM (SELECT time::timestamp AS time, usage_idle::float AS usage_idle FROM cpu GROUP BY bytes_free), (SELECT time::timestamp AS time, bytes_free::integer AS bytes_free FROM disk) GROUP BY cpu"
+            );
         }
 
         /// `DISTINCT` clause and `distinct` function
@@ -1991,14 +2279,14 @@ mod test {
 
             // COUNT(DISTINCT)
             let stmt = parse_select("SELECT COUNT(DISTINCT bytes_free) FROM disk");
-            let stmt = rewrite_statement(&namespace, &stmt).unwrap();
+            let stmt = rewrite_select_statement(&namespace, &stmt).unwrap();
             assert_eq!(
                 stmt.to_string(),
                 "SELECT time::timestamp AS time, count(distinct(bytes_free::integer)) AS count FROM disk"
             );
 
             let stmt = parse_select("SELECT DISTINCT bytes_free FROM disk");
-            let stmt = rewrite_statement(&namespace, &stmt).unwrap();
+            let stmt = rewrite_select_statement(&namespace, &stmt).unwrap();
             assert_eq!(
                 stmt.to_string(),
                 "SELECT time::timestamp AS time, distinct(bytes_free::integer) AS \"distinct\" FROM disk"
@@ -2012,7 +2300,7 @@ mod test {
 
             // Binary expression
             let stmt = parse_select("SELECT bytes_free+bytes_used FROM disk");
-            let stmt = rewrite_statement(&namespace, &stmt).unwrap();
+            let stmt = rewrite_select_statement(&namespace, &stmt).unwrap();
             assert_eq!(
                 stmt.to_string(),
                 "SELECT time::timestamp AS time, bytes_free::integer + bytes_used::integer AS bytes_free_bytes_used FROM disk"
@@ -2020,7 +2308,7 @@ mod test {
 
             // Unary expressions
             let stmt = parse_select("SELECT -bytes_free FROM disk");
-            let stmt = rewrite_statement(&namespace, &stmt).unwrap();
+            let stmt = rewrite_select_statement(&namespace, &stmt).unwrap();
             assert_eq!(
                 stmt.to_string(),
                 "SELECT time::timestamp AS time, -1 * bytes_free::integer AS bytes_free FROM disk"
@@ -2033,7 +2321,7 @@ mod test {
             let namespace = MockSchemaProvider::default();
 
             let stmt = parse_select("SELECT COUNT(field_i64) FROM temp_01");
-            let stmt = rewrite_statement(&namespace, &stmt).unwrap();
+            let stmt = rewrite_select_statement(&namespace, &stmt).unwrap();
             assert_eq!(
                 stmt.to_string(),
                 "SELECT time::timestamp AS time, count(field_i64::integer) AS count FROM temp_01"
@@ -2041,14 +2329,14 @@ mod test {
 
             // Duplicate aggregate columns
             let stmt = parse_select("SELECT COUNT(field_i64), COUNT(field_i64) FROM temp_01");
-            let stmt = rewrite_statement(&namespace, &stmt).unwrap();
+            let stmt = rewrite_select_statement(&namespace, &stmt).unwrap();
             assert_eq!(
                 stmt.to_string(),
                 "SELECT time::timestamp AS time, count(field_i64::integer) AS count, count(field_i64::integer) AS count_1 FROM temp_01"
             );
 
             let stmt = parse_select("SELECT COUNT(field_f64) FROM temp_01");
-            let stmt = rewrite_statement(&namespace, &stmt).unwrap();
+            let stmt = rewrite_select_statement(&namespace, &stmt).unwrap();
             assert_eq!(
                 stmt.to_string(),
                 "SELECT time::timestamp AS time, count(field_f64::float) AS count FROM temp_01"
@@ -2056,7 +2344,7 @@ mod test {
 
             // Expands all fields
             let stmt = parse_select("SELECT COUNT(*) FROM temp_01");
-            let stmt = rewrite_statement(&namespace, &stmt).unwrap();
+            let stmt = rewrite_select_statement(&namespace, &stmt).unwrap();
             assert_eq!(
                 stmt.to_string(),
                 "SELECT time::timestamp AS time, count(field_f64::float) AS count_field_f64, count(field_i64::integer) AS count_field_i64, count(field_str::string) AS count_field_str, count(field_u64::unsigned) AS count_field_u64, count(shared_field0::float) AS count_shared_field0 FROM temp_01"
@@ -2064,7 +2352,7 @@ mod test {
 
             // Expands matching fields
             let stmt = parse_select("SELECT COUNT(/64$/) FROM temp_01");
-            let stmt = rewrite_statement(&namespace, &stmt).unwrap();
+            let stmt = rewrite_select_statement(&namespace, &stmt).unwrap();
             assert_eq!(
                 stmt.to_string(),
                 "SELECT time::timestamp AS time, count(field_f64::float) AS count_field_f64, count(field_i64::integer) AS count_field_i64, count(field_u64::unsigned) AS count_field_u64 FROM temp_01"
@@ -2072,7 +2360,7 @@ mod test {
 
             // Expands only numeric fields
             let stmt = parse_select("SELECT SUM(*) FROM temp_01");
-            let stmt = rewrite_statement(&namespace, &stmt).unwrap();
+            let stmt = rewrite_select_statement(&namespace, &stmt).unwrap();
             assert_eq!(
                 stmt.to_string(),
                 "SELECT time::timestamp AS time, sum(field_f64::float) AS sum_field_f64, sum(field_i64::integer) AS sum_field_i64, sum(field_u64::unsigned) AS sum_field_u64, sum(shared_field0::float) AS sum_shared_field0 FROM temp_01"

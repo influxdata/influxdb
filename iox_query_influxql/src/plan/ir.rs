@@ -1,14 +1,24 @@
 //! Defines data structures which represent an InfluxQL
 //! statement after it has been processed
 
+use crate::plan::rewriter::ProjectionType;
+use crate::plan::{error, SchemaProvider};
+use datafusion::common::Result;
 use influxdb_influxql_parser::common::{
     LimitClause, MeasurementName, OffsetClause, OrderByClause, QualifiedMeasurementName,
     WhereClause,
 };
+use influxdb_influxql_parser::expression::Expr;
 use influxdb_influxql_parser::select::{
-    Field, FieldList, FillClause, FromMeasurementClause, GroupByClause, MeasurementSelection,
+    FieldList, FillClause, FromMeasurementClause, GroupByClause, MeasurementSelection,
     SelectStatement, TimeZoneClause,
 };
+use schema::{InfluxColumnType, Schema};
+use std::collections::HashSet;
+use std::fmt::{Display, Formatter};
+
+/// A set of tag keys.
+pub(super) type TagSet = HashSet<String>;
 
 /// Represents a validated and normalized top-level [`SelectStatement]`.
 #[derive(Debug, Default, Clone)]
@@ -21,8 +31,12 @@ pub(super) struct SelectQuery {
 
 #[derive(Debug, Default, Clone)]
 pub(super) struct Select {
-    /// The schema of the selection.
-    // pub(super) schema: Todo,
+    /// The depth of the selection, where a value > 0 indicates
+    /// this is a subquery.
+    pub(super) depth: u32,
+
+    /// The projection type of the selection.
+    pub(super) projection_type: ProjectionType,
 
     /// Projection clause of the selection.
     pub(super) fields: Vec<Field>,
@@ -35,6 +49,10 @@ pub(super) struct Select {
 
     /// The GROUP BY clause of the selection.
     pub(super) group_by: Option<GroupByClause>,
+
+    /// The set of possible tags for the selection, by combining
+    /// the tag sets of all inputs via the `FROM` clause.
+    pub(super) tag_set: TagSet,
 
     /// The [fill] clause specifies the fill behaviour for the selection. If the value is [`None`],
     /// it is the same behavior as `fill(null)`.
@@ -60,7 +78,16 @@ pub(super) struct Select {
 impl From<Select> for SelectStatement {
     fn from(value: Select) -> Self {
         Self {
-            fields: FieldList::new(value.fields),
+            fields: FieldList::new(
+                value
+                    .fields
+                    .into_iter()
+                    .map(|c| influxdb_influxql_parser::select::Field {
+                        expr: c.expr,
+                        alias: Some(c.name.into()),
+                    })
+                    .collect(),
+            ),
             from: FromMeasurementClause::new(
                 value
                     .from
@@ -97,4 +124,48 @@ impl From<Select> for SelectStatement {
 pub(super) enum DataSource {
     Table(String),
     Subquery(Box<Select>),
+}
+
+impl DataSource {
+    pub(super) fn schema(&self, s: &dyn SchemaProvider) -> Result<DataSourceSchema<'_>> {
+        match self {
+            Self::Table(table_name) => s
+                .table_schema(table_name)
+                .map(DataSourceSchema::Table)
+                .ok_or_else(|| error::map::internal("expected table")),
+            Self::Subquery(q) => Ok(DataSourceSchema::Subquery(q)),
+        }
+    }
+}
+
+pub(super) enum DataSourceSchema<'a> {
+    Table(Schema),
+    Subquery(&'a Select),
+}
+
+impl<'a> DataSourceSchema<'a> {
+    /// Returns `true` if the specified name is a tag field or a projection of a tag field if
+    /// the `DataSource` is a subquery.
+    pub(super) fn is_tag_field(&self, name: &str) -> bool {
+        match self {
+            DataSourceSchema::Table(s) => {
+                matches!(s.field_type_by_name(name), Some(InfluxColumnType::Tag))
+            }
+            DataSourceSchema::Subquery(q) => q.tag_set.contains(name),
+        }
+    }
+}
+
+#[derive(Debug, Clone)]
+pub(super) struct Field {
+    pub(super) expr: Expr,
+    pub(super) name: String,
+    pub(super) data_type: Option<InfluxColumnType>,
+}
+
+impl Display for Field {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        Display::fmt(&self.expr, f)?;
+        write!(f, " AS {}", self.name)
+    }
 }

@@ -512,3 +512,126 @@ SELECT DISTINCT(str), DISTINCT(i64) FROM m0;
 
 -- non-existing table
 SELECT * FROM does_not_exist;
+
+--
+-- Subqueries
+--
+
+SELECT * FROM (SELECT usage_idle FROM cpu);
+
+SELECT * FROM (SELECT usage_idle FROM cpu GROUP BY cpu);
+
+-- GROUP BY should be pushed to subquery
+SELECT * FROM (SELECT usage_idle FROM cpu) GROUP BY cpu;
+
+SELECT cpu, usage_idle FROM (SELECT usage_idle FROM cpu GROUP BY cpu);
+
+SELECT * FROM (SELECT COUNT(usage_idle) FROM cpu);
+
+SELECT count FROM (SELECT COUNT(usage_idle) FROM cpu);
+
+SELECT * FROM (SELECT COUNT(usage_idle) FROM cpu GROUP BY cpu);
+
+SELECT * FROM (SELECT cpu AS foo, usage_idle FROM cpu);
+
+SELECT * FROM (SELECT cpu AS foo, usage_idle FROM cpu GROUP BY cpu);
+
+SELECT * FROM (SELECT cpu AS foo, usage_idle FROM cpu GROUP BY cpu) GROUP BY cpu;
+
+SELECT * FROM (SELECT cpu AS foo, usage_idle FROM cpu) GROUP BY cpu;
+
+-- group by should be pushed to subquery, resulting in COUNTs that are grouped
+SELECT * FROM (SELECT COUNT(usage_idle) FROM cpu) GROUP BY cpu;
+
+SELECT * FROM (SELECT usage_idle FROM cpu GROUP BY cpu) GROUP BY cpu;
+
+-- GROUP BY should be pushed to subquery
+SELECT * FROM (SELECT usage_idle FROM cpu) GROUP BY cpu;
+
+-- GROUP BY should be pushed through multiple levels of subqueries
+SELECT * FROM (SELECT MAX(value) FROM (SELECT DISTINCT(usage_idle) AS value FROM cpu)) GROUP BY cpu;
+
+-- GROUP BY time with default FILL(none) for subquery
+SELECT value FROM (SELECT mean(usage_idle) AS value FROM cpu GROUP BY TIME(10s));
+
+-- Multiple subqueries from same measurement, rows with same timestamp are not combined
+SELECT sum_idle, sum_system FROM (SELECT sum(usage_idle) AS sum_idle FROM cpu WHERE cpu = 'cpu-total' GROUP BY time(10s)), (SELECT sum(usage_system) AS sum_system FROM cpu WHERE cpu = 'cpu-total' GROUP BY time(10s));
+
+-- Similar query as prior, rows with same timestamp are combined (as expected)
+SELECT sum_idle, sum_system FROM (SELECT sum(usage_idle) AS sum_idle, sum(usage_system) AS sum_system FROM cpu WHERE cpu = 'cpu-total' GROUP BY time(10s));
+
+-- Conditions on fields projected of subquery
+-- Source: Cloud 2
+SELECT P / 99.99 FROM (SELECT max(usage_system) AS P, mean(usage_idle) AS S FROM cpu GROUP BY time(10s)) WHERE S > 0.50 AND S < 1.50 AND P > 0.0 AND P < 1.0 GROUP BY cpu FILL(null);
+
+-- DISTINCT tag value from subquery
+-- Source: Cloud 2
+SELECT distinct(cpu) FROM (SELECT usage_idle, cpu FROM cpu);
+
+--
+-- The following queries return inconsistent results with respect
+-- to InfluxQL OG, due to https://github.com/influxdata/influxdb_iox/issues/7794
+--
+
+-- TODO(sgc): https://github.com/influxdata/influxdb_iox/issues/7794
+-- Expected output:
+-- name: cpu
+-- tags: cpu=cpu-total
+-- +---------------------+------+
+-- | time                | last |
+-- +---------------------+------+
+-- | 2022-10-31T02:00:10 | 2.99 |
+-- +---------------------+------+
+-- name: cpu
+-- tags: cpu=cpu0
+-- +---------------------+------+
+-- | time                | last |
+-- +---------------------+------+
+-- | 2022-10-31T02:00:10 | 0.99 |
+-- +---------------------+------+
+-- name: cpu
+-- tags: cpu=cpu1
+-- +---------------------+------+
+-- | time                | last |
+-- +---------------------+------+
+-- | 2022-10-31T02:00:10 | 1.99 |
+-- +---------------------+------+
+--
+-- SELECT LAST(usage_idle) FROM cpu, cpu GROUP BY cpu;
+
+-- TODO(sgc): https://github.com/influxdata/influxdb_iox/issues/7794
+-- Multiple subqueries from same measurement
+-- * Outer query projects aggregates, values at same timestamp should be combined
+-- Source: Cloud 2
+-- Expected output:
+-- name: cpu
+-- +---------------------+------+--------+
+-- | time                | last | last_1 |
+-- +---------------------+------+--------+
+-- | 1970-01-01T00:00:00 | 2.99 | 2.1    |
+-- +---------------------+------+--------+
+-- SELECT last(usage_idle), last(usage_system) FROM (SELECT usage_idle FROM cpu WHERE cpu = 'cpu-total'), (SELECT usage_system FROM cpu WHERE cpu = 'cpu-total');
+
+-- Similar query produces expected output of prior query
+SELECT last(usage_idle), last(usage_system) FROM (SELECT usage_idle, usage_system FROM cpu WHERE cpu = 'cpu-total');
+
+
+-- TODO(sgc): https://github.com/influxdata/influxdb_iox/issues/7794
+-- Multiple subqueries from same measurement, GROUP BY TIME
+-- * Outer query projects aggregates, values at same timestamp should be combined
+-- Source: Cloud 2
+-- Expected output:
+-- name: cpu
+-- +---------------------+------+--------+
+-- | time                | last | last_1 |
+-- +---------------------+------+--------+
+-- | 2022-10-31T02:00:00 | 2.98 | 2.2    |
+-- | 2022-10-31T02:00:10 | 2.99 | 2.1    |
+-- +---------------------+------+--------+
+-- SELECT last(sum_idle), last(sum_system) FROM (SELECT sum(usage_idle) AS sum_idle FROM cpu WHERE cpu = 'cpu-total' GROUP BY time(10s)), (SELECT sum(usage_system) AS sum_system FROM cpu WHERE cpu = 'cpu-total' GROUP BY time(10s)) GROUP BY time(10s) FILL(none);
+
+-- Similar query produces expected output of prior query
+SELECT last(sum_idle), last(sum_system) FROM (SELECT sum(usage_idle) AS sum_idle, sum(usage_system) AS sum_system FROM cpu WHERE cpu = 'cpu-total' GROUP BY time(10s)) GROUP BY time(10s) FILL(none);
+
+-- TODO(sgc): https://github.com/influxdata/influxdb_iox/issues/7794
+-- SELECT last(*) FROM (SELECT sum(usage_idle) AS sum_idle FROM cpu WHERE cpu = 'cpu-total' GROUP BY time(10s)), (SELECT sum(usage_system) AS sum_idle FROM cpu WHERE cpu = 'cpu-total' GROUP BY time(10s)) GROUP BY time(10s) FILL(none);
