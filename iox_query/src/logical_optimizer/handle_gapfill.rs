@@ -8,8 +8,9 @@ use datafusion::{
     common::tree_node::{RewriteRecursion, TreeNode, TreeNodeRewriter, VisitRecursion},
     error::{DataFusionError, Result},
     logical_expr::{
-        utils::expr_to_columns, Aggregate, BuiltinScalarFunction, Extension, LogicalPlan,
-        Projection,
+        expr::{ScalarFunction, ScalarUDF},
+        utils::expr_to_columns,
+        Aggregate, BuiltinScalarFunction, Extension, LogicalPlan, Projection,
     },
     optimizer::{optimizer::ApplyOrder, OptimizerConfig, OptimizerRule},
     prelude::{col, Expr},
@@ -330,7 +331,7 @@ impl TreeNodeRewriter for DateBinGapfillRewriter {
     type N = Expr;
     fn pre_visit(&mut self, expr: &Expr) -> Result<RewriteRecursion> {
         match expr {
-            Expr::ScalarUDF { fun, .. } if fun.name == DATE_BIN_GAPFILL_UDF_NAME => {
+            Expr::ScalarUDF(ScalarUDF { fun, .. }) if fun.name == DATE_BIN_GAPFILL_UDF_NAME => {
                 Ok(RewriteRecursion::Mutate)
             }
             _ => Ok(RewriteRecursion::Continue),
@@ -342,12 +343,12 @@ impl TreeNodeRewriter for DateBinGapfillRewriter {
         // so that everything stays wired up.
         let orig_name = expr.display_name()?;
         match expr {
-            Expr::ScalarUDF { fun, args } if fun.name == DATE_BIN_GAPFILL_UDF_NAME => {
+            Expr::ScalarUDF(ScalarUDF { fun, args }) if fun.name == DATE_BIN_GAPFILL_UDF_NAME => {
                 self.args = Some(args.clone());
-                Ok(Expr::ScalarFunction {
+                Ok(Expr::ScalarFunction(ScalarFunction {
                     fun: BuiltinScalarFunction::DateBin,
                     args,
-                }
+                })
                 .alias(orig_name))
             }
             _ => Ok(expr),
@@ -442,7 +443,7 @@ impl TreeNodeRewriter for FillFnRewriter {
     type N = Expr;
     fn pre_visit(&mut self, expr: &Expr) -> Result<RewriteRecursion> {
         match expr {
-            Expr::ScalarUDF { fun, .. } if udf_to_fill_strategy(&fun.name).is_some() => {
+            Expr::ScalarUDF(ScalarUDF { fun, .. }) if udf_to_fill_strategy(&fun.name).is_some() => {
                 Ok(RewriteRecursion::Mutate)
             }
             _ => Ok(RewriteRecursion::Continue),
@@ -452,10 +453,12 @@ impl TreeNodeRewriter for FillFnRewriter {
     fn mutate(&mut self, expr: Expr) -> Result<Expr> {
         let orig_name = expr.display_name()?;
         match expr {
-            Expr::ScalarUDF { ref fun, .. } if udf_to_fill_strategy(&fun.name).is_none() => {
+            Expr::ScalarUDF(ScalarUDF { ref fun, .. })
+                if udf_to_fill_strategy(&fun.name).is_none() =>
+            {
                 Ok(expr)
             }
-            Expr::ScalarUDF { fun, mut args } => {
+            Expr::ScalarUDF(ScalarUDF { fun, mut args }) => {
                 let fs = udf_to_fill_strategy(&fun.name).expect("must be a fill fn");
                 let arg = args.remove(0);
                 self.add_fill_strategy(arg.clone(), fs)?;
@@ -484,7 +487,7 @@ fn count_udf(e: &Expr, name: &str) -> Result<usize> {
     let mut count = 0;
     e.apply(&mut |expr| {
         match expr {
-            Expr::ScalarUDF { fun, .. } if fun.name == name => {
+            Expr::ScalarUDF(ScalarUDF { fun, .. }) if fun.name == name => {
                 count += 1;
             }
             _ => (),
@@ -522,6 +525,7 @@ mod test {
 
     use arrow::datatypes::{DataType, Field, Schema, TimeUnit};
     use datafusion::error::Result;
+    use datafusion::logical_expr::expr::ScalarUDF;
     use datafusion::logical_expr::{logical_plan, LogicalPlan, LogicalPlanBuilder};
     use datafusion::optimizer::optimizer::Optimizer;
     use datafusion::optimizer::OptimizerContext;
@@ -562,24 +566,24 @@ mod test {
         if let Some(origin) = origin {
             args.push(origin)
         }
-        Ok(Expr::ScalarUDF {
+        Ok(Expr::ScalarUDF(ScalarUDF {
             fun: query_functions::registry().udf(DATE_BIN_GAPFILL_UDF_NAME)?,
             args,
-        })
+        }))
     }
 
     fn locf(arg: Expr) -> Result<Expr> {
-        Ok(Expr::ScalarUDF {
+        Ok(Expr::ScalarUDF(ScalarUDF {
             fun: query_functions::registry().udf(LOCF_UDF_NAME)?,
             args: vec![arg],
-        })
+        }))
     }
 
     fn interpolate(arg: Expr) -> Result<Expr> {
-        Ok(Expr::ScalarUDF {
+        Ok(Expr::ScalarUDF(ScalarUDF {
             fun: query_functions::registry().udf(INTERPOLATE_UDF_NAME)?,
             args: vec![arg],
-        })
+        }))
     }
 
     fn optimize(plan: &LogicalPlan) -> Result<Option<LogicalPlan>> {

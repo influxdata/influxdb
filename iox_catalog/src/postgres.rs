@@ -16,9 +16,9 @@ use crate::{
 };
 use async_trait::async_trait;
 use data_types::{
-    Column, ColumnType, CompactionLevel, Namespace, NamespaceId, ParquetFile, ParquetFileId,
-    ParquetFileParams, Partition, PartitionId, PartitionKey, SkippedCompaction, Table, TableId,
-    Timestamp,
+    Column, ColumnType, CompactionLevel, Namespace, NamespaceId, NamespaceName, ParquetFile,
+    ParquetFileId, ParquetFileParams, Partition, PartitionId, PartitionKey, SkippedCompaction,
+    Table, TableId, Timestamp,
 };
 use iox_time::{SystemProvider, TimeProvider};
 use observability_deps::tracing::{debug, info, warn};
@@ -578,7 +578,11 @@ impl RepoCollection for PostgresTxn {
 
 #[async_trait]
 impl NamespaceRepo for PostgresTxn {
-    async fn create(&mut self, name: &str, retention_period_ns: Option<i64>) -> Result<Namespace> {
+    async fn create(
+        &mut self,
+        name: &NamespaceName,
+        retention_period_ns: Option<i64>,
+    ) -> Result<Namespace> {
         let rec = sqlx::query_as::<_, Namespace>(
             r#"
                 INSERT INTO namespace ( name, topic_id, query_pool_id, retention_period_ns, max_tables )
@@ -586,7 +590,7 @@ impl NamespaceRepo for PostgresTxn {
                 RETURNING id, name, retention_period_ns, max_tables, max_columns_per_table, deleted_at;
             "#,
         )
-        .bind(name) // $1
+        .bind(name.as_str()) // $1
         .bind(SHARED_TOPIC_ID) // $2
         .bind(SHARED_QUERY_POOL_ID) // $3
         .bind(retention_period_ns) // $4
@@ -1634,6 +1638,7 @@ fn is_fk_violation(e: &sqlx::Error) -> bool {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::test_helpers::{arbitrary_namespace, arbitrary_table};
     use assert_matches::assert_matches;
     use data_types::{ColumnId, ColumnSet};
     use metric::{Attributes, DurationHistogram, Metric};
@@ -1817,38 +1822,21 @@ mod tests {
 
         let postgres = setup_db().await;
         let postgres: Arc<dyn Catalog> = Arc::new(postgres);
+        let mut repos = postgres.repositories().await;
 
-        let namespace_id = postgres
-            .repositories()
-            .await
-            .namespaces()
-            .create("ns4", None)
-            .await
-            .expect("namespace create failed")
-            .id;
-        let table_id = postgres
-            .repositories()
-            .await
-            .tables()
-            .create_or_get("table", namespace_id)
-            .await
-            .expect("create table failed")
-            .id;
+        let namespace = arbitrary_namespace(&mut *repos, "ns4").await;
+        let table_id = arbitrary_table(&mut *repos, "table", &namespace).await.id;
 
         let key = "bananas";
 
-        let a = postgres
-            .repositories()
-            .await
+        let a = repos
             .partitions()
             .create_or_get(key.into(), table_id)
             .await
             .expect("should create OK");
 
         // Call create_or_get for the same (key, table_id) pair, to ensure the write is idempotent.
-        let b = postgres
-            .repositories()
-            .await
+        let b = repos
             .partitions()
             .create_or_get(key.into(), table_id)
             .await
@@ -1955,22 +1943,12 @@ mod tests {
                     let postgres = setup_db().await;
                     let metrics = Arc::clone(&postgres.metrics);
                     let postgres: Arc<dyn Catalog> = Arc::new(postgres);
+                    let mut repos = postgres.repositories().await;
 
-                    let namespace_id = postgres
-                        .repositories()
+                    let namespace = arbitrary_namespace(&mut *repos, "ns4")
+                        .await;
+                    let table_id = arbitrary_table(&mut *repos, "table", &namespace)
                         .await
-                        .namespaces()
-                        .create("ns4", None)
-                        .await
-                        .expect("namespace create failed")
-                        .id;
-                    let table_id = postgres
-                        .repositories()
-                        .await
-                        .tables()
-                        .create_or_get("table", namespace_id)
-                        .await
-                        .expect("create table failed")
                         .id;
 
                     $(
@@ -1979,9 +1957,7 @@ mod tests {
                             insert.insert($col_name, $col_type);
                         )+
 
-                        let got = postgres
-                            .repositories()
-                            .await
+                        let got = repos
                             .columns()
                             .create_or_get_many_unchecked(table_id, insert.clone())
                             .await;
@@ -2118,29 +2094,14 @@ mod tests {
         let postgres = setup_db().await;
         let pool = postgres.pool.clone();
         let postgres: Arc<dyn Catalog> = Arc::new(postgres);
-
-        let namespace_id = postgres
-            .repositories()
-            .await
-            .namespaces()
-            .create("ns4", None)
-            .await
-            .expect("namespace create failed")
-            .id;
-        let table_id = postgres
-            .repositories()
-            .await
-            .tables()
-            .create_or_get("table", namespace_id)
-            .await
-            .expect("create table failed")
-            .id;
+        let mut repos = postgres.repositories().await;
+        let namespace = arbitrary_namespace(&mut *repos, "ns4").await;
+        let namespace_id = namespace.id;
+        let table_id = arbitrary_table(&mut *repos, "table", &namespace).await.id;
 
         let key = "bananas";
 
-        let partition_id = postgres
-            .repositories()
-            .await
+        let partition_id = repos
             .partitions()
             .create_or_get(key.into(), table_id)
             .await
@@ -2165,9 +2126,7 @@ mod tests {
             column_set: ColumnSet::new([ColumnId::new(1), ColumnId::new(2)]),
             max_l0_created_at: time_now,
         };
-        let f1 = postgres
-            .repositories()
-            .await
+        let f1 = repos
             .parquet_files()
             .create(p1.clone())
             .await
@@ -2175,9 +2134,7 @@ mod tests {
         // insert the same again with a different size; we should then have 3x1337 as total file size
         p1.object_store_id = Uuid::new_v4();
         p1.file_size_bytes *= 2;
-        let _f2 = postgres
-            .repositories()
-            .await
+        let _f2 = repos
             .parquet_files()
             .create(p1.clone())
             .await
@@ -2192,9 +2149,7 @@ mod tests {
         assert_eq!(total_file_size_bytes, 1337 * 3);
 
         // flag f1 for deletion and assert that the total file size is reduced accordingly.
-        postgres
-            .repositories()
-            .await
+        repos
             .parquet_files()
             .flag_for_delete(f1.id)
             .await
@@ -2209,9 +2164,7 @@ mod tests {
 
         // actually deleting shouldn't change the total
         let now = Timestamp::from(time_provider.now());
-        postgres
-            .repositories()
-            .await
+        repos
             .parquet_files()
             .delete_old_ids_only(now)
             .await

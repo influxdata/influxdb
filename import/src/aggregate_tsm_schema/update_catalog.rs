@@ -87,7 +87,9 @@ async fn create_namespace<R>(name: &str, repos: &mut R) -> Result<Namespace, Upd
 where
     R: RepoCollection + ?Sized,
 {
-    match repos.namespaces().create(name, None).await {
+    let namespace_name = NamespaceName::new(name)
+        .map_err(|_| UpdateCatalogError::NamespaceCreationError(name.to_string()))?;
+    match repos.namespaces().create(&namespace_name, None).await {
         Ok(ns) => Ok(ns),
         Err(iox_catalog::interface::Error::NameExists { .. }) => {
             // presumably it got created in the meantime?
@@ -343,7 +345,10 @@ mod tests {
     use crate::{AggregateTSMField, AggregateTSMTag};
     use assert_matches::assert_matches;
     use data_types::{PartitionId, TableId};
-    use iox_catalog::mem::MemCatalog;
+    use iox_catalog::{
+        mem::MemCatalog,
+        test_helpers::{arbitrary_namespace, arbitrary_table},
+    };
     use std::collections::HashSet;
 
     #[tokio::test]
@@ -426,17 +431,9 @@ mod tests {
             .await
             .expect("started transaction");
         // create namespace, table and columns for weather measurement
-        let namespace = txn
-            .namespaces()
-            .create("1234_5678", None)
-            .await
-            .expect("namespace created");
-        let mut table = txn
-            .tables()
-            .create_or_get("weather", namespace.id)
-            .await
-            .map(|t| TableSchema::new_empty_from(&t))
-            .expect("table created");
+        let namespace = arbitrary_namespace(&mut *txn, "1234_5678").await;
+        let table = arbitrary_table(&mut *txn, "weather", &namespace).await;
+        let mut table = TableSchema::new_empty_from(&table);
         let time_col = txn
             .columns()
             .create_or_get("time", table.id, ColumnType::Time)
@@ -518,17 +515,9 @@ mod tests {
             .await
             .expect("started transaction");
         // create namespace, table and columns for weather measurement
-        let namespace = txn
-            .namespaces()
-            .create("1234_5678", None)
-            .await
-            .expect("namespace created");
-        let mut table = txn
-            .tables()
-            .create_or_get("weather", namespace.id)
-            .await
-            .map(|t| TableSchema::new_empty_from(&t))
-            .expect("table created");
+        let namespace = arbitrary_namespace(&mut *txn, "1234_5678").await;
+        let table = arbitrary_table(&mut *txn, "weather", &namespace).await;
+        let mut table = TableSchema::new_empty_from(&table);
         let time_col = txn
             .columns()
             .create_or_get("time", table.id, ColumnType::Time)
@@ -583,17 +572,9 @@ mod tests {
             .expect("started transaction");
 
         // create namespace, table and columns for weather measurement
-        let namespace = txn
-            .namespaces()
-            .create("1234_5678", None)
-            .await
-            .expect("namespace created");
-        let mut table = txn
-            .tables()
-            .create_or_get("weather", namespace.id)
-            .await
-            .map(|t| TableSchema::new_empty_from(&t))
-            .expect("table created");
+        let namespace = arbitrary_namespace(&mut *txn, "1234_5678").await;
+        let table = arbitrary_table(&mut *txn, "weather", &namespace).await;
+        let mut table = TableSchema::new_empty_from(&table);
         let time_col = txn
             .columns()
             .create_or_get("time", table.id, ColumnType::Time)

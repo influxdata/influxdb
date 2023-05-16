@@ -183,6 +183,7 @@ impl IoxGetRequest {
         /// This represents ths JSON fields
         #[derive(Deserialize, Debug)]
         struct ReadInfoJson {
+            #[serde(alias = "database", alias = "bucket", alias = "bucket-name")]
             namespace_name: String,
             sql_query: String,
             // If query type is not supplied, defaults to SQL
@@ -349,6 +350,41 @@ mod tests {
                 r#"{"namespace_name": "my_otherdb", "sql_query": "SHOW DATABASES;", "query_type": "influxql"}"#,
                 "my_otherdb",
                 "SHOW DATABASES;",
+            ),
+            TestCase::new_influxql(
+                r#"{"database": "my_otherdb", "sql_query": "SHOW DATABASES;", "query_type": "influxql"}"#,
+                "my_otherdb",
+                "SHOW DATABASES;",
+            ),
+            // influxql bucket metadata
+            TestCase::new_influxql(
+                r#"{"bucket": "my_otherdb", "sql_query": "SHOW DATABASES;", "query_type": "influxql"}"#,
+                "my_otherdb",
+                "SHOW DATABASES;",
+            ),
+            // influxql bucket-name metadata
+            TestCase::new_influxql(
+                r#"{"bucket-name": "my_otherdb", "sql_query": "SHOW DATABASES;", "query_type": "influxql"}"#,
+                "my_otherdb",
+                "SHOW DATABASES;",
+            ),
+            // sql database metadata
+            TestCase::new_sql(
+                r#"{"database": "my_db", "sql_query": "SELECT 1;", "query_type": "sql"}"#,
+                "my_db",
+                "SELECT 1;",
+            ),
+            // sql bucket metadata
+            TestCase::new_sql(
+                r#"{"bucket": "my_db", "sql_query": "SELECT 1;", "query_type": "sql"}"#,
+                "my_db",
+                "SELECT 1;",
+            ),
+            // sql bucket-name metadata
+            TestCase::new_sql(
+                r#"{"bucket-name": "my_db", "sql_query": "SELECT 1;", "query_type": "sql"}"#,
+                "my_db",
+                "SELECT 1;",
             ),
         ];
 

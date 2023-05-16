@@ -24,10 +24,11 @@ use futures::{stream::FuturesUnordered, FutureExt, StreamExt, TryStreamExt};
 use generated_types::influxdata::iox::ingester::v1::{
     write_service_server::WriteService, WriteRequest,
 };
-use influxdb_iox_client::flight;
 use ingester::{IngesterGuard, IngesterRpcInterface};
+use ingester_query_grpc::influxdata::iox::ingester::v1::IngesterQueryRequest;
 use iox_catalog::{
     interface::{Catalog, SoftDeletedRows},
+    test_helpers::arbitrary_namespace,
     validate_or_insert_schema,
 };
 use iox_time::TimeProvider;
@@ -202,14 +203,8 @@ where
         name: &str,
         retention_period_ns: Option<i64>,
     ) -> Namespace {
-        let ns = self
-            .catalog
-            .repositories()
-            .await
-            .namespaces()
-            .create(name, None)
-            .await
-            .expect("failed to create test namespace");
+        let mut repos = self.catalog.repositories().await;
+        let ns = arbitrary_namespace(&mut *repos, name).await;
 
         assert!(
             self.namespaces
@@ -341,7 +336,7 @@ where
     /// Submit a query to the ingester's public query interface.
     pub async fn query(
         &self,
-        request: flight::generated_types::IngesterQueryRequest,
+        request: IngesterQueryRequest,
     ) -> Result<Vec<RecordBatch>, influxdb_iox_client::flight::Error> {
         let mut bytes = bytes::BytesMut::new();
         prost::Message::encode(&request, &mut bytes)?;

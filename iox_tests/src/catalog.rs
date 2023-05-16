@@ -5,8 +5,9 @@ use arrow::{
     record_batch::RecordBatch,
 };
 use data_types::{
-    Column, ColumnSet, ColumnType, ColumnsByName, CompactionLevel, Namespace, NamespaceSchema,
-    ParquetFile, ParquetFileParams, Partition, PartitionId, Table, TableId, TableSchema, Timestamp,
+    Column, ColumnSet, ColumnType, ColumnsByName, CompactionLevel, Namespace, NamespaceName,
+    NamespaceSchema, ParquetFile, ParquetFileParams, Partition, PartitionId, Table, TableId,
+    TableSchema, Timestamp,
 };
 use datafusion::physical_plan::metrics::Count;
 use datafusion_util::MemoryStream;
@@ -15,6 +16,7 @@ use iox_catalog::{
         get_schema_by_id, get_table_columns_by_id, Catalog, PartitionRepo, SoftDeletedRows,
     },
     mem::MemCatalog,
+    test_helpers::arbitrary_table,
 };
 use iox_query::{
     exec::{DedicatedExecutors, Executor, ExecutorConfig},
@@ -143,9 +145,10 @@ impl TestCatalog {
         retention_period_ns: Option<i64>,
     ) -> Arc<TestNamespace> {
         let mut repos = self.catalog.repositories().await;
+        let namespace_name = NamespaceName::new(name).unwrap();
         let namespace = repos
             .namespaces()
-            .create(name, retention_period_ns)
+            .create(&namespace_name, retention_period_ns)
             .await
             .unwrap();
 
@@ -218,11 +221,7 @@ impl TestNamespace {
     pub async fn create_table(self: &Arc<Self>, name: &str) -> Arc<TestTable> {
         let mut repos = self.catalog.catalog.repositories().await;
 
-        let table = repos
-            .tables()
-            .create_or_get(name, self.namespace.id)
-            .await
-            .unwrap();
+        let table = arbitrary_table(&mut *repos, name, &self.namespace).await;
 
         Arc::new(TestTable {
             catalog: Arc::clone(&self.catalog),

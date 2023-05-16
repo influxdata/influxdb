@@ -107,7 +107,7 @@ where
                         .repositories()
                         .await
                         .namespaces()
-                        .create(namespace.as_str(), retention_period_ns)
+                        .create(namespace, retention_period_ns)
                         .await
                     {
                         Ok(_) => {

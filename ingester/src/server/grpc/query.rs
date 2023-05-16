@@ -9,7 +9,7 @@ use arrow_flight::{
 use data_types::{NamespaceId, PartitionId, TableId};
 use flatbuffers::FlatBufferBuilder;
 use futures::{Stream, StreamExt, TryStreamExt};
-use generated_types::influxdata::iox::ingester::v1 as proto;
+use ingester_query_grpc::influxdata::iox::ingester::v1 as proto;
 use metric::U64Counter;
 use observability_deps::tracing::*;
 use prost::Message;

@@ -83,7 +83,10 @@ mod tests {
     use super::*;
     use data_types::ColumnType;
     use generated_types::influxdata::iox::schema::v1::schema_service_server::SchemaService;
-    use iox_catalog::mem::MemCatalog;
+    use iox_catalog::{
+        mem::MemCatalog,
+        test_helpers::{arbitrary_namespace, arbitrary_table},
+    };
     use std::sync::Arc;
 
     #[tokio::test]
@@ -93,16 +96,8 @@ mod tests {
             let metrics = Arc::new(metric::Registry::default());
             let catalog = Arc::new(MemCatalog::new(metrics));
             let mut repos = catalog.repositories().await;
-            let namespace = repos
-                .namespaces()
-                .create("namespace_schema_test", None)
-                .await
-                .unwrap();
-            let table = repos
-                .tables()
-                .create_or_get("schema_test_table", namespace.id)
-                .await
-                .unwrap();
+            let namespace = arbitrary_namespace(&mut *repos, "namespace_schema_test").await;
+            let table = arbitrary_table(&mut *repos, "schema_test_table", &namespace).await;
             repos
                 .columns()
                 .create_or_get("schema_test_column", table.id, ColumnType::Tag)
