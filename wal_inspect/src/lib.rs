@@ -146,7 +146,7 @@ mod tests {
         iox::wal::v1::sequenced_wal_op::Op, pbdata::v1::DatabaseBatch,
     };
     use mutable_batch_lp::lines_to_batches;
-    use wal::{DecodeError, SequencedWalOp, WriteOpEntry, WriteOpEntryDecoder};
+    use wal::{SequencedWalOp, WriteOpEntry, WriteOpEntryDecoder};
 
     use super::*;
 
@@ -296,13 +296,7 @@ mod tests {
         // The translator should be able to read all 2 good entries containing 4 write ops
         let decoded_entries = decoder
             .into_iter()
-            .map_while(|r| {
-                r.map_err(|e| match e {
-                    DecodeError::FailedToReadWal { .. } => None::<()>,
-                    _ => panic!("unexpected error"),
-                })
-                .ok()
-            })
+            .map_while(|r| r.ok())
             .collect::<Vec<_>>();
         assert_eq!(decoded_entries.len(), 2);
         let decoded_ops = decoded_entries

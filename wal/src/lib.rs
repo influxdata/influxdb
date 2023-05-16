@@ -602,8 +602,11 @@ impl Iterator for WriteOpEntryDecoder {
     /// may be returned if there are no writes in a WAL entry batch, but does not
     /// indicate the decoder is consumed.
     fn next(&mut self) -> Option<Self::Item> {
-        match self.reader.next_batch().context(FailedToReadWalSnafu) {
-            Ok(Some(batch)) => Some(
+        self.reader
+            .next_batch()
+            .context(FailedToReadWalSnafu)
+            .transpose()?
+            .map(|batch| {
                 batch
                     .into_iter()
                     .filter_map(|sequenced_op| match sequenced_op.op {
@@ -611,18 +614,16 @@ impl Iterator for WriteOpEntryDecoder {
                         WalOp::Delete(..) => None,
                         WalOp::Persist(..) => None,
                     })
-                    .map(|w| -> Result<WriteOpEntry, DecodeError> {
+                    .map(|w| {
                         Ok(WriteOpEntry {
                             namespace: NamespaceId::new(w.database_id),
                             table_batches: decode_database_batch(&w)
                                 .context(UnableToCreateMutableBatchSnafu)?,
                         })
                     })
-                    .collect::<Self::Item>(),
-            ),
-            Ok(None) => None,
-            Err(e) => Some(Err(e)),
-        }
+                    .collect::<Self::Item>()
+            })
+            .ok()
     }
 }
 
@@ -647,6 +648,8 @@ impl ClosedSegment {
 
 #[cfg(test)]
 mod tests {
+    use std::collections::BTreeSet;
+
     use assert_matches::assert_matches;
     use data_types::{NamespaceId, SequenceNumber, TableId};
     use dml::DmlWrite;
@@ -763,30 +766,36 @@ mod tests {
         let wal = Wal::new(&dir.path()).await.unwrap();
 
         let w1 = test_data("m1,t=foo v=1i 1");
-        let w2 = test_data("m1,t=foo v=2i 2");
+        let w2 = test_data("m2,u=foo w=2i 2");
+        let w3 = test_data("m1,t=foo v=3i 3");
 
         let op1 = SequencedWalOp {
             sequence_number: 0,
-            op: WalOp::Write(w1),
+            op: WalOp::Write(w1.to_owned()),
         };
         let op2 = SequencedWalOp {
             sequence_number: 1,
-            op: WalOp::Delete(test_delete()),
+            op: WalOp::Write(w2.to_owned()),
         };
         let op3 = SequencedWalOp {
-            sequence_number: 1,
-            op: WalOp::Persist(test_persist()),
+            sequence_number: 2,
+            op: WalOp::Delete(test_delete()),
         };
-        // A second write entry coming after a delete and persist entry must still be yielded
         let op4 = SequencedWalOp {
             sequence_number: 2,
-            op: WalOp::Write(w2),
+            op: WalOp::Persist(test_persist()),
+        };
+        // A third write entry coming after a delete and persist entry must still be yielded
+        let op5 = SequencedWalOp {
+            sequence_number: 3,
+            op: WalOp::Write(w3.to_owned()),
         };
 
         wal.write_op(op1.clone());
-        wal.write_op(op2.clone()).changed().await.unwrap();
-        wal.write_op(op3.clone());
-        wal.write_op(op4.clone()).changed().await.unwrap();
+        wal.write_op(op2.clone());
+        wal.write_op(op3.clone()).changed().await.unwrap();
+        wal.write_op(op4.clone());
+        wal.write_op(op5.clone()).changed().await.unwrap();
 
         let (closed, _) = wal.rotate().unwrap();
 
@@ -795,24 +804,43 @@ mod tests {
                 .expect("failed to open reader for closed WAL segment"),
         );
 
-        let write_op_entries = decoder
+        let wal_entries = decoder
             .into_iter()
-            .flat_map(|r| r.expect("unexpected bad entry"))
+            .map(|r| r.expect("unexpected bad entry"))
             .collect::<Vec<_>>();
-        // The decoder should find 2 entries, each containing a single table write
-        assert_eq!(write_op_entries.len(), 2);
+        // The decoder should find 2 entries, with a total of 3 write ops
+        assert_eq!(wal_entries.len(), 2);
+        let write_op_entries = wal_entries.into_iter().flatten().collect::<Vec<_>>();
+        assert_eq!(write_op_entries.len(), 3);
         assert_matches!(write_op_entries.get(0), Some(got_op1) => {
-            assert_eq!(got_op1.namespace, TEST_NAMESPACE_ID);
-            assert_eq!(got_op1.table_batches.len(), 1);
-            let mb = got_op1.table_batches.get(&0).expect("no mutable batch for table ID 0");
-            assert_eq!(mb.column_names(), vec!["t", "v", "time"].into_iter().collect());
+            assert_op_shape(got_op1, &w1);
         });
         assert_matches!(write_op_entries.get(1), Some(got_op2) => {
-            assert_eq!(got_op2.namespace, TEST_NAMESPACE_ID);
-            assert_eq!(got_op2.table_batches.len(), 1);
-            let mb = got_op2.table_batches.get(&0).expect("no mutable batch for table ID 0");
-            assert_eq!(mb.column_names(), vec!["t", "v", "time"].into_iter().collect());
+            assert_op_shape(got_op2, &w2);
         });
+        assert_matches!(write_op_entries.get(2), Some(got_op3) => {
+            assert_op_shape(got_op3, &w3);
+        });
+    }
+
+    fn assert_op_shape(left: &WriteOpEntry, right: &DatabaseBatch) {
+        assert_eq!(left.namespace, NamespaceId::new(right.database_id));
+        assert_eq!(left.table_batches.len(), right.table_batches.len());
+        for right_tb in &right.table_batches {
+            let right_key = right_tb.table_id;
+            let left_mb = left
+                .table_batches
+                .get(&right_key)
+                .unwrap_or_else(|| panic!("left value missing table batch for key {right_key}"));
+            assert_eq!(
+                left_mb.column_names(),
+                right_tb
+                    .columns
+                    .iter()
+                    .map(|c| c.column_name.as_str())
+                    .collect::<BTreeSet<_>>()
+            )
+        }
     }
 
     fn test_data(lp: &str) -> DatabaseBatch {
