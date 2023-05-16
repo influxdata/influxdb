@@ -148,8 +148,7 @@ fn arrow_coalesce_struct(
             .zip(array1.fields())
             .map(|((col1, col2), field)| {
                 let out = arrow_coalesce_struct(&col1, &col2)?;
-                // TODO: avoid field clone once https://github.com/apache/arrow-rs/pull/4116 is available
-                Ok((field.as_ref().clone(), out)) as Result<_, DataFusionError>
+                Ok((Arc::clone(field), out)) as Result<_, DataFusionError>
             })
             .collect::<Result<Vec<_>, _>>()?;
 

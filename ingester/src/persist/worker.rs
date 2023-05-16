@@ -135,12 +135,17 @@ pub(super) async fn run_task<O>(
         };
 
         // Make the newly uploaded parquet file visible to other nodes.
-        let object_store_id = update_catalog_parquet(&ctx, &worker_state, parquet_table_data).await;
+        let object_store_id =
+            update_catalog_parquet(&ctx, &worker_state, &parquet_table_data).await;
 
         // And finally mark the persist job as complete and notify any
         // observers.
-        ctx.mark_complete(object_store_id, &worker_state.completion_observer)
-            .await;
+        ctx.mark_complete(
+            object_store_id,
+            parquet_table_data,
+            &worker_state.completion_observer,
+        )
+        .await;
 
         // Capture the time spent actively persisting.
         let now = Instant::now();
@@ -459,7 +464,7 @@ where
 async fn update_catalog_parquet<O>(
     ctx: &Context,
     worker_state: &SharedWorkerState<O>,
-    parquet_table_data: ParquetFileParams,
+    parquet_table_data: &ParquetFileParams,
 ) -> Uuid
 where
     O: Send + Sync,
