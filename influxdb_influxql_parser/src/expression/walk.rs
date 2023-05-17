@@ -21,9 +21,9 @@ pub enum ExpressionMut<'a> {
 }
 
 /// Perform a depth-first traversal of an expression tree.
-pub fn walk_expression<B>(
-    node: &ConditionalExpression,
-    visit: &mut impl FnMut(Expression<'_>) -> std::ops::ControlFlow<B>,
+pub fn walk_expression<'a, B>(
+    node: &'a ConditionalExpression,
+    visit: &mut impl FnMut(Expression<'a>) -> std::ops::ControlFlow<B>,
 ) -> std::ops::ControlFlow<B> {
     match node {
         ConditionalExpression::Expr(n) => walk_expr(n, &mut |n| visit(Expression::Arithmetic(n)))?,
@@ -57,9 +57,9 @@ pub fn walk_expression_mut<B>(
 }
 
 /// Perform a depth-first traversal of the arithmetic expression tree.
-pub fn walk_expr<B>(
-    expr: &Expr,
-    visit: &mut impl FnMut(&Expr) -> std::ops::ControlFlow<B>,
+pub fn walk_expr<'a, B>(
+    expr: &'a Expr,
+    visit: &mut impl FnMut(&'a Expr) -> std::ops::ControlFlow<B>,
 ) -> std::ops::ControlFlow<B> {
     match expr {
         Expr::Binary(Binary { lhs, rhs, .. }) => {
