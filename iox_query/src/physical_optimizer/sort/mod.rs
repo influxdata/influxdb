@@ -4,4 +4,3 @@
 
 pub mod parquet_sortness;
 pub mod redundant_sort;
-pub mod sort_pushdown;
