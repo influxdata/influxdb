@@ -90,8 +90,21 @@ impl TestCase {
             // Run the setup steps and the QueryAndCompare step
             let setup_steps = super::setups::SETUPS
                 .get(setup_name)
-                .unwrap_or_else(|| panic!("Could not find setup with key `{setup_name}`"))
-                .iter();
+                .unwrap_or_else(|| panic!("Could not find setup with key `{setup_name}`"));
+
+            // Check that the specified chunk_stage is compatible with the setup steps. If the test
+            // setup is persisting on-demand, `ChunkStage::Parquet` will sometimes persist too
+            // fast, so don't do that.
+            if chunk_stage == ChunkStage::Parquet
+                && setup_steps.iter().any(|step| matches!(step, Step::Persist))
+            {
+                panic!(
+                    "This test is using `ChunkStage::Parquet` which persists as fast as possible, \
+                    but the setup steps are persisting writes on-demand with `Step::Persist`. This \
+                    may cause flaky failures, so this `TestCase` should have `chunk_stage: \
+                    ChunkStage::Ingester` instead!"
+                );
+            }
 
             let test_step = match given_input_path.extension() {
                 Some(ext) if ext == "sql" => Step::QueryAndCompare {
@@ -111,9 +124,12 @@ impl TestCase {
             };
 
             // Run the tests
-            StepTest::new(&mut cluster, setup_steps.chain(std::iter::once(&test_step)))
-                .run()
-                .await;
+            StepTest::new(
+                &mut cluster,
+                setup_steps.iter().chain(std::iter::once(&test_step)),
+            )
+            .run()
+            .await;
         }
     }
 }
