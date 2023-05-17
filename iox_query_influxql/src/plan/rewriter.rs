@@ -218,7 +218,7 @@ impl RewriteSelect {
                 if let Some(group_by) = &stmt.group_by {
                     // Remove any explicitly listed tags in the GROUP BY clause, so they are not
                     // expanded by any wildcards specified in the SELECT projection list
-                    group_by.tags().for_each(|ident| {
+                    group_by.tag_names().for_each(|ident| {
                         tag_set.remove(ident.as_str());
                     });
                 }
@@ -259,7 +259,10 @@ impl RewriteSelect {
 
                     for dim in group_by.iter() {
                         let add_dim = |dim: &String| {
-                            new_dimensions.push(Dimension::Tag(Identifier::new(dim.clone())))
+                            new_dimensions.push(Dimension::VarRef(VarRef {
+                                name: Identifier::new(dim.clone()),
+                                data_type: Some(VarRefDataType::Tag),
+                            }))
                         };
 
                         match dim {
@@ -497,7 +500,7 @@ fn from_field_and_dimensions(
 
                 if let Some(group_by) = &select.group_by {
                     // Merge the dimensions from the subquery
-                    ts.extend(group_by.tags().map(|i| i.deref().to_string()));
+                    ts.extend(group_by.tag_names().map(|i| i.deref().to_string()));
                 }
             }
         }

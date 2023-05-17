@@ -193,7 +193,7 @@ impl<'a> Context<'a> {
             (true, None) => vec![],
             (false, None) => self.root_group_by_tags.to_vec(),
             (_, Some(group_by)) => group_by
-                .tags()
+                .tag_names()
                 .map(|ident| ident.deref().as_str())
                 .chain(self.root_group_by_tags.iter().copied())
                 .sorted()
@@ -312,7 +312,7 @@ impl<'a> InfluxQLToLogicalPlan<'a> {
 
         let group_by_tags = if let Some(group_by) = select.group_by.as_ref() {
             group_by
-                .tags()
+                .tag_names()
                 .map(|ident| ident.deref().as_str())
                 .collect()
         } else {
