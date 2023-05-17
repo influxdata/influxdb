@@ -650,7 +650,7 @@ fn fields_expand_wildcards(
                 ]);
 
                 // Modify the supported types for certain functions.
-                match name.to_lowercase().as_str() {
+                match name.as_str() {
                     "count" | "first" | "last" | "distinct" | "elapsed" | "mode" | "sample" => {
                         supported_types
                             .extend([Some(VarRefDataType::String), Some(VarRefDataType::Boolean)]);
