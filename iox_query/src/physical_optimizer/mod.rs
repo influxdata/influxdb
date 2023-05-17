@@ -31,6 +31,7 @@ mod test_util;
 /// Register IOx-specific [`PhysicalOptimizerRule`]s with the SessionContext
 pub fn register_iox_physical_optimizers(state: SessionState) -> SessionState {
     // prepend IOx-specific rules to DataFusion builtins
+    // The optimizer rules have to be done in this order
     let mut optimizers: Vec<Arc<dyn PhysicalOptimizerRule + Sync + Send>> = vec![
         Arc::new(PartitionSplit::default()),
         Arc::new(TimeSplit::default()),

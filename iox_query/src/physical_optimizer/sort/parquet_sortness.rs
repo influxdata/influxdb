@@ -1,7 +1,7 @@
 use std::sync::Arc;
 
 use datafusion::{
-    common::tree_node::{Transformed, TreeNode},
+    common::tree_node::{RewriteRecursion, Transformed, TreeNode, TreeNodeRewriter},
     config::ConfigOptions,
     error::Result,
     physical_expr::{PhysicalSortExpr, PhysicalSortRequirement},
@@ -38,77 +38,16 @@ impl PhysicalOptimizerRule for ParquetSortness {
             let Some(children_with_sort) = detect_children_with_desired_ordering(plan.as_ref()) else {
                 return Ok(Transformed::No(plan));
             };
-
             let mut children_new = Vec::with_capacity(children_with_sort.len());
-            let mut transformed_any = false;
-            for (mut child, input_ordering) in children_with_sort {
-                let transformed_child = Arc::clone(&child).transform_down(&|plan| {
-                    if detect_children_with_desired_ordering(plan.as_ref()).is_some() {
-                        // another sort or sort-desiring node
-                        return Ok(Transformed::No(plan));
-                    }
-
-                    let Some(parquet_exec) = plan.as_any().downcast_ref::<ParquetExec>() else {
-                        // not a parquet exec
-                        return Ok(Transformed::No(plan));
-                    };
-
-                    let base_config = parquet_exec.base_config();
-                    if base_config.output_ordering.is_none() {
-                        // no output ordering requested
-                        return Ok(Transformed::No(plan));
-                    }
-
-                    if base_config.file_groups.iter().all(|g| g.len() < 2) {
-                        // already flat
-                        return Ok(Transformed::No(plan));
-                    }
-
-                    // Protect against degenerative plans
-                    let n_files = base_config.file_groups.iter().map(Vec::len).sum::<usize>();
-                    let max_parquet_fanout = config
-                        .extensions
-                        .get::<IoxConfigExt>()
-                        .cloned()
-                        .unwrap_or_default()
-                        .max_parquet_fanout;
-                    if n_files > max_parquet_fanout {
-                        warn!(
-                            n_files,
-                            max_parquet_fanout, "cannot use pre-sorted parquet files, fan-out too wide"
-                        );
-                        return Ok(Transformed::No(plan));
-                    }
-
-                    let base_config = FileScanConfig {
-                        file_groups: base_config
-                            .file_groups
-                            .iter()
-                            .flat_map(|g| g.iter())
-                            .map(|f| vec![f.clone()])
-                            .collect(),
-                        ..base_config.clone()
-                    };
-                    let new_parquet_exec =
-                        ParquetExec::new(base_config, parquet_exec.predicate().cloned(), None);
-                    Ok(Transformed::Yes(Arc::new(new_parquet_exec)))
-                })?;
-
-                // did this help?
-                if transformed_child.output_ordering() == Some(&input_ordering) {
-                    child = transformed_child;
-                    transformed_any = true;
-                }
+            for (child, desired_ordering) in children_with_sort {
+                let mut rewriter = ParquetSortnessRewriter{config, desired_ordering: &desired_ordering};
+                let child = Arc::clone(&child).rewrite(&mut rewriter)?;
                 children_new.push(child);
             }
 
-            if transformed_any {
-                Ok(Transformed::Yes(
-                    plan.with_new_children(children_new)?
-                ))
-            } else {
-                Ok(Transformed::No(plan))
-            }
+            Ok(Transformed::Yes(
+                plan.with_new_children(children_new)?
+            ))
         })
     }
 
@@ -121,11 +60,11 @@ impl PhysicalOptimizerRule for ParquetSortness {
     }
 }
 
-type ChildWithSorting<'a> = (Arc<dyn ExecutionPlan>, Vec<PhysicalSortExpr>);
+type ChildWithSorting = (Arc<dyn ExecutionPlan>, Vec<PhysicalSortExpr>);
 
 fn detect_children_with_desired_ordering(
     plan: &dyn ExecutionPlan,
-) -> Option<Vec<ChildWithSorting<'_>>> {
+) -> Option<Vec<ChildWithSorting>> {
     if let Some(sort_exec) = plan.as_any().downcast_ref::<SortExec>() {
         return Some(vec![(
             Arc::clone(sort_exec.input()),
@@ -162,20 +101,96 @@ fn detect_children_with_desired_ordering(
     )
 }
 
+#[derive(Debug)]
+struct ParquetSortnessRewriter<'a> {
+    config: &'a ConfigOptions,
+    desired_ordering: &'a [PhysicalSortExpr],
+}
+
+impl<'a> TreeNodeRewriter for ParquetSortnessRewriter<'a> {
+    type N = Arc<dyn ExecutionPlan>;
+
+    fn pre_visit(&mut self, node: &Self::N) -> Result<RewriteRecursion> {
+        if detect_children_with_desired_ordering(node.as_ref()).is_some() {
+            // another sort or sort-desiring node
+            Ok(RewriteRecursion::Stop)
+        } else {
+            Ok(RewriteRecursion::Continue)
+        }
+    }
+
+    fn mutate(&mut self, node: Self::N) -> Result<Self::N> {
+        let Some(parquet_exec) = node.as_any().downcast_ref::<ParquetExec>() else {
+            // not a parquet exec
+            return Ok(node);
+        };
+
+        let base_config = parquet_exec.base_config();
+        if base_config.output_ordering.is_none() {
+            // no output ordering requested
+            return Ok(node);
+        }
+
+        if base_config.file_groups.iter().all(|g| g.len() < 2) {
+            // already flat
+            return Ok(node);
+        }
+
+        // Protect against degenerative plans
+        let n_files = base_config.file_groups.iter().map(Vec::len).sum::<usize>();
+        let max_parquet_fanout = self
+            .config
+            .extensions
+            .get::<IoxConfigExt>()
+            .cloned()
+            .unwrap_or_default()
+            .max_parquet_fanout;
+        if n_files > max_parquet_fanout {
+            warn!(
+                n_files,
+                max_parquet_fanout, "cannot use pre-sorted parquet files, fan-out too wide"
+            );
+            return Ok(node);
+        }
+
+        let base_config = FileScanConfig {
+            file_groups: base_config
+                .file_groups
+                .iter()
+                .flat_map(|g| g.iter())
+                .map(|f| vec![f.clone()])
+                .collect(),
+            ..base_config.clone()
+        };
+        let new_parquet_exec =
+            ParquetExec::new(base_config, parquet_exec.predicate().cloned(), None);
+
+        // did this help?
+        if new_parquet_exec.output_ordering() == Some(self.desired_ordering) {
+            Ok(Arc::new(new_parquet_exec))
+        } else {
+            Ok(node)
+        }
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use arrow::datatypes::{DataType, Field, Fields, Schema, SchemaRef};
     use datafusion::{
         datasource::{listing::PartitionedFile, object_store::ObjectStoreUrl},
         physical_expr::PhysicalSortExpr,
-        physical_plan::{empty::EmptyExec, expressions::Column, sorts::sort::SortExec, Statistics},
+        physical_plan::{
+            empty::EmptyExec, expressions::Column, sorts::sort::SortExec, union::UnionExec,
+            Statistics,
+        },
     };
     use object_store::{path::Path, ObjectMeta};
 
     use crate::{
         chunk_order_field,
         physical_optimizer::test_util::{assert_unknown_partitioning, OptimizationTest},
-        provider::DeduplicateExec,
+        provider::{DeduplicateExec, RecordBatchesExec},
         CHUNK_ORDER_COLUMN_NAME,
     };
 
@@ -525,6 +540,87 @@ mod tests {
             - " SortExec: fetch=42, expr=[col1@0 ASC,col2@1 ASC]"
             - "   SortExec: fetch=42, expr=[col2@1 ASC,col1@0 ASC]"
             - "     ParquetExec: file_groups={1 group: [[1.parquet, 2.parquet]]}, projection=[col1, col2, col3], output_ordering=[col1@0 ASC, col2@1 ASC]"
+        "###
+        );
+    }
+
+    #[test]
+    fn test_honor_inner_sort_even_if_outer_preform_resort() {
+        let schema = schema();
+        let base_config = FileScanConfig {
+            object_store_url: ObjectStoreUrl::parse("test://").unwrap(),
+            file_schema: Arc::clone(&schema),
+            file_groups: vec![vec![file(1), file(2)]],
+            statistics: Statistics::default(),
+            projection: None,
+            limit: None,
+            table_partition_cols: vec![],
+            output_ordering: Some(ordering(["col1", "col2"], &schema)),
+            infinite_source: false,
+        };
+        let plan = Arc::new(ParquetExec::new(base_config, None, None));
+        let plan =
+            Arc::new(SortExec::new(ordering(["col1", "col2"], &schema), plan).with_fetch(Some(42)));
+        let plan =
+            Arc::new(SortExec::new(ordering(["col2", "col1"], &schema), plan).with_fetch(Some(42)));
+        let opt = ParquetSortness::default();
+        insta::assert_yaml_snapshot!(
+            OptimizationTest::new(plan, opt),
+            @r###"
+        ---
+        input:
+          - " SortExec: fetch=42, expr=[col2@1 ASC,col1@0 ASC]"
+          - "   SortExec: fetch=42, expr=[col1@0 ASC,col2@1 ASC]"
+          - "     ParquetExec: file_groups={1 group: [[1.parquet, 2.parquet]]}, projection=[col1, col2, col3], output_ordering=[col1@0 ASC, col2@1 ASC]"
+        output:
+          Ok:
+            - " SortExec: fetch=42, expr=[col2@1 ASC,col1@0 ASC]"
+            - "   SortExec: fetch=42, expr=[col1@0 ASC,col2@1 ASC]"
+            - "     ParquetExec: file_groups={2 groups: [[1.parquet], [2.parquet]]}, projection=[col1, col2, col3], output_ordering=[col1@0 ASC, col2@1 ASC]"
+        "###
+        );
+    }
+
+    #[test]
+    fn test_issue_idpe_17556() {
+        let schema = schema_with_chunk_order();
+
+        let base_config = FileScanConfig {
+            object_store_url: ObjectStoreUrl::parse("test://").unwrap(),
+            file_schema: Arc::clone(&schema),
+            file_groups: vec![vec![file(1), file(2)]],
+            statistics: Statistics::default(),
+            projection: None,
+            limit: None,
+            table_partition_cols: vec![],
+            output_ordering: Some(ordering(["col2", "col1", CHUNK_ORDER_COLUMN_NAME], &schema)),
+            infinite_source: false,
+        };
+        let plan_parquet = Arc::new(ParquetExec::new(base_config, None, None));
+        let plan_batches = Arc::new(RecordBatchesExec::new(vec![], Arc::clone(&schema), None));
+
+        let plan = Arc::new(UnionExec::new(vec![plan_batches, plan_parquet]));
+        let plan = Arc::new(DeduplicateExec::new(
+            plan,
+            ordering(["col2", "col1"], &schema),
+            true,
+        ));
+        let opt = ParquetSortness::default();
+        insta::assert_yaml_snapshot!(
+            OptimizationTest::new(plan, opt),
+            @r###"
+        ---
+        input:
+          - " DeduplicateExec: [col2@1 ASC,col1@0 ASC]"
+          - "   UnionExec"
+          - "     RecordBatchesExec: batches_groups=0 batches=0 total_rows=0"
+          - "     ParquetExec: file_groups={1 group: [[1.parquet, 2.parquet]]}, projection=[col1, col2, col3, __chunk_order], output_ordering=[col2@1 ASC, col1@0 ASC, __chunk_order@3 ASC]"
+        output:
+          Ok:
+            - " DeduplicateExec: [col2@1 ASC,col1@0 ASC]"
+            - "   UnionExec"
+            - "     RecordBatchesExec: batches_groups=0 batches=0 total_rows=0"
+            - "     ParquetExec: file_groups={2 groups: [[1.parquet], [2.parquet]]}, projection=[col1, col2, col3, __chunk_order], output_ordering=[col2@1 ASC, col1@0 ASC, __chunk_order@3 ASC]"
         "###
         );
     }
