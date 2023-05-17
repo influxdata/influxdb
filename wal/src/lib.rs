@@ -602,28 +602,30 @@ impl Iterator for WriteOpEntryDecoder {
     /// may be returned if there are no writes in a WAL entry batch, but does not
     /// indicate the decoder is consumed.
     fn next(&mut self) -> Option<Self::Item> {
-        self.reader
-            .next_batch()
-            .context(FailedToReadWalSnafu)
-            .transpose()?
-            .map(|batch| {
-                batch
-                    .into_iter()
-                    .filter_map(|sequenced_op| match sequenced_op.op {
-                        WalOp::Write(w) => Some(w),
-                        WalOp::Delete(..) => None,
-                        WalOp::Persist(..) => None,
-                    })
-                    .map(|w| {
-                        Ok(WriteOpEntry {
-                            namespace: NamespaceId::new(w.database_id),
-                            table_batches: decode_database_batch(&w)
-                                .context(UnableToCreateMutableBatchSnafu)?,
+        Some(
+            self.reader
+                .next_batch()
+                .context(FailedToReadWalSnafu)
+                .transpose()?
+                .map(|batch| {
+                    batch
+                        .into_iter()
+                        .filter_map(|sequenced_op| match sequenced_op.op {
+                            WalOp::Write(w) => Some(w),
+                            WalOp::Delete(..) => None,
+                            WalOp::Persist(..) => None,
                         })
-                    })
-                    .collect::<Self::Item>()
-            })
-            .ok()
+                        .map(|w| {
+                            Ok(WriteOpEntry {
+                                namespace: NamespaceId::new(w.database_id),
+                                table_batches: decode_database_batch(&w)
+                                    .context(UnableToCreateMutableBatchSnafu)?,
+                            })
+                        })
+                        .collect::<Self::Item>()
+                })
+                .unwrap_or_else(Err),
+        )
     }
 }
 
@@ -649,6 +651,8 @@ impl ClosedSegment {
 #[cfg(test)]
 mod tests {
     use std::collections::BTreeSet;
+    use std::fs::{read_dir, OpenOptions};
+    use std::io::Write;
 
     use assert_matches::assert_matches;
     use data_types::{NamespaceId, SequenceNumber, TableId};
@@ -763,7 +767,7 @@ mod tests {
     #[tokio::test]
     async fn decode_write_op_entries() {
         let dir = test_helpers::tmp_dir().unwrap();
-        let wal = Wal::new(&dir.path()).await.unwrap();
+        let wal = Wal::new(dir.path()).await.unwrap();
 
         let w1 = test_data("m1,t=foo v=1i 1");
         let w2 = test_data("m2,u=foo w=2i 2");
@@ -791,11 +795,11 @@ mod tests {
             op: WalOp::Write(w3.to_owned()),
         };
 
-        wal.write_op(op1.clone());
-        wal.write_op(op2.clone());
-        wal.write_op(op3.clone()).changed().await.unwrap();
-        wal.write_op(op4.clone());
-        wal.write_op(op5.clone()).changed().await.unwrap();
+        wal.write_op(op1);
+        wal.write_op(op2);
+        wal.write_op(op3).changed().await.unwrap();
+        wal.write_op(op4);
+        wal.write_op(op5).changed().await.unwrap();
 
         let (closed, _) = wal.rotate().unwrap();
 
@@ -821,6 +825,56 @@ mod tests {
         assert_matches!(write_op_entries.get(2), Some(got_op3) => {
             assert_op_shape(got_op3, &w3);
         });
+    }
+
+    #[tokio::test]
+    async fn decode_write_op_entry_from_corrupted_wal() {
+        let dir = test_helpers::tmp_dir().unwrap();
+        let wal = Wal::new(dir.path()).await.unwrap();
+
+        // Log a write operation to test recovery from a tail-corrupted WAL.
+        let good_write = test_data("m3,a=baz b=4i 1");
+        wal.write_op(SequencedWalOp {
+            sequence_number: 0,
+            op: WalOp::Write(good_write.to_owned()),
+        })
+        .changed()
+        .await
+        .unwrap();
+
+        // Append some garbage to the tail end of the WAL, then rotate it
+        {
+            let mut reader = read_dir(dir.path()).unwrap();
+            let closed_path = reader
+                .next()
+                .expect("no segment file found in WAL dir")
+                .unwrap()
+                .path();
+            assert_matches!(reader.next(), None);
+
+            OpenOptions::new()
+                .append(true)
+                .open(closed_path)
+                .expect("unable to open closed WAL segment for writing")
+                .write_all(b"ceci ne pas une banane")
+                .unwrap();
+        }
+        let (closed, _) = wal.rotate().expect("failed to rotate WAL");
+
+        let mut decoder = WriteOpEntryDecoder::from(
+            wal.reader_for_segment(closed.id())
+                .expect("failed to open reader for closed segment"),
+        );
+        // Recover the single entry in front of the garbage and assert the expected
+        // error is thrown
+        assert_matches!(decoder.next(), Some(Ok(batch)) => {
+            assert_eq!(batch.len(), 1);
+            assert_op_shape(batch.get(0).unwrap(), &good_write);
+        });
+        assert_matches!(
+            decoder.next(),
+            Some(Err(DecodeError::FailedToReadWal { .. }))
+        );
     }
 
     fn assert_op_shape(left: &WriteOpEntry, right: &DatabaseBatch) {
