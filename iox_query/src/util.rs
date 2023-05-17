@@ -29,7 +29,7 @@ use datafusion::{
         expressions::{col as physical_col, PhysicalSortExpr},
         ExecutionPlan, PhysicalExpr,
     },
-    prelude::{binary_expr, lit, Expr},
+    prelude::{binary_expr, lit, Column, Expr},
     scalar::ScalarValue,
 };
 
@@ -92,6 +92,16 @@ pub fn arrow_pk_sort_exprs(
     }
 
     sort_exprs
+}
+
+pub fn logical_sort_key_exprs(sort_key: &SortKey) -> Vec<Expr> {
+    sort_key
+        .iter()
+        .map(|(key, options)| {
+            let expr = Expr::Column(Column::from_name(key.as_ref()));
+            expr.sort(!options.descending, options.nulls_first)
+        })
+        .collect()
 }
 
 pub fn arrow_sort_key_exprs(
