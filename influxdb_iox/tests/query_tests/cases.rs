@@ -110,11 +110,23 @@ async fn duplicates_parquet() {
 }
 
 #[tokio::test]
-async fn duplicates_parquet_many() {
+async fn duplicates_parquet_20() {
     test_helpers::maybe_start_logging();
 
     TestCase {
-        input: "cases/in/duplicates_parquet_many.sql",
+        input: "cases/in/duplicates_parquet_20.sql",
+        chunk_stage: ChunkStage::Parquet,
+    }
+    .run()
+    .await;
+}
+
+#[tokio::test]
+async fn duplicates_parquet_20_and_ingester() {
+    test_helpers::maybe_start_logging();
+
+    TestCase {
+        input: "cases/in/duplicates_parquet_20_and_ingester.sql",
         chunk_stage: ChunkStage::Parquet,
     }
     .run()
@@ -126,7 +138,19 @@ async fn duplicates_parquet_50() {
     test_helpers::maybe_start_logging();
 
     TestCase {
-        input: "cases/in/duplicates_parquet_50_files.sql",
+        input: "cases/in/duplicates_parquet_50.sql",
+        chunk_stage: ChunkStage::Parquet,
+    }
+    .run()
+    .await;
+}
+
+#[tokio::test]
+async fn duplicates_different_domains() {
+    test_helpers::maybe_start_logging();
+
+    TestCase {
+        input: "cases/in/duplicates_different_domains.sql",
         chunk_stage: ChunkStage::Parquet,
     }
     .run()

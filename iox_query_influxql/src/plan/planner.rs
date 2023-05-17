@@ -1118,6 +1118,7 @@ impl<'a> InfluxQLToLogicalPlan<'a> {
                     vec![expr],
                     distinct,
                     None,
+                    None,
                 )))
             }
             "sum" | "stddev" | "mean" | "median" => {
@@ -1131,6 +1132,7 @@ impl<'a> InfluxQLToLogicalPlan<'a> {
                     AggregateFunction::from_str(name)?,
                     vec![expr],
                     false,
+                    None,
                     None,
                 )))
             }

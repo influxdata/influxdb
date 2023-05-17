@@ -1441,7 +1441,7 @@ dependencies = [
 [[package]]
 name = "datafusion"
 version = "24.0.0"
-source = "git+https://github.com/apache/arrow-datafusion.git?rev=e6d7e46dedbe5046e4606bfd3d7a1199dd0aaae2#e6d7e46dedbe5046e4606bfd3d7a1199dd0aaae2"
+source = "git+https://github.com/apache/arrow-datafusion.git?rev=19b03240920ad63cac916b42951754c0337bdac8#19b03240920ad63cac916b42951754c0337bdac8"
 dependencies = [
  "ahash 0.8.3",
  "arrow",
@@ -1490,7 +1490,7 @@ dependencies = [
 [[package]]
 name = "datafusion-common"
 version = "24.0.0"
-source = "git+https://github.com/apache/arrow-datafusion.git?rev=e6d7e46dedbe5046e4606bfd3d7a1199dd0aaae2#e6d7e46dedbe5046e4606bfd3d7a1199dd0aaae2"
+source = "git+https://github.com/apache/arrow-datafusion.git?rev=19b03240920ad63cac916b42951754c0337bdac8#19b03240920ad63cac916b42951754c0337bdac8"
 dependencies = [
  "arrow",
  "arrow-array",
@@ -1504,7 +1504,7 @@ dependencies = [
 [[package]]
 name = "datafusion-execution"
 version = "24.0.0"
-source = "git+https://github.com/apache/arrow-datafusion.git?rev=e6d7e46dedbe5046e4606bfd3d7a1199dd0aaae2#e6d7e46dedbe5046e4606bfd3d7a1199dd0aaae2"
+source = "git+https://github.com/apache/arrow-datafusion.git?rev=19b03240920ad63cac916b42951754c0337bdac8#19b03240920ad63cac916b42951754c0337bdac8"
 dependencies = [
  "dashmap",
  "datafusion-common",
@@ -1521,7 +1521,7 @@ dependencies = [
 [[package]]
 name = "datafusion-expr"
 version = "24.0.0"
-source = "git+https://github.com/apache/arrow-datafusion.git?rev=e6d7e46dedbe5046e4606bfd3d7a1199dd0aaae2#e6d7e46dedbe5046e4606bfd3d7a1199dd0aaae2"
+source = "git+https://github.com/apache/arrow-datafusion.git?rev=19b03240920ad63cac916b42951754c0337bdac8#19b03240920ad63cac916b42951754c0337bdac8"
 dependencies = [
  "ahash 0.8.3",
  "arrow",
@@ -1532,7 +1532,7 @@ dependencies = [
 [[package]]
 name = "datafusion-optimizer"
 version = "24.0.0"
-source = "git+https://github.com/apache/arrow-datafusion.git?rev=e6d7e46dedbe5046e4606bfd3d7a1199dd0aaae2#e6d7e46dedbe5046e4606bfd3d7a1199dd0aaae2"
+source = "git+https://github.com/apache/arrow-datafusion.git?rev=19b03240920ad63cac916b42951754c0337bdac8#19b03240920ad63cac916b42951754c0337bdac8"
 dependencies = [
  "arrow",
  "async-trait",
@@ -1549,7 +1549,7 @@ dependencies = [
 [[package]]
 name = "datafusion-physical-expr"
 version = "24.0.0"
-source = "git+https://github.com/apache/arrow-datafusion.git?rev=e6d7e46dedbe5046e4606bfd3d7a1199dd0aaae2#e6d7e46dedbe5046e4606bfd3d7a1199dd0aaae2"
+source = "git+https://github.com/apache/arrow-datafusion.git?rev=19b03240920ad63cac916b42951754c0337bdac8#19b03240920ad63cac916b42951754c0337bdac8"
 dependencies = [
  "ahash 0.8.3",
  "arrow",
@@ -1581,7 +1581,7 @@ dependencies = [
 [[package]]
 name = "datafusion-proto"
 version = "24.0.0"
-source = "git+https://github.com/apache/arrow-datafusion.git?rev=e6d7e46dedbe5046e4606bfd3d7a1199dd0aaae2#e6d7e46dedbe5046e4606bfd3d7a1199dd0aaae2"
+source = "git+https://github.com/apache/arrow-datafusion.git?rev=19b03240920ad63cac916b42951754c0337bdac8#19b03240920ad63cac916b42951754c0337bdac8"
 dependencies = [
  "arrow",
  "chrono",
@@ -1595,7 +1595,7 @@ dependencies = [
 [[package]]
 name = "datafusion-row"
 version = "24.0.0"
-source = "git+https://github.com/apache/arrow-datafusion.git?rev=e6d7e46dedbe5046e4606bfd3d7a1199dd0aaae2#e6d7e46dedbe5046e4606bfd3d7a1199dd0aaae2"
+source = "git+https://github.com/apache/arrow-datafusion.git?rev=19b03240920ad63cac916b42951754c0337bdac8#19b03240920ad63cac916b42951754c0337bdac8"
 dependencies = [
  "arrow",
  "datafusion-common",
@@ -1606,7 +1606,7 @@ dependencies = [
 [[package]]
 name = "datafusion-sql"
 version = "24.0.0"
-source = "git+https://github.com/apache/arrow-datafusion.git?rev=e6d7e46dedbe5046e4606bfd3d7a1199dd0aaae2#e6d7e46dedbe5046e4606bfd3d7a1199dd0aaae2"
+source = "git+https://github.com/apache/arrow-datafusion.git?rev=19b03240920ad63cac916b42951754c0337bdac8#19b03240920ad63cac916b42951754c0337bdac8"
 dependencies = [
  "arrow",
  "arrow-schema",
@@ -2381,15 +2381,15 @@ dependencies = [
 
 [[package]]
 name = "hyper-rustls"
-version = "0.23.2"
+version = "0.24.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "1788965e61b367cd03a62950836d5cd41560c3577d90e40e0819373194d1661c"
+checksum = "0646026eb1b3eea4cd9ba47912ea5ce9cc07713d105b1a14698f4e6433d348b7"
 dependencies = [
  "http",
  "hyper",
- "rustls 0.20.8",
+ "rustls 0.21.0",
  "tokio",
- "tokio-rustls 0.23.4",
+ "tokio-rustls 0.24.0",
 ]
 
 [[package]]
@@ -4674,9 +4674,9 @@ checksum = "a5996294f19bd3aae0453a862ad728f60e6600695733dd5df01da90c54363a3c"
 
 [[package]]
 name = "reqwest"
-version = "0.11.17"
+version = "0.11.18"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "13293b639a097af28fc8a90f22add145a9c954e49d77da06263d58cf44d5fb91"
+checksum = "cde824a14b7c14f85caff81225f411faacc04a2013f41670f41443742b1c1c55"
 dependencies = [
  "base64 0.21.0",
  "bytes",
@@ -4695,13 +4695,13 @@ dependencies = [
  "once_cell",
  "percent-encoding",
  "pin-project-lite",
- "rustls 0.20.8",
+ "rustls 0.21.0",
  "rustls-pemfile",
  "serde",
  "serde_json",
  "serde_urlencoded",
  "tokio",
- "tokio-rustls 0.23.4",
+ "tokio-rustls 0.24.0",
  "tokio-util",
  "tower-service",
  "url",
@@ -6796,6 +6796,7 @@ dependencies = [
  "reqwest",
  "ring",
  "rustix",
+ "rustls 0.21.0",
  "scopeguard",
  "serde",
  "serde_json",
@@ -6820,6 +6821,7 @@ dependencies = [
  "tracing-subscriber",
  "url",
  "uuid",
+ "webpki",
  "winapi",
  "windows-sys 0.45.0",
  "windows-sys 0.48.0",

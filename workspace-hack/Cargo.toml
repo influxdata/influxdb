@@ -30,9 +30,9 @@ bytes = { version = "1" }
 chrono = { version = "0.4", default-features = false, features = ["alloc", "clock", "serde"] }
 crossbeam-utils = { version = "0.8" }
 crypto-common = { version = "0.1", default-features = false, features = ["std"] }
-datafusion = { git = "https://github.com/apache/arrow-datafusion.git", rev = "e6d7e46dedbe5046e4606bfd3d7a1199dd0aaae2" }
-datafusion-optimizer = { git = "https://github.com/apache/arrow-datafusion.git", rev = "e6d7e46dedbe5046e4606bfd3d7a1199dd0aaae2", default-features = false, features = ["crypto_expressions", "regex_expressions", "unicode_expressions"] }
-datafusion-physical-expr = { git = "https://github.com/apache/arrow-datafusion.git", rev = "e6d7e46dedbe5046e4606bfd3d7a1199dd0aaae2", default-features = false, features = ["crypto_expressions", "regex_expressions", "unicode_expressions"] }
+datafusion = { git = "https://github.com/apache/arrow-datafusion.git", rev = "19b03240920ad63cac916b42951754c0337bdac8" }
+datafusion-optimizer = { git = "https://github.com/apache/arrow-datafusion.git", rev = "19b03240920ad63cac916b42951754c0337bdac8", default-features = false, features = ["crypto_expressions", "regex_expressions", "unicode_expressions"] }
+datafusion-physical-expr = { git = "https://github.com/apache/arrow-datafusion.git", rev = "19b03240920ad63cac916b42951754c0337bdac8", default-features = false, features = ["crypto_expressions", "regex_expressions", "unicode_expressions"] }
 digest = { version = "0.10", features = ["mac", "std"] }
 either = { version = "1" }
 fixedbitset = { version = "0.4" }
@@ -158,37 +158,48 @@ io-lifetimes = { version = "1" }
 nix = { version = "0.26" }
 once_cell = { version = "1", default-features = false, features = ["unstable"] }
 rustix = { version = "0.37", features = ["fs", "termios"] }
+rustls = { version = "0.21", features = ["dangerous_configuration"] }
+webpki = { version = "0.22", default-features = false, features = ["std"] }
 
 [target.x86_64-unknown-linux-gnu.build-dependencies]
 io-lifetimes = { version = "1" }
 once_cell = { version = "1", default-features = false, features = ["unstable"] }
 rustix = { version = "0.37", features = ["fs", "termios"] }
+webpki = { version = "0.22", default-features = false, features = ["std"] }
 
 [target.x86_64-apple-darwin.dependencies]
 io-lifetimes = { version = "1" }
 nix = { version = "0.26" }
 once_cell = { version = "1", default-features = false, features = ["unstable"] }
 rustix = { version = "0.37", features = ["fs", "termios"] }
+rustls = { version = "0.21", features = ["dangerous_configuration"] }
+webpki = { version = "0.22", default-features = false, features = ["std"] }
 
 [target.x86_64-apple-darwin.build-dependencies]
 io-lifetimes = { version = "1" }
 once_cell = { version = "1", default-features = false, features = ["unstable"] }
 rustix = { version = "0.37", features = ["fs", "termios"] }
+webpki = { version = "0.22", default-features = false, features = ["std"] }
 
 [target.aarch64-apple-darwin.dependencies]
 io-lifetimes = { version = "1" }
 nix = { version = "0.26" }
 once_cell = { version = "1", default-features = false, features = ["unstable"] }
 rustix = { version = "0.37", features = ["fs", "termios"] }
+rustls = { version = "0.21", features = ["dangerous_configuration"] }
+webpki = { version = "0.22", default-features = false, features = ["std"] }
 
 [target.aarch64-apple-darwin.build-dependencies]
 io-lifetimes = { version = "1" }
 once_cell = { version = "1", default-features = false, features = ["unstable"] }
 rustix = { version = "0.37", features = ["fs", "termios"] }
+webpki = { version = "0.22", default-features = false, features = ["std"] }
 
 [target.x86_64-pc-windows-msvc.dependencies]
 once_cell = { version = "1", default-features = false, features = ["unstable"] }
+rustls = { version = "0.21", features = ["dangerous_configuration"] }
 scopeguard = { version = "1" }
+webpki = { version = "0.22", default-features = false, features = ["std"] }
 winapi = { version = "0.3", default-features = false, features = ["basetsd", "consoleapi", "errhandlingapi", "fileapi", "handleapi", "impl-debug", "impl-default", "knownfolders", "minwinbase", "minwindef", "ntsecapi", "ntstatus", "objbase", "processenv", "shellapi", "shlobj", "std", "stringapiset", "synchapi", "timezoneapi", "winbase", "wincon", "winerror", "winnt", "winreg", "winuser", "ws2ipdef", "ws2tcpip", "wtypesbase"] }
 windows-sys-53888c27b7ba5cf4 = { package = "windows-sys", version = "0.45", features = ["Win32_Foundation", "Win32_Networking_WinSock", "Win32_Security", "Win32_Storage_FileSystem", "Win32_System_Console", "Win32_System_IO", "Win32_System_LibraryLoader", "Win32_System_Pipes", "Win32_System_SystemServices", "Win32_System_WindowsProgramming"] }
 windows-sys-c8eced492e86ede7 = { package = "windows-sys", version = "0.48", features = ["Win32_Foundation", "Win32_Networking_WinSock", "Win32_Security", "Win32_Storage_FileSystem", "Win32_System_Console", "Win32_System_IO", "Win32_System_Pipes", "Win32_System_SystemServices", "Win32_System_Threading", "Win32_System_WindowsProgramming", "Win32_UI_Shell"] }
@@ -196,6 +207,7 @@ windows-sys-c8eced492e86ede7 = { package = "windows-sys", version = "0.48", feat
 [target.x86_64-pc-windows-msvc.build-dependencies]
 once_cell = { version = "1", default-features = false, features = ["unstable"] }
 scopeguard = { version = "1" }
+webpki = { version = "0.22", default-features = false, features = ["std"] }
 winapi = { version = "0.3", default-features = false, features = ["basetsd", "consoleapi", "errhandlingapi", "fileapi", "handleapi", "impl-debug", "impl-default", "knownfolders", "minwinbase", "minwindef", "ntsecapi", "ntstatus", "objbase", "processenv", "shellapi", "shlobj", "std", "stringapiset", "synchapi", "timezoneapi", "winbase", "wincon", "winerror", "winnt", "winreg", "winuser", "ws2ipdef", "ws2tcpip", "wtypesbase"] }
 windows-sys-53888c27b7ba5cf4 = { package = "windows-sys", version = "0.45", features = ["Win32_Foundation", "Win32_Networking_WinSock", "Win32_Security", "Win32_Storage_FileSystem", "Win32_System_Console", "Win32_System_IO", "Win32_System_LibraryLoader", "Win32_System_Pipes", "Win32_System_SystemServices", "Win32_System_WindowsProgramming"] }
 windows-sys-c8eced492e86ede7 = { package = "windows-sys", version = "0.48", features = ["Win32_Foundation", "Win32_Networking_WinSock", "Win32_Security", "Win32_Storage_FileSystem", "Win32_System_Console", "Win32_System_IO", "Win32_System_Pipes", "Win32_System_SystemServices", "Win32_System_Threading", "Win32_System_WindowsProgramming", "Win32_UI_Shell"] }

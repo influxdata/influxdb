@@ -19,15 +19,22 @@ pub async fn initialize_db(dsn: &str, schema_name: &str) {
         return;
     }
 
-    info!("Initializing database...");
+    info!(%dsn, %schema_name, "Initializing database...");
 
     let dsn = iox_catalog::postgres::parse_dsn(dsn).unwrap();
     let dsn = &dsn;
 
     // Create the catalog database if it doesn't exist
-    if dsn.starts_with("posgresql") && !Postgres::database_exists(dsn).await.unwrap() {
-        info!("Creating database...");
-        Postgres::create_database(dsn).await.unwrap();
+    if dsn.starts_with("postgres") && !Postgres::database_exists(dsn).await.unwrap() {
+        info!("Creating postgres database...");
+        match Postgres::create_database(dsn).await {
+            Err(e) => {
+                panic!("Database initialization failed: {e}.");
+            }
+            Ok(_) => {
+                info!("Database initialization succeeded");
+            }
+        }
     }
 
     // Set up the catalog

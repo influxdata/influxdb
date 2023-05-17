@@ -17,7 +17,7 @@ use datafusion::{
     optimizer::utils::{conjunction, split_conjunction},
     physical_plan::{
         expressions::col as physical_col, filter::FilterExec, projection::ProjectionExec,
-        sorts::sort::SortExec, ExecutionPlan,
+        ExecutionPlan,
     },
     prelude::Expr,
 };
@@ -108,7 +108,6 @@ pub struct ProviderBuilder {
     table_name: Arc<str>,
     schema: Schema,
     chunks: Vec<Arc<dyn QueryChunk>>,
-    output_sort_key: Option<SortKey>,
     deduplication: bool,
 }
 
@@ -120,7 +119,6 @@ impl ProviderBuilder {
             table_name,
             schema,
             chunks: Vec::new(),
-            output_sort_key: None,
             deduplication: true,
         }
     }
@@ -128,14 +126,6 @@ impl ProviderBuilder {
     pub fn with_enable_deduplication(mut self, enable_deduplication: bool) -> Self {
         self.deduplication = enable_deduplication;
         self
-    }
-
-    /// Produce sorted output specified by sort_key
-    pub fn with_output_sort_key(self, output_sort_key: SortKey) -> Self {
-        Self {
-            output_sort_key: Some(output_sort_key),
-            ..self
-        }
     }
 
     /// Add a new chunk to this provider
@@ -150,7 +140,6 @@ impl ProviderBuilder {
             iox_schema: self.schema,
             table_name: self.table_name,
             chunks: self.chunks,
-            output_sort_key: self.output_sort_key,
             deduplication: self.deduplication,
         })
     }
@@ -167,8 +156,6 @@ pub struct ChunkTableProvider {
     iox_schema: Schema,
     /// The chunks
     chunks: Vec<Arc<dyn QueryChunk>>,
-    /// The desired output sort key if any
-    output_sort_key: Option<SortKey>,
     /// do deduplication
     deduplication: bool,
 }
@@ -305,14 +292,6 @@ impl TableProvider for ChunkTableProvider {
             } else {
                 plan
             }
-        } else {
-            plan
-        };
-
-        // Sort after filter to reduce potential work.
-        let plan = if let Some(output_sort_key) = self.output_sort_key.as_ref() {
-            let sort_exprs = arrow_sort_key_exprs(output_sort_key, &self.arrow_schema());
-            Arc::new(SortExec::new(sort_exprs, plan))
         } else {
             plan
         };
@@ -567,109 +546,6 @@ mod test {
         - "   UnionExec"
         - "     RecordBatchesExec: batches_groups=1 batches=0 total_rows=0"
         - "     ParquetExec: file_groups={1 group: [[2.parquet]]}, projection=[field, tag1, tag2, time, __chunk_order], output_ordering=[__chunk_order@4 ASC]"
-        "###
-        );
-    }
-
-    #[tokio::test]
-    async fn provider_scan_sorted() {
-        let table_name = "t";
-        let chunk1 = Arc::new(
-            TestChunk::new(table_name)
-                .with_id(1)
-                .with_tag_column("tag1")
-                .with_tag_column("tag2")
-                .with_f64_field_column("field")
-                .with_time_column(),
-        ) as Arc<dyn QueryChunk>;
-        let chunk2 = Arc::new(
-            TestChunk::new(table_name)
-                .with_id(2)
-                .with_dummy_parquet_file()
-                .with_tag_column("tag1")
-                .with_tag_column("tag2")
-                .with_f64_field_column("field")
-                .with_time_column(),
-        ) as Arc<dyn QueryChunk>;
-        let schema = chunk1.schema().clone();
-
-        let ctx = IOxSessionContext::with_testing();
-        let state = ctx.inner().state();
-
-        let provider = ProviderBuilder::new(Arc::from(table_name), schema)
-            .add_chunk(Arc::clone(&chunk1))
-            .add_chunk(Arc::clone(&chunk2))
-            .with_output_sort_key(SortKey::from_columns(["tag2", "tag1"]))
-            .build()
-            .unwrap();
-
-        // simple plan
-        let plan = provider.scan(&state, None, &[], None).await.unwrap();
-        insta::assert_yaml_snapshot!(
-            format_execution_plan(&plan),
-            @r###"
-        ---
-        - " ProjectionExec: expr=[field@0 as field, tag1@1 as tag1, tag2@2 as tag2, time@3 as time]"
-        - "   SortExec: expr=[tag2@2 ASC,tag1@1 ASC]"
-        - "     DeduplicateExec: [tag1@1 ASC,tag2@2 ASC,time@3 ASC]"
-        - "       UnionExec"
-        - "         RecordBatchesExec: batches_groups=1 batches=0 total_rows=0"
-        - "         ParquetExec: file_groups={1 group: [[2.parquet]]}, projection=[field, tag1, tag2, time, __chunk_order], output_ordering=[__chunk_order@4 ASC]"
-        "###
-        );
-
-        // projection
-        let plan = provider
-            .scan(&state, Some(&vec![1, 3]), &[], None)
-            .await
-            .unwrap();
-        insta::assert_yaml_snapshot!(
-            format_execution_plan(&plan),
-            @r###"
-        ---
-        - " ProjectionExec: expr=[tag1@1 as tag1, time@3 as time]"
-        - "   SortExec: expr=[tag2@2 ASC,tag1@1 ASC]"
-        - "     DeduplicateExec: [tag1@1 ASC,tag2@2 ASC,time@3 ASC]"
-        - "       UnionExec"
-        - "         RecordBatchesExec: batches_groups=1 batches=0 total_rows=0"
-        - "         ParquetExec: file_groups={1 group: [[2.parquet]]}, projection=[field, tag1, tag2, time, __chunk_order], output_ordering=[__chunk_order@4 ASC]"
-        "###
-        );
-
-        // filters
-        let expr = vec![lit(false)];
-        let expr_ref = expr.iter().collect::<Vec<_>>();
-        assert_eq!(
-            provider.supports_filters_pushdown(&expr_ref).unwrap(),
-            vec![TableProviderFilterPushDown::Exact]
-        );
-        let plan = provider.scan(&state, None, &expr, None).await.unwrap();
-        insta::assert_yaml_snapshot!(
-            format_execution_plan(&plan),
-            @r###"
-        ---
-        - " ProjectionExec: expr=[field@0 as field, tag1@1 as tag1, tag2@2 as tag2, time@3 as time]"
-        - "   SortExec: expr=[tag2@2 ASC,tag1@1 ASC]"
-        - "     FilterExec: false"
-        - "       DeduplicateExec: [tag1@1 ASC,tag2@2 ASC,time@3 ASC]"
-        - "         UnionExec"
-        - "           RecordBatchesExec: batches_groups=1 batches=0 total_rows=0"
-        - "           ParquetExec: file_groups={1 group: [[2.parquet]]}, projection=[field, tag1, tag2, time, __chunk_order], output_ordering=[__chunk_order@4 ASC]"
-        "###
-        );
-
-        // limit pushdown is unimplemented at the moment
-        let plan = provider.scan(&state, None, &[], Some(1)).await.unwrap();
-        insta::assert_yaml_snapshot!(
-            format_execution_plan(&plan),
-            @r###"
-        ---
-        - " ProjectionExec: expr=[field@0 as field, tag1@1 as tag1, tag2@2 as tag2, time@3 as time]"
-        - "   SortExec: expr=[tag2@2 ASC,tag1@1 ASC]"
-        - "     DeduplicateExec: [tag1@1 ASC,tag2@2 ASC,time@3 ASC]"
-        - "       UnionExec"
-        - "         RecordBatchesExec: batches_groups=1 batches=0 total_rows=0"
-        - "         ParquetExec: file_groups={1 group: [[2.parquet]]}, projection=[field, tag1, tag2, time, __chunk_order], output_ordering=[__chunk_order@4 ASC]"
         "###
         );
     }
