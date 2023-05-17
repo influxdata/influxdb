@@ -39,12 +39,13 @@ fn generate_grpc_types(root: &Path) -> Result<()> {
     let ingester_path = root.join("influxdata/iox/ingester/v1");
     let namespace_path = root.join("influxdata/iox/namespace/v1");
     let object_store_path = root.join("influxdata/iox/object_store/v1");
+    let partition_template_path = root.join("influxdata/iox/partition_template/v1");
     let predicate_path = root.join("influxdata/iox/predicate/v1");
     let querier_path = root.join("influxdata/iox/querier/v1");
     let schema_path = root.join("influxdata/iox/schema/v1");
-    let wal_path = root.join("influxdata/iox/wal/v1");
-    let storage_path = root.join("influxdata/platform/storage");
     let storage_errors_path = root.join("influxdata/platform/errors");
+    let storage_path = root.join("influxdata/platform/storage");
+    let wal_path = root.join("influxdata/iox/wal/v1");
 
     let proto_files = vec![
         authz_path.join("authz.proto"),
@@ -53,11 +54,12 @@ fn generate_grpc_types(root: &Path) -> Result<()> {
         compactor_path.join("service.proto"),
         delete_path.join("service.proto"),
         ingester_path.join("parquet_metadata.proto"),
-        ingester_path.join("write.proto"),
-        ingester_path.join("replication.proto"),
         ingester_path.join("persist.proto"),
+        ingester_path.join("replication.proto"),
+        ingester_path.join("write.proto"),
         namespace_path.join("service.proto"),
         object_store_path.join("service.proto"),
+        partition_template_path.join("template.proto"),
         predicate_path.join("predicate.proto"),
         querier_path.join("flight.proto"),
         root.join("google/longrunning/operations.proto"),
@@ -66,13 +68,13 @@ fn generate_grpc_types(root: &Path) -> Result<()> {
         root.join("grpc/health/v1/service.proto"),
         root.join("influxdata/pbdata/v1/influxdb_pb_data_protocol.proto"),
         schema_path.join("service.proto"),
-        wal_path.join("wal.proto"),
+        storage_errors_path.join("errors.proto"),
         storage_path.join("predicate.proto"),
         storage_path.join("service.proto"),
         storage_path.join("source.proto"),
         storage_path.join("storage_common.proto"),
         storage_path.join("test.proto"),
-        storage_errors_path.join("errors.proto"),
+        wal_path.join("wal.proto"),
     ];
 
     // Tell cargo to recompile if any of these proto files are changed
