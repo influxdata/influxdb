@@ -10,7 +10,7 @@ use self::{
     },
     predicate_pushdown::PredicatePushdown,
     projection_pushdown::ProjectionPushdown,
-    sort::{parquet_sortness::ParquetSortness, redundant_sort::RedundantSort},
+    sort::parquet_sortness::ParquetSortness,
     union::{nested_union::NestedUnion, one_union::OneUnion},
 };
 
@@ -43,7 +43,6 @@ pub fn register_iox_physical_optimizers(state: SessionState) -> SessionState {
         Arc::new(OneUnion::default()),
     ];
     optimizers.append(&mut state.physical_optimizers().to_vec());
-    optimizers.extend([Arc::new(RedundantSort::default()) as _]);
 
     state.with_physical_optimizer_rules(optimizers)
 }

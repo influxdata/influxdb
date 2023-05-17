@@ -146,6 +146,18 @@ async fn duplicates_parquet_50() {
 }
 
 #[tokio::test]
+async fn duplicates_different_domains() {
+    test_helpers::maybe_start_logging();
+
+    TestCase {
+        input: "cases/in/duplicates_different_domains.sql",
+        chunk_stage: ChunkStage::Parquet,
+    }
+    .run()
+    .await;
+}
+
+#[tokio::test]
 async fn gapfill() {
     test_helpers::maybe_start_logging();
 
