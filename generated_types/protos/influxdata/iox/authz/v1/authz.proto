@@ -3,6 +3,7 @@
 syntax = "proto3";
 
 package influxdata.iox.authz.v1;
+option go_package = "github.com/influxdata/iox/authz/v1";
 
 /*
  * An authorizer validates a provided authorization token and returns

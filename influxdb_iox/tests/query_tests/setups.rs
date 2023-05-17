@@ -270,6 +270,37 @@ pub static SETUPS: Lazy<HashMap<SetupName, SetupSteps>> = Lazy::new(|| {
                 .collect::<Vec<_>>(),
         ),
         (
+            "TwentySortedParquetFilesAndIngester",
+            (0..20)
+                .flat_map(|i| {
+                    let write = if i % 2 == 0 {
+                        Step::WriteLineProtocol(format!(
+                            "m,tag=A f=1 {}\nm,tab=B f=2 {}",
+                            1000 - i, // unique in this chunk
+                            1000 - i, // unique in this chunk (not plus i!)
+                        ))
+                    } else {
+                        Step::WriteLineProtocol(
+                            "m,tag=A f=3 2001".into(), // duplicated across all chunks
+                        )
+                    };
+                    [
+                        Step::RecordNumParquetFiles,
+                        write,
+                        Step::Persist,
+                        Step::WaitForPersisted2 {
+                            expected_increase: 1,
+                        },
+                    ]
+                    .into_iter()
+                }).chain([
+                        Step::WriteLineProtocol(
+                            "m,tag=A f=3 2001".into(), // duplicated across all chunks
+                        )
+                ])
+                .collect::<Vec<_>>(),
+        ),
+        (
             "FiftySortedSameParquetFiles",
             (0..50)
                 .flat_map(|_i| {
@@ -415,6 +446,18 @@ pub static SETUPS: Lazy<HashMap<SetupName, SetupSteps>> = Lazy::new(|| {
                     "cpu,foo=you bar=2 20",
                     "cpu,foo=me bar=1 30",
                     "cpu,foo=me bar=1 40",
+                ]
+                .join("\n"),
+            )],
+        ),
+        (
+            "EqualInMeasurements",
+            vec![Step::WriteLineProtocol(
+                [
+                    "measurement=one,tag=value field=1.0 \
+                    1609459201000000001",
+                    "measurement=one,tag=value2 field=1.0 \
+                    1609459201000000002",
                 ]
                 .join("\n"),
             )],
@@ -1314,6 +1357,37 @@ pub static SETUPS: Lazy<HashMap<SetupName, SetupSteps>> = Lazy::new(|| {
                     expected_increase: 2,
                 },
             ],
+        ),
+        (
+            "DuplicateDifferentDomains",
+            (0..2)
+                .flat_map(|_| {
+                    [
+                        Step::RecordNumParquetFiles,
+                        Step::WriteLineProtocol(
+                            r#"
+                            m,tag=A f=1 0
+                            m,tag=A f=2 86400000000000
+                            "#.into(),
+                        ),
+                        Step::Persist,
+                        Step::WaitForPersisted2 {
+                            expected_increase: 2,
+                        },
+                        Step::RecordNumParquetFiles,
+                        Step::WriteLineProtocol(
+                            r#"
+                            m,tag=A f=3 1
+                            "#.into(),
+                        ),
+                        Step::Persist,
+                        Step::WaitForPersisted2 {
+                            expected_increase: 1,
+                        },
+                    ]
+                    .into_iter()
+                })
+                .collect::<Vec<_>>(),
         ),
     ])
 });

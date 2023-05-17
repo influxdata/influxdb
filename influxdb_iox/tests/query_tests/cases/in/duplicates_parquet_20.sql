@@ -1,4 +1,4 @@
--- Test setup for running with 100 parquet files
+-- Test setup for running with 20 parquet files
 -- IOX_SETUP: TwentySortedParquetFiles
 
 

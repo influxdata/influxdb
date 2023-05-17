@@ -1,47 +1,44 @@
-use crate::plan::var_ref::field_type_to_var_ref_data_type;
+use crate::plan::ir::TagSet;
+use crate::plan::var_ref::{field_type_to_var_ref_data_type, influx_type_to_var_ref_data_type};
 use crate::plan::SchemaProvider;
-use datafusion::common::Result;
 use influxdb_influxql_parser::expression::VarRefDataType;
 use schema::InfluxColumnType;
-use std::collections::{HashMap, HashSet};
+use std::collections::HashMap;
 
 pub(crate) type FieldTypeMap = HashMap<String, VarRefDataType>;
-pub(crate) type TagSet = HashSet<String>;
 
 pub(crate) fn field_and_dimensions(
     s: &dyn SchemaProvider,
     name: &str,
-) -> Result<Option<(FieldTypeMap, TagSet)>> {
-    match s.table_schema(name) {
-        Some(iox) => Ok(Some((
-            FieldTypeMap::from_iter(iox.iter().filter_map(|(col_type, f)| match col_type {
-                InfluxColumnType::Field(ft) => {
-                    Some((f.name().clone(), field_type_to_var_ref_data_type(ft)))
+) -> Option<(FieldTypeMap, TagSet)> {
+    s.table_schema(name).map(|iox| {
+        let mut field_set = FieldTypeMap::new();
+        let mut tag_set = TagSet::new();
+
+        for col in iox.iter() {
+            match col {
+                (InfluxColumnType::Field(ft), f) => {
+                    field_set.insert(f.name().to_owned(), field_type_to_var_ref_data_type(ft));
                 }
-                _ => None,
-            })),
-            iox.tags_iter()
-                .map(|f| f.name().clone())
-                .collect::<TagSet>(),
-        ))),
-        None => Ok(None),
-    }
+                (InfluxColumnType::Tag, f) => {
+                    tag_set.insert(f.name().to_owned());
+                }
+                (InfluxColumnType::Timestamp, _) => {}
+            }
+        }
+        (field_set, tag_set)
+    })
 }
 
 pub(crate) fn map_type(
     s: &dyn SchemaProvider,
     measurement_name: &str,
     field: &str,
-) -> Result<Option<VarRefDataType>> {
-    match s.table_schema(measurement_name) {
-        Some(iox) => Ok(match iox.field_by_name(field) {
-            Some((InfluxColumnType::Field(ft), _)) => Some(field_type_to_var_ref_data_type(ft)),
-            Some((InfluxColumnType::Tag, _)) => Some(VarRefDataType::Tag),
-            Some((InfluxColumnType::Timestamp, _)) => Some(VarRefDataType::Timestamp),
-            None => None,
-        }),
-        None => Ok(None),
-    }
+) -> Option<VarRefDataType> {
+    s.table_schema(measurement_name).and_then(|iox| {
+        iox.field_by_name(field)
+            .and_then(|(dt, _)| influx_type_to_var_ref_data_type(Some(dt)))
+    })
 }
 
 #[cfg(test)]
@@ -55,7 +52,7 @@ mod test {
         let namespace = MockSchemaProvider::default();
 
         // Measurement exists
-        let (field_set, tag_set) = field_and_dimensions(&namespace, "cpu").unwrap().unwrap();
+        let (field_set, tag_set) = field_and_dimensions(&namespace, "cpu").unwrap();
         assert_eq!(
             field_set,
             FieldTypeMap::from([
@@ -70,30 +67,26 @@ mod test {
         );
 
         // Measurement does not exist
-        assert!(field_and_dimensions(&namespace, "cpu2").unwrap().is_none());
+        assert!(field_and_dimensions(&namespace, "cpu2").is_none());
 
         // `map_type` API calls
 
         // Returns expected type
         assert_matches!(
-            map_type(&namespace, "cpu", "usage_user").unwrap(),
+            map_type(&namespace, "cpu", "usage_user"),
             Some(VarRefDataType::Float)
         );
         assert_matches!(
-            map_type(&namespace, "cpu", "host").unwrap(),
+            map_type(&namespace, "cpu", "host"),
             Some(VarRefDataType::Tag)
         );
         assert_matches!(
-            map_type(&namespace, "cpu", "time").unwrap(),
+            map_type(&namespace, "cpu", "time"),
             Some(VarRefDataType::Timestamp)
         );
         // Returns None for nonexistent field
-        assert!(map_type(&namespace, "cpu", "nonexistent")
-            .unwrap()
-            .is_none());
+        assert!(map_type(&namespace, "cpu", "nonexistent").is_none());
         // Returns None for nonexistent measurement
-        assert!(map_type(&namespace, "nonexistent", "usage")
-            .unwrap()
-            .is_none());
+        assert!(map_type(&namespace, "nonexistent", "usage").is_none());
     }
 }

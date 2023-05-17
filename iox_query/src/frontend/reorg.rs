@@ -3,13 +3,13 @@
 use std::sync::Arc;
 
 use datafusion::{
-    logical_expr::LogicalPlan,
+    logical_expr::{LogicalPlan, LogicalPlanBuilder},
     prelude::{col, lit_timestamp_nano},
 };
 use observability_deps::tracing::debug;
 use schema::{sort::SortKey, Schema, TIME_COLUMN_NAME};
 
-use crate::{exec::make_stream_split, QueryChunk};
+use crate::{exec::make_stream_split, util::logical_sort_key_exprs, QueryChunk};
 use snafu::{ResultExt, Snafu};
 
 use super::common::ScanPlanBuilder;
@@ -81,11 +81,16 @@ impl ReorgPlanner {
     {
         let scan_plan = ScanPlanBuilder::new(table_name, schema)
             .with_chunks(chunks)
-            .with_output_sort_key(output_sort_key)
             .build()
             .context(BuildingScanSnafu)?;
 
         let plan = scan_plan.plan_builder.build()?;
+        let sort_expr = logical_sort_key_exprs(&output_sort_key);
+        let plan = LogicalPlanBuilder::from(plan)
+            .sort(sort_expr)
+            .context(BuildingPlanSnafu)?
+            .build()
+            .context(BuildingPlanSnafu)?;
 
         debug!(table_name=scan_plan.provider.table_name(), plan=%plan.display_indent_schema(),
                "created compact plan for table");
@@ -176,9 +181,15 @@ impl ReorgPlanner {
 
         let scan_plan = ScanPlanBuilder::new(table_name, schema)
             .with_chunks(chunks)
-            .with_output_sort_key(output_sort_key)
             .build()
             .context(BuildingScanSnafu)?;
+        let plan = scan_plan.plan_builder.build().context(BuildingPlanSnafu)?;
+        let sort_expr = logical_sort_key_exprs(&output_sort_key);
+        let plan = LogicalPlanBuilder::from(plan)
+            .sort(sort_expr)
+            .context(BuildingPlanSnafu)?
+            .build()
+            .context(BuildingPlanSnafu)?;
 
         let mut split_exprs = Vec::with_capacity(split_times.len());
         // time <= split_times[0]
@@ -200,8 +211,6 @@ impl ReorgPlanner {
                     .and(col(TIME_COLUMN_NAME).lt_eq(lit_timestamp_nano(split_times[i]))),
             );
         }
-
-        let plan = scan_plan.plan_builder.build().context(BuildingPlanSnafu)?;
         let plan = make_stream_split(plan, split_exprs);
 
         debug!(table_name=scan_plan.provider.table_name(), plan=%plan.display_indent_schema(),

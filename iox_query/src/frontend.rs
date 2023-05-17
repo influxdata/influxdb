@@ -181,59 +181,6 @@ mod test {
     }
 
     #[tokio::test]
-    async fn test_scan_plan_without_deduplication_but_sort() {
-        test_helpers::maybe_start_logging();
-        // Create 2 overlapped chunks
-        let (schema, chunks) = get_test_chunks();
-        let sort_key = SortKey::from_columns(vec!["time", "tag1"]);
-
-        // Build a logical plan without deduplication but sort
-        let scan_plan = ScanPlanBuilder::new(Arc::from("t"), &schema)
-            .with_chunks(chunks)
-            // force it to not deduplicate
-            .enable_deduplication(false)
-            // force to sort on time & tag1
-            .with_output_sort_key(sort_key)
-            .build()
-            .unwrap();
-        let logical_plan = scan_plan.plan_builder.build().unwrap();
-
-        // Build physical plan
-        let executor = Executor::new_testing();
-        let physical_plan = executor
-            .new_context(ExecutorType::Reorg)
-            .create_physical_plan(&logical_plan)
-            .await
-            .unwrap();
-
-        // Verify output data: 2 input chunks merged into one output chunk
-        assert_eq!(
-            physical_plan.output_partitioning().partition_count(),
-            1,
-            "{:?}",
-            physical_plan.output_partitioning()
-        );
-        let batches0 = test_collect_partition(Arc::clone(&physical_plan), 0).await;
-        // Data is sorted on time & tag1 without deduplication
-        let expected = vec![
-            "+-----------+------------+------+--------------------------------+",
-            "| field_int | field_int2 | tag1 | time                           |",
-            "+-----------+------------+------+--------------------------------+",
-            "| 100       |            | AL   | 1970-01-01T00:00:00.000000050Z |",
-            "| 70        |            | CT   | 1970-01-01T00:00:00.000000100Z |",
-            "| 1000      |            | MT   | 1970-01-01T00:00:00.000001Z    |",
-            "| 5         |            | MT   | 1970-01-01T00:00:00.000005Z    |",
-            "| 10        |            | MT   | 1970-01-01T00:00:00.000007Z    |",
-            "| 1000      | 1000       | WA   | 1970-01-01T00:00:00.000028Z    |",
-            "| 10        | 10         | VT   | 1970-01-01T00:00:00.000210Z    |", // duplicate 1
-            "| 50        | 50         | VT   | 1970-01-01T00:00:00.000210Z    |", // duplicate 2
-            "| 70        | 70         | UT   | 1970-01-01T00:00:00.000220Z    |",
-            "+-----------+------------+------+--------------------------------+",
-        ];
-        assert_batches_eq!(&expected, &batches0);
-    }
-
-    #[tokio::test]
     async fn test_metrics() {
         test_helpers::maybe_start_logging();
         let (schema, chunks) = get_test_chunks();

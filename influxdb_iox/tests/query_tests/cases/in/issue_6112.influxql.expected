@@ -475,21 +475,9 @@ name: m0
 -- InfluxQL: SELECT *, floor(f64) FROM m0 WHERE sum(f64) > 100.0;
 Error while planning query: Error during planning: invalid expression, the only valid function calls are 'now' with no arguments, or scalar math functions at pos 35
 -- InfluxQL: SELECT tag0, f64, f64 * 0.5, f64 + str FROM m0 WHERE f64 > 19;
-name: m0
-+---------------------+-------+------+-------+---------+
-| time                | tag0  | f64  | f64_1 | f64_str |
-+---------------------+-------+------+-------+---------+
-| 2022-10-31T02:00:10 | val00 | 21.2 | 10.6  |         |
-| 2022-10-31T02:00:30 | val00 | 19.2 | 9.6   |         |
-+---------------------+-------+------+-------+---------+
+Error while planning query: Error during planning: incompatible operands for operator +: float and string
 -- InfluxQL: SELECT tag0, str, str + 'foo', str * 5 FROM m0 WHERE f64 > 19;
-name: m0
-+---------------------+-------+-----+-------+-------+
-| time                | tag0  | str | str_1 | str_2 |
-+---------------------+-------+-----+-------+-------+
-| 2022-10-31T02:00:10 | val00 | hi  | hifoo |       |
-| 2022-10-31T02:00:30 | val00 | lo  | lofoo |       |
-+---------------------+-------+-----+-------+-------+
+Error while planning query: Error during planning: incompatible operands for operator +: string and string
 -- InfluxQL: SELECT tag0, i64, i64 * 0.5, i64 + f64::integer, i64 & 1 FROM m0 WHERE f64 > 19;
 name: m0
 +---------------------+-------+-----+-------+---------+-------+
@@ -1462,7 +1450,7 @@ name: disk
 -- InfluxQL: SELECT COUNT(bytes_free) as a, SUM(bytes_free) as b, COUNT(bytes_free) + SUM(bytes_free) as "a+b" FROM disk WHERE time >= '2022-10-31T02:00:00Z' AND time < '2022-10-31T02:02:00Z' GROUP BY TIME(30s) FILL(5);
 name: disk
 +---------------------+---+-------+-------+
-| time                | a | b     | "a+b" |
+| time                | a | b     | a+b   |
 +---------------------+---+-------+-------+
 | 2022-10-31T02:00:00 | 6 | 13419 | 13425 |
 | 2022-10-31T02:00:30 | 5 | 5     | 10    |
@@ -2603,3 +2591,314 @@ Error while planning query: Error during planning: aggregate function distinct()
 ++
 ++
 ++
+-- InfluxQL: SELECT * FROM (SELECT usage_idle FROM cpu);
+name: cpu
++---------------------+------------+
+| time                | usage_idle |
++---------------------+------------+
+| 2022-10-31T02:00:00 | 2.98       |
+| 2022-10-31T02:00:00 | 0.98       |
+| 2022-10-31T02:00:00 | 1.98       |
+| 2022-10-31T02:00:10 | 2.99       |
+| 2022-10-31T02:00:10 | 0.99       |
+| 2022-10-31T02:00:10 | 1.99       |
++---------------------+------------+
+-- InfluxQL: SELECT * FROM (SELECT usage_idle FROM cpu GROUP BY cpu);
+name: cpu
++---------------------+-----------+------------+
+| time                | cpu       | usage_idle |
++---------------------+-----------+------------+
+| 2022-10-31T02:00:00 | cpu-total | 2.98       |
+| 2022-10-31T02:00:00 | cpu0      | 0.98       |
+| 2022-10-31T02:00:00 | cpu1      | 1.98       |
+| 2022-10-31T02:00:10 | cpu-total | 2.99       |
+| 2022-10-31T02:00:10 | cpu0      | 0.99       |
+| 2022-10-31T02:00:10 | cpu1      | 1.99       |
++---------------------+-----------+------------+
+-- InfluxQL: SELECT * FROM (SELECT usage_idle FROM cpu) GROUP BY cpu;
+name: cpu
+tags: cpu=cpu-total
++---------------------+------------+
+| time                | usage_idle |
++---------------------+------------+
+| 2022-10-31T02:00:00 | 2.98       |
+| 2022-10-31T02:00:10 | 2.99       |
++---------------------+------------+
+name: cpu
+tags: cpu=cpu0
++---------------------+------------+
+| time                | usage_idle |
++---------------------+------------+
+| 2022-10-31T02:00:00 | 0.98       |
+| 2022-10-31T02:00:10 | 0.99       |
++---------------------+------------+
+name: cpu
+tags: cpu=cpu1
++---------------------+------------+
+| time                | usage_idle |
++---------------------+------------+
+| 2022-10-31T02:00:00 | 1.98       |
+| 2022-10-31T02:00:10 | 1.99       |
++---------------------+------------+
+-- InfluxQL: SELECT cpu, usage_idle FROM (SELECT usage_idle FROM cpu GROUP BY cpu);
+name: cpu
++---------------------+-----------+------------+
+| time                | cpu       | usage_idle |
++---------------------+-----------+------------+
+| 2022-10-31T02:00:00 | cpu-total | 2.98       |
+| 2022-10-31T02:00:00 | cpu0      | 0.98       |
+| 2022-10-31T02:00:00 | cpu1      | 1.98       |
+| 2022-10-31T02:00:10 | cpu-total | 2.99       |
+| 2022-10-31T02:00:10 | cpu0      | 0.99       |
+| 2022-10-31T02:00:10 | cpu1      | 1.99       |
++---------------------+-----------+------------+
+-- InfluxQL: SELECT * FROM (SELECT COUNT(usage_idle) FROM cpu);
+name: cpu
++---------------------+-------+
+| time                | count |
++---------------------+-------+
+| 1970-01-01T00:00:00 | 6     |
++---------------------+-------+
+-- InfluxQL: SELECT count FROM (SELECT COUNT(usage_idle) FROM cpu);
+name: cpu
++---------------------+-------+
+| time                | count |
++---------------------+-------+
+| 1970-01-01T00:00:00 | 6     |
++---------------------+-------+
+-- InfluxQL: SELECT * FROM (SELECT COUNT(usage_idle) FROM cpu GROUP BY cpu);
+name: cpu
++---------------------+-------+-----------+
+| time                | count | cpu       |
++---------------------+-------+-----------+
+| 1970-01-01T00:00:00 | 2     | cpu-total |
+| 1970-01-01T00:00:00 | 2     | cpu0      |
+| 1970-01-01T00:00:00 | 2     | cpu1      |
++---------------------+-------+-----------+
+-- InfluxQL: SELECT * FROM (SELECT cpu AS foo, usage_idle FROM cpu);
+name: cpu
++---------------------+-----------+------------+
+| time                | foo       | usage_idle |
++---------------------+-----------+------------+
+| 2022-10-31T02:00:00 | cpu-total | 2.98       |
+| 2022-10-31T02:00:00 | cpu0      | 0.98       |
+| 2022-10-31T02:00:00 | cpu1      | 1.98       |
+| 2022-10-31T02:00:10 | cpu-total | 2.99       |
+| 2022-10-31T02:00:10 | cpu0      | 0.99       |
+| 2022-10-31T02:00:10 | cpu1      | 1.99       |
++---------------------+-----------+------------+
+-- InfluxQL: SELECT * FROM (SELECT cpu AS foo, usage_idle FROM cpu GROUP BY cpu);
+name: cpu
++---------------------+-----------+-----------+------------+
+| time                | cpu       | foo       | usage_idle |
++---------------------+-----------+-----------+------------+
+| 2022-10-31T02:00:00 | cpu-total | cpu-total | 2.98       |
+| 2022-10-31T02:00:00 | cpu0      | cpu0      | 0.98       |
+| 2022-10-31T02:00:00 | cpu1      | cpu1      | 1.98       |
+| 2022-10-31T02:00:10 | cpu-total | cpu-total | 2.99       |
+| 2022-10-31T02:00:10 | cpu0      | cpu0      | 0.99       |
+| 2022-10-31T02:00:10 | cpu1      | cpu1      | 1.99       |
++---------------------+-----------+-----------+------------+
+-- InfluxQL: SELECT * FROM (SELECT cpu AS foo, usage_idle FROM cpu GROUP BY cpu) GROUP BY cpu;
+name: cpu
+tags: cpu=cpu-total
++---------------------+-----------+------------+
+| time                | foo       | usage_idle |
++---------------------+-----------+------------+
+| 2022-10-31T02:00:00 | cpu-total | 2.98       |
+| 2022-10-31T02:00:10 | cpu-total | 2.99       |
++---------------------+-----------+------------+
+name: cpu
+tags: cpu=cpu0
++---------------------+------+------------+
+| time                | foo  | usage_idle |
++---------------------+------+------------+
+| 2022-10-31T02:00:00 | cpu0 | 0.98       |
+| 2022-10-31T02:00:10 | cpu0 | 0.99       |
++---------------------+------+------------+
+name: cpu
+tags: cpu=cpu1
++---------------------+------+------------+
+| time                | foo  | usage_idle |
++---------------------+------+------------+
+| 2022-10-31T02:00:00 | cpu1 | 1.98       |
+| 2022-10-31T02:00:10 | cpu1 | 1.99       |
++---------------------+------+------------+
+-- InfluxQL: SELECT * FROM (SELECT cpu AS foo, usage_idle FROM cpu) GROUP BY cpu;
+name: cpu
+tags: cpu=cpu-total
++---------------------+-----------+------------+
+| time                | foo       | usage_idle |
++---------------------+-----------+------------+
+| 2022-10-31T02:00:00 | cpu-total | 2.98       |
+| 2022-10-31T02:00:10 | cpu-total | 2.99       |
++---------------------+-----------+------------+
+name: cpu
+tags: cpu=cpu0
++---------------------+------+------------+
+| time                | foo  | usage_idle |
++---------------------+------+------------+
+| 2022-10-31T02:00:00 | cpu0 | 0.98       |
+| 2022-10-31T02:00:10 | cpu0 | 0.99       |
++---------------------+------+------------+
+name: cpu
+tags: cpu=cpu1
++---------------------+------+------------+
+| time                | foo  | usage_idle |
++---------------------+------+------------+
+| 2022-10-31T02:00:00 | cpu1 | 1.98       |
+| 2022-10-31T02:00:10 | cpu1 | 1.99       |
++---------------------+------+------------+
+-- InfluxQL: SELECT * FROM (SELECT COUNT(usage_idle) FROM cpu) GROUP BY cpu;
+name: cpu
+tags: cpu=cpu-total
++---------------------+-------+
+| time                | count |
++---------------------+-------+
+| 1970-01-01T00:00:00 | 2     |
++---------------------+-------+
+name: cpu
+tags: cpu=cpu0
++---------------------+-------+
+| time                | count |
++---------------------+-------+
+| 1970-01-01T00:00:00 | 2     |
++---------------------+-------+
+name: cpu
+tags: cpu=cpu1
++---------------------+-------+
+| time                | count |
++---------------------+-------+
+| 1970-01-01T00:00:00 | 2     |
++---------------------+-------+
+-- InfluxQL: SELECT * FROM (SELECT usage_idle FROM cpu GROUP BY cpu) GROUP BY cpu;
+name: cpu
+tags: cpu=cpu-total
++---------------------+------------+
+| time                | usage_idle |
++---------------------+------------+
+| 2022-10-31T02:00:00 | 2.98       |
+| 2022-10-31T02:00:10 | 2.99       |
++---------------------+------------+
+name: cpu
+tags: cpu=cpu0
++---------------------+------------+
+| time                | usage_idle |
++---------------------+------------+
+| 2022-10-31T02:00:00 | 0.98       |
+| 2022-10-31T02:00:10 | 0.99       |
++---------------------+------------+
+name: cpu
+tags: cpu=cpu1
++---------------------+------------+
+| time                | usage_idle |
++---------------------+------------+
+| 2022-10-31T02:00:00 | 1.98       |
+| 2022-10-31T02:00:10 | 1.99       |
++---------------------+------------+
+-- InfluxQL: SELECT * FROM (SELECT usage_idle FROM cpu) GROUP BY cpu;
+name: cpu
+tags: cpu=cpu-total
++---------------------+------------+
+| time                | usage_idle |
++---------------------+------------+
+| 2022-10-31T02:00:00 | 2.98       |
+| 2022-10-31T02:00:10 | 2.99       |
++---------------------+------------+
+name: cpu
+tags: cpu=cpu0
++---------------------+------------+
+| time                | usage_idle |
++---------------------+------------+
+| 2022-10-31T02:00:00 | 0.98       |
+| 2022-10-31T02:00:10 | 0.99       |
++---------------------+------------+
+name: cpu
+tags: cpu=cpu1
++---------------------+------------+
+| time                | usage_idle |
++---------------------+------------+
+| 2022-10-31T02:00:00 | 1.98       |
+| 2022-10-31T02:00:10 | 1.99       |
++---------------------+------------+
+-- InfluxQL: SELECT * FROM (SELECT MAX(value) FROM (SELECT DISTINCT(usage_idle) AS value FROM cpu)) GROUP BY cpu;
+name: cpu
+tags: cpu=cpu-total
++---------------------+------+
+| time                | max  |
++---------------------+------+
+| 1970-01-01T00:00:00 | 2.99 |
++---------------------+------+
+name: cpu
+tags: cpu=cpu0
++---------------------+------+
+| time                | max  |
++---------------------+------+
+| 1970-01-01T00:00:00 | 0.99 |
++---------------------+------+
+name: cpu
+tags: cpu=cpu1
++---------------------+------+
+| time                | max  |
++---------------------+------+
+| 1970-01-01T00:00:00 | 1.99 |
++---------------------+------+
+-- InfluxQL: SELECT value FROM (SELECT mean(usage_idle) AS value FROM cpu GROUP BY TIME(10s));
+name: cpu
++---------------------+--------------------+
+| time                | value              |
++---------------------+--------------------+
+| 2022-10-31T02:00:00 | 1.9799999999999998 |
+| 2022-10-31T02:00:10 | 1.9900000000000002 |
++---------------------+--------------------+
+-- InfluxQL: SELECT sum_idle, sum_system FROM (SELECT sum(usage_idle) AS sum_idle FROM cpu WHERE cpu = 'cpu-total' GROUP BY time(10s)), (SELECT sum(usage_system) AS sum_system FROM cpu WHERE cpu = 'cpu-total' GROUP BY time(10s));
+name: cpu
++---------------------+----------+------------+
+| time                | sum_idle | sum_system |
++---------------------+----------+------------+
+| 2022-10-31T02:00:00 | 2.98     |            |
+| 2022-10-31T02:00:00 |          | 2.2        |
+| 2022-10-31T02:00:10 | 2.99     |            |
+| 2022-10-31T02:00:10 |          | 2.1        |
++---------------------+----------+------------+
+-- InfluxQL: SELECT sum_idle, sum_system FROM (SELECT sum(usage_idle) AS sum_idle, sum(usage_system) AS sum_system FROM cpu WHERE cpu = 'cpu-total' GROUP BY time(10s));
+name: cpu
++---------------------+----------+------------+
+| time                | sum_idle | sum_system |
++---------------------+----------+------------+
+| 2022-10-31T02:00:00 | 2.98     | 2.2        |
+| 2022-10-31T02:00:10 | 2.99     | 2.1        |
++---------------------+----------+------------+
+-- InfluxQL: SELECT P / 99.99 FROM (SELECT max(usage_system) AS P, mean(usage_idle) AS S FROM cpu GROUP BY time(10s)) WHERE S > 0.50 AND S < 1.50 AND P > 0.0 AND P < 1.0 GROUP BY cpu FILL(null);
+name: cpu
+tags: cpu=cpu0
++---------------------+-------------------+
+| time                | P                 |
++---------------------+-------------------+
+| 2022-10-31T02:00:00 | 0.002000200020002 |
+| 2022-10-31T02:00:10 | 0.001000100010001 |
++---------------------+-------------------+
+-- InfluxQL: SELECT distinct(cpu) FROM (SELECT usage_idle, cpu FROM cpu);
+name: cpu
++---------------------+-----------+
+| time                | distinct  |
++---------------------+-----------+
+| 1970-01-01T00:00:00 | cpu-total |
+| 1970-01-01T00:00:00 | cpu0      |
+| 1970-01-01T00:00:00 | cpu1      |
++---------------------+-----------+
+-- InfluxQL: SELECT last(usage_idle), last(usage_system) FROM (SELECT usage_idle, usage_system FROM cpu WHERE cpu = 'cpu-total');
+name: cpu
++---------------------+------+--------+
+| time                | last | last_1 |
++---------------------+------+--------+
+| 1970-01-01T00:00:00 | 2.99 | 2.1    |
++---------------------+------+--------+
+-- InfluxQL: SELECT last(sum_idle), last(sum_system) FROM (SELECT sum(usage_idle) AS sum_idle, sum(usage_system) AS sum_system FROM cpu WHERE cpu = 'cpu-total' GROUP BY time(10s)) GROUP BY time(10s) FILL(none);
+name: cpu
++---------------------+------+--------+
+| time                | last | last_1 |
++---------------------+------+--------+
+| 2022-10-31T02:00:00 | 2.98 | 2.2    |
+| 2022-10-31T02:00:10 | 2.99 | 2.1    |
++---------------------+------+--------+

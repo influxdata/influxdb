@@ -9,6 +9,12 @@ async fn dsn_file() {
     test_helpers::maybe_start_logging();
     let database_url = maybe_skip_integration!();
 
+    // dsn-file only supported for postgres dsns, so skip if not postgres
+    if !database_url.starts_with("postgres") {
+        println!("SKIPPING dsn file test. Requires postgres catalog, but got {database_url}");
+        return;
+    }
+
     // tests using the special `dsn-file://` url for catalog
     // used in IDPE / InfluxCloud production
     //

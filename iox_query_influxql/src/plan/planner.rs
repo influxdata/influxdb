@@ -1,17 +1,15 @@
 mod select;
 
-use crate::plan::ir::{DataSource, Select, SelectQuery};
+use crate::plan::ir::{DataSource, Field, Select, SelectQuery};
 use crate::plan::planner::select::{
-    check_exprs_satisfy_columns, fields_to_exprs_no_nulls, make_tag_key_column_meta, plan_with_sort,
+    fields_to_exprs_no_nulls, make_tag_key_column_meta, plan_with_sort,
 };
 use crate::plan::planner_time_range_expression::{
     duration_expr_to_nanoseconds, expr_to_df_interval_dt, time_range_to_df_expr,
 };
-use crate::plan::rewriter::{
-    rewrite_statement, select_statement_info, ProjectionType, SelectStatementInfo,
-};
+use crate::plan::rewriter::{rewrite_statement, ProjectionType};
 use crate::plan::util::{binary_operator_to_df_operator, rebase_expr, Schemas};
-use crate::plan::var_ref::{data_type_to_var_ref_data_type, var_ref_data_type_to_data_type};
+use crate::plan::var_ref::var_ref_data_type_to_data_type;
 use crate::plan::{error, planner_rewrite_expression};
 use arrow::array::{StringBuilder, StringDictionaryBuilder};
 use arrow::datatypes::{DataType, Field as ArrowField, Int32Type, Schema as ArrowSchema};
@@ -24,7 +22,7 @@ use datafusion::logical_expr::expr::ScalarFunction;
 use datafusion::logical_expr::expr_rewriter::normalize_col;
 use datafusion::logical_expr::logical_plan::builder::project;
 use datafusion::logical_expr::logical_plan::Analyze;
-use datafusion::logical_expr::utils::{expr_as_column_expr, find_aggregate_exprs};
+use datafusion::logical_expr::utils::find_aggregate_exprs;
 use datafusion::logical_expr::{
     binary_expr, col, date_bin, expr, expr::WindowFunction, lit, lit_timestamp_nano, now,
     window_function, Aggregate, AggregateFunction, AggregateUDF, Between, BuiltInWindowFunction,
@@ -57,7 +55,7 @@ use influxdb_influxql_parser::{
     common::{MeasurementName, WhereClause},
     expression::Expr as IQLExpr,
     literal::Literal,
-    select::{Field, SelectStatement},
+    select::SelectStatement,
     statement::Statement,
 };
 use iox_query::config::{IoxConfigExt, MetadataCutoff};
@@ -130,23 +128,31 @@ enum ExprScope {
 #[allow(dead_code)]
 #[derive(Debug, Default, Clone)]
 struct Context<'a> {
+    projection_type: ProjectionType,
     /// `true` if this is a subquery `SELECT` statement.
     is_subquery: bool,
+    has_multiple_measurements: bool,
     scope: ExprScope,
     tz: Option<Tz>,
-
-    info: SelectStatementInfo,
 
     // GROUP BY information
     group_by: Option<&'a GroupByClause>,
     fill: Option<FillClause>,
+
+    /// The set of tags specified in the top-level `SELECT` statement
+    /// which represent the tag set used for grouping output.
+    root_group_by_tags: &'a [&'a str],
 }
 
 impl<'a> Context<'a> {
-    fn new(info: SelectStatementInfo) -> Self {
+    fn new() -> Self {
+        Default::default()
+    }
+
+    fn with_projection_type(&self, projection_type: ProjectionType) -> Self {
         Self {
-            info,
-            ..Default::default()
+            projection_type,
+            ..*self
         }
     }
 
@@ -166,19 +172,49 @@ impl<'a> Context<'a> {
         }
     }
 
+    fn with_has_multiple_measurements(&self, has_multiple_measurements: bool) -> Self {
+        Self {
+            has_multiple_measurements,
+            ..*self
+        }
+    }
+
+    fn with_root_group_by_tags(&self, root_group_by_tags: &'a [&'a str]) -> Self {
+        Self {
+            root_group_by_tags,
+            ..*self
+        }
+    }
+
+    /// Returns the combined GROUP BY tags clause from the root
+    /// and current statement. The list is sorted and guaranteed to be unique.
+    fn group_by_tags(&self) -> Vec<&str> {
+        match (self.root_group_by_tags.is_empty(), self.group_by) {
+            (true, None) => vec![],
+            (false, None) => self.root_group_by_tags.to_vec(),
+            (_, Some(group_by)) => group_by
+                .tags()
+                .map(|ident| ident.deref().as_str())
+                .chain(self.root_group_by_tags.iter().copied())
+                .sorted()
+                .dedup()
+                .collect(),
+        }
+    }
+
     fn fill(&self) -> FillClause {
         self.fill.unwrap_or_default()
     }
 
     fn is_aggregate(&self) -> bool {
         matches!(
-            self.info.projection_type,
+            self.projection_type,
             ProjectionType::Aggregate | ProjectionType::Selector { .. }
         )
     }
 
     fn is_raw_distinct(&self) -> bool {
-        matches!(self.info.projection_type, ProjectionType::RawDistinct)
+        matches!(self.projection_type, ProjectionType::RawDistinct)
     }
 }
 
@@ -201,7 +237,7 @@ impl<'a> InfluxQLToLogicalPlan<'a> {
             Statement::DropMeasurement(_) => error::not_implemented("DROP MEASUREMENT"),
             Statement::Explain(explain) => self.explain_statement_to_plan(*explain),
             Statement::Select(select) => {
-                self.select_statement_to_plan(&self.rewrite_select_statement(*select)?)
+                self.select_query_to_plan(&self.rewrite_select_statement(*select)?)
             }
             Statement::ShowDatabases(_) => error::not_implemented("SHOW DATABASES"),
             Statement::ShowMeasurements(show_measurements) => {
@@ -221,8 +257,7 @@ impl<'a> InfluxQLToLogicalPlan<'a> {
     }
 
     fn explain_statement_to_plan(&self, explain: ExplainStatement) -> Result<LogicalPlan> {
-        let plan =
-            self.select_statement_to_plan(&self.rewrite_select_statement(*explain.select)?)?;
+        let plan = self.select_query_to_plan(&self.rewrite_select_statement(*explain.select)?)?;
         let plan = Arc::new(plan);
         let schema = LogicalPlan::explain_schema();
         let schema = schema.to_dfschema_ref()?;
@@ -272,13 +307,29 @@ impl<'a> InfluxQLToLogicalPlan<'a> {
     }
 
     /// Create a [`LogicalPlan`] from the specified InfluxQL `SELECT` statement.
-    fn select_statement_to_plan(&self, query: &SelectQuery) -> Result<LogicalPlan> {
+    fn select_query_to_plan(&self, query: &SelectQuery) -> Result<LogicalPlan> {
         let select = &query.select;
 
-        let ctx = Context::new(select_statement_info(select)?)
-            .with_timezone(select.timezone)
-            .with_group_by_fill(select);
+        let group_by_tags = if let Some(group_by) = select.group_by.as_ref() {
+            group_by
+                .tags()
+                .map(|ident| ident.deref().as_str())
+                .collect()
+        } else {
+            vec![]
+        };
 
+        let ctx = Context::new()
+            .with_projection_type(select.projection_type)
+            .with_timezone(select.timezone)
+            .with_group_by_fill(select)
+            .with_has_multiple_measurements(query.has_multiple_measurements)
+            .with_root_group_by_tags(&group_by_tags);
+
+        self.select_to_plan(&ctx, select)
+    }
+
+    fn select_to_plan(&self, ctx: &Context<'_>, select: &Select) -> Result<LogicalPlan> {
         // Skip the `time` column
         let fields_no_time = &select.fields[1..];
         // always start with the time column
@@ -288,61 +339,58 @@ impl<'a> InfluxQLToLogicalPlan<'a> {
         // projection_tag_set : a list of tag columns specified exclusively in the SELECT projection
         // is_projected       : a list of booleans indicating whether matching elements in the
         //                      group_by_tag_set are also projected in the query
-        let (group_by_tag_set, projection_tag_set, is_projected) =
-            if let Some(group_by) = &select.group_by {
-                let mut tag_columns =
-                    find_tag_and_unknown_columns(fields_no_time).collect::<HashSet<_>>();
 
-                // Find the list of tag keys specified in the `GROUP BY` clause, and
-                // whether any of the tag keys are also projected in the SELECT list.
-                let (tag_set, is_projected): (Vec<_>, Vec<_>) = group_by
-                    .tags()
-                    .map(|t| t.deref().as_str())
-                    .map(|s| (s, tag_columns.contains(s)))
-                    // We sort the tag set, to ensure correct ordering of the results. The tag columns
-                    // referenced in the `tag_set` variable are added to the sort operator in
-                    // lexicographically ascending order.
-                    .sorted_by(|a, b| a.0.cmp(b.0))
-                    .unzip();
+        let group_by_tags = ctx.group_by_tags();
+        let (group_by_tag_set, projection_tag_set, is_projected) = if group_by_tags.is_empty() {
+            let tag_columns = find_tag_and_unknown_columns(fields_no_time)
+                .sorted()
+                .collect::<Vec<_>>();
+            (vec![], tag_columns, vec![])
+        } else {
+            let mut tag_columns =
+                find_tag_and_unknown_columns(fields_no_time).collect::<HashSet<_>>();
 
-                // Tags specified in the `GROUP BY` clause that are not already added to the
-                // projection must be projected, so they can be used in the group key.
-                //
-                // At the end of the loop, the `tag_columns` set will contain the tag columns that
-                // exist in the projection and not in the `GROUP BY`.
-                fields.extend(
-                    tag_set
-                        .iter()
-                        .filter_map(|col| match tag_columns.remove(*col) {
-                            true => None,
-                            false => Some(Field {
-                                expr: IQLExpr::VarRef(VarRef {
-                                    name: (*col).into(),
-                                    data_type: Some(VarRefDataType::Tag),
-                                }),
-                                alias: Some((*col).into()),
+            // Find the list of tag keys specified in the `GROUP BY` clause, and
+            // whether any of the tag keys are also projected in the SELECT list.
+            let (tag_set, is_projected): (Vec<_>, Vec<_>) = group_by_tags
+                .into_iter()
+                .map(|s| (s, tag_columns.contains(s)))
+                .unzip();
+
+            // Tags specified in the `GROUP BY` clause that are not already added to the
+            // projection must be projected, so they can be used in the group key.
+            //
+            // At the end of the loop, the `tag_columns` set will contain the tag columns that
+            // exist in the projection and not in the `GROUP BY`.
+            fields.extend(
+                tag_set
+                    .iter()
+                    .filter_map(|col| match tag_columns.remove(*col) {
+                        true => None,
+                        false => Some(Field {
+                            expr: IQLExpr::VarRef(VarRef {
+                                name: (*col).into(),
+                                data_type: Some(VarRefDataType::Tag),
                             }),
+                            name: col.to_string(),
+                            data_type: Some(InfluxColumnType::Tag),
                         }),
-                );
+                    }),
+            );
 
-                (
-                    tag_set,
-                    tag_columns.into_iter().sorted().collect::<Vec<_>>(),
-                    is_projected,
-                )
-            } else {
-                let tag_columns = find_tag_and_unknown_columns(fields_no_time)
-                    .sorted()
-                    .collect::<Vec<_>>();
-                (vec![], tag_columns, vec![])
-            };
+            (
+                tag_set,
+                tag_columns.into_iter().sorted().collect::<Vec<_>>(),
+                is_projected,
+            )
+        };
 
         fields.extend(fields_no_time.iter().cloned());
 
         let plan = {
             let mut iter = select.from.iter();
             let plan = match iter.next() {
-                Some(ds) => self.project_select(&ctx, ds, select, &fields, &group_by_tag_set),
+                Some(ds) => self.project_select(ctx, ds, select, &fields, &group_by_tag_set),
                 None => {
                     // empty result, but let's at least have all the strictly necessary metadata
                     let schema = Arc::new(ArrowSchema::new(vec![ArrowField::new(
@@ -366,30 +414,31 @@ impl<'a> InfluxQLToLogicalPlan<'a> {
             }?;
 
             iter.try_fold(plan, |prev, ds| {
-                let next = self.project_select(&ctx, ds, select, &fields, &group_by_tag_set)?;
+                let next = self.project_select(ctx, ds, select, &fields, &group_by_tag_set)?;
                 LogicalPlanBuilder::from(prev).union(next)?.build()
             })?
         };
 
-        let plan = plan_with_metadata(
-            plan,
-            &InfluxQlMetadata {
-                measurement_column_index: MEASUREMENT_COLUMN_INDEX,
-                tag_key_columns: make_tag_key_column_meta(
-                    &fields,
-                    &group_by_tag_set,
-                    &is_projected,
-                ),
-            },
-        )?;
+        let plan = if select.depth == 0 {
+            // Add the metadata to the root SELECT query
+            plan_with_metadata(
+                plan,
+                &InfluxQlMetadata {
+                    measurement_column_index: MEASUREMENT_COLUMN_INDEX,
+                    tag_key_columns: make_tag_key_column_meta(
+                        &fields,
+                        &group_by_tag_set,
+                        &is_projected,
+                    ),
+                },
+            )?
+        } else {
+            plan
+        };
 
         // the sort planner node must refer to the time column using
         // the alias that was specified
-        let time_alias = fields[0]
-            .alias
-            .as_ref()
-            .map(|id| id.deref().as_str())
-            .unwrap_or("time");
+        let time_alias = fields[0].name.as_str();
 
         let time_sort_expr = time_alias.as_expr().sort(
             match select.order_by {
@@ -403,7 +452,7 @@ impl<'a> InfluxQLToLogicalPlan<'a> {
         let plan = plan_with_sort(
             plan,
             vec![time_sort_expr.clone()],
-            query.has_multiple_measurements,
+            ctx.has_multiple_measurements,
             &group_by_tag_set,
             &projection_tag_set,
         )?;
@@ -413,7 +462,7 @@ impl<'a> InfluxQLToLogicalPlan<'a> {
             select.offset,
             select.limit,
             vec![time_sort_expr],
-            query.has_multiple_measurements,
+            ctx.has_multiple_measurements,
             &group_by_tag_set,
             &projection_tag_set,
         )?;
@@ -429,7 +478,7 @@ impl<'a> InfluxQLToLogicalPlan<'a> {
         fields: &[Field],
         group_by_tag_set: &[&str],
     ) -> Result<LogicalPlan> {
-        let (plan, proj) = self.plan_from_data_source(ds)?;
+        let (plan, proj) = self.plan_from_data_source(ctx, ds)?;
 
         let schemas = Schemas::new(plan.schema())?;
 
@@ -535,7 +584,7 @@ impl<'a> InfluxQLToLogicalPlan<'a> {
                     lit(ScalarValue::TimestampNanosecond(Some(offset), None)),
                 )
             } else if let ProjectionType::Selector { has_fields } =
-                ctx.info.projection_type
+                ctx.projection_type
             {
                 if has_fields {
                     return error::not_implemented("projections with a single selector and fields: See https://github.com/influxdata/influxdb_iox/issues/7533");
@@ -561,34 +610,33 @@ impl<'a> InfluxQLToLogicalPlan<'a> {
             time_column_index
         };
 
-        let aggr_group_by_exprs = if let Some(group_by) = ctx.group_by {
-            let mut group_by_exprs = Vec::new();
+        let aggr_group_by_exprs = {
+            // If the input schema contains the iox::measurement column,
+            // it must be included in the group by expressions
+            let mut group_by_exprs = if input
+                .schema()
+                .has_column_with_unqualified_name(INFLUXQL_MEASUREMENT_COLUMN_NAME)
+            {
+                vec![INFLUXQL_MEASUREMENT_COLUMN_NAME.as_expr()]
+            } else {
+                vec![]
+            };
 
-            if group_by.time_dimension().is_some() {
+            if ctx.group_by.and_then(|v| v.time_dimension()).is_some() {
                 // Include the GROUP BY TIME(..) expression
                 group_by_exprs.push(select_exprs[time_column_index].clone());
             }
 
-            if let DataSource::Table(table_name) = ds {
-                // If this is a table, exclude tags that do not exist in the current schema
-                let schema = self
-                    .s
-                    .table_schema(table_name)
-                    .ok_or_else(|| error::map::internal("expected table"))?;
-                group_by_exprs.extend(group_by_tag_set.iter().filter_map(|name| {
-                    if let Some(InfluxColumnType::Tag) = schema.field_type_by_name(name) {
-                        Some(name.as_expr())
-                    } else {
-                        None
-                    }
-                }));
-            } else {
-                group_by_exprs.extend(group_by_tag_set.iter().map(|name| name.as_expr()));
-            }
+            let schema = ds.schema(self.s)?;
+            group_by_exprs.extend(group_by_tag_set.iter().filter_map(|name| {
+                if schema.is_tag_field(name) {
+                    Some(name.as_expr())
+                } else {
+                    None
+                }
+            }));
 
             group_by_exprs
-        } else {
-            vec![]
         };
 
         if aggr_exprs.is_empty() && aggr_group_by_exprs.is_empty() {
@@ -645,13 +693,6 @@ impl<'a> InfluxQLToLogicalPlan<'a> {
         // the final projection from the aggregate operator.
         let aggr_projection_exprs = [aggr_group_by_exprs, aggr_exprs].concat();
 
-        // Replace any expressions that are not a column with a column referencing
-        // an output column from the aggregate schema.
-        let column_exprs_post_aggr = aggr_projection_exprs
-            .iter()
-            .map(|expr| expr_as_column_expr(expr, &plan))
-            .collect::<Result<Vec<Expr>>>()?;
-
         // Create a literal expression for `value` if the strategy
         // is `FILL(<value>)`
         let fill_if_null = match fill_option {
@@ -676,29 +717,6 @@ impl<'a> InfluxQLToLogicalPlan<'a> {
                 rebase_expr(expr, &aggr_projection_exprs, &fill_if_null, &plan)
             })
             .collect::<Result<Vec<Expr>>>()?;
-
-        // Strip the NULL columns, which are tags that do not exist in the aggregate
-        // table schema. The NULL columns are projected as scalar values in the final
-        // projection.
-        let select_exprs_post_aggr_no_nulls = select_exprs_post_aggr
-            .iter()
-            .filter(|expr| match expr {
-                Expr::Alias(expr, _) => !matches!(**expr, Expr::Literal(ScalarValue::Null)),
-                _ => true,
-            })
-            .cloned()
-            .collect::<Vec<_>>();
-
-        // Finally, we ensure that the re-written projection can be resolved
-        // from the aggregate output columns and that there are no
-        // column references that are not aggregates.
-        //
-        // This will identify issues such as:
-        //
-        // SELECT COUNT(field), field FROM foo
-        //
-        // where the field without the aggregate is not valid.
-        check_exprs_satisfy_columns(&column_exprs_post_aggr, &select_exprs_post_aggr_no_nulls)?;
 
         Ok((plan, select_exprs_post_aggr))
     }
@@ -865,14 +883,7 @@ impl<'a> InfluxQLToLogicalPlan<'a> {
         let expr =
             self.expr_to_df_expr(&ctx.with_scope(ExprScope::Projection), &field.expr, schemas)?;
         let expr = planner_rewrite_expression::rewrite_field_expr(expr, schemas)?;
-        normalize_col(
-            if let Some(alias) = &field.alias {
-                expr.alias(alias.deref())
-            } else {
-                expr
-            },
-            plan,
-        )
+        normalize_col(expr.alias(&field.name), plan)
     }
 
     /// Map an InfluxQL [`ConditionalExpression`] to a DataFusion [`Expr`].
@@ -968,24 +979,29 @@ impl<'a> InfluxQLToLogicalPlan<'a> {
                         .first()
                         .map(|f| f.data_type().clone())
                     {
-                        Some(col_type) => {
+                        Some(src_type) => {
                             let column = name.as_expr();
-                            let src_type = data_type_to_var_ref_data_type(col_type)?;
-                            match opt_dst_type {
+
+                            match opt_dst_type
+                                .deref()
+                                .and_then(var_ref_data_type_to_data_type)
+                            {
                                 Some(dst_type) => {
-                                    if src_type == *dst_type {
+                                    fn is_numeric(dt: &DataType) -> bool {
+                                        matches!(
+                                            dt,
+                                            DataType::Int64 | DataType::Float64 | DataType::UInt64
+                                        )
+                                    }
+
+                                    if src_type == dst_type {
                                         column
-                                    } else if src_type.is_numeric_type()
-                                        && dst_type.is_numeric_type()
-                                    {
+                                    } else if is_numeric(&src_type) && is_numeric(&dst_type) {
                                         // InfluxQL only allows casting between numeric types,
                                         // and it is safe to unconditionally unwrap, as the
                                         // `is_numeric_type` call guarantees it can be mapped to
                                         // an Arrow DataType
-                                        column.cast_to(
-                                            &var_ref_data_type_to_data_type(*dst_type).unwrap(),
-                                            &schemas.df_schema,
-                                        )?
+                                        column.cast_to(&dst_type, &schemas.df_schema)?
                                     } else {
                                         // If the cast is incompatible, evaluates to NULL
                                         Expr::Literal(ScalarValue::Null)
@@ -1102,6 +1118,7 @@ impl<'a> InfluxQLToLogicalPlan<'a> {
                     vec![expr],
                     distinct,
                     None,
+                    None,
                 )))
             }
             "sum" | "stddev" | "mean" | "median" => {
@@ -1115,6 +1132,7 @@ impl<'a> InfluxQLToLogicalPlan<'a> {
                     AggregateFunction::from_str(name)?,
                     vec![expr],
                     false,
+                    None,
                     None,
                 )))
             }
@@ -1213,7 +1231,11 @@ impl<'a> InfluxQLToLogicalPlan<'a> {
 
     /// Generate a list of logical plans for each of the tables references in the `FROM`
     /// clause.
-    fn plan_from_data_source(&self, ds: &DataSource) -> Result<(LogicalPlan, Vec<Expr>)> {
+    fn plan_from_data_source(
+        &self,
+        ctx: &Context<'_>,
+        ds: &DataSource,
+    ) -> Result<(LogicalPlan, Vec<Expr>)> {
         match ds {
             DataSource::Table(table_name) => {
                 // `rewrite_statement` guarantees the table should exist
@@ -1224,7 +1246,19 @@ impl<'a> InfluxQLToLogicalPlan<'a> {
                     vec![lit_dict(table_name).alias(INFLUXQL_MEASUREMENT_COLUMN_NAME)],
                 ))
             }
-            DataSource::Subquery(_) => error::not_implemented("subquery in FROM clause"),
+            DataSource::Subquery(select) => {
+                let ctx = Context::new()
+                    .with_projection_type(select.projection_type)
+                    .with_timezone(select.timezone)
+                    .with_group_by_fill(select)
+                    .with_has_multiple_measurements(ctx.has_multiple_measurements)
+                    .with_root_group_by_tags(ctx.root_group_by_tags);
+
+                Ok((
+                    self.select_to_plan(&ctx, select)?,
+                    vec![INFLUXQL_MEASUREMENT_COLUMN_NAME.as_expr()],
+                ))
+            }
         }
     }
 
@@ -2043,11 +2077,8 @@ fn is_aggregate_field(f: &Field) -> bool {
 /// Find all the columns where the resolved data type
 /// is a tag or is [`None`], which is unknown.
 fn find_tag_and_unknown_columns(fields: &[Field]) -> impl Iterator<Item = &str> {
-    fields.iter().filter_map(|f| match &f.expr {
-        IQLExpr::VarRef(VarRef {
-            name,
-            data_type: Some(VarRefDataType::Tag) | None,
-        }) => Some(name.deref().as_str()),
+    fields.iter().filter_map(|f| match f.data_type {
+        Some(InfluxColumnType::Tag) | None => Some(f.name.as_str()),
         _ => None,
     })
 }
@@ -2075,12 +2106,10 @@ fn conditional_op_to_operator(op: ConditionalOperator) -> Result<Operator> {
 /// >
 /// > To match InfluxQL, the `time` column must not exist as part of a
 /// > complex expression.
-pub(crate) fn find_time_column_index(fields: &[Field]) -> Option<usize> {
+fn find_time_column_index(fields: &[Field]) -> Option<usize> {
     fields
         .iter()
-        .find_position(
-            |f| matches!(&f.expr, IQLExpr::VarRef(VarRef { name, .. }) if name.deref() == "time"),
-        )
+        .find_position(|f| matches!(f.data_type, Some(InfluxColumnType::Timestamp)))
         .map(|(i, _)| i)
 }
 
@@ -2596,6 +2625,92 @@ mod test {
     /// such as the WHERE clause.
     mod select {
         use super::*;
+
+        mod subqueries {
+            use super::*;
+
+            /// Projecting subqueries that do not use aggregate or selector functions.
+            #[test]
+            fn raw() {
+                // project an aliased column
+                assert_snapshot!(plan("SELECT value FROM (SELECT usage_idle AS value FROM cpu)"), @r###"
+                Sort: time AS time ASC NULLS LAST [iox::measurement:Dictionary(Int32, Utf8), time:Timestamp(Nanosecond, None), value:Float64;N]
+                  Projection: iox::measurement, time AS time, value AS value [iox::measurement:Dictionary(Int32, Utf8), time:Timestamp(Nanosecond, None), value:Float64;N]
+                    Sort: time ASC NULLS LAST [iox::measurement:Dictionary(Int32, Utf8), time:Timestamp(Nanosecond, None), value:Float64;N]
+                      Projection: Dictionary(Int32, Utf8("cpu")) AS iox::measurement, cpu.time AS time, cpu.usage_idle AS value [iox::measurement:Dictionary(Int32, Utf8), time:Timestamp(Nanosecond, None), value:Float64;N]
+                        TableScan: cpu [cpu:Dictionary(Int32, Utf8);N, host:Dictionary(Int32, Utf8);N, region:Dictionary(Int32, Utf8);N, time:Timestamp(Nanosecond, None), usage_idle:Float64;N, usage_system:Float64;N, usage_user:Float64;N]
+                "###);
+
+                // project a wildcard
+                assert_snapshot!(plan("SELECT * FROM (SELECT usage_idle, usage_system AS value FROM cpu)"), @r###"
+                Sort: time AS time ASC NULLS LAST [iox::measurement:Dictionary(Int32, Utf8), time:Timestamp(Nanosecond, None), usage_idle:Float64;N, value:Float64;N]
+                  Projection: iox::measurement, time AS time, usage_idle AS usage_idle, value AS value [iox::measurement:Dictionary(Int32, Utf8), time:Timestamp(Nanosecond, None), usage_idle:Float64;N, value:Float64;N]
+                    Sort: time ASC NULLS LAST [iox::measurement:Dictionary(Int32, Utf8), time:Timestamp(Nanosecond, None), usage_idle:Float64;N, value:Float64;N]
+                      Projection: Dictionary(Int32, Utf8("cpu")) AS iox::measurement, cpu.time AS time, cpu.usage_idle AS usage_idle, cpu.usage_system AS value [iox::measurement:Dictionary(Int32, Utf8), time:Timestamp(Nanosecond, None), usage_idle:Float64;N, value:Float64;N]
+                        TableScan: cpu [cpu:Dictionary(Int32, Utf8);N, host:Dictionary(Int32, Utf8);N, region:Dictionary(Int32, Utf8);N, time:Timestamp(Nanosecond, None), usage_idle:Float64;N, usage_system:Float64;N, usage_user:Float64;N]
+                "###);
+            }
+
+            /// Projecting subqueries that do not use aggregate or selector functions.
+            #[test]
+            fn aggregates() {
+                // project an aggregate
+                assert_snapshot!(plan("SELECT value FROM (SELECT mean(usage_idle) AS value FROM cpu)"), @r###"
+                Sort: time AS time ASC NULLS LAST [iox::measurement:Dictionary(Int32, Utf8), time:Timestamp(Nanosecond, None), value:Float64;N]
+                  Projection: iox::measurement, time AS time, value AS value [iox::measurement:Dictionary(Int32, Utf8), time:Timestamp(Nanosecond, None), value:Float64;N]
+                    Sort: time ASC NULLS LAST [iox::measurement:Dictionary(Int32, Utf8), time:Timestamp(Nanosecond, None), value:Float64;N]
+                      Projection: Dictionary(Int32, Utf8("cpu")) AS iox::measurement, TimestampNanosecond(0, None) AS time, AVG(cpu.usage_idle) AS value [iox::measurement:Dictionary(Int32, Utf8), time:Timestamp(Nanosecond, None), value:Float64;N]
+                        Aggregate: groupBy=[[]], aggr=[[AVG(cpu.usage_idle)]] [AVG(cpu.usage_idle):Float64;N]
+                          TableScan: cpu [cpu:Dictionary(Int32, Utf8);N, host:Dictionary(Int32, Utf8);N, region:Dictionary(Int32, Utf8);N, time:Timestamp(Nanosecond, None), usage_idle:Float64;N, usage_system:Float64;N, usage_user:Float64;N]
+                "###);
+
+                assert_snapshot!(plan("SELECT value FROM (SELECT mean(usage_idle) AS value FROM cpu GROUP BY TIME(10s))"), @r###"
+                Sort: time AS time ASC NULLS LAST [iox::measurement:Dictionary(Int32, Utf8), time:Timestamp(Nanosecond, None);N, value:Float64;N]
+                  Projection: iox::measurement, time AS time, value AS value [iox::measurement:Dictionary(Int32, Utf8), time:Timestamp(Nanosecond, None);N, value:Float64;N]
+                    Sort: time ASC NULLS LAST [iox::measurement:Dictionary(Int32, Utf8), time:Timestamp(Nanosecond, None);N, value:Float64;N]
+                      Projection: Dictionary(Int32, Utf8("cpu")) AS iox::measurement, time, AVG(cpu.usage_idle) AS value [iox::measurement:Dictionary(Int32, Utf8), time:Timestamp(Nanosecond, None);N, value:Float64;N]
+                        Aggregate: groupBy=[[datebin(IntervalMonthDayNano("10000000000"), cpu.time, TimestampNanosecond(0, None)) AS time]], aggr=[[AVG(cpu.usage_idle)]] [time:Timestamp(Nanosecond, None);N, AVG(cpu.usage_idle):Float64;N]
+                          TableScan: cpu [cpu:Dictionary(Int32, Utf8);N, host:Dictionary(Int32, Utf8);N, region:Dictionary(Int32, Utf8);N, time:Timestamp(Nanosecond, None), usage_idle:Float64;N, usage_system:Float64;N, usage_user:Float64;N]
+                "###);
+            }
+
+            /// Projecting subqueries that use the `DISTINCT` function / operator.
+            #[test]
+            fn distinct() {
+                // Subquery is a DISTINCT
+                assert_snapshot!(plan("SELECT value FROM (SELECT DISTINCT(usage_idle) AS value FROM cpu)"), @r###"
+            Sort: time AS time ASC NULLS LAST [iox::measurement:Dictionary(Int32, Utf8), time:Timestamp(Nanosecond, None), value:Float64;N]
+              Projection: iox::measurement, time AS time, value AS value [iox::measurement:Dictionary(Int32, Utf8), time:Timestamp(Nanosecond, None), value:Float64;N]
+                Sort: time ASC NULLS LAST [iox::measurement:Dictionary(Int32, Utf8), time:Timestamp(Nanosecond, None), value:Float64;N]
+                  Distinct: [iox::measurement:Dictionary(Int32, Utf8), time:Timestamp(Nanosecond, None), value:Float64;N]
+                    Projection: Dictionary(Int32, Utf8("cpu")) AS iox::measurement, TimestampNanosecond(0, None) AS time, cpu.usage_idle AS value [iox::measurement:Dictionary(Int32, Utf8), time:Timestamp(Nanosecond, None), value:Float64;N]
+                      TableScan: cpu [cpu:Dictionary(Int32, Utf8);N, host:Dictionary(Int32, Utf8);N, region:Dictionary(Int32, Utf8);N, time:Timestamp(Nanosecond, None), usage_idle:Float64;N, usage_system:Float64;N, usage_user:Float64;N]
+            "###);
+
+                // Outer query projects subquery with binary expressions
+                assert_snapshot!(plan("SELECT value * 0.99 FROM (SELECT DISTINCT(usage_idle) AS value FROM cpu)"), @r###"
+            Sort: time AS time ASC NULLS LAST [iox::measurement:Dictionary(Int32, Utf8), time:Timestamp(Nanosecond, None), value:Float64;N]
+              Projection: iox::measurement, time AS time, value * Float64(0.99) AS value [iox::measurement:Dictionary(Int32, Utf8), time:Timestamp(Nanosecond, None), value:Float64;N]
+                Sort: time ASC NULLS LAST [iox::measurement:Dictionary(Int32, Utf8), time:Timestamp(Nanosecond, None), value:Float64;N]
+                  Distinct: [iox::measurement:Dictionary(Int32, Utf8), time:Timestamp(Nanosecond, None), value:Float64;N]
+                    Projection: Dictionary(Int32, Utf8("cpu")) AS iox::measurement, TimestampNanosecond(0, None) AS time, cpu.usage_idle AS value [iox::measurement:Dictionary(Int32, Utf8), time:Timestamp(Nanosecond, None), value:Float64;N]
+                      TableScan: cpu [cpu:Dictionary(Int32, Utf8);N, host:Dictionary(Int32, Utf8);N, region:Dictionary(Int32, Utf8);N, time:Timestamp(Nanosecond, None), usage_idle:Float64;N, usage_system:Float64;N, usage_user:Float64;N]
+            "###);
+
+                // Outer query groups by the `cpu` tag, which should be pushed all the way to inner-most subquery
+                assert_snapshot!(plan("SELECT * FROM (SELECT MAX(value) FROM (SELECT DISTINCT(usage_idle) AS value FROM cpu)) GROUP BY cpu"), @r###"
+            Sort: cpu AS cpu ASC NULLS LAST, time AS time ASC NULLS LAST [iox::measurement:Dictionary(Int32, Utf8), time:Timestamp(Nanosecond, None);N, cpu:Dictionary(Int32, Utf8);N, max:Float64;N]
+              Projection: iox::measurement, time AS time, cpu AS cpu, max AS max [iox::measurement:Dictionary(Int32, Utf8), time:Timestamp(Nanosecond, None);N, cpu:Dictionary(Int32, Utf8);N, max:Float64;N]
+                Sort: cpu AS cpu ASC NULLS LAST, time ASC NULLS LAST [iox::measurement:Dictionary(Int32, Utf8), time:Timestamp(Nanosecond, None);N, cpu:Dictionary(Int32, Utf8);N, max:Float64;N]
+                  Projection: iox::measurement, (selector_max(value,time))[time] AS time, cpu AS cpu, (selector_max(value,time))[value] AS max [iox::measurement:Dictionary(Int32, Utf8), time:Timestamp(Nanosecond, None);N, cpu:Dictionary(Int32, Utf8);N, max:Float64;N]
+                    Aggregate: groupBy=[[iox::measurement, cpu]], aggr=[[selector_max(value, time)]] [iox::measurement:Dictionary(Int32, Utf8), cpu:Dictionary(Int32, Utf8);N, selector_max(value,time):Struct([Field { name: "value", data_type: Float64, nullable: true, dict_id: 0, dict_is_ordered: false, metadata: {} }, Field { name: "time", data_type: Timestamp(Nanosecond, None), nullable: true, dict_id: 0, dict_is_ordered: false, metadata: {} }]);N]
+                      Sort: cpu ASC NULLS LAST, time ASC NULLS LAST [iox::measurement:Dictionary(Int32, Utf8), time:Timestamp(Nanosecond, None), cpu:Dictionary(Int32, Utf8);N, value:Float64;N]
+                        Distinct: [iox::measurement:Dictionary(Int32, Utf8), time:Timestamp(Nanosecond, None), cpu:Dictionary(Int32, Utf8);N, value:Float64;N]
+                          Projection: Dictionary(Int32, Utf8("cpu")) AS iox::measurement, TimestampNanosecond(0, None) AS time, cpu.cpu AS cpu, cpu.usage_idle AS value [iox::measurement:Dictionary(Int32, Utf8), time:Timestamp(Nanosecond, None), cpu:Dictionary(Int32, Utf8);N, value:Float64;N]
+                            TableScan: cpu [cpu:Dictionary(Int32, Utf8);N, host:Dictionary(Int32, Utf8);N, region:Dictionary(Int32, Utf8);N, time:Timestamp(Nanosecond, None), usage_idle:Float64;N, usage_system:Float64;N, usage_user:Float64;N]
+            "###);
+            }
+        }
 
         #[test]
         fn test_time_column() {

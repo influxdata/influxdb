@@ -1,4 +1,4 @@
-use crate::AggregateTSMSchema;
+use crate::tsm::AggregateTSMSchema;
 use thiserror::Error;
 
 // Possible validation errors

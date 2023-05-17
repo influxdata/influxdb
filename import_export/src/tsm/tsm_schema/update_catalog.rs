@@ -1,4 +1,4 @@
-use crate::{AggregateTSMMeasurement, AggregateTSMSchema};
+use crate::tsm::{AggregateTSMMeasurement, AggregateTSMSchema};
 use chrono::{format::StrftimeItems, offset::FixedOffset, DateTime, Duration};
 use data_types::{
     ColumnType, Namespace, NamespaceName, NamespaceSchema, OrgBucketMappingError, Partition,
@@ -342,7 +342,7 @@ fn datetime_to_partition_key(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::{AggregateTSMField, AggregateTSMTag};
+    use crate::tsm::{AggregateTSMField, AggregateTSMTag};
     use assert_matches::assert_matches;
     use data_types::{PartitionId, TableId};
     use iox_catalog::{

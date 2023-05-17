@@ -10,10 +10,7 @@ use self::{
     },
     predicate_pushdown::PredicatePushdown,
     projection_pushdown::ProjectionPushdown,
-    sort::{
-        parquet_sortness::ParquetSortness, redundant_sort::RedundantSort,
-        sort_pushdown::SortPushdown,
-    },
+    sort::parquet_sortness::ParquetSortness,
     union::{nested_union::NestedUnion, one_union::OneUnion},
 };
 
@@ -31,6 +28,7 @@ mod test_util;
 /// Register IOx-specific [`PhysicalOptimizerRule`]s with the SessionContext
 pub fn register_iox_physical_optimizers(state: SessionState) -> SessionState {
     // prepend IOx-specific rules to DataFusion builtins
+    // The optimizer rules have to be done in this order
     let mut optimizers: Vec<Arc<dyn PhysicalOptimizerRule + Sync + Send>> = vec![
         Arc::new(PartitionSplit::default()),
         Arc::new(TimeSplit::default()),
@@ -45,10 +43,6 @@ pub fn register_iox_physical_optimizers(state: SessionState) -> SessionState {
         Arc::new(OneUnion::default()),
     ];
     optimizers.append(&mut state.physical_optimizers().to_vec());
-    optimizers.extend([
-        Arc::new(SortPushdown::default()) as _,
-        Arc::new(RedundantSort::default()) as _,
-    ]);
 
     state.with_physical_optimizer_rules(optimizers)
 }

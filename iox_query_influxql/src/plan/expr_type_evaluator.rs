@@ -1,6 +1,7 @@
 use crate::plan::field::field_by_name;
 use crate::plan::field_mapper::map_type;
 use crate::plan::ir::DataSource;
+use crate::plan::var_ref::influx_type_to_var_ref_data_type;
 use crate::plan::{error, SchemaProvider};
 use datafusion::common::Result;
 use influxdb_influxql_parser::expression::{
@@ -13,25 +14,44 @@ use itertools::Itertools;
 /// Evaluate the type of the specified expression.
 ///
 /// Derived from [Go implementation](https://github.com/influxdata/influxql/blob/1ba470371ec093d57a726b143fe6ccbacf1b452b/ast.go#L4796-L4797).
-pub(super) fn evaluate_type(
-    s: &dyn SchemaProvider,
-    expr: &Expr,
-    from: &[DataSource],
-) -> Result<Option<VarRefDataType>> {
-    TypeEvaluator::new(s, from).eval_type(expr)
-}
-
-/// Evaluate the type of the specified expression.
-///
-/// Derived from [Go implementation](https://github.com/influxdata/influxql/blob/1ba470371ec093d57a726b143fe6ccbacf1b452b/ast.go#L4796-L4797).
 pub(super) struct TypeEvaluator<'a> {
     s: &'a dyn SchemaProvider,
     from: &'a [DataSource],
+    /// Setting this to `true` will ensure scalar functions return errors for invalid data types.
+    /// The default is false, to ensure compatibility with InfluxQL OG.
+    call_type_is_strict: bool,
 }
 
 impl<'a> TypeEvaluator<'a> {
+    /// Create a `TypeEvaluator` with behavior compatible with InfluxQL OG.
+    ///
+    /// This behavior includes limited evaluation of [`Call`] expressions, as described
+    /// by [`TypeEvaluator::eval_scalar`].
     pub(super) fn new(s: &'a dyn SchemaProvider, from: &'a [DataSource]) -> Self {
-        Self { from, s }
+        Self {
+            from,
+            s,
+            call_type_is_strict: false,
+        }
+    }
+
+    /// Create a `TypeEvaluator` with strict behavior.
+    ///
+    /// This behavior includes strict evaluation of [`Call`] expressions, that are
+    /// not compatible with InfluxQL OG, but may be enabled in the future to improve
+    /// the user experience.
+    ///
+    /// # NOTE
+    ///
+    /// This behaviour is unused in production, but may be enabled to improve the
+    /// user experience of InfluxQL.
+    #[cfg(test)]
+    fn new_strict(s: &'a dyn SchemaProvider, from: &'a [DataSource]) -> Self {
+        Self {
+            from,
+            s,
+            call_type_is_strict: true,
+        }
     }
 
     pub(super) fn eval_type(&self, expr: &Expr) -> Result<Option<VarRefDataType>> {
@@ -96,6 +116,7 @@ impl<'a> TypeEvaluator<'a> {
                         | VarRefDataType::Float
                         | VarRefDataType::String
                         | VarRefDataType::Boolean
+                        | VarRefDataType::Tag
                 ) =>
             {
                 Some(dt)
@@ -106,7 +127,7 @@ impl<'a> TypeEvaluator<'a> {
                     match tr {
                         DataSource::Table(name) => match (
                             data_type,
-                            map_type(self.s, name.as_str(), expr.name.as_str())?,
+                            map_type(self.s, name.as_str(), expr.name.as_str()),
                         ) {
                             (Some(existing), Some(res)) => {
                                 if res < existing {
@@ -119,7 +140,7 @@ impl<'a> TypeEvaluator<'a> {
                         DataSource::Subquery(select) => {
                             // find the field by name
                             if let Some(field) = field_by_name(&select.fields, expr.name.as_str()) {
-                                match (data_type, evaluate_type(self.s, &field.expr, &select.from)?)
+                                match (data_type, influx_type_to_var_ref_data_type(field.data_type))
                                 {
                                     (Some(existing), Some(res)) => {
                                         if res < existing {
@@ -165,7 +186,8 @@ impl<'a> TypeEvaluator<'a> {
             // See: https://github.com/influxdata/influxdb/blob/e484c4d87193a475466c0285c018d16f168139e6/query/functions.go#L54-L60
             "mean" => Some(VarRefDataType::Float),
             "count" => Some(VarRefDataType::Integer),
-            "min" | "max" | "sum" | "first" | "last" => match arg_types.first() {
+            // These functions return the same type as their first argument
+            "min" | "max" | "sum" | "first" | "last" | "distinct" => match arg_types.first() {
                 Some(v) => *v,
                 None => None,
             },
@@ -188,8 +210,162 @@ impl<'a> TypeEvaluator<'a> {
             | "holt_winters"
             | "holt_winters_with_fit" => Some(VarRefDataType::Float),
             "elapsed" => Some(VarRefDataType::Integer),
-            _ => None,
+
+            name => self.eval_scalar(name, &arg_types)?,
         })
+    }
+
+    /// Evaluate the data type of a scalar function
+    ///
+    /// See: <https://github.com/influxdata/influxdb/blob/343ce4223810ecdbc7f4de68f2509a51b28f2c56/query/math.go#L24>
+    ///
+    /// 💥InfluxQL OG has a bug that it does not evaluate call types correctly, and returns
+    /// the incorrect type by unconditionally using the first argument. It does not even call the
+    /// mapper to evaluate scalar functions. We must replicate the InfluxQL OG behaviour,
+    /// or queries will fail, that would ordinarily succeed.
+    ///
+    /// The bug may be traced through the OG source as follows.
+    ///
+    /// Prior to executing a `SELECT`, the following steps occur to validate all the field
+    /// expression types.
+    ///
+    /// 1. Calls `validateTypes` to ensure all field data types are valid:
+    ///    <https://github.com/influxdata/influxdb/blob/f365bb7e3a9c5e227dbf66d84adf674d3d127176/query/compile.go#L1186-L1187>
+    ///
+    /// 2. Uses a `MultiTypeMapper` to evaluate types, combining:
+    ///
+    ///    * a `FunctionTypeMapper` for sum, min, max, etc
+    ///    * a `MathTypeMapper` for scalar functions like log, abs, etc
+    ///
+    ///    ⚠️NOTE: the order is important. `FunctionTypeMapper` is called first.
+    ///
+    ///    See: <https://github.com/influxdata/influxdb/blob/f365bb7e3a9c5e227dbf66d84adf674d3d127176/query/select.go#L973-L976>
+    ///
+    /// 3. Call `EvalType` for each field:
+    ///
+    ///    See: <https://github.com/influxdata/influxdb/blob/f365bb7e3a9c5e227dbf66d84adf674d3d127176/query/select.go#L979>
+    ///
+    /// 4. For fields that have call expressions, the `evalCallExprType` function is ultimately called
+    ///
+    ///    See: <https://github.com/influxdata/influxql/blob/802555d6b3a35cd464a6d8afa2a6511002cf3c2c/ast.go#L4697>
+    ///
+    /// 5. Because the `TypeMapper` is a `CallTypeMapper`, `evalCallExprType` eventually calls `CallType`:
+    ///
+    ///    See: <https://github.com/influxdata/influxql/blob/802555d6b3a35cd464a6d8afa2a6511002cf3c2c/ast.go#L4715>
+    ///
+    /// 6. The `TypeMapper` is a `multiTypeMapper` and thus calls `CallType` for each instance. The first
+    ///    inner call that returns no error and the `typ` is not `Unknown` will be returned to the caller
+    ///
+    ///    See: <https://github.com/influxdata/influxql/blob/802555d6b3a35cd464a6d8afa2a6511002cf3c2c/ast.go#L4610-L4615>
+    ///
+    /// 7. Recall, the first `TypeMapper` is `FunctionTypeMapper`, so it's `CallType` is
+    ///    called first.
+    ///
+    ///    🪳Here is the bug, which is that `FunctionTypeMapper::CallType` always returns
+    ///      the type of the first argument:
+    ///
+    ///    See: <https://github.com/influxdata/influxdb/blob/f365bb7e3a9c5e227dbf66d84adf674d3d127176/query/functions.go#L98-L99>
+    fn eval_scalar(
+        &self,
+        name: &str,
+        arg_types: &[Option<VarRefDataType>],
+    ) -> Result<Option<VarRefDataType>> {
+        if self.call_type_is_strict {
+            self.eval_scalar_strict(name, arg_types)
+        } else {
+            self.eval_scalar_compatible(arg_types)
+        }
+    }
+
+    fn eval_scalar_compatible(
+        &self,
+        arg_types: &[Option<VarRefDataType>],
+    ) -> Result<Option<VarRefDataType>> {
+        Ok(arg_types.first().and_then(|v| *v))
+    }
+
+    fn eval_scalar_strict(
+        &self,
+        name: &str,
+        arg_types: &[Option<VarRefDataType>],
+    ) -> Result<Option<VarRefDataType>> {
+        match name {
+            // These functions require a single numeric as input and return a float
+            name @ ("sin" | "cos" | "tan" | "atan" | "exp" | "log" | "ln" | "log2" | "log10"
+            | "sqrt") => {
+                match arg_types
+                    .get(0)
+                    .ok_or_else(|| error::map::query(format!("{name} expects 1 argument")))?
+                {
+                    Some(
+                        VarRefDataType::Float | VarRefDataType::Integer | VarRefDataType::Unsigned,
+                    )
+                    | None => Ok(Some(VarRefDataType::Float)),
+                    Some(arg0) => error::query(format!(
+                        "invalid argument type for {name}: expected a number, got {arg0}"
+                    )),
+                }
+            }
+
+            // These functions require a single float as input and return a float
+            name @ ("asin" | "acos") => {
+                match arg_types
+                    .get(0)
+                    .ok_or_else(|| error::map::query(format!("{name} expects 1 argument")))?
+                {
+                    Some(VarRefDataType::Float) | None => Ok(Some(VarRefDataType::Float)),
+                    Some(arg0) if self.call_type_is_strict => error::query(format!(
+                        "invalid argument type for {name}: expected a float, got {arg0}"
+                    )),
+                    _ => Ok(None),
+                }
+            }
+
+            // These functions require two numeric arguments and return a float
+            name @ ("atan2" | "pow") => {
+                let (Some(arg0), Some(arg1)) = (arg_types
+                                                    .get(0), arg_types.get(1)) else {
+                    return error::query(format!("{name} expects 2 arguments"))
+                };
+
+                match (arg0, arg1) {
+                    (Some(
+                        VarRefDataType::Float
+                        | VarRefDataType::Integer
+                        | VarRefDataType::Unsigned
+                    ) | None, Some(
+                        VarRefDataType::Float
+                        | VarRefDataType::Integer
+                        | VarRefDataType::Unsigned
+                    ) | None) => Ok(Some(VarRefDataType::Float)),
+                    (arg0, arg1) if self.call_type_is_strict => error::query(format!(
+                        "invalid argument types for {name}: expected a number for both arguments, got ({arg0:?}, {arg1:?})"
+                    )),
+                    _ => Ok(None),
+                }
+            }
+
+            // These functions return the same data type as their input
+            name @ ("abs" | "floor" | "ceil" | "round") => {
+                match arg_types
+                    .get(0)
+                    .cloned()
+                    .ok_or_else(|| error::map::query(format!("{name} expects 1 argument")))?
+                {
+                    // Return the same data type as the input
+                    dt @ Some(
+                        VarRefDataType::Float | VarRefDataType::Integer | VarRefDataType::Unsigned,
+                    ) => Ok(dt),
+                    // If the input is unknown, default to float
+                    None => Ok(Some(VarRefDataType::Float)),
+                    Some(arg0) if self.call_type_is_strict => error::query(format!(
+                        "invalid argument type for {name}: expected a number, got {arg0}"
+                    )),
+                    _ => Ok(None),
+                }
+            }
+            _ => Ok(None),
+        }
     }
 }
 
@@ -249,12 +425,14 @@ fn binary_data_type(
 
 #[cfg(test)]
 mod test {
-    use crate::plan::expr_type_evaluator::{binary_data_type, evaluate_type};
-    use crate::plan::rewriter::map_select;
-    use crate::plan::test_utils::{parse_select, MockSchemaProvider};
+    use super::*;
+    use crate::plan::expr_type_evaluator::binary_data_type;
+    use crate::plan::ir::DataSource;
+    use crate::plan::test_utils::MockSchemaProvider;
     use assert_matches::assert_matches;
     use datafusion::common::DataFusionError;
     use influxdb_influxql_parser::expression::VarRefDataType;
+    use influxdb_influxql_parser::select::Field;
     use itertools::iproduct;
 
     #[test]
@@ -313,73 +491,52 @@ mod test {
     fn test_evaluate_type() {
         let namespace = MockSchemaProvider::default();
 
-        let stmt = map_select(
-            &namespace,
-            &parse_select("SELECT shared_field0 FROM temp_01"),
-        )
-        .unwrap();
-        let field = stmt.fields.first().unwrap();
-        let res = evaluate_type(&namespace, &field.expr, &stmt.from)
+        fn evaluate_type(
+            s: &dyn SchemaProvider,
+            expr: &str,
+            from: &[&str],
+        ) -> Result<Option<VarRefDataType>> {
+            let from = from
+                .iter()
+                .map(ToString::to_string)
+                .map(DataSource::Table)
+                .collect::<Vec<_>>();
+            let Field { expr, .. } = expr.parse().unwrap();
+            TypeEvaluator::new(s, &from).eval_type(&expr)
+        }
+
+        let res = evaluate_type(&namespace, "shared_field0", &["temp_01"])
             .unwrap()
             .unwrap();
         assert_matches!(res, VarRefDataType::Float);
 
-        let stmt =
-            map_select(&namespace, &parse_select("SELECT shared_tag0 FROM temp_01")).unwrap();
-        let field = stmt.fields.first().unwrap();
-        let res = evaluate_type(&namespace, &field.expr, &stmt.from)
+        let res = evaluate_type(&namespace, "shared_tag0", &["temp_01"])
             .unwrap()
             .unwrap();
         assert_matches!(res, VarRefDataType::Tag);
 
         // Unknown
-        let stmt = map_select(&namespace, &parse_select("SELECT not_exists FROM temp_01")).unwrap();
-        let field = stmt.fields.first().unwrap();
-        let res = evaluate_type(&namespace, &field.expr, &stmt.from).unwrap();
+        let res = evaluate_type(&namespace, "not_exists", &["temp_01"]).unwrap();
         assert!(res.is_none());
 
-        let stmt = map_select(
-            &namespace,
-            &parse_select("SELECT shared_field0 FROM temp_02"),
-        )
-        .unwrap();
-        let field = stmt.fields.first().unwrap();
-        let res = evaluate_type(&namespace, &field.expr, &stmt.from)
+        let res = evaluate_type(&namespace, "shared_field0", &["temp_02"])
             .unwrap()
             .unwrap();
         assert_matches!(res, VarRefDataType::Integer);
 
-        let stmt = map_select(
-            &namespace,
-            &parse_select("SELECT shared_field0 FROM temp_02"),
-        )
-        .unwrap();
-        let field = stmt.fields.first().unwrap();
-        let res = evaluate_type(&namespace, &field.expr, &stmt.from)
+        let res = evaluate_type(&namespace, "shared_field0", &["temp_02"])
             .unwrap()
             .unwrap();
         assert_matches!(res, VarRefDataType::Integer);
 
         // Same field across multiple measurements resolves to the highest precedence (float)
-        let stmt = map_select(
-            &namespace,
-            &parse_select("SELECT shared_field0 FROM temp_01, temp_02"),
-        )
-        .unwrap();
-        let field = stmt.fields.first().unwrap();
-        let res = evaluate_type(&namespace, &field.expr, &stmt.from)
+        let res = evaluate_type(&namespace, "shared_field0", &["temp_01", "temp_02"])
             .unwrap()
             .unwrap();
         assert_matches!(res, VarRefDataType::Float);
 
         // Explicit cast of integer field to float
-        let stmt = map_select(
-            &namespace,
-            &parse_select("SELECT SUM(field_i64::float) FROM temp_01"),
-        )
-        .unwrap();
-        let field = stmt.fields.first().unwrap();
-        let res = evaluate_type(&namespace, &field.expr, &stmt.from)
+        let res = evaluate_type(&namespace, "SUM(field_i64::float)", &["temp_01"])
             .unwrap()
             .unwrap();
         assert_matches!(res, VarRefDataType::Float);
@@ -388,24 +545,12 @@ mod test {
         // Binary expressions
         //
 
-        let stmt = map_select(
-            &namespace,
-            &parse_select("SELECT field_f64 + field_i64 FROM all_types"),
-        )
-        .unwrap();
-        let field = stmt.fields.first().unwrap();
-        let res = evaluate_type(&namespace, &field.expr, &stmt.from)
+        let res = evaluate_type(&namespace, "field_f64 + field_i64", &["all_types"])
             .unwrap()
             .unwrap();
         assert_matches!(res, VarRefDataType::Float);
 
-        let stmt = map_select(
-            &namespace,
-            &parse_select("SELECT field_bool | field_bool FROM all_types"),
-        )
-        .unwrap();
-        let field = stmt.fields.first().unwrap();
-        let res = evaluate_type(&namespace, &field.expr, &stmt.from)
+        let res = evaluate_type(&namespace, "field_bool | field_bool", &["all_types"])
             .unwrap()
             .unwrap();
         assert_matches!(res, VarRefDataType::Boolean);
@@ -413,247 +558,240 @@ mod test {
         // Fallible
 
         // Verify incompatible operators and operator error
-        let stmt = map_select(
-            &namespace,
-            &parse_select("SELECT field_f64 & field_i64 FROM all_types"),
-        )
-        .unwrap();
-        let field = stmt.fields.first().unwrap();
-        let res = evaluate_type(&namespace, &field.expr, &stmt.from);
+        let res = evaluate_type(&namespace, "field_f64 & field_i64", &["all_types"]);
         assert_matches!(res, Err(DataFusionError::Plan(ref s)) if s == "incompatible operands for operator &: float and integer");
 
         // data types for functions
-        let stmt = map_select(
-            &namespace,
-            &parse_select("SELECT SUM(field_f64) FROM temp_01"),
-        )
-        .unwrap();
-        let field = stmt.fields.first().unwrap();
-        let res = evaluate_type(&namespace, &field.expr, &stmt.from)
+        let res = evaluate_type(&namespace, "SUM(field_f64)", &["temp_01"])
             .unwrap()
             .unwrap();
         assert_matches!(res, VarRefDataType::Float);
 
-        let stmt = map_select(
-            &namespace,
-            &parse_select("SELECT SUM(field_i64) FROM temp_01"),
-        )
-        .unwrap();
-        let field = stmt.fields.first().unwrap();
-        let res = evaluate_type(&namespace, &field.expr, &stmt.from)
+        let res = evaluate_type(&namespace, "SUM(field_i64)", &["temp_01"])
             .unwrap()
             .unwrap();
         assert_matches!(res, VarRefDataType::Integer);
 
-        let stmt = map_select(
-            &namespace,
-            &parse_select("SELECT SUM(field_u64) FROM temp_01"),
-        )
-        .unwrap();
-        let field = stmt.fields.first().unwrap();
-        let res = evaluate_type(&namespace, &field.expr, &stmt.from)
+        let res = evaluate_type(&namespace, "SUM(field_u64)", &["temp_01"])
             .unwrap()
             .unwrap();
         assert_matches!(res, VarRefDataType::Unsigned);
 
-        let stmt = map_select(
-            &namespace,
-            &parse_select("SELECT MIN(field_f64) FROM temp_01"),
-        )
-        .unwrap();
-        let field = stmt.fields.first().unwrap();
-        let res = evaluate_type(&namespace, &field.expr, &stmt.from)
+        let res = evaluate_type(&namespace, "MIN(field_f64)", &["temp_01"])
             .unwrap()
             .unwrap();
         assert_matches!(res, VarRefDataType::Float);
 
-        let stmt = map_select(
-            &namespace,
-            &parse_select("SELECT MAX(field_i64) FROM temp_01"),
-        )
-        .unwrap();
-        let field = stmt.fields.first().unwrap();
-        let res = evaluate_type(&namespace, &field.expr, &stmt.from)
+        let res = evaluate_type(&namespace, "MAX(field_i64)", &["temp_01"])
             .unwrap()
             .unwrap();
         assert_matches!(res, VarRefDataType::Integer);
 
-        let stmt = map_select(
-            &namespace,
-            &parse_select("SELECT FIRST(field_str) FROM temp_01"),
-        )
-        .unwrap();
-        let field = stmt.fields.first().unwrap();
-        let res = evaluate_type(&namespace, &field.expr, &stmt.from)
+        let res = evaluate_type(&namespace, "FIRST(field_str)", &["temp_01"])
             .unwrap()
             .unwrap();
         assert_matches!(res, VarRefDataType::String);
 
-        let stmt = map_select(
-            &namespace,
-            &parse_select("SELECT LAST(field_str) FROM temp_01"),
-        )
-        .unwrap();
-        let field = stmt.fields.first().unwrap();
-        let res = evaluate_type(&namespace, &field.expr, &stmt.from)
+        let res = evaluate_type(&namespace, "LAST(field_str)", &["temp_01"])
             .unwrap()
             .unwrap();
         assert_matches!(res, VarRefDataType::String);
 
-        let stmt = map_select(
-            &namespace,
-            &parse_select("SELECT MEAN(field_i64) FROM temp_01"),
-        )
-        .unwrap();
-        let field = stmt.fields.first().unwrap();
-        let res = evaluate_type(&namespace, &field.expr, &stmt.from)
+        let res = evaluate_type(&namespace, "DISTINCT(field_str)", &["temp_01"])
+            .unwrap()
+            .unwrap();
+        assert_matches!(res, VarRefDataType::String);
+
+        let res = evaluate_type(&namespace, "MEAN(field_i64)", &["temp_01"])
             .unwrap()
             .unwrap();
         assert_matches!(res, VarRefDataType::Float);
 
-        let stmt = map_select(
-            &namespace,
-            &parse_select("SELECT MEAN(field_u64) FROM temp_01"),
-        )
-        .unwrap();
-        let field = stmt.fields.first().unwrap();
-        let res = evaluate_type(&namespace, &field.expr, &stmt.from)
+        let res = evaluate_type(&namespace, "MEAN(field_u64)", &["temp_01"])
             .unwrap()
             .unwrap();
         assert_matches!(res, VarRefDataType::Float);
 
-        let stmt = map_select(
-            &namespace,
-            &parse_select("SELECT COUNT(field_f64) FROM temp_01"),
-        )
-        .unwrap();
-        let field = stmt.fields.first().unwrap();
-        let res = evaluate_type(&namespace, &field.expr, &stmt.from)
+        let res = evaluate_type(&namespace, "COUNT(field_f64)", &["temp_01"])
             .unwrap()
             .unwrap();
         assert_matches!(res, VarRefDataType::Integer);
 
-        let stmt = map_select(
-            &namespace,
-            &parse_select("SELECT COUNT(field_i64) FROM temp_01"),
-        )
-        .unwrap();
-        let field = stmt.fields.first().unwrap();
-        let res = evaluate_type(&namespace, &field.expr, &stmt.from)
+        let res = evaluate_type(&namespace, "COUNT(field_i64)", &["temp_01"])
             .unwrap()
             .unwrap();
         assert_matches!(res, VarRefDataType::Integer);
 
-        let stmt = map_select(
-            &namespace,
-            &parse_select("SELECT COUNT(field_u64) FROM temp_01"),
-        )
-        .unwrap();
-        let field = stmt.fields.first().unwrap();
-        let res = evaluate_type(&namespace, &field.expr, &stmt.from)
+        let res = evaluate_type(&namespace, "COUNT(field_u64)", &["temp_01"])
             .unwrap()
             .unwrap();
         assert_matches!(res, VarRefDataType::Integer);
 
-        let stmt = map_select(
-            &namespace,
-            &parse_select("SELECT COUNT(field_str) FROM temp_01"),
-        )
-        .unwrap();
-        let field = stmt.fields.first().unwrap();
-        let res = evaluate_type(&namespace, &field.expr, &stmt.from)
+        let res = evaluate_type(&namespace, "COUNT(field_str)", &["temp_01"])
             .unwrap()
             .unwrap();
         assert_matches!(res, VarRefDataType::Integer);
 
         // Float functions
-        for name in [
-            "median",
-            "integral",
-            "stddev",
-            "derivative",
-            "non_negative_derivative",
-            "moving_average",
-            "exponential_moving_average",
-            "double_exponential_moving_average",
-            "triple_exponential_moving_average",
-            "relative_strength_index",
-            "triple_exponential_derivative",
-            "kaufmans_efficiency_ratio",
-            "kaufmans_adaptive_moving_average",
-            "chande_momentum_oscillator",
-            "holt_winters",
-            "holt_winters_with_fit",
+        for call in [
+            "median(field_i64)",
+            "integral(field_i64)",
+            "stddev(field_i64)",
+            "derivative(field_i64)",
+            "non_negative_derivative(field_i64)",
+            "moving_average(field_i64, 2)",
+            "exponential_moving_average(field_i64, 2)",
+            "double_exponential_moving_average(field_i64, 2)",
+            "triple_exponential_moving_average(field_i64, 2)",
+            "relative_strength_index(field_i64, 2)",
+            "triple_exponential_derivative(field_i64, 2)",
+            "kaufmans_efficiency_ratio(field_i64, 2)",
+            "kaufmans_adaptive_moving_average(field_i64, 2)",
+            "chande_momentum_oscillator(field_i64, 2)",
         ] {
-            let stmt = map_select(
-                &namespace,
-                &parse_select(&format!("SELECT {name}(field_i64) FROM temp_01")),
-            )
-            .unwrap();
-            let field = stmt.fields.first().unwrap();
-            let res = evaluate_type(&namespace, &field.expr, &stmt.from)
+            let res = evaluate_type(&namespace, call, &["temp_01"])
                 .unwrap()
                 .unwrap();
             assert_matches!(res, VarRefDataType::Float);
         }
 
-        // Integer functions
-        let stmt = map_select(
+        // holt_winters
+        let res = evaluate_type(
             &namespace,
-            &parse_select("SELECT elapsed(field_i64) FROM temp_01"),
+            "holt_winters(mean(field_i64), 2, 3)",
+            &["temp_01"],
         )
+        .unwrap()
         .unwrap();
-        let field = stmt.fields.first().unwrap();
-        let res = evaluate_type(&namespace, &field.expr, &stmt.from)
+        assert_matches!(res, VarRefDataType::Float);
+
+        // holt_winters_with_fit
+        let res = evaluate_type(
+            &namespace,
+            "holt_winters_with_fit(mean(field_i64), 2, 3)",
+            &["temp_01"],
+        )
+        .unwrap()
+        .unwrap();
+        assert_matches!(res, VarRefDataType::Float);
+
+        // Integer functions
+        let res = evaluate_type(&namespace, "elapsed(field_i64)", &["temp_01"])
             .unwrap()
             .unwrap();
         assert_matches!(res, VarRefDataType::Integer);
 
-        // Invalid function
-        let stmt = map_select(
-            &namespace,
-            &parse_select("SELECT not_valid(field_i64) FROM temp_01"),
-        )
-        .unwrap();
-        let field = stmt.fields.first().unwrap();
-        let res = evaluate_type(&namespace, &field.expr, &stmt.from)
-            .unwrap()
-            .is_none();
-        assert!(res);
+        // scalar functions
 
-        // subqueries
-
-        let stmt = map_select(
-            &namespace,
-            &parse_select("SELECT inner FROM (SELECT field_f64 as inner FROM temp_01)"),
-        )
-        .unwrap();
-        let field = stmt.fields.first().unwrap();
-        let res = evaluate_type(&namespace, &field.expr, &stmt.from)
+        // These require a single numeric input and return a float
+        let res = evaluate_type(&namespace, "sin(field_f64)", &["temp_01"])
             .unwrap()
             .unwrap();
         assert_matches!(res, VarRefDataType::Float);
 
-        let stmt = map_select(
-            &namespace,
-            &parse_select(
-                "SELECT inner FROM (SELECT shared_tag0, field_f64 as inner FROM temp_01)",
-            ),
-        )
-        .unwrap();
-        let field = stmt.fields.first().unwrap();
-        let res = evaluate_type(&namespace, &field.expr, &stmt.from)
+        // These require a single float as input and return a float
+        let res = evaluate_type(&namespace, "asin(field_f64)", &["temp_01"])
             .unwrap()
             .unwrap();
         assert_matches!(res, VarRefDataType::Float);
 
-        let stmt = map_select(&namespace, &parse_select(
-            "SELECT shared_tag0, inner FROM (SELECT shared_tag0, field_f64 as inner FROM temp_01)",
-        )).unwrap();
-        let field = stmt.fields.first().unwrap();
-        let res = evaluate_type(&namespace, &field.expr, &stmt.from)
+        // These require two numeric arguments as input and return a float
+        let res = evaluate_type(&namespace, "atan2(field_f64, 3)", &["temp_01"])
             .unwrap()
             .unwrap();
-        assert_matches!(res, VarRefDataType::Tag);
+        assert_matches!(res, VarRefDataType::Float);
+
+        // These require a numeric argument as input and return the same type
+        let res = evaluate_type(&namespace, "abs(field_f64)", &["temp_01"])
+            .unwrap()
+            .unwrap();
+        assert_matches!(res, VarRefDataType::Float);
+        let res = evaluate_type(&namespace, "abs(field_i64)", &["temp_01"])
+            .unwrap()
+            .unwrap();
+        assert_matches!(res, VarRefDataType::Integer);
+        let res = evaluate_type(&namespace, "abs(field_u64)", &["temp_01"])
+            .unwrap()
+            .unwrap();
+        assert_matches!(res, VarRefDataType::Unsigned);
+    }
+
+    /// Validate InfluxQL OG compatible behavior for scalar functions
+    #[test]
+    fn test_evaluate_type_compat() {
+        let namespace = MockSchemaProvider::default();
+
+        fn evaluate_type(
+            s: &dyn SchemaProvider,
+            expr: &str,
+            from: &[&str],
+        ) -> Result<Option<VarRefDataType>> {
+            let from = from
+                .iter()
+                .map(ToString::to_string)
+                .map(DataSource::Table)
+                .collect::<Vec<_>>();
+            let Field { expr, .. } = expr.parse().unwrap();
+            TypeEvaluator::new(s, &from).eval_type(&expr)
+        }
+
+        let res = evaluate_type(&namespace, "sin(field_i64)", &["temp_01"])
+            .unwrap()
+            .unwrap();
+        assert_matches!(res, VarRefDataType::Integer);
+        let res = evaluate_type(&namespace, "sin(field_str)", &["temp_01"])
+            .unwrap()
+            .unwrap();
+        assert_matches!(res, VarRefDataType::String);
+
+        let res = evaluate_type(&namespace, "asin(field_i64)", &["temp_01"])
+            .unwrap()
+            .unwrap();
+        assert_matches!(res, VarRefDataType::Integer);
+
+        // invalid number of arguments, still returns data type of first arg
+        let res = evaluate_type(&namespace, "atan2(field_f64)", &["temp_01"])
+            .unwrap()
+            .unwrap();
+        assert_matches!(res, VarRefDataType::Float);
+
+        let res = evaluate_type(&namespace, "atan2(field_str, 3)", &["temp_01"])
+            .unwrap()
+            .unwrap();
+        assert_matches!(res, VarRefDataType::String);
+        let res = evaluate_type(&namespace, "atan2(field_i64, 'str')", &["temp_01"])
+            .unwrap()
+            .unwrap();
+        assert_matches!(res, VarRefDataType::Integer);
+    }
+
+    /// Validates `TypeEvaluator` when in strict mode.
+    #[test]
+    fn test_evaluate_type_strict() {
+        let namespace = MockSchemaProvider::default();
+
+        fn evaluate_type(
+            s: &dyn SchemaProvider,
+            expr: &str,
+            from: &[&str],
+        ) -> Result<Option<VarRefDataType>> {
+            let from = from
+                .iter()
+                .map(ToString::to_string)
+                .map(DataSource::Table)
+                .collect::<Vec<_>>();
+            let Field { expr, .. } = expr.parse().unwrap();
+            TypeEvaluator::new_strict(s, &from).eval_type(&expr)
+        }
+
+        // In struct mode, these scalar functions should return an error when the arguments are an
+        // invalid data type.
+
+        evaluate_type(&namespace, "sin(field_str)", &["temp_01"]).unwrap_err();
+        evaluate_type(&namespace, "asin(field_i64)", &["temp_01"]).unwrap_err();
+        evaluate_type(&namespace, "atan2(field_f64)", &["temp_01"]).unwrap_err();
+        evaluate_type(&namespace, "atan2(field_str, 3)", &["temp_01"]).unwrap_err();
+        evaluate_type(&namespace, "atan2(field_i64, 'str')", &["temp_01"]).unwrap_err();
+        evaluate_type(&namespace, "abs(field_str)", &["temp_01"]).unwrap_err();
     }
 }

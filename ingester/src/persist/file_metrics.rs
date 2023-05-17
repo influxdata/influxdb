@@ -7,7 +7,7 @@ use metric::{
 
 use super::completion_observer::{CompletedPersist, PersistCompletionObserver};
 
-const MINUTES: Duration = Duration::from_secs(60 * 60);
+const MINUTES: Duration = Duration::from_secs(60);
 
 #[derive(Debug)]
 pub(crate) struct ParquetFileInstrumentation<T> {

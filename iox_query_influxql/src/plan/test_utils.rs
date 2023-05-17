@@ -7,17 +7,12 @@ use datafusion::datasource::empty::EmptyTable;
 use datafusion::datasource::provider_as_source;
 use datafusion::logical_expr::{AggregateUDF, ScalarUDF, TableSource};
 use influxdb_influxql_parser::parse_statements;
-use influxdb_influxql_parser::select::{Field, SelectStatement};
+use influxdb_influxql_parser::select::SelectStatement;
 use influxdb_influxql_parser::statement::Statement;
 use itertools::Itertools;
 use schema::{Schema, SchemaBuilder};
 use std::collections::HashMap;
 use std::sync::Arc;
-
-/// Returns the first `Field` of the `SELECT` statement.
-pub(crate) fn get_first_field(s: &str) -> Field {
-    parse_select(s).fields.head().unwrap().clone()
-}
 
 /// Returns the InfluxQL [`SelectStatement`] for the specified SQL, `s`.
 pub(crate) fn parse_select(s: &str) -> SelectStatement {
