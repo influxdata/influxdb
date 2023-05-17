@@ -122,6 +122,8 @@ mod test {
         // quoted
         let (_, got) = identifier("\"quick draw\"").unwrap();
         assert_eq!(got, "quick draw".into());
+        // validate that `as_str` returns the unquoted string
+        assert_eq!(got.as_str(), "quick draw");
 
         // unquoted
         let (_, got) = identifier("quick_draw").unwrap();
