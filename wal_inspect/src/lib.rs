@@ -133,17 +133,18 @@ where
             .entry(ns)
             .or_insert((self.new_write_sink)(ns)?);
 
-        write_batches_as_line_proto(sink, &self.table_name_index, table_batches)
+        write_batches_as_line_proto(sink, &self.table_name_index, table_batches.into_iter())
     }
 }
 
-fn write_batches_as_line_proto<W>(
+fn write_batches_as_line_proto<W, B>(
     sink: &mut W,
     table_name_index: &Option<HashMap<TableId, String>>,
-    table_batches: HashMap<i64, MutableBatch>,
+    table_batches: B,
 ) -> Result<(), WriteError>
 where
     W: Write,
+    B: Iterator<Item = (i64, MutableBatch)>,
 {
     for (table_id, mb) in table_batches {
         let schema = mb.schema(schema::Projection::All)?;
@@ -169,6 +170,7 @@ where
 
 #[cfg(test)]
 mod tests {
+    use std::collections::BTreeMap;
     use std::fs::{read_dir, OpenOptions};
 
     use assert_matches::assert_matches;
@@ -370,33 +372,28 @@ mod tests {
     #[test]
     fn write_line_proto_without_index() {
         let mut sink = Vec::<u8>::new();
-        let batches = lines_to_batches(
-            r#"m1,t=foo v=1i 1
+        let batches = BTreeMap::from_iter(
+            lines_to_batches(
+                r#"m1,t=foo v=1i 1
 m2,t=bar v="arán" 1"#,
-            0,
-        )
-        .expect("failed to create batches from line proto")
-        .into_iter()
-        // Trim the non-numeric characters from the batches to make ID derivation deterministic
-        // (map enumeration is not ordered).
-        .map(|(table_name, batch)| {
-            (
-                table_name
-                    .trim_matches(|c| !char::is_numeric(c))
-                    .parse::<i64>()
-                    .expect("failed to convert table name to id"),
-                batch,
+                0,
             )
-        })
-        .collect();
+            .expect("failed to create batches from line proto")
+            .into_iter()
+            .collect::<BTreeMap<_, _>>()
+            .into_iter()
+            .enumerate()
+            .map(|(i, (_table_name, batch))| (i as i64, batch)),
+        );
 
-        write_batches_as_line_proto(&mut sink, &None, batches)
+        write_batches_as_line_proto(&mut sink, &None, batches.into_iter())
             .expect("write back to line proto should succeed");
 
         assert_eq!(
             String::from_utf8(sink).expect("invalid output"),
-            r#"1,t=foo v=1i 1
-2,t=bar v="arán" 1"#
+            r#"0,t=foo v=1i 1
+1,t=bar v="arán" 1
+"#
         );
     }
 
