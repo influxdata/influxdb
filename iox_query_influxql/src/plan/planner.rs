@@ -35,7 +35,7 @@ use datafusion_util::{lit_dict, AsExpr};
 use generated_types::influxdata::iox::querier::v1::InfluxQlMetadata;
 use influxdb_influxql_parser::common::{LimitClause, OffsetClause, OrderByClause};
 use influxdb_influxql_parser::explain::{ExplainOption, ExplainStatement};
-use influxdb_influxql_parser::expression::walk::walk_expr;
+use influxdb_influxql_parser::expression::walk::{walk_expr, walk_expression, Expression};
 use influxdb_influxql_parser::expression::{
     Binary, Call, ConditionalBinary, ConditionalExpression, ConditionalOperator, VarRef,
     VarRefDataType,
@@ -2205,10 +2205,51 @@ fn add_time_restriction(plan: LogicalPlan, cutoff: MetadataCutoff) -> Result<Log
     }
 }
 
+/// Find distinct occurrences of [`Expr::VarRef`] expressions for
+/// the `select`.
+fn find_var_refs(select: &Select) -> Vec<&VarRef> {
+    let mut var_refs = Vec::new();
+
+    for f in &select.fields {
+        walk_expr(&f.expr, &mut |e| {
+            if let IQLExpr::VarRef(vr) = e {
+                if !var_refs.contains(&vr) {
+                    var_refs.push(vr);
+                }
+            }
+            ControlFlow::<()>::Continue(())
+        });
+    }
+
+    if let Some(condition) = &select.condition {
+        walk_expression(condition, &mut |e| match e {
+            Expression::Arithmetic(e) => walk_expr(e, &mut |e| {
+                if let IQLExpr::VarRef(vr) = e {
+                    if !var_refs.contains(&vr) {
+                        var_refs.push(vr);
+                    }
+                }
+                ControlFlow::<()>::Continue(())
+            }),
+            _ => ControlFlow::<()>::Continue(()),
+        });
+    }
+
+    if let Some(group_by) = &select.group_by {
+        for vr in group_by.tags() {
+            if !var_refs.contains(&vr) {
+                var_refs.push(vr);
+            }
+        }
+    }
+
+    var_refs
+}
+
 #[cfg(test)]
 mod test {
     use super::*;
-    use crate::plan::test_utils::MockSchemaProvider;
+    use crate::plan::test_utils::{parse_select, MockSchemaProvider};
     use influxdb_influxql_parser::parse_statements;
     use insta::assert_snapshot;
     use schema::SchemaBuilder;
@@ -2268,6 +2309,74 @@ mod test {
             Ok(res) => res.display_indent_schema().to_string(),
             Err(err) => err.to_string(),
         }
+    }
+
+    #[test]
+    fn test_find_var_refs() {
+        use VarRefDataType::*;
+
+        macro_rules! var_ref {
+            ($NAME: literal) => {
+                VarRef {
+                    name: $NAME.into(),
+                    data_type: None,
+                }
+            };
+
+            ($NAME: literal, $TYPE: ident) => {
+                VarRef {
+                    name: $NAME.into(),
+                    data_type: Some($TYPE),
+                }
+            };
+        }
+
+        fn find_var_refs(s: &dyn SchemaProvider, q: &str) -> Vec<VarRef> {
+            let sel = parse_select(q);
+            let select = rewrite_statement(s, &sel).unwrap();
+            super::find_var_refs(&select.select)
+                .into_iter()
+                .sorted()
+                .cloned()
+                .collect::<Vec<_>>()
+        }
+
+        let sp = MockSchemaProvider::default();
+
+        let got = find_var_refs(
+            &sp,
+            "SELECT cpu, usage_idle FROM cpu WHERE usage_user = 3 AND usage_idle > 1 GROUP BY cpu",
+        );
+        assert_eq!(
+            &got,
+            &[
+                var_ref!("cpu", Tag),
+                var_ref!("time", Timestamp),
+                var_ref!("usage_idle", Float),
+                var_ref!("usage_user", Float),
+            ]
+        );
+
+        let got = find_var_refs(&sp, "SELECT non_existent, usage_idle FROM cpu");
+        assert_eq!(
+            &got,
+            &[
+                var_ref!("non_existent"),
+                var_ref!("time", Timestamp),
+                var_ref!("usage_idle", Float),
+            ]
+        );
+
+        let got = find_var_refs(&sp, "SELECT non_existent, usage_idle FROM (SELECT cpu as non_existent, usage_idle FROM cpu) GROUP BY cpu");
+        assert_eq!(
+            &got,
+            &[
+                var_ref!("cpu", Tag),
+                var_ref!("non_existent", Tag),
+                var_ref!("time", Timestamp),
+                var_ref!("usage_idle", Float),
+            ]
+        );
     }
 
     /// Verify the list of unsupported statements.
