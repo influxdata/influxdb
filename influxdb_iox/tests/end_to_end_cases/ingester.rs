@@ -54,7 +54,7 @@ async fn persist_on_demand() {
                 .boxed()
             })),
             Step::Persist,
-            Step::WaitForPersisted2 {
+            Step::WaitForPersisted {
                 expected_increase: 1,
             },
             // Ensure the ingester responds with the correct file count to tell the querier

@@ -70,7 +70,7 @@ async fn parquet_to_lp() {
             Step::RecordNumParquetFiles,
             Step::WriteLineProtocol(String::from(line_protocol)),
             // wait for partitions to be persisted
-            Step::WaitForPersisted2 {
+            Step::WaitForPersisted {
                 expected_increase: 1,
             },
             // Run the 'remote partition' command
@@ -193,7 +193,7 @@ async fn schema_cli() {
             Step::WriteLineProtocol(String::from(
                 "my_awesome_table2,tag1=A,tag2=B val=42i 123456",
             )),
-            Step::WaitForPersisted2 {
+            Step::WaitForPersisted {
                 expected_increase: 1,
             },
             Step::Custom(Box::new(|state: &mut StepTestState| {
