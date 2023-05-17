@@ -12,10 +12,7 @@ message PartitionTemplate {
   //
   // For example, given the following template:
   //
-  //    [
-  //      TemplatePart::time_format("%Y.%j")
-  //      TemplatePart::column_value("region")
-  //    ]
+  //    [ TemplatePart::time_format("%Y.%j") TemplatePart::tag_value("region") ]
   //
   // The below example rows would have the specified partition key derived:
   //
@@ -29,12 +26,12 @@ message PartitionTemplate {
 // A sub-part of a PartitionTemplate.
 message TemplatePart {
   oneof part {
-    // A column value matcher extracts a string value from the column with the
+    // A tag value matcher extracts a string value from the tag with the
     // specified name.
     //
-    // If a row does not contain the specified column, the provided column name
-    // is rendered instead of the (missing) value.
-    string column_value = 1;
+    // If a row does not contain the specified tag, the provided tag name is
+    // rendered instead of the (missing) value.
+    string tag_value = 1;
 
     // A time format matcher accepts a "strftime"-like format string and
     // evaluates it against the "time" column.
