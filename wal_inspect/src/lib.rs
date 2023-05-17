@@ -133,13 +133,17 @@ where
             .entry(ns)
             .or_insert((self.new_write_sink)(ns)?);
 
-        write_batches_as_line_proto(sink, &self.table_name_index, table_batches.into_iter())
+        write_batches_as_line_proto(
+            sink,
+            self.table_name_index.as_ref(),
+            table_batches.into_iter(),
+        )
     }
 }
 
 fn write_batches_as_line_proto<W, B>(
     sink: &mut W,
-    table_name_index: &Option<HashMap<TableId, String>>,
+    table_name_index: Option<&HashMap<TableId, String>>,
     table_batches: B,
 ) -> Result<(), WriteError>
 where
@@ -386,7 +390,7 @@ m2,t=bar v="arán" 1"#,
             .map(|(i, (_table_name, batch))| (i as i64, batch)),
         );
 
-        write_batches_as_line_proto(&mut sink, &None, batches.into_iter())
+        write_batches_as_line_proto(&mut sink, None, batches.into_iter())
             .expect("write back to line proto should succeed");
 
         assert_eq!(
