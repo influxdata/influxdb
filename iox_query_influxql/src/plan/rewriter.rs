@@ -101,9 +101,9 @@ impl RewriteSelect {
         check_features(stmt)?;
 
         let from = self.expand_from(s, stmt)?;
-        let (fields, group_by) = self.expand_projection(s, stmt, &from)?;
-        let condition = self.rewrite_condition(s, stmt, &from)?;
-        let tag_set = select_tag_set(s, &from);
+        let tag_set = from_tag_set(s, &from);
+        let (fields, group_by) = self.expand_projection(s, stmt, &from, &tag_set)?;
+        let condition = self.condition_resolve_types(s, stmt, &from)?;
 
         let SelectStatementInfo { projection_type } =
             select_statement_info(&fields, &group_by, stmt.fill)?;
@@ -166,6 +166,7 @@ impl RewriteSelect {
         s: &dyn SchemaProvider,
         stmt: &SelectStatement,
         from: &[DataSource],
+        from_tag_set: &TagSet,
     ) -> Result<(Vec<Field>, Option<GroupByClause>)> {
         let tv = TypeEvaluator::new(s, from);
         let fields = stmt
@@ -214,7 +215,7 @@ impl RewriteSelect {
 
         let (has_field_wildcard, has_group_by_wildcard) = has_wildcards(stmt);
 
-        let (fields, group_by) = if has_field_wildcard || has_group_by_wildcard {
+        let (fields, mut group_by) = if has_field_wildcard || has_group_by_wildcard {
             let (field_set, mut tag_set) = from_field_and_dimensions(s, from)?;
 
             if !has_group_by_wildcard {
@@ -296,6 +297,16 @@ impl RewriteSelect {
             (fields, stmt.group_by.clone())
         };
 
+        // resolve possible tag references in group_by
+        if let Some(group_by) = group_by.as_mut() {
+            for dim in group_by.iter_mut() {
+                let Dimension::VarRef(var_ref) = dim else { continue };
+                if from_tag_set.contains(var_ref.name.as_str()) {
+                    var_ref.data_type = Some(VarRefDataType::Tag);
+                }
+            }
+        }
+
         Ok((fields_resolve_aliases_and_types(s, fields, from)?, group_by))
     }
 
@@ -337,7 +348,7 @@ impl RewriteSelect {
     }
 
     /// Resolve the data types of any [`VarRef`] expressions in the `WHERE` condition.
-    fn rewrite_condition(
+    fn condition_resolve_types(
         &self,
         s: &dyn SchemaProvider,
         stmt: &SelectStatement,
@@ -470,7 +481,7 @@ fn from_drop_empty(s: &dyn SchemaProvider, stmt: &mut Select) {
 }
 
 /// Determine the combined tag set for the specified `from`.
-fn select_tag_set(s: &dyn SchemaProvider, from: &[DataSource]) -> TagSet {
+fn from_tag_set(s: &dyn SchemaProvider, from: &[DataSource]) -> TagSet {
     let mut tag_set = TagSet::new();
 
     for ds in from {
@@ -2119,7 +2130,24 @@ mod test {
             let stmt = rewrite_select_statement(&namespace, &stmt).unwrap();
             assert_eq!(
                 stmt.to_string(),
-                "SELECT time::timestamp AS time, usage_idle::float AS usage_idle FROM cpu GROUP BY host"
+                "SELECT time::timestamp AS time, usage_idle::float AS usage_idle FROM cpu GROUP BY host::tag"
+            );
+
+            // resolves tag types from multiple measurements
+            let stmt =
+                parse_select("SELECT usage_idle, bytes_free FROM cpu, disk GROUP BY host, device");
+            let stmt = rewrite_select_statement(&namespace, &stmt).unwrap();
+            assert_eq!(
+                stmt.to_string(),
+                "SELECT time::timestamp AS time, usage_idle::float AS usage_idle, bytes_free::integer AS bytes_free FROM cpu, disk GROUP BY host::tag, device::tag"
+            );
+
+            // does not resolve non-existent tag
+            let stmt = parse_select("SELECT usage_idle FROM cpu GROUP BY host, non_existent");
+            let stmt = rewrite_select_statement(&namespace, &stmt).unwrap();
+            assert_eq!(
+                stmt.to_string(),
+                "SELECT time::timestamp AS time, usage_idle::float AS usage_idle FROM cpu GROUP BY host::tag, non_existent"
             );
 
             let stmt = parse_select("SELECT usage_idle FROM cpu GROUP BY *");
@@ -2278,7 +2306,7 @@ mod test {
             let stmt = rewrite_select_statement(&namespace, &stmt).unwrap();
             assert_eq!(
                 stmt.to_string(),
-                "SELECT time::timestamp AS time, cpu::tag AS cpu, usage_system::float AS usage_system FROM (SELECT time::timestamp AS time, usage_system::float AS usage_system FROM cpu GROUP BY cpu)"
+                "SELECT time::timestamp AS time, cpu::tag AS cpu, usage_system::float AS usage_system FROM (SELECT time::timestamp AS time, usage_system::float AS usage_system FROM cpu GROUP BY cpu::tag)"
             );
 
             // Specifically project cpu tag from GROUP BY
@@ -2288,7 +2316,7 @@ mod test {
             let stmt = rewrite_select_statement(&namespace, &stmt).unwrap();
             assert_eq!(
                 stmt.to_string(),
-                "SELECT time::timestamp AS time, cpu::tag AS cpu, usage_system::float AS usage_system FROM (SELECT time::timestamp AS time, usage_system::float AS usage_system FROM cpu GROUP BY cpu)"
+                "SELECT time::timestamp AS time, cpu::tag AS cpu, usage_system::float AS usage_system FROM (SELECT time::timestamp AS time, usage_system::float AS usage_system FROM cpu GROUP BY cpu::tag)"
             );
 
             // Projects cpu tag in outer query separately from aliased cpu tag "foo"
@@ -2298,7 +2326,7 @@ mod test {
             let stmt = rewrite_select_statement(&namespace, &stmt).unwrap();
             assert_eq!(
                 stmt.to_string(),
-                "SELECT time::timestamp AS time, cpu::tag AS cpu, foo::tag AS foo, usage_system::float AS usage_system FROM (SELECT time::timestamp AS time, cpu::tag AS foo, usage_system::float AS usage_system FROM cpu GROUP BY cpu)"
+                "SELECT time::timestamp AS time, cpu::tag AS cpu, foo::tag AS foo, usage_system::float AS usage_system FROM (SELECT time::timestamp AS time, cpu::tag AS foo, usage_system::float AS usage_system FROM cpu GROUP BY cpu::tag)"
             );
 
             // Projects non-existent foo as a tag in the outer query
@@ -2308,7 +2336,7 @@ mod test {
             let stmt = rewrite_select_statement(&namespace, &stmt).unwrap();
             assert_eq!(
                 stmt.to_string(),
-                "SELECT time::timestamp AS time, foo::tag AS foo, usage_idle::float AS usage_idle FROM (SELECT time::timestamp AS time, usage_idle::float AS usage_idle FROM cpu GROUP BY foo) GROUP BY cpu"
+                "SELECT time::timestamp AS time, foo::tag AS foo, usage_idle::float AS usage_idle FROM (SELECT time::timestamp AS time, usage_idle::float AS usage_idle FROM cpu GROUP BY foo) GROUP BY cpu::tag"
             );
             // Normalises time to all leaf subqueries
             let stmt = parse_select(
@@ -2317,7 +2345,7 @@ mod test {
             let stmt = rewrite_select_statement(&namespace, &stmt).unwrap();
             assert_eq!(
                 stmt.to_string(),
-                "SELECT time::timestamp AS time, max::float AS max FROM (SELECT time::timestamp AS time, max(value::float) AS max FROM (SELECT time::timestamp AS time, distinct(usage_idle::float) AS value FROM cpu FILL(NONE)) FILL(NONE)) GROUP BY cpu"
+                "SELECT time::timestamp AS time, max::float AS max FROM (SELECT time::timestamp AS time, max(value::float) AS max FROM (SELECT time::timestamp AS time, distinct(usage_idle::float) AS value FROM cpu FILL(NONE)) FILL(NONE)) GROUP BY cpu::tag"
             );
 
             // Projects non-existent tag, "bytes_free" from cpu and also bytes_free field from disk
@@ -2355,7 +2383,7 @@ mod test {
             let stmt = rewrite_select_statement(&namespace, &stmt).unwrap();
             assert_eq!(
                 stmt.to_string(),
-                "SELECT time::timestamp AS time, bytes_free::integer AS bytes_free, bytes_free::tag AS bytes_free_1, usage_idle::float AS usage_idle FROM (SELECT time::timestamp AS time, usage_idle::float AS usage_idle FROM cpu GROUP BY bytes_free), (SELECT time::timestamp AS time, bytes_free::integer AS bytes_free FROM disk) GROUP BY cpu"
+                "SELECT time::timestamp AS time, bytes_free::integer AS bytes_free, bytes_free::tag AS bytes_free_1, usage_idle::float AS usage_idle FROM (SELECT time::timestamp AS time, usage_idle::float AS usage_idle FROM cpu GROUP BY bytes_free), (SELECT time::timestamp AS time, bytes_free::integer AS bytes_free FROM disk) GROUP BY cpu::tag"
             );
         }
 
