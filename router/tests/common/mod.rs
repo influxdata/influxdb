@@ -135,7 +135,11 @@ impl TestContext {
         metrics: Arc<metric::Registry>,
     ) -> Self {
         let client = Arc::new(MockWriteClient::default());
-        let rpc_writer = RpcWrite::new([(Arc::clone(&client), "mock client")], None, &metrics);
+        let rpc_writer = RpcWrite::new(
+            [(Arc::clone(&client), "mock client")],
+            1.try_into().unwrap(),
+            &metrics,
+        );
 
         let ns_cache = Arc::new(ReadThroughCache::new(
             Arc::new(ShardedCache::new(
