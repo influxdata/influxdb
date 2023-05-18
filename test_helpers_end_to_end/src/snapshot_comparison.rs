@@ -330,7 +330,7 @@ async fn run_query(cluster: &MiniCluster, query: &Query) -> Result<Vec<String>> 
         {
             return Ok(status.message().lines().map(str::to_string).collect())
         }
-        Err(e) => panic!("error running query: {e}"),
+        Err(e) => panic!("error running query '{query_text}': {e}"),
     };
 
     Ok(query.normalize_results(batches, language))
