@@ -1469,7 +1469,7 @@ func (m *Manifest) Write() (int64, error) {
 
 		tmp = f.Name()
 
-		if err = f.Chmod(0666); err != nil {
+		if err = f.Chmod(0644); err != nil {
 			return fmt.Errorf("failed setting permissions on manifest file %q: %w", tmp, err)
 		}
 		if _, err = f.Write(buf); err != nil {
