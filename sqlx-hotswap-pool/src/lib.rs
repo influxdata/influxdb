@@ -10,6 +10,7 @@
     clippy::todo,
     clippy::dbg_macro,
     clippy::clone_on_ref_ptr,
+    // See https://github.com/influxdata/influxdb_iox/pull/1671
     clippy::future_not_send,
     clippy::todo,
     clippy::dbg_macro
