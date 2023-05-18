@@ -2614,6 +2614,8 @@ dependencies = [
  "trace_exporters",
  "trogging",
  "uuid",
+ "wal",
+ "wal_inspect",
  "workspace-hack",
 ]
 
