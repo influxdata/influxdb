@@ -45,7 +45,7 @@ async fn basic_multi_ingesters() {
     }
     // Persist those writes
     test_steps.push(Step::Persist);
-    test_steps.push(Step::WaitForPersisted2 {
+    test_steps.push(Step::WaitForPersisted {
         // One file from each ingester
         expected_increase: 2,
     });
@@ -129,7 +129,7 @@ async fn write_replication() {
     }
     // Persist those writes
     test_steps.push(Step::Persist);
-    test_steps.push(Step::WaitForPersisted2 {
+    test_steps.push(Step::WaitForPersisted {
         // One file from each ingester
         expected_increase: 2,
     });

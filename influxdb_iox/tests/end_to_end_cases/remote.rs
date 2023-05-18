@@ -24,19 +24,19 @@ async fn remote_store_get_table() {
             // Persist some data
             Step::RecordNumParquetFiles,
             Step::WriteLineProtocol(format!("{table_name},tag1=A,tag2=B val=42i 123456")),
-            Step::WaitForPersisted2 {
+            Step::WaitForPersisted {
                 expected_increase: 1,
             },
             // Persist some more data for the same table in a 2nd Parquet file
             Step::RecordNumParquetFiles,
             Step::WriteLineProtocol(format!("{table_name},tag1=C,tag2=B val=9000i 789000")),
-            Step::WaitForPersisted2 {
+            Step::WaitForPersisted {
                 expected_increase: 1,
             },
             // Persist some more data for a different table
             Step::RecordNumParquetFiles,
             Step::WriteLineProtocol(format!("{other_table_name},tag1=A,tag2=B val=42i 123456")),
-            Step::WaitForPersisted2 {
+            Step::WaitForPersisted {
                 expected_increase: 1,
             },
             Step::Custom(Box::new(move |state: &mut StepTestState| {
@@ -253,7 +253,7 @@ async fn remote_partition_and_get_from_store_and_pull() {
                 "my_awesome_table,tag1=A,tag2=B val=42i 123456",
             )),
             // wait for partitions to be persisted
-            Step::WaitForPersisted2 {
+            Step::WaitForPersisted {
                 expected_increase: 1,
             },
             // Run the 'remote partition' command
