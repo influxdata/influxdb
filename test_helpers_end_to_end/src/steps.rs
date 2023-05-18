@@ -100,7 +100,7 @@ impl<'a> StepTestState<'a> {
         let mut catalog_client = influxdb_iox_client::catalog::Client::new(connection);
 
         catalog_client
-            .get_parquet_files_by_namespace(self.cluster.namespace().into())
+            .get_parquet_files_by_namespace(self.cluster.namespace())
             .await
             .map(|parquet_files| parquet_files.len())
             .unwrap_or_default()

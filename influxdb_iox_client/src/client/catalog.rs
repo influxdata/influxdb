@@ -53,9 +53,11 @@ impl Client {
     /// Get the Parquet file records by their namespace and table names
     pub async fn get_parquet_files_by_namespace_table(
         &mut self,
-        namespace_name: String,
-        table_name: String,
+        namespace_name: impl Into<String> + Send,
+        table_name: impl Into<String> + Send,
     ) -> Result<Vec<ParquetFile>, Error> {
+        let namespace_name = namespace_name.into();
+        let table_name = table_name.into();
         let response = self
             .inner
             .get_parquet_files_by_namespace_table(GetParquetFilesByNamespaceTableRequest {
@@ -70,8 +72,9 @@ impl Client {
     /// Get the Parquet file records by their namespace
     pub async fn get_parquet_files_by_namespace(
         &mut self,
-        namespace_name: String,
+        namespace_name: impl Into<String> + Send,
     ) -> Result<Vec<ParquetFile>, Error> {
+        let namespace_name = namespace_name.into();
         let response = self
             .inner
             .get_parquet_files_by_namespace(GetParquetFilesByNamespaceRequest { namespace_name })
