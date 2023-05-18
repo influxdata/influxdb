@@ -5229,6 +5229,20 @@ dependencies = [
 ]
 
 [[package]]
+name = "service_grpc_table"
+version = "0.1.0"
+dependencies = [
+ "data_types",
+ "generated_types",
+ "iox_catalog",
+ "metric",
+ "observability_deps",
+ "tokio",
+ "tonic",
+ "workspace-hack",
+]
+
+[[package]]
 name = "service_grpc_testing"
 version = "0.1.0"
 dependencies = [

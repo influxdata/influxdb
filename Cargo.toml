@@ -69,6 +69,7 @@ members = [
     "service_grpc_namespace",
     "service_grpc_object_store",
     "service_grpc_schema",
+    "service_grpc_table",
     "service_grpc_testing",
     "sharder",
     "sqlx-hotswap-pool",
