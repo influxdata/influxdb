@@ -125,7 +125,7 @@ impl<T> RpcWrite<T> {
     /// needed than the number of `endpoints`; doing so will cause a panic.
     pub fn new<N>(
         endpoints: impl IntoIterator<Item = (T, N)>,
-        replica_copies: Option<NonZeroUsize>,
+        n_copies: NonZeroUsize,
         metrics: &metric::Registry,
     ) -> Self
     where
@@ -139,9 +139,9 @@ impl<T> RpcWrite<T> {
             Some(metrics),
         );
 
-        // Map the "replication factor" into the total number of distinct data
-        // copies necessary to consider a write a success.
-        let n_copies = replica_copies.map(NonZeroUsize::get).unwrap_or(1);
+        // Read the total number of distinct data copies necessary to consider a
+        // write a success.
+        let n_copies = n_copies.get();
 
         debug!(n_copies, "write replication factor");
 
@@ -451,7 +451,7 @@ mod tests {
         let client = Arc::new(MockWriteClient::default());
         let handler = RpcWrite::new(
             [(Arc::clone(&client), "mock client")],
-            None,
+            1.try_into().unwrap(),
             &metric::Registry::default(),
         );
 
@@ -513,7 +513,7 @@ mod tests {
                 (Arc::clone(&client2), "client2"),
                 (Arc::clone(&client3), "client3"),
             ],
-            None,
+            1.try_into().unwrap(),
             &metric::Registry::default(),
         );
 
@@ -581,7 +581,7 @@ mod tests {
                 (Arc::clone(&client1), "client1"),
                 (Arc::clone(&client2), "client2"),
             ],
-            None,
+            1.try_into().unwrap(),
             &metric::Registry::default(),
         );
 

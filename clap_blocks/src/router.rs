@@ -111,16 +111,20 @@ pub struct RouterConfig {
     )]
     pub rpc_write_max_outgoing_bytes: usize,
 
-    /// Specify the optional replication factor for each RPC write.
+    /// Enable optional replication for each RPC write.
     ///
-    /// The total number of copies of data after replication will be this value,
-    /// plus 1.
+    /// This value specifies the total number of copies of data after
+    /// replication, defaulting to 1.
     ///
     /// If the desired replication level is not achieved, a partial write error
     /// will be returned to the user. The write MAY be queryable after a partial
     /// write failure.
-    #[clap(long = "rpc-write-replicas", env = "INFLUXDB_IOX_RPC_WRITE_REPLICAS")]
-    pub rpc_write_replicas: Option<NonZeroUsize>,
+    #[clap(
+        long = "rpc-write-replicas",
+        env = "INFLUXDB_IOX_RPC_WRITE_REPLICAS",
+        default_value = "1"
+    )]
+    pub rpc_write_replicas: NonZeroUsize,
 }
 
 /// Map a string containing an integer number of seconds into a [`Duration`].
