@@ -382,9 +382,13 @@ impl RewriteSelect {
     }
 }
 
-/// Ensure the time field is added to all projections,
-/// and is moved to the first position, which is a requirement
-/// for InfluxQL compatibility.
+/// Ensures the `time` column is presented consistently across all `SELECT` queries.
+///
+/// The following transformations may occur
+///
+/// * Ensure the `time` field is added to all projections;
+/// * move the `time` field to the first position; and
+/// * remove column alias for `time` in subqueries.
 fn field_list_normalize_time(stmt: &mut Select) {
     fn normalize_time(stmt: &mut Select, is_subquery: bool) {
         if let Some(f) = match stmt
