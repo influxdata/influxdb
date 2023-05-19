@@ -754,6 +754,13 @@ pub(crate) mod test_helpers {
             namespace.partition_template,
             NamespacePartitionTemplateOverride::default()
         );
+        let lookup_namespace = repos
+            .namespaces()
+            .get_by_name(&namespace_name, SoftDeletedRows::ExcludeDeleted)
+            .await
+            .unwrap()
+            .unwrap();
+        assert_eq!(namespace, lookup_namespace);
 
         // Assert default values for service protection limits.
         assert_eq!(namespace.max_tables, DEFAULT_MAX_TABLES);
