@@ -215,25 +215,35 @@ mod tests {
                 },
             ],
         };
-        let expected_json_str = "\u{1}{\"parts\":[\
+        let expected_json_str = "{\"parts\":[\
             {\"tagValue\":\"region\"},\
             {\"timeFormat\":\"year-%Y\"}\
         ]}";
 
         let namespace = NamespacePartitionTemplateOverride::from(custom_template);
         let mut buf = Default::default();
-        let _ = <NamespacePartitionTemplateOverride as Encode<'_, sqlx::Postgres>>::encode_by_ref(
+        let _ = <NamespacePartitionTemplateOverride as Encode<'_, sqlx::Sqlite>>::encode_by_ref(
             &namespace, &mut buf,
         );
-        let namespace_json_str = String::from_utf8_lossy(&buf);
+
+        fn extract_sqlite_argument_text(
+            argument_value: &sqlx::sqlite::SqliteArgumentValue,
+        ) -> String {
+            match argument_value {
+                sqlx::sqlite::SqliteArgumentValue::Text(cow) => cow.to_string(),
+                other => panic!("Expected Text values, got: {other:?}"),
+            }
+        }
+
+        let namespace_json_str: String = buf.iter().map(extract_sqlite_argument_text).collect();
         assert_eq!(namespace_json_str, expected_json_str);
 
         let table = TablePartitionTemplateOverride::from(&namespace);
         let mut buf = Default::default();
-        let _ = <TablePartitionTemplateOverride as Encode<'_, sqlx::Postgres>>::encode_by_ref(
+        let _ = <TablePartitionTemplateOverride as Encode<'_, sqlx::Sqlite>>::encode_by_ref(
             &table, &mut buf,
         );
-        let table_json_str = String::from_utf8_lossy(&buf);
+        let table_json_str: String = buf.iter().map(extract_sqlite_argument_text).collect();
         assert_eq!(table_json_str, expected_json_str);
     }
 }
