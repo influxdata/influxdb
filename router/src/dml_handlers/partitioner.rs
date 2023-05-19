@@ -49,21 +49,8 @@ impl<T> Partitioned<T> {
 ///
 /// A vector of partitions are returned to the caller, or the first error that
 /// occurs during partitioning.
-#[derive(Debug)]
+#[derive(Debug, Default)]
 pub struct Partitioner {}
-
-impl Partitioner {
-    /// Initialise a new [`Partitioner`].
-    pub fn new() -> Self {
-        Self {}
-    }
-}
-
-impl Default for Partitioner {
-    fn default() -> Self {
-        Self::new()
-    }
-}
 
 #[async_trait]
 impl DmlHandler for Partitioner {
@@ -156,7 +143,7 @@ mod tests {
             paste::paste! {
                 #[tokio::test]
                 async fn [<test_write_ $name>]() {
-                    let partitioner = Partitioner::new();
+                    let partitioner = Partitioner::default();
                     let ns = NamespaceName::new("bananas").expect("valid db name");
 
                     let writes = lp_to_writes($lp);
@@ -311,7 +298,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_write_table_partition_template() {
-        let partitioner = Partitioner::new();
+        let partitioner = Partitioner::default();
         let ns = NamespaceName::new("bananas").expect("valid db name");
 
         let namespace_schema = namespace_schema(42);

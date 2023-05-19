@@ -274,7 +274,7 @@ pub async fn create_router_server_type(
     //
     // Add a write partitioner into the handler stack that splits by the date
     // portion of the write's timestamp (the default table partition template)
-    let partitioner = Partitioner::new();
+    let partitioner = Partitioner::default();
     let partitioner = InstrumentationDecorator::new("partitioner", &metrics, partitioner);
 
     // # Namespace resolver
