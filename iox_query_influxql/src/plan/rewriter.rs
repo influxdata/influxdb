@@ -35,32 +35,26 @@ pub(super) fn rewrite_statement(
     from_drop_empty(s, &mut select);
     field_list_normalize_time(&mut select);
 
-    let has_multiple_measurements = has_multiple_measurements(&select);
-
-    Ok(SelectQuery {
-        select,
-        has_multiple_measurements,
-    })
+    Ok(SelectQuery { select })
 }
 
-/// Determines if s projects more than a single unique table
-fn has_multiple_measurements(s: &Select) -> bool {
+pub(super) fn find_tables(s: &Select) -> Vec<&str> {
     let mut data_sources = vec![s.from.as_slice()];
-    let mut table_name: Option<&str> = None;
+    let mut tables = Vec::new();
     while let Some(from) = data_sources.pop() {
         for ds in from {
             match ds {
-                DataSource::Table(name) if matches!(table_name, None) => table_name = Some(name),
                 DataSource::Table(name) => {
-                    if name != table_name.unwrap() {
-                        return true;
+                    if !tables.contains(&name.as_str()) {
+                        tables.push(name.as_str())
                     }
                 }
                 DataSource::Subquery(q) => data_sources.push(q.from.as_slice()),
             }
         }
     }
-    false
+    tables.sort();
+    tables
 }
 
 /// Transform a `SelectStatement` to a `Select`, which is an intermediate representation used by
@@ -122,7 +116,6 @@ impl RewriteSelect {
         };
 
         Ok(Select {
-            depth: self.depth,
             projection_type,
             fields,
             from,
@@ -352,7 +345,7 @@ impl RewriteSelect {
         &self,
         s: &dyn SchemaProvider,
         stmt: &SelectStatement,
-        from: &Vec<DataSource>,
+        from: &[DataSource],
     ) -> Result<Option<WhereClause>> {
         let Some(mut where_clause) = stmt.condition.clone() else { return Ok(None) };
 
@@ -1519,13 +1512,40 @@ mod test {
     use super::Result;
     use crate::plan::ir::{Field, Select};
     use crate::plan::rewriter::{
-        has_wildcards, rewrite_select, rewrite_statement, ProjectionType, SelectStatementInfo,
+        find_tables, has_wildcards, rewrite_select, rewrite_statement, ProjectionType,
+        SelectStatementInfo,
     };
     use crate::plan::test_utils::{parse_select, MockSchemaProvider};
     use assert_matches::assert_matches;
     use datafusion::error::DataFusionError;
     use influxdb_influxql_parser::select::SelectStatement;
     use test_helpers::{assert_contains, assert_error};
+
+    #[test]
+    fn test_find_tables() {
+        let namespace = MockSchemaProvider::default();
+        let parse_select = |s: &str| -> Select {
+            let select = parse_select(s);
+            rewrite_select(&namespace, &select).unwrap()
+        };
+
+        let s = parse_select("SELECT usage_idle FROM cpu");
+        assert_eq!(find_tables(&s), &["cpu"]);
+
+        let s = parse_select("SELECT usage_idle FROM cpu, disk");
+        assert_eq!(find_tables(&s), &["cpu", "disk"]);
+
+        let s = parse_select("SELECT usage_idle FROM disk, cpu, disk");
+        assert_eq!(find_tables(&s), &["cpu", "disk"]);
+
+        // subqueries
+
+        let s = parse_select("SELECT usage_idle FROM (select * from cpu, disk)");
+        assert_eq!(find_tables(&s), &["cpu", "disk"]);
+
+        let s = parse_select("SELECT usage_idle FROM cpu, (select * from cpu, disk)");
+        assert_eq!(find_tables(&s), &["cpu", "disk"]);
+    }
 
     #[test]
     fn test_select_statement_info() {

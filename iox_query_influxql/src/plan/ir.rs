@@ -24,17 +24,10 @@ pub(super) type TagSet = HashSet<String>;
 #[derive(Debug, Default, Clone)]
 pub(super) struct SelectQuery {
     pub(super) select: Select,
-
-    /// `true` if the query projects from more than one unique measurement.
-    pub(super) has_multiple_measurements: bool,
 }
 
 #[derive(Debug, Default, Clone)]
 pub(super) struct Select {
-    /// The depth of the selection, where a value > 0 indicates
-    /// this is a subquery.
-    pub(super) depth: u32,
-
     /// The projection type of the selection.
     pub(super) projection_type: ProjectionType,
 
