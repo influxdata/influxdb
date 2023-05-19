@@ -1,8 +1,10 @@
 //! Tests the `influxdb_iox remote` commands
+use std::path::Path;
 
 use super::get_object_store_id;
 use assert_cmd::Command;
 use futures::FutureExt;
+use import_export::file::ExportedContents;
 use predicates::prelude::*;
 use tempfile::tempdir;
 use test_helpers_end_to_end::{maybe_skip_integration, MiniCluster, Step, StepTest, StepTestState};
@@ -24,19 +26,19 @@ async fn remote_store_get_table() {
             // Persist some data
             Step::RecordNumParquetFiles,
             Step::WriteLineProtocol(format!("{table_name},tag1=A,tag2=B val=42i 123456")),
-            Step::WaitForPersisted2 {
+            Step::WaitForPersisted {
                 expected_increase: 1,
             },
             // Persist some more data for the same table in a 2nd Parquet file
             Step::RecordNumParquetFiles,
             Step::WriteLineProtocol(format!("{table_name},tag1=C,tag2=B val=9000i 789000")),
-            Step::WaitForPersisted2 {
+            Step::WaitForPersisted {
                 expected_increase: 1,
             },
             // Persist some more data for a different table
             Step::RecordNumParquetFiles,
             Step::WriteLineProtocol(format!("{other_table_name},tag1=A,tag2=B val=42i 123456")),
-            Step::WaitForPersisted2 {
+            Step::WaitForPersisted {
                 expected_increase: 1,
             },
             Step::Custom(Box::new(move |state: &mut StepTestState| {
@@ -60,27 +62,10 @@ async fn remote_store_get_table() {
                         .assert()
                         .success();
 
+                    // There should be a directory created that, by
+                    // default, is named the same as the table
                     let table_dir = dir.as_ref().join(table_name);
-
-                    // There should be a directory created that, by default, is named the same as
-                    // the table
-                    assert!(table_dir.is_dir());
-                    let entries: Vec<_> = table_dir.read_dir().unwrap().flatten().collect();
-                    // The two Parquet files for this table should be present
-                    assert_eq!(
-                        entries.len(),
-                        2,
-                        "Expected 2 files in the directory, got: {entries:?}"
-                    );
-                    let path = entries[0].path();
-                    let extension = path.extension().unwrap();
-                    // Their extension should be 'parquet'
-                    assert_eq!(
-                        "parquet",
-                        extension,
-                        "Expected filename to have extension 'parquet', got: {}",
-                        extension.to_str().unwrap()
-                    );
+                    assert_two_parquet_files_and_meta(&table_dir);
 
                     // The `-o` argument should specify where the files go instead of a directory
                     // named after the table. Note that this `Command` doesn't set `current dir`;
@@ -103,14 +88,7 @@ async fn remote_store_get_table() {
                         .assert()
                         .success();
 
-                    assert!(custom_output_dir.is_dir());
-                    let entries: Vec<_> = custom_output_dir.read_dir().unwrap().flatten().collect();
-                    // The one Parquet file for this table should be present
-                    assert_eq!(
-                        entries.len(),
-                        1,
-                        "Expected 1 file in the directory, got: {entries:?}"
-                    );
+                    let contents = assert_one_parquet_file_and_meta(&custom_output_dir);
 
                     // Specifying a table that doesn't exist prints an error message
                     Command::cargo_bin("influxdb_iox")
@@ -159,12 +137,14 @@ async fn remote_store_get_table() {
                         .assert()
                         .success()
                         .stdout(predicate::str::contains(format!(
-                            "skipping file 1 of 1 ({} already exists)",
-                            entries[0].path().file_name().unwrap().to_str().unwrap()
+                            "skipping file 1 of 1 ({} already exists with expected file size)",
+                            contents.parquet_file_name(0).unwrap(),
                         )));
 
                     // If the file sizes don't match, re-download that file
-                    fs::write(entries[0].path(), b"not parquet").await.unwrap();
+                    fs::write(&contents.parquet_files()[0], b"not parquet")
+                        .await
+                        .unwrap();
 
                     Command::cargo_bin("influxdb_iox")
                         .unwrap()
@@ -181,7 +161,7 @@ async fn remote_store_get_table() {
                         .success()
                         .stdout(predicate::str::contains(format!(
                             "downloading file 1 of 1 ({})...",
-                            entries[0].path().file_name().unwrap().to_str().unwrap()
+                            contents.parquet_file_name(0).unwrap(),
                         )));
                 }
                 .boxed()
@@ -209,18 +189,10 @@ async fn remote_store_get_table() {
                         .assert()
                         .success();
 
+                    // There should be a directory created that, by
+                    // default, is named the same as the table
                     let table_dir = dir.as_ref().join(table_name);
-
-                    // There should be a directory created that, by default, is named the same as
-                    // the table
-                    assert!(table_dir.is_dir());
-                    let entries: Vec<_> = table_dir.read_dir().unwrap().flatten().collect();
-                    // The two Parquet files for this table should be present
-                    assert_eq!(
-                        entries.len(),
-                        2,
-                        "Expected 2 files in the directory, got: {entries:?}"
-                    );
+                    assert_two_parquet_files_and_meta(&table_dir);
                 }
                 .boxed()
             })),
@@ -228,6 +200,27 @@ async fn remote_store_get_table() {
     )
     .run()
     .await
+}
+
+/// Asserts that the directory contains metadata and parquet files for
+/// 1 partition that has 1 table with 1 parquet files
+fn assert_one_parquet_file_and_meta(table_dir: &Path) -> ExportedContents {
+    let contents = ExportedContents::try_new(table_dir).unwrap();
+    assert_eq!(contents.parquet_files().len(), 1);
+    assert_eq!(contents.parquet_json_files().len(), 1);
+    assert_eq!(contents.table_json_files().len(), 1);
+    assert_eq!(contents.partition_json_files().len(), 1);
+    contents
+}
+
+/// Asserts that the directory contains metadata and parquet files for
+/// 1 partition that has 1 table with 2 parquet files
+fn assert_two_parquet_files_and_meta(table_dir: &Path) {
+    let contents = ExportedContents::try_new(table_dir).unwrap();
+    assert_eq!(contents.parquet_files().len(), 2);
+    assert_eq!(contents.parquet_json_files().len(), 2);
+    assert_eq!(contents.table_json_files().len(), 1);
+    assert_eq!(contents.partition_json_files().len(), 1);
 }
 
 /// remote partition command and getting a parquet file from the object store and pulling the
@@ -253,7 +246,7 @@ async fn remote_partition_and_get_from_store_and_pull() {
                 "my_awesome_table,tag1=A,tag2=B val=42i 123456",
             )),
             // wait for partitions to be persisted
-            Step::WaitForPersisted2 {
+            Step::WaitForPersisted {
                 expected_increase: 1,
             },
             // Run the 'remote partition' command

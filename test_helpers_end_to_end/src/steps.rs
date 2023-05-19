@@ -65,7 +65,7 @@ impl<'a> StepTestState<'a> {
         let retry_duration = Duration::from_secs(MAX_QUERY_RETRY_TIME_SEC);
         let num_parquet_files = self.num_parquet_files.expect(
             "No previous number of Parquet files recorded! \
-                Use `Step::RecordNumParquetFiles` before `Step::WaitForPersisted2`.",
+                Use `Step::RecordNumParquetFiles` before `Step::WaitForPersisted`.",
         );
         let expected_count = num_parquet_files + expected_increase;
 
@@ -100,7 +100,7 @@ impl<'a> StepTestState<'a> {
         let mut catalog_client = influxdb_iox_client::catalog::Client::new(connection);
 
         catalog_client
-            .get_parquet_files_by_namespace(self.cluster.namespace().into())
+            .get_parquet_files_by_namespace(self.cluster.namespace())
             .await
             .map(|parquet_files| parquet_files.len())
             .unwrap_or_default()
@@ -153,7 +153,7 @@ pub enum Step {
 
     /// Ask the catalog service how many Parquet files it has for this cluster's namespace. Do this
     /// before a write where you're interested in when the write has been persisted to Parquet;
-    /// then after the write use `WaitForPersisted2` to observe the change in the number of Parquet
+    /// then after the write use `WaitForPersisted` to observe the change in the number of Parquet
     /// files from the value this step recorded.
     RecordNumParquetFiles,
 
@@ -162,7 +162,7 @@ pub enum Step {
 
     /// Wait for all previously written data to be persisted by observing an increase in the number
     /// of Parquet files in the catalog as specified for this cluster's namespace.
-    WaitForPersisted2 { expected_increase: usize },
+    WaitForPersisted { expected_increase: usize },
 
     /// Set the namespace retention interval to a retention period,
     /// specified in ns relative to `now()`.  `None` represents infinite retention
@@ -357,7 +357,7 @@ where
                 Step::Persist => {
                     state.cluster().persist_ingesters().await;
                 }
-                Step::WaitForPersisted2 { expected_increase } => {
+                Step::WaitForPersisted { expected_increase } => {
                     info!("====Begin waiting for a change in the number of Parquet files");
                     state
                         .wait_for_num_parquet_file_change(*expected_increase)

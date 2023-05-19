@@ -120,7 +120,7 @@ async fn sharded_compactor_0_always_compacts_partition_1() {
                 "my_awesome_table,tag1=A,tag2=B val=42i 123456",
             )),
             // wait for partitions to be persisted
-            Step::WaitForPersisted2 {
+            Step::WaitForPersisted {
                 expected_increase: 1,
             },
             // Run the compactor
@@ -203,7 +203,7 @@ async fn sharded_compactor_1_never_compacts_partition_1() {
                 "my_awesome_table,tag1=A,tag2=B val=42i 123456",
             )),
             // wait for partitions to be persisted
-            Step::WaitForPersisted2 {
+            Step::WaitForPersisted {
                 expected_increase: 1,
             },
             // Run the compactor

@@ -43,7 +43,7 @@ async fn basic() {
 
     TestCase {
         input: "cases/in/basic.sql",
-        chunk_stage: ChunkStage::All,
+        chunk_stage: ChunkStage::Ingester,
     }
     .run()
     .await;
@@ -55,7 +55,7 @@ async fn date_bin() {
 
     TestCase {
         input: "cases/in/date_bin.sql",
-        chunk_stage: ChunkStage::All,
+        chunk_stage: ChunkStage::Ingester,
     }
     .run()
     .await;
@@ -67,7 +67,7 @@ async fn dedup_and_predicates_parquet() {
 
     TestCase {
         input: "cases/in/dedup_and_predicates_parquet.sql",
-        chunk_stage: ChunkStage::Parquet,
+        chunk_stage: ChunkStage::Ingester,
     }
     .run()
     .await;
@@ -103,7 +103,7 @@ async fn duplicates_parquet() {
 
     TestCase {
         input: "cases/in/duplicates_parquet.sql",
-        chunk_stage: ChunkStage::Parquet,
+        chunk_stage: ChunkStage::Ingester,
     }
     .run()
     .await;
@@ -115,7 +115,7 @@ async fn duplicates_parquet_20() {
 
     TestCase {
         input: "cases/in/duplicates_parquet_20.sql",
-        chunk_stage: ChunkStage::Parquet,
+        chunk_stage: ChunkStage::Ingester,
     }
     .run()
     .await;
@@ -127,7 +127,7 @@ async fn duplicates_parquet_20_and_ingester() {
 
     TestCase {
         input: "cases/in/duplicates_parquet_20_and_ingester.sql",
-        chunk_stage: ChunkStage::Parquet,
+        chunk_stage: ChunkStage::Ingester,
     }
     .run()
     .await;
@@ -139,7 +139,7 @@ async fn duplicates_parquet_50() {
 
     TestCase {
         input: "cases/in/duplicates_parquet_50.sql",
-        chunk_stage: ChunkStage::Parquet,
+        chunk_stage: ChunkStage::Ingester,
     }
     .run()
     .await;
@@ -151,7 +151,7 @@ async fn duplicates_different_domains() {
 
     TestCase {
         input: "cases/in/duplicates_different_domains.sql",
-        chunk_stage: ChunkStage::Parquet,
+        chunk_stage: ChunkStage::Ingester,
     }
     .run()
     .await;
@@ -211,7 +211,7 @@ async fn pushdown() {
 
     TestCase {
         input: "cases/in/pushdown.sql",
-        chunk_stage: ChunkStage::Parquet,
+        chunk_stage: ChunkStage::Ingester,
     }
     .run()
     .await;
@@ -319,7 +319,7 @@ async fn restaurant() {
 
     TestCase {
         input: "cases/in/restaurant.sql",
-        chunk_stage: ChunkStage::All,
+        chunk_stage: ChunkStage::Ingester,
     }
     .run()
     .await;
@@ -331,7 +331,7 @@ async fn union_all() {
 
     TestCase {
         input: "cases/in/union_all.sql",
-        chunk_stage: ChunkStage::All,
+        chunk_stage: ChunkStage::Ingester,
     }
     .run()
     .await;

@@ -35,7 +35,7 @@ pub static SETUPS: Lazy<HashMap<SetupName, SetupSteps>> = Lazy::new(|| {
                     .join("\n"),
                 ),
                 Step::Persist,
-                Step::WaitForPersisted2 {
+                Step::WaitForPersisted {
                     expected_increase: 1,
                 },
             ],
@@ -53,7 +53,7 @@ pub static SETUPS: Lazy<HashMap<SetupName, SetupSteps>> = Lazy::new(|| {
                     .join("\n"),
                 ),
                 Step::Persist,
-                Step::WaitForPersisted2 {
+                Step::WaitForPersisted {
                     expected_increase: 2,
                 },
             ],
@@ -64,13 +64,13 @@ pub static SETUPS: Lazy<HashMap<SetupName, SetupSteps>> = Lazy::new(|| {
                 Step::RecordNumParquetFiles,
                 Step::WriteLineProtocol("table,tag=A foo=1,bar=1 0".into()),
                 Step::Persist,
-                Step::WaitForPersisted2 {
+                Step::WaitForPersisted {
                     expected_increase: 1,
                 },
                 Step::RecordNumParquetFiles,
                 Step::WriteLineProtocol(["table,tag=A bar=2 0", "table,tag=B foo=1 0"].join("\n")),
                 Step::Persist,
-                Step::WaitForPersisted2 {
+                Step::WaitForPersisted {
                     expected_increase: 1,
                 },
             ],
@@ -81,7 +81,7 @@ pub static SETUPS: Lazy<HashMap<SetupName, SetupSteps>> = Lazy::new(|| {
                 Step::RecordNumParquetFiles,
                 Step::WriteLineProtocol("table,tag=A foo=1,bar=1 0".into()),
                 Step::Persist,
-                Step::WaitForPersisted2 {
+                Step::WaitForPersisted {
                     expected_increase: 1,
                 },
                 Step::WriteLineProtocol(["table,tag=A bar=2 0", "table,tag=B foo=1 0"].join("\n")),
@@ -104,7 +104,7 @@ pub static SETUPS: Lazy<HashMap<SetupName, SetupSteps>> = Lazy::new(|| {
                     .join("\n"),
                 ),
                 Step::Persist,
-                Step::WaitForPersisted2 {
+                Step::WaitForPersisted {
                     expected_increase: 1,
                 },
                 Step::RecordNumParquetFiles,
@@ -124,7 +124,7 @@ pub static SETUPS: Lazy<HashMap<SetupName, SetupSteps>> = Lazy::new(|| {
                     .join("\n"),
                 ),
                 Step::Persist,
-                Step::WaitForPersisted2 {
+                Step::WaitForPersisted {
                     expected_increase: 1,
                 },
                 Step::RecordNumParquetFiles,
@@ -143,7 +143,7 @@ pub static SETUPS: Lazy<HashMap<SetupName, SetupSteps>> = Lazy::new(|| {
                     .join("\n"),
                 ),
                 Step::Persist,
-                Step::WaitForPersisted2 {
+                Step::WaitForPersisted {
                     expected_increase: 1,
                 },
                 // Chunk 4: no overlap
@@ -179,7 +179,7 @@ pub static SETUPS: Lazy<HashMap<SetupName, SetupSteps>> = Lazy::new(|| {
                     .join("\n"),
                 ),
                 Step::Persist,
-                Step::WaitForPersisted2 {
+                Step::WaitForPersisted {
                     expected_increase: 1,
                 },
                 Step::RecordNumParquetFiles,
@@ -199,7 +199,7 @@ pub static SETUPS: Lazy<HashMap<SetupName, SetupSteps>> = Lazy::new(|| {
                     .join("\n"),
                 ),
                 Step::Persist,
-                Step::WaitForPersisted2 {
+                Step::WaitForPersisted {
                     expected_increase: 1,
                 },
                 Step::RecordNumParquetFiles,
@@ -218,7 +218,7 @@ pub static SETUPS: Lazy<HashMap<SetupName, SetupSteps>> = Lazy::new(|| {
                     .join("\n"),
                 ),
                 Step::Persist,
-                Step::WaitForPersisted2 {
+                Step::WaitForPersisted {
                     expected_increase: 1,
                 },
                 Step::RecordNumParquetFiles,
@@ -237,7 +237,7 @@ pub static SETUPS: Lazy<HashMap<SetupName, SetupSteps>> = Lazy::new(|| {
                     .join("\n"),
                 ),
                 Step::Persist,
-                Step::WaitForPersisted2 {
+                Step::WaitForPersisted {
                     expected_increase: 1,
                 },
             ],
@@ -261,7 +261,7 @@ pub static SETUPS: Lazy<HashMap<SetupName, SetupSteps>> = Lazy::new(|| {
                         Step::RecordNumParquetFiles,
                         write,
                         Step::Persist,
-                        Step::WaitForPersisted2 {
+                        Step::WaitForPersisted {
                             expected_increase: 1,
                         },
                     ]
@@ -288,7 +288,7 @@ pub static SETUPS: Lazy<HashMap<SetupName, SetupSteps>> = Lazy::new(|| {
                         Step::RecordNumParquetFiles,
                         write,
                         Step::Persist,
-                        Step::WaitForPersisted2 {
+                        Step::WaitForPersisted {
                             expected_increase: 1,
                         },
                     ]
@@ -313,7 +313,7 @@ pub static SETUPS: Lazy<HashMap<SetupName, SetupSteps>> = Lazy::new(|| {
                         Step::RecordNumParquetFiles,
                         write,
                         Step::Persist,
-                        Step::WaitForPersisted2 {
+                        Step::WaitForPersisted {
                             expected_increase: 1,
                         },
                     ]
@@ -337,7 +337,7 @@ pub static SETUPS: Lazy<HashMap<SetupName, SetupSteps>> = Lazy::new(|| {
                     .join("\n"),
                 ),
                 Step::Persist,
-                Step::WaitForPersisted2 {
+                Step::WaitForPersisted {
                     expected_increase: 1,
                 },
             ],
@@ -357,7 +357,7 @@ pub static SETUPS: Lazy<HashMap<SetupName, SetupSteps>> = Lazy::new(|| {
                     .join("\n"),
                 ),
                 Step::Persist,
-                Step::WaitForPersisted2 {
+                Step::WaitForPersisted {
                     expected_increase: 2,
                 },
                 Step::RecordNumParquetFiles,
@@ -365,7 +365,7 @@ pub static SETUPS: Lazy<HashMap<SetupName, SetupSteps>> = Lazy::new(|| {
                     "h2o,state=MA,city=Boston temp=70.4,moisture=43.0 100000".into(),
                 ),
                 Step::Persist,
-                Step::WaitForPersisted2 {
+                Step::WaitForPersisted {
                     expected_increase: 1,
                 },
             ],
@@ -382,7 +382,7 @@ pub static SETUPS: Lazy<HashMap<SetupName, SetupSteps>> = Lazy::new(|| {
                     .join("\n"),
                 ),
                 Step::Persist,
-                Step::WaitForPersisted2 {
+                Step::WaitForPersisted {
                     expected_increase: 1,
                 },
                 Step::WriteLineProtocol(
@@ -420,7 +420,7 @@ pub static SETUPS: Lazy<HashMap<SetupName, SetupSteps>> = Lazy::new(|| {
                     .join("\n"),
                 ),
                 Step::Persist,
-                Step::WaitForPersisted2 {
+                Step::WaitForPersisted {
                     expected_increase: 2,
                 },
                 Step::RecordNumParquetFiles,
@@ -433,7 +433,7 @@ pub static SETUPS: Lazy<HashMap<SetupName, SetupSteps>> = Lazy::new(|| {
                     .join("\n"),
                 ),
                 Step::Persist,
-                Step::WaitForPersisted2 {
+                Step::WaitForPersisted {
                     expected_increase: 1,
                 },
             ],
@@ -498,7 +498,7 @@ pub static SETUPS: Lazy<HashMap<SetupName, SetupSteps>> = Lazy::new(|| {
                     .join("\n"),
                 ),
                 Step::Persist,
-                Step::WaitForPersisted2 {
+                Step::WaitForPersisted {
                     expected_increase: 2,
                 },
             ],
@@ -545,14 +545,14 @@ pub static SETUPS: Lazy<HashMap<SetupName, SetupSteps>> = Lazy::new(|| {
                     .join("\n"),
                 ),
                 Step::Persist,
-                Step::WaitForPersisted2 {
+                Step::WaitForPersisted {
                     expected_increase: 1,
                 },
                 Step::RecordNumParquetFiles,
                 // c2: parquet stage & overlaps with c1
                 Step::WriteLineProtocol("h2o,state=CA,city=Andover other_temp=72.4 150".into()),
                 Step::Persist,
-                Step::WaitForPersisted2 {
+                Step::WaitForPersisted {
                     expected_increase: 1,
                 },
                 Step::RecordNumParquetFiles,
@@ -565,7 +565,7 @@ pub static SETUPS: Lazy<HashMap<SetupName, SetupSteps>> = Lazy::new(|| {
                     .join("\n"),
                 ),
                 Step::Persist,
-                Step::WaitForPersisted2 {
+                Step::WaitForPersisted {
                     expected_increase: 1,
                 },
                 Step::RecordNumParquetFiles,
@@ -580,7 +580,7 @@ pub static SETUPS: Lazy<HashMap<SetupName, SetupSteps>> = Lazy::new(|| {
                     .join("\n"),
                 ),
                 Step::Persist,
-                Step::WaitForPersisted2 {
+                Step::WaitForPersisted {
                     expected_increase: 1,
                 },
                 // c5: ingester stage & doesn't overlap with any
@@ -599,7 +599,7 @@ pub static SETUPS: Lazy<HashMap<SetupName, SetupSteps>> = Lazy::new(|| {
                     i64::MAX - 1, // 9223372036854775806
                 )),
                 Step::Persist,
-                Step::WaitForPersisted2 {
+                Step::WaitForPersisted {
                     expected_increase: 1,
                 },
             ],
@@ -616,7 +616,7 @@ pub static SETUPS: Lazy<HashMap<SetupName, SetupSteps>> = Lazy::new(|| {
                     .join("\n"),
                 ),
                 Step::Persist,
-                Step::WaitForPersisted2 {
+                Step::WaitForPersisted {
                     expected_increase: 1,
                 },
             ],
@@ -635,7 +635,7 @@ pub static SETUPS: Lazy<HashMap<SetupName, SetupSteps>> = Lazy::new(|| {
                     .join("\n"),
                 ),
                 Step::Persist,
-                Step::WaitForPersisted2 {
+                Step::WaitForPersisted {
                     expected_increase: 1,
                 },
             ],
@@ -646,13 +646,13 @@ pub static SETUPS: Lazy<HashMap<SetupName, SetupSteps>> = Lazy::new(|| {
                 Step::RecordNumParquetFiles,
                 Step::WriteLineProtocol("table,tag1=a,tag2=b field1=10,field2=11 100".into()),
                 Step::Persist,
-                Step::WaitForPersisted2 {
+                Step::WaitForPersisted {
                     expected_increase: 1,
                 },
                 Step::RecordNumParquetFiles,
                 Step::WriteLineProtocol("table,tag1=a,tag3=c field1=20,field3=22 200".into()),
                 Step::Persist,
-                Step::WaitForPersisted2 {
+                Step::WaitForPersisted {
                     expected_increase: 1,
                 },
             ],
@@ -674,7 +674,7 @@ pub static SETUPS: Lazy<HashMap<SetupName, SetupSteps>> = Lazy::new(|| {
                     .join("\n"),
                 ),
                 Step::Persist,
-                Step::WaitForPersisted2 {
+                Step::WaitForPersisted {
                     expected_increase: 2,
                 },
             ],
@@ -688,7 +688,7 @@ pub static SETUPS: Lazy<HashMap<SetupName, SetupSteps>> = Lazy::new(|| {
                     ["m,tag0=foo fld=\"200\" 1000", "m,tag0=foo fld=\"404\" 1050"].join("\n"),
                 ),
                 Step::Persist,
-                Step::WaitForPersisted2 {
+                Step::WaitForPersisted {
                     expected_increase: 1,
                 },
             ],
@@ -705,7 +705,7 @@ pub static SETUPS: Lazy<HashMap<SetupName, SetupSteps>> = Lazy::new(|| {
                     .join("\n"),
                 ),
                 Step::Persist,
-                Step::WaitForPersisted2 {
+                Step::WaitForPersisted {
                     expected_increase: 1,
                 },
             ],
@@ -725,7 +725,7 @@ pub static SETUPS: Lazy<HashMap<SetupName, SetupSteps>> = Lazy::new(|| {
                     .join("\n"),
                 ),
                 Step::Persist,
-                Step::WaitForPersisted2 {
+                Step::WaitForPersisted {
                     expected_increase: 2,
                 },
             ],
@@ -745,7 +745,7 @@ pub static SETUPS: Lazy<HashMap<SetupName, SetupSteps>> = Lazy::new(|| {
                     .join("\n"),
                 ),
                 Step::Persist,
-                Step::WaitForPersisted2 {
+                Step::WaitForPersisted {
                     expected_increase: 1,
                 },
             ],
@@ -767,7 +767,7 @@ pub static SETUPS: Lazy<HashMap<SetupName, SetupSteps>> = Lazy::new(|| {
                     .join("\n"),
                 ),
                 Step::Persist,
-                Step::WaitForPersisted2 {
+                Step::WaitForPersisted {
                     expected_increase: 1,
                 },
             ],
@@ -791,7 +791,7 @@ pub static SETUPS: Lazy<HashMap<SetupName, SetupSteps>> = Lazy::new(|| {
                     .join("\n"),
                 ),
                 Step::Persist,
-                Step::WaitForPersisted2 {
+                Step::WaitForPersisted {
                     expected_increase: 5,
                 },
             ],
@@ -810,7 +810,7 @@ pub static SETUPS: Lazy<HashMap<SetupName, SetupSteps>> = Lazy::new(|| {
                     .join("\n"),
                 ),
                 Step::Persist,
-                Step::WaitForPersisted2 {
+                Step::WaitForPersisted {
                     expected_increase: 1,
                 },
             ],
@@ -821,7 +821,7 @@ pub static SETUPS: Lazy<HashMap<SetupName, SetupSteps>> = Lazy::new(|| {
                 Step::RecordNumParquetFiles,
                 Step::WriteLineProtocol(["m0 foo=1.0 1", "m0 foo=2.0 2"].join("\n")),
                 Step::Persist,
-                Step::WaitForPersisted2 {
+                Step::WaitForPersisted {
                     expected_increase: 1,
                 },
             ],
@@ -838,7 +838,7 @@ pub static SETUPS: Lazy<HashMap<SetupName, SetupSteps>> = Lazy::new(|| {
                     .join("\n"),
                 ),
                 Step::Persist,
-                Step::WaitForPersisted2 {
+                Step::WaitForPersisted {
                     expected_increase: 1,
                 },
                 Step::RecordNumParquetFiles,
@@ -850,7 +850,7 @@ pub static SETUPS: Lazy<HashMap<SetupName, SetupSteps>> = Lazy::new(|| {
                     .join("\n"),
                 ),
                 Step::Persist,
-                Step::WaitForPersisted2 {
+                Step::WaitForPersisted {
                     expected_increase: 1,
                 },
             ],
@@ -867,7 +867,7 @@ pub static SETUPS: Lazy<HashMap<SetupName, SetupSteps>> = Lazy::new(|| {
                     .join("\n"),
                 ),
                 Step::Persist,
-                Step::WaitForPersisted2 {
+                Step::WaitForPersisted {
                     expected_increase: 1,
                 },
                 Step::RecordNumParquetFiles,
@@ -879,7 +879,7 @@ pub static SETUPS: Lazy<HashMap<SetupName, SetupSteps>> = Lazy::new(|| {
                     .join("\n"),
                 ),
                 Step::Persist,
-                Step::WaitForPersisted2 {
+                Step::WaitForPersisted {
                     expected_increase: 1,
                 },
             ],
@@ -898,7 +898,7 @@ pub static SETUPS: Lazy<HashMap<SetupName, SetupSteps>> = Lazy::new(|| {
                     .join("\n"),
                 ),
                 Step::Persist,
-                Step::WaitForPersisted2 {
+                Step::WaitForPersisted {
                     expected_increase: 1,
                 },
                 Step::RecordNumParquetFiles,
@@ -911,7 +911,7 @@ pub static SETUPS: Lazy<HashMap<SetupName, SetupSteps>> = Lazy::new(|| {
                     .join("\n"),
                 ),
                 Step::Persist,
-                Step::WaitForPersisted2 {
+                Step::WaitForPersisted {
                     expected_increase: 1,
                 },
             ],
@@ -924,7 +924,7 @@ pub static SETUPS: Lazy<HashMap<SetupName, SetupSteps>> = Lazy::new(|| {
                     ["h2o,state=MA,city=Cambridge f=8.0,i=8i,b=true,s=\"d\" 1000"].join("\n"),
                 ),
                 Step::Persist,
-                Step::WaitForPersisted2 {
+                Step::WaitForPersisted {
                     expected_increase: 1,
                 },
                 Step::RecordNumParquetFiles,
@@ -937,7 +937,7 @@ pub static SETUPS: Lazy<HashMap<SetupName, SetupSteps>> = Lazy::new(|| {
                     .join("\n"),
                 ),
                 Step::Persist,
-                Step::WaitForPersisted2 {
+                Step::WaitForPersisted {
                     expected_increase: 1,
                 },
             ],
@@ -954,7 +954,7 @@ pub static SETUPS: Lazy<HashMap<SetupName, SetupSteps>> = Lazy::new(|| {
                     .join("\n"),
                 ),
                 Step::Persist,
-                Step::WaitForPersisted2 {
+                Step::WaitForPersisted {
                     expected_increase: 1,
                 },
                 Step::RecordNumParquetFiles,
@@ -966,7 +966,7 @@ pub static SETUPS: Lazy<HashMap<SetupName, SetupSteps>> = Lazy::new(|| {
                     .join("\n"),
                 ),
                 Step::Persist,
-                Step::WaitForPersisted2 {
+                Step::WaitForPersisted {
                     expected_increase: 1,
                 },
             ],
@@ -984,7 +984,7 @@ pub static SETUPS: Lazy<HashMap<SetupName, SetupSteps>> = Lazy::new(|| {
                     .join("\n"),
                 ),
                 Step::Persist,
-                Step::WaitForPersisted2 {
+                Step::WaitForPersisted {
                     expected_increase: 1,
                 },
                 Step::RecordNumParquetFiles,
@@ -992,7 +992,7 @@ pub static SETUPS: Lazy<HashMap<SetupName, SetupSteps>> = Lazy::new(|| {
                     ["h2o,state=MA,city=Cambridge f=5.0,i=5i,b=false,s=\"z\" 4000"].join("\n"),
                 ),
                 Step::Persist,
-                Step::WaitForPersisted2 {
+                Step::WaitForPersisted {
                     expected_increase: 1,
                 },
             ],
@@ -1010,7 +1010,7 @@ pub static SETUPS: Lazy<HashMap<SetupName, SetupSteps>> = Lazy::new(|| {
                     .join("\n"),
                 ),
                 Step::Persist,
-                Step::WaitForPersisted2 {
+                Step::WaitForPersisted {
                     expected_increase: 1,
                 },
                 Step::RecordNumParquetFiles,
@@ -1024,7 +1024,7 @@ pub static SETUPS: Lazy<HashMap<SetupName, SetupSteps>> = Lazy::new(|| {
                     .join("\n"),
                 ),
                 Step::Persist,
-                Step::WaitForPersisted2 {
+                Step::WaitForPersisted {
                     expected_increase: 1,
                 },
             ],
@@ -1042,7 +1042,7 @@ pub static SETUPS: Lazy<HashMap<SetupName, SetupSteps>> = Lazy::new(|| {
                     .join("\n"),
                 ),
                 Step::Persist,
-                Step::WaitForPersisted2 {
+                Step::WaitForPersisted {
                     expected_increase: 1,
                 },
                 Step::RecordNumParquetFiles,
@@ -1055,7 +1055,7 @@ pub static SETUPS: Lazy<HashMap<SetupName, SetupSteps>> = Lazy::new(|| {
                     .join("\n"),
                 ),
                 Step::Persist,
-                Step::WaitForPersisted2 {
+                Step::WaitForPersisted {
                     expected_increase: 1,
                 },
             ],
@@ -1075,7 +1075,7 @@ pub static SETUPS: Lazy<HashMap<SetupName, SetupSteps>> = Lazy::new(|| {
                     .join("\n"),
                 ),
                 Step::Persist,
-                Step::WaitForPersisted2 {
+                Step::WaitForPersisted {
                     expected_increase: 2,
                 },
             ],
@@ -1096,7 +1096,7 @@ pub static SETUPS: Lazy<HashMap<SetupName, SetupSteps>> = Lazy::new(|| {
                     .join("\n"),
                 ),
                 Step::Persist,
-                Step::WaitForPersisted2 {
+                Step::WaitForPersisted {
                     expected_increase: 1,
                 },
             ],
@@ -1118,7 +1118,7 @@ pub static SETUPS: Lazy<HashMap<SetupName, SetupSteps>> = Lazy::new(|| {
                     .join("\n"),
                 ),
                 Step::Persist,
-                Step::WaitForPersisted2 {
+                Step::WaitForPersisted {
                     expected_increase: 1,
                 },
                 Step::RecordNumParquetFiles,
@@ -1136,7 +1136,7 @@ pub static SETUPS: Lazy<HashMap<SetupName, SetupSteps>> = Lazy::new(|| {
                     .join("\n"),
                 ),
                 Step::Persist,
-                Step::WaitForPersisted2 {
+                Step::WaitForPersisted {
                     expected_increase: 1,
                 },
             ],
@@ -1162,7 +1162,7 @@ pub static SETUPS: Lazy<HashMap<SetupName, SetupSteps>> = Lazy::new(|| {
                     .join("\n"),
                 ),
                 Step::Persist,
-                Step::WaitForPersisted2 {
+                Step::WaitForPersisted {
                     expected_increase: 1,
                 },
             ],
@@ -1173,19 +1173,19 @@ pub static SETUPS: Lazy<HashMap<SetupName, SetupSteps>> = Lazy::new(|| {
                 Step::RecordNumParquetFiles,
                 Step::WriteLineProtocol(RETENTION_SETUP.lp_partially_inside_1.clone()),
                 Step::Persist,
-                Step::WaitForPersisted2 {
+                Step::WaitForPersisted {
                     expected_increase: 1,
                 },
                 Step::RecordNumParquetFiles,
                 Step::WriteLineProtocol(RETENTION_SETUP.lp_fully_inside.clone()),
                 Step::Persist,
-                Step::WaitForPersisted2 {
+                Step::WaitForPersisted {
                     expected_increase: 1,
                 },
                 Step::RecordNumParquetFiles,
                 Step::WriteLineProtocol(RETENTION_SETUP.lp_fully_outside.clone()),
                 Step::Persist,
-                Step::WaitForPersisted2 {
+                Step::WaitForPersisted {
                     expected_increase: 1,
                 },
                 Step::WriteLineProtocol(RETENTION_SETUP.lp_partially_inside_2.clone()),
@@ -1213,7 +1213,7 @@ pub static SETUPS: Lazy<HashMap<SetupName, SetupSteps>> = Lazy::new(|| {
                     .join("\n"),
                 ),
                 Step::Persist,
-                Step::WaitForPersisted2 {
+                Step::WaitForPersisted {
                     expected_increase: 1,
                 },
             ],
@@ -1232,7 +1232,7 @@ pub static SETUPS: Lazy<HashMap<SetupName, SetupSteps>> = Lazy::new(|| {
                     .join("\n"),
                 ),
                 Step::Persist,
-                Step::WaitForPersisted2 {
+                Step::WaitForPersisted {
                     expected_increase: 1,
                 },
                 Step::RecordNumParquetFiles,
@@ -1244,7 +1244,7 @@ pub static SETUPS: Lazy<HashMap<SetupName, SetupSteps>> = Lazy::new(|| {
                     .join("\n"),
                 ),
                 Step::Persist,
-                Step::WaitForPersisted2 {
+                Step::WaitForPersisted {
                     expected_increase: 1,
                 },
             ],
@@ -1263,7 +1263,7 @@ pub static SETUPS: Lazy<HashMap<SetupName, SetupSteps>> = Lazy::new(|| {
                     .join("\n"),
                 ),
                 Step::Persist,
-                Step::WaitForPersisted2 {
+                Step::WaitForPersisted {
                     expected_increase: 1,
                 },
             ],
@@ -1283,7 +1283,7 @@ pub static SETUPS: Lazy<HashMap<SetupName, SetupSteps>> = Lazy::new(|| {
                     .join("\n"),
                 ),
                 Step::Persist,
-                Step::WaitForPersisted2 {
+                Step::WaitForPersisted {
                     expected_increase: 1,
                 },
                 Step::RecordNumParquetFiles,
@@ -1296,7 +1296,7 @@ pub static SETUPS: Lazy<HashMap<SetupName, SetupSteps>> = Lazy::new(|| {
                     .join("\n"),
                 ),
                 Step::Persist,
-                Step::WaitForPersisted2 {
+                Step::WaitForPersisted {
                     expected_increase: 1,
                 },
             ],
@@ -1353,7 +1353,7 @@ pub static SETUPS: Lazy<HashMap<SetupName, SetupSteps>> = Lazy::new(|| {
                     .to_string(),
                 ),
                 Step::Persist,
-                Step::WaitForPersisted2 {
+                Step::WaitForPersisted {
                     expected_increase: 2,
                 },
             ],
@@ -1371,7 +1371,7 @@ pub static SETUPS: Lazy<HashMap<SetupName, SetupSteps>> = Lazy::new(|| {
                             "#.into(),
                         ),
                         Step::Persist,
-                        Step::WaitForPersisted2 {
+                        Step::WaitForPersisted {
                             expected_increase: 2,
                         },
                         Step::RecordNumParquetFiles,
@@ -1381,7 +1381,7 @@ pub static SETUPS: Lazy<HashMap<SetupName, SetupSteps>> = Lazy::new(|| {
                             "#.into(),
                         ),
                         Step::Persist,
-                        Step::WaitForPersisted2 {
+                        Step::WaitForPersisted {
                             expected_increase: 1,
                         },
                     ]
