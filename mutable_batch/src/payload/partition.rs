@@ -8,7 +8,7 @@ use crate::{
 };
 use chrono::{format::StrftimeItems, TimeZone, Utc};
 use data_types::{TablePartitionTemplateOverride, TemplatePart};
-use schema::TIME_COLUMN_NAME;
+use schema::{InfluxColumnType, TIME_COLUMN_NAME};
 use std::ops::Range;
 
 /// Returns an iterator identifying consecutive ranges for a given partition key
@@ -84,7 +84,13 @@ fn partition_keys<'a>(
         .map(|part| match part {
             TemplatePart::TagValue(name) => batch.column(name).map_or_else(
                 |_| Template::MissingTag(name),
-                |col| Template::TagValue(col, name),
+                |col| match col.influx_type {
+                    InfluxColumnType::Tag => Template::TagValue(col, name),
+                    other => panic!(
+                        "Partitioning only works on tag columns, \
+                            but column `{name}` was type `{other:?}`"
+                    ),
+                },
             ),
             TemplatePart::TimeFormat(fmt) => Template::TimeFormat(time, StrftimeItems::new(fmt)),
         })
@@ -189,10 +195,6 @@ mod tests {
             .unwrap();
 
         writer
-            .write_f64("f64", None, vec![2., 4.5, 6., 3., 6.].into_iter())
-            .unwrap();
-
-        writer
             .write_tag(
                 "region",
                 Some(&[0b00001010]),
@@ -202,7 +204,6 @@ mod tests {
 
         let template_parts = [
             TemplatePart::TimeFormat("%Y-%m-%d %H:%M:%S"),
-            TemplatePart::TagValue("f64"),
             TemplatePart::TagValue("region"),
             TemplatePart::TagValue("bananas"),
         ];
@@ -214,12 +215,40 @@ mod tests {
         assert_eq!(
             keys,
             vec![
-                "1970-01-01 00:00:00-f64_2-region-bananas".to_string(),
-                "1970-01-01 00:00:00-f64_4.5-region_west-bananas".to_string(),
-                "1970-01-01 00:00:00-f64_6-region-bananas".to_string(),
-                "1970-01-01 00:00:00-f64_3-region_east-bananas".to_string(),
-                "1970-01-01 00:00:00-f64_6-region-bananas".to_string()
+                "1970-01-01 00:00:00-region-bananas".to_string(),
+                "1970-01-01 00:00:00-region_west-bananas".to_string(),
+                "1970-01-01 00:00:00-region-bananas".to_string(),
+                "1970-01-01 00:00:00-region_east-bananas".to_string(),
+                "1970-01-01 00:00:00-region-bananas".to_string()
             ]
         )
+    }
+
+    #[test]
+    #[should_panic(
+        expected = "Partitioning only works on tag columns, but column `region` was type \
+        `Field(String)`"
+    )]
+    fn partitioning_on_fields_panics() {
+        let mut batch = MutableBatch::new();
+        let mut writer = Writer::new(&mut batch, 5);
+
+        writer
+            .write_time("time", vec![1, 2, 3, 4, 5].into_iter())
+            .unwrap();
+
+        writer
+            .write_string(
+                "region",
+                Some(&[0b00001010]),
+                vec!["west", "east"].into_iter(),
+            )
+            .unwrap();
+
+        let template_parts = [TemplatePart::TagValue("region")];
+
+        writer.commit();
+
+        let _keys: Vec<_> = partition_keys(&batch, template_parts.into_iter()).collect();
     }
 }

@@ -433,7 +433,7 @@ fn test_partition_write() {
     };
 
     let table_partition_template =
-        test_table_partition_override(vec![TemplatePart::TagValue("b1")]);
+        test_table_partition_override(vec![TemplatePart::TagValue("t1")]);
 
     let partitioned = PartitionWrite::partition(&batch, &table_partition_template);
 
