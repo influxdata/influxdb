@@ -1,8 +1,10 @@
 use std::time::Duration;
 
 use assert_matches::assert_matches;
-use generated_types::influxdata::iox::namespace::v1::{
-    namespace_service_server::NamespaceService, *,
+use data_types::NamespaceId;
+use generated_types::influxdata::iox::{
+    namespace::v1::{namespace_service_server::NamespaceService, *},
+    table::v1::{table_service_server::TableService, *},
 };
 use hyper::StatusCode;
 use iox_catalog::interface::{Error as CatalogError, SoftDeletedRows};
@@ -846,4 +848,69 @@ async fn test_update_namespace_limit_0_max_tables_max_columns() {
             assert!(ns.deleted_at.is_none());
         });
     }
+}
+
+/// Ensure invoking the gRPC TableService to create a table populates
+/// the catalog.
+#[tokio::test]
+async fn test_table_create() {
+    // Initialise a TestContext without a namespace autocreation policy.
+    let ctx = TestContextBuilder::default().build().await;
+
+    // Explicitly create the namespace.
+    let req = CreateNamespaceRequest {
+        name: "bananas_test".to_string(),
+        retention_period_ns: None,
+        partition_template: None,
+    };
+    let namespace = ctx
+        .grpc_delegate()
+        .namespace_service()
+        .create_namespace(Request::new(req))
+        .await
+        .unwrap()
+        .into_inner()
+        .namespace
+        .unwrap();
+
+    // Explicitly create the table.
+    let req = CreateTableRequest {
+        name: "plantains".to_string(),
+        namespace: "bananas_test".to_string(),
+        partition_template: None,
+    };
+    let got = ctx
+        .grpc_delegate()
+        .table_service()
+        .create_table(Request::new(req))
+        .await
+        .unwrap()
+        .into_inner()
+        .table
+        .unwrap();
+
+    assert_eq!(got.name, "plantains");
+    assert_eq!(got.id, 1);
+
+    // The catalog should contain the table.
+    {
+        let db_list = ctx
+            .catalog()
+            .repositories()
+            .await
+            .tables()
+            .list_by_namespace_id(NamespaceId::new(namespace.id))
+            .await
+            .unwrap();
+        assert_matches!(db_list.as_slice(), [table] => {
+            assert_eq!(table.id.get(), got.id);
+            assert_eq!(table.name, got.name);
+        });
+    }
+
+    let lp = "plantains,tag1=A,tag2=B val=42i".to_string();
+
+    // And writing should succeed
+    let response = ctx.write_lp("bananas", "test", lp).await.unwrap();
+    assert_eq!(response.status(), StatusCode::NO_CONTENT);
 }
