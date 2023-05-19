@@ -2,9 +2,35 @@ use generated_types::influxdata::iox::partition_template::v1 as proto;
 use once_cell::sync::Lazy;
 use std::sync::Arc;
 
+/// Allocationless and protobufless access to the parts of a template needed to actually do
+/// partitioning.
+#[derive(Debug)]
+#[allow(missing_docs)]
+pub enum TemplatePart<'a> {
+    TagValue(&'a str),
+    TimeFormat(&'a str),
+}
+
+/// The default partitioning scheme is by each day according to the "time" column.
+pub static PARTITION_BY_DAY_PROTO: Lazy<Arc<proto::PartitionTemplate>> = Lazy::new(|| {
+    Arc::new(proto::PartitionTemplate {
+        parts: vec![proto::TemplatePart {
+            part: Some(proto::template_part::Part::TimeFormat(
+                "%Y-%m-%d".to_owned(),
+            )),
+        }],
+    })
+});
+
 /// A partition template specified by a namespace record.
 #[derive(Debug, PartialEq, Clone)]
 pub struct NamespacePartitionTemplateOverride(Arc<proto::PartitionTemplate>);
+
+impl Default for NamespacePartitionTemplateOverride {
+    fn default() -> Self {
+        Self(Arc::clone(&PARTITION_BY_DAY_PROTO))
+    }
+}
 
 impl From<proto::PartitionTemplate> for NamespacePartitionTemplateOverride {
     fn from(partition_template: proto::PartitionTemplate) -> Self {
@@ -12,9 +38,50 @@ impl From<proto::PartitionTemplate> for NamespacePartitionTemplateOverride {
     }
 }
 
-impl Default for NamespacePartitionTemplateOverride {
+/// When a table is being created implicitly by a write, there is no possibility of a user-supplied
+/// partition template, so the table will get the namespace's partition template.
+impl From<&NamespacePartitionTemplateOverride> for TablePartitionTemplateOverride {
+    fn from(namespace_template: &NamespacePartitionTemplateOverride) -> Self {
+        Self(Arc::clone(&namespace_template.0))
+    }
+}
+
+/// A partition template specified by a table record.
+#[derive(Debug, PartialEq, Clone)]
+pub struct TablePartitionTemplateOverride(Arc<proto::PartitionTemplate>);
+
+impl Default for TablePartitionTemplateOverride {
     fn default() -> Self {
         Self(Arc::clone(&PARTITION_BY_DAY_PROTO))
+    }
+}
+
+impl TablePartitionTemplateOverride {
+    /// When a table is being explicitly created, the creation request might have contained a
+    /// custom partition template for that table. If the custom partition template is present, use
+    /// it. Otherwise, use the namespace's partition template.
+    #[allow(dead_code)] // This will be used by the as-yet unwritten create table gRPC API.
+    pub fn new(
+        custom_table_template: Option<proto::PartitionTemplate>,
+        namespace_template: &NamespacePartitionTemplateOverride,
+    ) -> Self {
+        custom_table_template
+            .map(Arc::new)
+            .map(Self)
+            .unwrap_or_else(|| namespace_template.into())
+    }
+
+    /// Iterate through the protobuf parts and lend out what the `mutable_batch` crate needs to
+    /// build `PartitionKey`s.
+    pub fn parts(&self) -> impl Iterator<Item = TemplatePart<'_>> {
+        self.0
+            .parts
+            .iter()
+            .flat_map(|part| part.part.as_ref())
+            .map(|part| match part {
+                proto::template_part::Part::TagValue(value) => TemplatePart::TagValue(value),
+                proto::template_part::Part::TimeFormat(fmt) => TemplatePart::TimeFormat(fmt),
+            })
     }
 }
 
@@ -62,45 +129,6 @@ where
     }
 }
 
-/// A partition template specified by a table record.
-#[derive(Debug, PartialEq, Clone)]
-pub struct TablePartitionTemplateOverride(Arc<proto::PartitionTemplate>);
-
-impl Default for TablePartitionTemplateOverride {
-    fn default() -> Self {
-        Self(Arc::clone(&PARTITION_BY_DAY_PROTO))
-    }
-}
-
-impl TablePartitionTemplateOverride {
-    /// When a table is being explicitly created, the creation request might have contained a
-    /// custom partition template for that table. If the custom partition template is present, use
-    /// it. Otherwise, use the namespace's partition template.
-    #[allow(dead_code)] // This will be used by the as-yet unwritten create table gRPC API.
-    pub fn new(
-        custom_table_template: Option<proto::PartitionTemplate>,
-        namespace_template: &NamespacePartitionTemplateOverride,
-    ) -> Self {
-        custom_table_template
-            .map(Arc::new)
-            .map(Self)
-            .unwrap_or_else(|| namespace_template.into())
-    }
-
-    /// Iterate through the protobuf parts and lend out what the `mutable_batch` crate needs to
-    /// build `PartitionKey`s.
-    pub fn parts(&self) -> impl Iterator<Item = TemplatePart<'_>> {
-        self.0
-            .parts
-            .iter()
-            .flat_map(|part| part.part.as_ref())
-            .map(|part| match part {
-                proto::template_part::Part::TagValue(value) => TemplatePart::TagValue(value),
-                proto::template_part::Part::TimeFormat(fmt) => TemplatePart::TimeFormat(fmt),
-            })
-    }
-}
-
 /// In production code, the template should come from protobuf that is either from the database or
 /// from a gRPC request. In tests, building protobuf is painful, so here's an easier way to create
 /// a `TablePartitionTemplateOverride`.
@@ -121,23 +149,6 @@ pub fn test_table_partition_override(
 
     let proto = Arc::new(proto::PartitionTemplate { parts });
     TablePartitionTemplateOverride(proto)
-}
-
-/// Allocationless and protobufless access to the parts of a template needed to actually do
-/// partitioning.
-#[derive(Debug)]
-#[allow(missing_docs)]
-pub enum TemplatePart<'a> {
-    TagValue(&'a str),
-    TimeFormat(&'a str),
-}
-
-/// When a table is being created implicitly by a write, there is no possibility of a user-supplied
-/// partition template, so the table will get the namespace's partition template.
-impl From<&NamespacePartitionTemplateOverride> for TablePartitionTemplateOverride {
-    fn from(namespace_template: &NamespacePartitionTemplateOverride) -> Self {
-        Self(Arc::clone(&namespace_template.0))
-    }
 }
 
 impl<DB> sqlx::Type<DB> for TablePartitionTemplateOverride
@@ -181,17 +192,6 @@ where
         ))
     }
 }
-
-/// The default partitioning scheme is by each day according to the "time" column.
-pub static PARTITION_BY_DAY_PROTO: Lazy<Arc<proto::PartitionTemplate>> = Lazy::new(|| {
-    Arc::new(proto::PartitionTemplate {
-        parts: vec![proto::TemplatePart {
-            part: Some(proto::template_part::Part::TimeFormat(
-                "%Y-%m-%d".to_owned(),
-            )),
-        }],
-    })
-});
 
 #[cfg(test)]
 mod tests {
