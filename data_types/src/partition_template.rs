@@ -23,18 +23,19 @@ pub static PARTITION_BY_DAY_PROTO: Lazy<Arc<proto::PartitionTemplate>> = Lazy::n
 });
 
 /// A partition template specified by a namespace record.
-#[derive(Debug, PartialEq, Clone)]
-pub struct NamespacePartitionTemplateOverride(Arc<proto::PartitionTemplate>);
+#[derive(Debug, PartialEq, Clone, sqlx::Type)]
+#[sqlx(transparent)]
+pub struct NamespacePartitionTemplateOverride(SerializationWrapper);
 
 impl Default for NamespacePartitionTemplateOverride {
     fn default() -> Self {
-        Self(Arc::clone(&PARTITION_BY_DAY_PROTO))
+        Self(SerializationWrapper(Arc::clone(&PARTITION_BY_DAY_PROTO)))
     }
 }
 
 impl From<proto::PartitionTemplate> for NamespacePartitionTemplateOverride {
     fn from(partition_template: proto::PartitionTemplate) -> Self {
-        Self(Arc::new(partition_template))
+        Self(SerializationWrapper(Arc::new(partition_template)))
     }
 }
 
@@ -42,17 +43,18 @@ impl From<proto::PartitionTemplate> for NamespacePartitionTemplateOverride {
 /// partition template, so the table will get the namespace's partition template.
 impl From<&NamespacePartitionTemplateOverride> for TablePartitionTemplateOverride {
     fn from(namespace_template: &NamespacePartitionTemplateOverride) -> Self {
-        Self(Arc::clone(&namespace_template.0))
+        Self(SerializationWrapper(Arc::clone(&namespace_template.0 .0)))
     }
 }
 
 /// A partition template specified by a table record.
-#[derive(Debug, PartialEq, Clone)]
-pub struct TablePartitionTemplateOverride(Arc<proto::PartitionTemplate>);
+#[derive(Debug, PartialEq, Clone, sqlx::Type)]
+#[sqlx(transparent)]
+pub struct TablePartitionTemplateOverride(SerializationWrapper);
 
 impl Default for TablePartitionTemplateOverride {
     fn default() -> Self {
-        Self(Arc::clone(&PARTITION_BY_DAY_PROTO))
+        Self(SerializationWrapper(Arc::clone(&PARTITION_BY_DAY_PROTO)))
     }
 }
 
@@ -67,6 +69,7 @@ impl TablePartitionTemplateOverride {
     ) -> Self {
         custom_table_template
             .map(Arc::new)
+            .map(SerializationWrapper)
             .map(Self)
             .unwrap_or_else(|| namespace_template.into())
     }
@@ -75,6 +78,7 @@ impl TablePartitionTemplateOverride {
     /// build `PartitionKey`s.
     pub fn parts(&self) -> impl Iterator<Item = TemplatePart<'_>> {
         self.0
+             .0
             .parts
             .iter()
             .flat_map(|part| part.part.as_ref())
@@ -85,7 +89,14 @@ impl TablePartitionTemplateOverride {
     }
 }
 
-impl<DB> sqlx::Type<DB> for NamespacePartitionTemplateOverride
+/// This manages the serialization/deserialization of the `proto::PartitionTemplate` type to and
+/// from the database through `sqlx` for the `NamespacePartitionTemplateOverride` and
+/// `TablePartitionTemplateOverride` types. It's an internal implementation detail to minimize code
+/// duplication.
+#[derive(Debug, Clone, PartialEq)]
+struct SerializationWrapper(Arc<proto::PartitionTemplate>);
+
+impl<DB> sqlx::Type<DB> for SerializationWrapper
 where
     sqlx::types::Json<Self>: sqlx::Type<DB>,
     DB: sqlx::Database,
@@ -95,7 +106,7 @@ where
     }
 }
 
-impl<'q, DB> sqlx::Encode<'q, DB> for NamespacePartitionTemplateOverride
+impl<'q, DB> sqlx::Encode<'q, DB> for SerializationWrapper
 where
     DB: sqlx::Database,
     for<'b> sqlx::types::Json<&'b proto::PartitionTemplate>: sqlx::Encode<'q, DB>,
@@ -104,8 +115,6 @@ where
         &self,
         buf: &mut <DB as sqlx::database::HasArguments<'q>>::ArgumentBuffer,
     ) -> sqlx::encode::IsNull {
-        // Unambiguous delegation to the Encode impl on the Json type, which
-        // exists due to the constraint in the where clause above.
         <sqlx::types::Json<&proto::PartitionTemplate> as sqlx::Encode<'_, DB>>::encode_by_ref(
             &sqlx::types::Json(&self.0),
             buf,
@@ -113,7 +122,7 @@ where
     }
 }
 
-impl<'q, DB> sqlx::Decode<'q, DB> for NamespacePartitionTemplateOverride
+impl<'q, DB> sqlx::Decode<'q, DB> for SerializationWrapper
 where
     DB: sqlx::Database,
     sqlx::types::Json<proto::PartitionTemplate>: sqlx::Decode<'q, DB>,
@@ -148,49 +157,7 @@ pub fn test_table_partition_override(
         .collect();
 
     let proto = Arc::new(proto::PartitionTemplate { parts });
-    TablePartitionTemplateOverride(proto)
-}
-
-impl<DB> sqlx::Type<DB> for TablePartitionTemplateOverride
-where
-    sqlx::types::Json<Self>: sqlx::Type<DB>,
-    DB: sqlx::Database,
-{
-    fn type_info() -> DB::TypeInfo {
-        <sqlx::types::Json<Self> as sqlx::Type<DB>>::type_info()
-    }
-}
-
-impl<'q, DB> sqlx::Encode<'q, DB> for TablePartitionTemplateOverride
-where
-    DB: sqlx::Database,
-    for<'b> sqlx::types::Json<&'b proto::PartitionTemplate>: sqlx::Encode<'q, DB>,
-{
-    fn encode_by_ref(
-        &self,
-        buf: &mut <DB as sqlx::database::HasArguments<'q>>::ArgumentBuffer,
-    ) -> sqlx::encode::IsNull {
-        <sqlx::types::Json<&proto::PartitionTemplate> as sqlx::Encode<'_, DB>>::encode_by_ref(
-            &sqlx::types::Json(&self.0),
-            buf,
-        )
-    }
-}
-
-impl<'q, DB> sqlx::Decode<'q, DB> for TablePartitionTemplateOverride
-where
-    DB: sqlx::Database,
-    sqlx::types::Json<proto::PartitionTemplate>: sqlx::Decode<'q, DB>,
-{
-    fn decode(
-        value: <DB as sqlx::database::HasValueRef<'q>>::ValueRef,
-    ) -> Result<Self, Box<dyn std::error::Error + 'static + Send + Sync>> {
-        Ok(Self(
-            <sqlx::types::Json<proto::PartitionTemplate> as sqlx::Decode<'_, DB>>::decode(value)?
-                .0
-                .into(),
-        ))
-    }
+    TablePartitionTemplateOverride(SerializationWrapper(proto))
 }
 
 #[cfg(test)]
@@ -229,7 +196,7 @@ mod tests {
             &namespace_template,
         );
 
-        assert_eq!(table_template.0.as_ref(), &custom_table_template);
+        assert_eq!(table_template.0 .0.as_ref(), &custom_table_template);
     }
 
     // The JSON representation of the partition template protobuf is stored in the database, so
