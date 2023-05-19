@@ -16,7 +16,7 @@ pub struct Config {
     input: PathBuf,
 
     /// The directory to write regenerated line protocol to. Creates the directory
-    ///if it does not exist.
+    /// if it does not exist.
     ///
     /// When unspecified the line protocol is written to stdout
     #[clap(long, short, value_parser)]
