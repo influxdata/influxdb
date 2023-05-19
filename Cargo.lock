@@ -1375,6 +1375,7 @@ dependencies = [
 name = "data_types"
 version = "0.1.0"
 dependencies = [
+ "assert_matches",
  "croaring",
  "generated_types",
  "influxdb-line-protocol",

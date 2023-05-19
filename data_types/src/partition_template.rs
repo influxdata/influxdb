@@ -163,7 +163,25 @@ pub fn test_table_partition_override(
 #[cfg(test)]
 mod tests {
     use super::*;
+    use assert_matches::assert_matches;
     use sqlx::Encode;
+
+    /// This test asserts the default derived partitioning scheme with no
+    /// overrides.
+    ///
+    /// Changing this default during the lifetime of a cluster will cause the
+    /// implicit (not overridden) partition schemes to change, potentially
+    /// breaking the system invariant that a given primary keys maps to a
+    /// single partition.
+    ///
+    /// You shouldn't be changing this!
+    #[test]
+    fn test_default_template_fixture() {
+        let ns = NamespacePartitionTemplateOverride::default();
+        let table = TablePartitionTemplateOverride::new(None, &ns);
+        let got = table.parts().collect::<Vec<_>>();
+        assert_matches!(got.as_slice(), [TemplatePart::TimeFormat("%Y-%m-%d")]);
+    }
 
     #[test]
     fn no_custom_table_template_specified_gets_namespace_template() {
