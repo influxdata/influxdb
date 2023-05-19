@@ -1230,6 +1230,40 @@ pub(crate) mod test_helpers {
             .unwrap();
         assert_eq!(templated, lookup_templated);
 
+        // Create a namespace with a partition template other than the default
+        let custom_namespace_template =
+            NamespacePartitionTemplateOverride::from(proto::PartitionTemplate {
+                parts: vec![proto::TemplatePart {
+                    part: Some(proto::template_part::Part::TimeFormat("year-%Y".into())),
+                }],
+            });
+        let custom_namespace_name = NamespaceName::new("custom_namespace").unwrap();
+        let custom_namespace = repos
+            .namespaces()
+            .create(
+                &custom_namespace_name,
+                Some(custom_namespace_template.clone()),
+                None,
+            )
+            .await
+            .unwrap();
+        // Create a table without specifying the partition template
+        let custom_table_template =
+            TablePartitionTemplateOverride::new(None, &custom_namespace.partition_template);
+        let table_templated_by_namespace = repos
+            .tables()
+            .create(
+                "use_namespace_template",
+                custom_table_template,
+                custom_namespace.id,
+            )
+            .await
+            .unwrap();
+        assert_eq!(
+            table_templated_by_namespace.partition_template,
+            TablePartitionTemplateOverride::from(&custom_namespace_template)
+        );
+
         repos
             .namespaces()
             .soft_delete("namespace_table_test")
