@@ -2,7 +2,7 @@
 
 InfluxDB IOx (short for Iron Oxide, pronounced InfluxDB "eye-ox") is the core of InfluxDB, an open source time series database.
 The name is in homage to Rust, the language this project is written in.
-It is built using [Apache Arrow](https://arrow.apache.org/) and [DataFusion](https://arrow.apache.org/blog/2019/02/04/datafusion-donation/) among other things.
+It is built using [Apache Arrow](https://arrow.apache.org/) and [DataFusion](https://arrow.apache.org/datafusion/) among other technologies.
 InfluxDB IOx aims to be:
 
 * The core of InfluxDB; providing industry standard SQL, InfluxQL, and Flux

@@ -22,14 +22,6 @@ pub fn iox_session_config() -> SessionConfig {
     options.execution.parquet.reorder_filters = true;
     options.optimizer.repartition_sorts = true;
 
-    // DataFusion skips failed optimizer rules by default. Relevant issues:
-    // - https://github.com/apache/arrow-datafusion/issues/4615
-    // - https://github.com/apache/arrow-datafusion/issues/4685
-    //
-    // However IOx should not skip them, since that will result in more helpful error messages
-    // when they fail, e.g., 'HandleGapFill`.
-    options.optimizer.skip_failed_rules = false;
-
     SessionConfig::from(options)
         .with_batch_size(BATCH_SIZE)
         .with_create_default_catalog_and_schema(true)
