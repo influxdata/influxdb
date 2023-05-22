@@ -390,7 +390,7 @@ where
 
         let db = self
             .db_store
-            .db(&db_name, span_ctx.child_span("get namespace"))
+            .db(&db_name, span_ctx.child_span("get namespace"), false)
             .await
             .context(NamespaceNotFoundSnafu { db_name: &db_name })?;
 
@@ -438,7 +438,7 @@ where
 
         let db = self
             .db_store
-            .db(&db_name, span_ctx.child_span("get namespace"))
+            .db(&db_name, span_ctx.child_span("get namespace"), false)
             .await
             .context(NamespaceNotFoundSnafu { db_name: &db_name })?;
 
@@ -514,7 +514,7 @@ where
 
         let db = self
             .db_store
-            .db(&db_name, span_ctx.child_span("get namespace"))
+            .db(&db_name, span_ctx.child_span("get namespace"), false)
             .await
             .context(NamespaceNotFoundSnafu { db_name: &db_name })?;
 
@@ -592,7 +592,7 @@ where
 
         let db = self
             .db_store
-            .db(&db_name, span_ctx.child_span("get namespace"))
+            .db(&db_name, span_ctx.child_span("get namespace"), false)
             .await
             .context(NamespaceNotFoundSnafu { db_name: &db_name })?;
 
@@ -660,7 +660,7 @@ where
 
         let db = self
             .db_store
-            .db(&db_name, span_ctx.child_span("get namespace"))
+            .db(&db_name, span_ctx.child_span("get namespace"), false)
             .await
             .context(NamespaceNotFoundSnafu { db_name: &db_name })?;
 
@@ -760,7 +760,7 @@ where
 
         let db = self
             .db_store
-            .db(&db_name, span_ctx.child_span("get namespace"))
+            .db(&db_name, span_ctx.child_span("get namespace"), false)
             .await
             .context(NamespaceNotFoundSnafu { db_name: &db_name })?;
 
@@ -869,7 +869,7 @@ where
 
         let db = self
             .db_store
-            .db(&db_name, span_ctx.child_span("get namespace"))
+            .db(&db_name, span_ctx.child_span("get namespace"), false)
             .await
             .context(NamespaceNotFoundSnafu { db_name: &db_name })?;
 
@@ -926,7 +926,7 @@ where
 
         let db = self
             .db_store
-            .db(&db_name, span_ctx.child_span("get namespace"))
+            .db(&db_name, span_ctx.child_span("get namespace"), false)
             .await
             .context(NamespaceNotFoundSnafu { db_name: &db_name })?;
 
@@ -994,7 +994,7 @@ where
 
         let db = self
             .db_store
-            .db(&db_name, span_ctx.child_span("get namespace"))
+            .db(&db_name, span_ctx.child_span("get namespace"), false)
             .await
             .context(NamespaceNotFoundSnafu { db_name: &db_name })?;
 
@@ -1064,7 +1064,7 @@ where
 
         let db = self
             .db_store
-            .db(&db_name, span_ctx.child_span("get namespace"))
+            .db(&db_name, span_ctx.child_span("get namespace"), false)
             .await
             .context(NamespaceNotFoundSnafu { db_name: &db_name })?;
 

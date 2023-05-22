@@ -572,6 +572,7 @@ async fn table_or_namespace_not_found() {
                         format!("{}_suffix", state.cluster().namespace()),
                         state.cluster().querier().querier_grpc_connection(),
                         None,
+                        true,
                     )
                     .await
                     .unwrap_err();
@@ -661,6 +662,7 @@ async fn oom_protection() {
                         state.cluster().namespace(),
                         state.cluster().querier().querier_grpc_connection(),
                         None,
+                        true,
                     )
                     .await
                     .unwrap_err();
@@ -672,6 +674,7 @@ async fn oom_protection() {
                         state.cluster().namespace(),
                         state.cluster().querier().querier_grpc_connection(),
                         None,
+                        true,
                     )
                     .await;
                 }
@@ -743,6 +746,7 @@ async fn authz() {
                         cluster.namespace(),
                         cluster.querier().querier_grpc_connection(),
                         Some(format!("Bearer {}", token.clone()).as_str()),
+                        true,
                     )
                     .await
                     .unwrap_err();
@@ -771,6 +775,109 @@ async fn authz() {
     .await;
 
     authz.close().await;
+}
+
+#[tokio::test]
+async fn iox_debug_header() {
+    test_helpers::maybe_start_logging();
+    let database_url = maybe_skip_integration!();
+
+    let table_name = "the_table";
+
+    // Set up the cluster  ====================================
+    let mut cluster = MiniCluster::create_shared(database_url).await;
+
+    StepTest::new(
+        &mut cluster,
+        vec![
+            Step::RecordNumParquetFiles,
+            Step::WriteLineProtocol(format!("{table_name},tag1=A,tag2=B val=42i 123456")),
+            // Wait for data to be persisted to parquet
+            Step::WaitForPersisted {
+                expected_increase: 1,
+            },
+            Step::Query {
+                sql: String::from(
+                    "SELECT * from information_schema.tables where table_schema = 'system'",
+                ),
+                expected: vec![
+                    "+---------------+--------------+------------+------------+",
+                    "| table_catalog | table_schema | table_name | table_type |",
+                    "+---------------+--------------+------------+------------+",
+                    "+---------------+--------------+------------+------------+",
+                ],
+            },
+            Step::QueryWithDebug {
+                sql: String::from(
+                    "SELECT * from information_schema.tables where table_schema = 'system'",
+                ),
+                expected: vec![
+                    "+---------------+--------------+------------+------------+",
+                    "| table_catalog | table_schema | table_name | table_type |",
+                    "+---------------+--------------+------------+------------+",
+                    "| public        | system       | queries    | BASE TABLE |",
+                    "+---------------+--------------+------------+------------+",
+                ],
+            },
+            Step::Query {
+                sql: String::from("SHOW TABLES"),
+                expected: vec![
+                    "+---------------+--------------------+-------------+------------+",
+                    "| table_catalog | table_schema       | table_name  | table_type |",
+                    "+---------------+--------------------+-------------+------------+",
+                    "| public        | information_schema | columns     | VIEW       |",
+                    "| public        | information_schema | df_settings | VIEW       |",
+                    "| public        | information_schema | tables      | VIEW       |",
+                    "| public        | information_schema | views       | VIEW       |",
+                    "| public        | iox                | the_table   | BASE TABLE |",
+                    "+---------------+--------------------+-------------+------------+",
+                ],
+            },
+            Step::QueryWithDebug {
+                sql: String::from("SHOW TABLES"),
+                expected: vec![
+                    "+---------------+--------------------+-------------+------------+",
+                    "| table_catalog | table_schema       | table_name  | table_type |",
+                    "+---------------+--------------------+-------------+------------+",
+                    "| public        | information_schema | columns     | VIEW       |",
+                    "| public        | information_schema | df_settings | VIEW       |",
+                    "| public        | information_schema | tables      | VIEW       |",
+                    "| public        | information_schema | views       | VIEW       |",
+                    "| public        | iox                | the_table   | BASE TABLE |",
+                    "| public        | system             | queries     | BASE TABLE |",
+                    "+---------------+--------------------+-------------+------------+",
+                ],
+            },
+            Step::QueryExpectingError {
+                sql: String::from("SELECT * FROM system.queries"),
+                expected_error_code: tonic::Code::InvalidArgument,
+                expected_message: String::from("Error while planning query: Error during planning: table 'public.system.queries' not found"),
+            },
+            Step::QueryExpectingError {
+                sql: String::from("SELECT query_type, query_text FROM system.queries"),
+                expected_error_code: tonic::Code::InvalidArgument,
+                expected_message: String::from("Error while planning query: Error during planning: table 'public.system.queries' not found"),
+            },
+            Step::QueryWithDebug {
+                sql: String::from("SELECT query_type, query_text FROM system.queries"),
+                expected: vec![
+                    "+------------+-----------------------------------------------------------------------+",
+                    "| query_type | query_text                                                            |",
+                    "+------------+-----------------------------------------------------------------------+",
+                    "| sql        | SELECT * FROM system.queries                                          |",
+                    "| sql        | SELECT * from information_schema.tables where table_schema = 'system' |",
+                    "| sql        | SELECT * from information_schema.tables where table_schema = 'system' |",
+                    "| sql        | SELECT query_type, query_text FROM system.queries                     |",
+                    "| sql        | SELECT query_type, query_text FROM system.queries                     |",
+                    "| sql        | SHOW TABLES                                                           |",
+                    "| sql        | SHOW TABLES                                                           |",
+                    "+------------+-----------------------------------------------------------------------+",
+                ],
+            },
+        ],
+    )
+    .run()
+    .await
 }
 
 /// Some clients, such as the golang ones, cannot decode dictionary encoded Flight data. This

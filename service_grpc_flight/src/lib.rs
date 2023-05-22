@@ -394,10 +394,11 @@ where
         permit: InstrumentedAsyncOwnedSemaphorePermit,
         query: &RunQuery,
         namespace: String,
+        is_debug: bool,
     ) -> Result<Response<TonicStream<FlightData>>, tonic::Status> {
         let db = self
             .server
-            .db(&namespace, span_ctx.child_span("get namespace"))
+            .db(&namespace, span_ctx.child_span("get namespace"), is_debug)
             .await
             .context(DatabaseNotFoundSnafu {
                 namespace_name: &namespace,
@@ -468,6 +469,7 @@ where
         let trace = external_span_ctx.format_jaeger();
         let span_ctx: Option<SpanContext> = request.extensions().get().cloned();
         let authz_token = get_flight_authz(request.metadata());
+        let mut is_debug = has_debug_header(request.metadata());
         let ticket = request.into_inner();
 
         // attempt to decode ticket
@@ -480,6 +482,7 @@ where
         let request = request?;
         let namespace_name = request.namespace_name();
         let query = request.query();
+        is_debug |= request.is_debug();
 
         let perms = match query {
             RunQuery::FlightSQL(cmd) => flightsql_permissions(namespace_name, cmd),
@@ -509,7 +512,13 @@ where
         );
 
         let response = self
-            .run_do_get(span_ctx, permit, query, namespace_name.to_string())
+            .run_do_get(
+                span_ctx,
+                permit,
+                query,
+                namespace_name.to_string(),
+                is_debug,
+            )
             .await;
 
         if let Err(e) = &response {
@@ -582,6 +591,7 @@ where
         let external_span_ctx: Option<RequestLogContext> = request.extensions().get().cloned();
         let span_ctx: Option<SpanContext> = request.extensions().get().cloned();
         let trace = external_span_ctx.format_jaeger();
+        let is_debug = has_debug_header(request.metadata());
 
         let namespace_name = get_flightsql_namespace(request.metadata())?;
         let authz_token = get_flight_authz(request.metadata());
@@ -599,7 +609,11 @@ where
 
         let db = self
             .server
-            .db(&namespace_name, span_ctx.child_span("get namespace"))
+            .db(
+                &namespace_name,
+                span_ctx.child_span("get namespace"),
+                is_debug,
+            )
             .await
             .context(DatabaseNotFoundSnafu {
                 namespace_name: &namespace_name,
@@ -619,7 +633,7 @@ where
         let schema = schema?;
 
         // Form the response ticket (that the client will pass back to DoGet)
-        let ticket = IoxGetRequest::new(&namespace_name, RunQuery::FlightSQL(cmd))
+        let ticket = IoxGetRequest::new(&namespace_name, RunQuery::FlightSQL(cmd), is_debug)
             .try_encode()
             .context(InternalCreatingTicketSnafu)?;
 
@@ -667,6 +681,7 @@ where
         let external_span_ctx: Option<RequestLogContext> = request.extensions().get().cloned();
         let span_ctx: Option<SpanContext> = request.extensions().get().cloned();
         let trace = external_span_ctx.format_jaeger();
+        let is_debug = has_debug_header(request.metadata());
 
         let namespace_name = get_flightsql_namespace(request.metadata())?;
         let authz_token = get_flight_authz(request.metadata());
@@ -688,7 +703,11 @@ where
 
         let db = self
             .server
-            .db(&namespace_name, span_ctx.child_span("get namespace"))
+            .db(
+                &namespace_name,
+                span_ctx.child_span("get namespace"),
+                is_debug,
+            )
             .await
             .context(DatabaseNotFoundSnafu {
                 namespace_name: &namespace_name,
@@ -808,6 +827,16 @@ fn flightsql_permissions(namespace_name: &str, cmd: &FlightSQLCommand) -> Vec<au
         FlightSQLCommand::ActionClosePreparedStatementRequest(_) => authz::Action::Read,
     };
     vec![authz::Permission::ResourceAction(resource, action)]
+}
+
+/// Check if request has IOx debug header set.
+fn has_debug_header(metadata: &MetadataMap) -> bool {
+    metadata
+        .get("iox-debug")
+        .and_then(|s| s.to_str().ok())
+        .map(|s| s.to_lowercase())
+        .map(|s| matches!(s.as_str(), "1" | "on" | "yes" | "y" | "true" | "t"))
+        .unwrap_or_default()
 }
 
 /// Wrapper over a FlightDataEncodeStream that adds IOx specfic
@@ -1110,7 +1139,7 @@ mod tests {
             authorization: &'static str,
         ) -> tonic::Request<arrow_flight::Ticket> {
             let mut req = tonic::Request::new(
-                IoxGetRequest::new("bananas".to_string(), query)
+                IoxGetRequest::new("bananas".to_string(), query, false)
                     .try_encode()
                     .unwrap(),
             );

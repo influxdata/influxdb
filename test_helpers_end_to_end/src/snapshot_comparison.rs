@@ -306,6 +306,7 @@ async fn run_query(cluster: &MiniCluster, query: &Query) -> Result<Vec<String>> 
                 cluster.namespace(),
                 cluster.querier().querier_grpc_connection(),
                 None,
+                true,
             )
             .await
         }

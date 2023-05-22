@@ -1234,7 +1234,7 @@ async fn flightsql_jdbc() {
                     // jdbc:arrow-flight-sql://localhost:8082?useEncryption=false&iox-namespace-name=26f7e5a4b7be365b_917b97a92e883afc
                     let jdbc_addr = querier_addr.replace("http://", "jdbc:arrow-flight-sql://");
                     let jdbc_url =
-                        format!("{jdbc_addr}?useEncryption=false&iox-namespace-name={namespace}");
+                        format!("{jdbc_addr}?useEncryption=false&iox-namespace-name={namespace}&iox-debug=true");
                     println!("jdbc_url {jdbc_url}");
                     jdbc_tests(&jdbc_url, table_name).await;
                 }
@@ -1299,7 +1299,7 @@ async fn flightsql_jdbc_authz_token() {
                     // jdbc:arrow-flight-sql://localhost:8082?useEncryption=false&iox-namespace-name=26f7e5a4b7be365b_917b97a92e883afc
                     let jdbc_addr = querier_addr.replace("http://", "jdbc:arrow-flight-sql://");
                     let jdbc_url =
-                        format!("{jdbc_addr}?useEncryption=false&iox-namespace-name={namespace}&token={token}");
+                        format!("{jdbc_addr}?useEncryption=false&iox-namespace-name={namespace}&token={token}&iox-debug=true");
                     println!("jdbc_url {jdbc_url}");
                     jdbc_tests(&jdbc_url, table_name).await;
                 }
@@ -1368,7 +1368,7 @@ async fn flightsql_jdbc_authz_handshake() {
                     // jdbc:arrow-flight-sql://localhost:8082?useEncryption=false&iox-namespace-name=26f7e5a4b7be365b_917b97a92e883afc
                     let jdbc_addr = querier_addr.replace("http://", "jdbc:arrow-flight-sql://");
                     let jdbc_url =
-                        format!("{jdbc_addr}?useEncryption=false&iox-namespace-name={namespace}&user=&password={token}");
+                        format!("{jdbc_addr}?useEncryption=false&iox-namespace-name={namespace}&user=&password={token}&iox-debug=true");
                     println!("jdbc_url {jdbc_url}");
                     jdbc_tests(&jdbc_url, table_name).await;
                 }
@@ -1869,6 +1869,7 @@ fn flightsql_client_helper(cluster: &MiniCluster, header_name: &str) -> FlightSq
     // Add namespace to client headers until it is fully supported by FlightSQL
     let namespace = cluster.namespace();
     client.add_header(header_name, namespace).unwrap();
+    client.add_header("iox-debug", "true").unwrap();
 
     client
 }

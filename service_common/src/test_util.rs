@@ -61,7 +61,12 @@ impl QueryNamespaceProvider for TestDatabaseStore {
     type Db = TestDatabase;
 
     /// Retrieve the database specified name
-    async fn db(&self, name: &str, _span: Option<Span>) -> Option<Arc<Self::Db>> {
+    async fn db(
+        &self,
+        name: &str,
+        _span: Option<Span>,
+        _include_debug_info_tables: bool,
+    ) -> Option<Arc<Self::Db>> {
         let databases = self.databases.lock();
 
         databases.get(name).cloned()

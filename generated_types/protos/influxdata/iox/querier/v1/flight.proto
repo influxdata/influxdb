@@ -46,6 +46,16 @@ message ReadInfo {
     QUERY_TYPE_FLIGHT_SQL_MESSAGE = 3;
   }
 
+  // Do we present debug information to the user?
+  //
+  // Debug information are mostly features that are helpful to IOx developers but a unhelpful or even confusing to end
+  // users. One example are process-local query logs, which in most deployment scenarios will be inconsistent from a
+  // user PoV due to the routing layer that sits in front of the queriers.
+  //
+  // Note that debug information MUST NOT include security-relevant information. E.g. the process-local query log
+  // mentioned above MUST be namespace-scoped! So even a user hand-crafsts the `ReadInfo` message, they do NOT gain
+  // relevant information. The worst case is that their user experience will be suboptimal.
+  bool is_debug = 5;
 }
 
 // Message included in the DoGet response from the querier
