@@ -101,7 +101,6 @@ fn parse_predicate(predicate: &str) -> Result<Vec<DeleteExpr>> {
             let stmt = stmt.pop();
             match stmt {
                 Some(Statement::Delete {
-                    table_name: _,
                     selection: Some(expr),
                     ..
                 }) => {
