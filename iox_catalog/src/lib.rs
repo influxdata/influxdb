@@ -215,16 +215,33 @@ where
     {
         Some(table) => table,
         None => {
-            repos
+            // There is a possibility of a race condition here, if another request has also
+            // created this table after the `get_by_namespace_and_name` call but before
+            // this `create` call. In that (hopefully) rare case, do an additional fetch
+            // from the catalog for the record that should now exist.
+            let create_result = repos
                 .tables()
                 .create(
                     table_name,
                     TablePartitionTemplateOverride::from(namespace_partition_template),
                     namespace_id,
                 )
-                .await?
+                .await;
+            if let Err(Error::TableNameExists { .. }) = create_result {
+                repos
+                    .tables()
+                    .get_by_namespace_and_name(namespace_id, table_name)
+                    .await?
+                    .expect(
+                        "Table creation failed because the table exists, \
+                        so looking up the table should succeed",
+                    )
+            } else {
+                create_result?
+            }
         }
     };
+
     let mut table = TableSchema::new_empty_from(&table);
 
     // Always add a time column to all new tables.
