@@ -2876,6 +2876,66 @@ mod test {
             }
         }
 
+        /// Validate plans for multiple data sources in the `FROM` clause, including subqueries
+        #[test]
+        fn multiple_data_sources() {
+            // same table for each subquery
+            //
+            // ⚠️ Important
+            // The aggregate must be applied to the UNION of all instances of the cpu table
+            assert_snapshot!(plan("SELECT last(a) / last(b) FROM (SELECT mean(usage_idle) AS a FROM cpu), (SELECT mean(usage_user) AS b FROM cpu)"), @r###"
+            Sort: time ASC NULLS LAST [iox::measurement:Dictionary(Int32, Utf8), time:Timestamp(Nanosecond, None), last_last:Float64;N]
+              Projection: Dictionary(Int32, Utf8("cpu")) AS iox::measurement, TimestampNanosecond(0, None) AS time, coalesce((selector_last(a,time))[value] / (selector_last(b,time))[value], Float64(0)) AS last_last [iox::measurement:Dictionary(Int32, Utf8), time:Timestamp(Nanosecond, None), last_last:Float64;N]
+                Aggregate: groupBy=[[]], aggr=[[selector_last(a, time), selector_last(b, time)]] [selector_last(a,time):Struct([Field { name: "value", data_type: Float64, nullable: true, dict_id: 0, dict_is_ordered: false, metadata: {} }, Field { name: "time", data_type: Timestamp(Nanosecond, None), nullable: true, dict_id: 0, dict_is_ordered: false, metadata: {} }]);N, selector_last(b,time):Struct([Field { name: "value", data_type: Float64, nullable: true, dict_id: 0, dict_is_ordered: false, metadata: {} }, Field { name: "time", data_type: Timestamp(Nanosecond, None), nullable: true, dict_id: 0, dict_is_ordered: false, metadata: {} }]);N]
+                  Union [a:Float64;N, b:Float64;N, time:Timestamp(Nanosecond, None)]
+                    Projection: a AS a, CAST(NULL AS Float64) AS b, time AS time [a:Float64;N, b:Float64;N, time:Timestamp(Nanosecond, None)]
+                      Sort: time ASC NULLS LAST [time:Timestamp(Nanosecond, None), a:Float64;N]
+                        Projection: TimestampNanosecond(0, None) AS time, AVG(cpu.usage_idle) AS a [time:Timestamp(Nanosecond, None), a:Float64;N]
+                          Aggregate: groupBy=[[]], aggr=[[AVG(cpu.usage_idle)]] [AVG(cpu.usage_idle):Float64;N]
+                            TableScan: cpu [cpu:Dictionary(Int32, Utf8);N, host:Dictionary(Int32, Utf8);N, region:Dictionary(Int32, Utf8);N, time:Timestamp(Nanosecond, None), usage_idle:Float64;N, usage_system:Float64;N, usage_user:Float64;N]
+                    Projection: CAST(NULL AS Float64) AS a, b AS b, time AS time [a:Float64;N, b:Float64;N, time:Timestamp(Nanosecond, None)]
+                      Sort: time ASC NULLS LAST [time:Timestamp(Nanosecond, None), b:Float64;N]
+                        Projection: TimestampNanosecond(0, None) AS time, AVG(cpu.usage_user) AS b [time:Timestamp(Nanosecond, None), b:Float64;N]
+                          Aggregate: groupBy=[[]], aggr=[[AVG(cpu.usage_user)]] [AVG(cpu.usage_user):Float64;N]
+                            TableScan: cpu [cpu:Dictionary(Int32, Utf8);N, host:Dictionary(Int32, Utf8);N, region:Dictionary(Int32, Utf8);N, time:Timestamp(Nanosecond, None), usage_idle:Float64;N, usage_system:Float64;N, usage_user:Float64;N]
+            "###);
+
+            // aggregate with repeated table
+            //
+            // ⚠️ Important
+            // The aggregate must be applied to the UNION of all instances of the cpu table
+            assert_snapshot!(plan("SELECT last(usage_idle) FROM cpu, cpu"), @r###"
+            Sort: time ASC NULLS LAST [iox::measurement:Dictionary(Int32, Utf8), time:Timestamp(Nanosecond, None);N, last:Float64;N]
+              Projection: Dictionary(Int32, Utf8("cpu")) AS iox::measurement, (selector_last(usage_idle,time))[time] AS time, (selector_last(usage_idle,time))[value] AS last [iox::measurement:Dictionary(Int32, Utf8), time:Timestamp(Nanosecond, None);N, last:Float64;N]
+                Aggregate: groupBy=[[]], aggr=[[selector_last(usage_idle, time)]] [selector_last(usage_idle,time):Struct([Field { name: "value", data_type: Float64, nullable: true, dict_id: 0, dict_is_ordered: false, metadata: {} }, Field { name: "time", data_type: Timestamp(Nanosecond, None), nullable: true, dict_id: 0, dict_is_ordered: false, metadata: {} }]);N]
+                  Union [time:Timestamp(Nanosecond, None), usage_idle:Float64;N]
+                    Projection: cpu.time AS time, cpu.usage_idle AS usage_idle [time:Timestamp(Nanosecond, None), usage_idle:Float64;N]
+                      TableScan: cpu [cpu:Dictionary(Int32, Utf8);N, host:Dictionary(Int32, Utf8);N, region:Dictionary(Int32, Utf8);N, time:Timestamp(Nanosecond, None), usage_idle:Float64;N, usage_system:Float64;N, usage_user:Float64;N]
+                    Projection: cpu.time AS time, cpu.usage_idle AS usage_idle [time:Timestamp(Nanosecond, None), usage_idle:Float64;N]
+                      TableScan: cpu [cpu:Dictionary(Int32, Utf8);N, host:Dictionary(Int32, Utf8);N, region:Dictionary(Int32, Utf8);N, time:Timestamp(Nanosecond, None), usage_idle:Float64;N, usage_system:Float64;N, usage_user:Float64;N]
+            "###);
+
+            // different tables for each subquery
+            //
+            // ⚠️ Important
+            // The aggregate must be applied independently for each unique table
+            assert_snapshot!(plan("SELECT last(value) FROM (SELECT usage_idle AS value FROM cpu), (SELECT bytes_free AS value FROM disk)"), @r###"
+            Sort: iox::measurement ASC NULLS LAST, time ASC NULLS LAST [iox::measurement:Dictionary(Int32, Utf8), time:Timestamp(Nanosecond, None);N, last:Float64;N]
+              Union [iox::measurement:Dictionary(Int32, Utf8), time:Timestamp(Nanosecond, None);N, last:Float64;N]
+                Projection: Dictionary(Int32, Utf8("cpu")) AS iox::measurement, (selector_last(value,time))[time] AS time, (selector_last(value,time))[value] AS last [iox::measurement:Dictionary(Int32, Utf8), time:Timestamp(Nanosecond, None);N, last:Float64;N]
+                  Aggregate: groupBy=[[]], aggr=[[selector_last(value, time)]] [selector_last(value,time):Struct([Field { name: "value", data_type: Float64, nullable: true, dict_id: 0, dict_is_ordered: false, metadata: {} }, Field { name: "time", data_type: Timestamp(Nanosecond, None), nullable: true, dict_id: 0, dict_is_ordered: false, metadata: {} }]);N]
+                    Sort: time ASC NULLS LAST [time:Timestamp(Nanosecond, None), value:Float64;N]
+                      Projection: cpu.time AS time, cpu.usage_idle AS value [time:Timestamp(Nanosecond, None), value:Float64;N]
+                        TableScan: cpu [cpu:Dictionary(Int32, Utf8);N, host:Dictionary(Int32, Utf8);N, region:Dictionary(Int32, Utf8);N, time:Timestamp(Nanosecond, None), usage_idle:Float64;N, usage_system:Float64;N, usage_user:Float64;N]
+                Projection: Dictionary(Int32, Utf8("disk")) AS iox::measurement, (selector_last(value,time))[time] AS time, (selector_last(value,time))[value] AS last [iox::measurement:Dictionary(Int32, Utf8), time:Timestamp(Nanosecond, None);N, last:Float64;N]
+                  Aggregate: groupBy=[[]], aggr=[[selector_last(CAST(value AS Float64), time)]] [selector_last(value,time):Struct([Field { name: "value", data_type: Float64, nullable: true, dict_id: 0, dict_is_ordered: false, metadata: {} }, Field { name: "time", data_type: Timestamp(Nanosecond, None), nullable: true, dict_id: 0, dict_is_ordered: false, metadata: {} }]);N]
+                    Sort: time ASC NULLS LAST [time:Timestamp(Nanosecond, None), value:Int64;N]
+                      Projection: disk.time AS time, disk.bytes_free AS value [time:Timestamp(Nanosecond, None), value:Int64;N]
+                        TableScan: disk [bytes_free:Int64;N, bytes_used:Int64;N, device:Dictionary(Int32, Utf8);N, host:Dictionary(Int32, Utf8);N, region:Dictionary(Int32, Utf8);N, time:Timestamp(Nanosecond, None)]
+            "###);
+        }
+
+
         #[test]
         fn test_time_column() {
             // validate time column is explicitly projected
