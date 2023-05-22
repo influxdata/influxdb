@@ -21,7 +21,7 @@ use influxdb_influxql_parser::select::{
 };
 use itertools::Itertools;
 use schema::InfluxColumnType;
-use std::collections::{HashMap, HashSet};
+use std::collections::{BTreeSet, HashMap, HashSet};
 use std::fmt::Debug;
 use std::ops::{ControlFlow, Deref, DerefMut};
 
@@ -40,22 +40,19 @@ pub(super) fn rewrite_statement(
 
 /// Find the unique list of tables used by `s`, recursively following all `FROM` clauses and
 /// return the results in lexicographically in ascending order.
-pub(super) fn find_table_names(s: &Select) -> Vec<&str> {
+pub(super) fn find_table_names(s: &Select) -> BTreeSet<&str> {
     let mut data_sources = vec![s.from.as_slice()];
-    let mut tables = Vec::new();
+    let mut tables = BTreeSet::new();
     while let Some(from) = data_sources.pop() {
         for ds in from {
             match ds {
                 DataSource::Table(name) => {
-                    if !tables.contains(&name.as_str()) {
-                        tables.push(name.as_str())
-                    }
+                    tables.insert(name.as_str());
                 }
                 DataSource::Subquery(q) => data_sources.push(q.from.as_slice()),
             }
         }
     }
-    tables.sort();
     tables
 }
 
@@ -1531,22 +1528,27 @@ mod test {
             rewrite_select(&namespace, &select).unwrap()
         };
 
+        /// Return `find_table_names` as a `Vec` for tests.
+        fn find_table_names_vec(s: &Select) -> Vec<&str> {
+            find_table_names(s).into_iter().collect()
+        }
+
         let s = parse_select("SELECT usage_idle FROM cpu");
-        assert_eq!(find_table_names(&s), &["cpu"]);
+        assert_eq!(find_table_names_vec(&s), &["cpu"]);
 
         let s = parse_select("SELECT usage_idle FROM cpu, disk");
-        assert_eq!(find_table_names(&s), &["cpu", "disk"]);
+        assert_eq!(find_table_names_vec(&s), &["cpu", "disk"]);
 
         let s = parse_select("SELECT usage_idle FROM disk, cpu, disk");
-        assert_eq!(find_table_names(&s), &["cpu", "disk"]);
+        assert_eq!(find_table_names_vec(&s), &["cpu", "disk"]);
 
         // subqueries
 
         let s = parse_select("SELECT usage_idle FROM (select * from cpu, disk)");
-        assert_eq!(find_table_names(&s), &["cpu", "disk"]);
+        assert_eq!(find_table_names_vec(&s), &["cpu", "disk"]);
 
         let s = parse_select("SELECT usage_idle FROM cpu, (select * from cpu, disk)");
-        assert_eq!(find_table_names(&s), &["cpu", "disk"]);
+        assert_eq!(find_table_names_vec(&s), &["cpu", "disk"]);
     }
 
     #[test]

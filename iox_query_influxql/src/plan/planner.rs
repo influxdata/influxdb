@@ -72,7 +72,7 @@ use schema::{
     InfluxColumnType, InfluxFieldType, Schema, INFLUXQL_MEASUREMENT_COLUMN_NAME,
     INFLUXQL_METADATA_KEY,
 };
-use std::collections::HashSet;
+use std::collections::{BTreeSet, HashSet};
 use std::fmt::Debug;
 use std::iter;
 use std::ops::{Bound, ControlFlow, Deref, Range};
@@ -2271,15 +2271,13 @@ fn add_time_restriction(plan: LogicalPlan, cutoff: MetadataCutoff) -> Result<Log
 
 /// Find distinct occurrences of `Expr::VarRef` expressions for
 /// the `select`.
-fn find_var_refs(select: &Select) -> Vec<&VarRef> {
-    let mut var_refs = Vec::new();
+fn find_var_refs(select: &Select) -> BTreeSet<&VarRef> {
+    let mut var_refs = BTreeSet::new();
 
     for f in &select.fields {
         walk_expr(&f.expr, &mut |e| {
             if let IQLExpr::VarRef(vr) = e {
-                if !var_refs.contains(&vr) {
-                    var_refs.push(vr);
-                }
+                var_refs.insert(vr);
             }
             ControlFlow::<()>::Continue(())
         });
@@ -2289,9 +2287,7 @@ fn find_var_refs(select: &Select) -> Vec<&VarRef> {
         walk_expression(condition, &mut |e| match e {
             Expression::Arithmetic(e) => walk_expr(e, &mut |e| {
                 if let IQLExpr::VarRef(vr) = e {
-                    if !var_refs.contains(&vr) {
-                        var_refs.push(vr);
-                    }
+                    var_refs.insert(vr);
                 }
                 ControlFlow::<()>::Continue(())
             }),
@@ -2301,13 +2297,9 @@ fn find_var_refs(select: &Select) -> Vec<&VarRef> {
 
     if let Some(group_by) = &select.group_by {
         for vr in group_by.tags() {
-            if !var_refs.contains(&vr) {
-                var_refs.push(vr);
-            }
+            var_refs.insert(vr);
         }
     }
-
-    var_refs.sort();
 
     var_refs
 }
