@@ -8,7 +8,11 @@
     clippy::todo,
     clippy::use_self,
     missing_debug_implementations,
+    unused_crate_dependencies
 )]
+
+// Workaround for "unused crate" lint false positives.
+use workspace_hack as _;
 
 use arrow_flight::flight_service_server::FlightServiceServer;
 use async_trait::async_trait;

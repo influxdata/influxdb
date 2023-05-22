@@ -11,8 +11,12 @@
     clippy::todo,
     clippy::use_self,
     missing_debug_implementations,
+    unused_crate_dependencies
 )]
 #![allow(clippy::derive_partial_eq_without_eq, clippy::needless_borrow)]
+
+// Workaround for "unused crate" lint false positives.
+use workspace_hack as _;
 
 use crate::influxdata::iox::ingester::v1 as proto;
 use base64::{prelude::BASE64_STANDARD, Engine};

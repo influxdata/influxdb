@@ -11,7 +11,11 @@
     clippy::use_self,
     missing_debug_implementations,
     // Allow missing docs - there's lots missing!
+    unused_crate_dependencies
 )]
+
+// Workaround for "unused crate" lint false positives.
+use workspace_hack as _;
 
 mod cmd;
 mod error;

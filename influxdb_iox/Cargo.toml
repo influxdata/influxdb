@@ -96,9 +96,9 @@ insta = { version = "1", features = ["yaml"] }
 [features]
 default = ["jemalloc_replacing_malloc"]
 
-azure = ["clap_blocks/azure", "import_export/azure"] # Optional Azure Object store support
-gcp = ["clap_blocks/gcp", "import_export/gcp"] # Optional GCP object store support
-aws = ["clap_blocks/aws", "import_export/aws"] # Optional AWS / S3 object store support
+azure = ["clap_blocks/azure"] # Optional Azure Object store support
+gcp = ["clap_blocks/gcp"] # Optional GCP object store support
+aws = ["clap_blocks/aws"] # Optional AWS / S3 object store support
 pprof = ["ioxd_common/pprof"] # Optional http://localhost:8080/debug/pprof/profile support
 heappy = ["ioxd_common/heappy"] # Optional http://localhost:8080/debug/pproc/alloc support
 

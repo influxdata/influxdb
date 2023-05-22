@@ -200,9 +200,13 @@
     clippy::use_self,
     clippy::clone_on_ref_ptr,
     clippy::todo,
-    clippy::dbg_macro
+    clippy::dbg_macro,
+    unused_crate_dependencies
 )]
 #![allow(rustdoc::private_intra_doc_links)]
+
+// Workaround for "unused crate" lint false positives.
+use workspace_hack as _;
 
 pub mod compactor;
 mod components;

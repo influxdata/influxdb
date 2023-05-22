@@ -8,7 +8,6 @@ license.workspace = true
 [dependencies]
 # Workspace dependencies, in alphabetical order
 authz = { path = "../authz" }
-arrow_util = { path = "../arrow_util" }
 data_types = { path = "../data_types" }
 datafusion = { workspace = true }
 flightsql = { path = "../flightsql" }
@@ -23,17 +22,17 @@ tracker = { path = "../tracker" }
 # Crates.io dependencies, in alphabetical order
 arrow = { workspace = true, features = ["prettyprint"] }
 arrow-flight = { workspace = true, features=["flight-sql-experimental"] }
-async-trait = "0.1"
 bytes = "1.4"
 futures = "0.3"
 prost = "0.11"
 serde = { version = "1.0", features = ["derive"] }
 serde_json = "1.0.96"
 snafu = "0.7"
-tokio = { version = "1.28", features = ["macros", "net", "parking_lot", "rt-multi-thread", "signal", "sync", "time"] }
 tonic = { workspace = true }
 workspace-hack = { version = "0.1", path = "../workspace-hack" }
 
 [dev-dependencies]
-metric = { path = "../metric" }
 assert_matches = "1"
+async-trait = "0.1"
+metric = { path = "../metric" }
+tokio = { version = "1.28", features = ["macros", "net", "parking_lot", "rt-multi-thread", "signal", "sync", "time"] }

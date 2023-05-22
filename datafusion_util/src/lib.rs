@@ -5,7 +5,8 @@
     clippy::clone_on_ref_ptr,
     rustdoc::broken_intra_doc_links,
     rustdoc::bare_urls,
-    rust_2018_idioms
+    rust_2018_idioms,
+    unused_crate_dependencies
 )]
 #![allow(clippy::clone_on_ref_ptr)]
 
@@ -17,6 +18,9 @@
 //! For example, check out
 //! [datafusion_optimizer::utils](https://docs.rs/datafusion-optimizer/13.0.0/datafusion_optimizer/utils/index.html)
 //! for expression manipulation functions.
+
+// Workaround for "unused crate" lint false positives.
+use workspace_hack as _;
 
 pub mod config;
 pub mod sender;

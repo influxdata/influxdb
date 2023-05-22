@@ -7,8 +7,18 @@
     clippy::future_not_send,
     clippy::clone_on_ref_ptr,
     clippy::todo,
-    clippy::dbg_macro
+    clippy::dbg_macro,
+    unused_crate_dependencies
 )]
+
+// Workaround for "unused crate" lint false positives.
+#[cfg(test)]
+use once_cell as _;
+#[cfg(test)]
+use parking_lot as _;
+#[cfg(test)]
+use regex as _;
+use workspace_hack as _;
 
 use observability_deps::tracing::{
     self,

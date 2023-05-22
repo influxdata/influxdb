@@ -12,7 +12,11 @@
     clippy::clone_on_ref_ptr,
     clippy::todo,
     clippy::dbg_macro,
+    unused_crate_dependencies
 )]
+
+// Workaround for "unused crate" lint false positives.
+use workspace_hack as _;
 
 /// `[0x00]` is the magic value that that the storage gRPC layer uses to
 /// encode a tag_key that means "measurement name"

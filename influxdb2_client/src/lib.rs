@@ -10,7 +10,8 @@
     // See https://github.com/influxdata/influxdb_iox/pull/1671
     clippy::future_not_send,
     clippy::todo,
-    clippy::dbg_macro
+    clippy::dbg_macro,
+    unused_crate_dependencies
 )]
 
 //! # influxdb2_client
@@ -66,6 +67,14 @@
 //!     Ok(())
 //! }
 //! ```
+
+// Workaround for "unused crate" lint false positives.
+#[cfg(test)]
+use once_cell as _;
+#[cfg(test)]
+use parking_lot as _;
+#[cfg(test)]
+use test_helpers as _;
 
 use reqwest::Method;
 use snafu::Snafu;

@@ -14,9 +14,14 @@
     // See https://github.com/influxdata/influxdb_iox/pull/1671
     clippy::future_not_send,
     clippy::todo,
-    clippy::dbg_macro
+    clippy::dbg_macro,
+    unused_crate_dependencies
 )]
 #![allow(clippy::missing_docs_in_private_items)]
+
+// Workaround for "unused crate" lint false positives.
+use clap as _;
+use workspace_hack as _;
 
 use crate::{
     objectstore::{checker as os_checker, deleter as os_deleter, lister as os_lister},

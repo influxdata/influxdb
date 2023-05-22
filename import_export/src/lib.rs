@@ -6,8 +6,12 @@
     clippy::explicit_iter_loop,
     clippy::use_self,
     clippy::clone_on_ref_ptr,
-    clippy::future_not_send
+    clippy::future_not_send,
+    unused_crate_dependencies
 )]
+
+// Workaround for "unused crate" lint false positives.
+use workspace_hack as _;
 
 /// Import/Export data to files
 pub mod file;

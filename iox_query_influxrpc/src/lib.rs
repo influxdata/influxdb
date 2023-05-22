@@ -11,7 +11,11 @@
     clippy::use_self,
     missing_copy_implementations,
     missing_debug_implementations,
+    unused_crate_dependencies
 )]
+
+// Workaround for "unused crate" lint false positives.
+use workspace_hack as _;
 
 use arrow::datatypes::DataType;
 use data_types::ChunkId;

@@ -1,3 +1,8 @@
+#![warn(unused_crate_dependencies)]
+
+// Workaround for "unused crate" lint false positives.
+use workspace_hack as _;
+
 use rand::{
     distributions::{Alphanumeric, Standard},
     thread_rng, Rng,

@@ -10,8 +10,12 @@
     clippy::use_self,
     missing_copy_implementations,
     missing_debug_implementations,
-    missing_docs
+    missing_docs,
+    unused_crate_dependencies
 )]
+
+// Workaround for "unused crate" lint false positives.
+use workspace_hack as _;
 
 use std::{collections::HashMap, sync::Arc, time::Duration};
 

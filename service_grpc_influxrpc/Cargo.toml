@@ -15,7 +15,6 @@ observability_deps = { path = "../observability_deps" }
 predicate = { path = "../predicate" }
 iox_query = { path = "../iox_query" }
 query_functions = { path = "../query_functions"}
-schema = { path = "../schema" }
 service_common = { path = "../service_common" }
 trace = { path = "../trace"}
 trace_http = { path = "../trace_http"}
@@ -23,7 +22,6 @@ tracker = { path = "../tracker" }
 
 # Crates.io dependencies, in alphabetical order
 arrow = { workspace = true, features = ["prettyprint"] }
-async-trait = "0.1"
 futures = "0.3"
 pin-project = "1.1"
 prost = "0.11"
@@ -31,7 +29,6 @@ regex = "1.8.2"
 serde = { version = "1.0", features = ["derive"] }
 serde_json = "1.0.96"
 snafu = "0.7"
-tokio = { version = "1.28", features = ["macros", "net", "parking_lot", "rt-multi-thread", "signal", "sync", "time"] }
 tokio-stream = { version = "0.1", features = ["net"] }
 tonic = { workspace = true }
 workspace-hack = { version = "0.1", path = "../workspace-hack" }
@@ -43,10 +40,11 @@ influxdb_storage_client = { path = "../influxdb_storage_client" }
 metric = { path = "../metric" }
 panic_logging = { path = "../panic_logging" }
 procspawn = { version = "0.10", default-features = false, features = ["test-support", "safe-shared-libraries"] }
+schema = { path = "../schema" }
+service_grpc_testing = { path = "../service_grpc_testing" }
 test_helpers = { path = "../test_helpers" }
 trace_http = { path = "../trace_http" }
-service_grpc_testing = { path = "../service_grpc_testing" }
 
 # Crates.io dependencies, in alphabetical order
 parking_lot = "0.12"
-serde_urlencoded = "0.7.0"
+tokio = { version = "1.28", features = ["macros", "net", "parking_lot", "rt-multi-thread", "signal", "sync", "time"] }
