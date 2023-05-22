@@ -1,6 +1,19 @@
 //! Implements the InfluxDB IOx Flight API and Arrow FlightSQL, based
 //! on Arrow Flight and gRPC. See [`FlightService`] for full detail.
 
+#![deny(rustdoc::broken_intra_doc_links, rustdoc::bare_urls, rust_2018_idioms)]
+#![allow(clippy::clone_on_ref_ptr)]
+#![warn(
+    missing_copy_implementations,
+    missing_debug_implementations,
+    clippy::explicit_iter_loop,
+    // See https://github.com/influxdata/influxdb_iox/pull/1671
+    clippy::future_not_send,
+    clippy::clone_on_ref_ptr,
+    clippy::todo,
+    clippy::dbg_macro,
+)]
+
 mod request;
 
 use arrow::error::ArrowError;
@@ -1115,7 +1128,7 @@ mod tests {
     #[tokio::test]
     async fn do_get_authz() {
         let test_storage = Arc::new(TestDatabaseStore::default());
-        test_storage.clone().db_or_create("bananas").await;
+        test_storage.db_or_create("bananas").await;
 
         let svc = FlightService {
             server: Arc::clone(&test_storage),
@@ -1217,7 +1230,7 @@ mod tests {
     #[tokio::test]
     async fn get_flight_info_authz() {
         let test_storage = Arc::new(TestDatabaseStore::default());
-        test_storage.clone().db_or_create("bananas").await;
+        test_storage.db_or_create("bananas").await;
 
         let svc = FlightService {
             server: Arc::clone(&test_storage),
