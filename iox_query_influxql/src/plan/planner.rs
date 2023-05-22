@@ -2269,7 +2269,7 @@ fn add_time_restriction(plan: LogicalPlan, cutoff: MetadataCutoff) -> Result<Log
     }
 }
 
-/// Find distinct occurrences of [`Expr::VarRef`] expressions for
+/// Find distinct occurrences of `Expr::VarRef` expressions for
 /// the `select`.
 fn find_var_refs(select: &Select) -> Vec<&VarRef> {
     let mut var_refs = Vec::new();
