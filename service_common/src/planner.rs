@@ -18,10 +18,10 @@ use predicate::rpc_predicate::InfluxRpcPredicate;
 
 /// Query planner that plans queries on a separate threadpool.
 ///
-/// Query planning was, at time of writing, a single threaded
-/// affair. In order to avoid tying up the tokio executor that is
-/// handling API requests, IOx plan queries using a separate thread
-/// pool.
+/// Query planning was, at time of writing, a single threaded affair. In order
+/// to avoid tying up the tokio executor that is handling API requests, IOx plan
+/// queries using a separate thread pool.
+#[derive(Debug)]
 pub struct Planner {
     /// Executors (whose threadpool to use)
     ctx: IOxSessionContext,
@@ -62,12 +62,11 @@ impl Planner {
             .await
     }
 
-    /// Creates a plan for a `DoGet` FlightSQL message,
-    /// as described on [`FlightSQLPlanner::do_get`], on a
-    /// separate threadpool
+    /// Creates a plan for a `DoGet` FlightSQL message, as described on
+    /// [`FlightSQLPlanner::do_get`], on a separate threadpool
     pub async fn flight_sql_do_get<N>(
         &self,
-        namespace_name: impl Into<String>,
+        namespace_name: impl Into<String> + Send,
         namespace: Arc<N>,
         cmd: FlightSQLCommand,
     ) -> Result<Arc<dyn ExecutionPlan>>
@@ -86,12 +85,11 @@ impl Planner {
             .await
     }
 
-    /// Creates a plan for a `DoAction` FlightSQL message,
-    /// as described on [`FlightSQLPlanner::do_action`], on a
-    /// separate threadpool
+    /// Creates a plan for a `DoAction` FlightSQL message, as described on
+    /// [`FlightSQLPlanner::do_action`], on a separate threadpool
     pub async fn flight_sql_do_action<N>(
         &self,
-        namespace_name: impl Into<String>,
+        namespace_name: impl Into<String> + Send,
         namespace: Arc<N>,
         cmd: FlightSQLCommand,
     ) -> Result<Bytes>
@@ -110,12 +108,12 @@ impl Planner {
             .await
     }
 
-    /// Creates the response for a `GetFlightInfo`  FlightSQL  message
-    /// as described on [`FlightSQLPlanner::get_flight_info`], on a
-    /// separate threadpool.
+    /// Creates the response for a `GetFlightInfo`  FlightSQL  message as
+    /// described on [`FlightSQLPlanner::get_flight_info`], on a separate
+    /// threadpool.
     pub async fn flight_sql_get_flight_info(
         &self,
-        namespace_name: impl Into<String>,
+        namespace_name: impl Into<String> + Send,
         cmd: FlightSQLCommand,
     ) -> Result<Bytes> {
         let namespace_name = namespace_name.into();
@@ -130,8 +128,8 @@ impl Planner {
             .await
     }
 
-    /// Creates a plan as described on
-    /// [`InfluxRpcPlanner::table_names`], on a separate threadpool
+    /// Creates a plan as described on [`InfluxRpcPlanner::table_names`], on a
+    /// separate threadpool
     pub async fn table_names<N>(
         &self,
         namespace: Arc<N>,
@@ -152,8 +150,8 @@ impl Planner {
             .await
     }
 
-    /// Creates a plan as described on
-    /// [`InfluxRpcPlanner::tag_keys`], on a separate threadpool
+    /// Creates a plan as described on [`InfluxRpcPlanner::tag_keys`], on a
+    /// separate threadpool
     pub async fn tag_keys<N>(
         &self,
         namespace: Arc<N>,
@@ -174,8 +172,8 @@ impl Planner {
             .await
     }
 
-    /// Creates a plan as described on
-    /// [`InfluxRpcPlanner::tag_values`], on a separate threadpool
+    /// Creates a plan as described on [`InfluxRpcPlanner::tag_values`], on a
+    /// separate threadpool
     pub async fn tag_values<N>(
         &self,
         namespace: Arc<N>,
@@ -198,8 +196,8 @@ impl Planner {
             .await
     }
 
-    /// Creates a plan as described on
-    /// [`InfluxRpcPlanner::field_columns`], on a separate threadpool
+    /// Creates a plan as described on [`InfluxRpcPlanner::field_columns`], on a
+    /// separate threadpool
     pub async fn field_columns<N>(
         &self,
         namespace: Arc<N>,
@@ -220,8 +218,8 @@ impl Planner {
             .await
     }
 
-    /// Creates a plan as described on
-    /// [`InfluxRpcPlanner::read_filter`], on a separate threadpool
+    /// Creates a plan as described on [`InfluxRpcPlanner::read_filter`], on a
+    /// separate threadpool
     pub async fn read_filter<N>(
         &self,
         namespace: Arc<N>,
@@ -242,8 +240,8 @@ impl Planner {
             .await
     }
 
-    /// Creates a plan as described on
-    /// [`InfluxRpcPlanner::read_group`], on a separate threadpool
+    /// Creates a plan as described on [`InfluxRpcPlanner::read_group`], on a
+    /// separate threadpool
     pub async fn read_group<N>(
         &self,
         namespace: Arc<N>,
