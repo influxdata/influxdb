@@ -308,7 +308,7 @@ enum InfluxCode {
 }
 
 impl Display for InfluxCode {
-    fn fmt(&self, f: &mut Formatter) -> FmtResult {
+    fn fmt(&self, f: &mut Formatter<'_>) -> FmtResult {
         let str = match self {
             InfluxCode::EInternal => "internal error",
             InfluxCode::ENotFound => "not found",
@@ -1705,7 +1705,7 @@ pub fn make_response<S, T, E>(
     permit: InstrumentedAsyncOwnedSemaphorePermit,
 ) -> Result<Response<StreamWithPermit<QueryCompletedTokenStream<S, T, E>>>, Status>
 where
-    S: Stream<Item = Result<T, E>> + Unpin,
+    S: Stream<Item = Result<T, E>> + Unpin + Send,
 {
     let mut response = Response::new(StreamWithPermit::new(
         QueryCompletedTokenStream::new(stream, token),

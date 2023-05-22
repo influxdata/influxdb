@@ -456,6 +456,7 @@ impl InListBuilder {
 /// Decoded special tag key.
 ///
 /// The storage gRPC layer uses magic special bytes to encode measurement name and field name as tag
+#[derive(Debug)]
 pub enum DecodedTagKey {
     Measurement,
     Field,
