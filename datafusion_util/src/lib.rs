@@ -1,4 +1,12 @@
-#![deny(rustdoc::broken_intra_doc_links, rustdoc::bare_urls, rust_2018_idioms)]
+#![deny(
+    clippy::future_not_send,
+    clippy::todo,
+    clippy::dbg_macro,
+    clippy::clone_on_ref_ptr,
+    rustdoc::broken_intra_doc_links,
+    rustdoc::bare_urls,
+    rust_2018_idioms
+)]
 #![allow(clippy::clone_on_ref_ptr)]
 
 //! This module contains various DataFusion utility functions.
