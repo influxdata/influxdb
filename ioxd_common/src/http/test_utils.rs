@@ -83,6 +83,7 @@ pub fn get_content_type(response: &Result<reqwest::Response, reqwest::Error>) ->
     }
 }
 
+#[derive(Debug)]
 pub struct TestServer<M>
 where
     M: ServerType,
