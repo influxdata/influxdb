@@ -74,7 +74,8 @@ fn decode_and_write_entries<W: NamespacedBatchWriter>(
     decoder: WriteOpEntryDecoder,
     mut writer: W,
 ) -> Result<(), Error> {
-    let mut incomplete_write = false;
+    let mut write_errors = vec![];
+
     for (wal_entry_number, entry_batch) in decoder.enumerate() {
         for (write_op_number, entry) in entry_batch?.into_iter().enumerate() {
             let namespace_id = entry.namespace;
@@ -82,19 +83,22 @@ fn decode_and_write_entries<W: NamespacedBatchWriter>(
             writer
                 .write_namespaced_table_batches(entry.namespace, entry.table_batches)
                 .unwrap_or_else(|err| {
-                    incomplete_write = true;
                     error!(
                         %namespace_id,
                         %wal_entry_number,
                         %write_op_number,
                         %err,
                         "failed to rewrite table batches for write op");
+                    write_errors.push(err);
                 });
         }
     }
 
-    if incomplete_write {
-        return Err(Error::UnableToFullyRegenerateLineProtocol);
+    if !write_errors.is_empty() {
+        Err(Error::UnableToFullyRegenerateLineProtocol {
+            sources: write_errors,
+        })
+    } else {
+        Ok(())
     }
-    Ok(())
 }

@@ -14,8 +14,12 @@ pub enum Error {
     #[error("failed to decode write entries from the WAL file: {0}")]
     FailedToDecodeWriteOpEntry(#[from] wal::DecodeError),
 
-    #[error("unable to fully regenerate line protocol writes from WAL file")]
-    UnableToFullyRegenerateLineProtocol,
+    #[error(
+        "failures encountered while regenerating line protocol writes from WAL file: {sources:?}"
+    )]
+    UnableToFullyRegenerateLineProtocol {
+        sources: Vec<wal_inspect::WriteError>,
+    },
 
     #[error("i/o failure: {0}")]
     IoFailure(#[from] std::io::Error),
