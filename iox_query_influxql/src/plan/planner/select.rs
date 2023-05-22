@@ -80,16 +80,7 @@ pub(super) fn plan_with_sort(
         schema: &'a DFSchemaRef,
         fields: &'a [&str],
     ) -> impl Iterator<Item = Expr> + 'a {
-        fields
-            .iter()
-            .filter(|f| {
-                if let Ok(df) = schema.field_with_unqualified_name(f) {
-                    *df.data_type() != DataType::Null
-                } else {
-                    false
-                }
-            })
-            .map(|f| Expr::sort(f.as_expr(), true, false))
+        fields_to_exprs_no_nulls(schema, fields).map(|f| Expr::sort(f, true, false))
     }
 
     let schema = plan.schema();
