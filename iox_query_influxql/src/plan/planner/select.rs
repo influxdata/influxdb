@@ -8,7 +8,6 @@ use influxdb_influxql_parser::expression::{Expr as IQLExpr, VarRef, VarRefDataTy
 use itertools::Itertools;
 use schema::{InfluxColumnType, INFLUXQL_MEASUREMENT_COLUMN_NAME};
 use std::collections::{HashMap, HashSet};
-use std::ops::Deref;
 
 pub(super) fn make_tag_key_column_meta(
     fields: &[Field],
@@ -28,7 +27,7 @@ pub(super) fn make_tag_key_column_meta(
             IQLExpr::VarRef(VarRef {
                 name,
                 data_type: Some(VarRefDataType::Tag) | None,
-            }) => Some((name.deref().as_str(), index + START_INDEX)),
+            }) => Some((name.as_str(), index + START_INDEX)),
             _ => None,
         })
         .collect::<HashMap<_, _>>();

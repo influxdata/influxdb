@@ -188,7 +188,7 @@ impl<'a> Context<'a> {
             (false, None) => self.root_group_by_tags.to_vec(),
             (_, Some(group_by)) => group_by
                 .tag_names()
-                .map(|ident| ident.deref().as_str())
+                .map(|ident| ident.as_str())
                 .chain(self.root_group_by_tags.iter().copied())
                 .sorted()
                 .dedup()
@@ -1007,7 +1007,7 @@ impl<'a> InfluxQLToLogicalPlan<'a> {
                 name,
                 data_type: opt_dst_type,
             }) => {
-                Ok(match (ctx.scope, name.deref().as_str()) {
+                Ok(match (ctx.scope, name.as_str()) {
                     // Per the Go implementation, the time column is case-insensitive in the
                     // `WHERE` clause and disregards any postfix type cast operator.
                     //
