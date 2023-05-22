@@ -38,7 +38,9 @@ pub(super) fn rewrite_statement(
     Ok(SelectQuery { select })
 }
 
-pub(super) fn find_tables(s: &Select) -> Vec<&str> {
+/// Find the unique list of tables used by `s`, recursively following all `FROM` clauses and
+/// return the results in lexicographically in ascending order.
+pub(super) fn find_table_names(s: &Select) -> Vec<&str> {
     let mut data_sources = vec![s.from.as_slice()];
     let mut tables = Vec::new();
     while let Some(from) = data_sources.pop() {
@@ -1512,7 +1514,7 @@ mod test {
     use super::Result;
     use crate::plan::ir::{Field, Select};
     use crate::plan::rewriter::{
-        find_tables, has_wildcards, rewrite_select, rewrite_statement, ProjectionType,
+        find_table_names, has_wildcards, rewrite_select, rewrite_statement, ProjectionType,
         SelectStatementInfo,
     };
     use crate::plan::test_utils::{parse_select, MockSchemaProvider};
@@ -1522,7 +1524,7 @@ mod test {
     use test_helpers::{assert_contains, assert_error};
 
     #[test]
-    fn test_find_tables() {
+    fn test_find_table_names() {
         let namespace = MockSchemaProvider::default();
         let parse_select = |s: &str| -> Select {
             let select = parse_select(s);
@@ -1530,21 +1532,21 @@ mod test {
         };
 
         let s = parse_select("SELECT usage_idle FROM cpu");
-        assert_eq!(find_tables(&s), &["cpu"]);
+        assert_eq!(find_table_names(&s), &["cpu"]);
 
         let s = parse_select("SELECT usage_idle FROM cpu, disk");
-        assert_eq!(find_tables(&s), &["cpu", "disk"]);
+        assert_eq!(find_table_names(&s), &["cpu", "disk"]);
 
         let s = parse_select("SELECT usage_idle FROM disk, cpu, disk");
-        assert_eq!(find_tables(&s), &["cpu", "disk"]);
+        assert_eq!(find_table_names(&s), &["cpu", "disk"]);
 
         // subqueries
 
         let s = parse_select("SELECT usage_idle FROM (select * from cpu, disk)");
-        assert_eq!(find_tables(&s), &["cpu", "disk"]);
+        assert_eq!(find_table_names(&s), &["cpu", "disk"]);
 
         let s = parse_select("SELECT usage_idle FROM cpu, (select * from cpu, disk)");
-        assert_eq!(find_tables(&s), &["cpu", "disk"]);
+        assert_eq!(find_table_names(&s), &["cpu", "disk"]);
     }
 
     #[test]
