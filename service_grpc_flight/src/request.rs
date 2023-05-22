@@ -79,6 +79,7 @@ pub type Result<T, E = Error> = std::result::Result<T, E>;
 pub struct IoxGetRequest {
     namespace_name: String,
     query: RunQuery,
+    is_debug: bool,
 }
 
 #[derive(Debug, PartialEq, Clone)]
@@ -115,10 +116,11 @@ impl Display for RunQuery {
 
 impl IoxGetRequest {
     /// Create a new request to run the specified query
-    pub fn new(namespace_name: impl Into<String>, query: RunQuery) -> Self {
+    pub fn new(namespace_name: impl Into<String>, query: RunQuery, is_debug: bool) -> Self {
         Self {
             namespace_name: namespace_name.into(),
             query,
+            is_debug,
         }
     }
 
@@ -142,6 +144,7 @@ impl IoxGetRequest {
         let Self {
             namespace_name,
             query,
+            is_debug,
         } = self;
 
         let read_info = match query {
@@ -150,6 +153,7 @@ impl IoxGetRequest {
                 sql_query,
                 query_type: QueryType::Sql.into(),
                 flightsql_command: vec![],
+                is_debug,
             },
             RunQuery::InfluxQL(influxql) => proto::ReadInfo {
                 namespace_name,
@@ -157,6 +161,7 @@ impl IoxGetRequest {
                 sql_query: influxql,
                 query_type: QueryType::InfluxQl.into(),
                 flightsql_command: vec![],
+                is_debug,
             },
             RunQuery::FlightSQL(flightsql_command) => proto::ReadInfo {
                 namespace_name,
@@ -166,6 +171,7 @@ impl IoxGetRequest {
                     .try_encode()
                     .context(FlightSQLSnafu)?
                     .into(),
+                is_debug,
             },
         };
 
@@ -188,12 +194,15 @@ impl IoxGetRequest {
             sql_query: String,
             // If query type is not supplied, defaults to SQL
             query_type: Option<String>,
+            #[serde(default = "Default::default")]
+            is_debug: bool,
         }
 
         let ReadInfoJson {
             namespace_name,
             sql_query,
             query_type,
+            is_debug,
         } = serde_json::from_str(&json_str).map_err(|e| format!("JSON parse error: {e}"))?;
 
         let query = if let Some(query_type) = query_type {
@@ -214,6 +223,7 @@ impl IoxGetRequest {
         Ok(Self {
             namespace_name,
             query,
+            is_debug,
         })
     }
 
@@ -227,6 +237,7 @@ impl IoxGetRequest {
             sql_query,
             query_type: _,
             flightsql_command,
+            is_debug,
         } = read_info;
 
         Ok(Self {
@@ -262,6 +273,7 @@ impl IoxGetRequest {
                     RunQuery::FlightSQL(cmd)
                 }
             },
+            is_debug,
         })
     }
 
@@ -271,6 +283,10 @@ impl IoxGetRequest {
 
     pub fn query(&self) -> &RunQuery {
         &self.query
+    }
+
+    pub fn is_debug(&self) -> bool {
+        self.is_debug
     }
 }
 
@@ -311,6 +327,7 @@ mod tests {
                     expected: IoxGetRequest {
                         namespace_name: String::from(expected_namespace),
                         query: RunQuery::Sql(String::from(query)),
+                        is_debug: false,
                     },
                 }
             }
@@ -321,6 +338,7 @@ mod tests {
                     expected: IoxGetRequest {
                         namespace_name: String::from(expected_namespace),
                         query: RunQuery::InfluxQL(String::from(query)),
+                        is_debug: false,
                     },
                 }
             }
@@ -432,6 +450,7 @@ mod tests {
             sql_query: "SELECT 1".to_string(),
             query_type: QueryType::Unspecified.into(),
             flightsql_command: vec![],
+            is_debug: false,
         });
 
         // Reverts to default (unspecified) for invalid query_type enumeration, and thus SQL
@@ -447,6 +466,7 @@ mod tests {
             sql_query: "SELECT 1".to_string(),
             query_type: QueryType::Sql.into(),
             flightsql_command: vec![],
+            is_debug: false,
         });
 
         let ri = IoxGetRequest::try_decode(ticket).unwrap();
@@ -461,6 +481,7 @@ mod tests {
             sql_query: "SELECT 1".to_string(),
             query_type: QueryType::InfluxQl.into(),
             flightsql_command: vec![],
+            is_debug: false,
         });
 
         let ri = IoxGetRequest::try_decode(ticket).unwrap();
@@ -475,6 +496,7 @@ mod tests {
             sql_query: "SELECT 1".into(),
             query_type: 42, // not a known query type
             flightsql_command: vec![],
+            is_debug: false,
         });
 
         // Reverts to default (unspecified) for invalid query_type enumeration, and thus SQL
@@ -491,6 +513,7 @@ mod tests {
             query_type: QueryType::Sql.into(),
             // can't have both sql_query and flightsql
             flightsql_command: vec![1, 2, 3],
+            is_debug: false,
         });
 
         let e = IoxGetRequest::try_decode(ticket).unwrap_err();
@@ -505,6 +528,7 @@ mod tests {
             query_type: QueryType::InfluxQl.into(),
             // can't have both sql_query and flightsql
             flightsql_command: vec![1, 2, 3],
+            is_debug: false,
         });
 
         let e = IoxGetRequest::try_decode(ticket).unwrap_err();
@@ -519,6 +543,7 @@ mod tests {
             query_type: QueryType::FlightSqlMessage.into(),
             // can't have both sql_query and flightsql
             flightsql_command: vec![1, 2, 3],
+            is_debug: false,
         });
 
         let e = IoxGetRequest::try_decode(ticket).unwrap_err();
@@ -541,6 +566,22 @@ mod tests {
         let request = IoxGetRequest {
             namespace_name: "foo_blarg".into(),
             query: RunQuery::Sql("select * from bar".into()),
+            is_debug: false,
+        };
+
+        let ticket = request.clone().try_encode().expect("encoding failed");
+
+        let roundtripped = IoxGetRequest::try_decode(ticket).expect("decode failed");
+
+        assert_eq!(request, roundtripped)
+    }
+
+    #[test]
+    fn round_trip_sql_is_debug() {
+        let request = IoxGetRequest {
+            namespace_name: "foo_blarg".into(),
+            query: RunQuery::Sql("select * from bar".into()),
+            is_debug: true,
         };
 
         let ticket = request.clone().try_encode().expect("encoding failed");
@@ -555,6 +596,7 @@ mod tests {
         let request = IoxGetRequest {
             namespace_name: "foo_blarg".into(),
             query: RunQuery::InfluxQL("select * from bar".into()),
+            is_debug: false,
         };
 
         let ticket = request.clone().try_encode().expect("encoding failed");
@@ -573,6 +615,7 @@ mod tests {
         let request = IoxGetRequest {
             namespace_name: "foo_blarg".into(),
             query: RunQuery::FlightSQL(cmd),
+            is_debug: false,
         };
 
         let ticket = request.clone().try_encode().expect("encoding failed");

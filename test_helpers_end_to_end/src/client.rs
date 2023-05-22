@@ -84,8 +84,12 @@ pub async fn try_run_sql(
     namespace: impl Into<String>,
     querier_connection: Connection,
     authorization: Option<&str>,
+    with_debug: bool,
 ) -> Result<(Vec<RecordBatch>, SchemaRef), influxdb_iox_client::flight::Error> {
     let mut client = influxdb_iox_client::flight::Client::new(querier_connection);
+    if with_debug {
+        client.add_header("iox-debug", "true").unwrap();
+    }
     if let Some(authorization) = authorization {
         client.add_header("authorization", authorization).unwrap();
     }
@@ -148,10 +152,17 @@ pub async fn run_sql(
     namespace: impl Into<String>,
     querier_connection: Connection,
     authorization: Option<&str>,
+    with_debug: bool,
 ) -> (Vec<RecordBatch>, SchemaRef) {
-    try_run_sql(sql, namespace, querier_connection, authorization)
-        .await
-        .expect("Error executing sql query")
+    try_run_sql(
+        sql,
+        namespace,
+        querier_connection,
+        authorization,
+        with_debug,
+    )
+    .await
+    .expect("Error executing sql query")
 }
 
 /// Runs an InfluxQL query using the flight API on the specified connection.

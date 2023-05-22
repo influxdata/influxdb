@@ -207,6 +207,11 @@ impl TestConfig {
         &self.catalog_schema_name
     }
 
+    /// Retrieve the directory used to write WAL files to, if set
+    pub fn wal_dir(&self) -> &Option<Arc<TempDir>> {
+        &self.wal_dir
+    }
+
     // copy a reference to the catalog temp dir, if any
     fn with_catalog_dir(mut self, catalog_dir: Option<Arc<TempDir>>) -> Self {
         self.catalog_dir = catalog_dir;

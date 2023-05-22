@@ -120,6 +120,14 @@ my_db> select * from query_count limit 2;
 Query execution complete in 39.046225ms
 ```
 
+# Debug Features
+Certain features are hidden behind a "debug mode". This mode opt-in and is enabled when the `iox-debug` HTTP header / gRPC metadata
+field is set to `1`. In this case, certain operations are possible that are helpful to IOx developers but that may
+confuse end users. Features that are debug features are marked as such.
+
+**IMPORTANT: Debug features MUST NOT contain security-critical information. It is assumed that every user (even our end
+users) can always enable the debug features!**
+
 
 # SQL Reference
 
@@ -131,7 +139,13 @@ In this section, IOx specific SQL tables, commands, and extensions are documente
 
 ## System Tables
 
-In addition to the SQL standard `information_schema`, IOx contains several *system tables* that provide access to IOx specific information. The information in each system table is scoped to that particular namespace. Cross namespace queries are not possible due to the design of IOx's security model.
+In addition to the SQL standard `information_schema`, IOx contains several *system tables* that provide access to IOx
+specific information. The information in each system table is scoped to that particular namespace. Cross namespace
+queries are not possible due to the design of IOx's security model.
 
 ### `system.queries`
-`system.queries` contains information about queries run against this IOx instance
+**This is a debug feature.**
+
+`system.queries` contains information about queries run against this IOx instance. The query log is process local and
+NOT shared across instances within the same deployment. While the log size is limited per instance, the view on this log
+is scoped to the requesting namespace (i.e. queries are NOT leaked across namespaces.).

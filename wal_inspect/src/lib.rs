@@ -176,7 +176,6 @@ where
 #[cfg(test)]
 mod tests {
     use std::collections::BTreeMap;
-    use std::fs::{read_dir, OpenOptions};
 
     use assert_matches::assert_matches;
     use data_types::TableId;
@@ -190,7 +189,7 @@ mod tests {
     use super::*;
 
     #[tokio::test]
-    async fn translate_good_wal_segment_file() {
+    async fn translate_valid_wal_segment() {
         let test_dir = test_helpers::tmp_dir().expect("failed to create test dir");
         let wal = wal::Wal::new(test_dir.path()).await.unwrap();
 
@@ -266,111 +265,6 @@ mod tests {
         assert_matches!(results.get(&NamespaceId::new(2)), Some(e) => {
             assert_eq!(
                 String::from_utf8(e.to_owned()).unwrap().as_str(), format!("{}\n", line2));
-        });
-    }
-
-    #[tokio::test]
-    async fn partial_translate_bad_wal_segment_file() {
-        let test_dir = test_helpers::tmp_dir().expect("failed to create test dir");
-        let wal = wal::Wal::new(test_dir.path()).await.unwrap();
-
-        let (table_id_index, table_name_index) =
-            build_indexes([("m3", TableId::new(3)), ("m4", TableId::new(4))]);
-        let line1 = "m3,s=baz v=3i 1";
-        let line2 = "m3,s=baz v=2i 2";
-        let line3 = "m4,s=qux v=2i 3";
-        let line4 = "m4,s=qux v=5i 4";
-
-        // Generate some WAL entries
-        wal.write_op(SequencedWalOp {
-            sequence_number: 0,
-            op: Op::Write(encode_line(NamespaceId::new(3), &table_id_index, line1)),
-        });
-        wal.write_op(SequencedWalOp {
-            sequence_number: 1,
-            op: Op::Write(encode_line(NamespaceId::new(3), &table_id_index, line2)),
-        })
-        .changed()
-        .await
-        .expect("WAL should have changed");
-        wal.write_op(SequencedWalOp {
-            sequence_number: 2,
-            op: Op::Write(encode_line(NamespaceId::new(4), &table_id_index, line3)),
-        });
-        wal.write_op(SequencedWalOp {
-            sequence_number: 3,
-            op: Op::Write(encode_line(NamespaceId::new(4), &table_id_index, line4)),
-        })
-        .changed()
-        .await
-        .expect("WAL should have changed");
-
-        // Get the path of the only segment file, then rotate it and add some
-        // garbage to the end.
-        let mut reader = read_dir(test_dir.path()).unwrap();
-        let closed_path = reader
-            .next()
-            .expect("no segment file found in WAL dir")
-            .unwrap()
-            .path();
-        assert_matches!(reader.next(), None); // Only 1 file should be in the WAL dir prior to rotation
-
-        let (closed, _) = wal.rotate().expect("failed to rotate WAL");
-
-        {
-            let mut file = OpenOptions::new()
-                .append(true)
-                .open(closed_path)
-                .expect("unable to open closed WAL segment for writing");
-            file.write_all(b"bananananananananas").unwrap();
-        }
-
-        // Create the translator and read as much as possible out of the bad segment file
-        let decoder = WriteOpEntryDecoder::from(
-            wal.reader_for_segment(closed.id())
-                .expect("failed to open reader for closed segment"),
-        );
-        let mut writer = LineProtoWriter::new(|_| Ok(Vec::<u8>::new()), Some(table_name_index));
-
-        // The translator should be able to read all 2 good entries containing 4 write ops
-        let decoded_entries = decoder
-            .into_iter()
-            .map_while(|r| r.ok())
-            .collect::<Vec<_>>();
-        assert_eq!(decoded_entries.len(), 2);
-        let decoded_ops = decoded_entries
-            .into_iter()
-            .flatten()
-            .collect::<Vec<WriteOpEntry>>();
-        assert_eq!(decoded_ops.len(), 4);
-        for entry in decoded_ops {
-            writer
-                .write_namespaced_table_batches(entry.namespace, entry.table_batches)
-                .expect("batch write should not fail");
-        }
-
-        let results = &writer.namespaced_output;
-
-        // Assert that the namespaced writes contain ONLY the following:
-        //
-        // NamespaceId 3:
-        //
-        //     m3,s=baz v=3i 1
-        //     m3,s=baz v=2i 2
-        //
-        // NamespaceId 4:
-        //
-        //     m4,s=qux v=2i 3
-        //     m4,s=qux v=5i 4
-        //
-        assert_eq!(results.len(), 2);
-        assert_matches!(results.get(&NamespaceId::new(3)), Some(e) => {
-            assert_eq!(
-                String::from_utf8(e.to_owned()).unwrap().as_str(), format!("{}\n{}\n", line1, line2));
-        });
-        assert_matches!(results.get(&NamespaceId::new(4)), Some(e) => {
-            assert_eq!(
-                String::from_utf8(e.to_owned()).unwrap().as_str(), format!("{}\n{}\n", line3, line4));
         });
     }
 

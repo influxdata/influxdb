@@ -270,7 +270,7 @@ dependencies = [
  "arrow-cast",
  "arrow-ipc",
  "arrow-schema",
- "base64 0.21.0",
+ "base64 0.21.1",
  "bytes",
  "futures",
  "paste",
@@ -516,7 +516,7 @@ version = "0.1.0"
 dependencies = [
  "assert_matches",
  "async-trait",
- "base64 0.21.0",
+ "base64 0.21.1",
  "generated_types",
  "http",
  "iox_time",
@@ -616,9 +616,9 @@ checksum = "9e1b586273c5702936fe7b7d6896644d8be71e6314cfe09d3167c95f712589e8"
 
 [[package]]
 name = "base64"
-version = "0.21.0"
+version = "0.21.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "a4a4ddaa51a5bc52a6948f74c06d20aaaddb71924eab79b8c97a8c556e942d6a"
+checksum = "3f1e31e207a6b8fb791a38ea3105e6cb541f55e4d029902d3039a4ad07cc4105"
 
 [[package]]
 name = "bit-set"
@@ -869,9 +869,9 @@ dependencies = [
 
 [[package]]
 name = "clap"
-version = "4.2.7"
+version = "4.3.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "34d21f9bf1b425d2968943631ec91202fe5e837264063503708b83013f8fc938"
+checksum = "93aae7a4192245f70fe75dd9157fc7b4a5bf53e88d30bd4396f7d8f9284d5acc"
 dependencies = [
  "clap_builder",
  "clap_derive",
@@ -882,7 +882,7 @@ dependencies = [
 name = "clap_blocks"
 version = "0.1.0"
 dependencies = [
- "clap 4.2.7",
+ "clap 4.3.0",
  "data_types",
  "futures",
  "http",
@@ -906,23 +906,23 @@ dependencies = [
 
 [[package]]
 name = "clap_builder"
-version = "4.2.7"
+version = "4.3.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "914c8c79fb560f238ef6429439a30023c862f7a28e688c58f7203f12b29970bd"
+checksum = "4f423e341edefb78c9caba2d9c7f7687d0e72e89df3ce3394554754393ac3990"
 dependencies = [
  "anstream",
  "anstyle",
  "bitflags",
- "clap_lex 0.4.1",
+ "clap_lex 0.5.0",
  "once_cell",
  "strsim",
 ]
 
 [[package]]
 name = "clap_derive"
-version = "4.2.0"
+version = "4.3.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "3f9644cd56d6b87dbe899ef8b053e331c0637664e9e21a33dfcdc36093f5c5c4"
+checksum = "191d9573962933b4027f932c600cd252ce27a8ad5979418fe78e43c07996f27b"
 dependencies = [
  "heck",
  "proc-macro2",
@@ -941,9 +941,9 @@ dependencies = [
 
 [[package]]
 name = "clap_lex"
-version = "0.4.1"
+version = "0.5.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "8a2dd5a6fe8c6e3502f568a6353e5273bbb15193ad9a89e457b9970798efbea1"
+checksum = "2da6da31387c7e4ef160ffab6d5e7f00c42626fe39aea70a7b0f1773f7dd6c1b"
 
 [[package]]
 name = "client_util"
@@ -1422,7 +1422,7 @@ dependencies = [
  "pin-project-lite",
  "rand",
  "smallvec",
- "sqlparser",
+ "sqlparser 0.33.0",
  "tempfile",
  "tokio",
  "tokio-stream",
@@ -1444,7 +1444,7 @@ dependencies = [
  "num_cpus",
  "object_store",
  "parquet",
- "sqlparser",
+ "sqlparser 0.33.0",
 ]
 
 [[package]]
@@ -1472,7 +1472,7 @@ dependencies = [
  "ahash 0.8.3",
  "arrow",
  "datafusion-common",
- "sqlparser",
+ "sqlparser 0.33.0",
 ]
 
 [[package]]
@@ -1559,7 +1559,7 @@ dependencies = [
  "datafusion-common",
  "datafusion-expr",
  "log",
- "sqlparser",
+ "sqlparser 0.33.0",
 ]
 
 [[package]]
@@ -1602,9 +1602,9 @@ checksum = "6184e33543162437515c2e2b48714794e37845ec9851711914eec9d308f6ebe8"
 
 [[package]]
 name = "digest"
-version = "0.10.6"
+version = "0.10.7"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "8168378f4e5023e7218c89c891c0fd8ecdb5e5e4f18cb78f38cf245dd021e76f"
+checksum = "9ed9a281f7bc9b7576e61468ba615a66a5c8cfdff42420a70aa82701a3b1e292"
 dependencies = [
  "block-buffer",
  "crypto-common",
@@ -1963,7 +1963,7 @@ dependencies = [
  "backoff",
  "bytes",
  "chrono",
- "clap 4.2.7",
+ "clap 4.3.0",
  "clap_blocks",
  "data_types",
  "filetime",
@@ -1988,7 +1988,7 @@ dependencies = [
 name = "generated_types"
 version = "0.1.0"
 dependencies = [
- "base64 0.21.0",
+ "base64 0.21.1",
  "bytes",
  "observability_deps",
  "pbjson",
@@ -2041,7 +2041,7 @@ name = "grpc-binary-logger"
 version = "0.1.0"
 dependencies = [
  "assert_matches",
- "base64 0.21.0",
+ "base64 0.21.1",
  "byteorder",
  "bytes",
  "futures",
@@ -2494,7 +2494,7 @@ dependencies = [
  "authz",
  "backtrace",
  "bytes",
- "clap 4.2.7",
+ "clap 4.3.0",
  "clap_blocks",
  "comfy-table",
  "compactor",
@@ -2560,6 +2560,8 @@ dependencies = [
  "trace_exporters",
  "trogging",
  "uuid",
+ "wal",
+ "wal_inspect",
  "workspace-hack",
 ]
 
@@ -2622,7 +2624,7 @@ version = "0.1.0"
 dependencies = [
  "generated_types",
  "snafu",
- "sqlparser",
+ "sqlparser 0.34.0",
  "workspace-hack",
 ]
 
@@ -2688,7 +2690,7 @@ dependencies = [
 name = "ingester_query_grpc"
 version = "0.1.0"
 dependencies = [
- "base64 0.21.0",
+ "base64 0.21.1",
  "data_types",
  "datafusion",
  "datafusion-proto",
@@ -2816,7 +2818,7 @@ version = "0.1.0"
 dependencies = [
  "bytes",
  "chrono",
- "clap 4.2.7",
+ "clap 4.3.0",
  "criterion",
  "datafusion_util",
  "futures",
@@ -2967,7 +2969,7 @@ dependencies = [
  "async-trait",
  "authz",
  "bytes",
- "clap 4.2.7",
+ "clap 4.3.0",
  "clap_blocks",
  "flate2",
  "futures",
@@ -3123,7 +3125,7 @@ name = "ioxd_test"
 version = "0.1.0"
 dependencies = [
  "async-trait",
- "clap 4.2.7",
+ "clap 4.3.0",
  "hyper",
  "ioxd_common",
  "metric",
@@ -3722,7 +3724,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "ec9cd6ca25e796a49fa242876d1c4de36a24a6da5258e9f0bc062dbf5e81c53b"
 dependencies = [
  "async-trait",
- "base64 0.21.0",
+ "base64 0.21.1",
  "bytes",
  "chrono",
  "futures",
@@ -3894,7 +3896,7 @@ dependencies = [
  "arrow-ipc",
  "arrow-schema",
  "arrow-select",
- "base64 0.21.0",
+ "base64 0.21.1",
  "brotli",
  "bytes",
  "chrono",
@@ -3919,7 +3921,7 @@ name = "parquet_file"
 version = "0.1.0"
 dependencies = [
  "arrow",
- "base64 0.21.0",
+ "base64 0.21.1",
  "bytes",
  "data_types",
  "datafusion",
@@ -4206,7 +4208,7 @@ dependencies = [
  "query_functions",
  "schema",
  "snafu",
- "sqlparser",
+ "sqlparser 0.34.0",
  "test_helpers",
  "workspace-hack",
 ]
@@ -4615,7 +4617,7 @@ version = "0.11.18"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "cde824a14b7c14f85caff81225f411faacc04a2013f41670f41443742b1c1c55"
 dependencies = [
- "base64 0.21.0",
+ "base64 0.21.1",
  "bytes",
  "encoding_rs",
  "futures-core",
@@ -4681,7 +4683,7 @@ dependencies = [
  "assert_matches",
  "async-trait",
  "authz",
- "base64 0.21.0",
+ "base64 0.21.1",
  "bytes",
  "criterion",
  "crossbeam-utils",
@@ -4786,7 +4788,7 @@ version = "1.0.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "d194b56d58803a43635bdc398cd17e383d6f71f9182b9a192c127ca42494a59b"
 dependencies = [
- "base64 0.21.0",
+ "base64 0.21.1",
 ]
 
 [[package]]
@@ -5266,6 +5268,15 @@ checksum = "355dc4d4b6207ca8a3434fc587db0a8016130a574dbcdbfb93d7f7b5bc5b211a"
 dependencies = [
  "log",
  "sqlparser_derive",
+]
+
+[[package]]
+name = "sqlparser"
+version = "0.34.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "37d3706eefb17039056234df6b566b0014f303f867f2656108334a55b8096f59"
+dependencies = [
+ "log",
 ]
 
 [[package]]
@@ -5828,7 +5839,7 @@ dependencies = [
  "async-stream",
  "async-trait",
  "axum",
- "base64 0.21.0",
+ "base64 0.21.1",
  "bytes",
  "futures-core",
  "futures-util",
@@ -5958,7 +5969,7 @@ version = "0.1.0"
 dependencies = [
  "async-trait",
  "chrono",
- "clap 4.2.7",
+ "clap 4.3.0",
  "futures",
  "iox_time",
  "observability_deps",
@@ -6087,7 +6098,7 @@ dependencies = [
 name = "trogging"
 version = "0.1.0"
 dependencies = [
- "clap 4.2.7",
+ "clap 4.3.0",
  "is-terminal",
  "logfmt",
  "observability_deps",
@@ -6235,29 +6246,22 @@ name = "wal"
 version = "0.1.0"
 dependencies = [
  "assert_matches",
- "async-trait",
  "byteorder",
- "bytes",
  "crc32fast",
  "data_types",
  "dml",
- "futures",
  "generated_types",
  "hashbrown 0.13.2",
  "mutable_batch",
  "mutable_batch_lp",
  "mutable_batch_pb",
  "observability_deps",
- "once_cell",
  "parking_lot 0.12.1",
  "prost",
- "regex",
- "serde",
  "snafu",
  "snap",
  "test_helpers",
  "tokio",
- "tokio-util",
  "workspace-hack",
 ]
 
@@ -6647,7 +6651,7 @@ dependencies = [
  "arrow-ord",
  "arrow-string",
  "base64 0.13.1",
- "base64 0.21.0",
+ "base64 0.21.1",
  "bitflags",
  "byteorder",
  "bytes",
@@ -6709,7 +6713,6 @@ dependencies = [
  "sha2",
  "similar",
  "smallvec",
- "sqlparser",
  "sqlx",
  "sqlx-core",
  "sqlx-macros",

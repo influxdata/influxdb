@@ -197,6 +197,7 @@ impl Client {
             sql_query: sql_query.into(),
             query_type: QueryType::Sql.into(),
             flightsql_command: vec![],
+            is_debug: false,
         };
 
         self.do_get_with_read_info(request).await
@@ -214,6 +215,7 @@ impl Client {
             sql_query: influxql_query.into(),
             query_type: QueryType::InfluxQl.into(),
             flightsql_command: vec![],
+            is_debug: false,
         };
 
         self.do_get_with_read_info(request).await
