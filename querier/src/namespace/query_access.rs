@@ -108,6 +108,9 @@ pub struct QuerierCatalogProvider {
 
     /// Query log.
     query_log: Arc<QueryLog>,
+
+    /// Include debug info tables.
+    include_debug_info_tables: bool,
 }
 
 impl QuerierCatalogProvider {
@@ -116,6 +119,7 @@ impl QuerierCatalogProvider {
             namespace_id: namespace.id,
             tables: Arc::clone(&namespace.tables),
             query_log: Arc::clone(&namespace.query_log),
+            include_debug_info_tables: namespace.include_debug_info_tables,
         }
     }
 }
@@ -137,6 +141,7 @@ impl CatalogProvider for QuerierCatalogProvider {
             SYSTEM_SCHEMA => Some(Arc::new(SystemSchemaProvider::new(
                 Arc::clone(&self.query_log),
                 self.namespace_id,
+                self.include_debug_info_tables,
             ))),
             _ => None,
         }

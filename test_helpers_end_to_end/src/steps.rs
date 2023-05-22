@@ -100,7 +100,7 @@ impl<'a> StepTestState<'a> {
         let mut catalog_client = influxdb_iox_client::catalog::Client::new(connection);
 
         catalog_client
-            .get_parquet_files_by_namespace(self.cluster.namespace().into())
+            .get_parquet_files_by_namespace(self.cluster.namespace())
             .await
             .map(|parquet_files| parquet_files.len())
             .unwrap_or_default()
@@ -207,6 +207,15 @@ pub enum Step {
     QueryWithAuthorization {
         sql: String,
         authorization: String,
+        expected: Vec<&'static str>,
+    },
+
+    /// Run a SQL query using the FlightSQL interface with the `iox-debug` header set.
+    /// Verify that the
+    /// results match the expected results using the `assert_batches_eq!`
+    /// macro
+    QueryWithDebug {
+        sql: String,
         expected: Vec<&'static str>,
     },
 
@@ -397,6 +406,7 @@ where
                         state.cluster.namespace(),
                         state.cluster.querier().querier_grpc_connection(),
                         None,
+                        false,
                     )
                     .await;
                     batches.push(RecordBatch::new_empty(schema));
@@ -435,6 +445,7 @@ where
                         state.cluster().namespace(),
                         state.cluster().querier().querier_grpc_connection(),
                         None,
+                        false,
                     )
                     .await
                     .unwrap_err();
@@ -455,6 +466,22 @@ where
                         state.cluster.namespace(),
                         state.cluster().querier().querier_grpc_connection(),
                         Some(authorization.as_str()),
+                        false,
+                    )
+                    .await;
+                    batches.push(RecordBatch::new_empty(schema));
+                    assert_batches_sorted_eq!(expected, &batches);
+                    info!("====Done running");
+                }
+                Step::QueryWithDebug { sql, expected } => {
+                    info!("====Begin running SQL query (w/ iox-debug): {}", sql);
+                    // run query
+                    let (mut batches, schema) = run_sql(
+                        sql,
+                        state.cluster.namespace(),
+                        state.cluster().querier().querier_grpc_connection(),
+                        None,
+                        true,
                     )
                     .await;
                     batches.push(RecordBatch::new_empty(schema));
@@ -469,6 +496,7 @@ where
                         state.cluster.namespace(),
                         state.cluster.querier().querier_grpc_connection(),
                         None,
+                        true,
                     )
                     .await;
                     verify(batches);

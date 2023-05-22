@@ -21,7 +21,14 @@ pub trait QueryNamespaceProvider: std::fmt::Debug + Send + Sync + 'static {
     type Db: ExecutionContextProvider + QueryNamespace;
 
     /// Get namespace if it exists.
-    async fn db(&self, name: &str, span: Option<Span>) -> Option<Arc<Self::Db>>;
+    ///
+    /// System tables may contain debug information depending on `include_debug_info_tables`.
+    async fn db(
+        &self,
+        name: &str,
+        span: Option<Span>,
+        include_debug_info_tables: bool,
+    ) -> Option<Arc<Self::Db>>;
 
     /// Acquire concurrency-limiting sempahore
     async fn acquire_semaphore(&self, span: Option<Span>) -> InstrumentedAsyncOwnedSemaphorePermit;

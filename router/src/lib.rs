@@ -125,6 +125,7 @@
     clippy::dbg_macro,
     clippy::explicit_iter_loop,
     clippy::clone_on_ref_ptr,
+    // See https://github.com/influxdata/influxdb_iox/pull/1671
     clippy::future_not_send
 )]
 #![allow(clippy::missing_docs_in_private_items)]
