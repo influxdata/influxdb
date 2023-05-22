@@ -1,3 +1,15 @@
+#![deny(rustdoc::broken_intra_doc_links, rust_2018_idioms)]
+#![warn(
+    clippy::clone_on_ref_ptr,
+    clippy::dbg_macro,
+    clippy::explicit_iter_loop,
+    // See https://github.com/influxdata/influxdb_iox/pull/1671
+    clippy::future_not_send,
+    clippy::todo,
+    clippy::use_self,
+    missing_debug_implementations,
+)]
+
 use std::sync::Arc;
 
 use async_trait::async_trait;
