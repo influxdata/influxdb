@@ -19,7 +19,10 @@
 use workspace_hack as _;
 
 use crate::interface::{ColumnTypeMismatchSnafu, Error, RepoCollection, Result};
-use data_types::{ColumnType, NamespaceSchema, TablePartitionTemplateOverride, TableSchema};
+use data_types::{
+    ColumnType, NamespaceId, NamespacePartitionTemplateOverride, NamespaceSchema,
+    TablePartitionTemplateOverride, TableSchema,
+};
 use mutable_batch::MutableBatch;
 use std::{borrow::Cow, collections::HashMap};
 use thiserror::Error;
@@ -119,33 +122,9 @@ where
             //
             // Attempt to load an existing table from the catalog or create a new table in the
             // catalog to populate the cache.
-
-            let table = match repos
-                .tables()
-                .get_by_namespace_and_name(schema.id, table_name)
-                .await?
-            {
-                Some(table) => table,
-                None => {
-                    repos
-                        .tables()
-                        .create(
-                            table_name,
-                            TablePartitionTemplateOverride::from(&schema.partition_template),
-                            schema.id,
-                        )
-                        .await?
-                }
-            };
-            let mut table = TableSchema::new_empty_from(&table);
-
-            // Always add a time column to all new tables.
-            let time_col = repos
-                .columns()
-                .create_or_get(TIME_COLUMN, table.id, ColumnType::Time)
-                .await?;
-
-            table.add_column(time_col);
+            let table =
+                table_load_or_create(repos, schema.id, &schema.partition_template, table_name)
+                    .await?;
 
             assert!(schema
                 .to_mut()
@@ -218,6 +197,45 @@ where
     }
 
     Ok(())
+}
+
+async fn table_load_or_create<R>(
+    repos: &mut R,
+    namespace_id: NamespaceId,
+    namespace_partition_template: &NamespacePartitionTemplateOverride,
+    table_name: &str,
+) -> Result<TableSchema>
+where
+    R: RepoCollection + ?Sized,
+{
+    let table = match repos
+        .tables()
+        .get_by_namespace_and_name(namespace_id, table_name)
+        .await?
+    {
+        Some(table) => table,
+        None => {
+            repos
+                .tables()
+                .create(
+                    table_name,
+                    TablePartitionTemplateOverride::from(namespace_partition_template),
+                    namespace_id,
+                )
+                .await?
+        }
+    };
+    let mut table = TableSchema::new_empty_from(&table);
+
+    // Always add a time column to all new tables.
+    let time_col = repos
+        .columns()
+        .create_or_get(TIME_COLUMN, table.id, ColumnType::Time)
+        .await?;
+
+    table.add_column(time_col);
+
+    Ok(table)
 }
 
 /// Catalog helper functions for creation of catalog objects
