@@ -86,7 +86,7 @@ impl SqlInfoList {
         let mut name_builder = UInt32Builder::new();
         let mut value_builder = SqlInfoUnionBuilder::new();
 
-        for (&name, value) in self.infos.iter() {
+        for (&name, value) in &self.infos {
             name_builder.append_value(name);
             value_builder.append_value(value)
         }
