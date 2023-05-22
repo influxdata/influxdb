@@ -1,3 +1,15 @@
+#![deny(rustdoc::broken_intra_doc_links, rust_2018_idioms)]
+#![warn(
+    clippy::clone_on_ref_ptr,
+    clippy::dbg_macro,
+    clippy::explicit_iter_loop,
+    // See https://github.com/influxdata/influxdb_iox/pull/1671
+    clippy::future_not_send,
+    clippy::todo,
+    clippy::use_self,
+    missing_debug_implementations,
+)]
+
 use async_trait::async_trait;
 use authz::{Authorizer, IoxAuthorizer};
 use clap_blocks::querier::QuerierConfig;
@@ -131,7 +143,7 @@ pub enum IoxHttpError {
 impl IoxHttpError {
     fn status_code(&self) -> HttpApiErrorCode {
         match self {
-            IoxHttpError::NotFound => HttpApiErrorCode::NotFound,
+            Self::NotFound => HttpApiErrorCode::NotFound,
         }
     }
 }
