@@ -295,7 +295,6 @@ pub struct Namespace {
     pub id: NamespaceId,
     /// The unique name of the namespace
     pub name: String,
-    #[sqlx(default)]
     /// The retention period in ns. None represents infinite duration (i.e. never drop data).
     pub retention_period_ns: Option<i64>,
     /// The maximum number of tables that can exist in this namespace
@@ -304,7 +303,6 @@ pub struct Namespace {
     pub max_columns_per_table: i32,
     /// When this file was marked for deletion.
     pub deleted_at: Option<Timestamp>,
-    #[sqlx(default)]
     /// The partition template to use for new tables in this namespace either created implicitly or
     /// created without specifying a partition template.
     pub partition_template: NamespacePartitionTemplateOverride,
@@ -375,7 +373,6 @@ pub struct Table {
     pub namespace_id: NamespaceId,
     /// The name of the table, which is unique within the associated namespace
     pub name: String,
-    #[sqlx(default)]
     /// The partition template to use for writes in this table.
     pub partition_template: TablePartitionTemplateOverride,
 }

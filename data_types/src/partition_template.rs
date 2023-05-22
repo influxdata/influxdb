@@ -23,19 +23,13 @@ pub static PARTITION_BY_DAY_PROTO: Lazy<Arc<proto::PartitionTemplate>> = Lazy::n
 });
 
 /// A partition template specified by a namespace record.
-#[derive(Debug, PartialEq, Clone, sqlx::Type)]
+#[derive(Debug, PartialEq, Clone, Default, sqlx::Type)]
 #[sqlx(transparent)]
-pub struct NamespacePartitionTemplateOverride(SerializationWrapper);
-
-impl Default for NamespacePartitionTemplateOverride {
-    fn default() -> Self {
-        Self(SerializationWrapper(Arc::clone(&PARTITION_BY_DAY_PROTO)))
-    }
-}
+pub struct NamespacePartitionTemplateOverride(Option<SerializationWrapper>);
 
 impl From<proto::PartitionTemplate> for NamespacePartitionTemplateOverride {
     fn from(partition_template: proto::PartitionTemplate) -> Self {
-        Self(SerializationWrapper(Arc::new(partition_template)))
+        Self(Some(SerializationWrapper(Arc::new(partition_template))))
     }
 }
 
@@ -43,20 +37,19 @@ impl From<proto::PartitionTemplate> for NamespacePartitionTemplateOverride {
 /// partition template, so the table will get the namespace's partition template.
 impl From<&NamespacePartitionTemplateOverride> for TablePartitionTemplateOverride {
     fn from(namespace_template: &NamespacePartitionTemplateOverride) -> Self {
-        Self(SerializationWrapper(Arc::clone(&namespace_template.0 .0)))
+        Self(
+            namespace_template
+                .0
+                .as_ref()
+                .map(|sw| SerializationWrapper(Arc::clone(&sw.0))),
+        )
     }
 }
 
 /// A partition template specified by a table record.
-#[derive(Debug, PartialEq, Clone, sqlx::Type)]
+#[derive(Debug, PartialEq, Clone, Default, sqlx::Type)]
 #[sqlx(transparent)]
-pub struct TablePartitionTemplateOverride(SerializationWrapper);
-
-impl Default for TablePartitionTemplateOverride {
-    fn default() -> Self {
-        Self(SerializationWrapper(Arc::clone(&PARTITION_BY_DAY_PROTO)))
-    }
-}
+pub struct TablePartitionTemplateOverride(Option<SerializationWrapper>);
 
 impl TablePartitionTemplateOverride {
     /// When a table is being explicitly created, the creation request might have contained a
@@ -70,15 +63,19 @@ impl TablePartitionTemplateOverride {
         custom_table_template
             .map(Arc::new)
             .map(SerializationWrapper)
+            .map(Some)
             .map(Self)
             .unwrap_or_else(|| namespace_template.into())
     }
 
     /// Iterate through the protobuf parts and lend out what the `mutable_batch` crate needs to
-    /// build `PartitionKey`s.
+    /// build `PartitionKey`s. If this table doesn't have a custom template, use the application
+    /// default of partitioning by day.
     pub fn parts(&self) -> impl Iterator<Item = TemplatePart<'_>> {
         self.0
-             .0
+            .as_ref()
+            .map(|serialization_wrapper| &serialization_wrapper.0)
+            .unwrap_or_else(|| &PARTITION_BY_DAY_PROTO)
             .parts
             .iter()
             .flat_map(|part| part.part.as_ref())
@@ -157,7 +154,7 @@ pub fn test_table_partition_override(
         .collect();
 
     let proto = Arc::new(proto::PartitionTemplate { parts });
-    TablePartitionTemplateOverride(SerializationWrapper(proto))
+    TablePartitionTemplateOverride(Some(SerializationWrapper(proto)))
 }
 
 #[cfg(test)]
@@ -214,7 +211,7 @@ mod tests {
             &namespace_template,
         );
 
-        assert_eq!(table_template.0 .0.as_ref(), &custom_table_template);
+        assert_eq!(table_template.0.unwrap().0.as_ref(), &custom_table_template);
     }
 
     // The JSON representation of the partition template protobuf is stored in the database, so
