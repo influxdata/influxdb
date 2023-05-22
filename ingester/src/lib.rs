@@ -200,31 +200,6 @@
     missing_docs
 )]
 
-/// A macro to conditionally prepend `pub` to the inner tokens for benchmarking
-/// purposes, should the `benches` feature be enabled.
-///
-/// Call as `maybe_pub!(mod name)` to conditionally export a private module.
-///
-/// Call as `maybe_pub!( <block> )` to conditionally define a private module
-/// called "benches".
-#[macro_export]
-macro_rules! maybe_pub {
-    (mod $($t:tt)+) => {
-        #[cfg(feature = "benches")]
-        #[allow(missing_docs)]
-        pub mod $($t)+;
-        #[cfg(not(feature = "benches"))]
-        mod $($t)+;
-    };
-    ($($t:tt)+) => {
-        #[cfg(feature = "benches")]
-        #[allow(missing_docs)]
-        pub mod benches {
-            $($t)+
-        }
-    };
-}
-
 /// Ingester initialisation methods & types.
 ///
 /// This module defines the public API boundary of the Ingester crate.
@@ -242,13 +217,21 @@ pub use init::*;
 // Ideally anything that NEEDS to be shared with other components happens via a
 // shared common crate. Any external components should interact with an Ingester
 // through its public API only, and not by poking around at the internals.
-//
 
-maybe_pub!(mod buffer_tree);
-maybe_pub!(mod dml_sink);
-maybe_pub!(mod persist);
-maybe_pub!(mod partition_iter);
-maybe_pub!(mod wal);
+/// This module needs to be pub for the benchmarks but should not be used outside the crate.
+#[cfg(feature = "benches")]
+pub mod internal_implementation_details {
+    pub use super::buffer_tree::*;
+    pub use super::dml_sink::*;
+    pub use super::partition_iter::*;
+    pub use super::persist::*;
+}
+
+mod buffer_tree;
+mod dml_sink;
+mod partition_iter;
+mod persist;
+mod wal;
 mod arcmap;
 mod cancellation_safe;
 mod deferred_load;

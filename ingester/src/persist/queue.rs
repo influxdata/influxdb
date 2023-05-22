@@ -42,9 +42,9 @@ where
     }
 }
 
-maybe_pub! {
-    pub use super::mock::*;
-}
+/// This needs to be pub for the benchmarks but should not be used outside the crate.
+#[cfg(feature = "benches")]
+pub use mock::*;
 
 #[cfg(any(test, feature = "benches"))]
 pub(crate) mod mock {
