@@ -6,6 +6,7 @@ mod parquet_to_lp;
 mod print_cpu;
 mod schema;
 mod skipped_compactions;
+mod wal;
 
 #[derive(Debug, Snafu)]
 pub enum Error {
@@ -20,6 +21,10 @@ pub enum Error {
     #[snafu(context(false))]
     #[snafu(display("Error in skipped-compactions subcommand: {}", source))]
     SkippedCompactions { source: skipped_compactions::Error },
+
+    #[snafu(context(false))]
+    #[snafu(display("Error in wal subcommand: {}", source))]
+    Wal { source: wal::Error },
 }
 
 pub type Result<T, E = Error> = std::result::Result<T, E>;
@@ -44,6 +49,9 @@ enum Command {
 
     /// Interrogate skipped compactions
     SkippedCompactions(skipped_compactions::Config),
+
+    /// Subcommands for debugging the WAL
+    Wal(wal::Config),
 }
 
 pub async fn command<C, CFut>(connection: C, config: Config) -> Result<()>
@@ -62,6 +70,7 @@ where
             let connection = connection().await;
             skipped_compactions::command(connection, config).await?
         }
+        Command::Wal(config) => wal::command(config)?,
     }
 
     Ok(())

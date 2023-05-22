@@ -41,6 +41,8 @@ schema = { path = "../schema" }
 iox_time = { path = "../iox_time" }
 trace_exporters = { path = "../trace_exporters" }
 trogging = { path = "../trogging", default-features = false, features = ["clap"] }
+wal = { version = "0.1", path = "../wal" }
+wal_inspect = { version = "0.1", path = "../wal_inspect" }
 
 # Crates.io dependencies, in alphabetical order
 nu-ansi-term = "0.47.0"
