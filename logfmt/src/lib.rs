@@ -1,4 +1,14 @@
 #![deny(rustdoc::broken_intra_doc_links, rustdoc::bare_urls, rust_2018_idioms)]
+#![warn(
+    missing_copy_implementations,
+    missing_debug_implementations,
+    clippy::explicit_iter_loop,
+    // See https://github.com/influxdata/influxdb_iox/pull/1671
+    clippy::future_not_send,
+    clippy::clone_on_ref_ptr,
+    clippy::todo,
+    clippy::dbg_macro
+)]
 
 use observability_deps::tracing::{
     self,
@@ -19,6 +29,7 @@ use tracing_subscriber::{fmt::MakeWriter, layer::Context, registry::LookupSpan, 
 /// looked very small and did not (obviously) work with the tracing subscriber
 ///
 /// [logfmt]: https://brandur.org/logfmt
+#[derive(Debug)]
 pub struct LogFmtLayer<W>
 where
     W: for<'writer> MakeWriter<'writer>,
