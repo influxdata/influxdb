@@ -78,7 +78,6 @@ postgres=# \d
  iox_catalog | parquet_file_id_seq           | sequence | postgres
  iox_catalog | partition                     | table    | postgres
  iox_catalog | partition_id_seq              | sequence | postgres
- iox_catalog | processed_tombstone           | table    | postgres
  iox_catalog | query_pool                    | table    | postgres
  iox_catalog | query_pool_id_seq             | sequence | postgres
  iox_catalog | sequencer                     | table    | postgres
