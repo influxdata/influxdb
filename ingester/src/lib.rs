@@ -227,20 +227,20 @@ pub mod internal_implementation_details {
     pub use super::persist::*;
 }
 
-mod buffer_tree;
-mod dml_sink;
-mod partition_iter;
-mod persist;
-mod wal;
 mod arcmap;
+mod buffer_tree;
 mod cancellation_safe;
 mod deferred_load;
+mod dml_sink;
 mod ingest_state;
 mod ingester_id;
+mod partition_iter;
+mod persist;
 mod query;
 mod query_adaptor;
 pub(crate) mod server;
 mod timestamp_oracle;
+mod wal;
 
 #[cfg(test)]
 mod test_util;
