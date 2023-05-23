@@ -232,7 +232,7 @@ mod tests {
     use assert_matches::assert_matches;
     use data_types::{PartitionId, PartitionKey};
     use datafusion::{assert_batches_eq, assert_batches_sorted_eq};
-    use futures::{StreamExt, TryStreamExt};
+    use futures::StreamExt;
     use metric::{Attributes, Metric};
 
     use super::*;
@@ -360,10 +360,10 @@ mod tests {
                         .query_exec(ARBITRARY_NAMESPACE_ID, ARBITRARY_TABLE_ID, vec![], None)
                         .await
                         .expect("query should succeed")
-                        .into_record_batches()
-                        .try_collect::<Vec<_>>()
-                        .await
-                        .expect("query failed");
+                        .into_partition_stream()
+                        .flat_map(|ps| futures::stream::iter(ps.into_record_batches()))
+                        .collect::<Vec<_>>()
+                        .await;
 
                     // Assert the contents of ARBITRARY_NAMESPACE_ID and ARBITRARY_TABLE_ID
                     assert_batches_sorted_eq!(
@@ -952,11 +952,7 @@ mod tests {
         let partition = partitions.pop().unwrap();
 
         // Perform the partition read
-        let batches = datafusion::physical_plan::common::collect(
-            partition.into_record_batch_stream().unwrap(),
-        )
-        .await
-        .expect("failed to collate query results");
+        let batches = partition.into_record_batches();
 
         // Assert the contents of p1 contains both the initial write, and the
         // 3rd write in a single RecordBatch.

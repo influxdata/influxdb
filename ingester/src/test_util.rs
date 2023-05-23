@@ -223,7 +223,6 @@ macro_rules! make_partition_stream {
             )+
         ) => {{
             use arrow::datatypes::Schema;
-            use datafusion::physical_plan::memory::MemoryStream;
             use $crate::query::{response::PartitionStream, partition_response::PartitionResponse};
             use futures::stream;
 
@@ -236,10 +235,10 @@ macro_rules! make_partition_stream {
                         batches.push(batch);
                         schema = Schema::try_merge([schema, (*this_schema).clone()]).expect("incompatible batch schemas");
                     )+
+                    drop(schema);
 
-                    let batch = MemoryStream::try_new(batches, Arc::new(schema), None).unwrap();
                     PartitionResponse::new(
-                        Some(Box::pin(batch)),
+                        batches,
                         $id,
                         42,
                     )

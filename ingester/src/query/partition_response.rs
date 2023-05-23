@@ -2,13 +2,14 @@
 //!
 //! [`QueryResponse`]: super::response::QueryResponse
 
+use arrow::record_batch::RecordBatch;
 use data_types::PartitionId;
-use datafusion::physical_plan::SendableRecordBatchStream;
 
 /// Response data for a single partition.
+#[derive(Debug)]
 pub(crate) struct PartitionResponse {
     /// Stream of snapshots.
-    batches: Option<SendableRecordBatchStream>,
+    batches: Vec<RecordBatch>,
 
     /// Partition ID.
     id: PartitionId,
@@ -17,28 +18,9 @@ pub(crate) struct PartitionResponse {
     completed_persistence_count: u64,
 }
 
-impl std::fmt::Debug for PartitionResponse {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        f.debug_struct("PartitionResponse")
-            .field(
-                "batches",
-                &match self.batches {
-                    Some(_) => "<SNAPSHOT STREAM>",
-                    None => "<NO DATA>,",
-                },
-            )
-            .field("partition_id", &self.id)
-            .field(
-                "completed_persistence_count",
-                &self.completed_persistence_count,
-            )
-            .finish()
-    }
-}
-
 impl PartitionResponse {
     pub(crate) fn new(
-        data: Option<SendableRecordBatchStream>,
+        data: Vec<RecordBatch>,
         id: PartitionId,
         completed_persistence_count: u64,
     ) -> Self {
@@ -57,7 +39,7 @@ impl PartitionResponse {
         self.completed_persistence_count
     }
 
-    pub(crate) fn into_record_batch_stream(self) -> Option<SendableRecordBatchStream> {
+    pub(crate) fn into_record_batches(self) -> Vec<RecordBatch> {
         self.batches
     }
 }

@@ -80,7 +80,7 @@ async fn write_query() {
     let hist = ctx
         .get_metric::<DurationHistogram, _>(
             "ingester_query_stream_duration",
-            &[("request", "complete"), ("has_error", "false")],
+            &[("request", "complete")],
         )
         .fetch();
     assert_eq!(hist.sample_count(), 1);

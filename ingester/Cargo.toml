@@ -15,7 +15,6 @@ backoff = { version = "0.1.0", path = "../backoff" }
 bytes = "1.4.0"
 crossbeam-utils = "0.8.15"
 data_types = { version = "0.1.0", path = "../data_types" }
-datafusion_util = { path = "../datafusion_util" }
 datafusion.workspace = true
 dml = { version = "0.1.0", path = "../dml" }
 flatbuffers = "23.1.21"

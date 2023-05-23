@@ -6,7 +6,6 @@ use std::{fmt::Debug, sync::Arc};
 
 use async_trait::async_trait;
 use data_types::{NamespaceId, PartitionKey, SequenceNumber, TableId};
-use datafusion_util::MemoryStream;
 use mutable_batch::MutableBatch;
 use parking_lot::Mutex;
 use schema::Projection;
@@ -238,12 +237,10 @@ where
                         Projection::Some(columns.as_ref())
                     };
 
-                    let data = Box::pin(MemoryStream::new(
-                        data.project_selection(selection).into_iter().collect(),
-                    ));
-                    PartitionResponse::new(Some(data), id, completed_persistence_count)
+                    let data = data.project_selection(selection).into_iter().collect();
+                    PartitionResponse::new(data, id, completed_persistence_count)
                 }
-                None => PartitionResponse::new(None, id, completed_persistence_count),
+                None => PartitionResponse::new(vec![], id, completed_persistence_count),
             };
 
             span.ok("read partition data");

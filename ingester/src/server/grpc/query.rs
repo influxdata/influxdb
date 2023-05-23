@@ -306,29 +306,43 @@ fn encode_response(
     response.into_partition_stream().flat_map(move |partition| {
         let partition_id = partition.id();
         let completed_persistence_count = partition.completed_persistence_count();
+
+        // prefix payload data w/ metadata for that particular partition
         let head = futures::stream::once(async move {
             encode_partition(partition_id, completed_persistence_count, ingester_id)
         });
 
-        match partition.into_record_batch_stream() {
-            Some(stream) => {
-                let stream = stream.map_err(|e| FlightError::ExternalError(Box::new(e)));
+        // An output vector of FlightDataEncoder streams, each entry stream with
+        // a differing schema.
+        //
+        // Optimized for the common case of there being a single consistent
+        // schema across all batches (1 stream).
+        let mut output = Vec::with_capacity(1);
 
-                let tail = FlightDataEncoderBuilder::new().build(stream);
+        let mut batch_iter = partition.into_record_batches().into_iter().peekable();
 
-                head.chain(tail).boxed()
-            }
-            None => head.boxed(),
+        // While there are more batches to process.
+        while let Some(schema) = batch_iter.peek().map(|v| v.schema()) {
+            output.push(
+                FlightDataEncoderBuilder::new().build(futures::stream::iter(
+                    // Take all the RecordBatch with a matching schema
+                    std::iter::from_fn(|| batch_iter.next_if(|v| v.schema() == schema))
+                        .map(Ok)
+                        .collect::<Vec<Result<_, FlightError>>>(),
+                )),
+            )
         }
+
+        head.chain(futures::stream::iter(output).flatten())
     })
 }
 
 #[cfg(test)]
 mod tests {
     use arrow::array::{Float64Array, Int32Array};
-    use arrow_flight::decode::FlightRecordBatchStream;
+    use arrow_flight::decode::{DecodedPayload, FlightRecordBatchStream};
+    use assert_matches::assert_matches;
     use bytes::Bytes;
-    use datafusion_util::MemoryStream;
     use tonic::Code;
 
     use crate::{
@@ -375,30 +389,40 @@ mod tests {
 
     /// Regression test for https://github.com/influxdata/idpe/issues/17408
     #[tokio::test]
-    #[should_panic(
-        expected = "Invalid argument error: number of columns(1) must match number of fields(2) in schema"
-    )]
     async fn test_chunks_with_different_schemas() {
-        let (batch1, _schema1) = make_batch!(
+        let ingester_id = IngesterId::new();
+        let (batch1, schema1) = make_batch!(
             Float64Array("float" => vec![1.1, 2.2, 3.3]),
             Int32Array("int" => vec![1, 2, 3]),
         );
-        let (batch2, _schema2) = make_batch!(
-            Int32Array("int" => vec![3, 4]),
+        let (batch2, schema2) = make_batch!(
+            Float64Array("float" => vec![4.4]),
+            Int32Array("int" => vec![4]),
         );
+        assert_eq!(schema1, schema2);
+        let (batch3, schema3) = make_batch!(
+            Int32Array("int" => vec![5, 6]),
+        );
+        let (batch4, schema4) = make_batch!(
+            Float64Array("float" => vec![7.7]),
+            Int32Array("int" => vec![8]),
+        );
+        assert_eq!(schema1, schema4);
 
         let flight = FlightService::new(
             MockQueryExec::default().with_result(Ok(QueryResponse::new(PartitionStream::new(
                 futures::stream::iter([PartitionResponse::new(
-                    Some(Box::pin(MemoryStream::new(vec![
+                    vec![
                         batch1.clone(),
                         batch2.clone(),
-                    ]))),
-                    PartitionId::new(1),
-                    1,
+                        batch3.clone(),
+                        batch4.clone(),
+                    ],
+                    PartitionId::new(2),
+                    42,
                 )]),
             )))),
-            IngesterId::new(),
+            ingester_id,
             100,
             &metric::Registry::default(),
         );
@@ -412,10 +436,82 @@ mod tests {
             .unwrap()
             .into_inner()
             .map_err(FlightError::Tonic);
-        let batch_stream = FlightRecordBatchStream::new_from_flight_data(response_stream);
-        let batches = batch_stream.try_collect::<Vec<_>>().await.unwrap();
-        assert_eq!(batches.len(), 2);
-        assert_eq!(batches[0], batch1);
-        assert_eq!(batches[1], batch2);
+        let flight_decoder =
+            FlightRecordBatchStream::new_from_flight_data(response_stream).into_inner();
+        let flight_data = flight_decoder.try_collect::<Vec<_>>().await.unwrap();
+        assert_eq!(flight_data.len(), 8);
+
+        // partition info
+        assert_matches!(flight_data[0].payload, DecodedPayload::None);
+        let md_actual =
+            proto::IngesterQueryResponseMetadata::decode(flight_data[0].app_metadata()).unwrap();
+        let md_expected = proto::IngesterQueryResponseMetadata {
+            partition_id: 2,
+            ingester_uuid: ingester_id.to_string(),
+            completed_persistence_count: 42,
+        };
+        assert_eq!(md_actual, md_expected);
+
+        // first & second chunk
+        match &flight_data[1].payload {
+            DecodedPayload::Schema(actual) => {
+                assert_eq!(actual, &schema1);
+            }
+            other => {
+                panic!("Unexpected payload: {other:?}");
+            }
+        }
+        match &flight_data[2].payload {
+            DecodedPayload::RecordBatch(actual) => {
+                assert_eq!(actual, &batch1);
+            }
+            other => {
+                panic!("Unexpected payload: {other:?}");
+            }
+        }
+        match &flight_data[3].payload {
+            DecodedPayload::RecordBatch(actual) => {
+                assert_eq!(actual, &batch2);
+            }
+            other => {
+                panic!("Unexpected payload: {other:?}");
+            }
+        }
+
+        // third chunk
+        match &flight_data[4].payload {
+            DecodedPayload::Schema(actual) => {
+                assert_eq!(actual, &schema3);
+            }
+            other => {
+                panic!("Unexpected payload: {other:?}");
+            }
+        }
+        match &flight_data[5].payload {
+            DecodedPayload::RecordBatch(actual) => {
+                assert_eq!(actual, &batch3);
+            }
+            other => {
+                panic!("Unexpected payload: {other:?}");
+            }
+        }
+
+        // forth chunk
+        match &flight_data[6].payload {
+            DecodedPayload::Schema(actual) => {
+                assert_eq!(actual, &schema4);
+            }
+            other => {
+                panic!("Unexpected payload: {other:?}");
+            }
+        }
+        match &flight_data[7].payload {
+            DecodedPayload::RecordBatch(actual) => {
+                assert_eq!(actual, &batch4);
+            }
+            other => {
+                panic!("Unexpected payload: {other:?}");
+            }
+        }
     }
 }
