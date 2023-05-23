@@ -1,3 +1,8 @@
+#![warn(unused_crate_dependencies)]
+
+// Workaround for "unused crate" lint false positives.
+use workspace_hack as _;
+
 use generated_types::i_ox_testing_server::{IOxTesting, IOxTestingServer};
 use generated_types::{TestErrorRequest, TestErrorResponse};
 use observability_deps::tracing::warn;

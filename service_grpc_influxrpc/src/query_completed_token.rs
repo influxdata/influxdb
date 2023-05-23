@@ -7,9 +7,10 @@ use futures::{ready, Stream, StreamExt};
 use iox_query::QueryCompletedToken;
 
 /// Wraps an inner query stream, calling the `QueryCompletedToken::set_success` on success
+#[derive(Debug)]
 pub struct QueryCompletedTokenStream<S, T, E>
 where
-    S: Stream<Item = Result<T, E>> + Unpin,
+    S: Stream<Item = Result<T, E>> + Unpin + Send,
 {
     inner: S,
     token: QueryCompletedToken,
@@ -18,7 +19,7 @@ where
 
 impl<S, T, E> QueryCompletedTokenStream<S, T, E>
 where
-    S: Stream<Item = Result<T, E>> + Unpin,
+    S: Stream<Item = Result<T, E>> + Unpin + Send,
 {
     pub fn new(inner: S, token: QueryCompletedToken) -> Self {
         Self {
@@ -31,7 +32,7 @@ where
 
 impl<S, T, E> Stream for QueryCompletedTokenStream<S, T, E>
 where
-    S: Stream<Item = Result<T, E>> + Unpin,
+    S: Stream<Item = Result<T, E>> + Unpin + Send,
 {
     type Item = Result<T, E>;
 

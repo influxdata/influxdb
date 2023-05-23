@@ -1,8 +1,22 @@
 // This crate deliberately does not use the same linting rules as the other
 // crates because of all the generated code it contains that we don't have much
 // control over.
-#![deny(rustdoc::broken_intra_doc_links, rustdoc::bare_urls)]
+#![deny(rustdoc::broken_intra_doc_links, rust_2018_idioms)]
+#![warn(
+    clippy::clone_on_ref_ptr,
+    clippy::dbg_macro,
+    clippy::explicit_iter_loop,
+    // See https://github.com/influxdata/influxdb_iox/pull/1671
+    clippy::future_not_send,
+    clippy::todo,
+    clippy::use_self,
+    missing_debug_implementations,
+    unused_crate_dependencies
+)]
 #![allow(clippy::derive_partial_eq_without_eq, clippy::needless_borrow)]
+
+// Workaround for "unused crate" lint false positives.
+use workspace_hack as _;
 
 use crate::influxdata::iox::ingester::v1 as proto;
 use base64::{prelude::BASE64_STANDARD, Engine};
@@ -16,6 +30,7 @@ use snafu::{ResultExt, Snafu};
 /// This module imports the generated protobuf code into a Rust module
 /// hierarchy that matches the namespace hierarchy of the protobuf
 /// definitions
+#[allow(clippy::use_self)]
 pub mod influxdata {
     pub mod iox {
         pub mod ingester {

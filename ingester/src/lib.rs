@@ -197,8 +197,18 @@
     clippy::use_self,
     missing_copy_implementations,
     missing_debug_implementations,
+    unused_crate_dependencies,
     missing_docs
 )]
+
+// Workaround for "unused crate" lint false positives.
+#[cfg(test)]
+use criterion as _;
+#[cfg(test)]
+use influxdb_iox_client as _;
+#[cfg(test)]
+use ingester_test_ctx as _;
+use workspace_hack as _;
 
 /// Ingester initialisation methods & types.
 ///

@@ -12,10 +12,10 @@ publish = false
 [dependencies]
 sqlx = { version = "0.6.3", features = ["runtime-tokio-rustls", "postgres", "json", "tls"] }
 either = "1.8.1"
-tokio = { version = "1.28", features = ["rt-multi-thread", "macros", "parking_lot"] }
 futures = "0.3"
 workspace-hack = { version = "0.1", path = "../workspace-hack" }
 
 [dev-dependencies]
 dotenvy = "0.15.7"
 rand = { version = "0.8", features = ["small_rng"] }
+tokio = { version = "1.28", features = ["rt-multi-thread", "macros", "parking_lot"] }

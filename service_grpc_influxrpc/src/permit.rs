@@ -3,6 +3,7 @@ use pin_project::pin_project;
 use tracker::InstrumentedAsyncOwnedSemaphorePermit;
 
 /// Helper to keep a semaphore permit attached to a stream.
+#[derive(Debug)]
 #[pin_project]
 pub struct StreamWithPermit<S> {
     #[pin]

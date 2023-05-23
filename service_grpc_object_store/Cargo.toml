@@ -6,18 +6,18 @@ edition.workspace = true
 license.workspace = true
 
 [dependencies]
-data_types = { path = "../data_types" }
 futures = "0.3"
 generated_types = { path = "../generated_types" }
 iox_catalog = { path = "../iox_catalog" }
 object_store = "0.5.6"
 observability_deps = { path = "../observability_deps" }
 parquet_file = { path = "../parquet_file" }
-tokio = { version = "1", features = ["rt-multi-thread", "macros"] }
 tonic = { workspace = true }
 uuid = { version = "1", features = ["v4"] }
 workspace-hack = { version = "0.1", path = "../workspace-hack" }
 
 [dev-dependencies]
 bytes = "1.4"
+data_types = { path = "../data_types" }
 metric = { path = "../metric" }
+tokio = { version = "1.28", features = ["macros", "net", "parking_lot", "rt-multi-thread", "signal", "sync", "time"] }

@@ -27,8 +27,15 @@
     clippy::use_self,
     clippy::clone_on_ref_ptr,
     clippy::todo,
-    clippy::dbg_macro
+    clippy::dbg_macro,
+    unused_crate_dependencies
 )]
+
+// Workaround for "unused crate" lint false positives.
+use clap as _;
+#[cfg(test)]
+use criterion as _;
+use tracing_subscriber as _;
 
 use crate::{
     agent::{Agent, AgentGenerateStats},

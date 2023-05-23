@@ -46,7 +46,7 @@ impl FlightSQLPlanner {
 
     /// Returns the schema, in Arrow IPC encoded form, for the request in msg.
     pub async fn get_flight_info(
-        namespace_name: impl Into<String>,
+        namespace_name: impl Into<String> + Send,
         cmd: FlightSQLCommand,
         ctx: &IOxSessionContext,
     ) -> Result<Bytes> {
@@ -101,7 +101,7 @@ impl FlightSQLPlanner {
 
     /// Returns a plan that computes results requested in msg
     pub async fn do_get(
-        namespace_name: impl Into<String>,
+        namespace_name: impl Into<String> + Send,
         _database: Arc<dyn QueryNamespace>,
         cmd: FlightSQLCommand,
         ctx: &IOxSessionContext,
@@ -261,7 +261,7 @@ impl FlightSQLPlanner {
     /// the [`arrow_flight::Result`] (not the same as a rust
     /// [`Result`]!)
     pub async fn do_action(
-        namespace_name: impl Into<String>,
+        namespace_name: impl Into<String> + Send,
         _database: Arc<dyn QueryNamespace>,
         cmd: FlightSQLCommand,
         ctx: &IOxSessionContext,

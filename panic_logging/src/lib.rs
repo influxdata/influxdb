@@ -8,8 +8,12 @@
     clippy::use_self,
     clippy::clone_on_ref_ptr,
     clippy::todo,
-    clippy::dbg_macro
+    clippy::dbg_macro,
+    unused_crate_dependencies
 )]
+
+// Workaround for "unused crate" lint false positives.
+use workspace_hack as _;
 
 use std::{collections::HashMap, fmt, panic, sync::Arc};
 
@@ -256,9 +260,9 @@ mod tests {
 
         assert_eq!(
             capture.to_string(),
-            "level = ERROR; message = Thread panic; panic_type = \"unknown\"; panic_info = panicked at 'it's bananas', panic_logging/src/lib.rs:223:13; \
-            \nlevel = ERROR; message = Thread panic; panic_type = \"offset_overflow\"; panic_info = panicked at 'offset', panic_logging/src/lib.rs:231:13; \
-            \nlevel = ERROR; message = Thread panic; panic_type = \"offset_overflow\"; panic_info = panicked at 'offset overflow', panic_logging/src/lib.rs:240:13; ",
+            "level = ERROR; message = Thread panic; panic_type = \"unknown\"; panic_info = panicked at 'it's bananas', panic_logging/src/lib.rs:227:13; \n\
+             level = ERROR; message = Thread panic; panic_type = \"offset_overflow\"; panic_info = panicked at 'offset', panic_logging/src/lib.rs:235:13; \n\
+             level = ERROR; message = Thread panic; panic_type = \"offset_overflow\"; panic_info = panicked at 'offset overflow', panic_logging/src/lib.rs:244:13; "
         );
     }
 }

@@ -8,20 +8,17 @@ license.workspace = true
 
 [dependencies]
 arrow = { workspace = true }
-bytes = "1.4"
 data_types = { path = "../data_types" }
 datafusion = { workspace = true }
 datafusion_util = { path = "../datafusion_util" }
 iox_catalog = { path = "../iox_catalog" }
+iox_query = { path = "../iox_query" }
 iox_time = { path = "../iox_time" }
 metric = { path = "../metric" }
 mutable_batch_lp = { path = "../mutable_batch_lp" }
 object_store = "0.5.6"
 observability_deps = { path = "../observability_deps" }
 parquet_file = { path = "../parquet_file" }
-predicate = { path = "../predicate" }
-iox_query = { path = "../iox_query" }
 schema = { path = "../schema" }
 uuid = { version = "1", features = ["v4"] }
 workspace-hack = { version = "0.1", path = "../workspace-hack" }
-futures = "0.3.28"

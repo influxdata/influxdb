@@ -6,31 +6,11 @@ edition.workspace = true
 license.workspace = true
 
 [dependencies]
-chrono = { version = "0.4", default-features = false }
-data_types = { path = "../data_types" }
-futures = "0.3"
 futures-util = { version = "0.3" }
 influxdb_iox_client = { path = "../influxdb_iox_client", features = ["flight", "format"] }
-iox_catalog = { path = "../iox_catalog" }
-object_store = { version = "0.5.6", features = ["aws"] }
 observability_deps = { path = "../observability_deps" }
-schema = { path = "../schema" }
-serde = { version = "1.0", features = ["derive"] }
 serde_json = "1.0.96"
 thiserror = "1.0.40"
 tokio = { version = "1.28" }
 tokio-util = { version = "0.7.8" }
 workspace-hack = { version = "0.1", path = "../workspace-hack" }
-
-
-[dev-dependencies]
-assert_matches = "1.5"
-client_util = { path = "../client_util" }
-metric = { path = "../metric" }
-parking_lot = "0.12"
-tokio-stream = { version = "0.1", features = ["net"] }
-
-[features]
-azure = ["object_store/azure"] # Optional Azure Object store support
-gcp = ["object_store/gcp"] # Optional GCP object store support
-aws = ["object_store/aws"] # Optional AWS / S3 object store support

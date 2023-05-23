@@ -37,6 +37,6 @@ async fn assert_panic_logging(connection: Connection, log_path: Box<Path>) {
 
     // check logs
     let logs = std::fs::read_to_string(log_path).unwrap();
-    let expected_error = "'This is a test panic', service_grpc_testing/src/lib.rs:18:9";
+    let expected_error = "'This is a test panic', service_grpc_testing/src/lib.rs:";
     assert_contains!(logs, expected_error);
 }

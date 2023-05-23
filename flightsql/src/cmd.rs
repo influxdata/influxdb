@@ -55,7 +55,7 @@ impl Display for PreparedStatementHandle {
 /// Encode a PreparedStatementHandle as Bytes
 impl From<PreparedStatementHandle> for Bytes {
     fn from(value: PreparedStatementHandle) -> Self {
-        Bytes::from(value.query.into_bytes())
+        Self::from(value.query.into_bytes())
     }
 }
 
@@ -303,26 +303,26 @@ impl FlightSQLCommand {
     // Encode the command as a flightsql message (bytes)
     pub fn try_encode(self) -> Result<Bytes> {
         let msg = match self {
-            FlightSQLCommand::CommandStatementQuery(cmd) => Any::pack(&cmd),
-            FlightSQLCommand::CommandPreparedStatementQuery(handle) => {
+            Self::CommandStatementQuery(cmd) => Any::pack(&cmd),
+            Self::CommandPreparedStatementQuery(handle) => {
                 let prepared_statement_handle = handle.encode();
                 let cmd = CommandPreparedStatementQuery {
                     prepared_statement_handle,
                 };
                 Any::pack(&cmd)
             }
-            FlightSQLCommand::CommandGetSqlInfo(cmd) => Any::pack(&cmd),
-            FlightSQLCommand::CommandGetCatalogs(cmd) => Any::pack(&cmd),
-            FlightSQLCommand::CommandGetCrossReference(cmd) => Any::pack(&cmd),
-            FlightSQLCommand::CommandGetDbSchemas(cmd) => Any::pack(&cmd),
-            FlightSQLCommand::CommandGetExportedKeys(cmd) => Any::pack(&cmd),
-            FlightSQLCommand::CommandGetImportedKeys(cmd) => Any::pack(&cmd),
-            FlightSQLCommand::CommandGetPrimaryKeys(cmd) => Any::pack(&cmd),
-            FlightSQLCommand::CommandGetTables(cmd) => Any::pack(&cmd),
-            FlightSQLCommand::CommandGetTableTypes(cmd) => Any::pack(&cmd),
-            FlightSQLCommand::CommandGetXdbcTypeInfo(cmd) => Any::pack(&cmd),
-            FlightSQLCommand::ActionCreatePreparedStatementRequest(cmd) => Any::pack(&cmd),
-            FlightSQLCommand::ActionClosePreparedStatementRequest(handle) => {
+            Self::CommandGetSqlInfo(cmd) => Any::pack(&cmd),
+            Self::CommandGetCatalogs(cmd) => Any::pack(&cmd),
+            Self::CommandGetCrossReference(cmd) => Any::pack(&cmd),
+            Self::CommandGetDbSchemas(cmd) => Any::pack(&cmd),
+            Self::CommandGetExportedKeys(cmd) => Any::pack(&cmd),
+            Self::CommandGetImportedKeys(cmd) => Any::pack(&cmd),
+            Self::CommandGetPrimaryKeys(cmd) => Any::pack(&cmd),
+            Self::CommandGetTables(cmd) => Any::pack(&cmd),
+            Self::CommandGetTableTypes(cmd) => Any::pack(&cmd),
+            Self::CommandGetXdbcTypeInfo(cmd) => Any::pack(&cmd),
+            Self::ActionCreatePreparedStatementRequest(cmd) => Any::pack(&cmd),
+            Self::ActionClosePreparedStatementRequest(handle) => {
                 let prepared_statement_handle = handle.encode();
                 Any::pack(&ActionClosePreparedStatementRequest {
                     prepared_statement_handle,

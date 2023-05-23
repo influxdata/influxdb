@@ -8,7 +8,6 @@ license.workspace = true
 
 [dependencies]
 async-trait = "0.1"
-chrono = { version = "0.4", default-features = false, features = ["clock"] }
 clap = { version = "4", features = ["derive", "env"] }
 futures = "0.3"
 iox_time = { path = "../iox_time" }
@@ -20,3 +19,4 @@ trace = { path = "../trace" }
 workspace-hack = { version = "0.1", path = "../workspace-hack" }
 
 [dev-dependencies]
+chrono = { version = "0.4", default-features = false, features = ["clock"] }

@@ -3,6 +3,10 @@
 // control over.
 #![deny(rustdoc::broken_intra_doc_links, rustdoc::bare_urls)]
 #![allow(clippy::derive_partial_eq_without_eq, clippy::needless_borrow)]
+#![warn(unused_crate_dependencies)]
+
+// Workaround for "unused crate" lint false positives.
+use workspace_hack as _;
 
 /// This module imports the generated protobuf code into a Rust module
 /// hierarchy that matches the namespace hierarchy of the protobuf

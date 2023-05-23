@@ -5,6 +5,7 @@ use clap_blocks::{run_config::RunConfig, socket_addr::SocketAddr};
 use crate::server_type::ServerType;
 
 /// A service that will start on the specified addresses
+#[derive(Debug)]
 pub struct Service {
     pub http_bind_address: Option<SocketAddr>,
     pub grpc_bind_address: SocketAddr,

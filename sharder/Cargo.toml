@@ -17,7 +17,6 @@ criterion = { version = "0.4", default-features = false, features = ["async_toki
 hashbrown = { workspace = true }
 mutable_batch_lp = { path = "../mutable_batch_lp" }
 rand = "0.8.3"
-test_helpers = { path = "../test_helpers" }
 
 [[bench]]
 name = "sharder"

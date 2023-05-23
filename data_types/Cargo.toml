@@ -14,9 +14,7 @@ generated_types = { path = "../generated_types" }
 observability_deps = { path = "../observability_deps" }
 once_cell = "1"
 ordered-float = "3"
-percent-encoding = "2.2.0"
 schema = { path = "../schema" }
-serde = { version = "1.0", features = ["derive"] }
 sqlx = { version = "0.6", features = ["runtime-tokio-rustls", "postgres", "uuid"] }
 thiserror = "1.0.40"
 uuid = { version = "1", features = ["v4"] }
@@ -24,4 +22,3 @@ workspace-hack = { version = "0.1", path = "../workspace-hack" }
 
 [dev-dependencies] # In alphabetical order
 proptest = "1.1.0"
-test_helpers = { path = "../test_helpers" }

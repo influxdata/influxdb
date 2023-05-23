@@ -1,15 +1,20 @@
+//! # WAL
+//!
+//! This crate provides a local-disk WAL for the IOx ingestion pipeline.
+
 #![deny(rustdoc::broken_intra_doc_links, rust_2018_idioms)]
 #![warn(
     missing_copy_implementations,
     missing_debug_implementations,
     clippy::explicit_iter_loop,
     clippy::use_self,
-    clippy::clone_on_ref_ptr
+    clippy::clone_on_ref_ptr,
+    unused_crate_dependencies
 )]
 
-//! # WAL
-//!
-//! This crate provides a local-disk WAL for the IOx ingestion pipeline.
+// Workaround for "unused crate" lint false positives.
+use workspace_hack as _;
+
 use std::{
     collections::BTreeMap,
     fs::File,

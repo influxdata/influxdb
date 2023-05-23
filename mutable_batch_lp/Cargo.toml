@@ -10,7 +10,6 @@ license.workspace = true
 hashbrown = { workspace = true }
 influxdb-line-protocol = { path = "../influxdb_line_protocol" }
 mutable_batch = { path = "../mutable_batch" }
-schema = { path = "../schema" }
 snafu = "0.7"
 workspace-hack = { version = "0.1", path = "../workspace-hack" }
 
@@ -18,6 +17,7 @@ workspace-hack = { version = "0.1", path = "../workspace-hack" }
 arrow_util = { path = "../arrow_util" }
 assert_matches = "1.5.0"
 criterion = { version = "0.4", default-features = false, features = ["rayon"]}
+schema = { path = "../schema" }
 
 [[bench]]
 name = "parse_lp"

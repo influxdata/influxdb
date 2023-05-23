@@ -1,5 +1,27 @@
 //! This crate only exists for its tests and benchmarks
 
+#![warn(unused_crate_dependencies)]
+
+// Workaround for "unused crate" lint false positives.
+#[cfg(test)]
+use bytes as _;
+#[cfg(test)]
+use criterion as _;
+#[cfg(test)]
+use data_types as _;
+#[cfg(test)]
+use dml as _;
+#[cfg(test)]
+use generated_types as _;
+#[cfg(test)]
+use mutable_batch as _;
+#[cfg(test)]
+use mutable_batch_lp as _;
+#[cfg(test)]
+use mutable_batch_pb as _;
+#[cfg(test)]
+use prost as _;
+
 use flate2::read::GzDecoder;
 use std::io::Read;
 use std::path::Path;
