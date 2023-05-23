@@ -2,12 +2,12 @@ mod select;
 
 use crate::plan::ir::{DataSource, Field, Select, SelectQuery};
 use crate::plan::planner::select::{
-    fields_to_exprs_no_nulls, make_tag_key_column_meta, plan_with_sort,
+    fields_to_exprs_no_nulls, make_tag_key_column_meta, plan_with_sort, ProjectionInfo,
 };
 use crate::plan::planner_time_range_expression::{
     duration_expr_to_nanoseconds, expr_to_df_interval_dt, time_range_to_df_expr,
 };
-use crate::plan::rewriter::{rewrite_statement, ProjectionType};
+use crate::plan::rewriter::{find_table_names, rewrite_statement, ProjectionType};
 use crate::plan::util::{binary_operator_to_df_operator, rebase_expr, Schemas};
 use crate::plan::var_ref::var_ref_data_type_to_data_type;
 use crate::plan::{error, planner_rewrite_expression};
@@ -16,6 +16,7 @@ use arrow::datatypes::{DataType, Field as ArrowField, Int32Type, Schema as Arrow
 use arrow::record_batch::RecordBatch;
 use chrono_tz::Tz;
 use datafusion::catalog::TableReference;
+use datafusion::common::tree_node::{TreeNode, VisitRecursion};
 use datafusion::common::{DFSchema, DFSchemaRef, Result, ScalarValue, ToDFSchema};
 use datafusion::datasource::{provider_as_source, MemTable};
 use datafusion::logical_expr::expr::ScalarFunction;
@@ -24,21 +25,20 @@ use datafusion::logical_expr::logical_plan::builder::project;
 use datafusion::logical_expr::logical_plan::Analyze;
 use datafusion::logical_expr::utils::find_aggregate_exprs;
 use datafusion::logical_expr::{
-    binary_expr, col, date_bin, expr, expr::WindowFunction, lit, lit_timestamp_nano, now,
+    binary_expr, col, date_bin, expr, expr::WindowFunction, lit, lit_timestamp_nano, now, union,
     window_function, Aggregate, AggregateFunction, AggregateUDF, Between, BuiltInWindowFunction,
     BuiltinScalarFunction, EmptyRelation, Explain, Expr, ExprSchemable, Extension, GetIndexedField,
-    LogicalPlan, LogicalPlanBuilder, Operator, PlanType, ScalarUDF, TableSource, ToStringifiedPlan,
-    WindowFrame, WindowFrameBound, WindowFrameUnits,
+    LogicalPlan, LogicalPlanBuilder, Operator, PlanType, Projection, ScalarUDF, TableSource,
+    ToStringifiedPlan, WindowFrame, WindowFrameBound, WindowFrameUnits,
 };
 use datafusion::prelude::{cast, sum, when, Column};
 use datafusion_util::{lit_dict, AsExpr};
 use generated_types::influxdata::iox::querier::v1::InfluxQlMetadata;
 use influxdb_influxql_parser::common::{LimitClause, OffsetClause, OrderByClause};
 use influxdb_influxql_parser::explain::{ExplainOption, ExplainStatement};
-use influxdb_influxql_parser::expression::walk::walk_expr;
+use influxdb_influxql_parser::expression::walk::{walk_expr, walk_expression, Expression};
 use influxdb_influxql_parser::expression::{
     Binary, Call, ConditionalBinary, ConditionalExpression, ConditionalOperator, VarRef,
-    VarRefDataType,
 };
 use influxdb_influxql_parser::functions::{
     is_aggregate_function, is_now_function, is_scalar_math_function,
@@ -72,7 +72,7 @@ use schema::{
     InfluxColumnType, InfluxFieldType, Schema, INFLUXQL_MEASUREMENT_COLUMN_NAME,
     INFLUXQL_METADATA_KEY,
 };
-use std::collections::HashSet;
+use std::collections::{BTreeSet, HashSet};
 use std::fmt::Debug;
 use std::iter;
 use std::ops::{Bound, ControlFlow, Deref, Range};
@@ -128,10 +128,8 @@ enum ExprScope {
 #[allow(dead_code)]
 #[derive(Debug, Default, Clone)]
 struct Context<'a> {
+    table_name: &'a str,
     projection_type: ProjectionType,
-    /// `true` if this is a subquery `SELECT` statement.
-    is_subquery: bool,
-    has_multiple_measurements: bool,
     scope: ExprScope,
     tz: Option<Tz>,
 
@@ -145,8 +143,11 @@ struct Context<'a> {
 }
 
 impl<'a> Context<'a> {
-    fn new() -> Self {
-        Default::default()
+    fn new(table_name: &'a str) -> Self {
+        Self {
+            table_name,
+            ..Default::default()
+        }
     }
 
     fn with_projection_type(&self, projection_type: ProjectionType) -> Self {
@@ -172,13 +173,6 @@ impl<'a> Context<'a> {
         }
     }
 
-    fn with_has_multiple_measurements(&self, has_multiple_measurements: bool) -> Self {
-        Self {
-            has_multiple_measurements,
-            ..*self
-        }
-    }
-
     fn with_root_group_by_tags(&self, root_group_by_tags: &'a [&'a str]) -> Self {
         Self {
             root_group_by_tags,
@@ -186,15 +180,15 @@ impl<'a> Context<'a> {
         }
     }
 
-    /// Returns the combined GROUP BY tags clause from the root
+    /// Returns the combined `GROUP BY` tags clause from the root
     /// and current statement. The list is sorted and guaranteed to be unique.
     fn group_by_tags(&self) -> Vec<&str> {
         match (self.root_group_by_tags.is_empty(), self.group_by) {
             (true, None) => vec![],
             (false, None) => self.root_group_by_tags.to_vec(),
             (_, Some(group_by)) => group_by
-                .tags()
-                .map(|ident| ident.deref().as_str())
+                .tag_names()
+                .map(|ident| ident.as_str())
                 .chain(self.root_group_by_tags.iter().copied())
                 .sorted()
                 .dedup()
@@ -312,85 +306,69 @@ impl<'a> InfluxQLToLogicalPlan<'a> {
 
         let group_by_tags = if let Some(group_by) = select.group_by.as_ref() {
             group_by
-                .tags()
-                .map(|ident| ident.deref().as_str())
+                .tag_names()
+                .map(|ident| ident.as_str())
+                .sorted()
                 .collect()
         } else {
             vec![]
         };
 
-        let ctx = Context::new()
-            .with_projection_type(select.projection_type)
-            .with_timezone(select.timezone)
-            .with_group_by_fill(select)
-            .with_has_multiple_measurements(query.has_multiple_measurements)
-            .with_root_group_by_tags(&group_by_tags);
+        let ProjectionInfo {
+            fields,
+            group_by_tag_set,
+            projection_tag_set,
+            is_projected,
+        } = ProjectionInfo::new(&select.fields, &group_by_tags);
 
-        self.select_to_plan(&ctx, select)
-    }
+        let table_names = find_table_names(select);
+        let sort_by_measurement = table_names.len() > 1;
+        let mut plans = Vec::new();
+        for table_name in table_names {
+            let ctx = Context::new(table_name)
+                .with_projection_type(select.projection_type)
+                .with_timezone(select.timezone)
+                .with_group_by_fill(select)
+                .with_root_group_by_tags(&group_by_tags);
 
-    fn select_to_plan(&self, ctx: &Context<'_>, select: &Select) -> Result<LogicalPlan> {
-        // Skip the `time` column
-        let fields_no_time = &select.fields[1..];
-        // always start with the time column
-        let mut fields = vec![select.fields.first().cloned().unwrap()];
+            let Some(plan) = self.union_from(&ctx, select)? else {
+                continue;
+            };
 
-        // group_by_tag_set   : a list of tag columns specified in the GROUP BY clause
-        // projection_tag_set : a list of tag columns specified exclusively in the SELECT projection
-        // is_projected       : a list of booleans indicating whether matching elements in the
-        //                      group_by_tag_set are also projected in the query
-
-        let group_by_tags = ctx.group_by_tags();
-        let (group_by_tag_set, projection_tag_set, is_projected) = if group_by_tags.is_empty() {
-            let tag_columns = find_tag_and_unknown_columns(fields_no_time)
-                .sorted()
-                .collect::<Vec<_>>();
-            (vec![], tag_columns, vec![])
-        } else {
-            let mut tag_columns =
-                find_tag_and_unknown_columns(fields_no_time).collect::<HashSet<_>>();
-
-            // Find the list of tag keys specified in the `GROUP BY` clause, and
-            // whether any of the tag keys are also projected in the SELECT list.
-            let (tag_set, is_projected): (Vec<_>, Vec<_>) = group_by_tags
-                .into_iter()
-                .map(|s| (s, tag_columns.contains(s)))
-                .unzip();
-
-            // Tags specified in the `GROUP BY` clause that are not already added to the
-            // projection must be projected, so they can be used in the group key.
-            //
-            // At the end of the loop, the `tag_columns` set will contain the tag columns that
-            // exist in the projection and not in the `GROUP BY`.
-            fields.extend(
-                tag_set
-                    .iter()
-                    .filter_map(|col| match tag_columns.remove(*col) {
-                        true => None,
-                        false => Some(Field {
-                            expr: IQLExpr::VarRef(VarRef {
-                                name: (*col).into(),
-                                data_type: Some(VarRefDataType::Tag),
-                            }),
-                            name: col.to_string(),
-                            data_type: Some(InfluxColumnType::Tag),
-                        }),
-                    }),
-            );
-
-            (
-                tag_set,
-                tag_columns.into_iter().sorted().collect::<Vec<_>>(),
-                is_projected,
-            )
-        };
-
-        fields.extend(fields_no_time.iter().cloned());
+            let plan = self.project_select(&ctx, plan, &fields, &group_by_tag_set)?;
+            plans.push((table_name, plan));
+        }
 
         let plan = {
-            let mut iter = select.from.iter();
+            fn project_with_measurement(
+                table_name: &str,
+                input: LogicalPlan,
+            ) -> Result<LogicalPlan> {
+                if let LogicalPlan::Projection(Projection { expr, input, .. }) = input {
+                    // Rewrite the existing projection with the measurement name column first
+                    project(
+                        input.deref().clone(),
+                        iter::once(lit_dict(table_name).alias(INFLUXQL_MEASUREMENT_COLUMN_NAME))
+                            .chain(expr),
+                    )
+                } else {
+                    project(
+                        input.clone(),
+                        iter::once(lit_dict(table_name).alias(INFLUXQL_MEASUREMENT_COLUMN_NAME))
+                            .chain(
+                                input
+                                    .schema()
+                                    .fields()
+                                    .iter()
+                                    .map(|expr| Expr::Column(expr.unqualified_column())),
+                            ),
+                    )
+                }
+            }
+
+            let mut iter = plans.into_iter();
             let plan = match iter.next() {
-                Some(ds) => self.project_select(ctx, ds, select, &fields, &group_by_tag_set),
+                Some((table_name, plan)) => project_with_measurement(table_name, plan),
                 None => {
                     // empty result, but let's at least have all the strictly necessary metadata
                     let schema = Arc::new(ArrowSchema::new(vec![ArrowField::new(
@@ -413,28 +391,69 @@ impl<'a> InfluxQLToLogicalPlan<'a> {
                 }
             }?;
 
-            iter.try_fold(plan, |prev, ds| {
-                let next = self.project_select(ctx, ds, select, &fields, &group_by_tag_set)?;
-                LogicalPlanBuilder::from(prev).union(next)?.build()
+            iter.try_fold(plan, |prev, (table_name, input)| {
+                let next = project_with_measurement(table_name, input)?;
+                union(prev, next)
             })?
         };
 
-        let plan = if select.depth == 0 {
-            // Add the metadata to the root SELECT query
-            plan_with_metadata(
-                plan,
-                &InfluxQlMetadata {
-                    measurement_column_index: MEASUREMENT_COLUMN_INDEX,
-                    tag_key_columns: make_tag_key_column_meta(
-                        &fields,
-                        &group_by_tag_set,
-                        &is_projected,
-                    ),
-                },
-            )?
-        } else {
-            plan
+        let plan = plan_with_metadata(
+            plan,
+            &InfluxQlMetadata {
+                measurement_column_index: MEASUREMENT_COLUMN_INDEX,
+                tag_key_columns: make_tag_key_column_meta(
+                    &fields,
+                    &group_by_tag_set,
+                    &is_projected,
+                ),
+            },
+        )?;
+
+        // the sort planner node must refer to the time column using
+        // the alias that was specified
+        let time_alias = fields[0].name.as_str();
+        let time_sort_expr = time_alias.as_expr().sort(
+            match select.order_by {
+                // Default behaviour is to sort by time in ascending order if there is no ORDER BY
+                None | Some(OrderByClause::Ascending) => true,
+                Some(OrderByClause::Descending) => false,
+            },
+            false,
+        );
+
+        let plan = plan_with_sort(
+            plan,
+            vec![time_sort_expr.clone()],
+            sort_by_measurement,
+            &group_by_tag_set,
+            &projection_tag_set,
+        )?;
+
+        self.limit(
+            plan,
+            select.offset,
+            select.limit,
+            vec![time_sort_expr],
+            sort_by_measurement,
+            &group_by_tag_set,
+            &projection_tag_set,
+        )
+    }
+
+    fn subquery_to_plan(&self, ctx: &Context<'_>, select: &Select) -> Result<Option<LogicalPlan>> {
+        let Some(plan) = self.union_from(ctx, select)? else {
+            return Ok(None)
         };
+
+        let group_by_tags = ctx.group_by_tags();
+        let ProjectionInfo {
+            fields,
+            group_by_tag_set,
+            projection_tag_set,
+            ..
+        } = ProjectionInfo::new(&select.fields, &group_by_tags);
+
+        let plan = self.project_select(ctx, plan, &fields, &group_by_tag_set)?;
 
         // the sort planner node must refer to the time column using
         // the alias that was specified
@@ -452,40 +471,81 @@ impl<'a> InfluxQLToLogicalPlan<'a> {
         let plan = plan_with_sort(
             plan,
             vec![time_sort_expr.clone()],
-            ctx.has_multiple_measurements,
+            false,
             &group_by_tag_set,
             &projection_tag_set,
         )?;
 
-        let plan = self.limit(
+        Ok(Some(self.limit(
             plan,
             select.offset,
             select.limit,
             vec![time_sort_expr],
-            ctx.has_multiple_measurements,
+            false,
             &group_by_tag_set,
             &projection_tag_set,
-        )?;
+        )?))
+    }
 
-        Ok(plan)
+    /// Returns a `LogicalPlan` that combines the `FROM` clause as a `UNION ALL`.
+    fn union_from(&self, ctx: &Context<'_>, select: &Select) -> Result<Option<LogicalPlan>> {
+        let mut plans = Vec::new();
+        for ds in &select.from {
+            let Some(plan) = self.plan_from_data_source(ctx, ds)? else {
+                continue;
+            };
+
+            let schemas = Schemas::new(plan.schema())?;
+            let plan = self.plan_where_clause(ctx, &select.condition, plan, &schemas)?;
+            plans.push(plan);
+        }
+
+        Ok(match plans.len() {
+            0 => None,
+            1 => plans.pop(),
+            _ => {
+                // find all the columns referenced in the `SELECT`
+                let var_refs = find_var_refs(select);
+
+                let plans = plans
+                    .into_iter()
+                    .map(|plan| {
+                        let schema = plan.schema();
+                        let select_exprs = var_refs.iter().map(|vr| {
+                            if schema.has_column_with_unqualified_name(vr.name.as_str()) {
+                                vr.name.as_str().as_expr().alias(vr.name.as_str())
+                            } else {
+                                lit(ScalarValue::Null).alias(vr.name.as_str())
+                            }
+                        });
+
+                        project(plan.clone(), select_exprs)
+                    })
+                    .collect::<Result<Vec<_>>>()?;
+
+                let plan = {
+                    let mut iter = plans.into_iter();
+                    let plan = iter
+                        .next()
+                        .ok_or_else(|| error::map::internal("expected plan"))?;
+                    iter.try_fold(plan, union)?
+                };
+                Some(plan)
+            }
+        })
     }
 
     fn project_select(
         &self,
         ctx: &Context<'_>,
-        ds: &DataSource,
-        select: &Select,
+        input: LogicalPlan,
         fields: &[Field],
         group_by_tag_set: &[&str],
     ) -> Result<LogicalPlan> {
-        let (plan, proj) = self.plan_from_data_source(ctx, ds)?;
-
-        let schemas = Schemas::new(plan.schema())?;
-
-        let plan = self.plan_where_clause(ctx, &select.condition, plan, &schemas)?;
+        let schemas = Schemas::new(input.schema())?;
 
         // Transform InfluxQL AST field expressions to a list of DataFusion expressions.
-        let mut select_exprs = self.field_list_to_exprs(ctx, &plan, fields, &schemas)?;
+        let mut select_exprs = self.field_list_to_exprs(ctx, &input, fields, &schemas)?;
 
         if ctx.is_raw_distinct() {
             // This is a special case, where exactly one column can be projected with a `DISTINCT`
@@ -506,25 +566,21 @@ impl<'a> InfluxQLToLogicalPlan<'a> {
             select_exprs[time_column_index] = lit_timestamp_nano(0).alias(alias);
 
             // Wrap the plan in a `LogicalPlan::Projection` from the select expressions
-            let plan = project(plan, proj.into_iter().chain(select_exprs.into_iter()))?;
+            let plan = project(input, select_exprs)?;
 
             return LogicalPlanBuilder::from(plan).distinct()?.build();
         }
 
         let (plan, select_exprs_post_aggr) =
-            self.select_aggregate(ctx, ds, plan, fields, select_exprs, group_by_tag_set)?;
+            self.select_aggregate(ctx, input, fields, select_exprs, group_by_tag_set)?;
 
         // Wrap the plan in a `LogicalPlan::Projection` from the select expressions
-        project(
-            plan,
-            proj.into_iter().chain(select_exprs_post_aggr.into_iter()),
-        )
+        project(plan, select_exprs_post_aggr)
     }
 
     fn select_aggregate(
         &self,
         ctx: &Context<'_>,
-        ds: &DataSource,
         input: LogicalPlan,
         fields: &[Field],
         mut select_exprs: Vec<Expr>,
@@ -553,7 +609,7 @@ impl<'a> InfluxQLToLogicalPlan<'a> {
 
         // This block identifies the time column index and updates the time expression
         // based on the semantics of the projection.
-        let time_column_index = {
+        let time_column = {
             let Some(time_column_index) = find_time_column_index(fields) else {
                 return error::internal("unable to find time column")
             };
@@ -605,31 +661,23 @@ impl<'a> InfluxQLToLogicalPlan<'a> {
             } else {
                 lit_timestamp_nano(0)
             }
-            .alias(alias);
+                .alias(alias);
 
-            time_column_index
+            &select_exprs[time_column_index]
         };
 
         let aggr_group_by_exprs = {
-            // If the input schema contains the iox::measurement column,
-            // it must be included in the group by expressions
-            let mut group_by_exprs = if input
-                .schema()
-                .has_column_with_unqualified_name(INFLUXQL_MEASUREMENT_COLUMN_NAME)
-            {
-                vec![INFLUXQL_MEASUREMENT_COLUMN_NAME.as_expr()]
-            } else {
-                vec![]
-            };
+            let schema = input.schema();
+
+            let mut group_by_exprs = Vec::new();
 
             if ctx.group_by.and_then(|v| v.time_dimension()).is_some() {
                 // Include the GROUP BY TIME(..) expression
-                group_by_exprs.push(select_exprs[time_column_index].clone());
+                group_by_exprs.push(time_column.clone());
             }
 
-            let schema = ds.schema(self.s)?;
             group_by_exprs.extend(group_by_tag_set.iter().filter_map(|name| {
-                if schema.is_tag_field(name) {
+                if schema.has_column_with_unqualified_name(name) {
                     Some(name.as_expr())
                 } else {
                     None
@@ -665,18 +713,6 @@ impl<'a> InfluxQLToLogicalPlan<'a> {
         let plan = if ctx.group_by.and_then(|gb| gb.time_dimension()).is_some()
             && fill_option != FillClause::None
         {
-            let args = match select_exprs[time_column_index].clone().unalias() {
-                Expr::ScalarFunction(ScalarFunction {
-                    fun: BuiltinScalarFunction::DateBin,
-                    args,
-                }) => args,
-                _ => {
-                    // The InfluxQL planner adds the `date_bin` function,
-                    // so this condition represents an internal failure.
-                    return error::internal("expected DATE_BIN function");
-                }
-            };
-
             let fill_strategy = match fill_option {
                 FillClause::Null | FillClause::Value(_) => FillStrategy::Null,
                 FillClause::Previous => FillStrategy::PrevNullAsMissing,
@@ -684,7 +720,7 @@ impl<'a> InfluxQLToLogicalPlan<'a> {
                 FillClause::None => unreachable!(),
             };
 
-            build_gap_fill_node(plan, time_column_index, args, fill_strategy)?
+            build_gap_fill_node(plan, time_column, fill_strategy)?
         } else {
             plan
         };
@@ -730,8 +766,7 @@ impl<'a> InfluxQLToLogicalPlan<'a> {
     /// - `offset`: The number of input rows to skip.
     /// - `limit`: The maximum number of rows to return in the output plan per group.
     /// - `time_sort_expr`: An `Expr::Sort` referring to the `time` column of the input.
-    /// - `has_multiple_measurements`: `true` if the `input` produces multiple measurements,
-    ///   and therefore the limit should be applied per measurement and any additional group tags.
+    /// - `sort_by_measurement`: `true` if the `input` must be sorted by the measurement column.
     /// - `group_by_tag_set`: Tag columns from the `input` plan that should be used to partition
     ///   the `input` plan and sort the `output` plan.
     /// - `projection_tag_set`: Additional tag columns that should be used to sort the `output`
@@ -743,7 +778,7 @@ impl<'a> InfluxQLToLogicalPlan<'a> {
         offset: Option<OffsetClause>,
         limit: Option<LimitClause>,
         sort_exprs: Vec<Expr>,
-        has_multiple_measurements: bool,
+        sort_by_measurement: bool,
         group_by_tag_set: &[&str],
         projection_tag_set: &[&str],
     ) -> Result<LogicalPlan> {
@@ -751,7 +786,7 @@ impl<'a> InfluxQLToLogicalPlan<'a> {
             return Ok(input);
         }
 
-        if group_by_tag_set.is_empty() && !has_multiple_measurements {
+        if group_by_tag_set.is_empty() && !sort_by_measurement {
             // If the query is not grouping by tags, and is a single measurement, the DataFusion
             // Limit operator is sufficient.
             let skip = offset.map_or(0, |v| *v as usize);
@@ -774,14 +809,21 @@ impl<'a> InfluxQLToLogicalPlan<'a> {
             //   ROWS BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW
             // ) AS iox::row
             let order_by = sort_exprs.clone();
+
+            let partition_by = if sort_by_measurement {
+                iter::once(INFLUXQL_MEASUREMENT_COLUMN_NAME.as_expr())
+                    .chain(fields_to_exprs_no_nulls(input.schema(), group_by_tag_set))
+                    .collect::<Vec<_>>()
+            } else {
+                fields_to_exprs_no_nulls(input.schema(), group_by_tag_set).collect::<Vec<_>>()
+            };
+
             let window_func_exprs = vec![Expr::WindowFunction(WindowFunction {
                 fun: window_function::WindowFunction::BuiltInWindowFunction(
                     BuiltInWindowFunction::RowNumber,
                 ),
                 args: vec![],
-                partition_by: iter::once(INFLUXQL_MEASUREMENT_COLUMN_NAME.as_expr())
-                    .chain(fields_to_exprs_no_nulls(input.schema(), group_by_tag_set))
-                    .collect::<Vec<_>>(),
+                partition_by,
                 order_by,
                 window_frame: WindowFrame {
                     units: WindowFrameUnits::Rows,
@@ -849,7 +891,7 @@ impl<'a> InfluxQLToLogicalPlan<'a> {
             plan_with_sort(
                 plan,
                 sort_exprs,
-                has_multiple_measurements,
+                sort_by_measurement,
                 group_by_tag_set,
                 projection_tag_set,
             )
@@ -965,7 +1007,7 @@ impl<'a> InfluxQLToLogicalPlan<'a> {
                 name,
                 data_type: opt_dst_type,
             }) => {
-                Ok(match (ctx.scope, name.deref().as_str()) {
+                Ok(match (ctx.scope, name.as_str()) {
                     // Per the Go implementation, the time column is case-insensitive in the
                     // `WHERE` clause and disregards any postfix type cast operator.
                     //
@@ -1229,35 +1271,30 @@ impl<'a> InfluxQLToLogicalPlan<'a> {
         }
     }
 
-    /// Generate a list of logical plans for each of the tables references in the `FROM`
-    /// clause.
+    /// Generate a logical plan for the specified `DataSource`.
     fn plan_from_data_source(
         &self,
         ctx: &Context<'_>,
         ds: &DataSource,
-    ) -> Result<(LogicalPlan, Vec<Expr>)> {
+    ) -> Result<Option<LogicalPlan>> {
         match ds {
-            DataSource::Table(table_name) => {
+            DataSource::Table(table_name) if table_name == ctx.table_name => {
                 // `rewrite_statement` guarantees the table should exist
                 let source = self.s.get_table_provider(table_name)?;
                 let table_ref = TableReference::bare(table_name.to_owned());
-                Ok((
+                Ok(Some(
                     LogicalPlanBuilder::scan(table_ref, source, None)?.build()?,
-                    vec![lit_dict(table_name).alias(INFLUXQL_MEASUREMENT_COLUMN_NAME)],
                 ))
             }
+            DataSource::Table(_) => Ok(None),
             DataSource::Subquery(select) => {
-                let ctx = Context::new()
+                let ctx = Context::new(ctx.table_name)
                     .with_projection_type(select.projection_type)
                     .with_timezone(select.timezone)
                     .with_group_by_fill(select)
-                    .with_has_multiple_measurements(ctx.has_multiple_measurements)
                     .with_root_group_by_tags(ctx.root_group_by_tags);
 
-                Ok((
-                    self.select_to_plan(&ctx, select)?,
-                    vec![INFLUXQL_MEASUREMENT_COLUMN_NAME.as_expr()],
-                ))
+                Ok(self.subquery_to_plan(&ctx, select)?)
             }
         }
     }
@@ -1868,39 +1905,70 @@ impl<'a> InfluxQLToLogicalPlan<'a> {
 /// # Arguments
 ///
 /// * `input` - An aggregate plan which requires gap-filling.
-/// * `date_bin_index` - The index of the field in the input schema that refers to the `date_bin` expression.
-/// * `date_bin_args` - The list of arguments passed to the `date_bin` function, used to configure the gap-fill parameters.
+/// * `time_column` - The `date_bin` expression.
 /// * `fill_strategy` - The strategy used to fill gaps in the data.
 fn build_gap_fill_node(
     input: LogicalPlan,
-    date_bin_index: usize,
-    date_bin_args: Vec<Expr>,
+    time_column: &Expr,
     fill_strategy: FillStrategy,
 ) -> Result<LogicalPlan> {
+    let (expr, alias) = match time_column {
+        Expr::Alias(expr, alias) => (expr.as_ref(), alias),
+        _ => return error::internal("expected time column to have an alias function"),
+    };
+
+    let date_bin_args = match expr {
+        Expr::ScalarFunction(ScalarFunction {
+            fun: BuiltinScalarFunction::DateBin,
+            args,
+        }) => args,
+        _ => {
+            // The InfluxQL planner adds the `date_bin` function,
+            // so this condition represents an internal failure.
+            return error::internal("expected DATE_BIN function");
+        }
+    };
+
     // Extract the gap-fill parameters from the arguments to the `DATE_BIN` function.
     // Any unexpected conditions represents an internal error, as the `DATE_BIN` function is
     // added by the planner.
     let (stride, time_range, origin) = match date_bin_args.len() {
-        nargs @ (2 | 3) => {
+        nargs @ 2..=3 => {
             let time_col = date_bin_args[1].try_into_col().map_err(|_| {
                 error::map::internal("DATE_BIN requires a column as the source argument")
             })?;
 
             // Ensure that a time range was specified and is valid for gap filling
-            let time_range = match find_time_range(input.inputs()[0], &time_col)? {
-                // Follow the InfluxQL behaviour to use an upper bound of `now` when
-                // not found:
-                //
-                // See: https://github.com/influxdata/influxdb/blob/98361e207349a3643bcc332d54b009818fe7585f/query/compile.go#L172-L176
-                Range {
-                    start,
-                    end: Bound::Unbounded,
-                } => Range {
-                    start,
-                    end: Bound::Excluded(now()),
-                },
-                time_range => time_range,
-            };
+            let time_range = {
+                // TODO(sgc): Fix via https://github.com/influxdata/influxdb_iox/issues/7829
+
+                // This is a stop gap, until #7929 is fixed, as `find_time_range` does not look
+                // beyond Union operators. We are working around the limitation by traversing the
+                // tree until we find the first operator which specifies a filter predicate.
+                let mut time_range: Option<Range<Bound<Expr>>> = None;
+                _ = input.apply(&mut |n| match n {
+                    plan @ (LogicalPlan::Filter(_) | LogicalPlan::TableScan(_)) => {
+                        time_range = Some(match find_time_range(plan, &time_col)? {
+                            // Follow the InfluxQL behaviour to use an upper bound of `now` when
+                            // not found:
+                            //
+                            // See: https://github.com/influxdata/influxdb/blob/98361e207349a3643bcc332d54b009818fe7585f/query/compile.go#L172-L176
+                            Range {
+                                start,
+                                end: Bound::Unbounded,
+                            } => Range {
+                                start,
+                                end: Bound::Excluded(now()),
+                            },
+                            time_range => time_range,
+                        });
+                        Ok(VisitRecursion::Stop)
+                    }
+                    _ => Ok(VisitRecursion::Continue),
+                });
+                time_range
+                    .ok_or_else(|| error::map::internal("expected to find a Filter or TableScan"))
+            }?;
 
             let origin = (nargs == 3).then_some(date_bin_args[2].clone());
 
@@ -1929,7 +1997,10 @@ fn build_gap_fill_node(
         .map(|e| (e, fill_strategy.clone()))
         .collect();
 
-    let time_column = col(input.schema().fields()[date_bin_index].qualified_column());
+    let time_column = col(input
+        .schema()
+        .field_with_unqualified_name(alias)
+        .map(|f| f.qualified_column())?);
 
     Ok(LogicalPlan::Extension(Extension {
         node: Arc::new(GapFill::try_new(
@@ -2074,15 +2145,6 @@ fn is_aggregate_field(f: &Field) -> bool {
     .is_break()
 }
 
-/// Find all the columns where the resolved data type
-/// is a tag or is [`None`], which is unknown.
-fn find_tag_and_unknown_columns(fields: &[Field]) -> impl Iterator<Item = &str> {
-    fields.iter().filter_map(|f| match f.data_type {
-        Some(InfluxColumnType::Tag) | None => Some(f.name.as_str()),
-        _ => None,
-    })
-}
-
 fn conditional_op_to_operator(op: ConditionalOperator) -> Result<Operator> {
     match op {
         ConditionalOperator::Eq => Ok(Operator::Eq),
@@ -2207,10 +2269,45 @@ fn add_time_restriction(plan: LogicalPlan, cutoff: MetadataCutoff) -> Result<Log
     }
 }
 
+/// Find distinct occurrences of `Expr::VarRef` expressions for
+/// the `select`.
+fn find_var_refs(select: &Select) -> BTreeSet<&VarRef> {
+    let mut var_refs = BTreeSet::new();
+
+    for f in &select.fields {
+        walk_expr(&f.expr, &mut |e| {
+            if let IQLExpr::VarRef(vr) = e {
+                var_refs.insert(vr);
+            }
+            ControlFlow::<()>::Continue(())
+        });
+    }
+
+    if let Some(condition) = &select.condition {
+        walk_expression(condition, &mut |e| match e {
+            Expression::Arithmetic(e) => walk_expr(e, &mut |e| {
+                if let IQLExpr::VarRef(vr) = e {
+                    var_refs.insert(vr);
+                }
+                ControlFlow::<()>::Continue(())
+            }),
+            _ => ControlFlow::<()>::Continue(()),
+        });
+    }
+
+    if let Some(group_by) = &select.group_by {
+        for vr in group_by.tags() {
+            var_refs.insert(vr);
+        }
+    }
+
+    var_refs
+}
+
 #[cfg(test)]
 mod test {
     use super::*;
-    use crate::plan::test_utils::MockSchemaProvider;
+    use crate::plan::test_utils::{parse_select, MockSchemaProvider};
     use influxdb_influxql_parser::parse_statements;
     use insta::assert_snapshot;
     use schema::SchemaBuilder;
@@ -2270,6 +2367,73 @@ mod test {
             Ok(res) => res.display_indent_schema().to_string(),
             Err(err) => err.to_string(),
         }
+    }
+
+    #[test]
+    fn test_find_var_refs() {
+        use influxdb_influxql_parser::expression::VarRefDataType::*;
+
+        macro_rules! var_ref {
+            ($NAME: literal) => {
+                VarRef {
+                    name: $NAME.into(),
+                    data_type: None,
+                }
+            };
+
+            ($NAME: literal, $TYPE: ident) => {
+                VarRef {
+                    name: $NAME.into(),
+                    data_type: Some($TYPE),
+                }
+            };
+        }
+
+        fn find_var_refs(s: &dyn SchemaProvider, q: &str) -> Vec<VarRef> {
+            let sel = parse_select(q);
+            let select = rewrite_statement(s, &sel).unwrap();
+            super::find_var_refs(&select.select)
+                .into_iter()
+                .cloned()
+                .collect()
+        }
+
+        let sp = MockSchemaProvider::default();
+
+        let got = find_var_refs(
+            &sp,
+            "SELECT cpu, usage_idle FROM cpu WHERE usage_user = 3 AND usage_idle > 1 GROUP BY cpu",
+        );
+        assert_eq!(
+            &got,
+            &[
+                var_ref!("cpu", Tag),
+                var_ref!("time", Timestamp),
+                var_ref!("usage_idle", Float),
+                var_ref!("usage_user", Float),
+            ]
+        );
+
+        let got = find_var_refs(&sp, "SELECT non_existent, usage_idle FROM cpu");
+        assert_eq!(
+            &got,
+            &[
+                var_ref!("non_existent"),
+                var_ref!("time", Timestamp),
+                var_ref!("usage_idle", Float),
+            ]
+        );
+
+        let got = find_var_refs(&sp, "SELECT non_existent, usage_idle FROM (SELECT cpu as non_existent, usage_idle FROM cpu) GROUP BY cpu");
+        assert_eq!(
+            &got,
+            &[
+                var_ref!("cpu", Tag),
+                var_ref!("non_existent", Tag),
+                var_ref!("time", Timestamp),
+                var_ref!("usage_idle", Float),
+            ]
+        );
     }
 
     /// Verify the list of unsupported statements.
@@ -2635,18 +2799,18 @@ mod test {
                 // project an aliased column
                 assert_snapshot!(plan("SELECT value FROM (SELECT usage_idle AS value FROM cpu)"), @r###"
                 Sort: time AS time ASC NULLS LAST [iox::measurement:Dictionary(Int32, Utf8), time:Timestamp(Nanosecond, None), value:Float64;N]
-                  Projection: iox::measurement, time AS time, value AS value [iox::measurement:Dictionary(Int32, Utf8), time:Timestamp(Nanosecond, None), value:Float64;N]
-                    Sort: time ASC NULLS LAST [iox::measurement:Dictionary(Int32, Utf8), time:Timestamp(Nanosecond, None), value:Float64;N]
-                      Projection: Dictionary(Int32, Utf8("cpu")) AS iox::measurement, cpu.time AS time, cpu.usage_idle AS value [iox::measurement:Dictionary(Int32, Utf8), time:Timestamp(Nanosecond, None), value:Float64;N]
+                  Projection: Dictionary(Int32, Utf8("cpu")) AS iox::measurement, time AS time, value AS value [iox::measurement:Dictionary(Int32, Utf8), time:Timestamp(Nanosecond, None), value:Float64;N]
+                    Sort: time ASC NULLS LAST [time:Timestamp(Nanosecond, None), value:Float64;N]
+                      Projection: cpu.time AS time, cpu.usage_idle AS value [time:Timestamp(Nanosecond, None), value:Float64;N]
                         TableScan: cpu [cpu:Dictionary(Int32, Utf8);N, host:Dictionary(Int32, Utf8);N, region:Dictionary(Int32, Utf8);N, time:Timestamp(Nanosecond, None), usage_idle:Float64;N, usage_system:Float64;N, usage_user:Float64;N]
                 "###);
 
                 // project a wildcard
                 assert_snapshot!(plan("SELECT * FROM (SELECT usage_idle, usage_system AS value FROM cpu)"), @r###"
                 Sort: time AS time ASC NULLS LAST [iox::measurement:Dictionary(Int32, Utf8), time:Timestamp(Nanosecond, None), usage_idle:Float64;N, value:Float64;N]
-                  Projection: iox::measurement, time AS time, usage_idle AS usage_idle, value AS value [iox::measurement:Dictionary(Int32, Utf8), time:Timestamp(Nanosecond, None), usage_idle:Float64;N, value:Float64;N]
-                    Sort: time ASC NULLS LAST [iox::measurement:Dictionary(Int32, Utf8), time:Timestamp(Nanosecond, None), usage_idle:Float64;N, value:Float64;N]
-                      Projection: Dictionary(Int32, Utf8("cpu")) AS iox::measurement, cpu.time AS time, cpu.usage_idle AS usage_idle, cpu.usage_system AS value [iox::measurement:Dictionary(Int32, Utf8), time:Timestamp(Nanosecond, None), usage_idle:Float64;N, value:Float64;N]
+                  Projection: Dictionary(Int32, Utf8("cpu")) AS iox::measurement, time AS time, usage_idle AS usage_idle, value AS value [iox::measurement:Dictionary(Int32, Utf8), time:Timestamp(Nanosecond, None), usage_idle:Float64;N, value:Float64;N]
+                    Sort: time ASC NULLS LAST [time:Timestamp(Nanosecond, None), usage_idle:Float64;N, value:Float64;N]
+                      Projection: cpu.time AS time, cpu.usage_idle AS usage_idle, cpu.usage_system AS value [time:Timestamp(Nanosecond, None), usage_idle:Float64;N, value:Float64;N]
                         TableScan: cpu [cpu:Dictionary(Int32, Utf8);N, host:Dictionary(Int32, Utf8);N, region:Dictionary(Int32, Utf8);N, time:Timestamp(Nanosecond, None), usage_idle:Float64;N, usage_system:Float64;N, usage_user:Float64;N]
                 "###);
             }
@@ -2657,18 +2821,18 @@ mod test {
                 // project an aggregate
                 assert_snapshot!(plan("SELECT value FROM (SELECT mean(usage_idle) AS value FROM cpu)"), @r###"
                 Sort: time AS time ASC NULLS LAST [iox::measurement:Dictionary(Int32, Utf8), time:Timestamp(Nanosecond, None), value:Float64;N]
-                  Projection: iox::measurement, time AS time, value AS value [iox::measurement:Dictionary(Int32, Utf8), time:Timestamp(Nanosecond, None), value:Float64;N]
-                    Sort: time ASC NULLS LAST [iox::measurement:Dictionary(Int32, Utf8), time:Timestamp(Nanosecond, None), value:Float64;N]
-                      Projection: Dictionary(Int32, Utf8("cpu")) AS iox::measurement, TimestampNanosecond(0, None) AS time, AVG(cpu.usage_idle) AS value [iox::measurement:Dictionary(Int32, Utf8), time:Timestamp(Nanosecond, None), value:Float64;N]
+                  Projection: Dictionary(Int32, Utf8("cpu")) AS iox::measurement, time AS time, value AS value [iox::measurement:Dictionary(Int32, Utf8), time:Timestamp(Nanosecond, None), value:Float64;N]
+                    Sort: time ASC NULLS LAST [time:Timestamp(Nanosecond, None), value:Float64;N]
+                      Projection: TimestampNanosecond(0, None) AS time, AVG(cpu.usage_idle) AS value [time:Timestamp(Nanosecond, None), value:Float64;N]
                         Aggregate: groupBy=[[]], aggr=[[AVG(cpu.usage_idle)]] [AVG(cpu.usage_idle):Float64;N]
                           TableScan: cpu [cpu:Dictionary(Int32, Utf8);N, host:Dictionary(Int32, Utf8);N, region:Dictionary(Int32, Utf8);N, time:Timestamp(Nanosecond, None), usage_idle:Float64;N, usage_system:Float64;N, usage_user:Float64;N]
                 "###);
 
                 assert_snapshot!(plan("SELECT value FROM (SELECT mean(usage_idle) AS value FROM cpu GROUP BY TIME(10s))"), @r###"
                 Sort: time AS time ASC NULLS LAST [iox::measurement:Dictionary(Int32, Utf8), time:Timestamp(Nanosecond, None);N, value:Float64;N]
-                  Projection: iox::measurement, time AS time, value AS value [iox::measurement:Dictionary(Int32, Utf8), time:Timestamp(Nanosecond, None);N, value:Float64;N]
-                    Sort: time ASC NULLS LAST [iox::measurement:Dictionary(Int32, Utf8), time:Timestamp(Nanosecond, None);N, value:Float64;N]
-                      Projection: Dictionary(Int32, Utf8("cpu")) AS iox::measurement, time, AVG(cpu.usage_idle) AS value [iox::measurement:Dictionary(Int32, Utf8), time:Timestamp(Nanosecond, None);N, value:Float64;N]
+                  Projection: Dictionary(Int32, Utf8("cpu")) AS iox::measurement, time AS time, value AS value [iox::measurement:Dictionary(Int32, Utf8), time:Timestamp(Nanosecond, None);N, value:Float64;N]
+                    Sort: time ASC NULLS LAST [time:Timestamp(Nanosecond, None);N, value:Float64;N]
+                      Projection: time, AVG(cpu.usage_idle) AS value [time:Timestamp(Nanosecond, None);N, value:Float64;N]
                         Aggregate: groupBy=[[datebin(IntervalMonthDayNano("10000000000"), cpu.time, TimestampNanosecond(0, None)) AS time]], aggr=[[AVG(cpu.usage_idle)]] [time:Timestamp(Nanosecond, None);N, AVG(cpu.usage_idle):Float64;N]
                           TableScan: cpu [cpu:Dictionary(Int32, Utf8);N, host:Dictionary(Int32, Utf8);N, region:Dictionary(Int32, Utf8);N, time:Timestamp(Nanosecond, None), usage_idle:Float64;N, usage_system:Float64;N, usage_user:Float64;N]
                 "###);
@@ -2679,37 +2843,96 @@ mod test {
             fn distinct() {
                 // Subquery is a DISTINCT
                 assert_snapshot!(plan("SELECT value FROM (SELECT DISTINCT(usage_idle) AS value FROM cpu)"), @r###"
-            Sort: time AS time ASC NULLS LAST [iox::measurement:Dictionary(Int32, Utf8), time:Timestamp(Nanosecond, None), value:Float64;N]
-              Projection: iox::measurement, time AS time, value AS value [iox::measurement:Dictionary(Int32, Utf8), time:Timestamp(Nanosecond, None), value:Float64;N]
-                Sort: time ASC NULLS LAST [iox::measurement:Dictionary(Int32, Utf8), time:Timestamp(Nanosecond, None), value:Float64;N]
-                  Distinct: [iox::measurement:Dictionary(Int32, Utf8), time:Timestamp(Nanosecond, None), value:Float64;N]
-                    Projection: Dictionary(Int32, Utf8("cpu")) AS iox::measurement, TimestampNanosecond(0, None) AS time, cpu.usage_idle AS value [iox::measurement:Dictionary(Int32, Utf8), time:Timestamp(Nanosecond, None), value:Float64;N]
-                      TableScan: cpu [cpu:Dictionary(Int32, Utf8);N, host:Dictionary(Int32, Utf8);N, region:Dictionary(Int32, Utf8);N, time:Timestamp(Nanosecond, None), usage_idle:Float64;N, usage_system:Float64;N, usage_user:Float64;N]
-            "###);
+                Sort: time AS time ASC NULLS LAST [iox::measurement:Dictionary(Int32, Utf8), time:Timestamp(Nanosecond, None), value:Float64;N]
+                  Projection: Dictionary(Int32, Utf8("cpu")) AS iox::measurement, time AS time, value AS value [iox::measurement:Dictionary(Int32, Utf8), time:Timestamp(Nanosecond, None), value:Float64;N]
+                    Sort: time ASC NULLS LAST [time:Timestamp(Nanosecond, None), value:Float64;N]
+                      Distinct: [time:Timestamp(Nanosecond, None), value:Float64;N]
+                        Projection: TimestampNanosecond(0, None) AS time, cpu.usage_idle AS value [time:Timestamp(Nanosecond, None), value:Float64;N]
+                          TableScan: cpu [cpu:Dictionary(Int32, Utf8);N, host:Dictionary(Int32, Utf8);N, region:Dictionary(Int32, Utf8);N, time:Timestamp(Nanosecond, None), usage_idle:Float64;N, usage_system:Float64;N, usage_user:Float64;N]
+                "###);
 
                 // Outer query projects subquery with binary expressions
                 assert_snapshot!(plan("SELECT value * 0.99 FROM (SELECT DISTINCT(usage_idle) AS value FROM cpu)"), @r###"
-            Sort: time AS time ASC NULLS LAST [iox::measurement:Dictionary(Int32, Utf8), time:Timestamp(Nanosecond, None), value:Float64;N]
-              Projection: iox::measurement, time AS time, value * Float64(0.99) AS value [iox::measurement:Dictionary(Int32, Utf8), time:Timestamp(Nanosecond, None), value:Float64;N]
-                Sort: time ASC NULLS LAST [iox::measurement:Dictionary(Int32, Utf8), time:Timestamp(Nanosecond, None), value:Float64;N]
-                  Distinct: [iox::measurement:Dictionary(Int32, Utf8), time:Timestamp(Nanosecond, None), value:Float64;N]
-                    Projection: Dictionary(Int32, Utf8("cpu")) AS iox::measurement, TimestampNanosecond(0, None) AS time, cpu.usage_idle AS value [iox::measurement:Dictionary(Int32, Utf8), time:Timestamp(Nanosecond, None), value:Float64;N]
-                      TableScan: cpu [cpu:Dictionary(Int32, Utf8);N, host:Dictionary(Int32, Utf8);N, region:Dictionary(Int32, Utf8);N, time:Timestamp(Nanosecond, None), usage_idle:Float64;N, usage_system:Float64;N, usage_user:Float64;N]
-            "###);
+                Sort: time AS time ASC NULLS LAST [iox::measurement:Dictionary(Int32, Utf8), time:Timestamp(Nanosecond, None), value:Float64;N]
+                  Projection: Dictionary(Int32, Utf8("cpu")) AS iox::measurement, time AS time, value * Float64(0.99) AS value [iox::measurement:Dictionary(Int32, Utf8), time:Timestamp(Nanosecond, None), value:Float64;N]
+                    Sort: time ASC NULLS LAST [time:Timestamp(Nanosecond, None), value:Float64;N]
+                      Distinct: [time:Timestamp(Nanosecond, None), value:Float64;N]
+                        Projection: TimestampNanosecond(0, None) AS time, cpu.usage_idle AS value [time:Timestamp(Nanosecond, None), value:Float64;N]
+                          TableScan: cpu [cpu:Dictionary(Int32, Utf8);N, host:Dictionary(Int32, Utf8);N, region:Dictionary(Int32, Utf8);N, time:Timestamp(Nanosecond, None), usage_idle:Float64;N, usage_system:Float64;N, usage_user:Float64;N]
+                "###);
 
                 // Outer query groups by the `cpu` tag, which should be pushed all the way to inner-most subquery
                 assert_snapshot!(plan("SELECT * FROM (SELECT MAX(value) FROM (SELECT DISTINCT(usage_idle) AS value FROM cpu)) GROUP BY cpu"), @r###"
-            Sort: cpu AS cpu ASC NULLS LAST, time AS time ASC NULLS LAST [iox::measurement:Dictionary(Int32, Utf8), time:Timestamp(Nanosecond, None);N, cpu:Dictionary(Int32, Utf8);N, max:Float64;N]
-              Projection: iox::measurement, time AS time, cpu AS cpu, max AS max [iox::measurement:Dictionary(Int32, Utf8), time:Timestamp(Nanosecond, None);N, cpu:Dictionary(Int32, Utf8);N, max:Float64;N]
-                Sort: cpu AS cpu ASC NULLS LAST, time ASC NULLS LAST [iox::measurement:Dictionary(Int32, Utf8), time:Timestamp(Nanosecond, None);N, cpu:Dictionary(Int32, Utf8);N, max:Float64;N]
-                  Projection: iox::measurement, (selector_max(value,time))[time] AS time, cpu AS cpu, (selector_max(value,time))[value] AS max [iox::measurement:Dictionary(Int32, Utf8), time:Timestamp(Nanosecond, None);N, cpu:Dictionary(Int32, Utf8);N, max:Float64;N]
-                    Aggregate: groupBy=[[iox::measurement, cpu]], aggr=[[selector_max(value, time)]] [iox::measurement:Dictionary(Int32, Utf8), cpu:Dictionary(Int32, Utf8);N, selector_max(value,time):Struct([Field { name: "value", data_type: Float64, nullable: true, dict_id: 0, dict_is_ordered: false, metadata: {} }, Field { name: "time", data_type: Timestamp(Nanosecond, None), nullable: true, dict_id: 0, dict_is_ordered: false, metadata: {} }]);N]
-                      Sort: cpu ASC NULLS LAST, time ASC NULLS LAST [iox::measurement:Dictionary(Int32, Utf8), time:Timestamp(Nanosecond, None), cpu:Dictionary(Int32, Utf8);N, value:Float64;N]
-                        Distinct: [iox::measurement:Dictionary(Int32, Utf8), time:Timestamp(Nanosecond, None), cpu:Dictionary(Int32, Utf8);N, value:Float64;N]
-                          Projection: Dictionary(Int32, Utf8("cpu")) AS iox::measurement, TimestampNanosecond(0, None) AS time, cpu.cpu AS cpu, cpu.usage_idle AS value [iox::measurement:Dictionary(Int32, Utf8), time:Timestamp(Nanosecond, None), cpu:Dictionary(Int32, Utf8);N, value:Float64;N]
+                Sort: cpu AS cpu ASC NULLS LAST, time AS time ASC NULLS LAST [iox::measurement:Dictionary(Int32, Utf8), time:Timestamp(Nanosecond, None);N, cpu:Dictionary(Int32, Utf8);N, max:Float64;N]
+                  Projection: Dictionary(Int32, Utf8("cpu")) AS iox::measurement, time AS time, cpu AS cpu, max AS max [iox::measurement:Dictionary(Int32, Utf8), time:Timestamp(Nanosecond, None);N, cpu:Dictionary(Int32, Utf8);N, max:Float64;N]
+                    Sort: cpu AS cpu ASC NULLS LAST, time ASC NULLS LAST [time:Timestamp(Nanosecond, None);N, cpu:Dictionary(Int32, Utf8);N, max:Float64;N]
+                      Projection: (selector_max(value,time))[time] AS time, cpu AS cpu, (selector_max(value,time))[value] AS max [time:Timestamp(Nanosecond, None);N, cpu:Dictionary(Int32, Utf8);N, max:Float64;N]
+                        Aggregate: groupBy=[[cpu]], aggr=[[selector_max(value, time)]] [cpu:Dictionary(Int32, Utf8);N, selector_max(value,time):Struct([Field { name: "value", data_type: Float64, nullable: true, dict_id: 0, dict_is_ordered: false, metadata: {} }, Field { name: "time", data_type: Timestamp(Nanosecond, None), nullable: true, dict_id: 0, dict_is_ordered: false, metadata: {} }]);N]
+                          Sort: cpu ASC NULLS LAST, time ASC NULLS LAST [time:Timestamp(Nanosecond, None), cpu:Dictionary(Int32, Utf8);N, value:Float64;N]
+                            Distinct: [time:Timestamp(Nanosecond, None), cpu:Dictionary(Int32, Utf8);N, value:Float64;N]
+                              Projection: TimestampNanosecond(0, None) AS time, cpu.cpu AS cpu, cpu.usage_idle AS value [time:Timestamp(Nanosecond, None), cpu:Dictionary(Int32, Utf8);N, value:Float64;N]
+                                TableScan: cpu [cpu:Dictionary(Int32, Utf8);N, host:Dictionary(Int32, Utf8);N, region:Dictionary(Int32, Utf8);N, time:Timestamp(Nanosecond, None), usage_idle:Float64;N, usage_system:Float64;N, usage_user:Float64;N]
+                "###);
+            }
+        }
+
+        /// Validate plans for multiple data sources in the `FROM` clause, including subqueries
+        #[test]
+        fn multiple_data_sources() {
+            // same table for each subquery
+            //
+            // ⚠️ Important
+            // The aggregate must be applied to the UNION of all instances of the cpu table
+            assert_snapshot!(plan("SELECT last(a) / last(b) FROM (SELECT mean(usage_idle) AS a FROM cpu), (SELECT mean(usage_user) AS b FROM cpu)"), @r###"
+            Sort: time ASC NULLS LAST [iox::measurement:Dictionary(Int32, Utf8), time:Timestamp(Nanosecond, None), last_last:Float64;N]
+              Projection: Dictionary(Int32, Utf8("cpu")) AS iox::measurement, TimestampNanosecond(0, None) AS time, coalesce((selector_last(a,time))[value] / (selector_last(b,time))[value], Float64(0)) AS last_last [iox::measurement:Dictionary(Int32, Utf8), time:Timestamp(Nanosecond, None), last_last:Float64;N]
+                Aggregate: groupBy=[[]], aggr=[[selector_last(a, time), selector_last(b, time)]] [selector_last(a,time):Struct([Field { name: "value", data_type: Float64, nullable: true, dict_id: 0, dict_is_ordered: false, metadata: {} }, Field { name: "time", data_type: Timestamp(Nanosecond, None), nullable: true, dict_id: 0, dict_is_ordered: false, metadata: {} }]);N, selector_last(b,time):Struct([Field { name: "value", data_type: Float64, nullable: true, dict_id: 0, dict_is_ordered: false, metadata: {} }, Field { name: "time", data_type: Timestamp(Nanosecond, None), nullable: true, dict_id: 0, dict_is_ordered: false, metadata: {} }]);N]
+                  Union [a:Float64;N, b:Float64;N, time:Timestamp(Nanosecond, None)]
+                    Projection: a AS a, CAST(NULL AS Float64) AS b, time AS time [a:Float64;N, b:Float64;N, time:Timestamp(Nanosecond, None)]
+                      Sort: time ASC NULLS LAST [time:Timestamp(Nanosecond, None), a:Float64;N]
+                        Projection: TimestampNanosecond(0, None) AS time, AVG(cpu.usage_idle) AS a [time:Timestamp(Nanosecond, None), a:Float64;N]
+                          Aggregate: groupBy=[[]], aggr=[[AVG(cpu.usage_idle)]] [AVG(cpu.usage_idle):Float64;N]
+                            TableScan: cpu [cpu:Dictionary(Int32, Utf8);N, host:Dictionary(Int32, Utf8);N, region:Dictionary(Int32, Utf8);N, time:Timestamp(Nanosecond, None), usage_idle:Float64;N, usage_system:Float64;N, usage_user:Float64;N]
+                    Projection: CAST(NULL AS Float64) AS a, b AS b, time AS time [a:Float64;N, b:Float64;N, time:Timestamp(Nanosecond, None)]
+                      Sort: time ASC NULLS LAST [time:Timestamp(Nanosecond, None), b:Float64;N]
+                        Projection: TimestampNanosecond(0, None) AS time, AVG(cpu.usage_user) AS b [time:Timestamp(Nanosecond, None), b:Float64;N]
+                          Aggregate: groupBy=[[]], aggr=[[AVG(cpu.usage_user)]] [AVG(cpu.usage_user):Float64;N]
                             TableScan: cpu [cpu:Dictionary(Int32, Utf8);N, host:Dictionary(Int32, Utf8);N, region:Dictionary(Int32, Utf8);N, time:Timestamp(Nanosecond, None), usage_idle:Float64;N, usage_system:Float64;N, usage_user:Float64;N]
             "###);
-            }
+
+            // aggregate with repeated table
+            //
+            // ⚠️ Important
+            // The aggregate must be applied to the UNION of all instances of the cpu table
+            assert_snapshot!(plan("SELECT last(usage_idle) FROM cpu, cpu"), @r###"
+            Sort: time ASC NULLS LAST [iox::measurement:Dictionary(Int32, Utf8), time:Timestamp(Nanosecond, None);N, last:Float64;N]
+              Projection: Dictionary(Int32, Utf8("cpu")) AS iox::measurement, (selector_last(usage_idle,time))[time] AS time, (selector_last(usage_idle,time))[value] AS last [iox::measurement:Dictionary(Int32, Utf8), time:Timestamp(Nanosecond, None);N, last:Float64;N]
+                Aggregate: groupBy=[[]], aggr=[[selector_last(usage_idle, time)]] [selector_last(usage_idle,time):Struct([Field { name: "value", data_type: Float64, nullable: true, dict_id: 0, dict_is_ordered: false, metadata: {} }, Field { name: "time", data_type: Timestamp(Nanosecond, None), nullable: true, dict_id: 0, dict_is_ordered: false, metadata: {} }]);N]
+                  Union [time:Timestamp(Nanosecond, None), usage_idle:Float64;N]
+                    Projection: cpu.time AS time, cpu.usage_idle AS usage_idle [time:Timestamp(Nanosecond, None), usage_idle:Float64;N]
+                      TableScan: cpu [cpu:Dictionary(Int32, Utf8);N, host:Dictionary(Int32, Utf8);N, region:Dictionary(Int32, Utf8);N, time:Timestamp(Nanosecond, None), usage_idle:Float64;N, usage_system:Float64;N, usage_user:Float64;N]
+                    Projection: cpu.time AS time, cpu.usage_idle AS usage_idle [time:Timestamp(Nanosecond, None), usage_idle:Float64;N]
+                      TableScan: cpu [cpu:Dictionary(Int32, Utf8);N, host:Dictionary(Int32, Utf8);N, region:Dictionary(Int32, Utf8);N, time:Timestamp(Nanosecond, None), usage_idle:Float64;N, usage_system:Float64;N, usage_user:Float64;N]
+            "###);
+
+            // different tables for each subquery
+            //
+            // ⚠️ Important
+            // The aggregate must be applied independently for each unique table
+            assert_snapshot!(plan("SELECT last(value) FROM (SELECT usage_idle AS value FROM cpu), (SELECT bytes_free AS value FROM disk)"), @r###"
+            Sort: iox::measurement ASC NULLS LAST, time ASC NULLS LAST [iox::measurement:Dictionary(Int32, Utf8), time:Timestamp(Nanosecond, None);N, last:Float64;N]
+              Union [iox::measurement:Dictionary(Int32, Utf8), time:Timestamp(Nanosecond, None);N, last:Float64;N]
+                Projection: Dictionary(Int32, Utf8("cpu")) AS iox::measurement, (selector_last(value,time))[time] AS time, (selector_last(value,time))[value] AS last [iox::measurement:Dictionary(Int32, Utf8), time:Timestamp(Nanosecond, None);N, last:Float64;N]
+                  Aggregate: groupBy=[[]], aggr=[[selector_last(value, time)]] [selector_last(value,time):Struct([Field { name: "value", data_type: Float64, nullable: true, dict_id: 0, dict_is_ordered: false, metadata: {} }, Field { name: "time", data_type: Timestamp(Nanosecond, None), nullable: true, dict_id: 0, dict_is_ordered: false, metadata: {} }]);N]
+                    Sort: time ASC NULLS LAST [time:Timestamp(Nanosecond, None), value:Float64;N]
+                      Projection: cpu.time AS time, cpu.usage_idle AS value [time:Timestamp(Nanosecond, None), value:Float64;N]
+                        TableScan: cpu [cpu:Dictionary(Int32, Utf8);N, host:Dictionary(Int32, Utf8);N, region:Dictionary(Int32, Utf8);N, time:Timestamp(Nanosecond, None), usage_idle:Float64;N, usage_system:Float64;N, usage_user:Float64;N]
+                Projection: Dictionary(Int32, Utf8("disk")) AS iox::measurement, (selector_last(value,time))[time] AS time, (selector_last(value,time))[value] AS last [iox::measurement:Dictionary(Int32, Utf8), time:Timestamp(Nanosecond, None);N, last:Float64;N]
+                  Aggregate: groupBy=[[]], aggr=[[selector_last(CAST(value AS Float64), time)]] [selector_last(value,time):Struct([Field { name: "value", data_type: Float64, nullable: true, dict_id: 0, dict_is_ordered: false, metadata: {} }, Field { name: "time", data_type: Timestamp(Nanosecond, None), nullable: true, dict_id: 0, dict_is_ordered: false, metadata: {} }]);N]
+                    Sort: time ASC NULLS LAST [time:Timestamp(Nanosecond, None), value:Int64;N]
+                      Projection: disk.time AS time, disk.bytes_free AS value [time:Timestamp(Nanosecond, None), value:Int64;N]
+                        TableScan: disk [bytes_free:Int64;N, bytes_used:Int64;N, device:Dictionary(Int32, Utf8);N, host:Dictionary(Int32, Utf8);N, region:Dictionary(Int32, Utf8);N, time:Timestamp(Nanosecond, None)]
+            "###);
         }
 
         #[test]
@@ -2734,21 +2957,24 @@ mod test {
         fn test_distinct() {
             assert_snapshot!(plan("SELECT DISTINCT usage_idle FROM cpu"), @r###"
             Sort: time ASC NULLS LAST [iox::measurement:Dictionary(Int32, Utf8), time:Timestamp(Nanosecond, None), distinct:Float64;N]
-              Distinct: [iox::measurement:Dictionary(Int32, Utf8), time:Timestamp(Nanosecond, None), distinct:Float64;N]
-                Projection: Dictionary(Int32, Utf8("cpu")) AS iox::measurement, TimestampNanosecond(0, None) AS time, cpu.usage_idle AS distinct [iox::measurement:Dictionary(Int32, Utf8), time:Timestamp(Nanosecond, None), distinct:Float64;N]
-                  TableScan: cpu [cpu:Dictionary(Int32, Utf8);N, host:Dictionary(Int32, Utf8);N, region:Dictionary(Int32, Utf8);N, time:Timestamp(Nanosecond, None), usage_idle:Float64;N, usage_system:Float64;N, usage_user:Float64;N]
+              Projection: Dictionary(Int32, Utf8("cpu")) AS iox::measurement, time, distinct [iox::measurement:Dictionary(Int32, Utf8), time:Timestamp(Nanosecond, None), distinct:Float64;N]
+                Distinct: [time:Timestamp(Nanosecond, None), distinct:Float64;N]
+                  Projection: TimestampNanosecond(0, None) AS time, cpu.usage_idle AS distinct [time:Timestamp(Nanosecond, None), distinct:Float64;N]
+                    TableScan: cpu [cpu:Dictionary(Int32, Utf8);N, host:Dictionary(Int32, Utf8);N, region:Dictionary(Int32, Utf8);N, time:Timestamp(Nanosecond, None), usage_idle:Float64;N, usage_system:Float64;N, usage_user:Float64;N]
             "###);
             assert_snapshot!(plan("SELECT DISTINCT(usage_idle) FROM cpu"), @r###"
             Sort: time ASC NULLS LAST [iox::measurement:Dictionary(Int32, Utf8), time:Timestamp(Nanosecond, None), distinct:Float64;N]
-              Distinct: [iox::measurement:Dictionary(Int32, Utf8), time:Timestamp(Nanosecond, None), distinct:Float64;N]
-                Projection: Dictionary(Int32, Utf8("cpu")) AS iox::measurement, TimestampNanosecond(0, None) AS time, cpu.usage_idle AS distinct [iox::measurement:Dictionary(Int32, Utf8), time:Timestamp(Nanosecond, None), distinct:Float64;N]
-                  TableScan: cpu [cpu:Dictionary(Int32, Utf8);N, host:Dictionary(Int32, Utf8);N, region:Dictionary(Int32, Utf8);N, time:Timestamp(Nanosecond, None), usage_idle:Float64;N, usage_system:Float64;N, usage_user:Float64;N]
+              Projection: Dictionary(Int32, Utf8("cpu")) AS iox::measurement, time, distinct [iox::measurement:Dictionary(Int32, Utf8), time:Timestamp(Nanosecond, None), distinct:Float64;N]
+                Distinct: [time:Timestamp(Nanosecond, None), distinct:Float64;N]
+                  Projection: TimestampNanosecond(0, None) AS time, cpu.usage_idle AS distinct [time:Timestamp(Nanosecond, None), distinct:Float64;N]
+                    TableScan: cpu [cpu:Dictionary(Int32, Utf8);N, host:Dictionary(Int32, Utf8);N, region:Dictionary(Int32, Utf8);N, time:Timestamp(Nanosecond, None), usage_idle:Float64;N, usage_system:Float64;N, usage_user:Float64;N]
             "###);
             assert_snapshot!(plan("SELECT DISTINCT usage_idle FROM cpu GROUP BY cpu"), @r###"
             Sort: cpu ASC NULLS LAST, time ASC NULLS LAST [iox::measurement:Dictionary(Int32, Utf8), time:Timestamp(Nanosecond, None), cpu:Dictionary(Int32, Utf8);N, distinct:Float64;N]
-              Distinct: [iox::measurement:Dictionary(Int32, Utf8), time:Timestamp(Nanosecond, None), cpu:Dictionary(Int32, Utf8);N, distinct:Float64;N]
-                Projection: Dictionary(Int32, Utf8("cpu")) AS iox::measurement, TimestampNanosecond(0, None) AS time, cpu.cpu AS cpu, cpu.usage_idle AS distinct [iox::measurement:Dictionary(Int32, Utf8), time:Timestamp(Nanosecond, None), cpu:Dictionary(Int32, Utf8);N, distinct:Float64;N]
-                  TableScan: cpu [cpu:Dictionary(Int32, Utf8);N, host:Dictionary(Int32, Utf8);N, region:Dictionary(Int32, Utf8);N, time:Timestamp(Nanosecond, None), usage_idle:Float64;N, usage_system:Float64;N, usage_user:Float64;N]
+              Projection: Dictionary(Int32, Utf8("cpu")) AS iox::measurement, time, cpu, distinct [iox::measurement:Dictionary(Int32, Utf8), time:Timestamp(Nanosecond, None), cpu:Dictionary(Int32, Utf8);N, distinct:Float64;N]
+                Distinct: [time:Timestamp(Nanosecond, None), cpu:Dictionary(Int32, Utf8);N, distinct:Float64;N]
+                  Projection: TimestampNanosecond(0, None) AS time, cpu.cpu AS cpu, cpu.usage_idle AS distinct [time:Timestamp(Nanosecond, None), cpu:Dictionary(Int32, Utf8);N, distinct:Float64;N]
+                    TableScan: cpu [cpu:Dictionary(Int32, Utf8);N, host:Dictionary(Int32, Utf8);N, region:Dictionary(Int32, Utf8);N, time:Timestamp(Nanosecond, None), usage_idle:Float64;N, usage_system:Float64;N, usage_user:Float64;N]
             "###);
             assert_snapshot!(plan("SELECT COUNT(DISTINCT usage_idle) FROM cpu"), @r###"
             Sort: time ASC NULLS LAST [iox::measurement:Dictionary(Int32, Utf8), time:Timestamp(Nanosecond, None), count:Int64;N]
@@ -2954,12 +3180,13 @@ mod test {
 
             // multiple of same measurement
             assert_snapshot!(plan("SELECT host, usage_idle FROM cpu, cpu"), @r###"
-            Sort: time ASC NULLS LAST, host ASC NULLS LAST [iox::measurement:Dictionary(Int32, Utf8), time:Timestamp(Nanosecond, None), host:Dictionary(Int32, Utf8);N, usage_idle:Float64;N]
-              Union [iox::measurement:Dictionary(Int32, Utf8), time:Timestamp(Nanosecond, None), host:Dictionary(Int32, Utf8);N, usage_idle:Float64;N]
-                Projection: Dictionary(Int32, Utf8("cpu")) AS iox::measurement, cpu.time AS time, cpu.host AS host, cpu.usage_idle AS usage_idle [iox::measurement:Dictionary(Int32, Utf8), time:Timestamp(Nanosecond, None), host:Dictionary(Int32, Utf8);N, usage_idle:Float64;N]
-                  TableScan: cpu [cpu:Dictionary(Int32, Utf8);N, host:Dictionary(Int32, Utf8);N, region:Dictionary(Int32, Utf8);N, time:Timestamp(Nanosecond, None), usage_idle:Float64;N, usage_system:Float64;N, usage_user:Float64;N]
-                Projection: Dictionary(Int32, Utf8("cpu")) AS iox::measurement, cpu.time AS time, cpu.host AS host, cpu.usage_idle AS usage_idle [iox::measurement:Dictionary(Int32, Utf8), time:Timestamp(Nanosecond, None), host:Dictionary(Int32, Utf8);N, usage_idle:Float64;N]
-                  TableScan: cpu [cpu:Dictionary(Int32, Utf8);N, host:Dictionary(Int32, Utf8);N, region:Dictionary(Int32, Utf8);N, time:Timestamp(Nanosecond, None), usage_idle:Float64;N, usage_system:Float64;N, usage_user:Float64;N]
+            Sort: time AS time ASC NULLS LAST, host AS host ASC NULLS LAST [iox::measurement:Dictionary(Int32, Utf8), time:Timestamp(Nanosecond, None), host:Dictionary(Int32, Utf8);N, usage_idle:Float64;N]
+              Projection: Dictionary(Int32, Utf8("cpu")) AS iox::measurement, time AS time, host AS host, usage_idle AS usage_idle [iox::measurement:Dictionary(Int32, Utf8), time:Timestamp(Nanosecond, None), host:Dictionary(Int32, Utf8);N, usage_idle:Float64;N]
+                Union [host:Dictionary(Int32, Utf8);N, time:Timestamp(Nanosecond, None), usage_idle:Float64;N]
+                  Projection: cpu.host AS host, cpu.time AS time, cpu.usage_idle AS usage_idle [host:Dictionary(Int32, Utf8);N, time:Timestamp(Nanosecond, None), usage_idle:Float64;N]
+                    TableScan: cpu [cpu:Dictionary(Int32, Utf8);N, host:Dictionary(Int32, Utf8);N, region:Dictionary(Int32, Utf8);N, time:Timestamp(Nanosecond, None), usage_idle:Float64;N, usage_system:Float64;N, usage_user:Float64;N]
+                  Projection: cpu.host AS host, cpu.time AS time, cpu.usage_idle AS usage_idle [host:Dictionary(Int32, Utf8);N, time:Timestamp(Nanosecond, None), usage_idle:Float64;N]
+                    TableScan: cpu [cpu:Dictionary(Int32, Utf8);N, host:Dictionary(Int32, Utf8);N, region:Dictionary(Int32, Utf8);N, time:Timestamp(Nanosecond, None), usage_idle:Float64;N, usage_system:Float64;N, usage_user:Float64;N]
             "###);
         }
 
@@ -3484,7 +3711,7 @@ mod test {
                 Sort: foo ASC NULLS LAST, time ASC NULLS LAST [iox::measurement:Dictionary(Int32, Utf8), time:Timestamp(Nanosecond, None), foo:Dictionary(Int32, Utf8);N, count:Int64;N]
                   Projection: iox::measurement, time, foo, count [iox::measurement:Dictionary(Int32, Utf8), time:Timestamp(Nanosecond, None), foo:Dictionary(Int32, Utf8);N, count:Int64;N]
                     Filter: iox::row <= Int64(1) [iox::measurement:Dictionary(Int32, Utf8), time:Timestamp(Nanosecond, None), foo:Dictionary(Int32, Utf8);N, count:Int64;N, iox::row:UInt64;N]
-                      WindowAggr: windowExpr=[[ROW_NUMBER() PARTITION BY [iox::measurement, foo] ORDER BY [time ASC NULLS LAST] ROWS BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW AS iox::row]] [iox::measurement:Dictionary(Int32, Utf8), time:Timestamp(Nanosecond, None), foo:Dictionary(Int32, Utf8);N, count:Int64;N, iox::row:UInt64;N]
+                      WindowAggr: windowExpr=[[ROW_NUMBER() PARTITION BY [foo] ORDER BY [time ASC NULLS LAST] ROWS BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW AS iox::row]] [iox::measurement:Dictionary(Int32, Utf8), time:Timestamp(Nanosecond, None), foo:Dictionary(Int32, Utf8);N, count:Int64;N, iox::row:UInt64;N]
                         Sort: foo ASC NULLS LAST, time ASC NULLS LAST [iox::measurement:Dictionary(Int32, Utf8), time:Timestamp(Nanosecond, None), foo:Dictionary(Int32, Utf8);N, count:Int64;N]
                           Projection: Dictionary(Int32, Utf8("data")) AS iox::measurement, TimestampNanosecond(0, None) AS time, data.foo AS foo, COUNT(data.f64_field) AS count [iox::measurement:Dictionary(Int32, Utf8), time:Timestamp(Nanosecond, None), foo:Dictionary(Int32, Utf8);N, count:Int64;N]
                             Aggregate: groupBy=[[data.foo]], aggr=[[COUNT(data.f64_field)]] [foo:Dictionary(Int32, Utf8);N, COUNT(data.f64_field):Int64;N]
@@ -3494,7 +3721,7 @@ mod test {
                 Sort: foo ASC NULLS LAST, time ASC NULLS LAST [iox::measurement:Dictionary(Int32, Utf8), time:Timestamp(Nanosecond, None), foo:Dictionary(Int32, Utf8);N, count:Int64;N]
                   Projection: iox::measurement, time, foo, count [iox::measurement:Dictionary(Int32, Utf8), time:Timestamp(Nanosecond, None), foo:Dictionary(Int32, Utf8);N, count:Int64;N]
                     Filter: iox::row > Int64(1) [iox::measurement:Dictionary(Int32, Utf8), time:Timestamp(Nanosecond, None), foo:Dictionary(Int32, Utf8);N, count:Int64;N, iox::row:UInt64;N]
-                      WindowAggr: windowExpr=[[ROW_NUMBER() PARTITION BY [iox::measurement, foo] ORDER BY [time ASC NULLS LAST] ROWS BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW AS iox::row]] [iox::measurement:Dictionary(Int32, Utf8), time:Timestamp(Nanosecond, None), foo:Dictionary(Int32, Utf8);N, count:Int64;N, iox::row:UInt64;N]
+                      WindowAggr: windowExpr=[[ROW_NUMBER() PARTITION BY [foo] ORDER BY [time ASC NULLS LAST] ROWS BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW AS iox::row]] [iox::measurement:Dictionary(Int32, Utf8), time:Timestamp(Nanosecond, None), foo:Dictionary(Int32, Utf8);N, count:Int64;N, iox::row:UInt64;N]
                         Sort: foo ASC NULLS LAST, time ASC NULLS LAST [iox::measurement:Dictionary(Int32, Utf8), time:Timestamp(Nanosecond, None), foo:Dictionary(Int32, Utf8);N, count:Int64;N]
                           Projection: Dictionary(Int32, Utf8("data")) AS iox::measurement, TimestampNanosecond(0, None) AS time, data.foo AS foo, COUNT(data.f64_field) AS count [iox::measurement:Dictionary(Int32, Utf8), time:Timestamp(Nanosecond, None), foo:Dictionary(Int32, Utf8);N, count:Int64;N]
                             Aggregate: groupBy=[[data.foo]], aggr=[[COUNT(data.f64_field)]] [foo:Dictionary(Int32, Utf8);N, COUNT(data.f64_field):Int64;N]
@@ -3504,7 +3731,7 @@ mod test {
                 Sort: foo ASC NULLS LAST, time ASC NULLS LAST [iox::measurement:Dictionary(Int32, Utf8), time:Timestamp(Nanosecond, None), foo:Dictionary(Int32, Utf8);N, count:Int64;N]
                   Projection: iox::measurement, time, foo, count [iox::measurement:Dictionary(Int32, Utf8), time:Timestamp(Nanosecond, None), foo:Dictionary(Int32, Utf8);N, count:Int64;N]
                     Filter: iox::row BETWEEN Int64(4) AND Int64(5) [iox::measurement:Dictionary(Int32, Utf8), time:Timestamp(Nanosecond, None), foo:Dictionary(Int32, Utf8);N, count:Int64;N, iox::row:UInt64;N]
-                      WindowAggr: windowExpr=[[ROW_NUMBER() PARTITION BY [iox::measurement, foo] ORDER BY [time ASC NULLS LAST] ROWS BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW AS iox::row]] [iox::measurement:Dictionary(Int32, Utf8), time:Timestamp(Nanosecond, None), foo:Dictionary(Int32, Utf8);N, count:Int64;N, iox::row:UInt64;N]
+                      WindowAggr: windowExpr=[[ROW_NUMBER() PARTITION BY [foo] ORDER BY [time ASC NULLS LAST] ROWS BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW AS iox::row]] [iox::measurement:Dictionary(Int32, Utf8), time:Timestamp(Nanosecond, None), foo:Dictionary(Int32, Utf8);N, count:Int64;N, iox::row:UInt64;N]
                         Sort: foo ASC NULLS LAST, time ASC NULLS LAST [iox::measurement:Dictionary(Int32, Utf8), time:Timestamp(Nanosecond, None), foo:Dictionary(Int32, Utf8);N, count:Int64;N]
                           Projection: Dictionary(Int32, Utf8("data")) AS iox::measurement, TimestampNanosecond(0, None) AS time, data.foo AS foo, COUNT(data.f64_field) AS count [iox::measurement:Dictionary(Int32, Utf8), time:Timestamp(Nanosecond, None), foo:Dictionary(Int32, Utf8);N, count:Int64;N]
                             Aggregate: groupBy=[[data.foo]], aggr=[[COUNT(data.f64_field)]] [foo:Dictionary(Int32, Utf8);N, COUNT(data.f64_field):Int64;N]
@@ -3751,7 +3978,7 @@ mod test {
             Sort: cpu ASC NULLS LAST, time ASC NULLS LAST [iox::measurement:Dictionary(Int32, Utf8), time:Timestamp(Nanosecond, None), cpu:Dictionary(Int32, Utf8);N, usage_idle:Float64;N]
               Projection: iox::measurement, time, cpu, usage_idle [iox::measurement:Dictionary(Int32, Utf8), time:Timestamp(Nanosecond, None), cpu:Dictionary(Int32, Utf8);N, usage_idle:Float64;N]
                 Filter: iox::row <= Int64(1) [iox::measurement:Dictionary(Int32, Utf8), time:Timestamp(Nanosecond, None), cpu:Dictionary(Int32, Utf8);N, usage_idle:Float64;N, iox::row:UInt64;N]
-                  WindowAggr: windowExpr=[[ROW_NUMBER() PARTITION BY [iox::measurement, cpu] ORDER BY [time ASC NULLS LAST] ROWS BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW AS iox::row]] [iox::measurement:Dictionary(Int32, Utf8), time:Timestamp(Nanosecond, None), cpu:Dictionary(Int32, Utf8);N, usage_idle:Float64;N, iox::row:UInt64;N]
+                  WindowAggr: windowExpr=[[ROW_NUMBER() PARTITION BY [cpu] ORDER BY [time ASC NULLS LAST] ROWS BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW AS iox::row]] [iox::measurement:Dictionary(Int32, Utf8), time:Timestamp(Nanosecond, None), cpu:Dictionary(Int32, Utf8);N, usage_idle:Float64;N, iox::row:UInt64;N]
                     Sort: cpu ASC NULLS LAST, time ASC NULLS LAST [iox::measurement:Dictionary(Int32, Utf8), time:Timestamp(Nanosecond, None), cpu:Dictionary(Int32, Utf8);N, usage_idle:Float64;N]
                       Projection: Dictionary(Int32, Utf8("cpu")) AS iox::measurement, cpu.time AS time, cpu.cpu AS cpu, cpu.usage_idle AS usage_idle [iox::measurement:Dictionary(Int32, Utf8), time:Timestamp(Nanosecond, None), cpu:Dictionary(Int32, Utf8);N, usage_idle:Float64;N]
                         TableScan: cpu [cpu:Dictionary(Int32, Utf8);N, host:Dictionary(Int32, Utf8);N, region:Dictionary(Int32, Utf8);N, time:Timestamp(Nanosecond, None), usage_idle:Float64;N, usage_system:Float64;N, usage_user:Float64;N]
@@ -3760,7 +3987,7 @@ mod test {
             Sort: cpu ASC NULLS LAST, time ASC NULLS LAST [iox::measurement:Dictionary(Int32, Utf8), time:Timestamp(Nanosecond, None), cpu:Dictionary(Int32, Utf8);N, usage_idle:Float64;N]
               Projection: iox::measurement, time, cpu, usage_idle [iox::measurement:Dictionary(Int32, Utf8), time:Timestamp(Nanosecond, None), cpu:Dictionary(Int32, Utf8);N, usage_idle:Float64;N]
                 Filter: iox::row > Int64(1) [iox::measurement:Dictionary(Int32, Utf8), time:Timestamp(Nanosecond, None), cpu:Dictionary(Int32, Utf8);N, usage_idle:Float64;N, iox::row:UInt64;N]
-                  WindowAggr: windowExpr=[[ROW_NUMBER() PARTITION BY [iox::measurement, cpu] ORDER BY [time ASC NULLS LAST] ROWS BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW AS iox::row]] [iox::measurement:Dictionary(Int32, Utf8), time:Timestamp(Nanosecond, None), cpu:Dictionary(Int32, Utf8);N, usage_idle:Float64;N, iox::row:UInt64;N]
+                  WindowAggr: windowExpr=[[ROW_NUMBER() PARTITION BY [cpu] ORDER BY [time ASC NULLS LAST] ROWS BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW AS iox::row]] [iox::measurement:Dictionary(Int32, Utf8), time:Timestamp(Nanosecond, None), cpu:Dictionary(Int32, Utf8);N, usage_idle:Float64;N, iox::row:UInt64;N]
                     Sort: cpu ASC NULLS LAST, time ASC NULLS LAST [iox::measurement:Dictionary(Int32, Utf8), time:Timestamp(Nanosecond, None), cpu:Dictionary(Int32, Utf8);N, usage_idle:Float64;N]
                       Projection: Dictionary(Int32, Utf8("cpu")) AS iox::measurement, cpu.time AS time, cpu.cpu AS cpu, cpu.usage_idle AS usage_idle [iox::measurement:Dictionary(Int32, Utf8), time:Timestamp(Nanosecond, None), cpu:Dictionary(Int32, Utf8);N, usage_idle:Float64;N]
                         TableScan: cpu [cpu:Dictionary(Int32, Utf8);N, host:Dictionary(Int32, Utf8);N, region:Dictionary(Int32, Utf8);N, time:Timestamp(Nanosecond, None), usage_idle:Float64;N, usage_system:Float64;N, usage_user:Float64;N]
@@ -3769,7 +3996,7 @@ mod test {
             Sort: cpu ASC NULLS LAST, time ASC NULLS LAST [iox::measurement:Dictionary(Int32, Utf8), time:Timestamp(Nanosecond, None), cpu:Dictionary(Int32, Utf8);N, usage_idle:Float64;N]
               Projection: iox::measurement, time, cpu, usage_idle [iox::measurement:Dictionary(Int32, Utf8), time:Timestamp(Nanosecond, None), cpu:Dictionary(Int32, Utf8);N, usage_idle:Float64;N]
                 Filter: iox::row BETWEEN Int64(2) AND Int64(2) [iox::measurement:Dictionary(Int32, Utf8), time:Timestamp(Nanosecond, None), cpu:Dictionary(Int32, Utf8);N, usage_idle:Float64;N, iox::row:UInt64;N]
-                  WindowAggr: windowExpr=[[ROW_NUMBER() PARTITION BY [iox::measurement, cpu] ORDER BY [time ASC NULLS LAST] ROWS BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW AS iox::row]] [iox::measurement:Dictionary(Int32, Utf8), time:Timestamp(Nanosecond, None), cpu:Dictionary(Int32, Utf8);N, usage_idle:Float64;N, iox::row:UInt64;N]
+                  WindowAggr: windowExpr=[[ROW_NUMBER() PARTITION BY [cpu] ORDER BY [time ASC NULLS LAST] ROWS BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW AS iox::row]] [iox::measurement:Dictionary(Int32, Utf8), time:Timestamp(Nanosecond, None), cpu:Dictionary(Int32, Utf8);N, usage_idle:Float64;N, iox::row:UInt64;N]
                     Sort: cpu ASC NULLS LAST, time ASC NULLS LAST [iox::measurement:Dictionary(Int32, Utf8), time:Timestamp(Nanosecond, None), cpu:Dictionary(Int32, Utf8);N, usage_idle:Float64;N]
                       Projection: Dictionary(Int32, Utf8("cpu")) AS iox::measurement, cpu.time AS time, cpu.cpu AS cpu, cpu.usage_idle AS usage_idle [iox::measurement:Dictionary(Int32, Utf8), time:Timestamp(Nanosecond, None), cpu:Dictionary(Int32, Utf8);N, usage_idle:Float64;N]
                         TableScan: cpu [cpu:Dictionary(Int32, Utf8);N, host:Dictionary(Int32, Utf8);N, region:Dictionary(Int32, Utf8);N, time:Timestamp(Nanosecond, None), usage_idle:Float64;N, usage_system:Float64;N, usage_user:Float64;N]

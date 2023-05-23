@@ -1128,7 +1128,7 @@ impl VisitableMut for Dimension {
 
         match self {
             Self::Time(v) => v.accept(visitor)?,
-            Self::Tag(_) | Self::Regex(_) | Self::Wildcard => {}
+            Self::VarRef(_) | Self::Regex(_) | Self::Wildcard => {}
         };
 
         visitor.post_visit_select_dimension(self)

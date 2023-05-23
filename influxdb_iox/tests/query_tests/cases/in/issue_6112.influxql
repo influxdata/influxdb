@@ -568,70 +568,47 @@ SELECT P / 99.99 FROM (SELECT max(usage_system) AS P, mean(usage_idle) AS S FROM
 -- Source: Cloud 2
 SELECT distinct(cpu) FROM (SELECT usage_idle, cpu FROM cpu);
 
---
--- The following queries return inconsistent results with respect
--- to InfluxQL OG, due to https://github.com/influxdata/influxdb_iox/issues/7794
---
+SELECT LAST(usage_idle) FROM cpu, cpu GROUP BY cpu;
 
--- TODO(sgc): https://github.com/influxdata/influxdb_iox/issues/7794
--- Expected output:
--- name: cpu
--- tags: cpu=cpu-total
--- +---------------------+------+
--- | time                | last |
--- +---------------------+------+
--- | 2022-10-31T02:00:10 | 2.99 |
--- +---------------------+------+
--- name: cpu
--- tags: cpu=cpu0
--- +---------------------+------+
--- | time                | last |
--- +---------------------+------+
--- | 2022-10-31T02:00:10 | 0.99 |
--- +---------------------+------+
--- name: cpu
--- tags: cpu=cpu1
--- +---------------------+------+
--- | time                | last |
--- +---------------------+------+
--- | 2022-10-31T02:00:10 | 1.99 |
--- +---------------------+------+
---
--- SELECT LAST(usage_idle) FROM cpu, cpu GROUP BY cpu;
-
--- TODO(sgc): https://github.com/influxdata/influxdb_iox/issues/7794
 -- Multiple subqueries from same measurement
--- * Outer query projects aggregates, values at same timestamp should be combined
--- Source: Cloud 2
--- Expected output:
--- name: cpu
--- +---------------------+------+--------+
--- | time                | last | last_1 |
--- +---------------------+------+--------+
--- | 1970-01-01T00:00:00 | 2.99 | 2.1    |
--- +---------------------+------+--------+
--- SELECT last(usage_idle), last(usage_system) FROM (SELECT usage_idle FROM cpu WHERE cpu = 'cpu-total'), (SELECT usage_system FROM cpu WHERE cpu = 'cpu-total');
+SELECT last(usage_idle), last(usage_system) FROM (SELECT usage_idle FROM cpu WHERE cpu = 'cpu-total'), (SELECT usage_system FROM cpu WHERE cpu = 'cpu-total');
 
 -- Similar query produces expected output of prior query
 SELECT last(usage_idle), last(usage_system) FROM (SELECT usage_idle, usage_system FROM cpu WHERE cpu = 'cpu-total');
 
-
--- TODO(sgc): https://github.com/influxdata/influxdb_iox/issues/7794
 -- Multiple subqueries from same measurement, GROUP BY TIME
--- * Outer query projects aggregates, values at same timestamp should be combined
--- Source: Cloud 2
--- Expected output:
--- name: cpu
--- +---------------------+------+--------+
--- | time                | last | last_1 |
--- +---------------------+------+--------+
--- | 2022-10-31T02:00:00 | 2.98 | 2.2    |
--- | 2022-10-31T02:00:10 | 2.99 | 2.1    |
--- +---------------------+------+--------+
--- SELECT last(sum_idle), last(sum_system) FROM (SELECT sum(usage_idle) AS sum_idle FROM cpu WHERE cpu = 'cpu-total' GROUP BY time(10s)), (SELECT sum(usage_system) AS sum_system FROM cpu WHERE cpu = 'cpu-total' GROUP BY time(10s)) GROUP BY time(10s) FILL(none);
+SELECT last(sum_idle), last(sum_system) FROM (SELECT sum(usage_idle) AS sum_idle FROM cpu WHERE cpu = 'cpu-total' GROUP BY time(10s)), (SELECT sum(usage_system) AS sum_system FROM cpu WHERE cpu = 'cpu-total' GROUP BY time(10s)) GROUP BY time(10s) FILL(none);
 
--- Similar query produces expected output of prior query
+-- Multiple subqueries from same measurement, GROUP BY TIME
 SELECT last(sum_idle), last(sum_system) FROM (SELECT sum(usage_idle) AS sum_idle, sum(usage_system) AS sum_system FROM cpu WHERE cpu = 'cpu-total' GROUP BY time(10s)) GROUP BY time(10s) FILL(none);
 
--- TODO(sgc): https://github.com/influxdata/influxdb_iox/issues/7794
+-- Select the last value from two subqueries using two fields
+-- aliased to the same name, `sum_idle`. This results in multiple
+-- multiple rows for each timestamp.
+--
+-- Result  : Inconsistent
+-- Priority: LOW
+--
+-- Doesn't generate consistent results, as sometimes the values for `usage_idle`:
+--
+-- name: cpu
+-- +---------------------+---------------+
+-- | time                | last_sum_idle |
+-- +---------------------+---------------+
+-- | 2022-10-31T02:00:00 | 2.98          |
+-- | 2022-10-31T02:00:10 | 2.99          |
+-- +---------------------+---------------+
+--
+-- Other executions produce the value for `usage_system`:
+--
+-- name: cpu
+-- +---------------------+---------------+
+-- | time                | last_sum_idle |
+-- +---------------------+---------------+
+-- | 2022-10-31T02:00:00 | 2.2           |
+-- | 2022-10-31T02:00:10 | 2.1           |
+-- +---------------------+---------------+
+--
+-- A possible fix is to introduce a column that assigned a unique number to
+-- each subquery to ensure the results are deterministic.
 -- SELECT last(*) FROM (SELECT sum(usage_idle) AS sum_idle FROM cpu WHERE cpu = 'cpu-total' GROUP BY time(10s)), (SELECT sum(usage_system) AS sum_idle FROM cpu WHERE cpu = 'cpu-total' GROUP BY time(10s)) GROUP BY time(10s) FILL(none);

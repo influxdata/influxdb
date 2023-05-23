@@ -1178,7 +1178,7 @@ impl Visitable for Dimension {
 
         let visitor = match self {
             Self::Time(v) => v.accept(visitor),
-            Self::Tag(_) | Self::Regex(_) | Self::Wildcard => Ok(visitor),
+            Self::VarRef(_) | Self::Regex(_) | Self::Wildcard => Ok(visitor),
         }?;
 
         visitor.post_visit_select_dimension(self)

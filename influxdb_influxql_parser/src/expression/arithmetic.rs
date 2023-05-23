@@ -19,7 +19,7 @@ use std::fmt::{Display, Formatter, Write};
 use std::ops::Neg;
 
 /// Reference to a tag or field key.
-#[derive(Clone, Debug, Ord, PartialOrd, Eq, PartialEq)]
+#[derive(Clone, Debug, Ord, PartialOrd, Eq, PartialEq, Hash)]
 pub struct VarRef {
     /// The name of the tag or field.
     pub name: Identifier,
