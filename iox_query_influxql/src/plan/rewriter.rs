@@ -5,8 +5,10 @@ use crate::plan::ir::{DataSource, Field, Select, SelectQuery, TagSet};
 use crate::plan::var_ref::{influx_type_to_var_ref_data_type, var_ref_data_type_to_influx_type};
 use crate::plan::{error, util, SchemaProvider};
 use datafusion::common::{DataFusionError, Result};
-use influxdb_influxql_parser::common::{MeasurementName, QualifiedMeasurementName};
-use influxdb_influxql_parser::expression::walk::{walk_expr, walk_expr_mut};
+use influxdb_influxql_parser::common::{MeasurementName, QualifiedMeasurementName, WhereClause};
+use influxdb_influxql_parser::expression::walk::{
+    walk_expr, walk_expr_mut, walk_expression_mut, ExpressionMut,
+};
 use influxdb_influxql_parser::expression::{
     AsVarRefExpr, Call, Expr, VarRef, VarRefDataType, WildcardType,
 };
@@ -19,9 +21,9 @@ use influxdb_influxql_parser::select::{
 };
 use itertools::Itertools;
 use schema::InfluxColumnType;
-use std::collections::{HashMap, HashSet};
+use std::collections::{BTreeSet, HashMap, HashSet};
 use std::fmt::Debug;
-use std::ops::{ControlFlow, Deref};
+use std::ops::{ControlFlow, Deref, DerefMut};
 
 /// Recursively rewrite the specified [`SelectStatement`] by performing a series of passes
 /// to validate and normalize the statement.
@@ -33,32 +35,25 @@ pub(super) fn rewrite_statement(
     from_drop_empty(s, &mut select);
     field_list_normalize_time(&mut select);
 
-    let has_multiple_measurements = has_multiple_measurements(&select);
-
-    Ok(SelectQuery {
-        select,
-        has_multiple_measurements,
-    })
+    Ok(SelectQuery { select })
 }
 
-/// Determines if s projects more than a single unique table
-fn has_multiple_measurements(s: &Select) -> bool {
+/// Find the unique list of tables used by `s`, recursively following all `FROM` clauses and
+/// return the results in lexicographically in ascending order.
+pub(super) fn find_table_names(s: &Select) -> BTreeSet<&str> {
     let mut data_sources = vec![s.from.as_slice()];
-    let mut table_name: Option<&str> = None;
+    let mut tables = BTreeSet::new();
     while let Some(from) = data_sources.pop() {
         for ds in from {
             match ds {
-                DataSource::Table(name) if matches!(table_name, None) => table_name = Some(name),
                 DataSource::Table(name) => {
-                    if name != table_name.unwrap() {
-                        return true;
-                    }
+                    tables.insert(name.as_str());
                 }
                 DataSource::Subquery(q) => data_sources.push(q.from.as_slice()),
             }
         }
     }
-    false
+    tables
 }
 
 /// Transform a `SelectStatement` to a `Select`, which is an intermediate representation used by
@@ -99,8 +94,9 @@ impl RewriteSelect {
         check_features(stmt)?;
 
         let from = self.expand_from(s, stmt)?;
-        let (fields, group_by) = self.expand_projection(s, stmt, &from)?;
-        let tag_set = select_tag_set(s, &from);
+        let tag_set = from_tag_set(s, &from);
+        let (fields, group_by) = self.expand_projection(s, stmt, &from, &tag_set)?;
+        let condition = self.condition_resolve_types(s, stmt, &from)?;
 
         let SelectStatementInfo { projection_type } =
             select_statement_info(&fields, &group_by, stmt.fill)?;
@@ -119,11 +115,10 @@ impl RewriteSelect {
         };
 
         Ok(Select {
-            depth: self.depth,
             projection_type,
             fields,
             from,
-            condition: stmt.condition.clone(),
+            condition,
             group_by,
             tag_set,
             fill,
@@ -163,6 +158,7 @@ impl RewriteSelect {
         s: &dyn SchemaProvider,
         stmt: &SelectStatement,
         from: &[DataSource],
+        from_tag_set: &TagSet,
     ) -> Result<(Vec<Field>, Option<GroupByClause>)> {
         let tv = TypeEvaluator::new(s, from);
         let fields = stmt
@@ -211,14 +207,14 @@ impl RewriteSelect {
 
         let (has_field_wildcard, has_group_by_wildcard) = has_wildcards(stmt);
 
-        let (fields, group_by) = if has_field_wildcard || has_group_by_wildcard {
+        let (fields, mut group_by) = if has_field_wildcard || has_group_by_wildcard {
             let (field_set, mut tag_set) = from_field_and_dimensions(s, from)?;
 
             if !has_group_by_wildcard {
                 if let Some(group_by) = &stmt.group_by {
                     // Remove any explicitly listed tags in the GROUP BY clause, so they are not
                     // expanded by any wildcards specified in the SELECT projection list
-                    group_by.tags().for_each(|ident| {
+                    group_by.tag_names().for_each(|ident| {
                         tag_set.remove(ident.as_str());
                     });
                 }
@@ -259,7 +255,10 @@ impl RewriteSelect {
 
                     for dim in group_by.iter() {
                         let add_dim = |dim: &String| {
-                            new_dimensions.push(Dimension::Tag(Identifier::new(dim.clone())))
+                            new_dimensions.push(Dimension::VarRef(VarRef {
+                                name: Identifier::new(dim.clone()),
+                                data_type: Some(VarRefDataType::Tag),
+                            }))
                         };
 
                         match dim {
@@ -289,6 +288,16 @@ impl RewriteSelect {
         } else {
             (fields, stmt.group_by.clone())
         };
+
+        // resolve possible tag references in group_by
+        if let Some(group_by) = group_by.as_mut() {
+            for dim in group_by.iter_mut() {
+                let Dimension::VarRef(var_ref) = dim else { continue };
+                if from_tag_set.contains(var_ref.name.as_str()) {
+                    var_ref.data_type = Some(VarRefDataType::Tag);
+                }
+            }
+        }
 
         Ok((fields_resolve_aliases_and_types(s, fields, from)?, group_by))
     }
@@ -329,11 +338,49 @@ impl RewriteSelect {
         }
         Ok(new_from)
     }
+
+    /// Resolve the data types of any [`VarRef`] expressions in the `WHERE` condition.
+    fn condition_resolve_types(
+        &self,
+        s: &dyn SchemaProvider,
+        stmt: &SelectStatement,
+        from: &[DataSource],
+    ) -> Result<Option<WhereClause>> {
+        let Some(mut where_clause) = stmt.condition.clone() else { return Ok(None) };
+
+        let tv = TypeEvaluator::new(s, from);
+
+        if let ControlFlow::Break(err) = walk_expression_mut(where_clause.deref_mut(), &mut |e| {
+            match e {
+                ExpressionMut::Arithmetic(e) => walk_expr_mut(e, &mut |e| match e {
+                    // Attempt to rewrite all variable (column) references with their concrete types,
+                    // if one hasn't been specified.
+                    Expr::VarRef(ref mut v) => {
+                        v.data_type = match tv.eval_var_ref(v) {
+                            Ok(v) => v,
+                            Err(e) => ControlFlow::Break(e)?,
+                        };
+                        ControlFlow::Continue(())
+                    }
+                    _ => ControlFlow::Continue(()),
+                }),
+                ExpressionMut::Conditional(_) => ControlFlow::<DataFusionError>::Continue(()),
+            }
+        }) {
+            Err(err)
+        } else {
+            Ok(Some(where_clause))
+        }
+    }
 }
 
-/// Ensure the time field is added to all projections,
-/// and is moved to the first position, which is a requirement
-/// for InfluxQL compatibility.
+/// Ensures the `time` column is presented consistently across all `SELECT` queries.
+///
+/// The following transformations may occur
+///
+/// * Ensure the `time` field is added to all projections;
+/// * move the `time` field to the first position; and
+/// * remove column alias for `time` in subqueries.
 fn field_list_normalize_time(stmt: &mut Select) {
     fn normalize_time(stmt: &mut Select, is_subquery: bool) {
         if let Some(f) = match stmt
@@ -430,7 +477,7 @@ fn from_drop_empty(s: &dyn SchemaProvider, stmt: &mut Select) {
 }
 
 /// Determine the combined tag set for the specified `from`.
-fn select_tag_set(s: &dyn SchemaProvider, from: &[DataSource]) -> TagSet {
+fn from_tag_set(s: &dyn SchemaProvider, from: &[DataSource]) -> TagSet {
     let mut tag_set = TagSet::new();
 
     for ds in from {
@@ -497,7 +544,7 @@ fn from_field_and_dimensions(
 
                 if let Some(group_by) = &select.group_by {
                     // Merge the dimensions from the subquery
-                    ts.extend(group_by.tags().map(|i| i.deref().to_string()));
+                    ts.extend(group_by.tag_names().map(|i| i.deref().to_string()));
                 }
             }
         }
@@ -610,7 +657,7 @@ fn fields_expand_wildcards(
                 ]);
 
                 // Modify the supported types for certain functions.
-                match name.to_lowercase().as_str() {
+                match name.as_str() {
                     "count" | "first" | "last" | "distinct" | "elapsed" | "mode" | "sample" => {
                         supported_types
                             .extend([Some(VarRefDataType::String), Some(VarRefDataType::Boolean)]);
@@ -1464,13 +1511,45 @@ mod test {
     use super::Result;
     use crate::plan::ir::{Field, Select};
     use crate::plan::rewriter::{
-        has_wildcards, rewrite_select, rewrite_statement, ProjectionType, SelectStatementInfo,
+        find_table_names, has_wildcards, rewrite_select, rewrite_statement, ProjectionType,
+        SelectStatementInfo,
     };
     use crate::plan::test_utils::{parse_select, MockSchemaProvider};
     use assert_matches::assert_matches;
     use datafusion::error::DataFusionError;
     use influxdb_influxql_parser::select::SelectStatement;
     use test_helpers::{assert_contains, assert_error};
+
+    #[test]
+    fn test_find_table_names() {
+        let namespace = MockSchemaProvider::default();
+        let parse_select = |s: &str| -> Select {
+            let select = parse_select(s);
+            rewrite_select(&namespace, &select).unwrap()
+        };
+
+        /// Return `find_table_names` as a `Vec` for tests.
+        fn find_table_names_vec(s: &Select) -> Vec<&str> {
+            find_table_names(s).into_iter().collect()
+        }
+
+        let s = parse_select("SELECT usage_idle FROM cpu");
+        assert_eq!(find_table_names_vec(&s), &["cpu"]);
+
+        let s = parse_select("SELECT usage_idle FROM cpu, disk");
+        assert_eq!(find_table_names_vec(&s), &["cpu", "disk"]);
+
+        let s = parse_select("SELECT usage_idle FROM disk, cpu, disk");
+        assert_eq!(find_table_names_vec(&s), &["cpu", "disk"]);
+
+        // subqueries
+
+        let s = parse_select("SELECT usage_idle FROM (select * from cpu, disk)");
+        assert_eq!(find_table_names_vec(&s), &["cpu", "disk"]);
+
+        let s = parse_select("SELECT usage_idle FROM cpu, (select * from cpu, disk)");
+        assert_eq!(find_table_names_vec(&s), &["cpu", "disk"]);
+    }
 
     #[test]
     fn test_select_statement_info() {
@@ -2024,6 +2103,53 @@ mod test {
             );
         }
 
+        /// Validate type resolution of [`VarRef`] nodes in the `WHERE` clause.
+        #[test]
+        fn condition() {
+            let namespace = MockSchemaProvider::default();
+
+            // resolves float field
+            let stmt = parse_select("SELECT usage_idle FROM cpu WHERE usage_user > 0");
+            let stmt = rewrite_select_statement(&namespace, &stmt).unwrap();
+            assert_eq!(
+                stmt.to_string(),
+                "SELECT time::timestamp AS time, usage_idle::float AS usage_idle FROM cpu WHERE usage_user::float > 0"
+            );
+
+            // resolves tag field
+            let stmt = parse_select("SELECT usage_idle FROM cpu WHERE cpu =~ /foo/");
+            let stmt = rewrite_select_statement(&namespace, &stmt).unwrap();
+            assert_eq!(
+                stmt.to_string(),
+                "SELECT time::timestamp AS time, usage_idle::float AS usage_idle FROM cpu WHERE cpu::tag =~ /foo/"
+            );
+
+            // Does not resolve an unknown field
+            let stmt = parse_select("SELECT usage_idle FROM cpu WHERE non_existent = 'bar'");
+            let stmt = rewrite_select_statement(&namespace, &stmt).unwrap();
+            assert_eq!(
+                stmt.to_string(),
+                "SELECT time::timestamp AS time, usage_idle::float AS usage_idle FROM cpu WHERE non_existent = 'bar'"
+            );
+
+            // Handles multiple measurements; `bytes_free` is from the `disk` measurement
+            let stmt =
+                parse_select("SELECT usage_idle, bytes_free FROM cpu, disk WHERE bytes_free = 3");
+            let stmt = rewrite_select_statement(&namespace, &stmt).unwrap();
+            assert_eq!(
+                stmt.to_string(),
+                "SELECT time::timestamp AS time, usage_idle::float AS usage_idle, bytes_free::integer AS bytes_free FROM cpu, disk WHERE bytes_free::integer = 3"
+            );
+
+            // Resolves recursively through subqueries and aliases
+            let stmt = parse_select("SELECT bytes FROM (SELECT bytes_free AS bytes FROM disk WHERE bytes_free = 3) WHERE bytes > 0");
+            let stmt = rewrite_select_statement(&namespace, &stmt).unwrap();
+            assert_eq!(
+                stmt.to_string(),
+                "SELECT time::timestamp AS time, bytes::integer AS bytes FROM (SELECT time::timestamp AS time, bytes_free::integer AS bytes FROM disk WHERE bytes_free::integer = 3) WHERE bytes::integer > 0"
+            );
+        }
+
         #[test]
         fn group_by() {
             let namespace = MockSchemaProvider::default();
@@ -2032,14 +2158,31 @@ mod test {
             let stmt = rewrite_select_statement(&namespace, &stmt).unwrap();
             assert_eq!(
                 stmt.to_string(),
-                "SELECT time::timestamp AS time, usage_idle::float AS usage_idle FROM cpu GROUP BY host"
+                "SELECT time::timestamp AS time, usage_idle::float AS usage_idle FROM cpu GROUP BY host::tag"
+            );
+
+            // resolves tag types from multiple measurements
+            let stmt =
+                parse_select("SELECT usage_idle, bytes_free FROM cpu, disk GROUP BY host, device");
+            let stmt = rewrite_select_statement(&namespace, &stmt).unwrap();
+            assert_eq!(
+                stmt.to_string(),
+                "SELECT time::timestamp AS time, usage_idle::float AS usage_idle, bytes_free::integer AS bytes_free FROM cpu, disk GROUP BY host::tag, device::tag"
+            );
+
+            // does not resolve non-existent tag
+            let stmt = parse_select("SELECT usage_idle FROM cpu GROUP BY host, non_existent");
+            let stmt = rewrite_select_statement(&namespace, &stmt).unwrap();
+            assert_eq!(
+                stmt.to_string(),
+                "SELECT time::timestamp AS time, usage_idle::float AS usage_idle FROM cpu GROUP BY host::tag, non_existent"
             );
 
             let stmt = parse_select("SELECT usage_idle FROM cpu GROUP BY *");
             let stmt = rewrite_select_statement(&namespace, &stmt).unwrap();
             assert_eq!(
                 stmt.to_string(),
-                "SELECT time::timestamp AS time, usage_idle::float AS usage_idle FROM cpu GROUP BY cpu, host, region"
+                "SELECT time::timestamp AS time, usage_idle::float AS usage_idle FROM cpu GROUP BY cpu::tag, host::tag, region::tag"
             );
 
             // Does not include tags in projection when expanded in GROUP BY
@@ -2047,7 +2190,7 @@ mod test {
             let stmt = rewrite_select_statement(&namespace, &stmt).unwrap();
             assert_eq!(
                 stmt.to_string(),
-                "SELECT time::timestamp AS time, usage_idle::float AS usage_idle, usage_system::float AS usage_system, usage_user::float AS usage_user FROM cpu GROUP BY cpu, host, region"
+                "SELECT time::timestamp AS time, usage_idle::float AS usage_idle, usage_system::float AS usage_system, usage_user::float AS usage_user FROM cpu GROUP BY cpu::tag, host::tag, region::tag"
             );
 
             // Does include explicitly listed tags in projection
@@ -2055,7 +2198,7 @@ mod test {
             let stmt = rewrite_select_statement(&namespace, &stmt).unwrap();
             assert_eq!(
                 stmt.to_string(),
-                "SELECT time::timestamp AS time, host::tag AS host, usage_idle::float AS usage_idle, usage_system::float AS usage_system, usage_user::float AS usage_user FROM cpu GROUP BY cpu, host, region"
+                "SELECT time::timestamp AS time, host::tag AS host, usage_idle::float AS usage_idle, usage_system::float AS usage_system, usage_user::float AS usage_user FROM cpu GROUP BY cpu::tag, host::tag, region::tag"
             );
         }
 
@@ -2191,7 +2334,7 @@ mod test {
             let stmt = rewrite_select_statement(&namespace, &stmt).unwrap();
             assert_eq!(
                 stmt.to_string(),
-                "SELECT time::timestamp AS time, cpu::tag AS cpu, usage_system::float AS usage_system FROM (SELECT time::timestamp AS time, usage_system::float AS usage_system FROM cpu GROUP BY cpu)"
+                "SELECT time::timestamp AS time, cpu::tag AS cpu, usage_system::float AS usage_system FROM (SELECT time::timestamp AS time, usage_system::float AS usage_system FROM cpu GROUP BY cpu::tag)"
             );
 
             // Specifically project cpu tag from GROUP BY
@@ -2201,7 +2344,7 @@ mod test {
             let stmt = rewrite_select_statement(&namespace, &stmt).unwrap();
             assert_eq!(
                 stmt.to_string(),
-                "SELECT time::timestamp AS time, cpu::tag AS cpu, usage_system::float AS usage_system FROM (SELECT time::timestamp AS time, usage_system::float AS usage_system FROM cpu GROUP BY cpu)"
+                "SELECT time::timestamp AS time, cpu::tag AS cpu, usage_system::float AS usage_system FROM (SELECT time::timestamp AS time, usage_system::float AS usage_system FROM cpu GROUP BY cpu::tag)"
             );
 
             // Projects cpu tag in outer query separately from aliased cpu tag "foo"
@@ -2211,7 +2354,7 @@ mod test {
             let stmt = rewrite_select_statement(&namespace, &stmt).unwrap();
             assert_eq!(
                 stmt.to_string(),
-                "SELECT time::timestamp AS time, cpu::tag AS cpu, foo::tag AS foo, usage_system::float AS usage_system FROM (SELECT time::timestamp AS time, cpu::tag AS foo, usage_system::float AS usage_system FROM cpu GROUP BY cpu)"
+                "SELECT time::timestamp AS time, cpu::tag AS cpu, foo::tag AS foo, usage_system::float AS usage_system FROM (SELECT time::timestamp AS time, cpu::tag AS foo, usage_system::float AS usage_system FROM cpu GROUP BY cpu::tag)"
             );
 
             // Projects non-existent foo as a tag in the outer query
@@ -2221,7 +2364,7 @@ mod test {
             let stmt = rewrite_select_statement(&namespace, &stmt).unwrap();
             assert_eq!(
                 stmt.to_string(),
-                "SELECT time::timestamp AS time, foo::tag AS foo, usage_idle::float AS usage_idle FROM (SELECT time::timestamp AS time, usage_idle::float AS usage_idle FROM cpu GROUP BY foo) GROUP BY cpu"
+                "SELECT time::timestamp AS time, foo::tag AS foo, usage_idle::float AS usage_idle FROM (SELECT time::timestamp AS time, usage_idle::float AS usage_idle FROM cpu GROUP BY foo) GROUP BY cpu::tag"
             );
             // Normalises time to all leaf subqueries
             let stmt = parse_select(
@@ -2230,7 +2373,7 @@ mod test {
             let stmt = rewrite_select_statement(&namespace, &stmt).unwrap();
             assert_eq!(
                 stmt.to_string(),
-                "SELECT time::timestamp AS time, max::float AS max FROM (SELECT time::timestamp AS time, max(value::float) AS max FROM (SELECT time::timestamp AS time, distinct(usage_idle::float) AS value FROM cpu FILL(NONE)) FILL(NONE)) GROUP BY cpu"
+                "SELECT time::timestamp AS time, max::float AS max FROM (SELECT time::timestamp AS time, max(value::float) AS max FROM (SELECT time::timestamp AS time, distinct(usage_idle::float) AS value FROM cpu FILL(NONE)) FILL(NONE)) GROUP BY cpu::tag"
             );
 
             // Projects non-existent tag, "bytes_free" from cpu and also bytes_free field from disk
@@ -2268,7 +2411,7 @@ mod test {
             let stmt = rewrite_select_statement(&namespace, &stmt).unwrap();
             assert_eq!(
                 stmt.to_string(),
-                "SELECT time::timestamp AS time, bytes_free::integer AS bytes_free, bytes_free::tag AS bytes_free_1, usage_idle::float AS usage_idle FROM (SELECT time::timestamp AS time, usage_idle::float AS usage_idle FROM cpu GROUP BY bytes_free), (SELECT time::timestamp AS time, bytes_free::integer AS bytes_free FROM disk) GROUP BY cpu"
+                "SELECT time::timestamp AS time, bytes_free::integer AS bytes_free, bytes_free::tag AS bytes_free_1, usage_idle::float AS usage_idle FROM (SELECT time::timestamp AS time, usage_idle::float AS usage_idle FROM cpu GROUP BY bytes_free), (SELECT time::timestamp AS time, bytes_free::integer AS bytes_free FROM disk) GROUP BY cpu::tag"
             );
         }
 

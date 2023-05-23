@@ -254,7 +254,7 @@ struct MockProviderInner {
 }
 
 /// A [`TimeProvider`] that returns a fixed `Time` that can be set by [`MockProvider::set`]
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct MockProvider {
     inner: Arc<RwLock<MockProviderInner>>,
 }

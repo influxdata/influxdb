@@ -263,10 +263,18 @@ impl GroupByClause {
         })
     }
 
-    /// Returns an iterator of all the tag dimensions for the `GROUP BY` clause.
-    pub fn tags(&self) -> impl Iterator<Item = &Identifier> + '_ {
+    /// Returns an iterator of all the names of the tag dimensions for the `GROUP BY` clause.
+    pub fn tag_names(&self) -> impl Iterator<Item = &Identifier> + '_ {
         self.contents.iter().filter_map(|dim| match dim {
-            Dimension::Tag(i) => Some(i),
+            Dimension::VarRef(i) => Some(&i.name),
+            _ => None,
+        })
+    }
+
+    /// Returns an iterator of all the tag dimensions for the `GROUP BY` clause.
+    pub fn tags(&self) -> impl Iterator<Item = &VarRef> + '_ {
+        self.contents.iter().filter_map(|dim| match dim {
+            Dimension::VarRef(i) => Some(i),
             _ => None,
         })
     }
@@ -354,7 +362,7 @@ pub enum Dimension {
     Time(TimeDimension),
 
     /// Represents a literal tag reference in a `GROUP BY` clause.
-    Tag(Identifier),
+    VarRef(VarRef),
 
     /// Represents a regular expression in a `GROUP BY` clause.
     Regex(Regex),
@@ -367,7 +375,7 @@ impl Display for Dimension {
     fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
         match self {
             Self::Time(v) => Display::fmt(v, f),
-            Self::Tag(v) => Display::fmt(v, f),
+            Self::VarRef(v) => Display::fmt(v, f),
             Self::Regex(v) => Display::fmt(v, f),
             Self::Wildcard => f.write_char('*'),
         }
@@ -382,8 +390,8 @@ impl Parser for Dimension {
             time_call_expression,
             map(regex, Self::Regex),
             map(var_ref, |v| {
-                Self::Tag(match v {
-                    Expr::VarRef(VarRef { name, .. }) => name,
+                Self::VarRef(match v {
+                    Expr::VarRef(var_ref) => var_ref,
                     // var_ref only returns Expr::VarRef
                     _ => unreachable!(),
                 })
@@ -1209,7 +1217,7 @@ mod test {
         assert_matches!(got, Dimension::Time { .. });
 
         let (_, got) = Dimension::parse("foo").unwrap();
-        assert_matches!(got, Dimension::Tag(t) if t == "foo".into());
+        assert_matches!(got, Dimension::VarRef(VarRef { name, ..}) if name == "foo".into());
 
         let (_, got) = Dimension::parse("/bar/").unwrap();
         assert_matches!(got, Dimension::Regex(_));
@@ -1257,13 +1265,13 @@ mod test {
         let (_, got) = group_by_clause("GROUP BY *, /foo/, TIME(5m), tag1, tag2").unwrap();
         assert!(got.time_dimension().is_some());
         assert_eq!(
-            got.tags().cloned().collect::<Vec<_>>(),
+            got.tag_names().cloned().collect::<Vec<_>>(),
             vec!["tag1".into(), "tag2".into()]
         );
 
         let (_, got) = group_by_clause("GROUP BY *, /foo/").unwrap();
         assert!(got.time_dimension().is_none());
-        assert_eq!(got.tags().count(), 0);
+        assert_eq!(got.tag_names().count(), 0);
     }
 
     #[test]

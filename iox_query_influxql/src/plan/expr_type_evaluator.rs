@@ -155,7 +155,7 @@ impl<'a> TypeEvaluator<'a> {
                             if data_type.is_none() {
                                 if let Some(group_by) = &select.group_by {
                                     if group_by.iter().any(|dim| {
-                                        matches!(dim, Dimension::Tag(ident) if ident.as_str() == expr.name.as_str())
+                                        matches!(dim, Dimension::VarRef(VarRef { name, ..}) if name.as_str() == expr.name.as_str())
                                     }) {
                                         data_type = Some(VarRefDataType::Tag);
                                     }
