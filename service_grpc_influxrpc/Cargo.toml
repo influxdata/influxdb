@@ -42,6 +42,7 @@ datafusion_util = { path = "../datafusion_util" }
 influxdb_storage_client = { path = "../influxdb_storage_client" }
 metric = { path = "../metric" }
 panic_logging = { path = "../panic_logging" }
+procspawn = { version = "0.10", default-features = false, features = ["test-support", "safe-shared-libraries"] }
 test_helpers = { path = "../test_helpers" }
 trace_http = { path = "../trace_http" }
 service_grpc_testing = { path = "../service_grpc_testing" }

@@ -2649,8 +2649,29 @@ mod tests {
         grpc_request_metric_has_count(&fixture, "MeasurementTagValues", "server_error", 1);
     }
 
-    #[tokio::test]
-    async fn test_log_on_panic() {
+    procspawn::enable_test_support!();
+
+    #[test]
+    fn test_log_on_panic() {
+        // libtest (i.e. the standard library test fixture) sets panic hooks. This will race w/ our own panic hooks. To
+        // prevent that, we spawn a dedicated process with its own panic hooks that is isolated from the remaining
+        // tests.
+
+        procspawn::spawn((), |_| {
+            // do NOT write to stdout (default behavior)
+            std::panic::set_hook(Box::new(|_| {}));
+
+            let rt = tokio::runtime::Builder::new_current_thread()
+                .enable_all()
+                .build()
+                .unwrap();
+            rt.block_on(test_log_on_panic_inner());
+        })
+        .join()
+        .unwrap();
+    }
+
+    async fn test_log_on_panic_inner() {
         // Send a message to a route that causes a panic and ensure:
         // 1. We don't use up all executors 2. The panic message
         // message ends up in the log system
@@ -2687,7 +2708,7 @@ mod tests {
         // Note we don't include the actual line / column in the
         // expected panic message to avoid needing to update the test
         // whenever the source code file changed.
-        let expected_error = "'This is a test panic', service_grpc_testing/src/lib.rs:18:9";
+        let expected_error = "'This is a test panic', service_grpc_testing/src/lib.rs:";
         assert_contains!(captured_logs, expected_error);
 
         // Ensure that panics don't exhaust the tokio executor by

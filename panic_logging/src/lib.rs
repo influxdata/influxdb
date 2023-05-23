@@ -36,31 +36,31 @@ pub struct SendPanicsToTracing {
 
 impl SendPanicsToTracing {
     pub fn new() -> Self {
-        let current_panic_hook: PanicFunctionPtr = Arc::new(panic::take_hook());
-        let old_panic_hook = Some(Arc::clone(&current_panic_hook));
-        panic::set_hook(Box::new(move |info| {
-            let panic_type = PanicType::classify(info);
-            tracing_panic_hook(&current_panic_hook, info, panic_type)
-        }));
-
-        Self { old_panic_hook }
+        Self::new_inner(None)
     }
 
     /// Configure this panic handler to emit a panic count metric.
     ///
     /// The metric is named `thread_panic_count_total` and is incremented each
     /// time the panic handler is invoked.
-    pub fn with_metrics(self, metrics: &metric::Registry) -> Self {
-        let metric = Metrics::new(metrics);
+    pub fn new_with_metrics(metrics: &metric::Registry) -> Self {
+        let metrics = Metrics::new(metrics);
+        Self::new_inner(Some(metrics))
+    }
 
-        let old_hook = Arc::clone(self.old_panic_hook.as_ref().expect("no hook set"));
+    fn new_inner(metrics: Option<Metrics>) -> Self {
+        let current_panic_hook: PanicFunctionPtr = Arc::new(panic::take_hook());
+        let old_panic_hook = Some(Arc::clone(&current_panic_hook));
         panic::set_hook(Box::new(move |info| {
             let panic_type = PanicType::classify(info);
-            metric.inc(panic_type);
-            tracing_panic_hook(&old_hook, info, panic_type);
+            if let Some(metrics) = &metrics {
+                metrics.inc(panic_type);
+            }
+            error!(panic_type=panic_type.name(), panic_info=%info, "Thread panic");
+            current_panic_hook(info);
         }));
 
-        self
+        Self { old_panic_hook }
     }
 }
 
@@ -102,19 +102,6 @@ impl Drop for SendPanicsToTracing {
             warn!("Can't reset old panic hook, old hook was None...");
         }
     }
-}
-
-fn tracing_panic_hook(
-    other_hook: &PanicFunctionPtr,
-    panic_info: &PanicInfo<'_>,
-    panic_type: PanicType,
-) {
-    // Attempt to replicate the standard format:
-    error!(panic_type=panic_type.name(), panic_info=%panic_info, "Thread panic");
-
-    // Call into the previous panic function (typically the standard
-    // panic function)
-    other_hook(panic_info)
 }
 
 /// Ensure panics are fatal events by exiting the process with an exit code of
@@ -225,7 +212,7 @@ mod tests {
 
         let metrics = metric::Registry::default();
         let capture = Arc::new(TracingCapture::new());
-        let _guard = SendPanicsToTracing::new().with_metrics(&metrics);
+        let guard = SendPanicsToTracing::new_with_metrics(&metrics);
 
         assert_count(&metrics, "offset_overflow", 0);
         assert_count(&metrics, "unknown", 0);
@@ -255,14 +242,23 @@ mod tests {
         .join()
         .expect_err("wat");
 
+        drop(guard);
+        let capture2 = Arc::clone(&capture);
+        std::thread::spawn(move || {
+            capture2.register_in_current_thread();
+            panic!("no guard");
+        })
+        .join()
+        .expect_err("wat");
+
         assert_count(&metrics, "offset_overflow", 2);
         assert_count(&metrics, "unknown", 1);
 
         assert_eq!(
             capture.to_string(),
-            "level = ERROR; message = Thread panic; panic_type = \"unknown\"; panic_info = panicked at 'it's bananas', panic_logging/src/lib.rs:236:13; \
-            \nlevel = ERROR; message = Thread panic; panic_type = \"offset_overflow\"; panic_info = panicked at 'offset', panic_logging/src/lib.rs:244:13; \
-            \nlevel = ERROR; message = Thread panic; panic_type = \"offset_overflow\"; panic_info = panicked at 'offset overflow', panic_logging/src/lib.rs:253:13; ",
+            "level = ERROR; message = Thread panic; panic_type = \"unknown\"; panic_info = panicked at 'it's bananas', panic_logging/src/lib.rs:223:13; \
+            \nlevel = ERROR; message = Thread panic; panic_type = \"offset_overflow\"; panic_info = panicked at 'offset', panic_logging/src/lib.rs:231:13; \
+            \nlevel = ERROR; message = Thread panic; panic_type = \"offset_overflow\"; panic_info = panicked at 'offset overflow', panic_logging/src/lib.rs:240:13; ",
         );
     }
 }
