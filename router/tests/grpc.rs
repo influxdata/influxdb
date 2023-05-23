@@ -482,9 +482,10 @@ async fn test_update_namespace_0_retention_period() {
     assert_matches!(
         err,
         router::server::http::Error::DmlHandler(DmlError::Retention(
-            RetentionError::OutsideRetention(name)
+            RetentionError::OutsideRetention{table_name, min_acceptable_ts, observed_ts}
         )) => {
-            assert_eq!(name, "platanos");
+            assert_eq!(table_name, "platanos");
+            assert!(observed_ts < min_acceptable_ts);
         }
     );
 
