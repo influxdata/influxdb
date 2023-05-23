@@ -111,11 +111,7 @@ use datafusion::{
 
 /// Internal implementations of the selector functions
 mod internal;
-use internal::{
-    BooleanMaxSelector, BooleanMinSelector, F64MaxSelector, F64MinSelector, FirstSelector,
-    I64MaxSelector, I64MinSelector, LastSelector, U64MaxSelector, U64MinSelector, Utf8MaxSelector,
-    Utf8MinSelector,
-};
+use internal::{FirstSelector, LastSelector, MaxSelector, MinSelector};
 use schema::TIME_DATA_TYPE;
 
 /// registers selector functions so they can be invoked via SQL
@@ -251,36 +247,19 @@ impl FactoryBuilder {
                 None => value_data_type_from_return_data_type(return_type),
             };
 
-            let accumulator: Box<dyn Accumulator> = match (selector_type, value_type) {
-                // First
-                (SelectorType::First, value_type) => {
+            let accumulator: Box<dyn Accumulator> = match selector_type {
+                SelectorType::First => {
                     Box::new(SelectorAccumulator::new(FirstSelector::new(value_type)?))
                 }
-
-                // Last
-                (SelectorType::Last, data_type) => Box::new(SelectorAccumulator::new(LastSelector::new(data_type)?)),
-
-                // Min
-                (SelectorType::Min, DataType::Float64) => Box::new(SelectorAccumulator::new(F64MinSelector::default())),
-                (SelectorType::Min, DataType::Int64) => Box::new(SelectorAccumulator::new(I64MinSelector::default())),
-                (SelectorType::Min, DataType::UInt64) => Box::new(SelectorAccumulator::new(U64MinSelector::default())),
-                (SelectorType::Min, DataType::Utf8) => Box::new(SelectorAccumulator::new(Utf8MinSelector::default())),
-                (SelectorType::Min, DataType::Boolean) => {
-                    Box::new(SelectorAccumulator::<>::new(BooleanMinSelector::default()))
-                },
-
-                // Max
-                (SelectorType::Max, DataType::Float64) => Box::new(SelectorAccumulator::new(F64MaxSelector::default())),
-                (SelectorType::Max, DataType::Int64) => Box::new(SelectorAccumulator::new(I64MaxSelector::default())),
-                (SelectorType::Max, DataType::UInt64) => Box::new(SelectorAccumulator::new(U64MaxSelector::default())),
-                (SelectorType::Max, DataType::Utf8) => Box::new(SelectorAccumulator::new(Utf8MaxSelector::default())),
-                (SelectorType::Max, DataType::Boolean) => {
-                    Box::new(SelectorAccumulator::new(BooleanMaxSelector::default()))
-                },
-                // Catch
-                (selector_type, value_type) => return Err(DataFusionError::Internal(format!(
-                    "Unhandled selector type. Expected value type of f64/i64/u64/string/bool, got {selector_type:?} for {value_type:?}",
-                ))),
+                SelectorType::Last => {
+                    Box::new(SelectorAccumulator::new(LastSelector::new(value_type)?))
+                }
+                SelectorType::Min => {
+                    Box::new(SelectorAccumulator::new(MinSelector::new(value_type)?))
+                }
+                SelectorType::Max => {
+                    Box::new(SelectorAccumulator::new(MaxSelector::new(value_type)?))
+                }
             };
             Ok(accumulator)
         })
@@ -488,6 +467,66 @@ mod test {
                 ],
             )
             .await;
+
+            run_case(
+                selector_first().call(vec![col("f64_not_normal_1_value"), col("time")]),
+                vec![
+                    "+-------------------------------------------------+",
+                    "| selector_first(t.f64_not_normal_1_value,t.time) |",
+                    "+-------------------------------------------------+",
+                    "| {value: NaN, time: 1970-01-01T00:00:00.000001}  |",
+                    "+-------------------------------------------------+",
+                ],
+            )
+            .await;
+
+            run_case(
+                selector_first().call(vec![col("f64_not_normal_2_value"), col("time")]),
+                vec![
+                    "+-------------------------------------------------+",
+                    "| selector_first(t.f64_not_normal_2_value,t.time) |",
+                    "+-------------------------------------------------+",
+                    "| {value: -inf, time: 1970-01-01T00:00:00.000001} |",
+                    "+-------------------------------------------------+",
+                ],
+            )
+            .await;
+
+            run_case(
+                selector_first().call(vec![col("f64_not_normal_3_value"), col("time")]),
+                vec![
+                    "+-------------------------------------------------+",
+                    "| selector_first(t.f64_not_normal_3_value,t.time) |",
+                    "+-------------------------------------------------+",
+                    "| {value: NaN, time: 1970-01-01T00:00:00.000001}  |",
+                    "+-------------------------------------------------+",
+                ],
+            )
+            .await;
+
+            run_case(
+                selector_first().call(vec![col("f64_not_normal_4_value"), col("time")]),
+                vec![
+                    "+-------------------------------------------------+",
+                    "| selector_first(t.f64_not_normal_4_value,t.time) |",
+                    "+-------------------------------------------------+",
+                    "| {value: 1.0, time: 1970-01-01T00:00:00.000001}  |",
+                    "+-------------------------------------------------+",
+                ],
+            )
+            .await;
+
+            run_case(
+                selector_first().call(vec![col("f64_not_normal_5_value"), col("time")]),
+                vec![
+                    "+-------------------------------------------------+",
+                    "| selector_first(t.f64_not_normal_5_value,t.time) |",
+                    "+-------------------------------------------------+",
+                    "| {value: 2.0, time: 1970-01-01T00:00:00.000001}  |",
+                    "+-------------------------------------------------+",
+                ],
+            )
+            .await;
         }
 
         #[tokio::test]
@@ -563,6 +602,66 @@ mod test {
                     "| selector_last(t.f64_value,t.time)              |",
                     "+------------------------------------------------+",
                     "| {value: 3.0, time: 1970-01-01T00:00:00.000006} |",
+                    "+------------------------------------------------+",
+                ],
+            )
+            .await;
+
+            run_case(
+                selector_last().call(vec![col("f64_not_normal_1_value"), col("time")]),
+                vec![
+                    "+-------------------------------------------------+",
+                    "| selector_last(t.f64_not_normal_1_value,t.time)  |",
+                    "+-------------------------------------------------+",
+                    "| {value: -inf, time: 1970-01-01T00:00:00.000006} |",
+                    "+-------------------------------------------------+",
+                ],
+            )
+            .await;
+
+            run_case(
+                selector_last().call(vec![col("f64_not_normal_2_value"), col("time")]),
+                vec![
+                    "+------------------------------------------------+",
+                    "| selector_last(t.f64_not_normal_2_value,t.time) |",
+                    "+------------------------------------------------+",
+                    "| {value: inf, time: 1970-01-01T00:00:00.000006} |",
+                    "+------------------------------------------------+",
+                ],
+            )
+            .await;
+
+            run_case(
+                selector_last().call(vec![col("f64_not_normal_3_value"), col("time")]),
+                vec![
+                    "+------------------------------------------------+",
+                    "| selector_last(t.f64_not_normal_3_value,t.time) |",
+                    "+------------------------------------------------+",
+                    "| {value: NaN, time: 1970-01-01T00:00:00.000006} |",
+                    "+------------------------------------------------+",
+                ],
+            )
+            .await;
+
+            run_case(
+                selector_last().call(vec![col("f64_not_normal_4_value"), col("time")]),
+                vec![
+                    "+------------------------------------------------+",
+                    "| selector_last(t.f64_not_normal_4_value,t.time) |",
+                    "+------------------------------------------------+",
+                    "| {value: 3.0, time: 1970-01-01T00:00:00.000006} |",
+                    "+------------------------------------------------+",
+                ],
+            )
+            .await;
+
+            run_case(
+                selector_last().call(vec![col("f64_not_normal_5_value"), col("time")]),
+                vec![
+                    "+------------------------------------------------+",
+                    "| selector_last(t.f64_not_normal_5_value,t.time) |",
+                    "+------------------------------------------------+",
+                    "| {value: 4.0, time: 1970-01-01T00:00:00.000006} |",
                     "+------------------------------------------------+",
                 ],
             )
@@ -646,6 +745,42 @@ mod test {
                 ],
             )
             .await;
+
+            run_case(
+                selector_min().call(vec![col("f64_not_normal_1_value"), col("time")]),
+                vec![
+                    "+-------------------------------------------------+",
+                    "| selector_min(t.f64_not_normal_1_value,t.time)   |",
+                    "+-------------------------------------------------+",
+                    "| {value: -inf, time: 1970-01-01T00:00:00.000003} |",
+                    "+-------------------------------------------------+",
+                ],
+            )
+            .await;
+
+            run_case(
+                selector_min().call(vec![col("f64_not_normal_2_value"), col("time")]),
+                vec![
+                    "+-------------------------------------------------+",
+                    "| selector_min(t.f64_not_normal_2_value,t.time)   |",
+                    "+-------------------------------------------------+",
+                    "| {value: -inf, time: 1970-01-01T00:00:00.000001} |",
+                    "+-------------------------------------------------+",
+                ],
+            )
+            .await;
+
+            run_case(
+                selector_min().call(vec![col("f64_not_normal_3_value"), col("time")]),
+                vec![
+                    "+------------------------------------------------+",
+                    "| selector_min(t.f64_not_normal_3_value,t.time)  |",
+                    "+------------------------------------------------+",
+                    "| {value: NaN, time: 1970-01-01T00:00:00.000001} |",
+                    "+------------------------------------------------+",
+                ],
+            )
+            .await;
         }
 
         #[tokio::test]
@@ -657,6 +792,18 @@ mod test {
                     "| selector_min(t.i64_value,t.time)              |",
                     "+-----------------------------------------------+",
                     "| {value: 10, time: 1970-01-01T00:00:00.000004} |",
+                    "+-----------------------------------------------+",
+                ],
+            )
+            .await;
+
+            run_case(
+                selector_min().call(vec![col("i64_2_value"), col("time")]),
+                vec![
+                    "+-----------------------------------------------+",
+                    "| selector_min(t.i64_2_value,t.time)            |",
+                    "+-----------------------------------------------+",
+                    "| {value: 30, time: 1970-01-01T00:00:00.000006} |",
                     "+-----------------------------------------------+",
                 ],
             )
@@ -725,6 +872,42 @@ mod test {
                 ],
             )
             .await;
+
+            run_case(
+                selector_max().call(vec![col("f64_not_normal_1_value"), col("time")]),
+                vec![
+                    "+------------------------------------------------+",
+                    "| selector_max(t.f64_not_normal_1_value,t.time)  |",
+                    "+------------------------------------------------+",
+                    "| {value: NaN, time: 1970-01-01T00:00:00.000001} |",
+                    "+------------------------------------------------+",
+                ],
+            )
+            .await;
+
+            run_case(
+                selector_max().call(vec![col("f64_not_normal_2_value"), col("time")]),
+                vec![
+                    "+------------------------------------------------+",
+                    "| selector_max(t.f64_not_normal_2_value,t.time)  |",
+                    "+------------------------------------------------+",
+                    "| {value: inf, time: 1970-01-01T00:00:00.000004} |",
+                    "+------------------------------------------------+",
+                ],
+            )
+            .await;
+
+            run_case(
+                selector_max().call(vec![col("f64_not_normal_3_value"), col("time")]),
+                vec![
+                    "+------------------------------------------------+",
+                    "| selector_max(t.f64_not_normal_3_value,t.time)  |",
+                    "+------------------------------------------------+",
+                    "| {value: NaN, time: 1970-01-01T00:00:00.000001} |",
+                    "+------------------------------------------------+",
+                ],
+            )
+            .await;
         }
 
         #[tokio::test]
@@ -734,6 +917,18 @@ mod test {
                 vec![
                     "+-----------------------------------------------+",
                     "| selector_max(t.i64_value,t.time)              |",
+                    "+-----------------------------------------------+",
+                    "| {value: 50, time: 1970-01-01T00:00:00.000005} |",
+                    "+-----------------------------------------------+",
+                ],
+            )
+            .await;
+
+            run_case(
+                selector_max().call(vec![col("i64_2_value"), col("time")]),
+                vec![
+                    "+-----------------------------------------------+",
+                    "| selector_max(t.i64_2_value,t.time)            |",
                     "+-----------------------------------------------+",
                     "| {value: 50, time: 1970-01-01T00:00:00.000005} |",
                     "+-----------------------------------------------+",
@@ -822,7 +1017,13 @@ mod test {
             // (value) and timestamp
             let schema = Arc::new(Schema::new(vec![
                 Field::new("f64_value", DataType::Float64, true),
+                Field::new("f64_not_normal_1_value", DataType::Float64, true),
+                Field::new("f64_not_normal_2_value", DataType::Float64, true),
+                Field::new("f64_not_normal_3_value", DataType::Float64, true),
+                Field::new("f64_not_normal_4_value", DataType::Float64, true),
+                Field::new("f64_not_normal_5_value", DataType::Float64, true),
                 Field::new("i64_value", DataType::Int64, true),
+                Field::new("i64_2_value", DataType::Int64, true),
                 Field::new("u64_value", DataType::UInt64, true),
                 Field::new("string_value", DataType::Utf8, true),
                 Field::new("bool_value", DataType::Boolean, true),
@@ -834,7 +1035,33 @@ mod test {
                 Arc::clone(&schema),
                 vec![
                     Arc::new(Float64Array::from(vec![Some(2.0), Some(4.0), None])),
+                    Arc::new(Float64Array::from(vec![
+                        Some(f64::NAN),
+                        Some(f64::INFINITY),
+                        Some(f64::NEG_INFINITY),
+                    ])),
+                    Arc::new(Float64Array::from(vec![
+                        Some(f64::NEG_INFINITY),
+                        Some(f64::NEG_INFINITY),
+                        Some(f64::NEG_INFINITY),
+                    ])),
+                    Arc::new(Float64Array::from(vec![
+                        Some(f64::NAN),
+                        Some(f64::NAN),
+                        Some(f64::NAN),
+                    ])),
+                    Arc::new(Float64Array::from(vec![
+                        Some(1.0),
+                        Some(f64::NEG_INFINITY),
+                        Some(f64::NEG_INFINITY),
+                    ])),
+                    Arc::new(Float64Array::from(vec![
+                        Some(2.0),
+                        Some(f64::NAN),
+                        Some(f64::NAN),
+                    ])),
                     Arc::new(Int64Array::from(vec![Some(20), Some(40), None])),
+                    Arc::new(Int64Array::from(vec![None, None, None])),
                     Arc::new(UInt64Array::from(vec![Some(20), Some(40), None])),
                     Arc::new(StringArray::from(vec![Some("two"), Some("four"), None])),
                     Arc::new(BooleanArray::from(vec![Some(true), Some(false), None])),
@@ -848,6 +1075,12 @@ mod test {
                 Arc::clone(&schema),
                 vec![
                     Arc::new(Float64Array::from(vec![] as Vec<Option<f64>>)),
+                    Arc::new(Float64Array::from(vec![] as Vec<Option<f64>>)),
+                    Arc::new(Float64Array::from(vec![] as Vec<Option<f64>>)),
+                    Arc::new(Float64Array::from(vec![] as Vec<Option<f64>>)),
+                    Arc::new(Float64Array::from(vec![] as Vec<Option<f64>>)),
+                    Arc::new(Float64Array::from(vec![] as Vec<Option<f64>>)),
+                    Arc::new(Int64Array::from(vec![] as Vec<Option<i64>>)),
                     Arc::new(Int64Array::from(vec![] as Vec<Option<i64>>)),
                     Arc::new(UInt64Array::from(vec![] as Vec<Option<u64>>)),
                     Arc::new(StringArray::from(vec![] as Vec<Option<&str>>)),
@@ -863,7 +1096,33 @@ mod test {
                 Arc::clone(&schema),
                 vec![
                     Arc::new(Float64Array::from(vec![Some(1.0), Some(5.0), Some(3.0)])),
+                    Arc::new(Float64Array::from(vec![
+                        Some(f64::NAN),
+                        Some(f64::INFINITY),
+                        Some(f64::NEG_INFINITY),
+                    ])),
+                    Arc::new(Float64Array::from(vec![
+                        Some(f64::INFINITY),
+                        Some(f64::INFINITY),
+                        Some(f64::INFINITY),
+                    ])),
+                    Arc::new(Float64Array::from(vec![
+                        Some(f64::NAN),
+                        Some(f64::NAN),
+                        Some(f64::NAN),
+                    ])),
+                    Arc::new(Float64Array::from(vec![
+                        Some(f64::INFINITY),
+                        Some(f64::INFINITY),
+                        Some(3.0),
+                    ])),
+                    Arc::new(Float64Array::from(vec![
+                        Some(f64::NAN),
+                        Some(f64::NAN),
+                        Some(4.0),
+                    ])),
                     Arc::new(Int64Array::from(vec![Some(10), Some(50), Some(30)])),
+                    Arc::new(Int64Array::from(vec![None, Some(50), Some(30)])),
                     Arc::new(UInt64Array::from(vec![Some(10), Some(50), Some(30)])),
                     Arc::new(StringArray::from(vec![
                         Some("a_one"),
