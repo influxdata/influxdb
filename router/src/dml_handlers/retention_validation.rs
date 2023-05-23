@@ -14,8 +14,20 @@ use super::DmlHandler;
 #[derive(Debug, Error)]
 pub enum RetentionError {
     /// Time is outside the retention period.
-    #[error("data in table {0} is outside of the retention period")]
-    OutsideRetention(String),
+    #[error(
+        "data in table {table_name} is outside of the retention period: minimum \
+        acceptable timestamp is {min_acceptable_ts}, but observed timestamp \
+        {observed_ts} is older."
+    )]
+    OutsideRetention {
+        /// The minimum row timestamp that will be considered within the
+        /// retention period.
+        min_acceptable_ts: iox_time::Time,
+        /// The timestamp in the write that exceeds the retention minimum.
+        observed_ts: iox_time::Time,
+        /// The table name in which the observed timestamp was found.
+        table_name: String,
+    },
 }
 
 /// A [`DmlHandler`] implementation that validates that the write is within the
@@ -58,7 +70,11 @@ impl DmlHandler for RetentionValidator {
             for (table_name, batch) in &batch {
                 if let Some(min) = batch.timestamp_summary().and_then(|v| v.stats.min) {
                     if min < min_retention {
-                        return Err(RetentionError::OutsideRetention(table_name.clone()));
+                        return Err(RetentionError::OutsideRetention {
+                            table_name: table_name.clone(),
+                            min_acceptable_ts: iox_time::Time::from_timestamp_nanos(min_retention),
+                            observed_ts: iox_time::Time::from_timestamp_nanos(min),
+                        });
                     }
                 }
             }

@@ -110,9 +110,10 @@ async fn test_write_outside_retention_period() {
         &response,
         router::server::http::Error::DmlHandler(
             DmlError::Retention(
-                RetentionError::OutsideRetention(e))
+                RetentionError::OutsideRetention{table_name, min_acceptable_ts, observed_ts})
         ) => {
-            assert_eq!(e, "apple");
+            assert_eq!(table_name, "apple");
+            assert!(observed_ts < min_acceptable_ts);
         }
     );
     assert_eq!(response.as_status_code(), StatusCode::FORBIDDEN);
