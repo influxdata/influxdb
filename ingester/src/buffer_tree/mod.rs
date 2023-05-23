@@ -12,6 +12,6 @@ pub(crate) use root::*;
 
 pub(crate) mod post_write;
 
-maybe_pub! {
-    pub use super::partition::PartitionData;
-}
+/// This needs to be pub for the benchmarks but should not be used outside the crate.
+#[cfg(feature = "benches")]
+pub use partition::PartitionData;

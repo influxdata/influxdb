@@ -1,6 +1,6 @@
-crate::maybe_pub!(
-    pub use super::wal_replay::*;
-);
+/// This needs to be pub for the benchmarks but should not be used outside the crate.
+#[cfg(feature = "benches")]
+pub use wal_replay::*;
 
 mod graceful_shutdown;
 mod wal_replay;

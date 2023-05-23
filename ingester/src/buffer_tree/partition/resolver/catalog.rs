@@ -117,8 +117,7 @@ mod tests {
             let mut repos = catalog.repositories().await;
             let ns = arbitrary_namespace(&mut *repos, NAMESPACE_NAME).await;
 
-            let table = arbitrary_table(&mut *repos, TABLE_NAME, &ns)
-                .await;
+            let table = arbitrary_table(&mut *repos, TABLE_NAME, &ns).await;
 
             (ns.id, table.id)
         };
