@@ -2935,7 +2935,6 @@ mod test {
             "###);
         }
 
-
         #[test]
         fn test_time_column() {
             // validate time column is explicitly projected
