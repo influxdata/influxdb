@@ -325,10 +325,19 @@ fn encode_response(
 
 #[cfg(test)]
 mod tests {
+    use arrow::array::{Float64Array, Int32Array};
+    use arrow_flight::decode::FlightRecordBatchStream;
     use bytes::Bytes;
+    use datafusion_util::MemoryStream;
     use tonic::Code;
 
-    use crate::query::mock_query_exec::MockQueryExec;
+    use crate::{
+        make_batch,
+        query::{
+            mock_query_exec::MockQueryExec, partition_response::PartitionResponse,
+            response::PartitionStream,
+        },
+    };
 
     use super::*;
 
@@ -362,5 +371,51 @@ mod tests {
                 assert_eq!(s.code(), Code::ResourceExhausted);
             }
         }
+    }
+
+    /// Regression test for https://github.com/influxdata/idpe/issues/17408
+    #[tokio::test]
+    #[should_panic(
+        expected = "Invalid argument error: number of columns(1) must match number of fields(2) in schema"
+    )]
+    async fn test_chunks_with_different_schemas() {
+        let (batch1, _schema1) = make_batch!(
+            Float64Array("float" => vec![1.1, 2.2, 3.3]),
+            Int32Array("int" => vec![1, 2, 3]),
+        );
+        let (batch2, _schema2) = make_batch!(
+            Int32Array("int" => vec![3, 4]),
+        );
+
+        let flight = FlightService::new(
+            MockQueryExec::default().with_result(Ok(QueryResponse::new(PartitionStream::new(
+                futures::stream::iter([PartitionResponse::new(
+                    Some(Box::pin(MemoryStream::new(vec![
+                        batch1.clone(),
+                        batch2.clone(),
+                    ]))),
+                    PartitionId::new(1),
+                    1,
+                )]),
+            )))),
+            IngesterId::new(),
+            100,
+            &metric::Registry::default(),
+        );
+
+        let req = tonic::Request::new(Ticket {
+            ticket: Bytes::new(),
+        });
+        let response_stream = flight
+            .do_get(req)
+            .await
+            .unwrap()
+            .into_inner()
+            .map_err(FlightError::Tonic);
+        let batch_stream = FlightRecordBatchStream::new_from_flight_data(response_stream);
+        let batches = batch_stream.try_collect::<Vec<_>>().await.unwrap();
+        assert_eq!(batches.len(), 2);
+        assert_eq!(batches[0], batch1);
+        assert_eq!(batches[1], batch2);
     }
 }
