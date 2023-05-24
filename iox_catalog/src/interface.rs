@@ -426,6 +426,13 @@ pub trait ParquetFileRepo: Send + Sync {
     /// create the parquet file
     async fn create(&mut self, parquet_file_params: ParquetFileParams) -> Result<ParquetFile>;
 
+    /// List all parquet files in implementation-defined, non-deterministic order.
+    ///
+    /// This includes files that were marked for deletion.
+    ///
+    /// This is mostly useful for testing and will likely not succeed in production.
+    async fn list_all(&mut self) -> Result<Vec<ParquetFile>>;
+
     /// Flag the parquet file for deletion
     async fn flag_for_delete(&mut self, id: ParquetFileId) -> Result<()>;
 
@@ -443,10 +450,6 @@ pub trait ParquetFileRepo: Send + Sync {
     /// [`to_delete`](ParquetFile::to_delete).
     async fn list_by_table_not_to_delete(&mut self, table_id: TableId) -> Result<Vec<ParquetFile>>;
 
-    /// List all parquet files within a given table including those marked as [`to_delete`](ParquetFile::to_delete).
-    /// This is for debug purpose
-    async fn list_by_table(&mut self, table_id: TableId) -> Result<Vec<ParquetFile>>;
-
     /// Delete parquet files that were marked to be deleted earlier than the specified time.
     ///
     /// Returns the deleted IDs only.
@@ -462,21 +465,6 @@ pub trait ParquetFileRepo: Send + Sync {
         partition_id: PartitionId,
     ) -> Result<Vec<ParquetFile>>;
 
-    /// Update the compaction level of the specified parquet files to
-    /// the specified [`CompactionLevel`].
-    /// Returns the IDs of the files that were successfully updated.
-    async fn update_compaction_level(
-        &mut self,
-        parquet_file_ids: &[ParquetFileId],
-        compaction_level: CompactionLevel,
-    ) -> Result<Vec<ParquetFileId>>;
-
-    /// Verify if the parquet file exists by selecting its id
-    async fn exist(&mut self, id: ParquetFileId) -> Result<bool>;
-
-    /// Return count
-    async fn count(&mut self) -> Result<i64>;
-
     /// Return the parquet file with the given object store id
     async fn get_by_object_store_id(
         &mut self,
@@ -484,11 +472,12 @@ pub trait ParquetFileRepo: Send + Sync {
     ) -> Result<Option<ParquetFile>>;
 
     /// Commit deletions, upgrades and creations in a single transaction.
+    ///
+    /// Returns IDs of created files.
     async fn create_upgrade_delete(
         &mut self,
-        _partition_id: PartitionId,
-        delete: &[ParquetFile],
-        upgrade: &[ParquetFile],
+        delete: &[ParquetFileId],
+        upgrade: &[ParquetFileId],
         create: &[ParquetFileParams],
         target_level: CompactionLevel,
     ) -> Result<Vec<ParquetFileId>>;
@@ -1610,8 +1599,6 @@ pub(crate) mod test_helpers {
         let non_exist_id = ParquetFileId::new(other_file.id.get() + 10);
         // make sure exists_id != non_exist_id
         assert_ne!(exist_id, non_exist_id);
-        assert!(repos.parquet_files().exist(exist_id).await.unwrap());
-        assert!(!repos.parquet_files().exist(non_exist_id).await.unwrap());
 
         // verify that to_delete is initially set to null and the file does not get deleted
         assert!(parquet_file.to_delete.is_none());
@@ -1624,16 +1611,11 @@ pub(crate) mod test_helpers {
             .await
             .unwrap();
         assert!(deleted.is_empty());
-        assert!(repos.parquet_files().exist(parquet_file.id).await.unwrap());
 
-        // test list_by_table that includes soft-deleted file
+        // test list_all that includes soft-deleted file
         // at this time the file is not soft-deleted yet and will be included in the returned list
-        let files = repos
-            .parquet_files()
-            .list_by_table(parquet_file.table_id)
-            .await
-            .unwrap();
-        assert_eq!(files.len(), 1);
+        let files = repos.parquet_files().list_all().await.unwrap();
+        assert_eq!(files.len(), 2);
 
         // verify to_delete can be updated to a timestamp
         repos
@@ -1642,16 +1624,15 @@ pub(crate) mod test_helpers {
             .await
             .unwrap();
 
-        // test list_by_table that includes soft-deleted file
+        // test list_all that includes soft-deleted file
         // at this time the file is soft-deleted and will be included in the returned list
-        let files = repos
-            .parquet_files()
-            .list_by_table(parquet_file.table_id)
-            .await
+        let files = repos.parquet_files().list_all().await.unwrap();
+        assert_eq!(files.len(), 2);
+        let marked_deleted = files
+            .iter()
+            .find(|f| f.to_delete.is_some())
+            .cloned()
             .unwrap();
-        assert_eq!(files.len(), 1);
-        let marked_deleted = files.first().unwrap();
-        assert!(marked_deleted.to_delete.is_some());
 
         // File is not deleted if it was marked to be deleted after the specified time
         let before_deleted = Timestamp::new(
@@ -1663,17 +1644,12 @@ pub(crate) mod test_helpers {
             .await
             .unwrap();
         assert!(deleted.is_empty());
-        assert!(repos.parquet_files().exist(parquet_file.id).await.unwrap());
 
-        // test list_by_table that includes soft-deleted file
+        // test list_all that includes soft-deleted file
         // at this time the file is not actually hard deleted yet and stay as soft deleted
         // and will be returned in the list
-        let files = repos
-            .parquet_files()
-            .list_by_table(parquet_file.table_id)
-            .await
-            .unwrap();
-        assert_eq!(files.len(), 1);
+        let files = repos.parquet_files().list_all().await.unwrap();
+        assert_eq!(files.len(), 2);
 
         // File is deleted if it was marked to be deleted before the specified time
         let deleted = repos
@@ -1683,16 +1659,11 @@ pub(crate) mod test_helpers {
             .unwrap();
         assert_eq!(deleted.len(), 1);
         assert_eq!(marked_deleted.id, deleted[0]);
-        assert!(!repos.parquet_files().exist(parquet_file.id).await.unwrap());
 
-        // test list_by_table that includes soft-deleted file
+        // test list_all that includes soft-deleted file
         // at this time the file is hard deleted -> the returned list is empty
-        let files = repos
-            .parquet_files()
-            .list_by_table(parquet_file.table_id)
-            .await
-            .unwrap();
-        assert_eq!(files.len(), 0);
+        let files = repos.parquet_files().list_all().await.unwrap();
+        assert_eq!(files.len(), 1);
 
         // test list_by_table_not_to_delete
         let files = repos
@@ -1708,15 +1679,9 @@ pub(crate) mod test_helpers {
             .unwrap();
         assert_eq!(files, vec![other_file.clone()]);
 
-        // test list_by_table
-        println!("parquet_file.table_id = {}", parquet_file.table_id);
-        let files = repos
-            .parquet_files()
-            // .list_by_table(parquet_file.table_id) // todo: tables of deleted files
-            .list_by_table(other_file.table_id)
-            .await
-            .unwrap();
-        assert_eq!(files.len(), 1);
+        // test list_all
+        let files = repos.parquet_files().list_all().await.unwrap();
+        assert_eq!(vec![other_file.clone()], files);
 
         // test list_by_namespace_not_to_delete
         let namespace2 = arbitrary_namespace(&mut *repos, "namespace_parquet_file_test1").await;
@@ -1941,9 +1906,8 @@ pub(crate) mod test_helpers {
         let cud = repos
             .parquet_files()
             .create_upgrade_delete(
-                f4.partition_id,
-                &[f5.clone()],
-                &[f1.clone()],
+                &[f5.id],
+                &[f1.id],
                 &[f6_params.clone()],
                 CompactionLevel::Final,
             )
@@ -1980,9 +1944,8 @@ pub(crate) mod test_helpers {
         let cud = repos
             .parquet_files()
             .create_upgrade_delete(
-                f4.partition_id,
-                &[f5],
-                &[f2],
+                &[f5.id],
+                &[f2.id],
                 &[f6_params.clone()],
                 CompactionLevel::Final,
             )
@@ -2499,7 +2462,12 @@ pub(crate) mod test_helpers {
             .unwrap();
         repos
             .parquet_files()
-            .update_compaction_level(&[level1_file.id], CompactionLevel::FileNonOverlapped)
+            .create_upgrade_delete(
+                &[],
+                &[level1_file.id],
+                &[],
+                CompactionLevel::FileNonOverlapped,
+            )
             .await
             .unwrap();
         level1_file.compaction_level = CompactionLevel::FileNonOverlapped;
@@ -2582,15 +2550,17 @@ pub(crate) mod test_helpers {
 
         // Make parquet_file compaction level 1, attempt to mark the nonexistent file; operation
         // should succeed
-        let updated = repos
+        let created = repos
             .parquet_files()
-            .update_compaction_level(
+            .create_upgrade_delete(
+                &[],
                 &[parquet_file.id, nonexistent_parquet_file_id],
+                &[],
                 CompactionLevel::FileNonOverlapped,
             )
             .await
             .unwrap();
-        assert_eq!(updated, vec![parquet_file.id]);
+        assert_eq!(created, vec![]);
 
         // remove namespace to avoid it from affecting later tests
         repos
@@ -2644,7 +2614,7 @@ pub(crate) mod test_helpers {
             column_set: ColumnSet::new([ColumnId::new(1), ColumnId::new(2)]),
             max_l0_created_at: Timestamp::new(1),
         };
-        let p1_n1 = repos
+        repos
             .parquet_files()
             .create(parquet_file_params.clone())
             .await
@@ -2655,7 +2625,7 @@ pub(crate) mod test_helpers {
             max_time: Timestamp::new(300),
             ..parquet_file_params
         };
-        let p2_n1 = repos
+        repos
             .parquet_files()
             .create(parquet_file_params_2.clone())
             .await
@@ -2692,7 +2662,7 @@ pub(crate) mod test_helpers {
             column_set: ColumnSet::new([ColumnId::new(1), ColumnId::new(2)]),
             max_l0_created_at: Timestamp::new(1),
         };
-        let p1_n2 = repos
+        repos
             .parquet_files()
             .create(parquet_file_params.clone())
             .await
@@ -2703,7 +2673,7 @@ pub(crate) mod test_helpers {
             max_time: Timestamp::new(300),
             ..parquet_file_params
         };
-        let p2_n2 = repos
+        repos
             .parquet_files()
             .create(parquet_file_params_2.clone())
             .await
@@ -2773,16 +2743,6 @@ pub(crate) mod test_helpers {
             .await
             .expect("fetching partition by id should succeed")
             .is_some());
-        assert!(repos
-            .parquet_files()
-            .exist(p1_n1.id)
-            .await
-            .expect("parquet file exists check should succeed"));
-        assert!(repos
-            .parquet_files()
-            .exist(p2_n1.id)
-            .await
-            .expect("parquet file exists check should succeed"));
 
         // assert that the namespace, table, column, and parquet files for namespace_2 are still
         // there
@@ -2822,16 +2782,6 @@ pub(crate) mod test_helpers {
             .await
             .expect("fetching partition by id should succeed")
             .is_some());
-        assert!(repos
-            .parquet_files()
-            .exist(p1_n2.id)
-            .await
-            .expect("parquet file exists check should succeed"));
-        assert!(repos
-            .parquet_files()
-            .exist(p2_n2.id)
-            .await
-            .expect("parquet file exists check should succeed"));
     }
 
     /// Upsert a namespace called `namespace_name` and write `lines` to it.

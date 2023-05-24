@@ -39,12 +39,16 @@ impl Commit for CatalogCommit {
         target_level: CompactionLevel,
     ) -> Vec<ParquetFileId> {
         assert!(!upgrade.is_empty() || (!delete.is_empty() && !create.is_empty()));
+
+        let delete = delete.iter().map(|f| f.id).collect::<Vec<_>>();
+        let upgrade = upgrade.iter().map(|f| f.id).collect::<Vec<_>>();
+
         Backoff::new(&self.backoff_config)
             .retry_all_errors("commit parquet file changes", || async {
                 let mut repos = self.catalog.repositories().await;
                 let parquet_files = repos.parquet_files();
                 let ids = parquet_files
-                    .create_upgrade_delete(_partition_id, delete, upgrade, create, target_level)
+                    .create_upgrade_delete(&delete, &upgrade, create, target_level)
                     .await?;
 
                 Ok::<_, iox_catalog::interface::Error>(ids)

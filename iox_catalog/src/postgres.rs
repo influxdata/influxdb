@@ -105,12 +105,6 @@ pub struct PostgresCatalog {
     options: PostgresConnectionOptions,
 }
 
-// struct to get return value from "select count(id) ..." query
-#[derive(sqlx::FromRow)]
-struct Count {
-    count: i64,
-}
-
 impl PostgresCatalog {
     /// Connect to the catalog store.
     pub async fn connect(
@@ -1251,6 +1245,23 @@ impl ParquetFileRepo for PostgresTxn {
         create_parquet_file(executor, parquet_file_params).await
     }
 
+    async fn list_all(&mut self) -> Result<Vec<ParquetFile>> {
+        sqlx::query_as::<_, ParquetFile>(
+            r#"
+SELECT parquet_file.id, parquet_file.namespace_id,
+       parquet_file.table_id, parquet_file.partition_id, parquet_file.object_store_id,
+       parquet_file.min_time,
+       parquet_file.max_time, parquet_file.to_delete, parquet_file.file_size_bytes,
+       parquet_file.row_count, parquet_file.compaction_level, parquet_file.created_at,
+       parquet_file.column_set, parquet_file.max_l0_created_at
+FROM parquet_file;
+             "#,
+        )
+        .fetch_all(&mut self.inner)
+        .await
+        .map_err(|e| Error::SqlxError { source: e })
+    }
+
     async fn flag_for_delete(&mut self, id: ParquetFileId) -> Result<()> {
         let marked_at = Timestamp::from(self.time_provider.now());
         let executor = &mut self.inner;
@@ -1328,24 +1339,6 @@ WHERE table_id = $1 AND to_delete IS NULL;
         .map_err(|e| Error::SqlxError { source: e })
     }
 
-    async fn list_by_table(&mut self, table_id: TableId) -> Result<Vec<ParquetFile>> {
-        // Deliberately doesn't use `SELECT *` to avoid the performance hit of fetching the large
-        // `parquet_metadata` column!!
-        sqlx::query_as::<_, ParquetFile>(
-            r#"
-SELECT id, shard_id, namespace_id, table_id, partition_id, object_store_id,
-       max_sequence_number, min_time, max_time, to_delete, file_size_bytes,
-       row_count, compaction_level, created_at, column_set, max_l0_created_at
-FROM parquet_file
-WHERE table_id = $1;
-             "#,
-        )
-        .bind(table_id) // $1
-        .fetch_all(&mut self.inner)
-        .await
-        .map_err(|e| Error::SqlxError { source: e })
-    }
-
     async fn delete_old_ids_only(&mut self, older_than: Timestamp) -> Result<Vec<ParquetFileId>> {
         // see https://www.crunchydata.com/blog/simulating-update-or-delete-with-limit-in-postgres-ctes-to-the-rescue
         let deleted = sqlx::query(
@@ -1391,37 +1384,6 @@ WHERE parquet_file.partition_id = $1
         .map_err(|e| Error::SqlxError { source: e })
     }
 
-    async fn update_compaction_level(
-        &mut self,
-        parquet_file_ids: &[ParquetFileId],
-        compaction_level: CompactionLevel,
-    ) -> Result<Vec<ParquetFileId>> {
-        let executor = &mut self.inner;
-        update_compaction_level(executor, parquet_file_ids, compaction_level).await
-    }
-
-    async fn exist(&mut self, id: ParquetFileId) -> Result<bool> {
-        let read_result = sqlx::query_as::<_, Count>(
-            r#"SELECT count(1) as count FROM parquet_file WHERE id = $1;"#,
-        )
-        .bind(id) // $1
-        .fetch_one(&mut self.inner)
-        .await
-        .map_err(|e| Error::SqlxError { source: e })?;
-
-        Ok(read_result.count > 0)
-    }
-
-    async fn count(&mut self) -> Result<i64> {
-        let read_result =
-            sqlx::query_as::<_, Count>(r#"SELECT count(1) as count FROM parquet_file;"#)
-                .fetch_one(&mut self.inner)
-                .await
-                .map_err(|e| Error::SqlxError { source: e })?;
-
-        Ok(read_result.count)
-    }
-
     async fn get_by_object_store_id(
         &mut self,
         object_store_id: Uuid,
@@ -1449,14 +1411,13 @@ WHERE object_store_id = $1;
     }
     async fn create_upgrade_delete(
         &mut self,
-        _partition_id: PartitionId,
-        delete: &[ParquetFile],
-        upgrade: &[ParquetFile],
+        delete: &[ParquetFileId],
+        upgrade: &[ParquetFileId],
         create: &[ParquetFileParams],
         target_level: CompactionLevel,
     ) -> Result<Vec<ParquetFileId>> {
-        let delete_set: HashSet<_> = delete.iter().map(|d| d.id.get()).collect();
-        let upgrade_set: HashSet<_> = upgrade.iter().map(|u| u.id.get()).collect();
+        let delete_set: HashSet<_> = delete.iter().map(|d| d.get()).collect();
+        let upgrade_set: HashSet<_> = upgrade.iter().map(|u| u.get()).collect();
 
         assert!(
             delete_set.is_disjoint(&upgrade_set),
@@ -1470,14 +1431,12 @@ WHERE object_store_id = $1;
             .await
             .map_err(|e| Error::StartTransaction { source: e })?;
 
-        let upgrade = upgrade.iter().map(|f| f.id).collect::<Vec<_>>();
-
         let marked_at = Timestamp::from(self.time_provider.now());
-        for file in delete {
-            flag_for_delete(&mut tx, file.id, marked_at).await?;
+        for id in delete {
+            flag_for_delete(&mut tx, *id, marked_at).await?;
         }
 
-        update_compaction_level(&mut tx, &upgrade, target_level).await?;
+        update_compaction_level(&mut tx, upgrade, target_level).await?;
 
         let mut ids = Vec::with_capacity(create.len());
         for file in create {
