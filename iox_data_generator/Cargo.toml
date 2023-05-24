@@ -32,7 +32,7 @@ tracing-subscriber = "0.3"
 uuid = { version = "1", default_features = false }
 
 [dev-dependencies]
-criterion = { version = "0.4", default-features = false, features = ["rayon"]}
+criterion = { version = "0.5", default-features = false, features = ["rayon"]}
 test_helpers = { path = "../test_helpers" }
 
 [[bench]]

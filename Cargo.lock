@@ -871,18 +871,6 @@ dependencies = [
 
 [[package]]
 name = "clap"
-version = "3.2.25"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "4ea181bf566f71cb9a5d17a59e1871af638180a18fb0035c92ae62b705207123"
-dependencies = [
- "bitflags",
- "clap_lex 0.2.4",
- "indexmap",
- "textwrap",
-]
-
-[[package]]
-name = "clap"
 version = "4.3.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "93aae7a4192245f70fe75dd9157fc7b4a5bf53e88d30bd4396f7d8f9284d5acc"
@@ -896,7 +884,7 @@ dependencies = [
 name = "clap_blocks"
 version = "0.1.0"
 dependencies = [
- "clap 4.3.0",
+ "clap",
  "futures",
  "http",
  "humantime",
@@ -922,7 +910,7 @@ dependencies = [
  "anstream",
  "anstyle",
  "bitflags",
- "clap_lex 0.5.0",
+ "clap_lex",
  "once_cell",
  "strsim",
 ]
@@ -937,15 +925,6 @@ dependencies = [
  "proc-macro2",
  "quote",
  "syn 2.0.16",
-]
-
-[[package]]
-name = "clap_lex"
-version = "0.2.4"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "2850f2f5a82cbf437dd5af4d49848fbdfc27c157c3d010345776f952765261c5"
-dependencies = [
- "os_str_bytes",
 ]
 
 [[package]]
@@ -1204,20 +1183,20 @@ dependencies = [
 
 [[package]]
 name = "criterion"
-version = "0.4.0"
+version = "0.5.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "e7c76e09c1aae2bc52b3d2f29e13c6572553b30c4aa1b8a49fd70de6412654cb"
+checksum = "9f9c16c823fba76d9643cc387e9677d9771abe0827561381815215c47f808da9"
 dependencies = [
  "anes",
- "atty",
  "cast",
  "ciborium",
- "clap 3.2.25",
+ "clap",
  "criterion-plot",
  "futures",
+ "is-terminal",
  "itertools",
- "lazy_static",
  "num-traits",
+ "once_cell",
  "oorandom",
  "rayon",
  "regex",
@@ -2003,7 +1982,7 @@ dependencies = [
  "backoff",
  "bytes",
  "chrono",
- "clap 4.3.0",
+ "clap",
  "clap_blocks",
  "data_types",
  "filetime",
@@ -2530,7 +2509,7 @@ dependencies = [
  "authz",
  "backtrace",
  "bytes",
- "clap 4.3.0",
+ "clap",
  "clap_blocks",
  "comfy-table",
  "compactor",
@@ -2860,7 +2839,7 @@ version = "0.1.0"
 dependencies = [
  "bytes",
  "chrono",
- "clap 4.3.0",
+ "clap",
  "criterion",
  "datafusion_util",
  "futures",
@@ -3005,7 +2984,7 @@ dependencies = [
  "async-trait",
  "authz",
  "bytes",
- "clap 4.3.0",
+ "clap",
  "clap_blocks",
  "flate2",
  "futures",
@@ -3159,7 +3138,7 @@ name = "ioxd_test"
 version = "0.1.0"
 dependencies = [
  "async-trait",
- "clap 4.3.0",
+ "clap",
  "hyper",
  "ioxd_common",
  "metric",
@@ -3912,12 +3891,6 @@ checksum = "2fc2dbde8f8a79f2102cc474ceb0ad68e3b80b85289ea62389b60e66777e4213"
 dependencies = [
  "num-traits",
 ]
-
-[[package]]
-name = "os_str_bytes"
-version = "6.5.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "ceedf44fb00f2d1984b0bc98102627ce622e083e49a5bacdb3e514fa4238e267"
 
 [[package]]
 name = "output_vt100"
@@ -5751,12 +5724,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "textwrap"
-version = "0.16.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "222a222a5bfe1bba4a77b45ec488a741b3cb8872e5e499451fd7d0129c9c7c3d"
-
-[[package]]
 name = "thiserror"
 version = "1.0.40"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -6124,7 +6091,7 @@ version = "0.1.0"
 dependencies = [
  "async-trait",
  "chrono",
- "clap 4.3.0",
+ "clap",
  "futures",
  "iox_time",
  "observability_deps",
@@ -6253,7 +6220,7 @@ dependencies = [
 name = "trogging"
 version = "0.1.0"
 dependencies = [
- "clap 4.3.0",
+ "clap",
  "is-terminal",
  "logfmt",
  "observability_deps",

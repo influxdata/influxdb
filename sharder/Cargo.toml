@@ -13,7 +13,7 @@ siphasher = "0.3"
 workspace-hack = { version = "0.1", path = "../workspace-hack" }
 
 [dev-dependencies]
-criterion = { version = "0.4", default-features = false, features = ["async_tokio", "rayon"]}
+criterion = { version = "0.5", default-features = false, features = ["async_tokio", "rayon"]}
 hashbrown = { workspace = true }
 mutable_batch_lp = { path = "../mutable_batch_lp" }
 rand = "0.8.3"
