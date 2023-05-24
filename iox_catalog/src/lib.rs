@@ -234,10 +234,13 @@ where
                 repos
                     .tables()
                     .get_by_namespace_and_name(namespace_id, table_name)
+                    // Propagate any `Err` returned by the catalog
                     .await?
+                    // Getting `Ok(None)` should be impossible if we're in this code path because
+                    // the `create` request just said the table exists
                     .expect(
-                        "Table creation failed because the table exists, \
-                        so looking up the table should succeed",
+                        "Table creation failed because the table exists, so looking up the table \
+                        should return `Some(table)`, but it returned `None`",
                     )
             } else {
                 create_result?
