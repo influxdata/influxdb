@@ -100,7 +100,7 @@ mod tests {
                 max_columns_per_table: 4,
                 max_tables: 42,
                 retention_period_ns: None,
-                partition_template: None,
+                partition_template: Default::default(),
             },
         );
 
@@ -144,7 +144,7 @@ mod tests {
             let mut repos = catalog.repositories().await;
             repos
                 .namespaces()
-                .create(&ns, None)
+                .create(&ns, None, None)
                 .await
                 .expect("failed to setup catalog state");
         }
@@ -176,7 +176,7 @@ mod tests {
             let mut repos = catalog.repositories().await;
             repos
                 .namespaces()
-                .create(&ns, None)
+                .create(&ns, None, None)
                 .await
                 .expect("failed to setup catalog state");
             repos

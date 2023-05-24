@@ -148,7 +148,7 @@ impl TestCatalog {
         let namespace_name = NamespaceName::new(name).unwrap();
         let namespace = repos
             .namespaces()
-            .create(&namespace_name, retention_period_ns)
+            .create(&namespace_name, None, retention_period_ns)
             .await
             .unwrap();
 
@@ -334,7 +334,7 @@ impl TestTable {
     pub async fn catalog_schema(&self) -> TableSchema {
         TableSchema {
             id: self.table.id,
-            partition_template: None,
+            partition_template: Default::default(),
             columns: self.catalog_columns().await,
         }
     }

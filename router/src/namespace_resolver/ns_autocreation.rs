@@ -107,7 +107,7 @@ where
                         .repositories()
                         .await
                         .namespaces()
-                        .create(namespace, retention_period_ns)
+                        .create(namespace, None, retention_period_ns)
                         .await
                     {
                         Ok(_) => {
@@ -171,7 +171,7 @@ mod tests {
                 max_columns_per_table: 4,
                 max_tables: 42,
                 retention_period_ns: None,
-                partition_template: None,
+                partition_template: Default::default(),
             },
         );
 
@@ -247,6 +247,7 @@ mod tests {
                 max_columns_per_table: iox_catalog::DEFAULT_MAX_COLUMNS_PER_TABLE,
                 retention_period_ns: TEST_RETENTION_PERIOD_NS,
                 deleted_at: None,
+                partition_template: Default::default(),
             }
         );
     }

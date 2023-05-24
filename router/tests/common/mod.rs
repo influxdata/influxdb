@@ -1,6 +1,6 @@
 use std::{iter, string::String, sync::Arc, time::Duration};
 
-use data_types::{DefaultPartitionTemplate, TableId};
+use data_types::TableId;
 use generated_types::influxdata::iox::ingester::v1::WriteRequest;
 use hashbrown::HashMap;
 use hyper::{Body, Request, Response};
@@ -153,7 +153,7 @@ impl TestContext {
 
         let retention_validator = RetentionValidator::new();
 
-        let partitioner = Partitioner::new(DefaultPartitionTemplate::default());
+        let partitioner = Partitioner::default();
 
         let namespace_resolver = NamespaceSchemaResolver::new(Arc::clone(&ns_cache));
         let namespace_resolver = NamespaceAutocreation::new(

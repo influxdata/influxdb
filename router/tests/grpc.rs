@@ -79,6 +79,7 @@ async fn test_namespace_create() {
     let req = CreateNamespaceRequest {
         name: "bananas_test".to_string(),
         retention_period_ns: Some(RETENTION),
+        partition_template: None,
     };
     let got = ctx
         .grpc_delegate()
@@ -151,6 +152,7 @@ async fn test_namespace_delete() {
     let req = CreateNamespaceRequest {
         name: "bananas_test".to_string(),
         retention_period_ns: Some(RETENTION),
+        partition_template: None,
     };
     let got = ctx
         .grpc_delegate()
@@ -280,6 +282,7 @@ async fn test_create_namespace_0_retention_period() {
     let req = CreateNamespaceRequest {
         name: "bananas_test".to_string(),
         retention_period_ns: Some(0), // A zero!
+        partition_template: None,
     };
     let got = ctx
         .grpc_delegate()
@@ -344,6 +347,7 @@ async fn test_create_namespace_negative_retention_period() {
     let req = CreateNamespaceRequest {
         name: "bananas_test".to_string(),
         retention_period_ns: Some(-42),
+        partition_template: None,
     };
     let err = ctx
         .grpc_delegate()
@@ -407,6 +411,7 @@ async fn test_update_namespace_0_retention_period() {
         .create_namespace(Request::new(CreateNamespaceRequest {
             name: "bananas_test".to_string(),
             retention_period_ns: Some(42),
+            partition_template: None,
         }))
         .await
         .expect("failed to create namespace")
@@ -512,6 +517,7 @@ async fn test_update_namespace_negative_retention_period() {
         .create_namespace(Request::new(CreateNamespaceRequest {
             name: "bananas_test".to_string(),
             retention_period_ns: Some(42),
+            partition_template: None,
         }))
         .await
         .expect("failed to create namespace")
@@ -781,6 +787,7 @@ async fn test_update_namespace_limit_0_max_tables_max_columns() {
         .create_namespace(Request::new(CreateNamespaceRequest {
             name: "bananas_test".to_string(),
             retention_period_ns: Some(0),
+            partition_template: None,
         }))
         .await
         .expect("failed to create namespace")

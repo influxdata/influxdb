@@ -1,7 +1,7 @@
 //! Write payload abstractions derived from [`MutableBatch`]
 
 use crate::{column::ColumnData, MutableBatch, Result};
-use data_types::{PartitionKey, PartitionTemplate};
+use data_types::{PartitionKey, TablePartitionTemplateOverride};
 use hashbrown::HashMap;
 use schema::TIME_COLUMN_NAME;
 use std::{num::NonZeroUsize, ops::Range};
@@ -97,10 +97,10 @@ impl<'a> PartitionWrite<'a> {
     }
 
     /// Create a collection of [`PartitionWrite`] indexed by partition key
-    /// from a [`MutableBatch`] and [`PartitionTemplate`]
+    /// from a [`MutableBatch`] and [`TablePartitionTemplateOverride`]
     pub fn partition(
         batch: &'a MutableBatch,
-        partition_template: &PartitionTemplate,
+        partition_template: &TablePartitionTemplateOverride,
     ) -> HashMap<PartitionKey, Self> {
         use hashbrown::hash_map::Entry;
         let time = get_time_column(batch);

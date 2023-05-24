@@ -168,7 +168,7 @@ mod tests {
             max_columns_per_table: 50,
             max_tables: 24,
             retention_period_ns: Some(876),
-            partition_template: None,
+            partition_template: Default::default(),
         };
         assert_matches!(cache.put_schema(ns.clone(), schema1.clone()), (new, s) => {
             assert_eq!(*new, schema1);
@@ -185,7 +185,7 @@ mod tests {
             max_columns_per_table: 10,
             max_tables: 42,
             retention_period_ns: Some(876),
-            partition_template: None,
+            partition_template: Default::default(),
         };
 
         assert_matches!(cache.put_schema(ns.clone(), schema2.clone()), (new, s) => {
@@ -196,6 +196,16 @@ mod tests {
             *cache.get_schema(&ns).await.expect("lookup failure"),
             schema2
         );
+    }
+
+    // In production code, a `TableSchema` should come from a `Table` that came from the catalog,
+    // but these tests are independent of the catalog.
+    fn empty_table_schema(id: TableId) -> TableSchema {
+        TableSchema {
+            id,
+            partition_template: Default::default(),
+            columns: ColumnsByName::new([]),
+        }
     }
 
     #[tokio::test]
@@ -219,9 +229,9 @@ mod tests {
             column_type: ColumnType::String,
         };
 
-        let mut first_write_table_schema = TableSchema::new(table_id);
+        let mut first_write_table_schema = empty_table_schema(table_id);
         first_write_table_schema.add_column(column_1.clone());
-        let mut second_write_table_schema = TableSchema::new(table_id);
+        let mut second_write_table_schema = empty_table_schema(table_id);
         second_write_table_schema.add_column(column_2.clone());
 
         // These MUST always be different
@@ -233,7 +243,7 @@ mod tests {
             max_columns_per_table: 50,
             max_tables: 24,
             retention_period_ns: None,
-            partition_template: None,
+            partition_template: Default::default(),
         };
         let schema_update_2 = NamespaceSchema {
             tables: BTreeMap::from([(String::from(table_name), second_write_table_schema)]),
@@ -241,7 +251,7 @@ mod tests {
         };
 
         let want_namespace_schema = {
-            let mut want_table_schema = TableSchema::new(table_id);
+            let mut want_table_schema = empty_table_schema(table_id);
             want_table_schema.add_column(column_1);
             want_table_schema.add_column(column_2);
             NamespaceSchema {
@@ -293,21 +303,21 @@ mod tests {
         //
         // Each table has been given a column to assert the table merge logic
         // produces the correct metrics.
-        let mut table_1 = TableSchema::new(TableId::new(1));
+        let mut table_1 = empty_table_schema(TableId::new(1));
         table_1.add_column(Column {
             id: ColumnId::new(1),
             table_id: TableId::new(1),
             name: "column_a".to_string(),
             column_type: ColumnType::String,
         });
-        let mut table_2 = TableSchema::new(TableId::new(2));
+        let mut table_2 = empty_table_schema(TableId::new(2));
         table_2.add_column(Column {
             id: ColumnId::new(2),
             table_id: TableId::new(2),
             name: "column_b".to_string(),
             column_type: ColumnType::String,
         });
-        let mut table_3 = TableSchema::new(TableId::new(3));
+        let mut table_3 = empty_table_schema(TableId::new(3));
         table_3.add_column(Column {
             id: ColumnId::new(3),
             table_id: TableId::new(3),
@@ -324,7 +334,7 @@ mod tests {
             max_columns_per_table: 50,
             max_tables: 24,
             retention_period_ns: None,
-            partition_template: None,
+            partition_template: Default::default(),
         };
         let schema_update_2 = NamespaceSchema {
             tables: BTreeMap::from([
@@ -404,7 +414,7 @@ mod tests {
             let columns = ColumnsByName::from(columns);
             TableSchema {
                 id: TableId::new(id),
-                partition_template: None,
+                partition_template: Default::default(),
                 columns,
             }
         }
@@ -428,7 +438,7 @@ mod tests {
                 max_columns_per_table,
                 max_tables,
                 retention_period_ns,
-                partition_template: None,
+                partition_template: Default::default(),
             }
         }
     }

@@ -23,6 +23,7 @@ use arrow::record_batch::RecordBatch;
 use arrow_flight::{decode::FlightRecordBatchStream, flight_service_server::FlightService, Ticket};
 use data_types::{
     Namespace, NamespaceId, NamespaceSchema, ParquetFile, PartitionKey, SequenceNumber, TableId,
+    TablePartitionTemplateOverride,
 };
 use dml::{DmlMeta, DmlWrite};
 use futures::{stream::FuturesUnordered, FutureExt, StreamExt, TryStreamExt};
@@ -222,7 +223,7 @@ where
                         max_columns_per_table: iox_catalog::DEFAULT_MAX_COLUMNS_PER_TABLE as usize,
                         max_tables: iox_catalog::DEFAULT_MAX_TABLES as usize,
                         retention_period_ns,
-                        partition_template: None,
+                        partition_template: Default::default(),
                     },
                 )
                 .is_none(),
@@ -250,6 +251,8 @@ where
             .namespaces
             .get_mut(&namespace_id)
             .expect("namespace does not exist");
+        let partition_template =
+            TablePartitionTemplateOverride::new(None, &schema.partition_template);
 
         let batches = lines_to_batches(lp, 0).unwrap();
 
@@ -269,17 +272,29 @@ where
             .into_iter()
             .map(|(table_name, batch)| {
                 let catalog = Arc::clone(&self.catalog);
+                let partition_template = partition_template.clone();
                 async move {
-                    let id = catalog
+                    match catalog
                         .repositories()
                         .await
                         .tables()
-                        .create_or_get(table_name.as_str(), namespace_id)
+                        .get_by_namespace_and_name(namespace_id, table_name.as_str())
                         .await
-                        .expect("table should create OK")
-                        .id;
-
-                    (id, batch)
+                        .unwrap()
+                    {
+                        Some(table) => (table.id, batch),
+                        None => {
+                            let id = catalog
+                                .repositories()
+                                .await
+                                .tables()
+                                .create(table_name.as_str(), partition_template, namespace_id)
+                                .await
+                                .expect("table should create OK")
+                                .id;
+                            (id, batch)
+                        }
+                    }
                 }
             })
             .collect::<FuturesUnordered<_>>()

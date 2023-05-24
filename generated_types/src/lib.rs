@@ -122,6 +122,19 @@ pub mod influxdata {
             }
         }
 
+        pub mod partition_template {
+            pub mod v1 {
+                include!(concat!(
+                    env!("OUT_DIR"),
+                    "/influxdata.iox.partition_template.v1.rs"
+                ));
+                include!(concat!(
+                    env!("OUT_DIR"),
+                    "/influxdata.iox.partition_template.v1.serde.rs"
+                ));
+            }
+        }
+
         pub mod predicate {
             pub mod v1 {
                 include!(concat!(env!("OUT_DIR"), "/influxdata.iox.predicate.v1.rs"));

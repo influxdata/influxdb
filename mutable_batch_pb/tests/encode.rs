@@ -1,5 +1,5 @@
 use arrow_util::assert_batches_eq;
-use data_types::{PartitionKey, PARTITION_BY_DAY};
+use data_types::PartitionKey;
 use mutable_batch::{writer::Writer, MutableBatch, PartitionWrite, WritePayload};
 use mutable_batch_pb::{decode::write_table_batch, encode::encode_batch};
 use schema::Projection;
@@ -120,7 +120,7 @@ fn test_encode_decode_null_columns_issue_4272() {
         .unwrap();
     writer.commit();
 
-    let mut partitions = PartitionWrite::partition(&batch, &PARTITION_BY_DAY);
+    let mut partitions = PartitionWrite::partition(&batch, &Default::default());
 
     // There should be two partitions, one with for the timestamp 160, and
     // one for the other timestamp.

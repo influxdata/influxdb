@@ -18,7 +18,9 @@ use workspace_hack as _;
 
 use std::sync::Arc;
 
-use data_types::{Namespace as CatalogNamespace, NamespaceName};
+use data_types::{
+    Namespace as CatalogNamespace, NamespaceName, NamespacePartitionTemplateOverride,
+};
 use generated_types::influxdata::iox::namespace::v1::{
     update_namespace_service_protection_limit_request::LimitUpdate, *,
 };
@@ -70,6 +72,7 @@ impl namespace_service_server::NamespaceService for NamespaceService {
         let CreateNamespaceRequest {
             name: namespace_name,
             retention_period_ns,
+            partition_template,
         } = request.into_inner();
 
         // Ensure the namespace name is consistently processed within IOx - this
@@ -83,7 +86,11 @@ impl namespace_service_server::NamespaceService for NamespaceService {
 
         let namespace = repos
             .namespaces()
-            .create(&namespace_name, retention_period_ns)
+            .create(
+                &namespace_name,
+                partition_template.map(NamespacePartitionTemplateOverride::from),
+                retention_period_ns,
+            )
             .await
             .map_err(|e| {
                 warn!(error=%e, %namespace_name, "failed to create namespace");
@@ -363,6 +370,7 @@ mod tests {
         let req = CreateNamespaceRequest {
             name: NS_NAME.to_string(),
             retention_period_ns: Some(RETENTION),
+            partition_template: None,
         };
         let created_ns = handler
             .create_namespace(Request::new(req))
@@ -486,6 +494,7 @@ mod tests {
         let req = CreateNamespaceRequest {
             name: NS_NAME.to_string(),
             retention_period_ns: Some(RETENTION),
+            partition_template: None,
         };
         let created_ns = handler
             .create_namespace(Request::new(req))
@@ -545,6 +554,7 @@ mod tests {
                     let req = CreateNamespaceRequest {
                         name: String::from($name),
                         retention_period_ns: Some(RETENTION),
+                        partition_template: None,
                     };
 
                     let got = handler.create_namespace(Request::new(req)).await;

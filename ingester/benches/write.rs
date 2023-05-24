@@ -50,9 +50,10 @@ async fn init(lp: impl AsRef<str>) -> (TestContext<impl IngesterRpcInterface>, D
                     .repositories()
                     .await
                     .tables()
-                    .create_or_get(table_name.as_str(), ns.id)
+                    .get_by_namespace_and_name(ns.id, table_name.as_str())
                     .await
-                    .expect("table should create OK")
+                    .unwrap()
+                    .expect("table should exist because of the write_lp above")
                     .id;
 
                 (id, batch)

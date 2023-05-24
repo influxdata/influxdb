@@ -6,9 +6,10 @@ use crate::interface::{
 };
 use async_trait::async_trait;
 use data_types::{
-    Column, ColumnType, CompactionLevel, Namespace, NamespaceId, NamespaceName, ParquetFile,
-    ParquetFileId, ParquetFileParams, Partition, PartitionId, PartitionKey, SkippedCompaction,
-    Table, TableId, Timestamp,
+    Column, ColumnType, CompactionLevel, Namespace, NamespaceId, NamespaceName,
+    NamespacePartitionTemplateOverride, ParquetFile, ParquetFileId, ParquetFileParams, Partition,
+    PartitionId, PartitionKey, SkippedCompaction, Table, TableId, TablePartitionTemplateOverride,
+    Timestamp,
 };
 use iox_time::{SystemProvider, TimeProvider};
 use metric::{DurationHistogram, Metric};
@@ -131,7 +132,7 @@ macro_rules! decorate {
 decorate!(
     impl_trait = NamespaceRepo,
     methods = [
-        "namespace_create" = create(&mut self, name: &NamespaceName, retention_period_ns: Option<i64>) -> Result<Namespace>;
+        "namespace_create" = create(&mut self, name: &NamespaceName, partition_template: Option<NamespacePartitionTemplateOverride>, retention_period_ns: Option<i64>) -> Result<Namespace>;
         "namespace_update_retention_period" = update_retention_period(&mut self, name: &str, retention_period_ns: Option<i64>) -> Result<Namespace>;
         "namespace_list" = list(&mut self, deleted: SoftDeletedRows) -> Result<Vec<Namespace>>;
         "namespace_get_by_id" = get_by_id(&mut self, id: NamespaceId, deleted: SoftDeletedRows) -> Result<Option<Namespace>>;
@@ -145,7 +146,7 @@ decorate!(
 decorate!(
     impl_trait = TableRepo,
     methods = [
-        "table_create_or_get" = create_or_get(&mut self, name: &str, namespace_id: NamespaceId) -> Result<Table>;
+        "table_create" = create(&mut self, name: &str, partition_template: TablePartitionTemplateOverride, namespace_id: NamespaceId) -> Result<Table>;
         "table_get_by_id" = get_by_id(&mut self, table_id: TableId) -> Result<Option<Table>>;
         "table_get_by_namespace_and_name" = get_by_namespace_and_name(&mut self, namespace_id: NamespaceId, name: &str) -> Result<Option<Table>>;
         "table_list_by_namespace_id" = list_by_namespace_id(&mut self, namespace_id: NamespaceId) -> Result<Vec<Table>>;

@@ -12,14 +12,17 @@ message PartitionTemplate {
   //
   // For example, given the following template:
   //
-  //    [ TemplatePart::time_format("%Y.%j") TemplatePart::tag_value("region") ]
+  // ```text
+  // [ TemplatePart::time_format("%Y.%j") TemplatePart::tag_value("region") ]
+  // ```
   //
   // The below example rows would have the specified partition key derived:
   //
-  //    time=2023-03-10T13:00:00, region=EMEA, x=42   => "2023.69-EMEA"
-  //    time=2023-03-10T13:00:00, region=EMEA-bananas => "2023.69-EMEA-bananas"
-  //    time=2023-03-10T13:00:00, x=42                => "2023.69-region"
-  //
+  // ```text
+  // time=2023-03-10T13:00:00, region=EMEA, x=42   => "2023.69-EMEA"
+  // time=2023-03-10T13:00:00, region=EMEA-bananas => "2023.69-EMEA-bananas"
+  // time=2023-03-10T13:00:00, x=42                => "2023.69-region"
+  // ```
   repeated TemplatePart parts = 1;
 }
 

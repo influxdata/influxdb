@@ -15,9 +15,10 @@ use crate::{
 };
 use async_trait::async_trait;
 use data_types::{
-    Column, ColumnType, CompactionLevel, Namespace, NamespaceId, NamespaceName, ParquetFile,
-    ParquetFileId, ParquetFileParams, Partition, PartitionId, PartitionKey, SkippedCompaction,
-    Table, TableId, Timestamp,
+    Column, ColumnType, CompactionLevel, Namespace, NamespaceId, NamespaceName,
+    NamespacePartitionTemplateOverride, ParquetFile, ParquetFileId, ParquetFileParams, Partition,
+    PartitionId, PartitionKey, SkippedCompaction, Table, TableId, TablePartitionTemplateOverride,
+    Timestamp,
 };
 use iox_time::{SystemProvider, TimeProvider};
 use observability_deps::tracing::{debug, info, warn};
@@ -497,20 +498,25 @@ impl NamespaceRepo for PostgresTxn {
     async fn create(
         &mut self,
         name: &NamespaceName,
+        partition_template: Option<NamespacePartitionTemplateOverride>,
         retention_period_ns: Option<i64>,
     ) -> Result<Namespace> {
         let rec = sqlx::query_as::<_, Namespace>(
             r#"
-                INSERT INTO namespace ( name, topic_id, query_pool_id, retention_period_ns, max_tables )
-                VALUES ( $1, $2, $3, $4, $5 )
-                RETURNING id, name, retention_period_ns, max_tables, max_columns_per_table, deleted_at;
+INSERT INTO namespace (
+    name, topic_id, query_pool_id, retention_period_ns, max_tables, partition_template
+)
+VALUES ( $1, $2, $3, $4, $5, $6 )
+RETURNING id, name, retention_period_ns, max_tables, max_columns_per_table, deleted_at,
+          partition_template;
             "#,
         )
         .bind(name.as_str()) // $1
         .bind(SHARED_TOPIC_ID) // $2
         .bind(SHARED_QUERY_POOL_ID) // $3
         .bind(retention_period_ns) // $4
-        .bind(DEFAULT_MAX_TABLES); // $5
+        .bind(DEFAULT_MAX_TABLES) // $5
+        .bind(partition_template); // $6
 
         let rec = rec.fetch_one(&mut self.inner).await.map_err(|e| {
             if is_unique_violation(&e) {
@@ -535,7 +541,8 @@ impl NamespaceRepo for PostgresTxn {
         let rec = sqlx::query_as::<_, Namespace>(
             format!(
                 r#"
-SELECT id, name, retention_period_ns, max_tables, max_columns_per_table, deleted_at
+SELECT id, name, retention_period_ns, max_tables, max_columns_per_table, deleted_at,
+       partition_template
 FROM namespace
 WHERE {v};
                 "#,
@@ -558,7 +565,8 @@ WHERE {v};
         let rec = sqlx::query_as::<_, Namespace>(
             format!(
                 r#"
-SELECT id, name, retention_period_ns, max_tables, max_columns_per_table, deleted_at
+SELECT id, name, retention_period_ns, max_tables, max_columns_per_table, deleted_at,
+       partition_template
 FROM namespace
 WHERE id=$1 AND {v};
                 "#,
@@ -587,7 +595,8 @@ WHERE id=$1 AND {v};
         let rec = sqlx::query_as::<_, Namespace>(
             format!(
                 r#"
-SELECT id, name, retention_period_ns, max_tables, max_columns_per_table, deleted_at
+SELECT id, name, retention_period_ns, max_tables, max_columns_per_table, deleted_at,
+       partition_template
 FROM namespace
 WHERE name=$1 AND {v};
                 "#,
@@ -627,7 +636,8 @@ WHERE name=$1 AND {v};
 UPDATE namespace
 SET max_tables = $1
 WHERE name = $2
-RETURNING id, name, retention_period_ns, max_tables, max_columns_per_table, deleted_at;
+RETURNING id, name, retention_period_ns, max_tables, max_columns_per_table, deleted_at,
+          partition_template;
         "#,
         )
         .bind(new_max)
@@ -651,7 +661,8 @@ RETURNING id, name, retention_period_ns, max_tables, max_columns_per_table, dele
 UPDATE namespace
 SET max_columns_per_table = $1
 WHERE name = $2
-RETURNING id, name, retention_period_ns, max_tables, max_columns_per_table, deleted_at;
+RETURNING id, name, retention_period_ns, max_tables, max_columns_per_table, deleted_at,
+          partition_template;
         "#,
         )
         .bind(new_max)
@@ -679,7 +690,8 @@ RETURNING id, name, retention_period_ns, max_tables, max_columns_per_table, dele
 UPDATE namespace
 SET retention_period_ns = $1
 WHERE name = $2
-RETURNING id, name, retention_period_ns, max_tables, max_columns_per_table, deleted_at;
+RETURNING id, name, retention_period_ns, max_tables, max_columns_per_table, deleted_at,
+          partition_template;
         "#,
         )
         .bind(retention_period_ns) // $1
@@ -700,7 +712,12 @@ RETURNING id, name, retention_period_ns, max_tables, max_columns_per_table, dele
 
 #[async_trait]
 impl TableRepo for PostgresTxn {
-    async fn create_or_get(&mut self, name: &str, namespace_id: NamespaceId) -> Result<Table> {
+    async fn create(
+        &mut self,
+        name: &str,
+        partition_template: TablePartitionTemplateOverride,
+        namespace_id: NamespaceId,
+    ) -> Result<Table> {
         // A simple insert statement becomes quite complicated in order to avoid checking the table
         // limits in a select and then conditionally inserting (which would be racey).
         //
@@ -712,20 +729,19 @@ impl TableRepo for PostgresTxn {
         // nothing was inserted. Not pretty!
         let rec = sqlx::query_as::<_, Table>(
             r#"
-INSERT INTO table_name ( name, namespace_id )
-SELECT $1, id FROM (
+INSERT INTO table_name ( name, namespace_id, partition_template )
+SELECT $1, id, $2 FROM (
     SELECT namespace.id AS id, max_tables, COUNT(table_name.*) AS count
     FROM namespace LEFT JOIN table_name ON namespace.id = table_name.namespace_id
-    WHERE namespace.id = $2
+    WHERE namespace.id = $3
     GROUP BY namespace.max_tables, table_name.namespace_id, namespace.id
 ) AS get_count WHERE count < max_tables
-ON CONFLICT ON CONSTRAINT table_name_unique
-DO UPDATE SET name = table_name.name
 RETURNING *;
         "#,
         )
         .bind(name) // $1
-        .bind(namespace_id) // $2
+        .bind(partition_template) // $2
+        .bind(namespace_id) // $3
         .fetch_one(&mut self.inner)
         .await
         .map_err(|e| match e {
@@ -734,7 +750,12 @@ RETURNING *;
                 namespace_id,
             },
             _ => {
-                if is_fk_violation(&e) {
+                if is_unique_violation(&e) {
+                    Error::TableNameExists {
+                        name: name.to_string(),
+                        namespace_id,
+                    }
+                } else if is_fk_violation(&e) {
                     Error::ForeignKeyViolation { source: e }
                 } else {
                     Error::SqlxError { source: e }
@@ -1597,7 +1618,8 @@ mod tests {
     use super::*;
     use crate::test_helpers::{arbitrary_namespace, arbitrary_table};
     use assert_matches::assert_matches;
-    use data_types::{ColumnId, ColumnSet};
+    use data_types::{ColumnId, ColumnSet, TemplatePart};
+    use generated_types::influxdata::iox::partition_template::v1 as proto;
     use metric::{Attributes, DurationHistogram, Metric};
     use rand::Rng;
     use sqlx::migrate::MigrateDatabase;
@@ -2132,5 +2154,425 @@ mod tests {
                 .await
                 .expect("fetch total file size failed");
         assert_eq!(total_file_size_bytes, 1337 * 2);
+    }
+
+    #[tokio::test]
+    async fn namespace_partition_template_null_is_the_default_in_the_database() {
+        maybe_skip_integration!();
+
+        let postgres = setup_db().await;
+        let pool = postgres.pool.clone();
+        let postgres: Arc<dyn Catalog> = Arc::new(postgres);
+        let mut repos = postgres.repositories().await;
+
+        let namespace_name = "apples";
+
+        // Create a namespace record in the database that has `NULL` for its `partition_template`
+        // value, which is what records existing before the migration adding that column will have.
+        let insert_null_partition_template_namespace = sqlx::query(
+            r#"
+INSERT INTO namespace (
+    name, topic_id, query_pool_id, retention_period_ns, max_tables, partition_template
+)
+VALUES ( $1, $2, $3, $4, $5, NULL )
+RETURNING id, name, retention_period_ns, max_tables, max_columns_per_table, deleted_at,
+          partition_template;
+            "#,
+        )
+        .bind(namespace_name) // $1
+        .bind(SHARED_TOPIC_ID) // $2
+        .bind(SHARED_QUERY_POOL_ID) // $3
+        .bind(None::<Option<i64>>) // $4
+        .bind(DEFAULT_MAX_TABLES); // $5
+
+        insert_null_partition_template_namespace
+            .fetch_one(&pool)
+            .await
+            .unwrap();
+
+        let lookup_namespace = repos
+            .namespaces()
+            .get_by_name(namespace_name, SoftDeletedRows::ExcludeDeleted)
+            .await
+            .unwrap()
+            .unwrap();
+        // When fetching this namespace from the database, the `FromRow` impl should set its
+        // `partition_template` to the default.
+        assert_eq!(
+            lookup_namespace.partition_template,
+            NamespacePartitionTemplateOverride::default()
+        );
+
+        // When creating a namespace through the catalog functions without specifying a custom
+        // partition template,
+        let created_without_custom_template = repos
+            .namespaces()
+            .create(
+                &"lemons".try_into().unwrap(),
+                None, // no partition template
+                None,
+            )
+            .await
+            .unwrap();
+
+        // it should have the default template in the application,
+        assert_eq!(
+            created_without_custom_template.partition_template,
+            NamespacePartitionTemplateOverride::default()
+        );
+
+        // and store NULL in the database record.
+        let record = sqlx::query("SELECT name, partition_template FROM namespace WHERE id = $1;")
+            .bind(created_without_custom_template.id)
+            .fetch_one(&pool)
+            .await
+            .unwrap();
+        let name: String = record.try_get("name").unwrap();
+        assert_eq!(created_without_custom_template.name, name);
+        let partition_template: Option<NamespacePartitionTemplateOverride> =
+            record.try_get("partition_template").unwrap();
+        assert!(partition_template.is_none());
+
+        // When explicitly setting a template that happens to be equal to the application default,
+        // assume it's important that it's being specially requested and store it rather than NULL.
+        let namespace_custom_template_name = "kumquats";
+        let custom_partition_template_equal_to_default =
+            NamespacePartitionTemplateOverride::from(proto::PartitionTemplate {
+                parts: vec![proto::TemplatePart {
+                    part: Some(proto::template_part::Part::TimeFormat(
+                        "%Y-%m-%d".to_owned(),
+                    )),
+                }],
+            });
+        let namespace_custom_template = repos
+            .namespaces()
+            .create(
+                &namespace_custom_template_name.try_into().unwrap(),
+                Some(custom_partition_template_equal_to_default.clone()),
+                None,
+            )
+            .await
+            .unwrap();
+        assert_eq!(
+            namespace_custom_template.partition_template,
+            custom_partition_template_equal_to_default
+        );
+        let record = sqlx::query("SELECT name, partition_template FROM namespace WHERE id = $1;")
+            .bind(namespace_custom_template.id)
+            .fetch_one(&pool)
+            .await
+            .unwrap();
+        let name: String = record.try_get("name").unwrap();
+        assert_eq!(namespace_custom_template.name, name);
+        let partition_template: Option<NamespacePartitionTemplateOverride> =
+            record.try_get("partition_template").unwrap();
+        assert_eq!(
+            partition_template.unwrap(),
+            custom_partition_template_equal_to_default
+        );
+    }
+
+    #[tokio::test]
+    async fn table_partition_template_null_is_the_default_in_the_database() {
+        maybe_skip_integration!();
+
+        let postgres = setup_db().await;
+        let pool = postgres.pool.clone();
+        let postgres: Arc<dyn Catalog> = Arc::new(postgres);
+        let mut repos = postgres.repositories().await;
+
+        let namespace_default_template_name = "oranges";
+        let namespace_default_template = repos
+            .namespaces()
+            .create(
+                &namespace_default_template_name.try_into().unwrap(),
+                None, // no partition template
+                None,
+            )
+            .await
+            .unwrap();
+
+        let namespace_custom_template_name = "limes";
+        let namespace_custom_template = repos
+            .namespaces()
+            .create(
+                &namespace_custom_template_name.try_into().unwrap(),
+                Some(NamespacePartitionTemplateOverride::from(
+                    proto::PartitionTemplate {
+                        parts: vec![proto::TemplatePart {
+                            part: Some(proto::template_part::Part::TimeFormat("year-%Y".into())),
+                        }],
+                    },
+                )),
+                None,
+            )
+            .await
+            .unwrap();
+
+        // In a namespace that also has a NULL template, create a table record in the database that
+        // has `NULL` for its `partition_template` value, which is what records existing before the
+        // migration adding that column will have.
+        let table_name = "null_template";
+        let insert_null_partition_template_table = sqlx::query(
+            r#"
+INSERT INTO table_name ( name, namespace_id, partition_template )
+VALUES ( $1, $2, NULL )
+RETURNING *;
+            "#,
+        )
+        .bind(table_name) // $1
+        .bind(namespace_default_template.id); // $2
+
+        insert_null_partition_template_table
+            .fetch_one(&pool)
+            .await
+            .unwrap();
+
+        let lookup_table = repos
+            .tables()
+            .get_by_namespace_and_name(namespace_default_template.id, table_name)
+            .await
+            .unwrap()
+            .unwrap();
+        // When fetching this table from the database, the `FromRow` impl should set its
+        // `partition_template` to the system default (because the namespace didn't have a template
+        // either).
+        assert_eq!(
+            lookup_table.partition_template,
+            TablePartitionTemplateOverride::default()
+        );
+
+        // In a namespace that has a custom template, create a table record in the database that
+        // has `NULL` for its `partition_template` value.
+        //
+        // THIS ACTUALLY SHOULD BE IMPOSSIBLE because:
+        //
+        // * Namespaces have to exist before tables
+        // * `partition_tables` are immutable on both namespaces and tables
+        // * When the migration adding the `partition_table` column is deployed, namespaces can
+        //   begin to be created with `partition_templates`
+        // * *Then* tables can be created with `partition_templates` or not
+        // * When tables don't get a custom table partition template but their namespace has one,
+        //   their database record will get the namespace partition template.
+        //
+        // In other words, table `partition_template` values in the database is allowed to possibly
+        // be `NULL` IFF their namespace's `partition_template` is `NULL`.
+        //
+        // That said, this test creates this hopefully-impossible scenario to ensure that the
+        // defined, expected behavior if a table record somehow exists in the database with a `NULL`
+        // `partition_template` value is that it will have the application default partition
+        // template *even if the namespace `partition_template` is not null*.
+        let table_name = "null_template";
+        let insert_null_partition_template_table = sqlx::query(
+            r#"
+INSERT INTO table_name ( name, namespace_id, partition_template )
+VALUES ( $1, $2, NULL )
+RETURNING *;
+            "#,
+        )
+        .bind(table_name) // $1
+        .bind(namespace_custom_template.id); // $2
+
+        insert_null_partition_template_table
+            .fetch_one(&pool)
+            .await
+            .unwrap();
+
+        let lookup_table = repos
+            .tables()
+            .get_by_namespace_and_name(namespace_custom_template.id, table_name)
+            .await
+            .unwrap()
+            .unwrap();
+        // When fetching this table from the database, the `FromRow` impl should set its
+        // `partition_template` to the system default *even though the namespace has a
+        // template*, because this should be impossible as detailed above.
+        assert_eq!(
+            lookup_table.partition_template,
+            TablePartitionTemplateOverride::default()
+        );
+
+        // # Table template false, namespace template true
+        //
+        // When creating a table through the catalog functions *without* a custom table template in
+        // a namespace *with* a custom partition template,
+        let table_no_template_with_namespace_template = repos
+            .tables()
+            .create(
+                "pomelo",
+                TablePartitionTemplateOverride::new(
+                    None, // no custom partition template
+                    &namespace_custom_template.partition_template,
+                ),
+                namespace_custom_template.id,
+            )
+            .await
+            .unwrap();
+
+        // it should have the namespace's template
+        assert_eq!(
+            table_no_template_with_namespace_template.partition_template,
+            TablePartitionTemplateOverride::new(
+                None,
+                &namespace_custom_template.partition_template
+            )
+        );
+
+        // and store that value in the database record.
+        let record = sqlx::query("SELECT name, partition_template FROM table_name WHERE id = $1;")
+            .bind(table_no_template_with_namespace_template.id)
+            .fetch_one(&pool)
+            .await
+            .unwrap();
+        let name: String = record.try_get("name").unwrap();
+        assert_eq!(table_no_template_with_namespace_template.name, name);
+        let partition_template: Option<TablePartitionTemplateOverride> =
+            record.try_get("partition_template").unwrap();
+        assert_eq!(
+            partition_template.unwrap(),
+            TablePartitionTemplateOverride::new(
+                None,
+                &namespace_custom_template.partition_template
+            )
+        );
+
+        // # Table template true, namespace template false
+        //
+        // When creating a table through the catalog functions *with* a custom table template in
+        // a namespace *without* a custom partition template,
+        let custom_table_template = proto::PartitionTemplate {
+            parts: vec![proto::TemplatePart {
+                part: Some(proto::template_part::Part::TagValue("chemical".into())),
+            }],
+        };
+        let table_with_template_no_namespace_template = repos
+            .tables()
+            .create(
+                "tangerine",
+                TablePartitionTemplateOverride::new(
+                    Some(custom_table_template), // with custom partition template
+                    &namespace_default_template.partition_template,
+                ),
+                namespace_default_template.id,
+            )
+            .await
+            .unwrap();
+
+        // it should have the custom table template
+        let table_template_parts: Vec<_> = table_with_template_no_namespace_template
+            .partition_template
+            .parts()
+            .collect();
+        assert_eq!(table_template_parts.len(), 1);
+        assert_matches!(
+            table_template_parts[0],
+            TemplatePart::TagValue(tag) if tag == "chemical"
+        );
+
+        // and store that value in the database record.
+        let record = sqlx::query("SELECT name, partition_template FROM table_name WHERE id = $1;")
+            .bind(table_with_template_no_namespace_template.id)
+            .fetch_one(&pool)
+            .await
+            .unwrap();
+        let name: String = record.try_get("name").unwrap();
+        assert_eq!(table_with_template_no_namespace_template.name, name);
+        let partition_template = record
+            .try_get::<Option<TablePartitionTemplateOverride>, _>("partition_template")
+            .unwrap()
+            .unwrap();
+        let table_template_parts: Vec<_> = partition_template.parts().collect();
+        assert_eq!(table_template_parts.len(), 1);
+        assert_matches!(
+            table_template_parts[0],
+            TemplatePart::TagValue(tag) if tag == "chemical"
+        );
+
+        // # Table template true, namespace template true
+        //
+        // When creating a table through the catalog functions *with* a custom table template in
+        // a namespace *with* a custom partition template,
+        let custom_table_template = proto::PartitionTemplate {
+            parts: vec![proto::TemplatePart {
+                part: Some(proto::template_part::Part::TagValue("vegetable".into())),
+            }],
+        };
+        let table_with_template_with_namespace_template = repos
+            .tables()
+            .create(
+                "nectarine",
+                TablePartitionTemplateOverride::new(
+                    Some(custom_table_template), // with custom partition template
+                    &namespace_custom_template.partition_template,
+                ),
+                namespace_custom_template.id,
+            )
+            .await
+            .unwrap();
+
+        // it should have the custom table template
+        let table_template_parts: Vec<_> = table_with_template_with_namespace_template
+            .partition_template
+            .parts()
+            .collect();
+        assert_eq!(table_template_parts.len(), 1);
+        assert_matches!(
+            table_template_parts[0],
+            TemplatePart::TagValue(tag) if tag == "vegetable"
+        );
+
+        // and store that value in the database record.
+        let record = sqlx::query("SELECT name, partition_template FROM table_name WHERE id = $1;")
+            .bind(table_with_template_with_namespace_template.id)
+            .fetch_one(&pool)
+            .await
+            .unwrap();
+        let name: String = record.try_get("name").unwrap();
+        assert_eq!(table_with_template_with_namespace_template.name, name);
+        let partition_template = record
+            .try_get::<Option<TablePartitionTemplateOverride>, _>("partition_template")
+            .unwrap()
+            .unwrap();
+        let table_template_parts: Vec<_> = partition_template.parts().collect();
+        assert_eq!(table_template_parts.len(), 1);
+        assert_matches!(
+            table_template_parts[0],
+            TemplatePart::TagValue(tag) if tag == "vegetable"
+        );
+
+        // # Table template false, namespace template false
+        //
+        // When creating a table through the catalog functions *without* a custom table template in
+        // a namespace *without* a custom partition template,
+        let table_no_template_no_namespace_template = repos
+            .tables()
+            .create(
+                "grapefruit",
+                TablePartitionTemplateOverride::new(
+                    None, // no custom partition template
+                    &namespace_default_template.partition_template,
+                ),
+                namespace_default_template.id,
+            )
+            .await
+            .unwrap();
+
+        // it should have the default template in the application,
+        assert_eq!(
+            table_no_template_no_namespace_template.partition_template,
+            TablePartitionTemplateOverride::default()
+        );
+
+        // and store NULL in the database record.
+        let record = sqlx::query("SELECT name, partition_template FROM table_name WHERE id = $1;")
+            .bind(table_no_template_no_namespace_template.id)
+            .fetch_one(&pool)
+            .await
+            .unwrap();
+        let name: String = record.try_get("name").unwrap();
+        assert_eq!(table_no_template_no_namespace_template.name, name);
+        let partition_template: Option<TablePartitionTemplateOverride> =
+            record.try_get("partition_template").unwrap();
+        assert!(partition_template.is_none());
     }
 }

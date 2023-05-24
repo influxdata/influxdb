@@ -27,8 +27,10 @@ workspace-hack = { version = "0.1", path = "../workspace-hack" }
 [dev-dependencies] # In alphabetical order
 assert_matches = "1.5.0"
 dotenvy = "0.15.7"
+generated_types = { path = "../generated_types" }
 mutable_batch_lp = { path = "../mutable_batch_lp" }
 paste = "1.0.12"
 pretty_assertions = "1.3.0"
 rand = "0.8"
 tempfile = "3"
+test_helpers = { path = "../test_helpers" }

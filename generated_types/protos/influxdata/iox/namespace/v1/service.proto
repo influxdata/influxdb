@@ -2,6 +2,8 @@ syntax = "proto3";
 package influxdata.iox.namespace.v1;
 option go_package = "github.com/influxdata/iox/namespace/v1";
 
+import "influxdata/iox/partition_template/v1/template.proto";
+
 service NamespaceService {
   // Get all namespaces
   rpc GetNamespaces(GetNamespacesRequest) returns (GetNamespacesResponse);
@@ -36,6 +38,9 @@ message CreateNamespaceRequest {
   // NULL means "infinite retention", and 0 is mapped to NULL. Negative values
   // are rejected.
   optional int64 retention_period_ns = 2;
+
+  // Partitioning scheme to use for tables created in this namespace
+  optional influxdata.iox.partition_template.v1.PartitionTemplate partition_template = 3;
 }
 
 message CreateNamespaceResponse {

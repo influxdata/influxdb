@@ -19,7 +19,10 @@
 use workspace_hack as _;
 
 use crate::interface::{ColumnTypeMismatchSnafu, Error, RepoCollection, Result};
-use data_types::{ColumnType, NamespaceSchema, TableSchema};
+use data_types::{
+    ColumnType, NamespaceId, NamespacePartitionTemplateOverride, NamespaceSchema,
+    TablePartitionTemplateOverride, TableSchema,
+};
 use mutable_batch::MutableBatch;
 use std::{borrow::Cow, collections::HashMap};
 use thiserror::Error;
@@ -117,21 +120,11 @@ where
         None => {
             // The table does not exist in the cached schema.
             //
-            // Attempt to create the table in the catalog, or load an existing
-            // table from the catalog to populate the cache.
-            let mut table = repos
-                .tables()
-                .create_or_get(table_name, schema.id)
-                .await
-                .map(|t| TableSchema::new_empty_from(&t))?;
-
-            // Always add a time column to all new tables.
-            let time_col = repos
-                .columns()
-                .create_or_get(TIME_COLUMN, table.id, ColumnType::Time)
-                .await?;
-
-            table.add_column(time_col);
+            // Attempt to load an existing table from the catalog or create a new table in the
+            // catalog to populate the cache.
+            let table =
+                table_load_or_create(repos, schema.id, &schema.partition_template, table_name)
+                    .await?;
 
             assert!(schema
                 .to_mut()
@@ -206,10 +199,72 @@ where
     Ok(())
 }
 
+async fn table_load_or_create<R>(
+    repos: &mut R,
+    namespace_id: NamespaceId,
+    namespace_partition_template: &NamespacePartitionTemplateOverride,
+    table_name: &str,
+) -> Result<TableSchema>
+where
+    R: RepoCollection + ?Sized,
+{
+    let table = match repos
+        .tables()
+        .get_by_namespace_and_name(namespace_id, table_name)
+        .await?
+    {
+        Some(table) => table,
+        None => {
+            // There is a possibility of a race condition here, if another request has also
+            // created this table after the `get_by_namespace_and_name` call but before
+            // this `create` call. In that (hopefully) rare case, do an additional fetch
+            // from the catalog for the record that should now exist.
+            let create_result = repos
+                .tables()
+                .create(
+                    table_name,
+                    // This table is being created implicitly by this write, so there's no
+                    // possibility of a user-supplied partition template here, which is why there's
+                    // a hardcoded `None`.
+                    TablePartitionTemplateOverride::new(None, namespace_partition_template),
+                    namespace_id,
+                )
+                .await;
+            if let Err(Error::TableNameExists { .. }) = create_result {
+                repos
+                    .tables()
+                    .get_by_namespace_and_name(namespace_id, table_name)
+                    // Propagate any `Err` returned by the catalog
+                    .await?
+                    // Getting `Ok(None)` should be impossible if we're in this code path because
+                    // the `create` request just said the table exists
+                    .expect(
+                        "Table creation failed because the table exists, so looking up the table \
+                        should return `Some(table)`, but it returned `None`",
+                    )
+            } else {
+                create_result?
+            }
+        }
+    };
+
+    let mut table = TableSchema::new_empty_from(&table);
+
+    // Always add a time column to all new tables.
+    let time_col = repos
+        .columns()
+        .create_or_get(TIME_COLUMN, table.id, ColumnType::Time)
+        .await?;
+
+    table.add_column(time_col);
+
+    Ok(table)
+}
+
 /// Catalog helper functions for creation of catalog objects
 pub mod test_helpers {
     use crate::RepoCollection;
-    use data_types::{Namespace, NamespaceName, Table};
+    use data_types::{Namespace, NamespaceName, Table, TablePartitionTemplateOverride};
 
     /// When the details of the namespace don't matter; the test just needs *a* catalog namespace
     /// with a particular name.
@@ -228,7 +283,7 @@ pub mod test_helpers {
         let namespace_name = NamespaceName::new(name).unwrap();
         repos
             .namespaces()
-            .create(&namespace_name, None)
+            .create(&namespace_name, None, None)
             .await
             .unwrap()
     }
@@ -236,13 +291,13 @@ pub mod test_helpers {
     /// When the details of the table don't matter; the test just needs *a* catalog table
     /// with a particular name in a particular namespace.
     ///
-    /// Use [`TableRepo::create_or_get`] directly if:
+    /// Use [`TableRepo::create`] directly if:
     ///
     /// - The values of the parameters to `create_or_get` need to be different than what's here
     /// - The values of the parameters to `create_or_get` are relevant to the behavior under test
     /// - You expect table creation to fail in the test
     ///
-    /// [`TableRepo::create_or_get`]: crate::interface::TableRepo::create_or_get
+    /// [`TableRepo::create`]: crate::interface::TableRepo::create
     pub async fn arbitrary_table<R: RepoCollection + ?Sized>(
         repos: &mut R,
         name: &str,
@@ -250,7 +305,11 @@ pub mod test_helpers {
     ) -> Table {
         repos
             .tables()
-            .create_or_get(name, namespace.id)
+            .create(
+                name,
+                TablePartitionTemplateOverride::new(None, &namespace.partition_template),
+                namespace.id,
+            )
             .await
             .unwrap()
     }
@@ -293,7 +352,6 @@ mod tests {
 
                     let namespace = arbitrary_namespace(&mut *txn, NAMESPACE_NAME)
                         .await;
-
                     let schema = NamespaceSchema::new_empty_from(&namespace);
 
                     // Apply all the lp literals as individual writes, feeding

@@ -278,7 +278,7 @@ async fn test_write_propagate_ids() {
                     .repositories()
                     .await
                     .tables()
-                    .create_or_get(t, ns.id)
+                    .create(t, Default::default(), ns.id)
                     .await
                     .unwrap();
                 (*t, table.id)
@@ -348,6 +348,7 @@ async fn test_delete_unsupported() {
         .namespaces()
         .create(
             &data_types::NamespaceName::new("bananas_test").unwrap(),
+            None,
             None,
         )
         .await

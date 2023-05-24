@@ -14,7 +14,7 @@ use arrow::{
     record_batch::RecordBatch,
 };
 use arrow_util::bitset::BitSet;
-use data_types::{IsNan, PartitionTemplate, StatValues, Statistics, TemplatePart};
+use data_types::{test_table_partition_override, IsNan, StatValues, Statistics, TemplatePart};
 use hashbrown::HashSet;
 use mutable_batch::{writer::Writer, MutableBatch, PartitionWrite, WritePayload};
 use rand::prelude::*;
@@ -432,12 +432,10 @@ fn test_partition_write() {
         assert_eq!(write.rows().get() as u64, stats.total_count);
     };
 
-    let partitioned = PartitionWrite::partition(
-        &batch,
-        &PartitionTemplate {
-            parts: vec![TemplatePart::Column("b1".to_string())],
-        },
-    );
+    let table_partition_template =
+        test_table_partition_override(vec![TemplatePart::TagValue("t1")]);
+
+    let partitioned = PartitionWrite::partition(&batch, &table_partition_template);
 
     for (_, write) in &partitioned {
         verify_write(write);

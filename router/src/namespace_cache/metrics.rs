@@ -155,7 +155,7 @@ mod tests {
                     i.to_string(),
                     TableSchema {
                         id: TableId::new(i as _),
-                        partition_template: None,
+                        partition_template: Default::default(),
                         columns: ColumnsByName::new(columns),
                     },
                 )
@@ -168,7 +168,7 @@ mod tests {
             max_columns_per_table: 100,
             max_tables: 42,
             retention_period_ns: None,
-            partition_template: None,
+            partition_template: Default::default(),
         }
     }
 
