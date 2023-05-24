@@ -7,8 +7,9 @@ use crate::{
         stringset::{StringSet, StringSetRef},
         ExecutionContextProvider, Executor, ExecutorType, IOxSessionContext,
     },
-    Predicate, PredicateMatch, QueryChunk, QueryChunkData, QueryChunkMeta, QueryCompletedToken,
-    QueryNamespace, QueryText,
+    pruning::prune_chunks,
+    Predicate, QueryChunk, QueryChunkData, QueryChunkMeta, QueryCompletedToken, QueryNamespace,
+    QueryText,
 };
 use arrow::array::{BooleanArray, Float64Array};
 use arrow::datatypes::SchemaRef;
@@ -116,7 +117,7 @@ impl QueryNamespace for TestDatabase {
         table_name: &str,
         predicate: &Predicate,
         _projection: Option<&Vec<usize>>,
-        ctx: IOxSessionContext,
+        _ctx: IOxSessionContext,
     ) -> Result<Vec<Arc<dyn QueryChunk>>, DataFusionError> {
         // save last predicate
         *self.chunks_predicate.lock() = predicate.clone();
@@ -129,14 +130,14 @@ impl QueryNamespace for TestDatabase {
             .filter(|c| c.table_name == table_name)
             // only keep chunks if their statistics overlap
             .filter(|c| {
-                !matches!(
-                    predicate.apply_to_table_summary(
-                        ctx.inner().state().execution_props(),
-                        &c.table_summary,
-                        c.schema.as_arrow()
-                    ),
-                    PredicateMatch::Zero
+                prune_chunks(
+                    c.schema(),
+                    &[Arc::clone(*c) as Arc<dyn QueryChunk>],
+                    predicate,
                 )
+                .ok()
+                .map(|res| res[0])
+                .unwrap_or(true)
             })
             .map(|x| Arc::clone(x) as Arc<dyn QueryChunk>)
             .collect::<Vec<_>>())
@@ -322,17 +323,11 @@ pub struct TestChunk {
     /// Set the flag if this chunk might contain duplicates
     may_contain_pk_duplicates: bool,
 
-    /// A copy of the captured predicates passed
-    predicates: Mutex<Vec<Predicate>>,
-
     /// Data in this chunk.
     table_data: QueryChunkData,
 
     /// A saved error that is returned instead of actual results
     saved_error: Option<String>,
-
-    /// Return value for apply_predicate, if desired
-    predicate_match: Option<PredicateMatch>,
 
     /// Copy of delete predicates passed
     delete_predicates: Vec<Arc<DeletePredicate>>,
@@ -417,10 +412,8 @@ impl TestChunk {
             table_summary: TableSummary::default(),
             id: ChunkId::new_test(0),
             may_contain_pk_duplicates: Default::default(),
-            predicates: Default::default(),
             table_data: QueryChunkData::RecordBatches(vec![]),
             saved_error: Default::default(),
-            predicate_match: Default::default(),
             delete_predicates: Default::default(),
             order: ChunkOrder::MIN,
             sort_key: None,
@@ -504,12 +497,6 @@ impl TestChunk {
     /// specified
     pub fn with_error(mut self, error_message: impl Into<String>) -> Self {
         self.saved_error = Some(error_message.into());
-        self
-    }
-
-    /// specify that any call to apply_predicate should return this value
-    pub fn with_predicate_match(mut self, predicate_match: PredicateMatch) -> Self {
-        self.predicate_match = Some(predicate_match);
         self
     }
 
@@ -763,11 +750,6 @@ impl TestChunk {
         }
 
         self
-    }
-
-    /// Get a copy of any predicate passed to the function
-    pub fn predicates(&self) -> Vec<Predicate> {
-        self.predicates.lock().clone()
     }
 
     /// Prepares this chunk to return a specific record batch with one
@@ -1167,29 +1149,13 @@ impl QueryChunk for TestChunk {
     }
 
     fn data(&self) -> QueryChunkData {
+        self.check_error().unwrap();
+
         self.table_data.clone()
     }
 
     fn chunk_type(&self) -> &str {
         "Test Chunk"
-    }
-
-    fn apply_predicate_to_metadata(
-        &self,
-        _ctx: &IOxSessionContext,
-        predicate: &Predicate,
-    ) -> Result<PredicateMatch, DataFusionError> {
-        self.check_error()?;
-
-        // save the predicate
-        self.predicates.lock().push(predicate.clone());
-
-        // check if there is a saved result to return
-        if let Some(&predicate_match) = self.predicate_match.as_ref() {
-            return Ok(predicate_match);
-        }
-
-        Ok(PredicateMatch::Unknown)
     }
 
     fn column_values(
@@ -1198,6 +1164,8 @@ impl QueryChunk for TestChunk {
         _column_name: &str,
         _predicate: &Predicate,
     ) -> Result<Option<StringSet>, DataFusionError> {
+        self.check_error()?;
+
         // Model not being able to get column values from metadata
         Ok(None)
     }
@@ -1205,13 +1173,10 @@ impl QueryChunk for TestChunk {
     fn column_names(
         &self,
         _ctx: IOxSessionContext,
-        predicate: &Predicate,
+        _predicate: &Predicate,
         selection: Projection<'_>,
     ) -> Result<Option<StringSet>, DataFusionError> {
         self.check_error()?;
-
-        // save the predicate
-        self.predicates.lock().push(predicate.clone());
 
         // only return columns specified in selection
         let column_names = match selection {
@@ -1233,6 +1198,8 @@ impl QueryChunk for TestChunk {
 
 impl QueryChunkMeta for TestChunk {
     fn summary(&self) -> Arc<TableSummary> {
+        self.check_error().unwrap();
+
         Arc::new(self.table_summary.clone())
     }
 

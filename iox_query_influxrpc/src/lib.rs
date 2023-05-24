@@ -44,13 +44,13 @@ use iox_query::{
     },
     QueryChunk, QueryNamespace,
 };
-use observability_deps::tracing::{debug, trace, warn};
+use observability_deps::tracing::{debug, warn};
 use predicate::{
     rpc_predicate::{
         InfluxRpcPredicate, FIELD_COLUMN_NAME, GROUP_KEY_SPECIAL_START, GROUP_KEY_SPECIAL_STOP,
         MEASUREMENT_COLUMN_NAME,
     },
-    Predicate, PredicateMatch,
+    Predicate,
 };
 use query_functions::{
     group_by::{Aggregate, WindowDuration},
@@ -263,55 +263,19 @@ impl InfluxRpcPlanner {
         // Special case predicates that span the entire valid timestamp range
         let rpc_predicate = rpc_predicate.clear_timestamp_if_max_range();
 
-        let metadata_ctx = ctx.child_ctx("apply_predicate_to_metadata");
-        let metadata_ctx = &metadata_ctx; // needed to use inside the move closure
-
         let table_predicates = rpc_predicate
             .table_predicates(namespace.as_meta())
             .context(CreatingPredicatesSnafu)?;
         let tables: Vec<_> =
             table_chunk_stream(Arc::clone(&namespace), false, &table_predicates, &ctx)
-                .try_filter_map(|(table_name, predicate, chunks)| async move {
-                    // Identify which chunks can answer from its metadata and then record its table,
-                    // and which chunks needs full plan and group them into their table
-                    let mut chunks_full = vec![];
+                .try_filter_map(
+                    |(table_name, table_schema, table_predicate, chunks)| async move {
+                        let chunks_full = prune_chunks(&table_schema, chunks, table_predicate);
 
-                    for chunk in cheap_chunk_first(chunks) {
-                        trace!(chunk_id=%chunk.id(), %table_name, "Considering table");
-
-                        // If the chunk has delete predicates, we need to scan (do full plan) the data to eliminate
-                        // deleted data before we can determine if its table participates in the requested predicate.
-                        if chunk.has_delete_predicates() {
-                            chunks_full.push(chunk);
-                        } else {
-                            // Try and apply the predicate using only metadata
-                            let pred_result = chunk
-                                .apply_predicate_to_metadata(metadata_ctx, predicate)
-                                .context(CheckingChunkPredicateSnafu {
-                                    chunk_id: chunk.id(),
-                                })?;
-
-                            match pred_result {
-                                PredicateMatch::AtLeastOneNonNullField => {
-                                    trace!("Metadata predicate: table matches");
-                                    // Meta data of the table covers predicates of the request
-                                    return Ok(Some((table_name, None)));
-                                }
-                                PredicateMatch::Unknown => {
-                                    trace!("Metadata predicate: unknown match");
-                                    // We cannot match the predicate to get answer from meta data, let do full plan
-                                    chunks_full.push(chunk);
-                                }
-                                PredicateMatch::Zero => {
-                                    trace!("Metadata predicate: zero rows match");
-                                } // this chunk's table does not participate in the request
-                            }
-                        }
-                    }
-
-                    Ok((!chunks_full.is_empty())
-                        .then_some((table_name, Some((predicate, chunks_full)))))
-                })
+                        Ok((!chunks_full.is_empty())
+                            .then_some((table_name, Some((table_predicate, chunks_full)))))
+                    },
+                )
                 .try_collect()
                 .await?;
 
@@ -392,7 +356,7 @@ impl InfluxRpcPlanner {
             &table_predicates_need_chunks,
             &ctx,
         )
-        .and_then(|(table_name, predicate, chunks)| {
+        .and_then(|(table_name, table_schema, predicate, chunks)| {
             let mut ctx = ctx.child_ctx("table");
             ctx.set_metadata("table", table_name.to_string());
 
@@ -400,18 +364,8 @@ impl InfluxRpcPlanner {
                 let mut chunks_full = vec![];
                 let mut known_columns = BTreeSet::new();
 
+                let chunks = prune_chunks(&table_schema, chunks, predicate);
                 for chunk in cheap_chunk_first(chunks) {
-                    // Try and apply the predicate using only metadata
-                    let pred_result = chunk.apply_predicate_to_metadata(&ctx, predicate).context(
-                        CheckingChunkPredicateSnafu {
-                            chunk_id: chunk.id(),
-                        },
-                    )?;
-
-                    if matches!(pred_result, PredicateMatch::Zero) {
-                        continue;
-                    }
-
                     // get only tag columns from metadata
                     let schema = chunk.schema();
 
@@ -539,31 +493,18 @@ impl InfluxRpcPlanner {
             table_predicates_filtered.push((table_name, predicate));
         }
 
-        let metadata_ctx = ctx.child_ctx("apply_predicate_to_metadata");
-        let metadata_ctx = &metadata_ctx; // needed to use inside the move closure
-
         let tables: Vec<_> = table_chunk_stream(
             Arc::clone(&namespace),
             false,
             &table_predicates_filtered,
             &ctx,
         )
-        .and_then(|(table_name, predicate, chunks)| async move {
+        .and_then(|(table_name, table_schema, predicate, chunks)| async move {
             let mut chunks_full = vec![];
             let mut known_values = BTreeSet::new();
 
+            let chunks = prune_chunks(&table_schema, chunks, predicate);
             for chunk in cheap_chunk_first(chunks) {
-                // Try and apply the predicate using only metadata
-                let pred_result = chunk
-                    .apply_predicate_to_metadata(metadata_ctx, predicate)
-                    .context(CheckingChunkPredicateSnafu {
-                        chunk_id: chunk.id(),
-                    })?;
-
-                if matches!(pred_result, PredicateMatch::Zero) {
-                    continue;
-                }
-
                 // use schema to validate column type
                 let schema = chunk.schema();
 
@@ -1380,23 +1321,37 @@ fn table_chunk_stream<'a>(
     need_fields: bool,
     table_predicates: &'a [(Arc<str>, Predicate)],
     ctx: &'a IOxSessionContext,
-) -> impl Stream<Item = Result<(&'a Arc<str>, &'a Predicate, Vec<Arc<dyn QueryChunk>>)>> + 'a {
+) -> impl Stream<
+    Item = Result<(
+        &'a Arc<str>,
+        Arc<Schema>,
+        &'a Predicate,
+        Vec<Arc<dyn QueryChunk>>,
+    )>,
+> + 'a {
+    let namespace2 = Arc::clone(&namespace);
     futures::stream::iter(table_predicates)
-        .map(move |(table_name, predicate)| {
+        .filter_map(move |(table_name, predicate)| {
+            let namespace = Arc::clone(&namespace);
+
+            async move {
+                let Some(table_schema) = namespace.table_schema(table_name) else {
+                    return None;
+                };
+                let table_schema = Arc::new(table_schema);
+                Some((table_name, table_schema, predicate))
+            }
+        })
+        .map(move |(table_name, table_schema, predicate)| {
             let mut ctx = ctx.child_ctx("table");
             ctx.set_metadata("table", table_name.to_string());
 
-            let namespace = Arc::clone(&namespace);
-
-            let table_schema = namespace.table_schema(table_name);
-            let projection = match table_schema {
-                Some(table_schema) => {
-                    columns_in_predicates(need_fields, &table_schema, table_name, predicate)
-                }
-                None => None,
-            };
+            let namespace = Arc::clone(&namespace2);
 
             async move {
+                let projection =
+                    columns_in_predicates(need_fields, &table_schema, table_name, predicate);
+
                 let chunks = namespace
                     .chunks(
                         table_name,
@@ -1409,7 +1364,7 @@ fn table_chunk_stream<'a>(
                         table_name: table_name.as_ref(),
                     })?;
 
-                Ok((table_name, predicate, chunks))
+                Ok((table_name, Arc::clone(&table_schema), predicate, chunks))
             }
         })
         .buffered(CONCURRENT_TABLE_JOBS)
@@ -1514,12 +1469,9 @@ where
         + Sync,
     P: Send,
 {
-    let metadata_ctx = ctx.child_ctx("apply_predicate_to_metadata");
-    let metadata_ctx = &metadata_ctx; // needed to use inside the move closure
-
     table_chunk_stream(Arc::clone(&namespace), true, table_predicates, &ctx)
-        .and_then(|(table_name, predicate, chunks)| async move {
-            let chunks = prune_chunks_metadata(metadata_ctx, chunks, predicate)?;
+        .and_then(|(table_name, table_schema, predicate, chunks)| async move {
+            let chunks = prune_chunks(&table_schema, chunks, predicate);
             Ok((table_name, predicate, chunks))
         })
         // rustc seems to heavily confused about the filter step here, esp. it dislikes `.try_filter` and even
@@ -1547,33 +1499,6 @@ where
         })
         .try_collect()
         .await
-}
-
-/// Prunes the provided list of chunks using [`QueryChunk::apply_predicate_to_metadata`]
-///
-/// TODO: Should this logic live with the rest of the chunk pruning logic?
-fn prune_chunks_metadata(
-    ctx: &IOxSessionContext,
-    chunks: Vec<Arc<dyn QueryChunk>>,
-    predicate: &Predicate,
-) -> Result<Vec<Arc<dyn QueryChunk>>> {
-    let mut filtered = Vec::with_capacity(chunks.len());
-    for chunk in chunks {
-        // Try and apply the predicate using only metadata
-        let pred_result = chunk.apply_predicate_to_metadata(ctx, predicate).context(
-            CheckingChunkPredicateSnafu {
-                chunk_id: chunk.id(),
-            },
-        )?;
-
-        trace!(?pred_result, chunk_id=?chunk.id(), "applied predicate to metadata");
-
-        if !matches!(pred_result, PredicateMatch::Zero) {
-            filtered.push(chunk)
-        }
-    }
-
-    Ok(filtered)
 }
 
 /// Return a `Vec` of `Exprs` such that it starts with `prefix` cols and
@@ -1907,8 +1832,28 @@ fn cheap_chunk_first(mut chunks: Vec<Arc<dyn QueryChunk>>) -> Vec<Arc<dyn QueryC
     chunks
 }
 
+fn prune_chunks(
+    table_schema: &Schema,
+    chunks: Vec<Arc<dyn QueryChunk>>,
+    predicate: &Predicate,
+) -> Vec<Arc<dyn QueryChunk>> {
+    use iox_query::pruning::prune_chunks;
+
+    let Ok(mask) = prune_chunks(table_schema, &chunks, predicate) else {
+        return chunks;
+    };
+
+    chunks
+        .into_iter()
+        .zip(mask)
+        .filter(|(_c, m)| *m)
+        .map(|(c, _m)| c)
+        .collect()
+}
+
 #[cfg(test)]
 mod tests {
+    use data_types::DeletePredicate;
     use datafusion::{
         common::ScalarValue,
         prelude::{col, lit},
@@ -1921,6 +1866,7 @@ mod tests {
         exec::{ExecutionContextProvider, Executor},
         test::{TestChunk, TestDatabase},
     };
+    use test_helpers::maybe_start_logging;
 
     use super::*;
 
@@ -2045,10 +1991,10 @@ mod tests {
         assert!(!result.is_empty());
         assert_eq!(result.len(), 1);
         assert_eq!(result[0].0.as_ref(), "h2o"); // table name
-        assert_eq!(result[0].2.len(), 1); // returned chunks
+        assert_eq!(result[0].3.len(), 1); // returned chunks
 
         // chunk schema includes  all 5 columns of the table because we asked it return all fileds (and implicit PK) even though the predicate is on `foo` only
-        let chunk = &result[0].2[0];
+        let chunk = &result[0].3[0];
         let chunk_schema = (*chunk.schema()).clone();
         assert_eq!(chunk_schema.len(), 5);
         let chunk_schema = chunk_schema.sort_fields_by_name();
@@ -2073,10 +2019,10 @@ mod tests {
         assert!(!result.is_empty());
         assert_eq!(result.len(), 1);
         assert_eq!(result[0].0.as_ref(), "h2o"); // table name
-        assert_eq!(result[0].2.len(), 1); // returned chunks
+        assert_eq!(result[0].3.len(), 1); // returned chunks
 
         // chunk schema includes still includes everything (the test table implementation does NOT project chunks)
-        let chunk = &result[0].2[0];
+        let chunk = &result[0].3[0];
         let chunk_schema = (*chunk.schema()).clone();
         assert_eq!(chunk_schema.len(), 5);
         let chunk_schema = chunk_schema.sort_fields_by_name();
@@ -2119,10 +2065,10 @@ mod tests {
         assert!(!result.is_empty());
         assert_eq!(result.len(), 1);
         assert_eq!(result[0].0.as_ref(), "h2o"); // table name
-        assert_eq!(result[0].2.len(), 1); // returned chunks
+        assert_eq!(result[0].3.len(), 1); // returned chunks
 
         // chunk schema includes  all 5 columns of the table because the preidcate is empty
-        let chunk = &result[0].2[0];
+        let chunk = &result[0].3[0];
         let chunk_schema = (*chunk.schema()).clone();
         assert_eq!(chunk_schema.len(), 5);
         let chunk_schema = chunk_schema.sort_fields_by_name();
@@ -2146,10 +2092,10 @@ mod tests {
         assert!(!result.is_empty());
         assert_eq!(result.len(), 1);
         assert_eq!(result[0].0.as_ref(), "h2o"); // table name
-        assert_eq!(result[0].2.len(), 1); // returned chunks
+        assert_eq!(result[0].3.len(), 1); // returned chunks
 
         // chunk schema includes  all 5 columns of the table because the preidcate is empty
-        let chunk = &result[0].2[0];
+        let chunk = &result[0].3[0];
         let chunk_schema = (*chunk.schema()).clone();
         assert_eq!(chunk_schema.len(), 5);
     }
@@ -2185,10 +2131,10 @@ mod tests {
         assert!(!result.is_empty());
         assert_eq!(result.len(), 1);
         assert_eq!(result[0].0.as_ref(), "h2o"); // table name
-        assert_eq!(result[0].2.len(), 1); // returned chunks
+        assert_eq!(result[0].3.len(), 1); // returned chunks
 
         // Since no data, we do not do pushdown in the test chunk.
-        let chunk = &result[0].2[0];
+        let chunk = &result[0].3[0];
         let chunk_schema = (*chunk.schema()).clone();
         assert_eq!(chunk_schema.len(), 5);
         let chunk_schema = chunk_schema.sort_fields_by_name();
@@ -2234,10 +2180,10 @@ mod tests {
         assert!(!result.is_empty());
         assert_eq!(result.len(), 1);
         assert_eq!(result[0].0.as_ref(), "h2o"); // table name
-        assert_eq!(result[0].2.len(), 1); // returned chunks
+        assert_eq!(result[0].3.len(), 1); // returned chunks
 
         // chunk schema includes everything (test table does NOT perform any projection)
-        let chunk = &result[0].2[0];
+        let chunk = &result[0].3[0];
         let chunk_schema = (*chunk.schema()).clone();
         assert_eq!(chunk_schema.len(), 5);
         let chunk_schema = chunk_schema.sort_fields_by_name();
@@ -2267,10 +2213,10 @@ mod tests {
         assert!(!result.is_empty());
         assert_eq!(result.len(), 1);
         assert_eq!(result[0].0.as_ref(), "h2o"); // table name
-        assert_eq!(result[0].2.len(), 1); // returned chunks
+        assert_eq!(result[0].3.len(), 1); // returned chunks
 
         // chunk schema includes everything (test table does NOT perform any projection)
-        let chunk = &result[0].2[0];
+        let chunk = &result[0].3[0];
         let chunk_schema = (*chunk.schema()).clone();
         assert_eq!(chunk_schema.len(), 5);
         let chunk_schema = chunk_schema.sort_fields_by_name();
@@ -2313,10 +2259,10 @@ mod tests {
         assert!(!result.is_empty());
         assert_eq!(result.len(), 1);
         assert_eq!(result[0].0.as_ref(), "h2o"); // table name
-        assert_eq!(result[0].2.len(), 1); // returned chunks
+        assert_eq!(result[0].3.len(), 1); // returned chunks
 
-        // chunk schema includes all 5 columns since we hit the unknown columnd
-        let chunk = &result[0].2[0];
+        // chunk schema includes all 5 columns since we hit the unknown column
+        let chunk = &result[0].3[0];
         let chunk_schema = (*chunk.schema()).clone();
         assert_eq!(chunk_schema.len(), 5);
         let chunk_schema = chunk_schema.sort_fields_by_name();
@@ -2483,6 +2429,46 @@ mod tests {
             .boxed()
         })
         .await
+    }
+
+    #[tokio::test]
+    async fn test_issue_7848() {
+        maybe_start_logging();
+
+        let chunk = Arc::new(
+            TestChunk::new("table")
+                .with_id(0)
+                .with_tag_column("tag")
+                .with_f64_field_column("field")
+                .with_time_column()
+                .with_one_row_of_data()
+                .with_delete_predicate(Arc::new(DeletePredicate::retention_delete_predicate(1))),
+        );
+
+        let executor = Arc::new(Executor::new_testing());
+        let test_db = Arc::new(TestDatabase::new(Arc::clone(&executor)));
+        test_db.add_chunk("my_partition_key", Arc::clone(&chunk));
+
+        let predicate = Predicate::new().with_expr("tag".as_expr().eq(lit("MA")));
+
+        let rpc_predicate = InfluxRpcPredicate::new(None, predicate);
+
+        let res = InfluxRpcPlanner::new(IOxSessionContext::with_testing())
+            .read_filter(Arc::clone(&test_db) as _, rpc_predicate)
+            .await
+            .expect("creating plan");
+        assert_eq!(res.plans.len(), 1);
+
+        // Note: The retention policy (i.e. a time predicate) does NOT occur within the logical plan because it is an
+        //       implementation detail of the table itself and will only be manifested when the `TableScan` is converted
+        //       into a physical plan (which uses the IOx table provider code).
+        let ssplan = res.plans.first().unwrap();
+        insta::assert_snapshot!(ssplan.plan.display_indent_schema().to_string(), @r###"
+        Projection: table.tag, table.field AS field, table.time [tag:Dictionary(Int32, Utf8);N, field:Float64;N, time:Timestamp(Nanosecond, None)]
+          Sort: table.tag ASC NULLS FIRST, table.time ASC NULLS FIRST [field:Float64;N, tag:Dictionary(Int32, Utf8);N, time:Timestamp(Nanosecond, None)]
+            Filter: table.tag = Dictionary(Int32, Utf8("MA")) [field:Float64;N, tag:Dictionary(Int32, Utf8);N, time:Timestamp(Nanosecond, None)]
+              TableScan: table [field:Float64;N, tag:Dictionary(Int32, Utf8);N, time:Timestamp(Nanosecond, None)]
+        "###);
     }
 
     /// Runs func() and checks that predicates are simplified prior to

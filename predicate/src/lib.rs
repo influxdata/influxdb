@@ -19,11 +19,8 @@ pub mod delete_expr;
 pub mod delete_predicate;
 pub mod rpc_predicate;
 
-use arrow::{
-    array::{
-        BooleanArray, Float64Array, Int64Array, StringArray, TimestampNanosecondArray, UInt64Array,
-    },
-    datatypes::SchemaRef,
+use arrow::array::{
+    BooleanArray, Float64Array, Int64Array, StringArray, TimestampNanosecondArray, UInt64Array,
 };
 use data_types::{InfluxDbType, TableSummary, TimestampRange};
 use datafusion::{
@@ -31,11 +28,10 @@ use datafusion::{
     error::DataFusionError,
     logical_expr::{binary_expr, utils::expr_to_columns, BinaryExpr},
     optimizer::utils::split_conjunction,
-    physical_expr::execution_props::ExecutionProps,
     physical_optimizer::pruning::PruningStatistics,
     prelude::{col, lit_timestamp_nano, Expr},
 };
-use datafusion_util::{create_pruning_predicate, make_range_expr, nullable_schema, AsExpr};
+use datafusion_util::{make_range_expr, AsExpr};
 use observability_deps::tracing::debug;
 use rpc_predicate::VALUE_COLUMN_NAME;
 use schema::TIME_COLUMN_NAME;
@@ -247,61 +243,6 @@ impl Predicate {
 
         self
     }
-
-    /// Apply predicate to given table summary and avoid having to
-    /// look at actual data.
-    pub fn apply_to_table_summary(
-        &self,
-        props: &ExecutionProps,
-        table_summary: &TableSummary,
-        schema: SchemaRef,
-    ) -> PredicateMatch {
-        let summary = SummaryWrapper {
-            summary: table_summary,
-        };
-
-        // If we don't have statistics for a particular column, its
-        // value will be null, so we need to ensure the schema we used
-        // in pruning predicates allows for null.
-        let schema = nullable_schema(schema);
-
-        if let Some(expr) = self.filter_expr() {
-            match create_pruning_predicate(props, &expr, &schema) {
-                Ok(pp) => {
-                    match pp.prune(&summary) {
-                        Ok(matched) => {
-                            assert_eq!(matched.len(), 1);
-                            if matched[0] {
-                                // might match
-                                return PredicateMatch::Unknown;
-                            } else {
-                                // does not match => since expressions are `AND`ed, we know that we will have zero matches
-                                return PredicateMatch::Zero;
-                            }
-                        }
-                        Err(e) => {
-                            debug!(
-                                %e,
-                                %expr,
-                                "cannot prune summary with PruningPredicate",
-                            );
-                            return PredicateMatch::Unknown;
-                        }
-                    }
-                }
-                Err(e) => {
-                    debug!(
-                        %e,
-                        %expr,
-                        "cannot create PruningPredicate from expression",
-                    );
-                    return PredicateMatch::Unknown;
-                }
-            }
-        }
-
-        PredicateMatch::Unknown
-    }
 }
 
 struct SummaryWrapper<'a> {
@@ -402,21 +343,6 @@ impl fmt::Display for Predicate {
         }
         Ok(())
     }
-}
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-/// The result of evaluating a predicate on a set of rows
-pub enum PredicateMatch {
-    /// There is at least one row that matches the predicate that has
-    /// at least one non null value in each field of the predicate
-    AtLeastOneNonNullField,
-
-    /// There are exactly zero rows that match the predicate
-    Zero,
-
-    /// There *may* be rows that match, OR there *may* be no rows that
-    /// match
-    Unknown,
 }
 
 impl Predicate {
@@ -678,10 +604,9 @@ impl TreeNodeVisitor for RowBasedVisitor {
 mod tests {
     use super::*;
     use arrow::datatypes::DataType as ArrowDataType;
-    use data_types::{ColumnSummary, InfluxDbType, StatValues, MAX_NANO_TIME, MIN_NANO_TIME};
+    use data_types::{MAX_NANO_TIME, MIN_NANO_TIME};
     use datafusion::prelude::{col, cube, lit};
     use schema::builder::SchemaBuilder;
-    use test_helpers::maybe_start_logging;
 
     #[test]
     fn test_default_predicate_is_empty() {
@@ -789,166 +714,6 @@ mod tests {
         let expected = Predicate::new().with_expr(col("foo").eq(lit(42)));
         // rewrite
         assert_eq!(p.with_clear_timestamp_if_max_range(), expected);
-    }
-
-    #[test]
-    fn test_apply_to_table_summary() {
-        maybe_start_logging();
-        let props = ExecutionProps::new();
-
-        let p = Predicate::new()
-            .with_range(100, 200)
-            .with_expr(col("foo").eq(lit(42i64)))
-            .with_expr(col("bar").eq(lit(42i64)))
-            .with_expr(col(TIME_COLUMN_NAME).gt(lit_timestamp_nano(120i64)));
-
-        let schema = SchemaBuilder::new()
-            .field("foo", ArrowDataType::Int64)
-            .unwrap()
-            .field("bar", ArrowDataType::Int64)
-            .unwrap()
-            .timestamp()
-            .build()
-            .unwrap();
-
-        let summary = TableSummary {
-            columns: vec![ColumnSummary {
-                name: "foo".to_owned(),
-                influxdb_type: InfluxDbType::Field,
-                stats: data_types::Statistics::I64(StatValues {
-                    min: Some(10),
-                    max: Some(20),
-                    null_count: Some(0),
-                    total_count: 1_000,
-                    distinct_count: None,
-                }),
-            }],
-        };
-        assert_eq!(
-            p.apply_to_table_summary(&props, &summary, schema.as_arrow()),
-            PredicateMatch::Zero,
-        );
-
-        let summary = TableSummary {
-            columns: vec![ColumnSummary {
-                name: "foo".to_owned(),
-                influxdb_type: InfluxDbType::Field,
-                stats: data_types::Statistics::I64(StatValues {
-                    min: Some(10),
-                    max: Some(50),
-                    null_count: Some(0),
-                    total_count: 1_000,
-                    distinct_count: None,
-                }),
-            }],
-        };
-        assert_eq!(
-            p.apply_to_table_summary(&props, &summary, schema.as_arrow()),
-            PredicateMatch::Unknown,
-        );
-
-        let summary = TableSummary {
-            columns: vec![ColumnSummary {
-                name: TIME_COLUMN_NAME.to_owned(),
-                influxdb_type: InfluxDbType::Timestamp,
-                stats: data_types::Statistics::I64(StatValues {
-                    min: Some(115),
-                    max: Some(115),
-                    null_count: Some(0),
-                    total_count: 1_000,
-                    distinct_count: None,
-                }),
-            }],
-        };
-        assert_eq!(
-            p.apply_to_table_summary(&props, &summary, schema.as_arrow()),
-            PredicateMatch::Zero,
-        );
-
-        let summary = TableSummary {
-            columns: vec![ColumnSummary {
-                name: TIME_COLUMN_NAME.to_owned(),
-                influxdb_type: InfluxDbType::Timestamp,
-                stats: data_types::Statistics::I64(StatValues {
-                    min: Some(300),
-                    max: Some(300),
-                    null_count: Some(0),
-                    total_count: 1_000,
-                    distinct_count: None,
-                }),
-            }],
-        };
-        assert_eq!(
-            p.apply_to_table_summary(&props, &summary, schema.as_arrow()),
-            PredicateMatch::Zero,
-        );
-
-        let summary = TableSummary {
-            columns: vec![ColumnSummary {
-                name: TIME_COLUMN_NAME.to_owned(),
-                influxdb_type: InfluxDbType::Timestamp,
-                stats: data_types::Statistics::I64(StatValues {
-                    min: Some(150),
-                    max: Some(300),
-                    null_count: Some(0),
-                    total_count: 1_000,
-                    distinct_count: None,
-                }),
-            }],
-        };
-        assert_eq!(
-            p.apply_to_table_summary(&props, &summary, schema.as_arrow()),
-            PredicateMatch::Unknown,
-        )
-    }
-
-    /// Test that pruning works even when some expressions within the predicate cannot be evaluated by DataFusion
-    #[test]
-    fn test_apply_to_table_summary_partially_unsupported() {
-        maybe_start_logging();
-        let props = ExecutionProps::new();
-
-        let p = Predicate::new()
-            .with_range(100, 200)
-            .with_expr(col("foo").eq(lit(42i64)).not()); // NOT expressions are currently mostly unsupported by DataFusion
-
-        let schema = SchemaBuilder::new()
-            .field("foo", ArrowDataType::Int64)
-            .unwrap()
-            .timestamp()
-            .build()
-            .unwrap();
-
-        let summary = TableSummary {
-            columns: vec![
-                ColumnSummary {
-                    name: TIME_COLUMN_NAME.to_owned(),
-                    influxdb_type: InfluxDbType::Timestamp,
-                    stats: data_types::Statistics::I64(StatValues {
-                        min: Some(10),
-                        max: Some(20),
-                        null_count: Some(0),
-                        total_count: 1_000,
-                        distinct_count: None,
-                    }),
-                },
-                ColumnSummary {
-                    name: "foo".to_owned(),
-                    influxdb_type: InfluxDbType::Field,
-                    stats: data_types::Statistics::I64(StatValues {
-                        min: Some(10),
-                        max: Some(20),
-                        null_count: Some(0),
-                        total_count: 1_000,
-                        distinct_count: None,
-                    }),
-                },
-            ],
-        };
-        assert_eq!(
-            p.apply_to_table_summary(&props, &summary, schema.as_arrow()),
-            PredicateMatch::Zero,
-        );
     }
 
     #[test]

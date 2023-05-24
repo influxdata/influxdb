@@ -981,6 +981,71 @@ async fn periods_in_predicates() {
     .await;
 }
 
+/// See https://github.com/influxdata/influxdb_iox/issues/7848
+#[tokio::test]
+async fn retention() {
+    test_helpers::maybe_start_logging();
+
+    let database_url = maybe_skip_integration!();
+
+    let table_name = "the_table";
+    let ts_max = i64::MAX;
+
+    // Set up the cluster  ====================================
+    let mut cluster = MiniCluster::create_shared_never_persist(database_url).await;
+
+    StepTest::new(
+        &mut cluster,
+        vec![
+            Step::WriteLineProtocol(format!(
+                "{table_name},tag=A val=42i 0\n\
+                 {table_name},tag=A val=43i {ts_max}"
+            )),
+            Step::SetRetention(Some(1)),
+            Step::Custom(Box::new(move |state: &mut StepTestState| {
+                async move {
+                    let mut storage_client = state.cluster().querier_storage_client();
+
+                    let read_filter_request = GrpcRequestBuilder::new()
+                        .source(state.cluster())
+                        .tag_predicate("tag", "A")
+                        .build_read_filter();
+
+                    let read_response = storage_client
+                        .read_filter(read_filter_request)
+                        .await
+                        .unwrap();
+
+                    let responses: Vec<_> = read_response.into_inner().try_collect().await.unwrap();
+                    let frames: Vec<Data> = responses
+                        .into_iter()
+                        .flat_map(|r| r.frames)
+                        .flat_map(|f| f.data)
+                        .collect();
+
+                    let actual_frames = dump_data_frames(&frames);
+
+                    let expected_frames = vec![
+                        "SeriesFrame, tags: _field=val,_measurement=the_table,tag=A, type: 1",
+                        "IntegerPointsFrame, timestamps: [9223372036854775807], values: \"43\"",
+                    ];
+
+                    assert_eq!(
+                        expected_frames,
+                        actual_frames,
+                        "Expected:\n{}\nActual:\n{}",
+                        expected_frames.join("\n"),
+                        actual_frames.join("\n")
+                    )
+                }
+                .boxed()
+            })),
+        ],
+    )
+    .run()
+    .await
+}
+
 #[derive(Debug)]
 struct ReadFilterTest {
     setup_name: &'static str,

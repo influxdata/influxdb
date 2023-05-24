@@ -1718,9 +1718,6 @@ where
 #[cfg(test)]
 mod tests {
     use super::*;
-    use data_types::ChunkId;
-    use datafusion::prelude::{col, Expr};
-    use datafusion_util::lit_dict;
     use futures::Future;
     use generated_types::{
         google::rpc::Status as GrpcStatus, i_ox_testing_client::IOxTestingClient,
@@ -1734,7 +1731,6 @@ mod tests {
     use iox_query::test::TestChunk;
     use metric::{Attributes, Metric, U64Counter, U64Gauge};
     use panic_logging::SendPanicsToTracing;
-    use predicate::{Predicate, PredicateMatch};
     use service_common::test_util::TestDatabaseStore;
     use std::{
         any::Any,
@@ -1820,11 +1816,15 @@ mod tests {
 
         let chunk0 = TestChunk::new("h2o")
             .with_id(0)
-            .with_predicate_match(PredicateMatch::AtLeastOneNonNullField);
+            .with_tag_column("state")
+            .with_time_column_with_stats(Some(1000), Some(1000))
+            .with_one_row_of_data();
 
         let chunk1 = TestChunk::new("o2")
             .with_id(1)
-            .with_predicate_match(PredicateMatch::AtLeastOneNonNullField);
+            .with_tag_column("state")
+            .with_time_column_with_stats(Some(1000), Some(1000))
+            .with_one_row_of_data();
 
         fixture
             .test_storage
@@ -1852,8 +1852,8 @@ mod tests {
 
         // --- Timestamp range
         let range = TimestampRange {
-            start: 150,
-            end: 200,
+            start: 900,
+            end: 1100,
         };
         let request = MeasurementNamesRequest {
             source,
@@ -1869,25 +1869,12 @@ mod tests {
         let expected_measurements = to_string_vec(&["h2o", "o2"]);
         assert_eq!(actual_measurements, expected_measurements);
 
-        // also ensure the plumbing is hooked correctly and that the predicate made it
-        // down to the chunk
-        let expected_predicate = Predicate::default().with_range(150, 200);
-
-        fixture
-            .expect_predicates(
-                db_info.db_name(),
-                "my_partition_key",
-                0,
-                &expected_predicate,
-            )
-            .await;
-
         // --- general predicate
         let request = MeasurementNamesRequest {
             source: Some(StorageClient::read_source(&db_info, 1)),
             range: Some(TimestampRange {
-                start: 150,
-                end: 200,
+                start: 900,
+                end: 1100,
             }),
             predicate: Some(make_state_eq_ma_predicate()),
         };
@@ -1946,21 +1933,6 @@ mod tests {
         let expected_tag_keys = vec!["_f(0xff)", "_m(0x00)", "k1", "k2", "k3", "k4", "state"];
 
         assert_eq!(actual_tag_keys, expected_tag_keys,);
-
-        // also ensure the plumbing is hooked correctly and that the predicate made it
-        // down to the chunk
-        let expected_predicate = Predicate::default()
-            .with_range(150, 200)
-            .with_expr(make_state_ma_expr());
-
-        fixture
-            .expect_predicates(
-                db_info.db_name(),
-                "my_partition_key",
-                0,
-                &expected_predicate,
-            )
-            .await;
 
         grpc_request_metric_has_count(&fixture, "TagKeys", "ok", 1);
     }
@@ -2051,21 +2023,6 @@ mod tests {
             actual_tag_keys, expected_tag_keys,
             "unexpected tag keys while getting column names"
         );
-
-        // also ensure the plumbing is hooked correctly and that the predicate made it
-        // down to the chunk
-        let expected_predicate = Predicate::default()
-            .with_range(150, 200)
-            .with_expr(make_state_ma_expr());
-
-        fixture
-            .expect_predicates(
-                db_info.db_name(),
-                "my_partition_key",
-                0,
-                &expected_predicate,
-            )
-            .await;
 
         grpc_request_metric_has_count(&fixture, "MeasurementTagKeys", "ok", 1);
     }
@@ -2169,8 +2126,10 @@ mod tests {
             tag_key: [0].into(),
         };
 
-        let chunk =
-            TestChunk::new("h2o").with_predicate_match(PredicateMatch::AtLeastOneNonNullField);
+        let chunk = TestChunk::new("h2o")
+            .with_tag_column("tag")
+            .with_time_column_with_stats(Some(1100), Some(1200))
+            .with_one_row_of_data();
 
         fixture
             .test_storage
@@ -2762,24 +2721,6 @@ mod tests {
             .await
             .unwrap();
 
-        // also ensure the plumbing is hooked correctly and that the predicate made it
-        // down to the chunk and it was normalized to namevalue
-        let expected_predicate = Predicate::default()
-            .with_range(0, 10000)
-            // should NOT have CASE nonsense for handling empty strings as
-            // that should bave been optimized by the time it gets to
-            // the chunk
-            .with_expr(col("state").eq(lit_dict("MA")));
-
-        fixture
-            .expect_predicates(
-                db_info.db_name(),
-                "my_partition_key",
-                0,
-                &expected_predicate,
-            )
-            .await;
-
         // TODO: encode the actual output in the test case or something
         assert_eq!(
             frames.len(),
@@ -2824,24 +2765,6 @@ mod tests {
             .read_filter(request.clone())
             .await
             .unwrap();
-
-        // also ensure the plumbing is hooked correctly and that the predicate made it
-        // down to the chunk and it was normalized to namevalue
-        let expected_predicate = Predicate::default()
-            .with_range(0, 10000)
-            // comparison to empty string conversion results in a messier translation
-            // to handle backwards compatibility semantics
-            // #state IS NULL OR #state = Utf8("")
-            .with_expr(col("state").is_null().or(col("state").eq(lit_dict(""))));
-
-        fixture
-            .expect_predicates(
-                db_info.db_name(),
-                "my_partition_key",
-                0,
-                &expected_predicate,
-            )
-            .await;
     }
 
     #[tokio::test]
@@ -3808,13 +3731,6 @@ mod tests {
         generated_types::Predicate { root: Some(root) }
     }
 
-    /// return an DataFusion Expr predicate like
-    ///
-    /// state="MA"
-    fn make_state_ma_expr() -> Expr {
-        col("state").eq(lit_dict("MA"))
-    }
-
     /// Convert to a Vec<String> to facilitate comparison with results of client
     fn to_string_vec(v: &[&str]) -> Vec<String> {
         v.iter().map(|s| s.to_string()).collect()
@@ -3902,29 +3818,6 @@ mod tests {
                 test_storage,
                 join_handle,
             })
-        }
-
-        /// Gathers predicates applied to the specified chunks and
-        /// asserts that `expected_predicate` is within it
-        async fn expect_predicates(
-            &self,
-            db_name: &str,
-            partition_key: &str,
-            chunk_id: u128,
-            expected_predicate: &predicate::Predicate,
-        ) {
-            let actual_predicates = self
-                .test_storage
-                .db_or_create(db_name)
-                .await
-                .get_chunk(partition_key, ChunkId::new_test(chunk_id))
-                .unwrap()
-                .predicates();
-
-            assert!(
-                actual_predicates.contains(expected_predicate),
-                "\nActual: {actual_predicates:?}\nExpected: {expected_predicate:?}"
-            );
         }
     }
 

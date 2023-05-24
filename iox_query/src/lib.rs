@@ -27,7 +27,7 @@ use hashbrown::HashMap;
 use observability_deps::tracing::{debug, trace};
 use once_cell::sync::Lazy;
 use parquet_file::storage::ParquetExecInput;
-use predicate::{rpc_predicate::QueryNamespaceMeta, Predicate, PredicateMatch};
+use predicate::{rpc_predicate::QueryNamespaceMeta, Predicate};
 use schema::{
     sort::{SortKey, SortKeyBuilder},
     Projection, Schema, TIME_COLUMN_NAME,
@@ -239,25 +239,6 @@ pub trait QueryChunk: QueryChunkMeta + Debug + Send + Sync + 'static {
     /// Returns true if the chunk may contain a duplicate "primary
     /// key" within itself
     fn may_contain_pk_duplicates(&self) -> bool;
-
-    /// Returns the result of applying the `predicate` to the chunk
-    /// using an efficient, but inexact method, based on metadata.
-    ///
-    /// NOTE: This method is suitable for calling during planning, and
-    /// may return PredicateMatch::Unknown for certain types of
-    /// predicates.
-    fn apply_predicate_to_metadata(
-        &self,
-        ctx: &IOxSessionContext,
-        predicate: &Predicate,
-    ) -> Result<PredicateMatch, DataFusionError> {
-        let state = ctx.inner().state();
-        Ok(predicate.apply_to_table_summary(
-            state.execution_props(),
-            &self.summary(),
-            self.schema().as_arrow(),
-        ))
-    }
 
     /// Returns a set of Strings with column names from the specified
     /// table that have at least one row that matches `predicate`, if
