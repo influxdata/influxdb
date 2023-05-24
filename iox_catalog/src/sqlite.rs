@@ -224,6 +224,7 @@ DO NOTHING;
         ))
     }
 
+    #[cfg(test)]
     fn metrics(&self) -> Arc<Registry> {
         Arc::clone(&self.metrics)
     }
