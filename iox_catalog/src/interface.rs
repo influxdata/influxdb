@@ -207,7 +207,8 @@ pub trait Catalog: Send + Sync + Debug + Display {
     /// Accesses the repositories without a transaction scope.
     async fn repositories(&self) -> Box<dyn RepoCollection>;
 
-    /// Gets metric registry associated with this catalog.
+    /// Gets metric registry associated with this catalog for testing purposes.
+    #[cfg(test)]
     fn metrics(&self) -> Arc<metric::Registry>;
 
     /// Gets the time provider associated with this catalog.
