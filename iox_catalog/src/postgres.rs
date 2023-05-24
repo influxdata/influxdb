@@ -2412,7 +2412,10 @@ RETURNING *;
         // it should have the namespace's template
         assert_eq!(
             table_no_template_with_namespace_template.partition_template,
-            TablePartitionTemplateOverride::from(&namespace_custom_template.partition_template)
+            TablePartitionTemplateOverride::new(
+                None,
+                &namespace_custom_template.partition_template
+            )
         );
 
         // and store that value in the database record.
@@ -2427,7 +2430,10 @@ RETURNING *;
             record.try_get("partition_template").unwrap();
         assert_eq!(
             partition_template.unwrap(),
-            TablePartitionTemplateOverride::from(&namespace_custom_template.partition_template)
+            TablePartitionTemplateOverride::new(
+                None,
+                &namespace_custom_template.partition_template
+            )
         );
 
         // # Table template true, namespace template false

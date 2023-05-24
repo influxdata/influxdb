@@ -1095,7 +1095,7 @@ pub(crate) mod test_helpers {
             .tables()
             .create(
                 "test_table",
-                TablePartitionTemplateOverride::from(&namespace.partition_template),
+                TablePartitionTemplateOverride::new(None, &namespace.partition_template),
                 namespace.id,
             )
             .await;
@@ -1190,7 +1190,7 @@ pub(crate) mod test_helpers {
             .tables()
             .create(
                 "definitely_unique",
-                TablePartitionTemplateOverride::from(&latest.partition_template),
+                TablePartitionTemplateOverride::new(None, &latest.partition_template),
                 latest.id,
             )
             .await
@@ -1261,7 +1261,7 @@ pub(crate) mod test_helpers {
             .unwrap();
         assert_eq!(
             table_templated_by_namespace.partition_template,
-            TablePartitionTemplateOverride::from(&custom_namespace_template)
+            TablePartitionTemplateOverride::new(None, &custom_namespace_template)
         );
 
         repos

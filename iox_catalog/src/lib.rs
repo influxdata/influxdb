@@ -223,7 +223,10 @@ where
                 .tables()
                 .create(
                     table_name,
-                    TablePartitionTemplateOverride::from(namespace_partition_template),
+                    // This table is being created implicitly by this write, so there's no
+                    // possibility of a user-supplied partition template here, which is why there's
+                    // a hardcoded `None`.
+                    TablePartitionTemplateOverride::new(None, namespace_partition_template),
                     namespace_id,
                 )
                 .await;
@@ -301,7 +304,7 @@ pub mod test_helpers {
             .tables()
             .create(
                 name,
-                TablePartitionTemplateOverride::from(&namespace.partition_template),
+                TablePartitionTemplateOverride::new(None, &namespace.partition_template),
                 namespace.id,
             )
             .await

@@ -33,19 +33,6 @@ impl From<proto::PartitionTemplate> for NamespacePartitionTemplateOverride {
     }
 }
 
-/// When a table is being created implicitly by a write, there is no possibility of a user-supplied
-/// partition template, so the table will get the namespace's partition template.
-impl From<&NamespacePartitionTemplateOverride> for TablePartitionTemplateOverride {
-    fn from(namespace_template: &NamespacePartitionTemplateOverride) -> Self {
-        Self(
-            namespace_template
-                .0
-                .as_ref()
-                .map(|sw| SerializationWrapper(Arc::clone(&sw.0))),
-        )
-    }
-}
-
 /// A partition template specified by a table record.
 #[derive(Debug, PartialEq, Clone, Default, sqlx::Type)]
 #[sqlx(transparent)]
@@ -60,12 +47,13 @@ impl TablePartitionTemplateOverride {
         custom_table_template: Option<proto::PartitionTemplate>,
         namespace_template: &NamespacePartitionTemplateOverride,
     ) -> Self {
-        custom_table_template
-            .map(Arc::new)
-            .map(SerializationWrapper)
-            .map(Some)
-            .map(Self)
-            .unwrap_or_else(|| namespace_template.into())
+        match (custom_table_template, namespace_template.0.as_ref()) {
+            (Some(table_proto), _) => Self(Some(SerializationWrapper(Arc::new(table_proto)))),
+            (None, Some(namespace_serialization_wrapper)) => Self(Some(SerializationWrapper(
+                Arc::clone(&namespace_serialization_wrapper.0),
+            ))),
+            (None, None) => Self(None),
+        }
     }
 
     /// Iterate through the protobuf parts and lend out what the `mutable_batch` crate needs to
@@ -253,7 +241,7 @@ mod tests {
         let namespace_json_str: String = buf.iter().map(extract_sqlite_argument_text).collect();
         assert_eq!(namespace_json_str, expected_json_str);
 
-        let table = TablePartitionTemplateOverride::from(&namespace);
+        let table = TablePartitionTemplateOverride::new(None, &namespace);
         let mut buf = Default::default();
         let _ = <TablePartitionTemplateOverride as Encode<'_, sqlx::Sqlite>>::encode_by_ref(
             &table, &mut buf,
