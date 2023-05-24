@@ -1,3 +1,21 @@
+//! Partition templating with per-namespace & table override types.
+//!
+//! The override types utilise per-entity wrappers for type safety, ensuring a
+//! namespace override is not used in a table (and vice versa), as well as to
+//! ensure the correct chain of inheritance is adhered to at compile time.
+//!
+//! A partitioning template is resolved by evaluating the following (in order of
+//! precedence):
+//!
+//!    1. Table name override, if specified.
+//!    2. Namespace name override, if specified.
+//!    3. Default partitioning scheme (YYYY-MM-DD)
+//!
+//! Each of the [`NamespacePartitionTemplateOverride`] and
+//! [`TablePartitionTemplateOverride`] stores only the override, if provided,
+//! and implicitly resolves to the default partitioning scheme if no override is
+//! specified (indicated by the presence of [`Option::None`] in the wrapper).
+
 use generated_types::influxdata::iox::partition_template::v1 as proto;
 use once_cell::sync::Lazy;
 use std::sync::Arc;
