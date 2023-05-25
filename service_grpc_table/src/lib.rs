@@ -104,6 +104,15 @@ impl table_service_server::TableService for TableService {
 
         // Partitioning is only supported for tags, so create tag columns for all `TagValue`
         // partition template parts.
+        //
+        // WARNING! Because these catalog methods are not in a transaction with the table creation
+        // catalog call above, there is a (hopefully small) chance of a race condition in which
+        // a write for this table comes in between the table creation call and these column
+        // creation calls. If that write contains a column used in the partition template as a
+        // non-tag column, the column creation here will fail *and* the partitioning of the write
+        // will fail.
+        //
+        // This is tracked in https://github.com/influxdata/influxdb_iox/issues/7871
         for template_part in table.partition_template.parts() {
             if let TemplatePart::TagValue(tag_name) = template_part {
                 repos
