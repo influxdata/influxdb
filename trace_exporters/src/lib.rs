@@ -45,7 +45,11 @@ mod thrift {
     pub mod jaeger;
 }
 
+/// Default header name used to export traces
 pub const DEFAULT_JAEGER_TRACE_CONTEXT_HEADER_NAME: &str = "uber-trace-id";
+
+/// Default header name for Influx Cloud
+pub const DEFAULT_INFLUX_TRACE_CONTEXT_HEADER_NAME: &str = "influx-trace-id";
 
 /// CLI config for distributed tracing options
 #[derive(Debug, Clone, clap::Parser)]
