@@ -112,7 +112,17 @@ impl table_service_server::TableService for TableService {
                     .await
                     .map_err(|e| {
                         warn!(error=%e, %name, "failed to create columns during table creation");
-                        Status::internal(e.to_string())
+                        match e {
+                            iox_catalog::interface::Error::ColumnTypeMismatch {
+                                name,
+                                existing,
+                                ..
+                            } => Status::invalid_argument(format!(
+                                "Partition templates can only use tag columns. \
+                                        Column `{name}` exists and is type `{existing}`"
+                            )),
+                            other => Status::internal(other.to_string()),
+                        }
                     })?;
             }
         }
