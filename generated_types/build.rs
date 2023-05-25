@@ -28,6 +28,7 @@ fn main() -> Result<()> {
 /// - `influxdata.iox.predicate.v1.rs`
 /// - `influxdata.iox.querier.v1.rs`
 /// - `influxdata.iox.schema.v1.rs`
+/// - `influxdata.iox.table.v1.rs`
 /// - `influxdata.iox.wal.v1.rs`
 /// - `influxdata.iox.write.v1.rs`
 /// - `influxdata.platform.storage.rs`
@@ -45,6 +46,7 @@ fn generate_grpc_types(root: &Path) -> Result<()> {
     let schema_path = root.join("influxdata/iox/schema/v1");
     let storage_errors_path = root.join("influxdata/platform/errors");
     let storage_path = root.join("influxdata/platform/storage");
+    let table_path = root.join("influxdata/iox/table/v1");
     let wal_path = root.join("influxdata/iox/wal/v1");
 
     let proto_files = vec![
@@ -74,6 +76,7 @@ fn generate_grpc_types(root: &Path) -> Result<()> {
         storage_path.join("source.proto"),
         storage_path.join("storage_common.proto"),
         storage_path.join("test.proto"),
+        table_path.join("service.proto"),
         wal_path.join("wal.proto"),
     ];
 

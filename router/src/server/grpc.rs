@@ -1,12 +1,15 @@
 //! gRPC service implementations for `router`.
 
-use generated_types::influxdata::iox::{catalog::v1::*, namespace::v1::*, object_store::v1::*};
+use generated_types::influxdata::iox::{
+    catalog::v1::*, namespace::v1::*, object_store::v1::*, table::v1::*,
+};
 use iox_catalog::interface::Catalog;
 use object_store::DynObjectStore;
 use service_grpc_catalog::CatalogService;
 use service_grpc_namespace::NamespaceService;
 use service_grpc_object_store::ObjectStoreService;
 use service_grpc_schema::SchemaService;
+use service_grpc_table::TableService;
 use std::sync::Arc;
 
 /// This type manages all gRPC services exposed by a `router` using the RPC write path.
@@ -51,5 +54,12 @@ impl RpcWriteGrpcDelegate {
     /// [`NamespaceService`]: generated_types::influxdata::iox::namespace::v1::namespace_service_server::NamespaceService.
     pub fn namespace_service(&self) -> impl namespace_service_server::NamespaceService {
         NamespaceService::new(Arc::clone(&self.catalog))
+    }
+
+    /// Acquire a [`TableService`] gRPC service implementation.
+    ///
+    /// [`TableService`]: generated_types::influxdata::iox::table::v1::table_service_server::TableService
+    pub fn table_service(&self) -> impl table_service_server::TableService {
+        TableService::new(Arc::clone(&self.catalog))
     }
 }

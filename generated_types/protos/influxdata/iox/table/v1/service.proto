@@ -1,0 +1,40 @@
+syntax = "proto3";
+package influxdata.iox.table.v1;
+option go_package = "github.com/influxdata/iox/table/v1";
+
+import "influxdata/iox/partition_template/v1/template.proto";
+
+service TableService {
+  // Create a table in a namespace
+  rpc CreateTable(CreateTableRequest) returns (CreateTableResponse);
+}
+
+message CreateTableRequest {
+  // Name of the table to be created
+  string name = 1;
+
+  // Name of the namespace to create the table in
+  string namespace = 2;
+
+  // Partitioning scheme to use for writes to this table. If not specified, the
+  // namespace's partition template will be used.
+  //
+  // Any use of "tag_value" template parts will cause the named column schema to
+  // be set as "tag" as part of this request.
+  optional influxdata.iox.partition_template.v1.PartitionTemplate partition_template = 3;
+}
+
+message CreateTableResponse {
+  Table table = 1;
+}
+
+message Table {
+  // Table ID
+  int64 id = 1;
+
+  // Name of the Table
+  string name = 2;
+
+  // Namespace ID
+  int64 namespace_id = 3;
+}

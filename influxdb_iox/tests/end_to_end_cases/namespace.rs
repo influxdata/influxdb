@@ -197,7 +197,10 @@ async fn soft_deletion() {
                         .unwrap_err();
                     assert_eq!(
                         error.to_string(),
-                        format!("Internal error: name {namespace_name} already exists"),
+                        format!(
+                            "Some entity that we attempted to create already exists: \
+                            A namespace with the name `{namespace_name}` already exists"
+                        ),
                     );
                 }
                 .boxed()

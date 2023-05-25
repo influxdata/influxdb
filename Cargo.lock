@@ -4846,6 +4846,7 @@ dependencies = [
  "service_grpc_namespace",
  "service_grpc_object_store",
  "service_grpc_schema",
+ "service_grpc_table",
  "sharder",
  "smallvec",
  "test_helpers",
@@ -5216,6 +5217,20 @@ dependencies = [
 
 [[package]]
 name = "service_grpc_schema"
+version = "0.1.0"
+dependencies = [
+ "data_types",
+ "generated_types",
+ "iox_catalog",
+ "metric",
+ "observability_deps",
+ "tokio",
+ "tonic",
+ "workspace-hack",
+]
+
+[[package]]
+name = "service_grpc_table"
 version = "0.1.0"
 dependencies = [
  "data_types",

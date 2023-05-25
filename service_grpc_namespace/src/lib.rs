@@ -94,7 +94,12 @@ impl namespace_service_server::NamespaceService for NamespaceService {
             .await
             .map_err(|e| {
                 warn!(error=%e, %namespace_name, "failed to create namespace");
-                Status::internal(e.to_string())
+                match e {
+                    iox_catalog::interface::Error::NameExists { name } => Status::already_exists(
+                        format!("A namespace with the name `{name}` already exists"),
+                    ),
+                    other => Status::internal(other.to_string()),
+                }
             })?;
 
         info!(
@@ -483,6 +488,52 @@ mod tests {
                 .namespaces;
             assert_matches!(current.as_slice(), []);
         }
+    }
+
+    #[tokio::test]
+    async fn creating_same_namespace_twice_fails() {
+        let catalog: Arc<dyn Catalog> =
+            Arc::new(MemCatalog::new(Arc::new(metric::Registry::default())));
+        let handler = NamespaceService::new(Arc::clone(&catalog));
+
+        let req = CreateNamespaceRequest {
+            name: NS_NAME.to_string(),
+            retention_period_ns: Some(RETENTION),
+            partition_template: None,
+        };
+
+        let created_ns = handler
+            .create_namespace(Request::new(req.clone()))
+            .await
+            .unwrap()
+            .into_inner()
+            .namespace
+            .unwrap();
+
+        // First creation attempt succeeds
+        assert_eq!(created_ns.name, NS_NAME);
+        assert_eq!(created_ns.retention_period_ns, Some(RETENTION));
+
+        // Trying to create a namespace with the same name fails with an "already exists" error
+        let error = handler
+            .create_namespace(Request::new(req))
+            .await
+            .unwrap_err();
+
+        assert_eq!(error.code(), Code::AlreadyExists);
+        assert_eq!(
+            error.message(),
+            "A namespace with the name `bananas` already exists"
+        );
+
+        let all_namespaces = catalog
+            .repositories()
+            .await
+            .namespaces()
+            .list(SoftDeletedRows::ExcludeDeleted)
+            .await
+            .unwrap();
+        assert_eq!(all_namespaces.len(), 1);
     }
 
     #[tokio::test]

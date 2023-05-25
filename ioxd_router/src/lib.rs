@@ -33,6 +33,7 @@ use ioxd_common::{
         generated_types::influxdata::iox::{
             catalog::v1::catalog_service_server, namespace::v1::namespace_service_server,
             object_store::v1::object_store_service_server, schema::v1::schema_service_server,
+            table::v1::table_service_server,
         },
         tonic::transport::Endpoint,
     },
@@ -170,6 +171,10 @@ where
             namespace_service_server::NamespaceServiceServer::new(
                 self.server.grpc().namespace_service()
             )
+        );
+        add_service!(
+            builder,
+            table_service_server::TableServiceServer::new(self.server.grpc().table_service())
         );
         serve_builder!(builder);
 

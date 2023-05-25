@@ -1,0 +1,18 @@
+[package]
+name = "service_grpc_table"
+version.workspace = true
+authors.workspace = true
+edition.workspace = true
+license.workspace = true
+
+[dependencies]
+data_types = { path = "../data_types" }
+generated_types = { path = "../generated_types" }
+observability_deps = { path = "../observability_deps" }
+tonic = { workspace = true }
+iox_catalog = { path = "../iox_catalog" }
+workspace-hack = { version = "0.1", path = "../workspace-hack" }
+
+[dev-dependencies]
+metric = { path = "../metric" }
+tokio = { version = "1", features = ["rt-multi-thread", "macros"] }

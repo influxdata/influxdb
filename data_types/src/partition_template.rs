@@ -60,7 +60,6 @@ impl TablePartitionTemplateOverride {
     /// When a table is being explicitly created, the creation request might have contained a
     /// custom partition template for that table. If the custom partition template is present, use
     /// it. Otherwise, use the namespace's partition template.
-    #[allow(dead_code)] // This will be used by the as-yet unwritten create table gRPC API.
     pub fn new(
         custom_table_template: Option<proto::PartitionTemplate>,
         namespace_template: &NamespacePartitionTemplateOverride,
