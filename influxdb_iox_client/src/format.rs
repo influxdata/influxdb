@@ -149,9 +149,11 @@ fn batches_to_csv(batches: &[RecordBatch]) -> Result<String> {
 fn batches_to_json(batches: &[RecordBatch]) -> Result<String> {
     let mut bytes = vec![];
 
+    // json writer wants &[&RecordBatch]
+    let batches: Vec<_> = batches.iter().collect();
     {
         let mut writer = ArrayWriter::new(&mut bytes);
-        writer.write_batches(batches).map_err(Error::CsvArrow)?;
+        writer.write_batches(&batches).map_err(Error::CsvArrow)?;
 
         writer.finish().map_err(Error::CsvArrow)?;
     }
