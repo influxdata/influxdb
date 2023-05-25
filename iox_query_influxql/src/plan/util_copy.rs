@@ -7,6 +7,7 @@
 //! If these APIs are stabilised and made public, they can be removed from IOx.
 //!
 //! NOTE
+use datafusion::common::tree_node::{TreeNode, VisitRecursion};
 use datafusion::common::Result;
 use datafusion::logical_expr::expr::{
     AggregateUDF, InList, InSubquery, Placeholder, ScalarFunction, ScalarUDF,
@@ -323,4 +324,54 @@ where
             }
         }
     }
+}
+
+/// Search the provided `Expr`'s, and all of their nested `Expr`, for any that
+/// pass the provided test. The returned `Expr`'s are deduplicated and returned
+/// in order of appearance (depth first).
+///
+/// # NOTE
+///
+/// Copied from DataFusion
+pub(super) fn find_exprs_in_exprs<F>(exprs: &[Expr], test_fn: &F) -> Vec<Expr>
+where
+    F: Fn(&Expr) -> bool,
+{
+    exprs
+        .iter()
+        .flat_map(|expr| find_exprs_in_expr(expr, test_fn))
+        .fold(vec![], |mut acc, expr| {
+            if !acc.contains(&expr) {
+                acc.push(expr)
+            }
+            acc
+        })
+}
+
+/// Search an `Expr`, and all of its nested `Expr`'s, for any that pass the
+/// provided test. The returned `Expr`'s are deduplicated and returned in order
+/// of appearance (depth first).
+///
+/// # NOTE
+///
+/// Copied from DataFusion
+fn find_exprs_in_expr<F>(expr: &Expr, test_fn: &F) -> Vec<Expr>
+where
+    F: Fn(&Expr) -> bool,
+{
+    let mut exprs = vec![];
+    expr.apply(&mut |expr| {
+        if test_fn(expr) {
+            if !(exprs.contains(expr)) {
+                exprs.push(expr.clone())
+            }
+            // stop recursing down this expr once we find a match
+            return Ok(VisitRecursion::Skip);
+        }
+
+        Ok(VisitRecursion::Continue)
+    })
+    // pre_visit always returns OK, so this will always too
+    .expect("no way to return error during recursion");
+    exprs
 }

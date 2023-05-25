@@ -2855,6 +2855,7 @@ dependencies = [
  "iox_query",
  "itertools",
  "observability_deps",
+ "once_cell",
  "predicate",
  "query_functions",
  "regex",
