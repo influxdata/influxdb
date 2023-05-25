@@ -39,8 +39,8 @@ enum Command {
 }
 
 /// Executes a WAL debugging subcommand as directed by the config
-pub fn command(config: Config) -> Result<(), Error> {
+pub async fn command(config: Config) -> Result<(), Error> {
     match config.command {
-        Command::RegenerateLp(config) => regenerate_lp::command(config),
+        Command::RegenerateLp(config) => regenerate_lp::command(config).await,
     }
 }

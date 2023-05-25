@@ -1,10 +1,13 @@
 //! A module providing a CLI command for regenerating line protocol from a WAL file.
 use std::fs::{create_dir_all, OpenOptions};
+use std::future::Future;
 use std::path::PathBuf;
+use std::sync::Arc;
 
+use data_types::NamespaceId;
 use observability_deps::tracing::{debug, error, info};
 use wal::{ClosedSegmentFileReader, WriteOpEntryDecoder};
-use wal_inspect::{LineProtoWriter, NamespacedBatchWriter, WriteError};
+use wal_inspect::{LineProtoWriter, NamespaceDemultiplexer, TableBatchWriter, WriteError};
 
 use super::Error;
 
@@ -29,7 +32,7 @@ pub struct Config {
 
 /// Executes the `regenerate-lp` command with the provided configuration, reading
 /// write operation entries from a WAL file and mapping them to line protocol.
-pub fn command(config: Config) -> Result<(), Error> {
+pub async fn command(config: Config) -> Result<(), Error> {
     let decoder = WriteOpEntryDecoder::from(
         ClosedSegmentFileReader::from_path(&config.input)
             .map_err(|wal_err| Error::UnableToOpenWalFile { source: wal_err })?,
@@ -37,12 +40,12 @@ pub fn command(config: Config) -> Result<(), Error> {
 
     match config.output_directory {
         Some(d) => {
+            let d = Arc::new(d);
             create_dir_all(d.as_path())?;
-            let writer = LineProtoWriter::new(
-                |namespace_id| {
-                    let file_path = d
-                        .as_path()
-                        .join(format!("namespace_id_{}.lp", namespace_id));
+            let namespace_demux = NamespaceDemultiplexer::new(move |namespace_id| {
+                let d = Arc::clone(&d);
+                async move {
+                    let file_path = d.as_path().join(format!("namespace_{}.lp", namespace_id));
 
                     let mut open_options = OpenOptions::new().write(true).to_owned();
                     if config.force {
@@ -57,31 +60,45 @@ pub fn command(config: Config) -> Result<(), Error> {
                         "creating namespaced file as destination for regenerated line protocol",
                     );
 
-                    open_options.open(&file_path).map_err(WriteError::IoError)
-                },
-                None,
-            );
-            decode_and_write_entries(decoder, writer)
+                    Ok(LineProtoWriter::new(
+                        open_options.open(&file_path).map_err(WriteError::IoError)?,
+                        None,
+                    ))
+                }
+            });
+            decode_and_write_entries(decoder, namespace_demux).await
         }
         None => {
-            let writer = LineProtoWriter::new(|_namespace_id| Ok(std::io::stdout()), None);
-            decode_and_write_entries(decoder, writer)
+            let namespace_demux = NamespaceDemultiplexer::new(|_namespace_id| async {
+                let result: Result<LineProtoWriter<std::io::Stdout>, WriteError> =
+                    Ok(LineProtoWriter::new(std::io::stdout(), None));
+                result
+            });
+            decode_and_write_entries(decoder, namespace_demux).await
         }
     }
 }
 
-fn decode_and_write_entries<W: NamespacedBatchWriter>(
+async fn decode_and_write_entries<T, F, I>(
     decoder: WriteOpEntryDecoder,
-    mut writer: W,
-) -> Result<(), Error> {
+    mut namespace_demux: NamespaceDemultiplexer<T, F>,
+) -> Result<(), Error>
+where
+    T: TableBatchWriter<WriteError = wal_inspect::WriteError> + Send,
+    F: (Fn(NamespaceId) -> I) + Send + Sync,
+    I: Future<Output = Result<T, WriteError>> + Send,
+{
     let mut write_errors = vec![];
 
     for (wal_entry_number, entry_batch) in decoder.enumerate() {
         for (write_op_number, entry) in entry_batch?.into_iter().enumerate() {
             let namespace_id = entry.namespace;
             debug!(%namespace_id, %wal_entry_number, %write_op_number, "regenerating line protocol for namespace from WAL write op entry");
-            writer
-                .write_namespaced_table_batches(entry.namespace, entry.table_batches)
+            namespace_demux
+                .get(namespace_id)
+                .await
+                .map(|writer| writer.write_table_batches(entry.table_batches.into_iter()))
+                .and_then(|write_result| write_result) // flatten out the write result if Ok
                 .unwrap_or_else(|err| {
                     error!(
                         %namespace_id,

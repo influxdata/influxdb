@@ -15,7 +15,6 @@ thiserror = "1.0.40"
 workspace-hack = { version = "0.1", path = "../workspace-hack" }
 
 [dev-dependencies] # In alphabetical order
-assert_matches = "1.5.0"
 dml = { version = "0.1.0", path = "../dml" }
 generated_types = { version = "0.1.0", path = "../generated_types" }
 mutable_batch_lp = { path = "../mutable_batch_lp" }
