@@ -90,7 +90,16 @@ impl table_service_server::TableService for TableService {
             .await
             .map_err(|e| {
                 warn!(error=%e, %name, "failed to create table");
-                Status::internal(e.to_string())
+                match e {
+                    iox_catalog::interface::Error::TableNameExists { name, .. } => {
+                        Status::already_exists(format!(
+                            "A table with the name `{name}` already exists \
+                                in the namespace `{}`",
+                            namespace.name
+                        ))
+                    }
+                    other => Status::internal(other.to_string()),
+                }
             })?;
 
         // Partitioning is only supported for tags, so create tag columns for all `TagValue`
@@ -176,6 +185,51 @@ mod tests {
             .await
             .unwrap();
         assert!(table_columns.is_empty());
+    }
+
+    #[tokio::test]
+    async fn creating_same_table_twice_fails() {
+        let catalog: Arc<dyn Catalog> =
+            Arc::new(MemCatalog::new(Arc::new(metric::Registry::default())));
+        let handler = TableService::new(Arc::clone(&catalog));
+
+        let namespace = arbitrary_namespace(&mut *catalog.repositories().await, "grapes").await;
+        let table_name = "varietals";
+
+        let request = CreateTableRequest {
+            name: table_name.into(),
+            namespace: namespace.name.clone(),
+            partition_template: None,
+        };
+
+        let created_table = handler
+            .create_table(Request::new(request.clone()))
+            .await
+            .unwrap()
+            .into_inner()
+            .table
+            .unwrap();
+
+        // First creation attempt succeeds
+        assert!(created_table.id > 0);
+        assert_eq!(created_table.name, table_name);
+        assert_eq!(created_table.namespace_id, namespace.id.get());
+
+        // Trying to create a table in the same namespace with the same name fails with an "already
+        // exists" error
+        let error = handler
+            .create_table(Request::new(request))
+            .await
+            .unwrap_err();
+
+        assert_eq!(error.code(), Code::AlreadyExists);
+        assert_eq!(
+            error.message(),
+            "A table with the name `varietals` already exists in the namespace `grapes`"
+        );
+
+        let all_tables = catalog.repositories().await.tables().list().await.unwrap();
+        assert_eq!(all_tables.len(), 1);
     }
 
     #[tokio::test]
