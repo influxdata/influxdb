@@ -913,11 +913,31 @@ async fn test_table_create() {
         });
     }
 
-    let lp = "plantains,tag1=A,tag2=B val=42i".to_string();
+    let lp = "plantains,tag1=A,tag2=B val=42i 1685026200000000000".to_string();
 
-    // And writing should succeed
+    // Writing should succeed and should use the default partition template because no partition
+    // template was set on either the namespace or the table.
     let response = ctx.write_lp("bananas", "test", lp).await.unwrap();
     assert_eq!(response.status(), StatusCode::NO_CONTENT);
+
+    let writes = ctx.write_calls();
+    assert_eq!(writes.len(), 1);
+    assert_matches!(
+        writes.as_slice(),
+        [
+            WriteRequest {
+                payload: Some(DatabaseBatch {
+                    table_batches,
+                    partition_key,
+                    ..
+                }),
+            },
+        ] => {
+        let table_id = ctx.table_id("bananas_test", "plantains").await.get();
+        assert_eq!(table_batches.len(), 1);
+        assert_eq!(table_batches[0].table_id, table_id);
+        assert_eq!(partition_key, "2023-05-25");
+    })
 }
 
 #[tokio::test]
