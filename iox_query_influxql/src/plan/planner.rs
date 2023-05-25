@@ -130,7 +130,6 @@ enum ExprScope {
 struct Context<'a> {
     table_name: &'a str,
     projection_type: ProjectionType,
-    scope: ExprScope,
     tz: Option<Tz>,
 
     // GROUP BY information
@@ -155,10 +154,6 @@ impl<'a> Context<'a> {
             projection_type,
             ..*self
         }
-    }
-
-    fn with_scope(&self, scope: ExprScope) -> Self {
-        Self { scope, ..*self }
     }
 
     fn with_timezone(&self, tz: Option<Tz>) -> Self {
@@ -922,8 +917,7 @@ impl<'a> InfluxQLToLogicalPlan<'a> {
         plan: &LogicalPlan,
         schemas: &Schemas,
     ) -> Result<Expr> {
-        let expr =
-            self.expr_to_df_expr(&ctx.with_scope(ExprScope::Projection), &field.expr, schemas)?;
+        let expr = self.expr_to_df_expr(ctx, ExprScope::Projection, &field.expr, schemas)?;
         let expr = planner_rewrite_expression::rewrite_field_expr(expr, schemas)?;
         normalize_col(expr.alias(&field.name), plan)
     }
@@ -936,7 +930,9 @@ impl<'a> InfluxQLToLogicalPlan<'a> {
         schemas: &Schemas,
     ) -> Result<Expr> {
         match iql {
-            ConditionalExpression::Expr(expr) => self.expr_to_df_expr(ctx, expr, schemas),
+            ConditionalExpression::Expr(expr) => {
+                self.expr_to_df_expr(ctx, ExprScope::Where, expr, schemas)
+            }
             ConditionalExpression::Binary(expr) => {
                 self.binary_conditional_to_df_expr(ctx, expr, schemas)
             }
@@ -998,7 +994,13 @@ impl<'a> InfluxQLToLogicalPlan<'a> {
     }
 
     /// Map an InfluxQL [`IQLExpr`] to a DataFusion [`Expr`].
-    fn expr_to_df_expr(&self, ctx: &Context<'_>, iql: &IQLExpr, schemas: &Schemas) -> Result<Expr> {
+    fn expr_to_df_expr(
+        &self,
+        ctx: &Context<'_>,
+        scope: ExprScope,
+        iql: &IQLExpr,
+        schemas: &Schemas,
+    ) -> Result<Expr> {
         let schema = &schemas.df_schema;
         match iql {
             // rewriter is expected to expand wildcard expressions
@@ -1007,7 +1009,7 @@ impl<'a> InfluxQLToLogicalPlan<'a> {
                 name,
                 data_type: opt_dst_type,
             }) => {
-                Ok(match (ctx.scope, name.as_str()) {
+                Ok(match (scope, name.as_str()) {
                     // Per the Go implementation, the time column is case-insensitive in the
                     // `WHERE` clause and disregards any postfix type cast operator.
                     //
@@ -1068,7 +1070,7 @@ impl<'a> InfluxQLToLogicalPlan<'a> {
                     None,
                 ))),
                 Literal::Duration(_) => error::not_implemented("duration literal"),
-                Literal::Regex(re) => match ctx.scope {
+                Literal::Regex(re) => match scope {
                     // a regular expression in a projection list is unexpected,
                     // as it should have been expanded by the rewriter.
                     ExprScope::Projection => {
@@ -1079,9 +1081,9 @@ impl<'a> InfluxQLToLogicalPlan<'a> {
             },
             // A DISTINCT <ident> clause should have been replaced by `rewrite_statement`.
             IQLExpr::Distinct(_) => error::internal("distinct expression"),
-            IQLExpr::Call(call) => self.call_to_df_expr(ctx, call, schemas),
-            IQLExpr::Binary(expr) => self.arithmetic_expr_to_df_expr(ctx, expr, schemas),
-            IQLExpr::Nested(e) => self.expr_to_df_expr(ctx, e, schemas),
+            IQLExpr::Call(call) => self.call_to_df_expr(ctx, scope, call, schemas),
+            IQLExpr::Binary(expr) => self.arithmetic_expr_to_df_expr(ctx, scope, expr, schemas),
+            IQLExpr::Nested(e) => self.expr_to_df_expr(ctx, scope, e, schemas),
         }
     }
 
@@ -1101,12 +1103,18 @@ impl<'a> InfluxQLToLogicalPlan<'a> {
     /// > * <https://github.com/influxdata/influxdb_iox/issues/6939>
     ///
     /// [docs]: https://docs.influxdata.com/influxdb/v1.8/query_language/functions/
-    fn call_to_df_expr(&self, ctx: &Context<'_>, call: &Call, schemas: &Schemas) -> Result<Expr> {
+    fn call_to_df_expr(
+        &self,
+        ctx: &Context<'_>,
+        scope: ExprScope,
+        call: &Call,
+        schemas: &Schemas,
+    ) -> Result<Expr> {
         if is_scalar_math_function(call.name.as_str()) {
-            return self.scalar_math_func_to_df_expr(ctx, call, schemas);
+            return self.scalar_math_func_to_df_expr(ctx, scope, call, schemas);
         }
 
-        match ctx.scope {
+        match scope {
             ExprScope::Where => {
                 if is_now_function(&call.name) {
                     error::not_implemented("now")
@@ -1115,13 +1123,14 @@ impl<'a> InfluxQLToLogicalPlan<'a> {
                     error::query(format!("invalid function call in condition: {name}"))
                 }
             }
-            ExprScope::Projection => self.function_to_df_expr(ctx, call, schemas),
+            ExprScope::Projection => self.function_to_df_expr(ctx, scope, call, schemas),
         }
     }
 
     fn function_to_df_expr(
         &self,
         ctx: &Context<'_>,
+        scope: ExprScope,
         call: &Call,
         schemas: &Schemas,
     ) -> Result<Expr> {
@@ -1142,13 +1151,13 @@ impl<'a> InfluxQLToLogicalPlan<'a> {
             // The DISTINCT function is handled as a `ProjectionType::RawDistinct`
             // query, so the planner only needs to project the single column
             // argument.
-            "distinct" => self.expr_to_df_expr(ctx, &args[0], schemas),
+            "distinct" => self.expr_to_df_expr(ctx, scope, &args[0], schemas),
             "count" => {
                 let (expr, distinct) = match &args[0] {
                     IQLExpr::Call(c) if c.name == "distinct" => {
-                        (self.expr_to_df_expr(ctx, &c.args[0], schemas)?, true)
+                        (self.expr_to_df_expr(ctx, scope, &c.args[0], schemas)?, true)
                     }
-                    expr => (self.expr_to_df_expr(ctx, expr, schemas)?, false),
+                    expr => (self.expr_to_df_expr(ctx, scope, expr, schemas)?, false),
                 };
                 if let Expr::Literal(ScalarValue::Null) = expr {
                     return Ok(expr);
@@ -1164,7 +1173,7 @@ impl<'a> InfluxQLToLogicalPlan<'a> {
                 )))
             }
             "sum" | "stddev" | "mean" | "median" => {
-                let expr = self.expr_to_df_expr(ctx, &args[0], schemas)?;
+                let expr = self.expr_to_df_expr(ctx, scope, &args[0], schemas)?;
                 if let Expr::Literal(ScalarValue::Null) = expr {
                     return Ok(expr);
                 }
@@ -1179,7 +1188,7 @@ impl<'a> InfluxQLToLogicalPlan<'a> {
                 )))
             }
             name @ ("first" | "last" | "min" | "max") => {
-                let expr = self.expr_to_df_expr(ctx, &args[0], schemas)?;
+                let expr = self.expr_to_df_expr(ctx, scope, &args[0], schemas)?;
                 if let Expr::Literal(ScalarValue::Null) = expr {
                     return Ok(expr);
                 }
@@ -1206,13 +1215,14 @@ impl<'a> InfluxQLToLogicalPlan<'a> {
     fn scalar_math_func_to_df_expr(
         &self,
         ctx: &Context<'_>,
+        scope: ExprScope,
         call: &Call,
         schemas: &Schemas,
     ) -> Result<Expr> {
         let args = call
             .args
             .iter()
-            .map(|e| self.expr_to_df_expr(ctx, e, schemas))
+            .map(|e| self.expr_to_df_expr(ctx, scope, e, schemas))
             .collect::<Result<Vec<Expr>>>()?;
 
         match BuiltinScalarFunction::from_str(call.name.as_str())? {
@@ -1234,13 +1244,14 @@ impl<'a> InfluxQLToLogicalPlan<'a> {
     fn arithmetic_expr_to_df_expr(
         &self,
         ctx: &Context<'_>,
+        scope: ExprScope,
         expr: &Binary,
         schemas: &Schemas,
     ) -> Result<Expr> {
         Ok(binary_expr(
-            self.expr_to_df_expr(ctx, &expr.lhs, schemas)?,
+            self.expr_to_df_expr(ctx, scope, &expr.lhs, schemas)?,
             binary_operator_to_df_operator(expr.op),
-            self.expr_to_df_expr(ctx, &expr.rhs, schemas)?,
+            self.expr_to_df_expr(ctx, scope, &expr.rhs, schemas)?,
         ))
     }
 
@@ -1255,11 +1266,7 @@ impl<'a> InfluxQLToLogicalPlan<'a> {
     ) -> Result<LogicalPlan> {
         match condition {
             Some(where_clause) => {
-                let filter_expr = self.conditional_to_df_expr(
-                    &ctx.with_scope(ExprScope::Where),
-                    where_clause,
-                    schemas,
-                )?;
+                let filter_expr = self.conditional_to_df_expr(ctx, where_clause, schemas)?;
                 let filter_expr =
                     planner_rewrite_expression::rewrite_conditional_expr(filter_expr, schemas)?;
                 let plan = LogicalPlanBuilder::from(plan)
