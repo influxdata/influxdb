@@ -130,6 +130,7 @@ impl table_service_server::TableService for TableService {
         info!(
             %name,
             table_id = %table.id,
+            partition_template = ?table.partition_template,
             "created table"
         );
 
