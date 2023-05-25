@@ -232,7 +232,7 @@ impl QuerierTable {
                     _ = catalog_cache.parquet_file().get(
                         self.id(),
                         None,
-                        span_recorder.child_span("cache GET parquet_file (pre-warm")
+                        span_recorder.child_span("cache GET parquet_file (pre-warm)")
                     ) => {},
                     _ = ingester_ready.cancelled() => {},
                 }

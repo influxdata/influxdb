@@ -116,12 +116,12 @@ edition = "2021"
 license = "MIT OR Apache-2.0"
 
 [workspace.dependencies]
-arrow = { version = "39.0.0" }
-arrow-flight = { version = "39.0.0" }
-datafusion = { git = "https://github.com/apache/arrow-datafusion.git", rev="c24830a898b5f79f9058624fbcea7ba3c66ff065", default-features = false }
-datafusion-proto = { git = "https://github.com/apache/arrow-datafusion.git", rev="c24830a898b5f79f9058624fbcea7ba3c66ff065" }
+arrow = { version = "40.0.0" }
+arrow-flight = { version = "40.0.0" }
+datafusion = { git = "https://github.com/apache/arrow-datafusion.git", rev="ee1019d9585252066ef5b288c84aabebcbd93ca6", default-features = false }
+datafusion-proto = { git = "https://github.com/apache/arrow-datafusion.git", rev="ee1019d9585252066ef5b288c84aabebcbd93ca6" }
 hashbrown = { version = "0.13.2" }
-parquet = { version = "39.0.0" }
+parquet = { version = "40.0.0" }
 tonic = { version = "0.9.2", features = ["tls", "tls-webpki-roots"] }
 tonic-build = { version = "0.9.2" }
 tonic-health = { version = "0.9.2" }
