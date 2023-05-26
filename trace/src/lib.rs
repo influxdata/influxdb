@@ -14,7 +14,7 @@
 // Workaround for "unused crate" lint false positives.
 use workspace_hack as _;
 
-use std::{any::Any, collections::VecDeque};
+use std::{any::Any, collections::VecDeque, sync::Arc};
 
 use parking_lot::Mutex;
 
@@ -89,5 +89,18 @@ impl TraceCollector for RingBufferTraceCollector {
 
     fn as_any(&self) -> &dyn Any {
         self
+    }
+}
+
+impl<T> TraceCollector for Arc<T>
+where
+    T: TraceCollector,
+{
+    fn export(&self, span: Span) {
+        (**self).export(span)
+    }
+
+    fn as_any(&self) -> &dyn Any {
+        (**self).as_any()
     }
 }

@@ -3,6 +3,7 @@ use test_helpers_end_to_end::{
     maybe_skip_integration, GrpcRequestBuilder, MiniCluster, Step, StepTest, StepTestState,
     TestConfig, UdpCapture,
 };
+use trace_exporters::DEFAULT_JAEGER_TRACE_CONTEXT_HEADER_NAME;
 
 #[tokio::test]
 pub async fn test_tracing_sql() {
@@ -137,6 +138,54 @@ pub async fn test_tracing_create_trace() {
     // results (maybe we could eventually verify the payload here too)
     udp_capture
         .wait_for(|m| m.to_string().contains("RecordBatchesExec"))
+        .await;
+
+    // debugging assistance
+    // println!("Traces received (1):\n\n{:#?}", udp_capture.messages());
+
+    // wait for the UDP server to shutdown
+    udp_capture.stop().await;
+}
+
+#[tokio::test]
+pub async fn test_tracing_create_ingester_query_trace() {
+    let database_url = maybe_skip_integration!();
+    let table_name = "the_table";
+    let udp_capture = UdpCapture::new().await;
+    let test_config = TestConfig::new_all_in_one(Some(database_url))
+        .with_tracing(&udp_capture)
+        // use the header attached with --gen-trace-id flag
+        .with_tracing_debug_name(DEFAULT_JAEGER_TRACE_CONTEXT_HEADER_NAME)
+        .with_ingester_never_persist();
+    let mut cluster = MiniCluster::create_all_in_one(test_config).await;
+
+    StepTest::new(
+        &mut cluster,
+        vec![
+            Step::WriteLineProtocol(format!(
+                "{table_name},tag1=A,tag2=B val=42i 123456\n\
+                 {table_name},tag1=A,tag2=C val=43i 123457"
+            )),
+            Step::Query {
+                sql: format!("select * from {table_name}"),
+                expected: vec![
+                    "+------+------+--------------------------------+-----+",
+                    "| tag1 | tag2 | time                           | val |",
+                    "+------+------+--------------------------------+-----+",
+                    "| A    | B    | 1970-01-01T00:00:00.000123456Z | 42  |",
+                    "| A    | C    | 1970-01-01T00:00:00.000123457Z | 43  |",
+                    "+------+------+--------------------------------+-----+",
+                ],
+            },
+        ],
+    )
+    .run()
+    .await;
+
+    // "shallow" packet inspection and verify the UDP server got omething that had some expected
+    // results (maybe we could eventually verify the payload here too)
+    udp_capture
+        .wait_for(|m| m.to_string().contains("frame encoding"))
         .await;
 
     // debugging assistance

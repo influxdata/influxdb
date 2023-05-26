@@ -16,7 +16,13 @@ use prost::Message;
 use thiserror::Error;
 use tokio::sync::{Semaphore, TryAcquireError};
 use tonic::{Request, Response, Streaming};
-use trace::{ctx::SpanContext, span::SpanExt};
+use trace::{
+    ctx::SpanContext,
+    span::{Span, SpanExt},
+};
+
+mod instrumentation;
+use instrumentation::FlightFrameEncodeRecorder;
 
 use crate::{
     ingester_id::IngesterId,
@@ -179,7 +185,7 @@ where
 
         let response = match self
             .query_handler
-            .query_exec(namespace_id, table_id, request.columns, span)
+            .query_exec(namespace_id, table_id, request.columns, span.clone())
             .await
         {
             Ok(v) => v,
@@ -194,7 +200,7 @@ where
             }
         };
 
-        let output = encode_response(response, self.ingester_id).map_err(tonic::Status::from);
+        let output = encode_response(response, self.ingester_id, span).map_err(tonic::Status::from);
 
         Ok(Response::new(Box::pin(output) as Self::DoGetStream))
     }
@@ -302,6 +308,7 @@ fn build_none_flight_msg() -> Vec<u8> {
 fn encode_response(
     response: QueryResponse,
     ingester_id: IngesterId,
+    span: Option<Span>,
 ) -> impl Stream<Item = Result<FlightData, FlightError>> {
     response.into_partition_stream().flat_map(move |partition| {
         let partition_id = partition.id();
@@ -323,14 +330,15 @@ fn encode_response(
 
         // While there are more batches to process.
         while let Some(schema) = batch_iter.peek().map(|v| v.schema()) {
-            output.push(
+            output.push(FlightFrameEncodeRecorder::new(
                 FlightDataEncoderBuilder::new().build(futures::stream::iter(
                     // Take all the RecordBatch with a matching schema
                     std::iter::from_fn(|| batch_iter.next_if(|v| v.schema() == schema))
                         .map(Ok)
                         .collect::<Vec<Result<_, FlightError>>>(),
                 )),
-            )
+                span.clone(),
+            ))
         }
 
         head.chain(futures::stream::iter(output).flatten())

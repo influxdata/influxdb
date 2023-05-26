@@ -191,6 +191,10 @@ impl TestConfig {
         )
     }
 
+    pub fn with_ingester_never_persist(self) -> Self {
+        self.with_env("INFLUXDB_IOX_WAL_ROTATION_PERIOD_SECONDS", "86400")
+    }
+
     /// Configure the single tenancy mode, including the authorization server.
     pub fn with_single_tenancy(self, addr: impl Into<String>) -> Self {
         self.with_env("INFLUXDB_IOX_AUTHZ_ADDR", addr)
