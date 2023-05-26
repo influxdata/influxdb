@@ -57,7 +57,7 @@ influxdb_iox_client = { path = "../influxdb_iox_client" }
 ingester_test_ctx = { path = "../ingester_test_ctx" }
 lazy_static = "1.4.0"
 mutable_batch_lp = { path = "../mutable_batch_lp" }
-object_store = "0.5.6"
+object_store = { workspace = true }
 paste = "1.0.12"
 tempfile = "3.5.0"
 test_helpers = { path = "../test_helpers", features = ["future_timeout"] }

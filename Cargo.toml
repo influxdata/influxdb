@@ -121,6 +121,7 @@ arrow-flight = { version = "40.0.0" }
 datafusion = { git = "https://github.com/apache/arrow-datafusion.git", rev="ee1019d9585252066ef5b288c84aabebcbd93ca6", default-features = false }
 datafusion-proto = { git = "https://github.com/apache/arrow-datafusion.git", rev="ee1019d9585252066ef5b288c84aabebcbd93ca6" }
 hashbrown = { version = "0.13.2" }
+object_store = { version = "0.5.6" }
 parquet = { version = "40.0.0" }
 tonic = { version = "0.9.2", features = ["tls", "tls-webpki-roots"] }
 tonic-build = { version = "0.9.2" }

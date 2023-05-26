@@ -16,7 +16,7 @@ iox_catalog = { path = "../iox_catalog" }
 ioxd_common = { path = "../ioxd_common" }
 metric = { path = "../metric" }
 mutable_batch = { path = "../mutable_batch" }
-object_store = "0.5.6"
+object_store = { workspace = true }
 router = { path = "../router" }
 thiserror = "1.0.40"
 tokio-util = { version = "0.7.8" }
