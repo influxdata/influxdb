@@ -2918,6 +2918,7 @@ dependencies = [
  "iox_query",
  "itertools",
  "observability_deps",
+ "predicate",
  "query_functions",
  "regex",
  "schema",

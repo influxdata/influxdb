@@ -97,14 +97,17 @@ SELECT cpu, usage_idle FROM cpu WHERE time = 1667181610000000000 OR time = 16671
 
 -- NOT NULL test
 -- WHERE tag1 != '' is the equivalent to tag1 IS NOT NULL
--- TODO(sgc): This is working, but likely by accident
 SELECT tag1, f64 FROM m0 WHERE tag1 != '';
+
+-- This is equivalent to the query above
+SELECT tag1, f64 FROM m0 WHERE tag1 !~ /^$/;
 
 -- NULL test
 -- WHERE tag1 = '' is the equivalent to tag1 IS NULL
--- TODO(sgc): Not working, as expected
---
--- SELECT tag1, f64 FROM m0 WHERE tag1 = '';
+SELECT tag1, f64 FROM m0 WHERE tag1 = '';
+
+-- This is equivalent to the query above
+SELECT tag1, f64 FROM m0 WHERE tag1 =~ /^$/;
 
 --
 -- LIMIT and OFFSET clauses

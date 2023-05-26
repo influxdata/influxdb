@@ -16,6 +16,7 @@ influxdb_influxql_parser = { path = "../influxdb_influxql_parser" }
 iox_query = { path = "../iox_query" }
 itertools = "0.10.5"
 observability_deps = { path = "../observability_deps" }
+predicate = { path = "../predicate" }
 query_functions = { path = "../query_functions" }
 regex = "1"
 schema = { path = "../schema" }

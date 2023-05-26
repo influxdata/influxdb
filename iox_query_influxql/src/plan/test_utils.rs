@@ -2,10 +2,12 @@
 #![cfg(test)]
 
 use crate::plan::{error, SchemaProvider};
+use chrono::{DateTime, NaiveDate, Utc};
 use datafusion::common::Result as DataFusionResult;
 use datafusion::datasource::empty::EmptyTable;
 use datafusion::datasource::provider_as_source;
 use datafusion::logical_expr::{AggregateUDF, ScalarUDF, TableSource};
+use datafusion::physical_expr::execution_props::ExecutionProps;
 use influxdb_influxql_parser::parse_statements;
 use influxdb_influxql_parser::select::SelectStatement;
 use influxdb_influxql_parser::statement::Statement;
@@ -130,12 +132,22 @@ pub(crate) mod database {
 }
 
 pub(crate) struct MockSchemaProvider {
+    execution_props: ExecutionProps,
     tables: HashMap<String, (Arc<dyn TableSource>, Schema)>,
 }
 
 impl Default for MockSchemaProvider {
     fn default() -> Self {
+        // Choose a static start time so that tests are deteministic.
+        let start_time = NaiveDate::from_ymd_opt(2023, 1, 1)
+            .unwrap()
+            .and_hms_opt(0, 0, 0)
+            .unwrap();
+        let start_time = DateTime::<Utc>::from_utc(start_time, Utc);
+        let mut execution_props = ExecutionProps::new();
+        execution_props.query_execution_start_time = start_time;
         let mut res = Self {
+            execution_props,
             tables: HashMap::new(),
         };
         res.add_schemas(database::schemas());
@@ -184,5 +196,9 @@ impl SchemaProvider for MockSchemaProvider {
 
     fn table_schema(&self, name: &str) -> Option<Schema> {
         self.tables.get(name).map(|(_, s)| s.clone())
+    }
+
+    fn execution_props(&self) -> &ExecutionProps {
+        &self.execution_props
     }
 }
