@@ -162,8 +162,6 @@ workflows:
           <<: *nofork_filter
           requires:
             - build-package-linux-amd64
-      - changelog:
-          <<: *any_filter
       - sign-packages:
           <<: *release_filter
           requires:
@@ -180,9 +178,12 @@ workflows:
             - build-package-linux-arm64
             - build-package-windows-amd64
             - sign-packages
-      - s3-publish-changelog:
+      - changelog:
           <<: *release_filter
-          publish-type: release
+          workflow: release
+      - changelog-upload:
+          <<: *release_filter
+          workflow: release
           requires:
             - changelog
       - perf-test:
@@ -243,9 +244,10 @@ workflows:
         - equal: [ << pipeline.trigger_source >>, scheduled_pipeline ]
         - equal: [ << pipeline.parameters.workflow >>, nightly ]
     jobs:
-      - changelog
-      - s3-publish-changelog:
-          publish-type: nightly
+      - changelog:
+          workflow: nightly
+      - changelog-upload:
+          workflow: nightly
           requires:
             - changelog
       - test-race
@@ -589,38 +591,6 @@ jobs:
 
             aws s3 sync . 's3://dl.influxdata.com/influxdb/releases'
 
-  s3-publish-changelog:
-    parameters:
-      publish-type:
-        type: string
-    docker:
-      - image: ubuntu:latest
-    steps:
-      - attach_workspace:
-          at: /tmp/workspace
-      - checkout
-      - run:
-          name: Publish Changelog to S3
-          command: |
-            export DEBIAN_FRONTEND=noninteractive
-            apt-get update
-            apt-get install --yes awscli git
-
-            PREFIX=2.x .circleci/scripts/get-version
-            source "${BASH_ENV}"
-
-            pushd /tmp/workspace/changelog_artifacts
-
-            case "<< parameters.publish-type >>"
-            in
-              release)
-                aws s3 cp CHANGELOG.md "s3://dl.influxdata.com/influxdb/releases/CHANGELOG.${VERSION}.md"
-              ;;
-              nightly)
-                aws s3 cp CHANGELOG.md "s3://dl.influxdata.com/platform/nightlies/<< pipeline.git.branch >>/CHANGELOG.md"
-              ;;
-            esac
-
   build-docker-nightly:
     parameters:
       resource_class:
@@ -917,28 +887,58 @@ jobs:
             docker push quay.io/influxdb/oss-acceptance:latest
 
   changelog:
+    parameters:
+      workflow:
+        type:    string
+        default: snapshot
     docker:
-      - image: quay.io/influxdb/changelogger:d7093c409adedd8837ef51fa84be0d0f8319177a
+      - image: quay.io/influxdb/changelogger:latest
     steps:
       - checkout
-      - run:
-          name: Generate changelog
-          command: |
-            PREFIX=2.x .circleci/scripts/get-version
-            source "${BASH_ENV}"
+      - run: |
+          export DESCRIPTION="In addition to the list of changes below, please also see the [official release \
+          notes](https://docs.influxdata.com/influxdb/${CIRCLE_BRANCH}/reference/release-notes/influxdb/) for \
+          other important information about this release."
 
-            if [[ "${RELEASE:-}" ]]
-            then
-              export DESCRIPTION="In addition to the list of changes below, please also see the [official release notes](https://docs.influxdata.com/influxdb/${VERSION}/reference/release-notes/influxdb/) for other important information about this release."
-            fi
-
-            PRODUCT="OSS" changelogger
+          case << parameters.workflow >> in
+            release)
+              changelogger --product OSS --release "${CIRCLE_TAG}" --description "${DESCRIPTION}"
+              ;;
+            nightly|snapshot)
+              changelogger --product OSS
+              ;;
+          esac
       - store_artifacts:
           path: changelog_artifacts/
       - persist_to_workspace:
-          root: .
+          root: changelog_artifacts/
           paths:
-            - changelog_artifacts
+            - .
+
+  changelog-upload:
+    parameters:
+      workflow:
+        type:    string
+        default: release
+    docker:
+      - image: ubuntu:latest
+    steps:
+      - attach_workspace:
+          at: /tmp/workspace
+      - checkout
+      - run: |
+          export DEBIAN_FRONTEND=noninteractive
+          apt-get update
+          apt-get install --yes --no-install-recommends awscli
+
+          case << parameters.workflow >> in
+            release)
+              aws s3 cp /tmp/workspace/CHANGELOG.md "s3://dl.influxdata.com/influxdb/releases/CHANGELOG.${CIRCLE_SHA1}.md"
+              ;;
+            nightly)
+              aws s3 cp /tmp/workspace/CHANGELOG.md "s3://dl.influxdata.com/platform/nightlies/${CIRCLE_TAG}/CHANGELOG.md"
+              ;;
+          esac
 
   check_package_deb_amd64:
     machine:
