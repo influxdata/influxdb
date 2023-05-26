@@ -43,7 +43,7 @@ workspace-hack = { version = "0.1", path = "../workspace-hack" }
 
 [dev-dependencies]
 assert_matches = "1.5"
-base64 = "0.21.0"
+base64 = "0.21.2"
 criterion = { version = "0.5", default-features = false, features = ["async_tokio", "rayon"]}
 influxdb-line-protocol = { path = "../influxdb_line_protocol" }
 iox_tests = { path = "../iox_tests" }
