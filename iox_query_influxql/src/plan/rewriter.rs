@@ -1450,7 +1450,7 @@ pub(crate) enum ProjectionType {
 /// Holds high-level information as the result of analysing
 /// a `SELECT` query.
 #[derive(Default, Debug, Copy, Clone)]
-pub(crate) struct SelectStatementInfo {
+struct SelectStatementInfo {
     /// Identifies the projection type for the `SELECT` query.
     pub projection_type: ProjectionType,
 }
