@@ -80,7 +80,7 @@ where
     I: Future<Output = Result<T, E>> + Send,
 {
     /// Creates a [`NamespaceDemultiplexer`] that uses `F` to lazily initialise
-    /// instances of [`T`] when there is no entry in the map for a given [`NamespaceId`].
+    /// instances of `T` when there is no entry in the map for a given [`NamespaceId`].
     pub fn new(init_new: F) -> Self {
         Self {
             demux_map: Default::default(),
@@ -88,7 +88,7 @@ where
         }
     }
 
-    /// Looks up the [`T`] corresponding to `namespace_id`, initialising a new
+    /// Looks up the `T` corresponding to `namespace_id`, initialising a new
     /// instance through the provided mechanism if no entry exists yet.
     pub async fn get(&mut self, namespace_id: NamespaceId) -> Result<&mut T, E> {
         match self.demux_map.entry(namespace_id) {

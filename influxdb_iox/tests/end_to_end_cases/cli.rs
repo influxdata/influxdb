@@ -1053,16 +1053,17 @@ async fn write_lp_from_wal() {
                         .arg(&router_addr)
                         .arg("write")
                         .arg(namespace)
-                        .arg("../test_fixtures/lineproto/air_and_water.lp")
+                        .arg("../test_fixtures/lineproto/temperature.lp")
                         .assert()
                         .success()
-                        .stdout(predicate::str::contains("1243 Bytes OK"));
+                        .stdout(predicate::str::contains("591 Bytes OK"));
                 }
                 .boxed()
             })),
-            Step::Custom(Box::new(move |_state: &mut StepTestState| {
+            Step::Custom(Box::new(move |state: &mut StepTestState| {
                 let wal_dir = Arc::clone(&wal_dir);
                 async move {
+                    let router_addr = state.cluster().router().router_grpc_base().to_string();
                     let mut reader =
                         fs::read_dir(wal_dir.as_path()).expect("failed to read WAL directory");
                     let segment_file_path = reader
@@ -1078,6 +1079,8 @@ async fn write_lp_from_wal() {
                     Command::cargo_bin("influxdb_iox")
                         .unwrap()
                         .arg("-vv")
+                        .arg("-h")
+                        .arg(&router_addr)
                         .arg("debug")
                         .arg("wal")
                         .arg("regenerate-lp")
@@ -1096,31 +1099,45 @@ async fn write_lp_from_wal() {
                         .assert()
                         .success();
 
-                    // TODO(savage): Assert file size is the same after table-name aware implementation is done
                     let mut reader =
                         fs::read_dir(out_dir.path()).expect("failed to read output directory");
-                    let regenerated_file = BufReader::new(
-                        File::open(
-                            reader
-                                .next()
-                                .expect("no regenerated files found")
-                                .unwrap()
-                                .path(),
-                        )
-                        .expect("should be able to open regenerated line proto file"),
-                    );
 
-                    assert_matches!(reader.next(), None);
-
-                    let original_file = BufReader::new(
-                        File::open("../test_fixtures/lineproto/air_and_water.lp")
-                            .expect("should be able to read input line proto"),
-                    );
-
+                    let regenerated_file = File::open(
+                        reader
+                            .next()
+                            .expect("no regenerated files found")
+                            .unwrap()
+                            .path(),
+                    )
+                    .expect("should be able to open regenerated line proto file");
+                    let original_file = File::open("../test_fixtures/lineproto/temperature.lp")
+                        .expect("should be able to read input line proto");
+                    // Ensure that the original file and regenerated file take
+                    // up the same space on disk. Checking this and the number
+                    // of lines in the file matches is a good enough proxy for
+                    // semantic equivalency at integration test level.
+                    //
+                    // NOTE: If this test fails, check the input line protocol
+                    // does NOT contain any float field/tag values like 30.0,
+                    // as they get reconstructed without the trailing 0.
                     assert_eq!(
-                        original_file.lines().count(),
-                        regenerated_file.lines().count()
+                        regenerated_file
+                            .metadata()
+                            .expect("should be able to get regenerated file metadata")
+                            .len(),
+                        original_file
+                            .metadata()
+                            .expect("should be able to get original file metadata")
+                            .len()
+                            + 1 // When the file is rewritten through Rust code an extra blank line is appended
                     );
+                    assert_eq!(
+                        BufReader::new(regenerated_file).lines().count(),
+                        BufReader::new(original_file).lines().count(),
+                    );
+
+                    // Make sure that only one file was regenerated.
+                    assert_matches!(reader.next(), None);
                 }
                 .boxed()
             })),
