@@ -9,7 +9,7 @@ license.workspace = true
 futures = "0.3"
 generated_types = { path = "../generated_types" }
 iox_catalog = { path = "../iox_catalog" }
-object_store = "0.5.6"
+object_store = { workspace = true }
 observability_deps = { path = "../observability_deps" }
 parquet_file = { path = "../parquet_file" }
 tonic = { workspace = true }

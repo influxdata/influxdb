@@ -10,7 +10,7 @@ license.workspace = true
 async-trait = "0.1"
 datafusion = { workspace = true }
 futures = "0.3"
-object_store = "0.5.6"
+object_store = { workspace = true }
 observability_deps = { path = "../observability_deps" }
 pin-project = "1.1"
 tokio = { version = "1.28", features = ["parking_lot", "sync"] }
