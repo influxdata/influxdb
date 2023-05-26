@@ -311,11 +311,43 @@ where
         let res = self.inner.next_message().await;
 
         match &res {
-            Ok(_) => span_recorder.ok("ok"),
+            Ok(res) => {
+                span_recorder.ok("ok");
+                self.record_metadata(&mut span_recorder, res.as_ref())
+            }
             Err(e) => span_recorder.error(e.to_string()),
         }
 
         res
+    }
+}
+
+impl<T> QueryDataTracer<T>
+where
+    T: QueryData,
+{
+    /// Record additional metadata on the
+    fn record_metadata(
+        &self,
+        span_recorder: &mut SpanRecorder,
+        res: Option<&(DecodedPayload, proto::IngesterQueryResponseMetadata)>,
+    ) {
+        let Some((payload, _metadata)) = res else {
+            return;
+        };
+        match payload {
+            DecodedPayload::None => {
+                span_recorder.set_metadata("payload_type", "none");
+            }
+            DecodedPayload::Schema(_) => {
+                span_recorder.set_metadata("payload_type", "schema");
+            }
+            DecodedPayload::RecordBatch(batch) => {
+                span_recorder.set_metadata("payload_type", "batch");
+                span_recorder.set_metadata("num_rows", batch.num_rows() as i64);
+                span_recorder.set_metadata("mem_bytes", batch.get_array_memory_size() as i64);
+            }
+        }
     }
 }
 

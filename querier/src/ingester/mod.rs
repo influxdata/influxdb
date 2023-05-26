@@ -220,6 +220,8 @@ struct IngesterResponseOk {
     n_partitions: usize,
     n_chunks: usize,
     n_rows: usize,
+    /// Estimated number of bytes this batch requires in memory
+    memory_bytes: usize,
 }
 
 /// Helper to observe a single ingester request.
@@ -257,6 +259,15 @@ impl<'a> ObserveIngesterRequest<'a> {
     }
 
     fn set_ok(mut self, ok_status: IngesterResponseOk) {
+        self.span_recorder
+            .set_metadata("n_partitions", ok_status.n_partitions as i64);
+        self.span_recorder
+            .set_metadata("num_chunks", ok_status.n_chunks as i64);
+        self.span_recorder
+            .set_metadata("num_rows", ok_status.n_rows as i64);
+        self.span_recorder
+            .set_metadata("mem_bytes", ok_status.memory_bytes as i64);
+
         self.res = Some(Ok(ok_status));
         self.span_recorder.ok("done");
     }
@@ -695,6 +706,7 @@ impl IngesterConnection for IngesterConnectionImpl {
                             for c in p.chunks() {
                                 status.n_chunks += 1;
                                 status.n_rows += c.rows();
+                                status.memory_bytes += c.estimate_size()
                             }
                         }
 
