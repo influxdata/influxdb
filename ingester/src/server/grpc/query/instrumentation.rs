@@ -41,6 +41,8 @@ impl FrameEncodeRecorderState {
 ///
 /// Effectively, these spans record the amount of time a caller is waiting to
 /// make progress when streaming a Flight response.
+///
+/// [`RecordBatch`]: arrow::record_batch::RecordBatch
 #[pin_project]
 pub(crate) struct FlightFrameEncodeRecorder {
     #[pin]
