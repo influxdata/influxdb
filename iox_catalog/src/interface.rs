@@ -1088,6 +1088,10 @@ pub(crate) mod test_helpers {
             TablePartitionTemplateOverride::default()
         );
 
+        // The default template doesn't use any tag values, so no columns need to be created.
+        let table_columns = repos.columns().list_by_table_id(t.id).await.unwrap();
+        assert!(table_columns.is_empty());
+
         // test we get an error if we try to create it again
         let err = repos
             .tables()
@@ -1204,9 +1208,17 @@ pub(crate) mod test_helpers {
         // Create a table with a partition template other than the default
         let custom_table_template = TablePartitionTemplateOverride::new(
             Some(proto::PartitionTemplate {
-                parts: vec![proto::TemplatePart {
-                    part: Some(proto::template_part::Part::TagValue("tag1".into())),
-                }],
+                parts: vec![
+                    proto::TemplatePart {
+                        part: Some(proto::template_part::Part::TagValue("tag1".into())),
+                    },
+                    proto::TemplatePart {
+                        part: Some(proto::template_part::Part::TimeFormat("year-%Y".into())),
+                    },
+                    proto::TemplatePart {
+                        part: Some(proto::template_part::Part::TagValue("tag2".into())),
+                    },
+                ],
             }),
             &namespace.partition_template,
         );
@@ -1220,6 +1232,19 @@ pub(crate) mod test_helpers {
             .await
             .unwrap();
         assert_eq!(templated.partition_template, custom_table_template);
+
+        // Tag columns should be created for tags used in the template
+        let table_columns = repos
+            .columns()
+            .list_by_table_id(templated.id)
+            .await
+            .unwrap();
+        assert_eq!(table_columns.len(), 2);
+        assert!(table_columns.iter().all(|c| c.is_tag()));
+        let mut column_names: Vec<_> = table_columns.iter().map(|c| &c.name).collect();
+        column_names.sort();
+        assert_eq!(column_names, &["tag1", "tag2"]);
+
         let lookup_templated = repos
             .tables()
             .get_by_namespace_and_name(namespace2.id, "use_a_template")
@@ -1231,9 +1256,17 @@ pub(crate) mod test_helpers {
         // Create a namespace with a partition template other than the default
         let custom_namespace_template =
             NamespacePartitionTemplateOverride::from(proto::PartitionTemplate {
-                parts: vec![proto::TemplatePart {
-                    part: Some(proto::template_part::Part::TimeFormat("year-%Y".into())),
-                }],
+                parts: vec![
+                    proto::TemplatePart {
+                        part: Some(proto::template_part::Part::TagValue("zzz".into())),
+                    },
+                    proto::TemplatePart {
+                        part: Some(proto::template_part::Part::TagValue("aaa".into())),
+                    },
+                    proto::TemplatePart {
+                        part: Some(proto::template_part::Part::TimeFormat("year-%Y".into())),
+                    },
+                ],
             });
         let custom_namespace_name = NamespaceName::new("custom_namespace").unwrap();
         let custom_namespace = repos
@@ -1261,6 +1294,18 @@ pub(crate) mod test_helpers {
             table_templated_by_namespace.partition_template,
             TablePartitionTemplateOverride::new(None, &custom_namespace_template)
         );
+
+        // Tag columns should be created for tags used in the template
+        let table_columns = repos
+            .columns()
+            .list_by_table_id(table_templated_by_namespace.id)
+            .await
+            .unwrap();
+        assert_eq!(table_columns.len(), 2);
+        assert!(table_columns.iter().all(|c| c.is_tag()));
+        let mut column_names: Vec<_> = table_columns.iter().map(|c| &c.name).collect();
+        column_names.sort();
+        assert_eq!(column_names, &["aaa", "zzz"]);
 
         repos
             .namespaces()
