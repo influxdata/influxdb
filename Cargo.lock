@@ -3593,6 +3593,7 @@ dependencies = [
  "mutable_batch_lp",
  "paste",
  "percent-encoding",
+ "proptest",
  "rand 0.8.5",
  "schema",
  "snafu",

@@ -170,10 +170,13 @@ where
 
 #[cfg(test)]
 mod tests {
+    use std::collections::HashMap;
+
     use super::*;
 
     use crate::writer::Writer;
     use data_types::partition_template::{build_column_values, test_table_partition_override};
+    use proptest::{prelude::*, prop_compose, proptest, strategy::Strategy};
     use rand::prelude::*;
 
     fn make_rng() -> StdRng {
@@ -441,4 +444,98 @@ mod tests {
         want_key = "2023|%7C|%21|!|%257C%2521%25257C|%5E",
         want_reversed_tags = [("a", "|"), ("b", "!"), ("d", "%7C%21%257C"), ("e", "^")]
     );
+
+    // These values are arbitrarily chosen when building an input to the
+    // partitioner.
+
+    // Arbitrary tag names are selected from this set of candidates (to ensure
+    // there's always some overlap, rather than truly random strings).
+    const TEST_TAG_NAME_SET: &[&str] = &["A", "B", "C", "D", "E", "F"];
+
+    // Arbitrary template parts are selected from this set.
+    const TEST_TEMPLATE_PARTS: &[TemplatePart<'static>] = &[
+        TemplatePart::TimeFormat("%Y|%m|%d!-string"),
+        TemplatePart::TimeFormat("%Y/%m/%d"),
+        TemplatePart::TimeFormat("%Y-%m-%d"),
+        TemplatePart::TagValue(""),
+        TemplatePart::TagValue("A"),
+        TemplatePart::TagValue("B"),
+        TemplatePart::TagValue("C"),
+        TemplatePart::TagValue("tags!"),
+        TemplatePart::TagValue("%tags!"),
+        TemplatePart::TagValue("my_tag"),
+        TemplatePart::TagValue("my|tag"),
+    ];
+
+    prop_compose! {
+        /// Yields a vector of up to 12 unique template parts, chosen from
+        /// [`TEST_TEMPLATE_PARTS`].
+        fn arbitrary_template_parts()(set in proptest::collection::vec(
+                proptest::sample::select(TEST_TEMPLATE_PARTS),
+                (0, 12) // Set size range
+            )) -> Vec<TemplatePart<'static>> {
+            let mut set = set;
+            set.dedup_by(|a, b| format!("{a:?}") == format!("{b:?}"));
+            set
+        }
+    }
+
+    prop_compose! {
+        /// Yield a HashMap of between 1 and 10 (column_name, random string
+        /// value) with tag names chosen from [`TEST_TAG_NAME_SET`].
+        fn arbitrary_tag_value_map()(v in proptest::collection::hash_map(
+                proptest::sample::select(TEST_TAG_NAME_SET).prop_map(ToString::to_string),
+                any::<String>(),
+                (1, 10) // Set size range
+            )) -> HashMap<String, String> {
+            v
+        }
+    }
+
+    proptest! {
+        /// A property test that asserts a write comprised of an arbitrary
+        /// subset of [`TEST_TAG_NAME_SET`] with randomised values, that is
+        /// partitioned using a partitioning template arbitrarily selected from
+        /// [`TEST_TEMPLATE_PARTS`], can be reversed to the full set of tags via
+        /// [`build_column_values()`].
+        #[test]
+        fn prop_reversible_mapping(template in arbitrary_template_parts(), tag_values in arbitrary_tag_value_map()) {
+            let mut batch = MutableBatch::new();
+            let mut writer = Writer::new(&mut batch, 1);
+
+            let template = template.clone().into_iter().collect::<Vec<_>>();
+            let template = test_table_partition_override(template);
+
+            // Timestamp: 2023-05-29T13:03:16Z
+            writer
+                .write_time("time", vec![1685365396931384064].into_iter())
+                .unwrap();
+
+            for (col, value) in &tag_values {
+                writer
+                    .write_tag(col.as_str(), Some(&[0b00000001]), vec![value.as_str()].into_iter())
+                    .unwrap();
+            }
+
+            writer.commit();
+            let keys: Vec<_> = partition_keys(&batch, template.parts()).collect();
+            assert_eq!(keys.len(), 1);
+
+            // Reverse the encoding.
+            let reversed = build_column_values(&template, &keys[0]).map(|(k, v)| (k, v.to_string())).collect::<Vec<_>>();
+
+            // Build the expected set of reversed tags by filtering out any
+            // NULL tags (preserving empty string values).
+            let want_reversed = template.parts().filter_map(|v| match v {
+                TemplatePart::TagValue(col_name) if tag_values.contains_key(col_name) => {
+                    // This tag had a (potentially empty) value wrote and should
+                    // appear in the reversed output.
+                    Some((col_name, tag_values.get(col_name).unwrap().to_string()))
+                }
+                _ => None,
+            }).collect::<Vec<_>>();
+
+            assert_eq!(reversed, want_reversed);
+        }
+    }
 }
