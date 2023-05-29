@@ -155,6 +155,25 @@ mod tests {
         StdRng::seed_from_u64(seed)
     }
 
+    /// A fixture test asserting the default partition key format, derived from
+    /// the default partition key template.
+    #[test]
+    fn test_default_fixture() {
+        let mut batch = MutableBatch::new();
+        let mut writer = Writer::new(&mut batch, 1);
+
+        writer.write_time("time", vec![1].into_iter()).unwrap();
+        writer
+            .write_tag("region", Some(&[0b00000001]), vec!["bananas"].into_iter())
+            .unwrap();
+        writer.commit();
+
+        let template_parts = TablePartitionTemplateOverride::new(None, &Default::default());
+        let keys: Vec<_> = partition_keys(&batch, template_parts.parts()).collect();
+
+        assert_eq!(keys, vec!["1970-01-01".to_string()])
+    }
+
     #[test]
     fn test_range_encode() {
         let collected: Vec<_> = range_encode(vec![5, 5, 5, 7, 2, 2, 3].into_iter()).collect();
