@@ -357,14 +357,9 @@ mod tests {
             .collect::<HashMap<_, _>>();
 
         let expected = HashMap::from([
-            (
-                PartitionKey::from("oranges-1970-01-tag2_C"),
-                vec!["bananas".into()],
-            ),
-            (
-                PartitionKey::from("oranges-2016-06-tag2_D"),
-                vec!["bananas".into()],
-            ),
+            (PartitionKey::from("!|1970-01|C"), vec!["bananas".into()]),
+            (PartitionKey::from("!|2016-06|D"), vec!["bananas".into()]),
+            // This table does not have a partition template override
             (PartitionKey::from("1970-01-01"), vec!["platanos".into()]),
             (PartitionKey::from("2016-06-13"), vec!["platanos".into()]),
         ]);

@@ -1,15 +1,23 @@
 //! Functions for partitioning rows from a [`MutableBatch`]
 //!
-//! The returned ranges can then be used with [`MutableBatch::extend_from_range`]
+//! The returned ranges can then be used with
+//! [`MutableBatch::extend_from_range`].
+//!
+//! The partitioning template, derived partition key format, and encodings are
+//! described in detail in the [`data_types::partition_template`] module.
 
 use crate::{
     column::{Column, ColumnData},
     MutableBatch,
 };
 use chrono::{format::StrftimeItems, TimeZone, Utc};
-use data_types::partition_template::{TablePartitionTemplateOverride, TemplatePart};
-use schema::{InfluxColumnType, TIME_COLUMN_NAME};
-use std::ops::Range;
+use data_types::partition_template::{
+    TablePartitionTemplateOverride, TemplatePart, ENCODED_PARTITION_KEY_CHARS,
+    PARTITION_KEY_DELIMITER, PARTITION_KEY_VALUE_EMPTY_STR, PARTITION_KEY_VALUE_NULL_STR,
+};
+use percent_encoding::utf8_percent_encode;
+use schema::TIME_COLUMN_NAME;
+use std::{borrow::Cow, ops::Range};
 
 /// Returns an iterator identifying consecutive ranges for a given partition key
 pub fn partition_batch<'a>(
@@ -19,54 +27,70 @@ pub fn partition_batch<'a>(
     range_encode(partition_keys(batch, template.parts()))
 }
 
-/// A [`TablePartitionTemplateOverride`] is made up of one of more [`TemplatePart`]s that are
-/// rendered and joined together by hyphens to form a single partition key.
+/// A [`TablePartitionTemplateOverride`] is made up of one of more
+/// [`TemplatePart`]s that are rendered and joined together by
+/// [`PARTITION_KEY_DELIMITER`] to form a single partition key.
 ///
-/// To avoid allocating intermediate strings, and performing column lookups for every row,
-/// each [`TemplatePart`] is converted to a [`Template`].
+/// To avoid allocating intermediate strings, and performing column lookups for
+/// every row, each [`TemplatePart`] is converted to a [`Template`].
 ///
-/// [`Template::fmt_row`] can then be used to render the template for that particular row
-/// to the provided string, without performing any additional column lookups
+/// [`Template::fmt_row`] can then be used to render the template for that
+/// particular row to the provided string, without performing any additional
+/// column lookups
+#[derive(Debug)]
 enum Template<'a> {
-    TagValue(&'a Column, &'a str),
-    MissingTag(&'a str),
+    TagValue(&'a Column),
     TimeFormat(&'a [i64], StrftimeItems<'a>),
+
+    /// This batch is missing a partitioning tag column.
+    MissingTag,
 }
 
 impl<'a> Template<'a> {
-    /// Renders this template to `out` for the row `idx`
+    /// Renders this template to `out` for the row `idx`.
     fn fmt_row<W: std::fmt::Write>(&self, out: &mut W, idx: usize) -> std::fmt::Result {
         match self {
-            Template::TagValue(col, col_name) if col.valid.get(idx) => {
-                out.write_str(col_name)?;
-                out.write_char('_')?;
-                match &col.data {
-                    ColumnData::F64(col_data, _) => write!(out, "{}", col_data[idx]),
-                    ColumnData::I64(col_data, _) => write!(out, "{}", col_data[idx]),
-                    ColumnData::U64(col_data, _) => write!(out, "{}", col_data[idx]),
-                    ColumnData::String(col_data, _) => {
-                        write!(out, "{}", col_data.get(idx).unwrap())
-                    }
-                    ColumnData::Bool(col_data, _) => match col_data.get(idx) {
-                        true => out.write_str("true"),
-                        false => out.write_str("false"),
-                    },
-                    ColumnData::Tag(col_data, dictionary, _) => {
-                        out.write_str(dictionary.lookup_id(col_data[idx]).unwrap())
-                    }
-                }
-            }
-            Template::TagValue(_, col_name) | Template::MissingTag(col_name) => {
-                out.write_str(col_name)
-            }
+            Template::TagValue(col) if col.valid.get(idx) => match &col.data {
+                ColumnData::Tag(col_data, dictionary, _) => out.write_str(never_empty(
+                    Cow::from(utf8_percent_encode(
+                        dictionary.lookup_id(col_data[idx]).unwrap(),
+                        &ENCODED_PARTITION_KEY_CHARS,
+                    ))
+                    .as_ref(),
+                )),
+                other => panic!(
+                    "partitioning only works on tag columns, but column was type `{other:?}`"
+                ),
+            },
             Template::TimeFormat(t, format) => {
                 let formatted = Utc
                     .timestamp_nanos(t[idx])
-                    .format_with_items(format.clone());
-                write!(out, "{formatted}")
+                    .format_with_items(format.clone()) // Cheap clone of refs
+                    .to_string();
+                out.write_str(
+                    Cow::from(utf8_percent_encode(
+                        formatted.as_str(),
+                        &ENCODED_PARTITION_KEY_CHARS,
+                    ))
+                    .as_ref(),
+                )
+            }
+            // Either a tag that has no value for this given row index, or the
+            // batch does not contain this tag at all.
+            Template::TagValue(_) | Template::MissingTag => {
+                out.write_str(PARTITION_KEY_VALUE_NULL_STR)
             }
         }
     }
+}
+
+/// Return `s` if it is non-empty, else [`PARTITION_KEY_VALUE_EMPTY_STR`].
+#[inline(always)]
+fn never_empty(s: &str) -> &str {
+    if s.is_empty() {
+        return PARTITION_KEY_VALUE_EMPTY_STR;
+    }
+    s
 }
 
 /// Returns an iterator of partition keys for the given table batch
@@ -74,38 +98,39 @@ fn partition_keys<'a>(
     batch: &'a MutableBatch,
     template_parts: impl Iterator<Item = TemplatePart<'a>>,
 ) -> impl Iterator<Item = String> + 'a {
-    let time = batch.column(TIME_COLUMN_NAME).expect("time column");
-    let time = match &time.data {
-        ColumnData::I64(col_data, _) => col_data.as_slice(),
-        x => unreachable!("expected i32 for time got {}", x),
+    // Extract the timestamp data.
+    let time = match batch.column(TIME_COLUMN_NAME).map(|v| &v.data) {
+        Ok(ColumnData::I64(data, _)) => data.as_slice(),
+        Ok(v) => unreachable!("incorrect type for time column: {v:?}"),
+        Err(e) => panic!("error reading time column: {e:?}"),
     };
 
-    let cols: Vec<_> = template_parts
-        .map(|part| match part {
-            TemplatePart::TagValue(name) => batch.column(name).map_or_else(
-                |_| Template::MissingTag(name),
-                |col| match col.influx_type {
-                    InfluxColumnType::Tag => Template::TagValue(col, name),
-                    other => panic!(
-                        "Partitioning only works on tag columns, \
-                            but column `{name}` was type `{other:?}`"
-                    ),
-                },
-            ),
+    // Convert TemplatePart into an ordered array of Template
+    let template = template_parts
+        .map(|v| match v {
+            TemplatePart::TagValue(col_name) => batch
+                .column(col_name)
+                .map_or_else(|_| Template::MissingTag, Template::TagValue),
             TemplatePart::TimeFormat(fmt) => Template::TimeFormat(time, StrftimeItems::new(fmt)),
         })
-        .collect();
+        .collect::<Vec<_>>();
 
+    // Yield a partition key string for each row in `batch`
     (0..batch.row_count).map(move |idx| {
         let mut string = String::new();
-        for (col_idx, col) in cols.iter().enumerate() {
+
+        // Evaluate each template part for this row
+        for (col_idx, col) in template.iter().enumerate() {
             col.fmt_row(&mut string, idx)
                 .expect("string writing is infallible");
 
-            if col_idx + 1 != cols.len() {
-                string.push('-');
+            // If this isn't the last element in the template, insert a field
+            // delimiter.
+            if col_idx + 1 != template.len() {
+                string.push(PARTITION_KEY_DELIMITER);
             }
         }
+
         string
     })
 }
@@ -146,7 +171,9 @@ where
 #[cfg(test)]
 mod tests {
     use super::*;
+
     use crate::writer::Writer;
+    use data_types::partition_template::{build_column_values, test_table_partition_override};
     use rand::prelude::*;
 
     fn make_rng() -> StdRng {
@@ -224,7 +251,7 @@ mod tests {
         let template_parts = [
             TemplatePart::TimeFormat("%Y-%m-%d %H:%M:%S"),
             TemplatePart::TagValue("region"),
-            TemplatePart::TagValue("bananas"),
+            TemplatePart::TagValue("bananas"), // column not present
         ];
 
         writer.commit();
@@ -234,20 +261,17 @@ mod tests {
         assert_eq!(
             keys,
             vec![
-                "1970-01-01 00:00:00-region-bananas".to_string(),
-                "1970-01-01 00:00:00-region_west-bananas".to_string(),
-                "1970-01-01 00:00:00-region-bananas".to_string(),
-                "1970-01-01 00:00:00-region_east-bananas".to_string(),
-                "1970-01-01 00:00:00-region-bananas".to_string()
+                "1970-01-01 00:00:00|!|!".to_string(),
+                "1970-01-01 00:00:00|west|!".to_string(),
+                "1970-01-01 00:00:00|!|!".to_string(),
+                "1970-01-01 00:00:00|east|!".to_string(),
+                "1970-01-01 00:00:00|!|!".to_string()
             ]
         )
     }
 
     #[test]
-    #[should_panic(
-        expected = "Partitioning only works on tag columns, but column `region` was type \
-        `Field(String)`"
-    )]
+    #[should_panic(expected = "partitioning only works on tag columns, but column was type")]
     fn partitioning_on_fields_panics() {
         let mut batch = MutableBatch::new();
         let mut writer = Writer::new(&mut batch, 5);
@@ -270,4 +294,151 @@ mod tests {
 
         let _keys: Vec<_> = partition_keys(&batch, template_parts.into_iter()).collect();
     }
+
+    #[test]
+    fn test_partition_key() {
+        let mut batch = MutableBatch::new();
+        let mut writer = Writer::new(&mut batch, 1);
+
+        let tag_values = [("col_a", "value")];
+        let template_parts = TablePartitionTemplateOverride::new(None, &Default::default());
+
+        // Timestamp: 2023-05-29T13:03:16Z
+        writer
+            .write_time("time", vec![1685365396931384064].into_iter())
+            .unwrap();
+
+        for (col, value) in tag_values {
+            writer
+                .write_tag(col, Some(&[0b00000001]), vec![value].into_iter())
+                .unwrap();
+        }
+
+        writer.commit();
+
+        let keys: Vec<_> = partition_keys(&batch, template_parts.parts()).collect();
+        assert_eq!(keys, vec!["2023-05-29".to_string()])
+    }
+
+    // Generate a test that asserts the derived partition key matches
+    // "want_key", when using the provided "template" parts and set of "tags".
+    //
+    // Additionally validates that the derived key is reversible into the
+    // expected set of "want_reversed_tags" from the original inputs.
+    macro_rules! test_partition_key {
+        (
+            $name:ident,
+            template = $template:expr,              // Array/vec of TemplatePart
+            tags = $tags:expr,                      // Array/vec of (tag_name, value) tuples
+            want_key = $want_key:expr,              // Expected partition key string
+            want_reversed_tags = $want_reversed_tags:expr // Array/vec of (tag_name, value) reversed from $tags
+        ) => {
+            paste::paste! {
+                #[test]
+                fn [<test_partition_key_ $name>]() {
+                    let mut batch = MutableBatch::new();
+                    let mut writer = Writer::new(&mut batch, 1);
+
+                    let template = $template.into_iter().collect::<Vec<_>>();
+                    let template = test_table_partition_override(template);
+
+                    // Timestamp: 2023-05-29T13:03:16Z
+                    writer
+                        .write_time("time", vec![1685365396931384064].into_iter())
+                        .unwrap();
+
+                    for (col, value) in $tags {
+                        writer
+                            .write_tag(col, Some(&[0b00000001]), vec![value].into_iter())
+                            .unwrap();
+                    }
+
+                    writer.commit();
+
+                    let keys: Vec<_> = partition_keys(&batch, template.parts()).collect();
+                    assert_eq!(keys, vec![$want_key.to_string()]);
+
+                    // Reverse the encoding.
+                    let reversed = build_column_values(&template, &keys[0]);
+
+                    // normalise the tags into a (str, string) for the comparison
+                    let want = $want_reversed_tags
+                        .into_iter()
+                        .map(|(k, v)| {
+                            let v: &str = v;
+                            (k, v.to_string())
+                        })
+                        .collect::<Vec<_>>();
+
+                    let got = reversed
+                        .map(|(k, v)| (k, v.to_string()))
+                        .collect::<Vec<_>>();
+                    assert_eq!(got, want);
+                }
+            }
+        };
+    }
+
+    test_partition_key!(
+        simple,
+        template = [
+            TemplatePart::TimeFormat("%Y"),
+            TemplatePart::TagValue("a"),
+            TemplatePart::TagValue("b"),
+        ],
+        tags = [("a", "bananas"), ("b", "are_good")],
+        want_key = "2023|bananas|are_good",
+        want_reversed_tags = [("a", "bananas"), ("b", "are_good")]
+    );
+
+    test_partition_key!(
+        non_ascii,
+        template = [
+            TemplatePart::TimeFormat("%Y"),
+            TemplatePart::TagValue("a"),
+            TemplatePart::TagValue("b"),
+        ],
+        tags = [("a", "bananas"), ("b", "plátanos")],
+        want_key = "2023|bananas|pl%C3%A1tanos",
+        want_reversed_tags = [("a", "bananas"), ("b", "plátanos")]
+    );
+
+    test_partition_key!(
+        single_tag_template_tag_not_present,
+        template = [TemplatePart::TagValue("a")],
+        tags = [("b", "bananas")],
+        want_key = "!",
+        want_reversed_tags = []
+    );
+
+    test_partition_key!(
+        single_tag_template_tag_empty,
+        template = [TemplatePart::TagValue("a")],
+        tags = [("a", "")],
+        want_key = "^",
+        want_reversed_tags = [("a", "")]
+    );
+
+    test_partition_key!(
+        missing_tag,
+        template = [TemplatePart::TagValue("a"), TemplatePart::TagValue("b")],
+        tags = [("a", "bananas")],
+        want_key = "bananas|!",
+        want_reversed_tags = [("a", "bananas")]
+    );
+
+    test_partition_key!(
+        unambiguous,
+        template = [
+            TemplatePart::TimeFormat("%Y"),
+            TemplatePart::TagValue("a"),
+            TemplatePart::TagValue("b"),
+            TemplatePart::TagValue("c"),
+            TemplatePart::TagValue("d"),
+            TemplatePart::TagValue("e"),
+        ],
+        tags = [("a", "|"), ("b", "!"), ("d", "%7C%21%257C"), ("e", "^")],
+        want_key = "2023|%7C|%21|!|%257C%2521%25257C|%5E",
+        want_reversed_tags = [("a", "|"), ("b", "!"), ("d", "%7C%21%257C"), ("e", "^")]
+    );
 }
