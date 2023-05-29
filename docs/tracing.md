@@ -60,7 +60,7 @@ Follow instructions from https://www.jaegertracing.io/docs/1.26/getting-started/
 docker run -d --name jaeger \
   -p 6831:6831/udp \
   -p 16686:16686 \
-  jaegertracing/all-in-one:1.26
+  jaegertracing/all-in-one:latest
 ```
 
 ### Step 2: Run IOx configured to send traces to the local Jaeger instance

@@ -22,6 +22,8 @@ use self::field_rewrite::FieldProjectionRewriter;
 use self::measurement_rewrite::rewrite_measurement_references;
 use self::value_rewrite::rewrite_field_value_references;
 
+pub use self::rewrite::{iox_expr_rewrite, simplify_predicate};
+
 /// Any column references to this name are rewritten to be
 /// the actual table name by the Influx gRPC planner.
 ///

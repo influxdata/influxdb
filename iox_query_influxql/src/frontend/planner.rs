@@ -1,4 +1,5 @@
 use arrow::datatypes::SchemaRef;
+use datafusion::physical_expr::execution_props::ExecutionProps;
 use influxdb_influxql_parser::show_field_keys::ShowFieldKeysStatement;
 use influxdb_influxql_parser::show_measurements::ShowMeasurementsStatement;
 use influxdb_influxql_parser::show_tag_keys::ShowTagKeysStatement;
@@ -60,6 +61,10 @@ impl<'a> SchemaProvider for ContextSchemaProvider<'a> {
 
     fn table_schema(&self, name: &str) -> Option<Schema> {
         self.tables.get(name).map(|(_, s)| s.clone())
+    }
+
+    fn execution_props(&self) -> &ExecutionProps {
+        self.state.execution_props()
     }
 }
 

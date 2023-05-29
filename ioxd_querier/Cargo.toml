@@ -15,7 +15,7 @@ generated_types = { path = "../generated_types" }
 iox_catalog = { path = "../iox_catalog" }
 ioxd_common = { path = "../ioxd_common" }
 metric = { path = "../metric" }
-object_store = "0.5.6"
+object_store = { workspace = true }
 querier = { path = "../querier" }
 iox_query = { path = "../iox_query" }
 service_grpc_flight = { path = "../service_grpc_flight" }
