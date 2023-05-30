@@ -22,8 +22,8 @@ use std::{collections::HashMap, sync::Arc, time::Duration};
 use arrow::record_batch::RecordBatch;
 use arrow_flight::{decode::FlightRecordBatchStream, flight_service_server::FlightService, Ticket};
 use data_types::{
-    Namespace, NamespaceId, NamespaceSchema, ParquetFile, PartitionKey, SequenceNumber, TableId,
-    TablePartitionTemplateOverride,
+    partition_template::TablePartitionTemplateOverride, Namespace, NamespaceId, NamespaceSchema,
+    ParquetFile, PartitionKey, SequenceNumber, TableId,
 };
 use dml::{DmlMeta, DmlWrite};
 use futures::{stream::FuturesUnordered, FutureExt, StreamExt, TryStreamExt};

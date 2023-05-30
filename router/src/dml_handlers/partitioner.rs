@@ -1,6 +1,7 @@
 use async_trait::async_trait;
 use data_types::{
-    NamespaceName, NamespaceSchema, PartitionKey, TableId, TablePartitionTemplateOverride,
+    partition_template::TablePartitionTemplateOverride, NamespaceName, NamespaceSchema,
+    PartitionKey, TableId,
 };
 use hashbrown::HashMap;
 use mutable_batch::{MutableBatch, PartitionWrite, WritePayload};
@@ -99,7 +100,10 @@ impl DmlHandler for Partitioner {
 #[cfg(test)]
 mod tests {
     use assert_matches::assert_matches;
-    use data_types::{test_table_partition_override, NamespaceId, TemplatePart};
+    use data_types::{
+        partition_template::{test_table_partition_override, TemplatePart},
+        NamespaceId,
+    };
 
     use super::*;
 

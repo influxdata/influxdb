@@ -20,8 +20,8 @@ use workspace_hack as _;
 
 use crate::interface::{ColumnTypeMismatchSnafu, Error, RepoCollection, Result};
 use data_types::{
-    ColumnType, NamespaceId, NamespacePartitionTemplateOverride, NamespaceSchema,
-    TablePartitionTemplateOverride, TableSchema,
+    partition_template::{NamespacePartitionTemplateOverride, TablePartitionTemplateOverride},
+    ColumnType, NamespaceId, NamespaceSchema, TableSchema,
 };
 use mutable_batch::MutableBatch;
 use std::{borrow::Cow, collections::HashMap};
@@ -264,7 +264,9 @@ where
 /// Catalog helper functions for creation of catalog objects
 pub mod test_helpers {
     use crate::RepoCollection;
-    use data_types::{Namespace, NamespaceName, Table, TablePartitionTemplateOverride};
+    use data_types::{
+        partition_template::TablePartitionTemplateOverride, Namespace, NamespaceName, Table,
+    };
 
     /// When the details of the namespace don't matter; the test just needs *a* catalog namespace
     /// with a particular name.

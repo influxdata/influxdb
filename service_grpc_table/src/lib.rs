@@ -25,7 +25,8 @@ use workspace_hack as _;
 use std::sync::Arc;
 
 use data_types::{
-    ColumnType, NamespaceName, Table as CatalogTable, TablePartitionTemplateOverride, TemplatePart,
+    partition_template::{TablePartitionTemplateOverride, TemplatePart},
+    ColumnType, NamespaceName, Table as CatalogTable,
 };
 use generated_types::influxdata::iox::table::v1::*;
 use iox_catalog::interface::{Catalog, SoftDeletedRows};
@@ -159,7 +160,7 @@ fn table_to_create_response_proto(table: CatalogTable) -> CreateTableResponse {
 
 #[cfg(test)]
 mod tests {
-    use data_types::{NamespacePartitionTemplateOverride, TableId};
+    use data_types::{partition_template::NamespacePartitionTemplateOverride, TableId};
     use generated_types::influxdata::iox::{
         partition_template::v1::{template_part, PartitionTemplate, TemplatePart},
         table::v1::table_service_server::TableService as _,
