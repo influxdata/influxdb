@@ -1,3 +1,6 @@
+//! TODO: use version in flight-sql when
+//! <https://github.com/apache/arrow-rs/pull/4266> is available
+//!
 //! Represents the response to FlightSQL `GetSqlInfo` requests and
 //! handles the conversion to/from the format specified in the
 //! [Arrow FlightSQL Specification].
