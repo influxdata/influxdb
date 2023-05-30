@@ -298,31 +298,6 @@ mod tests {
         let _keys: Vec<_> = partition_keys(&batch, template_parts.into_iter()).collect();
     }
 
-    #[test]
-    fn test_partition_key() {
-        let mut batch = MutableBatch::new();
-        let mut writer = Writer::new(&mut batch, 1);
-
-        let tag_values = [("col_a", "value")];
-        let template_parts = TablePartitionTemplateOverride::new(None, &Default::default());
-
-        // Timestamp: 2023-05-29T13:03:16Z
-        writer
-            .write_time("time", vec![1685365396931384064].into_iter())
-            .unwrap();
-
-        for (col, value) in tag_values {
-            writer
-                .write_tag(col, Some(&[0b00000001]), vec![value].into_iter())
-                .unwrap();
-        }
-
-        writer.commit();
-
-        let keys: Vec<_> = partition_keys(&batch, template_parts.parts()).collect();
-        assert_eq!(keys, vec!["2023-05-29".to_string()])
-    }
-
     // Generate a test that asserts the derived partition key matches
     // "want_key", when using the provided "template" parts and set of "tags".
     //

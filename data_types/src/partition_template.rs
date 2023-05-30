@@ -313,7 +313,7 @@ pub fn build_column_values<'a>(
 /// from a gRPC request. In tests, building protobuf is painful, so here's an easier way to create
 /// a `TablePartitionTemplateOverride`.
 pub fn test_table_partition_override(
-    parts: Vec<TemplatePart<'static>>,
+    parts: Vec<TemplatePart<'_>>,
 ) -> TablePartitionTemplateOverride {
     let parts = parts
         .into_iter()
