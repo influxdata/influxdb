@@ -2545,6 +2545,7 @@ dependencies = [
  "itertools",
  "libc",
  "metric",
+ "mutable_batch",
  "nu-ansi-term 0.47.0",
  "num_cpus",
  "object_store",

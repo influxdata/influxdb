@@ -86,6 +86,7 @@ arrow_util = { path = "../arrow_util" }
 assert_cmd = "2.0.11"
 assert_matches = "1.5"
 async-trait = "0.1"
+mutable_batch = { path = "../mutable_batch" }
 predicate = { path = "../predicate" }
 predicates = "3.0.3"
 serde = "1.0.163"

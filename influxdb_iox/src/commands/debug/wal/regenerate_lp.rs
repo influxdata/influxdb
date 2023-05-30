@@ -10,7 +10,7 @@ use influxdb_iox_client::connection::Connection;
 use influxdb_iox_client::schema::Client as SchemaClient;
 use observability_deps::tracing::{debug, error, info};
 use tokio::sync::Mutex;
-use wal::{ClosedSegmentFileReader, WriteOpEntryDecoder};
+use wal::{ClosedSegmentFileReader, WriteOpEntry, WriteOpEntryDecoder};
 use wal_inspect::{LineProtoWriter, NamespaceDemultiplexer, TableBatchWriter, WriteError};
 
 use super::{Error, RegenerateError};
@@ -200,36 +200,210 @@ where
     F: (Fn(NamespaceId) -> I) + Send + Sync,
     I: Future<Output = Result<T, RegenerateError>> + Send,
 {
-    let mut write_errors = vec![];
+    let mut regenerate_errors = vec![];
 
     for (wal_entry_number, entry_batch) in decoder.enumerate() {
-        for (write_op_number, entry) in entry_batch?.into_iter().enumerate() {
-            let namespace_id = entry.namespace;
-            debug!(%namespace_id, %wal_entry_number, %write_op_number, "regenerating line protocol for namespace from WAL write op entry");
-            namespace_demux
-                .get(namespace_id)
-                .await
-                .map(|writer| writer.write_table_batches(entry.table_batches.into_iter()))
-                .and_then(|write_result| {
-                    write_result.map_err(RegenerateError::TableBatchWriteFailure)
-                }) // flatten out the write result if Ok
-                .unwrap_or_else(|err| {
-                    error!(
+        regenerate_errors.extend(
+            regenerate_wal_entry((wal_entry_number, entry_batch?), &mut namespace_demux).await,
+        );
+    }
+
+    if !regenerate_errors.is_empty() {
+        Err(Error::UnableToFullyRegenerateLineProtocol {
+            sources: regenerate_errors,
+        })
+    } else {
+        Ok(())
+    }
+}
+
+// Given a `wal_entry` containing the entry number and a list of write
+// operations, this function will regenerate the entries using the
+// provided `namespace_demux`.
+async fn regenerate_wal_entry<T, F, I>(
+    wal_entry: (usize, Vec<WriteOpEntry>),
+    namespace_demux: &mut NamespaceDemultiplexer<T, F>,
+) -> Vec<RegenerateError>
+where
+    T: TableBatchWriter<WriteError = wal_inspect::WriteError> + Send,
+    F: (Fn(NamespaceId) -> I) + Send + Sync,
+    I: Future<Output = Result<T, RegenerateError>> + Send,
+{
+    let mut regenerate_errors = vec![];
+
+    let (wal_entry_number, entry_batch) = wal_entry;
+    for (write_op_number, entry) in entry_batch.into_iter().enumerate() {
+        let namespace_id = entry.namespace;
+        debug!(%namespace_id, %wal_entry_number, %write_op_number, "regenerating line protocol for namespace from WAL write op entry");
+        namespace_demux
+            .get(namespace_id)
+            .await
+            .map(|writer| writer.write_table_batches(entry.table_batches.into_iter()))
+            .and_then(|write_result| write_result.map_err(RegenerateError::TableBatchWriteFailure)) // flatten out the write result if Ok
+            .unwrap_or_else(|err| {
+                error!(
                         %namespace_id,
                         %wal_entry_number,
                         %write_op_number,
                         %err,
                         "failed to rewrite table batches for write op");
-                    write_errors.push(err);
-                });
+                regenerate_errors.push(err);
+            });
+    }
+
+    regenerate_errors
+}
+
+#[cfg(test)]
+mod tests {
+    use std::collections::VecDeque;
+    use std::iter::from_fn;
+
+    use assert_matches::assert_matches;
+    use mutable_batch::MutableBatch;
+
+    use super::*;
+
+    #[derive(Debug)]
+    struct MockTableBatchWriter {
+        return_results:
+            VecDeque<Result<(), <MockTableBatchWriter as TableBatchWriter>::WriteError>>,
+        got_calls: Vec<(TableId, MutableBatch)>,
+    }
+
+    impl TableBatchWriter for MockTableBatchWriter {
+        type WriteError = WriteError;
+
+        fn write_table_batches<B>(&mut self, table_batches: B) -> Result<(), Self::WriteError>
+        where
+            B: Iterator<Item = (TableId, MutableBatch)>,
+        {
+            self.got_calls.extend(table_batches);
+
+            self.return_results
+                .pop_front()
+                .expect("excess calls to write_table_batches were made")
         }
     }
 
-    if !write_errors.is_empty() {
-        Err(Error::UnableToFullyRegenerateLineProtocol {
-            sources: write_errors,
-        })
-    } else {
-        Ok(())
+    #[tokio::test]
+    async fn regenerate_entries_continues_on_error() {
+        const NAMESPACE_ONE: NamespaceId = NamespaceId::new(1);
+        const NON_EXISTENT_NAMESPACE: NamespaceId = NamespaceId::new(2);
+        const NAMESPACE_OTHER: NamespaceId = NamespaceId::new(3);
+
+        // Set up a demux to simulate a happy namespace, an always error-ing
+        // namespace and a namespace with a temporarily erroring writer.
+        let mut demux = NamespaceDemultiplexer::new(move |namespace_id| async move {
+            if namespace_id == NAMESPACE_ONE {
+                Ok(MockTableBatchWriter {
+                    return_results: from_fn(|| Some(Ok(()))).take(10).collect(),
+                    got_calls: Default::default(),
+                })
+            } else if namespace_id == NON_EXISTENT_NAMESPACE {
+                Err(RegenerateError::NamespaceSchemaDiscoveryFailed(
+                    TableIndexLookupError::NamespaceNotKnown(NON_EXISTENT_NAMESPACE),
+                ))
+            } else {
+                let mut iter = VecDeque::new();
+                iter.push_back(Err(WriteError::RecordBatchTranslationFailure(
+                    "bananas".to_string(),
+                )));
+                iter.extend(from_fn(|| Some(Ok(()))).take(9).collect::<VecDeque<_>>());
+                Ok(MockTableBatchWriter {
+                    return_results: iter,
+                    got_calls: Default::default(),
+                })
+            }
+        });
+
+        //  Write some batches happily,
+        let result = regenerate_wal_entry(
+            (
+                1,
+                vec![
+                    WriteOpEntry {
+                        namespace: NAMESPACE_ONE,
+                        table_batches: vec![(TableId::new(1), Default::default())]
+                            .into_iter()
+                            .collect(),
+                    },
+                    WriteOpEntry {
+                        namespace: NAMESPACE_ONE,
+                        table_batches: vec![(TableId::new(2), Default::default())]
+                            .into_iter()
+                            .collect(),
+                    },
+                ],
+            ),
+            &mut demux,
+        )
+        .await;
+        assert!(result.is_empty());
+
+        // Then try to write for an unknown namespace, but continue on error
+        let result = regenerate_wal_entry(
+            (
+                2,
+                vec![
+                    WriteOpEntry {
+                        namespace: NON_EXISTENT_NAMESPACE,
+                        table_batches: vec![(TableId::new(1), Default::default())]
+                            .into_iter()
+                            .collect(),
+                    },
+                    WriteOpEntry {
+                        namespace: NAMESPACE_ONE,
+                        table_batches: vec![(TableId::new(1), Default::default())]
+                            .into_iter()
+                            .collect(),
+                    },
+                ],
+            ),
+            &mut demux,
+        )
+        .await;
+        assert_eq!(result.len(), 1);
+        assert_matches!(
+            result.get(0),
+            Some(RegenerateError::NamespaceSchemaDiscoveryFailed(..))
+        );
+
+        // And finally continue writing after a "corrupt" entry is unable
+        // to be translated.
+        let result = regenerate_wal_entry(
+            (
+                3,
+                vec![
+                    WriteOpEntry {
+                        namespace: NAMESPACE_OTHER,
+                        table_batches: vec![(TableId::new(1), Default::default())]
+                            .into_iter()
+                            .collect(),
+                    },
+                    WriteOpEntry {
+                        namespace: NAMESPACE_OTHER,
+                        table_batches: vec![(TableId::new(1), Default::default())]
+                            .into_iter()
+                            .collect(),
+                    },
+                ],
+            ),
+            &mut demux,
+        )
+        .await;
+        assert_eq!(result.len(), 1);
+        assert_matches!(
+            result.get(0),
+            Some(RegenerateError::TableBatchWriteFailure(..))
+        );
+
+        // There should be five write calls made.
+        assert_matches!(demux.get(NAMESPACE_ONE).await, Ok(mock) => {
+            assert_eq!(mock.got_calls.len(), 3);
+        });
+        assert_matches!(demux.get(NAMESPACE_OTHER).await, Ok(mock) => {
+            assert_eq!(mock.got_calls.len(), 2);
+        });
     }
 }
