@@ -3572,6 +3572,7 @@ version = "0.1.0"
 dependencies = [
  "arrow",
  "arrow_util",
+ "assert_matches",
  "chrono",
  "data_types",
  "hashbrown 0.13.2",
@@ -3584,6 +3585,7 @@ dependencies = [
  "rand 0.8.5",
  "schema",
  "snafu",
+ "thiserror",
  "workspace-hack",
 ]
 
