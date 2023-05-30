@@ -17,7 +17,8 @@ use once_cell::sync::Lazy;
 
 /// Return a RecordBatch for the GetTables
 ///
-/// Return a `LogicalPlan` for GetTables
+/// TODO: use upstream implementation when
+/// <https://github.com/apache/arrow-rs/pull/4296> is available
 ///
 /// # Parameters
 ///

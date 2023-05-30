@@ -15,10 +15,10 @@ use crate::{
 };
 use async_trait::async_trait;
 use data_types::{
-    Column, ColumnType, CompactionLevel, Namespace, NamespaceId, NamespaceName,
-    NamespacePartitionTemplateOverride, ParquetFile, ParquetFileId, ParquetFileParams, Partition,
-    PartitionId, PartitionKey, SkippedCompaction, Table, TableId, TablePartitionTemplateOverride,
-    Timestamp,
+    partition_template::{NamespacePartitionTemplateOverride, TablePartitionTemplateOverride},
+    Column, ColumnType, CompactionLevel, Namespace, NamespaceId, NamespaceName, ParquetFile,
+    ParquetFileId, ParquetFileParams, Partition, PartitionId, PartitionKey, SkippedCompaction,
+    Table, TableId, Timestamp,
 };
 use iox_time::{SystemProvider, TimeProvider};
 use observability_deps::tracing::{debug, info, warn};
@@ -1619,7 +1619,7 @@ mod tests {
     use super::*;
     use crate::test_helpers::{arbitrary_namespace, arbitrary_table};
     use assert_matches::assert_matches;
-    use data_types::{ColumnId, ColumnSet, TemplatePart};
+    use data_types::{partition_template::TemplatePart, ColumnId, ColumnSet};
     use generated_types::influxdata::iox::partition_template::v1 as proto;
     use metric::{Attributes, DurationHistogram, Metric};
     use rand::Rng;

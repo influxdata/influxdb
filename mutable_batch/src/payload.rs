@@ -1,7 +1,7 @@
 //! Write payload abstractions derived from [`MutableBatch`]
 
 use crate::{column::ColumnData, MutableBatch, Result};
-use data_types::{PartitionKey, TablePartitionTemplateOverride};
+use data_types::{partition_template::TablePartitionTemplateOverride, PartitionKey};
 use hashbrown::HashMap;
 use schema::TIME_COLUMN_NAME;
 use std::{num::NonZeroUsize, ops::Range};

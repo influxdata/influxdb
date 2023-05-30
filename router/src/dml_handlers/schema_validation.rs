@@ -1,7 +1,9 @@
 use std::{ops::DerefMut, sync::Arc};
 
 use async_trait::async_trait;
-use data_types::{NamespaceName, NamespaceSchema, TableId, TablePartitionTemplateOverride};
+use data_types::{
+    partition_template::TablePartitionTemplateOverride, NamespaceName, NamespaceSchema, TableId,
+};
 use hashbrown::HashMap;
 use iox_catalog::{
     interface::{Catalog, Error as CatalogError},

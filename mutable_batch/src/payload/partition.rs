@@ -7,7 +7,7 @@ use crate::{
     MutableBatch,
 };
 use chrono::{format::StrftimeItems, TimeZone, Utc};
-use data_types::{TablePartitionTemplateOverride, TemplatePart};
+use data_types::partition_template::{TablePartitionTemplateOverride, TemplatePart};
 use schema::{InfluxColumnType, TIME_COLUMN_NAME};
 use std::ops::Range;
 

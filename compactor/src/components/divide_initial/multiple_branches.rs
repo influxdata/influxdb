@@ -110,12 +110,18 @@ impl DivideInitial for MultipleBranchesDivideInitial {
 /// and deduplicate correctly to fewer and larger but same level files
 ///
 /// All given files are in the same given start_level.
-/// They will be sorted on their `max_l0_created_at` if the start_level is 0,
+/// They will be sorted on their `max_l0_created_at` (then `min_time`) if the start_level is 0,
 /// otherwise on their `min_time`
 pub fn order_files(files: Vec<ParquetFile>, start_level: CompactionLevel) -> Vec<ParquetFile> {
     let mut files = files;
     if start_level == CompactionLevel::Initial {
-        files.sort_by(|a, b| a.max_l0_created_at.cmp(&b.max_l0_created_at));
+        files.sort_by(|a, b| {
+            if a.max_l0_created_at == b.max_l0_created_at {
+                a.min_time.cmp(&b.min_time)
+            } else {
+                a.max_l0_created_at.cmp(&b.max_l0_created_at)
+            }
+        })
     } else {
         files.sort_by(|a, b| a.min_time.cmp(&b.min_time));
     }
