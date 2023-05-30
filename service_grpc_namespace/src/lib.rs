@@ -19,7 +19,8 @@ use workspace_hack as _;
 use std::sync::Arc;
 
 use data_types::{
-    Namespace as CatalogNamespace, NamespaceName, NamespacePartitionTemplateOverride,
+    partition_template::NamespacePartitionTemplateOverride, Namespace as CatalogNamespace,
+    NamespaceName,
 };
 use generated_types::influxdata::iox::namespace::v1::{
     update_namespace_service_protection_limit_request::LimitUpdate, *,

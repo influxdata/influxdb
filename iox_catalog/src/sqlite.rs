@@ -15,10 +15,10 @@ use crate::{
 };
 use async_trait::async_trait;
 use data_types::{
+    partition_template::{NamespacePartitionTemplateOverride, TablePartitionTemplateOverride},
     Column, ColumnId, ColumnSet, ColumnType, CompactionLevel, Namespace, NamespaceId,
-    NamespaceName, NamespacePartitionTemplateOverride, ParquetFile, ParquetFileId,
-    ParquetFileParams, Partition, PartitionId, PartitionKey, SkippedCompaction, Table, TableId,
-    TablePartitionTemplateOverride, Timestamp,
+    NamespaceName, ParquetFile, ParquetFileId, ParquetFileParams, Partition, PartitionId,
+    PartitionKey, SkippedCompaction, Table, TableId, Timestamp,
 };
 use serde::{Deserialize, Serialize};
 use std::collections::HashSet;
@@ -1491,7 +1491,7 @@ mod tests {
     use super::*;
     use crate::test_helpers::{arbitrary_namespace, arbitrary_table};
     use assert_matches::assert_matches;
-    use data_types::TemplatePart;
+    use data_types::partition_template::TemplatePart;
     use generated_types::influxdata::iox::partition_template::v1 as proto;
     use metric::{Attributes, DurationHistogram, Metric};
     use std::sync::Arc;

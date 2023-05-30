@@ -2,10 +2,10 @@
 
 use async_trait::async_trait;
 use data_types::{
+    partition_template::{NamespacePartitionTemplateOverride, TablePartitionTemplateOverride},
     Column, ColumnType, ColumnsByName, CompactionLevel, Namespace, NamespaceId, NamespaceName,
-    NamespacePartitionTemplateOverride, NamespaceSchema, ParquetFile, ParquetFileId,
-    ParquetFileParams, Partition, PartitionId, PartitionKey, SkippedCompaction, Table, TableId,
-    TablePartitionTemplateOverride, TableSchema, Timestamp,
+    NamespaceSchema, ParquetFile, ParquetFileId, ParquetFileParams, Partition, PartitionId,
+    PartitionKey, SkippedCompaction, Table, TableId, TableSchema, Timestamp,
 };
 use iox_time::TimeProvider;
 use snafu::{OptionExt, Snafu};

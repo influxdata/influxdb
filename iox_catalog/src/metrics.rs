@@ -6,10 +6,10 @@ use crate::interface::{
 };
 use async_trait::async_trait;
 use data_types::{
-    Column, ColumnType, CompactionLevel, Namespace, NamespaceId, NamespaceName,
-    NamespacePartitionTemplateOverride, ParquetFile, ParquetFileId, ParquetFileParams, Partition,
-    PartitionId, PartitionKey, SkippedCompaction, Table, TableId, TablePartitionTemplateOverride,
-    Timestamp,
+    partition_template::{NamespacePartitionTemplateOverride, TablePartitionTemplateOverride},
+    Column, ColumnType, CompactionLevel, Namespace, NamespaceId, NamespaceName, ParquetFile,
+    ParquetFileId, ParquetFileParams, Partition, PartitionId, PartitionKey, SkippedCompaction,
+    Table, TableId, Timestamp,
 };
 use iox_time::{SystemProvider, TimeProvider};
 use metric::{DurationHistogram, Metric};
