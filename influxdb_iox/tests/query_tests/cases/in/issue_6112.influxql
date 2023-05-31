@@ -366,6 +366,13 @@ SELECT MEAN(usage_idle), MEAN(bytes_free) FROM cpu, disk WHERE time >= '2022-10-
 SELECT MEAN(usage_idle) FROM cpu WHERE time >= '2022-10-31T02:00:00Z' AND time <= '2022-10-31T02:00:10Z' GROUP BY TIME(2s) FILL(linear) LIMIT 3 OFFSET 1;
 SELECT MEAN(usage_idle), MEAN(bytes_free) FROM cpu, disk WHERE time >= '2022-10-31T02:00:00Z' AND time <= '2022-10-31T02:00:10Z' GROUP BY TIME(2s) FILL(linear) LIMIT 3 OFFSET 1;
 
+-- determines correct time range when multiple lower bounds
+-- expected: pick narrowest lower bound
+SELECT MEAN(usage_idle) FROM cpu WHERE time >= '2022-10-31T02:00:04Z' AND time >= '2022-10-31T02:00:00Z' AND time <= '2022-10-31T02:00:10Z' GROUP BY TIME(2s) FILL(0);
+-- determines correct time range when multiple upper bounds
+-- expected: pick narrowest upper bound
+SELECT MEAN(usage_idle) FROM cpu WHERE time >= '2022-10-31T02:00:00Z' AND time < '2022-10-31T02:00:10Z' AND time <= '2022-10-31T02:00:10Z' GROUP BY TIME(2s) FILL(0);
+
 -- interpolates NULLs if there is no subsequent value
 SELECT MEAN(usage_idle) FROM cpu WHERE time >= '2022-10-31T02:00:00Z' AND time < '2022-10-31T02:00:10Z' GROUP BY TIME(2s) FILL(linear);
 

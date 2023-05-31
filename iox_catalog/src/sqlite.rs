@@ -261,7 +261,7 @@ impl RepoCollection for SqliteTxn {
 impl NamespaceRepo for SqliteTxn {
     async fn create(
         &mut self,
-        name: &NamespaceName,
+        name: &NamespaceName<'_>,
         partition_template: Option<NamespacePartitionTemplateOverride>,
         retention_period_ns: Option<i64>,
     ) -> Result<Namespace> {

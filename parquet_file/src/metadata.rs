@@ -989,7 +989,7 @@ mod tests {
         record_batch::RecordBatch,
     };
     use data_types::CompactionLevel;
-    use datafusion_util::MemoryStream;
+    use datafusion_util::{unbounded_memory_pool, MemoryStream};
     use schema::builder::SchemaBuilder;
 
     #[test]
@@ -1055,9 +1055,10 @@ mod tests {
         let batch = RecordBatch::try_new(schema, vec![data, timestamps]).unwrap();
         let stream = Box::pin(MemoryStream::new(vec![batch.clone()]));
 
-        let (bytes, file_meta) = crate::serialize::to_parquet_bytes(stream, &meta)
-            .await
-            .expect("should serialize");
+        let (bytes, file_meta) =
+            crate::serialize::to_parquet_bytes(stream, &meta, unbounded_memory_pool())
+                .await
+                .expect("should serialize");
 
         // Verify if the parquet file meta data has values
         assert!(!file_meta.row_groups.is_empty());

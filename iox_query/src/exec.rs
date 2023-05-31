@@ -23,6 +23,7 @@ use datafusion::{
     self,
     execution::{
         disk_manager::DiskManagerConfig,
+        memory_pool::MemoryPool,
         runtime_env::{RuntimeConfig, RuntimeEnv},
     },
     logical_expr::{expr_rewriter::normalize_col, Extension},
@@ -230,6 +231,11 @@ impl Executor {
     pub async fn join(&self) {
         self.executors.query_exec.join().await;
         self.executors.reorg_exec.join().await;
+    }
+
+    /// Returns the memory pool associated with this `Executor`
+    pub fn pool(&self) -> Arc<dyn MemoryPool> {
+        Arc::clone(&self.runtime.memory_pool)
     }
 }
 

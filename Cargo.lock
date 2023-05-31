@@ -150,8 +150,7 @@ checksum = "8da52d66c7071e2e3fa2a1e5c6d088fec47b593032b254f5e980de8ea54454d6"
 [[package]]
 name = "arrow"
 version = "40.0.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "6619cab21a0cdd8c9b9f1d9e09bfaa9b1974e5ef809a6566aef0b998caf38ace"
+source = "git+https://github.com/alamb/arrow-rs?rev=4a59200#4a59200c81e90b838f36f002fb1f3a947665bc8d"
 dependencies = [
  "ahash 0.8.3",
  "arrow-arith",
@@ -172,8 +171,7 @@ dependencies = [
 [[package]]
 name = "arrow-arith"
 version = "40.0.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "e0dc95485623a76e00929bda8caa40c1f838190952365c4f43a7b9ae86d03e94"
+source = "git+https://github.com/alamb/arrow-rs?rev=4a59200#4a59200c81e90b838f36f002fb1f3a947665bc8d"
 dependencies = [
  "arrow-array",
  "arrow-buffer",
@@ -187,8 +185,7 @@ dependencies = [
 [[package]]
 name = "arrow-array"
 version = "40.0.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "3267847f53d3042473cfd2c769afd8d74a6d7d201fc3a34f5cb84c0282ef47a7"
+source = "git+https://github.com/alamb/arrow-rs?rev=4a59200#4a59200c81e90b838f36f002fb1f3a947665bc8d"
 dependencies = [
  "ahash 0.8.3",
  "arrow-buffer",
@@ -204,8 +201,7 @@ dependencies = [
 [[package]]
 name = "arrow-buffer"
 version = "40.0.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "c5f66553e66e120ac4b21570368ee9ebf35ff3f5399f872b0667699e145678f5"
+source = "git+https://github.com/alamb/arrow-rs?rev=4a59200#4a59200c81e90b838f36f002fb1f3a947665bc8d"
 dependencies = [
  "half 2.2.1",
  "num",
@@ -214,8 +210,7 @@ dependencies = [
 [[package]]
 name = "arrow-cast"
 version = "40.0.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "65e6f3579dbf0d97c683d451b2550062b0f0e62a3169bf74238b5f59f44ad6d8"
+source = "git+https://github.com/alamb/arrow-rs?rev=4a59200#4a59200c81e90b838f36f002fb1f3a947665bc8d"
 dependencies = [
  "arrow-array",
  "arrow-buffer",
@@ -231,8 +226,7 @@ dependencies = [
 [[package]]
 name = "arrow-csv"
 version = "40.0.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "373579c4c1a8f5307d3125b7a89c700fcf8caf85821c77eb4baab3855ae0aba5"
+source = "git+https://github.com/alamb/arrow-rs?rev=4a59200#4a59200c81e90b838f36f002fb1f3a947665bc8d"
 dependencies = [
  "arrow-array",
  "arrow-buffer",
@@ -250,8 +244,7 @@ dependencies = [
 [[package]]
 name = "arrow-data"
 version = "40.0.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "61bc8df9912cca6642665fdf989d6fa0de2570f18a7f709bcf59d29de96d2097"
+source = "git+https://github.com/alamb/arrow-rs?rev=4a59200#4a59200c81e90b838f36f002fb1f3a947665bc8d"
 dependencies = [
  "arrow-buffer",
  "arrow-schema",
@@ -282,8 +275,7 @@ dependencies = [
 [[package]]
 name = "arrow-ipc"
 version = "40.0.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "0105dcf5f91daa7182d87b713ee0b32b3bfc88e0c48e7dc3e9d6f1277a07d1ae"
+source = "git+https://github.com/alamb/arrow-rs?rev=4a59200#4a59200c81e90b838f36f002fb1f3a947665bc8d"
 dependencies = [
  "arrow-array",
  "arrow-buffer",
@@ -296,8 +288,7 @@ dependencies = [
 [[package]]
 name = "arrow-json"
 version = "40.0.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "e73134fb5b5ec8770f8cbb214c2c487b2d350081e403ca4eeeb6f8f5e19846ac"
+source = "git+https://github.com/alamb/arrow-rs?rev=4a59200#4a59200c81e90b838f36f002fb1f3a947665bc8d"
 dependencies = [
  "arrow-array",
  "arrow-buffer",
@@ -316,8 +307,7 @@ dependencies = [
 [[package]]
 name = "arrow-ord"
 version = "40.0.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "89f25bc66e18d4c2aa1fe2f9bb03e2269da60e636213210385ae41a107f9965a"
+source = "git+https://github.com/alamb/arrow-rs?rev=4a59200#4a59200c81e90b838f36f002fb1f3a947665bc8d"
 dependencies = [
  "arrow-array",
  "arrow-buffer",
@@ -331,8 +321,7 @@ dependencies = [
 [[package]]
 name = "arrow-row"
 version = "40.0.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "1095ff85ea4f5ff02d17b30b089de31b51a50be01c6b674f0a0509ab771232f1"
+source = "git+https://github.com/alamb/arrow-rs?rev=4a59200#4a59200c81e90b838f36f002fb1f3a947665bc8d"
 dependencies = [
  "ahash 0.8.3",
  "arrow-array",
@@ -346,14 +335,12 @@ dependencies = [
 [[package]]
 name = "arrow-schema"
 version = "40.0.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "25187bbef474151a2e4ddec67b9e34bda5cbfba292dc571392fa3a1f71ff5a82"
+source = "git+https://github.com/alamb/arrow-rs?rev=4a59200#4a59200c81e90b838f36f002fb1f3a947665bc8d"
 
 [[package]]
 name = "arrow-select"
 version = "40.0.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "fd0d4ee884aec3aa05e41478e3cd312bf609de9babb5d187a43fb45931da4da4"
+source = "git+https://github.com/alamb/arrow-rs?rev=4a59200#4a59200c81e90b838f36f002fb1f3a947665bc8d"
 dependencies = [
  "arrow-array",
  "arrow-buffer",
@@ -365,8 +352,7 @@ dependencies = [
 [[package]]
 name = "arrow-string"
 version = "40.0.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "d6d71c3ffe4c07e66ce8fdc6aed5b00e0e60c5144911879b10546f5b72d8fa1c"
+source = "git+https://github.com/alamb/arrow-rs?rev=4a59200#4a59200c81e90b838f36f002fb1f3a947665bc8d"
 dependencies = [
  "arrow-array",
  "arrow-buffer",
@@ -2827,6 +2813,7 @@ dependencies = [
  "pretty_assertions",
  "rand 0.8.5",
  "serde",
+ "siphasher",
  "snafu",
  "sqlx",
  "sqlx-hotswap-pool",
@@ -3974,8 +3961,7 @@ dependencies = [
 [[package]]
 name = "parquet"
 version = "40.0.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "d6a656fcc17e641657c955742c689732684e096f790ff30865d9f8dcc39f7c4a"
+source = "git+https://github.com/alamb/arrow-rs?rev=4a59200#4a59200c81e90b838f36f002fb1f3a947665bc8d"
 dependencies = [
  "ahash 0.8.3",
  "arrow-array",
@@ -4023,8 +4009,10 @@ dependencies = [
  "parquet",
  "pbjson-types",
  "prost",
+ "rand 0.8.5",
  "schema",
  "snafu",
+ "test_helpers",
  "thiserror",
  "thrift",
  "tokio",
