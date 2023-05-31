@@ -5,7 +5,6 @@ mod field_mapper;
 mod influxql_time_range_expression;
 mod ir;
 mod planner;
-mod planner_rewrite_expression;
 mod rewriter;
 mod test_utils;
 mod timestamp;

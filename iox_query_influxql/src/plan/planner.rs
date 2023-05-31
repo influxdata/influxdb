@@ -1,5 +1,7 @@
+mod rewrite_expression;
 mod select;
 
+use crate::plan::error;
 use crate::plan::influxql_time_range_expression::{
     duration_expr_to_nanoseconds, expr_to_df_interval_dt, time_range_to_df_expr,
 };
@@ -10,7 +12,6 @@ use crate::plan::planner::select::{
 use crate::plan::rewriter::{find_table_names, rewrite_statement, ProjectionType};
 use crate::plan::util::{binary_operator_to_df_operator, rebase_expr, Schemas};
 use crate::plan::var_ref::var_ref_data_type_to_data_type;
-use crate::plan::{error, planner_rewrite_expression};
 use arrow::array::{StringBuilder, StringDictionaryBuilder};
 use arrow::datatypes::{DataType, Field as ArrowField, Int32Type, Schema as ArrowSchema};
 use arrow::record_batch::RecordBatch;
@@ -924,7 +925,7 @@ impl<'a> InfluxQLToLogicalPlan<'a> {
         schemas: &Schemas,
     ) -> Result<Expr> {
         let expr = self.expr_to_df_expr(ctx, ExprScope::Projection, &field.expr, schemas)?;
-        let expr = planner_rewrite_expression::rewrite_field_expr(expr, schemas)?;
+        let expr = rewrite_expression::rewrite_field_expr(expr, schemas)?;
         normalize_col(expr.alias(&field.name), plan)
     }
 
@@ -1274,7 +1275,7 @@ impl<'a> InfluxQLToLogicalPlan<'a> {
         match condition {
             Some(where_clause) => {
                 let filter_expr = self.conditional_to_df_expr(ctx, where_clause, schemas)?;
-                let filter_expr = planner_rewrite_expression::rewrite_conditional_expr(
+                let filter_expr = rewrite_expression::rewrite_conditional_expr(
                     self.s.execution_props(),
                     filter_expr,
                     schemas,

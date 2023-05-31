@@ -143,7 +143,7 @@ use datafusion_util::AsExpr;
 use observability_deps::tracing::trace;
 use predicate::rpc_predicate::{iox_expr_rewrite, simplify_predicate};
 
-use super::ir::DataSourceSchema;
+use super::super::ir::DataSourceSchema;
 
 /// Perform a series of passes to rewrite `expr` in compliance with InfluxQL behavior
 /// in an effort to ensure the query executes without error.
@@ -216,7 +216,7 @@ fn log_rewrite(expr: Expr, description: &str) -> Expr {
 
 /// Perform a series of passes to rewrite `expr`, used as a column projection,
 /// to match the behavior of InfluxQL.
-pub(super) fn rewrite_field_expr(expr: Expr, schemas: &Schemas) -> Result<Expr> {
+pub(in crate::plan) fn rewrite_field_expr(expr: Expr, schemas: &Schemas) -> Result<Expr> {
     rewrite_expr(expr, schemas)
 }
 
