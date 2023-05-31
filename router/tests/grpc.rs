@@ -986,7 +986,7 @@ async fn test_namespace_partition_template_implicit_table_creation() {
         let table_id = ctx.table_id("bananas_test", "plantains").await.get();
         assert_eq!(table_batches.len(), 1);
         assert_eq!(table_batches[0].table_id, table_id);
-        assert_eq!(partition_key, "tag1_A");
+        assert_eq!(partition_key, "A");
     });
 }
 
@@ -1051,7 +1051,7 @@ async fn test_namespace_partition_template_explicit_table_creation_without_parti
         let table_id = ctx.table_id("bananas_test", "plantains").await.get();
         assert_eq!(table_batches.len(), 1);
         assert_eq!(table_batches[0].table_id, table_id);
-        assert_eq!(partition_key, "tag1_A");
+        assert_eq!(partition_key, "A");
     });
 }
 
@@ -1120,7 +1120,7 @@ async fn test_namespace_partition_template_explicit_table_creation_with_partitio
         let table_id = ctx.table_id("bananas_test", "plantains").await.get();
         assert_eq!(table_batches.len(), 1);
         assert_eq!(table_batches[0].table_id, table_id);
-        assert_eq!(partition_key, "tag2_B");
+        assert_eq!(partition_key, "B");
     });
 }
 
@@ -1185,6 +1185,6 @@ async fn test_namespace_without_partition_template_table_with_partition_template
         let table_id = ctx.table_id("bananas_test", "plantains").await.get();
         assert_eq!(table_batches.len(), 1);
         assert_eq!(table_batches[0].table_id, table_id);
-        assert_eq!(partition_key, "tag2_B");
+        assert_eq!(partition_key, "B");
     });
 }
