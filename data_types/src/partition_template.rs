@@ -26,7 +26,7 @@
 //!
 //! Should a partition template be used that generates a partition key
 //! containing more than one part, those parts are delimited by the `|`
-//! character ([`PARTITION_KEY_DELIMITER]), chosen to be an unusual character
+//! character ([`PARTITION_KEY_DELIMITER`]), chosen to be an unusual character
 //! that is unlikely to occur in user-provided column values in order to
 //! minimise the need to encode the value in the common case, while still
 //! providing legible / printable keys. Should the user-provided column value
