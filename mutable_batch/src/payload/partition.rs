@@ -146,9 +146,18 @@ fn partition_keys<'a>(
         })
         .collect::<Vec<_>>();
 
+    // Track the length of the last yielded partition key, and pre-allocate the
+    // next partition key string to match it.
+    //
+    // In the happy path, keys of consistent sizes are generated and the
+    // allocations reach a minimum. If the keys are inconsistent, at best a
+    // subset of allocations are eliminated, and at worst, a few bytes of memory
+    // is temporarily allocated until the resulting string is shrunk down.
+    let mut last_len = 5;
+
     // Yield a partition key string for each row in `batch`
     (0..batch.row_count).map(move |idx| {
-        let mut string = String::new();
+        let mut string = String::with_capacity(last_len);
 
         // Evaluate each template part for this row
         for (col_idx, col) in template.iter().enumerate() {
@@ -161,6 +170,8 @@ fn partition_keys<'a>(
             }
         }
 
+        last_len = string.len();
+        string.shrink_to_fit();
         Ok(string)
     })
 }
