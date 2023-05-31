@@ -1,3 +1,4 @@
+//! APIs for transforming InfluxQL [expressions][influxdb_influxql_parser::expression::Expr].
 use crate::plan::error;
 use crate::plan::timestamp::parse_timestamp;
 use crate::plan::util::binary_operator_to_df_operator;

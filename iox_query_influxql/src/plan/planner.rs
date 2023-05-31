@@ -1,11 +1,11 @@
 mod select;
 
+use crate::plan::influxql_time_range_expression::{
+    duration_expr_to_nanoseconds, expr_to_df_interval_dt, time_range_to_df_expr,
+};
 use crate::plan::ir::{DataSource, Field, Select, SelectQuery};
 use crate::plan::planner::select::{
     fields_to_exprs_no_nulls, make_tag_key_column_meta, plan_with_sort, ProjectionInfo,
-};
-use crate::plan::planner_time_range_expression::{
-    duration_expr_to_nanoseconds, expr_to_df_interval_dt, time_range_to_df_expr,
 };
 use crate::plan::rewriter::{find_table_names, rewrite_statement, ProjectionType};
 use crate::plan::util::{binary_operator_to_df_operator, rebase_expr, Schemas};
