@@ -2,7 +2,7 @@
 
 use crate::measurement::LineToGenerate;
 use bytes::Bytes;
-use datafusion_util::MemoryStream;
+use datafusion_util::{unbounded_memory_pool, MemoryStream};
 use futures::stream;
 use influxdb2_client::models::WriteDataPoint;
 use mutable_batch_lp::lines_to_batches;
@@ -352,12 +352,12 @@ impl InnerPointsWriter {
                         .to_arrow(Projection::All)
                         .context(ConvertToArrowSnafu)?;
                     let stream = Box::pin(MemoryStream::new(vec![record_batch]));
-
                     let meta = IoxMetadata::external(crate::now_ns(), &*measurement);
-
-                    let (data, _parquet_file_meta) = serialize::to_parquet_bytes(stream, &meta)
-                        .await
-                        .context(ParquetSerializationSnafu)?;
+                    let pool = unbounded_memory_pool();
+                    let (data, _parquet_file_meta) =
+                        serialize::to_parquet_bytes(stream, &meta, pool)
+                            .await
+                            .context(ParquetSerializationSnafu)?;
                     let data = Bytes::from(data);
 
                     let mut filename = dir_path.clone();
