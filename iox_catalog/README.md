@@ -73,3 +73,15 @@ basis. As always, there are a few ways to do that:
 ```
 psql 'dbname=iox_shared options=-csearch_path=public,iox_catalog'
 ```
+
+## Failed / Dirty Migrations
+Migrations might be marked as dirty in prod if they do not run all the way through. In this case, you have to manually
+(using a read-write shell):
+
+1. Revert the effect of the migration (e.g. drop created tables, drop created indices)
+2. Remove the migration from the `_sqlx_migrations`. E.g. if the version of the migration is 1337, this is:
+
+   ```sql
+   DELETE FROM _sqlx_migrations
+   WHERE version = 1337;
+   ```

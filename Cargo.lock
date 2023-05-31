@@ -2825,6 +2825,7 @@ dependencies = [
  "pretty_assertions",
  "rand 0.8.5",
  "serde",
+ "siphasher",
  "snafu",
  "sqlx",
  "sqlx-hotswap-pool",

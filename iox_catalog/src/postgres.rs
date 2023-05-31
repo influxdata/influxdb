@@ -11,6 +11,7 @@ use crate::{
         TRANSITION_SHARD_ID, TRANSITION_SHARD_INDEX,
     },
     metrics::MetricDecorator,
+    migrate::IOxMigrator,
     DEFAULT_MAX_COLUMNS_PER_TABLE, DEFAULT_MAX_TABLES,
 };
 use async_trait::async_trait;
@@ -127,6 +128,11 @@ impl PostgresCatalog {
     fn schema_name(&self) -> &str {
         &self.options.schema_name
     }
+
+    #[cfg(test)]
+    pub(crate) fn into_pool(self) -> HotSwapPool<Postgres> {
+        self.pool
+    }
 }
 
 impl Display for PostgresCatalog {
@@ -233,7 +239,8 @@ impl Catalog for PostgresCatalog {
             .await
             .map_err(|e| Error::Setup { source: e })?;
 
-        MIGRATOR
+        let migrator = IOxMigrator::from(&MIGRATOR);
+        migrator
             .run(&self.pool)
             .await
             .map_err(|e| Error::Setup { source: e.into() })?;
@@ -498,7 +505,7 @@ impl RepoCollection for PostgresTxn {
 impl NamespaceRepo for PostgresTxn {
     async fn create(
         &mut self,
-        name: &NamespaceName,
+        name: &NamespaceName<'_>,
         partition_template: Option<NamespacePartitionTemplateOverride>,
         retention_period_ns: Option<i64>,
     ) -> Result<Namespace> {
@@ -1614,36 +1621,32 @@ fn is_fk_violation(e: &sqlx::Error) -> bool {
     false
 }
 
+/// Test helpers postgres testing.
 #[cfg(test)]
-mod tests {
+pub(crate) mod test_utils {
     use super::*;
-    use crate::test_helpers::{arbitrary_namespace, arbitrary_table};
-    use assert_matches::assert_matches;
-    use data_types::{partition_template::TemplatePart, ColumnId, ColumnSet};
-    use generated_types::influxdata::iox::partition_template::v1 as proto;
-    use metric::{Attributes, DurationHistogram, Metric};
     use rand::Rng;
     use sqlx::migrate::MigrateDatabase;
-    use std::{env, io::Write, sync::Arc, time::Instant};
-    use tempfile::NamedTempFile;
 
-    // Helper macro to skip tests if TEST_INTEGRATION and TEST_INFLUXDB_IOX_CATALOG_DSN environment
-    // variables are not set.
+    pub const TEST_DSN_ENV: &str = "TEST_INFLUXDB_IOX_CATALOG_DSN";
+
+    /// Helper macro to skip tests if TEST_INTEGRATION and TEST_INFLUXDB_IOX_CATALOG_DSN environment
+    /// variables are not set.
     macro_rules! maybe_skip_integration {
         ($panic_msg:expr) => {{
             dotenvy::dotenv().ok();
 
-            let required_vars = ["TEST_INFLUXDB_IOX_CATALOG_DSN"];
+            let required_vars = [crate::postgres::test_utils::TEST_DSN_ENV];
             let unset_vars: Vec<_> = required_vars
                 .iter()
-                .filter_map(|&name| match env::var(name) {
+                .filter_map(|&name| match std::env::var(name) {
                     Ok(_) => None,
                     Err(_) => Some(name),
                 })
                 .collect();
             let unset_var_names = unset_vars.join(", ");
 
-            let force = env::var("TEST_INTEGRATION");
+            let force = std::env::var("TEST_INTEGRATION");
 
             if force.is_ok() && !unset_var_names.is_empty() {
                 panic!(
@@ -1674,19 +1677,9 @@ mod tests {
         };
     }
 
-    fn assert_metric_hit(metrics: &metric::Registry, name: &'static str) {
-        let histogram = metrics
-            .get_instrument::<Metric<DurationHistogram>>("catalog_op_duration")
-            .expect("failed to read metric")
-            .get_observer(&Attributes::from(&[("op", name), ("result", "success")]))
-            .expect("failed to get observer")
-            .fetch();
+    pub(crate) use maybe_skip_integration;
 
-        let hit_count = histogram.sample_count();
-        assert!(hit_count > 0, "metric did not record any calls");
-    }
-
-    async fn create_db(dsn: &str) {
+    pub async fn create_db(dsn: &str) {
         // Create the catalog database if it doesn't exist
         if !Postgres::database_exists(dsn).await.unwrap() {
             // Ignore failure if another test has already created the database
@@ -1694,7 +1687,7 @@ mod tests {
         }
     }
 
-    async fn setup_db() -> PostgresCatalog {
+    pub async fn setup_db_no_migration() -> PostgresCatalog {
         // create a random schema for this particular pool
         let schema_name = {
             // use scope to make it clear to clippy / rust that `rng` is
@@ -1741,9 +1734,58 @@ mod tests {
             .await
             .expect("failed to grant privileges to schema");
 
+        pg
+    }
+
+    pub async fn setup_db() -> PostgresCatalog {
+        let pg = setup_db_no_migration().await;
         // Run the migrations against this random schema.
         pg.setup().await.expect("failed to initialise database");
         pg
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::{
+        postgres::test_utils::{
+            create_db, maybe_skip_integration, setup_db, setup_db_no_migration,
+        },
+        test_helpers::{arbitrary_namespace, arbitrary_table},
+    };
+    use assert_matches::assert_matches;
+    use data_types::{partition_template::TemplatePart, ColumnId, ColumnSet};
+    use generated_types::influxdata::iox::partition_template::v1 as proto;
+    use metric::{Attributes, DurationHistogram, Metric};
+    use std::{io::Write, sync::Arc, time::Instant};
+    use tempfile::NamedTempFile;
+    use test_helpers::maybe_start_logging;
+
+    fn assert_metric_hit(metrics: &metric::Registry, name: &'static str) {
+        let histogram = metrics
+            .get_instrument::<Metric<DurationHistogram>>("catalog_op_duration")
+            .expect("failed to read metric")
+            .get_observer(&Attributes::from(&[("op", name), ("result", "success")]))
+            .expect("failed to get observer")
+            .fetch();
+
+        let hit_count = histogram.sample_count();
+        assert!(hit_count > 0, "metric did not record any calls");
+    }
+
+    #[tokio::test]
+    async fn test_migration() {
+        maybe_skip_integration!();
+        maybe_start_logging();
+
+        let postgres = setup_db_no_migration().await;
+
+        // 1st setup
+        postgres.setup().await.unwrap();
+
+        // 2nd setup
+        postgres.setup().await.unwrap();
     }
 
     #[tokio::test]

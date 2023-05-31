@@ -253,7 +253,7 @@ pub trait NamespaceRepo: Send + Sync {
     /// Specify `None` for `retention_period_ns` to get infinite retention.
     async fn create(
         &mut self,
-        name: &NamespaceName,
+        name: &NamespaceName<'_>,
         partition_template: Option<NamespacePartitionTemplateOverride>,
         retention_period_ns: Option<i64>,
     ) -> Result<Namespace>;

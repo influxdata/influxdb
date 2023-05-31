@@ -16,6 +16,7 @@ mutable_batch = { path = "../mutable_batch" }
 observability_deps = { path = "../observability_deps" }
 parking_lot = { version = "0.12" }
 serde = { version = "1.0", features = ["derive"] }
+siphasher = "0.3"
 snafu = "0.7"
 sqlx = { version = "0.6", features = [ "runtime-tokio-rustls" , "postgres", "uuid", "sqlite" ] }
 sqlx-hotswap-pool = { path = "../sqlx-hotswap-pool" }
