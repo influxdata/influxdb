@@ -22,12 +22,13 @@ use crate::{
 };
 
 /// An error generating a partition key for a row.
+#[allow(missing_copy_implementations)]
 #[derive(Debug, Error, PartialEq, Eq)]
 pub enum PartitionKeyError {
     /// The partition template defines a [`Template::TimeFormat`] part, but the
     /// provided strftime formatter is invalid.
-    #[error("invalid strftime format in partition template: {0}")]
-    InvalidStrftime(String),
+    #[error("invalid strftime format in partition template")]
+    InvalidStrftime,
 
     /// The partition template defines a [`Template::TagValue`] part, but the
     /// column type is not "tag".
@@ -93,7 +94,7 @@ impl<'a> Template<'a> {
                     Utc.timestamp_nanos(t[idx])
                         .format_with_items(format.clone()) // Cheap clone of refs
                 )
-                .map_err(|_| PartitionKeyError::InvalidStrftime(format!("{format:?}")))?;
+                .map_err(|_| PartitionKeyError::InvalidStrftime)?;
 
                 out.write_str(
                     Cow::from(utf8_percent_encode(
@@ -474,7 +475,7 @@ mod tests {
 
         let ret = partition_keys(&batch, template.parts()).collect::<Result<Vec<_>, _>>();
 
-        assert_matches!(ret, Err(PartitionKeyError::InvalidStrftime(_)));
+        assert_matches!(ret, Err(PartitionKeyError::InvalidStrftime));
     }
 
     // These values are arbitrarily chosen when building an input to the
@@ -605,7 +606,7 @@ mod tests {
             // properties:
             match ret {
                 Ok(v) => { assert_eq!(v.len(), 1); },
-                Err(e) => { assert_matches!(e, PartitionKeyError::InvalidStrftime(_)); },
+                Err(e) => { assert_matches!(e, PartitionKeyError::InvalidStrftime); },
             }
         }
     }
