@@ -26,6 +26,8 @@ pub(super) fn new_schemas() -> (Schemas, DataSourceSchema<'static>) {
     (Schemas { df_schema }, DataSourceSchema::Table(iox_schema))
 }
 
+/// Return execution properties with a date of `2023-01-01T00:00:00Z`, which may be used to
+/// evaluate the `now` function in data fusion logical expressions during simplification.
 pub(super) fn execution_props() -> ExecutionProps {
     let start_time = NaiveDate::from_ymd_opt(2023, 1, 1)
         .unwrap()
