@@ -1,5 +1,7 @@
 mod rewrite_expression;
 mod select;
+mod test_utils;
+mod time_range;
 
 use crate::plan::error;
 use crate::plan::influxql_time_range_expression::{
