@@ -109,7 +109,7 @@ function influxd_config() {
                     echo "${BASH_REMATCH[1]}" ; return
                 fi
         fi
-    done <<< "$(influxd config -config "${CONFIG}" 2>/dev/null)"
+    done <<< "$(influxd config -config "${CONFIG}" ${INFLUXD_OPTS} 2>/dev/null)"
 }
 
 function log_failure_msg() {
