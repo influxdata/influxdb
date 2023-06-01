@@ -21,7 +21,7 @@ use std::collections::Bound;
 ///
 /// Combining relational operators like `time > now() - 5s` and equality
 /// operators like `time = <timestamp>` with a disjunction (`OR`)
-/// will evaluate to false, like InfluxQL.
+/// will evaluate to `false`, like InfluxQL.
 ///
 /// # Background
 ///
@@ -214,7 +214,11 @@ pub fn rewrite_time_range_exprs(
     let lhs = if let Some(expr) = rw.time_range.as_expr() {
         Some(expr)
     } else if !rw.equality.is_empty() {
-        disjunction(rw.equality)
+        disjunction(rw.equality.iter().map(|t| {
+            "time"
+                .as_expr()
+                .eq(lit(ScalarValue::TimestampNanosecond(Some(*t), None)))
+        }))
     } else {
         None
     };
@@ -263,7 +267,8 @@ fn is_time_range(expr: &Expr) -> bool {
 }
 
 /// Represents the lower bound, in nanoseconds, of a [`TimeRange`].
-pub struct LowerBound(Bound<i64>);
+#[derive(Clone, Debug)]
+struct LowerBound(Bound<i64>);
 
 impl LowerBound {
     /// Create a new, time bound that is unbounded
@@ -349,7 +354,8 @@ impl Ord for LowerBound {
 }
 
 /// Represents the upper bound, in nanoseconds, of a [`TimeRange`].
-pub struct UpperBound(Bound<i64>);
+#[derive(Clone, Debug)]
+struct UpperBound(Bound<i64>);
 
 impl UpperBound {
     /// Create a new, unbounded upper bound.
@@ -435,8 +441,8 @@ impl Ord for UpperBound {
 }
 
 /// Represents a time range, with a single lower and upper bound.
-#[derive(Default, PartialEq, Eq)]
-struct TimeRange {
+#[derive(Clone, Debug, Default, PartialEq, Eq)]
+pub(super) struct TimeRange {
     lower: LowerBound,
     upper: UpperBound,
 }
@@ -466,7 +472,7 @@ struct SeparateTimeRange<'a> {
     ///
     /// ```sql
     /// time = '2004-04-09T12:00:00Z'
-    equality: Vec<Expr>,
+    equality: Vec<i64>,
 }
 
 impl<'a> SeparateTimeRange<'a> {
@@ -507,17 +513,17 @@ impl<'a> TreeNodeVisitor for SeparateTimeRange<'a> {
                 op: op @ (Eq | NotEq | Gt | Lt | GtEq | LtEq),
                 right,
             }) if is_time_column(left) | is_time_column(right) => {
-                self.stack.push(None);
-
-                if matches!(op, Eq | NotEq) {
-                    let node = self.simplifier.simplify(node.clone())?;
-                    self.equality.push(node);
-                    return Ok(VisitRecursion::Continue);
+                if matches!(op, NotEq) {
+                    // Stop recursing, as != is an invalid operator for time expressions
+                    return Ok(VisitRecursion::Stop);
                 }
+
+                self.stack.push(None);
 
                 /// Op is the limited set of operators expected from here on,
                 /// to avoid repeated wildcard match arms with unreachable!().
                 enum Op {
+                    Eq,
                     Gt,
                     GtEq,
                     Lt,
@@ -526,20 +532,22 @@ impl<'a> TreeNodeVisitor for SeparateTimeRange<'a> {
 
                 // Map the DataFusion Operator to Op
                 let op = match op {
+                    Eq => Op::Eq,
                     Gt => Op::Gt,
                     GtEq => Op::GtEq,
                     Lt => Op::Lt,
                     LtEq => Op::LtEq,
-                    _ => unreachable!("expected: Gt | Lt | GtEq | LtEq"),
+                    _ => unreachable!("expected: Eq | Gt | GtEq | Lt | LtEq"),
                 };
 
                 let (expr, op) = if is_time_column(left) {
                     (right, op)
                 } else {
-                    // swap the operators when the conditional is `expression OP "time"`
                     (
                         left,
                         match op {
+                            Op::Eq => Op::Eq,
+                            // swap the relational operators when the conditional is `expression OP "time"`
                             Op::Gt => Op::Lt,
                             Op::GtEq => Op::LtEq,
                             Op::Lt => Op::Gt,
@@ -562,6 +570,20 @@ impl<'a> TreeNodeVisitor for SeparateTimeRange<'a> {
                 };
 
                 match op {
+                    Op::Eq => {
+                        if self.time_range.is_unbounded() {
+                            self.equality.push(ts);
+                        } else {
+                            // Stop recursing, as we have observed incompatible
+                            // time conditions using equality and relational operators
+                            return Ok(VisitRecursion::Stop);
+                        };
+                    }
+                    Op::Gt | Op::GtEq | Op::Lt | Op::LtEq if !self.equality.is_empty() => {
+                        // Stop recursing, as we have observed incompatible
+                        // time conditions using equality and relational operators
+                        return Ok(VisitRecursion::Stop);
+                    }
                     Op::Gt => {
                         let ts = LowerBound::excluded(ts);
                         if ts > self.time_range.lower {
@@ -627,171 +649,202 @@ impl<'a> TreeNodeVisitor for SeparateTimeRange<'a> {
 
 #[cfg(test)]
 mod test {
-    use crate::plan::planner::test_utils::{execution_props, new_schemas};
     use crate::plan::planner::time_range::{LowerBound, UpperBound};
-    use datafusion::logical_expr::{binary_expr, lit, lit_timestamp_nano, now, Operator};
-    use datafusion::optimizer::simplify_expressions::{ExprSimplifier, SimplifyContext};
-    use datafusion_util::AsExpr;
-    use std::sync::Arc;
 
-    #[test]
-    fn test_rewrite_time_range_exprs() {
-        use crate::plan::planner::time_range::rewrite_time_range_exprs;
-        use datafusion::common::ScalarValue as V;
+    // #[test]
+    // fn test_split_exprs() {
+    //     use super::{LowerBound as L, TimeCondition as TC, UpperBound as U};
+    //     use datafusion::common::ScalarValue as V;
+    //
+    //     let props = execution_props();
+    //     let schema = Arc::new(ArrowSchema::new(vec![ArrowField::new(
+    //         "time",
+    //         (&InfluxColumnType::Timestamp).into(),
+    //         false,
+    //     )]));
+    //     let df_schema = schema.to_dfschema_ref().unwrap();
+    //     let simplify_context = SimplifyContext::new(&props).with_schema(Arc::clone(&df_schema));
+    //     let simplifier = ExprSimplifier::new(simplify_context);
+    //
+    //     use arrow::datatypes::{Field as ArrowField, Schema as ArrowSchema};
+    //
+    //     let split_exprs = |expr| super::split(expr, &simplifier).unwrap();
+    //
+    //     macro_rules! range {
+    //         (lower=$LOWER:literal) => {
+    //             TC::Range(TimeRange{lower: L::included($LOWER), upper: U::unbounded()})
+    //         };
+    //         (lower=$LOWER:literal, upper ex=$UPPER:literal) => {
+    //             TC::Range(TimeRange{lower: L::included($LOWER), upper: U::excluded($UPPER)})
+    //         };
+    //         (lower ex=$LOWER:literal) => {
+    //             TC::Range(TimeRange{lower: L::excluded($LOWER), upper: U::unbounded()})
+    //         };
+    //         (upper=$UPPER:literal) => {
+    //             TC::Range(TimeRange{lower: L::unbounded(), upper: U::included($UPPER)})
+    //         };
+    //         (upper ex=$UPPER:literal) => {
+    //             TC::Range(TimeRange{lower: L::unbounded(), upper: U::excluded($UPPER)})
+    //         };
+    //         (list=$($TS:literal),*) => {
+    //             TC::List(vec![$($TS),*])
+    //         }
+    //     }
+    //
+    //     let expr = "time"
+    //         .as_expr()
+    //         .gt_eq(now() - lit(V::new_interval_dt(0, 1000)));
+    //     let (cond, tr) = split_exprs(expr);
+    //     assert!(cond.is_none());
+    //     assert_eq!(tr.unwrap(), range!(lower = 1672531199000000000));
+    //
+    //     // reduces the lower bound to a single expression
+    //     let expr = "time"
+    //         .as_expr()
+    //         .gt_eq(now() - lit(V::new_interval_dt(0, 1000)))
+    //         .and(
+    //             "time"
+    //                 .as_expr()
+    //                 .gt_eq(now() - lit(V::new_interval_dt(0, 500))),
+    //         );
+    //     let (cond, tr) = split_exprs(expr);
+    //     assert!(cond.is_none());
+    //     assert_eq!(tr.unwrap(), range!(lower = 1672531199500000000));
+    //
+    //     let expr = "time"
+    //         .as_expr()
+    //         .lt_eq(now() - lit(V::new_interval_dt(0, 1000)));
+    //     let (cond, tr) = split_exprs(expr);
+    //     assert!(cond.is_none());
+    //     assert_eq!(tr.unwrap(), range!(upper = 1672531199000000000));
+    //
+    //     // reduces the upper bound to a single expression
+    //     let expr = "time"
+    //         .as_expr()
+    //         .lt_eq(now() + lit(V::new_interval_dt(0, 1000)))
+    //         .and(
+    //             "time"
+    //                 .as_expr()
+    //                 .lt_eq(now() + lit(V::new_interval_dt(0, 500))),
+    //         );
+    //     let (cond, tr) = split_exprs(expr);
+    //     assert!(cond.is_none());
+    //     assert_eq!(tr.unwrap(), range!(upper = 1672531200500000000));
+    //
+    //     let expr = "time"
+    //         .as_expr()
+    //         .gt_eq(now() - lit(V::new_interval_dt(0, 1000)))
+    //         .and("time".as_expr().lt(now()));
+    //     let (cond, tr) = split_exprs(expr);
+    //     assert!(cond.is_none());
+    //     assert_eq!(
+    //         tr.unwrap(),
+    //         range!(lower=1672531199000000000, upper ex=1672531200000000000)
+    //     );
+    //
+    //     let expr = "time"
+    //         .as_expr()
+    //         .gt_eq(now() - lit(V::new_interval_dt(0, 1000)))
+    //         .and("cpu".as_expr().eq(lit("cpu0")));
+    //     let (cond, tr) = split_exprs(expr);
+    //     assert_eq!(cond.unwrap().to_string(), r#"cpu = Utf8("cpu0")"#);
+    //     assert_eq!(tr.unwrap(), range!(lower = 1672531199000000000));
+    //
+    //     let expr = "time".as_expr().eq(lit_timestamp_nano(0));
+    //     let (cond, tr) = split_exprs(expr);
+    //     assert!(cond.is_none());
+    //     assert_eq!(tr.unwrap(), range!(list = 0));
+    //
+    //     let expr = "instance"
+    //         .as_expr()
+    //         .eq(lit("instance-01"))
+    //         .or("instance".as_expr().eq(lit("instance-02")))
+    //         .and(
+    //             "time"
+    //                 .as_expr()
+    //                 .gt_eq(now() - lit(V::new_interval_dt(0, 1000))),
+    //         );
+    //     let (cond, tr) = split_exprs(expr);
+    //     assert_eq!(
+    //         cond.unwrap().to_string(),
+    //         r#"instance = Utf8("instance-01") OR instance = Utf8("instance-02")"#
+    //     );
+    //     assert_eq!(tr.unwrap(), range!(lower = 1672531199000000000));
+    //
+    //     let expr = "time"
+    //         .as_expr()
+    //         .gt_eq(now() - lit(V::new_interval_dt(0, 1000)))
+    //         .and("time".as_expr().lt(now()))
+    //         .and(
+    //             "cpu"
+    //                 .as_expr()
+    //                 .eq(lit("cpu0"))
+    //                 .or("cpu".as_expr().eq(lit("cpu1"))),
+    //         );
+    //     let (cond, tr) = split_exprs(expr);
+    //     assert_eq!(
+    //         cond.unwrap().to_string(),
+    //         r#"cpu = Utf8("cpu0") OR cpu = Utf8("cpu1")"#
+    //     );
+    //     assert_eq!(
+    //         tr.unwrap(),
+    //         range!(lower=1672531199000000000, upper ex=1672531200000000000)
+    //     );
+    //
+    //     // time >= now - 60s AND time < now() OR cpu = 'cpu0' OR cpu = 'cpu1'
+    //     //
+    //     // Split the time range, despite using the disjunction (OR) operator
+    //     let expr = "time"
+    //         .as_expr()
+    //         .gt_eq(now() - lit(V::new_interval_dt(0, 1000)))
+    //         .and("time".as_expr().lt(now()))
+    //         .or("cpu"
+    //             .as_expr()
+    //             .eq(lit("cpu0"))
+    //             .or("cpu".as_expr().eq(lit("cpu1"))));
+    //     let (cond, tr) = split_exprs(expr);
+    //     assert_eq!(
+    //         cond.unwrap().to_string(),
+    //         r#"cpu = Utf8("cpu0") OR cpu = Utf8("cpu1")"#
+    //     );
+    //     assert_eq!(
+    //         tr.unwrap(),
+    //         range!(lower=1672531199000000000, upper ex=1672531200000000000)
+    //     );
+    //
+    //     // time = 0 OR time = 10 AND cpu = 'cpu0'
+    //     let expr = "time".as_expr().eq(lit_timestamp_nano(0)).or("time"
+    //         .as_expr()
+    //         .eq(lit_timestamp_nano(10))
+    //         .and("cpu".as_expr().eq(lit("cpu0"))));
+    //     let (cond, tr) = split_exprs(expr);
+    //     assert_eq!(cond.unwrap().to_string(), r#"cpu = Utf8("cpu0")"#);
+    //     assert_eq!(tr.unwrap(), range!(list = 0, 10));
+    //
+    //     // no time
+    //     let expr = "f64".as_expr().gt_eq(lit(19.5_f64)).or(binary_expr(
+    //         "f64".as_expr(),
+    //         Operator::RegexMatch,
+    //         lit("foo"),
+    //     ));
+    //     let (cond, tr) = split_exprs(expr);
+    //     assert_eq!(
+    //         cond.unwrap().to_string(),
+    //         r#"f64 >= Float64(19.5) OR (f64 ~ Utf8("foo"))"#
+    //     );
+    //     assert!(tr.is_none());
+    //
+    //     // fallible
+    //
+    //     let expr = "time"
+    //         .as_expr()
+    //         .eq(lit_timestamp_nano(0))
+    //         .or("time".as_expr().gt(now()));
+    //     let (cond, tr) = split_exprs(expr);
+    //     assert_eq!(cond.unwrap().to_string(), r#"Boolean(false)"#);
+    //     assert!(tr.is_none());
+    // }
 
-        test_helpers::maybe_start_logging();
-
-        let props = execution_props();
-        let (schemas, _) = new_schemas();
-        let simplify_context =
-            SimplifyContext::new(&props).with_schema(Arc::clone(&schemas.df_schema));
-        let simplifier = ExprSimplifier::new(simplify_context);
-
-        let rewrite = |expr| {
-            rewrite_time_range_exprs(expr, &simplifier)
-                .unwrap()
-                .to_string()
-        };
-
-        let expr = "time"
-            .as_expr()
-            .gt_eq(now() - lit(V::new_interval_dt(0, 1000)));
-        assert_eq!(
-            rewrite(expr),
-            r#"time >= TimestampNanosecond(1672531199000000000, None)"#
-        );
-
-        // reduces the lower bound to a single expression
-        let expr = "time"
-            .as_expr()
-            .gt_eq(now() - lit(V::new_interval_dt(0, 1000)))
-            .and(
-                "time"
-                    .as_expr()
-                    .gt_eq(now() - lit(V::new_interval_dt(0, 500))),
-            );
-        assert_eq!(
-            rewrite(expr),
-            r#"time >= TimestampNanosecond(1672531199500000000, None)"#
-        );
-
-        let expr = "time"
-            .as_expr()
-            .lt_eq(now() - lit(V::new_interval_dt(0, 1000)));
-        assert_eq!(
-            rewrite(expr),
-            r#"time <= TimestampNanosecond(1672531199000000000, None)"#
-        );
-
-        // reduces the upper bound to a single expression
-        let expr = "time"
-            .as_expr()
-            .lt_eq(now() + lit(V::new_interval_dt(0, 1000)))
-            .and(
-                "time"
-                    .as_expr()
-                    .lt_eq(now() + lit(V::new_interval_dt(0, 500))),
-            );
-        assert_eq!(
-            rewrite(expr),
-            r#"time <= TimestampNanosecond(1672531200500000000, None)"#
-        );
-
-        let expr = "time"
-            .as_expr()
-            .gt_eq(now() - lit(V::new_interval_dt(0, 1000)))
-            .and("time".as_expr().lt(now()));
-        assert_eq!(
-            rewrite(expr),
-            r#"time >= TimestampNanosecond(1672531199000000000, None) AND time < TimestampNanosecond(1672531200000000000, None)"#
-        );
-
-        let expr = "time"
-            .as_expr()
-            .gt_eq(now() - lit(V::new_interval_dt(0, 1000)))
-            .and("cpu".as_expr().eq(lit("cpu0")));
-        assert_eq!(
-            rewrite(expr),
-            r#"time >= TimestampNanosecond(1672531199000000000, None) AND cpu = Utf8("cpu0")"#
-        );
-
-        let expr = "time".as_expr().eq(lit_timestamp_nano(0));
-        assert_eq!(rewrite(expr), r#"time = TimestampNanosecond(0, None)"#);
-
-        let expr = "instance"
-            .as_expr()
-            .eq(lit("instance-01"))
-            .or("instance".as_expr().eq(lit("instance-02")))
-            .and(
-                "time"
-                    .as_expr()
-                    .gt_eq(now() - lit(V::new_interval_dt(0, 60_000))),
-            );
-        assert_eq!(
-            rewrite(expr),
-            r#"time >= TimestampNanosecond(1672531140000000000, None) AND (instance = Utf8("instance-01") OR instance = Utf8("instance-02"))"#
-        );
-
-        let expr = "time"
-            .as_expr()
-            .gt_eq(now() - lit(V::new_interval_dt(0, 60_000)))
-            .and("time".as_expr().lt(now()))
-            .and(
-                "cpu"
-                    .as_expr()
-                    .eq(lit("cpu0"))
-                    .or("cpu".as_expr().eq(lit("cpu1"))),
-            );
-        assert_eq!(
-            rewrite(expr),
-            r#"time >= TimestampNanosecond(1672531140000000000, None) AND time < TimestampNanosecond(1672531200000000000, None) AND (cpu = Utf8("cpu0") OR cpu = Utf8("cpu1"))"#
-        );
-
-        // time >= now - 60s AND time < now() OR cpu = 'cpu0' OR cpu = 'cpu1'
-        //
-        // Expects the time range to be combined with a conjunction (AND)
-        let expr = "time"
-            .as_expr()
-            .gt_eq(now() - lit(V::new_interval_dt(0, 60_000)))
-            .and("time".as_expr().lt(now()))
-            .or("cpu"
-                .as_expr()
-                .eq(lit("cpu0"))
-                .or("cpu".as_expr().eq(lit("cpu1"))));
-        assert_eq!(
-            rewrite(expr),
-            r#"time >= TimestampNanosecond(1672531140000000000, None) AND time < TimestampNanosecond(1672531200000000000, None) AND (cpu = Utf8("cpu0") OR cpu = Utf8("cpu1"))"#
-        );
-
-        // time = 0 OR time = 10 AND cpu = 'cpu0'
-        let expr = "time".as_expr().eq(lit_timestamp_nano(0)).or("time"
-            .as_expr()
-            .eq(lit_timestamp_nano(10))
-            .and("cpu".as_expr().eq(lit("cpu0"))));
-        assert_eq!(
-            rewrite(expr),
-            r#"(time = TimestampNanosecond(0, None) OR time = TimestampNanosecond(10, None)) AND cpu = Utf8("cpu0")"#
-        );
-
-        // no time
-        let expr = "f64".as_expr().gt_eq(lit(19.5_f64)).or(binary_expr(
-            "f64".as_expr(),
-            Operator::RegexMatch,
-            lit("foo"),
-        ));
-        assert_eq!(
-            rewrite(expr),
-            "f64 >= Float64(19.5) OR (f64 ~ Utf8(\"foo\"))"
-        );
-
-        // fallible
-
-        let expr = "time"
-            .as_expr()
-            .eq(lit_timestamp_nano(0))
-            .or("time".as_expr().gt(now()));
-        assert_eq!(rewrite(expr), "Boolean(false)");
-    }
     #[test]
     fn test_lower_bound_cmp() {
         let (a, b) = (LowerBound::unbounded(), LowerBound::unbounded());

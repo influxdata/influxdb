@@ -4,9 +4,7 @@ mod test_utils;
 mod time_range;
 
 use crate::plan::error;
-use crate::plan::influxql_time_range_expression::{
-    duration_expr_to_nanoseconds, expr_to_df_interval_dt, time_range_to_df_expr,
-};
+use crate::plan::influxql_time_range_expression::expr_to_df_interval_dt;
 use crate::plan::ir::{DataSource, Field, Select, SelectQuery};
 use crate::plan::planner::select::{
     fields_to_exprs_no_nulls, make_tag_key_column_meta, plan_with_sort, ProjectionInfo,
@@ -55,6 +53,10 @@ use influxdb_influxql_parser::show_measurements::{
 use influxdb_influxql_parser::show_tag_keys::ShowTagKeysStatement;
 use influxdb_influxql_parser::show_tag_values::{ShowTagValuesStatement, WithKeyClause};
 use influxdb_influxql_parser::simple_from_clause::ShowFromClause;
+use influxdb_influxql_parser::time_range::{
+    duration_expr_to_nanoseconds, reduce_time_expr, ReduceContext,
+};
+use influxdb_influxql_parser::timestamp::Timestamp;
 use influxdb_influxql_parser::{
     common::{MeasurementName, WhereClause},
     expression::Expr as IQLExpr,
@@ -633,7 +635,7 @@ impl<'a> InfluxQLToLogicalPlan<'a> {
             select_exprs[time_column_index] = if let Some(dim) = ctx.group_by.and_then(|gb| gb.time_dimension()) {
                 let stride = expr_to_df_interval_dt(&dim.interval)?;
                 let offset = if let Some(offset) = &dim.offset {
-                    duration_expr_to_nanoseconds(offset)?
+                    duration_expr_to_nanoseconds(offset).map_err(error::map::expr_error)?
                 } else {
                     0
                 };
@@ -981,14 +983,31 @@ impl<'a> InfluxQLToLogicalPlan<'a> {
                 return error::query("invalid time comparison operator: !=");
             }
 
+            let rc = ReduceContext {
+                now: Some(Timestamp::from(
+                    self.s.execution_props().query_execution_start_time,
+                )),
+                tz: ctx.tz,
+            };
+
             if lhs_time {
                 (
                     self.conditional_to_df_expr(ctx, lhs, schemas)?,
-                    time_range_to_df_expr(find_expr(rhs)?, ctx.tz)?,
+                    self.expr_to_df_expr(
+                        ctx,
+                        ExprScope::Where,
+                        &reduce_time_expr(&rc, find_expr(rhs)?).map_err(error::map::expr_error)?,
+                        schemas,
+                    )?,
                 )
             } else {
                 (
-                    time_range_to_df_expr(find_expr(lhs)?, ctx.tz)?,
+                    self.expr_to_df_expr(
+                        ctx,
+                        ExprScope::Where,
+                        &reduce_time_expr(&rc, find_expr(lhs)?).map_err(error::map::expr_error)?,
+                        schemas,
+                    )?,
                     self.conditional_to_df_expr(ctx, rhs, schemas)?,
                 )
             }
@@ -1075,7 +1094,7 @@ impl<'a> InfluxQLToLogicalPlan<'a> {
                 Literal::String(v) => Ok(lit(v)),
                 Literal::Boolean(v) => Ok(lit(*v)),
                 Literal::Timestamp(v) => Ok(lit(ScalarValue::TimestampNanosecond(
-                    Some(v.timestamp()),
+                    Some(v.timestamp_nanos()),
                     None,
                 ))),
                 Literal::Duration(_) => error::not_implemented("duration literal"),
