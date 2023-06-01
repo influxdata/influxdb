@@ -584,6 +584,11 @@ func (c *SeriesPartitionCompactor) compactIndexTo(index *SeriesIndex, seriesN ui
 	var idOffsetMap []byte
 
 	hdr.Count = math.MaxUint64
+	// seriesN is the current size of the index.  Because it may contain tombstones
+	// for deleted series, we recalculate that number (as seriesCount) without the
+	// deleted series as we rebuild the index.	If the count of existing series does
+	// not equal the seriesN passed in (meaning there were tombstones), we rebuild
+	// the index a second time with the correct size.
 	seriesCount := seriesN
 	for {
 		seriesN = seriesCount
