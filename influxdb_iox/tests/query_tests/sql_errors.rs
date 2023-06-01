@@ -4,6 +4,23 @@ use crate::query_tests::setups::SETUPS;
 use observability_deps::tracing::*;
 use test_helpers_end_to_end::{maybe_skip_integration, MiniCluster, Step, StepTest};
 
+// This is a reproducer of https://github.com/influxdata/idpe/issues/17644
+// It should be fixed to throw a different error message rather than a panic
+// Ignore the test here because the "task 79 panicked" is not deterministic. It return different number everytime.
+// After the issue is fixed with a proper error message, this test should be enabled.
+#[ignore]
+#[tokio::test]
+async fn date_bin_interval_0() {
+    SqlErrorTest {
+        setup_name: "OneMeasurementTwoSeries",
+        sql:  "SELECT date_bin(INTERVAL '0 second', time) as month, count(cpu.user) from cpu where time between timestamp '2000-05-05T12:00:00Z' and timestamp '2000-05-05T12:59:00Z' group by month;",
+        expected_error_code: tonic::Code::Internal,
+        expected_message: "Join Error\ncaused by\nExternal error: task 79 panicked",
+    }
+    .run()
+    .await;
+}
+
 #[tokio::test]
 async fn schema_merge_nonexistent_column() {
     SqlErrorTest {
