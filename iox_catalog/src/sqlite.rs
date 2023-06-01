@@ -1143,13 +1143,6 @@ FROM parquet_file;
         .collect())
     }
 
-    async fn flag_for_delete(&mut self, id: ParquetFileId) -> Result<()> {
-        let marked_at = Timestamp::from(self.time_provider.now());
-        let executor = self.inner.get_mut();
-
-        flag_for_delete(executor, id, marked_at).await
-    }
-
     async fn flag_for_delete_by_retention(&mut self) -> Result<Vec<ParquetFileId>> {
         let flagged_at = Timestamp::from(self.time_provider.now());
         // TODO - include check of table retention period once implemented
@@ -1776,7 +1769,7 @@ mod tests {
         // flag f1 for deletion and assert that the total file size is reduced accordingly.
         repos
             .parquet_files()
-            .flag_for_delete(f1.id)
+            .create_upgrade_delete(&[f1.id], &[], &[], CompactionLevel::Initial)
             .await
             .expect("flag parquet file for deletion should succeed");
         let total_file_size_bytes: i64 =

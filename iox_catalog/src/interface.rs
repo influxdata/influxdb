@@ -448,9 +448,6 @@ pub trait ParquetFileRepo: Send + Sync {
     /// This is mostly useful for testing and will likely not succeed in production.
     async fn list_all(&mut self) -> Result<Vec<ParquetFile>>;
 
-    /// Flag the parquet file for deletion
-    async fn flag_for_delete(&mut self, id: ParquetFileId) -> Result<()>;
-
     /// Flag all parquet files for deletion that are older than their namespace's retention period.
     async fn flag_for_delete_by_retention(&mut self) -> Result<Vec<ParquetFileId>>;
 
@@ -1755,7 +1752,7 @@ pub(crate) mod test_helpers {
         // verify to_delete can be updated to a timestamp
         repos
             .parquet_files()
-            .flag_for_delete(parquet_file.id)
+            .create_upgrade_delete(&[parquet_file.id], &[], &[], CompactionLevel::Initial)
             .await
             .unwrap();
 
@@ -1883,7 +1880,11 @@ pub(crate) mod test_helpers {
             .unwrap();
         assert_eq!(vec![f1.clone(), f2.clone(), f3.clone()], files);
 
-        repos.parquet_files().flag_for_delete(f2.id).await.unwrap();
+        repos
+            .parquet_files()
+            .create_upgrade_delete(&[f2.id], &[], &[], CompactionLevel::Initial)
+            .await
+            .unwrap();
         let files = repos
             .parquet_files()
             .list_by_namespace_not_to_delete(namespace2.id)
@@ -2235,7 +2236,7 @@ pub(crate) mod test_helpers {
             .unwrap();
         repos
             .parquet_files()
-            .flag_for_delete(delete_l0_file.id)
+            .create_upgrade_delete(&[delete_l0_file.id], &[], &[], CompactionLevel::Initial)
             .await
             .unwrap();
         let partitions = repos
@@ -2587,7 +2588,7 @@ pub(crate) mod test_helpers {
             .unwrap();
         repos
             .parquet_files()
-            .flag_for_delete(delete_file.id)
+            .create_upgrade_delete(&[delete_file.id], &[], &[], CompactionLevel::Initial)
             .await
             .unwrap();
         let level1_file_params = ParquetFileParams {

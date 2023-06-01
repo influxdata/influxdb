@@ -721,11 +721,6 @@ impl ParquetFileRepo for MemTxn {
         Ok(stage.parquet_files.clone())
     }
 
-    async fn flag_for_delete(&mut self, id: ParquetFileId) -> Result<()> {
-        let marked_at = Timestamp::from(self.time_provider.now());
-        flag_for_delete(self.stage(), id, marked_at).await
-    }
-
     async fn flag_for_delete_by_retention(&mut self) -> Result<Vec<ParquetFileId>> {
         let now = Timestamp::from(self.time_provider.now());
         let stage = self.stage();
