@@ -5,25 +5,46 @@
 //!
 //! The partitioning template, derived partition key format, and encodings are
 //! described in detail in the [`data_types::partition_template`] module.
+use std::{borrow::Cow, fmt::Write, ops::Range};
 
-use crate::{
-    column::{Column, ColumnData},
-    MutableBatch,
-};
 use chrono::{format::StrftimeItems, TimeZone, Utc};
 use data_types::partition_template::{
     TablePartitionTemplateOverride, TemplatePart, ENCODED_PARTITION_KEY_CHARS,
     PARTITION_KEY_DELIMITER, PARTITION_KEY_VALUE_EMPTY_STR, PARTITION_KEY_VALUE_NULL_STR,
 };
 use percent_encoding::utf8_percent_encode;
-use schema::TIME_COLUMN_NAME;
-use std::{borrow::Cow, ops::Range};
+use schema::{InfluxColumnType, TIME_COLUMN_NAME};
+use thiserror::Error;
+
+use crate::{
+    column::{Column, ColumnData},
+    MutableBatch,
+};
+
+/// An error generating a partition key for a row.
+#[derive(Debug, Error, PartialEq, Eq)]
+pub enum PartitionKeyError {
+    /// The partition template defines a [`Template::TimeFormat`] part, but the
+    /// provided strftime formatter is invalid.
+    #[error("invalid strftime format in partition template: {0}")]
+    InvalidStrftime(String),
+
+    /// The partition template defines a [`Template::TagValue`] part, but the
+    /// column type is not "tag".
+    #[error("tag value partitioner does not accept input columns of type {0:?}")]
+    TagValueNotTag(InfluxColumnType),
+
+    /// A "catch all" error for when a formatter returns [`std::fmt::Error`],
+    /// which contains no context.
+    #[error("partition key generation error")]
+    FmtError(#[from] std::fmt::Error),
+}
 
 /// Returns an iterator identifying consecutive ranges for a given partition key
 pub fn partition_batch<'a>(
     batch: &'a MutableBatch,
     template: &'a TablePartitionTemplateOverride,
-) -> impl Iterator<Item = (String, Range<usize>)> + 'a {
+) -> impl Iterator<Item = (Result<String, PartitionKeyError>, Range<usize>)> + 'a {
     range_encode(partition_keys(batch, template.parts()))
 }
 
@@ -48,7 +69,11 @@ enum Template<'a> {
 
 impl<'a> Template<'a> {
     /// Renders this template to `out` for the row `idx`.
-    fn fmt_row<W: std::fmt::Write>(&self, out: &mut W, idx: usize) -> std::fmt::Result {
+    fn fmt_row<W: std::fmt::Write>(
+        &self,
+        out: &mut W,
+        idx: usize,
+    ) -> Result<(), PartitionKeyError> {
         match self {
             Template::TagValue(col) if col.valid.get(idx) => match &col.data {
                 ColumnData::Tag(col_data, dictionary, _) => out.write_str(never_empty(
@@ -57,30 +82,35 @@ impl<'a> Template<'a> {
                         &ENCODED_PARTITION_KEY_CHARS,
                     ))
                     .as_ref(),
-                )),
-                other => panic!(
-                    "partitioning only works on tag columns, but column was type `{other:?}`"
-                ),
+                ))?,
+                _ => return Err(PartitionKeyError::TagValueNotTag(col.influx_type())),
             },
             Template::TimeFormat(t, format) => {
-                let formatted = Utc
-                    .timestamp_nanos(t[idx])
-                    .format_with_items(format.clone()) // Cheap clone of refs
-                    .to_string();
+                let mut s = String::new();
+                write!(
+                    s,
+                    "{}",
+                    Utc.timestamp_nanos(t[idx])
+                        .format_with_items(format.clone()) // Cheap clone of refs
+                )
+                .map_err(|_| PartitionKeyError::InvalidStrftime(format!("{format:?}")))?;
+
                 out.write_str(
                     Cow::from(utf8_percent_encode(
-                        formatted.as_str(),
+                        s.as_str(),
                         &ENCODED_PARTITION_KEY_CHARS,
                     ))
                     .as_ref(),
-                )
+                )?
             }
             // Either a tag that has no value for this given row index, or the
             // batch does not contain this tag at all.
             Template::TagValue(_) | Template::MissingTag => {
-                out.write_str(PARTITION_KEY_VALUE_NULL_STR)
+                out.write_str(PARTITION_KEY_VALUE_NULL_STR)?
             }
         }
+
+        Ok(())
     }
 }
 
@@ -97,7 +127,7 @@ fn never_empty(s: &str) -> &str {
 fn partition_keys<'a>(
     batch: &'a MutableBatch,
     template_parts: impl Iterator<Item = TemplatePart<'a>>,
-) -> impl Iterator<Item = String> + 'a {
+) -> impl Iterator<Item = Result<String, PartitionKeyError>> + 'a {
     // Extract the timestamp data.
     let time = match batch.column(TIME_COLUMN_NAME).map(|v| &v.data) {
         Ok(ColumnData::I64(data, _)) => data.as_slice(),
@@ -121,8 +151,7 @@ fn partition_keys<'a>(
 
         // Evaluate each template part for this row
         for (col_idx, col) in template.iter().enumerate() {
-            col.fmt_row(&mut string, idx)
-                .expect("string writing is infallible");
+            col.fmt_row(&mut string, idx)?;
 
             // If this isn't the last element in the template, insert a field
             // delimiter.
@@ -131,7 +160,7 @@ fn partition_keys<'a>(
             }
         }
 
-        string
+        Ok(string)
     })
 }
 
@@ -175,6 +204,8 @@ mod tests {
     use super::*;
 
     use crate::writer::Writer;
+
+    use assert_matches::assert_matches;
     use data_types::partition_template::{build_column_values, test_table_partition_override};
     use proptest::{prelude::*, prop_compose, proptest, strategy::Strategy};
     use rand::prelude::*;
@@ -199,7 +230,9 @@ mod tests {
         writer.commit();
 
         let template_parts = TablePartitionTemplateOverride::new(None, &Default::default());
-        let keys: Vec<_> = partition_keys(&batch, template_parts.parts()).collect();
+        let keys: Vec<_> = partition_keys(&batch, template_parts.parts())
+            .collect::<Result<Vec<_>, _>>()
+            .unwrap();
 
         assert_eq!(keys, vec!["1970-01-01".to_string()])
     }
@@ -259,7 +292,9 @@ mod tests {
 
         writer.commit();
 
-        let keys: Vec<_> = partition_keys(&batch, template_parts.into_iter()).collect();
+        let keys: Vec<_> = partition_keys(&batch, template_parts.into_iter())
+            .collect::<Result<Vec<_>, _>>()
+            .unwrap();
 
         assert_eq!(
             keys,
@@ -274,7 +309,6 @@ mod tests {
     }
 
     #[test]
-    #[should_panic(expected = "partitioning only works on tag columns, but column was type")]
     fn partitioning_on_fields_panics() {
         let mut batch = MutableBatch::new();
         let mut writer = Writer::new(&mut batch, 5);
@@ -295,32 +329,8 @@ mod tests {
 
         writer.commit();
 
-        let _keys: Vec<_> = partition_keys(&batch, template_parts.into_iter()).collect();
-    }
-
-    #[test]
-    fn test_partition_key() {
-        let mut batch = MutableBatch::new();
-        let mut writer = Writer::new(&mut batch, 1);
-
-        let tag_values = [("col_a", "value")];
-        let template_parts = TablePartitionTemplateOverride::new(None, &Default::default());
-
-        // Timestamp: 2023-05-29T13:03:16Z
-        writer
-            .write_time("time", vec![1685365396931384064].into_iter())
-            .unwrap();
-
-        for (col, value) in tag_values {
-            writer
-                .write_tag(col, Some(&[0b00000001]), vec![value].into_iter())
-                .unwrap();
-        }
-
-        writer.commit();
-
-        let keys: Vec<_> = partition_keys(&batch, template_parts.parts()).collect();
-        assert_eq!(keys, vec!["2023-05-29".to_string()])
+        let got: Result<Vec<_>, _> = partition_keys(&batch, template_parts.into_iter()).collect();
+        assert_matches::assert_matches!(got, Err(PartitionKeyError::TagValueNotTag(_)));
     }
 
     // Generate a test that asserts the derived partition key matches
@@ -358,7 +368,7 @@ mod tests {
 
                     writer.commit();
 
-                    let keys: Vec<_> = partition_keys(&batch, template.parts()).collect();
+                    let keys: Vec<_> = partition_keys(&batch, template.parts()).collect::<Result<Vec<_>, _>>().unwrap();
                     assert_eq!(keys, vec![$want_key.to_string()]);
 
                     // Reverse the encoding.
@@ -445,6 +455,28 @@ mod tests {
         want_reversed_tags = [("a", "|"), ("b", "!"), ("d", "%7C%21%257C"), ("e", "^")]
     );
 
+    /// A test using an invalid strftime format string.
+    #[test]
+    fn test_invalid_strftime() {
+        let mut batch = MutableBatch::new();
+        let mut writer = Writer::new(&mut batch, 1);
+
+        writer.write_time("time", vec![1].into_iter()).unwrap();
+        writer
+            .write_tag("region", Some(&[0b00000001]), vec!["bananas"].into_iter())
+            .unwrap();
+        writer.commit();
+
+        let template = [TemplatePart::TimeFormat("%3F")]
+            .into_iter()
+            .collect::<Vec<_>>();
+        let template = test_table_partition_override(template);
+
+        let ret = partition_keys(&batch, template.parts()).collect::<Result<Vec<_>, _>>();
+
+        assert_matches!(ret, Err(PartitionKeyError::InvalidStrftime(_)));
+    }
+
     // These values are arbitrarily chosen when building an input to the
     // partitioner.
 
@@ -455,6 +487,7 @@ mod tests {
     // Arbitrary template parts are selected from this set.
     const TEST_TEMPLATE_PARTS: &[TemplatePart<'static>] = &[
         TemplatePart::TimeFormat("%Y|%m|%d!-string"),
+        TemplatePart::TimeFormat("%Y|%m|%d!-%%bananas"),
         TemplatePart::TimeFormat("%Y/%m/%d"),
         TemplatePart::TimeFormat("%Y-%m-%d"),
         TemplatePart::TagValue(""),
@@ -465,6 +498,7 @@ mod tests {
         TemplatePart::TagValue("%tags!"),
         TemplatePart::TagValue("my_tag"),
         TemplatePart::TagValue("my|tag"),
+        TemplatePart::TagValue("%%%%|!!!!|"),
     ];
 
     prop_compose! {
@@ -518,7 +552,9 @@ mod tests {
             }
 
             writer.commit();
-            let keys: Vec<_> = partition_keys(&batch, template.parts()).collect();
+            let keys: Vec<_> = partition_keys(&batch, template.parts())
+                .collect::<Result<Vec<_>, _>>()
+                .unwrap();
             assert_eq!(keys.len(), 1);
 
             // Reverse the encoding.
@@ -536,6 +572,41 @@ mod tests {
             }).collect::<Vec<_>>();
 
             assert_eq!(reversed, want_reversed);
+        }
+
+        /// A property test that asserts the partitioner tolerates (does not
+        /// panic) randomised, potentially invalid strfitme formatter strings.
+        #[test]
+        fn prop_arbitrary_strftime_format(fmt in any::<String>()) {
+            let mut batch = MutableBatch::new();
+            let mut writer = Writer::new(&mut batch, 1);
+
+            // Generate a single time-based partitioning template with a
+            // randomised format string.
+            let template = vec![
+                TemplatePart::TimeFormat(&fmt),
+            ];
+            let template = test_table_partition_override(template);
+
+            // Timestamp: 2023-05-29T13:03:16Z
+            writer
+                .write_time("time", vec![1685365396931384064].into_iter())
+                .unwrap();
+
+            writer
+                .write_tag("bananas", Some(&[0b00000001]), vec!["great"].into_iter())
+                .unwrap();
+
+            writer.commit();
+            let ret = partition_keys(&batch, template.parts()).collect::<Result<Vec<_>, _>>();
+
+            // The is allowed to succeed or fail under this test (but not
+            // panic), and the returned error/value must match certain
+            // properties:
+            match ret {
+                Ok(v) => { assert_eq!(v.len(), 1); },
+                Err(e) => { assert_matches!(e, PartitionKeyError::InvalidStrftime(_)); },
+            }
         }
     }
 }

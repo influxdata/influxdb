@@ -4,7 +4,7 @@ use data_types::{
     PartitionKey, TableId,
 };
 use hashbrown::HashMap;
-use mutable_batch::{MutableBatch, PartitionWrite, WritePayload};
+use mutable_batch::{MutableBatch, PartitionKeyError, PartitionWrite, WritePayload};
 use observability_deps::tracing::*;
 use std::sync::Arc;
 use thiserror::Error;
@@ -18,6 +18,10 @@ pub enum PartitionError {
     /// Failed to write to the partitioned table batch.
     #[error("error batching into partitioned write: {0}")]
     BatchWrite(#[from] mutable_batch::Error),
+
+    /// An error deriving the partition key from the partition key template.
+    #[error("error generating partition key: {0}")]
+    Partitioner(#[from] PartitionKeyError),
 }
 
 /// A decorator of `T`, tagging it with the partition key derived from it.
@@ -76,7 +80,7 @@ impl DmlHandler for Partitioner {
             // Partition the table batch according to the configured partition
             // template and write it into the partition-keyed map.
             for (partition_key, partition_payload) in
-                PartitionWrite::partition(&batch, &table_partition_template)
+                PartitionWrite::partition(&batch, &table_partition_template)?
             {
                 let partition = partitions.entry(partition_key).or_default();
                 let table_batch = partition

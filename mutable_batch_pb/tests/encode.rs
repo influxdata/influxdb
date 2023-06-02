@@ -120,7 +120,7 @@ fn test_encode_decode_null_columns_issue_4272() {
         .unwrap();
     writer.commit();
 
-    let mut partitions = PartitionWrite::partition(&batch, &Default::default());
+    let mut partitions = PartitionWrite::partition(&batch, &Default::default()).unwrap();
 
     // There should be two partitions, one with for the timestamp 160, and
     // one for the other timestamp.

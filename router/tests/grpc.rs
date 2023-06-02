@@ -14,8 +14,11 @@ use generated_types::influxdata::{
 use hyper::StatusCode;
 use iox_catalog::interface::{Error as CatalogError, SoftDeletedRows};
 use iox_time::{SystemProvider, TimeProvider};
+use mutable_batch::PartitionKeyError;
 use router::{
-    dml_handlers::{CachedServiceProtectionLimit, DmlError, RetentionError, SchemaError},
+    dml_handlers::{
+        CachedServiceProtectionLimit, DmlError, PartitionError, RetentionError, SchemaError,
+    },
     namespace_resolver::{self, NamespaceCreationError},
     server::http::Error,
 };
@@ -938,6 +941,45 @@ async fn test_table_create() {
         assert_eq!(table_batches[0].table_id, table_id);
         assert_eq!(partition_key, "2023-05-25");
     })
+}
+
+#[tokio::test]
+async fn test_invalid_strftime_partition_template() {
+    // Initialise a TestContext without a namespace autocreation policy.
+    let ctx = TestContextBuilder::default().build().await;
+
+    // Explicitly create a namespace with a custom partition template.
+    let req = CreateNamespaceRequest {
+        name: "bananas_test".to_string(),
+        retention_period_ns: None,
+        partition_template: Some(PartitionTemplate {
+            parts: vec![TemplatePart {
+                part: Some(template_part::Part::TimeFormat("%3F".into())),
+            }],
+        }),
+    };
+    ctx.grpc_delegate()
+        .namespace_service()
+        .create_namespace(Request::new(req))
+        .await
+        .unwrap()
+        .into_inner()
+        .namespace
+        .unwrap();
+
+    // Write, which implicitly creates the table with the namespace's custom partition template
+    let lp = "plantains,tag1=A,tag2=B val=42i".to_string();
+    let got = ctx.write_lp("bananas", "test", lp).await;
+    assert_matches!(
+        got,
+        Err(Error::DmlHandler(DmlError::Partition(
+            PartitionError::Partitioner(PartitionKeyError::InvalidStrftime(_))
+        )))
+    );
+
+    // Check the ingester did not observe any writes.
+    let writes = ctx.write_calls();
+    assert!(writes.is_empty());
 }
 
 #[tokio::test]

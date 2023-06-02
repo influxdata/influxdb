@@ -6,6 +6,8 @@ use hashbrown::HashMap;
 use schema::TIME_COLUMN_NAME;
 use std::{num::NonZeroUsize, ops::Range};
 
+pub use self::partition::PartitionKeyError;
+
 mod filter;
 mod partition;
 
@@ -101,7 +103,7 @@ impl<'a> PartitionWrite<'a> {
     pub fn partition(
         batch: &'a MutableBatch,
         partition_template: &TablePartitionTemplateOverride,
-    ) -> HashMap<PartitionKey, Self> {
+    ) -> Result<HashMap<PartitionKey, Self>, PartitionKeyError> {
         use hashbrown::hash_map::Entry;
         let time = get_time_column(batch);
 
@@ -110,7 +112,7 @@ impl<'a> PartitionWrite<'a> {
             let row_count = NonZeroUsize::new(range.end - range.start).unwrap();
             let (min_timestamp, max_timestamp) = min_max_time(&time[range.clone()]);
 
-            match partition_ranges.entry(PartitionKey::from(partition)) {
+            match partition_ranges.entry(PartitionKey::from(partition?)) {
                 Entry::Vacant(v) => {
                     v.insert(PartitionWrite {
                         batch,
@@ -129,7 +131,7 @@ impl<'a> PartitionWrite<'a> {
                 }
             }
         }
-        partition_ranges
+        Ok(partition_ranges)
     }
 }
 
