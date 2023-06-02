@@ -14,4 +14,4 @@ parquet meta "$1" \
  | awk '{print $2}' \
  | base64 -d \
  | ./scripts/prototxt \
-     decode influxdata.iox.preserved_catalog.v1.IoxMetadata
+     decode influxdata.iox.ingester.v1.IoxMetadata
