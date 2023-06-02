@@ -5,8 +5,8 @@ use std::{any::Any, sync::Arc};
 
 use arrow::record_batch::RecordBatch;
 use arrow_util::util::ensure_schema;
-use data_types::{ChunkId, ChunkOrder, DeletePredicate, PartitionId, TableSummary};
-use datafusion::error::DataFusionError;
+use data_types::{ChunkId, ChunkOrder, DeletePredicate, PartitionId};
+use datafusion::{error::DataFusionError, physical_plan::Statistics};
 use iox_query::{
     exec::{stringset::StringSet, IOxSessionContext},
     util::{compute_timenanosecond_min_max, create_basic_summary},
@@ -41,8 +41,8 @@ pub struct QueryAdaptor {
     /// An interned schema for all [`RecordBatch`] in data.
     schema: Schema,
 
-    /// An interned table summary.
-    summary: OnceCell<Arc<TableSummary>>,
+    /// An interned stats.
+    stats: OnceCell<Arc<Statistics>>,
 }
 
 impl QueryAdaptor {
@@ -67,7 +67,7 @@ impl QueryAdaptor {
             // use Uuid for this. Draw this UUID during chunk generation so that it is stable during the whole query process.
             id: ChunkId::new(),
             schema,
-            summary: OnceCell::default(),
+            stats: OnceCell::default(),
         }
     }
 
@@ -110,8 +110,8 @@ impl QueryAdaptor {
 }
 
 impl QueryChunkMeta for QueryAdaptor {
-    fn summary(&self) -> Arc<TableSummary> {
-        Arc::clone(self.summary.get_or_init(|| {
+    fn stats(&self) -> Arc<Statistics> {
+        Arc::clone(self.stats.get_or_init(|| {
             let ts_min_max = compute_timenanosecond_min_max(self.data.iter().map(|b| b.as_ref()))
                 .expect("Should have time range");
 

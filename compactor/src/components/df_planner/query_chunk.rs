@@ -1,8 +1,8 @@
 //! QueryableParquetChunk for building query plan
 use std::{any::Any, sync::Arc};
 
-use data_types::{ChunkId, ChunkOrder, DeletePredicate, PartitionId, TableSummary};
-use datafusion::error::DataFusionError;
+use data_types::{ChunkId, ChunkOrder, DeletePredicate, PartitionId};
+use datafusion::{error::DataFusionError, physical_plan::Statistics};
 use iox_query::{
     exec::{stringset::StringSet, IOxSessionContext},
     util::create_basic_summary,
@@ -26,7 +26,7 @@ pub struct QueryableParquetChunk {
     partition_id: PartitionId,
     sort_key: Option<SortKey>,
     order: ChunkOrder,
-    summary: Arc<TableSummary>,
+    stats: Arc<Statistics>,
 }
 
 impl QueryableParquetChunk {
@@ -37,7 +37,7 @@ impl QueryableParquetChunk {
         sort_key: Option<SortKey>,
         order: ChunkOrder,
     ) -> Self {
-        let summary = Arc::new(create_basic_summary(
+        let stats = Arc::new(create_basic_summary(
             data.rows() as u64,
             data.schema(),
             data.timestamp_min_max(),
@@ -48,7 +48,7 @@ impl QueryableParquetChunk {
             partition_id,
             sort_key,
             order,
-            summary,
+            stats,
         }
     }
 
@@ -68,8 +68,8 @@ impl QueryableParquetChunk {
 }
 
 impl QueryChunkMeta for QueryableParquetChunk {
-    fn summary(&self) -> Arc<TableSummary> {
-        Arc::clone(&self.summary)
+    fn stats(&self) -> Arc<Statistics> {
+        Arc::clone(&self.stats)
     }
 
     fn schema(&self) -> &Schema {

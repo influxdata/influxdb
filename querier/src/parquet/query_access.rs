@@ -1,6 +1,6 @@
 use crate::parquet::QuerierParquetChunk;
-use data_types::{ChunkId, ChunkOrder, DeletePredicate, PartitionId, TableSummary};
-use datafusion::error::DataFusionError;
+use data_types::{ChunkId, ChunkOrder, DeletePredicate, PartitionId};
+use datafusion::{error::DataFusionError, physical_plan::Statistics};
 use iox_query::{
     exec::{stringset::StringSet, IOxSessionContext},
     QueryChunk, QueryChunkData, QueryChunkMeta,
@@ -10,8 +10,8 @@ use schema::{sort::SortKey, Projection, Schema};
 use std::{any::Any, sync::Arc};
 
 impl QueryChunkMeta for QuerierParquetChunk {
-    fn summary(&self) -> Arc<TableSummary> {
-        Arc::clone(&self.table_summary)
+    fn stats(&self) -> Arc<Statistics> {
+        Arc::clone(&self.stats)
     }
 
     fn schema(&self) -> &Schema {

@@ -2,15 +2,15 @@
 
 use crate::{QueryChunk, QueryChunkMeta};
 use arrow::{
-    array::{
-        ArrayRef, BooleanArray, DictionaryArray, Float64Array, Int64Array, StringArray, UInt64Array,
-    },
-    datatypes::{DataType, Int32Type, TimeUnit},
+    array::{ArrayRef, UInt64Array},
+    datatypes::{DataType, SchemaRef},
 };
-use data_types::{StatValues, Statistics, TableSummary};
 use datafusion::{
-    physical_expr::execution_props::ExecutionProps, physical_optimizer::pruning::PruningStatistics,
+    physical_expr::execution_props::ExecutionProps,
+    physical_optimizer::pruning::PruningStatistics,
+    physical_plan::{ColumnStatistics, Statistics},
     prelude::Column,
+    scalar::ScalarValue,
 };
 use datafusion_util::create_pruning_predicate;
 use observability_deps::tracing::{debug, trace, warn};
@@ -79,7 +79,10 @@ pub fn prune_chunks(
 ) -> Result<Vec<bool>, NotPrunedReason> {
     let num_chunks = chunks.len();
     debug!(num_chunks, %predicate, "Pruning chunks");
-    let summaries: Vec<_> = chunks.iter().map(|c| c.summary()).collect();
+    let summaries: Vec<_> = chunks
+        .iter()
+        .map(|c| (c.stats(), c.schema().as_arrow()))
+        .collect();
     prune_summaries(table_schema, &summaries, predicate)
 }
 
@@ -87,7 +90,7 @@ pub fn prune_chunks(
 /// predicate can be proven to evaluate to `false` for every single row.
 pub fn prune_summaries(
     table_schema: &Schema,
-    summaries: &[Arc<TableSummary>],
+    summaries: &[(Arc<Statistics>, SchemaRef)],
     predicate: &Predicate,
 ) -> Result<Vec<bool>, NotPrunedReason> {
     let filter_expr = match predicate.filter_expr() {
@@ -129,7 +132,7 @@ pub fn prune_summaries(
 /// interface required for pruning
 struct ChunkPruningStatistics<'a> {
     table_schema: &'a Schema,
-    summaries: &'a [Arc<TableSummary>],
+    summaries: &'a [(Arc<Statistics>, SchemaRef)],
 }
 
 impl<'a> ChunkPruningStatistics<'a> {
@@ -144,10 +147,12 @@ impl<'a> ChunkPruningStatistics<'a> {
     fn column_summaries<'b: 'a, 'c: 'a>(
         &'c self,
         column: &'b Column,
-    ) -> impl Iterator<Item = Option<Statistics>> + 'a {
-        self.summaries
-            .iter()
-            .map(|summary| Some(summary.column(&column.name)?.stats.clone()))
+    ) -> impl Iterator<Item = Option<&'a ColumnStatistics>> + 'a {
+        self.summaries.iter().map(|(stats, schema)| {
+            let stats = stats.column_statistics.as_ref()?;
+            let idx = schema.index_of(&column.name).ok()?;
+            Some(&stats[idx])
+        })
     }
 }
 
@@ -171,7 +176,7 @@ impl<'a> PruningStatistics for ChunkPruningStatistics<'a> {
     fn null_counts(&self, column: &Column) -> Option<ArrayRef> {
         let null_counts = self
             .column_summaries(column)
-            .map(|x| x.and_then(|s| s.null_count()));
+            .map(|x| x.and_then(|s| s.null_count.map(|x| x as u64)));
 
         Some(Arc::new(UInt64Array::from_iter(null_counts)))
     }
@@ -179,70 +184,26 @@ impl<'a> PruningStatistics for ChunkPruningStatistics<'a> {
 
 /// Collects an [`ArrayRef`] containing the aggregate statistic corresponding to
 /// `aggregate` for each of the provided [`Statistics`]
-fn collect_pruning_stats(
+fn collect_pruning_stats<'a>(
     data_type: &DataType,
-    statistics: impl Iterator<Item = Option<Statistics>>,
+    statistics: impl Iterator<Item = Option<&'a ColumnStatistics>>,
     aggregate: Aggregate,
 ) -> Option<ArrayRef> {
-    match data_type {
-        DataType::Int64 | DataType::Timestamp(TimeUnit::Nanosecond, None) => {
-            let values = statistics.map(|s| match s {
-                Some(Statistics::I64(v)) => get_aggregate(v, aggregate),
-                _ => None,
-            });
-            Some(Arc::new(Int64Array::from_iter(values)))
-        }
-        DataType::UInt64 => {
-            let values = statistics.map(|s| match s {
-                Some(Statistics::U64(v)) => get_aggregate(v, aggregate),
-                _ => None,
-            });
-            Some(Arc::new(UInt64Array::from_iter(values)))
-        }
-        DataType::Float64 => {
-            let values = statistics.map(|s| match s {
-                Some(Statistics::F64(v)) => get_aggregate(v, aggregate),
-                _ => None,
-            });
-            Some(Arc::new(Float64Array::from_iter(values)))
-        }
-        DataType::Boolean => {
-            let values = statistics.map(|s| match s {
-                Some(Statistics::Bool(v)) => get_aggregate(v, aggregate),
-                _ => None,
-            });
-            Some(Arc::new(BooleanArray::from_iter(values)))
-        }
-        DataType::Utf8 => {
-            let values = statistics.map(|s| match s {
-                Some(Statistics::String(v)) => get_aggregate(v, aggregate),
-                _ => None,
-            });
-            Some(Arc::new(StringArray::from_iter(values)))
-        }
-        DataType::Dictionary(key, value)
-            if key.as_ref() == &DataType::Int32 && value.as_ref() == &DataType::Utf8 =>
-        {
-            let values = statistics.map(|s| match s {
-                Some(Statistics::String(v)) => get_aggregate(v, aggregate),
-                _ => None,
-            });
+    let null = ScalarValue::try_from(data_type).ok()?;
 
-            // DictionaryArray can only be built from string references (`str`), not from owned strings (`String`), so
-            // we need to collect the strings first
-            let values: Vec<_> = values.collect();
-            let values = values.iter().map(|s| s.as_deref());
-            Some(Arc::new(DictionaryArray::<Int32Type>::from_iter(values)))
-        }
-        _ => None,
-    }
+    ScalarValue::iter_to_array(statistics.map(|stats| {
+        stats
+            .and_then(|stats| get_aggregate(stats, aggregate).cloned())
+            .unwrap_or_else(|| null.clone())
+    }))
+    .ok()
 }
 
 /// Returns the aggregate statistic corresponding to `aggregate` from `stats`
-fn get_aggregate<T>(stats: StatValues<T>, aggregate: Aggregate) -> Option<T> {
+fn get_aggregate(stats: &ColumnStatistics, aggregate: Aggregate) -> Option<&ScalarValue> {
     match aggregate {
-        Aggregate::Min => stats.min,
-        Aggregate::Max => stats.max,
+        Aggregate::Min => stats.min_value.as_ref(),
+        Aggregate::Max => stats.max_value.as_ref(),
         _ => None,
     }
 }
@@ -486,7 +447,7 @@ mod test {
             TestChunk::new("chunk3").with_i64_field_column_with_stats("column1", None, None),
         ) as Arc<dyn QueryChunk>;
 
-        let c4 = Arc::new(TestChunk::new("chunk4").with_i64_field_column_no_stats("column1"))
+        let c4 = Arc::new(TestChunk::new("chunk4").with_i64_field_column("column1"))
             as Arc<dyn QueryChunk>;
 
         let predicate = Predicate::new().with_expr(col("column1").gt(lit(100i64)));
@@ -691,12 +652,12 @@ mod test {
         let c5 = Arc::new(
             TestChunk::new("chunk5")
                 .with_i64_field_column_with_stats("column1", Some(0), Some(10))
-                .with_i64_field_column_no_stats("column2"),
+                .with_i64_field_column("column2"),
         ) as Arc<dyn QueryChunk>;
 
         let c6 = Arc::new(
             TestChunk::new("chunk6")
-                .with_i64_field_column_no_stats("column1")
+                .with_i64_field_column("column1")
                 .with_i64_field_column_with_stats("column2", Some(0), Some(4)),
         ) as Arc<dyn QueryChunk>;
 

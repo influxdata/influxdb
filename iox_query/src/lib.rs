@@ -20,8 +20,8 @@ use arrow::{
     record_batch::RecordBatch,
 };
 use async_trait::async_trait;
-use data_types::{ChunkId, ChunkOrder, DeletePredicate, InfluxDbType, PartitionId, TableSummary};
-use datafusion::{error::DataFusionError, prelude::SessionContext};
+use data_types::{ChunkId, ChunkOrder, DeletePredicate, PartitionId};
+use datafusion::{error::DataFusionError, physical_plan::Statistics, prelude::SessionContext};
 use exec::{stringset::StringSet, IOxSessionContext};
 use hashbrown::HashMap;
 use observability_deps::tracing::{debug, trace};
@@ -30,7 +30,7 @@ use parquet_file::storage::ParquetExecInput;
 use predicate::{rpc_predicate::QueryNamespaceMeta, Predicate};
 use schema::{
     sort::{SortKey, SortKeyBuilder},
-    Projection, Schema, TIME_COLUMN_NAME,
+    InfluxColumnType, Projection, Schema, TIME_COLUMN_NAME,
 };
 use std::{any::Any, collections::BTreeSet, fmt::Debug, iter::FromIterator, sync::Arc};
 
@@ -62,8 +62,8 @@ pub fn chunk_order_field() -> Arc<Field> {
 /// Trait for an object (designed to be a Chunk) which can provide
 /// metadata
 pub trait QueryChunkMeta {
-    /// Return a summary of the data
-    fn summary(&self) -> Arc<TableSummary>;
+    /// Return a statistics of the data
+    fn stats(&self) -> Arc<Statistics>;
 
     /// return a reference to the summary of the data held in this chunk
     fn schema(&self) -> &Schema;
@@ -283,8 +283,8 @@ impl<P> QueryChunkMeta for Arc<P>
 where
     P: QueryChunkMeta,
 {
-    fn summary(&self) -> Arc<TableSummary> {
-        self.as_ref().summary()
+    fn stats(&self) -> Arc<Statistics> {
+        self.as_ref().stats()
     }
 
     fn schema(&self) -> &Schema {
@@ -308,8 +308,8 @@ where
 
 /// Implement `ChunkMeta` for `Arc<dyn QueryChunk>`
 impl QueryChunkMeta for Arc<dyn QueryChunk> {
-    fn summary(&self) -> Arc<TableSummary> {
-        self.as_ref().summary()
+    fn stats(&self) -> Arc<Statistics> {
+        self.as_ref().stats()
     }
 
     fn schema(&self) -> &Schema {
@@ -339,11 +339,10 @@ pub fn chunks_have_distinct_counts<'a>(
     // do not need to compute potential duplicates. We will treat
     // as all of them have duplicates
     chunks.into_iter().all(|chunk| {
-        chunk
-            .summary()
-            .columns
-            .iter()
-            .all(|col| col.stats.distinct_count().is_some())
+        let Some(col_stats) = &chunk
+            .stats()
+            .column_statistics else {return false};
+        col_stats.iter().all(|col| col.distinct_count.is_some())
     })
 }
 
@@ -356,8 +355,7 @@ pub fn compute_sort_key_for_chunks<'a>(
         // sorted lexicographically but time column always last
         SortKey::from_columns(schema.primary_key())
     } else {
-        let summaries = chunks.into_iter().map(|x| x.summary());
-        compute_sort_key(summaries)
+        compute_sort_key(chunks.into_iter())
     }
 }
 
@@ -368,19 +366,18 @@ pub fn compute_sort_key_for_chunks<'a>(
 ///
 /// The cardinality is estimated by the sum of unique counts over all summaries. This may overestimate cardinality since
 /// it does not account for shared/repeated values.
-fn compute_sort_key(summaries: impl Iterator<Item = Arc<TableSummary>>) -> SortKey {
+fn compute_sort_key<'a>(chunks: impl Iterator<Item = &'a Arc<dyn QueryChunk>>) -> SortKey {
     let mut cardinalities: HashMap<String, u64> = Default::default();
-    for summary in summaries {
-        for column in &summary.columns {
-            if column.influxdb_type != InfluxDbType::Tag {
+    for chunk in chunks {
+        let stats = chunk.stats();
+        let Some(col_stats) = stats.column_statistics.as_ref() else {continue};
+        for ((influxdb_type, field), stats) in chunk.schema().iter().zip(col_stats) {
+            if influxdb_type != InfluxColumnType::Tag {
                 continue;
             }
 
-            let mut cnt = 0;
-            if let Some(count) = column.stats.distinct_count() {
-                cnt = count.get();
-            }
-            *cardinalities.entry_ref(column.name.as_str()).or_default() += cnt;
+            let cnt = stats.distinct_count.unwrap_or_default() as u64;
+            *cardinalities.entry_ref(field.name().as_str()).or_default() += cnt;
         }
     }
 
