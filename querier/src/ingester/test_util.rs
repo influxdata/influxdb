@@ -86,7 +86,7 @@ impl IngesterConnection for MockIngesterConnection {
                         let total_row_count =
                             batches.iter().map(|b| b.num_rows()).sum::<usize>() as u64;
 
-                        let summary =
+                        let stats =
                             create_basic_summary(total_row_count, &new_schema, ic.ts_min_max);
 
                         super::IngesterChunk {
@@ -96,7 +96,7 @@ impl IngesterConnection for MockIngesterConnection {
                             partition_sort_key: ic.partition_sort_key,
                             batches,
                             ts_min_max: ic.ts_min_max,
-                            summary: Arc::new(summary),
+                            stats: Arc::new(stats),
                             delete_predicates: vec![],
                         }
                     })

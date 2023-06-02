@@ -75,14 +75,17 @@ impl ChunkAdapter {
             files
                 .iter()
                 .map(|p| {
-                    Arc::new(create_basic_summary(
+                    let stats = Arc::new(create_basic_summary(
                         p.row_count as u64,
                         &cached_table.schema,
                         TimestampMinMax {
                             min: p.min_time.get(),
                             max: p.max_time.get(),
                         },
-                    ))
+                    ));
+                    let schema = Arc::clone(cached_table.schema.inner());
+
+                    (stats, schema)
                 })
                 .collect()
         };

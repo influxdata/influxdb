@@ -21,17 +21,18 @@ use arrow::{
     record_batch::RecordBatch,
 };
 use async_trait::async_trait;
-use data_types::{
-    ChunkId, ChunkOrder, ColumnSummary, DeletePredicate, InfluxDbType, PartitionId, StatValues,
-    Statistics, TableSummary,
-};
-use datafusion::datasource::{object_store::ObjectStoreUrl, TableProvider, TableType};
+use data_types::{ChunkId, ChunkOrder, DeletePredicate, PartitionId};
 use datafusion::error::DataFusionError;
 use datafusion::execution::context::SessionState;
 use datafusion::logical_expr::Expr;
 use datafusion::physical_plan::ExecutionPlan;
 use datafusion::{catalog::catalog::CatalogProvider, physical_plan::displayable};
 use datafusion::{catalog::schema::SchemaProvider, logical_expr::LogicalPlan};
+use datafusion::{
+    datasource::{object_store::ObjectStoreUrl, TableProvider, TableType},
+    physical_plan::{ColumnStatistics, Statistics as DataFusionStatistics},
+    scalar::ScalarValue,
+};
 use hashbrown::HashSet;
 use itertools::Itertools;
 use object_store::{path::Path, ObjectMeta};
@@ -40,10 +41,16 @@ use parking_lot::Mutex;
 use parquet_file::storage::ParquetExecInput;
 use predicate::rpc_predicate::QueryNamespaceMeta;
 use schema::{
-    builder::SchemaBuilder, merge::SchemaMerger, sort::SortKey, InfluxColumnType, Projection,
-    Schema, TIME_COLUMN_NAME,
+    builder::SchemaBuilder, merge::SchemaMerger, sort::SortKey, Projection, Schema,
+    TIME_COLUMN_NAME,
 };
-use std::{any::Any, collections::BTreeMap, fmt, num::NonZeroU64, sync::Arc};
+use std::{
+    any::Any,
+    collections::{BTreeMap, HashMap},
+    fmt,
+    num::NonZeroU64,
+    sync::Arc,
+};
 use trace::ctx::SpanContext;
 
 #[derive(Debug)]
@@ -313,8 +320,9 @@ pub struct TestChunk {
     /// Schema of the table
     schema: Schema,
 
-    /// Return value for summary()
-    table_summary: TableSummary,
+    /// Values for stats()
+    column_stats: HashMap<String, ColumnStatistics>,
+    num_rows: Option<usize>,
 
     id: ChunkId,
 
@@ -353,24 +361,7 @@ macro_rules! impl_with_column {
                 .unwrap()
                 .build()
                 .unwrap();
-            self.add_schema_to_table(new_column_schema, true, None)
-        }
-    };
-}
-
-/// Implements a method for adding a column without any stats
-macro_rules! impl_with_column_no_stats {
-    ($NAME:ident, $DATA_TYPE:ident) => {
-        pub fn $NAME(self, column_name: impl Into<String>) -> Self {
-            let column_name = column_name.into();
-
-            let new_column_schema = SchemaBuilder::new()
-                .field(&column_name, DataType::$DATA_TYPE)
-                .unwrap()
-                .build()
-                .unwrap();
-
-            self.add_schema_to_table(new_column_schema, false, None)
+            self.add_schema_to_table(new_column_schema, None)
         }
     };
 }
@@ -392,13 +383,14 @@ macro_rules! impl_with_column_with_stats {
                 .build()
                 .unwrap();
 
-            let stats = Statistics::$STAT_TYPE(StatValues {
-                min,
-                max,
-                ..Default::default()
-            });
+            let stats = ColumnStatistics {
+                null_count: None,
+                max_value: max.map(|s| ScalarValue::from(s)),
+                min_value: min.map(|s| ScalarValue::from(s)),
+                distinct_count: None,
+            };
 
-            self.add_schema_to_table(new_column_schema, true, Some(stats))
+            self.add_schema_to_table(new_column_schema, Some(stats))
         }
     };
 }
@@ -409,7 +401,8 @@ impl TestChunk {
         Self {
             table_name,
             schema: SchemaBuilder::new().build().unwrap(),
-            table_summary: TableSummary::default(),
+            column_stats: Default::default(),
+            num_rows: None,
             id: ChunkId::new_test(0),
             may_contain_pk_duplicates: Default::default(),
             table_data: QueryChunkData::RecordBatches(vec![]),
@@ -523,7 +516,7 @@ impl TestChunk {
         // merge it in to any existing schema
         let new_column_schema = SchemaBuilder::new().tag(&column_name).build().unwrap();
 
-        self.add_schema_to_table(new_column_schema, true, None)
+        self.add_schema_to_table(new_column_schema, None)
     }
 
     /// Register a tag column with stats with the test chunk
@@ -556,9 +549,16 @@ impl TestChunk {
         )
     }
 
+    fn update_count(&mut self, count: usize) {
+        match self.num_rows {
+            Some(existing) => assert_eq!(existing, count),
+            None => self.num_rows = Some(count),
+        }
+    }
+
     /// Register a tag column with stats with the test chunk
     pub fn with_tag_column_with_nulls_and_full_stats(
-        self,
+        mut self,
         column_name: impl Into<String>,
         min: Option<&str>,
         max: Option<&str>,
@@ -573,15 +573,15 @@ impl TestChunk {
         let new_column_schema = SchemaBuilder::new().tag(&column_name).build().unwrap();
 
         // Construct stats
-        let stats = Statistics::String(StatValues {
-            min: min.map(ToString::to_string),
-            max: max.map(ToString::to_string),
-            total_count: count,
-            null_count: Some(null_count),
-            distinct_count,
-        });
+        let stats = ColumnStatistics {
+            null_count: Some(null_count as usize),
+            max_value: max.map(ScalarValue::from),
+            min_value: min.map(ScalarValue::from),
+            distinct_count: distinct_count.map(|c| c.get() as usize),
+        };
 
-        self.add_schema_to_table(new_column_schema, true, Some(stats))
+        self.update_count(count as usize);
+        self.add_schema_to_table(new_column_schema, Some(stats))
     }
 
     /// Register a timestamp column with the test chunk with default stats
@@ -590,7 +590,7 @@ impl TestChunk {
         // merge it in to any existing schema
         let new_column_schema = SchemaBuilder::new().timestamp().build().unwrap();
 
-        self.add_schema_to_table(new_column_schema, true, None)
+        self.add_schema_to_table(new_column_schema, None)
     }
 
     /// Register a timestamp column with the test chunk
@@ -600,7 +600,7 @@ impl TestChunk {
 
     /// Register a timestamp column with full stats with the test chunk
     pub fn with_time_column_with_full_stats(
-        self,
+        mut self,
         min: Option<i64>,
         max: Option<i64>,
         count: u64,
@@ -612,66 +612,39 @@ impl TestChunk {
         let null_count = 0;
 
         // Construct stats
-        let stats = Statistics::I64(StatValues {
-            min,
-            max,
-            total_count: count,
-            null_count: Some(null_count),
-            distinct_count,
-        });
+        let stats = ColumnStatistics {
+            null_count: Some(null_count as usize),
+            max_value: max.map(|v| ScalarValue::TimestampNanosecond(Some(v), None)),
+            min_value: min.map(|v| ScalarValue::TimestampNanosecond(Some(v), None)),
+            distinct_count: distinct_count.map(|c| c.get() as usize),
+        };
 
-        self.add_schema_to_table(new_column_schema, true, Some(stats))
+        self.update_count(count as usize);
+        self.add_schema_to_table(new_column_schema, Some(stats))
     }
 
     pub fn with_timestamp_min_max(mut self, min: i64, max: i64) -> Self {
-        match self
-            .table_summary
-            .columns
-            .iter_mut()
-            .find(|c| c.name == TIME_COLUMN_NAME)
-        {
-            Some(col) => {
-                let stats = &mut col.stats;
-                *stats = Statistics::I64(StatValues {
-                    min: Some(min),
-                    max: Some(max),
-                    total_count: stats.total_count(),
-                    null_count: stats.null_count(),
-                    distinct_count: stats.distinct_count(),
-                });
-            }
-            None => {
-                let total_count = self.table_summary.total_count();
-                self.table_summary.columns.push(ColumnSummary {
-                    name: TIME_COLUMN_NAME.to_string(),
-                    influxdb_type: InfluxDbType::Timestamp,
-                    stats: Statistics::I64(StatValues {
-                        min: Some(min),
-                        max: Some(max),
-                        total_count,
-                        null_count: None,
-                        distinct_count: None,
-                    }),
-                });
-            }
-        }
+        let stats = self
+            .column_stats
+            .get_mut(TIME_COLUMN_NAME)
+            .expect("stats in sync w/ columns");
+
+        stats.min_value = Some(ScalarValue::TimestampNanosecond(Some(min), None));
+        stats.max_value = Some(ScalarValue::TimestampNanosecond(Some(max), None));
+
         self
     }
 
     impl_with_column!(with_i64_field_column, Int64);
-    impl_with_column_no_stats!(with_i64_field_column_no_stats, Int64);
     impl_with_column_with_stats!(with_i64_field_column_with_stats, Int64, i64, I64);
 
     impl_with_column!(with_u64_column, UInt64);
-    impl_with_column_no_stats!(with_u64_field_column_no_stats, UInt64);
     impl_with_column_with_stats!(with_u64_field_column_with_stats, UInt64, u64, U64);
 
     impl_with_column!(with_f64_field_column, Float64);
-    impl_with_column_no_stats!(with_f64_field_column_no_stats, Float64);
     impl_with_column_with_stats!(with_f64_field_column_with_stats, Float64, f64, F64);
 
     impl_with_column!(with_bool_field_column, Boolean);
-    impl_with_column_no_stats!(with_bool_field_column_no_stats, Boolean);
     impl_with_column_with_stats!(with_bool_field_column_with_stats, Boolean, bool, Bool);
 
     /// Register a string field column with the test chunk
@@ -692,13 +665,14 @@ impl TestChunk {
             .unwrap();
 
         // Construct stats
-        let stats = Statistics::String(StatValues {
-            min: min.map(ToString::to_string),
-            max: max.map(ToString::to_string),
-            ..Default::default()
-        });
+        let stats = ColumnStatistics {
+            null_count: None,
+            max_value: max.map(ScalarValue::from),
+            min_value: min.map(ScalarValue::from),
+            distinct_count: None,
+        };
 
-        self.add_schema_to_table(new_column_schema, true, Some(stats))
+        self.add_schema_to_table(new_column_schema, Some(stats))
     }
 
     /// Adds the specified schema and optionally a column summary containing optional stats.
@@ -707,46 +681,18 @@ impl TestChunk {
     fn add_schema_to_table(
         mut self,
         new_column_schema: Schema,
-        add_column_summary: bool,
-        input_stats: Option<Statistics>,
+        input_stats: Option<ColumnStatistics>,
     ) -> Self {
         let mut merger = SchemaMerger::new();
         merger = merger.merge(&new_column_schema).unwrap();
         merger = merger.merge(&self.schema).expect("merging was successful");
         self.schema = merger.build();
 
-        for i in 0..new_column_schema.len() {
-            let (col_type, new_field) = new_column_schema.field(i);
-            if add_column_summary {
-                let influxdb_type = match col_type {
-                    InfluxColumnType::Tag => InfluxDbType::Tag,
-                    InfluxColumnType::Field(_) => InfluxDbType::Field,
-                    InfluxColumnType::Timestamp => InfluxDbType::Timestamp,
-                };
-
-                let stats = input_stats.clone();
-                let stats = stats.unwrap_or_else(|| match new_field.data_type() {
-                    DataType::Boolean => Statistics::Bool(StatValues::default()),
-                    DataType::Int64 => Statistics::I64(StatValues::default()),
-                    DataType::UInt64 => Statistics::U64(StatValues::default()),
-                    DataType::Utf8 => Statistics::String(StatValues::default()),
-                    DataType::Dictionary(_, value_type) => {
-                        assert!(matches!(**value_type, DataType::Utf8));
-                        Statistics::String(StatValues::default())
-                    }
-                    DataType::Float64 => Statistics::F64(StatValues::default()),
-                    DataType::Timestamp(_, _) => Statistics::I64(StatValues::default()),
-                    _ => panic!("Unsupported type in TestChunk: {:?}", new_field.data_type()),
-                });
-
-                let column_summary = ColumnSummary {
-                    name: new_field.name().clone(),
-                    influxdb_type,
-                    stats,
-                };
-
-                self.table_summary.columns.push(column_summary);
-            }
+        for f in new_column_schema.inner().fields() {
+            self.column_stats.insert(
+                f.name().clone(),
+                input_stats.as_ref().cloned().unwrap_or_default(),
+            );
         }
 
         self
@@ -1197,10 +1143,22 @@ impl QueryChunk for TestChunk {
 }
 
 impl QueryChunkMeta for TestChunk {
-    fn summary(&self) -> Arc<TableSummary> {
+    fn stats(&self) -> Arc<DataFusionStatistics> {
         self.check_error().unwrap();
 
-        Arc::new(self.table_summary.clone())
+        Arc::new(DataFusionStatistics {
+            num_rows: self.num_rows,
+            total_byte_size: None,
+            column_statistics: Some(
+                self.schema
+                    .inner()
+                    .fields()
+                    .iter()
+                    .map(|f| self.column_stats.get(f.name()).cloned().unwrap_or_default())
+                    .collect(),
+            ),
+            is_exact: true,
+        })
     }
 
     fn schema(&self) -> &Schema {

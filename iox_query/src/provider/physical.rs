@@ -198,10 +198,13 @@ pub fn chunks_to_physical_nodes(
         // ensure that chunks are actually ordered by chunk order
         chunks.sort_by_key(|(_meta, c)| c.order());
 
-        let num_rows = chunks
-            .iter()
-            .map(|(_meta, c)| c.summary().total_count() as usize)
-            .sum::<usize>();
+        let num_rows = chunks.iter().map(|(_meta, c)| c.stats().num_rows).fold(
+            Some(0usize),
+            |accu, x| match (accu, x) {
+                (Some(accu), Some(x)) => Some(accu + x),
+                _ => None,
+            },
+        );
         let chunk_order_min = chunks
             .iter()
             .map(|(_meta, c)| c.order().get())
@@ -265,7 +268,7 @@ pub fn chunks_to_physical_nodes(
         };
 
         let statistics = Statistics {
-            num_rows: Some(num_rows),
+            num_rows,
             total_byte_size: None,
             column_statistics: Some(
                 schema

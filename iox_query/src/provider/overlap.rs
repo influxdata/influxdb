@@ -5,7 +5,9 @@
 
 use crate::QueryChunk;
 use data_types::TimestampMinMax;
+use datafusion::scalar::ScalarValue;
 use observability_deps::tracing::debug;
+use schema::TIME_COLUMN_NAME;
 use std::sync::Arc;
 
 /// Groups query chunks into disjoint sets of overlapped time range.
@@ -90,7 +92,27 @@ pub fn group_potential_duplicates(
 }
 
 fn timestamp_min_max(chunk: &dyn QueryChunk) -> Option<TimestampMinMax> {
-    chunk.summary().time_range()
+    chunk
+        .stats()
+        .column_statistics
+        .as_ref()
+        .and_then(|stats| {
+            chunk
+                .schema()
+                .find_index_of(TIME_COLUMN_NAME)
+                .map(|idx| &stats[idx])
+        })
+        .and_then(|stats| {
+            if let (
+                Some(ScalarValue::TimestampNanosecond(Some(min), None)),
+                Some(ScalarValue::TimestampNanosecond(Some(max), None)),
+            ) = (&stats.min_value, &stats.max_value)
+            {
+                Some(TimestampMinMax::new(*min, *max))
+            } else {
+                None
+            }
+        })
 }
 
 #[cfg(test)]
@@ -118,8 +140,16 @@ mod test {
 
     #[test]
     fn one_time_column_overlap_same_min_max() {
-        let c1 = Arc::new(TestChunk::new("chunk1").with_timestamp_min_max(1, 1));
-        let c2 = Arc::new(TestChunk::new("chunk2").with_timestamp_min_max(1, 1));
+        let c1 = Arc::new(
+            TestChunk::new("chunk1")
+                .with_time_column()
+                .with_timestamp_min_max(1, 1),
+        );
+        let c2 = Arc::new(
+            TestChunk::new("chunk2")
+                .with_time_column()
+                .with_timestamp_min_max(1, 1),
+        );
 
         let groups = group_potential_duplicates(vec![c1, c2]);
 
@@ -129,10 +159,26 @@ mod test {
 
     #[test]
     fn one_time_column_overlap_bad_case() {
-        let c1 = Arc::new(TestChunk::new("chunk1").with_timestamp_min_max(1, 10));
-        let c2 = Arc::new(TestChunk::new("chunk2").with_timestamp_min_max(15, 30));
-        let c3 = Arc::new(TestChunk::new("chunk3").with_timestamp_min_max(7, 20));
-        let c4 = Arc::new(TestChunk::new("chunk4").with_timestamp_min_max(25, 35));
+        let c1 = Arc::new(
+            TestChunk::new("chunk1")
+                .with_time_column()
+                .with_timestamp_min_max(1, 10),
+        );
+        let c2 = Arc::new(
+            TestChunk::new("chunk2")
+                .with_time_column()
+                .with_timestamp_min_max(15, 30),
+        );
+        let c3 = Arc::new(
+            TestChunk::new("chunk3")
+                .with_time_column()
+                .with_timestamp_min_max(7, 20),
+        );
+        let c4 = Arc::new(
+            TestChunk::new("chunk4")
+                .with_time_column()
+                .with_timestamp_min_max(25, 35),
+        );
 
         let groups = group_potential_duplicates(vec![c1, c2, c3, c4]);
 
@@ -142,10 +188,26 @@ mod test {
 
     #[test]
     fn one_time_column_overlap_contiguous() {
-        let c1 = Arc::new(TestChunk::new("chunk1").with_timestamp_min_max(1, 10));
-        let c2 = Arc::new(TestChunk::new("chunk2").with_timestamp_min_max(7, 20));
-        let c3 = Arc::new(TestChunk::new("chunk3").with_timestamp_min_max(15, 30));
-        let c4 = Arc::new(TestChunk::new("chunk4").with_timestamp_min_max(25, 35));
+        let c1 = Arc::new(
+            TestChunk::new("chunk1")
+                .with_time_column()
+                .with_timestamp_min_max(1, 10),
+        );
+        let c2 = Arc::new(
+            TestChunk::new("chunk2")
+                .with_time_column()
+                .with_timestamp_min_max(7, 20),
+        );
+        let c3 = Arc::new(
+            TestChunk::new("chunk3")
+                .with_time_column()
+                .with_timestamp_min_max(15, 30),
+        );
+        let c4 = Arc::new(
+            TestChunk::new("chunk4")
+                .with_time_column()
+                .with_timestamp_min_max(25, 35),
+        );
 
         let groups = group_potential_duplicates(vec![c1, c2, c3, c4]);
 
@@ -155,10 +217,26 @@ mod test {
 
     #[test]
     fn one_time_column_overlap_2_groups() {
-        let c1 = Arc::new(TestChunk::new("chunk1").with_timestamp_min_max(1, 10));
-        let c2 = Arc::new(TestChunk::new("chunk2").with_timestamp_min_max(7, 20));
-        let c3 = Arc::new(TestChunk::new("chunk3").with_timestamp_min_max(21, 30));
-        let c4 = Arc::new(TestChunk::new("chunk4").with_timestamp_min_max(25, 35));
+        let c1 = Arc::new(
+            TestChunk::new("chunk1")
+                .with_time_column()
+                .with_timestamp_min_max(1, 10),
+        );
+        let c2 = Arc::new(
+            TestChunk::new("chunk2")
+                .with_time_column()
+                .with_timestamp_min_max(7, 20),
+        );
+        let c3 = Arc::new(
+            TestChunk::new("chunk3")
+                .with_time_column()
+                .with_timestamp_min_max(21, 30),
+        );
+        let c4 = Arc::new(
+            TestChunk::new("chunk4")
+                .with_time_column()
+                .with_timestamp_min_max(25, 35),
+        );
 
         let groups = group_potential_duplicates(vec![c1, c2, c3, c4]);
 
@@ -168,10 +246,26 @@ mod test {
 
     #[test]
     fn one_time_column_overlap_3_groups() {
-        let c1 = Arc::new(TestChunk::new("chunk1").with_timestamp_min_max(1, 10));
-        let c2 = Arc::new(TestChunk::new("chunk2").with_timestamp_min_max(7, 20));
-        let c3 = Arc::new(TestChunk::new("chunk3").with_timestamp_min_max(21, 24));
-        let c4 = Arc::new(TestChunk::new("chunk4").with_timestamp_min_max(25, 35));
+        let c1 = Arc::new(
+            TestChunk::new("chunk1")
+                .with_time_column()
+                .with_timestamp_min_max(1, 10),
+        );
+        let c2 = Arc::new(
+            TestChunk::new("chunk2")
+                .with_time_column()
+                .with_timestamp_min_max(7, 20),
+        );
+        let c3 = Arc::new(
+            TestChunk::new("chunk3")
+                .with_time_column()
+                .with_timestamp_min_max(21, 24),
+        );
+        let c4 = Arc::new(
+            TestChunk::new("chunk4")
+                .with_time_column()
+                .with_timestamp_min_max(25, 35),
+        );
 
         let groups = group_potential_duplicates(vec![c1, c4, c3, c2]);
 
@@ -185,7 +279,11 @@ mod test {
 
     #[test]
     fn one_time_column_overlap_1_chunk() {
-        let c1 = Arc::new(TestChunk::new("chunk1").with_timestamp_min_max(1, 10));
+        let c1 = Arc::new(
+            TestChunk::new("chunk1")
+                .with_time_column()
+                .with_timestamp_min_max(1, 10),
+        );
 
         let groups = group_potential_duplicates(vec![c1]);
 
@@ -202,18 +300,28 @@ mod test {
 
     #[test]
     fn multi_columns_overlap_bad_case() {
-        let c1 = Arc::new(TestChunk::new("chunk1").with_timestamp_min_max(1, 10));
+        let c1 = Arc::new(
+            TestChunk::new("chunk1")
+                .with_time_column()
+                .with_timestamp_min_max(1, 10),
+        );
         let c2 = Arc::new(
             TestChunk::new("chunk2")
+                .with_time_column()
                 .with_timestamp_min_max(15, 30)
                 .with_i64_field_column("field1"),
         );
         let c3 = Arc::new(
             TestChunk::new("chunk3")
+                .with_time_column()
                 .with_timestamp_min_max(7, 20)
                 .with_tag_column("tag1"),
         );
-        let c4 = Arc::new(TestChunk::new("chunk4").with_timestamp_min_max(25, 35));
+        let c4 = Arc::new(
+            TestChunk::new("chunk4")
+                .with_time_column()
+                .with_timestamp_min_max(25, 35),
+        );
 
         let groups = group_potential_duplicates(vec![c1, c2, c3, c4]);
 
@@ -225,6 +333,7 @@ mod test {
     fn multi_columns_overlap_1_chunk() {
         let c1 = Arc::new(
             TestChunk::new("chunk1")
+                .with_time_column()
                 .with_timestamp_min_max(1, 10)
                 .with_tag_column("tag1"),
         );
@@ -239,16 +348,26 @@ mod test {
     fn multi_columns_overlap_3_groups() {
         let c1 = Arc::new(
             TestChunk::new("chunk1")
+                .with_time_column()
                 .with_timestamp_min_max(1, 10)
                 .with_tag_column("tag1"),
         );
-        let c2 = Arc::new(TestChunk::new("chunk2").with_timestamp_min_max(7, 20));
+        let c2 = Arc::new(
+            TestChunk::new("chunk2")
+                .with_time_column()
+                .with_timestamp_min_max(7, 20),
+        );
         let c3 = Arc::new(
             TestChunk::new("chunk3")
+                .with_time_column()
                 .with_timestamp_min_max(21, 24)
                 .with_tag_column("tag2"),
         );
-        let c4 = Arc::new(TestChunk::new("chunk4").with_timestamp_min_max(25, 35));
+        let c4 = Arc::new(
+            TestChunk::new("chunk4")
+                .with_time_column()
+                .with_timestamp_min_max(25, 35),
+        );
 
         let groups = group_potential_duplicates(vec![c1, c4, c3, c2]);
 

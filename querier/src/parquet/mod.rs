@@ -1,8 +1,7 @@
 //! Querier Chunks
 
-use data_types::{
-    ChunkId, ChunkOrder, CompactionLevel, DeletePredicate, PartitionId, TableSummary,
-};
+use data_types::{ChunkId, ChunkOrder, CompactionLevel, DeletePredicate, PartitionId};
+use datafusion::physical_plan::Statistics;
 use iox_query::util::create_basic_summary;
 use parquet_file::chunk::ParquetChunk;
 use schema::sort::SortKey;
@@ -65,14 +64,14 @@ pub struct QuerierParquetChunk {
     /// Chunk of the Parquet file
     parquet_chunk: Arc<ParquetChunk>,
 
-    /// Table summary
-    table_summary: Arc<TableSummary>,
+    /// Stats
+    stats: Arc<Statistics>,
 }
 
 impl QuerierParquetChunk {
     /// Create new parquet-backed chunk (object store data).
     pub fn new(parquet_chunk: Arc<ParquetChunk>, meta: Arc<QuerierParquetChunkMeta>) -> Self {
-        let table_summary = Arc::new(create_basic_summary(
+        let stats = Arc::new(create_basic_summary(
             parquet_chunk.rows() as u64,
             parquet_chunk.schema(),
             parquet_chunk.timestamp_min_max(),
@@ -82,7 +81,7 @@ impl QuerierParquetChunk {
             meta,
             delete_predicates: Vec::new(),
             parquet_chunk,
-            table_summary,
+            stats,
         }
     }
 
@@ -152,8 +151,8 @@ pub mod tests {
         // check sort key
         assert_sort_key(&chunk);
 
-        // back up table summary
-        let table_summary_1 = chunk.summary();
+        // back up stats
+        let stats_1 = chunk.stats();
 
         // check if chunk can be queried
         assert_content(&chunk, &test_data).await;
@@ -161,9 +160,9 @@ pub mod tests {
         // check state again
         assert_eq!(chunk.chunk_type(), "parquet");
 
-        // summary has NOT changed
-        let table_summary_2 = chunk.summary();
-        assert_eq!(table_summary_1, table_summary_2);
+        // stats have NOT changed
+        let stats_2 = chunk.stats();
+        assert_eq!(stats_1, stats_2);
 
         // retrieving the chunk again should not require any catalog requests
         test_data.chunk(namespace_schema).await;
