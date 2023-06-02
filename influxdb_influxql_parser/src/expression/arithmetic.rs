@@ -657,6 +657,12 @@ impl LiteralExpr for Duration {
     }
 }
 
+impl LiteralExpr for bool {
+    fn lit(self) -> Expr {
+        Expr::Literal(Literal::Boolean(self))
+    }
+}
+
 impl LiteralExpr for i64 {
     fn lit(self) -> Expr {
         Expr::Literal(Literal::Integer(self))
