@@ -1,10 +1,12 @@
 //! Implementation of a DataFusion PhysicalPlan node across partition chunks
 
-use crate::{QueryChunk, CHUNK_ORDER_COLUMN_NAME};
+use crate::{statistics::DFStatsAggregator, QueryChunk, CHUNK_ORDER_COLUMN_NAME};
 
 use super::adapter::SchemaAdapterStream;
-use arrow::{datatypes::SchemaRef, record_batch::RecordBatch};
-use data_types::{ColumnSummary, InfluxDbType, TableSummary};
+use arrow::{
+    datatypes::{Schema, SchemaRef},
+    record_batch::RecordBatch,
+};
 use datafusion::{
     error::DataFusionError,
     execution::context::TaskContext,
@@ -12,17 +14,16 @@ use datafusion::{
         expressions::{Column, PhysicalSortExpr},
         memory::MemoryStream,
         metrics::{BaselineMetrics, ExecutionPlanMetricsSet, MetricsSet},
-        DisplayFormatType, ExecutionPlan, Partitioning, SendableRecordBatchStream, Statistics,
+        ColumnStatistics, DisplayFormatType, ExecutionPlan, Partitioning,
+        SendableRecordBatchStream, Statistics,
     },
     scalar::ScalarValue,
 };
 use observability_deps::tracing::trace;
 use schema::sort::SortKey;
 use std::{
-    borrow::Cow,
     collections::{HashMap, HashSet},
     fmt,
-    num::NonZeroU64,
     sync::Arc,
 };
 
@@ -59,7 +60,9 @@ impl RecordBatchesExec {
         schema: SchemaRef,
         output_sort_key_memo: Option<SortKey>,
     ) -> Self {
-        let has_chunk_order_col = schema.field_with_name(CHUNK_ORDER_COLUMN_NAME).is_ok();
+        let chunk_order_field = schema.field_with_name(CHUNK_ORDER_COLUMN_NAME).ok();
+        let chunk_order_only_schema =
+            chunk_order_field.map(|field| Schema::new(vec![field.clone()]));
 
         let chunks: Vec<_> = chunks
             .into_iter()
@@ -76,53 +79,35 @@ impl RecordBatchesExec {
         let statistics = chunks
             .iter()
             .fold(
-                None,
-                |mut combined_summary: Option<TableSummary>, (chunk, _batches)| {
-                    let summary = chunk.summary();
+                DFStatsAggregator::new(&schema),
+                |mut agg, (chunk, _batches)| {
+                    agg.update(&chunk.stats(), chunk.schema().as_arrow().as_ref());
 
-                    let summary = if has_chunk_order_col {
-                        // add chunk order column
+                    if let Some(schema) = chunk_order_only_schema.as_ref() {
                         let order = chunk.order().get();
-                        let summary = TableSummary {
-                            columns: summary
-                                .columns
-                                .iter()
-                                .cloned()
-                                .chain(std::iter::once(ColumnSummary {
-                                    name: CHUNK_ORDER_COLUMN_NAME.to_owned(),
-                                    influxdb_type: InfluxDbType::Field,
-                                    stats: data_types::Statistics::I64(data_types::StatValues {
-                                        min: Some(order),
-                                        max: Some(order),
-                                        total_count: summary.total_count(),
-                                        null_count: Some(0),
-                                        distinct_count: Some(NonZeroU64::new(1).unwrap()),
-                                    }),
-                                }))
-                                .collect(),
-                        };
-
-                        Cow::Owned(summary)
-                    } else {
-                        Cow::Borrowed(summary.as_ref())
-                    };
-
-                    match combined_summary.as_mut() {
-                        None => {
-                            combined_summary = Some(summary.into_owned());
-                        }
-                        Some(combined_summary) => {
-                            combined_summary.update_from(&summary);
-                        }
+                        let order = ScalarValue::from(order);
+                        agg.update(
+                            &Statistics {
+                                num_rows: Some(0),
+                                total_byte_size: Some(0),
+                                column_statistics: Some(vec![ColumnStatistics {
+                                    null_count: Some(0),
+                                    max_value: Some(order.clone()),
+                                    min_value: Some(order),
+                                    distinct_count: Some(1),
+                                }]),
+                                is_exact: true,
+                            },
+                            schema,
+                        );
                     }
 
-                    combined_summary
+                    agg
                 },
             )
-            .map(|combined_summary| crate::statistics::df_from_iox(&schema, &combined_summary))
-            .unwrap_or_default();
+            .build();
 
-        let output_ordering = if has_chunk_order_col {
+        let output_ordering = if chunk_order_field.is_some() {
             Some(vec![
                 // every chunk gets its own partition, so we can claim that the output is ordered
                 PhysicalSortExpr {

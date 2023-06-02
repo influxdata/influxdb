@@ -7,7 +7,6 @@ license.workspace = true
 
 [dependencies]
 arrow = { workspace = true, features = ["prettyprint"] }
-chrono = { version = "0.4", default-features = false }
 chrono-tz = { version = "0.8" }
 datafusion = { workspace = true }
 datafusion_util = { path = "../datafusion_util" }
@@ -16,6 +15,7 @@ influxdb_influxql_parser = { path = "../influxdb_influxql_parser" }
 iox_query = { path = "../iox_query" }
 itertools = "0.10.5"
 observability_deps = { path = "../observability_deps" }
+predicate = { path = "../predicate" }
 query_functions = { path = "../query_functions" }
 regex = "1"
 schema = { path = "../schema" }
@@ -24,6 +24,7 @@ thiserror = "1.0"
 workspace-hack = { version = "0.1", path = "../workspace-hack" }
 
 [dev-dependencies] # In alphabetical order
+chrono = { version = "0.4", default-features = false }
 test_helpers = { path = "../test_helpers" }
 assert_matches = "1"
 insta = { version = "1", features = ["yaml"] }

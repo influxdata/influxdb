@@ -10,6 +10,9 @@ use datafusion::prelude::SessionContext;
 use once_cell::sync::Lazy;
 
 /// Returns the list of catalogs in the DataFusion catalog
+///
+/// TODO: use upstream implementation when
+/// <https://github.com/apache/arrow-rs/pull/4296> is available
 pub(crate) fn get_catalogs(ctx: &SessionContext) -> Result<RecordBatch> {
     let mut catalog_names = ctx.catalog_names();
     catalog_names.sort_unstable();

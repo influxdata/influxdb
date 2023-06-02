@@ -28,3 +28,8 @@ tokio = { version = "1.28", features = ["macros", "parking_lot", "rt", "rt-multi
 uuid = { version = "1", features = ["v4"] }
 zstd = "0.12"
 workspace-hack = { version = "0.1", path = "../workspace-hack" }
+
+
+[dev-dependencies] # In alphabetical order
+rand = "0.8.3"
+test_helpers = { version = "0.1.0", path = "../test_helpers" }

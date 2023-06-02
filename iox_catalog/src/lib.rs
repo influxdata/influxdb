@@ -1,6 +1,7 @@
 //! The IOx catalog keeps track of the namespaces, tables, columns, parquet files,
 //! and deletes in the system. Configuration information for distributing ingest, query
 //! and compaction is also stored here.
+#![deny(rustdoc::broken_intra_doc_links, rust_2018_idioms)]
 #![warn(
     missing_copy_implementations,
     missing_debug_implementations,
@@ -20,8 +21,8 @@ use workspace_hack as _;
 
 use crate::interface::{ColumnTypeMismatchSnafu, Error, RepoCollection, Result};
 use data_types::{
-    ColumnType, NamespaceId, NamespacePartitionTemplateOverride, NamespaceSchema,
-    TablePartitionTemplateOverride, TableSchema,
+    partition_template::{NamespacePartitionTemplateOverride, TablePartitionTemplateOverride},
+    ColumnType, NamespaceId, NamespaceSchema, TableSchema,
 };
 use mutable_batch::MutableBatch;
 use std::{borrow::Cow, collections::HashMap};
@@ -40,6 +41,7 @@ pub mod interface;
 pub(crate) mod kafkaless_transition;
 pub mod mem;
 pub mod metrics;
+pub mod migrate;
 pub mod postgres;
 pub mod sqlite;
 
@@ -264,7 +266,9 @@ where
 /// Catalog helper functions for creation of catalog objects
 pub mod test_helpers {
     use crate::RepoCollection;
-    use data_types::{Namespace, NamespaceName, Table, TablePartitionTemplateOverride};
+    use data_types::{
+        partition_template::TablePartitionTemplateOverride, Namespace, NamespaceName, Table,
+    };
 
     /// When the details of the namespace don't matter; the test just needs *a* catalog namespace
     /// with a particular name.

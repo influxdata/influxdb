@@ -1,9 +1,10 @@
 use async_trait::async_trait;
 use data_types::{
-    NamespaceName, NamespaceSchema, PartitionKey, TableId, TablePartitionTemplateOverride,
+    partition_template::TablePartitionTemplateOverride, NamespaceName, NamespaceSchema,
+    PartitionKey, TableId,
 };
 use hashbrown::HashMap;
-use mutable_batch::{MutableBatch, PartitionWrite, WritePayload};
+use mutable_batch::{MutableBatch, PartitionKeyError, PartitionWrite, WritePayload};
 use observability_deps::tracing::*;
 use std::sync::Arc;
 use thiserror::Error;
@@ -17,6 +18,10 @@ pub enum PartitionError {
     /// Failed to write to the partitioned table batch.
     #[error("error batching into partitioned write: {0}")]
     BatchWrite(#[from] mutable_batch::Error),
+
+    /// An error deriving the partition key from the partition key template.
+    #[error("error generating partition key: {0}")]
+    Partitioner(#[from] PartitionKeyError),
 }
 
 /// A decorator of `T`, tagging it with the partition key derived from it.
@@ -75,7 +80,7 @@ impl DmlHandler for Partitioner {
             // Partition the table batch according to the configured partition
             // template and write it into the partition-keyed map.
             for (partition_key, partition_payload) in
-                PartitionWrite::partition(&batch, &table_partition_template)
+                PartitionWrite::partition(&batch, &table_partition_template)?
             {
                 let partition = partitions.entry(partition_key).or_default();
                 let table_batch = partition
@@ -99,7 +104,10 @@ impl DmlHandler for Partitioner {
 #[cfg(test)]
 mod tests {
     use assert_matches::assert_matches;
-    use data_types::{test_table_partition_override, NamespaceId, TemplatePart};
+    use data_types::{
+        partition_template::{test_table_partition_override, TemplatePart},
+        NamespaceId,
+    };
 
     use super::*;
 
@@ -353,14 +361,9 @@ mod tests {
             .collect::<HashMap<_, _>>();
 
         let expected = HashMap::from([
-            (
-                PartitionKey::from("oranges-1970-01-tag2_C"),
-                vec!["bananas".into()],
-            ),
-            (
-                PartitionKey::from("oranges-2016-06-tag2_D"),
-                vec!["bananas".into()],
-            ),
+            (PartitionKey::from("!|1970-01|C"), vec!["bananas".into()]),
+            (PartitionKey::from("!|2016-06|D"), vec!["bananas".into()]),
+            // This table does not have a partition template override
             (PartitionKey::from("1970-01-01"), vec!["platanos".into()]),
             (PartitionKey::from("2016-06-13"), vec!["platanos".into()]),
         ]);

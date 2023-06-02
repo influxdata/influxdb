@@ -19,6 +19,8 @@ select selector_first(bool_field, time) from m;
 select selector_first(float_field, time)['value'], selector_first(float_field, time)['time'] from m;
 -- Also with subqueries
 select f['value'], f['time'] from (select selector_first(float_field, time) as f from m) as sq;
+-- Test with additional fields
+select selector_first(float_field, time, bool_field, int_field) from m;
 
 
 --------

@@ -12,10 +12,8 @@ use arrow_flight::decode::DecodedPayload;
 use async_trait::async_trait;
 use backoff::{Backoff, BackoffConfig, BackoffError};
 use client_util::connection;
-use data_types::{
-    ChunkId, ChunkOrder, DeletePredicate, NamespaceId, PartitionId, TableSummary, TimestampMinMax,
-};
-use datafusion::error::DataFusionError;
+use data_types::{ChunkId, ChunkOrder, DeletePredicate, NamespaceId, PartitionId, TimestampMinMax};
+use datafusion::{error::DataFusionError, physical_plan::Statistics};
 use futures::{stream::FuturesUnordered, TryStreamExt};
 use ingester_query_grpc::{
     encode_proto_predicate_as_base64, influxdata::iox::ingester::v1::IngesterQueryResponseMetadata,
@@ -824,7 +822,7 @@ impl IngesterPartition {
         let ts_min_max = compute_timenanosecond_min_max(&batches).expect("Should have time range");
 
         let row_count = batches.iter().map(|batch| batch.num_rows()).sum::<usize>() as u64;
-        let summary = Arc::new(create_basic_summary(
+        let stats = Arc::new(create_basic_summary(
             row_count,
             &expected_schema,
             ts_min_max,
@@ -837,7 +835,7 @@ impl IngesterPartition {
             partition_sort_key: self.partition_sort_key.clone(),
             batches,
             ts_min_max,
-            summary,
+            stats,
             delete_predicates: vec![],
         };
 
@@ -900,7 +898,7 @@ pub struct IngesterChunk {
     ts_min_max: TimestampMinMax,
 
     /// Summary Statistics
-    summary: Arc<TableSummary>,
+    stats: Arc<Statistics>,
 
     delete_predicates: Vec<Arc<DeletePredicate>>,
 }
@@ -928,8 +926,8 @@ impl IngesterChunk {
 }
 
 impl QueryChunkMeta for IngesterChunk {
-    fn summary(&self) -> Arc<TableSummary> {
-        Arc::clone(&self.summary)
+    fn stats(&self) -> Arc<Statistics> {
+        Arc::clone(&self.stats)
     }
 
     fn schema(&self) -> &Schema {

@@ -11,7 +11,10 @@ use datafusion::prelude::SessionContext;
 use once_cell::sync::Lazy;
 
 /// Implementation of FlightSQL GetDbSchemas
-
+///
+/// TODO: use upstream implementation when
+/// <https://github.com/apache/arrow-rs/pull/4296> is available
+///
 /// Return a RecordBatch for the GetDbSchemas
 ///
 /// # Parameters

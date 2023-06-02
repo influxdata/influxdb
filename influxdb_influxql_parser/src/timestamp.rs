@@ -1,9 +1,12 @@
-use crate::plan::error;
+//! Parse InfluxQL timestamp strings.
+//!
 use chrono::{DateTime, FixedOffset, NaiveDate, NaiveDateTime, NaiveTime, Offset, TimeZone};
-use datafusion::common::Result;
+
+/// Represents an InfluxQL timestamp.
+pub type Timestamp = DateTime<FixedOffset>;
 
 /// Parse the timestamp string and return a DateTime in UTC.
-fn parse_timestamp_utc(s: &str) -> Result<DateTime<FixedOffset>> {
+fn parse_timestamp_utc(s: &str) -> Option<Timestamp> {
     // 1a. Try a date time format string with nanosecond precision and then without
     //    https://github.com/influxdata/influxql/blob/1ba470371ec093d57a726b143fe6ccbacf1b452b/ast.go#L3661
     NaiveDateTime::parse_from_str(s, "%Y-%m-%d %H:%M:%S%.f")
@@ -20,11 +23,11 @@ fn parse_timestamp_utc(s: &str) -> Result<DateTime<FixedOffset>> {
                     .map(|nd| nd.and_time(NaiveTime::default())),
         )
         .map(|ts| DateTime::from_utc(ts, chrono::Utc.fix()))
-        .map_err(|_| error::map::query("invalid timestamp string"))
+        .ok()
 }
 
 /// Parse the timestamp string and return a DateTime in the specified timezone.
-fn parse_timestamp_tz(s: &str, tz: chrono_tz::Tz) -> Result<DateTime<FixedOffset>> {
+fn parse_timestamp_tz(s: &str, tz: chrono_tz::Tz) -> Option<Timestamp> {
     // 1a. Try a date time format string with nanosecond precision
     //    https://github.com/influxdata/influxql/blob/1ba470371ec093d57a726b143fe6ccbacf1b452b/ast.go#L3661
     tz.datetime_from_str(s, "%Y-%m-%d %H:%M:%S%.f")
@@ -51,7 +54,7 @@ fn parse_timestamp_tz(s: &str, tz: chrono_tz::Tz) -> Result<DateTime<FixedOffset
                 .ok_or(())
         })
         .map(|ts| ts.with_timezone(&ts.offset().fix()))
-        .map_err(|_| error::map::query("invalid timestamp string"))
+        .ok()
 }
 
 /// Parse the string and return a `DateTime` using a fixed offset.
@@ -60,7 +63,7 @@ fn parse_timestamp_tz(s: &str, tz: chrono_tz::Tz) -> Result<DateTime<FixedOffset
 ///
 /// [`ToTimeLiteral`]: https://github.com/influxdata/influxql/blob/1ba470371ec093d57a726b143fe6ccbacf1b452b/ast.go#L3654-L3655
 ///
-pub fn parse_timestamp(s: &str, tz: Option<chrono_tz::Tz>) -> Result<DateTime<FixedOffset>> {
+pub fn parse_timestamp(s: &str, tz: Option<chrono_tz::Tz>) -> Option<Timestamp> {
     match tz {
         Some(tz) => parse_timestamp_tz(s, tz),
         // We could have mapped None => Utc and called parse_timestamp_tz, however,

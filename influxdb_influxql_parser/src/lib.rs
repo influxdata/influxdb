@@ -51,6 +51,8 @@ pub mod show_tag_values;
 pub mod simple_from_clause;
 pub mod statement;
 pub mod string;
+pub mod time_range;
+pub mod timestamp;
 pub mod visit;
 pub mod visit_mut;
 

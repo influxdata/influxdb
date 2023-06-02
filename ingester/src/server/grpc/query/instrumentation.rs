@@ -11,7 +11,11 @@ use trace::span::SpanRecorder;
 #[allow(clippy::large_enum_variant)]
 /// State machine nodes for the [`FlightFrameEncodeRecorder`]
 enum FrameEncodeRecorderState {
+    /// The caller is not awaiting a frame.
     Unpolled,
+
+    /// The caller is currently awaiting a frame, and the embedded
+    /// [`SpanRecorder`] was created when the wait began.
     Polled(SpanRecorder),
 }
 
@@ -30,8 +34,16 @@ impl FrameEncodeRecorderState {
     }
 }
 
+/// An instrumentation wrapper around a [`FlightDataEncoder`], emitting tracing
+/// spans that cover the duration of time a caller spends waiting (usually
+/// asynchronously) for the underlying codec implementation to obtain and covert
+/// a [`RecordBatch`] to a Flight protocol frame and return it.
+///
+/// Effectively, these spans record the amount of time a caller is waiting to
+/// make progress when streaming a Flight response.
+///
+/// [`RecordBatch`]: arrow::record_batch::RecordBatch
 #[pin_project]
-/// Recorder wrapper for flight data requests.
 pub(crate) struct FlightFrameEncodeRecorder {
     #[pin]
     inner: FlightDataEncoder,

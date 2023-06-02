@@ -149,6 +149,9 @@ impl From<&DmlError> for StatusCode {
 
             DmlError::Internal(_) => StatusCode::INTERNAL_SERVER_ERROR,
             DmlError::Partition(PartitionError::BatchWrite(_)) => StatusCode::INTERNAL_SERVER_ERROR,
+            DmlError::Partition(PartitionError::Partitioner(_)) => {
+                StatusCode::INTERNAL_SERVER_ERROR
+            }
             DmlError::Retention(RetentionError::OutsideRetention { .. }) => StatusCode::FORBIDDEN,
             DmlError::RpcWrite(RpcWriteError::Client(RpcWriteClientError::Upstream(_))) => {
                 StatusCode::INTERNAL_SERVER_ERROR

@@ -14,7 +14,10 @@ use arrow::{
     record_batch::RecordBatch,
 };
 use arrow_util::bitset::BitSet;
-use data_types::{test_table_partition_override, IsNan, StatValues, Statistics, TemplatePart};
+use data_types::{
+    partition_template::{test_table_partition_override, TemplatePart},
+    IsNan, StatValues, Statistics,
+};
 use hashbrown::HashSet;
 use mutable_batch::{writer::Writer, MutableBatch, PartitionWrite, WritePayload};
 use rand::prelude::*;
@@ -435,7 +438,7 @@ fn test_partition_write() {
     let table_partition_template =
         test_table_partition_override(vec![TemplatePart::TagValue("t1")]);
 
-    let partitioned = PartitionWrite::partition(&batch, &table_partition_template);
+    let partitioned = PartitionWrite::partition(&batch, &table_partition_template).unwrap();
 
     for (_, write) in &partitioned {
         verify_write(write);

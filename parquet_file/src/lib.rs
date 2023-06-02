@@ -24,6 +24,7 @@ pub mod chunk;
 pub mod metadata;
 pub mod serialize;
 pub mod storage;
+pub mod writer;
 
 use data_types::{NamespaceId, ParquetFile, ParquetFileParams, PartitionId, TableId};
 use object_store::path::Path;

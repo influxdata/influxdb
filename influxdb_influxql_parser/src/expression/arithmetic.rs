@@ -2,7 +2,8 @@ use crate::common::ws0;
 use crate::identifier::unquoted_identifier;
 use crate::internal::{expect, Error, ParseError, ParseResult};
 use crate::keywords::keyword;
-use crate::literal::literal_regex;
+use crate::literal::{literal_regex, Duration};
+use crate::timestamp::Timestamp;
 use crate::{
     identifier::{identifier, Identifier},
     literal::Literal,
@@ -631,6 +632,59 @@ fn reduce_expr(expr: Expr, remainder: Vec<(BinaryOperator, Expr)>) -> Expr {
             rhs: val.1.into(),
         })
     })
+}
+
+/// Trait for converting a type to a [`Expr::Literal`] expression.
+pub trait LiteralExpr {
+    /// Convert the receiver to a literal expression.
+    fn lit(self) -> Expr;
+}
+
+/// Convert `v` to a literal expression.
+pub fn lit<T: LiteralExpr>(v: T) -> Expr {
+    v.lit()
+}
+
+impl LiteralExpr for Literal {
+    fn lit(self) -> Expr {
+        Expr::Literal(self)
+    }
+}
+
+impl LiteralExpr for Duration {
+    fn lit(self) -> Expr {
+        Expr::Literal(Literal::Duration(self))
+    }
+}
+
+impl LiteralExpr for bool {
+    fn lit(self) -> Expr {
+        Expr::Literal(Literal::Boolean(self))
+    }
+}
+
+impl LiteralExpr for i64 {
+    fn lit(self) -> Expr {
+        Expr::Literal(Literal::Integer(self))
+    }
+}
+
+impl LiteralExpr for f64 {
+    fn lit(self) -> Expr {
+        Expr::Literal(Literal::Float(self))
+    }
+}
+
+impl LiteralExpr for String {
+    fn lit(self) -> Expr {
+        Expr::Literal(Literal::String(self))
+    }
+}
+
+impl LiteralExpr for Timestamp {
+    fn lit(self) -> Expr {
+        Expr::Literal(Literal::Timestamp(self))
+    }
 }
 
 #[cfg(test)]

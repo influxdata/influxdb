@@ -97,14 +97,17 @@ SELECT cpu, usage_idle FROM cpu WHERE time = 1667181610000000000 OR time = 16671
 
 -- NOT NULL test
 -- WHERE tag1 != '' is the equivalent to tag1 IS NOT NULL
--- TODO(sgc): This is working, but likely by accident
 SELECT tag1, f64 FROM m0 WHERE tag1 != '';
+
+-- This is equivalent to the query above
+SELECT tag1, f64 FROM m0 WHERE tag1 !~ /^$/;
 
 -- NULL test
 -- WHERE tag1 = '' is the equivalent to tag1 IS NULL
--- TODO(sgc): Not working, as expected
---
--- SELECT tag1, f64 FROM m0 WHERE tag1 = '';
+SELECT tag1, f64 FROM m0 WHERE tag1 = '';
+
+-- This is equivalent to the query above
+SELECT tag1, f64 FROM m0 WHERE tag1 =~ /^$/;
 
 --
 -- LIMIT and OFFSET clauses
@@ -362,6 +365,13 @@ SELECT MEAN(usage_idle) FROM cpu WHERE time >= '2022-10-31T02:00:00Z' AND time <
 SELECT MEAN(usage_idle), MEAN(bytes_free) FROM cpu, disk WHERE time >= '2022-10-31T02:00:00Z' AND time <= '2022-10-31T02:00:10Z' GROUP BY TIME(2s) FILL(linear);
 SELECT MEAN(usage_idle) FROM cpu WHERE time >= '2022-10-31T02:00:00Z' AND time <= '2022-10-31T02:00:10Z' GROUP BY TIME(2s) FILL(linear) LIMIT 3 OFFSET 1;
 SELECT MEAN(usage_idle), MEAN(bytes_free) FROM cpu, disk WHERE time >= '2022-10-31T02:00:00Z' AND time <= '2022-10-31T02:00:10Z' GROUP BY TIME(2s) FILL(linear) LIMIT 3 OFFSET 1;
+
+-- determines correct time range when multiple lower bounds
+-- expected: pick narrowest lower bound
+SELECT MEAN(usage_idle) FROM cpu WHERE time >= '2022-10-31T02:00:04Z' AND time >= '2022-10-31T02:00:00Z' AND time <= '2022-10-31T02:00:10Z' GROUP BY TIME(2s) FILL(0);
+-- determines correct time range when multiple upper bounds
+-- expected: pick narrowest upper bound
+SELECT MEAN(usage_idle) FROM cpu WHERE time >= '2022-10-31T02:00:00Z' AND time < '2022-10-31T02:00:10Z' AND time <= '2022-10-31T02:00:10Z' GROUP BY TIME(2s) FILL(0);
 
 -- interpolates NULLs if there is no subsequent value
 SELECT MEAN(usage_idle) FROM cpu WHERE time >= '2022-10-31T02:00:00Z' AND time < '2022-10-31T02:00:10Z' GROUP BY TIME(2s) FILL(linear);

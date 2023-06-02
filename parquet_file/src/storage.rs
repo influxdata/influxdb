@@ -14,6 +14,7 @@ use bytes::Bytes;
 use datafusion::{
     datasource::{listing::PartitionedFile, object_store::ObjectStoreUrl},
     error::DataFusionError,
+    execution::memory_pool::MemoryPool,
     physical_plan::{
         file_format::{FileScanConfig, ParquetExec},
         ExecutionPlan, SendableRecordBatchStream, Statistics,
@@ -209,6 +210,8 @@ impl ParquetStorage {
     /// Push `batches`, a stream of [`RecordBatch`] instances, to object
     /// storage.
     ///
+    /// Any buffering needed is registered with the pool
+    ///
     /// # Retries
     ///
     /// This method retries forever in the presence of object store errors. All
@@ -219,6 +222,7 @@ impl ParquetStorage {
         &self,
         batches: SendableRecordBatchStream,
         meta: &IoxMetadata,
+        pool: Arc<dyn MemoryPool>,
     ) -> Result<(IoxParquetMetaData, usize), UploadError> {
         let start = Instant::now();
 
@@ -230,7 +234,7 @@ impl ParquetStorage {
         //
         // This is not a huge concern, as the resulting parquet files are
         // currently smallish on average.
-        let (data, parquet_file_meta) = serialize::to_parquet_bytes(batches, meta).await?;
+        let (data, parquet_file_meta) = serialize::to_parquet_bytes(batches, meta, pool).await?;
 
         // Read the IOx-specific parquet metadata from the file metadata
         let parquet_meta =
@@ -325,7 +329,7 @@ mod tests {
     };
     use data_types::{CompactionLevel, NamespaceId, PartitionId, TableId};
     use datafusion::common::DataFusionError;
-    use datafusion_util::MemoryStream;
+    use datafusion_util::{unbounded_memory_pool, MemoryStream};
     use iox_time::Time;
     use std::collections::HashMap;
 
@@ -592,7 +596,7 @@ mod tests {
     ) -> (IoxParquetMetaData, usize) {
         let stream = Box::pin(MemoryStream::new(vec![batch]));
         store
-            .upload(stream, meta)
+            .upload(stream, meta, unbounded_memory_pool())
             .await
             .expect("should serialize and store sucessfully")
     }

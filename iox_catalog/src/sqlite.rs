@@ -15,10 +15,10 @@ use crate::{
 };
 use async_trait::async_trait;
 use data_types::{
+    partition_template::{NamespacePartitionTemplateOverride, TablePartitionTemplateOverride},
     Column, ColumnId, ColumnSet, ColumnType, CompactionLevel, Namespace, NamespaceId,
-    NamespaceName, NamespacePartitionTemplateOverride, ParquetFile, ParquetFileId,
-    ParquetFileParams, Partition, PartitionId, PartitionKey, SkippedCompaction, Table, TableId,
-    TablePartitionTemplateOverride, Timestamp,
+    NamespaceName, ParquetFile, ParquetFileId, ParquetFileParams, Partition, PartitionId,
+    PartitionKey, SkippedCompaction, Table, TableId, Timestamp,
 };
 use serde::{Deserialize, Serialize};
 use std::collections::HashSet;
@@ -261,7 +261,7 @@ impl RepoCollection for SqliteTxn {
 impl NamespaceRepo for SqliteTxn {
     async fn create(
         &mut self,
-        name: &NamespaceName,
+        name: &NamespaceName<'_>,
         partition_template: Option<NamespacePartitionTemplateOverride>,
         retention_period_ns: Option<i64>,
     ) -> Result<Namespace> {
@@ -1143,13 +1143,6 @@ FROM parquet_file;
         .collect())
     }
 
-    async fn flag_for_delete(&mut self, id: ParquetFileId) -> Result<()> {
-        let marked_at = Timestamp::from(self.time_provider.now());
-        let executor = self.inner.get_mut();
-
-        flag_for_delete(executor, id, marked_at).await
-    }
-
     async fn flag_for_delete_by_retention(&mut self) -> Result<Vec<ParquetFileId>> {
         let flagged_at = Timestamp::from(self.time_provider.now());
         // TODO - include check of table retention period once implemented
@@ -1491,7 +1484,7 @@ mod tests {
     use super::*;
     use crate::test_helpers::{arbitrary_namespace, arbitrary_table};
     use assert_matches::assert_matches;
-    use data_types::TemplatePart;
+    use data_types::partition_template::TemplatePart;
     use generated_types::influxdata::iox::partition_template::v1 as proto;
     use metric::{Attributes, DurationHistogram, Metric};
     use std::sync::Arc;
@@ -1776,7 +1769,7 @@ mod tests {
         // flag f1 for deletion and assert that the total file size is reduced accordingly.
         repos
             .parquet_files()
-            .flag_for_delete(f1.id)
+            .create_upgrade_delete(&[f1.id], &[], &[], CompactionLevel::Initial)
             .await
             .expect("flag parquet file for deletion should succeed");
         let total_file_size_bytes: i64 =

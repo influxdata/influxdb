@@ -24,8 +24,8 @@ mod columns;
 pub use columns::*;
 mod namespace_name;
 pub use namespace_name::*;
-mod partition_template;
-pub use partition_template::*;
+pub mod partition_template;
+use partition_template::*;
 
 use observability_deps::tracing::warn;
 use schema::{sort::SortKey, TIME_COLUMN_NAME};

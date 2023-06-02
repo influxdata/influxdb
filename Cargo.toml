@@ -118,8 +118,8 @@ license = "MIT OR Apache-2.0"
 [workspace.dependencies]
 arrow = { version = "40.0.0" }
 arrow-flight = { version = "40.0.0" }
-datafusion = { git = "https://github.com/apache/arrow-datafusion.git", rev="ee1019d9585252066ef5b288c84aabebcbd93ca6", default-features = false }
-datafusion-proto = { git = "https://github.com/apache/arrow-datafusion.git", rev="ee1019d9585252066ef5b288c84aabebcbd93ca6" }
+datafusion = { git = "https://github.com/apache/arrow-datafusion.git", rev = "ee1019d9585252066ef5b288c84aabebcbd93ca6", default-features = false }
+datafusion-proto = { git = "https://github.com/apache/arrow-datafusion.git", rev = "ee1019d9585252066ef5b288c84aabebcbd93ca6" }
 hashbrown = { version = "0.13.2" }
 object_store = { version = "0.5.6" }
 parquet = { version = "40.0.0" }
@@ -127,6 +127,22 @@ tonic = { version = "0.9.2", features = ["tls", "tls-webpki-roots"] }
 tonic-build = { version = "0.9.2" }
 tonic-health = { version = "0.9.2" }
 tonic-reflection = { version = "0.9.2" }
+
+[patch.crates-io]
+# Temporary until arrow/parquet 41 is released.
+# Needed to get https://github.com/apache/arrow-rs/pull/4280
+# The branch used is: https://github.com/alamb/arrow-rs/pull/37
+parquet = { git = "https://github.com/alamb/arrow-rs", rev = "4a59200" }
+arrow = { git = "https://github.com/alamb/arrow-rs", rev = "4a59200" }
+arrow-array = { git = "https://github.com/alamb/arrow-rs", rev = "4a59200" }
+arrow-buffer = { git = "https://github.com/alamb/arrow-rs", rev = "4a59200" }
+arrow-cast = { git = "https://github.com/alamb/arrow-rs", rev = "4a59200" }
+arrow-data = { git = "https://github.com/alamb/arrow-rs", rev = "4a59200" }
+arrow-ord = { git = "https://github.com/alamb/arrow-rs", rev = "4a59200" }
+arrow-ipc = { git = "https://github.com/alamb/arrow-rs", rev = "4a59200" }
+arrow-schema = { git = "https://github.com/alamb/arrow-rs", rev = "4a59200" }
+arrow-select = { git = "https://github.com/alamb/arrow-rs", rev = "4a59200" }
+arrow-string = { git = "https://github.com/alamb/arrow-rs", rev = "4a59200" }
 
 # This profile optimizes for runtime performance and small binary size at the expense of longer
 # build times. It's most suitable for final release builds.

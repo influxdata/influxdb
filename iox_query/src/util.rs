@@ -13,9 +13,7 @@ use arrow::{
     record_batch::RecordBatch,
 };
 
-use data_types::{
-    ColumnSummary, InfluxDbType, StatValues, Statistics, TableSummary, TimestampMinMax,
-};
+use data_types::TimestampMinMax;
 use datafusion::{
     self,
     common::{tree_node::TreeNodeRewriter, DFSchema, ToDFSchema},
@@ -27,7 +25,7 @@ use datafusion::{
     physical_expr::create_physical_expr,
     physical_plan::{
         expressions::{col as physical_col, PhysicalSortExpr},
-        ExecutionPlan, PhysicalExpr,
+        ColumnStatistics, ExecutionPlan, PhysicalExpr, Statistics,
     },
     prelude::{binary_expr, lit, Column, Expr},
     scalar::ScalarValue,
@@ -36,7 +34,7 @@ use datafusion::{
 use itertools::Itertools;
 use observability_deps::tracing::trace;
 use predicate::rpc_predicate::{FIELD_COLUMN_NAME, MEASUREMENT_COLUMN_NAME};
-use schema::{sort::SortKey, InfluxColumnType, InfluxFieldType, Schema, TIME_COLUMN_NAME};
+use schema::{sort::SortKey, InfluxColumnType, Schema, TIME_COLUMN_NAME};
 use snafu::{ensure, OptionExt, ResultExt, Snafu};
 
 #[derive(Debug, Snafu)]
@@ -290,78 +288,34 @@ pub fn compute_timenanosecond_min_max_for_one_record_batch(
 ///
 /// This contains:
 /// - correct column types
-/// - [total count](StatValues::total_count) for all columns
-/// - [min](StatValues::min)/[max](StatValues::max) for the timestamp column
+/// - [total count](Statistics::num_rows)
+/// - [min](ColumnStatistics::min_value)/[max](ColumnStatistics::max_value) for the timestamp column
 pub fn create_basic_summary(
     row_count: u64,
     schema: &Schema,
     ts_min_max: TimestampMinMax,
-) -> TableSummary {
+) -> Statistics {
     let mut columns = Vec::with_capacity(schema.len());
-    for i in 0..schema.len() {
-        let (t, field) = schema.field(i);
 
-        let influxdb_type = match t {
-            InfluxColumnType::Tag => InfluxDbType::Tag,
-            InfluxColumnType::Field(_) => InfluxDbType::Field,
-            InfluxColumnType::Timestamp => InfluxDbType::Timestamp,
-        };
-
+    for (t, _field) in schema.iter() {
         let stats = match t {
-            InfluxColumnType::Tag | InfluxColumnType::Field(InfluxFieldType::String) => {
-                Statistics::String(StatValues {
-                    min: None,
-                    max: None,
-                    total_count: row_count,
-                    null_count: None,
-                    distinct_count: None,
-                })
-            }
-            InfluxColumnType::Timestamp => Statistics::I64(StatValues {
-                min: Some(ts_min_max.min),
-                max: Some(ts_min_max.max),
-                total_count: row_count,
-                null_count: None,
+            InfluxColumnType::Timestamp => ColumnStatistics {
+                null_count: Some(0),
+                max_value: Some(ScalarValue::TimestampNanosecond(Some(ts_min_max.max), None)),
+                min_value: Some(ScalarValue::TimestampNanosecond(Some(ts_min_max.min), None)),
                 distinct_count: None,
-            }),
-            InfluxColumnType::Field(InfluxFieldType::Integer) => Statistics::I64(StatValues {
-                min: None,
-                max: None,
-                total_count: row_count,
-                null_count: None,
-                distinct_count: None,
-            }),
-            InfluxColumnType::Field(InfluxFieldType::UInteger) => Statistics::U64(StatValues {
-                min: None,
-                max: None,
-                total_count: row_count,
-                null_count: None,
-                distinct_count: None,
-            }),
-            InfluxColumnType::Field(InfluxFieldType::Float) => Statistics::F64(StatValues {
-                min: None,
-                max: None,
-                total_count: row_count,
-                null_count: None,
-                distinct_count: None,
-            }),
-            InfluxColumnType::Field(InfluxFieldType::Boolean) => Statistics::Bool(StatValues {
-                min: None,
-                max: None,
-                total_count: row_count,
-                null_count: None,
-                distinct_count: None,
-            }),
+            },
+            _ => ColumnStatistics::default(),
         };
-
-        columns.push(ColumnSummary {
-            name: field.name().clone(),
-            influxdb_type,
-            stats,
-        })
+        columns.push(stats)
     }
 
-    TableSummary { columns }
+    Statistics {
+        num_rows: Some(row_count as usize),
+        total_byte_size: None,
+        column_statistics: Some(columns),
+        is_exact: true,
+    }
 }
 
 #[cfg(test)]
@@ -372,7 +326,7 @@ mod tests {
         prelude::{col, lit},
         scalar::ScalarValue,
     };
-    use schema::builder::SchemaBuilder;
+    use schema::{builder::SchemaBuilder, InfluxFieldType};
 
     use super::*;
 
@@ -494,7 +448,12 @@ mod tests {
         let ts_min_max = TimestampMinMax { min: 10, max: 20 };
 
         let actual = create_basic_summary(row_count, &schema, ts_min_max);
-        let expected = TableSummary { columns: vec![] };
+        let expected = Statistics {
+            num_rows: Some(row_count as usize),
+            total_byte_size: None,
+            column_statistics: Some(vec![]),
+            is_exact: true,
+        };
         assert_eq!(actual, expected);
     }
 
@@ -505,86 +464,24 @@ mod tests {
         let ts_min_max = TimestampMinMax { min: 10, max: 20 };
 
         let actual = create_basic_summary(row_count, &schema, ts_min_max);
-        let expected = TableSummary {
-            columns: vec![
-                ColumnSummary {
-                    name: String::from("tag"),
-                    influxdb_type: InfluxDbType::Tag,
-                    stats: Statistics::String(StatValues {
-                        min: None,
-                        max: None,
-                        total_count: 0,
-                        null_count: None,
-                        distinct_count: None,
-                    }),
+        let expected = Statistics {
+            num_rows: Some(0),
+            total_byte_size: None,
+            column_statistics: Some(vec![
+                ColumnStatistics::default(),
+                ColumnStatistics::default(),
+                ColumnStatistics::default(),
+                ColumnStatistics::default(),
+                ColumnStatistics::default(),
+                ColumnStatistics::default(),
+                ColumnStatistics {
+                    null_count: Some(0),
+                    min_value: Some(ScalarValue::TimestampNanosecond(Some(10), None)),
+                    max_value: Some(ScalarValue::TimestampNanosecond(Some(20), None)),
+                    distinct_count: None,
                 },
-                ColumnSummary {
-                    name: String::from("field_bool"),
-                    influxdb_type: InfluxDbType::Field,
-                    stats: Statistics::Bool(StatValues {
-                        min: None,
-                        max: None,
-                        total_count: 0,
-                        null_count: None,
-                        distinct_count: None,
-                    }),
-                },
-                ColumnSummary {
-                    name: String::from("field_float"),
-                    influxdb_type: InfluxDbType::Field,
-                    stats: Statistics::F64(StatValues {
-                        min: None,
-                        max: None,
-                        total_count: 0,
-                        null_count: None,
-                        distinct_count: None,
-                    }),
-                },
-                ColumnSummary {
-                    name: String::from("field_integer"),
-                    influxdb_type: InfluxDbType::Field,
-                    stats: Statistics::I64(StatValues {
-                        min: None,
-                        max: None,
-                        total_count: 0,
-                        null_count: None,
-                        distinct_count: None,
-                    }),
-                },
-                ColumnSummary {
-                    name: String::from("field_string"),
-                    influxdb_type: InfluxDbType::Field,
-                    stats: Statistics::String(StatValues {
-                        min: None,
-                        max: None,
-                        total_count: 0,
-                        null_count: None,
-                        distinct_count: None,
-                    }),
-                },
-                ColumnSummary {
-                    name: String::from("field_uinteger"),
-                    influxdb_type: InfluxDbType::Field,
-                    stats: Statistics::U64(StatValues {
-                        min: None,
-                        max: None,
-                        total_count: 0,
-                        null_count: None,
-                        distinct_count: None,
-                    }),
-                },
-                ColumnSummary {
-                    name: String::from("time"),
-                    influxdb_type: InfluxDbType::Timestamp,
-                    stats: Statistics::I64(StatValues {
-                        min: Some(10),
-                        max: Some(20),
-                        total_count: 0,
-                        null_count: None,
-                        distinct_count: None,
-                    }),
-                },
-            ],
+            ]),
+            is_exact: true,
         };
         assert_eq!(actual, expected);
     }
@@ -596,86 +493,24 @@ mod tests {
         let ts_min_max = TimestampMinMax { min: 42, max: 42 };
 
         let actual = create_basic_summary(row_count, &schema, ts_min_max);
-        let expected = TableSummary {
-            columns: vec![
-                ColumnSummary {
-                    name: String::from("tag"),
-                    influxdb_type: InfluxDbType::Tag,
-                    stats: Statistics::String(StatValues {
-                        min: None,
-                        max: None,
-                        total_count: 3,
-                        null_count: None,
-                        distinct_count: None,
-                    }),
+        let expected = Statistics {
+            num_rows: Some(3),
+            total_byte_size: None,
+            column_statistics: Some(vec![
+                ColumnStatistics::default(),
+                ColumnStatistics::default(),
+                ColumnStatistics::default(),
+                ColumnStatistics::default(),
+                ColumnStatistics::default(),
+                ColumnStatistics::default(),
+                ColumnStatistics {
+                    null_count: Some(0),
+                    min_value: Some(ScalarValue::TimestampNanosecond(Some(42), None)),
+                    max_value: Some(ScalarValue::TimestampNanosecond(Some(42), None)),
+                    distinct_count: None,
                 },
-                ColumnSummary {
-                    name: String::from("field_bool"),
-                    influxdb_type: InfluxDbType::Field,
-                    stats: Statistics::Bool(StatValues {
-                        min: None,
-                        max: None,
-                        total_count: 3,
-                        null_count: None,
-                        distinct_count: None,
-                    }),
-                },
-                ColumnSummary {
-                    name: String::from("field_float"),
-                    influxdb_type: InfluxDbType::Field,
-                    stats: Statistics::F64(StatValues {
-                        min: None,
-                        max: None,
-                        total_count: 3,
-                        null_count: None,
-                        distinct_count: None,
-                    }),
-                },
-                ColumnSummary {
-                    name: String::from("field_integer"),
-                    influxdb_type: InfluxDbType::Field,
-                    stats: Statistics::I64(StatValues {
-                        min: None,
-                        max: None,
-                        total_count: 3,
-                        null_count: None,
-                        distinct_count: None,
-                    }),
-                },
-                ColumnSummary {
-                    name: String::from("field_string"),
-                    influxdb_type: InfluxDbType::Field,
-                    stats: Statistics::String(StatValues {
-                        min: None,
-                        max: None,
-                        total_count: 3,
-                        null_count: None,
-                        distinct_count: None,
-                    }),
-                },
-                ColumnSummary {
-                    name: String::from("field_uinteger"),
-                    influxdb_type: InfluxDbType::Field,
-                    stats: Statistics::U64(StatValues {
-                        min: None,
-                        max: None,
-                        total_count: 3,
-                        null_count: None,
-                        distinct_count: None,
-                    }),
-                },
-                ColumnSummary {
-                    name: String::from("time"),
-                    influxdb_type: InfluxDbType::Timestamp,
-                    stats: Statistics::I64(StatValues {
-                        min: Some(42),
-                        max: Some(42),
-                        total_count: 3,
-                        null_count: None,
-                        distinct_count: None,
-                    }),
-                },
-            ],
+            ]),
+            is_exact: true,
         };
         assert_eq!(actual, expected);
     }
