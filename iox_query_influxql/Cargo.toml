@@ -7,7 +7,6 @@ license.workspace = true
 
 [dependencies]
 arrow = { workspace = true, features = ["prettyprint"] }
-chrono = { version = "0.4", default-features = false }
 chrono-tz = { version = "0.8" }
 datafusion = { workspace = true }
 datafusion_util = { path = "../datafusion_util" }
@@ -25,6 +24,7 @@ thiserror = "1.0"
 workspace-hack = { version = "0.1", path = "../workspace-hack" }
 
 [dev-dependencies] # In alphabetical order
+chrono = { version = "0.4", default-features = false }
 test_helpers = { path = "../test_helpers" }
 assert_matches = "1"
 insta = { version = "1", features = ["yaml"] }

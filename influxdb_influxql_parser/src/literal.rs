@@ -4,8 +4,9 @@ use crate::common::ws0;
 use crate::internal::{map_error, map_fail, ParseResult};
 use crate::keywords::keyword;
 use crate::string::{regex, single_quoted_string, Regex};
+use crate::timestamp::Timestamp;
 use crate::{impl_tuple_clause, write_escaped};
-use chrono::{DateTime, FixedOffset};
+use chrono::{NaiveDateTime, Offset};
 use nom::branch::alt;
 use nom::bytes::complete::tag;
 use nom::character::complete::{char, digit0, digit1};
@@ -55,7 +56,7 @@ pub enum Literal {
     Regex(Regex),
 
     /// A timestamp identified in a time range expression of a conditional expression.
-    Timestamp(DateTime<FixedOffset>),
+    Timestamp(Timestamp),
 }
 
 impl From<String> for Literal {
@@ -353,6 +354,17 @@ pub(crate) fn literal_regex(i: &str) -> ParseResult<&str, Literal> {
     map(regex, Literal::Regex)(i)
 }
 
+/// Returns `nanos` as a timestamp.
+pub fn nanos_to_timestamp(nanos: i64) -> Timestamp {
+    let (secs, nsec) = num_integer::div_mod_floor(nanos, NANOS_PER_SEC);
+
+    Timestamp::from_utc(
+        NaiveDateTime::from_timestamp_opt(secs, nsec as u32)
+            .expect("unable to convert duration to timestamp"),
+        chrono::Utc.fix(),
+    )
+}
+
 #[cfg(test)]
 mod test {
     use super::*;
@@ -571,5 +583,19 @@ mod test {
 
         let (_, got) = number("+ 501").unwrap();
         assert_matches!(got, Number::Integer(v) if v == 501);
+    }
+
+    #[test]
+    fn test_nanos_to_timestamp() {
+        let ts = nanos_to_timestamp(0);
+        assert_eq!(ts.to_rfc3339(), "1970-01-01T00:00:00+00:00");
+
+        // infallible
+        let ts = nanos_to_timestamp(i64::MAX);
+        assert_eq!(ts.timestamp_nanos(), i64::MAX);
+
+        // let ts = nanos_to_timestamp(i64::MIN);
+        // This line panics with an arithmetic overflow.
+        // assert_eq!(ts.timestamp_nanos(), i64::MIN);
     }
 }

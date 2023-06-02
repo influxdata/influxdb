@@ -2478,6 +2478,7 @@ dependencies = [
  "chrono-tz",
  "insta",
  "nom",
+ "num-integer",
  "num-traits",
  "once_cell",
  "paste",

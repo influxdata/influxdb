@@ -588,7 +588,7 @@ impl TestPartition {
         if to_delete {
             repos
                 .parquet_files()
-                .flag_for_delete(parquet_file.id)
+                .create_upgrade_delete(&[parquet_file.id], &[], &[], CompactionLevel::Initial)
                 .await
                 .unwrap();
         }
@@ -817,9 +817,9 @@ impl TestParquetFile {
 
         repos
             .parquet_files()
-            .flag_for_delete(self.parquet_file.id)
+            .create_upgrade_delete(&[self.parquet_file.id], &[], &[], CompactionLevel::Initial)
             .await
-            .unwrap()
+            .unwrap();
     }
 
     /// Get Parquet file schema.
