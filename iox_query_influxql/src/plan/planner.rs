@@ -5,7 +5,7 @@ use crate::plan::planner::select::{
     fields_to_exprs_no_nulls, make_tag_key_column_meta, plan_with_sort, ProjectionInfo,
 };
 use crate::plan::planner_time_range_expression::{
-    duration_expr_to_nanoseconds, expr_to_df_interval_dt, time_range_to_df_expr,
+    expr_to_df_interval_dt, time_condition_to_df_expr,
 };
 use crate::plan::rewriter::{find_table_names, rewrite_statement, ProjectionType};
 use crate::plan::util::{binary_operator_to_df_operator, rebase_expr, Schemas};
@@ -52,6 +52,10 @@ use influxdb_influxql_parser::show_measurements::{
 use influxdb_influxql_parser::show_tag_keys::ShowTagKeysStatement;
 use influxdb_influxql_parser::show_tag_values::{ShowTagValuesStatement, WithKeyClause};
 use influxdb_influxql_parser::simple_from_clause::ShowFromClause;
+use influxdb_influxql_parser::time_range::{
+    duration_expr_to_nanoseconds, split_cond, ReduceContext,
+};
+use influxdb_influxql_parser::timestamp::Timestamp;
 use influxdb_influxql_parser::{
     common::{MeasurementName, WhereClause},
     expression::Expr as IQLExpr,
@@ -630,7 +634,7 @@ impl<'a> InfluxQLToLogicalPlan<'a> {
             select_exprs[time_column_index] = if let Some(dim) = ctx.group_by.and_then(|gb| gb.time_dimension()) {
                 let stride = expr_to_df_interval_dt(&dim.interval)?;
                 let offset = if let Some(offset) = &dim.offset {
-                    duration_expr_to_nanoseconds(offset)?
+                    duration_expr_to_nanoseconds(offset).map_err(error::map::expr_error)?
                 } else {
                     0
                 };
@@ -955,48 +959,11 @@ impl<'a> InfluxQLToLogicalPlan<'a> {
     ) -> Result<Expr> {
         let ConditionalBinary { lhs, op, rhs } = expr;
 
-        let op = conditional_op_to_operator(*op)?;
-
-        let (lhs_time, rhs_time) = (is_time_field(lhs), is_time_field(rhs));
-        let (lhs, rhs) = if matches!(
-            op,
-            Operator::Eq
-                | Operator::NotEq
-                | Operator::Lt
-                | Operator::LtEq
-                | Operator::Gt
-                | Operator::GtEq
-        )
-            // one or the other is true
-            && (lhs_time ^ rhs_time)
-        {
-            // != operator is not supported by InfluxQL, as it results in every point,
-            // except this and is potentially very expensive.
-            //
-            // See: https://github.com/influxdata/influxql/blob/3029b95d4ff5951de68e1d7a1c3039236025815a/ast.go#L5831-L5832
-            if op == Operator::NotEq {
-                return error::query("invalid time comparison operator: !=");
-            }
-
-            if lhs_time {
-                (
-                    self.conditional_to_df_expr(ctx, lhs, schemas)?,
-                    time_range_to_df_expr(find_expr(rhs)?, ctx.tz)?,
-                )
-            } else {
-                (
-                    time_range_to_df_expr(find_expr(lhs)?, ctx.tz)?,
-                    self.conditional_to_df_expr(ctx, rhs, schemas)?,
-                )
-            }
-        } else {
-            (
-                self.conditional_to_df_expr(ctx, lhs, schemas)?,
-                self.conditional_to_df_expr(ctx, rhs, schemas)?,
-            )
-        };
-
-        Ok(binary_expr(lhs, op, rhs))
+        Ok(binary_expr(
+            self.conditional_to_df_expr(ctx, lhs, schemas)?,
+            conditional_op_to_operator(*op)?,
+            self.conditional_to_df_expr(ctx, rhs, schemas)?,
+        ))
     }
 
     /// Map an InfluxQL [`IQLExpr`] to a DataFusion [`Expr`].
@@ -1072,7 +1039,7 @@ impl<'a> InfluxQLToLogicalPlan<'a> {
                 Literal::String(v) => Ok(lit(v)),
                 Literal::Boolean(v) => Ok(lit(*v)),
                 Literal::Timestamp(v) => Ok(lit(ScalarValue::TimestampNanosecond(
-                    Some(v.timestamp()),
+                    Some(v.timestamp_nanos()),
                     None,
                 ))),
                 Literal::Duration(_) => error::not_implemented("duration literal"),
@@ -1273,17 +1240,41 @@ impl<'a> InfluxQLToLogicalPlan<'a> {
     ) -> Result<LogicalPlan> {
         match condition {
             Some(where_clause) => {
-                let filter_expr = self.conditional_to_df_expr(ctx, where_clause, schemas)?;
-                let filter_expr = planner_rewrite_expression::rewrite_conditional_expr(
-                    self.s.execution_props(),
-                    filter_expr,
-                    schemas,
-                    ds_schema,
-                )?;
-                let plan = LogicalPlanBuilder::from(plan)
-                    .filter(filter_expr)?
-                    .build()?;
-                Ok(plan)
+                let rc = ReduceContext {
+                    now: Some(Timestamp::from(
+                        self.s.execution_props().query_execution_start_time,
+                    )),
+                    tz: ctx.tz,
+                };
+
+                let (cond, time_range) =
+                    split_cond(&rc, where_clause).map_err(error::map::expr_error)?;
+
+                let filter_expr = if let Some(cond) = cond {
+                    let filter_expr = self.conditional_to_df_expr(ctx, &cond, schemas)?;
+                    Some(planner_rewrite_expression::rewrite_conditional_expr(
+                        self.s.execution_props(),
+                        filter_expr,
+                        schemas,
+                        ds_schema,
+                    )?)
+                } else {
+                    None
+                };
+
+                let time_expr = if let Some(cond) = time_range {
+                    time_condition_to_df_expr(cond)
+                } else {
+                    None
+                };
+
+                let pb = LogicalPlanBuilder::from(plan);
+                match (time_expr, filter_expr) {
+                    (Some(lhs), Some(rhs)) => pb.filter(lhs.and(rhs))?,
+                    (Some(expr), None) | (None, Some(expr)) => pb.filter(expr)?,
+                    (None, None) => pb,
+                }
+                .build()
             }
             None => Ok(plan),
         }
@@ -2208,29 +2199,6 @@ fn find_time_column_index(fields: &[Field]) -> Option<usize> {
         .iter()
         .find_position(|f| matches!(f.data_type, Some(InfluxColumnType::Timestamp)))
         .map(|(i, _)| i)
-}
-
-/// Returns true if the conditional expression is a single node that
-/// refers to the `time` column.
-///
-/// In a conditional expression, this comparison is case-insensitive per the [Go implementation][go]
-///
-/// [go]: https://github.com/influxdata/influxql/blob/1ba470371ec093d57a726b143fe6ccbacf1b452b/ast.go#L5751-L5753
-fn is_time_field(cond: &ConditionalExpression) -> bool {
-    if let ConditionalExpression::Expr(expr) = cond {
-        if let IQLExpr::VarRef(VarRef { ref name, .. }) = **expr {
-            name.eq_ignore_ascii_case("time")
-        } else {
-            false
-        }
-    } else {
-        false
-    }
-}
-
-fn find_expr(cond: &ConditionalExpression) -> Result<&IQLExpr> {
-    cond.expr()
-        .ok_or_else(|| error::map::internal("incomplete conditional expression"))
 }
 
 /// Evaluate [`WithKeyClause`] on the given list of keys.

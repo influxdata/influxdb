@@ -19,6 +19,7 @@ pub(crate) fn not_implemented<T>(feature: impl Into<String>) -> Result<T> {
 /// making them convenient to use with functions like `map_err`.
 pub(crate) mod map {
     use datafusion::common::DataFusionError;
+    use influxdb_influxql_parser::time_range::ExprError;
     use thiserror::Error;
 
     #[derive(Debug, Error)]
@@ -45,6 +46,14 @@ pub(crate) mod map {
     /// The specified `feature` is not implemented.
     pub(crate) fn not_implemented(feature: impl Into<String>) -> DataFusionError {
         DataFusionError::NotImplemented(feature.into())
+    }
+
+    /// Map an [`ExprError`] to a DataFusion error.
+    pub(crate) fn expr_error(err: ExprError) -> DataFusionError {
+        match err {
+            ExprError::Expression(s) => query(s),
+            ExprError::Internal(s) => internal(s),
+        }
     }
 
     #[cfg(test)]
