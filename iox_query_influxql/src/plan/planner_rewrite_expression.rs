@@ -206,7 +206,7 @@ fn log_rewrite(expr: Expr, description: &str) -> Expr {
 
 /// Perform a series of passes to rewrite `expr`, used as a column projection,
 /// to match the behavior of InfluxQL.
-pub(in crate::plan) fn rewrite_field_expr(expr: Expr, schemas: &Schemas) -> Result<Expr> {
+pub(super) fn rewrite_field_expr(expr: Expr, schemas: &Schemas) -> Result<Expr> {
     rewrite_expr(expr, schemas)
 }
 
