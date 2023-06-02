@@ -2543,6 +2543,7 @@ dependencies = [
  "ioxd_router",
  "ioxd_test",
  "itertools",
+ "lazy_static",
  "libc",
  "metric",
  "mutable_batch",

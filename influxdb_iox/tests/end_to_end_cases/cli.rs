@@ -2,9 +2,11 @@
 use std::sync::Arc;
 use std::time::{Duration, Instant};
 
+use arrow_util::assert_batches_sorted_eq;
 use assert_cmd::Command;
 use assert_matches::assert_matches;
 use futures::FutureExt;
+use lazy_static::lazy_static;
 use predicates::prelude::*;
 use tempfile::tempdir;
 use test_helpers_end_to_end::{
@@ -1013,6 +1015,22 @@ async fn namespace_update_service_limit() {
     .await
 }
 
+lazy_static! {
+static ref TEMPERATURE_RESULTS: Vec<&'static str> = vec![
+                        "+----------------+--------------+-------+-----------------+--------------------------------+",
+                        "| bottom_degrees | location     | state | surface_degrees | time                           |",
+                        "+----------------+--------------+-------+-----------------+--------------------------------+",
+                        "| 50.4           | santa_monica | CA    | 65.2            | 1970-01-01T00:00:01.568756160Z |",
+                        "| 49.2           | santa_monica | CA    | 63.6            | 1970-01-01T00:00:01.600756160Z |",
+                        "| 51.3           | coyote_creek | CA    | 55.1            | 1970-01-01T00:00:01.568756160Z |",
+                        "| 50.9           | coyote_creek | CA    | 50.2            | 1970-01-01T00:00:01.600756160Z |",
+                        "| 40.2           | puget_sound  | WA    | 55.8            | 1970-01-01T00:00:01.568756160Z |",
+                        "| 40.1           | puget_sound  | WA    | 54.7            | 1970-01-01T00:00:01.600756160Z |",
+                        "+----------------+--------------+-------+-----------------+--------------------------------+",
+                    ];
+
+}
+
 #[tokio::test]
 async fn write_lp_from_wal() {
     use std::fs;
@@ -1062,34 +1080,15 @@ async fn write_lp_from_wal() {
                 }
                 .boxed()
             })),
-            Step::Custom(Box::new(|state: &mut StepTestState| {
+            Step::Custom(Box::new(move |state: &mut StepTestState| {
                 // Ensure the results are queryable in the ingester
                 async {
-
-                    let results = [
-                        "+----------------+--------------+-------+-----------------+--------------------------------+",
-                        "| bottom_degrees | location     | state | surface_degrees | time                           |",
-                        "+----------------+--------------+-------+-----------------+--------------------------------+",
-                        "| 50.4           | santa_monica | CA    | 65.2            | 1970-01-01T00:00:01.568756160Z |",
-                        "| 49.2           | santa_monica | CA    | 63.6            | 1970-01-01T00:00:01.600756160Z |",
-                        "| 51.3           | coyote_creek | CA    | 55.1            | 1970-01-01T00:00:01.568756160Z |",
-                        "| 50.9           | coyote_creek | CA    | 50.2            | 1970-01-01T00:00:01.600756160Z |",
-                        "| 40.2           | puget_sound  | WA    | 55.8            | 1970-01-01T00:00:01.568756160Z |",
-                        "| 40.1           | puget_sound  | WA    | 54.7            | 1970-01-01T00:00:01.600756160Z |",
-                        "+----------------+--------------+-------+-----------------+--------------------------------+",
-                    ].join("\n");
-
-                    // Validate the output of the query
-                    Command::cargo_bin("influxdb_iox")
-                        .unwrap()
-                        .arg("-h")
-                        .arg(state.cluster().ingester().ingester_grpc_base().to_string())
-                        .arg("query-ingester")
-                        .arg(state.cluster().namespace_id().await.get().to_string())
-                        .arg(state.cluster().table_id(table_name).await.get().to_string())
-                        .assert()
-                        .success()
-                        .stdout(predicate::str::contains(&results));
+                    assert_ingester_contains_results(
+                        &state.cluster(),
+                        table_name,
+                        &TEMPERATURE_RESULTS,
+                    )
+                    .await;
                 }
                 .boxed()
             })),
@@ -1175,29 +1174,12 @@ async fn write_lp_from_wal() {
                         .success()
                         .stdout(predicate::str::contains("592 Bytes OK"));
 
-                    let results = [
-                        "+----------------+--------------+-------+-----------------+--------------------------------+",
-                        "| bottom_degrees | location     | state | surface_degrees | time                           |",
-                        "+----------------+--------------+-------+-----------------+--------------------------------+",
-                        "| 50.4           | santa_monica | CA    | 65.2            | 1970-01-01T00:00:01.568756160Z |",
-                        "| 49.2           | santa_monica | CA    | 63.6            | 1970-01-01T00:00:01.600756160Z |",
-                        "| 51.3           | coyote_creek | CA    | 55.1            | 1970-01-01T00:00:01.568756160Z |",
-                        "| 50.9           | coyote_creek | CA    | 50.2            | 1970-01-01T00:00:01.600756160Z |",
-                        "| 40.2           | puget_sound  | WA    | 55.8            | 1970-01-01T00:00:01.568756160Z |",
-                        "| 40.1           | puget_sound  | WA    | 54.7            | 1970-01-01T00:00:01.600756160Z |",
-                        "+----------------+--------------+-------+-----------------+--------------------------------+",
-                    ].join("\n");
-
-                    Command::cargo_bin("influxdb_iox")
-                        .unwrap()
-                        .arg("-h")
-                        .arg(state.cluster().ingester().ingester_grpc_base().to_string())
-                        .arg("query-ingester")
-                        .arg(state.cluster().namespace_id().await.get().to_string())
-                        .arg(state.cluster().table_id(table_name).await.get().to_string())
-                        .assert()
-                        .success()
-                        .stdout(predicate::str::contains(&results));
+                    assert_ingester_contains_results(
+                        &state.cluster(),
+                        table_name,
+                        &TEMPERATURE_RESULTS,
+                    )
+                    .await;
                 }
                 .boxed()
             })),
@@ -1205,4 +1187,29 @@ async fn write_lp_from_wal() {
     )
     .run()
     .await
+}
+
+async fn assert_ingester_contains_results(
+    cluster: &MiniCluster,
+    table_name: &str,
+    expected: &[&str],
+) {
+    use ingester_query_grpc::{influxdata::iox::ingester::v1 as proto, IngesterQueryRequest};
+    // query the ingester
+    let query = IngesterQueryRequest::new(
+        cluster.namespace_id().await,
+        cluster.table_id(table_name).await,
+        vec![],
+        Some(::predicate::EMPTY_PREDICATE),
+    );
+    let query: proto::IngesterQueryRequest = query.try_into().unwrap();
+    let ingester_response = cluster
+        .query_ingester(query.clone(), cluster.ingester().ingester_grpc_connection())
+        .await
+        .unwrap();
+
+    let ingester_uuid = ingester_response.app_metadata.ingester_uuid.clone();
+    assert!(!ingester_uuid.is_empty());
+
+    assert_batches_sorted_eq!(&expected, &ingester_response.record_batches);
 }
