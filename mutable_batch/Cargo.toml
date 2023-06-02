@@ -17,7 +17,10 @@ snafu = "0.7"
 hashbrown = { workspace = true }
 itertools = "0.10"
 workspace-hack = { version = "0.1", path = "../workspace-hack" }
+percent-encoding = "2.2.0"
 
 [dev-dependencies]
 mutable_batch_lp = { path = "../mutable_batch_lp" }
+paste = "1.0.12"
+proptest = "1.2.0"
 rand = "0.8"

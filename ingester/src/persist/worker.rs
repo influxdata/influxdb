@@ -276,9 +276,10 @@ where
     // Save the compacted data to a parquet file in object storage.
     //
     // This call retries until it completes.
+    let pool = worker_state.exec.pool();
     let (md, file_size) = worker_state
         .store
-        .upload(record_stream, &iox_metadata)
+        .upload(record_stream, &iox_metadata, pool)
         .await
         .expect("unexpected fatal persist error");
 

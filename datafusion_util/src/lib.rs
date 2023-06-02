@@ -19,6 +19,7 @@
 //! [datafusion_optimizer::utils](https://docs.rs/datafusion-optimizer/13.0.0/datafusion_optimizer/utils/index.html)
 //! for expression manipulation functions.
 
+use datafusion::execution::memory_pool::{MemoryPool, UnboundedMemoryPool};
 // Workaround for "unused crate" lint false positives.
 use workspace_hack as _;
 
@@ -390,6 +391,11 @@ pub fn create_pruning_predicate(
 ) -> Result<PruningPredicate, DataFusionError> {
     let expr = create_physical_expr_from_schema(props, expr, schema)?;
     PruningPredicate::try_new(expr, Arc::clone(schema))
+}
+
+/// Create a memory pool that has no limit
+pub fn unbounded_memory_pool() -> Arc<dyn MemoryPool> {
+    Arc::new(UnboundedMemoryPool::default())
 }
 
 #[cfg(test)]

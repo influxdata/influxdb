@@ -10,7 +10,7 @@ use data_types::{
     TableSchema, Timestamp,
 };
 use datafusion::physical_plan::metrics::Count;
-use datafusion_util::MemoryStream;
+use datafusion_util::{unbounded_memory_pool, MemoryStream};
 use iox_catalog::{
     interface::{
         get_schema_by_id, get_table_columns_by_id, Catalog, PartitionRepo, SoftDeletedRows,
@@ -588,7 +588,7 @@ impl TestPartition {
         if to_delete {
             repos
                 .parquet_files()
-                .flag_for_delete(parquet_file.id)
+                .create_upgrade_delete(&[parquet_file.id], &[], &[], CompactionLevel::Initial)
                 .await
                 .unwrap();
         }
@@ -785,7 +785,7 @@ async fn create_parquet_file(
 ) -> usize {
     let stream = Box::pin(MemoryStream::new(vec![record_batch]));
     let (_meta, file_size) = store
-        .upload(stream, metadata)
+        .upload(stream, metadata, unbounded_memory_pool())
         .await
         .expect("persisting parquet file should succeed");
     file_size
@@ -817,9 +817,9 @@ impl TestParquetFile {
 
         repos
             .parquet_files()
-            .flag_for_delete(self.parquet_file.id)
+            .create_upgrade_delete(&[self.parquet_file.id], &[], &[], CompactionLevel::Initial)
             .await
-            .unwrap()
+            .unwrap();
     }
 
     /// Get Parquet file schema.

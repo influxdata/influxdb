@@ -11,6 +11,7 @@ use crate::{
         TRANSITION_SHARD_ID, TRANSITION_SHARD_INDEX,
     },
     metrics::MetricDecorator,
+    migrate::IOxMigrator,
     DEFAULT_MAX_COLUMNS_PER_TABLE, DEFAULT_MAX_TABLES,
 };
 use async_trait::async_trait;
@@ -127,6 +128,11 @@ impl PostgresCatalog {
     fn schema_name(&self) -> &str {
         &self.options.schema_name
     }
+
+    #[cfg(test)]
+    pub(crate) fn into_pool(self) -> HotSwapPool<Postgres> {
+        self.pool
+    }
 }
 
 impl Display for PostgresCatalog {
@@ -233,7 +239,8 @@ impl Catalog for PostgresCatalog {
             .await
             .map_err(|e| Error::Setup { source: e })?;
 
-        MIGRATOR
+        let migrator = IOxMigrator::from(&MIGRATOR);
+        migrator
             .run(&self.pool)
             .await
             .map_err(|e| Error::Setup { source: e.into() })?;
@@ -498,7 +505,7 @@ impl RepoCollection for PostgresTxn {
 impl NamespaceRepo for PostgresTxn {
     async fn create(
         &mut self,
-        name: &NamespaceName,
+        name: &NamespaceName<'_>,
         partition_template: Option<NamespacePartitionTemplateOverride>,
         retention_period_ns: Option<i64>,
     ) -> Result<Namespace> {
@@ -1264,7 +1271,8 @@ RETURNING *
 impl ParquetFileRepo for PostgresTxn {
     async fn create(&mut self, parquet_file_params: ParquetFileParams) -> Result<ParquetFile> {
         let executor = &mut self.inner;
-        create_parquet_file(executor, parquet_file_params).await
+        let id = create_parquet_file(executor, &parquet_file_params).await?;
+        Ok(ParquetFile::from_params(parquet_file_params, id))
     }
 
     async fn list_all(&mut self) -> Result<Vec<ParquetFile>> {
@@ -1282,13 +1290,6 @@ FROM parquet_file;
         .fetch_all(&mut self.inner)
         .await
         .map_err(|e| Error::SqlxError { source: e })
-    }
-
-    async fn flag_for_delete(&mut self, id: ParquetFileId) -> Result<()> {
-        let marked_at = Timestamp::from(self.time_provider.now());
-        let executor = &mut self.inner;
-
-        flag_for_delete(executor, id, marked_at).await
     }
 
     async fn flag_for_delete_by_retention(&mut self) -> Result<Vec<ParquetFileId>> {
@@ -1454,16 +1455,14 @@ WHERE object_store_id = $1;
             .map_err(|e| Error::StartTransaction { source: e })?;
 
         let marked_at = Timestamp::from(self.time_provider.now());
-        for id in delete {
-            flag_for_delete(&mut tx, *id, marked_at).await?;
-        }
+        flag_for_delete(&mut tx, delete, marked_at).await?;
 
         update_compaction_level(&mut tx, upgrade, target_level).await?;
 
         let mut ids = Vec::with_capacity(create.len());
         for file in create {
-            let pf = create_parquet_file(&mut tx, file.clone()).await?;
-            ids.push(pf.id);
+            let id = create_parquet_file(&mut tx, file).await?;
+            ids.push(id);
         }
 
         tx.commit()
@@ -1477,8 +1476,8 @@ WHERE object_store_id = $1;
 // They are also used by the respective create/flag_for_delete/update_compaction_level methods.
 async fn create_parquet_file<'q, E>(
     executor: E,
-    parquet_file_params: ParquetFileParams,
-) -> Result<ParquetFile>
+    parquet_file_params: &ParquetFileParams,
+) -> Result<ParquetFileId>
 where
     E: Executor<'q, Database = Postgres>,
 {
@@ -1497,17 +1496,14 @@ where
         max_l0_created_at,
     } = parquet_file_params;
 
-    let query = sqlx::query_as::<_, ParquetFile>(
+    let query = sqlx::query_scalar::<_, ParquetFileId>(
         r#"
 INSERT INTO parquet_file (
     shard_id, table_id, partition_id, object_store_id,
     min_time, max_time, file_size_bytes,
     row_count, compaction_level, created_at, namespace_id, column_set, max_l0_created_at )
 VALUES ( $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13 )
-RETURNING
-    id, table_id, partition_id, object_store_id,
-    min_time, max_time, to_delete, file_size_bytes,
-    row_count, compaction_level, created_at, namespace_id, column_set, max_l0_created_at;
+RETURNING id;
         "#,
     )
     .bind(TRANSITION_SHARD_ID) // $1
@@ -1523,9 +1519,11 @@ RETURNING
     .bind(namespace_id) // $11
     .bind(column_set) // $12
     .bind(max_l0_created_at); // $13
-    let parquet_file = query.fetch_one(executor).await.map_err(|e| {
+    let parquet_file_id = query.fetch_one(executor).await.map_err(|e| {
         if is_unique_violation(&e) {
-            Error::FileExists { object_store_id }
+            Error::FileExists {
+                object_store_id: *object_store_id,
+            }
         } else if is_fk_violation(&e) {
             Error::ForeignKeyViolation { source: e }
         } else {
@@ -1533,16 +1531,23 @@ RETURNING
         }
     })?;
 
-    Ok(parquet_file)
+    Ok(parquet_file_id)
 }
 
-async fn flag_for_delete<'q, E>(executor: E, id: ParquetFileId, marked_at: Timestamp) -> Result<()>
+async fn flag_for_delete<'q, E>(
+    executor: E,
+    ids: &[ParquetFileId],
+    marked_at: Timestamp,
+) -> Result<()>
 where
     E: Executor<'q, Database = Postgres>,
 {
-    let query = sqlx::query(r#"UPDATE parquet_file SET to_delete = $1 WHERE id = $2;"#)
+    // If I try to do `.bind(parquet_file_ids)` directly, I get a compile error from sqlx.
+    // See https://github.com/launchbadge/sqlx/issues/1744
+    let ids: Vec<_> = ids.iter().map(|p| p.get()).collect();
+    let query = sqlx::query(r#"UPDATE parquet_file SET to_delete = $1 WHERE id = ANY($2);"#)
         .bind(marked_at) // $1
-        .bind(id); // $2
+        .bind(&ids[..]); // $2
     query
         .execute(executor)
         .await
@@ -1555,7 +1560,7 @@ async fn update_compaction_level<'q, E>(
     executor: E,
     parquet_file_ids: &[ParquetFileId],
     compaction_level: CompactionLevel,
-) -> Result<Vec<ParquetFileId>>
+) -> Result<()>
 where
     E: Executor<'q, Database = Postgres>,
 {
@@ -1566,19 +1571,17 @@ where
         r#"
 UPDATE parquet_file
 SET compaction_level = $1
-WHERE id = ANY($2)
-RETURNING id;
+WHERE id = ANY($2);
         "#,
     )
     .bind(compaction_level) // $1
     .bind(&ids[..]); // $2
-    let updated = query
-        .fetch_all(executor)
+    query
+        .execute(executor)
         .await
         .map_err(|e| Error::SqlxError { source: e })?;
 
-    let updated = updated.into_iter().map(|row| row.get("id")).collect();
-    Ok(updated)
+    Ok(())
 }
 
 /// The error code returned by Postgres for a unique constraint violation.
@@ -1614,36 +1617,32 @@ fn is_fk_violation(e: &sqlx::Error) -> bool {
     false
 }
 
+/// Test helpers postgres testing.
 #[cfg(test)]
-mod tests {
+pub(crate) mod test_utils {
     use super::*;
-    use crate::test_helpers::{arbitrary_namespace, arbitrary_table};
-    use assert_matches::assert_matches;
-    use data_types::{partition_template::TemplatePart, ColumnId, ColumnSet};
-    use generated_types::influxdata::iox::partition_template::v1 as proto;
-    use metric::{Attributes, DurationHistogram, Metric};
     use rand::Rng;
     use sqlx::migrate::MigrateDatabase;
-    use std::{env, io::Write, sync::Arc, time::Instant};
-    use tempfile::NamedTempFile;
 
-    // Helper macro to skip tests if TEST_INTEGRATION and TEST_INFLUXDB_IOX_CATALOG_DSN environment
-    // variables are not set.
+    pub const TEST_DSN_ENV: &str = "TEST_INFLUXDB_IOX_CATALOG_DSN";
+
+    /// Helper macro to skip tests if TEST_INTEGRATION and TEST_INFLUXDB_IOX_CATALOG_DSN environment
+    /// variables are not set.
     macro_rules! maybe_skip_integration {
         ($panic_msg:expr) => {{
             dotenvy::dotenv().ok();
 
-            let required_vars = ["TEST_INFLUXDB_IOX_CATALOG_DSN"];
+            let required_vars = [crate::postgres::test_utils::TEST_DSN_ENV];
             let unset_vars: Vec<_> = required_vars
                 .iter()
-                .filter_map(|&name| match env::var(name) {
+                .filter_map(|&name| match std::env::var(name) {
                     Ok(_) => None,
                     Err(_) => Some(name),
                 })
                 .collect();
             let unset_var_names = unset_vars.join(", ");
 
-            let force = env::var("TEST_INTEGRATION");
+            let force = std::env::var("TEST_INTEGRATION");
 
             if force.is_ok() && !unset_var_names.is_empty() {
                 panic!(
@@ -1674,19 +1673,9 @@ mod tests {
         };
     }
 
-    fn assert_metric_hit(metrics: &metric::Registry, name: &'static str) {
-        let histogram = metrics
-            .get_instrument::<Metric<DurationHistogram>>("catalog_op_duration")
-            .expect("failed to read metric")
-            .get_observer(&Attributes::from(&[("op", name), ("result", "success")]))
-            .expect("failed to get observer")
-            .fetch();
+    pub(crate) use maybe_skip_integration;
 
-        let hit_count = histogram.sample_count();
-        assert!(hit_count > 0, "metric did not record any calls");
-    }
-
-    async fn create_db(dsn: &str) {
+    pub async fn create_db(dsn: &str) {
         // Create the catalog database if it doesn't exist
         if !Postgres::database_exists(dsn).await.unwrap() {
             // Ignore failure if another test has already created the database
@@ -1694,7 +1683,7 @@ mod tests {
         }
     }
 
-    async fn setup_db() -> PostgresCatalog {
+    pub async fn setup_db_no_migration() -> PostgresCatalog {
         // create a random schema for this particular pool
         let schema_name = {
             // use scope to make it clear to clippy / rust that `rng` is
@@ -1741,9 +1730,58 @@ mod tests {
             .await
             .expect("failed to grant privileges to schema");
 
+        pg
+    }
+
+    pub async fn setup_db() -> PostgresCatalog {
+        let pg = setup_db_no_migration().await;
         // Run the migrations against this random schema.
         pg.setup().await.expect("failed to initialise database");
         pg
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::{
+        postgres::test_utils::{
+            create_db, maybe_skip_integration, setup_db, setup_db_no_migration,
+        },
+        test_helpers::{arbitrary_namespace, arbitrary_table},
+    };
+    use assert_matches::assert_matches;
+    use data_types::{partition_template::TemplatePart, ColumnId, ColumnSet};
+    use generated_types::influxdata::iox::partition_template::v1 as proto;
+    use metric::{Attributes, DurationHistogram, Metric};
+    use std::{io::Write, sync::Arc, time::Instant};
+    use tempfile::NamedTempFile;
+    use test_helpers::maybe_start_logging;
+
+    fn assert_metric_hit(metrics: &metric::Registry, name: &'static str) {
+        let histogram = metrics
+            .get_instrument::<Metric<DurationHistogram>>("catalog_op_duration")
+            .expect("failed to read metric")
+            .get_observer(&Attributes::from(&[("op", name), ("result", "success")]))
+            .expect("failed to get observer")
+            .fetch();
+
+        let hit_count = histogram.sample_count();
+        assert!(hit_count > 0, "metric did not record any calls");
+    }
+
+    #[tokio::test]
+    async fn test_migration() {
+        maybe_skip_integration!();
+        maybe_start_logging();
+
+        let postgres = setup_db_no_migration().await;
+
+        // 1st setup
+        postgres.setup().await.unwrap();
+
+        // 2nd setup
+        postgres.setup().await.unwrap();
     }
 
     #[tokio::test]
@@ -2131,7 +2169,7 @@ mod tests {
         // flag f1 for deletion and assert that the total file size is reduced accordingly.
         repos
             .parquet_files()
-            .flag_for_delete(f1.id)
+            .create_upgrade_delete(&[f1.id], &[], &[], CompactionLevel::Initial)
             .await
             .expect("flag parquet file for deletion should succeed");
         let total_file_size_bytes: i64 =

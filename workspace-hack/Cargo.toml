@@ -17,11 +17,11 @@ license.workspace = true
 ### BEGIN HAKARI SECTION
 [dependencies]
 ahash = { version = "0.8", default-features = false, features = ["runtime-rng"] }
-arrow = { version = "40", features = ["dyn_cmp_dict", "prettyprint"] }
-arrow-array = { version = "40", default-features = false, features = ["chrono-tz"] }
+arrow = { git = "https://github.com/alamb/arrow-rs", rev = "4a59200", features = ["dyn_cmp_dict", "prettyprint"] }
+arrow-array = { git = "https://github.com/alamb/arrow-rs", rev = "4a59200", default-features = false, features = ["chrono-tz"] }
 arrow-flight = { version = "40", features = ["flight-sql-experimental"] }
-arrow-ord = { version = "40", default-features = false, features = ["dyn_cmp_dict"] }
-arrow-string = { version = "40", default-features = false, features = ["dyn_cmp_dict"] }
+arrow-ord = { git = "https://github.com/alamb/arrow-rs", rev = "4a59200", default-features = false, features = ["dyn_cmp_dict"] }
+arrow-string = { git = "https://github.com/alamb/arrow-rs", rev = "4a59200", default-features = false, features = ["dyn_cmp_dict"] }
 base64-594e8ee84c453af0 = { package = "base64", version = "0.13" }
 base64-647d43efb71741da = { package = "base64", version = "0.21" }
 bitflags = { version = "1" }
@@ -60,7 +60,7 @@ num-traits = { version = "0.2", features = ["i128", "libm"] }
 object_store = { version = "0.5", default-features = false, features = ["aws", "azure", "gcp"] }
 once_cell = { version = "1", features = ["parking_lot"] }
 parking_lot = { version = "0.12", features = ["arc_lock"] }
-parquet = { version = "40", features = ["experimental", "object_store"] }
+parquet = { git = "https://github.com/alamb/arrow-rs", rev = "4a59200", features = ["experimental", "object_store"] }
 petgraph = { version = "0.6" }
 phf_shared = { version = "0.11" }
 predicates = { version = "3" }

@@ -19,16 +19,12 @@ pub mod delete_expr;
 pub mod delete_predicate;
 pub mod rpc_predicate;
 
-use arrow::array::{
-    BooleanArray, Float64Array, Int64Array, StringArray, TimestampNanosecondArray, UInt64Array,
-};
-use data_types::{InfluxDbType, TableSummary, TimestampRange};
+use data_types::TimestampRange;
 use datafusion::{
     common::tree_node::{TreeNode, TreeNodeVisitor, VisitRecursion},
     error::DataFusionError,
     logical_expr::{binary_expr, utils::expr_to_columns, BinaryExpr},
     optimizer::utils::split_conjunction,
-    physical_optimizer::pruning::PruningStatistics,
     prelude::{col, lit_timestamp_nano, Expr},
 };
 use datafusion_util::{make_range_expr, AsExpr};
@@ -38,7 +34,6 @@ use schema::TIME_COLUMN_NAME;
 use std::{
     collections::{BTreeSet, HashSet},
     fmt,
-    sync::Arc,
 };
 
 /// This `Predicate` represents the empty predicate (aka that evaluates to true for all rows).
@@ -242,69 +237,6 @@ impl Predicate {
         });
 
         self
-    }
-}
-
-struct SummaryWrapper<'a> {
-    summary: &'a TableSummary,
-}
-
-impl<'a> PruningStatistics for SummaryWrapper<'a> {
-    fn min_values(&self, column: &datafusion::prelude::Column) -> Option<arrow::array::ArrayRef> {
-        let col = self.summary.column(&column.name)?;
-        let stats = &col.stats;
-
-        // special handling for timestamps
-        if col.influxdb_type == InfluxDbType::Timestamp {
-            let val = stats.as_i64()?;
-            return Some(Arc::new(TimestampNanosecondArray::from(vec![val.min])));
-        }
-
-        let array = match stats {
-            data_types::Statistics::I64(val) => Arc::new(Int64Array::from(vec![val.min])) as _,
-            data_types::Statistics::U64(val) => Arc::new(UInt64Array::from(vec![val.min])) as _,
-            data_types::Statistics::F64(val) => Arc::new(Float64Array::from(vec![val.min])) as _,
-            data_types::Statistics::Bool(val) => Arc::new(BooleanArray::from(vec![val.min])) as _,
-            data_types::Statistics::String(val) => {
-                Arc::new(StringArray::from(vec![val.min.as_deref()])) as _
-            }
-        };
-
-        Some(array)
-    }
-
-    fn max_values(&self, column: &datafusion::prelude::Column) -> Option<arrow::array::ArrayRef> {
-        let col = self.summary.column(&column.name)?;
-        let stats = &col.stats;
-
-        // special handling for timestamps
-        if col.influxdb_type == InfluxDbType::Timestamp {
-            let val = stats.as_i64()?;
-            return Some(Arc::new(TimestampNanosecondArray::from(vec![val.max])));
-        }
-
-        let array = match stats {
-            data_types::Statistics::I64(val) => Arc::new(Int64Array::from(vec![val.max])) as _,
-            data_types::Statistics::U64(val) => Arc::new(UInt64Array::from(vec![val.max])) as _,
-            data_types::Statistics::F64(val) => Arc::new(Float64Array::from(vec![val.max])) as _,
-            data_types::Statistics::Bool(val) => Arc::new(BooleanArray::from(vec![val.max])) as _,
-            data_types::Statistics::String(val) => {
-                Arc::new(StringArray::from(vec![val.max.as_deref()])) as _
-            }
-        };
-
-        Some(array)
-    }
-
-    fn num_containers(&self) -> usize {
-        // the summary represents a single virtual container
-        1
-    }
-
-    fn null_counts(&self, column: &datafusion::prelude::Column) -> Option<arrow::array::ArrayRef> {
-        let null_count = self.summary.column(&column.name)?.stats.null_count();
-
-        Some(Arc::new(UInt64Array::from(vec![null_count])))
     }
 }
 

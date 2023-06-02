@@ -2,7 +2,10 @@ use std::{fmt::Display, sync::Arc};
 
 use async_trait::async_trait;
 use data_types::{CompactionLevel, ParquetFileParams};
-use datafusion::{error::DataFusionError, physical_plan::SendableRecordBatchStream};
+use datafusion::{
+    error::DataFusionError, execution::memory_pool::MemoryPool,
+    physical_plan::SendableRecordBatchStream,
+};
 use iox_time::{Time, TimeProvider};
 use parquet_file::{
     metadata::IoxMetadata,
@@ -17,13 +20,20 @@ use super::ParquetFileSink;
 
 #[derive(Debug)]
 pub struct ObjectStoreParquetFileSink {
+    // pool on which to register parquet buffering
+    pool: Arc<dyn MemoryPool>,
     store: ParquetStorage,
     time_provider: Arc<dyn TimeProvider>,
 }
 
 impl ObjectStoreParquetFileSink {
-    pub fn new(store: ParquetStorage, time_provider: Arc<dyn TimeProvider>) -> Self {
+    pub fn new(
+        pool: Arc<dyn MemoryPool>,
+        store: ParquetStorage,
+        time_provider: Arc<dyn TimeProvider>,
+    ) -> Self {
         Self {
+            pool,
             store,
             time_provider,
         }
@@ -62,7 +72,8 @@ impl ParquetFileSink for ObjectStoreParquetFileSink {
         // Stream the record batches from the compaction exec, serialize
         // them, and directly upload the resulting Parquet files to
         // object storage.
-        let (parquet_meta, file_size) = match self.store.upload(stream, &meta).await {
+        let pool = Arc::clone(&self.pool);
+        let (parquet_meta, file_size) = match self.store.upload(stream, &meta, pool).await {
             Ok(v) => v,
             Err(UploadError::Serialise(CodecError::NoRows | CodecError::NoRecordBatches)) => {
                 // This MAY be a bug.
