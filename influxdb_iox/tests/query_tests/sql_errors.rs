@@ -75,7 +75,7 @@ async fn bad_selector_num_args() {
         sql: "SELECT selector_last(time)['bar'] FROM cpu",
         expected_error_code: tonic::Code::InvalidArgument,
         expected_message: "Error while planning query: Error during planning: selector_last \
-        requires exactly 2 arguments, got 1",
+        requires at least 2 arguments, got 1",
     }
     .run()
     .await;

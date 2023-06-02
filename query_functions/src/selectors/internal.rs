@@ -11,10 +11,10 @@ use std::{fmt::Debug, sync::Arc};
 use arrow::{
     array::{Array, ArrayRef, TimestampNanosecondArray},
     compute::kernels::aggregate::{max as array_max, min as array_min},
-    datatypes::{DataType, Field, Fields},
+    datatypes::DataType,
 };
 use datafusion::{
-    error::Result as DataFusionResult,
+    error::{DataFusionError, Result as DataFusionResult},
     physical_plan::{
         expressions::{MaxAccumulator, MinAccumulator},
         Accumulator,
@@ -22,48 +22,81 @@ use datafusion::{
     scalar::ScalarValue,
 };
 
-use super::Selector;
+use super::type_handling::make_struct_scalar;
 
-fn make_scalar_struct(data_fields: Vec<ScalarValue>) -> ScalarValue {
-    let fields = vec![
-        Field::new("value", data_fields[0].get_datatype(), true),
-        Field::new("time", data_fields[1].get_datatype(), true),
-    ];
+/// Implements the logic of the specific selector function (this is a
+/// cutdown version of the Accumulator DataFusion trait, to allow
+/// sharing between implementations)
+pub trait Selector: Debug + Send + Sync {
+    /// return state in a form that DataFusion can store during execution
+    fn datafusion_state(&self) -> DataFusionResult<Vec<ScalarValue>>;
 
-    ScalarValue::Struct(Some(data_fields), Fields::from(fields))
+    /// produces the final value of this selector for the specified output type
+    fn evaluate(&self) -> DataFusionResult<ScalarValue>;
+
+    /// Update this selector's state based on values in value_arr and time_arr
+    fn update_batch(
+        &mut self,
+        value_arr: &ArrayRef,
+        time_arr: &ArrayRef,
+        other_arrs: &[ArrayRef],
+    ) -> DataFusionResult<()>;
+
+    /// Allocated size required for this selector, in bytes,
+    /// including `Self`.  Allocated means that for internal
+    /// containers such as `Vec`, the `capacity` should be used not
+    /// the `len`
+    fn size(&self) -> usize;
 }
 
 #[derive(Debug)]
 pub struct FirstSelector {
     value: ScalarValue,
     time: Option<i64>,
+    other: Box<[ScalarValue]>,
 }
 
 impl FirstSelector {
-    pub fn new(data_type: &DataType) -> DataFusionResult<Self> {
+    pub fn new<'a>(
+        data_type: &'a DataType,
+        other_types: impl IntoIterator<Item = &'a DataType>,
+    ) -> DataFusionResult<Self> {
         Ok(Self {
             value: ScalarValue::try_from(data_type)?,
             time: None,
+            other: other_types
+                .into_iter()
+                .map(ScalarValue::try_from)
+                .collect::<DataFusionResult<_>>()?,
         })
     }
 }
 
 impl Selector for FirstSelector {
     fn datafusion_state(&self) -> DataFusionResult<Vec<ScalarValue>> {
-        Ok(vec![
+        Ok([
             self.value.clone(),
             ScalarValue::TimestampNanosecond(self.time, None),
-        ])
+        ]
+        .into_iter()
+        .chain(self.other.iter().cloned())
+        .collect())
     }
 
     fn evaluate(&self) -> DataFusionResult<ScalarValue> {
-        Ok(make_scalar_struct(vec![
-            self.value.clone(),
-            ScalarValue::TimestampNanosecond(self.time, None),
-        ]))
+        Ok(make_struct_scalar(
+            &self.value,
+            &ScalarValue::TimestampNanosecond(self.time, None),
+            self.other.iter(),
+        ))
     }
 
-    fn update_batch(&mut self, value_arr: &ArrayRef, time_arr: &ArrayRef) -> DataFusionResult<()> {
+    fn update_batch(
+        &mut self,
+        value_arr: &ArrayRef,
+        time_arr: &ArrayRef,
+        other_arrs: &[ArrayRef],
+    ) -> DataFusionResult<()> {
         // Only look for times where the array also has a non
         // null value (the time array should have no nulls itself)
         //
@@ -104,8 +137,16 @@ impl Selector for FirstSelector {
                 .map(|(idx, _)| idx)
                 .unwrap(); // value always exists
 
+            // update all or nothing in case of an error
+            let value_new = ScalarValue::try_from_array(&value_arr, index)?;
+            let other_new = other_arrs
+                .iter()
+                .map(|arr| ScalarValue::try_from_array(arr, index))
+                .collect::<DataFusionResult<_>>()?;
+
             self.time = cur_min_time;
-            self.value = ScalarValue::try_from_array(&value_arr, index)?;
+            self.value = value_new;
+            self.other = other_new;
         }
 
         Ok(())
@@ -140,13 +181,25 @@ impl Selector for LastSelector {
     }
 
     fn evaluate(&self) -> DataFusionResult<ScalarValue> {
-        Ok(make_scalar_struct(vec![
-            self.value.clone(),
-            ScalarValue::TimestampNanosecond(self.time, None),
-        ]))
+        Ok(make_struct_scalar(
+            &self.value,
+            &ScalarValue::TimestampNanosecond(self.time, None),
+            [],
+        ))
     }
 
-    fn update_batch(&mut self, value_arr: &ArrayRef, time_arr: &ArrayRef) -> DataFusionResult<()> {
+    fn update_batch(
+        &mut self,
+        value_arr: &ArrayRef,
+        time_arr: &ArrayRef,
+        other_arrs: &[ArrayRef],
+    ) -> DataFusionResult<()> {
+        if !other_arrs.is_empty() {
+            return Err(DataFusionError::NotImplemented(
+                "selector last w/ additional args".to_string(),
+            ));
+        }
+
         // Only look for times where the array also has a non
         // null value (the time array should have no nulls itself)
         //
@@ -186,8 +239,11 @@ impl Selector for LastSelector {
                 .map(|(idx, _)| idx)
                 .unwrap(); // value always exists
 
+            // update all or nothing in case of an error
+            let value_new = ScalarValue::try_from_array(&value_arr, index)?;
+
             self.time = cur_max_time;
-            self.value = ScalarValue::try_from_array(&value_arr, index)?;
+            self.value = value_new;
         }
 
         Ok(())
@@ -247,14 +303,26 @@ impl Selector for MinSelector {
     }
 
     fn evaluate(&self) -> DataFusionResult<ScalarValue> {
-        Ok(make_scalar_struct(vec![
-            self.value.clone(),
-            ScalarValue::TimestampNanosecond(self.time, None),
-        ]))
+        Ok(make_struct_scalar(
+            &self.value,
+            &ScalarValue::TimestampNanosecond(self.time, None),
+            [],
+        ))
     }
 
-    fn update_batch(&mut self, value_arr: &ArrayRef, time_arr: &ArrayRef) -> DataFusionResult<()> {
+    fn update_batch(
+        &mut self,
+        value_arr: &ArrayRef,
+        time_arr: &ArrayRef,
+        other_arrs: &[ArrayRef],
+    ) -> DataFusionResult<()> {
         use ActionNeeded::*;
+
+        if !other_arrs.is_empty() {
+            return Err(DataFusionError::NotImplemented(
+                "selector min w/ additional args".to_string(),
+            ));
+        }
 
         let mut min_accu = MinAccumulator::try_new(value_arr.data_type())?;
         min_accu.update_batch(&[Arc::clone(value_arr)])?;
@@ -338,14 +406,26 @@ impl Selector for MaxSelector {
     }
 
     fn evaluate(&self) -> DataFusionResult<ScalarValue> {
-        Ok(make_scalar_struct(vec![
-            self.value.clone(),
-            ScalarValue::TimestampNanosecond(self.time, None),
-        ]))
+        Ok(make_struct_scalar(
+            &self.value,
+            &ScalarValue::TimestampNanosecond(self.time, None),
+            [],
+        ))
     }
 
-    fn update_batch(&mut self, value_arr: &ArrayRef, time_arr: &ArrayRef) -> DataFusionResult<()> {
+    fn update_batch(
+        &mut self,
+        value_arr: &ArrayRef,
+        time_arr: &ArrayRef,
+        other_arrs: &[ArrayRef],
+    ) -> DataFusionResult<()> {
         use ActionNeeded::*;
+
+        if !other_arrs.is_empty() {
+            return Err(DataFusionError::NotImplemented(
+                "selector max w/ additional args".to_string(),
+            ));
+        }
 
         let time_arr = time_arr
             .as_any()

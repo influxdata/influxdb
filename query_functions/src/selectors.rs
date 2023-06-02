@@ -97,22 +97,20 @@
 //! [selector functions]: https://docs.influxdata.com/influxdb/v1.8/query_language/functions/#selectors
 use std::{fmt::Debug, sync::Arc};
 
-use arrow::{
-    array::ArrayRef,
-    datatypes::{DataType, Field, Fields},
-};
+use arrow::{array::ArrayRef, datatypes::DataType};
 use datafusion::{
     error::{DataFusionError, Result as DataFusionResult},
-    logical_expr::{AccumulatorFunctionImplementation, Signature, TypeSignature, Volatility},
+    logical_expr::{AccumulatorFunctionImplementation, Signature, Volatility},
     physical_plan::{udaf::AggregateUDF, Accumulator},
     prelude::SessionContext,
     scalar::ScalarValue,
 };
 
-/// Internal implementations of the selector functions
 mod internal;
-use internal::{FirstSelector, LastSelector, MaxSelector, MinSelector};
-use schema::TIME_DATA_TYPE;
+use internal::{FirstSelector, LastSelector, MaxSelector, MinSelector, Selector};
+
+mod type_handling;
+use type_handling::AggType;
 
 /// registers selector functions so they can be invoked via SQL
 pub fn register_selector_aggregates(ctx: &SessionContext) {
@@ -206,99 +204,61 @@ enum SelectorType {
 #[derive(Debug)]
 struct FactoryBuilder {
     selector_type: SelectorType,
-
-    /// If the selector output is "time" we can't determine the
-    /// accumuator type from the return type, so hold we pass the data type explicitly
-    value_type: Option<DataType>,
 }
 
 impl FactoryBuilder {
     fn new(selector_type: SelectorType) -> Self {
-        Self {
-            selector_type,
-            value_type: None,
-        }
+        Self { selector_type }
     }
 
     fn build_state_type_factory(&self) -> StateTypeFactory {
-        let value_type = self.value_type.clone();
-
         Arc::new(move |return_type| {
-            let value_type = match &value_type {
-                Some(t) => t,
-                None => value_data_type_from_return_data_type(return_type),
-            };
-
-            let state_types = make_state_datatypes(value_type.clone());
-            Ok(Arc::new(state_types))
+            let agg_type = AggType::try_from_return_type(return_type)?;
+            Ok(Arc::new(agg_type.state_datatypes()))
         })
     }
 
     /// Returns a function that instantiates the accumulator, consuming self
     fn build_accumulator_factory(self) -> AccumulatorFunctionImplementation {
-        let Self {
-            selector_type,
-            value_type,
-        } = self;
+        let Self { selector_type } = self;
 
         Arc::new(move |return_type| {
-            let value_type = match &value_type {
-                Some(t) => t,
-                None => value_data_type_from_return_data_type(return_type),
-            };
+            let agg_type = AggType::try_from_return_type(return_type)?;
+            let value_type = agg_type.value_type;
+            let other_types = agg_type.other_types;
 
             let accumulator: Box<dyn Accumulator> = match selector_type {
-                SelectorType::First => {
-                    Box::new(SelectorAccumulator::new(FirstSelector::new(value_type)?))
-                }
+                SelectorType::First => Box::new(SelectorAccumulator::new(FirstSelector::new(
+                    value_type,
+                    other_types.iter().cloned(),
+                )?)),
                 SelectorType::Last => {
+                    if !other_types.is_empty() {
+                        return Err(DataFusionError::NotImplemented(
+                            "selector last w/ additional args".to_string(),
+                        ));
+                    }
                     Box::new(SelectorAccumulator::new(LastSelector::new(value_type)?))
                 }
                 SelectorType::Min => {
+                    if !other_types.is_empty() {
+                        return Err(DataFusionError::NotImplemented(
+                            "selector min w/ additional args".to_string(),
+                        ));
+                    }
                     Box::new(SelectorAccumulator::new(MinSelector::new(value_type)?))
                 }
                 SelectorType::Max => {
+                    if !other_types.is_empty() {
+                        return Err(DataFusionError::NotImplemented(
+                            "selector max w/ additional args".to_string(),
+                        ));
+                    }
                     Box::new(SelectorAccumulator::new(MaxSelector::new(value_type)?))
                 }
             };
             Ok(accumulator)
         })
-    }
-}
-
-/// Implements the logic of the specific selector function (this is a
-/// cutdown version of the Accumulator DataFusion trait, to allow
-/// sharing between implementations)
-trait Selector: Debug + Send + Sync {
-    /// return state in a form that DataFusion can store during execution
-    fn datafusion_state(&self) -> DataFusionResult<Vec<ScalarValue>>;
-
-    /// produces the final value of this selector for the specified output type
-    fn evaluate(&self) -> DataFusionResult<ScalarValue>;
-
-    /// Update this selector's state based on values in value_arr and time_arr
-    fn update_batch(&mut self, value_arr: &ArrayRef, time_arr: &ArrayRef) -> DataFusionResult<()>;
-
-    /// Allocated size required for this selector, in bytes,
-    /// including `Self`.  Allocated means that for internal
-    /// containers such as `Vec`, the `capacity` should be used not
-    /// the `len`
-    fn size(&self) -> usize;
-}
-
-/// Create the struct fields for a selector with DataType `value_type`
-fn make_struct_fields(value_type: DataType) -> Fields {
-    Fields::from(vec![
-        Field::new("value", value_type, true),
-        Field::new("time", TIME_DATA_TYPE(), true),
-    ])
-}
-
-/// Return the value type given the (struct) output data type
-fn value_data_type_from_return_data_type(output_type: &DataType) -> &DataType {
-    match output_type {
-        DataType::Struct(fields) => fields[0].data_type(),
-        t => t,
     }
 }
 
@@ -309,16 +269,7 @@ type StateTypeFactory =
 /// Create a User Defined Aggregate Function (UDAF) for datafusion.
 fn make_uda(name: &str, factory_builder: FactoryBuilder) -> AggregateUDF {
     // All selectors support the same input types / signatures
-    let input_signature = Signature::one_of(
-        vec![
-            TypeSignature::Exact(vec![DataType::Float64, TIME_DATA_TYPE()]),
-            TypeSignature::Exact(vec![DataType::Int64, TIME_DATA_TYPE()]),
-            TypeSignature::Exact(vec![DataType::UInt64, TIME_DATA_TYPE()]),
-            TypeSignature::Exact(vec![DataType::Utf8, TIME_DATA_TYPE()]),
-            TypeSignature::Exact(vec![DataType::Boolean, TIME_DATA_TYPE()]),
-        ],
-        Volatility::Stable,
-    );
+    let input_signature = Signature::variadic_any(Volatility::Stable);
 
     // return type of the selector is based on the input arguments.
     //
@@ -326,24 +277,8 @@ fn make_uda(name: &str, factory_builder: FactoryBuilder) -> AggregateUDF {
     // 'value' and 'time' field of the same time.
     let captured_name = name.to_string();
     let return_type_func: ReturnTypeFunction = Arc::new(move |arg_types| {
-        if arg_types.len() != 2 {
-            return Err(DataFusionError::Plan(format!(
-                "{} requires exactly 2 arguments, got {}",
-                captured_name,
-                arg_types.len()
-            )));
-        }
-
-        let input_type = &arg_types[0];
-        let time_type = &arg_types[1];
-        if time_type != &TIME_DATA_TYPE() {
-            return Err(DataFusionError::Plan(format!(
-                "{captured_name} second argument must be a timestamp, but got {time_type}"
-            )));
-        }
-        let return_type = DataType::Struct(make_struct_fields(input_type.clone()));
-
-        Ok(Arc::new(return_type))
+        let agg_type = AggType::try_from_arg_types(arg_types, &captured_name)?;
+        Ok(Arc::new(agg_type.return_type()))
     });
 
     // state type given the return type
@@ -356,11 +291,6 @@ fn make_uda(name: &str, factory_builder: FactoryBuilder) -> AggregateUDF {
         &factory_builder.build_accumulator_factory(),
         &state_type_factory,
     )
-}
-
-/// Return the state in which the arguments are stored
-fn make_state_datatypes(value_type: DataType) -> Vec<DataType> {
-    vec![value_type, TIME_DATA_TYPE()]
 }
 
 /// Structure that implements the Accumulator trait for DataFusion
@@ -414,15 +344,16 @@ where
             return Ok(());
         }
 
-        if values.len() != 2 {
+        if values.len() < 2 {
             return Err(DataFusionError::Internal(format!(
-                "Internal error: Expected 2 arguments passed to selector function but got {}",
+                "Internal error: Expected at least 2 arguments passed to selector function but got {}",
                 values.len()
             )));
         }
 
         // invoke the actual worker function.
-        self.selector.update_batch(&values[0], &values[1])?;
+        self.selector
+            .update_batch(&values[0], &values[1], &values[2..])?;
         Ok(())
     }
 
@@ -449,7 +380,7 @@ mod test {
     use datafusion::{datasource::MemTable, prelude::*};
 
     use super::*;
-    use utils::run_case;
+    use utils::{run_case, run_case_err};
 
     mod first {
         use super::*;
@@ -585,6 +516,66 @@ mod test {
                     "| {value: true, time: 1970-01-01T00:00:00.000001} |",
                     "+-------------------------------------------------+",
                 ],
+            )
+            .await;
+        }
+
+        #[tokio::test]
+        async fn test_with_other() {
+            run_case(
+                selector_first().call(vec![col("f64_value"), col("time"), col("bool_value"), col("f64_not_normal_1_value"), col("i64_2_value")]),
+                vec![
+                    "+----------------------------------------------------------------------------------------+",
+                    "| selector_first(t.f64_value,t.time,t.bool_value,t.f64_not_normal_1_value,t.i64_2_value) |",
+                    "+----------------------------------------------------------------------------------------+",
+                    "| {value: 2.0, time: 1970-01-01T00:00:00.000001, other_1: true, other_2: NaN, other_3: } |",
+                    "+----------------------------------------------------------------------------------------+",
+                ],
+            )
+            .await;
+
+            run_case(
+                selector_first().call(vec![col("i64_2_value"), col("time"), col("bool_value"), col("f64_not_normal_1_value"), col("i64_2_value")]),
+                vec![
+                    "+------------------------------------------------------------------------------------------+",
+                    "| selector_first(t.i64_2_value,t.time,t.bool_value,t.f64_not_normal_1_value,t.i64_2_value) |",
+                    "+------------------------------------------------------------------------------------------+",
+                    "| {value: 50, time: 1970-01-01T00:00:00.000005, other_1: false, other_2: inf, other_3: 50} |",
+                    "+------------------------------------------------------------------------------------------+",
+                ],
+            )
+            .await;
+        }
+
+        #[tokio::test]
+        async fn test_err() {
+            run_case_err(
+                selector_first().call(vec![]),
+                "Error during planning: selector_first requires at least 2 arguments, got 0",
+            )
+            .await;
+
+            run_case_err(
+                selector_first().call(vec![col("f64_value")]),
+                "Error during planning: selector_first requires at least 2 arguments, got 1",
+            )
+            .await;
+
+            run_case_err(
+                selector_first().call(vec![col("time"), col("f64_value")]),
+                "Error during planning: selector_first second argument must be a timestamp, but got Float64",
+            )
+            .await;
+
+            run_case_err(
+                selector_first().call(vec![col("time"), col("f64_value"), col("bool_value")]),
+                "Error during planning: selector_first second argument must be a timestamp, but got Float64",
+            )
+            .await;
+
+            run_case_err(
+                selector_first().call(vec![col("f64_value"), col("bool_value"), col("time")]),
+                "Error during planning: selector_first second argument must be a timestamp, but got Boolean",
             )
             .await;
         }
@@ -984,6 +975,8 @@ mod test {
     }
 
     mod utils {
+        use schema::TIME_DATA_TYPE;
+
         use super::*;
 
         /// Runs the expr using `run_plan` and compares the result to `expected`
@@ -998,21 +991,22 @@ mod test {
             );
         }
 
-        /// Run a plan against the following input table as "t"
-        ///
-        /// ```text
-        /// +-----------+-----------+-----------+--------------+------------+----------------------------+,
-        /// | f64_value | i64_value | u64_value | string_value | bool_value | time                       |,
-        /// +-----------+-----------+--------------+------------+----------------------------+,
-        /// | 2         | 20        | 20        | two          | true       | 1970-01-01T00:00:00.000001 |,
-        /// | 4         | 40        | 40        | four         | false      | 1970-01-01T00:00:00.000002 |,
-        /// |           |           |           |              |            | 1970-01-01T00:00:00.000003 |,
-        /// | 1         | 10        | 10        | a_one        | true       | 1970-01-01T00:00:00.000004 |,
-        /// | 5         | 50        | 50        | z_five       | false      | 1970-01-01T00:00:00.000005 |,
-        /// | 3         | 30        | 30        | three        | false      | 1970-01-01T00:00:00.000006 |,
-        /// +-----------+-----------+--------------+------------+----------------------------+,
-        /// ```
-        async fn run_plan(aggs: Vec<Expr>) -> Vec<String> {
+        pub async fn run_case_err(expr: Expr, expected: &'static str) {
+            println!("Running error case for {expr}");
+
+            let (schema, input) = input();
+            let actual = run_with_inputs(Arc::clone(&schema), vec![expr.clone()], input.clone())
+                .await
+                .unwrap_err()
+                .to_string();
+
+            assert_eq!(
+                expected, actual,
+                "\n\nexpr: {expr}\n\nEXPECTED:\n{expected:#?}\nACTUAL:\n{actual:#?}\n"
+            );
+        }
+
+        fn input() -> (SchemaRef, Vec<RecordBatch>) {
             // define a schema for input
             // (value) and timestamp
             let schema = Arc::new(Schema::new(vec![
@@ -1139,17 +1133,42 @@ mod test {
             )
             .unwrap();
 
-            // Ensure the answer is the same regardless of the order of inputs
             let input = vec![batch1, batch2, batch3];
+
+            (schema, input)
+        }
+
+        /// Run a plan against the following input table as "t"
+        ///
+        /// ```text
+        /// +-----------+-----------+-----------+--------------+------------+----------------------------+,
+        /// | f64_value | i64_value | u64_value | string_value | bool_value | time                       |,
+        /// +-----------+-----------+--------------+------------+----------------------------+,
+        /// | 2         | 20        | 20        | two          | true       | 1970-01-01T00:00:00.000001 |,
+        /// | 4         | 40        | 40        | four         | false      | 1970-01-01T00:00:00.000002 |,
+        /// |           |           |           |              |            | 1970-01-01T00:00:00.000003 |,
+        /// | 1         | 10        | 10        | a_one        | true       | 1970-01-01T00:00:00.000004 |,
+        /// | 5         | 50        | 50        | z_five       | false      | 1970-01-01T00:00:00.000005 |,
+        /// | 3         | 30        | 30        | three        | false      | 1970-01-01T00:00:00.000006 |,
+        /// +-----------+-----------+--------------+------------+----------------------------+,
+        /// ```
+        async fn run_plan(aggs: Vec<Expr>) -> Vec<String> {
+            let (schema, input) = input();
+
+            // Ensure the answer is the same regardless of the order of inputs
             let input_string = pretty_format_batches(&input).unwrap();
-            let results = run_with_inputs(Arc::clone(&schema), aggs.clone(), input.clone()).await;
+            let results = run_with_inputs(Arc::clone(&schema), aggs.clone(), input.clone())
+                .await
+                .unwrap();
 
             use itertools::Itertools;
             // Get all permutations of the input
             for p in input.iter().permutations(3) {
                 let p_batches = p.into_iter().cloned().collect::<Vec<_>>();
                 let p_input_string = pretty_format_batches(&p_batches).unwrap();
-                let p_results = run_with_inputs(Arc::clone(&schema), aggs.clone(), p_batches).await;
+                let p_results = run_with_inputs(Arc::clone(&schema), aggs.clone(), p_batches)
+                    .await
+                    .unwrap();
                 assert_eq!(
                     results, p_results,
                     "Mismatch with permutation.\n\
@@ -1171,23 +1190,22 @@ mod test {
             schema: SchemaRef,
             aggs: Vec<Expr>,
             inputs: Vec<RecordBatch>,
-        ) -> Vec<String> {
-            let provider = MemTable::try_new(Arc::clone(&schema), vec![inputs]).unwrap();
+        ) -> DataFusionResult<Vec<String>> {
+            let provider = MemTable::try_new(Arc::clone(&schema), vec![inputs])?;
             let ctx = SessionContext::new();
-            ctx.register_table("t", Arc::new(provider)).unwrap();
+            ctx.register_table("t", Arc::new(provider))?;
 
-            let df = ctx.table("t").await.unwrap();
-            let df = df.aggregate(vec![], aggs).unwrap();
+            let df = ctx.table("t").await?;
+            let df = df.aggregate(vec![], aggs)?;
 
             // execute the query
-            let record_batches = df.collect().await.unwrap();
+            let record_batches = df.collect().await?;
 
-            pretty_format_batches(&record_batches)
-                .unwrap()
+            Ok(pretty_format_batches(&record_batches)?
                 .to_string()
                 .split('\n')
                 .map(|s| s.to_owned())
-                .collect()
+                .collect())
         }
     }
 }
