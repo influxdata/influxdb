@@ -1,19 +1,185 @@
 //! Process InfluxQL time range expressions
 //!
 use crate::expression::walk::{walk_expression, Expression};
-use crate::expression::{lit, Binary, BinaryOperator, ConditionalExpression, Expr, VarRef};
+use crate::expression::{
+    lit, Binary, BinaryOperator, ConditionalBinary, ConditionalExpression, Expr, VarRef,
+};
 use crate::functions::is_now_function;
 use crate::literal::{nanos_to_timestamp, Duration, Literal};
 use crate::timestamp::{parse_timestamp, Timestamp};
-use std::ops::ControlFlow;
+use std::cmp::Ordering;
+use std::ops::{Bound, ControlFlow, Deref};
 
-/// Result type for operations that could result in an [`ExprError`].
+/// Result type for operations that return an [`Expr`] and could result in an [`ExprError`].
 pub type ExprResult = Result<Expr, ExprError>;
 
-#[allow(dead_code)]
-fn split_cond(
+/// Traverse `expr` and separate time range expressions from other predicates.
+///
+/// # NOTE
+///
+/// Combining relational operators like `time > now() - 5s` and equality
+/// operators like `time = <timestamp>` with a disjunction (`OR`)
+/// will evaluate to `false`, like InfluxQL.
+///
+/// # Background
+///
+/// The InfluxQL query engine always promotes the time range expression to filter
+/// all results. It is misleading that time ranges are written in the `WHERE` clause,
+/// as the `WHERE` predicate is not evaluated in its entirety for each row. Rather,
+/// InfluxQL extracts the time range to form a time bound for the entire query and
+/// removes any time range expressions from the filter predicate. The time range
+/// is determined using the `>` and `≥` operators to form the lower bound and
+/// the `<` and `≤` operators to form the upper bound. When multiple instances of
+/// the lower or upper bound operators are found, the time bounds will form the
+/// intersection. For example
+///
+/// ```sql
+/// WHERE time >= 1000 AND time >= 2000 AND time < 10000 and time < 9000
+/// ```
+///
+/// is equivalent to
+///
+/// ```sql
+/// WHERE time >= 2000 AND time < 9000
+/// ```
+///
+/// Further, InfluxQL only allows a single `time = <value>` binary expression. Multiple
+/// occurrences result in an empty result set.
+///
+/// ## Examples
+///
+/// Lets illustrate how InfluxQL applies predicates with a typical example, using the
+/// `metrics.lp` data in the IOx repository:
+///
+/// ```sql
+/// SELECT cpu, usage_idle FROM cpu
+/// WHERE
+///   time > '2020-06-11T16:53:30Z' AND time < '2020-06-11T16:55:00Z' AND cpu = 'cpu0'
+/// ```
+///
+/// InfluxQL first filters rows based on the time range:
+///
+/// ```sql
+/// '2020-06-11T16:53:30Z' < time <  '2020-06-11T16:55:00Z'
+/// ```
+///
+/// and then applies the predicate to the individual rows:
+///
+/// ```sql
+/// cpu = 'cpu0'
+/// ```
+///
+/// Producing the following result:
+///
+/// ```text
+/// name: cpu
+/// time                 cpu  usage_idle
+/// ----                 ---  ----------
+/// 2020-06-11T16:53:40Z cpu0 90.29029029029029
+/// 2020-06-11T16:53:50Z cpu0 89.8
+/// 2020-06-11T16:54:00Z cpu0 90.09009009009009
+/// 2020-06-11T16:54:10Z cpu0 88.82235528942115
+/// ```
+///
+/// The following example is a little more complicated, but shows again how InfluxQL
+/// separates the time ranges from the predicate:
+///
+/// ```sql
+/// SELECT cpu, usage_idle FROM cpu
+/// WHERE
+///   time > '2020-06-11T16:53:30Z' AND time < '2020-06-11T16:55:00Z' AND cpu = 'cpu0' OR cpu = 'cpu1'
+/// ```
+///
+/// InfluxQL first filters rows based on the time range:
+///
+/// ```sql
+/// '2020-06-11T16:53:30Z' < time <  '2020-06-11T16:55:00Z'
+/// ```
+///
+/// and then applies the predicate to the individual rows:
+///
+/// ```sql
+/// cpu = 'cpu0' OR cpu = 'cpu1'
+/// ```
+///
+/// This is certainly quite different to SQL, which would evaluate the predicate as:
+///
+/// ```sql
+/// SELECT cpu, usage_idle FROM cpu
+/// WHERE
+///   (time > '2020-06-11T16:53:30Z' AND time < '2020-06-11T16:55:00Z' AND cpu = 'cpu0') OR cpu = 'cpu1'
+/// ```
+///
+/// ## Time ranges are not normal
+///
+/// Here we demonstrate how the operators combining time ranges do not matter. Using the
+/// original query:
+///
+/// ```sql
+/// SELECT cpu, usage_idle FROM cpu
+/// WHERE
+///   time > '2020-06-11T16:53:30Z' AND time < '2020-06-11T16:55:00Z' AND cpu = 'cpu0'
+/// ```
+///
+/// we replace all `AND` operators with `OR`:
+///
+/// ```sql
+/// SELECT cpu, usage_idle FROM cpu
+/// WHERE
+///   time > '2020-06-11T16:53:30Z' OR time < '2020-06-11T16:55:00Z' OR cpu = 'cpu0'
+/// ```
+///
+/// This should return all rows, but yet it returns the same result 🤯:
+///
+/// ```text
+/// name: cpu
+/// time                 cpu  usage_idle
+/// ----                 ---  ----------
+/// 2020-06-11T16:53:40Z cpu0 90.29029029029029
+/// 2020-06-11T16:53:50Z cpu0 89.8
+/// 2020-06-11T16:54:00Z cpu0 90.09009009009009
+/// 2020-06-11T16:54:10Z cpu0 88.82235528942115
+/// ```
+///
+/// It becomes clearer, if we again review at how InfluxQL OG evaluates the `WHERE`
+/// predicate, InfluxQL first filters rows based on the time range, which uses the
+/// rules previously defined by finding `>` and `≥` to determine the lower bound
+/// and `<` and `≤`:
+///
+/// ```sql
+/// '2020-06-11T16:53:30Z' < time <  '2020-06-11T16:55:00Z'
+/// ```
+///
+/// and then applies the predicate to the individual rows:
+///
+/// ```sql
+/// cpu = 'cpu0'
+/// ```
+///
+/// ## How to think of time ranges intuitively
+///
+/// Imagine a slight variation of InfluxQL has a separate _time bounds clause_.
+/// It could have two forms, first as a `BETWEEN`
+///
+/// ```sql
+/// SELECT cpu, usage_idle FROM cpu
+/// WITH TIME BETWEEN '2020-06-11T16:53:30Z' AND '2020-06-11T16:55:00Z'
+/// WHERE
+///   cpu = 'cpu0'
+/// ```
+///
+/// or as an `IN` to select multiple points:
+///
+/// ```sql
+/// SELECT cpu, usage_idle FROM cpu
+/// WITH TIME IN ('2004-04-09T12:00:00Z', '2004-04-09T12:00:10Z', ...)
+/// WHERE
+///   cpu = 'cpu0'
+/// ```
+pub fn split_cond(
+    ctx: &ReduceContext,
     cond: &ConditionalExpression,
-) -> (Option<ConditionalExpression>, Option<ConditionalExpression>) {
+) -> Result<(Option<ConditionalExpression>, Option<TimeCondition>), ExprError> {
     // search the tree for an expression involving `time`.
     let no_time = walk_expression(cond, &mut |e| {
         if let Expression::Conditional(cond) = e {
@@ -26,10 +192,386 @@ fn split_cond(
     .is_continue();
 
     if no_time {
-        return (None, None);
+        return Ok((Some(cond.clone()), None));
     }
 
-    unimplemented!()
+    let mut time_range = TimeRange::default();
+    let mut equality = vec![];
+    let mut stack: Vec<Option<ConditionalExpression>> = vec![];
+
+    enum B {
+        /// Indicates the expression should evaluate to false to model
+        /// InfluxQL behaviour
+        False,
+        /// Indicates the expression was invalid and should return an error
+        Error(ExprError),
+    }
+
+    let res = walk_expression(cond, &mut |expr| {
+        if let Expression::Conditional(cond) = expr {
+            use crate::expression::ConditionalOperator::*;
+            use ConditionalExpression as CE;
+            match cond {
+                CE::Binary(ConditionalBinary {
+                    lhs,
+                    op: op @ (Eq | NotEq | Gt | Lt | GtEq | LtEq),
+                    rhs,
+                }) if is_time_field(lhs) || is_time_field(rhs) => {
+                    if matches!(op, NotEq) {
+                        // Stop recursing, as != is an invalid operator for time expressions
+                        return ControlFlow::Break(B::Error(error::map::expr(
+                            "invalid time comparison operator: !=",
+                        )));
+                    }
+
+                    stack.push(None);
+
+                    /// Op is the limited set of operators expected from here on,
+                    /// to avoid repeated wildcard match arms with unreachable!().
+                    enum Op {
+                        Eq,
+                        Gt,
+                        GtEq,
+                        Lt,
+                        LtEq,
+                    }
+
+                    // Map the DataFusion Operator to Op
+                    let op = match op {
+                        Eq => Op::Eq,
+                        Gt => Op::Gt,
+                        GtEq => Op::GtEq,
+                        Lt => Op::Lt,
+                        LtEq => Op::LtEq,
+                        _ => unreachable!("expected: Eq | Gt | GtEq | Lt | LtEq"),
+                    };
+
+                    let (expr, op) = if is_time_field(lhs) {
+                        (rhs, op)
+                    } else {
+                        (
+                            lhs,
+                            match op {
+                                Op::Eq => Op::Eq,
+                                // swap the relational operators when the conditional is `expression OP "time"`
+                                Op::Gt => Op::Lt,
+                                Op::GtEq => Op::LtEq,
+                                Op::Lt => Op::Gt,
+                                Op::LtEq => Op::GtEq,
+                            },
+                        )
+                    };
+
+                    let Some(expr) = expr.expr() else {
+                        return ControlFlow::Break(B::Error(error::map::internal("expected Expr")))
+                    };
+
+                    // simplify binary expressions to a constant, including resolve `now()`
+                    let expr = match reduce_time_expr(ctx, expr) {
+                        Ok(e) => e,
+                        Err(err) => return ControlFlow::Break(B::Error(err)),
+                    };
+
+                    let ts = match expr {
+                        Expr::Literal(Literal::Timestamp(ts)) => ts.timestamp_nanos(),
+                        expr => {
+                            return ControlFlow::Break(B::Error(error::map::internal(format!(
+                                "expected Timestamp, got: {}",
+                                expr
+                            ))))
+                        }
+                    };
+
+                    match op {
+                        Op::Eq => {
+                            if time_range.is_unbounded() {
+                                equality.push(ts);
+                            } else {
+                                // Stop recursing, as we have observed incompatible
+                                // time conditions using equality and relational operators
+                                return ControlFlow::Break(B::False);
+                            };
+                        }
+                        Op::Gt | Op::GtEq | Op::Lt | Op::LtEq if !equality.is_empty() => {
+                            // Stop recursing, as we have observed incompatible
+                            // time conditions using equality and relational operators
+                            return ControlFlow::Break(B::False);
+                        }
+                        Op::Gt => {
+                            let ts = LowerBound::excluded(ts);
+                            if ts > time_range.lower {
+                                time_range.lower = ts;
+                            }
+                        }
+                        Op::GtEq => {
+                            let ts = LowerBound::included(ts);
+                            if ts > time_range.lower {
+                                time_range.lower = ts;
+                            }
+                        }
+                        Op::Lt => {
+                            let ts = UpperBound::excluded(ts);
+                            if ts < time_range.upper {
+                                time_range.upper = ts;
+                            }
+                        }
+                        Op::LtEq => {
+                            let ts = UpperBound::included(ts);
+                            if ts < time_range.upper {
+                                time_range.upper = ts;
+                            }
+                        }
+                    }
+                }
+                node @ CE::Binary(ConditionalBinary {
+                    op: Eq | NotEq | Gt | GtEq | Lt | LtEq | EqRegex | NotEqRegex,
+                    ..
+                }) => {
+                    stack.push(Some(node.clone()));
+                }
+                CE::Binary(ConditionalBinary {
+                    op: op @ (And | Or),
+                    ..
+                }) => {
+                    let Some(right) = stack
+                        .pop() else {
+                        return ControlFlow::Break(B::Error(error::map::internal("invalid expr stack")))
+                    };
+                    let Some(left) = stack
+                        .pop() else {
+                        return ControlFlow::Break(B::Error(error::map::internal("invalid expr stack")))
+                    };
+                    stack.push(match (left, right) {
+                        (Some(left), Some(right)) => Some(CE::Binary(ConditionalBinary {
+                            lhs: Box::new(left),
+                            op: *op,
+                            rhs: Box::new(right),
+                        })),
+                        (None, Some(node)) | (Some(node), None) => Some(node),
+                        (None, None) => None,
+                    });
+                }
+                _ => {}
+            }
+        }
+        ControlFlow::Continue(())
+    });
+
+    let time_cond = match res {
+        // Successfully simplified the time range expressions
+        ControlFlow::Continue(_) => {
+            if !time_range.is_unbounded() {
+                TimeCondition::Range(time_range)
+            } else {
+                TimeCondition::List(equality)
+            }
+        }
+        // When `expr` contains both time expressions using relational
+        // operators like > or <= and equality, such as
+        //
+        // WHERE time > now() - 5s OR time = '2004-04-09:12:00:00Z' AND cpu = 'cpu0'
+        //
+        // the entire expression evaluates to `false` to be consistent with InfluxQL.
+        ControlFlow::Break(B::False) => {
+            return Ok((
+                Some(ConditionalExpression::Expr(Box::new(lit(false)))),
+                None,
+            ))
+        }
+        // An error occurred
+        ControlFlow::Break(B::Error(err)) => return Err(err),
+    };
+
+    let cond = stack
+        .pop()
+        .ok_or_else(|| error::map::internal("expected expression on stack"))?;
+
+    Ok((cond, Some(time_cond)))
+}
+
+/// Represents the lower bound, in nanoseconds, of a [`TimeRange`].
+#[derive(Clone, Copy, Debug)]
+pub struct LowerBound(Bound<i64>);
+
+impl Deref for LowerBound {
+    type Target = Bound<i64>;
+
+    fn deref(&self) -> &Self::Target {
+        &self.0
+    }
+}
+
+impl LowerBound {
+    /// Create a new, time bound that is unbounded
+    fn unbounded() -> Self {
+        Self(Bound::Unbounded)
+    }
+
+    /// Create a new, time bound that includes `v`
+    fn included(v: i64) -> Self {
+        Self(Bound::Included(v))
+    }
+
+    /// Create a new, time bound that excludes `v`
+    fn excluded(v: i64) -> Self {
+        Self(Bound::Excluded(v))
+    }
+
+    /// Returns `true` if the receiver is unbounded.
+    fn is_unbounded(&self) -> bool {
+        matches!(self.0, Bound::Unbounded)
+    }
+}
+
+impl Default for LowerBound {
+    fn default() -> Self {
+        Self::unbounded()
+    }
+}
+
+impl Eq for LowerBound {}
+
+impl PartialEq<Self> for LowerBound {
+    fn eq(&self, other: &Self) -> bool {
+        self.cmp(other) == Ordering::Equal
+    }
+}
+
+impl PartialOrd<Self> for LowerBound {
+    fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
+        Some(self.cmp(other))
+    }
+}
+
+impl Ord for LowerBound {
+    fn cmp(&self, other: &Self) -> Ordering {
+        match (self.0, other.0) {
+            (Bound::Unbounded, Bound::Unbounded) => Ordering::Equal,
+            (Bound::Unbounded, _) => Ordering::Less,
+            (_, Bound::Unbounded) => Ordering::Greater,
+            (Bound::Included(a), Bound::Included(b)) | (Bound::Excluded(a), Bound::Excluded(b)) => {
+                a.cmp(&b)
+            }
+            (Bound::Included(a), Bound::Excluded(b)) => match a.cmp(&b) {
+                Ordering::Equal => Ordering::Less,
+                // We know that if a > b, b + 1 is safe from overflow
+                Ordering::Greater if a == b + 1 => Ordering::Equal,
+                ordering => ordering,
+            },
+            (Bound::Excluded(a), Bound::Included(b)) => match a.cmp(&b) {
+                Ordering::Equal => Ordering::Greater,
+                // We know that if a < b, a + 1 is safe from overflow
+                Ordering::Less if a + 1 == b => Ordering::Equal,
+                ordering => ordering,
+            },
+        }
+    }
+}
+
+/// Represents the upper bound, in nanoseconds, of a [`TimeRange`].
+#[derive(Clone, Copy, Debug)]
+pub struct UpperBound(Bound<i64>);
+
+impl Deref for UpperBound {
+    type Target = Bound<i64>;
+
+    fn deref(&self) -> &Self::Target {
+        &self.0
+    }
+}
+
+impl UpperBound {
+    /// Create a new, unbounded upper bound.
+    fn unbounded() -> Self {
+        Self(Bound::Unbounded)
+    }
+
+    /// Create a new, upper bound that includes `v`
+    fn included(v: i64) -> Self {
+        Self(Bound::Included(v))
+    }
+
+    /// Create a new, upper bound that excludes `v`
+    fn excluded(v: i64) -> Self {
+        Self(Bound::Excluded(v))
+    }
+
+    /// Returns `true` if the receiver is unbounded.
+    fn is_unbounded(&self) -> bool {
+        matches!(self.0, Bound::Unbounded)
+    }
+}
+
+impl Default for UpperBound {
+    fn default() -> Self {
+        Self::unbounded()
+    }
+}
+
+impl Eq for UpperBound {}
+
+impl PartialEq<Self> for UpperBound {
+    fn eq(&self, other: &Self) -> bool {
+        self.cmp(other) == Ordering::Equal
+    }
+}
+
+impl PartialOrd<Self> for UpperBound {
+    fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
+        Some(self.cmp(other))
+    }
+}
+
+impl Ord for UpperBound {
+    fn cmp(&self, other: &Self) -> Ordering {
+        match (self.0, other.0) {
+            (Bound::Unbounded, Bound::Unbounded) => Ordering::Equal,
+            (Bound::Unbounded, _) => Ordering::Greater,
+            (_, Bound::Unbounded) => Ordering::Less,
+            (Bound::Included(a), Bound::Included(b)) | (Bound::Excluded(a), Bound::Excluded(b)) => {
+                a.cmp(&b)
+            }
+            (Bound::Included(a), Bound::Excluded(b)) => match a.cmp(&b) {
+                Ordering::Equal => Ordering::Greater,
+                // We know that if a < b, b - 1 is safe from underflow
+                Ordering::Less if a == b - 1 => Ordering::Equal,
+                ordering => ordering,
+            },
+            (Bound::Excluded(a), Bound::Included(b)) => match a.cmp(&b) {
+                Ordering::Equal => Ordering::Less,
+                // We know that if a > b, a - 1 is safe from overflow
+                Ordering::Greater if a - 1 == b => Ordering::Equal,
+                ordering => ordering,
+            },
+        }
+    }
+}
+
+/// Represents a time condition for an InfluxQL statement.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum TimeCondition {
+    /// A time range with lower and / or upper bounds.
+    Range(TimeRange),
+
+    /// A list of timestamps.
+    List(Vec<i64>),
+}
+
+/// Represents a time range, with a single lower and upper bound.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub struct TimeRange {
+    /// The lower bound of the time range.
+    pub lower: LowerBound,
+
+    /// The upper bound of the time range.
+    pub upper: UpperBound,
+}
+
+impl TimeRange {
+    /// Returns `true` if the time range is unbounded.
+    pub fn is_unbounded(&self) -> bool {
+        self.lower.is_unbounded() && self.upper.is_unbounded()
+    }
 }
 
 /// Simplifies an InfluxQL duration `expr` to a nanosecond interval represented as an `i64`.
@@ -61,11 +603,19 @@ mod error {
         Err(map::expr(s))
     }
 
+    pub(crate) fn internal<T>(s: impl Into<String>) -> Result<T, ExprError> {
+        Err(map::internal(s))
+    }
+
     pub(crate) mod map {
         use super::*;
 
         pub(crate) fn expr(s: impl Into<String>) -> ExprError {
             ExprError::Expression(s.into())
+        }
+
+        pub(crate) fn internal(s: impl Into<String>) -> ExprError {
+            ExprError::Internal(s.into())
         }
     }
 }
@@ -79,22 +629,8 @@ pub struct ReduceContext {
     pub tz: Option<chrono_tz::Tz>,
 }
 
-#[allow(dead_code)]
-fn reduce(
-    ctx: &ReduceContext,
-    cond: &ConditionalExpression,
-) -> Result<ConditionalExpression, ExprError> {
-    Ok(match cond {
-        ConditionalExpression::Expr(expr) => {
-            ConditionalExpression::Expr(Box::new(reduce_expr(ctx, expr)?))
-        }
-        ConditionalExpression::Binary(_) => unimplemented!(),
-        ConditionalExpression::Grouped(_) => unimplemented!(),
-    })
-}
-
 /// Simplify the time range expression.
-pub fn reduce_time_expr(ctx: &ReduceContext, expr: &Expr) -> ExprResult {
+fn reduce_time_expr(ctx: &ReduceContext, expr: &Expr) -> ExprResult {
     match reduce_expr(ctx, expr)? {
         expr @ Expr::Literal(Literal::Timestamp(_)) => Ok(expr),
         Expr::Literal(Literal::String(ref s)) => {
@@ -110,7 +646,7 @@ pub fn reduce_time_expr(ctx: &ReduceContext, expr: &Expr) -> ExprResult {
 fn reduce_expr(ctx: &ReduceContext, expr: &Expr) -> ExprResult {
     match expr {
         Expr::Binary(ref v) => reduce_binary_expr(ctx, v).map_err(map_expr_err(expr)),
-        Expr::Call (call) if is_now_function(call.name.as_str()) => ctx.now.map(lit).ok_or_else(|| ExprError::Internal("unable to resolve now".into())),
+        Expr::Call (call) if is_now_function(call.name.as_str()) => ctx.now.map(lit).ok_or_else(|| error::map::internal("unable to resolve now")),
         Expr::Call (call) => {
             error::expr(
                 format!("invalid function call '{}'", call.name),
@@ -198,9 +734,9 @@ fn reduce_binary_lhs_duration(
                 reduce_binary_lhs_duration(ctx, lhs, op, parse_timestamp_expr(v, ctx.tz)?)
             }
             // This should not occur, as acceptable literals are validated in `reduce_expr`.
-            _ => Err(ExprError::Internal(format!(
+            _ => error::internal(format!(
                 "unexpected literal '{rhs}' for duration expression"
-            ))),
+            )),
         },
         _ => error::expr("invalid duration expression"),
     }
@@ -375,18 +911,136 @@ mod test {
     use crate::expression::ConditionalExpression;
     use crate::time_range::{
         duration_expr_to_nanoseconds, reduce_time_expr, split_cond, ExprError, ExprResult,
-        ReduceContext,
+        LowerBound, ReduceContext, TimeCondition, TimeRange, UpperBound,
     };
     use crate::timestamp::Timestamp;
     use chrono::{NaiveDate, NaiveDateTime, NaiveTime, Offset, Utc};
     use test_helpers::assert_error;
 
-    #[ignore]
     #[test]
     fn test_split_cond() {
-        let cond: ConditionalExpression = "time > now() - 1h".parse().unwrap();
-        let (cond, time) = split_cond(&cond);
-        println!("{cond:?}, {time:?}");
+        use super::{LowerBound as L, TimeCondition as TC, UpperBound as U};
+
+        fn split_exprs(
+            s: &str,
+        ) -> Result<(Option<ConditionalExpression>, Option<TimeCondition>), ExprError> {
+            // 2023-01-01T00:00:00Z == 1672531200000000000
+            let ctx = ReduceContext {
+                now: Some(Timestamp::from_utc(
+                    NaiveDateTime::new(
+                        NaiveDate::from_ymd_opt(2023, 1, 1).unwrap(),
+                        NaiveTime::from_hms_opt(0, 0, 0).unwrap(),
+                    ),
+                    Utc.fix(),
+                )),
+                tz: None,
+            };
+
+            let cond: ConditionalExpression = s.parse().unwrap();
+            split_cond(&ctx, &cond)
+        }
+
+        macro_rules! range {
+            (lower=$LOWER:literal) => {
+                TC::Range(TimeRange{lower: L::included($LOWER), upper: U::unbounded()})
+            };
+            (lower=$LOWER:literal, upper ex=$UPPER:literal) => {
+                TC::Range(TimeRange{lower: L::included($LOWER), upper: U::excluded($UPPER)})
+            };
+            (lower ex=$LOWER:literal) => {
+                TC::Range(TimeRange{lower: L::excluded($LOWER), upper: U::unbounded()})
+            };
+            (upper=$UPPER:literal) => {
+                TC::Range(TimeRange{lower: L::unbounded(), upper: U::included($UPPER)})
+            };
+            (upper ex=$UPPER:literal) => {
+                TC::Range(TimeRange{lower: L::unbounded(), upper: U::excluded($UPPER)})
+            };
+            (list=$($TS:literal),*) => {
+                TC::List(vec![$($TS),*])
+            }
+        }
+
+        let (cond, tr) = split_exprs("time >= now() - 1s").unwrap();
+        assert!(cond.is_none());
+        assert_eq!(tr.unwrap(), range!(lower = 1672531199000000000));
+
+        // reduces the lower bound to a single expression
+        let (cond, tr) = split_exprs("time >= now() - 1s AND time >= now() - 500ms").unwrap();
+        assert!(cond.is_none());
+        assert_eq!(tr.unwrap(), range!(lower = 1672531199500000000));
+
+        let (cond, tr) = split_exprs("time <= now() - 1s").unwrap();
+        assert!(cond.is_none());
+        assert_eq!(tr.unwrap(), range!(upper = 1672531199000000000));
+
+        // reduces the upper bound to a single expression
+        let (cond, tr) = split_exprs("time <= now() + 1s AND time <= now() + 500ms").unwrap();
+        assert!(cond.is_none());
+        assert_eq!(tr.unwrap(), range!(upper = 1672531200500000000));
+
+        let (cond, tr) = split_exprs("time >= now() - 1s AND time < now()").unwrap();
+        assert!(cond.is_none());
+        assert_eq!(
+            tr.unwrap(),
+            range!(lower=1672531199000000000, upper ex=1672531200000000000)
+        );
+
+        let (cond, tr) = split_exprs("time >= now() - 1s AND cpu = 'cpu0'").unwrap();
+        assert_eq!(cond.unwrap().to_string(), "cpu = 'cpu0'");
+        assert_eq!(tr.unwrap(), range!(lower = 1672531199000000000));
+
+        let (cond, tr) = split_exprs("time = 0").unwrap();
+        assert!(cond.is_none());
+        assert_eq!(tr.unwrap(), range!(list = 0));
+
+        let (cond, tr) = split_exprs(
+            "instance = 'instance-01' OR instance = 'instance-02' AND time >= now() - 1s",
+        )
+        .unwrap();
+        assert_eq!(
+            cond.unwrap().to_string(),
+            "instance = 'instance-01' OR instance = 'instance-02'"
+        );
+        assert_eq!(tr.unwrap(), range!(lower = 1672531199000000000));
+
+        let (cond, tr) =
+            split_exprs("time >= now() - 1s AND time < now() AND cpu = 'cpu0' OR cpu = 'cpu1'")
+                .unwrap();
+        assert_eq!(cond.unwrap().to_string(), "cpu = 'cpu0' OR cpu = 'cpu1'");
+        assert_eq!(
+            tr.unwrap(),
+            range!(lower=1672531199000000000, upper ex=1672531200000000000)
+        );
+
+        // time >= now - 60s AND time < now() OR cpu = 'cpu0' OR cpu = 'cpu1'
+        //
+        // Split the time range, despite using the disjunction (OR) operator
+        let (cond, tr) =
+            split_exprs("time >= now() - 1s AND time < now() OR cpu = 'cpu0' OR cpu = 'cpu1'")
+                .unwrap();
+        assert_eq!(cond.unwrap().to_string(), "cpu = 'cpu0' OR cpu = 'cpu1'");
+        assert_eq!(
+            tr.unwrap(),
+            range!(lower=1672531199000000000, upper ex=1672531200000000000)
+        );
+
+        let (cond, tr) = split_exprs("time = 0 OR time = 10 AND cpu = 'cpu0'").unwrap();
+        assert_eq!(cond.unwrap().to_string(), "cpu = 'cpu0'");
+        assert_eq!(tr.unwrap(), range!(list = 0, 10));
+
+        // no time
+        let (cond, tr) = split_exprs("f64 >= 19.5 OR f64 =~ /foo/").unwrap();
+        assert_eq!(cond.unwrap().to_string(), "f64 >= 19.5 OR f64 =~ /foo/");
+        assert!(tr.is_none());
+
+        // fallible
+
+        let (cond, tr) = split_exprs("time = 0 OR time > now()").unwrap();
+        assert_eq!(cond.unwrap().to_string(), "false");
+        assert!(tr.is_none());
+
+        assert_error!(split_exprs("time > '2004-04-09T'"), ExprError::Expression(ref s) if s == "invalid expression \"'2004-04-09T'\": '2004-04-09T' is not a valid timestamp");
     }
 
     #[test]
@@ -538,5 +1192,120 @@ mod test {
             let got = parse(interval_str).unwrap();
             assert_eq!(got, exp, "Actual: {got:?}");
         }
+    }
+
+    #[test]
+    fn test_lower_bound_cmp() {
+        let (a, b) = (LowerBound::unbounded(), LowerBound::unbounded());
+        assert_eq!(a, b);
+
+        let (a, b) = (LowerBound::included(5), LowerBound::included(5));
+        assert_eq!(a, b);
+
+        let (a, b) = (LowerBound::included(5), LowerBound::included(6));
+        assert!(a < b);
+
+        // a >= 6 gt a >= 5
+        let (a, b) = (LowerBound::included(6), LowerBound::included(5));
+        assert!(a > b);
+
+        let (a, b) = (LowerBound::excluded(5), LowerBound::excluded(5));
+        assert_eq!(a, b);
+
+        let (a, b) = (LowerBound::excluded(5), LowerBound::excluded(6));
+        assert!(a < b);
+
+        let (a, b) = (LowerBound::excluded(6), LowerBound::excluded(5));
+        assert!(a > b);
+
+        let (a, b) = (LowerBound::unbounded(), LowerBound::included(5));
+        assert!(a < b);
+
+        let (a, b) = (LowerBound::unbounded(), LowerBound::excluded(5));
+        assert!(a < b);
+
+        let (a, b) = (LowerBound::included(5), LowerBound::unbounded());
+        assert!(a > b);
+
+        let (a, b) = (LowerBound::excluded(5), LowerBound::unbounded());
+        assert!(a > b);
+
+        let (a, b) = (LowerBound::included(5), LowerBound::excluded(5));
+        assert!(a < b);
+
+        let (a, b) = (LowerBound::included(5), LowerBound::excluded(4));
+        assert_eq!(a, b);
+
+        let (a, b) = (LowerBound::included(5), LowerBound::excluded(6));
+        assert!(a < b);
+
+        let (a, b) = (LowerBound::included(6), LowerBound::excluded(5));
+        assert_eq!(a, b);
+
+        let (a, b) = (LowerBound::excluded(5), LowerBound::included(5));
+        assert!(a > b);
+
+        let (a, b) = (LowerBound::excluded(5), LowerBound::included(6));
+        assert_eq!(a, b);
+
+        let (a, b) = (LowerBound::excluded(6), LowerBound::included(5));
+        assert!(a > b);
+    }
+
+    #[test]
+    fn test_upper_bound_cmp() {
+        let (a, b) = (UpperBound::unbounded(), UpperBound::unbounded());
+        assert_eq!(a, b);
+
+        let (a, b) = (UpperBound::included(5), UpperBound::included(5));
+        assert_eq!(a, b);
+
+        let (a, b) = (UpperBound::included(5), UpperBound::included(6));
+        assert!(a < b);
+
+        let (a, b) = (UpperBound::included(6), UpperBound::included(5));
+        assert!(a > b);
+
+        let (a, b) = (UpperBound::excluded(5), UpperBound::excluded(5));
+        assert_eq!(a, b);
+
+        let (a, b) = (UpperBound::excluded(5), UpperBound::excluded(6));
+        assert!(a < b);
+
+        let (a, b) = (UpperBound::excluded(6), UpperBound::excluded(5));
+        assert!(a > b);
+
+        let (a, b) = (UpperBound::unbounded(), UpperBound::included(5));
+        assert!(a > b);
+
+        let (a, b) = (UpperBound::unbounded(), UpperBound::excluded(5));
+        assert!(a > b);
+
+        let (a, b) = (UpperBound::included(5), UpperBound::unbounded());
+        assert!(a < b);
+
+        let (a, b) = (UpperBound::excluded(5), UpperBound::unbounded());
+        assert!(a < b);
+
+        let (a, b) = (UpperBound::included(5), UpperBound::excluded(5));
+        assert!(a > b);
+
+        let (a, b) = (UpperBound::included(5), UpperBound::excluded(4));
+        assert!(a > b);
+
+        let (a, b) = (UpperBound::included(5), UpperBound::excluded(6));
+        assert_eq!(a, b);
+
+        let (a, b) = (UpperBound::included(5), UpperBound::excluded(7));
+        assert!(a < b);
+
+        let (a, b) = (UpperBound::excluded(5), UpperBound::included(5));
+        assert!(a < b);
+
+        let (a, b) = (UpperBound::excluded(5), UpperBound::included(6));
+        assert!(a < b);
+
+        let (a, b) = (UpperBound::excluded(5), UpperBound::included(4));
+        assert_eq!(a, b);
     }
 }
