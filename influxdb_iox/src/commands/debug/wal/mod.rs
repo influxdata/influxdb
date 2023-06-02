@@ -48,7 +48,9 @@ pub struct Config {
 /// Subcommands for debugging the ingester WAL
 #[derive(Debug, clap::Parser)]
 enum Command {
-    /// Regenerate line protocol writes from the contents of a WAL file
+    /// Regenerate line protocol writes from the contents of a WAL file. When
+    /// looking up measurement names from IOx, the target host must implement
+    /// the namespace and schema APIs
     RegenerateLp(regenerate_lp::Config),
 }
 

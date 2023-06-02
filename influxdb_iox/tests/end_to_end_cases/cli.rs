@@ -1,6 +1,4 @@
 //! Tests CLI commands
-use std::fs::File;
-use std::io::{BufRead, BufReader};
 use std::sync::Arc;
 use std::time::{Duration, Instant};
 
@@ -1038,6 +1036,10 @@ async fn write_lp_from_wal() {
         .with_router(router_config)
         .await;
 
+    // Check that the query returns the same result between the original and
+    // regenerated input.
+    let table_name = "h2o_temperature";
+
     StepTest::new(
         &mut cluster,
         vec![
@@ -1060,10 +1062,40 @@ async fn write_lp_from_wal() {
                 }
                 .boxed()
             })),
+            Step::Custom(Box::new(|state: &mut StepTestState| {
+                // Ensure the results are queryable in the ingester
+                async {
+
+                    let results = [
+                        "+----------------+--------------+-------+-----------------+--------------------------------+",
+                        "| bottom_degrees | location     | state | surface_degrees | time                           |",
+                        "+----------------+--------------+-------+-----------------+--------------------------------+",
+                        "| 50.4           | santa_monica | CA    | 65.2            | 1970-01-01T00:00:01.568756160Z |",
+                        "| 49.2           | santa_monica | CA    | 63.6            | 1970-01-01T00:00:01.600756160Z |",
+                        "| 51.3           | coyote_creek | CA    | 55.1            | 1970-01-01T00:00:01.568756160Z |",
+                        "| 50.9           | coyote_creek | CA    | 50.2            | 1970-01-01T00:00:01.600756160Z |",
+                        "| 40.2           | puget_sound  | WA    | 55.8            | 1970-01-01T00:00:01.568756160Z |",
+                        "| 40.1           | puget_sound  | WA    | 54.7            | 1970-01-01T00:00:01.600756160Z |",
+                        "+----------------+--------------+-------+-----------------+--------------------------------+",
+                    ].join("\n");
+
+                    // Validate the output of the query
+                    Command::cargo_bin("influxdb_iox")
+                        .unwrap()
+                        .arg("-h")
+                        .arg(state.cluster().ingester().ingester_grpc_base().to_string())
+                        .arg("query-ingester")
+                        .arg(state.cluster().namespace_id().await.get().to_string())
+                        .arg(state.cluster().table_id(table_name).await.get().to_string())
+                        .assert()
+                        .success()
+                        .stdout(predicate::str::contains(&results));
+                }
+                .boxed()
+            })),
             Step::Custom(Box::new(move |state: &mut StepTestState| {
                 let wal_dir = Arc::clone(&wal_dir);
                 async move {
-                    let router_addr = state.cluster().router().router_grpc_base().to_string();
                     let mut reader =
                         fs::read_dir(wal_dir.as_path()).expect("failed to read WAL directory");
                     let segment_file_path = reader
@@ -1076,11 +1108,12 @@ async fn write_lp_from_wal() {
                     let out_dir = test_helpers::tmp_dir()
                         .expect("failed to create temp directory for line proto output");
 
+                    // Regenerate the line proto from the segment file
                     Command::cargo_bin("influxdb_iox")
                         .unwrap()
                         .arg("-vv")
                         .arg("-h")
-                        .arg(&router_addr)
+                        .arg(state.cluster().router().router_grpc_base().to_string())
                         .arg("debug")
                         .arg("wal")
                         .arg("regenerate-lp")
@@ -1102,42 +1135,69 @@ async fn write_lp_from_wal() {
                     let mut reader =
                         fs::read_dir(out_dir.path()).expect("failed to read output directory");
 
-                    let regenerated_file = File::open(
-                        reader
-                            .next()
-                            .expect("no regenerated files found")
-                            .unwrap()
-                            .path(),
-                    )
-                    .expect("should be able to open regenerated line proto file");
-                    let original_file = File::open("../test_fixtures/lineproto/temperature.lp")
-                        .expect("should be able to read input line proto");
-                    // Ensure that the original file and regenerated file take
-                    // up the same space on disk. Checking this and the number
-                    // of lines in the file matches is a good enough proxy for
-                    // semantic equivalency at integration test level.
-                    //
-                    // NOTE: If this test fails, check the input line protocol
-                    // does NOT contain any float field/tag values like 30.0,
-                    // as they get reconstructed without the trailing 0.
-                    assert_eq!(
-                        regenerated_file
-                            .metadata()
-                            .expect("should be able to get regenerated file metadata")
-                            .len(),
-                        original_file
-                            .metadata()
-                            .expect("should be able to get original file metadata")
-                            .len()
-                            + 1 // When the file is rewritten through Rust code an extra blank line is appended
-                    );
-                    assert_eq!(
-                        BufReader::new(regenerated_file).lines().count(),
-                        BufReader::new(original_file).lines().count(),
-                    );
-
+                    let regenerated_file_path = reader
+                        .next()
+                        .expect("no regenerated files found")
+                        .unwrap()
+                        .path();
                     // Make sure that only one file was regenerated.
                     assert_matches!(reader.next(), None);
+
+                    // Remove the WAL segment file, ensure the WAL dir is empty
+                    // and restart the services.
+                    fs::remove_file(segment_file_path)
+                        .expect("should be able to remove WAL segment file");
+                    assert_matches!(
+                        fs::read_dir(wal_dir.as_path())
+                            .expect("failed to read WAL directory")
+                            .next(),
+                        None
+                    );
+
+                    state.cluster_mut().restart_ingesters().await;
+                    state.cluster_mut().restart_router().await;
+
+                    // Feed the regenerated LP back into the ingester and check
+                    // that the expected results are returned.
+                    Command::cargo_bin("influxdb_iox")
+                        .unwrap()
+                        .arg("-v")
+                        .arg("-h")
+                        .arg(state.cluster().router().router_http_base().to_string())
+                        .arg("write")
+                        .arg(state.cluster().namespace())
+                        .arg(
+                            regenerated_file_path
+                                .to_str()
+                                .expect("should be able to get valid path to regenerated file"),
+                        )
+                        .assert()
+                        .success()
+                        .stdout(predicate::str::contains("592 Bytes OK"));
+
+                    let results = [
+                        "+----------------+--------------+-------+-----------------+--------------------------------+",
+                        "| bottom_degrees | location     | state | surface_degrees | time                           |",
+                        "+----------------+--------------+-------+-----------------+--------------------------------+",
+                        "| 50.4           | santa_monica | CA    | 65.2            | 1970-01-01T00:00:01.568756160Z |",
+                        "| 49.2           | santa_monica | CA    | 63.6            | 1970-01-01T00:00:01.600756160Z |",
+                        "| 51.3           | coyote_creek | CA    | 55.1            | 1970-01-01T00:00:01.568756160Z |",
+                        "| 50.9           | coyote_creek | CA    | 50.2            | 1970-01-01T00:00:01.600756160Z |",
+                        "| 40.2           | puget_sound  | WA    | 55.8            | 1970-01-01T00:00:01.568756160Z |",
+                        "| 40.1           | puget_sound  | WA    | 54.7            | 1970-01-01T00:00:01.600756160Z |",
+                        "+----------------+--------------+-------+-----------------+--------------------------------+",
+                    ].join("\n");
+
+                    Command::cargo_bin("influxdb_iox")
+                        .unwrap()
+                        .arg("-h")
+                        .arg(state.cluster().ingester().ingester_grpc_base().to_string())
+                        .arg("query-ingester")
+                        .arg(state.cluster().namespace_id().await.get().to_string())
+                        .arg(state.cluster().table_id(table_name).await.get().to_string())
+                        .assert()
+                        .success()
+                        .stdout(predicate::str::contains(&results));
                 }
                 .boxed()
             })),

@@ -2558,6 +2558,7 @@ dependencies = [
  "parquet_to_line_protocol",
  "predicate",
  "predicates",
+ "pretty_assertions",
  "prost",
  "rustyline",
  "schema",

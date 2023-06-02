@@ -1,5 +1,5 @@
 //! A module providing a CLI command for regenerating line protocol from a WAL file.
-use std::fs::{create_dir_all, OpenOptions};
+use std::fs::{create_dir_all, File, OpenOptions};
 use std::future::Future;
 use std::path::PathBuf;
 use std::sync::Arc;
@@ -9,7 +9,6 @@ use hashbrown::HashMap;
 use influxdb_iox_client::connection::Connection;
 use influxdb_iox_client::schema::Client as SchemaClient;
 use observability_deps::tracing::{debug, error, info};
-use tokio::sync::Mutex;
 use wal::{ClosedSegmentFileReader, WriteOpEntry, WriteOpEntryDecoder};
 use wal_inspect::{LineProtoWriter, NamespaceDemultiplexer, TableBatchWriter, WriteError};
 
@@ -30,7 +29,7 @@ pub enum TableIndexLookupError {
 // to enable the fetching of table name indexes from namespace and table IDs.
 struct TableIndexFetcher {
     namespace_index: HashMap<NamespaceId, String>,
-    schema_client: Mutex<SchemaClient>,
+    schema_client: SchemaClient,
 }
 
 impl TableIndexFetcher {
@@ -44,7 +43,7 @@ impl TableIndexFetcher {
                 .into_iter()
                 .map(|ns| (NamespaceId::new(ns.id), ns.name))
                 .collect(),
-            schema_client: Mutex::new(SchemaClient::new(connection)),
+            schema_client: SchemaClient::new(connection),
         })
     }
 
@@ -65,8 +64,7 @@ impl TableIndexFetcher {
 
         let ns_schema = self
             .schema_client
-            .lock()
-            .await
+            .clone()
             .get_schema(namespace_name)
             .await
             .map_err(Box::new)?;
@@ -135,36 +133,12 @@ where
             let d = Arc::new(d);
             create_dir_all(d.as_path())?;
             let namespace_demux = NamespaceDemultiplexer::new(move |namespace_id| {
-                let d = Arc::clone(&d);
-                let table_name_indexer = table_name_indexer.as_ref().map(Arc::clone);
-                async move {
-                    let file_path = d
-                        .as_path()
-                        .join(format!("namespace_id_{}.lp", namespace_id));
-
-                    let mut open_options = OpenOptions::new().write(true).to_owned();
-                    if config.force {
-                        open_options.create(true);
-                    } else {
-                        open_options.create_new(true);
-                    }
-
-                    info!(
-                        ?file_path,
-                        %namespace_id,
-                        "creating namespaced file as destination for regenerated line protocol",
-                    );
-
-                    let table_name_lookup = match table_name_indexer {
-                        Some(indexer) => Some(indexer.get_table_name_index(namespace_id).await?),
-                        None => None,
-                    };
-
-                    Ok(LineProtoWriter::new(
-                        open_options.open(&file_path).map_err(WriteError::IoError)?,
-                        table_name_lookup,
-                    ))
-                }
+                new_line_proto_file_writer(
+                    namespace_id,
+                    Arc::clone(&d),
+                    config.force,
+                    table_name_indexer.as_ref().map(Arc::clone),
+                )
             });
             decode_and_write_entries(decoder, namespace_demux).await
         }
@@ -184,6 +158,43 @@ where
             decode_and_write_entries(decoder, namespace_demux).await
         }
     }
+}
+
+// Creates a new [`LineProtoWriter`] backed by a [`File`] in `output_dir` using
+// the format "namespace_id_`namespace_id`.lp". If `replace_existing` is set
+// then any pre-existing file is replaced.
+async fn new_line_proto_file_writer(
+    namespace_id: NamespaceId,
+    output_dir: Arc<PathBuf>,
+    replace_existing: bool,
+    table_name_indexer: Option<Arc<TableIndexFetcher>>,
+) -> Result<LineProtoWriter<File>, RegenerateError> {
+    let file_path = output_dir
+        .as_path()
+        .join(format!("namespace_id_{}.lp", namespace_id));
+
+    let mut open_options = OpenOptions::new().write(true).to_owned();
+    if replace_existing {
+        open_options.create(true);
+    } else {
+        open_options.create_new(true);
+    }
+
+    info!(
+        ?file_path,
+        %namespace_id,
+        "creating namespaced file as destination for regenerated line protocol",
+    );
+
+    let table_name_lookup = match table_name_indexer {
+        Some(indexer) => Some(indexer.get_table_name_index(namespace_id).await?),
+        None => None,
+    };
+
+    Ok(LineProtoWriter::new(
+        open_options.open(&file_path).map_err(WriteError::IoError)?,
+        table_name_lookup,
+    ))
 }
 
 // Consumes [`wal::WriteOpEntry`]s from `decoder` until end of stream or a fatal decode error is hit,
