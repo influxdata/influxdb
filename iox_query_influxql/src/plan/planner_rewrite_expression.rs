@@ -123,7 +123,6 @@
 //! [`Eval`]: https://github.com/influxdata/influxql/blob/1ba470371ec093d57a726b143fe6ccbacf1b452b/ast.go#L4137
 use std::sync::Arc;
 
-use crate::plan::planner::time_range;
 use crate::plan::util::Schemas;
 use arrow::datatypes::DataType;
 use datafusion::common::tree_node::{Transformed, TreeNode, TreeNodeRewriter};
@@ -137,7 +136,7 @@ use datafusion::prelude::when;
 use observability_deps::tracing::trace;
 use predicate::rpc_predicate::{iox_expr_rewrite, simplify_predicate};
 
-use super::super::ir::DataSourceSchema;
+use super::ir::DataSourceSchema;
 
 /// Perform a series of passes to rewrite `expr` in compliance with InfluxQL behavior
 /// in an effort to ensure the query executes without error.
@@ -156,9 +155,6 @@ pub(super) fn rewrite_conditional_expr(
         // make regex matching with invalid types produce false
         .and_then(|expr| expr.rewrite(&mut FixRegularExpressions { schemas }))
         .map(|expr| log_rewrite(expr, "after fix_regular_expressions"))
-        // rewrite time predicates to behave like InfluxQL OG
-        .and_then(|expr| time_range::rewrite_time_range_exprs(expr, &simplifier))
-        .map(|expr| log_rewrite(expr, "after rewrite_time_range_exprs"))
         // rewrite exprs with incompatible operands to NULL or FALSE
         // (seems like FixRegularExpressions could be combined into this pass)
         .and_then(|expr| rewrite_expr(expr, schemas))
@@ -536,10 +532,31 @@ fn rewrite_tag_columns(
 #[cfg(test)]
 mod test {
     use super::*;
-    use crate::plan::planner::test_utils::{execution_props, new_schemas};
     use datafusion::logical_expr::lit_timestamp_nano;
     use datafusion::prelude::col;
     use datafusion_util::AsExpr;
+
+    use chrono::{DateTime, NaiveDate, Utc};
+    use datafusion::common::{DFSchemaRef, ToDFSchema};
+    use schema::{InfluxFieldType, SchemaBuilder};
+    use std::sync::Arc;
+
+    fn new_schemas() -> (Schemas, DataSourceSchema<'static>) {
+        let iox_schema = SchemaBuilder::new()
+            .measurement("m0")
+            .timestamp()
+            .tag("tag0")
+            .tag("tag1")
+            .influx_field("float_field", InfluxFieldType::Float)
+            .influx_field("integer_field", InfluxFieldType::Integer)
+            .influx_field("unsigned_field", InfluxFieldType::UInteger)
+            .influx_field("string_field", InfluxFieldType::String)
+            .influx_field("boolean_field", InfluxFieldType::Boolean)
+            .build()
+            .expect("schema failed");
+        let df_schema: DFSchemaRef = Arc::clone(iox_schema.inner()).to_dfschema_ref().unwrap();
+        (Schemas { df_schema }, DataSourceSchema::Table(iox_schema))
+    }
 
     /// Tests which validate that division is coalesced to `0`, to handle division by zero,
     /// which normally returns a `NULL`, but presents as `0` for InfluxQL.
@@ -630,6 +647,17 @@ mod test {
 
         let expr = binary_expr("tag0".as_expr(), Operator::RegexNotMatch, lit("foo"));
         assert_eq!(rewrite(expr), r#"tag0 !~ Utf8("foo")"#);
+    }
+
+    fn execution_props() -> ExecutionProps {
+        let start_time = NaiveDate::from_ymd_opt(2023, 1, 1)
+            .unwrap()
+            .and_hms_opt(0, 0, 0)
+            .unwrap();
+        let start_time = DateTime::<Utc>::from_utc(start_time, Utc);
+        let mut props = ExecutionProps::new();
+        props.query_execution_start_time = start_time;
+        props
     }
 
     #[test]
