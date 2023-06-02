@@ -216,6 +216,11 @@ impl TestConfig {
         &self.wal_dir
     }
 
+    /// Retrieve the directory used for object store, if set
+    pub fn object_store_dir(&self) -> &Option<Arc<TempDir>> {
+        &self.object_store_dir
+    }
+
     // copy a reference to the catalog temp dir, if any
     fn with_catalog_dir(mut self, catalog_dir: Option<Arc<TempDir>>) -> Self {
         self.catalog_dir = catalog_dir;

@@ -70,7 +70,7 @@ where
             let connection = connection().await;
             skipped_compactions::command(connection, config).await?
         }
-        Command::Wal(config) => wal::command(config)?,
+        Command::Wal(config) => wal::command(connection, config).await?,
     }
 
     Ok(())
