@@ -80,13 +80,16 @@ mod tests {
     lazy_static! {
         static ref PARTITION_KEY: PartitionKey = PartitionKey::from("bananas");
         static ref NAMESPACE_NAME_LOADER: Arc<DeferredLoad<NamespaceName>> =
-            Arc::new(DeferredLoad::new(Duration::from_secs(1), async {
-                NamespaceName::from(NAMESPACE_NAME)
-            }));
-        static ref TABLE_NAME_LOADER: Arc<DeferredLoad<TableName>> =
-            Arc::new(DeferredLoad::new(Duration::from_secs(1), async {
-                TableName::from(TABLE_NAME)
-            }));
+            Arc::new(DeferredLoad::new(
+                Duration::from_secs(1),
+                async { NamespaceName::from(NAMESPACE_NAME) },
+                &metric::Registry::default(),
+            ));
+        static ref TABLE_NAME_LOADER: Arc<DeferredLoad<TableName>> = Arc::new(DeferredLoad::new(
+            Duration::from_secs(1),
+            async { TableName::from(TABLE_NAME) },
+            &metric::Registry::default(),
+        ));
     }
 
     #[track_caller]

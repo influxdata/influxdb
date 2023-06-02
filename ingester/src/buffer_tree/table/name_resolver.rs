@@ -18,6 +18,7 @@ pub(crate) struct TableNameResolver {
     max_smear: Duration,
     catalog: Arc<dyn Catalog>,
     backoff_config: BackoffConfig,
+    metrics: Arc<metric::Registry>,
 }
 
 impl TableNameResolver {
@@ -25,11 +26,13 @@ impl TableNameResolver {
         max_smear: Duration,
         catalog: Arc<dyn Catalog>,
         backoff_config: BackoffConfig,
+        metrics: Arc<metric::Registry>,
     ) -> Self {
         Self {
             max_smear,
             catalog,
             backoff_config,
+            metrics,
         }
     }
 
@@ -66,6 +69,7 @@ impl TableNameProvider for TableNameResolver {
         DeferredLoad::new(
             self.max_smear,
             Self::fetch(id, Arc::clone(&self.catalog), self.backoff_config.clone()),
+            &self.metrics,
         )
     }
 }
@@ -94,7 +98,11 @@ pub(crate) mod mock {
     impl TableNameProvider for MockTableNameProvider {
         fn for_table(&self, _id: TableId) -> DeferredLoad<TableName> {
             let name = self.name.clone();
-            DeferredLoad::new(Duration::from_secs(1), async { name })
+            DeferredLoad::new(
+                Duration::from_secs(1),
+                async { name },
+                &metric::Registry::default(),
+            )
         }
     }
 }
@@ -125,6 +133,7 @@ mod tests {
             Duration::from_secs(10),
             Arc::clone(&catalog),
             backoff_config.clone(),
+            metrics,
         ));
 
         let got = fetcher

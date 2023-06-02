@@ -129,13 +129,17 @@ mod tests {
             .get_partition(
                 callers_partition_key.clone(),
                 namespace_id,
-                Arc::new(DeferredLoad::new(Duration::from_secs(1), async {
-                    NamespaceName::from(NAMESPACE_NAME)
-                })),
+                Arc::new(DeferredLoad::new(
+                    Duration::from_secs(1),
+                    async { NamespaceName::from(NAMESPACE_NAME) },
+                    &metrics,
+                )),
                 table_id,
-                Arc::new(DeferredLoad::new(Duration::from_secs(1), async {
-                    TableName::from(TABLE_NAME)
-                })),
+                Arc::new(DeferredLoad::new(
+                    Duration::from_secs(1),
+                    async { TableName::from(TABLE_NAME) },
+                    &metrics,
+                )),
             )
             .await;
 

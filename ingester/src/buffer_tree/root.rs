@@ -706,6 +706,7 @@ mod tests {
                         .with_table_name_loader(Arc::new(DeferredLoad::new(
                             Duration::from_secs(1),
                             async move { TableName::from(TABLE2_NAME) },
+                            &metric::Registry::default(),
                         )))
                         .build(),
                 ),

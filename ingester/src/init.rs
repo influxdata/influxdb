@@ -243,6 +243,7 @@ where
             persist_background_fetch_time,
             Arc::clone(&catalog),
             BackoffConfig::default(),
+            Arc::clone(&metrics),
         ));
 
     // Initialise the deferred table name resolver.
@@ -250,6 +251,7 @@ where
         persist_background_fetch_time,
         Arc::clone(&catalog),
         BackoffConfig::default(),
+        Arc::clone(&metrics),
     ));
 
     // Read the most recently created partitions.
@@ -275,6 +277,7 @@ where
         persist_background_fetch_time,
         Arc::clone(&catalog),
         BackoffConfig::default(),
+        Arc::clone(&metrics),
     );
     let partition_provider: Arc<dyn PartitionProvider> = Arc::new(partition_provider);
 

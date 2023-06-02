@@ -75,6 +75,8 @@ pub(crate) struct PartitionCache<T> {
     /// The maximum amount of time a [`SortKeyResolver`] may wait until
     /// pre-fetching the sort key in the background.
     max_smear: Duration,
+
+    metrics: Arc<metric::Registry>,
 }
 
 impl<T> PartitionCache<T> {
@@ -92,6 +94,7 @@ impl<T> PartitionCache<T> {
         max_smear: Duration,
         catalog: Arc<dyn Catalog>,
         backoff_config: BackoffConfig,
+        metrics: Arc<metric::Registry>,
     ) -> Self
     where
         P: IntoIterator<Item = Partition>,
@@ -116,6 +119,7 @@ impl<T> PartitionCache<T> {
             catalog,
             backoff_config,
             max_smear,
+            metrics,
         }
     }
 
@@ -180,6 +184,7 @@ where
                     self.backoff_config.clone(),
                 )
                 .fetch(),
+                &self.metrics,
             );
 
             // Use the returned partition key instead of the callers - this
@@ -242,6 +247,7 @@ mod tests {
             Duration::from_secs(10_000_000),
             Arc::new(MemCatalog::new(Arc::new(metric::Registry::default()))),
             BackoffConfig::default(),
+            Arc::new(metric::Registry::default()),
         )
     }
 

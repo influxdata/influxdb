@@ -958,6 +958,7 @@ mod tests {
             Duration::from_nanos(1),
             SortKeyResolver::new(partition_id, Arc::clone(&catalog), backoff_config.clone())
                 .fetch(),
+            &metrics,
         ));
 
         let starting_state = SortKeyState::Deferred(fetcher);

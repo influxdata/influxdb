@@ -3,6 +3,7 @@
 use std::{fmt::Display, sync::Arc, time::Duration};
 
 use futures::Future;
+use metric::{self, U64Counter};
 use observability_deps::tracing::*;
 use parking_lot::Mutex;
 use rand::Rng;
@@ -163,10 +164,18 @@ where
     /// The background task will wait a uniformly random duration of time
     /// between `[0, max_wait)` before attempting to pre-fetch `T` by executing
     /// the provided future.
-    pub(crate) fn new<F>(max_wait: Duration, loader: F) -> Self
+    pub(crate) fn new<F>(max_wait: Duration, loader: F, metrics: &metric::Registry) -> Self
     where
         F: Future<Output = T> + Send + 'static,
     {
+        let ingester_deferred_load_metric = metrics.register_metric::<U64Counter>(
+            "ingester_deferred_load",
+            "Wrapped loader function completed in background.",
+        );
+        let background_load_metric =
+            ingester_deferred_load_metric.recorder(&[("outcome", "background_load")]);
+        let on_demand_metric = ingester_deferred_load_metric.recorder(&[("outcome", "on_demand")]);
+
         // Init the value container the background thread populates, and
         // populate the starting state with a handle to immediately wake the
         // background task.
@@ -186,9 +195,11 @@ where
                 // made.
                 tokio::select! {
                     _ = tokio::time::sleep(wait_for) => {
+                        background_load_metric.inc(1);
                         trace!("timeout woke loader task");
                     }
                     _ = rx => {
+                        on_demand_metric.inc(1);
                         trace!("demand call woke loader task");
                     }
                 }
@@ -326,7 +337,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_demand() {
-        let d = DeferredLoad::new(LONG_LONG_TIME, async { 42 });
+        let d = DeferredLoad::new(LONG_LONG_TIME, async { 42 }, &metric::Registry::default());
 
         assert_eq!(d.peek(), None);
         assert_eq!(d.get().with_timeout_panic(TIMEOUT).await, 42);
@@ -339,11 +350,15 @@ mod tests {
 
     #[tokio::test]
     async fn test_concurrent_demand() {
-        let d = Arc::new(DeferredLoad::new(LONG_LONG_TIME, async {
-            // Add a little delay to induce some contention
-            tokio::time::sleep(Duration::from_millis(50)).await;
-            42
-        }));
+        let d = Arc::new(DeferredLoad::new(
+            LONG_LONG_TIME,
+            async {
+                // Add a little delay to induce some contention
+                tokio::time::sleep(Duration::from_millis(50)).await;
+                42
+            },
+            &metric::Registry::default(),
+        ));
 
         // Synchronise the attempts of the threads.
         let barrier = Arc::new(std::sync::Barrier::new(2));
@@ -373,7 +388,11 @@ mod tests {
     #[tokio::test]
     async fn test_background_load() {
         // Configure the background load to fire (practically) immediately.
-        let d = Arc::new(DeferredLoad::new(Duration::from_millis(1), async { 42 }));
+        let d = Arc::new(DeferredLoad::new(
+            Duration::from_millis(1),
+            async { 42 },
+            &metric::Registry::default(),
+        ));
 
         // Spin and wait for the state to change to resolved WITHOUT a demand
         // call being made.
@@ -412,14 +431,18 @@ mod tests {
         //
         // This allows the current thread time to issue a demand and wait on the
         // result before the background load completes.
-        let d = Arc::new(DeferredLoad::new(Duration::from_millis(1), async {
-            // Signal the background task has begun.
-            signal_start.send(()).expect("test task died");
-            // Wait for the test thread to issue the demand call and unblock
-            // this fn.
-            can_complete.await.expect("sender died");
-            42
-        }));
+        let d = Arc::new(DeferredLoad::new(
+            Duration::from_millis(1),
+            async {
+                // Signal the background task has begun.
+                signal_start.send(()).expect("test task died");
+                // Wait for the test thread to issue the demand call and unblock
+                // this fn.
+                can_complete.await.expect("sender died");
+                42
+            },
+            &metric::Registry::default(),
+        ));
 
         // Wait for the background task to begin.
         started
@@ -452,12 +475,16 @@ mod tests {
 
         // Configure the background load to fire (practically) immediately but
         // block waiting for rx to be unblocked.
-        let d = Arc::new(DeferredLoad::new(Duration::from_millis(1), async {
-            // Wait for the test thread to issue the demand call and unblock
-            // this fn.
-            can_complete.await.expect("sender died");
-            42
-        }));
+        let d = Arc::new(DeferredLoad::new(
+            Duration::from_millis(1),
+            async {
+                // Wait for the test thread to issue the demand call and unblock
+                // this fn.
+                can_complete.await.expect("sender died");
+                42
+            },
+            &metric::Registry::default(),
+        ));
 
         assert_eq!("<unresolved>", d.to_string());
 
@@ -493,14 +520,18 @@ mod tests {
         //
         // This allows the current thread time to issue a demand and wait on the
         // result before the background load completes.
-        let d = Arc::new(DeferredLoad::new(LONG_LONG_TIME, async {
-            // Signal the background task has begun.
-            signal_start.send(()).expect("test task died");
-            // Wait for the test thread to issue the demand call and unblock
-            // this fn.
-            can_complete.await.expect("sender died");
-            42
-        }));
+        let d = Arc::new(DeferredLoad::new(
+            LONG_LONG_TIME,
+            async {
+                // Signal the background task has begun.
+                signal_start.send(()).expect("test task died");
+                // Wait for the test thread to issue the demand call and unblock
+                // this fn.
+                can_complete.await.expect("sender died");
+                42
+            },
+            &metric::Registry::default(),
+        ));
 
         d.prefetch_now();
 
@@ -525,9 +556,97 @@ mod tests {
 
     #[tokio::test]
     async fn test_prefetch_already_loaded() {
-        let d = Arc::new(DeferredLoad::new(LONG_LONG_TIME, async { 42 }));
+        let d = Arc::new(DeferredLoad::new(
+            LONG_LONG_TIME,
+            async { 42 },
+            &metric::Registry::default(),
+        ));
 
         let _ = d.get().with_timeout_panic(TIMEOUT).await;
         d.prefetch_now();
+    }
+
+    macro_rules! assert_counts {
+        (
+            $metrics:ident,
+            expected_on_demand_cnt = $expected_on_demand_cnt:expr,
+            expected_background_load_cnt = $expected_background_load_cnt:expr,
+        ) => {
+            metric::assert_counter!(
+                $metrics,
+                U64Counter,
+                "ingester_deferred_load",
+                labels = metric::Attributes::from(&[("outcome", "on_demand")]),
+                value = $expected_on_demand_cnt,
+            );
+            metric::assert_counter!(
+                $metrics,
+                U64Counter,
+                "ingester_deferred_load",
+                labels = metric::Attributes::from(&[("outcome", "background_load")]),
+                value = $expected_background_load_cnt,
+            );
+        };
+    }
+
+    #[tokio::test]
+    async fn test_on_demand_metric() {
+        let metrics = Arc::new(metric::Registry::default());
+        let d = DeferredLoad::new(LONG_LONG_TIME, async { 42 }, &metrics);
+
+        assert_eq!(d.get().with_timeout_panic(TIMEOUT).await, 42);
+        assert_eq!(d.peek(), Some(42));
+        assert_counts!(
+            metrics,
+            expected_on_demand_cnt = 1,
+            expected_background_load_cnt = 0,
+        );
+
+        // after resolution, will not increment
+        assert_eq!(d.get().with_timeout_panic(TIMEOUT).await, 42);
+        assert_counts!(
+            metrics,
+            expected_on_demand_cnt = 1,
+            expected_background_load_cnt = 0,
+        );
+    }
+
+    #[tokio::test]
+    async fn test_background_load_metric() {
+        let metrics = Arc::new(metric::Registry::default());
+        let d = Arc::new(DeferredLoad::new(
+            Duration::from_millis(1),
+            async { 42 },
+            &metrics,
+        ));
+
+        let peek = {
+            let d = Arc::clone(&d);
+            async {
+                loop {
+                    match d.peek() {
+                        None => {}
+                        Some(v) => return v,
+                    }
+                    tokio::task::yield_now().await
+                }
+            }
+            .with_timeout_panic(TIMEOUT)
+            .await
+        };
+        assert_eq!(peek, 42);
+        assert_counts!(
+            metrics,
+            expected_on_demand_cnt = 0,
+            expected_background_load_cnt = 1,
+        );
+
+        // after resolution, will not increment
+        assert_eq!(Arc::clone(&d).get().with_timeout_panic(TIMEOUT).await, 42);
+        assert_counts!(
+            metrics,
+            expected_on_demand_cnt = 0,
+            expected_background_load_cnt = 1,
+        );
     }
 }

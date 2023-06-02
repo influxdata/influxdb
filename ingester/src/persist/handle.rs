@@ -648,6 +648,7 @@ mod tests {
         let p = new_partition(SortKeyState::Deferred(Arc::new(DeferredLoad::new(
             Duration::from_secs(1),
             async { None },
+            &metrics,
         ))))
         .await;
         let (loader, data) = {
@@ -735,6 +736,7 @@ mod tests {
         let p = new_partition(SortKeyState::Deferred(Arc::new(DeferredLoad::new(
             Duration::from_secs(1),
             async { Some(SortKey::from_columns(["time", "some-other-column"])) },
+            &metrics,
         ))))
         .await;
         let (loader, data) = {
@@ -821,6 +823,7 @@ mod tests {
         let p = new_partition(SortKeyState::Deferred(Arc::new(DeferredLoad::new(
             Duration::from_secs(1),
             async { Some(SortKey::from_columns(["time", "good"])) },
+            &metrics,
         ))))
         .await;
         let (loader, data) = {
@@ -901,6 +904,7 @@ mod tests {
         let p = new_partition(SortKeyState::Deferred(Arc::new(DeferredLoad::new(
             Duration::from_secs(1),
             async { Some(SortKey::from_columns(["time", "good"])) },
+            &metrics,
         ))))
         .await;
         let data = p.lock().mark_persisting().unwrap();
@@ -912,6 +916,7 @@ mod tests {
         let p = new_partition(SortKeyState::Deferred(Arc::new(DeferredLoad::new(
             Duration::from_secs(1),
             async { Some(SortKey::from_columns(["time", "good"])) },
+            &metrics,
         ))))
         .await;
         let data = p.lock().mark_persisting().unwrap();

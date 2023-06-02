@@ -28,21 +28,27 @@ pub(crate) const ARBITRARY_TABLE_ID: TableId = TableId::new(4);
 pub(crate) const ARBITRARY_PARTITION_KEY_STR: &str = "platanos";
 
 pub(crate) fn defer_namespace_name_1_sec() -> Arc<DeferredLoad<NamespaceName>> {
-    Arc::new(DeferredLoad::new(Duration::from_secs(1), async {
-        ARBITRARY_NAMESPACE_NAME.clone()
-    }))
+    Arc::new(DeferredLoad::new(
+        Duration::from_secs(1),
+        async { ARBITRARY_NAMESPACE_NAME.clone() },
+        &metric::Registry::default(),
+    ))
 }
 
 pub(crate) fn defer_namespace_name_1_ms() -> Arc<DeferredLoad<NamespaceName>> {
-    Arc::new(DeferredLoad::new(Duration::from_millis(1), async {
-        ARBITRARY_NAMESPACE_NAME.clone()
-    }))
+    Arc::new(DeferredLoad::new(
+        Duration::from_millis(1),
+        async { ARBITRARY_NAMESPACE_NAME.clone() },
+        &metric::Registry::default(),
+    ))
 }
 
 pub(crate) fn defer_table_name_1_sec() -> Arc<DeferredLoad<TableName>> {
-    Arc::new(DeferredLoad::new(Duration::from_secs(1), async {
-        ARBITRARY_TABLE_NAME.clone()
-    }))
+    Arc::new(DeferredLoad::new(
+        Duration::from_secs(1),
+        async { ARBITRARY_TABLE_NAME.clone() },
+        &metric::Registry::default(),
+    ))
 }
 
 lazy_static! {
