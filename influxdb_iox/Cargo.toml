@@ -61,6 +61,7 @@ http = "0.2.9"
 home = "0.5.5"
 humantime = "2.1.0"
 itertools = "0.10.5"
+lazy_static = "1.4.0"
 libc = { version = "0.2" }
 num_cpus = "1.15.0"
 once_cell = { version = "1.17", features = ["parking_lot"] }
@@ -86,8 +87,10 @@ arrow_util = { path = "../arrow_util" }
 assert_cmd = "2.0.11"
 assert_matches = "1.5"
 async-trait = "0.1"
+mutable_batch = { path = "../mutable_batch" }
 predicate = { path = "../predicate" }
 predicates = "3.0.3"
+pretty_assertions = "1.3.0"
 serde = "1.0.163"
 test_helpers = { path = "../test_helpers", features = ["future_timeout"] }
 test_helpers_end_to_end = { path = "../test_helpers_end_to_end" }

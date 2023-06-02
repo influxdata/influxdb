@@ -1,5 +1,8 @@
 //! This module implements CLI commands for debugging the ingester WAL.
 
+use futures::Future;
+
+use influxdb_iox_client::connection::Connection;
 use thiserror::Error;
 
 mod regenerate_lp;
@@ -8,8 +11,8 @@ mod regenerate_lp;
 /// "human" context for the user
 #[derive(Debug, Error)]
 pub enum Error {
-    #[error("could not open WAL file: {source}")]
-    UnableToOpenWalFile { source: wal::Error },
+    #[error("could not open WAL file: {0}")]
+    UnableToOpenWalFile(#[from] wal::Error),
 
     #[error("failed to decode write entries from the WAL file: {0}")]
     FailedToDecodeWriteOpEntry(#[from] wal::DecodeError),
@@ -17,12 +20,23 @@ pub enum Error {
     #[error(
         "failures encountered while regenerating line protocol writes from WAL file: {sources:?}"
     )]
-    UnableToFullyRegenerateLineProtocol {
-        sources: Vec<wal_inspect::WriteError>,
-    },
+    UnableToFullyRegenerateLineProtocol { sources: Vec<RegenerateError> },
+
+    #[error("failed to initialise table name index fetcher: {0}")]
+    UnableToInitTableNameFetcher(regenerate_lp::TableIndexLookupError),
 
     #[error("i/o failure: {0}")]
     IoFailure(#[from] std::io::Error),
+}
+
+/// A set of non-fatal errors which can occur during the regeneration of write
+/// operations from WAL entries
+#[derive(Debug, Error)]
+pub enum RegenerateError {
+    #[error("failed to rediscover namespace schema: {0}")]
+    NamespaceSchemaDiscoveryFailed(#[from] regenerate_lp::TableIndexLookupError),
+    #[error("failed to rewrite a table batch: {0}")]
+    TableBatchWriteFailure(#[from] wal_inspect::WriteError),
 }
 
 #[derive(Debug, clap::Parser)]
@@ -34,13 +48,19 @@ pub struct Config {
 /// Subcommands for debugging the ingester WAL
 #[derive(Debug, clap::Parser)]
 enum Command {
-    /// Regenerate line protocol writes from the contents of a WAL file
+    /// Regenerate line protocol writes from the contents of a WAL file. When
+    /// looking up measurement names from IOx, the target host must implement
+    /// the namespace and schema APIs
     RegenerateLp(regenerate_lp::Config),
 }
 
 /// Executes a WAL debugging subcommand as directed by the config
-pub fn command(config: Config) -> Result<(), Error> {
+pub async fn command<C, CFut>(connection: C, config: Config) -> Result<(), Error>
+where
+    C: Send + FnOnce() -> CFut,
+    CFut: Send + Future<Output = Connection>,
+{
     match config.command {
-        Command::RegenerateLp(config) => regenerate_lp::command(config),
+        Command::RegenerateLp(config) => regenerate_lp::command(connection, config).await,
     }
 }

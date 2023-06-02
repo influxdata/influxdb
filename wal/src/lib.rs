@@ -24,7 +24,7 @@ use std::{
     time::Duration,
 };
 
-use data_types::{sequence_number_set::SequenceNumberSet, NamespaceId};
+use data_types::{sequence_number_set::SequenceNumberSet, NamespaceId, TableId};
 use generated_types::{
     google::{FieldViolation, OptionalField},
     influxdata::iox::wal::v1::{
@@ -580,7 +580,7 @@ impl std::fmt::Debug for ClosedSegmentFileReader {
 #[derive(Debug)]
 pub struct WriteOpEntry {
     pub namespace: NamespaceId,
-    pub table_batches: HashMap<i64, MutableBatch>,
+    pub table_batches: HashMap<TableId, MutableBatch>,
 }
 
 /// A decoder that reads from a closed segment file and parses write
@@ -624,7 +624,10 @@ impl Iterator for WriteOpEntryDecoder {
                             Ok(WriteOpEntry {
                                 namespace: NamespaceId::new(w.database_id),
                                 table_batches: decode_database_batch(&w)
-                                    .context(UnableToCreateMutableBatchSnafu)?,
+                                    .context(UnableToCreateMutableBatchSnafu)?
+                                    .into_iter()
+                                    .map(|(id, mb)| (TableId::new(id), mb))
+                                    .collect(),
                             })
                         })
                         .collect::<Self::Item>()
@@ -886,7 +889,7 @@ mod tests {
         assert_eq!(left.namespace, NamespaceId::new(right.database_id));
         assert_eq!(left.table_batches.len(), right.table_batches.len());
         for right_tb in &right.table_batches {
-            let right_key = right_tb.table_id;
+            let right_key = TableId::new(right_tb.table_id);
             let left_mb = left
                 .table_batches
                 .get(&right_key)
