@@ -17,7 +17,7 @@
 )]
 
 // Workaround for "unused crate" lint false positives.
-// use workspace_hack as _;
+use workspace_hack as _;
 
 use crate::common::{statement_terminator, ws0};
 use crate::internal::Error as InternalError;
