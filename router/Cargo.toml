@@ -65,3 +65,7 @@ bench = false
 [[bench]]
 name = "schema_validator"
 harness = false
+
+[[bench]]
+name = "partitioner"
+harness = false

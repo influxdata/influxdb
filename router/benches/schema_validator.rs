@@ -24,7 +24,7 @@ fn runtime() -> Runtime {
         .unwrap()
 }
 
-fn sharder_benchmarks(c: &mut Criterion) {
+fn schema_validator_benchmarks(c: &mut Criterion) {
     let mut group = c.benchmark_group("schema_validator");
 
     bench(&mut group, 1, 1);
@@ -97,5 +97,5 @@ fn lp_to_writes(lp: &str) -> HashMap<String, MutableBatch> {
     writes
 }
 
-criterion_group!(benches, sharder_benchmarks);
+criterion_group!(benches, schema_validator_benchmarks);
 criterion_main!(benches);
