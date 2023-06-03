@@ -1,5 +1,5 @@
-///! Types for mapping and converting series data from TSM indexes produced by
-///! InfluxDB >= 2.x
+//! Types for mapping and converting series data from TSM indexes produced by
+//! InfluxDB >= 2.x
 use crate::reader::{BlockData, BlockDecoder, TsmIndexReader, ValuePair};
 use crate::{Block, BlockType, TsmError};
 

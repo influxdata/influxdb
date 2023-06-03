@@ -43,7 +43,7 @@ mod tests {
     #[should_panic(expected = "timeout")]
     async fn test_exceeded_panic() {
         let (_tx, rx) = oneshot::channel::<()>();
-        let task = tokio::spawn(async move { rx.await });
+        let task = tokio::spawn(rx);
 
         let _ = task.with_timeout_panic(Duration::from_millis(1)).await;
     }
@@ -51,7 +51,7 @@ mod tests {
     #[tokio::test]
     async fn test_exceeded() {
         let (_tx, rx) = oneshot::channel::<()>();
-        let task = tokio::spawn(async move { rx.await });
+        let task = tokio::spawn(rx);
 
         let _ = task
             .with_timeout(Duration::from_millis(1))
