@@ -1084,7 +1084,7 @@ async fn write_lp_from_wal() {
                 // Ensure the results are queryable in the ingester
                 async {
                     assert_ingester_contains_results(
-                        &state.cluster(),
+                        state.cluster(),
                         table_name,
                         &TEMPERATURE_RESULTS,
                     )
@@ -1175,7 +1175,7 @@ async fn write_lp_from_wal() {
                         .stdout(predicate::str::contains("592 Bytes OK"));
 
                     assert_ingester_contains_results(
-                        &state.cluster(),
+                        state.cluster(),
                         table_name,
                         &TEMPERATURE_RESULTS,
                     )
@@ -1208,8 +1208,8 @@ async fn assert_ingester_contains_results(
         .await
         .unwrap();
 
-    let ingester_uuid = ingester_response.app_metadata.ingester_uuid.clone();
+    let ingester_uuid = ingester_response.app_metadata.ingester_uuid;
     assert!(!ingester_uuid.is_empty());
 
-    assert_batches_sorted_eq!(&expected, &ingester_response.record_batches);
+    assert_batches_sorted_eq!(expected, &ingester_response.record_batches);
 }

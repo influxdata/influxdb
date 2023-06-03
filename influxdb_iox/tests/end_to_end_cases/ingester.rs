@@ -39,7 +39,7 @@ async fn persist_on_demand() {
                         .await
                         .unwrap();
 
-                    let ingester_uuid = ingester_response.app_metadata.ingester_uuid.clone();
+                    let ingester_uuid = ingester_response.app_metadata.ingester_uuid;
                     assert!(!ingester_uuid.is_empty());
 
                     let expected = [

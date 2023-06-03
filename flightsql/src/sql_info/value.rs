@@ -1,3 +1,5 @@
+//! Dynamic value support for SqlInfo
+
 use std::sync::Arc;
 
 use arrow::{
@@ -9,8 +11,6 @@ use arrow::{
 };
 use arrow_flight::sql::SqlInfo;
 use once_cell::sync::Lazy;
-
-///! Dynamic value support for SqlInfo
 
 /// Represents a dynamic value
 #[derive(Debug, Clone, PartialEq)]

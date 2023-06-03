@@ -48,7 +48,7 @@ where
             // interest in this future at all (e.g. during shutdown) and will NOT spawn it.
             if Arc::strong_count(&self.receiver) > 1 {
                 let inner = self.inner.take().expect("Double-drop?");
-                let handle = tokio::task::spawn(async move { inner.await });
+                let handle = tokio::task::spawn(inner);
                 *receiver = Some(handle);
             }
         }
