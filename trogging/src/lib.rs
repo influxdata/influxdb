@@ -337,7 +337,7 @@ impl<W: Write> Write for LimitedWriter<W> {
 
 #[cfg(test)]
 pub mod test_util {
-    ///! Utilities for testing logging and tracing.
+    /// Utilities for testing logging and tracing.
     use super::*;
 
     use observability_deps::tracing::{self, debug, error, info, trace, warn};

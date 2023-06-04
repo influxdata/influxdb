@@ -355,80 +355,80 @@ mod tests {
         // no rewrite
         let expr = lit(1);
         let expected = expr.clone();
-        assert_rewrite(&schema, &expr, &expected);
+        assert_rewrite(&schema, expr, expected);
 
         // tag != str (no rewrite)
         let expr = col("tag").not_eq(col("str"));
         let expected = expr.clone();
-        assert_rewrite(&schema, &expr, &expected);
+        assert_rewrite(&schema, expr, expected);
 
         // tag == str (no rewrite)
         let expr = col("tag").eq(col("str"));
         let expected = expr.clone();
-        assert_rewrite(&schema, &expr, &expected);
+        assert_rewrite(&schema, expr, expected);
 
         // int < 5 (no rewrite, int part of schema)
         let expr = col("int").lt(lit(5));
         let expected = expr.clone();
-        assert_rewrite(&schema, &expr, &expected);
+        assert_rewrite(&schema, expr, expected);
 
         // unknown < 5 --> NULL < 5 (unknown not in schema)
         let expr = col("unknown").lt(lit(5));
         let expected = int32_null.clone().lt(lit(5));
-        assert_rewrite(&schema, &expr, &expected);
+        assert_rewrite(&schema, expr, expected);
 
         // 5 < unknown --> 5 < NULL (unknown not in schema)
         let expr = lit(5).lt(col("unknown"));
         let expected = lit(5).lt(int32_null.clone());
-        assert_rewrite(&schema, &expr, &expected);
+        assert_rewrite(&schema, expr, expected);
 
         // _measurement < 5 --> _measurement < 5 (special column)
         let expr = col("_measurement").lt(lit(5));
         let expected = expr.clone();
-        assert_rewrite(&schema, &expr, &expected);
+        assert_rewrite(&schema, expr, expected);
 
         // _field < 5 --> _field < 5 (special column)
         let expr = col("_field").lt(lit(5));
         let expected = expr.clone();
-        assert_rewrite(&schema, &expr, &expected);
+        assert_rewrite(&schema, expr, expected);
 
         // _field < 5 OR col("unknown") < 5 --> _field < 5 OR (NULL < 5)
         let expr = col("_field").lt(lit(5)).or(col("unknown").lt(lit(5)));
         let expected = col("_field").lt(lit(5)).or(int32_null.clone().lt(lit(5)));
-        assert_rewrite(&schema, &expr, &expected);
+        assert_rewrite(&schema, expr, expected);
 
         // unknown < unknown2 -->  NULL < NULL (both unknown columns)
         let expr = col("unknown").lt(col("unknown2"));
         let expected = int32_null.clone().lt(int32_null);
-        assert_rewrite(&schema, &expr, &expected);
+        assert_rewrite(&schema, expr, expected);
 
         // int < 5 OR unknown != "foo"
         let expr = col("int").lt(lit(5)).or(col("unknown").not_eq(lit("foo")));
         let expected = col("int").lt(lit(5)).or(utf8_null.not_eq(lit("foo")));
-        assert_rewrite(&schema, &expr, &expected);
+        assert_rewrite(&schema, expr, expected);
 
         // int IS NULL
         let expr = col("int").is_null();
         let expected = expr.clone();
-        assert_rewrite(&schema, &expr, &expected);
+        assert_rewrite(&schema, expr, expected);
 
         // unknown IS NULL --> true
         let expr = col("unknown").is_null();
         let expected = lit(true);
-        assert_rewrite(&schema, &expr, &expected);
+        assert_rewrite(&schema, expr, expected);
 
         // int IS NOT NULL
         let expr = col("int").is_not_null();
         let expected = expr.clone();
-        assert_rewrite(&schema, &expr, &expected);
+        assert_rewrite(&schema, expr, expected);
 
         // unknown IS NOT NULL --> false
         let expr = col("unknown").is_not_null();
         let expected = lit(false);
-        assert_rewrite(&schema, &expr, &expected);
+        assert_rewrite(&schema, expr, expected);
     }
 
-    fn assert_rewrite(schema: &Schema, expr: &Expr, expected: &Expr) {
+    fn assert_rewrite(schema: &Schema, expr: Expr, expected: Expr) {
         let mut rewriter = MissingColumnsToNull::new(schema);
         let rewritten_expr = expr
             .clone()
@@ -436,7 +436,7 @@ mod tests {
             .expect("Rewrite successful");
 
         assert_eq!(
-            &rewritten_expr, expected,
+            &rewritten_expr, &expected,
             "Mismatch rewriting\nInput: {expr}\nRewritten: {rewritten_expr}\nExpected: {expected}"
         );
     }

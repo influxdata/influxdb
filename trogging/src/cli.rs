@@ -1,4 +1,4 @@
-///! Common CLI flags for logging and tracing
+//! Common CLI flags for logging and tracing
 use crate::{config::*, Builder};
 use tracing_subscriber::fmt::{writer::BoxMakeWriter, MakeWriter};
 
