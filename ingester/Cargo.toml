@@ -17,7 +17,7 @@ crossbeam-utils = "0.8.15"
 data_types = { version = "0.1.0", path = "../data_types" }
 datafusion.workspace = true
 dml = { version = "0.1.0", path = "../dml" }
-flatbuffers = "23.1.21"
+flatbuffers = "23.5.26"
 futures = "0.3.28"
 generated_types = { version = "0.1.0", path = "../generated_types" }
 hashbrown.workspace = true
