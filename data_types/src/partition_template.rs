@@ -96,11 +96,35 @@ use thiserror::Error;
 
 /// TODO: Actually validate
 #[derive(Debug, Error)]
-#[allow(missing_copy_implementations, missing_docs)]
+#[allow(missing_copy_implementations)]
 pub enum ValidationError {
+    /// The partition template didn't define any parts.
     #[error("Custom partition template must have at least one part")]
     NoParts,
+
+    /// The partition template exceeded the maximum allowed number of parts.
+    #[error(
+        "Custom partition template specified {specified} parts. \
+        Partition templates may have a maximum of {MAXIMUM_NUMBER_OF_TEMPLATE_PARTS} parts."
+    )]
+    TooManyParts {
+        /// The number of template parts that were present in the user-provided custom partition
+        /// template.
+        specified: usize,
+    },
+
+    /// The partition template defines a [`TimeFormat`] part, but the
+    /// provided strftime formatter is invalid.
+    ///
+    /// [`TimeFormat`]: [`proto::template_part::Part::TimeFormat`]
+    #[error("invalid strftime format in partition template: {0}")]
+    InvalidStrftime(String),
 }
+
+/// The maximum number of template parts a custom partition template may specify, to limit the
+/// amount of space in the catalog used by the custom partition template and the partition keys
+/// created with it.
+pub const MAXIMUM_NUMBER_OF_TEMPLATE_PARTS: usize = 8;
 
 /// The sentinel character used to delimit partition key parts in the partition
 /// key string.
@@ -217,8 +241,10 @@ impl TablePartitionTemplateOverride {
 /// `TablePartitionTemplateOverride` types. It's an internal implementation detail to minimize code
 /// duplication.
 mod serialization {
+    use super::{ValidationError, MAXIMUM_NUMBER_OF_TEMPLATE_PARTS};
+    use chrono::{format::StrftimeItems, Utc};
     use generated_types::influxdata::iox::partition_template::v1 as proto;
-    use std::sync::Arc;
+    use std::{fmt::Write, sync::Arc};
 
     #[derive(Debug, Clone, PartialEq)]
     pub struct Wrapper(Arc<proto::PartitionTemplate>);
@@ -228,12 +254,58 @@ mod serialization {
         pub fn inner(&self) -> &proto::PartitionTemplate {
             &self.0
         }
+
+        /// THIS IS FOR TESTING PURPOSES ONLY AND SHOULD NOT BE USED IN PRODUCTION CODE.
+        ///
+        /// The application shouldn't be putting invalid templates into the database because all
+        /// creation of `Wrapper`s should be going through the
+        /// `TryFrom::try_from<proto::PartitionTemplate>` constructor that rejects invalid
+        /// templates. However, that leaves the possibility of the database getting an invalid
+        /// template through some other means, and we want to be able to construct those easily in
+        /// tests to make sure code using partition templates can handle the unlikely possibility
+        /// of an invalid template in the database.
+        pub(super) fn for_testing_possibility_of_invalid_value_in_database(
+            proto: proto::PartitionTemplate,
+        ) -> Self {
+            Self(Arc::new(proto))
+        }
     }
 
     impl TryFrom<proto::PartitionTemplate> for Wrapper {
-        type Error = super::ValidationError;
+        type Error = ValidationError;
 
         fn try_from(partition_template: proto::PartitionTemplate) -> Result<Self, Self::Error> {
+            // There must be at least one part.
+            if partition_template.parts.is_empty() {
+                return Err(ValidationError::NoParts);
+            }
+
+            // There may not be more than `MAXIMUM_NUMBER_OF_TEMPLATE_PARTS` parts.
+            let specified = partition_template.parts.len();
+            if specified > MAXIMUM_NUMBER_OF_TEMPLATE_PARTS {
+                return Err(ValidationError::TooManyParts { specified });
+            }
+
+            // All time formats must be valid
+            for part in &partition_template.parts {
+                if let Some(proto::template_part::Part::TimeFormat(fmt)) = &part.part {
+                    // Empty is not a valid time format
+                    if fmt.is_empty() {
+                        return Err(ValidationError::InvalidStrftime(fmt.into()));
+                    }
+
+                    // Currently we can only tell whether a nonempty format is valid by trying
+                    // to use it. See <https://github.com/chronotope/chrono/issues/47>
+                    let mut dev_null = String::new();
+                    write!(
+                        dev_null,
+                        "{}",
+                        Utc::now().format_with_items(StrftimeItems::new(fmt))
+                    )
+                    .map_err(|_| ValidationError::InvalidStrftime(fmt.into()))?
+                }
+            }
+
             Ok(Self(Arc::new(partition_template)))
         }
     }
@@ -353,6 +425,9 @@ pub fn build_column_values<'a>(
 /// In production code, the template should come from protobuf that is either from the database or
 /// from a gRPC request. In tests, building protobuf is painful, so here's an easier way to create
 /// a `TablePartitionTemplateOverride`.
+///
+/// This deliberately goes around the validation of the templates so that tests can verify code
+/// handles potentially invalid templates!
 pub fn test_table_partition_override(
     parts: Vec<TemplatePart<'_>>,
 ) -> TablePartitionTemplateOverride {
@@ -369,7 +444,9 @@ pub fn test_table_partition_override(
         .collect();
 
     let proto = proto::PartitionTemplate { parts };
-    TablePartitionTemplateOverride(Some(serialization::Wrapper::try_from(proto).unwrap()))
+    TablePartitionTemplateOverride(Some(
+        serialization::Wrapper::for_testing_possibility_of_invalid_value_in_database(proto),
+    ))
 }
 
 #[cfg(test)]
@@ -377,6 +454,73 @@ mod tests {
     use super::*;
     use assert_matches::assert_matches;
     use sqlx::Encode;
+    use test_helpers::assert_error;
+
+    #[test]
+    fn empty_parts_is_invalid() {
+        let err = serialization::Wrapper::try_from(proto::PartitionTemplate { parts: vec![] });
+
+        assert_error!(err, ValidationError::NoParts);
+    }
+
+    #[test]
+    fn more_than_8_parts_is_invalid() {
+        let err = serialization::Wrapper::try_from(proto::PartitionTemplate {
+            parts: vec![
+                proto::TemplatePart {
+                    part: Some(proto::template_part::Part::TagValue("region".into())),
+                },
+                proto::TemplatePart {
+                    part: Some(proto::template_part::Part::TimeFormat("year-%Y".into())),
+                },
+                proto::TemplatePart {
+                    part: Some(proto::template_part::Part::TagValue("region".into())),
+                },
+                proto::TemplatePart {
+                    part: Some(proto::template_part::Part::TimeFormat("year-%Y".into())),
+                },
+                proto::TemplatePart {
+                    part: Some(proto::template_part::Part::TagValue("region".into())),
+                },
+                proto::TemplatePart {
+                    part: Some(proto::template_part::Part::TimeFormat("year-%Y".into())),
+                },
+                proto::TemplatePart {
+                    part: Some(proto::template_part::Part::TagValue("region".into())),
+                },
+                proto::TemplatePart {
+                    part: Some(proto::template_part::Part::TimeFormat("year-%Y".into())),
+                },
+                proto::TemplatePart {
+                    part: Some(proto::template_part::Part::TagValue("region".into())),
+                },
+            ],
+        });
+
+        assert_error!(err, ValidationError::TooManyParts { specified } if specified == 9);
+    }
+
+    #[test]
+    fn invalid_strftime_format_is_invalid() {
+        let err = serialization::Wrapper::try_from(proto::PartitionTemplate {
+            parts: vec![proto::TemplatePart {
+                part: Some(proto::template_part::Part::TimeFormat("%3F".into())),
+            }],
+        });
+
+        assert_error!(err, ValidationError::InvalidStrftime(ref format) if format == "%3F");
+    }
+
+    #[test]
+    fn empty_strftime_format_is_invalid() {
+        let err = serialization::Wrapper::try_from(proto::PartitionTemplate {
+            parts: vec![proto::TemplatePart {
+                part: Some(proto::template_part::Part::TimeFormat("".into())),
+            }],
+        });
+
+        assert_error!(err, ValidationError::InvalidStrftime(ref format) if format.is_empty());
+    }
 
     /// Generate a test that asserts "partition_key" is reversible, yielding
     /// "want" assuming the partition "template" was used.

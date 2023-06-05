@@ -366,4 +366,34 @@ mod tests {
         column_names.sort();
         assert_eq!(column_names, &["color", "tannins"])
     }
+
+    #[tokio::test]
+    async fn invalid_custom_table_template_returns_error() {
+        let catalog: Arc<dyn Catalog> =
+            Arc::new(MemCatalog::new(Arc::new(metric::Registry::default())));
+        let handler = TableService::new(Arc::clone(&catalog));
+
+        let namespace = arbitrary_namespace(&mut *catalog.repositories().await, "grapes").await;
+        let table_name = "varietals";
+
+        let request = CreateTableRequest {
+            name: table_name.into(),
+            namespace: namespace.name.clone(),
+            partition_template: Some(PartitionTemplate { parts: vec![] }),
+        };
+
+        let error = handler
+            .create_table(Request::new(request))
+            .await
+            .unwrap_err();
+
+        assert_eq!(error.code(), Code::InvalidArgument);
+        assert_eq!(
+            error.message(),
+            "Custom partition template must have at least one part"
+        );
+
+        let all_tables = catalog.repositories().await.tables().list().await.unwrap();
+        assert!(all_tables.is_empty());
+    }
 }
