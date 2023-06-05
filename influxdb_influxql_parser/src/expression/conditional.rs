@@ -105,6 +105,46 @@ impl ConditionalExpression {
             None
         }
     }
+
+    /// Return `self == other`
+    pub fn eq(self, other: ConditionalExpression) -> ConditionalExpression {
+        binary_cond(self, ConditionalOperator::Eq, other)
+    }
+
+    /// Return `self != other`
+    pub fn not_eq(self, other: ConditionalExpression) -> ConditionalExpression {
+        binary_cond(self, ConditionalOperator::NotEq, other)
+    }
+
+    /// Return `self > other`
+    pub fn gt(self, other: ConditionalExpression) -> ConditionalExpression {
+        binary_cond(self, ConditionalOperator::Gt, other)
+    }
+
+    /// Return `self >= other`
+    pub fn gt_eq(self, other: ConditionalExpression) -> ConditionalExpression {
+        binary_cond(self, ConditionalOperator::GtEq, other)
+    }
+
+    /// Return `self < other`
+    pub fn lt(self, other: ConditionalExpression) -> ConditionalExpression {
+        binary_cond(self, ConditionalOperator::Lt, other)
+    }
+
+    /// Return `self <= other`
+    pub fn lt_eq(self, other: ConditionalExpression) -> ConditionalExpression {
+        binary_cond(self, ConditionalOperator::LtEq, other)
+    }
+
+    /// Return `self AND other`
+    pub fn and(self, other: ConditionalExpression) -> ConditionalExpression {
+        binary_cond(self, ConditionalOperator::And, other)
+    }
+
+    /// Return `self OR other`
+    pub fn or(self, other: ConditionalExpression) -> ConditionalExpression {
+        binary_cond(self, ConditionalOperator::Or, other)
+    }
 }
 
 impl Display for ConditionalExpression {
@@ -328,6 +368,19 @@ impl ArithmeticParsers for ConditionalExpression {
 /// Parse an arithmetic expression used by conditional expressions.
 pub(crate) fn arithmetic_expression(i: &str) -> ParseResult<&str, Expr> {
     arithmetic::<ConditionalExpression>(i)
+}
+
+/// Return a new conditional expression, `lhs op rhs`.
+pub fn binary_cond(
+    lhs: ConditionalExpression,
+    op: ConditionalOperator,
+    rhs: ConditionalExpression,
+) -> ConditionalExpression {
+    ConditionalExpression::Binary(ConditionalBinary {
+        lhs: Box::new(lhs),
+        op,
+        rhs: Box::new(rhs),
+    })
 }
 
 #[cfg(test)]
