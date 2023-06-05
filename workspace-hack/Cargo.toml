@@ -91,6 +91,8 @@ tracing = { version = "0.1", features = ["log", "max_level_trace", "release_max_
 tracing-core = { version = "0.1" }
 tracing-log = { version = "0.1" }
 tracing-subscriber = { version = "0.3", features = ["env-filter", "json", "parking_lot"] }
+unicode-bidi = { version = "0.3" }
+unicode-normalization = { version = "0.1" }
 url = { version = "2" }
 uuid = { version = "1", features = ["v4"] }
 zstd = { version = "0.12" }
@@ -150,6 +152,8 @@ syn-dff4ba8e3ae991db = { package = "syn", version = "1", features = ["extra-trai
 syn-f595c2ba2a3f28df = { package = "syn", version = "2", features = ["extra-traits", "full", "visit-mut"] }
 tokio = { version = "1", features = ["full", "test-util", "tracing"] }
 tokio-stream = { version = "0.1", features = ["fs", "net"] }
+unicode-bidi = { version = "0.3" }
+unicode-normalization = { version = "0.1" }
 url = { version = "2" }
 uuid = { version = "1", features = ["v4"] }
 
