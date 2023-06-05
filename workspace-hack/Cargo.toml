@@ -30,9 +30,9 @@ bytes = { version = "1" }
 chrono = { version = "0.4", default-features = false, features = ["alloc", "clock", "serde"] }
 crossbeam-utils = { version = "0.8" }
 crypto-common = { version = "0.1", default-features = false, features = ["std"] }
-datafusion = { git = "https://github.com/apache/arrow-datafusion.git", rev = "ee1019d9585252066ef5b288c84aabebcbd93ca6" }
-datafusion-optimizer = { git = "https://github.com/apache/arrow-datafusion.git", rev = "ee1019d9585252066ef5b288c84aabebcbd93ca6", default-features = false, features = ["crypto_expressions", "regex_expressions", "unicode_expressions"] }
-datafusion-physical-expr = { git = "https://github.com/apache/arrow-datafusion.git", rev = "ee1019d9585252066ef5b288c84aabebcbd93ca6", default-features = false, features = ["crypto_expressions", "regex_expressions", "unicode_expressions"] }
+datafusion = { git = "https://github.com/apache/arrow-datafusion.git", rev = "859251b4a20e00c3dfe73eee6b605fcf722687e7" }
+datafusion-optimizer = { git = "https://github.com/apache/arrow-datafusion.git", rev = "859251b4a20e00c3dfe73eee6b605fcf722687e7", default-features = false, features = ["crypto_expressions", "regex_expressions", "unicode_expressions"] }
+datafusion-physical-expr = { git = "https://github.com/apache/arrow-datafusion.git", rev = "859251b4a20e00c3dfe73eee6b605fcf722687e7", default-features = false, features = ["crypto_expressions", "regex_expressions", "unicode_expressions"] }
 digest = { version = "0.10", features = ["mac", "std"] }
 either = { version = "1" }
 fixedbitset = { version = "0.4" }
@@ -81,6 +81,7 @@ smallvec = { version = "1", default-features = false, features = ["union"] }
 sqlparser = { version = "0.34", features = ["visitor"] }
 sqlx = { version = "0.6", features = ["json", "postgres", "runtime-tokio-rustls", "sqlite", "tls", "uuid"] }
 sqlx-core = { version = "0.6", default-features = false, features = ["any", "migrate", "postgres", "runtime-tokio-rustls", "sqlite", "uuid"] }
+strum = { version = "0.24", features = ["derive"] }
 thrift = { version = "0.17" }
 tokio = { version = "1", features = ["full", "test-util", "tracing"] }
 tokio-stream = { version = "0.1", features = ["fs", "net"] }

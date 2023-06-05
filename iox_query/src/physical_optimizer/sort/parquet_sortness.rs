@@ -126,7 +126,7 @@ impl<'a> TreeNodeRewriter for ParquetSortnessRewriter<'a> {
         };
 
         let base_config = parquet_exec.base_config();
-        if base_config.output_ordering.is_none() {
+        if base_config.output_ordering.is_empty() {
             // no output ordering requested
             return Ok(node);
         }
@@ -207,7 +207,7 @@ mod tests {
             projection: None,
             limit: None,
             table_partition_cols: vec![],
-            output_ordering: Some(ordering(["col2", "col1"], &schema)),
+            output_ordering: vec![ordering(["col2", "col1"], &schema)],
             infinite_source: false,
         };
         let inner = ParquetExec::new(base_config, None, None);
@@ -242,7 +242,7 @@ mod tests {
             projection: None,
             limit: None,
             table_partition_cols: vec![],
-            output_ordering: Some(ordering(["col2", "col1", CHUNK_ORDER_COLUMN_NAME], &schema)),
+            output_ordering: vec![ordering(["col2", "col1", CHUNK_ORDER_COLUMN_NAME], &schema)],
             infinite_source: false,
         };
         let inner = ParquetExec::new(base_config, None, None);
@@ -278,7 +278,7 @@ mod tests {
             projection: None,
             limit: None,
             table_partition_cols: vec![],
-            output_ordering: Some(ordering(["col2", "col1"], &schema)),
+            output_ordering: vec![ordering(["col2", "col1"], &schema)],
             infinite_source: false,
         };
         let inner = ParquetExec::new(base_config, None, None);
@@ -320,7 +320,7 @@ mod tests {
             projection: None,
             limit: None,
             table_partition_cols: vec![],
-            output_ordering: Some(ordering(["col2", "col1"], &schema)),
+            output_ordering: vec![ordering(["col2", "col1"], &schema)],
             infinite_source: false,
         };
         let inner = ParquetExec::new(base_config, None, None);
@@ -355,7 +355,7 @@ mod tests {
             projection: None,
             limit: None,
             table_partition_cols: vec![],
-            output_ordering: Some(ordering(["col1", "col2"], &schema)),
+            output_ordering: vec![ordering(["col1", "col2"], &schema)],
             infinite_source: false,
         };
         let inner = ParquetExec::new(base_config, None, None);
@@ -390,7 +390,7 @@ mod tests {
             projection: None,
             limit: None,
             table_partition_cols: vec![],
-            output_ordering: None,
+            output_ordering: vec![vec![]],
             infinite_source: false,
         };
         let inner = ParquetExec::new(base_config, None, None);
@@ -425,7 +425,7 @@ mod tests {
             projection: None,
             limit: None,
             table_partition_cols: vec![],
-            output_ordering: Some(ordering(["col2", "col1"], &schema)),
+            output_ordering: vec![ordering(["col2", "col1"], &schema)],
             infinite_source: false,
         };
         let inner = ParquetExec::new(base_config, None, None);
@@ -489,7 +489,7 @@ mod tests {
             projection: None,
             limit: None,
             table_partition_cols: vec![],
-            output_ordering: Some(ordering(["col2", "col1"], &schema)),
+            output_ordering: vec![ordering(["col2", "col1"], &schema)],
             infinite_source: false,
         };
         let plan = Arc::new(ParquetExec::new(base_config, None, None));
@@ -518,7 +518,7 @@ mod tests {
             projection: None,
             limit: None,
             table_partition_cols: vec![],
-            output_ordering: Some(ordering(["col1", "col2"], &schema)),
+            output_ordering: vec![ordering(["col1", "col2"], &schema)],
             infinite_source: false,
         };
         let plan = Arc::new(ParquetExec::new(base_config, None, None));
@@ -555,7 +555,7 @@ mod tests {
             projection: None,
             limit: None,
             table_partition_cols: vec![],
-            output_ordering: Some(ordering(["col1", "col2"], &schema)),
+            output_ordering: vec![ordering(["col1", "col2"], &schema)],
             infinite_source: false,
         };
         let plan = Arc::new(ParquetExec::new(base_config, None, None));
@@ -593,7 +593,7 @@ mod tests {
             projection: None,
             limit: None,
             table_partition_cols: vec![],
-            output_ordering: Some(ordering(["col2", "col1", CHUNK_ORDER_COLUMN_NAME], &schema)),
+            output_ordering: vec![ordering(["col2", "col1", CHUNK_ORDER_COLUMN_NAME], &schema)],
             infinite_source: false,
         };
         let plan_parquet = Arc::new(ParquetExec::new(base_config, None, None));

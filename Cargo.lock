@@ -1382,7 +1382,7 @@ dependencies = [
 [[package]]
 name = "datafusion"
 version = "25.0.0"
-source = "git+https://github.com/apache/arrow-datafusion.git?rev=ee1019d9585252066ef5b288c84aabebcbd93ca6#ee1019d9585252066ef5b288c84aabebcbd93ca6"
+source = "git+https://github.com/apache/arrow-datafusion.git?rev=859251b4a20e00c3dfe73eee6b605fcf722687e7#859251b4a20e00c3dfe73eee6b605fcf722687e7"
 dependencies = [
  "ahash 0.8.3",
  "arrow",
@@ -1431,7 +1431,7 @@ dependencies = [
 [[package]]
 name = "datafusion-common"
 version = "25.0.0"
-source = "git+https://github.com/apache/arrow-datafusion.git?rev=ee1019d9585252066ef5b288c84aabebcbd93ca6#ee1019d9585252066ef5b288c84aabebcbd93ca6"
+source = "git+https://github.com/apache/arrow-datafusion.git?rev=859251b4a20e00c3dfe73eee6b605fcf722687e7#859251b4a20e00c3dfe73eee6b605fcf722687e7"
 dependencies = [
  "arrow",
  "arrow-array",
@@ -1445,7 +1445,7 @@ dependencies = [
 [[package]]
 name = "datafusion-execution"
 version = "25.0.0"
-source = "git+https://github.com/apache/arrow-datafusion.git?rev=ee1019d9585252066ef5b288c84aabebcbd93ca6#ee1019d9585252066ef5b288c84aabebcbd93ca6"
+source = "git+https://github.com/apache/arrow-datafusion.git?rev=859251b4a20e00c3dfe73eee6b605fcf722687e7#859251b4a20e00c3dfe73eee6b605fcf722687e7"
 dependencies = [
  "dashmap",
  "datafusion-common",
@@ -1462,18 +1462,21 @@ dependencies = [
 [[package]]
 name = "datafusion-expr"
 version = "25.0.0"
-source = "git+https://github.com/apache/arrow-datafusion.git?rev=ee1019d9585252066ef5b288c84aabebcbd93ca6#ee1019d9585252066ef5b288c84aabebcbd93ca6"
+source = "git+https://github.com/apache/arrow-datafusion.git?rev=859251b4a20e00c3dfe73eee6b605fcf722687e7#859251b4a20e00c3dfe73eee6b605fcf722687e7"
 dependencies = [
  "ahash 0.8.3",
  "arrow",
  "datafusion-common",
+ "lazy_static",
  "sqlparser",
+ "strum",
+ "strum_macros",
 ]
 
 [[package]]
 name = "datafusion-optimizer"
 version = "25.0.0"
-source = "git+https://github.com/apache/arrow-datafusion.git?rev=ee1019d9585252066ef5b288c84aabebcbd93ca6#ee1019d9585252066ef5b288c84aabebcbd93ca6"
+source = "git+https://github.com/apache/arrow-datafusion.git?rev=859251b4a20e00c3dfe73eee6b605fcf722687e7#859251b4a20e00c3dfe73eee6b605fcf722687e7"
 dependencies = [
  "arrow",
  "async-trait",
@@ -1490,7 +1493,7 @@ dependencies = [
 [[package]]
 name = "datafusion-physical-expr"
 version = "25.0.0"
-source = "git+https://github.com/apache/arrow-datafusion.git?rev=ee1019d9585252066ef5b288c84aabebcbd93ca6#ee1019d9585252066ef5b288c84aabebcbd93ca6"
+source = "git+https://github.com/apache/arrow-datafusion.git?rev=859251b4a20e00c3dfe73eee6b605fcf722687e7#859251b4a20e00c3dfe73eee6b605fcf722687e7"
 dependencies = [
  "ahash 0.8.3",
  "arrow",
@@ -1522,7 +1525,7 @@ dependencies = [
 [[package]]
 name = "datafusion-proto"
 version = "25.0.0"
-source = "git+https://github.com/apache/arrow-datafusion.git?rev=ee1019d9585252066ef5b288c84aabebcbd93ca6#ee1019d9585252066ef5b288c84aabebcbd93ca6"
+source = "git+https://github.com/apache/arrow-datafusion.git?rev=859251b4a20e00c3dfe73eee6b605fcf722687e7#859251b4a20e00c3dfe73eee6b605fcf722687e7"
 dependencies = [
  "arrow",
  "chrono",
@@ -1536,7 +1539,7 @@ dependencies = [
 [[package]]
 name = "datafusion-row"
 version = "25.0.0"
-source = "git+https://github.com/apache/arrow-datafusion.git?rev=ee1019d9585252066ef5b288c84aabebcbd93ca6#ee1019d9585252066ef5b288c84aabebcbd93ca6"
+source = "git+https://github.com/apache/arrow-datafusion.git?rev=859251b4a20e00c3dfe73eee6b605fcf722687e7#859251b4a20e00c3dfe73eee6b605fcf722687e7"
 dependencies = [
  "arrow",
  "datafusion-common",
@@ -1547,7 +1550,7 @@ dependencies = [
 [[package]]
 name = "datafusion-sql"
 version = "25.0.0"
-source = "git+https://github.com/apache/arrow-datafusion.git?rev=ee1019d9585252066ef5b288c84aabebcbd93ca6#ee1019d9585252066ef5b288c84aabebcbd93ca6"
+source = "git+https://github.com/apache/arrow-datafusion.git?rev=859251b4a20e00c3dfe73eee6b605fcf722687e7#859251b4a20e00c3dfe73eee6b605fcf722687e7"
 dependencies = [
  "arrow",
  "arrow-schema",
@@ -5573,6 +5576,9 @@ name = "strum"
 version = "0.24.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "063e6045c0e62079840579a7e47a355ae92f60eb74daaf156fb1e84ba164e63f"
+dependencies = [
+ "strum_macros",
+]
 
 [[package]]
 name = "strum_macros"
@@ -6864,6 +6870,7 @@ dependencies = [
  "sqlx",
  "sqlx-core",
  "sqlx-macros",
+ "strum",
  "syn 1.0.109",
  "syn 2.0.16",
  "thrift",
