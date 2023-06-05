@@ -146,6 +146,11 @@ pub enum Error {
 
     #[snafu(display("could not delete namespace: {source}"))]
     CouldNotDeleteNamespace { source: sqlx::Error },
+
+    #[snafu(display("invalid partition template: {source}"))]
+    InvalidPartitionTemplate {
+        source: data_types::partition_template::ValidationError,
+    },
 }
 
 /// A specialized `Error` for Catalog errors
@@ -870,11 +875,12 @@ pub(crate) mod test_helpers {
 
         // create a namespace with a PartitionTemplate other than the default
         let tag_partition_template =
-            NamespacePartitionTemplateOverride::from(proto::PartitionTemplate {
+            NamespacePartitionTemplateOverride::try_from(proto::PartitionTemplate {
                 parts: vec![proto::TemplatePart {
                     part: Some(proto::template_part::Part::TagValue("tag1".into())),
                 }],
-            });
+            })
+            .unwrap();
         let namespace5_name = NamespaceName::new("test_namespace5").unwrap();
         let namespace5 = repos
             .namespaces()
@@ -1097,7 +1103,8 @@ pub(crate) mod test_helpers {
             .tables()
             .create(
                 "test_table",
-                TablePartitionTemplateOverride::new(None, &namespace.partition_template),
+                TablePartitionTemplateOverride::try_new(None, &namespace.partition_template)
+                    .unwrap(),
                 namespace.id,
             )
             .await;
@@ -1192,7 +1199,7 @@ pub(crate) mod test_helpers {
             .tables()
             .create(
                 "definitely_unique",
-                TablePartitionTemplateOverride::new(None, &latest.partition_template),
+                TablePartitionTemplateOverride::try_new(None, &latest.partition_template).unwrap(),
                 latest.id,
             )
             .await
@@ -1206,7 +1213,7 @@ pub(crate) mod test_helpers {
         ));
 
         // Create a table with a partition template other than the default
-        let custom_table_template = TablePartitionTemplateOverride::new(
+        let custom_table_template = TablePartitionTemplateOverride::try_new(
             Some(proto::PartitionTemplate {
                 parts: vec![
                     proto::TemplatePart {
@@ -1221,8 +1228,8 @@ pub(crate) mod test_helpers {
                 ],
             }),
             &namespace2.partition_template,
-        );
-
+        )
+        .unwrap();
         let templated = repos
             .tables()
             .create(
@@ -1256,7 +1263,7 @@ pub(crate) mod test_helpers {
 
         // Create a namespace with a partition template other than the default
         let custom_namespace_template =
-            NamespacePartitionTemplateOverride::from(proto::PartitionTemplate {
+            NamespacePartitionTemplateOverride::try_from(proto::PartitionTemplate {
                 parts: vec![
                     proto::TemplatePart {
                         part: Some(proto::template_part::Part::TagValue("zzz".into())),
@@ -1268,7 +1275,8 @@ pub(crate) mod test_helpers {
                         part: Some(proto::template_part::Part::TimeFormat("year-%Y".into())),
                     },
                 ],
-            });
+            })
+            .unwrap();
         let custom_namespace_name = NamespaceName::new("custom_namespace").unwrap();
         let custom_namespace = repos
             .namespaces()
@@ -1281,7 +1289,8 @@ pub(crate) mod test_helpers {
             .unwrap();
         // Create a table without specifying the partition template
         let custom_table_template =
-            TablePartitionTemplateOverride::new(None, &custom_namespace.partition_template);
+            TablePartitionTemplateOverride::try_new(None, &custom_namespace.partition_template)
+                .unwrap();
         let table_templated_by_namespace = repos
             .tables()
             .create(
@@ -1293,7 +1302,7 @@ pub(crate) mod test_helpers {
             .unwrap();
         assert_eq!(
             table_templated_by_namespace.partition_template,
-            TablePartitionTemplateOverride::new(None, &custom_namespace_template)
+            TablePartitionTemplateOverride::try_new(None, &custom_namespace_template).unwrap()
         );
 
         // Tag columns should be created for tags used in the template

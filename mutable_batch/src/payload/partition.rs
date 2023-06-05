@@ -231,7 +231,8 @@ mod tests {
             .unwrap();
         writer.commit();
 
-        let template_parts = TablePartitionTemplateOverride::new(None, &Default::default());
+        let template_parts =
+            TablePartitionTemplateOverride::try_new(None, &Default::default()).unwrap();
         let keys: Vec<_> = partition_keys(&batch, template_parts.parts())
             .collect::<Result<Vec<_>, _>>()
             .unwrap();

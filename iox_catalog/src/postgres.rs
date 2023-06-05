@@ -2311,13 +2311,14 @@ RETURNING id, name, retention_period_ns, max_tables, max_columns_per_table, dele
         // assume it's important that it's being specially requested and store it rather than NULL.
         let namespace_custom_template_name = "kumquats";
         let custom_partition_template_equal_to_default =
-            NamespacePartitionTemplateOverride::from(proto::PartitionTemplate {
+            NamespacePartitionTemplateOverride::try_from(proto::PartitionTemplate {
                 parts: vec![proto::TemplatePart {
                     part: Some(proto::template_part::Part::TimeFormat(
                         "%Y-%m-%d".to_owned(),
                     )),
                 }],
-            });
+            })
+            .unwrap();
         let namespace_custom_template = repos
             .namespaces()
             .create(
@@ -2371,13 +2372,14 @@ RETURNING id, name, retention_period_ns, max_tables, max_columns_per_table, dele
             .namespaces()
             .create(
                 &namespace_custom_template_name.try_into().unwrap(),
-                Some(NamespacePartitionTemplateOverride::from(
-                    proto::PartitionTemplate {
+                Some(
+                    NamespacePartitionTemplateOverride::try_from(proto::PartitionTemplate {
                         parts: vec![proto::TemplatePart {
                             part: Some(proto::template_part::Part::TimeFormat("year-%Y".into())),
                         }],
-                    },
-                )),
+                    })
+                    .unwrap(),
+                ),
                 None,
             )
             .await
@@ -2474,10 +2476,11 @@ RETURNING *;
             .tables()
             .create(
                 "pomelo",
-                TablePartitionTemplateOverride::new(
+                TablePartitionTemplateOverride::try_new(
                     None, // no custom partition template
                     &namespace_custom_template.partition_template,
-                ),
+                )
+                .unwrap(),
                 namespace_custom_template.id,
             )
             .await
@@ -2486,10 +2489,11 @@ RETURNING *;
         // it should have the namespace's template
         assert_eq!(
             table_no_template_with_namespace_template.partition_template,
-            TablePartitionTemplateOverride::new(
+            TablePartitionTemplateOverride::try_new(
                 None,
                 &namespace_custom_template.partition_template
             )
+            .unwrap()
         );
 
         // and store that value in the database record.
@@ -2504,10 +2508,11 @@ RETURNING *;
             record.try_get("partition_template").unwrap();
         assert_eq!(
             partition_template.unwrap(),
-            TablePartitionTemplateOverride::new(
+            TablePartitionTemplateOverride::try_new(
                 None,
                 &namespace_custom_template.partition_template
             )
+            .unwrap()
         );
 
         // # Table template true, namespace template false
@@ -2523,10 +2528,11 @@ RETURNING *;
             .tables()
             .create(
                 "tangerine",
-                TablePartitionTemplateOverride::new(
+                TablePartitionTemplateOverride::try_new(
                     Some(custom_table_template), // with custom partition template
                     &namespace_default_template.partition_template,
-                ),
+                )
+                .unwrap(),
                 namespace_default_template.id,
             )
             .await
@@ -2575,10 +2581,11 @@ RETURNING *;
             .tables()
             .create(
                 "nectarine",
-                TablePartitionTemplateOverride::new(
+                TablePartitionTemplateOverride::try_new(
                     Some(custom_table_template), // with custom partition template
                     &namespace_custom_template.partition_template,
-                ),
+                )
+                .unwrap(),
                 namespace_custom_template.id,
             )
             .await
@@ -2622,10 +2629,11 @@ RETURNING *;
             .tables()
             .create(
                 "grapefruit",
-                TablePartitionTemplateOverride::new(
+                TablePartitionTemplateOverride::try_new(
                     None, // no custom partition template
                     &namespace_default_template.partition_template,
-                ),
+                )
+                .unwrap(),
                 namespace_default_template.id,
             )
             .await

@@ -81,10 +81,11 @@ impl table_service_server::TableService for TableService {
             .tables()
             .create(
                 &name,
-                TablePartitionTemplateOverride::new(
+                TablePartitionTemplateOverride::try_new(
                     partition_template,
                     &namespace.partition_template,
-                ),
+                )
+                .map_err(|v| Status::invalid_argument(v.to_string()))?,
                 namespace.id,
             )
             .await
@@ -312,8 +313,8 @@ mod tests {
             .namespaces()
             .create(
                 &namespace_name,
-                Some(NamespacePartitionTemplateOverride::from(
-                    PartitionTemplate {
+                Some(
+                    NamespacePartitionTemplateOverride::try_from(PartitionTemplate {
                         parts: vec![
                             TemplatePart {
                                 part: Some(template_part::Part::TagValue("color".into())),
@@ -325,8 +326,9 @@ mod tests {
                                 part: Some(template_part::Part::TimeFormat("%Y".into())),
                             },
                         ],
-                    },
-                )),
+                    })
+                    .unwrap(),
+                ),
                 None,
             )
             .await

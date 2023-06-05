@@ -89,7 +89,10 @@ impl namespace_service_server::NamespaceService for NamespaceService {
             .namespaces()
             .create(
                 &namespace_name,
-                partition_template.map(NamespacePartitionTemplateOverride::from),
+                partition_template
+                    .map(NamespacePartitionTemplateOverride::try_from)
+                    .transpose()
+                    .map_err(|v| Status::invalid_argument(v.to_string()))?,
                 retention_period_ns,
             )
             .await
