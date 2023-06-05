@@ -47,14 +47,60 @@
 //! [`build_column_values()`] function can be used to obtain the set of
 //! [`TemplatePart::TagValue`] the key was constructed from.
 //!
+//! ### Truncation
+//!
+//! Partition key parts are limited to, at most, 200 bytes in length
+//! ([`PARTITION_KEY_MAX_PART_LEN`]). If any single partition key part exceeds
+//! this length limit, it is truncated and the truncation marker `#`
+//! ([`PARTITION_KEY_PART_TRUNCATED`]) is appended.
+//!
+//! When rebuilding column values using [`build_column_values()`], a truncated
+//! key part yields [`ColumnValue::Prefix`], which can only be used for prefix
+//! matching - equality matching against a string always returns false.
+//!
+//! Two considerations must be made when truncating the generated key:
+//!
+//!  * The string may contain encoded sequences in the form %XX, and the string
+//!    should not be split within an encoded sequence, or decoding the string
+//!    will fail.
+//!
+//!  * This may be a unicode string - what the user might consider a "character"
+//!    may in fact be multiple unicode code-points, each of which may span
+//!    multiple bytes.
+//!
+//! Slicing a unicode code-point in half may lead to an invalid UTF-8 string,
+//! which will prevent it from being used in Rust (and likely many other
+//! languages/systems). Because partition keys are represented as strings and
+//! not bytes, splitting a code-point in half MUST be avoided.
+//!
+//! Further to this, a sequence of multiple code-points can represent a single
+//! "character" - this is called a grapheme. For example, the representation of
+//! the Tamil "ni" character "நி" is composed of two multi-byte code-points; the
+//! Tamil letter "na" which renders as "ந" and the vowel sign "ி", each 3 bytes
+//! long. If split after the first 3 bytes, the compound "ni" character will be
+//! incorrectly rendered as the single "na"/"ந" character.
+//!
+//! Depending on what the consumer of the split string considers a character,
+//! prefix/equality matching may produce differing results if a grapheme is
+//! split. If the caller performs a byte-wise comparison, everything is fine -
+//! if they perform a "character" comparison, then the equality may be lost
+//! depending on what they consider a character.
+//!
+//! Therefore this implementation takes the conservative approach of never
+//! splitting code-points (for UTF-8 correctness) nor graphemes for simplicity
+//! and compatibility for the consumer. This may be relaxed in the future to
+//! allow splitting graphemes, but by being conservative we give ourselves this
+//! option - we can't easily do the reverse!
+//!
 //! ### Reserved Characters
 //!
-//! Reserved characters that are percent encoded (in addition to non-printable
+//! Reserved characters that are percent encoded (in addition to non-ASCII
 //! characters), and their meaning:
 //!
 //!   * `|` - partition key part delimiter ([`PARTITION_KEY_DELIMITER`])
 //!   * `!` - NULL/missing partition key part ([`PARTITION_KEY_VALUE_NULL`])
 //!   * `^` - empty string partition key part ([`PARTITION_KEY_VALUE_EMPTY`])
+//!   * `#` - key part truncation marker ([`PARTITION_KEY_PART_TRUNCATED`])
 //!   * `%` - required for unambiguous reversal of percent encoding
 //!
 //! These characters are defined in [`ENCODED_PARTITION_KEY_CHARS`] and chosen
@@ -74,13 +120,14 @@
 //!
 //! The following partition keys are derived:
 //!
-//!   * `time=2023-01-01, a=bananas, b=plátanos`   -> `2023|bananas|plátanos
+//!   * `time=2023-01-01, a=bananas, b=plátanos`   -> `2023|bananas|plátanos`
 //!   * `time=2023-01-01, b=plátanos`              -> `2023|!|plátanos`
 //!   * `time=2023-01-01, another=cat, b=plátanos` -> `2023|!|plátanos`
 //!   * `time=2023-01-01`                          -> `2023|!|!`
 //!   * `time=2023-01-01, a=cat|dog, b=!`          -> `2023|cat%7Cdog|%21`
 //!   * `time=2023-01-01, a=%50`                   -> `2023|%2550|!`
 //!   * `time=2023-01-01, a=`                      -> `2023|^|!`
+//!   * `time=2023-01-01, a=<long string>`         -> `2023|<long string>#|!`
 //!
 //! When using the default partitioning template (YYYY-MM-DD) there is no
 //! encoding necessary, as the derived partition key contains a single part, and
@@ -144,6 +191,17 @@ pub const PARTITION_KEY_VALUE_NULL: char = '!';
 /// The `str` form of the [`PARTITION_KEY_VALUE_NULL`] character.
 pub const PARTITION_KEY_VALUE_NULL_STR: &str = "!";
 
+/// The maximum permissible length of a partition key part, after encoding
+/// reserved & non-ASCII characters.
+pub const PARTITION_KEY_MAX_PART_LEN: usize = 200;
+
+/// The truncation sentinel character, used to explicitly identify a partition
+/// key as having been truncated.
+///
+/// Truncated partition key parts can only be used for prefix matching, and
+/// yield a [`ColumnValue::Prefix`] from [`build_column_values()`].
+pub const PARTITION_KEY_PART_TRUNCATED: char = '#';
+
 /// The minimal set of characters that must be encoded during partition key
 /// generation when they form part of a partition key part, in order to be
 /// unambiguously reversible.
@@ -153,6 +211,7 @@ pub const ENCODED_PARTITION_KEY_CHARS: AsciiSet = CONTROLS
     .add(PARTITION_KEY_DELIMITER as u8)
     .add(PARTITION_KEY_VALUE_NULL as u8)
     .add(PARTITION_KEY_VALUE_EMPTY as u8)
+    .add(PARTITION_KEY_PART_TRUNCATED as u8)
     .add(b'%'); // Required for reversible unambiguous encoding
 
 /// Allocationless and protobufless access to the parts of a template needed to
@@ -366,6 +425,54 @@ mod serialization {
     }
 }
 
+/// The value of a column, reversed from a partition key.
+///
+/// See [`build_column_values()`].
+#[derive(Debug, Clone, PartialEq)]
+pub enum ColumnValue<'a> {
+    /// The inner value is the exact, unmodified input column value.
+    Identity(Cow<'a, str>),
+
+    /// The inner value is a variable length prefix of the input column value.
+    ///
+    /// The string value is always guaranteed to be valid UTF-8.
+    ///
+    /// Attempting to equality match this variant against a string will always
+    /// be false - use [`ColumnValue::is_prefix_match_of()`] to prefix match
+    /// instead.
+    Prefix(Cow<'a, str>),
+}
+
+impl<'a> ColumnValue<'a> {
+    /// Returns true if `self` is a byte-wise prefix match for of `self`.
+    ///
+    /// This method can be called for any both [`ColumnValue::Identity`] and
+    /// [`ColumnValue::Prefix`].
+    pub fn is_prefix_match_of<T>(&self, other: T) -> bool
+    where
+        T: AsRef<[u8]>,
+    {
+        let this = match self {
+            ColumnValue::Identity(v) => v.as_bytes(),
+            ColumnValue::Prefix(v) => v.as_bytes(),
+        };
+
+        other.as_ref().starts_with(this)
+    }
+}
+
+impl<'a, T> PartialEq<T> for ColumnValue<'a>
+where
+    T: AsRef<str>,
+{
+    fn eq(&self, other: &T) -> bool {
+        match self {
+            ColumnValue::Identity(v) => other.as_ref().eq(v.as_ref()),
+            ColumnValue::Prefix(_) => false,
+        }
+    }
+}
+
 /// Reverse a `partition_key` generated from the given partition key `template`,
 /// reconstructing the set of tag values in the form of `(column name, column
 /// value)` tuples that the `partition_key` was generated from.
@@ -381,7 +488,7 @@ mod serialization {
 pub fn build_column_values<'a>(
     template: &'a TablePartitionTemplateOverride,
     partition_key: &'a str,
-) -> impl Iterator<Item = (&'a str, Cow<'a, str>)> {
+) -> impl Iterator<Item = (&'a str, ColumnValue<'a>)> {
     // Exploded parts of the generated key on the "/" character.
     //
     // Any uses of the "/" character within the partition key's user-provided
@@ -424,12 +531,27 @@ pub fn build_column_values<'a>(
         })
         // Reverse the urlencoding of all value parts
         .map(|(name, value)| {
-            (
-                name,
-                percent_decode_str(value)
-                    .decode_utf8()
-                    .expect("invalid partition key part encoding"),
-            )
+            let decoded = percent_decode_str(value)
+                .decode_utf8()
+                .expect("invalid partition key part encoding");
+
+            // Inspect the final character in the string, pre-decoding, to
+            // determine if it has been truncated.
+            if value
+                .as_bytes()
+                .last()
+                .map(|v| *v == PARTITION_KEY_PART_TRUNCATED as u8)
+                .unwrap_or_default()
+            {
+                // Remove the truncation marker.
+                let len = decoded.len() - 1;
+                return (
+                    name,
+                    ColumnValue::Prefix(Cow::Owned(decoded[..len].to_string())),
+                );
+            }
+
+            (name, ColumnValue::Identity(decoded))
         })
 }
 
@@ -555,6 +677,17 @@ mod tests {
         assert_error!(err, ValidationError::InvalidStrftime(ref format) if format.is_empty());
     }
 
+    fn identity(s: &str) -> ColumnValue<'_> {
+        ColumnValue::Identity(s.into())
+    }
+
+    fn prefix<'a, T>(s: T) -> ColumnValue<'a>
+    where
+        T: Into<Cow<'a, str>>,
+    {
+        ColumnValue::Prefix(s.into())
+    }
+
     /// Generate a test that asserts "partition_key" is reversible, yielding
     /// "want" assuming the partition "template" was used.
     macro_rules! test_build_column_values {
@@ -570,17 +703,13 @@ mod tests {
                     let template = $template.into_iter().collect::<Vec<_>>();
                     let template = test_table_partition_override(template);
 
-                    // normalise the values into a (str, string) for the comparison
+                    // normalise the values into a (str, ColumnValue) for the comparison
                     let want = $want
                         .into_iter()
-                        .map(|(k, v)| {
-                            let v: &str = v;
-                            (k, v.to_string())
-                        })
                         .collect::<Vec<_>>();
 
-                    let got = build_column_values(&template, $partition_key)
-                        .map(|(k, v)| (k, v.to_string()))
+                    let input = String::from($partition_key);
+                    let got = build_column_values(&template, input.as_str())
                         .collect::<Vec<_>>();
 
                     assert_eq!(got, want);
@@ -597,7 +726,7 @@ mod tests {
             TemplatePart::TagValue("b"),
         ],
         partition_key = "2023|bananas|plátanos",
-        want = [("a", "bananas"), ("b", "plátanos")]
+        want = [("a", identity("bananas")), ("b", identity("plátanos"))]
     );
 
     test_build_column_values!(
@@ -608,7 +737,7 @@ mod tests {
             TemplatePart::TagValue("b"),
         ],
         partition_key = "2023|!|plátanos",
-        want = [("b", "plátanos")]
+        want = [("b", identity("plátanos"))]
     );
 
     test_build_column_values!(
@@ -630,7 +759,7 @@ mod tests {
             TemplatePart::TagValue("b"),
         ],
         partition_key = "2023|cat%7Cdog|%21",
-        want = [("a", "cat|dog"), ("b", "!")]
+        want = [("a", identity("cat|dog")), ("b", identity("!"))]
     );
 
     test_build_column_values!(
@@ -641,7 +770,40 @@ mod tests {
             TemplatePart::TagValue("b"),
         ],
         partition_key = "2023|%2550|!",
-        want = [("a", "%50")]
+        want = [("a", identity("%50"))]
+    );
+
+    test_build_column_values!(
+        module_doc_example_7,
+        template = [
+            TemplatePart::TimeFormat("%Y"),
+            TemplatePart::TagValue("a"),
+            TemplatePart::TagValue("b"),
+        ],
+        partition_key = "2023|BANANAS#|!",
+        want = [("a", prefix("BANANAS"))]
+    );
+
+    test_build_column_values!(
+        unicode_code_point_prefix,
+        template = [
+            TemplatePart::TimeFormat("%Y"),
+            TemplatePart::TagValue("a"),
+            TemplatePart::TagValue("b"),
+        ],
+        partition_key = "2023|%28%E3%83%8E%E0%B2%A0%E7%9B%8A%E0%B2%A0%29%E3%83%8E%E5%BD%A1%E2%94%BB%E2%94%81%E2%94%BB#|!",
+        want = [("a", prefix("(ノಠ益ಠ)ノ彡┻━┻"))]
+    );
+
+    test_build_column_values!(
+        unicode_grapheme,
+        template = [
+            TemplatePart::TimeFormat("%Y"),
+            TemplatePart::TagValue("a"),
+            TemplatePart::TagValue("b"),
+        ],
+        partition_key = "2023|%E0%AE%A8%E0%AE%BF#|!",
+        want = [("a", prefix("நி"))]
     );
 
     test_build_column_values!(
@@ -651,8 +813,8 @@ mod tests {
             TemplatePart::TagValue("a"),
             TemplatePart::TagValue("b"),
         ],
-        partition_key = "2023|is%7Cnot%21ambiguous%2510|!",
-        want = [("a", "is|not!ambiguous%10")]
+        partition_key = "2023|is%7Cnot%21ambiguous%2510%23|!",
+        want = [("a", identity("is|not!ambiguous%10#"))]
     );
 
     test_build_column_values!(
@@ -671,11 +833,30 @@ mod tests {
     }
 
     #[test]
-    fn test_empty_partition_key_char_str_equality() {
-        assert_eq!(
-            PARTITION_KEY_VALUE_EMPTY.to_string(),
-            PARTITION_KEY_VALUE_EMPTY_STR
-        );
+    fn test_column_value_partial_eq() {
+        assert_eq!(identity("bananas"), "bananas");
+
+        assert_ne!(identity("bananas"), "bananas2");
+        assert_ne!(identity("bananas2"), "bananas");
+
+        assert_ne!(prefix("bananas"), "bananas");
+        assert_ne!(prefix("bananas"), "bananas2");
+        assert_ne!(prefix("bananas2"), "bananas");
+    }
+
+    #[test]
+    fn test_column_value_is_prefix_match() {
+        let b = "bananas".to_string();
+        assert!(identity("bananas").is_prefix_match_of(b));
+
+        assert!(identity("bananas").is_prefix_match_of("bananas"));
+        assert!(identity("bananas").is_prefix_match_of("bananas2"));
+
+        assert!(prefix("bananas").is_prefix_match_of("bananas"));
+        assert!(prefix("bananas").is_prefix_match_of("bananas2"));
+
+        assert!(!identity("bananas2").is_prefix_match_of("bananas"));
+        assert!(!prefix("bananas2").is_prefix_match_of("bananas"));
     }
 
     /// This test asserts the default derived partitioning scheme with no

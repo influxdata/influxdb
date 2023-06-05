@@ -1,12 +1,10 @@
-use std::{borrow::Cow, fmt::Write};
+use std::fmt::Write;
 
 use chrono::{format::StrftimeItems, TimeZone, Utc};
-use data_types::partition_template::ENCODED_PARTITION_KEY_CHARS;
-use percent_encoding::utf8_percent_encode;
 
 use crate::PartitionKeyError;
 
-use super::never_empty;
+use super::encode_key_part;
 
 /// The number of nanoseconds in 1 day, definitely recited from memory.
 const DAY_NANOSECONDS: i64 = 86_400_000_000_000;
@@ -210,10 +208,7 @@ impl<'a> StrftimeFormatter<'a> {
         .map_err(|_| PartitionKeyError::InvalidStrftime)?;
 
         // Encode any reserved characters in this new string.
-        buf.1 = never_empty(
-            Cow::from(utf8_percent_encode(&buf.1, &ENCODED_PARTITION_KEY_CHARS)).as_ref(),
-        )
-        .to_string();
+        buf.1 = encode_key_part(&buf.1).to_string();
 
         // Render this new value to the caller's buffer
         out.write_str(&buf.1)?;
@@ -344,7 +339,7 @@ mod tests {
         /// formatter, therefore this test asserts the following property:
         ///
         ///     For any timestamp and formatter, the output of this type must
-        ///     match the output of chrono's formatter, after URL encoding.
+        ///     match the output of chrono's formatter, after key encoding.
         ///
         /// Validating this asserts correctness of the wrapper itself, assuming
         /// chrono's formatter produces correct output. Note the encoding is
@@ -366,10 +361,7 @@ mod tests {
                     Utc.timestamp_nanos(ts)
                         .format_with_items(items.clone())
                 );
-                let control = never_empty(
-                    Cow::from(utf8_percent_encode(&control, &ENCODED_PARTITION_KEY_CHARS)).as_ref(),
-                )
-                .to_string();
+                let control = encode_key_part(&control);
 
                 // Generate the test string.
                 let mut test = String::new();
