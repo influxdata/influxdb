@@ -90,7 +90,13 @@ SELECT cpu, usage_idle FROM cpu WHERE cpu = 'cpu0' OR cpu = 'cpu1' AND time >= 1
 -- evaluates to false, like InfluxQL
 SELECT cpu, usage_idle FROM cpu WHERE time >= 1667181610000000000 OR time = 1667181600000000000;
 
--- BONUS: InfluxQL now supports combining equality with OR
+-- Multiple timestamps combined with OR not supported
+--
+-- This is a side effect of supporting InfluxQL expecting a single time range in order to
+--
+-- 1. Push the outer time range to subqueries, if the bounds are narrower; and
+-- 2. correctly identifying lower and upper bounds for GROUP BY time
+--
 SELECT cpu, usage_idle FROM cpu WHERE time = 1667181610000000000 OR time = 1667181600000000000 AND cpu = 'cpu0';
 SELECT cpu, usage_idle FROM cpu WHERE time = 1667181610000000000 OR time = 1667181600000000000;
 
