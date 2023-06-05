@@ -185,15 +185,15 @@ impl Client {
         Ok(self.inner.add_header(key, value)?)
     }
 
-    /// Query the given namespace with the given SQL query, returning
+    /// Query the given database with the given SQL query, returning
     /// a struct that can stream Arrow [`RecordBatch`] results.
     pub async fn sql(
         &mut self,
-        namespace_name: impl Into<String> + Send,
+        database: impl Into<String> + Send,
         sql_query: impl Into<String> + Send,
     ) -> Result<IOxRecordBatchStream, Error> {
         let request = ReadInfo {
-            namespace_name: namespace_name.into(),
+            database: database.into(),
             sql_query: sql_query.into(),
             query_type: QueryType::Sql.into(),
             flightsql_command: vec![],
@@ -203,15 +203,15 @@ impl Client {
         self.do_get_with_read_info(request).await
     }
 
-    /// Query the given namespace with the given InfluxQL query, returning
+    /// Query the given database with the given InfluxQL query, returning
     /// a struct that can stream Arrow [`RecordBatch`] results.
     pub async fn influxql(
         &mut self,
-        namespace_name: impl Into<String> + Send,
+        database: impl Into<String> + Send,
         influxql_query: impl Into<String> + Send,
     ) -> Result<IOxRecordBatchStream, Error> {
         let request = ReadInfo {
-            namespace_name: namespace_name.into(),
+            database: database.into(),
             sql_query: influxql_query.into(),
             query_type: QueryType::InfluxQl.into(),
             flightsql_command: vec![],
