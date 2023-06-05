@@ -973,7 +973,7 @@ async fn test_invalid_strftime_partition_template() {
     assert_matches!(
         got,
         Err(Error::DmlHandler(DmlError::Partition(
-            PartitionError::Partitioner(PartitionKeyError::InvalidStrftime(_))
+            PartitionError::Partitioner(PartitionKeyError::InvalidStrftime)
         )))
     );
 
