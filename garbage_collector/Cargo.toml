@@ -28,6 +28,6 @@ bytes = "1.4"
 data_types = { path = "../data_types" }
 filetime = "0.2"
 metric = { path = "../metric" }
-once_cell = { version = "1.17", features = ["parking_lot"] }
+once_cell = { version = "1.18", features = ["parking_lot"] }
 parquet_file = { path = "../parquet_file" }
 tempfile = "3"

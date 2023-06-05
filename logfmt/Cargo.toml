@@ -12,7 +12,7 @@ tracing-subscriber = "0.3"
 workspace-hack = { version = "0.1", path = "../workspace-hack" }
 
 [dev-dependencies] # In alphabetical order
-once_cell = { version = "1.17", features = ["parking_lot"] }
+once_cell = { version = "1.18", features = ["parking_lot"] }
 parking_lot = "0.12"
 regex = "1"
 tracing-subscriber = { version = "0.3", features = ["env-filter"] }
