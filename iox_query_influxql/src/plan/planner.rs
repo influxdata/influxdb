@@ -177,7 +177,10 @@ impl<'a> Context<'a> {
             projection_type: select.projection_type,
             tz: select.timezone,
             condition: select.condition.as_ref(),
-            time_range: select.time_range,
+            // Subqueries should be restricted by the time range of the parent
+            //
+            // See: https://github.com/influxdata/influxdb/blob/f365bb7e3a9c5e227dbf66d84adf674d3d127176/query/iterator.go#L716-L721
+            time_range: select.time_range.intersected(self.time_range),
             group_by: select.group_by.as_ref(),
             fill: select.fill,
             root_group_by_tags: self.root_group_by_tags,
