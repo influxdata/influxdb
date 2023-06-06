@@ -356,26 +356,36 @@ pub struct TimeRange {
 }
 
 impl TimeRange {
+    /// Create a new time range with the specified lower and upper bounds.
+    pub fn new(lower: Option<i64>, upper: Option<i64>) -> Self {
+        Self { lower, upper }
+    }
+
     /// Returns `true` if the `lower` and `upper` bounds are `None`.
     pub fn is_unbounded(self) -> bool {
         self.lower.is_none() && self.upper.is_none()
     }
 
+    /// Update the receiver so it is the intersection with `other`.
     fn intersect(&mut self, other: TimeRange) {
-        if let Some(other) = other.lower {
-            match self.lower {
-                None => self.lower = Some(other),
-                Some(existing) if other > existing => self.lower = Some(other),
-                _ => {}
-            }
-        }
-        if let Some(other) = other.upper {
-            match self.upper {
-                None => self.upper = Some(other),
-                Some(existing) if other < existing => self.upper = Some(other),
-                _ => {}
-            }
-        }
+        *self = self.intersected(other)
+    }
+
+    /// Return a time range that is the intersection of the receiver and `other`.
+    pub fn intersected(self, other: TimeRange) -> Self {
+        let lower = other.lower.map_or(self.lower, |other| match self.lower {
+            None => Some(other),
+            Some(existing) if other > existing => Some(other),
+            _ => self.lower,
+        });
+
+        let upper = other.upper.map_or(self.upper, |other| match self.upper {
+            None => Some(other),
+            Some(existing) if other < existing => Some(other),
+            _ => self.upper,
+        });
+
+        Self { lower, upper }
     }
 }
 
@@ -1025,5 +1035,33 @@ mod test {
             let got = parse(interval_str).unwrap();
             assert_eq!(got, exp, "Actual: {got:?}");
         }
+    }
+
+    #[test]
+    fn test_time_range_is_unbounded() {
+        let a = TimeRange::new(Some(1000), Some(5000));
+        assert!(!a.is_unbounded());
+        let a = TimeRange::new(None, Some(5000));
+        assert!(!a.is_unbounded());
+        let a = TimeRange::new(Some(1000), None);
+        assert!(!a.is_unbounded());
+        let a = TimeRange::new(None, None);
+        assert!(a.is_unbounded());
+    }
+
+    #[test]
+    fn test_time_range_intersect() {
+        let a = TimeRange::new(Some(1000), Some(5000));
+        let b = TimeRange::new(Some(2000), Some(6000));
+        assert_eq!(a.intersected(b), TimeRange::new(Some(2000), Some(5000)));
+        assert_eq!(b.intersected(a), TimeRange::new(Some(2000), Some(5000)));
+
+        let a = TimeRange::new(Some(1000), None);
+        let b = TimeRange::new(Some(2000), Some(6000));
+        assert_eq!(a.intersected(b), TimeRange::new(Some(2000), Some(6000)));
+
+        let a = TimeRange::new(None, None);
+        let b = TimeRange::new(Some(2000), Some(6000));
+        assert_eq!(a.intersected(b), TimeRange::new(Some(2000), Some(6000)));
     }
 }
