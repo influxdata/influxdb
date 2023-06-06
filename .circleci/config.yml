@@ -117,31 +117,6 @@ workflows:
     jobs:
       - aws_destroy_by_name
 
-  nightly:
-    triggers:
-      - schedule:
-          cron: "0 5 * * *"
-          filters:
-            branches:
-              only:
-                - "2.0"
-    jobs:
-      - changelog:
-          nightly: true
-      - godeps
-      - jsdeps
-      - gotest:
-          requires:
-            - godeps
-      - golint:
-          requires:
-            - godeps
-      - fluxtest:
-          requires:
-            - godeps
-      - tlstest:
-          requires:
-            - godeps
   build_and_sign_workflow:
     when:
       and:
