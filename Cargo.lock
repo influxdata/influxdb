@@ -66,6 +66,12 @@ dependencies = [
 ]
 
 [[package]]
+name = "allocator-api2"
+version = "0.2.14"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "c4f263788a35611fba42eb41ff811c5d0360c58b97402570312a350736e2542e"
+
+[[package]]
 name = "android_system_properties"
 version = "0.1.5"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -372,7 +378,7 @@ dependencies = [
  "chrono",
  "comfy-table 7.0.0",
  "datafusion",
- "hashbrown 0.13.2",
+ "hashbrown 0.14.0",
  "num-traits",
  "once_cell",
  "rand 0.8.5",
@@ -1648,7 +1654,7 @@ version = "0.1.0"
 dependencies = [
  "arrow_util",
  "data_types",
- "hashbrown 0.13.2",
+ "hashbrown 0.14.0",
  "iox_time",
  "mutable_batch",
  "schema",
@@ -2182,6 +2188,16 @@ dependencies = [
 ]
 
 [[package]]
+name = "hashbrown"
+version = "0.14.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "2c6201b9ff9fd90a5a3bac2e56a830d0caa509576f0e503818ee82c181b3437a"
+dependencies = [
+ "ahash 0.8.3",
+ "allocator-api2",
+]
+
+[[package]]
 name = "hashlink"
 version = "0.8.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -2527,7 +2543,7 @@ dependencies = [
  "futures",
  "futures-util",
  "generated_types",
- "hashbrown 0.13.2",
+ "hashbrown 0.14.0",
  "home",
  "http",
  "humantime",
@@ -2673,7 +2689,7 @@ dependencies = [
  "flatbuffers",
  "futures",
  "generated_types",
- "hashbrown 0.13.2",
+ "hashbrown 0.14.0",
  "influxdb_iox_client",
  "ingester_query_grpc",
  "ingester_test_ctx",
@@ -2741,7 +2757,7 @@ dependencies = [
  "dml",
  "futures",
  "generated_types",
- "hashbrown 0.13.2",
+ "hashbrown 0.14.0",
  "influxdb_iox_client",
  "ingester",
  "ingester_query_grpc",
@@ -2890,7 +2906,7 @@ dependencies = [
  "datafusion_util",
  "executor",
  "futures",
- "hashbrown 0.13.2",
+ "hashbrown 0.14.0",
  "indexmap",
  "insta",
  "itertools",
@@ -2946,7 +2962,7 @@ dependencies = [
  "datafusion",
  "datafusion_util",
  "futures",
- "hashbrown 0.13.2",
+ "hashbrown 0.14.0",
  "insta",
  "iox_query",
  "observability_deps",
@@ -3002,7 +3018,7 @@ dependencies = [
  "flate2",
  "futures",
  "generated_types",
- "hashbrown 0.13.2",
+ "hashbrown 0.14.0",
  "heappy",
  "http",
  "hyper",
@@ -3131,7 +3147,7 @@ dependencies = [
  "authz",
  "clap_blocks",
  "data_types",
- "hashbrown 0.13.2",
+ "hashbrown 0.14.0",
  "hyper",
  "iox_catalog",
  "ioxd_common",
@@ -3595,7 +3611,7 @@ dependencies = [
  "assert_matches",
  "chrono",
  "data_types",
- "hashbrown 0.13.2",
+ "hashbrown 0.14.0",
  "iox_time",
  "itertools",
  "mutable_batch_lp",
@@ -3616,7 +3632,7 @@ dependencies = [
  "arrow_util",
  "assert_matches",
  "criterion",
- "hashbrown 0.13.2",
+ "hashbrown 0.14.0",
  "influxdb-line-protocol",
  "mutable_batch",
  "schema",
@@ -3632,7 +3648,7 @@ dependencies = [
  "data_types",
  "dml",
  "generated_types",
- "hashbrown 0.13.2",
+ "hashbrown 0.14.0",
  "mutable_batch",
  "mutable_batch_lp",
  "schema",
@@ -4834,7 +4850,7 @@ dependencies = [
  "flate2",
  "futures",
  "generated_types",
- "hashbrown 0.13.2",
+ "hashbrown 0.14.0",
  "hyper",
  "influxdb-line-protocol",
  "iox_catalog",
@@ -5002,7 +5018,7 @@ name = "schema"
 version = "0.1.0"
 dependencies = [
  "arrow",
- "hashbrown 0.13.2",
+ "hashbrown 0.14.0",
  "indexmap",
  "observability_deps",
  "snafu",
@@ -5303,7 +5319,7 @@ version = "0.1.0"
 dependencies = [
  "criterion",
  "data_types",
- "hashbrown 0.13.2",
+ "hashbrown 0.14.0",
  "mutable_batch",
  "mutable_batch_lp",
  "parking_lot 0.12.1",
@@ -6126,7 +6142,7 @@ name = "trace_http"
 version = "0.1.0"
 dependencies = [
  "futures",
- "hashbrown 0.13.2",
+ "hashbrown 0.14.0",
  "http",
  "http-body",
  "itertools",
@@ -6222,7 +6238,7 @@ name = "tracker"
 version = "0.1.0"
 dependencies = [
  "futures",
- "hashbrown 0.13.2",
+ "hashbrown 0.14.0",
  "iox_time",
  "lock_api",
  "metric",
@@ -6401,7 +6417,7 @@ dependencies = [
  "data_types",
  "dml",
  "generated_types",
- "hashbrown 0.13.2",
+ "hashbrown 0.14.0",
  "mutable_batch",
  "mutable_batch_lp",
  "mutable_batch_pb",
@@ -6422,7 +6438,7 @@ dependencies = [
  "data_types",
  "dml",
  "generated_types",
- "hashbrown 0.13.2",
+ "hashbrown 0.14.0",
  "mutable_batch",
  "mutable_batch_lp",
  "mutable_batch_pb",
