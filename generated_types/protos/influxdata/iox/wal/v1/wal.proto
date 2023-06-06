@@ -24,6 +24,10 @@ message PersistOp {
 message SequencedWalOp {
   uint64 sequence_number = 1;
 
+  // A mapping which assigns a sequence number per table ID affected by this
+  // WAL operation.
+  map<int64, uint64> table_write_sequence_numbers = 5;
+
   oneof op {
     influxdata.pbdata.v1.DatabaseBatch write = 2;
     influxdata.iox.delete.v1.DeletePayload delete = 3;

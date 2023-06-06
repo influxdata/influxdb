@@ -27,6 +27,7 @@ async fn init() -> tempfile::TempDir {
     // Write a single line of LP to the WAL
     wal.write_op(SequencedWalOp {
         sequence_number: 42,
+        table_write_sequence_numbers: [(0, 42)].into_iter().collect(),
         op: WalOp::Write(lp_to_writes("bananas,tag1=A,tag2=B val=42i 1")),
     })
     .changed()

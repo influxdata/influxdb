@@ -106,13 +106,23 @@ impl WalAppender for Arc<wal::Wal> {
 
         let namespace_id = op.namespace_id();
 
-        let wal_op = match op {
-            DmlOperation::Write(w) => Op::Write(encode_write(namespace_id.get(), w)),
+        let (wal_op, partition_sequence_numbers) = match op {
+            DmlOperation::Write(w) => {
+                let partition_sequence_numbers = w
+                    .tables()
+                    .map(|(table_id, _)| (table_id.get(), sequence_number))
+                    .collect();
+                (
+                    Op::Write(encode_write(namespace_id.get(), w)),
+                    partition_sequence_numbers,
+                )
+            }
             DmlOperation::Delete(_) => unreachable!(),
         };
 
         self.write_op(SequencedWalOp {
             sequence_number,
+            table_write_sequence_numbers: partition_sequence_numbers,
             op: wal_op,
         })
     }
@@ -192,6 +202,12 @@ mod tests {
         // Extract the op payload read from the WAL
         let read_op = assert_matches!(&*ops, [op] => op, "expected 1 DML operation");
         assert_eq!(read_op.sequence_number, 42);
+        assert_eq!(
+            read_op.table_write_sequence_numbers,
+            [(TABLE_ID.get(), 42)]
+                .into_iter()
+                .collect::<std::collections::HashMap<i64, u64>>()
+        );
         let payload =
             assert_matches!(&read_op.op, Op::Write(w) => w, "expected DML write WAL entry");
 
