@@ -7,11 +7,12 @@ use influxdb_influxql_parser::common::{
     LimitClause, MeasurementName, OffsetClause, OrderByClause, QualifiedMeasurementName,
     WhereClause,
 };
-use influxdb_influxql_parser::expression::Expr;
+use influxdb_influxql_parser::expression::{ConditionalExpression, Expr};
 use influxdb_influxql_parser::select::{
     FieldList, FillClause, FromMeasurementClause, GroupByClause, MeasurementSelection,
     SelectStatement, TimeZoneClause,
 };
+use influxdb_influxql_parser::time_range::TimeRange;
 use schema::{InfluxColumnType, Schema};
 use std::collections::HashSet;
 use std::fmt::{Display, Formatter};
@@ -38,8 +39,12 @@ pub(super) struct Select {
     /// A list of data sources for the selection.
     pub(super) from: Vec<DataSource>,
 
-    /// A conditional expression to filter the selection.
-    pub(super) condition: Option<WhereClause>,
+    /// A conditional expression to filter the selection, excluding any predicates for the `time`
+    /// column.
+    pub(super) condition: Option<ConditionalExpression>,
+
+    /// The time range derived from the `WHERE` clause of the `SELECT` statement.
+    pub(super) time_range: Option<TimeRange>,
 
     /// The GROUP BY clause of the selection.
     pub(super) group_by: Option<GroupByClause>,
@@ -100,7 +105,7 @@ impl From<Select> for SelectStatement {
                     })
                     .collect(),
             ),
-            condition: value.condition,
+            condition: where_clause(value.condition, value.time_range),
             group_by: value.group_by,
             fill: value.fill,
             order_by: value.order_by,
@@ -110,6 +115,34 @@ impl From<Select> for SelectStatement {
             series_offset: None,
             timezone: value.timezone.map(TimeZoneClause::new),
         }
+    }
+}
+
+/// Combine the `condition` and `time_range` into a single `WHERE` predicate.
+fn where_clause(
+    condition: Option<ConditionalExpression>,
+    time_range: Option<TimeRange>,
+) -> Option<WhereClause> {
+    let time_expr: Option<ConditionalExpression> = if let Some(t) = time_range {
+        Some(
+            match (t.lower, t.upper) {
+                (Some(lower), Some(upper)) if lower == upper => format!("time = {lower}"),
+                (Some(lower), Some(upper)) => format!("time >= {lower} AND time <= {upper}"),
+                (Some(lower), None) => format!("time >= {lower}"),
+                (None, Some(upper)) => format!("time <= {upper}"),
+                (None, None) => unreachable!(),
+            }
+            .parse()
+            .unwrap(),
+        )
+    } else {
+        None
+    };
+
+    match (time_expr, condition) {
+        (Some(lhs), Some(rhs)) => Some(WhereClause::new(lhs.and(rhs))),
+        (Some(expr), None) | (None, Some(expr)) => Some(WhereClause::new(expr)),
+        (None, None) => None,
     }
 }
 
