@@ -181,59 +181,6 @@ workflows:
     jobs:
       - aws_destroy_by_name
 
-  nightly:
-    triggers:
-      - schedule:
-          cron: "0 5 * * *"
-          filters:
-            branches:
-              only:
-                - "2.1"
-    jobs:
-      - changelog
-      - godeps
-      - test-race:
-          # TODO: Remove this alias as part of https://github.com/influxdata/influxdb/issues/22623
-          name: gotest
-      - test-build:
-          matrix:
-            parameters:
-              os: [ linux, darwin, windows ]
-              arch: [ amd64, arm64 ]
-            exclude:
-              - os: darwin
-                arch: arm64
-              - os: windows
-                arch: arm64
-              # linux/amd64 can be tested directly from our cross-builder image
-              # to save time & enable running with the race detector.
-              - os: linux
-                arch: amd64
-      - test-prebuilt:
-          name: test-linux-arm64
-          executor: linux-arm64
-          requires:
-            - test-build-arm64-linux
-      - test-prebuilt:
-          name: test-darwin
-          executor: darwin
-          requires:
-            - test-build-amd64-darwin
-      - test-prebuilt:
-          name: test-windows
-          executor: windows
-          requires:
-            - test-build-amd64-windows
-      - lint:
-          # TODO: Remove this alias as part of https://github.com/influxdata/influxdb/issues/22623
-          name: golint
-      - fluxtest:
-          requires:
-            - godeps
-      - tlstest:
-          requires:
-            - godeps
-
   build_and_sign_workflow:
     when:
       and:
