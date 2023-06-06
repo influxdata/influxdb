@@ -367,12 +367,12 @@ impl TimeRange {
     }
 
     /// Update the receiver so it is the intersection with `other`.
-    fn intersect(&mut self, other: TimeRange) {
+    fn intersect(&mut self, other: Self) {
         *self = self.intersected(other)
     }
 
     /// Return a time range that is the intersection of the receiver and `other`.
-    pub fn intersected(self, other: TimeRange) -> Self {
+    pub fn intersected(self, other: Self) -> Self {
         let lower = other.lower.map_or(self.lower, |other| match self.lower {
             None => Some(other),
             Some(existing) if other > existing => Some(other),
