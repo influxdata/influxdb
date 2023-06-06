@@ -24,7 +24,7 @@
 ----------
 | logical_plan    | Projection: date_bin_gapfill(IntervalMonthDayNano("600000000000"),cpu.time) AS minute, COUNT(cpu.user)    |
 |    |   GapFill: groupBy=[[date_bin_gapfill(IntervalMonthDayNano("600000000000"),cpu.time)]], aggr=[[COUNT(cpu.user)]], time_column=date_bin_gapfill(IntervalMonthDayNano("600000000000"),cpu.time), stride=IntervalMonthDayNano("600000000000"), range=Included(TimestampNanosecond(957528000000000000, None))..Included(TimestampNanosecond(957531540000000000, None))    |
-|    |     Aggregate: groupBy=[[datebin(IntervalMonthDayNano("600000000000"), cpu.time) AS date_bin_gapfill(IntervalMonthDayNano("600000000000"),cpu.time)]], aggr=[[COUNT(cpu.user)]]    |
+|    |     Aggregate: groupBy=[[date_bin(IntervalMonthDayNano("600000000000"), cpu.time) AS date_bin_gapfill(IntervalMonthDayNano("600000000000"),cpu.time)]], aggr=[[COUNT(cpu.user)]]    |
 |    |       TableScan: cpu projection=[time, user], full_filters=[cpu.time >= TimestampNanosecond(957528000000000000, None), cpu.time <= TimestampNanosecond(957531540000000000, None)]    |
 | physical_plan    | ProjectionExec: expr=[date_bin_gapfill(IntervalMonthDayNano("600000000000"),cpu.time)@0 as minute, COUNT(cpu.user)@1 as COUNT(cpu.user)]    |
 |    |   GapFillExec: group_expr=[date_bin_gapfill(IntervalMonthDayNano("600000000000"),cpu.time)@0], aggr_expr=[COUNT(cpu.user)@1], stride=600000000000, time_range=Included("957528000000000000")..Included("957531540000000000")    |
@@ -33,7 +33,7 @@
 |    |         AggregateExec: mode=FinalPartitioned, gby=[date_bin_gapfill(IntervalMonthDayNano("600000000000"),cpu.time)@0 as date_bin_gapfill(IntervalMonthDayNano("600000000000"),cpu.time)], aggr=[COUNT(cpu.user)]    |
 |    |           CoalesceBatchesExec: target_batch_size=8192    |
 |    |             RepartitionExec: partitioning=Hash([Column { name: "date_bin_gapfill(IntervalMonthDayNano(\"600000000000\"),cpu.time)", index: 0 }], 4), input_partitions=4    |
-|    |               AggregateExec: mode=Partial, gby=[datebin(600000000000, time@0) as date_bin_gapfill(IntervalMonthDayNano("600000000000"),cpu.time)], aggr=[COUNT(cpu.user)]    |
+|    |               AggregateExec: mode=Partial, gby=[date_bin(600000000000, time@0) as date_bin_gapfill(IntervalMonthDayNano("600000000000"),cpu.time)], aggr=[COUNT(cpu.user)]    |
 |    |                 RepartitionExec: partitioning=RoundRobinBatch(4), input_partitions=1    |
 |    |                   CoalesceBatchesExec: target_batch_size=8192    |
 |    |                     FilterExec: time@0 >= 957528000000000000 AND time@0 <= 957531540000000000    |
@@ -117,7 +117,7 @@ Error during planning: gap-filling query is missing lower time bound
 ----------
 | logical_plan    | Projection: cpu.region, date_bin_gapfill(IntervalMonthDayNano("600000000000"),cpu.time) AS minute, AVG(cpu.user) AS locf(AVG(cpu.user))    |
 |    |   GapFill: groupBy=[[cpu.region, date_bin_gapfill(IntervalMonthDayNano("600000000000"),cpu.time)]], aggr=[[LOCF(AVG(cpu.user))]], time_column=date_bin_gapfill(IntervalMonthDayNano("600000000000"),cpu.time), stride=IntervalMonthDayNano("600000000000"), range=Included(TimestampNanosecond(957528000000000000, None))..Included(TimestampNanosecond(957531540000000000, None))    |
-|    |     Aggregate: groupBy=[[cpu.region, datebin(IntervalMonthDayNano("600000000000"), cpu.time) AS date_bin_gapfill(IntervalMonthDayNano("600000000000"),cpu.time)]], aggr=[[AVG(cpu.user)]]    |
+|    |     Aggregate: groupBy=[[cpu.region, date_bin(IntervalMonthDayNano("600000000000"), cpu.time) AS date_bin_gapfill(IntervalMonthDayNano("600000000000"),cpu.time)]], aggr=[[AVG(cpu.user)]]    |
 |    |       TableScan: cpu projection=[region, time, user], full_filters=[cpu.time >= TimestampNanosecond(957528000000000000, None), cpu.time <= TimestampNanosecond(957531540000000000, None)]    |
 | physical_plan    | ProjectionExec: expr=[region@0 as region, date_bin_gapfill(IntervalMonthDayNano("600000000000"),cpu.time)@1 as minute, AVG(cpu.user)@2 as locf(AVG(cpu.user))]    |
 |    |   GapFillExec: group_expr=[region@0, date_bin_gapfill(IntervalMonthDayNano("600000000000"),cpu.time)@1], aggr_expr=[LOCF(AVG(cpu.user)@2)], stride=600000000000, time_range=Included("957528000000000000")..Included("957531540000000000")    |
@@ -126,7 +126,7 @@ Error during planning: gap-filling query is missing lower time bound
 |    |         AggregateExec: mode=FinalPartitioned, gby=[region@0 as region, date_bin_gapfill(IntervalMonthDayNano("600000000000"),cpu.time)@1 as date_bin_gapfill(IntervalMonthDayNano("600000000000"),cpu.time)], aggr=[AVG(cpu.user)]    |
 |    |           CoalesceBatchesExec: target_batch_size=8192    |
 |    |             RepartitionExec: partitioning=Hash([Column { name: "region", index: 0 }, Column { name: "date_bin_gapfill(IntervalMonthDayNano(\"600000000000\"),cpu.time)", index: 1 }], 4), input_partitions=4    |
-|    |               AggregateExec: mode=Partial, gby=[region@0 as region, datebin(600000000000, time@1) as date_bin_gapfill(IntervalMonthDayNano("600000000000"),cpu.time)], aggr=[AVG(cpu.user)], ordering_mode=PartiallyOrdered    |
+|    |               AggregateExec: mode=Partial, gby=[region@0 as region, date_bin(600000000000, time@1) as date_bin_gapfill(IntervalMonthDayNano("600000000000"),cpu.time)], aggr=[AVG(cpu.user)], ordering_mode=PartiallyOrdered    |
 |    |                 RepartitionExec: partitioning=RoundRobinBatch(4), input_partitions=1    |
 |    |                   CoalesceBatchesExec: target_batch_size=8192    |
 |    |                     FilterExec: time@1 >= 957528000000000000 AND time@1 <= 957531540000000000    |

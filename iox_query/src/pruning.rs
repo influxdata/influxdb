@@ -210,7 +210,7 @@ fn get_aggregate(stats: &ColumnStatistics, aggregate: Aggregate) -> Option<&Scal
 
 #[cfg(test)]
 mod test {
-    use std::sync::Arc;
+    use std::{ops::Not, sync::Arc};
 
     use datafusion::prelude::{col, lit};
     use datafusion_util::lit_dict;

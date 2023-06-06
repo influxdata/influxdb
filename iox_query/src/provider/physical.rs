@@ -301,6 +301,9 @@ pub fn chunks_to_physical_nodes(
             is_exact: false,
         };
 
+        // No sort order is represented by an empty Vec
+        let output_ordering = vec![output_ordering.unwrap_or_default()];
+
         let base_config = FileScanConfig {
             object_store_url,
             file_schema,

@@ -22,12 +22,13 @@ use crate::{
 };
 
 /// An error generating a partition key for a row.
+#[allow(missing_copy_implementations)]
 #[derive(Debug, Error, PartialEq, Eq)]
 pub enum PartitionKeyError {
     /// The partition template defines a [`Template::TimeFormat`] part, but the
     /// provided strftime formatter is invalid.
-    #[error("invalid strftime format in partition template: {0}")]
-    InvalidStrftime(String),
+    #[error("invalid strftime format in partition template")]
+    InvalidStrftime,
 
     /// The partition template defines a [`Template::TagValue`] part, but the
     /// column type is not "tag".
@@ -93,7 +94,7 @@ impl<'a> Template<'a> {
                     Utc.timestamp_nanos(t[idx])
                         .format_with_items(format.clone()) // Cheap clone of refs
                 )
-                .map_err(|_| PartitionKeyError::InvalidStrftime(format!("{format:?}")))?;
+                .map_err(|_| PartitionKeyError::InvalidStrftime)?;
 
                 out.write_str(
                     Cow::from(utf8_percent_encode(
@@ -145,9 +146,18 @@ fn partition_keys<'a>(
         })
         .collect::<Vec<_>>();
 
+    // Track the length of the last yielded partition key, and pre-allocate the
+    // next partition key string to match it.
+    //
+    // In the happy path, keys of consistent sizes are generated and the
+    // allocations reach a minimum. If the keys are inconsistent, at best a
+    // subset of allocations are eliminated, and at worst, a few bytes of memory
+    // is temporarily allocated until the resulting string is shrunk down.
+    let mut last_len = 5;
+
     // Yield a partition key string for each row in `batch`
     (0..batch.row_count).map(move |idx| {
-        let mut string = String::new();
+        let mut string = String::with_capacity(last_len);
 
         // Evaluate each template part for this row
         for (col_idx, col) in template.iter().enumerate() {
@@ -160,6 +170,8 @@ fn partition_keys<'a>(
             }
         }
 
+        last_len = string.len();
+        string.shrink_to_fit();
         Ok(string)
     })
 }
@@ -474,7 +486,7 @@ mod tests {
 
         let ret = partition_keys(&batch, template.parts()).collect::<Result<Vec<_>, _>>();
 
-        assert_matches!(ret, Err(PartitionKeyError::InvalidStrftime(_)));
+        assert_matches!(ret, Err(PartitionKeyError::InvalidStrftime));
     }
 
     // These values are arbitrarily chosen when building an input to the
@@ -605,7 +617,7 @@ mod tests {
             // properties:
             match ret {
                 Ok(v) => { assert_eq!(v.len(), 1); },
-                Err(e) => { assert_matches!(e, PartitionKeyError::InvalidStrftime(_)); },
+                Err(e) => { assert_matches!(e, PartitionKeyError::InvalidStrftime); },
             }
         }
     }

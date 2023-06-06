@@ -497,7 +497,7 @@ where
         };
 
         let request = request?;
-        let namespace_name = request.namespace_name();
+        let namespace_name = request.database();
         let query = request.query();
         is_debug |= request.is_debug();
 

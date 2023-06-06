@@ -47,11 +47,11 @@ pub type Result<T, E = Error> = std::result::Result<T, E>;
 ///
 /// ## Example JSON Ticket format
 ///
-/// This runs the SQL "SELECT 1" in namespace `my_db`
+/// This runs the SQL "SELECT 1" in database `my_db`
 ///
 /// ```json
 /// {
-///   "namespace_name": "my_db",
+///   "database": "my_db",
 ///   "sql_query": "SELECT 1;"
 /// }
 /// ```
@@ -60,7 +60,7 @@ pub type Result<T, E = Error> = std::result::Result<T, E>;
 ///
 /// ```json
 /// {
-///   "namespace_name": "my_db",
+///   "database": "my_db",
 ///   "sql_query": "SELECT 1;"
 ///   "query_type": "sql"
 /// }
@@ -70,14 +70,14 @@ pub type Result<T, E = Error> = std::result::Result<T, E>;
 ///
 /// ```json
 /// {
-///   "namespace_name": "my_db",
+///   "database": "my_db",
 ///   "sql_query": "SHOW DATABASES;"
 ///   "query_type": "influxql"
 /// }
 /// ```
 #[derive(Debug, PartialEq, Clone)]
 pub struct IoxGetRequest {
-    namespace_name: String,
+    database: String,
     query: RunQuery,
     is_debug: bool,
 }
@@ -116,9 +116,9 @@ impl Display for RunQuery {
 
 impl IoxGetRequest {
     /// Create a new request to run the specified query
-    pub fn new(namespace_name: impl Into<String>, query: RunQuery, is_debug: bool) -> Self {
+    pub fn new(database: impl Into<String>, query: RunQuery, is_debug: bool) -> Self {
         Self {
-            namespace_name: namespace_name.into(),
+            database: database.into(),
             query,
             is_debug,
         }
@@ -142,21 +142,21 @@ impl IoxGetRequest {
     /// Encode the request as a protobuf Ticket
     pub fn try_encode(self) -> Result<Ticket> {
         let Self {
-            namespace_name,
+            database,
             query,
             is_debug,
         } = self;
 
         let read_info = match query {
             RunQuery::Sql(sql_query) => proto::ReadInfo {
-                namespace_name,
+                database,
                 sql_query,
                 query_type: QueryType::Sql.into(),
                 flightsql_command: vec![],
                 is_debug,
             },
             RunQuery::InfluxQL(influxql) => proto::ReadInfo {
-                namespace_name,
+                database,
                 // field name is misleading
                 sql_query: influxql,
                 query_type: QueryType::InfluxQl.into(),
@@ -164,7 +164,7 @@ impl IoxGetRequest {
                 is_debug,
             },
             RunQuery::FlightSQL(flightsql_command) => proto::ReadInfo {
-                namespace_name,
+                database,
                 sql_query: "".into(),
                 query_type: QueryType::FlightSqlMessage.into(),
                 flightsql_command: flightsql_command
@@ -189,8 +189,8 @@ impl IoxGetRequest {
         /// This represents ths JSON fields
         #[derive(Deserialize, Debug)]
         struct ReadInfoJson {
-            #[serde(alias = "database", alias = "bucket", alias = "bucket-name")]
-            namespace_name: String,
+            #[serde(alias = "namespace_name", alias = "bucket", alias = "bucket-name")]
+            database: String,
             sql_query: String,
             // If query type is not supplied, defaults to SQL
             query_type: Option<String>,
@@ -199,7 +199,7 @@ impl IoxGetRequest {
         }
 
         let ReadInfoJson {
-            namespace_name,
+            database,
             sql_query,
             query_type,
             is_debug,
@@ -221,7 +221,7 @@ impl IoxGetRequest {
         };
 
         Ok(Self {
-            namespace_name,
+            database,
             query,
             is_debug,
         })
@@ -233,7 +233,7 @@ impl IoxGetRequest {
 
         let query_type = read_info.query_type();
         let proto::ReadInfo {
-            namespace_name,
+            database,
             sql_query,
             query_type: _,
             flightsql_command,
@@ -241,7 +241,7 @@ impl IoxGetRequest {
         } = read_info;
 
         Ok(Self {
-            namespace_name,
+            database,
             query: match query_type {
                 QueryType::Unspecified | QueryType::Sql => {
                     if !flightsql_command.is_empty() {
@@ -277,8 +277,8 @@ impl IoxGetRequest {
         })
     }
 
-    pub fn namespace_name(&self) -> &str {
-        self.namespace_name.as_ref()
+    pub fn database(&self) -> &str {
+        self.database.as_ref()
     }
 
     pub fn query(&self) -> &RunQuery {
@@ -306,10 +306,10 @@ mod tests {
         // - <https://github.com/influxdata/influxdb-iox-client-go/commit/52f1a1b8d5bb8cc8dc2fe825f4da630ad0b9167c
         //
         // Do not change this test without having first changed what the Go clients are sending!
-        let ticket = make_json_ticket(r#"{"namespace_name": "my_db", "sql_query": "SELECT 1;"}"#);
+        let ticket = make_json_ticket(r#"{"database": "my_db", "sql_query": "SELECT 1;"}"#);
         let ri = IoxGetRequest::try_decode(ticket).unwrap();
 
-        assert_eq!(ri.namespace_name, "my_db");
+        assert_eq!(ri.database, "my_db");
         assert_matches!(ri.query, RunQuery::Sql(query) => assert_eq!(query, "SELECT 1;"));
     }
 
@@ -321,22 +321,22 @@ mod tests {
         }
 
         impl TestCase {
-            fn new_sql(json: &'static str, expected_namespace: &str, query: &str) -> Self {
+            fn new_sql(json: &'static str, expected_database: &str, query: &str) -> Self {
                 Self {
                     json,
                     expected: IoxGetRequest {
-                        namespace_name: String::from(expected_namespace),
+                        database: String::from(expected_database),
                         query: RunQuery::Sql(String::from(query)),
                         is_debug: false,
                     },
                 }
             }
 
-            fn new_influxql(json: &'static str, expected_namespace: &str, query: &str) -> Self {
+            fn new_influxql(json: &'static str, expected_database: &str, query: &str) -> Self {
                 Self {
                     json,
                     expected: IoxGetRequest {
-                        namespace_name: String::from(expected_namespace),
+                        database: String::from(expected_database),
                         query: RunQuery::InfluxQL(String::from(query)),
                         is_debug: false,
                     },
@@ -347,62 +347,129 @@ mod tests {
         let cases = vec![
             // implict `query_type`
             TestCase::new_sql(
+                r#"{"database": "my_db", "sql_query": "SELECT 1;"}"#,
+                "my_db",
+                "SELECT 1;",
+            ),
+            TestCase::new_sql(
                 r#"{"namespace_name": "my_db", "sql_query": "SELECT 1;"}"#,
+                "my_db",
+                "SELECT 1;",
+            ),
+            TestCase::new_sql(
+                r#"{"bucket": "my_db", "sql_query": "SELECT 1;"}"#,
+                "my_db",
+                "SELECT 1;",
+            ),
+            TestCase::new_sql(
+                r#"{"bucket-name": "my_db", "sql_query": "SELECT 1;"}"#,
                 "my_db",
                 "SELECT 1;",
             ),
             // explicit query type, sql
             TestCase::new_sql(
+                r#"{"database": "my_db", "sql_query": "SELECT 1;", "query_type": "sql"}"#,
+                "my_db",
+                "SELECT 1;",
+            ),
+            TestCase::new_sql(
                 r#"{"namespace_name": "my_db", "sql_query": "SELECT 1;", "query_type": "sql"}"#,
+                "my_db",
+                "SELECT 1;",
+            ),
+            TestCase::new_sql(
+                r#"{"bucket": "my_db", "sql_query": "SELECT 1;", "query_type": "sql"}"#,
+                "my_db",
+                "SELECT 1;",
+            ),
+            TestCase::new_sql(
+                r#"{"bucket-name": "my_db", "sql_query": "SELECT 1;", "query_type": "sql"}"#,
                 "my_db",
                 "SELECT 1;",
             ),
             // explicit query type null
             TestCase::new_sql(
+                r#"{"database": "my_db", "sql_query": "SELECT 1;", "query_type": null}"#,
+                "my_db",
+                "SELECT 1;",
+            ),
+            TestCase::new_sql(
                 r#"{"namespace_name": "my_db", "sql_query": "SELECT 1;", "query_type": null}"#,
                 "my_db",
                 "SELECT 1;",
             ),
+            TestCase::new_sql(
+                r#"{"bucket": "my_db", "sql_query": "SELECT 1;", "query_type": null}"#,
+                "my_db",
+                "SELECT 1;",
+            ),
+            TestCase::new_sql(
+                r#"{"bucket-name": "my_db", "sql_query": "SELECT 1;", "query_type": null}"#,
+                "my_db",
+                "SELECT 1;",
+            ),
             // explicit query type, influxql
+            TestCase::new_influxql(
+                r#"{"database": "my_db", "sql_query": "SELECT 1;", "query_type": "influxql"}"#,
+                "my_db",
+                "SELECT 1;",
+            ),
+            TestCase::new_influxql(
+                r#"{"namespace_name": "my_db", "sql_query": "SELECT 1;", "query_type": "influxql"}"#,
+                "my_db",
+                "SELECT 1;",
+            ),
+            TestCase::new_influxql(
+                r#"{"bucket": "my_db", "sql_query": "SELECT 1;", "query_type": "influxql"}"#,
+                "my_db",
+                "SELECT 1;",
+            ),
+            TestCase::new_influxql(
+                r#"{"bucket-name": "my_db", "sql_query": "SELECT 1;", "query_type": "influxql"}"#,
+                "my_db",
+                "SELECT 1;",
+            ),
+            // explicit query type, influxql on metadata
+            TestCase::new_influxql(
+                r#"{"database": "my_otherdb", "sql_query": "SHOW DATABASES;", "query_type": "influxql"}"#,
+                "my_otherdb",
+                "SHOW DATABASES;",
+            ),
             TestCase::new_influxql(
                 r#"{"namespace_name": "my_otherdb", "sql_query": "SHOW DATABASES;", "query_type": "influxql"}"#,
                 "my_otherdb",
                 "SHOW DATABASES;",
             ),
             TestCase::new_influxql(
-                r#"{"database": "my_otherdb", "sql_query": "SHOW DATABASES;", "query_type": "influxql"}"#,
-                "my_otherdb",
-                "SHOW DATABASES;",
-            ),
-            // influxql bucket metadata
-            TestCase::new_influxql(
                 r#"{"bucket": "my_otherdb", "sql_query": "SHOW DATABASES;", "query_type": "influxql"}"#,
                 "my_otherdb",
                 "SHOW DATABASES;",
             ),
-            // influxql bucket-name metadata
             TestCase::new_influxql(
                 r#"{"bucket-name": "my_otherdb", "sql_query": "SHOW DATABASES;", "query_type": "influxql"}"#,
                 "my_otherdb",
                 "SHOW DATABASES;",
             ),
-            // sql database metadata
+            // explicit query type, sql on metadata
             TestCase::new_sql(
-                r#"{"database": "my_db", "sql_query": "SELECT 1;", "query_type": "sql"}"#,
-                "my_db",
-                "SELECT 1;",
+                r#"{"database": "my_otherdb", "sql_query": "SHOW DATABASES;", "query_type": "sql"}"#,
+                "my_otherdb",
+                "SHOW DATABASES;",
             ),
-            // sql bucket metadata
             TestCase::new_sql(
-                r#"{"bucket": "my_db", "sql_query": "SELECT 1;", "query_type": "sql"}"#,
-                "my_db",
-                "SELECT 1;",
+                r#"{"namespace_name": "my_otherdb", "sql_query": "SHOW DATABASES;", "query_type": "sql"}"#,
+                "my_otherdb",
+                "SHOW DATABASES;",
             ),
-            // sql bucket-name metadata
             TestCase::new_sql(
-                r#"{"bucket-name": "my_db", "sql_query": "SELECT 1;", "query_type": "sql"}"#,
-                "my_db",
-                "SELECT 1;",
+                r#"{"bucket": "my_otherdb", "sql_query": "SHOW DATABASES;", "query_type": "sql"}"#,
+                "my_otherdb",
+                "SHOW DATABASES;",
+            ),
+            TestCase::new_sql(
+                r#"{"bucket-name": "my_otherdb", "sql_query": "SHOW DATABASES;", "query_type": "sql"}"#,
+                "my_otherdb",
+                "SHOW DATABASES;",
             ),
         ];
 
@@ -446,7 +513,7 @@ mod tests {
     #[test]
     fn proto_ticket_decoding_unspecified() {
         let ticket = make_proto_ticket(&proto::ReadInfo {
-            namespace_name: "<foo>_<bar>".to_string(),
+            database: "<foo>_<bar>".to_string(),
             sql_query: "SELECT 1".to_string(),
             query_type: QueryType::Unspecified.into(),
             flightsql_command: vec![],
@@ -455,14 +522,14 @@ mod tests {
 
         // Reverts to default (unspecified) for invalid query_type enumeration, and thus SQL
         let ri = IoxGetRequest::try_decode(ticket).unwrap();
-        assert_eq!(ri.namespace_name, "<foo>_<bar>");
+        assert_eq!(ri.database, "<foo>_<bar>");
         assert_matches!(ri.query, RunQuery::Sql(query) => assert_eq!(query, "SELECT 1"));
     }
 
     #[test]
     fn proto_ticket_decoding_sql() {
         let ticket = make_proto_ticket(&proto::ReadInfo {
-            namespace_name: "<foo>_<bar>".to_string(),
+            database: "<foo>_<bar>".to_string(),
             sql_query: "SELECT 1".to_string(),
             query_type: QueryType::Sql.into(),
             flightsql_command: vec![],
@@ -470,14 +537,14 @@ mod tests {
         });
 
         let ri = IoxGetRequest::try_decode(ticket).unwrap();
-        assert_eq!(ri.namespace_name, "<foo>_<bar>");
+        assert_eq!(ri.database, "<foo>_<bar>");
         assert_matches!(ri.query, RunQuery::Sql(query) => assert_eq!(query, "SELECT 1"));
     }
 
     #[test]
     fn proto_ticket_decoding_influxql() {
         let ticket = make_proto_ticket(&proto::ReadInfo {
-            namespace_name: "<foo>_<bar>".to_string(),
+            database: "<foo>_<bar>".to_string(),
             sql_query: "SELECT 1".to_string(),
             query_type: QueryType::InfluxQl.into(),
             flightsql_command: vec![],
@@ -485,14 +552,14 @@ mod tests {
         });
 
         let ri = IoxGetRequest::try_decode(ticket).unwrap();
-        assert_eq!(ri.namespace_name, "<foo>_<bar>");
+        assert_eq!(ri.database, "<foo>_<bar>");
         assert_matches!(ri.query, RunQuery::InfluxQL(query) => assert_eq!(query, "SELECT 1"));
     }
 
     #[test]
     fn proto_ticket_decoding_too_new() {
         let ticket = make_proto_ticket(&proto::ReadInfo {
-            namespace_name: "<foo>_<bar>".to_string(),
+            database: "<foo>_<bar>".to_string(),
             sql_query: "SELECT 1".into(),
             query_type: 42, // not a known query type
             flightsql_command: vec![],
@@ -501,14 +568,14 @@ mod tests {
 
         // Reverts to default (unspecified) for invalid query_type enumeration, and thus SQL
         let ri = IoxGetRequest::try_decode(ticket).unwrap();
-        assert_eq!(ri.namespace_name, "<foo>_<bar>");
+        assert_eq!(ri.database, "<foo>_<bar>");
         assert_matches!(ri.query, RunQuery::Sql(query) => assert_eq!(query, "SELECT 1"));
     }
 
     #[test]
     fn proto_ticket_decoding_sql_too_many_fields() {
         let ticket = make_proto_ticket(&proto::ReadInfo {
-            namespace_name: "<foo>_<bar>".to_string(),
+            database: "<foo>_<bar>".to_string(),
             sql_query: "SELECT 1".to_string(),
             query_type: QueryType::Sql.into(),
             // can't have both sql_query and flightsql
@@ -523,7 +590,7 @@ mod tests {
     #[test]
     fn proto_ticket_decoding_influxql_too_many_fields() {
         let ticket = make_proto_ticket(&proto::ReadInfo {
-            namespace_name: "<foo>_<bar>".to_string(),
+            database: "<foo>_<bar>".to_string(),
             sql_query: "SELECT 1".to_string(),
             query_type: QueryType::InfluxQl.into(),
             // can't have both sql_query and flightsql
@@ -538,7 +605,7 @@ mod tests {
     #[test]
     fn proto_ticket_decoding_flightsql_too_many_fields() {
         let ticket = make_proto_ticket(&proto::ReadInfo {
-            namespace_name: "<foo>_<bar>".to_string(),
+            database: "<foo>_<bar>".to_string(),
             sql_query: "SELECT 1".to_string(),
             query_type: QueryType::FlightSqlMessage.into(),
             // can't have both sql_query and flightsql
@@ -564,7 +631,7 @@ mod tests {
     #[test]
     fn round_trip_sql() {
         let request = IoxGetRequest {
-            namespace_name: "foo_blarg".into(),
+            database: "foo_blarg".into(),
             query: RunQuery::Sql("select * from bar".into()),
             is_debug: false,
         };
@@ -579,7 +646,7 @@ mod tests {
     #[test]
     fn round_trip_sql_is_debug() {
         let request = IoxGetRequest {
-            namespace_name: "foo_blarg".into(),
+            database: "foo_blarg".into(),
             query: RunQuery::Sql("select * from bar".into()),
             is_debug: true,
         };
@@ -594,7 +661,7 @@ mod tests {
     #[test]
     fn round_trip_influxql() {
         let request = IoxGetRequest {
-            namespace_name: "foo_blarg".into(),
+            database: "foo_blarg".into(),
             query: RunQuery::InfluxQL("select * from bar".into()),
             is_debug: false,
         };
@@ -613,7 +680,7 @@ mod tests {
         });
 
         let request = IoxGetRequest {
-            namespace_name: "foo_blarg".into(),
+            database: "foo_blarg".into(),
             query: RunQuery::FlightSQL(cmd),
             is_debug: false,
         };
