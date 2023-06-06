@@ -255,7 +255,7 @@ fn is_col_op_lit(expr: &Expr) -> Option<&str> {
 
 #[cfg(test)]
 mod tests {
-    use std::ops::Add;
+    use std::ops::{Add, Not};
 
     use super::*;
     use arrow::datatypes::DataType;

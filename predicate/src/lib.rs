@@ -34,6 +34,7 @@ use schema::TIME_COLUMN_NAME;
 use std::{
     collections::{BTreeSet, HashSet},
     fmt,
+    ops::Not,
 };
 
 /// This `Predicate` represents the empty predicate (aka that evaluates to true for all rows).

@@ -126,7 +126,7 @@ pub(crate) fn df_to_scalar(
 
 #[cfg(test)]
 mod tests {
-    use std::sync::Arc;
+    use std::{ops::Not, sync::Arc};
 
     use arrow::datatypes::Field;
     use test_helpers::assert_contains;
