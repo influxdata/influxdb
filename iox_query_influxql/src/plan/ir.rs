@@ -7,11 +7,12 @@ use influxdb_influxql_parser::common::{
     LimitClause, MeasurementName, OffsetClause, OrderByClause, QualifiedMeasurementName,
     WhereClause,
 };
-use influxdb_influxql_parser::expression::Expr;
+use influxdb_influxql_parser::expression::{ConditionalExpression, Expr};
 use influxdb_influxql_parser::select::{
     FieldList, FillClause, FromMeasurementClause, GroupByClause, MeasurementSelection,
     SelectStatement, TimeZoneClause,
 };
+use influxdb_influxql_parser::time_range::TimeRange;
 use schema::{InfluxColumnType, Schema};
 use std::collections::HashSet;
 use std::fmt::{Display, Formatter};
@@ -38,8 +39,12 @@ pub(super) struct Select {
     /// A list of data sources for the selection.
     pub(super) from: Vec<DataSource>,
 
-    /// A conditional expression to filter the selection.
-    pub(super) condition: Option<WhereClause>,
+    /// A conditional expression to filter the selection, excluding any predicates for the `time`
+    /// column.
+    pub(super) condition: Option<ConditionalExpression>,
+
+    /// The time range derived from the `WHERE` clause of the `SELECT` statement.
+    pub(super) time_range: TimeRange,
 
     /// The GROUP BY clause of the selection.
     pub(super) group_by: Option<GroupByClause>,
@@ -100,7 +105,7 @@ impl From<Select> for SelectStatement {
                     })
                     .collect(),
             ),
-            condition: value.condition,
+            condition: where_clause(value.condition, value.time_range),
             group_by: value.group_by,
             fill: value.fill,
             order_by: value.order_by,
@@ -110,6 +115,32 @@ impl From<Select> for SelectStatement {
             series_offset: None,
             timezone: value.timezone.map(TimeZoneClause::new),
         }
+    }
+}
+
+/// Combine the `condition` and `time_range` into a single `WHERE` predicate.
+fn where_clause(
+    condition: Option<ConditionalExpression>,
+    time_range: TimeRange,
+) -> Option<WhereClause> {
+    let time_expr: Option<ConditionalExpression> = match (time_range.lower, time_range.upper) {
+        (Some(lower), Some(upper)) if lower == upper => {
+            Some(format!("time = {lower}").parse().unwrap())
+        }
+        (Some(lower), Some(upper)) => Some(
+            format!("time >= {lower} AND time <= {upper}")
+                .parse()
+                .unwrap(),
+        ),
+        (Some(lower), None) => Some(format!("time >= {lower}").parse().unwrap()),
+        (None, Some(upper)) => Some(format!("time <= {upper}").parse().unwrap()),
+        (None, None) => None,
+    };
+
+    match (time_expr, condition) {
+        (Some(lhs), Some(rhs)) => Some(WhereClause::new(lhs.and(rhs))),
+        (Some(expr), None) | (None, Some(expr)) => Some(WhereClause::new(expr)),
+        (None, None) => None,
     }
 }
 

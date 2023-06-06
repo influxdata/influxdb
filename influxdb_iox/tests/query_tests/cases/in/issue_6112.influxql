@@ -90,7 +90,13 @@ SELECT cpu, usage_idle FROM cpu WHERE cpu = 'cpu0' OR cpu = 'cpu1' AND time >= 1
 -- evaluates to false, like InfluxQL
 SELECT cpu, usage_idle FROM cpu WHERE time >= 1667181610000000000 OR time = 1667181600000000000;
 
--- BONUS: InfluxQL now supports combining equality with OR
+-- Multiple timestamps combined with OR not supported
+--
+-- This is a side effect of supporting InfluxQL expecting a single time range in order to
+--
+-- 1. Push the outer time range to subqueries, if the bounds are narrower; and
+-- 2. correctly identifying lower and upper bounds for GROUP BY time
+--
 SELECT cpu, usage_idle FROM cpu WHERE time = 1667181610000000000 OR time = 1667181600000000000 AND cpu = 'cpu0';
 SELECT cpu, usage_idle FROM cpu WHERE time = 1667181610000000000 OR time = 1667181600000000000;
 
@@ -622,3 +628,14 @@ SELECT last(sum_idle), last(sum_system) FROM (SELECT sum(usage_idle) AS sum_idle
 -- A possible fix is to introduce a column that assigned a unique number to
 -- each subquery to ensure the results are deterministic.
 -- SELECT last(*) FROM (SELECT sum(usage_idle) AS sum_idle FROM cpu WHERE cpu = 'cpu-total' GROUP BY time(10s)), (SELECT sum(usage_system) AS sum_idle FROM cpu WHERE cpu = 'cpu-total' GROUP BY time(10s)) GROUP BY time(10s) FILL(none);
+
+-- subquery time range should be restricted
+SELECT COUNT(usage_idle) FROM (SELECT cpu, usage_idle FROM cpu WHERE time >= '2022-10-31T02:00:00Z' AND time <= '2022-10-31T02:00:30Z') WHERE time >= '2022-10-31T02:00:10Z' AND time <= '2022-10-31T02:00:20Z' GROUP BY time(5s), cpu FILL(0);
+
+SELECT COUNT(usage_idle) FROM cpu WHERE time >= '2022-10-31T02:00:00Z' AND time <= '2022-10-31T02:00:05Z' AND time <= '2022-10-31T02:00:10Z' GROUP BY TIME(10s) FILL(0);
+
+SELECT min, max, max - min FROM (SELECT MIN(usage_idle), MAX(usage_system) FROM cpu GROUP BY TIME(1m));
+SELECT min, max, max - min FROM (SELECT MIN(usage_idle), MAX(usage_system) FROM cpu GROUP BY TIME(10s));
+
+-- the predicate in the outer-most query is the narrowest, and therefore pushed through all the children
+SELECT * FROM (SELECT * FROM (SELECT FIRST(usage_idle) FROM cpu WHERE time >= '2022-10-31T02:00:00Z') WHERE time >= '2022-10-31T02:00:00Z') WHERE time >= '2022-10-31T02:00:10Z';
