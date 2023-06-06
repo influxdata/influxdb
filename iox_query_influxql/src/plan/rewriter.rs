@@ -19,7 +19,7 @@ use influxdb_influxql_parser::select::{
     Dimension, FillClause, FromMeasurementClause, GroupByClause, MeasurementSelection,
     SelectStatement,
 };
-use influxdb_influxql_parser::time_range::{split_cond, ReduceContext};
+use influxdb_influxql_parser::time_range::{split_cond, ReduceContext, TimeRange};
 use influxdb_influxql_parser::timestamp::Timestamp;
 use itertools::Itertools;
 use schema::InfluxColumnType;
@@ -110,7 +110,7 @@ impl RewriteSelect {
                 };
                 split_cond(&rc, &where_clause).map_err(error::map::expr_error)?
             }
-            None => (None, None),
+            None => (None, TimeRange::default()),
         };
 
         let SelectStatementInfo { projection_type } =

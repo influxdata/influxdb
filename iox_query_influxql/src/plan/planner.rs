@@ -140,7 +140,7 @@ struct Context<'a> {
 
     // WHERE
     condition: Option<&'a ConditionalExpression>,
-    time_range: Option<TimeRange>,
+    time_range: TimeRange,
 
     // GROUP BY information
     group_by: Option<&'a GroupByClause>,
@@ -169,6 +169,8 @@ impl<'a> Context<'a> {
         }
     }
 
+    /// Create a new context for the select statement that is
+    /// a subquery of the current context.
     fn subquery(&self, select: &'a Select) -> Self {
         Self {
             table_name: self.table_name,
@@ -1214,7 +1216,7 @@ impl<'a> InfluxQLToLogicalPlan<'a> {
     fn plan_condition_time_range(
         &self,
         condition: Option<&ConditionalExpression>,
-        time_range: Option<TimeRange>,
+        time_range: TimeRange,
         plan: LogicalPlan,
         schemas: &Schemas,
         ds_schema: &DataSourceSchema<'_>,
@@ -1231,7 +1233,7 @@ impl<'a> InfluxQLToLogicalPlan<'a> {
             })
             .transpose()?;
 
-        let time_expr = time_range.map(time_range_to_df_expr).flatten();
+        let time_expr = time_range_to_df_expr(time_range);
 
         let pb = LogicalPlanBuilder::from(plan);
         match (time_expr, filter_expr) {
@@ -1268,17 +1270,21 @@ impl<'a> InfluxQLToLogicalPlan<'a> {
             .unwrap_or_default();
 
         // Add time restriction to logical plan if there isn't any.
-        let time_range = time_range.unwrap_or_else(|| TimeRange {
-            lower: Some(match cutoff {
-                MetadataCutoff::Absolute(dt) => dt.timestamp_nanos(),
-                MetadataCutoff::Relative(delta) => {
-                    start_time.timestamp_nanos() - delta.as_nanos() as i64
-                }
-            }),
-            upper: None,
-        });
+        let time_range = if time_range.is_unbounded() {
+            TimeRange {
+                lower: Some(match cutoff {
+                    MetadataCutoff::Absolute(dt) => dt.timestamp_nanos(),
+                    MetadataCutoff::Relative(delta) => {
+                        start_time.timestamp_nanos() - delta.as_nanos() as i64
+                    }
+                }),
+                upper: None,
+            }
+        } else {
+            time_range
+        };
 
-        self.plan_condition_time_range(cond.as_ref(), Some(time_range), plan, schemas, ds_schema)
+        self.plan_condition_time_range(cond.as_ref(), time_range, plan, schemas, ds_schema)
     }
 
     /// Generate a logical plan for the specified `DataSource`.

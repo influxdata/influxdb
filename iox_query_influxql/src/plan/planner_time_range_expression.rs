@@ -45,9 +45,9 @@ pub(super) fn time_range_to_df_expr(cond: TimeRange) -> Option<DFExpr> {
         // If lower > upper, then the expression lower < time < upper is always false
         (Some(lower), Some(upper)) if lower > upper => Some(lit(false)),
         (lower, upper) => match (lower_bound_to_df_expr(lower), upper_bound_to_df_expr(upper)) {
-            (None, None) => None,
             (Some(e), None) | (None, Some(e)) => Some(e),
             (Some(lower), Some(upper)) => Some(lower.and(upper)),
+            (None, None) => None,
         },
     }
 }

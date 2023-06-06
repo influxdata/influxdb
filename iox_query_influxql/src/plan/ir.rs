@@ -44,7 +44,7 @@ pub(super) struct Select {
     pub(super) condition: Option<ConditionalExpression>,
 
     /// The time range derived from the `WHERE` clause of the `SELECT` statement.
-    pub(super) time_range: Option<TimeRange>,
+    pub(super) time_range: TimeRange,
 
     /// The GROUP BY clause of the selection.
     pub(super) group_by: Option<GroupByClause>,
@@ -121,22 +121,20 @@ impl From<Select> for SelectStatement {
 /// Combine the `condition` and `time_range` into a single `WHERE` predicate.
 fn where_clause(
     condition: Option<ConditionalExpression>,
-    time_range: Option<TimeRange>,
+    time_range: TimeRange,
 ) -> Option<WhereClause> {
-    let time_expr: Option<ConditionalExpression> = if let Some(t) = time_range {
-        Some(
-            match (t.lower, t.upper) {
-                (Some(lower), Some(upper)) if lower == upper => format!("time = {lower}"),
-                (Some(lower), Some(upper)) => format!("time >= {lower} AND time <= {upper}"),
-                (Some(lower), None) => format!("time >= {lower}"),
-                (None, Some(upper)) => format!("time <= {upper}"),
-                (None, None) => unreachable!(),
-            }
-            .parse()
-            .unwrap(),
-        )
-    } else {
-        None
+    let time_expr: Option<ConditionalExpression> = match (time_range.lower, time_range.upper) {
+        (Some(lower), Some(upper)) if lower == upper => {
+            Some(format!("time = {lower}").parse().unwrap())
+        }
+        (Some(lower), Some(upper)) => Some(
+            format!("time >= {lower} AND time <= {upper}")
+                .parse()
+                .unwrap(),
+        ),
+        (Some(lower), None) => Some(format!("time >= {lower}").parse().unwrap()),
+        (None, Some(upper)) => Some(format!("time <= {upper}").parse().unwrap()),
+        (None, None) => None,
     };
 
     match (time_expr, condition) {

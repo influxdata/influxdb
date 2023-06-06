@@ -178,9 +178,9 @@ pub type ExprResult = Result<Expr, ExprError>;
 pub fn split_cond(
     ctx: &ReduceContext,
     cond: &ConditionalExpression,
-) -> Result<(Option<ConditionalExpression>, Option<TimeRange>), ExprError> {
+) -> Result<(Option<ConditionalExpression>, TimeRange), ExprError> {
     if !has_time_range(cond) {
-        return Ok((Some(cond.clone()), None));
+        return Ok((Some(cond.clone()), TimeRange::default()));
     }
 
     let mut time_range = TimeRange::default();
@@ -328,7 +328,7 @@ pub fn split_cond(
         .pop()
         .ok_or_else(|| error::map::internal("expected an element on stack"))?;
 
-    Ok((cond, Some(time_range)))
+    Ok((cond, time_range))
 }
 
 /// Search `cond` for expressions involving the `time` column.
@@ -356,6 +356,11 @@ pub struct TimeRange {
 }
 
 impl TimeRange {
+    /// Returns `true` if the `lower` and `upper` bounds are `None`.
+    pub fn is_unbounded(self) -> bool {
+        self.lower.is_none() && self.upper.is_none()
+    }
+
     fn intersect(&mut self, other: TimeRange) {
         if let Some(other) = other.lower {
             match self.lower {
@@ -719,9 +724,7 @@ mod test {
 
     #[test]
     fn test_split_cond() {
-        fn split_exprs(
-            s: &str,
-        ) -> Result<(Option<ConditionalExpression>, Option<TimeRange>), ExprError> {
+        fn split_exprs(s: &str) -> Result<(Option<ConditionalExpression>, TimeRange), ExprError> {
             // 2023-01-01T00:00:00Z == 1672531200000000000
             let ctx = ReduceContext {
                 now: Some(Timestamp::from_utc(
@@ -791,36 +794,36 @@ mod test {
 
         let (cond, tr) = split_exprs("time >= now() - 1s").unwrap();
         assert!(cond.is_none());
-        assert_eq!(tr.unwrap(), range!(lower = 1672531199000000000));
+        assert_eq!(tr, range!(lower = 1672531199000000000));
 
         // reduces the lower bound to a single expression
         let (cond, tr) = split_exprs("time >= now() - 1s AND time >= now() - 500ms").unwrap();
         assert!(cond.is_none());
-        assert_eq!(tr.unwrap(), range!(lower = 1672531199500000000));
+        assert_eq!(tr, range!(lower = 1672531199500000000));
 
         let (cond, tr) = split_exprs("time <= now() - 1s").unwrap();
         assert!(cond.is_none());
-        assert_eq!(tr.unwrap(), range!(upper = 1672531199000000000));
+        assert_eq!(tr, range!(upper = 1672531199000000000));
 
         // reduces the upper bound to a single expression
         let (cond, tr) = split_exprs("time <= now() + 1s AND time <= now() + 500ms").unwrap();
         assert!(cond.is_none());
-        assert_eq!(tr.unwrap(), range!(upper = 1672531200500000000));
+        assert_eq!(tr, range!(upper = 1672531200500000000));
 
         let (cond, tr) = split_exprs("time >= now() - 1s AND time < now()").unwrap();
         assert!(cond.is_none());
         assert_eq!(
-            tr.unwrap(),
+            tr,
             range!(lower=1672531199000000000, upper ex=1672531200000000000)
         );
 
         let (cond, tr) = split_exprs("time >= now() - 1s AND cpu = 'cpu0'").unwrap();
         assert_eq!(cond.unwrap().to_string(), "cpu = 'cpu0'");
-        assert_eq!(tr.unwrap(), range!(lower = 1672531199000000000));
+        assert_eq!(tr, range!(lower = 1672531199000000000));
 
         let (cond, tr) = split_exprs("time = 0").unwrap();
         assert!(cond.is_none());
-        assert_eq!(tr.unwrap(), range!(eq = 0));
+        assert_eq!(tr, range!(eq = 0));
 
         let (cond, tr) = split_exprs(
             "instance = 'instance-01' OR instance = 'instance-02' AND time >= now() - 1s",
@@ -830,14 +833,14 @@ mod test {
             cond.unwrap().to_string(),
             "instance = 'instance-01' OR instance = 'instance-02'"
         );
-        assert_eq!(tr.unwrap(), range!(lower = 1672531199000000000));
+        assert_eq!(tr, range!(lower = 1672531199000000000));
 
         let (cond, tr) =
             split_exprs("time >= now() - 1s AND time < now() AND cpu = 'cpu0' OR cpu = 'cpu1'")
                 .unwrap();
         assert_eq!(cond.unwrap().to_string(), "cpu = 'cpu0' OR cpu = 'cpu1'");
         assert_eq!(
-            tr.unwrap(),
+            tr,
             range!(lower=1672531199000000000, upper ex=1672531200000000000)
         );
 
@@ -849,7 +852,7 @@ mod test {
                 .unwrap();
         assert_eq!(cond.unwrap().to_string(), "cpu = 'cpu0' OR cpu = 'cpu1'");
         assert_eq!(
-            tr.unwrap(),
+            tr,
             range!(lower=1672531199000000000, upper ex=1672531200000000000)
         );
 
@@ -857,19 +860,16 @@ mod test {
         assert_eq!(cond.unwrap().to_string(), "cpu = 'cpu0'");
         // Models InfluxQL behaviour, which will result in no results being returned because
         // upper < lower
-        assert_eq!(tr.unwrap(), range!(lower = 10, upper = 0));
+        assert_eq!(tr, range!(lower = 10, upper = 0));
 
         // no time
         let (cond, tr) = split_exprs("f64 >= 19.5 OR f64 =~ /foo/").unwrap();
         assert_eq!(cond.unwrap().to_string(), "f64 >= 19.5 OR f64 =~ /foo/");
-        assert!(tr.is_none());
+        assert!(tr.is_unbounded());
 
         let (cond, tr) = split_exprs("time > now() OR time = 1000").unwrap();
         assert!(cond.is_none());
-        assert_eq!(
-            tr.unwrap(),
-            range!(lower ex = 1672531200000000000, upper = 1000)
-        );
+        assert_eq!(tr, range!(lower ex = 1672531200000000000, upper = 1000));
 
         // fallible
 
