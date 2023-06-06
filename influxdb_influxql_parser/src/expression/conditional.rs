@@ -107,42 +107,42 @@ impl ConditionalExpression {
     }
 
     /// Return `self == other`
-    pub fn eq(self, other: ConditionalExpression) -> ConditionalExpression {
+    pub fn eq(self, other: Self) -> Self {
         binary_cond(self, ConditionalOperator::Eq, other)
     }
 
     /// Return `self != other`
-    pub fn not_eq(self, other: ConditionalExpression) -> ConditionalExpression {
+    pub fn not_eq(self, other: Self) -> Self {
         binary_cond(self, ConditionalOperator::NotEq, other)
     }
 
     /// Return `self > other`
-    pub fn gt(self, other: ConditionalExpression) -> ConditionalExpression {
+    pub fn gt(self, other: Self) -> Self {
         binary_cond(self, ConditionalOperator::Gt, other)
     }
 
     /// Return `self >= other`
-    pub fn gt_eq(self, other: ConditionalExpression) -> ConditionalExpression {
+    pub fn gt_eq(self, other: Self) -> Self {
         binary_cond(self, ConditionalOperator::GtEq, other)
     }
 
     /// Return `self < other`
-    pub fn lt(self, other: ConditionalExpression) -> ConditionalExpression {
+    pub fn lt(self, other: Self) -> Self {
         binary_cond(self, ConditionalOperator::Lt, other)
     }
 
     /// Return `self <= other`
-    pub fn lt_eq(self, other: ConditionalExpression) -> ConditionalExpression {
+    pub fn lt_eq(self, other: Self) -> Self {
         binary_cond(self, ConditionalOperator::LtEq, other)
     }
 
     /// Return `self AND other`
-    pub fn and(self, other: ConditionalExpression) -> ConditionalExpression {
+    pub fn and(self, other: Self) -> Self {
         binary_cond(self, ConditionalOperator::And, other)
     }
 
     /// Return `self OR other`
-    pub fn or(self, other: ConditionalExpression) -> ConditionalExpression {
+    pub fn or(self, other: Self) -> Self {
         binary_cond(self, ConditionalOperator::Or, other)
     }
 }
