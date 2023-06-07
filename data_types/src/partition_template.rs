@@ -92,6 +92,39 @@ use generated_types::influxdata::iox::partition_template::v1 as proto;
 use once_cell::sync::Lazy;
 use percent_encoding::{percent_decode_str, AsciiSet, CONTROLS};
 use std::{borrow::Cow, sync::Arc};
+use thiserror::Error;
+
+/// TODO: Actually validate
+#[derive(Debug, Error)]
+#[allow(missing_copy_implementations)]
+pub enum ValidationError {
+    /// The partition template didn't define any parts.
+    #[error("Custom partition template must have at least one part")]
+    NoParts,
+
+    /// The partition template exceeded the maximum allowed number of parts.
+    #[error(
+        "Custom partition template specified {specified} parts. \
+        Partition templates may have a maximum of {MAXIMUM_NUMBER_OF_TEMPLATE_PARTS} parts."
+    )]
+    TooManyParts {
+        /// The number of template parts that were present in the user-provided custom partition
+        /// template.
+        specified: usize,
+    },
+
+    /// The partition template defines a [`TimeFormat`] part, but the
+    /// provided strftime formatter is invalid.
+    ///
+    /// [`TimeFormat`]: [`proto::template_part::Part::TimeFormat`]
+    #[error("invalid strftime format in partition template: {0}")]
+    InvalidStrftime(String),
+}
+
+/// The maximum number of template parts a custom partition template may specify, to limit the
+/// amount of space in the catalog used by the custom partition template and the partition keys
+/// created with it.
+pub const MAXIMUM_NUMBER_OF_TEMPLATE_PARTS: usize = 8;
 
 /// The sentinel character used to delimit partition key parts in the partition
 /// key string.
@@ -145,33 +178,43 @@ pub static PARTITION_BY_DAY_PROTO: Lazy<Arc<proto::PartitionTemplate>> = Lazy::n
 /// A partition template specified by a namespace record.
 #[derive(Debug, PartialEq, Clone, Default, sqlx::Type)]
 #[sqlx(transparent)]
-pub struct NamespacePartitionTemplateOverride(Option<SerializationWrapper>);
+pub struct NamespacePartitionTemplateOverride(Option<serialization::Wrapper>);
 
-impl From<proto::PartitionTemplate> for NamespacePartitionTemplateOverride {
-    fn from(partition_template: proto::PartitionTemplate) -> Self {
-        Self(Some(SerializationWrapper(Arc::new(partition_template))))
+impl TryFrom<proto::PartitionTemplate> for NamespacePartitionTemplateOverride {
+    type Error = ValidationError;
+
+    fn try_from(partition_template: proto::PartitionTemplate) -> Result<Self, Self::Error> {
+        Ok(Self(Some(serialization::Wrapper::try_from(
+            partition_template,
+        )?)))
     }
 }
 
 /// A partition template specified by a table record.
 #[derive(Debug, PartialEq, Clone, Default, sqlx::Type)]
 #[sqlx(transparent)]
-pub struct TablePartitionTemplateOverride(Option<SerializationWrapper>);
+pub struct TablePartitionTemplateOverride(Option<serialization::Wrapper>);
 
 impl TablePartitionTemplateOverride {
     /// When a table is being explicitly created, the creation request might have contained a
     /// custom partition template for that table. If the custom partition template is present, use
     /// it. Otherwise, use the namespace's partition template.
-    pub fn new(
+    ///
+    /// # Errors
+    ///
+    /// This function will return an error if the custom partition template specified is invalid.
+    pub fn try_new(
         custom_table_template: Option<proto::PartitionTemplate>,
         namespace_template: &NamespacePartitionTemplateOverride,
-    ) -> Self {
+    ) -> Result<Self, ValidationError> {
         match (custom_table_template, namespace_template.0.as_ref()) {
-            (Some(table_proto), _) => Self(Some(SerializationWrapper(Arc::new(table_proto)))),
-            (None, Some(namespace_serialization_wrapper)) => Self(Some(SerializationWrapper(
-                Arc::clone(&namespace_serialization_wrapper.0),
-            ))),
-            (None, None) => Self(None),
+            (Some(table_proto), _) => {
+                Ok(Self(Some(serialization::Wrapper::try_from(table_proto)?)))
+            }
+            (None, Some(namespace_serialization_wrapper)) => {
+                Ok(Self(Some(namespace_serialization_wrapper.clone())))
+            }
+            (None, None) => Ok(Self(None)),
         }
     }
 
@@ -181,7 +224,7 @@ impl TablePartitionTemplateOverride {
     pub fn parts(&self) -> impl Iterator<Item = TemplatePart<'_>> {
         self.0
             .as_ref()
-            .map(|serialization_wrapper| &serialization_wrapper.0)
+            .map(|serialization_wrapper| serialization_wrapper.inner())
             .unwrap_or_else(|| &PARTITION_BY_DAY_PROTO)
             .parts
             .iter()
@@ -197,48 +240,118 @@ impl TablePartitionTemplateOverride {
 /// from the database through `sqlx` for the `NamespacePartitionTemplateOverride` and
 /// `TablePartitionTemplateOverride` types. It's an internal implementation detail to minimize code
 /// duplication.
-#[derive(Debug, Clone, PartialEq)]
-struct SerializationWrapper(Arc<proto::PartitionTemplate>);
+mod serialization {
+    use super::{ValidationError, MAXIMUM_NUMBER_OF_TEMPLATE_PARTS};
+    use chrono::{format::StrftimeItems, Utc};
+    use generated_types::influxdata::iox::partition_template::v1 as proto;
+    use std::{fmt::Write, sync::Arc};
 
-impl<DB> sqlx::Type<DB> for SerializationWrapper
-where
-    sqlx::types::Json<Self>: sqlx::Type<DB>,
-    DB: sqlx::Database,
-{
-    fn type_info() -> DB::TypeInfo {
-        <sqlx::types::Json<Self> as sqlx::Type<DB>>::type_info()
+    #[derive(Debug, Clone, PartialEq)]
+    pub struct Wrapper(Arc<proto::PartitionTemplate>);
+
+    impl Wrapper {
+        /// Read access to the inner proto
+        pub fn inner(&self) -> &proto::PartitionTemplate {
+            &self.0
+        }
+
+        /// THIS IS FOR TESTING PURPOSES ONLY AND SHOULD NOT BE USED IN PRODUCTION CODE.
+        ///
+        /// The application shouldn't be putting invalid templates into the database because all
+        /// creation of `Wrapper`s should be going through the
+        /// `TryFrom::try_from<proto::PartitionTemplate>` constructor that rejects invalid
+        /// templates. However, that leaves the possibility of the database getting an invalid
+        /// template through some other means, and we want to be able to construct those easily in
+        /// tests to make sure code using partition templates can handle the unlikely possibility
+        /// of an invalid template in the database.
+        pub(super) fn for_testing_possibility_of_invalid_value_in_database(
+            proto: proto::PartitionTemplate,
+        ) -> Self {
+            Self(Arc::new(proto))
+        }
     }
-}
 
-impl<'q, DB> sqlx::Encode<'q, DB> for SerializationWrapper
-where
-    DB: sqlx::Database,
-    for<'b> sqlx::types::Json<&'b proto::PartitionTemplate>: sqlx::Encode<'q, DB>,
-{
-    fn encode_by_ref(
-        &self,
-        buf: &mut <DB as sqlx::database::HasArguments<'q>>::ArgumentBuffer,
-    ) -> sqlx::encode::IsNull {
-        <sqlx::types::Json<&proto::PartitionTemplate> as sqlx::Encode<'_, DB>>::encode_by_ref(
-            &sqlx::types::Json(&self.0),
-            buf,
-        )
+    impl TryFrom<proto::PartitionTemplate> for Wrapper {
+        type Error = ValidationError;
+
+        fn try_from(partition_template: proto::PartitionTemplate) -> Result<Self, Self::Error> {
+            // There must be at least one part.
+            if partition_template.parts.is_empty() {
+                return Err(ValidationError::NoParts);
+            }
+
+            // There may not be more than `MAXIMUM_NUMBER_OF_TEMPLATE_PARTS` parts.
+            let specified = partition_template.parts.len();
+            if specified > MAXIMUM_NUMBER_OF_TEMPLATE_PARTS {
+                return Err(ValidationError::TooManyParts { specified });
+            }
+
+            // All time formats must be valid
+            for part in &partition_template.parts {
+                if let Some(proto::template_part::Part::TimeFormat(fmt)) = &part.part {
+                    // Empty is not a valid time format
+                    if fmt.is_empty() {
+                        return Err(ValidationError::InvalidStrftime(fmt.into()));
+                    }
+
+                    // Currently we can only tell whether a nonempty format is valid by trying
+                    // to use it. See <https://github.com/chronotope/chrono/issues/47>
+                    let mut dev_null = String::new();
+                    write!(
+                        dev_null,
+                        "{}",
+                        Utc::now().format_with_items(StrftimeItems::new(fmt))
+                    )
+                    .map_err(|_| ValidationError::InvalidStrftime(fmt.into()))?
+                }
+            }
+
+            Ok(Self(Arc::new(partition_template)))
+        }
     }
-}
 
-impl<'q, DB> sqlx::Decode<'q, DB> for SerializationWrapper
-where
-    DB: sqlx::Database,
-    sqlx::types::Json<proto::PartitionTemplate>: sqlx::Decode<'q, DB>,
-{
-    fn decode(
-        value: <DB as sqlx::database::HasValueRef<'q>>::ValueRef,
-    ) -> Result<Self, Box<dyn std::error::Error + 'static + Send + Sync>> {
-        Ok(Self(
-            <sqlx::types::Json<proto::PartitionTemplate> as sqlx::Decode<'_, DB>>::decode(value)?
+    impl<DB> sqlx::Type<DB> for Wrapper
+    where
+        sqlx::types::Json<Self>: sqlx::Type<DB>,
+        DB: sqlx::Database,
+    {
+        fn type_info() -> DB::TypeInfo {
+            <sqlx::types::Json<Self> as sqlx::Type<DB>>::type_info()
+        }
+    }
+
+    impl<'q, DB> sqlx::Encode<'q, DB> for Wrapper
+    where
+        DB: sqlx::Database,
+        for<'b> sqlx::types::Json<&'b proto::PartitionTemplate>: sqlx::Encode<'q, DB>,
+    {
+        fn encode_by_ref(
+            &self,
+            buf: &mut <DB as sqlx::database::HasArguments<'q>>::ArgumentBuffer,
+        ) -> sqlx::encode::IsNull {
+            <sqlx::types::Json<&proto::PartitionTemplate> as sqlx::Encode<'_, DB>>::encode_by_ref(
+                &sqlx::types::Json(&self.0),
+                buf,
+            )
+        }
+    }
+
+    impl<'q, DB> sqlx::Decode<'q, DB> for Wrapper
+    where
+        DB: sqlx::Database,
+        sqlx::types::Json<proto::PartitionTemplate>: sqlx::Decode<'q, DB>,
+    {
+        fn decode(
+            value: <DB as sqlx::database::HasValueRef<'q>>::ValueRef,
+        ) -> Result<Self, Box<dyn std::error::Error + 'static + Send + Sync>> {
+            Ok(Self(
+                <sqlx::types::Json<proto::PartitionTemplate> as sqlx::Decode<'_, DB>>::decode(
+                    value,
+                )?
                 .0
                 .into(),
-        ))
+            ))
+        }
     }
 }
 
@@ -312,6 +425,9 @@ pub fn build_column_values<'a>(
 /// In production code, the template should come from protobuf that is either from the database or
 /// from a gRPC request. In tests, building protobuf is painful, so here's an easier way to create
 /// a `TablePartitionTemplateOverride`.
+///
+/// This deliberately goes around the validation of the templates so that tests can verify code
+/// handles potentially invalid templates!
 pub fn test_table_partition_override(
     parts: Vec<TemplatePart<'_>>,
 ) -> TablePartitionTemplateOverride {
@@ -327,8 +443,10 @@ pub fn test_table_partition_override(
         })
         .collect();
 
-    let proto = Arc::new(proto::PartitionTemplate { parts });
-    TablePartitionTemplateOverride(Some(SerializationWrapper(proto)))
+    let proto = proto::PartitionTemplate { parts };
+    TablePartitionTemplateOverride(Some(
+        serialization::Wrapper::for_testing_possibility_of_invalid_value_in_database(proto),
+    ))
 }
 
 #[cfg(test)]
@@ -336,6 +454,73 @@ mod tests {
     use super::*;
     use assert_matches::assert_matches;
     use sqlx::Encode;
+    use test_helpers::assert_error;
+
+    #[test]
+    fn empty_parts_is_invalid() {
+        let err = serialization::Wrapper::try_from(proto::PartitionTemplate { parts: vec![] });
+
+        assert_error!(err, ValidationError::NoParts);
+    }
+
+    #[test]
+    fn more_than_8_parts_is_invalid() {
+        let err = serialization::Wrapper::try_from(proto::PartitionTemplate {
+            parts: vec![
+                proto::TemplatePart {
+                    part: Some(proto::template_part::Part::TagValue("region".into())),
+                },
+                proto::TemplatePart {
+                    part: Some(proto::template_part::Part::TimeFormat("year-%Y".into())),
+                },
+                proto::TemplatePart {
+                    part: Some(proto::template_part::Part::TagValue("region".into())),
+                },
+                proto::TemplatePart {
+                    part: Some(proto::template_part::Part::TimeFormat("year-%Y".into())),
+                },
+                proto::TemplatePart {
+                    part: Some(proto::template_part::Part::TagValue("region".into())),
+                },
+                proto::TemplatePart {
+                    part: Some(proto::template_part::Part::TimeFormat("year-%Y".into())),
+                },
+                proto::TemplatePart {
+                    part: Some(proto::template_part::Part::TagValue("region".into())),
+                },
+                proto::TemplatePart {
+                    part: Some(proto::template_part::Part::TimeFormat("year-%Y".into())),
+                },
+                proto::TemplatePart {
+                    part: Some(proto::template_part::Part::TagValue("region".into())),
+                },
+            ],
+        });
+
+        assert_error!(err, ValidationError::TooManyParts { specified } if specified == 9);
+    }
+
+    #[test]
+    fn invalid_strftime_format_is_invalid() {
+        let err = serialization::Wrapper::try_from(proto::PartitionTemplate {
+            parts: vec![proto::TemplatePart {
+                part: Some(proto::template_part::Part::TimeFormat("%3F".into())),
+            }],
+        });
+
+        assert_error!(err, ValidationError::InvalidStrftime(ref format) if format == "%3F");
+    }
+
+    #[test]
+    fn empty_strftime_format_is_invalid() {
+        let err = serialization::Wrapper::try_from(proto::PartitionTemplate {
+            parts: vec![proto::TemplatePart {
+                part: Some(proto::template_part::Part::TimeFormat("".into())),
+            }],
+        });
+
+        assert_error!(err, ValidationError::InvalidStrftime(ref format) if format.is_empty());
+    }
 
     /// Generate a test that asserts "partition_key" is reversible, yielding
     /// "want" assuming the partition "template" was used.
@@ -472,7 +657,7 @@ mod tests {
     #[test]
     fn test_default_template_fixture() {
         let ns = NamespacePartitionTemplateOverride::default();
-        let table = TablePartitionTemplateOverride::new(None, &ns);
+        let table = TablePartitionTemplateOverride::try_new(None, &ns).unwrap();
         let got = table.parts().collect::<Vec<_>>();
         assert_matches!(got.as_slice(), [TemplatePart::TimeFormat("%Y-%m-%d")]);
     }
@@ -480,12 +665,14 @@ mod tests {
     #[test]
     fn no_custom_table_template_specified_gets_namespace_template() {
         let namespace_template =
-            NamespacePartitionTemplateOverride::from(proto::PartitionTemplate {
+            NamespacePartitionTemplateOverride::try_from(proto::PartitionTemplate {
                 parts: vec![proto::TemplatePart {
                     part: Some(proto::template_part::Part::TimeFormat("year-%Y".into())),
                 }],
-            });
-        let table_template = TablePartitionTemplateOverride::new(None, &namespace_template);
+            })
+            .unwrap();
+        let table_template =
+            TablePartitionTemplateOverride::try_new(None, &namespace_template).unwrap();
 
         assert_eq!(table_template.0, namespace_template.0);
     }
@@ -498,17 +685,19 @@ mod tests {
             }],
         };
         let namespace_template =
-            NamespacePartitionTemplateOverride::from(proto::PartitionTemplate {
+            NamespacePartitionTemplateOverride::try_from(proto::PartitionTemplate {
                 parts: vec![proto::TemplatePart {
                     part: Some(proto::template_part::Part::TimeFormat("year-%Y".into())),
                 }],
-            });
-        let table_template = TablePartitionTemplateOverride::new(
+            })
+            .unwrap();
+        let table_template = TablePartitionTemplateOverride::try_new(
             Some(custom_table_template.clone()),
             &namespace_template,
-        );
+        )
+        .unwrap();
 
-        assert_eq!(table_template.0.unwrap().0.as_ref(), &custom_table_template);
+        assert_eq!(table_template.0.unwrap().inner(), &custom_table_template);
     }
 
     // The JSON representation of the partition template protobuf is stored in the database, so
@@ -532,7 +721,7 @@ mod tests {
             {\"timeFormat\":\"year-%Y\"}\
         ]}";
 
-        let namespace = NamespacePartitionTemplateOverride::from(custom_template);
+        let namespace = NamespacePartitionTemplateOverride::try_from(custom_template).unwrap();
         let mut buf = Default::default();
         let _ = <NamespacePartitionTemplateOverride as Encode<'_, sqlx::Sqlite>>::encode_by_ref(
             &namespace, &mut buf,
@@ -550,7 +739,7 @@ mod tests {
         let namespace_json_str: String = buf.iter().map(extract_sqlite_argument_text).collect();
         assert_eq!(namespace_json_str, expected_json_str);
 
-        let table = TablePartitionTemplateOverride::new(None, &namespace);
+        let table = TablePartitionTemplateOverride::try_new(None, &namespace).unwrap();
         let mut buf = Default::default();
         let _ = <TablePartitionTemplateOverride as Encode<'_, sqlx::Sqlite>>::encode_by_ref(
             &table, &mut buf,

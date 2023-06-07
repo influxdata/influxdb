@@ -89,7 +89,10 @@ impl namespace_service_server::NamespaceService for NamespaceService {
             .namespaces()
             .create(
                 &namespace_name,
-                partition_template.map(NamespacePartitionTemplateOverride::from),
+                partition_template
+                    .map(NamespacePartitionTemplateOverride::try_from)
+                    .transpose()
+                    .map_err(|v| Status::invalid_argument(v.to_string()))?,
                 retention_period_ns,
             )
             .await
@@ -306,7 +309,10 @@ mod tests {
     use std::time::Duration;
 
     use assert_matches::assert_matches;
-    use generated_types::influxdata::iox::namespace::v1::namespace_service_server::NamespaceService as _;
+    use generated_types::influxdata::iox::{
+        namespace::v1::namespace_service_server::NamespaceService as _,
+        partition_template::v1::PartitionTemplate,
+    };
     use iox_catalog::mem::MemCatalog;
     use tonic::Code;
 
@@ -535,6 +541,39 @@ mod tests {
             .await
             .unwrap();
         assert_eq!(all_namespaces.len(), 1);
+    }
+
+    #[tokio::test]
+    async fn invalid_custom_namespace_template_returns_error() {
+        let catalog: Arc<dyn Catalog> =
+            Arc::new(MemCatalog::new(Arc::new(metric::Registry::default())));
+        let handler = NamespaceService::new(Arc::clone(&catalog));
+
+        let req = CreateNamespaceRequest {
+            name: NS_NAME.to_string(),
+            retention_period_ns: None,
+            partition_template: Some(PartitionTemplate { parts: vec![] }),
+        };
+
+        let error = handler
+            .create_namespace(Request::new(req))
+            .await
+            .unwrap_err();
+
+        assert_eq!(error.code(), Code::InvalidArgument);
+        assert_eq!(
+            error.message(),
+            "Custom partition template must have at least one part"
+        );
+
+        let all_namespaces = catalog
+            .repositories()
+            .await
+            .namespaces()
+            .list(SoftDeletedRows::ExcludeDeleted)
+            .await
+            .unwrap();
+        assert_eq!(all_namespaces.len(), 0);
     }
 
     #[tokio::test]

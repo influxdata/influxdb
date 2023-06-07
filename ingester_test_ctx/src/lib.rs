@@ -252,7 +252,7 @@ where
             .get_mut(&namespace_id)
             .expect("namespace does not exist");
         let partition_template =
-            TablePartitionTemplateOverride::new(None, &schema.partition_template);
+            TablePartitionTemplateOverride::try_new(None, &schema.partition_template).unwrap();
 
         let batches = lines_to_batches(lp, 0).unwrap();
 

@@ -81,10 +81,11 @@ impl table_service_server::TableService for TableService {
             .tables()
             .create(
                 &name,
-                TablePartitionTemplateOverride::new(
+                TablePartitionTemplateOverride::try_new(
                     partition_template,
                     &namespace.partition_template,
-                ),
+                )
+                .map_err(|v| Status::invalid_argument(v.to_string()))?,
                 namespace.id,
             )
             .await
@@ -312,8 +313,8 @@ mod tests {
             .namespaces()
             .create(
                 &namespace_name,
-                Some(NamespacePartitionTemplateOverride::from(
-                    PartitionTemplate {
+                Some(
+                    NamespacePartitionTemplateOverride::try_from(PartitionTemplate {
                         parts: vec![
                             TemplatePart {
                                 part: Some(template_part::Part::TagValue("color".into())),
@@ -325,8 +326,9 @@ mod tests {
                                 part: Some(template_part::Part::TimeFormat("%Y".into())),
                             },
                         ],
-                    },
-                )),
+                    })
+                    .unwrap(),
+                ),
                 None,
             )
             .await
@@ -363,5 +365,35 @@ mod tests {
         let mut column_names: Vec<_> = table_columns.iter().map(|c| &c.name).collect();
         column_names.sort();
         assert_eq!(column_names, &["color", "tannins"])
+    }
+
+    #[tokio::test]
+    async fn invalid_custom_table_template_returns_error() {
+        let catalog: Arc<dyn Catalog> =
+            Arc::new(MemCatalog::new(Arc::new(metric::Registry::default())));
+        let handler = TableService::new(Arc::clone(&catalog));
+
+        let namespace = arbitrary_namespace(&mut *catalog.repositories().await, "grapes").await;
+        let table_name = "varietals";
+
+        let request = CreateTableRequest {
+            name: table_name.into(),
+            namespace: namespace.name.clone(),
+            partition_template: Some(PartitionTemplate { parts: vec![] }),
+        };
+
+        let error = handler
+            .create_table(Request::new(request))
+            .await
+            .unwrap_err();
+
+        assert_eq!(error.code(), Code::InvalidArgument);
+        assert_eq!(
+            error.message(),
+            "Custom partition template must have at least one part"
+        );
+
+        let all_tables = catalog.repositories().await.tables().list().await.unwrap();
+        assert!(all_tables.is_empty());
     }
 }

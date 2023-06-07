@@ -231,7 +231,8 @@ mod tests {
             .unwrap();
         writer.commit();
 
-        let template_parts = TablePartitionTemplateOverride::new(None, &Default::default());
+        let template_parts =
+            TablePartitionTemplateOverride::try_new(None, &Default::default()).unwrap();
         let keys: Vec<_> = partition_keys(&batch, template_parts.parts())
             .collect::<Result<Vec<_>, _>>()
             .unwrap();
@@ -508,7 +509,7 @@ mod tests {
         /// [`TEST_TEMPLATE_PARTS`].
         fn arbitrary_template_parts()(set in proptest::collection::vec(
                 proptest::sample::select(TEST_TEMPLATE_PARTS),
-                (0, 12) // Set size range
+                (1, 12) // Set size range
             )) -> Vec<TemplatePart<'static>> {
             let mut set = set;
             set.dedup_by(|a, b| format!("{a:?}") == format!("{b:?}"));
@@ -535,7 +536,10 @@ mod tests {
         /// [`TEST_TEMPLATE_PARTS`], can be reversed to the full set of tags via
         /// [`build_column_values()`].
         #[test]
-        fn prop_reversible_mapping(template in arbitrary_template_parts(), tag_values in arbitrary_tag_value_map()) {
+        fn prop_reversible_mapping(
+            template in arbitrary_template_parts(),
+            tag_values in arbitrary_tag_value_map()
+        ) {
             let mut batch = MutableBatch::new();
             let mut writer = Writer::new(&mut batch, 1);
 
