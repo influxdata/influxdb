@@ -45,7 +45,7 @@ wal = { version = "0.1", path = "../wal" }
 wal_inspect = { version = "0.1", path = "../wal_inspect" }
 
 # Crates.io dependencies, in alphabetical order
-nu-ansi-term = "0.47.0"
+nu-ansi-term = "0.48.0"
 arrow = { workspace = true, features = ["prettyprint"] }
 backtrace = "0.3"
 bytes = "1.4"
