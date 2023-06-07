@@ -25,8 +25,7 @@ use workspace_hack as _;
 use std::sync::Arc;
 
 use data_types::{
-    partition_template::{TablePartitionTemplateOverride, TemplatePart},
-    ColumnType, NamespaceName, Table as CatalogTable,
+    partition_template::TablePartitionTemplateOverride, NamespaceName, Table as CatalogTable,
 };
 use generated_types::influxdata::iox::table::v1::*;
 use iox_catalog::interface::{Catalog, SoftDeletedRows};
@@ -102,40 +101,6 @@ impl table_service_server::TableService for TableService {
                     other => Status::internal(other.to_string()),
                 }
             })?;
-
-        // Partitioning is only supported for tags, so create tag columns for all `TagValue`
-        // partition template parts.
-        //
-        // WARNING! Because these catalog methods are not in a transaction with the table creation
-        // catalog call above, there is a (hopefully small) chance of a race condition in which
-        // a write for this table comes in between the table creation call and these column
-        // creation calls. If that write contains a column used in the partition template as a
-        // non-tag column, the column creation here will fail *and* the partitioning of the write
-        // will fail.
-        //
-        // This is tracked in https://github.com/influxdata/influxdb_iox/issues/7871
-        for template_part in table.partition_template.parts() {
-            if let TemplatePart::TagValue(tag_name) = template_part {
-                repos
-                    .columns()
-                    .create_or_get(tag_name, table.id, ColumnType::Tag)
-                    .await
-                    .map_err(|e| {
-                        warn!(error=%e, %name, "failed to create columns during table creation");
-                        match e {
-                            iox_catalog::interface::Error::ColumnTypeMismatch {
-                                name,
-                                existing,
-                                ..
-                            } => Status::invalid_argument(format!(
-                                "Partition templates can only use tag columns. \
-                                        Column `{name}` exists and is type `{existing}`"
-                            )),
-                            other => Status::internal(other.to_string()),
-                        }
-                    })?;
-            }
-        }
 
         info!(
             %name,

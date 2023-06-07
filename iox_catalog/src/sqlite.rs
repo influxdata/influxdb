@@ -15,7 +15,9 @@ use crate::{
 };
 use async_trait::async_trait;
 use data_types::{
-    partition_template::{NamespacePartitionTemplateOverride, TablePartitionTemplateOverride},
+    partition_template::{
+        NamespacePartitionTemplateOverride, TablePartitionTemplateOverride, TemplatePart,
+    },
     Column, ColumnId, ColumnSet, ColumnType, CompactionLevel, Namespace, NamespaceId,
     NamespaceName, ParquetFile, ParquetFileId, ParquetFileParams, Partition, PartitionId,
     PartitionKey, SkippedCompaction, Table, TableId, Timestamp,
@@ -472,6 +474,65 @@ RETURNING id, name, retention_period_ns, max_tables, max_columns_per_table, dele
     }
 }
 
+/// [`TableRepo::create`] needs the ability to create some columns within the same transaction as
+/// the table creation. Column creation might also happen through [`ColumnRepo::create_or_get`],
+/// which doesn't need to be within an outer transaction. This function was extracted so that these
+/// two functions can share code but pass in either the transaction or the regular database
+/// connection as the query executor.
+async fn insert_column_with_connection<'q, E>(
+    executor: E,
+    name: &str,
+    table_id: TableId,
+    column_type: ColumnType,
+) -> Result<Column>
+where
+    E: Executor<'q, Database = Sqlite>,
+{
+    let rec = sqlx::query_as::<_, Column>(
+            r#"
+INSERT INTO column_name ( name, table_id, column_type )
+SELECT $1, table_id, $3 FROM (
+    SELECT max_columns_per_table, namespace.id, table_name.id as table_id, COUNT(column_name.id) AS count
+    FROM namespace LEFT JOIN table_name ON namespace.id = table_name.namespace_id
+                   LEFT JOIN column_name ON table_name.id = column_name.table_id
+    WHERE table_name.id = $2
+    GROUP BY namespace.max_columns_per_table, namespace.id, table_name.id
+) AS get_count WHERE count < max_columns_per_table
+ON CONFLICT (table_id, name)
+DO UPDATE SET name = column_name.name
+RETURNING *;
+        "#,
+        )
+        .bind(name) // $1
+        .bind(table_id) // $2
+        .bind(column_type) // $3
+        .fetch_one(executor)
+        .await
+        .map_err(|e| match e {
+            sqlx::Error::RowNotFound => Error::ColumnCreateLimitError {
+                column_name: name.to_string(),
+                table_id,
+            },
+            _ => {
+            if is_fk_violation(&e) {
+                Error::ForeignKeyViolation { source: e }
+            } else {
+                Error::SqlxError { source: e }
+            }
+        }})?;
+
+    ensure!(
+        rec.column_type == column_type,
+        ColumnTypeMismatchSnafu {
+            name,
+            existing: rec.column_type,
+            new: column_type,
+        }
+    );
+
+    Ok(rec)
+}
+
 #[async_trait]
 impl TableRepo for SqliteTxn {
     async fn create(
@@ -480,6 +541,14 @@ impl TableRepo for SqliteTxn {
         partition_template: TablePartitionTemplateOverride,
         namespace_id: NamespaceId,
     ) -> Result<Table> {
+        let mut tx = self
+            .inner
+            .get_mut()
+            .pool
+            .begin()
+            .await
+            .map_err(|e| Error::StartTransaction { source: e })?;
+
         // A simple insert statement becomes quite complicated in order to avoid checking the table
         // limits in a select and then conditionally inserting (which would be racey).
         //
@@ -489,7 +558,7 @@ impl TableRepo for SqliteTxn {
         // By using SELECT rather than VALUES it will insert zero rows if it finds a null in the
         // subquery, i.e. if count >= max_tables. fetch_one() will return a RowNotFound error if
         // nothing was inserted. Not pretty!
-        let rec = sqlx::query_as::<_, Table>(
+        let table = sqlx::query_as::<_, Table>(
             r#"
 INSERT INTO table_name ( name, namespace_id, partition_template )
 SELECT $1, id, $2 FROM (
@@ -504,7 +573,7 @@ RETURNING *;
         .bind(name) // $1
         .bind(partition_template) // $2
         .bind(namespace_id) // $3
-        .fetch_one(self.inner.get_mut())
+        .fetch_one(&mut tx)
         .await
         .map_err(|e| match e {
             sqlx::Error::RowNotFound => Error::TableCreateLimitError {
@@ -525,7 +594,21 @@ RETURNING *;
             }
         })?;
 
-        Ok(rec)
+        // Partitioning is only supported for tags, so create tag columns for all `TagValue`
+        // partition template parts. It's important this happens within the table creation
+        // transaction so that there isn't a possibility of a concurrent write creating these
+        // columns with an unsupported type.
+        for template_part in table.partition_template.parts() {
+            if let TemplatePart::TagValue(tag_name) = template_part {
+                insert_column_with_connection(&mut tx, tag_name, table.id, ColumnType::Tag).await?;
+            }
+        }
+
+        tx.commit()
+            .await
+            .map_err(|source| Error::FailedToCommit { source })?;
+
+        Ok(table)
     }
 
     async fn get_by_id(&mut self, table_id: TableId) -> Result<Option<Table>> {
@@ -609,49 +692,7 @@ impl ColumnRepo for SqliteTxn {
         table_id: TableId,
         column_type: ColumnType,
     ) -> Result<Column> {
-        let rec = sqlx::query_as::<_, Column>(
-            r#"
-INSERT INTO column_name ( name, table_id, column_type )
-SELECT $1, table_id, $3 FROM (
-    SELECT max_columns_per_table, namespace.id, table_name.id as table_id, COUNT(column_name.id) AS count
-    FROM namespace LEFT JOIN table_name ON namespace.id = table_name.namespace_id
-                   LEFT JOIN column_name ON table_name.id = column_name.table_id
-    WHERE table_name.id = $2
-    GROUP BY namespace.max_columns_per_table, namespace.id, table_name.id
-) AS get_count WHERE count < max_columns_per_table
-ON CONFLICT (table_id, name)
-DO UPDATE SET name = column_name.name
-RETURNING *;
-        "#,
-        )
-            .bind(name) // $1
-            .bind(table_id) // $2
-            .bind(column_type) // $3
-            .fetch_one(self.inner.get_mut())
-            .await
-            .map_err(|e| match e {
-                sqlx::Error::RowNotFound => Error::ColumnCreateLimitError {
-                    column_name: name.to_string(),
-                    table_id,
-                },
-                _ => {
-                    if is_fk_violation(&e) {
-                        Error::ForeignKeyViolation { source: e }
-                    } else {
-                        Error::SqlxError { source: e }
-                    }
-                }})?;
-
-        ensure!(
-            rec.column_type == column_type,
-            ColumnTypeMismatchSnafu {
-                name,
-                existing: rec.column_type,
-                new: column_type,
-            }
-        );
-
-        Ok(rec)
+        insert_column_with_connection(self.inner.get_mut(), name, table_id, column_type).await
     }
 
     async fn list_by_namespace_id(&mut self, namespace_id: NamespaceId) -> Result<Vec<Column>> {
