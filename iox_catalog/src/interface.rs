@@ -483,6 +483,9 @@ pub trait ParquetFileRepo: Send + Sync {
         object_store_id: Uuid,
     ) -> Result<Option<ParquetFile>>;
 
+    /// Test parquet file exists by object store id
+    async fn exists_by_object_store_id(&mut self, object_store_id: Uuid) -> Result<bool>;
+
     /// Commit deletions, upgrades and creations in a single transaction.
     ///
     /// Returns IDs of created files.

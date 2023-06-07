@@ -88,12 +88,12 @@ async fn should_delete(
 
     if let Some(uuid) = file_name.as_ref().strip_suffix(".parquet") {
         if let Ok(object_store_id) = uuid.parse() {
-            let parquet_file = parquet_files
-                .get_by_object_store_id(object_store_id)
+            let parquet_file_exists = parquet_files
+                .exists_by_object_store_id(object_store_id)
                 .await
                 .context(GetFileSnafu { object_store_id })?;
 
-            if parquet_file.is_some() {
+            if parquet_file_exists {
                 // We have a reference to this file; do not delete
                 debug!(
                     location = %item.location,

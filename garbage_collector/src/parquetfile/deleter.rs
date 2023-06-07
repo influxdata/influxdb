@@ -19,7 +19,7 @@ pub(crate) async fn perform(
             .repositories()
             .await
             .parquet_files()
-            .delete_old_ids_only(older_than)
+            .delete_old_ids_only(older_than) // read/write
             .await
             .context(DeletingSnafu)?;
         info!(delete_count = %deleted.len(), "iox_catalog::delete_old()");
