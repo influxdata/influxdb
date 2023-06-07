@@ -19,6 +19,8 @@ use influxdb_influxql_parser::select::{
     Dimension, FillClause, FromMeasurementClause, GroupByClause, MeasurementSelection,
     SelectStatement,
 };
+use influxdb_influxql_parser::time_range::{split_cond, ReduceContext, TimeRange};
+use influxdb_influxql_parser::timestamp::Timestamp;
 use itertools::Itertools;
 use schema::InfluxColumnType;
 use std::collections::{BTreeSet, HashMap, HashSet};
@@ -98,6 +100,19 @@ impl RewriteSelect {
         let (fields, group_by) = self.expand_projection(s, stmt, &from, &tag_set)?;
         let condition = self.condition_resolve_types(s, stmt, &from)?;
 
+        let (condition, time_range) = match condition {
+            Some(where_clause) => {
+                let rc = ReduceContext {
+                    now: Some(Timestamp::from(
+                        s.execution_props().query_execution_start_time,
+                    )),
+                    tz: stmt.timezone.map(|tz| *tz),
+                };
+                split_cond(&rc, &where_clause).map_err(error::map::expr_error)?
+            }
+            None => (None, TimeRange::default()),
+        };
+
         let SelectStatementInfo { projection_type } =
             select_statement_info(&fields, &group_by, stmt.fill)?;
 
@@ -119,6 +134,7 @@ impl RewriteSelect {
             fields,
             from,
             condition,
+            time_range,
             group_by,
             tag_set,
             fill,
