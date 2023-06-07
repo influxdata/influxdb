@@ -146,11 +146,6 @@ pub enum Error {
 
     #[snafu(display("could not delete namespace: {source}"))]
     CouldNotDeleteNamespace { source: sqlx::Error },
-
-    #[snafu(display("invalid partition template: {source}"))]
-    InvalidPartitionTemplate {
-        source: data_types::partition_template::ValidationError,
-    },
 }
 
 /// A specialized `Error` for Catalog errors
