@@ -218,7 +218,7 @@ dependencies = [
  "arrow-schema",
  "arrow-select",
  "chrono",
- "comfy-table",
+ "comfy-table 6.2.0",
  "lexical-core",
  "num",
 ]
@@ -370,7 +370,7 @@ dependencies = [
  "ahash 0.8.3",
  "arrow",
  "chrono",
- "comfy-table",
+ "comfy-table 7.0.0",
  "datafusion",
  "hashbrown 0.13.2",
  "num-traits",
@@ -966,6 +966,17 @@ name = "comfy-table"
 version = "6.2.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "7e959d788268e3bf9d35ace83e81b124190378e4c91c9067524675e33394b8ba"
+dependencies = [
+ "strum",
+ "strum_macros",
+ "unicode-width",
+]
+
+[[package]]
+name = "comfy-table"
+version = "7.0.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "f9e1f7e5d046697d34b593bdba8ee31f4649366e452a2ccabb3baf3511e503d1"
 dependencies = [
  "strum",
  "strum_macros",
@@ -2504,7 +2515,7 @@ dependencies = [
  "bytes",
  "clap",
  "clap_blocks",
- "comfy-table",
+ "comfy-table 7.0.0",
  "compactor",
  "console-subscriber",
  "data_types",
@@ -2585,7 +2596,7 @@ dependencies = [
  "arrow_util",
  "bytes",
  "client_util",
- "comfy-table",
+ "comfy-table 7.0.0",
  "futures-util",
  "generated_types",
  "influxdb-line-protocol",
