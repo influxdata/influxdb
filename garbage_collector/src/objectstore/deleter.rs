@@ -133,6 +133,7 @@ mod tests {
                 location: new_object_meta_location(),
                 last_modified: Utc::now(),
                 size: 0,
+                e_tag: None,
             };
             os.put(&object_meta.location, Bytes::from(i.to_string()))
                 .await

@@ -1526,6 +1526,7 @@ async fn flightsql_schema_matches() {
                     let cases = vec![
                         CommandStatementQuery {
                             query: format!("select * from {table_name}"),
+                            transaction_id: None,
                         }
                         .as_any(),
                         CommandGetSqlInfo { info: vec![] }.as_any(),

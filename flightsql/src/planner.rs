@@ -54,7 +54,7 @@ impl FlightSQLPlanner {
         debug!(%namespace_name, %cmd, "Handling flightsql get_flight_info");
 
         match cmd {
-            FlightSQLCommand::CommandStatementQuery(CommandStatementQuery { query }) => {
+            FlightSQLCommand::CommandStatementQuery(CommandStatementQuery { query, .. }) => {
                 get_schema_for_query(&query, ctx).await
             }
             FlightSQLCommand::CommandPreparedStatementQuery(handle) => {
@@ -110,7 +110,7 @@ impl FlightSQLPlanner {
         debug!(%namespace_name, %cmd, "Handling flightsql do_get");
 
         match cmd {
-            FlightSQLCommand::CommandStatementQuery(CommandStatementQuery { query }) => {
+            FlightSQLCommand::CommandStatementQuery(CommandStatementQuery { query, .. }) => {
                 debug!(%query, "Planning FlightSQL query");
                 Ok(ctx.sql_to_physical_plan(&query).await?)
             }
@@ -271,7 +271,7 @@ impl FlightSQLPlanner {
 
         match cmd {
             FlightSQLCommand::ActionCreatePreparedStatementRequest(
-                ActionCreatePreparedStatementRequest { query },
+                ActionCreatePreparedStatementRequest { query, .. },
             ) => {
                 debug!(%query, "Creating prepared statement");
 

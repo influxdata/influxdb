@@ -115,7 +115,7 @@ mod test {
         test_helpers::maybe_start_logging();
         let props = WriterProperties::builder()
             .set_max_row_group_size(TEST_MAX_ROW_GROUP_SIZE)
-            .set_data_pagesize_limit(10) // ensure each batch is written as a page
+            .set_data_page_size_limit(10) // ensure each batch is written as a page
             .build();
 
         let mut data_gen = DataGenerator::new();
@@ -163,7 +163,7 @@ mod test {
         test_helpers::maybe_start_logging();
         let props = WriterProperties::builder()
             .set_max_row_group_size(TEST_MAX_ROW_GROUP_SIZE)
-            .set_data_pagesize_limit(10) // ensure each batch is written as a page
+            .set_data_page_size_limit(10) // ensure each batch is written as a page
             .build();
 
         let mut data_gen = DataGenerator::new();
@@ -199,7 +199,7 @@ mod test {
         test_helpers::maybe_start_logging();
         let props = WriterProperties::builder()
             .set_max_row_group_size(TEST_MAX_ROW_GROUP_SIZE)
-            .set_data_pagesize_limit(10) // ensure each batch is written as a page
+            .set_data_page_size_limit(10) // ensure each batch is written as a page
             .build();
 
         let mut data_gen = DataGenerator::new();

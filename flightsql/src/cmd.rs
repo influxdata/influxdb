@@ -108,7 +108,7 @@ pub enum FlightSQLCommand {
 impl Display for FlightSQLCommand {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
-            Self::CommandStatementQuery(CommandStatementQuery { query }) => {
+            Self::CommandStatementQuery(CommandStatementQuery { query, .. }) => {
                 write!(f, "CommandStatementQuery{query}")
             }
             Self::CommandPreparedStatementQuery(h) => write!(f, "CommandPreparedStatementQuery{h}"),
@@ -236,6 +236,7 @@ impl Display for FlightSQLCommand {
             }
             Self::ActionCreatePreparedStatementRequest(ActionCreatePreparedStatementRequest {
                 query,
+                ..
             }) => {
                 write!(f, "ActionCreatePreparedStatementRequest{query}")
             }

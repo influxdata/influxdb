@@ -212,6 +212,7 @@ mod tests {
             location,
             last_modified,
             size: 0,
+            e_tag: None,
         };
 
         assert!(!should_delete(&item, cutoff, parquet_files).await.unwrap());
@@ -239,6 +240,7 @@ mod tests {
             location,
             last_modified,
             size: 0,
+            e_tag: None,
         };
 
         assert!(!should_delete(&item, cutoff, parquet_files).await.unwrap());
@@ -258,6 +260,7 @@ mod tests {
             location: Path::from("not-a-uuid.parquet"),
             last_modified,
             size: 0,
+            e_tag: None,
         };
 
         assert!(!should_delete(&item, cutoff, parquet_files).await.unwrap());
@@ -284,6 +287,7 @@ mod tests {
             location,
             last_modified,
             size: 0,
+            e_tag: None,
         };
 
         assert!(!should_delete(&item, cutoff, parquet_files).await.unwrap());
@@ -311,6 +315,7 @@ mod tests {
             location,
             last_modified,
             size: 0,
+            e_tag: None,
         };
 
         assert!(should_delete(&item, cutoff, parquet_files).await.unwrap());
@@ -330,6 +335,7 @@ mod tests {
             location: Path::from("not-a-uuid.parquet"),
             last_modified,
             size: 0,
+            e_tag: None,
         };
 
         assert!(should_delete(&item, cutoff, parquet_files).await.unwrap());

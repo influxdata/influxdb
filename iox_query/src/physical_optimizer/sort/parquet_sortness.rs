@@ -650,6 +650,7 @@ mod tests {
                 location: Path::parse(format!("{n}.parquet")).unwrap(),
                 last_modified: Default::default(),
                 size: 0,
+                e_tag: None,
             },
             partition_values: vec![],
             range: None,

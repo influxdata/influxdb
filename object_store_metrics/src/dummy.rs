@@ -7,7 +7,7 @@ use snafu::Snafu;
 use std::ops::Range;
 
 use object_store::{
-    path::Path, GetResult, ListResult, MultipartId, ObjectMeta, ObjectStore, Result,
+    path::Path, GetOptions, GetResult, ListResult, MultipartId, ObjectMeta, ObjectStore, Result,
 };
 use tokio::io::AsyncWrite;
 
@@ -67,6 +67,10 @@ impl ObjectStore for DummyObjectStore {
     }
 
     async fn abort_multipart(&self, _location: &Path, _multipart_id: &MultipartId) -> Result<()> {
+        Ok(NotSupportedSnafu { name: self.name }.fail()?)
+    }
+
+    async fn get_opts(&self, _location: &Path, _options: GetOptions) -> Result<GetResult> {
         Ok(NotSupportedSnafu { name: self.name }.fail()?)
     }
 
