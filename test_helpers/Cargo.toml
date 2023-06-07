@@ -8,7 +8,7 @@ license.workspace = true
 [dependencies] # In alphabetical order
 dotenvy = "0.15.7"
 parking_lot = "0.12"
-tempfile = "3.5.0"
+tempfile = "3.6.0"
 tracing-log = "0.1"
 tracing-subscriber = { version = "0.3", features = ["env-filter"] }
 observability_deps = { path = "../observability_deps" }
