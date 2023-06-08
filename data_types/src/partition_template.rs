@@ -277,6 +277,15 @@ impl TablePartitionTemplateOverride {
         }
     }
 
+    /// Returns the number of parts in this template.
+    #[allow(clippy::len_without_is_empty)] // Senseless - there must always be >0 parts.
+    pub fn len(&self) -> usize {
+        self.0
+            .as_ref()
+            .map(|v| v.inner().parts.len())
+            .unwrap_or_default()
+    }
+
     /// Iterate through the protobuf parts and lend out what the `mutable_batch` crate needs to
     /// build `PartitionKey`s. If this table doesn't have a custom template, use the application
     /// default of partitioning by day.
