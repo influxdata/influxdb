@@ -203,6 +203,7 @@ where
         for op in ops {
             let SequencedWalOp {
                 sequence_number,
+                table_write_sequence_numbers: _, // TODO(savage): Use sequence numbers assigned per-partition
                 op,
             } = op;
 
