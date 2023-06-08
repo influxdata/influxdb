@@ -46,7 +46,7 @@ futures-sink = { version = "0.3" }
 futures-task = { version = "0.3", default-features = false, features = ["std"] }
 futures-util = { version = "0.3", features = ["channel", "io", "sink"] }
 getrandom = { version = "0.2", default-features = false, features = ["std"] }
-hashbrown = { version = "0.13", features = ["raw"] }
+hashbrown = { version = "0.14", features = ["raw"] }
 indexmap = { version = "1", default-features = false, features = ["std"] }
 itertools = { version = "0.10" }
 libc = { version = "0.2", features = ["extra_traits"] }
@@ -121,7 +121,7 @@ futures-sink = { version = "0.3" }
 futures-task = { version = "0.3", default-features = false, features = ["std"] }
 futures-util = { version = "0.3", features = ["channel", "io", "sink"] }
 getrandom = { version = "0.2", default-features = false, features = ["std"] }
-hashbrown = { version = "0.13", features = ["raw"] }
+hashbrown = { version = "0.14", features = ["raw"] }
 heck = { version = "0.4", features = ["unicode"] }
 indexmap = { version = "1", default-features = false, features = ["std"] }
 itertools = { version = "0.10" }
