@@ -175,7 +175,7 @@ fn arbitrary_sequenced_wal_op(sequence_number: u64) -> SequencedWalOp {
         table_write_sequence_numbers: w
             .table_batches
             .iter()
-            .map(|table_batch| (table_batch.table_id, sequence_number))
+            .map(|table_batch| (TableId::new(table_batch.table_id), sequence_number))
             .collect(),
         op: WalOp::Write(w),
     }
