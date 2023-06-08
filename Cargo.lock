@@ -6882,7 +6882,7 @@ dependencies = [
  "futures-task",
  "futures-util",
  "getrandom 0.2.10",
- "hashbrown 0.14.0",
+ "hashbrown 0.13.2",
  "heck",
  "indexmap",
  "io-lifetimes",
