@@ -390,8 +390,7 @@ impl TimeRange {
 }
 
 /// Simplifies an InfluxQL duration `expr` to a nanosecond interval represented as an `i64`.
-pub fn duration_expr_to_nanoseconds(expr: &Expr) -> Result<i64, ExprError> {
-    let ctx = ReduceContext::default();
+pub fn duration_expr_to_nanoseconds(ctx: &ReduceContext, expr: &Expr) -> Result<i64, ExprError> {
     match reduce_expr(&ctx, expr)? {
         Expr::Literal(Literal::Duration(v)) => Ok(*v),
         Expr::Literal(Literal::Float(v)) => Ok(v as i64),
@@ -1020,7 +1019,7 @@ mod test {
                 .expr()
                 .unwrap()
                 .clone();
-            duration_expr_to_nanoseconds(&expr)
+            duration_expr_to_nanoseconds(&ReduceContext::default(), &expr)
         }
 
         let cases = vec![

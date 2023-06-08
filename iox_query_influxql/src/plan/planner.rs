@@ -1,10 +1,10 @@
 mod select;
 
-use crate::plan::ir::{DataSource, Field, Select, SelectQuery};
+use crate::plan::ir::{DataSource, Field, Interval, Select, SelectQuery};
 use crate::plan::planner::select::{
     fields_to_exprs_no_nulls, make_tag_key_column_meta, plan_with_sort, ProjectionInfo,
 };
-use crate::plan::planner_time_range_expression::{expr_to_df_interval_dt, time_range_to_df_expr};
+use crate::plan::planner_time_range_expression::time_range_to_df_expr;
 use crate::plan::rewriter::{find_table_names, rewrite_statement, ProjectionType};
 use crate::plan::util::{binary_operator_to_df_operator, rebase_expr, Schemas};
 use crate::plan::var_ref::var_ref_data_type_to_data_type;
@@ -50,9 +50,7 @@ use influxdb_influxql_parser::show_measurements::{
 use influxdb_influxql_parser::show_tag_keys::ShowTagKeysStatement;
 use influxdb_influxql_parser::show_tag_values::{ShowTagValuesStatement, WithKeyClause};
 use influxdb_influxql_parser::simple_from_clause::ShowFromClause;
-use influxdb_influxql_parser::time_range::{
-    duration_expr_to_nanoseconds, split_cond, ReduceContext, TimeRange,
-};
+use influxdb_influxql_parser::time_range::{split_cond, ReduceContext, TimeRange};
 use influxdb_influxql_parser::timestamp::Timestamp;
 use influxdb_influxql_parser::{
     common::{MeasurementName, WhereClause},
@@ -145,6 +143,8 @@ struct Context<'a> {
     // GROUP BY information
     group_by: Option<&'a GroupByClause>,
     fill: Option<FillClause>,
+    /// Interval of the `TIME` function
+    interval: Option<Interval>,
 
     /// The set of tags specified in the top-level `SELECT` statement
     /// which represent the tag set used for grouping output.
@@ -165,6 +165,7 @@ impl<'a> Context<'a> {
             time_range: select.time_range,
             group_by: select.group_by.as_ref(),
             fill: select.fill,
+            interval: select.interval,
             root_group_by_tags,
         }
     }
@@ -183,6 +184,7 @@ impl<'a> Context<'a> {
             time_range: select.time_range.intersected(self.time_range),
             group_by: select.group_by.as_ref(),
             fill: select.fill,
+            interval: select.interval,
             root_group_by_tags: self.root_group_by_tags,
         }
     }
@@ -638,13 +640,9 @@ impl<'a> InfluxQLToLogicalPlan<'a> {
             // 1. is binning by time, project the column using the `DATE_BIN` function,
             // 2. is a single-selector query, project the `time` field of the selector aggregate,
             // 3. otherwise, project the Unix epoch (0)
-            select_exprs[time_column_index] = if let Some(dim) = ctx.group_by.and_then(|gb| gb.time_dimension()) {
-                let stride = expr_to_df_interval_dt(&dim.interval)?;
-                let offset = if let Some(offset) = &dim.offset {
-                    duration_expr_to_nanoseconds(offset).map_err(error::map::expr_error)?
-                } else {
-                    0
-                };
+            select_exprs[time_column_index] = if let Some(i) = ctx.interval {
+                let stride = lit(ScalarValue::new_interval_mdn(0, 0, i.duration));
+                let offset = i.offset.map_or(0, |v|v);
 
                 date_bin(
                     stride,

@@ -1,7 +1,7 @@
 use crate::plan::expr_type_evaluator::TypeEvaluator;
 use crate::plan::field::{field_by_name, field_name};
 use crate::plan::field_mapper::{field_and_dimensions, FieldTypeMap};
-use crate::plan::ir::{DataSource, Field, Select, SelectQuery, TagSet};
+use crate::plan::ir::{DataSource, Field, Interval, Select, SelectQuery, TagSet};
 use crate::plan::var_ref::{influx_type_to_var_ref_data_type, var_ref_data_type_to_influx_type};
 use crate::plan::{error, util, SchemaProvider};
 use datafusion::common::{DataFusionError, Result};
@@ -19,7 +19,9 @@ use influxdb_influxql_parser::select::{
     Dimension, FillClause, FromMeasurementClause, GroupByClause, MeasurementSelection,
     SelectStatement,
 };
-use influxdb_influxql_parser::time_range::{split_cond, ReduceContext, TimeRange};
+use influxdb_influxql_parser::time_range::{
+    duration_expr_to_nanoseconds, split_cond, ReduceContext, TimeRange,
+};
 use influxdb_influxql_parser::timestamp::Timestamp;
 use itertools::Itertools;
 use schema::InfluxColumnType;
@@ -100,21 +102,24 @@ impl RewriteSelect {
         let (fields, group_by) = self.expand_projection(s, stmt, &from, &tag_set)?;
         let condition = self.condition_resolve_types(s, stmt, &from)?;
 
+        let rc = ReduceContext {
+            now: Some(Timestamp::from(
+                s.execution_props().query_execution_start_time,
+            )),
+            tz: stmt.timezone.map(|tz| *tz),
+        };
+
+        let interval = self.find_interval_offset(&rc, group_by.as_ref())?;
+
         let (condition, time_range) = match condition {
-            Some(where_clause) => {
-                let rc = ReduceContext {
-                    now: Some(Timestamp::from(
-                        s.execution_props().query_execution_start_time,
-                    )),
-                    tz: stmt.timezone.map(|tz| *tz),
-                };
-                split_cond(&rc, &where_clause).map_err(error::map::expr_error)?
-            }
+            Some(where_clause) => split_cond(&rc, &where_clause).map_err(error::map::expr_error)?,
             None => (None, TimeRange::default()),
         };
 
-        let SelectStatementInfo { projection_type } =
-            select_statement_info(&fields, &group_by, stmt.fill)?;
+        let SelectStatementInfo {
+            projection_type,
+            extra_intervals,
+        } = select_statement_info(&fields, &group_by, stmt.fill)?;
 
         // Following InfluxQL OG behaviour, if this is a subquery, and the fill strategy equates
         // to `FILL(null)`, switch to `FILL(none)`.
@@ -131,6 +136,8 @@ impl RewriteSelect {
 
         Ok(Select {
             projection_type,
+            interval,
+            extra_intervals,
             fields,
             from,
             condition,
@@ -387,6 +394,29 @@ impl RewriteSelect {
         } else {
             Ok(Some(where_clause))
         }
+    }
+
+    /// Return the interval value of the `GROUP BY` clause if it specifies a `TIME`.
+    fn find_interval_offset(
+        &self,
+        ctx: &ReduceContext,
+        group_by: Option<&GroupByClause>,
+    ) -> Result<Option<Interval>> {
+        Ok(
+            if let Some(td) = group_by.and_then(|v| v.time_dimension()) {
+                let duration = duration_expr_to_nanoseconds(ctx, &td.interval)
+                    .map_err(error::map::expr_error)?;
+                let offset = td
+                    .offset
+                    .as_ref()
+                    .map(|o| duration_expr_to_nanoseconds(ctx, o))
+                    .transpose()
+                    .map_err(error::map::expr_error)?;
+                Some(Interval { duration, offset })
+            } else {
+                None
+            },
+        )
     }
 }
 
@@ -865,11 +895,29 @@ macro_rules! lit_string {
     };
 }
 
+/// Set the `extra_intervals` field of [`FieldChecker`] if it is
+/// less than then proposed new value.
+macro_rules! set_extra_intervals {
+    ($SELF:expr, $NEW:expr) => {
+        if $SELF.extra_intervals < $NEW as usize {
+            $SELF.extra_intervals = $NEW as usize
+        }
+    };
+}
+
 /// Checks a number of expectations for the fields of a [`SelectStatement`].
 #[derive(Default)]
 struct FieldChecker {
     /// `true` if the statement contains a `GROUP BY TIME` clause.
     has_group_by_time: bool,
+
+    /// The number of additional intervals that must be read
+    /// for queries that group by time and use window functions such as
+    /// `DIFFERENCE` or `DERIVATIVE`. This ensures data for the first
+    /// window is available.
+    ///
+    /// See: <https://github.com/influxdata/influxdb/blob/f365bb7e3a9c5e227dbf66d84adf674d3d127176/query/compile.go#L50>
+    extra_intervals: usize,
 
     /// `true` if the interval was inherited by a parent.
     /// If this is set, then an interval that was inherited will not cause
@@ -1198,6 +1246,9 @@ impl FieldChecker {
         self.inc_aggregate_count();
 
         check_exp_args!(name, 1, 2, args);
+
+        set_extra_intervals!(self, 1);
+
         match args.get(1) {
             Some(Expr::Literal(Literal::Duration(d))) if **d <= 0 => {
                 return error::query(format!("duration argument must be positive, got {d}"))
@@ -1216,6 +1267,8 @@ impl FieldChecker {
     fn check_elapsed(&mut self, name: &str, args: &[Expr]) -> Result<()> {
         self.inc_aggregate_count();
         check_exp_args!(name, 1, 2, args);
+
+        set_extra_intervals!(self, 1);
 
         match args.get(1) {
             Some(Expr::Literal(Literal::Duration(d))) if **d <= 0 => {
@@ -1236,12 +1289,16 @@ impl FieldChecker {
         self.inc_aggregate_count();
         check_exp_args!(name, 1, args);
 
+        set_extra_intervals!(self, 1);
+
         self.check_nested_symbol(name, &args[0])
     }
 
     fn check_cumulative_sum(&mut self, args: &[Expr]) -> Result<()> {
         self.inc_aggregate_count();
         check_exp_args!("cumulative_sum", 1, args);
+
+        set_extra_intervals!(self, 1);
 
         self.check_nested_symbol("cumulative_sum", &args[0])
     }
@@ -1257,6 +1314,8 @@ impl FieldChecker {
             ));
         }
 
+        set_extra_intervals!(self, v);
+
         self.check_nested_symbol("moving_average", &args[0])
     }
 
@@ -1268,6 +1327,8 @@ impl FieldChecker {
         if v < 1 {
             return error::query(format!("{name} period must be greater than 1, got {v}"));
         }
+
+        set_extra_intervals!(self, v);
 
         if let Some(v) = lit_integer!(name, args, 2?) {
             match (v, name) {
@@ -1307,6 +1368,8 @@ impl FieldChecker {
             return error::query(format!("{name} period must be greater than 1, got {v}"));
         }
 
+        set_extra_intervals!(self, v);
+
         if let Some(v) = lit_integer!(name, args, 2?) {
             if v < 0 && v != -1 {
                 return error::query(format!(
@@ -1326,6 +1389,8 @@ impl FieldChecker {
         if v < 1 {
             return error::query(format!("{name} period must be greater than 1, got {v}"));
         }
+
+        set_extra_intervals!(self, v);
 
         if let Some(v) = lit_integer!(name, args, 2?) {
             if v < 0 && v != -1 {
@@ -1468,7 +1533,11 @@ pub(crate) enum ProjectionType {
 #[derive(Default, Debug, Copy, Clone)]
 struct SelectStatementInfo {
     /// Identifies the projection type for the `SELECT` query.
-    pub projection_type: ProjectionType,
+    projection_type: ProjectionType,
+    /// Copied from [extra_intervals](FieldChecker::extra_intervals)
+    ///
+    /// [See also](Select::extra_intervals).
+    extra_intervals: usize,
 }
 
 /// Gather information about the semantics of a [`SelectStatement`] and verify
@@ -1518,8 +1587,14 @@ fn select_statement_info(
     };
 
     let projection_type = fc.check_fields(fields, fill)?;
+    let FieldChecker {
+        extra_intervals, ..
+    } = fc;
 
-    Ok(SelectStatementInfo { projection_type })
+    Ok(SelectStatementInfo {
+        projection_type,
+        extra_intervals,
+    })
 }
 
 #[cfg(test)]
