@@ -94,7 +94,7 @@ use percent_encoding::{percent_decode_str, AsciiSet, CONTROLS};
 use std::{borrow::Cow, sync::Arc};
 use thiserror::Error;
 
-/// TODO: Actually validate
+/// Reasons a user-specified partition template isn't valid.
 #[derive(Debug, Error)]
 #[allow(missing_copy_implementations)]
 pub enum ValidationError {
