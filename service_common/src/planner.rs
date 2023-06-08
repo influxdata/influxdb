@@ -2,7 +2,9 @@
 use std::sync::Arc;
 
 use bytes::Bytes;
-use datafusion::{error::DataFusionError, physical_plan::ExecutionPlan};
+use datafusion::{
+    arrow::datatypes::SchemaRef, error::DataFusionError, physical_plan::ExecutionPlan,
+};
 use flightsql::{FlightSQLCommand, FlightSQLPlanner};
 use iox_query::{
     exec::IOxSessionContext,
@@ -108,20 +110,20 @@ impl Planner {
             .await
     }
 
-    /// Creates the response for a `GetFlightInfo`  FlightSQL  message as
-    /// described on [`FlightSQLPlanner::get_flight_info`], on a separate
-    /// threadpool.
-    pub async fn flight_sql_get_flight_info(
+    /// Returns the [`SchemaRef`] to be included in the response to a
+    /// `GetFlightInfo` FlightSQL message as described on
+    /// [`FlightSQLPlanner::get_schema`], on a separate threadpool.
+    pub async fn flight_sql_get_flight_info_schema(
         &self,
         namespace_name: impl Into<String> + Send,
         cmd: FlightSQLCommand,
-    ) -> Result<Bytes> {
+    ) -> Result<SchemaRef> {
         let namespace_name = namespace_name.into();
         let ctx = self.ctx.child_ctx("planner flight_sql_get_flight_info");
 
         self.ctx
             .run(async move {
-                FlightSQLPlanner::get_flight_info(namespace_name, cmd, &ctx)
+                FlightSQLPlanner::get_schema(namespace_name, cmd, &ctx)
                     .await
                     .map_err(DataFusionError::from)
             })

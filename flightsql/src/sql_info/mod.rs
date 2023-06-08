@@ -29,7 +29,7 @@ use std::{borrow::Cow, collections::BTreeMap, sync::Arc};
 
 use arrow::{
     array::UInt32Builder,
-    datatypes::{DataType, Field, Schema},
+    datatypes::{DataType, Field, Schema, SchemaRef},
     record_batch::RecordBatch,
 };
 use arrow_flight::sql::{
@@ -102,18 +102,18 @@ impl SqlInfoList {
     }
 
     /// Return the schema for the record batches produced
-    pub fn schema(&self) -> &Schema {
+    pub fn schema(&self) -> SchemaRef {
         // It is always the same
-        &SCHEMA
+        Arc::clone(&SCHEMA)
     }
 }
 
 // The schema produced by [`SqlInfoList`]
-static SCHEMA: Lazy<Schema> = Lazy::new(|| {
-    Schema::new(vec![
+static SCHEMA: Lazy<SchemaRef> = Lazy::new(|| {
+    Arc::new(Schema::new(vec![
         Field::new("info_name", DataType::UInt32, false),
         Field::new("value", SqlInfoUnionBuilder::schema().clone(), false),
-    ])
+    ]))
 });
 
 #[allow(non_snake_case)]

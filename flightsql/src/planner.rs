@@ -19,20 +19,18 @@ use arrow_flight::{
 };
 use arrow_util::flight::prepare_schema_for_flight;
 use bytes::Bytes;
-use datafusion::{error::DataFusionError, logical_expr::LogicalPlan, physical_plan::ExecutionPlan};
+use datafusion::{
+    error::DataFusionError,
+    logical_expr::{LogicalPlan, TableType},
+    physical_plan::ExecutionPlan,
+    sql::TableReference,
+};
 use iox_query::{exec::IOxSessionContext, QueryNamespace};
 use observability_deps::tracing::debug;
 use once_cell::sync::Lazy;
 use prost::Message;
 
-use crate::{
-    error::*,
-    get_catalogs::{get_catalogs, get_catalogs_schema},
-    get_db_schemas::{get_db_schemas, get_db_schemas_schema},
-    get_tables::{get_tables, get_tables_schema},
-    sql_info::iox_sql_info_list,
-    xdbc_type_info::TYPE_INFO_RECORD_BATCH,
-};
+use crate::{error::*, sql_info::iox_sql_info_list, xdbc_type_info::TYPE_INFO_RECORD_BATCH};
 use crate::{FlightSQLCommand, PreparedStatementHandle};
 
 /// Logic for creating plans for various Flight messages against a query database
@@ -44,14 +42,14 @@ impl FlightSQLPlanner {
         Self {}
     }
 
-    /// Returns the schema, in Arrow IPC encoded form, for the request in msg.
-    pub async fn get_flight_info(
+    /// Returns the schema for the request in msg.
+    pub async fn get_schema(
         namespace_name: impl Into<String> + Send,
         cmd: FlightSQLCommand,
         ctx: &IOxSessionContext,
-    ) -> Result<Bytes> {
+    ) -> Result<SchemaRef> {
         let namespace_name = namespace_name.into();
-        debug!(%namespace_name, %cmd, "Handling flightsql get_flight_info");
+        debug!(%namespace_name, %cmd, "Handling flightsql get_flight_info (get schema)");
 
         match cmd {
             FlightSQLCommand::CommandStatementQuery(CommandStatementQuery { query, .. }) => {
@@ -61,34 +59,28 @@ impl FlightSQLPlanner {
                 get_schema_for_query(handle.query(), ctx).await
             }
             FlightSQLCommand::CommandGetSqlInfo(CommandGetSqlInfo { .. }) => {
-                encode_schema(iox_sql_info_list().schema())
+                Ok(iox_sql_info_list().schema())
             }
-            FlightSQLCommand::CommandGetCatalogs(CommandGetCatalogs {}) => {
-                encode_schema(get_catalogs_schema())
-            }
+            FlightSQLCommand::CommandGetCatalogs(req) => Ok(req.into_builder().schema()),
             FlightSQLCommand::CommandGetCrossReference(CommandGetCrossReference { .. }) => {
-                encode_schema(&GET_CROSS_REFERENCE_SCHEMA)
+                Ok(Arc::clone(&GET_CROSS_REFERENCE_SCHEMA))
             }
-            FlightSQLCommand::CommandGetDbSchemas(CommandGetDbSchemas { .. }) => {
-                encode_schema(get_db_schemas_schema().as_ref())
-            }
+            FlightSQLCommand::CommandGetDbSchemas(req) => Ok(req.into_builder().schema()),
             FlightSQLCommand::CommandGetExportedKeys(CommandGetExportedKeys { .. }) => {
-                encode_schema(&GET_EXPORTED_KEYS_SCHEMA)
+                Ok(Arc::clone(&GET_EXPORTED_KEYS_SCHEMA))
             }
             FlightSQLCommand::CommandGetImportedKeys(CommandGetImportedKeys { .. }) => {
-                encode_schema(&GET_IMPORTED_KEYS_SCHEMA)
+                Ok(Arc::clone(&GET_IMPORTED_KEYS_SCHEMA))
             }
             FlightSQLCommand::CommandGetPrimaryKeys(CommandGetPrimaryKeys { .. }) => {
-                encode_schema(&GET_PRIMARY_KEYS_SCHEMA)
+                Ok(Arc::clone(&GET_PRIMARY_KEYS_SCHEMA))
             }
-            FlightSQLCommand::CommandGetTables(CommandGetTables { include_schema, .. }) => {
-                encode_schema(get_tables_schema(include_schema).as_ref())
-            }
+            FlightSQLCommand::CommandGetTables(req) => Ok(req.into_builder().schema()),
             FlightSQLCommand::CommandGetTableTypes(CommandGetTableTypes { .. }) => {
-                encode_schema(&GET_TABLE_TYPE_SCHEMA)
+                Ok(Arc::clone(&GET_TABLE_TYPE_SCHEMA))
             }
             FlightSQLCommand::CommandGetXdbcTypeInfo(CommandGetXdbcTypeInfo { .. }) => {
-                encode_schema(&GET_XDBC_TYPE_INFO_SCHEMA)
+                Ok(Arc::clone(&GET_XDBC_TYPE_INFO_SCHEMA))
             }
             FlightSQLCommand::ActionCreatePreparedStatementRequest(_)
             | FlightSQLCommand::ActionClosePreparedStatementRequest(_) => ProtocolSnafu {
@@ -124,9 +116,9 @@ impl FlightSQLPlanner {
                 let plan = plan_get_sql_info(ctx, info).await?;
                 Ok(ctx.create_physical_plan(&plan).await?)
             }
-            FlightSQLCommand::CommandGetCatalogs(CommandGetCatalogs {}) => {
+            FlightSQLCommand::CommandGetCatalogs(cmd) => {
                 debug!("Planning GetCatalogs query");
-                let plan = plan_get_catalogs(ctx).await?;
+                let plan = plan_get_catalogs(ctx, cmd).await?;
                 Ok(ctx.create_physical_plan(&plan).await?)
             }
             FlightSQLCommand::CommandGetCrossReference(CommandGetCrossReference {
@@ -158,16 +150,13 @@ impl FlightSQLPlanner {
                 .await?;
                 Ok(ctx.create_physical_plan(&plan).await?)
             }
-            FlightSQLCommand::CommandGetDbSchemas(CommandGetDbSchemas {
-                catalog,
-                db_schema_filter_pattern,
-            }) => {
+            FlightSQLCommand::CommandGetDbSchemas(cmd) => {
                 debug!(
-                    ?catalog,
-                    ?db_schema_filter_pattern,
+                    catalog=?cmd.catalog,
+                    db_schema_filter_pattern=?cmd.db_schema_filter_pattern,
                     "Planning GetDbSchemas query"
                 );
-                let plan = plan_get_db_schemas(ctx, catalog, db_schema_filter_pattern).await?;
+                let plan = plan_get_db_schemas(ctx, cmd).await?;
                 Ok(ctx.create_physical_plan(&plan).await?)
             }
             FlightSQLCommand::CommandGetExportedKeys(CommandGetExportedKeys {
@@ -212,30 +201,16 @@ impl FlightSQLPlanner {
                 let plan = plan_get_primary_keys(ctx, catalog, db_schema, table).await?;
                 Ok(ctx.create_physical_plan(&plan).await?)
             }
-            FlightSQLCommand::CommandGetTables(CommandGetTables {
-                catalog,
-                db_schema_filter_pattern,
-                table_name_filter_pattern,
-                table_types,
-                include_schema,
-            }) => {
+            FlightSQLCommand::CommandGetTables(cmd) => {
                 debug!(
-                    ?catalog,
-                    ?db_schema_filter_pattern,
-                    ?table_name_filter_pattern,
-                    ?table_types,
-                    ?include_schema,
+                    catalog=?cmd.catalog,
+                    db_schema_filter_pattern=?cmd.db_schema_filter_pattern,
+                    table_name_filter_pattern=?cmd.table_name_filter_pattern,
+                    table_types=?cmd.table_types,
+                    include_schema=?cmd.include_schema,
                     "Planning GetTables query"
                 );
-                let plan = plan_get_tables(
-                    ctx,
-                    catalog,
-                    db_schema_filter_pattern,
-                    table_name_filter_pattern,
-                    table_types,
-                    include_schema,
-                )
-                .await?;
+                let plan = plan_get_tables(ctx, cmd).await?;
                 Ok(ctx.create_physical_plan(&plan).await?)
             }
             FlightSQLCommand::CommandGetTableTypes(CommandGetTableTypes {}) => {
@@ -280,6 +255,7 @@ impl FlightSQLPlanner {
                 let parameter_schema = vec![];
 
                 let dataset_schema = get_schema_for_query(&query, ctx).await?;
+                let dataset_schema = encode_schema(dataset_schema.as_ref())?;
                 let handle = PreparedStatementHandle::new(query);
 
                 let result = ActionCreatePreparedStatementResult {
@@ -308,20 +284,15 @@ impl FlightSQLPlanner {
 }
 
 /// Return the schema for the specified query
-///
-/// returns: IPC encoded (schema_bytes) for this query
-async fn get_schema_for_query(query: &str, ctx: &IOxSessionContext) -> Result<Bytes> {
-    get_schema_for_plan(ctx.sql_to_logical_plan(query).await?)
+async fn get_schema_for_query(query: &str, ctx: &IOxSessionContext) -> Result<SchemaRef> {
+    Ok(get_schema_for_plan(ctx.sql_to_logical_plan(query).await?))
 }
 
 /// Return the schema for the specified logical plan
-///
-/// returns: IPC encoded (schema_bytes) for this query
-fn get_schema_for_plan(logical_plan: LogicalPlan) -> Result<Bytes> {
+fn get_schema_for_plan(logical_plan: LogicalPlan) -> SchemaRef {
     // gather real schema, but only
     let schema = Arc::new(Schema::from(logical_plan.schema().as_ref())) as _;
-    let schema = prepare_schema_for_flight(schema);
-    encode_schema(&schema)
+    prepare_schema_for_flight(schema)
 }
 
 /// Encodes the schema IPC encoded (schema_bytes)
@@ -344,8 +315,17 @@ async fn plan_get_sql_info(ctx: &IOxSessionContext, info: Vec<u32>) -> Result<Lo
     Ok(ctx.batch_to_logical_plan(batch)?)
 }
 
-async fn plan_get_catalogs(ctx: &IOxSessionContext) -> Result<LogicalPlan> {
-    Ok(ctx.batch_to_logical_plan(get_catalogs(ctx.inner())?)?)
+/// Return a list of "catalogs" from the DataFusion catalog
+async fn plan_get_catalogs(
+    ctx: &IOxSessionContext,
+    cmd: CommandGetCatalogs,
+) -> Result<LogicalPlan> {
+    let mut builder = cmd.into_builder();
+    for catalog_name in ctx.inner().catalog_names() {
+        builder.append(catalog_name);
+    }
+    let batch = builder.build()?;
+    Ok(ctx.batch_to_logical_plan(batch)?)
 }
 
 async fn plan_get_cross_reference(
@@ -361,12 +341,28 @@ async fn plan_get_cross_reference(
     Ok(ctx.batch_to_logical_plan(batch)?)
 }
 
+/// Return a list of schema from the DataFusion catalog
 async fn plan_get_db_schemas(
     ctx: &IOxSessionContext,
-    catalog: Option<String>,
-    db_schema_filter_pattern: Option<String>,
+    cmd: CommandGetDbSchemas,
 ) -> Result<LogicalPlan> {
-    let batch = get_db_schemas(ctx.inner(), catalog, db_schema_filter_pattern)?;
+    let mut builder = cmd.into_builder();
+    let catalog_list = ctx.inner().state().catalog_list();
+
+    for catalog_name in catalog_list.catalog_names() {
+        // we just got the catalog name from the catalog_list, so it
+        // should always be Some, but avoid unwrap to be safe
+        let Some(catalog) = catalog_list.catalog(&catalog_name) else {
+            continue
+        };
+
+        builder.append(&catalog_name, "information_schema");
+        for schema_name in catalog.schema_names() {
+            builder.append(&catalog_name, &schema_name);
+        }
+    }
+
+    let batch = builder.build()?;
     Ok(ctx.batch_to_logical_plan(batch)?)
 }
 
@@ -400,25 +396,71 @@ async fn plan_get_primary_keys(
     Ok(ctx.batch_to_logical_plan(batch)?)
 }
 
-async fn plan_get_tables(
-    ctx: &IOxSessionContext,
-    catalog: Option<String>,
-    db_schema_filter_pattern: Option<String>,
-    table_name_filter_pattern: Option<String>,
-    table_types: Vec<String>,
-    include_schema: bool,
-) -> Result<LogicalPlan> {
-    let batch = get_tables(
-        ctx.inner(),
-        catalog,
-        db_schema_filter_pattern,
-        table_name_filter_pattern,
-        table_types,
-        include_schema,
-    )
-    .await?;
+/// Return a list of tables from the DataFusion catalog
+async fn plan_get_tables(ctx: &IOxSessionContext, cmd: CommandGetTables) -> Result<LogicalPlan> {
+    let mut builder = cmd.into_builder();
+    let catalog_list = ctx.inner().state().catalog_list();
+
+    for catalog_name in catalog_list.catalog_names() {
+        // we just got the catalog name from the catalog_list, so it
+        // should always be Some, but avoid unwrap to be safe
+        let Some(catalog) = catalog_list.catalog(&catalog_name) else {
+            continue
+        };
+
+        // special case the "public"."information_schema" as it is a
+        // "virtual" catalog in DataFusion and thus is not reported
+        // directly via the table providers
+        // We ensure this list is kept in sync with tests
+        let table_names = vec!["columns", "df_settings", "tables", "views"];
+        for table_name in table_names {
+            let schema_name = "information_schema";
+            let table_ref = TableReference::full(&catalog_name, schema_name, table_name);
+
+            let Some(table) = ctx.inner().table(table_ref).await.ok() else {
+                continue;
+            };
+
+            let table_type = "VIEW";
+            let schema = Schema::from(table.schema());
+            builder.append(&catalog_name, schema_name, table_name, table_type, &schema)?;
+        }
+
+        for schema_name in catalog.schema_names() {
+            let Some(schema) = catalog.schema(&schema_name) else {
+                continue
+            };
+
+            for table_name in schema.table_names() {
+                let Some(table) = schema.table(&table_name).await else {
+                    continue
+                };
+
+                let table_type = table_type_name(table.table_type());
+
+                builder.append(
+                    &catalog_name,
+                    &schema_name,
+                    &table_name,
+                    table_type,
+                    table.schema().as_ref(),
+                )?;
+            }
+        }
+    }
+    let batch = builder.build()?;
 
     Ok(ctx.batch_to_logical_plan(batch)?)
+}
+
+/// Return the correct FlightSQL name for the DataFusion TableType
+fn table_type_name(table_type: TableType) -> &'static str {
+    match table_type {
+        // from https://github.com/apache/arrow-datafusion/blob/26b8377b0690916deacf401097d688699026b8fb/datafusion/core/src/catalog/information_schema.rs#L284-L288
+        TableType::Base => "BASE TABLE",
+        TableType::View => "VIEW",
+        TableType::Temporary => "LOCAL TEMPORARY",
+    }
 }
 
 /// Return a `LogicalPlan` for GetTableTypes
