@@ -508,6 +508,9 @@ impl<'a> InfluxQLToLogicalPlan<'a> {
             is_projected,
         } = ProjectionInfo::new(&select.fields, &group_by_tags);
 
+        let order_by = select.order_by.unwrap_or_default();
+        let time_alias = fields[0].name.as_str();
+
         let table_names = find_table_names(select);
         let sort_by_measurement = table_names.len() > 1;
         let mut plans = Vec::new();
@@ -592,14 +595,10 @@ impl<'a> InfluxQLToLogicalPlan<'a> {
             },
         )?;
 
-        // the sort planner node must refer to the time column using
-        // the alias that was specified
-        let time_alias = fields[0].name.as_str();
         let time_sort_expr = time_alias.as_expr().sort(
-            match select.order_by {
-                // Default behaviour is to sort by time in ascending order if there is no ORDER BY
-                None | Some(OrderByClause::Ascending) => true,
-                Some(OrderByClause::Descending) => false,
+            match order_by {
+                OrderByClause::Ascending => true,
+                OrderByClause::Descending => false,
             },
             false,
         );
@@ -645,10 +644,9 @@ impl<'a> InfluxQLToLogicalPlan<'a> {
         let time_alias = fields[0].name.as_str();
 
         let time_sort_expr = time_alias.as_expr().sort(
-            match select.order_by {
-                // Default behaviour is to sort by time in ascending order if there is no ORDER BY
-                None | Some(OrderByClause::Ascending) => true,
-                Some(OrderByClause::Descending) => false,
+            match ctx.order_by {
+                OrderByClause::Ascending => true,
+                OrderByClause::Descending => false,
             },
             false,
         );
