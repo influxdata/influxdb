@@ -163,6 +163,15 @@ jobs:
                 rsign "${target}"
               ;;
             esac
+
+            if [ -f "${target}" ]
+            then
+              # Since all artifacts are present, sign them here. This saves Circle
+              # credits over spinning up another instance just to separate out the
+              # checksum job. Individual checksums are written by the
+              # "build_packages" script.
+              sha256sum "${target}" >> "/tmp/workspace/packages/influxdb.${CIRCLE_TAG}.digests"
+            fi
           done
       - persist_to_workspace:
           root: /tmp/workspace
@@ -389,7 +398,6 @@ workflows:
           <<: *release_filter
       - unit_test_race:
           <<: *release_filter
-
   on_push:
     jobs:
       - build_binaries
