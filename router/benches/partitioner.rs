@@ -157,9 +157,11 @@ fn bench(
     // Un-normalise the path, adjusting back to the crate root.
     let file_path = format!("{}/../{}", env!("CARGO_MANIFEST_DIR"), file_path);
     let path = Path::new(&file_path);
-    let partition_template = NamespacePartitionTemplateOverride::from(proto::PartitionTemplate {
-        parts: partition_template,
-    });
+    let partition_template =
+        NamespacePartitionTemplateOverride::try_from(proto::PartitionTemplate {
+            parts: partition_template,
+        })
+        .unwrap();
 
     let schema = Arc::new(NamespaceSchema {
         id: NamespaceId::new(42),
@@ -187,7 +189,7 @@ fn bench(
                 TableId::new(i as _),
                 (
                     name,
-                    TablePartitionTemplateOverride::new(None, &partition_template),
+                    TablePartitionTemplateOverride::try_new(None, &partition_template).unwrap(),
                     payload,
                 ),
             )

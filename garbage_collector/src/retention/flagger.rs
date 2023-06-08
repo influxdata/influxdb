@@ -17,7 +17,7 @@ pub(crate) async fn perform(
                 .repositories()
                 .await
                 .parquet_files()
-                .flag_for_delete_by_retention()
+                .flag_for_delete_by_retention() //read/write
                 .await
                 .context(FlaggingSnafu)?;
             info!(flagged_count = %flagged.len(), "iox_catalog::flag_for_delete_by_retention()");

@@ -5,9 +5,10 @@
 //!
 //! The partitioning template, derived partition key format, and encodings are
 //! described in detail in the [`data_types::partition_template`] module.
-use std::{borrow::Cow, fmt::Write, ops::Range};
+mod strftime;
 
-use chrono::{format::StrftimeItems, TimeZone, Utc};
+use std::{borrow::Cow, ops::Range};
+
 use data_types::partition_template::{
     TablePartitionTemplateOverride, TemplatePart, ENCODED_PARTITION_KEY_CHARS,
     PARTITION_KEY_DELIMITER, PARTITION_KEY_VALUE_EMPTY_STR, PARTITION_KEY_VALUE_NULL_STR,
@@ -20,6 +21,8 @@ use crate::{
     column::{Column, ColumnData},
     MutableBatch,
 };
+
+use self::strftime::StrftimeFormatter;
 
 /// An error generating a partition key for a row.
 #[allow(missing_copy_implementations)]
@@ -60,9 +63,10 @@ pub fn partition_batch<'a>(
 /// particular row to the provided string, without performing any additional
 /// column lookups
 #[derive(Debug)]
+#[allow(clippy::large_enum_variant)]
 enum Template<'a> {
     TagValue(&'a Column),
-    TimeFormat(&'a [i64], StrftimeItems<'a>),
+    TimeFormat(&'a [i64], StrftimeFormatter<'a>),
 
     /// This batch is missing a partitioning tag column.
     MissingTag,
@@ -71,7 +75,7 @@ enum Template<'a> {
 impl<'a> Template<'a> {
     /// Renders this template to `out` for the row `idx`.
     fn fmt_row<W: std::fmt::Write>(
-        &self,
+        &mut self,
         out: &mut W,
         idx: usize,
     ) -> Result<(), PartitionKeyError> {
@@ -86,24 +90,7 @@ impl<'a> Template<'a> {
                 ))?,
                 _ => return Err(PartitionKeyError::TagValueNotTag(col.influx_type())),
             },
-            Template::TimeFormat(t, format) => {
-                let mut s = String::new();
-                write!(
-                    s,
-                    "{}",
-                    Utc.timestamp_nanos(t[idx])
-                        .format_with_items(format.clone()) // Cheap clone of refs
-                )
-                .map_err(|_| PartitionKeyError::InvalidStrftime)?;
-
-                out.write_str(
-                    Cow::from(utf8_percent_encode(
-                        s.as_str(),
-                        &ENCODED_PARTITION_KEY_CHARS,
-                    ))
-                    .as_ref(),
-                )?
-            }
+            Template::TimeFormat(t, fmt) => fmt.render(t[idx], out)?,
             // Either a tag that has no value for this given row index, or the
             // batch does not contain this tag at all.
             Template::TagValue(_) | Template::MissingTag => {
@@ -137,12 +124,14 @@ fn partition_keys<'a>(
     };
 
     // Convert TemplatePart into an ordered array of Template
-    let template = template_parts
+    let mut template = template_parts
         .map(|v| match v {
             TemplatePart::TagValue(col_name) => batch
                 .column(col_name)
                 .map_or_else(|_| Template::MissingTag, Template::TagValue),
-            TemplatePart::TimeFormat(fmt) => Template::TimeFormat(time, StrftimeItems::new(fmt)),
+            TemplatePart::TimeFormat(fmt) => {
+                Template::TimeFormat(time, StrftimeFormatter::new(fmt))
+            }
         })
         .collect::<Vec<_>>();
 
@@ -160,12 +149,13 @@ fn partition_keys<'a>(
         let mut string = String::with_capacity(last_len);
 
         // Evaluate each template part for this row
-        for (col_idx, col) in template.iter().enumerate() {
+        let template_len = template.len();
+        for (col_idx, col) in template.iter_mut().enumerate() {
             col.fmt_row(&mut string, idx)?;
 
             // If this isn't the last element in the template, insert a field
             // delimiter.
-            if col_idx + 1 != template.len() {
+            if col_idx + 1 != template_len {
                 string.push(PARTITION_KEY_DELIMITER);
             }
         }
@@ -241,7 +231,8 @@ mod tests {
             .unwrap();
         writer.commit();
 
-        let template_parts = TablePartitionTemplateOverride::new(None, &Default::default());
+        let template_parts =
+            TablePartitionTemplateOverride::try_new(None, &Default::default()).unwrap();
         let keys: Vec<_> = partition_keys(&batch, template_parts.parts())
             .collect::<Result<Vec<_>, _>>()
             .unwrap();
@@ -518,7 +509,7 @@ mod tests {
         /// [`TEST_TEMPLATE_PARTS`].
         fn arbitrary_template_parts()(set in proptest::collection::vec(
                 proptest::sample::select(TEST_TEMPLATE_PARTS),
-                (0, 12) // Set size range
+                (1, 12) // Set size range
             )) -> Vec<TemplatePart<'static>> {
             let mut set = set;
             set.dedup_by(|a, b| format!("{a:?}") == format!("{b:?}"));
@@ -545,7 +536,10 @@ mod tests {
         /// [`TEST_TEMPLATE_PARTS`], can be reversed to the full set of tags via
         /// [`build_column_values()`].
         #[test]
-        fn prop_reversible_mapping(template in arbitrary_template_parts(), tag_values in arbitrary_tag_value_map()) {
+        fn prop_reversible_mapping(
+            template in arbitrary_template_parts(),
+            tag_values in arbitrary_tag_value_map()
+        ) {
             let mut batch = MutableBatch::new();
             let mut writer = Writer::new(&mut batch, 1);
 

@@ -14,6 +14,7 @@
     unused_crate_dependencies
 )]
 
+use object_store::GetOptions;
 // Workaround for "unused crate" lint false positives.
 use workspace_hack as _;
 
@@ -221,10 +222,10 @@ impl ObjectStore for ObjectStoreMetrics {
         unimplemented!()
     }
 
-    async fn get(&self, location: &Path) -> Result<GetResult> {
+    async fn get_opts(&self, location: &Path, options: GetOptions) -> Result<GetResult> {
         let started_at = self.time_provider.now();
 
-        let res = self.inner.get(location).await;
+        let res = self.inner.get_opts(location, options).await;
 
         match res {
             Ok(GetResult::File(file, path)) => {

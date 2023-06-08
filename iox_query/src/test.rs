@@ -455,6 +455,7 @@ impl TestChunk {
                     location: Self::parquet_location(self.id),
                     last_modified: Default::default(),
                     size: 1,
+                    e_tag: None,
                 },
             }),
             ..self

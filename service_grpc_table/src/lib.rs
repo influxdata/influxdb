@@ -25,8 +25,7 @@ use workspace_hack as _;
 use std::sync::Arc;
 
 use data_types::{
-    partition_template::{TablePartitionTemplateOverride, TemplatePart},
-    ColumnType, NamespaceName, Table as CatalogTable,
+    partition_template::TablePartitionTemplateOverride, NamespaceName, Table as CatalogTable,
 };
 use generated_types::influxdata::iox::table::v1::*;
 use iox_catalog::interface::{Catalog, SoftDeletedRows};
@@ -82,10 +81,11 @@ impl table_service_server::TableService for TableService {
             .tables()
             .create(
                 &name,
-                TablePartitionTemplateOverride::new(
+                TablePartitionTemplateOverride::try_new(
                     partition_template,
                     &namespace.partition_template,
-                ),
+                )
+                .map_err(|v| Status::invalid_argument(v.to_string()))?,
                 namespace.id,
             )
             .await
@@ -102,40 +102,6 @@ impl table_service_server::TableService for TableService {
                     other => Status::internal(other.to_string()),
                 }
             })?;
-
-        // Partitioning is only supported for tags, so create tag columns for all `TagValue`
-        // partition template parts.
-        //
-        // WARNING! Because these catalog methods are not in a transaction with the table creation
-        // catalog call above, there is a (hopefully small) chance of a race condition in which
-        // a write for this table comes in between the table creation call and these column
-        // creation calls. If that write contains a column used in the partition template as a
-        // non-tag column, the column creation here will fail *and* the partitioning of the write
-        // will fail.
-        //
-        // This is tracked in https://github.com/influxdata/influxdb_iox/issues/7871
-        for template_part in table.partition_template.parts() {
-            if let TemplatePart::TagValue(tag_name) = template_part {
-                repos
-                    .columns()
-                    .create_or_get(tag_name, table.id, ColumnType::Tag)
-                    .await
-                    .map_err(|e| {
-                        warn!(error=%e, %name, "failed to create columns during table creation");
-                        match e {
-                            iox_catalog::interface::Error::ColumnTypeMismatch {
-                                name,
-                                existing,
-                                ..
-                            } => Status::invalid_argument(format!(
-                                "Partition templates can only use tag columns. \
-                                        Column `{name}` exists and is type `{existing}`"
-                            )),
-                            other => Status::internal(other.to_string()),
-                        }
-                    })?;
-            }
-        }
 
         info!(
             %name,
@@ -347,8 +313,8 @@ mod tests {
             .namespaces()
             .create(
                 &namespace_name,
-                Some(NamespacePartitionTemplateOverride::from(
-                    PartitionTemplate {
+                Some(
+                    NamespacePartitionTemplateOverride::try_from(PartitionTemplate {
                         parts: vec![
                             TemplatePart {
                                 part: Some(template_part::Part::TagValue("color".into())),
@@ -360,8 +326,9 @@ mod tests {
                                 part: Some(template_part::Part::TimeFormat("%Y".into())),
                             },
                         ],
-                    },
-                )),
+                    })
+                    .unwrap(),
+                ),
                 None,
             )
             .await
@@ -398,5 +365,35 @@ mod tests {
         let mut column_names: Vec<_> = table_columns.iter().map(|c| &c.name).collect();
         column_names.sort();
         assert_eq!(column_names, &["color", "tannins"])
+    }
+
+    #[tokio::test]
+    async fn invalid_custom_table_template_returns_error() {
+        let catalog: Arc<dyn Catalog> =
+            Arc::new(MemCatalog::new(Arc::new(metric::Registry::default())));
+        let handler = TableService::new(Arc::clone(&catalog));
+
+        let namespace = arbitrary_namespace(&mut *catalog.repositories().await, "grapes").await;
+        let table_name = "varietals";
+
+        let request = CreateTableRequest {
+            name: table_name.into(),
+            namespace: namespace.name.clone(),
+            partition_template: Some(PartitionTemplate { parts: vec![] }),
+        };
+
+        let error = handler
+            .create_table(Request::new(request))
+            .await
+            .unwrap_err();
+
+        assert_eq!(error.code(), Code::InvalidArgument);
+        assert_eq!(
+            error.message(),
+            "Custom partition template must have at least one part"
+        );
+
+        let all_tables = catalog.repositories().await.tables().list().await.unwrap();
+        assert!(all_tables.is_empty());
     }
 }

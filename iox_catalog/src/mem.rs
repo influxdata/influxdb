@@ -12,7 +12,9 @@ use crate::{
 };
 use async_trait::async_trait;
 use data_types::{
-    partition_template::{NamespacePartitionTemplateOverride, TablePartitionTemplateOverride},
+    partition_template::{
+        NamespacePartitionTemplateOverride, TablePartitionTemplateOverride, TemplatePart,
+    },
     Column, ColumnId, ColumnType, CompactionLevel, Namespace, NamespaceId, NamespaceName,
     ParquetFile, ParquetFileId, ParquetFileParams, Partition, PartitionId, PartitionKey,
     SkippedCompaction, Table, TableId, Timestamp,
@@ -268,60 +270,76 @@ impl TableRepo for MemTxn {
         partition_template: TablePartitionTemplateOverride,
         namespace_id: NamespaceId,
     ) -> Result<Table> {
-        let stage = self.stage();
+        let table = {
+            let stage = self.stage();
 
-        // this block is just to ensure the mem impl correctly creates TableCreateLimitError in
-        // tests, we don't care about any of the errors it is discarding
-        stage
-            .namespaces
-            .iter()
-            .find(|n| n.id == namespace_id)
-            .cloned()
-            .ok_or_else(|| Error::NamespaceNotFoundByName {
-                // we're never going to use this error, this is just for flow control,
-                // so it doesn't matter that we only have the ID, not the name
-                name: "".to_string(),
-            })
-            .and_then(|n| {
-                let max_tables = n.max_tables;
-                let tables_count = stage
-                    .tables
-                    .iter()
-                    .filter(|t| t.namespace_id == namespace_id)
-                    .count();
-                if tables_count >= max_tables.try_into().unwrap() {
-                    return Err(Error::TableCreateLimitError {
-                        table_name: name.to_string(),
-                        namespace_id,
-                    });
-                }
-                Ok(())
-            })?;
-
-        let table = match stage
-            .tables
-            .iter()
-            .find(|t| t.name == name && t.namespace_id == namespace_id)
-        {
-            Some(_t) => {
-                return Err(Error::TableNameExists {
-                    name: name.to_string(),
-                    namespace_id,
+            // this block is just to ensure the mem impl correctly creates TableCreateLimitError in
+            // tests, we don't care about any of the errors it is discarding
+            stage
+                .namespaces
+                .iter()
+                .find(|n| n.id == namespace_id)
+                .cloned()
+                .ok_or_else(|| Error::NamespaceNotFoundByName {
+                    // we're never going to use this error, this is just for flow control,
+                    // so it doesn't matter that we only have the ID, not the name
+                    name: "".to_string(),
                 })
-            }
-            None => {
-                let table = Table {
-                    id: TableId::new(stage.tables.len() as i64 + 1),
-                    namespace_id,
-                    name: name.to_string(),
-                    partition_template,
-                };
-                stage.tables.push(table);
-                stage.tables.last().unwrap()
+                .and_then(|n| {
+                    let max_tables = n.max_tables;
+                    let tables_count = stage
+                        .tables
+                        .iter()
+                        .filter(|t| t.namespace_id == namespace_id)
+                        .count();
+                    if tables_count >= max_tables.try_into().unwrap() {
+                        return Err(Error::TableCreateLimitError {
+                            table_name: name.to_string(),
+                            namespace_id,
+                        });
+                    }
+                    Ok(())
+                })?;
+
+            match stage
+                .tables
+                .iter()
+                .find(|t| t.name == name && t.namespace_id == namespace_id)
+            {
+                Some(_t) => {
+                    return Err(Error::TableNameExists {
+                        name: name.to_string(),
+                        namespace_id,
+                    })
+                }
+                None => {
+                    let table = Table {
+                        id: TableId::new(stage.tables.len() as i64 + 1),
+                        namespace_id,
+                        name: name.to_string(),
+                        partition_template,
+                    };
+                    stage.tables.push(table);
+                    stage.tables.last().unwrap()
+                }
             }
         };
 
-        Ok(table.clone())
+        let table = table.clone();
+
+        // Partitioning is only supported for tags, so create tag columns for all `TagValue`
+        // partition template parts. It's important this happens within the table creation
+        // transaction so that there isn't a possibility of a concurrent write creating these
+        // columns with an unsupported type.
+        for template_part in table.partition_template.parts() {
+            if let TemplatePart::TagValue(tag_name) = template_part {
+                self.columns()
+                    .create_or_get(tag_name, table.id, ColumnType::Tag)
+                    .await?;
+            }
+        }
+
+        Ok(table)
     }
 
     async fn get_by_id(&mut self, table_id: TableId) -> Result<Option<Table>> {
@@ -826,6 +844,15 @@ impl ParquetFileRepo for MemTxn {
             .iter()
             .find(|f| f.object_store_id.eq(&object_store_id))
             .cloned())
+    }
+
+    async fn exists_by_object_store_id(&mut self, object_store_id: Uuid) -> Result<bool> {
+        let stage = self.stage();
+
+        Ok(stage
+            .parquet_files
+            .iter()
+            .any(|f| f.object_store_id.eq(&object_store_id)))
     }
 
     async fn create_upgrade_delete(

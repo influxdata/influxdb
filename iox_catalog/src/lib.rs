@@ -227,8 +227,10 @@ where
                     table_name,
                     // This table is being created implicitly by this write, so there's no
                     // possibility of a user-supplied partition template here, which is why there's
-                    // a hardcoded `None`.
-                    TablePartitionTemplateOverride::new(None, namespace_partition_template),
+                    // a hardcoded `None`. If there is a namespace template, it must be valid because
+                    // validity was checked during its creation, so that's why there's an `expect`.
+                    TablePartitionTemplateOverride::try_new(None, namespace_partition_template)
+                        .expect("no table partition template; namespace partition template has been validated"),
                     namespace_id,
                 )
                 .await;
@@ -311,7 +313,8 @@ pub mod test_helpers {
             .tables()
             .create(
                 name,
-                TablePartitionTemplateOverride::new(None, &namespace.partition_template),
+                TablePartitionTemplateOverride::try_new(None, &namespace.partition_template)
+                    .unwrap(),
                 namespace.id,
             )
             .await

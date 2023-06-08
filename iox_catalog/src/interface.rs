@@ -483,6 +483,9 @@ pub trait ParquetFileRepo: Send + Sync {
         object_store_id: Uuid,
     ) -> Result<Option<ParquetFile>>;
 
+    /// Test parquet file exists by object store id
+    async fn exists_by_object_store_id(&mut self, object_store_id: Uuid) -> Result<bool>;
+
     /// Commit deletions, upgrades and creations in a single transaction.
     ///
     /// Returns IDs of created files.
@@ -870,11 +873,12 @@ pub(crate) mod test_helpers {
 
         // create a namespace with a PartitionTemplate other than the default
         let tag_partition_template =
-            NamespacePartitionTemplateOverride::from(proto::PartitionTemplate {
+            NamespacePartitionTemplateOverride::try_from(proto::PartitionTemplate {
                 parts: vec![proto::TemplatePart {
                     part: Some(proto::template_part::Part::TagValue("tag1".into())),
                 }],
-            });
+            })
+            .unwrap();
         let namespace5_name = NamespaceName::new("test_namespace5").unwrap();
         let namespace5 = repos
             .namespaces()
@@ -1088,12 +1092,17 @@ pub(crate) mod test_helpers {
             TablePartitionTemplateOverride::default()
         );
 
+        // The default template doesn't use any tag values, so no columns need to be created.
+        let table_columns = repos.columns().list_by_table_id(t.id).await.unwrap();
+        assert!(table_columns.is_empty());
+
         // test we get an error if we try to create it again
         let err = repos
             .tables()
             .create(
                 "test_table",
-                TablePartitionTemplateOverride::new(None, &namespace.partition_template),
+                TablePartitionTemplateOverride::try_new(None, &namespace.partition_template)
+                    .unwrap(),
                 namespace.id,
             )
             .await;
@@ -1188,7 +1197,7 @@ pub(crate) mod test_helpers {
             .tables()
             .create(
                 "definitely_unique",
-                TablePartitionTemplateOverride::new(None, &latest.partition_template),
+                TablePartitionTemplateOverride::try_new(None, &latest.partition_template).unwrap(),
                 latest.id,
             )
             .await
@@ -1202,14 +1211,23 @@ pub(crate) mod test_helpers {
         ));
 
         // Create a table with a partition template other than the default
-        let custom_table_template = TablePartitionTemplateOverride::new(
+        let custom_table_template = TablePartitionTemplateOverride::try_new(
             Some(proto::PartitionTemplate {
-                parts: vec![proto::TemplatePart {
-                    part: Some(proto::template_part::Part::TagValue("tag1".into())),
-                }],
+                parts: vec![
+                    proto::TemplatePart {
+                        part: Some(proto::template_part::Part::TagValue("tag1".into())),
+                    },
+                    proto::TemplatePart {
+                        part: Some(proto::template_part::Part::TimeFormat("year-%Y".into())),
+                    },
+                    proto::TemplatePart {
+                        part: Some(proto::template_part::Part::TagValue("tag2".into())),
+                    },
+                ],
             }),
-            &namespace.partition_template,
-        );
+            &namespace2.partition_template,
+        )
+        .unwrap();
         let templated = repos
             .tables()
             .create(
@@ -1220,6 +1238,19 @@ pub(crate) mod test_helpers {
             .await
             .unwrap();
         assert_eq!(templated.partition_template, custom_table_template);
+
+        // Tag columns should be created for tags used in the template
+        let table_columns = repos
+            .columns()
+            .list_by_table_id(templated.id)
+            .await
+            .unwrap();
+        assert_eq!(table_columns.len(), 2);
+        assert!(table_columns.iter().all(|c| c.is_tag()));
+        let mut column_names: Vec<_> = table_columns.iter().map(|c| &c.name).collect();
+        column_names.sort();
+        assert_eq!(column_names, &["tag1", "tag2"]);
+
         let lookup_templated = repos
             .tables()
             .get_by_namespace_and_name(namespace2.id, "use_a_template")
@@ -1230,11 +1261,20 @@ pub(crate) mod test_helpers {
 
         // Create a namespace with a partition template other than the default
         let custom_namespace_template =
-            NamespacePartitionTemplateOverride::from(proto::PartitionTemplate {
-                parts: vec![proto::TemplatePart {
-                    part: Some(proto::template_part::Part::TimeFormat("year-%Y".into())),
-                }],
-            });
+            NamespacePartitionTemplateOverride::try_from(proto::PartitionTemplate {
+                parts: vec![
+                    proto::TemplatePart {
+                        part: Some(proto::template_part::Part::TagValue("zzz".into())),
+                    },
+                    proto::TemplatePart {
+                        part: Some(proto::template_part::Part::TagValue("aaa".into())),
+                    },
+                    proto::TemplatePart {
+                        part: Some(proto::template_part::Part::TimeFormat("year-%Y".into())),
+                    },
+                ],
+            })
+            .unwrap();
         let custom_namespace_name = NamespaceName::new("custom_namespace").unwrap();
         let custom_namespace = repos
             .namespaces()
@@ -1247,7 +1287,8 @@ pub(crate) mod test_helpers {
             .unwrap();
         // Create a table without specifying the partition template
         let custom_table_template =
-            TablePartitionTemplateOverride::new(None, &custom_namespace.partition_template);
+            TablePartitionTemplateOverride::try_new(None, &custom_namespace.partition_template)
+                .unwrap();
         let table_templated_by_namespace = repos
             .tables()
             .create(
@@ -1259,8 +1300,20 @@ pub(crate) mod test_helpers {
             .unwrap();
         assert_eq!(
             table_templated_by_namespace.partition_template,
-            TablePartitionTemplateOverride::new(None, &custom_namespace_template)
+            TablePartitionTemplateOverride::try_new(None, &custom_namespace_template).unwrap()
         );
+
+        // Tag columns should be created for tags used in the template
+        let table_columns = repos
+            .columns()
+            .list_by_table_id(table_templated_by_namespace.id)
+            .await
+            .unwrap();
+        assert_eq!(table_columns.len(), 2);
+        assert!(table_columns.iter().all(|c| c.is_tag()));
+        let mut column_names: Vec<_> = table_columns.iter().map(|c| &c.name).collect();
+        column_names.sort();
+        assert_eq!(column_names, &["aaa", "zzz"]);
 
         repos
             .namespaces()

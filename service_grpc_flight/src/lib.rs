@@ -654,30 +654,14 @@ where
             .try_encode()
             .context(InternalCreatingTicketSnafu)?;
 
-        // Flight says "Set these to -1 if unknown."
-        //
-        // https://github.com/apache/arrow-rs/blob/a0a5880665b1836890f6843b6b8772d81c463351/format/Flight.proto#L274-L276
-        let total_records = -1;
-        let total_bytes = -1;
+        let endpoint = FlightEndpoint::new().with_ticket(ticket);
 
-        let endpoint = vec![FlightEndpoint {
-            ticket: Some(ticket),
-            // "If the list is empty, the expectation is that the
-            // ticket can only be redeemed on the current service
-            // where the ticket was generated."
-            //
-            // https://github.com/apache/arrow-rs/blob/a0a5880665b1836890f6843b6b8772d81c463351/format/Flight.proto#L292-L294
-            location: vec![],
-        }];
-
-        let flight_info = FlightInfo {
-            schema,
+        let mut flight_info = FlightInfo::new()
+            .with_endpoint(endpoint)
             // return descriptor we were passed
-            flight_descriptor: Some(flight_descriptor),
-            endpoint,
-            total_records,
-            total_bytes,
-        };
+            .with_descriptor(flight_descriptor);
+
+        flight_info.schema = schema;
 
         Ok(tonic::Response::new(flight_info))
     }

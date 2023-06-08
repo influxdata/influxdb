@@ -17,11 +17,11 @@ license.workspace = true
 ### BEGIN HAKARI SECTION
 [dependencies]
 ahash = { version = "0.8", default-features = false, features = ["runtime-rng"] }
-arrow = { git = "https://github.com/alamb/arrow-rs", rev = "4a59200", features = ["dyn_cmp_dict", "prettyprint"] }
-arrow-array = { git = "https://github.com/alamb/arrow-rs", rev = "4a59200", default-features = false, features = ["chrono-tz"] }
-arrow-flight = { version = "40", features = ["flight-sql-experimental"] }
-arrow-ord = { git = "https://github.com/alamb/arrow-rs", rev = "4a59200", default-features = false, features = ["dyn_cmp_dict"] }
-arrow-string = { git = "https://github.com/alamb/arrow-rs", rev = "4a59200", default-features = false, features = ["dyn_cmp_dict"] }
+arrow = { version = "41", features = ["dyn_cmp_dict", "prettyprint"] }
+arrow-array = { version = "41", default-features = false, features = ["chrono-tz"] }
+arrow-flight = { version = "41", features = ["flight-sql-experimental"] }
+arrow-ord = { version = "41", default-features = false, features = ["dyn_cmp_dict"] }
+arrow-string = { version = "41", default-features = false, features = ["dyn_cmp_dict"] }
 base64-594e8ee84c453af0 = { package = "base64", version = "0.13" }
 base64-647d43efb71741da = { package = "base64", version = "0.21" }
 bitflags = { version = "1" }
@@ -30,9 +30,9 @@ bytes = { version = "1" }
 chrono = { version = "0.4", default-features = false, features = ["alloc", "clock", "serde"] }
 crossbeam-utils = { version = "0.8" }
 crypto-common = { version = "0.1", default-features = false, features = ["std"] }
-datafusion = { git = "https://github.com/apache/arrow-datafusion.git", rev = "859251b4a20e00c3dfe73eee6b605fcf722687e7" }
-datafusion-optimizer = { git = "https://github.com/apache/arrow-datafusion.git", rev = "859251b4a20e00c3dfe73eee6b605fcf722687e7", default-features = false, features = ["crypto_expressions", "regex_expressions", "unicode_expressions"] }
-datafusion-physical-expr = { git = "https://github.com/apache/arrow-datafusion.git", rev = "859251b4a20e00c3dfe73eee6b605fcf722687e7", default-features = false, features = ["crypto_expressions", "regex_expressions", "unicode_expressions"] }
+datafusion = { git = "https://github.com/apache/arrow-datafusion.git", rev = "91e75d7e6303c1a7331e8e90eaad9b095ace929b" }
+datafusion-optimizer = { git = "https://github.com/apache/arrow-datafusion.git", rev = "91e75d7e6303c1a7331e8e90eaad9b095ace929b", default-features = false, features = ["crypto_expressions", "regex_expressions", "unicode_expressions"] }
+datafusion-physical-expr = { git = "https://github.com/apache/arrow-datafusion.git", rev = "91e75d7e6303c1a7331e8e90eaad9b095ace929b", default-features = false, features = ["crypto_expressions", "regex_expressions", "unicode_expressions"] }
 digest = { version = "0.10", features = ["mac", "std"] }
 either = { version = "1" }
 fixedbitset = { version = "0.4" }
@@ -57,10 +57,10 @@ memchr = { version = "2" }
 nom = { version = "7" }
 num-integer = { version = "0.1", default-features = false, features = ["i128", "std"] }
 num-traits = { version = "0.2", features = ["i128", "libm"] }
-object_store = { version = "0.5", default-features = false, features = ["aws", "azure", "gcp"] }
+object_store = { version = "0.6", default-features = false, features = ["aws", "azure", "gcp"] }
 once_cell = { version = "1", features = ["parking_lot"] }
 parking_lot = { version = "0.12", features = ["arc_lock"] }
-parquet = { git = "https://github.com/alamb/arrow-rs", rev = "4a59200", features = ["experimental", "object_store"] }
+parquet = { version = "41", features = ["experimental", "object_store"] }
 petgraph = { version = "0.6" }
 phf_shared = { version = "0.11" }
 predicates = { version = "3" }

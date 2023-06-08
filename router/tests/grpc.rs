@@ -14,14 +14,12 @@ use generated_types::influxdata::{
 use hyper::StatusCode;
 use iox_catalog::interface::{Error as CatalogError, SoftDeletedRows};
 use iox_time::{SystemProvider, TimeProvider};
-use mutable_batch::PartitionKeyError;
 use router::{
-    dml_handlers::{
-        CachedServiceProtectionLimit, DmlError, PartitionError, RetentionError, SchemaError,
-    },
+    dml_handlers::{CachedServiceProtectionLimit, DmlError, RetentionError, SchemaError},
     namespace_resolver::{self, NamespaceCreationError},
     server::http::Error,
 };
+use test_helpers::assert_error;
 use tonic::{Code, Request};
 
 use crate::common::TestContextBuilder;
@@ -958,28 +956,20 @@ async fn test_invalid_strftime_partition_template() {
             }],
         }),
     };
-    ctx.grpc_delegate()
+
+    // Check namespace creation returned an error
+    let got = ctx
+        .grpc_delegate()
         .namespace_service()
         .create_namespace(Request::new(req))
-        .await
-        .unwrap()
-        .into_inner()
-        .namespace
-        .unwrap();
+        .await;
 
-    // Write, which implicitly creates the table with the namespace's custom partition template
-    let lp = "plantains,tag1=A,tag2=B val=42i".to_string();
-    let got = ctx.write_lp("bananas", "test", lp).await;
-    assert_matches!(
+    assert_error!(
         got,
-        Err(Error::DmlHandler(DmlError::Partition(
-            PartitionError::Partitioner(PartitionKeyError::InvalidStrftime)
-        )))
+        ref status
+            if status.code() == Code::InvalidArgument
+                && status.message() == "invalid strftime format in partition template: %3F"
     );
-
-    // Check the ingester did not observe any writes.
-    let writes = ctx.write_calls();
-    assert!(writes.is_empty());
 }
 
 #[tokio::test]

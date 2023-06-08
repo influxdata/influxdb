@@ -16,7 +16,7 @@ arrow-flight = { workspace = true, optional = true, features=["flight-sql-experi
 arrow_util = { path = "../arrow_util", optional = true }
 bytes = "1.4"
 client_util = { path = "../client_util" }
-comfy-table = { version = "6.2", default-features = false}
+comfy-table = { version = "7.0", default-features = false}
 futures-util = { version = "0.3" }
 influxdb-line-protocol = { path = "../influxdb_line_protocol"}
 generated_types = { path = "../generated_types" }
