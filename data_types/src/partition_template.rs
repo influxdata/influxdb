@@ -294,6 +294,17 @@ mod serialization {
                         return Err(ValidationError::InvalidStrftime(fmt.into()));
                     }
 
+                    // Chrono will panic during timestamp formatting if this
+                    // formatter directive is used!
+                    //
+                    // An upper-case Z does not trigger the panic code path so
+                    // is not checked for.
+                    if fmt.contains("%#z") {
+                        return Err(ValidationError::InvalidStrftime(
+                            "%#z cannot be used".to_string(),
+                        ));
+                    }
+
                     // Currently we can only tell whether a nonempty format is valid by trying
                     // to use it. See <https://github.com/chronotope/chrono/issues/47>
                     let mut dev_null = String::new();
@@ -498,6 +509,28 @@ mod tests {
         });
 
         assert_error!(err, ValidationError::TooManyParts { specified } if specified == 9);
+    }
+
+    /// Chrono will panic when formatting a timestamp if the "%#z" formatting
+    /// directive is used...
+    #[test]
+    fn test_secret_formatter_advice_panic() {
+        let err = serialization::Wrapper::try_from(proto::PartitionTemplate {
+            parts: vec![proto::TemplatePart {
+                part: Some(proto::template_part::Part::TimeFormat("%#z".into())),
+            }],
+        });
+
+        assert_error!(err, ValidationError::InvalidStrftime(_));
+
+        // This doesn't trigger the panic, but is included for completeness.
+        let err = serialization::Wrapper::try_from(proto::PartitionTemplate {
+            parts: vec![proto::TemplatePart {
+                part: Some(proto::template_part::Part::TimeFormat("%#Z".into())),
+            }],
+        });
+
+        assert_error!(err, ValidationError::InvalidStrftime(_));
     }
 
     #[test]

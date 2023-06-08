@@ -587,6 +587,18 @@ mod tests {
             let mut batch = MutableBatch::new();
             let mut writer = Writer::new(&mut batch, 1);
 
+            // This sequence causes chrono's formatter to panic with a "do not
+            // use this" message...
+            //
+            // This is validated to not be part of the formatter (among other
+            // invalid sequences) when constructing a template from the user
+            // input/proto.
+            //
+            // Uniquely this causes a panic, whereas others do not - so it must
+            // be filtered out when fuzz-testing that invalid sequences do not
+            // cause a panic in the key generator.
+            prop_assume!(!fmt.contains("%#z"));
+
             // Generate a single time-based partitioning template with a
             // randomised format string.
             let template = vec![
