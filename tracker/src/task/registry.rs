@@ -128,7 +128,7 @@ where
     /// those removed
     fn reclaim(&mut self) -> Vec<TaskTracker<T>> {
         self.tasks
-            .drain_filter(|_, v| v.is_complete())
+            .extract_if(|_, v| v.is_complete())
             .map(|(_, v)| v)
             .collect()
     }
