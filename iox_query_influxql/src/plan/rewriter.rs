@@ -102,10 +102,9 @@ impl RewriteSelect {
         let (fields, group_by) = self.expand_projection(s, stmt, &from, &tag_set)?;
         let condition = self.condition_resolve_types(s, stmt, &from)?;
 
+        let now = Timestamp::from(s.execution_props().query_execution_start_time);
         let rc = ReduceContext {
-            now: Some(Timestamp::from(
-                s.execution_props().query_execution_start_time,
-            )),
+            now: Some(now),
             tz: stmt.timezone.map(|tz| *tz),
         };
 
@@ -114,6 +113,18 @@ impl RewriteSelect {
         let (condition, time_range) = match condition {
             Some(where_clause) => split_cond(&rc, &where_clause).map_err(error::map::expr_error)?,
             None => (None, TimeRange::default()),
+        };
+
+        // If the interval is non-zero and there is no upper bound, default to `now`
+        // for compatibility with InfluxQL OG.
+        //
+        // See: https://github.com/influxdata/influxdb/blob/f365bb7e3a9c5e227dbf66d84adf674d3d127176/query/compile.go#L172-L179
+        let time_range = match (interval, time_range.upper) {
+            (Some(interval), None) if interval.duration > 0 => TimeRange {
+                lower: time_range.lower,
+                upper: Some(now.timestamp_nanos()),
+            },
+            _ => time_range,
         };
 
         let SelectStatementInfo {
@@ -1666,6 +1677,16 @@ mod test {
             ProjectionType::Selector { has_fields: false }
         );
 
+        // updates extra_intervals
+        let info = select_statement_info(&parse_select("SELECT difference(foo) FROM cpu")).unwrap();
+        assert_matches!(info.extra_intervals, 1);
+        // derives extra intervals from the window function
+        let info = select_statement_info(&parse_select("SELECT moving_average(foo, 5) FROM cpu")).unwrap();
+        assert_matches!(info.extra_intervals, 5);
+        // uses the maximum extra intervals
+        let info = select_statement_info(&parse_select("SELECT difference(foo), moving_average(foo, 4) FROM cpu")).unwrap();
+        assert_matches!(info.extra_intervals, 4);
+
         let info = select_statement_info(&parse_select("SELECT last(foo), bar FROM cpu")).unwrap();
         assert_matches!(
             info.projection_type,
@@ -2290,6 +2311,26 @@ mod test {
             assert_eq!(
                 stmt.to_string(),
                 "SELECT time::timestamp AS time, host::tag AS host, usage_idle::float AS usage_idle, usage_system::float AS usage_system, usage_user::float AS usage_user FROM cpu GROUP BY cpu::tag, host::tag, region::tag"
+            );
+
+            //
+            // TIME
+            //
+
+            // Explicitly adds an upper bound for the time-range for aggregate queries
+            let stmt = parse_select("SELECT mean(usage_idle) FROM cpu WHERE time >= '2022-04-09T12:13:14Z' GROUP BY TIME(30s)");
+            let stmt = rewrite_select_statement(&namespace, &stmt).unwrap();
+            assert_eq!(
+                stmt.to_string(),
+                "SELECT time::timestamp AS time, mean(usage_idle::float) AS mean FROM cpu WHERE time >= 1649506394000000000 AND time <= 1672531200000000000 GROUP BY TIME(30s)"
+            );
+
+            // Does not add an upper bound time range if already specified
+            let stmt = parse_select("SELECT mean(usage_idle) FROM cpu WHERE time >= '2022-04-09T12:13:14Z' AND time < '2022-04-10T12:00:00Z' GROUP BY TIME(30s)");
+            let stmt = rewrite_select_statement(&namespace, &stmt).unwrap();
+            assert_eq!(
+                stmt.to_string(),
+                "SELECT time::timestamp AS time, mean(usage_idle::float) AS mean FROM cpu WHERE time >= 1649506394000000000 AND time <= 1649591999999999999 GROUP BY TIME(30s)"
             );
         }
 
