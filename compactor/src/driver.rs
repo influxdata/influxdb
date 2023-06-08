@@ -321,6 +321,9 @@ async fn execute_branch(
     )
     .await?;
 
+    // inputs can be removed from the scratchpad as soon as we're done with compaction.
+    scratchpad_ctx.clean_from_scratchpad(&input_paths).await;
+
     // upload files to real object store
     let created_file_params = upload_files_to_object_store(
         created_file_params,
@@ -332,12 +335,20 @@ async fn execute_branch(
         info!(
             partition_id = partition_info.partition_id.get(),
             uuid = file_param.object_store_id.to_string(),
+            bytes = file_param.file_size_bytes,
             "uploaded file to objectstore",
         );
     }
 
-    // clean scratchpad
-    scratchpad_ctx.clean_from_scratchpad(&input_paths).await;
+    let created_file_paths: Vec<ParquetFilePath> = created_file_params
+        .iter()
+        .map(ParquetFilePath::from)
+        .collect();
+
+    // Now that we've uploaded them, compaction output files can be removed from the scratchpad.
+    scratchpad_ctx
+        .clean_from_scratchpad(&created_file_paths)
+        .await;
 
     // Update the catalog to reflect the newly created files, soft delete the compacted
     // files and update the upgraded files
