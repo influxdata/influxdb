@@ -62,7 +62,6 @@ impl ParquetFileSink for ObjectStoreParquetFileSink {
             namespace_name: partition.namespace_name.clone().into(),
             table_id: partition.table.id,
             table_name: partition.table.name.clone().into(),
-            partition_id: partition.partition_id,
             partition_key: partition.partition_key.clone(),
             compaction_level: level,
             sort_key: partition.sort_key.clone(),
@@ -73,7 +72,11 @@ impl ParquetFileSink for ObjectStoreParquetFileSink {
         // them, and directly upload the resulting Parquet files to
         // object storage.
         let pool = Arc::clone(&self.pool);
-        let (parquet_meta, file_size) = match self.store.upload(stream, &meta, pool).await {
+        let (parquet_meta, file_size) = match self
+            .store
+            .upload(stream, partition.partition_id, &meta, pool)
+            .await
+        {
             Ok(v) => v,
             Err(UploadError::Serialise(CodecError::NoRows | CodecError::NoRecordBatches)) => {
                 // This MAY be a bug.

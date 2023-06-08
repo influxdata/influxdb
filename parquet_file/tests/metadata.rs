@@ -44,6 +44,8 @@ async fn test_decoded_iox_metadata() {
         ),
     ];
 
+    let partition_id = PartitionId::new(4);
+
     // And the metadata the batch would be encoded with if it came through the
     // IOx write path.
     let meta = IoxMetadata {
@@ -53,7 +55,6 @@ async fn test_decoded_iox_metadata() {
         namespace_name: "bananas".into(),
         table_id: TableId::new(3),
         table_name: "platanos".into(),
-        partition_id: PartitionId::new(4),
         partition_key: "potato".into(),
         compaction_level: CompactionLevel::FileNonOverlapped,
         sort_key: None,
@@ -79,7 +80,7 @@ async fn test_decoded_iox_metadata() {
     let storage = ParquetStorage::new(object_store, StorageId::from("iox"));
 
     let (iox_parquet_meta, file_size) = storage
-        .upload(stream, &meta, unbounded_memory_pool())
+        .upload(stream, partition_id, &meta, unbounded_memory_pool())
         .await
         .expect("failed to serialize & persist record batch");
 
@@ -184,6 +185,8 @@ async fn test_empty_parquet_file_panic() {
         ("some_field", to_string_array(&[])),
     ];
 
+    let partition_id = PartitionId::new(4);
+
     // And the metadata the batch would be encoded with if it came through the
     // IOx write path.
     let meta = IoxMetadata {
@@ -193,7 +196,6 @@ async fn test_empty_parquet_file_panic() {
         namespace_name: "bananas".into(),
         table_id: TableId::new(3),
         table_name: "platanos".into(),
-        partition_id: PartitionId::new(4),
         partition_key: "potato".into(),
         compaction_level: CompactionLevel::FileNonOverlapped,
         sort_key: None,
@@ -208,7 +210,7 @@ async fn test_empty_parquet_file_panic() {
 
     // Serialising empty data should cause a panic for human investigation.
     let err = storage
-        .upload(stream, &meta, unbounded_memory_pool())
+        .upload(stream, partition_id, &meta, unbounded_memory_pool())
         .await
         .expect_err("empty file should raise an error");
 
@@ -278,7 +280,7 @@ async fn test_decoded_many_columns_with_null_cols_iox_metadata() {
     }
     sort_key_data.push(TIME_COLUMN_NAME.to_string());
     let sort_key = SortKey::from_columns(sort_key_data);
-
+    let partition_id = PartitionId::new(4);
     let meta = IoxMetadata {
         object_store_id: Default::default(),
         creation_timestamp: Time::from_timestamp_nanos(42),
@@ -286,7 +288,6 @@ async fn test_decoded_many_columns_with_null_cols_iox_metadata() {
         namespace_name: "bananas".into(),
         table_id: TableId::new(3),
         table_name: "platanos".into(),
-        partition_id: PartitionId::new(4),
         partition_key: "potato".into(),
         compaction_level: CompactionLevel::FileNonOverlapped,
         sort_key: Some(sort_key),
@@ -312,7 +313,7 @@ async fn test_decoded_many_columns_with_null_cols_iox_metadata() {
     let storage = ParquetStorage::new(object_store, StorageId::from("iox"));
 
     let (iox_parquet_meta, file_size) = storage
-        .upload(stream, &meta, unbounded_memory_pool())
+        .upload(stream, partition_id, &meta, unbounded_memory_pool())
         .await
         .expect("failed to serialize & persist record batch");
 
@@ -373,7 +374,6 @@ async fn test_derive_parquet_file_params() {
         namespace_name: "bananas".into(),
         table_id: TableId::new(3),
         table_name: "platanos".into(),
-        partition_id,
         partition_key: "potato".into(),
         compaction_level: CompactionLevel::FileNonOverlapped,
         sort_key: None,
@@ -396,7 +396,7 @@ async fn test_derive_parquet_file_params() {
     let storage = ParquetStorage::new(object_store, StorageId::from("iox"));
 
     let (iox_parquet_meta, file_size) = storage
-        .upload(stream, &meta, unbounded_memory_pool())
+        .upload(stream, partition_id, &meta, unbounded_memory_pool())
         .await
         .expect("failed to serialize & persist record batch");
 
@@ -416,7 +416,6 @@ async fn test_derive_parquet_file_params() {
     // TODO: check thrift-encoded metadata which may be the issue of bug 4695
     assert_eq!(catalog_data.namespace_id, meta.namespace_id);
     assert_eq!(catalog_data.table_id, meta.table_id);
-    assert_eq!(catalog_data.partition_id, meta.partition_id);
     assert_eq!(catalog_data.object_store_id, meta.object_store_id);
     assert_eq!(catalog_data.file_size_bytes, file_size as i64);
     assert_eq!(catalog_data.compaction_level, meta.compaction_level);

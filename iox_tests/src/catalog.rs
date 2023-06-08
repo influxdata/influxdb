@@ -483,7 +483,6 @@ impl TestPartition {
             namespace_name: self.namespace.namespace.name.clone().into(),
             table_id: self.table.table.id,
             table_name: self.table.table.name.clone().into(),
-            partition_id: self.partition.id,
             partition_key: self.partition.partition_key.clone(),
             compaction_level: CompactionLevel::Initial,
             sort_key: Some(sort_key.clone()),
@@ -494,6 +493,7 @@ impl TestPartition {
                 Arc::clone(&self.catalog.object_store),
                 StorageId::from("iox"),
             ),
+            self.partition.id,
             &metadata,
             record_batch.clone(),
         )
@@ -780,12 +780,13 @@ async fn update_catalog_sort_key_if_needed(
 /// Create parquet file and return file size.
 async fn create_parquet_file(
     store: ParquetStorage,
+    partition_id: PartitionId,
     metadata: &IoxMetadata,
     record_batch: RecordBatch,
 ) -> usize {
     let stream = Box::pin(MemoryStream::new(vec![record_batch]));
     let (_meta, file_size) = store
-        .upload(stream, metadata, unbounded_memory_pool())
+        .upload(stream, partition_id, metadata, unbounded_memory_pool())
         .await
         .expect("persisting parquet file should succeed");
     file_size

@@ -267,9 +267,6 @@ pub struct IoxMetadata {
     /// table name of the data
     pub table_name: Arc<str>,
 
-    /// partition id of the data
-    pub partition_id: PartitionId,
-
     /// partition key of the data
     pub partition_key: PartitionKey,
 
@@ -334,7 +331,6 @@ impl IoxMetadata {
             namespace_name: self.namespace_name.to_string(),
             table_id: self.table_id.get(),
             table_name: self.table_name.to_string(),
-            partition_id: self.partition_id.get(),
             partition_key: self.partition_key.to_string(),
             sort_key,
             compaction_level: self.compaction_level as i32,
@@ -385,7 +381,6 @@ impl IoxMetadata {
             namespace_name,
             table_id: TableId::new(proto_msg.table_id),
             table_name,
-            partition_id: PartitionId::new(proto_msg.partition_id),
             partition_key,
             sort_key,
             compaction_level: proto_msg.compaction_level.try_into().context(
@@ -409,7 +404,6 @@ impl IoxMetadata {
             namespace_name: "external".into(),
             table_id: TableId::new(1),
             table_name: table_name.into(),
-            partition_id: PartitionId::new(1),
             partition_key: "unknown".into(),
             compaction_level: CompactionLevel::Initial,
             sort_key: None,
@@ -490,7 +484,7 @@ impl IoxMetadata {
         ParquetFileParams {
             namespace_id: self.namespace_id,
             table_id: self.table_id,
-            partition_id: self.partition_id,
+            partition_id,
             object_store_id: self.object_store_id,
             min_time,
             max_time,
@@ -1007,7 +1001,6 @@ mod tests {
             namespace_name: Arc::from("hi"),
             table_id: TableId::new(3),
             table_name: Arc::from("weather"),
-            partition_id: PartitionId::new(4),
             partition_key: PartitionKey::from("part"),
             compaction_level: CompactionLevel::Initial,
             sort_key: Some(sort_key),
@@ -1030,7 +1023,6 @@ mod tests {
             namespace_name: "bananas".into(),
             table_id: TableId::new(3),
             table_name: "platanos".into(),
-            partition_id: PartitionId::new(4),
             partition_key: "potato".into(),
             compaction_level: CompactionLevel::FileNonOverlapped,
             sort_key: None,
