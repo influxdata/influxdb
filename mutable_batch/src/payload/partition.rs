@@ -11,8 +11,8 @@ use std::{borrow::Cow, ops::Range};
 
 use data_types::partition_template::{
     TablePartitionTemplateOverride, TemplatePart, ENCODED_PARTITION_KEY_CHARS,
-    PARTITION_KEY_DELIMITER, PARTITION_KEY_MAX_PART_LEN, PARTITION_KEY_PART_TRUNCATED,
-    PARTITION_KEY_VALUE_EMPTY_STR, PARTITION_KEY_VALUE_NULL_STR,
+    MAXIMUM_NUMBER_OF_TEMPLATE_PARTS, PARTITION_KEY_DELIMITER, PARTITION_KEY_MAX_PART_LEN,
+    PARTITION_KEY_PART_TRUNCATED, PARTITION_KEY_VALUE_EMPTY_STR, PARTITION_KEY_VALUE_NULL_STR,
 };
 use percent_encoding::utf8_percent_encode;
 use schema::{InfluxColumnType, TIME_COLUMN_NAME};
@@ -51,6 +51,14 @@ pub fn partition_batch<'a>(
     batch: &'a MutableBatch,
     template: &'a TablePartitionTemplateOverride,
 ) -> impl Iterator<Item = (Result<String, PartitionKeyError>, Range<usize>)> + 'a {
+    let parts = template.len();
+    if parts > MAXIMUM_NUMBER_OF_TEMPLATE_PARTS {
+        panic!(
+            "partition template contains {}, which exceeds the maximum of {}",
+            parts, MAXIMUM_NUMBER_OF_TEMPLATE_PARTS
+        );
+    }
+
     range_encode(partition_keys(batch, template.parts()))
 }
 
@@ -974,6 +982,18 @@ mod tests {
         assert_matches!(ret, Err(PartitionKeyError::InvalidStrftime));
     }
 
+    #[test]
+    #[should_panic(expected = "partition template contains 9, which exceeds the maximum of 8")]
+    fn test_too_many_parts() {
+        let template = test_table_partition_override(
+            std::iter::repeat(TemplatePart::TagValue("bananas"))
+                .take(9)
+                .collect(),
+        );
+
+        let _ = partition_batch(&MutableBatch::new(), &template);
+    }
+
     // These values are arbitrarily chosen when building an input to the
     // partitioner.
 
@@ -999,11 +1019,11 @@ mod tests {
     ];
 
     prop_compose! {
-        /// Yields a vector of up to 12 unique template parts, chosen from
-        /// [`TEST_TEMPLATE_PARTS`].
+        /// Yields a vector of up to [`MAXIMUM_NUMBER_OF_TEMPLATE_PARTS`] unique
+        /// template parts, chosen from [`TEST_TEMPLATE_PARTS`].
         fn arbitrary_template_parts()(set in proptest::collection::vec(
                 proptest::sample::select(TEST_TEMPLATE_PARTS),
-                (1, 12) // Set size range
+                (1, MAXIMUM_NUMBER_OF_TEMPLATE_PARTS) // Set size range
             )) -> Vec<TemplatePart<'static>> {
             let mut set = set;
             set.dedup_by(|a, b| format!("{a:?}") == format!("{b:?}"));

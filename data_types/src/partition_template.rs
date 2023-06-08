@@ -47,7 +47,7 @@
 //! [`build_column_values()`] function can be used to obtain the set of
 //! [`TemplatePart::TagValue`] the key was constructed from.
 //!
-//! ### Truncation
+//! ### Value Truncation
 //!
 //! Partition key parts are limited to, at most, 200 bytes in length
 //! ([`PARTITION_KEY_MAX_PART_LEN`]). If any single partition key part exceeds
@@ -91,6 +91,14 @@
 //! and compatibility for the consumer. This may be relaxed in the future to
 //! allow splitting graphemes, but by being conservative we give ourselves this
 //! option - we can't easily do the reverse!
+//!
+//! ## Part Limit & Maximum Key Size
+//!
+//! The number of parts in a partition template is limited to 8
+//! ([`MAXIMUM_NUMBER_OF_TEMPLATE_PARTS`]), validated at creation time.
+//!
+//! Together with the above value truncation, this bounds the maximum length of
+//! a partition key to 1,607 bytes (1.57 KiB).
 //!
 //! ### Reserved Characters
 //!
@@ -597,6 +605,21 @@ mod tests {
     use assert_matches::assert_matches;
     use sqlx::Encode;
     use test_helpers::assert_error;
+
+    #[test]
+    fn test_max_partition_key_len() {
+        let max_len: usize =
+            // 8 parts, at most 200 bytes long.
+            (MAXIMUM_NUMBER_OF_TEMPLATE_PARTS * PARTITION_KEY_MAX_PART_LEN)
+            // 7 delimiting characters between parts.
+            + (MAXIMUM_NUMBER_OF_TEMPLATE_PARTS - 1);
+
+        // If this changes, the module documentation should be changed too.
+        //
+        // This shouldn't change without consideration of primary key overlap as
+        // a result.
+        assert_eq!(max_len, 1_607, "update module docs please");
+    }
 
     #[test]
     fn empty_parts_is_invalid() {
