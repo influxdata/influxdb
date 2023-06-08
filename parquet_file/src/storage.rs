@@ -296,6 +296,7 @@ impl ParquetStorage {
                 // we don't care about the "last modified" field
                 last_modified: Default::default(),
                 size: file_size,
+                e_tag: None,
             },
         }
     }
@@ -324,7 +325,7 @@ pub enum ProjectionError {
 mod tests {
     use super::*;
     use arrow::{
-        array::{ArrayRef, Int64Array, StringArray},
+        array::{ArrayRef, BinaryArray, Int64Array, StringArray},
         record_batch::RecordBatch,
     };
     use data_types::{CompactionLevel, NamespaceId, PartitionId, TableId};
@@ -440,13 +441,13 @@ mod tests {
 
     #[tokio::test]
     async fn test_schema_check_fail_different_types() {
-        let batch = RecordBatch::try_from_iter([("a", to_string_array(&["value"]))]).unwrap();
+        let batch = RecordBatch::try_from_iter([("a", to_binary_array(&["value"]))]).unwrap();
         let other_batch = RecordBatch::try_from_iter([("a", to_int_array(&[1]))]).unwrap();
         let schema = batch.schema();
         assert_schema_check_fail(
             other_batch,
             schema,
-            "Execution error: Failed to map column projection for field a. Incompatible data types Int64 and Utf8",
+            "Error during planning: Cannot cast file schema field a of type Int64 to table schema field of type Binary",
         ).await;
     }
 
@@ -565,6 +566,11 @@ mod tests {
 
     fn to_string_array(strs: &[&str]) -> ArrayRef {
         let array: StringArray = strs.iter().map(|s| Some(*s)).collect();
+        Arc::new(array)
+    }
+
+    fn to_binary_array(strs: &[&str]) -> ArrayRef {
+        let array: BinaryArray = strs.iter().map(|s| Some(*s)).collect();
         Arc::new(array)
     }
 

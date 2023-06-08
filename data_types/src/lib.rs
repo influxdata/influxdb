@@ -649,6 +649,14 @@ impl From<SkippedCompaction> for compactor_proto::SkippedCompaction {
     }
 }
 
+/// Struct to contain row result from a SELECT 1 as exists FROM ... query to support
+/// testing the existence of a parquet file.
+#[derive(Debug, Copy, Clone, PartialEq, Eq, sqlx::FromRow)]
+pub struct ParquetFileExists {
+    /// column for result of SELECT 1 (integer)
+    pub exists: i32,
+}
+
 /// Data for a parquet file reference that has been inserted in the catalog.
 #[derive(Debug, Clone, PartialEq, Eq, sqlx::FromRow)]
 pub struct ParquetFile {

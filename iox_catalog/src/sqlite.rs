@@ -19,8 +19,8 @@ use data_types::{
         NamespacePartitionTemplateOverride, TablePartitionTemplateOverride, TemplatePart,
     },
     Column, ColumnId, ColumnSet, ColumnType, CompactionLevel, Namespace, NamespaceId,
-    NamespaceName, ParquetFile, ParquetFileId, ParquetFileParams, Partition, PartitionId,
-    PartitionKey, SkippedCompaction, Table, TableId, Timestamp,
+    NamespaceName, ParquetFile, ParquetFileExists, ParquetFileId, ParquetFileParams, Partition,
+    PartitionId, PartitionKey, SkippedCompaction, Table, TableId, Timestamp,
 };
 use serde::{Deserialize, Serialize};
 use std::collections::HashSet;
@@ -1333,6 +1333,27 @@ WHERE object_store_id = $1;
         let parquet_file = rec.map_err(|e| Error::SqlxError { source: e })?;
 
         Ok(Some(parquet_file.into()))
+    }
+
+    async fn exists_by_object_store_id(&mut self, object_store_id: Uuid) -> Result<bool> {
+        let rec = sqlx::query_as::<_, ParquetFileExists>(
+            r#"
+SELECT 1 as exists
+FROM parquet_file
+WHERE object_store_id = $1;
+             "#,
+        )
+        .bind(object_store_id) // $1
+        .fetch_one(self.inner.get_mut())
+        .await;
+
+        if let Err(sqlx::Error::RowNotFound) = rec {
+            return Ok(false);
+        }
+
+        rec.map_err(|e| Error::SqlxError { source: e })?;
+
+        Ok(true)
     }
 
     async fn create_upgrade_delete(

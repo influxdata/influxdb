@@ -11,8 +11,8 @@ use bytes::Bytes;
 use futures::stream::BoxStream;
 use metric::{Registry, U64Gauge};
 use object_store::{
-    path::Path, DynObjectStore, Error, GetResult, ListResult, MultipartId, ObjectMeta, ObjectStore,
-    Result,
+    path::Path, DynObjectStore, Error, GetOptions, GetResult, ListResult, MultipartId, ObjectMeta,
+    ObjectStore, Result,
 };
 use tokio::io::AsyncWrite;
 
@@ -77,8 +77,8 @@ impl ObjectStore for MetricsStore {
         Err(Error::NotImplemented)
     }
 
-    async fn get(&self, location: &Path) -> Result<GetResult> {
-        self.inner.get(location).await
+    async fn get_opts(&self, location: &Path, options: GetOptions) -> Result<GetResult> {
+        self.inner.get_opts(location, options).await
     }
 
     async fn get_range(&self, location: &Path, range: Range<usize>) -> Result<Bytes> {

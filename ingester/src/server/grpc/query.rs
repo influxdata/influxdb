@@ -3,8 +3,8 @@ use std::pin::Pin;
 use arrow_flight::{
     encode::FlightDataEncoderBuilder, error::FlightError,
     flight_service_server::FlightService as Flight, Action, ActionType, Criteria, Empty,
-    FlightData, FlightDescriptor, FlightInfo, HandshakeRequest, HandshakeResponse, IpcMessage,
-    PutResult, SchemaResult, Ticket,
+    FlightData, FlightDescriptor, FlightInfo, HandshakeRequest, HandshakeResponse, PutResult,
+    SchemaResult, Ticket,
 };
 use data_types::{NamespaceId, PartitionId, TableId};
 use flatbuffers::FlatBufferBuilder;
@@ -282,12 +282,9 @@ fn encode_partition(
     prost::Message::encode(&app_metadata, &mut bytes)
         .map_err(|e| FlightError::from_external_error(Box::new(e)))?;
 
-    Ok(FlightData::new(
-        None,
-        IpcMessage(build_none_flight_msg().into()),
-        bytes.to_vec(),
-        vec![],
-    ))
+    Ok(FlightData::new()
+        .with_app_metadata(bytes)
+        .with_data_header(build_none_flight_msg()))
 }
 
 fn build_none_flight_msg() -> Vec<u8> {

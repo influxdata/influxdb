@@ -677,6 +677,7 @@ mod tests {
     fn round_trip_flightsql() {
         let cmd = FlightSQLCommand::CommandStatementQuery(CommandStatementQuery {
             query: "select * from foo".into(),
+            transaction_id: None,
         });
 
         let request = IoxGetRequest {

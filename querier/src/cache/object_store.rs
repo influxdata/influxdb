@@ -16,9 +16,10 @@ use cache_system::{
 use futures::{stream::BoxStream, StreamExt};
 use iox_time::TimeProvider;
 use object_store::{
-    path::Path, Error as ObjectStoreError, GetResult, ListResult, MultipartId, ObjectMeta,
-    ObjectStore,
+    path::Path, Error as ObjectStoreError, GetOptions, GetResult, ListResult, MultipartId,
+    ObjectMeta, ObjectStore,
 };
+use observability_deps::tracing::warn;
 use tokio::io::AsyncWrite;
 use trace::span::Span;
 
@@ -187,7 +188,54 @@ impl ObjectStore for CachedObjectStore {
         Err(ObjectStoreError::NotImplemented)
     }
 
-    async fn get(&self, location: &Path) -> Result<GetResult, ObjectStoreError> {
+    async fn get_opts(
+        &self,
+        location: &Path,
+        options: GetOptions,
+    ) -> Result<GetResult, ObjectStoreError> {
+        let GetOptions {
+            if_match,
+            if_none_match,
+            if_modified_since,
+            if_unmodified_since,
+            range,
+        } = options;
+
+        // since the options are not cached, error if we see any of them
+        if if_match.is_some() {
+            warn!(?location, "if_match not supported by CachedObjectStore");
+            return Err(ObjectStoreError::NotImplemented);
+        }
+
+        if if_none_match.is_some() {
+            warn!(
+                ?location,
+                "if_none_match not supported by CachedObjectStore"
+            );
+            return Err(ObjectStoreError::NotImplemented);
+        }
+
+        if if_modified_since.is_some() {
+            warn!(
+                ?location,
+                "is_modified_since not supported by CachedObjectStore"
+            );
+            return Err(ObjectStoreError::NotImplemented);
+        }
+
+        if if_unmodified_since.is_some() {
+            warn!(
+                ?location,
+                "if_unmodified_since not supported by CachedObjectStore"
+            );
+            return Err(ObjectStoreError::NotImplemented);
+        }
+
+        if range.is_some() {
+            warn!(?location, "range not supported by CachedObjectStore");
+            return Err(ObjectStoreError::NotImplemented);
+        }
+
         let data = self.get_data(location).await?;
 
         Ok(GetResult::Stream(
@@ -227,6 +275,7 @@ impl ObjectStore for CachedObjectStore {
             // retrieve it.
             last_modified: Default::default(),
             size: data.len(),
+            e_tag: None,
         })
     }
 

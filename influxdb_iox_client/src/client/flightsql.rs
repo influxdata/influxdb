@@ -128,6 +128,7 @@ impl FlightSqlClient {
     ) -> Result<FlightRecordBatchStream> {
         let msg = CommandStatementQuery {
             query: query.into(),
+            transaction_id: None,
         };
         self.do_get_with_cmd(msg.as_any()).await
     }
@@ -400,6 +401,7 @@ impl FlightSqlClient {
             mut endpoint,
             total_records: _,
             total_bytes: _,
+            ordered: _,
         } = self.get_flight_info_for_command(cmd).await?;
 
         let flight_endpoint = endpoint.pop().ok_or_else(|| {
@@ -446,7 +448,10 @@ impl FlightSqlClient {
     ///
     /// See [`Self::execute`] to run a previously prepared statement
     pub async fn prepare(&mut self, query: String) -> Result<PreparedStatement> {
-        let cmd = ActionCreatePreparedStatementRequest { query };
+        let cmd = ActionCreatePreparedStatementRequest {
+            query,
+            transaction_id: None,
+        };
 
         let request = Action {
             r#type: "CreatePreparedStatement".into(),
