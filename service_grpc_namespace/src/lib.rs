@@ -20,7 +20,7 @@ use std::sync::Arc;
 
 use data_types::{
     partition_template::NamespacePartitionTemplateOverride, Namespace as CatalogNamespace,
-    NamespaceName,
+    NamespaceName, NamespaceServiceProtectionLimitsOverride,
 };
 use generated_types::influxdata::iox::namespace::v1::{
     update_namespace_service_protection_limit_request::LimitUpdate, *,
@@ -74,6 +74,7 @@ impl namespace_service_server::NamespaceService for NamespaceService {
             name: namespace_name,
             retention_period_ns,
             partition_template,
+            service_protection_limits,
         } = request.into_inner();
 
         // Ensure the namespace name is consistently processed within IOx - this
@@ -94,6 +95,7 @@ impl namespace_service_server::NamespaceService for NamespaceService {
                     .transpose()
                     .map_err(|v| Status::invalid_argument(v.to_string()))?,
                 retention_period_ns,
+                service_protection_limits.map(NamespaceServiceProtectionLimitsOverride::from),
             )
             .await
             .map_err(|e| {
@@ -383,6 +385,7 @@ mod tests {
             name: NS_NAME.to_string(),
             retention_period_ns: Some(RETENTION),
             partition_template: None,
+            service_protection_limits: None,
         };
         let created_ns = handler
             .create_namespace(Request::new(req))
@@ -507,6 +510,7 @@ mod tests {
             name: NS_NAME.to_string(),
             retention_period_ns: Some(RETENTION),
             partition_template: None,
+            service_protection_limits: None,
         };
 
         let created_ns = handler
@@ -553,6 +557,7 @@ mod tests {
             name: NS_NAME.to_string(),
             retention_period_ns: None,
             partition_template: Some(PartitionTemplate { parts: vec![] }),
+            service_protection_limits: None,
         };
 
         let error = handler
@@ -586,6 +591,7 @@ mod tests {
             name: NS_NAME.to_string(),
             retention_period_ns: Some(RETENTION),
             partition_template: None,
+            service_protection_limits: None,
         };
         let created_ns = handler
             .create_namespace(Request::new(req))
@@ -626,6 +632,37 @@ mod tests {
         assert_eq!(status.code(), Code::InvalidArgument);
     }
 
+    #[tokio::test]
+    async fn test_create_with_service_protection_limits() {
+        let catalog: Arc<dyn Catalog> =
+            Arc::new(MemCatalog::new(Arc::new(metric::Registry::default())));
+
+        let max_tables = 123;
+        let max_columns_per_table = 321;
+
+        let handler = NamespaceService::new(catalog);
+        let req = CreateNamespaceRequest {
+            name: NS_NAME.to_string(),
+            retention_period_ns: Some(RETENTION),
+            partition_template: None,
+            service_protection_limits: Some(ServiceProtectionLimits {
+                max_tables: Some(max_tables),
+                max_columns_per_table: Some(max_columns_per_table),
+            }),
+        };
+        let created_ns = handler
+            .create_namespace(Request::new(req))
+            .await
+            .expect("failed to create namespace")
+            .into_inner()
+            .namespace
+            .expect("no namespace in response");
+        assert_eq!(created_ns.name, NS_NAME);
+        assert_eq!(created_ns.retention_period_ns, Some(RETENTION));
+        assert_eq!(created_ns.max_tables, max_tables);
+        assert_eq!(created_ns.max_columns_per_table, max_columns_per_table);
+    }
+
     macro_rules! test_create_namespace_name {
         (
             $test_name:ident,
@@ -646,6 +683,7 @@ mod tests {
                         name: String::from($name),
                         retention_period_ns: Some(RETENTION),
                         partition_template: None,
+                        service_protection_limits: None,
                     };
 
                     let got = handler.create_namespace(Request::new(req)).await;

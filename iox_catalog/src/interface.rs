@@ -4,8 +4,9 @@ use async_trait::async_trait;
 use data_types::{
     partition_template::{NamespacePartitionTemplateOverride, TablePartitionTemplateOverride},
     Column, ColumnType, ColumnsByName, CompactionLevel, Namespace, NamespaceId, NamespaceName,
-    NamespaceSchema, ParquetFile, ParquetFileId, ParquetFileParams, Partition, PartitionId,
-    PartitionKey, SkippedCompaction, Table, TableId, TableSchema, Timestamp,
+    NamespaceSchema, NamespaceServiceProtectionLimitsOverride, ParquetFile, ParquetFileId,
+    ParquetFileParams, Partition, PartitionId, PartitionKey, SkippedCompaction, Table, TableId,
+    TableSchema, Timestamp,
 };
 use iox_time::TimeProvider;
 use snafu::{OptionExt, Snafu};
@@ -256,6 +257,7 @@ pub trait NamespaceRepo: Send + Sync {
         name: &NamespaceName<'_>,
         partition_template: Option<NamespacePartitionTemplateOverride>,
         retention_period_ns: Option<i64>,
+        service_protection_limits: Option<NamespaceServiceProtectionLimitsOverride>,
     ) -> Result<Namespace>;
 
     /// Update retention period for a namespace
@@ -746,7 +748,7 @@ pub(crate) mod test_helpers {
         let namespace_name = NamespaceName::new("test_namespace").unwrap();
         let namespace = repos
             .namespaces()
-            .create(&namespace_name, None, None)
+            .create(&namespace_name, None, None, None)
             .await
             .unwrap();
         assert!(namespace.id > NamespaceId::new(0));
@@ -770,7 +772,10 @@ pub(crate) mod test_helpers {
             DEFAULT_MAX_COLUMNS_PER_TABLE
         );
 
-        let conflict = repos.namespaces().create(&namespace_name, None, None).await;
+        let conflict = repos
+            .namespaces()
+            .create(&namespace_name, None, None, None)
+            .await;
         assert!(matches!(
             conflict.unwrap_err(),
             Error::NameExists { name: _ }
@@ -857,7 +862,7 @@ pub(crate) mod test_helpers {
         let namespace4_name = NamespaceName::new("test_namespace4").unwrap();
         let namespace4 = repos
             .namespaces()
-            .create(&namespace4_name, None, Some(NEW_RETENTION_PERIOD_NS))
+            .create(&namespace4_name, None, Some(NEW_RETENTION_PERIOD_NS), None)
             .await
             .expect("namespace with 5-hour retention should be created");
         assert_eq!(
@@ -882,7 +887,12 @@ pub(crate) mod test_helpers {
         let namespace5_name = NamespaceName::new("test_namespace5").unwrap();
         let namespace5 = repos
             .namespaces()
-            .create(&namespace5_name, Some(tag_partition_template.clone()), None)
+            .create(
+                &namespace5_name,
+                Some(tag_partition_template.clone()),
+                None,
+                None,
+            )
             .await
             .unwrap();
         assert_eq!(namespace5.partition_template, tag_partition_template);
@@ -1281,6 +1291,7 @@ pub(crate) mod test_helpers {
             .create(
                 &custom_namespace_name,
                 Some(custom_namespace_template.clone()),
+                None,
                 None,
             )
             .await
@@ -2165,6 +2176,7 @@ pub(crate) mod test_helpers {
                 &NamespaceName::new("retention_broken_2").unwrap(),
                 None,
                 Some(1),
+                None,
             )
             .await
             .unwrap();
@@ -2988,7 +3000,12 @@ pub(crate) mod test_helpers {
     {
         let namespace = repos
             .namespaces()
-            .create(&NamespaceName::new(namespace_name).unwrap(), None, None)
+            .create(
+                &NamespaceName::new(namespace_name).unwrap(),
+                None,
+                None,
+                None,
+            )
             .await;
 
         let namespace = match namespace {

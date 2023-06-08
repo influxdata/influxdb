@@ -266,7 +266,6 @@ where
         namespace_name: Arc::clone(&*ctx.namespace_name().get().await),
         table_id: ctx.table_id(),
         table_name: Arc::clone(&*ctx.table_name().get().await),
-        partition_id: ctx.partition_id(),
         partition_key: ctx.partition_key().clone(),
         compaction_level: CompactionLevel::Initial,
         sort_key: Some(data_sort_key),
@@ -279,7 +278,7 @@ where
     let pool = worker_state.exec.pool();
     let (md, file_size) = worker_state
         .store
-        .upload(record_stream, &iox_metadata, pool)
+        .upload(record_stream, ctx.partition_id(), &iox_metadata, pool)
         .await
         .expect("unexpected fatal persist error");
 

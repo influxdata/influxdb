@@ -25,7 +25,7 @@ pub struct Config {
                 .required(true)
                 .args(&["max_tables", "max_columns_per_table"])
         ))]
-struct Args {
+pub struct Args {
     /// The maximum number of tables to allow for this namespace
     #[clap(action, long = "max-tables", short = 't', group = "limit")]
     max_tables: Option<i32>,

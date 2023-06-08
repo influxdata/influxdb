@@ -22,6 +22,11 @@ message IoxMetadata {
   // max_sequence_number was removed
   reserved 13;
   reserved "max_sequence_number";
+  // Was the unique database partition ID. Moving to deterministic hash-based partition IDs
+  // that can be built from the table ID and the partition key, so storing the new partition hash
+  // ID here would be redundant.
+  reserved 8;
+  reserved "partition_id";
 
   // Object store ID. Used in the parquet filename. 16 bytes in big-endian order.
   bytes object_store_id = 1;
@@ -40,9 +45,6 @@ message IoxMetadata {
 
   // Table that holds this parquet file.
   string table_name = 7;
-
-  // Unique partition ID.
-  int64 partition_id = 8;
 
   // Partition key of the partition that holds this parquet file.
   string partition_key = 9;

@@ -159,7 +159,6 @@ where
     debug!(num_batches,
            num_rows=writer_meta.num_rows,
            object_store_id=?meta.object_store_id,
-           partition_id=?meta.partition_id,
            write_batch_size,
            max_row_group_size,
            "Created parquet file");
@@ -176,9 +175,7 @@ pub async fn to_parquet_bytes(
 ) -> Result<(Vec<u8>, parquet::format::FileMetaData), CodecError> {
     let mut bytes = vec![];
 
-    let partition_id = meta.partition_id;
     debug!(
-        ?partition_id,
         ?meta,
         "IOxMetaData provided for serializing the data into the in-memory buffer"
     );
@@ -187,7 +184,7 @@ pub async fn to_parquet_bytes(
     let meta = to_parquet(batches, meta, pool, &mut bytes).await?;
     bytes.shrink_to_fit();
 
-    trace!(?partition_id, ?meta, "generated parquet file metadata");
+    trace!(?meta, "generated parquet file metadata");
 
     Ok((bytes, meta))
 }
@@ -216,7 +213,7 @@ mod tests {
         record_batch::RecordBatch,
     };
     use bytes::Bytes;
-    use data_types::{CompactionLevel, NamespaceId, PartitionId, TableId};
+    use data_types::{CompactionLevel, NamespaceId, TableId};
     use datafusion::parquet::arrow::arrow_reader::ParquetRecordBatchReaderBuilder;
     use datafusion_util::{unbounded_memory_pool, MemoryStream};
     use iox_time::Time;
@@ -231,7 +228,6 @@ mod tests {
             namespace_name: "bananas".into(),
             table_id: TableId::new(3),
             table_name: "platanos".into(),
-            partition_id: PartitionId::new(4),
             partition_key: "potato".into(),
             compaction_level: CompactionLevel::FileNonOverlapped,
             sort_key: None,
