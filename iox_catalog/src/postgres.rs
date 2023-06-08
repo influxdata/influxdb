@@ -19,9 +19,10 @@ use data_types::{
     partition_template::{
         NamespacePartitionTemplateOverride, TablePartitionTemplateOverride, TemplatePart,
     },
-    Column, ColumnType, CompactionLevel, Namespace, NamespaceId, NamespaceName, ParquetFile,
-    ParquetFileExists, ParquetFileId, ParquetFileParams, Partition, PartitionId, PartitionKey,
-    SkippedCompaction, Table, TableId, Timestamp,
+    Column, ColumnType, CompactionLevel, Namespace, NamespaceId, NamespaceName,
+    NamespaceServiceProtectionLimitsOverride, ParquetFile, ParquetFileExists, ParquetFileId,
+    ParquetFileParams, Partition, PartitionId, PartitionKey, SkippedCompaction, Table, TableId,
+    Timestamp,
 };
 use iox_time::{SystemProvider, TimeProvider};
 use observability_deps::tracing::{debug, info, warn};
@@ -564,13 +565,17 @@ impl NamespaceRepo for PostgresTxn {
         name: &NamespaceName<'_>,
         partition_template: Option<NamespacePartitionTemplateOverride>,
         retention_period_ns: Option<i64>,
+        service_protection_limits: Option<NamespaceServiceProtectionLimitsOverride>,
     ) -> Result<Namespace> {
+        let max_tables = service_protection_limits.and_then(|l| l.max_tables);
+        let max_columns_per_table = service_protection_limits.and_then(|l| l.max_columns_per_table);
+
         let rec = sqlx::query_as::<_, Namespace>(
             r#"
 INSERT INTO namespace (
-    name, topic_id, query_pool_id, retention_period_ns, max_tables, partition_template
+    name, topic_id, query_pool_id, retention_period_ns, max_tables, max_columns_per_table, partition_template
 )
-VALUES ( $1, $2, $3, $4, $5, $6 )
+VALUES ( $1, $2, $3, $4, $5, $6, $7 )
 RETURNING id, name, retention_period_ns, max_tables, max_columns_per_table, deleted_at,
           partition_template;
             "#,
@@ -579,8 +584,9 @@ RETURNING id, name, retention_period_ns, max_tables, max_columns_per_table, dele
         .bind(SHARED_TOPIC_ID) // $2
         .bind(SHARED_QUERY_POOL_ID) // $3
         .bind(retention_period_ns) // $4
-        .bind(DEFAULT_MAX_TABLES) // $5
-        .bind(partition_template); // $6
+        .bind(max_tables.unwrap_or(DEFAULT_MAX_TABLES)) // $5
+        .bind(max_columns_per_table.unwrap_or(DEFAULT_MAX_COLUMNS_PER_TABLE)) // $6
+        .bind(partition_template); // $7
 
         let rec = rec.fetch_one(&mut self.inner).await.map_err(|e| {
             if is_unique_violation(&e) {
@@ -593,10 +599,6 @@ RETURNING id, name, retention_period_ns, max_tables, max_columns_per_table, dele
                 Error::SqlxError { source: e }
             }
         })?;
-
-        // Ensure the column default values match the code values.
-        debug_assert_eq!(rec.max_tables, DEFAULT_MAX_TABLES);
-        debug_assert_eq!(rec.max_columns_per_table, DEFAULT_MAX_COLUMNS_PER_TABLE);
 
         Ok(rec)
     }
@@ -2307,6 +2309,7 @@ RETURNING id, name, retention_period_ns, max_tables, max_columns_per_table, dele
                 &"lemons".try_into().unwrap(),
                 None, // no partition template
                 None,
+                None,
             )
             .await
             .unwrap();
@@ -2347,6 +2350,7 @@ RETURNING id, name, retention_period_ns, max_tables, max_columns_per_table, dele
                 &namespace_custom_template_name.try_into().unwrap(),
                 Some(custom_partition_template_equal_to_default.clone()),
                 None,
+                None,
             )
             .await
             .unwrap();
@@ -2385,6 +2389,7 @@ RETURNING id, name, retention_period_ns, max_tables, max_columns_per_table, dele
                 &namespace_default_template_name.try_into().unwrap(),
                 None, // no partition template
                 None,
+                None,
             )
             .await
             .unwrap();
@@ -2402,6 +2407,7 @@ RETURNING id, name, retention_period_ns, max_tables, max_columns_per_table, dele
                     })
                     .unwrap(),
                 ),
+                None,
                 None,
             )
             .await

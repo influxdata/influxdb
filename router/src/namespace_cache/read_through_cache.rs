@@ -168,7 +168,7 @@ mod tests {
                 .repositories()
                 .await
                 .namespaces()
-                .create(&ns, None, iox_catalog::DEFAULT_RETENTION_PERIOD,)
+                .create(&ns, None, iox_catalog::DEFAULT_RETENTION_PERIOD, None)
                 .await,
             Ok(_)
         );

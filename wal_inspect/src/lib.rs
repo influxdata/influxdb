@@ -205,14 +205,17 @@ mod tests {
         // Generate a single entry
         wal.write_op(SequencedWalOp {
             sequence_number: 0,
+            table_write_sequence_numbers: [(TableId::new(1), 0)].into_iter().collect(),
             op: Op::Write(encode_line(NamespaceId::new(1), &table_id_index, line1)),
         });
         wal.write_op(SequencedWalOp {
             sequence_number: 1,
+            table_write_sequence_numbers: [(TableId::new(2), 1)].into_iter().collect(),
             op: Op::Write(encode_line(NamespaceId::new(2), &table_id_index, line2)),
         });
         wal.write_op(SequencedWalOp {
             sequence_number: 2,
+            table_write_sequence_numbers: [(TableId::new(1), 2)].into_iter().collect(),
             op: Op::Write(encode_line(NamespaceId::new(1), &table_id_index, line3)),
         })
         .changed()

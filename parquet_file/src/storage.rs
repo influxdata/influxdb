@@ -11,6 +11,7 @@ use arrow::{
     record_batch::RecordBatch,
 };
 use bytes::Bytes;
+use data_types::PartitionId;
 use datafusion::{
     datasource::{listing::PartitionedFile, object_store::ObjectStoreUrl},
     error::DataFusionError,
@@ -221,6 +222,7 @@ impl ParquetStorage {
     pub async fn upload(
         &self,
         batches: SendableRecordBatchStream,
+        partition_id: PartitionId,
         meta: &IoxMetadata,
         pool: Arc<dyn MemoryPool>,
     ) -> Result<(IoxParquetMetaData, usize), UploadError> {
@@ -240,13 +242,12 @@ impl ParquetStorage {
         let parquet_meta =
             IoxParquetMetaData::try_from(parquet_file_meta).map_err(UploadError::Metadata)?;
         trace!(
-            ?meta.partition_id,
             ?parquet_meta,
             "IoxParquetMetaData coverted from Row Group Metadata (aka FileMetaData)"
         );
 
         // Derive the correct object store path from the metadata.
-        let path = ParquetFilePath::from(meta).object_store_path();
+        let path = ParquetFilePath::from((partition_id, meta)).object_store_path();
 
         let file_size = data.len();
         let data = Bytes::from(data);
@@ -254,7 +255,6 @@ impl ParquetStorage {
         debug!(
             file_size,
             object_store_id=?meta.object_store_id,
-            partition_id=?meta.partition_id,
             // includes the time to run the datafusion plan (that is the batches)
             total_time_to_create_parquet_bytes=?(Instant::now() - start),
             "Uploading parquet to object store"
@@ -340,11 +340,11 @@ mod tests {
 
         let store = ParquetStorage::new(object_store, StorageId::from("iox"));
 
-        let meta = meta();
+        let (partition_id, meta) = meta();
         let batch = RecordBatch::try_from_iter([("a", to_string_array(&["value"]))]).unwrap();
 
         // Serialize & upload the record batches.
-        let (file_meta, _file_size) = upload(&store, &meta, batch.clone()).await;
+        let (file_meta, _file_size) = upload(&store, partition_id, &meta, batch.clone()).await;
 
         // Extract the various bits of metadata.
         let file_meta = file_meta.decode().expect("should decode parquet metadata");
@@ -485,12 +485,12 @@ mod tests {
 
         let store = ParquetStorage::new(object_store, StorageId::from("iox"));
 
-        let meta = meta();
+        let (partition_id, meta) = meta();
         let batch = RecordBatch::try_from_iter([("a", to_string_array(&["value"]))]).unwrap();
         let schema = batch.schema();
 
         // Serialize & upload the record batches.
-        let (_iox_md, file_size) = upload(&store, &meta, batch).await;
+        let (_iox_md, file_size) = upload(&store, partition_id, &meta, batch).await;
 
         // add metadata to reference schema
         let schema = Arc::new(
@@ -499,9 +499,16 @@ mod tests {
                 .clone()
                 .with_metadata(HashMap::from([(String::from("foo"), String::from("bar"))])),
         );
-        download(&store, &meta, Projection::All, schema, file_size)
-            .await
-            .unwrap();
+        download(
+            &store,
+            partition_id,
+            &meta,
+            Projection::All,
+            schema,
+            file_size,
+        )
+        .await
+        .unwrap();
     }
 
     #[tokio::test]
@@ -510,7 +517,7 @@ mod tests {
 
         let store = ParquetStorage::new(object_store, StorageId::from("iox"));
 
-        let meta = meta();
+        let (partition_id, meta) = meta();
         let batch = RecordBatch::try_from_iter([("a", to_string_array(&["value"]))]).unwrap();
         let schema = batch.schema();
         // add metadata to stored batch
@@ -526,11 +533,18 @@ mod tests {
         .unwrap();
 
         // Serialize & upload the record batches.
-        let (_iox_md, file_size) = upload(&store, &meta, batch).await;
+        let (_iox_md, file_size) = upload(&store, partition_id, &meta, batch).await;
 
-        download(&store, &meta, Projection::All, schema, file_size)
-            .await
-            .unwrap();
+        download(
+            &store,
+            partition_id,
+            &meta,
+            Projection::All,
+            schema,
+            file_size,
+        )
+        .await
+        .unwrap();
     }
 
     #[tokio::test]
@@ -579,42 +593,46 @@ mod tests {
         Arc::new(array)
     }
 
-    fn meta() -> IoxMetadata {
-        IoxMetadata {
-            object_store_id: Default::default(),
-            creation_timestamp: Time::from_timestamp_nanos(42),
-            namespace_id: NamespaceId::new(1),
-            namespace_name: "bananas".into(),
-            table_id: TableId::new(3),
-            table_name: "platanos".into(),
-            partition_id: PartitionId::new(4),
-            partition_key: "potato".into(),
-            compaction_level: CompactionLevel::FileNonOverlapped,
-            sort_key: None,
-            max_l0_created_at: Time::from_timestamp_nanos(42),
-        }
+    fn meta() -> (PartitionId, IoxMetadata) {
+        (
+            PartitionId::new(4),
+            IoxMetadata {
+                object_store_id: Default::default(),
+                creation_timestamp: Time::from_timestamp_nanos(42),
+                namespace_id: NamespaceId::new(1),
+                namespace_name: "bananas".into(),
+                table_id: TableId::new(3),
+                table_name: "platanos".into(),
+                partition_key: "potato".into(),
+                compaction_level: CompactionLevel::FileNonOverlapped,
+                sort_key: None,
+                max_l0_created_at: Time::from_timestamp_nanos(42),
+            },
+        )
     }
 
     async fn upload(
         store: &ParquetStorage,
+        partition_id: PartitionId,
         meta: &IoxMetadata,
         batch: RecordBatch,
     ) -> (IoxParquetMetaData, usize) {
         let stream = Box::pin(MemoryStream::new(vec![batch]));
         store
-            .upload(stream, meta, unbounded_memory_pool())
+            .upload(stream, partition_id, meta, unbounded_memory_pool())
             .await
             .expect("should serialize and store sucessfully")
     }
 
     async fn download<'a>(
         store: &ParquetStorage,
+        partition_id: PartitionId,
         meta: &IoxMetadata,
         selection: Projection<'_>,
         expected_schema: SchemaRef,
         file_size: usize,
     ) -> Result<RecordBatch, DataFusionError> {
-        let path: ParquetFilePath = meta.into();
+        let path: ParquetFilePath = (partition_id, meta).into();
         store
             .parquet_exec_input(&path, file_size)
             .read_to_batches(expected_schema, selection, &store.test_df_context())
@@ -636,13 +654,20 @@ mod tests {
         let store = ParquetStorage::new(object_store, StorageId::from("iox"));
 
         // Serialize & upload the record batches.
-        let meta = meta();
-        let (_iox_md, file_size) = upload(&store, &meta, upload_batch).await;
+        let (partition_id, meta) = meta();
+        let (_iox_md, file_size) = upload(&store, partition_id, &meta, upload_batch).await;
 
         // And compare to the original input
-        let actual_batch = download(&store, &meta, selection, expected_schema, file_size)
-            .await
-            .unwrap();
+        let actual_batch = download(
+            &store,
+            partition_id,
+            &meta,
+            selection,
+            expected_schema,
+            file_size,
+        )
+        .await
+        .unwrap();
         assert_eq!(actual_batch, expected_batch);
     }
 
@@ -655,12 +680,19 @@ mod tests {
 
         let store = ParquetStorage::new(object_store, StorageId::from("iox"));
 
-        let meta = meta();
-        let (_iox_md, file_size) = upload(&store, &meta, persisted_batch).await;
+        let (partition_id, meta) = meta();
+        let (_iox_md, file_size) = upload(&store, partition_id, &meta, persisted_batch).await;
 
-        let err = download(&store, &meta, Projection::All, expected_schema, file_size)
-            .await
-            .unwrap_err();
+        let err = download(
+            &store,
+            partition_id,
+            &meta,
+            Projection::All,
+            expected_schema,
+            file_size,
+        )
+        .await
+        .unwrap_err();
 
         // And compare to the original input
         assert_eq!(err.to_string(), msg);

@@ -16,8 +16,8 @@ use data_types::{
         NamespacePartitionTemplateOverride, TablePartitionTemplateOverride, TemplatePart,
     },
     Column, ColumnId, ColumnType, CompactionLevel, Namespace, NamespaceId, NamespaceName,
-    ParquetFile, ParquetFileId, ParquetFileParams, Partition, PartitionId, PartitionKey,
-    SkippedCompaction, Table, TableId, Timestamp,
+    NamespaceServiceProtectionLimitsOverride, ParquetFile, ParquetFileId, ParquetFileParams,
+    Partition, PartitionId, PartitionKey, SkippedCompaction, Table, TableId, Timestamp,
 };
 use iox_time::{SystemProvider, TimeProvider};
 use snafu::ensure;
@@ -147,6 +147,7 @@ impl NamespaceRepo for MemTxn {
         name: &NamespaceName<'_>,
         partition_template: Option<NamespacePartitionTemplateOverride>,
         retention_period_ns: Option<i64>,
+        service_protection_limits: Option<NamespaceServiceProtectionLimitsOverride>,
     ) -> Result<Namespace> {
         let stage = self.stage();
 
@@ -156,11 +157,14 @@ impl NamespaceRepo for MemTxn {
             });
         }
 
+        let max_tables = service_protection_limits.and_then(|l| l.max_tables);
+        let max_columns_per_table = service_protection_limits.and_then(|l| l.max_columns_per_table);
+
         let namespace = Namespace {
             id: NamespaceId::new(stage.namespaces.len() as i64 + 1),
             name: name.to_string(),
-            max_tables: DEFAULT_MAX_TABLES,
-            max_columns_per_table: DEFAULT_MAX_COLUMNS_PER_TABLE,
+            max_tables: max_tables.unwrap_or(DEFAULT_MAX_TABLES),
+            max_columns_per_table: max_columns_per_table.unwrap_or(DEFAULT_MAX_COLUMNS_PER_TABLE),
             retention_period_ns,
             deleted_at: None,
             partition_template: partition_template.unwrap_or_default(),

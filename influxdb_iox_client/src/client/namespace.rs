@@ -44,6 +44,7 @@ impl Client {
         &mut self,
         namespace: &str,
         retention_period_ns: Option<i64>,
+        service_protection_limits: Option<ServiceProtectionLimits>,
     ) -> Result<Namespace, Error> {
         let response = self
             .inner
@@ -51,6 +52,7 @@ impl Client {
                 name: namespace.to_string(),
                 retention_period_ns,
                 partition_template: None,
+                service_protection_limits,
             })
             .await?;
 

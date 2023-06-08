@@ -905,6 +905,120 @@ async fn query_ingester() {
     .await
 }
 
+/// Test setting service limits while creating namespaces
+#[tokio::test]
+async fn namespace_create_service_limits() {
+    test_helpers::maybe_start_logging();
+    let database_url = maybe_skip_integration!();
+    let mut cluster = MiniCluster::create_shared(database_url).await;
+
+    StepTest::new(
+        &mut cluster,
+        vec![
+            Step::Custom(Box::new(|state: &mut StepTestState| {
+                async {
+                    let addr = state.cluster().router().router_grpc_base().to_string();
+                    let namespace = "ns1";
+
+                    // {
+                    //   "id": <foo>,
+                    //   "name": "ns1",
+                    //   "serviceProtectionLimits": {
+                    //     "maxTables": 123,
+                    //     "maxColumnsPerTable": 200
+                    //   }
+                    // }
+                    Command::cargo_bin("influxdb_iox")
+                        .unwrap()
+                        .arg("-h")
+                        .arg(&addr)
+                        .arg("namespace")
+                        .arg("create")
+                        .arg(namespace)
+                        .arg("--max-tables")
+                        .arg("123")
+                        .assert()
+                        .success()
+                        .stdout(
+                            predicate::str::contains(namespace)
+                                .and(predicate::str::contains(r#""maxTables": 123"#))
+                                .and(predicate::str::contains(r#""maxColumnsPerTable": 200"#)),
+                        );
+                }
+                .boxed()
+            })),
+            Step::Custom(Box::new(|state: &mut StepTestState| {
+                async {
+                    let addr = state.cluster().router().router_grpc_base().to_string();
+                    let namespace = "ns2";
+
+                    // {
+                    //   "id": <foo>,
+                    //   "name": "ns2",
+                    //   "serviceProtectionLimits": {
+                    //     "maxTables": 500,
+                    //     "maxColumnsPerTable": 321
+                    //   }
+                    // }
+                    Command::cargo_bin("influxdb_iox")
+                        .unwrap()
+                        .arg("-h")
+                        .arg(&addr)
+                        .arg("namespace")
+                        .arg("create")
+                        .arg(namespace)
+                        .arg("--max-columns-per-table")
+                        .arg("321")
+                        .assert()
+                        .success()
+                        .stdout(
+                            predicate::str::contains(namespace)
+                                .and(predicate::str::contains(r#""maxTables": 500"#))
+                                .and(predicate::str::contains(r#""maxColumnsPerTable": 321"#)),
+                        );
+                }
+                .boxed()
+            })),
+            Step::Custom(Box::new(|state: &mut StepTestState| {
+                async {
+                    let addr = state.cluster().router().router_grpc_base().to_string();
+                    let namespace = "ns3";
+
+                    // {
+                    //   "id": <foo>,
+                    //   "name": "ns3",
+                    //   "serviceProtectionLimits": {
+                    //     "maxTables": 123,
+                    //     "maxColumnsPerTable": 321
+                    //   }
+                    // }
+                    Command::cargo_bin("influxdb_iox")
+                        .unwrap()
+                        .arg("-h")
+                        .arg(&addr)
+                        .arg("namespace")
+                        .arg("create")
+                        .arg(namespace)
+                        .arg("--max-tables")
+                        .arg("123")
+                        .arg("--max-columns-per-table")
+                        .arg("321")
+                        .assert()
+                        .success()
+                        .stdout(
+                            predicate::str::contains(namespace)
+                                .and(predicate::str::contains(r#""maxTables": 123"#))
+                                .and(predicate::str::contains(r#""maxColumnsPerTable": 321"#)),
+                        );
+                }
+                .boxed()
+            })),
+        ],
+    )
+    .run()
+    .await
+}
+
 /// Test the namespace update service limit command
 #[tokio::test]
 async fn namespace_update_service_limit() {
