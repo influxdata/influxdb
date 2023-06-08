@@ -308,6 +308,30 @@ pub struct Namespace {
     pub partition_template: NamespacePartitionTemplateOverride,
 }
 
+use generated_types::influxdata::iox::namespace::v1 as namespace_proto;
+
+/// Overrides for service protection limits.
+#[derive(Debug, Copy, Clone)]
+pub struct NamespaceServiceProtectionLimitsOverride {
+    /// The maximum number of tables that can exist in this namespace
+    pub max_tables: Option<i32>,
+    /// The maximum number of columns per table in this namespace
+    pub max_columns_per_table: Option<i32>,
+}
+
+impl From<namespace_proto::ServiceProtectionLimits> for NamespaceServiceProtectionLimitsOverride {
+    fn from(value: namespace_proto::ServiceProtectionLimits) -> Self {
+        let namespace_proto::ServiceProtectionLimits {
+            max_tables,
+            max_columns_per_table,
+        } = value;
+        Self {
+            max_tables,
+            max_columns_per_table,
+        }
+    }
+}
+
 /// Schema collection for a namespace. This is an in-memory object useful for a schema
 /// cache.
 #[derive(Debug, Clone, PartialEq)]

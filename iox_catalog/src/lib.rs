@@ -289,7 +289,7 @@ pub mod test_helpers {
         let namespace_name = NamespaceName::new(name).unwrap();
         repos
             .namespaces()
-            .create(&namespace_name, None, None)
+            .create(&namespace_name, None, None, None)
             .await
             .unwrap()
     }

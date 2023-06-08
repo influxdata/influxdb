@@ -144,7 +144,7 @@ mod tests {
             let mut repos = catalog.repositories().await;
             repos
                 .namespaces()
-                .create(&ns, None, None)
+                .create(&ns, None, None, None)
                 .await
                 .expect("failed to setup catalog state");
         }
@@ -176,7 +176,7 @@ mod tests {
             let mut repos = catalog.repositories().await;
             repos
                 .namespaces()
-                .create(&ns, None, None)
+                .create(&ns, None, None, None)
                 .await
                 .expect("failed to setup catalog state");
             repos

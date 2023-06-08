@@ -88,6 +88,7 @@ async fn test_namespace_create() {
         name: "bananas_test".to_string(),
         retention_period_ns: Some(RETENTION),
         partition_template: None,
+        service_protection_limits: None,
     };
     let got = ctx
         .grpc_delegate()
@@ -161,6 +162,7 @@ async fn test_namespace_delete() {
         name: "bananas_test".to_string(),
         retention_period_ns: Some(RETENTION),
         partition_template: None,
+        service_protection_limits: None,
     };
     let got = ctx
         .grpc_delegate()
@@ -291,6 +293,7 @@ async fn test_create_namespace_0_retention_period() {
         name: "bananas_test".to_string(),
         retention_period_ns: Some(0), // A zero!
         partition_template: None,
+        service_protection_limits: None,
     };
     let got = ctx
         .grpc_delegate()
@@ -356,6 +359,7 @@ async fn test_create_namespace_negative_retention_period() {
         name: "bananas_test".to_string(),
         retention_period_ns: Some(-42),
         partition_template: None,
+        service_protection_limits: None,
     };
     let err = ctx
         .grpc_delegate()
@@ -420,6 +424,7 @@ async fn test_update_namespace_0_retention_period() {
             name: "bananas_test".to_string(),
             retention_period_ns: Some(42),
             partition_template: None,
+            service_protection_limits: None,
         }))
         .await
         .expect("failed to create namespace")
@@ -526,6 +531,7 @@ async fn test_update_namespace_negative_retention_period() {
             name: "bananas_test".to_string(),
             retention_period_ns: Some(42),
             partition_template: None,
+            service_protection_limits: None,
         }))
         .await
         .expect("failed to create namespace")
@@ -796,6 +802,7 @@ async fn test_update_namespace_limit_0_max_tables_max_columns() {
             name: "bananas_test".to_string(),
             retention_period_ns: Some(0),
             partition_template: None,
+            service_protection_limits: None,
         }))
         .await
         .expect("failed to create namespace")
@@ -868,6 +875,7 @@ async fn test_table_create() {
         name: "bananas_test".to_string(),
         retention_period_ns: None,
         partition_template: None,
+        service_protection_limits: None,
     };
     let namespace = ctx
         .grpc_delegate()
@@ -955,6 +963,7 @@ async fn test_invalid_strftime_partition_template() {
                 part: Some(template_part::Part::TimeFormat("%3F".into())),
             }],
         }),
+        service_protection_limits: None,
     };
 
     // Check namespace creation returned an error
@@ -986,6 +995,7 @@ async fn test_namespace_partition_template_implicit_table_creation() {
                 part: Some(template_part::Part::TagValue("tag1".into())),
             }],
         }),
+        service_protection_limits: None,
     };
     ctx.grpc_delegate()
         .namespace_service()
@@ -1036,6 +1046,7 @@ async fn test_namespace_partition_template_explicit_table_creation_without_parti
                 part: Some(template_part::Part::TagValue("tag1".into())),
             }],
         }),
+        service_protection_limits: None,
     };
     ctx.grpc_delegate()
         .namespace_service()
@@ -1101,6 +1112,7 @@ async fn test_namespace_partition_template_explicit_table_creation_with_partitio
                 part: Some(template_part::Part::TagValue("tag1".into())),
             }],
         }),
+        service_protection_limits: None,
     };
     ctx.grpc_delegate()
         .namespace_service()
@@ -1166,6 +1178,7 @@ async fn test_namespace_without_partition_template_table_with_partition_template
         name: "bananas_test".to_string(),
         retention_period_ns: None,
         partition_template: None,
+        service_protection_limits: None,
     };
     ctx.grpc_delegate()
         .namespace_service()
