@@ -157,8 +157,8 @@ mod tests {
         // Generate a test op containing writes for multiple tables that will
         // be appended and read back
         let mut tables_by_name = lines_to_batches(
-            r#"bananas,region=Madrid temp=35 4242424242
-banani,region=Iceland temp=25 7676767676"#,
+            "bananas,region=Madrid temp=35 4242424242\n\
+             banani,region=Iceland temp=25 7676767676",
             0,
         )
         .expect("invalid line proto");
