@@ -29,9 +29,9 @@ members = [
     "influxdb_tsm",
     "influxdb2_client",
     "influxrpc_parser",
+    "ingester_query_grpc",
     "ingester_test_ctx",
     "ingester",
-    "ingester_query_grpc",
     "iox_catalog",
     "iox_data_generator",
     "iox_query_influxql",
@@ -82,8 +82,8 @@ members = [
     "trace",
     "tracker",
     "trogging",
-    "wal",
     "wal_inspect",
+    "wal",
     "workspace-hack",
 ]
 default-members = ["influxdb_iox"]
