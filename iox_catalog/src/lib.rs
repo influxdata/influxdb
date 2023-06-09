@@ -269,8 +269,10 @@ where
 pub mod test_helpers {
     use crate::RepoCollection;
     use data_types::{
-        partition_template::TablePartitionTemplateOverride, Namespace, NamespaceName, Table,
+        partition_template::TablePartitionTemplateOverride, ColumnId, ColumnSet, CompactionLevel,
+        Namespace, NamespaceName, ParquetFileParams, Partition, Table, Timestamp,
     };
+    use uuid::Uuid;
 
     /// When the details of the namespace don't matter; the test just needs *a* catalog namespace
     /// with a particular name.
@@ -319,6 +321,29 @@ pub mod test_helpers {
             )
             .await
             .unwrap()
+    }
+
+    /// When the details of a Parquet file record don't matter, the test just needs *a* Parquet
+    /// file record in a particular namespace+table+partition.
+    pub fn arbitrary_parquet_file_params(
+        namespace: &Namespace,
+        table: &Table,
+        partition: &Partition,
+    ) -> ParquetFileParams {
+        ParquetFileParams {
+            namespace_id: namespace.id,
+            table_id: table.id,
+            partition_id: partition.id,
+            object_store_id: Uuid::new_v4(),
+            min_time: Timestamp::new(1),
+            max_time: Timestamp::new(10),
+            file_size_bytes: 1337,
+            row_count: 0,
+            compaction_level: CompactionLevel::Initial,
+            created_at: Timestamp::new(1),
+            column_set: ColumnSet::new([ColumnId::new(1), ColumnId::new(2)]),
+            max_l0_created_at: Timestamp::new(1),
+        }
     }
 }
 
