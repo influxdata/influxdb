@@ -17,6 +17,7 @@ members = [
     "flightsql",
     "garbage_collector",
     "generated_types",
+    "gossip",
     "grpc-binary-logger-proto",
     "grpc-binary-logger-test-proto",
     "grpc-binary-logger",
