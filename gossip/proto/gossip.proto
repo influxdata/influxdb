@@ -1,0 +1,28 @@
+syntax = "proto3";
+package influxdata.iox.gossip.v1;
+option go_package = "github.com/influxdata/iox/gossip/v1";
+
+// The payload of a single gossip datagram.
+message Frame {
+  // Per-instance UUID as raw BE bytes.
+  bytes identity = 1;
+
+  // One or more user/control frames packed into a single message.
+  repeated FrameMessage messages = 2;
+}
+
+// A single gossip message within a frame.
+message FrameMessage {
+  // Various user/control message types.
+  oneof msg {
+    // User-provided data payload.
+    UserPayload user_data = 1;
+  }
+}
+
+// An application payload from the caller of the gossip library.
+message UserPayload {
+  // An opaque user payload - this is handed back to the gossip library user
+  // unmodified.
+  bytes payload = 1;
+}

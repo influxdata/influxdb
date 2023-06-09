@@ -14,3 +14,5 @@
     unused_crate_dependencies,
     missing_docs
 )]
+
+mod proto;
