@@ -57,13 +57,13 @@ async fn crud() {
     // ensuring the per-partition sequence numbers match up to the current
     // op-level sequence number while it is the source of truth.
     let mut reader = wal.reader_for_segment(closed_segment_details.id()).unwrap();
-    let op = reader.next_batch().unwrap().unwrap();
+    let op = reader.next().unwrap().unwrap();
     assert_eq!(op[0].sequence_number, 42);
     op[0]
         .table_write_sequence_numbers
         .values()
         .for_each(|sequence_number| assert_eq!(*sequence_number, op[0].sequence_number));
-    let op = reader.next_batch().unwrap().unwrap();
+    let op = reader.next().unwrap().unwrap();
     assert_eq!(op[0].sequence_number, 43);
     op[0]
         .table_write_sequence_numbers
@@ -107,7 +107,7 @@ async fn replay() {
     // ensuring the per-partition sequence numbers match up to the current
     // op-level sequence number while it is the source of truth.
     let mut reader = wal.reader_for_segment(closed_segment_ids[0]).unwrap();
-    let op = reader.next_batch().unwrap().unwrap();
+    let op = reader.next().unwrap().unwrap();
     assert_eq!(op[0].sequence_number, 42);
     op[0]
         .table_write_sequence_numbers
@@ -116,7 +116,7 @@ async fn replay() {
 
     // Can read the written entries from the previously open segment
     let mut reader = wal.reader_for_segment(closed_segment_ids[1]).unwrap();
-    let op = reader.next_batch().unwrap().unwrap();
+    let op = reader.next().unwrap().unwrap();
     assert_eq!(op[0].sequence_number, 43);
     op[0]
         .table_write_sequence_numbers

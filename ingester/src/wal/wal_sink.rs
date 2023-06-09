@@ -219,7 +219,7 @@ mod tests {
 
         // Obtain all the ops in the file
         let mut ops = Vec::new();
-        while let Ok(Some(mut batch)) = reader.next_batch() {
+        while let Some(Ok(mut batch)) = reader.next() {
             ops.append(&mut batch);
         }
 

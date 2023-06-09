@@ -428,12 +428,7 @@ async fn graceful_shutdown() {
         .expect("failed to open wal segment");
 
     // Assert the file contains no operations
-    assert_matches!(
-        reader
-            .next_batch()
-            .expect("failed to read wal segment contents"),
-        None
-    );
+    assert_matches!(reader.next(), None);
 
     // Validate the parquet files were added to the catalog during shutdown.
     let parquet_files = catalog

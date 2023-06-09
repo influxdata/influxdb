@@ -189,15 +189,15 @@ where
     let start = Instant::now();
 
     loop {
-        let ops = match file.next_batch() {
-            Ok(Some(v)) => v,
-            Ok(None) => {
+        let ops = match file.next() {
+            Some(Ok(v)) => v,
+            Some(Err(e)) => return Err(WalReplayError::ReadEntry(e)),
+            None => {
                 // This file is complete, return the last observed sequence
                 // number.
                 debug!("wal file replayed in {:?}", start.elapsed());
                 return Ok(max_sequence);
             }
-            Err(e) => return Err(WalReplayError::ReadEntry(e)),
         };
 
         for op in ops {
