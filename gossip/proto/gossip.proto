@@ -14,11 +14,17 @@ message Frame {
 // A single gossip message within a frame.
 message FrameMessage {
   // Various user/control message types.
-  oneof msg {
+  oneof payload {
+    Ping ping = 1;
+    Pong pong = 2;
+
     // User-provided data payload.
-    UserPayload user_data = 1;
+    UserPayload user_data = 3;
   }
 }
+
+message Ping {}
+message Pong {}
 
 // An application payload from the caller of the gossip library.
 message UserPayload {
