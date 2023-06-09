@@ -412,6 +412,7 @@ fn make_scratchpad_gen(config: &Config) -> Arc<dyn ScratchpadGen> {
         };
 
         Arc::new(ProdScratchpadGen::new(
+            config.shadow_mode,
             config.partition_scratchpad_concurrency,
             config.backoff_config.clone(),
             Arc::clone(config.parquet_store_real.object_store()),
