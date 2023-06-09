@@ -2602,6 +2602,7 @@ dependencies = [
  "predicate",
  "predicates",
  "pretty_assertions",
+ "proptest",
  "prost",
  "rustyline",
  "schema",

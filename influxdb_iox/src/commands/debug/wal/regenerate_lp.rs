@@ -114,7 +114,7 @@ where
     CFut: Send + Future<Output = Connection>,
 {
     let decoder = WriteOpEntryDecoder::from(
-        ClosedSegmentFileReader::from_path(&config.input).map_err(Error::UnableToOpenWalFile)?,
+        ClosedSegmentFileReader::from_path(&config.input).map_err(Error::UnableToReadWalFile)?,
     );
 
     let table_name_indexer = if config.skip_measurement_lookup {
