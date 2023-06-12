@@ -20,6 +20,7 @@ use super::{
 #[derive(Debug)]
 pub struct ProdScratchpadGen {
     concurrency: NonZeroUsize,
+    shadow_mode: bool,
     backoff_config: BackoffConfig,
     store_input: Arc<DynObjectStore>,
     store_scratchpad: Arc<DynObjectStore>,
@@ -28,6 +29,7 @@ pub struct ProdScratchpadGen {
 
 impl ProdScratchpadGen {
     pub fn new(
+        shadow_mode: bool,
         concurrency: NonZeroUsize,
         backoff_config: BackoffConfig,
         store_input: Arc<DynObjectStore>,
@@ -35,6 +37,7 @@ impl ProdScratchpadGen {
         store_output: Arc<DynObjectStore>,
     ) -> Self {
         Self {
+            shadow_mode,
             concurrency,
             backoff_config,
             store_input,
@@ -54,6 +57,7 @@ impl Display for ProdScratchpadGen {
 impl ScratchpadGen for ProdScratchpadGen {
     fn pad(&self) -> Arc<dyn Scratchpad> {
         Arc::new(ProdScratchpad {
+            shadow_mode: self.shadow_mode,
             concurrency: self.concurrency,
             backoff_config: self.backoff_config.clone(),
             store_input: Arc::clone(&self.store_input),
@@ -66,6 +70,7 @@ impl ScratchpadGen for ProdScratchpadGen {
 }
 
 struct ProdScratchpad {
+    shadow_mode: bool,
     concurrency: NonZeroUsize,
     backoff_config: BackoffConfig,
     store_input: Arc<DynObjectStore>,
@@ -234,6 +239,14 @@ impl Scratchpad for ProdScratchpad {
         .await;
     }
 
+    // clean_written_from_scratchpad is the same as clean_from_scratchpad, but it does not remove files
+    // when in shadow mode, since in shadow mode the scratchpad is the only copy of files.
+    async fn clean_written_from_scratchpad(&self, files: &[ParquetFilePath]) {
+        if !self.shadow_mode {
+            self.clean_from_scratchpad(files).await;
+        }
+    }
+
     async fn clean(&self) {
         // clean will remove all files in the scratchpad as of the time files_unmasked is locked.
         let files: Vec<_> = self
@@ -265,6 +278,7 @@ mod tests {
     fn test_display() {
         let (store_input, store_scratchpad, store_output) = stores();
         let gen = ProdScratchpadGen::new(
+            true,
             NonZeroUsize::new(1).unwrap(),
             BackoffConfig::default(),
             store_input,
@@ -280,6 +294,7 @@ mod tests {
 
         let (store_input, store_scratchpad, store_output) = stores();
         let gen = ProdScratchpadGen::new(
+            true,
             NonZeroUsize::new(1).unwrap(),
             BackoffConfig::default(),
             Arc::clone(&store_input),
@@ -371,7 +386,25 @@ mod tests {
         .await;
         assert_content(&store_output, [&f1, &f5, &f6]).await;
 
+        // we're in shadow mode, so written (compaction output) files must be be removed.
+        pad.clean_written_from_scratchpad(&[f1, f5]).await;
+
+        // they're still there
+        assert_content(
+            &store_scratchpad,
+            [
+                &f1_masked, &f2_masked, &f3_masked, &f5_masked, &f6_masked, &f7_masked,
+            ],
+        )
+        .await;
+
         pad.clean_from_scratchpad(&[f1, f5]).await;
+
+        assert_content(
+            &store_scratchpad,
+            [&f2_masked, &f3_masked, &f6_masked, &f7_masked],
+        )
+        .await;
 
         // Reload a cleaned file back into the scratchpad, simulating a backlogged partition that
         // requires several compaction loops (where the output of one compaction is later the input
@@ -399,6 +432,7 @@ mod tests {
     async fn test_collision() {
         let (store_input, store_scratchpad, store_output) = stores();
         let gen = ProdScratchpadGen::new(
+            false,
             NonZeroUsize::new(1).unwrap(),
             BackoffConfig::default(),
             Arc::clone(&store_input),
@@ -435,6 +469,7 @@ mod tests {
     async fn test_clean_on_drop() {
         let (store_input, store_scratchpad, store_output) = stores();
         let gen = ProdScratchpadGen::new(
+            false,
             NonZeroUsize::new(1).unwrap(),
             BackoffConfig::default(),
             Arc::clone(&store_input),
@@ -481,6 +516,7 @@ mod tests {
     async fn test_clean_does_not_crash_on_panic() {
         let (store_input, store_scratchpad, store_output) = stores();
         let gen = ProdScratchpadGen::new(
+            false,
             NonZeroUsize::new(1).unwrap(),
             BackoffConfig::default(),
             Arc::clone(&store_input),
