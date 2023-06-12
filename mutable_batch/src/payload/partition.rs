@@ -1100,9 +1100,19 @@ mod tests {
                         // An identity is both equal to, and a prefix of, the
                         // original value.
                         assert_eq!(got.1, want.1, "identity values differ");
-                        assert!(got.1.is_prefix_match_of(&want.1), "prefix mismatch");
+                        assert!(
+                            got.1.is_prefix_match_of(&want.1),
+                            "prefix mismatch; {:?} is not a prefix of {:?}",
+                            got.1,
+                            want.1
+                        );
                     },
-                    ColumnValue::Prefix(_) => assert!(got.1.is_prefix_match_of(&want.1), "prefix mismatch"),
+                    ColumnValue::Prefix(_) => assert!(
+                        got.1.is_prefix_match_of(&want.1),
+                        "prefix mismatch; {:?} is not a prefix of {:?}",
+                        got.1,
+                        want.1
+                    ),
                 };
             }
         }
