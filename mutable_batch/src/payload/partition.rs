@@ -54,7 +54,7 @@ pub fn partition_batch<'a>(
     let parts = template.len();
     if parts > MAXIMUM_NUMBER_OF_TEMPLATE_PARTS {
         panic!(
-            "partition template contains {}, which exceeds the maximum of {}",
+            "partition template contains {} parts, which exceeds the maximum of {} parts",
             parts, MAXIMUM_NUMBER_OF_TEMPLATE_PARTS
         );
     }
@@ -983,7 +983,9 @@ mod tests {
     }
 
     #[test]
-    #[should_panic(expected = "partition template contains 9, which exceeds the maximum of 8")]
+    #[should_panic(
+        expected = "partition template contains 9 parts, which exceeds the maximum of 8 parts"
+    )]
     fn test_too_many_parts() {
         let template = test_table_partition_override(
             std::iter::repeat(TemplatePart::TagValue("bananas"))
