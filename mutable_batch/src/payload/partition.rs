@@ -177,7 +177,7 @@ fn encode_key_part(s: &str) -> Cow<'_, str> {
             //
             // Walk the string, encoding each grapheme (which includes spaces)
             // individually, tracking the total length of the encoded string.
-            // Once it hits 199 chars, stop and append a #.
+            // Once it hits 199 bytes, stop and append a #.
 
             let mut bytes = 0;
             s.graphemes(true)

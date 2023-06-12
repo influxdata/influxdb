@@ -461,9 +461,9 @@ pub enum ColumnValue<'a> {
 }
 
 impl<'a> ColumnValue<'a> {
-    /// Returns true if `self` is a byte-wise prefix match for of `self`.
+    /// Returns true if `other` is a byte-wise prefix match of `self`.
     ///
-    /// This method can be called for any both [`ColumnValue::Identity`] and
+    /// This method can be called for both [`ColumnValue::Identity`] and
     /// [`ColumnValue::Prefix`].
     pub fn is_prefix_match_of<T>(&self, other: T) -> bool
     where
