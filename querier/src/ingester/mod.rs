@@ -15,7 +15,10 @@ use arrow_flight::decode::DecodedPayload;
 use async_trait::async_trait;
 use backoff::{Backoff, BackoffConfig, BackoffError};
 use client_util::connection;
-use data_types::{ChunkId, ChunkOrder, DeletePredicate, NamespaceId, PartitionId, TimestampMinMax};
+use data_types::{
+    ChunkId, ChunkOrder, DeletePredicate, NamespaceId, PartitionHashId, PartitionId,
+    TimestampMinMax,
+};
 use datafusion::{error::DataFusionError, physical_plan::Statistics};
 use futures::{stream::FuturesUnordered, TryStreamExt};
 use ingester_query_grpc::{
@@ -125,6 +128,11 @@ pub enum Error {
     IngesterUuid {
         ingester_uuid: String,
         source: uuid::Error,
+    },
+
+    #[snafu(display("Could not parse bytes as a `PartitionHashId`: {source}"))]
+    PartitionHashId {
+        source: data_types::PartitionHashIdError,
     },
 }
 
@@ -567,6 +575,12 @@ impl IngesterStreamDecoder {
                 self.flush_partition()?;
 
                 let partition_id = PartitionId::new(md.partition_id);
+                let partition_hash_id = md
+                    .partition_hash_id
+                    .map(|bytes| {
+                        PartitionHashId::try_from(&bytes[..]).context(PartitionHashIdSnafu)
+                    })
+                    .transpose()?;
                 ensure!(
                     !self.finished_partitions.contains_key(&partition_id),
                     DuplicatePartitionInfoSnafu {
@@ -602,6 +616,7 @@ impl IngesterStreamDecoder {
                 let partition = IngesterPartition::new(
                     ingester_uuid,
                     partition_id,
+                    partition_hash_id,
                     md.completed_persistence_count,
                     partition_sort_key,
                     partition_column_ranges,
@@ -796,7 +811,13 @@ pub struct IngesterPartition {
     /// to refresh the catalog cache or not.
     ingester_uuid: Uuid,
 
+    /// The database-assigned partition identifier. In the process of being deprecated.
     partition_id: PartitionId,
+
+    /// Deterministic partition identifier based on the table ID and partition key. Not all
+    /// ingester responses will contain this value yet.
+    #[allow(dead_code)] // Nothing is using this value yet.
+    partition_hash_id: Option<PartitionHashId>,
 
     /// The number of Parquet files this ingester UUID has persisted for this partition.
     completed_persistence_count: u64,
@@ -816,6 +837,7 @@ impl IngesterPartition {
     pub fn new(
         ingester_uuid: Uuid,
         partition_id: PartitionId,
+        partition_hash_id: Option<PartitionHashId>,
         completed_persistence_count: u64,
         partition_sort_key: Option<Arc<SortKey>>,
         partition_column_ranges: ColumnRanges,
@@ -823,6 +845,7 @@ impl IngesterPartition {
         Self {
             ingester_uuid,
             partition_id,
+            partition_hash_id,
             completed_persistence_count,
             partition_sort_key,
             partition_column_ranges,
@@ -1096,7 +1119,7 @@ mod tests {
         datatypes::Int32Type,
     };
     use assert_matches::assert_matches;
-    use data_types::TableId;
+    use data_types::{PartitionKey, TableId};
     use ingester_query_grpc::influxdata::iox::ingester::v1::IngesterQueryResponseMetadata;
     use iox_tests::TestCatalog;
     use metric::Attributes;
@@ -1202,6 +1225,43 @@ mod tests {
 
         let p = &partitions[0];
         assert_eq!(p.partition_id.get(), 1);
+        assert_eq!(p.partition_hash_id.as_ref().unwrap(), &partition_hash_id(1));
+        assert_eq!(p.chunks.len(), 0);
+        assert_eq!(p.ingester_uuid, ingester_uuid);
+        assert_eq!(p.completed_persistence_count, 5);
+    }
+
+    #[tokio::test]
+    async fn test_flight_no_partition_hash_id() {
+        let ingester_uuid = Uuid::new_v4();
+
+        let mock_flight_client = Arc::new(
+            MockFlightClient::new([(
+                "addr1",
+                Ok(MockQueryData {
+                    results: vec![Ok((
+                        DecodedPayload::None,
+                        IngesterQueryResponseMetadata {
+                            partition_id: 1,
+                            // PartitionHashId is in the process of being added, but is
+                            // currently not guaranteed.
+                            partition_hash_id: None,
+                            ingester_uuid: ingester_uuid.to_string(),
+                            completed_persistence_count: 5,
+                        },
+                    ))],
+                }),
+            )])
+            .await,
+        );
+        let ingester_conn = mock_flight_client.ingester_conn().await;
+
+        let partitions = get_partitions(&ingester_conn).await.unwrap();
+        assert_eq!(partitions.len(), 1);
+
+        let p = &partitions[0];
+        assert_eq!(p.partition_id.get(), 1);
+        assert!(p.partition_hash_id.is_none());
         assert_eq!(p.chunks.len(), 0);
         assert_eq!(p.ingester_uuid, ingester_uuid);
         assert_eq!(p.completed_persistence_count, 5);
@@ -1351,6 +1411,10 @@ mod tests {
 
         let p1 = &partitions[0];
         assert_eq!(p1.partition_id.get(), 1);
+        assert_eq!(
+            p1.partition_hash_id.as_ref().unwrap(),
+            &partition_hash_id(1)
+        );
         assert_eq!(p1.chunks.len(), 2);
         assert_eq!(p1.chunks[0].schema().as_arrow(), schema_1_1);
         assert_eq!(p1.chunks[0].batches.len(), 2);
@@ -1362,6 +1426,10 @@ mod tests {
 
         let p2 = &partitions[1];
         assert_eq!(p2.partition_id.get(), 2);
+        assert_eq!(
+            p2.partition_hash_id.as_ref().unwrap(),
+            &partition_hash_id(2)
+        );
         assert_eq!(p2.chunks.len(), 1);
         assert_eq!(p2.chunks[0].schema().as_arrow(), schema_2_1);
         assert_eq!(p2.chunks[0].batches.len(), 1);
@@ -1369,6 +1437,10 @@ mod tests {
 
         let p3 = &partitions[2];
         assert_eq!(p3.partition_id.get(), 3);
+        assert_eq!(
+            p3.partition_hash_id.as_ref().unwrap(),
+            &partition_hash_id(3)
+        );
         assert_eq!(p3.chunks.len(), 1);
         assert_eq!(p3.chunks[0].schema().as_arrow(), schema_3_1);
         assert_eq!(p3.chunks[0].batches.len(), 1);
@@ -1400,6 +1472,46 @@ mod tests {
             .unwrap_err();
 
         assert_matches!(err, Error::IngesterUuid { .. });
+    }
+
+    #[tokio::test]
+    async fn invalid_partition_hash_id_errors() {
+        let ingester_uuid = Uuid::new_v4();
+
+        let mock_flight_client = Arc::new(
+            MockFlightClient::new([(
+                "addr1",
+                Ok(MockQueryData {
+                    results: vec![Ok((
+                        DecodedPayload::None,
+                        IngesterQueryResponseMetadata {
+                            partition_id: 1,
+                            partition_hash_id: Some(
+                                // Bytes that aren't a valid PartitionHashId
+                                vec![1, 2, 3, 4, 5],
+                            ),
+                            ingester_uuid: ingester_uuid.to_string(),
+                            completed_persistence_count: 5,
+                        },
+                    ))],
+                }),
+            )])
+            .await,
+        );
+        let ingester_conn = mock_flight_client.ingester_conn().await;
+        let columns = vec![String::from("col")];
+        let err = ingester_conn
+            .partitions(
+                NamespaceId::new(1),
+                cached_table(),
+                columns,
+                &Predicate::default(),
+                None,
+            )
+            .await
+            .unwrap_err();
+
+        assert_matches!(err, Error::PartitionHashId { .. });
     }
 
     #[tokio::test]
@@ -1446,16 +1558,28 @@ mod tests {
         assert_eq!(p1.ingester_uuid, ingester_uuid1);
         assert_eq!(p1.completed_persistence_count, 0);
         assert_eq!(p1.partition_id.get(), 1);
+        assert_eq!(
+            p1.partition_hash_id.as_ref().unwrap(),
+            &partition_hash_id(1)
+        );
 
         let p2 = &partitions[1];
         assert_eq!(p2.ingester_uuid, ingester_uuid1);
         assert_eq!(p2.completed_persistence_count, 42);
         assert_eq!(p2.partition_id.get(), 2);
+        assert_eq!(
+            p2.partition_hash_id.as_ref().unwrap(),
+            &partition_hash_id(2)
+        );
 
         let p3 = &partitions[2];
         assert_eq!(p3.ingester_uuid, ingester_uuid2);
         assert_eq!(p3.completed_persistence_count, 9000);
         assert_eq!(p3.partition_id.get(), 3);
+        assert_eq!(
+            p3.partition_hash_id.as_ref().unwrap(),
+            &partition_hash_id(3)
+        );
     }
 
     #[tokio::test]
@@ -1599,11 +1723,22 @@ mod tests {
         Ok((
             DecodedPayload::None,
             IngesterQueryResponseMetadata {
+                // Using the partition_id as both the PartitionId and the TableId in the
+                // PartitionHashId is a temporary way to reduce duplication in tests where
+                // the important part is which batches are in the same partition and which
+                // batches are in a different partition, not what the actual identifier
+                // values are. This will go away when the ingester no longer sends
+                // PartitionIds.
                 partition_id,
+                partition_hash_id: Some(partition_hash_id(partition_id).as_bytes().to_owned()),
                 ingester_uuid: ingester_uuid.into(),
                 completed_persistence_count,
             },
         ))
+    }
+
+    fn partition_hash_id(table_id: i64) -> PartitionHashId {
+        PartitionHashId::new(TableId::new(table_id), &PartitionKey::from("arbitrary"))
     }
 
     #[derive(Debug)]
@@ -1714,6 +1849,10 @@ mod tests {
             let ingester_partition = IngesterPartition::new(
                 ingester_uuid,
                 PartitionId::new(1),
+                Some(PartitionHashId::new(
+                    TableId::new(1),
+                    &PartitionKey::from("arbitrary"),
+                )),
                 0,
                 None,
                 Default::default(),
@@ -1742,6 +1881,10 @@ mod tests {
         let err = IngesterPartition::new(
             ingester_uuid,
             PartitionId::new(1),
+            Some(PartitionHashId::new(
+                TableId::new(1),
+                &PartitionKey::from("arbitrary"),
+            )),
             0,
             None,
             Default::default(),

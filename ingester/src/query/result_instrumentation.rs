@@ -329,6 +329,7 @@ where
 
                 // Extract all the fields of the PartitionResponse
                 let id = p.id();
+                let hash_id = p.partition_hash_id().cloned();
                 let persist_count = p.completed_persistence_count();
 
                 // And wrap the underlying stream of RecordBatch for this
@@ -341,7 +342,12 @@ where
                 this.record_batch_count
                     .fetch_add(data.len(), Ordering::Relaxed);
 
-                Poll::Ready(Some(PartitionResponse::new(data, id, persist_count)))
+                Poll::Ready(Some(PartitionResponse::new(
+                    data,
+                    id,
+                    hash_id,
+                    persist_count,
+                )))
             }
             Poll::Ready(None) => {
                 // Record the wall clock timestamp of the stream end.
@@ -427,7 +433,7 @@ mod tests {
     use super::*;
 
     use arrow::array::{Float32Array, Int64Array};
-    use data_types::PartitionId;
+    use data_types::{PartitionHashId, PartitionId, PartitionKey};
     use futures::{stream, StreamExt};
     use iox_time::MockProvider;
     use metric::{assert_histogram, Attributes};
@@ -446,6 +452,10 @@ mod tests {
         let stream = PartitionStream::new(stream::iter([PartitionResponse::new(
             vec![],
             PartitionId::new(42),
+            Some(PartitionHashId::new(
+                TABLE_ID,
+                &PartitionKey::from("arbitrary"),
+            )),
             42,
         )]));
 
@@ -514,7 +524,7 @@ mod tests {
 
         // Construct the set of partitions and their record batches
         let stream = make_partition_stream!(
-            PartitionId::new(1) => [
+            1 => [
                 make_batch!(
                     Int64Array("a" => vec![1, 2, 3, 4, 5]),
                     Float32Array("b" => vec![4.1, 4.2, 4.3, 4.4, 5.0]),
@@ -523,7 +533,7 @@ mod tests {
                     Int64Array("c" => vec![1, 2, 3, 4, 5]),
                 ),
             ],
-            PartitionId::new(2) => [
+            2 => [
                 make_batch!(
                     Float32Array("d" => vec![1.1]),
                 ),
@@ -594,7 +604,7 @@ mod tests {
 
         // Construct the set of partitions and their record batches
         let stream = make_partition_stream!(
-            PartitionId::new(1) => [
+            1 => [
                 make_batch!(
                     Int64Array("a" => vec![1, 2, 3, 4, 5]),
                     Float32Array("b" => vec![4.1, 4.2, 4.3, 4.4, 5.0]),
@@ -603,7 +613,7 @@ mod tests {
                     Int64Array("c" => vec![1, 2, 3, 4, 5]),
                 ),
             ],
-            PartitionId::new(2) => [
+            2 => [
                 make_batch!(
                     Float32Array("d" => vec![1.1]),
                 ),
@@ -674,7 +684,7 @@ mod tests {
 
         // Construct the set of partitions and their record batches
         let stream = make_partition_stream!(
-            PartitionId::new(1) => [
+            1 => [
                 make_batch!(
                     Int64Array("a" => vec![1, 2, 3, 4, 5]),
                     Float32Array("b" => vec![4.1, 4.2, 4.3, 4.4, 5.0]),
@@ -683,7 +693,7 @@ mod tests {
                     Int64Array("c" => vec![1, 2, 3, 4, 5]),
                 ),
             ],
-            PartitionId::new(2) => [
+            2 => [
                 make_batch!(
                     Float32Array("d" => vec![1.1]),
                 ),

@@ -235,7 +235,19 @@ macro_rules! make_partition_stream {
 
                     PartitionResponse::new(
                         batches,
-                        $id,
+                        // Using the $id as both the PartitionId and the TableId in the
+                        // PartitionHashId is a temporary way to reduce duplication in tests where
+                        // the important part is which batches are in the same partition and which
+                        // batches are in a different partition, not what the actual identifier
+                        // values are. This will go away when the ingester no longer sends
+                        // PartitionIds.
+                        PartitionId::new($id),
+                        Some(
+                            PartitionHashId::new(
+                                TableId::new($id),
+                                &PartitionKey::from("arbitrary")
+                            )
+                        ),
                         42,
                     )
                 },)+

@@ -106,6 +106,7 @@ impl IngesterPartitionBuilder {
         IngesterPartition::new(
             Uuid::new_v4(),
             self.partition.partition.id,
+            self.partition.partition.hash_id().cloned(),
             0,
             self.partition_sort_key.clone(),
             Arc::clone(&self.partition_column_ranges),

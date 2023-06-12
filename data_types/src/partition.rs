@@ -5,6 +5,7 @@ use super::{TableId, Timestamp};
 use schema::sort::SortKey;
 use sha2::Digest;
 use std::{fmt::Display, sync::Arc};
+use thiserror::Error;
 
 /// Unique ID for a `Partition` during the transition from catalog-assigned sequential
 /// `PartitionId`s to deterministic `PartitionHashId`s.
@@ -161,6 +162,32 @@ impl std::fmt::Display for PartitionHashId {
     }
 }
 
+/// Reasons bytes specified aren't a valid `PartitionHashId`.
+#[derive(Debug, Error)]
+#[allow(missing_copy_implementations)]
+pub enum PartitionHashIdError {
+    /// The bytes specified were not valid
+    #[error("Could not interpret bytes as `PartitionHashId`: {data:?}")]
+    InvalidBytes {
+        /// The bytes used in the attempt to create a `PartitionHashId`
+        data: Vec<u8>,
+    },
+}
+
+impl TryFrom<&[u8]> for PartitionHashId {
+    type Error = PartitionHashIdError;
+
+    fn try_from(data: &[u8]) -> Result<Self, Self::Error> {
+        let data: [u8; PARTITION_HASH_ID_SIZE_BYTES] =
+            data.try_into()
+                .map_err(|_| PartitionHashIdError::InvalidBytes {
+                    data: data.to_vec(),
+                })?;
+
+        Ok(Self(Arc::new(data)))
+    }
+}
+
 impl PartitionHashId {
     /// Create a new `PartitionHashId`.
     pub fn new(table_id: TableId, partition_key: &PartitionKey) -> Self {
@@ -183,6 +210,11 @@ impl PartitionHashId {
 
         inner.update(partition_key.as_bytes());
         Self(Arc::new(inner.finalize().into()))
+    }
+
+    /// Read access to the bytes of the hash identifier.
+    pub fn as_bytes(&self) -> &[u8] {
+        self.0.as_ref()
     }
 }
 
@@ -352,10 +384,23 @@ mod tests {
 
             let partition_hash_id = PartitionHashId::new(table_id, &partition_key);
 
+            // The bytes of the partition hash ID are stored in the catalog and sent from the
+            // ingesters to the queriers. We should be able to round-trip through bytes.
+            let bytes_representation = partition_hash_id.as_bytes();
+            assert_eq!(bytes_representation.len(), 32);
+            let from_bytes = PartitionHashId::try_from(bytes_representation).unwrap();
+            assert_eq!(from_bytes, partition_hash_id);
+
             // The hex string of the bytes is used in the Parquet file path in object storage, and
             // should always be the same length.
             let string_representation = partition_hash_id.to_string();
             assert_eq!(string_representation.len(), 64);
+
+            // While nothing is currently deserializing the hex string to create `PartitionHashId`
+            // instances, it should work because there's nothing preventing it either.
+            let bytes_from_string = hex::decode(string_representation).unwrap();
+            let from_string = PartitionHashId::try_from(&bytes_from_string[..]).unwrap();
+            assert_eq!(from_string, partition_hash_id);
         }
     }
 }
