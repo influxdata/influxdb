@@ -1092,9 +1092,9 @@ mod tests {
                 _ => None,
             }).collect();
 
-            for (idx, want) in want_reversed.iter().enumerate() {
-                let got = &reversed[idx];
+            assert_eq!(want_reversed.len(), reversed.len());
 
+            for (want, got) in want_reversed.iter().zip(reversed.iter()) {
                 assert_eq!(got.0, want.0, "column names differ");
 
                 match got.1 {
