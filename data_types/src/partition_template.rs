@@ -562,10 +562,13 @@ pub fn build_column_values<'a>(
             {
                 // Remove the truncation marker.
                 let len = decoded.len() - 1;
-                return (
-                    name,
-                    ColumnValue::Prefix(Cow::Owned(decoded[..len].to_string())),
-                );
+
+                // Only allocate if needed; re-borrow a subslice of `Cow::Borrowed` if not.
+                let column_cow = match decoded {
+                    Cow::Borrowed(s) => Cow::Borrowed(&s[..len]),
+                    Cow::Owned(s) => Cow::Owned(s[..len].to_string()),
+                };
+                return (name, ColumnValue::Prefix(column_cow));
             }
 
             (name, ColumnValue::Identity(decoded))
