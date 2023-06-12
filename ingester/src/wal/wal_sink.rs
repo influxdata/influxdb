@@ -213,15 +213,11 @@ mod tests {
         let file = assert_matches!(&*files, [f] => f, "expected 1 file");
 
         // Open a reader
-        let mut reader = wal
+        let ops: Vec<SequencedWalOp> = wal
             .reader_for_segment(file.id())
-            .expect("failed to obtain reader");
-
-        // Obtain all the ops in the file
-        let mut ops = Vec::new();
-        while let Ok(Some(mut batch)) = reader.next_batch() {
-            ops.append(&mut batch);
-        }
+            .expect("failed to obtain reader for WAL segment")
+            .flat_map(|batch| batch.expect("failed to read WAL op batch"))
+            .collect();
 
         // Extract the op payload read from the WAL
         let read_op = assert_matches!(&*ops, [op] => op, "expected 1 DML operation");

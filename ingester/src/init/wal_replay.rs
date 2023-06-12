@@ -178,7 +178,7 @@ where
 /// Replay the entries in `file`, applying them to `buffer`. Returns the highest
 /// sequence number observed in the file, or [`None`] if the file was empty.
 async fn replay_file<T>(
-    mut file: wal::ClosedSegmentFileReader,
+    file: wal::ClosedSegmentFileReader,
     sink: &T,
     op_count_metric: &U64Counter,
 ) -> Result<Option<SequenceNumber>, WalReplayError>
@@ -188,17 +188,8 @@ where
     let mut max_sequence = None;
     let start = Instant::now();
 
-    loop {
-        let ops = match file.next_batch() {
-            Ok(Some(v)) => v,
-            Ok(None) => {
-                // This file is complete, return the last observed sequence
-                // number.
-                debug!("wal file replayed in {:?}", start.elapsed());
-                return Ok(max_sequence);
-            }
-            Err(e) => return Err(WalReplayError::ReadEntry(e)),
-        };
+    for batch in file {
+        let ops = batch.map_err(WalReplayError::ReadEntry)?;
 
         for op in ops {
             let SequencedWalOp {
@@ -251,6 +242,11 @@ where
             op_count_metric.inc(1);
         }
     }
+
+    // This file is complete, return the last observed sequence
+    // number.
+    debug!("wal file replayed in {:?}", start.elapsed());
+    Ok(max_sequence)
 }
 
 #[cfg(test)]
