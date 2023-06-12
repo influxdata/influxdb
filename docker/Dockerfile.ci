@@ -12,7 +12,7 @@
 
 ARG RUST_VERSION
 # Build actual image used for CI pipeline
-FROM rust:${RUST_VERSION}-slim-bullseye
+FROM rust:${RUST_VERSION}-slim-bookworm
 
 # When https://github.com/rust-lang/rustup/issues/2686 is fixed, run the command added that
 # will install everything in rust-toolchain.toml here so that components are in the container
