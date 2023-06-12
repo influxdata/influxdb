@@ -55,6 +55,51 @@ impl<K, V> TtlProvider for NeverTtlProvider<K, V> {
     }
 }
 
+/// [`TtlProvider`] that returns a constant value.
+pub struct ConstantValueTtlProvider<K, V>
+where
+    K: 'static,
+    V: 'static,
+{
+    // phantom data that is Send and Sync, see https://stackoverflow.com/a/50201389
+    _k: PhantomData<fn() -> K>,
+    _v: PhantomData<fn() -> V>,
+
+    ttl: Option<Duration>,
+}
+
+impl<K, V> ConstantValueTtlProvider<K, V>
+where
+    K: 'static,
+    V: 'static,
+{
+    /// Create new provider with the given TTL value.
+    pub fn new(ttl: Option<Duration>) -> Self {
+        Self {
+            _k: PhantomData::default(),
+            _v: PhantomData::default(),
+            ttl,
+        }
+    }
+}
+
+impl<K, V> std::fmt::Debug for ConstantValueTtlProvider<K, V> {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("ConstantValueTtlProvider")
+            .field("ttl", &self.ttl)
+            .finish_non_exhaustive()
+    }
+}
+
+impl<K, V> TtlProvider for ConstantValueTtlProvider<K, V> {
+    type K = K;
+    type V = V;
+
+    fn expires_in(&self, _k: &Self::K, _v: &Self::V) -> Option<Duration> {
+        self.ttl
+    }
+}
+
 /// [`TtlProvider`] that returns different values for `None`/`Some(...)` values.
 pub struct OptionalValueTtlProvider<K, V>
 where
@@ -310,6 +355,13 @@ mod tests {
     fn test_never_ttl_provider() {
         let provider = NeverTtlProvider::<u8, i8>::default();
         assert_eq!(provider.expires_in(&1, &2), None);
+    }
+
+    #[test]
+    fn test_constant_value_ttl_provider() {
+        let ttl = Some(Duration::from_secs(1));
+        let provider = ConstantValueTtlProvider::<u8, i8>::new(ttl);
+        assert_eq!(provider.expires_in(&1, &2), ttl);
     }
 
     #[test]

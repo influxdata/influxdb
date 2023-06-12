@@ -6,10 +6,10 @@ _The instructions below use docker, but this is optional._
 
 _Depending on your setup there may be permissions complications that require using`-u`_
 
-Startup a Debian bullseye image
+Startup a Debian bookworm image
 
 ```
-docker run -it -v $PWD:/out debian:bullseye-slim
+docker run -it -v $PWD:/out debian:bookworm-slim
 ```
 
 Install the thrift-compiler
@@ -30,7 +30,7 @@ Get the IDL definition
 
 ```
 $ wget https://raw.githubusercontent.com/jaegertracing/jaeger-idl/master/thrift/jaeger.thrift https://raw.githubusercontent.com/jaegertracing/jaeger-idl/master/thrift/zipkincore.thrift https://raw.githubusercontent.com/jaegertracing/jaeger-idl/master/thrift/agent.thrift
-``` 
+```
 
 Generate the code
 
@@ -43,7 +43,7 @@ $ thrift --out /out/src/thrift --gen rs zipkincore.thrift
 Patch up imports
 
 ```
-sed -i 's/use jaeger;/use super::jaeger;/g' /out/src/thrift/agent.rs 
+sed -i 's/use jaeger;/use super::jaeger;/g' /out/src/thrift/agent.rs
 sed -i 's/use zipkincore;/use super::zipkincore;/g' /out/src/thrift/agent.rs
 ```
 
