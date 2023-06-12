@@ -88,7 +88,7 @@ where
 #[cfg(test)]
 mod tests {
     use generated_types::influxdata::iox::wal::v1::sequenced_wal_op::Op as WalOp;
-    use proptest::{prelude::*, prop_assert, prop_assume};
+    use proptest::{prelude::*, prop_assert};
 
     use super::*;
 
@@ -132,17 +132,13 @@ mod tests {
 
     proptest! {
         #[test]
-        fn test_sequence_number_invalid_range_parsing(a in any::<u64>(), b in any::<u64>()) {
-            prop_assume!(b < a);
+        fn test_sequence_number_range_parsing(a in any::<u64>(), b in any::<u64>()) {
             let input = format!("{}-{}", a, b);
-            prop_assert!(parse_sequence_number_range(input.as_str()).is_err());
-        }
 
-        #[test]
-        fn test_sequence_number_valid_range_parsing(a in any::<u64>(), b in any::<u64>()) {
-            prop_assume!(a <= b);
-            let input = format!("{}-{}", a, b);
-            prop_assert!(parse_sequence_number_range(input.as_str()).is_ok());
+            match parse_sequence_number_range(input.as_str()) {
+                Ok(_) => prop_assert!(a <= b),
+                Err(_) => prop_assert!(a > b),
+            }
         }
     }
 }
