@@ -1807,10 +1807,10 @@ mod tests {
         postgres::test_utils::{
             create_db, maybe_skip_integration, setup_db, setup_db_no_migration,
         },
-        test_helpers::{arbitrary_namespace, arbitrary_table},
+        test_helpers::{arbitrary_namespace, arbitrary_parquet_file_params, arbitrary_table},
     };
     use assert_matches::assert_matches;
-    use data_types::{partition_template::TemplatePart, ColumnId, ColumnSet};
+    use data_types::partition_template::TemplatePart;
     use generated_types::influxdata::iox::partition_template::v1 as proto;
     use metric::{Attributes, DurationHistogram, Metric};
     use std::{io::Write, sync::Arc, time::Instant};
@@ -2173,42 +2173,20 @@ mod tests {
         let postgres: Arc<dyn Catalog> = Arc::new(postgres);
         let mut repos = postgres.repositories().await;
         let namespace = arbitrary_namespace(&mut *repos, "ns4").await;
-        let namespace_id = namespace.id;
-        let table_id = arbitrary_table(&mut *repos, "table", &namespace).await.id;
-
+        let table = arbitrary_table(&mut *repos, "table", &namespace).await;
         let key = "bananas";
-
-        let partition_id = repos
+        let partition = repos
             .partitions()
-            .create_or_get(key.into(), table_id)
+            .create_or_get(key.into(), table.id)
             .await
-            .expect("should create OK")
-            .id;
+            .unwrap();
 
-        // parquet file to create- all we care about here is the size, the rest is to satisfy DB
-        // constraints
-        let time_provider = Arc::new(SystemProvider::new());
-        let time_now = Timestamp::from(time_provider.now());
-        let mut p1 = ParquetFileParams {
-            namespace_id,
-            table_id,
-            partition_id,
-            object_store_id: Uuid::new_v4(),
-            min_time: Timestamp::new(1),
-            max_time: Timestamp::new(5),
-            file_size_bytes: 1337,
-            row_count: 0,
-            compaction_level: CompactionLevel::Initial, // level of file of new writes
-            created_at: time_now,
-            column_set: ColumnSet::new([ColumnId::new(1), ColumnId::new(2)]),
-            max_l0_created_at: time_now,
-        };
-        let f1 = repos
-            .parquet_files()
-            .create(p1.clone())
-            .await
-            .expect("create parquet file should succeed");
-        // insert the same again with a different size; we should then have 3x1337 as total file size
+        // parquet file to create- all we care about here is the size
+        let mut p1 = arbitrary_parquet_file_params(&namespace, &table, &partition);
+        p1.file_size_bytes = 1337;
+        let f1 = repos.parquet_files().create(p1.clone()).await.unwrap();
+        // insert the same again with a different size; we should then have 3x1337 as total file
+        // size
         p1.object_store_id = Uuid::new_v4();
         p1.file_size_bytes *= 2;
         let _f2 = repos
@@ -2236,14 +2214,15 @@ mod tests {
                 .fetch_one(&pool)
                 .await
                 .expect("fetch total file size failed");
-        // we marked the first file of size 1337 for deletion leaving only the second that was 2x that
+        // we marked the first file of size 1337 for deletion leaving only the second that was 2x
+        // that
         assert_eq!(total_file_size_bytes, 1337 * 2);
 
         // actually deleting shouldn't change the total
-        let now = Timestamp::from(time_provider.now());
+        let older_than = p1.created_at + 1;
         repos
             .parquet_files()
-            .delete_old_ids_only(now)
+            .delete_old_ids_only(older_than)
             .await
             .expect("parquet file deletion should succeed");
         let total_file_size_bytes: i64 =

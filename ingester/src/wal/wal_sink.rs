@@ -106,13 +106,23 @@ impl WalAppender for Arc<wal::Wal> {
 
         let namespace_id = op.namespace_id();
 
-        let wal_op = match op {
-            DmlOperation::Write(w) => Op::Write(encode_write(namespace_id.get(), w)),
+        let (wal_op, partition_sequence_numbers) = match op {
+            DmlOperation::Write(w) => {
+                let partition_sequence_numbers = w
+                    .tables()
+                    .map(|(table_id, _)| (*table_id, sequence_number))
+                    .collect();
+                (
+                    Op::Write(encode_write(namespace_id.get(), w)),
+                    partition_sequence_numbers,
+                )
+            }
             DmlOperation::Delete(_) => unreachable!(),
         };
 
         self.write_op(SequencedWalOp {
             sequence_number,
+            table_write_sequence_numbers: partition_sequence_numbers,
             op: wal_op,
         })
     }
@@ -124,7 +134,9 @@ mod tests {
     use std::{future, sync::Arc};
 
     use assert_matches::assert_matches;
-    use data_types::{NamespaceId, PartitionKey, TableId};
+    use data_types::{NamespaceId, PartitionKey, SequenceNumber, TableId};
+    use dml::{DmlMeta, DmlWrite};
+    use mutable_batch_lp::lines_to_batches;
     use wal::Wal;
 
     use crate::{dml_sink::mock_sink::MockDmlSink, test_util::make_write_op};
@@ -140,14 +152,36 @@ mod tests {
     async fn test_append() {
         let dir = tempfile::tempdir().unwrap();
 
-        // Generate the test op that will be appended and read back
-        let op = make_write_op(
-            &PartitionKey::from("p1"),
+        const SECOND_TABLE_ID: TableId = TableId::new(45);
+        const SECOND_TABLE_NAME: &str = "banani";
+        // Generate a test op containing writes for multiple tables that will
+        // be appended and read back
+        let mut tables_by_name = lines_to_batches(
+            "bananas,region=Madrid temp=35 4242424242\n\
+             banani,region=Iceland temp=25 7676767676",
+            0,
+        )
+        .expect("invalid line proto");
+        let op = DmlWrite::new(
             NAMESPACE_ID,
-            TABLE_NAME,
-            TABLE_ID,
-            42,
-            r#"bananas,region=Madrid temp=35 4242424242"#,
+            [
+                (
+                    TABLE_ID,
+                    tables_by_name
+                        .remove(TABLE_NAME)
+                        .expect("table does not exist in LP"),
+                ),
+                (
+                    SECOND_TABLE_ID,
+                    tables_by_name
+                        .remove(SECOND_TABLE_NAME)
+                        .expect("second table does not exist in LP"),
+                ),
+            ]
+            .into_iter()
+            .collect(),
+            PartitionKey::from("p1"),
+            DmlMeta::sequenced(SequenceNumber::new(42), iox_time::Time::MIN, None, 42),
         );
 
         // The write portion of this test.
@@ -179,19 +213,21 @@ mod tests {
         let file = assert_matches!(&*files, [f] => f, "expected 1 file");
 
         // Open a reader
-        let mut reader = wal
+        let ops: Vec<SequencedWalOp> = wal
             .reader_for_segment(file.id())
-            .expect("failed to obtain reader");
-
-        // Obtain all the ops in the file
-        let mut ops = Vec::new();
-        while let Ok(Some(mut batch)) = reader.next_batch() {
-            ops.append(&mut batch);
-        }
+            .expect("failed to obtain reader for WAL segment")
+            .flat_map(|batch| batch.expect("failed to read WAL op batch"))
+            .collect();
 
         // Extract the op payload read from the WAL
         let read_op = assert_matches!(&*ops, [op] => op, "expected 1 DML operation");
         assert_eq!(read_op.sequence_number, 42);
+        assert_eq!(
+            read_op.table_write_sequence_numbers,
+            [(TABLE_ID, 42), (SECOND_TABLE_ID, 42)]
+                .into_iter()
+                .collect::<std::collections::HashMap<TableId, u64>>()
+        );
         let payload =
             assert_matches!(&read_op.op, Op::Write(w) => w, "expected DML write WAL entry");
 

@@ -110,6 +110,9 @@ pub enum Error {
     #[snafu(display("Failed to optimize record batch: {}", source))]
     Optimize { source: ArrowError },
 
+    #[snafu(display("Failed to encode schema: {}", source))]
+    EncodeSchema { source: ArrowError },
+
     #[snafu(display("Error while planning query: {}", source))]
     Planning {
         source: service_common::planner::Error,
@@ -152,6 +155,7 @@ impl From<Error> for tonic::Status {
             | Error::InvalidDatabaseName { .. } => info!(e=%err, msg),
             Error::Query { .. } => info!(e=%err, msg),
             Error::Optimize { .. }
+            | Error::EncodeSchema { .. }
             | Error::TooManyFlightSQLDatabases { .. }
             | Error::NoFlightSQLDatabase
             | Error::InvalidDatabaseHeader { .. }
@@ -201,9 +205,10 @@ impl Error {
                 }
                 flightsql::Error::DataFusion { source } => datafusion_error_to_tonic_code(&source),
             },
-            Self::InternalCreatingTicket { .. } | Self::Optimize { .. } | Self::Authz { .. } => {
-                tonic::Code::Internal
-            }
+            Self::InternalCreatingTicket { .. }
+            | Self::Optimize { .. }
+            | Self::EncodeSchema { .. }
+            | Self::Authz { .. } => tonic::Code::Internal,
             Self::Unauthenticated => tonic::Code::Unauthenticated,
             Self::PermissionDenied => tonic::Code::PermissionDenied,
         };
@@ -228,6 +233,7 @@ impl From<authz::Error> for Error {
     fn from(source: authz::Error) -> Self {
         match source {
             authz::Error::Forbidden => Self::PermissionDenied,
+            authz::Error::InvalidToken => Self::PermissionDenied,
             authz::Error::NoToken => Self::Unauthenticated,
             source => Self::Authz { source },
         }
@@ -638,7 +644,7 @@ where
 
         let ctx = db.new_query_context(span_ctx);
         let schema = Planner::new(&ctx)
-            .flight_sql_get_flight_info(&namespace_name, cmd.clone())
+            .flight_sql_get_flight_info_schema(&namespace_name, cmd.clone())
             .await
             .context(PlanningSnafu);
 
@@ -656,12 +662,12 @@ where
 
         let endpoint = FlightEndpoint::new().with_ticket(ticket);
 
-        let mut flight_info = FlightInfo::new()
+        let flight_info = FlightInfo::new()
             .with_endpoint(endpoint)
             // return descriptor we were passed
-            .with_descriptor(flight_descriptor);
-
-        flight_info.schema = schema;
+            .with_descriptor(flight_descriptor)
+            .try_with_schema(schema.as_ref())
+            .context(EncodeSchemaSnafu)?;
 
         Ok(tonic::Response::new(flight_info))
     }
@@ -1105,6 +1111,7 @@ mod tests {
                 Some(token) => match (&token as &dyn AsRef<[u8]>).as_ref() {
                     b"GOOD" => Ok(perms.to_vec()),
                     b"BAD" => Err(authz::Error::Forbidden),
+                    b"INVALID" => Err(authz::Error::InvalidToken),
                     b"UGLY" => Err(authz::Error::verification("test", "test error")),
                     _ => panic!("unexpected token"),
                 },
@@ -1179,6 +1186,12 @@ mod tests {
             &svc,
             tonic::Code::PermissionDenied,
             sql_request("Bearer BAD"),
+        )
+        .await;
+        assert_code(
+            &svc,
+            tonic::Code::PermissionDenied,
+            sql_request("Bearer INVALID"),
         )
         .await;
         assert_code(&svc, tonic::Code::Internal, sql_request("Bearer UGLY")).await;

@@ -686,14 +686,14 @@ pub async fn list_schemas(
 #[cfg(test)]
 pub(crate) mod test_helpers {
     use crate::{
-        test_helpers::{arbitrary_namespace, arbitrary_table},
+        test_helpers::{arbitrary_namespace, arbitrary_parquet_file_params, arbitrary_table},
         validate_or_insert_schema, DEFAULT_MAX_COLUMNS_PER_TABLE, DEFAULT_MAX_TABLES,
     };
 
     use super::*;
     use ::test_helpers::assert_error;
     use assert_matches::assert_matches;
-    use data_types::{ColumnId, ColumnSet, CompactionLevel};
+    use data_types::{ColumnId, CompactionLevel};
     use futures::Future;
     use generated_types::influxdata::iox::partition_template::v1 as proto;
     use metric::{Attributes, DurationHistogram, Metric};
@@ -1728,7 +1728,8 @@ pub(crate) mod test_helpers {
             .expect("delete namespace should succeed");
     }
 
-    /// tests many interactions with the catalog and parquet files. See the individual conditions herein
+    /// tests many interactions with the catalog and parquet files. See the individual conditions
+    /// herein
     async fn test_parquet_file(catalog: Arc<dyn Catalog>) {
         let mut repos = catalog.repositories().await;
         let namespace = arbitrary_namespace(&mut *repos, "namespace_parquet_file_test").await;
@@ -1745,20 +1746,7 @@ pub(crate) mod test_helpers {
             .await
             .unwrap();
 
-        let parquet_file_params = ParquetFileParams {
-            namespace_id: namespace.id,
-            table_id: partition.table_id,
-            partition_id: partition.id,
-            object_store_id: Uuid::new_v4(),
-            min_time: Timestamp::new(1),
-            max_time: Timestamp::new(10),
-            file_size_bytes: 1337,
-            row_count: 0,
-            compaction_level: CompactionLevel::Initial,
-            created_at: Timestamp::new(1),
-            column_set: ColumnSet::new([ColumnId::new(1), ColumnId::new(2)]),
-            max_l0_created_at: Timestamp::new(1),
-        };
+        let parquet_file_params = arbitrary_parquet_file_params(&namespace, &table, &partition);
         let parquet_file = repos
             .parquet_files()
             .create(parquet_file_params.clone())
@@ -2193,42 +2181,18 @@ pub(crate) mod test_helpers {
             .await
             .unwrap();
 
-        let parquet_file_params_1 = ParquetFileParams {
-            namespace_id: namespace_1.id,
-            table_id: table_1.id,
-            partition_id: partition_1.id,
-            object_store_id: Uuid::new_v4(),
-            min_time: Timestamp::new(1),
-            max_time: Timestamp::new(10),
-            file_size_bytes: 1337,
-            row_count: 0,
-            compaction_level: CompactionLevel::Initial,
-            created_at: Timestamp::new(1),
-            column_set: ColumnSet::new([ColumnId::new(1), ColumnId::new(2)]),
-            max_l0_created_at: Timestamp::new(1),
-        };
-        let parquet_file_params_2 = ParquetFileParams {
-            namespace_id: namespace_2.id,
-            table_id: table_2.id,
-            partition_id: partition_2.id,
-            object_store_id: Uuid::new_v4(),
-            min_time: Timestamp::new(1),
-            max_time: Timestamp::new(10),
-            file_size_bytes: 1337,
-            row_count: 0,
-            compaction_level: CompactionLevel::Initial,
-            created_at: Timestamp::new(1),
-            column_set: ColumnSet::new([ColumnId::new(1), ColumnId::new(2)]),
-            max_l0_created_at: Timestamp::new(1),
-        };
+        let parquet_file_params_1 =
+            arbitrary_parquet_file_params(&namespace_1, &table_1, &partition_1);
+        let parquet_file_params_2 =
+            arbitrary_parquet_file_params(&namespace_2, &table_2, &partition_2);
         let _parquet_file_1 = repos
             .parquet_files()
-            .create(parquet_file_params_1.clone())
+            .create(parquet_file_params_1)
             .await
             .unwrap();
         let parquet_file_2 = repos
             .parquet_files()
-            .create(parquet_file_params_2.clone())
+            .create(parquet_file_params_2)
             .await
             .unwrap();
 
@@ -2278,20 +2242,7 @@ pub(crate) mod test_helpers {
         assert!(partitions.is_empty());
 
         // create files for partition one
-        let parquet_file_params = ParquetFileParams {
-            namespace_id: namespace.id,
-            table_id: partition1.table_id,
-            partition_id: partition1.id,
-            object_store_id: Uuid::new_v4(),
-            min_time: Timestamp::new(1),
-            max_time: Timestamp::new(10),
-            file_size_bytes: 1337,
-            row_count: 0,
-            compaction_level: CompactionLevel::Initial,
-            created_at: time_three_hour_ago,
-            column_set: ColumnSet::new([ColumnId::new(1), ColumnId::new(2)]),
-            max_l0_created_at: time_now,
-        };
+        let parquet_file_params = arbitrary_parquet_file_params(&namespace, &table, &partition1);
 
         // create a deleted L0 file that was created 3 hours ago
         let delete_l0_file = repos
@@ -2619,23 +2570,7 @@ pub(crate) mod test_helpers {
             .await
             .unwrap();
 
-        let min_time = Timestamp::new(1);
-        let max_time = Timestamp::new(10);
-
-        let parquet_file_params = ParquetFileParams {
-            namespace_id: namespace.id,
-            table_id: partition.table_id,
-            partition_id: partition.id,
-            object_store_id: Uuid::new_v4(),
-            min_time,
-            max_time,
-            file_size_bytes: 1337,
-            row_count: 0,
-            compaction_level: CompactionLevel::Initial,
-            created_at: Timestamp::new(1),
-            column_set: ColumnSet::new([ColumnId::new(1), ColumnId::new(2)]),
-            max_l0_created_at: Timestamp::new(1),
-        };
+        let parquet_file_params = arbitrary_parquet_file_params(&namespace, &table, &partition);
 
         let parquet_file = repos
             .parquet_files()
@@ -2723,20 +2658,9 @@ pub(crate) mod test_helpers {
         let query_max_time = Timestamp::new(10);
 
         // Create a file with times entirely within the window
-        let parquet_file_params = ParquetFileParams {
-            namespace_id: namespace.id,
-            table_id: partition.table_id,
-            partition_id: partition.id,
-            object_store_id: Uuid::new_v4(),
-            min_time: query_min_time + 1,
-            max_time: query_max_time - 1,
-            file_size_bytes: 1337,
-            row_count: 0,
-            compaction_level: CompactionLevel::Initial,
-            created_at: Timestamp::new(1),
-            column_set: ColumnSet::new([ColumnId::new(1), ColumnId::new(2)]),
-            max_l0_created_at: Timestamp::new(1),
-        };
+        let mut parquet_file_params = arbitrary_parquet_file_params(&namespace, &table, &partition);
+        parquet_file_params.min_time = query_min_time + 1;
+        parquet_file_params.max_time = query_max_time - 1;
         let parquet_file = repos
             .parquet_files()
             .create(parquet_file_params.clone())
@@ -2805,20 +2729,8 @@ pub(crate) mod test_helpers {
             .unwrap();
 
         // parquet files
-        let parquet_file_params = ParquetFileParams {
-            namespace_id: namespace_1.id,
-            table_id: partition_1.table_id,
-            partition_id: partition_1.id,
-            object_store_id: Uuid::new_v4(),
-            min_time: Timestamp::new(100),
-            max_time: Timestamp::new(250),
-            file_size_bytes: 1337,
-            row_count: 0,
-            compaction_level: CompactionLevel::Initial,
-            created_at: Timestamp::new(1),
-            column_set: ColumnSet::new([ColumnId::new(1), ColumnId::new(2)]),
-            max_l0_created_at: Timestamp::new(1),
-        };
+        let parquet_file_params =
+            arbitrary_parquet_file_params(&namespace_1, &table_1, &partition_1);
         repos
             .parquet_files()
             .create(parquet_file_params.clone())
@@ -2853,20 +2765,8 @@ pub(crate) mod test_helpers {
             .unwrap();
 
         // parquet files
-        let parquet_file_params = ParquetFileParams {
-            namespace_id: namespace_2.id,
-            table_id: partition_2.table_id,
-            partition_id: partition_2.id,
-            object_store_id: Uuid::new_v4(),
-            min_time: Timestamp::new(100),
-            max_time: Timestamp::new(250),
-            file_size_bytes: 1337,
-            row_count: 0,
-            compaction_level: CompactionLevel::Initial,
-            created_at: Timestamp::new(1),
-            column_set: ColumnSet::new([ColumnId::new(1), ColumnId::new(2)]),
-            max_l0_created_at: Timestamp::new(1),
-        };
+        let parquet_file_params =
+            arbitrary_parquet_file_params(&namespace_2, &table_2, &partition_2);
         repos
             .parquet_files()
             .create(parquet_file_params.clone())
