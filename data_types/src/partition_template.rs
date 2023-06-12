@@ -288,10 +288,7 @@ impl TablePartitionTemplateOverride {
     /// Returns the number of parts in this template.
     #[allow(clippy::len_without_is_empty)] // Senseless - there must always be >0 parts.
     pub fn len(&self) -> usize {
-        self.0
-            .as_ref()
-            .map(|v| v.inner().parts.len())
-            .unwrap_or_default()
+        self.parts().count()
     }
 
     /// Iterate through the protobuf parts and lend out what the `mutable_batch` crate needs to
@@ -912,6 +909,14 @@ mod tests {
     }
 
     #[test]
+    fn len_of_default_template_is_1() {
+        let ns = NamespacePartitionTemplateOverride::default();
+        let t = TablePartitionTemplateOverride::try_new(None, &ns).unwrap();
+
+        assert_eq!(t.len(), 1);
+    }
+
+    #[test]
     fn no_custom_table_template_specified_gets_namespace_template() {
         let namespace_template =
             NamespacePartitionTemplateOverride::try_from(proto::PartitionTemplate {
@@ -923,6 +928,7 @@ mod tests {
         let table_template =
             TablePartitionTemplateOverride::try_new(None, &namespace_template).unwrap();
 
+        assert_eq!(table_template.len(), 1);
         assert_eq!(table_template.0, namespace_template.0);
     }
 
@@ -946,6 +952,7 @@ mod tests {
         )
         .unwrap();
 
+        assert_eq!(table_template.len(), 1);
         assert_eq!(table_template.0.unwrap().inner(), &custom_table_template);
     }
 
@@ -995,5 +1002,6 @@ mod tests {
         );
         let table_json_str: String = buf.iter().map(extract_sqlite_argument_text).collect();
         assert_eq!(table_json_str, expected_json_str);
+        assert_eq!(table.len(), 2);
     }
 }
