@@ -118,7 +118,7 @@ mod tests {
             ]
             .into_iter(),
         )
-        .expect("should inspect entries giveni without error");
+        .expect("should inspect entries given without error");
 
         let results = String::from_utf8(sink).expect("failed to recover string from write sink");
 
