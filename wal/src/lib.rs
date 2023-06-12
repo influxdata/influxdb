@@ -733,12 +733,11 @@ mod tests {
         // TODO(savage): Returned SequenceNumberSet should reflect `partition_sequence_numbers` post-change.
         let (closed, ids) = wal.rotate().unwrap();
 
-        let mut reader = wal.reader_for_segment(closed.id).unwrap();
-
-        let mut ops = vec![];
-        while let Some(Ok(mut batch)) = reader.next() {
-            ops.append(&mut batch);
-        }
+        let ops: Vec<SequencedWalOp> = wal
+            .reader_for_segment(closed.id)
+            .expect("should be able to open reader for closed WAL segment")
+            .flat_map(|batch| batch.expect("failed to read WAL op batch"))
+            .collect();
         assert_eq!(vec![op1, op2, op3, op4], ops);
 
         // Assert the set has recorded the op IDs.

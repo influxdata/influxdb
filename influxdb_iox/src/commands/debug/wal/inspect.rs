@@ -32,7 +32,9 @@ fn parse_sequence_number_range(s: &str) -> Result<RangeInclusive<u64>, String> {
         .parse()
         .map_err(|_| format!("{} isn't a valid sequence number", parts[1]))?;
     if max < min {
-        Err("invalid sequence number range provided".to_string())
+        Err(format!(
+            "invalid sequence number range provided, {max} is less than {min}"
+        ))
     } else {
         Ok(RangeInclusive::new(min, max))
     }
