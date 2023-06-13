@@ -22,11 +22,11 @@ executors:
     resource_class: large
   linux-amd64:
     machine:
-      image: ubuntu-2004:202107-02
+      image: ubuntu-2204:current
       resource_class: large
   linux-arm64:
     machine:
-      image: ubuntu-2004:202101-01
+      image: ubuntu-2204:current
       resource_class: arm.large
   darwin:
     macos:
@@ -503,8 +503,8 @@ jobs:
           name: Install Package Dependencies
           command: |
             export DEBIAN_FRONTEND=noninteractive
-            sudo apt-get update
-            sudo apt-get install --yes \
+            sudo -E apt-get update
+            sudo -E apt-get install --yes \
               build-essential          \
               git                      \
               rpm                      \
@@ -664,7 +664,7 @@ jobs:
       - checkout
       - add_ssh_keys:
           fingerprints:
-            - "91:0a:5b:a7:f9:46:77:f3:5d:4a:cf:d2:44:c8:2c:5a"
+            - 3a:d1:7a:b7:57:d7:85:0b:76:79:85:51:38:f3:e4:67
       - terraform/validate:
           path: scripts/ci/
       - run:
@@ -720,7 +720,7 @@ jobs:
       # To ssh into aws without failing host key checks
       - add_ssh_keys:
           fingerprints:
-            - "91:0a:5b:a7:f9:46:77:f3:5d:4a:cf:d2:44:c8:2c:5a"
+            - 3a:d1:7a:b7:57:d7:85:0b:76:79:85:51:38:f3:e4:67
       - run:
           name: Set up AWS CLI
           command: |
@@ -758,7 +758,7 @@ jobs:
       - checkout
       - add_ssh_keys:
           fingerprints:
-            - "91:0a:5b:a7:f9:46:77:f3:5d:4a:cf:d2:44:c8:2c:5a"
+            - 3a:d1:7a:b7:57:d7:85:0b:76:79:85:51:38:f3:e4:67
       - run:
           name: Destroy AWS instances with datestring more than a day old
           no_output_timeout: 20m
@@ -978,24 +978,18 @@ jobs:
               /tmp/workspace/artifacts/influxdb2*-arm64.deb
 
   check_package_rpm:
+    executor: linux-amd64
     parameters:
       arch:
         type: string
-    executor: linux-amd64
     steps:
       - attach_workspace:
           at: /tmp/workspace
-      - checkout
-      - run:
-          name: Install Dependencies
-          command: |
-            sudo snap install --classic terraform
       - add_ssh_keys:
           fingerprints:
-            - "91:0a:5b:a7:f9:46:77:f3:5d:4a:cf:d2:44:c8:2c:5a"
-      - run:
-          name: Validate RPM Package
-          command: |
-            export AWS_ACCESS_KEY_ID=$TEST_AWS_ACCESS_KEY_ID
-            export AWS_SECRET_ACCESS_KEY=$TEST_AWS_SECRET_ACCESS_KEY
-            .circleci/scripts/package-validation/redhat << parameters.arch >> /tmp/workspace/artifacts/influxdb2*.<< parameters.arch >>.rpm
+            - 3a:d1:7a:b7:57:d7:85:0b:76:79:85:51:38:f3:e4:67
+      - checkout
+      - run: |
+          AWS_ACCESS_KEY_ID=$TEST_AWS_ACCESS_KEY_ID \
+          AWS_SECRET_ACCESS_KEY=$TEST_AWS_SECRET_ACCESS_KEY \
+          .circleci/scripts/package-validation/redhat << parameters.arch >> /tmp/workspace/artifacts/influxdb2*.<< parameters.arch >>.rpm
