@@ -241,6 +241,7 @@ mod arcmap;
 mod buffer_tree;
 mod cancellation_safe;
 mod deferred_load;
+mod dml_payload;
 mod dml_sink;
 mod ingest_state;
 mod ingester_id;
