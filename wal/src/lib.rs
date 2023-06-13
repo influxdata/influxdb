@@ -553,12 +553,19 @@ pub struct ClosedSegmentFileReader {
     file: RawClosedSegmentFileReader<BufReader<File>>,
 }
 
-impl ClosedSegmentFileReader {
-    /// Get the next batch of sequenced wal ops from the file
-    pub fn next_batch(&mut self) -> Result<Option<Vec<SequencedWalOp>>> {
-        self.file.next_batch().context(UnableToReadNextOpsSnafu)
-    }
+impl Iterator for ClosedSegmentFileReader {
+    type Item = Result<Vec<SequencedWalOp>>;
 
+    /// Read the next batch of sequenced WAL operations from the file
+    fn next(&mut self) -> Option<Self::Item> {
+        self.file
+            .next_batch()
+            .context(UnableToReadNextOpsSnafu)
+            .transpose()
+    }
+}
+
+impl ClosedSegmentFileReader {
     /// Return the segment file id
     pub fn id(&self) -> SegmentId {
         self.id
@@ -624,9 +631,8 @@ impl Iterator for WriteOpEntryDecoder {
     fn next(&mut self) -> Option<Self::Item> {
         Some(
             self.reader
-                .next_batch()
+                .next()?
                 .context(FailedToReadWalSnafu)
-                .transpose()?
                 .map(|batch| {
                     batch
                         .into_iter()
@@ -727,12 +733,11 @@ mod tests {
         // TODO(savage): Returned SequenceNumberSet should reflect `partition_sequence_numbers` post-change.
         let (closed, ids) = wal.rotate().unwrap();
 
-        let mut reader = wal.reader_for_segment(closed.id).unwrap();
-
-        let mut ops = vec![];
-        while let Ok(Some(mut batch)) = reader.next_batch() {
-            ops.append(&mut batch);
-        }
+        let ops: Vec<SequencedWalOp> = wal
+            .reader_for_segment(closed.id)
+            .expect("should be able to open reader for closed WAL segment")
+            .flat_map(|batch| batch.expect("failed to read WAL op batch"))
+            .collect();
         assert_eq!(vec![op1, op2, op3, op4], ops);
 
         // Assert the set has recorded the op IDs.
@@ -796,7 +801,7 @@ mod tests {
 
         // There aren't any entries in the closed segment because nothing was written
         let mut reader = wal.reader_for_segment(closed_segment_details.id()).unwrap();
-        assert!(reader.next_batch().unwrap().is_none());
+        assert!(reader.next().is_none());
 
         // Can delete an empty segment, leaving no closed segments again
         wal.delete(closed_segment_details.id()).await.unwrap();

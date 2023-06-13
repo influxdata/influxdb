@@ -5,14 +5,15 @@ use futures::Future;
 use influxdb_iox_client::connection::Connection;
 use thiserror::Error;
 
+mod inspect;
 mod regenerate_lp;
 
 /// A command level error type to decorate WAL errors with some extra
 /// "human" context for the user
 #[derive(Debug, Error)]
 pub enum Error {
-    #[error("could not open WAL file: {0}")]
-    UnableToOpenWalFile(#[from] wal::Error),
+    #[error("could not read WAL file: {0}")]
+    UnableToReadWalFile(#[from] wal::Error),
 
     #[error("failed to decode write entries from the WAL file: {0}")]
     FailedToDecodeWriteOpEntry(#[from] wal::DecodeError),
@@ -27,6 +28,9 @@ pub enum Error {
 
     #[error("i/o failure: {0}")]
     IoFailure(#[from] std::io::Error),
+
+    #[error("errors occurred during inspection of the WAL file: {sources:?}")]
+    IncompleteInspection { sources: Vec<wal::Error> },
 }
 
 /// A set of non-fatal errors which can occur during the regeneration of write
@@ -48,6 +52,8 @@ pub struct Config {
 /// Subcommands for debugging the ingester WAL
 #[derive(Debug, clap::Parser)]
 enum Command {
+    /// Inspect the encoded contents of a WAL file in a human readable manner
+    Inspect(inspect::Config),
     /// Regenerate line protocol writes from the contents of a WAL file. When
     /// looking up measurement names from IOx, the target host must implement
     /// the namespace and schema APIs
@@ -61,6 +67,7 @@ where
     CFut: Send + Future<Output = Connection>,
 {
     match config.command {
+        Command::Inspect(config) => inspect::command(config),
         Command::RegenerateLp(config) => regenerate_lp::command(connection, config).await,
     }
 }

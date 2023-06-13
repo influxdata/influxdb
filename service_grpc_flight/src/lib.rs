@@ -233,6 +233,7 @@ impl From<authz::Error> for Error {
     fn from(source: authz::Error) -> Self {
         match source {
             authz::Error::Forbidden => Self::PermissionDenied,
+            authz::Error::InvalidToken => Self::PermissionDenied,
             authz::Error::NoToken => Self::Unauthenticated,
             source => Self::Authz { source },
         }
@@ -1110,6 +1111,7 @@ mod tests {
                 Some(token) => match (&token as &dyn AsRef<[u8]>).as_ref() {
                     b"GOOD" => Ok(perms.to_vec()),
                     b"BAD" => Err(authz::Error::Forbidden),
+                    b"INVALID" => Err(authz::Error::InvalidToken),
                     b"UGLY" => Err(authz::Error::verification("test", "test error")),
                     _ => panic!("unexpected token"),
                 },
@@ -1184,6 +1186,12 @@ mod tests {
             &svc,
             tonic::Code::PermissionDenied,
             sql_request("Bearer BAD"),
+        )
+        .await;
+        assert_code(
+            &svc,
+            tonic::Code::PermissionDenied,
+            sql_request("Bearer INVALID"),
         )
         .await;
         assert_code(&svc, tonic::Code::Internal, sql_request("Bearer UGLY")).await;

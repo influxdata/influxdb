@@ -12,7 +12,7 @@
 
 ARG RUST_VERSION
 # Build actual image used for CI pipeline
-FROM rust:${RUST_VERSION}-slim-bullseye
+FROM rust:${RUST_VERSION}-slim-bookworm
 
 # When https://github.com/rust-lang/rustup/issues/2686 is fixed, run the command added that
 # will install everything in rust-toolchain.toml here so that components are in the container
@@ -29,7 +29,7 @@ RUN apt-get update \
     git locales sudo openssh-client ca-certificates tar gzip parallel \
     unzip zip bzip2 gnupg curl make pkg-config libssl-dev \
     jq clang lld g++ shellcheck yamllint protobuf-compiler libprotobuf-dev \
-    skopeo \
+    skopeo openjdk-17-jdk \
     --no-install-recommends \
   && curl https://packages.cloud.google.com/apt/doc/apt-key.gpg | apt-key --keyring /usr/share/keyrings/cloud.google.gpg add - \
   && echo "deb [signed-by=/usr/share/keyrings/cloud.google.gpg] https://packages.cloud.google.com/apt cloud-sdk main" >> /etc/apt/sources.list.d/google-cloud-sdk.list \

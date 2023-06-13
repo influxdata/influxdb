@@ -43,5 +43,7 @@ impl Scratchpad for NoopScratchpad {
 
     async fn clean_from_scratchpad(&self, _files: &[ParquetFilePath]) {}
 
+    async fn clean_written_from_scratchpad(&self, _files: &[ParquetFilePath]) {}
+
     async fn clean(&self) {}
 }

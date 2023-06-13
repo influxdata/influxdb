@@ -5,6 +5,7 @@ use cache_system::{
     backend::policy::{
         lru::{LruPolicy, ResourcePool},
         remove_if::{RemoveIfHandle, RemoveIfPolicy},
+        ttl::{ConstantValueTtlProvider, TtlPolicy},
         PolicyBackend,
     },
     cache::{driver::CacheDriver, metrics::CacheWithMetrics, Cache},
@@ -15,11 +16,16 @@ use data_types::{ParquetFile, TableId};
 use iox_catalog::interface::Catalog;
 use iox_time::TimeProvider;
 use snafu::{ResultExt, Snafu};
-use std::{collections::HashMap, mem, sync::Arc};
+use std::{collections::HashMap, mem, sync::Arc, time::Duration};
 use trace::span::Span;
 use uuid::Uuid;
 
 use super::ram::RamSize;
+
+/// Duration to keep cached view.
+///
+/// This is currently `12h`.
+pub const TTL: Duration = Duration::from_secs(12 * 60 * 60);
 
 const CACHE_ID: &str = "parquet_file";
 
@@ -180,6 +186,11 @@ impl ParquetFileCache {
                 },
             )),
         ));
+        backend.add_policy(TtlPolicy::new(
+            Arc::new(ConstantValueTtlProvider::new(Some(TTL))),
+            CACHE_ID,
+            metric_registry,
+        ));
 
         let cache = CacheDriver::new(loader, backend);
         let cache = Box::new(CacheWithMetrics::new(
@@ -269,7 +280,7 @@ fn different(stored_counts: Option<&[(Uuid, u64)]>, ingester_counts: &[(Uuid, u6
 
 #[cfg(test)]
 mod tests {
-    use std::collections::HashSet;
+    use std::{collections::HashSet, time::Duration};
 
     use super::*;
     use data_types::{ColumnType, ParquetFileId};
@@ -279,6 +290,8 @@ mod tests {
 
     const METRIC_NAME: &str = "parquet_list_by_table_not_to_delete";
     const TABLE1_LINE_PROTOCOL: &str = "table1 foo=1 11";
+    const TABLE1_LINE_PROTOCOL2: &str = "table1 foo=2 22";
+    const TABLE1_LINE_PROTOCOL3: &str = "table1 foo=3 33";
     const TABLE2_LINE_PROTOCOL: &str = "table2 foo=1 11";
 
     #[tokio::test]
@@ -408,6 +421,59 @@ mod tests {
             .get(table_id, Some(HashMap::from([(new_uuid, 1)])), None)
             .await;
         assert_histogram_metric_count(&catalog.metric_registry, METRIC_NAME, 5);
+    }
+
+    #[tokio::test]
+    async fn test_ttl() {
+        let (catalog, table, partition) = make_catalog().await;
+        let builder = TestParquetFileBuilder::default()
+            .with_line_protocol(TABLE1_LINE_PROTOCOL)
+            .with_creation_time(catalog.time_provider.now());
+        let tfile1 = partition.create_parquet_file(builder).await;
+        let builder = TestParquetFileBuilder::default()
+            .with_line_protocol(TABLE1_LINE_PROTOCOL2)
+            .with_creation_time(catalog.time_provider.now());
+        let tfile2 = partition.create_parquet_file(builder).await;
+
+        let cache = make_cache(&catalog);
+        let mut cached_files = cache.get(table.table.id, None, None).await.vec();
+        cached_files.sort_by_key(|f| f.id);
+        assert_eq!(cached_files.len(), 2);
+        assert_eq!(cached_files[0].as_ref(), &tfile1.parquet_file);
+        assert_eq!(cached_files[1].as_ref(), &tfile2.parquet_file);
+
+        // update state
+        // replace first file and add a new one
+        catalog.mock_time_provider().inc(Duration::from_secs(60));
+        let builder = TestParquetFileBuilder::default()
+            .with_line_protocol(TABLE1_LINE_PROTOCOL)
+            .with_creation_time(catalog.time_provider.now());
+        let tfile3 = partition.create_parquet_file(builder).await;
+        let builder = TestParquetFileBuilder::default()
+            .with_line_protocol(TABLE1_LINE_PROTOCOL3)
+            .with_creation_time(catalog.time_provider.now());
+        let tfile4 = partition.create_parquet_file(builder).await;
+        tfile1.flag_for_delete().await;
+
+        // validate a second request doesn't result in a catalog request
+        assert_histogram_metric_count(&catalog.metric_registry, METRIC_NAME, 1);
+        let cached_files = cache.get(table.table.id, None, None).await.vec();
+        assert_histogram_metric_count(&catalog.metric_registry, METRIC_NAME, 1);
+
+        // still the old data
+        assert_eq!(cached_files.len(), 2);
+        assert_eq!(cached_files[0].as_ref(), &tfile1.parquet_file);
+        assert_eq!(cached_files[1].as_ref(), &tfile2.parquet_file);
+
+        // trigger TTL
+        catalog.mock_time_provider().inc(TTL);
+        let mut cached_files = cache.get(table.table.id, None, None).await.vec();
+        cached_files.sort_by_key(|f| f.id);
+        assert_histogram_metric_count(&catalog.metric_registry, METRIC_NAME, 2);
+        assert_eq!(cached_files.len(), 3);
+        assert_eq!(cached_files[0].as_ref(), &tfile2.parquet_file);
+        assert_eq!(cached_files[1].as_ref(), &tfile3.parquet_file);
+        assert_eq!(cached_files[2].as_ref(), &tfile4.parquet_file);
     }
 
     /// Extracts parquet ids from various objects

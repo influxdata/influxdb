@@ -195,6 +195,9 @@ async fn try_compact_partition(
     let transmit_progress_signal = Arc::new(transmit_progress_signal);
 
     // loop for each "Round", consider each file in the partition
+    // for partitions with a lot of compaction work to do, keeping the work divided into multiple rounds,
+    // with mutliple calls to execute_branch is important to frequently clean the scratchpad and prevent
+    // high memory use.
     loop {
         let round_info = components
             .round_info_source
@@ -321,6 +324,9 @@ async fn execute_branch(
     )
     .await?;
 
+    // inputs can be removed from the scratchpad as soon as we're done with compaction.
+    scratchpad_ctx.clean_from_scratchpad(&input_paths).await;
+
     // upload files to real object store
     let created_file_params = upload_files_to_object_store(
         created_file_params,
@@ -332,12 +338,20 @@ async fn execute_branch(
         info!(
             partition_id = partition_info.partition_id.get(),
             uuid = file_param.object_store_id.to_string(),
+            bytes = file_param.file_size_bytes,
             "uploaded file to objectstore",
         );
     }
 
-    // clean scratchpad
-    scratchpad_ctx.clean_from_scratchpad(&input_paths).await;
+    let created_file_paths: Vec<ParquetFilePath> = created_file_params
+        .iter()
+        .map(ParquetFilePath::from)
+        .collect();
+
+    // conditionally (if not shaddow mode) remove the newly created files from the scratchpad.
+    scratchpad_ctx
+        .clean_written_from_scratchpad(&created_file_paths)
+        .await;
 
     // Update the catalog to reflect the newly created files, soft delete the compacted
     // files and update the upgraded files
@@ -490,7 +504,7 @@ async fn upload_files_to_object_store(
     created_file_params: Vec<ParquetFileParams>,
     scratchpad_ctx: Arc<dyn Scratchpad>,
 ) -> Vec<ParquetFileParams> {
-    // Ipload files to real object store
+    // Upload files to real object store
     let output_files: Vec<ParquetFilePath> = created_file_params.iter().map(|p| p.into()).collect();
     let output_uuids = scratchpad_ctx.make_public(&output_files).await;
 

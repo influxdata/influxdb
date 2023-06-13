@@ -1,4 +1,5 @@
 //! Tests CLI commands
+use std::fs::read_dir;
 use std::sync::Arc;
 use std::time::{Duration, Instant};
 
@@ -1210,7 +1211,7 @@ async fn write_lp_from_wal() {
                 let wal_dir = Arc::clone(&wal_dir);
                 async move {
                     let mut reader =
-                        fs::read_dir(wal_dir.as_path()).expect("failed to read WAL directory");
+                        read_dir(wal_dir.as_path()).expect("failed to read WAL directory");
                     let segment_file_path = reader
                         .next()
                         .expect("no segment file found")
@@ -1246,7 +1247,7 @@ async fn write_lp_from_wal() {
                         .success();
 
                     let mut reader =
-                        fs::read_dir(out_dir.path()).expect("failed to read output directory");
+                        read_dir(out_dir.path()).expect("failed to read output directory");
 
                     let regenerated_file_path = reader
                         .next()
@@ -1326,4 +1327,85 @@ async fn assert_ingester_contains_results(
     assert!(!ingester_uuid.is_empty());
 
     assert_batches_sorted_eq!(expected, &ingester_response.record_batches);
+}
+
+#[tokio::test]
+async fn inspect_entries_from_wal() {
+    test_helpers::maybe_start_logging();
+    let database_url = maybe_skip_integration!();
+
+    let ingester_config = TestConfig::new_ingester_never_persist(&database_url);
+    let router_config = TestConfig::new_router(&ingester_config);
+    let wal_dir = Arc::new(std::path::PathBuf::from(
+        ingester_config
+            .wal_dir()
+            .as_ref()
+            .expect("missing WAL dir")
+            .path(),
+    ));
+
+    let mut cluster = MiniCluster::new()
+        .with_ingester(ingester_config)
+        .await
+        .with_router(router_config)
+        .await;
+
+    StepTest::new(
+        &mut cluster,
+        vec![
+            // Perform 3 separate writes, then inspect the WAL and ensure that
+            // they can all be accounted for in the output by the sequencing.
+            Step::WriteLineProtocol("bananas,quality=fresh,taste=good val=42i 123456".to_string()),
+            Step::WriteLineProtocol("arán,quality=fresh,taste=best val=42i 654321".to_string()),
+            Step::WriteLineProtocol("arán,quality=stale,taste=crunchy val=42i 654456".to_string()),
+            Step::Custom(Box::new(move |_| {
+                let wal_dir = Arc::clone(&wal_dir);
+                async move {
+                    let mut reader =
+                        read_dir(wal_dir.as_path()).expect("failed to read WAL directory");
+                    let segment_file_path = reader
+                        .next()
+                        .expect("no segment file found")
+                        .unwrap()
+                        .path();
+                    assert_matches!(reader.next(), None);
+
+                    Command::cargo_bin("influxdb_iox")
+                        .unwrap()
+                        .arg("debug")
+                        .arg("wal")
+                        .arg("inspect")
+                        .arg(
+                            segment_file_path
+                                .to_str()
+                                .expect("should be able to get segment file path as string"),
+                        )
+                        .assert()
+                        .success()
+                        .stdout(predicate::str::contains("SequencedWalOp").count(3));
+
+                    // Re-inspect the log, but filter for WAL operations with
+                    // sequence numbers in a range.
+                    Command::cargo_bin("influxdb_iox")
+                        .unwrap()
+                        .arg("debug")
+                        .arg("wal")
+                        .arg("inspect")
+                        .arg("--sequence-number-range")
+                        .arg("1-2")
+                        .arg(
+                            segment_file_path
+                                .to_str()
+                                .expect("should be able to get segment file path as string"),
+                        )
+                        .assert()
+                        .success()
+                        .stdout(predicate::str::contains("SequencedWalOp").count(2));
+                }
+                .boxed()
+            })),
+        ],
+    )
+    .run()
+    .await
 }
