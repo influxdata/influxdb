@@ -1,35 +1,43 @@
 use std::pin::Pin;
+use std::sync::Arc;
 use std::task::{Context, Poll};
+use std::time::{Duration, Instant};
 
 use arrow_flight::{encode::FlightDataEncoder, error::Result as FlightResult, FlightData};
 use futures::Stream;
+use metric::DurationHistogram;
 use pin_project::pin_project;
 use trace::span::Span;
 use trace::span::SpanRecorder;
 
 #[derive(Debug)]
 #[allow(clippy::large_enum_variant)]
-/// State machine nodes for the [`FlightFrameEncodeRecorder`]
-enum FrameEncodeRecorderState {
+/// State machine nodes for the [`FlightFrameEncodeInstrumentation`]
+enum FrameEncodeInstrumentationState {
     /// The caller is not awaiting a frame.
     Unpolled,
 
     /// The caller is currently awaiting a frame, and the embedded
-    /// [`SpanRecorder`] was created when the wait began.
-    Polled(SpanRecorder),
+    /// [`SpanRecorder`] and [`Instant`] was created when the wait began.
+    Polled(SpanRecorder, Instant),
 }
 
-impl FrameEncodeRecorderState {
-    /// Unwrap `self`, returning the [`SpanRecorder`] and setting `self` to
-    /// [`FrameEncodeRecorderState::Unpolled`].
+impl FrameEncodeInstrumentationState {
+    /// Unwrap `self`, measuring duration, returning the [`SpanRecorder`] and
+    /// setting `self` to [`FrameEncodeInstrumentationState::Unpolled`].
     ///
     /// # Panics
     ///
-    /// Panics if `self` is not [`FrameEncodeRecorderState::Polled`].
-    fn take_recorder(&mut self) -> SpanRecorder {
+    /// Panics if `self` is not [`FrameEncodeInstrumentationState::Polled`].
+    fn finish(&mut self, subtotaled_sum: &mut Duration) -> SpanRecorder {
         match std::mem::replace(self, Self::Unpolled) {
             Self::Unpolled => panic!("unwrapping incorrect state"),
-            Self::Polled(recorder) => recorder,
+            Self::Polled(recorder, start) => {
+                *subtotaled_sum = subtotaled_sum
+                    .checked_add(start.elapsed())
+                    .expect("invalid subtotaled_sum");
+                recorder
+            }
         }
     }
 }
@@ -44,49 +52,65 @@ impl FrameEncodeRecorderState {
 ///
 /// [`RecordBatch`]: arrow::record_batch::RecordBatch
 #[pin_project]
-pub(crate) struct FlightFrameEncodeRecorder {
+pub(crate) struct FlightFrameEncodeInstrumentation {
     #[pin]
     inner: FlightDataEncoder,
     parent_span: Option<Span>,
-    state: FrameEncodeRecorderState,
+    state: FrameEncodeInstrumentationState,
+    encoding_duration_metric: Arc<DurationHistogram>,
+    current_duration_subtotal: Duration,
 }
 
-impl FlightFrameEncodeRecorder {
-    /// Creates a [`FlightFrameEncodeRecorder`].
+impl FlightFrameEncodeInstrumentation {
+    /// Creates a [`FlightFrameEncodeInstrumentation`].
     ///
     /// When a `parent_span` is provided, it adds a trace span as a child of the parent.
-    pub fn new(inner: FlightDataEncoder, parent_span: Option<Span>) -> Self {
+    pub fn new(
+        inner: FlightDataEncoder,
+        parent_span: Option<Span>,
+        encoding_duration_metric: Arc<DurationHistogram>,
+    ) -> Self {
         Self {
             inner,
             parent_span,
-            state: FrameEncodeRecorderState::Unpolled,
+            state: FrameEncodeInstrumentationState::Unpolled,
+            encoding_duration_metric,
+            current_duration_subtotal: Duration::ZERO,
         }
     }
 }
 
-impl Stream for FlightFrameEncodeRecorder {
+impl Stream for FlightFrameEncodeInstrumentation {
     type Item = FlightResult<FlightData>;
 
     fn poll_next(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Option<Self::Item>> {
         let this = self.project();
 
-        if let FrameEncodeRecorderState::Unpolled = this.state {
+        if let FrameEncodeInstrumentationState::Unpolled = this.state {
             let recorder =
                 SpanRecorder::new(this.parent_span.as_ref().map(|s| s.child("frame encoding")));
-            *this.state = FrameEncodeRecorderState::Polled(recorder);
+            *this.state = FrameEncodeInstrumentationState::Polled(recorder, Instant::now());
         };
         let poll = this.inner.poll_next(cx);
 
         match poll {
             Poll::Pending => {}
             Poll::Ready(None) => {
-                this.state.take_recorder().ok("complete");
+                this.state
+                    .finish(this.current_duration_subtotal)
+                    .ok("complete");
+                this.encoding_duration_metric
+                    .record(*this.current_duration_subtotal);
             }
             Poll::Ready(Some(Ok(_))) => {
-                this.state.take_recorder().ok("data emitted");
+                this.state
+                    .finish(this.current_duration_subtotal)
+                    .ok("data emitted");
             }
             Poll::Ready(Some(Err(_))) => {
-                this.state.take_recorder().error("error");
+                this.state
+                    .finish(this.current_duration_subtotal)
+                    .error("error");
             }
         }
         poll
@@ -161,7 +185,7 @@ mod tests {
         }
     }
 
-    /// A test that validates the correctness of the FlightFrameEncodeRecorder
+    /// A test that validates the correctness of the FlightFrameEncodeInstrumentation
     /// across all permissible Stream behaviours, by simulating a query and
     /// asserting the resulting trace spans durations approximately match the
     /// desired measurements though bounds checking.
@@ -202,11 +226,19 @@ mod tests {
         let span_ctx = SpanContext::new(Arc::clone(&trace_observer));
         let query_span = span_ctx.child("query span");
 
+        // Initialise metric
+        let histogram = Arc::new(
+            metric::Registry::default()
+                .register_metric::<DurationHistogram>("test", "")
+                .recorder([]),
+        );
+
         // Construct the frame encoder, providing it with the dummy data source,
         // and wrap it the encoder in the metric decorator.
-        let call_chain = FlightFrameEncodeRecorder::new(
+        let call_chain = FlightFrameEncodeInstrumentation::new(
             FlightDataEncoderBuilder::new().build(data_source.boxed()),
             Some(query_span.clone()),
+            Arc::clone(&histogram),
         );
 
         // Wait before using the encoder stack to simulate a delay between
@@ -310,6 +342,10 @@ mod tests {
                 + span_duration(span3)
                 + span_duration(end_span);
             assert!(span_total <= call_duration);
+
+            // assert the cumulative duration
+            assert!(histogram.fetch().total <= call_duration);
+            assert!(histogram.fetch().total >= (7 * POLL_BLOCK_TIME));
         });
     }
 
