@@ -449,7 +449,7 @@ func MemberPermissions(orgID platform.ID) []Permission {
 	return ps
 }
 
-// MemberPermissions are the default permissions for those who can see a resource.
+// MemberBucketPermission are the default permissions for those who can see a resource.
 func MemberBucketPermission(bucketID platform.ID) Permission {
 	return Permission{Action: ReadAction, Resource: Resource{Type: BucketsResourceType, ID: &bucketID}}
 }

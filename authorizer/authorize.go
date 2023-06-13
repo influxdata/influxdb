@@ -47,7 +47,7 @@ func IsAllowed(ctx context.Context, p influxdb.Permission) error {
 	return IsAllowedAll(ctx, []influxdb.Permission{p})
 }
 
-// IsAllowedAll checks to see if an action is authorized by ALL permissions.
+// IsAllowedAny checks to see if an action is authorized by ANY permissions.
 // Also see IsAllowed.
 func IsAllowedAny(ctx context.Context, permissions []influxdb.Permission) error {
 	a, err := icontext.GetAuthorizer(ctx)

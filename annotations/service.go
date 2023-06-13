@@ -288,7 +288,7 @@ func (s *Service) DeleteAnnotations(ctx context.Context, orgID platform.ID, dele
 	return nil
 }
 
-// DeleteAnnoation deletes a single annotation by ID
+// DeleteAnnotation deletes a single annotation by ID
 func (s *Service) DeleteAnnotation(ctx context.Context, id platform.ID) error {
 	s.store.Mu.Lock()
 	defer s.store.Mu.Unlock()
