@@ -11,11 +11,13 @@ use std::{borrow::Cow, ops::Range};
 
 use data_types::partition_template::{
     TablePartitionTemplateOverride, TemplatePart, ENCODED_PARTITION_KEY_CHARS,
-    PARTITION_KEY_DELIMITER, PARTITION_KEY_VALUE_EMPTY_STR, PARTITION_KEY_VALUE_NULL_STR,
+    MAXIMUM_NUMBER_OF_TEMPLATE_PARTS, PARTITION_KEY_DELIMITER, PARTITION_KEY_MAX_PART_LEN,
+    PARTITION_KEY_PART_TRUNCATED, PARTITION_KEY_VALUE_EMPTY_STR, PARTITION_KEY_VALUE_NULL_STR,
 };
 use percent_encoding::utf8_percent_encode;
 use schema::{InfluxColumnType, TIME_COLUMN_NAME};
 use thiserror::Error;
+use unicode_segmentation::UnicodeSegmentation;
 
 use crate::{
     column::{Column, ColumnData},
@@ -49,6 +51,14 @@ pub fn partition_batch<'a>(
     batch: &'a MutableBatch,
     template: &'a TablePartitionTemplateOverride,
 ) -> impl Iterator<Item = (Result<String, PartitionKeyError>, Range<usize>)> + 'a {
+    let parts = template.len();
+    if parts > MAXIMUM_NUMBER_OF_TEMPLATE_PARTS {
+        panic!(
+            "partition template contains {} parts, which exceeds the maximum of {} parts",
+            parts, MAXIMUM_NUMBER_OF_TEMPLATE_PARTS
+        );
+    }
+
     range_encode(partition_keys(batch, template.parts()))
 }
 
@@ -88,13 +98,9 @@ impl<'a> Template<'a> {
                     // potentially different key.
                     *last_key = Some(this_key);
 
-                    out.write_str(never_empty(
-                        Cow::from(utf8_percent_encode(
-                            dictionary.lookup_id(this_key).unwrap(),
-                            &ENCODED_PARTITION_KEY_CHARS,
-                        ))
-                        .as_ref(),
-                    ))?
+                    out.write_str(
+                        encode_key_part(dictionary.lookup_id(this_key).unwrap()).as_ref(),
+                    )?
                 }
                 _ => return Err(PartitionKeyError::TagValueNotTag(col.influx_type())),
             },
@@ -147,13 +153,49 @@ impl<'a> Template<'a> {
     }
 }
 
-/// Return `s` if it is non-empty, else [`PARTITION_KEY_VALUE_EMPTY_STR`].
-#[inline(always)]
-fn never_empty(s: &str) -> &str {
-    if s.is_empty() {
-        return PARTITION_KEY_VALUE_EMPTY_STR;
+fn encode_key_part(s: &str) -> Cow<'_, str> {
+    // Encode reserved characters and non-ascii characters.
+    let as_str: Cow<'_, str> = utf8_percent_encode(s, &ENCODED_PARTITION_KEY_CHARS).into();
+
+    match as_str.len() {
+        0 => Cow::Borrowed(PARTITION_KEY_VALUE_EMPTY_STR),
+        1..=PARTITION_KEY_MAX_PART_LEN => as_str,
+        _ => {
+            // This string exceeds the maximum byte length limit and must be
+            // truncated.
+            //
+            // Truncation of unicode strings can be tricky - this implementation
+            // avoids splitting unicode code-points nor graphemes. See the
+            // partition_template module docs in data_types before altering
+            // this.
+
+            // Preallocate the string to hold the long partition key part.
+            let mut buf = String::with_capacity(PARTITION_KEY_MAX_PART_LEN);
+
+            // This is a slow path, re-encoding the original input string -
+            // fortunately this is an uncommon path.
+            //
+            // Walk the string, encoding each grapheme (which includes spaces)
+            // individually, tracking the total length of the encoded string.
+            // Once it hits 199 bytes, stop and append a #.
+
+            let mut bytes = 0;
+            s.graphemes(true)
+                .map(|v| Cow::from(utf8_percent_encode(v, &ENCODED_PARTITION_KEY_CHARS)))
+                .take_while(|v| {
+                    bytes += v.len(); // Byte length of encoded grapheme
+                    bytes < PARTITION_KEY_MAX_PART_LEN
+                })
+                .for_each(|v| buf.push_str(v.as_ref()));
+
+            // Append the truncation marker.
+            buf.push(PARTITION_KEY_PART_TRUNCATED);
+
+            assert!(buf.len() <= PARTITION_KEY_MAX_PART_LEN);
+
+            Cow::Owned(buf)
+        }
     }
-    s
 }
 
 /// Returns an iterator of partition keys for the given table batch.
@@ -293,7 +335,9 @@ mod tests {
     use crate::writer::Writer;
 
     use assert_matches::assert_matches;
-    use data_types::partition_template::{build_column_values, test_table_partition_override};
+    use data_types::partition_template::{
+        build_column_values, test_table_partition_override, ColumnValue,
+    };
     use proptest::{prelude::*, prop_compose, proptest, strategy::Strategy};
     use rand::prelude::*;
 
@@ -529,6 +573,20 @@ mod tests {
         assert_matches::assert_matches!(got, Err(PartitionKeyError::TagValueNotTag(_)));
     }
 
+    fn identity<'a, T>(s: T) -> ColumnValue<'a>
+    where
+        T: Into<Cow<'a, str>>,
+    {
+        ColumnValue::Identity(s.into())
+    }
+
+    fn prefix<'a, T>(s: T) -> ColumnValue<'a>
+    where
+        T: Into<Cow<'a, str>>,
+    {
+        ColumnValue::Prefix(s.into())
+    }
+
     // Generate a test that asserts the derived partition key matches
     // "want_key", when using the provided "template" parts and set of "tags".
     //
@@ -557,8 +615,9 @@ mod tests {
                         .unwrap();
 
                     for (col, value) in $tags {
+                        let v = String::from(value);
                         writer
-                            .write_tag(col, Some(&[0b00000001]), vec![value].into_iter())
+                            .write_tag(col, Some(&[0b00000001]), vec![v.as_str()].into_iter())
                             .unwrap();
                     }
 
@@ -569,24 +628,19 @@ mod tests {
                     // normalise the values.
                     let keys = generate_denormalised_keys(&batch, template.parts())
                         .unwrap();
-                    assert_eq!(keys, vec![$want_key.to_string()]);
+                    assert_eq!(keys, vec![$want_key.to_string()], "generated key differs");
 
                     // Reverse the encoding.
                     let reversed = build_column_values(&template, &keys[0]);
 
-                    // normalise the tags into a (str, string) for the comparison
-                    let want = $want_reversed_tags
+                    // Expect the tags to be (str, ColumnValue) for the
+                    // comparison
+                    let want: Vec<(&str, ColumnValue<'_>)> = $want_reversed_tags
                         .into_iter()
-                        .map(|(k, v)| {
-                            let v: &str = v;
-                            (k, v.to_string())
-                        })
-                        .collect::<Vec<_>>();
+                        .collect();
 
-                    let got = reversed
-                        .map(|(k, v)| (k, v.to_string()))
-                        .collect::<Vec<_>>();
-                    assert_eq!(got, want);
+                    let got = reversed.collect::<Vec<_>>();
+                    assert_eq!(got, want, "reversed key differs");
                 }
             }
         };
@@ -601,7 +655,7 @@ mod tests {
         ],
         tags = [("a", "bananas"), ("b", "are_good")],
         want_key = "2023|bananas|are_good",
-        want_reversed_tags = [("a", "bananas"), ("b", "are_good")]
+        want_reversed_tags = [("a", identity("bananas")), ("b", identity("are_good"))]
     );
 
     test_partition_key!(
@@ -613,7 +667,7 @@ mod tests {
         ],
         tags = [("a", "bananas"), ("b", "plátanos")],
         want_key = "2023|bananas|pl%C3%A1tanos",
-        want_reversed_tags = [("a", "bananas"), ("b", "plátanos")]
+        want_reversed_tags = [("a", identity("bananas")), ("b", identity("plátanos"))]
     );
 
     test_partition_key!(
@@ -629,7 +683,7 @@ mod tests {
         template = [TemplatePart::TagValue("a")],
         tags = [("a", "")],
         want_key = "^",
-        want_reversed_tags = [("a", "")]
+        want_reversed_tags = [("a", identity(""))]
     );
 
     test_partition_key!(
@@ -637,7 +691,7 @@ mod tests {
         template = [TemplatePart::TagValue("a"), TemplatePart::TagValue("b")],
         tags = [("a", "bananas")],
         want_key = "bananas|!",
-        want_reversed_tags = [("a", "bananas")]
+        want_reversed_tags = [("a", identity("bananas"))]
     );
 
     test_partition_key!(
@@ -652,7 +706,256 @@ mod tests {
         ],
         tags = [("a", "|"), ("b", "!"), ("d", "%7C%21%257C"), ("e", "^")],
         want_key = "2023|%7C|%21|!|%257C%2521%25257C|%5E",
-        want_reversed_tags = [("a", "|"), ("b", "!"), ("d", "%7C%21%257C"), ("e", "^")]
+        want_reversed_tags = [
+            ("a", identity("|")),
+            ("b", identity("!")),
+            ("d", identity("%7C%21%257C")),
+            ("e", identity("^"))
+        ]
+    );
+
+    test_partition_key!(
+        truncated_char_reserved,
+        template = [TemplatePart::TagValue("a")],
+        tags = [("a", "#")],
+        want_key = "%23",
+        want_reversed_tags = [("a", identity("#"))]
+    );
+
+    // Keys < 200 bytes long should not be truncated.
+    test_partition_key!(
+        truncate_length_199,
+        template = [TemplatePart::TagValue("a")],
+        tags = [("a", "A".repeat(199))],
+        want_key = "A".repeat(199),
+        want_reversed_tags = [("a", identity("A".repeat(199)))]
+    );
+
+    // Keys of exactly 200 bytes long should not be truncated.
+    test_partition_key!(
+        truncate_length_200,
+        template = [TemplatePart::TagValue("a")],
+        tags = [("a", "A".repeat(200))],
+        want_key = "A".repeat(200),
+        want_reversed_tags = [("a", identity("A".repeat(200)))]
+    );
+
+    // Keys > 200 bytes long should be truncated to exactly 200 bytes,
+    // terminated by a # character.
+    test_partition_key!(
+        truncate_length_201,
+        template = [TemplatePart::TagValue("a")],
+        tags = [("a", "A".repeat(201))],
+        want_key = format!("{}#", "A".repeat(199)),
+        want_reversed_tags = [("a", prefix("A".repeat(199)))]
+    );
+
+    // A key ending in an encoded sequence that does not cross the cut-off point
+    // is preserved.
+    //
+    // This subtest generates a key of:
+    //
+    //      `A..<repeats>%`
+    //                      ^ cutoff
+    //
+    // Which when encoded, becomes:
+    //
+    //      `A..<repeats>%25`
+    //                      ^ cutoff
+    //
+    // So the entire encoded sequence should be preserved.
+    test_partition_key!(
+        truncate_encoding_sequence_ok,
+        template = [TemplatePart::TagValue("a")],
+        tags = [("a", format!("{}%", "A".repeat(197)))],
+        want_key = format!("{}%25", "A".repeat(197)), // Not truncated
+        want_reversed_tags = [("a", identity(format!("{}%", "A".repeat(197))))]
+    );
+
+    // A key ending in an encoded sequence should not be split.
+    //
+    // This subtest generates a key of:
+    //
+    //      `A..<repeats>%`
+    //                    ^ cutoff
+    //
+    // Which when encoded, becomes:
+    //
+    //      `A..<repeats>% 25`            (space added for clarity)
+    //                    ^ cutoff
+    //
+    // Where naive slicing would result in truncating an encoding sequence and
+    // therefore the whole encoded sequence should be truncated.
+    test_partition_key!(
+        truncate_encoding_sequence_truncated_1,
+        template = [TemplatePart::TagValue("a")],
+        tags = [("a", format!("{}%", "A".repeat(198)))],
+        want_key = format!("{}#", "A".repeat(198)), // Truncated
+        want_reversed_tags = [("a", prefix("A".repeat(198)))]
+    );
+
+    // A key ending in an encoded sequence should not be split.
+    //
+    // This subtest generates a key of:
+    //
+    //      `A..<repeats>%`
+    //                     ^ cutoff
+    //
+    // Which when encoded, becomes:
+    //
+    //      `A..<repeats>%2 5`            (space added for clarity)
+    //                     ^ cutoff
+    //
+    // Where naive slicing would result in truncating an encoding sequence and
+    // therefore the whole encoded sequence should be truncated.
+    test_partition_key!(
+        truncate_encoding_sequence_truncated_2,
+        template = [TemplatePart::TagValue("a")],
+        tags = [("a", format!("{}%", "A".repeat(199)))],
+        want_key = format!("{}#", "A".repeat(199)), // Truncated
+        want_reversed_tags = [("a", prefix("A".repeat(199)))]
+    );
+
+    // A key ending in a unicode code-point should never be split.
+    //
+    // This subtest generates a key of:
+    //
+    //      `A..<repeats>🍌`
+    //                         ^ cutoff
+    //
+    // Which when encoded, becomes:
+    //
+    //      `A..<repeats>%F0%9F%8D%8C`
+    //                         ^ cutoff
+    //
+    // Therefore the entire code-point should be removed from the truncated
+    // output.
+    //
+    // This test MUST NOT fail, or an invalid UTF-8 string is being generated
+    // which is unusable in languages (like Rust).
+    //
+    // Advances the cut-off to ensure the position within the code-point doesn't
+    // affect the output.
+    test_partition_key!(
+        truncate_within_code_point_1,
+        template = [TemplatePart::TagValue("a")],
+        tags = [("a", format!("{}🍌", "A".repeat(194)))],
+        want_key = format!("{}#", "A".repeat(194)),
+        want_reversed_tags = [("a", prefix("A".repeat(194)))]
+    );
+    test_partition_key!(
+        truncate_within_code_point_2,
+        template = [TemplatePart::TagValue("a")],
+        tags = [("a", format!("{}🍌", "A".repeat(195)))],
+        want_key = format!("{}#", "A".repeat(195)),
+        want_reversed_tags = [("a", prefix("A".repeat(195)))]
+    );
+    test_partition_key!(
+        truncate_within_code_point_3,
+        template = [TemplatePart::TagValue("a")],
+        tags = [("a", format!("{}🍌", "A".repeat(196)))],
+        want_key = format!("{}#", "A".repeat(196)),
+        want_reversed_tags = [("a", prefix("A".repeat(196)))]
+    );
+
+    // A key ending in a unicode grapheme should never be split.
+    //
+    // This subtest generates a key of:
+    //
+    //      `A..<repeats>நிbananas`
+    //                   ^ cutoff
+    //
+    // Which when encoded, becomes:
+    //
+    //      `A..<repeats>நிbananas`    (within a grapheme)
+    //                   ^ cutoff
+    //
+    // Therefore the entire grapheme (நி) should be removed from the truncated
+    // output.
+    //
+    // This is a conservative implementation, and may be relaxed in the future.
+    //
+    // This first test asserts that a grapheme can be included, and then
+    // subsequent tests increment the cut-off point by 1 byte each time.
+    test_partition_key!(
+        truncate_within_grapheme_0,
+        template = [TemplatePart::TagValue("a")],
+        tags = [("a", format!("{}நிbananas", "A".repeat(181)))],
+        want_key = format!("{}%E0%AE%A8%E0%AE%BF#", "A".repeat(181)),
+        want_reversed_tags = [("a", prefix(format!("{}நி", "A".repeat(181))))]
+    );
+    test_partition_key!(
+        truncate_within_grapheme_1,
+        template = [TemplatePart::TagValue("a")],
+        tags = [("a", format!("{}நிbananas", "A".repeat(182)))],
+        want_key = format!("{}#", "A".repeat(182)),
+        want_reversed_tags = [("a", prefix("A".repeat(182)))]
+    );
+    test_partition_key!(
+        truncate_within_grapheme_2,
+        template = [TemplatePart::TagValue("a")],
+        tags = [("a", format!("{}நிbananas", "A".repeat(183)))],
+        want_key = format!("{}#", "A".repeat(183)),
+        want_reversed_tags = [("a", prefix("A".repeat(183)))]
+    );
+    test_partition_key!(
+        truncate_within_grapheme_3,
+        template = [TemplatePart::TagValue("a")],
+        tags = [("a", format!("{}நிbananas", "A".repeat(184)))],
+        want_key = format!("{}#", "A".repeat(184)),
+        want_reversed_tags = [("a", prefix("A".repeat(184)))]
+    );
+    test_partition_key!(
+        truncate_within_grapheme_4,
+        template = [TemplatePart::TagValue("a")],
+        tags = [("a", format!("{}நிbananas", "A".repeat(185)))],
+        want_key = format!("{}#", "A".repeat(185)),
+        want_reversed_tags = [("a", prefix("A".repeat(185)))]
+    );
+    test_partition_key!(
+        truncate_within_grapheme_5,
+        template = [TemplatePart::TagValue("a")],
+        tags = [("a", format!("{}நிbananas", "A".repeat(186)))],
+        want_key = format!("{}#", "A".repeat(186)),
+        want_reversed_tags = [("a", prefix("A".repeat(186)))]
+    );
+    test_partition_key!(
+        truncate_within_grapheme_6,
+        template = [TemplatePart::TagValue("a")],
+        tags = [("a", format!("{}நிbananas", "A".repeat(187)))],
+        want_key = format!("{}#", "A".repeat(187)),
+        want_reversed_tags = [("a", prefix("A".repeat(187)))]
+    );
+    test_partition_key!(
+        truncate_within_grapheme_7,
+        template = [TemplatePart::TagValue("a")],
+        tags = [("a", format!("{}நிbananas", "A".repeat(188)))],
+        want_key = format!("{}#", "A".repeat(188)),
+        want_reversed_tags = [("a", prefix("A".repeat(188)))]
+    );
+    test_partition_key!(
+        truncate_within_grapheme_8,
+        template = [TemplatePart::TagValue("a")],
+        tags = [("a", format!("{}நிbananas", "A".repeat(189)))],
+        want_key = format!("{}#", "A".repeat(189)),
+        want_reversed_tags = [("a", prefix("A".repeat(189)))]
+    );
+    test_partition_key!(
+        truncate_within_grapheme_9,
+        template = [TemplatePart::TagValue("a")],
+        tags = [("a", format!("{}நிbananas", "A".repeat(190)))],
+        want_key = format!("{}#", "A".repeat(190)),
+        want_reversed_tags = [("a", prefix("A".repeat(190)))]
+    );
+
+    // As above, but the grapheme is the last portion of the generated string
+    // (no trailing bananas).
+    test_partition_key!(
+        truncate_grapheme_identity,
+        template = [TemplatePart::TagValue("a")],
+        tags = [("a", format!("{}நி", "A".repeat(182)))],
+        want_key = format!("{}%E0%AE%A8%E0%AE%BF", "A".repeat(182)),
+        want_reversed_tags = [("a", identity(format!("{}நி", "A".repeat(182))))]
     );
 
     /// A test using an invalid strftime format string.
@@ -677,6 +980,20 @@ mod tests {
             .collect::<Result<Vec<_>, _>>();
 
         assert_matches!(ret, Err(PartitionKeyError::InvalidStrftime));
+    }
+
+    #[test]
+    #[should_panic(
+        expected = "partition template contains 9 parts, which exceeds the maximum of 8 parts"
+    )]
+    fn test_too_many_parts() {
+        let template = test_table_partition_override(
+            std::iter::repeat(TemplatePart::TagValue("bananas"))
+                .take(9)
+                .collect(),
+        );
+
+        let _ = partition_batch(&MutableBatch::new(), &template);
     }
 
     // These values are arbitrarily chosen when building an input to the
@@ -704,11 +1021,11 @@ mod tests {
     ];
 
     prop_compose! {
-        /// Yields a vector of up to 12 unique template parts, chosen from
-        /// [`TEST_TEMPLATE_PARTS`].
+        /// Yields a vector of up to [`MAXIMUM_NUMBER_OF_TEMPLATE_PARTS`] unique
+        /// template parts, chosen from [`TEST_TEMPLATE_PARTS`].
         fn arbitrary_template_parts()(set in proptest::collection::vec(
                 proptest::sample::select(TEST_TEMPLATE_PARTS),
-                (1, 12) // Set size range
+                (1, MAXIMUM_NUMBER_OF_TEMPLATE_PARTS) // Set size range
             )) -> Vec<TemplatePart<'static>> {
             let mut set = set;
             set.dedup_by(|a, b| format!("{a:?}") == format!("{b:?}"));
@@ -762,20 +1079,44 @@ mod tests {
             assert_eq!(keys.len(), 1);
 
             // Reverse the encoding.
-            let reversed = build_column_values(&template, &keys[0]).map(|(k, v)| (k, v.to_string())).collect::<Vec<_>>();
+            let reversed: Vec<(&str, ColumnValue<'_>)> = build_column_values(&template, &keys[0]).collect();
 
             // Build the expected set of reversed tags by filtering out any
             // NULL tags (preserving empty string values).
-            let want_reversed = template.parts().filter_map(|v| match v {
+            let want_reversed: Vec<(&str, String)> = template.parts().filter_map(|v| match v {
                 TemplatePart::TagValue(col_name) if tag_values.contains_key(col_name) => {
                     // This tag had a (potentially empty) value wrote and should
                     // appear in the reversed output.
                     Some((col_name, tag_values.get(col_name).unwrap().to_string()))
                 }
                 _ => None,
-            }).collect::<Vec<_>>();
+            }).collect();
 
-            assert_eq!(reversed, want_reversed);
+            assert_eq!(want_reversed.len(), reversed.len());
+
+            for (want, got) in want_reversed.iter().zip(reversed.iter()) {
+                assert_eq!(got.0, want.0, "column names differ");
+
+                match got.1 {
+                    ColumnValue::Identity(_) => {
+                        // An identity is both equal to, and a prefix of, the
+                        // original value.
+                        assert_eq!(got.1, want.1, "identity values differ");
+                        assert!(
+                            got.1.is_prefix_match_of(&want.1),
+                            "prefix mismatch; {:?} is not a prefix of {:?}",
+                            got.1,
+                            want.1
+                        );
+                    },
+                    ColumnValue::Prefix(_) => assert!(
+                        got.1.is_prefix_match_of(&want.1),
+                        "prefix mismatch; {:?} is not a prefix of {:?}",
+                        got.1,
+                        want.1
+                    ),
+                };
+            }
         }
 
         /// A property test that asserts the partitioner tolerates (does not

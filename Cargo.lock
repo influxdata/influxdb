@@ -3650,6 +3650,7 @@ dependencies = [
  "schema",
  "snafu",
  "thiserror",
+ "unicode-segmentation",
  "workspace-hack",
 ]
 
