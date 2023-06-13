@@ -2010,6 +2010,7 @@ dependencies = [
  "prost",
  "prost-build",
  "test_helpers",
+ "thiserror",
  "tokio",
  "tracing",
  "uuid",

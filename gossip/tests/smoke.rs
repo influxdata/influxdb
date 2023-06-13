@@ -48,7 +48,7 @@ async fn test_payload_exchange() {
 
     // Send the payload through peer A
     let a_payload = Bytes::from_static(b"bananas");
-    a.broadcast(a_payload.clone()).await;
+    a.broadcast(a_payload.clone()).await.unwrap();
 
     // Assert it was received by peer B
     let got = b_rx
@@ -60,7 +60,7 @@ async fn test_payload_exchange() {
 
     // Do the reverse - send from B to A
     let b_payload = Bytes::from_static(b"platanos");
-    b.broadcast(b_payload.clone()).await;
+    b.broadcast(b_payload.clone()).await.unwrap();
     let got = a_rx
         .recv()
         .with_timeout_panic(TIMEOUT)

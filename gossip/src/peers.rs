@@ -1,4 +1,4 @@
-use std::net::SocketAddr;
+use std::{io, net::SocketAddr};
 
 use futures::{stream::FuturesUnordered, StreamExt};
 use hashbrown::{hash_map::RawEntryMut, HashMap};
@@ -6,6 +6,8 @@ use prost::bytes::Bytes;
 use tokio::net::UdpSocket;
 use tracing::{trace, warn};
 use uuid::Uuid;
+
+use crate::MAX_FRAME_BYTES;
 
 /// A unique generated identity containing 128 bits of randomness (V4 UUID).
 #[derive(Debug, Eq, Clone)]
@@ -67,11 +69,22 @@ pub(crate) struct Peer {
 }
 
 impl Peer {
-    pub(crate) async fn send(
-        &self,
-        buf: &[u8],
-        socket: &UdpSocket,
-    ) -> Result<usize, std::io::Error> {
+    pub(crate) async fn send(&self, buf: &[u8], socket: &UdpSocket) -> Result<usize, io::Error> {
+        // If the frame is larger than the allowed maximum, then the receiver
+        // will truncate the frame when reading the socket.
+        //
+        // Never send frames that will be unprocessable.
+        if buf.len() > MAX_FRAME_BYTES {
+            warn!(
+                n_bytes = buf.len(),
+                "not sending oversized packet - receiver would truncate"
+            );
+            return Err(io::Error::new(
+                io::ErrorKind::InvalidInput,
+                "max frame size exceeded",
+            ));
+        }
+
         let ret = socket.send_to(buf, self.addr).await;
         match &ret {
             Ok(n_bytes) => {

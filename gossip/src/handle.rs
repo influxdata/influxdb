@@ -1,8 +1,16 @@
-use crate::Bytes;
+use crate::{Bytes, MAX_USER_PAYLOAD_BYTES};
+use thiserror::Error;
 use tokio::sync::{mpsc, oneshot};
 use uuid::Uuid;
 
 use crate::peers::Identity;
+
+/// An error indicating a send was attempted with a payload that exceeds
+/// [`MAX_USER_PAYLOAD_BYTES`].
+#[derive(Error, Debug)]
+#[error("max allowed payload size exceeded")]
+#[allow(missing_copy_implementations)]
+pub struct PayloadSizeError {}
 
 /// Requests sent to the [`Reactor`] actor task.
 ///
@@ -42,14 +50,18 @@ impl GossipHandle {
     ///
     /// This is a best-effort operation - peers are not guaranteed to receive
     /// this broadcast.
-    pub async fn broadcast<T>(&self, payload: T)
+    pub async fn broadcast<T>(&self, payload: T) -> Result<(), PayloadSizeError>
     where
         T: Into<Bytes> + Send,
     {
-        self.tx
-            .send(Request::Broadcast(payload.into()))
-            .await
-            .unwrap()
+        let payload = payload.into();
+        if payload.len() > MAX_USER_PAYLOAD_BYTES {
+            return Err(PayloadSizeError {});
+        }
+
+        self.tx.send(Request::Broadcast(payload)).await.unwrap();
+
+        Ok(())
     }
 
     /// Retrieve a snapshot of the connected peer list.

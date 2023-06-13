@@ -11,7 +11,7 @@ use crate::{
     peers::{Identity, PeerList},
     proto::{self, frame_message::Payload, FrameMessage},
     seed::{seed_ping_task, Seed},
-    Dispatcher, Request,
+    Dispatcher, Request, MAX_FRAME_BYTES,
 };
 
 #[derive(Debug)]
@@ -31,6 +31,8 @@ enum Error {
     },
 
     Io(std::io::Error),
+
+    MaxSize(usize),
 }
 
 impl From<std::io::Error> for Error {
@@ -95,6 +97,7 @@ where
 
         let seed_list = seed_list.into_iter().map(Seed::new).collect();
         let socket = Arc::new(socket);
+        let mut serialisation_buf = Vec::with_capacity(1024);
 
         // Generate a pre-populated frame header.
         let mut cached_frame = proto::Frame {
@@ -108,8 +111,10 @@ where
             populate_frame(
                 &mut cached_frame,
                 vec![new_payload(Payload::Ping(proto::Ping {}))],
-            );
-            cached_frame.encode_to_vec()
+                &mut serialisation_buf,
+            )
+            .unwrap();
+            serialisation_buf.clone()
         };
 
         // Spawn a task that periodically pings all known seeds.
@@ -127,7 +132,7 @@ where
             dispatch,
             identity,
             cached_frame,
-            serialisation_buf: Vec::with_capacity(1024),
+            serialisation_buf,
             peer_list: PeerList::with_capacity(seed_list.len()),
             seed_list,
             _seed_ping_task: seed_ping_task,
@@ -163,6 +168,10 @@ where
                             error!(%error, "i/o error");
                             continue;
                         }
+                        Err(Error::MaxSize(_)) => {
+                            // Logged at source
+                            continue;
+                        }
                     }
                 }
                 op = rx.recv() => {
@@ -176,12 +185,17 @@ where
                             (0, 0)
                         },
                         Some(Request::Broadcast(payload)) => {
-                            populate_frame(&mut self.cached_frame, [
-                                new_payload(Payload::UserData(proto::UserPayload{payload})),
-                            ]);
-                            self.cached_frame
-                                .encode(&mut self.serialisation_buf)
-                                .expect("buffer should grow");
+                            // The user is guaranteed MAX_USER_PAYLOAD_BYTES to
+                            // be send-able, so send this frame without packing
+                            // others with it for simplicity.
+                            if populate_frame(
+                                &mut self.cached_frame,
+                                vec![new_payload(Payload::UserData(proto::UserPayload{payload}))],
+                                &mut self.serialisation_buf
+                            ).is_err()
+                            {
+                                continue
+                            }
                             let bytes_sent = self.peer_list.broadcast(&self.serialisation_buf, &self.socket).await;
                             (0, bytes_sent)
                         }
@@ -253,12 +267,12 @@ where
             return Ok((bytes_read, 0));
         }
 
-        populate_frame(&mut self.cached_frame, out_messages);
-
         // Serialise the frame into the serialisation buffer.
-        self.cached_frame
-            .encode(&mut self.serialisation_buf)
-            .expect("buffer should grow");
+        populate_frame(
+            &mut self.cached_frame,
+            out_messages,
+            &mut self.serialisation_buf,
+        )?;
 
         let bytes_sent = peer.send(&self.serialisation_buf, &self.socket).await?;
 
@@ -282,8 +296,12 @@ async fn recv(socket: &UdpSocket, buf: &mut BytesMut) -> (usize, SocketAddr) {
 ///
 /// Clears the contents of `buf` before reading the frame.
 async fn read_frame(socket: &UdpSocket) -> Result<(usize, proto::Frame, SocketAddr), Error> {
-    // Allocate a buffer to hold a full-sized packet.
-    let mut buf = BytesMut::with_capacity(1024);
+    // Pre-allocate a buffer large enough to hold the maximum message size.
+    //
+    // Reading data from a UDP socket silently truncates if there's not enough
+    // buffer space to write the full packet payload (tokio doesn't support
+    // MSG_TRUNC-like flags on reads).
+    let mut buf = BytesMut::with_capacity(MAX_FRAME_BYTES);
 
     let (n_bytes, addr) = recv(socket, &mut buf).await;
 
@@ -298,10 +316,33 @@ async fn read_frame(socket: &UdpSocket) -> Result<(usize, proto::Frame, SocketAd
 }
 
 /// Given a pre-allocated `frame`, clear and populate it with the provided
-/// `payload` containing a set of [`FrameMessage`].
-fn populate_frame(frame: &mut proto::Frame, payload: impl IntoIterator<Item = FrameMessage>) {
-    frame.messages.clear();
-    frame.messages.extend(payload.into_iter())
+/// `payload` containing a set of [`FrameMessage`], serialising it to `buf`.
+fn populate_frame(
+    frame: &mut proto::Frame,
+    payload: Vec<FrameMessage>,
+    buf: &mut Vec<u8>,
+) -> Result<(), Error> {
+    frame.messages = payload;
+
+    // Reading data from a UDP socket silently truncates if there's not enough
+    // buffer space to write the full packet payload. This library will
+    // pre-allocate a buffer of this size to read packets into, therefore all
+    // messages must be shorter than this value.
+    if frame.encoded_len() > MAX_FRAME_BYTES {
+        error!(
+            n_bytes=buf.len(),
+            n_max=%MAX_FRAME_BYTES,
+            "attempted to send frame larger than configured maximum"
+        );
+        return Err(Error::MaxSize(buf.len()));
+    }
+
+    buf.clear();
+    frame.encode(buf).expect("buffer should grow");
+
+    debug_assert!(proto::Frame::decode(crate::Bytes::from(buf.clone())).is_ok());
+
+    Ok(())
 }
 
 /// Instantiate a new [`FrameMessage`] from the given [`Payload`].
@@ -324,5 +365,42 @@ pub(crate) async fn ping(ping_frame: &[u8], socket: &UdpSocket, addr: SocketAddr
             );
             0
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use crate::{MAX_USER_PAYLOAD_BYTES, USER_PAYLOAD_OVERHEAD};
+
+    use super::*;
+
+    #[test]
+    fn test_user_frame_overhead() {
+        let identity = Identity::new();
+
+        // Generate a pre-populated frame header.
+        let mut frame = proto::Frame {
+            identity: identity.as_bytes().clone(),
+            messages: vec![],
+        };
+
+        let mut buf = Vec::new();
+        populate_frame(
+            &mut frame,
+            vec![new_payload(Payload::UserData(proto::UserPayload {
+                payload: crate::Bytes::new(), // Empty/0-sized
+            }))],
+            &mut buf,
+        )
+        .unwrap();
+
+        // The proto type should self-report the same size.
+        assert_eq!(buf.len(), frame.encoded_len());
+
+        // The overhead const should be accurate
+        assert_eq!(buf.len(), USER_PAYLOAD_OVERHEAD);
+
+        // The max user payload size should be accurate.
+        assert_eq!(MAX_FRAME_BYTES - buf.len(), MAX_USER_PAYLOAD_BYTES);
     }
 }
