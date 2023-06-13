@@ -5,12 +5,12 @@ use hashbrown::{hash_map::RawEntryMut, HashMap};
 use metric::U64Counter;
 use prost::bytes::Bytes;
 use tokio::net::UdpSocket;
-use tracing::{trace, warn};
+use tracing::{info, trace, warn};
 use uuid::Uuid;
 
 use crate::{
     metric::{SentBytes, SentFrames},
-    MAX_FRAME_BYTES,
+    MAX_FRAME_BYTES, MAX_PING_UNACKED,
 };
 
 /// A unique generated identity containing 128 bits of randomness (V4 UUID).
@@ -53,6 +53,15 @@ impl TryFrom<Bytes> for Identity {
     }
 }
 
+impl TryFrom<Vec<u8>> for Identity {
+    type Error = uuid::Error;
+
+    fn try_from(value: Vec<u8>) -> Result<Self, Self::Error> {
+        let uuid = Uuid::from_slice(&value)?;
+        Ok(Self(Bytes::from(value), uuid))
+    }
+}
+
 impl Identity {
     /// Generate a new random identity.
     pub(crate) fn new() -> Self {
@@ -70,6 +79,12 @@ impl Identity {
 pub(crate) struct Peer {
     identity: Identity,
     addr: SocketAddr,
+
+    /// The number of PING messages sent to this peer since the last message
+    /// observed from it.
+    ///
+    /// This value is reset to 0 each time a message from this peer is received.
+    unacked_ping_count: usize,
 }
 
 impl Peer {
@@ -100,13 +115,33 @@ impl Peer {
             Ok(n_bytes) => {
                 frames_sent.inc(1);
                 bytes_sent.inc(*n_bytes);
-                trace!(identity=%self.identity, n_bytes, peer_addr=%self.addr, "send frame")
+                trace!(identity=%self.identity, n_bytes, peer_addr=%self.addr, "socket write")
             }
             Err(e) => {
                 warn!(error=%e, identity=%self.identity, peer_addr=%self.addr, "frame send error")
             }
         }
         ret
+    }
+
+    /// Record that a PING has been sent to this peer, incrementing the unacked
+    /// PING count and returning the new value.
+    pub(crate) fn record_ping(&mut self) -> usize {
+        self.unacked_ping_count += 1;
+        self.unacked_ping_count
+    }
+
+    pub(crate) fn mark_observed(&mut self) {
+        self.unacked_ping_count = 0;
+    }
+}
+
+impl From<&Peer> for crate::proto::Peer {
+    fn from(p: &Peer) -> Self {
+        Self {
+            identity: p.identity.as_bytes().clone(), // Ref-count
+            address: p.addr.to_string(),
+        }
     }
 }
 
@@ -115,24 +150,36 @@ impl Peer {
 pub(crate) struct PeerList {
     list: HashMap<Identity, Peer>,
 
-    /// The number of known, believed-to-be-healthy peers.
-    metric_peer_count: metric::U64Counter,
+    /// The number of peers discovered.
+    metric_peer_discovered_count: metric::U64Counter,
+    /// The number of peers removed due to health checks.
+    metric_peer_removed_count: metric::U64Counter,
+    // The difference between these two metrics will always match the number of
+    // entries in the peer list (ignoring races & lack of thread
+    // synchronisation).
 }
 
 impl PeerList {
     /// Initialise the [`PeerList`] with capacity for `cap` number of [`Peer`]
     /// instances.
     pub(crate) fn with_capacity(cap: usize, metrics: &metric::Registry) -> Self {
-        let metric_peer_count = metrics
+        let metric_peer_discovered_count = metrics
             .register_metric::<U64Counter>(
-                "gossip_known_peers",
-                "number of likely healthy peers known to this node",
+                "gossip_peers_discovered",
+                "number of peers discovered by this node",
+            )
+            .recorder(&[]);
+        let metric_peer_removed_count = metrics
+            .register_metric::<U64Counter>(
+                "gossip_peers_removed",
+                "number of peers removed due to health check failures",
             )
             .recorder(&[]);
 
         Self {
             list: HashMap::with_capacity(cap),
-            metric_peer_count,
+            metric_peer_discovered_count,
+            metric_peer_removed_count,
         }
     }
 
@@ -141,17 +188,29 @@ impl PeerList {
         self.list.keys().map(|v| **v).collect()
     }
 
+    /// Returns an iterator of all known peers in the peer list.
+    pub(crate) fn peers(&self) -> impl Iterator<Item = &'_ Peer> {
+        self.list.values()
+    }
+
+    /// Returns true if `identity` is already in the peer list.
+    pub(crate) fn contains(&self, identity: &Identity) -> bool {
+        self.list.contains_key(identity)
+    }
+
     /// Upsert a peer identified by `identity` to the peer list, associating it
     /// with the provided `peer_addr`.
     pub(crate) fn upsert(&mut self, identity: &Identity, peer_addr: SocketAddr) -> &mut Peer {
         let p = match self.list.raw_entry_mut().from_key(identity) {
             RawEntryMut::Vacant(v) => {
-                self.metric_peer_count.inc(1);
+                info!(%identity, %peer_addr, "discovered new peer");
+                self.metric_peer_discovered_count.inc(1);
                 v.insert(
                     identity.to_owned(),
                     Peer {
                         addr: peer_addr,
                         identity: identity.to_owned(),
+                        unacked_ping_count: 0,
                     },
                 )
                 .1
@@ -183,6 +242,36 @@ impl PeerList {
                 }
             })
             .await
+    }
+
+    /// Send PING frames to all known nodes, and remove any that have not
+    /// responded after [`MAX_PING_UNACKED`] attempts.
+    pub(crate) async fn ping_gc(
+        &mut self,
+        ping_frame: &[u8],
+        socket: &UdpSocket,
+        frames_sent: &SentFrames,
+        bytes_sent: &SentBytes,
+    ) {
+        // First broadcast the PING frames.
+        //
+        // If a peer has exceeded the allowed maximum, it will be removed next,
+        // but if it responds to this PING, it will be re-added again.
+        self.broadcast(ping_frame, socket, frames_sent, bytes_sent)
+            .await;
+
+        // Increment the PING counts and remove all peers that have not
+        // responded to more than the allowed number of PINGs.
+        let dead = self.list.extract_if(|_ident, p| {
+            // Increment the counter and grab the incremented value.
+            let missed = p.record_ping();
+            missed > MAX_PING_UNACKED
+        });
+
+        for (identity, p) in dead {
+            warn!(%identity, addr=%p.addr, "removed unreachable peer");
+            self.metric_peer_removed_count.inc(1);
+        }
     }
 }
 
