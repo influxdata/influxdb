@@ -9,7 +9,7 @@ license.workspace = true
 async-trait = "0.1"
 authz = { path = "../authz", features = ["http"] }
 bytes = "1.4"
-crossbeam-utils = "0.8.15"
+crossbeam-utils = "0.8.16"
 data_types = { path = "../data_types" }
 dml = { path = "../dml" }
 flate2 = "1.0"
