@@ -175,7 +175,7 @@
 //! after a faulty range comparison, `{1}` to converge.
 //!
 //! [`BufferTree`]: crate::buffer_tree::BufferTree
-//! [`SequenceNumber`]: data_types::SequenceNumber
+//! [`SequenceNumber`]: ::data_types::SequenceNumber
 //! [`PersistQueue`]: crate::persist::queue::PersistQueue
 //! [`PersistHandle`]: crate::persist::handle::PersistHandle
 //! [`IngestState`]: crate::ingest_state::IngestState
@@ -240,6 +240,7 @@ pub mod internal_implementation_details {
 mod arcmap;
 mod buffer_tree;
 mod cancellation_safe;
+mod data_types;
 mod deferred_load;
 mod dml_sink;
 mod ingest_state;
