@@ -229,11 +229,6 @@ jobs:
       TEST_INFLUXDB_JDBC: "true"
     steps:
       - checkout
-      - run:
-          name: Install javac
-          command: |
-            sudo apt-get update
-            sudo apt-get install openjdk-11-jdk -y
       - rust_components
       - run:
           name: Download flight-sql-jdbc-driver-10.0.0.jar
