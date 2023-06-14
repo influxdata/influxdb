@@ -8,6 +8,7 @@ use tokio::{
 use tracing::{debug, error, info, trace, warn};
 
 use crate::{
+    metric::*,
     peers::{Identity, PeerList},
     proto::{self, frame_message::Payload, FrameMessage},
     seed::{seed_ping_task, Seed},
@@ -83,14 +84,28 @@ pub(crate) struct Reactor<T> {
     /// contain less peers than the number of initial seeds.
     peer_list: PeerList,
 
+    /// The UDP socket used for communication with peers.
     socket: Arc<UdpSocket>,
+
+    /// The count of frames sent and received.
+    metric_frames_sent: SentFrames,
+    metric_frames_received: ReceivedFrames,
+
+    /// The sum of bytes sent and received.
+    metric_bytes_sent: SentBytes,
+    metric_bytes_received: ReceivedBytes,
 }
 
 impl<T> Reactor<T>
 where
     T: Dispatcher,
 {
-    pub(crate) fn new(seed_list: Vec<String>, socket: UdpSocket, dispatch: T) -> Self {
+    pub(crate) fn new(
+        seed_list: Vec<String>,
+        socket: UdpSocket,
+        dispatch: T,
+        metrics: &metric::Registry,
+    ) -> Self {
         // Generate a unique UUID for this Reactor instance, and cache the wire
         // representation.
         let identity = Identity::new();
@@ -117,6 +132,11 @@ where
             serialisation_buf.clone()
         };
 
+        // Initialise the various metrics with wrappers to help distinguish
+        // between the (very similar) counters.
+        let (metric_frames_sent, metric_frames_received, metric_bytes_sent, metric_bytes_received) =
+            new_metrics(metrics);
+
         // Spawn a task that periodically pings all known seeds.
         //
         // Pinging all seeds announces this node as alive, propagating the
@@ -126,6 +146,8 @@ where
             Arc::clone(&seed_list),
             Arc::clone(&socket),
             cached_ping_frame,
+            metric_frames_sent.clone(),
+            metric_bytes_sent.clone(),
         )));
 
         Self {
@@ -133,10 +155,14 @@ where
             identity,
             cached_frame,
             serialisation_buf,
-            peer_list: PeerList::with_capacity(seed_list.len()),
+            peer_list: PeerList::with_capacity(seed_list.len(), metrics),
             seed_list,
             _seed_ping_task: seed_ping_task,
             socket,
+            metric_frames_sent,
+            metric_frames_received,
+            metric_bytes_sent,
+            metric_bytes_received,
         }
     }
 
@@ -148,10 +174,10 @@ where
         );
 
         loop {
-            let (_bytes_read, _bytes_sent) = tokio::select! {
+            tokio::select! {
                 msg = self.read() => {
                     match msg {
-                        Ok((bytes_read, bytes_sent)) => (bytes_read, bytes_sent),
+                        Ok(()) => {},
                         Err(Error::NoPayload { peer, addr }) => {
                             warn!(%peer, %addr, "message contains no payload");
                             continue;
@@ -182,7 +208,6 @@ where
                         }
                         Some(Request::GetPeers(tx)) => {
                             let _ = tx.send(self.peer_list.peer_uuids());
-                            (0, 0)
                         },
                         Some(Request::Broadcast(payload)) => {
                             // The user is guaranteed MAX_USER_PAYLOAD_BYTES to
@@ -196,8 +221,7 @@ where
                             {
                                 continue
                             }
-                            let bytes_sent = self.peer_list.broadcast(&self.serialisation_buf, &self.socket).await;
-                            (0, bytes_sent)
+                            self.peer_list.broadcast(&self.serialisation_buf, &self.socket, &self.metric_frames_sent, &self.metric_bytes_sent).await;
                         }
                     }
                 }
@@ -212,9 +236,11 @@ where
     /// returns the result to the sender of the original frame.
     ///
     /// Returns the bytes read and bytes sent during execution of this method.
-    async fn read(&mut self) -> Result<(usize, usize), Error> {
+    async fn read(&mut self) -> Result<(), Error> {
         // Read a frame into buf.
         let (bytes_read, frame, peer_addr) = read_frame(&self.socket).await?;
+        self.metric_frames_received.inc(1);
+        self.metric_bytes_received.inc(bytes_read as _);
 
         // Read the peer identity from the frame
         let identity =
@@ -228,7 +254,7 @@ where
         // this node will not be added to the active peer list.
         if identity == self.identity {
             debug!(%identity, %peer_addr, bytes_read, "dropping frame from self");
-            return Ok((bytes_read, 0));
+            return Ok(());
         }
 
         // Find or create the peer in the peer list.
@@ -264,7 +290,7 @@ where
         // Sometimes no message will be returned to the peer - there's no need
         // to send an empty frame.
         if out_messages.is_empty() {
-            return Ok((bytes_read, 0));
+            return Ok(());
         }
 
         // Serialise the frame into the serialisation buffer.
@@ -274,9 +300,15 @@ where
             &mut self.serialisation_buf,
         )?;
 
-        let bytes_sent = peer.send(&self.serialisation_buf, &self.socket).await?;
+        peer.send(
+            &self.serialisation_buf,
+            &self.socket,
+            &self.metric_frames_sent,
+            &self.metric_bytes_sent,
+        )
+        .await?;
 
-        Ok((bytes_read, bytes_sent))
+        Ok(())
     }
 
     /// Return the randomised identity assigned to this instance.
@@ -351,10 +383,18 @@ fn new_payload(p: Payload) -> proto::FrameMessage {
 }
 
 /// Send a PING message to `socket`, using `peer_name` as logging context.
-pub(crate) async fn ping(ping_frame: &[u8], socket: &UdpSocket, addr: SocketAddr) -> usize {
+pub(crate) async fn ping(
+    ping_frame: &[u8],
+    socket: &UdpSocket,
+    addr: SocketAddr,
+    sent_frames: &SentFrames,
+    sent_bytes: &SentBytes,
+) -> usize {
     match socket.send_to(ping_frame, &addr).await {
         Ok(n_bytes) => {
             debug!(addr = %addr, "ping");
+            sent_frames.inc(1);
+            sent_bytes.inc(n_bytes);
             n_bytes
         }
         Err(e) => {

@@ -38,6 +38,7 @@
 mod builder;
 mod dispatcher;
 mod handle;
+mod metric;
 mod peers;
 mod proto;
 mod reactor;

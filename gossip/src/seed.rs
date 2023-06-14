@@ -7,7 +7,11 @@ use tokio::{
 };
 use tracing::{debug, warn};
 
-use crate::{reactor::ping, RESOLVE_TIMEOUT, SEED_PING_INTERVAL};
+use crate::{
+    metric::{SentBytes, SentFrames},
+    reactor::ping,
+    RESOLVE_TIMEOUT, SEED_PING_INTERVAL,
+};
 
 /// The user-provided seed peer address.
 ///
@@ -63,6 +67,8 @@ pub(super) async fn seed_ping_task(
     seeds: Arc<[Seed]>,
     socket: Arc<UdpSocket>,
     ping_frame: Vec<u8>,
+    sent_frames: SentFrames,
+    sent_bytes: SentBytes,
 ) {
     let mut interval = tokio::time::interval(SEED_PING_INTERVAL);
 
@@ -77,7 +83,7 @@ pub(super) async fn seed_ping_task(
             .iter()
             .map(|seed| async {
                 if let Some(addr) = seed.resolve().await {
-                    ping(&ping_frame, &socket, addr).await
+                    ping(&ping_frame, &socket, addr, &sent_frames, &sent_bytes).await
                 } else {
                     0
                 }

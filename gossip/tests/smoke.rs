@@ -1,4 +1,4 @@
-use std::time::Duration;
+use std::{sync::Arc, time::Duration};
 
 use test_helpers::{maybe_start_logging, timeout::FutureTimeout};
 use tokio::{net::UdpSocket, sync::mpsc};
@@ -10,6 +10,8 @@ use gossip::*;
 #[tokio::test]
 async fn test_payload_exchange() {
     maybe_start_logging();
+
+    let metrics = Arc::new(metric::Registry::default());
 
     // How long to wait for peer discovery to complete.
     const TIMEOUT: Duration = Duration::from_secs(5);
@@ -32,8 +34,8 @@ async fn test_payload_exchange() {
 
     // Initialise both reactors
     let addrs = dbg!(vec![a_addr.to_string(), b_addr.to_string()]);
-    let a = Builder::new(addrs.clone(), a_tx).build(a_socket);
-    let b = Builder::new(addrs, b_tx).build(b_socket);
+    let a = Builder::new(addrs.clone(), a_tx, Arc::clone(&metrics)).build(a_socket);
+    let b = Builder::new(addrs, b_tx, Arc::clone(&metrics)).build(b_socket);
 
     // Wait for peer discovery to occur
     async {

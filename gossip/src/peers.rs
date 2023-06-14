@@ -2,12 +2,16 @@ use std::{io, net::SocketAddr};
 
 use futures::{stream::FuturesUnordered, StreamExt};
 use hashbrown::{hash_map::RawEntryMut, HashMap};
+use metric::U64Counter;
 use prost::bytes::Bytes;
 use tokio::net::UdpSocket;
 use tracing::{trace, warn};
 use uuid::Uuid;
 
-use crate::MAX_FRAME_BYTES;
+use crate::{
+    metric::{SentBytes, SentFrames},
+    MAX_FRAME_BYTES,
+};
 
 /// A unique generated identity containing 128 bits of randomness (V4 UUID).
 #[derive(Debug, Eq, Clone)]
@@ -69,7 +73,13 @@ pub(crate) struct Peer {
 }
 
 impl Peer {
-    pub(crate) async fn send(&self, buf: &[u8], socket: &UdpSocket) -> Result<usize, io::Error> {
+    pub(crate) async fn send(
+        &self,
+        buf: &[u8],
+        socket: &UdpSocket,
+        frames_sent: &SentFrames,
+        bytes_sent: &SentBytes,
+    ) -> Result<usize, io::Error> {
         // If the frame is larger than the allowed maximum, then the receiver
         // will truncate the frame when reading the socket.
         //
@@ -88,6 +98,8 @@ impl Peer {
         let ret = socket.send_to(buf, self.addr).await;
         match &ret {
             Ok(n_bytes) => {
+                frames_sent.inc(1);
+                bytes_sent.inc(*n_bytes);
                 trace!(identity=%self.identity, n_bytes, peer_addr=%self.addr, "send frame")
             }
             Err(e) => {
@@ -102,14 +114,25 @@ impl Peer {
 #[derive(Debug, Default)]
 pub(crate) struct PeerList {
     list: HashMap<Identity, Peer>,
+
+    /// The number of known, believed-to-be-healthy peers.
+    metric_peer_count: metric::U64Counter,
 }
 
 impl PeerList {
     /// Initialise the [`PeerList`] with capacity for `cap` number of [`Peer`]
     /// instances.
-    pub(crate) fn with_capacity(cap: usize) -> Self {
+    pub(crate) fn with_capacity(cap: usize, metrics: &metric::Registry) -> Self {
+        let metric_peer_count = metrics
+            .register_metric::<U64Counter>(
+                "gossip_known_peers",
+                "number of likely healthy peers known to this node",
+            )
+            .recorder(&[]);
+
         Self {
             list: HashMap::with_capacity(cap),
+            metric_peer_count,
         }
     }
 
@@ -123,6 +146,7 @@ impl PeerList {
     pub(crate) fn upsert(&mut self, identity: &Identity, peer_addr: SocketAddr) -> &mut Peer {
         let p = match self.list.raw_entry_mut().from_key(identity) {
             RawEntryMut::Vacant(v) => {
+                self.metric_peer_count.inc(1);
                 v.insert(
                     identity.to_owned(),
                     Peer {
@@ -141,10 +165,16 @@ impl PeerList {
 
     /// Broadcast `buf` to all known peers over `socket`, returning the number
     /// of bytes sent in total.
-    pub(crate) async fn broadcast(&self, buf: &[u8], socket: &UdpSocket) -> usize {
+    pub(crate) async fn broadcast(
+        &self,
+        buf: &[u8],
+        socket: &UdpSocket,
+        frames_sent: &SentFrames,
+        bytes_sent: &SentBytes,
+    ) -> usize {
         self.list
             .values()
-            .map(|v| v.send(buf, socket))
+            .map(|v| v.send(buf, socket, frames_sent, bytes_sent))
             .collect::<FuturesUnordered<_>>()
             .fold(0, |acc, res| async move {
                 match res {

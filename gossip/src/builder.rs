@@ -1,3 +1,5 @@
+use std::sync::Arc;
+
 use tokio::{
     net::{ToSocketAddrs, UdpSocket},
     sync::mpsc,
@@ -10,6 +12,7 @@ use crate::{handle::GossipHandle, reactor::Reactor, Dispatcher};
 pub struct Builder<T> {
     seed_addrs: Vec<String>,
     dispatcher: T,
+    metric: Arc<metric::Registry>,
 }
 
 impl<T> Builder<T> {
@@ -18,10 +21,11 @@ impl<T> Builder<T> {
     ///
     /// Each address in `seed_addrs` is re-resolved periodically and the first
     /// resolved IP address is used for peer communication.
-    pub fn new(seed_addrs: Vec<String>, dispatcher: T) -> Self {
+    pub fn new(seed_addrs: Vec<String>, dispatcher: T, metric: Arc<metric::Registry>) -> Self {
         Self {
             seed_addrs,
             dispatcher,
+            metric,
         }
     }
 }
@@ -41,7 +45,7 @@ where
         let (tx, rx) = mpsc::channel(1000);
 
         // Initialise the reactor
-        let reactor = Reactor::new(self.seed_addrs, socket, self.dispatcher);
+        let reactor = Reactor::new(self.seed_addrs, socket, self.dispatcher, &self.metric);
         let identity = reactor.identity().clone();
 
         // Start the message reactor.

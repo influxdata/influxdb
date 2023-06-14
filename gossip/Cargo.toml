@@ -7,6 +7,7 @@ edition = "2021"
 async-trait = "0.1.68"
 futures = "0.3.28"
 hashbrown.workspace = true
+metric = { version = "0.1.0", path = "../metric" }
 prost = "0.11.9"
 thiserror = "1.0.40"
 tokio = { version = "1.28.2", features = ["net", "io-util", "time", "rt", "sync", "macros"] }
