@@ -7,11 +7,6 @@ yanked = "deny"
 unmaintained = "warn"
 notice = "warn"
 ignore = [
-    # potential unalinged read in atty
-    # https://rustsec.org/advisories/RUSTSEC-2021-0145
-    # Acceptable because only dependencies are dev/test (not used in prod code).
-    "RUSTSEC-2021-0145",
-
     # "It was sometimes possible for SQLite versions >= 1.0.12, < 3.39.2 to allow an array-bounds overflow when large
     # string were input into SQLite's printf function."
     #
@@ -32,8 +27,6 @@ default = "deny"
 exceptions = [
     # We should probably NOT bundle CA certs but use the OS ones.
     { name = "webpki-roots", allow = ["MPL-2.0"] },
-    # Currently needed for testing only via mockito.
-    { name = "colored", allow = ["MPL-2.0"] },
 ]
 
 [[licenses.clarify]]
