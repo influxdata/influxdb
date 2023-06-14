@@ -20,9 +20,8 @@ use data_types::{
         NamespacePartitionTemplateOverride, TablePartitionTemplateOverride, TemplatePart,
     },
     Column, ColumnType, CompactionLevel, Namespace, NamespaceId, NamespaceName,
-    NamespaceServiceProtectionLimitsOverride, ParquetFile, ParquetFileExists, ParquetFileId,
-    ParquetFileParams, Partition, PartitionId, PartitionKey, SkippedCompaction, Table, TableId,
-    Timestamp,
+    NamespaceServiceProtectionLimitsOverride, ParquetFile, ParquetFileId, ParquetFileParams,
+    Partition, PartitionId, PartitionKey, SkippedCompaction, Table, TableId, Timestamp,
 };
 use iox_time::{SystemProvider, TimeProvider};
 use observability_deps::tracing::{debug, info, warn};
@@ -1470,25 +1469,25 @@ WHERE object_store_id = $1;
         Ok(Some(parquet_file))
     }
 
-    async fn exists_by_object_store_id(&mut self, object_store_id: Uuid) -> Result<bool> {
-        let rec = sqlx::query_as::<_, ParquetFileExists>(
+    async fn exists_by_object_store_id_batch(
+        &mut self,
+        object_store_ids: Vec<Uuid>,
+    ) -> Result<Vec<Uuid>> {
+        sqlx::query(
+            // sqlx's readme suggests using PG's ANY operator instead of IN; see link below.
             r#"
-SELECT 1 as exists
+SELECT object_store_id
 FROM parquet_file
-WHERE object_store_id = $1;
+WHERE object_store_id = ANY($1);
              "#,
         )
-        .bind(object_store_id) // $1
-        .fetch_one(&mut self.inner)
-        .await;
-
-        if let Err(sqlx::Error::RowNotFound) = rec {
-            return Ok(false);
-        }
-
-        rec.map_err(|e| Error::SqlxError { source: e })?;
-
-        Ok(true)
+        // from https://github.com/launchbadge/sqlx/blob/main/FAQ.md#how-can-i-do-a-select--where-foo-in--query
+        // a bug of the parameter typechecking code requires all array parameters to be slices
+        .bind(&object_store_ids[..]) // $1
+        .map(|pgr| pgr.get::<Uuid, _>("object_store_id"))
+        .fetch_all(&mut self.inner)
+        .await
+        .map_err(|e| Error::SqlxError { source: e })
     }
 
     async fn create_upgrade_delete(

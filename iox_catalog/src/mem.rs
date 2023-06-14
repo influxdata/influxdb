@@ -850,13 +850,18 @@ impl ParquetFileRepo for MemTxn {
             .cloned())
     }
 
-    async fn exists_by_object_store_id(&mut self, object_store_id: Uuid) -> Result<bool> {
+    async fn exists_by_object_store_id_batch(
+        &mut self,
+        object_store_ids: Vec<Uuid>,
+    ) -> Result<Vec<Uuid>> {
         let stage = self.stage();
 
         Ok(stage
             .parquet_files
             .iter()
-            .any(|f| f.object_store_id.eq(&object_store_id)))
+            .filter(|f| object_store_ids.contains(&f.object_store_id))
+            .map(|f| f.object_store_id)
+            .collect())
     }
 
     async fn create_upgrade_delete(

@@ -19,9 +19,9 @@ use data_types::{
         NamespacePartitionTemplateOverride, TablePartitionTemplateOverride, TemplatePart,
     },
     Column, ColumnId, ColumnSet, ColumnType, CompactionLevel, Namespace, NamespaceId,
-    NamespaceName, NamespaceServiceProtectionLimitsOverride, ParquetFile, ParquetFileExists,
-    ParquetFileId, ParquetFileParams, Partition, PartitionId, PartitionKey, SkippedCompaction,
-    Table, TableId, Timestamp,
+    NamespaceName, NamespaceServiceProtectionLimitsOverride, ParquetFile, ParquetFileId,
+    ParquetFileParams, Partition, PartitionId, PartitionKey, SkippedCompaction, Table, TableId,
+    Timestamp,
 };
 use serde::{Deserialize, Serialize};
 use std::collections::HashSet;
@@ -32,6 +32,7 @@ use metric::Registry;
 use observability_deps::tracing::debug;
 use parking_lot::Mutex;
 use snafu::prelude::*;
+use sqlx::sqlite::SqliteRow;
 use sqlx::types::Json;
 use sqlx::{
     migrate::Migrator, sqlite::SqliteConnectOptions, types::Uuid, Executor, Pool, Row, Sqlite,
@@ -1337,25 +1338,30 @@ WHERE object_store_id = $1;
         Ok(Some(parquet_file.into()))
     }
 
-    async fn exists_by_object_store_id(&mut self, object_store_id: Uuid) -> Result<bool> {
-        let rec = sqlx::query_as::<_, ParquetFileExists>(
-            r#"
-SELECT 1 as exists
+    async fn exists_by_object_store_id_batch(
+        &mut self,
+        object_store_ids: Vec<Uuid>,
+    ) -> Result<Vec<Uuid>> {
+        let in_value = object_store_ids
+            .into_iter()
+            // use a sqlite blob literal
+            .map(|id| format!("X'{}'", id.simple()))
+            .collect::<Vec<String>>()
+            .join(",");
+
+        sqlx::query(&format!(
+            "
+SELECT object_store_id
 FROM parquet_file
-WHERE object_store_id = $1;
-             "#,
-        )
-        .bind(object_store_id) // $1
-        .fetch_one(self.inner.get_mut())
-        .await;
-
-        if let Err(sqlx::Error::RowNotFound) = rec {
-            return Ok(false);
-        }
-
-        rec.map_err(|e| Error::SqlxError { source: e })?;
-
-        Ok(true)
+WHERE object_store_id IN ({v});",
+            v = in_value
+        ))
+        .map(|slr: SqliteRow| slr.get::<Uuid, _>("object_store_id"))
+        // limitation of sqlx: will not bind arrays
+        // https://github.com/launchbadge/sqlx/blob/main/FAQ.md#how-can-i-do-a-select--where-foo-in--query
+        .fetch_all(self.inner.get_mut())
+        .await
+        .map_err(|e| Error::SqlxError { source: e })
     }
 
     async fn create_upgrade_delete(

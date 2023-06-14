@@ -480,13 +480,17 @@ pub trait ParquetFileRepo: Send + Sync {
     ) -> Result<Vec<ParquetFile>>;
 
     /// Return the parquet file with the given object store id
+    // used heavily in tests for verification of catalog state.
     async fn get_by_object_store_id(
         &mut self,
         object_store_id: Uuid,
     ) -> Result<Option<ParquetFile>>;
 
-    /// Test parquet file exists by object store id
-    async fn exists_by_object_store_id(&mut self, object_store_id: Uuid) -> Result<bool>;
+    /// Test a batch of parquet files exist by object store ids
+    async fn exists_by_object_store_id_batch(
+        &mut self,
+        object_store_ids: Vec<Uuid>,
+    ) -> Result<Vec<Uuid>>;
 
     /// Commit deletions, upgrades and creations in a single transaction.
     ///
@@ -2153,6 +2157,19 @@ pub(crate) mod test_helpers {
             .unwrap()
             .unwrap();
         assert_matches!(f6_not_delete.to_delete, None);
+
+        // test exists_by_object_store_id_batch returns parquet files by object store id
+        let does_not_exist = Uuid::new_v4();
+        let mut present = repos
+            .parquet_files()
+            .exists_by_object_store_id_batch(vec![f6_uuid, f1_uuid, does_not_exist])
+            .await
+            .unwrap();
+        assert_eq!(present.len(), 2);
+        let mut expected = vec![f6_uuid, f1_uuid];
+        present.sort();
+        expected.sort();
+        assert_eq!(present, expected);
     }
 
     async fn test_parquet_file_delete_broken(catalog: Arc<dyn Catalog>) {
