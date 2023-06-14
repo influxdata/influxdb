@@ -453,10 +453,15 @@ jobs:
             tags=( "$COMMIT_SHA" "$BRANCH" )
 
             for image in "${images[@]}"; do
+              echo "Image: $image"
+              gzip -d "/tmp/images/$image.tar.gz"
+
               for registry in "${registries[@]}"; do
+                echo "  Registry: $registry"
+
                 for tag in "${tags[@]}"; do
-                  echo "Upload: image=$image registry=$registry tag=$tag"
-                  skopeo copy "docker-archive:///tmp/images/$image.tar.gz" "docker://$registry/$image:$tag" --quiet
+                  echo "    Upload: tag=$tag"
+                  skopeo copy "docker-archive:///tmp/images/$image.tar" "docker://$registry/$image:$tag" --quiet
                 done
               done
             done
