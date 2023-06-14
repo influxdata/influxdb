@@ -45,7 +45,9 @@ pub type Result<T, E = Error> = std::result::Result<T, E>;
 pub async fn command(connection: Connection, config: Config) -> Result<()> {
     debug!("Starting interactive SQL prompt with {:?}", config);
 
-    check_health(connection.clone()).await?;
+    if let Err(e) = check_health(connection.clone()).await {
+        eprintln!("warning: flight healthcheck failed: {}", e);
+    }
 
     println!("Connected to IOx Server");
 
