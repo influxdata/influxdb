@@ -898,25 +898,28 @@ jobs:
   changelog:
     parameters:
       workflow:
-        type:    string
-        default: snapshot
+        type: string
     docker:
       - image: quay.io/influxdb/changelogger:latest
     steps:
       - checkout
-      - run: |
-          export DESCRIPTION="In addition to the list of changes below, please also see the [official release \
-          notes](https://docs.influxdata.com/influxdb/${CIRCLE_BRANCH}/reference/release-notes/influxdb/) for \
-          other important information about this release."
+      - when:
+          condition:
+            or:
+              - equal: [ << parameters.workflow >>, nightly  ]
+              - equal: [ << parameters.workflow >>, snapshot ]
+          steps:
+            - run: changelogger --product OSS
+      - when:
+          condition:
+            equal: [ << parameters.workflow >>, release ]
+          steps:
+            - run: |
+                export DESCRIPTION="In addition to the list of changes below, please also see the [official release \
+                notes](https://docs.influxdata.com/influxdb/${CIRCLE_BRANCH}/reference/release-notes/influxdb/) for \
+                other important information about this release."
 
-          case << parameters.workflow >> in
-            release)
-              changelogger --product OSS --release "${CIRCLE_TAG}" --description "${DESCRIPTION}"
-              ;;
-            nightly|snapshot)
-              changelogger --product OSS
-              ;;
-          esac
+                changelogger --product OSS --release "<< pipeline.git.tag >>" --description "${DESCRIPTION}"
       - store_artifacts:
           path: changelog_artifacts/
       - persist_to_workspace:
@@ -927,27 +930,32 @@ jobs:
   changelog-upload:
     parameters:
       workflow:
-        type:    string
-        default: release
+        type: string
     docker:
-      - image: ubuntu:latest
+      - image: cimg/python:3.6
     steps:
       - attach_workspace:
           at: /tmp/workspace
-      - checkout
-      - run: |
-          export DEBIAN_FRONTEND=noninteractive
-          apt-get update
-          apt-get install --yes --no-install-recommends awscli
-
-          case << parameters.workflow >> in
-            release)
-              aws s3 cp /tmp/workspace/CHANGELOG.md "s3://dl.influxdata.com/influxdb/releases/CHANGELOG.${CIRCLE_SHA1}.md"
-              ;;
-            nightly)
-              aws s3 cp /tmp/workspace/CHANGELOG.md "s3://dl.influxdata.com/platform/nightlies/${CIRCLE_TAG}/CHANGELOG.md"
-              ;;
-          esac
+      - when:
+          condition:
+            equal: [ << parameters.workflow >>, release ]
+          steps:
+            - aws-s3/copy:
+                aws-region:            AWS_S3_REGION
+                aws-access-key-id:     AWS_ACCESS_KEY_ID
+                aws-secret-access-key: AWS_SECRET_ACCESS_KEY
+                to:   "s3://dl.influxdata.com/influxdb/releases/CHANGELOG.<< pipeline.git.tag >>.md"
+                from: /tmp/workspace/CHANGELOG.md
+      - when:
+          condition:
+            equal: [ << parameters.workflow >>, nightly ]
+          steps:
+            - aws-s3/copy:
+                aws-region:            AWS_S3_REGION
+                aws-access-key-id:     AWS_ACCESS_KEY_ID
+                aws-secret-access-key: AWS_SECRET_ACCESS_KEY
+                to:   "s3://dl.influxdata.com/platform/nightlies/<< pipeline.git.branch >>/CHANGELOG.md"
+                from: /tmp/workspace/CHANGELOG.md
 
   check_package_deb_amd64:
     machine:
