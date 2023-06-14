@@ -91,13 +91,9 @@ impl<'a> Template<'a> {
     ) -> Result<(), PartitionKeyError> {
         match self {
             Template::TagValue(col) if col.valid.get(idx) => match &col.data {
-                ColumnData::Tag(col_data, dictionary, _) => out.write_str(never_empty(
-                    Cow::from(utf8_percent_encode(
-                        dictionary.lookup_id(col_data[idx]).unwrap(),
-                        &ENCODED_PARTITION_KEY_CHARS,
-                    ))
-                    .as_ref(),
-                ))?,
+                ColumnData::Tag(col_data, dictionary, _) => out.write_str(
+                    encode_key_part(dictionary.lookup_id(col_data[idx]).unwrap()).as_ref(),
+                )?,
                 _ => return Err(PartitionKeyError::TagValueNotTag(col.influx_type())),
             },
             Template::TimeFormat(t, fmt) => fmt.render(t[idx], out)?,
