@@ -947,6 +947,9 @@ struct FieldChecker {
     /// Accumulator for the number of aggregate or window expressions for the statement.
     aggregate_count: usize,
 
+    /// Accumulator for the number of window expressions for the statement.
+    window_count: usize,
+
     /// Accumulator for the number of selector expressions for the statement.
     selector_count: usize,
 }
@@ -1001,7 +1004,7 @@ impl FieldChecker {
 
         // Validate we are using a selector or raw query if non-aggregate fields are projected.
         if self.has_non_aggregate_fields {
-            if self.aggregate_count > 0 {
+            if self.window_aggregate_count() > 0 {
                 return error::query("mixing aggregate and non-aggregate columns is not supported");
             } else if self.selector_count > 1 {
                 return error::query(
@@ -1013,26 +1016,37 @@ impl FieldChecker {
         // By this point the statement is valid, so lets
         // determine the projection type
 
-        if self.has_top_bottom {
-            Ok(ProjectionType::TopBottomSelector)
+        Ok(if self.has_top_bottom {
+            ProjectionType::TopBottomSelector
         } else if self.has_group_by_time {
-            Ok(ProjectionType::Aggregate)
+            if self.window_count > 0 {
+                ProjectionType::WindowAggregate
+            } else {
+                ProjectionType::Aggregate
+            }
         } else if self.has_distinct {
-            Ok(ProjectionType::RawDistinct)
+            ProjectionType::RawDistinct
         } else if self.selector_count == 1 && self.aggregate_count == 0 {
-            Ok(ProjectionType::Selector {
+            ProjectionType::Selector {
                 has_fields: self.has_non_aggregate_fields,
-            })
+            }
         } else if self.selector_count > 1 || self.aggregate_count > 0 {
-            Ok(ProjectionType::Aggregate)
+            ProjectionType::Aggregate
+        } else if self.window_count > 0 {
+            ProjectionType::Window
         } else {
-            Ok(ProjectionType::Raw)
-        }
+            ProjectionType::Raw
+        })
     }
 
     /// The total number of functions observed.
     fn function_count(&self) -> usize {
-        self.aggregate_count + self.selector_count
+        self.window_aggregate_count() + self.selector_count
+    }
+
+    /// The total number of window and aggregate functions observed.
+    fn window_aggregate_count(&self) -> usize {
+        self.aggregate_count + self.window_count
     }
 }
 
@@ -1254,7 +1268,7 @@ impl FieldChecker {
     }
 
     fn check_derivative(&mut self, name: &str, args: &[Expr]) -> Result<()> {
-        self.inc_aggregate_count();
+        self.inc_window_count();
 
         check_exp_args!(name, 1, 2, args);
 
@@ -1276,7 +1290,7 @@ impl FieldChecker {
     }
 
     fn check_elapsed(&mut self, name: &str, args: &[Expr]) -> Result<()> {
-        self.inc_aggregate_count();
+        self.inc_window_count();
         check_exp_args!(name, 1, 2, args);
 
         set_extra_intervals!(self, 1);
@@ -1297,7 +1311,7 @@ impl FieldChecker {
     }
 
     fn check_difference(&mut self, name: &str, args: &[Expr]) -> Result<()> {
-        self.inc_aggregate_count();
+        self.inc_window_count();
         check_exp_args!(name, 1, args);
 
         set_extra_intervals!(self, 1);
@@ -1315,7 +1329,7 @@ impl FieldChecker {
     }
 
     fn check_moving_average(&mut self, args: &[Expr]) -> Result<()> {
-        self.inc_aggregate_count();
+        self.inc_window_count();
         check_exp_args!("moving_average", 2, args);
 
         let v = lit_integer!("moving_average", args, 1);
@@ -1331,7 +1345,7 @@ impl FieldChecker {
     }
 
     fn check_exponential_moving_average(&mut self, name: &str, args: &[Expr]) -> Result<()> {
-        self.inc_aggregate_count();
+        self.inc_window_count();
         check_exp_args!(name, 2, 4, args);
 
         let v = lit_integer!(name, args, 1);
@@ -1371,7 +1385,7 @@ impl FieldChecker {
     }
 
     fn check_kaufmans(&mut self, name: &str, args: &[Expr]) -> Result<()> {
-        self.inc_aggregate_count();
+        self.inc_window_count();
         check_exp_args!(name, 2, 3, args);
 
         let v = lit_integer!(name, args, 1);
@@ -1393,7 +1407,7 @@ impl FieldChecker {
     }
 
     fn check_chande_momentum_oscillator(&mut self, name: &str, args: &[Expr]) -> Result<()> {
-        self.inc_aggregate_count();
+        self.inc_window_count();
         check_exp_args!(name, 2, 4, args);
 
         let v = lit_integer!(name, args, 1);
@@ -1477,9 +1491,14 @@ impl FieldChecker {
         }
     }
 
-    /// Increments the function call count
+    /// Increments the aggregate function call count
     fn inc_aggregate_count(&mut self) {
         self.aggregate_count += 1
+    }
+
+    /// Increments the window function call count
+    fn inc_window_count(&mut self) {
+        self.window_count += 1
     }
 
     fn inc_selector_count(&mut self) {
@@ -1529,6 +1548,10 @@ pub(crate) enum ProjectionType {
     /// A query that projects one or more aggregate functions or
     /// two or more selector functions.
     Aggregate,
+    /// A query that projects one or more window functions.
+    Window,
+    /// A query that projects a combination of window and nested aggregate functions.
+    WindowAggregate,
     /// A query that projects a single selector function,
     /// such as `last` or `first`.
     Selector {
@@ -1679,12 +1702,18 @@ mod test {
 
         // updates extra_intervals
         let info = select_statement_info(&parse_select("SELECT difference(foo) FROM cpu")).unwrap();
+        assert_matches!(info.projection_type, ProjectionType::Window);
         assert_matches!(info.extra_intervals, 1);
         // derives extra intervals from the window function
-        let info = select_statement_info(&parse_select("SELECT moving_average(foo, 5) FROM cpu")).unwrap();
+        let info =
+            select_statement_info(&parse_select("SELECT moving_average(foo, 5) FROM cpu")).unwrap();
+        assert_matches!(info.projection_type, ProjectionType::Window);
         assert_matches!(info.extra_intervals, 5);
         // uses the maximum extra intervals
-        let info = select_statement_info(&parse_select("SELECT difference(foo), moving_average(foo, 4) FROM cpu")).unwrap();
+        let info = select_statement_info(&parse_select(
+            "SELECT difference(foo), moving_average(foo, 4) FROM cpu",
+        ))
+        .unwrap();
         assert_matches!(info.extra_intervals, 4);
 
         let info = select_statement_info(&parse_select("SELECT last(foo), bar FROM cpu")).unwrap();
@@ -1705,6 +1734,9 @@ mod test {
 
         let info = select_statement_info(&parse_select("SELECT count(foo) FROM cpu")).unwrap();
         assert_matches!(info.projection_type, ProjectionType::Aggregate);
+
+        let info = select_statement_info(&parse_select("SELECT difference(count(foo)) FROM cpu GROUP BY TIME(10s)")).unwrap();
+        assert_matches!(info.projection_type, ProjectionType::WindowAggregate);
 
         let info = select_statement_info(&parse_select("SELECT top(foo, 3) FROM cpu")).unwrap();
         assert_matches!(info.projection_type, ProjectionType::TopBottomSelector);
