@@ -21,7 +21,7 @@ func (s *tenantService) FindUserByID(ctx context.Context, id platform.ID) (*infl
 	return s.FindUserByIDFn(ctx, id)
 }
 
-// FindUsers returns a list of Users that match filter and the total count of matching Users.
+// FindUser returns a single User that match filter.
 func (s *tenantService) FindUser(ctx context.Context, filter influxdb.UserFilter) (*influxdb.User, error) {
 	return s.FindUserFn(ctx, filter)
 }
