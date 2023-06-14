@@ -13,9 +13,12 @@ datafusion_util = { path = "../datafusion_util" }
 generated_types = { path = "../generated_types" }
 observability_deps = { path = "../observability_deps" }
 predicate = { path = "../predicate" }
+influxdb_storage_client = { path = "../influxdb_storage_client", optional = true }
 iox_query = { path = "../iox_query" }
 query_functions = { path = "../query_functions"}
 service_common = { path = "../service_common" }
+service_grpc_testing = { path = "../service_grpc_testing", optional = true }
+tokio = { version = "1.28", features = ["macros", "net", "parking_lot", "rt-multi-thread", "signal", "sync", "time"], optional = true }
 trace = { path = "../trace"}
 trace_http = { path = "../trace_http"}
 tracker = { path = "../tracker" }
@@ -39,7 +42,6 @@ datafusion_util = { path = "../datafusion_util" }
 influxdb_storage_client = { path = "../influxdb_storage_client" }
 metric = { path = "../metric" }
 panic_logging = { path = "../panic_logging" }
-procspawn = { version = "0.10", default-features = false, features = ["test-support", "safe-shared-libraries"] }
 schema = { path = "../schema" }
 service_grpc_testing = { path = "../service_grpc_testing" }
 test_helpers = { path = "../test_helpers" }
@@ -48,3 +50,10 @@ trace_http = { path = "../trace_http" }
 # Crates.io dependencies, in alphabetical order
 parking_lot = "0.12"
 tokio = { version = "1.28", features = ["macros", "net", "parking_lot", "rt-multi-thread", "signal", "sync", "time"] }
+
+[features]
+test-util = ["influxdb_storage_client", "service_grpc_testing", "tokio"]
+
+[[test]]
+name = "log_on_panic"
+required-features = ["test-util"]

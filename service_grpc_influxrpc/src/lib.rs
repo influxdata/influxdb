@@ -18,6 +18,10 @@
 // Workaround for "unused crate" lint false positives.
 use workspace_hack as _;
 
+// rustc doesn't seem to understand test-only requirements
+#[cfg(test)]
+use panic_logging as _;
+
 /// `[0x00]` is the magic value that that the storage gRPC layer uses to
 /// encode a tag_key that means "measurement name"
 pub(crate) const TAG_KEY_MEASUREMENT: &[u8] = &[0];
@@ -34,6 +38,9 @@ mod permit;
 mod query_completed_token;
 mod response_chunking;
 pub mod service;
+
+#[cfg(any(test, feature = "test-util"))]
+pub mod test_util;
 
 use generated_types::storage_server::{Storage, StorageServer};
 use service_common::QueryNamespaceProvider;

@@ -1717,30 +1717,18 @@ where
 
 #[cfg(test)]
 mod tests {
+    use crate::test_util::Fixture;
+
     use super::*;
     use futures::Future;
-    use generated_types::{
-        google::rpc::Status as GrpcStatus, i_ox_testing_client::IOxTestingClient,
-        tag_key_predicate::Value,
-    };
-    use influxdb_storage_client::{
-        connection::{Builder as ConnectionBuilder, Connection, GrpcConnection},
-        generated_types::*,
-        Client as StorageClient, OrgAndBucket,
-    };
+    use generated_types::{google::rpc::Status as GrpcStatus, tag_key_predicate::Value};
+    use influxdb_storage_client::{generated_types::*, Client as StorageClient, OrgAndBucket};
     use iox_query::test::TestChunk;
     use metric::{Attributes, Metric, U64Counter, U64Gauge};
-    use panic_logging::SendPanicsToTracing;
     use service_common::test_util::TestDatabaseStore;
-    use std::{
-        any::Any,
-        net::{IpAddr, Ipv4Addr, SocketAddr},
-        num::NonZeroU64,
-        sync::Arc,
-    };
-    use test_helpers::{assert_contains, maybe_start_logging, tracing::TracingCapture};
-    use tokio::{pin, task::JoinHandle};
-    use tokio_stream::wrappers::TcpListenerStream;
+    use std::{any::Any, num::NonZeroU64, sync::Arc};
+    use test_helpers::{assert_contains, maybe_start_logging};
+    use tokio::pin;
 
     fn to_str_vec(s: &[&str]) -> Vec<String> {
         s.iter().map(|s| s.to_string()).collect()
@@ -2606,84 +2594,6 @@ mod tests {
         assert_contains!(response_string, "Sugar we are going down");
 
         grpc_request_metric_has_count(&fixture, "MeasurementTagValues", "server_error", 1);
-    }
-
-    procspawn::enable_test_support!();
-
-    #[test]
-    fn test_log_on_panic() {
-        // libtest (i.e. the standard library test fixture) sets panic hooks. This will race w/ our own panic hooks. To
-        // prevent that, we spawn a dedicated process with its own panic hooks that is isolated from the remaining
-        // tests.
-
-        procspawn::spawn((), |_| {
-            // do NOT write to stdout (default behavior)
-            std::panic::set_hook(Box::new(|_| {}));
-
-            let rt = tokio::runtime::Builder::new_current_thread()
-                .enable_all()
-                .build()
-                .unwrap();
-            rt.block_on(test_log_on_panic_inner());
-        })
-        .join()
-        .unwrap();
-    }
-
-    async fn test_log_on_panic_inner() {
-        // Send a message to a route that causes a panic and ensure:
-        // 1. We don't use up all executors 2. The panic message
-        // message ends up in the log system
-
-        // Normally, the global panic logger is set at program start
-        let _f = SendPanicsToTracing::new();
-
-        // capture all tracing messages
-        let tracing_capture = TracingCapture::new();
-
-        // Start a test gRPC server on a randomally allocated port
-        let mut fixture = Fixture::new().await.expect("Connecting to test server");
-
-        let request = TestErrorRequest {};
-
-        // Test response from storage server
-        let response = fixture.iox_client.test_error(request).await;
-
-        match &response {
-            Ok(_) => {
-                panic!("Unexpected success: {response:?}");
-            }
-            Err(status) => {
-                assert_eq!(status.code(), tonic::Code::Cancelled);
-                assert_contains!(
-                    status.message(),
-                    "http2 error: stream error received: stream no longer needed"
-                );
-            }
-        };
-
-        // Ensure that the logs captured the panic
-        let captured_logs = tracing_capture.to_string();
-        // Note we don't include the actual line / column in the
-        // expected panic message to avoid needing to update the test
-        // whenever the source code file changed.
-        let expected_error = "'This is a test panic', service_grpc_testing/src/lib.rs:";
-        assert_contains!(captured_logs, expected_error);
-
-        // Ensure that panics don't exhaust the tokio executor by
-        // running 100 times (success is if we can make a successful
-        // call after this)
-        for _ in 0usize..100 {
-            let request = TestErrorRequest {};
-
-            // Test response from storage server
-            let response = fixture.iox_client.test_error(request).await;
-            assert!(response.is_err(), "Got an error response: {response:?}");
-        }
-
-        // Ensure there are still threads to answer actual client queries
-        let caps = fixture.storage_client.capabilities().await.unwrap();
-        assert!(!caps.is_empty(), "Caps: {caps:?}");
     }
 
     #[tokio::test]
@@ -3734,97 +3644,6 @@ mod tests {
     /// Convert to a Vec<String> to facilitate comparison with results of client
     fn to_string_vec(v: &[&str]) -> Vec<String> {
         v.iter().map(|s| s.to_string()).collect()
-    }
-
-    #[derive(Debug, Snafu)]
-    pub enum FixtureError {
-        #[snafu(display("Error binding fixture server: {}", source))]
-        Bind { source: std::io::Error },
-
-        #[snafu(display("Error creating fixture: {}", source))]
-        Tonic { source: tonic::transport::Error },
-    }
-
-    // Wrapper around raw clients and test database
-    struct Fixture {
-        client_connection: Connection,
-        iox_client: IOxTestingClient<GrpcConnection>,
-        storage_client: StorageClient,
-        test_storage: Arc<TestDatabaseStore>,
-        join_handle: JoinHandle<()>,
-    }
-
-    impl Fixture {
-        /// Start up a test storage server listening on `port`, returning
-        /// a fixture with the test server and clients
-        async fn new() -> Result<Self, FixtureError> {
-            Self::new_with_semaphore_size(u16::MAX as usize).await
-        }
-
-        async fn new_with_semaphore_size(semaphore_size: usize) -> Result<Self, FixtureError> {
-            let test_storage = Arc::new(TestDatabaseStore::new_with_semaphore_size(semaphore_size));
-
-            // Get a random port from the kernel by asking for port 0.
-            let bind_addr = SocketAddr::new(IpAddr::V4(Ipv4Addr::new(127, 0, 0, 1)), 0);
-            let socket = tokio::net::TcpListener::bind(bind_addr)
-                .await
-                .context(BindSnafu)?;
-
-            // Pull the assigned port out of the socket
-            let bind_addr = socket.local_addr().unwrap();
-
-            println!("Starting InfluxDB IOx storage test server on {bind_addr:?}");
-
-            let trace_header_parser = trace_http::ctx::TraceHeaderParser::new();
-
-            let router = tonic::transport::Server::builder()
-                .layer(trace_http::tower::TraceLayer::new(
-                    trace_header_parser,
-                    Arc::clone(&test_storage.metric_registry),
-                    None,
-                    true,
-                    "test server",
-                ))
-                .add_service(service_grpc_testing::make_server())
-                .add_service(crate::make_server(Arc::clone(&test_storage)));
-
-            let server = async move {
-                let stream = TcpListenerStream::new(socket);
-
-                router
-                    .serve_with_incoming(stream)
-                    .await
-                    .log_if_error("Running Tonic Server")
-                    .ok();
-            };
-
-            let join_handle = tokio::task::spawn(server);
-
-            let client_connection = ConnectionBuilder::default()
-                .connect_timeout(std::time::Duration::from_secs(30))
-                .build(format!("http://{bind_addr}"))
-                .await
-                .unwrap();
-
-            let iox_client =
-                IOxTestingClient::new(client_connection.clone().into_grpc_connection());
-
-            let storage_client = StorageClient::new(client_connection.clone());
-
-            Ok(Self {
-                client_connection,
-                iox_client,
-                storage_client,
-                test_storage,
-                join_handle,
-            })
-        }
-    }
-
-    impl Drop for Fixture {
-        fn drop(&mut self) {
-            self.join_handle.abort();
-        }
     }
 
     /// Assert that given future is pending.
