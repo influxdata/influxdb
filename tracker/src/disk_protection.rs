@@ -183,3 +183,100 @@ impl Drop for InstrumentedDiskProtection {
         self.stop();
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use std::sync::atomic::{AtomicBool, Ordering};
+
+    use metric::Metric;
+
+    use super::*;
+
+    #[tokio::test]
+    async fn test_metrics() {
+        let registry = Arc::new(metric::Registry::new());
+        let duration = Duration::from_secs(1);
+
+        struct MockAnyStruct;
+
+        impl MockAnyStruct {
+            pub(crate) async fn new(registry: &metric::Registry, duration: Duration) -> Self {
+                let disk_protection = InstrumentedDiskProtection::new(
+                    registry,
+                    &[("test", "mock")],
+                    duration,
+                    10_u64,
+                    None,
+                    None,
+                );
+                disk_protection.start().await;
+
+                Self
+            }
+        }
+
+        let _mock = MockAnyStruct::new(&registry, duration).await;
+
+        tokio::time::sleep(2 * duration).await;
+
+        let recorded_metric = registry
+            .get_instrument::<Metric<U64Gauge>>("disk_protection_free_disk_space")
+            .expect("metric should exist")
+            .get_observer(&Attributes::from(&[("test", "mock")]))
+            .expect("metric should have labels")
+            .fetch();
+
+        assert!(recorded_metric > 0_u64);
+    }
+
+    #[tokio::test]
+    async fn test_callback_is_triggered() {
+        let registry = Arc::new(metric::Registry::new());
+        let duration = Duration::from_secs(1);
+
+        struct MockStructTrackCallback {
+            callback_triggered: AtomicBool,
+        }
+
+        impl MockStructTrackCallback {
+            pub(crate) async fn new(registry: &metric::Registry, duration: Duration) -> Arc<Self> {
+                let mock = Arc::new(Self {
+                    callback_triggered: AtomicBool::new(false),
+                });
+                let mock_for_cb = Arc::clone(&mock);
+
+                let disk_protection = InstrumentedDiskProtection::new(
+                    registry,
+                    &[("test", "mock")],
+                    duration,
+                    100_u64,
+                    Some(Box::new(move || {
+                        mock_for_cb.callback();
+                    })),
+                    None,
+                );
+                disk_protection.start().await;
+
+                mock
+            }
+
+            fn callback(&self) {
+                self.callback_triggered.store(true, Ordering::SeqCst);
+            }
+        }
+
+        let mock = MockStructTrackCallback::new(&registry, duration).await;
+
+        tokio::time::sleep(2 * duration).await;
+
+        let recorded_metric = registry
+            .get_instrument::<Metric<U64Gauge>>("disk_protection_free_disk_space")
+            .expect("metric should exist")
+            .get_observer(&Attributes::from(&[("test", "mock")]))
+            .expect("metric should have labels")
+            .fetch();
+
+        assert!(recorded_metric > 0_u64);
+        assert!(mock.callback_triggered.load(Ordering::SeqCst));
+    }
+}
