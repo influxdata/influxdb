@@ -57,6 +57,14 @@ where
         v
     }
 
+    /// Drop the last buffer entry.
+    ///
+    /// This may cause spurious cache misses due to the short-circuiting search
+    /// observing an empty element, potentially before non-empty elements.
+    fn drop_last(&mut self) {
+        self.buf[self.last_idx] = None;
+    }
+
     /// Find the first initialised slot that causes `F` to evaluate to true,
     /// returning the slot contents.
     ///
@@ -206,13 +214,22 @@ impl<'a> StrftimeFormatter<'a> {
         buf.1.clear();
 
         // Format the timestamp value into the slot buffer.
-        write!(
+        if write!(
             buf.1,
             "{}",
             Utc.timestamp_nanos(timestamp)
                 .format_with_items(self.format.clone()) // Cheap clone of refs
         )
-        .map_err(|_| PartitionKeyError::InvalidStrftime)?;
+        .is_err()
+        {
+            // The string buffer may be empty, or contain partially rendered
+            // output before the error was raised.
+            //
+            // Remove this entry from the cache to prevent there being a mapping
+            // of `timestamp -> <empty or incomplete output>`.
+            self.values.drop_last();
+            return Err(PartitionKeyError::InvalidStrftime);
+        };
 
         // Encode any reserved characters in this new string.
         buf.1 = encode_key_part(&buf.1).to_string();
@@ -285,6 +302,33 @@ mod tests {
         let mut buf = String::new();
         let got = fmt.render(42, &mut buf);
         assert_matches!(got, Err(PartitionKeyError::InvalidStrftime));
+    }
+
+    #[test]
+    fn test_incomplete_formatter_removes_bad_mapping() {
+        let mut fmt = StrftimeFormatter::new("%s");
+
+        let mut buf = String::new();
+        fmt.render(42, &mut buf).unwrap();
+
+        assert_matches!(
+            fmt.values.buf.as_slice(),
+            [Some((42, _)), None, None, None, None]
+        );
+
+        // This obviously isn't possible through normal usage, but to trigger
+        // the "failed to render" code path, reach in and tweak the formatter to
+        // cause it to fail.
+        fmt.format = StrftimeItems::new("%");
+
+        // Trigger the "cannot format" code path
+        fmt.render(4242, &mut buf).expect_err("invalid formatter");
+
+        // And ensure the ring buffer was left in a clean state
+        assert_matches!(
+            fmt.values.buf.as_slice(),
+            [Some((42, _)), None, None, None, None]
+        );
     }
 
     #[test]
