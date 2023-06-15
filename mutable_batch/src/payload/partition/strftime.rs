@@ -20,8 +20,8 @@ const YMD_SPEC: &str = "%Y-%m-%d";
 struct RingBuffer<const N: usize, T> {
     buf: [Option<T>; N],
 
-    /// Index into to the next free/to-be-reused slot.
-    next_ptr: usize,
+    /// Index into to the last wrote value.
+    last_idx: usize,
 }
 
 impl<const N: usize, T> Default for RingBuffer<N, T>
@@ -31,7 +31,7 @@ where
     fn default() -> Self {
         Self {
             buf: [(); N].map(|_| Default::default()), // default init for non-const type
-            next_ptr: Default::default(),
+            last_idx: N - 1,
         }
     }
 }
@@ -48,11 +48,11 @@ where
     ///
     /// This is an O(1) operation.
     fn next_slot(&mut self) -> &mut T {
-        let v = self.buf[self.next_ptr].get_or_insert_with(Default::default);
-
         // Advance the next slot pointer
-        self.next_ptr += 1;
-        self.next_ptr %= N;
+        self.last_idx += 1;
+        self.last_idx %= N;
+
+        let v = self.buf[self.last_idx].get_or_insert_with(Default::default);
 
         v
     }
@@ -73,6 +73,11 @@ where
             }
         }
         None
+    }
+
+    /// Return the last wrote value, if any.
+    fn last(&self) -> Option<&'_ T> {
+        self.buf[self.last_idx].as_ref()
     }
 }
 
@@ -226,6 +231,19 @@ impl<'a> StrftimeFormatter<'a> {
         }
         timestamp - (timestamp % DAY_NANOSECONDS)
     }
+
+    /// Returns true if the output of rendering `timestamp` will match the last
+    /// rendered timestamp, after optionally applying the precision reduction
+    /// optimisation.
+    pub(crate) fn equals_last(&self, timestamp: i64) -> bool {
+        // Optionally apply the default format reduction optimisation.
+        let timestamp = self.maybe_reduce(timestamp);
+
+        self.values
+            .last()
+            .map(|(ts, _)| *ts == timestamp)
+            .unwrap_or_default()
+    }
 }
 
 #[cfg(test)]
@@ -281,7 +299,18 @@ mod tests {
             fmt.values.buf.as_slice(),
             [Some((42, _)), Some((12345, _)), None, None, None]
         );
-        assert_eq!(fmt.values.next_ptr, 2);
+        assert_eq!(fmt.values.last_idx, 1);
+    }
+
+    #[test]
+    fn test_ring_buffer_equals_last() {
+        let mut b = RingBuffer::<4, _>::default();
+
+        assert!(b.find(|v| *v == 42).is_none());
+
+        *b.next_slot() = 42;
+
+        assert_eq!(b.last(), Some(&42));
     }
 
     const FORMATTER_SPEC_PARTS: &[&str] = &[
