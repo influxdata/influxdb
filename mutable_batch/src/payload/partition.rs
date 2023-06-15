@@ -299,10 +299,12 @@ where
     let mut range: Range<usize> = 0..0;
     std::iter::from_fn(move || loop {
         match (iterator.next(), last.take()) {
+            // The iterator yeilds a NULL/identical value and there is a prior value
             (Some(None), Some(v)) => {
                 range.end += 1;
                 last = Some(v);
             }
+            // The iterator yeilds a value, and the last value matches
             (Some(cur), Some(next)) => match cur == next {
                 true => {
                     range.end += 1;
@@ -316,6 +318,7 @@ where
                     return Some((next.unwrap(), t));
                 }
             },
+            // There is no last value
             (Some(cur), None) => {
                 range.end += 1;
                 last = Some(cur);
@@ -335,6 +338,7 @@ mod tests {
     use crate::writer::Writer;
 
     use assert_matches::assert_matches;
+    use chrono::{format::StrftimeItems, TimeZone, Utc};
     use data_types::partition_template::{
         build_column_values, test_table_partition_override, ColumnValue,
     };
@@ -1198,6 +1202,54 @@ mod tests {
             match ret {
                 Ok(v) => { assert_eq!(v.len(), 1); },
                 Err(e) => { assert_matches!(e, PartitionKeyError::InvalidStrftime); },
+            }
+        }
+
+        // Drives the stftime formatter through the "front door", using the same
+        // interface as a user would call to partition data. This validates the
+        // integration between the various formatters, range encoders, dedupe,
+        // etc.
+        #[test]
+        fn prop_strftime_integration(
+            times in proptest::collection::vec(0_i64..i64::MAX, 10..100),
+            format in prop_oneof![
+                Just("%Y-%m-%d"), // Default scheme
+                Just("%s")        // Unix seconds, to drive increased cache miss rate in strftime formatter
+            ]
+        ) {
+            use std::fmt::Write;
+
+            let mut batch = MutableBatch::new();
+            let mut writer = Writer::new(&mut batch, times.len());
+
+            let template = test_table_partition_override(vec![TemplatePart::TimeFormat(format)]);
+
+            writer
+                .write_time("time", times.clone().into_iter())
+                .unwrap();
+
+            writer.commit();
+
+            let fmt = StrftimeItems::new(format);
+            let iter = partition_batch(&batch, &template);
+
+            // For each partition key and the calculated row range
+            for (key, range) in iter {
+                let key = key.unwrap();
+                // Validate all rows in that range render to the same timestamp
+                // value as the partition key when using the same format, using
+                // a known-good formatter.
+                for ts in &times[range] {
+                    // Generate the control string.
+                    let mut control = String::new();
+                    let _ = write!(
+                        control,
+                        "{}",
+                        Utc.timestamp_nanos(*ts)
+                            .format_with_items(fmt.clone())
+                    );
+                    assert_eq!(control, key);
+                }
             }
         }
     }
