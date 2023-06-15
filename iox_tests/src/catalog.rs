@@ -5,12 +5,13 @@ use arrow::{
     record_batch::RecordBatch,
 };
 use data_types::{
-    Column, ColumnSet, ColumnType, ColumnsByName, CompactionLevel, Namespace, NamespaceName,
-    NamespaceSchema, ParquetFile, ParquetFileParams, Partition, PartitionId, Table, TableId,
-    TableSchema, Timestamp,
+    partition_template::TablePartitionTemplateOverride, Column, ColumnSet, ColumnType,
+    ColumnsByName, CompactionLevel, Namespace, NamespaceName, NamespaceSchema, ParquetFile,
+    ParquetFileParams, Partition, PartitionId, Table, TableId, TableSchema, Timestamp,
 };
 use datafusion::physical_plan::metrics::Count;
 use datafusion_util::{unbounded_memory_pool, MemoryStream};
+use generated_types::influxdata::iox::partition_template::v1::PartitionTemplate;
 use iox_catalog::{
     interface::{
         get_schema_by_id, get_table_columns_by_id, Catalog, PartitionRepo, SoftDeletedRows,
@@ -211,6 +212,35 @@ impl TestNamespace {
         let mut repos = self.catalog.catalog.repositories().await;
 
         let table = arbitrary_table(&mut *repos, name, &self.namespace).await;
+
+        Arc::new(TestTable {
+            catalog: Arc::clone(&self.catalog),
+            namespace: Arc::clone(self),
+            table,
+        })
+    }
+
+    /// Create a table in this namespace w/ given partition template
+    pub async fn create_table_with_partition_template(
+        self: &Arc<Self>,
+        name: &str,
+        template: Option<PartitionTemplate>,
+    ) -> Arc<TestTable> {
+        let mut repos = self.catalog.catalog.repositories().await;
+
+        let table = repos
+            .tables()
+            .create(
+                name,
+                TablePartitionTemplateOverride::try_new(
+                    template,
+                    &self.namespace.partition_template,
+                )
+                .unwrap(),
+                self.namespace.id,
+            )
+            .await
+            .unwrap();
 
         Arc::new(TestTable {
             catalog: Arc::clone(&self.catalog),

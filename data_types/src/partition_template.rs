@@ -258,7 +258,7 @@ impl TryFrom<proto::PartitionTemplate> for NamespacePartitionTemplateOverride {
 }
 
 /// A partition template specified by a table record.
-#[derive(Debug, PartialEq, Clone, Default, sqlx::Type)]
+#[derive(Debug, PartialEq, Eq, Clone, Default, sqlx::Type)]
 #[sqlx(transparent)]
 pub struct TablePartitionTemplateOverride(Option<serialization::Wrapper>);
 
@@ -307,6 +307,37 @@ impl TablePartitionTemplateOverride {
                 proto::template_part::Part::TimeFormat(fmt) => TemplatePart::TimeFormat(fmt),
             })
     }
+
+    /// Size in bytes, including `self`.
+    ///
+    /// This accounts for the entire allocation of this object, even when it shared (via an internal [`Arc`]).
+    pub fn size(&self) -> usize {
+        std::mem::size_of_val(self)
+            + self
+                .0
+                .as_ref()
+                .map(|wrapper| {
+                    let inner = wrapper.inner();
+
+                    // inner is wrapped into an Arc, so we need to account for that allocation
+                    std::mem::size_of::<proto::PartitionTemplate>()
+                        + (inner.parts.capacity() * std::mem::size_of::<proto::TemplatePart>())
+                        + inner
+                            .parts
+                            .iter()
+                            .map(|part| {
+                                part.part
+                                    .as_ref()
+                                    .map(|part| match part {
+                                        proto::template_part::Part::TagValue(s) => s.capacity(),
+                                        proto::template_part::Part::TimeFormat(s) => s.capacity(),
+                                    })
+                                    .unwrap_or_default()
+                            })
+                            .sum::<usize>()
+                })
+                .unwrap_or_default()
+    }
 }
 
 /// This manages the serialization/deserialization of the `proto::PartitionTemplate` type to and
@@ -343,6 +374,9 @@ mod serialization {
             Self(Arc::new(proto))
         }
     }
+
+    // protobuf types normally don't implement `Eq`, but for this concrete type this is OK
+    impl Eq for Wrapper {}
 
     impl TryFrom<proto::PartitionTemplate> for Wrapper {
         type Error = ValidationError;

@@ -110,20 +110,23 @@ impl QuerierParquetChunk {
 #[cfg(test)]
 pub mod tests {
     use crate::{
-        cache::{namespace::CachedNamespace, CatalogCache},
+        cache::{
+            namespace::{CachedNamespace, CachedTable},
+            CatalogCache,
+        },
         table::MetricPruningObserver,
     };
 
     use super::*;
     use arrow::{datatypes::DataType, record_batch::RecordBatch};
     use arrow_util::assert_batches_eq;
-    use data_types::{ColumnType, NamespaceSchema, ParquetFile};
+    use data_types::{ColumnType, ParquetFile};
     use datafusion_util::config::register_iox_object_store;
     use iox_query::{
         exec::{ExecutorType, IOxSessionContext},
         QueryChunk, QueryChunkMeta,
     };
-    use iox_tests::{TestCatalog, TestNamespace, TestParquetFileBuilder};
+    use iox_tests::{TestCatalog, TestParquetFileBuilder};
     use metric::{Attributes, Observation, RawReporter};
     use predicate::Predicate;
     use schema::{builder::SchemaBuilder, sort::SortKeyBuilder};
@@ -134,10 +137,9 @@ pub mod tests {
     async fn test_new_parquet_chunk() {
         maybe_start_logging();
         let test_data = TestData::new().await;
-        let namespace_schema = Arc::new(test_data.ns.schema().await);
 
         // create chunk
-        let chunk = test_data.chunk(Arc::clone(&namespace_schema)).await;
+        let chunk = test_data.chunk().await;
 
         // check state
         assert_eq!(chunk.chunk_type(), "parquet");
@@ -165,7 +167,7 @@ pub mod tests {
         assert_eq!(stats_1, stats_2);
 
         // retrieving the chunk again should not require any catalog requests
-        test_data.chunk(namespace_schema).await;
+        test_data.chunk().await;
         let catalog_metrics2 = test_data.get_catalog_access_metrics();
         assert_eq!(catalog_metrics1, catalog_metrics2);
     }
@@ -183,9 +185,9 @@ pub mod tests {
 
     struct TestData {
         catalog: Arc<TestCatalog>,
-        ns: Arc<TestNamespace>,
         parquet_file: Arc<ParquetFile>,
         adapter: ChunkAdapter,
+        cached_table: Arc<CachedTable>,
     }
 
     impl TestData {
@@ -226,20 +228,33 @@ pub mod tests {
                 catalog.metric_registry(),
             );
 
+            let mut repos = catalog.catalog.repositories().await;
+            let tables = repos
+                .tables()
+                .list_by_namespace_id(ns.namespace.id)
+                .await
+                .unwrap();
+            let columns = repos
+                .columns()
+                .list_by_namespace_id(ns.namespace.id)
+                .await
+                .unwrap();
+            let cached_namespace = CachedNamespace::new(ns.namespace.clone(), tables, columns);
+            let cached_table =
+                Arc::clone(cached_namespace.tables.get("table").expect("table exists"));
+
             Self {
                 catalog,
-                ns,
                 parquet_file,
                 adapter,
+                cached_table,
             }
         }
 
-        async fn chunk(&self, namespace_schema: Arc<NamespaceSchema>) -> QuerierParquetChunk {
-            let cached_namespace: CachedNamespace = namespace_schema.as_ref().clone().into();
-            let cached_table = cached_namespace.tables.get("table").expect("table exists");
+        async fn chunk(&self) -> QuerierParquetChunk {
             self.adapter
                 .new_chunks(
-                    Arc::clone(cached_table),
+                    Arc::clone(&self.cached_table),
                     vec![Arc::clone(&self.parquet_file)].into(),
                     &Predicate::new(),
                     MetricPruningObserver::new_unregistered(),

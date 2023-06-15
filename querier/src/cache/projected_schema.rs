@@ -152,6 +152,7 @@ impl ProjectedSchemaCache {
 
 #[cfg(test)]
 mod tests {
+    use data_types::partition_template::TablePartitionTemplateOverride;
     use iox_time::SystemProvider;
     use schema::{builder::SchemaBuilder, TIME_COLUMN_NAME};
     use std::collections::HashMap;
@@ -211,6 +212,7 @@ mod tests {
                 ColumnId::new(4),
             ]
             .into(),
+            partition_template: TablePartitionTemplateOverride::default(),
         });
         let table_1b = Arc::new(CachedTable {
             id: table_id_1,
@@ -224,6 +226,7 @@ mod tests {
                 ColumnId::new(4),
             ]
             .into(),
+            partition_template: TablePartitionTemplateOverride::default(),
         });
         let table_2a = Arc::new(CachedTable {
             id: table_id_2,
@@ -238,6 +241,7 @@ mod tests {
                 ColumnId::new(5),
             ]
             .into(),
+            partition_template: TablePartitionTemplateOverride::default(),
         });
 
         // initial request

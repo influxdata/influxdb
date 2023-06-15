@@ -4,7 +4,6 @@ use crate::{
 };
 use data_types::TableId;
 use datafusion_util::config::register_iox_object_store;
-use iox_catalog::interface::{get_schema_by_name, SoftDeletedRows};
 use iox_query::exec::ExecutorType;
 use iox_tests::TestNamespace;
 use std::sync::Arc;
@@ -13,14 +12,17 @@ use tokio::runtime::Handle;
 /// Create [`QuerierNamespace`] for testing.
 pub async fn querier_namespace(ns: &Arc<TestNamespace>) -> QuerierNamespace {
     let mut repos = ns.catalog.catalog.repositories().await;
-    let schema = get_schema_by_name(
-        &ns.namespace.name,
-        repos.as_mut(),
-        SoftDeletedRows::ExcludeDeleted,
-    )
-    .await
-    .unwrap();
-    let cached_ns = Arc::new(CachedNamespace::from(schema));
+    let tables = repos
+        .tables()
+        .list_by_namespace_id(ns.namespace.id)
+        .await
+        .unwrap();
+    let columns = repos
+        .columns()
+        .list_by_namespace_id(ns.namespace.id)
+        .await
+        .unwrap();
+    let cached_ns = Arc::new(CachedNamespace::new(ns.namespace.clone(), tables, columns));
 
     let catalog_cache = Arc::new(QuerierCatalogCache::new_testing(
         ns.catalog.catalog(),

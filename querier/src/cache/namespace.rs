@@ -13,10 +13,13 @@ use cache_system::{
     loader::{metrics::MetricsLoader, FunctionLoader},
     resource_consumption::FunctionEstimator,
 };
-use data_types::{ColumnId, NamespaceId, NamespaceSchema, TableId, TableSchema};
-use iox_catalog::interface::{get_schema_by_name, Catalog, SoftDeletedRows};
+use data_types::{
+    partition_template::TablePartitionTemplateOverride, Column, ColumnId, Namespace, NamespaceId,
+    Table, TableId,
+};
+use iox_catalog::interface::{Catalog, SoftDeletedRows};
 use iox_time::TimeProvider;
-use schema::Schema;
+use schema::{InfluxColumnType, Schema, SchemaBuilder};
 use std::{
     collections::{HashMap, HashSet},
     mem::{size_of, size_of_val},
@@ -88,27 +91,43 @@ impl NamespaceCache {
             let backoff_config = backoff_config.clone();
 
             async move {
-                let schema = Backoff::new(&backoff_config)
-                    .retry_all_errors("get namespace schema", || async {
-                        let mut repos = catalog.repositories().await;
-                        match get_schema_by_name(
-                            &namespace_name,
-                            repos.as_mut(),
-                            SoftDeletedRows::ExcludeDeleted,
-                        )
-                        .await
-                        {
-                            Ok(schema) => Ok(Some(schema)),
-                            Err(iox_catalog::interface::Error::NamespaceNotFoundByName {
-                                ..
-                            }) => Ok(None),
-                            Err(e) => Err(e),
-                        }
+                let namespace = Backoff::new(&backoff_config)
+                    .retry_all_errors("get namespace", || async {
+                        catalog
+                            .repositories()
+                            .await
+                            .namespaces()
+                            .get_by_name(&namespace_name, SoftDeletedRows::ExcludeDeleted)
+                            .await
                     })
                     .await
                     .expect("retry forever")?;
 
-                Some(Arc::new(schema.into()))
+                let tables = Backoff::new(&backoff_config)
+                    .retry_all_errors("get namespace tables", || async {
+                        catalog
+                            .repositories()
+                            .await
+                            .tables()
+                            .list_by_namespace_id(namespace.id)
+                            .await
+                    })
+                    .await
+                    .expect("retry forever");
+
+                let columns = Backoff::new(&backoff_config)
+                    .retry_all_errors("get namespace columns", || async {
+                        catalog
+                            .repositories()
+                            .await
+                            .columns()
+                            .list_by_namespace_id(namespace.id)
+                            .await
+                    })
+                    .await
+                    .expect("retry forever");
+
+                Some(Arc::new(CachedNamespace::new(namespace, tables, columns)))
             }
         });
         let loader = Arc::new(MetricsLoader::new(
@@ -216,9 +235,54 @@ pub struct CachedTable {
     pub column_id_map: HashMap<ColumnId, Arc<str>>,
     pub column_id_map_rev: HashMap<Arc<str>, ColumnId>,
     pub primary_key_column_ids: Box<[ColumnId]>,
+    pub partition_template: TablePartitionTemplateOverride,
 }
 
 impl CachedTable {
+    fn new(table: Table, mut columns: Vec<Column>) -> Self {
+        // sort columns by name so that schema is normalized
+        // Note: `sort_by_key` doesn't work if we don't wanna clone the strings every time
+        columns.sort_by(|x, y| x.name.cmp(&y.name));
+
+        let mut column_id_map: HashMap<ColumnId, Arc<str>> = columns
+            .iter()
+            .map(|c| (c.id, Arc::from(c.name.clone())))
+            .collect();
+        column_id_map.shrink_to_fit();
+
+        let mut column_id_map_rev: HashMap<Arc<str>, ColumnId> = column_id_map
+            .iter()
+            .map(|(v, k)| (Arc::clone(k), *v))
+            .collect();
+        column_id_map_rev.shrink_to_fit();
+
+        let mut builder = SchemaBuilder::new();
+        for col in columns {
+            let t = InfluxColumnType::from(col.column_type);
+            builder.influx_column(col.name, t);
+        }
+        let schema = builder.build().expect("catalog schema broken");
+
+        let primary_key_column_ids: Box<[ColumnId]> = schema
+            .primary_key()
+            .into_iter()
+            .map(|name| {
+                *column_id_map_rev
+                    .get(name)
+                    .unwrap_or_else(|| panic!("primary key not known?!: {name}"))
+            })
+            .collect();
+
+        Self {
+            id: table.id,
+            schema,
+            column_id_map,
+            column_id_map_rev,
+            primary_key_column_ids,
+            partition_template: table.partition_template,
+        }
+    }
+
     /// RAM-bytes EXCLUDING `self`.
     fn size(&self) -> usize {
         self.schema.estimate_size()
@@ -235,47 +299,7 @@ impl CachedTable {
                 .map(|name| name.len())
                 .sum::<usize>()
             + (self.primary_key_column_ids.len() * size_of::<ColumnId>())
-    }
-}
-
-impl From<TableSchema> for CachedTable {
-    fn from(table: TableSchema) -> Self {
-        let mut column_id_map: HashMap<ColumnId, Arc<str>> = table
-            .column_id_map()
-            .iter()
-            .map(|(&c_id, &name)| (c_id, Arc::from(name)))
-            .collect();
-        column_id_map.shrink_to_fit();
-
-        let id = table.id;
-        let schema: Schema = table
-            .columns
-            .try_into()
-            .expect("Catalog table schema broken");
-
-        let mut column_id_map_rev: HashMap<Arc<str>, ColumnId> = column_id_map
-            .iter()
-            .map(|(v, k)| (Arc::clone(k), *v))
-            .collect();
-        column_id_map_rev.shrink_to_fit();
-
-        let primary_key_column_ids = schema
-            .primary_key()
-            .into_iter()
-            .map(|name| {
-                *column_id_map_rev
-                    .get(name)
-                    .unwrap_or_else(|| panic!("primary key not known?!: {name}"))
-            })
-            .collect();
-
-        Self {
-            id,
-            schema,
-            column_id_map,
-            column_id_map_rev,
-            primary_key_column_ids,
-        }
+            + (self.partition_template.size() - size_of::<TablePartitionTemplateOverride>())
     }
 }
 
@@ -287,6 +311,38 @@ pub struct CachedNamespace {
 }
 
 impl CachedNamespace {
+    pub fn new(namespace: Namespace, tables: Vec<Table>, columns: Vec<Column>) -> Self {
+        let mut tables_by_id = tables
+            .into_iter()
+            .map(|t| (t.id, (t, vec![])))
+            .collect::<HashMap<_, _>>();
+        for col in columns {
+            if let Some((_t, tcols)) = tables_by_id.get_mut(&col.table_id) {
+                tcols.push(col);
+            }
+        }
+
+        let mut tables: HashMap<Arc<str>, Arc<CachedTable>> = tables_by_id
+            .into_iter()
+            .map(|(_tid, (t, tcols))| {
+                let name = Arc::from(t.name.clone());
+                let table = Arc::new(CachedTable::new(t, tcols));
+                (name, table)
+            })
+            .collect();
+        tables.shrink_to_fit();
+
+        let retention_period = namespace
+            .retention_period_ns
+            .map(|retention| Duration::from_nanos(retention as u64));
+
+        Self {
+            id: namespace.id,
+            retention_period,
+            tables,
+        }
+    }
+
     /// RAM-bytes EXCLUDING `self`.
     fn size(&self) -> usize {
         self.tables.capacity() * size_of::<(Arc<str>, Arc<CachedTable>)>()
@@ -298,34 +354,14 @@ impl CachedNamespace {
     }
 }
 
-impl From<NamespaceSchema> for CachedNamespace {
-    fn from(ns: NamespaceSchema) -> Self {
-        let mut tables: HashMap<Arc<str>, Arc<CachedTable>> = ns
-            .tables
-            .into_iter()
-            .map(|(name, table)| {
-                let table: CachedTable = table.into();
-                (Arc::from(name), Arc::new(table))
-            })
-            .collect();
-        tables.shrink_to_fit();
-
-        let retention_period = ns
-            .retention_period_ns
-            .map(|retention| Duration::from_nanos(retention as u64));
-        Self {
-            id: ns.id,
-            retention_period,
-            tables,
-        }
-    }
-}
-
 #[cfg(test)]
 mod tests {
     use crate::cache::{ram::test_util::test_ram_pool, test_util::assert_histogram_metric_count};
     use arrow::datatypes::DataType;
     use data_types::ColumnType;
+    use generated_types::influxdata::iox::partition_template::v1::{
+        template_part::Part, PartitionTemplate, TemplatePart,
+    };
     use iox_tests::TestCatalog;
     use schema::SchemaBuilder;
 
@@ -339,7 +375,16 @@ mod tests {
         let ns2 = catalog.create_namespace_1hr_retention("ns2").await;
         assert_ne!(ns1.namespace.id, ns2.namespace.id);
 
-        let table11 = ns1.create_table("table1").await;
+        let table11 = ns1
+            .create_table_with_partition_template(
+                "table1",
+                Some(PartitionTemplate {
+                    parts: vec![TemplatePart {
+                        part: Some(Part::TagValue(String::from("col2"))),
+                    }],
+                }),
+            )
+            .await;
         let table12 = ns1.create_table("table2").await;
         let table21 = ns2.create_table("table1").await;
 
@@ -394,6 +439,7 @@ mod tests {
                             (Arc::from(col113.column.name.clone()), col113.column.id),
                         ]),
                         primary_key_column_ids: [col112.column.id, col113.column.id].into(),
+                        partition_template: table11.table.partition_template.clone(),
                     }),
                 ),
                 (
@@ -415,6 +461,7 @@ mod tests {
                             (Arc::from(col122.column.name.clone()), col122.column.id),
                         ]),
                         primary_key_column_ids: [col122.column.id].into(),
+                        partition_template: TablePartitionTemplateOverride::default(),
                     }),
                 ),
             ]),
@@ -447,6 +494,7 @@ mod tests {
                         col211.column.id,
                     )]),
                     primary_key_column_ids: [col211.column.id].into(),
+                    partition_template: TablePartitionTemplateOverride::default(),
                 }),
             )]),
         };

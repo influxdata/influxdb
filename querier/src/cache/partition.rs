@@ -205,7 +205,7 @@ impl PartitionSortKey {
 mod tests {
     use super::*;
     use crate::cache::{ram::test_util::test_ram_pool, test_util::assert_histogram_metric_count};
-    use data_types::ColumnType;
+    use data_types::{partition_template::TablePartitionTemplateOverride, ColumnType};
     use iox_tests::TestCatalog;
     use schema::{Schema, SchemaBuilder};
 
@@ -239,6 +239,7 @@ mod tests {
                 (Arc::from(c2.column.name.clone()), c2.column.id),
             ]),
             primary_key_column_ids: [c1.column.id, c2.column.id].into(),
+            partition_template: TablePartitionTemplateOverride::default(),
         });
 
         let cache = PartitionCache::new(
@@ -320,6 +321,7 @@ mod tests {
                 (Arc::from(c2.column.name.clone()), c2.column.id),
             ]),
             primary_key_column_ids: [c1.column.id, c2.column.id].into(),
+            partition_template: TablePartitionTemplateOverride::default(),
         });
 
         let cache = PartitionCache::new(
@@ -370,6 +372,7 @@ mod tests {
                 (Arc::from(c2.column.name.clone()), c2.column.id),
             ]),
             primary_key_column_ids: [c1.column.id, c2.column.id].into(),
+            partition_template: TablePartitionTemplateOverride::default(),
         });
 
         let cache = PartitionCache::new(

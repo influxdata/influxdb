@@ -1749,6 +1749,7 @@ mod tests {
             column_id_map: Default::default(),
             column_id_map_rev: Default::default(),
             primary_key_column_ids: Default::default(),
+            partition_template: Default::default(),
         })
     }
 }
