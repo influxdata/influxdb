@@ -347,6 +347,39 @@ mod tests {
         StdRng::seed_from_u64(seed)
     }
 
+    /// Reproducer for https://github.com/influxdata/idpe/issues/17765
+    #[test]
+    fn test_equals_last() {
+        let ts = [
+            1686756903736785920, // last_eq=false, render, set last_ptr
+            42,                  // last_eq=false, render, set last_ptr
+            1686756903736785920, // last_eq=false, re-use, don't change last_ptr
+            1686756903736785920, // last_eq=false, re-use, don't change last_ptr
+            42,                  // last_eq=true (wrong), re-use
+        ];
+
+        let mut batch = MutableBatch::new();
+        let mut writer = Writer::new(&mut batch, ts.len());
+
+        writer.write_time("time", ts.into_iter()).unwrap();
+        writer.commit();
+
+        let keys =
+            generate_denormalised_keys(&batch, TablePartitionTemplateOverride::default().parts())
+                .unwrap();
+
+        assert_eq!(
+            keys,
+            &[
+                "2023-06-14",
+                "1970-01-01",
+                "2023-06-14",
+                "2023-06-14",
+                "1970-01-01",
+            ]
+        );
+    }
+
     /// Generates a vector of partition key strings, or an error.
     ///
     /// This function normalises the de-duplicated output of
