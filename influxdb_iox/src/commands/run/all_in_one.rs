@@ -495,6 +495,7 @@ impl Config {
             partition_timeout_secs: 0,
             partition_filter: None,
             shadow_mode: false,
+            enable_scratchpad: true,
             ignore_partition_skip_marker: false,
             shard_count: None,
             shard_id: None,

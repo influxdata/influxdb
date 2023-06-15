@@ -91,6 +91,13 @@ pub struct Config {
     /// This is mostly useful for debugging.
     pub shadow_mode: bool,
 
+    /// Enable Scratchpad
+    ///
+    /// Enabled by default, if this is set to false, the compactor will not use the scratchpad
+    ///
+    /// This is useful for disabling the scratchpad in production to evaluate the performance & memory impacts.
+    pub enable_scratchpad: bool,
+
     /// Ignores "partition marked w/ error and shall be skipped" entries in the catalog.
     ///
     /// This is mostly useful for debugging.

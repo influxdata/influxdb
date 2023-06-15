@@ -402,7 +402,7 @@ fn make_parquet_files_sink(config: &Config) -> Arc<dyn ParquetFilesSink> {
 }
 
 fn make_scratchpad_gen(config: &Config) -> Arc<dyn ScratchpadGen> {
-    if config.simulate_without_object_store {
+    if config.simulate_without_object_store || !config.enable_scratchpad {
         Arc::new(NoopScratchpadGen::new())
     } else {
         let scratchpad_store_output = if config.shadow_mode {

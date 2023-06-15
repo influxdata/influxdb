@@ -206,6 +206,19 @@ pub struct CompactorConfig {
     )]
     pub shadow_mode: bool,
 
+    /// Enable scratchpad.
+    ///
+    /// This allows disabling the scratchpad in production.
+    ///
+    /// Disabling this is useful for testing performance and memory consequences of the scratchpad.
+    #[clap(
+        long = "compaction-enable-scratchpad",
+        env = "INFLUXDB_IOX_COMPACTION_ENABLE_SCRATCHPAD",
+        default_value = "true",
+        action
+    )]
+    pub enable_scratchpad: bool,
+
     /// Ignores "partition marked w/ error and shall be skipped" entries in the catalog.
     ///
     /// This is mostly useful for debugging.
