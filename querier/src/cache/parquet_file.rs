@@ -38,13 +38,13 @@ pub enum Error {
     },
 }
 
-type IngesterCounts = Option<Arc<Vec<(Uuid, u64)>>>;
+type IngesterCounts = Option<Arc<[(Uuid, u64)]>>;
 
 /// Holds catalog information about a parquet file
 #[derive(Debug)]
 pub struct CachedParquetFiles {
     /// Parquet catalog information
-    pub files: Arc<Vec<Arc<ParquetFile>>>,
+    pub files: Arc<[Arc<ParquetFile>]>,
 
     /// Number of persisted Parquet files per table ID per ingester UUID that ingesters have told
     /// us about. When a call to `get` includes a number of persisted Parquet files for this table
@@ -60,10 +60,10 @@ impl CachedParquetFiles {
         parquet_files: Vec<ParquetFile>,
         persisted_file_counts_from_ingesters: IngesterCounts,
     ) -> Self {
-        let files: Vec<_> = parquet_files.into_iter().map(Arc::new).collect();
+        let files = parquet_files.into_iter().map(Arc::new).collect();
 
         Self {
-            files: Arc::new(files),
+            files,
             persisted_file_counts_from_ingesters,
         }
     }
@@ -71,13 +71,13 @@ impl CachedParquetFiles {
     /// return the underlying files as a new Vec
     #[cfg(test)]
     fn vec(&self) -> Vec<Arc<ParquetFile>> {
-        self.files.as_ref().clone()
+        self.files.as_ref().to_vec()
     }
 
     /// Estimate the memory consumption of this object and its contents
     fn size(&self) -> usize {
         // simplify accounting by ensuring len and capacity of vector are the same
-        assert_eq!(self.files.len(), self.files.capacity());
+        assert_eq!(self.files.len(), self.files.len());
 
         // Note size_of_val is the size of the Arc
         // https://play.rust-lang.org/?version=stable&mode=debug&edition=2021&gist=ae8fee8b4f7f5f013dc01ea1fda165da
@@ -93,7 +93,7 @@ impl CachedParquetFiles {
                 .as_ref()
                 .map(|map| {
                     std::mem::size_of_val(map.as_ref()) +
-                        map.capacity() * mem::size_of::<(Uuid, u64)>()
+                        map.len() * mem::size_of::<(Uuid, u64)>()
                 }).unwrap_or_default()
     }
 }
@@ -227,8 +227,7 @@ impl ParquetFileCache {
             persisted_file_counts_by_ingester_uuid.map(|map| {
                 let mut entries = map.into_iter().collect::<Vec<_>>();
                 entries.sort();
-                entries.shrink_to_fit();
-                Arc::new(entries)
+                entries.into()
             });
         let persisted_file_counts_by_ingester_uuid_captured =
             persisted_file_counts_by_ingester_uuid.clone();
@@ -246,7 +245,7 @@ impl ParquetFileCache {
                             cached_file
                                 .persisted_file_counts_from_ingesters
                                 .as_ref()
-                                .map(|x| x.as_ref().as_ref()),
+                                .map(|x| x.as_ref()),
                             ingester_counts,
                         )
                     } else {
@@ -361,7 +360,7 @@ mod tests {
         let table_id = table.table.id;
 
         let single_file_size = 200;
-        let two_file_size = 360;
+        let two_file_size = 368;
         assert!(single_file_size < two_file_size);
 
         let cache = make_cache(&catalog);

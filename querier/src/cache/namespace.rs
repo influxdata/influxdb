@@ -215,7 +215,7 @@ pub struct CachedTable {
     pub schema: Schema,
     pub column_id_map: HashMap<ColumnId, Arc<str>>,
     pub column_id_map_rev: HashMap<Arc<str>, ColumnId>,
-    pub primary_key_column_ids: Vec<ColumnId>,
+    pub primary_key_column_ids: Box<[ColumnId]>,
 }
 
 impl CachedTable {
@@ -234,7 +234,7 @@ impl CachedTable {
                 .keys()
                 .map(|name| name.len())
                 .sum::<usize>()
-            + (self.primary_key_column_ids.capacity() * size_of::<ColumnId>())
+            + (self.primary_key_column_ids.len() * size_of::<ColumnId>())
     }
 }
 
@@ -259,7 +259,7 @@ impl From<TableSchema> for CachedTable {
             .collect();
         column_id_map_rev.shrink_to_fit();
 
-        let mut primary_key_column_ids: Vec<ColumnId> = schema
+        let primary_key_column_ids = schema
             .primary_key()
             .into_iter()
             .map(|name| {
@@ -268,7 +268,6 @@ impl From<TableSchema> for CachedTable {
                     .unwrap_or_else(|| panic!("primary key not known?!: {name}"))
             })
             .collect();
-        primary_key_column_ids.shrink_to_fit();
 
         Self {
             id,
@@ -394,7 +393,7 @@ mod tests {
                             (Arc::from(col112.column.name.clone()), col112.column.id),
                             (Arc::from(col113.column.name.clone()), col113.column.id),
                         ]),
-                        primary_key_column_ids: vec![col112.column.id, col113.column.id],
+                        primary_key_column_ids: [col112.column.id, col113.column.id].into(),
                     }),
                 ),
                 (
@@ -415,7 +414,7 @@ mod tests {
                             (Arc::from(col121.column.name.clone()), col121.column.id),
                             (Arc::from(col122.column.name.clone()), col122.column.id),
                         ]),
-                        primary_key_column_ids: vec![col122.column.id],
+                        primary_key_column_ids: [col122.column.id].into(),
                     }),
                 ),
             ]),
@@ -447,7 +446,7 @@ mod tests {
                         Arc::from(col211.column.name.clone()),
                         col211.column.id,
                     )]),
-                    primary_key_column_ids: vec![col211.column.id],
+                    primary_key_column_ids: [col211.column.id].into(),
                 }),
             )]),
         };

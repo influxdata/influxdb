@@ -240,7 +240,7 @@ pub mod tests {
             self.adapter
                 .new_chunks(
                     Arc::clone(cached_table),
-                    Arc::new(vec![Arc::clone(&self.parquet_file)]),
+                    vec![Arc::clone(&self.parquet_file)].into(),
                     &Predicate::new(),
                     MetricPruningObserver::new_unregistered(),
                     None,

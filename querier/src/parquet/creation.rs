@@ -62,7 +62,7 @@ impl ChunkAdapter {
     pub(crate) async fn new_chunks(
         &self,
         cached_table: Arc<CachedTable>,
-        files: Arc<Vec<Arc<ParquetFile>>>,
+        files: Arc<[Arc<ParquetFile>]>,
         predicate: &Predicate,
         early_pruning_observer: MetricPruningObserver,
         span: Option<Span>,
