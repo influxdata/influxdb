@@ -12,7 +12,9 @@ use wal::{SequencedWalOp, WriteResult, WriteSummary};
 async fn crud() {
     let dir = test_helpers::tmp_dir().unwrap();
 
-    let wal = wal::Wal::new(dir.path()).await.unwrap();
+    let wal = wal::Wal::new(dir.path(), &metric::Registry::default())
+        .await
+        .unwrap();
 
     // Just-created WALs have no closed segments.
     let closed = wal.closed_segments();
@@ -86,7 +88,9 @@ async fn replay() {
     // Create a WAL with an entry, rotate to close the segment, create another entry, then drop the
     // WAL.
     {
-        let wal = wal::Wal::new(dir.path()).await.unwrap();
+        let wal = wal::Wal::new(dir.path(), &metric::Registry::default())
+            .await
+            .unwrap();
         let op = arbitrary_sequenced_wal_op(42);
         let _ = unwrap_summary(wal.write_op(op)).await;
         wal.rotate().unwrap();
@@ -95,7 +99,9 @@ async fn replay() {
     }
 
     // Create a new WAL instance with the same directory to replay from the files
-    let wal = wal::Wal::new(dir.path()).await.unwrap();
+    let wal = wal::Wal::new(dir.path(), &metric::Registry::default())
+        .await
+        .unwrap();
 
     // There's two closed segments -- one for the previously closed segment, one for the previously
     // open segment. Replayed WALs treat all files as closed, because effectively they are.
@@ -130,7 +136,9 @@ async fn ordering() {
 
     // Create a WAL with two closed segments and an open segment with entries, then drop the WAL
     {
-        let wal = wal::Wal::new(dir.path()).await.unwrap();
+        let wal = wal::Wal::new(dir.path(), &metric::Registry::default())
+            .await
+            .unwrap();
 
         let op = arbitrary_sequenced_wal_op(42);
         let _ = unwrap_summary(wal.write_op(op)).await;
@@ -149,7 +157,9 @@ async fn ordering() {
     }
 
     // Create a new WAL instance with the same directory to replay from the files
-    let wal = wal::Wal::new(dir.path()).await.unwrap();
+    let wal = wal::Wal::new(dir.path(), &metric::Registry::default())
+        .await
+        .unwrap();
 
     // There are 3 segments (from the 2 closed and 1 open) and they're in the order they were
     // created

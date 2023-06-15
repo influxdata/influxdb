@@ -178,7 +178,7 @@ mod tests {
 
         // Initialise the WAL
         let tmp_dir = tempdir().expect("no temp dir available");
-        let wal = wal::Wal::new(tmp_dir.path())
+        let wal = wal::Wal::new(tmp_dir.path(), &metric::Registry::default())
             .await
             .expect("failed to initialise WAL");
 
@@ -293,7 +293,7 @@ mod tests {
 
         // Initialise the WAL
         let tmp_dir = tempdir().expect("no temp dir available");
-        let wal = wal::Wal::new(tmp_dir.path())
+        let wal = wal::Wal::new(tmp_dir.path(), &metric::Registry::default())
             .await
             .expect("failed to initialise WAL");
 

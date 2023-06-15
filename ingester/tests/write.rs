@@ -416,7 +416,7 @@ async fn graceful_shutdown() {
     // Inspect the WAL files.
     //
     // There should be one WAL file, containing no operations.
-    let wal = wal::Wal::new(wal_dir.path())
+    let wal = wal::Wal::new(wal_dir.path(), &metric::Registry::default())
         .await
         .expect("failed to reinitialise WAL");
 

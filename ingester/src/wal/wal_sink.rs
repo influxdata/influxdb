@@ -187,7 +187,7 @@ mod tests {
         // The write portion of this test.
         {
             let inner = Arc::new(MockDmlSink::default().with_apply_return(vec![Ok(())]));
-            let wal = Wal::new(dir.path())
+            let wal = Wal::new(dir.path(), &metric::Registry::default())
                 .await
                 .expect("failed to initialise WAL");
 
@@ -204,7 +204,7 @@ mod tests {
         }
 
         // Read the op back
-        let wal = Wal::new(dir.path())
+        let wal = Wal::new(dir.path(), &metric::Registry::default())
             .await
             .expect("failed to initialise WAL");
 
@@ -271,7 +271,7 @@ mod tests {
             r#"bananas,region=Madrid temp=35 4242424242"#,
         );
 
-        let wal = Wal::new(dir.path())
+        let wal = Wal::new(dir.path(), &metric::Registry::default())
             .await
             .expect("failed to initialise WAL");
 

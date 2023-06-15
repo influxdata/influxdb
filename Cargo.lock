@@ -6193,6 +6193,7 @@ dependencies = [
  "dml",
  "generated_types",
  "hashbrown 0.14.0",
+ "metric",
  "mutable_batch",
  "mutable_batch_lp",
  "mutable_batch_pb",
@@ -6203,6 +6204,7 @@ dependencies = [
  "snap",
  "test_helpers",
  "tokio",
+ "tracker",
  "workspace-hack",
 ]
 
@@ -6214,6 +6216,7 @@ dependencies = [
  "dml",
  "generated_types",
  "hashbrown 0.14.0",
+ "metric",
  "mutable_batch",
  "mutable_batch_lp",
  "mutable_batch_pb",

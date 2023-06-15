@@ -17,6 +17,7 @@ workspace-hack = { version = "0.1", path = "../workspace-hack" }
 [dev-dependencies] # In alphabetical order
 dml = { version = "0.1.0", path = "../dml" }
 generated_types = { version = "0.1.0", path = "../generated_types" }
+metric = { path = "../metric" }
 mutable_batch_lp = { path = "../mutable_batch_lp" }
 mutable_batch_pb = { version = "0.1.0", path = "../mutable_batch_pb" }
 test_helpers = { path = "../test_helpers" }

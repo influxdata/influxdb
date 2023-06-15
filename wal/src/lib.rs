@@ -38,6 +38,7 @@ use observability_deps::tracing::info;
 use parking_lot::Mutex;
 use snafu::prelude::*;
 use tokio::{sync::watch, task::JoinHandle};
+use tracker::InstrumentedDiskProtection;
 use writer_thread::WriterIoThreadHandle;
 
 use crate::blocking::{
@@ -48,6 +49,7 @@ pub mod blocking;
 mod writer_thread;
 
 const WAL_FLUSH_INTERVAL: Duration = Duration::from_millis(10);
+const WAL_METRICS_INTERVAL: Duration = Duration::from_secs(15);
 
 // TODO: Should have more variants / error types to avoid reusing these
 #[derive(Debug, Snafu)]
@@ -233,7 +235,7 @@ impl Wal {
     ///
     /// Similarly, editing or deleting files within a `Wal`'s root directory via some other
     /// mechanism is not supported.
-    pub async fn new(root: impl Into<PathBuf>) -> Result<Arc<Self>> {
+    pub async fn new(root: impl Into<PathBuf>, metrics: &metric::Registry) -> Result<Arc<Self>> {
         let root = root.into();
         info!(wal_dir=?root, "Initalizing Write Ahead Log (WAL)");
         tokio::fs::create_dir_all(&root)
@@ -294,6 +296,17 @@ impl Wal {
                 .context(UnableToCreateSegmentFileSnafu)?;
 
         let buffer = WalBuffer::new(None);
+
+        // Drops when the `Wal` is dropped, stopping the background disk protection task.
+        let disk_protection = InstrumentedDiskProtection::new(
+            metrics,
+            &[("wal", "&root")],
+            WAL_METRICS_INTERVAL,
+            10_u64,
+            None,
+            None,
+        );
+        disk_protection.start().await;
 
         let wal = Self {
             root,
@@ -699,7 +712,9 @@ mod tests {
     #[tokio::test]
     async fn wal_write_and_read_ops() {
         let dir = test_helpers::tmp_dir().unwrap();
-        let wal = Wal::new(&dir.path()).await.unwrap();
+        let wal = Wal::new(&dir.path(), &metric::Registry::default())
+            .await
+            .unwrap();
 
         let w1 = test_data("m1,t=foo v=1i 1");
         let w2 = test_data("m1,t=foo v=2i 2");
@@ -780,7 +795,9 @@ mod tests {
     async fn rotate_without_writes() {
         let dir = test_helpers::tmp_dir().unwrap();
 
-        let wal = Wal::new(dir.path()).await.unwrap();
+        let wal = Wal::new(dir.path(), &metric::Registry::default())
+            .await
+            .unwrap();
 
         // Just-created WALs have no closed segments.
         let closed = wal.closed_segments();
@@ -815,7 +832,9 @@ mod tests {
     #[tokio::test]
     async fn decode_write_op_entries() {
         let dir = test_helpers::tmp_dir().unwrap();
-        let wal = Wal::new(dir.path()).await.unwrap();
+        let wal = Wal::new(dir.path(), &metric::Registry::default())
+            .await
+            .unwrap();
 
         let w1 = test_data("m1,t=foo v=1i 1");
         let w2 = test_data("m2,u=foo w=2i 2");
@@ -883,7 +902,9 @@ mod tests {
     #[tokio::test]
     async fn decode_write_op_entry_from_corrupted_wal() {
         let dir = test_helpers::tmp_dir().unwrap();
-        let wal = Wal::new(dir.path()).await.unwrap();
+        let wal = Wal::new(dir.path(), &metric::Registry::default())
+            .await
+            .unwrap();
 
         // Log a write operation to test recovery from a tail-corrupted WAL.
         let good_write = test_data("m3,a=baz b=4i 1");

@@ -326,7 +326,9 @@ where
     ));
 
     // Initialise the WAL
-    let wal = Wal::new(wal_directory).await.map_err(InitError::WalInit)?;
+    let wal = Wal::new(wal_directory, &metrics)
+        .await
+        .map_err(InitError::WalInit)?;
 
     // Replay the WAL log files, if any.
     let max_sequence_number =

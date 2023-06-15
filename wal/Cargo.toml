@@ -11,6 +11,7 @@ crc32fast = "1.2.0"
 data_types = { path = "../data_types" }
 generated_types = { path = "../generated_types" }
 hashbrown.workspace = true
+metric = { path = "../metric" }
 mutable_batch = { version = "0.1.0", path = "../mutable_batch" }
 mutable_batch_pb = { version = "0.1.0", path = "../mutable_batch_pb" }
 observability_deps = { path = "../observability_deps" }
@@ -19,6 +20,7 @@ prost = "0.11"
 snafu = "0.7"
 snap = "1.0.0"
 tokio = { version = "1.28", features = ["macros", "fs", "io-util", "parking_lot", "rt-multi-thread", "sync", "time"] }
+tracker = { path = "../tracker" }
 workspace-hack = { version = "0.1", path = "../workspace-hack" }
 
 [dev-dependencies] # In alphabetical order
