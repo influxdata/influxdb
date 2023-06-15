@@ -391,7 +391,7 @@ impl TimeRange {
 
 /// Simplifies an InfluxQL duration `expr` to a nanosecond interval represented as an `i64`.
 pub fn duration_expr_to_nanoseconds(ctx: &ReduceContext, expr: &Expr) -> Result<i64, ExprError> {
-    match reduce_time_expr(&ctx, expr)? {
+    match reduce_time_expr(ctx, expr)? {
         Expr::Literal(Literal::Timestamp(v)) => Ok(v.timestamp_nanos()),
         _ => error::expr("invalid duration expression"),
     }
