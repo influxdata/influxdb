@@ -17,7 +17,7 @@ extensions_options! {
         /// [^iox_part]: "IOx partition" refers to a partition within the IOx catalog, i.e. a partition within the
         ///              primary key space. This is NOT the same as a DataFusion partition which refers to a stream
         ///              within the physical plan data flow.
-        pub max_dedup_partition_split: usize, default = 100
+        pub max_dedup_partition_split: usize, default = 10_000
 
         /// When splitting de-duplicate operations based on time-based overlaps, this is the maximum number of groups
         /// that should be considered. If there are more groups, the split will NOT be performed.
