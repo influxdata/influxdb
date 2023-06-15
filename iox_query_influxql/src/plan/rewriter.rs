@@ -1735,7 +1735,10 @@ mod test {
         let info = select_statement_info(&parse_select("SELECT count(foo) FROM cpu")).unwrap();
         assert_matches!(info.projection_type, ProjectionType::Aggregate);
 
-        let info = select_statement_info(&parse_select("SELECT difference(count(foo)) FROM cpu GROUP BY TIME(10s)")).unwrap();
+        let info = select_statement_info(&parse_select(
+            "SELECT difference(count(foo)) FROM cpu GROUP BY TIME(10s)",
+        ))
+        .unwrap();
         assert_matches!(info.projection_type, ProjectionType::WindowAggregate);
 
         let info = select_statement_info(&parse_select("SELECT top(foo, 3) FROM cpu")).unwrap();
