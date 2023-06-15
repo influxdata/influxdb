@@ -166,14 +166,14 @@ impl CachedPartition {
 pub struct PartitionSortKey {
     pub sort_key: Arc<SortKey>,
     pub column_set: HashSet<ColumnId>,
-    pub column_order: Vec<ColumnId>,
+    pub column_order: Box<[ColumnId]>,
 }
 
 impl PartitionSortKey {
     fn new(sort_key: SortKey, column_id_map_rev: &HashMap<Arc<str>, ColumnId>) -> Self {
         let sort_key = Arc::new(sort_key);
 
-        let mut column_order: Vec<ColumnId> = sort_key
+        let column_order: Box<[ColumnId]> = sort_key
             .iter()
             .map(|(name, _opts)| {
                 *column_id_map_rev
@@ -181,7 +181,6 @@ impl PartitionSortKey {
                     .unwrap_or_else(|| panic!("column_id_map_rev misses data: {name}"))
             })
             .collect();
-        column_order.shrink_to_fit();
 
         let mut column_set: HashSet<ColumnId> = column_order.iter().copied().collect();
         column_set.shrink_to_fit();
@@ -198,7 +197,7 @@ impl PartitionSortKey {
         size_of_val(self)
             + self.sort_key.as_ref().size()
             + (self.column_set.capacity() * size_of::<ColumnId>())
-            + (self.column_order.capacity() * size_of::<ColumnId>())
+            + (self.column_order.len() * size_of::<ColumnId>())
     }
 }
 
@@ -206,7 +205,7 @@ impl PartitionSortKey {
 mod tests {
     use super::*;
     use crate::cache::{ram::test_util::test_ram_pool, test_util::assert_histogram_metric_count};
-    use data_types::ColumnType;
+    use data_types::{partition_template::TablePartitionTemplateOverride, ColumnType};
     use iox_tests::TestCatalog;
     use schema::{Schema, SchemaBuilder};
 
@@ -239,7 +238,8 @@ mod tests {
                 (Arc::from(c1.column.name.clone()), c1.column.id),
                 (Arc::from(c2.column.name.clone()), c2.column.id),
             ]),
-            primary_key_column_ids: vec![c1.column.id, c2.column.id],
+            primary_key_column_ids: [c1.column.id, c2.column.id].into(),
+            partition_template: TablePartitionTemplateOverride::default(),
         });
 
         let cache = PartitionCache::new(
@@ -259,7 +259,7 @@ mod tests {
             &PartitionSortKey {
                 sort_key: Arc::new(p1.sort_key().unwrap()),
                 column_set: HashSet::from([c1.column.id, c2.column.id]),
-                column_order: vec![c1.column.id, c2.column.id],
+                column_order: [c1.column.id, c2.column.id].into(),
             }
         );
         assert_histogram_metric_count(&catalog.metric_registry, "partition_get_by_id", 1);
@@ -320,7 +320,8 @@ mod tests {
                 (Arc::from(c1.column.name.clone()), c1.column.id),
                 (Arc::from(c2.column.name.clone()), c2.column.id),
             ]),
-            primary_key_column_ids: vec![c1.column.id, c2.column.id],
+            primary_key_column_ids: [c1.column.id, c2.column.id].into(),
+            partition_template: TablePartitionTemplateOverride::default(),
         });
 
         let cache = PartitionCache::new(
@@ -370,7 +371,8 @@ mod tests {
                 (Arc::from(c1.column.name.clone()), c1.column.id),
                 (Arc::from(c2.column.name.clone()), c2.column.id),
             ]),
-            primary_key_column_ids: vec![c1.column.id, c2.column.id],
+            primary_key_column_ids: [c1.column.id, c2.column.id].into(),
+            partition_template: TablePartitionTemplateOverride::default(),
         });
 
         let cache = PartitionCache::new(
@@ -421,7 +423,7 @@ mod tests {
             &PartitionSortKey {
                 sort_key: Arc::new(p_sort_key.clone().unwrap()),
                 column_set: HashSet::from([c1.column.id, c2.column.id]),
-                column_order: vec![c1.column.id, c2.column.id],
+                column_order: [c1.column.id, c2.column.id].into(),
             }
         );
         assert_histogram_metric_count(&catalog.metric_registry, "partition_get_by_id", 4);

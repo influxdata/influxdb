@@ -225,6 +225,7 @@ pub async fn create_compactor_server_type(
         partition_timeout: Duration::from_secs(compactor_config.partition_timeout_secs),
         partitions_source,
         shadow_mode: compactor_config.shadow_mode,
+        enable_scratchpad: compactor_config.enable_scratchpad,
         ignore_partition_skip_marker: compactor_config.ignore_partition_skip_marker,
         shard_config,
         min_num_l1_files_to_compact: compactor_config.min_num_l1_files_to_compact,

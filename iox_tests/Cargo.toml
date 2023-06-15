@@ -11,6 +11,7 @@ arrow = { workspace = true }
 data_types = { path = "../data_types" }
 datafusion = { workspace = true }
 datafusion_util = { path = "../datafusion_util" }
+generated_types = { path = "../generated_types" }
 iox_catalog = { path = "../iox_catalog" }
 iox_query = { path = "../iox_query" }
 iox_time = { path = "../iox_time" }

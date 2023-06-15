@@ -29,7 +29,7 @@ const CACHE_ID: &str = "projected_schema";
 #[derive(Debug, Clone, Hash, PartialEq, Eq, PartialOrd, Ord)]
 struct CacheKey {
     table_id: TableId,
-    projection: Vec<ColumnId>,
+    projection: Box<[ColumnId]>,
 }
 
 impl CacheKey {
@@ -40,18 +40,15 @@ impl CacheKey {
         // normalize column order
         projection.sort();
 
-        // ensure that cache key is as small as possible
-        projection.shrink_to_fit();
-
         Self {
             table_id,
-            projection,
+            projection: projection.into(),
         }
     }
 
     /// Size in of key including `Self`.
     fn size(&self) -> usize {
-        size_of_val(self) + self.projection.capacity() * size_of::<ColumnId>()
+        size_of_val(self) + self.projection.len() * size_of::<ColumnId>()
     }
 }
 
@@ -155,6 +152,7 @@ impl ProjectedSchemaCache {
 
 #[cfg(test)]
 mod tests {
+    use data_types::partition_template::TablePartitionTemplateOverride;
     use iox_time::SystemProvider;
     use schema::{builder::SchemaBuilder, TIME_COLUMN_NAME};
     use std::collections::HashMap;
@@ -207,37 +205,43 @@ mod tests {
             schema: table_schema_a.clone(),
             column_id_map: column_id_map_a.clone(),
             column_id_map_rev: reverse_map(&column_id_map_a),
-            primary_key_column_ids: vec![
+            primary_key_column_ids: [
                 ColumnId::new(1),
                 ColumnId::new(2),
                 ColumnId::new(3),
                 ColumnId::new(4),
-            ],
+            ]
+            .into(),
+            partition_template: TablePartitionTemplateOverride::default(),
         });
         let table_1b = Arc::new(CachedTable {
             id: table_id_1,
             schema: table_schema_b.clone(),
             column_id_map: column_id_map_b.clone(),
             column_id_map_rev: reverse_map(&column_id_map_b),
-            primary_key_column_ids: vec![
+            primary_key_column_ids: [
                 ColumnId::new(1),
                 ColumnId::new(2),
                 ColumnId::new(3),
                 ColumnId::new(4),
-            ],
+            ]
+            .into(),
+            partition_template: TablePartitionTemplateOverride::default(),
         });
         let table_2a = Arc::new(CachedTable {
             id: table_id_2,
             schema: table_schema_a.clone(),
             column_id_map: column_id_map_a.clone(),
             column_id_map_rev: reverse_map(&column_id_map_a),
-            primary_key_column_ids: vec![
+            primary_key_column_ids: [
                 ColumnId::new(1),
                 ColumnId::new(2),
                 ColumnId::new(3),
                 ColumnId::new(4),
                 ColumnId::new(5),
-            ],
+            ]
+            .into(),
+            partition_template: TablePartitionTemplateOverride::default(),
         });
 
         // initial request
