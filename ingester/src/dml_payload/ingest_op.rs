@@ -21,6 +21,16 @@ impl From<DmlOperation> for IngestOp {
     }
 }
 
+impl IngestOp {
+    // TODO(savage): Consider removing the use of these and requiring users to
+    //  match on the op type.
+    pub fn namespace(&self) -> NamespaceId {
+        match self {
+            Self::Write(w) => w.namespace,
+        }
+    }
+}
+
 /// A decoded representation of the data contained by an RPC write
 /// represented by an [`IngestOp::Write`]
 pub struct WriteOperation {
