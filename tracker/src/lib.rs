@@ -15,9 +15,11 @@
 use workspace_hack as _;
 
 mod async_semaphore;
+mod disk_protection;
 mod lock;
 mod task;
 
 pub use async_semaphore::*;
+pub use disk_protection::*;
 pub use lock::*;
 pub use task::*;
