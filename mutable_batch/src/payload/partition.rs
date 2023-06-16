@@ -1087,7 +1087,7 @@ mod tests {
         /// up to `max_run_len`,
         fn arbitrary_timestamp_run(max_run_len: usize)(v in 0_i64..i64::MAX, run_len in 1..max_run_len) -> Vec<i64> {
             let mut x = Vec::with_capacity(run_len);
-            x.resize(max_run_len, v);
+            x.resize(run_len, v);
             x
         }
     }
