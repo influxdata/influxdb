@@ -259,6 +259,7 @@ macro_rules! make_partition_stream {
 /// # Panics
 ///
 /// This method panics if `lines` contains data for more than one table.
+// TODO(savage): Return a `dml_payload::WriteOperation` here.
 #[track_caller]
 pub(crate) fn make_write_op(
     partition_key: &PartitionKey,

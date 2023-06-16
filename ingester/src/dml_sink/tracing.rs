@@ -1,8 +1,9 @@
 use std::borrow::Cow;
 
 use async_trait::async_trait;
-use dml::DmlOperation;
 use trace::span::SpanRecorder;
+
+use crate::dml_payload::IngestOp;
 
 use super::DmlSink;
 
@@ -35,8 +36,8 @@ where
     type Error = T::Error;
 
     /// Apply `op` to the implementer's state, emitting a trace for the duration.
-    async fn apply(&self, op: DmlOperation) -> Result<(), Self::Error> {
-        let span = op.meta().span_context().map(|x| x.child(self.name.clone()));
+    async fn apply(&self, op: IngestOp) -> Result<(), Self::Error> {
+        let span = op.span_context().map(|x| x.child(self.name.clone()));
         let mut recorder = SpanRecorder::new(span);
 
         match self.inner.apply(op).await {
@@ -58,7 +59,7 @@ mod tests {
 
     use assert_matches::assert_matches;
     use data_types::{NamespaceId, PartitionId, PartitionKey, TableId};
-    use dml::DmlMeta;
+    use dml::{DmlMeta, DmlOperation};
     use lazy_static::lazy_static;
     use trace::{ctx::SpanContext, span::SpanStatus, RingBufferTraceCollector, TraceCollector};
 
@@ -139,7 +140,7 @@ mod tests {
 
         // Drive the trace wrapper
         DmlSinkTracing::new(mock, "bananas")
-            .apply(op)
+            .apply(op.into())
             .await
             .expect("wrapper should not modify result");
 
@@ -175,7 +176,7 @@ mod tests {
 
         // Drive the trace wrapper
         let got = DmlSinkTracing::new(mock, "bananas")
-            .apply(op)
+            .apply(op.into())
             .await
             .expect_err("wrapper should not modify result");
         assert_matches!(got, DmlError::Wal(s) => {

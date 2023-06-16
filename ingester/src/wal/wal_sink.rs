@@ -1,13 +1,14 @@
 use async_trait::async_trait;
-use dml::DmlOperation;
+use data_types::TableId;
 use generated_types::influxdata::iox::wal::v1::sequenced_wal_op::Op;
 use mutable_batch_pb::encode::encode_write;
-use std::{sync::Arc, time::Duration};
+use std::{collections::HashMap, sync::Arc, time::Duration};
 use tokio::sync::watch::Receiver;
 use wal::{SequencedWalOp, WriteResult};
 
 use crate::{
     cancellation_safe::CancellationSafe,
+    dml_payload::IngestOp,
     dml_sink::{DmlError, DmlSink},
 };
 
@@ -52,7 +53,7 @@ where
 {
     type Error = DmlError;
 
-    async fn apply(&self, op: DmlOperation) -> Result<(), Self::Error> {
+    async fn apply(&self, op: IngestOp) -> Result<(), Self::Error> {
         // Append the operation to the WAL
         let mut write_result = self.wal.append(&op);
 
@@ -97,31 +98,33 @@ where
 }
 
 impl WalAppender for Arc<wal::Wal> {
-    fn append(&self, op: &DmlOperation) -> Receiver<Option<WriteResult>> {
-        let sequence_number = op
-            .meta()
-            .sequence()
-            .expect("committing unsequenced dml operation to wal")
-            .get() as u64;
-
-        let namespace_id = op.namespace_id();
+    fn append(&self, op: &IngestOp) -> Receiver<Option<WriteResult>> {
+        let namespace_id = op.namespace();
 
         let (wal_op, partition_sequence_numbers) = match op {
-            DmlOperation::Write(w) => {
+            IngestOp::Write(w) => {
                 let partition_sequence_numbers = w
                     .tables()
-                    .map(|(table_id, _)| (*table_id, sequence_number))
-                    .collect();
+                    .map(|(table_id, data)| {
+                        (
+                            *table_id,
+                            data.partitioned_data().sequence_number().get() as u64, // TODO(savage): Why is this signed?
+                        )
+                    })
+                    .collect::<HashMap<TableId, u64>>();
+                let dml_write = w.into();
                 (
-                    Op::Write(encode_write(namespace_id.get(), w)),
+                    Op::Write(encode_write(namespace_id.get(), &dml_write)),
                     partition_sequence_numbers,
                 )
             }
-            DmlOperation::Delete(_) => unreachable!(),
         };
 
         self.write_op(SequencedWalOp {
-            sequence_number,
+            sequence_number: *partition_sequence_numbers
+                .values()
+                .next()
+                .expect("tried to append unsequenced WAL operation"),
             table_write_sequence_numbers: partition_sequence_numbers,
             op: wal_op,
         })
@@ -135,7 +138,7 @@ mod tests {
 
     use assert_matches::assert_matches;
     use data_types::{NamespaceId, PartitionKey, SequenceNumber, TableId};
-    use dml::{DmlMeta, DmlWrite};
+    use dml::{DmlMeta, DmlOperation, DmlWrite};
     use mutable_batch_lp::lines_to_batches;
     use wal::Wal;
 
@@ -195,7 +198,7 @@ mod tests {
 
             // Apply the op through the decorator
             wal_sink
-                .apply(DmlOperation::Write(op.clone()))
+                .apply(DmlOperation::Write(op.clone()).into())
                 .await
                 .expect("wal should not error");
 
@@ -247,7 +250,7 @@ mod tests {
 
         fn apply<'life0, 'async_trait>(
             &'life0 self,
-            _op: DmlOperation,
+            _op: IngestOp,
         ) -> Pin<Box<dyn Future<Output = Result<(), Self::Error>> + Send + 'async_trait>>
         where
             'life0: 'async_trait,
@@ -288,7 +291,7 @@ mod tests {
 
         // Apply the op through the decorator, which should time out
         let err = wal_sink
-            .apply(DmlOperation::Write(op.clone()))
+            .apply(DmlOperation::Write(op.clone()).into())
             .await
             .expect_err("write should time out");
 

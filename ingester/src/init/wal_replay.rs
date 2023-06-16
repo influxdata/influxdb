@@ -235,7 +235,8 @@ where
             );
 
             // Apply the operation to the provided DML sink
-            sink.apply(DmlOperation::Write(op))
+            // TODO(savage): Construct the `IngestOp::Write` directly.
+            sink.apply(DmlOperation::Write(op).into())
                 .await
                 .map_err(Into::<DmlError>::into)?;
 
@@ -261,6 +262,7 @@ mod tests {
 
     use crate::{
         buffer_tree::partition::PartitionData,
+        dml_payload::IngestOp,
         dml_sink::mock_sink::MockDmlSink,
         persist::queue::mock::MockPersistQueue,
         test_util::{
@@ -289,7 +291,7 @@ mod tests {
     impl DmlSink for MockIter {
         type Error = <MockDmlSink as DmlSink>::Error;
 
-        async fn apply(&self, op: DmlOperation) -> Result<(), Self::Error> {
+        async fn apply(&self, op: IngestOp) -> Result<(), Self::Error> {
             self.sink.apply(op).await
         }
     }
@@ -348,12 +350,12 @@ mod tests {
 
             // Apply the first op through the decorator
             wal_sink
-                .apply(DmlOperation::Write(op1.clone()))
+                .apply(DmlOperation::Write(op1.clone()).into())
                 .await
                 .expect("wal should not error");
             // And the second op
             wal_sink
-                .apply(DmlOperation::Write(op2.clone()))
+                .apply(DmlOperation::Write(op2.clone()).into())
                 .await
                 .expect("wal should not error");
 
@@ -362,7 +364,7 @@ mod tests {
 
             // Write the third op
             wal_sink
-                .apply(DmlOperation::Write(op3.clone()))
+                .apply(DmlOperation::Write(op3.clone()).into())
                 .await
                 .expect("wal should not error");
 
@@ -408,13 +410,13 @@ mod tests {
         assert_matches!(
             &*ops,
             &[
-                DmlOperation::Write(ref w1),
-                DmlOperation::Write(ref w2),
-                DmlOperation::Write(ref w3)
+                IngestOp::Write(ref w1),
+                IngestOp::Write(ref w2),
+                IngestOp::Write(ref w3)
             ] => {
-                assert_dml_writes_eq(w1.clone(), op1);
-                assert_dml_writes_eq(w2.clone(), op2);
-                assert_dml_writes_eq(w3.clone(), op3);
+                assert_dml_writes_eq(w1.into(), op1);
+                assert_dml_writes_eq(w2.into(), op2);
+                assert_dml_writes_eq(w3.into(), op3);
             }
         );
 

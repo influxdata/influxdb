@@ -1,19 +1,19 @@
 use std::{error::Error, fmt::Debug, ops::Deref, sync::Arc};
 
+use crate::dml_payload::IngestOp;
 use async_trait::async_trait;
-use dml::DmlOperation;
 use thiserror::Error;
 
 /// Errors returned due from calls to [`DmlSink::apply()`].
 #[derive(Debug, Error)]
 pub enum DmlError {
-    /// An error applying a [`DmlOperation`] to a [`BufferTree`].
+    /// An error applying a [`IngestOp`] to a [`BufferTree`].
     ///
     /// [`BufferTree`]: crate::buffer_tree::BufferTree
     #[error("failed to buffer op: {0}")]
     Buffer(#[from] mutable_batch::Error),
 
-    /// An error appending the [`DmlOperation`] to the write-ahead log.
+    /// An error appending the [`IngestOp`] to the write-ahead log.
     #[error("wal commit failure: {0}")]
     Wal(String),
 
@@ -23,7 +23,7 @@ pub enum DmlError {
     ApplyTimeout,
 }
 
-/// A [`DmlSink`] handles [`DmlOperation`] instances in some abstract way.
+/// A [`DmlSink`] handles [`IngestOp`] instances in some abstract way.
 #[async_trait]
 pub trait DmlSink: Debug + Send + Sync {
     /// The concrete error type returned by a [`DmlSink`] implementation,
@@ -31,7 +31,7 @@ pub trait DmlSink: Debug + Send + Sync {
     type Error: Error + Into<DmlError> + Send;
 
     /// Apply `op` to the implementer's state.
-    async fn apply(&self, op: DmlOperation) -> Result<(), Self::Error>;
+    async fn apply(&self, op: IngestOp) -> Result<(), Self::Error>;
 }
 
 #[async_trait]
@@ -40,7 +40,7 @@ where
     T: DmlSink,
 {
     type Error = T::Error;
-    async fn apply(&self, op: DmlOperation) -> Result<(), Self::Error> {
+    async fn apply(&self, op: IngestOp) -> Result<(), Self::Error> {
         self.deref().apply(op).await
     }
 }

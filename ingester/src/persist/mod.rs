@@ -108,7 +108,7 @@ mod tests {
         drop(repos); // Don't you love this testing-only deadlock bug? #3859
 
         // Apply the write
-        buf.apply(DmlOperation::Write(write))
+        buf.apply(DmlOperation::Write(write).into())
             .await
             .expect("failed to apply write to buffer");
 

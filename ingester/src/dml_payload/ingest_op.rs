@@ -6,7 +6,9 @@ use trace::ctx::SpanContext;
 
 /// The set of operations which the ingester can derive and process from wire
 /// requests
+#[derive(Clone, Debug)]
 pub enum IngestOp {
+    /// A write for ingest
     Write(WriteOperation),
 }
 
@@ -22,16 +24,17 @@ impl From<DmlOperation> for IngestOp {
 }
 
 impl IngestOp {
-    // TODO(savage): Consider removing the use of these and requiring users to
-    //  match on the op type.
+    // TODO(savage): Consider removing the getters at the top level and
+    // requiring consumers to match on the op type
+
+    /// The namespace which the ingest operation is for
     pub fn namespace(&self) -> NamespaceId {
         match self {
             Self::Write(w) => w.namespace,
         }
     }
 
-    // TODO(savage): Consider removing the use of these and requiring users to
-    //  match on the op type.
+    /// An optional tracing context associated with the ingest operation
     pub fn span_context(&self) -> Option<&SpanContext> {
         match self {
             Self::Write(w) => w.span_context.as_ref(),
@@ -41,7 +44,7 @@ impl IngestOp {
 
 /// A decoded representation of the data contained by an RPC write
 /// represented by an [`IngestOp::Write`]
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct WriteOperation {
     namespace: NamespaceId,
 
@@ -75,14 +78,24 @@ impl WriteOperation {
         }
     }
 
+    /// The namespace which the write is
+    pub fn namespace(&self) -> NamespaceId {
+        self.namespace
+    }
+
+    /// The partition key derived for the write operation
     pub fn partition_key(&self) -> &PartitionKey {
         &self.partition_key
     }
 
+    /// Returns an by-reference iterator over the per-table write data
+    /// contained in the operation
     pub fn tables(&self) -> impl Iterator<Item = (&TableId, &TableData)> {
         self.tables.iter()
     }
 
+    /// Consumes `self`, returning an iterator over the per-table write
+    /// data contained in the operation
     pub fn into_tables(self) -> impl Iterator<Item = (TableId, TableData)> {
         self.tables.into_iter()
     }
@@ -92,6 +105,13 @@ impl WriteOperation {
 // within ingester code. This is deeply inefficient.
 impl From<&WriteOperation> for DmlWrite {
     fn from(value: &WriteOperation) -> Self {
+        let sequence_number = value
+            .tables
+            .values()
+            .next()
+            .expect("converting empty write operation")
+            .partitioned_data
+            .sequence_number;
         Self::new(
             value.namespace,
             value
@@ -100,7 +120,12 @@ impl From<&WriteOperation> for DmlWrite {
                 .map(|(table_id, data)| (*table_id, data.partitioned_data.data.clone()))
                 .collect(),
             value.partition_key.clone(),
-            DmlMeta::unsequenced(value.span_context.clone()),
+            DmlMeta::sequenced(
+                sequence_number,
+                iox_time::Time::MAX,
+                value.span_context.clone(),
+                0,
+            ),
         )
     }
 }
@@ -143,16 +168,17 @@ impl From<DmlWrite> for WriteOperation {
 
 /// A container for all data for an individual table as part of a write
 /// operation
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct TableData {
     table: TableId,
-    /// The partitioned data for `table` in the write. Currently data is
-    /// partitioned in a way that each table has a single partition of
+    // The partitioned data for `table` in the write. Currently data is
+    // partitioned in a way that each table has a single partition of
     // data associated with it per write
     partitioned_data: PartitionedData,
 }
 
 impl TableData {
+    /// Constructs a new set of table associated data
     pub fn new(table: TableId, partitioned_data: PartitionedData) -> Self {
         Self {
             table,
@@ -160,14 +186,17 @@ impl TableData {
         }
     }
 
+    /// Returns the [`TableId`] which the data is for
     pub fn table(&self) -> TableId {
         self.table
     }
 
+    /// Returns a reference to the [`PartitionedData`] for the table
     pub fn partitioned_data(&self) -> &PartitionedData {
         &self.partitioned_data
     }
 
+    /// Consumes `self`, returning the [`PartitionedData`] for the table
     pub fn into_partitioned_data(self) -> PartitionedData {
         self.partitioned_data
     }
@@ -175,13 +204,14 @@ impl TableData {
 
 /// Partitioned data belonging to a write, sequenced individually from
 /// other [`PartitionedData`]
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct PartitionedData {
     sequence_number: SequenceNumber,
     data: MutableBatch,
 }
 
 impl PartitionedData {
+    /// Creates a new set of partitioned data, assigning it a [`SequenceNumber`]
     pub fn new(sequence_number: SequenceNumber, data: MutableBatch) -> Self {
         Self {
             sequence_number,
@@ -189,10 +219,12 @@ impl PartitionedData {
         }
     }
 
+    /// Returns the [`SequenceNumber`] assigned
     pub fn sequence_number(&self) -> SequenceNumber {
         self.sequence_number
     }
 
+    /// Consumes `self`, returning the data
     pub fn data(self) -> MutableBatch {
         self.data
     }

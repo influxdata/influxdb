@@ -3,12 +3,12 @@ use std::{iter, sync::Arc};
 use async_trait::async_trait;
 use criterion::{criterion_group, criterion_main, BatchSize, Criterion, Throughput};
 use data_types::{NamespaceId, PartitionKey, TableId};
-use dml::{DmlMeta, DmlOperation, DmlWrite};
+use dml::{DmlMeta, DmlWrite};
 use generated_types::influxdata::{
     iox::wal::v1::sequenced_wal_op::Op as WalOp, pbdata::v1::DatabaseBatch,
 };
 use ingester::internal_implementation_details::{
-    queue::MockPersistQueue, DmlError, DmlSink, PartitionData, PartitionIter,
+    queue::MockPersistQueue, DmlError, DmlSink, IngestOp, PartitionData, PartitionIter,
 };
 use mutable_batch_pb::encode::encode_write;
 use wal::SequencedWalOp;
@@ -106,7 +106,7 @@ struct NopSink;
 #[async_trait]
 impl DmlSink for NopSink {
     type Error = DmlError;
-    async fn apply(&self, _op: DmlOperation) -> Result<(), DmlError> {
+    async fn apply(&self, _op: IngestOp) -> Result<(), DmlError> {
         // It does nothing!
         Ok(())
     }

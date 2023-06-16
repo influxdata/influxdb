@@ -1,7 +1,8 @@
 use async_trait::async_trait;
-use dml::DmlOperation;
 use iox_time::{SystemProvider, TimeProvider};
 use metric::{DurationHistogram, Metric};
+
+use crate::dml_payload::IngestOp;
 
 use super::DmlSink;
 
@@ -51,7 +52,7 @@ where
     type Error = T::Error;
 
     /// Apply `op` to the implementer's state.
-    async fn apply(&self, op: DmlOperation) -> Result<(), Self::Error> {
+    async fn apply(&self, op: IngestOp) -> Result<(), Self::Error> {
         let t = self.time_provider.now();
 
         let res = self.inner.apply(op).await;
@@ -73,6 +74,7 @@ mod tests {
 
     use assert_matches::assert_matches;
     use data_types::{NamespaceId, PartitionId, PartitionKey, TableId};
+    use dml::DmlOperation;
     use lazy_static::lazy_static;
     use metric::Attributes;
 
@@ -128,7 +130,7 @@ mod tests {
                         TABLE_ID,
                         42,
                         "banana-report,tag=1 v=2 42424242",
-                    ));
+                    )).into();
 
                     // Call the decorator and assert the return value
                     let got = decorator

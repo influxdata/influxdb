@@ -523,14 +523,17 @@ mod tests {
         );
 
         buffer_tree
-            .apply(DmlOperation::Write(make_write_op(
-                &ARBITRARY_PARTITION_KEY,
-                ARBITRARY_NAMESPACE_ID,
-                &ARBITRARY_TABLE_NAME,
-                ARBITRARY_TABLE_ID,
-                0,
-                &format!("{},good=yes level=1000 4242424242", &*ARBITRARY_TABLE_NAME),
-            )))
+            .apply(
+                DmlOperation::Write(make_write_op(
+                    &ARBITRARY_PARTITION_KEY,
+                    ARBITRARY_NAMESPACE_ID,
+                    &ARBITRARY_TABLE_NAME,
+                    ARBITRARY_TABLE_ID,
+                    0,
+                    &format!("{},good=yes level=1000 4242424242", &*ARBITRARY_TABLE_NAME),
+                ))
+                .into(),
+            )
             .await
             .expect("failed to write partition test dataa");
 

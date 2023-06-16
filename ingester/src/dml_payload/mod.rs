@@ -2,5 +2,4 @@
 //! ingester's internals
 
 mod ingest_op;
-#[allow(unused_imports)]
-pub(crate) use ingest_op::*;
+pub use ingest_op::*;
