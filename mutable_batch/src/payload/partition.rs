@@ -1082,6 +1082,28 @@ mod tests {
         }
     }
 
+    prop_compose! {
+        /// Yield a Vec containing an identical timestamp run of random length,
+        /// up to `max_run_len`,
+        fn arbitrary_timestamp_run(max_run_len: usize)(v in 0_i64..i64::MAX, run_len in 1..max_run_len) -> Vec<i64> {
+            let mut x = Vec::with_capacity(run_len);
+            x.resize(max_run_len, v);
+            x
+        }
+    }
+
+    /// Yield a Vec of timestamp values that more accurately model real
+    /// timestamps than pure random selection.
+    ///
+    /// Runs of identical timestamps are generated with
+    /// [`arbitrary_timestamp_run()`], which are then shuffled to produce a list
+    /// of timestamps with limited repeats, sometimes consecutively.
+    fn arbitrary_timestamps() -> impl Strategy<Value = Vec<i64>> {
+        proptest::collection::vec(arbitrary_timestamp_run(6), 10..100)
+            .prop_map(|v| v.into_iter().flatten().collect::<Vec<_>>())
+            .prop_shuffle()
+    }
+
     proptest! {
         /// A property test that asserts a write comprised of an arbitrary
         /// subset of [`TEST_TAG_NAME_SET`] with randomised values, that is
@@ -1157,7 +1179,7 @@ mod tests {
         }
 
         /// A property test that asserts the partitioner tolerates (does not
-        /// panic) randomised, potentially invalid strfitme formatter strings.
+        /// panic) randomised, potentially invalid strftime formatter strings.
         #[test]
         fn prop_arbitrary_strftime_format(fmt in any::<String>()) {
             let mut batch = MutableBatch::new();
@@ -1205,13 +1227,13 @@ mod tests {
             }
         }
 
-        // Drives the stftime formatter through the "front door", using the same
-        // interface as a user would call to partition data. This validates the
-        // integration between the various formatters, range encoders, dedupe,
-        // etc.
+        // Drives the strftime formatter through the "front door", using the
+        // same interface as a user would call to partition data. This validates
+        // the integration between the various formatters, range encoders,
+        // dedupe, etc.
         #[test]
         fn prop_strftime_integration(
-            times in proptest::collection::vec(0_i64..i64::MAX, 10..100),
+            times in arbitrary_timestamps(),
             format in prop_oneof![
                 Just("%Y-%m-%d"), // Default scheme
                 Just("%s")        // Unix seconds, to drive increased cache miss rate in strftime formatter
