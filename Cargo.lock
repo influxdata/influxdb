@@ -973,6 +973,7 @@ dependencies = [
  "async-trait",
  "backoff",
  "bytes",
+ "compactor_scheduler",
  "compactor_test_utils",
  "data_types",
  "datafusion",
@@ -996,6 +997,16 @@ dependencies = [
  "tokio-util",
  "tracker",
  "uuid",
+ "workspace-hack",
+]
+
+[[package]]
+name = "compactor_scheduler"
+version = "0.1.0"
+dependencies = [
+ "async-trait",
+ "data_types",
+ "tokio",
  "workspace-hack",
 ]
 

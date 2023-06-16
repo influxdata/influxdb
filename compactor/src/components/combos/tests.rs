@@ -1,5 +1,6 @@
 use std::{sync::Arc, time::Duration};
 
+use compactor_scheduler::{MockPartitionsSource, PartitionsSource};
 use data_types::{CompactionLevel, PartitionId};
 use iox_time::{MockProvider, Time};
 
@@ -7,7 +8,6 @@ use crate::components::{
     combos::{throttle_partition::throttle_partition, unique_partitions::unique_partitions},
     commit::{mock::MockCommit, Commit},
     partition_done_sink::{mock::MockPartitionDoneSink, PartitionDoneSink},
-    partitions_source::{mock::MockPartitionsSource, PartitionsSource},
 };
 
 #[tokio::test]

@@ -1,9 +1,8 @@
 use std::{collections::VecDeque, fmt::Display, sync::Arc};
 
+use compactor_scheduler::PartitionsSource;
 use data_types::PartitionId;
 use futures::{stream::BoxStream, StreamExt};
-
-use crate::components::partitions_source::PartitionsSource;
 
 use super::PartitionStream;
 
@@ -63,7 +62,7 @@ where
 
 #[cfg(test)]
 mod tests {
-    use crate::components::partitions_source::mock::MockPartitionsSource;
+    use compactor_scheduler::MockPartitionsSource;
 
     use super::*;
 

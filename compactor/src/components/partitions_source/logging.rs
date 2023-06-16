@@ -1,10 +1,9 @@
 use std::fmt::Display;
 
 use async_trait::async_trait;
+use compactor_scheduler::PartitionsSource;
 use data_types::PartitionId;
 use observability_deps::tracing::{info, warn};
-
-use super::PartitionsSource;
 
 #[derive(Debug)]
 pub struct LoggingPartitionsSourceWrapper<T>
@@ -49,9 +48,8 @@ where
 
 #[cfg(test)]
 mod tests {
+    use compactor_scheduler::MockPartitionsSource;
     use test_helpers::tracing::TracingCapture;
-
-    use crate::components::partitions_source::mock::MockPartitionsSource;
 
     use super::*;
 

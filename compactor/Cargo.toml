@@ -9,6 +9,7 @@ license.workspace = true
 async-trait = "0.1.68"
 backoff = { path = "../backoff" }
 bytes = "1.4"
+compactor_scheduler = { path = "../compactor_scheduler" }
 datafusion = { workspace = true }
 data_types = { path = "../data_types" }
 futures = "0.3"
