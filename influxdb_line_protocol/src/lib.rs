@@ -5,9 +5,9 @@
 //! compatible with the [Go implementation], however, this
 //! implementation uses a [nom] combinator-based parser rather than
 //! attempting to port the imperative Go logic so there are likely
-//! some small diferences.
+//! some small differences.
 //!
-//! 2. A [builder](crate::builder::LineProtocolBuilder) to contruct valid [InfluxDB Line Protocol]
+//! 2. A [builder](crate::builder::LineProtocolBuilder) to construct valid [InfluxDB Line Protocol]
 //!
 //! # Example
 //!
@@ -139,6 +139,9 @@ pub enum Error {
         trailing_content
     ))]
     CannotParseEntireLine { trailing_content: String },
+
+    #[snafu(display(r#"Tag Set Malformed"#))]
+    TagSetMalformed,
 
     // TODO: Replace this with specific failures.
     #[snafu(display(r#"A generic parsing error occurred: {:?}"#, kind))]
@@ -514,7 +517,7 @@ impl PartialEq<String> for EscapedStr<'_> {
     }
 }
 
-/// Parses a new line-delimited string into an interator of
+/// Parses a new line-delimited string into an iterator of
 /// [`ParsedLine`]. See the [crate-level documentation](self) for more
 /// information and examples.
 pub fn parse_lines(input: &str) -> impl Iterator<Item = Result<ParsedLine<'_>>> {
@@ -631,9 +634,7 @@ fn parse_line(i: &str) -> IResult<&str, ParsedLine<'_>> {
 }
 
 fn series(i: &str) -> IResult<&str, Series<'_>> {
-    let tag_set = preceded(tag(","), tag_set);
-    let series = tuple((measurement, opt(tag_set)));
-
+    let series = tuple((measurement, maybe_tagset));
     let series_and_raw_input = parse_and_recognize(series);
 
     map(
@@ -644,6 +645,28 @@ fn series(i: &str) -> IResult<&str, Series<'_>> {
             tag_set,
         },
     )(i)
+}
+
+/// Tagsets are optional, but if a comma follows the measurement, then we must have at least one tag=value pair.
+/// anything else is an error
+fn maybe_tagset(i: &str) -> IResult<&str, Option<TagSet<'_>>, Error> {
+    match tag::<&str, &str, Error>(",")(i) {
+        Err(nom::Err::Error(_)) => Ok((i, None)),
+        Ok((remainder, _)) => {
+            match tag_set(remainder) {
+                Ok((i, ts)) => {
+                    // reaching here, we must find a tagset, which is at least one tag=value pair.
+                    if ts.is_empty() {
+                        return Err(nom::Err::Error(Error::TagSetMalformed));
+                    }
+                    Ok((i, Some(ts)))
+                }
+                Err(nom::Err::Error(_)) => TagSetMalformedSnafu.fail().map_err(nom::Err::Error),
+                Err(e) => Err(e),
+            }
+        }
+        Err(e) => Err(e),
+    }
 }
 
 fn measurement(i: &str) -> IResult<&str, Measurement<'_>, Error> {
@@ -1259,6 +1282,22 @@ mod test {
         let input = "";
         let vals = parse(input);
         assert_eq!(vals.unwrap().len(), 0);
+    }
+
+    // tests that an incomplete tag=value pair returns an error about a malformed tagset
+    #[test]
+    fn parse_tag_no_value() {
+        let input = "testmeasure,foo= bar=1i";
+        let vals = parse(input);
+        assert!(matches!(vals, Err(Error::TagSetMalformed)));
+    }
+
+    // tests that just a comma after the measurement is an error
+    #[test]
+    fn parse_no_tagset() {
+        let input = "testmeasure, bar=1i";
+        let vals = parse(input);
+        assert!(matches!(vals, Err(Error::TagSetMalformed)));
     }
 
     #[test]
