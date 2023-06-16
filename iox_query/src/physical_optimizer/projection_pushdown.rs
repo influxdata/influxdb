@@ -7,6 +7,7 @@ use arrow::datatypes::SchemaRef;
 use datafusion::{
     common::tree_node::{Transformed, TreeNode},
     config::ConfigOptions,
+    datasource::physical_plan::{FileScanConfig, ParquetExec},
     error::{DataFusionError, Result},
     physical_expr::{
         utils::{collect_columns, reassign_predicate_columns},
@@ -16,7 +17,6 @@ use datafusion::{
     physical_plan::{
         empty::EmptyExec,
         expressions::Column,
-        file_format::{FileScanConfig, ParquetExec},
         filter::FilterExec,
         projection::ProjectionExec,
         sorts::{sort::SortExec, sort_preserving_merge::SortPreservingMergeExec},

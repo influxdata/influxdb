@@ -33,6 +33,18 @@ pub(super) struct Select {
     /// The projection type of the selection.
     pub(super) projection_type: ProjectionType,
 
+    /// The interval derived from the arguments to the `TIME` function
+    /// when a `GROUP BY` clause is declared with `TIME`.
+    pub(super) interval: Option<Interval>,
+
+    /// The number of additional intervals that must be read
+    /// for queries that group by time and use window functions such as
+    /// `DIFFERENCE` or `DERIVATIVE`. This ensures data for the first
+    /// window is available.
+    ///
+    /// See: <https://github.com/influxdata/influxdb/blob/f365bb7e3a9c5e227dbf66d84adf674d3d127176/query/compile.go#L50>
+    pub(super) extra_intervals: usize,
+
     /// Projection clause of the selection.
     pub(super) fields: Vec<Field>,
 
@@ -193,4 +205,16 @@ impl Display for Field {
         Display::fmt(&self.expr, f)?;
         write!(f, " AS {}", self.name)
     }
+}
+
+/// Represents the interval duration and offset
+/// derived from the `TIME` function when specified
+/// in a `GROUP BY` clause.
+#[derive(Debug, Clone, Copy)]
+pub(super) struct Interval {
+    /// The nanosecond duration of the interval
+    pub duration: i64,
+
+    /// The nanosecond offset of the interval.
+    pub offset: Option<i64>,
 }

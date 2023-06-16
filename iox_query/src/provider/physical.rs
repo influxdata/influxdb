@@ -6,14 +6,15 @@ use crate::{
 };
 use arrow::datatypes::{DataType, Fields, Schema as ArrowSchema, SchemaRef};
 use datafusion::{
-    datasource::{listing::PartitionedFile, object_store::ObjectStoreUrl},
+    datasource::{
+        listing::PartitionedFile,
+        object_store::ObjectStoreUrl,
+        physical_plan::{FileScanConfig, ParquetExec},
+    },
     physical_expr::PhysicalSortExpr,
     physical_plan::{
-        empty::EmptyExec,
-        expressions::Column,
-        file_format::{FileScanConfig, ParquetExec},
-        union::UnionExec,
-        ColumnStatistics, ExecutionPlan, Statistics,
+        empty::EmptyExec, expressions::Column, union::UnionExec, ColumnStatistics, ExecutionPlan,
+        Statistics,
     },
     scalar::ScalarValue,
 };

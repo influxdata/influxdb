@@ -69,10 +69,7 @@ pub fn parse_statements(input: &str) -> ParseResult {
 
     loop {
         // Consume whitespace from the input
-        i = match ws0(i) {
-            Ok((i1, _)) => i1,
-            _ => unreachable!("ws0 is infallible"),
-        };
+        (i, _) = ws0(i).expect("ws0 is infallible");
 
         if eof::<_, nom::error::Error<_>>(i).is_ok() {
             return Ok(res);

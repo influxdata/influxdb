@@ -13,13 +13,14 @@ use arrow::{
 use bytes::Bytes;
 use data_types::PartitionId;
 use datafusion::{
-    datasource::{listing::PartitionedFile, object_store::ObjectStoreUrl},
+    datasource::{
+        listing::PartitionedFile,
+        object_store::ObjectStoreUrl,
+        physical_plan::{FileScanConfig, ParquetExec},
+    },
     error::DataFusionError,
     execution::memory_pool::MemoryPool,
-    physical_plan::{
-        file_format::{FileScanConfig, ParquetExec},
-        ExecutionPlan, SendableRecordBatchStream, Statistics,
-    },
+    physical_plan::{ExecutionPlan, SendableRecordBatchStream, Statistics},
     prelude::SessionContext,
 };
 use datafusion_util::config::{iox_session_config, register_iox_object_store};
@@ -93,7 +94,7 @@ impl std::fmt::Display for StorageId {
 /// The files shall be grouped by [`object_store_url`](Self::object_store_url). For each each object store, you shall
 /// create one [`ParquetExec`] and put each file into its own "file group".
 ///
-/// [`ParquetExec`]: datafusion::physical_plan::file_format::ParquetExec
+/// [`ParquetExec`]: datafusion::datasource::physical_plan::ParquetExec
 #[derive(Debug, Clone)]
 pub struct ParquetExecInput {
     /// Store where the file is located.
@@ -286,7 +287,7 @@ impl ParquetStorage {
     ///
     /// See [`ParquetExecInput`] for more information.
     ///
-    /// [`ParquetExec`]: datafusion::physical_plan::file_format::ParquetExec
+    /// [`ParquetExec`]: datafusion::datasource::physical_plan::ParquetExec
     pub fn parquet_exec_input(&self, path: &ParquetFilePath, file_size: usize) -> ParquetExecInput {
         ParquetExecInput {
             object_store_url: ObjectStoreUrl::parse(format!("iox://{}/", self.id))

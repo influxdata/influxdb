@@ -260,10 +260,7 @@ pub fn parse_conditional_expression(input: &str) -> Result<ConditionalExpression
     let mut i: &str = input;
 
     // Consume whitespace from the input
-    i = match ws0(i) {
-        Ok((i1, _)) => i1,
-        _ => unreachable!("ws0 is infallible"),
-    };
+    (i, _) = ws0(i).expect("ws0 is infallible");
 
     if i.is_empty() {
         return Err(ParseError {
@@ -293,10 +290,7 @@ pub fn parse_conditional_expression(input: &str) -> Result<ConditionalExpression
     };
 
     // Consume remaining whitespace from the input
-    i = match ws0(i) {
-        Ok((i1, _)) => i1,
-        _ => unreachable!("ws0 is infallible"),
-    };
+    (i, _) = ws0(i).expect("ws0 is infallible");
 
     if !i.is_empty() {
         return Err(ParseError {

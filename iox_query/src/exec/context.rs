@@ -33,7 +33,7 @@ use crate::{
 use arrow::record_batch::RecordBatch;
 use async_trait::async_trait;
 use datafusion::{
-    catalog::catalog::CatalogProvider,
+    catalog::CatalogProvider,
     execution::{
         context::{QueryPlanner, SessionState, TaskContext},
         memory_pool::MemoryPool,

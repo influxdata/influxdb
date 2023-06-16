@@ -3,14 +3,11 @@ use std::sync::Arc;
 use datafusion::{
     common::tree_node::{RewriteRecursion, Transformed, TreeNode, TreeNodeRewriter},
     config::ConfigOptions,
+    datasource::physical_plan::{FileScanConfig, ParquetExec},
     error::Result,
     physical_expr::{PhysicalSortExpr, PhysicalSortRequirement},
     physical_optimizer::PhysicalOptimizerRule,
-    physical_plan::{
-        file_format::{FileScanConfig, ParquetExec},
-        sorts::sort::SortExec,
-        ExecutionPlan,
-    },
+    physical_plan::{sorts::sort::SortExec, ExecutionPlan},
 };
 use observability_deps::tracing::warn;
 
