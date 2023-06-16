@@ -1,0 +1,20 @@
+-- Query tests derived from https://github.com/influxdata/influxdb_iox/issues/6112
+-- IOX_SETUP: window_like
+
+--
+-- difference
+--
+SELECT difference(mean(writes)), mean(writes) FROM diskio WHERE time >= '2020-06-11T16:53:00Z' AND time < '2020-06-11T16:55:00Z' GROUP BY time(7s);
+SELECT difference(mean(writes)), mean(writes) FROM diskio WHERE time >= '2020-06-11T16:53:00Z' AND time < '2020-06-11T16:55:00Z' GROUP BY time(7s) fill(none);
+SELECT difference(mean(writes)), mean(writes) FROM diskio WHERE time >= '2020-06-11T16:53:00Z' AND time < '2020-06-11T16:55:00Z' GROUP BY time(7s) fill(0);
+SELECT difference(mean(writes)), mean(writes) FROM diskio WHERE time >= '2020-06-11T16:53:00Z' AND time < '2020-06-11T16:55:00Z' GROUP BY time(7s) fill(previous);
+SELECT difference(mean(writes)), mean(writes) FROM diskio WHERE time >= '2020-06-11T16:53:00Z' AND time < '2020-06-11T16:55:00Z' GROUP BY time(7s) fill(linear);
+
+--
+-- moving_average
+--
+SELECT moving_average(mean(writes), 3), mean(writes) FROM diskio WHERE time >= '2020-06-11T16:53:00Z' AND time < '2020-06-11T16:55:00Z' GROUP BY time(7s);
+SELECT moving_average(mean(writes), 3), mean(writes) FROM diskio WHERE time >= '2020-06-11T16:53:00Z' AND time < '2020-06-11T16:55:00Z' GROUP BY time(7s) fill(none);
+SELECT moving_average(mean(writes), 3), mean(writes) FROM diskio WHERE time >= '2020-06-11T16:53:00Z' AND time < '2020-06-11T16:55:00Z' GROUP BY time(7s) fill(0);
+SELECT moving_average(mean(writes), 3), mean(writes) FROM diskio WHERE time >= '2020-06-11T16:53:00Z' AND time < '2020-06-11T16:55:00Z' GROUP BY time(7s) fill(previous);
+SELECT moving_average(mean(writes), 3), mean(writes) FROM diskio WHERE time >= '2020-06-11T16:53:00Z' AND time < '2020-06-11T16:55:00Z' GROUP BY time(7s) fill(linear);

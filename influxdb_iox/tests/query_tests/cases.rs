@@ -401,6 +401,18 @@ mod influxql {
     }
 
     #[tokio::test]
+    async fn window_like() {
+        test_helpers::maybe_start_logging();
+
+        TestCase {
+            input: "cases/in/window_like.influxql",
+            chunk_stage: ChunkStage::Ingester,
+        }
+        .run()
+        .await;
+    }
+
+    #[tokio::test]
     async fn influxql_metadata() {
         test_helpers::maybe_start_logging();
 

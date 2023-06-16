@@ -1,3 +1,10 @@
+//! User-defined functions to serve as stand-ins when constructing the
+//! projection expressions for the logical plan.
+//!
+//! As stand-ins, they allow the projection operator to represent the same
+//! call information as the InfluxQL AST. These expressions are then
+//! rewritten at a later stage of planning, with more context available.
+
 use crate::plan::error;
 use crate::plan::util_copy::find_exprs_in_exprs;
 use arrow::datatypes::DataType;
@@ -24,7 +31,8 @@ impl WindowFunction {
     }
 }
 
-/// Find all [`Expr::ScalarUDF`] expressions for one of the supported window UDF functions.
+/// Find all [`Expr::ScalarUDF`] expressions that match one of the supported
+/// window UDF functions.
 pub(super) fn find_window_udfs(exprs: &[Expr]) -> Vec<Expr> {
     find_exprs_in_exprs(
         exprs,

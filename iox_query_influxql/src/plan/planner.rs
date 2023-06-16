@@ -6,9 +6,11 @@ use crate::plan::planner::select::{
 };
 use crate::plan::planner_time_range_expression::time_range_to_df_expr;
 use crate::plan::rewriter::{find_table_names, rewrite_statement, ProjectionType};
+use crate::plan::udaf::{AVG_N, DIFFERENCE};
+use crate::plan::udf::{difference, find_window_udfs, moving_average};
 use crate::plan::util::{binary_operator_to_df_operator, rebase_expr, Schemas};
 use crate::plan::var_ref::var_ref_data_type_to_data_type;
-use crate::plan::{error, planner_rewrite_expression};
+use crate::plan::{error, planner_rewrite_expression, udf, util_copy};
 use arrow::array::{StringBuilder, StringDictionaryBuilder};
 use arrow::datatypes::{DataType, Field as ArrowField, Int32Type, Schema as ArrowSchema};
 use arrow::record_batch::RecordBatch;
@@ -21,7 +23,7 @@ use datafusion::logical_expr::expr::ScalarFunction;
 use datafusion::logical_expr::expr_rewriter::normalize_col;
 use datafusion::logical_expr::logical_plan::builder::project;
 use datafusion::logical_expr::logical_plan::Analyze;
-use datafusion::logical_expr::utils::find_aggregate_exprs;
+use datafusion::logical_expr::utils::{expr_as_column_expr, find_aggregate_exprs};
 use datafusion::logical_expr::{
     binary_expr, col, date_bin, expr, expr::WindowFunction, lit, lit_timestamp_nano, now, union,
     window_function, Aggregate, AggregateFunction, AggregateUDF, Between, BuiltInWindowFunction,
@@ -29,6 +31,7 @@ use datafusion::logical_expr::{
     LogicalPlan, LogicalPlanBuilder, Operator, PlanType, Projection, ScalarUDF, TableSource,
     ToStringifiedPlan, WindowFrame, WindowFrameBound, WindowFrameUnits,
 };
+use datafusion::optimizer::utils::conjunction;
 use datafusion::physical_expr::execution_props::ExecutionProps;
 use datafusion::prelude::{cast, sum, when, Column};
 use datafusion_util::{lit_dict, AsExpr};
@@ -76,7 +79,7 @@ use schema::{
 use std::collections::{BTreeSet, HashSet};
 use std::fmt::Debug;
 use std::iter;
-use std::ops::{Bound, ControlFlow, Deref, Range};
+use std::ops::{Bound, ControlFlow, Deref, Not, Range};
 use std::str::FromStr;
 use std::sync::Arc;
 
@@ -335,11 +338,34 @@ impl<'a> Context<'a> {
     ///         opt.StartTime -= int64(opt.Interval.Duration)
     /// ```
     ///
+    /// before creating the iterator over the adjusted time range ([source][6]):
+    ///
+    /// ```go
+    /// input, err := buildExprIterator(ctx, expr.Args[0], b.ic, b.sources, opt, b.selector, false)
+    /// ```
+    ///
+    /// and despite the time range being adjusted correctly later in the switch statement ([source][7]):
+    ///
+    /// ```go
+    /// case "moving_average":
+    ///     n := expr.Args[1].(*influxql.IntegerLiteral)
+    ///     if n.Val > 1 && !opt.Interval.IsZero() {
+    ///         if opt.Ascending {
+    ///             opt.StartTime -= int64(opt.Interval.Duration) * (n.Val - 1)
+    /// ```
+    /// this is not used by the `moving_average` iterator ([source][8]):
+    ///
+    /// ```go
+    /// return newMovingAverageIterator(input, int(n.Val), opt)
+    /// ```
     /// [1]: https://github.com/influxdata/influxdb/blob/f365bb7e3a9c5e227dbf66d84adf674d3d127176/query/compile.go#L592-L594
     /// [2]: https://github.com/influxdata/influxdb/blob/f365bb7e3a9c5e227dbf66d84adf674d3d127176/query/compile.go#L1153-L1158
     /// [3]: https://github.com/influxdata/influxdb/blob/f365bb7e3a9c5e227dbf66d84adf674d3d127176/query/compile.go#L1172-L1173
     /// [4]: https://github.com/influxdata/influxdb/blob/f365bb7e3a9c5e227dbf66d84adf674d3d127176/query/compile.go#L1198
     /// [5]: https://github.com/influxdata/influxdb/blob/f365bb7e3a9c5e227dbf66d84adf674d3d127176/query/select.go#L259-L261
+    /// [6]: https://github.com/influxdata/influxdb/blob/f365bb7e3a9c5e227dbf66d84adf674d3d127176/query/select.go#L268-L267
+    /// [7]: https://github.com/influxdata/influxdb/blob/f365bb7e3a9c5e227dbf66d84adf674d3d127176/query/select.go#L286-L290
+    /// [8]: https://github.com/influxdata/influxdb/blob/f365bb7e3a9c5e227dbf66d84adf674d3d127176/query/select.go#L295
     #[allow(dead_code)]
     fn extended_time_range(&self) -> TimeRange {
         // As described in the function docs, extra_intervals is either
@@ -685,7 +711,7 @@ impl<'a> InfluxQLToLogicalPlan<'a> {
             let ds_schema = ds.schema(self.s)?;
             let plan = self.plan_condition_time_range(
                 ctx.condition,
-                ctx.time_range,
+                ctx.extended_time_range(),
                 plan,
                 &schemas,
                 &ds_schema,
@@ -764,11 +790,30 @@ impl<'a> InfluxQLToLogicalPlan<'a> {
             return LogicalPlanBuilder::from(plan).distinct()?.build();
         }
 
-        let (plan, select_exprs_post_aggr) =
+        let (plan, select_exprs) =
             self.select_aggregate(ctx, input, fields, select_exprs, group_by_tag_set)?;
 
+        let (plan, select_exprs) = self.select_window(ctx, plan, select_exprs, group_by_tag_set)?;
+
         // Wrap the plan in a `LogicalPlan::Projection` from the select expressions
-        project(plan, select_exprs_post_aggr)
+        let plan = project(plan, select_exprs)?;
+
+        // filter out rows when all fields are `NULL`
+        //
+        // TODO(sgc): this should respect InfluxQL OG fill behaviour.
+        //
+        // See: https://github.com/influxdata/influxdb/blob/f365bb7e3a9c5e227dbf66d84adf674d3d127176/query/select.go#L635-L642
+        match conjunction(fields.iter().filter_map(|f| {
+            if matches!(f.data_type, Some(InfluxColumnType::Field(_))) {
+                Some(f.name.as_expr().is_null())
+            } else {
+                None
+            }
+        })) {
+            // Some(expr) => LogicalPlanBuilder::from(plan).filter(expr.not())?.build(),
+            Some(expr) => Ok(plan),
+            None => Ok(plan),
+        }
     }
 
     fn select_aggregate(
@@ -944,6 +989,118 @@ impl<'a> InfluxQLToLogicalPlan<'a> {
             .collect::<Result<Vec<Expr>>>()?;
 
         Ok((plan, select_exprs_post_aggr))
+    }
+
+    /// Generate a plan for any window functions, such as `moving_average` or `difference`.
+    fn select_window(
+        &self,
+        ctx: &Context<'_>,
+        input: LogicalPlan,
+        select_exprs: Vec<Expr>,
+        group_by_tag_set: &[&str],
+    ) -> Result<(LogicalPlan, Vec<Expr>)> {
+        let udfs = find_window_udfs(&select_exprs);
+
+        if udfs.is_empty() {
+            return Ok((input, select_exprs));
+        }
+
+        let order_by = vec![ctx.time_sort_expr()];
+        let partition_by =
+            fields_to_exprs_no_nulls(input.schema(), group_by_tag_set).collect::<Vec<_>>();
+
+        let window_func_exprs = udfs
+            .clone()
+            .into_iter()
+            .map(|e| Self::udf_to_expr(e, partition_by.clone(), order_by.clone()))
+            .collect::<Result<Vec<_>>>()?;
+
+        let plan = LogicalPlanBuilder::from(input)
+            .window(window_func_exprs)?
+            .build()?;
+
+        // Rewrite the window columns from the projection, so that the expressions
+        // refer to the columns from the window projection.
+        let select_exprs = select_exprs
+            .iter()
+            .map(|expr| {
+                util_copy::clone_with_replacement(expr, &|udf_expr| {
+                    Ok(if udfs.contains(udf_expr) {
+                        Some(expr_as_column_expr(udf_expr, &plan)?)
+                    } else {
+                        None
+                    })
+                })
+            })
+            .collect::<Result<Vec<Expr>>>()?;
+
+        // let plan = if ctx.has_extended_time_range() {
+        //     // We need to filter the final output without the additional intervals
+        //     // used to provide rows for window functions.
+        //     if let Some(time_expr) = time_range_to_df_expr(ctx.time_range) {
+        //         LogicalPlanBuilder::from(plan).filter(time_expr)?.build()?
+        //     } else {
+        //         plan
+        //     }
+        // } else {
+        //     plan
+        // };
+
+        Ok((plan, select_exprs))
+    }
+
+    /// Transform a UDF to a window expression.
+    fn udf_to_expr(e: Expr, partition_by: Vec<Expr>, order_by: Vec<Expr>) -> Result<Expr> {
+        let alias = e
+            .display_name()
+            // display_name is known only to fail with Expr::Sort and Expr::QualifiedWildcard,
+            // neither of which should be passed to udf_to_expr
+            .map_err(|err| error::map::internal(format!("display_name: {err}")))?;
+
+        let Expr::ScalarUDF(expr::ScalarUDF { fun, args }) = e else {
+            return error::internal(format!("udf_to_expr: unexpected expression: {e}"))
+        };
+
+        match udf::WindowFunction::try_from_scalar_udf(fun.clone()) {
+            Some(udf::WindowFunction::MovingAverage) => {
+                let Some(Expr::Literal(ScalarValue::Int64(Some(arg1)))) = args.get(1).cloned() else {
+                    return error::internal("expected Int64 for second argument")
+                };
+
+                // Subtract 1 from the window to match InfluxQL behaviour.
+                let arg1 = ScalarValue::UInt64(Some((arg1 - 1) as u64));
+
+                Ok(Expr::WindowFunction(WindowFunction {
+                    fun: window_function::WindowFunction::AggregateUDF(AVG_N.clone()),
+                    args,
+                    partition_by,
+                    order_by,
+                    window_frame: WindowFrame {
+                        units: WindowFrameUnits::Rows,
+                        start_bound: WindowFrameBound::Preceding(ScalarValue::Null),
+                        // start_bound: WindowFrameBound::Preceding(arg1),
+                        end_bound: WindowFrameBound::CurrentRow,
+                    },
+                })
+                .alias(alias))
+            }
+            Some(udf::WindowFunction::Difference) => Ok(Expr::WindowFunction(WindowFunction {
+                fun: window_function::WindowFunction::AggregateUDF(DIFFERENCE.clone()),
+                args,
+                partition_by,
+                order_by,
+                window_frame: WindowFrame {
+                    units: WindowFrameUnits::Rows,
+                    start_bound: WindowFrameBound::Preceding(ScalarValue::Null),
+                    end_bound: WindowFrameBound::CurrentRow,
+                },
+            })
+            .alias(alias)),
+            None => error::internal(format!(
+                "unexpected user-defined window function: {}",
+                fun.name
+            )),
+        }
     }
 
     /// Generate a plan that partitions the input data into groups, first omitting a specified
@@ -1346,6 +1503,41 @@ impl<'a> InfluxQLToLogicalPlan<'a> {
                     expr: Box::new(selector_udf),
                     key: ScalarValue::Utf8(Some("value".to_owned())),
                 }))
+            }
+            "difference" => {
+                check_arg_count(name, args, 1)?;
+
+                // arg0 should be a column or function
+                let arg0 = self.expr_to_df_expr(scope, &args[0], schemas)?;
+                if let Expr::Literal(ScalarValue::Null) = arg0 {
+                    return Ok(arg0);
+                }
+
+                Ok(difference(vec![arg0]))
+            }
+            "moving_average" => {
+                check_arg_count(name, args, 2)?;
+
+                // arg0 should be a column or function
+                let arg0 = self.expr_to_df_expr(scope, &args[0], schemas)?;
+                if let Expr::Literal(ScalarValue::Null) = arg0 {
+                    return Ok(arg0);
+                }
+
+                // arg1 should be an integer.
+                let arg1 = ScalarValue::Int64(Some(
+                    match self.expr_to_df_expr(scope, &args[1], schemas)? {
+                        Expr::Literal(ScalarValue::Int64(Some(v))) => v,
+                        Expr::Literal(ScalarValue::UInt64(Some(v))) => v as i64,
+                        _ => {
+                            return error::query(
+                                "moving average expects number for second argument",
+                            )
+                        }
+                    },
+                ));
+
+                Ok(moving_average(vec![arg0, lit(arg1)]))
             }
             _ => error::query(format!("Invalid function '{name}'")),
         }
@@ -3078,6 +3270,15 @@ mod test {
               Projection: Dictionary(Int32, Utf8("cpu")) AS iox::measurement, cpu.time AS timestamp, cpu.usage_idle AS usage_idle [iox::measurement:Dictionary(Int32, Utf8), timestamp:Timestamp(Nanosecond, None), usage_idle:Float64;N]
                 TableScan: cpu [cpu:Dictionary(Int32, Utf8);N, host:Dictionary(Int32, Utf8);N, region:Dictionary(Int32, Utf8);N, time:Timestamp(Nanosecond, None), usage_idle:Float64;N, usage_system:Float64;N, usage_user:Float64;N]
             "###);
+        }
+
+        #[test]
+        fn test_window_functions() {
+            // let res = plan("SELECT MOVING_AVERAGE(usage_idle, 2) FROM cpu");
+            // println!("{res}");
+            let res = plan("SELECT DIFFERENCE(usage_idle) FROM cpu");
+            println!("{res}");
+            // assert_snapshot!(plan("SELECT MOVING_AVERAGE(usage_idle, 2) FROM cpu"), @"");
         }
 
         /// Tests for the `DISTINCT` clause and `DISTINCT` function

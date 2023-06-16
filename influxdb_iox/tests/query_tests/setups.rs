@@ -1359,6 +1359,20 @@ pub static SETUPS: Lazy<HashMap<SetupName, SetupSteps>> = Lazy::new(|| {
             ],
         ),
         (
+            // Used for window-like function tests for InfluxQL
+            "window_like",
+            vec![
+                Step::RecordNumParquetFiles,
+                Step::WriteLineProtocol(
+                    include_str!("data/metrics_dedup.lp").to_string()
+                ),
+                Step::Persist,
+                Step::WaitForPersisted {
+                    expected_increase: 1,
+                },
+            ],
+        ),
+        (
             "DuplicateDifferentDomains",
             (0..2)
                 .flat_map(|_| {
