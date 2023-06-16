@@ -223,7 +223,7 @@ impl ParquetStorage {
     pub async fn upload(
         &self,
         batches: SendableRecordBatchStream,
-        partition_id: TransitionPartitionId,
+        partition_id: &TransitionPartitionId,
         meta: &IoxMetadata,
         pool: Arc<dyn MemoryPool>,
     ) -> Result<(IoxParquetMetaData, usize), UploadError> {
@@ -345,7 +345,7 @@ mod tests {
         let batch = RecordBatch::try_from_iter([("a", to_string_array(&["value"]))]).unwrap();
 
         // Serialize & upload the record batches.
-        let (file_meta, _file_size) = upload(&store, partition_id, &meta, batch.clone()).await;
+        let (file_meta, _file_size) = upload(&store, &partition_id, &meta, batch.clone()).await;
 
         // Extract the various bits of metadata.
         let file_meta = file_meta.decode().expect("should decode parquet metadata");
@@ -491,7 +491,7 @@ mod tests {
         let schema = batch.schema();
 
         // Serialize & upload the record batches.
-        let (_iox_md, file_size) = upload(&store, partition_id.clone(), &meta, batch).await;
+        let (_iox_md, file_size) = upload(&store, &partition_id, &meta, batch).await;
 
         // add metadata to reference schema
         let schema = Arc::new(
@@ -502,7 +502,7 @@ mod tests {
         );
         download(
             &store,
-            partition_id,
+            &partition_id,
             &meta,
             Projection::All,
             schema,
@@ -534,11 +534,11 @@ mod tests {
         .unwrap();
 
         // Serialize & upload the record batches.
-        let (_iox_md, file_size) = upload(&store, partition_id.clone(), &meta, batch).await;
+        let (_iox_md, file_size) = upload(&store, &partition_id, &meta, batch).await;
 
         download(
             &store,
-            partition_id,
+            &partition_id,
             &meta,
             Projection::All,
             schema,
@@ -614,7 +614,7 @@ mod tests {
 
     async fn upload(
         store: &ParquetStorage,
-        partition_id: TransitionPartitionId,
+        partition_id: &TransitionPartitionId,
         meta: &IoxMetadata,
         batch: RecordBatch,
     ) -> (IoxParquetMetaData, usize) {
@@ -627,7 +627,7 @@ mod tests {
 
     async fn download<'a>(
         store: &ParquetStorage,
-        partition_id: TransitionPartitionId,
+        partition_id: &TransitionPartitionId,
         meta: &IoxMetadata,
         selection: Projection<'_>,
         expected_schema: SchemaRef,
@@ -656,12 +656,12 @@ mod tests {
 
         // Serialize & upload the record batches.
         let (partition_id, meta) = meta();
-        let (_iox_md, file_size) = upload(&store, partition_id.clone(), &meta, upload_batch).await;
+        let (_iox_md, file_size) = upload(&store, &partition_id, &meta, upload_batch).await;
 
         // And compare to the original input
         let actual_batch = download(
             &store,
-            partition_id,
+            &partition_id,
             &meta,
             selection,
             expected_schema,
@@ -682,12 +682,11 @@ mod tests {
         let store = ParquetStorage::new(object_store, StorageId::from("iox"));
 
         let (partition_id, meta) = meta();
-        let (_iox_md, file_size) =
-            upload(&store, partition_id.clone(), &meta, persisted_batch).await;
+        let (_iox_md, file_size) = upload(&store, &partition_id, &meta, persisted_batch).await;
 
         let err = download(
             &store,
-            partition_id,
+            &partition_id,
             &meta,
             Projection::All,
             expected_schema,

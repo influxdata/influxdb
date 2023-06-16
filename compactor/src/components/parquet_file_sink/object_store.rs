@@ -74,7 +74,7 @@ impl ParquetFileSink for ObjectStoreParquetFileSink {
         let pool = Arc::clone(&self.pool);
         let (parquet_meta, file_size) = match self
             .store
-            .upload(stream, partition.transition_partition_id(), &meta, pool)
+            .upload(stream, &partition.transition_partition_id(), &meta, pool)
             .await
         {
             Ok(v) => v,

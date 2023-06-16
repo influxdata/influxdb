@@ -524,7 +524,7 @@ impl TestPartition {
                 Arc::clone(&self.catalog.object_store),
                 StorageId::from("iox"),
             ),
-            self.partition.transition_partition_id(),
+            &self.partition.transition_partition_id(),
             &metadata,
             record_batch.clone(),
         )
@@ -812,7 +812,7 @@ async fn update_catalog_sort_key_if_needed(
 /// Create parquet file and return file size.
 async fn create_parquet_file(
     store: ParquetStorage,
-    partition_id: TransitionPartitionId,
+    partition_id: &TransitionPartitionId,
     metadata: &IoxMetadata,
     record_batch: RecordBatch,
 ) -> usize {

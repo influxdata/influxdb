@@ -75,7 +75,7 @@ impl object_store_service_server::ObjectStoreService for ObjectStoreService {
         let path = ParquetFilePath::new(
             parquet_file.namespace_id,
             parquet_file.table_id,
-            parquet_file.transition_partition_id(),
+            &parquet_file.transition_partition_id(),
             parquet_file.object_store_id,
         );
         let path = path.object_store_path();
@@ -150,7 +150,7 @@ mod tests {
         let path = ParquetFilePath::new(
             p1.namespace_id,
             p1.table_id,
-            p1.transition_partition_id(),
+            &p1.transition_partition_id(),
             p1.object_store_id,
         );
         let path = path.object_store_path();

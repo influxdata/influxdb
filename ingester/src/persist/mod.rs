@@ -441,7 +441,7 @@ mod tests {
         let want_path = ParquetFilePath::new(
             namespace_id,
             table_id,
-            transition_partition_id,
+            &transition_partition_id,
             object_store_id,
         )
         .object_store_path();

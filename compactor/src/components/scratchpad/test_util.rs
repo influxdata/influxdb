@@ -23,7 +23,7 @@ pub fn file_path(i: u128) -> ParquetFilePath {
     ParquetFilePath::new(
         NamespaceId::new(1),
         TableId::new(1),
-        TransitionPartitionId::Deprecated(PartitionId::new(1)),
+        &TransitionPartitionId::Deprecated(PartitionId::new(1)),
         Uuid::from_u128(i),
     )
 }

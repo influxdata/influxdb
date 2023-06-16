@@ -298,7 +298,7 @@ mod tests {
         let location = ParquetFilePath::new(
             file_in_catalog.namespace_id,
             file_in_catalog.table_id,
-            file_in_catalog.transition_partition_id(),
+            &file_in_catalog.transition_partition_id(),
             file_in_catalog.object_store_id,
         )
         .object_store_path();
@@ -327,7 +327,7 @@ mod tests {
         let location = ParquetFilePath::new(
             NamespaceId::new(1),
             TableId::new(2),
-            TransitionPartitionId::Deprecated(PartitionId::new(4)),
+            &TransitionPartitionId::Deprecated(PartitionId::new(4)),
             Uuid::new_v4(),
         )
         .object_store_path();
@@ -376,7 +376,7 @@ mod tests {
         let location = ParquetFilePath::new(
             file_in_catalog.namespace_id,
             file_in_catalog.table_id,
-            file_in_catalog.transition_partition_id(),
+            &file_in_catalog.transition_partition_id(),
             file_in_catalog.object_store_id,
         )
         .object_store_path();
@@ -405,7 +405,7 @@ mod tests {
         let location = ParquetFilePath::new(
             NamespaceId::new(1),
             TableId::new(2),
-            TransitionPartitionId::Deprecated(PartitionId::new(4)),
+            &TransitionPartitionId::Deprecated(PartitionId::new(4)),
             Uuid::new_v4(),
         )
         .object_store_path();
@@ -469,7 +469,7 @@ mod tests {
         let loc = ParquetFilePath::new(
             file_in_catalog.namespace_id,
             file_in_catalog.table_id,
-            file_in_catalog.transition_partition_id(),
+            &file_in_catalog.transition_partition_id(),
             file_in_catalog.object_store_id,
         )
         .object_store_path();

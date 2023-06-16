@@ -45,13 +45,13 @@ impl ParquetFilePath {
     pub fn new(
         namespace_id: NamespaceId,
         table_id: TableId,
-        partition_id: TransitionPartitionId,
+        partition_id: &TransitionPartitionId,
         object_store_id: Uuid,
     ) -> Self {
         Self {
             namespace_id,
             table_id,
-            partition_id,
+            partition_id: partition_id.clone(),
             object_store_id,
         }
     }
@@ -92,12 +92,12 @@ impl From<&Self> for ParquetFilePath {
     }
 }
 
-impl From<(TransitionPartitionId, &crate::metadata::IoxMetadata)> for ParquetFilePath {
-    fn from((partition_id, m): (TransitionPartitionId, &crate::metadata::IoxMetadata)) -> Self {
+impl From<(&TransitionPartitionId, &crate::metadata::IoxMetadata)> for ParquetFilePath {
+    fn from((partition_id, m): (&TransitionPartitionId, &crate::metadata::IoxMetadata)) -> Self {
         Self {
             namespace_id: m.namespace_id,
             table_id: m.table_id,
-            partition_id,
+            partition_id: partition_id.clone(),
             object_store_id: m.object_store_id,
         }
     }
@@ -135,7 +135,7 @@ mod tests {
         let pfp = ParquetFilePath::new(
             NamespaceId::new(1),
             TableId::new(2),
-            TransitionPartitionId::Deprecated(PartitionId::new(4)),
+            &TransitionPartitionId::Deprecated(PartitionId::new(4)),
             Uuid::nil(),
         );
         let path = pfp.object_store_path();
@@ -151,7 +151,7 @@ mod tests {
         let pfp = ParquetFilePath::new(
             NamespaceId::new(1),
             table_id,
-            TransitionPartitionId::Deterministic(PartitionHashId::new(
+            &TransitionPartitionId::Deterministic(PartitionHashId::new(
                 table_id,
                 &PartitionKey::from("hello there"),
             )),

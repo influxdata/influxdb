@@ -280,7 +280,7 @@ where
         .store
         .upload(
             record_stream,
-            ctx.transition_partition_id(),
+            &ctx.transition_partition_id(),
             &iox_metadata,
             pool,
         )

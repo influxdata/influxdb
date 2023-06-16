@@ -147,7 +147,7 @@ mod tests {
         ParquetFilePath::new(
             NamespaceId::new(1),
             TableId::new(2),
-            TransitionPartitionId::Deprecated(PartitionId::new(4)),
+            &TransitionPartitionId::Deprecated(PartitionId::new(4)),
             Uuid::new_v4(),
         )
         .object_store_path()

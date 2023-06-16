@@ -82,7 +82,7 @@ async fn test_decoded_iox_metadata() {
     let storage = ParquetStorage::new(object_store, StorageId::from("iox"));
 
     let (iox_parquet_meta, file_size) = storage
-        .upload(stream, partition_id, &meta, unbounded_memory_pool())
+        .upload(stream, &partition_id, &meta, unbounded_memory_pool())
         .await
         .expect("failed to serialize & persist record batch");
 
@@ -212,7 +212,7 @@ async fn test_empty_parquet_file_panic() {
 
     // Serialising empty data should cause a panic for human investigation.
     let err = storage
-        .upload(stream, partition_id, &meta, unbounded_memory_pool())
+        .upload(stream, &partition_id, &meta, unbounded_memory_pool())
         .await
         .expect_err("empty file should raise an error");
 
@@ -315,7 +315,7 @@ async fn test_decoded_many_columns_with_null_cols_iox_metadata() {
     let storage = ParquetStorage::new(object_store, StorageId::from("iox"));
 
     let (iox_parquet_meta, file_size) = storage
-        .upload(stream, partition_id, &meta, unbounded_memory_pool())
+        .upload(stream, &partition_id, &meta, unbounded_memory_pool())
         .await
         .expect("failed to serialize & persist record batch");
 
@@ -402,7 +402,7 @@ async fn test_derive_parquet_file_params() {
     let (iox_parquet_meta, file_size) = storage
         .upload(
             stream,
-            transition_partition_id,
+            &transition_partition_id,
             &meta,
             unbounded_memory_pool(),
         )
