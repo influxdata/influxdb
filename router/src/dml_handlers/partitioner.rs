@@ -374,6 +374,28 @@ mod tests {
         pretty_assertions::assert_eq!(expected, got);
     }
 
+    prop_compose! {
+        /// Yield a Vec containing an identical timestamp run of random length,
+        /// up to `max_run_len`,
+        fn arbitrary_timestamp_run(max_run_len: usize)(v in 0_i64..i64::MAX, run_len in 1..max_run_len) -> Vec<i64> {
+            let mut x = Vec::with_capacity(run_len);
+            x.resize(max_run_len, v);
+            x
+        }
+    }
+
+    /// Yield a Vec of timestamp values that more accurately model real
+    /// timestamps than pure random selection.
+    ///
+    /// Runs of identical timestamps are generated with
+    /// [`arbitrary_timestamp_run()`], which are then shuffled to produce a list
+    /// of timestamps with limited repeats, sometimes consecutively.
+    fn arbitrary_timestamps() -> impl Strategy<Value = Vec<i64>> {
+        proptest::collection::vec(arbitrary_timestamp_run(6), 10..100)
+            .prop_map(|v| v.into_iter().flatten().collect::<Vec<_>>())
+            .prop_shuffle()
+    }
+
     proptest! {
         /// A test asserting that writes passing through the router's
         /// partitioning handler are correctly partitioned when using the
@@ -382,7 +404,7 @@ mod tests {
         /// All rows within each partition must have timestamps that when
         /// formatted match the partition key.
         #[test]
-        fn prop_default_template_row_contents(times in proptest::collection::vec(0_i64..i64::MAX, 10..100)) {
+        fn prop_default_template_row_contents(times in arbitrary_timestamps()) {
             let partitioner = Partitioner::default();
             let ns = NamespaceName::new("bananas").expect("valid db name");
             let namespace_schema = namespace_schema(42);
