@@ -291,7 +291,7 @@ mod tests {
 
         // Apply the op through the decorator, which should time out
         let err = wal_sink
-            .apply(DmlOperation::Write(op.clone()).into())
+            .apply(IngestOp::Write(op.clone()))
             .await
             .expect_err("write should time out");
 

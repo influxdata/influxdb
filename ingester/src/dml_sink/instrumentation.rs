@@ -74,7 +74,6 @@ mod tests {
 
     use assert_matches::assert_matches;
     use data_types::{NamespaceId, PartitionId, PartitionKey, TableId};
-    use dml::DmlOperation;
     use lazy_static::lazy_static;
     use metric::Attributes;
 
@@ -123,14 +122,14 @@ mod tests {
                     let metrics = metric::Registry::default();
                     let decorator = DmlSinkInstrumentation::new(LAYER_NAME, mock, &metrics);
 
-                    let op = DmlOperation::Write(make_write_op(
+                    let op = IngestOp::Write(make_write_op(
                         &PARTITION_KEY,
                         NAMESPACE_ID,
                         TABLE_NAME,
                         TABLE_ID,
                         42,
                         "banana-report,tag=1 v=2 42424242",
-                    )).into();
+                    ));
 
                     // Call the decorator and assert the return value
                     let got = decorator

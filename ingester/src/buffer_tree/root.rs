@@ -232,7 +232,6 @@ mod tests {
     use assert_matches::assert_matches;
     use data_types::{PartitionId, PartitionKey};
     use datafusion::{assert_batches_eq, assert_batches_sorted_eq};
-    use dml::DmlOperation;
     use futures::StreamExt;
     use metric::{Attributes, Metric};
 
@@ -285,20 +284,17 @@ mod tests {
         assert!(ns.table(ARBITRARY_TABLE_ID).is_none());
 
         // Write some test data
-        ns.apply(
-            DmlOperation::Write(make_write_op(
-                &ARBITRARY_PARTITION_KEY,
-                ARBITRARY_NAMESPACE_ID,
-                &ARBITRARY_TABLE_NAME,
-                ARBITRARY_TABLE_ID,
-                0,
-                &format!(
-                    r#"{},city=Madrid day="sun",temp=55 22"#,
-                    &*ARBITRARY_TABLE_NAME
-                ),
-            ))
-            .into(),
-        )
+        ns.apply(IngestOp::Write(make_write_op(
+            &ARBITRARY_PARTITION_KEY,
+            ARBITRARY_NAMESPACE_ID,
+            &ARBITRARY_TABLE_NAME,
+            ARBITRARY_TABLE_ID,
+            0,
+            &format!(
+                r#"{},city=Madrid day="sun",temp=55 22"#,
+                &*ARBITRARY_TABLE_NAME
+            ),
+        )))
         .await
         .expect("buffer op should succeed");
 
@@ -329,7 +325,7 @@ mod tests {
         (
             $name:ident,
             partitions = [$($partition:expr), +], // The set of PartitionData for the mock partition provider
-            writes = [$($write:expr), *],         // The set of DmlWrite to apply()
+            writes = [$($write:expr), *],         // The set of WriteOperation to apply()
             want = $want:expr                     // The expected results of querying ARBITRARY_NAMESPACE_ID and ARBITRARY_TABLE_ID
         ) => {
             paste::paste! {
@@ -352,9 +348,9 @@ mod tests {
                         Arc::new(metric::Registry::default()),
                     );
 
-                    // Write the provided DmlWrites
+                    // Write the provided WriteOperation
                     $(
-                        buf.apply(DmlOperation::Write($write).into())
+                        buf.apply(IngestOp::Write($write).into())
                             .await
                             .expect("failed to perform write");
                     )*
@@ -629,39 +625,33 @@ mod tests {
         );
 
         // Write data to partition p1, in the arbitrary table
-        buf.apply(
-            DmlOperation::Write(make_write_op(
-                &PartitionKey::from("p1"),
-                ARBITRARY_NAMESPACE_ID,
-                &ARBITRARY_TABLE_NAME,
-                ARBITRARY_TABLE_ID,
-                0,
-                &format!(
-                    r#"{},region=Asturias temp=35 4242424242"#,
-                    &*ARBITRARY_TABLE_NAME
-                ),
-            ))
-            .into(),
-        )
+        buf.apply(IngestOp::Write(make_write_op(
+            &PartitionKey::from("p1"),
+            ARBITRARY_NAMESPACE_ID,
+            &ARBITRARY_TABLE_NAME,
+            ARBITRARY_TABLE_ID,
+            0,
+            &format!(
+                r#"{},region=Asturias temp=35 4242424242"#,
+                &*ARBITRARY_TABLE_NAME
+            ),
+        )))
         .await
         .expect("failed to write initial data");
 
         // Write a duplicate record with the same series key & timestamp, but a
         // different temp value.
-        buf.apply(
-            DmlOperation::Write(make_write_op(
-                &PartitionKey::from("p2"),
-                ARBITRARY_NAMESPACE_ID,
-                &ARBITRARY_TABLE_NAME,
-                ARBITRARY_TABLE_ID,
-                1,
-                &format!(
-                    r#"{},region=Asturias temp=12 4242424242"#,
-                    &*ARBITRARY_TABLE_NAME
-                ),
-            ))
-            .into(),
-        )
+        buf.apply(IngestOp::Write(make_write_op(
+            &PartitionKey::from("p2"),
+            ARBITRARY_NAMESPACE_ID,
+            &ARBITRARY_TABLE_NAME,
+            ARBITRARY_TABLE_ID,
+            1,
+            &format!(
+                r#"{},region=Asturias temp=12 4242424242"#,
+                &*ARBITRARY_TABLE_NAME
+            ),
+        )))
         .await
         .expect("failed to overwrite data");
 
@@ -734,57 +724,48 @@ mod tests {
         assert_eq!(buf.partitions().count(), 0);
 
         // Write data to partition p1, in the arbitrary table
-        buf.apply(
-            DmlOperation::Write(make_write_op(
-                &PartitionKey::from("p1"),
-                ARBITRARY_NAMESPACE_ID,
-                &ARBITRARY_TABLE_NAME,
-                ARBITRARY_TABLE_ID,
-                0,
-                &format!(
-                    r#"{},region=Asturias temp=35 4242424242"#,
-                    &*ARBITRARY_TABLE_NAME
-                ),
-            ))
-            .into(),
-        )
+        buf.apply(IngestOp::Write(make_write_op(
+            &PartitionKey::from("p1"),
+            ARBITRARY_NAMESPACE_ID,
+            &ARBITRARY_TABLE_NAME,
+            ARBITRARY_TABLE_ID,
+            0,
+            &format!(
+                r#"{},region=Asturias temp=35 4242424242"#,
+                &*ARBITRARY_TABLE_NAME
+            ),
+        )))
         .await
         .expect("failed to write initial data");
 
         assert_eq!(buf.partitions().count(), 1);
 
         // Write data to partition p2, in the arbitrary table
-        buf.apply(
-            DmlOperation::Write(make_write_op(
-                &PartitionKey::from("p2"),
-                ARBITRARY_NAMESPACE_ID,
-                &ARBITRARY_TABLE_NAME,
-                ARBITRARY_TABLE_ID,
-                0,
-                &format!(
-                    r#"{},region=Asturias temp=35 4242424242"#,
-                    &*ARBITRARY_TABLE_NAME
-                ),
-            ))
-            .into(),
-        )
+        buf.apply(IngestOp::Write(make_write_op(
+            &PartitionKey::from("p2"),
+            ARBITRARY_NAMESPACE_ID,
+            &ARBITRARY_TABLE_NAME,
+            ARBITRARY_TABLE_ID,
+            0,
+            &format!(
+                r#"{},region=Asturias temp=35 4242424242"#,
+                &*ARBITRARY_TABLE_NAME
+            ),
+        )))
         .await
         .expect("failed to write initial data");
 
         assert_eq!(buf.partitions().count(), 2);
 
         // Write data to partition p3, in the second table
-        buf.apply(
-            DmlOperation::Write(make_write_op(
-                &PartitionKey::from("p3"),
-                ARBITRARY_NAMESPACE_ID,
-                TABLE2_NAME,
-                TABLE2_ID,
-                0,
-                &format!(r#"{},region=Asturias temp=35 4242424242"#, TABLE2_NAME),
-            ))
-            .into(),
-        )
+        buf.apply(IngestOp::Write(make_write_op(
+            &PartitionKey::from("p3"),
+            ARBITRARY_NAMESPACE_ID,
+            TABLE2_NAME,
+            TABLE2_ID,
+            0,
+            &format!(r#"{},region=Asturias temp=35 4242424242"#, TABLE2_NAME),
+        )))
         .await
         .expect("failed to write initial data");
 
@@ -832,20 +813,17 @@ mod tests {
         });
 
         // Write data to partition p1, in the arbitrary table
-        buf.apply(
-            DmlOperation::Write(make_write_op(
-                &PartitionKey::from("p1"),
-                ARBITRARY_NAMESPACE_ID,
-                &ARBITRARY_TABLE_NAME,
-                ARBITRARY_TABLE_ID,
-                0,
-                &format!(
-                    r#"{},region=Asturias temp=35 4242424242"#,
-                    &*ARBITRARY_TABLE_NAME
-                ),
-            ))
-            .into(),
-        )
+        buf.apply(IngestOp::Write(make_write_op(
+            &PartitionKey::from("p1"),
+            ARBITRARY_NAMESPACE_ID,
+            &ARBITRARY_TABLE_NAME,
+            ARBITRARY_TABLE_ID,
+            0,
+            &format!(
+                r#"{},region=Asturias temp=35 4242424242"#,
+                &*ARBITRARY_TABLE_NAME
+            ),
+        )))
         .await
         .expect("failed to write data");
 
@@ -911,20 +889,17 @@ mod tests {
         );
 
         // Write data to partition p1, in the arbitrary table
-        buf.apply(
-            DmlOperation::Write(make_write_op(
-                &PartitionKey::from("p1"),
-                ARBITRARY_NAMESPACE_ID,
-                &ARBITRARY_TABLE_NAME,
-                ARBITRARY_TABLE_ID,
-                0,
-                &format!(
-                    r#"{},region=Madrid temp=35 4242424242"#,
-                    &*ARBITRARY_TABLE_NAME
-                ),
-            ))
-            .into(),
-        )
+        buf.apply(IngestOp::Write(make_write_op(
+            &PartitionKey::from("p1"),
+            ARBITRARY_NAMESPACE_ID,
+            &ARBITRARY_TABLE_NAME,
+            ARBITRARY_TABLE_ID,
+            0,
+            &format!(
+                r#"{},region=Madrid temp=35 4242424242"#,
+                &*ARBITRARY_TABLE_NAME
+            ),
+        )))
         .await
         .expect("failed to write initial data");
 
@@ -938,39 +913,33 @@ mod tests {
 
         // Perform a write concurrent to the consumption of the query stream
         // that creates a new partition (p2) in the same table.
-        buf.apply(
-            DmlOperation::Write(make_write_op(
-                &PartitionKey::from("p2"),
-                ARBITRARY_NAMESPACE_ID,
-                &ARBITRARY_TABLE_NAME,
-                ARBITRARY_TABLE_ID,
-                1,
-                &format!(
-                    r#"{},region=Asturias temp=20 4242424242"#,
-                    &*ARBITRARY_TABLE_NAME
-                ),
-            ))
-            .into(),
-        )
+        buf.apply(IngestOp::Write(make_write_op(
+            &PartitionKey::from("p2"),
+            ARBITRARY_NAMESPACE_ID,
+            &ARBITRARY_TABLE_NAME,
+            ARBITRARY_TABLE_ID,
+            1,
+            &format!(
+                r#"{},region=Asturias temp=20 4242424242"#,
+                &*ARBITRARY_TABLE_NAME
+            ),
+        )))
         .await
         .expect("failed to perform concurrent write to new partition");
 
         // Perform another write that hits the partition within the query
         // results snapshot (p1) before the partition is read.
-        buf.apply(
-            DmlOperation::Write(make_write_op(
-                &PartitionKey::from("p1"),
-                ARBITRARY_NAMESPACE_ID,
-                &ARBITRARY_TABLE_NAME,
-                ARBITRARY_TABLE_ID,
-                2,
-                &format!(
-                    r#"{},region=Murcia temp=30 4242424242"#,
-                    &*ARBITRARY_TABLE_NAME
-                ),
-            ))
-            .into(),
-        )
+        buf.apply(IngestOp::Write(make_write_op(
+            &PartitionKey::from("p1"),
+            ARBITRARY_NAMESPACE_ID,
+            &ARBITRARY_TABLE_NAME,
+            ARBITRARY_TABLE_ID,
+            2,
+            &format!(
+                r#"{},region=Murcia temp=30 4242424242"#,
+                &*ARBITRARY_TABLE_NAME
+            ),
+        )))
         .await
         .expect("failed to perform concurrent write to existing partition");
 

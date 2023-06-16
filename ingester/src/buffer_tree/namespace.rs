@@ -164,7 +164,7 @@ where
                     table_data
                         .buffer_table_write(
                             partitioned_data.sequence_number(),
-                            partitioned_data.data(),
+                            partitioned_data.into_data(),
                             partition_key.clone(),
                         )
                         .await?;
@@ -214,7 +214,6 @@ where
 mod tests {
     use std::sync::Arc;
 
-    use dml::DmlOperation;
     use metric::{Attributes, Metric};
 
     use super::*;
@@ -262,20 +261,17 @@ mod tests {
         assert!(ns.table(ARBITRARY_TABLE_ID).is_none());
 
         // Write some test data
-        ns.apply(
-            DmlOperation::Write(make_write_op(
-                &ARBITRARY_PARTITION_KEY,
-                ARBITRARY_NAMESPACE_ID,
-                &ARBITRARY_TABLE_NAME,
-                ARBITRARY_TABLE_ID,
-                0,
-                &format!(
-                    r#"{},city=Medford day="sun",temp=55 22"#,
-                    &*ARBITRARY_TABLE_NAME
-                ),
-            ))
-            .into(),
-        )
+        ns.apply(IngestOp::Write(make_write_op(
+            &ARBITRARY_PARTITION_KEY,
+            ARBITRARY_NAMESPACE_ID,
+            &ARBITRARY_TABLE_NAME,
+            ARBITRARY_TABLE_ID,
+            0,
+            &format!(
+                r#"{},city=Medford day="sun",temp=55 22"#,
+                &*ARBITRARY_TABLE_NAME
+            ),
+        )))
         .await
         .expect("buffer op should succeed");
 

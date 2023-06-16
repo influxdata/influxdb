@@ -59,7 +59,6 @@ mod tests {
 
     use assert_matches::assert_matches;
     use data_types::{NamespaceId, PartitionId, PartitionKey, TableId};
-    use dml::{DmlMeta, DmlOperation};
     use lazy_static::lazy_static;
     use trace::{ctx::SpanContext, span::SpanStatus, RingBufferTraceCollector, TraceCollector};
 
@@ -120,7 +119,7 @@ mod tests {
         let traces: Arc<dyn TraceCollector> = Arc::new(RingBufferTraceCollector::new(5));
         let span = SpanContext::new(Arc::clone(&traces));
 
-        let mut op = DmlOperation::Write(make_write_op(
+        let mut op = IngestOp::Write(make_write_op(
             &PARTITION_KEY,
             NAMESPACE_ID,
             TABLE_NAME,
@@ -130,17 +129,11 @@ mod tests {
         ));
 
         // Populate the metadata with a span context.
-        let meta = op.meta();
-        op.set_meta(DmlMeta::sequenced(
-            meta.sequence().unwrap(),
-            meta.producer_ts().unwrap(),
-            Some(span),
-            42,
-        ));
+        op.set_span_context(span);
 
         // Drive the trace wrapper
         DmlSinkTracing::new(mock, "bananas")
-            .apply(op.into())
+            .apply(op)
             .await
             .expect("wrapper should not modify result");
 
@@ -156,7 +149,7 @@ mod tests {
         let traces: Arc<dyn TraceCollector> = Arc::new(RingBufferTraceCollector::new(5));
         let span = SpanContext::new(Arc::clone(&traces));
 
-        let mut op = DmlOperation::Write(make_write_op(
+        let mut op = IngestOp::Write(make_write_op(
             &PARTITION_KEY,
             NAMESPACE_ID,
             TABLE_NAME,
@@ -166,17 +159,11 @@ mod tests {
         ));
 
         // Populate the metadata with a span context.
-        let meta = op.meta();
-        op.set_meta(DmlMeta::sequenced(
-            meta.sequence().unwrap(),
-            meta.producer_ts().unwrap(),
-            Some(span),
-            42,
-        ));
+        op.set_span_context(span);
 
         // Drive the trace wrapper
         let got = DmlSinkTracing::new(mock, "bananas")
-            .apply(op.into())
+            .apply(op)
             .await
             .expect_err("wrapper should not modify result");
         assert_matches!(got, DmlError::Wal(s) => {

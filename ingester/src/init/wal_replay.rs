@@ -350,12 +350,12 @@ mod tests {
 
             // Apply the first op through the decorator
             wal_sink
-                .apply(DmlOperation::Write(op1.clone()).into())
+                .apply(IngestOp::Write(op1.clone()))
                 .await
                 .expect("wal should not error");
             // And the second op
             wal_sink
-                .apply(DmlOperation::Write(op2.clone()).into())
+                .apply(IngestOp::Write(op2.clone()))
                 .await
                 .expect("wal should not error");
 
@@ -364,7 +364,7 @@ mod tests {
 
             // Write the third op
             wal_sink
-                .apply(DmlOperation::Write(op3.clone()).into())
+                .apply(IngestOp::Write(op3.clone()))
                 .await
                 .expect("wal should not error");
 
@@ -389,7 +389,13 @@ mod tests {
         // Put at least one write into the buffer so it is a candidate for persistence
         partition
             .buffer_write(
-                op1.tables().next().unwrap().1.clone(),
+                op1.tables()
+                    .next()
+                    .unwrap()
+                    .1
+                    .partitioned_data()
+                    .data()
+                    .clone(),
                 SequenceNumber::new(1),
             )
             .unwrap();
@@ -414,9 +420,9 @@ mod tests {
                 IngestOp::Write(ref w2),
                 IngestOp::Write(ref w3)
             ] => {
-                assert_dml_writes_eq(w1.into(), op1);
-                assert_dml_writes_eq(w2.into(), op2);
-                assert_dml_writes_eq(w3.into(), op3);
+                assert_dml_writes_eq(w1.clone(), op1);
+                assert_dml_writes_eq(w2.clone(), op2);
+                assert_dml_writes_eq(w3.clone(), op3);
             }
         );
 
