@@ -16,7 +16,7 @@ use workspace_hack as _;
 
 use async_trait::async_trait;
 use backoff::BackoffConfig;
-use clap_blocks::compactor::{CompactionType, CompactorConfig};
+use clap_blocks::compactor::CompactorConfig;
 use compactor::{
     compactor::Compactor,
     config::{Config, PartitionsSourceConfig, ShardConfig},
@@ -191,23 +191,10 @@ pub async fn create_compactor_server_type(
     let partitions_source = create_partition_source_config(
         compactor_config.partition_filter.as_deref(),
         compactor_config.process_all_partitions,
-        compactor_config.compaction_type,
         compactor_config.compaction_partition_minute_threshold,
-        compactor_config.compaction_cold_partition_minute_threshold,
     );
 
-    // This is annoying to have two types that are so similar and have to convert between them, but
-    // this way compactor doesn't have to know about clap_blocks and vice versa. It would also
-    // be nice to have this as a `From` trait implementation, but this crate isn't allowed because
-    // neither type is defined in ioxd_compactor. This feels like the right place to do the
-    // conversion, though.
-    let compaction_type = match compactor_config.compaction_type {
-        CompactionType::Hot => compactor::config::CompactionType::Hot,
-        CompactionType::Cold => compactor::config::CompactionType::Cold,
-    };
-
     let compactor = Compactor::start(Config {
-        compaction_type,
         metric_registry: Arc::clone(&metric_registry),
         catalog,
         parquet_store_real,
@@ -248,22 +235,17 @@ pub async fn create_compactor_server_type(
 fn create_partition_source_config(
     partition_filter: Option<&[i64]>,
     process_all_partitions: bool,
-    compaction_type: CompactionType,
     compaction_partition_minute_threshold: u64,
-    compaction_cold_partition_minute_threshold: u64,
 ) -> PartitionsSourceConfig {
-    match (partition_filter, process_all_partitions, compaction_type) {
-        (None, false, CompactionType::Hot) => PartitionsSourceConfig::CatalogRecentWrites {
+    match (partition_filter, process_all_partitions) {
+        (None, false) => PartitionsSourceConfig::CatalogRecentWrites {
             threshold: Duration::from_secs(compaction_partition_minute_threshold * 60),
         },
-        (None, false, CompactionType::Cold) => PartitionsSourceConfig::CatalogColdForWrites {
-            threshold: Duration::from_secs(compaction_cold_partition_minute_threshold * 60),
-        },
-        (None, true, _) => PartitionsSourceConfig::CatalogAll,
-        (Some(ids), false, _) => {
+        (None, true) => PartitionsSourceConfig::CatalogAll,
+        (Some(ids), false) => {
             PartitionsSourceConfig::Fixed(ids.iter().cloned().map(PartitionId::new).collect())
         }
-        (Some(_), true, _) => panic!(
+        (Some(_), true) => panic!(
             "provided partition ID filter and specific 'process all', this does not make sense"
         ),
     }
@@ -281,9 +263,7 @@ mod tests {
         create_partition_source_config(
             Some(&[1, 7]),
             true,
-            CompactionType::Hot, // arbitrary
-            10,                  // arbitrary
-            60,                  // arbitrary
+            10, // arbitrary
         );
     }
 
@@ -292,9 +272,7 @@ mod tests {
         let partitions_source_config = create_partition_source_config(
             Some(&[1, 7]),
             false,
-            CompactionType::Hot, // arbitrary
-            10,                  // arbitrary
-            60,                  // arbitrary
+            10, // arbitrary
         );
 
         assert_eq!(
@@ -306,11 +284,7 @@ mod tests {
     #[test]
     fn all_in_the_catalog() {
         let partitions_source_config = create_partition_source_config(
-            None,
-            true,
-            CompactionType::Hot, // arbitrary
-            10,                  // arbitrary
-            60,                  // arbitrary
+            None, true, 10, // arbitrary
         );
 
         assert_eq!(partitions_source_config, PartitionsSourceConfig::CatalogAll,);
@@ -318,36 +292,12 @@ mod tests {
 
     #[test]
     fn hot_compaction() {
-        let partitions_source_config = create_partition_source_config(
-            None,
-            false,
-            CompactionType::Hot,
-            10,
-            60, // arbitrary
-        );
+        let partitions_source_config = create_partition_source_config(None, false, 10);
 
         assert_eq!(
             partitions_source_config,
             PartitionsSourceConfig::CatalogRecentWrites {
                 threshold: Duration::from_secs(600)
-            },
-        );
-    }
-
-    #[test]
-    fn cold_compaction() {
-        let partitions_source_config = create_partition_source_config(
-            None,
-            false,
-            CompactionType::Cold,
-            10, // arbitrary
-            60,
-        );
-
-        assert_eq!(
-            partitions_source_config,
-            PartitionsSourceConfig::CatalogColdForWrites {
-                threshold: Duration::from_secs(3600)
             },
         );
     }

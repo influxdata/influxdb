@@ -9,7 +9,7 @@ use object_store::memory::InMemory;
 use observability_deps::tracing::info;
 
 use crate::{
-    config::{CompactionType, Config, PartitionsSourceConfig},
+    config::{Config, PartitionsSourceConfig},
     error::ErrorKind,
     object_store::ignore_writes::IgnoreWrites,
 };
@@ -135,16 +135,6 @@ fn make_partitions_source_commit_partition_sink(
                 Arc::clone(&config.time_provider),
             ))
         }
-        PartitionsSourceConfig::CatalogColdForWrites { threshold } => {
-            Arc::new(CatalogToCompactPartitionsSource::new(
-                config.backoff_config.clone(),
-                Arc::clone(&config.catalog),
-                // Cold for writes is `threshold * 3` ago to `threshold` ago
-                *threshold * 3,
-                Some(*threshold),
-                Arc::clone(&config.time_provider),
-            ))
-        }
         PartitionsSourceConfig::CatalogAll => Arc::new(CatalogAllPartitionsSource::new(
             config.backoff_config.clone(),
             Arc::clone(&config.catalog),
@@ -171,10 +161,7 @@ fn make_partitions_source_commit_partition_sink(
         partitions_source,
     );
 
-    // Temporarily do nothing for cold compaction until we check the cold compaction selection.
-    let shadow_mode = config.shadow_mode || config.compaction_type == CompactionType::Cold;
-
-    let partition_done_sink: Arc<dyn PartitionDoneSink> = if shadow_mode {
+    let partition_done_sink: Arc<dyn PartitionDoneSink> = if config.shadow_mode {
         Arc::new(MockPartitionDoneSink::new())
     } else {
         Arc::new(CatalogPartitionDoneSink::new(
@@ -183,7 +170,7 @@ fn make_partitions_source_commit_partition_sink(
         ))
     };
 
-    let commit: Arc<dyn Commit> = if shadow_mode {
+    let commit: Arc<dyn Commit> = if config.shadow_mode {
         Arc::new(MockCommit::new())
     } else {
         Arc::new(CatalogCommit::new(
@@ -239,13 +226,11 @@ fn make_partitions_source_commit_partition_sink(
 
     // Note: Place "not empty" wrapper at the very last so that the logging and metric wrapper work
     // even when there is not data.
-    let partitions_source = LoggingPartitionsSourceWrapper::new(
-        config.compaction_type,
-        MetricsPartitionsSourceWrapper::new(
+    let partitions_source =
+        LoggingPartitionsSourceWrapper::new(MetricsPartitionsSourceWrapper::new(
             RandomizeOrderPartitionsSourcesWrapper::new(partitions_source, 1234),
             &config.metric_registry,
-        ),
-    );
+        ));
     let partitions_source: Arc<dyn PartitionsSource> = if config.process_once {
         // do not wrap into the "not empty" filter because we do NOT wanna throttle in this case
         // but just exit early
