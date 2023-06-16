@@ -409,15 +409,16 @@ mod tests {
             let ns = NamespaceName::new("bananas").expect("valid db name");
             let namespace_schema = namespace_schema(42);
 
+            let row_count = times.len();
+
             // Generate a batch of writes containing the random set of
             // timestamps.
             let mut batch = MutableBatch::new();
-            let mut writer = Writer::new(&mut batch, times.len());
+            let mut writer = Writer::new(&mut batch, row_count);
             writer
                 .write_time("time", times.into_iter())
                 .unwrap();
             writer.commit();
-
 
             // Map the batch into the partitioner input type
             let input = [(TableId::new(1), ("bananas".to_string(),TablePartitionTemplateOverride::default(), batch))];
@@ -427,6 +428,8 @@ mod tests {
                 input.into_iter().collect(),
                 None
             ));
+
+            let mut observed_rows = 0;
 
             // For each partition in the output
             for p in handler_ret.into_iter().flatten() {
@@ -451,8 +454,12 @@ mod tests {
                     // Finally, the partition key must match the batch
                     // timestamps when rendered in the same YYYY-MM-DD format.
                     assert_eq!(min, key.to_string());
+
+                    observed_rows += batch.rows();
                 }
             }
+
+            assert_eq!(observed_rows, row_count);
         }
     }
 

@@ -1243,6 +1243,7 @@ mod tests {
 
             let mut batch = MutableBatch::new();
             let mut writer = Writer::new(&mut batch, times.len());
+            let row_count = times.len();
 
             let template = test_table_partition_override(vec![TemplatePart::TimeFormat(format)]);
 
@@ -1255,9 +1256,14 @@ mod tests {
             let fmt = StrftimeItems::new(format);
             let iter = partition_batch(&batch, &template);
 
+            let mut observed_rows = 0;
+
             // For each partition key and the calculated row range
             for (key, range) in iter {
                 let key = key.unwrap();
+
+                observed_rows += range.len();
+
                 // Validate all rows in that range render to the same timestamp
                 // value as the partition key when using the same format, using
                 // a known-good formatter.
@@ -1273,6 +1279,8 @@ mod tests {
                     assert_eq!(control, key);
                 }
             }
+
+            assert_eq!(observed_rows, row_count);
         }
     }
 }
