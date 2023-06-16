@@ -17,9 +17,10 @@ use std::{
 };
 use uuid::Uuid;
 
-/// Maximum number of files deleted by [`ParquetFileRepo::delete_old_ids_only`] and
-/// [`ParquetFileRepo::flag_for_delete_by_retention`] at a time.
-pub const MAX_PARQUET_FILES_SELECTED_ONCE: i64 = 1_000;
+/// Maximum number of files touched by [`ParquetFileRepo::flag_for_delete_by_retention`] at a time.
+pub const MAX_PARQUET_FILES_SELECTED_ONCE_FOR_RETENTION: i64 = 1_000;
+/// Maximum number of files touched by [`ParquetFileRepo::delete_old_ids_only`] at a time.
+pub const MAX_PARQUET_FILES_SELECTED_ONCE_FOR_DELETE: i64 = 10_000;
 
 /// An error wrapper detailing the reason for a compare-and-swap failure.
 #[derive(Debug)]
