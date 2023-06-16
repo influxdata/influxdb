@@ -1,7 +1,7 @@
 use crate::plan::expr_type_evaluator::TypeEvaluator;
 use crate::plan::field::{field_by_name, field_name};
 use crate::plan::field_mapper::{field_and_dimensions, FieldTypeMap};
-use crate::plan::ir::{DataSource, Field, Select, SelectQuery, TagSet};
+use crate::plan::ir::{DataSource, Field, Interval, Select, SelectQuery, TagSet};
 use crate::plan::var_ref::{influx_type_to_var_ref_data_type, var_ref_data_type_to_influx_type};
 use crate::plan::{error, util, SchemaProvider};
 use datafusion::common::{DataFusionError, Result};
@@ -19,7 +19,9 @@ use influxdb_influxql_parser::select::{
     Dimension, FillClause, FromMeasurementClause, GroupByClause, MeasurementSelection,
     SelectStatement,
 };
-use influxdb_influxql_parser::time_range::{split_cond, ReduceContext, TimeRange};
+use influxdb_influxql_parser::time_range::{
+    duration_expr_to_nanoseconds, split_cond, ReduceContext, TimeRange,
+};
 use influxdb_influxql_parser::timestamp::Timestamp;
 use itertools::Itertools;
 use schema::InfluxColumnType;
@@ -100,21 +102,35 @@ impl RewriteSelect {
         let (fields, group_by) = self.expand_projection(s, stmt, &from, &tag_set)?;
         let condition = self.condition_resolve_types(s, stmt, &from)?;
 
+        let now = Timestamp::from(s.execution_props().query_execution_start_time);
+        let rc = ReduceContext {
+            now: Some(now),
+            tz: stmt.timezone.map(|tz| *tz),
+        };
+
+        let interval = self.find_interval_offset(&rc, group_by.as_ref())?;
+
         let (condition, time_range) = match condition {
-            Some(where_clause) => {
-                let rc = ReduceContext {
-                    now: Some(Timestamp::from(
-                        s.execution_props().query_execution_start_time,
-                    )),
-                    tz: stmt.timezone.map(|tz| *tz),
-                };
-                split_cond(&rc, &where_clause).map_err(error::map::expr_error)?
-            }
+            Some(where_clause) => split_cond(&rc, &where_clause).map_err(error::map::expr_error)?,
             None => (None, TimeRange::default()),
         };
 
-        let SelectStatementInfo { projection_type } =
-            select_statement_info(&fields, &group_by, stmt.fill)?;
+        // If the interval is non-zero and there is no upper bound, default to `now`
+        // for compatibility with InfluxQL OG.
+        //
+        // See: https://github.com/influxdata/influxdb/blob/f365bb7e3a9c5e227dbf66d84adf674d3d127176/query/compile.go#L172-L179
+        let time_range = match (interval, time_range.upper) {
+            (Some(interval), None) if interval.duration > 0 => TimeRange {
+                lower: time_range.lower,
+                upper: Some(now.timestamp_nanos()),
+            },
+            _ => time_range,
+        };
+
+        let SelectStatementInfo {
+            projection_type,
+            extra_intervals,
+        } = select_statement_info(&fields, &group_by, stmt.fill)?;
 
         // Following InfluxQL OG behaviour, if this is a subquery, and the fill strategy equates
         // to `FILL(null)`, switch to `FILL(none)`.
@@ -131,6 +147,8 @@ impl RewriteSelect {
 
         Ok(Select {
             projection_type,
+            interval,
+            extra_intervals,
             fields,
             from,
             condition,
@@ -387,6 +405,29 @@ impl RewriteSelect {
         } else {
             Ok(Some(where_clause))
         }
+    }
+
+    /// Return the interval value of the `GROUP BY` clause if it specifies a `TIME`.
+    fn find_interval_offset(
+        &self,
+        ctx: &ReduceContext,
+        group_by: Option<&GroupByClause>,
+    ) -> Result<Option<Interval>> {
+        Ok(
+            if let Some(td) = group_by.and_then(|v| v.time_dimension()) {
+                let duration = duration_expr_to_nanoseconds(ctx, &td.interval)
+                    .map_err(error::map::expr_error)?;
+                let offset = td
+                    .offset
+                    .as_ref()
+                    .map(|o| duration_expr_to_nanoseconds(ctx, o))
+                    .transpose()
+                    .map_err(error::map::expr_error)?;
+                Some(Interval { duration, offset })
+            } else {
+                None
+            },
+        )
     }
 }
 
@@ -865,11 +906,29 @@ macro_rules! lit_string {
     };
 }
 
+/// Set the `extra_intervals` field of [`FieldChecker`] if it is
+/// less than then proposed new value.
+macro_rules! set_extra_intervals {
+    ($SELF:expr, $NEW:expr) => {
+        if $SELF.extra_intervals < $NEW as usize {
+            $SELF.extra_intervals = $NEW as usize
+        }
+    };
+}
+
 /// Checks a number of expectations for the fields of a [`SelectStatement`].
 #[derive(Default)]
 struct FieldChecker {
     /// `true` if the statement contains a `GROUP BY TIME` clause.
     has_group_by_time: bool,
+
+    /// The number of additional intervals that must be read
+    /// for queries that group by time and use window functions such as
+    /// `DIFFERENCE` or `DERIVATIVE`. This ensures data for the first
+    /// window is available.
+    ///
+    /// See: <https://github.com/influxdata/influxdb/blob/f365bb7e3a9c5e227dbf66d84adf674d3d127176/query/compile.go#L50>
+    extra_intervals: usize,
 
     /// `true` if the interval was inherited by a parent.
     /// If this is set, then an interval that was inherited will not cause
@@ -887,6 +946,9 @@ struct FieldChecker {
 
     /// Accumulator for the number of aggregate or window expressions for the statement.
     aggregate_count: usize,
+
+    /// Accumulator for the number of window expressions for the statement.
+    window_count: usize,
 
     /// Accumulator for the number of selector expressions for the statement.
     selector_count: usize,
@@ -942,7 +1004,7 @@ impl FieldChecker {
 
         // Validate we are using a selector or raw query if non-aggregate fields are projected.
         if self.has_non_aggregate_fields {
-            if self.aggregate_count > 0 {
+            if self.window_aggregate_count() > 0 {
                 return error::query("mixing aggregate and non-aggregate columns is not supported");
             } else if self.selector_count > 1 {
                 return error::query(
@@ -954,26 +1016,37 @@ impl FieldChecker {
         // By this point the statement is valid, so lets
         // determine the projection type
 
-        if self.has_top_bottom {
-            Ok(ProjectionType::TopBottomSelector)
+        Ok(if self.has_top_bottom {
+            ProjectionType::TopBottomSelector
         } else if self.has_group_by_time {
-            Ok(ProjectionType::Aggregate)
+            if self.window_count > 0 {
+                ProjectionType::WindowAggregate
+            } else {
+                ProjectionType::Aggregate
+            }
         } else if self.has_distinct {
-            Ok(ProjectionType::RawDistinct)
+            ProjectionType::RawDistinct
         } else if self.selector_count == 1 && self.aggregate_count == 0 {
-            Ok(ProjectionType::Selector {
+            ProjectionType::Selector {
                 has_fields: self.has_non_aggregate_fields,
-            })
+            }
         } else if self.selector_count > 1 || self.aggregate_count > 0 {
-            Ok(ProjectionType::Aggregate)
+            ProjectionType::Aggregate
+        } else if self.window_count > 0 {
+            ProjectionType::Window
         } else {
-            Ok(ProjectionType::Raw)
-        }
+            ProjectionType::Raw
+        })
     }
 
     /// The total number of functions observed.
     fn function_count(&self) -> usize {
-        self.aggregate_count + self.selector_count
+        self.window_aggregate_count() + self.selector_count
+    }
+
+    /// The total number of window and aggregate functions observed.
+    fn window_aggregate_count(&self) -> usize {
+        self.aggregate_count + self.window_count
     }
 }
 
@@ -1195,9 +1268,12 @@ impl FieldChecker {
     }
 
     fn check_derivative(&mut self, name: &str, args: &[Expr]) -> Result<()> {
-        self.inc_aggregate_count();
+        self.inc_window_count();
 
         check_exp_args!(name, 1, 2, args);
+
+        set_extra_intervals!(self, 1);
+
         match args.get(1) {
             Some(Expr::Literal(Literal::Duration(d))) if **d <= 0 => {
                 return error::query(format!("duration argument must be positive, got {d}"))
@@ -1214,8 +1290,10 @@ impl FieldChecker {
     }
 
     fn check_elapsed(&mut self, name: &str, args: &[Expr]) -> Result<()> {
-        self.inc_aggregate_count();
+        self.inc_window_count();
         check_exp_args!(name, 1, 2, args);
+
+        set_extra_intervals!(self, 1);
 
         match args.get(1) {
             Some(Expr::Literal(Literal::Duration(d))) if **d <= 0 => {
@@ -1233,8 +1311,10 @@ impl FieldChecker {
     }
 
     fn check_difference(&mut self, name: &str, args: &[Expr]) -> Result<()> {
-        self.inc_aggregate_count();
+        self.inc_window_count();
         check_exp_args!(name, 1, args);
+
+        set_extra_intervals!(self, 1);
 
         self.check_nested_symbol(name, &args[0])
     }
@@ -1243,11 +1323,13 @@ impl FieldChecker {
         self.inc_aggregate_count();
         check_exp_args!("cumulative_sum", 1, args);
 
+        set_extra_intervals!(self, 1);
+
         self.check_nested_symbol("cumulative_sum", &args[0])
     }
 
     fn check_moving_average(&mut self, args: &[Expr]) -> Result<()> {
-        self.inc_aggregate_count();
+        self.inc_window_count();
         check_exp_args!("moving_average", 2, args);
 
         let v = lit_integer!("moving_average", args, 1);
@@ -1257,17 +1339,21 @@ impl FieldChecker {
             ));
         }
 
+        set_extra_intervals!(self, v);
+
         self.check_nested_symbol("moving_average", &args[0])
     }
 
     fn check_exponential_moving_average(&mut self, name: &str, args: &[Expr]) -> Result<()> {
-        self.inc_aggregate_count();
+        self.inc_window_count();
         check_exp_args!(name, 2, 4, args);
 
         let v = lit_integer!(name, args, 1);
         if v < 1 {
             return error::query(format!("{name} period must be greater than 1, got {v}"));
         }
+
+        set_extra_intervals!(self, v);
 
         if let Some(v) = lit_integer!(name, args, 2?) {
             match (v, name) {
@@ -1299,13 +1385,15 @@ impl FieldChecker {
     }
 
     fn check_kaufmans(&mut self, name: &str, args: &[Expr]) -> Result<()> {
-        self.inc_aggregate_count();
+        self.inc_window_count();
         check_exp_args!(name, 2, 3, args);
 
         let v = lit_integer!(name, args, 1);
         if v < 1 {
             return error::query(format!("{name} period must be greater than 1, got {v}"));
         }
+
+        set_extra_intervals!(self, v);
 
         if let Some(v) = lit_integer!(name, args, 2?) {
             if v < 0 && v != -1 {
@@ -1319,13 +1407,15 @@ impl FieldChecker {
     }
 
     fn check_chande_momentum_oscillator(&mut self, name: &str, args: &[Expr]) -> Result<()> {
-        self.inc_aggregate_count();
+        self.inc_window_count();
         check_exp_args!(name, 2, 4, args);
 
         let v = lit_integer!(name, args, 1);
         if v < 1 {
             return error::query(format!("{name} period must be greater than 1, got {v}"));
         }
+
+        set_extra_intervals!(self, v);
 
         if let Some(v) = lit_integer!(name, args, 2?) {
             if v < 0 && v != -1 {
@@ -1401,9 +1491,14 @@ impl FieldChecker {
         }
     }
 
-    /// Increments the function call count
+    /// Increments the aggregate function call count
     fn inc_aggregate_count(&mut self) {
         self.aggregate_count += 1
+    }
+
+    /// Increments the window function call count
+    fn inc_window_count(&mut self) {
+        self.window_count += 1
     }
 
     fn inc_selector_count(&mut self) {
@@ -1453,6 +1548,10 @@ pub(crate) enum ProjectionType {
     /// A query that projects one or more aggregate functions or
     /// two or more selector functions.
     Aggregate,
+    /// A query that projects one or more window functions.
+    Window,
+    /// A query that projects a combination of window and nested aggregate functions.
+    WindowAggregate,
     /// A query that projects a single selector function,
     /// such as `last` or `first`.
     Selector {
@@ -1468,7 +1567,11 @@ pub(crate) enum ProjectionType {
 #[derive(Default, Debug, Copy, Clone)]
 struct SelectStatementInfo {
     /// Identifies the projection type for the `SELECT` query.
-    pub projection_type: ProjectionType,
+    projection_type: ProjectionType,
+    /// Copied from [extra_intervals](FieldChecker::extra_intervals)
+    ///
+    /// [See also](Select::extra_intervals).
+    extra_intervals: usize,
 }
 
 /// Gather information about the semantics of a [`SelectStatement`] and verify
@@ -1518,8 +1621,14 @@ fn select_statement_info(
     };
 
     let projection_type = fc.check_fields(fields, fill)?;
+    let FieldChecker {
+        extra_intervals, ..
+    } = fc;
 
-    Ok(SelectStatementInfo { projection_type })
+    Ok(SelectStatementInfo {
+        projection_type,
+        extra_intervals,
+    })
 }
 
 #[cfg(test)]
@@ -1591,6 +1700,22 @@ mod test {
             ProjectionType::Selector { has_fields: false }
         );
 
+        // updates extra_intervals
+        let info = select_statement_info(&parse_select("SELECT difference(foo) FROM cpu")).unwrap();
+        assert_matches!(info.projection_type, ProjectionType::Window);
+        assert_matches!(info.extra_intervals, 1);
+        // derives extra intervals from the window function
+        let info =
+            select_statement_info(&parse_select("SELECT moving_average(foo, 5) FROM cpu")).unwrap();
+        assert_matches!(info.projection_type, ProjectionType::Window);
+        assert_matches!(info.extra_intervals, 5);
+        // uses the maximum extra intervals
+        let info = select_statement_info(&parse_select(
+            "SELECT difference(foo), moving_average(foo, 4) FROM cpu",
+        ))
+        .unwrap();
+        assert_matches!(info.extra_intervals, 4);
+
         let info = select_statement_info(&parse_select("SELECT last(foo), bar FROM cpu")).unwrap();
         assert_matches!(
             info.projection_type,
@@ -1609,6 +1734,12 @@ mod test {
 
         let info = select_statement_info(&parse_select("SELECT count(foo) FROM cpu")).unwrap();
         assert_matches!(info.projection_type, ProjectionType::Aggregate);
+
+        let info = select_statement_info(&parse_select(
+            "SELECT difference(count(foo)) FROM cpu GROUP BY TIME(10s)",
+        ))
+        .unwrap();
+        assert_matches!(info.projection_type, ProjectionType::WindowAggregate);
 
         let info = select_statement_info(&parse_select("SELECT top(foo, 3) FROM cpu")).unwrap();
         assert_matches!(info.projection_type, ProjectionType::TopBottomSelector);
@@ -2215,6 +2346,26 @@ mod test {
             assert_eq!(
                 stmt.to_string(),
                 "SELECT time::timestamp AS time, host::tag AS host, usage_idle::float AS usage_idle, usage_system::float AS usage_system, usage_user::float AS usage_user FROM cpu GROUP BY cpu::tag, host::tag, region::tag"
+            );
+
+            //
+            // TIME
+            //
+
+            // Explicitly adds an upper bound for the time-range for aggregate queries
+            let stmt = parse_select("SELECT mean(usage_idle) FROM cpu WHERE time >= '2022-04-09T12:13:14Z' GROUP BY TIME(30s)");
+            let stmt = rewrite_select_statement(&namespace, &stmt).unwrap();
+            assert_eq!(
+                stmt.to_string(),
+                "SELECT time::timestamp AS time, mean(usage_idle::float) AS mean FROM cpu WHERE time >= 1649506394000000000 AND time <= 1672531200000000000 GROUP BY TIME(30s)"
+            );
+
+            // Does not add an upper bound time range if already specified
+            let stmt = parse_select("SELECT mean(usage_idle) FROM cpu WHERE time >= '2022-04-09T12:13:14Z' AND time < '2022-04-10T12:00:00Z' GROUP BY TIME(30s)");
+            let stmt = rewrite_select_statement(&namespace, &stmt).unwrap();
+            assert_eq!(
+                stmt.to_string(),
+                "SELECT time::timestamp AS time, mean(usage_idle::float) AS mean FROM cpu WHERE time >= 1649506394000000000 AND time <= 1649591999999999999 GROUP BY TIME(30s)"
             );
         }
 

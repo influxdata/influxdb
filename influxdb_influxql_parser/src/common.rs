@@ -327,6 +327,13 @@ pub enum OrderByClause {
     Descending,
 }
 
+impl OrderByClause {
+    /// Return `true` if the order by clause is ascending.
+    pub fn is_ascending(self) -> bool {
+        matches!(self, Self::Ascending)
+    }
+}
+
 impl Display for OrderByClause {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         write!(

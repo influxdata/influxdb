@@ -390,12 +390,9 @@ impl TimeRange {
 }
 
 /// Simplifies an InfluxQL duration `expr` to a nanosecond interval represented as an `i64`.
-pub fn duration_expr_to_nanoseconds(expr: &Expr) -> Result<i64, ExprError> {
-    let ctx = ReduceContext::default();
-    match reduce_expr(&ctx, expr)? {
-        Expr::Literal(Literal::Duration(v)) => Ok(*v),
-        Expr::Literal(Literal::Float(v)) => Ok(v as i64),
-        Expr::Literal(Literal::Integer(v)) => Ok(v),
+pub fn duration_expr_to_nanoseconds(ctx: &ReduceContext, expr: &Expr) -> Result<i64, ExprError> {
+    match reduce_time_expr(ctx, expr)? {
+        Expr::Literal(Literal::Timestamp(v)) => Ok(v.timestamp_nanos()),
         _ => error::expr("invalid duration expression"),
     }
 }
@@ -444,7 +441,7 @@ pub struct ReduceContext {
     pub tz: Option<chrono_tz::Tz>,
 }
 
-/// Simplify the time range expression.
+/// Simplify the time range expression and return a literal [timestamp](Timestamp).
 fn reduce_time_expr(ctx: &ReduceContext, expr: &Expr) -> ExprResult {
     match reduce_expr(ctx, expr)? {
         expr @ Expr::Literal(Literal::Timestamp(_)) => Ok(expr),
@@ -732,21 +729,26 @@ mod test {
     use chrono::{NaiveDate, NaiveDateTime, NaiveTime, Offset, Utc};
     use test_helpers::assert_error;
 
+    /// Return a `ReduceContext` with a value of
+    /// now set to `2023-01-01T00:00:00Z` / `1672531200000000000`
+    /// and not timezone.
+    fn reduce_context() -> ReduceContext {
+        ReduceContext {
+            now: Some(Timestamp::from_utc(
+                NaiveDateTime::new(
+                    NaiveDate::from_ymd_opt(2023, 1, 1).unwrap(),
+                    NaiveTime::from_hms_opt(0, 0, 0).unwrap(),
+                ),
+                Utc.fix(),
+            )),
+            tz: None,
+        }
+    }
+
     #[test]
     fn test_split_cond() {
         fn split_exprs(s: &str) -> Result<(Option<ConditionalExpression>, TimeRange), ExprError> {
-            // 2023-01-01T00:00:00Z == 1672531200000000000
-            let ctx = ReduceContext {
-                now: Some(Timestamp::from_utc(
-                    NaiveDateTime::new(
-                        NaiveDate::from_ymd_opt(2023, 1, 1).unwrap(),
-                        NaiveTime::from_hms_opt(0, 0, 0).unwrap(),
-                    ),
-                    Utc.fix(),
-                )),
-                tz: None,
-            };
-
+            let ctx = reduce_context();
             let cond: ConditionalExpression = s.parse().unwrap();
             split_cond(&ctx, &cond)
         }
@@ -1014,13 +1016,14 @@ mod test {
     #[test]
     fn test_expr_to_duration() {
         fn parse(s: &str) -> Result<i64, ExprError> {
+            let ctx = reduce_context();
             let expr = s
                 .parse::<ConditionalExpression>()
                 .unwrap()
                 .expr()
                 .unwrap()
                 .clone();
-            duration_expr_to_nanoseconds(&expr)
+            duration_expr_to_nanoseconds(&ctx, &expr)
         }
 
         let cases = vec![
@@ -1029,6 +1032,8 @@ mod test {
             ("5d10ms", 432_000_010_000_000),
             ("-2d10ms", -172800010000000),
             ("-2d10ns", -172800000000010),
+            ("now()", 1672531200000000000),
+            ("'2023-01-01T00:00:00Z'", 1672531200000000000),
         ];
 
         for (interval_str, exp) in cases {
