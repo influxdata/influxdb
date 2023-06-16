@@ -30,9 +30,9 @@ bytes = { version = "1" }
 chrono = { version = "0.4", default-features = false, features = ["alloc", "clock", "serde"] }
 crossbeam-utils = { version = "0.8" }
 crypto-common = { version = "0.1", default-features = false, features = ["std"] }
-datafusion = { git = "https://github.com/apache/arrow-datafusion.git", rev = "91e75d7e6303c1a7331e8e90eaad9b095ace929b" }
-datafusion-optimizer = { git = "https://github.com/apache/arrow-datafusion.git", rev = "91e75d7e6303c1a7331e8e90eaad9b095ace929b", default-features = false, features = ["crypto_expressions", "regex_expressions", "unicode_expressions"] }
-datafusion-physical-expr = { git = "https://github.com/apache/arrow-datafusion.git", rev = "91e75d7e6303c1a7331e8e90eaad9b095ace929b", default-features = false, features = ["crypto_expressions", "regex_expressions", "unicode_expressions"] }
+datafusion = { git = "https://github.com/apache/arrow-datafusion.git", rev = "fd444b4f683a42d51c8c41e6491074e7fc1d9ab1" }
+datafusion-optimizer = { git = "https://github.com/apache/arrow-datafusion.git", rev = "fd444b4f683a42d51c8c41e6491074e7fc1d9ab1", default-features = false, features = ["crypto_expressions", "regex_expressions", "unicode_expressions"] }
+datafusion-physical-expr = { git = "https://github.com/apache/arrow-datafusion.git", rev = "fd444b4f683a42d51c8c41e6491074e7fc1d9ab1", default-features = false, features = ["crypto_expressions", "regex_expressions", "unicode_expressions"] }
 digest = { version = "0.10", features = ["mac", "std"] }
 either = { version = "1" }
 fixedbitset = { version = "0.4" }
@@ -46,7 +46,7 @@ futures-sink = { version = "0.3" }
 futures-task = { version = "0.3", default-features = false, features = ["std"] }
 futures-util = { version = "0.3", features = ["channel", "io", "sink"] }
 getrandom = { version = "0.2", default-features = false, features = ["std"] }
-hashbrown = { version = "0.13", features = ["raw"] }
+hashbrown = { version = "0.14", features = ["raw"] }
 indexmap = { version = "1", default-features = false, features = ["std"] }
 itertools = { version = "0.10" }
 libc = { version = "0.2", features = ["extra_traits"] }
@@ -120,7 +120,7 @@ futures-sink = { version = "0.3" }
 futures-task = { version = "0.3", default-features = false, features = ["std"] }
 futures-util = { version = "0.3", features = ["channel", "io", "sink"] }
 getrandom = { version = "0.2", default-features = false, features = ["std"] }
-hashbrown = { version = "0.13", features = ["raw"] }
+hashbrown = { version = "0.14", features = ["raw"] }
 heck = { version = "0.4", features = ["unicode"] }
 indexmap = { version = "1", default-features = false, features = ["std"] }
 itertools = { version = "0.10" }
@@ -205,15 +205,13 @@ rustls = { version = "0.21", features = ["dangerous_configuration"] }
 scopeguard = { version = "1" }
 webpki = { version = "0.22", default-features = false, features = ["std"] }
 winapi = { version = "0.3", default-features = false, features = ["basetsd", "consoleapi", "errhandlingapi", "fileapi", "handleapi", "impl-debug", "impl-default", "knownfolders", "minwinbase", "minwindef", "ntsecapi", "ntstatus", "objbase", "processenv", "shellapi", "shlobj", "std", "stringapiset", "synchapi", "sysinfoapi", "timezoneapi", "winbase", "wincon", "winerror", "winnt", "winreg", "winuser", "ws2ipdef", "ws2tcpip", "wtypesbase"] }
-windows-sys-53888c27b7ba5cf4 = { package = "windows-sys", version = "0.45", features = ["Win32_Foundation", "Win32_Networking_WinSock", "Win32_Security", "Win32_Storage_FileSystem", "Win32_System_Console", "Win32_System_IO", "Win32_System_LibraryLoader", "Win32_System_Pipes", "Win32_System_SystemServices", "Win32_System_WindowsProgramming", "Win32_UI_Input_KeyboardAndMouse"] }
-windows-sys-c8eced492e86ede7 = { package = "windows-sys", version = "0.48", features = ["Win32_Foundation", "Win32_Networking_WinSock", "Win32_Security", "Win32_Storage_FileSystem", "Win32_System_Console", "Win32_System_IO", "Win32_System_Pipes", "Win32_System_SystemServices", "Win32_System_Threading", "Win32_System_WindowsProgramming", "Win32_UI_Shell"] }
+windows-sys = { version = "0.48", features = ["Win32_Foundation", "Win32_Networking_WinSock", "Win32_Security", "Win32_Storage_FileSystem", "Win32_System_Console", "Win32_System_IO", "Win32_System_Pipes", "Win32_System_SystemServices", "Win32_System_Threading", "Win32_System_WindowsProgramming", "Win32_UI_Shell"] }
 
 [target.x86_64-pc-windows-msvc.build-dependencies]
 once_cell = { version = "1", default-features = false, features = ["unstable"] }
 scopeguard = { version = "1" }
 webpki = { version = "0.22", default-features = false, features = ["std"] }
 winapi = { version = "0.3", default-features = false, features = ["basetsd", "consoleapi", "errhandlingapi", "fileapi", "handleapi", "impl-debug", "impl-default", "knownfolders", "minwinbase", "minwindef", "ntsecapi", "ntstatus", "objbase", "processenv", "shellapi", "shlobj", "std", "stringapiset", "synchapi", "sysinfoapi", "timezoneapi", "winbase", "wincon", "winerror", "winnt", "winreg", "winuser", "ws2ipdef", "ws2tcpip", "wtypesbase"] }
-windows-sys-53888c27b7ba5cf4 = { package = "windows-sys", version = "0.45", features = ["Win32_Foundation", "Win32_Networking_WinSock", "Win32_Security", "Win32_Storage_FileSystem", "Win32_System_Console", "Win32_System_IO", "Win32_System_LibraryLoader", "Win32_System_Pipes", "Win32_System_SystemServices", "Win32_System_WindowsProgramming", "Win32_UI_Input_KeyboardAndMouse"] }
-windows-sys-c8eced492e86ede7 = { package = "windows-sys", version = "0.48", features = ["Win32_Foundation", "Win32_Networking_WinSock", "Win32_Security", "Win32_Storage_FileSystem", "Win32_System_Console", "Win32_System_IO", "Win32_System_Pipes", "Win32_System_SystemServices", "Win32_System_Threading", "Win32_System_WindowsProgramming", "Win32_UI_Shell"] }
+windows-sys = { version = "0.48", features = ["Win32_Foundation", "Win32_Networking_WinSock", "Win32_Security", "Win32_Storage_FileSystem", "Win32_System_Console", "Win32_System_IO", "Win32_System_Pipes", "Win32_System_SystemServices", "Win32_System_Threading", "Win32_System_WindowsProgramming", "Win32_UI_Shell"] }
 
 ### END HAKARI SECTION

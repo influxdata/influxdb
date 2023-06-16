@@ -83,7 +83,7 @@ impl ParquetChunk {
     ///
     /// See [`ParquetExecInput`] for more information.
     ///
-    /// [`ParquetExec`]: datafusion::physical_plan::file_format::ParquetExec
+    /// [`ParquetExec`]: datafusion::datasource::physical_plan::ParquetExec
     pub fn parquet_exec_input(&self) -> ParquetExecInput {
         let path: ParquetFilePath = self.parquet_file.as_ref().into();
         self.store.parquet_exec_input(&path, self.file_size_bytes())

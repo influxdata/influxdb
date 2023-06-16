@@ -26,8 +26,8 @@ use datafusion::error::DataFusionError;
 use datafusion::execution::context::SessionState;
 use datafusion::logical_expr::Expr;
 use datafusion::physical_plan::ExecutionPlan;
-use datafusion::{catalog::catalog::CatalogProvider, physical_plan::displayable};
 use datafusion::{catalog::schema::SchemaProvider, logical_expr::LogicalPlan};
+use datafusion::{catalog::CatalogProvider, physical_plan::displayable};
 use datafusion::{
     datasource::{object_store::ObjectStoreUrl, TableProvider, TableType},
     physical_plan::{ColumnStatistics, Statistics as DataFusionStatistics},

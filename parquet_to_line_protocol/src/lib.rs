@@ -23,16 +23,13 @@ use datafusion::{
         file_format::{parquet::ParquetFormat, FileFormat},
         listing::PartitionedFile,
         object_store::ObjectStoreUrl,
+        physical_plan::{FileScanConfig, ParquetExec},
     },
     execution::{
         context::{SessionState, TaskContext},
         runtime_env::RuntimeEnv,
     },
-    physical_plan::{
-        execute_stream,
-        file_format::{FileScanConfig, ParquetExec},
-        SendableRecordBatchStream, Statistics,
-    },
+    physical_plan::{execute_stream, SendableRecordBatchStream, Statistics},
     prelude::SessionContext,
 };
 use datafusion_util::config::{iox_session_config, register_iox_object_store};
