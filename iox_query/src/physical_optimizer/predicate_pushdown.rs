@@ -164,7 +164,8 @@ fn conjunction(
 mod tests {
     use arrow::datatypes::{DataType, Field, Schema, SchemaRef};
     use datafusion::{
-        datasource::{object_store::ObjectStoreUrl, physical_plan::FileScanConfig},
+        datasource::object_store::ObjectStoreUrl,
+        datasource::physical_plan::FileScanConfig,
         logical_expr::Operator,
         physical_expr::PhysicalSortExpr,
         physical_plan::{

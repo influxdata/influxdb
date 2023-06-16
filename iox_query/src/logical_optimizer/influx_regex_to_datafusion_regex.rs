@@ -1,8 +1,11 @@
 use datafusion::{
     common::{tree_node::TreeNodeRewriter, DFSchema},
     error::DataFusionError,
-    logical_expr::{expr::ScalarUDF, utils::from_plan, LogicalPlan, Operator},
-    optimizer::{utils::rewrite_preserving_name, OptimizerConfig, OptimizerRule},
+    logical_expr::{
+        expr::ScalarUDF, expr_rewriter::rewrite_preserving_name, utils::from_plan, LogicalPlan,
+        Operator,
+    },
+    optimizer::{OptimizerConfig, OptimizerRule},
     prelude::{binary_expr, lit, Expr},
     scalar::ScalarValue,
 };
