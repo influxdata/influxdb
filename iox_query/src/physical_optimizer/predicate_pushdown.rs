@@ -3,6 +3,7 @@ use std::{collections::HashSet, sync::Arc};
 use datafusion::{
     common::tree_node::{RewriteRecursion, Transformed, TreeNode, TreeNodeRewriter},
     config::ConfigOptions,
+    datasource::physical_plan::ParquetExec,
     error::{DataFusionError, Result},
     logical_expr::Operator,
     physical_expr::{split_conjunction, utils::collect_columns},
@@ -10,7 +11,6 @@ use datafusion::{
     physical_plan::{
         empty::EmptyExec,
         expressions::{BinaryExpr, Column},
-        file_format::ParquetExec,
         filter::FilterExec,
         union::UnionExec,
         ExecutionPlan, PhysicalExpr,
@@ -165,11 +165,11 @@ mod tests {
     use arrow::datatypes::{DataType, Field, Schema, SchemaRef};
     use datafusion::{
         datasource::object_store::ObjectStoreUrl,
+        datasource::physical_plan::FileScanConfig,
         logical_expr::Operator,
         physical_expr::PhysicalSortExpr,
         physical_plan::{
             expressions::{BinaryExpr, Column, Literal},
-            file_format::FileScanConfig,
             PhysicalExpr, Statistics,
         },
         scalar::ScalarValue,

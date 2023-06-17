@@ -7,12 +7,11 @@ use std::{
 };
 
 use async_trait::async_trait;
+use compactor_scheduler::PartitionsSource;
 use data_types::PartitionId;
 use futures::StreamExt;
 
-use crate::components::{
-    partition_done_sink::PartitionDoneSink, partitions_source::PartitionsSource,
-};
+use crate::components::partition_done_sink::PartitionDoneSink;
 
 /// Ensures that a unique set of partitions is flowing through the critical section of the compactor pipeline.
 ///
@@ -181,10 +180,9 @@ where
 mod tests {
     use std::collections::HashMap;
 
-    use crate::components::{
-        partition_done_sink::mock::MockPartitionDoneSink,
-        partitions_source::mock::MockPartitionsSource,
-    };
+    use compactor_scheduler::MockPartitionsSource;
+
+    use crate::components::partition_done_sink::mock::MockPartitionDoneSink;
 
     use super::*;
 

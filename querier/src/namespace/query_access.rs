@@ -9,7 +9,7 @@ use crate::{
 use async_trait::async_trait;
 use data_types::NamespaceId;
 use datafusion::{
-    catalog::{catalog::CatalogProvider, schema::SchemaProvider},
+    catalog::{schema::SchemaProvider, CatalogProvider},
     datasource::TableProvider,
     error::DataFusionError,
 };

@@ -2,10 +2,11 @@ use std::sync::Arc;
 
 use arrow::datatypes::SchemaRef;
 use datafusion::{
+    datasource::physical_plan::ParquetExec,
     error::DataFusionError,
     physical_plan::{
-        empty::EmptyExec, file_format::ParquetExec, union::UnionExec, visit_execution_plan,
-        ExecutionPlan, ExecutionPlanVisitor,
+        empty::EmptyExec, union::UnionExec, visit_execution_plan, ExecutionPlan,
+        ExecutionPlanVisitor,
     },
 };
 use observability_deps::tracing::debug;

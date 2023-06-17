@@ -1,10 +1,11 @@
 //! A Postgres backed implementation of the Catalog
 
+use crate::interface::MAX_PARQUET_FILES_SELECTED_ONCE_FOR_DELETE;
 use crate::{
     interface::{
         self, CasFailure, Catalog, ColumnRepo, ColumnTypeMismatchSnafu, Error, NamespaceRepo,
         ParquetFileRepo, PartitionRepo, RepoCollection, Result, SoftDeletedRows, TableRepo,
-        MAX_PARQUET_FILES_SELECTED_ONCE,
+        MAX_PARQUET_FILES_SELECTED_ONCE_FOR_RETENTION,
     },
     kafkaless_transition::{
         SHARED_QUERY_POOL, SHARED_QUERY_POOL_ID, SHARED_TOPIC_ID, SHARED_TOPIC_NAME,
@@ -1349,7 +1350,7 @@ RETURNING id;
             "#,
         )
         .bind(flagged_at) // $1
-        .bind(MAX_PARQUET_FILES_SELECTED_ONCE) // $2
+        .bind(MAX_PARQUET_FILES_SELECTED_ONCE_FOR_RETENTION) // $2
         .fetch_all(&mut self.inner)
         .await
         .map_err(|e| Error::SqlxError { source: e })?;
@@ -1414,7 +1415,7 @@ RETURNING id;
              "#,
         )
         .bind(older_than) // $1
-        .bind(MAX_PARQUET_FILES_SELECTED_ONCE) // $2
+        .bind(MAX_PARQUET_FILES_SELECTED_ONCE_FOR_DELETE) // $2
         .fetch_all(&mut self.inner)
         .await
         .map_err(|e| Error::SqlxError { source: e })?;

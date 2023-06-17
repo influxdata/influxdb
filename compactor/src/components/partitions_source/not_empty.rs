@@ -1,10 +1,9 @@
 use std::{fmt::Display, sync::Arc, time::Duration};
 
 use async_trait::async_trait;
+use compactor_scheduler::PartitionsSource;
 use data_types::PartitionId;
 use iox_time::TimeProvider;
-
-use super::PartitionsSource;
 
 #[derive(Debug)]
 pub struct NotEmptyPartitionsSourceWrapper<T>
@@ -56,10 +55,9 @@ where
 
 #[cfg(test)]
 mod tests {
-    use iox_time::{MockProvider, Time};
-
-    use crate::components::partitions_source::mock::MockPartitionsSource;
+    use compactor_scheduler::MockPartitionsSource;
     use compactor_test_utils::AssertFutureExt;
+    use iox_time::{MockProvider, Time};
 
     use super::*;
 
