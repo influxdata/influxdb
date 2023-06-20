@@ -3415,6 +3415,7 @@ mod test {
                 "###)
             }
 
+            #[test]
             fn test_not_implemented() {
                 assert_snapshot!(plan("SELECT DIFFERENCE(MEAN(usage_idle)), MEAN(usage_idle) FROM cpu GROUP BY TIME(10s)"), @"This feature is not implemented: mixed window-aggregate and aggregate columns, such as DIFFERENCE(MEAN(col)), MEAN(col)");
             }
