@@ -400,6 +400,8 @@ mod influxql {
         .await;
     }
 
+    /// Test window-like functions, which utilise user-defined aggregate and
+    /// window functions.
     #[tokio::test]
     async fn window_like() {
         test_helpers::maybe_start_logging();

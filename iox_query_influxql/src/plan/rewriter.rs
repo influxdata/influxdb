@@ -952,6 +952,11 @@ struct FieldChecker {
 
     /// Accumulator for the number of selector expressions for the statement.
     selector_count: usize,
+    // Set to `true` if any window or aggregate functions are expected to
+    // only produce non-null results.
+    //
+    // This replicates the
+    // filter_null_rows: bool,
 }
 
 impl FieldChecker {
@@ -1013,14 +1018,21 @@ impl FieldChecker {
             }
         }
 
-        // By this point the statement is valid, so lets
-        // determine the projection type
+        // At this point the statement is valid, and numerous preconditions
+        // have been met. The final state of the `FieldChecker` is inspected
+        // to determine the type of projection. The ProjectionType dictates
+        // how the query will be planned and other cases, such as how NULL
+        // values are handled, to ensure compatibility with InfluxQL OG.
 
         let projection_type = if self.has_top_bottom {
             ProjectionType::TopBottomSelector
         } else if self.has_group_by_time {
             if self.window_count > 0 {
-                ProjectionType::WindowAggregate
+                if self.window_count == self.aggregate_count {
+                    ProjectionType::WindowAggregate
+                } else {
+                    ProjectionType::WindowAggregateMixed
+                }
             } else {
                 ProjectionType::Aggregate
             }
@@ -1557,6 +1569,10 @@ pub(crate) enum ProjectionType {
     Window,
     /// A query that projects a combination of window and nested aggregate functions.
     WindowAggregate,
+    /// A query that projects a combination of window and nested aggregate functions, including
+    /// separate projections that are just aggregates. This requires special handling of
+    /// windows that produce `NULL` results.
+    WindowAggregateMixed,
     /// A query that projects a single selector function,
     /// such as `last` or `first`.
     Selector {
@@ -1737,6 +1753,12 @@ mod test {
         ))
         .unwrap();
         assert_matches!(info.projection_type, ProjectionType::WindowAggregate);
+
+        let info = select_statement_info(&parse_select(
+            "SELECT difference(count(foo)), mean(foo) FROM cpu GROUP BY TIME(10s)",
+        ))
+        .unwrap();
+        assert_matches!(info.projection_type, ProjectionType::WindowAggregateMixed);
 
         let info = select_statement_info(&parse_select("SELECT top(foo, 3) FROM cpu")).unwrap();
         assert_matches!(info.projection_type, ProjectionType::TopBottomSelector);

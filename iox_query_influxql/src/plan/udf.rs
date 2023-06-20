@@ -18,6 +18,7 @@ use std::sync::Arc;
 pub(super) enum WindowFunction {
     MovingAverage,
     Difference,
+    NonNegativeDifference,
 }
 
 impl WindowFunction {
@@ -26,6 +27,7 @@ impl WindowFunction {
         match fun.name.as_str() {
             MOVING_AVERAGE_UDF_NAME => Some(Self::MovingAverage),
             DIFFERENCE_UDF_NAME => Some(Self::Difference),
+            NON_NEGATIVE_DIFFERENCE_UDF_NAME => Some(Self::NonNegativeDifference),
             _ => None,
         }
     }
@@ -36,7 +38,7 @@ impl WindowFunction {
 pub(super) fn find_window_udfs(exprs: &[Expr]) -> Vec<Expr> {
     find_exprs_in_exprs(
         exprs,
-        &|nested_expr| matches!(nested_expr, Expr::ScalarUDF(s) if WindowFunction::try_from_scalar_udf(s.fun.clone()).is_some()),
+        &|nested_expr| matches!(nested_expr, Expr::ScalarUDF(s) if WindowFunction::try_from_scalar_udf(Arc::clone(&s.fun)).is_some()),
     )
 }
 
@@ -89,6 +91,31 @@ static DIFFERENCE: Lazy<Arc<ScalarUDF>> = Lazy::new(|| {
         ),
         &return_type_fn,
         &stand_in_impl(DIFFERENCE_UDF_NAME),
+    ))
+});
+
+const NON_NEGATIVE_DIFFERENCE_UDF_NAME: &str = "non_negative_difference";
+
+/// Create an expression to represent the `NON_NEGATIVE_DIFFERENCE` function.
+pub(crate) fn non_negative_difference(args: Vec<Expr>) -> Expr {
+    NON_NEGATIVE_DIFFERENCE.call(args)
+}
+
+/// Definition of the `NON_NEGATIVE_DIFFERENCE` function.
+static NON_NEGATIVE_DIFFERENCE: Lazy<Arc<ScalarUDF>> = Lazy::new(|| {
+    let return_type_fn: ReturnTypeFunction = Arc::new(|args| Ok(Arc::new(args[0].clone())));
+    Arc::new(ScalarUDF::new(
+        NON_NEGATIVE_DIFFERENCE_UDF_NAME,
+        &Signature::one_of(
+            vec![
+                TypeSignature::Exact(vec![DataType::Float64]),
+                TypeSignature::Exact(vec![DataType::Int64]),
+                TypeSignature::Exact(vec![DataType::UInt64]),
+            ],
+            Volatility::Volatile,
+        ),
+        &return_type_fn,
+        &stand_in_impl(NON_NEGATIVE_DIFFERENCE_UDF_NAME),
     ))
 });
 
