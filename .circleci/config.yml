@@ -207,6 +207,10 @@ jobs:
       - image: postgres
         environment:
           POSTGRES_HOST_AUTH_METHOD: trust
+        command:
+          - "postgres"
+          - "-c"
+          - "max_connections=200"
     resource_class: xlarge # use of a smaller executor tends crashes on link
     environment:
       # Disable incremental compilation to avoid overhead. We are not preserving these files anyway.
