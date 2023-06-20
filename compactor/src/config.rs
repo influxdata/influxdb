@@ -2,6 +2,7 @@
 use std::{collections::HashSet, fmt::Display, num::NonZeroUsize, sync::Arc, time::Duration};
 
 use backoff::BackoffConfig;
+use compactor_scheduler::ShardConfig;
 use data_types::PartitionId;
 use iox_catalog::interface::Catalog;
 use iox_query::exec::Executor;
@@ -100,6 +101,7 @@ pub struct Config {
     /// This is mostly useful for debugging.
     pub ignore_partition_skip_marker: bool,
 
+    /// TODO: this will be removed in followup PR.
     /// Shard config (if sharding should be enabled).
     pub shard_config: Option<ShardConfig>,
 
@@ -147,19 +149,6 @@ impl Config {
     pub fn max_compact_size_bytes(&self) -> usize {
         self.max_desired_file_size_bytes as usize * MIN_COMPACT_SIZE_MULTIPLE
     }
-}
-
-/// Shard config.
-#[derive(Debug, Clone)]
-#[allow(missing_copy_implementations)]
-pub struct ShardConfig {
-    /// Number of shards.
-    pub n_shards: usize,
-
-    /// Shard ID.
-    ///
-    /// Starts as 0 and must be smaller than the number of shards.
-    pub shard_id: usize,
 }
 
 /// Partitions source config.

@@ -21,5 +21,9 @@
 // Workaround for "unused crate" lint false positives.
 use workspace_hack as _;
 
+mod local_scheduler;
 mod partitions_source;
 pub use partitions_source::*;
+
+// Temporary export. Will eventually be encapsulated in local_scheduler.
+pub use local_scheduler::shard_config::ShardConfig;

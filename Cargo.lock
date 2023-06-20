@@ -1005,6 +1005,7 @@ name = "compactor_scheduler"
 version = "0.1.0"
 dependencies = [
  "async-trait",
+ "clap_blocks",
  "data_types",
  "tokio",
  "workspace-hack",
@@ -2976,6 +2977,7 @@ dependencies = [
  "backoff",
  "clap_blocks",
  "compactor",
+ "compactor_scheduler",
  "data_types",
  "hyper",
  "iox_catalog",

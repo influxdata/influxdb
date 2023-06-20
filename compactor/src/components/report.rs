@@ -1,8 +1,9 @@
 //! Report component system state.
 
+use compactor_scheduler::ShardConfig;
 use observability_deps::tracing::info;
 
-use crate::config::{Config, ShardConfig};
+use crate::config::Config;
 
 use super::Components;
 
