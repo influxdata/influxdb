@@ -1,7 +1,6 @@
 use std::sync::Arc;
 
 use data_types::{NamespaceId, PartitionKey, TableId};
-use dml::{DmlMeta, DmlOperation, DmlWrite};
 use generated_types::influxdata::iox::ingester::v1::{
     self as proto, write_service_server::WriteService,
 };
@@ -12,6 +11,7 @@ use thiserror::Error;
 use tonic::{Code, Request, Response};
 
 use crate::{
+    dml_payload::{IngestOp, PartitionedData, TableData, WriteOperation},
     dml_sink::{DmlError, DmlSink},
     ingest_state::{IngestState, IngestStateError},
     timestamp_oracle::TimestampOracle,
@@ -165,7 +165,7 @@ where
         let namespace_id = NamespaceId::new(payload.database_id);
         let partition_key = PartitionKey::from(payload.partition_key);
 
-        // Never attempt to create a DmlWrite with no tables - doing so causes a
+        // Never attempt to create a WriteOperation with no tables - doing so causes a
         // panic.
         if num_tables == 0 {
             return Err(RpcError::NoTables)?;
@@ -179,31 +179,36 @@ where
             "received rpc write"
         );
 
-        // Reconstruct the DML operation
-        let op = DmlWrite::new(
+        let sequence_number = self.timestamp.next();
+
+        // Construct the corresponding ingester write operation for the RPC payload
+        let op = WriteOperation::new(
             namespace_id,
             batches
                 .into_iter()
-                .map(|(k, v)| (TableId::new(k), v))
+                .map(|(k, v)| {
+                    let table_id = TableId::new(k);
+                    (
+                        table_id,
+                        // TODO(savage): Sequence partitioned data independently within a
+                        // write.
+                        TableData::new(table_id, PartitionedData::new(sequence_number, v)),
+                    )
+                })
                 .collect(),
             partition_key,
-            DmlMeta::sequenced(
-                self.timestamp.next(),
-                iox_time::Time::MAX, // TODO: remove this from DmlMeta
-                // The tracing context should be propagated over the RPC boundary.
-                //
-                // See https://github.com/influxdata/influxdb_iox/issues/6177
-                None,
-                42, // TODO: remove this from DmlMeta
-            ),
+            // TODO:
+            // The tracing context should be propagated over the RPC boundary.
+            //
+            // See https://github.com/influxdata/influxdb_iox/issues/6177
+            None,
         );
 
-        // Apply the DML op to the in-memory buffer.
-        // TODO(savage): Construct the `IngestOp::Write` directly
-        match self.sink.apply(DmlOperation::Write(op).into()).await {
+        // Apply the IngestOp to the in-memory buffer.
+        match self.sink.apply(IngestOp::Write(op)).await {
             Ok(()) => {}
             Err(e) => {
-                error!(error=%e, "failed to apply DML op");
+                error!(error=%e, "failed to apply ingest operation");
                 return Err(e.into())?;
             }
         }
@@ -292,7 +297,7 @@ mod tests {
         sink_ret = Ok(()),
         want_err = false,
         want_calls = [IngestOp::Write(w)] => {
-            // Assert the various DmlWrite properties match the expected values
+            // Assert the various IngestOp properties match the expected values
             assert_eq!(w.namespace(), NAMESPACE_ID);
             assert_eq!(w.tables().count(), 1);
             assert_eq!(*w.partition_key(), PartitionKey::from(PARTITION_KEY));

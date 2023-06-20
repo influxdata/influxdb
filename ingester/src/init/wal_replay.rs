@@ -1,5 +1,4 @@
 use data_types::{NamespaceId, PartitionKey, SequenceNumber, TableId};
-use dml::{DmlMeta, DmlOperation, DmlWrite};
 use generated_types::influxdata::iox::wal::v1::sequenced_wal_op::Op;
 use metric::U64Counter;
 use mutable_batch_pb::decode::decode_database_batch;
@@ -9,6 +8,7 @@ use thiserror::Error;
 use wal::{SequencedWalOp, Wal};
 
 use crate::{
+    dml_payload::{IngestOp, PartitionedData, TableData, WriteOperation},
     dml_sink::{DmlError, DmlSink},
     partition_iter::PartitionIter,
     persist::{drain_buffer::persist_partitions, queue::PersistQueue},
@@ -212,31 +212,32 @@ where
 
             debug!(?op, sequence_number = sequence_number.get(), "apply wal op");
 
-            // Reconstruct the DML operation
+            // Reconstruct the ingest operation
             let batches = decode_database_batch(&op)?;
             let namespace_id = NamespaceId::new(op.database_id);
             let partition_key = PartitionKey::from(op.partition_key);
 
-            let op = DmlWrite::new(
+            let op = WriteOperation::new(
                 namespace_id,
                 batches
                     .into_iter()
-                    .map(|(k, v)| (TableId::new(k), v))
+                    .map(|(k, v)| {
+                        let table_id = TableId::new(k);
+                        (
+                            table_id,
+                            // TODO(savage): Use table-partitioned sequence
+                            // numbers here
+                            TableData::new(table_id, PartitionedData::new(sequence_number, v)),
+                        )
+                    })
                     .collect(),
                 partition_key,
-                // The tracing context should be propagated over the RPC boundary.
-                DmlMeta::sequenced(
-                    sequence_number,
-                    iox_time::Time::MAX, // TODO: remove this from DmlMeta
-                    // TODO: A tracing context should be added for WAL replay.
-                    None,
-                    42, // TODO: remove this from DmlMeta
-                ),
+                // TODO: A tracing context should be added for WAL replay.
+                None,
             );
 
             // Apply the operation to the provided DML sink
-            // TODO(savage): Construct the `IngestOp::Write` directly.
-            sink.apply(DmlOperation::Write(op).into())
+            sink.apply(IngestOp::Write(op))
                 .await
                 .map_err(Into::<DmlError>::into)?;
 

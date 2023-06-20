@@ -1,5 +1,5 @@
 use data_types::{NamespaceId, PartitionKey, SequenceNumber, TableId};
-use dml::{DmlMeta, DmlOperation, DmlWrite};
+use dml::{DmlMeta, DmlWrite};
 use hashbrown::HashMap;
 use mutable_batch::MutableBatch;
 use trace::ctx::SpanContext;
@@ -10,17 +10,6 @@ use trace::ctx::SpanContext;
 pub enum IngestOp {
     /// A write for ingest
     Write(WriteOperation),
-}
-
-impl From<DmlOperation> for IngestOp {
-    fn from(value: DmlOperation) -> Self {
-        match value {
-            DmlOperation::Write(w) => Self::Write(WriteOperation::from(w)),
-            DmlOperation::Delete(_) => {
-                panic!("no corresponding ingest operation exists for DML delete")
-            }
-        }
-    }
 }
 
 impl IngestOp {
@@ -133,42 +122,6 @@ impl From<&WriteOperation> for DmlWrite {
                 value.span_context.clone(),
                 0,
             ),
-        )
-    }
-}
-
-// TODO(savage): Temporary `From` implementation to assist in switchover
-// within ingester code. This should be removed in favour of constructing all
-// [`WriteOperation`]s directly
-impl From<DmlWrite> for WriteOperation {
-    fn from(dml_write: DmlWrite) -> Self {
-        let namespace_id = dml_write.namespace_id();
-        let partition_key = dml_write.partition_key().clone();
-        let sequence_number = dml_write
-            .meta()
-            .sequence()
-            .expect("tried to create write operation from unsequenced DML write");
-        let span_context = dml_write.meta().span_context().map(SpanContext::clone);
-
-        Self::new(
-            namespace_id,
-            dml_write
-                .into_tables()
-                .map(|(table, data)| {
-                    (
-                        table,
-                        TableData {
-                            table,
-                            partitioned_data: PartitionedData {
-                                sequence_number,
-                                data,
-                            },
-                        },
-                    )
-                })
-                .collect(),
-            partition_key,
-            span_context,
         )
     }
 }

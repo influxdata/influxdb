@@ -108,7 +108,7 @@ impl WalAppender for Arc<wal::Wal> {
                     .map(|(table_id, data)| {
                         (
                             *table_id,
-                            data.partitioned_data().sequence_number().get() as u64, // TODO(savage): Why is this signed?
+                            data.partitioned_data().sequence_number().get() as u64,
                         )
                     })
                     .collect::<HashMap<TableId, u64>>();
@@ -138,11 +138,16 @@ mod tests {
 
     use assert_matches::assert_matches;
     use data_types::{NamespaceId, PartitionKey, SequenceNumber, TableId};
-    use dml::{DmlMeta, DmlOperation, DmlWrite};
+    use generated_types::influxdata::pbdata::v1::DatabaseBatch;
     use mutable_batch_lp::lines_to_batches;
+    use mutable_batch_pb::encode::encode_batch;
     use wal::Wal;
 
-    use crate::{dml_sink::mock_sink::MockDmlSink, test_util::make_write_op};
+    use crate::{
+        dml_payload::{PartitionedData, TableData, WriteOperation},
+        dml_sink::mock_sink::MockDmlSink,
+        test_util::make_write_op,
+    };
 
     use super::*;
 
@@ -165,26 +170,38 @@ mod tests {
             0,
         )
         .expect("invalid line proto");
-        let op = DmlWrite::new(
+        let op = WriteOperation::new(
             NAMESPACE_ID,
             [
                 (
                     TABLE_ID,
-                    tables_by_name
-                        .remove(TABLE_NAME)
-                        .expect("table does not exist in LP"),
+                    TableData::new(
+                        TABLE_ID,
+                        PartitionedData::new(
+                            SequenceNumber::new(42),
+                            tables_by_name
+                                .remove(TABLE_NAME)
+                                .expect("table does not exist in LP"),
+                        ),
+                    ),
                 ),
                 (
                     SECOND_TABLE_ID,
-                    tables_by_name
-                        .remove(SECOND_TABLE_NAME)
-                        .expect("second table does not exist in LP"),
+                    TableData::new(
+                        SECOND_TABLE_ID,
+                        PartitionedData::new(
+                            SequenceNumber::new(42),
+                            tables_by_name
+                                .remove(SECOND_TABLE_NAME)
+                                .expect("second table does not exist in LP"),
+                        ),
+                    ),
                 ),
             ]
             .into_iter()
             .collect(),
             PartitionKey::from("p1"),
-            DmlMeta::sequenced(SequenceNumber::new(42), iox_time::Time::MIN, None, 42),
+            None,
         );
 
         // The write portion of this test.
@@ -198,7 +215,7 @@ mod tests {
 
             // Apply the op through the decorator
             wal_sink
-                .apply(DmlOperation::Write(op.clone()).into())
+                .apply(IngestOp::Write(op.clone()))
                 .await
                 .expect("wal should not error");
 
@@ -236,7 +253,7 @@ mod tests {
 
         // The payload should match the serialised form of the "op" originally
         // wrote above.
-        let want = encode_write(NAMESPACE_ID.get(), &op);
+        let want = encode_write_op(NAMESPACE_ID, &op);
 
         assert_eq!(want, *payload);
     }
@@ -301,5 +318,19 @@ mod tests {
         // before erroring.
         let duration = tokio::time::Instant::now().duration_since(start);
         assert!(duration > DELEGATE_APPLY_TIMEOUT);
+    }
+
+    // TODO(savage): Move to a better location
+    fn encode_write_op(namespace_id: NamespaceId, op: &WriteOperation) -> DatabaseBatch {
+        DatabaseBatch {
+            database_id: namespace_id.get(),
+            partition_key: op.partition_key().to_string(),
+            table_batches: op
+                .tables()
+                .map(|(table_id, batch)| {
+                    encode_batch(table_id.get(), batch.partitioned_data().data())
+                })
+                .collect(),
+        }
     }
 }
