@@ -403,7 +403,7 @@ dependencies = [
  "ahash 0.8.3",
  "arrow",
  "chrono",
- "comfy-table 7.0.0",
+ "comfy-table 7.0.1",
  "datafusion",
  "hashbrown 0.14.0",
  "num-traits",
@@ -955,9 +955,9 @@ dependencies = [
 
 [[package]]
 name = "comfy-table"
-version = "7.0.0"
+version = "7.0.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "f9e1f7e5d046697d34b593bdba8ee31f4649366e452a2ccabb3baf3511e503d1"
+checksum = "9ab77dbd8adecaf3f0db40581631b995f312a8a5ae3aa9993188bb8f23d83a5b"
 dependencies = [
  "strum",
  "strum_macros",
@@ -2460,7 +2460,7 @@ dependencies = [
  "bytes",
  "clap",
  "clap_blocks",
- "comfy-table 7.0.0",
+ "comfy-table 7.0.1",
  "compactor",
  "console-subscriber",
  "data_types",
@@ -2542,7 +2542,7 @@ dependencies = [
  "arrow_util",
  "bytes",
  "client_util",
- "comfy-table 7.0.0",
+ "comfy-table 7.0.1",
  "futures-util",
  "generated_types",
  "influxdb-line-protocol",
