@@ -38,10 +38,10 @@ use crate::{
 use async_trait::async_trait;
 use backoff::BackoffConfig;
 use compactor::{
-    compact,
-    config::{Config, PartitionsSourceConfig},
-    hardcoded_components, Components, PanicDataFusionPlanner, PartitionInfo,
+    compact, config::Config, hardcoded_components, Components, PanicDataFusionPlanner,
+    PartitionInfo,
 };
+use compactor_scheduler::PartitionsSourceConfig;
 use data_types::{ColumnType, CompactionLevel, ParquetFile, TableId};
 use datafusion::arrow::record_batch::RecordBatch;
 use datafusion_util::config::register_iox_object_store;

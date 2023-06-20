@@ -4,16 +4,12 @@
 
 use std::{sync::Arc, time::Duration};
 
-use compactor_scheduler::{MockPartitionsSource, PartitionsSource};
+use compactor_scheduler::{MockPartitionsSource, PartitionsSource, PartitionsSourceConfig};
 use data_types::CompactionLevel;
 use object_store::memory::InMemory;
 use observability_deps::tracing::info;
 
-use crate::{
-    config::{Config, PartitionsSourceConfig},
-    error::ErrorKind,
-    object_store::ignore_writes::IgnoreWrites,
-};
+use crate::{config::Config, error::ErrorKind, object_store::ignore_writes::IgnoreWrites};
 
 use super::{
     changed_files_filter::logging::LoggingChangedFiles,
