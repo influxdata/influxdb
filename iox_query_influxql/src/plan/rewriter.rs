@@ -959,7 +959,7 @@ impl FieldChecker {
         &mut self,
         fields: &[Field],
         fill: Option<FillClause>,
-    ) -> Result<ProjectionType> {
+    ) -> Result<SelectStatementInfo> {
         fields.iter().try_for_each(|f| self.check_expr(&f.expr))?;
 
         match self.function_count() {
@@ -1016,7 +1016,7 @@ impl FieldChecker {
         // By this point the statement is valid, so lets
         // determine the projection type
 
-        Ok(if self.has_top_bottom {
+        let projection_type = if self.has_top_bottom {
             ProjectionType::TopBottomSelector
         } else if self.has_group_by_time {
             if self.window_count > 0 {
@@ -1036,6 +1036,11 @@ impl FieldChecker {
             ProjectionType::Window
         } else {
             ProjectionType::Raw
+        };
+
+        Ok(SelectStatementInfo {
+            projection_type,
+            extra_intervals: self.extra_intervals,
         })
     }
 
@@ -1620,15 +1625,7 @@ fn select_statement_info(
         ..Default::default()
     };
 
-    let projection_type = fc.check_fields(fields, fill)?;
-    let FieldChecker {
-        extra_intervals, ..
-    } = fc;
-
-    Ok(SelectStatementInfo {
-        projection_type,
-        extra_intervals,
-    })
+    fc.check_fields(fields, fill)
 }
 
 #[cfg(test)]
