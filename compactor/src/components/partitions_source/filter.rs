@@ -1,11 +1,10 @@
 use std::fmt::Display;
 
 use async_trait::async_trait;
+use compactor_scheduler::PartitionsSource;
 use data_types::PartitionId;
 
 use crate::components::id_only_partition_filter::IdOnlyPartitionFilter;
-
-use super::PartitionsSource;
 
 #[derive(Debug)]
 pub struct FilterPartitionsSourceWrapper<T, F>

@@ -1,11 +1,12 @@
 //! This module implements an in-memory implementation of the iox_catalog interface. It can be
 //! used for testing or for an IOx designed to run without catalog persistence.
 
+use crate::interface::MAX_PARQUET_FILES_SELECTED_ONCE_FOR_DELETE;
 use crate::{
     interface::{
         CasFailure, Catalog, ColumnRepo, ColumnTypeMismatchSnafu, Error, NamespaceRepo,
         ParquetFileRepo, PartitionRepo, RepoCollection, Result, SoftDeletedRows, TableRepo,
-        MAX_PARQUET_FILES_SELECTED_ONCE,
+        MAX_PARQUET_FILES_SELECTED_ONCE_FOR_RETENTION,
     },
     metrics::MetricDecorator,
     DEFAULT_MAX_COLUMNS_PER_TABLE, DEFAULT_MAX_TABLES,
@@ -770,7 +771,7 @@ impl ParquetFileRepo for MemTxn {
                         })
                     })
             })
-            .take(MAX_PARQUET_FILES_SELECTED_ONCE as usize)
+            .take(MAX_PARQUET_FILES_SELECTED_ONCE_FOR_RETENTION as usize)
             .collect())
     }
 
@@ -817,7 +818,7 @@ impl ParquetFileRepo for MemTxn {
 
         let delete = delete
             .into_iter()
-            .take(MAX_PARQUET_FILES_SELECTED_ONCE as usize)
+            .take(MAX_PARQUET_FILES_SELECTED_ONCE_FOR_DELETE as usize)
             .map(|f| f.id)
             .collect();
         Ok(delete)

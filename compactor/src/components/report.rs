@@ -10,7 +10,6 @@ use super::Components;
 pub fn log_config(config: &Config) {
     // use struct unpack so we don't forget any members
     let Config {
-        compaction_type,
         // no need to print the internal state of the registry
         metric_registry: _,
         catalog,
@@ -58,7 +57,6 @@ pub fn log_config(config: &Config) {
     let commit_wrapper = commit_wrapper.as_ref().map(|_| "Some").unwrap_or("None");
 
     info!(
-        ?compaction_type,
         %catalog,
         %parquet_store_real,
         %parquet_store_scratchpad,

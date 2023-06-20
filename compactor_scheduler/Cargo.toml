@@ -1,0 +1,14 @@
+[package]
+name = "compactor_scheduler"
+version.workspace = true
+authors.workspace = true
+edition.workspace = true
+license.workspace = true
+
+[dependencies]
+async-trait = "0.1.68"
+data_types = { path = "../data_types" }
+workspace-hack = { version = "0.1", path = "../workspace-hack" }
+
+[dev-dependencies]
+tokio = { version = "1.28", features = ["macros", "net", "parking_lot", "rt-multi-thread", "signal", "sync", "time"] }
