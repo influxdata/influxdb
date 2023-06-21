@@ -291,7 +291,7 @@ mod tests {
         let inner = MockPartitionProvider::default();
 
         let stored_partition_key = PartitionKey::from(ARBITRARY_PARTITION_KEY_STR);
-        let partition = Partition::new(
+        let partition = Partition::new_in_memory_only(
             ARBITRARY_PARTITION_ID,
             ARBITRARY_TABLE_ID,
             stored_partition_key.clone(),
@@ -350,7 +350,7 @@ mod tests {
                 .build(),
         );
 
-        let partition = Partition::new(
+        let partition = Partition::new_in_memory_only(
             ARBITRARY_PARTITION_ID,
             ARBITRARY_TABLE_ID,
             ARBITRARY_PARTITION_KEY.clone(),
@@ -386,7 +386,7 @@ mod tests {
                 .build(),
         );
 
-        let partition = Partition::new(
+        let partition = Partition::new_in_memory_only(
             ARBITRARY_PARTITION_ID,
             ARBITRARY_TABLE_ID,
             ARBITRARY_PARTITION_KEY.clone(),

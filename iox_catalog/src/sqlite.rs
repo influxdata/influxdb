@@ -822,26 +822,14 @@ struct PartitionPod {
 
 impl From<PartitionPod> for Partition {
     fn from(value: PartitionPod) -> Self {
-        let partition = Self::new(
+        Self::new_with_hash_id_from_sqlite_catalog_only(
             value.id,
+            value.hash_id,
             value.table_id,
             value.partition_key,
             value.sort_key.0,
             value.new_file_at,
-        );
-
-        // The constructor recomputes the `PartitionHashId` even though it may be in the database.
-        // If it is in the database, it'd better match what we just computed.
-        if let Some(hash_id) = value.hash_id.as_ref() {
-            assert_eq!(
-                hash_id,
-                partition
-                    .hash_id()
-                    .expect("hash_id just computed by Partition::new")
-            );
-        }
-
-        partition
+        )
     }
 }
 
@@ -1708,8 +1696,6 @@ mod tests {
         let table_id = arbitrary_table(&mut *repos, "table", &namespace).await.id;
         let key = PartitionKey::from("francis-scott-key-key");
 
-        let hash_id = PartitionHashId::new(table_id, &key);
-
         // Create a partition record in the database that has `NULL` for its `hash_id`
         // value, which is what records existing before the migration adding that column will have.
         sqlx::query(
@@ -1734,9 +1720,6 @@ RETURNING id, hash_id, table_id, partition_key, sort_key, new_file_at;
         let table_partitions = repos.partitions().list_by_table_id(table_id).await.unwrap();
         assert_eq!(table_partitions.len(), 1);
         let a = &table_partitions[0];
-
-        // But because sqlite uses `Partition::new`, it will have the partition key set
-        assert_eq!(a.hash_id().unwrap(), &hash_id);
 
         // Call create_or_get for the same (key, table_id) pair, to ensure the write is idempotent
         // and that the hash_id will still be set by `Partition::new`

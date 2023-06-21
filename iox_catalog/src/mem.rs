@@ -560,7 +560,7 @@ impl PartitionRepo for MemTxn {
         {
             Some(p) => p,
             None => {
-                let p = Partition::new(
+                let p = Partition::new_in_memory_only(
                     PartitionId::new(stage.partitions.len() as i64 + 1),
                     table_id,
                     key,

@@ -313,7 +313,9 @@ pub struct Partition {
 impl Partition {
     /// Create a new Partition data object from the given attributes. This constructor will take
     /// care of computing the [`PartitionHashId`].
-    pub fn new(
+    ///
+    /// This is only appropriate to use in the in-memory catalog or in tests.
+    pub fn new_in_memory_only(
         id: PartitionId,
         table_id: TableId,
         partition_key: PartitionKey,
@@ -324,6 +326,30 @@ impl Partition {
         Self {
             id,
             hash_id: Some(hash_id),
+            table_id,
+            partition_key,
+            sort_key,
+            new_file_at,
+        }
+    }
+
+    /// The sqlite catalog has to define a `PartitionPod` type that's slightly different than
+    /// `Partition` because of what sqlite serialization is supported. This function is for
+    /// conversion between the `PartitionPod` type and `Partition` and should not be used anywhere
+    /// else.
+    ///
+    /// The in-memory catalog also creates the `Partition` directly from w
+    pub fn new_with_hash_id_from_sqlite_catalog_only(
+        id: PartitionId,
+        hash_id: Option<PartitionHashId>,
+        table_id: TableId,
+        partition_key: PartitionKey,
+        sort_key: Vec<String>,
+        new_file_at: Option<Timestamp>,
+    ) -> Self {
+        Self {
+            id,
+            hash_id,
             table_id,
             partition_key,
             sort_key,

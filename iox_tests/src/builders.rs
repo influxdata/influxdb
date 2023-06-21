@@ -157,7 +157,7 @@ impl PartitionBuilder {
     /// Create a builder to create a partition with `partition_id` `id`
     pub fn new(id: i64) -> Self {
         Self {
-            partition: Partition::new(
+            partition: Partition::new_in_memory_only(
                 PartitionId::new(id),
                 TableId::new(0),
                 PartitionKey::from("key"),
