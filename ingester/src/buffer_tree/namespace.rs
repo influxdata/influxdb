@@ -58,7 +58,7 @@ pub(crate) struct NamespaceData<O> {
     namespace_name: Arc<DeferredLoad<NamespaceName>>,
 
     /// A set of tables this [`NamespaceData`] instance has processed
-    /// [`DmlOperation`]'s for.
+    /// [`IngestOp`]'s for.
     ///
     /// The [`TableNameProvider`] acts as a [`DeferredLoad`] constructor to
     /// resolve the [`TableName`] for new [`TableData`] out of the hot path.

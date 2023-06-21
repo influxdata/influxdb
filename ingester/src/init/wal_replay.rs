@@ -25,11 +25,11 @@ pub enum WalReplayError {
     #[error("failed to read wal entry: {0}")]
     ReadEntry(wal::Error),
 
-    /// An error converting the WAL entry into a [`DmlOperation`].
-    #[error("failed converting wal entry to dml operation: {0}")]
+    /// An error converting the WAL entry into a [`IngestOp`].
+    #[error("failed converting wal entry to ingest operation: {0}")]
     MapToDml(#[from] mutable_batch_pb::decode::Error),
 
-    /// A failure to apply a [`DmlOperation`] from the WAL to the in-memory
+    /// A failure to apply a [`IngestOp`] from the WAL to the in-memory
     /// [`BufferTree`].
     ///
     /// [`BufferTree`]: crate::buffer_tree::BufferTree

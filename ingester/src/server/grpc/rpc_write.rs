@@ -106,7 +106,7 @@ pub(crate) struct RpcWrite<T> {
 }
 
 impl<T> RpcWrite<T> {
-    /// Instantiate a new [`RpcWrite`] that pushes [`DmlOperation`] instances
+    /// Instantiate a new [`RpcWrite`] that pushes [`IngestOp`] instances
     /// into `sink`.
     pub(crate) fn new(
         sink: T,

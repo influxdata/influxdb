@@ -50,10 +50,10 @@ use crate::{
 /// ```
 ///
 /// A buffer tree is a mutable data structure that implements [`DmlSink`] to
-/// apply successive [`DmlOperation`] to its internal state, and makes the
+/// apply successive [`IngestOp`] to its internal state, and makes the
 /// materialised result available through a streaming [`QueryExec`] execution.
 ///
-/// The tree is populated lazily/on-demand as [`DmlOperation`] are applied or
+/// The tree is populated lazily/on-demand as [`IngestOp`] are applied or
 /// the data is accessed, but some information is pre-cached and made available
 /// to the [`BufferTree`] for performance reasons (see [`PartitionCache`]).
 ///
@@ -82,7 +82,7 @@ pub(crate) struct BufferTree<O> {
     partition_provider: Arc<dyn PartitionProvider>,
 
     /// A set of namespaces this [`BufferTree`] instance has processed
-    /// [`DmlOperation`]'s for.
+    /// [`IngestOp`]'s for.
     ///
     /// The [`NamespaceNameProvider`] acts as a [`DeferredLoad`] constructor to
     /// resolve the [`NamespaceName`] for new [`NamespaceData`] out of the hot

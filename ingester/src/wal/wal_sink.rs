@@ -24,11 +24,11 @@ use super::traits::WalAppender;
 /// problem (catalog unavailable, etc) preventing a write from making progress.
 const DELEGATE_APPLY_TIMEOUT: Duration = Duration::from_secs(15);
 
-/// A [`DmlSink`] decorator that ensures any [`DmlOperation`] is committed to
+/// A [`DmlSink`] decorator that ensures any [`IngestOp`] is committed to
 /// the write-ahead log before passing the operation to the inner [`DmlSink`].
 #[derive(Debug)]
 pub(crate) struct WalSink<T, W = wal::Wal> {
-    /// The inner chain of [`DmlSink`] that a [`DmlOperation`] is passed to once
+    /// The inner chain of [`DmlSink`] that a [`IngestOp`] is passed to once
     /// committed to the write-ahead log.
     inner: T,
 
@@ -37,7 +37,7 @@ pub(crate) struct WalSink<T, W = wal::Wal> {
 }
 
 impl<T, W> WalSink<T, W> {
-    /// Initialise a new [`WalSink`] that appends [`DmlOperation`] to `W` and
+    /// Initialise a new [`WalSink`] that appends [`IngestOp`] to `W` and
     /// on success, passes the op through to `T`.
     pub(crate) fn new(inner: T, wal: W) -> Self {
         Self { inner, wal }
