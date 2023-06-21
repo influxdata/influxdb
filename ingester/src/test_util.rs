@@ -20,7 +20,7 @@ use crate::{
         },
     },
     deferred_load::DeferredLoad,
-    dml_payload::{PartitionedData, TableData, WriteOperation},
+    dml_payload::write::{PartitionedData, TableData, WriteOperation},
 };
 
 pub(crate) const ARBITRARY_PARTITION_ID: PartitionId = PartitionId::new(1);

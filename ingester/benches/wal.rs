@@ -7,9 +7,12 @@ use generated_types::influxdata::{
     iox::wal::v1::sequenced_wal_op::Op as WalOp, pbdata::v1::DatabaseBatch,
 };
 use ingester::internal_implementation_details::{
-    encode::encode_write_op, queue::MockPersistQueue, DmlError, DmlSink, IngestOp, PartitionData,
-    PartitionIter, PartitionedData as PayloadPartitionedData, TableData as PayloadTableData,
-    WriteOperation,
+    encode::encode_write_op,
+    queue::MockPersistQueue,
+    write::{
+        PartitionedData as PayloadPartitionedData, TableData as PayloadTableData, WriteOperation,
+    },
+    DmlError, DmlSink, IngestOp, PartitionData, PartitionIter,
 };
 use wal::SequencedWalOp;
 

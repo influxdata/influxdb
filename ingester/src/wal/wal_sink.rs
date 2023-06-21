@@ -140,7 +140,7 @@ mod tests {
     use wal::Wal;
 
     use crate::{
-        dml_payload::{PartitionedData, TableData, WriteOperation},
+        dml_payload::write::{PartitionedData, TableData, WriteOperation},
         dml_sink::mock_sink::MockDmlSink,
         test_util::make_write_op,
     };

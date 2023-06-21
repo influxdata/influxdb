@@ -3,7 +3,7 @@ use data_types::NamespaceId;
 use generated_types::influxdata::pbdata::v1::DatabaseBatch;
 use mutable_batch_pb::encode::encode_batch;
 
-use super::WriteOperation;
+use super::write::WriteOperation;
 
 /// Encodes a [`WriteOperation`] for `namespace` into the [`DatabaseBatch`]
 /// wire format.

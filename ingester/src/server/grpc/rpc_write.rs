@@ -11,7 +11,8 @@ use thiserror::Error;
 use tonic::{Code, Request, Response};
 
 use crate::{
-    dml_payload::{IngestOp, PartitionedData, TableData, WriteOperation},
+    dml_payload::write::{PartitionedData, TableData, WriteOperation},
+    dml_payload::IngestOp,
     dml_sink::{DmlError, DmlSink},
     ingest_state::{IngestState, IngestStateError},
     timestamp_oracle::TimestampOracle,

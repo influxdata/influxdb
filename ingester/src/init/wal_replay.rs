@@ -8,7 +8,8 @@ use thiserror::Error;
 use wal::{SequencedWalOp, Wal};
 
 use crate::{
-    dml_payload::{IngestOp, PartitionedData, TableData, WriteOperation},
+    dml_payload::write::{PartitionedData, TableData, WriteOperation},
+    dml_payload::IngestOp,
     dml_sink::{DmlError, DmlSink},
     partition_iter::PartitionIter,
     persist::{drain_buffer::persist_partitions, queue::PersistQueue},

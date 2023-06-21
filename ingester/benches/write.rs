@@ -8,8 +8,10 @@ use generated_types::influxdata::{
 };
 use influxdb_iox_client::ingester::generated_types::WriteRequest;
 use ingester::internal_implementation_details::{
-    encode::encode_write_op, PartitionedData as PayloadPartitionedData,
-    TableData as PayloadTableData, WriteOperation,
+    encode::encode_write_op,
+    write::{
+        PartitionedData as PayloadPartitionedData, TableData as PayloadTableData, WriteOperation,
+    },
 };
 use ingester::IngesterRpcInterface;
 use ingester_test_ctx::{TestContext, TestContextBuilder};
