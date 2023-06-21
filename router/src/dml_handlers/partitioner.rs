@@ -104,10 +104,13 @@ impl DmlHandler for Partitioner {
 #[cfg(test)]
 mod tests {
     use assert_matches::assert_matches;
+    use chrono::{format::StrftimeItems, TimeZone, Utc};
     use data_types::{
         partition_template::{test_table_partition_override, TemplatePart},
         NamespaceId,
     };
+    use mutable_batch::writer::Writer;
+    use proptest::prelude::*;
 
     use super::*;
 
@@ -369,5 +372,111 @@ mod tests {
         ]);
 
         pretty_assertions::assert_eq!(expected, got);
+    }
+
+    prop_compose! {
+        /// Yield a Vec containing an identical timestamp run of random length,
+        /// up to `max_run_len`,
+        fn arbitrary_timestamp_run(max_run_len: usize)(v in 0_i64..i64::MAX, run_len in 1..max_run_len) -> Vec<i64> {
+            let mut x = Vec::with_capacity(run_len);
+            x.resize(max_run_len, v);
+            x
+        }
+    }
+
+    /// Yield a Vec of timestamp values that more accurately model real
+    /// timestamps than pure random selection.
+    ///
+    /// Runs of identical timestamps are generated with
+    /// [`arbitrary_timestamp_run()`], which are then shuffled to produce a list
+    /// of timestamps with limited repeats, sometimes consecutively.
+    fn arbitrary_timestamps() -> impl Strategy<Value = Vec<i64>> {
+        proptest::collection::vec(arbitrary_timestamp_run(6), 10..100)
+            .prop_map(|v| v.into_iter().flatten().collect::<Vec<_>>())
+            .prop_shuffle()
+    }
+
+    proptest! {
+        /// A test asserting that writes passing through the router's
+        /// partitioning handler are correctly partitioned when using the
+        /// default YYYY-MM-DD formatter.
+        ///
+        /// All rows within each partition must have timestamps that when
+        /// formatted match the partition key.
+        #[test]
+        fn prop_default_template_row_contents(times in arbitrary_timestamps()) {
+            let partitioner = Partitioner::default();
+            let ns = NamespaceName::new("bananas").expect("valid db name");
+            let namespace_schema = namespace_schema(42);
+
+            let row_count = times.len();
+
+            // Generate a batch of writes containing the random set of
+            // timestamps.
+            let mut batch = MutableBatch::new();
+            let mut writer = Writer::new(&mut batch, row_count);
+            writer
+                .write_time("time", times.into_iter())
+                .unwrap();
+            writer.commit();
+
+            // Map the batch into the partitioner input type
+            let input = [(TableId::new(1), ("bananas".to_string(),TablePartitionTemplateOverride::default(), batch))];
+            let handler_ret = futures::executor::block_on(partitioner.write(
+                &ns,
+                namespace_schema,
+                input.into_iter().collect(),
+                None
+            ));
+
+            let mut observed_rows = 0;
+
+            // For each partition in the output
+            for p in handler_ret.into_iter().flatten() {
+                // Extract the partition key, and the data batch.
+                //
+                // The all rows in this batch must produce the same stftime time
+                // formatter output as the partition key.
+                let (key, data) = p.into_parts();
+
+                let partitioned_data = data.into_iter().map(|(_t_id, (_t_name, v))| v);
+                for batch in partitioned_data {
+                    // Validate the min/max of the batch - all other rows fall
+                    // within these values.
+                    let ts = batch.timestamp_summary().unwrap().stats;
+                    let min = format_yyyy_mm_dd(ts.min.unwrap());
+                    let max = format_yyyy_mm_dd(ts.max.unwrap());
+
+                    // For YYYY-MM-DD formatting, the min and max representation
+                    // MUST always be equal, as a batch may span only a single
+                    // day.
+                    assert_eq!(min, max);
+                    // Finally, the partition key must match the batch
+                    // timestamps when rendered in the same YYYY-MM-DD format.
+                    assert_eq!(min, key.to_string());
+
+                    observed_rows += batch.rows();
+                }
+            }
+
+            assert_eq!(observed_rows, row_count);
+        }
+    }
+
+    /// Format `ts` as a timestamp in the form `YYYY-MM-DD`.
+    fn format_yyyy_mm_dd(ts: i64) -> String {
+        use std::fmt::Write;
+
+        let fmt = StrftimeItems::new("%Y-%m-%d");
+
+        // Generate the control string.
+        let mut control = String::new();
+        let _ = write!(
+            control,
+            "{}",
+            Utc.timestamp_nanos(ts).format_with_items(fmt)
+        );
+
+        control
     }
 }

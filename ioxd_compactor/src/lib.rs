@@ -16,12 +16,9 @@ use workspace_hack as _;
 
 use async_trait::async_trait;
 use backoff::BackoffConfig;
-use clap_blocks::compactor::CompactorConfig;
-use compactor::{
-    compactor::Compactor,
-    config::{Config, PartitionsSourceConfig, ShardConfig},
-};
-use data_types::PartitionId;
+use clap_blocks::{compactor::CompactorConfig, compactor_scheduler::CompactorSchedulerConfig};
+use compactor::{compactor::Compactor, config::Config};
+use compactor_scheduler::{PartitionsSourceConfig, ShardConfig};
 use hyper::{Body, Request, Response};
 use iox_catalog::interface::Catalog;
 use iox_query::exec::Executor;
@@ -156,43 +153,15 @@ pub async fn create_compactor_server_type(
     exec: Arc<Executor>,
     time_provider: Arc<dyn TimeProvider>,
     compactor_config: CompactorConfig,
+    // temporary dependency, until the rest of the code is moved over to the compactor_scheduler
+    compactor_scheduler_config: CompactorSchedulerConfig,
 ) -> Arc<dyn ServerType> {
     let backoff_config = BackoffConfig::default();
 
-    // if shard_count is specified, shard_id must be provided also.
-    // shard_id may be specified explicitly or extracted from the host name.
-    let mut shard_id = compactor_config.shard_id;
-    if shard_id.is_none()
-        && compactor_config.shard_count.is_some()
-        && compactor_config.hostname.is_some()
-    {
-        let parsed_id = compactor_config
-            .hostname
-            .unwrap()
-            .chars()
-            .skip_while(|ch| !ch.is_ascii_digit())
-            .take_while(|ch| ch.is_ascii_digit())
-            .fold(None, |acc, ch| {
-                ch.to_digit(10).map(|b| acc.unwrap_or(0) * 10 + b)
-            });
-        if parsed_id.is_some() {
-            shard_id = Some(parsed_id.unwrap() as usize);
-        }
-    }
-    assert!(
-        shard_id.is_some() == compactor_config.shard_count.is_some(),
-        "must provide or not provide shard ID and count"
-    );
-    let shard_config = shard_id.map(|shard_id| ShardConfig {
-        shard_id,
-        n_shards: compactor_config.shard_count.expect("just checked"),
-    });
+    let shard_config = ShardConfig::from_config(compactor_scheduler_config.shard_config);
 
-    let partitions_source = create_partition_source_config(
-        compactor_config.partition_filter.as_deref(),
-        compactor_config.process_all_partitions,
-        compactor_config.compaction_partition_minute_threshold,
-    );
+    let partitions_source =
+        PartitionsSourceConfig::from_config(compactor_scheduler_config.partition_source_config);
 
     let compactor = Compactor::start(Config {
         metric_registry: Arc::clone(&metric_registry),
@@ -230,75 +199,4 @@ pub async fn create_compactor_server_type(
         metric_registry,
         common_state,
     ))
-}
-
-fn create_partition_source_config(
-    partition_filter: Option<&[i64]>,
-    process_all_partitions: bool,
-    compaction_partition_minute_threshold: u64,
-) -> PartitionsSourceConfig {
-    match (partition_filter, process_all_partitions) {
-        (None, false) => PartitionsSourceConfig::CatalogRecentWrites {
-            threshold: Duration::from_secs(compaction_partition_minute_threshold * 60),
-        },
-        (None, true) => PartitionsSourceConfig::CatalogAll,
-        (Some(ids), false) => {
-            PartitionsSourceConfig::Fixed(ids.iter().cloned().map(PartitionId::new).collect())
-        }
-        (Some(_), true) => panic!(
-            "provided partition ID filter and specific 'process all', this does not make sense"
-        ),
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    #[should_panic(
-        expected = "provided partition ID filter and specific 'process all', this does not make sense"
-    )]
-    fn process_all_and_partition_filter_incompatible() {
-        create_partition_source_config(
-            Some(&[1, 7]),
-            true,
-            10, // arbitrary
-        );
-    }
-
-    #[test]
-    fn fixed_list_of_partitions() {
-        let partitions_source_config = create_partition_source_config(
-            Some(&[1, 7]),
-            false,
-            10, // arbitrary
-        );
-
-        assert_eq!(
-            partitions_source_config,
-            PartitionsSourceConfig::Fixed([PartitionId::new(1), PartitionId::new(7)].into())
-        );
-    }
-
-    #[test]
-    fn all_in_the_catalog() {
-        let partitions_source_config = create_partition_source_config(
-            None, true, 10, // arbitrary
-        );
-
-        assert_eq!(partitions_source_config, PartitionsSourceConfig::CatalogAll,);
-    }
-
-    #[test]
-    fn hot_compaction() {
-        let partitions_source_config = create_partition_source_config(None, false, 10);
-
-        assert_eq!(
-            partitions_source_config,
-            PartitionsSourceConfig::CatalogRecentWrites {
-                threshold: Duration::from_secs(600)
-            },
-        );
-    }
 }

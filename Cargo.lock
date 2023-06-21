@@ -403,7 +403,7 @@ dependencies = [
  "ahash 0.8.3",
  "arrow",
  "chrono",
- "comfy-table 7.0.0",
+ "comfy-table 7.0.1",
  "datafusion",
  "hashbrown 0.14.0",
  "num-traits",
@@ -955,9 +955,9 @@ dependencies = [
 
 [[package]]
 name = "comfy-table"
-version = "7.0.0"
+version = "7.0.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "f9e1f7e5d046697d34b593bdba8ee31f4649366e452a2ccabb3baf3511e503d1"
+checksum = "9ab77dbd8adecaf3f0db40581631b995f312a8a5ae3aa9993188bb8f23d83a5b"
 dependencies = [
  "strum",
  "strum_macros",
@@ -1005,6 +1005,7 @@ name = "compactor_scheduler"
 version = "0.1.0"
 dependencies = [
  "async-trait",
+ "clap_blocks",
  "data_types",
  "tokio",
  "workspace-hack",
@@ -1017,6 +1018,7 @@ dependencies = [
  "async-trait",
  "backoff",
  "compactor",
+ "compactor_scheduler",
  "data_types",
  "datafusion",
  "datafusion_util",
@@ -2460,7 +2462,7 @@ dependencies = [
  "bytes",
  "clap",
  "clap_blocks",
- "comfy-table 7.0.0",
+ "comfy-table 7.0.1",
  "compactor",
  "console-subscriber",
  "data_types",
@@ -2542,7 +2544,7 @@ dependencies = [
  "arrow_util",
  "bytes",
  "client_util",
- "comfy-table 7.0.0",
+ "comfy-table 7.0.1",
  "futures-util",
  "generated_types",
  "influxdb-line-protocol",
@@ -2977,7 +2979,7 @@ dependencies = [
  "backoff",
  "clap_blocks",
  "compactor",
- "data_types",
+ "compactor_scheduler",
  "hyper",
  "iox_catalog",
  "iox_query",
@@ -3432,9 +3434,9 @@ dependencies = [
 
 [[package]]
 name = "mockito"
-version = "1.0.2"
+version = "1.1.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "ea57936ab3bf56156f135f20ee24b840e5a8ad97a8e1710eace33ac078f8f537"
+checksum = "09c762b6267c4593555bb38f1df19e9318985bc4de60b5e8462890856a9a5b4c"
 dependencies = [
  "assert-json-diff",
  "futures",
@@ -4627,6 +4629,7 @@ dependencies = [
  "authz",
  "base64 0.21.2",
  "bytes",
+ "chrono",
  "criterion",
  "crossbeam-utils",
  "data_types",
@@ -4847,9 +4850,9 @@ dependencies = [
 
 [[package]]
 name = "serde_json"
-version = "1.0.96"
+version = "1.0.97"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "057d394a50403bcac12672b2b18fb387ab6d289d957dab67dd201875391e52f1"
+checksum = "bdf3bf93142acad5821c99197022e170842cdbc1c30482b98750c688c640842a"
 dependencies = [
  "itoa",
  "ryu",

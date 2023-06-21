@@ -20,8 +20,8 @@ const YMD_SPEC: &str = "%Y-%m-%d";
 struct RingBuffer<const N: usize, T> {
     buf: [Option<T>; N],
 
-    /// Index into to the next free/to-be-reused slot.
-    next_ptr: usize,
+    /// Index into to the last wrote value.
+    last_idx: usize,
 }
 
 impl<const N: usize, T> Default for RingBuffer<N, T>
@@ -31,7 +31,7 @@ where
     fn default() -> Self {
         Self {
             buf: [(); N].map(|_| Default::default()), // default init for non-const type
-            next_ptr: Default::default(),
+            last_idx: N - 1,
         }
     }
 }
@@ -48,13 +48,21 @@ where
     ///
     /// This is an O(1) operation.
     fn next_slot(&mut self) -> &mut T {
-        let v = self.buf[self.next_ptr].get_or_insert_with(Default::default);
-
         // Advance the next slot pointer
-        self.next_ptr += 1;
-        self.next_ptr %= N;
+        self.last_idx += 1;
+        self.last_idx %= N;
+
+        let v = self.buf[self.last_idx].get_or_insert_with(Default::default);
 
         v
+    }
+
+    /// Drop the last buffer entry.
+    ///
+    /// This may cause spurious cache misses due to the short-circuiting search
+    /// observing an empty element, potentially before non-empty elements.
+    fn drop_last(&mut self) {
+        self.buf[self.last_idx] = None;
     }
 
     /// Find the first initialised slot that causes `F` to evaluate to true,
@@ -142,6 +150,14 @@ pub(super) struct StrftimeFormatter<'a> {
     /// A set of 5 most recently added timestamps, and the formatted string they
     /// map to.
     values: RingBuffer<5, (i64, String)>,
+
+    /// The last observed timestamp.
+    ///
+    /// This value changes each time a timestamp is returned to the user, either
+    /// from the cache of pre-generated strings, or by generating a new one and
+    /// MUST always track the last timestamp given to
+    /// [`StrftimeFormatter::render()`].
+    last_ts: Option<i64>,
 }
 
 impl<'a> StrftimeFormatter<'a> {
@@ -165,6 +181,7 @@ impl<'a> StrftimeFormatter<'a> {
             format: StrftimeItems::new(format),
             is_ymd_format: is_default_format,
             values: RingBuffer::default(),
+            last_ts: None,
         }
     }
 
@@ -176,6 +193,9 @@ impl<'a> StrftimeFormatter<'a> {
     {
         // Optionally apply the default format reduction optimisation.
         let timestamp = self.maybe_reduce(timestamp);
+
+        // Retain this timestamp as the last observed timestamp.
+        self.last_ts = Some(timestamp);
 
         // Check if this timestamp has already been rendered.
         if let Some(v) = self.values.find(|(t, _v)| *t == timestamp) {
@@ -194,13 +214,22 @@ impl<'a> StrftimeFormatter<'a> {
         buf.1.clear();
 
         // Format the timestamp value into the slot buffer.
-        write!(
+        if write!(
             buf.1,
             "{}",
             Utc.timestamp_nanos(timestamp)
                 .format_with_items(self.format.clone()) // Cheap clone of refs
         )
-        .map_err(|_| PartitionKeyError::InvalidStrftime)?;
+        .is_err()
+        {
+            // The string buffer may be empty, or contain partially rendered
+            // output before the error was raised.
+            //
+            // Remove this entry from the cache to prevent there being a mapping
+            // of `timestamp -> <empty or incomplete output>`.
+            self.values.drop_last();
+            return Err(PartitionKeyError::InvalidStrftime);
+        };
 
         // Encode any reserved characters in this new string.
         buf.1 = encode_key_part(&buf.1).to_string();
@@ -225,6 +254,16 @@ impl<'a> StrftimeFormatter<'a> {
             return timestamp;
         }
         timestamp - (timestamp % DAY_NANOSECONDS)
+    }
+
+    /// Returns true if the output of rendering `timestamp` will match the last
+    /// rendered timestamp, after optionally applying the precision reduction
+    /// optimisation.
+    pub(crate) fn equals_last(&self, timestamp: i64) -> bool {
+        // Optionally apply the default format reduction optimisation.
+        let timestamp = self.maybe_reduce(timestamp);
+
+        self.last_ts.map(|v| v == timestamp).unwrap_or_default()
     }
 }
 
@@ -266,6 +305,33 @@ mod tests {
     }
 
     #[test]
+    fn test_incomplete_formatter_removes_bad_mapping() {
+        let mut fmt = StrftimeFormatter::new("%s");
+
+        let mut buf = String::new();
+        fmt.render(42, &mut buf).unwrap();
+
+        assert_matches!(
+            fmt.values.buf.as_slice(),
+            [Some((42, _)), None, None, None, None]
+        );
+
+        // This obviously isn't possible through normal usage, but to trigger
+        // the "failed to render" code path, reach in and tweak the formatter to
+        // cause it to fail.
+        fmt.format = StrftimeItems::new("%");
+
+        // Trigger the "cannot format" code path
+        fmt.render(4242, &mut buf).expect_err("invalid formatter");
+
+        // And ensure the ring buffer was left in a clean state
+        assert_matches!(
+            fmt.values.buf.as_slice(),
+            [Some((42, _)), None, None, None, None]
+        );
+    }
+
+    #[test]
     fn test_uses_ring_buffer() {
         let mut fmt = StrftimeFormatter::new("%H");
         let mut buf = String::new();
@@ -281,7 +347,7 @@ mod tests {
             fmt.values.buf.as_slice(),
             [Some((42, _)), Some((12345, _)), None, None, None]
         );
-        assert_eq!(fmt.values.next_ptr, 2);
+        assert_eq!(fmt.values.last_idx, 1);
     }
 
     const FORMATTER_SPEC_PARTS: &[&str] = &[

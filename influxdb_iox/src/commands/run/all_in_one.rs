@@ -6,6 +6,7 @@ use super::main;
 use clap_blocks::{
     catalog_dsn::CatalogDsnConfig,
     compactor::CompactorConfig,
+    compactor_scheduler::CompactorSchedulerConfig,
     ingester::IngesterConfig,
     ingester_address::IngesterAddress,
     object_store::{make_object_store, ObjectStoreConfig},
@@ -314,6 +315,9 @@ pub struct Config {
     )]
     pub compactor_grpc_bind_address: SocketAddr,
 
+    #[clap(flatten)]
+    compactor_scheduler_config: CompactorSchedulerConfig,
+
     /// Size of the querier RAM cache used to store catalog metadata information in bytes.
     #[clap(
         long = "querier-ram-pool-metadata-bytes",
@@ -373,6 +377,7 @@ impl Config {
             querier_grpc_bind_address,
             ingester_grpc_bind_address,
             compactor_grpc_bind_address,
+            compactor_scheduler_config,
             querier_ram_pool_metadata_bytes,
             querier_ram_pool_data_bytes,
             querier_max_concurrent_queries,
@@ -481,7 +486,6 @@ impl Config {
         // settings from other configs. Can't use `#clap(flatten)` as the
         // parameters are redundant with ingester's
         let compactor_config = CompactorConfig {
-            compaction_partition_minute_threshold: 10,
             compaction_partition_concurrency: NonZeroUsize::new(1).unwrap(),
             compaction_df_concurrency: NonZeroUsize::new(1).unwrap(),
             compaction_partition_scratchpad_concurrency: NonZeroUsize::new(1).unwrap(),
@@ -491,16 +495,11 @@ impl Config {
             percentage_max_file_size: 30,
             split_percentage: 80,
             partition_timeout_secs: 0,
-            partition_filter: None,
             shadow_mode: false,
             enable_scratchpad: true,
             ignore_partition_skip_marker: false,
-            shard_count: None,
-            shard_id: None,
-            hostname: None,
             min_num_l1_files_to_compact: 1,
             process_once: false,
-            process_all_partitions: false,
             max_num_columns_per_table: 200,
             max_num_files_per_plan: 200,
         };
@@ -523,6 +522,7 @@ impl Config {
 
             ingester_run_config,
             compactor_run_config,
+            compactor_scheduler_config,
 
             catalog_dsn,
             ingester_config,
@@ -550,6 +550,8 @@ struct SpecializedConfig {
     querier_run_config: RunConfig,
     ingester_run_config: RunConfig,
     compactor_run_config: RunConfig,
+    #[allow(dead_code)]
+    compactor_scheduler_config: CompactorSchedulerConfig,
 
     catalog_dsn: CatalogDsnConfig,
     ingester_config: IngesterConfig,
@@ -564,6 +566,7 @@ pub async fn command(config: Config) -> Result<()> {
         querier_run_config,
         ingester_run_config,
         compactor_run_config,
+        compactor_scheduler_config,
         catalog_dsn,
         ingester_config,
         router_config,
@@ -649,6 +652,7 @@ pub async fn command(config: Config) -> Result<()> {
         Arc::clone(&exec),
         Arc::clone(&time_provider),
         compactor_config,
+        compactor_scheduler_config,
     )
     .await;
 

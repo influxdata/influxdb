@@ -20,6 +20,7 @@ use workspace_hack as _;
 
 pub mod catalog_dsn;
 pub mod compactor;
+pub mod compactor_scheduler;
 pub mod garbage_collector;
 pub mod ingester;
 pub mod ingester_address;

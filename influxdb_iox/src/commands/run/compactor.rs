@@ -3,7 +3,8 @@
 use super::main;
 use crate::process_info::setup_metric_registry;
 use clap_blocks::{
-    catalog_dsn::CatalogDsnConfig, compactor::CompactorConfig, object_store::make_object_store,
+    catalog_dsn::CatalogDsnConfig, compactor::CompactorConfig,
+    compactor_scheduler::CompactorSchedulerConfig, object_store::make_object_store,
     run_config::RunConfig,
 };
 use compactor::object_store::metrics::MetricsStore;
@@ -64,6 +65,9 @@ pub struct Config {
 
     #[clap(flatten)]
     pub(crate) compactor_config: CompactorConfig,
+
+    #[clap(flatten)]
+    compactor_scheduler_config: CompactorSchedulerConfig,
 }
 
 pub async fn command(config: Config) -> Result<(), Error> {
@@ -126,6 +130,7 @@ pub async fn command(config: Config) -> Result<(), Error> {
         exec,
         time_provider,
         config.compactor_config,
+        config.compactor_scheduler_config,
     )
     .await;
 
