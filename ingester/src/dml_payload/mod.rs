@@ -3,3 +3,5 @@
 
 mod ingest_op;
 pub use ingest_op::*;
+
+pub mod encode;

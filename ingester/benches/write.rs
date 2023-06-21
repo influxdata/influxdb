@@ -2,17 +2,18 @@ use std::sync::Arc;
 
 use criterion::{criterion_group, criterion_main, BenchmarkId, Criterion, Throughput};
 use data_types::{PartitionKey, SequenceNumber};
-use dml::{DmlMeta, DmlWrite};
 use futures::{stream::FuturesUnordered, StreamExt};
 use generated_types::influxdata::{
     iox::ingester::v1::write_service_server::WriteService, pbdata::v1::DatabaseBatch,
 };
 use influxdb_iox_client::ingester::generated_types::WriteRequest;
+use ingester::internal_implementation_details::{
+    encode::encode_write_op, PartitionedData as PayloadPartitionedData,
+    TableData as PayloadTableData, WriteOperation,
+};
 use ingester::IngesterRpcInterface;
 use ingester_test_ctx::{TestContext, TestContextBuilder};
-use iox_time::TimeProvider;
 use mutable_batch_lp::lines_to_batches;
-use mutable_batch_pb::encode::encode_write;
 
 const TEST_NAMESPACE: &str = "bananas";
 const PARTITION_KEY: &str = "platanos";
@@ -56,26 +57,27 @@ async fn init(lp: impl AsRef<str>) -> (TestContext<impl IngesterRpcInterface>, D
                     .expect("table should exist because of the write_lp above")
                     .id;
 
-                (id, batch)
+                (
+                    id,
+                    PayloadTableData::new(
+                        id,
+                        PayloadPartitionedData::new(SequenceNumber::new(42), batch),
+                    ),
+                )
             }
         })
         .collect::<FuturesUnordered<_>>()
         .collect::<hashbrown::HashMap<_, _>>()
         .await;
 
-    let op = DmlWrite::new(
+    let op = WriteOperation::new(
         ns.id,
         batches_by_ids,
         PartitionKey::from(PARTITION_KEY),
-        DmlMeta::sequenced(
-            SequenceNumber::new(42),
-            iox_time::SystemProvider::new().now(),
-            None,
-            50,
-        ),
+        None,
     );
 
-    (ctx, encode_write(ns.id.get(), &op))
+    (ctx, encode_write_op(ns.id, &op))
 }
 
 /// Benchmark writes containing varying volumes of line protocol.

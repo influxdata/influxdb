@@ -1,14 +1,13 @@
 use async_trait::async_trait;
 use data_types::TableId;
 use generated_types::influxdata::iox::wal::v1::sequenced_wal_op::Op;
-use mutable_batch_pb::encode::encode_write;
 use std::{collections::HashMap, sync::Arc, time::Duration};
 use tokio::sync::watch::Receiver;
 use wal::{SequencedWalOp, WriteResult};
 
 use crate::{
     cancellation_safe::CancellationSafe,
-    dml_payload::IngestOp,
+    dml_payload::{encode::encode_write_op, IngestOp},
     dml_sink::{DmlError, DmlSink},
 };
 
@@ -112,9 +111,8 @@ impl WalAppender for Arc<wal::Wal> {
                         )
                     })
                     .collect::<HashMap<TableId, u64>>();
-                let dml_write = w.into();
                 (
-                    Op::Write(encode_write(namespace_id.get(), &dml_write)),
+                    Op::Write(encode_write_op(namespace_id, w)),
                     partition_sequence_numbers,
                 )
             }
@@ -138,9 +136,7 @@ mod tests {
 
     use assert_matches::assert_matches;
     use data_types::{NamespaceId, PartitionKey, SequenceNumber, TableId};
-    use generated_types::influxdata::pbdata::v1::DatabaseBatch;
     use mutable_batch_lp::lines_to_batches;
-    use mutable_batch_pb::encode::encode_batch;
     use wal::Wal;
 
     use crate::{
@@ -318,19 +314,5 @@ mod tests {
         // before erroring.
         let duration = tokio::time::Instant::now().duration_since(start);
         assert!(duration > DELEGATE_APPLY_TIMEOUT);
-    }
-
-    // TODO(savage): Move to a better location
-    fn encode_write_op(namespace_id: NamespaceId, op: &WriteOperation) -> DatabaseBatch {
-        DatabaseBatch {
-            database_id: namespace_id.get(),
-            partition_key: op.partition_key().to_string(),
-            table_batches: op
-                .tables()
-                .map(|(table_id, batch)| {
-                    encode_batch(table_id.get(), batch.partitioned_data().data())
-                })
-                .collect(),
-        }
     }
 }

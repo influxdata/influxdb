@@ -1,5 +1,4 @@
 use data_types::{NamespaceId, PartitionKey, SequenceNumber, TableId};
-use dml::{DmlMeta, DmlWrite};
 use hashbrown::HashMap;
 use mutable_batch::MutableBatch;
 use trace::ctx::SpanContext;
@@ -94,35 +93,6 @@ impl WriteOperation {
     /// data contained in the operation
     pub fn into_tables(self) -> impl Iterator<Item = (TableId, TableData)> {
         self.tables.into_iter()
-    }
-}
-
-// TODO(savage): Temporary `From` implementation to assist in switchover
-// within ingester code. This is deeply inefficient.
-impl From<&WriteOperation> for DmlWrite {
-    fn from(value: &WriteOperation) -> Self {
-        let sequence_number = value
-            .tables
-            .values()
-            .next()
-            .expect("converting empty write operation")
-            .partitioned_data
-            .sequence_number;
-        Self::new(
-            value.namespace,
-            value
-                .tables
-                .iter()
-                .map(|(table_id, data)| (*table_id, data.partitioned_data.data.clone()))
-                .collect(),
-            value.partition_key.clone(),
-            DmlMeta::sequenced(
-                sequence_number,
-                iox_time::Time::MAX,
-                value.span_context.clone(),
-                0,
-            ),
-        )
     }
 }
 
