@@ -49,32 +49,14 @@ impl DivideInitial for MultipleBranchesDivideInitial {
                     .collect::<Vec<_>>();
                 let mut branches = Vec::with_capacity(start_level_files.len());
 
-                let mut chains = Vec::with_capacity(start_level_files.len());
+                let mut chains: Vec<Vec<ParquetFile>>;
                 if start_level == CompactionLevel::Initial {
-                    // L0 files can be highly overlapping, requiring 'vertical splitting' (see high_l0_overlap_split).
-                    // Achieving `vertical splitting` requires we tweak the grouping here for two reasons:
-                    //  1) Allow the large highly overlapped groups of L0s to remain in a single branch, so they trigger the split
-                    //  2) Prevent the output of a prior split from being grouped together to undo the previous veritacal split.
-
-                    // Both of these objectives need to consider the L0s as a chains of overlapping files.  The chains are
-                    // each a set of L0s that overlap each other, but do not overlap the other chains.
-                    // Chains can be created based on min_time/max_time without regard for max_l0_created_at because there
-                    // are no overlaps between chains.
-                    let initial_chains = split_into_chains(start_level_files);
-
-                    // Reason 1) above - keep the large groups of L0s in a single branch to facilitate later splitting.
-                    for chain in initial_chains {
-                        let this_chain_bytes: usize =
-                            chain.iter().map(|f| f.file_size_bytes as usize).sum();
-                        if this_chain_bytes > 2 * max_total_file_size_to_group {
-                            // This is a very large set of overlapping L0s, its needs vertical splitting, so keep the branch intact
-                            // to trigger the split.
-                            branches.push(chain);
-                        } else {
-                            chains.push(chain);
-                        }
-                    }
-
+                    // The splitting & merging of chains in this block is what makes use of the vertical split performed by
+                    // high_l0_overlap_split.  Without this chain based grouping, compactions would generally undo the work
+                    // started by splitting in high_l0_overlap_split.
+                    // split start_level_files into chains of overlapping files.  This can happen based on min_time/max_time
+                    // without regard for max_l0_created_at because there are no overlaps between chains.
+                    chains = split_into_chains(start_level_files);
                     // If the chains are smaller than the max compact size, combine them to get better compaction group sizes.
                     // This combining of chains must happen based on max_l0_created_at (it can only join adjacent chains, when
                     // sorted by max_l0_created_at).
@@ -83,11 +65,6 @@ impl DivideInitial for MultipleBranchesDivideInitial {
                     chains = vec![start_level_files];
                 }
 
-                // Reason 2) above - ensure the grouping in branches doesn't undo the vertical splitting.
-                // Assume we start with 30 files (A,B,C,...), that were each split into 3 files (A1, A2, A3, B1, ..).  If we create branches
-                // from sorting all files by max_l0_created_at we'd undo the vertical splitting (A1-A3 would get compacted back into one file).
-                // Currently the contents of each chain is more like A1, B1, C1, so by grouping chains together we can preserve the previous
-                // vertical splitting.
                 for chain in chains {
                     let start_level_files = order_files(chain, start_level);
 
@@ -206,11 +183,11 @@ mod tests {
     #[should_panic(
         expected = "Size of a file 50 is larger than the max size limit to compact. Please adjust the settings"
     )]
-    fn test_divide_size_limit_too_small() {
+    fn test_divide_size_limit_too_sall() {
         let round_info = RoundInfo::ManySmallFiles {
             start_level: CompactionLevel::Initial,
             max_num_files_to_group: 10,
-            max_total_file_size_to_group: 40,
+            max_total_file_size_to_group: 10,
         };
         let divide = MultipleBranchesDivideInitial::new();
 
