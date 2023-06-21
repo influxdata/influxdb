@@ -1439,11 +1439,9 @@ where
         max_l0_created_at,
     } = parquet_file_params;
 
-    // This nonsense is because sqlx doesn't like inserting NULL; it should go away soon
-    let res = match partition_hash_id {
-        Some(partition_hash_id) => {
-            sqlx::query_as::<_, ParquetFilePod>(
-                r#"
+    let partition_hash_id_ref = &partition_hash_id.as_ref();
+    let res = sqlx::query_as::<_, ParquetFilePod>(
+        r#"
 INSERT INTO parquet_file (
     shard_id, table_id, partition_id, partition_hash_id, object_store_id,
     min_time, max_time, file_size_bytes,
@@ -1454,55 +1452,23 @@ RETURNING
     file_size_bytes, row_count, compaction_level, created_at, namespace_id, column_set,
     max_l0_created_at;
         "#,
-            )
-            .bind(TRANSITION_SHARD_ID) // $1
-            .bind(table_id) // $2
-            .bind(partition_id) // $3
-            .bind(&partition_hash_id) // $4
-            .bind(object_store_id) // $5
-            .bind(min_time) // $6
-            .bind(max_time) // $7
-            .bind(file_size_bytes) // $8
-            .bind(row_count) // $9
-            .bind(compaction_level) // $10
-            .bind(created_at) // $11
-            .bind(namespace_id) // $12
-            .bind(from_column_set(&column_set)) // $13
-            .bind(max_l0_created_at) // $14
-            .fetch_one(executor)
-            .await
-        }
-        None => {
-            sqlx::query_as::<_, ParquetFilePod>(
-                r#"
-INSERT INTO parquet_file (
-    shard_id, table_id, partition_id, object_store_id,
-    min_time, max_time, file_size_bytes,
-    row_count, compaction_level, created_at, namespace_id, column_set, max_l0_created_at )
-VALUES ( $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13 )
-RETURNING
-    id, table_id, partition_id, partition_hash_id, object_store_id, min_time, max_time, to_delete,
-    file_size_bytes, row_count, compaction_level, created_at, namespace_id, column_set,
-    max_l0_created_at;
-        "#,
-            )
-            .bind(TRANSITION_SHARD_ID) // $1
-            .bind(table_id) // $2
-            .bind(partition_id) // $3
-            .bind(object_store_id) // $4
-            .bind(min_time) // $5
-            .bind(max_time) // $6
-            .bind(file_size_bytes) // $7
-            .bind(row_count) // $8
-            .bind(compaction_level) // $9
-            .bind(created_at) // $10
-            .bind(namespace_id) // $11
-            .bind(from_column_set(&column_set)) // $12
-            .bind(max_l0_created_at) // $13
-            .fetch_one(executor)
-            .await
-        }
-    };
+    )
+    .bind(TRANSITION_SHARD_ID) // $1
+    .bind(table_id) // $2
+    .bind(partition_id) // $3
+    .bind(partition_hash_id_ref) // $4
+    .bind(object_store_id) // $5
+    .bind(min_time) // $6
+    .bind(max_time) // $7
+    .bind(file_size_bytes) // $8
+    .bind(row_count) // $9
+    .bind(compaction_level) // $10
+    .bind(created_at) // $11
+    .bind(namespace_id) // $12
+    .bind(from_column_set(&column_set)) // $13
+    .bind(max_l0_created_at) // $14
+    .fetch_one(executor)
+    .await;
 
     let rec = res.map_err(|e| {
         if is_unique_violation(&e) {
@@ -1693,7 +1659,8 @@ mod tests {
         let mut repos = sqlite.repositories().await;
 
         let namespace = arbitrary_namespace(&mut *repos, "ns4").await;
-        let table_id = arbitrary_table(&mut *repos, "table", &namespace).await.id;
+        let table = arbitrary_table(&mut *repos, "table", &namespace).await;
+        let table_id = table.id;
         let key = PartitionKey::from("francis-scott-key-key");
 
         // Create a partition record in the database that has `NULL` for its `hash_id`
@@ -1719,17 +1686,27 @@ RETURNING id, hash_id, table_id, partition_key, sort_key, new_file_at;
         // Check that the hash_id being null in the database doesn't break querying for partitions.
         let table_partitions = repos.partitions().list_by_table_id(table_id).await.unwrap();
         assert_eq!(table_partitions.len(), 1);
-        let a = &table_partitions[0];
+        let partition = &table_partitions[0];
 
         // Call create_or_get for the same (key, table_id) pair, to ensure the write is idempotent
         // and that the hash_id will still be set by `Partition::new`
-        let b = repos
+        let inserted_again = repos
             .partitions()
             .create_or_get(key, table_id)
             .await
             .expect("idempotent write should succeed");
 
-        assert_eq!(a, &b);
+        assert_eq!(partition, &inserted_again);
+
+        // Create a Parquet file record in this partition to ensure we don't break new data
+        // ingestion for old-style partitions
+        let parquet_file_params = arbitrary_parquet_file_params(&namespace, &table, partition);
+        let parquet_file = repos
+            .parquet_files()
+            .create(parquet_file_params)
+            .await
+            .unwrap();
+        assert!(parquet_file.partition_hash_id.is_none());
     }
 
     macro_rules! test_column_create_or_get_many_unchecked {
