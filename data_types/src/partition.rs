@@ -416,6 +416,15 @@ mod tests {
 
             let partition_hash_id = PartitionHashId::new(table_id, &partition_key);
 
+            // ID generation MUST be deterministic.
+            let partition_hash_id_regenerated = PartitionHashId::new(table_id, &partition_key);
+            assert_eq!(partition_hash_id, partition_hash_id_regenerated);
+
+            // ID generation MUST be collision resistant; different inputs -> different IDs
+            let other_table_id = TableId::new(table_id.get().wrapping_add(1));
+            let different_partition_hash_id = PartitionHashId::new(other_table_id, &partition_key);
+            assert_ne!(partition_hash_id, different_partition_hash_id);
+
             // The bytes of the partition hash ID are stored in the catalog and sent from the
             // ingesters to the queriers. We should be able to round-trip through bytes.
             let bytes_representation = partition_hash_id.as_bytes();
