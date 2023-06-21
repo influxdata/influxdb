@@ -20,10 +20,10 @@ use crate::{
 };
 
 /// A read-through cache mapping `(table_id, partition_key)` tuples to
-/// `(partition_id, max_sequence_number)`.
+/// `(partition_id, optional_partition_hash_id)`.
 ///
 /// This data is safe to cache as only one ingester is ever responsible for a
-/// given table partition, and this amortises partition persist marker discovery
+/// given table partition, and this amortises partition discovery
 /// queries during startup, eliminating them from the ingest hot path in the
 /// common startup case (an ingester restart with no new partitions to add).
 ///
@@ -32,11 +32,12 @@ use crate::{
 /// Excluding map overhead, and assuming partition keys in the form
 /// "YYYY-MM-DD", each entry takes:
 ///
-///   - Partition key: String (8 len + 8 cap + 8 ptr + data len) = 34 bytes
-///   - TableId: 8 bytes
-///   - PartitionId: 8 bytes
+///   - `PartitionKey`: String (8 len + 8 cap + 8 ptr + data len) = 34 bytes
+///   - `TableId`: 8 bytes
+///   - `PartitionId`: 8 bytes
+///   - `Option<PartitionHashId>`: 8 bytes
 ///
-/// For a total of 50 bytes per entry - approx 20,971 entries can be held in
+/// For a total of 58 bytes per entry - approx 18.078 entries can be held in
 /// 1MiB of memory.
 ///
 /// Each cache hit _removes_ the entry from the cache - this eliminates the
