@@ -41,13 +41,10 @@ use datafusion::{
     },
     logical_expr::{LogicalPlan, UserDefinedLogicalNode},
     physical_plan::{
-        coalesce_partitions::CoalescePartitionsExec,
-        displayable,
-        planner::{DefaultPhysicalPlanner, ExtensionPlanner},
-        stream::RecordBatchStreamAdapter,
-        EmptyRecordBatchStream, ExecutionPlan, PhysicalPlanner, RecordBatchStream,
-        SendableRecordBatchStream,
+        coalesce_partitions::CoalescePartitionsExec, displayable, stream::RecordBatchStreamAdapter,
+        EmptyRecordBatchStream, ExecutionPlan, RecordBatchStream, SendableRecordBatchStream,
     },
+    physical_planner::{DefaultPhysicalPlanner, ExtensionPlanner, PhysicalPlanner},
     prelude::*,
 };
 use datafusion_util::config::{iox_session_config, DEFAULT_CATALOG};
@@ -376,7 +373,7 @@ impl IOxSessionContext {
         let physical_plan = ctx.inner.state().create_physical_plan(logical_plan).await?;
 
         ctx.recorder.event("physical plan");
-        debug!(text=%displayable(physical_plan.as_ref()).indent(), "create_physical_plan: plan to run");
+        debug!(text=%displayable(physical_plan.as_ref()).indent(false), "create_physical_plan: plan to run");
         Ok(physical_plan)
     }
 
@@ -385,7 +382,7 @@ impl IOxSessionContext {
     pub async fn collect(&self, physical_plan: Arc<dyn ExecutionPlan>) -> Result<Vec<RecordBatch>> {
         debug!(
             "Running plan, physical:\n{}",
-            displayable(physical_plan.as_ref()).indent()
+            displayable(physical_plan.as_ref()).indent(false)
         );
         let ctx = self.child_ctx("collect");
         let stream = ctx.execute_stream(physical_plan).await?;
