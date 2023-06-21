@@ -11,7 +11,7 @@ use std::sync::Arc;
 
 /// A list of the numeric types supported by InfluxQL that can be be used
 /// as input to user-defined aggregate functions.
-static NUMERICS: &[DataType] = &[DataType::Int64, DataType::UInt64, DataType::Float64];
+pub(crate) static NUMERICS: &[DataType] = &[DataType::Int64, DataType::UInt64, DataType::Float64];
 
 /// Name of the `MOVING_AVERAGE` user-defined aggregate function.
 pub(crate) const MOVING_AVERAGE_NAME: &str = "moving_average";

@@ -6,6 +6,7 @@
 //! rewritten at a later stage of planning, with more context available.
 
 use crate::plan::error;
+use crate::plan::udaf::NUMERICS;
 use crate::plan::util_copy::find_exprs_in_exprs;
 use arrow::datatypes::DataType;
 use datafusion::logical_expr::{
@@ -57,12 +58,11 @@ static MOVING_AVERAGE: Lazy<Arc<ScalarUDF>> = Lazy::new(|| {
     Arc::new(ScalarUDF::new(
         MOVING_AVERAGE_UDF_NAME,
         &Signature::one_of(
-            vec![
-                TypeSignature::Exact(vec![DataType::Float64, DataType::Int64]),
-                TypeSignature::Exact(vec![DataType::Int64, DataType::Int64]),
-                TypeSignature::Exact(vec![DataType::UInt64, DataType::Int64]),
-            ],
-            Volatility::Volatile,
+            NUMERICS
+                .iter()
+                .map(|dt| TypeSignature::Exact(vec![dt.clone(), DataType::Int64]))
+                .collect(),
+            Volatility::Immutable,
         ),
         &return_type_fn,
         &stand_in_impl(MOVING_AVERAGE_UDF_NAME),
@@ -82,12 +82,11 @@ static DIFFERENCE: Lazy<Arc<ScalarUDF>> = Lazy::new(|| {
     Arc::new(ScalarUDF::new(
         DIFFERENCE_UDF_NAME,
         &Signature::one_of(
-            vec![
-                TypeSignature::Exact(vec![DataType::Float64]),
-                TypeSignature::Exact(vec![DataType::Int64]),
-                TypeSignature::Exact(vec![DataType::UInt64]),
-            ],
-            Volatility::Volatile,
+            NUMERICS
+                .iter()
+                .map(|dt| TypeSignature::Exact(vec![dt.clone()]))
+                .collect(),
+            Volatility::Immutable,
         ),
         &return_type_fn,
         &stand_in_impl(DIFFERENCE_UDF_NAME),
@@ -107,12 +106,11 @@ static NON_NEGATIVE_DIFFERENCE: Lazy<Arc<ScalarUDF>> = Lazy::new(|| {
     Arc::new(ScalarUDF::new(
         NON_NEGATIVE_DIFFERENCE_UDF_NAME,
         &Signature::one_of(
-            vec![
-                TypeSignature::Exact(vec![DataType::Float64]),
-                TypeSignature::Exact(vec![DataType::Int64]),
-                TypeSignature::Exact(vec![DataType::UInt64]),
-            ],
-            Volatility::Volatile,
+            NUMERICS
+                .iter()
+                .map(|dt| TypeSignature::Exact(vec![dt.clone()]))
+                .collect(),
+            Volatility::Immutable,
         ),
         &return_type_fn,
         &stand_in_impl(NON_NEGATIVE_DIFFERENCE_UDF_NAME),
