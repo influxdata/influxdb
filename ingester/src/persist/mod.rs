@@ -83,6 +83,7 @@ mod tests {
                 r#"{},region=Asturias temp=35 4242424242"#,
                 &*ARBITRARY_TABLE_NAME
             ),
+            None,
         );
 
         let mut repos = catalog

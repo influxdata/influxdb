@@ -129,6 +129,7 @@ mod tests {
                         TABLE_ID,
                         42,
                         "banana-report,tag=1 v=2 42424242",
+                        None,
                     ));
 
                     // Call the decorator and assert the return value

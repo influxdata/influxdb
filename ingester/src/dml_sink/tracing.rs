@@ -119,17 +119,15 @@ mod tests {
         let traces: Arc<dyn TraceCollector> = Arc::new(RingBufferTraceCollector::new(5));
         let span = SpanContext::new(Arc::clone(&traces));
 
-        let mut op = IngestOp::Write(make_write_op(
+        let op = IngestOp::Write(make_write_op(
             &PARTITION_KEY,
             NAMESPACE_ID,
             TABLE_NAME,
             TABLE_ID,
             42,
             "banana-report,tag=1 v=2 42424242",
+            Some(span),
         ));
-
-        // Populate the metadata with a span context.
-        op.set_span_context(span);
 
         // Drive the trace wrapper
         DmlSinkTracing::new(mock, "bananas")
@@ -149,17 +147,15 @@ mod tests {
         let traces: Arc<dyn TraceCollector> = Arc::new(RingBufferTraceCollector::new(5));
         let span = SpanContext::new(Arc::clone(&traces));
 
-        let mut op = IngestOp::Write(make_write_op(
+        let op = IngestOp::Write(make_write_op(
             &PARTITION_KEY,
             NAMESPACE_ID,
             TABLE_NAME,
             TABLE_ID,
             42,
             "banana-report,tag=1 v=2 42424242",
+            Some(span),
         ));
-
-        // Populate the metadata with a span context.
-        op.set_span_context(span);
 
         // Drive the trace wrapper
         let got = DmlSinkTracing::new(mock, "bananas")

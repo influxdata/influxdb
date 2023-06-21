@@ -285,6 +285,7 @@ mod tests {
             TABLE_ID,
             42,
             r#"bananas,region=Madrid temp=35 4242424242"#,
+            None,
         );
 
         let wal = Wal::new(dir.path())

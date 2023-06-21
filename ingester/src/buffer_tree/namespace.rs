@@ -271,6 +271,7 @@ mod tests {
                 r#"{},city=Medford day="sun",temp=55 22"#,
                 &*ARBITRARY_TABLE_NAME
             ),
+            None,
         )))
         .await
         .expect("buffer op should succeed");

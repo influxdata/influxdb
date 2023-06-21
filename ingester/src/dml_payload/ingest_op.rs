@@ -25,13 +25,6 @@ impl IngestOp {
             Self::Write(w) => w.span_context.as_ref(),
         }
     }
-
-    /// Sets the tracing context associated with the [`IngestOp`]
-    pub fn set_span_context(&mut self, ctx: SpanContext) {
-        match self {
-            Self::Write(w) => w.span_context = Some(ctx),
-        }
-    }
 }
 
 /// A decoded representation of the data contained by an RPC write

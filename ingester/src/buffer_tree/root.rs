@@ -294,6 +294,7 @@ mod tests {
                 r#"{},city=Madrid day="sun",temp=55 22"#,
                 &*ARBITRARY_TABLE_NAME
             ),
+            None,
         )))
         .await
         .expect("buffer op should succeed");
@@ -392,6 +393,7 @@ mod tests {
                 r#"{},region=Asturias temp=35 4242424242"#,
                 &*ARBITRARY_TABLE_NAME
             ),
+            None,
         )],
         want = [
             "+----------+------+-------------------------------+",
@@ -427,6 +429,7 @@ mod tests {
                     r#"{},region=Madrid temp=35 4242424242"#,
                     &*ARBITRARY_TABLE_NAME
                 ),
+                None,
             ),
             make_write_op(
                 &PartitionKey::from("p2"),
@@ -438,6 +441,7 @@ mod tests {
                     r#"{},region=Asturias temp=25 4242424242"#,
                     &*ARBITRARY_TABLE_NAME
                 ),
+                None,
             )
         ],
         want = [
@@ -477,6 +481,7 @@ mod tests {
                     r#"{},region=Madrid temp=25 4242424242"#,
                     &*ARBITRARY_TABLE_NAME
                 ),
+                None,
             ),
             make_write_op(
                 &PartitionKey::from("p2"),
@@ -488,6 +493,7 @@ mod tests {
                     r#"{},region=Asturias temp=35 4242424242"#,
                     &*ARBITRARY_TABLE_NAME
                 ),
+                None,
             )
         ],
         want = [
@@ -525,6 +531,7 @@ mod tests {
                     r#"{},region=Madrid temp=25 4242424242"#,
                     &*ARBITRARY_TABLE_NAME
                 ),
+                None,
             ),
             make_write_op(
                 &PartitionKey::from("p2"),
@@ -536,6 +543,7 @@ mod tests {
                     r#"{},region=Asturias temp=35 4242424242"#,
                     &*ARBITRARY_TABLE_NAME
                 ),
+                None,
             )
         ],
         want = [
@@ -568,6 +576,7 @@ mod tests {
                     r#"{},region=Asturias temp=35 4242424242"#,
                     &*ARBITRARY_TABLE_NAME
                 ),
+                None,
             ),
             make_write_op(
                 &PartitionKey::from("p1"),
@@ -579,6 +588,7 @@ mod tests {
                     r#"{},region=Asturias temp=12 4242424242"#,
                     &*ARBITRARY_TABLE_NAME
                 ),
+                None,
             )
         ],
         want = [
@@ -635,6 +645,7 @@ mod tests {
                 r#"{},region=Asturias temp=35 4242424242"#,
                 &*ARBITRARY_TABLE_NAME
             ),
+            None,
         )))
         .await
         .expect("failed to write initial data");
@@ -651,6 +662,7 @@ mod tests {
                 r#"{},region=Asturias temp=12 4242424242"#,
                 &*ARBITRARY_TABLE_NAME
             ),
+            None,
         )))
         .await
         .expect("failed to overwrite data");
@@ -734,6 +746,7 @@ mod tests {
                 r#"{},region=Asturias temp=35 4242424242"#,
                 &*ARBITRARY_TABLE_NAME
             ),
+            None,
         )))
         .await
         .expect("failed to write initial data");
@@ -751,6 +764,7 @@ mod tests {
                 r#"{},region=Asturias temp=35 4242424242"#,
                 &*ARBITRARY_TABLE_NAME
             ),
+            None,
         )))
         .await
         .expect("failed to write initial data");
@@ -765,6 +779,7 @@ mod tests {
             TABLE2_ID,
             0,
             &format!(r#"{},region=Asturias temp=35 4242424242"#, TABLE2_NAME),
+            None,
         )))
         .await
         .expect("failed to write initial data");
@@ -823,6 +838,7 @@ mod tests {
                 r#"{},region=Asturias temp=35 4242424242"#,
                 &*ARBITRARY_TABLE_NAME
             ),
+            None,
         )))
         .await
         .expect("failed to write data");
@@ -899,6 +915,7 @@ mod tests {
                 r#"{},region=Madrid temp=35 4242424242"#,
                 &*ARBITRARY_TABLE_NAME
             ),
+            None,
         )))
         .await
         .expect("failed to write initial data");
@@ -923,6 +940,7 @@ mod tests {
                 r#"{},region=Asturias temp=20 4242424242"#,
                 &*ARBITRARY_TABLE_NAME
             ),
+            None,
         )))
         .await
         .expect("failed to perform concurrent write to new partition");
@@ -939,6 +957,7 @@ mod tests {
                 r#"{},region=Murcia temp=30 4242424242"#,
                 &*ARBITRARY_TABLE_NAME
             ),
+            None,
         )))
         .await
         .expect("failed to perform concurrent write to existing partition");

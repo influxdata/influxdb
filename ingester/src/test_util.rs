@@ -5,6 +5,7 @@ use iox_catalog::{interface::Catalog, test_helpers::arbitrary_namespace};
 use lazy_static::lazy_static;
 use mutable_batch_lp::lines_to_batches;
 use schema::Projection;
+use trace::ctx::SpanContext;
 
 use crate::{
     buffer_tree::{
@@ -253,7 +254,7 @@ macro_rules! make_partition_stream {
         }};
     }
 
-/// Construct a [`DmlWrite`] with the specified parameters, for LP that contains
+/// Construct a [`WriteOperation`] with the specified parameters, for LP that contains
 /// a single table identified by `table_id`.
 ///
 /// # Panics
@@ -267,6 +268,7 @@ pub(crate) fn make_write_op(
     table_id: TableId,
     sequence_number: i64,
     lines: &str,
+    span_ctx: Option<SpanContext>,
 ) -> WriteOperation {
     let mut tables_by_name = lines_to_batches(lines, 0).expect("invalid LP");
     assert_eq!(
@@ -293,7 +295,7 @@ pub(crate) fn make_write_op(
     })
     .collect();
 
-    WriteOperation::new(namespace_id, tables_by_id, partition_key.clone(), None)
+    WriteOperation::new(namespace_id, tables_by_id, partition_key.clone(), span_ctx)
 }
 
 pub(crate) async fn populate_catalog(

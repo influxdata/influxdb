@@ -312,6 +312,7 @@ mod tests {
                 r#"{},region=Madrid temp=35 4242424242"#,
                 &*ARBITRARY_TABLE_NAME
             ),
+            None,
         );
         let op2 = make_write_op(
             &ARBITRARY_PARTITION_KEY,
@@ -323,6 +324,7 @@ mod tests {
                 r#"{},region=Asturias temp=25 4242424242"#,
                 &*ARBITRARY_TABLE_NAME
             ),
+            None,
         );
         let op3 = make_write_op(
             &ARBITRARY_PARTITION_KEY,
@@ -335,6 +337,7 @@ mod tests {
                 r#"{},region=Asturias temp=15 4242424242"#,
                 &*ARBITRARY_TABLE_NAME
             ),
+            None,
         );
 
         // The write portion of this test.

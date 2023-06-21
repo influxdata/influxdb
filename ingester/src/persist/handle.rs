@@ -530,6 +530,7 @@ mod tests {
                 ARBITRARY_TABLE_ID,
                 0,
                 &format!("{},good=yes level=1000 4242424242", &*ARBITRARY_TABLE_NAME),
+                None,
             )))
             .await
             .expect("failed to write partition test dataa");
