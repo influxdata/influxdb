@@ -18,6 +18,7 @@ use workspace_hack as _;
 
 mod cache;
 mod database;
+mod df_stats;
 mod handler;
 mod ingester;
 mod namespace;

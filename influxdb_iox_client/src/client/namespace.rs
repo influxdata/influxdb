@@ -7,8 +7,9 @@ use ::generated_types::google::OptionalField;
 
 /// Re-export generated_types
 pub mod generated_types {
-    pub use generated_types::influxdata::iox::namespace::v1::{
-        update_namespace_service_protection_limit_request::LimitUpdate, *,
+    pub use generated_types::influxdata::iox::{
+        namespace::v1::{update_namespace_service_protection_limit_request::LimitUpdate, *},
+        partition_template::v1::{template_part::*, *},
     };
 }
 
@@ -45,13 +46,14 @@ impl Client {
         namespace: &str,
         retention_period_ns: Option<i64>,
         service_protection_limits: Option<ServiceProtectionLimits>,
+        partition_template: Option<PartitionTemplate>,
     ) -> Result<Namespace, Error> {
         let response = self
             .inner
             .create_namespace(CreateNamespaceRequest {
                 name: namespace.to_string(),
                 retention_period_ns,
-                partition_template: None,
+                partition_template,
                 service_protection_limits,
             })
             .await?;

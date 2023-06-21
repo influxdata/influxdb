@@ -5,10 +5,12 @@
 //! -- IOX_SETUP: [test name]
 //! ```
 
+use futures_util::FutureExt;
+use influxdb_iox_client::table::generated_types::{Part, PartitionTemplate, TemplatePart};
 use iox_time::{SystemProvider, Time, TimeProvider};
 use once_cell::sync::Lazy;
 use std::collections::HashMap;
-use test_helpers_end_to_end::Step;
+use test_helpers_end_to_end::{Step, StepTestState};
 
 /// The string value that will appear in `.sql` files.
 pub type SetupName = &'static str;
@@ -1388,6 +1390,90 @@ pub static SETUPS: Lazy<HashMap<SetupName, SetupSteps>> = Lazy::new(|| {
                     .into_iter()
                 })
                 .collect::<Vec<_>>(),
+        ),
+        (
+            "CustomPartitioning",
+            [
+                Step::Custom(Box::new(move |state: &mut StepTestState| {
+                    async move {
+                        let namespace_name = state.cluster().namespace();
+
+                        let mut namespace_client = influxdb_iox_client::namespace::Client::new(
+                            state.cluster().router().router_grpc_connection(),
+                        );
+                        namespace_client
+                            .create_namespace(namespace_name, None, None, Some(PartitionTemplate{
+                                parts: vec![
+                                    TemplatePart{
+                                        part: Some(Part::TagValue("tag1".into())),
+                                    },
+                                    TemplatePart{
+                                        part: Some(Part::TagValue("tag3".into())),
+                                    },
+                                ],
+                            }))
+                            .await
+                            .unwrap();
+
+                        let mut table_client = influxdb_iox_client::table::Client::new(
+                            state.cluster().router().router_grpc_connection(),
+                        );
+
+                        // table1: create implicitly by writing to it
+
+                        // table2: do not override partition template => use namespace template
+                        table_client.create_table(
+                            namespace_name,
+                            "table2",
+                            None,
+                        ).await.unwrap();
+
+                        // table3: overide namespace template
+                        table_client.create_table(
+                            namespace_name,
+                            "table3",
+                            Some(PartitionTemplate{
+                                parts: vec![
+                                    TemplatePart{
+                                        part: Some(Part::TagValue("tag2".into())),
+                                    },
+                                ],
+                            }),
+                        ).await.unwrap();
+                    }
+                    .boxed()
+                })),
+            ].into_iter()
+            .chain(
+                (1..=3).flat_map(|tid| {
+                    [
+                        Step::RecordNumParquetFiles,
+                        Step::WriteLineProtocol(
+                            [
+                                format!("table{tid},tag1=v1a,tag2=v2a,tag3=v3a f=1 11"),
+                                format!("table{tid},tag1=v1b,tag2=v2a,tag3=v3a f=1 11"),
+                                format!("table{tid},tag1=v1a,tag2=v2b,tag3=v3a f=1 11"),
+                                format!("table{tid},tag1=v1b,tag2=v2b,tag3=v3a f=1 11"),
+                                format!("table{tid},tag1=v1a,tag2=v2a,tag3=v3b f=1 11"),
+                                format!("table{tid},tag1=v1b,tag2=v2a,tag3=v3b f=1 11"),
+                                format!("table{tid},tag1=v1a,tag2=v2b,tag3=v3b f=1 11"),
+                                format!("table{tid},tag1=v1b,tag2=v2b,tag3=v3b f=1 11"),
+                            ]
+                            .join("\n"),
+                        ),
+                        Step::Persist,
+                        Step::WaitForPersisted {
+                            expected_increase: match tid {
+                                1 => 4,
+                                2 => 4,
+                                3 => 2,
+                                _ => unreachable!(),
+                            },
+                        },
+                    ].into_iter()
+                })
+            )
+            .collect(),
         ),
     ])
 });

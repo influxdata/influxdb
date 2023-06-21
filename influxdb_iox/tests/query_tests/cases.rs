@@ -385,6 +385,18 @@ async fn bugs() {
     .await;
 }
 
+#[tokio::test]
+async fn custom_partitioning() {
+    test_helpers::maybe_start_logging();
+
+    TestCase {
+        input: "cases/in/custom_partitioning.sql",
+        chunk_stage: ChunkStage::Ingester,
+    }
+    .run()
+    .await;
+}
+
 mod influxql {
     use super::*;
 

@@ -33,6 +33,9 @@ pub mod schema;
 /// Client for interacting with a remote object store
 pub mod store;
 
+/// Client for table API
+pub mod table;
+
 /// Client for testing purposes.
 pub mod test;
 

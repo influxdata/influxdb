@@ -1,9 +1,12 @@
-use std::{collections::HashSet, sync::Arc};
+use std::{
+    collections::{HashMap, HashSet},
+    sync::Arc,
+};
 
 use data_types::{ChunkId, ChunkOrder, ColumnId, ParquetFile, TimestampMinMax};
 use futures::StreamExt;
 use iox_catalog::interface::Catalog;
-use iox_query::{pruning::prune_summaries, util::create_basic_summary};
+use iox_query::pruning::prune_summaries;
 use observability_deps::tracing::debug;
 use parquet_file::chunk::ParquetChunk;
 use predicate::Predicate;
@@ -14,6 +17,7 @@ use uuid::Uuid;
 
 use crate::{
     cache::{namespace::CachedTable, CatalogCache},
+    df_stats::{create_chunk_statistics, ColumnRanges},
     parquet::QuerierParquetChunkMeta,
     table::MetricPruningObserver,
 };
@@ -69,19 +73,55 @@ impl ChunkAdapter {
     ) -> Vec<QuerierParquetChunk> {
         let span_recorder = SpanRecorder::new(span);
 
-        let basic_summaries: Vec<_> = {
-            let _span_recorder = span_recorder.child("create basic summaries");
+        let column_ranges: HashMap<_, _> = {
+            let span_recorder = span_recorder.child("fetch column ranges for all partitions");
+
+            let partitions: HashSet<_> = files.iter().map(|p| p.partition_id).collect();
+            let mut partitions: Vec<_> = partitions.into_iter().collect();
+
+            // shuffle order to even catalog load, because cache hits/misses might be correlated w/ the order of the
+            // partitions.
+            //
+            // Note that we sort before shuffling to achieve a deterministic pseudo-random order
+            let mut rng = StdRng::seed_from_u64(cached_table.id.get() as u64);
+            partitions.sort();
+            partitions.shuffle(&mut rng);
+
+            futures::stream::iter(partitions)
+                .map(|p| {
+                    let cached_table = &cached_table;
+                    let catalog_cache = &self.catalog_cache;
+                    let span = span_recorder.child_span("fetch column ranges for partition");
+                    async move {
+                        let ranges = catalog_cache
+                            .partition()
+                            .column_ranges(Arc::clone(cached_table), p, span)
+                            .await
+                            .unwrap_or_default();
+                        (p, ranges)
+                    }
+                })
+                .buffer_unordered(CONCURRENT_CHUNK_CREATION_JOBS)
+                .collect()
+                .await
+        };
+
+        let chunk_stats: Vec<_> = {
+            let _span_recorder = span_recorder.child("create chunk stats");
 
             files
                 .iter()
                 .map(|p| {
-                    let stats = Arc::new(create_basic_summary(
+                    let stats = Arc::new(create_chunk_statistics(
                         p.row_count as u64,
                         &cached_table.schema,
                         TimestampMinMax {
                             min: p.min_time.get(),
                             max: p.max_time.get(),
                         },
+                        column_ranges
+                            .get(&p.partition_id)
+                            .expect("just requested for all partitions"),
                     ));
                     let schema = Arc::clone(cached_table.schema.inner());
 
@@ -94,14 +134,14 @@ impl ChunkAdapter {
         let keeps = {
             let _span_recorder = span_recorder.child("prune summaries");
 
-            match prune_summaries(&cached_table.schema, &basic_summaries, predicate) {
+            match prune_summaries(&cached_table.schema, &chunk_stats, predicate) {
                 Ok(keeps) => keeps,
                 Err(reason) => {
                     // Ignore pruning failures here - the chunk pruner should have already logged them.
                     // Just skip pruning and gather all the metadata. We have another chance to prune them
                     // once all the metadata is available
                     debug!(?reason, "Could not prune before metadata fetch");
-                    vec![true; basic_summaries.len()]
+                    vec![true; chunk_stats.len()]
                 }
             }
         };
@@ -124,10 +164,13 @@ impl ChunkAdapter {
 
         // de-correlate parquet files so that subsequent items likely don't block/wait on the same cache lookup
         // (they are likely ordered by partition)
+        //
+        // Note that we sort before shuffling to achieve a deterministic pseudo-random order
         {
             let _span_recorder = span_recorder.child("shuffle order");
 
             let mut rng = StdRng::seed_from_u64(cached_table.id.get() as u64);
+            parquet_files.sort_by_key(|f| f.id);
             parquet_files.shuffle(&mut rng);
         }
 
@@ -138,9 +181,14 @@ impl ChunkAdapter {
                 .map(|cached_parquet_file| {
                     let span_recorder = &span_recorder;
                     let cached_table = Arc::clone(&cached_table);
+                    let ranges = Arc::clone(
+                        column_ranges
+                            .get(&cached_parquet_file.partition_id)
+                            .expect("just requested for all partitions"),
+                    );
                     async move {
                         let span = span_recorder.child_span("new_chunk");
-                        self.new_chunk(cached_table, cached_parquet_file, span)
+                        self.new_chunk(cached_table, cached_parquet_file, ranges, span)
                             .await
                     }
                 })
@@ -155,6 +203,7 @@ impl ChunkAdapter {
         &self,
         cached_table: Arc<CachedTable>,
         parquet_file: Arc<ParquetFile>,
+        column_ranges: ColumnRanges,
         span: Option<Span>,
     ) -> Option<QuerierParquetChunk> {
         let span_recorder = SpanRecorder::new(span);
@@ -238,6 +287,6 @@ impl ChunkAdapter {
             self.catalog_cache.parquet_store(),
         ));
 
-        Some(QuerierParquetChunk::new(parquet_chunk, meta))
+        Some(QuerierParquetChunk::new(parquet_chunk, meta, column_ranges))
     }
 }

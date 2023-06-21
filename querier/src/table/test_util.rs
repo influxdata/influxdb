@@ -1,7 +1,7 @@
 use super::{PruneMetrics, QuerierTable, QuerierTableArgs};
 use crate::{
-    cache::CatalogCache, create_ingester_connection_for_testing, parquet::ChunkAdapter,
-    IngesterPartition,
+    cache::CatalogCache, create_ingester_connection_for_testing, df_stats::ColumnRanges,
+    parquet::ChunkAdapter, IngesterPartition,
 };
 use arrow::record_batch::RecordBatch;
 use data_types::ChunkId;
@@ -68,6 +68,7 @@ pub(crate) struct IngesterPartitionBuilder {
     ingester_chunk_id: u128,
 
     partition_sort_key: Option<Arc<SortKey>>,
+    partition_column_ranges: ColumnRanges,
 
     /// Data returned from the partition, in line protocol format
     lp: Vec<String>,
@@ -79,6 +80,7 @@ impl IngesterPartitionBuilder {
             schema,
             partition: Arc::clone(partition),
             partition_sort_key: None,
+            partition_column_ranges: Default::default(),
             ingester_chunk_id: 1,
             lp: Vec::new(),
         }
@@ -91,6 +93,12 @@ impl IngesterPartitionBuilder {
         self
     }
 
+    /// Set column ranges.
+    pub(crate) fn with_colum_ranges(mut self, column_ranges: ColumnRanges) -> Self {
+        self.partition_column_ranges = column_ranges;
+        self
+    }
+
     /// Create an ingester partition with the specified field values
     pub(crate) fn build(&self) -> IngesterPartition {
         let data = self.lp.iter().map(|lp| lp_to_record_batch(lp)).collect();
@@ -100,6 +108,7 @@ impl IngesterPartitionBuilder {
             self.partition.partition.id,
             0,
             self.partition_sort_key.clone(),
+            Arc::clone(&self.partition_column_ranges),
         )
         .try_add_chunk(
             ChunkId::new_test(self.ingester_chunk_id),
