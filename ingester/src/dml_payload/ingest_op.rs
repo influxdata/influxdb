@@ -12,9 +12,6 @@ pub enum IngestOp {
 }
 
 impl IngestOp {
-    // TODO(savage): Consider removing the getters at the top level and
-    // requiring consumers to match on the op type
-
     /// The namespace which the ingest operation is for
     pub fn namespace(&self) -> NamespaceId {
         match self {
