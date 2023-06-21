@@ -386,6 +386,12 @@ mod tests {
     use super::*;
     use proptest::{prelude::*, proptest};
 
+    /// A fixture test asserting the deterministic partition ID generation
+    /// algorithm outputs a fixed value, preventing accidental changes to the
+    /// derived ID.
+    ///
+    /// This hash byte value MUST NOT change for the lifetime of a cluster
+    /// (though the encoding used in this test can).
     #[test]
     fn display_partition_hash_id_in_hex() {
         let partition_hash_id =
