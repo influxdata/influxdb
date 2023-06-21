@@ -340,7 +340,7 @@ mod tests {
         {
             let inner =
                 Arc::new(MockDmlSink::default().with_apply_return(vec![Ok(()), Ok(()), Ok(())]));
-            let wal = Wal::new(dir.path(), &metric::Registry::default())
+            let wal = Wal::new(dir.path())
                 .await
                 .expect("failed to initialise WAL");
 
@@ -371,7 +371,7 @@ mod tests {
         }
 
         // Reinitialise the WAL
-        let wal = Wal::new(dir.path(), &metric::Registry::default())
+        let wal = Wal::new(dir.path())
             .await
             .expect("failed to initialise WAL");
 
@@ -431,7 +431,7 @@ mod tests {
             .await;
 
         // Ensure the replayed segments were dropped
-        let wal = Wal::new(dir.path(), &metric::Registry::default())
+        let wal = Wal::new(dir.path())
             .await
             .expect("failed to initialise WAL");
 

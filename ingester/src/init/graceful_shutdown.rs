@@ -165,7 +165,7 @@ mod tests {
     // Initialise a WAL with > 1 segment.
     async fn new_wal() -> (tempfile::TempDir, Arc<wal::Wal>) {
         let dir = tempfile::tempdir().expect("failed to get temporary WAL directory");
-        let wal = wal::Wal::new(dir.path(), &metric::Registry::default())
+        let wal = wal::Wal::new(dir.path())
             .await
             .expect("failed to initialise WAL to write");
 

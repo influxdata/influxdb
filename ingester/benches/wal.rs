@@ -20,7 +20,7 @@ const NAMESPACE_ID: NamespaceId = NamespaceId::new(42);
 async fn init() -> tempfile::TempDir {
     let dir = tempfile::tempdir().expect("failed to get temporary WAL directory");
 
-    let wal = wal::Wal::new(dir.path(), &metric::Registry::default())
+    let wal = wal::Wal::new(dir.path())
         .await
         .expect("failed to initialise WAL to write");
 
@@ -53,7 +53,7 @@ fn wal_replay_bench(c: &mut Criterion) {
             // Call the code to measure
             |dir| async move {
                 // Initialise the WAL using the pre-populated path.
-                let wal = wal::Wal::new(dir.path(), &metric::Registry::default())
+                let wal = wal::Wal::new(dir.path())
                     .await
                     .expect("failed to initialise WAL for replay");
 

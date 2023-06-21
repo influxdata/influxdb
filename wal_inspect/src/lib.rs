@@ -193,9 +193,7 @@ mod tests {
     #[tokio::test]
     async fn translate_valid_wal_segment() {
         let test_dir = test_helpers::tmp_dir().expect("failed to create test dir");
-        let wal = wal::Wal::new(test_dir.path(), &metric::Registry::default())
-            .await
-            .unwrap();
+        let wal = wal::Wal::new(test_dir.path()).await.unwrap();
 
         // Assign table IDs to the measurements and place some writes in the WAL
         let (table_id_index, table_name_index) =
