@@ -987,7 +987,6 @@ dependencies = [
  "predicate",
  "rand",
  "schema",
- "sharder",
  "test_helpers",
  "tokio",
  "tokio-util",
@@ -1003,6 +1002,7 @@ dependencies = [
  "async-trait",
  "clap_blocks",
  "data_types",
+ "sharder",
  "tokio",
  "workspace-hack",
 ]

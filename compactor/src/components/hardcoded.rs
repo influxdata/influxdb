@@ -4,7 +4,10 @@
 
 use std::{sync::Arc, time::Duration};
 
-use compactor_scheduler::{MockPartitionsSource, PartitionsSource, PartitionsSourceConfig};
+use compactor_scheduler::{
+    AndIdOnlyPartitionFilter, IdOnlyPartitionFilter, MockPartitionsSource, PartitionsSource,
+    PartitionsSourceConfig, ShardPartitionFilter,
+};
 use data_types::CompactionLevel;
 use object_store::memory::InMemory;
 use observability_deps::tracing::info;
@@ -31,9 +34,6 @@ use super::{
     files_split::{
         non_overlap_split::NonOverlapSplit, target_level_split::TargetLevelSplit,
         upgrade_split::UpgradeSplit,
-    },
-    id_only_partition_filter::{
-        and::AndIdOnlyPartitionFilter, shard::ShardPartitionFilter, IdOnlyPartitionFilter,
     },
     ir_planner::{logging::LoggingIRPlannerWrapper, planner_v1::V1IRPlanner, IRPlanner},
     namespaces_source::catalog::CatalogNamespacesSource,
@@ -121,6 +121,8 @@ fn make_partitions_source_commit_partition_sink(
     Arc<dyn Commit>,
     Arc<dyn PartitionDoneSink>,
 ) {
+    // TODO(start): code to be moved to the scheduler.
+    // outcome of this code block => Vec<PartitionId> to be consumed by the compactor.
     let partitions_source: Arc<dyn PartitionsSource> = match &config.partitions_source {
         PartitionsSourceConfig::CatalogRecentWrites { threshold } => {
             Arc::new(CatalogToCompactPartitionsSource::new(
@@ -156,6 +158,9 @@ fn make_partitions_source_commit_partition_sink(
         AndIdOnlyPartitionFilter::new(id_only_partition_filters),
         partitions_source,
     );
+    // TODO(end).
+    // code below here consumes the seeded partitions_source,
+    // including PartitionsSource trait impls which do actual file IO.
 
     let partition_done_sink: Arc<dyn PartitionDoneSink> = if config.shadow_mode {
         Arc::new(MockPartitionDoneSink::new())
