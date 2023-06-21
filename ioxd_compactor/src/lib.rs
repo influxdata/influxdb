@@ -192,6 +192,8 @@ pub async fn create_compactor_server_type(
         all_errors_are_fatal: false,
         max_num_columns_per_table: compactor_config.max_num_columns_per_table,
         max_num_files_per_plan: compactor_config.max_num_files_per_plan,
+        max_partition_fetch_queries_per_second: compactor_config
+            .max_partition_fetch_queries_per_second,
     });
 
     Arc::new(CompactorServerType::new(

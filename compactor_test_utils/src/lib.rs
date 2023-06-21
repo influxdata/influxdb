@@ -152,6 +152,7 @@ impl TestSetupBuilder<false> {
             all_errors_are_fatal: true,
             max_num_columns_per_table: 200,
             max_num_files_per_plan: 200,
+            max_partition_fetch_queries_per_second: None,
         };
 
         let bytes_written = Arc::new(AtomicUsize::new(0));
