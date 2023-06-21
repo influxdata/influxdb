@@ -9,37 +9,33 @@ use datafusion::logical_expr::{
 use once_cell::sync::Lazy;
 use std::sync::Arc;
 
-pub(crate) const AVG_N_NAME: &str = "avg_n";
+/// A list of the numeric types supported by InfluxQL that can be be used
+/// as input to user-defined aggregate functions.
+static NUMERICS: &[DataType] = &[DataType::Int64, DataType::UInt64, DataType::Float64];
 
-pub(crate) static AVG_N: Lazy<Arc<AggregateUDF>> = Lazy::new(|| {
-    let rt_func: ReturnTypeFunction = Arc::new(move |_| Ok(Arc::new(DataType::Float64)));
+/// Name of the `MOVING_AVERAGE` user-defined aggregate function.
+pub(crate) const MOVING_AVERAGE_NAME: &str = "moving_average";
+
+/// Definition of the `MOVING_AVERAGE` user-defined aggregate function.
+pub(crate) static MOVING_AVERAGE: Lazy<Arc<AggregateUDF>> = Lazy::new(|| {
+    let return_type: ReturnTypeFunction = Arc::new(|_| Ok(Arc::new(DataType::Float64)));
     let accumulator: AccumulatorFunctionImplementation =
-        Arc::new(|_| Ok(Box::new(AvgNAccumulator::try_new(&DataType::Float64))));
-    // State is count, sum, N
-    let st_func: StateTypeFunction = Arc::new(move |_| {
-        Ok(Arc::new(vec![
-            DataType::UInt64,
-            DataType::Float64,
-            DataType::UInt64,
-        ]))
-    });
-
-    let udaf = AggregateUDF::new(
-        AVG_N_NAME,
+        Arc::new(|_| Ok(Box::new(AvgNAccumulator::new(&DataType::Float64))));
+    let state_type: StateTypeFunction = Arc::new(|_| Ok(Arc::new(vec![])));
+    Arc::new(AggregateUDF::new(
+        MOVING_AVERAGE_NAME,
         &Signature::one_of(
-            vec![
-                TypeSignature::Exact(vec![DataType::Int64, DataType::Int64]),
-                TypeSignature::Exact(vec![DataType::Float64, DataType::Int64]),
-                TypeSignature::Exact(vec![DataType::UInt64, DataType::Int64]),
-            ],
+            NUMERICS
+                .iter()
+                .map(|dt| TypeSignature::Exact(vec![dt.clone(), DataType::Int64]))
+                .collect(),
             Volatility::Immutable,
         ),
-        &rt_func,
+        &return_type,
         &accumulator,
-        &st_func,
-    );
-
-    Arc::new(udaf)
+        // State shouldn't be called, so no schema to report
+        &state_type,
+    ))
 });
 
 /// A moving average accumulator that accumulates exactly `N` values
@@ -50,7 +46,7 @@ struct AvgNAccumulator {
     data_type: DataType,
     all_values: Vec<ScalarValue>,
     /// Holds the number of non-null values to be accumulated and represents
-    /// the second argument to the `AVG_N` aggregate function.
+    /// the second argument to the UDAF.
     n: usize,
     /// The index into [`Self::all_values`] to store the next non-null value.
     i: usize,
@@ -59,8 +55,8 @@ struct AvgNAccumulator {
 }
 
 impl AvgNAccumulator {
-    /// Creates a try_new `AvgNAcc`
-    pub fn try_new(datatype: &DataType) -> Self {
+    /// Creates a new `AvgNAccumulator`
+    fn new(datatype: &DataType) -> Self {
         Self {
             data_type: datatype.clone(),
             all_values: vec![],
@@ -73,8 +69,7 @@ impl AvgNAccumulator {
 
 impl Accumulator for AvgNAccumulator {
     fn state(&self) -> Result<Vec<ScalarValue>> {
-        let state = ScalarValue::new_list(Some(self.all_values.clone()), self.data_type.clone());
-        Ok(vec![state])
+        error::internal("unexpected call to AvgNAccumulator::state")
     }
 
     fn update_batch(&mut self, values: &[ArrayRef]) -> Result<()> {
@@ -110,7 +105,7 @@ impl Accumulator for AvgNAccumulator {
     }
 
     fn merge_batch(&mut self, _states: &[ArrayRef]) -> Result<()> {
-        todo!("Discuss usage with Andrew Lamb")
+        error::internal("unexpected call to AvgNAccumulator::merge_batch")
     }
 
     fn evaluate(&self) -> Result<ScalarValue> {
@@ -143,30 +138,29 @@ impl Accumulator for AvgNAccumulator {
     }
 }
 
+/// Name of the `DIFFERENCE` user-defined aggregate function.
 pub(crate) const DIFFERENCE_NAME: &str = "difference";
 
+/// Definition of the `DIFFERENCE` user-defined aggregate function.
 pub(crate) static DIFFERENCE: Lazy<Arc<AggregateUDF>> = Lazy::new(|| {
-    let rt_func: ReturnTypeFunction = Arc::new(move |dt| Ok(Arc::new(dt[0].clone())));
+    let return_type: ReturnTypeFunction = Arc::new(|dt| Ok(Arc::new(dt[0].clone())));
     let accumulator: AccumulatorFunctionImplementation =
-        Arc::new(|dt| Ok(Box::new(DifferenceAccumulator::try_new(dt)?)));
-    let st_func: StateTypeFunction = Arc::new(move |dt| Ok(Arc::new(vec![dt.clone(), dt.clone()])));
-
-    let udaf = AggregateUDF::new(
+        Arc::new(|dt| Ok(Box::new(DifferenceAccumulator::new(dt))));
+    let state_type: StateTypeFunction = Arc::new(|_| Ok(Arc::new(vec![])));
+    Arc::new(AggregateUDF::new(
         DIFFERENCE_NAME,
         &Signature::one_of(
-            vec![
-                TypeSignature::Exact(vec![DataType::Int64]),
-                TypeSignature::Exact(vec![DataType::Float64]),
-                TypeSignature::Exact(vec![DataType::UInt64]),
-            ],
+            NUMERICS
+                .iter()
+                .map(|dt| TypeSignature::Exact(vec![dt.clone()]))
+                .collect(),
             Volatility::Immutable,
         ),
-        &rt_func,
+        &return_type,
         &accumulator,
-        &st_func,
-    );
-
-    Arc::new(udaf)
+        // State shouldn't be called, so no schema to report
+        &state_type,
+    ))
 });
 
 #[derive(Debug)]
@@ -177,20 +171,20 @@ struct DifferenceAccumulator {
 }
 
 impl DifferenceAccumulator {
-    fn try_new(data_type: &DataType) -> Result<Self> {
-        let last: ScalarValue = data_type.try_into()?;
+    fn new(data_type: &DataType) -> Self {
+        let last: ScalarValue = data_type.try_into().expect("data_type → ScalarValue");
         let diff = last.clone();
-        Ok(Self {
+        Self {
             data_type: data_type.clone(),
             last,
             diff,
-        })
+        }
     }
 }
 
 impl Accumulator for DifferenceAccumulator {
     fn state(&self) -> Result<Vec<ScalarValue>> {
-        Ok(vec![self.last.clone(), self.diff.clone()])
+        error::internal("unexpected call to DifferenceAccumulator::state")
     }
 
     fn update_batch(&mut self, values: &[ArrayRef]) -> Result<()> {
@@ -213,7 +207,7 @@ impl Accumulator for DifferenceAccumulator {
     }
 
     fn merge_batch(&mut self, _states: &[ArrayRef]) -> Result<()> {
-        todo!("Discuss usage with Andrew Lamb")
+        error::internal("unexpected call to DifferenceAccumulator::merge_batch")
     }
 
     fn evaluate(&self) -> Result<ScalarValue> {
@@ -225,88 +219,71 @@ impl Accumulator for DifferenceAccumulator {
     }
 }
 
+/// Name of the `NON_NEGATIVE_DIFFERENCE` user-defined aggregate function.
 pub(crate) const NON_NEGATIVE_DIFFERENCE_NAME: &str = "non_negative_difference";
 
+/// Definition of the `NON_NEGATIVE_DIFFERENCE` user-defined aggregate function.
 pub(crate) static NON_NEGATIVE_DIFFERENCE: Lazy<Arc<AggregateUDF>> = Lazy::new(|| {
-    let rt_func: ReturnTypeFunction = Arc::new(move |dt| Ok(Arc::new(dt[0].clone())));
+    let return_type: ReturnTypeFunction = Arc::new(|dt| Ok(Arc::new(dt[0].clone())));
     let accumulator: AccumulatorFunctionImplementation =
-        Arc::new(|dt| Ok(Box::new(NonNegativeDifferenceAccumulator::try_new(dt)?)));
-    let st_func: StateTypeFunction = Arc::new(move |dt| Ok(Arc::new(vec![dt.clone(), dt.clone()])));
-
-    let udaf = AggregateUDF::new(
+        Arc::new(|dt| Ok(Box::new(NonNegativeDifferenceAccumulator::new(dt))));
+    let state_type: StateTypeFunction = Arc::new(|_| Ok(Arc::new(vec![])));
+    Arc::new(AggregateUDF::new(
         NON_NEGATIVE_DIFFERENCE_NAME,
         &Signature::one_of(
-            vec![
-                TypeSignature::Exact(vec![DataType::Int64]),
-                TypeSignature::Exact(vec![DataType::Float64]),
-                TypeSignature::Exact(vec![DataType::UInt64]),
-            ],
+            NUMERICS
+                .iter()
+                .map(|dt| TypeSignature::Exact(vec![dt.clone()]))
+                .collect(),
             Volatility::Immutable,
         ),
-        &rt_func,
+        &return_type,
         &accumulator,
-        &st_func,
-    );
-
-    Arc::new(udaf)
+        // State shouldn't be called, so no schema to report
+        &state_type,
+    ))
 });
 
 #[derive(Debug)]
 struct NonNegativeDifferenceAccumulator {
-    data_type: DataType,
-    last: ScalarValue,
-    diff: ScalarValue,
+    acc: DifferenceAccumulator,
 }
 
 impl NonNegativeDifferenceAccumulator {
-    fn try_new(data_type: &DataType) -> Result<Self> {
-        let last: ScalarValue = data_type.try_into()?;
-        let diff = last.clone();
-        Ok(Self {
-            data_type: data_type.clone(),
-            last,
-            diff,
-        })
+    fn new(data_type: &DataType) -> Self {
+        let acc = DifferenceAccumulator::new(data_type);
+        Self { acc }
     }
 }
 
 impl Accumulator for NonNegativeDifferenceAccumulator {
     fn state(&self) -> Result<Vec<ScalarValue>> {
-        Ok(vec![self.last.clone(), self.diff.clone()])
+        error::internal("unexpected call to NonNegativeDifferenceAccumulator::state")
     }
 
     fn update_batch(&mut self, values: &[ArrayRef]) -> Result<()> {
-        if values.is_empty() {
-            return Ok(());
-        }
-        let arr = &values[0];
-        for index in 0..arr.len() {
-            let scalar = ScalarValue::try_from_array(arr, index)?;
-            if !scalar.is_null() {
-                if !self.last.is_null() {
-                    self.diff = scalar.sub(self.last.clone())?
-                }
-                self.last = scalar;
-            } else {
-                self.diff = ScalarValue::try_from(&self.data_type).unwrap()
-            }
-        }
-        Ok(())
+        self.acc.update_batch(values)
     }
 
     fn merge_batch(&mut self, _states: &[ArrayRef]) -> Result<()> {
-        todo!("Discuss usage with Andrew Lamb")
+        error::internal("unexpected call to NonNegativeDifferenceAccumulator::merge_batch")
     }
 
     fn evaluate(&self) -> Result<ScalarValue> {
-        Ok(match &self.diff {
-            ScalarValue::Float64(Some(v)) if *v < 0.0 => ScalarValue::Float64(None),
-            ScalarValue::Int64(Some(v)) if *v < 0 => ScalarValue::Int64(None),
-            v => v.clone(),
+        Ok(match self.acc.evaluate()? {
+            ScalarValue::Float64(Some(v)) if v < 0.0 => ScalarValue::Float64(None),
+            ScalarValue::Int64(Some(v)) if v < 0 => ScalarValue::Int64(None),
+            v => v,
         })
     }
 
     fn size(&self) -> usize {
-        std::mem::size_of_val(self)
+        self.acc.size()
     }
+}
+
+#[cfg(test)]
+mod test {
+    #[test]
+    fn test_avg_n() {}
 }

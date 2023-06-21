@@ -4,49 +4,60 @@
 --
 -- difference
 --
-SELECT difference(writes) FROM diskio WHERE time >= '2020-06-11T16:53:00Z' AND time < '2020-06-11T16:55:00Z';
+SELECT difference(writes) FROM diskio WHERE time >= 0000000130000000000 AND time < 0000000210000000001;
+SELECT difference(usage_system) FROM cpu WHERE time >= 0000000060000000000 AND time < 0000000210000000001 AND cpu = 'cpu0';
 -- group by a tag
-SELECT difference(usage_idle) FROM cpu WHERE time >= '2020-06-11T16:53:00Z' AND time < '2020-06-11T16:55:00Z' AND cpu =~ /^cpu(0|1)$/ GROUP BY cpu;
+SELECT difference(usage_idle) FROM cpu WHERE time >= 0000000130000000000 AND time < 0000000210000000001 AND cpu =~ /^cpu(0|1)$/ GROUP BY cpu;
 
 --
 -- difference + aggregate
 --
-SELECT difference(mean(writes)) FROM diskio WHERE time >= '2020-06-11T16:53:00Z' AND time < '2020-06-11T16:55:00Z' GROUP BY time(7s);
-SELECT difference(mean(writes)) FROM diskio WHERE time >= '2020-06-11T16:53:00Z' AND time < '2020-06-11T16:55:00Z' GROUP BY time(30s);
+SELECT difference(mean(writes)) FROM diskio WHERE time >= 0000000130000000000 AND time < 0000000210000000001 GROUP BY time(7s);
+SELECT difference(mean(writes)) FROM diskio WHERE time >= 0000000130000000000 AND time < 0000000210000000001 GROUP BY time(30s);
 -- the input data is regular data at 10s intervals, so 7s windows ensure the `mean` generates windows with NULL values to test NULL handling of difference
-SELECT difference(mean(writes)) FROM diskio WHERE time >= '2020-06-11T16:53:00Z' AND time < '2020-06-11T16:55:00Z' GROUP BY time(7s) fill(0);
-SELECT difference(mean(writes)) FROM diskio WHERE time >= '2020-06-11T16:53:00Z' AND time < '2020-06-11T16:55:00Z' GROUP BY time(7s) fill(previous);
-SELECT difference(mean(writes)) FROM diskio WHERE time >= '2020-06-11T16:53:00Z' AND time < '2020-06-11T16:55:00Z' GROUP BY time(7s) fill(linear);
+SELECT difference(mean(writes)) FROM diskio WHERE time >= 0000000130000000000 AND time < 0000000210000000001 GROUP BY time(7s) fill(0);
+SELECT difference(mean(writes)) FROM diskio WHERE time >= 0000000130000000000 AND time < 0000000210000000001 GROUP BY time(7s) fill(previous);
+SELECT difference(mean(writes)) FROM diskio WHERE time >= 0000000130000000000 AND time < 0000000210000000001 GROUP BY time(7s) fill(linear);
 -- group by time and a tag
-SELECT difference(mean(usage_idle)) FROM cpu WHERE time >= '2020-06-11T16:53:00Z' AND time < '2020-06-11T16:55:00Z' AND cpu =~ /^cpu(0|1)$/ GROUP BY TIME(30s), cpu;
+SELECT difference(mean(usage_idle)) FROM cpu WHERE time >= 0000000130000000000 AND time < 0000000210000000001 AND cpu =~ /^cpu(0|1)$/ GROUP BY TIME(30s), cpu;
 
 
 --
 -- non_negative_difference
 --
-SELECT non_negative_difference(usage_idle) FROM cpu WHERE time >= '2020-06-11T16:53:00Z' AND time < '2020-06-11T16:55:00Z' AND cpu = 'cpu0';
-SELECT non_negative_difference(usage_idle) FROM cpu WHERE time >= '2020-06-11T16:53:00Z' AND time < '2020-06-11T16:55:00Z' AND cpu =~ /^cpu(0|1)$/ GROUP BY cpu;
+-- source data has gaps
+SELECT non_negative_difference(usage_system) FROM cpu WHERE time >= 0000000060000000000 AND time < 0000000210000000001 AND cpu = 'cpu0';
+SELECT non_negative_difference(usage_idle) FROM cpu WHERE time >= 0000000130000000000 AND time < 0000000210000000001 AND cpu = 'cpu0';
+SELECT non_negative_difference(usage_idle) FROM cpu WHERE time >= 0000000130000000000 AND time < 0000000210000000001 AND cpu =~ /^cpu(0|1)$/ GROUP BY cpu;
 
 --
 -- non_negative_difference + aggregate
 --
-SELECT non_negative_difference(mean(usage_idle)) FROM cpu WHERE time >= '2020-06-11T16:53:00Z' AND time < '2020-06-11T16:55:00Z' AND cpu =~ /^cpu(0|1)$/ GROUP BY TIME(30s), cpu;
+SELECT non_negative_difference(mean(usage_idle)) FROM cpu WHERE time >= 0000000130000000000 AND time < 0000000210000000001 AND cpu =~ /^cpu(0|1)$/ GROUP BY TIME(30s), cpu;
+
+--
+-- moving_average
+--
+
+-- source data has gaps
+SELECT moving_average(writes, 3) FROM diskio WHERE time >= 0000000130000000000 AND time < 0000000210000000001;
+SELECT moving_average(reads, 3) FROM diskio WHERE time >= 0000000130000000000 AND time < 0000000210000000001;
 
 --
 -- moving_average + aggregate
 --
 -- the input data is regular data at 10s intervals, so 7s windows ensure the `mean` generates windows with NULL values to test NULL handling of moving_average
-SELECT moving_average(mean(writes), 3) FROM diskio WHERE time >= '2020-06-11T16:53:00Z' AND time < '2020-06-11T16:55:00Z' GROUP BY time(7s);
-SELECT moving_average(mean(writes), 3) FROM diskio WHERE time >= '2020-06-11T16:53:00Z' AND time < '2020-06-11T16:55:00Z' GROUP BY time(7s) fill(0);
-SELECT moving_average(mean(writes), 3) FROM diskio WHERE time >= '2020-06-11T16:53:00Z' AND time < '2020-06-11T16:55:00Z' GROUP BY time(7s) fill(previous);
-SELECT moving_average(mean(writes), 3) FROM diskio WHERE time >= '2020-06-11T16:53:00Z' AND time < '2020-06-11T16:55:00Z' GROUP BY time(7s) fill(linear);
+SELECT moving_average(mean(writes), 3) FROM diskio WHERE time >= 0000000130000000000 AND time < 0000000210000000001 GROUP BY time(7s);
+SELECT moving_average(mean(writes), 3) FROM diskio WHERE time >= 0000000130000000000 AND time < 0000000210000000001 GROUP BY time(7s) fill(0);
+SELECT moving_average(mean(writes), 3) FROM diskio WHERE time >= 0000000130000000000 AND time < 0000000210000000001 GROUP BY time(7s) fill(previous);
+SELECT moving_average(mean(writes), 3) FROM diskio WHERE time >= 0000000130000000000 AND time < 0000000210000000001 GROUP BY time(7s) fill(linear);
 
 --
 -- combining window functions
 --
-SELECT difference(usage_idle), non_negative_difference(usage_idle), moving_average(usage_idle, 4) FROM cpu WHERE time >= '2020-06-11T16:53:00Z' AND time < '2020-06-11T16:55:00Z' AND cpu =~ /^cpu(0|1)$/ GROUP BY cpu;
+SELECT difference(usage_idle), non_negative_difference(usage_idle), moving_average(usage_idle, 4) FROM cpu WHERE time >= 0000000130000000000 AND time < 0000000210000000001 AND cpu =~ /^cpu(0|1)$/ GROUP BY cpu;
 -- aggregate + window
-SELECT difference(mean(usage_idle)), non_negative_difference(mean(usage_idle)), moving_average(mean(usage_idle), 4) FROM cpu WHERE time >= '2020-06-11T16:53:00Z' AND time < '2020-06-11T16:55:00Z' AND cpu =~ /^cpu(0|1)$/ GROUP BY TIME(30s), cpu;
+SELECT difference(mean(usage_idle)), non_negative_difference(mean(usage_idle)), moving_average(mean(usage_idle), 4) FROM cpu WHERE time >= 0000000130000000000 AND time < 0000000210000000001 AND cpu =~ /^cpu(0|1)$/ GROUP BY TIME(30s), cpu;
 
 --
 -- The following queries contain projections of window + aggregate and aggregate functions,
@@ -56,17 +67,17 @@ SELECT difference(mean(usage_idle)), non_negative_difference(mean(usage_idle)), 
 --
 -- difference with mixed aggregate
 --
--- SELECT difference(mean(writes)), mean(writes) FROM diskio WHERE time >= '2020-06-11T16:53:00Z' AND time < '2020-06-11T16:55:00Z' GROUP BY time(7s);
--- SELECT difference(mean(writes)), mean(writes) FROM diskio WHERE time >= '2020-06-11T16:53:00Z' AND time < '2020-06-11T16:55:00Z' GROUP BY time(7s) fill(none);
--- SELECT difference(mean(writes)), mean(writes) FROM diskio WHERE time >= '2020-06-11T16:53:00Z' AND time < '2020-06-11T16:55:00Z' GROUP BY time(7s) fill(0);
--- SELECT difference(mean(writes)), mean(writes) FROM diskio WHERE time >= '2020-06-11T16:53:00Z' AND time < '2020-06-11T16:55:00Z' GROUP BY time(7s) fill(previous);
--- SELECT difference(mean(writes)), mean(writes) FROM diskio WHERE time >= '2020-06-11T16:53:00Z' AND time < '2020-06-11T16:55:00Z' GROUP BY time(7s) fill(linear);
+-- SELECT difference(mean(writes)), mean(writes) FROM diskio WHERE time >= 0000000130000000000 AND time < 0000000210000000001 GROUP BY time(7s);
+-- SELECT difference(mean(writes)), mean(writes) FROM diskio WHERE time >= 0000000130000000000 AND time < 0000000210000000001 GROUP BY time(7s) fill(none);
+-- SELECT difference(mean(writes)), mean(writes) FROM diskio WHERE time >= 0000000130000000000 AND time < 0000000210000000001 GROUP BY time(7s) fill(0);
+-- SELECT difference(mean(writes)), mean(writes) FROM diskio WHERE time >= 0000000130000000000 AND time < 0000000210000000001 GROUP BY time(7s) fill(previous);
+-- SELECT difference(mean(writes)), mean(writes) FROM diskio WHERE time >= 0000000130000000000 AND time < 0000000210000000001 GROUP BY time(7s) fill(linear);
 
 --
 -- moving_average with mixed aggregate
 --
--- SELECT moving_average(mean(writes), 3), mean(writes) FROM diskio WHERE time >= '2020-06-11T16:53:00Z' AND time < '2020-06-11T16:55:00Z' GROUP BY time(7s);
--- SELECT moving_average(mean(writes), 3), mean(writes) FROM diskio WHERE time >= '2020-06-11T16:53:00Z' AND time < '2020-06-11T16:55:00Z' GROUP BY time(7s) fill(none);
--- SELECT moving_average(mean(writes), 3), mean(writes) FROM diskio WHERE time >= '2020-06-11T16:53:00Z' AND time < '2020-06-11T16:55:00Z' GROUP BY time(7s) fill(0);
--- SELECT moving_average(mean(writes), 3), mean(writes) FROM diskio WHERE time >= '2020-06-11T16:53:00Z' AND time < '2020-06-11T16:55:00Z' GROUP BY time(7s) fill(previous);
--- SELECT moving_average(mean(writes), 3), mean(writes) FROM diskio WHERE time >= '2020-06-11T16:53:00Z' AND time < '2020-06-11T16:55:00Z' GROUP BY time(7s) fill(linear);
+-- SELECT moving_average(mean(writes), 3), mean(writes) FROM diskio WHERE time >= 0000000130000000000 AND time < 0000000210000000001 GROUP BY time(7s);
+-- SELECT moving_average(mean(writes), 3), mean(writes) FROM diskio WHERE time >= 0000000130000000000 AND time < 0000000210000000001 GROUP BY time(7s) fill(none);
+-- SELECT moving_average(mean(writes), 3), mean(writes) FROM diskio WHERE time >= 0000000130000000000 AND time < 0000000210000000001 GROUP BY time(7s) fill(0);
+-- SELECT moving_average(mean(writes), 3), mean(writes) FROM diskio WHERE time >= 0000000130000000000 AND time < 0000000210000000001 GROUP BY time(7s) fill(previous);
+-- SELECT moving_average(mean(writes), 3), mean(writes) FROM diskio WHERE time >= 0000000130000000000 AND time < 0000000210000000001 GROUP BY time(7s) fill(linear);

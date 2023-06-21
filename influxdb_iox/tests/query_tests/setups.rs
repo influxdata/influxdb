@@ -1364,7 +1364,7 @@ pub static SETUPS: Lazy<HashMap<SetupName, SetupSteps>> = Lazy::new(|| {
             vec![
                 Step::RecordNumParquetFiles,
                 Step::WriteLineProtocol(
-                    include_str!("data/metrics_dedup.lp").to_string()
+                    include_str!("data/window_like.lp").to_string()
                 ),
                 Step::Persist,
                 Step::WaitForPersisted {
