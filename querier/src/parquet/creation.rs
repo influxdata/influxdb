@@ -278,7 +278,6 @@ impl ChunkAdapter {
             order,
             sort_key: Some(sort_key),
             partition_id: parquet_file.partition_id,
-            compaction_level: parquet_file.compaction_level,
         });
 
         let parquet_chunk = Arc::new(ParquetChunk::new(

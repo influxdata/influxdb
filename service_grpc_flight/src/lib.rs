@@ -1,5 +1,6 @@
-//! Implements the InfluxDB IOx Flight API and Arrow FlightSQL, based
-//! on Arrow Flight and gRPC. See [`FlightService`] for full detail.
+//! Implements the InfluxDB IOx "Native" Flight API and Arrow
+//! FlightSQL, based on Arrow Flight and gRPC. See [`FlightService`]
+//! for full detail.
 
 #![deny(rustdoc::broken_intra_doc_links, rustdoc::bare_urls, rust_2018_idioms)]
 #![allow(clippy::clone_on_ref_ptr)]
@@ -244,6 +245,22 @@ type TonicStream<T> = Pin<Box<dyn Stream<Item = Result<T, tonic::Status>> + Send
 
 /// Concrete implementation of the IOx client protocol, implemented as
 /// a gRPC [Arrow Flight] Service API
+///
+/// Perhaps confusingly, this service also implements [FlightSQL] in
+/// addition to the IOx client protocol. This is done so clients can
+/// use the same Arrow Flight endpoint for either protocol. The
+/// difference between the two protocols is the specific messages
+/// passed to the Flight APIs (e.g. `DoGet` or `GetFlightInfo`).
+///
+/// The only way to run InfluxQL queries is to use the IOx client
+/// protocol. SQL queries can be run either using the IOx client
+/// protocol or FlightSQL.
+///
+/// Because FlightSQL is SQL specific, there is no way to specify a
+/// different language or dialect, and clients expect SQL semantics,
+/// thus it doesn't make sense to run InfluxQL over FlightSQL.
+///
+/// [FlightSQL]: https://arrow.apache.org/docs/format/FlightSql.html
 ///
 /// # Tickets
 ///

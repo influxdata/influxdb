@@ -884,10 +884,6 @@ impl IngesterPartition {
         self.ingester_uuid
     }
 
-    pub(crate) fn partition_id(&self) -> PartitionId {
-        self.partition_id
-    }
-
     pub(crate) fn completed_persistence_count(&self) -> u64 {
         self.completed_persistence_count
     }

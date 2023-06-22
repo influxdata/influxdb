@@ -24,7 +24,6 @@ parquet_file = { path = "../parquet_file" }
 predicate = { path = "../predicate" }
 rand = "0.8.3"
 schema = { path = "../schema" }
-sharder = { path = "../sharder" }
 tokio = { version = "1", features = ["macros", "rt", "sync"] }
 tokio-util = { version = "0.7.8" }
 tracker = { path = "../tracker" }

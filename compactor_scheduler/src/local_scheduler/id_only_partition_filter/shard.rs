@@ -5,6 +5,8 @@ use sharder::JumpHash;
 
 use super::IdOnlyPartitionFilter;
 
+/// Apply a shard [`IdOnlyPartitionFilter`].
+/// PartitionId must be within shard.
 #[derive(Debug)]
 pub struct ShardPartitionFilter {
     jump_hash: JumpHash<usize>,
@@ -12,6 +14,7 @@ pub struct ShardPartitionFilter {
 }
 
 impl ShardPartitionFilter {
+    /// Create a new [`ShardPartitionFilter`] that will filter partitions not contained within the shard.
     pub fn new(n_shards: usize, shard_id: usize) -> Self {
         assert!(shard_id < n_shards, "shard_id out of range");
 
