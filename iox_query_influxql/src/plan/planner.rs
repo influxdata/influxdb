@@ -1573,7 +1573,7 @@ impl<'a> InfluxQLToLogicalPlan<'a> {
                         Expr::Literal(ScalarValue::UInt64(Some(v))) => v as i64,
                         _ => {
                             return error::query(
-                                "moving average expects number for second argument",
+                                "moving_average expects number for second argument",
                             )
                         }
                     },
