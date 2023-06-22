@@ -49,6 +49,7 @@ use std::time::Duration;
 /// Work around the unused_crate_dependencies false positives for test deps.
 #[cfg(test)]
 use test_helpers as _;
+use workspace_hack as _;
 
 pub use builder::*;
 pub use dispatcher::*;
