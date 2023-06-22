@@ -1,11 +1,6 @@
 //! Querier handler
 
 use async_trait::async_trait;
-use futures::{
-    future::{BoxFuture, Shared},
-    stream::FuturesUnordered,
-    FutureExt, StreamExt, TryFutureExt,
-};
 use influxdb_iox_client::{
     catalog::generated_types::catalog_service_server::CatalogServiceServer,
     schema::generated_types::schema_service_server::SchemaServiceServer,
@@ -19,10 +14,9 @@ use service_grpc_object_store::ObjectStoreService;
 use service_grpc_schema::SchemaService;
 use std::sync::Arc;
 use thiserror::Error;
-use tokio::task::{JoinError, JoinHandle};
 use tokio_util::sync::CancellationToken;
 
-use crate::{database::QuerierDatabase, poison::PoisonCabinet};
+use crate::database::QuerierDatabase;
 
 #[derive(Debug, Error)]
 #[allow(missing_copy_implementations, missing_docs)]
@@ -49,15 +43,6 @@ pub trait QuerierHandler: Send + Sync {
     fn shutdown(&self);
 }
 
-/// A [`JoinHandle`] that can be cloned
-type SharedJoinHandle = Shared<BoxFuture<'static, Result<(), Arc<JoinError>>>>;
-
-/// Convert a [`JoinHandle`] into a [`SharedJoinHandle`].
-#[allow(dead_code)]
-fn shared_handle(handle: JoinHandle<()>) -> SharedJoinHandle {
-    handle.map_err(Arc::new).boxed().shared()
-}
-
 /// Implementation of the `QuerierHandler` trait (that currently does nothing)
 #[derive(Debug)]
 pub struct QuerierHandlerImpl {
@@ -70,15 +55,8 @@ pub struct QuerierHandlerImpl {
     /// The object store
     object_store: Arc<dyn ObjectStore>,
 
-    /// Future that resolves when the background worker exits
-    join_handles: Vec<(String, SharedJoinHandle)>,
-
-    /// A token that is used to trigger shutdown of the background worker
+    /// Remembers if `shutdown` was called but also blocks the `join` call.
     shutdown: CancellationToken,
-
-    /// Poison pills for testing.
-    #[allow(dead_code)]
-    poison_cabinet: Arc<PoisonCabinet>,
 }
 
 impl QuerierHandlerImpl {
@@ -88,17 +66,11 @@ impl QuerierHandlerImpl {
         database: Arc<QuerierDatabase>,
         object_store: Arc<dyn ObjectStore>,
     ) -> Self {
-        let shutdown = CancellationToken::new();
-        let poison_cabinet = Arc::new(PoisonCabinet::new());
-
-        let join_handles = vec![];
         Self {
             catalog,
             database,
             object_store,
-            join_handles,
-            shutdown,
-            poison_cabinet,
+            shutdown: CancellationToken::new(),
         }
     }
 }
@@ -121,22 +93,6 @@ impl QuerierHandler for QuerierHandlerImpl {
     }
 
     async fn join(&self) {
-        // Need to poll handlers unordered to detect early exists of any worker in the list.
-        let mut unordered: FuturesUnordered<_> = self
-            .join_handles
-            .iter()
-            .cloned()
-            .map(|(name, handle)| async move { handle.await.map(|_| name) })
-            .collect();
-
-        while let Some(e) = unordered.next().await {
-            let name = e.unwrap();
-
-            if !self.shutdown.is_cancelled() {
-                panic!("Background worker '{name}' exited early!");
-            }
-        }
-
         self.shutdown.cancelled().await;
         self.database.exec().join().await;
     }
@@ -151,7 +107,7 @@ impl Drop for QuerierHandlerImpl {
     fn drop(&mut self) {
         if !self.shutdown.is_cancelled() {
             warn!("QuerierHandlerImpl dropped without calling shutdown()");
-            self.shutdown.cancel();
+            self.shutdown();
         }
     }
 }
