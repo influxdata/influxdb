@@ -11,6 +11,14 @@
     unused_crate_dependencies
 )]
 
+use generated_types::influxdata::iox::{
+    catalog::v1::catalog_service_server::CatalogServiceServer,
+    object_store::v1::object_store_service_server::ObjectStoreServiceServer,
+    schema::v1::schema_service_server::SchemaServiceServer,
+};
+use service_grpc_catalog::CatalogService;
+use service_grpc_object_store::ObjectStoreService;
+use service_grpc_schema::SchemaService;
 // Workaround for "unused crate" lint false positives.
 use workspace_hack as _;
 
@@ -31,7 +39,7 @@ use ioxd_common::{
     setup_builder,
 };
 use metric::Registry;
-use object_store::DynObjectStore;
+use object_store::{DynObjectStore, ObjectStore};
 use querier::{create_ingester_connections, QuerierCatalogCache, QuerierDatabase, QuerierServer};
 use std::{
     fmt::{Debug, Display},
@@ -45,8 +53,11 @@ use trace::TraceCollector;
 mod rpc;
 
 pub struct QuerierServerType {
+    catalog: Arc<dyn Catalog>,
     database: Arc<QuerierDatabase>,
     server: QuerierServer,
+    metric_registry: Arc<Registry>,
+    object_store: Arc<dyn ObjectStore>,
     trace_collector: Option<Arc<dyn TraceCollector>>,
     authz: Option<Arc<dyn Authorizer>>,
 }
@@ -54,22 +65,6 @@ pub struct QuerierServerType {
 impl std::fmt::Debug for QuerierServerType {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         write!(f, "Querier")
-    }
-}
-
-impl QuerierServerType {
-    pub fn new(
-        server: QuerierServer,
-        database: Arc<QuerierDatabase>,
-        common_state: &CommonServerState,
-        authz: Option<Arc<dyn Authorizer>>,
-    ) -> Self {
-        Self {
-            server,
-            database,
-            trace_collector: common_state.trace_collector(),
-            authz,
-        }
     }
 }
 
@@ -82,7 +77,7 @@ impl ServerType for QuerierServerType {
 
     /// Return the [`metric::Registry`] used by the compactor.
     fn metric_registry(&self) -> Arc<Registry> {
-        self.server.metric_registry()
+        Arc::clone(&self.metric_registry)
     }
 
     /// Returns the trace collector for compactor traces.
@@ -116,9 +111,21 @@ impl ServerType for QuerierServerType {
             builder,
             rpc::namespace::namespace_service(Arc::clone(&self.database))
         );
-        add_service!(builder, self.server.schema_service());
-        add_service!(builder, self.server.catalog_service());
-        add_service!(builder, self.server.object_store_service());
+        add_service!(
+            builder,
+            SchemaServiceServer::new(SchemaService::new(Arc::clone(&self.catalog)))
+        );
+        add_service!(
+            builder,
+            CatalogServiceServer::new(CatalogService::new(Arc::clone(&self.catalog)))
+        );
+        add_service!(
+            builder,
+            ObjectStoreServiceServer::new(ObjectStoreService::new(
+                Arc::clone(&self.catalog),
+                Arc::clone(&self.object_store),
+            ))
+        );
 
         serve_builder!(builder);
 
@@ -258,16 +265,14 @@ pub async fn create_querier_server_type(
         .await?,
     );
 
-    let querier = QuerierServer::new(
-        args.catalog,
-        Arc::clone(&database),
-        args.metric_registry,
-        args.object_store,
-    );
-    Ok(Arc::new(QuerierServerType::new(
-        querier,
+    let server = QuerierServer::new(Arc::clone(&database));
+    Ok(Arc::new(QuerierServerType {
+        catalog: args.catalog,
         database,
-        args.common_state,
+        server,
+        metric_registry: args.metric_registry,
+        object_store: args.object_store,
+        trace_collector: args.common_state.trace_collector(),
         authz,
-    )))
+    }))
 }
