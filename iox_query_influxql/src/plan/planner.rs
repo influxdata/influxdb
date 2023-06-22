@@ -555,16 +555,8 @@ impl<'a> InfluxQLToLogicalPlan<'a> {
 
             // TODO(sgc): Handle FILL(N) and FILL(previous)
             //
-            // NOTE:
-            //
-            // The final plan should respect InfluxQL OG fill behaviour, such that if
-            // the query fill behaviour is either `FILL(N)` or `FILL(previous)` and
-            // the column is a field with a `NULL` value, to use the `FILL` value.
-            //
-            // If the ProjectionType is `Aggregate`, we can skip this, as it will already be
-            // handled by the GapFill operator.
-            //
-            // See: https://github.com/influxdata/influxdb/blob/f365bb7e3a9c5e227dbf66d84adf674d3d127176/query/select.go#L635-L642
+            // See: https://github.com/influxdata/influxdb_iox/issues/8042
+
             plans.push((table_name, plan));
         }
 
