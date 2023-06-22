@@ -14,6 +14,8 @@ protocol = "sparse"
 
 [target.x86_64-unknown-linux-gnu]
 rustflags = [
+    # see above
+    "--cfg", "tokio_unstable",
     # Faster linker.
     "-C", "link-arg=-fuse-ld=lld",
     # Fix `perf` as suggested by https://github.com/flamegraph-rs/flamegraph/blob/2d19a162df4066f37d58d5471634f0bd9f0f4a62/README.md?plain=1#L18
