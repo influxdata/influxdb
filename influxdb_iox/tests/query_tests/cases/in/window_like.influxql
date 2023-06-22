@@ -42,6 +42,15 @@ SELECT non_negative_difference(mean(usage_idle)) FROM cpu WHERE time >= 00000001
 -- source data has gaps
 SELECT moving_average(writes, 3) FROM diskio WHERE time >= 0000000130000000000 AND time < 0000000210000000001;
 SELECT moving_average(reads, 3) FROM diskio WHERE time >= 0000000130000000000 AND time < 0000000210000000001;
+--
+-- test with fewer rows than 3
+--
+-- one row of input
+SELECT moving_average(writes, 3) FROM diskio WHERE time >= 0000000210000000000;
+-- two rows of input
+SELECT moving_average(writes, 3) FROM diskio WHERE time >= 0000000200000000000;
+-- three rows of input
+SELECT moving_average(writes, 3) FROM diskio WHERE time >= 0000000190000000000;
 
 --
 -- moving_average + aggregate

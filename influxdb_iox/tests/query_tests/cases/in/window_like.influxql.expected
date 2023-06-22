@@ -225,6 +225,23 @@ name: diskio
 | 1970-01-01T00:03:20 | 2593415.3333333335 |
 | 1970-01-01T00:03:30 | 2593587.3333333335 |
 +---------------------+--------------------+
+-- InfluxQL: SELECT moving_average(writes, 3) FROM diskio WHERE time >= 0000000210000000000;
++------+----------------+
+| time | moving_average |
++------+----------------+
++------+----------------+
+-- InfluxQL: SELECT moving_average(writes, 3) FROM diskio WHERE time >= 0000000200000000000;
++------+----------------+
+| time | moving_average |
++------+----------------+
++------+----------------+
+-- InfluxQL: SELECT moving_average(writes, 3) FROM diskio WHERE time >= 0000000190000000000;
+name: diskio
++---------------------+-------------------+
+| time                | moving_average    |
++---------------------+-------------------+
+| 1970-01-01T00:03:30 | 5593612.333333333 |
++---------------------+-------------------+
 -- InfluxQL: SELECT moving_average(mean(writes), 3) FROM diskio WHERE time >= 0000000130000000000 AND time < 0000000210000000001 GROUP BY time(7s);
 name: diskio
 +---------------------+-------------------+
