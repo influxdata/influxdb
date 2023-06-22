@@ -301,10 +301,9 @@ jobs:
     environment:
       # Disable incremental compilation to avoid overhead. We are not preserving these files anyway.
       CARGO_INCREMENTAL: "0"
-      # - Disable full debug symbol generation to speed up CI build
-      #   "1" means line tables only, which is useful for panic tracebacks.
-      # - Enable tokio-console
-      RUSTFLAGS: "-C debuginfo=1 --cfg tokio_unstable"
+      # Disable full debug symbol generation to speed up CI build
+      # "1" means line tables only, which is useful for panic tracebacks.
+      RUSTFLAGS: "-C debuginfo=1"
       # https://github.com/rust-lang/cargo/issues/10280
       CARGO_NET_GIT_FETCH_WITH_CLI: "true"
       # The `2xlarge` resource class that we use has 32GB RAM but also 16 CPUs. This means we have 2GB RAM per core on
@@ -381,13 +380,6 @@ jobs:
     machine:
       image: ubuntu-2004:2022.04.2
     resource_class: 2xlarge # CPU bound, so make it fast
-    environment:
-      # Disable incremental compilation to avoid overhead. We are not preserving these files anyway.
-      CARGO_INCREMENTAL: "0"
-      # Enable tokio-console
-      RUSTFLAGS: "--cfg tokio_unstable"
-      # https://github.com/rust-lang/cargo/issues/10280
-      CARGO_NET_GIT_FETCH_WITH_CLI: "true"
     steps:
       - checkout
       - run:
@@ -398,17 +390,19 @@ jobs:
             RUST_VERSION="$(sed -E -ne 's/channel = "(.*)"/\1/p' rust-toolchain.toml)"
 
             docker buildx build \
+              --build-arg CARGO_INCREMENTAL="no" \
+              --build-arg CARGO_NET_GIT_FETCH_WITH_CLI="true" \
               --build-arg FEATURES="aws,gcp,azure,jemalloc_replacing_malloc,tokio_console,pprof" \
               --build-arg RUST_VERSION="$RUST_VERSION" \
-              --build-arg RUSTFLAGS="$RUSTFLAGS" \
               --progress plain \
               --tag quay.io/influxdb/iox:"$COMMIT_SHA" \
               .
             docker buildx build \
+              --build-arg CARGO_INCREMENTAL="no" \
+              --build-arg CARGO_NET_GIT_FETCH_WITH_CLI="true" \
               --build-arg FEATURES="" \
               --build-arg PACKAGE="iox_data_generator" \
               --build-arg RUST_VERSION="$RUST_VERSION" \
-              --build-arg RUSTFLAGS="$RUSTFLAGS" \
               --progress plain \
               --tag quay.io/influxdb/iox_data_generator:"$COMMIT_SHA" \
               .
