@@ -1198,7 +1198,7 @@ pub fn format_logical_plan(plan: &LogicalPlan) -> Vec<String> {
 }
 
 pub fn format_execution_plan(plan: &Arc<dyn ExecutionPlan>) -> Vec<String> {
-    format_lines(&displayable(plan.as_ref()).indent(false).to_string())
+    format_lines(&displayable(plan.as_ref()).indent().to_string())
 }
 
 fn format_lines(s: &str) -> Vec<String> {

@@ -530,7 +530,7 @@ impl ExecutionPlan for GapFillExec {
 
     fn fmt_as(&self, t: DisplayFormatType, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match t {
-            DisplayFormatType::Default | DisplayFormatType::Verbose => {
+            DisplayFormatType::Default => {
                 let group_expr: Vec<_> = self.group_expr.iter().map(|e| e.to_string()).collect();
                 let aggr_expr: Vec<_> = self
                     .params

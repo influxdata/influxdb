@@ -269,7 +269,7 @@ impl ExecutionPlan for DeduplicateExec {
 
     fn fmt_as(&self, t: DisplayFormatType, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match t {
-            DisplayFormatType::Default | DisplayFormatType::Verbose => {
+            DisplayFormatType::Default => {
                 let expr: Vec<String> = self.sort_keys.iter().map(|e| e.to_string()).collect();
                 write!(f, "DeduplicateExec: [{}]", expr.join(","))
             }
