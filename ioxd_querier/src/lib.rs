@@ -32,10 +32,7 @@ use ioxd_common::{
 };
 use metric::Registry;
 use object_store::DynObjectStore;
-use querier::{
-    create_ingester_connections, QuerierCatalogCache, QuerierDatabase, QuerierHandler,
-    QuerierHandlerImpl, QuerierServer,
-};
+use querier::{create_ingester_connections, QuerierCatalogCache, QuerierDatabase, QuerierServer};
 use std::{
     fmt::{Debug, Display},
     sync::Arc,
@@ -47,22 +44,22 @@ use trace::TraceCollector;
 
 mod rpc;
 
-pub struct QuerierServerType<C: QuerierHandler> {
+pub struct QuerierServerType {
     database: Arc<QuerierDatabase>,
-    server: QuerierServer<C>,
+    server: QuerierServer,
     trace_collector: Option<Arc<dyn TraceCollector>>,
     authz: Option<Arc<dyn Authorizer>>,
 }
 
-impl<C: QuerierHandler> std::fmt::Debug for QuerierServerType<C> {
+impl std::fmt::Debug for QuerierServerType {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         write!(f, "Querier")
     }
 }
 
-impl<C: QuerierHandler> QuerierServerType<C> {
+impl QuerierServerType {
     pub fn new(
-        server: QuerierServer<C>,
+        server: QuerierServer,
         database: Arc<QuerierDatabase>,
         common_state: &CommonServerState,
         authz: Option<Arc<dyn Authorizer>>,
@@ -77,7 +74,7 @@ impl<C: QuerierHandler> QuerierServerType<C> {
 }
 
 #[async_trait]
-impl<C: QuerierHandler + std::fmt::Debug + 'static> ServerType for QuerierServerType<C> {
+impl ServerType for QuerierServerType {
     /// Human name for this server type
     fn name(&self) -> &str {
         "querier"
@@ -119,9 +116,9 @@ impl<C: QuerierHandler + std::fmt::Debug + 'static> ServerType for QuerierServer
             builder,
             rpc::namespace::namespace_service(Arc::clone(&self.database))
         );
-        add_service!(builder, self.server.handler().schema_service());
-        add_service!(builder, self.server.handler().catalog_service());
-        add_service!(builder, self.server.handler().object_store_service());
+        add_service!(builder, self.server.schema_service());
+        add_service!(builder, self.server.catalog_service());
+        add_service!(builder, self.server.object_store_service());
 
         serve_builder!(builder);
 
@@ -260,13 +257,13 @@ pub async fn create_querier_server_type(
         )
         .await?,
     );
-    let querier_handler = Arc::new(QuerierHandlerImpl::new(
+
+    let querier = QuerierServer::new(
         args.catalog,
         Arc::clone(&database),
-        Arc::clone(&args.object_store),
-    ));
-
-    let querier = QuerierServer::new(args.metric_registry, querier_handler);
+        args.metric_registry,
+        args.object_store,
+    );
     Ok(Arc::new(QuerierServerType::new(
         querier,
         database,

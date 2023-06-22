@@ -4365,7 +4365,6 @@ dependencies = [
  "service_grpc_schema",
  "snafu",
  "test_helpers",
- "thiserror",
  "tokio",
  "tokio-util",
  "tonic",
