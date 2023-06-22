@@ -175,6 +175,7 @@ mod tests {
             namespace_id: NAMESPACE_ID,
             table_id: TABLE_ID,
             partition_id: PARTITION_ID,
+            partition_hash_id: None,
             object_store_id: Default::default(),
             min_time: Timestamp::new(Duration::from_secs(1_000).as_nanos() as _),
             max_time: Timestamp::new(Duration::from_secs(1_042).as_nanos() as _), // 42 seconds later

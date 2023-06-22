@@ -216,10 +216,11 @@ where
         let partitions = self.partitions().into_iter().map(move |p| {
             let mut span = span.child("partition read");
 
-            let (id, completed_persistence_count, data) = {
+            let (id, hash_id, completed_persistence_count, data) = {
                 let mut p = p.lock();
                 (
                     p.partition_id(),
+                    p.partition_hash_id().cloned(),
                     p.completed_persistence_count(),
                     p.get_query_data(),
                 )
@@ -238,9 +239,9 @@ where
                     };
 
                     let data = data.project_selection(selection).into_iter().collect();
-                    PartitionResponse::new(data, id, completed_persistence_count)
+                    PartitionResponse::new(data, id, hash_id, completed_persistence_count)
                 }
-                None => PartitionResponse::new(vec![], id, completed_persistence_count),
+                None => PartitionResponse::new(vec![], id, hash_id, completed_persistence_count),
             };
 
             span.ok("read partition data");

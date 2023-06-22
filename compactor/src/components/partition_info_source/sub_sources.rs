@@ -98,6 +98,7 @@ where
 
         Ok(Arc::new(PartitionInfo {
             partition_id,
+            partition_hash_id: partition.hash_id().cloned(),
             namespace_id: table.namespace_id,
             namespace_name: namespace.name,
             table: Arc::new(table),

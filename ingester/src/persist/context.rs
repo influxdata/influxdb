@@ -1,6 +1,9 @@
 use std::sync::Arc;
 
-use data_types::{NamespaceId, ParquetFileParams, PartitionId, PartitionKey, TableId};
+use data_types::{
+    NamespaceId, ParquetFileParams, PartitionHashId, PartitionId, PartitionKey, TableId,
+    TransitionPartitionId,
+};
 use observability_deps::tracing::*;
 use parking_lot::Mutex;
 use schema::sort::SortKey;
@@ -86,6 +89,7 @@ pub(super) struct Context {
     namespace_id: NamespaceId,
     table_id: TableId,
     partition_id: PartitionId,
+    partition_hash_id: Option<PartitionHashId>,
 
     // The partition key for this partition
     partition_key: PartitionKey,
@@ -157,6 +161,7 @@ impl Context {
                 namespace_id: guard.namespace_id(),
                 table_id: guard.table_id(),
                 partition_id,
+                partition_hash_id: guard.partition_hash_id().cloned(),
                 partition_key: guard.partition_key().clone(),
                 namespace_name: Arc::clone(guard.namespace_name()),
                 table_name: Arc::clone(guard.table_name()),
@@ -289,6 +294,17 @@ impl Context {
 
     pub(super) fn partition_id(&self) -> PartitionId {
         self.partition_id
+    }
+
+    pub(super) fn partition_hash_id(&self) -> Option<PartitionHashId> {
+        self.partition_hash_id.clone()
+    }
+
+    pub(super) fn transition_partition_id(&self) -> TransitionPartitionId {
+        self.partition_hash_id
+            .clone()
+            .map(TransitionPartitionId::Deterministic)
+            .unwrap_or_else(|| TransitionPartitionId::Deprecated(self.partition_id))
     }
 
     pub(super) fn partition_key(&self) -> &PartitionKey {

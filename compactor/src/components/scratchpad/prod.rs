@@ -106,7 +106,7 @@ impl ProdScratchpad {
             .iter()
             .map(|f| {
                 let uuid = Self::xor_uuids(f.objest_store_id(), self.mask);
-                let f = (*f).with_object_store_id(uuid);
+                let f = (f.clone()).with_object_store_id(uuid);
                 (f, uuid)
             })
             .unzip()
@@ -127,8 +127,8 @@ impl ProdScratchpad {
         files_unmasked
             .iter()
             .zip(files_masked)
-            .filter(
-                |(f_unmasked, _f_masked)| match ref_files_unmasked.entry(**f_unmasked) {
+            .filter(|(f_unmasked, _f_masked)| {
+                match ref_files_unmasked.entry((*f_unmasked).clone()) {
                     Entry::Occupied(mut o) => {
                         let old_var = *o.get();
                         *o.get_mut() |= output;
@@ -138,8 +138,9 @@ impl ProdScratchpad {
                         v.insert(output);
                         true
                     }
-                },
-            )
+                }
+            })
+            .map(|(un, masked)| (un.clone(), masked.clone()))
             .unzip()
     }
 }
@@ -322,19 +323,19 @@ mod tests {
         assert_content(&store_scratchpad, []).await;
         assert_content(&store_output, []).await;
 
-        let uuids = pad.load_to_scratchpad(&[f1, f2]).await;
+        let uuids = pad.load_to_scratchpad(&[f1.clone(), f2.clone()]).await;
         assert_eq!(uuids.len(), 2);
-        let f1_masked = f1.with_object_store_id(uuids[0]);
-        let f2_masked = f2.with_object_store_id(uuids[1]);
+        let f1_masked = f1.clone().with_object_store_id(uuids[0]);
+        let f2_masked = f2.clone().with_object_store_id(uuids[1]);
 
         assert_content(&store_input, [&f1, &f2, &f3, &f4]).await;
         assert_content(&store_scratchpad, [&f1_masked, &f2_masked]).await;
         assert_content(&store_output, []).await;
 
-        let uuids = pad.load_to_scratchpad(&[f2, f3]).await;
+        let uuids = pad.load_to_scratchpad(&[f2.clone(), f3.clone()]).await;
         assert_eq!(uuids.len(), 2);
         assert_eq!(f2_masked.objest_store_id(), uuids[0]);
-        let f3_masked = f3.with_object_store_id(uuids[1]);
+        let f3_masked = f3.clone().with_object_store_id(uuids[1]);
 
         assert_content(&store_input, [&f1, &f2, &f3, &f4]).await;
         assert_content(&store_scratchpad, [&f1_masked, &f2_masked, &f3_masked]).await;
@@ -357,10 +358,12 @@ mod tests {
         .await;
         assert_content(&store_output, []).await;
 
-        let uuids = pad.make_public(&[f5_masked, f6_masked]).await;
+        let uuids = pad
+            .make_public(&[f5_masked.clone(), f6_masked.clone()])
+            .await;
         assert_eq!(uuids.len(), 2);
-        let f5 = f5_masked.with_object_store_id(uuids[0]);
-        let f6 = f6_masked.with_object_store_id(uuids[1]);
+        let f5 = f5_masked.clone().with_object_store_id(uuids[0]);
+        let f6 = f6_masked.clone().with_object_store_id(uuids[1]);
 
         assert_content(&store_input, [&f1, &f2, &f3, &f4]).await;
         assert_content(
@@ -372,7 +375,7 @@ mod tests {
         .await;
         assert_content(&store_output, [&f5, &f6]).await;
 
-        let uuids = pad.make_public(&[f1_masked]).await;
+        let uuids = pad.make_public(&[f1_masked.clone()]).await;
         assert_eq!(uuids.len(), 1);
         assert_eq!(f1.objest_store_id(), uuids[0]);
 
@@ -387,7 +390,8 @@ mod tests {
         assert_content(&store_output, [&f1, &f5, &f6]).await;
 
         // we're in shadow mode, so written (compaction output) files must be be removed.
-        pad.clean_written_from_scratchpad(&[f1, f5]).await;
+        pad.clean_written_from_scratchpad(&[f1.clone(), f5.clone()])
+            .await;
 
         // they're still there
         assert_content(
@@ -398,7 +402,7 @@ mod tests {
         )
         .await;
 
-        pad.clean_from_scratchpad(&[f1, f5]).await;
+        pad.clean_from_scratchpad(&[f1.clone(), f5.clone()]).await;
 
         assert_content(
             &store_scratchpad,
@@ -409,7 +413,7 @@ mod tests {
         // Reload a cleaned file back into the scratchpad, simulating a backlogged partition that
         // requires several compaction loops (where the output of one compaction is later the input
         // to a subsequent compaction).
-        let uuids = pad.load_to_scratchpad(&[f1]).await;
+        let uuids = pad.load_to_scratchpad(&[f1.clone()]).await;
         assert_eq!(uuids.len(), 1);
         assert_eq!(f1_masked.objest_store_id(), uuids[0]);
 
@@ -450,11 +454,11 @@ mod tests {
             .await
             .unwrap();
 
-        let uuids = pad1.load_to_scratchpad(&[f]).await;
+        let uuids = pad1.load_to_scratchpad(&[f.clone()]).await;
         assert_eq!(uuids.len(), 1);
-        let f_masked1 = f.with_object_store_id(uuids[0]);
+        let f_masked1 = f.clone().with_object_store_id(uuids[0]);
 
-        let uuids = pad2.load_to_scratchpad(&[f]).await;
+        let uuids = pad2.load_to_scratchpad(&[f.clone()]).await;
         assert_eq!(uuids.len(), 1);
         let f_masked2 = f.with_object_store_id(uuids[0]);
 

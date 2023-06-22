@@ -4,7 +4,9 @@ use arrow::{
     array::{ArrayRef, StringArray, TimestampNanosecondArray},
     record_batch::RecordBatch,
 };
-use data_types::{ColumnId, CompactionLevel, NamespaceId, PartitionId, TableId, Timestamp};
+use data_types::{
+    ColumnId, CompactionLevel, NamespaceId, PartitionId, TableId, Timestamp, TransitionPartitionId,
+};
 use datafusion_util::{unbounded_memory_pool, MemoryStream};
 use iox_time::Time;
 use object_store::DynObjectStore;
@@ -44,7 +46,7 @@ async fn test_decoded_iox_metadata() {
         ),
     ];
 
-    let partition_id = PartitionId::new(4);
+    let partition_id = TransitionPartitionId::Deprecated(PartitionId::new(4));
 
     // And the metadata the batch would be encoded with if it came through the
     // IOx write path.
@@ -80,7 +82,7 @@ async fn test_decoded_iox_metadata() {
     let storage = ParquetStorage::new(object_store, StorageId::from("iox"));
 
     let (iox_parquet_meta, file_size) = storage
-        .upload(stream, partition_id, &meta, unbounded_memory_pool())
+        .upload(stream, &partition_id, &meta, unbounded_memory_pool())
         .await
         .expect("failed to serialize & persist record batch");
 
@@ -185,7 +187,7 @@ async fn test_empty_parquet_file_panic() {
         ("some_field", to_string_array(&[])),
     ];
 
-    let partition_id = PartitionId::new(4);
+    let partition_id = TransitionPartitionId::Deprecated(PartitionId::new(4));
 
     // And the metadata the batch would be encoded with if it came through the
     // IOx write path.
@@ -210,7 +212,7 @@ async fn test_empty_parquet_file_panic() {
 
     // Serialising empty data should cause a panic for human investigation.
     let err = storage
-        .upload(stream, partition_id, &meta, unbounded_memory_pool())
+        .upload(stream, &partition_id, &meta, unbounded_memory_pool())
         .await
         .expect_err("empty file should raise an error");
 
@@ -280,7 +282,7 @@ async fn test_decoded_many_columns_with_null_cols_iox_metadata() {
     }
     sort_key_data.push(TIME_COLUMN_NAME.to_string());
     let sort_key = SortKey::from_columns(sort_key_data);
-    let partition_id = PartitionId::new(4);
+    let partition_id = TransitionPartitionId::Deprecated(PartitionId::new(4));
     let meta = IoxMetadata {
         object_store_id: Default::default(),
         creation_timestamp: Time::from_timestamp_nanos(42),
@@ -313,7 +315,7 @@ async fn test_decoded_many_columns_with_null_cols_iox_metadata() {
     let storage = ParquetStorage::new(object_store, StorageId::from("iox"));
 
     let (iox_parquet_meta, file_size) = storage
-        .upload(stream, partition_id, &meta, unbounded_memory_pool())
+        .upload(stream, &partition_id, &meta, unbounded_memory_pool())
         .await
         .expect("failed to serialize & persist record batch");
 
@@ -367,6 +369,8 @@ async fn test_derive_parquet_file_params() {
     // And the metadata the batch would be encoded with if it came through the
     // IOx write path.
     let partition_id = PartitionId::new(4);
+    let partition_hash_id = None;
+    let transition_partition_id = TransitionPartitionId::Deprecated(partition_id);
     let meta = IoxMetadata {
         object_store_id: Default::default(),
         creation_timestamp: Time::from_timestamp_nanos(1234),
@@ -396,7 +400,12 @@ async fn test_derive_parquet_file_params() {
     let storage = ParquetStorage::new(object_store, StorageId::from("iox"));
 
     let (iox_parquet_meta, file_size) = storage
-        .upload(stream, partition_id, &meta, unbounded_memory_pool())
+        .upload(
+            stream,
+            &transition_partition_id,
+            &meta,
+            unbounded_memory_pool(),
+        )
         .await
         .expect("failed to serialize & persist record batch");
 
@@ -406,9 +415,13 @@ async fn test_derive_parquet_file_params() {
         ("some_field".into(), ColumnId::new(1)),
         ("time".into(), ColumnId::new(2)),
     ]);
-    let catalog_data = meta.to_parquet_file(partition_id, file_size, &iox_parquet_meta, |name| {
-        *column_id_map.get(name).unwrap()
-    });
+    let catalog_data = meta.to_parquet_file(
+        partition_id,
+        partition_hash_id,
+        file_size,
+        &iox_parquet_meta,
+        |name| *column_id_map.get(name).unwrap(),
+    );
 
     // And verify the resulting statistics used in the catalog.
     //

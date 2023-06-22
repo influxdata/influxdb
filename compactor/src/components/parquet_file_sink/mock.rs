@@ -71,6 +71,7 @@ impl ParquetFileSink for MockParquetFileSink {
             namespace_id: partition.namespace_id,
             table_id: partition.table.id,
             partition_id: partition.partition_id,
+            partition_hash_id: partition.partition_hash_id.clone(),
             object_store_id: Uuid::from_u128(guard.len() as u128),
             min_time: Timestamp::new(0),
             max_time: Timestamp::new(0),
@@ -158,6 +159,7 @@ mod tests {
             Arc::clone(&schema),
             futures::stream::once(async move { Ok(record_batch_captured) }),
         ));
+        let partition_hash_id = partition.partition_hash_id.clone();
         assert_eq!(
             sink.store(stream, Arc::clone(&partition), level, max_l0_created_at)
                 .await
@@ -166,6 +168,7 @@ mod tests {
                 namespace_id: NamespaceId::new(2),
                 table_id: TableId::new(3),
                 partition_id: PartitionId::new(1),
+                partition_hash_id,
                 object_store_id: Uuid::from_u128(2),
                 min_time: Timestamp::new(0),
                 max_time: Timestamp::new(0),
@@ -220,6 +223,7 @@ mod tests {
             Arc::clone(&schema),
             futures::stream::empty(),
         ));
+        let partition_hash_id = partition.partition_hash_id.clone();
         assert_eq!(
             sink.store(stream, Arc::clone(&partition), level, max_l0_created_at)
                 .await
@@ -228,6 +232,7 @@ mod tests {
                 namespace_id: NamespaceId::new(2),
                 table_id: TableId::new(3),
                 partition_id: PartitionId::new(1),
+                partition_hash_id,
                 object_store_id: Uuid::from_u128(0),
                 min_time: Timestamp::new(0),
                 max_time: Timestamp::new(0),

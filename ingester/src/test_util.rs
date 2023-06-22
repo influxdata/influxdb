@@ -1,6 +1,6 @@
 use std::{collections::BTreeMap, sync::Arc, time::Duration};
 
-use data_types::{NamespaceId, Partition, PartitionId, PartitionKey, SequenceNumber, TableId};
+use data_types::{NamespaceId, PartitionId, PartitionKey, SequenceNumber, TableId};
 use iox_catalog::{interface::Catalog, test_helpers::arbitrary_namespace};
 use lazy_static::lazy_static;
 use mutable_batch_lp::lines_to_batches;
@@ -127,6 +127,7 @@ impl PartitionDataBuilder {
     pub(crate) fn build(self) -> PartitionData {
         PartitionData::new(
             self.partition_id.unwrap_or(ARBITRARY_PARTITION_ID),
+            None,
             self.partition_key
                 .unwrap_or_else(|| ARBITRARY_PARTITION_KEY.clone()),
             self.namespace_id.unwrap_or(ARBITRARY_NAMESPACE_ID),
@@ -137,18 +138,6 @@ impl PartitionDataBuilder {
                 .unwrap_or_else(defer_table_name_1_sec),
             self.sort_key.unwrap_or(SortKeyState::Provided(None)),
         )
-    }
-}
-
-/// Generate a valid [`Partition`] for use in the tests where the exact values (or at least some of
-/// them) don't particularly matter.
-pub(crate) fn arbitrary_partition() -> Partition {
-    Partition {
-        id: ARBITRARY_PARTITION_ID,
-        table_id: ARBITRARY_TABLE_ID,
-        partition_key: ARBITRARY_PARTITION_KEY.clone(),
-        sort_key: Default::default(),
-        new_file_at: Default::default(),
     }
 }
 
@@ -246,7 +235,19 @@ macro_rules! make_partition_stream {
 
                     PartitionResponse::new(
                         batches,
-                        $id,
+                        // Using the $id as both the PartitionId and the TableId in the
+                        // PartitionHashId is a temporary way to reduce duplication in tests where
+                        // the important part is which batches are in the same partition and which
+                        // batches are in a different partition, not what the actual identifier
+                        // values are. This will go away when the ingester no longer sends
+                        // PartitionIds.
+                        PartitionId::new($id),
+                        Some(
+                            PartitionHashId::new(
+                                TableId::new($id),
+                                &PartitionKey::from("arbitrary")
+                            )
+                        ),
                         42,
                     )
                 },)+

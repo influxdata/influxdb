@@ -327,6 +327,7 @@ mod tests {
         let partition = partition_with_write(Arc::clone(&catalog)).await;
         let table_id = partition.lock().table_id();
         let partition_id = partition.lock().partition_id();
+        let transition_partition_id = partition.lock().transition_partition_id();
         let namespace_id = partition.lock().namespace_id();
         assert_matches!(partition.lock().sort_key(), SortKeyState::Provided(None));
 
@@ -437,8 +438,13 @@ mod tests {
         assert_eq!(files.len(), 2, "expected two uploaded files");
 
         // Ensure the catalog record points at a valid file in object storage.
-        let want_path = ParquetFilePath::new(namespace_id, table_id, partition_id, object_store_id)
-            .object_store_path();
+        let want_path = ParquetFilePath::new(
+            namespace_id,
+            table_id,
+            &transition_partition_id,
+            object_store_id,
+        )
+        .object_store_path();
         let file = files
             .into_iter()
             .find(|f| f.location == want_path)

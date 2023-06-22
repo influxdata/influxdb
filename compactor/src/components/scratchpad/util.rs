@@ -13,7 +13,7 @@ pub async fn copy_files(
     backoff_config: &BackoffConfig,
     concurrency: NonZeroUsize,
 ) {
-    futures::stream::iter(files_in.iter().copied().zip(files_out.to_vec()))
+    futures::stream::iter(files_in.iter().cloned().zip(files_out.to_vec()))
         .map(|(f_in, f_out)| {
             let backoff_config = backoff_config.clone();
             let from = Arc::clone(&from);
