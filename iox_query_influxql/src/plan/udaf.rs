@@ -68,6 +68,10 @@ impl AvgNAccumulator {
 }
 
 impl Accumulator for AvgNAccumulator {
+    /// `state` is only called when used as an aggregate function. It can be
+    /// can safely left unimplemented, as this accumulator is only used as a window aggregate.
+    ///
+    /// See: <https://docs.rs/datafusion/latest/datafusion/physical_plan/trait.Accumulator.html#tymethod.state>
     fn state(&self) -> Result<Vec<ScalarValue>> {
         error::internal("unexpected call to AvgNAccumulator::state")
     }
@@ -110,6 +114,10 @@ impl Accumulator for AvgNAccumulator {
         }
     }
 
+    /// `merge_batch` is only called when used as an aggregate function. It can be
+    /// can safely left unimplemented, as this accumulator is only used as a window aggregate.
+    ///
+    /// See: <https://docs.rs/datafusion/latest/datafusion/physical_plan/trait.Accumulator.html#tymethod.state>
     fn merge_batch(&mut self, _states: &[ArrayRef]) -> Result<()> {
         error::internal("unexpected call to AvgNAccumulator::merge_batch")
     }
@@ -189,6 +197,10 @@ impl DifferenceAccumulator {
 }
 
 impl Accumulator for DifferenceAccumulator {
+    /// `state` is only called when used as an aggregate function. It can be
+    /// can safely left unimplemented, as this accumulator is only used as a window aggregate.
+    ///
+    /// See: <https://docs.rs/datafusion/latest/datafusion/physical_plan/trait.Accumulator.html#tymethod.state>
     fn state(&self) -> Result<Vec<ScalarValue>> {
         error::internal("unexpected call to DifferenceAccumulator::state")
     }
@@ -212,6 +224,10 @@ impl Accumulator for DifferenceAccumulator {
         Ok(())
     }
 
+    /// `merge_batch` is only called when used as an aggregate function. It can be
+    /// can safely left unimplemented, as this accumulator is only used as a window aggregate.
+    ///
+    /// See: <https://docs.rs/datafusion/latest/datafusion/physical_plan/trait.Accumulator.html#tymethod.state>
     fn merge_batch(&mut self, _states: &[ArrayRef]) -> Result<()> {
         error::internal("unexpected call to DifferenceAccumulator::merge_batch")
     }
@@ -263,6 +279,10 @@ impl NonNegativeDifferenceAccumulator {
 }
 
 impl Accumulator for NonNegativeDifferenceAccumulator {
+    /// `state` is only called when used as an aggregate function. It can be
+    /// can safely left unimplemented, as this accumulator is only used as a window aggregate.
+    ///
+    /// See: <https://docs.rs/datafusion/latest/datafusion/physical_plan/trait.Accumulator.html#tymethod.state>
     fn state(&self) -> Result<Vec<ScalarValue>> {
         error::internal("unexpected call to NonNegativeDifferenceAccumulator::state")
     }
@@ -271,6 +291,10 @@ impl Accumulator for NonNegativeDifferenceAccumulator {
         self.acc.update_batch(values)
     }
 
+    /// `merge_batch` is only called when used as an aggregate function. It can be
+    /// can safely left unimplemented, as this accumulator is only used as a window aggregate.
+    ///
+    /// See: <https://docs.rs/datafusion/latest/datafusion/physical_plan/trait.Accumulator.html#tymethod.state>
     fn merge_batch(&mut self, _states: &[ArrayRef]) -> Result<()> {
         error::internal("unexpected call to NonNegativeDifferenceAccumulator::merge_batch")
     }
@@ -286,10 +310,4 @@ impl Accumulator for NonNegativeDifferenceAccumulator {
     fn size(&self) -> usize {
         self.acc.size()
     }
-}
-
-#[cfg(test)]
-mod test {
-    #[test]
-    fn test_avg_n() {}
 }
