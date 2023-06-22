@@ -18,13 +18,11 @@ ARG CARGO_NET_GIT_FETCH_WITH_CLI=false
 ARG PROFILE=release
 ARG FEATURES=aws,gcp,azure,jemalloc_replacing_malloc
 ARG PACKAGE=influxdb_iox
-ARG RUSTFLAGS=""
 ENV CARGO_INCREMENTAL=$CARGO_INCREMENTAL \
     CARGO_NET_GIT_FETCH_WITH_CLI=$CARGO_NET_GIT_FETCH_WITH_CLI \
     PROFILE=$PROFILE \
     FEATURES=$FEATURES \
-    PACKAGE=$PACKAGE \
-    RUSTFLAGS=$RUSTFLAGS
+    PACKAGE=$PACKAGE
 
 RUN \
   --mount=type=cache,id=influxdb_iox_rustup,sharing=locked,target=/usr/local/rustup \
