@@ -1,4 +1,4 @@
-use std::{sync::Arc, time::Duration};
+use std::{path::PathBuf, sync::Arc, time::Duration};
 
 use metric::{Attributes, U64Gauge};
 use parking_lot::Mutex;
@@ -9,11 +9,16 @@ use tokio::{self, task::JoinHandle};
 #[derive(Debug)]
 struct DiskProtectionMetrics {
     available_disk_space_percent: U64Gauge,
+    directory: PathBuf,
 }
 
 impl DiskProtectionMetrics {
     /// Create a new [`DiskProtectionMetrics`].
-    pub(crate) fn new(registry: &metric::Registry, attributes: impl Into<Attributes>) -> Self {
+    pub(crate) fn new(
+        directory: PathBuf,
+        registry: &metric::Registry,
+        attributes: impl Into<Attributes>,
+    ) -> Self {
         let attributes: Attributes = attributes.into();
 
         let available_disk_space_percent = registry
@@ -25,23 +30,38 @@ impl DiskProtectionMetrics {
 
         Self {
             available_disk_space_percent,
+            directory,
         }
     }
 
     /// Measure the available disk space percentage.
-    pub(crate) fn measure_available_disk_space_percent(&self, system: &System) -> u64 {
-        let available_disk: u64 = system
-            .disks()
-            .iter()
-            .map(|disk| disk.available_space())
-            .sum();
-        let total_disk: u64 = system.disks().iter().map(|disk| disk.total_space()).sum();
-        let available_disk_percentage =
-            ((available_disk as f64) / (total_disk as f64) * 100.0).round() as u64;
-        self.available_disk_space_percent
-            .set(available_disk_percentage);
+    pub(crate) fn measure_available_disk_space_percent(&self, system: &mut System) {
+        system.refresh_disks_list();
 
-        available_disk_percentage
+        let mut path = self.directory.clone();
+        let fnd_disk = loop {
+            if let Some(disk) = system
+                .disks_mut()
+                .iter_mut()
+                .find(|disk| disk.mount_point() == path)
+            {
+                break Some(disk);
+            }
+            if !path.pop() {
+                break None;
+            }
+        };
+
+        if let Some(disk) = fnd_disk {
+            disk.refresh();
+
+            let available_disk: u64 = disk.available_space();
+            let total_disk: u64 = disk.total_space();
+            let available_disk_percentage =
+                ((available_disk as f64) / (total_disk as f64) * 100.0).round() as u64;
+            self.available_disk_space_percent
+                .set(available_disk_percentage);
+        }
     }
 }
 
@@ -67,8 +87,9 @@ impl InstrumentedDiskProtection {
         registry: &metric::Registry,
         attributes: impl Into<Attributes> + Send,
         interval_duration: Duration,
+        directory_to_track: PathBuf,
     ) -> Self {
-        let metrics = DiskProtectionMetrics::new(registry, attributes);
+        let metrics = DiskProtectionMetrics::new(directory_to_track, registry, attributes);
 
         Self {
             interval_duration,
@@ -102,9 +123,8 @@ impl InstrumentedDiskProtection {
         loop {
             interval.tick().await;
 
-            system.refresh_all();
-
-            self.metrics.measure_available_disk_space_percent(&system);
+            self.metrics
+                .measure_available_disk_space_percent(&mut system);
         }
     }
 }
@@ -131,8 +151,12 @@ mod tests {
 
         impl MockAnyStruct {
             pub(crate) async fn new(registry: &metric::Registry, duration: Duration) -> Self {
-                let disk_protection =
-                    InstrumentedDiskProtection::new(registry, &[("test", "mock")], duration);
+                let disk_protection = InstrumentedDiskProtection::new(
+                    registry,
+                    &[("test", "mock")],
+                    duration,
+                    PathBuf::from("/"),
+                );
                 disk_protection.start().await;
 
                 Self
