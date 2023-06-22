@@ -2605,7 +2605,6 @@ dependencies = [
  "data_types",
  "datafusion",
  "datafusion_util",
- "dml",
  "flatbuffers",
  "futures",
  "generated_types",

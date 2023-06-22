@@ -1,7 +1,6 @@
 use std::sync::Arc;
 
 use data_types::{NamespaceId, PartitionKey, TableId};
-use dml::{DmlMeta, DmlOperation, DmlWrite};
 use generated_types::influxdata::iox::ingester::v1::{
     self as proto, write_service_server::WriteService,
 };
@@ -12,6 +11,8 @@ use thiserror::Error;
 use tonic::{Code, Request, Response};
 
 use crate::{
+    dml_payload::write::{PartitionedData, TableData, WriteOperation},
+    dml_payload::IngestOp,
     dml_sink::{DmlError, DmlSink},
     ingest_state::{IngestState, IngestStateError},
     timestamp_oracle::TimestampOracle,
@@ -106,7 +107,7 @@ pub(crate) struct RpcWrite<T> {
 }
 
 impl<T> RpcWrite<T> {
-    /// Instantiate a new [`RpcWrite`] that pushes [`DmlOperation`] instances
+    /// Instantiate a new [`RpcWrite`] that pushes [`IngestOp`] instances
     /// into `sink`.
     pub(crate) fn new(
         sink: T,
@@ -165,7 +166,7 @@ where
         let namespace_id = NamespaceId::new(payload.database_id);
         let partition_key = PartitionKey::from(payload.partition_key);
 
-        // Never attempt to create a DmlWrite with no tables - doing so causes a
+        // Never attempt to create a WriteOperation with no tables - doing so causes a
         // panic.
         if num_tables == 0 {
             return Err(RpcError::NoTables)?;
@@ -179,30 +180,36 @@ where
             "received rpc write"
         );
 
-        // Reconstruct the DML operation
-        let op = DmlWrite::new(
+        let sequence_number = self.timestamp.next();
+
+        // Construct the corresponding ingester write operation for the RPC payload
+        let op = WriteOperation::new(
             namespace_id,
             batches
                 .into_iter()
-                .map(|(k, v)| (TableId::new(k), v))
+                .map(|(k, v)| {
+                    let table_id = TableId::new(k);
+                    (
+                        table_id,
+                        // TODO(savage): Sequence partitioned data independently within a
+                        // write.
+                        TableData::new(table_id, PartitionedData::new(sequence_number, v)),
+                    )
+                })
                 .collect(),
             partition_key,
-            DmlMeta::sequenced(
-                self.timestamp.next(),
-                iox_time::Time::MAX, // TODO: remove this from DmlMeta
-                // The tracing context should be propagated over the RPC boundary.
-                //
-                // See https://github.com/influxdata/influxdb_iox/issues/6177
-                None,
-                42, // TODO: remove this from DmlMeta
-            ),
+            // TODO:
+            // The tracing context should be propagated over the RPC boundary.
+            //
+            // See https://github.com/influxdata/influxdb_iox/issues/6177
+            None,
         );
 
-        // Apply the DML op to the in-memory buffer.
-        match self.sink.apply(DmlOperation::Write(op)).await {
+        // Apply the IngestOp to the in-memory buffer.
+        match self.sink.apply(IngestOp::Write(op)).await {
             Ok(()) => {}
             Err(e) => {
-                error!(error=%e, "failed to apply DML op");
+                error!(error=%e, "failed to apply ingest operation");
                 return Err(e.into())?;
             }
         }
@@ -216,12 +223,14 @@ mod tests {
     use std::sync::Arc;
 
     use assert_matches::assert_matches;
+    use data_types::SequenceNumber;
     use generated_types::influxdata::pbdata::v1::{
         column::{SemanticType, Values},
         Column, DatabaseBatch, TableBatch,
     };
 
     use super::*;
+    use crate::dml_payload::IngestOp;
     use crate::dml_sink::mock_sink::MockDmlSink;
 
     const NAMESPACE_ID: NamespaceId = NamespaceId::new(42);
@@ -288,12 +297,12 @@ mod tests {
         },
         sink_ret = Ok(()),
         want_err = false,
-        want_calls = [DmlOperation::Write(w)] => {
-            // Assert the various DmlWrite properties match the expected values
-            assert_eq!(w.namespace_id(), NAMESPACE_ID);
-            assert_eq!(w.table_count(), 1);
+        want_calls = [IngestOp::Write(w)] => {
+            // Assert the various IngestOp properties match the expected values
+            assert_eq!(w.namespace(), NAMESPACE_ID);
+            assert_eq!(w.tables().count(), 1);
             assert_eq!(*w.partition_key(), PartitionKey::from(PARTITION_KEY));
-            assert_eq!(w.meta().sequence().unwrap().get(), 1);
+            assert_eq!(w.tables().next().unwrap().1.partitioned_data().sequence_number(), SequenceNumber::new(1));
         }
     );
 
@@ -400,9 +409,9 @@ mod tests {
 
         assert_matches!(
             *mock.get_calls(),
-            [DmlOperation::Write(ref w1), DmlOperation::Write(ref w2)] => {
-                let w1 = w1.meta().sequence().unwrap().get();
-                let w2 = w2.meta().sequence().unwrap().get();
+            [IngestOp::Write(ref w1), IngestOp::Write(ref w2)] => {
+                let w1 = w1.tables().next().unwrap().1.partitioned_data().sequence_number().get();
+                let w2 = w2.tables().next().unwrap().1.partitioned_data().sequence_number().get();
                 assert!(w1 < w2);
             }
         );
@@ -461,7 +470,7 @@ mod tests {
         assert_eq!(err.code(), Code::ResourceExhausted);
 
         // One write should have been passed through to the DML sinks.
-        assert_matches!(*mock.get_calls(), [DmlOperation::Write(_)]);
+        assert_matches!(*mock.get_calls(), [IngestOp::Write(_)]);
     }
 
     /// Validate that the ingester being marked as stopping prevents the
@@ -517,6 +526,6 @@ mod tests {
         assert_eq!(err.code(), Code::FailedPrecondition);
 
         // One write should have been passed through to the DML sinks.
-        assert_matches!(*mock.get_calls(), [DmlOperation::Write(_)]);
+        assert_matches!(*mock.get_calls(), [IngestOp::Write(_)]);
     }
 }

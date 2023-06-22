@@ -1,8 +1,8 @@
-//! A [`DmlSink`] decorator to make request [`DmlOperation`] durable in a
+//! A [`DmlSink`] decorator to make request [`IngestOp`] durable in a
 //! write-ahead log.
 //!
 //! [`DmlSink`]: crate::dml_sink::DmlSink
-//! [`DmlOperation`]: dml::DmlOperation
+//! [`IngestOp`]: crate::dml_payload::IngestOp
 
 pub(crate) mod reference_tracker;
 pub(crate) mod rotate_task;

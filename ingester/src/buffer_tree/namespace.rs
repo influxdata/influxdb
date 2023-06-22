@@ -6,9 +6,7 @@ use std::sync::Arc;
 
 use async_trait::async_trait;
 use data_types::{NamespaceId, TableId};
-use dml::DmlOperation;
 use metric::U64Counter;
-use observability_deps::tracing::warn;
 use trace::span::Span;
 
 use super::{
@@ -19,6 +17,7 @@ use super::{
 use crate::{
     arcmap::ArcMap,
     deferred_load::DeferredLoad,
+    dml_payload::IngestOp,
     dml_sink::DmlSink,
     query::{response::QueryResponse, tracing::QueryExecTracing, QueryError, QueryExec},
 };
@@ -59,7 +58,7 @@ pub(crate) struct NamespaceData<O> {
     namespace_name: Arc<DeferredLoad<NamespaceName>>,
 
     /// A set of tables this [`NamespaceData`] instance has processed
-    /// [`DmlOperation`]'s for.
+    /// [`IngestOp`]'s for.
     ///
     /// The [`TableNameProvider`] acts as a [`DeferredLoad`] constructor to
     /// resolve the [`TableName`] for new [`TableData`] out of the hot path.
@@ -139,11 +138,9 @@ where
 {
     type Error = mutable_batch::Error;
 
-    async fn apply(&self, op: DmlOperation) -> Result<(), Self::Error> {
-        let sequence_number = op.meta().sequence().expect("applying unsequenced op");
-
+    async fn apply(&self, op: IngestOp) -> Result<(), Self::Error> {
         match op {
-            DmlOperation::Write(write) => {
+            IngestOp::Write(write) => {
                 // Extract the partition key derived by the router.
                 let partition_key = write.partition_key().clone();
 
@@ -162,21 +159,16 @@ where
                         ))
                     });
 
+                    let partitioned_data = b.into_partitioned_data();
+
                     table_data
-                        .buffer_table_write(sequence_number, b, partition_key.clone())
+                        .buffer_table_write(
+                            partitioned_data.sequence_number(),
+                            partitioned_data.into_data(),
+                            partition_key.clone(),
+                        )
                         .await?;
                 }
-            }
-            DmlOperation::Delete(delete) => {
-                // Deprecated delete support:
-                // https://github.com/influxdata/influxdb_iox/issues/5825
-                warn!(
-                    namespace_name=%self.namespace_name,
-                    namespace_id=%self.namespace_id,
-                    table_name=?delete.table_name(),
-                    sequence_number=?delete.meta().sequence(),
-                    "discarding unsupported delete op"
-                );
             }
         }
 
@@ -269,7 +261,7 @@ mod tests {
         assert!(ns.table(ARBITRARY_TABLE_ID).is_none());
 
         // Write some test data
-        ns.apply(DmlOperation::Write(make_write_op(
+        ns.apply(IngestOp::Write(make_write_op(
             &ARBITRARY_PARTITION_KEY,
             ARBITRARY_NAMESPACE_ID,
             &ARBITRARY_TABLE_NAME,
@@ -279,6 +271,7 @@ mod tests {
                 r#"{},city=Medford day="sun",temp=55 22"#,
                 &*ARBITRARY_TABLE_NAME
             ),
+            None,
         )))
         .await
         .expect("buffer op should succeed");
