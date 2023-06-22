@@ -2,15 +2,18 @@ use std::{iter, sync::Arc};
 
 use async_trait::async_trait;
 use criterion::{criterion_group, criterion_main, BatchSize, Criterion, Throughput};
-use data_types::{NamespaceId, PartitionKey, TableId};
-use dml::{DmlMeta, DmlOperation, DmlWrite};
+use data_types::{NamespaceId, PartitionKey, SequenceNumber, TableId};
 use generated_types::influxdata::{
     iox::wal::v1::sequenced_wal_op::Op as WalOp, pbdata::v1::DatabaseBatch,
 };
 use ingester::internal_implementation_details::{
-    queue::MockPersistQueue, DmlError, DmlSink, PartitionData, PartitionIter,
+    encode::encode_write_op,
+    queue::MockPersistQueue,
+    write::{
+        PartitionedData as PayloadPartitionedData, TableData as PayloadTableData, WriteOperation,
+    },
+    DmlError, DmlSink, IngestOp, PartitionData, PartitionIter,
 };
-use mutable_batch_pb::encode::encode_write;
 use wal::SequencedWalOp;
 
 const NAMESPACE_ID: NamespaceId = NamespaceId::new(42);
@@ -84,19 +87,23 @@ fn lp_to_writes(lp: &str) -> DatabaseBatch {
     let writes = writes
         .into_iter()
         .enumerate()
-        .map(|(i, (_name, data))| (TableId::new(i as _), data))
+        .map(|(i, (_name, data))| {
+            let table_id = TableId::new(i as _);
+            (
+                table_id,
+                PayloadTableData::new(
+                    table_id,
+                    PayloadPartitionedData::new(SequenceNumber::new(42), data),
+                ),
+            )
+        })
         .collect();
 
-    // Build the DmlWrite
-    let op = DmlWrite::new(
-        NAMESPACE_ID,
-        writes,
-        PartitionKey::from("ignored"),
-        DmlMeta::unsequenced(None),
-    );
+    // Build the WriteOperation
+    let op = WriteOperation::new(NAMESPACE_ID, writes, PartitionKey::from("ignored"), None);
 
     // And return it as a DatabaseBatch
-    encode_write(NAMESPACE_ID.get(), &op)
+    encode_write_op(NAMESPACE_ID, &op)
 }
 
 /// A no-op [`DmlSink`] implementation.
@@ -106,7 +113,7 @@ struct NopSink;
 #[async_trait]
 impl DmlSink for NopSink {
     type Error = DmlError;
-    async fn apply(&self, _op: DmlOperation) -> Result<(), DmlError> {
+    async fn apply(&self, _op: IngestOp) -> Result<(), DmlError> {
         // It does nothing!
         Ok(())
     }

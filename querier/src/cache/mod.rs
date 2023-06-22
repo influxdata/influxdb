@@ -207,12 +207,6 @@ impl CatalogCache {
         &self.projected_schema_cache
     }
 
-    /// Object store cache.
-    #[allow(dead_code)]
-    pub(crate) fn object_store(&self) -> &ObjectStoreCache {
-        &self.object_store_cache
-    }
-
     /// Parquet store that points to the cached object store.
     pub fn parquet_store(&self) -> ParquetStorage {
         ParquetStorage::new(

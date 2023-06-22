@@ -4,14 +4,16 @@ use data_types::PartitionId;
 
 use super::IdOnlyPartitionFilter;
 
+/// Apply a containment [`IdOnlyPartitionFilter`].
+/// PartitionId must be contained within the set.
 #[derive(Debug)]
-pub struct ByIdPartitionFilter {
+pub(crate) struct ByIdPartitionFilter {
     ids: HashSet<PartitionId>,
 }
 
 impl ByIdPartitionFilter {
     #[allow(dead_code)] // not used anywhere
-    pub fn new(ids: HashSet<PartitionId>) -> Self {
+    pub(crate) fn new(ids: HashSet<PartitionId>) -> Self {
         Self { ids }
     }
 }

@@ -1,5 +1,4 @@
 use data_types::{NamespaceId, PartitionKey, SequenceNumber, TableId};
-use dml::{DmlMeta, DmlOperation, DmlWrite};
 use generated_types::influxdata::iox::wal::v1::sequenced_wal_op::Op;
 use metric::U64Counter;
 use mutable_batch_pb::decode::decode_database_batch;
@@ -9,6 +8,8 @@ use thiserror::Error;
 use wal::{SequencedWalOp, Wal};
 
 use crate::{
+    dml_payload::write::{PartitionedData, TableData, WriteOperation},
+    dml_payload::IngestOp,
     dml_sink::{DmlError, DmlSink},
     partition_iter::PartitionIter,
     persist::{drain_buffer::persist_partitions, queue::PersistQueue},
@@ -25,11 +26,11 @@ pub enum WalReplayError {
     #[error("failed to read wal entry: {0}")]
     ReadEntry(wal::Error),
 
-    /// An error converting the WAL entry into a [`DmlOperation`].
-    #[error("failed converting wal entry to dml operation: {0}")]
+    /// An error converting the WAL entry into a [`IngestOp`].
+    #[error("failed converting wal entry to ingest operation: {0}")]
     MapToDml(#[from] mutable_batch_pb::decode::Error),
 
-    /// A failure to apply a [`DmlOperation`] from the WAL to the in-memory
+    /// A failure to apply a [`IngestOp`] from the WAL to the in-memory
     /// [`BufferTree`].
     ///
     /// [`BufferTree`]: crate::buffer_tree::BufferTree
@@ -212,30 +213,32 @@ where
 
             debug!(?op, sequence_number = sequence_number.get(), "apply wal op");
 
-            // Reconstruct the DML operation
+            // Reconstruct the ingest operation
             let batches = decode_database_batch(&op)?;
             let namespace_id = NamespaceId::new(op.database_id);
             let partition_key = PartitionKey::from(op.partition_key);
 
-            let op = DmlWrite::new(
+            let op = WriteOperation::new(
                 namespace_id,
                 batches
                     .into_iter()
-                    .map(|(k, v)| (TableId::new(k), v))
+                    .map(|(k, v)| {
+                        let table_id = TableId::new(k);
+                        (
+                            table_id,
+                            // TODO(savage): Use table-partitioned sequence
+                            // numbers here
+                            TableData::new(table_id, PartitionedData::new(sequence_number, v)),
+                        )
+                    })
                     .collect(),
                 partition_key,
-                // The tracing context should be propagated over the RPC boundary.
-                DmlMeta::sequenced(
-                    sequence_number,
-                    iox_time::Time::MAX, // TODO: remove this from DmlMeta
-                    // TODO: A tracing context should be added for WAL replay.
-                    None,
-                    42, // TODO: remove this from DmlMeta
-                ),
+                // TODO: A tracing context should be added for WAL replay.
+                None,
             );
 
             // Apply the operation to the provided DML sink
-            sink.apply(DmlOperation::Write(op))
+            sink.apply(IngestOp::Write(op))
                 .await
                 .map_err(Into::<DmlError>::into)?;
 
@@ -261,6 +264,7 @@ mod tests {
 
     use crate::{
         buffer_tree::partition::PartitionData,
+        dml_payload::IngestOp,
         dml_sink::mock_sink::MockDmlSink,
         persist::queue::mock::MockPersistQueue,
         test_util::{
@@ -289,7 +293,7 @@ mod tests {
     impl DmlSink for MockIter {
         type Error = <MockDmlSink as DmlSink>::Error;
 
-        async fn apply(&self, op: DmlOperation) -> Result<(), Self::Error> {
+        async fn apply(&self, op: IngestOp) -> Result<(), Self::Error> {
             self.sink.apply(op).await
         }
     }
@@ -309,6 +313,7 @@ mod tests {
                 r#"{},region=Madrid temp=35 4242424242"#,
                 &*ARBITRARY_TABLE_NAME
             ),
+            None,
         );
         let op2 = make_write_op(
             &ARBITRARY_PARTITION_KEY,
@@ -320,6 +325,7 @@ mod tests {
                 r#"{},region=Asturias temp=25 4242424242"#,
                 &*ARBITRARY_TABLE_NAME
             ),
+            None,
         );
         let op3 = make_write_op(
             &ARBITRARY_PARTITION_KEY,
@@ -332,6 +338,7 @@ mod tests {
                 r#"{},region=Asturias temp=15 4242424242"#,
                 &*ARBITRARY_TABLE_NAME
             ),
+            None,
         );
 
         // The write portion of this test.
@@ -348,12 +355,12 @@ mod tests {
 
             // Apply the first op through the decorator
             wal_sink
-                .apply(DmlOperation::Write(op1.clone()))
+                .apply(IngestOp::Write(op1.clone()))
                 .await
                 .expect("wal should not error");
             // And the second op
             wal_sink
-                .apply(DmlOperation::Write(op2.clone()))
+                .apply(IngestOp::Write(op2.clone()))
                 .await
                 .expect("wal should not error");
 
@@ -362,7 +369,7 @@ mod tests {
 
             // Write the third op
             wal_sink
-                .apply(DmlOperation::Write(op3.clone()))
+                .apply(IngestOp::Write(op3.clone()))
                 .await
                 .expect("wal should not error");
 
@@ -387,7 +394,13 @@ mod tests {
         // Put at least one write into the buffer so it is a candidate for persistence
         partition
             .buffer_write(
-                op1.tables().next().unwrap().1.clone(),
+                op1.tables()
+                    .next()
+                    .unwrap()
+                    .1
+                    .partitioned_data()
+                    .data()
+                    .clone(),
                 SequenceNumber::new(1),
             )
             .unwrap();
@@ -408,9 +421,9 @@ mod tests {
         assert_matches!(
             &*ops,
             &[
-                DmlOperation::Write(ref w1),
-                DmlOperation::Write(ref w2),
-                DmlOperation::Write(ref w3)
+                IngestOp::Write(ref w1),
+                IngestOp::Write(ref w2),
+                IngestOp::Write(ref w3)
             ] => {
                 assert_dml_writes_eq(w1.clone(), op1);
                 assert_dml_writes_eq(w2.clone(), op2);

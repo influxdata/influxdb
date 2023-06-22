@@ -11,6 +11,14 @@
     unused_crate_dependencies
 )]
 
+use generated_types::influxdata::iox::{
+    catalog::v1::catalog_service_server::CatalogServiceServer,
+    object_store::v1::object_store_service_server::ObjectStoreServiceServer,
+    schema::v1::schema_service_server::SchemaServiceServer,
+};
+use service_grpc_catalog::CatalogService;
+use service_grpc_object_store::ObjectStoreService;
+use service_grpc_schema::SchemaService;
 // Workaround for "unused crate" lint false positives.
 use workspace_hack as _;
 
@@ -31,11 +39,8 @@ use ioxd_common::{
     setup_builder,
 };
 use metric::Registry;
-use object_store::DynObjectStore;
-use querier::{
-    create_ingester_connections, QuerierCatalogCache, QuerierDatabase, QuerierHandler,
-    QuerierHandlerImpl, QuerierServer,
-};
+use object_store::{DynObjectStore, ObjectStore};
+use querier::{create_ingester_connections, QuerierCatalogCache, QuerierDatabase, QuerierServer};
 use std::{
     fmt::{Debug, Display},
     sync::Arc,
@@ -47,37 +52,24 @@ use trace::TraceCollector;
 
 mod rpc;
 
-pub struct QuerierServerType<C: QuerierHandler> {
+pub struct QuerierServerType {
+    catalog: Arc<dyn Catalog>,
     database: Arc<QuerierDatabase>,
-    server: QuerierServer<C>,
+    server: QuerierServer,
+    metric_registry: Arc<Registry>,
+    object_store: Arc<dyn ObjectStore>,
     trace_collector: Option<Arc<dyn TraceCollector>>,
     authz: Option<Arc<dyn Authorizer>>,
 }
 
-impl<C: QuerierHandler> std::fmt::Debug for QuerierServerType<C> {
+impl std::fmt::Debug for QuerierServerType {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         write!(f, "Querier")
     }
 }
 
-impl<C: QuerierHandler> QuerierServerType<C> {
-    pub fn new(
-        server: QuerierServer<C>,
-        database: Arc<QuerierDatabase>,
-        common_state: &CommonServerState,
-        authz: Option<Arc<dyn Authorizer>>,
-    ) -> Self {
-        Self {
-            server,
-            database,
-            trace_collector: common_state.trace_collector(),
-            authz,
-        }
-    }
-}
-
 #[async_trait]
-impl<C: QuerierHandler + std::fmt::Debug + 'static> ServerType for QuerierServerType<C> {
+impl ServerType for QuerierServerType {
     /// Human name for this server type
     fn name(&self) -> &str {
         "querier"
@@ -85,7 +77,7 @@ impl<C: QuerierHandler + std::fmt::Debug + 'static> ServerType for QuerierServer
 
     /// Return the [`metric::Registry`] used by the compactor.
     fn metric_registry(&self) -> Arc<Registry> {
-        self.server.metric_registry()
+        Arc::clone(&self.metric_registry)
     }
 
     /// Returns the trace collector for compactor traces.
@@ -119,9 +111,21 @@ impl<C: QuerierHandler + std::fmt::Debug + 'static> ServerType for QuerierServer
             builder,
             rpc::namespace::namespace_service(Arc::clone(&self.database))
         );
-        add_service!(builder, self.server.handler().schema_service());
-        add_service!(builder, self.server.handler().catalog_service());
-        add_service!(builder, self.server.handler().object_store_service());
+        add_service!(
+            builder,
+            SchemaServiceServer::new(SchemaService::new(Arc::clone(&self.catalog)))
+        );
+        add_service!(
+            builder,
+            CatalogServiceServer::new(CatalogService::new(Arc::clone(&self.catalog)))
+        );
+        add_service!(
+            builder,
+            ObjectStoreServiceServer::new(ObjectStoreService::new(
+                Arc::clone(&self.catalog),
+                Arc::clone(&self.object_store),
+            ))
+        );
 
         serve_builder!(builder);
 
@@ -260,17 +264,15 @@ pub async fn create_querier_server_type(
         )
         .await?,
     );
-    let querier_handler = Arc::new(QuerierHandlerImpl::new(
-        args.catalog,
-        Arc::clone(&database),
-        Arc::clone(&args.object_store),
-    ));
 
-    let querier = QuerierServer::new(args.metric_registry, querier_handler);
-    Ok(Arc::new(QuerierServerType::new(
-        querier,
+    let server = QuerierServer::new(Arc::clone(&database));
+    Ok(Arc::new(QuerierServerType {
+        catalog: args.catalog,
         database,
-        args.common_state,
+        server,
+        metric_registry: args.metric_registry,
+        object_store: args.object_store,
+        trace_collector: args.common_state.trace_collector(),
         authz,
-    )))
+    }))
 }

@@ -109,15 +109,15 @@ dependencies = [
 
 [[package]]
 name = "anstyle"
-version = "1.0.0"
+version = "1.0.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "41ed9a86bf92ae6580e0a31281f65a1b1d867c0cc68d5346e2ae128dddfa6a7d"
+checksum = "3a30da5c5f2d5e72842e00bcb57657162cdabef0931f40e2deb9b4140440cecd"
 
 [[package]]
 name = "anstyle-parse"
-version = "0.2.0"
+version = "0.2.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "e765fd216e48e067936442276d1d57399e37bce53c264d6fefbe298080cb57ee"
+checksum = "938874ff5980b03a87c5524b3ae5b59cf99b1d6bc836848df7bc5ada9643c333"
 dependencies = [
  "utf8parse",
 ]
@@ -155,9 +155,9 @@ checksum = "6b4930d2cb77ce62f89ee5d5289b4ac049559b1c45539271f5ed4fdc7db34545"
 
 [[package]]
 name = "arrayvec"
-version = "0.7.3"
+version = "0.7.4"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "8868f09ff8cea88b079da74ae569d9b8c62a23c68c746240b704ee6f7525c89c"
+checksum = "96d30a06541fbafbc7f82ed10c06164cfbd2c401138f6addd8404629c4b16711"
 
 [[package]]
 name = "arrow"
@@ -997,7 +997,6 @@ dependencies = [
  "predicate",
  "rand",
  "schema",
- "sharder",
  "test_helpers",
  "tokio",
  "tokio-util",
@@ -1013,6 +1012,7 @@ dependencies = [
  "async-trait",
  "clap_blocks",
  "data_types",
+ "sharder",
  "tokio",
  "workspace-hack",
 ]
@@ -2621,7 +2621,6 @@ dependencies = [
  "data_types",
  "datafusion",
  "datafusion_util",
- "dml",
  "flatbuffers",
  "futures",
  "generated_types",
@@ -2870,6 +2869,7 @@ dependencies = [
  "iox_query",
  "itertools",
  "observability_deps",
+ "once_cell",
  "predicate",
  "query_functions",
  "regex",
@@ -3057,8 +3057,11 @@ dependencies = [
  "metric",
  "object_store",
  "querier",
+ "service_grpc_catalog",
  "service_grpc_flight",
  "service_grpc_influxrpc",
+ "service_grpc_object_store",
+ "service_grpc_schema",
  "thiserror",
  "tokio",
  "tokio-util",
@@ -3999,9 +4002,9 @@ checksum = "9b2a4787296e9989611394c33f193f676704af1686e70b8f8033ab5ba9a35a94"
 
 [[package]]
 name = "pest"
-version = "2.6.0"
+version = "2.7.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "e68e84bfb01f0507134eac1e9b410a12ba379d064eab48c50ba4ce329a527b70"
+checksum = "f73935e4d55e2abf7f130186537b19e7a4abc886a0252380b59248af473a3fc9"
 dependencies = [
  "thiserror",
  "ucd-trie",
@@ -4009,9 +4012,9 @@ dependencies = [
 
 [[package]]
 name = "pest_derive"
-version = "2.6.0"
+version = "2.7.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "6b79d4c71c865a25a4322296122e3924d30bc8ee0834c8bfc8b95f7f054afbfb"
+checksum = "aef623c9bbfa0eedf5a0efba11a5ee83209c326653ca31ff019bec3a95bfff2b"
 dependencies = [
  "pest",
  "pest_generator",
@@ -4019,9 +4022,9 @@ dependencies = [
 
 [[package]]
 name = "pest_generator"
-version = "2.6.0"
+version = "2.7.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "6c435bf1076437b851ebc8edc3a18442796b30f1728ffea6262d59bbe28b077e"
+checksum = "b3e8cba4ec22bada7fc55ffe51e2deb6a0e0db2d0b7ab0b103acc80d2510c190"
 dependencies = [
  "pest",
  "pest_meta",
@@ -4032,9 +4035,9 @@ dependencies = [
 
 [[package]]
 name = "pest_meta"
-version = "2.6.0"
+version = "2.7.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "745a452f8eb71e39ffd8ee32b3c5f51d03845f99786fa9b68db6ff509c505411"
+checksum = "a01f71cb40bd8bb94232df14b946909e14660e33fc05db3e50ae2a82d7ea0ca0"
 dependencies = [
  "once_cell",
  "pest",
@@ -4375,12 +4378,8 @@ dependencies = [
  "rand",
  "schema",
  "service_common",
- "service_grpc_catalog",
- "service_grpc_object_store",
- "service_grpc_schema",
  "snafu",
  "test_helpers",
- "thiserror",
  "tokio",
  "tokio-util",
  "tonic",
@@ -5950,9 +5949,9 @@ dependencies = [
 
 [[package]]
 name = "tracing-attributes"
-version = "0.1.24"
+version = "0.1.26"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "0f57e3ca2a01450b1a921183a9c9cbfda207fd822cef4ccb00a65402cbba7a74"
+checksum = "5f4f31f56159e98206da9efd823404b79b6ef3143b4a7ab76e67b1751b25a4ab"
 dependencies = [
  "proc-macro2",
  "quote",

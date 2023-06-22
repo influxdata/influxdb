@@ -1,7 +1,8 @@
 use async_trait::async_trait;
-use dml::DmlOperation;
 use iox_time::{SystemProvider, TimeProvider};
 use metric::{DurationHistogram, Metric};
+
+use crate::dml_payload::IngestOp;
 
 use super::DmlSink;
 
@@ -51,7 +52,7 @@ where
     type Error = T::Error;
 
     /// Apply `op` to the implementer's state.
-    async fn apply(&self, op: DmlOperation) -> Result<(), Self::Error> {
+    async fn apply(&self, op: IngestOp) -> Result<(), Self::Error> {
         let t = self.time_provider.now();
 
         let res = self.inner.apply(op).await;
@@ -121,13 +122,14 @@ mod tests {
                     let metrics = metric::Registry::default();
                     let decorator = DmlSinkInstrumentation::new(LAYER_NAME, mock, &metrics);
 
-                    let op = DmlOperation::Write(make_write_op(
+                    let op = IngestOp::Write(make_write_op(
                         &PARTITION_KEY,
                         NAMESPACE_ID,
                         TABLE_NAME,
                         TABLE_ID,
                         42,
                         "banana-report,tag=1 v=2 42424242",
+                        None,
                     ));
 
                     // Call the decorator and assert the return value

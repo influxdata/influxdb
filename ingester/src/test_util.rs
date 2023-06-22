@@ -1,11 +1,11 @@
 use std::{collections::BTreeMap, sync::Arc, time::Duration};
 
 use data_types::{NamespaceId, Partition, PartitionId, PartitionKey, SequenceNumber, TableId};
-use dml::{DmlMeta, DmlWrite};
 use iox_catalog::{interface::Catalog, test_helpers::arbitrary_namespace};
 use lazy_static::lazy_static;
 use mutable_batch_lp::lines_to_batches;
 use schema::Projection;
+use trace::ctx::SpanContext;
 
 use crate::{
     buffer_tree::{
@@ -20,6 +20,7 @@ use crate::{
         },
     },
     deferred_load::DeferredLoad,
+    dml_payload::write::{PartitionedData, TableData, WriteOperation},
 };
 
 pub(crate) const ARBITRARY_PARTITION_ID: PartitionId = PartitionId::new(1);
@@ -253,7 +254,7 @@ macro_rules! make_partition_stream {
         }};
     }
 
-/// Construct a [`DmlWrite`] with the specified parameters, for LP that contains
+/// Construct a [`WriteOperation`] with the specified parameters, for LP that contains
 /// a single table identified by `table_id`.
 ///
 /// # Panics
@@ -267,7 +268,8 @@ pub(crate) fn make_write_op(
     table_id: TableId,
     sequence_number: i64,
     lines: &str,
-) -> DmlWrite {
+    span_ctx: Option<SpanContext>,
+) -> WriteOperation {
     let mut tables_by_name = lines_to_batches(lines, 0).expect("invalid LP");
     assert_eq!(
         tables_by_name.len(),
@@ -282,19 +284,18 @@ pub(crate) fn make_write_op(
             .expect("table_name does not exist in LP"),
     )]
     .into_iter()
+    .map(|(table_id, mutable_batch)| {
+        (
+            table_id,
+            TableData::new(
+                table_id,
+                PartitionedData::new(SequenceNumber::new(sequence_number), mutable_batch),
+            ),
+        )
+    })
     .collect();
 
-    DmlWrite::new(
-        namespace_id,
-        tables_by_id,
-        partition_key.clone(),
-        DmlMeta::sequenced(
-            SequenceNumber::new(sequence_number),
-            iox_time::Time::MIN,
-            None,
-            42,
-        ),
-    )
+    WriteOperation::new(namespace_id, tables_by_id, partition_key.clone(), span_ctx)
 }
 
 pub(crate) async fn populate_catalog(
@@ -317,17 +318,19 @@ pub(crate) async fn populate_catalog(
 /// Assert `a` and `b` have identical metadata, and that when converting
 /// them to Arrow batches they produces identical output.
 #[track_caller]
-pub(crate) fn assert_dml_writes_eq(a: DmlWrite, b: DmlWrite) {
-    assert_eq!(a.namespace_id(), b.namespace_id(), "namespace");
-    assert_eq!(a.table_count(), b.table_count(), "table count");
-    assert_eq!(a.min_timestamp(), b.min_timestamp(), "min timestamp");
-    assert_eq!(a.max_timestamp(), b.max_timestamp(), "max timestamp");
+pub(crate) fn assert_dml_writes_eq(a: WriteOperation, b: WriteOperation) {
+    assert_eq!(a.namespace(), b.namespace(), "namespace");
+    assert_eq!(a.tables().count(), b.tables().count(), "table count");
     assert_eq!(a.partition_key(), b.partition_key(), "partition key");
 
     // Assert sequence numbers were reassigned
-    let seq_a = a.meta().sequence();
-    let seq_b = b.meta().sequence();
-    assert_eq!(seq_a, seq_b, "sequence numbers differ");
+    for (a_table, b_table) in a.tables().zip(b.tables()) {
+        assert_eq!(
+            a_table.1.partitioned_data().sequence_number(),
+            b_table.1.partitioned_data().sequence_number(),
+            "sequence number"
+        );
+    }
 
     let a = a.into_tables().collect::<BTreeMap<_, _>>();
     let b = b.into_tables().collect::<BTreeMap<_, _>>();
@@ -335,9 +338,15 @@ pub(crate) fn assert_dml_writes_eq(a: DmlWrite, b: DmlWrite) {
     a.into_iter().zip(b.into_iter()).for_each(|(a, b)| {
         assert_eq!(a.0, b.0, "table IDs differ - a table is missing!");
         assert_eq!(
-            a.1.to_arrow(Projection::All)
+            a.1.partitioned_data()
+                .data()
+                .clone()
+                .to_arrow(Projection::All)
                 .expect("failed projection for a"),
-            b.1.to_arrow(Projection::All)
+            b.1.partitioned_data()
+                .data()
+                .clone()
+                .to_arrow(Projection::All)
                 .expect("failed projection for b"),
             "table data differs"
         );

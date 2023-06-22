@@ -19,11 +19,9 @@ use workspace_hack as _;
 mod cache;
 mod database;
 mod df_stats;
-mod handler;
 mod ingester;
 mod namespace;
 mod parquet;
-mod poison;
 mod query_log;
 mod server;
 mod system_tables;
@@ -31,7 +29,6 @@ mod table;
 
 pub use cache::CatalogCache as QuerierCatalogCache;
 pub use database::{Error as QuerierDatabaseError, QuerierDatabase};
-pub use handler::{QuerierHandler, QuerierHandlerImpl};
 pub use ingester::{
     create_ingester_connection_for_testing, create_ingester_connections,
     flight_client::{

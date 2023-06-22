@@ -1,6 +1,6 @@
 //! Querier Chunks
 
-use data_types::{ChunkId, ChunkOrder, CompactionLevel, DeletePredicate, PartitionId};
+use data_types::{ChunkId, ChunkOrder, DeletePredicate, PartitionId};
 use datafusion::physical_plan::Statistics;
 use parquet_file::chunk::ParquetChunk;
 use schema::sort::SortKey;
@@ -27,9 +27,6 @@ pub struct QuerierParquetChunkMeta {
 
     /// Partition ID.
     partition_id: PartitionId,
-
-    /// Compaction level of the parquet file of the chunk
-    compaction_level: CompactionLevel,
 }
 
 impl QuerierParquetChunkMeta {
@@ -46,11 +43,6 @@ impl QuerierParquetChunkMeta {
     /// Partition ID.
     pub fn partition_id(&self) -> PartitionId {
         self.partition_id
-    }
-
-    /// Compaction level of the parquet file of the chunk
-    pub fn compaction_level(&self) -> CompactionLevel {
-        self.compaction_level
     }
 }
 
