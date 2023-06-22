@@ -25,18 +25,18 @@ impl<T> QueryRateLimit<T> {
         }
     }
 
-    fn can_proceed(&self) -> bool {
+    fn can_proceed(&self) -> Option<Duration> {
         let mut last_query = self.last_query.lock().unwrap();
         let now = Instant::now();
 
         // Has enough time passed since the last query was allowed?
         let next_allowed = last_query.checked_add(self.min_interval).unwrap();
         if now < next_allowed {
-            return false;
+            return Some(next_allowed - now);
         }
 
         *last_query = now;
-        true
+        None
     }
 }
 
@@ -49,12 +49,12 @@ where
         &self,
         partition_id: PartitionId,
     ) -> Result<Vec<ParquetFile>, iox_catalog::interface::Error> {
-        while !self.can_proceed() {
+        while let Some(d) = self.can_proceed() {
             warn!(%partition_id, "partition fetch rate limited");
 
             // Don't busy loop - wait the fractions of a second before a retry
             // is allowed.
-            tokio::time::sleep(self.min_interval).await;
+            tokio::time::sleep(d).await;
         }
         self.inner.get_partitions(partition_id).await
     }
