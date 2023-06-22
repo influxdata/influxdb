@@ -21,6 +21,7 @@ use parquet_file::storage::ParquetStorage;
 use thiserror::Error;
 use tokio::sync::oneshot;
 use tokio_util::sync::CancellationToken;
+use tracker::InstrumentedDiskProtection;
 use wal::Wal;
 
 use crate::{
@@ -326,7 +327,17 @@ where
     ));
 
     // Initialise the WAL
-    let wal = Wal::new(wal_directory).await.map_err(InitError::WalInit)?;
+    let wal = Wal::new(wal_directory.clone())
+        .await
+        .map_err(InitError::WalInit)?;
+    // Initialize the disk proetction after the WAL directory is initialized
+    let disk_protection = InstrumentedDiskProtection::new(
+        &metrics,
+        &[("wal", "&root")],
+        Duration::from_secs(15),
+        wal_directory,
+    );
+    disk_protection.start().await;
 
     // Replay the WAL log files, if any.
     let max_sequence_number =

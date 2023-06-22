@@ -2638,6 +2638,7 @@ dependencies = [
  "tokio-util",
  "tonic",
  "trace",
+ "tracker",
  "uuid",
  "wal",
  "workspace-hack",
