@@ -3,8 +3,8 @@
 use std::sync::Arc;
 
 use backoff::{Backoff, BackoffConfig};
-use data_types::PartitionId;
-use iox_catalog::interface::Catalog;
+use data_types::{PartitionId, TransitionPartitionId};
+use iox_catalog::{interface::Catalog, partition_lookup};
 use schema::sort::SortKey;
 
 /// A resolver of [`SortKey`] from the catalog for a given [`PartitionId`].
@@ -33,12 +33,9 @@ impl SortKeyResolver {
     pub(crate) async fn fetch(self) -> Option<SortKey> {
         Backoff::new(&self.backoff_config)
             .retry_all_errors("fetch partition sort key", || async {
-                let s = self
-                    .catalog
-                    .repositories()
-                    .await
-                    .partitions()
-                    .get_by_id(self.partition_id)
+                let mut repos = self.catalog.repositories().await;
+                let id = TransitionPartitionId::Deprecated(self.partition_id);
+                let s = partition_lookup(repos.as_mut(), &id)
                     .await?
                     .unwrap_or_else(|| {
                         panic!(
