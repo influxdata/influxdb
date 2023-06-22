@@ -140,6 +140,12 @@ pub struct Config {
 
     /// max number of files per compaction plan
     pub max_num_files_per_plan: usize,
+
+    /// Limit the number of partition fetch queries to at most the specified
+    /// number of queries per second.
+    ///
+    /// Queries are smoothed over the full second.
+    pub max_partition_fetch_queries_per_second: Option<usize>,
 }
 
 impl Config {

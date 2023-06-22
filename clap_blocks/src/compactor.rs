@@ -235,4 +235,15 @@ pub struct CompactorConfig {
         action
     )]
     pub max_num_columns_per_table: usize,
+
+    /// Limit the number of partition fetch queries to at most the specified
+    /// number of queries per second.
+    ///
+    /// Queries are smoothed over the full second.
+    #[clap(
+        long = "max-partition-fetch-queries-per-second",
+        env = "INFLUXDB_IOX_MAX_PARTITION_FETCH_QUERIES_PER_SECOND",
+        action
+    )]
+    pub max_partition_fetch_queries_per_second: Option<usize>,
 }

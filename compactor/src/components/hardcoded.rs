@@ -47,7 +47,9 @@ use super::{
         logging::LoggingPartitionDoneSinkWrapper, metrics::MetricsPartitionDoneSinkWrapper,
         mock::MockPartitionDoneSink, PartitionDoneSink,
     },
-    partition_files_source::{catalog::CatalogPartitionFilesSource, PartitionFilesSource},
+    partition_files_source::{
+        catalog::CatalogPartitionFilesSource, rate_limit::QueryRateLimit, PartitionFilesSource,
+    },
     partition_filter::{
         and::AndPartitionFilter, greater_matching_files::GreaterMatchingFilesPartitionFilter,
         greater_size_matching_files::GreaterSizeMatchingFilesPartitionFilter,
@@ -270,10 +272,16 @@ fn make_partition_info_source(config: &Config) -> Arc<dyn PartitionInfoSource> {
 }
 
 fn make_partition_files_source(config: &Config) -> Arc<dyn PartitionFilesSource> {
-    Arc::new(CatalogPartitionFilesSource::new(
-        config.backoff_config.clone(),
-        Arc::clone(&config.catalog),
-    ))
+    match config.max_partition_fetch_queries_per_second {
+        Some(rps) => Arc::new(CatalogPartitionFilesSource::new(
+            config.backoff_config.clone(),
+            QueryRateLimit::new(Arc::clone(&config.catalog), rps),
+        )),
+        None => Arc::new(CatalogPartitionFilesSource::new(
+            config.backoff_config.clone(),
+            Arc::clone(&config.catalog),
+        )),
+    }
 }
 
 fn make_round_info_source(config: &Config) -> Arc<dyn RoundInfoSource> {

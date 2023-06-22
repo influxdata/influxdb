@@ -39,6 +39,7 @@ pub fn log_config(config: &Config) {
         all_errors_are_fatal,
         max_num_columns_per_table,
         max_num_files_per_plan,
+        max_partition_fetch_queries_per_second,
     } = &config;
 
     let (shard_cfg_n_shards, shard_cfg_shard_id) = match shard_config {
@@ -85,6 +86,7 @@ pub fn log_config(config: &Config) {
         all_errors_are_fatal,
         max_num_columns_per_table,
         max_num_files_per_plan,
+        max_partition_fetch_queries_per_second,
         "config",
     );
 }
