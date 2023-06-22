@@ -75,8 +75,14 @@ impl Accumulator for AvgNAccumulator {
     fn update_batch(&mut self, values: &[ArrayRef]) -> Result<()> {
         assert_eq!(values.len(), 2, "AVG_N expects two arguments");
 
-        // The second element of the values array is the second argument to the `AVG_N` function,
-        // which specifies the minimum number of values that must be aggregated.
+        // The second element of the values array is the second argument to the `moving_average`
+        // function, which specifies the minimum number of values that must be aggregated.
+        //
+        // INVARIANT:
+        // The planner and rewriter guarantee that the second argument is
+        // always a numeric constant.
+        //
+        // See: FieldChecker::check_moving_average
         let n_values = downcast_value!(&values[1], Int64Array);
         let n = n_values.value(0) as usize;
         // first observation of the second argument, N
@@ -84,10 +90,6 @@ impl Accumulator for AvgNAccumulator {
             assert!(self.all_values.is_empty());
             self.n = n;
             self.all_values = vec![ScalarValue::try_from(&self.data_type)?; n];
-        } else if self.n != n {
-            return Err(DataFusionError::External(
-                "AVG_N: N must be constant".into(),
-            ));
         }
 
         let array = &values[0];
