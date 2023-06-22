@@ -1,4 +1,4 @@
-use self::{query_access::QuerierTableChunkPruner, state_reconciler::Reconciler};
+use self::query_access::QuerierTableChunkPruner;
 use crate::{
     ingester::{self, IngesterPartition},
     parquet::ChunkAdapter,
@@ -26,7 +26,6 @@ pub use self::query_access::metrics::PruneMetrics;
 pub(crate) use self::query_access::MetricPruningObserver;
 
 mod query_access;
-mod state_reconciler;
 
 #[cfg(test)]
 mod test_util;
@@ -36,11 +35,6 @@ mod test_util;
 pub enum Error {
     #[snafu(display("Error getting partitions from ingester: {}", source))]
     GettingIngesterPartitions { source: ingester::Error },
-
-    #[snafu(display("Cannot combine ingester data with catalog/cache: {}", source))]
-    StateFusion {
-        source: state_reconciler::ReconcileError,
-    },
 
     #[snafu(display("Chunk pruning failed: {}", source))]
     ChunkPruning { source: provider::Error },
@@ -291,11 +285,6 @@ impl QuerierTable {
                 return Ok(vec![]);
             };
 
-        let reconciler = Reconciler::new(
-            Arc::clone(&self.table_name),
-            Arc::clone(&self.namespace_name),
-        );
-
         // create parquet files
         let parquet_files = self
             .chunk_adapter
@@ -308,15 +297,25 @@ impl QuerierTable {
             )
             .await;
 
-        let chunks = reconciler
-            .reconcile(
-                partitions,
-                retention_delete_pred,
-                parquet_files,
-                span_recorder.child_span("reconcile"),
-            )
-            .await
-            .context(StateFusionSnafu)?;
+        // build final chunk list
+        let chunks = partitions
+            .into_iter()
+            .flat_map(|c| {
+                let c = match &retention_delete_pred {
+                    Some(pred) => c.with_delete_predicates(vec![Arc::clone(pred)]),
+                    None => c,
+                };
+                c.into_chunks().into_iter()
+            })
+            .map(|c| Arc::new(c) as Arc<dyn QueryChunk>)
+            .chain(parquet_files.into_iter().map(|c| {
+                let c = match &retention_delete_pred {
+                    Some(pred) => c.with_delete_predicates(vec![Arc::clone(pred)]),
+                    None => c,
+                };
+                Arc::new(c) as Arc<dyn QueryChunk>
+            }))
+            .collect::<Vec<_>>();
         trace!("Fetched chunks");
 
         let num_initial_chunks = chunks.len();
