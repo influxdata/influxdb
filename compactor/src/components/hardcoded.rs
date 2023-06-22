@@ -4,13 +4,9 @@
 
 use std::{sync::Arc, time::Duration};
 
-use compactor_scheduler::{
-    AndIdOnlyPartitionFilter, IdOnlyPartitionFilter, MockPartitionsSource, PartitionsSource,
-    PartitionsSourceConfig, ShardPartitionFilter,
-};
+use compactor_scheduler::PartitionsSource;
 use data_types::CompactionLevel;
 use object_store::memory::InMemory;
-use observability_deps::tracing::info;
 
 use crate::{config::Config, error::ErrorKind, object_store::ignore_writes::IgnoreWrites};
 
@@ -67,11 +63,10 @@ use super::{
         endless::EndlessPartititionStream, once::OncePartititionStream, PartitionStream,
     },
     partitions_source::{
-        catalog_all::CatalogAllPartitionsSource,
-        catalog_to_compact::CatalogToCompactPartitionsSource,
-        filter::FilterPartitionsSourceWrapper, logging::LoggingPartitionsSourceWrapper,
-        metrics::MetricsPartitionsSourceWrapper, not_empty::NotEmptyPartitionsSourceWrapper,
+        logging::LoggingPartitionsSourceWrapper, metrics::MetricsPartitionsSourceWrapper,
+        not_empty::NotEmptyPartitionsSourceWrapper,
         randomize_order::RandomizeOrderPartitionsSourcesWrapper,
+        scheduled::ScheduledPartitionsSource,
     },
     post_classification_partition_filter::{
         logging::LoggingPostClassificationFilterWrapper,
@@ -123,46 +118,7 @@ fn make_partitions_source_commit_partition_sink(
     Arc<dyn Commit>,
     Arc<dyn PartitionDoneSink>,
 ) {
-    // TODO(start): code to be moved to the scheduler.
-    // outcome of this code block => Vec<PartitionId> to be consumed by the compactor.
-    let partitions_source: Arc<dyn PartitionsSource> = match &config.partitions_source {
-        PartitionsSourceConfig::CatalogRecentWrites { threshold } => {
-            Arc::new(CatalogToCompactPartitionsSource::new(
-                config.backoff_config.clone(),
-                Arc::clone(&config.catalog),
-                *threshold,
-                None, // Recent writes is `threshold` ago to now
-                Arc::clone(&config.time_provider),
-            ))
-        }
-        PartitionsSourceConfig::CatalogAll => Arc::new(CatalogAllPartitionsSource::new(
-            config.backoff_config.clone(),
-            Arc::clone(&config.catalog),
-        )),
-        PartitionsSourceConfig::Fixed(ids) => {
-            Arc::new(MockPartitionsSource::new(ids.iter().cloned().collect()))
-        }
-    };
-
-    let mut id_only_partition_filters: Vec<Arc<dyn IdOnlyPartitionFilter>> = vec![];
-    if let Some(shard_config) = &config.shard_config {
-        // add shard filter before performing any catalog IO
-        info!(
-            "starting compactor {} of {}",
-            shard_config.shard_id, shard_config.n_shards
-        );
-        id_only_partition_filters.push(Arc::new(ShardPartitionFilter::new(
-            shard_config.n_shards,
-            shard_config.shard_id,
-        )));
-    }
-    let partitions_source = FilterPartitionsSourceWrapper::new(
-        AndIdOnlyPartitionFilter::new(id_only_partition_filters),
-        partitions_source,
-    );
-    // TODO(end).
-    // code below here consumes the seeded partitions_source,
-    // including PartitionsSource trait impls which do actual file IO.
+    let partitions_source = ScheduledPartitionsSource::new(config);
 
     let partition_done_sink: Arc<dyn PartitionDoneSink> = if config.shadow_mode {
         Arc::new(MockPartitionDoneSink::new())

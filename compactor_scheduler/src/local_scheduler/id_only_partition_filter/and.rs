@@ -6,13 +6,13 @@ use super::IdOnlyPartitionFilter;
 
 /// Apply a series of ANDed [`IdOnlyPartitionFilter`].
 #[derive(Debug)]
-pub struct AndIdOnlyPartitionFilter {
+pub(crate) struct AndIdOnlyPartitionFilter {
     filters: Vec<Arc<dyn IdOnlyPartitionFilter>>,
 }
 
 impl AndIdOnlyPartitionFilter {
     /// Create a new [`AndIdOnlyPartitionFilter`] from a series of IdOnlyPartitionFilters
-    pub fn new(filters: Vec<Arc<dyn IdOnlyPartitionFilter>>) -> Self {
+    pub(crate) fn new(filters: Vec<Arc<dyn IdOnlyPartitionFilter>>) -> Self {
         Self { filters }
     }
 }

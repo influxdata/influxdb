@@ -22,12 +22,11 @@
 use workspace_hack as _;
 
 mod local_scheduler;
+pub use local_scheduler::LocalScheduler;
 mod partitions_source;
 pub use partitions_source::*;
 
 // Temporary exports. Will eventually be encapsulated in local_scheduler.
-pub use local_scheduler::id_only_partition_filter::{
-    and::AndIdOnlyPartitionFilter, shard::ShardPartitionFilter, IdOnlyPartitionFilter,
-};
+pub use local_scheduler::id_only_partition_filter::IdOnlyPartitionFilter;
 pub use local_scheduler::partitions_source_config::PartitionsSourceConfig;
 pub use local_scheduler::shard_config::ShardConfig;

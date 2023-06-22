@@ -1010,8 +1010,13 @@ name = "compactor_scheduler"
 version = "0.1.0"
 dependencies = [
  "async-trait",
+ "backoff",
  "clap_blocks",
  "data_types",
+ "iox_catalog",
+ "iox_tests",
+ "iox_time",
+ "observability_deps",
  "sharder",
  "tokio",
  "workspace-hack",
