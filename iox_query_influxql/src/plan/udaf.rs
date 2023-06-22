@@ -93,17 +93,21 @@ impl Accumulator for AvgNAccumulator {
         }
 
         let array = &values[0];
-        assert!(array.len() < 2, "this accumulator should be used with an");
-        for index in 0..array.len() {
-            let value = ScalarValue::try_from_array(array, index)?;
-            self.last_is_null = value.is_null();
-            if !self.last_is_null {
-                self.all_values[self.i] = value;
-                self.i = (self.i + 1) % self.n;
-            }
-        }
+        match array.len() {
+            1 => {
+                let value = ScalarValue::try_from_array(array, 0)?;
+                self.last_is_null = value.is_null();
+                if !self.last_is_null {
+                    self.all_values[self.i] = value;
+                    self.i = (self.i + 1) % self.n;
+                }
 
-        Ok(())
+                Ok(())
+            }
+            n => error::internal(format!(
+                "AvgNAccumulator: unexpected number of rows: got {n}, expected 1"
+            )),
+        }
     }
 
     fn merge_batch(&mut self, _states: &[ArrayRef]) -> Result<()> {
