@@ -317,7 +317,7 @@ fn encode_partition(
 ) -> Result<FlightData, FlightError> {
     let mut bytes = bytes::BytesMut::new();
     let app_metadata = proto::IngesterQueryResponseMetadata {
-        partition_id: partition_id.get(),
+        partition_id: Some(partition_id.get()),
         partition_hash_id: partition_hash_id.map(|hash_id| hash_id.as_bytes().to_owned()),
         ingester_uuid: ingester_id.to_string(),
         completed_persistence_count,
@@ -447,7 +447,7 @@ mod tests {
         let md_actual =
             proto::IngesterQueryResponseMetadata::decode(flight_data[0].app_metadata()).unwrap();
         let md_expected = proto::IngesterQueryResponseMetadata {
-            partition_id: 2,
+            partition_id: Some(2),
             partition_hash_id: Some(ARBITRARY_PARTITION_HASH_ID.as_bytes().to_vec()),
             ingester_uuid: ingester_id.to_string(),
             completed_persistence_count: 42,
@@ -490,7 +490,7 @@ mod tests {
         let md_actual =
             proto::IngesterQueryResponseMetadata::decode(flight_data[0].app_metadata()).unwrap();
         let md_expected = proto::IngesterQueryResponseMetadata {
-            partition_id: 2,
+            partition_id: Some(2),
             partition_hash_id: None,
             ingester_uuid: ingester_id.to_string(),
             completed_persistence_count: 42,
@@ -591,7 +591,7 @@ mod tests {
         let md_actual =
             proto::IngesterQueryResponseMetadata::decode(flight_data[0].app_metadata()).unwrap();
         let md_expected = proto::IngesterQueryResponseMetadata {
-            partition_id: 2,
+            partition_id: Some(2),
             partition_hash_id: partition_hash_id.map(|hash_id| hash_id.as_bytes().to_vec()),
             ingester_uuid: ingester_id.to_string(),
             completed_persistence_count: 42,

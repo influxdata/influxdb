@@ -561,7 +561,9 @@ impl IngesterStreamDecoder {
                 // new partition announced
                 self.flush_partition()?;
 
-                let partition_id = PartitionId::new(md.partition_id);
+                // This unwrap is temporary for this commit only due to the far-reaching
+                // implications that changing this has
+                let partition_id = PartitionId::new(md.partition_id.unwrap());
                 let partition_hash_id = md
                     .partition_hash_id
                     .map(|bytes| {
@@ -1158,7 +1160,7 @@ mod tests {
                     results: vec![Ok((
                         DecodedPayload::None,
                         IngesterQueryResponseMetadata {
-                            partition_id: 1,
+                            partition_id: Some(1),
                             // PartitionHashId is in the process of being added, but is
                             // currently not guaranteed.
                             partition_hash_id: None,
@@ -1401,7 +1403,7 @@ mod tests {
                     results: vec![Ok((
                         DecodedPayload::None,
                         IngesterQueryResponseMetadata {
-                            partition_id: 1,
+                            partition_id: Some(1),
                             partition_hash_id: Some(
                                 // Bytes that aren't a valid PartitionHashId
                                 vec![1, 2, 3, 4, 5],
@@ -1645,7 +1647,7 @@ mod tests {
                 // batches are in a different partition, not what the actual identifier
                 // values are. This will go away when the ingester no longer sends
                 // PartitionIds.
-                partition_id,
+                partition_id: Some(partition_id),
                 partition_hash_id: Some(partition_hash_id(partition_id).as_bytes().to_owned()),
                 ingester_uuid: ingester_uuid.into(),
                 completed_persistence_count,

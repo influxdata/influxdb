@@ -70,8 +70,8 @@ message IngesterQueryResponseMetadata {
   reserved "batch_partition_ids";
   reserved 6;
 
-  // Partition id for this batch.
-  int64 partition_id = 7;
+  // Partition id for this batch, if this batch doesn't have a partition_hash_id in the catalog.
+  optional int64 partition_id = 7;
 
   // A unique identifier of this partition, deterministically created from the table ID and
   // partition key.
