@@ -457,11 +457,20 @@ fn collect_persisted_file_counts(
 mod tests {
     use super::*;
     use crate::{
+        df_stats::ColumnRange,
         ingester::{test_util::MockIngesterConnection, IngesterPartition},
         table::test_util::{querier_table, IngesterPartitionBuilder},
     };
+    use arrow::datatypes::DataType;
     use arrow_util::assert_batches_eq;
     use data_types::{ChunkId, ColumnType};
+    use datafusion::{
+        prelude::{col, lit},
+        scalar::ScalarValue,
+    };
+    use generated_types::influxdata::iox::partition_template::v1::{
+        template_part::Part, PartitionTemplate, TemplatePart,
+    };
     use iox_query::exec::IOxSessionContext;
     use iox_tests::{TestCatalog, TestParquetFileBuilder, TestTable};
     use iox_time::TimeProvider;
@@ -802,6 +811,88 @@ mod tests {
         // expect the second file is found, resulting in three chunks
         let chunks = querier_table.chunks().await.unwrap();
         assert_eq!(chunks.len(), 3);
+    }
+
+    #[tokio::test]
+    async fn test_custom_partitioning() {
+        maybe_start_logging();
+        let catalog = TestCatalog::new();
+        let ns = catalog.create_namespace_1hr_retention("ns").await;
+        let table = ns
+            .create_table_with_partition_template(
+                "table",
+                Some(PartitionTemplate {
+                    parts: vec![TemplatePart {
+                        part: Some(Part::TagValue(String::from("tag1"))),
+                    }],
+                }),
+            )
+            .await;
+        let partition_a = table.create_partition("val1a").await;
+        let partition_b = table.create_partition("val1b").await;
+        let schema = make_schema_two_fields_two_tags(&table).await;
+
+        let file1 = partition_a
+            .create_parquet_file(
+                TestParquetFileBuilder::default()
+                    .with_line_protocol("table,tag1=val1a,tag2=val2a foo=3,bar=4 10")
+                    .with_min_time(10)
+                    .with_max_time(10),
+            )
+            .await;
+        let _file2 = partition_b
+            .create_parquet_file(
+                TestParquetFileBuilder::default()
+                    .with_line_protocol("table,tag1=val1b,tag2=val2b foo=3,bar=4 10")
+                    .with_min_time(10)
+                    .with_max_time(10),
+            )
+            .await;
+
+        let querier_table = TestQuerierTable::new(&catalog, &table)
+            .await
+            .with_ingester_partition(
+                IngesterPartitionBuilder::new(schema.clone(), &partition_a)
+                    .with_lp(["table,tag1=val1a,tag2=val2a foo=3,bar=4 11"])
+                    .with_colum_ranges(Arc::new(HashMap::from([(
+                        Arc::from("tag1"),
+                        ColumnRange {
+                            min_value: Arc::new(ScalarValue::from("val1a")),
+                            max_value: Arc::new(ScalarValue::from("val1a")),
+                        },
+                    )])))
+                    .build(),
+            )
+            .with_ingester_partition(
+                IngesterPartitionBuilder::new(schema, &partition_b)
+                    .with_lp(["table,tag1=val1b,tag2=val2b foo=5,bar=6 11"])
+                    .with_colum_ranges(Arc::new(HashMap::from([(
+                        Arc::from("tag1"),
+                        ColumnRange {
+                            min_value: Arc::new(ScalarValue::from("val1b")),
+                            max_value: Arc::new(ScalarValue::from("val1b")),
+                        },
+                    )])))
+                    .build(),
+            );
+
+        // Expect one chunk from the ingester
+        let pred = Predicate::new().with_expr(col("tag1").eq(lit(ScalarValue::Dictionary(
+            Box::new(DataType::Int32),
+            Box::new(ScalarValue::from("val1a")),
+        ))));
+        let mut chunks = querier_table
+            .chunks_with_predicate_and_projection(&pred, None)
+            .await
+            .unwrap();
+        chunks.sort_by_key(|c| c.chunk_type().to_owned());
+        assert_eq!(chunks.len(), 2);
+        assert_eq!(chunks[0].chunk_type(), "IngesterPartition");
+        assert_eq!(chunks[1].chunk_type(), "parquet");
+        assert_eq!(
+            chunks[1].id().get().as_u128(),
+            file1.parquet_file.id.get() as u128
+        );
     }
 
     /// Adds a "foo" column to the table and returns the created schema

@@ -70,7 +70,12 @@ pub async fn command(connection: Connection, config: Config) -> Result<()> {
         Some(retention_hours as i64 * 60 * 60 * 1_000_000_000)
     };
     let namespace = client
-        .create_namespace(&namespace, retention, service_protection_limits.into())
+        .create_namespace(
+            &namespace,
+            retention,
+            service_protection_limits.into(),
+            None,
+        )
         .await?;
     println!("{}", serde_json::to_string_pretty(&namespace)?);
 

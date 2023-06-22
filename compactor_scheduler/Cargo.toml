@@ -9,6 +9,7 @@ license.workspace = true
 async-trait = "0.1.68"
 clap_blocks = { path = "../clap_blocks" }
 data_types = { path = "../data_types" }
+sharder = { path = "../sharder" }
 workspace-hack = { version = "0.1", path = "../workspace-hack" }
 
 [dev-dependencies]

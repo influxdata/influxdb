@@ -26,6 +26,8 @@ use std::{
 };
 use trace::span::Span;
 
+use crate::df_stats::{ColumnRange, ColumnRanges};
+
 use super::{namespace::CachedTable, ram::RamSize};
 
 const CACHE_ID: &str = "partition";
@@ -146,7 +148,6 @@ impl PartitionCache {
     }
 
     /// Get known column ranges.
-    #[allow(dead_code)]
     pub async fn column_ranges(
         &self,
         cached_table: Arc<CachedTable>,
@@ -159,20 +160,6 @@ impl PartitionCache {
             .map(|p| p.column_ranges)
     }
 }
-
-/// Represent known min/max values for a specific column.
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct ColumnRange {
-    pub min_value: Arc<ScalarValue>,
-    pub max_value: Arc<ScalarValue>,
-}
-
-/// Represents the known min/max values for a subset (not all) of the columns in a partition.
-///
-/// The values may not actually in any row.
-///
-/// These ranges apply to ALL rows (esp. in ALL files and ingester chunks) within in given partition.
-pub type ColumnRanges = Arc<HashMap<Arc<str>, ColumnRange>>;
 
 #[derive(Debug, Clone)]
 struct CachedPartition {

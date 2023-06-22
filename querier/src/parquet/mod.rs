@@ -2,7 +2,6 @@
 
 use data_types::{ChunkId, ChunkOrder, CompactionLevel, DeletePredicate, PartitionId};
 use datafusion::physical_plan::Statistics;
-use iox_query::util::create_basic_summary;
 use parquet_file::chunk::ParquetChunk;
 use schema::sort::SortKey;
 use std::sync::Arc;
@@ -11,6 +10,8 @@ mod creation;
 mod query_access;
 
 pub use creation::ChunkAdapter;
+
+use crate::df_stats::{create_chunk_statistics, ColumnRanges};
 
 /// Immutable metadata attached to a [`QuerierParquetChunk`].
 #[derive(Debug)]
@@ -70,11 +71,16 @@ pub struct QuerierParquetChunk {
 
 impl QuerierParquetChunk {
     /// Create new parquet-backed chunk (object store data).
-    pub fn new(parquet_chunk: Arc<ParquetChunk>, meta: Arc<QuerierParquetChunkMeta>) -> Self {
-        let stats = Arc::new(create_basic_summary(
+    pub fn new(
+        parquet_chunk: Arc<ParquetChunk>,
+        meta: Arc<QuerierParquetChunkMeta>,
+        column_ranges: ColumnRanges,
+    ) -> Self {
+        let stats = Arc::new(create_chunk_statistics(
             parquet_chunk.rows() as u64,
             parquet_chunk.schema(),
             parquet_chunk.timestamp_min_max(),
+            &column_ranges,
         ));
 
         Self {

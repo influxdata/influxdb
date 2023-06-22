@@ -21,7 +21,6 @@ pub mod file_classifier;
 pub mod file_filter;
 pub mod files_split;
 pub mod hardcoded;
-pub mod id_only_partition_filter;
 pub mod ir_planner;
 pub mod namespaces_source;
 pub mod parquet_file_sink;

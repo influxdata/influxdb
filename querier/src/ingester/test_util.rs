@@ -1,8 +1,7 @@
 use super::IngesterConnection;
-use crate::cache::namespace::CachedTable;
+use crate::{cache::namespace::CachedTable, df_stats::create_chunk_statistics};
 use async_trait::async_trait;
 use data_types::NamespaceId;
-use iox_query::util::create_basic_summary;
 use parking_lot::Mutex;
 use schema::{Projection, Schema as IOxSchema};
 use std::{any::Any, sync::Arc};
@@ -68,36 +67,44 @@ impl IngesterConnection for MockIngesterConnection {
         let partitions = partitions
             .into_iter()
             .map(|mut p| async move {
+                let column_ranges = Arc::clone(&p.partition_column_ranges);
                 let chunks = p
                     .chunks
                     .into_iter()
-                    .map(|ic| async move {
-                        let batches: Vec<_> = ic
-                            .batches
-                            .iter()
-                            .map(|batch| match ic.schema.df_projection(selection).unwrap() {
-                                Some(projection) => batch.project(&projection).unwrap(),
-                                None => batch.clone(),
-                            })
-                            .collect();
+                    .map(|ic| {
+                        let column_ranges = Arc::clone(&column_ranges);
+                        async move {
+                            let batches: Vec<_> = ic
+                                .batches
+                                .iter()
+                                .map(|batch| match ic.schema.df_projection(selection).unwrap() {
+                                    Some(projection) => batch.project(&projection).unwrap(),
+                                    None => batch.clone(),
+                                })
+                                .collect();
 
-                        assert!(!batches.is_empty(), "Error: empty batches");
-                        let new_schema = IOxSchema::try_from(batches[0].schema()).unwrap();
-                        let total_row_count =
-                            batches.iter().map(|b| b.num_rows()).sum::<usize>() as u64;
+                            assert!(!batches.is_empty(), "Error: empty batches");
+                            let new_schema = IOxSchema::try_from(batches[0].schema()).unwrap();
+                            let total_row_count =
+                                batches.iter().map(|b| b.num_rows()).sum::<usize>() as u64;
 
-                        let stats =
-                            create_basic_summary(total_row_count, &new_schema, ic.ts_min_max);
+                            let stats = create_chunk_statistics(
+                                total_row_count,
+                                &new_schema,
+                                ic.ts_min_max,
+                                &column_ranges,
+                            );
 
-                        super::IngesterChunk {
-                            chunk_id: ic.chunk_id,
-                            partition_id: ic.partition_id,
-                            schema: new_schema,
-                            partition_sort_key: ic.partition_sort_key,
-                            batches,
-                            ts_min_max: ic.ts_min_max,
-                            stats: Arc::new(stats),
-                            delete_predicates: vec![],
+                            super::IngesterChunk {
+                                chunk_id: ic.chunk_id,
+                                partition_id: ic.partition_id,
+                                schema: new_schema,
+                                partition_sort_key: ic.partition_sort_key,
+                                batches,
+                                ts_min_max: ic.ts_min_max,
+                                stats: Arc::new(stats),
+                                delete_predicates: vec![],
+                            }
                         }
                     })
                     .collect::<Vec<_>>();
