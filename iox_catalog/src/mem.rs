@@ -19,7 +19,7 @@ use data_types::{
     Column, ColumnId, ColumnType, CompactionLevel, Namespace, NamespaceId, NamespaceName,
     NamespaceServiceProtectionLimitsOverride, ParquetFile, ParquetFileId, ParquetFileParams,
     Partition, PartitionHashId, PartitionId, PartitionKey, SkippedCompaction, Table, TableId,
-    Timestamp,
+    Timestamp, TransitionPartitionId,
 };
 use iox_time::{SystemProvider, TimeProvider};
 use snafu::ensure;
@@ -625,20 +625,26 @@ impl PartitionRepo for MemTxn {
 
     async fn cas_sort_key(
         &mut self,
-        partition_id: PartitionId,
+        partition_id: &TransitionPartitionId,
         old_sort_key: Option<Vec<String>>,
         new_sort_key: &[&str],
     ) -> Result<Partition, CasFailure<Vec<String>>> {
         let stage = self.stage();
         let old_sort_key = old_sort_key.unwrap_or_default();
-        match stage.partitions.iter_mut().find(|p| p.id == partition_id) {
+
+        match stage.partitions.iter_mut().find(|p| match partition_id {
+            TransitionPartitionId::Deterministic(hash_id) => {
+                p.hash_id().map_or(false, |h| h == hash_id)
+            }
+            TransitionPartitionId::Deprecated(id) => p.id == *id,
+        }) {
             Some(p) if p.sort_key == old_sort_key => {
                 p.sort_key = new_sort_key.iter().map(|s| s.to_string()).collect();
                 Ok(p.clone())
             }
             Some(p) => return Err(CasFailure::ValueMismatch(p.sort_key.clone())),
             None => Err(CasFailure::QueryError(Error::PartitionNotFound {
-                id: partition_id,
+                id: partition_id.clone(),
             })),
         }
     }
@@ -962,7 +968,9 @@ async fn create_parquet_file(
             .partitions
             .iter_mut()
             .find(|p| p.id == partition_id)
-            .ok_or(Error::PartitionNotFound { id: partition_id })?;
+            .ok_or(Error::PartitionNotFound {
+                id: TransitionPartitionId::Deprecated(partition_id),
+            })?;
         partition.new_file_at = Some(created_at);
     }
 

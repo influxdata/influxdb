@@ -6,7 +6,7 @@ use data_types::{
     Column, ColumnType, ColumnsByName, CompactionLevel, Namespace, NamespaceId, NamespaceName,
     NamespaceSchema, NamespaceServiceProtectionLimitsOverride, ParquetFile, ParquetFileId,
     ParquetFileParams, Partition, PartitionHashId, PartitionId, PartitionKey, SkippedCompaction,
-    Table, TableId, TableSchema, Timestamp,
+    Table, TableId, TableSchema, Timestamp, TransitionPartitionId,
 };
 use iox_time::TimeProvider;
 use snafu::{OptionExt, Snafu};
@@ -80,7 +80,7 @@ pub enum Error {
     TableNotFound { id: TableId },
 
     #[snafu(display("partition {} not found", id))]
-    PartitionNotFound { id: PartitionId },
+    PartitionNotFound { id: TransitionPartitionId },
 
     #[snafu(display(
         "couldn't create column {} in table {}; limit reached on namespace",
@@ -397,7 +397,7 @@ pub trait PartitionRepo: Send + Sync {
     /// concurrent writers.
     async fn cas_sort_key(
         &mut self,
-        partition_id: PartitionId,
+        partition_id: &TransitionPartitionId,
         old_sort_key: Option<Vec<String>>,
         new_sort_key: &[&str],
     ) -> Result<Partition, CasFailure<Vec<String>>>;
@@ -1549,7 +1549,11 @@ pub(crate) mod test_helpers {
         // test update_sort_key from None to Some
         repos
             .partitions()
-            .cas_sort_key(other_partition.id, None, &["tag2", "tag1", "time"])
+            .cas_sort_key(
+                &other_partition.transition_partition_id(),
+                None,
+                &["tag2", "tag1", "time"],
+            )
             .await
             .unwrap();
 
@@ -1557,7 +1561,7 @@ pub(crate) mod test_helpers {
         let err = repos
             .partitions()
             .cas_sort_key(
-                other_partition.id,
+                &other_partition.transition_partition_id(),
                 Some(["bananas".to_string()].to_vec()),
                 &["tag2", "tag1", "tag3 , with comma", "time"],
             )
@@ -1593,7 +1597,7 @@ pub(crate) mod test_helpers {
         let err = repos
             .partitions()
             .cas_sort_key(
-                other_partition.id,
+                &other_partition.transition_partition_id(),
                 None,
                 &["tag2", "tag1", "tag3 , with comma", "time"],
             )
@@ -1607,7 +1611,7 @@ pub(crate) mod test_helpers {
         let err = repos
             .partitions()
             .cas_sort_key(
-                other_partition.id,
+                &other_partition.transition_partition_id(),
                 Some(["bananas".to_string()].to_vec()),
                 &["tag2", "tag1", "tag3 , with comma", "time"],
             )
@@ -1621,7 +1625,7 @@ pub(crate) mod test_helpers {
         repos
             .partitions()
             .cas_sort_key(
-                other_partition.id,
+                &other_partition.transition_partition_id(),
                 Some(
                     ["tag2", "tag1", "time"]
                         .into_iter()

@@ -344,7 +344,7 @@ mod tests {
             .await
             .partitions()
             .cas_sort_key(
-                partition_id,
+                &transition_partition_id,
                 None,
                 &["bananas", "are", "good", "for", "you"],
             )

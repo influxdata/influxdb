@@ -526,7 +526,7 @@ impl RemoteImporter {
             let res = repos
                 .partitions()
                 .cas_sort_key(
-                    partition.id,
+                    &partition.transition_partition_id(),
                     Some(partition.sort_key.clone()),
                     &new_sort_key,
                 )
