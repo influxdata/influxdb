@@ -9,9 +9,6 @@ use tokio_util::sync::CancellationToken;
 
 use crate::process_info;
 
-#[cfg(all(not(feature = "heappy"), feature = "jemalloc_replacing_malloc"))]
-mod jemalloc;
-
 #[derive(Debug, Snafu)]
 pub enum Error {
     #[snafu(display("{}", source))]
@@ -109,15 +106,6 @@ pub async fn main(
     // turn, causes a panic - see #548)
     let f = SendPanicsToTracing::new_with_metrics(&metrics);
     std::mem::forget(f);
-
-    // Register jemalloc metrics
-    #[cfg(all(not(feature = "heappy"), feature = "jemalloc_replacing_malloc"))]
-    for service in &services {
-        service
-            .server_type
-            .metric_registry()
-            .register_instrument("jemalloc_metrics", jemalloc::JemallocMetrics::new);
-    }
 
     // Construct a token to trigger clean shutdown
     let frontend_shutdown = CancellationToken::new();
