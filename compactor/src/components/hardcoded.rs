@@ -380,6 +380,7 @@ fn make_file_classifier(config: &Config) -> Arc<dyn FileClassifier> {
             UpgradeSplit::new(config.max_desired_file_size_bytes),
             LoggingSplitOrCompactWrapper::new(MetricsSplitOrCompactWrapper::new(
                 SplitCompact::new(
+                    config.max_num_files_per_plan,
                     config.max_compact_size_bytes(),
                     config.max_desired_file_size_bytes,
                 ),

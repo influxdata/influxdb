@@ -117,7 +117,7 @@ mod tests {
         let files = vec![];
         let p_info = Arc::new(PartitionInfoBuilder::new().build());
         let split_compact = MetricsSplitOrCompactWrapper::new(
-            SplitCompact::new(MAX_FILE, MAX_FILE as u64),
+            SplitCompact::new(MAX_FILE, MAX_FILE, MAX_FILE as u64),
             &registry,
         );
         let (_files_to_split_or_compact, _files_to_keep) =
@@ -150,7 +150,7 @@ mod tests {
         let files = create_overlapped_l0_l1_files_2(MAX_FILE as i64);
         let p_info = Arc::new(PartitionInfoBuilder::new().build());
         let split_compact = MetricsSplitOrCompactWrapper::new(
-            SplitCompact::new(MAX_FILE, MAX_FILE as u64),
+            SplitCompact::new(MAX_FILE, MAX_FILE, MAX_FILE as u64),
             &registry,
         );
         let (_files_to_split_or_compact, _files_to_keep) =
@@ -184,7 +184,7 @@ mod tests {
         let files = create_overlapped_l1_l2_files_2(MAX_FILE as i64);
         let p_info = Arc::new(PartitionInfoBuilder::new().build());
         let split_compact = MetricsSplitOrCompactWrapper::new(
-            SplitCompact::new(MAX_FILE * 3, MAX_FILE as u64),
+            SplitCompact::new(MAX_FILE, MAX_FILE * 3, MAX_FILE as u64),
             &registry,
         );
         let (_files_to_split_or_compact, _files_to_keep) =

@@ -16,13 +16,19 @@ use super::{
 
 #[derive(Debug)]
 pub struct SplitCompact {
+    max_compact_files: usize,
     max_compact_size: usize,
     max_desired_file_size: u64,
 }
 
 impl SplitCompact {
-    pub fn new(max_compact_size: usize, max_desired_file_size: u64) -> Self {
+    pub fn new(
+        max_compact_files: usize,
+        max_compact_size: usize,
+        max_desired_file_size: u64,
+    ) -> Self {
         Self {
+            max_compact_files,
             max_compact_size,
             max_desired_file_size,
         }
@@ -42,7 +48,7 @@ impl Display for SplitCompact {
 impl SplitOrCompact for SplitCompact {
     /// Return (`[files_to_split_or_compact]`, `[files_to_keep]`) of given files
     ///
-    /// Verify if the the give files are over the max_compact_size limit, then:
+    /// Verify if the the given files are over the max_compact_size or file count limit, then:
     /// (1).If >max_compact_size files overlap each other (i.e. they all overlap, not just each one
     ///     overlapping its neighbors), perform a 'vertical split' on all overlapping files.
     /// (2).Find start-level files that can be split to reduce the number of overlapped
@@ -70,9 +76,17 @@ impl SplitOrCompact for SplitCompact {
             );
         }
 
-        // Compact all in one run if total size is less than max_compact_size
+        // Compact all in one run if total size and file count are under the limit.
         let total_size: i64 = files.iter().map(|f| f.file_size_bytes).sum();
-        if total_size as usize <= self.max_compact_size {
+        let start_level_files: usize = files
+            .iter()
+            .filter(|f| f.compaction_level == target_level.prev())
+            .collect::<Vec<&ParquetFile>>()
+            .len();
+
+        if total_size as usize <= self.max_compact_size
+            && start_level_files < self.max_compact_files
+        {
             return (
                 FilesToSplitOrCompact::Compact(
                     files,
@@ -108,8 +122,12 @@ impl SplitOrCompact for SplitCompact {
 
         // (3) No start level split is needed, which means every start-level file overlaps with at most one target-level file
         // Need to limit number of files to compact to stay under compact size limit
-        let keep_and_split_or_compact =
-            limit_files_to_compact(self.max_compact_size, files_not_to_split, target_level);
+        let keep_and_split_or_compact = limit_files_to_compact(
+            self.max_compact_files,
+            self.max_compact_size,
+            files_not_to_split,
+            target_level,
+        );
 
         let files_to_compact = keep_and_split_or_compact.files_to_compact();
         let files_to_further_split = keep_and_split_or_compact.files_to_further_split();
@@ -168,12 +186,13 @@ mod tests {
     };
 
     const FILE_SIZE: usize = 100;
+    const FILE_COUNT: usize = 20;
 
     #[test]
     fn test_empty() {
         let files = vec![];
         let p_info = Arc::new(PartitionInfoBuilder::new().build());
-        let split_compact = SplitCompact::new(FILE_SIZE, FILE_SIZE as u64);
+        let split_compact = SplitCompact::new(FILE_COUNT, FILE_SIZE, FILE_SIZE as u64);
         let (files_to_split_or_compact, files_to_keep) =
             split_compact.apply(&p_info, files, CompactionLevel::Initial);
 
@@ -205,7 +224,7 @@ mod tests {
         );
 
         let p_info = Arc::new(PartitionInfoBuilder::new().build());
-        let split_compact = SplitCompact::new(FILE_SIZE, FILE_SIZE as u64);
+        let split_compact = SplitCompact::new(FILE_COUNT, FILE_SIZE, FILE_SIZE as u64);
         let (_files_to_split_or_compact, _files_to_keep) =
             split_compact.apply(&p_info, files, CompactionLevel::Final);
     }
@@ -231,7 +250,8 @@ mod tests {
         let max_desired_file_size =
             FILE_SIZE - (FILE_SIZE as f64 * PERCENTAGE_OF_SOFT_EXCEEDED) as usize - 30;
         let max_compact_size = 3 * max_desired_file_size;
-        let split_compact = SplitCompact::new(max_compact_size, max_desired_file_size as u64);
+        let split_compact =
+            SplitCompact::new(FILE_COUNT, max_compact_size, max_desired_file_size as u64);
         let (files_to_split_or_compact, files_to_keep) =
             split_compact.apply(&p_info, files, CompactionLevel::Final);
 
@@ -293,7 +313,7 @@ mod tests {
 
         // size limit > total size --> compact all
         let p_info = Arc::new(PartitionInfoBuilder::new().build());
-        let split_compact = SplitCompact::new(FILE_SIZE * 6 + 1, FILE_SIZE as u64);
+        let split_compact = SplitCompact::new(FILE_COUNT, FILE_SIZE * 6 + 1, FILE_SIZE as u64);
         let (files_to_split_or_compact, files_to_keep) =
             split_compact.apply(&p_info, files, CompactionLevel::FileNonOverlapped);
 
@@ -340,7 +360,7 @@ mod tests {
 
         // hit size limit -> split start_level files that overlap with more than 1 target_level files
         let p_info = Arc::new(PartitionInfoBuilder::new().build());
-        let split_compact = SplitCompact::new(FILE_SIZE * 3, FILE_SIZE as u64);
+        let split_compact = SplitCompact::new(FILE_COUNT, FILE_SIZE * 3, FILE_SIZE as u64);
         let (files_to_split_or_compact, files_to_keep) =
             split_compact.apply(&p_info, files, CompactionLevel::FileNonOverlapped);
 
@@ -388,7 +408,7 @@ mod tests {
 
         // hit max_compact_size limit on files that overlap just L0.1, and split that set of files into something manageable.
         let p_info = Arc::new(PartitionInfoBuilder::new().build());
-        let split_compact = SplitCompact::new(FILE_SIZE, FILE_SIZE as u64);
+        let split_compact = SplitCompact::new(FILE_COUNT, FILE_SIZE, FILE_SIZE as u64);
         let (files_to_split_or_compact, files_to_keep) =
             split_compact.apply(&p_info, files, CompactionLevel::FileNonOverlapped);
 
@@ -435,7 +455,7 @@ mod tests {
 
         // hit size limit and nthign to split --> limit number if files to compact
         let p_info = Arc::new(PartitionInfoBuilder::new().build());
-        let split_compact = SplitCompact::new(FILE_SIZE * 3, FILE_SIZE as u64);
+        let split_compact = SplitCompact::new(FILE_COUNT, FILE_SIZE * 3, FILE_SIZE as u64);
         let (files_to_split_or_compact, files_to_keep) =
             split_compact.apply(&p_info, files, CompactionLevel::Final);
 

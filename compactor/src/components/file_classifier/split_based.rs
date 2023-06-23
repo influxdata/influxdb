@@ -3,7 +3,10 @@ use std::fmt::Display;
 use data_types::{CompactionLevel, ParquetFile};
 
 use crate::{
-    components::{files_split::FilesSplit, split_or_compact::SplitOrCompact},
+    components::{
+        divide_initial::multiple_branches::order_files, files_split::FilesSplit,
+        split_or_compact::SplitOrCompact,
+    },
     file_classification::{
         CompactReason, FileClassification, FilesForProgress, FilesToSplitOrCompact,
     },
@@ -128,7 +131,11 @@ where
         let target_level = round_info.target_level();
 
         if round_info.is_many_small_files() {
-            return file_classification_for_many_files(files_to_compact, target_level);
+            return file_classification_for_many_files(
+                round_info.max_num_files_to_group().unwrap(),
+                files_to_compact,
+                target_level,
+            );
         }
 
         // Split files into files_to_compact, files_to_upgrade, and files_to_keep
@@ -172,7 +179,8 @@ where
 }
 
 fn file_classification_for_many_files(
-    files_to_compact: Vec<ParquetFile>,
+    max_num_files_to_group: usize,
+    files: Vec<ParquetFile>,
     target_level: CompactionLevel,
 ) -> FileClassification {
     // Verify all input files are in the target_level
@@ -181,11 +189,28 @@ fn file_classification_for_many_files(
     );
 
     assert!(
-        files_to_compact
-            .iter()
-            .all(|f| f.compaction_level == target_level),
+        files.iter().all(|f| f.compaction_level == target_level),
         "{err_msg}"
     );
+
+    let mut files_to_compact = vec![];
+    let mut files_to_keep: Vec<ParquetFile> = vec![];
+
+    // Enforce max_num_files_to_group
+    if files.len() > max_num_files_to_group {
+        let ordered_files = order_files(files, target_level.prev());
+        ordered_files
+            .chunks(max_num_files_to_group)
+            .for_each(|chunk| {
+                if files_to_compact.is_empty() {
+                    files_to_compact = chunk.to_vec();
+                } else {
+                    files_to_keep.append(chunk.to_vec().as_mut());
+                }
+            });
+    } else {
+        files_to_compact = files;
+    }
 
     let files_to_make_progress_on = FilesForProgress {
         upgrade: vec![],
@@ -198,6 +223,6 @@ fn file_classification_for_many_files(
     FileClassification {
         target_level,
         files_to_make_progress_on,
-        files_to_keep: vec![],
+        files_to_keep,
     }
 }
