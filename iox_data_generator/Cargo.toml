@@ -15,7 +15,7 @@ futures = "0.3"
 handlebars = "4.3.7"
 humantime = "2.1.0"
 influxdb2_client = { path = "../influxdb2_client" }
-itertools = "0.10.5"
+itertools = "0.11.0"
 mutable_batch_lp = { path = "../mutable_batch_lp" }
 mutable_batch = { path = "../mutable_batch" }
 parquet_file = { path = "../parquet_file" }

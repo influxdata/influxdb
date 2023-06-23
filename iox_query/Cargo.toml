@@ -26,7 +26,7 @@ executor = { path = "../executor"}
 futures = "0.3"
 hashbrown = { workspace = true }
 indexmap = { version = "1.9", features = ["std"] }
-itertools = "0.10.5"
+itertools = "0.11.0"
 object_store = { workspace = true }
 observability_deps = { path = "../observability_deps" }
 once_cell = "1"

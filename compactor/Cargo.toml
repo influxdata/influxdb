@@ -16,7 +16,7 @@ futures = "0.3"
 iox_catalog = { path = "../iox_catalog" }
 iox_query = { path = "../iox_query" }
 iox_time = { path = "../iox_time" }
-itertools = "0.10.5"
+itertools = "0.11.0"
 metric = { path = "../metric" }
 object_store = { workspace = true }
 observability_deps = { path = "../observability_deps" }
