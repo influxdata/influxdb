@@ -1,0 +1,51 @@
+---
+sources:
+  - binary: /tmp/workspace/bins/influxdb_bin_linux_amd64-*.tar.gz
+    target: packages/
+    arch:   amd64
+    plat:   linux
+
+packages:
+  - name: influxdb
+    binaries:
+      - influx
+      - influx_inspect
+      - influxd
+    extras:
+      - source: etc/config.sample.toml
+        target: etc/influxdb/influxdb.conf
+
+      - source: man/influx.1.gz
+        target: usr/share/man/man1/influx.1.gz
+
+      - source: man/influx_inspect.1.gz
+        target: usr/share/man/man1/influx_inspect.1.gz
+
+      - source: man/influxd.1.gz
+        target: usr/share/man/man1/influxd.1.gz
+
+      - source: man/influxd-backup.1.gz
+        target: usr/share/man/man1/influxd-backup.1.gz
+
+      - source: man/influxd-config.1.gz
+        target: usr/share/man/man1/influxd-config.1.gz
+
+      - source: man/influxd-restore.1.gz
+        target: usr/share/man/man1/influxd-restore.1.gz
+
+      - source: man/influxd-run.1.gz
+        target: usr/share/man/man1/influxd-run.1.gz
+
+      - source: man/influxd-version.1.gz
+        target: usr/share/man/man1/influxd-version.1.gz
+    perm_overrides:
+      - owner:  root
+        group:  root
+        perms:  0755
+        target: usr/lib/influxdb/scripts/init.sh
+
+      - owner:  root
+        group:  root
+        perms:  0755
+        target: usr/lib/influxdb/scripts/influxd-systemd-start.sh
+    source: .circleci/scripts/package/influxdb
