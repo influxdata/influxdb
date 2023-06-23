@@ -87,6 +87,34 @@ flowchart TB
     LogicalPlan --> OtherOut
 ```
 
+We are trying to avoid ending up with something like this:
+
+```mermaid
+flowchart TB
+    classDef out color:#020A47,fill:#9394FF,stroke-width:0
+    classDef intermediate color:#020A47,fill:#D6F622,stroke-width:0
+    classDef in color:#020A47,fill:#5EE4E4,stroke-width:0
+
+    SQL[SQL]:::in
+    InfluxQL[InfluxQL]:::in
+    OtherIn["Other (possibly in the future)"]:::in
+
+    IngesterData[Ingester Data]:::out
+    ParquetFile[Parquet File]:::out
+    OtherOut["Other (possibly in the future)"]:::out
+
+    SQL --> IngesterData
+    SQL --> ParquetFile
+    SQL --> OtherOut
+
+    InfluxQL --> IngesterData
+    InfluxQL --> ParquetFile
+    InfluxQL --> OtherOut
+
+    OtherIn --> IngesterData
+    OtherIn --> ParquetFile
+    OtherIn --> OtherOut
+```
 
 
 ## Frontend
