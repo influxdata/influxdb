@@ -1095,6 +1095,30 @@ WHERE id = $1;
         Ok(Some(partition))
     }
 
+    async fn get_by_hash_id(
+        &mut self,
+        partition_hash_id: &PartitionHashId,
+    ) -> Result<Option<Partition>> {
+        let rec = sqlx::query_as::<_, Partition>(
+            r#"
+SELECT id, hash_id, table_id, partition_key, sort_key, new_file_at
+FROM partition
+WHERE hash_id = $1;
+        "#,
+        )
+        .bind(partition_hash_id) // $1
+        .fetch_one(&mut self.inner)
+        .await;
+
+        if let Err(sqlx::Error::RowNotFound) = rec {
+            return Ok(None);
+        }
+
+        let partition = rec.map_err(|e| Error::SqlxError { source: e })?;
+
+        Ok(Some(partition))
+    }
+
     async fn list_by_table_id(&mut self, table_id: TableId) -> Result<Vec<Partition>> {
         sqlx::query_as::<_, Partition>(
             r#"

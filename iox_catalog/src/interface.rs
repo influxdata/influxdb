@@ -5,8 +5,8 @@ use data_types::{
     partition_template::{NamespacePartitionTemplateOverride, TablePartitionTemplateOverride},
     Column, ColumnType, ColumnsByName, CompactionLevel, Namespace, NamespaceId, NamespaceName,
     NamespaceSchema, NamespaceServiceProtectionLimitsOverride, ParquetFile, ParquetFileId,
-    ParquetFileParams, Partition, PartitionId, PartitionKey, SkippedCompaction, Table, TableId,
-    TableSchema, Timestamp,
+    ParquetFileParams, Partition, PartitionHashId, PartitionId, PartitionKey, SkippedCompaction,
+    Table, TableId, TableSchema, Timestamp,
 };
 use iox_time::TimeProvider;
 use snafu::{OptionExt, Snafu};
@@ -371,6 +371,12 @@ pub trait PartitionRepo: Send + Sync {
 
     /// get partition by ID
     async fn get_by_id(&mut self, partition_id: PartitionId) -> Result<Option<Partition>>;
+
+    /// get partition by deterministic hash ID
+    async fn get_by_hash_id(
+        &mut self,
+        partition_hash_id: &PartitionHashId,
+    ) -> Result<Option<Partition>>;
 
     /// return the partitions by table id
     async fn list_by_table_id(&mut self, table_id: TableId) -> Result<Vec<Partition>>;
@@ -1490,9 +1496,27 @@ pub(crate) mod test_helpers {
                 .unwrap()
                 .unwrap()
         );
+        assert_eq!(
+            other_partition,
+            repos
+                .partitions()
+                .get_by_hash_id(other_partition.hash_id().unwrap())
+                .await
+                .unwrap()
+                .unwrap()
+        );
         assert!(repos
             .partitions()
             .get_by_id(PartitionId::new(i64::MAX))
+            .await
+            .unwrap()
+            .is_none());
+        assert!(repos
+            .partitions()
+            .get_by_hash_id(&PartitionHashId::new(
+                TableId::new(i64::MAX),
+                &PartitionKey::from("arbitrary")
+            ))
             .await
             .unwrap()
             .is_none());
@@ -1554,6 +1578,16 @@ pub(crate) mod test_helpers {
             updated_other_partition.sort_key,
             vec!["tag2", "tag1", "time"]
         );
+        let updated_other_partition = repos
+            .partitions()
+            .get_by_hash_id(other_partition.hash_id().unwrap())
+            .await
+            .unwrap()
+            .unwrap();
+        assert_eq!(
+            updated_other_partition.sort_key,
+            vec!["tag2", "tag1", "time"]
+        );
 
         // test sort key CAS with no value
         let err = repos
@@ -1603,6 +1637,16 @@ pub(crate) mod test_helpers {
         let updated_other_partition = repos
             .partitions()
             .get_by_id(other_partition.id)
+            .await
+            .unwrap()
+            .unwrap();
+        assert_eq!(
+            updated_other_partition.sort_key,
+            vec!["tag2", "tag1", "tag3 , with comma", "time"]
+        );
+        let updated_other_partition = repos
+            .partitions()
+            .get_by_hash_id(other_partition.hash_id().unwrap())
             .await
             .unwrap()
             .unwrap();
