@@ -160,33 +160,32 @@ impl std::fmt::Display for TableId {
     }
 }
 
-/// A sequence number from a `router::Shard` (kafka partition)
-#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, sqlx::Type)]
-#[sqlx(transparent)]
-pub struct SequenceNumber(i64);
+/// A sequence number from an ingester
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub struct SequenceNumber(u64);
 
 #[allow(missing_docs)]
 impl SequenceNumber {
-    pub fn new(v: i64) -> Self {
+    pub fn new(v: u64) -> Self {
         Self(v)
     }
-    pub fn get(&self) -> i64 {
+    pub fn get(&self) -> u64 {
         self.0
     }
 }
 
-impl Add<i64> for SequenceNumber {
+impl Add<u64> for SequenceNumber {
     type Output = Self;
 
-    fn add(self, other: i64) -> Self {
+    fn add(self, other: u64) -> Self {
         Self(self.0 + other)
     }
 }
 
-impl Sub<i64> for SequenceNumber {
+impl Sub<u64> for SequenceNumber {
     type Output = Self;
 
-    fn sub(self, other: i64) -> Self {
+    fn sub(self, other: u64) -> Self {
         Self(self.0 - other)
     }
 }

@@ -252,7 +252,7 @@ mod tests {
     /// Return a [`SequenceNumberSet`] containing `vals`.
     fn new_set<T>(vals: T) -> SequenceNumberSet
     where
-        T: IntoIterator<Item = i64>,
+        T: IntoIterator<Item = u64>,
     {
         vals.into_iter().map(SequenceNumber::new).collect()
     }
@@ -261,7 +261,7 @@ mod tests {
     /// [`SequenceNumberSet`] values.
     fn new_note<T>(vals: T) -> Arc<CompletedPersist>
     where
-        T: IntoIterator<Item = i64>,
+        T: IntoIterator<Item = u64>,
     {
         Arc::new(CompletedPersist::new(
             ParquetFileParams {
