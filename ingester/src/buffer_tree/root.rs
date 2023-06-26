@@ -253,6 +253,9 @@ mod tests {
     const PARTITION2_ID: PartitionId = PartitionId::new(2);
     const PARTITION3_ID: PartitionId = PartitionId::new(3);
 
+    const TABLE2_ID: TableId = TableId::new(1234321);
+    const TABLE2_NAME: &str = "another_table";
+
     #[tokio::test]
     async fn test_namespace_init_table() {
         let metrics = Arc::new(metric::Registry::default());
@@ -468,7 +471,7 @@ mod tests {
                 .with_partition_id(PARTITION2_ID)
                 .with_partition_key(PartitionKey::from("p2"))
                 .with_namespace_id(NamespaceId::new(4321)) // A different namespace ID.
-                .with_table_id(TableId::new(1234)) // A different table ID.
+                .with_table_id(TABLE2_ID) // A different table ID.
                 .build()
         ],
         writes = [
@@ -488,7 +491,7 @@ mod tests {
                 &PartitionKey::from("p2"),
                 NamespaceId::new(4321), // A different namespace ID.
                 &ARBITRARY_TABLE_NAME,
-                TableId::new(1234), // A different table ID
+                TABLE2_ID, // A different table ID
                 0,
                 &format!(
                     r#"{},region=Asturias temp=35 4242424242"#,
@@ -518,7 +521,7 @@ mod tests {
             PartitionDataBuilder::new()
                 .with_partition_id(PARTITION2_ID)
                 .with_partition_key(PartitionKey::from("p2"))
-                .with_table_id(TableId::new(1234)) // A different table ID.
+                .with_table_id(TABLE2_ID) // A different table ID.
                 .build()
         ],
         writes = [
@@ -538,7 +541,7 @@ mod tests {
                 &PartitionKey::from("p2"),
                 ARBITRARY_NAMESPACE_ID,
                 &ARBITRARY_TABLE_NAME,
-                TableId::new(1234), // A different table ID
+                TABLE2_ID, // A different table ID
                 0,
                 &format!(
                     r#"{},region=Asturias temp=35 4242424242"#,
@@ -690,9 +693,6 @@ mod tests {
     /// single namespace being created, and matching metrics.
     #[tokio::test]
     async fn test_partition_iter() {
-        const TABLE2_ID: TableId = TableId::new(1234321);
-        const TABLE2_NAME: &str = "another_table";
-
         // Configure the mock partition provider to return a single partition, named
         // p1.
         let partition_provider = Arc::new(
@@ -846,12 +846,12 @@ mod tests {
 
         // Ensure an unknown table errors
         let err = buf
-            .query_exec(ARBITRARY_NAMESPACE_ID, TableId::new(1234), vec![], None)
+            .query_exec(ARBITRARY_NAMESPACE_ID, TABLE2_ID, vec![], None)
             .await
             .expect_err("query should fail");
         assert_matches!(err, QueryError::TableNotFound(ns, t) => {
             assert_eq!(ns, ARBITRARY_NAMESPACE_ID);
-            assert_eq!(t, TableId::new(1234));
+            assert_eq!(t, TABLE2_ID);
         });
 
         // Ensure a valid namespace / table does not error
