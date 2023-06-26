@@ -65,28 +65,15 @@ jobs:
       - run:
           name: Build binaries
           command: |
-            set -x
-
-            tarsum()
-            {
-              FROM_DIR=$1
-              TARBALL_PATH=$2
-              tar -C $FROM_DIR -cvzf ${TARBALL_PATH} .
-              md5sum ${TARBALL_PATH} > ${TARBALL_PATH}.md5
-              sha256sum ${TARBALL_PATH} > ${TARBALL_PATH}.sha256
-            }
-
             export CC="$(xcc linux x86_64)"
             export CGO_ENABLED=1
 
             # linux amd64 (static build)
-            TMPOUTDIR=$(mktemp -d)
             export GOOS=linux
             export GOARCH=amd64
             for cmd in github.com/influxdata/influxdb/cmd/{influxd,influx,influx_inspect}
             do
               go build \
-                -o "${TMPOUTDIR}/$(basename $cmd)" \
                 -tags "netgo,osusergo,static_build" \
                 -buildmode=pie \
                 -ldflags="-s
@@ -100,7 +87,14 @@ jobs:
             done
 
             mkdir -p ./bins
-            tarsum $TMPOUTDIR ./bins/influxdb_bin_${GOOS}_${GOARCH}-${CIRCLE_SHA1}.tar.gz
+
+            target="bins/influxdb_bin_${GOOS}_${GOARCH}-${CIRCLE_SHA1}.tar.gz"
+            tar -czf "${target}" \
+              influx             \
+              influx_inspect     \
+              influxd
+            md5sum    "${target}" > "${target}.md5"
+            sha256sum "${target}" > "${target}.sha256"
       - store_artifacts:
           path: bins/
       - persist_to_workspace:
@@ -122,21 +116,27 @@ jobs:
       - attach_workspace:
           at: /tmp/workspace
       - checkout
-      - run:
-          name: Build packages
-          command: |
-            set -x
+      - run: |
+          export DEBIAN_FRONTEND=noninteractive
+          sudo -E apt-get update
+          sudo -E apt-get install --no-install-recommends --yes \
+            asciidoc        \
+            build-essential \
+            git             \
+            python3         \
+            rpm             \
+            ruby-dev        \
+            xmlto
 
-            WORKING_DIR=$(pwd)
-            OUTDIR=${WORKING_DIR}/packages
+          sudo gem install fpm
 
-            # InfluxDB debs and rpms
-            # linux
-            "${WORKING_DIR}/releng/packages/build.bash" \
-              -s "/tmp/workspace/tarball/influxdb-src-${CIRCLE_SHA1}.tar.gz" \
-              -b "/tmp/workspace/bins/influxdb_bin_linux_amd64-${CIRCLE_SHA1}.tar.gz" \
-              -O linux -A amd64 \
-              -o "$OUTDIR"
+          ( cd man ; make build ; gzip -9 ./*.1 )
+
+          python3 -m pip install -r .circleci/scripts/package/requirements.txt
+
+          # Unfortunately, this must be executed as root. This is so permission
+          # modifying commands (chown, chmod, etc.) succeed.
+          sudo --preserve-env=CIRCLE_TAG,CIRCLE_SHA1 .circleci/scripts/package/build.py
       - store_artifacts:
           path: packages/
       - persist_to_workspace:
