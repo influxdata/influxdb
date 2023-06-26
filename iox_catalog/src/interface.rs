@@ -483,7 +483,7 @@ pub trait ParquetFileRepo: Send + Sync {
     /// [`to_delete`](ParquetFile::to_delete).
     async fn list_by_partition_not_to_delete(
         &mut self,
-        partition_id: PartitionId,
+        partition_id: &TransitionPartitionId,
     ) -> Result<Vec<ParquetFile>>;
 
     /// Return the parquet file with the given object store id
@@ -2680,6 +2680,7 @@ pub(crate) mod test_helpers {
 
         let other_partition_params = ParquetFileParams {
             partition_id: partition2.id,
+            partition_hash_id: partition2.hash_id().cloned(),
             object_store_id: Uuid::new_v4(),
             ..parquet_file_params.clone()
         };
@@ -2691,14 +2692,16 @@ pub(crate) mod test_helpers {
 
         let files = repos
             .parquet_files()
-            .list_by_partition_not_to_delete(partition.id)
+            .list_by_partition_not_to_delete(&partition.transition_partition_id())
             .await
             .unwrap();
-        // not asserting against a vector literal to guard against flakiness due to uncertain
-        // ordering of SQL query in postgres impl
         assert_eq!(files.len(), 2);
-        assert_matches!(files.iter().find(|f| f.id == parquet_file.id), Some(_));
-        assert_matches!(files.iter().find(|f| f.id == level1_file.id), Some(_));
+
+        let mut file_ids: Vec<_> = files.into_iter().map(|f| f.id).collect();
+        file_ids.sort();
+        let mut expected_ids = vec![parquet_file.id, level1_file.id];
+        expected_ids.sort();
+        assert_eq!(file_ids, expected_ids);
 
         // remove namespace to avoid it from affecting later tests
         repos

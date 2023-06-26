@@ -18,7 +18,7 @@
 // Workaround for "unused crate" lint false positives.
 use workspace_hack as _;
 
-use data_types::{PartitionId, TableId};
+use data_types::{PartitionId, TableId, TransitionPartitionId};
 use generated_types::influxdata::iox::catalog::v1::*;
 use iox_catalog::interface::{Catalog, SoftDeletedRows};
 use observability_deps::tracing::*;
@@ -47,11 +47,11 @@ impl catalog_service_server::CatalogService for CatalogService {
     ) -> Result<Response<GetParquetFilesByPartitionIdResponse>, Status> {
         let mut repos = self.catalog.repositories().await;
         let req = request.into_inner();
-        let partition_id = PartitionId::new(req.partition_id);
+        let partition_id = TransitionPartitionId::Deprecated(PartitionId::new(req.partition_id));
 
         let parquet_files = repos
             .parquet_files()
-            .list_by_partition_not_to_delete(partition_id)
+            .list_by_partition_not_to_delete(&partition_id)
             .await
             .map_err(|e| {
                 warn!(error=%e, %req.partition_id, "failed to get parquet_files for partition");

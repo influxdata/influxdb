@@ -16,7 +16,7 @@ mod tests {
     use std::{sync::Arc, time::Duration};
 
     use assert_matches::assert_matches;
-    use data_types::{CompactionLevel, ParquetFile};
+    use data_types::{CompactionLevel, ParquetFile, TransitionPartitionId};
     use futures::TryStreamExt;
     use iox_catalog::{
         interface::{get_schema_by_id, Catalog, SoftDeletedRows},
@@ -243,7 +243,7 @@ mod tests {
             .repositories()
             .await
             .parquet_files()
-            .list_by_partition_not_to_delete(partition_id)
+            .list_by_partition_not_to_delete(&TransitionPartitionId::Deprecated(partition_id))
             .await
             .expect("query for parquet files failed");
 
@@ -392,7 +392,7 @@ mod tests {
             .repositories()
             .await
             .parquet_files()
-            .list_by_partition_not_to_delete(partition_id)
+            .list_by_partition_not_to_delete(&TransitionPartitionId::Deprecated(partition_id))
             .await
             .expect("query for parquet files failed");
 

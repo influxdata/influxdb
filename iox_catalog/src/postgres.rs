@@ -1472,10 +1472,23 @@ RETURNING id;
 
     async fn list_by_partition_not_to_delete(
         &mut self,
-        partition_id: PartitionId,
+        partition_id: &TransitionPartitionId,
     ) -> Result<Vec<ParquetFile>> {
-        sqlx::query_as::<_, ParquetFile>(
-            r#"
+        // This `match` will go away when all partitions have hash IDs in the database.
+        let query = match partition_id {
+            TransitionPartitionId::Deterministic(hash_id) => sqlx::query_as::<_, ParquetFile>(
+                r#"
+SELECT id, namespace_id, table_id, partition_id, partition_hash_id, object_store_id, min_time,
+       max_time, to_delete, file_size_bytes, row_count, compaction_level, created_at, column_set,
+       max_l0_created_at
+FROM parquet_file
+WHERE parquet_file.partition_hash_id = $1
+  AND parquet_file.to_delete IS NULL;
+        "#,
+            )
+            .bind(hash_id), // $1
+            TransitionPartitionId::Deprecated(id) => sqlx::query_as::<_, ParquetFile>(
+                r#"
 SELECT id, namespace_id, table_id, partition_id, partition_hash_id, object_store_id, min_time,
        max_time, to_delete, file_size_bytes, row_count, compaction_level, created_at, column_set,
        max_l0_created_at
@@ -1483,11 +1496,14 @@ FROM parquet_file
 WHERE parquet_file.partition_id = $1
   AND parquet_file.to_delete IS NULL;
         "#,
-        )
-        .bind(partition_id) // $1
-        .fetch_all(&mut self.inner)
-        .await
-        .map_err(|e| Error::SqlxError { source: e })
+            )
+            .bind(id), // $1
+        };
+
+        query
+            .fetch_all(&mut self.inner)
+            .await
+            .map_err(|e| Error::SqlxError { source: e })
     }
 
     async fn get_by_object_store_id(

@@ -850,14 +850,20 @@ impl ParquetFileRepo for MemTxn {
 
     async fn list_by_partition_not_to_delete(
         &mut self,
-        partition_id: PartitionId,
+        partition_id: &TransitionPartitionId,
     ) -> Result<Vec<ParquetFile>> {
         let stage = self.stage();
 
         Ok(stage
             .parquet_files
             .iter()
-            .filter(|f| f.partition_id == partition_id && f.to_delete.is_none())
+            .filter(|f| match partition_id {
+                TransitionPartitionId::Deterministic(hash_id) => {
+                    f.partition_hash_id.as_ref().map_or(false, |h| h == hash_id)
+                }
+                TransitionPartitionId::Deprecated(id) => f.partition_id == *id,
+            })
+            .filter(|f| f.to_delete.is_none())
             .cloned()
             .collect())
     }
