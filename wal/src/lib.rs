@@ -720,7 +720,6 @@ mod tests {
         wal.write_op(op3.clone());
         wal.write_op(op4.clone()).changed().await.unwrap();
 
-        // TODO(savage): Returned SequenceNumberSet should reflect `partition_sequence_numbers` post-change.
         let (closed, ids) = wal.rotate().unwrap();
 
         let ops: Vec<SequencedWalOp> = wal

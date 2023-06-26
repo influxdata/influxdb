@@ -180,20 +180,21 @@ where
             "received rpc write"
         );
 
-        let sequence_number = self.timestamp.next();
-
-        // Construct the corresponding ingester write operation for the RPC payload
+        // Construct the corresponding ingester write operation for the RPC payload,
+        // independently sequencing the data contained by the write per-partition
         let op = WriteOperation::new(
             namespace_id,
             batches
                 .into_iter()
                 .map(|(k, v)| {
                     let table_id = TableId::new(k);
+                    let partition_sequence_number = self.timestamp.next();
                     (
                         table_id,
-                        // TODO(savage): Sequence partitioned data independently within a
-                        // write.
-                        TableData::new(table_id, PartitionedData::new(sequence_number, v)),
+                        TableData::new(
+                            table_id,
+                            PartitionedData::new(partition_sequence_number, v),
+                        ),
                     )
                 })
                 .collect(),

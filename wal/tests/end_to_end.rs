@@ -130,8 +130,6 @@ async fn ordering() {
 
         let op = arbitrary_sequenced_wal_op(42);
         let _ = unwrap_summary(wal.write_op(op)).await;
-        // TODO(savage): These will need to return the
-        // partition_sequence_numbers and be checked there.
         let (_, ids) = wal.rotate().unwrap();
         assert_eq!(ids.iter().collect::<Vec<_>>(), [SequenceNumber::new(42)]);
 
@@ -164,6 +162,8 @@ async fn ordering() {
     assert!(ids.is_empty());
 }
 
+// TODO(savage): This needs changing to generate multiple partitioned sequence numbers for each
+// write.
 fn arbitrary_sequenced_wal_op(sequence_number: u64) -> SequencedWalOp {
     let w = test_data("m1,t=foo v=1i 1");
     SequencedWalOp {

@@ -194,18 +194,9 @@ where
 
         for op in ops {
             let SequencedWalOp {
-                table_write_sequence_numbers, // TODO(savage): Use sequence numbers assigned per-partition
+                table_write_sequence_numbers,
                 op,
             } = op;
-
-            let sequence_number = SequenceNumber::new(
-                *table_write_sequence_numbers
-                    .values()
-                    .next()
-                    .expect("attempt to replay unsequenced wal entry"),
-            );
-
-            max_sequence = max_sequence.max(Some(sequence_number));
 
             let op = match op {
                 Op::Write(w) => w,
@@ -213,7 +204,8 @@ where
                 Op::Persist(_) => unreachable!(),
             };
 
-            debug!(?op, sequence_number = sequence_number.get(), "apply wal op");
+            let mut op_min_sequence_number = None;
+            let mut op_max_sequence_number = None;
 
             // Reconstruct the ingest operation
             let batches = decode_database_batch(&op)?;
@@ -226,10 +218,18 @@ where
                     .into_iter()
                     .map(|(k, v)| {
                         let table_id = TableId::new(k);
+                        let sequence_number = SequenceNumber::new(
+                            *table_write_sequence_numbers
+                                .get(&table_id)
+                                .expect("attempt to apply unsequenced wal op"),
+                        );
+
+                        max_sequence = max_sequence.max(Some(sequence_number));
+                        op_min_sequence_number = op_min_sequence_number.min(Some(sequence_number));
+                        op_max_sequence_number = op_min_sequence_number.max(Some(sequence_number));
+
                         (
                             table_id,
-                            // TODO(savage): Use table-partitioned sequence
-                            // numbers here
                             TableData::new(table_id, PartitionedData::new(sequence_number, v)),
                         )
                     })
@@ -237,6 +237,17 @@ where
                 partition_key,
                 // TODO: A tracing context should be added for WAL replay.
                 None,
+            );
+
+            debug!(
+                ?op,
+                op_min_sequence_number = op_min_sequence_number
+                    .expect("attempt to apply unsequenced wal op")
+                    .get(),
+                op_max_sequence_number = op_max_sequence_number
+                    .expect("attempt to apply unsequenced wal op")
+                    .get(),
+                "apply wal op"
             );
 
             // Apply the operation to the provided DML sink
