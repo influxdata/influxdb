@@ -25,7 +25,7 @@ datafusion_util = { path = "../datafusion_util" }
 executor = { path = "../executor"}
 futures = "0.3"
 hashbrown = { workspace = true }
-indexmap = { version = "1.9", features = ["std"] }
+indexmap = { version = "2.0", features = ["std"] }
 itertools = "0.11.0"
 object_store = { workspace = true }
 observability_deps = { path = "../observability_deps" }
