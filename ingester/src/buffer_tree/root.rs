@@ -247,6 +247,7 @@ mod tests {
     use data_types::{PartitionId, PartitionKey};
     use datafusion::{assert_batches_eq, assert_batches_sorted_eq};
     use futures::StreamExt;
+    use lazy_static::lazy_static;
     use metric::{Attributes, Metric};
     use std::{sync::Arc, time::Duration};
 
@@ -255,6 +256,11 @@ mod tests {
 
     const TABLE2_ID: TableId = TableId::new(1234321);
     const TABLE2_NAME: &str = "another_table";
+
+    lazy_static! {
+        static ref PARTITION2_KEY: PartitionKey = PartitionKey::from("p2");
+        static ref PARTITION3_KEY: PartitionKey = PartitionKey::from("p3");
+    }
 
     #[tokio::test]
     async fn test_namespace_init_table() {
@@ -385,10 +391,10 @@ mod tests {
         read_writes,
         partitions = [PartitionDataBuilder::new()
             .with_partition_id(ARBITRARY_PARTITION_ID)
-            .with_partition_key(PartitionKey::from("p1"))
+            .with_partition_key(ARBITRARY_PARTITION_KEY.clone())
             .build()],
         writes = [make_write_op(
-            &PartitionKey::from("p1"),
+            &ARBITRARY_PARTITION_KEY,
             ARBITRARY_NAMESPACE_ID,
             &ARBITRARY_TABLE_NAME,
             ARBITRARY_TABLE_ID,
@@ -415,16 +421,16 @@ mod tests {
         partitions = [
             PartitionDataBuilder::new()
                 .with_partition_id(ARBITRARY_PARTITION_ID)
-                .with_partition_key(PartitionKey::from("p1"))
+                .with_partition_key(ARBITRARY_PARTITION_KEY.clone())
                 .build(),
             PartitionDataBuilder::new()
                 .with_partition_id(PARTITION2_ID)
-                .with_partition_key(PartitionKey::from("p2"))
+                .with_partition_key(PARTITION2_KEY.clone())
                 .build()
         ],
         writes = [
             make_write_op(
-                &PartitionKey::from("p1"),
+                &ARBITRARY_PARTITION_KEY,
                 ARBITRARY_NAMESPACE_ID,
                 &ARBITRARY_TABLE_NAME,
                 ARBITRARY_TABLE_ID,
@@ -436,7 +442,7 @@ mod tests {
                 None,
             ),
             make_write_op(
-                &PartitionKey::from("p2"),
+                &PARTITION2_KEY,
                 ARBITRARY_NAMESPACE_ID,
                 &ARBITRARY_TABLE_NAME,
                 ARBITRARY_TABLE_ID,
@@ -465,18 +471,18 @@ mod tests {
         partitions = [
             PartitionDataBuilder::new()
                 .with_partition_id(ARBITRARY_PARTITION_ID)
-                .with_partition_key(PartitionKey::from("p1"))
+                .with_partition_key(ARBITRARY_PARTITION_KEY.clone())
                 .build(),
             PartitionDataBuilder::new()
                 .with_partition_id(PARTITION2_ID)
-                .with_partition_key(PartitionKey::from("p2"))
+                .with_partition_key(PARTITION2_KEY.clone())
                 .with_namespace_id(NamespaceId::new(4321)) // A different namespace ID.
                 .with_table_id(TABLE2_ID) // A different table ID.
                 .build()
         ],
         writes = [
             make_write_op(
-                &PartitionKey::from("p1"),
+                &ARBITRARY_PARTITION_KEY,
                 ARBITRARY_NAMESPACE_ID,
                 &ARBITRARY_TABLE_NAME,
                 ARBITRARY_TABLE_ID,
@@ -488,7 +494,7 @@ mod tests {
                 None,
             ),
             make_write_op(
-                &PartitionKey::from("p2"),
+                &PARTITION2_KEY,
                 NamespaceId::new(4321), // A different namespace ID.
                 &ARBITRARY_TABLE_NAME,
                 TABLE2_ID, // A different table ID
@@ -516,17 +522,17 @@ mod tests {
         partitions = [
             PartitionDataBuilder::new()
                 .with_partition_id(ARBITRARY_PARTITION_ID)
-                .with_partition_key(PartitionKey::from("p1"))
+                .with_partition_key(ARBITRARY_PARTITION_KEY.clone())
                 .build(),
             PartitionDataBuilder::new()
                 .with_partition_id(PARTITION2_ID)
-                .with_partition_key(PartitionKey::from("p2"))
+                .with_partition_key(PARTITION2_KEY.clone())
                 .with_table_id(TABLE2_ID) // A different table ID.
                 .build()
         ],
         writes = [
             make_write_op(
-                &PartitionKey::from("p1"),
+                &ARBITRARY_PARTITION_KEY,
                 ARBITRARY_NAMESPACE_ID,
                 &ARBITRARY_TABLE_NAME,
                 ARBITRARY_TABLE_ID,
@@ -538,7 +544,7 @@ mod tests {
                 None,
             ),
             make_write_op(
-                &PartitionKey::from("p2"),
+                &PARTITION2_KEY,
                 ARBITRARY_NAMESPACE_ID,
                 &ARBITRARY_TABLE_NAME,
                 TABLE2_ID, // A different table ID
@@ -567,11 +573,11 @@ mod tests {
         duplicate_writes,
         partitions = [PartitionDataBuilder::new()
             .with_partition_id(ARBITRARY_PARTITION_ID)
-            .with_partition_key(PartitionKey::from("p1"))
+            .with_partition_key(ARBITRARY_PARTITION_KEY.clone())
             .build()],
         writes = [
             make_write_op(
-                &PartitionKey::from("p1"),
+                &ARBITRARY_PARTITION_KEY,
                 ARBITRARY_NAMESPACE_ID,
                 &ARBITRARY_TABLE_NAME,
                 ARBITRARY_TABLE_ID,
@@ -583,7 +589,7 @@ mod tests {
                 None,
             ),
             make_write_op(
-                &PartitionKey::from("p1"),
+                &ARBITRARY_PARTITION_KEY,
                 ARBITRARY_NAMESPACE_ID,
                 &ARBITRARY_TABLE_NAME,
                 ARBITRARY_TABLE_ID,
@@ -614,13 +620,13 @@ mod tests {
                 .with_partition(
                     PartitionDataBuilder::new()
                         .with_partition_id(ARBITRARY_PARTITION_ID)
-                        .with_partition_key(PartitionKey::from("p1"))
+                        .with_partition_key(ARBITRARY_PARTITION_KEY.clone())
                         .build(),
                 )
                 .with_partition(
                     PartitionDataBuilder::new()
                         .with_partition_id(ARBITRARY_PARTITION_ID)
-                        .with_partition_key(PartitionKey::from("p2"))
+                        .with_partition_key(PARTITION2_KEY.clone())
                         .build(),
                 ),
         );
@@ -638,7 +644,7 @@ mod tests {
 
         // Write data to the arbitrary partition, in the arbitrary table
         buf.apply(IngestOp::Write(make_write_op(
-            &PartitionKey::from("p1"),
+            &ARBITRARY_PARTITION_KEY,
             ARBITRARY_NAMESPACE_ID,
             &ARBITRARY_TABLE_NAME,
             ARBITRARY_TABLE_ID,
@@ -655,7 +661,7 @@ mod tests {
         // Write a duplicate record with the same series key & timestamp, but a
         // different temp value.
         buf.apply(IngestOp::Write(make_write_op(
-            &PartitionKey::from("p2"),
+            &PARTITION2_KEY,
             ARBITRARY_NAMESPACE_ID,
             &ARBITRARY_TABLE_NAME,
             ARBITRARY_TABLE_ID,
@@ -700,19 +706,19 @@ mod tests {
                 .with_partition(
                     PartitionDataBuilder::new()
                         .with_partition_id(ARBITRARY_PARTITION_ID)
-                        .with_partition_key(PartitionKey::from("p1"))
+                        .with_partition_key(ARBITRARY_PARTITION_KEY.clone())
                         .build(),
                 )
                 .with_partition(
                     PartitionDataBuilder::new()
                         .with_partition_id(PARTITION2_ID)
-                        .with_partition_key(PartitionKey::from("p2"))
+                        .with_partition_key(PARTITION2_KEY.clone())
                         .build(),
                 )
                 .with_partition(
                     PartitionDataBuilder::new()
                         .with_partition_id(PARTITION3_ID)
-                        .with_partition_key(PartitionKey::from("p3"))
+                        .with_partition_key(PARTITION3_KEY.clone())
                         .with_table_id(TABLE2_ID)
                         .with_table_name_loader(Arc::new(DeferredLoad::new(
                             Duration::from_secs(1),
@@ -736,7 +742,7 @@ mod tests {
 
         // Write data to the arbitrary partition, in the arbitrary table
         buf.apply(IngestOp::Write(make_write_op(
-            &PartitionKey::from("p1"),
+            &ARBITRARY_PARTITION_KEY,
             ARBITRARY_NAMESPACE_ID,
             &ARBITRARY_TABLE_NAME,
             ARBITRARY_TABLE_ID,
@@ -754,7 +760,7 @@ mod tests {
 
         // Write data to partition2, in the arbitrary table
         buf.apply(IngestOp::Write(make_write_op(
-            &PartitionKey::from("p2"),
+            &PARTITION2_KEY,
             ARBITRARY_NAMESPACE_ID,
             &ARBITRARY_TABLE_NAME,
             ARBITRARY_TABLE_ID,
@@ -772,7 +778,7 @@ mod tests {
 
         // Write data to partition3, in the second table
         buf.apply(IngestOp::Write(make_write_op(
-            &PartitionKey::from("p3"),
+            &PARTITION3_KEY,
             ARBITRARY_NAMESPACE_ID,
             TABLE2_NAME,
             TABLE2_ID,
@@ -805,7 +811,7 @@ mod tests {
             MockPartitionProvider::default().with_partition(
                 PartitionDataBuilder::new()
                     .with_partition_id(ARBITRARY_PARTITION_ID)
-                    .with_partition_key(PartitionKey::from("p1"))
+                    .with_partition_key(ARBITRARY_PARTITION_KEY.clone())
                     .build(),
             ),
         );
@@ -830,7 +836,7 @@ mod tests {
 
         // Write data to the arbitrary partition, in the arbitrary table
         buf.apply(IngestOp::Write(make_write_op(
-            &PartitionKey::from("p1"),
+            &ARBITRARY_PARTITION_KEY,
             ARBITRARY_NAMESPACE_ID,
             &ARBITRARY_TABLE_NAME,
             ARBITRARY_TABLE_ID,
@@ -884,13 +890,13 @@ mod tests {
                 .with_partition(
                     PartitionDataBuilder::new()
                         .with_partition_id(ARBITRARY_PARTITION_ID)
-                        .with_partition_key(PartitionKey::from("p1"))
+                        .with_partition_key(ARBITRARY_PARTITION_KEY.clone())
                         .build(),
                 )
                 .with_partition(
                     PartitionDataBuilder::new()
                         .with_partition_id(PARTITION2_ID)
-                        .with_partition_key(PartitionKey::from("p2"))
+                        .with_partition_key(PARTITION2_KEY.clone())
                         .build(),
                 ),
         );
@@ -906,7 +912,7 @@ mod tests {
 
         // Write data to the arbitrary partition, in the arbitrary table
         buf.apply(IngestOp::Write(make_write_op(
-            &PartitionKey::from("p1"),
+            &ARBITRARY_PARTITION_KEY,
             ARBITRARY_NAMESPACE_ID,
             &ARBITRARY_TABLE_NAME,
             ARBITRARY_TABLE_ID,
@@ -931,7 +937,7 @@ mod tests {
         // Perform a write concurrent to the consumption of the query stream
         // that creates a new partition2 in the same table.
         buf.apply(IngestOp::Write(make_write_op(
-            &PartitionKey::from("p2"),
+            &PARTITION2_KEY,
             ARBITRARY_NAMESPACE_ID,
             &ARBITRARY_TABLE_NAME,
             ARBITRARY_TABLE_ID,
@@ -948,7 +954,7 @@ mod tests {
         // Perform another write that hits the arbitrary partition within the query
         // results snapshot before the partition is read.
         buf.apply(IngestOp::Write(make_write_op(
-            &PartitionKey::from("p1"),
+            &ARBITRARY_PARTITION_KEY,
             ARBITRARY_NAMESPACE_ID,
             &ARBITRARY_TABLE_NAME,
             ARBITRARY_TABLE_ID,
