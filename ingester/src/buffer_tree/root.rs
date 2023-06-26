@@ -257,6 +257,8 @@ mod tests {
     const TABLE2_ID: TableId = TableId::new(1234321);
     const TABLE2_NAME: &str = "another_table";
 
+    const NAMESPACE2_ID: NamespaceId = NamespaceId::new(4321);
+
     lazy_static! {
         static ref PARTITION2_KEY: PartitionKey = PartitionKey::from("p2");
         static ref PARTITION3_KEY: PartitionKey = PartitionKey::from("p3");
@@ -476,7 +478,7 @@ mod tests {
             PartitionDataBuilder::new()
                 .with_partition_id(PARTITION2_ID)
                 .with_partition_key(PARTITION2_KEY.clone())
-                .with_namespace_id(NamespaceId::new(4321)) // A different namespace ID.
+                .with_namespace_id(NAMESPACE2_ID) // A different namespace ID.
                 .with_table_id(TABLE2_ID) // A different table ID.
                 .build()
         ],
@@ -495,7 +497,7 @@ mod tests {
             ),
             make_write_op(
                 &PARTITION2_KEY,
-                NamespaceId::new(4321), // A different namespace ID.
+                NAMESPACE2_ID, // A different namespace ID.
                 &ARBITRARY_TABLE_NAME,
                 TABLE2_ID, // A different table ID
                 0,
