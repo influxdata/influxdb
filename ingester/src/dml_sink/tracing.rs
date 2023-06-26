@@ -55,42 +55,17 @@ where
 
 #[cfg(test)]
 mod tests {
-    use std::{sync::Arc, time::Duration};
-
-    use assert_matches::assert_matches;
-    use data_types::{NamespaceId, PartitionId, PartitionKey, TableId};
-    use lazy_static::lazy_static;
-    use trace::{ctx::SpanContext, span::SpanStatus, RingBufferTraceCollector, TraceCollector};
-
-    use crate::{
-        buffer_tree::{namespace::NamespaceName, table::TableName},
-        deferred_load::DeferredLoad,
-        dml_sink::{mock_sink::MockDmlSink, DmlError},
-        test_util::make_write_op,
-    };
-
     use super::*;
-
-    const PARTITION_ID: PartitionId = PartitionId::new(42);
-    const NAMESPACE_ID: NamespaceId = NamespaceId::new(24);
-    const TABLE_ID: TableId = TableId::new(2442);
-    const TABLE_NAME: &str = "banana-report";
-    const NAMESPACE_NAME: &str = "platanos";
-
-    lazy_static! {
-        static ref PARTITION_KEY: PartitionKey = PartitionKey::from("bananas");
-        static ref NAMESPACE_NAME_LOADER: Arc<DeferredLoad<NamespaceName>> =
-            Arc::new(DeferredLoad::new(
-                Duration::from_secs(1),
-                async { NamespaceName::from(NAMESPACE_NAME) },
-                &metric::Registry::default(),
-            ));
-        static ref TABLE_NAME_LOADER: Arc<DeferredLoad<TableName>> = Arc::new(DeferredLoad::new(
-            Duration::from_secs(1),
-            async { TableName::from(TABLE_NAME) },
-            &metric::Registry::default(),
-        ));
-    }
+    use crate::{
+        dml_sink::{mock_sink::MockDmlSink, DmlError},
+        test_util::{
+            make_write_op, ARBITRARY_NAMESPACE_ID, ARBITRARY_PARTITION_KEY, ARBITRARY_TABLE_ID,
+            ARBITRARY_TABLE_NAME,
+        },
+    };
+    use assert_matches::assert_matches;
+    use std::sync::Arc;
+    use trace::{ctx::SpanContext, span::SpanStatus, RingBufferTraceCollector, TraceCollector};
 
     #[track_caller]
     fn assert_trace(name: impl Into<String>, status: SpanStatus, traces: &dyn TraceCollector) {
@@ -120,12 +95,12 @@ mod tests {
         let span = SpanContext::new(Arc::clone(&traces));
 
         let op = IngestOp::Write(make_write_op(
-            &PARTITION_KEY,
-            NAMESPACE_ID,
-            TABLE_NAME,
-            TABLE_ID,
+            &ARBITRARY_PARTITION_KEY,
+            ARBITRARY_NAMESPACE_ID,
+            &ARBITRARY_TABLE_NAME,
+            ARBITRARY_TABLE_ID,
             42,
-            "banana-report,tag=1 v=2 42424242",
+            &format!("{},tag=1 v=2 42424242", &*ARBITRARY_TABLE_NAME),
             Some(span),
         ));
 
@@ -148,12 +123,12 @@ mod tests {
         let span = SpanContext::new(Arc::clone(&traces));
 
         let op = IngestOp::Write(make_write_op(
-            &PARTITION_KEY,
-            NAMESPACE_ID,
-            TABLE_NAME,
-            TABLE_ID,
+            &ARBITRARY_PARTITION_KEY,
+            ARBITRARY_NAMESPACE_ID,
+            &ARBITRARY_TABLE_NAME,
+            ARBITRARY_TABLE_ID,
             42,
-            "banana-report,tag=1 v=2 42424242",
+            &format!("{},tag=1 v=2 42424242", &*ARBITRARY_TABLE_NAME),
             Some(span),
         ));
 

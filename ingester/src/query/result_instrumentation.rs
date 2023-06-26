@@ -426,20 +426,22 @@ struct MetricState {
 
 #[cfg(test)]
 mod tests {
-    use std::{sync::Arc, time::Duration};
-
-    use crate::{make_batch, make_partition_stream, query::mock_query_exec::MockQueryExec};
-
     use super::*;
-
+    use crate::{
+        make_batch, make_partition_stream,
+        query::mock_query_exec::MockQueryExec,
+        test_util::{
+            ARBITRARY_NAMESPACE_ID, ARBITRARY_PARTITION_ID, ARBITRARY_PARTITION_KEY,
+            ARBITRARY_TABLE_ID,
+        },
+    };
     use arrow::array::{Float32Array, Int64Array};
-    use data_types::{PartitionHashId, PartitionId, PartitionKey};
+    use data_types::PartitionHashId;
     use futures::{stream, StreamExt};
     use iox_time::MockProvider;
     use metric::{assert_histogram, Attributes};
+    use std::{sync::Arc, time::Duration};
 
-    const NAMESPACE_ID: NamespaceId = NamespaceId::new(42);
-    const TABLE_ID: TableId = TableId::new(42);
     const TIME_STEP: Duration = Duration::from_secs(42);
 
     /// A query against a table that has been persisted / no longer contains any
@@ -451,10 +453,10 @@ mod tests {
         // Construct a stream with no batches.
         let stream = PartitionStream::new(stream::iter([PartitionResponse::new(
             vec![],
-            PartitionId::new(42),
+            ARBITRARY_PARTITION_ID,
             Some(PartitionHashId::new(
-                TABLE_ID,
-                &PartitionKey::from("arbitrary"),
+                ARBITRARY_TABLE_ID,
+                &ARBITRARY_PARTITION_KEY,
             )),
             42,
         )]));
@@ -465,7 +467,7 @@ mod tests {
             .with_time_provider(Arc::clone(&mock_time));
 
         let response = layer
-            .query_exec(NAMESPACE_ID, TABLE_ID, vec![], None)
+            .query_exec(ARBITRARY_NAMESPACE_ID, ARBITRARY_TABLE_ID, vec![], None)
             .await
             .expect("query should succeed");
 
@@ -546,7 +548,7 @@ mod tests {
             .with_time_provider(Arc::clone(&mock_time));
 
         let response = layer
-            .query_exec(NAMESPACE_ID, TABLE_ID, vec![], None)
+            .query_exec(ARBITRARY_NAMESPACE_ID, ARBITRARY_TABLE_ID, vec![], None)
             .await
             .expect("query should succeed");
 
@@ -626,7 +628,7 @@ mod tests {
             .with_time_provider(Arc::clone(&mock_time));
 
         let response = layer
-            .query_exec(NAMESPACE_ID, TABLE_ID, vec![], None)
+            .query_exec(ARBITRARY_NAMESPACE_ID, ARBITRARY_TABLE_ID, vec![], None)
             .await
             .expect("query should succeed");
 
@@ -706,7 +708,7 @@ mod tests {
             .with_time_provider(Arc::clone(&mock_time));
 
         let response = layer
-            .query_exec(NAMESPACE_ID, TABLE_ID, vec![], None)
+            .query_exec(ARBITRARY_NAMESPACE_ID, ARBITRARY_TABLE_ID, vec![], None)
             .await
             .expect("query should succeed");
 
