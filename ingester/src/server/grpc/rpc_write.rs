@@ -227,16 +227,21 @@ mod tests {
         column::{SemanticType, Values},
         Column, DatabaseBatch, TableBatch,
     };
-    use std::sync::Arc;
+    use lazy_static::lazy_static;
+    use std::{collections::HashSet, sync::Arc};
 
     use super::*;
     use crate::{
         dml_payload::IngestOp,
-        dml_sink::mock_sink::MockDmlSink,
-        test_util::{ARBITRARY_NAMESPACE_ID, ARBITRARY_PARTITION_KEY, ARBITRARY_TABLE_ID},
+        test_util::{ARBITRARY_NAMESPACE_ID, ARBITRARY_TABLE_ID},
     };
+    use crate::{dml_sink::mock_sink::MockDmlSink, test_util::ARBITRARY_PARTITION_KEY};
 
     const PERSIST_QUEUE_DEPTH: usize = 42;
+
+    lazy_static! {
+        static ref ALTERNATIVE_TABLE_ID: TableId = TableId::new(76);
+    }
 
     macro_rules! test_rpc_write {
         (
@@ -312,6 +317,75 @@ mod tests {
             assert_eq!(
                 w.tables().next().unwrap().1.partitioned_data().sequence_number(),
                 SequenceNumber::new(1)
+            );
+        }
+    );
+
+    test_rpc_write!(
+        apply_ok_independently_sequenced_partitions,
+        request = proto::WriteRequest {
+            payload: Some(DatabaseBatch {
+                database_id: ARBITRARY_NAMESPACE_ID.get(),
+                partition_key: ARBITRARY_PARTITION_KEY.to_string(),
+                table_batches: vec![
+                    TableBatch {
+                        table_id: ARBITRARY_TABLE_ID.get(),
+                        columns: vec![Column {
+                            column_name: String::from("time"),
+                            semantic_type: SemanticType::Time.into(),
+                            values: Some(Values {
+                            i64_values: vec![4242],
+                            f64_values: vec![],
+                            u64_values: vec![],
+                            string_values: vec![],
+                            bool_values: vec![],
+                            bytes_values: vec![],
+                            packed_string_values: None,
+                            interned_string_values: None,
+                            }),
+                            null_mask: vec![0],
+                        }],
+                        row_count:1 ,
+                    },
+                    TableBatch {
+                        table_id: ALTERNATIVE_TABLE_ID.get(),
+                        columns: vec![Column {
+                            column_name: String::from("time"),
+                            semantic_type: SemanticType::Time.into(),
+                            values: Some(Values {
+                            i64_values: vec![7676],
+                            f64_values: vec![],
+                            u64_values: vec![],
+                            string_values: vec![],
+                            bool_values: vec![],
+                            bytes_values: vec![],
+                            packed_string_values: None,
+                            interned_string_values: None,
+                            }),
+                            null_mask: vec![0],
+                        }],
+                        row_count: 1,
+                    },
+                ],
+            }),
+        },
+        sink_ret = Ok(()),
+        want_err = false,
+        want_calls = [IngestOp::Write(w)] => {
+            // Assert the properties of the applied IngestOp match the expected
+            // values. Notably a sequence number should be assigned _per partition_.
+            assert_eq!(w.namespace(), ARBITRARY_NAMESPACE_ID);
+            assert_eq!(w.tables().count(), 2);
+            assert_eq!(*w.partition_key(), *ARBITRARY_PARTITION_KEY);
+            let sequence_numbers = w.tables().map(|t| t.1.partitioned_data().sequence_number()).collect::<HashSet<_>>();
+            assert_eq!(
+                sequence_numbers,
+                [
+                    SequenceNumber::new(1),
+                    SequenceNumber::new(2),
+                ]
+                .into_iter()
+                .collect::<HashSet<_>>(),
             );
         }
     );

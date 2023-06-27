@@ -696,22 +696,25 @@ mod tests {
         let wal = Wal::new(&dir.path()).await.unwrap();
 
         let w1 = test_data("m1,t=foo v=1i 1");
-        let w2 = test_data("m1,t=foo v=2i 2");
+        // Use multiple tables for a write to test per-partition sequencing is preserved
+        let w2 = test_data("m1,t=foo v=2i 2\nm2,u=bar v=1i 1");
 
         let op1 = SequencedWalOp {
             table_write_sequence_numbers: vec![(TableId::new(0), 0)].into_iter().collect(),
             op: WalOp::Write(w1),
         };
         let op2 = SequencedWalOp {
-            table_write_sequence_numbers: vec![(TableId::new(0), 1)].into_iter().collect(),
+            table_write_sequence_numbers: vec![(TableId::new(0), 1), (TableId::new(1), 2)]
+                .into_iter()
+                .collect(),
             op: WalOp::Write(w2),
         };
         let op3 = SequencedWalOp {
-            table_write_sequence_numbers: vec![(TableId::new(0), 2)].into_iter().collect(),
+            table_write_sequence_numbers: vec![(TableId::new(0), 3)].into_iter().collect(),
             op: WalOp::Delete(test_delete()),
         };
         let op4 = SequencedWalOp {
-            table_write_sequence_numbers: vec![(TableId::new(0), 2)].into_iter().collect(),
+            table_write_sequence_numbers: vec![(TableId::new(0), 3)].into_iter().collect(),
             op: WalOp::Persist(test_persist()),
         };
 
@@ -732,7 +735,7 @@ mod tests {
         // Assert the set has recorded the op IDs.
         //
         // Note that one op has a duplicate sequence number above!
-        assert_eq!(ids.len(), 3);
+        assert_eq!(ids.len(), 4);
 
         // Assert the sequence number set contains the specified ops.
         let ids = ids.iter().collect::<Vec<_>>();
@@ -742,6 +745,7 @@ mod tests {
                 SequenceNumber::new(0),
                 SequenceNumber::new(1),
                 SequenceNumber::new(2),
+                SequenceNumber::new(3),
             ]
         );
 
@@ -752,9 +756,11 @@ mod tests {
                 .collect::<Vec<std::collections::HashMap<TableId, u64>>>(),
             [
                 [(TableId::new(0), 0)].into_iter().collect(),
-                [(TableId::new(0), 1)].into_iter().collect(),
-                [(TableId::new(0), 2)].into_iter().collect(),
-                [(TableId::new(0), 2)].into_iter().collect(),
+                [(TableId::new(0), 1), (TableId::new(1), 2)]
+                    .into_iter()
+                    .collect(),
+                [(TableId::new(0), 3)].into_iter().collect(),
+                [(TableId::new(0), 3)].into_iter().collect(),
             ]
             .into_iter()
             .collect::<Vec<std::collections::HashMap<TableId, u64>>>(),
@@ -807,7 +813,7 @@ mod tests {
         let wal = Wal::new(dir.path()).await.unwrap();
 
         let w1 = test_data("m1,t=foo v=1i 1");
-        let w2 = test_data("m2,u=foo w=2i 2");
+        let w2 = test_data("m1,t=foo v=2i 2\nm2,u=foo w=2i 2");
         let w3 = test_data("m1,t=foo v=3i 3");
 
         let op1 = SequencedWalOp {
@@ -815,20 +821,22 @@ mod tests {
             op: WalOp::Write(w1.to_owned()),
         };
         let op2 = SequencedWalOp {
-            table_write_sequence_numbers: vec![(TableId::new(0), 1)].into_iter().collect(),
+            table_write_sequence_numbers: vec![(TableId::new(0), 1), (TableId::new(1), 2)]
+                .into_iter()
+                .collect(),
             op: WalOp::Write(w2.to_owned()),
         };
         let op3 = SequencedWalOp {
-            table_write_sequence_numbers: vec![(TableId::new(0), 2)].into_iter().collect(),
+            table_write_sequence_numbers: vec![(TableId::new(0), 3)].into_iter().collect(),
             op: WalOp::Delete(test_delete()),
         };
         let op4 = SequencedWalOp {
-            table_write_sequence_numbers: vec![(TableId::new(0), 2)].into_iter().collect(),
+            table_write_sequence_numbers: vec![(TableId::new(0), 3)].into_iter().collect(),
             op: WalOp::Persist(test_persist()),
         };
         // A third write entry coming after a delete and persist entry must still be yielded
         let op5 = SequencedWalOp {
-            table_write_sequence_numbers: vec![(TableId::new(0), 3)].into_iter().collect(),
+            table_write_sequence_numbers: vec![(TableId::new(0), 4)].into_iter().collect(),
             op: WalOp::Write(w3.to_owned()),
         };
 

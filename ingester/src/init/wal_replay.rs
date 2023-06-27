@@ -271,6 +271,7 @@ mod tests {
 
     use assert_matches::assert_matches;
     use async_trait::async_trait;
+    use lazy_static::lazy_static;
     use metric::{Attributes, Metric};
     use parking_lot::Mutex;
     use wal::Wal;
@@ -281,9 +282,9 @@ mod tests {
         dml_sink::mock_sink::MockDmlSink,
         persist::queue::mock::MockPersistQueue,
         test_util::{
-            assert_dml_writes_eq, make_write_op, PartitionDataBuilder, ARBITRARY_NAMESPACE_ID,
-            ARBITRARY_PARTITION_ID, ARBITRARY_PARTITION_KEY, ARBITRARY_TABLE_ID,
-            ARBITRARY_TABLE_NAME,
+            assert_write_ops_eq, make_multi_table_write_op, make_write_op, PartitionDataBuilder,
+            ARBITRARY_NAMESPACE_ID, ARBITRARY_PARTITION_ID, ARBITRARY_PARTITION_KEY,
+            ARBITRARY_TABLE_ID, ARBITRARY_TABLE_NAME,
         },
         wal::wal_sink::WalSink,
     };
@@ -309,6 +310,10 @@ mod tests {
         async fn apply(&self, op: IngestOp) -> Result<(), Self::Error> {
             self.sink.apply(op).await
         }
+    }
+
+    lazy_static! {
+        static ref ALTERNATIVE_TABLE_NAME: &'static str = "arán";
     }
 
     #[tokio::test]
@@ -340,18 +345,30 @@ mod tests {
             ),
             None,
         );
-        let op3 = make_write_op(
+
+        // Add a write hitting multiple tables for good measure
+        let op3 = make_multi_table_write_op(
             &ARBITRARY_PARTITION_KEY,
             ARBITRARY_NAMESPACE_ID,
-            &ARBITRARY_TABLE_NAME,
-            ARBITRARY_TABLE_ID,
-            42,
+            [
+                (
+                    ARBITRARY_TABLE_NAME.to_string().as_str(),
+                    ARBITRARY_TABLE_ID,
+                    SequenceNumber::new(42),
+                ),
+                (
+                    &ALTERNATIVE_TABLE_NAME,
+                    TableId::new(ARBITRARY_TABLE_ID.get() + 1),
+                    SequenceNumber::new(43),
+                ),
+            ]
+            .into_iter(),
             // Overwrite op2
             &format!(
-                r#"{},region=Asturias temp=15 4242424242"#,
-                &*ARBITRARY_TABLE_NAME
+                r#"{},region=Asturias temp=15 4242424242
+                {},region=Mayo temp=12 4242424242"#,
+                &*ARBITRARY_TABLE_NAME, &*ALTERNATIVE_TABLE_NAME,
             ),
-            None,
         );
 
         // The write portion of this test.
@@ -427,7 +444,7 @@ mod tests {
             .await
             .expect("failed to replay WAL");
 
-        assert_eq!(max_sequence_number, Some(SequenceNumber::new(42)));
+        assert_eq!(max_sequence_number, Some(SequenceNumber::new(43)));
 
         // Assert the ops were pushed into the DmlSink exactly as generated.
         let ops = mock_iter.sink.get_calls();
@@ -438,9 +455,9 @@ mod tests {
                 IngestOp::Write(ref w2),
                 IngestOp::Write(ref w3)
             ] => {
-                assert_dml_writes_eq(w1.clone(), op1);
-                assert_dml_writes_eq(w2.clone(), op2);
-                assert_dml_writes_eq(w3.clone(), op3);
+                assert_write_ops_eq(w1.clone(), op1);
+                assert_write_ops_eq(w2.clone(), op2);
+                assert_write_ops_eq(w3.clone(), op3);
             }
         );
 
