@@ -122,24 +122,19 @@ workflows:
             exclude:
               - { os: darwin,  arch: arm64 }
               - { os: windows, arch: arm64 }
-      - build-package:
+      - build-packages:
           <<: *any_filter
-          name: build-package-<< matrix.os >>-<< matrix.arch >>
           requires:
-            - build-<< matrix.os >>-<< matrix.arch >>
-          matrix:
-            parameters:
-              os:   [ linux, darwin, windows ]
-              arch: [ amd64, arm64 ]
-            exclude:
-              - { os: darwin,  arch: arm64 }
-              - { os: windows, arch: arm64 }
+            - build-linux-amd64
+            - build-linux-arm64
+            - build-darwin-amd64
+            - build-windows-amd64
       - check_package_deb_amd64:
           requires:
-            - build-package-linux-amd64
+            - build-packages
       - check_package_deb_arm64:
           requires:
-            - build-package-linux-arm64
+            - build-packages
       - check_package_rpm:
           <<: *nofork_filter
           name:
@@ -148,8 +143,7 @@ workflows:
             parameters:
               arch: [ x86_64, aarch64 ]
           requires:
-            - build-package-linux-amd64
-            - build-package-linux-arm64
+            - build-packages
       - test-downgrade:
           <<: *any_filter
           requires:
@@ -161,22 +155,16 @@ workflows:
       - test-linux-packages:
           <<: *nofork_filter
           requires:
-            - build-package-linux-amd64
+            - build-packages
       - sign-packages:
           <<: *release_filter
           requires:
-            - build-package-linux-amd64
-            - build-package-linux-arm64
-            - build-package-darwin-amd64
-            - build-package-windows-amd64
+            - build-packages
       - s3-publish-packages:
           <<: *release_filter
           requires:
             - test-linux-packages
-            - build-package-darwin-amd64
-            - build-package-linux-amd64
-            - build-package-linux-arm64
-            - build-package-windows-amd64
+            - build-packages
             - sign-packages
       - changelog:
           <<: *release_filter
@@ -189,10 +177,7 @@ workflows:
       - perf-test:
           record_results: true
           requires:
-            - build-package-darwin-amd64
-            - build-package-linux-amd64
-            - build-package-linux-arm64
-            - build-package-windows-amd64
+            - build-packages
           filters:
             branches:
               only:
@@ -309,18 +294,12 @@ workflows:
           requires:
             - build-docker-nightly-amd64
             - build-docker-nightly-arm64
-      - build-package:
-          name: build-package-<< matrix.os >>-<< matrix.arch >>
+      - build-packages:
           requires:
-            - build-nightly-<< matrix.os >>-<< matrix.arch >>
-            - changelog
-          matrix:
-            parameters:
-              os:   [ linux, darwin, windows ]
-              arch: [ amd64, arm64 ]
-            exclude:
-              - { os: darwin,  arch: arm64 }
-              - { os: windows, arch: arm64 }
+            - build-nightly-linux-amd64
+            - build-nightly-linux-arm64
+            - build-nightly-darwin-amd64
+            - build-nightly-windows-amd64
       - litmus-full-test:
           requires:
             - build-nightly-linux-amd64
@@ -488,47 +467,38 @@ jobs:
           paths:
             - bin
 
-  build-package:
-    executor: linux-amd64
-    parameters:
-      os:
-        type: string
-      arch:
-        type: string
+  build-packages:
+    machine:
+      image: ubuntu-2204:current
     steps:
-      - checkout
       - attach_workspace:
-          at: .
-      - run:
-          name: Install Package Dependencies
-          command: |
-            export DEBIAN_FRONTEND=noninteractive
-            sudo -E apt-get update
-            sudo -E apt-get install --yes \
-              build-essential          \
-              git                      \
-              rpm                      \
-              ruby-dev
+          at: /tmp/workspace
+      - checkout
+      - run: |
+          export DEBIAN_FRONTEND=noninteractive
+          sudo -E apt-get update
+          sudo -E apt-get install --no-install-recommends --yes \
+            asciidoc        \
+            build-essential \
+            git             \
+            python3         \
+            rpm             \
+            ruby-dev        \
+            xmlto
 
-            gem install fpm
-      - run:
-          name: Get InfluxDB Version
-          command: |
-            PREFIX=2.x .circleci/scripts/get-version
-      - run:
-          name: Build Package
-          command: |
-            export PLAT=<< parameters.os >>
-            export ARCH=<< parameters.arch >>
-            .circleci/scripts/build-package
+          sudo gem install fpm
+
+          python3 -m pip install -r .circleci/scripts/package/requirements.txt
+
+          # Unfortunately, this must be executed as root. This is so permission
+          # modifying commands (chown, chmod, etc.) succeed.
+          sudo --preserve-env=CIRCLE_TAG,CIRCLE_SHA1 .circleci/scripts/package/build.py
+      - store_artifacts:
+          path: artifacts/
       - persist_to_workspace:
-          root: /
+          root: .
           paths:
             - artifacts
-      - store_artifacts:
-          path: /artifacts
-
-          destination: artifacts
 
   sign-packages:
     circleci_ip_ranges: true
@@ -671,7 +641,7 @@ jobs:
           name: Terraform apply
           command: |
             set -x
-            export DEBNAME="$(find /tmp/workspace/artifacts/influxdb2-*-amd64.deb)"
+            export DEBNAME="$(find /tmp/workspace/artifacts/influxdb2*amd64.deb)"
             terraform -chdir=scripts/ci init -input=false
             AWS_ACCESS_KEY_ID=$TEST_AWS_ACCESS_KEY_ID AWS_SECRET_ACCESS_KEY=$TEST_AWS_SECRET_ACCESS_KEY terraform \
               -chdir=scripts/ci \
@@ -969,7 +939,7 @@ jobs:
           name: Validate Debian Package (AMD64)
           command: |
             sudo .circleci/scripts/package-validation/debian \
-              /tmp/workspace/artifacts/influxdb2*-amd64.deb
+              /tmp/workspace/artifacts/influxdb2*amd64.deb
 
   check_package_deb_arm64:
     machine:
@@ -983,7 +953,7 @@ jobs:
           name: Validate Debian Package (ARM64)
           command: |
             sudo .circleci/scripts/package-validation/debian \
-              /tmp/workspace/artifacts/influxdb2*-arm64.deb
+              /tmp/workspace/artifacts/influxdb2*arm64.deb
 
   check_package_rpm:
     executor: linux-amd64
