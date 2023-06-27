@@ -91,8 +91,9 @@ impl ChunkAdapter {
                     async move {
                         let ranges = catalog_cache
                             .partition()
-                            .column_ranges(Arc::clone(cached_table), p, span)
+                            .get(Arc::clone(cached_table), p, &[], span)
                             .await
+                            .map(|p| p.column_ranges)
                             .unwrap_or_default();
                         (p, ranges)
                     }
@@ -217,13 +218,15 @@ impl ChunkAdapter {
         let partition_sort_key = self
             .catalog_cache
             .partition()
-            .sort_key(
+            .get(
                 Arc::clone(&cached_table),
                 parquet_file.partition_id,
                 &relevant_pk_columns,
                 span_recorder.child_span("cache GET partition sort key"),
             )
             .await
+            .expect("partition should be set when a parquet file exists")
+            .sort_key
             .expect("partition sort key should be set when a parquet file exists");
 
         // NOTE: Because we've looked up the sort key AFTER the namespace schema, it may contain columns for which we

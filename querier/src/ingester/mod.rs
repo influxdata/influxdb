@@ -662,8 +662,9 @@ impl IngesterStreamDecoder {
                     // the chunk pruning will not be as efficient though.
                     let ranges = catalog_cache
                         .partition()
-                        .column_ranges(Arc::clone(cached_table), p.partition_id, span)
+                        .get(Arc::clone(cached_table), p.partition_id, &[], span)
                         .await
+                        .map(|p| p.column_ranges)
                         .unwrap_or_default();
                     (p, ranges)
                 }
