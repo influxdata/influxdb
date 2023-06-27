@@ -20,14 +20,10 @@ use crate::{
     df_stats::{create_chunk_statistics, ColumnRanges},
     parquet::QuerierParquetChunkMeta,
     table::MetricPruningObserver,
+    CONCURRENT_CHUNK_CREATION_JOBS,
 };
 
 use super::QuerierParquetChunk;
-
-/// Number of concurrent chunk creation jobs.
-///
-/// This is mostly to fetch per-partition data concurrently.
-const CONCURRENT_CHUNK_CREATION_JOBS: usize = 100;
 
 /// Adapter that can create chunks.
 #[derive(Debug)]
