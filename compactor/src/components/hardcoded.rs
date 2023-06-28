@@ -376,7 +376,7 @@ fn make_file_classifier(config: &Config) -> Arc<dyn FileClassifier> {
     Arc::new(LoggingFileClassifierWrapper::new(Arc::new(
         SplitBasedFileClassifier::new(
             TargetLevelSplit::new(),
-            NonOverlapSplit::new(),
+            NonOverlapSplit::new(config.max_desired_file_size_bytes / 20), // rewrite non-overlapping files up to 5% of max
             UpgradeSplit::new(config.max_desired_file_size_bytes),
             LoggingSplitOrCompactWrapper::new(MetricsSplitOrCompactWrapper::new(
                 SplitCompact::new(

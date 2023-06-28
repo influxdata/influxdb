@@ -1593,6 +1593,69 @@ pub fn create_overlapped_files_3_mix_size(size: i64) -> Vec<ParquetFile> {
     vec![l0_3, l0_2, l0_1, l0_4, l0_5, l0_6, l1_1, l1_2]
 }
 
+/// This setup will return files with ranges as follows:
+///  Input:
+///                                              |--L0.1--|    |-L0.2-|
+///            |--L1.1--| |--L1.2--| |--L1.3--| |--L1.4--|    |--L1.5--|              |--L1.6--| |--L1.7--|  |--L1.8--|
+/// l1 size :     med        large      small       med           med                    small      large       med
+pub fn create_overlapped_files_mix_sizes_1(small: i64, med: i64, large: i64) -> Vec<ParquetFile> {
+    let l1_1 = ParquetFileBuilder::new(11)
+        .with_compaction_level(CompactionLevel::FileNonOverlapped)
+        .with_time_range(0, 100)
+        .with_file_size_bytes(med)
+        .build();
+    let l1_2 = ParquetFileBuilder::new(12)
+        .with_compaction_level(CompactionLevel::FileNonOverlapped)
+        .with_time_range(200, 300)
+        .with_file_size_bytes(large)
+        .build();
+    let l1_3 = ParquetFileBuilder::new(13)
+        .with_compaction_level(CompactionLevel::FileNonOverlapped)
+        .with_time_range(400, 500)
+        .with_file_size_bytes(small)
+        .build();
+    let l1_4 = ParquetFileBuilder::new(14)
+        .with_compaction_level(CompactionLevel::FileNonOverlapped)
+        .with_time_range(600, 700)
+        .with_file_size_bytes(med)
+        .build();
+    let l1_5 = ParquetFileBuilder::new(15)
+        .with_compaction_level(CompactionLevel::FileNonOverlapped)
+        .with_time_range(800, 900)
+        .with_file_size_bytes(med)
+        .build();
+    let l1_6 = ParquetFileBuilder::new(16)
+        .with_compaction_level(CompactionLevel::FileNonOverlapped)
+        .with_time_range(1000, 1100)
+        .with_file_size_bytes(small)
+        .build();
+    let l1_7 = ParquetFileBuilder::new(17)
+        .with_compaction_level(CompactionLevel::FileNonOverlapped)
+        .with_time_range(1200, 1300)
+        .with_file_size_bytes(large)
+        .build();
+    let l1_8 = ParquetFileBuilder::new(18)
+        .with_compaction_level(CompactionLevel::FileNonOverlapped)
+        .with_time_range(1400, 1500)
+        .with_file_size_bytes(med)
+        .build();
+
+    // L0_1 overlaps with L1_4
+    let l0_1 = ParquetFileBuilder::new(1)
+        .with_compaction_level(CompactionLevel::Initial)
+        .with_time_range(650, 750)
+        .with_file_size_bytes(small)
+        .build();
+    // L0_2 overlaps with L1_5
+    let l0_2 = ParquetFileBuilder::new(2)
+        .with_compaction_level(CompactionLevel::Initial)
+        .with_time_range(820, 850)
+        .with_file_size_bytes(small)
+        .build();
+
+    vec![l1_3, l1_7, l1_2, l1_1, l1_4, l1_5, l1_6, l0_2, l0_1, l1_8]
+}
+
 #[cfg(test)]
 mod test {
     use super::*;

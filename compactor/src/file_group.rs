@@ -33,6 +33,11 @@ impl FilesTimeRange {
     pub fn contains(&self, file: &ParquetFile) -> bool {
         file.min_time <= self.max_time && file.max_time >= self.min_time
     }
+
+    /// Does `file` fall before the range of self?
+    pub fn before(&self, file: &ParquetFile) -> bool {
+        file.max_time < self.min_time
+    }
 }
 
 /// returns true if the time range of `file` overlaps with any in `files`
