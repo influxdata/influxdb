@@ -14,7 +14,7 @@ impl QueryChunk for QuerierParquetChunk {
         self.parquet_chunk.schema()
     }
 
-    fn partition_id(&self) -> PartitionId {
+    fn partition_id(&self) -> &PartitionId {
         unimplemented!()
     }
 

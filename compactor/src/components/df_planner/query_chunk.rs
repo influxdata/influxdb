@@ -71,8 +71,8 @@ impl QueryChunk for QueryableParquetChunk {
         self.data.schema()
     }
 
-    fn partition_id(&self) -> PartitionId {
-        self.partition_id
+    fn partition_id(&self) -> &PartitionId {
+        &self.partition_id
     }
 
     fn transition_partition_id(&self) -> &TransitionPartitionId {

@@ -69,7 +69,7 @@ pub trait QueryChunk: Debug + Send + Sync + 'static {
     fn schema(&self) -> &Schema;
 
     /// Return partition id for this chunk
-    fn partition_id(&self) -> PartitionId;
+    fn partition_id(&self) -> &PartitionId;
 
     /// Return partition identifier for this chunk
     fn transition_partition_id(&self) -> &TransitionPartitionId;
@@ -247,7 +247,7 @@ where
         self.as_ref().schema()
     }
 
-    fn partition_id(&self) -> PartitionId {
+    fn partition_id(&self) -> &PartitionId {
         self.as_ref().partition_id()
     }
 
@@ -294,7 +294,7 @@ impl QueryChunk for Arc<dyn QueryChunk> {
         self.as_ref().schema()
     }
 
-    fn partition_id(&self) -> PartitionId {
+    fn partition_id(&self) -> &PartitionId {
         self.as_ref().partition_id()
     }
 
