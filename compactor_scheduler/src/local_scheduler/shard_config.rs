@@ -1,5 +1,3 @@
-use clap_blocks::compactor_scheduler::ShardConfigForLocalScheduler;
-
 /// Shard config.
 /// configured per LocalScheduler, which equates to per compactor.
 #[derive(Debug, Clone)]
@@ -14,35 +12,13 @@ pub struct ShardConfig {
     pub shard_id: usize,
 }
 
-impl ShardConfig {
-    /// Create a new [`ShardConfig`] from a [`ShardConfigForLocalScheduler`].
-    pub fn from_config(config: ShardConfigForLocalScheduler) -> Option<Self> {
-        match (config.shard_count, config.shard_id, config.hostname) {
-            // if no shard_count is provided, then we are not sharding
-            (None, _, _) => None,
-            // always use the shard_id if provided
-            (Some(shard_count), Some(shard_id), _) => Some(ShardConfig {
-                shard_id,
-                n_shards: shard_count,
-            }),
-            // if no shard_id is provided, then we are sharding by hostname
-            (Some(shard_count), None, Some(hostname)) => {
-                let parsed_id = hostname
-                    .chars()
-                    .skip_while(|ch| !ch.is_ascii_digit())
-                    .take_while(|ch| ch.is_ascii_digit())
-                    .fold(None, |acc, ch| {
-                        ch.to_digit(10).map(|b| acc.unwrap_or(0) * 10 + b)
-                    });
-                assert!(parsed_id.is_some(), "hostname must end in a shard ID");
-                Some(ShardConfig {
-                    shard_id: parsed_id.unwrap() as usize,
-                    n_shards: shard_count,
-                })
-            }
-            (Some(_), None, None) => {
-                panic!("shard_count must be paired with either shard_id or hostname")
-            }
-        }
+impl std::fmt::Display for ShardConfig {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        let Self { n_shards, shard_id } = self;
+        write!(
+            f,
+            "shard_cfg(n_shards={:?},shard_id={:?})",
+            n_shards, shard_id
+        )
     }
 }

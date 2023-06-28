@@ -486,6 +486,7 @@ impl Config {
         // settings from other configs. Can't use `#clap(flatten)` as the
         // parameters are redundant with ingester's
         let compactor_config = CompactorConfig {
+            compactor_scheduler_config,
             compaction_partition_concurrency: NonZeroUsize::new(1).unwrap(),
             compaction_df_concurrency: NonZeroUsize::new(1).unwrap(),
             compaction_partition_scratchpad_concurrency: NonZeroUsize::new(1).unwrap(),
@@ -523,7 +524,6 @@ impl Config {
 
             ingester_run_config,
             compactor_run_config,
-            compactor_scheduler_config,
 
             catalog_dsn,
             ingester_config,
@@ -551,8 +551,6 @@ struct SpecializedConfig {
     querier_run_config: RunConfig,
     ingester_run_config: RunConfig,
     compactor_run_config: RunConfig,
-    #[allow(dead_code)]
-    compactor_scheduler_config: CompactorSchedulerConfig,
 
     catalog_dsn: CatalogDsnConfig,
     ingester_config: IngesterConfig,
@@ -567,7 +565,6 @@ pub async fn command(config: Config) -> Result<()> {
         querier_run_config,
         ingester_run_config,
         compactor_run_config,
-        compactor_scheduler_config,
         catalog_dsn,
         ingester_config,
         router_config,
@@ -653,7 +650,6 @@ pub async fn command(config: Config) -> Result<()> {
         Arc::clone(&exec),
         Arc::clone(&time_provider),
         compactor_config,
-        compactor_scheduler_config,
     )
     .await;
 
