@@ -375,22 +375,20 @@ fn encode_response(
 
 #[cfg(test)]
 mod tests {
-    use arrow::array::{Float64Array, Int32Array};
-    use arrow_flight::decode::{DecodedPayload, FlightRecordBatchStream};
-    use assert_matches::assert_matches;
-    use bytes::Bytes;
-    use data_types::PartitionKey;
-    use tonic::Code;
-
+    use super::*;
     use crate::{
         make_batch,
         query::{
             mock_query_exec::MockQueryExec, partition_response::PartitionResponse,
             response::PartitionStream,
         },
+        test_util::ARBITRARY_PARTITION_KEY,
     };
-
-    use super::*;
+    use arrow::array::{Float64Array, Int32Array};
+    use arrow_flight::decode::{DecodedPayload, FlightRecordBatchStream};
+    use assert_matches::assert_matches;
+    use bytes::Bytes;
+    use tonic::Code;
 
     #[tokio::test]
     async fn limits_concurrent_queries() {
@@ -430,7 +428,7 @@ mod tests {
         let ingester_id = IngesterId::new();
         let partition_hash_id = Some(PartitionHashId::new(
             TableId::new(3),
-            &PartitionKey::from("arbitrary"),
+            &ARBITRARY_PARTITION_KEY,
         ));
         let (batch1, schema1) = make_batch!(
             Float64Array("float" => vec![1.1, 2.2, 3.3]),

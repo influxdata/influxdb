@@ -131,26 +131,21 @@ impl WalAppender for Arc<wal::Wal> {
 
 #[cfg(test)]
 mod tests {
-    use core::{future::Future, marker::Send, pin::Pin};
-    use std::{future, sync::Arc};
-
-    use assert_matches::assert_matches;
-    use data_types::{NamespaceId, PartitionKey, SequenceNumber, TableId};
-    use mutable_batch_lp::lines_to_batches;
-    use wal::Wal;
-
+    use super::*;
     use crate::{
         dml_payload::write::{PartitionedData, TableData, WriteOperation},
         dml_sink::mock_sink::MockDmlSink,
-        test_util::make_write_op,
+        test_util::{
+            make_write_op, ARBITRARY_NAMESPACE_ID, ARBITRARY_PARTITION_KEY, ARBITRARY_TABLE_ID,
+            ARBITRARY_TABLE_NAME,
+        },
     };
-
-    use super::*;
-
-    const TABLE_ID: TableId = TableId::new(44);
-    const TABLE_NAME: &str = "bananas";
-    const NAMESPACE_NAME: &str = "platanos";
-    const NAMESPACE_ID: NamespaceId = NamespaceId::new(42);
+    use assert_matches::assert_matches;
+    use core::{future::Future, marker::Send, pin::Pin};
+    use data_types::{SequenceNumber, TableId};
+    use mutable_batch_lp::lines_to_batches;
+    use std::{future, sync::Arc};
+    use wal::Wal;
 
     #[tokio::test]
     async fn test_append() {
@@ -161,22 +156,25 @@ mod tests {
         // Generate a test op containing writes for multiple tables that will
         // be appended and read back
         let mut tables_by_name = lines_to_batches(
-            "bananas,region=Madrid temp=35 4242424242\n\
+            &format!(
+                "{},region=Madrid temp=35 4242424242\n\
              banani,region=Iceland temp=25 7676767676",
+                &*ARBITRARY_TABLE_NAME
+            ),
             0,
         )
         .expect("invalid line proto");
         let op = WriteOperation::new(
-            NAMESPACE_ID,
+            ARBITRARY_NAMESPACE_ID,
             [
                 (
-                    TABLE_ID,
+                    ARBITRARY_TABLE_ID,
                     TableData::new(
-                        TABLE_ID,
+                        ARBITRARY_TABLE_ID,
                         PartitionedData::new(
                             SequenceNumber::new(42),
                             tables_by_name
-                                .remove(TABLE_NAME)
+                                .remove(ARBITRARY_TABLE_NAME.as_ref())
                                 .expect("table does not exist in LP"),
                         ),
                     ),
@@ -196,7 +194,7 @@ mod tests {
             ]
             .into_iter()
             .collect(),
-            PartitionKey::from("p1"),
+            ARBITRARY_PARTITION_KEY.clone(),
             None,
         );
 
@@ -240,7 +238,7 @@ mod tests {
         assert_eq!(read_op.sequence_number, 42);
         assert_eq!(
             read_op.table_write_sequence_numbers,
-            [(TABLE_ID, 42), (SECOND_TABLE_ID, 42)]
+            [(ARBITRARY_TABLE_ID, 42), (SECOND_TABLE_ID, 42)]
                 .into_iter()
                 .collect::<std::collections::HashMap<TableId, u64>>()
         );
@@ -249,7 +247,7 @@ mod tests {
 
         // The payload should match the serialised form of the "op" originally
         // wrote above.
-        let want = encode_write_op(NAMESPACE_ID, &op);
+        let want = encode_write_op(ARBITRARY_NAMESPACE_ID, &op);
 
         assert_eq!(want, *payload);
     }
@@ -279,12 +277,15 @@ mod tests {
 
         // Generate the test op
         let op = make_write_op(
-            &PartitionKey::from("p1"),
-            NAMESPACE_ID,
-            TABLE_NAME,
-            TABLE_ID,
+            &ARBITRARY_PARTITION_KEY,
+            ARBITRARY_NAMESPACE_ID,
+            &ARBITRARY_TABLE_NAME,
+            ARBITRARY_TABLE_ID,
             42,
-            r#"bananas,region=Madrid temp=35 4242424242"#,
+            &format!(
+                r#"{},region=Madrid temp=35 4242424242"#,
+                &*ARBITRARY_TABLE_NAME
+            ),
             None,
         );
 

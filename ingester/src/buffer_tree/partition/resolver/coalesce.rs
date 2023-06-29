@@ -271,7 +271,6 @@ mod tests {
     };
 
     use assert_matches::assert_matches;
-    use data_types::PartitionId;
     use futures::Future;
     use futures::{stream::FuturesUnordered, StreamExt};
     use lazy_static::lazy_static;

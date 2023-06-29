@@ -229,7 +229,10 @@ macro_rules! make_partition_stream {
                     $(
                         let (batch, this_schema) = $batch;
                         batches.push(batch);
-                        schema = Schema::try_merge([schema, (*this_schema).clone()]).expect("incompatible batch schemas");
+                        schema = Schema::try_merge([
+                            schema,
+                            (*this_schema).clone()
+                        ]).expect("incompatible batch schemas");
                     )+
                     drop(schema);
 
@@ -241,11 +244,11 @@ macro_rules! make_partition_stream {
                         // batches are in a different partition, not what the actual identifier
                         // values are. This will go away when the ingester no longer sends
                         // PartitionIds.
-                        PartitionId::new($id),
+                        data_types::PartitionId::new($id),
                         Some(
                             PartitionHashId::new(
                                 TableId::new($id),
-                                &PartitionKey::from("arbitrary")
+                                &*ARBITRARY_PARTITION_KEY
                             )
                         ),
                         42,
