@@ -15,10 +15,7 @@ use arrow_flight::decode::DecodedPayload;
 use async_trait::async_trait;
 use backoff::{Backoff, BackoffConfig, BackoffError};
 use client_util::connection;
-use data_types::{
-    ChunkId, ChunkOrder, DeletePredicate, NamespaceId, PartitionHashId, PartitionId,
-    TimestampMinMax,
-};
+use data_types::{ChunkId, ChunkOrder, NamespaceId, PartitionHashId, PartitionId};
 use datafusion::{error::DataFusionError, physical_plan::Statistics};
 use futures::{stream::FuturesUnordered, TryStreamExt};
 use ingester_query_grpc::{
@@ -28,13 +25,13 @@ use ingester_query_grpc::{
 use iox_query::{
     exec::{stringset::StringSet, IOxSessionContext},
     util::compute_timenanosecond_min_max,
-    QueryChunk, QueryChunkData, QueryChunkMeta,
+    QueryChunk, QueryChunkData,
 };
 use iox_time::{Time, TimeProvider};
 use metric::{DurationHistogram, Metric};
 use observability_deps::tracing::{debug, trace, warn};
 use predicate::Predicate;
-use schema::{sort::SortKey, Projection, Schema};
+use schema::{sort::SortKey, Schema};
 use snafu::{ensure, OptionExt, ResultExt, Snafu};
 use std::{
     any::Any,
@@ -325,7 +322,6 @@ pub struct IngesterConnectionImpl {
     unique_ingester_addresses: HashSet<Arc<str>>,
     flight_client: Arc<dyn IngesterFlightClient>,
     time_provider: Arc<dyn TimeProvider>,
-    catalog_cache: Arc<CatalogCache>,
     metrics: Arc<IngesterConnectionMetrics>,
     backoff_config: BackoffConfig,
 }
@@ -374,7 +370,6 @@ impl IngesterConnectionImpl {
             unique_ingester_addresses: ingester_addresses.into_iter().collect(),
             flight_client,
             time_provider: catalog_cache.time_provider(),
-            catalog_cache,
             metrics,
             backoff_config,
         }
@@ -386,7 +381,6 @@ impl IngesterConnectionImpl {
 struct GetPartitionForIngester<'a> {
     flight_client: Arc<dyn IngesterFlightClient>,
     time_provider: Arc<dyn TimeProvider>,
-    catalog_cache: Arc<CatalogCache>,
     ingester_address: Arc<str>,
     namespace_id: NamespaceId,
     columns: Vec<String>,
@@ -402,7 +396,6 @@ async fn execute(
     let GetPartitionForIngester {
         flight_client,
         time_provider: _,
-        catalog_cache,
         ingester_address,
         namespace_id,
         columns,
@@ -491,12 +484,11 @@ async fn execute(
     // reconstruct partitions
     let mut decoder = IngesterStreamDecoder::new(
         ingester_address,
-        catalog_cache,
         cached_table,
         span_recorder.child_span("IngesterStreamDecoder"),
     );
     for (msg, md) in messages {
-        decoder.register(msg, md).await?;
+        decoder.register(msg, md)?;
     }
 
     decoder.finalize()
@@ -511,25 +503,18 @@ struct IngesterStreamDecoder {
     current_partition: Option<IngesterPartition>,
     current_chunk: Option<(Schema, Vec<RecordBatch>)>,
     ingester_address: Arc<str>,
-    catalog_cache: Arc<CatalogCache>,
     cached_table: Arc<CachedTable>,
     span_recorder: SpanRecorder,
 }
 
 impl IngesterStreamDecoder {
     /// Create empty decoder.
-    fn new(
-        ingester_address: Arc<str>,
-        catalog_cache: Arc<CatalogCache>,
-        cached_table: Arc<CachedTable>,
-        span: Option<Span>,
-    ) -> Self {
+    fn new(ingester_address: Arc<str>, cached_table: Arc<CachedTable>, span: Option<Span>) -> Self {
         Self {
             finished_partitions: HashMap::new(),
             current_partition: None,
             current_chunk: None,
             ingester_address,
-            catalog_cache,
             cached_table,
             span_recorder: SpanRecorder::new(span),
         }
@@ -564,7 +549,7 @@ impl IngesterStreamDecoder {
     }
 
     /// Register a new message and its metadata from the Flight stream.
-    async fn register(
+    fn register(
         &mut self,
         msg: DecodedPayload,
         md: IngesterQueryResponseMetadata,
@@ -589,25 +574,6 @@ impl IngesterStreamDecoder {
                     },
                 );
 
-                // Use a temporary empty partition sort key. We are going to fetch this AFTER we
-                // know all chunks because then we are able to detect all relevant primary key
-                // columns that the sort key must cover.
-                let partition_sort_key = None;
-
-                // If the partition does NOT yet exist within the catalog, this is OK. We can deal without the ranges,
-                // the chunk pruning will not be as efficient though.
-                let partition_column_ranges = self
-                    .catalog_cache
-                    .partition()
-                    .column_ranges(
-                        Arc::clone(&self.cached_table),
-                        partition_id,
-                        self.span_recorder
-                            .child_span("cache GET partition column ranges"),
-                    )
-                    .await
-                    .unwrap_or_default();
-
                 let ingester_uuid =
                     Uuid::parse_str(&md.ingester_uuid).context(IngesterUuidSnafu {
                         ingester_uuid: md.ingester_uuid,
@@ -618,8 +584,6 @@ impl IngesterStreamDecoder {
                     partition_id,
                     partition_hash_id,
                     md.completed_persistence_count,
-                    partition_sort_key,
-                    partition_column_ranges,
                 );
                 self.current_partition = Some(partition);
             }
@@ -662,17 +626,9 @@ impl IngesterStreamDecoder {
     fn finalize(mut self) -> Result<Vec<IngesterPartition>> {
         self.flush_partition()?;
 
-        let mut ids: Vec<_> = self.finished_partitions.keys().copied().collect();
-        ids.sort();
-
-        let partitions = ids
-            .into_iter()
-            .map(|id| {
-                self.finished_partitions
-                    .remove(&id)
-                    .expect("just got key from this map")
-            })
-            .collect();
+        let mut partitions = self.finished_partitions.into_values().collect::<Vec<_>>();
+        // deterministic order
+        partitions.sort_by_key(|p| p.partition_id);
         self.span_recorder.ok("finished");
         Ok(partitions)
     }
@@ -714,7 +670,6 @@ impl IngesterConnection for IngesterConnectionImpl {
             let request = GetPartitionForIngester {
                 flight_client: Arc::clone(&self.flight_client),
                 time_provider: Arc::clone(&self.time_provider),
-                catalog_cache: Arc::clone(&self.catalog_cache),
                 ingester_address: Arc::clone(&ingester_address),
                 namespace_id,
                 cached_table: Arc::clone(&cached_table),
@@ -822,12 +777,6 @@ pub struct IngesterPartition {
     /// The number of Parquet files this ingester UUID has persisted for this partition.
     completed_persistence_count: u64,
 
-    /// Partition-wide sort key.
-    partition_sort_key: Option<Arc<SortKey>>,
-
-    /// Partition-wide column ranges.
-    partition_column_ranges: ColumnRanges,
-
     chunks: Vec<IngesterChunk>,
 }
 
@@ -839,16 +788,12 @@ impl IngesterPartition {
         partition_id: PartitionId,
         partition_hash_id: Option<PartitionHashId>,
         completed_persistence_count: u64,
-        partition_sort_key: Option<Arc<SortKey>>,
-        partition_column_ranges: ColumnRanges,
     ) -> Self {
         Self {
             ingester_uuid,
             partition_id,
             partition_hash_id,
             completed_persistence_count,
-            partition_sort_key,
-            partition_column_ranges,
             chunks: vec![],
         }
     }
@@ -876,31 +821,42 @@ impl IngesterPartition {
             .map(|batch| ensure_schema(batch, &expected_schema))
             .collect::<Result<Vec<RecordBatch>>>()?;
 
-        // TODO: may want to ask the Ingester to send this value instead of computing it here.
-        let ts_min_max = compute_timenanosecond_min_max(&batches).expect("Should have time range");
-
-        let row_count = batches.iter().map(|batch| batch.num_rows()).sum::<usize>() as u64;
-        let stats = Arc::new(create_chunk_statistics(
-            row_count,
-            &expected_schema,
-            ts_min_max,
-            &self.partition_column_ranges,
-        ));
-
         let chunk = IngesterChunk {
             chunk_id,
             partition_id: self.partition_id,
             schema: expected_schema,
-            partition_sort_key: self.partition_sort_key.clone(),
             batches,
-            ts_min_max,
-            stats,
-            delete_predicates: vec![],
+            stats: None,
         };
 
         self.chunks.push(chunk);
 
         Ok(self)
+    }
+
+    pub(crate) fn set_partition_column_ranges(&mut self, partition_column_ranges: &ColumnRanges) {
+        for chunk in &mut self.chunks {
+            // TODO: may want to ask the Ingester to send this value instead of computing it here.
+            let ts_min_max =
+                compute_timenanosecond_min_max(&chunk.batches).expect("Should have time range");
+
+            let row_count = chunk
+                .batches
+                .iter()
+                .map(|batch| batch.num_rows())
+                .sum::<usize>() as u64;
+            let stats = Arc::new(create_chunk_statistics(
+                row_count,
+                &chunk.schema,
+                ts_min_max,
+                partition_column_ranges,
+            ));
+            chunk.stats = Some(stats);
+        }
+    }
+
+    pub(crate) fn partition_id(&self) -> PartitionId {
+        self.partition_id
     }
 
     pub(crate) fn ingester_uuid(&self) -> Uuid {
@@ -915,23 +871,6 @@ impl IngesterPartition {
         &self.chunks
     }
 
-    pub(crate) fn with_delete_predicates(
-        self,
-        delete_predicates: Vec<Arc<DeletePredicate>>,
-    ) -> Self {
-        Self {
-            chunks: self
-                .chunks
-                .into_iter()
-                .map(|chunk| IngesterChunk {
-                    delete_predicates: delete_predicates.clone(),
-                    ..chunk
-                })
-                .collect(),
-            ..self
-        }
-    }
-
     pub(crate) fn into_chunks(self) -> Vec<IngesterChunk> {
         self.chunks
     }
@@ -943,19 +882,13 @@ pub struct IngesterChunk {
     partition_id: PartitionId,
     schema: Schema,
 
-    /// Partition-wide sort key.
-    partition_sort_key: Option<Arc<SortKey>>,
-
     /// The raw table data
     batches: Vec<RecordBatch>,
 
-    /// Timestamp-specific stats
-    ts_min_max: TimestampMinMax,
-
     /// Summary Statistics
-    stats: Arc<Statistics>,
-
-    delete_predicates: Vec<Arc<DeletePredicate>>,
+    ///
+    /// Set to `None` if not calculated yet.
+    stats: Option<Arc<Statistics>>,
 }
 
 impl IngesterChunk {
@@ -980,9 +913,9 @@ impl IngesterChunk {
     }
 }
 
-impl QueryChunkMeta for IngesterChunk {
+impl QueryChunk for IngesterChunk {
     fn stats(&self) -> Arc<Statistics> {
-        Arc::clone(&self.stats)
+        Arc::clone(self.stats.as_ref().expect("chunk stats set"))
     }
 
     fn schema(&self) -> &Schema {
@@ -999,12 +932,6 @@ impl QueryChunkMeta for IngesterChunk {
         None
     }
 
-    fn delete_predicates(&self) -> &[Arc<data_types::DeletePredicate>] {
-        &self.delete_predicates
-    }
-}
-
-impl QueryChunk for IngesterChunk {
     fn id(&self) -> ChunkId {
         self.chunk_id
     }
@@ -1012,16 +939,6 @@ impl QueryChunk for IngesterChunk {
     fn may_contain_pk_duplicates(&self) -> bool {
         // ingester just dumps data, may contain duplicates!
         true
-    }
-
-    fn column_names(
-        &self,
-        _ctx: IOxSessionContext,
-        _predicate: &Predicate,
-        _columns: Projection<'_>,
-    ) -> Result<Option<StringSet>, DataFusionError> {
-        // TODO maybe some special handling?
-        Ok(None)
     }
 
     fn column_values(
@@ -1124,7 +1041,7 @@ mod tests {
     use iox_tests::TestCatalog;
     use metric::Attributes;
     use mutable_batch_lp::test_helpers::lp_to_mutable_batch;
-    use schema::{builder::SchemaBuilder, InfluxFieldType};
+    use schema::{builder::SchemaBuilder, InfluxFieldType, Projection};
     use std::collections::{BTreeSet, HashMap};
     use tokio::{runtime::Handle, sync::Mutex};
     use trace::{ctx::SpanContext, span::SpanStatus, RingBufferTraceCollector};
@@ -1854,8 +1771,6 @@ mod tests {
                     &PartitionKey::from("arbitrary"),
                 )),
                 0,
-                None,
-                Default::default(),
             )
             .try_add_chunk(ChunkId::new(), expected_schema.clone(), vec![case])
             .unwrap();
@@ -1886,8 +1801,6 @@ mod tests {
                 &PartitionKey::from("arbitrary"),
             )),
             0,
-            None,
-            Default::default(),
         )
         .try_add_chunk(ChunkId::new(), expected_schema, vec![batch])
         .unwrap_err();

@@ -20,6 +20,8 @@ pub(super) enum WindowFunction {
     MovingAverage,
     Difference,
     NonNegativeDifference,
+    Derivative,
+    NonNegativeDerivative,
 }
 
 impl WindowFunction {
@@ -29,6 +31,8 @@ impl WindowFunction {
             MOVING_AVERAGE_UDF_NAME => Some(Self::MovingAverage),
             DIFFERENCE_UDF_NAME => Some(Self::Difference),
             NON_NEGATIVE_DIFFERENCE_UDF_NAME => Some(Self::NonNegativeDifference),
+            DERIVATIVE_UDF_NAME => Some(Self::Derivative),
+            NON_NEGATIVE_DERIVATIVE_UDF_NAME => Some(Self::NonNegativeDerivative),
             _ => None,
         }
     }
@@ -114,6 +118,54 @@ static NON_NEGATIVE_DIFFERENCE: Lazy<Arc<ScalarUDF>> = Lazy::new(|| {
         ),
         &return_type_fn,
         &stand_in_impl(NON_NEGATIVE_DIFFERENCE_UDF_NAME),
+    ))
+});
+
+const DERIVATIVE_UDF_NAME: &str = "derivative";
+
+/// Create an expression to represent the `DERIVATIVE` function.
+pub(crate) fn derivative(args: Vec<Expr>) -> Expr {
+    DERIVATIVE.call(args)
+}
+
+/// Definition of the `DERIVATIVE` function.
+static DERIVATIVE: Lazy<Arc<ScalarUDF>> = Lazy::new(|| {
+    let return_type_fn: ReturnTypeFunction = Arc::new(|args| Ok(Arc::new(args[0].clone())));
+    Arc::new(ScalarUDF::new(
+        DERIVATIVE_UDF_NAME,
+        &Signature::one_of(
+            NUMERICS
+                .iter()
+                .map(|dt| TypeSignature::Exact(vec![dt.clone()]))
+                .collect(),
+            Volatility::Immutable,
+        ),
+        &return_type_fn,
+        &stand_in_impl(DERIVATIVE_UDF_NAME),
+    ))
+});
+
+const NON_NEGATIVE_DERIVATIVE_UDF_NAME: &str = "non_negative_derivative";
+
+/// Create an expression to represent the `NON_NEGATIVE_DERIVATIVE` function.
+pub(crate) fn non_negative_derivative(args: Vec<Expr>) -> Expr {
+    NON_NEGATIVE_DERIVATIVE.call(args)
+}
+
+/// Definition of the `NON_NEGATIVE_DERIVATIVE` function.
+static NON_NEGATIVE_DERIVATIVE: Lazy<Arc<ScalarUDF>> = Lazy::new(|| {
+    let return_type_fn: ReturnTypeFunction = Arc::new(|args| Ok(Arc::new(args[0].clone())));
+    Arc::new(ScalarUDF::new(
+        NON_NEGATIVE_DERIVATIVE_UDF_NAME,
+        &Signature::one_of(
+            NUMERICS
+                .iter()
+                .map(|dt| TypeSignature::Exact(vec![dt.clone()]))
+                .collect(),
+            Volatility::Immutable,
+        ),
+        &return_type_fn,
+        &stand_in_impl(NON_NEGATIVE_DERIVATIVE_UDF_NAME),
     ))
 });
 

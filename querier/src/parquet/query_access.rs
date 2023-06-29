@@ -1,15 +1,15 @@
 use crate::parquet::QuerierParquetChunk;
-use data_types::{ChunkId, ChunkOrder, DeletePredicate, PartitionId};
+use data_types::{ChunkId, ChunkOrder, PartitionId};
 use datafusion::{error::DataFusionError, physical_plan::Statistics};
 use iox_query::{
     exec::{stringset::StringSet, IOxSessionContext},
-    QueryChunk, QueryChunkData, QueryChunkMeta,
+    QueryChunk, QueryChunkData,
 };
 use predicate::Predicate;
-use schema::{sort::SortKey, Projection, Schema};
+use schema::{sort::SortKey, Schema};
 use std::{any::Any, sync::Arc};
 
-impl QueryChunkMeta for QuerierParquetChunk {
+impl QueryChunk for QuerierParquetChunk {
     fn stats(&self) -> Arc<Statistics> {
         Arc::clone(&self.stats)
     }
@@ -26,36 +26,12 @@ impl QueryChunkMeta for QuerierParquetChunk {
         self.meta().sort_key()
     }
 
-    fn delete_predicates(&self) -> &[Arc<DeletePredicate>] {
-        &self.delete_predicates
-    }
-}
-
-impl QueryChunk for QuerierParquetChunk {
     fn id(&self) -> ChunkId {
         self.meta().chunk_id
     }
 
     fn may_contain_pk_duplicates(&self) -> bool {
         false
-    }
-
-    fn column_names(
-        &self,
-        mut ctx: IOxSessionContext,
-        predicate: &Predicate,
-        columns: Projection<'_>,
-    ) -> Result<Option<StringSet>, DataFusionError> {
-        ctx.set_metadata("projection", format!("{columns}"));
-        ctx.set_metadata("predicate", format!("{}", &predicate));
-        ctx.set_metadata("storage", "parquet");
-
-        if !predicate.is_empty() {
-            // if there is anything in the predicate, bail for now and force a full plan
-            return Ok(None);
-        }
-
-        Ok(self.parquet_chunk.column_names(columns))
     }
 
     fn column_values(

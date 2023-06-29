@@ -2,7 +2,7 @@ use std::{sync::Arc, time::Duration};
 
 use async_trait::async_trait;
 use iox_catalog::interface::Catalog;
-use iox_query::{exec::Executor, QueryChunkMeta};
+use iox_query::{exec::Executor, QueryChunk};
 use metric::{DurationHistogram, DurationHistogramOptions, U64Counter, U64Gauge, DURATION_MAX};
 use observability_deps::tracing::*;
 use parking_lot::Mutex;

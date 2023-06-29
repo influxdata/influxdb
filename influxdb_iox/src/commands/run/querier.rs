@@ -104,6 +104,7 @@ pub async fn command(config: Config) -> Result<(), Error> {
     let exec = Arc::new(Executor::new(
         num_threads,
         config.querier_config.exec_mem_pool_bytes,
+        Arc::clone(&metric_registry),
     ));
 
     let server_type = create_querier_server_type(QuerierServerTypeArgs {

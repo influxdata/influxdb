@@ -6,8 +6,14 @@ use crate::plan::planner::select::{
 };
 use crate::plan::planner_time_range_expression::time_range_to_df_expr;
 use crate::plan::rewriter::{find_table_names, rewrite_statement, ProjectionType};
-use crate::plan::udaf::{DIFFERENCE, MOVING_AVERAGE, NON_NEGATIVE_DIFFERENCE};
-use crate::plan::udf::{difference, find_window_udfs, moving_average, non_negative_difference};
+use crate::plan::udaf::{
+    derivative_udf, non_negative_derivative_udf, DIFFERENCE, MOVING_AVERAGE,
+    NON_NEGATIVE_DIFFERENCE,
+};
+use crate::plan::udf::{
+    derivative, difference, find_window_udfs, moving_average, non_negative_derivative,
+    non_negative_difference,
+};
 use crate::plan::util::{binary_operator_to_df_operator, rebase_expr, Schemas};
 use crate::plan::var_ref::var_ref_data_type_to_data_type;
 use crate::plan::{error, planner_rewrite_expression, udf, util_copy};
@@ -1092,7 +1098,7 @@ impl<'a> InfluxQLToLogicalPlan<'a> {
         let window_func_exprs = udfs
             .clone()
             .into_iter()
-            .map(|e| Self::udf_to_expr(e, partition_by.clone(), order_by.clone()))
+            .map(|e| Self::udf_to_expr(ctx, e, partition_by.clone(), order_by.clone()))
             .collect::<Result<Vec<_>>>()?;
 
         let plan = LogicalPlanBuilder::from(input)
@@ -1118,7 +1124,12 @@ impl<'a> InfluxQLToLogicalPlan<'a> {
     }
 
     /// Transform a UDF to a window expression.
-    fn udf_to_expr(e: Expr, partition_by: Vec<Expr>, order_by: Vec<Expr>) -> Result<Expr> {
+    fn udf_to_expr(
+        ctx: &Context<'_>,
+        e: Expr,
+        partition_by: Vec<Expr>,
+        order_by: Vec<Expr>,
+    ) -> Result<Expr> {
         let alias = e
             .display_name()
             // display_name is known only to fail with Expr::Sort and Expr::QualifiedWildcard,
@@ -1128,6 +1139,20 @@ impl<'a> InfluxQLToLogicalPlan<'a> {
         let Expr::ScalarUDF(expr::ScalarUDF { fun, args }) = e else {
             return error::internal(format!("udf_to_expr: unexpected expression: {e}"))
         };
+
+        fn derivative_unit(ctx: &Context<'_>, args: &Vec<Expr>) -> Result<i64> {
+            if args.len() > 1 {
+                if let Expr::Literal(ScalarValue::IntervalMonthDayNano(Some(v))) = args[1] {
+                    Ok(v as i64)
+                } else {
+                    error::internal(format!("udf_to_expr: unexpected expression: {}", args[1]))
+                }
+            } else if let Some(interval) = ctx.interval {
+                Ok(interval.duration)
+            } else {
+                Ok(1000000000) // 1s
+            }
+        }
 
         match udf::WindowFunction::try_from_scalar_udf(Arc::clone(&fun)) {
             Some(udf::WindowFunction::MovingAverage) => Ok(Expr::WindowFunction(WindowFunction {
@@ -1160,6 +1185,36 @@ impl<'a> InfluxQLToLogicalPlan<'a> {
                         NON_NEGATIVE_DIFFERENCE.clone(),
                     ),
                     args,
+                    partition_by,
+                    order_by,
+                    window_frame: WindowFrame {
+                        units: WindowFrameUnits::Rows,
+                        start_bound: WindowFrameBound::Preceding(ScalarValue::Null),
+                        end_bound: WindowFrameBound::CurrentRow,
+                    },
+                })
+                .alias(alias))
+            }
+            Some(udf::WindowFunction::Derivative) => Ok(Expr::WindowFunction(WindowFunction {
+                fun: window_function::WindowFunction::AggregateUDF(
+                    derivative_udf(derivative_unit(ctx, &args)?).into(),
+                ),
+                args: vec!["time".as_expr(), args[0].clone()],
+                partition_by,
+                order_by,
+                window_frame: WindowFrame {
+                    units: WindowFrameUnits::Rows,
+                    start_bound: WindowFrameBound::Preceding(ScalarValue::Null),
+                    end_bound: WindowFrameBound::CurrentRow,
+                },
+            })
+            .alias(alias)),
+            Some(udf::WindowFunction::NonNegativeDerivative) => {
+                Ok(Expr::WindowFunction(WindowFunction {
+                    fun: window_function::WindowFunction::AggregateUDF(
+                        non_negative_derivative_udf(derivative_unit(ctx, &args)?).into(),
+                    ),
+                    args: vec!["time".as_expr(), args[0].clone()],
                     partition_by,
                     order_by,
                     window_frame: WindowFrame {
@@ -1447,7 +1502,9 @@ impl<'a> InfluxQLToLogicalPlan<'a> {
                     Some(v.timestamp_nanos()),
                     None,
                 ))),
-                Literal::Duration(_) => error::not_implemented("duration literal"),
+                Literal::Duration(v) => {
+                    Ok(lit(ScalarValue::IntervalMonthDayNano(Some((**v).into()))))
+                }
                 Literal::Regex(re) => match scope {
                     // a regular expression in a projection list is unexpected,
                     // as it should have been expanded by the rewriter.
@@ -1510,6 +1567,22 @@ impl<'a> InfluxQLToLogicalPlan<'a> {
             if got != count {
                 error::query(format!(
                     "invalid number of arguments for {name}: expected {count}, got {got}"
+                ))
+            } else {
+                Ok(())
+            }
+        }
+
+        fn check_arg_count_range(
+            name: &str,
+            args: &[IQLExpr],
+            min: usize,
+            max: usize,
+        ) -> Result<()> {
+            let got = args.len();
+            if got < min || got > max {
+                error::query(format!(
+                    "invalid number of arguments for {name}: expected between {min} and {max}, got {got}"
                 ))
             } else {
                 Ok(())
@@ -1623,6 +1696,38 @@ impl<'a> InfluxQLToLogicalPlan<'a> {
                 ));
 
                 Ok(moving_average(vec![arg0, lit(arg1)]))
+            }
+            "derivative" => {
+                check_arg_count_range(name, args, 1, 2)?;
+
+                // arg0 should be a column or function
+                let arg0 = self.expr_to_df_expr(scope, &args[0], schemas)?;
+                if let Expr::Literal(ScalarValue::Null) = arg0 {
+                    return Ok(arg0);
+                }
+                let mut eargs = vec![arg0];
+                if args.len() > 1 {
+                    let arg1 = self.expr_to_df_expr(scope, &args[1], schemas)?;
+                    eargs.push(arg1);
+                }
+
+                Ok(derivative(eargs))
+            }
+            "non_negative_derivative" => {
+                check_arg_count_range(name, args, 1, 2)?;
+
+                // arg0 should be a column or function
+                let arg0 = self.expr_to_df_expr(scope, &args[0], schemas)?;
+                if let Expr::Literal(ScalarValue::Null) = arg0 {
+                    return Ok(arg0);
+                }
+                let mut eargs = vec![arg0];
+                if args.len() > 1 {
+                    let arg1 = self.expr_to_df_expr(scope, &args[1], schemas)?;
+                    eargs.push(arg1);
+                }
+
+                Ok(non_negative_derivative(eargs))
             }
             _ => error::query(format!("Invalid function '{name}'")),
         }
@@ -3489,6 +3594,58 @@ mod test {
 
                 // Invariant: second argument is always a constant
                 assert_snapshot!(plan("SELECT MOVING_AVERAGE(MEAN(usage_idle), usage_system) FROM cpu GROUP BY TIME(10s)"), @"Error during planning: expected integer argument in moving_average()");
+            }
+
+            #[test]
+            fn test_derivative() {
+                // no aggregates
+                assert_snapshot!(plan("SELECT DERIVATIVE(usage_idle) FROM cpu"), @r###"
+                Sort: time ASC NULLS LAST [iox::measurement:Dictionary(Int32, Utf8), time:Timestamp(Nanosecond, None), derivative:Float64;N]
+                  Projection: Dictionary(Int32, Utf8("cpu")) AS iox::measurement, time, derivative [iox::measurement:Dictionary(Int32, Utf8), time:Timestamp(Nanosecond, None), derivative:Float64;N]
+                    Filter: NOT derivative IS NULL [time:Timestamp(Nanosecond, None), derivative:Float64;N]
+                      Projection: cpu.time AS time, derivative(cpu.usage_idle) AS derivative [time:Timestamp(Nanosecond, None), derivative:Float64;N]
+                        WindowAggr: windowExpr=[[AggregateUDF { name: "derivative(unit: 1000000000)", signature: Signature { type_signature: OneOf([Exact([Timestamp(Nanosecond, None), Int64]), Exact([Timestamp(Nanosecond, None), UInt64]), Exact([Timestamp(Nanosecond, None), Float64])]), volatility: Immutable }, fun: "<FUNC>" }(cpu.time, cpu.usage_idle) ORDER BY [cpu.time ASC NULLS LAST] ROWS BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW AS derivative(cpu.usage_idle)]] [cpu:Dictionary(Int32, Utf8);N, host:Dictionary(Int32, Utf8);N, region:Dictionary(Int32, Utf8);N, time:Timestamp(Nanosecond, None), usage_idle:Float64;N, usage_system:Float64;N, usage_user:Float64;N, derivative(cpu.usage_idle):Float64;N]
+                          TableScan: cpu [cpu:Dictionary(Int32, Utf8);N, host:Dictionary(Int32, Utf8);N, region:Dictionary(Int32, Utf8);N, time:Timestamp(Nanosecond, None), usage_idle:Float64;N, usage_system:Float64;N, usage_user:Float64;N]
+                "###);
+
+                // aggregate
+                assert_snapshot!(plan("SELECT DERIVATIVE(MEAN(usage_idle)) FROM cpu GROUP BY TIME(10s)"), @r###"
+                Sort: time ASC NULLS LAST [iox::measurement:Dictionary(Int32, Utf8), time:Timestamp(Nanosecond, None);N, derivative:Float64;N]
+                  Projection: Dictionary(Int32, Utf8("cpu")) AS iox::measurement, time, derivative [iox::measurement:Dictionary(Int32, Utf8), time:Timestamp(Nanosecond, None);N, derivative:Float64;N]
+                    Filter: NOT derivative IS NULL [time:Timestamp(Nanosecond, None);N, derivative:Float64;N]
+                      Projection: time, derivative(AVG(cpu.usage_idle)) AS derivative [time:Timestamp(Nanosecond, None);N, derivative:Float64;N]
+                        WindowAggr: windowExpr=[[AggregateUDF { name: "derivative(unit: 10000000000)", signature: Signature { type_signature: OneOf([Exact([Timestamp(Nanosecond, None), Int64]), Exact([Timestamp(Nanosecond, None), UInt64]), Exact([Timestamp(Nanosecond, None), Float64])]), volatility: Immutable }, fun: "<FUNC>" }(time, AVG(cpu.usage_idle)) ORDER BY [time ASC NULLS LAST] ROWS BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW AS derivative(AVG(cpu.usage_idle))]] [time:Timestamp(Nanosecond, None);N, AVG(cpu.usage_idle):Float64;N, derivative(AVG(cpu.usage_idle)):Float64;N]
+                          GapFill: groupBy=[[time]], aggr=[[AVG(cpu.usage_idle)]], time_column=time, stride=IntervalMonthDayNano("10000000000"), range=Unbounded..Included(TimestampNanosecond(1672531200000000000, None)) [time:Timestamp(Nanosecond, None);N, AVG(cpu.usage_idle):Float64;N]
+                            Aggregate: groupBy=[[date_bin(IntervalMonthDayNano("10000000000"), cpu.time, TimestampNanosecond(0, None)) AS time]], aggr=[[AVG(cpu.usage_idle)]] [time:Timestamp(Nanosecond, None);N, AVG(cpu.usage_idle):Float64;N]
+                              Filter: cpu.time <= TimestampNanosecond(1672531200000000000, None) [cpu:Dictionary(Int32, Utf8);N, host:Dictionary(Int32, Utf8);N, region:Dictionary(Int32, Utf8);N, time:Timestamp(Nanosecond, None), usage_idle:Float64;N, usage_system:Float64;N, usage_user:Float64;N]
+                                TableScan: cpu [cpu:Dictionary(Int32, Utf8);N, host:Dictionary(Int32, Utf8);N, region:Dictionary(Int32, Utf8);N, time:Timestamp(Nanosecond, None), usage_idle:Float64;N, usage_system:Float64;N, usage_user:Float64;N]
+                "###);
+            }
+
+            #[test]
+            fn test_non_negative_derivative() {
+                // no aggregates
+                assert_snapshot!(plan("SELECT NON_NEGATIVE_DERIVATIVE(usage_idle) FROM cpu"), @r###"
+                Sort: time ASC NULLS LAST [iox::measurement:Dictionary(Int32, Utf8), time:Timestamp(Nanosecond, None), non_negative_derivative:Float64;N]
+                  Projection: Dictionary(Int32, Utf8("cpu")) AS iox::measurement, time, non_negative_derivative [iox::measurement:Dictionary(Int32, Utf8), time:Timestamp(Nanosecond, None), non_negative_derivative:Float64;N]
+                    Filter: NOT non_negative_derivative IS NULL [time:Timestamp(Nanosecond, None), non_negative_derivative:Float64;N]
+                      Projection: cpu.time AS time, non_negative_derivative(cpu.usage_idle) AS non_negative_derivative [time:Timestamp(Nanosecond, None), non_negative_derivative:Float64;N]
+                        WindowAggr: windowExpr=[[AggregateUDF { name: "non_negative_derivative(unit: 1000000000)", signature: Signature { type_signature: OneOf([Exact([Timestamp(Nanosecond, None), Int64]), Exact([Timestamp(Nanosecond, None), UInt64]), Exact([Timestamp(Nanosecond, None), Float64])]), volatility: Immutable }, fun: "<FUNC>" }(cpu.time, cpu.usage_idle) ORDER BY [cpu.time ASC NULLS LAST] ROWS BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW AS non_negative_derivative(cpu.usage_idle)]] [cpu:Dictionary(Int32, Utf8);N, host:Dictionary(Int32, Utf8);N, region:Dictionary(Int32, Utf8);N, time:Timestamp(Nanosecond, None), usage_idle:Float64;N, usage_system:Float64;N, usage_user:Float64;N, non_negative_derivative(cpu.usage_idle):Float64;N]
+                          TableScan: cpu [cpu:Dictionary(Int32, Utf8);N, host:Dictionary(Int32, Utf8);N, region:Dictionary(Int32, Utf8);N, time:Timestamp(Nanosecond, None), usage_idle:Float64;N, usage_system:Float64;N, usage_user:Float64;N]
+                "###);
+
+                // aggregate
+                assert_snapshot!(plan("SELECT NON_NEGATIVE_DERIVATIVE(MEAN(usage_idle)) FROM cpu GROUP BY TIME(10s)"), @r###"
+                Sort: time ASC NULLS LAST [iox::measurement:Dictionary(Int32, Utf8), time:Timestamp(Nanosecond, None);N, non_negative_derivative:Float64;N]
+                  Projection: Dictionary(Int32, Utf8("cpu")) AS iox::measurement, time, non_negative_derivative [iox::measurement:Dictionary(Int32, Utf8), time:Timestamp(Nanosecond, None);N, non_negative_derivative:Float64;N]
+                    Filter: NOT non_negative_derivative IS NULL [time:Timestamp(Nanosecond, None);N, non_negative_derivative:Float64;N]
+                      Projection: time, non_negative_derivative(AVG(cpu.usage_idle)) AS non_negative_derivative [time:Timestamp(Nanosecond, None);N, non_negative_derivative:Float64;N]
+                        WindowAggr: windowExpr=[[AggregateUDF { name: "non_negative_derivative(unit: 10000000000)", signature: Signature { type_signature: OneOf([Exact([Timestamp(Nanosecond, None), Int64]), Exact([Timestamp(Nanosecond, None), UInt64]), Exact([Timestamp(Nanosecond, None), Float64])]), volatility: Immutable }, fun: "<FUNC>" }(time, AVG(cpu.usage_idle)) ORDER BY [time ASC NULLS LAST] ROWS BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW AS non_negative_derivative(AVG(cpu.usage_idle))]] [time:Timestamp(Nanosecond, None);N, AVG(cpu.usage_idle):Float64;N, non_negative_derivative(AVG(cpu.usage_idle)):Float64;N]
+                          GapFill: groupBy=[[time]], aggr=[[AVG(cpu.usage_idle)]], time_column=time, stride=IntervalMonthDayNano("10000000000"), range=Unbounded..Included(TimestampNanosecond(1672531200000000000, None)) [time:Timestamp(Nanosecond, None);N, AVG(cpu.usage_idle):Float64;N]
+                            Aggregate: groupBy=[[date_bin(IntervalMonthDayNano("10000000000"), cpu.time, TimestampNanosecond(0, None)) AS time]], aggr=[[AVG(cpu.usage_idle)]] [time:Timestamp(Nanosecond, None);N, AVG(cpu.usage_idle):Float64;N]
+                              Filter: cpu.time <= TimestampNanosecond(1672531200000000000, None) [cpu:Dictionary(Int32, Utf8);N, host:Dictionary(Int32, Utf8);N, region:Dictionary(Int32, Utf8);N, time:Timestamp(Nanosecond, None), usage_idle:Float64;N, usage_system:Float64;N, usage_user:Float64;N]
+                                TableScan: cpu [cpu:Dictionary(Int32, Utf8);N, host:Dictionary(Int32, Utf8);N, region:Dictionary(Int32, Utf8);N, time:Timestamp(Nanosecond, None), usage_idle:Float64;N, usage_system:Float64;N, usage_user:Float64;N]
+                "###);
             }
 
             #[test]

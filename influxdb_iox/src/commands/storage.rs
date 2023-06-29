@@ -328,15 +328,33 @@ pub async fn command(connection: Connection, config: Config) -> Result<()> {
             }
         }
         Command::ReadWindowAggregate(rwa) => {
+            use generated_types::influxdata::platform::storage::Duration;
+            use generated_types::influxdata::platform::storage::Window;
+            // use the window form of the RPC request to match what is used in
+            // influx cloud (and ignore window_every and window_offset);
+            let window_every = std::time::Duration::from_nanos(0);
+            let offset = std::time::Duration::from_nanos(0);
+            let window = Window {
+                every: Some(Duration {
+                    nsecs: rwa.window_every.as_nanos() as i64,
+                    months: 0,
+                    negative: false,
+                }),
+                offset: Some(Duration {
+                    nsecs: rwa.offset.as_nanos() as i64,
+                    months: 0,
+                    negative: false,
+                }),
+            };
             let request = request::read_window_aggregate(
                 source,
                 config.start,
                 config.stop,
                 predicate,
-                rwa.window_every,
-                rwa.offset,
+                window_every,
+                offset,
                 rwa.aggregate,
-                None, // TODO(edd): determine if window needs to be set
+                Some(window),
             )
             .context(RequestSnafu)?;
             info!(?request, "read_window_aggregate");

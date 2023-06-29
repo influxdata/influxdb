@@ -27,6 +27,11 @@ mod server;
 mod system_tables;
 mod table;
 
+/// Number of concurrent chunk creation jobs.
+///
+/// This is mostly to fetch per-partition data concurrently.
+const CONCURRENT_CHUNK_CREATION_JOBS: usize = 100;
+
 pub use cache::CatalogCache as QuerierCatalogCache;
 pub use database::{Error as QuerierDatabaseError, QuerierDatabase};
 pub use ingester::{

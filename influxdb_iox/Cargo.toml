@@ -39,6 +39,7 @@ prost = { version = "0.11" }
 iox_query = { path = "../iox_query" }
 schema = { path = "../schema" }
 iox_time = { path = "../iox_time" }
+tokio_metrics_bridge = { path = "../tokio_metrics_bridge" }
 trace_exporters = { path = "../trace_exporters" }
 trogging = { path = "../trogging", default-features = false, features = ["clap"] }
 wal = { version = "0.1", path = "../wal" }
@@ -71,7 +72,7 @@ snafu = "0.7"
 tempfile = "3.6.0"
 thiserror = "1.0.40"
 tikv-jemalloc-ctl = { version = "0.5.0", optional = true }
-tokio = { version = "1.28", features = ["macros", "net", "parking_lot", "rt-multi-thread", "signal", "sync", "time", "io-std"] }
+tokio = { version = "1.29", features = ["macros", "net", "parking_lot", "rt-multi-thread", "signal", "sync", "time", "io-std"] }
 tokio-stream = { version = "0.1", features = ["net"] }
 tokio-util = { version = "0.7.8", features = ["compat"] }
 tonic = { workspace = true }

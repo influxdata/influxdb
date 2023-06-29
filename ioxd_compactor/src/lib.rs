@@ -10,15 +10,15 @@
     missing_debug_implementations,
     unused_crate_dependencies
 )]
+mod scheduler_config;
 
 // Workaround for "unused crate" lint false positives.
 use workspace_hack as _;
 
 use async_trait::async_trait;
 use backoff::BackoffConfig;
-use clap_blocks::{compactor::CompactorConfig, compactor_scheduler::CompactorSchedulerConfig};
+use clap_blocks::compactor::CompactorConfig;
 use compactor::{compactor::Compactor, config::Config};
-use compactor_scheduler::{PartitionsSourceConfig, ShardConfig};
 use hyper::{Body, Request, Response};
 use iox_catalog::interface::Catalog;
 use iox_query::exec::Executor;
@@ -40,6 +40,8 @@ use std::{
 };
 use tokio_util::sync::CancellationToken;
 use trace::TraceCollector;
+
+use crate::scheduler_config::convert_scheduler_config;
 
 pub struct CompactorServerType {
     compactor: Compactor,
@@ -153,19 +155,15 @@ pub async fn create_compactor_server_type(
     exec: Arc<Executor>,
     time_provider: Arc<dyn TimeProvider>,
     compactor_config: CompactorConfig,
-    // temporary dependency, until the rest of the code is moved over to the compactor_scheduler
-    compactor_scheduler_config: CompactorSchedulerConfig,
 ) -> Arc<dyn ServerType> {
     let backoff_config = BackoffConfig::default();
-
-    let shard_config = ShardConfig::from_config(compactor_scheduler_config.shard_config);
-
-    let partitions_source =
-        PartitionsSourceConfig::from_config(compactor_scheduler_config.partition_source_config);
 
     let compactor = Compactor::start(Config {
         metric_registry: Arc::clone(&metric_registry),
         catalog,
+        scheduler_config: convert_scheduler_config(
+            compactor_config.compactor_scheduler_config.clone(),
+        ),
         parquet_store_real,
         parquet_store_scratchpad,
         exec,
@@ -179,11 +177,9 @@ pub async fn create_compactor_server_type(
         percentage_max_file_size: compactor_config.percentage_max_file_size,
         split_percentage: compactor_config.split_percentage,
         partition_timeout: Duration::from_secs(compactor_config.partition_timeout_secs),
-        partitions_source,
         shadow_mode: compactor_config.shadow_mode,
         enable_scratchpad: compactor_config.enable_scratchpad,
         ignore_partition_skip_marker: compactor_config.ignore_partition_skip_marker,
-        shard_config,
         min_num_l1_files_to_compact: compactor_config.min_num_l1_files_to_compact,
         process_once: compactor_config.process_once,
         simulate_without_object_store: false,

@@ -8,8 +8,7 @@ use crate::{
         ExecutionContextProvider, Executor, ExecutorType, IOxSessionContext,
     },
     pruning::prune_chunks,
-    Predicate, QueryChunk, QueryChunkData, QueryChunkMeta, QueryCompletedToken, QueryNamespace,
-    QueryText,
+    Predicate, QueryChunk, QueryChunkData, QueryCompletedToken, QueryNamespace, QueryText,
 };
 use arrow::array::{BooleanArray, Float64Array};
 use arrow::datatypes::SchemaRef;
@@ -21,7 +20,7 @@ use arrow::{
     record_batch::RecordBatch,
 };
 use async_trait::async_trait;
-use data_types::{ChunkId, ChunkOrder, DeletePredicate, PartitionId};
+use data_types::{ChunkId, ChunkOrder, PartitionId};
 use datafusion::error::DataFusionError;
 use datafusion::execution::context::SessionState;
 use datafusion::logical_expr::Expr;
@@ -36,13 +35,11 @@ use datafusion::{
 use hashbrown::HashSet;
 use itertools::Itertools;
 use object_store::{path::Path, ObjectMeta};
-use observability_deps::tracing::debug;
 use parking_lot::Mutex;
 use parquet_file::storage::ParquetExecInput;
 use predicate::rpc_predicate::QueryNamespaceMeta;
 use schema::{
-    builder::SchemaBuilder, merge::SchemaMerger, sort::SortKey, Projection, Schema,
-    TIME_COLUMN_NAME,
+    builder::SchemaBuilder, merge::SchemaMerger, sort::SortKey, Schema, TIME_COLUMN_NAME,
 };
 use std::{
     any::Any,
@@ -66,6 +63,9 @@ pub struct TestDatabase {
 
     /// The predicate passed to the most recent call to `chunks()`
     chunks_predicate: Mutex<Predicate>,
+
+    /// Retention time ns.
+    retention_time_ns: Option<i64>,
 }
 
 impl TestDatabase {
@@ -75,6 +75,7 @@ impl TestDatabase {
             partitions: Default::default(),
             column_names: Default::default(),
             chunks_predicate: Default::default(),
+            retention_time_ns: None,
         }
     }
 
@@ -115,6 +116,12 @@ impl TestDatabase {
 
         *Arc::clone(&self.column_names).lock() = Some(column_names)
     }
+
+    /// Set retention time.
+    pub fn with_retention_time_ns(mut self, retention_time_ns: Option<i64>) -> Self {
+        self.retention_time_ns = retention_time_ns;
+        self
+    }
 }
 
 #[async_trait]
@@ -148,6 +155,10 @@ impl QueryNamespace for TestDatabase {
             })
             .map(|x| Arc::clone(x) as Arc<dyn QueryChunk>)
             .collect::<Vec<_>>())
+    }
+
+    fn retention_time_ns(&self) -> Option<i64> {
+        self.retention_time_ns
     }
 
     fn record_query(
@@ -337,9 +348,6 @@ pub struct TestChunk {
     /// A saved error that is returned instead of actual results
     saved_error: Option<String>,
 
-    /// Copy of delete predicates passed
-    delete_predicates: Vec<Arc<DeletePredicate>>,
-
     /// Order of this chunk relative to other overlapping chunks.
     order: ChunkOrder,
 
@@ -407,7 +415,6 @@ impl TestChunk {
             may_contain_pk_duplicates: Default::default(),
             table_data: QueryChunkData::RecordBatches(vec![]),
             saved_error: Default::default(),
-            delete_predicates: Default::default(),
             order: ChunkOrder::MIN,
             sort_key: None,
             partition_id: PartitionId::new(0),
@@ -422,11 +429,6 @@ impl TestChunk {
             }
             QueryChunkData::Parquet(_) => panic!("chunk is parquet-based"),
         }
-    }
-
-    pub fn with_delete_predicate(mut self, pred: Arc<DeletePredicate>) -> Self {
-        self.delete_predicates.push(pred);
-        self
     }
 
     pub fn with_order(self, order: i64) -> Self {
@@ -1058,23 +1060,6 @@ impl TestChunk {
         }
     }
 
-    /// Returns all columns of the table
-    pub fn all_column_names(&self) -> StringSet {
-        self.schema
-            .iter()
-            .map(|(_, field)| field.name().to_string())
-            .collect()
-    }
-
-    /// Returns just the specified columns
-    pub fn specific_column_names_selection(&self, columns: &[&str]) -> StringSet {
-        self.schema
-            .iter()
-            .map(|(_, field)| field.name().to_string())
-            .filter(|col| columns.contains(&col.as_str()))
-            .collect()
-    }
-
     pub fn table_name(&self) -> &str {
         &self.table_name
     }
@@ -1087,63 +1072,6 @@ impl fmt::Display for TestChunk {
 }
 
 impl QueryChunk for TestChunk {
-    fn id(&self) -> ChunkId {
-        self.id
-    }
-
-    fn may_contain_pk_duplicates(&self) -> bool {
-        self.may_contain_pk_duplicates
-    }
-
-    fn data(&self) -> QueryChunkData {
-        self.check_error().unwrap();
-
-        self.table_data.clone()
-    }
-
-    fn chunk_type(&self) -> &str {
-        "Test Chunk"
-    }
-
-    fn column_values(
-        &self,
-        _ctx: IOxSessionContext,
-        _column_name: &str,
-        _predicate: &Predicate,
-    ) -> Result<Option<StringSet>, DataFusionError> {
-        self.check_error()?;
-
-        // Model not being able to get column values from metadata
-        Ok(None)
-    }
-
-    fn column_names(
-        &self,
-        _ctx: IOxSessionContext,
-        _predicate: &Predicate,
-        selection: Projection<'_>,
-    ) -> Result<Option<StringSet>, DataFusionError> {
-        self.check_error()?;
-
-        // only return columns specified in selection
-        let column_names = match selection {
-            Projection::All => self.all_column_names(),
-            Projection::Some(cols) => self.specific_column_names_selection(cols),
-        };
-
-        Ok(Some(column_names))
-    }
-
-    fn order(&self) -> ChunkOrder {
-        self.order
-    }
-
-    fn as_any(&self) -> &dyn Any {
-        self
-    }
-}
-
-impl QueryChunkMeta for TestChunk {
     fn stats(&self) -> Arc<DataFusionStatistics> {
         self.check_error().unwrap();
 
@@ -1174,12 +1102,42 @@ impl QueryChunkMeta for TestChunk {
         self.sort_key.as_ref()
     }
 
-    // return a reference to delete predicates of the chunk
-    fn delete_predicates(&self) -> &[Arc<DeletePredicate>] {
-        let pred = &self.delete_predicates;
-        debug!(?pred, "Delete predicate in Test Chunk");
+    fn id(&self) -> ChunkId {
+        self.id
+    }
 
-        pred
+    fn may_contain_pk_duplicates(&self) -> bool {
+        self.may_contain_pk_duplicates
+    }
+
+    fn data(&self) -> QueryChunkData {
+        self.check_error().unwrap();
+
+        self.table_data.clone()
+    }
+
+    fn chunk_type(&self) -> &str {
+        "Test Chunk"
+    }
+
+    fn column_values(
+        &self,
+        _ctx: IOxSessionContext,
+        _column_name: &str,
+        _predicate: &Predicate,
+    ) -> Result<Option<StringSet>, DataFusionError> {
+        self.check_error()?;
+
+        // Model not being able to get column values from metadata
+        Ok(None)
+    }
+
+    fn order(&self) -> ChunkOrder {
+        self.order
+    }
+
+    fn as_any(&self) -> &dyn Any {
+        self
     }
 }
 

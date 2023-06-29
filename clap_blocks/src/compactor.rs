@@ -2,9 +2,15 @@
 
 use std::num::NonZeroUsize;
 
+use super::compactor_scheduler::CompactorSchedulerConfig;
+
 /// CLI config for compactor
-#[derive(Debug, Copy, Clone, clap::Parser)]
+#[derive(Debug, Clone, clap::Parser)]
 pub struct CompactorConfig {
+    /// Configuration for the compactor scheduler
+    #[clap(flatten)]
+    pub compactor_scheduler_config: CompactorSchedulerConfig,
+
     /// Number of partitions that should be compacted in parallel.
     ///
     /// This should usually be larger than the compaction job

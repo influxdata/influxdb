@@ -3,7 +3,7 @@ use std::{
     sync::Arc,
 };
 
-use data_types::{ChunkId, ChunkOrder, ColumnId, ParquetFile, TimestampMinMax};
+use data_types::{ChunkId, ChunkOrder, ColumnId, ParquetFile, PartitionId, TimestampMinMax};
 use futures::StreamExt;
 use iox_catalog::interface::Catalog;
 use iox_query::pruning::prune_summaries;
@@ -16,18 +16,14 @@ use trace::span::{Span, SpanRecorder};
 use uuid::Uuid;
 
 use crate::{
-    cache::{namespace::CachedTable, CatalogCache},
-    df_stats::{create_chunk_statistics, ColumnRanges},
+    cache::{namespace::CachedTable, partition::CachedPartition, CatalogCache},
+    df_stats::create_chunk_statistics,
     parquet::QuerierParquetChunkMeta,
     table::MetricPruningObserver,
+    CONCURRENT_CHUNK_CREATION_JOBS,
 };
 
 use super::QuerierParquetChunk;
-
-/// Number of concurrent chunk creation jobs.
-///
-/// This is mostly to fetch per-partition data concurrently.
-const CONCURRENT_CHUNK_CREATION_JOBS: usize = 100;
 
 /// Adapter that can create chunks.
 #[derive(Debug)]
@@ -69,42 +65,17 @@ impl ChunkAdapter {
         files: Arc<[Arc<ParquetFile>]>,
         predicate: &Predicate,
         early_pruning_observer: MetricPruningObserver,
+        cached_partitions: &HashMap<PartitionId, CachedPartition>,
         span: Option<Span>,
     ) -> Vec<QuerierParquetChunk> {
         let span_recorder = SpanRecorder::new(span);
 
-        let column_ranges: HashMap<_, _> = {
-            let span_recorder = span_recorder.child("fetch column ranges for all partitions");
-
-            let partitions: HashSet<_> = files.iter().map(|p| p.partition_id).collect();
-            let mut partitions: Vec<_> = partitions.into_iter().collect();
-
-            // shuffle order to even catalog load, because cache hits/misses might be correlated w/ the order of the
-            // partitions.
-            //
-            // Note that we sort before shuffling to achieve a deterministic pseudo-random order
-            let mut rng = StdRng::seed_from_u64(cached_table.id.get() as u64);
-            partitions.sort();
-            partitions.shuffle(&mut rng);
-
-            futures::stream::iter(partitions)
-                .map(|p| {
-                    let cached_table = &cached_table;
-                    let catalog_cache = &self.catalog_cache;
-                    let span = span_recorder.child_span("fetch column ranges for partition");
-                    async move {
-                        let ranges = catalog_cache
-                            .partition()
-                            .column_ranges(Arc::clone(cached_table), p, span)
-                            .await
-                            .unwrap_or_default();
-                        (p, ranges)
-                    }
-                })
-                .buffer_unordered(CONCURRENT_CHUNK_CREATION_JOBS)
-                .collect()
-                .await
-        };
+        // throw out files that belong to removed partitions
+        let files = files
+            .iter()
+            .filter(|f| cached_partitions.contains_key(&f.partition_id))
+            .cloned()
+            .collect::<Vec<_>>();
 
         let chunk_stats: Vec<_> = {
             let _span_recorder = span_recorder.child("create chunk stats");
@@ -119,9 +90,10 @@ impl ChunkAdapter {
                             min: p.min_time.get(),
                             max: p.max_time.get(),
                         },
-                        column_ranges
+                        &cached_partitions
                             .get(&p.partition_id)
-                            .expect("just requested for all partitions"),
+                            .expect("filter files down to existing partitions")
+                            .column_ranges,
                     ));
                     let schema = Arc::clone(cached_table.schema.inner());
 
@@ -181,14 +153,12 @@ impl ChunkAdapter {
                 .map(|cached_parquet_file| {
                     let span_recorder = &span_recorder;
                     let cached_table = Arc::clone(&cached_table);
-                    let ranges = Arc::clone(
-                        column_ranges
-                            .get(&cached_parquet_file.partition_id)
-                            .expect("just requested for all partitions"),
-                    );
+                    let cached_partition = cached_partitions
+                        .get(&cached_parquet_file.partition_id)
+                        .expect("filter files down to existing partitions");
                     async move {
                         let span = span_recorder.child_span("new_chunk");
-                        self.new_chunk(cached_table, cached_parquet_file, ranges, span)
+                        self.new_chunk(cached_table, cached_parquet_file, cached_partition, span)
                             .await
                     }
                 })
@@ -203,7 +173,7 @@ impl ChunkAdapter {
         &self,
         cached_table: Arc<CachedTable>,
         parquet_file: Arc<ParquetFile>,
-        column_ranges: ColumnRanges,
+        cached_partition: &CachedPartition,
         span: Option<Span>,
     ) -> Option<QuerierParquetChunk> {
         let span_recorder = SpanRecorder::new(span);
@@ -211,23 +181,9 @@ impl ChunkAdapter {
         let parquet_file_cols: HashSet<ColumnId> =
             parquet_file.column_set.iter().copied().collect();
 
-        // relevant_pk_columns is everything from the primary key for the table, that is actually in this parquet file
-        let relevant_pk_columns: Vec<_> = cached_table
-            .primary_key_column_ids
-            .iter()
-            .filter(|c| parquet_file_cols.contains(c))
-            .copied()
-            .collect();
-        let partition_sort_key = self
-            .catalog_cache
-            .partition()
-            .sort_key(
-                Arc::clone(&cached_table),
-                parquet_file.partition_id,
-                &relevant_pk_columns,
-                span_recorder.child_span("cache GET partition sort key"),
-            )
-            .await
+        let partition_sort_key = cached_partition
+            .sort_key
+            .as_ref()
             .expect("partition sort key should be set when a parquet file exists");
 
         // NOTE: Because we've looked up the sort key AFTER the namespace schema, it may contain columns for which we
@@ -286,6 +242,10 @@ impl ChunkAdapter {
             self.catalog_cache.parquet_store(),
         ));
 
-        Some(QuerierParquetChunk::new(parquet_chunk, meta, column_ranges))
+        Some(QuerierParquetChunk::new(
+            parquet_chunk,
+            meta,
+            Arc::clone(&cached_partition.column_ranges),
+        ))
     }
 }
