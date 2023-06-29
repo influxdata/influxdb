@@ -225,7 +225,7 @@ func (f *csvFormatter) WriteResponse(w io.Writer, resp Response) (err error) {
 			f.columns[0] = row.Name
 			f.columns[1] = ""
 			if len(row.Tags) > 0 {
-				hashKey := models.NewTags(row.Tags).HashKey()
+				hashKey := models.NewTags(row.Tags).HashKey(false)
 				if len(hashKey) > 0 {
 					f.columns[1] = string(hashKey[1:])
 				}
