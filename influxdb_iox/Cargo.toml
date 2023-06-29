@@ -39,6 +39,7 @@ prost = { version = "0.11" }
 iox_query = { path = "../iox_query" }
 schema = { path = "../schema" }
 iox_time = { path = "../iox_time" }
+tokio_metrics_bridge = { path = "../tokio_metrics_bridge" }
 trace_exporters = { path = "../trace_exporters" }
 trogging = { path = "../trogging", default-features = false, features = ["clap"] }
 wal = { version = "0.1", path = "../wal" }

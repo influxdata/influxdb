@@ -91,6 +91,7 @@ impl TestCatalog {
                     parquet_store.id(),
                     Arc::clone(parquet_store.object_store()),
                 )]),
+                metric_registry: Arc::clone(&metric_registry),
                 mem_pool_size: 1024 * 1024 * 1024,
             },
             exec,

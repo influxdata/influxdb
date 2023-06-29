@@ -606,6 +606,7 @@ pub async fn command(config: Config) -> Result<()> {
             parquet_store_real.id(),
             Arc::clone(parquet_store_real.object_store()),
         )]),
+        metric_registry: Arc::clone(&metrics),
         mem_pool_size: querier_config.exec_mem_pool_bytes,
     }));
 

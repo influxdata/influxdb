@@ -1723,12 +1723,14 @@ version = "0.1.0"
 dependencies = [
  "futures",
  "libc",
+ "metric",
  "observability_deps",
  "once_cell",
  "parking_lot 0.12.1",
  "pin-project",
  "tokio",
  "tokio-util",
+ "tokio_metrics_bridge",
  "workspace-hack",
 ]
 
@@ -2555,6 +2557,7 @@ dependencies = [
  "tokio",
  "tokio-stream",
  "tokio-util",
+ "tokio_metrics_bridge",
  "tonic",
  "trace_exporters",
  "trogging",
@@ -2859,6 +2862,7 @@ dependencies = [
  "indexmap 2.0.0",
  "insta",
  "itertools 0.11.0",
+ "metric",
  "object_store",
  "observability_deps",
  "once_cell",
