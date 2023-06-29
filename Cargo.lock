@@ -5775,6 +5775,16 @@ dependencies = [
 ]
 
 [[package]]
+name = "tokio_metrics_bridge"
+version = "0.1.0"
+dependencies = [
+ "metric",
+ "parking_lot 0.12.1",
+ "tokio",
+ "workspace-hack",
+]
+
+[[package]]
 name = "toml"
 version = "0.7.5"
 source = "registry+https://github.com/rust-lang/crates.io-index"
