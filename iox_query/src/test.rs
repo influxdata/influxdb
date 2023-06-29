@@ -21,7 +21,7 @@ use arrow::{
     record_batch::RecordBatch,
 };
 use async_trait::async_trait;
-use data_types::{ChunkId, ChunkOrder, DeletePredicate, PartitionId};
+use data_types::{ChunkId, ChunkOrder, PartitionId};
 use datafusion::error::DataFusionError;
 use datafusion::execution::context::SessionState;
 use datafusion::logical_expr::Expr;
@@ -36,7 +36,6 @@ use datafusion::{
 use hashbrown::HashSet;
 use itertools::Itertools;
 use object_store::{path::Path, ObjectMeta};
-use observability_deps::tracing::debug;
 use parking_lot::Mutex;
 use parquet_file::storage::ParquetExecInput;
 use predicate::rpc_predicate::QueryNamespaceMeta;
@@ -66,6 +65,9 @@ pub struct TestDatabase {
 
     /// The predicate passed to the most recent call to `chunks()`
     chunks_predicate: Mutex<Predicate>,
+
+    /// Retention time ns.
+    retention_time_ns: Option<i64>,
 }
 
 impl TestDatabase {
@@ -75,6 +77,7 @@ impl TestDatabase {
             partitions: Default::default(),
             column_names: Default::default(),
             chunks_predicate: Default::default(),
+            retention_time_ns: None,
         }
     }
 
@@ -115,6 +118,12 @@ impl TestDatabase {
 
         *Arc::clone(&self.column_names).lock() = Some(column_names)
     }
+
+    /// Set retention time.
+    pub fn with_retention_time_ns(mut self, retention_time_ns: Option<i64>) -> Self {
+        self.retention_time_ns = retention_time_ns;
+        self
+    }
 }
 
 #[async_trait]
@@ -148,6 +157,10 @@ impl QueryNamespace for TestDatabase {
             })
             .map(|x| Arc::clone(x) as Arc<dyn QueryChunk>)
             .collect::<Vec<_>>())
+    }
+
+    fn retention_time_ns(&self) -> Option<i64> {
+        self.retention_time_ns
     }
 
     fn record_query(
@@ -337,9 +350,6 @@ pub struct TestChunk {
     /// A saved error that is returned instead of actual results
     saved_error: Option<String>,
 
-    /// Copy of delete predicates passed
-    delete_predicates: Vec<Arc<DeletePredicate>>,
-
     /// Order of this chunk relative to other overlapping chunks.
     order: ChunkOrder,
 
@@ -407,7 +417,6 @@ impl TestChunk {
             may_contain_pk_duplicates: Default::default(),
             table_data: QueryChunkData::RecordBatches(vec![]),
             saved_error: Default::default(),
-            delete_predicates: Default::default(),
             order: ChunkOrder::MIN,
             sort_key: None,
             partition_id: PartitionId::new(0),
@@ -422,11 +431,6 @@ impl TestChunk {
             }
             QueryChunkData::Parquet(_) => panic!("chunk is parquet-based"),
         }
-    }
-
-    pub fn with_delete_predicate(mut self, pred: Arc<DeletePredicate>) -> Self {
-        self.delete_predicates.push(pred);
-        self
     }
 
     pub fn with_order(self, order: i64) -> Self {
@@ -1172,14 +1176,6 @@ impl QueryChunkMeta for TestChunk {
 
     fn sort_key(&self) -> Option<&SortKey> {
         self.sort_key.as_ref()
-    }
-
-    // return a reference to delete predicates of the chunk
-    fn delete_predicates(&self) -> &[Arc<DeletePredicate>] {
-        let pred = &self.delete_predicates;
-        debug!(?pred, "Delete predicate in Test Chunk");
-
-        pred
     }
 }
 

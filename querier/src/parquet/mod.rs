@@ -1,6 +1,6 @@
 //! Querier Chunks
 
-use data_types::{ChunkId, ChunkOrder, DeletePredicate, PartitionId};
+use data_types::{ChunkId, ChunkOrder, PartitionId};
 use datafusion::physical_plan::Statistics;
 use parquet_file::chunk::ParquetChunk;
 use schema::sort::SortKey;
@@ -51,9 +51,6 @@ pub struct QuerierParquetChunk {
     /// Immutable chunk metadata
     meta: Arc<QuerierParquetChunkMeta>,
 
-    /// Delete predicates to be combined with the chunk
-    delete_predicates: Vec<Arc<DeletePredicate>>,
-
     /// Chunk of the Parquet file
     parquet_chunk: Arc<ParquetChunk>,
 
@@ -77,17 +74,8 @@ impl QuerierParquetChunk {
 
         Self {
             meta,
-            delete_predicates: Vec::new(),
             parquet_chunk,
             stats,
-        }
-    }
-
-    /// Set delete predicates of the given chunk.
-    pub fn with_delete_predicates(self, delete_predicates: Vec<Arc<DeletePredicate>>) -> Self {
-        Self {
-            delete_predicates,
-            ..self
         }
     }
 

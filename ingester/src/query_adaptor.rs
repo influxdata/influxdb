@@ -5,7 +5,7 @@ use std::{any::Any, sync::Arc};
 
 use arrow::record_batch::RecordBatch;
 use arrow_util::util::ensure_schema;
-use data_types::{ChunkId, ChunkOrder, DeletePredicate, PartitionId};
+use data_types::{ChunkId, ChunkOrder, PartitionId};
 use datafusion::{error::DataFusionError, physical_plan::Statistics};
 use iox_query::{
     exec::{stringset::StringSet, IOxSessionContext},
@@ -133,10 +133,6 @@ impl QueryChunkMeta for QueryAdaptor {
 
     fn sort_key(&self) -> Option<&SortKey> {
         None // Ingester data is not sorted
-    }
-
-    fn delete_predicates(&self) -> &[Arc<DeletePredicate>] {
-        &[]
     }
 }
 

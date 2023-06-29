@@ -1,5 +1,5 @@
 use crate::parquet::QuerierParquetChunk;
-use data_types::{ChunkId, ChunkOrder, DeletePredicate, PartitionId};
+use data_types::{ChunkId, ChunkOrder, PartitionId};
 use datafusion::{error::DataFusionError, physical_plan::Statistics};
 use iox_query::{
     exec::{stringset::StringSet, IOxSessionContext},
@@ -24,10 +24,6 @@ impl QueryChunkMeta for QuerierParquetChunk {
 
     fn sort_key(&self) -> Option<&SortKey> {
         self.meta().sort_key()
-    }
-
-    fn delete_predicates(&self) -> &[Arc<DeletePredicate>] {
-        &self.delete_predicates
     }
 }
 

@@ -20,11 +20,11 @@ use arrow::{
     record_batch::RecordBatch,
 };
 use async_trait::async_trait;
-use data_types::{ChunkId, ChunkOrder, DeletePredicate, PartitionId};
+use data_types::{ChunkId, ChunkOrder, PartitionId};
 use datafusion::{error::DataFusionError, physical_plan::Statistics, prelude::SessionContext};
 use exec::{stringset::StringSet, IOxSessionContext};
 use hashbrown::HashMap;
-use observability_deps::tracing::{debug, trace};
+use observability_deps::tracing::trace;
 use once_cell::sync::Lazy;
 use parquet_file::storage::ParquetExecInput;
 use predicate::{rpc_predicate::QueryNamespaceMeta, Predicate};
@@ -32,7 +32,7 @@ use schema::{
     sort::{SortKey, SortKeyBuilder},
     InfluxColumnType, Projection, Schema, TIME_COLUMN_NAME,
 };
-use std::{any::Any, collections::BTreeSet, fmt::Debug, iter::FromIterator, sync::Arc};
+use std::{any::Any, fmt::Debug, sync::Arc};
 
 pub mod config;
 pub mod exec;
@@ -73,38 +73,6 @@ pub trait QueryChunkMeta {
 
     /// return a reference to the sort key if any
     fn sort_key(&self) -> Option<&SortKey>;
-
-    /// return a reference to delete predicates of the chunk
-    fn delete_predicates(&self) -> &[Arc<DeletePredicate>];
-
-    /// return true if the chunk has delete predicates
-    fn has_delete_predicates(&self) -> bool {
-        !self.delete_predicates().is_empty()
-    }
-
-    /// return column names participating in the all delete predicates
-    /// in lexicographical order with one exception that time column is last
-    /// This order is to be consistent with Schema::primary_key
-    fn delete_predicate_columns(&self) -> Vec<&str> {
-        // get all column names but time
-        let mut col_names = BTreeSet::new();
-        for pred in self.delete_predicates() {
-            for expr in &pred.exprs {
-                if expr.column != schema::TIME_COLUMN_NAME {
-                    col_names.insert(expr.column.as_str());
-                }
-            }
-        }
-
-        // convert to vector
-        let mut column_names = Vec::from_iter(col_names);
-
-        // Now add time column to the end of the vector
-        // Since time range is a must in the delete predicate, time column must be in this list
-        column_names.push(TIME_COLUMN_NAME);
-
-        column_names
-    }
 }
 
 /// A `QueryCompletedToken` is returned by `record_query` implementations of
@@ -176,6 +144,18 @@ pub trait QueryNamespace: QueryNamespaceMeta + Debug + Send + Sync {
         projection: Option<&Vec<usize>>,
         ctx: IOxSessionContext,
     ) -> Result<Vec<Arc<dyn QueryChunk>>, DataFusionError>;
+
+    /// Retention cutoff time.
+    ///
+    /// This gives the timestamp (NOT the duration) at which data should be cut off. This should result in an additional
+    /// filter of the following form:
+    ///
+    /// ```text
+    /// time >= retention_time_ns
+    /// ```
+    ///
+    /// Returns `None` if now retention policy was defined.
+    fn retention_time_ns(&self) -> Option<i64>;
 
     /// Record that particular type of query was run / planned
     fn record_query(
@@ -298,12 +278,6 @@ where
     fn sort_key(&self) -> Option<&SortKey> {
         self.as_ref().sort_key()
     }
-
-    fn delete_predicates(&self) -> &[Arc<DeletePredicate>] {
-        let pred = self.as_ref().delete_predicates();
-        debug!(?pred, "Delete predicate in QueryChunkMeta");
-        pred
-    }
 }
 
 /// Implement `ChunkMeta` for `Arc<dyn QueryChunk>`
@@ -322,12 +296,6 @@ impl QueryChunkMeta for Arc<dyn QueryChunk> {
 
     fn sort_key(&self) -> Option<&SortKey> {
         self.as_ref().sort_key()
-    }
-
-    fn delete_predicates(&self) -> &[Arc<DeletePredicate>] {
-        let pred = self.as_ref().delete_predicates();
-        debug!(?pred, "Delete predicate in QueryChunkMeta");
-        pred
     }
 }
 

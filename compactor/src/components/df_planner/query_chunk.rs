@@ -1,7 +1,7 @@
 //! QueryableParquetChunk for building query plan
 use std::{any::Any, sync::Arc};
 
-use data_types::{ChunkId, ChunkOrder, DeletePredicate, PartitionId};
+use data_types::{ChunkId, ChunkOrder, PartitionId};
 use datafusion::{error::DataFusionError, physical_plan::Statistics};
 use iox_query::{
     exec::{stringset::StringSet, IOxSessionContext},
@@ -21,8 +21,6 @@ use crate::{partition_info::PartitionInfo, plan_ir::FileIR};
 pub struct QueryableParquetChunk {
     // Data of the parquet file
     data: Arc<ParquetChunk>,
-    // We do not yet support delete but we need this to work with the straight QueryChunkMeta
-    delete_predicates: Vec<Arc<DeletePredicate>>,
     partition_id: PartitionId,
     sort_key: Option<SortKey>,
     order: ChunkOrder,
@@ -44,7 +42,6 @@ impl QueryableParquetChunk {
         ));
         Self {
             data,
-            delete_predicates: vec![],
             partition_id,
             sort_key,
             order,
@@ -82,10 +79,6 @@ impl QueryChunkMeta for QueryableParquetChunk {
 
     fn sort_key(&self) -> Option<&SortKey> {
         self.sort_key.as_ref()
-    }
-
-    fn delete_predicates(&self) -> &[Arc<DeletePredicate>] {
-        self.delete_predicates.as_ref()
     }
 }
 
