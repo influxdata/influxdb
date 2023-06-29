@@ -308,7 +308,6 @@ mod test {
     use crate::{
         exec::IOxSessionContext,
         test::{format_execution_plan, TestChunk},
-        QueryChunkMeta,
     };
     use datafusion::prelude::{col, lit};
 

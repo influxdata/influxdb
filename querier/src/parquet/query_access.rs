@@ -3,13 +3,13 @@ use data_types::{ChunkId, ChunkOrder, PartitionId};
 use datafusion::{error::DataFusionError, physical_plan::Statistics};
 use iox_query::{
     exec::{stringset::StringSet, IOxSessionContext},
-    QueryChunk, QueryChunkData, QueryChunkMeta,
+    QueryChunk, QueryChunkData,
 };
 use predicate::Predicate;
 use schema::{sort::SortKey, Projection, Schema};
 use std::{any::Any, sync::Arc};
 
-impl QueryChunkMeta for QuerierParquetChunk {
+impl QueryChunk for QuerierParquetChunk {
     fn stats(&self) -> Arc<Statistics> {
         Arc::clone(&self.stats)
     }
@@ -25,9 +25,7 @@ impl QueryChunkMeta for QuerierParquetChunk {
     fn sort_key(&self) -> Option<&SortKey> {
         self.meta().sort_key()
     }
-}
 
-impl QueryChunk for QuerierParquetChunk {
     fn id(&self) -> ChunkId {
         self.meta().chunk_id
     }

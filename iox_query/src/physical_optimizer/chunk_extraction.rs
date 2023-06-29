@@ -167,9 +167,7 @@ impl ExecutionPlanVisitor for ExtractChunksVisitor {
 
 #[cfg(test)]
 mod tests {
-    use crate::{
-        provider::chunks_to_physical_nodes, test::TestChunk, util::df_physical_expr, QueryChunkMeta,
-    };
+    use crate::{provider::chunks_to_physical_nodes, test::TestChunk, util::df_physical_expr};
     use arrow::datatypes::{DataType, Field, Schema as ArrowSchema};
     use data_types::ChunkId;
     use datafusion::{

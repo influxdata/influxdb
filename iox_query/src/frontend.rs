@@ -20,7 +20,7 @@ mod test {
         frontend::reorg::ReorgPlanner,
         provider::{DeduplicateExec, RecordBatchesExec},
         test::{format_execution_plan, TestChunk},
-        QueryChunk, QueryChunkMeta, ScanPlanBuilder,
+        QueryChunk, ScanPlanBuilder,
     };
 
     /// A macro to asserts the contents of the extracted metrics is reasonable

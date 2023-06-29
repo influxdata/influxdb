@@ -4,7 +4,7 @@ use datafusion::physical_plan::SendableRecordBatchStream;
 use iox_query::{
     exec::{Executor, ExecutorType},
     frontend::reorg::ReorgPlanner,
-    QueryChunk, QueryChunkMeta,
+    QueryChunk,
 };
 use schema::sort::{adjust_sort_key_columns, compute_sort_key, SortKey};
 

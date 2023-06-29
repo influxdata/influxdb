@@ -64,7 +64,7 @@ mod tests {
             dedup::test_util::{chunk, dedup_plan},
             test_util::OptimizationTest,
         },
-        QueryChunkMeta,
+        QueryChunk,
     };
 
     use super::*;

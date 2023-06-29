@@ -25,7 +25,7 @@ use ingester_query_grpc::{
 use iox_query::{
     exec::{stringset::StringSet, IOxSessionContext},
     util::compute_timenanosecond_min_max,
-    QueryChunk, QueryChunkData, QueryChunkMeta,
+    QueryChunk, QueryChunkData,
 };
 use iox_time::{Time, TimeProvider};
 use metric::{DurationHistogram, Metric};
@@ -913,7 +913,7 @@ impl IngesterChunk {
     }
 }
 
-impl QueryChunkMeta for IngesterChunk {
+impl QueryChunk for IngesterChunk {
     fn stats(&self) -> Arc<Statistics> {
         Arc::clone(self.stats.as_ref().expect("chunk stats set"))
     }
@@ -931,9 +931,7 @@ impl QueryChunkMeta for IngesterChunk {
         // Data is not sorted
         None
     }
-}
 
-impl QueryChunk for IngesterChunk {
     fn id(&self) -> ChunkId {
         self.chunk_id
     }

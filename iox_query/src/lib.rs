@@ -59,9 +59,8 @@ pub fn chunk_order_field() -> Arc<Field> {
     Arc::clone(&CHUNK_ORDER_FIELD)
 }
 
-/// Trait for an object (designed to be a Chunk) which can provide
-/// metadata
-pub trait QueryChunkMeta {
+/// A single chunk of data.
+pub trait QueryChunk: Debug + Send + Sync + 'static {
     /// Return a statistics of the data
     fn stats(&self) -> Arc<Statistics>;
 
@@ -73,6 +72,51 @@ pub trait QueryChunkMeta {
 
     /// return a reference to the sort key if any
     fn sort_key(&self) -> Option<&SortKey>;
+
+    /// returns the Id of this chunk. Ids are unique within a
+    /// particular partition.
+    fn id(&self) -> ChunkId;
+
+    /// Returns true if the chunk may contain a duplicate "primary
+    /// key" within itself
+    fn may_contain_pk_duplicates(&self) -> bool;
+
+    /// Returns a set of Strings with column names from the specified
+    /// table that have at least one row that matches `predicate`, if
+    /// the predicate can be evaluated entirely on the metadata of
+    /// this Chunk. Returns `None` otherwise
+    fn column_names(
+        &self,
+        ctx: IOxSessionContext,
+        predicate: &Predicate,
+        columns: Projection<'_>,
+    ) -> Result<Option<StringSet>, DataFusionError>;
+
+    /// Return a set of Strings containing the distinct values in the
+    /// specified columns. If the predicate can be evaluated entirely
+    /// on the metadata of this Chunk. Returns `None` otherwise
+    ///
+    /// The requested columns must all have String type.
+    fn column_values(
+        &self,
+        ctx: IOxSessionContext,
+        column_name: &str,
+        predicate: &Predicate,
+    ) -> Result<Option<StringSet>, DataFusionError>;
+
+    /// Provides access to raw [`QueryChunk`] data.
+    ///
+    /// The engine assume that minimal work shall be performed to gather the `QueryChunkData`.
+    fn data(&self) -> QueryChunkData;
+
+    /// Returns chunk type. Useful in tests and debug logs.
+    fn chunk_type(&self) -> &str;
+
+    /// Order of this chunk relative to other overlapping chunks.
+    fn order(&self) -> ChunkOrder;
+
+    /// Return backend as [`Any`] which can be used to downcast to a specific implementation.
+    fn as_any(&self) -> &dyn Any;
 }
 
 /// A `QueryCompletedToken` is returned by `record_query` implementations of
@@ -176,7 +220,7 @@ pub trait QueryNamespace: QueryNamespaceMeta + Debug + Send + Sync {
 pub enum QueryChunkData {
     /// In-memory record batches.
     ///
-    /// **IMPORTANT: All batches MUST have the schema that the [chunk reports](QueryChunkMeta::schema).**
+    /// **IMPORTANT: All batches MUST have the schema that the [chunk reports](QueryChunk::schema).**
     RecordBatches(Vec<RecordBatch>),
 
     /// Parquet file.
@@ -210,58 +254,9 @@ impl QueryChunkData {
     }
 }
 
-/// Collection of data that shares the same partition key
-pub trait QueryChunk: QueryChunkMeta + Debug + Send + Sync + 'static {
-    /// returns the Id of this chunk. Ids are unique within a
-    /// particular partition.
-    fn id(&self) -> ChunkId;
-
-    /// Returns true if the chunk may contain a duplicate "primary
-    /// key" within itself
-    fn may_contain_pk_duplicates(&self) -> bool;
-
-    /// Returns a set of Strings with column names from the specified
-    /// table that have at least one row that matches `predicate`, if
-    /// the predicate can be evaluated entirely on the metadata of
-    /// this Chunk. Returns `None` otherwise
-    fn column_names(
-        &self,
-        ctx: IOxSessionContext,
-        predicate: &Predicate,
-        columns: Projection<'_>,
-    ) -> Result<Option<StringSet>, DataFusionError>;
-
-    /// Return a set of Strings containing the distinct values in the
-    /// specified columns. If the predicate can be evaluated entirely
-    /// on the metadata of this Chunk. Returns `None` otherwise
-    ///
-    /// The requested columns must all have String type.
-    fn column_values(
-        &self,
-        ctx: IOxSessionContext,
-        column_name: &str,
-        predicate: &Predicate,
-    ) -> Result<Option<StringSet>, DataFusionError>;
-
-    /// Provides access to raw [`QueryChunk`] data.
-    ///
-    /// The engine assume that minimal work shall be performed to gather the `QueryChunkData`.
-    fn data(&self) -> QueryChunkData;
-
-    /// Returns chunk type. Useful in tests and debug logs.
-    fn chunk_type(&self) -> &str;
-
-    /// Order of this chunk relative to other overlapping chunks.
-    fn order(&self) -> ChunkOrder;
-
-    /// Return backend as [`Any`] which can be used to downcast to a specific implementation.
-    fn as_any(&self) -> &dyn Any;
-}
-
-/// Implement ChunkMeta for something wrapped in an Arc (like Chunks often are)
-impl<P> QueryChunkMeta for Arc<P>
+impl<P> QueryChunk for Arc<P>
 where
-    P: QueryChunkMeta,
+    P: QueryChunk,
 {
     fn stats(&self) -> Arc<Statistics> {
         self.as_ref().stats()
@@ -278,10 +273,52 @@ where
     fn sort_key(&self) -> Option<&SortKey> {
         self.as_ref().sort_key()
     }
+
+    fn id(&self) -> ChunkId {
+        self.as_ref().id()
+    }
+
+    fn may_contain_pk_duplicates(&self) -> bool {
+        self.as_ref().may_contain_pk_duplicates()
+    }
+
+    fn column_names(
+        &self,
+        ctx: IOxSessionContext,
+        predicate: &Predicate,
+        columns: Projection<'_>,
+    ) -> Result<Option<StringSet>, DataFusionError> {
+        self.as_ref().column_names(ctx, predicate, columns)
+    }
+
+    fn column_values(
+        &self,
+        ctx: IOxSessionContext,
+        column_name: &str,
+        predicate: &Predicate,
+    ) -> Result<Option<StringSet>, DataFusionError> {
+        self.as_ref().column_values(ctx, column_name, predicate)
+    }
+
+    fn data(&self) -> QueryChunkData {
+        self.as_ref().data()
+    }
+
+    fn chunk_type(&self) -> &str {
+        self.as_ref().chunk_type()
+    }
+
+    fn order(&self) -> ChunkOrder {
+        self.as_ref().order()
+    }
+
+    fn as_any(&self) -> &dyn Any {
+        // present the underlying implementation, not the wrapper
+        self.as_ref().as_any()
+    }
 }
 
-/// Implement `ChunkMeta` for `Arc<dyn QueryChunk>`
-impl QueryChunkMeta for Arc<dyn QueryChunk> {
+impl QueryChunk for Arc<dyn QueryChunk> {
     fn stats(&self) -> Arc<Statistics> {
         self.as_ref().stats()
     }
@@ -296,6 +333,49 @@ impl QueryChunkMeta for Arc<dyn QueryChunk> {
 
     fn sort_key(&self) -> Option<&SortKey> {
         self.as_ref().sort_key()
+    }
+
+    fn id(&self) -> ChunkId {
+        self.as_ref().id()
+    }
+
+    fn may_contain_pk_duplicates(&self) -> bool {
+        self.as_ref().may_contain_pk_duplicates()
+    }
+
+    fn column_names(
+        &self,
+        ctx: IOxSessionContext,
+        predicate: &Predicate,
+        columns: Projection<'_>,
+    ) -> Result<Option<StringSet>, DataFusionError> {
+        self.as_ref().column_names(ctx, predicate, columns)
+    }
+
+    fn column_values(
+        &self,
+        ctx: IOxSessionContext,
+        column_name: &str,
+        predicate: &Predicate,
+    ) -> Result<Option<StringSet>, DataFusionError> {
+        self.as_ref().column_values(ctx, column_name, predicate)
+    }
+
+    fn data(&self) -> QueryChunkData {
+        self.as_ref().data()
+    }
+
+    fn chunk_type(&self) -> &str {
+        self.as_ref().chunk_type()
+    }
+
+    fn order(&self) -> ChunkOrder {
+        self.as_ref().order()
+    }
+
+    fn as_any(&self) -> &dyn Any {
+        // present the underlying implementation, not the wrapper
+        self.as_ref().as_any()
     }
 }
 

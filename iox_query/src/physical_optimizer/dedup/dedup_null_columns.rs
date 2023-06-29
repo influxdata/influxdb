@@ -102,7 +102,7 @@ mod tests {
             test_util::OptimizationTest,
         },
         test::TestChunk,
-        QueryChunkMeta,
+        QueryChunk,
     };
 
     use super::*;

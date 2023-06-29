@@ -8,8 +8,7 @@ use crate::{
         ExecutionContextProvider, Executor, ExecutorType, IOxSessionContext,
     },
     pruning::prune_chunks,
-    Predicate, QueryChunk, QueryChunkData, QueryChunkMeta, QueryCompletedToken, QueryNamespace,
-    QueryText,
+    Predicate, QueryChunk, QueryChunkData, QueryCompletedToken, QueryNamespace, QueryText,
 };
 use arrow::array::{BooleanArray, Float64Array};
 use arrow::datatypes::SchemaRef;
@@ -1091,6 +1090,36 @@ impl fmt::Display for TestChunk {
 }
 
 impl QueryChunk for TestChunk {
+    fn stats(&self) -> Arc<DataFusionStatistics> {
+        self.check_error().unwrap();
+
+        Arc::new(DataFusionStatistics {
+            num_rows: self.num_rows,
+            total_byte_size: None,
+            column_statistics: Some(
+                self.schema
+                    .inner()
+                    .fields()
+                    .iter()
+                    .map(|f| self.column_stats.get(f.name()).cloned().unwrap_or_default())
+                    .collect(),
+            ),
+            is_exact: true,
+        })
+    }
+
+    fn schema(&self) -> &Schema {
+        &self.schema
+    }
+
+    fn partition_id(&self) -> PartitionId {
+        self.partition_id
+    }
+
+    fn sort_key(&self) -> Option<&SortKey> {
+        self.sort_key.as_ref()
+    }
+
     fn id(&self) -> ChunkId {
         self.id
     }
@@ -1144,38 +1173,6 @@ impl QueryChunk for TestChunk {
 
     fn as_any(&self) -> &dyn Any {
         self
-    }
-}
-
-impl QueryChunkMeta for TestChunk {
-    fn stats(&self) -> Arc<DataFusionStatistics> {
-        self.check_error().unwrap();
-
-        Arc::new(DataFusionStatistics {
-            num_rows: self.num_rows,
-            total_byte_size: None,
-            column_statistics: Some(
-                self.schema
-                    .inner()
-                    .fields()
-                    .iter()
-                    .map(|f| self.column_stats.get(f.name()).cloned().unwrap_or_default())
-                    .collect(),
-            ),
-            is_exact: true,
-        })
-    }
-
-    fn schema(&self) -> &Schema {
-        &self.schema
-    }
-
-    fn partition_id(&self) -> PartitionId {
-        self.partition_id
-    }
-
-    fn sort_key(&self) -> Option<&SortKey> {
-        self.sort_key.as_ref()
     }
 }
 

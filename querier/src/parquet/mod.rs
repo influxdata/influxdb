@@ -112,7 +112,7 @@ pub mod tests {
     use datafusion_util::config::register_iox_object_store;
     use iox_query::{
         exec::{ExecutorType, IOxSessionContext},
-        QueryChunk, QueryChunkMeta,
+        QueryChunk,
     };
     use iox_tests::{TestCatalog, TestParquetFileBuilder};
     use metric::{Attributes, Observation, RawReporter};

@@ -1,6 +1,6 @@
 //! Implementation of statistics based pruning
 
-use crate::{QueryChunk, QueryChunkMeta};
+use crate::QueryChunk;
 use arrow::{
     array::{ArrayRef, UInt64Array},
     datatypes::{DataType, SchemaRef},
@@ -217,7 +217,7 @@ mod test {
     use predicate::Predicate;
     use schema::merge::SchemaMerger;
 
-    use crate::{test::TestChunk, QueryChunk, QueryChunkMeta};
+    use crate::{test::TestChunk, QueryChunk};
 
     use super::*;
 

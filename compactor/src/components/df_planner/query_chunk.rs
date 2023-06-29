@@ -6,7 +6,7 @@ use datafusion::{error::DataFusionError, physical_plan::Statistics};
 use iox_query::{
     exec::{stringset::StringSet, IOxSessionContext},
     util::create_basic_summary,
-    QueryChunk, QueryChunkData, QueryChunkMeta,
+    QueryChunk, QueryChunkData,
 };
 use observability_deps::tracing::debug;
 use parquet_file::{chunk::ParquetChunk, storage::ParquetStorage};
@@ -64,7 +64,7 @@ impl QueryableParquetChunk {
     }
 }
 
-impl QueryChunkMeta for QueryableParquetChunk {
+impl QueryChunk for QueryableParquetChunk {
     fn stats(&self) -> Arc<Statistics> {
         Arc::clone(&self.stats)
     }
@@ -80,9 +80,7 @@ impl QueryChunkMeta for QueryableParquetChunk {
     fn sort_key(&self) -> Option<&SortKey> {
         self.sort_key.as_ref()
     }
-}
 
-impl QueryChunk for QueryableParquetChunk {
     // This function is needed to distinguish the ParquetChunks further if they happen to have the
     // same creation order.
     // Ref: chunks.sort_unstable_by_key(|c| (c.order(), c.id())); in provider.rs
