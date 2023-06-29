@@ -1,8 +1,10 @@
 use arrow_flight::{error::FlightError, Ticket};
 use arrow_util::assert_batches_sorted_eq;
 use data_types::{NamespaceId, TableId};
+use datafusion::prelude::{col, lit};
 use futures::FutureExt;
 use http::StatusCode;
+use influxdb_iox_client::table::generated_types::{Part, PartitionTemplate, TemplatePart};
 use ingester_query_grpc::{influxdata::iox::ingester::v1 as proto, IngesterQueryRequest};
 use prost::Message;
 use test_helpers_end_to_end::{maybe_skip_integration, MiniCluster, Step, StepTest, StepTestState};
@@ -168,6 +170,126 @@ async fn ingester_flight_api() {
         .await
         .unwrap();
     assert_ne!(ingester_response.app_metadata.ingester_uuid, ingester_uuid);
+}
+
+#[tokio::test]
+async fn ingester_partition_pruning() {
+    test_helpers::maybe_start_logging();
+    let database_url = maybe_skip_integration!();
+
+    // Set up cluster
+    let mut cluster = MiniCluster::create_shared_never_persist(database_url).await;
+
+    let mut steps: Vec<_> = vec![Step::Custom(Box::new(move |state: &mut StepTestState| {
+        async move {
+            let namespace_name = state.cluster().namespace();
+
+            let mut namespace_client = influxdb_iox_client::namespace::Client::new(
+                state.cluster().router().router_grpc_connection(),
+            );
+            namespace_client
+                .create_namespace(
+                    namespace_name,
+                    None,
+                    None,
+                    Some(PartitionTemplate {
+                        parts: vec![
+                            TemplatePart {
+                                part: Some(Part::TagValue("tag1".into())),
+                            },
+                            TemplatePart {
+                                part: Some(Part::TagValue("tag3".into())),
+                            },
+                        ],
+                    }),
+                )
+                .await
+                .unwrap();
+
+            let mut table_client = influxdb_iox_client::table::Client::new(
+                state.cluster().router().router_grpc_connection(),
+            );
+
+            // table1: create implicitly by writing to it
+
+            // table2: do not override partition template => use namespace template
+            table_client
+                .create_table(namespace_name, "table2", None)
+                .await
+                .unwrap();
+
+            // table3: overide namespace template
+            table_client
+                .create_table(
+                    namespace_name,
+                    "table3",
+                    Some(PartitionTemplate {
+                        parts: vec![TemplatePart {
+                            part: Some(Part::TagValue("tag2".into())),
+                        }],
+                    }),
+                )
+                .await
+                .unwrap();
+        }
+        .boxed()
+    }))]
+    .into_iter()
+    .chain((1..=3).flat_map(|tid| {
+        [Step::WriteLineProtocol(
+            [
+                format!("table{tid},tag1=v1a,tag2=v2a,tag3=v3a f=1 11"),
+                format!("table{tid},tag1=v1b,tag2=v2a,tag3=v3a f=1 11"),
+                format!("table{tid},tag1=v1a,tag2=v2b,tag3=v3a f=1 11"),
+                format!("table{tid},tag1=v1b,tag2=v2b,tag3=v3a f=1 11"),
+                format!("table{tid},tag1=v1a,tag2=v2a,tag3=v3b f=1 11"),
+                format!("table{tid},tag1=v1b,tag2=v2a,tag3=v3b f=1 11"),
+                format!("table{tid},tag1=v1a,tag2=v2b,tag3=v3b f=1 11"),
+                format!("table{tid},tag1=v1b,tag2=v2b,tag3=v3b f=1 11"),
+            ]
+            .join("\n"),
+        )]
+        .into_iter()
+    }))
+    .collect();
+
+    steps.push(Step::Custom(Box::new(move |state: &mut StepTestState| {
+        async move {
+            let predicate = ::predicate::Predicate::new().with_expr(col("tag1").eq(lit("v1a")));
+
+            let query = IngesterQueryRequest::new(
+                state.cluster().namespace_id().await,
+                state.cluster().table_id("table1").await,
+                vec![],
+                Some(predicate),
+            );
+
+            let query: proto::IngesterQueryRequest = query.try_into().unwrap();
+            let ingester_response = state
+                .cluster()
+                .query_ingester(
+                    query.clone(),
+                    state.cluster().ingester().ingester_grpc_connection(),
+                )
+                .await
+                .unwrap();
+
+            let expected = [
+                "+-----+------+------+------+--------------------------------+",
+                "| f   | tag1 | tag2 | tag3 | time                           |",
+                "+-----+------+------+------+--------------------------------+",
+                "| 1.0 | v1a  | v2a  | v3a  | 1970-01-01T00:00:00.000000011Z |",
+                "| 1.0 | v1a  | v2a  | v3b  | 1970-01-01T00:00:00.000000011Z |",
+                "| 1.0 | v1a  | v2b  | v3a  | 1970-01-01T00:00:00.000000011Z |",
+                "| 1.0 | v1a  | v2b  | v3b  | 1970-01-01T00:00:00.000000011Z |",
+                "+-----+------+------+------+--------------------------------+",
+            ];
+            assert_batches_sorted_eq!(&expected, &ingester_response.record_batches);
+        }
+        .boxed()
+    })));
+
+    StepTest::new(&mut cluster, steps).run().await
 }
 
 #[tokio::test]

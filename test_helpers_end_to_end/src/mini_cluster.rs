@@ -490,6 +490,9 @@ impl MiniCluster {
 
         let mut record_batches = vec![];
         while let Some((msg, _md)) = next_message(&mut performed_query).await {
+            if matches!(msg, DecodedPayload::None | DecodedPayload::Schema(_)) {
+                continue;
+            }
             let batch = unwrap_record_batch(msg);
             record_batches.push(batch);
         }
