@@ -147,19 +147,6 @@ impl QueryChunk for QueryAdaptor {
         true
     }
 
-    /// Returns a set of Strings with column names from the specified
-    /// table that have at least one row that matches `predicate`, if
-    /// the predicate can be evaluated entirely on the metadata of
-    /// this Chunk. Returns `None` otherwise
-    fn column_names(
-        &self,
-        _ctx: IOxSessionContext,
-        _predicate: &Predicate,
-        _columns: Projection<'_>,
-    ) -> Result<Option<StringSet>, DataFusionError> {
-        Ok(None)
-    }
-
     /// Return a set of Strings containing the distinct values in the
     /// specified columns. If the predicate can be evaluated entirely
     /// on the metadata of this Chunk. Returns `None` otherwise

@@ -11,7 +11,7 @@ use iox_query::{
 use observability_deps::tracing::debug;
 use parquet_file::{chunk::ParquetChunk, storage::ParquetStorage};
 use predicate::Predicate;
-use schema::{merge::SchemaMerger, sort::SortKey, Projection, Schema};
+use schema::{merge::SchemaMerger, sort::SortKey, Schema};
 use uuid::Uuid;
 
 use crate::{partition_info::PartitionInfo, plan_ir::FileIR};
@@ -94,19 +94,6 @@ impl QueryChunk for QueryableParquetChunk {
     fn may_contain_pk_duplicates(&self) -> bool {
         // Data of a parquet file has no duplicates
         false
-    }
-
-    /// Returns a set of Strings with column names from the specified
-    /// table that have at least one row that matches `predicate`, if
-    /// the predicate can be evaluated entirely on the metadata of
-    /// this Chunk. Returns `None` otherwise
-    fn column_names(
-        &self,
-        _ctx: IOxSessionContext,
-        _predicate: &Predicate,
-        _columns: Projection<'_>,
-    ) -> Result<Option<StringSet>, DataFusionError> {
-        Ok(None)
     }
 
     /// Return a set of Strings containing the distinct values in the

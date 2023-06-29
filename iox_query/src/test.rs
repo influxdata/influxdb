@@ -39,8 +39,7 @@ use parking_lot::Mutex;
 use parquet_file::storage::ParquetExecInput;
 use predicate::rpc_predicate::QueryNamespaceMeta;
 use schema::{
-    builder::SchemaBuilder, merge::SchemaMerger, sort::SortKey, Projection, Schema,
-    TIME_COLUMN_NAME,
+    builder::SchemaBuilder, merge::SchemaMerger, sort::SortKey, Schema, TIME_COLUMN_NAME,
 };
 use std::{
     any::Any,
@@ -1061,23 +1060,6 @@ impl TestChunk {
         }
     }
 
-    /// Returns all columns of the table
-    pub fn all_column_names(&self) -> StringSet {
-        self.schema
-            .iter()
-            .map(|(_, field)| field.name().to_string())
-            .collect()
-    }
-
-    /// Returns just the specified columns
-    pub fn specific_column_names_selection(&self, columns: &[&str]) -> StringSet {
-        self.schema
-            .iter()
-            .map(|(_, field)| field.name().to_string())
-            .filter(|col| columns.contains(&col.as_str()))
-            .collect()
-    }
-
     pub fn table_name(&self) -> &str {
         &self.table_name
     }
@@ -1148,23 +1130,6 @@ impl QueryChunk for TestChunk {
 
         // Model not being able to get column values from metadata
         Ok(None)
-    }
-
-    fn column_names(
-        &self,
-        _ctx: IOxSessionContext,
-        _predicate: &Predicate,
-        selection: Projection<'_>,
-    ) -> Result<Option<StringSet>, DataFusionError> {
-        self.check_error()?;
-
-        // only return columns specified in selection
-        let column_names = match selection {
-            Projection::All => self.all_column_names(),
-            Projection::Some(cols) => self.specific_column_names_selection(cols),
-        };
-
-        Ok(Some(column_names))
     }
 
     fn order(&self) -> ChunkOrder {

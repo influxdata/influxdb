@@ -6,7 +6,7 @@ use iox_query::{
     QueryChunk, QueryChunkData,
 };
 use predicate::Predicate;
-use schema::{sort::SortKey, Projection, Schema};
+use schema::{sort::SortKey, Schema};
 use std::{any::Any, sync::Arc};
 
 impl QueryChunk for QuerierParquetChunk {
@@ -32,24 +32,6 @@ impl QueryChunk for QuerierParquetChunk {
 
     fn may_contain_pk_duplicates(&self) -> bool {
         false
-    }
-
-    fn column_names(
-        &self,
-        mut ctx: IOxSessionContext,
-        predicate: &Predicate,
-        columns: Projection<'_>,
-    ) -> Result<Option<StringSet>, DataFusionError> {
-        ctx.set_metadata("projection", format!("{columns}"));
-        ctx.set_metadata("predicate", format!("{}", &predicate));
-        ctx.set_metadata("storage", "parquet");
-
-        if !predicate.is_empty() {
-            // if there is anything in the predicate, bail for now and force a full plan
-            return Ok(None);
-        }
-
-        Ok(self.parquet_chunk.column_names(columns))
     }
 
     fn column_values(

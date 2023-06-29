@@ -31,7 +31,7 @@ use iox_time::{Time, TimeProvider};
 use metric::{DurationHistogram, Metric};
 use observability_deps::tracing::{debug, trace, warn};
 use predicate::Predicate;
-use schema::{sort::SortKey, Projection, Schema};
+use schema::{sort::SortKey, Schema};
 use snafu::{ensure, OptionExt, ResultExt, Snafu};
 use std::{
     any::Any,
@@ -941,16 +941,6 @@ impl QueryChunk for IngesterChunk {
         true
     }
 
-    fn column_names(
-        &self,
-        _ctx: IOxSessionContext,
-        _predicate: &Predicate,
-        _columns: Projection<'_>,
-    ) -> Result<Option<StringSet>, DataFusionError> {
-        // TODO maybe some special handling?
-        Ok(None)
-    }
-
     fn column_values(
         &self,
         _ctx: IOxSessionContext,
@@ -1051,7 +1041,7 @@ mod tests {
     use iox_tests::TestCatalog;
     use metric::Attributes;
     use mutable_batch_lp::test_helpers::lp_to_mutable_batch;
-    use schema::{builder::SchemaBuilder, InfluxFieldType};
+    use schema::{builder::SchemaBuilder, InfluxFieldType, Projection};
     use std::collections::{BTreeSet, HashMap};
     use tokio::{runtime::Handle, sync::Mutex};
     use trace::{ctx::SpanContext, span::SpanStatus, RingBufferTraceCollector};

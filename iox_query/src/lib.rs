@@ -81,17 +81,6 @@ pub trait QueryChunk: Debug + Send + Sync + 'static {
     /// key" within itself
     fn may_contain_pk_duplicates(&self) -> bool;
 
-    /// Returns a set of Strings with column names from the specified
-    /// table that have at least one row that matches `predicate`, if
-    /// the predicate can be evaluated entirely on the metadata of
-    /// this Chunk. Returns `None` otherwise
-    fn column_names(
-        &self,
-        ctx: IOxSessionContext,
-        predicate: &Predicate,
-        columns: Projection<'_>,
-    ) -> Result<Option<StringSet>, DataFusionError>;
-
     /// Return a set of Strings containing the distinct values in the
     /// specified columns. If the predicate can be evaluated entirely
     /// on the metadata of this Chunk. Returns `None` otherwise
@@ -282,15 +271,6 @@ where
         self.as_ref().may_contain_pk_duplicates()
     }
 
-    fn column_names(
-        &self,
-        ctx: IOxSessionContext,
-        predicate: &Predicate,
-        columns: Projection<'_>,
-    ) -> Result<Option<StringSet>, DataFusionError> {
-        self.as_ref().column_names(ctx, predicate, columns)
-    }
-
     fn column_values(
         &self,
         ctx: IOxSessionContext,
@@ -341,15 +321,6 @@ impl QueryChunk for Arc<dyn QueryChunk> {
 
     fn may_contain_pk_duplicates(&self) -> bool {
         self.as_ref().may_contain_pk_duplicates()
-    }
-
-    fn column_names(
-        &self,
-        ctx: IOxSessionContext,
-        predicate: &Predicate,
-        columns: Projection<'_>,
-    ) -> Result<Option<StringSet>, DataFusionError> {
-        self.as_ref().column_names(ctx, predicate, columns)
     }
 
     fn column_values(

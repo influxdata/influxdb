@@ -34,7 +34,7 @@ use hashbrown::HashSet;
 use iox_query::{
     exec::{
         field::FieldColumns, fieldlist::Field, make_non_null_checker, make_schema_pivot,
-        IOxSessionContext,
+        stringset::StringSet, IOxSessionContext,
     },
     frontend::common::ScanPlanBuilder,
     plan::{
@@ -66,9 +66,6 @@ const CONCURRENT_TABLE_JOBS: usize = 10;
 
 #[derive(Debug, Snafu)]
 pub enum Error {
-    #[snafu(display("gRPC planner got error finding column names: {}", source))]
-    FindingColumnNames { source: DataFusionError },
-
     #[snafu(display("gRPC planner got error finding column values: {}", source))]
     FindingColumnValues { source: DataFusionError },
 
@@ -183,7 +180,6 @@ impl Error {
             | Self::BuildingPlan { source, .. }
             | Self::ReadColumns { source, .. }
             | Self::CheckingChunkPredicate { source, .. }
-            | Self::FindingColumnNames { source, .. }
             | Self::FindingColumnValues { source, .. }
             | Self::CastingAggregates { source, .. } => {
                 DataFusionError::Context(format!("{method}: {msg}"), Box::new(source))
@@ -377,13 +373,7 @@ impl InfluxRpcPlanner {
                     let selection = Projection::Some(&column_names);
 
                     // filter the columns further from the predicate
-                    let maybe_names = chunk
-                        .column_names(
-                            ctx.child_ctx("column_names execution"),
-                            &predicate,
-                            selection,
-                        )
-                        .context(FindingColumnNamesSnafu)?;
+                    let maybe_names = chunk_column_names(&chunk, &predicate, selection);
 
                     match maybe_names {
                         Some(mut names) => {
@@ -1830,6 +1820,32 @@ fn prune_chunks(
         .filter(|(_c, m)| *m)
         .map(|(c, _m)| c)
         .collect()
+}
+
+fn chunk_column_names(
+    chunk: &dyn QueryChunk,
+    predicate: &Predicate,
+    columns: Projection<'_>,
+) -> Option<StringSet> {
+    if !predicate.is_empty() {
+        // if there is anything in the predicate, bail for now and force a full plan
+        return None;
+    }
+
+    let fields = chunk.schema().inner().fields().iter();
+
+    Some(match columns {
+        Projection::Some(cols) => fields
+            .filter_map(|x| {
+                if cols.contains(&x.name().as_str()) {
+                    Some(x.name().clone())
+                } else {
+                    None
+                }
+            })
+            .collect(),
+        Projection::All => fields.map(|x| x.name().clone()).collect(),
+    })
 }
 
 #[cfg(test)]
