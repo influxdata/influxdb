@@ -1647,7 +1647,7 @@ func AppendMakeKey(dst []byte, name []byte, tags Tags) []byte {
 	// unescape the name and then re-escape it to avoid double escaping.
 	// The key should always be stored in escaped form.
 	dst = append(dst, EscapeMeasurement(unescapeMeasurement(name))...)
-	dst = tags.AppendHashKey(dst)
+	dst = tags.AppendHashKey(dst, true)
 	return dst
 }
 
@@ -2208,8 +2208,8 @@ func (a Tags) Merge(other map[string]string) Tags {
 }
 
 // HashKey hashes all of a tag's keys.
-func (a Tags) HashKey() []byte {
-	return a.AppendHashKey(nil)
+func (a Tags) HashKey(escapeTags bool) []byte {
+	return a.AppendHashKey(nil, escapeTags)
 }
 
 func (a Tags) needsEscape() bool {
@@ -2226,7 +2226,7 @@ func (a Tags) needsEscape() bool {
 }
 
 // AppendHashKey appends the result of hashing all of a tag's keys and values to dst and returns the extended buffer.
-func (a Tags) AppendHashKey(dst []byte) []byte {
+func (a Tags) AppendHashKey(dst []byte, escapeTags bool) []byte {
 	// Empty maps marshal to empty bytes.
 	if len(a) == 0 {
 		return dst
@@ -2236,7 +2236,7 @@ func (a Tags) AppendHashKey(dst []byte) []byte {
 
 	sz := 0
 	var escaped Tags
-	if a.needsEscape() {
+	if escapeTags && a.needsEscape() {
 		var tmp [20]Tag
 		if len(a) < len(tmp) {
 			escaped = tmp[:len(a)]

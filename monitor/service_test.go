@@ -354,7 +354,7 @@ func TestMonitor_Expvar(t *testing.T) {
 		var found1, found3 bool
 		for _, pt := range points {
 			if bytes.Equal(pt.Name(), []byte("expvar1")) {
-				if got, want := pt.Tags().HashKey(), []byte(fmt.Sprintf(",hostname=%s,region=uswest2", hostname)); !reflect.DeepEqual(got, want) {
+				if got, want := pt.Tags().HashKey(true), []byte(fmt.Sprintf(",hostname=%s,region=uswest2", hostname)); !reflect.DeepEqual(got, want) {
 					t.Errorf("unexpected expvar1 tags: got=%v want=%v", string(got), string(want))
 				}
 				fields, _ := pt.Fields()
@@ -367,7 +367,7 @@ func TestMonitor_Expvar(t *testing.T) {
 			} else if bytes.Equal(pt.Name(), []byte("expvar2")) {
 				t.Error("found expvar2 statistic")
 			} else if bytes.Equal(pt.Name(), []byte("expvar3")) {
-				if got, want := pt.Tags().HashKey(), []byte(fmt.Sprintf(",hostname=%s", hostname)); !reflect.DeepEqual(got, want) {
+				if got, want := pt.Tags().HashKey(true), []byte(fmt.Sprintf(",hostname=%s", hostname)); !reflect.DeepEqual(got, want) {
 					t.Errorf("unexpected expvar3 tags: got=%v want=%v", string(got), string(want))
 				}
 				fields, _ := pt.Fields()

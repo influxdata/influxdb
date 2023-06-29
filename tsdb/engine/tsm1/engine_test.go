@@ -1141,7 +1141,7 @@ func TestIndex_SeriesIDSet(t *testing.T) {
 			}
 
 			name, tags := tsdb.ParseSeriesKey(engine.sfile.SeriesKey(e.SeriesID))
-			key := fmt.Sprintf("%s%s", name, tags.HashKey())
+			key := fmt.Sprintf("%s%s", name, tags.HashKey(true))
 			seriesIDMap[key] = e.SeriesID
 		}
 
