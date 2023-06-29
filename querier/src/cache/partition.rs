@@ -18,6 +18,7 @@ use data_types::{
 use datafusion::scalar::ScalarValue;
 use iox_catalog::interface::Catalog;
 use iox_time::TimeProvider;
+use observability_deps::tracing::debug;
 use schema::sort::SortKey;
 use std::{
     collections::{HashMap, HashSet},
@@ -132,14 +133,24 @@ impl PartitionCache {
                 &self.cache,
                 partition_id,
                 |cached_partition| {
-                    if let Some(sort_key) = &cached_partition.and_then(|p| p.sort_key) {
-                        sort_key_should_cover
-                            .iter()
-                            .any(|col| !sort_key.column_set.contains(col))
-                    } else {
-                        // no sort key at all => need to update if there is anything to cover
-                        !sort_key_should_cover.is_empty()
+                    let invalidates =
+                        if let Some(sort_key) = &cached_partition.and_then(|p| p.sort_key) {
+                            sort_key_should_cover
+                                .iter()
+                                .any(|col| !sort_key.column_set.contains(col))
+                        } else {
+                            // no sort key at all => need to update if there is anything to cover
+                            !sort_key_should_cover.is_empty()
+                        };
+
+                    if invalidates {
+                        debug!(
+                            partition_id = partition_id.get(),
+                            "invalidate partition cache",
+                        );
                     }
+
+                    invalidates
                 },
                 (cached_table, span),
             )
@@ -288,7 +299,9 @@ impl PartitionSortKey {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::cache::{ram::test_util::test_ram_pool, test_util::assert_histogram_metric_count};
+    use crate::cache::{
+        ram::test_util::test_ram_pool, test_util::assert_catalog_access_metric_count,
+    };
     use data_types::{partition_template::TablePartitionTemplateOverride, ColumnType};
     use generated_types::influxdata::iox::partition_template::v1::{
         template_part::Part, PartitionTemplate, TemplatePart,
@@ -351,7 +364,7 @@ mod tests {
                 column_order: [c1.column.id, c2.column.id].into(),
             }
         );
-        assert_histogram_metric_count(&catalog.metric_registry, "partition_get_by_id", 1);
+        assert_catalog_access_metric_count(&catalog.metric_registry, "partition_get_by_id", 1);
 
         let sort_key2 = cache
             .get(Arc::clone(&cached_table), p2.id, &Vec::new(), None)
@@ -359,7 +372,7 @@ mod tests {
             .unwrap()
             .sort_key;
         assert_eq!(sort_key2, None);
-        assert_histogram_metric_count(&catalog.metric_registry, "partition_get_by_id", 2);
+        assert_catalog_access_metric_count(&catalog.metric_registry, "partition_get_by_id", 2);
 
         let sort_key1b = cache
             .get(Arc::clone(&cached_table), p1.id, &Vec::new(), None)
@@ -370,7 +383,7 @@ mod tests {
             sort_key1a.as_ref().unwrap(),
             sort_key1b.as_ref().unwrap()
         ));
-        assert_histogram_metric_count(&catalog.metric_registry, "partition_get_by_id", 2);
+        assert_catalog_access_metric_count(&catalog.metric_registry, "partition_get_by_id", 2);
 
         // non-existing partition
         for _ in 0..2 {
@@ -383,7 +396,7 @@ mod tests {
                 )
                 .await;
             assert_eq!(res, None);
-            assert_histogram_metric_count(&catalog.metric_registry, "partition_get_by_id", 3);
+            assert_catalog_access_metric_count(&catalog.metric_registry, "partition_get_by_id", 3);
         }
     }
 
@@ -479,7 +492,7 @@ mod tests {
             &ranges1a.get("tag1").unwrap().min_value,
             &ranges1a.get("tag1").unwrap().max_value,
         ));
-        assert_histogram_metric_count(&catalog.metric_registry, "partition_get_by_id", 1);
+        assert_catalog_access_metric_count(&catalog.metric_registry, "partition_get_by_id", 1);
 
         let ranges2 = cache
             .get(Arc::clone(&cached_table), p2.id, &[], None)
@@ -496,7 +509,7 @@ mod tests {
                 }
             ),]),
         );
-        assert_histogram_metric_count(&catalog.metric_registry, "partition_get_by_id", 2);
+        assert_catalog_access_metric_count(&catalog.metric_registry, "partition_get_by_id", 2);
 
         let ranges3 = cache
             .get(Arc::clone(&cached_table), p3.id, &[], None)
@@ -522,7 +535,7 @@ mod tests {
                 ),
             ]),
         );
-        assert_histogram_metric_count(&catalog.metric_registry, "partition_get_by_id", 3);
+        assert_catalog_access_metric_count(&catalog.metric_registry, "partition_get_by_id", 3);
 
         let ranges4 = cache
             .get(Arc::clone(&cached_table), p4.id, &[], None)
@@ -548,7 +561,7 @@ mod tests {
                 ),
             ]),
         );
-        assert_histogram_metric_count(&catalog.metric_registry, "partition_get_by_id", 4);
+        assert_catalog_access_metric_count(&catalog.metric_registry, "partition_get_by_id", 4);
 
         let ranges5 = cache
             .get(Arc::clone(&cached_table), p5.id, &[], None)
@@ -565,7 +578,7 @@ mod tests {
                 }
             ),]),
         );
-        assert_histogram_metric_count(&catalog.metric_registry, "partition_get_by_id", 5);
+        assert_catalog_access_metric_count(&catalog.metric_registry, "partition_get_by_id", 5);
 
         let ranges1b = cache
             .get(Arc::clone(&cached_table), p1.id, &[], None)
@@ -573,7 +586,7 @@ mod tests {
             .unwrap()
             .column_ranges;
         assert!(Arc::ptr_eq(&ranges1a, &ranges1b));
-        assert_histogram_metric_count(&catalog.metric_registry, "partition_get_by_id", 5);
+        assert_catalog_access_metric_count(&catalog.metric_registry, "partition_get_by_id", 5);
 
         // non-existing partition
         for _ in 0..2 {
@@ -586,7 +599,7 @@ mod tests {
                 )
                 .await;
             assert_eq!(res, None);
-            assert_histogram_metric_count(&catalog.metric_registry, "partition_get_by_id", 6);
+            assert_catalog_access_metric_count(&catalog.metric_registry, "partition_get_by_id", 6);
         }
     }
 
@@ -631,7 +644,7 @@ mod tests {
             .unwrap()
             .sort_key;
         assert_eq!(sort_key, None,);
-        assert_histogram_metric_count(&catalog.metric_registry, "partition_get_by_id", 1);
+        assert_catalog_access_metric_count(&catalog.metric_registry, "partition_get_by_id", 1);
 
         // requesting nother will not expire
         assert!(p_sort_key.is_none());
@@ -641,7 +654,7 @@ mod tests {
             .unwrap()
             .sort_key;
         assert_eq!(sort_key, None,);
-        assert_histogram_metric_count(&catalog.metric_registry, "partition_get_by_id", 1);
+        assert_catalog_access_metric_count(&catalog.metric_registry, "partition_get_by_id", 1);
 
         // but requesting something will expire
         let sort_key = cache
@@ -650,7 +663,7 @@ mod tests {
             .unwrap()
             .sort_key;
         assert_eq!(sort_key, None,);
-        assert_histogram_metric_count(&catalog.metric_registry, "partition_get_by_id", 2);
+        assert_catalog_access_metric_count(&catalog.metric_registry, "partition_get_by_id", 2);
 
         // set sort key
         let p = p
@@ -675,7 +688,7 @@ mod tests {
                 column_order: [c1.column.id, c2.column.id].into(),
             }
         );
-        assert_histogram_metric_count(&catalog.metric_registry, "partition_get_by_id", 4);
+        assert_catalog_access_metric_count(&catalog.metric_registry, "partition_get_by_id", 4);
 
         // subsets and the full key don't expire
         for should_cover in [
@@ -693,7 +706,7 @@ mod tests {
                 sort_key.as_ref().unwrap(),
                 sort_key_2.as_ref().unwrap()
             ));
-            assert_histogram_metric_count(&catalog.metric_registry, "partition_get_by_id", 4);
+            assert_catalog_access_metric_count(&catalog.metric_registry, "partition_get_by_id", 4);
         }
 
         // unknown columns expire
@@ -713,7 +726,7 @@ mod tests {
             sort_key_2.as_ref().unwrap()
         ));
         assert_eq!(sort_key, sort_key_2);
-        assert_histogram_metric_count(&catalog.metric_registry, "partition_get_by_id", 5);
+        assert_catalog_access_metric_count(&catalog.metric_registry, "partition_get_by_id", 5);
     }
 
     fn schema() -> Schema {

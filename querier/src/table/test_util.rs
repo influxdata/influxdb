@@ -114,7 +114,7 @@ impl IngesterPartitionBuilder {
         )
         .unwrap();
 
-        part.set_partition_column_ranges(Arc::clone(&self.partition_column_ranges));
+        part.set_partition_column_ranges(&self.partition_column_ranges);
 
         part
     }

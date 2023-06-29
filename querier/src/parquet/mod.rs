@@ -107,6 +107,8 @@ impl QuerierParquetChunk {
 
 #[cfg(test)]
 pub mod tests {
+    use std::collections::HashMap;
+
     use crate::{
         cache::{
             namespace::{CachedNamespace, CachedTable},
@@ -250,12 +252,27 @@ pub mod tests {
         }
 
         async fn chunk(&self) -> QuerierParquetChunk {
+            let cached_partition = self
+                .adapter
+                .catalog_cache()
+                .partition()
+                .get(
+                    Arc::clone(&self.cached_table),
+                    self.parquet_file.partition_id,
+                    &[],
+                    None,
+                )
+                .await
+                .unwrap();
+            let cached_partitions =
+                HashMap::from([(self.parquet_file.partition_id, cached_partition)]);
             self.adapter
                 .new_chunks(
                     Arc::clone(&self.cached_table),
                     vec![Arc::clone(&self.parquet_file)].into(),
                     &Predicate::new(),
                     MetricPruningObserver::new_unregistered(),
+                    &cached_partitions,
                     None,
                 )
                 .await

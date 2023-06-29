@@ -9,7 +9,6 @@ use self::{
 use crate::{
     cache::{namespace::CachedTable, CatalogCache},
     df_stats::{create_chunk_statistics, ColumnRanges},
-    CONCURRENT_CHUNK_CREATION_JOBS,
 };
 use arrow::{datatypes::DataType, error::ArrowError, record_batch::RecordBatch};
 use arrow_flight::decode::DecodedPayload;
@@ -18,7 +17,7 @@ use backoff::{Backoff, BackoffConfig, BackoffError};
 use client_util::connection;
 use data_types::{ChunkId, ChunkOrder, DeletePredicate, NamespaceId, PartitionHashId, PartitionId};
 use datafusion::{error::DataFusionError, physical_plan::Statistics};
-use futures::{stream::FuturesUnordered, StreamExt, TryStreamExt};
+use futures::{stream::FuturesUnordered, TryStreamExt};
 use ingester_query_grpc::{
     encode_proto_predicate_as_base64, influxdata::iox::ingester::v1::IngesterQueryResponseMetadata,
     IngesterQueryRequest,
@@ -32,7 +31,6 @@ use iox_time::{Time, TimeProvider};
 use metric::{DurationHistogram, Metric};
 use observability_deps::tracing::{debug, trace, warn};
 use predicate::Predicate;
-use rand::{rngs::StdRng, seq::SliceRandom, SeedableRng};
 use schema::{sort::SortKey, Projection, Schema};
 use snafu::{ensure, OptionExt, ResultExt, Snafu};
 use std::{
@@ -324,7 +322,6 @@ pub struct IngesterConnectionImpl {
     unique_ingester_addresses: HashSet<Arc<str>>,
     flight_client: Arc<dyn IngesterFlightClient>,
     time_provider: Arc<dyn TimeProvider>,
-    catalog_cache: Arc<CatalogCache>,
     metrics: Arc<IngesterConnectionMetrics>,
     backoff_config: BackoffConfig,
 }
@@ -373,7 +370,6 @@ impl IngesterConnectionImpl {
             unique_ingester_addresses: ingester_addresses.into_iter().collect(),
             flight_client,
             time_provider: catalog_cache.time_provider(),
-            catalog_cache,
             metrics,
             backoff_config,
         }
@@ -385,7 +381,6 @@ impl IngesterConnectionImpl {
 struct GetPartitionForIngester<'a> {
     flight_client: Arc<dyn IngesterFlightClient>,
     time_provider: Arc<dyn TimeProvider>,
-    catalog_cache: Arc<CatalogCache>,
     ingester_address: Arc<str>,
     namespace_id: NamespaceId,
     columns: Vec<String>,
@@ -401,7 +396,6 @@ async fn execute(
     let GetPartitionForIngester {
         flight_client,
         time_provider: _,
-        catalog_cache,
         ingester_address,
         namespace_id,
         columns,
@@ -490,7 +484,6 @@ async fn execute(
     // reconstruct partitions
     let mut decoder = IngesterStreamDecoder::new(
         ingester_address,
-        catalog_cache,
         cached_table,
         span_recorder.child_span("IngesterStreamDecoder"),
     );
@@ -498,7 +491,7 @@ async fn execute(
         decoder.register(msg, md)?;
     }
 
-    decoder.finalize().await
+    decoder.finalize()
 }
 
 /// Helper to disassemble the data from the ingester Apache Flight arrow stream.
@@ -510,25 +503,18 @@ struct IngesterStreamDecoder {
     current_partition: Option<IngesterPartition>,
     current_chunk: Option<(Schema, Vec<RecordBatch>)>,
     ingester_address: Arc<str>,
-    catalog_cache: Arc<CatalogCache>,
     cached_table: Arc<CachedTable>,
     span_recorder: SpanRecorder,
 }
 
 impl IngesterStreamDecoder {
     /// Create empty decoder.
-    fn new(
-        ingester_address: Arc<str>,
-        catalog_cache: Arc<CatalogCache>,
-        cached_table: Arc<CachedTable>,
-        span: Option<Span>,
-    ) -> Self {
+    fn new(ingester_address: Arc<str>, cached_table: Arc<CachedTable>, span: Option<Span>) -> Self {
         Self {
             finished_partitions: HashMap::new(),
             current_partition: None,
             current_chunk: None,
             ingester_address,
-            catalog_cache,
             cached_table,
             span_recorder: SpanRecorder::new(span),
         }
@@ -637,46 +623,10 @@ impl IngesterStreamDecoder {
     }
 
     /// Flush internal state and return sorted set of partitions.
-    async fn finalize(mut self) -> Result<Vec<IngesterPartition>> {
+    fn finalize(mut self) -> Result<Vec<IngesterPartition>> {
         self.flush_partition()?;
 
         let mut partitions = self.finished_partitions.into_values().collect::<Vec<_>>();
-
-        // shuffle order to even catalog load, because cache hits/misses might be correlated w/ the order of the
-        // partitions.
-        //
-        // Note that we sort before shuffling to achieve a deterministic pseudo-random order
-        let mut rng = StdRng::seed_from_u64(self.cached_table.id.get() as u64);
-        partitions.sort_by_key(|p| p.partition_id);
-        partitions.shuffle(&mut rng);
-
-        let mut partitions = futures::stream::iter(partitions)
-            .map(|p| {
-                let cached_table = &self.cached_table;
-                let catalog_cache = &self.catalog_cache;
-                let span = self
-                    .span_recorder
-                    .child_span("fetch column ranges for partition");
-                async move {
-                    // If the partition does NOT yet exist within the catalog, this is OK. We can deal without the ranges,
-                    // the chunk pruning will not be as efficient though.
-                    let ranges = catalog_cache
-                        .partition()
-                        .get(Arc::clone(cached_table), p.partition_id, &[], span)
-                        .await
-                        .map(|p| p.column_ranges)
-                        .unwrap_or_default();
-                    (p, ranges)
-                }
-            })
-            .buffer_unordered(CONCURRENT_CHUNK_CREATION_JOBS)
-            .map(|(mut p, ranges)| {
-                p.set_partition_column_ranges(ranges);
-                p
-            })
-            .collect::<Vec<_>>()
-            .await;
-
         // deterministic order
         partitions.sort_by_key(|p| p.partition_id);
         self.span_recorder.ok("finished");
@@ -720,7 +670,6 @@ impl IngesterConnection for IngesterConnectionImpl {
             let request = GetPartitionForIngester {
                 flight_client: Arc::clone(&self.flight_client),
                 time_provider: Arc::clone(&self.time_provider),
-                catalog_cache: Arc::clone(&self.catalog_cache),
                 ingester_address: Arc::clone(&ingester_address),
                 namespace_id,
                 cached_table: Arc::clone(&cached_table),
@@ -886,7 +835,7 @@ impl IngesterPartition {
         Ok(self)
     }
 
-    pub(crate) fn set_partition_column_ranges(&mut self, partition_column_ranges: ColumnRanges) {
+    pub(crate) fn set_partition_column_ranges(&mut self, partition_column_ranges: &ColumnRanges) {
         for chunk in &mut self.chunks {
             // TODO: may want to ask the Ingester to send this value instead of computing it here.
             let ts_min_max =
@@ -901,10 +850,14 @@ impl IngesterPartition {
                 row_count,
                 &chunk.schema,
                 ts_min_max,
-                &partition_column_ranges,
+                partition_column_ranges,
             ));
             chunk.stats = Some(stats);
         }
+    }
+
+    pub(crate) fn partition_id(&self) -> PartitionId {
+        self.partition_id
     }
 
     pub(crate) fn ingester_uuid(&self) -> Uuid {

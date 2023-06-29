@@ -3,8 +3,8 @@ use crate::cache::namespace::CachedTable;
 use async_trait::async_trait;
 use data_types::NamespaceId;
 use parking_lot::Mutex;
-use schema::{Projection, Schema as IOxSchema};
-use std::{any::Any, sync::Arc};
+use schema::Schema as IOxSchema;
+use std::{any::Any, collections::HashSet, sync::Arc};
 use trace::span::Span;
 
 /// IngesterConnection for testing
@@ -36,34 +36,15 @@ impl IngesterConnection for MockIngesterConnection {
         _predicate: &predicate::Predicate,
         _span: Option<Span>,
     ) -> super::Result<Vec<super::IngesterPartition>> {
-        // see if we want to do projection pushdown
-        let mut prune_columns = true;
-        let cols: Vec<&str> = columns.iter().map(|s| s.as_str()).collect();
-        let selection = Projection::Some(&cols);
-        match selection {
-            Projection::All => prune_columns = false,
-            Projection::Some(val) => {
-                if val.is_empty() {
-                    prune_columns = false;
-                }
-            }
-        }
-        if !prune_columns {
-            return self
-                .next_response
-                .lock()
-                .take()
-                .unwrap_or_else(|| Ok(vec![]));
-        }
-
-        // no partitions
-        let partitions = self.next_response.lock().take();
-        if partitions.is_none() {
+        let Some(partitions) = self.next_response.lock().take() else {
             return Ok(vec![]);
-        }
+        };
+        let partitions = partitions?;
+
+        let cols = columns.into_iter().collect::<HashSet<_>>();
 
         // do pruning
-        let partitions = partitions.unwrap().unwrap();
+        let cols = &cols;
         let partitions = partitions
             .into_iter()
             .map(|mut p| async move {
@@ -71,13 +52,20 @@ impl IngesterConnection for MockIngesterConnection {
                     .chunks
                     .into_iter()
                     .map(|ic| async move {
+                        // restrict selection to available columns
+                        let schema = &ic.schema;
+                        let projection = schema
+                            .as_arrow()
+                            .fields()
+                            .iter()
+                            .enumerate()
+                            .filter(|(_idx, f)| cols.contains(f.name()))
+                            .map(|(idx, _f)| idx)
+                            .collect::<Vec<_>>();
                         let batches: Vec<_> = ic
                             .batches
                             .iter()
-                            .map(|batch| match ic.schema.df_projection(selection).unwrap() {
-                                Some(projection) => batch.project(&projection).unwrap(),
-                                None => batch.clone(),
-                            })
+                            .map(|batch| batch.project(&projection).unwrap())
                             .collect();
 
                         assert!(!batches.is_empty(), "Error: empty batches");
