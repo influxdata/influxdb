@@ -227,7 +227,6 @@ mod tests {
         column::{SemanticType, Values},
         Column, DatabaseBatch, TableBatch,
     };
-    use lazy_static::lazy_static;
     use std::{collections::HashSet, sync::Arc};
 
     use super::*;
@@ -239,9 +238,7 @@ mod tests {
 
     const PERSIST_QUEUE_DEPTH: usize = 42;
 
-    lazy_static! {
-        static ref ALTERNATIVE_TABLE_ID: TableId = TableId::new(76);
-    }
+    const ALTERNATIVE_TABLE_ID: TableId = TableId::new(76);
 
     macro_rules! test_rpc_write {
         (

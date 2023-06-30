@@ -271,7 +271,6 @@ mod tests {
 
     use assert_matches::assert_matches;
     use async_trait::async_trait;
-    use lazy_static::lazy_static;
     use metric::{Attributes, Metric};
     use parking_lot::Mutex;
     use wal::Wal;
@@ -312,9 +311,7 @@ mod tests {
         }
     }
 
-    lazy_static! {
-        static ref ALTERNATIVE_TABLE_NAME: &'static str = "arán";
-    }
+    const ALTERNATIVE_TABLE_NAME: &str = "arán";
 
     #[tokio::test]
     async fn test_replay() {
@@ -357,7 +354,7 @@ mod tests {
                     SequenceNumber::new(42),
                 ),
                 (
-                    &ALTERNATIVE_TABLE_NAME,
+                    ALTERNATIVE_TABLE_NAME,
                     TableId::new(ARBITRARY_TABLE_ID.get() + 1),
                     SequenceNumber::new(43),
                 ),
@@ -367,7 +364,7 @@ mod tests {
             &format!(
                 r#"{},region=Asturias temp=15 4242424242
                 {},region=Mayo temp=12 4242424242"#,
-                &*ARBITRARY_TABLE_NAME, &*ALTERNATIVE_TABLE_NAME,
+                &*ARBITRARY_TABLE_NAME, ALTERNATIVE_TABLE_NAME,
             ),
         );
 
