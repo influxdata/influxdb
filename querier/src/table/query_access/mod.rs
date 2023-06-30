@@ -168,16 +168,6 @@ impl MetricPruningObserver {
     pub(crate) fn new(metrics: Arc<PruneMetrics>) -> Self {
         Self { metrics }
     }
-
-    #[cfg(test)]
-    pub(crate) fn new_unregistered() -> Self {
-        Self::new(Arc::new(PruneMetrics::new_unregistered()))
-    }
-
-    /// Called when pruning a chunk before fully creating the chunk structure
-    pub(crate) fn was_pruned_early(&self, row_count: u64, size_estimate: u64) {
-        self.metrics.pruned_early.inc(1, row_count, size_estimate);
-    }
 }
 
 impl PruningObserver for MetricPruningObserver {

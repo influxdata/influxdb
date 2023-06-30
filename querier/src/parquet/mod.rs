@@ -97,12 +97,9 @@ impl QuerierParquetChunk {
 pub mod tests {
     use std::collections::HashMap;
 
-    use crate::{
-        cache::{
-            namespace::{CachedNamespace, CachedTable},
-            CatalogCache,
-        },
-        table::MetricPruningObserver,
+    use crate::cache::{
+        namespace::{CachedNamespace, CachedTable},
+        CatalogCache,
     };
 
     use super::*;
@@ -116,7 +113,6 @@ pub mod tests {
     };
     use iox_tests::{TestCatalog, TestParquetFileBuilder};
     use metric::{Attributes, Observation, RawReporter};
-    use predicate::Predicate;
     use schema::{builder::SchemaBuilder, sort::SortKeyBuilder};
     use test_helpers::maybe_start_logging;
     use tokio::runtime::Handle;
@@ -258,8 +254,6 @@ pub mod tests {
                 .new_chunks(
                     Arc::clone(&self.cached_table),
                     vec![Arc::clone(&self.parquet_file)].into(),
-                    &Predicate::new(),
-                    MetricPruningObserver::new_unregistered(),
                     &cached_partitions,
                     None,
                 )

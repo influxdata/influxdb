@@ -17,6 +17,7 @@ data_types = { path = "../data_types" }
 datafusion = { workspace = true }
 datafusion_util = { path = "../datafusion_util" }
 futures = "0.3"
+hashbrown = { version = "0.14.0" }
 influxdb_iox_client = { path = "../influxdb_iox_client" }
 iox_catalog = { path = "../iox_catalog" }
 iox_query = { path = "../iox_query" }

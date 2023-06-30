@@ -4395,6 +4395,7 @@ dependencies = [
  "datafusion_util",
  "futures",
  "generated_types",
+ "hashbrown 0.14.0",
  "influxdb_iox_client",
  "ingester_query_grpc",
  "insta",

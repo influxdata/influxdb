@@ -24,7 +24,6 @@ use trace::span::{Span, SpanRecorder};
 use uuid::Uuid;
 
 pub use self::query_access::metrics::PruneMetrics;
-pub(crate) use self::query_access::MetricPruningObserver;
 
 mod query_access;
 
@@ -272,8 +271,6 @@ impl QuerierTable {
             .new_chunks(
                 Arc::clone(cached_table),
                 Arc::clone(&parquet_files.files),
-                predicate,
-                MetricPruningObserver::new(Arc::clone(&self.prune_metrics)),
                 &cached_partitions,
                 span_recorder.child_span("new_chunks"),
             )
