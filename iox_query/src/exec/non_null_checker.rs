@@ -274,7 +274,7 @@ impl ExecutionPlan for NonNullCheckerExec {
 
     fn fmt_as(&self, t: DisplayFormatType, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match t {
-            DisplayFormatType::Default => {
+            DisplayFormatType::Default | DisplayFormatType::Verbose => {
                 write!(f, "NonNullCheckerExec")
             }
         }
