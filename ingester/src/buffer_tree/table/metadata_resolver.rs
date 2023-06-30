@@ -4,24 +4,24 @@ use backoff::{Backoff, BackoffConfig};
 use data_types::TableId;
 use iox_catalog::interface::Catalog;
 
-use super::TableName;
+use super::TableMetadata;
 use crate::deferred_load::DeferredLoad;
 
 /// An abstract provider of a [`DeferredLoad`] configured to fetch the
-/// [`TableName`] of the specified [`TableId`].
-pub(crate) trait TableNameProvider: Send + Sync + std::fmt::Debug {
-    fn for_table(&self, id: TableId) -> DeferredLoad<TableName>;
+/// catalog [`TableMetadata`] of the specified [`TableId`].
+pub(crate) trait TableProvider: Send + Sync + std::fmt::Debug {
+    fn for_table(&self, id: TableId) -> DeferredLoad<TableMetadata>;
 }
 
 #[derive(Debug)]
-pub(crate) struct TableNameResolver {
+pub(crate) struct TableResolver {
     max_smear: Duration,
     catalog: Arc<dyn Catalog>,
     backoff_config: BackoffConfig,
     metrics: Arc<metric::Registry>,
 }
 
-impl TableNameResolver {
+impl TableResolver {
     pub(crate) fn new(
         max_smear: Duration,
         catalog: Arc<dyn Catalog>,
@@ -36,16 +36,16 @@ impl TableNameResolver {
         }
     }
 
-    /// Fetch the [`TableName`] from the [`Catalog`] for specified
+    /// Fetch the [`TableMetadata`] from the [`Catalog`] for specified
     /// `table_id`, retrying endlessly when errors occur.
     pub(crate) async fn fetch(
         table_id: TableId,
         catalog: Arc<dyn Catalog>,
         backoff_config: BackoffConfig,
-    ) -> TableName {
+    ) -> TableMetadata {
         Backoff::new(&backoff_config)
-            .retry_all_errors("fetch table name", || async {
-                let s = catalog
+            .retry_all_errors("fetch table", || async {
+                let table = catalog
                     .repositories()
                     .await
                     .tables()
@@ -54,18 +54,17 @@ impl TableNameResolver {
                     .unwrap_or_else(|| {
                         panic!("resolving table name for non-existent table id {table_id}")
                     })
-                    .name
                     .into();
 
-                Result::<_, iox_catalog::interface::Error>::Ok(s)
+                Result::<_, iox_catalog::interface::Error>::Ok(table)
             })
             .await
             .expect("retry forever")
     }
 }
 
-impl TableNameProvider for TableNameResolver {
-    fn for_table(&self, id: TableId) -> DeferredLoad<TableName> {
+impl TableProvider for TableResolver {
+    fn for_table(&self, id: TableId) -> DeferredLoad<TableMetadata> {
         DeferredLoad::new(
             self.max_smear,
             Self::fetch(id, Arc::clone(&self.catalog), self.backoff_config.clone()),
@@ -79,28 +78,32 @@ pub(crate) mod mock {
     use super::*;
 
     #[derive(Debug)]
-    pub(crate) struct MockTableNameProvider {
-        name: TableName,
+    pub(crate) struct MockTableProvider {
+        table: TableMetadata,
     }
 
-    impl MockTableNameProvider {
-        pub(crate) fn new(name: impl Into<TableName>) -> Self {
-            Self { name: name.into() }
+    impl MockTableProvider {
+        pub(crate) fn new(table: impl Into<TableMetadata>) -> Self {
+            Self {
+                table: table.into(),
+            }
         }
     }
 
-    impl Default for MockTableNameProvider {
+    impl Default for MockTableProvider {
         fn default() -> Self {
-            Self::new("bananas")
+            Self::new(TableMetadata::with_default_partition_template_for_testing(
+                "bananas".into(),
+            ))
         }
     }
 
-    impl TableNameProvider for MockTableNameProvider {
-        fn for_table(&self, _id: TableId) -> DeferredLoad<TableName> {
-            let name = self.name.clone();
+    impl TableProvider for MockTableProvider {
+        fn for_table(&self, _id: TableId) -> DeferredLoad<TableMetadata> {
+            let table = self.table.clone();
             DeferredLoad::new(
                 Duration::from_secs(1),
-                async { name },
+                async { table },
                 &metric::Registry::default(),
             )
         }
@@ -129,7 +132,7 @@ mod tests {
         // Populate the catalog with the namespace / table
         let (_ns_id, table_id) = populate_catalog(&*catalog, NAMESPACE_NAME, TABLE_NAME).await;
 
-        let fetcher = Arc::new(TableNameResolver::new(
+        let fetcher = Arc::new(TableResolver::new(
             Duration::from_secs(10),
             Arc::clone(&catalog),
             backoff_config.clone(),
@@ -141,6 +144,6 @@ mod tests {
             .get()
             .with_timeout_panic(Duration::from_secs(5))
             .await;
-        assert_eq!(&**got, TABLE_NAME);
+        assert_eq!(got.name(), TABLE_NAME);
     }
 }

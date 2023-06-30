@@ -11,7 +11,7 @@ use super::{
     namespace::{name_resolver::NamespaceNameProvider, NamespaceData},
     partition::{resolver::PartitionProvider, PartitionData},
     post_write::PostWriteObserver,
-    table::name_resolver::TableNameProvider,
+    table::metadata_resolver::TableProvider,
 };
 use crate::{
     arcmap::ArcMap,
@@ -93,12 +93,12 @@ pub(crate) struct BufferTree<O> {
     /// [`NamespaceName`]: data_types::NamespaceName
     namespaces: ArcMap<NamespaceId, NamespaceData<O>>,
     namespace_name_resolver: Arc<dyn NamespaceNameProvider>,
-    /// The [`TableName`] provider used by [`NamespaceData`] to initialise a
+    /// The [`TableMetadata`] provider used by [`NamespaceData`] to initialise a
     /// [`TableData`].
     ///
-    /// [`TableName`]: crate::buffer_tree::table::TableName
+    /// [`TableMetadata`]: crate::buffer_tree::table::TableMetadata
     /// [`TableData`]: crate::buffer_tree::table::TableData
-    table_name_resolver: Arc<dyn TableNameProvider>,
+    table_resolver: Arc<dyn TableProvider>,
 
     metrics: Arc<metric::Registry>,
     namespace_count: U64Counter,
@@ -113,7 +113,7 @@ where
     /// Initialise a new [`BufferTree`] that emits metrics to `metrics`.
     pub(crate) fn new(
         namespace_name_resolver: Arc<dyn NamespaceNameProvider>,
-        table_name_resolver: Arc<dyn TableNameProvider>,
+        table_resolver: Arc<dyn TableProvider>,
         partition_provider: Arc<dyn PartitionProvider>,
         post_write_observer: Arc<O>,
         metrics: Arc<metric::Registry>,
@@ -128,7 +128,7 @@ where
         Self {
             namespaces: Default::default(),
             namespace_name_resolver,
-            table_name_resolver,
+            table_resolver,
             metrics,
             partition_provider,
             post_write_observer,
@@ -179,7 +179,7 @@ where
             Arc::new(NamespaceData::new(
                 namespace_id,
                 Arc::new(self.namespace_name_resolver.for_namespace(namespace_id)),
-                Arc::clone(&self.table_name_resolver),
+                Arc::clone(&self.table_resolver),
                 Arc::clone(&self.partition_provider),
                 Arc::clone(&self.post_write_observer),
                 &self.metrics,
@@ -248,14 +248,14 @@ mod tests {
             namespace::{name_resolver::mock::MockNamespaceNameProvider, NamespaceData},
             partition::resolver::mock::MockPartitionProvider,
             post_write::mock::MockPostWriteObserver,
-            table::TableName,
+            table::TableMetadata,
         },
         deferred_load::{self, DeferredLoad},
         query::partition_response::PartitionResponse,
         test_util::{
             defer_namespace_name_1_ms, make_write_op, PartitionDataBuilder, ARBITRARY_NAMESPACE_ID,
             ARBITRARY_NAMESPACE_NAME, ARBITRARY_PARTITION_ID, ARBITRARY_PARTITION_KEY,
-            ARBITRARY_TABLE_ID, ARBITRARY_TABLE_NAME, ARBITRARY_TABLE_NAME_PROVIDER,
+            ARBITRARY_TABLE_ID, ARBITRARY_TABLE_NAME, ARBITRARY_TABLE_PROVIDER,
         },
     };
 
@@ -286,7 +286,7 @@ mod tests {
         let ns = NamespaceData::new(
             ARBITRARY_NAMESPACE_ID,
             defer_namespace_name_1_ms(),
-            Arc::clone(&*ARBITRARY_TABLE_NAME_PROVIDER),
+            Arc::clone(&*ARBITRARY_TABLE_PROVIDER),
             partition_provider,
             Arc::new(MockPostWriteObserver::default()),
             &metrics,
@@ -366,7 +366,7 @@ mod tests {
                     // Init the buffer tree
                     let buf = BufferTree::new(
                         Arc::new(MockNamespaceNameProvider::new(&**ARBITRARY_NAMESPACE_NAME)),
-                        Arc::clone(&*ARBITRARY_TABLE_NAME_PROVIDER),
+                        Arc::clone(&*ARBITRARY_TABLE_PROVIDER),
                         partition_provider,
                         Arc::new(MockPostWriteObserver::default()),
                         Arc::new(metric::Registry::default()),
@@ -749,7 +749,7 @@ mod tests {
         // Init the buffer tree
         let buf = BufferTree::new(
             Arc::new(MockNamespaceNameProvider::new(&**ARBITRARY_NAMESPACE_NAME)),
-            Arc::clone(&*ARBITRARY_TABLE_NAME_PROVIDER),
+            Arc::clone(&*ARBITRARY_TABLE_PROVIDER),
             partition_provider,
             Arc::new(MockPostWriteObserver::default()),
             Arc::clone(&metrics),
@@ -833,9 +833,13 @@ mod tests {
                         .with_partition_id(PARTITION3_ID)
                         .with_partition_key(PARTITION3_KEY.clone())
                         .with_table_id(TABLE2_ID)
-                        .with_table_name_loader(Arc::new(DeferredLoad::new(
+                        .with_table_loader(Arc::new(DeferredLoad::new(
                             Duration::from_secs(1),
-                            async move { TableName::from(TABLE2_NAME) },
+                            async move {
+                                TableMetadata::with_default_partition_template_for_testing(
+                                    TABLE2_NAME.into(),
+                                )
+                            },
                             &metric::Registry::default(),
                         )))
                         .build(),
@@ -845,7 +849,7 @@ mod tests {
         // Init the buffer tree
         let buf = BufferTree::new(
             Arc::new(MockNamespaceNameProvider::new(&**ARBITRARY_NAMESPACE_NAME)),
-            Arc::clone(&*ARBITRARY_TABLE_NAME_PROVIDER),
+            Arc::clone(&*ARBITRARY_TABLE_PROVIDER),
             partition_provider,
             Arc::new(MockPostWriteObserver::default()),
             Arc::clone(&Arc::new(metric::Registry::default())),
@@ -932,7 +936,7 @@ mod tests {
         // Init the BufferTree
         let buf = BufferTree::new(
             Arc::new(MockNamespaceNameProvider::new(&**ARBITRARY_NAMESPACE_NAME)),
-            Arc::clone(&*ARBITRARY_TABLE_NAME_PROVIDER),
+            Arc::clone(&*ARBITRARY_TABLE_PROVIDER),
             partition_provider,
             Arc::new(MockPostWriteObserver::default()),
             Arc::new(metric::Registry::default()),
@@ -1029,7 +1033,7 @@ mod tests {
         // Init the buffer tree
         let buf = BufferTree::new(
             Arc::new(MockNamespaceNameProvider::new(&**ARBITRARY_NAMESPACE_NAME)),
-            Arc::clone(&*ARBITRARY_TABLE_NAME_PROVIDER),
+            Arc::clone(&*ARBITRARY_TABLE_PROVIDER),
             partition_provider,
             Arc::new(MockPostWriteObserver::default()),
             Arc::new(metric::Registry::default()),

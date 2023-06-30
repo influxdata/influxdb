@@ -1,11 +1,14 @@
 //! Table level data buffer structures.
 
-pub(crate) mod name_resolver;
+pub(crate) mod metadata_resolver;
 
 use std::{fmt::Debug, sync::Arc};
 
 use async_trait::async_trait;
-use data_types::{NamespaceId, PartitionKey, SequenceNumber, TableId};
+use data_types::{
+    partition_template::TablePartitionTemplateOverride, NamespaceId, PartitionKey, SequenceNumber,
+    Table, TableId,
+};
 use mutable_batch::MutableBatch;
 use parking_lot::Mutex;
 use predicate::Predicate;
@@ -24,6 +27,45 @@ use crate::{
         partition_response::PartitionResponse, response::PartitionStream, QueryError, QueryExec,
     },
 };
+
+/// Metadata from the catalog for a table
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub(crate) struct TableMetadata {
+    name: TableName,
+    partition_template: TablePartitionTemplateOverride,
+}
+
+impl TableMetadata {
+    pub fn with_default_partition_template_for_testing(name: TableName) -> Self {
+        Self {
+            name,
+            partition_template: Default::default(),
+        }
+    }
+
+    pub(crate) fn name(&self) -> &TableName {
+        &self.name
+    }
+
+    pub(crate) fn partition_template(&self) -> &TablePartitionTemplateOverride {
+        &self.partition_template
+    }
+}
+
+impl From<Table> for TableMetadata {
+    fn from(t: Table) -> Self {
+        Self {
+            name: t.name.into(),
+            partition_template: t.partition_template,
+        }
+    }
+}
+
+impl std::fmt::Display for TableMetadata {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        std::fmt::Display::fmt(&self.name, f)
+    }
+}
 
 /// The string name / identifier of a Table.
 ///
@@ -70,7 +112,7 @@ impl PartialEq<str> for TableName {
 #[derive(Debug)]
 pub(crate) struct TableData<O> {
     table_id: TableId,
-    table_name: Arc<DeferredLoad<TableName>>,
+    catalog_table: Arc<DeferredLoad<TableMetadata>>,
 
     /// The catalog ID of the namespace this table is being populated from.
     namespace_id: NamespaceId,
@@ -94,7 +136,7 @@ impl<O> TableData<O> {
     /// for the first time.
     pub(super) fn new(
         table_id: TableId,
-        table_name: Arc<DeferredLoad<TableName>>,
+        catalog_table: Arc<DeferredLoad<TableMetadata>>,
         namespace_id: NamespaceId,
         namespace_name: Arc<DeferredLoad<NamespaceName>>,
         partition_provider: Arc<dyn PartitionProvider>,
@@ -102,7 +144,7 @@ impl<O> TableData<O> {
     ) -> Self {
         Self {
             table_id,
-            table_name,
+            catalog_table,
             namespace_id,
             namespace_name,
             partition_data: Default::default(),
@@ -133,9 +175,9 @@ impl<O> TableData<O> {
         self.table_id
     }
 
-    /// Returns the name of this table.
-    pub(crate) fn table_name(&self) -> &Arc<DeferredLoad<TableName>> {
-        &self.table_name
+    /// Returns the catalog data for this table.
+    pub(crate) fn catalog_table(&self) -> &Arc<DeferredLoad<TableMetadata>> {
+        &self.catalog_table
     }
 
     /// Return the [`NamespaceId`] this table is a part of.
@@ -167,7 +209,7 @@ where
                         self.namespace_id,
                         Arc::clone(&self.namespace_name),
                         self.table_id,
-                        Arc::clone(&self.table_name),
+                        Arc::clone(&self.catalog_table),
                     )
                     .await;
                 // Add the partition to the map.
@@ -268,7 +310,7 @@ mod tests {
             post_write::mock::MockPostWriteObserver,
         },
         test_util::{
-            defer_namespace_name_1_sec, defer_table_name_1_sec, PartitionDataBuilder,
+            defer_namespace_name_1_sec, defer_table_metadata_1_sec, PartitionDataBuilder,
             ARBITRARY_NAMESPACE_ID, ARBITRARY_PARTITION_KEY, ARBITRARY_TABLE_ID,
             ARBITRARY_TABLE_NAME,
         },
@@ -283,7 +325,7 @@ mod tests {
 
         let table = TableData::new(
             ARBITRARY_TABLE_ID,
-            defer_table_name_1_sec(),
+            defer_table_metadata_1_sec(),
             ARBITRARY_NAMESPACE_ID,
             defer_namespace_name_1_sec(),
             partition_provider,

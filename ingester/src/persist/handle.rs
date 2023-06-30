@@ -501,7 +501,7 @@ mod tests {
         test_util::{
             make_write_op, PartitionDataBuilder, ARBITRARY_NAMESPACE_ID, ARBITRARY_NAMESPACE_NAME,
             ARBITRARY_PARTITION_ID, ARBITRARY_PARTITION_KEY, ARBITRARY_TABLE_ID,
-            ARBITRARY_TABLE_NAME, ARBITRARY_TABLE_NAME_PROVIDER,
+            ARBITRARY_TABLE_NAME, ARBITRARY_TABLE_PROVIDER,
         },
     };
 
@@ -510,7 +510,7 @@ mod tests {
     async fn new_partition(sort_key: SortKeyState) -> Arc<Mutex<PartitionData>> {
         let buffer_tree = BufferTree::new(
             Arc::new(MockNamespaceNameProvider::new(&**ARBITRARY_NAMESPACE_NAME)),
-            Arc::clone(&*ARBITRARY_TABLE_NAME_PROVIDER),
+            Arc::clone(&*ARBITRARY_TABLE_PROVIDER),
             Arc::new(
                 MockPartitionProvider::default().with_partition(
                     PartitionDataBuilder::new()

@@ -8,7 +8,7 @@ use parking_lot::Mutex;
 
 use super::r#trait::PartitionProvider;
 use crate::{
-    buffer_tree::{namespace::NamespaceName, partition::PartitionData, table::TableName},
+    buffer_tree::{namespace::NamespaceName, partition::PartitionData, table::TableMetadata},
     deferred_load::{self, DeferredLoad},
 };
 
@@ -53,7 +53,7 @@ impl PartitionProvider for MockPartitionProvider {
         namespace_id: NamespaceId,
         namespace_name: Arc<DeferredLoad<NamespaceName>>,
         table_id: TableId,
-        table_name: Arc<DeferredLoad<TableName>>,
+        table: Arc<DeferredLoad<TableMetadata>>,
     ) -> Arc<Mutex<PartitionData>> {
         let p = self
             .partitions
@@ -75,8 +75,8 @@ impl PartitionProvider for MockPartitionProvider {
             deferred_load::UNRESOLVED_DISPLAY_STRING,
         );
 
-        let actual_table_name = p.table_name().to_string();
-        let expected_table_name = table_name.get().await.to_string();
+        let actual_table_name = p.table().to_string();
+        let expected_table_name = table.get().await.name().to_string();
         assert!(
             (actual_table_name.as_str() == expected_table_name)
                 || (actual_table_name == deferred_load::UNRESOLVED_DISPLAY_STRING),

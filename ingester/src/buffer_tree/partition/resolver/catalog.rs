@@ -15,7 +15,7 @@ use crate::{
     buffer_tree::{
         namespace::NamespaceName,
         partition::{PartitionData, SortKeyState},
-        table::TableName,
+        table::TableMetadata,
     },
     deferred_load::DeferredLoad,
 };
@@ -61,12 +61,12 @@ impl PartitionProvider for CatalogPartitionResolver {
         namespace_id: NamespaceId,
         namespace_name: Arc<DeferredLoad<NamespaceName>>,
         table_id: TableId,
-        table_name: Arc<DeferredLoad<TableName>>,
+        table: Arc<DeferredLoad<TableMetadata>>,
     ) -> Arc<Mutex<PartitionData>> {
         debug!(
             %partition_key,
             %table_id,
-            %table_name,
+            %table,
             "upserting partition in catalog"
         );
         let p = Backoff::new(&self.backoff_config)
@@ -86,7 +86,7 @@ impl PartitionProvider for CatalogPartitionResolver {
             namespace_id,
             namespace_name,
             table_id,
-            table_name,
+            table,
             SortKeyState::Provided(p.sort_key()),
         )))
     }
@@ -103,6 +103,7 @@ mod tests {
     use iox_catalog::test_helpers::{arbitrary_namespace, arbitrary_table};
 
     use super::*;
+    use crate::buffer_tree::table::TableName;
 
     const TABLE_NAME: &str = "bananas";
     const NAMESPACE_NAME: &str = "ns-bananas";
@@ -138,17 +139,24 @@ mod tests {
                 table_id,
                 Arc::new(DeferredLoad::new(
                     Duration::from_secs(1),
-                    async { TableName::from(TABLE_NAME) },
+                    async {
+                        TableMetadata::with_default_partition_template_for_testing(TableName::from(
+                            TABLE_NAME,
+                        ))
+                    },
                     &metrics,
                 )),
             )
             .await;
 
         // Ensure the table name is available.
-        let _ = got.lock().table_name().get().await;
+        let _ = got.lock().table().get().await.name();
 
         assert_eq!(got.lock().namespace_id(), namespace_id);
-        assert_eq!(got.lock().table_name().to_string(), table_name.to_string());
+        assert_eq!(
+            got.lock().table().get().await.name().to_string(),
+            table_name.to_string()
+        );
         assert_matches!(got.lock().sort_key(), SortKeyState::Provided(None));
         assert!(got.lock().partition_key.ptr_eq(&callers_partition_key));
 

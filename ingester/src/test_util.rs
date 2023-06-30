@@ -15,8 +15,8 @@ use crate::{
         },
         partition::{PartitionData, SortKeyState},
         table::{
-            name_resolver::{mock::MockTableNameProvider, TableNameProvider},
-            TableName,
+            metadata_resolver::{mock::MockTableProvider, TableProvider},
+            TableMetadata, TableName,
         },
     },
     deferred_load::DeferredLoad,
@@ -44,10 +44,12 @@ pub(crate) fn defer_namespace_name_1_ms() -> Arc<DeferredLoad<NamespaceName>> {
     ))
 }
 
-pub(crate) fn defer_table_name_1_sec() -> Arc<DeferredLoad<TableName>> {
+pub(crate) fn defer_table_metadata_1_sec() -> Arc<DeferredLoad<TableMetadata>> {
     Arc::new(DeferredLoad::new(
         Duration::from_secs(1),
-        async { ARBITRARY_TABLE_NAME.clone() },
+        async {
+            TableMetadata::with_default_partition_template_for_testing(ARBITRARY_TABLE_NAME.clone())
+        },
         &metric::Registry::default(),
     ))
 }
@@ -60,8 +62,11 @@ lazy_static! {
     pub(crate) static ref ARBITRARY_NAMESPACE_NAME_PROVIDER: Arc<dyn NamespaceNameProvider> =
         Arc::new(MockNamespaceNameProvider::new(&**ARBITRARY_NAMESPACE_NAME));
     pub(crate) static ref ARBITRARY_TABLE_NAME: TableName = TableName::from("bananas");
-    pub(crate) static ref ARBITRARY_TABLE_NAME_PROVIDER: Arc<dyn TableNameProvider> =
-        Arc::new(MockTableNameProvider::new(&**ARBITRARY_TABLE_NAME));
+    pub(crate) static ref ARBITRARY_TABLE_PROVIDER: Arc<dyn TableProvider> = Arc::new(
+        MockTableProvider::new(TableMetadata::with_default_partition_template_for_testing(
+            ARBITRARY_TABLE_NAME.clone()
+        ))
+    );
 }
 
 /// Build a [`PartitionData`] with mostly arbitrary-yet-valid values for tests.
@@ -71,7 +76,7 @@ pub(crate) struct PartitionDataBuilder {
     partition_key: Option<PartitionKey>,
     namespace_id: Option<NamespaceId>,
     table_id: Option<TableId>,
-    table_name_loader: Option<Arc<DeferredLoad<TableName>>>,
+    table_loader: Option<Arc<DeferredLoad<TableMetadata>>>,
     namespace_loader: Option<Arc<DeferredLoad<NamespaceName>>>,
     sort_key: Option<SortKeyState>,
 }
@@ -101,11 +106,11 @@ impl PartitionDataBuilder {
         self
     }
 
-    pub(crate) fn with_table_name_loader(
+    pub(crate) fn with_table_loader(
         mut self,
-        table_name_loader: Arc<DeferredLoad<TableName>>,
+        table_loader: Arc<DeferredLoad<TableMetadata>>,
     ) -> Self {
-        self.table_name_loader = Some(table_name_loader);
+        self.table_loader = Some(table_loader);
         self
     }
 
@@ -134,8 +139,7 @@ impl PartitionDataBuilder {
             self.namespace_loader
                 .unwrap_or_else(defer_namespace_name_1_sec),
             self.table_id.unwrap_or(ARBITRARY_TABLE_ID),
-            self.table_name_loader
-                .unwrap_or_else(defer_table_name_1_sec),
+            self.table_loader.unwrap_or_else(defer_table_metadata_1_sec),
             self.sort_key.unwrap_or(SortKeyState::Provided(None)),
         )
     }
