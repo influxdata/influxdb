@@ -5,7 +5,7 @@ use std::{any::Any, sync::Arc};
 
 use arrow::record_batch::RecordBatch;
 use arrow_util::util::ensure_schema;
-use data_types::{ChunkId, ChunkOrder, PartitionId};
+use data_types::{ChunkId, ChunkOrder, PartitionId, TimestampMinMax};
 use datafusion::physical_plan::Statistics;
 use iox_query::{
     util::{compute_timenanosecond_min_max, create_basic_summary},
@@ -105,16 +105,26 @@ impl QueryAdaptor {
     pub(crate) fn partition_id(&self) -> PartitionId {
         self.partition_id
     }
+
+    /// Number of rows, useful for building stats
+    pub(crate) fn num_rows(&self) -> u64 {
+        self.data.iter().map(|b| b.num_rows()).sum::<usize>() as u64
+    }
+
+    /// Time range, useful for building stats
+    pub(crate) fn ts_min_max(&self) -> TimestampMinMax {
+        compute_timenanosecond_min_max(self.data.iter().map(|b| b.as_ref()))
+            .expect("Should have time range")
+    }
 }
 
 impl QueryChunk for QueryAdaptor {
     fn stats(&self) -> Arc<Statistics> {
         Arc::clone(self.stats.get_or_init(|| {
-            let ts_min_max = compute_timenanosecond_min_max(self.data.iter().map(|b| b.as_ref()))
-                .expect("Should have time range");
+            let ts_min_max = self.ts_min_max();
 
             Arc::new(create_basic_summary(
-                self.data.iter().map(|b| b.num_rows()).sum::<usize>() as u64,
+                self.num_rows(),
                 self.schema(),
                 ts_min_max,
             ))

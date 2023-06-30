@@ -86,6 +86,45 @@ pub fn prune_chunks(
     prune_summaries(table_schema, &summaries, predicate)
 }
 
+/// Check one set of statistics against the predicate
+pub fn keep_after_pruning(
+    table_schema: &Schema,
+    chunk_statistics: Arc<Statistics>,
+    chunk_schema: SchemaRef,
+    predicate: &Predicate,
+) -> Result<bool, NotPrunedReason> {
+    let filter_expr = match predicate.filter_expr() {
+        Some(expr) => expr,
+        None => {
+            return Ok(true);
+        }
+    };
+    trace!(%filter_expr, "Filter_expr of pruning chunk");
+
+    let props = ExecutionProps::new();
+    let pruning_predicate =
+        match create_pruning_predicate(&props, &filter_expr, &table_schema.as_arrow()) {
+            Ok(p) => p,
+            Err(e) => {
+                warn!(%e, ?filter_expr, "Cannot create pruning predicate");
+                return Err(NotPrunedReason::CanNotCreatePruningPredicate);
+            }
+        };
+
+    let statistics = ChunkPruningStatistics {
+        table_schema,
+        summaries: &[(chunk_statistics, chunk_schema)],
+    };
+
+    let result = match pruning_predicate.prune(&statistics) {
+        Ok(results) => results.into_iter().next().expect("TODO FIX THIS"),
+        Err(e) => {
+            warn!(%e, ?filter_expr, "DataFusion pruning failed");
+            return Err(NotPrunedReason::DataFusionPruningFailed);
+        }
+    };
+    Ok(result)
+}
 /// Given a `Vec` of pruning summaries, return a `Vec<bool>` where `false` indicates that the
 /// predicate can be proven to evaluate to `false` for every single row.
 pub fn prune_summaries(

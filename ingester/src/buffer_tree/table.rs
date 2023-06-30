@@ -2,12 +2,18 @@
 
 pub(crate) mod metadata_resolver;
 
-use std::{fmt::Debug, sync::Arc};
+use std::{collections::HashMap, fmt::Debug, sync::Arc};
 
 use async_trait::async_trait;
 use data_types::{
-    partition_template::TablePartitionTemplateOverride, NamespaceId, PartitionKey, SequenceNumber,
-    Table, TableId,
+    partition_template::{build_column_values, ColumnValue, TablePartitionTemplateOverride},
+    NamespaceId, PartitionKey, SequenceNumber, Table, TableId,
+};
+use datafusion::scalar::ScalarValue;
+use iox_query::{
+    chunk_statistics::{create_chunk_statistics, ColumnRange},
+    pruning::keep_after_pruning,
+    QueryChunk,
 };
 use mutable_batch::MutableBatch;
 use parking_lot::Mutex;
@@ -247,7 +253,7 @@ where
         table_id: TableId,
         columns: Vec<String>,
         span: Option<Span>,
-        _predicate: Option<Predicate>,
+        predicate: Option<Predicate>,
     ) -> Result<Self::Response, QueryError> {
         assert_eq!(self.table_id, table_id, "buffer tree index inconsistency");
         assert_eq!(
@@ -255,25 +261,117 @@ where
             "buffer tree index inconsistency"
         );
 
+        let table_partition_template = self.catalog_table.get().await.partition_template;
+
         // Gather the partition data from all of the partitions in this table.
         let span = SpanRecorder::new(span);
         let partitions = self.partitions().into_iter().map(move |p| {
             let mut span = span.child("partition read");
 
-            let (id, hash_id, completed_persistence_count, data) = {
+            let (id, hash_id, completed_persistence_count, data, partition_key) = {
                 let mut p = p.lock();
                 (
                     p.partition_id(),
                     p.partition_hash_id().cloned(),
                     p.completed_persistence_count(),
                     p.get_query_data(),
+                    p.partition_key().clone(),
                 )
             };
 
             let ret = match data {
                 Some(data) => {
-                    // TODO(savage): Apply predicate here through the projection?
                     assert_eq!(id, data.partition_id());
+
+                    let data = Arc::new(data);
+                    if let Some(predicate) = &predicate {
+                        // Filter using the partition key
+                        let column_ranges = Arc::new(
+                            build_column_values(&table_partition_template, partition_key.inner())
+                                .filter_map(|(col, val)| {
+                                    let range = match val {
+                                        ColumnValue::Identity(s) => {
+                                            let s = Arc::new(ScalarValue::from(s.as_ref()));
+                                            ColumnRange {
+                                                min_value: Arc::clone(&s),
+                                                max_value: s,
+                                            }
+                                        }
+                                        ColumnValue::Prefix(p) => {
+                                            if p.is_empty() {
+                                                // full range => value is useless
+                                                return None;
+                                            }
+
+                                            // If the partition only has a prefix of the tag value (it was truncated) then form a conservative
+                                            // range:
+                                            //
+                                            //
+                                            // # Minimum
+                                            // Use the prefix itself.
+                                            //
+                                            // Note that the minimum is inclusive.
+                                            //
+                                            // All values in the partition are either:
+                                            // - identical to the prefix, in which case they are included by the inclusive minimum
+                                            // - have the form `"<prefix><s>"`, and it holds that `"<prefix><s>" > "<prefix>"` for all
+                                            //   strings `"<s>"`.
+                                            //
+                                            //
+                                            // # Maximum
+                                            // Use `"<prefix_excluding_last_char><char::max>"`.
+                                            //
+                                            // Note that the maximum is inclusive.
+                                            //
+                                            // All strings in this partition must be smaller than this constructed maximum, because
+                                            // string comparison is front-to-back and the `"<prefix_excluding_last_char><char::max>" > "<prefix>"`.
+
+                                            let min_value = Arc::new(ScalarValue::from(p.as_ref()));
+
+                                            let mut chars = p.as_ref().chars().collect::<Vec<_>>();
+                                            *chars
+                                                .last_mut()
+                                                .expect("checked that prefix is not empty") =
+                                                std::char::MAX;
+                                            let max_value = Arc::new(ScalarValue::from(
+                                                chars.into_iter().collect::<String>().as_str(),
+                                            ));
+
+                                            ColumnRange {
+                                                min_value,
+                                                max_value,
+                                            }
+                                        }
+                                    };
+
+                                    Some((Arc::from(col), range))
+                                })
+                                .collect::<HashMap<_, _>>(),
+                        );
+
+                        let chunk_statistics = Arc::new(create_chunk_statistics(
+                            data.num_rows(),
+                            data.schema(),
+                            data.ts_min_max(),
+                            &column_ranges,
+                        ));
+
+                        if !keep_after_pruning(
+                            data.schema(),
+                            chunk_statistics,
+                            data.schema().as_arrow(),
+                            predicate,
+                        )
+                        .expect("TODO FIX THIS")
+                        {
+                            return PartitionResponse::new(
+                                vec![],
+                                id,
+                                hash_id,
+                                completed_persistence_count,
+                            );
+                        }
+                    }
 
                     // Project the data if necessary
                     let columns = columns.iter().map(String::as_str).collect::<Vec<_>>();
