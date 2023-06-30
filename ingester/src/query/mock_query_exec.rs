@@ -1,6 +1,7 @@
 use async_trait::async_trait;
 use data_types::{NamespaceId, TableId};
 use parking_lot::Mutex;
+use predicate::Predicate;
 use trace::span::Span;
 
 use super::{response::QueryResponse, QueryError, QueryExec};
@@ -27,6 +28,7 @@ impl QueryExec for MockQueryExec {
         _table_id: TableId,
         _columns: Vec<String>,
         _span: Option<Span>,
+        _predicate: Option<Predicate>,
     ) -> Result<Self::Response, QueryError> {
         self.response
             .lock()

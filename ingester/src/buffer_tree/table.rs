@@ -8,6 +8,7 @@ use async_trait::async_trait;
 use data_types::{NamespaceId, PartitionKey, SequenceNumber, TableId};
 use mutable_batch::MutableBatch;
 use parking_lot::Mutex;
+use predicate::Predicate;
 use schema::Projection;
 use trace::span::{Span, SpanRecorder};
 
@@ -204,6 +205,7 @@ where
         table_id: TableId,
         columns: Vec<String>,
         span: Option<Span>,
+        _predicate: Option<Predicate>,
     ) -> Result<Self::Response, QueryError> {
         assert_eq!(self.table_id, table_id, "buffer tree index inconsistency");
         assert_eq!(
@@ -228,6 +230,7 @@ where
 
             let ret = match data {
                 Some(data) => {
+                    // TODO(savage): Apply predicate here through the projection?
                     assert_eq!(id, data.partition_id());
 
                     // Project the data if necessary

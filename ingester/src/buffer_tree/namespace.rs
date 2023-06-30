@@ -7,6 +7,7 @@ use std::sync::Arc;
 use async_trait::async_trait;
 use data_types::{NamespaceId, TableId};
 use metric::U64Counter;
+use predicate::Predicate;
 use trace::span::Span;
 
 use super::{
@@ -189,6 +190,7 @@ where
         table_id: TableId,
         columns: Vec<String>,
         span: Option<Span>,
+        predicate: Option<Predicate>,
     ) -> Result<Self::Response, QueryError> {
         assert_eq!(
             self.namespace_id, namespace_id,
@@ -204,7 +206,7 @@ where
         // a tracing delegate to emit a child span.
         Ok(QueryResponse::new(
             QueryExecTracing::new(inner, "table")
-                .query_exec(namespace_id, table_id, columns, span)
+                .query_exec(namespace_id, table_id, columns, span, predicate)
                 .await?,
         ))
     }

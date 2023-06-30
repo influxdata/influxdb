@@ -4,6 +4,7 @@ use async_trait::async_trait;
 use data_types::{NamespaceId, TableId};
 use metric::U64Counter;
 use parking_lot::Mutex;
+use predicate::Predicate;
 use trace::span::Span;
 
 use super::{
@@ -202,6 +203,7 @@ where
         table_id: TableId,
         columns: Vec<String>,
         span: Option<Span>,
+        predicate: Option<Predicate>,
     ) -> Result<Self::Response, QueryError> {
         // Extract the namespace if it exists.
         let inner = self
@@ -211,7 +213,7 @@ where
         // Delegate query execution to the namespace, wrapping the execution in
         // a tracing delegate to emit a child span.
         QueryExecTracing::new(inner, "namespace")
-            .query_exec(namespace_id, table_id, columns, span)
+            .query_exec(namespace_id, table_id, columns, span, predicate)
             .await
     }
 }
@@ -370,7 +372,7 @@ mod tests {
 
                     // Execute the query against ARBITRARY_NAMESPACE_ID and ARBITRARY_TABLE_ID
                     let batches = buf
-                        .query_exec(ARBITRARY_NAMESPACE_ID, ARBITRARY_TABLE_ID, vec![], None)
+                        .query_exec(ARBITRARY_NAMESPACE_ID, ARBITRARY_TABLE_ID, vec![], None, None)
                         .await
                         .expect("query should succeed")
                         .into_partition_stream()
@@ -829,7 +831,13 @@ mod tests {
 
         // Query the empty tree
         let err = buf
-            .query_exec(ARBITRARY_NAMESPACE_ID, ARBITRARY_TABLE_ID, vec![], None)
+            .query_exec(
+                ARBITRARY_NAMESPACE_ID,
+                ARBITRARY_TABLE_ID,
+                vec![],
+                None,
+                None,
+            )
             .await
             .expect_err("query should fail");
         assert_matches!(err, QueryError::NamespaceNotFound(ns) => {
@@ -854,7 +862,7 @@ mod tests {
 
         // Ensure an unknown table errors
         let err = buf
-            .query_exec(ARBITRARY_NAMESPACE_ID, TABLE2_ID, vec![], None)
+            .query_exec(ARBITRARY_NAMESPACE_ID, TABLE2_ID, vec![], None, None)
             .await
             .expect_err("query should fail");
         assert_matches!(err, QueryError::TableNotFound(ns, t) => {
@@ -863,9 +871,15 @@ mod tests {
         });
 
         // Ensure a valid namespace / table does not error
-        buf.query_exec(ARBITRARY_NAMESPACE_ID, ARBITRARY_TABLE_ID, vec![], None)
-            .await
-            .expect("namespace / table should exist");
+        buf.query_exec(
+            ARBITRARY_NAMESPACE_ID,
+            ARBITRARY_TABLE_ID,
+            vec![],
+            None,
+            None,
+        )
+        .await
+        .expect("namespace / table should exist");
     }
 
     /// This test asserts the read consistency properties defined in the
@@ -931,7 +945,13 @@ mod tests {
         // Execute a query of the buffer tree, generating the result stream, but
         // DO NOT consume it.
         let stream = buf
-            .query_exec(ARBITRARY_NAMESPACE_ID, ARBITRARY_TABLE_ID, vec![], None)
+            .query_exec(
+                ARBITRARY_NAMESPACE_ID,
+                ARBITRARY_TABLE_ID,
+                vec![],
+                None,
+                None,
+            )
             .await
             .expect("query should succeed")
             .into_partition_stream();
@@ -996,4 +1016,7 @@ mod tests {
             &batches
         );
     }
+
+    // TODO(savage): Consider what tests need to be added here for Predicate
+    // support?
 }

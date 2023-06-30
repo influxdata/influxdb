@@ -2,6 +2,7 @@ use std::{fmt::Debug, ops::Deref, sync::Arc};
 
 use async_trait::async_trait;
 use data_types::{NamespaceId, TableId};
+use predicate::Predicate;
 use thiserror::Error;
 use trace::span::Span;
 
@@ -25,6 +26,7 @@ pub(crate) trait QueryExec: Send + Sync + Debug {
         table_id: TableId,
         columns: Vec<String>,
         span: Option<Span>,
+        predicate: Option<Predicate>,
     ) -> Result<Self::Response, QueryError>;
 }
 
@@ -41,9 +43,10 @@ where
         table_id: TableId,
         columns: Vec<String>,
         span: Option<Span>,
+        predicate: Option<Predicate>,
     ) -> Result<Self::Response, QueryError> {
         self.deref()
-            .query_exec(namespace_id, table_id, columns, span)
+            .query_exec(namespace_id, table_id, columns, span, predicate)
             .await
     }
 }
