@@ -20,8 +20,8 @@ use data_types::{
     },
     Column, ColumnId, ColumnSet, ColumnType, CompactionLevel, Namespace, NamespaceId,
     NamespaceName, NamespaceServiceProtectionLimitsOverride, ParquetFile, ParquetFileId,
-    ParquetFileParams, Partition, PartitionId, PartitionKey, SkippedCompaction, Table, TableId,
-    Timestamp,
+    ParquetFileParams, Partition, PartitionHashId, PartitionId, PartitionKey, SkippedCompaction,
+    Table, TableId, Timestamp,
 };
 use serde::{Deserialize, Serialize};
 use std::collections::HashSet;
@@ -813,6 +813,7 @@ RETURNING *;
 #[derive(Debug, Clone, PartialEq, Eq, sqlx::FromRow)]
 struct PartitionPod {
     id: PartitionId,
+    hash_id: Option<PartitionHashId>,
     table_id: TableId,
     partition_key: PartitionKey,
     sort_key: Json<Vec<String>>,
@@ -821,13 +822,14 @@ struct PartitionPod {
 
 impl From<PartitionPod> for Partition {
     fn from(value: PartitionPod) -> Self {
-        Self {
-            id: value.id,
-            table_id: value.table_id,
-            partition_key: value.partition_key,
-            sort_key: value.sort_key.0,
-            new_file_at: value.new_file_at,
-        }
+        Self::new_with_hash_id_from_sqlite_catalog_only(
+            value.id,
+            value.hash_id,
+            value.table_id,
+            value.partition_key,
+            value.sort_key.0,
+            value.new_file_at,
+        )
     }
 }
 
@@ -838,20 +840,23 @@ impl PartitionRepo for SqliteTxn {
         // array rather than NULL which sqlx will throw `UnexpectedNullError` while is is doing
         // `ColumnDecode`
 
+        let hash_id = PartitionHashId::new(table_id, &key);
+
         let v = sqlx::query_as::<_, PartitionPod>(
             r#"
 INSERT INTO partition
-    ( partition_key, shard_id, table_id, sort_key)
+    (partition_key, shard_id, table_id, hash_id, sort_key)
 VALUES
-    ( $1, $2, $3, '[]')
+    ($1, $2, $3, $4, '[]')
 ON CONFLICT (table_id, partition_key)
 DO UPDATE SET partition_key = partition.partition_key
-RETURNING id, table_id, partition_key, sort_key, new_file_at;
+RETURNING id, hash_id, table_id, partition_key, sort_key, new_file_at;
         "#,
         )
         .bind(key) // $1
         .bind(TRANSITION_SHARD_ID) // $2
         .bind(table_id) // $3
+        .bind(&hash_id) // $4
         .fetch_one(self.inner.get_mut())
         .await
         .map_err(|e| {
@@ -868,7 +873,7 @@ RETURNING id, table_id, partition_key, sort_key, new_file_at;
     async fn get_by_id(&mut self, partition_id: PartitionId) -> Result<Option<Partition>> {
         let rec = sqlx::query_as::<_, PartitionPod>(
             r#"
-SELECT id, table_id, partition_key, sort_key, new_file_at
+SELECT id, hash_id, table_id, partition_key, sort_key, new_file_at
 FROM partition
 WHERE id = $1;
             "#,
@@ -886,10 +891,34 @@ WHERE id = $1;
         Ok(Some(partition.into()))
     }
 
+    async fn get_by_hash_id(
+        &mut self,
+        partition_hash_id: &PartitionHashId,
+    ) -> Result<Option<Partition>> {
+        let rec = sqlx::query_as::<_, PartitionPod>(
+            r#"
+SELECT id, hash_id, table_id, partition_key, sort_key, new_file_at
+FROM partition
+WHERE hash_id = $1;
+            "#,
+        )
+        .bind(partition_hash_id) // $1
+        .fetch_one(self.inner.get_mut())
+        .await;
+
+        if let Err(sqlx::Error::RowNotFound) = rec {
+            return Ok(None);
+        }
+
+        let partition = rec.map_err(|e| Error::SqlxError { source: e })?;
+
+        Ok(Some(partition.into()))
+    }
+
     async fn list_by_table_id(&mut self, table_id: TableId) -> Result<Vec<Partition>> {
         Ok(sqlx::query_as::<_, PartitionPod>(
             r#"
-SELECT id, table_id, partition_key, sort_key, new_file_at
+SELECT id, hash_id, table_id, partition_key, sort_key, new_file_at
 FROM partition
 WHERE table_id = $1;
             "#,
@@ -933,7 +962,7 @@ WHERE table_id = $1;
 UPDATE partition
 SET sort_key = $1
 WHERE id = $2 AND sort_key = $3
-RETURNING id, table_id, partition_key, sort_key, new_file_at;
+RETURNING id, hash_id, table_id, partition_key, sort_key, new_file_at;
         "#,
         )
         .bind(Json(new_sort_key)) // $1
@@ -1072,7 +1101,7 @@ RETURNING *
     async fn most_recent_n(&mut self, n: usize) -> Result<Vec<Partition>> {
         Ok(sqlx::query_as::<_, PartitionPod>(
             r#"
-SELECT id, table_id, partition_key, sort_key, new_file_at
+SELECT id, hash_id, table_id, partition_key, sort_key, new_file_at
 FROM partition
 ORDER BY id DESC
 LIMIT $1;
@@ -1127,6 +1156,7 @@ struct ParquetFilePod {
     namespace_id: NamespaceId,
     table_id: TableId,
     partition_id: PartitionId,
+    partition_hash_id: Option<PartitionHashId>,
     object_store_id: Uuid,
     min_time: Timestamp,
     max_time: Timestamp,
@@ -1146,6 +1176,7 @@ impl From<ParquetFilePod> for ParquetFile {
             namespace_id: value.namespace_id,
             table_id: value.table_id,
             partition_id: value.partition_id,
+            partition_hash_id: value.partition_hash_id,
             object_store_id: value.object_store_id,
             min_time: value.min_time,
             max_time: value.max_time,
@@ -1173,7 +1204,7 @@ impl ParquetFileRepo for SqliteTxn {
         Ok(sqlx::query_as::<_, ParquetFilePod>(
             r#"
 SELECT parquet_file.id, parquet_file.namespace_id, parquet_file.table_id,
-       parquet_file.partition_id, parquet_file.object_store_id,
+       parquet_file.partition_id, parquet_file.partition_hash_id, parquet_file.object_store_id,
        parquet_file.min_time, parquet_file.max_time, parquet_file.to_delete,
        parquet_file.file_size_bytes, parquet_file.row_count, parquet_file.compaction_level,
        parquet_file.created_at, parquet_file.column_set, parquet_file.max_l0_created_at
@@ -1227,7 +1258,7 @@ RETURNING id;
         Ok(sqlx::query_as::<_, ParquetFilePod>(
             r#"
 SELECT parquet_file.id, parquet_file.namespace_id, parquet_file.table_id,
-       parquet_file.partition_id, parquet_file.object_store_id,
+       parquet_file.partition_id, parquet_file.partition_hash_id, parquet_file.object_store_id,
        parquet_file.min_time, parquet_file.max_time, parquet_file.to_delete,
        parquet_file.file_size_bytes, parquet_file.row_count, parquet_file.compaction_level,
        parquet_file.created_at, parquet_file.column_set, parquet_file.max_l0_created_at
@@ -1249,7 +1280,7 @@ WHERE table_name.namespace_id = $1
     async fn list_by_table_not_to_delete(&mut self, table_id: TableId) -> Result<Vec<ParquetFile>> {
         Ok(sqlx::query_as::<_, ParquetFilePod>(
             r#"
-SELECT id, namespace_id, table_id, partition_id, object_store_id,
+SELECT id, namespace_id, table_id, partition_id, partition_hash_id, object_store_id,
        min_time, max_time, to_delete, file_size_bytes,
        row_count, compaction_level, created_at, column_set, max_l0_created_at
 FROM parquet_file
@@ -1296,9 +1327,9 @@ RETURNING id;
     ) -> Result<Vec<ParquetFile>> {
         Ok(sqlx::query_as::<_, ParquetFilePod>(
             r#"
-SELECT id, namespace_id, table_id, partition_id, object_store_id,
-       min_time, max_time, to_delete, file_size_bytes,
-       row_count, compaction_level, created_at, column_set, max_l0_created_at
+SELECT id, namespace_id, table_id, partition_id, partition_hash_id, object_store_id, min_time,
+       max_time, to_delete, file_size_bytes, row_count, compaction_level, created_at, column_set,
+       max_l0_created_at
 FROM parquet_file
 WHERE parquet_file.partition_id = $1
   AND parquet_file.to_delete IS NULL;
@@ -1319,9 +1350,9 @@ WHERE parquet_file.partition_id = $1
     ) -> Result<Option<ParquetFile>> {
         let rec = sqlx::query_as::<_, ParquetFilePod>(
             r#"
-SELECT id, namespace_id, table_id, partition_id, object_store_id,
-       min_time, max_time, to_delete, file_size_bytes,
-       row_count, compaction_level, created_at, column_set, max_l0_created_at
+SELECT id, namespace_id, table_id, partition_id, partition_hash_id, object_store_id, min_time,
+       max_time, to_delete, file_size_bytes, row_count, compaction_level, created_at, column_set,
+       max_l0_created_at
 FROM parquet_file
 WHERE object_store_id = $1;
              "#,
@@ -1420,6 +1451,7 @@ where
         namespace_id,
         table_id,
         partition_id,
+        partition_hash_id,
         object_store_id,
         min_time,
         max_time,
@@ -1431,33 +1463,38 @@ where
         max_l0_created_at,
     } = parquet_file_params;
 
-    let query = sqlx::query_as::<_, ParquetFilePod>(
+    let partition_hash_id_ref = &partition_hash_id.as_ref();
+    let res = sqlx::query_as::<_, ParquetFilePod>(
         r#"
 INSERT INTO parquet_file (
-    shard_id, table_id, partition_id, object_store_id,
+    shard_id, table_id, partition_id, partition_hash_id, object_store_id,
     min_time, max_time, file_size_bytes,
     row_count, compaction_level, created_at, namespace_id, column_set, max_l0_created_at )
-VALUES ( $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13 )
+VALUES ( $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14 )
 RETURNING
-    id, table_id, partition_id, object_store_id,
-    min_time, max_time, to_delete, file_size_bytes,
-    row_count, compaction_level, created_at, namespace_id, column_set, max_l0_created_at;
+    id, table_id, partition_id, partition_hash_id, object_store_id, min_time, max_time, to_delete,
+    file_size_bytes, row_count, compaction_level, created_at, namespace_id, column_set,
+    max_l0_created_at;
         "#,
     )
     .bind(TRANSITION_SHARD_ID) // $1
     .bind(table_id) // $2
     .bind(partition_id) // $3
-    .bind(object_store_id) // $4
-    .bind(min_time) // $5
-    .bind(max_time) // $6
-    .bind(file_size_bytes) // $7
-    .bind(row_count) // $8
-    .bind(compaction_level) // $9
-    .bind(created_at) // $10
-    .bind(namespace_id) // $11
-    .bind(from_column_set(&column_set)) // $12
-    .bind(max_l0_created_at); // $13
-    let rec = query.fetch_one(executor).await.map_err(|e| {
+    .bind(partition_hash_id_ref) // $4
+    .bind(object_store_id) // $5
+    .bind(min_time) // $6
+    .bind(max_time) // $7
+    .bind(file_size_bytes) // $8
+    .bind(row_count) // $9
+    .bind(compaction_level) // $10
+    .bind(created_at) // $11
+    .bind(namespace_id) // $12
+    .bind(from_column_set(&column_set)) // $13
+    .bind(max_l0_created_at) // $14
+    .fetch_one(executor)
+    .await;
+
+    let rec = res.map_err(|e| {
         if is_unique_violation(&e) {
             Error::FileExists { object_store_id }
         } else if is_fk_violation(&e) {
@@ -1605,22 +1642,95 @@ mod tests {
         let namespace = arbitrary_namespace(&mut *repos, "ns4").await;
         let table_id = arbitrary_table(&mut *repos, "table", &namespace).await.id;
 
-        let key = "bananas";
+        let key = PartitionKey::from("bananas");
+
+        let hash_id = PartitionHashId::new(table_id, &key);
 
         let a = repos
             .partitions()
-            .create_or_get(key.into(), table_id)
+            .create_or_get(key.clone(), table_id)
             .await
             .expect("should create OK");
+
+        assert_eq!(a.hash_id().unwrap(), &hash_id);
 
         // Call create_or_get for the same (key, table_id) pair, to ensure the write is idempotent.
         let b = repos
             .partitions()
-            .create_or_get(key.into(), table_id)
+            .create_or_get(key.clone(), table_id)
             .await
             .expect("idempotent write should succeed");
 
         assert_eq!(a, b);
+
+        // Check that the hash_id is saved in the database and is returned when queried.
+        let table_partitions = sqlite
+            .repositories()
+            .await
+            .partitions()
+            .list_by_table_id(table_id)
+            .await
+            .unwrap();
+        assert_eq!(table_partitions.len(), 1);
+        assert_eq!(table_partitions[0].hash_id().unwrap(), &hash_id);
+    }
+
+    #[tokio::test]
+    async fn existing_partitions_without_hash_id() {
+        let sqlite = setup_db().await;
+        let pool = sqlite.pool.clone();
+        let sqlite: Arc<dyn Catalog> = Arc::new(sqlite);
+        let mut repos = sqlite.repositories().await;
+
+        let namespace = arbitrary_namespace(&mut *repos, "ns4").await;
+        let table = arbitrary_table(&mut *repos, "table", &namespace).await;
+        let table_id = table.id;
+        let key = PartitionKey::from("francis-scott-key-key");
+
+        // Create a partition record in the database that has `NULL` for its `hash_id`
+        // value, which is what records existing before the migration adding that column will have.
+        sqlx::query(
+            r#"
+INSERT INTO partition
+    (partition_key, shard_id, table_id, sort_key)
+VALUES
+    ($1, $2, $3, '[]')
+ON CONFLICT (table_id, partition_key)
+DO UPDATE SET partition_key = partition.partition_key
+RETURNING id, hash_id, table_id, partition_key, sort_key, new_file_at;
+        "#,
+        )
+        .bind(&key) // $1
+        .bind(TRANSITION_SHARD_ID) // $2
+        .bind(table_id) // $3
+        .fetch_one(&pool)
+        .await
+        .unwrap();
+
+        // Check that the hash_id being null in the database doesn't break querying for partitions.
+        let table_partitions = repos.partitions().list_by_table_id(table_id).await.unwrap();
+        assert_eq!(table_partitions.len(), 1);
+        let partition = &table_partitions[0];
+
+        // Call create_or_get for the same (key, table_id) pair, to ensure the write is idempotent
+        // and that the hash_id will still be set by `Partition::new`
+        let inserted_again = repos
+            .partitions()
+            .create_or_get(key, table_id)
+            .await
+            .expect("idempotent write should succeed");
+
+        assert_eq!(partition, &inserted_again);
+
+        // Create a Parquet file record in this partition to ensure we don't break new data
+        // ingestion for old-style partitions
+        let parquet_file_params = arbitrary_parquet_file_params(&namespace, &table, partition);
+        let parquet_file = repos
+            .parquet_files()
+            .create(parquet_file_params)
+            .await
+            .unwrap();
+        assert!(parquet_file.partition_hash_id.is_none());
     }
 
     macro_rules! test_column_create_or_get_many_unchecked {

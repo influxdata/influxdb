@@ -4,15 +4,11 @@
 
 use std::{sync::Arc, time::Duration};
 
+use compactor_scheduler::{create_scheduler, PartitionsSource, Scheduler};
 use data_types::CompactionLevel;
 use object_store::memory::InMemory;
-use observability_deps::tracing::info;
 
-use crate::{
-    config::{CompactionType, Config, PartitionsSourceConfig},
-    error::ErrorKind,
-    object_store::ignore_writes::IgnoreWrites,
-};
+use crate::{config::Config, error::ErrorKind, object_store::ignore_writes::IgnoreWrites};
 
 use super::{
     changed_files_filter::logging::LoggingChangedFiles,
@@ -35,9 +31,6 @@ use super::{
         non_overlap_split::NonOverlapSplit, target_level_split::TargetLevelSplit,
         upgrade_split::UpgradeSplit,
     },
-    id_only_partition_filter::{
-        and::AndIdOnlyPartitionFilter, shard::ShardPartitionFilter, IdOnlyPartitionFilter,
-    },
     ir_planner::{logging::LoggingIRPlannerWrapper, planner_v1::V1IRPlanner, IRPlanner},
     namespaces_source::catalog::CatalogNamespacesSource,
     parquet_file_sink::{
@@ -50,7 +43,9 @@ use super::{
         logging::LoggingPartitionDoneSinkWrapper, metrics::MetricsPartitionDoneSinkWrapper,
         mock::MockPartitionDoneSink, PartitionDoneSink,
     },
-    partition_files_source::{catalog::CatalogPartitionFilesSource, PartitionFilesSource},
+    partition_files_source::{
+        catalog::CatalogPartitionFilesSource, rate_limit::QueryRateLimit, PartitionFilesSource,
+    },
     partition_filter::{
         and::AndPartitionFilter, greater_matching_files::GreaterMatchingFilesPartitionFilter,
         greater_size_matching_files::GreaterSizeMatchingFilesPartitionFilter,
@@ -68,12 +63,10 @@ use super::{
         endless::EndlessPartititionStream, once::OncePartititionStream, PartitionStream,
     },
     partitions_source::{
-        catalog_all::CatalogAllPartitionsSource,
-        catalog_to_compact::CatalogToCompactPartitionsSource,
-        filter::FilterPartitionsSourceWrapper, logging::LoggingPartitionsSourceWrapper,
-        metrics::MetricsPartitionsSourceWrapper, mock::MockPartitionsSource,
+        logging::LoggingPartitionsSourceWrapper, metrics::MetricsPartitionsSourceWrapper,
         not_empty::NotEmptyPartitionsSourceWrapper,
-        randomize_order::RandomizeOrderPartitionsSourcesWrapper, PartitionsSource,
+        randomize_order::RandomizeOrderPartitionsSourcesWrapper,
+        scheduled::ScheduledPartitionsSource,
     },
     post_classification_partition_filter::{
         logging::LoggingPostClassificationFilterWrapper,
@@ -94,8 +87,13 @@ use super::{
 
 /// Get hardcoded components.
 pub fn hardcoded_components(config: &Config) -> Arc<Components> {
+    let scheduler = create_scheduler(
+        config.scheduler_config.clone(),
+        Arc::clone(&config.catalog),
+        Arc::clone(&config.time_provider),
+    );
     let (partitions_source, commit, partition_done_sink) =
-        make_partitions_source_commit_partition_sink(config);
+        make_partitions_source_commit_partition_sink(config, Arc::clone(&scheduler));
 
     Arc::new(Components {
         partition_stream: make_partition_stream(config, partitions_source),
@@ -120,61 +118,15 @@ pub fn hardcoded_components(config: &Config) -> Arc<Components> {
 
 fn make_partitions_source_commit_partition_sink(
     config: &Config,
+    scheduler: Arc<dyn Scheduler>,
 ) -> (
     Arc<dyn PartitionsSource>,
     Arc<dyn Commit>,
     Arc<dyn PartitionDoneSink>,
 ) {
-    let partitions_source: Arc<dyn PartitionsSource> = match &config.partitions_source {
-        PartitionsSourceConfig::CatalogRecentWrites { threshold } => {
-            Arc::new(CatalogToCompactPartitionsSource::new(
-                config.backoff_config.clone(),
-                Arc::clone(&config.catalog),
-                *threshold,
-                None, // Recent writes is `threshold` ago to now
-                Arc::clone(&config.time_provider),
-            ))
-        }
-        PartitionsSourceConfig::CatalogColdForWrites { threshold } => {
-            Arc::new(CatalogToCompactPartitionsSource::new(
-                config.backoff_config.clone(),
-                Arc::clone(&config.catalog),
-                // Cold for writes is `threshold * 3` ago to `threshold` ago
-                *threshold * 3,
-                Some(*threshold),
-                Arc::clone(&config.time_provider),
-            ))
-        }
-        PartitionsSourceConfig::CatalogAll => Arc::new(CatalogAllPartitionsSource::new(
-            config.backoff_config.clone(),
-            Arc::clone(&config.catalog),
-        )),
-        PartitionsSourceConfig::Fixed(ids) => {
-            Arc::new(MockPartitionsSource::new(ids.iter().cloned().collect()))
-        }
-    };
+    let partitions_source = ScheduledPartitionsSource::new(scheduler);
 
-    let mut id_only_partition_filters: Vec<Arc<dyn IdOnlyPartitionFilter>> = vec![];
-    if let Some(shard_config) = &config.shard_config {
-        // add shard filter before performing any catalog IO
-        info!(
-            "starting compactor {} of {}",
-            shard_config.shard_id, shard_config.n_shards
-        );
-        id_only_partition_filters.push(Arc::new(ShardPartitionFilter::new(
-            shard_config.n_shards,
-            shard_config.shard_id,
-        )));
-    }
-    let partitions_source = FilterPartitionsSourceWrapper::new(
-        AndIdOnlyPartitionFilter::new(id_only_partition_filters),
-        partitions_source,
-    );
-
-    // Temporarily do nothing for cold compaction until we check the cold compaction selection.
-    let shadow_mode = config.shadow_mode || config.compaction_type == CompactionType::Cold;
-
-    let partition_done_sink: Arc<dyn PartitionDoneSink> = if shadow_mode {
+    let partition_done_sink: Arc<dyn PartitionDoneSink> = if config.shadow_mode {
         Arc::new(MockPartitionDoneSink::new())
     } else {
         Arc::new(CatalogPartitionDoneSink::new(
@@ -183,7 +135,7 @@ fn make_partitions_source_commit_partition_sink(
         ))
     };
 
-    let commit: Arc<dyn Commit> = if shadow_mode {
+    let commit: Arc<dyn Commit> = if config.shadow_mode {
         Arc::new(MockCommit::new())
     } else {
         Arc::new(CatalogCommit::new(
@@ -239,13 +191,11 @@ fn make_partitions_source_commit_partition_sink(
 
     // Note: Place "not empty" wrapper at the very last so that the logging and metric wrapper work
     // even when there is not data.
-    let partitions_source = LoggingPartitionsSourceWrapper::new(
-        config.compaction_type,
-        MetricsPartitionsSourceWrapper::new(
+    let partitions_source =
+        LoggingPartitionsSourceWrapper::new(MetricsPartitionsSourceWrapper::new(
             RandomizeOrderPartitionsSourcesWrapper::new(partitions_source, 1234),
             &config.metric_registry,
-        ),
-    );
+        ));
     let partitions_source: Arc<dyn PartitionsSource> = if config.process_once {
         // do not wrap into the "not empty" filter because we do NOT wanna throttle in this case
         // but just exit early
@@ -284,10 +234,16 @@ fn make_partition_info_source(config: &Config) -> Arc<dyn PartitionInfoSource> {
 }
 
 fn make_partition_files_source(config: &Config) -> Arc<dyn PartitionFilesSource> {
-    Arc::new(CatalogPartitionFilesSource::new(
-        config.backoff_config.clone(),
-        Arc::clone(&config.catalog),
-    ))
+    match config.max_partition_fetch_queries_per_second {
+        Some(rps) => Arc::new(CatalogPartitionFilesSource::new(
+            config.backoff_config.clone(),
+            QueryRateLimit::new(Arc::clone(&config.catalog), rps),
+        )),
+        None => Arc::new(CatalogPartitionFilesSource::new(
+            config.backoff_config.clone(),
+            Arc::clone(&config.catalog),
+        )),
+    }
 }
 
 fn make_round_info_source(config: &Config) -> Arc<dyn RoundInfoSource> {
@@ -426,10 +382,11 @@ fn make_file_classifier(config: &Config) -> Arc<dyn FileClassifier> {
     Arc::new(LoggingFileClassifierWrapper::new(Arc::new(
         SplitBasedFileClassifier::new(
             TargetLevelSplit::new(),
-            NonOverlapSplit::new(),
+            NonOverlapSplit::new(config.max_desired_file_size_bytes / 20), // rewrite non-overlapping files up to 5% of max
             UpgradeSplit::new(config.max_desired_file_size_bytes),
             LoggingSplitOrCompactWrapper::new(MetricsSplitOrCompactWrapper::new(
                 SplitCompact::new(
+                    config.max_num_files_per_plan,
                     config.max_compact_size_bytes(),
                     config.max_desired_file_size_bytes,
                 ),

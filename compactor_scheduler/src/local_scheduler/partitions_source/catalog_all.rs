@@ -5,17 +5,19 @@ use backoff::{Backoff, BackoffConfig};
 use data_types::PartitionId;
 use iox_catalog::interface::Catalog;
 
-use super::PartitionsSource;
+use crate::PartitionsSource;
 
 #[derive(Debug)]
-/// Returns all partitions in the catalog, regardless of any other condition
-pub struct CatalogAllPartitionsSource {
+/// Returns all [`PartitionId`](data_types::PartitionId) in the catalog,
+/// regardless of any other condition
+pub(crate) struct CatalogAllPartitionsSource {
     backoff_config: BackoffConfig,
     catalog: Arc<dyn Catalog>,
 }
 
 impl CatalogAllPartitionsSource {
-    pub fn new(backoff_config: BackoffConfig, catalog: Arc<dyn Catalog>) -> Self {
+    /// Create a new [`CatalogAllPartitionsSource`].
+    pub(crate) fn new(backoff_config: BackoffConfig, catalog: Arc<dyn Catalog>) -> Self {
         Self {
             backoff_config,
             catalog,

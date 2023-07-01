@@ -6,13 +6,16 @@ use self::{
     invalidate_on_error::InvalidateOnErrorFlightClient,
     test_util::MockIngesterConnection,
 };
-use crate::cache::{namespace::CachedTable, CatalogCache};
+use crate::{
+    cache::{namespace::CachedTable, CatalogCache},
+    df_stats::{create_chunk_statistics, ColumnRanges},
+};
 use arrow::{datatypes::DataType, error::ArrowError, record_batch::RecordBatch};
 use arrow_flight::decode::DecodedPayload;
 use async_trait::async_trait;
 use backoff::{Backoff, BackoffConfig, BackoffError};
 use client_util::connection;
-use data_types::{ChunkId, ChunkOrder, DeletePredicate, NamespaceId, PartitionId, TimestampMinMax};
+use data_types::{ChunkId, ChunkOrder, NamespaceId, PartitionHashId, PartitionId};
 use datafusion::{error::DataFusionError, physical_plan::Statistics};
 use futures::{stream::FuturesUnordered, TryStreamExt};
 use ingester_query_grpc::{
@@ -21,14 +24,14 @@ use ingester_query_grpc::{
 };
 use iox_query::{
     exec::{stringset::StringSet, IOxSessionContext},
-    util::{compute_timenanosecond_min_max, create_basic_summary},
-    QueryChunk, QueryChunkData, QueryChunkMeta,
+    util::compute_timenanosecond_min_max,
+    QueryChunk, QueryChunkData,
 };
 use iox_time::{Time, TimeProvider};
 use metric::{DurationHistogram, Metric};
 use observability_deps::tracing::{debug, trace, warn};
 use predicate::Predicate;
-use schema::{sort::SortKey, Projection, Schema};
+use schema::{sort::SortKey, Schema};
 use snafu::{ensure, OptionExt, ResultExt, Snafu};
 use std::{
     any::Any,
@@ -122,6 +125,11 @@ pub enum Error {
     IngesterUuid {
         ingester_uuid: String,
         source: uuid::Error,
+    },
+
+    #[snafu(display("Could not parse bytes as a `PartitionHashId`: {source}"))]
+    PartitionHashId {
+        source: data_types::PartitionHashIdError,
     },
 }
 
@@ -552,6 +560,12 @@ impl IngesterStreamDecoder {
                 self.flush_partition()?;
 
                 let partition_id = PartitionId::new(md.partition_id);
+                let partition_hash_id = md
+                    .partition_hash_id
+                    .map(|bytes| {
+                        PartitionHashId::try_from(&bytes[..]).context(PartitionHashIdSnafu)
+                    })
+                    .transpose()?;
                 ensure!(
                     !self.finished_partitions.contains_key(&partition_id),
                     DuplicatePartitionInfoSnafu {
@@ -559,11 +573,6 @@ impl IngesterStreamDecoder {
                         ingester_address: self.ingester_address.as_ref()
                     },
                 );
-
-                // Use a temporary empty partition sort key. We are going to fetch this AFTER we
-                // know all chunks because then we are able to detect all relevant primary key
-                // columns that the sort key must cover.
-                let partition_sort_key = None;
 
                 let ingester_uuid =
                     Uuid::parse_str(&md.ingester_uuid).context(IngesterUuidSnafu {
@@ -573,8 +582,8 @@ impl IngesterStreamDecoder {
                 let partition = IngesterPartition::new(
                     ingester_uuid,
                     partition_id,
+                    partition_hash_id,
                     md.completed_persistence_count,
-                    partition_sort_key,
                 );
                 self.current_partition = Some(partition);
             }
@@ -617,17 +626,9 @@ impl IngesterStreamDecoder {
     fn finalize(mut self) -> Result<Vec<IngesterPartition>> {
         self.flush_partition()?;
 
-        let mut ids: Vec<_> = self.finished_partitions.keys().copied().collect();
-        ids.sort();
-
-        let partitions = ids
-            .into_iter()
-            .map(|id| {
-                self.finished_partitions
-                    .remove(&id)
-                    .expect("just got key from this map")
-            })
-            .collect();
+        let mut partitions = self.finished_partitions.into_values().collect::<Vec<_>>();
+        // deterministic order
+        partitions.sort_by_key(|p| p.partition_id);
         self.span_recorder.ok("finished");
         Ok(partitions)
     }
@@ -765,13 +766,16 @@ pub struct IngesterPartition {
     /// to refresh the catalog cache or not.
     ingester_uuid: Uuid,
 
+    /// The database-assigned partition identifier. In the process of being deprecated.
     partition_id: PartitionId,
+
+    /// Deterministic partition identifier based on the table ID and partition key. Not all
+    /// ingester responses will contain this value yet.
+    #[allow(dead_code)] // Nothing is using this value yet.
+    partition_hash_id: Option<PartitionHashId>,
 
     /// The number of Parquet files this ingester UUID has persisted for this partition.
     completed_persistence_count: u64,
-
-    /// Partition-wide sort key.
-    partition_sort_key: Option<Arc<SortKey>>,
 
     chunks: Vec<IngesterChunk>,
 }
@@ -779,18 +783,17 @@ pub struct IngesterPartition {
 impl IngesterPartition {
     /// Creates a new IngesterPartition, translating the passed
     /// `RecordBatches` into the correct types
-    #[allow(clippy::too_many_arguments)]
     pub fn new(
         ingester_uuid: Uuid,
         partition_id: PartitionId,
+        partition_hash_id: Option<PartitionHashId>,
         completed_persistence_count: u64,
-        partition_sort_key: Option<Arc<SortKey>>,
     ) -> Self {
         Self {
             ingester_uuid,
             partition_id,
+            partition_hash_id,
             completed_persistence_count,
-            partition_sort_key,
             chunks: vec![],
         }
     }
@@ -818,25 +821,12 @@ impl IngesterPartition {
             .map(|batch| ensure_schema(batch, &expected_schema))
             .collect::<Result<Vec<RecordBatch>>>()?;
 
-        // TODO: may want to ask the Ingester to send this value instead of computing it here.
-        let ts_min_max = compute_timenanosecond_min_max(&batches).expect("Should have time range");
-
-        let row_count = batches.iter().map(|batch| batch.num_rows()).sum::<usize>() as u64;
-        let stats = Arc::new(create_basic_summary(
-            row_count,
-            &expected_schema,
-            ts_min_max,
-        ));
-
         let chunk = IngesterChunk {
             chunk_id,
             partition_id: self.partition_id,
             schema: expected_schema,
-            partition_sort_key: self.partition_sort_key.clone(),
             batches,
-            ts_min_max,
-            stats,
-            delete_predicates: vec![],
+            stats: None,
         };
 
         self.chunks.push(chunk);
@@ -844,12 +834,33 @@ impl IngesterPartition {
         Ok(self)
     }
 
-    pub(crate) fn ingester_uuid(&self) -> Uuid {
-        self.ingester_uuid
+    pub(crate) fn set_partition_column_ranges(&mut self, partition_column_ranges: &ColumnRanges) {
+        for chunk in &mut self.chunks {
+            // TODO: may want to ask the Ingester to send this value instead of computing it here.
+            let ts_min_max =
+                compute_timenanosecond_min_max(&chunk.batches).expect("Should have time range");
+
+            let row_count = chunk
+                .batches
+                .iter()
+                .map(|batch| batch.num_rows())
+                .sum::<usize>() as u64;
+            let stats = Arc::new(create_chunk_statistics(
+                row_count,
+                &chunk.schema,
+                ts_min_max,
+                partition_column_ranges,
+            ));
+            chunk.stats = Some(stats);
+        }
     }
 
     pub(crate) fn partition_id(&self) -> PartitionId {
         self.partition_id
+    }
+
+    pub(crate) fn ingester_uuid(&self) -> Uuid {
+        self.ingester_uuid
     }
 
     pub(crate) fn completed_persistence_count(&self) -> u64 {
@@ -858,23 +869,6 @@ impl IngesterPartition {
 
     pub(crate) fn chunks(&self) -> &[IngesterChunk] {
         &self.chunks
-    }
-
-    pub(crate) fn with_delete_predicates(
-        self,
-        delete_predicates: Vec<Arc<DeletePredicate>>,
-    ) -> Self {
-        Self {
-            chunks: self
-                .chunks
-                .into_iter()
-                .map(|chunk| IngesterChunk {
-                    delete_predicates: delete_predicates.clone(),
-                    ..chunk
-                })
-                .collect(),
-            ..self
-        }
     }
 
     pub(crate) fn into_chunks(self) -> Vec<IngesterChunk> {
@@ -888,19 +882,13 @@ pub struct IngesterChunk {
     partition_id: PartitionId,
     schema: Schema,
 
-    /// Partition-wide sort key.
-    partition_sort_key: Option<Arc<SortKey>>,
-
     /// The raw table data
     batches: Vec<RecordBatch>,
 
-    /// Timestamp-specific stats
-    ts_min_max: TimestampMinMax,
-
     /// Summary Statistics
-    stats: Arc<Statistics>,
-
-    delete_predicates: Vec<Arc<DeletePredicate>>,
+    ///
+    /// Set to `None` if not calculated yet.
+    stats: Option<Arc<Statistics>>,
 }
 
 impl IngesterChunk {
@@ -925,9 +913,9 @@ impl IngesterChunk {
     }
 }
 
-impl QueryChunkMeta for IngesterChunk {
+impl QueryChunk for IngesterChunk {
     fn stats(&self) -> Arc<Statistics> {
-        Arc::clone(&self.stats)
+        Arc::clone(self.stats.as_ref().expect("chunk stats set"))
     }
 
     fn schema(&self) -> &Schema {
@@ -944,12 +932,6 @@ impl QueryChunkMeta for IngesterChunk {
         None
     }
 
-    fn delete_predicates(&self) -> &[Arc<data_types::DeletePredicate>] {
-        &self.delete_predicates
-    }
-}
-
-impl QueryChunk for IngesterChunk {
     fn id(&self) -> ChunkId {
         self.chunk_id
     }
@@ -957,16 +939,6 @@ impl QueryChunk for IngesterChunk {
     fn may_contain_pk_duplicates(&self) -> bool {
         // ingester just dumps data, may contain duplicates!
         true
-    }
-
-    fn column_names(
-        &self,
-        _ctx: IOxSessionContext,
-        _predicate: &Predicate,
-        _columns: Projection<'_>,
-    ) -> Result<Option<StringSet>, DataFusionError> {
-        // TODO maybe some special handling?
-        Ok(None)
     }
 
     fn column_values(
@@ -1064,12 +1036,12 @@ mod tests {
         datatypes::Int32Type,
     };
     use assert_matches::assert_matches;
-    use data_types::TableId;
+    use data_types::{PartitionKey, TableId};
     use ingester_query_grpc::influxdata::iox::ingester::v1::IngesterQueryResponseMetadata;
     use iox_tests::TestCatalog;
     use metric::Attributes;
     use mutable_batch_lp::test_helpers::lp_to_mutable_batch;
-    use schema::{builder::SchemaBuilder, InfluxFieldType};
+    use schema::{builder::SchemaBuilder, InfluxFieldType, Projection};
     use std::collections::{BTreeSet, HashMap};
     use tokio::{runtime::Handle, sync::Mutex};
     use trace::{ctx::SpanContext, span::SpanStatus, RingBufferTraceCollector};
@@ -1170,6 +1142,43 @@ mod tests {
 
         let p = &partitions[0];
         assert_eq!(p.partition_id.get(), 1);
+        assert_eq!(p.partition_hash_id.as_ref().unwrap(), &partition_hash_id(1));
+        assert_eq!(p.chunks.len(), 0);
+        assert_eq!(p.ingester_uuid, ingester_uuid);
+        assert_eq!(p.completed_persistence_count, 5);
+    }
+
+    #[tokio::test]
+    async fn test_flight_no_partition_hash_id() {
+        let ingester_uuid = Uuid::new_v4();
+
+        let mock_flight_client = Arc::new(
+            MockFlightClient::new([(
+                "addr1",
+                Ok(MockQueryData {
+                    results: vec![Ok((
+                        DecodedPayload::None,
+                        IngesterQueryResponseMetadata {
+                            partition_id: 1,
+                            // PartitionHashId is in the process of being added, but is
+                            // currently not guaranteed.
+                            partition_hash_id: None,
+                            ingester_uuid: ingester_uuid.to_string(),
+                            completed_persistence_count: 5,
+                        },
+                    ))],
+                }),
+            )])
+            .await,
+        );
+        let ingester_conn = mock_flight_client.ingester_conn().await;
+
+        let partitions = get_partitions(&ingester_conn).await.unwrap();
+        assert_eq!(partitions.len(), 1);
+
+        let p = &partitions[0];
+        assert_eq!(p.partition_id.get(), 1);
+        assert!(p.partition_hash_id.is_none());
         assert_eq!(p.chunks.len(), 0);
         assert_eq!(p.ingester_uuid, ingester_uuid);
         assert_eq!(p.completed_persistence_count, 5);
@@ -1319,6 +1328,10 @@ mod tests {
 
         let p1 = &partitions[0];
         assert_eq!(p1.partition_id.get(), 1);
+        assert_eq!(
+            p1.partition_hash_id.as_ref().unwrap(),
+            &partition_hash_id(1)
+        );
         assert_eq!(p1.chunks.len(), 2);
         assert_eq!(p1.chunks[0].schema().as_arrow(), schema_1_1);
         assert_eq!(p1.chunks[0].batches.len(), 2);
@@ -1330,6 +1343,10 @@ mod tests {
 
         let p2 = &partitions[1];
         assert_eq!(p2.partition_id.get(), 2);
+        assert_eq!(
+            p2.partition_hash_id.as_ref().unwrap(),
+            &partition_hash_id(2)
+        );
         assert_eq!(p2.chunks.len(), 1);
         assert_eq!(p2.chunks[0].schema().as_arrow(), schema_2_1);
         assert_eq!(p2.chunks[0].batches.len(), 1);
@@ -1337,6 +1354,10 @@ mod tests {
 
         let p3 = &partitions[2];
         assert_eq!(p3.partition_id.get(), 3);
+        assert_eq!(
+            p3.partition_hash_id.as_ref().unwrap(),
+            &partition_hash_id(3)
+        );
         assert_eq!(p3.chunks.len(), 1);
         assert_eq!(p3.chunks[0].schema().as_arrow(), schema_3_1);
         assert_eq!(p3.chunks[0].batches.len(), 1);
@@ -1368,6 +1389,46 @@ mod tests {
             .unwrap_err();
 
         assert_matches!(err, Error::IngesterUuid { .. });
+    }
+
+    #[tokio::test]
+    async fn invalid_partition_hash_id_errors() {
+        let ingester_uuid = Uuid::new_v4();
+
+        let mock_flight_client = Arc::new(
+            MockFlightClient::new([(
+                "addr1",
+                Ok(MockQueryData {
+                    results: vec![Ok((
+                        DecodedPayload::None,
+                        IngesterQueryResponseMetadata {
+                            partition_id: 1,
+                            partition_hash_id: Some(
+                                // Bytes that aren't a valid PartitionHashId
+                                vec![1, 2, 3, 4, 5],
+                            ),
+                            ingester_uuid: ingester_uuid.to_string(),
+                            completed_persistence_count: 5,
+                        },
+                    ))],
+                }),
+            )])
+            .await,
+        );
+        let ingester_conn = mock_flight_client.ingester_conn().await;
+        let columns = vec![String::from("col")];
+        let err = ingester_conn
+            .partitions(
+                NamespaceId::new(1),
+                cached_table(),
+                columns,
+                &Predicate::default(),
+                None,
+            )
+            .await
+            .unwrap_err();
+
+        assert_matches!(err, Error::PartitionHashId { .. });
     }
 
     #[tokio::test]
@@ -1414,16 +1475,28 @@ mod tests {
         assert_eq!(p1.ingester_uuid, ingester_uuid1);
         assert_eq!(p1.completed_persistence_count, 0);
         assert_eq!(p1.partition_id.get(), 1);
+        assert_eq!(
+            p1.partition_hash_id.as_ref().unwrap(),
+            &partition_hash_id(1)
+        );
 
         let p2 = &partitions[1];
         assert_eq!(p2.ingester_uuid, ingester_uuid1);
         assert_eq!(p2.completed_persistence_count, 42);
         assert_eq!(p2.partition_id.get(), 2);
+        assert_eq!(
+            p2.partition_hash_id.as_ref().unwrap(),
+            &partition_hash_id(2)
+        );
 
         let p3 = &partitions[2];
         assert_eq!(p3.ingester_uuid, ingester_uuid2);
         assert_eq!(p3.completed_persistence_count, 9000);
         assert_eq!(p3.partition_id.get(), 3);
+        assert_eq!(
+            p3.partition_hash_id.as_ref().unwrap(),
+            &partition_hash_id(3)
+        );
     }
 
     #[tokio::test]
@@ -1567,11 +1640,22 @@ mod tests {
         Ok((
             DecodedPayload::None,
             IngesterQueryResponseMetadata {
+                // Using the partition_id as both the PartitionId and the TableId in the
+                // PartitionHashId is a temporary way to reduce duplication in tests where
+                // the important part is which batches are in the same partition and which
+                // batches are in a different partition, not what the actual identifier
+                // values are. This will go away when the ingester no longer sends
+                // PartitionIds.
                 partition_id,
+                partition_hash_id: Some(partition_hash_id(partition_id).as_bytes().to_owned()),
                 ingester_uuid: ingester_uuid.into(),
                 completed_persistence_count,
             },
         ))
+    }
+
+    fn partition_hash_id(table_id: i64) -> PartitionHashId {
+        PartitionHashId::new(TableId::new(table_id), &PartitionKey::from("arbitrary"))
     }
 
     #[derive(Debug)]
@@ -1679,10 +1763,17 @@ mod tests {
 
         for case in cases {
             // Construct a partition and ensure it doesn't error
-            let ingester_partition =
-                IngesterPartition::new(ingester_uuid, PartitionId::new(1), 0, None)
-                    .try_add_chunk(ChunkId::new(), expected_schema.clone(), vec![case])
-                    .unwrap();
+            let ingester_partition = IngesterPartition::new(
+                ingester_uuid,
+                PartitionId::new(1),
+                Some(PartitionHashId::new(
+                    TableId::new(1),
+                    &PartitionKey::from("arbitrary"),
+                )),
+                0,
+            )
+            .try_add_chunk(ChunkId::new(), expected_schema.clone(), vec![case])
+            .unwrap();
 
             for batch in &ingester_partition.chunks[0].batches {
                 assert_eq!(batch.schema(), expected_schema.as_arrow());
@@ -1702,9 +1793,17 @@ mod tests {
         let batch =
             RecordBatch::try_from_iter(vec![("b", int64_array()), ("time", ts_array())]).unwrap();
 
-        let err = IngesterPartition::new(ingester_uuid, PartitionId::new(1), 0, None)
-            .try_add_chunk(ChunkId::new(), expected_schema, vec![batch])
-            .unwrap_err();
+        let err = IngesterPartition::new(
+            ingester_uuid,
+            PartitionId::new(1),
+            Some(PartitionHashId::new(
+                TableId::new(1),
+                &PartitionKey::from("arbitrary"),
+            )),
+            0,
+        )
+        .try_add_chunk(ChunkId::new(), expected_schema, vec![batch])
+        .unwrap_err();
 
         assert_matches!(err, Error::RecordBatchType { .. });
     }

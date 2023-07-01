@@ -203,6 +203,7 @@ impl SimulatedFile {
             namespace_id: partition_info.namespace_id,
             table_id: partition_info.table.id,
             partition_id: partition_info.partition_id,
+            partition_hash_id: partition_info.partition_hash_id.clone(),
             object_store_id: Uuid::new_v4(),
             min_time,
             max_time,

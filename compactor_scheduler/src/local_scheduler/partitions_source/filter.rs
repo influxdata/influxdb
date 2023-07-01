@@ -3,12 +3,12 @@ use std::fmt::Display;
 use async_trait::async_trait;
 use data_types::PartitionId;
 
-use crate::components::id_only_partition_filter::IdOnlyPartitionFilter;
+use crate::{IdOnlyPartitionFilter, PartitionsSource};
 
-use super::PartitionsSource;
-
+/// An implementation of [`PartitionsSource`]
+/// that filters the results of another [`PartitionsSource`].
 #[derive(Debug)]
-pub struct FilterPartitionsSourceWrapper<T, F>
+pub(crate) struct FilterPartitionsSourceWrapper<T, F>
 where
     T: PartitionsSource,
     F: IdOnlyPartitionFilter,
@@ -22,7 +22,8 @@ where
     T: PartitionsSource,
     F: IdOnlyPartitionFilter,
 {
-    pub fn new(filter: F, inner: T) -> Self {
+    /// Create a new [`FilterPartitionsSourceWrapper`].
+    pub(crate) fn new(filter: F, inner: T) -> Self {
         Self { filter, inner }
     }
 }

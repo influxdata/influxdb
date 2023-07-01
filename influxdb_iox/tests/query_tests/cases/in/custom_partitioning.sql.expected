@@ -1,0 +1,297 @@
+-- Test Setup: CustomPartitioning
+-- SQL: SELECT * FROM "table1";
+-- Results After Sorting
++-----+------+------+------+--------------------------------+
+| f   | tag1 | tag2 | tag3 | time                           |
++-----+------+------+------+--------------------------------+
+| 1.0 | v1a  | v2a  | v3a  | 1970-01-01T00:00:00.000000011Z |
+| 1.0 | v1a  | v2a  | v3b  | 1970-01-01T00:00:00.000000011Z |
+| 1.0 | v1a  | v2b  | v3a  | 1970-01-01T00:00:00.000000011Z |
+| 1.0 | v1a  | v2b  | v3b  | 1970-01-01T00:00:00.000000011Z |
+| 1.0 | v1b  | v2a  | v3a  | 1970-01-01T00:00:00.000000011Z |
+| 1.0 | v1b  | v2a  | v3b  | 1970-01-01T00:00:00.000000011Z |
+| 1.0 | v1b  | v2b  | v3a  | 1970-01-01T00:00:00.000000011Z |
+| 1.0 | v1b  | v2b  | v3b  | 1970-01-01T00:00:00.000000011Z |
++-----+------+------+------+--------------------------------+
+-- SQL: EXPLAIN SELECT * FROM "table1";
+-- Results After Normalizing UUIDs
+----------
+| plan_type    | plan    |
+----------
+| logical_plan    | TableScan: table1 projection=[f, tag1, tag2, tag3, time]    |
+| physical_plan    | ParquetExec: file_groups={4 groups: [[1/1/1/00000000-0000-0000-0000-000000000000.parquet], [1/1/1/00000000-0000-0000-0000-000000000001.parquet], [1/1/1/00000000-0000-0000-0000-000000000002.parquet], [1/1/1/00000000-0000-0000-0000-000000000003.parquet]]}, projection=[f, tag1, tag2, tag3, time], output_ordering=[tag1@1 ASC, tag3@3 ASC, tag2@2 ASC, time@4 ASC]    |
+|    |    |
+----------
+-- SQL: SELECT * FROM "table1" WHERE tag1 = 'v1a';
+-- Results After Sorting
++-----+------+------+------+--------------------------------+
+| f   | tag1 | tag2 | tag3 | time                           |
++-----+------+------+------+--------------------------------+
+| 1.0 | v1a  | v2a  | v3a  | 1970-01-01T00:00:00.000000011Z |
+| 1.0 | v1a  | v2a  | v3b  | 1970-01-01T00:00:00.000000011Z |
+| 1.0 | v1a  | v2b  | v3a  | 1970-01-01T00:00:00.000000011Z |
+| 1.0 | v1a  | v2b  | v3b  | 1970-01-01T00:00:00.000000011Z |
++-----+------+------+------+--------------------------------+
+-- SQL: EXPLAIN SELECT * FROM "table1" WHERE tag1 = 'v1a';
+-- Results After Normalizing UUIDs
+----------
+| plan_type    | plan    |
+----------
+| logical_plan    | TableScan: table1 projection=[f, tag1, tag2, tag3, time], full_filters=[table1.tag1 = Dictionary(Int32, Utf8("v1a"))]    |
+| physical_plan    | CoalesceBatchesExec: target_batch_size=8192    |
+|    |   FilterExec: tag1@1 = v1a    |
+|    |     ParquetExec: file_groups={2 groups: [[1/1/1/00000000-0000-0000-0000-000000000000.parquet], [1/1/1/00000000-0000-0000-0000-000000000001.parquet]]}, projection=[f, tag1, tag2, tag3, time], output_ordering=[tag1@1 ASC, tag3@3 ASC, tag2@2 ASC, time@4 ASC], predicate=tag1@1 = v1a, pruning_predicate=tag1_min@0 <= v1a AND v1a <= tag1_max@1    |
+|    |    |
+----------
+-- SQL: SELECT * FROM "table1" WHERE tag2 = 'v2a';
+-- Results After Sorting
++-----+------+------+------+--------------------------------+
+| f   | tag1 | tag2 | tag3 | time                           |
++-----+------+------+------+--------------------------------+
+| 1.0 | v1a  | v2a  | v3a  | 1970-01-01T00:00:00.000000011Z |
+| 1.0 | v1a  | v2a  | v3b  | 1970-01-01T00:00:00.000000011Z |
+| 1.0 | v1b  | v2a  | v3a  | 1970-01-01T00:00:00.000000011Z |
+| 1.0 | v1b  | v2a  | v3b  | 1970-01-01T00:00:00.000000011Z |
++-----+------+------+------+--------------------------------+
+-- SQL: EXPLAIN SELECT * FROM "table1" WHERE tag2 = 'v2a';
+-- Results After Normalizing UUIDs
+----------
+| plan_type    | plan    |
+----------
+| logical_plan    | TableScan: table1 projection=[f, tag1, tag2, tag3, time], full_filters=[table1.tag2 = Dictionary(Int32, Utf8("v2a"))]    |
+| physical_plan    | CoalesceBatchesExec: target_batch_size=8192    |
+|    |   FilterExec: tag2@2 = v2a    |
+|    |     ParquetExec: file_groups={4 groups: [[1/1/1/00000000-0000-0000-0000-000000000000.parquet], [1/1/1/00000000-0000-0000-0000-000000000001.parquet], [1/1/1/00000000-0000-0000-0000-000000000002.parquet], [1/1/1/00000000-0000-0000-0000-000000000003.parquet]]}, projection=[f, tag1, tag2, tag3, time], output_ordering=[tag1@1 ASC, tag3@3 ASC, tag2@2 ASC, time@4 ASC], predicate=tag2@2 = v2a, pruning_predicate=tag2_min@0 <= v2a AND v2a <= tag2_max@1    |
+|    |    |
+----------
+-- SQL: SELECT * FROM "table1" WHERE tag3 = 'v3a';
+-- Results After Sorting
++-----+------+------+------+--------------------------------+
+| f   | tag1 | tag2 | tag3 | time                           |
++-----+------+------+------+--------------------------------+
+| 1.0 | v1a  | v2a  | v3a  | 1970-01-01T00:00:00.000000011Z |
+| 1.0 | v1a  | v2b  | v3a  | 1970-01-01T00:00:00.000000011Z |
+| 1.0 | v1b  | v2a  | v3a  | 1970-01-01T00:00:00.000000011Z |
+| 1.0 | v1b  | v2b  | v3a  | 1970-01-01T00:00:00.000000011Z |
++-----+------+------+------+--------------------------------+
+-- SQL: EXPLAIN SELECT * FROM "table1" WHERE tag3 = 'v3a';
+-- Results After Normalizing UUIDs
+----------
+| plan_type    | plan    |
+----------
+| logical_plan    | TableScan: table1 projection=[f, tag1, tag2, tag3, time], full_filters=[table1.tag3 = Dictionary(Int32, Utf8("v3a"))]    |
+| physical_plan    | CoalesceBatchesExec: target_batch_size=8192    |
+|    |   FilterExec: tag3@3 = v3a    |
+|    |     ParquetExec: file_groups={2 groups: [[1/1/1/00000000-0000-0000-0000-000000000000.parquet], [1/1/1/00000000-0000-0000-0000-000000000001.parquet]]}, projection=[f, tag1, tag2, tag3, time], output_ordering=[tag1@1 ASC, tag3@3 ASC, tag2@2 ASC, time@4 ASC], predicate=tag3@3 = v3a, pruning_predicate=tag3_min@0 <= v3a AND v3a <= tag3_max@1    |
+|    |    |
+----------
+-- SQL: SELECT * FROM "table1" WHERE tag1 = 'v1a' AND tag3 = 'v3a';
+-- Results After Sorting
++-----+------+------+------+--------------------------------+
+| f   | tag1 | tag2 | tag3 | time                           |
++-----+------+------+------+--------------------------------+
+| 1.0 | v1a  | v2a  | v3a  | 1970-01-01T00:00:00.000000011Z |
+| 1.0 | v1a  | v2b  | v3a  | 1970-01-01T00:00:00.000000011Z |
++-----+------+------+------+--------------------------------+
+-- SQL: EXPLAIN SELECT * FROM "table1" WHERE tag1 = 'v1a' AND tag3 = 'v3a';
+-- Results After Normalizing UUIDs
+----------
+| plan_type    | plan    |
+----------
+| logical_plan    | TableScan: table1 projection=[f, tag1, tag2, tag3, time], full_filters=[table1.tag1 = Dictionary(Int32, Utf8("v1a")), table1.tag3 = Dictionary(Int32, Utf8("v3a"))]    |
+| physical_plan    | CoalesceBatchesExec: target_batch_size=8192    |
+|    |   FilterExec: tag1@1 = v1a AND tag3@3 = v3a    |
+|    |     ParquetExec: file_groups={1 group: [[1/1/1/00000000-0000-0000-0000-000000000000.parquet]]}, projection=[f, tag1, tag2, tag3, time], output_ordering=[tag1@1 ASC, tag3@3 ASC, tag2@2 ASC, time@4 ASC], predicate=tag1@1 = v1a AND tag3@3 = v3a, pruning_predicate=tag1_min@0 <= v1a AND v1a <= tag1_max@1 AND tag3_min@2 <= v3a AND v3a <= tag3_max@3    |
+|    |    |
+----------
+-- SQL: SELECT * FROM "table2";
+-- Results After Sorting
++-----+------+------+------+--------------------------------+
+| f   | tag1 | tag2 | tag3 | time                           |
++-----+------+------+------+--------------------------------+
+| 1.0 | v1a  | v2a  | v3a  | 1970-01-01T00:00:00.000000011Z |
+| 1.0 | v1a  | v2a  | v3b  | 1970-01-01T00:00:00.000000011Z |
+| 1.0 | v1a  | v2b  | v3a  | 1970-01-01T00:00:00.000000011Z |
+| 1.0 | v1a  | v2b  | v3b  | 1970-01-01T00:00:00.000000011Z |
+| 1.0 | v1b  | v2a  | v3a  | 1970-01-01T00:00:00.000000011Z |
+| 1.0 | v1b  | v2a  | v3b  | 1970-01-01T00:00:00.000000011Z |
+| 1.0 | v1b  | v2b  | v3a  | 1970-01-01T00:00:00.000000011Z |
+| 1.0 | v1b  | v2b  | v3b  | 1970-01-01T00:00:00.000000011Z |
++-----+------+------+------+--------------------------------+
+-- SQL: EXPLAIN SELECT * FROM "table2";
+-- Results After Normalizing UUIDs
+----------
+| plan_type    | plan    |
+----------
+| logical_plan    | TableScan: table2 projection=[f, tag1, tag2, tag3, time]    |
+| physical_plan    | ParquetExec: file_groups={4 groups: [[1/1/1/00000000-0000-0000-0000-000000000000.parquet], [1/1/1/00000000-0000-0000-0000-000000000001.parquet], [1/1/1/00000000-0000-0000-0000-000000000002.parquet], [1/1/1/00000000-0000-0000-0000-000000000003.parquet]]}, projection=[f, tag1, tag2, tag3, time], output_ordering=[tag1@1 ASC, tag3@3 ASC, tag2@2 ASC, time@4 ASC]    |
+|    |    |
+----------
+-- SQL: SELECT * FROM "table2" WHERE tag1 = 'v1a';
+-- Results After Sorting
++-----+------+------+------+--------------------------------+
+| f   | tag1 | tag2 | tag3 | time                           |
++-----+------+------+------+--------------------------------+
+| 1.0 | v1a  | v2a  | v3a  | 1970-01-01T00:00:00.000000011Z |
+| 1.0 | v1a  | v2a  | v3b  | 1970-01-01T00:00:00.000000011Z |
+| 1.0 | v1a  | v2b  | v3a  | 1970-01-01T00:00:00.000000011Z |
+| 1.0 | v1a  | v2b  | v3b  | 1970-01-01T00:00:00.000000011Z |
++-----+------+------+------+--------------------------------+
+-- SQL: EXPLAIN SELECT * FROM "table2" WHERE tag1 = 'v1a';
+-- Results After Normalizing UUIDs
+----------
+| plan_type    | plan    |
+----------
+| logical_plan    | TableScan: table2 projection=[f, tag1, tag2, tag3, time], full_filters=[table2.tag1 = Dictionary(Int32, Utf8("v1a"))]    |
+| physical_plan    | CoalesceBatchesExec: target_batch_size=8192    |
+|    |   FilterExec: tag1@1 = v1a    |
+|    |     ParquetExec: file_groups={2 groups: [[1/1/1/00000000-0000-0000-0000-000000000000.parquet], [1/1/1/00000000-0000-0000-0000-000000000001.parquet]]}, projection=[f, tag1, tag2, tag3, time], output_ordering=[tag1@1 ASC, tag3@3 ASC, tag2@2 ASC, time@4 ASC], predicate=tag1@1 = v1a, pruning_predicate=tag1_min@0 <= v1a AND v1a <= tag1_max@1    |
+|    |    |
+----------
+-- SQL: SELECT * FROM "table2" WHERE tag2 = 'v2a';
+-- Results After Sorting
++-----+------+------+------+--------------------------------+
+| f   | tag1 | tag2 | tag3 | time                           |
++-----+------+------+------+--------------------------------+
+| 1.0 | v1a  | v2a  | v3a  | 1970-01-01T00:00:00.000000011Z |
+| 1.0 | v1a  | v2a  | v3b  | 1970-01-01T00:00:00.000000011Z |
+| 1.0 | v1b  | v2a  | v3a  | 1970-01-01T00:00:00.000000011Z |
+| 1.0 | v1b  | v2a  | v3b  | 1970-01-01T00:00:00.000000011Z |
++-----+------+------+------+--------------------------------+
+-- SQL: EXPLAIN SELECT * FROM "table2" WHERE tag2 = 'v2a';
+-- Results After Normalizing UUIDs
+----------
+| plan_type    | plan    |
+----------
+| logical_plan    | TableScan: table2 projection=[f, tag1, tag2, tag3, time], full_filters=[table2.tag2 = Dictionary(Int32, Utf8("v2a"))]    |
+| physical_plan    | CoalesceBatchesExec: target_batch_size=8192    |
+|    |   FilterExec: tag2@2 = v2a    |
+|    |     ParquetExec: file_groups={4 groups: [[1/1/1/00000000-0000-0000-0000-000000000000.parquet], [1/1/1/00000000-0000-0000-0000-000000000001.parquet], [1/1/1/00000000-0000-0000-0000-000000000002.parquet], [1/1/1/00000000-0000-0000-0000-000000000003.parquet]]}, projection=[f, tag1, tag2, tag3, time], output_ordering=[tag1@1 ASC, tag3@3 ASC, tag2@2 ASC, time@4 ASC], predicate=tag2@2 = v2a, pruning_predicate=tag2_min@0 <= v2a AND v2a <= tag2_max@1    |
+|    |    |
+----------
+-- SQL: SELECT * FROM "table2" WHERE tag3 = 'v3a';
+-- Results After Sorting
++-----+------+------+------+--------------------------------+
+| f   | tag1 | tag2 | tag3 | time                           |
++-----+------+------+------+--------------------------------+
+| 1.0 | v1a  | v2a  | v3a  | 1970-01-01T00:00:00.000000011Z |
+| 1.0 | v1a  | v2b  | v3a  | 1970-01-01T00:00:00.000000011Z |
+| 1.0 | v1b  | v2a  | v3a  | 1970-01-01T00:00:00.000000011Z |
+| 1.0 | v1b  | v2b  | v3a  | 1970-01-01T00:00:00.000000011Z |
++-----+------+------+------+--------------------------------+
+-- SQL: EXPLAIN SELECT * FROM "table2" WHERE tag3 = 'v3a';
+-- Results After Normalizing UUIDs
+----------
+| plan_type    | plan    |
+----------
+| logical_plan    | TableScan: table2 projection=[f, tag1, tag2, tag3, time], full_filters=[table2.tag3 = Dictionary(Int32, Utf8("v3a"))]    |
+| physical_plan    | CoalesceBatchesExec: target_batch_size=8192    |
+|    |   FilterExec: tag3@3 = v3a    |
+|    |     ParquetExec: file_groups={2 groups: [[1/1/1/00000000-0000-0000-0000-000000000000.parquet], [1/1/1/00000000-0000-0000-0000-000000000001.parquet]]}, projection=[f, tag1, tag2, tag3, time], output_ordering=[tag1@1 ASC, tag3@3 ASC, tag2@2 ASC, time@4 ASC], predicate=tag3@3 = v3a, pruning_predicate=tag3_min@0 <= v3a AND v3a <= tag3_max@1    |
+|    |    |
+----------
+-- SQL: SELECT * FROM "table2" WHERE tag1 = 'v1a' AND tag3 = 'v3a';
+-- Results After Sorting
++-----+------+------+------+--------------------------------+
+| f   | tag1 | tag2 | tag3 | time                           |
++-----+------+------+------+--------------------------------+
+| 1.0 | v1a  | v2a  | v3a  | 1970-01-01T00:00:00.000000011Z |
+| 1.0 | v1a  | v2b  | v3a  | 1970-01-01T00:00:00.000000011Z |
++-----+------+------+------+--------------------------------+
+-- SQL: EXPLAIN SELECT * FROM "table2" WHERE tag1 = 'v1a' AND tag3 = 'v3a';
+-- Results After Normalizing UUIDs
+----------
+| plan_type    | plan    |
+----------
+| logical_plan    | TableScan: table2 projection=[f, tag1, tag2, tag3, time], full_filters=[table2.tag1 = Dictionary(Int32, Utf8("v1a")), table2.tag3 = Dictionary(Int32, Utf8("v3a"))]    |
+| physical_plan    | CoalesceBatchesExec: target_batch_size=8192    |
+|    |   FilterExec: tag1@1 = v1a AND tag3@3 = v3a    |
+|    |     ParquetExec: file_groups={1 group: [[1/1/1/00000000-0000-0000-0000-000000000000.parquet]]}, projection=[f, tag1, tag2, tag3, time], output_ordering=[tag1@1 ASC, tag3@3 ASC, tag2@2 ASC, time@4 ASC], predicate=tag1@1 = v1a AND tag3@3 = v3a, pruning_predicate=tag1_min@0 <= v1a AND v1a <= tag1_max@1 AND tag3_min@2 <= v3a AND v3a <= tag3_max@3    |
+|    |    |
+----------
+-- SQL: SELECT * FROM "table3";
+-- Results After Sorting
++-----+------+------+------+--------------------------------+
+| f   | tag1 | tag2 | tag3 | time                           |
++-----+------+------+------+--------------------------------+
+| 1.0 | v1a  | v2a  | v3a  | 1970-01-01T00:00:00.000000011Z |
+| 1.0 | v1a  | v2a  | v3b  | 1970-01-01T00:00:00.000000011Z |
+| 1.0 | v1a  | v2b  | v3a  | 1970-01-01T00:00:00.000000011Z |
+| 1.0 | v1a  | v2b  | v3b  | 1970-01-01T00:00:00.000000011Z |
+| 1.0 | v1b  | v2a  | v3a  | 1970-01-01T00:00:00.000000011Z |
+| 1.0 | v1b  | v2a  | v3b  | 1970-01-01T00:00:00.000000011Z |
+| 1.0 | v1b  | v2b  | v3a  | 1970-01-01T00:00:00.000000011Z |
+| 1.0 | v1b  | v2b  | v3b  | 1970-01-01T00:00:00.000000011Z |
++-----+------+------+------+--------------------------------+
+-- SQL: EXPLAIN SELECT * FROM "table3";
+-- Results After Normalizing UUIDs
+----------
+| plan_type    | plan    |
+----------
+| logical_plan    | TableScan: table3 projection=[f, tag1, tag2, tag3, time]    |
+| physical_plan    | ParquetExec: file_groups={2 groups: [[1/1/1/00000000-0000-0000-0000-000000000000.parquet], [1/1/1/00000000-0000-0000-0000-000000000001.parquet]]}, projection=[f, tag1, tag2, tag3, time], output_ordering=[tag2@2 ASC, tag1@1 ASC, tag3@3 ASC, time@4 ASC]    |
+|    |    |
+----------
+-- SQL: SELECT * FROM "table3" WHERE tag1 = 'v1a';
+-- Results After Sorting
++-----+------+------+------+--------------------------------+
+| f   | tag1 | tag2 | tag3 | time                           |
++-----+------+------+------+--------------------------------+
+| 1.0 | v1a  | v2a  | v3a  | 1970-01-01T00:00:00.000000011Z |
+| 1.0 | v1a  | v2a  | v3b  | 1970-01-01T00:00:00.000000011Z |
+| 1.0 | v1a  | v2b  | v3a  | 1970-01-01T00:00:00.000000011Z |
+| 1.0 | v1a  | v2b  | v3b  | 1970-01-01T00:00:00.000000011Z |
++-----+------+------+------+--------------------------------+
+-- SQL: EXPLAIN SELECT * FROM "table3" WHERE tag1 = 'v1a';
+-- Results After Normalizing UUIDs
+----------
+| plan_type    | plan    |
+----------
+| logical_plan    | TableScan: table3 projection=[f, tag1, tag2, tag3, time], full_filters=[table3.tag1 = Dictionary(Int32, Utf8("v1a"))]    |
+| physical_plan    | CoalesceBatchesExec: target_batch_size=8192    |
+|    |   FilterExec: tag1@1 = v1a    |
+|    |     ParquetExec: file_groups={2 groups: [[1/1/1/00000000-0000-0000-0000-000000000000.parquet], [1/1/1/00000000-0000-0000-0000-000000000001.parquet]]}, projection=[f, tag1, tag2, tag3, time], output_ordering=[tag2@2 ASC, tag1@1 ASC, tag3@3 ASC, time@4 ASC], predicate=tag1@1 = v1a, pruning_predicate=tag1_min@0 <= v1a AND v1a <= tag1_max@1    |
+|    |    |
+----------
+-- SQL: SELECT * FROM "table3" WHERE tag2 = 'v2a';
+-- Results After Sorting
++-----+------+------+------+--------------------------------+
+| f   | tag1 | tag2 | tag3 | time                           |
++-----+------+------+------+--------------------------------+
+| 1.0 | v1a  | v2a  | v3a  | 1970-01-01T00:00:00.000000011Z |
+| 1.0 | v1a  | v2a  | v3b  | 1970-01-01T00:00:00.000000011Z |
+| 1.0 | v1b  | v2a  | v3a  | 1970-01-01T00:00:00.000000011Z |
+| 1.0 | v1b  | v2a  | v3b  | 1970-01-01T00:00:00.000000011Z |
++-----+------+------+------+--------------------------------+
+-- SQL: EXPLAIN SELECT * FROM "table3" WHERE tag2 = 'v2a';
+-- Results After Normalizing UUIDs
+----------
+| plan_type    | plan    |
+----------
+| logical_plan    | TableScan: table3 projection=[f, tag1, tag2, tag3, time], full_filters=[table3.tag2 = Dictionary(Int32, Utf8("v2a"))]    |
+| physical_plan    | CoalesceBatchesExec: target_batch_size=8192    |
+|    |   FilterExec: tag2@2 = v2a    |
+|    |     ParquetExec: file_groups={1 group: [[1/1/1/00000000-0000-0000-0000-000000000000.parquet]]}, projection=[f, tag1, tag2, tag3, time], output_ordering=[tag2@2 ASC, tag1@1 ASC, tag3@3 ASC, time@4 ASC], predicate=tag2@2 = v2a, pruning_predicate=tag2_min@0 <= v2a AND v2a <= tag2_max@1    |
+|    |    |
+----------
+-- SQL: SELECT * FROM "table3" WHERE tag3 = 'v3a';
+-- Results After Sorting
++-----+------+------+------+--------------------------------+
+| f   | tag1 | tag2 | tag3 | time                           |
++-----+------+------+------+--------------------------------+
+| 1.0 | v1a  | v2a  | v3a  | 1970-01-01T00:00:00.000000011Z |
+| 1.0 | v1a  | v2b  | v3a  | 1970-01-01T00:00:00.000000011Z |
+| 1.0 | v1b  | v2a  | v3a  | 1970-01-01T00:00:00.000000011Z |
+| 1.0 | v1b  | v2b  | v3a  | 1970-01-01T00:00:00.000000011Z |
++-----+------+------+------+--------------------------------+
+-- SQL: EXPLAIN SELECT * FROM "table3" WHERE tag3 = 'v3a';
+-- Results After Normalizing UUIDs
+----------
+| plan_type    | plan    |
+----------
+| logical_plan    | TableScan: table3 projection=[f, tag1, tag2, tag3, time], full_filters=[table3.tag3 = Dictionary(Int32, Utf8("v3a"))]    |
+| physical_plan    | CoalesceBatchesExec: target_batch_size=8192    |
+|    |   FilterExec: tag3@3 = v3a    |
+|    |     ParquetExec: file_groups={2 groups: [[1/1/1/00000000-0000-0000-0000-000000000000.parquet], [1/1/1/00000000-0000-0000-0000-000000000001.parquet]]}, projection=[f, tag1, tag2, tag3, time], output_ordering=[tag2@2 ASC, tag1@1 ASC, tag3@3 ASC, time@4 ASC], predicate=tag3@3 = v3a, pruning_predicate=tag3_min@0 <= v3a AND v3a <= tag3_max@1    |
+|    |    |
+----------

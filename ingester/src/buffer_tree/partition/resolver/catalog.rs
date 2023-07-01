@@ -78,6 +78,7 @@ impl PartitionProvider for CatalogPartitionResolver {
 
         Arc::new(Mutex::new(PartitionData::new(
             p.id,
+            p.hash_id().cloned(),
             // Use the caller's partition key instance, as it MAY be shared with
             // other instance, but the instance returned from the catalog
             // definitely has no other refs.

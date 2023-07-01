@@ -441,9 +441,9 @@ async fn test_keep_ingesting_l0_files_40_percent_overlap_l1_left() {
             - "  Creating 2 files"
             - "**** Simulation run 84, type=split(CompactAndSplitOutput(TotalSizeLessThanMaxCompactSize))(split_times=[3362]). 6 Input Files, 121mb total:"
             - "L1                                                                                                                 "
-            - "L1.500[3293,3341] 334ns 24mb                                                |----L1.500-----|                         "
             - "L1.493[3244,3292] 329ns 24mb                              |----L1.493-----|                                           "
             - "L1.486[3200,3243] 324ns 20mb             |----L1.486----|                                                             "
+            - "L1.500[3293,3341] 334ns 24mb                                                |----L1.500-----|                         "
             - "L1.508[3392,3404] 339ns 7mb                                                                                     |L1.508|"
             - "L1.507[3342,3391] 339ns 25mb                                                                  |-----L1.507-----|      "
             - "L2                                                                                                                 "
@@ -624,9 +624,9 @@ async fn test_keep_ingesting_l0_files_40_percent_overlap_l1_left() {
             - "  Creating 2 files"
             - "**** Simulation run 124, type=split(CompactAndSplitOutput(TotalSizeLessThanMaxCompactSize))(split_times=[4962]). 6 Input Files, 121mb total:"
             - "L1                                                                                                                 "
-            - "L1.740[4893,4941] 494ns 24mb                                                |----L1.740-----|                         "
             - "L1.733[4844,4892] 489ns 24mb                              |----L1.733-----|                                           "
             - "L1.726[4800,4843] 484ns 20mb             |----L1.726----|                                                             "
+            - "L1.740[4893,4941] 494ns 24mb                                                |----L1.740-----|                         "
             - "L1.748[4992,5004] 499ns 7mb                                                                                     |L1.748|"
             - "L1.747[4942,4991] 499ns 25mb                                                                  |-----L1.747-----|      "
             - "L2                                                                                                                 "
@@ -817,6 +817,76 @@ async fn test_keep_ingesting_l0_files_40_percent_overlap_output_250mb() {
     - "L2.29[0,163] 19ns 80mb   |----------L2.29----------|                                                               "
     - "L2.59[164,364] 39ns 100mb                           |-------------L2.59-------------|                              "
     - "L2.60[365,404] 39ns 20mb                                                              |L2.60|                      "
+    "###
+    );
+}
+
+// The (assumed) most common ingest pattern is a leading edge, overlapping pattern. All data is written approximately
+// at the time of the data, but with enough variance to cause overlaps between L0s.  Those overlaps mean the first in
+// any sequence of L0s overlaps the L1 from the previously compacted L0s.
+// This test case covers a slightly different scenario.
+// Instead, imagine if the incoming data's timestamps have a courrse granularity (every few seconds, minute, etc).
+// This can produce a leading edge non-overlapping pattern in the L0s, which means the L0s won't overlap their prior
+// L1.  This ingest pattern has a tendency to leave small L1s.  If the partition gets enough data, most of them will
+// eventually get compacted.  But if the partition is small, it may be left with several small L1s that should be
+// compacted together. This test case is an incremental simulation of that scenario.
+// We can't just create a big backlog of non-overlapping L0s because they'll be compacted all at once and not relfect
+// behavior from a compactor that keeps up with the non-overlapping L0s as they arrive.  So this test case creates one
+// small L1 representing a prior compaction's output, and just enough L0s to trigger a compaction.  The purpose of
+// this test is to ensure the prior small L1 is not left behind.
+#[tokio::test]
+async fn test_tiny_ingest_non_overlapping() {
+    test_helpers::maybe_start_logging();
+    let setup = layout_setup_builder().await.build().await;
+
+    // Small L1 simumlating output from prior compaction
+    setup
+        .partition
+        .create_parquet_file(
+            parquet_builder()
+                .with_min_time(0)
+                .with_max_time(5)
+                .with_file_size_bytes(20000)
+                .with_max_l0_created_at(Time::from_timestamp_nanos(6))
+                .with_compaction_level(CompactionLevel::FileNonOverlapped),
+        )
+        .await;
+
+    // Add two L0 file
+    setup
+        .partition
+        .create_parquet_file(
+            parquet_builder()
+                .with_min_time(10)
+                .with_max_time(19)
+                .with_file_size_bytes(2000)
+                .with_max_l0_created_at(Time::from_timestamp_nanos(20))
+                .with_compaction_level(CompactionLevel::Initial),
+        )
+        .await;
+
+    setup
+        .partition
+        .create_parquet_file(
+            parquet_builder()
+                .with_min_time(20)
+                .with_max_time(29)
+                .with_file_size_bytes(2000)
+                .with_max_l0_created_at(Time::from_timestamp_nanos(30))
+                .with_compaction_level(CompactionLevel::Initial),
+        )
+        .await;
+
+    run_layout_scenario(&setup).await;
+    let files = setup.list_by_table_not_to_delete().await;
+
+    insta::assert_yaml_snapshot!(
+        format_files("final output", &files),
+        @r###"
+    ---
+    - final output
+    - "L1, all files 23kb                                                                                                 "
+    - "L1.4[0,29] 30ns          |------------------------------------------L1.4------------------------------------------|"
     "###
     );
 }

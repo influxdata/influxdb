@@ -26,17 +26,17 @@ pub mod serialize;
 pub mod storage;
 pub mod writer;
 
-use data_types::{NamespaceId, ParquetFile, ParquetFileParams, PartitionId, TableId};
+use data_types::{NamespaceId, ParquetFile, ParquetFileParams, TableId, TransitionPartitionId};
 use object_store::path::Path;
 use uuid::Uuid;
 
 /// Location of a Parquet file within a namespace's object store.
 /// The exact format is an implementation detail and is subject to change.
-#[derive(Debug, Clone, Copy, Eq, PartialEq, Hash, Ord, PartialOrd)]
+#[derive(Debug, Clone, Eq, PartialEq, Hash)]
 pub struct ParquetFilePath {
     namespace_id: NamespaceId,
     table_id: TableId,
-    partition_id: PartitionId,
+    partition_id: TransitionPartitionId,
     object_store_id: Uuid,
 }
 
@@ -45,13 +45,13 @@ impl ParquetFilePath {
     pub fn new(
         namespace_id: NamespaceId,
         table_id: TableId,
-        partition_id: PartitionId,
+        partition_id: &TransitionPartitionId,
         object_store_id: Uuid,
     ) -> Self {
         Self {
             namespace_id,
             table_id,
-            partition_id,
+            partition_id: partition_id.clone(),
             object_store_id,
         }
     }
@@ -88,16 +88,16 @@ impl ParquetFilePath {
 
 impl From<&Self> for ParquetFilePath {
     fn from(borrowed: &Self) -> Self {
-        *borrowed
+        borrowed.clone()
     }
 }
 
-impl From<(PartitionId, &crate::metadata::IoxMetadata)> for ParquetFilePath {
-    fn from((partition_id, m): (PartitionId, &crate::metadata::IoxMetadata)) -> Self {
+impl From<(&TransitionPartitionId, &crate::metadata::IoxMetadata)> for ParquetFilePath {
+    fn from((partition_id, m): (&TransitionPartitionId, &crate::metadata::IoxMetadata)) -> Self {
         Self {
             namespace_id: m.namespace_id,
             table_id: m.table_id,
-            partition_id,
+            partition_id: partition_id.clone(),
             object_store_id: m.object_store_id,
         }
     }
@@ -108,7 +108,7 @@ impl From<&ParquetFile> for ParquetFilePath {
         Self {
             namespace_id: f.namespace_id,
             table_id: f.table_id,
-            partition_id: f.partition_id,
+            partition_id: f.transition_partition_id(),
             object_store_id: f.object_store_id,
         }
     }
@@ -119,7 +119,7 @@ impl From<&ParquetFileParams> for ParquetFilePath {
         Self {
             namespace_id: f.namespace_id,
             table_id: f.table_id,
-            partition_id: f.partition_id,
+            partition_id: f.transition_partition_id(),
             object_store_id: f.object_store_id,
         }
     }
@@ -128,19 +128,40 @@ impl From<&ParquetFileParams> for ParquetFilePath {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use data_types::{PartitionHashId, PartitionId, PartitionKey, TransitionPartitionId};
 
     #[test]
-    fn parquet_file_absolute_dirs_and_file_path() {
+    fn parquet_file_absolute_dirs_and_file_path_database_partition_ids() {
         let pfp = ParquetFilePath::new(
             NamespaceId::new(1),
             TableId::new(2),
-            PartitionId::new(4),
+            &TransitionPartitionId::Deprecated(PartitionId::new(4)),
             Uuid::nil(),
         );
         let path = pfp.object_store_path();
         assert_eq!(
             path.to_string(),
-            "1/2/4/00000000-0000-0000-0000-000000000000.parquet".to_string(),
+            "1/2/4/00000000-0000-0000-0000-000000000000.parquet",
+        );
+    }
+
+    #[test]
+    fn parquet_file_absolute_dirs_and_file_path_deterministic_partition_ids() {
+        let table_id = TableId::new(2);
+        let pfp = ParquetFilePath::new(
+            NamespaceId::new(1),
+            table_id,
+            &TransitionPartitionId::Deterministic(PartitionHashId::new(
+                table_id,
+                &PartitionKey::from("hello there"),
+            )),
+            Uuid::nil(),
+        );
+        let path = pfp.object_store_path();
+        assert_eq!(
+            path.to_string(),
+            "1/2/d10f045c8fb5589e1db57a0ab650175c422310a1474b4de619cc2ded48f65b81\
+            /00000000-0000-0000-0000-000000000000.parquet",
         );
     }
 }

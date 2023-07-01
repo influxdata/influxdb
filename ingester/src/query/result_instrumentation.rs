@@ -329,6 +329,7 @@ where
 
                 // Extract all the fields of the PartitionResponse
                 let id = p.id();
+                let hash_id = p.partition_hash_id().cloned();
                 let persist_count = p.completed_persistence_count();
 
                 // And wrap the underlying stream of RecordBatch for this
@@ -341,7 +342,12 @@ where
                 this.record_batch_count
                     .fetch_add(data.len(), Ordering::Relaxed);
 
-                Poll::Ready(Some(PartitionResponse::new(data, id, persist_count)))
+                Poll::Ready(Some(PartitionResponse::new(
+                    data,
+                    id,
+                    hash_id,
+                    persist_count,
+                )))
             }
             Poll::Ready(None) => {
                 // Record the wall clock timestamp of the stream end.
@@ -420,20 +426,22 @@ struct MetricState {
 
 #[cfg(test)]
 mod tests {
-    use std::{sync::Arc, time::Duration};
-
-    use crate::{make_batch, make_partition_stream, query::mock_query_exec::MockQueryExec};
-
     use super::*;
-
+    use crate::{
+        make_batch, make_partition_stream,
+        query::mock_query_exec::MockQueryExec,
+        test_util::{
+            ARBITRARY_NAMESPACE_ID, ARBITRARY_PARTITION_ID, ARBITRARY_PARTITION_KEY,
+            ARBITRARY_TABLE_ID,
+        },
+    };
     use arrow::array::{Float32Array, Int64Array};
-    use data_types::PartitionId;
+    use data_types::PartitionHashId;
     use futures::{stream, StreamExt};
     use iox_time::MockProvider;
     use metric::{assert_histogram, Attributes};
+    use std::{sync::Arc, time::Duration};
 
-    const NAMESPACE_ID: NamespaceId = NamespaceId::new(42);
-    const TABLE_ID: TableId = TableId::new(42);
     const TIME_STEP: Duration = Duration::from_secs(42);
 
     /// A query against a table that has been persisted / no longer contains any
@@ -445,7 +453,11 @@ mod tests {
         // Construct a stream with no batches.
         let stream = PartitionStream::new(stream::iter([PartitionResponse::new(
             vec![],
-            PartitionId::new(42),
+            ARBITRARY_PARTITION_ID,
+            Some(PartitionHashId::new(
+                ARBITRARY_TABLE_ID,
+                &ARBITRARY_PARTITION_KEY,
+            )),
             42,
         )]));
 
@@ -455,7 +467,7 @@ mod tests {
             .with_time_provider(Arc::clone(&mock_time));
 
         let response = layer
-            .query_exec(NAMESPACE_ID, TABLE_ID, vec![], None)
+            .query_exec(ARBITRARY_NAMESPACE_ID, ARBITRARY_TABLE_ID, vec![], None)
             .await
             .expect("query should succeed");
 
@@ -514,7 +526,7 @@ mod tests {
 
         // Construct the set of partitions and their record batches
         let stream = make_partition_stream!(
-            PartitionId::new(1) => [
+            1 => [
                 make_batch!(
                     Int64Array("a" => vec![1, 2, 3, 4, 5]),
                     Float32Array("b" => vec![4.1, 4.2, 4.3, 4.4, 5.0]),
@@ -523,7 +535,7 @@ mod tests {
                     Int64Array("c" => vec![1, 2, 3, 4, 5]),
                 ),
             ],
-            PartitionId::new(2) => [
+            2 => [
                 make_batch!(
                     Float32Array("d" => vec![1.1]),
                 ),
@@ -536,7 +548,7 @@ mod tests {
             .with_time_provider(Arc::clone(&mock_time));
 
         let response = layer
-            .query_exec(NAMESPACE_ID, TABLE_ID, vec![], None)
+            .query_exec(ARBITRARY_NAMESPACE_ID, ARBITRARY_TABLE_ID, vec![], None)
             .await
             .expect("query should succeed");
 
@@ -594,7 +606,7 @@ mod tests {
 
         // Construct the set of partitions and their record batches
         let stream = make_partition_stream!(
-            PartitionId::new(1) => [
+            1 => [
                 make_batch!(
                     Int64Array("a" => vec![1, 2, 3, 4, 5]),
                     Float32Array("b" => vec![4.1, 4.2, 4.3, 4.4, 5.0]),
@@ -603,7 +615,7 @@ mod tests {
                     Int64Array("c" => vec![1, 2, 3, 4, 5]),
                 ),
             ],
-            PartitionId::new(2) => [
+            2 => [
                 make_batch!(
                     Float32Array("d" => vec![1.1]),
                 ),
@@ -616,7 +628,7 @@ mod tests {
             .with_time_provider(Arc::clone(&mock_time));
 
         let response = layer
-            .query_exec(NAMESPACE_ID, TABLE_ID, vec![], None)
+            .query_exec(ARBITRARY_NAMESPACE_ID, ARBITRARY_TABLE_ID, vec![], None)
             .await
             .expect("query should succeed");
 
@@ -674,7 +686,7 @@ mod tests {
 
         // Construct the set of partitions and their record batches
         let stream = make_partition_stream!(
-            PartitionId::new(1) => [
+            1 => [
                 make_batch!(
                     Int64Array("a" => vec![1, 2, 3, 4, 5]),
                     Float32Array("b" => vec![4.1, 4.2, 4.3, 4.4, 5.0]),
@@ -683,7 +695,7 @@ mod tests {
                     Int64Array("c" => vec![1, 2, 3, 4, 5]),
                 ),
             ],
-            PartitionId::new(2) => [
+            2 => [
                 make_batch!(
                     Float32Array("d" => vec![1.1]),
                 ),
@@ -696,7 +708,7 @@ mod tests {
             .with_time_provider(Arc::clone(&mock_time));
 
         let response = layer
-            .query_exec(NAMESPACE_ID, TABLE_ID, vec![], None)
+            .query_exec(ARBITRARY_NAMESPACE_ID, ARBITRARY_TABLE_ID, vec![], None)
             .await
             .expect("query should succeed");
 

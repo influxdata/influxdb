@@ -3,8 +3,8 @@
 use std::{collections::VecDeque, sync::Arc};
 
 use data_types::{
-    sequence_number_set::SequenceNumberSet, NamespaceId, PartitionId, PartitionKey, SequenceNumber,
-    TableId,
+    sequence_number_set::SequenceNumberSet, NamespaceId, PartitionHashId, PartitionId,
+    PartitionKey, SequenceNumber, TableId, TransitionPartitionId,
 };
 use mutable_batch::MutableBatch;
 use observability_deps::tracing::*;
@@ -46,6 +46,11 @@ impl SortKeyState {
 pub struct PartitionData {
     /// The catalog ID of the partition this buffer is for.
     partition_id: PartitionId,
+
+    /// The deterministic hash identifier of the partition this buffer is for, if present in the
+    /// catalog.
+    partition_hash_id: Option<PartitionHashId>,
+
     /// The string partition key for this partition.
     partition_key: PartitionKey,
 
@@ -98,6 +103,7 @@ impl PartitionData {
     #[allow(clippy::too_many_arguments)]
     pub(crate) fn new(
         id: PartitionId,
+        partition_hash_id: Option<PartitionHashId>,
         partition_key: PartitionKey,
         namespace_id: NamespaceId,
         namespace_name: Arc<DeferredLoad<NamespaceName>>,
@@ -107,6 +113,7 @@ impl PartitionData {
     ) -> Self {
         Self {
             partition_id: id,
+            partition_hash_id,
             partition_key,
             sort_key,
             namespace_id,
@@ -277,6 +284,17 @@ impl PartitionData {
 
     pub(crate) fn partition_id(&self) -> PartitionId {
         self.partition_id
+    }
+
+    pub(crate) fn partition_hash_id(&self) -> Option<&PartitionHashId> {
+        self.partition_hash_id.as_ref()
+    }
+
+    pub(crate) fn transition_partition_id(&self) -> TransitionPartitionId {
+        self.partition_hash_id
+            .clone()
+            .map(TransitionPartitionId::Deterministic)
+            .unwrap_or_else(|| TransitionPartitionId::Deprecated(self.partition_id))
     }
 
     /// Return the count of persisted Parquet files for this [`PartitionData`] instance.

@@ -12,10 +12,10 @@ futures = "0.3"
 iox_time = { version = "0.1.0", path = "../iox_time" }
 metric = { version = "0.1.0", path = "../metric" }
 object_store = { workspace = true }
-pin-project = "1.1.0"
-tokio = { version = "1.28", features = ["io-util"] }
+pin-project = "1.1.1"
+tokio = { version = "1.29", features = ["io-util"] }
 workspace-hack = { version = "0.1", path = "../workspace-hack" }
 
 [dev-dependencies] # In alphabetical order
 snafu = "0.7"
-tokio = { version = "1.28", features = ["macros", "io-util"] }
+tokio = { version = "1.29", features = ["macros", "io-util"] }

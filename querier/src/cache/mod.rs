@@ -21,7 +21,7 @@ pub mod projected_schema;
 mod ram;
 
 #[cfg(test)]
-mod test_util;
+pub(crate) mod test_util;
 
 /// Caches request to the [`Catalog`].
 #[derive(Debug)]
@@ -205,12 +205,6 @@ impl CatalogCache {
     /// Projected schema cache.
     pub(crate) fn projected_schema(&self) -> &ProjectedSchemaCache {
         &self.projected_schema_cache
-    }
-
-    /// Object store cache.
-    #[allow(dead_code)]
-    pub(crate) fn object_store(&self) -> &ObjectStoreCache {
-        &self.object_store_cache
     }
 
     /// Parquet store that points to the cached object store.

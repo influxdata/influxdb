@@ -17,7 +17,6 @@ mod tests {
 
     use assert_matches::assert_matches;
     use data_types::{CompactionLevel, ParquetFile};
-    use dml::DmlOperation;
     use futures::TryStreamExt;
     use iox_catalog::{
         interface::{get_schema_by_id, Catalog, SoftDeletedRows},
@@ -41,6 +40,7 @@ mod tests {
             post_write::mock::MockPostWriteObserver,
             BufferTree,
         },
+        dml_payload::IngestOp,
         dml_sink::DmlSink,
         ingest_state::IngestState,
         persist::handle::PersistHandle,
@@ -83,6 +83,7 @@ mod tests {
                 r#"{},region=Asturias temp=35 4242424242"#,
                 &*ARBITRARY_TABLE_NAME
             ),
+            None,
         );
 
         let mut repos = catalog
@@ -98,7 +99,7 @@ mod tests {
         validate_or_insert_schema(
             write
                 .tables()
-                .map(|(_id, data)| (&***ARBITRARY_TABLE_NAME, data)),
+                .map(|(_id, data)| (&***ARBITRARY_TABLE_NAME, data.partitioned_data().data())),
             &schema,
             &mut *repos,
         )
@@ -108,7 +109,7 @@ mod tests {
         drop(repos); // Don't you love this testing-only deadlock bug? #3859
 
         // Apply the write
-        buf.apply(DmlOperation::Write(write))
+        buf.apply(IngestOp::Write(write))
             .await
             .expect("failed to apply write to buffer");
 
@@ -326,6 +327,7 @@ mod tests {
         let partition = partition_with_write(Arc::clone(&catalog)).await;
         let table_id = partition.lock().table_id();
         let partition_id = partition.lock().partition_id();
+        let transition_partition_id = partition.lock().transition_partition_id();
         let namespace_id = partition.lock().namespace_id();
         assert_matches!(partition.lock().sort_key(), SortKeyState::Provided(None));
 
@@ -436,8 +438,13 @@ mod tests {
         assert_eq!(files.len(), 2, "expected two uploaded files");
 
         // Ensure the catalog record points at a valid file in object storage.
-        let want_path = ParquetFilePath::new(namespace_id, table_id, partition_id, object_store_id)
-            .object_store_path();
+        let want_path = ParquetFilePath::new(
+            namespace_id,
+            table_id,
+            &transition_partition_id,
+            object_store_id,
+        )
+        .object_store_path();
         let file = files
             .into_iter()
             .find(|f| f.location == want_path)

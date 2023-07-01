@@ -20,11 +20,11 @@ use arrow::{
     record_batch::RecordBatch,
 };
 use async_trait::async_trait;
-use data_types::{ChunkId, ChunkOrder, DeletePredicate, PartitionId};
+use data_types::{ChunkId, ChunkOrder, PartitionId};
 use datafusion::{error::DataFusionError, physical_plan::Statistics, prelude::SessionContext};
 use exec::{stringset::StringSet, IOxSessionContext};
 use hashbrown::HashMap;
-use observability_deps::tracing::{debug, trace};
+use observability_deps::tracing::trace;
 use once_cell::sync::Lazy;
 use parquet_file::storage::ParquetExecInput;
 use predicate::{rpc_predicate::QueryNamespaceMeta, Predicate};
@@ -32,7 +32,7 @@ use schema::{
     sort::{SortKey, SortKeyBuilder},
     InfluxColumnType, Projection, Schema, TIME_COLUMN_NAME,
 };
-use std::{any::Any, collections::BTreeSet, fmt::Debug, iter::FromIterator, sync::Arc};
+use std::{any::Any, fmt::Debug, sync::Arc};
 
 pub mod config;
 pub mod exec;
@@ -59,9 +59,8 @@ pub fn chunk_order_field() -> Arc<Field> {
     Arc::clone(&CHUNK_ORDER_FIELD)
 }
 
-/// Trait for an object (designed to be a Chunk) which can provide
-/// metadata
-pub trait QueryChunkMeta {
+/// A single chunk of data.
+pub trait QueryChunk: Debug + Send + Sync + 'static {
     /// Return a statistics of the data
     fn stats(&self) -> Arc<Statistics>;
 
@@ -74,37 +73,39 @@ pub trait QueryChunkMeta {
     /// return a reference to the sort key if any
     fn sort_key(&self) -> Option<&SortKey>;
 
-    /// return a reference to delete predicates of the chunk
-    fn delete_predicates(&self) -> &[Arc<DeletePredicate>];
+    /// returns the Id of this chunk. Ids are unique within a
+    /// particular partition.
+    fn id(&self) -> ChunkId;
 
-    /// return true if the chunk has delete predicates
-    fn has_delete_predicates(&self) -> bool {
-        !self.delete_predicates().is_empty()
-    }
+    /// Returns true if the chunk may contain a duplicate "primary
+    /// key" within itself
+    fn may_contain_pk_duplicates(&self) -> bool;
 
-    /// return column names participating in the all delete predicates
-    /// in lexicographical order with one exception that time column is last
-    /// This order is to be consistent with Schema::primary_key
-    fn delete_predicate_columns(&self) -> Vec<&str> {
-        // get all column names but time
-        let mut col_names = BTreeSet::new();
-        for pred in self.delete_predicates() {
-            for expr in &pred.exprs {
-                if expr.column != schema::TIME_COLUMN_NAME {
-                    col_names.insert(expr.column.as_str());
-                }
-            }
-        }
+    /// Return a set of Strings containing the distinct values in the
+    /// specified columns. If the predicate can be evaluated entirely
+    /// on the metadata of this Chunk. Returns `None` otherwise
+    ///
+    /// The requested columns must all have String type.
+    fn column_values(
+        &self,
+        ctx: IOxSessionContext,
+        column_name: &str,
+        predicate: &Predicate,
+    ) -> Result<Option<StringSet>, DataFusionError>;
 
-        // convert to vector
-        let mut column_names = Vec::from_iter(col_names);
+    /// Provides access to raw [`QueryChunk`] data.
+    ///
+    /// The engine assume that minimal work shall be performed to gather the `QueryChunkData`.
+    fn data(&self) -> QueryChunkData;
 
-        // Now add time column to the end of the vector
-        // Since time range is a must in the delete predicate, time column must be in this list
-        column_names.push(TIME_COLUMN_NAME);
+    /// Returns chunk type. Useful in tests and debug logs.
+    fn chunk_type(&self) -> &str;
 
-        column_names
-    }
+    /// Order of this chunk relative to other overlapping chunks.
+    fn order(&self) -> ChunkOrder;
+
+    /// Return backend as [`Any`] which can be used to downcast to a specific implementation.
+    fn as_any(&self) -> &dyn Any;
 }
 
 /// A `QueryCompletedToken` is returned by `record_query` implementations of
@@ -177,6 +178,18 @@ pub trait QueryNamespace: QueryNamespaceMeta + Debug + Send + Sync {
         ctx: IOxSessionContext,
     ) -> Result<Vec<Arc<dyn QueryChunk>>, DataFusionError>;
 
+    /// Retention cutoff time.
+    ///
+    /// This gives the timestamp (NOT the duration) at which data should be cut off. This should result in an additional
+    /// filter of the following form:
+    ///
+    /// ```text
+    /// time >= retention_time_ns
+    /// ```
+    ///
+    /// Returns `None` if now retention policy was defined.
+    fn retention_time_ns(&self) -> Option<i64>;
+
     /// Record that particular type of query was run / planned
     fn record_query(
         &self,
@@ -196,7 +209,7 @@ pub trait QueryNamespace: QueryNamespaceMeta + Debug + Send + Sync {
 pub enum QueryChunkData {
     /// In-memory record batches.
     ///
-    /// **IMPORTANT: All batches MUST have the schema that the [chunk reports](QueryChunkMeta::schema).**
+    /// **IMPORTANT: All batches MUST have the schema that the [chunk reports](QueryChunk::schema).**
     RecordBatches(Vec<RecordBatch>),
 
     /// Parquet file.
@@ -230,58 +243,9 @@ impl QueryChunkData {
     }
 }
 
-/// Collection of data that shares the same partition key
-pub trait QueryChunk: QueryChunkMeta + Debug + Send + Sync + 'static {
-    /// returns the Id of this chunk. Ids are unique within a
-    /// particular partition.
-    fn id(&self) -> ChunkId;
-
-    /// Returns true if the chunk may contain a duplicate "primary
-    /// key" within itself
-    fn may_contain_pk_duplicates(&self) -> bool;
-
-    /// Returns a set of Strings with column names from the specified
-    /// table that have at least one row that matches `predicate`, if
-    /// the predicate can be evaluated entirely on the metadata of
-    /// this Chunk. Returns `None` otherwise
-    fn column_names(
-        &self,
-        ctx: IOxSessionContext,
-        predicate: &Predicate,
-        columns: Projection<'_>,
-    ) -> Result<Option<StringSet>, DataFusionError>;
-
-    /// Return a set of Strings containing the distinct values in the
-    /// specified columns. If the predicate can be evaluated entirely
-    /// on the metadata of this Chunk. Returns `None` otherwise
-    ///
-    /// The requested columns must all have String type.
-    fn column_values(
-        &self,
-        ctx: IOxSessionContext,
-        column_name: &str,
-        predicate: &Predicate,
-    ) -> Result<Option<StringSet>, DataFusionError>;
-
-    /// Provides access to raw [`QueryChunk`] data.
-    ///
-    /// The engine assume that minimal work shall be performed to gather the `QueryChunkData`.
-    fn data(&self) -> QueryChunkData;
-
-    /// Returns chunk type. Useful in tests and debug logs.
-    fn chunk_type(&self) -> &str;
-
-    /// Order of this chunk relative to other overlapping chunks.
-    fn order(&self) -> ChunkOrder;
-
-    /// Return backend as [`Any`] which can be used to downcast to a specific implementation.
-    fn as_any(&self) -> &dyn Any;
-}
-
-/// Implement ChunkMeta for something wrapped in an Arc (like Chunks often are)
-impl<P> QueryChunkMeta for Arc<P>
+impl<P> QueryChunk for Arc<P>
 where
-    P: QueryChunkMeta,
+    P: QueryChunk,
 {
     fn stats(&self) -> Arc<Statistics> {
         self.as_ref().stats()
@@ -299,15 +263,42 @@ where
         self.as_ref().sort_key()
     }
 
-    fn delete_predicates(&self) -> &[Arc<DeletePredicate>] {
-        let pred = self.as_ref().delete_predicates();
-        debug!(?pred, "Delete predicate in QueryChunkMeta");
-        pred
+    fn id(&self) -> ChunkId {
+        self.as_ref().id()
+    }
+
+    fn may_contain_pk_duplicates(&self) -> bool {
+        self.as_ref().may_contain_pk_duplicates()
+    }
+
+    fn column_values(
+        &self,
+        ctx: IOxSessionContext,
+        column_name: &str,
+        predicate: &Predicate,
+    ) -> Result<Option<StringSet>, DataFusionError> {
+        self.as_ref().column_values(ctx, column_name, predicate)
+    }
+
+    fn data(&self) -> QueryChunkData {
+        self.as_ref().data()
+    }
+
+    fn chunk_type(&self) -> &str {
+        self.as_ref().chunk_type()
+    }
+
+    fn order(&self) -> ChunkOrder {
+        self.as_ref().order()
+    }
+
+    fn as_any(&self) -> &dyn Any {
+        // present the underlying implementation, not the wrapper
+        self.as_ref().as_any()
     }
 }
 
-/// Implement `ChunkMeta` for `Arc<dyn QueryChunk>`
-impl QueryChunkMeta for Arc<dyn QueryChunk> {
+impl QueryChunk for Arc<dyn QueryChunk> {
     fn stats(&self) -> Arc<Statistics> {
         self.as_ref().stats()
     }
@@ -324,10 +315,38 @@ impl QueryChunkMeta for Arc<dyn QueryChunk> {
         self.as_ref().sort_key()
     }
 
-    fn delete_predicates(&self) -> &[Arc<DeletePredicate>] {
-        let pred = self.as_ref().delete_predicates();
-        debug!(?pred, "Delete predicate in QueryChunkMeta");
-        pred
+    fn id(&self) -> ChunkId {
+        self.as_ref().id()
+    }
+
+    fn may_contain_pk_duplicates(&self) -> bool {
+        self.as_ref().may_contain_pk_duplicates()
+    }
+
+    fn column_values(
+        &self,
+        ctx: IOxSessionContext,
+        column_name: &str,
+        predicate: &Predicate,
+    ) -> Result<Option<StringSet>, DataFusionError> {
+        self.as_ref().column_values(ctx, column_name, predicate)
+    }
+
+    fn data(&self) -> QueryChunkData {
+        self.as_ref().data()
+    }
+
+    fn chunk_type(&self) -> &str {
+        self.as_ref().chunk_type()
+    }
+
+    fn order(&self) -> ChunkOrder {
+        self.as_ref().order()
+    }
+
+    fn as_any(&self) -> &dyn Any {
+        // present the underlying implementation, not the wrapper
+        self.as_ref().as_any()
     }
 }
 

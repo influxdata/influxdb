@@ -385,6 +385,18 @@ async fn bugs() {
     .await;
 }
 
+#[tokio::test]
+async fn custom_partitioning() {
+    test_helpers::maybe_start_logging();
+
+    TestCase {
+        input: "cases/in/custom_partitioning.sql",
+        chunk_stage: ChunkStage::Ingester,
+    }
+    .run()
+    .await;
+}
+
 mod influxql {
     use super::*;
 
@@ -394,6 +406,20 @@ mod influxql {
 
         TestCase {
             input: "cases/in/issue_6112.influxql",
+            chunk_stage: ChunkStage::Ingester,
+        }
+        .run()
+        .await;
+    }
+
+    /// Test window-like functions, which utilise user-defined aggregate and
+    /// window functions.
+    #[tokio::test]
+    async fn window_like() {
+        test_helpers::maybe_start_logging();
+
+        TestCase {
+            input: "cases/in/window_like.influxql",
             chunk_stage: ChunkStage::Ingester,
         }
         .run()

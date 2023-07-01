@@ -204,21 +204,17 @@ impl WalReferenceHandle {
 
 #[cfg(test)]
 mod tests {
-
-    use std::{pin::Pin, task::Poll, time::Duration};
-
+    use super::*;
+    use crate::test_util::{ARBITRARY_NAMESPACE_ID, ARBITRARY_PARTITION_ID, ARBITRARY_TABLE_ID};
     use assert_matches::assert_matches;
     use async_trait::async_trait;
-    use data_types::{
-        ColumnId, ColumnSet, NamespaceId, ParquetFileParams, PartitionId, TableId, Timestamp,
-    };
+    use data_types::{ColumnId, ColumnSet, ParquetFileParams, Timestamp};
     use futures::{task::Context, Future, FutureExt};
     use metric::{assert_counter, U64Gauge};
     use parking_lot::Mutex;
+    use std::{pin::Pin, task::Poll, time::Duration};
     use test_helpers::timeout::FutureTimeout;
     use tokio::sync::Notify;
-
-    use super::*;
 
     /// A mock file deleter that records the IDs it was asked to delete.
     #[derive(Debug, Default)]
@@ -265,9 +261,10 @@ mod tests {
     {
         Arc::new(CompletedPersist::new(
             ParquetFileParams {
-                namespace_id: NamespaceId::new(1),
-                table_id: TableId::new(2),
-                partition_id: PartitionId::new(3),
+                namespace_id: ARBITRARY_NAMESPACE_ID,
+                table_id: ARBITRARY_TABLE_ID,
+                partition_id: ARBITRARY_PARTITION_ID,
+                partition_hash_id: None,
                 object_store_id: Default::default(),
                 min_time: Timestamp::new(42),
                 max_time: Timestamp::new(42),

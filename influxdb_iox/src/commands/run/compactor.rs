@@ -112,6 +112,7 @@ pub async fn command(config: Config) -> Result<(), Error> {
             .into_iter()
             .map(|store| (store.id(), Arc::clone(store.object_store())))
             .collect(),
+        metric_registry: Arc::clone(&metric_registry),
         mem_pool_size: config.compactor_config.exec_mem_pool_bytes,
     }));
     let time_provider = Arc::new(SystemProvider::new());

@@ -230,7 +230,7 @@ mod tests {
     use chrono::TimeZone;
     use data_types::{
         ColumnId, ColumnSet, CompactionLevel, NamespaceId, ParquetFile, ParquetFileId,
-        ParquetFileParams, PartitionId, TableId, Timestamp,
+        ParquetFileParams, PartitionId, TableId, Timestamp, TransitionPartitionId,
     };
     use iox_catalog::{
         interface::Catalog,
@@ -268,6 +268,7 @@ mod tests {
             namespace_id: namespace.id,
             table_id: partition.table_id,
             partition_id: partition.id,
+            partition_hash_id: partition.hash_id().cloned(),
             object_store_id: Uuid::new_v4(),
             min_time: Timestamp::new(1),
             max_time: Timestamp::new(10),
@@ -297,7 +298,7 @@ mod tests {
         let location = ParquetFilePath::new(
             file_in_catalog.namespace_id,
             file_in_catalog.table_id,
-            file_in_catalog.partition_id,
+            &file_in_catalog.transition_partition_id(),
             file_in_catalog.object_store_id,
         )
         .object_store_path();
@@ -326,7 +327,7 @@ mod tests {
         let location = ParquetFilePath::new(
             NamespaceId::new(1),
             TableId::new(2),
-            PartitionId::new(4),
+            &TransitionPartitionId::Deprecated(PartitionId::new(4)),
             Uuid::new_v4(),
         )
         .object_store_path();
@@ -375,7 +376,7 @@ mod tests {
         let location = ParquetFilePath::new(
             file_in_catalog.namespace_id,
             file_in_catalog.table_id,
-            file_in_catalog.partition_id,
+            &file_in_catalog.transition_partition_id(),
             file_in_catalog.object_store_id,
         )
         .object_store_path();
@@ -404,7 +405,7 @@ mod tests {
         let location = ParquetFilePath::new(
             NamespaceId::new(1),
             TableId::new(2),
-            PartitionId::new(4),
+            &TransitionPartitionId::Deprecated(PartitionId::new(4)),
             Uuid::new_v4(),
         )
         .object_store_path();
@@ -468,7 +469,7 @@ mod tests {
         let loc = ParquetFilePath::new(
             file_in_catalog.namespace_id,
             file_in_catalog.table_id,
-            file_in_catalog.partition_id,
+            &file_in_catalog.transition_partition_id(),
             file_in_catalog.object_store_id,
         )
         .object_store_path();

@@ -2,7 +2,6 @@ use std::{fmt::Debug, sync::Arc};
 
 use async_trait::async_trait;
 use data_types::{NamespaceId, TableId};
-use dml::DmlOperation;
 use metric::U64Counter;
 use parking_lot::Mutex;
 use trace::span::Span;
@@ -15,6 +14,7 @@ use super::{
 };
 use crate::{
     arcmap::ArcMap,
+    dml_payload::IngestOp,
     dml_sink::DmlSink,
     partition_iter::PartitionIter,
     query::{response::QueryResponse, tracing::QueryExecTracing, QueryError, QueryExec},
@@ -50,10 +50,10 @@ use crate::{
 /// ```
 ///
 /// A buffer tree is a mutable data structure that implements [`DmlSink`] to
-/// apply successive [`DmlOperation`] to its internal state, and makes the
+/// apply successive [`IngestOp`] to its internal state, and makes the
 /// materialised result available through a streaming [`QueryExec`] execution.
 ///
-/// The tree is populated lazily/on-demand as [`DmlOperation`] are applied or
+/// The tree is populated lazily/on-demand as [`IngestOp`] are applied or
 /// the data is accessed, but some information is pre-cached and made available
 /// to the [`BufferTree`] for performance reasons (see [`PartitionCache`]).
 ///
@@ -82,7 +82,7 @@ pub(crate) struct BufferTree<O> {
     partition_provider: Arc<dyn PartitionProvider>,
 
     /// A set of namespaces this [`BufferTree`] instance has processed
-    /// [`DmlOperation`]'s for.
+    /// [`IngestOp`]'s for.
     ///
     /// The [`NamespaceNameProvider`] acts as a [`DeferredLoad`] constructor to
     /// resolve the [`NamespaceName`] for new [`NamespaceData`] out of the hot
@@ -168,8 +168,8 @@ where
 {
     type Error = mutable_batch::Error;
 
-    async fn apply(&self, op: DmlOperation) -> Result<(), Self::Error> {
-        let namespace_id = op.namespace_id();
+    async fn apply(&self, op: IngestOp) -> Result<(), Self::Error> {
+        let namespace_id = op.namespace();
         let namespace_data = self.namespaces.get_or_insert_with(&namespace_id, || {
             // Increase the metric that records the number of namespaces
             // buffered in this ingester instance.
@@ -227,14 +227,6 @@ where
 
 #[cfg(test)]
 mod tests {
-    use std::{sync::Arc, time::Duration};
-
-    use assert_matches::assert_matches;
-    use data_types::{PartitionId, PartitionKey};
-    use datafusion::{assert_batches_eq, assert_batches_sorted_eq};
-    use futures::StreamExt;
-    use metric::{Attributes, Metric};
-
     use super::*;
     use crate::{
         buffer_tree::{
@@ -247,10 +239,30 @@ mod tests {
         query::partition_response::PartitionResponse,
         test_util::{
             defer_namespace_name_1_ms, make_write_op, PartitionDataBuilder, ARBITRARY_NAMESPACE_ID,
-            ARBITRARY_NAMESPACE_NAME, ARBITRARY_PARTITION_KEY, ARBITRARY_TABLE_ID,
-            ARBITRARY_TABLE_NAME, ARBITRARY_TABLE_NAME_PROVIDER,
+            ARBITRARY_NAMESPACE_NAME, ARBITRARY_PARTITION_ID, ARBITRARY_PARTITION_KEY,
+            ARBITRARY_TABLE_ID, ARBITRARY_TABLE_NAME, ARBITRARY_TABLE_NAME_PROVIDER,
         },
     };
+    use assert_matches::assert_matches;
+    use data_types::{PartitionId, PartitionKey};
+    use datafusion::{assert_batches_eq, assert_batches_sorted_eq};
+    use futures::StreamExt;
+    use lazy_static::lazy_static;
+    use metric::{Attributes, Metric};
+    use std::{sync::Arc, time::Duration};
+
+    const PARTITION2_ID: PartitionId = PartitionId::new(2);
+    const PARTITION3_ID: PartitionId = PartitionId::new(3);
+
+    const TABLE2_ID: TableId = TableId::new(1234321);
+    const TABLE2_NAME: &str = "another_table";
+
+    const NAMESPACE2_ID: NamespaceId = NamespaceId::new(4321);
+
+    lazy_static! {
+        static ref PARTITION2_KEY: PartitionKey = PartitionKey::from("p2");
+        static ref PARTITION3_KEY: PartitionKey = PartitionKey::from("p3");
+    }
 
     #[tokio::test]
     async fn test_namespace_init_table() {
@@ -284,7 +296,7 @@ mod tests {
         assert!(ns.table(ARBITRARY_TABLE_ID).is_none());
 
         // Write some test data
-        ns.apply(DmlOperation::Write(make_write_op(
+        ns.apply(IngestOp::Write(make_write_op(
             &ARBITRARY_PARTITION_KEY,
             ARBITRARY_NAMESPACE_ID,
             &ARBITRARY_TABLE_NAME,
@@ -294,6 +306,7 @@ mod tests {
                 r#"{},city=Madrid day="sun",temp=55 22"#,
                 &*ARBITRARY_TABLE_NAME
             ),
+            None,
         )))
         .await
         .expect("buffer op should succeed");
@@ -325,7 +338,7 @@ mod tests {
         (
             $name:ident,
             partitions = [$($partition:expr), +], // The set of PartitionData for the mock partition provider
-            writes = [$($write:expr), *],         // The set of DmlWrite to apply()
+            writes = [$($write:expr), *],         // The set of WriteOperation to apply()
             want = $want:expr                     // The expected results of querying ARBITRARY_NAMESPACE_ID and ARBITRARY_TABLE_ID
         ) => {
             paste::paste! {
@@ -348,9 +361,9 @@ mod tests {
                         Arc::new(metric::Registry::default()),
                     );
 
-                    // Write the provided DmlWrites
+                    // Write the provided WriteOperation
                     $(
-                        buf.apply(DmlOperation::Write($write))
+                        buf.apply(IngestOp::Write($write).into())
                             .await
                             .expect("failed to perform write");
                     )*
@@ -379,11 +392,11 @@ mod tests {
     test_write_query!(
         read_writes,
         partitions = [PartitionDataBuilder::new()
-            .with_partition_id(PartitionId::new(0))
-            .with_partition_key(PartitionKey::from("p1"))
+            .with_partition_id(ARBITRARY_PARTITION_ID)
+            .with_partition_key(ARBITRARY_PARTITION_KEY.clone())
             .build()],
         writes = [make_write_op(
-            &PartitionKey::from("p1"),
+            &ARBITRARY_PARTITION_KEY,
             ARBITRARY_NAMESPACE_ID,
             &ARBITRARY_TABLE_NAME,
             ARBITRARY_TABLE_ID,
@@ -392,6 +405,7 @@ mod tests {
                 r#"{},region=Asturias temp=35 4242424242"#,
                 &*ARBITRARY_TABLE_NAME
             ),
+            None,
         )],
         want = [
             "+----------+------+-------------------------------+",
@@ -408,17 +422,17 @@ mod tests {
         multiple_partitions,
         partitions = [
             PartitionDataBuilder::new()
-                .with_partition_id(PartitionId::new(0))
-                .with_partition_key(PartitionKey::from("p1"))
+                .with_partition_id(ARBITRARY_PARTITION_ID)
+                .with_partition_key(ARBITRARY_PARTITION_KEY.clone())
                 .build(),
             PartitionDataBuilder::new()
-                .with_partition_id(PartitionId::new(1))
-                .with_partition_key(PartitionKey::from("p2"))
+                .with_partition_id(PARTITION2_ID)
+                .with_partition_key(PARTITION2_KEY.clone())
                 .build()
         ],
         writes = [
             make_write_op(
-                &PartitionKey::from("p1"),
+                &ARBITRARY_PARTITION_KEY,
                 ARBITRARY_NAMESPACE_ID,
                 &ARBITRARY_TABLE_NAME,
                 ARBITRARY_TABLE_ID,
@@ -427,9 +441,10 @@ mod tests {
                     r#"{},region=Madrid temp=35 4242424242"#,
                     &*ARBITRARY_TABLE_NAME
                 ),
+                None,
             ),
             make_write_op(
-                &PartitionKey::from("p2"),
+                &PARTITION2_KEY,
                 ARBITRARY_NAMESPACE_ID,
                 &ARBITRARY_TABLE_NAME,
                 ARBITRARY_TABLE_ID,
@@ -438,6 +453,7 @@ mod tests {
                     r#"{},region=Asturias temp=25 4242424242"#,
                     &*ARBITRARY_TABLE_NAME
                 ),
+                None,
             )
         ],
         want = [
@@ -456,19 +472,19 @@ mod tests {
         filter_multiple_namespaces,
         partitions = [
             PartitionDataBuilder::new()
-                .with_partition_id(PartitionId::new(0))
-                .with_partition_key(PartitionKey::from("p1"))
+                .with_partition_id(ARBITRARY_PARTITION_ID)
+                .with_partition_key(ARBITRARY_PARTITION_KEY.clone())
                 .build(),
             PartitionDataBuilder::new()
-                .with_partition_id(PartitionId::new(1))
-                .with_partition_key(PartitionKey::from("p2"))
-                .with_namespace_id(NamespaceId::new(4321)) // A different namespace ID.
-                .with_table_id(TableId::new(1234)) // A different table ID.
+                .with_partition_id(PARTITION2_ID)
+                .with_partition_key(PARTITION2_KEY.clone())
+                .with_namespace_id(NAMESPACE2_ID) // A different namespace ID.
+                .with_table_id(TABLE2_ID) // A different table ID.
                 .build()
         ],
         writes = [
             make_write_op(
-                &PartitionKey::from("p1"),
+                &ARBITRARY_PARTITION_KEY,
                 ARBITRARY_NAMESPACE_ID,
                 &ARBITRARY_TABLE_NAME,
                 ARBITRARY_TABLE_ID,
@@ -477,17 +493,19 @@ mod tests {
                     r#"{},region=Madrid temp=25 4242424242"#,
                     &*ARBITRARY_TABLE_NAME
                 ),
+                None,
             ),
             make_write_op(
-                &PartitionKey::from("p2"),
-                NamespaceId::new(4321), // A different namespace ID.
+                &PARTITION2_KEY,
+                NAMESPACE2_ID, // A different namespace ID.
                 &ARBITRARY_TABLE_NAME,
-                TableId::new(1234), // A different table ID
+                TABLE2_ID, // A different table ID
                 0,
                 &format!(
                     r#"{},region=Asturias temp=35 4242424242"#,
                     &*ARBITRARY_TABLE_NAME
                 ),
+                None,
             )
         ],
         want = [
@@ -505,18 +523,18 @@ mod tests {
         filter_multiple_tabls,
         partitions = [
             PartitionDataBuilder::new()
-                .with_partition_id(PartitionId::new(0))
-                .with_partition_key(PartitionKey::from("p1"))
+                .with_partition_id(ARBITRARY_PARTITION_ID)
+                .with_partition_key(ARBITRARY_PARTITION_KEY.clone())
                 .build(),
             PartitionDataBuilder::new()
-                .with_partition_id(PartitionId::new(1))
-                .with_partition_key(PartitionKey::from("p2"))
-                .with_table_id(TableId::new(1234)) // A different table ID.
+                .with_partition_id(PARTITION2_ID)
+                .with_partition_key(PARTITION2_KEY.clone())
+                .with_table_id(TABLE2_ID) // A different table ID.
                 .build()
         ],
         writes = [
             make_write_op(
-                &PartitionKey::from("p1"),
+                &ARBITRARY_PARTITION_KEY,
                 ARBITRARY_NAMESPACE_ID,
                 &ARBITRARY_TABLE_NAME,
                 ARBITRARY_TABLE_ID,
@@ -525,17 +543,19 @@ mod tests {
                     r#"{},region=Madrid temp=25 4242424242"#,
                     &*ARBITRARY_TABLE_NAME
                 ),
+                None,
             ),
             make_write_op(
-                &PartitionKey::from("p2"),
+                &PARTITION2_KEY,
                 ARBITRARY_NAMESPACE_ID,
                 &ARBITRARY_TABLE_NAME,
-                TableId::new(1234), // A different table ID
+                TABLE2_ID, // A different table ID
                 0,
                 &format!(
                     r#"{},region=Asturias temp=35 4242424242"#,
                     &*ARBITRARY_TABLE_NAME
                 ),
+                None,
             )
         ],
         want = [
@@ -554,12 +574,12 @@ mod tests {
     test_write_query!(
         duplicate_writes,
         partitions = [PartitionDataBuilder::new()
-            .with_partition_id(PartitionId::new(0))
-            .with_partition_key(PartitionKey::from("p1"))
+            .with_partition_id(ARBITRARY_PARTITION_ID)
+            .with_partition_key(ARBITRARY_PARTITION_KEY.clone())
             .build()],
         writes = [
             make_write_op(
-                &PartitionKey::from("p1"),
+                &ARBITRARY_PARTITION_KEY,
                 ARBITRARY_NAMESPACE_ID,
                 &ARBITRARY_TABLE_NAME,
                 ARBITRARY_TABLE_ID,
@@ -568,9 +588,10 @@ mod tests {
                     r#"{},region=Asturias temp=35 4242424242"#,
                     &*ARBITRARY_TABLE_NAME
                 ),
+                None,
             ),
             make_write_op(
-                &PartitionKey::from("p1"),
+                &ARBITRARY_PARTITION_KEY,
                 ARBITRARY_NAMESPACE_ID,
                 &ARBITRARY_TABLE_NAME,
                 ARBITRARY_TABLE_ID,
@@ -579,6 +600,7 @@ mod tests {
                     r#"{},region=Asturias temp=12 4242424242"#,
                     &*ARBITRARY_TABLE_NAME
                 ),
+                None,
             )
         ],
         want = [
@@ -595,20 +617,18 @@ mod tests {
     /// single namespace being created, and matching metrics.
     #[tokio::test]
     async fn test_metrics() {
-        // Configure the mock partition provider to return a single partition, named
-        // p1.
         let partition_provider = Arc::new(
             MockPartitionProvider::default()
                 .with_partition(
                     PartitionDataBuilder::new()
-                        .with_partition_id(PartitionId::new(0))
-                        .with_partition_key(PartitionKey::from("p1"))
+                        .with_partition_id(ARBITRARY_PARTITION_ID)
+                        .with_partition_key(ARBITRARY_PARTITION_KEY.clone())
                         .build(),
                 )
                 .with_partition(
                     PartitionDataBuilder::new()
-                        .with_partition_id(PartitionId::new(0))
-                        .with_partition_key(PartitionKey::from("p2"))
+                        .with_partition_id(ARBITRARY_PARTITION_ID)
+                        .with_partition_key(PARTITION2_KEY.clone())
                         .build(),
                 ),
         );
@@ -624,9 +644,9 @@ mod tests {
             Arc::clone(&metrics),
         );
 
-        // Write data to partition p1, in the arbitrary table
-        buf.apply(DmlOperation::Write(make_write_op(
-            &PartitionKey::from("p1"),
+        // Write data to the arbitrary partition, in the arbitrary table
+        buf.apply(IngestOp::Write(make_write_op(
+            &ARBITRARY_PARTITION_KEY,
             ARBITRARY_NAMESPACE_ID,
             &ARBITRARY_TABLE_NAME,
             ARBITRARY_TABLE_ID,
@@ -635,14 +655,15 @@ mod tests {
                 r#"{},region=Asturias temp=35 4242424242"#,
                 &*ARBITRARY_TABLE_NAME
             ),
+            None,
         )))
         .await
         .expect("failed to write initial data");
 
         // Write a duplicate record with the same series key & timestamp, but a
         // different temp value.
-        buf.apply(DmlOperation::Write(make_write_op(
-            &PartitionKey::from("p2"),
+        buf.apply(IngestOp::Write(make_write_op(
+            &PARTITION2_KEY,
             ARBITRARY_NAMESPACE_ID,
             &ARBITRARY_TABLE_NAME,
             ARBITRARY_TABLE_ID,
@@ -651,6 +672,7 @@ mod tests {
                 r#"{},region=Asturias temp=12 4242424242"#,
                 &*ARBITRARY_TABLE_NAME
             ),
+            None,
         )))
         .await
         .expect("failed to overwrite data");
@@ -679,29 +701,26 @@ mod tests {
     /// single namespace being created, and matching metrics.
     #[tokio::test]
     async fn test_partition_iter() {
-        const TABLE2_ID: TableId = TableId::new(1234321);
-        const TABLE2_NAME: &str = "another_table";
-
         // Configure the mock partition provider to return a single partition, named
         // p1.
         let partition_provider = Arc::new(
             MockPartitionProvider::default()
                 .with_partition(
                     PartitionDataBuilder::new()
-                        .with_partition_id(PartitionId::new(0))
-                        .with_partition_key(PartitionKey::from("p1"))
+                        .with_partition_id(ARBITRARY_PARTITION_ID)
+                        .with_partition_key(ARBITRARY_PARTITION_KEY.clone())
                         .build(),
                 )
                 .with_partition(
                     PartitionDataBuilder::new()
-                        .with_partition_id(PartitionId::new(1))
-                        .with_partition_key(PartitionKey::from("p2"))
+                        .with_partition_id(PARTITION2_ID)
+                        .with_partition_key(PARTITION2_KEY.clone())
                         .build(),
                 )
                 .with_partition(
                     PartitionDataBuilder::new()
-                        .with_partition_id(PartitionId::new(2))
-                        .with_partition_key(PartitionKey::from("p3"))
+                        .with_partition_id(PARTITION3_ID)
+                        .with_partition_key(PARTITION3_KEY.clone())
                         .with_table_id(TABLE2_ID)
                         .with_table_name_loader(Arc::new(DeferredLoad::new(
                             Duration::from_secs(1),
@@ -723,9 +742,9 @@ mod tests {
 
         assert_eq!(buf.partitions().count(), 0);
 
-        // Write data to partition p1, in the arbitrary table
-        buf.apply(DmlOperation::Write(make_write_op(
-            &PartitionKey::from("p1"),
+        // Write data to the arbitrary partition, in the arbitrary table
+        buf.apply(IngestOp::Write(make_write_op(
+            &ARBITRARY_PARTITION_KEY,
             ARBITRARY_NAMESPACE_ID,
             &ARBITRARY_TABLE_NAME,
             ARBITRARY_TABLE_ID,
@@ -734,15 +753,16 @@ mod tests {
                 r#"{},region=Asturias temp=35 4242424242"#,
                 &*ARBITRARY_TABLE_NAME
             ),
+            None,
         )))
         .await
         .expect("failed to write initial data");
 
         assert_eq!(buf.partitions().count(), 1);
 
-        // Write data to partition p2, in the arbitrary table
-        buf.apply(DmlOperation::Write(make_write_op(
-            &PartitionKey::from("p2"),
+        // Write data to partition2, in the arbitrary table
+        buf.apply(IngestOp::Write(make_write_op(
+            &PARTITION2_KEY,
             ARBITRARY_NAMESPACE_ID,
             &ARBITRARY_TABLE_NAME,
             ARBITRARY_TABLE_ID,
@@ -751,20 +771,22 @@ mod tests {
                 r#"{},region=Asturias temp=35 4242424242"#,
                 &*ARBITRARY_TABLE_NAME
             ),
+            None,
         )))
         .await
         .expect("failed to write initial data");
 
         assert_eq!(buf.partitions().count(), 2);
 
-        // Write data to partition p3, in the second table
-        buf.apply(DmlOperation::Write(make_write_op(
-            &PartitionKey::from("p3"),
+        // Write data to partition3, in the second table
+        buf.apply(IngestOp::Write(make_write_op(
+            &PARTITION3_KEY,
             ARBITRARY_NAMESPACE_ID,
             TABLE2_NAME,
             TABLE2_ID,
             0,
             &format!(r#"{},region=Asturias temp=35 4242424242"#, TABLE2_NAME),
+            None,
         )))
         .await
         .expect("failed to write initial data");
@@ -772,12 +794,14 @@ mod tests {
         // Iterate over the partitions and ensure they were all visible.
         let mut ids = buf
             .partitions()
-            .map(|p| p.lock().partition_id().get())
+            .map(|p| p.lock().partition_id())
             .collect::<Vec<_>>();
-
         ids.sort_unstable();
 
-        assert_matches!(*ids, [0, 1, 2]);
+        let mut expected = [ARBITRARY_PARTITION_ID, PARTITION2_ID, PARTITION3_ID];
+        expected.sort_unstable();
+
+        assert_eq!(ids, expected);
     }
 
     /// Assert the correct "not found" errors are generated for missing
@@ -788,8 +812,8 @@ mod tests {
         let partition_provider = Arc::new(
             MockPartitionProvider::default().with_partition(
                 PartitionDataBuilder::new()
-                    .with_partition_id(PartitionId::new(0))
-                    .with_partition_key(PartitionKey::from("p1"))
+                    .with_partition_id(ARBITRARY_PARTITION_ID)
+                    .with_partition_key(ARBITRARY_PARTITION_KEY.clone())
                     .build(),
             ),
         );
@@ -812,9 +836,9 @@ mod tests {
             assert_eq!(ns, ARBITRARY_NAMESPACE_ID);
         });
 
-        // Write data to partition p1, in the arbitrary table
-        buf.apply(DmlOperation::Write(make_write_op(
-            &PartitionKey::from("p1"),
+        // Write data to the arbitrary partition, in the arbitrary table
+        buf.apply(IngestOp::Write(make_write_op(
+            &ARBITRARY_PARTITION_KEY,
             ARBITRARY_NAMESPACE_ID,
             &ARBITRARY_TABLE_NAME,
             ARBITRARY_TABLE_ID,
@@ -823,18 +847,19 @@ mod tests {
                 r#"{},region=Asturias temp=35 4242424242"#,
                 &*ARBITRARY_TABLE_NAME
             ),
+            None,
         )))
         .await
         .expect("failed to write data");
 
         // Ensure an unknown table errors
         let err = buf
-            .query_exec(ARBITRARY_NAMESPACE_ID, TableId::new(1234), vec![], None)
+            .query_exec(ARBITRARY_NAMESPACE_ID, TABLE2_ID, vec![], None)
             .await
             .expect_err("query should fail");
         assert_matches!(err, QueryError::TableNotFound(ns, t) => {
             assert_eq!(ns, ARBITRARY_NAMESPACE_ID);
-            assert_eq!(t, TableId::new(1234));
+            assert_eq!(t, TABLE2_ID);
         });
 
         // Ensure a valid namespace / table does not error
@@ -861,20 +886,19 @@ mod tests {
     /// ordering of writes.
     #[tokio::test]
     async fn test_read_consistency() {
-        // Configure the mock partition provider to return two partitions, named
-        // p1 and p2.
+        // Configure the mock partition provider to return two partitions.
         let partition_provider = Arc::new(
             MockPartitionProvider::default()
                 .with_partition(
                     PartitionDataBuilder::new()
-                        .with_partition_id(PartitionId::new(0))
-                        .with_partition_key(PartitionKey::from("p1"))
+                        .with_partition_id(ARBITRARY_PARTITION_ID)
+                        .with_partition_key(ARBITRARY_PARTITION_KEY.clone())
                         .build(),
                 )
                 .with_partition(
                     PartitionDataBuilder::new()
-                        .with_partition_id(PartitionId::new(1))
-                        .with_partition_key(PartitionKey::from("p2"))
+                        .with_partition_id(PARTITION2_ID)
+                        .with_partition_key(PARTITION2_KEY.clone())
                         .build(),
                 ),
         );
@@ -888,9 +912,9 @@ mod tests {
             Arc::new(metric::Registry::default()),
         );
 
-        // Write data to partition p1, in the arbitrary table
-        buf.apply(DmlOperation::Write(make_write_op(
-            &PartitionKey::from("p1"),
+        // Write data to the arbitrary partition, in the arbitrary table
+        buf.apply(IngestOp::Write(make_write_op(
+            &ARBITRARY_PARTITION_KEY,
             ARBITRARY_NAMESPACE_ID,
             &ARBITRARY_TABLE_NAME,
             ARBITRARY_TABLE_ID,
@@ -899,6 +923,7 @@ mod tests {
                 r#"{},region=Madrid temp=35 4242424242"#,
                 &*ARBITRARY_TABLE_NAME
             ),
+            None,
         )))
         .await
         .expect("failed to write initial data");
@@ -912,9 +937,9 @@ mod tests {
             .into_partition_stream();
 
         // Perform a write concurrent to the consumption of the query stream
-        // that creates a new partition (p2) in the same table.
-        buf.apply(DmlOperation::Write(make_write_op(
-            &PartitionKey::from("p2"),
+        // that creates a new partition2 in the same table.
+        buf.apply(IngestOp::Write(make_write_op(
+            &PARTITION2_KEY,
             ARBITRARY_NAMESPACE_ID,
             &ARBITRARY_TABLE_NAME,
             ARBITRARY_TABLE_ID,
@@ -923,14 +948,15 @@ mod tests {
                 r#"{},region=Asturias temp=20 4242424242"#,
                 &*ARBITRARY_TABLE_NAME
             ),
+            None,
         )))
         .await
         .expect("failed to perform concurrent write to new partition");
 
-        // Perform another write that hits the partition within the query
-        // results snapshot (p1) before the partition is read.
-        buf.apply(DmlOperation::Write(make_write_op(
-            &PartitionKey::from("p1"),
+        // Perform another write that hits the arbitrary partition within the query
+        // results snapshot before the partition is read.
+        buf.apply(IngestOp::Write(make_write_op(
+            &ARBITRARY_PARTITION_KEY,
             ARBITRARY_NAMESPACE_ID,
             &ARBITRARY_TABLE_NAME,
             ARBITRARY_TABLE_ID,
@@ -939,6 +965,7 @@ mod tests {
                 r#"{},region=Murcia temp=30 4242424242"#,
                 &*ARBITRARY_TABLE_NAME
             ),
+            None,
         )))
         .await
         .expect("failed to perform concurrent write to existing partition");
@@ -946,8 +973,8 @@ mod tests {
         // Consume the set of partitions within the query stream.
         //
         // Under the specified query consistency guarantees, both the first and
-        // third writes (both to p1) should be visible. The second write to p2
-        // should not be visible.
+        // third writes (both to the arbitrary partition) should be visible. The second write to
+        // partition2 should not be visible.
         let mut partitions: Vec<PartitionResponse> = stream.collect().await;
         assert_eq!(partitions.len(), 1); // only p1, not p2
         let partition = partitions.pop().unwrap();
@@ -955,7 +982,7 @@ mod tests {
         // Perform the partition read
         let batches = partition.into_record_batches();
 
-        // Assert the contents of p1 contains both the initial write, and the
+        // Assert the contents of the arbitrary partition contains both the initial write, and the
         // 3rd write in a single RecordBatch.
         assert_batches_eq!(
             [

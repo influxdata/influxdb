@@ -1,8 +1,8 @@
 //! Config-related stuff.
-use std::{collections::HashSet, fmt::Display, num::NonZeroUsize, sync::Arc, time::Duration};
+use std::{num::NonZeroUsize, sync::Arc, time::Duration};
 
 use backoff::BackoffConfig;
-use data_types::PartitionId;
+use compactor_scheduler::SchedulerConfig;
 use iox_catalog::interface::Catalog;
 use iox_query::exec::Executor;
 use iox_time::TimeProvider;
@@ -19,14 +19,14 @@ const MIN_COMPACT_SIZE_MULTIPLE: usize = 3;
 /// Config to set up a compactor.
 #[derive(Debug, Clone)]
 pub struct Config {
-    /// Compaction type.
-    pub compaction_type: CompactionType,
-
     /// Metric registry.
     pub metric_registry: Arc<metric::Registry>,
 
     /// Central catalog.
     pub catalog: Arc<dyn Catalog>,
+
+    /// Scheduler configuration.
+    pub scheduler_config: SchedulerConfig,
 
     /// Store holding the actual parquet files.
     pub parquet_store_real: ParquetStorage,
@@ -81,9 +81,6 @@ pub struct Config {
     /// Maximum duration of the per-partition compaction task.
     pub partition_timeout: Duration,
 
-    /// Source of partitions to consider for comapction.
-    pub partitions_source: PartitionsSourceConfig,
-
     /// Shadow mode.
     ///
     /// This will NOT write / commit any output to the object store or catalog.
@@ -102,9 +99,6 @@ pub struct Config {
     ///
     /// This is mostly useful for debugging.
     pub ignore_partition_skip_marker: bool,
-
-    /// Shard config (if sharding should be enabled).
-    pub shard_config: Option<ShardConfig>,
 
     /// Minimum number of L1 files to compact to L2
     /// This is to prevent too many small files
@@ -142,6 +136,12 @@ pub struct Config {
 
     /// max number of files per compaction plan
     pub max_num_files_per_plan: usize,
+
+    /// Limit the number of partition fetch queries to at most the specified
+    /// number of queries per second.
+    ///
+    /// Queries are smoothed over the full second.
+    pub max_partition_fetch_queries_per_second: Option<usize>,
 }
 
 impl Config {
@@ -149,77 +149,5 @@ impl Config {
     /// the partition (for now) as a self-protection mechanism.
     pub fn max_compact_size_bytes(&self) -> usize {
         self.max_desired_file_size_bytes as usize * MIN_COMPACT_SIZE_MULTIPLE
-    }
-}
-
-/// Shard config.
-#[derive(Debug, Clone)]
-#[allow(missing_copy_implementations)]
-pub struct ShardConfig {
-    /// Number of shards.
-    pub n_shards: usize,
-
-    /// Shard ID.
-    ///
-    /// Starts as 0 and must be smaller than the number of shards.
-    pub shard_id: usize,
-}
-
-/// Compaction type.
-#[derive(Debug, Default, Clone, Copy, PartialEq)]
-pub enum CompactionType {
-    /// Compacts recent writes as they come in.
-    #[default]
-    Hot,
-
-    /// Compacts partitions that have not been written to very recently for longer-term storage.
-    Cold,
-}
-
-/// Partitions source config.
-#[derive(Debug, Clone, PartialEq)]
-pub enum PartitionsSourceConfig {
-    /// For "hot" compaction: use the catalog to determine which partitions have recently received
-    /// writes, defined as having a new Parquet file created within the last `threshold`.
-    CatalogRecentWrites {
-        /// The amount of time ago to look for Parquet file creations
-        threshold: Duration,
-    },
-
-    /// For "cold" compaction: use the catalog to determine which partitions have gone cold for
-    /// writing and should undergo final compaction, defined as having no new Parquet files created
-    /// in at least the last `threshold`.
-    CatalogColdForWrites {
-        /// The amount of time ago the last Parquet file creation must have happened
-        threshold: Duration,
-    },
-
-    /// Use all partitions from the catalog.
-    ///
-    /// This does NOT consider if/when a partition received any writes.
-    CatalogAll,
-
-    /// Use a fixed set of partitions.
-    ///
-    /// This is mostly useful for debugging.
-    Fixed(HashSet<PartitionId>),
-}
-
-impl Display for PartitionsSourceConfig {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        match self {
-            Self::CatalogRecentWrites { threshold } => {
-                write!(f, "catalog_recent_writes({threshold:?})")
-            }
-            Self::CatalogColdForWrites { threshold } => {
-                write!(f, "catalog_cold_for_writes({threshold:?})")
-            }
-            Self::CatalogAll => write!(f, "catalog_all"),
-            Self::Fixed(p_ids) => {
-                let mut p_ids = p_ids.iter().copied().collect::<Vec<_>>();
-                p_ids.sort();
-                write!(f, "fixed({p_ids:?})")
-            }
-        }
     }
 }

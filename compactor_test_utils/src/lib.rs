@@ -38,10 +38,10 @@ use crate::{
 use async_trait::async_trait;
 use backoff::BackoffConfig;
 use compactor::{
-    compact,
-    config::{CompactionType, Config, PartitionsSourceConfig},
-    hardcoded_components, Components, PanicDataFusionPlanner, PartitionInfo,
+    compact, config::Config, hardcoded_components, Components, PanicDataFusionPlanner,
+    PartitionInfo,
 };
+use compactor_scheduler::SchedulerConfig;
 use data_types::{ColumnType, CompactionLevel, ParquetFile, TableId};
 use datafusion::arrow::record_batch::RecordBatch;
 use datafusion_util::config::register_iox_object_store;
@@ -59,7 +59,6 @@ use schema::sort::SortKey;
 use tracker::AsyncSemaphoreMetrics;
 
 // Default values for the test setup builder
-const PARTITION_THRESHOLD: Duration = Duration::from_secs(10 * 60); // 10min
 const MAX_DESIRE_FILE_SIZE: u64 = 100 * 1024;
 const PERCENTAGE_MAX_FILE_SIZE: u16 = 5;
 const SPLIT_PERCENTAGE: u16 = 80;
@@ -120,9 +119,9 @@ impl TestSetupBuilder<false> {
             .with_invariant_check(Arc::clone(&invariant_check) as _);
 
         let config = Config {
-            compaction_type: Default::default(),
             metric_registry: catalog.metric_registry(),
             catalog: catalog.catalog(),
+            scheduler_config: SchedulerConfig::default(),
             parquet_store_real: catalog.parquet_store.clone(),
             parquet_store_scratchpad: ParquetStorage::new(
                 Arc::new(object_store::memory::InMemory::new()),
@@ -138,13 +137,9 @@ impl TestSetupBuilder<false> {
             percentage_max_file_size: PERCENTAGE_MAX_FILE_SIZE,
             split_percentage: SPLIT_PERCENTAGE,
             partition_timeout: Duration::from_secs(3_600),
-            partitions_source: PartitionsSourceConfig::CatalogRecentWrites {
-                threshold: PARTITION_THRESHOLD,
-            },
             shadow_mode: false,
             enable_scratchpad: true,
             ignore_partition_skip_marker: false,
-            shard_config: None,
             min_num_l1_files_to_compact: MIN_NUM_L1_FILES_TO_COMPACT,
             process_once: true,
             simulate_without_object_store: false,
@@ -153,6 +148,7 @@ impl TestSetupBuilder<false> {
             all_errors_are_fatal: true,
             max_num_columns_per_table: 200,
             max_num_files_per_plan: 200,
+            max_partition_fetch_queries_per_second: None,
         };
 
         let bytes_written = Arc::new(AtomicUsize::new(0));
@@ -565,19 +561,11 @@ impl<const WITH_FILES: bool> TestSetupBuilder<WITH_FILES> {
         self
     }
 
-    /// Set to do cold compaction
-    pub fn for_cold_compaction(mut self) -> Self {
-        self.config.compaction_type = CompactionType::Cold;
-        self.config.partitions_source = PartitionsSourceConfig::CatalogColdForWrites {
-            threshold: Duration::from_secs(60 * 60),
-        };
-        self
-    }
-
     /// Create a [`TestSetup`]
     pub async fn build(self) -> TestSetup {
         let candidate_partition = Arc::new(PartitionInfo {
             partition_id: self.partition.partition.id,
+            partition_hash_id: self.partition.partition.hash_id().cloned(),
             namespace_id: self.ns.namespace.id,
             namespace_name: self.ns.namespace.name.clone(),
             table: Arc::new(self.table.table.clone()),
@@ -1599,6 +1587,69 @@ pub fn create_overlapped_files_3_mix_size(size: i64) -> Vec<ParquetFile> {
 
     // Put the files in random order
     vec![l0_3, l0_2, l0_1, l0_4, l0_5, l0_6, l1_1, l1_2]
+}
+
+/// This setup will return files with ranges as follows:
+///  Input:
+///                                              |--L0.1--|    |-L0.2-|
+///            |--L1.1--| |--L1.2--| |--L1.3--| |--L1.4--|    |--L1.5--|              |--L1.6--| |--L1.7--|  |--L1.8--|
+/// l1 size :     med        large      small       med           med                    small      large       med
+pub fn create_overlapped_files_mix_sizes_1(small: i64, med: i64, large: i64) -> Vec<ParquetFile> {
+    let l1_1 = ParquetFileBuilder::new(11)
+        .with_compaction_level(CompactionLevel::FileNonOverlapped)
+        .with_time_range(0, 100)
+        .with_file_size_bytes(med)
+        .build();
+    let l1_2 = ParquetFileBuilder::new(12)
+        .with_compaction_level(CompactionLevel::FileNonOverlapped)
+        .with_time_range(200, 300)
+        .with_file_size_bytes(large)
+        .build();
+    let l1_3 = ParquetFileBuilder::new(13)
+        .with_compaction_level(CompactionLevel::FileNonOverlapped)
+        .with_time_range(400, 500)
+        .with_file_size_bytes(small)
+        .build();
+    let l1_4 = ParquetFileBuilder::new(14)
+        .with_compaction_level(CompactionLevel::FileNonOverlapped)
+        .with_time_range(600, 700)
+        .with_file_size_bytes(med)
+        .build();
+    let l1_5 = ParquetFileBuilder::new(15)
+        .with_compaction_level(CompactionLevel::FileNonOverlapped)
+        .with_time_range(800, 900)
+        .with_file_size_bytes(med)
+        .build();
+    let l1_6 = ParquetFileBuilder::new(16)
+        .with_compaction_level(CompactionLevel::FileNonOverlapped)
+        .with_time_range(1000, 1100)
+        .with_file_size_bytes(small)
+        .build();
+    let l1_7 = ParquetFileBuilder::new(17)
+        .with_compaction_level(CompactionLevel::FileNonOverlapped)
+        .with_time_range(1200, 1300)
+        .with_file_size_bytes(large)
+        .build();
+    let l1_8 = ParquetFileBuilder::new(18)
+        .with_compaction_level(CompactionLevel::FileNonOverlapped)
+        .with_time_range(1400, 1500)
+        .with_file_size_bytes(med)
+        .build();
+
+    // L0_1 overlaps with L1_4
+    let l0_1 = ParquetFileBuilder::new(1)
+        .with_compaction_level(CompactionLevel::Initial)
+        .with_time_range(650, 750)
+        .with_file_size_bytes(small)
+        .build();
+    // L0_2 overlaps with L1_5
+    let l0_2 = ParquetFileBuilder::new(2)
+        .with_compaction_level(CompactionLevel::Initial)
+        .with_time_range(820, 850)
+        .with_file_size_bytes(small)
+        .build();
+
+    vec![l1_3, l1_7, l1_2, l1_1, l1_4, l1_5, l1_6, l0_2, l0_1, l1_8]
 }
 
 #[cfg(test)]

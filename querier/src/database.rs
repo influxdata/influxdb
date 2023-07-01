@@ -49,10 +49,6 @@ pub struct QuerierDatabase {
     /// Adapter to create chunks.
     chunk_adapter: Arc<ChunkAdapter>,
 
-    /// Metric registry
-    #[allow(dead_code)]
-    metric_registry: Arc<metric::Registry>,
-
     /// Executor for queries.
     exec: Arc<Executor>,
 
@@ -141,7 +137,6 @@ impl QuerierDatabase {
             backoff_config,
             catalog_cache,
             chunk_adapter,
-            metric_registry,
             exec,
             ingester_connection,
             query_log,

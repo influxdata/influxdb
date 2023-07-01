@@ -104,6 +104,7 @@ pub async fn command(config: Config) -> Result<()> {
     let exec = Arc::new(Executor::new(
         config.exec_thread_count,
         config.exec_mem_pool_bytes,
+        Arc::clone(&metric_registry),
     ));
     let object_store = make_object_store(config.run_config.object_store_config())
         .map_err(Error::ObjectStoreParsing)?;

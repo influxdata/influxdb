@@ -5,6 +5,7 @@ use data_types::{ParquetFile, PartitionId};
 
 pub mod catalog;
 pub mod mock;
+pub mod rate_limit;
 
 /// Finds files in a partition for compaction
 #[async_trait]

@@ -1,5 +1,6 @@
 use crate::plan::{error, util_copy};
 use arrow::datatypes::{DataType, TimeUnit};
+use datafusion::common::tree_node::{TreeNode, VisitRecursion};
 use datafusion::common::{DFSchemaRef, Result};
 use datafusion::logical_expr::utils::expr_as_column_expr;
 use datafusion::logical_expr::{lit, Expr, ExprSchemable, LogicalPlan, Operator};
@@ -120,4 +121,18 @@ pub(crate) fn rebase_expr(
             })
         })
     }
+}
+
+pub(crate) fn contains_expr(expr: &Expr, needle: &Expr) -> bool {
+    let mut found = false;
+    expr.apply(&mut |expr| {
+        if expr == needle {
+            found = true;
+            Ok(VisitRecursion::Stop)
+        } else {
+            Ok(VisitRecursion::Continue)
+        }
+    })
+    .expect("cannot fail");
+    found
 }

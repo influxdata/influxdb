@@ -1,8 +1,7 @@
 //! Querier Chunks
 
-use data_types::{ChunkId, ChunkOrder, CompactionLevel, DeletePredicate, PartitionId};
+use data_types::{ChunkId, ChunkOrder, PartitionId};
 use datafusion::physical_plan::Statistics;
-use iox_query::util::create_basic_summary;
 use parquet_file::chunk::ParquetChunk;
 use schema::sort::SortKey;
 use std::sync::Arc;
@@ -11,6 +10,8 @@ mod creation;
 mod query_access;
 
 pub use creation::ChunkAdapter;
+
+use crate::df_stats::{create_chunk_statistics, ColumnRanges};
 
 /// Immutable metadata attached to a [`QuerierParquetChunk`].
 #[derive(Debug)]
@@ -26,9 +27,6 @@ pub struct QuerierParquetChunkMeta {
 
     /// Partition ID.
     partition_id: PartitionId,
-
-    /// Compaction level of the parquet file of the chunk
-    compaction_level: CompactionLevel,
 }
 
 impl QuerierParquetChunkMeta {
@@ -46,20 +44,12 @@ impl QuerierParquetChunkMeta {
     pub fn partition_id(&self) -> PartitionId {
         self.partition_id
     }
-
-    /// Compaction level of the parquet file of the chunk
-    pub fn compaction_level(&self) -> CompactionLevel {
-        self.compaction_level
-    }
 }
 
 #[derive(Debug)]
 pub struct QuerierParquetChunk {
     /// Immutable chunk metadata
     meta: Arc<QuerierParquetChunkMeta>,
-
-    /// Delete predicates to be combined with the chunk
-    delete_predicates: Vec<Arc<DeletePredicate>>,
 
     /// Chunk of the Parquet file
     parquet_chunk: Arc<ParquetChunk>,
@@ -70,26 +60,22 @@ pub struct QuerierParquetChunk {
 
 impl QuerierParquetChunk {
     /// Create new parquet-backed chunk (object store data).
-    pub fn new(parquet_chunk: Arc<ParquetChunk>, meta: Arc<QuerierParquetChunkMeta>) -> Self {
-        let stats = Arc::new(create_basic_summary(
+    pub fn new(
+        parquet_chunk: Arc<ParquetChunk>,
+        meta: Arc<QuerierParquetChunkMeta>,
+        column_ranges: ColumnRanges,
+    ) -> Self {
+        let stats = Arc::new(create_chunk_statistics(
             parquet_chunk.rows() as u64,
             parquet_chunk.schema(),
             parquet_chunk.timestamp_min_max(),
+            &column_ranges,
         ));
 
         Self {
             meta,
-            delete_predicates: Vec::new(),
             parquet_chunk,
             stats,
-        }
-    }
-
-    /// Set delete predicates of the given chunk.
-    pub fn with_delete_predicates(self, delete_predicates: Vec<Arc<DeletePredicate>>) -> Self {
-        Self {
-            delete_predicates,
-            ..self
         }
     }
 
@@ -109,12 +95,11 @@ impl QuerierParquetChunk {
 
 #[cfg(test)]
 pub mod tests {
-    use crate::{
-        cache::{
-            namespace::{CachedNamespace, CachedTable},
-            CatalogCache,
-        },
-        table::MetricPruningObserver,
+    use std::collections::HashMap;
+
+    use crate::cache::{
+        namespace::{CachedNamespace, CachedTable},
+        CatalogCache,
     };
 
     use super::*;
@@ -124,11 +109,10 @@ pub mod tests {
     use datafusion_util::config::register_iox_object_store;
     use iox_query::{
         exec::{ExecutorType, IOxSessionContext},
-        QueryChunk, QueryChunkMeta,
+        QueryChunk,
     };
     use iox_tests::{TestCatalog, TestParquetFileBuilder};
     use metric::{Attributes, Observation, RawReporter};
-    use predicate::Predicate;
     use schema::{builder::SchemaBuilder, sort::SortKeyBuilder};
     use test_helpers::maybe_start_logging;
     use tokio::runtime::Handle;
@@ -252,12 +236,25 @@ pub mod tests {
         }
 
         async fn chunk(&self) -> QuerierParquetChunk {
+            let cached_partition = self
+                .adapter
+                .catalog_cache()
+                .partition()
+                .get(
+                    Arc::clone(&self.cached_table),
+                    self.parquet_file.partition_id,
+                    &[],
+                    None,
+                )
+                .await
+                .unwrap();
+            let cached_partitions =
+                HashMap::from([(self.parquet_file.partition_id, cached_partition)]);
             self.adapter
                 .new_chunks(
                     Arc::clone(&self.cached_table),
                     vec![Arc::clone(&self.parquet_file)].into(),
-                    &Predicate::new(),
-                    MetricPruningObserver::new_unregistered(),
+                    &cached_partitions,
                     None,
                 )
                 .await

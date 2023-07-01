@@ -1,13 +1,13 @@
 use async_trait::async_trait;
-use dml::DmlOperation;
+use data_types::TableId;
 use generated_types::influxdata::iox::wal::v1::sequenced_wal_op::Op;
-use mutable_batch_pb::encode::encode_write;
-use std::{sync::Arc, time::Duration};
+use std::{collections::HashMap, sync::Arc, time::Duration};
 use tokio::sync::watch::Receiver;
 use wal::{SequencedWalOp, WriteResult};
 
 use crate::{
     cancellation_safe::CancellationSafe,
+    dml_payload::{encode::encode_write_op, IngestOp},
     dml_sink::{DmlError, DmlSink},
 };
 
@@ -24,11 +24,11 @@ use super::traits::WalAppender;
 /// problem (catalog unavailable, etc) preventing a write from making progress.
 const DELEGATE_APPLY_TIMEOUT: Duration = Duration::from_secs(15);
 
-/// A [`DmlSink`] decorator that ensures any [`DmlOperation`] is committed to
+/// A [`DmlSink`] decorator that ensures any [`IngestOp`] is committed to
 /// the write-ahead log before passing the operation to the inner [`DmlSink`].
 #[derive(Debug)]
 pub(crate) struct WalSink<T, W = wal::Wal> {
-    /// The inner chain of [`DmlSink`] that a [`DmlOperation`] is passed to once
+    /// The inner chain of [`DmlSink`] that a [`IngestOp`] is passed to once
     /// committed to the write-ahead log.
     inner: T,
 
@@ -37,7 +37,7 @@ pub(crate) struct WalSink<T, W = wal::Wal> {
 }
 
 impl<T, W> WalSink<T, W> {
-    /// Initialise a new [`WalSink`] that appends [`DmlOperation`] to `W` and
+    /// Initialise a new [`WalSink`] that appends [`IngestOp`] to `W` and
     /// on success, passes the op through to `T`.
     pub(crate) fn new(inner: T, wal: W) -> Self {
         Self { inner, wal }
@@ -52,7 +52,7 @@ where
 {
     type Error = DmlError;
 
-    async fn apply(&self, op: DmlOperation) -> Result<(), Self::Error> {
+    async fn apply(&self, op: IngestOp) -> Result<(), Self::Error> {
         // Append the operation to the WAL
         let mut write_result = self.wal.append(&op);
 
@@ -97,31 +97,32 @@ where
 }
 
 impl WalAppender for Arc<wal::Wal> {
-    fn append(&self, op: &DmlOperation) -> Receiver<Option<WriteResult>> {
-        let sequence_number = op
-            .meta()
-            .sequence()
-            .expect("committing unsequenced dml operation to wal")
-            .get() as u64;
-
-        let namespace_id = op.namespace_id();
+    fn append(&self, op: &IngestOp) -> Receiver<Option<WriteResult>> {
+        let namespace_id = op.namespace();
 
         let (wal_op, partition_sequence_numbers) = match op {
-            DmlOperation::Write(w) => {
+            IngestOp::Write(w) => {
                 let partition_sequence_numbers = w
                     .tables()
-                    .map(|(table_id, _)| (*table_id, sequence_number))
-                    .collect();
+                    .map(|(table_id, data)| {
+                        (
+                            *table_id,
+                            data.partitioned_data().sequence_number().get() as u64,
+                        )
+                    })
+                    .collect::<HashMap<TableId, u64>>();
                 (
-                    Op::Write(encode_write(namespace_id.get(), w)),
+                    Op::Write(encode_write_op(namespace_id, w)),
                     partition_sequence_numbers,
                 )
             }
-            DmlOperation::Delete(_) => unreachable!(),
         };
 
         self.write_op(SequencedWalOp {
-            sequence_number,
+            sequence_number: *partition_sequence_numbers
+                .values()
+                .next()
+                .expect("tried to append unsequenced WAL operation"),
             table_write_sequence_numbers: partition_sequence_numbers,
             op: wal_op,
         })
@@ -130,23 +131,21 @@ impl WalAppender for Arc<wal::Wal> {
 
 #[cfg(test)]
 mod tests {
-    use core::{future::Future, marker::Send, pin::Pin};
-    use std::{future, sync::Arc};
-
-    use assert_matches::assert_matches;
-    use data_types::{NamespaceId, PartitionKey, SequenceNumber, TableId};
-    use dml::{DmlMeta, DmlWrite};
-    use mutable_batch_lp::lines_to_batches;
-    use wal::Wal;
-
-    use crate::{dml_sink::mock_sink::MockDmlSink, test_util::make_write_op};
-
     use super::*;
-
-    const TABLE_ID: TableId = TableId::new(44);
-    const TABLE_NAME: &str = "bananas";
-    const NAMESPACE_NAME: &str = "platanos";
-    const NAMESPACE_ID: NamespaceId = NamespaceId::new(42);
+    use crate::{
+        dml_payload::write::{PartitionedData, TableData, WriteOperation},
+        dml_sink::mock_sink::MockDmlSink,
+        test_util::{
+            make_write_op, ARBITRARY_NAMESPACE_ID, ARBITRARY_PARTITION_KEY, ARBITRARY_TABLE_ID,
+            ARBITRARY_TABLE_NAME,
+        },
+    };
+    use assert_matches::assert_matches;
+    use core::{future::Future, marker::Send, pin::Pin};
+    use data_types::{SequenceNumber, TableId};
+    use mutable_batch_lp::lines_to_batches;
+    use std::{future, sync::Arc};
+    use wal::Wal;
 
     #[tokio::test]
     async fn test_append() {
@@ -157,31 +156,46 @@ mod tests {
         // Generate a test op containing writes for multiple tables that will
         // be appended and read back
         let mut tables_by_name = lines_to_batches(
-            "bananas,region=Madrid temp=35 4242424242\n\
+            &format!(
+                "{},region=Madrid temp=35 4242424242\n\
              banani,region=Iceland temp=25 7676767676",
+                &*ARBITRARY_TABLE_NAME
+            ),
             0,
         )
         .expect("invalid line proto");
-        let op = DmlWrite::new(
-            NAMESPACE_ID,
+        let op = WriteOperation::new(
+            ARBITRARY_NAMESPACE_ID,
             [
                 (
-                    TABLE_ID,
-                    tables_by_name
-                        .remove(TABLE_NAME)
-                        .expect("table does not exist in LP"),
+                    ARBITRARY_TABLE_ID,
+                    TableData::new(
+                        ARBITRARY_TABLE_ID,
+                        PartitionedData::new(
+                            SequenceNumber::new(42),
+                            tables_by_name
+                                .remove(ARBITRARY_TABLE_NAME.as_ref())
+                                .expect("table does not exist in LP"),
+                        ),
+                    ),
                 ),
                 (
                     SECOND_TABLE_ID,
-                    tables_by_name
-                        .remove(SECOND_TABLE_NAME)
-                        .expect("second table does not exist in LP"),
+                    TableData::new(
+                        SECOND_TABLE_ID,
+                        PartitionedData::new(
+                            SequenceNumber::new(42),
+                            tables_by_name
+                                .remove(SECOND_TABLE_NAME)
+                                .expect("second table does not exist in LP"),
+                        ),
+                    ),
                 ),
             ]
             .into_iter()
             .collect(),
-            PartitionKey::from("p1"),
-            DmlMeta::sequenced(SequenceNumber::new(42), iox_time::Time::MIN, None, 42),
+            ARBITRARY_PARTITION_KEY.clone(),
+            None,
         );
 
         // The write portion of this test.
@@ -195,7 +209,7 @@ mod tests {
 
             // Apply the op through the decorator
             wal_sink
-                .apply(DmlOperation::Write(op.clone()))
+                .apply(IngestOp::Write(op.clone()))
                 .await
                 .expect("wal should not error");
 
@@ -224,7 +238,7 @@ mod tests {
         assert_eq!(read_op.sequence_number, 42);
         assert_eq!(
             read_op.table_write_sequence_numbers,
-            [(TABLE_ID, 42), (SECOND_TABLE_ID, 42)]
+            [(ARBITRARY_TABLE_ID, 42), (SECOND_TABLE_ID, 42)]
                 .into_iter()
                 .collect::<std::collections::HashMap<TableId, u64>>()
         );
@@ -233,7 +247,7 @@ mod tests {
 
         // The payload should match the serialised form of the "op" originally
         // wrote above.
-        let want = encode_write(NAMESPACE_ID.get(), &op);
+        let want = encode_write_op(ARBITRARY_NAMESPACE_ID, &op);
 
         assert_eq!(want, *payload);
     }
@@ -247,7 +261,7 @@ mod tests {
 
         fn apply<'life0, 'async_trait>(
             &'life0 self,
-            _op: DmlOperation,
+            _op: IngestOp,
         ) -> Pin<Box<dyn Future<Output = Result<(), Self::Error>> + Send + 'async_trait>>
         where
             'life0: 'async_trait,
@@ -263,12 +277,16 @@ mod tests {
 
         // Generate the test op
         let op = make_write_op(
-            &PartitionKey::from("p1"),
-            NAMESPACE_ID,
-            TABLE_NAME,
-            TABLE_ID,
+            &ARBITRARY_PARTITION_KEY,
+            ARBITRARY_NAMESPACE_ID,
+            &ARBITRARY_TABLE_NAME,
+            ARBITRARY_TABLE_ID,
             42,
-            r#"bananas,region=Madrid temp=35 4242424242"#,
+            &format!(
+                r#"{},region=Madrid temp=35 4242424242"#,
+                &*ARBITRARY_TABLE_NAME
+            ),
+            None,
         );
 
         let wal = Wal::new(dir.path())
@@ -288,7 +306,7 @@ mod tests {
 
         // Apply the op through the decorator, which should time out
         let err = wal_sink
-            .apply(DmlOperation::Write(op.clone()))
+            .apply(IngestOp::Write(op.clone()))
             .await
             .expect_err("write should time out");
 

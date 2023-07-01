@@ -1,14 +1,15 @@
 use std::collections::VecDeque;
 
 use async_trait::async_trait;
-use dml::DmlOperation;
 use parking_lot::Mutex;
+
+use crate::dml_payload::IngestOp;
 
 use super::{DmlError, DmlSink};
 
 #[derive(Debug, Default)]
 struct MockDmlSinkState {
-    calls: Vec<DmlOperation>,
+    calls: Vec<IngestOp>,
     ret: VecDeque<Result<(), DmlError>>,
 }
 
@@ -23,7 +24,7 @@ impl MockDmlSink {
         self
     }
 
-    pub(crate) fn get_calls(&self) -> Vec<DmlOperation> {
+    pub(crate) fn get_calls(&self) -> Vec<IngestOp> {
         self.state.lock().calls.clone()
     }
 }
@@ -31,7 +32,7 @@ impl MockDmlSink {
 #[async_trait]
 impl DmlSink for MockDmlSink {
     type Error = DmlError;
-    async fn apply(&self, op: DmlOperation) -> Result<(), DmlError> {
+    async fn apply(&self, op: IngestOp) -> Result<(), DmlError> {
         let mut state = self.state.lock();
         state.calls.push(op);
         state.ret.pop_front().expect("no mock sink value to return")

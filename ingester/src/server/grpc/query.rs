@@ -6,7 +6,7 @@ use arrow_flight::{
     FlightData, FlightDescriptor, FlightInfo, HandshakeRequest, HandshakeResponse, PutResult,
     SchemaResult, Ticket,
 };
-use data_types::{NamespaceId, PartitionId, TableId};
+use data_types::{NamespaceId, PartitionHashId, PartitionId, TableId};
 use flatbuffers::FlatBufferBuilder;
 use futures::{Stream, StreamExt, TryStreamExt};
 use ingester_query_grpc::influxdata::iox::ingester::v1 as proto;
@@ -285,6 +285,8 @@ where
 fn encode_partition(
     // Partition ID.
     partition_id: PartitionId,
+    // Partition hash ID.
+    partition_hash_id: Option<PartitionHashId>,
     // Count of persisted Parquet files for the [`PartitionData`] instance this
     // [`PartitionResponse`] was generated from.
     //
@@ -296,6 +298,7 @@ fn encode_partition(
     let mut bytes = bytes::BytesMut::new();
     let app_metadata = proto::IngesterQueryResponseMetadata {
         partition_id: partition_id.get(),
+        partition_hash_id: partition_hash_id.map(|hash_id| hash_id.as_bytes().to_owned()),
         ingester_uuid: ingester_id.to_string(),
         completed_persistence_count,
     };
@@ -330,11 +333,17 @@ fn encode_response(
 ) -> impl Stream<Item = Result<FlightData, FlightError>> {
     response.into_partition_stream().flat_map(move |partition| {
         let partition_id = partition.id();
+        let partition_hash_id = partition.partition_hash_id().cloned();
         let completed_persistence_count = partition.completed_persistence_count();
 
         // prefix payload data w/ metadata for that particular partition
         let head = futures::stream::once(async move {
-            encode_partition(partition_id, completed_persistence_count, ingester_id)
+            encode_partition(
+                partition_id,
+                partition_hash_id,
+                completed_persistence_count,
+                ingester_id,
+            )
         });
 
         // An output vector of FlightDataEncoder streams, each entry stream with
@@ -366,21 +375,20 @@ fn encode_response(
 
 #[cfg(test)]
 mod tests {
-    use arrow::array::{Float64Array, Int32Array};
-    use arrow_flight::decode::{DecodedPayload, FlightRecordBatchStream};
-    use assert_matches::assert_matches;
-    use bytes::Bytes;
-    use tonic::Code;
-
+    use super::*;
     use crate::{
         make_batch,
         query::{
             mock_query_exec::MockQueryExec, partition_response::PartitionResponse,
             response::PartitionStream,
         },
+        test_util::ARBITRARY_PARTITION_KEY,
     };
-
-    use super::*;
+    use arrow::array::{Float64Array, Int32Array};
+    use arrow_flight::decode::{DecodedPayload, FlightRecordBatchStream};
+    use assert_matches::assert_matches;
+    use bytes::Bytes;
+    use tonic::Code;
 
     #[tokio::test]
     async fn limits_concurrent_queries() {
@@ -418,6 +426,10 @@ mod tests {
     #[tokio::test]
     async fn test_chunks_with_different_schemas() {
         let ingester_id = IngesterId::new();
+        let partition_hash_id = Some(PartitionHashId::new(
+            TableId::new(3),
+            &ARBITRARY_PARTITION_KEY,
+        ));
         let (batch1, schema1) = make_batch!(
             Float64Array("float" => vec![1.1, 2.2, 3.3]),
             Int32Array("int" => vec![1, 2, 3]),
@@ -446,6 +458,7 @@ mod tests {
                         batch4.clone(),
                     ],
                     PartitionId::new(2),
+                    partition_hash_id.clone(),
                     42,
                 )]),
             )))),
@@ -474,6 +487,7 @@ mod tests {
             proto::IngesterQueryResponseMetadata::decode(flight_data[0].app_metadata()).unwrap();
         let md_expected = proto::IngesterQueryResponseMetadata {
             partition_id: 2,
+            partition_hash_id: partition_hash_id.map(|hash_id| hash_id.as_bytes().to_vec()),
             ingester_uuid: ingester_id.to_string(),
             completed_persistence_count: 42,
         };

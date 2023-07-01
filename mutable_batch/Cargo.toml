@@ -15,7 +15,7 @@ iox_time = { path = "../iox_time" }
 schema = { path = "../schema" }
 snafu = "0.7"
 hashbrown = { workspace = true }
-itertools = "0.10"
+itertools = "0.11"
 workspace-hack = { version = "0.1", path = "../workspace-hack" }
 percent-encoding = "2.2.0"
 thiserror = "1.0.40"

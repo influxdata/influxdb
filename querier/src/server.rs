@@ -2,42 +2,119 @@
 
 use std::sync::Arc;
 
-use crate::handler::QuerierHandler;
-use std::fmt::Debug;
+use observability_deps::tracing::warn;
+use tokio_util::sync::CancellationToken;
+
+use crate::QuerierDatabase;
 
 /// The [`QuerierServer`] manages the lifecycle and contains all state for a
 /// `querier` server instance.
-#[derive(Debug, Default)]
-pub struct QuerierServer<C: QuerierHandler> {
-    metrics: Arc<metric::Registry>,
+#[derive(Debug)]
+pub struct QuerierServer {
+    /// Database that handles query operation
+    database: Arc<QuerierDatabase>,
 
-    handler: Arc<C>,
+    /// Remembers if `shutdown` was called but also blocks the `join` call.
+    shutdown: CancellationToken,
 }
 
-impl<C: QuerierHandler> QuerierServer<C> {
+impl QuerierServer {
     /// Initialise a new [`QuerierServer`] using the provided gRPC
     /// handlers.
-    pub fn new(metrics: Arc<metric::Registry>, handler: Arc<C>) -> Self {
-        Self { metrics, handler }
+    pub fn new(database: Arc<QuerierDatabase>) -> Self {
+        Self {
+            database,
+            shutdown: CancellationToken::new(),
+        }
     }
 
-    /// Return the [`metric::Registry`] used by the router.
-    pub fn metric_registry(&self) -> Arc<metric::Registry> {
-        Arc::clone(&self.metrics)
-    }
-
-    /// return the handler
-    pub fn handler(&self) -> &Arc<C> {
-        &self.handler
-    }
-
-    /// Join shutdown worker.
+    /// Wait until the handler finished  to shutdown.
+    ///
+    /// Use [`shutdown`](Self::shutdown) to trigger a shutdown.
     pub async fn join(&self) {
-        self.handler.join().await;
+        self.shutdown.cancelled().await;
+        self.database.exec().join().await;
     }
 
-    /// Shutdown background worker.
+    /// Shut down background workers.
     pub fn shutdown(&self) {
-        self.handler.shutdown();
+        self.shutdown.cancel();
+        self.database.exec().shutdown();
+    }
+}
+
+impl Drop for QuerierServer {
+    fn drop(&mut self) {
+        if !self.shutdown.is_cancelled() {
+            warn!("QuerierServer dropped without calling shutdown()");
+            self.shutdown();
+        }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::{cache::CatalogCache, create_ingester_connection_for_testing};
+    use iox_catalog::mem::MemCatalog;
+    use iox_query::exec::Executor;
+    use iox_time::{MockProvider, Time};
+    use object_store::memory::InMemory;
+    use std::{collections::HashMap, time::Duration};
+    use tokio::runtime::Handle;
+
+    #[tokio::test]
+    async fn test_shutdown() {
+        let querier = TestQuerier::new().await.querier;
+
+        // does not exit w/o shutdown
+        tokio::select! {
+            _ = querier.join() => panic!("querier finished w/o shutdown"),
+            _ = tokio::time::sleep(Duration::from_millis(10)) => {},
+        };
+
+        querier.shutdown();
+
+        tokio::time::timeout(Duration::from_millis(1000), querier.join())
+            .await
+            .unwrap();
+    }
+
+    struct TestQuerier {
+        querier: QuerierServer,
+    }
+
+    impl TestQuerier {
+        async fn new() -> Self {
+            let metric_registry = Arc::new(metric::Registry::new());
+            let catalog = Arc::new(MemCatalog::new(Arc::clone(&metric_registry))) as _;
+            let object_store = Arc::new(InMemory::new()) as _;
+
+            let time_provider = Arc::new(MockProvider::new(Time::from_timestamp_nanos(0)));
+            let exec = Arc::new(Executor::new_testing());
+            let catalog_cache = Arc::new(CatalogCache::new_testing(
+                Arc::clone(&catalog),
+                time_provider,
+                Arc::clone(&metric_registry),
+                Arc::clone(&object_store),
+                &Handle::current(),
+            ));
+
+            let database = Arc::new(
+                QuerierDatabase::new(
+                    catalog_cache,
+                    Arc::clone(&metric_registry),
+                    exec,
+                    Some(create_ingester_connection_for_testing()),
+                    QuerierDatabase::MAX_CONCURRENT_QUERIES_MAX,
+                    Arc::new(HashMap::default()),
+                )
+                .await
+                .unwrap(),
+            );
+            let querier = QuerierServer::new(database);
+
+            Self { querier }
+        }
     }
 }

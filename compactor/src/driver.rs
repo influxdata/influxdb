@@ -313,7 +313,7 @@ async fn execute_branch(
         split_or_compact,
     } = files_to_make_progress_on;
 
-    // Compact
+    // Compact & Split
     let created_file_params = run_plans(
         split_or_compact.clone(),
         &partition_info,

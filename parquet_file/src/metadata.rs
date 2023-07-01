@@ -90,7 +90,8 @@ use base64::{prelude::BASE64_STANDARD, Engine};
 use bytes::Bytes;
 use data_types::{
     ColumnId, ColumnSet, ColumnSummary, CompactionLevel, InfluxDbType, NamespaceId,
-    ParquetFileParams, PartitionId, PartitionKey, StatValues, Statistics, TableId, Timestamp,
+    ParquetFileParams, PartitionHashId, PartitionId, PartitionKey, StatValues, Statistics, TableId,
+    Timestamp,
 };
 use generated_types::influxdata::iox::ingester::v1 as proto;
 use iox_time::Time;
@@ -434,6 +435,7 @@ impl IoxMetadata {
     pub fn to_parquet_file<F>(
         &self,
         partition_id: PartitionId,
+        partition_hash_id: Option<PartitionHashId>,
         file_size_bytes: usize,
         metadata: &IoxParquetMetaData,
         column_id_map: F,
@@ -485,6 +487,7 @@ impl IoxMetadata {
             namespace_id: self.namespace_id,
             table_id: self.table_id,
             partition_id,
+            partition_hash_id,
             object_store_id: self.object_store_id,
             min_time,
             max_time,

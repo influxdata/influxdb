@@ -9,8 +9,8 @@ license.workspace = true
 futures-util = { version = "0.3" }
 influxdb_iox_client = { path = "../influxdb_iox_client", features = ["flight", "format"] }
 observability_deps = { path = "../observability_deps" }
-serde_json = "1.0.96"
+serde_json = "1.0.99"
 thiserror = "1.0.40"
-tokio = { version = "1.28" }
+tokio = { version = "1.29" }
 tokio-util = { version = "0.7.8" }
 workspace-hack = { version = "0.1", path = "../workspace-hack" }

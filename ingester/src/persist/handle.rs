@@ -2,7 +2,7 @@ use std::{sync::Arc, time::Duration};
 
 use async_trait::async_trait;
 use iox_catalog::interface::Catalog;
-use iox_query::{exec::Executor, QueryChunkMeta};
+use iox_query::{exec::Executor, QueryChunk};
 use metric::{DurationHistogram, DurationHistogramOptions, U64Counter, U64Gauge, DURATION_MAX};
 use observability_deps::tracing::*;
 use parking_lot::Mutex;
@@ -475,7 +475,6 @@ mod tests {
     use std::{sync::Arc, task::Poll, time::Duration};
 
     use assert_matches::assert_matches;
-    use dml::DmlOperation;
     use futures::Future;
     use iox_catalog::mem::MemCatalog;
     use object_store::memory::InMemory;
@@ -492,6 +491,7 @@ mod tests {
             post_write::mock::MockPostWriteObserver, BufferTree,
         },
         deferred_load::DeferredLoad,
+        dml_payload::IngestOp,
         dml_sink::DmlSink,
         ingest_state::IngestStateError,
         persist::{
@@ -523,13 +523,14 @@ mod tests {
         );
 
         buffer_tree
-            .apply(DmlOperation::Write(make_write_op(
+            .apply(IngestOp::Write(make_write_op(
                 &ARBITRARY_PARTITION_KEY,
                 ARBITRARY_NAMESPACE_ID,
                 &ARBITRARY_TABLE_NAME,
                 ARBITRARY_TABLE_ID,
                 0,
                 &format!("{},good=yes level=1000 4242424242", &*ARBITRARY_TABLE_NAME),
+                None,
             )))
             .await
             .expect("failed to write partition test dataa");

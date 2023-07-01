@@ -148,21 +148,16 @@ where
 
 #[cfg(test)]
 mod tests {
-    use std::sync::Arc;
-
+    use super::*;
+    use crate::{
+        persist::completion_observer::mock::MockCompletionObserver,
+        test_util::{ARBITRARY_NAMESPACE_ID, ARBITRARY_PARTITION_ID, ARBITRARY_TABLE_ID},
+    };
     use data_types::{
-        sequence_number_set::SequenceNumberSet, ColumnId, ColumnSet, NamespaceId,
-        ParquetFileParams, PartitionId, TableId, Timestamp,
+        sequence_number_set::SequenceNumberSet, ColumnId, ColumnSet, ParquetFileParams, Timestamp,
     };
     use metric::assert_histogram;
-
-    use crate::persist::completion_observer::mock::MockCompletionObserver;
-
-    use super::*;
-
-    const NAMESPACE_ID: NamespaceId = NamespaceId::new(1);
-    const TABLE_ID: TableId = TableId::new(1);
-    const PARTITION_ID: PartitionId = PartitionId::new(1);
+    use std::sync::Arc;
 
     #[tokio::test]
     async fn test_persisted_file_metrics() {
@@ -172,9 +167,10 @@ mod tests {
         let decorator = ParquetFileInstrumentation::new(Arc::clone(&inner), &metrics);
 
         let meta = ParquetFileParams {
-            namespace_id: NAMESPACE_ID,
-            table_id: TABLE_ID,
-            partition_id: PARTITION_ID,
+            namespace_id: ARBITRARY_NAMESPACE_ID,
+            table_id: ARBITRARY_TABLE_ID,
+            partition_id: ARBITRARY_PARTITION_ID,
+            partition_hash_id: None,
             object_store_id: Default::default(),
             min_time: Timestamp::new(Duration::from_secs(1_000).as_nanos() as _),
             max_time: Timestamp::new(Duration::from_secs(1_042).as_nanos() as _), // 42 seconds later

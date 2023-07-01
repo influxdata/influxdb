@@ -18,7 +18,8 @@ use data_types::{
     },
     Column, ColumnId, ColumnType, CompactionLevel, Namespace, NamespaceId, NamespaceName,
     NamespaceServiceProtectionLimitsOverride, ParquetFile, ParquetFileId, ParquetFileParams,
-    Partition, PartitionId, PartitionKey, SkippedCompaction, Table, TableId, Timestamp,
+    Partition, PartitionHashId, PartitionId, PartitionKey, SkippedCompaction, Table, TableId,
+    Timestamp,
 };
 use iox_time::{SystemProvider, TimeProvider};
 use snafu::ensure;
@@ -560,13 +561,13 @@ impl PartitionRepo for MemTxn {
         {
             Some(p) => p,
             None => {
-                let p = Partition {
-                    id: PartitionId::new(stage.partitions.len() as i64 + 1),
+                let p = Partition::new_in_memory_only(
+                    PartitionId::new(stage.partitions.len() as i64 + 1),
                     table_id,
-                    partition_key: key,
-                    sort_key: vec![],
-                    new_file_at: None,
-                };
+                    key,
+                    vec![],
+                    None,
+                );
                 stage.partitions.push(p);
                 stage.partitions.last().unwrap()
             }
@@ -582,6 +583,23 @@ impl PartitionRepo for MemTxn {
             .partitions
             .iter()
             .find(|p| p.id == partition_id)
+            .cloned())
+    }
+
+    async fn get_by_hash_id(
+        &mut self,
+        partition_hash_id: &PartitionHashId,
+    ) -> Result<Option<Partition>> {
+        let stage = self.stage();
+
+        Ok(stage
+            .partitions
+            .iter()
+            .find(|p| {
+                p.hash_id()
+                    .map(|hash_id| hash_id == partition_hash_id)
+                    .unwrap_or_default()
+            })
             .cloned())
     }
 

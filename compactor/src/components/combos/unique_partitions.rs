@@ -7,12 +7,11 @@ use std::{
 };
 
 use async_trait::async_trait;
+use compactor_scheduler::PartitionsSource;
 use data_types::PartitionId;
 use futures::StreamExt;
 
-use crate::components::{
-    partition_done_sink::PartitionDoneSink, partitions_source::PartitionsSource,
-};
+use crate::components::partition_done_sink::PartitionDoneSink;
 
 /// Ensures that a unique set of partitions is flowing through the critical section of the compactor pipeline.
 ///
@@ -33,7 +32,7 @@ use crate::components::{
 ///
 /// | Step |  Name                 | Type                                                        | Description |
 /// | ---- | --------------------- | ----------------------------------------------------------- | ----------- |
-/// | 1    | **Actual source**     | `inner_source`/`T1`/[`PartitionsSource`], wrapped           | This is the actual source, e.g. a [catalog](crate::components::partitions_source::catalog_to_compact::CatalogToCompactPartitionsSource) |
+/// | 1    | **Actual source**     | `inner_source`/`T1`/[`PartitionsSource`], wrapped           | This is the actual source, e.g. a [schedule](crate::components::partitions_source::scheduled::ScheduledPartitionsSource) |
 /// | 2    | **Unique IDs source** | [`UniquePartionsSourceWrapper`], wraps `inner_source`/`T1`  | Outputs that [`PartitionId`]s from the `inner_source` but filters out partitions that have not yet reached the uniqueness sink (step 4) |
 /// | 3    | **Critical section**  | --                           | Here it is always ensured that a single [`PartitionId`] does NOT occur more than once. |
 /// | 4    | **Unique IDs sink**   | [`UniquePartitionDoneSinkWrapper`], wraps `inner_sink`/`T2` | Observes incoming IDs and removes them from the filter applied in step 2. |
@@ -181,10 +180,9 @@ where
 mod tests {
     use std::collections::HashMap;
 
-    use crate::components::{
-        partition_done_sink::mock::MockPartitionDoneSink,
-        partitions_source::mock::MockPartitionsSource,
-    };
+    use compactor_scheduler::MockPartitionsSource;
+
+    use crate::components::partition_done_sink::mock::MockPartitionDoneSink;
 
     use super::*;
 

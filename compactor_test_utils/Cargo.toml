@@ -10,6 +10,7 @@ license.workspace = true
 async-trait = "0.1.68"
 backoff = { path = "../backoff" }
 compactor = { path = "../compactor" }
+compactor_scheduler = { path = "../compactor_scheduler" }
 data_types = { path = "../data_types" }
 datafusion = { workspace = true }
 datafusion_util = { path = "../datafusion_util" }
@@ -28,4 +29,4 @@ uuid = { version = "1", features = ["v4"] }
 workspace-hack = { version = "0.1", path = "../workspace-hack" }
 
 [dev-dependencies]
-insta = { version = "1.29.0", features = ["yaml"] }
+insta = { version = "1.30.0", features = ["yaml"] }

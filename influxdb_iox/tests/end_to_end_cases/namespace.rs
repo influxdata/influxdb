@@ -65,7 +65,7 @@ async fn soft_deletion() {
                     );
                     let namespace_name = state.cluster().namespace();
                     client
-                        .create_namespace(namespace_name, None, None)
+                        .create_namespace(namespace_name, None, None, None)
                         .await
                         .unwrap();
                     let namespaces = client.get_namespaces().await.unwrap();
@@ -195,7 +195,7 @@ async fn soft_deletion() {
                     let namespace_name = state.cluster().namespace();
 
                     let error = client
-                        .create_namespace(namespace_name, None, None)
+                        .create_namespace(namespace_name, None, None, None)
                         .await
                         .unwrap_err();
                     assert_eq!(

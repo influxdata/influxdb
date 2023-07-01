@@ -73,6 +73,10 @@ message IngesterQueryResponseMetadata {
   // Partition id for this batch.
   int64 partition_id = 7;
 
+  // A unique identifier of this partition, deterministically created from the table ID and
+  // partition key.
+  optional bytes partition_hash_id = 11;
+
   // Was partition status.
   reserved "status";
   reserved 8;

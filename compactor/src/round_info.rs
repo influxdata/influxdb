@@ -51,4 +51,15 @@ impl RoundInfo {
     pub fn is_many_small_files(&self) -> bool {
         matches!(self, Self::ManySmallFiles { .. })
     }
+
+    /// return max_num_files_to_group, when available.
+    pub fn max_num_files_to_group(&self) -> Option<usize> {
+        match self {
+            Self::TargetLevel { .. } => None,
+            Self::ManySmallFiles {
+                max_num_files_to_group,
+                ..
+            } => Some(*max_num_files_to_group),
+        }
+    }
 }

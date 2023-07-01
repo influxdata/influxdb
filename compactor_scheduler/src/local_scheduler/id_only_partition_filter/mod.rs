@@ -1,18 +1,18 @@
+//! Filtering of a [`PartitionsSource`](crate::PartitionsSource) per PartitionId (no file IO).
+
 use std::fmt::{Debug, Display};
 
 use data_types::PartitionId;
 
-pub mod and;
-pub mod by_id;
-pub mod shard;
+pub(crate) mod and;
+pub(crate) mod by_id;
+pub(crate) mod shard;
 
 /// Filters partition based on ID.
 ///
 /// This will usually be used BEFORE any parquet files for the given partition are fetched and hence is a quite
 /// efficient filter stage.
-///
-/// If you need to inspect the files as well or perform any IO, check
-/// [`PartitionFilter`](crate::components::partition_filter::PartitionFilter).
-pub trait IdOnlyPartitionFilter: Debug + Display + Send + Sync {
+pub(crate) trait IdOnlyPartitionFilter: Debug + Display + Send + Sync {
+    /// Returns true if the partition should be included.
     fn apply(&self, partition_id: PartitionId) -> bool;
 }

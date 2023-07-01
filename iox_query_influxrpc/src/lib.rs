@@ -34,7 +34,7 @@ use hashbrown::HashSet;
 use iox_query::{
     exec::{
         field::FieldColumns, fieldlist::Field, make_non_null_checker, make_schema_pivot,
-        IOxSessionContext,
+        stringset::StringSet, IOxSessionContext,
     },
     frontend::common::ScanPlanBuilder,
     plan::{
@@ -66,9 +66,6 @@ const CONCURRENT_TABLE_JOBS: usize = 10;
 
 #[derive(Debug, Snafu)]
 pub enum Error {
-    #[snafu(display("gRPC planner got error finding column names: {}", source))]
-    FindingColumnNames { source: DataFusionError },
-
     #[snafu(display("gRPC planner got error finding column values: {}", source))]
     FindingColumnValues { source: DataFusionError },
 
@@ -183,7 +180,6 @@ impl Error {
             | Self::BuildingPlan { source, .. }
             | Self::ReadColumns { source, .. }
             | Self::CheckingChunkPredicate { source, .. }
-            | Self::FindingColumnNames { source, .. }
             | Self::FindingColumnValues { source, .. }
             | Self::CastingAggregates { source, .. } => {
                 DataFusionError::Context(format!("{method}: {msg}"), Box::new(source))
@@ -270,7 +266,7 @@ impl InfluxRpcPlanner {
             table_chunk_stream(Arc::clone(&namespace), false, &table_predicates, &ctx)
                 .try_filter_map(
                     |(table_name, table_schema, table_predicate, chunks)| async move {
-                        let chunks_full = prune_chunks(&table_schema, chunks, table_predicate);
+                        let chunks_full = prune_chunks(&table_schema, chunks, &table_predicate);
 
                         Ok((!chunks_full.is_empty())
                             .then_some((table_name, Some((table_predicate, chunks_full)))))
@@ -294,7 +290,7 @@ impl InfluxRpcPlanner {
                         })?;
 
                     let plan =
-                        Self::table_name_plan(Arc::clone(table_name), &schema, predicate, chunks)?;
+                        Self::table_name_plan(Arc::clone(table_name), &schema, &predicate, chunks)?;
                     builder = builder.append_other(plan.into());
                 }
             }
@@ -364,7 +360,7 @@ impl InfluxRpcPlanner {
                 let mut chunks_full = vec![];
                 let mut known_columns = BTreeSet::new();
 
-                let chunks = prune_chunks(&table_schema, chunks, predicate);
+                let chunks = prune_chunks(&table_schema, chunks, &predicate);
                 for chunk in cheap_chunk_first(chunks) {
                     // get only tag columns from metadata
                     let schema = chunk.schema();
@@ -376,43 +372,26 @@ impl InfluxRpcPlanner {
 
                     let selection = Projection::Some(&column_names);
 
-                    // If there are delete predicates, we need to scan (or do full plan) the data to eliminate
-                    // deleted data before getting tag keys
-                    if chunk.has_delete_predicates() {
-                        debug!(
-                            %table_name,
-                            chunk_id=%chunk.id().get(),
-                            "column names need full plan"
-                        );
-                        chunks_full.push(chunk);
-                    } else {
-                        // filter the columns further from the predicate
-                        let maybe_names = chunk
-                            .column_names(
-                                ctx.child_ctx("column_names execution"),
-                                predicate,
-                                selection,
-                            )
-                            .context(FindingColumnNamesSnafu)?;
+                    // filter the columns further from the predicate
+                    let maybe_names = chunk_column_names(&chunk, &predicate, selection);
 
-                        match maybe_names {
-                            Some(mut names) => {
-                                debug!(
-                                    %table_name,
-                                    names=?names,
-                                    chunk_id=%chunk.id().get(),
-                                    "column names found from metadata",
-                                );
-                                known_columns.append(&mut names);
-                            }
-                            None => {
-                                debug!(
-                                    %table_name,
-                                    chunk_id=%chunk.id().get(),
-                                    "column names need full plan"
-                                );
-                                chunks_full.push(chunk);
-                            }
+                    match maybe_names {
+                        Some(mut names) => {
+                            debug!(
+                                %table_name,
+                                names=?names,
+                                chunk_id=%chunk.id().get(),
+                                "column names found from metadata",
+                            );
+                            known_columns.append(&mut names);
+                        }
+                        None => {
+                            debug!(
+                                %table_name,
+                                chunk_id=%chunk.id().get(),
+                                "column names need full plan"
+                            );
+                            chunks_full.push(chunk);
                         }
                     }
                 }
@@ -441,7 +420,7 @@ impl InfluxRpcPlanner {
                         table_name: table_name.as_ref(),
                     })?;
 
-                let plan = self.tag_keys_plan(table_name, &schema, predicate, chunks_full)?;
+                let plan = self.tag_keys_plan(table_name, &schema, &predicate, chunks_full)?;
 
                 if let Some(plan) = plan {
                     builder = builder.append_other(plan)
@@ -503,7 +482,7 @@ impl InfluxRpcPlanner {
             let mut chunks_full = vec![];
             let mut known_values = BTreeSet::new();
 
-            let chunks = prune_chunks(&table_schema, chunks, predicate);
+            let chunks = prune_chunks(&table_schema, chunks, &predicate);
             for chunk in cheap_chunk_first(chunks) {
                 // use schema to validate column type
                 let schema = chunk.schema();
@@ -534,43 +513,31 @@ impl InfluxRpcPlanner {
                     }
                 );
 
-                // If there are delete predicates, we need to scan (or do full plan) the data to
-                // eliminate deleted data before getting tag values
-                if chunk.has_delete_predicates() {
-                    debug!(
-                        %table_name,
-                        chunk_id=%chunk.id().get(),
-                        "need full plan to find tag values"
-                    );
+                // try and get the list of values directly from metadata
+                let mut ctx = self.ctx.child_ctx("tag_values execution");
+                ctx.set_metadata("table", table_name.to_string());
 
-                    chunks_full.push(chunk);
-                } else {
-                    // try and get the list of values directly from metadata
-                    let mut ctx = self.ctx.child_ctx("tag_values execution");
-                    ctx.set_metadata("table", table_name.to_string());
+                let maybe_values = chunk
+                    .column_values(ctx, tag_name, &predicate)
+                    .context(FindingColumnValuesSnafu)?;
 
-                    let maybe_values = chunk
-                        .column_values(ctx, tag_name, predicate)
-                        .context(FindingColumnValuesSnafu)?;
-
-                    match maybe_values {
-                        Some(mut names) => {
-                            debug!(
-                                %table_name,
-                                names=?names,
-                                chunk_id=%chunk.id().get(),
-                                "tag values found from metadata",
-                            );
-                            known_values.append(&mut names);
-                        }
-                        None => {
-                            debug!(
-                                %table_name,
-                                chunk_id=%chunk.id().get(),
-                                "need full plan to find tag values"
-                            );
-                            chunks_full.push(chunk);
-                        }
+                match maybe_values {
+                    Some(mut names) => {
+                        debug!(
+                            %table_name,
+                            names=?names,
+                            chunk_id=%chunk.id().get(),
+                            "tag values found from metadata",
+                        );
+                        known_values.append(&mut names);
+                    }
+                    None => {
+                        debug!(
+                            %table_name,
+                            chunk_id=%chunk.id().get(),
+                            "need full plan to find tag values"
+                        );
+                        chunks_full.push(chunk);
                     }
                 }
             }
@@ -599,7 +566,7 @@ impl InfluxRpcPlanner {
 
                 let scan_and_filter = ScanPlanBuilder::new(Arc::clone(table_name), &schema)
                     .with_chunks(chunks_full)
-                    .with_predicate(predicate)
+                    .with_predicate(&predicate)
                     .build()?;
 
                 let tag_name_is_not_null = tag_name.as_expr().is_not_null();
@@ -1325,7 +1292,7 @@ fn table_chunk_stream<'a>(
     Item = Result<(
         &'a Arc<str>,
         Arc<Schema>,
-        &'a Predicate,
+        Predicate,
         Vec<Arc<dyn QueryChunk>>,
     )>,
 > + 'a {
@@ -1349,13 +1316,17 @@ fn table_chunk_stream<'a>(
             let namespace = Arc::clone(&namespace2);
 
             async move {
+                let predicate = match namespace.retention_time_ns() {
+                    Some(ret) => predicate.clone().with_retention(ret),
+                    None => predicate.clone(),
+                };
                 let projection =
-                    columns_in_predicates(need_fields, &table_schema, table_name, predicate);
+                    columns_in_predicates(need_fields, &table_schema, table_name, &predicate);
 
                 let chunks = namespace
                     .chunks(
                         table_name,
-                        predicate,
+                        &predicate,
                         projection.as_ref(),
                         ctx.child_ctx("table chunks"),
                     )
@@ -1471,14 +1442,14 @@ where
 {
     table_chunk_stream(Arc::clone(&namespace), true, table_predicates, &ctx)
         .and_then(|(table_name, table_schema, predicate, chunks)| async move {
-            let chunks = prune_chunks(&table_schema, chunks, predicate);
+            let chunks = prune_chunks(&table_schema, chunks, &predicate);
             Ok((table_name, predicate, chunks))
         })
         // rustc seems to heavily confused about the filter step here, esp. it dislikes `.try_filter` and even
         // `.try_filter_map` requires some additional type annotations
         .try_filter_map(|(table_name, predicate, chunks)| async move {
             Ok((!chunks.is_empty()).then_some((table_name, predicate, chunks)))
-                as Result<Option<(&Arc<str>, &Predicate, Vec<_>)>>
+                as Result<Option<(&Arc<str>, Predicate, Vec<_>)>>
         })
         .and_then(|(table_name, predicate, chunks)| {
             let mut ctx = ctx.child_ctx("table");
@@ -1494,7 +1465,7 @@ where
                         table_name: table_name.as_ref(),
                     })?;
 
-                f(table_name, predicate, chunks, &schema)
+                f(table_name, &predicate, chunks, &schema)
             }
         })
         .try_collect()
@@ -1851,9 +1822,34 @@ fn prune_chunks(
         .collect()
 }
 
+fn chunk_column_names(
+    chunk: &dyn QueryChunk,
+    predicate: &Predicate,
+    columns: Projection<'_>,
+) -> Option<StringSet> {
+    if !predicate.is_empty() {
+        // if there is anything in the predicate, bail for now and force a full plan
+        return None;
+    }
+
+    let fields = chunk.schema().inner().fields().iter();
+
+    Some(match columns {
+        Projection::Some(cols) => fields
+            .filter_map(|x| {
+                if cols.contains(&x.name().as_str()) {
+                    Some(x.name().clone())
+                } else {
+                    None
+                }
+            })
+            .collect(),
+        Projection::All => fields.map(|x| x.name().clone()).collect(),
+    })
+}
+
 #[cfg(test)]
 mod tests {
-    use data_types::DeletePredicate;
     use datafusion::{
         common::ScalarValue,
         prelude::{col, lit},
@@ -2441,12 +2437,12 @@ mod tests {
                 .with_tag_column("tag")
                 .with_f64_field_column("field")
                 .with_time_column()
-                .with_one_row_of_data()
-                .with_delete_predicate(Arc::new(DeletePredicate::retention_delete_predicate(1))),
+                .with_one_row_of_data(),
         );
 
         let executor = Arc::new(Executor::new_testing());
-        let test_db = Arc::new(TestDatabase::new(Arc::clone(&executor)));
+        let test_db =
+            Arc::new(TestDatabase::new(Arc::clone(&executor)).with_retention_time_ns(Some(1)));
         test_db.add_chunk("my_partition_key", Arc::clone(&chunk));
 
         let predicate = Predicate::new().with_expr("tag".as_expr().eq(lit("MA")));
@@ -2466,7 +2462,7 @@ mod tests {
         insta::assert_snapshot!(ssplan.plan.display_indent_schema().to_string(), @r###"
         Projection: table.tag, table.field AS field, table.time [tag:Dictionary(Int32, Utf8);N, field:Float64;N, time:Timestamp(Nanosecond, None)]
           Sort: table.tag ASC NULLS FIRST, table.time ASC NULLS FIRST [field:Float64;N, tag:Dictionary(Int32, Utf8);N, time:Timestamp(Nanosecond, None)]
-            Filter: table.tag = Dictionary(Int32, Utf8("MA")) [field:Float64;N, tag:Dictionary(Int32, Utf8);N, time:Timestamp(Nanosecond, None)]
+            Filter: table.tag = Dictionary(Int32, Utf8("MA")) AND table.time > TimestampNanosecond(1, None) [field:Float64;N, tag:Dictionary(Int32, Utf8);N, time:Timestamp(Nanosecond, None)]
               TableScan: table [field:Float64;N, tag:Dictionary(Int32, Utf8);N, time:Timestamp(Nanosecond, None)]
         "###);
     }

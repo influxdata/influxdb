@@ -2,49 +2,14 @@
 
 use std::num::NonZeroUsize;
 
-/// Compaction type.
-#[derive(Debug, Default, Clone, Copy, PartialEq, clap::ValueEnum)]
-pub enum CompactionType {
-    /// Compacts recent writes as they come in.
-    #[default]
-    Hot,
-
-    /// Compacts partitions that have not been written to very recently for longer-term storage.
-    Cold,
-}
+use super::compactor_scheduler::CompactorSchedulerConfig;
 
 /// CLI config for compactor
 #[derive(Debug, Clone, clap::Parser)]
 pub struct CompactorConfig {
-    /// Type of compaction to perform.
-    #[clap(
-        value_enum,
-        long = "compaction-type",
-        env = "INFLUXDB_IOX_COMPACTION_TYPE",
-        default_value = "hot",
-        action
-    )]
-    pub compaction_type: CompactionType,
-
-    /// When in "hot" compaction mode, the compactor will only consider compacting partitions that
-    /// have new Parquet files created within this many minutes.
-    #[clap(
-        long = "compaction_partition_minute_threshold",
-        env = "INFLUXDB_IOX_COMPACTION_PARTITION_MINUTE_THRESHOLD",
-        default_value = "10",
-        action
-    )]
-    pub compaction_partition_minute_threshold: u64,
-
-    /// When in "cold" compaction mode, the compactor will only consider compacting partitions that
-    /// have had no new Parquet files created in at least this many minutes.
-    #[clap(
-        long = "compaction_cold_partition_minute_threshold",
-        env = "INFLUXDB_IOX_COMPACTION_COLD_PARTITION_MINUTE_THRESHOLD",
-        default_value = "60",
-        action
-    )]
-    pub compaction_cold_partition_minute_threshold: u64,
+    /// Configuration for the compactor scheduler
+    #[clap(flatten)]
+    pub compactor_scheduler_config: CompactorSchedulerConfig,
 
     /// Number of partitions that should be compacted in parallel.
     ///
@@ -184,16 +149,6 @@ pub struct CompactorConfig {
     )]
     pub partition_timeout_secs: u64,
 
-    /// Filter partitions to the given set of IDs.
-    ///
-    /// This is mostly useful for debugging.
-    #[clap(
-        long = "compaction-partition-filter",
-        env = "INFLUXDB_IOX_COMPACTION_PARTITION_FILTER",
-        action
-    )]
-    pub partition_filter: Option<Vec<i64>>,
-
     /// Shadow mode.
     ///
     /// This will NOT write / commit any output to the object store or catalog.
@@ -245,36 +200,6 @@ pub struct CompactorConfig {
     )]
     pub max_num_files_per_plan: usize,
 
-    /// Number of shards.
-    ///
-    /// If this is set then the shard ID MUST also be set. If both are not provided, sharding is disabled.
-    /// (shard ID can be provided by the host name)
-    #[clap(
-        long = "compaction-shard-count",
-        env = "INFLUXDB_IOX_COMPACTION_SHARD_COUNT",
-        action
-    )]
-    pub shard_count: Option<usize>,
-
-    /// Shard ID.
-    ///
-    /// Starts at 0, must be smaller than the number of shard.
-    ///
-    /// If this is set then the shard count MUST also be set. If both are not provided, sharding is disabled.
-    #[clap(
-        long = "compaction-shard-id",
-        env = "INFLUXDB_IOX_COMPACTION_SHARD_ID",
-        action
-    )]
-    pub shard_id: Option<usize>,
-
-    /// Host Name
-    ///
-    /// comprised of leading text (e.g. 'iox-shared-compactor-'), ending with shard_id (e.g. '0').
-    /// When shard_count is specified, but shard_id is not specified, the id is extracted from hostname.
-    #[clap(long = "hostname", env = "HOSTNAME", action)]
-    pub hostname: Option<String>,
-
     /// Minimum number of L1 files to compact to L2.
     ///
     /// If there are more than this many L1 (by definition non
@@ -304,15 +229,6 @@ pub struct CompactorConfig {
     )]
     pub process_once: bool,
 
-    /// Compact all partitions found in the catalog, no matter if/when
-    /// they received writes.
-    #[clap(
-        long = "compaction-process-all-partitions",
-        env = "INFLUXDB_IOX_COMPACTION_PROCESS_ALL_PARTITIONS",
-        action
-    )]
-    pub process_all_partitions: bool,
-
     /// Maximum number of columns in a table of a partition that
     /// will be able to considered to get compacted
     ///
@@ -325,43 +241,15 @@ pub struct CompactorConfig {
         action
     )]
     pub max_num_columns_per_table: usize,
-}
 
-#[cfg(test)]
-mod tests {
-    use super::*;
-    use clap::Parser;
-    use test_helpers::assert_contains;
-
-    #[test]
-    fn default_compaction_type_is_hot() {
-        let config = CompactorConfig::try_parse_from(["my_binary"]).unwrap();
-        assert_eq!(config.compaction_type, CompactionType::Hot);
-    }
-
-    #[test]
-    fn can_specify_hot() {
-        let config =
-            CompactorConfig::try_parse_from(["my_binary", "--compaction-type", "hot"]).unwrap();
-        assert_eq!(config.compaction_type, CompactionType::Hot);
-    }
-
-    #[test]
-    fn can_specify_cold() {
-        let config =
-            CompactorConfig::try_parse_from(["my_binary", "--compaction-type", "cold"]).unwrap();
-        assert_eq!(config.compaction_type, CompactionType::Cold);
-    }
-
-    #[test]
-    fn any_other_compaction_type_string_is_invalid() {
-        let error = CompactorConfig::try_parse_from(["my_binary", "--compaction-type", "hello"])
-            .unwrap_err()
-            .to_string();
-        assert_contains!(
-            &error,
-            "invalid value 'hello' for '--compaction-type <COMPACTION_TYPE>'"
-        );
-        assert_contains!(&error, "[possible values: hot, cold]");
-    }
+    /// Limit the number of partition fetch queries to at most the specified
+    /// number of queries per second.
+    ///
+    /// Queries are smoothed over the full second.
+    #[clap(
+        long = "max-partition-fetch-queries-per-second",
+        env = "INFLUXDB_IOX_MAX_PARTITION_FETCH_QUERIES_PER_SECOND",
+        action
+    )]
+    pub max_partition_fetch_queries_per_second: Option<usize>,
 }

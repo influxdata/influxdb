@@ -9,7 +9,7 @@ use crate::{
 };
 use data_types::NamespaceId;
 use iox_query::exec::Executor;
-use std::{collections::HashMap, sync::Arc};
+use std::{collections::HashMap, sync::Arc, time::Duration};
 
 mod query_access;
 
@@ -64,6 +64,9 @@ pub struct QuerierNamespace {
 
     /// Include debug info tables.
     include_debug_info_tables: bool,
+
+    /// Retention period.
+    retention_period: Option<Duration>,
 }
 
 impl QuerierNamespace {
@@ -112,6 +115,7 @@ impl QuerierNamespace {
             query_log,
             datafusion_config,
             include_debug_info_tables,
+            retention_period: ns.retention_period,
         }
     }
 

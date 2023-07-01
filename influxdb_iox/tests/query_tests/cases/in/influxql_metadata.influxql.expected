@@ -1,19 +1,21 @@
 -- Test Setup: InfluxQLSelectSupport
 -- InfluxQL: SHOW MEASUREMENTS;
 name: measurements
-+-------------+
-| name        |
-+-------------+
-| cpu         |
-| disk        |
-| m0          |
-| m1          |
-| m2          |
-| m3          |
-| m4          |
-| select_test |
-| time_test   |
-+-------------+
++-----------------+
+| name            |
++-----------------+
+| cpu             |
+| disk            |
+| m0              |
+| m1              |
+| m2              |
+| m3              |
+| m4              |
+| select_test     |
+| selector_test_1 |
+| selector_test_2 |
+| time_test       |
++-----------------+
 -- InfluxQL: SHOW MEASUREMENTS LIMIT 2;
 name: measurements
 +------+
@@ -24,18 +26,20 @@ name: measurements
 +------+
 -- InfluxQL: SHOW MEASUREMENTS OFFSET 1;
 name: measurements
-+-------------+
-| name        |
-+-------------+
-| disk        |
-| m0          |
-| m1          |
-| m2          |
-| m3          |
-| m4          |
-| select_test |
-| time_test   |
-+-------------+
++-----------------+
+| name            |
++-----------------+
+| disk            |
+| m0              |
+| m1              |
+| m2              |
+| m3              |
+| m4              |
+| select_test     |
+| selector_test_1 |
+| selector_test_2 |
+| time_test       |
++-----------------+
 -- InfluxQL: SHOW MEASUREMENTS LIMIT 1 OFFSET 2;
 name: measurements
 +------+
@@ -174,6 +178,20 @@ name: select_test
 | st_field_ba | float     |
 | st_field_bb | float     |
 +-------------+-----------+
+name: selector_test_1
++----------+-----------+
+| fieldKey | fieldType |
++----------+-----------+
+| field1   | float     |
+| field2   | float     |
+| field3   | float     |
++----------+-----------+
+name: selector_test_2
++----------+-----------+
+| fieldKey | fieldType |
++----------+-----------+
+| f        | float     |
++----------+-----------+
 name: time_test
 +--------------------------------+-----------+
 | fieldKey                       | fieldType |
@@ -237,6 +255,19 @@ name: select_test
 | st_field    | string    |
 | st_field_aa | float     |
 +-------------+-----------+
+name: selector_test_1
++----------+-----------+
+| fieldKey | fieldType |
++----------+-----------+
+| field1   | float     |
+| field2   | float     |
++----------+-----------+
+name: selector_test_2
++----------+-----------+
+| fieldKey | fieldType |
++----------+-----------+
+| f        | float     |
++----------+-----------+
 name: time_test
 +----------------------------+-----------+
 | fieldKey                   | fieldType |
@@ -280,6 +311,13 @@ name: select_test
 | st_field_ba | float     |
 | st_field_bb | float     |
 +-------------+-----------+
+name: selector_test_1
++----------+-----------+
+| fieldKey | fieldType |
++----------+-----------+
+| field2   | float     |
+| field3   | float     |
++----------+-----------+
 name: time_test
 +--------------------------------+-----------+
 | fieldKey                       | fieldType |
@@ -307,6 +345,12 @@ name: select_test
 +-------------+-----------+
 | st_field_ab | float     |
 +-------------+-----------+
+name: selector_test_1
++----------+-----------+
+| fieldKey | fieldType |
++----------+-----------+
+| field3   | float     |
++----------+-----------+
 name: time_test
 +--------------------------------+-----------+
 | fieldKey                       | fieldType |
@@ -1052,6 +1096,20 @@ name: select_test
 | tag0      |
 | tag1      |
 +-----------+
+name: selector_test_1
++--------+
+| tagKey |
++--------+
+| tag1   |
+| tag2   |
+| tag3   |
++--------+
+name: selector_test_2
++--------+
+| tagKey |
++--------+
+| first  |
++--------+
 name: time_test
 +------------------------------+
 | tagKey                       |
@@ -1110,6 +1168,18 @@ name: select_test
 +--------+
 | st_tag |
 +--------+
+name: selector_test_1
++--------+
+| tagKey |
++--------+
+| tag1   |
++--------+
+name: selector_test_2
++--------+
+| tagKey |
++--------+
+| first  |
++--------+
 name: time_test
 +--------+
 | tagKey |
@@ -1154,6 +1224,13 @@ name: select_test
 | tag0      |
 | tag1      |
 +-----------+
+name: selector_test_1
++--------+
+| tagKey |
++--------+
+| tag2   |
+| tag3   |
++--------+
 name: time_test
 +------------------------------+
 | tagKey                       |
@@ -1193,6 +1270,12 @@ name: select_test
 +-----------+
 | st_tag_aa |
 +-----------+
+name: selector_test_1
++--------+
+| tagKey |
++--------+
+| tag2   |
++--------+
 name: time_test
 +--------------------------+
 | tagKey                   |

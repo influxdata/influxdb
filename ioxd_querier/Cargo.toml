@@ -18,8 +18,11 @@ metric = { path = "../metric" }
 object_store = { workspace = true }
 querier = { path = "../querier" }
 iox_query = { path = "../iox_query" }
+service_grpc_catalog = { path = "../service_grpc_catalog"}
 service_grpc_flight = { path = "../service_grpc_flight" }
 service_grpc_influxrpc = { path = "../service_grpc_influxrpc" }
+service_grpc_object_store = { path = "../service_grpc_object_store" }
+service_grpc_schema = { path = "../service_grpc_schema" }
 iox_time = { path = "../iox_time" }
 trace = { path = "../trace" }
 
@@ -28,7 +31,7 @@ arrow-flight = { workspace = true }
 async-trait = "0.1"
 hyper = "0.14"
 thiserror = "1.0.40"
-tokio = { version = "1.28", features = ["macros", "net", "parking_lot", "rt-multi-thread", "signal", "sync", "time"] }
+tokio = { version = "1.29", features = ["macros", "net", "parking_lot", "rt-multi-thread", "signal", "sync", "time"] }
 tonic = { workspace = true }
 workspace-hack = { version = "0.1", path = "../workspace-hack" }
 tokio-util = "0.7.8"
