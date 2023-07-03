@@ -1,6 +1,9 @@
 use std::{collections::BTreeMap, sync::Arc, time::Duration};
 
-use data_types::{NamespaceId, PartitionId, PartitionKey, SequenceNumber, TableId};
+use data_types::{
+    partition_template::TablePartitionTemplateOverride, NamespaceId, PartitionId, PartitionKey,
+    SequenceNumber, TableId,
+};
 use iox_catalog::{interface::Catalog, test_helpers::arbitrary_namespace};
 use lazy_static::lazy_static;
 use mutable_batch_lp::lines_to_batches;
@@ -48,7 +51,10 @@ pub(crate) fn defer_table_metadata_1_sec() -> Arc<DeferredLoad<TableMetadata>> {
     Arc::new(DeferredLoad::new(
         Duration::from_secs(1),
         async {
-            TableMetadata::with_default_partition_template_for_testing(ARBITRARY_TABLE_NAME.clone())
+            TableMetadata::new_for_testing(
+                ARBITRARY_TABLE_NAME.clone(),
+                TablePartitionTemplateOverride::default(),
+            )
         },
         &metric::Registry::default(),
     ))
@@ -62,11 +68,11 @@ lazy_static! {
     pub(crate) static ref ARBITRARY_NAMESPACE_NAME_PROVIDER: Arc<dyn NamespaceNameProvider> =
         Arc::new(MockNamespaceNameProvider::new(&**ARBITRARY_NAMESPACE_NAME));
     pub(crate) static ref ARBITRARY_TABLE_NAME: TableName = TableName::from("bananas");
-    pub(crate) static ref ARBITRARY_TABLE_PROVIDER: Arc<dyn TableProvider> = Arc::new(
-        MockTableProvider::new(TableMetadata::with_default_partition_template_for_testing(
-            ARBITRARY_TABLE_NAME.clone()
-        ))
-    );
+    pub(crate) static ref ARBITRARY_TABLE_PROVIDER: Arc<dyn TableProvider> =
+        Arc::new(MockTableProvider::new(TableMetadata::new_for_testing(
+            ARBITRARY_TABLE_NAME.clone(),
+            TablePartitionTemplateOverride::default()
+        )));
 }
 
 /// Build a [`PartitionData`] with mostly arbitrary-yet-valid values for tests.

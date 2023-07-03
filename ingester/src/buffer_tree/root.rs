@@ -233,7 +233,10 @@ mod tests {
 
     use arrow::datatypes::DataType;
     use assert_matches::assert_matches;
-    use data_types::{PartitionId, PartitionKey};
+    use data_types::{
+        partition_template::{test_table_partition_override, TemplatePart},
+        PartitionId, PartitionKey,
+    };
     use datafusion::{
         assert_batches_eq, assert_batches_sorted_eq,
         prelude::{col, lit},
@@ -251,7 +254,7 @@ mod tests {
             namespace::{name_resolver::mock::MockNamespaceNameProvider, NamespaceData},
             partition::resolver::mock::MockPartitionProvider,
             post_write::mock::MockPostWriteObserver,
-            table::TableMetadata,
+            table::{metadata_resolver::mock::MockTableProvider, TableMetadata},
         },
         deferred_load::{self, DeferredLoad},
         query::partition_response::PartitionResponse,
@@ -348,6 +351,7 @@ mod tests {
     macro_rules! test_write_query {
         (
             $name:ident,
+            $(table_provider = $table_provider:expr,)? // An optional table provider
             partitions = [$($partition:expr), +], // The set of PartitionData for the mock
                                                   // partition provider
             writes = [$($write:expr), *],         // The set of WriteOperation to apply()
@@ -368,10 +372,16 @@ mod tests {
                         )+
                     );
 
+                    #[allow(unused_variables)]
+                    let table_provider = Arc::clone(&*ARBITRARY_TABLE_PROVIDER);
+                    $(
+                        let table_provider: Arc<dyn TableProvider> = $table_provider;
+                    )?
+
                     // Init the buffer tree
                     let buf = BufferTree::new(
                         Arc::new(MockNamespaceNameProvider::new(&**ARBITRARY_NAMESPACE_NAME)),
-                        Arc::clone(&*ARBITRARY_TABLE_PROVIDER),
+                        table_provider,
                         partition_provider,
                         Arc::new(MockPostWriteObserver::default()),
                         Arc::new(metric::Registry::default()),
@@ -650,14 +660,18 @@ mod tests {
     // contain the specified value in that partition key column.
     test_write_query!(
         filter_by_predicate_partition_key,
+        table_provider = Arc::new(MockTableProvider::new(TableMetadata::new_for_testing(
+            ARBITRARY_TABLE_NAME.clone(),
+            test_table_partition_override(vec![TemplatePart::TagValue("region")])
+        ))),
         partitions = [
             PartitionDataBuilder::new()
                 .with_partition_id(ARBITRARY_PARTITION_ID)
-                .with_partition_key(ARBITRARY_PARTITION_KEY.clone())
+                .with_partition_key(ARBITRARY_PARTITION_KEY.clone()) // "platanos"
                 .build(),
             PartitionDataBuilder::new()
                 .with_partition_id(PARTITION2_ID)
-                .with_partition_key(PARTITION2_KEY.clone())
+                .with_partition_key(PARTITION2_KEY.clone()) // "p2"
                 .build()
         ],
         writes = [
@@ -719,20 +733,12 @@ mod tests {
             )
         )))),
         want = [
-            "+----------+------+-------------------------------+",
-            "| region   | temp | time                          |",
-            "+----------+------+-------------------------------+",
-            format!(
-                "| {}       | 17.0 | 1970-01-01T00:00:07.676767676 |",
-                *PARTITION2_KEY
-            )
-            .as_str(),
-            format!(
-                "| {}       | 13.0 | 1970-01-01T00:00:07.676767676 |",
-                *PARTITION2_KEY
-            )
-            .as_str(),
-            "+----------+------+-------------------------------+",
+            "+--------+------+-------------------------------+",
+            "| region | temp | time                          |",
+            "+--------+------+-------------------------------+",
+            "| p2     | 13.0 | 1970-01-01T00:00:07.676767676 |",
+            "| p2     | 17.0 | 1970-01-01T00:00:07.676767676 |",
+            "+--------+------+-------------------------------+",
         ]
     );
 
@@ -848,8 +854,9 @@ mod tests {
                         .with_table_loader(Arc::new(DeferredLoad::new(
                             Duration::from_secs(1),
                             async move {
-                                TableMetadata::with_default_partition_template_for_testing(
+                                TableMetadata::new_for_testing(
                                     TABLE2_NAME.into(),
+                                    Default::default(),
                                 )
                             },
                             &metric::Registry::default(),

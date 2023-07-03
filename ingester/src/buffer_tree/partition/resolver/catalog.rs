@@ -140,9 +140,10 @@ mod tests {
                 Arc::new(DeferredLoad::new(
                     Duration::from_secs(1),
                     async {
-                        TableMetadata::with_default_partition_template_for_testing(TableName::from(
-                            TABLE_NAME,
-                        ))
+                        TableMetadata::new_for_testing(
+                            TableName::from(TABLE_NAME),
+                            Default::default(),
+                        )
                     },
                     &metrics,
                 )),

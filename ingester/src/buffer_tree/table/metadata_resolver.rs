@@ -92,8 +92,9 @@ pub(crate) mod mock {
 
     impl Default for MockTableProvider {
         fn default() -> Self {
-            Self::new(TableMetadata::with_default_partition_template_for_testing(
+            Self::new(TableMetadata::new_for_testing(
                 "bananas".into(),
+                Default::default(),
             ))
         }
     }

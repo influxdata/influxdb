@@ -42,10 +42,14 @@ pub(crate) struct TableMetadata {
 }
 
 impl TableMetadata {
-    pub fn with_default_partition_template_for_testing(name: TableName) -> Self {
+    #[cfg(test)]
+    pub fn new_for_testing(
+        name: TableName,
+        partition_template: TablePartitionTemplateOverride,
+    ) -> Self {
         Self {
             name,
-            partition_template: Default::default(),
+            partition_template,
         }
     }
 
