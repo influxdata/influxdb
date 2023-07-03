@@ -16,8 +16,11 @@
 )]
 
 use metric::Registry;
+#[cfg(tokio_unstable)]
 use tokio_metrics_bridge::setup_tokio_metrics;
 // Workaround for "unused crate" lint false positives.
+#[cfg(not(tokio_unstable))]
+use tokio_metrics_bridge as _;
 use workspace_hack as _;
 
 use once_cell::sync::Lazy;
@@ -242,7 +245,10 @@ impl DedicatedExecutor {
                     .build()
                     .expect("Creating tokio runtime");
 
+                #[cfg(tokio_unstable)]
                 setup_tokio_metrics(runtime.metrics(), thread_name, metric_registry);
+                #[cfg(not(tokio_unstable))]
+                let _ = metric_registry;
 
                 runtime.block_on(async move {
                     // Dropping the tokio runtime only waits for tasks to yield not to complete
