@@ -334,6 +334,17 @@ impl MiniCluster {
         self.ingesters = restarted;
     }
 
+    /// Gracefully stop all ingesters and wait for them to exit.
+    ///
+    /// If the shutdown does not complete within
+    /// [`GRACEFUL_SERVER_STOP_TIMEOUT`] it is killed.
+    ///
+    /// [`GRACEFUL_SERVER_STOP_TIMEOUT`]:
+    ///     crate::server_fixture::GRACEFUL_SERVER_STOP_TIMEOUT
+    pub fn gracefully_stop_ingesters(&mut self) {
+        self.ingesters = vec![];
+    }
+
     /// Restart querier.
     ///
     /// This will break all currently connected clients!

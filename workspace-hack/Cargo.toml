@@ -156,45 +156,36 @@ url = { version = "2" }
 uuid = { version = "1", features = ["v4"] }
 
 [target.x86_64-unknown-linux-gnu.dependencies]
-io-lifetimes = { version = "1" }
 nix = { version = "0.26" }
 once_cell = { version = "1", default-features = false, features = ["unstable"] }
-rustix = { version = "0.37", features = ["fs", "termios"] }
+rustix = { version = "0.38", features = ["fs", "termios"] }
 rustls = { version = "0.21", features = ["dangerous_configuration"] }
 webpki = { version = "0.22", default-features = false, features = ["std"] }
 
 [target.x86_64-unknown-linux-gnu.build-dependencies]
-io-lifetimes = { version = "1" }
 once_cell = { version = "1", default-features = false, features = ["unstable"] }
-rustix = { version = "0.37", features = ["fs", "termios"] }
 webpki = { version = "0.22", default-features = false, features = ["std"] }
 
 [target.x86_64-apple-darwin.dependencies]
-io-lifetimes = { version = "1" }
 nix = { version = "0.26" }
 once_cell = { version = "1", default-features = false, features = ["unstable"] }
-rustix = { version = "0.37", features = ["fs", "termios"] }
+rustix = { version = "0.38", features = ["fs", "termios"] }
 rustls = { version = "0.21", features = ["dangerous_configuration"] }
 webpki = { version = "0.22", default-features = false, features = ["std"] }
 
 [target.x86_64-apple-darwin.build-dependencies]
-io-lifetimes = { version = "1" }
 once_cell = { version = "1", default-features = false, features = ["unstable"] }
-rustix = { version = "0.37", features = ["fs", "termios"] }
 webpki = { version = "0.22", default-features = false, features = ["std"] }
 
 [target.aarch64-apple-darwin.dependencies]
-io-lifetimes = { version = "1" }
 nix = { version = "0.26" }
 once_cell = { version = "1", default-features = false, features = ["unstable"] }
-rustix = { version = "0.37", features = ["fs", "termios"] }
+rustix = { version = "0.38", features = ["fs", "termios"] }
 rustls = { version = "0.21", features = ["dangerous_configuration"] }
 webpki = { version = "0.22", default-features = false, features = ["std"] }
 
 [target.aarch64-apple-darwin.build-dependencies]
-io-lifetimes = { version = "1" }
 once_cell = { version = "1", default-features = false, features = ["unstable"] }
-rustix = { version = "0.37", features = ["fs", "termios"] }
 webpki = { version = "0.22", default-features = false, features = ["std"] }
 
 [target.x86_64-pc-windows-msvc.dependencies]
