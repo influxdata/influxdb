@@ -157,6 +157,10 @@ pub enum Step {
     /// files from the value this step recorded.
     RecordNumParquetFiles,
 
+    /// Query the catalog service for how many parquet files it has for this
+    /// cluster's namespace, asserting the value matches expected.
+    AssertNumParquetFiles { expected: usize },
+
     /// Ask the ingester to persist immediately through the persist service gRPC API
     Persist,
 
@@ -370,6 +374,10 @@ where
                 // starting a new write so we can observe a change when waiting for persistence.
                 Step::RecordNumParquetFiles => {
                     state.record_num_parquet_files().await;
+                }
+                Step::AssertNumParquetFiles { expected } => {
+                    let have_files = state.get_num_parquet_files().await;
+                    assert_eq!(have_files, *expected);
                 }
                 // Ask the ingesters to persist immediately through the persist service gRPC API
                 Step::Persist => {
