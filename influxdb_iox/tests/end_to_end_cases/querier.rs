@@ -300,6 +300,47 @@ async fn query_after_persist_sees_new_files() {
 }
 
 #[tokio::test]
+async fn query_after_shutdown_sees_new_files() {
+    test_helpers::maybe_start_logging();
+    let database_url = maybe_skip_integration!();
+
+    // Configure a cluster such that the ingester never persists (until
+    // shutdown)
+    let ingester_config = TestConfig::new_ingester_never_persist(&database_url);
+    let router_config = TestConfig::new_router(&ingester_config);
+    // Querier configured to quickly consider ingesters dead to speed up the
+    // test.
+    let querier_config =
+        TestConfig::new_querier(&ingester_config).with_querier_circuit_breaker_threshold(1);
+
+    let mut cluster = MiniCluster::new()
+        .with_ingester(ingester_config)
+        .await
+        .with_router(router_config)
+        .await
+        .with_querier(querier_config)
+        .await;
+
+    let steps = vec![
+        Step::WriteLineProtocol("bananas,tag1=A,tag2=B val=42i 123456".to_string()),
+        Step::AssertNumParquetFiles { expected: 0 }, // test invariant
+        Step::GracefulStopIngesters,
+        Step::Query {
+            sql: "select * from bananas".to_string(),
+            expected: vec![
+                "+------+------+--------------------------------+-----+",
+                "| tag1 | tag2 | time                           | val |",
+                "+------+------+--------------------------------+-----+",
+                "| A    | B    | 1970-01-01T00:00:00.000123456Z | 42  |",
+                "+------+------+--------------------------------+-----+",
+            ],
+        },
+    ];
+
+    StepTest::new(&mut cluster, steps).run().await
+}
+
+#[tokio::test]
 async fn table_not_found_on_ingester() {
     test_helpers::maybe_start_logging();
     let database_url = maybe_skip_integration!();
