@@ -45,7 +45,14 @@ async fn persist_on_demand() {
                         .await
                         .unwrap();
 
-                    let ingester_uuid = ingester_response.app_metadata.ingester_uuid;
+                    assert_eq!(ingester_response.partitions.len(), 1);
+                    let ingester_partition = ingester_response
+                        .partitions
+                        .into_iter()
+                        .next()
+                        .expect("just checked len");
+
+                    let ingester_uuid = ingester_partition.app_metadata.ingester_uuid;
                     assert!(!ingester_uuid.is_empty());
 
                     let expected = [
@@ -55,7 +62,7 @@ async fn persist_on_demand() {
                         "| A    | B    | 1970-01-01T00:00:00.000123456Z | 42  |",
                         "+------+------+--------------------------------+-----+",
                     ];
-                    assert_batches_sorted_eq!(&expected, &ingester_response.record_batches);
+                    assert_batches_sorted_eq!(&expected, &ingester_partition.record_batches);
                 }
                 .boxed()
             })),
@@ -83,8 +90,15 @@ async fn persist_on_demand() {
                         .await
                         .unwrap();
 
+                    assert_eq!(ingester_response.partitions.len(), 1);
+                    let ingester_partition = ingester_response
+                        .partitions
+                        .into_iter()
+                        .next()
+                        .expect("just checked len");
+
                     let num_files_persisted =
-                        ingester_response.app_metadata.completed_persistence_count;
+                        ingester_partition.app_metadata.completed_persistence_count;
                     assert_eq!(num_files_persisted, 1);
                 }
                 .boxed()
@@ -127,11 +141,17 @@ async fn ingester_flight_api() {
         .query_ingester(query.clone(), cluster.ingester().ingester_grpc_connection())
         .await
         .unwrap();
+    assert_eq!(ingester_response.partitions.len(), 1);
+    let ingester_partition = ingester_response
+        .partitions
+        .into_iter()
+        .next()
+        .expect("just checked len");
 
-    let ingester_uuid = ingester_response.app_metadata.ingester_uuid.clone();
+    let ingester_uuid = ingester_partition.app_metadata.ingester_uuid.clone();
     assert!(!ingester_uuid.is_empty());
 
-    let schema = ingester_response.schema.unwrap();
+    let schema = ingester_partition.schema.unwrap();
 
     let expected = [
         "+------+------+--------------------------------+-----+",
@@ -141,11 +161,11 @@ async fn ingester_flight_api() {
         "| B    | A    | 1970-01-01T00:00:00.001234567Z | 84  |",
         "+------+------+--------------------------------+-----+",
     ];
-    assert_batches_sorted_eq!(&expected, &ingester_response.record_batches);
+    assert_batches_sorted_eq!(&expected, &ingester_partition.record_batches);
 
     // Also ensure that the schema of the batches matches what is
     // reported by the performed_query.
-    ingester_response
+    ingester_partition
         .record_batches
         .iter()
         .enumerate()
@@ -158,7 +178,13 @@ async fn ingester_flight_api() {
         .query_ingester(query.clone(), cluster.ingester().ingester_grpc_connection())
         .await
         .unwrap();
-    assert_eq!(ingester_response.app_metadata.ingester_uuid, ingester_uuid);
+    assert_eq!(ingester_response.partitions.len(), 1);
+    let ingester_partition = ingester_response
+        .partitions
+        .into_iter()
+        .next()
+        .expect("just checked len");
+    assert_eq!(ingester_partition.app_metadata.ingester_uuid, ingester_uuid);
 
     // Restart the ingesters
     cluster.restart_ingesters().await;
@@ -173,7 +199,13 @@ async fn ingester_flight_api() {
         .query_ingester(query, cluster.ingester().ingester_grpc_connection())
         .await
         .unwrap();
-    assert_ne!(ingester_response.app_metadata.ingester_uuid, ingester_uuid);
+    assert_eq!(ingester_response.partitions.len(), 1);
+    let ingester_partition = ingester_response
+        .partitions
+        .into_iter()
+        .next()
+        .expect("just checked len");
+    assert_ne!(ingester_partition.app_metadata.ingester_uuid, ingester_uuid);
 }
 
 #[tokio::test]
@@ -296,7 +328,12 @@ async fn ingester_partition_pruning() {
                 "| 1.0 | v1a  | v2b  | v3b  | 1970-01-01T00:00:00.000000011Z |",
                 "+-----+------+------+------+--------------------------------+",
             ];
-            assert_batches_sorted_eq!(&expected, &ingester_response.record_batches);
+            let record_batches = ingester_response
+                .partitions
+                .into_iter()
+                .flat_map(|p| p.record_batches)
+                .collect::<Vec<_>>();
+            assert_batches_sorted_eq!(&expected, &record_batches);
         }
         .boxed()
     })));
