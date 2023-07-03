@@ -2570,7 +2570,7 @@ version = "0.1.0"
 dependencies = [
  "flate2",
  "hex",
- "integer-encoding",
+ "integer-encoding 4.0.0",
  "observability_deps",
  "rand",
  "snafu",
@@ -2726,6 +2726,12 @@ name = "integer-encoding"
 version = "3.0.4"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "8bb03732005da905c88227371639bf1ad885cc712789c011c31c5fb3ab3ccf02"
+
+[[package]]
+name = "integer-encoding"
+version = "4.0.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "924df4f0e24e2e7f9cdd90babb0b96f93b20f3ecfa949ea9e6613756b8c8e1bf"
 
 [[package]]
 name = "io-lifetimes"
@@ -5596,7 +5602,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "7e54bc85fc7faa8bc175c4bab5b92ba8d9a3ce893d0e9f42cc455c8ab16a9e09"
 dependencies = [
  "byteorder",
- "integer-encoding",
+ "integer-encoding 3.0.4",
  "log",
  "ordered-float 2.10.0",
  "threadpool",
