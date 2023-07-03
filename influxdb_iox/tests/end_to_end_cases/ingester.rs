@@ -1,7 +1,11 @@
+use arrow::datatypes::DataType;
 use arrow_flight::{error::FlightError, Ticket};
 use arrow_util::assert_batches_sorted_eq;
 use data_types::{NamespaceId, TableId};
-use datafusion::prelude::{col, lit};
+use datafusion::{
+    prelude::{col, lit},
+    scalar::ScalarValue,
+};
 use futures::FutureExt;
 use http::StatusCode;
 use influxdb_iox_client::table::generated_types::{Part, PartitionTemplate, TemplatePart};
@@ -255,7 +259,15 @@ async fn ingester_partition_pruning() {
 
     steps.push(Step::Custom(Box::new(move |state: &mut StepTestState| {
         async move {
-            let predicate = ::predicate::Predicate::new().with_expr(col("tag1").eq(lit("v1a")));
+            // Note: The querier will perform correct type coercion. We must simulate this here, otherwise the ingester
+            //       will NOT be able to prune the data because the predicate evaluation will fail with a type error
+            //       and the predicate will be ignored.
+            let predicate = ::predicate::Predicate::new().with_expr(col("tag1").eq(lit(
+                ScalarValue::Dictionary(
+                    Box::new(DataType::Int32),
+                    Box::new(ScalarValue::from("v1a")),
+                ),
+            )));
 
             let query = IngesterQueryRequest::new(
                 state.cluster().namespace_id().await,
