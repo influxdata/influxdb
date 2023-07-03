@@ -34,6 +34,7 @@ use schema::{
 };
 use std::{any::Any, fmt::Debug, sync::Arc};
 
+pub mod chunk_statistics;
 pub mod config;
 pub mod exec;
 pub mod frontend;

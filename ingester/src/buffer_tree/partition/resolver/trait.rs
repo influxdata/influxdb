@@ -5,7 +5,7 @@ use data_types::{NamespaceId, PartitionKey, TableId};
 use parking_lot::Mutex;
 
 use crate::{
-    buffer_tree::{namespace::NamespaceName, partition::PartitionData, table::TableName},
+    buffer_tree::{namespace::NamespaceName, partition::PartitionData, table::TableMetadata},
     deferred_load::DeferredLoad,
 };
 
@@ -24,7 +24,7 @@ pub(crate) trait PartitionProvider: Send + Sync + Debug {
         namespace_id: NamespaceId,
         namespace_name: Arc<DeferredLoad<NamespaceName>>,
         table_id: TableId,
-        table_name: Arc<DeferredLoad<TableName>>,
+        table: Arc<DeferredLoad<TableMetadata>>,
     ) -> Arc<Mutex<PartitionData>>;
 }
 
@@ -39,16 +39,10 @@ where
         namespace_id: NamespaceId,
         namespace_name: Arc<DeferredLoad<NamespaceName>>,
         table_id: TableId,
-        table_name: Arc<DeferredLoad<TableName>>,
+        table: Arc<DeferredLoad<TableMetadata>>,
     ) -> Arc<Mutex<PartitionData>> {
         (**self)
-            .get_partition(
-                partition_key,
-                namespace_id,
-                namespace_name,
-                table_id,
-                table_name,
-            )
+            .get_partition(partition_key, namespace_id, namespace_name, table_id, table)
             .await
     }
 }
@@ -61,7 +55,7 @@ mod tests {
     use crate::{
         buffer_tree::partition::{resolver::mock::MockPartitionProvider, SortKeyState},
         test_util::{
-            defer_namespace_name_1_sec, defer_table_name_1_sec, PartitionDataBuilder,
+            defer_namespace_name_1_sec, defer_table_metadata_1_sec, PartitionDataBuilder,
             ARBITRARY_NAMESPACE_ID, ARBITRARY_PARTITION_ID, ARBITRARY_PARTITION_KEY,
             ARBITRARY_TABLE_ID,
         },
@@ -70,10 +64,10 @@ mod tests {
     #[tokio::test]
     async fn test_arc_impl() {
         let namespace_loader = defer_namespace_name_1_sec();
-        let table_name_loader = defer_table_name_1_sec();
+        let table_loader = defer_table_metadata_1_sec();
 
         let data = PartitionDataBuilder::new()
-            .with_table_name_loader(Arc::clone(&table_name_loader))
+            .with_table_loader(Arc::clone(&table_loader))
             .with_namespace_loader(Arc::clone(&namespace_loader))
             .build();
 
@@ -85,7 +79,7 @@ mod tests {
                 ARBITRARY_NAMESPACE_ID,
                 Arc::clone(&namespace_loader),
                 ARBITRARY_TABLE_ID,
-                Arc::clone(&table_name_loader),
+                Arc::clone(&table_loader),
             )
             .await;
         assert_eq!(got.lock().partition_id(), ARBITRARY_PARTITION_ID);
@@ -94,9 +88,6 @@ mod tests {
             got.lock().namespace_name().to_string(),
             namespace_loader.to_string()
         );
-        assert_eq!(
-            got.lock().table_name().to_string(),
-            table_name_loader.to_string()
-        );
+        assert_eq!(got.lock().table().to_string(), table_loader.to_string());
     }
 }

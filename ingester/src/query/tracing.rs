@@ -2,6 +2,7 @@ use std::borrow::Cow;
 
 use async_trait::async_trait;
 use data_types::{NamespaceId, TableId};
+use predicate::Predicate;
 use trace::span::{Span, SpanRecorder};
 
 use super::QueryExec;
@@ -42,12 +43,19 @@ where
         table_id: TableId,
         columns: Vec<String>,
         span: Option<Span>,
+        predicate: Option<Predicate>,
     ) -> Result<Self::Response, QueryError> {
         let mut recorder = SpanRecorder::new(span).child(self.name.clone());
 
         match self
             .inner
-            .query_exec(namespace_id, table_id, columns, recorder.span().cloned())
+            .query_exec(
+                namespace_id,
+                table_id,
+                columns,
+                recorder.span().cloned(),
+                predicate,
+            )
             .await
         {
             Ok(v) => {
@@ -111,6 +119,7 @@ mod tests {
                 TableId::new(24),
                 vec![],
                 Some(span.child("root span")),
+                None,
             )
             .await
             .expect("wrapper should not modify result");
@@ -134,6 +143,7 @@ mod tests {
                 TableId::new(24),
                 vec![],
                 Some(span.child("root span")),
+                None,
             )
             .await
             .expect_err("wrapper should not modify result");

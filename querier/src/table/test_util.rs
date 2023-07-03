@@ -1,11 +1,12 @@
 use super::{PruneMetrics, QuerierTable, QuerierTableArgs};
 use crate::{
-    cache::CatalogCache, create_ingester_connection_for_testing, df_stats::ColumnRanges,
-    parquet::ChunkAdapter, IngesterPartition,
+    cache::CatalogCache, create_ingester_connection_for_testing, parquet::ChunkAdapter,
+    IngesterPartition,
 };
 use arrow::record_batch::RecordBatch;
 use data_types::ChunkId;
 use iox_catalog::interface::{get_schema_by_name, SoftDeletedRows};
+use iox_query::chunk_statistics::ColumnRanges;
 use iox_tests::{TestCatalog, TestPartition, TestTable};
 use mutable_batch_lp::test_helpers::lp_to_mutable_batch;
 use schema::{Projection, Schema};

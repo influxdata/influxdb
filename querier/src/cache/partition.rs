@@ -17,6 +17,7 @@ use data_types::{
 };
 use datafusion::scalar::ScalarValue;
 use iox_catalog::interface::Catalog;
+use iox_query::chunk_statistics::{ColumnRange, ColumnRanges};
 use iox_time::TimeProvider;
 use observability_deps::tracing::debug;
 use schema::sort::SortKey;
@@ -26,8 +27,6 @@ use std::{
     sync::Arc,
 };
 use trace::span::Span;
-
-use crate::df_stats::{ColumnRange, ColumnRanges};
 
 use super::{namespace::CachedTable, ram::RamSize};
 

@@ -6,10 +6,7 @@ use self::{
     invalidate_on_error::InvalidateOnErrorFlightClient,
     test_util::MockIngesterConnection,
 };
-use crate::{
-    cache::{namespace::CachedTable, CatalogCache},
-    df_stats::{create_chunk_statistics, ColumnRanges},
-};
+use crate::cache::{namespace::CachedTable, CatalogCache};
 use arrow::{datatypes::DataType, error::ArrowError, record_batch::RecordBatch};
 use arrow_flight::decode::DecodedPayload;
 use async_trait::async_trait;
@@ -22,7 +19,11 @@ use ingester_query_grpc::{
     encode_proto_predicate_as_base64, influxdata::iox::ingester::v1::IngesterQueryResponseMetadata,
     IngesterQueryRequest,
 };
-use iox_query::{util::compute_timenanosecond_min_max, QueryChunk, QueryChunkData};
+use iox_query::{
+    chunk_statistics::{create_chunk_statistics, ColumnRanges},
+    util::compute_timenanosecond_min_max,
+    QueryChunk, QueryChunkData,
+};
 use iox_time::{Time, TimeProvider};
 use metric::{DurationHistogram, Metric};
 use observability_deps::tracing::{debug, trace, warn};

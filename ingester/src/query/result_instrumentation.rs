@@ -58,6 +58,7 @@ use iox_time::{SystemProvider, Time, TimeProvider};
 use metric::{DurationHistogram, Metric, U64Histogram, U64HistogramOptions};
 use observability_deps::tracing::debug;
 use pin_project::{pin_project, pinned_drop};
+use predicate::Predicate;
 use trace::span::Span;
 
 use crate::query::{
@@ -204,12 +205,15 @@ where
         table_id: TableId,
         columns: Vec<String>,
         span: Option<Span>,
+        predicate: Option<Predicate>,
     ) -> Result<Self::Response, QueryError> {
         let started_at = self.time_provider.now();
 
+        // TODO(savage): Would accepting a predicate here require additional
+        // metrics to be added?
         let stream = self
             .inner
-            .query_exec(namespace_id, table_id, columns, span)
+            .query_exec(namespace_id, table_id, columns, span, predicate)
             .await?;
 
         let stream = QueryMetricContext::new(
@@ -467,7 +471,13 @@ mod tests {
             .with_time_provider(Arc::clone(&mock_time));
 
         let response = layer
-            .query_exec(ARBITRARY_NAMESPACE_ID, ARBITRARY_TABLE_ID, vec![], None)
+            .query_exec(
+                ARBITRARY_NAMESPACE_ID,
+                ARBITRARY_TABLE_ID,
+                vec![],
+                None,
+                None,
+            )
             .await
             .expect("query should succeed");
 
@@ -548,7 +558,13 @@ mod tests {
             .with_time_provider(Arc::clone(&mock_time));
 
         let response = layer
-            .query_exec(ARBITRARY_NAMESPACE_ID, ARBITRARY_TABLE_ID, vec![], None)
+            .query_exec(
+                ARBITRARY_NAMESPACE_ID,
+                ARBITRARY_TABLE_ID,
+                vec![],
+                None,
+                None,
+            )
             .await
             .expect("query should succeed");
 
@@ -628,7 +644,13 @@ mod tests {
             .with_time_provider(Arc::clone(&mock_time));
 
         let response = layer
-            .query_exec(ARBITRARY_NAMESPACE_ID, ARBITRARY_TABLE_ID, vec![], None)
+            .query_exec(
+                ARBITRARY_NAMESPACE_ID,
+                ARBITRARY_TABLE_ID,
+                vec![],
+                None,
+                None,
+            )
             .await
             .expect("query should succeed");
 
@@ -708,7 +730,13 @@ mod tests {
             .with_time_provider(Arc::clone(&mock_time));
 
         let response = layer
-            .query_exec(ARBITRARY_NAMESPACE_ID, ARBITRARY_TABLE_ID, vec![], None)
+            .query_exec(
+                ARBITRARY_NAMESPACE_ID,
+                ARBITRARY_TABLE_ID,
+                vec![],
+                None,
+                None,
+            )
             .await
             .expect("query should succeed");
 

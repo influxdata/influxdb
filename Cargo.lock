@@ -2628,6 +2628,7 @@ dependencies = [
  "parquet_file",
  "paste",
  "pin-project",
+ "predicate",
  "prost",
  "rand",
  "schema",
