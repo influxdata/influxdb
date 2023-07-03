@@ -21,7 +21,6 @@ metric = { path = "../metric" }
 object_store = { workspace = true }
 observability_deps = { path = "../observability_deps" }
 parquet_file = { path = "../parquet_file" }
-predicate = { path = "../predicate" }
 rand = "0.8.3"
 schema = { path = "../schema" }
 tokio = { version = "1", features = ["macros", "rt", "sync"] }

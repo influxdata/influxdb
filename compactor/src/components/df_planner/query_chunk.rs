@@ -2,15 +2,10 @@
 use std::{any::Any, sync::Arc};
 
 use data_types::{ChunkId, ChunkOrder, PartitionId};
-use datafusion::{error::DataFusionError, physical_plan::Statistics};
-use iox_query::{
-    exec::{stringset::StringSet, IOxSessionContext},
-    util::create_basic_summary,
-    QueryChunk, QueryChunkData,
-};
+use datafusion::physical_plan::Statistics;
+use iox_query::{util::create_basic_summary, QueryChunk, QueryChunkData};
 use observability_deps::tracing::debug;
 use parquet_file::{chunk::ParquetChunk, storage::ParquetStorage};
-use predicate::Predicate;
 use schema::{merge::SchemaMerger, sort::SortKey, Schema};
 use uuid::Uuid;
 
@@ -94,20 +89,6 @@ impl QueryChunk for QueryableParquetChunk {
     fn may_contain_pk_duplicates(&self) -> bool {
         // Data of a parquet file has no duplicates
         false
-    }
-
-    /// Return a set of Strings containing the distinct values in the
-    /// specified columns. If the predicate can be evaluated entirely
-    /// on the metadata of this Chunk. Returns `None` otherwise
-    ///
-    /// The requested columns must all have String type.
-    fn column_values(
-        &self,
-        _ctx: IOxSessionContext,
-        _column_name: &str,
-        _predicate: &Predicate,
-    ) -> Result<Option<StringSet>, DataFusionError> {
-        Ok(None)
     }
 
     fn data(&self) -> QueryChunkData {

@@ -16,17 +16,13 @@ use async_trait::async_trait;
 use backoff::{Backoff, BackoffConfig, BackoffError};
 use client_util::connection;
 use data_types::{ChunkId, ChunkOrder, NamespaceId, PartitionHashId, PartitionId};
-use datafusion::{error::DataFusionError, physical_plan::Statistics};
+use datafusion::physical_plan::Statistics;
 use futures::{stream::FuturesUnordered, TryStreamExt};
 use ingester_query_grpc::{
     encode_proto_predicate_as_base64, influxdata::iox::ingester::v1::IngesterQueryResponseMetadata,
     IngesterQueryRequest,
 };
-use iox_query::{
-    exec::{stringset::StringSet, IOxSessionContext},
-    util::compute_timenanosecond_min_max,
-    QueryChunk, QueryChunkData,
-};
+use iox_query::{util::compute_timenanosecond_min_max, QueryChunk, QueryChunkData};
 use iox_time::{Time, TimeProvider};
 use metric::{DurationHistogram, Metric};
 use observability_deps::tracing::{debug, trace, warn};
@@ -939,16 +935,6 @@ impl QueryChunk for IngesterChunk {
     fn may_contain_pk_duplicates(&self) -> bool {
         // ingester just dumps data, may contain duplicates!
         true
-    }
-
-    fn column_values(
-        &self,
-        _ctx: IOxSessionContext,
-        _column_name: &str,
-        _predicate: &Predicate,
-    ) -> Result<Option<StringSet>, DataFusionError> {
-        // TODO maybe some special handling?
-        Ok(None)
     }
 
     fn data(&self) -> QueryChunkData {

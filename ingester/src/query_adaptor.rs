@@ -6,14 +6,12 @@ use std::{any::Any, sync::Arc};
 use arrow::record_batch::RecordBatch;
 use arrow_util::util::ensure_schema;
 use data_types::{ChunkId, ChunkOrder, PartitionId};
-use datafusion::{error::DataFusionError, physical_plan::Statistics};
+use datafusion::physical_plan::Statistics;
 use iox_query::{
-    exec::{stringset::StringSet, IOxSessionContext},
     util::{compute_timenanosecond_min_max, create_basic_summary},
     QueryChunk, QueryChunkData,
 };
 use once_cell::sync::OnceCell;
-use predicate::Predicate;
 use schema::{merge::merge_record_batch_schemas, sort::SortKey, Projection, Schema};
 
 /// A queryable wrapper over a set of ordered [`RecordBatch`] snapshot from a
@@ -145,20 +143,6 @@ impl QueryChunk for QueryAdaptor {
         // always true because the rows across record batches have not been
         // de-duplicated.
         true
-    }
-
-    /// Return a set of Strings containing the distinct values in the
-    /// specified columns. If the predicate can be evaluated entirely
-    /// on the metadata of this Chunk. Returns `None` otherwise
-    ///
-    /// The requested columns must all have String type.
-    fn column_values(
-        &self,
-        _ctx: IOxSessionContext,
-        _column_name: &str,
-        _predicate: &Predicate,
-    ) -> Result<Option<StringSet>, DataFusionError> {
-        Ok(None)
     }
 
     fn data(&self) -> QueryChunkData {

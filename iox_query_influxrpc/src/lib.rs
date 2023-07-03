@@ -66,9 +66,6 @@ const CONCURRENT_TABLE_JOBS: usize = 10;
 
 #[derive(Debug, Snafu)]
 pub enum Error {
-    #[snafu(display("gRPC planner got error finding column values: {}", source))]
-    FindingColumnValues { source: DataFusionError },
-
     #[snafu(display(
         "gRPC planner got error fetching chunks for table '{}': {}",
         table_name,
@@ -180,7 +177,6 @@ impl Error {
             | Self::BuildingPlan { source, .. }
             | Self::ReadColumns { source, .. }
             | Self::CheckingChunkPredicate { source, .. }
-            | Self::FindingColumnValues { source, .. }
             | Self::CastingAggregates { source, .. } => {
                 DataFusionError::Context(format!("{method}: {msg}"), Box::new(source))
             }
@@ -480,7 +476,6 @@ impl InfluxRpcPlanner {
         )
         .and_then(|(table_name, table_schema, predicate, chunks)| async move {
             let mut chunks_full = vec![];
-            let mut known_values = BTreeSet::new();
 
             let chunks = prune_chunks(&table_schema, chunks, &predicate);
             for chunk in cheap_chunk_first(chunks) {
@@ -513,36 +508,15 @@ impl InfluxRpcPlanner {
                     }
                 );
 
-                // try and get the list of values directly from metadata
-                let mut ctx = self.ctx.child_ctx("tag_values execution");
-                ctx.set_metadata("table", table_name.to_string());
-
-                let maybe_values = chunk
-                    .column_values(ctx, tag_name, &predicate)
-                    .context(FindingColumnValuesSnafu)?;
-
-                match maybe_values {
-                    Some(mut names) => {
-                        debug!(
-                            %table_name,
-                            names=?names,
-                            chunk_id=%chunk.id().get(),
-                            "tag values found from metadata",
-                        );
-                        known_values.append(&mut names);
-                    }
-                    None => {
-                        debug!(
-                            %table_name,
-                            chunk_id=%chunk.id().get(),
-                            "need full plan to find tag values"
-                        );
-                        chunks_full.push(chunk);
-                    }
-                }
+                debug!(
+                    %table_name,
+                    chunk_id=%chunk.id().get(),
+                    "need full plan to find tag values"
+                );
+                chunks_full.push(chunk);
             }
 
-            Ok((table_name, predicate, chunks_full, known_values))
+            Ok((table_name, predicate, chunks_full))
         })
         .try_collect()
         .await?;
@@ -554,9 +528,7 @@ impl InfluxRpcPlanner {
         // At this point, we have a set of tag_values we know at plan
         // time in `known_columns`, and some tables in chunks that we
         // need to run a plan to find what values pass the predicate.
-        for (table_name, predicate, chunks_full, known_values) in tables {
-            builder = builder.append_other(known_values.into());
-
+        for (table_name, predicate, chunks_full) in tables {
             if !chunks_full.is_empty() {
                 let schema = namespace
                     .table_schema(table_name)
