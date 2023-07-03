@@ -20,6 +20,10 @@ use crate::{database::initialize_db, dump_log_to_stdout, log_command, server_typ
 
 use super::{addrs::BindAddresses, ServerType, TestConfig};
 
+/// The duration of time a [`TestServer`] is given to gracefully shutdown after
+/// receiving a SIGTERM, before a SIGKILL is sent to kill it.
+pub const GRACEFUL_SERVER_STOP_TIMEOUT: Duration = Duration::from_secs(5);
+
 /// Represents a server that has been started and is available for
 /// testing.
 ///
@@ -603,8 +607,7 @@ impl Drop for TestServer {
             .expect("should be able to get a server process lock");
 
         server_dead_inner(server_lock.deref_mut());
-
-        kill_politely(&mut server_lock.child, Duration::from_secs(1));
+        kill_politely(&mut server_lock.child, GRACEFUL_SERVER_STOP_TIMEOUT);
 
         dump_log_to_stdout(
             &format!("{:?}", self.test_config.server_type()),
