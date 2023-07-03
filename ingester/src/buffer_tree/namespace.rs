@@ -63,6 +63,9 @@ pub(crate) struct NamespaceData<O> {
     ///
     /// The [`TableProvider`] acts as a [`DeferredLoad`] constructor to
     /// resolve the catalog [`Table`] for new [`TableData`] out of the hot path.
+    ///
+    ///
+    /// [`Table`]: data_types::Table
     tables: ArcMap<TableId, TableData<O>>,
     catalog_table_resolver: Arc<dyn TableProvider>,
     /// The count of tables initialised in this Ingester so far, across all
