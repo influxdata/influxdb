@@ -325,6 +325,7 @@ async fn query_after_shutdown_sees_new_files() {
         Step::WriteLineProtocol("bananas,tag1=A,tag2=B val=42i 123456".to_string()),
         Step::AssertNumParquetFiles { expected: 0 }, // test invariant
         Step::GracefulStopIngesters,
+        Step::AssertNumParquetFiles { expected: 1 },
         Step::Query {
             sql: "select * from bananas".to_string(),
             expected: vec![
