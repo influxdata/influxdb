@@ -32,6 +32,7 @@ use crate::{
     query::{
         partition_response::PartitionResponse, response::PartitionStream, QueryError, QueryExec,
     },
+    query_adaptor::QueryAdaptor,
 };
 
 /// Metadata from the catalog for a table
@@ -288,102 +289,28 @@ where
                     assert_eq!(id, data.partition_id());
 
                     let data = Arc::new(data);
-                    if let Some(predicate) = &predicate {
-                        // Filter using the partition key
-                        let column_ranges = Arc::new(
-                            build_column_values(&table_partition_template, partition_key.inner())
-                                .filter_map(|(col, val)| {
-                                    let range = match val {
-                                        ColumnValue::Identity(s) => {
-                                            let s = Arc::new(ScalarValue::from(s.as_ref()));
-                                            ColumnRange {
-                                                min_value: Arc::clone(&s),
-                                                max_value: s,
-                                            }
-                                        }
-                                        ColumnValue::Prefix(p) => {
-                                            if p.is_empty() {
-                                                // full range => value is useless
-                                                return None;
-                                            }
 
-                                            // If the partition only has a prefix of the tag value (it was truncated) then form a conservative
-                                            // range:
-                                            //
-                                            //
-                                            // # Minimum
-                                            // Use the prefix itself.
-                                            //
-                                            // Note that the minimum is inclusive.
-                                            //
-                                            // All values in the partition are either:
-                                            // - identical to the prefix, in which case they are included by the inclusive minimum
-                                            // - have the form `"<prefix><s>"`, and it holds that `"<prefix><s>" > "<prefix>"` for all
-                                            //   strings `"<s>"`.
-                                            //
-                                            //
-                                            // # Maximum
-                                            // Use `"<prefix_excluding_last_char><char::max>"`.
-                                            //
-                                            // Note that the maximum is inclusive.
-                                            //
-                                            // All strings in this partition must be smaller than this constructed maximum, because
-                                            // string comparison is front-to-back and the `"<prefix_excluding_last_char><char::max>" > "<prefix>"`.
-
-                                            let min_value = Arc::new(ScalarValue::from(p.as_ref()));
-
-                                            let mut chars = p.as_ref().chars().collect::<Vec<_>>();
-                                            *chars
-                                                .last_mut()
-                                                .expect("checked that prefix is not empty") =
-                                                std::char::MAX;
-                                            let max_value = Arc::new(ScalarValue::from(
-                                                chars.into_iter().collect::<String>().as_str(),
-                                            ));
-
-                                            ColumnRange {
-                                                min_value,
-                                                max_value,
-                                            }
-                                        }
-                                    };
-
-                                    Some((Arc::from(col), range))
-                                })
-                                .collect::<HashMap<_, _>>(),
-                        );
-
-                        let chunk_statistics = Arc::new(create_chunk_statistics(
-                            data.num_rows(),
-                            data.schema(),
-                            data.ts_min_max(),
-                            &column_ranges,
-                        ));
-
-                        let keep_after_pruning = prune_summaries(
-                            data.schema(),
-                            &[(chunk_statistics, data.schema().as_arrow())],
-                            predicate,
-                        )
-                        // Errors are logged by `iox_query` and sometimes fine, e.g. for not implemented DataFusion
-                        // features or upstream bugs. The querier uses the same strategy. Pruning is a mere
-                        // optimization and should not lead to crashes.
-                        .ok()
-                        .map(|vals| {
-                            vals.into_iter()
-                                .next()
-                                .expect("one chunk in, one chunk out")
+                    // Potentially prune out this partition if the partition
+                    // template & derived partition key can be used to match
+                    // against the optional predicate.
+                    if predicate
+                        .as_ref()
+                        .map(|p| {
+                            !keep_after_pruning_partition_key(
+                                &table_partition_template,
+                                &partition_key,
+                                p,
+                                &data,
+                            )
                         })
-                        .unwrap_or(true);
-
-                        if !keep_after_pruning {
-                            return PartitionResponse::new(
-                                vec![],
-                                id,
-                                hash_id,
-                                completed_persistence_count,
-                            );
-                        }
+                        .unwrap_or_default()
+                    {
+                        return PartitionResponse::new(
+                            vec![],
+                            id,
+                            hash_id,
+                            completed_persistence_count,
+                        );
                     }
 
                     // Project the data if necessary
@@ -406,6 +333,106 @@ where
 
         Ok(PartitionStream::new(futures::stream::iter(partitions)))
     }
+}
+
+/// Return true if `data` contains one or more rows matching `predicate`,
+/// pruning based on the `partition_key` and `template`.
+///
+/// Returns false iff it can be proven that all of data does not match the
+/// predicate.
+fn keep_after_pruning_partition_key(
+    table_partition_template: &TablePartitionTemplateOverride,
+    partition_key: &PartitionKey,
+    predicate: &Predicate,
+    data: &QueryAdaptor,
+) -> bool {
+    // Construct a set of per-column min/max statistics based on the partition
+    // key values.
+    let column_ranges = Arc::new(
+        build_column_values(table_partition_template, partition_key.inner())
+            .filter_map(|(col, val)| {
+                let range = match val {
+                    ColumnValue::Identity(s) => {
+                        let s = Arc::new(ScalarValue::from(s.as_ref()));
+                        ColumnRange {
+                            min_value: Arc::clone(&s),
+                            max_value: s,
+                        }
+                    }
+                    ColumnValue::Prefix(p) if p.is_empty() => return None,
+                    ColumnValue::Prefix(p) => {
+                        // If the partition only has a prefix of the tag value
+                        // (it was truncated) then form a conservative range:
+                        //
+                        // # Minimum
+                        // Use the prefix itself.
+                        //
+                        // Note that the minimum is inclusive.
+                        //
+                        // All values in the partition are either:
+                        //
+                        // - identical to the prefix, in which case they are
+                        //   included by the inclusive minimum
+                        //
+                        // - have the form `"<prefix><s>"`, and it holds that
+                        //   `"<prefix><s>" > "<prefix>"` for all strings
+                        //   `"<s>"`.
+                        //
+                        // # Maximum
+                        // Use `"<prefix_excluding_last_char><char::max>"`.
+                        //
+                        // Note that the maximum is inclusive.
+                        //
+                        // All strings in this partition must be smaller than
+                        // this constructed maximum, because string comparison
+                        // is front-to-back and the
+                        // `"<prefix_excluding_last_char><char::max>" >
+                        // "<prefix>"`.
+
+                        let min_value = Arc::new(ScalarValue::from(p.as_ref()));
+
+                        let mut chars = p.as_ref().chars().collect::<Vec<_>>();
+                        *chars.last_mut().expect("checked that prefix is not empty") =
+                            std::char::MAX;
+                        let max_value = Arc::new(ScalarValue::from(
+                            chars.into_iter().collect::<String>().as_str(),
+                        ));
+
+                        ColumnRange {
+                            min_value,
+                            max_value,
+                        }
+                    }
+                };
+
+                Some((Arc::from(col), range))
+            })
+            .collect::<HashMap<_, _>>(),
+    );
+
+    let chunk_statistics = Arc::new(create_chunk_statistics(
+        data.num_rows(),
+        data.schema(),
+        data.ts_min_max(),
+        &column_ranges,
+    ));
+
+    prune_summaries(
+        data.schema(),
+        &[(chunk_statistics, data.schema().as_arrow())],
+        predicate,
+    )
+    // Errors are logged by `iox_query` and sometimes fine, e.g. for not
+    // implemented DataFusion features or upstream bugs. The querier uses the
+    // same strategy. Pruning is a mere optimization and should not lead to
+    // crashes or unreadable data.
+    .ok()
+    .map(|vals| {
+        vals.into_iter()
+            .next()
+            .expect("one chunk in, one chunk out")
+    })
+    .unwrap_or(true)
 }
 
 #[cfg(test)]
