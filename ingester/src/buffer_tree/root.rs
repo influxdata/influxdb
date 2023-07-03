@@ -231,16 +231,19 @@ where
 mod tests {
     use std::{sync::Arc, time::Duration};
 
+    use arrow::datatypes::DataType;
     use assert_matches::assert_matches;
     use data_types::{PartitionId, PartitionKey};
     use datafusion::{
         assert_batches_eq, assert_batches_sorted_eq,
         prelude::{col, lit},
+        scalar::ScalarValue,
     };
     use futures::StreamExt;
     use lazy_static::lazy_static;
     use metric::{Attributes, Metric};
     use predicate::Predicate;
+    use test_helpers::maybe_start_logging;
 
     use super::*;
     use crate::{
@@ -355,6 +358,8 @@ mod tests {
             paste::paste! {
                 #[tokio::test]
                 async fn [<test_write_query_ $name>]() {
+                    maybe_start_logging();
+
                     // Configure the mock partition provider with the provided
                     // partitions.
                     let partition_provider = Arc::new(MockPartitionProvider::default()
@@ -705,7 +710,14 @@ mod tests {
                 None,
             )
         ],
-        predicate = Some(Predicate::new().with_expr(col("region").eq(lit(PARTITION2_KEY.inner())))),
+        // NOTE: The querier will coerce the type of the predicates correctly, so the ingester does NOT need to perform
+        //       type coercion. This type should reflect that.
+        predicate = Some(Predicate::new().with_expr(col("region").eq(lit(
+            ScalarValue::Dictionary(
+                Box::new(DataType::Int32),
+                Box::new(ScalarValue::from(PARTITION2_KEY.inner()))
+            )
+        )))),
         want = [
             "+----------+------+-------------------------------+",
             "| region   | temp | time                          |",
