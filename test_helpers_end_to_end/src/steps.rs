@@ -263,6 +263,15 @@ pub enum Step {
         expected: Vec<&'static str>,
     },
 
+    /// Attempt to gracefully shutdown all running ingester instances.
+    ///
+    /// This step blocks until all ingesters have gracefully stopped, or at
+    /// least [`GRACEFUL_SERVER_STOP_TIMEOUT`] elapses before they are killed.
+    ///
+    /// [`GRACEFUL_SERVER_STOP_TIMEOUT`]:
+    ///     crate::server_fixture::GRACEFUL_SERVER_STOP_TIMEOUT
+    GracefulStopIngesters,
+
     /// Retrieve the metrics and verify the results using the provided
     /// validation function.
     ///
@@ -576,6 +585,11 @@ where
                     batches.push(RecordBatch::new_empty(schema));
                     assert_batches_sorted_eq!(expected, &batches);
                     info!("====Done running");
+                }
+                Step::GracefulStopIngesters => {
+                    info!("====Gracefully stop all ingesters");
+
+                    state.cluster_mut().gracefully_stop_ingesters();
                 }
                 Step::VerifiedMetrics(verify) => {
                     info!("====Begin validating metrics");
