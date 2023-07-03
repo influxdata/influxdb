@@ -12,7 +12,7 @@ use data_types::{
 use datafusion::scalar::ScalarValue;
 use iox_query::{
     chunk_statistics::{create_chunk_statistics, ColumnRange},
-    pruning::keep_after_pruning,
+    pruning::prune_summaries,
     QueryChunk,
 };
 use mutable_batch::MutableBatch;
@@ -356,14 +356,17 @@ where
                             &column_ranges,
                         ));
 
-                        if !keep_after_pruning(
+                        let keep_after_pruning = prune_summaries(
                             data.schema(),
-                            chunk_statistics,
-                            data.schema().as_arrow(),
+                            &[(chunk_statistics, data.schema().as_arrow())],
                             predicate,
                         )
                         .expect("TODO FIX THIS")
-                        {
+                        .into_iter()
+                        .next()
+                        .expect("one chunk in, one chunk out");
+
+                        if !keep_after_pruning {
                             return PartitionResponse::new(
                                 vec![],
                                 id,
