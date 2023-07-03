@@ -361,10 +361,16 @@ where
                             &[(chunk_statistics, data.schema().as_arrow())],
                             predicate,
                         )
-                        .expect("TODO FIX THIS")
-                        .into_iter()
-                        .next()
-                        .expect("one chunk in, one chunk out");
+                        // Errors are logged by `iox_query` and sometimes fine, e.g. for not implemented DataFusion
+                        // features or upstream bugs. The querier uses the same strategy. Pruning is a mere
+                        // optimization and should not lead to crashes.
+                        .ok()
+                        .map(|vals| {
+                            vals.into_iter()
+                                .next()
+                                .expect("one chunk in, one chunk out")
+                        })
+                        .unwrap_or(true);
 
                         if !keep_after_pruning {
                             return PartitionResponse::new(
