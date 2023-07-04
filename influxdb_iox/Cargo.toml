@@ -52,7 +52,7 @@ backtrace = "0.3"
 bytes = "1.4"
 clap = { version = "4", features = ["derive", "env"] }
 comfy-table = { version = "7.0", default-features = false }
-console-subscriber = { version = "0.1.9", optional = true, features = ["parking_lot"] }
+console-subscriber = { version = "0.1.10", optional = true, features = ["parking_lot"] }
 dotenvy = "0.15.7"
 futures = "0.3"
 futures-util = { version = "0.3" }
