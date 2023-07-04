@@ -105,6 +105,8 @@ pub(super) async fn graceful_shutdown_handler<F, T, P>(
     //
     //  https://github.com/influxdata/influxdb_iox/issues/6566
     //
+    // TODO(savage): Remove this once the WAL reference tracker is hooked up.
+    //               Should this drop the reference to the handle?
     wal.rotate().expect("failed to rotate wal");
     for file in wal.closed_segments() {
         if let Err(error) = wal.delete(file.id()).await {

@@ -45,7 +45,9 @@ use crate::{
     },
     server::grpc::GrpcDelegate,
     timestamp_oracle::TimestampOracle,
-    wal::{rotate_task::periodic_rotation, wal_sink::WalSink},
+    wal::{
+        reference_tracker::WalReferenceHandle, rotate_task::periodic_rotation, wal_sink::WalSink,
+    },
 };
 
 use self::graceful_shutdown::graceful_shutdown_handler;
@@ -98,6 +100,11 @@ pub struct IngesterGuard<T> {
     /// Aborted on drop.
     rotation_task: tokio::task::JoinHandle<()>,
 
+    /// Handle to the WAL reference actor's task, it
+    /// is aborted on drop of the guard, or the actor's
+    /// handle.
+    wal_reference_actor_task: tokio::task::JoinHandle<()>,
+
     /// The task handle executing the graceful shutdown once triggered.
     graceful_shutdown_handler: tokio::task::JoinHandle<()>,
     shutdown_complete: Shared<oneshot::Receiver<()>>,
@@ -124,6 +131,7 @@ where
 impl<T> Drop for IngesterGuard<T> {
     fn drop(&mut self) {
         self.rotation_task.abort();
+        self.wal_reference_actor_task.abort();
         self.graceful_shutdown_handler.abort();
     }
 }
@@ -328,6 +336,12 @@ where
     // Initialise the WAL
     let wal = Wal::new(wal_directory).await.map_err(InitError::WalInit)?;
 
+    // Set up the WAL segment reference tracker
+    let (wal_reference_handle, wal_reference_actor) =
+        WalReferenceHandle::new(Arc::clone(&wal), &metrics);
+    let wal_reference_handle = Arc::new(wal_reference_handle);
+    let wal_reference_actor_task = tokio::spawn(wal_reference_actor.run());
+
     // Replay the WAL log files, if any.
     let max_sequence_number =
         wal_replay::replay(&wal, &buffer, Arc::clone(&persist_handle), &metrics)
@@ -366,6 +380,7 @@ where
     let rotation_task = tokio::spawn(periodic_rotation(
         Arc::clone(&wal),
         wal_rotation_period,
+        Arc::clone(&wal_reference_handle),
         Arc::clone(&buffer),
         Arc::clone(&persist_handle),
     ));
@@ -403,6 +418,7 @@ where
             persist_handle,
         ),
         rotation_task,
+        wal_reference_actor_task,
         graceful_shutdown_handler: shutdown_task,
         shutdown_complete: shutdown_rx.shared(),
     })

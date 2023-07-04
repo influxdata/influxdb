@@ -163,7 +163,7 @@ impl WalReferenceHandle {
     /// A future that resolves when there are no partially persisted / inactive
     /// WAL segment files known to the reference tracker.
     ///
-    /// NOTE: the active WAL segement file may contain unpersisted operations!
+    /// NOTE: the active WAL segment file may contain unpersisted operations!
     /// The tracker is only aware of inactive/rotated-out WAL files.
     ///
     /// NOTE: the number of references may reach 0 multiple times over the
@@ -204,17 +204,18 @@ impl WalReferenceHandle {
 
 #[cfg(test)]
 mod tests {
-    use super::*;
-    use crate::test_util::{ARBITRARY_NAMESPACE_ID, ARBITRARY_PARTITION_ID, ARBITRARY_TABLE_ID};
     use assert_matches::assert_matches;
     use async_trait::async_trait;
-    use data_types::{ColumnId, ColumnSet, ParquetFileParams, SequenceNumber, Timestamp};
+    use data_types::SequenceNumber;
     use futures::{task::Context, Future, FutureExt};
     use metric::{assert_counter, U64Gauge};
     use parking_lot::Mutex;
     use std::{pin::Pin, task::Poll, time::Duration};
     use test_helpers::timeout::FutureTimeout;
     use tokio::sync::Notify;
+
+    use super::*;
+    use crate::test_util::new_persist_notification;
 
     /// A mock file deleter that records the IDs it was asked to delete.
     #[derive(Debug, Default)]
@@ -253,32 +254,6 @@ mod tests {
         vals.into_iter().map(SequenceNumber::new).collect()
     }
 
-    /// Return a persist completion notification with the given
-    /// [`SequenceNumberSet`] values.
-    fn new_note<T>(vals: T) -> Arc<CompletedPersist>
-    where
-        T: IntoIterator<Item = u64>,
-    {
-        Arc::new(CompletedPersist::new(
-            ParquetFileParams {
-                namespace_id: ARBITRARY_NAMESPACE_ID,
-                table_id: ARBITRARY_TABLE_ID,
-                partition_id: ARBITRARY_PARTITION_ID,
-                partition_hash_id: None,
-                object_store_id: Default::default(),
-                min_time: Timestamp::new(42),
-                max_time: Timestamp::new(42),
-                file_size_bytes: 42424242,
-                row_count: 24,
-                compaction_level: data_types::CompactionLevel::Initial,
-                created_at: Timestamp::new(1234),
-                column_set: ColumnSet::new([1, 2, 3, 4].into_iter().map(ColumnId::new)),
-                max_l0_created_at: Timestamp::new(42),
-            },
-            new_set(vals),
-        ))
-    }
-
     /// Test in-order notifications:
     ///
     ///   * WAL file is rotated and the tracker notified
@@ -305,7 +280,9 @@ mod tests {
             .expect("did not receive file processed notification");
 
         // Submit a persist notification that removes refs 1 & 2.
-        handle.enqueue_persist_notification(new_note([1, 2])).await;
+        handle
+            .enqueue_persist_notification(new_persist_notification([1, 2]))
+            .await;
 
         // Ensure the file was not deleted
         assert!(wal.calls().is_empty());
@@ -318,7 +295,9 @@ mod tests {
 
         // Finally release the last IDs
         let deleted_file_waker = wal.deleted_file_waker();
-        handle.enqueue_persist_notification(new_note([3, 4])).await;
+        handle
+            .enqueue_persist_notification(new_persist_notification([3, 4]))
+            .await;
 
         // Wait for it to be processed
         deleted_file_waker.await;
@@ -372,9 +351,15 @@ mod tests {
 
         // Submit a persist notification for the entire set of IDs [1,2,3,4] in
         // the upcoming first WAL, and partially the second WAL
-        handle.enqueue_persist_notification(new_note([2])).await;
-        handle.enqueue_persist_notification(new_note([1])).await;
-        handle.enqueue_persist_notification(new_note([3, 4])).await;
+        handle
+            .enqueue_persist_notification(new_persist_notification([2]))
+            .await;
+        handle
+            .enqueue_persist_notification(new_persist_notification([1]))
+            .await;
+        handle
+            .enqueue_persist_notification(new_persist_notification([3, 4]))
+            .await;
 
         // Add a file with IDs 1, 2, 3
         let deleted_file_waker = wal.deleted_file_waker();
@@ -404,7 +389,9 @@ mod tests {
         assert_eq!(wal.calls().len(), 1);
 
         // Release one of the remaining two refs
-        handle.enqueue_persist_notification(new_note([6])).await;
+        handle
+            .enqueue_persist_notification(new_persist_notification([6]))
+            .await;
 
         // Still no deletion
         assert_eq!(wal.calls().len(), 1);
@@ -519,7 +506,9 @@ mod tests {
             .expect("did not receive file processed notification");
 
         // Reduce the reference count for file 1 (leaving 3 references)
-        handle.enqueue_persist_notification(new_note([1, 2])).await;
+        handle
+            .enqueue_persist_notification(new_persist_notification([1, 2]))
+            .await;
 
         // Enqueue the second file.
         handle
@@ -541,7 +530,9 @@ mod tests {
 
         // Release the references to file 2
         let deleted_file_waker = wal.deleted_file_waker();
-        handle.enqueue_persist_notification(new_note([6])).await;
+        handle
+            .enqueue_persist_notification(new_persist_notification([6]))
+            .await;
 
         deleted_file_waker.await;
 
@@ -612,13 +603,17 @@ mod tests {
                 .expect("did not receive file processed notification");
 
             // Remove some file references, leaving 1 reference
-            handle.enqueue_persist_notification(new_note([1, 2])).await;
+            handle
+                .enqueue_persist_notification(new_persist_notification([1, 2]))
+                .await;
 
             // The tracker is not empty, so the future must not resolve.
             assert_matches!(Pin::new(&mut empty_waker).poll(&mut cx), Poll::Pending);
 
             // Add a persist notification, populating the "persisted" set.
-            handle.enqueue_persist_notification(new_note([5])).await;
+            handle
+                .enqueue_persist_notification(new_persist_notification([5]))
+                .await;
 
             // Release the file reference, leaving only the above reference
             // remaining (id=5)
