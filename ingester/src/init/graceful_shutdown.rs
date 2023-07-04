@@ -101,17 +101,13 @@ pub(super) async fn graceful_shutdown_handler<F, T, P>(
     // buffer state, therefore all WAL segments can be deleted to prevent
     // spurious replay and re-uploading of the same data.
     //
-    // This should be made redundant by persist-driven WAL dropping:
-    //
-    //  https://github.com/influxdata/influxdb_iox/issues/6566
-    //
-    // TODO(savage): Remove this once the WAL reference tracker is hooked up.
-    //               Should this drop the reference to the handle?
+    // TODO(savage): This deletion should be redundant due to the persist-driven
+    // WAL dropping.
     wal.rotate().expect("failed to rotate wal");
     for file in wal.closed_segments() {
         if let Err(error) = wal.delete(file.id()).await {
             // This MAY occur due to concurrent segment deletion driven by the
-            // WAL rotation task.
+            // WAL reference counting actor.
             //
             // If this is a legitimate failure to delete (not a "not found")
             // then this causes the data to be re-uploaded - an acceptable

@@ -36,8 +36,8 @@ use crate::{
     ingest_state::IngestState,
     ingester_id::IngesterId,
     persist::{
-        completion_observer::NopObserver, file_metrics::ParquetFileInstrumentation,
-        handle::PersistHandle, hot_partitions::HotPartitionPersister,
+        file_metrics::ParquetFileInstrumentation, handle::PersistHandle,
+        hot_partitions::HotPartitionPersister,
     },
     query::{
         exec_instrumentation::QueryExecInstrumentation,
@@ -294,6 +294,14 @@ where
     // write path.
     let ingest_state = Arc::new(IngestState::default());
 
+    // Initialise the WAL
+    let wal = Wal::new(wal_directory).await.map_err(InitError::WalInit)?;
+
+    // Prepare the WAL segment reference tracker
+    let (wal_reference_handle, wal_reference_actor) =
+        WalReferenceHandle::new(Arc::clone(&wal), &metrics);
+    let wal_reference_handle = Arc::new(wal_reference_handle);
+
     // Spawn the persist workers to compact partition data, convert it into
     // Parquet files, and upload them to object storage.
     let persist_handle = PersistHandle::new(
@@ -304,8 +312,9 @@ where
         object_store,
         Arc::clone(&catalog),
         // Register a post-persistence observer that emits Parquet file
-        // attributes as metrics.
-        ParquetFileInstrumentation::new(NopObserver::default(), &metrics),
+        // attributes as metrics, and notifies the WAL segment reference tracker of
+        // completed persist actions.
+        ParquetFileInstrumentation::new(Arc::clone(&wal_reference_handle), &metrics),
         &metrics,
     );
     let persist_handle = Arc::new(persist_handle);
@@ -333,16 +342,8 @@ where
         Arc::clone(&metrics),
     ));
 
-    // Initialise the WAL
-    let wal = Wal::new(wal_directory).await.map_err(InitError::WalInit)?;
-
-    // Set up the WAL segment reference tracker
-    let (wal_reference_handle, wal_reference_actor) =
-        WalReferenceHandle::new(Arc::clone(&wal), &metrics);
-    let wal_reference_handle = Arc::new(wal_reference_handle);
+    // Start the WAL reference actor and then replay the WAL log files, if any.
     let wal_reference_actor_task = tokio::spawn(wal_reference_actor.run());
-
-    // Replay the WAL log files, if any.
     let max_sequence_number =
         wal_replay::replay(&wal, &buffer, Arc::clone(&persist_handle), &metrics)
             .await
@@ -403,7 +404,7 @@ where
         Arc::clone(&ingest_state),
         Arc::clone(&buffer),
         Arc::clone(&persist_handle),
-        wal,
+        Arc::clone(&wal),
     ));
 
     Ok(IngesterGuard {
