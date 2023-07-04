@@ -24,6 +24,6 @@ unicode-segmentation = "1.10.1"
 [dev-dependencies]
 assert_matches = "1.5.0"
 mutable_batch_lp = { path = "../mutable_batch_lp" }
-paste = "1.0.12"
+paste = "1.0.13"
 proptest = { version = "1.2.0", default-features = false }
 rand = "0.8"
