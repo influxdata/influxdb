@@ -2028,7 +2028,7 @@ mod test {
         use crate::plan::ir::TagSet;
         use datafusion::common::Result;
         use influxdb_influxql_parser::select::SelectStatement;
-        use schema::{InfluxColumnType, InfluxFieldType};
+        use schema::{InfluxColumnType, InfluxFieldType, SchemaBuilder};
 
         /// Test implementation that converts `Select` to `SelectStatement` so that it can be
         /// converted back to a string.
@@ -2647,7 +2647,18 @@ mod test {
         /// Projections which contain function calls
         #[test]
         fn projection_call_expr() {
-            let namespace = MockSchemaProvider::default();
+            let mut namespace = MockSchemaProvider::default();
+            // Add a schema with tags that could conflict with aliasing against an
+            // existing call expression, in this case "last"
+            namespace.add_schema(
+                SchemaBuilder::new()
+                    .measurement("conflicts")
+                    .timestamp()
+                    .tag("last")
+                    .influx_field("field_f64", InfluxFieldType::Float)
+                    .build()
+                    .unwrap(),
+            );
 
             let stmt = parse_select("SELECT COUNT(field_i64) FROM temp_01");
             let stmt = rewrite_select_statement(&namespace, &stmt).unwrap();
@@ -2693,6 +2704,14 @@ mod test {
             assert_eq!(
                 stmt.to_string(),
                 "SELECT time::timestamp AS time, sum(field_f64::float) AS sum_field_f64, sum(field_i64::integer) AS sum_field_i64, sum(field_u64::unsigned) AS sum_field_u64, sum(shared_field0::float) AS sum_shared_field0 FROM temp_01"
+            );
+
+            // Handles conflicts when call expression is renamed to match an existing tag
+            let stmt = parse_select("SELECT LAST(field_f64), last FROM conflicts");
+            let stmt = rewrite_select_statement(&namespace, &stmt).unwrap();
+            assert_eq!(
+                stmt.to_string(),
+                "SELECT time::timestamp AS time, last(field_f64::float) AS last, last::tag AS last_1 FROM conflicts"
             );
         }
     }
