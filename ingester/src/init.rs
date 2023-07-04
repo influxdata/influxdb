@@ -360,6 +360,7 @@ where
                         &metrics,
                     ),
                     Arc::clone(&wal),
+                    Arc::clone(&wal_reference_handle),
                 ),
                 "wal",
             ),
