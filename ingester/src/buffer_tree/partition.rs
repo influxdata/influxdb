@@ -349,7 +349,7 @@ impl PartitionData {
 
 #[cfg(test)]
 mod tests {
-    use std::{ops::Deref, time::Duration};
+    use std::time::Duration;
 
     use arrow::compute::SortOptions;
     use arrow_util::assert_batches_eq;
@@ -397,15 +397,7 @@ mod tests {
                 "| London | 2.0    | millions | 1970-01-01T00:00:00.000000010Z |",
                 "+--------+--------+----------+--------------------------------+",
             ];
-            assert_batches_eq!(
-                expected,
-                &*data
-                    .record_batches()
-                    .iter()
-                    .map(Deref::deref)
-                    .cloned()
-                    .collect::<Vec<_>>()
-            );
+            assert_batches_eq!(expected, data.record_batches());
         }
 
         // Perform a another write, adding data to the existing queryable data
@@ -427,15 +419,7 @@ mod tests {
                 "| Madrid | 4.0    | none     | 1970-01-01T00:00:00.000000020Z |",
                 "+--------+--------+----------+--------------------------------+",
             ];
-            assert_batches_eq!(
-                expected,
-                &*data
-                    .record_batches()
-                    .iter()
-                    .map(Deref::deref)
-                    .cloned()
-                    .collect::<Vec<_>>()
-            );
+            assert_batches_eq!(expected, data.record_batches());
         }
     }
 
@@ -468,15 +452,7 @@ mod tests {
             "| London | 2.0    | millions | 1970-01-01T00:00:00.000000010Z |",
             "+--------+--------+----------+--------------------------------+",
         ];
-        assert_batches_eq!(
-            expected,
-            &*persisting_data
-                .record_batches()
-                .iter()
-                .map(Deref::deref)
-                .cloned()
-                .collect::<Vec<_>>()
-        );
+        assert_batches_eq!(expected, persisting_data.record_batches());
 
         // Ensure the started batch ident is increased after a persist call, but not the completed
         // batch ident.
@@ -503,15 +479,7 @@ mod tests {
                 "| Madrid | 4.0    | none     | 1970-01-01T00:00:00.000000020Z |",
                 "+--------+--------+----------+--------------------------------+",
             ];
-            assert_batches_eq!(
-                expected,
-                &*data
-                    .record_batches()
-                    .iter()
-                    .map(Deref::deref)
-                    .cloned()
-                    .collect::<Vec<_>>()
-            );
+            assert_batches_eq!(expected, data.record_batches());
         }
 
         // The persist now "completes".
@@ -536,15 +504,7 @@ mod tests {
                 "| Madrid | 4.0    | none    | 1970-01-01T00:00:00.000000020Z |",
                 "+--------+--------+---------+--------------------------------+",
             ];
-            assert_batches_eq!(
-                expected,
-                &*data
-                    .record_batches()
-                    .iter()
-                    .map(Deref::deref)
-                    .cloned()
-                    .collect::<Vec<_>>()
-            );
+            assert_batches_eq!(expected, data.record_batches());
         }
     }
 
@@ -557,12 +517,7 @@ mod tests {
         // A helper function to dedupe the record batches in [`QueryAdaptor`]
         // and assert the resulting batch contents.
         async fn assert_deduped(expect: &[&str], batch: QueryAdaptor) {
-            let batch = batch
-                .record_batches()
-                .iter()
-                .map(Deref::deref)
-                .cloned()
-                .collect::<Vec<_>>();
+            let batch = batch.record_batches().to_vec();
 
             let sort_keys = vec![PhysicalSortExpr {
                 expr: col("time", &batch[0].schema()).unwrap(),
@@ -787,12 +742,7 @@ mod tests {
                 "| 1970-01-01T00:00:00.000000042Z | 2.0 |",
                 "+--------------------------------+-----+",
             ],
-            &*data
-                .record_batches()
-                .iter()
-                .map(Deref::deref)
-                .cloned()
-                .collect::<Vec<_>>()
+            &*data.record_batches().to_vec()
         );
 
         // Persist again, moving the last write to the persisting state and
@@ -816,12 +766,7 @@ mod tests {
                 "| 1970-01-01T00:00:00.000000042Z | 3.0 |",
                 "+--------------------------------+-----+",
             ],
-            &*data
-                .record_batches()
-                .iter()
-                .map(Deref::deref)
-                .cloned()
-                .collect::<Vec<_>>()
+            &*data.record_batches().to_vec()
         );
 
         // Persist again, moving the last write to the persisting state and
@@ -846,12 +791,7 @@ mod tests {
                 "| 1970-01-01T00:00:00.000000042Z | 4.0 |",
                 "+--------------------------------+-----+",
             ],
-            &*data
-                .record_batches()
-                .iter()
-                .map(Deref::deref)
-                .cloned()
-                .collect::<Vec<_>>()
+            &*data.record_batches().to_vec()
         );
 
         // Finish persisting the second batch out-of-order! The middle entry,
@@ -871,12 +811,7 @@ mod tests {
                 "| 1970-01-01T00:00:00.000000042Z | 4.0 |",
                 "+--------------------------------+-----+",
             ],
-            &*data
-                .record_batches()
-                .iter()
-                .map(Deref::deref)
-                .cloned()
-                .collect::<Vec<_>>()
+            &*data.record_batches().to_vec()
         );
 
         // Finish persisting the last batch.
@@ -894,12 +829,7 @@ mod tests {
                 "| 1970-01-01T00:00:00.000000042Z | 4.0 |",
                 "+--------------------------------+-----+",
             ],
-            &*data
-                .record_batches()
-                .iter()
-                .map(Deref::deref)
-                .cloned()
-                .collect::<Vec<_>>()
+            &*data.record_batches().to_vec()
         );
 
         // Finish persisting the first batch.
@@ -917,12 +847,7 @@ mod tests {
                 "| 1970-01-01T00:00:00.000000042Z | 4.0 |",
                 "+--------------------------------+-----+",
             ],
-            &*data
-                .record_batches()
-                .iter()
-                .map(Deref::deref)
-                .cloned()
-                .collect::<Vec<_>>()
+            &*data.record_batches().to_vec()
         );
     }
 
@@ -1019,12 +944,7 @@ mod tests {
                 "| Madrid | 2.0    | none     | 1970-01-01T00:00:00.000000011Z |",
                 "+--------+--------+----------+--------------------------------+",
             ],
-            &*data
-                .record_batches()
-                .iter()
-                .map(Deref::deref)
-                .cloned()
-                .collect::<Vec<_>>()
+            &*data.record_batches().to_vec()
         );
     }
 

@@ -1,6 +1,4 @@
 #![allow(dead_code)]
-use std::sync::Arc;
-
 use arrow::record_batch::RecordBatch;
 use data_types::{sequence_number_set::SequenceNumberSet, SequenceNumber};
 use mutable_batch::MutableBatch;
@@ -122,15 +120,13 @@ where
     /// Returns the current buffer data.
     ///
     /// This is always a cheap method call.
-    fn get_query_data(&self) -> Vec<Arc<RecordBatch>> {
+    fn get_query_data(&self) -> Vec<RecordBatch> {
         self.state.get_query_data()
     }
 }
 
 #[cfg(test)]
 mod tests {
-    use std::ops::Deref;
-
     use arrow_util::assert_batches_eq;
     use mutable_batch_lp::test_helpers::lp_to_mutable_batch;
     use schema::Projection;
@@ -175,7 +171,7 @@ mod tests {
             "| true  | 42.0     | platanos | 1991-03-10T00:00:42.000000042Z |",
             "+-------+----------+----------+--------------------------------+",
         ];
-        assert_batches_eq!(&expected, &[w1_data[0].deref().clone()]);
+        assert_batches_eq!(&expected, &[w1_data[0].clone()]);
 
         // Apply another write.
         buffer
@@ -205,7 +201,7 @@ mod tests {
             "+-------+----------+----------+--------------------------------+",
         ];
         assert_eq!(w2_data.len(), 1);
-        assert_batches_eq!(&expected, &[w2_data[0].deref().clone()]);
+        assert_batches_eq!(&expected, &[w2_data[0].clone()]);
 
         // Ensure the same data is returned for a second read.
         {
@@ -216,7 +212,7 @@ mod tests {
             let same_arcs = w2_data
                 .iter()
                 .zip(second_read.iter())
-                .all(|(a, b)| Arc::ptr_eq(a, b));
+                .all(|(a, b)| a.columns().as_ptr() == b.columns().as_ptr());
             assert!(same_arcs);
         }
 
@@ -231,7 +227,7 @@ mod tests {
         let same_arcs = w2_data
             .into_iter()
             .zip(final_data.into_iter())
-            .all(|(a, b)| Arc::ptr_eq(&a, &b));
+            .all(|(a, b)| a.columns().as_ptr() == b.columns().as_ptr());
         assert!(same_arcs);
 
         // Assert the sequence numbers were recorded.
@@ -260,14 +256,14 @@ mod tests {
 
         assert_eq!(buffer.get_query_data().len(), 1);
 
-        let snapshot = &buffer.get_query_data()[0];
+        let snapshot = buffer.get_query_data()[0].clone();
 
         // Generate the combined buffer from the original inputs to compare
         // against.
         mb1.extend_from(&mb2).unwrap();
         let want = mb1.to_arrow(Projection::All).unwrap();
 
-        assert_eq!(&**snapshot, &want);
+        assert_eq!(snapshot, want);
     }
 
     #[test]

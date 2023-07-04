@@ -1,7 +1,5 @@
 //! A write buffer.
 
-use std::sync::Arc;
-
 use arrow::record_batch::RecordBatch;
 use mutable_batch::MutableBatch;
 use schema::Projection;
@@ -35,12 +33,10 @@ pub(crate) struct Buffering {
 /// This method panics if converting the buffered data (if any) into an Arrow
 /// [`RecordBatch`] fails (a non-transient error).
 impl Queryable for Buffering {
-    fn get_query_data(&self) -> Vec<Arc<RecordBatch>> {
+    fn get_query_data(&self) -> Vec<RecordBatch> {
         let data = self.buffer.buffer().map(|v| {
-            Arc::new(
-                v.to_arrow(Projection::All)
-                    .expect("failed to snapshot buffer data"),
-            )
+            v.to_arrow(Projection::All)
+                .expect("failed to snapshot buffer data")
         });
 
         match data {

@@ -1,7 +1,5 @@
 //! A writfield1 buffer, with one or more snapshots.
 
-use std::sync::Arc;
-
 use arrow::record_batch::RecordBatch;
 
 use super::BufferState;
@@ -15,18 +13,18 @@ pub(crate) struct Snapshot {
     /// Snapshots generated from previous buffer contents.
     ///
     /// INVARIANT: this array is always non-empty.
-    snapshots: Vec<Arc<RecordBatch>>,
+    snapshots: Vec<RecordBatch>,
 }
 
 impl Snapshot {
-    pub(super) fn new(snapshots: Vec<Arc<RecordBatch>>) -> Self {
+    pub(super) fn new(snapshots: Vec<RecordBatch>) -> Self {
         assert!(!snapshots.is_empty());
         Self { snapshots }
     }
 }
 
 impl Queryable for Snapshot {
-    fn get_query_data(&self) -> Vec<Arc<RecordBatch>> {
+    fn get_query_data(&self) -> Vec<RecordBatch> {
         self.snapshots.clone()
     }
 }

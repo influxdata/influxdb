@@ -1,7 +1,5 @@
 //! A writfield1 buffer, with one or more snapshots.
 
-use std::sync::Arc;
-
 use arrow::record_batch::RecordBatch;
 use data_types::sequence_number_set::SequenceNumberSet;
 
@@ -14,17 +12,17 @@ pub(crate) struct Persisting {
     /// Snapshots generated from previous buffer contents to be persisted.
     ///
     /// INVARIANT: this array is always non-empty.
-    snapshots: Vec<Arc<RecordBatch>>,
+    snapshots: Vec<RecordBatch>,
 }
 
 impl Persisting {
-    pub(super) fn new(snapshots: Vec<Arc<RecordBatch>>) -> Self {
+    pub(super) fn new(snapshots: Vec<RecordBatch>) -> Self {
         Self { snapshots }
     }
 }
 
 impl Queryable for Persisting {
-    fn get_query_data(&self) -> Vec<Arc<RecordBatch>> {
+    fn get_query_data(&self) -> Vec<RecordBatch> {
         self.snapshots.clone()
     }
 }

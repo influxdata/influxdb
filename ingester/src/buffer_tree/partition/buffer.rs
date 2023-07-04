@@ -1,5 +1,3 @@
-use std::sync::Arc;
-
 use arrow::record_batch::RecordBatch;
 use data_types::SequenceNumber;
 use mutable_batch::MutableBatch;
@@ -63,7 +61,7 @@ impl DataBuffer {
 
     /// Return all data for this buffer, ordered by the [`SequenceNumber`] from
     /// which it was buffered with.
-    pub(crate) fn get_query_data(&mut self) -> Vec<Arc<RecordBatch>> {
+    pub(crate) fn get_query_data(&mut self) -> Vec<RecordBatch> {
         // Take ownership of the FSM and return the data within it.
         self.0.mutate(|fsm| match fsm {
             // The buffering state can return data.
