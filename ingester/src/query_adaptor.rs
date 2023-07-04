@@ -55,7 +55,7 @@ impl QueryAdaptor {
         //
         // This upholds an invariant that simplifies dealing with empty
         // partitions - if there is a QueryAdaptor, it contains data.
-        assert!(data.iter().map(|b| b.num_rows()).sum::<usize>() > 0);
+        assert!(data.iter().any(|b| b.num_rows() > 0));
 
         let schema = merge_record_batch_schemas(&data);
         Self {
