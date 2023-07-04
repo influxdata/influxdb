@@ -12,7 +12,7 @@ license.workspace = true
 authz = { path = "../authz", features = ["http"] }
 clap_blocks = { path = "../clap_blocks" }
 generated_types = { path = "../generated_types" }
-heappy = { git = "https://github.com/mkmik/heappy", rev = "1d6ac77a4026fffce8680a7b31a9f6e9859b5e73", features = ["enable_heap_profiler", "jemalloc_shim", "measure_free"], optional = true }
+heappy = { git = "https://github.com/mkmik/heappy", rev = "1de977a241cdd768acc5b6c82c0728b30c7db7b4", features = ["enable_heap_profiler", "jemalloc_shim", "measure_free"], optional = true }
 metric = { path = "../metric" }
 metric_exporters = { path = "../metric_exporters" }
 observability_deps = { path = "../observability_deps" }
