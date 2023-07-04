@@ -1351,6 +1351,10 @@ pub static SETUPS: Lazy<HashMap<SetupName, SetupSteps>> = Lazy::new(|| {
                     select_test,tag0=a,tag1=b,st_tag=ab,st_tag_ab=x st_field="ab",st_field_ab=1 1667181600000000000
                     select_test,tag0=b,tag1=a,st_tag=ba,st_tag_ba=x st_field="ba",st_field_ba=1 1667181600000000000
                     select_test,tag0=b,tag1=b,st_tag=bb,st_tag_bb=x st_field="bb",st_field_bb=1 1667181600000000000
+                    selector_test_1,tag1=a field1=1 1
+                    selector_test_1,tag2=b field2=2 2
+                    selector_test_1,tag3=c field3=3 3
+                    selector_test_2,first=a f=1 1
                     "#
                     .to_string(),
                 ),

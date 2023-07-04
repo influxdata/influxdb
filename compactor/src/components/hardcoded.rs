@@ -4,7 +4,7 @@
 
 use std::{sync::Arc, time::Duration};
 
-use compactor_scheduler::PartitionsSource;
+use compactor_scheduler::{create_scheduler, PartitionsSource, Scheduler};
 use data_types::CompactionLevel;
 use object_store::memory::InMemory;
 
@@ -87,8 +87,13 @@ use super::{
 
 /// Get hardcoded components.
 pub fn hardcoded_components(config: &Config) -> Arc<Components> {
+    let scheduler = create_scheduler(
+        config.scheduler_config.clone(),
+        Arc::clone(&config.catalog),
+        Arc::clone(&config.time_provider),
+    );
     let (partitions_source, commit, partition_done_sink) =
-        make_partitions_source_commit_partition_sink(config);
+        make_partitions_source_commit_partition_sink(config, Arc::clone(&scheduler));
 
     Arc::new(Components {
         partition_stream: make_partition_stream(config, partitions_source),
@@ -113,12 +118,13 @@ pub fn hardcoded_components(config: &Config) -> Arc<Components> {
 
 fn make_partitions_source_commit_partition_sink(
     config: &Config,
+    scheduler: Arc<dyn Scheduler>,
 ) -> (
     Arc<dyn PartitionsSource>,
     Arc<dyn Commit>,
     Arc<dyn PartitionDoneSink>,
 ) {
-    let partitions_source = ScheduledPartitionsSource::new(config);
+    let partitions_source = ScheduledPartitionsSource::new(scheduler);
 
     let partition_done_sink: Arc<dyn PartitionDoneSink> = if config.shadow_mode {
         Arc::new(MockPartitionDoneSink::new())
@@ -376,10 +382,11 @@ fn make_file_classifier(config: &Config) -> Arc<dyn FileClassifier> {
     Arc::new(LoggingFileClassifierWrapper::new(Arc::new(
         SplitBasedFileClassifier::new(
             TargetLevelSplit::new(),
-            NonOverlapSplit::new(),
+            NonOverlapSplit::new(config.max_desired_file_size_bytes / 20), // rewrite non-overlapping files up to 5% of max
             UpgradeSplit::new(config.max_desired_file_size_bytes),
             LoggingSplitOrCompactWrapper::new(MetricsSplitOrCompactWrapper::new(
                 SplitCompact::new(
+                    config.max_num_files_per_plan,
                     config.max_compact_size_bytes(),
                     config.max_desired_file_size_bytes,
                 ),

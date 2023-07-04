@@ -12,7 +12,7 @@ futures = "0.3"
 hashbrown = { workspace = true }
 http = "0.2"
 http-body = "0.4"
-itertools = "0.10"
+itertools = "0.11"
 metric = { path = "../metric" }
 observability_deps = { path = "../observability_deps" }
 parking_lot = "0.12"

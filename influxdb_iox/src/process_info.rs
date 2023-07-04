@@ -4,6 +4,9 @@ use iox_time::{SystemProvider, Time, TimeProvider};
 use metric::U64Gauge;
 use once_cell::sync::Lazy;
 
+#[cfg(tokio_unstable)]
+use tokio_metrics_bridge::setup_tokio_metrics;
+
 /// Package version.
 pub static IOX_VERSION: Lazy<&'static str> =
     Lazy::new(|| option_env!("CARGO_PKG_VERSION").unwrap_or("UNKNOWN"));
@@ -46,6 +49,18 @@ pub fn setup_metric_registry() -> Arc<metric::Registry> {
             ("uuid", PROCESS_UUID.as_ref()),
         ])
         .set(PROCESS_START_TIME.timestamp() as u64);
+
+    // Register jemalloc metrics
+    #[cfg(all(not(feature = "heappy"), feature = "jemalloc_replacing_malloc"))]
+    registry.register_instrument("jemalloc_metrics", crate::jemalloc::JemallocMetrics::new);
+
+    // Register tokio metric for main runtime
+    #[cfg(tokio_unstable)]
+    setup_tokio_metrics(
+        tokio::runtime::Handle::current().metrics(),
+        "main",
+        Arc::clone(&registry),
+    );
 
     registry
 }

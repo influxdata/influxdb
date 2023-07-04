@@ -86,7 +86,7 @@ jobs:
       CARGO_INCREMENTAL: "0"
       # Disable full debug symbol generation to speed up CI build
       # "1" means line tables only, which is useful for panic tracebacks.
-      RUSTFLAGS: "-C debuginfo=1"
+      CARGO_PROFILE_DEV_DEBUG: "1"
       # https://github.com/rust-lang/cargo/issues/10280
       CARGO_NET_GIT_FETCH_WITH_CLI: "true"
     steps:
@@ -103,7 +103,7 @@ jobs:
       CARGO_INCREMENTAL: "0"
       # Disable full debug symbol generation to speed up CI build
       # "1" means line tables only, which is useful for panic tracebacks.
-      RUSTFLAGS: "-C debuginfo=1"
+      CARGO_PROFILE_DEV_DEBUG: "1"
       # https://github.com/rust-lang/cargo/issues/10280
       CARGO_NET_GIT_FETCH_WITH_CLI: "true"
     steps:
@@ -126,7 +126,7 @@ jobs:
       CARGO_INCREMENTAL: "0"
       # Disable full debug symbol generation to speed up CI build
       # "1" means line tables only, which is useful for panic tracebacks.
-      RUSTFLAGS: "-C debuginfo=1"
+      CARGO_PROFILE_DEV_DEBUG: "1"
       # https://github.com/rust-lang/cargo/issues/10280
       CARGO_NET_GIT_FETCH_WITH_CLI: "true"
     steps:
@@ -147,7 +147,7 @@ jobs:
       CARGO_INCREMENTAL: "0"
       # Disable full debug symbol generation to speed up CI build
       # "1" means line tables only, which is useful for panic tracebacks.
-      RUSTFLAGS: "-C debuginfo=1"
+      CARGO_PROFILE_DEV_DEBUG: "1"
       # https://github.com/rust-lang/cargo/issues/10280
       CARGO_NET_GIT_FETCH_WITH_CLI: "true"
       # Turn warnings into errors
@@ -217,7 +217,7 @@ jobs:
       CARGO_INCREMENTAL: "0"
       # Disable full debug symbol generation to speed up CI build
       # "1" means line tables only, which is useful for panic tracebacks.
-      RUSTFLAGS: "-C debuginfo=1"
+      CARGO_PROFILE_DEV_DEBUG: "1"
       # https://github.com/rust-lang/cargo/issues/10280
       CARGO_NET_GIT_FETCH_WITH_CLI: "true"
       RUST_BACKTRACE: "1"
@@ -257,7 +257,7 @@ jobs:
       CARGO_INCREMENTAL: "0"
       # Disable full debug symbol generation to speed up CI build
       # "1" means line tables only, which is useful for panic tracebacks.
-      RUSTFLAGS: "-C debuginfo=1"
+      CARGO_PROFILE_DEV_DEBUG: "1"
       # https://github.com/rust-lang/cargo/issues/10280
       CARGO_NET_GIT_FETCH_WITH_CLI: "true"
       RUST_BACKTRACE: "1"
@@ -279,7 +279,7 @@ jobs:
       CARGO_INCREMENTAL: "0"
       # Disable full debug symbol generation to speed up CI build
       # "1" means line tables only, which is useful for panic tracebacks.
-      RUSTFLAGS: "-C debuginfo=1"
+      CARGO_PROFILE_DEV_DEBUG: "1"
       # https://github.com/rust-lang/cargo/issues/10280
       CARGO_NET_GIT_FETCH_WITH_CLI: "true"
       RUST_BACKTRACE: "1"
@@ -303,7 +303,7 @@ jobs:
       CARGO_INCREMENTAL: "0"
       # Disable full debug symbol generation to speed up CI build
       # "1" means line tables only, which is useful for panic tracebacks.
-      RUSTFLAGS: "-C debuginfo=1"
+      CARGO_PROFILE_DEV_DEBUG: "1"
       # https://github.com/rust-lang/cargo/issues/10280
       CARGO_NET_GIT_FETCH_WITH_CLI: "true"
       # The `2xlarge` resource class that we use has 32GB RAM but also 16 CPUs. This means we have 2GB RAM per core on

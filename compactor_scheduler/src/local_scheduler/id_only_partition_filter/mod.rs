@@ -12,7 +12,7 @@ pub(crate) mod shard;
 ///
 /// This will usually be used BEFORE any parquet files for the given partition are fetched and hence is a quite
 /// efficient filter stage.
-pub trait IdOnlyPartitionFilter: Debug + Display + Send + Sync {
+pub(crate) trait IdOnlyPartitionFilter: Debug + Display + Send + Sync {
     /// Returns true if the partition should be included.
     fn apply(&self, partition_id: PartitionId) -> bool;
 }

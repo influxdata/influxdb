@@ -1,12 +1,13 @@
 use crate::plan::error;
 use arrow::array::{Array, ArrayRef, Int64Array};
-use arrow::datatypes::DataType;
+use arrow::datatypes::{DataType, TimeUnit};
 use datafusion::common::{downcast_value, DataFusionError, Result, ScalarValue};
 use datafusion::logical_expr::{
     Accumulator, AccumulatorFunctionImplementation, AggregateUDF, ReturnTypeFunction, Signature,
     StateTypeFunction, TypeSignature, Volatility,
 };
 use once_cell::sync::Lazy;
+use std::mem::replace;
 use std::sync::Arc;
 
 /// A list of the numeric types supported by InfluxQL that can be be used
@@ -247,8 +248,11 @@ pub(crate) const NON_NEGATIVE_DIFFERENCE_NAME: &str = "non_negative_difference";
 /// Definition of the `NON_NEGATIVE_DIFFERENCE` user-defined aggregate function.
 pub(crate) static NON_NEGATIVE_DIFFERENCE: Lazy<Arc<AggregateUDF>> = Lazy::new(|| {
     let return_type: ReturnTypeFunction = Arc::new(|dt| Ok(Arc::new(dt[0].clone())));
-    let accumulator: AccumulatorFunctionImplementation =
-        Arc::new(|dt| Ok(Box::new(NonNegativeDifferenceAccumulator::new(dt))));
+    let accumulator: AccumulatorFunctionImplementation = Arc::new(|dt| {
+        Ok(Box::new(NonNegative::<_>::new(DifferenceAccumulator::new(
+            dt,
+        ))))
+    });
     let state_type: StateTypeFunction = Arc::new(|_| Ok(Arc::new(vec![])));
     Arc::new(AggregateUDF::new(
         NON_NEGATIVE_DIFFERENCE_NAME,
@@ -266,37 +270,30 @@ pub(crate) static NON_NEGATIVE_DIFFERENCE: Lazy<Arc<AggregateUDF>> = Lazy::new(|
     ))
 });
 
+/// NonNegative is a wrapper around an Accumulator that transposes
+/// negative value to be NULL.
 #[derive(Debug)]
-struct NonNegativeDifferenceAccumulator {
-    acc: DifferenceAccumulator,
+struct NonNegative<T> {
+    acc: T,
 }
 
-impl NonNegativeDifferenceAccumulator {
-    fn new(data_type: &DataType) -> Self {
-        let acc = DifferenceAccumulator::new(data_type);
+impl<T> NonNegative<T> {
+    fn new(acc: T) -> Self {
         Self { acc }
     }
 }
 
-impl Accumulator for NonNegativeDifferenceAccumulator {
-    /// `state` is only called when used as an aggregate function. It can be
-    /// can safely left unimplemented, as this accumulator is only used as a window aggregate.
-    ///
-    /// See: <https://docs.rs/datafusion/latest/datafusion/physical_plan/trait.Accumulator.html#tymethod.state>
+impl<T: Accumulator> Accumulator for NonNegative<T> {
     fn state(&self) -> Result<Vec<ScalarValue>> {
-        error::internal("unexpected call to NonNegativeDifferenceAccumulator::state")
+        self.acc.state()
     }
 
     fn update_batch(&mut self, values: &[ArrayRef]) -> Result<()> {
         self.acc.update_batch(values)
     }
 
-    /// `merge_batch` is only called when used as an aggregate function. It can be
-    /// can safely left unimplemented, as this accumulator is only used as a window aggregate.
-    ///
-    /// See: <https://docs.rs/datafusion/latest/datafusion/physical_plan/trait.Accumulator.html#tymethod.state>
-    fn merge_batch(&mut self, _states: &[ArrayRef]) -> Result<()> {
-        error::internal("unexpected call to NonNegativeDifferenceAccumulator::merge_batch")
+    fn merge_batch(&mut self, states: &[ArrayRef]) -> Result<()> {
+        self.acc.merge_batch(states)
     }
 
     fn evaluate(&self) -> Result<ScalarValue> {
@@ -309,5 +306,185 @@ impl Accumulator for NonNegativeDifferenceAccumulator {
 
     fn size(&self) -> usize {
         self.acc.size()
+    }
+}
+
+/// Name of the `DERIVATIVE` user-defined aggregate function.
+pub(crate) const DERIVATIVE_NAME: &str = "derivative";
+
+pub(crate) fn derivative_udf(unit: i64) -> AggregateUDF {
+    let return_type: ReturnTypeFunction = Arc::new(|_| Ok(Arc::new(DataType::Float64)));
+    let accumulator: AccumulatorFunctionImplementation =
+        Arc::new(move |_| Ok(Box::new(DerivativeAccumulator::new(unit))));
+    let state_type: StateTypeFunction = Arc::new(|_| Ok(Arc::new(vec![])));
+    let sig = Signature::one_of(
+        NUMERICS
+            .iter()
+            .map(|dt| {
+                TypeSignature::Exact(vec![
+                    DataType::Timestamp(TimeUnit::Nanosecond, None),
+                    dt.clone(),
+                ])
+            })
+            .collect(),
+        Volatility::Immutable,
+    );
+    AggregateUDF::new(
+        format!("{DERIVATIVE_NAME}(unit: {unit})").as_str(),
+        &sig,
+        &return_type,
+        &accumulator,
+        // State shouldn't be called, so no schema to report
+        &state_type,
+    )
+}
+
+/// Name of the `NON_NEGATIVE_DERIVATIVE` user-defined aggregate function.
+pub(crate) const NON_NEGATIVE_DERIVATIVE_NAME: &str = "non_negative_derivative";
+
+pub(crate) fn non_negative_derivative_udf(unit: i64) -> AggregateUDF {
+    let return_type: ReturnTypeFunction = Arc::new(|_| Ok(Arc::new(DataType::Float64)));
+    let accumulator: AccumulatorFunctionImplementation = Arc::new(move |_| {
+        Ok(Box::new(NonNegative::<_>::new(DerivativeAccumulator::new(
+            unit,
+        ))))
+    });
+    let state_type: StateTypeFunction = Arc::new(|_| Ok(Arc::new(vec![])));
+    let sig = Signature::one_of(
+        NUMERICS
+            .iter()
+            .map(|dt| {
+                TypeSignature::Exact(vec![
+                    DataType::Timestamp(TimeUnit::Nanosecond, None),
+                    dt.clone(),
+                ])
+            })
+            .collect(),
+        Volatility::Immutable,
+    );
+    AggregateUDF::new(
+        format!("{NON_NEGATIVE_DERIVATIVE_NAME}(unit: {unit})").as_str(),
+        &sig,
+        &return_type,
+        &accumulator,
+        // State shouldn't be called, so no schema to report
+        &state_type,
+    )
+}
+
+#[derive(Debug)]
+pub(super) struct DerivativeAccumulator {
+    unit: i64,
+    prev: Option<Point>,
+    curr: Option<Point>,
+}
+
+impl DerivativeAccumulator {
+    fn new(unit: i64) -> Self {
+        Self {
+            unit,
+            prev: None,
+            curr: None,
+        }
+    }
+}
+
+impl Accumulator for DerivativeAccumulator {
+    /// `state` is only called when used as an aggregate function. It can be
+    /// can safely left unimplemented, as this accumulator is only used as a window aggregate.
+    ///
+    /// See: <https://docs.rs/datafusion/latest/datafusion/physical_plan/trait.Accumulator.html#tymethod.state>
+    fn state(&self) -> Result<Vec<ScalarValue>> {
+        error::internal("unexpected call to DerivativeAccumulator::state")
+    }
+
+    fn update_batch(&mut self, values: &[ArrayRef]) -> Result<()> {
+        if values.is_empty() {
+            return Ok(());
+        }
+
+        let times = &values[0];
+        let arr = &values[1];
+        for index in 0..arr.len() {
+            let time = match ScalarValue::try_from_array(times, index)? {
+                ScalarValue::TimestampNanosecond(Some(ts), _) => ts,
+                v => {
+                    return Err(DataFusionError::Internal(format!(
+                        "invalid time value: {}",
+                        v
+                    )))
+                }
+            };
+            let curr = Point::new(time, ScalarValue::try_from_array(arr, index)?);
+            let prev = replace(&mut self.curr, curr);
+
+            // don't replace the previous value if the current value has the same timestamp.
+            if self.prev.is_none()
+                || prev
+                    .as_ref()
+                    .is_some_and(|prev| prev.time > self.prev.as_ref().unwrap().time)
+            {
+                self.prev = prev
+            }
+        }
+        Ok(())
+    }
+
+    /// `merge_batch` is only called when used as an aggregate function. It can be
+    /// can safely left unimplemented, as this accumulator is only used as a window aggregate.
+    ///
+    /// See: <https://docs.rs/datafusion/latest/datafusion/physical_plan/trait.Accumulator.html#tymethod.state>
+    fn merge_batch(&mut self, _states: &[ArrayRef]) -> Result<()> {
+        error::internal("unexpected call to DerivativeAccumulator::merge_batch")
+    }
+
+    fn evaluate(&self) -> Result<ScalarValue> {
+        Ok(ScalarValue::Float64(
+            self.curr
+                .as_ref()
+                .and_then(|c| c.derivative(self.prev.as_ref(), self.unit)),
+        ))
+    }
+
+    fn size(&self) -> usize {
+        std::mem::size_of_val(self)
+    }
+}
+
+#[derive(Debug)]
+struct Point {
+    time: i64,
+    value: ScalarValue,
+}
+
+impl Point {
+    fn new(time: i64, value: ScalarValue) -> Option<Self> {
+        if value.is_null() {
+            None
+        } else {
+            Some(Self { time, value })
+        }
+    }
+
+    fn value_as_f64(&self) -> f64 {
+        match self.value {
+            ScalarValue::Int64(Some(v)) => v as f64,
+            ScalarValue::Float64(Some(v)) => v,
+            ScalarValue::UInt64(Some(v)) => v as f64,
+            _ => panic!("invalid point {:?}", self),
+        }
+    }
+
+    fn derivative(&self, prev: Option<&Self>, unit: i64) -> Option<f64> {
+        prev.and_then(|prev| {
+            let diff = self.value_as_f64() - prev.value_as_f64();
+            let elapsed = match self.time - prev.time {
+                // if the time hasn't changed then it is a NULL.
+                0 => return None,
+                v => v,
+            } as f64;
+            let devisor = elapsed / (unit as f64);
+            Some(diff / devisor)
+        })
     }
 }

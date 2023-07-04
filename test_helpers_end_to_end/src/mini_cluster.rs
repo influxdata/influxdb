@@ -334,6 +334,17 @@ impl MiniCluster {
         self.ingesters = restarted;
     }
 
+    /// Gracefully stop all ingesters and wait for them to exit.
+    ///
+    /// If the shutdown does not complete within
+    /// [`GRACEFUL_SERVER_STOP_TIMEOUT`] it is killed.
+    ///
+    /// [`GRACEFUL_SERVER_STOP_TIMEOUT`]:
+    ///     crate::server_fixture::GRACEFUL_SERVER_STOP_TIMEOUT
+    pub fn gracefully_stop_ingesters(&mut self) {
+        self.ingesters = vec![];
+    }
+
     /// Restart querier.
     ///
     /// This will break all currently connected clients!
@@ -470,24 +481,43 @@ impl MiniCluster {
             .await?
             .into_inner();
 
-        let (msg, app_metadata) = next_message(&mut performed_query).await.unwrap();
-        assert!(matches!(msg, DecodedPayload::None), "{msg:?}");
-
-        let schema = next_message(&mut performed_query)
-            .await
-            .map(|(msg, _)| unwrap_schema(msg));
-
-        let mut record_batches = vec![];
-        while let Some((msg, _md)) = next_message(&mut performed_query).await {
-            let batch = unwrap_record_batch(msg);
-            record_batches.push(batch);
+        let mut partitions = vec![];
+        let mut current_partition = None;
+        while let Some((msg, app_metadata)) = next_message(&mut performed_query).await {
+            match msg {
+                DecodedPayload::None => {
+                    if let Some(p) = std::mem::take(&mut current_partition) {
+                        partitions.push(p);
+                    }
+                    current_partition = Some(IngesterResponsePartition {
+                        app_metadata,
+                        schema: None,
+                        record_batches: vec![],
+                    });
+                }
+                DecodedPayload::Schema(schema) => {
+                    let current_partition =
+                        current_partition.as_mut().expect("schema w/o partition");
+                    assert!(
+                        current_partition.schema.is_none(),
+                        "got two schemas for a single partition"
+                    );
+                    current_partition.schema = Some(schema);
+                }
+                DecodedPayload::RecordBatch(batch) => {
+                    let current_partition =
+                        current_partition.as_mut().expect("batch w/o partition");
+                    assert!(current_partition.schema.is_some(), "batch w/o schema");
+                    current_partition.record_batches.push(batch);
+                }
+            }
         }
 
-        Ok(IngesterResponse {
-            app_metadata,
-            schema,
-            record_batches,
-        })
+        if let Some(p) = current_partition {
+            partitions.push(p);
+        }
+
+        Ok(IngesterResponse { partitions })
     }
 
     /// Ask all of the ingesters to persist their data.
@@ -578,6 +608,11 @@ impl MiniCluster {
 /// Gathers data from ingester Flight queries
 #[derive(Debug)]
 pub struct IngesterResponse {
+    pub partitions: Vec<IngesterResponsePartition>,
+}
+
+#[derive(Debug)]
+pub struct IngesterResponsePartition {
     pub app_metadata: IngesterQueryResponseMetadata,
     pub schema: Option<SchemaRef>,
     pub record_batches: Vec<RecordBatch>,
@@ -696,18 +731,4 @@ async fn next_message(
     let app_metadata: IngesterQueryResponseMetadata = Message::decode(app_metadata).unwrap();
 
     Some((payload, app_metadata))
-}
-
-fn unwrap_schema(msg: DecodedPayload) -> SchemaRef {
-    match msg {
-        DecodedPayload::Schema(s) => s,
-        _ => panic!("Unexpected message type: {msg:?}"),
-    }
-}
-
-fn unwrap_record_batch(msg: DecodedPayload) -> RecordBatch {
-    match msg {
-        DecodedPayload::RecordBatch(b) => b,
-        _ => panic!("Unexpected message type: {msg:?}"),
-    }
 }

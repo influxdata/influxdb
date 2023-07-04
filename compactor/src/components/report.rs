@@ -1,6 +1,5 @@
 //! Report component system state.
 
-use compactor_scheduler::ShardConfig;
 use observability_deps::tracing::info;
 
 use crate::config::Config;
@@ -14,6 +13,7 @@ pub fn log_config(config: &Config) {
         // no need to print the internal state of the registry
         metric_registry: _,
         catalog,
+        scheduler_config,
         parquet_store_real,
         parquet_store_scratchpad,
         exec,
@@ -26,11 +26,9 @@ pub fn log_config(config: &Config) {
         percentage_max_file_size,
         split_percentage,
         partition_timeout,
-        partitions_source,
         shadow_mode,
         enable_scratchpad,
         ignore_partition_skip_marker,
-        shard_config,
         min_num_l1_files_to_compact,
         process_once,
         parquet_files_sink_override,
@@ -42,15 +40,6 @@ pub fn log_config(config: &Config) {
         max_partition_fetch_queries_per_second,
     } = &config;
 
-    let (shard_cfg_n_shards, shard_cfg_shard_id) = match shard_config {
-        None => (None, None),
-        Some(shard_config) => {
-            // use struct unpack so we don't forget any members
-            let ShardConfig { n_shards, shard_id } = shard_config;
-            (Some(n_shards), Some(shard_id))
-        }
-    };
-
     let parquet_files_sink_override = parquet_files_sink_override
         .as_ref()
         .map(|_| "Some")
@@ -60,6 +49,7 @@ pub fn log_config(config: &Config) {
 
     info!(
         %catalog,
+        %scheduler_config,
         %parquet_store_real,
         %parquet_store_scratchpad,
         %exec,
@@ -72,12 +62,9 @@ pub fn log_config(config: &Config) {
         percentage_max_file_size,
         split_percentage,
         partition_timeout_secs=partition_timeout.as_secs_f32(),
-        %partitions_source,
         shadow_mode,
         enable_scratchpad,
         ignore_partition_skip_marker,
-        ?shard_cfg_n_shards,
-        ?shard_cfg_shard_id,
         min_num_l1_files_to_compact,
         process_once,
         simulate_without_object_store,

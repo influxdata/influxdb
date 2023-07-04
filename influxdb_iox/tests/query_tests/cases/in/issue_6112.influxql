@@ -490,12 +490,13 @@ SELECT FIRST(usage_idle), COUNT(usage_idle) FROM cpu WHERE time >= '2022-10-31T0
 -- FILL(0)
 SELECT FIRST(usage_idle) FROM cpu WHERE time >= '2022-10-31T02:00:00Z' AND time < '2022-10-31T02:02:00Z' GROUP BY TIME(30s), cpu FILL(0);
 
---
--- Not implemented: Selector queries with tag and field projections
--- See: https://github.com/influxdata/influxdb_iox/issues/7533
---
-
+-- Selector queries with tag and field projections
 SELECT FIRST(usage_idle), usage_user, usage_system FROM cpu;
+SELECT field1, FIRST(field2), field3 FROM selector_test_1 WHERE time >=0 AND time < 10 GROUP BY TIME(30s);
+SELECT field1, FIRST(field2), field3 FROM selector_test_1 WHERE time >=0 AND time < 10 GROUP BY TIME(30s) FILL(0);
+
+-- Selector queries with tag and field projections and name clashes
+SELECT FIRST(f), first FROM selector_test_2 WHERE time >=0 AND time < 10 GROUP BY TIME(30s);
 
 --
 -- DISTINCT

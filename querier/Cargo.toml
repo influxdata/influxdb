@@ -17,6 +17,7 @@ data_types = { path = "../data_types" }
 datafusion = { workspace = true }
 datafusion_util = { path = "../datafusion_util" }
 futures = "0.3"
+hashbrown = { version = "0.14.0" }
 influxdb_iox_client = { path = "../influxdb_iox_client" }
 iox_catalog = { path = "../iox_catalog" }
 iox_query = { path = "../iox_query" }
@@ -34,7 +35,7 @@ rand = "0.8.3"
 service_common = { path = "../service_common" }
 schema = { path = "../schema" }
 snafu = "0.7"
-tokio = { version = "1.28", features = ["macros", "parking_lot", "rt-multi-thread", "sync", "time"] }
+tokio = { version = "1.29", features = ["macros", "parking_lot", "rt-multi-thread", "sync", "time"] }
 tokio-util = { version = "0.7.8" }
 tonic = { workspace = true }
 trace = { path = "../trace" }
@@ -48,7 +49,7 @@ workspace-hack = { version = "0.1", path = "../workspace-hack" }
 arrow_util = { path = "../arrow_util" }
 assert_matches = "1.5"
 generated_types = { path = "../generated_types" }
-insta = { version = "1.29.0", features = ["yaml"] }
+insta = { version = "1.30.0", features = ["yaml"] }
 iox_tests = { path = "../iox_tests" }
 mutable_batch_lp = { path = "../mutable_batch_lp" }
 object_store_metrics = { path = "../object_store_metrics" }

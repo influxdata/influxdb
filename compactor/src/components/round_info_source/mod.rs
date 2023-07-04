@@ -1,8 +1,10 @@
 use std::{
+    cmp::max,
     fmt::{Debug, Display},
     sync::Arc,
 };
 
+use crate::components::split_or_compact::start_level_files_to_split::split_into_chains;
 use async_trait::async_trait;
 use data_types::{CompactionLevel, ParquetFile, Timestamp};
 use observability_deps::tracing::debug;
@@ -72,11 +74,12 @@ impl LevelBasedRoundInfo {
     }
 
     /// Returns true if number of files of the given start_level and
-    /// their overlapped files in next level is over limit
+    /// their overlapped files in next level is over limit, and if those
+    /// files are sufficiently small.
     ///
     /// over the limit means that the maximum number of files that a subsequent compaction
     /// branch may choose to compact in a single plan would exceed `max_num_files_per_plan`
-    pub fn too_many_files_to_compact(
+    pub fn too_many_small_files_to_compact(
         &self,
         files: &[ParquetFile],
         start_level: CompactionLevel,
@@ -86,6 +89,10 @@ impl LevelBasedRoundInfo {
             .filter(|f| f.compaction_level == start_level)
             .collect::<Vec<_>>();
         let num_start_level = start_level_files.len();
+        let size_start_level: usize = start_level_files
+            .iter()
+            .map(|f| f.file_size_bytes as usize)
+            .sum();
 
         let next_level_files = files
             .iter()
@@ -97,6 +104,46 @@ impl LevelBasedRoundInfo {
         // plan, run a pre-phase to reduce the number of files first
         let num_overlapped_files = get_num_overlapped_files(start_level_files, next_level_files);
         if num_start_level + num_overlapped_files > self.max_num_files_per_plan {
+            // This scaenario meets the simple criteria of start level files + their overlaps are lots of files.
+            // But ManySmallFiles implies we must compact only within the start level to reduce the quantity of
+            // start level files. There are several reasons why that might be unhelpful.
+
+            // Reason 1: Maybe its many LARGE files making reduction of file count in the start level impossible.
+            if size_start_level / num_start_level
+                > self.max_total_file_size_per_plan / self.max_num_files_per_plan
+            {
+                // Average start level file size is more than the average implied by max bytes & files per plan.
+                // Even though there are "many files", this is not "many small files".
+                // There isn't much (perhaps not any) file reduction to be done, attempting it can get us stuck
+                // in a loop.
+                return false;
+            }
+
+            // Reason 2: Maybe there are so many start level files because we did a bunch of splits.
+            // Note that we'll do splits to ensure each start level file overlaps at most one target level file.
+            // If the prior round did that, and now we declare this ManySmallFiles, which forces compactions
+            // within the start level, we'll undo the splits performed in the prior round, which can get us
+            // stuck in a loop.
+            let chains = split_into_chains(files.to_vec());
+            let mut max_target_level_files: usize = 0;
+            let mut max_chain_len: usize = 0;
+            for chain in chains {
+                let target_file_cnt = chain
+                    .iter()
+                    .filter(|f| f.compaction_level == start_level.next())
+                    .count();
+                max_target_level_files = max(max_target_level_files, target_file_cnt);
+
+                let chain_len = chain.len();
+                max_chain_len = max(max_chain_len, chain_len);
+            }
+            if max_target_level_files <= 1 && max_chain_len <= self.max_num_files_per_plan {
+                // All of our start level files overlap with at most one target level file.  If the prior round did
+                // splits to cause this, declaring this a ManySmallFiles case can lead to an endless loop.
+                // If we got lucky and this happened without splits, declaring this ManySmallFiles will waste
+                // our good fortune.
+                return false;
+            }
             return true;
         }
 
@@ -113,7 +160,7 @@ impl RoundInfoSource for LevelBasedRoundInfo {
     ) -> Result<RoundInfo, DynError> {
         let start_level = get_start_level(files);
 
-        if self.too_many_files_to_compact(files, start_level) {
+        if self.too_many_small_files_to_compact(files, start_level) {
             return Ok(RoundInfo::ManySmallFiles {
                 start_level,
                 max_num_files_to_group: self.max_num_files_per_plan,
@@ -200,7 +247,7 @@ mod tests {
     use crate::components::round_info_source::LevelBasedRoundInfo;
 
     #[test]
-    fn test_too_many_files_to_compact() {
+    fn test_too_many_small_files_to_compact() {
         // L0 files
         let f1 = ParquetFileBuilder::new(1)
             .with_time_range(0, 100)
@@ -229,18 +276,20 @@ mod tests {
 
         // f1 and f2 are not over limit
         assert!(!round_info
-            .too_many_files_to_compact(&[f1.clone(), f2.clone()], CompactionLevel::Initial));
+            .too_many_small_files_to_compact(&[f1.clone(), f2.clone()], CompactionLevel::Initial));
         // f1, f2 and f3 are not over limit
-        assert!(!round_info.too_many_files_to_compact(
+        assert!(!round_info.too_many_small_files_to_compact(
             &[f1.clone(), f2.clone(), f3.clone()],
             CompactionLevel::Initial
         ));
         // f1, f2 and f4 are over limit
-        assert!(round_info.too_many_files_to_compact(
+        assert!(round_info.too_many_small_files_to_compact(
             &[f1.clone(), f2.clone(), f4.clone()],
             CompactionLevel::Initial
         ));
         // f1, f2, f3 and f4 are over limit
-        assert!(round_info.too_many_files_to_compact(&[f1, f2, f3, f4], CompactionLevel::Initial));
+        assert!(
+            round_info.too_many_small_files_to_compact(&[f1, f2, f3, f4], CompactionLevel::Initial)
+        );
     }
 }

@@ -15,7 +15,12 @@
     unused_crate_dependencies
 )]
 
+use metric::Registry;
+#[cfg(tokio_unstable)]
+use tokio_metrics_bridge::setup_tokio_metrics;
 // Workaround for "unused crate" lint false positives.
+#[cfg(not(tokio_unstable))]
+use tokio_metrics_bridge as _;
 use workspace_hack as _;
 
 use once_cell::sync::Lazy;
@@ -178,8 +183,14 @@ impl std::fmt::Debug for DedicatedExecutor {
 }
 
 /// [`DedicatedExecutor`] for testing purposes.
-static TESTING_EXECUTOR: Lazy<DedicatedExecutor> =
-    Lazy::new(|| DedicatedExecutor::new_inner("testing", NonZeroUsize::new(1).unwrap(), true));
+static TESTING_EXECUTOR: Lazy<DedicatedExecutor> = Lazy::new(|| {
+    DedicatedExecutor::new_inner(
+        "testing",
+        NonZeroUsize::new(1).unwrap(),
+        Arc::new(Registry::default()),
+        true,
+    )
+});
 
 impl DedicatedExecutor {
     /// Creates a new `DedicatedExecutor` with a dedicated tokio
@@ -198,12 +209,20 @@ impl DedicatedExecutor {
     /// drop a runtime in a context where blocking is not allowed. This
     /// happens when a runtime is dropped from within an asynchronous
     /// context.', .../tokio-1.4.0/src/runtime/blocking/shutdown.rs:51:21
-    pub fn new(thread_name: &str, num_threads: NonZeroUsize) -> Self {
-        Self::new_inner(thread_name, num_threads, false)
+    pub fn new(
+        thread_name: &'static str,
+        num_threads: NonZeroUsize,
+        metric_registry: Arc<Registry>,
+    ) -> Self {
+        Self::new_inner(thread_name, num_threads, metric_registry, false)
     }
 
-    fn new_inner(thread_name: &str, num_threads: NonZeroUsize, testing: bool) -> Self {
-        let thread_name = thread_name.to_string();
+    fn new_inner(
+        thread_name: &'static str,
+        num_threads: NonZeroUsize,
+        metric_registry: Arc<Registry>,
+        testing: bool,
+    ) -> Self {
         let thread_counter = Arc::new(AtomicUsize::new(1));
 
         let (tx_tasks, rx_tasks) = std::sync::mpsc::channel::<Task>();
@@ -225,6 +244,11 @@ impl DedicatedExecutor {
                     .on_thread_start(move || set_current_thread_priority(WORKER_PRIORITY))
                     .build()
                     .expect("Creating tokio runtime");
+
+                #[cfg(tokio_unstable)]
+                setup_tokio_metrics(runtime.metrics(), thread_name, metric_registry);
+                #[cfg(not(tokio_unstable))]
+                let _ = metric_registry;
 
                 runtime.block_on(async move {
                     // Dropping the tokio runtime only waits for tasks to yield not to complete
@@ -415,7 +439,7 @@ mod tests {
     async fn basic() {
         let barrier = Arc::new(Barrier::new(2));
 
-        let exec = DedicatedExecutor::new("Test DedicatedExecutor", NonZeroUsize::new(1).unwrap());
+        let exec = exec();
         let dedicated_task = exec.spawn(do_work(42, Arc::clone(&barrier)));
 
         // Note the dedicated task will never complete if it runs on
@@ -433,7 +457,7 @@ mod tests {
     #[tokio::test]
     async fn basic_clone() {
         let barrier = Arc::new(Barrier::new(2));
-        let exec = DedicatedExecutor::new("Test DedicatedExecutor", NonZeroUsize::new(1).unwrap());
+        let exec = exec();
         // Run task on clone should work fine
         let dedicated_task = exec.clone().spawn(do_work(42, Arc::clone(&barrier)));
         barrier.wait();
@@ -445,7 +469,7 @@ mod tests {
     #[tokio::test]
     async fn drop_clone() {
         let barrier = Arc::new(Barrier::new(2));
-        let exec = DedicatedExecutor::new("Test DedicatedExecutor", NonZeroUsize::new(1).unwrap());
+        let exec = exec();
 
         drop(exec.clone());
 
@@ -467,7 +491,7 @@ mod tests {
             }
         }
 
-        let exec = DedicatedExecutor::new("Test DedicatedExecutor", NonZeroUsize::new(1).unwrap());
+        let exec = exec();
         let _s = S(exec);
 
         // this must not lead to a double-panic and SIGILL
@@ -479,7 +503,7 @@ mod tests {
         let barrier = Arc::new(Barrier::new(3));
 
         // make an executor with two threads
-        let exec = DedicatedExecutor::new("Test DedicatedExecutor", NonZeroUsize::new(2).unwrap());
+        let exec = exec2();
         let dedicated_task1 = exec.spawn(do_work(11, Arc::clone(&barrier)));
         let dedicated_task2 = exec.spawn(do_work(42, Arc::clone(&barrier)));
 
@@ -495,7 +519,7 @@ mod tests {
 
     #[tokio::test]
     async fn worker_priority() {
-        let exec = DedicatedExecutor::new("Test DedicatedExecutor", NonZeroUsize::new(2).unwrap());
+        let exec = exec2();
 
         let dedicated_task = exec.spawn(async move { get_current_thread_priority() });
 
@@ -506,7 +530,7 @@ mod tests {
 
     #[tokio::test]
     async fn tokio_spawn() {
-        let exec = DedicatedExecutor::new("Test DedicatedExecutor", NonZeroUsize::new(2).unwrap());
+        let exec = exec2();
 
         // spawn a task that spawns to other tasks and ensure they run on the dedicated
         // executor
@@ -534,7 +558,7 @@ mod tests {
 
     #[tokio::test]
     async fn panic_on_executor_str() {
-        let exec = DedicatedExecutor::new("Test DedicatedExecutor", NonZeroUsize::new(1).unwrap());
+        let exec = exec();
         let dedicated_task = exec.spawn(async move {
             if true {
                 panic!("At the disco, on the dedicated task scheduler");
@@ -555,7 +579,7 @@ mod tests {
 
     #[tokio::test]
     async fn panic_on_executor_string() {
-        let exec = DedicatedExecutor::new("Test DedicatedExecutor", NonZeroUsize::new(1).unwrap());
+        let exec = exec();
         let dedicated_task = exec.spawn(async move {
             if true {
                 panic!("{} {}", 1, 2);
@@ -573,7 +597,7 @@ mod tests {
 
     #[tokio::test]
     async fn panic_on_executor_other() {
-        let exec = DedicatedExecutor::new("Test DedicatedExecutor", NonZeroUsize::new(1).unwrap());
+        let exec = exec();
         let dedicated_task = exec.spawn(async move {
             if true {
                 panic_any(1)
@@ -594,7 +618,7 @@ mod tests {
         let barrier = Arc::new(Barrier::new(2));
         let captured = Arc::clone(&barrier);
 
-        let exec = DedicatedExecutor::new("Test DedicatedExecutor", NonZeroUsize::new(1).unwrap());
+        let exec = exec();
         let dedicated_task = exec.spawn(async move {
             tokio::time::sleep(tokio::time::Duration::from_millis(1)).await;
             do_work(42, captured).await
@@ -612,7 +636,7 @@ mod tests {
 
     #[tokio::test]
     async fn executor_submit_task_after_shutdown() {
-        let exec = DedicatedExecutor::new("Test DedicatedExecutor", NonZeroUsize::new(1).unwrap());
+        let exec = exec();
 
         // Simulate trying to submit tasks once executor has shutdown
         exec.shutdown();
@@ -630,7 +654,7 @@ mod tests {
 
     #[tokio::test]
     async fn executor_submit_task_after_clone_shutdown() {
-        let exec = DedicatedExecutor::new("Test DedicatedExecutor", NonZeroUsize::new(1).unwrap());
+        let exec = exec();
 
         // shutdown the clone (but not the exec)
         exec.clone().join().await;
@@ -650,14 +674,14 @@ mod tests {
 
     #[tokio::test]
     async fn executor_join() {
-        let exec = DedicatedExecutor::new("Test DedicatedExecutor", NonZeroUsize::new(1).unwrap());
+        let exec = exec();
         // test it doesn't hang
         exec.join().await;
     }
 
     #[tokio::test]
     async fn executor_join2() {
-        let exec = DedicatedExecutor::new("Test DedicatedExecutor", NonZeroUsize::new(1).unwrap());
+        let exec = exec();
         // test it doesn't hang
         exec.join().await;
         exec.join().await;
@@ -666,7 +690,7 @@ mod tests {
     #[tokio::test]
     #[allow(clippy::redundant_clone)]
     async fn executor_clone_join() {
-        let exec = DedicatedExecutor::new("Test DedicatedExecutor", NonZeroUsize::new(1).unwrap());
+        let exec = exec();
         // test it doesn't hang
         exec.clone().join().await;
         exec.clone().join().await;
@@ -676,7 +700,7 @@ mod tests {
     #[tokio::test]
     async fn drop_receiver() {
         // create empty executor
-        let exec = DedicatedExecutor::new("Test DedicatedExecutor", NonZeroUsize::new(1).unwrap());
+        let exec = exec();
         assert_eq!(exec.tasks(), 0);
 
         // create first blocked task
@@ -707,7 +731,7 @@ mod tests {
     #[tokio::test]
     async fn detach_receiver() {
         // create empty executor
-        let exec = DedicatedExecutor::new("Test DedicatedExecutor", NonZeroUsize::new(1).unwrap());
+        let exec = exec();
         assert_eq!(exec.tasks(), 0);
 
         // create first task
@@ -760,5 +784,21 @@ mod tests {
         })
         .await
         .expect("Did not find expected num tasks within a second")
+    }
+
+    fn exec() -> DedicatedExecutor {
+        exec_with_threads(1)
+    }
+
+    fn exec2() -> DedicatedExecutor {
+        exec_with_threads(2)
+    }
+
+    fn exec_with_threads(threads: usize) -> DedicatedExecutor {
+        DedicatedExecutor::new(
+            "Test DedicatedExecutor",
+            NonZeroUsize::new(threads).unwrap(),
+            Arc::new(Registry::default()),
+        )
     }
 }

@@ -12,6 +12,7 @@ use futures::{Stream, StreamExt, TryStreamExt};
 use ingester_query_grpc::influxdata::iox::ingester::v1 as proto;
 use metric::{DurationHistogram, U64Counter};
 use observability_deps::tracing::*;
+use predicate::Predicate;
 use prost::Message;
 use thiserror::Error;
 use tokio::sync::{Semaphore, TryAcquireError};
@@ -48,6 +49,10 @@ enum Error {
     /// The number of simultaneous queries being executed has been reached.
     #[error("simultaneous query limit exceeded")]
     RequestLimit,
+
+    /// The payload within the request has an invalid field value.
+    #[error("field violation: {0}")]
+    FieldViolation(#[from] ingester_query_grpc::FieldViolation),
 }
 
 /// Map a query-execution error into a [`tonic::Status`].
@@ -76,6 +81,10 @@ impl From<Error> for tonic::Status {
             Error::RequestLimit => {
                 warn!("simultaneous query limit exceeded");
                 Code::ResourceExhausted
+            }
+            Error::FieldViolation(_) => {
+                debug!(error=%e, "request contains field violation");
+                Code::InvalidArgument
             }
         };
 
@@ -188,18 +197,25 @@ where
         let ticket = request.into_inner();
         let request = proto::IngesterQueryRequest::decode(&*ticket.ticket).map_err(Error::from)?;
 
-        // Extract the namespace/table identifiers
+        // Extract the namespace/table identifiers and the query predicate
         let namespace_id = NamespaceId::new(request.namespace_id);
         let table_id = TableId::new(request.table_id);
-
-        // Predicate pushdown is part of the API, but not implemented.
-        if let Some(p) = request.predicate {
-            debug!(predicate=?p, "ignoring query predicate (unsupported)");
-        }
+        let predicate = if let Some(p) = request.predicate {
+            debug!(predicate=?p, "received query predicate");
+            Some(Predicate::try_from(p).map_err(Error::from)?)
+        } else {
+            None
+        };
 
         let response = match self
             .query_handler
-            .query_exec(namespace_id, table_id, request.columns, span.clone())
+            .query_exec(
+                namespace_id,
+                table_id,
+                request.columns,
+                span.clone(),
+                predicate,
+            )
             .await
         {
             Ok(v) => v,
@@ -375,22 +391,20 @@ fn encode_response(
 
 #[cfg(test)]
 mod tests {
-    use arrow::array::{Float64Array, Int32Array};
-    use arrow_flight::decode::{DecodedPayload, FlightRecordBatchStream};
-    use assert_matches::assert_matches;
-    use bytes::Bytes;
-    use data_types::PartitionKey;
-    use tonic::Code;
-
+    use super::*;
     use crate::{
         make_batch,
         query::{
             mock_query_exec::MockQueryExec, partition_response::PartitionResponse,
             response::PartitionStream,
         },
+        test_util::ARBITRARY_PARTITION_KEY,
     };
-
-    use super::*;
+    use arrow::array::{Float64Array, Int32Array};
+    use arrow_flight::decode::{DecodedPayload, FlightRecordBatchStream};
+    use assert_matches::assert_matches;
+    use bytes::Bytes;
+    use tonic::Code;
 
     #[tokio::test]
     async fn limits_concurrent_queries() {
@@ -430,7 +444,7 @@ mod tests {
         let ingester_id = IngesterId::new();
         let partition_hash_id = Some(PartitionHashId::new(
             TableId::new(3),
-            &PartitionKey::from("arbitrary"),
+            &ARBITRARY_PARTITION_KEY,
         ));
         let (batch1, schema1) = make_batch!(
             Float64Array("float" => vec![1.1, 2.2, 3.3]),

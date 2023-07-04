@@ -29,7 +29,7 @@ use crate::{
         partition::resolver::{
             CatalogPartitionResolver, CoalescePartitionResolver, PartitionCache, PartitionProvider,
         },
-        table::name_resolver::{TableNameProvider, TableNameResolver},
+        table::metadata_resolver::{TableProvider, TableResolver},
         BufferTree,
     },
     dml_sink::{instrumentation::DmlSinkInstrumentation, tracing::DmlSinkTracing},
@@ -246,8 +246,8 @@ where
             Arc::clone(&metrics),
         ));
 
-    // Initialise the deferred table name resolver.
-    let table_name_provider: Arc<dyn TableNameProvider> = Arc::new(TableNameResolver::new(
+    // Initialise the deferred table metadata resolver.
+    let table_provider: Arc<dyn TableProvider> = Arc::new(TableResolver::new(
         persist_background_fetch_time,
         Arc::clone(&catalog),
         BackoffConfig::default(),
@@ -319,7 +319,7 @@ where
 
     let buffer = Arc::new(BufferTree::new(
         namespace_name_provider,
-        table_name_provider,
+        table_provider,
         partition_provider,
         Arc::new(hot_partition_persister),
         Arc::clone(&metrics),

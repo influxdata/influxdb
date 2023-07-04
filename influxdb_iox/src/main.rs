@@ -50,6 +50,9 @@ mod commands {
     pub mod write;
 }
 
+#[cfg(all(not(feature = "heappy"), feature = "jemalloc_replacing_malloc"))]
+mod jemalloc;
+
 mod process_info;
 
 enum ReturnCode {

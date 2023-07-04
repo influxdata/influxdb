@@ -31,7 +31,7 @@ observability_deps = { version = "0.1.0", path = "../observability_deps" }
 once_cell = "1.18"
 parking_lot = "0.12.1"
 parquet_file = { version = "0.1.0", path = "../parquet_file" }
-pin-project = "1.1.0"
+pin-project = "1.1.2"
 predicate = { version = "0.1.0", path = "../predicate" }
 prost = { version = "0.11.9", default-features = false, features = ["std"] }
 rand = "0.8.5"
@@ -40,11 +40,11 @@ service_grpc_catalog = { version = "0.1.0", path = "../service_grpc_catalog" }
 sharder = { version = "0.1.0", path = "../sharder" }
 test_helpers = { path = "../test_helpers", features = ["future_timeout"], optional = true }
 thiserror = "1.0.40"
-tokio = { version = "1.28", features = ["macros", "parking_lot", "rt-multi-thread", "sync", "time"] }
+tokio = { version = "1.29", features = ["macros", "parking_lot", "rt-multi-thread", "sync", "time"] }
 tokio-util = "0.7.8"
 tonic = { workspace = true }
 trace = { version = "0.1.0", path = "../trace" }
-uuid = "1.3.4"
+uuid = "1.4.0"
 wal = { version = "0.1.0", path = "../wal" }
 workspace-hack = { version = "0.1", path = "../workspace-hack" }
 
@@ -57,10 +57,10 @@ ingester_test_ctx = { path = "../ingester_test_ctx" }
 lazy_static = "1.4.0"
 mutable_batch_lp = { path = "../mutable_batch_lp" }
 object_store = { workspace = true }
-paste = "1.0.12"
+paste = "1.0.13"
 tempfile = "3.6.0"
 test_helpers = { path = "../test_helpers", features = ["future_timeout"] }
-tokio = { version = "1.28", features = ["macros", "time", "test-util"] }
+tokio = { version = "1.29", features = ["macros", "time", "test-util"] }
 
 [features]
 # Export some internal types for benchmark purposes only.

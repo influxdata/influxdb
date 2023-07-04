@@ -431,8 +431,9 @@ where
     async fn run_do_get(
         &self,
         span_ctx: Option<SpanContext>,
+        trace: String,
         permit: InstrumentedAsyncOwnedSemaphorePermit,
-        query: &RunQuery,
+        query: RunQuery,
         namespace: String,
         is_debug: bool,
     ) -> Result<Response<TonicStream<FlightData>>, tonic::Status> {
@@ -445,7 +446,7 @@ where
             })?;
 
         let ctx = db.new_query_context(span_ctx);
-        let (query_completed_token, physical_plan) = match query {
+        let (query_completed_token, physical_plan) = match &query {
             RunQuery::Sql(sql_query) => {
                 let token = db.record_query(&ctx, "sql", Box::new(sql_query.clone()));
                 let plan = Planner::new(&ctx)
@@ -472,8 +473,23 @@ where
             }
         };
 
-        let output =
-            GetStream::new(ctx, physical_plan, namespace, query_completed_token, permit).await?;
+        let output = GetStream::new(
+            ctx,
+            physical_plan,
+            namespace.to_string(),
+            query_completed_token,
+            permit,
+        )
+        .await?;
+
+        // Log any error that happens *during* execution (other error
+        // handling in this file happen during planning)
+        let output = output.map(move |res| {
+            if let Err(e) = &res {
+                info!(%namespace, %query, %trace, %e, "Error executing query via DoGet");
+            }
+            res
+        });
 
         Ok(Response::new(Box::pin(output) as TonicStream<FlightData>))
     }
@@ -554,8 +570,9 @@ where
         let response = self
             .run_do_get(
                 span_ctx,
+                trace.clone(),
                 permit,
-                query,
+                query.clone(),
                 namespace_name.to_string(),
                 is_debug,
             )

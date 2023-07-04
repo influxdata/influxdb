@@ -4,6 +4,7 @@ use async_trait::async_trait;
 use data_types::{NamespaceId, TableId};
 use iox_time::{SystemProvider, TimeProvider};
 use metric::{DurationHistogram, Metric};
+use predicate::Predicate;
 use trace::span::Span;
 
 use super::QueryExec;
@@ -64,12 +65,13 @@ where
         table_id: TableId,
         columns: Vec<String>,
         span: Option<Span>,
+        predicate: Option<Predicate>,
     ) -> Result<Self::Response, QueryError> {
         let t = self.time_provider.now();
 
         let res = self
             .inner
-            .query_exec(namespace_id, table_id, columns, span)
+            .query_exec(namespace_id, table_id, columns, span, predicate)
             .await;
 
         if let Some(delta) = self.time_provider.now().checked_duration_since(t) {
@@ -113,7 +115,7 @@ mod tests {
 
                     // Call the decorator and assert the return value
                     let got = decorator
-                        .query_exec(NamespaceId::new(42), TableId::new(24), vec![], None)
+                        .query_exec(NamespaceId::new(42), TableId::new(24), vec![], None, None)
                         .await;
                     assert_matches!(got, $($want_ret)+);
 

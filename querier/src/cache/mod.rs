@@ -21,7 +21,7 @@ pub mod projected_schema;
 mod ram;
 
 #[cfg(test)]
-mod test_util;
+pub(crate) mod test_util;
 
 /// Caches request to the [`Catalog`].
 #[derive(Debug)]

@@ -17,11 +17,11 @@ license.workspace = true
 ### BEGIN HAKARI SECTION
 [dependencies]
 ahash = { version = "0.8", default-features = false, features = ["runtime-rng"] }
-arrow = { version = "41", features = ["dyn_cmp_dict", "prettyprint"] }
-arrow-array = { version = "41", default-features = false, features = ["chrono-tz"] }
-arrow-flight = { version = "41", features = ["flight-sql-experimental"] }
-arrow-ord = { version = "41", default-features = false, features = ["dyn_cmp_dict"] }
-arrow-string = { version = "41", default-features = false, features = ["dyn_cmp_dict"] }
+arrow = { git = "https://github.com/alamb/arrow-rs.git", branch = "alamb/42.0.0_patched", features = ["dyn_cmp_dict", "prettyprint"] }
+arrow-array = { git = "https://github.com/alamb/arrow-rs.git", branch = "alamb/42.0.0_patched", default-features = false, features = ["chrono-tz"] }
+arrow-flight = { git = "https://github.com/alamb/arrow-rs.git", branch = "alamb/42.0.0_patched", features = ["flight-sql-experimental"] }
+arrow-ord = { git = "https://github.com/alamb/arrow-rs.git", branch = "alamb/42.0.0_patched", default-features = false, features = ["dyn_cmp_dict"] }
+arrow-string = { git = "https://github.com/alamb/arrow-rs.git", branch = "alamb/42.0.0_patched", default-features = false, features = ["dyn_cmp_dict"] }
 base64-594e8ee84c453af0 = { package = "base64", version = "0.13" }
 base64-647d43efb71741da = { package = "base64", version = "0.21" }
 bitflags = { version = "1" }
@@ -30,9 +30,9 @@ bytes = { version = "1" }
 chrono = { version = "0.4", default-features = false, features = ["alloc", "clock", "serde"] }
 crossbeam-utils = { version = "0.8" }
 crypto-common = { version = "0.1", default-features = false, features = ["std"] }
-datafusion = { git = "https://github.com/apache/arrow-datafusion.git", rev = "84e49771b7403b3d313d8493b61d2d58dcdd7514" }
-datafusion-optimizer = { git = "https://github.com/apache/arrow-datafusion.git", rev = "84e49771b7403b3d313d8493b61d2d58dcdd7514", default-features = false, features = ["crypto_expressions", "regex_expressions", "unicode_expressions"] }
-datafusion-physical-expr = { git = "https://github.com/apache/arrow-datafusion.git", rev = "84e49771b7403b3d313d8493b61d2d58dcdd7514", default-features = false, features = ["crypto_expressions", "regex_expressions", "unicode_expressions"] }
+datafusion = { git = "https://github.com/apache/arrow-datafusion.git", rev = "e0330d6c957c724fcc91b673c6ae10c535d9a33a" }
+datafusion-optimizer = { git = "https://github.com/apache/arrow-datafusion.git", rev = "e0330d6c957c724fcc91b673c6ae10c535d9a33a", default-features = false, features = ["crypto_expressions", "regex_expressions", "unicode_expressions"] }
+datafusion-physical-expr = { git = "https://github.com/apache/arrow-datafusion.git", rev = "e0330d6c957c724fcc91b673c6ae10c535d9a33a", default-features = false, features = ["crypto_expressions", "regex_expressions", "unicode_expressions"] }
 digest = { version = "0.10", features = ["mac", "std"] }
 either = { version = "1" }
 fixedbitset = { version = "0.4" }
@@ -59,7 +59,7 @@ num-traits = { version = "0.2", features = ["i128", "libm"] }
 object_store = { version = "0.6", default-features = false, features = ["aws", "azure", "gcp"] }
 once_cell = { version = "1", features = ["parking_lot"] }
 parking_lot = { version = "0.12", features = ["arc_lock"] }
-parquet = { version = "41", features = ["experimental", "object_store"] }
+parquet = { git = "https://github.com/alamb/arrow-rs.git", branch = "alamb/42.0.0_patched", features = ["experimental", "object_store"] }
 petgraph = { version = "0.6" }
 phf_shared = { version = "0.11" }
 predicates = { version = "3" }
@@ -77,10 +77,8 @@ serde_json = { version = "1", features = ["raw_value"] }
 sha2 = { version = "0.10" }
 similar = { version = "2", features = ["inline"] }
 smallvec = { version = "1", default-features = false, features = ["union"] }
-sqlparser = { version = "0.34", features = ["visitor"] }
 sqlx = { version = "0.6", features = ["json", "postgres", "runtime-tokio-rustls", "sqlite", "tls", "uuid"] }
 sqlx-core = { version = "0.6", default-features = false, features = ["any", "migrate", "postgres", "runtime-tokio-rustls", "sqlite", "uuid"] }
-strum = { version = "0.24", features = ["derive"] }
 thrift = { version = "0.17" }
 tokio = { version = "1", features = ["full", "test-util", "tracing"] }
 tokio-stream = { version = "0.1", features = ["fs", "net"] }
@@ -158,45 +156,36 @@ url = { version = "2" }
 uuid = { version = "1", features = ["v4"] }
 
 [target.x86_64-unknown-linux-gnu.dependencies]
-io-lifetimes = { version = "1" }
 nix = { version = "0.26" }
 once_cell = { version = "1", default-features = false, features = ["unstable"] }
-rustix = { version = "0.37", features = ["fs", "termios"] }
+rustix = { version = "0.38", features = ["fs", "termios"] }
 rustls = { version = "0.21", features = ["dangerous_configuration"] }
 webpki = { version = "0.22", default-features = false, features = ["std"] }
 
 [target.x86_64-unknown-linux-gnu.build-dependencies]
-io-lifetimes = { version = "1" }
 once_cell = { version = "1", default-features = false, features = ["unstable"] }
-rustix = { version = "0.37", features = ["fs", "termios"] }
 webpki = { version = "0.22", default-features = false, features = ["std"] }
 
 [target.x86_64-apple-darwin.dependencies]
-io-lifetimes = { version = "1" }
 nix = { version = "0.26" }
 once_cell = { version = "1", default-features = false, features = ["unstable"] }
-rustix = { version = "0.37", features = ["fs", "termios"] }
+rustix = { version = "0.38", features = ["fs", "termios"] }
 rustls = { version = "0.21", features = ["dangerous_configuration"] }
 webpki = { version = "0.22", default-features = false, features = ["std"] }
 
 [target.x86_64-apple-darwin.build-dependencies]
-io-lifetimes = { version = "1" }
 once_cell = { version = "1", default-features = false, features = ["unstable"] }
-rustix = { version = "0.37", features = ["fs", "termios"] }
 webpki = { version = "0.22", default-features = false, features = ["std"] }
 
 [target.aarch64-apple-darwin.dependencies]
-io-lifetimes = { version = "1" }
 nix = { version = "0.26" }
 once_cell = { version = "1", default-features = false, features = ["unstable"] }
-rustix = { version = "0.37", features = ["fs", "termios"] }
+rustix = { version = "0.38", features = ["fs", "termios"] }
 rustls = { version = "0.21", features = ["dangerous_configuration"] }
 webpki = { version = "0.22", default-features = false, features = ["std"] }
 
 [target.aarch64-apple-darwin.build-dependencies]
-io-lifetimes = { version = "1" }
 once_cell = { version = "1", default-features = false, features = ["unstable"] }
-rustix = { version = "0.37", features = ["fs", "termios"] }
 webpki = { version = "0.22", default-features = false, features = ["std"] }
 
 [target.x86_64-pc-windows-msvc.dependencies]

@@ -193,7 +193,14 @@ async fn write_replication() {
                     .await
                     .unwrap();
 
-                let ingester_uuid = ingester_response.app_metadata.ingester_uuid;
+                assert_eq!(ingester_response.partitions.len(), 1);
+                let ingester_partition = ingester_response
+                    .partitions
+                    .into_iter()
+                    .next()
+                    .expect("just checked len");
+
+                let ingester_uuid = ingester_partition.app_metadata.ingester_uuid;
                 assert!(!ingester_uuid.is_empty());
 
                 let expected = [
@@ -212,7 +219,7 @@ async fn write_replication() {
                     "| A    | B    | 1970-01-01T00:00:00.000000020Z | 20  |",
                     "+------+------+--------------------------------+-----+",
                 ];
-                assert_batches_sorted_eq!(&expected, &ingester_response.record_batches);
+                assert_batches_sorted_eq!(&expected, &ingester_partition.record_batches);
             }
             .boxed()
         })));

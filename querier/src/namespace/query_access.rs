@@ -80,6 +80,12 @@ impl QueryNamespace for QuerierNamespace {
         Ok(chunks)
     }
 
+    fn retention_time_ns(&self) -> Option<i64> {
+        self.retention_period.map(|d| {
+            self.catalog_cache.time_provider().now().timestamp_nanos() - d.as_nanos() as i64
+        })
+    }
+
     fn record_query(
         &self,
         ctx: &IOxSessionContext,

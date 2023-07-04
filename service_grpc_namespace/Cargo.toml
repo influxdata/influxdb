@@ -16,5 +16,5 @@ workspace-hack = { version = "0.1", path = "../workspace-hack" }
 [dev-dependencies]
 assert_matches = "1.5.0"
 metric = { path = "../metric" }
-paste = "1.0.12"
+paste = "1.0.13"
 tokio = { version = "1", features = ["rt-multi-thread", "macros"] }

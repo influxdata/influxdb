@@ -2505,7 +2505,33 @@ tags: cpu=cpu1
 | 2022-10-31T02:01:30 | 0.0   |
 +---------------------+-------+
 -- InfluxQL: SELECT FIRST(usage_idle), usage_user, usage_system FROM cpu;
-Error while planning query: This feature is not implemented: projections with a single selector and fields: See https://github.com/influxdata/influxdb_iox/issues/7533
+name: cpu
++---------------------+-------+------------+--------------+
+| time                | first | usage_user | usage_system |
++---------------------+-------+------------+--------------+
+| 2022-10-31T02:00:00 | 2.98  |            | 2.2          |
++---------------------+-------+------------+--------------+
+-- InfluxQL: SELECT field1, FIRST(field2), field3 FROM selector_test_1 WHERE time >=0 AND time < 10 GROUP BY TIME(30s);
+name: selector_test_1
++---------------------+--------+-------+--------+
+| time                | field1 | first | field3 |
++---------------------+--------+-------+--------+
+| 1970-01-01T00:00:00 |        | 2.0   |        |
++---------------------+--------+-------+--------+
+-- InfluxQL: SELECT field1, FIRST(field2), field3 FROM selector_test_1 WHERE time >=0 AND time < 10 GROUP BY TIME(30s) FILL(0);
+name: selector_test_1
++---------------------+--------+-------+--------+
+| time                | field1 | first | field3 |
++---------------------+--------+-------+--------+
+| 1970-01-01T00:00:00 | 0.0    | 2.0   | 0.0    |
++---------------------+--------+-------+--------+
+-- InfluxQL: SELECT FIRST(f), first FROM selector_test_2 WHERE time >=0 AND time < 10 GROUP BY TIME(30s);
+name: selector_test_2
++---------------------+-------+---------+
+| time                | first | first_1 |
++---------------------+-------+---------+
+| 1970-01-01T00:00:00 | 1.0   | a       |
++---------------------+-------+---------+
 -- InfluxQL: SELECT COUNT(DISTINCT str) FROM m0;
 name: m0
 +---------------------+-------+

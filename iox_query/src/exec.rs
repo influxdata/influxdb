@@ -13,6 +13,7 @@ pub(crate) mod split;
 pub mod stringset;
 use datafusion_util::config::register_iox_object_store;
 use executor::DedicatedExecutor;
+use metric::Registry;
 use object_store::DynObjectStore;
 use parquet_file::storage::StorageId;
 mod cross_rt_stream;
@@ -47,6 +48,9 @@ pub struct ExecutorConfig {
     /// Object stores
     pub object_stores: HashMap<StorageId, Arc<DynObjectStore>>,
 
+    /// Metric registry
+    pub metric_registry: Arc<Registry>,
+
     /// Memory pool size in bytes.
     pub mem_pool_size: usize,
 }
@@ -75,9 +79,10 @@ pub struct DedicatedExecutors {
 }
 
 impl DedicatedExecutors {
-    pub fn new(num_threads: NonZeroUsize) -> Self {
-        let query_exec = DedicatedExecutor::new("IOx Query", num_threads);
-        let reorg_exec = DedicatedExecutor::new("IOx Reorg", num_threads);
+    pub fn new(num_threads: NonZeroUsize, metric_registry: Arc<Registry>) -> Self {
+        let query_exec =
+            DedicatedExecutor::new("IOx Query", num_threads, Arc::clone(&metric_registry));
+        let reorg_exec = DedicatedExecutor::new("IOx Reorg", num_threads, metric_registry);
 
         Self {
             query_exec,
@@ -136,18 +141,26 @@ pub enum ExecutorType {
 impl Executor {
     /// Creates a new executor with a two dedicated thread pools, each
     /// with num_threads
-    pub fn new(num_threads: NonZeroUsize, mem_pool_size: usize) -> Self {
+    pub fn new(
+        num_threads: NonZeroUsize,
+        mem_pool_size: usize,
+        metric_registry: Arc<Registry>,
+    ) -> Self {
         Self::new_with_config(ExecutorConfig {
             num_threads,
             target_query_partitions: num_threads,
             object_stores: HashMap::default(),
+            metric_registry,
             mem_pool_size,
         })
     }
 
     /// Create new executor based on a specific config.
     pub fn new_with_config(config: ExecutorConfig) -> Self {
-        let executors = Arc::new(DedicatedExecutors::new(config.num_threads));
+        let executors = Arc::new(DedicatedExecutors::new(
+            config.num_threads,
+            Arc::clone(&config.metric_registry),
+        ));
         Self::new_with_config_and_executors(config, executors)
     }
 
@@ -158,6 +171,7 @@ impl Executor {
             num_threads: NonZeroUsize::new(1).unwrap(),
             target_query_partitions: NonZeroUsize::new(1).unwrap(),
             object_stores: HashMap::default(),
+            metric_registry: Arc::new(Registry::default()),
             mem_pool_size: 1024 * 1024 * 1024, // 1GB
         };
         let executors = Arc::new(DedicatedExecutors::new_testing());

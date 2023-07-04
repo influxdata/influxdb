@@ -1,14 +1,15 @@
 use super::{PruneMetrics, QuerierTable, QuerierTableArgs};
 use crate::{
-    cache::CatalogCache, create_ingester_connection_for_testing, df_stats::ColumnRanges,
-    parquet::ChunkAdapter, IngesterPartition,
+    cache::CatalogCache, create_ingester_connection_for_testing, parquet::ChunkAdapter,
+    IngesterPartition,
 };
 use arrow::record_batch::RecordBatch;
 use data_types::ChunkId;
 use iox_catalog::interface::{get_schema_by_name, SoftDeletedRows};
+use iox_query::chunk_statistics::ColumnRanges;
 use iox_tests::{TestCatalog, TestPartition, TestTable};
 use mutable_batch_lp::test_helpers::lp_to_mutable_batch;
-use schema::{sort::SortKey, Projection, Schema};
+use schema::{Projection, Schema};
 use std::{sync::Arc, time::Duration};
 use tokio::runtime::Handle;
 use uuid::Uuid;
@@ -67,7 +68,6 @@ pub(crate) struct IngesterPartitionBuilder {
     partition: Arc<TestPartition>,
     ingester_chunk_id: u128,
 
-    partition_sort_key: Option<Arc<SortKey>>,
     partition_column_ranges: ColumnRanges,
 
     /// Data returned from the partition, in line protocol format
@@ -79,7 +79,6 @@ impl IngesterPartitionBuilder {
         Self {
             schema,
             partition: Arc::clone(partition),
-            partition_sort_key: None,
             partition_column_ranges: Default::default(),
             ingester_chunk_id: 1,
             lp: Vec::new(),
@@ -103,19 +102,21 @@ impl IngesterPartitionBuilder {
     pub(crate) fn build(&self) -> IngesterPartition {
         let data = self.lp.iter().map(|lp| lp_to_record_batch(lp)).collect();
 
-        IngesterPartition::new(
+        let mut part = IngesterPartition::new(
             Uuid::new_v4(),
             self.partition.partition.id,
             self.partition.partition.hash_id().cloned(),
             0,
-            self.partition_sort_key.clone(),
-            Arc::clone(&self.partition_column_ranges),
         )
         .try_add_chunk(
             ChunkId::new_test(self.ingester_chunk_id),
             self.schema.clone(),
             data,
         )
-        .unwrap()
+        .unwrap();
+
+        part.set_partition_column_ranges(&self.partition_column_ranges);
+
+        part
     }
 }

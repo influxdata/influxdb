@@ -16,12 +16,11 @@ futures = "0.3"
 iox_catalog = { path = "../iox_catalog" }
 iox_query = { path = "../iox_query" }
 iox_time = { path = "../iox_time" }
-itertools = "0.10.5"
+itertools = "0.11.0"
 metric = { path = "../metric" }
 object_store = { workspace = true }
 observability_deps = { path = "../observability_deps" }
 parquet_file = { path = "../parquet_file" }
-predicate = { path = "../predicate" }
 rand = "0.8.3"
 schema = { path = "../schema" }
 tokio = { version = "1", features = ["macros", "rt", "sync"] }
@@ -36,4 +35,4 @@ assert_matches = "1"
 compactor_test_utils = { path = "../compactor_test_utils" }
 iox_tests = { path = "../iox_tests" }
 test_helpers = { path = "../test_helpers"}
-insta = { version = "1.29.0", features = ["yaml"] }
+insta = { version = "1.30.0", features = ["yaml"] }

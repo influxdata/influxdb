@@ -90,3 +90,61 @@ SELECT difference(mean(usage_idle)), non_negative_difference(mean(usage_idle)), 
 -- SELECT moving_average(mean(writes), 3), mean(writes) FROM diskio WHERE time >= 0000000130000000000 AND time < 0000000210000000001 GROUP BY time(7s) fill(0);
 -- SELECT moving_average(mean(writes), 3), mean(writes) FROM diskio WHERE time >= 0000000130000000000 AND time < 0000000210000000001 GROUP BY time(7s) fill(previous);
 -- SELECT moving_average(mean(writes), 3), mean(writes) FROM diskio WHERE time >= 0000000130000000000 AND time < 0000000210000000001 GROUP BY time(7s) fill(linear);
+
+--
+-- derivative
+--
+SELECT derivative(writes) FROM diskio WHERE time >= 0000000130000000000 AND time < 0000000210000000001;
+SELECT derivative(writes, 2s) FROM diskio WHERE time >= 0000000130000000000 AND time < 0000000210000000001;
+SELECT derivative(usage_system) FROM cpu WHERE time >= 0000000060000000000 AND time < 0000000210000000001 AND cpu = 'cpu0';
+SELECT derivative(usage_system, 5s) FROM cpu WHERE time >= 0000000060000000000 AND time < 0000000210000000001 AND cpu = 'cpu1';
+-- group by a tag
+SELECT derivative(usage_idle) FROM cpu WHERE time >= 0000000130000000000 AND time < 0000000210000000001 AND cpu =~ /^cpu(0|1)$/ GROUP BY cpu;
+SELECT derivative(usage_idle, 500ms) FROM cpu WHERE time >= 0000000130000000000 AND time < 0000000210000000001 AND cpu =~ /^cpu(0|1)$/ GROUP BY cpu;
+
+--
+-- derivative + aggregate
+--
+SELECT derivative(mean(writes)) FROM diskio WHERE time >= 0000000130000000000 AND time < 0000000210000000001 GROUP BY time(7s);
+SELECT derivative(mean(writes), 500ms) FROM diskio WHERE time >= 0000000130000000000 AND time < 0000000210000000001 GROUP BY time(7s);
+SELECT derivative(mean(writes)) FROM diskio WHERE time >= 0000000130000000000 AND time < 0000000210000000001 GROUP BY time(30s);
+SELECT derivative(mean(writes), 500ms) FROM diskio WHERE time >= 0000000130000000000 AND time < 0000000210000000001 GROUP BY time(30s);
+-- the input data is regular data at 10s intervals, so 7s windows ensure the `mean` generates windows with NULL values to test NULL handling of difference
+SELECT derivative(mean(writes)) FROM diskio WHERE time >= 0000000130000000000 AND time < 0000000210000000001 GROUP BY time(7s) fill(0);
+SELECT derivative(mean(writes), 500ms) FROM diskio WHERE time >= 0000000130000000000 AND time < 0000000210000000001 GROUP BY time(7s) fill(0);
+SELECT derivative(mean(writes)) FROM diskio WHERE time >= 0000000130000000000 AND time < 0000000210000000001 GROUP BY time(7s) fill(previous);
+SELECT derivative(mean(writes), 500ms) FROM diskio WHERE time >= 0000000130000000000 AND time < 0000000210000000001 GROUP BY time(7s) fill(previous);
+SELECT derivative(mean(writes)) FROM diskio WHERE time >= 0000000130000000000 AND time < 0000000210000000001 GROUP BY time(7s) fill(linear);
+SELECT derivative(mean(writes), 500ms) FROM diskio WHERE time >= 0000000130000000000 AND time < 0000000210000000001 GROUP BY time(7s) fill(linear);
+-- group by time and a tag
+SELECT derivative(mean(usage_idle)) FROM cpu WHERE time >= 0000000130000000000 AND time < 0000000210000000001 AND cpu =~ /^cpu(0|1)$/ GROUP BY TIME(30s), cpu;
+SELECT derivative(mean(usage_idle), 500ms) FROM cpu WHERE time >= 0000000130000000000 AND time < 0000000210000000001 AND cpu =~ /^cpu(0|1)$/ GROUP BY TIME(30s), cpu;
+
+--
+-- non_negative_derivative
+--
+SELECT non_negative_derivative(writes) FROM diskio WHERE time >= 0000000130000000000 AND time < 0000000210000000001;
+SELECT non_negative_derivative(writes, 2s) FROM diskio WHERE time >= 0000000130000000000 AND time < 0000000210000000001;
+SELECT non_negative_derivative(usage_system) FROM cpu WHERE time >= 0000000060000000000 AND time < 0000000210000000001 AND cpu = 'cpu0';
+SELECT non_negative_derivative(usage_system, 5s) FROM cpu WHERE time >= 0000000060000000000 AND time < 0000000210000000001 AND cpu = 'cpu1';
+-- group by a tag
+SELECT non_negative_derivative(usage_idle) FROM cpu WHERE time >= 0000000130000000000 AND time < 0000000210000000001 AND cpu =~ /^cpu(0|1)$/ GROUP BY cpu;
+SELECT non_negative_derivative(usage_idle, 500ms) FROM cpu WHERE time >= 0000000130000000000 AND time < 0000000210000000001 AND cpu =~ /^cpu(0|1)$/ GROUP BY cpu;
+
+--
+-- non_negative_derivative + aggregate
+--
+SELECT non_negative_derivative(mean(writes)) FROM diskio WHERE time >= 0000000130000000000 AND time < 0000000210000000001 GROUP BY time(7s);
+SELECT non_negative_derivative(mean(writes), 500ms) FROM diskio WHERE time >= 0000000130000000000 AND time < 0000000210000000001 GROUP BY time(7s);
+SELECT non_negative_derivative(mean(writes)) FROM diskio WHERE time >= 0000000130000000000 AND time < 0000000210000000001 GROUP BY time(30s);
+SELECT non_negative_derivative(mean(writes), 500ms) FROM diskio WHERE time >= 0000000130000000000 AND time < 0000000210000000001 GROUP BY time(30s);
+-- the input data is regular data at 10s intervals, so 7s windows ensure the `mean` generates windows with NULL values to test NULL handling of difference
+SELECT non_negative_derivative(mean(writes)) FROM diskio WHERE time >= 0000000130000000000 AND time < 0000000210000000001 GROUP BY time(7s) fill(0);
+SELECT non_negative_derivative(mean(writes), 500ms) FROM diskio WHERE time >= 0000000130000000000 AND time < 0000000210000000001 GROUP BY time(7s) fill(0);
+SELECT non_negative_derivative(mean(writes)) FROM diskio WHERE time >= 0000000130000000000 AND time < 0000000210000000001 GROUP BY time(7s) fill(previous);
+SELECT non_negative_derivative(mean(writes), 500ms) FROM diskio WHERE time >= 0000000130000000000 AND time < 0000000210000000001 GROUP BY time(7s) fill(previous);
+SELECT non_negative_derivative(mean(writes)) FROM diskio WHERE time >= 0000000130000000000 AND time < 0000000210000000001 GROUP BY time(7s) fill(linear);
+SELECT non_negative_derivative(mean(writes), 500ms) FROM diskio WHERE time >= 0000000130000000000 AND time < 0000000210000000001 GROUP BY time(7s) fill(linear);
+-- group by time and a tag
+SELECT non_negative_derivative(mean(usage_idle)) FROM cpu WHERE time >= 0000000130000000000 AND time < 0000000210000000001 AND cpu =~ /^cpu(0|1)$/ GROUP BY TIME(30s), cpu;
+SELECT non_negative_derivative(mean(usage_idle), 500ms) FROM cpu WHERE time >= 0000000130000000000 AND time < 0000000210000000001 AND cpu =~ /^cpu(0|1)$/ GROUP BY TIME(30s), cpu;

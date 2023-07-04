@@ -48,7 +48,7 @@ mod tests {
         test_util::{
             make_write_op, populate_catalog, ARBITRARY_NAMESPACE_NAME,
             ARBITRARY_NAMESPACE_NAME_PROVIDER, ARBITRARY_PARTITION_KEY, ARBITRARY_TABLE_NAME,
-            ARBITRARY_TABLE_NAME_PROVIDER,
+            ARBITRARY_TABLE_PROVIDER,
         },
     };
 
@@ -67,7 +67,7 @@ mod tests {
         // Init the buffer tree
         let buf = BufferTree::new(
             Arc::clone(&*ARBITRARY_NAMESPACE_NAME_PROVIDER),
-            Arc::clone(&*ARBITRARY_TABLE_NAME_PROVIDER),
+            Arc::clone(&*ARBITRARY_TABLE_PROVIDER),
             Arc::new(CatalogPartitionResolver::new(Arc::clone(&catalog))),
             Arc::new(MockPostWriteObserver::default()),
             Arc::new(metric::Registry::default()),
