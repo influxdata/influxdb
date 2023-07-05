@@ -280,7 +280,7 @@ pub(crate) fn make_write_op(
     namespace_id: NamespaceId,
     table_name: &str,
     table_id: TableId,
-    sequence_number: i64,
+    sequence_number: u64,
     lines: &str,
     span_ctx: Option<SpanContext>,
 ) -> WriteOperation {

@@ -377,9 +377,7 @@ where
     // ingester, but they are only used for internal ordering of operations at
     // runtime.
     let timestamp = Arc::new(TimestampOracle::new(
-        max_sequence_number
-            .map(|v| u64::try_from(v.get()).expect("sequence number overflow"))
-            .unwrap_or(0),
+        max_sequence_number.map(|v| v.get()).unwrap_or(0),
     ));
 
     let (shutdown_tx, shutdown_rx) = oneshot::channel();

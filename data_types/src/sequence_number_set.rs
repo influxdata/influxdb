@@ -207,18 +207,18 @@ mod tests {
 
     #[test]
     fn test_intersect() {
-        let a = [0, i64::MAX, 40, 41, 42, 43, 44, 45]
+        let a = [0, u64::MAX, 40, 41, 42, 43, 44, 45]
             .into_iter()
             .map(SequenceNumber::new)
             .collect::<SequenceNumberSet>();
 
-        let b = [1, 5, i64::MAX, 42]
+        let b = [1, 5, u64::MAX, 42]
             .into_iter()
             .map(SequenceNumber::new)
             .collect::<SequenceNumberSet>();
 
         let intersection = intersect(&a, &b);
-        let want = [i64::MAX, 42]
+        let want = [u64::MAX, 42]
             .into_iter()
             .map(SequenceNumber::new)
             .collect::<SequenceNumberSet>();
@@ -226,21 +226,17 @@ mod tests {
         assert_eq!(intersection, want);
     }
 
-    /// Yield vec's of [`SequenceNumber`] derived from u64 values and cast to
-    /// i64.
+    /// Yield vec's of [`SequenceNumber`] derived from u64 values.
     ///
     /// This matches how the ingester allocates [`SequenceNumber`] - from a u64
     /// source.
     fn sequence_number_vec() -> impl Strategy<Value = Vec<SequenceNumber>> {
-        prop::collection::vec(0..u64::MAX, 0..1024).prop_map(|vec| {
-            vec.into_iter()
-                .map(|v| SequenceNumber::new(v as i64))
-                .collect()
-        })
+        prop::collection::vec(0..u64::MAX, 0..1024)
+            .prop_map(|vec| vec.into_iter().map(SequenceNumber::new).collect())
     }
 
     // The following tests compare to an order-independent HashSet, as the
-    // SequenceNumber uses the PartialOrd impl of the inner i64 for ordering,
+    // SequenceNumber uses the PartialOrd impl of the inner u64 for ordering,
     // resulting in incorrect output when compared to an ordered set of cast as
     // u64.
     //
