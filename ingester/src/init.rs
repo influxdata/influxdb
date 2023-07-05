@@ -99,6 +99,11 @@ pub struct IngesterGuard<T> {
     /// Aborted on drop.
     rotation_task: tokio::task::JoinHandle<()>,
 
+    /// The handle of the periodic disk protection task.
+    ///
+    /// Aborted on drop.
+    disk_protection_task: tokio::task::JoinHandle<()>,
+
     /// The task handle executing the graceful shutdown once triggered.
     graceful_shutdown_handler: tokio::task::JoinHandle<()>,
     shutdown_complete: Shared<oneshot::Receiver<()>>,
@@ -125,6 +130,7 @@ where
 impl<T> Drop for IngesterGuard<T> {
     fn drop(&mut self) {
         self.rotation_task.abort();
+        self.disk_protection_task.abort();
         self.graceful_shutdown_handler.abort();
     }
 }
@@ -332,7 +338,7 @@ where
         .map_err(InitError::WalInit)?;
     // Initialize the disk proetction after the WAL directory is initialized
     let disk_protection = InstrumentedDiskProtection::new(wal_directory, &metrics);
-    disk_protection.start().await;
+    let disk_protection_task = disk_protection.start().await;
 
     // Replay the WAL log files, if any.
     let max_sequence_number =
@@ -411,6 +417,7 @@ where
             persist_handle,
         ),
         rotation_task,
+        disk_protection_task,
         graceful_shutdown_handler: shutdown_task,
         shutdown_complete: shutdown_rx.shared(),
     })

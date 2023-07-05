@@ -1,7 +1,6 @@
-use std::{borrow::Cow, path::PathBuf, sync::Arc, time::Duration};
+use std::{borrow::Cow, path::PathBuf, time::Duration};
 
 use metric::{Attributes, U64Gauge};
-use parking_lot::Mutex;
 use sysinfo::{DiskExt, System, SystemExt};
 use tokio::{self, task::JoinHandle};
 
@@ -66,8 +65,6 @@ impl DiskProtectionMetrics {
 pub struct InstrumentedDiskProtection {
     /// The metrics that are reported to the registry.
     metrics: DiskProtectionMetrics,
-    /// The handle to terminate the background task.
-    background_task: Mutex<Option<JoinHandle<()>>>,
 }
 
 impl std::fmt::Debug for InstrumentedDiskProtection {
@@ -81,27 +78,12 @@ impl InstrumentedDiskProtection {
     pub fn new(directory_to_track: PathBuf, registry: &metric::Registry) -> Self {
         let metrics = DiskProtectionMetrics::new(directory_to_track, registry);
 
-        Self {
-            metrics,
-            background_task: Default::default(),
-        }
+        Self { metrics }
     }
 
     /// Start the [`InstrumentedDiskProtection`] background task.
-    pub async fn start(self) {
-        let rc_self = Arc::new(self);
-        let rc_self_clone = Arc::clone(&rc_self);
-
-        *rc_self.background_task.lock() = Some(tokio::task::spawn(async move {
-            rc_self_clone.background_task().await
-        }));
-    }
-
-    /// Stop the [`InstrumentedDiskProtection`] background task.
-    pub fn stop(&mut self) {
-        if let Some(t) = self.background_task.lock().take() {
-            t.abort()
-        }
+    pub async fn start(self) -> JoinHandle<()> {
+        tokio::task::spawn(async move { self.background_task().await })
     }
 
     /// The background task that periodically performs the disk protection check.
@@ -118,15 +100,10 @@ impl InstrumentedDiskProtection {
     }
 }
 
-impl Drop for InstrumentedDiskProtection {
-    fn drop(&mut self) {
-        // future-proof, such that stop does not need to be explicitly called.
-        self.stop();
-    }
-}
-
 #[cfg(test)]
 mod tests {
+    use std::sync::Arc;
+
     use metric::Metric;
 
     use super::*;
@@ -135,18 +112,20 @@ mod tests {
     async fn test_metrics() {
         let registry = Arc::new(metric::Registry::new());
 
-        struct MockAnyStruct;
+        struct MockAnyStruct {
+            abort_handle: JoinHandle<()>,
+        }
 
         impl MockAnyStruct {
             pub(crate) async fn new(registry: &metric::Registry) -> Self {
                 let disk_protection = InstrumentedDiskProtection::new(PathBuf::from("/"), registry);
-                disk_protection.start().await;
+                let abort_handle = disk_protection.start().await;
 
-                Self
+                Self { abort_handle }
             }
         }
 
-        let _mock = MockAnyStruct::new(&registry).await;
+        let mock = MockAnyStruct::new(&registry).await;
 
         tokio::time::sleep(2 * Duration::from_secs(2)).await;
 
@@ -158,5 +137,6 @@ mod tests {
             .fetch();
 
         assert!(recorded_metric > 0_u64);
+        mock.abort_handle.abort();
     }
 }
