@@ -331,12 +331,7 @@ where
         .await
         .map_err(InitError::WalInit)?;
     // Initialize the disk proetction after the WAL directory is initialized
-    let disk_protection = InstrumentedDiskProtection::new(
-        &metrics,
-        &[("wal", "&root")],
-        Duration::from_secs(15),
-        wal_directory,
-    );
+    let disk_protection = InstrumentedDiskProtection::new(wal_directory, &metrics);
     disk_protection.start().await;
 
     // Replay the WAL log files, if any.
