@@ -1,6 +1,9 @@
 use std::{collections::BTreeMap, sync::Arc, time::Duration};
 
-use data_types::{NamespaceId, PartitionId, PartitionKey, SequenceNumber, TableId};
+use data_types::{
+    partition_template::TablePartitionTemplateOverride, NamespaceId, PartitionId, PartitionKey,
+    SequenceNumber, TableId,
+};
 use iox_catalog::{interface::Catalog, test_helpers::arbitrary_namespace};
 use lazy_static::lazy_static;
 use mutable_batch_lp::lines_to_batches;
@@ -15,8 +18,8 @@ use crate::{
         },
         partition::{PartitionData, SortKeyState},
         table::{
-            name_resolver::{mock::MockTableNameProvider, TableNameProvider},
-            TableName,
+            metadata_resolver::{mock::MockTableProvider, TableProvider},
+            TableMetadata, TableName,
         },
     },
     deferred_load::DeferredLoad,
@@ -44,10 +47,15 @@ pub(crate) fn defer_namespace_name_1_ms() -> Arc<DeferredLoad<NamespaceName>> {
     ))
 }
 
-pub(crate) fn defer_table_name_1_sec() -> Arc<DeferredLoad<TableName>> {
+pub(crate) fn defer_table_metadata_1_sec() -> Arc<DeferredLoad<TableMetadata>> {
     Arc::new(DeferredLoad::new(
         Duration::from_secs(1),
-        async { ARBITRARY_TABLE_NAME.clone() },
+        async {
+            TableMetadata::new_for_testing(
+                ARBITRARY_TABLE_NAME.clone(),
+                TablePartitionTemplateOverride::default(),
+            )
+        },
         &metric::Registry::default(),
     ))
 }
@@ -60,8 +68,11 @@ lazy_static! {
     pub(crate) static ref ARBITRARY_NAMESPACE_NAME_PROVIDER: Arc<dyn NamespaceNameProvider> =
         Arc::new(MockNamespaceNameProvider::new(&**ARBITRARY_NAMESPACE_NAME));
     pub(crate) static ref ARBITRARY_TABLE_NAME: TableName = TableName::from("bananas");
-    pub(crate) static ref ARBITRARY_TABLE_NAME_PROVIDER: Arc<dyn TableNameProvider> =
-        Arc::new(MockTableNameProvider::new(&**ARBITRARY_TABLE_NAME));
+    pub(crate) static ref ARBITRARY_TABLE_PROVIDER: Arc<dyn TableProvider> =
+        Arc::new(MockTableProvider::new(TableMetadata::new_for_testing(
+            ARBITRARY_TABLE_NAME.clone(),
+            TablePartitionTemplateOverride::default()
+        )));
 }
 
 /// Build a [`PartitionData`] with mostly arbitrary-yet-valid values for tests.
@@ -71,7 +82,7 @@ pub(crate) struct PartitionDataBuilder {
     partition_key: Option<PartitionKey>,
     namespace_id: Option<NamespaceId>,
     table_id: Option<TableId>,
-    table_name_loader: Option<Arc<DeferredLoad<TableName>>>,
+    table_loader: Option<Arc<DeferredLoad<TableMetadata>>>,
     namespace_loader: Option<Arc<DeferredLoad<NamespaceName>>>,
     sort_key: Option<SortKeyState>,
 }
@@ -101,11 +112,11 @@ impl PartitionDataBuilder {
         self
     }
 
-    pub(crate) fn with_table_name_loader(
+    pub(crate) fn with_table_loader(
         mut self,
-        table_name_loader: Arc<DeferredLoad<TableName>>,
+        table_loader: Arc<DeferredLoad<TableMetadata>>,
     ) -> Self {
-        self.table_name_loader = Some(table_name_loader);
+        self.table_loader = Some(table_loader);
         self
     }
 
@@ -134,8 +145,7 @@ impl PartitionDataBuilder {
             self.namespace_loader
                 .unwrap_or_else(defer_namespace_name_1_sec),
             self.table_id.unwrap_or(ARBITRARY_TABLE_ID),
-            self.table_name_loader
-                .unwrap_or_else(defer_table_name_1_sec),
+            self.table_loader.unwrap_or_else(defer_table_metadata_1_sec),
             self.sort_key.unwrap_or(SortKeyState::Provided(None)),
         )
     }
@@ -229,7 +239,10 @@ macro_rules! make_partition_stream {
                     $(
                         let (batch, this_schema) = $batch;
                         batches.push(batch);
-                        schema = Schema::try_merge([schema, (*this_schema).clone()]).expect("incompatible batch schemas");
+                        schema = Schema::try_merge([
+                            schema,
+                            (*this_schema).clone()
+                        ]).expect("incompatible batch schemas");
                     )+
                     drop(schema);
 
@@ -241,11 +254,11 @@ macro_rules! make_partition_stream {
                         // batches are in a different partition, not what the actual identifier
                         // values are. This will go away when the ingester no longer sends
                         // PartitionIds.
-                        PartitionId::new($id),
+                        data_types::PartitionId::new($id),
                         Some(
                             PartitionHashId::new(
                                 TableId::new($id),
-                                &PartitionKey::from("arbitrary")
+                                &*ARBITRARY_PARTITION_KEY
                             )
                         ),
                         42,

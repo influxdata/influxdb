@@ -14,7 +14,7 @@ use self::{
     buffer::{traits::Queryable, BufferState, DataBuffer, Persisting},
     persisting::{BatchIdent, PersistingData},
 };
-use super::{namespace::NamespaceName, table::TableName};
+use super::{namespace::NamespaceName, table::TableMetadata};
 use crate::{deferred_load::DeferredLoad, query_adaptor::QueryAdaptor};
 
 mod buffer;
@@ -73,9 +73,9 @@ pub struct PartitionData {
 
     /// The catalog ID for the table this partition is part of.
     table_id: TableId,
-    /// The name of the table this partition is part of, potentially unresolved
+    /// The catalog metadata for the table this partition is part of, potentially unresolved
     /// / deferred.
-    table_name: Arc<DeferredLoad<TableName>>,
+    table: Arc<DeferredLoad<TableMetadata>>,
 
     /// A [`DataBuffer`] for incoming writes.
     buffer: DataBuffer,
@@ -108,7 +108,7 @@ impl PartitionData {
         namespace_id: NamespaceId,
         namespace_name: Arc<DeferredLoad<NamespaceName>>,
         table_id: TableId,
-        table_name: Arc<DeferredLoad<TableName>>,
+        table: Arc<DeferredLoad<TableMetadata>>,
         sort_key: SortKeyState,
     ) -> Self {
         Self {
@@ -119,7 +119,7 @@ impl PartitionData {
             namespace_id,
             namespace_name,
             table_id,
-            table_name,
+            table,
             buffer: DataBuffer::default(),
             persisting: VecDeque::with_capacity(1),
             started_persistence_count: BatchIdent::default(),
@@ -139,7 +139,7 @@ impl PartitionData {
         trace!(
             namespace_id = %self.namespace_id,
             table_id = %self.table_id,
-            table_name = %self.table_name,
+            table = %self.table,
             partition_id = %self.partition_id,
             partition_key = %self.partition_key,
             "buffered write"
@@ -175,7 +175,7 @@ impl PartitionData {
         trace!(
             namespace_id = %self.namespace_id,
             table_id = %self.table_id,
-            table_name = %self.table_name,
+            table = %self.table,
             partition_id = %self.partition_id,
             partition_key = %self.partition_key,
             n_batches = data.len(),
@@ -221,7 +221,7 @@ impl PartitionData {
         debug!(
             namespace_id = %self.namespace_id,
             table_id = %self.table_id,
-            table_name = %self.table_name,
+            table = %self.table,
             partition_id = %self.partition_id,
             partition_key = %self.partition_key,
             %batch_ident,
@@ -271,7 +271,7 @@ impl PartitionData {
             persistence_count = %self.completed_persistence_count,
             namespace_id = %self.namespace_id,
             table_id = %self.table_id,
-            table_name = %self.table_name,
+            table = %self.table,
             partition_id = %self.partition_id,
             partition_key = %self.partition_key,
             batch_ident = %batch.batch_ident(),
@@ -302,10 +302,10 @@ impl PartitionData {
         self.completed_persistence_count
     }
 
-    /// Return the name of the table this [`PartitionData`] is buffering writes
+    /// Return the metadata of the table this [`PartitionData`] is buffering writes
     /// for.
-    pub(crate) fn table_name(&self) -> &Arc<DeferredLoad<TableName>> {
-        &self.table_name
+    pub(crate) fn table(&self) -> &Arc<DeferredLoad<TableMetadata>> {
+        &self.table
     }
 
     /// Return the table ID for this partition.

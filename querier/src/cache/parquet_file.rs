@@ -285,7 +285,9 @@ mod tests {
     use data_types::{ColumnType, ParquetFileId};
     use iox_tests::{TestCatalog, TestNamespace, TestParquetFileBuilder, TestPartition, TestTable};
 
-    use crate::cache::{ram::test_util::test_ram_pool, test_util::assert_histogram_metric_count};
+    use crate::cache::{
+        ram::test_util::test_ram_pool, test_util::assert_catalog_access_metric_count,
+    };
 
     const METRIC_NAME: &str = "parquet_list_by_table_not_to_delete";
     const TABLE1_LINE_PROTOCOL: &str = "table1 foo=1 11";
@@ -307,9 +309,9 @@ mod tests {
         assert_eq!(cached_files[0].as_ref(), expected_parquet_file);
 
         // validate a second request doesn't result in a catalog request
-        assert_histogram_metric_count(&catalog.metric_registry, METRIC_NAME, 1);
+        assert_catalog_access_metric_count(&catalog.metric_registry, METRIC_NAME, 1);
         cache.get(table.table.id, None, None).await;
-        assert_histogram_metric_count(&catalog.metric_registry, METRIC_NAME, 1);
+        assert_catalog_access_metric_count(&catalog.metric_registry, METRIC_NAME, 1);
     }
 
     #[tokio::test]
@@ -359,8 +361,8 @@ mod tests {
         partition.create_parquet_file(builder).await;
         let table_id = table.table.id;
 
-        let single_file_size = 208;
-        let two_file_size = 384;
+        let single_file_size = 240;
+        let two_file_size = 448;
         assert!(single_file_size < two_file_size);
 
         let cache = make_cache(&catalog);
@@ -384,42 +386,42 @@ mod tests {
 
         // No metadata: make one request that should be cached
         cache.get(table_id, None, None).await;
-        assert_histogram_metric_count(&catalog.metric_registry, METRIC_NAME, 1);
+        assert_catalog_access_metric_count(&catalog.metric_registry, METRIC_NAME, 1);
         cache.get(table_id, None, None).await;
-        assert_histogram_metric_count(&catalog.metric_registry, METRIC_NAME, 1);
+        assert_catalog_access_metric_count(&catalog.metric_registry, METRIC_NAME, 1);
 
         // Empty metadata: make one request, should still be cached
         cache.get(table_id, Some(HashMap::new()), None).await;
-        assert_histogram_metric_count(&catalog.metric_registry, METRIC_NAME, 1);
+        assert_catalog_access_metric_count(&catalog.metric_registry, METRIC_NAME, 1);
 
         // See a new UUID: refresh the cache
         cache
             .get(table_id, Some(HashMap::from([(uuid, 3)])), None)
             .await;
-        assert_histogram_metric_count(&catalog.metric_registry, METRIC_NAME, 2);
+        assert_catalog_access_metric_count(&catalog.metric_registry, METRIC_NAME, 2);
 
         // See the same UUID with the same count: should still be cached
         cache
             .get(table_id, Some(HashMap::from([(uuid, 3)])), None)
             .await;
-        assert_histogram_metric_count(&catalog.metric_registry, METRIC_NAME, 2);
+        assert_catalog_access_metric_count(&catalog.metric_registry, METRIC_NAME, 2);
 
         // See the same UUID with a different count: refresh the cache
         cache
             .get(table_id, Some(HashMap::from([(uuid, 4)])), None)
             .await;
-        assert_histogram_metric_count(&catalog.metric_registry, METRIC_NAME, 3);
+        assert_catalog_access_metric_count(&catalog.metric_registry, METRIC_NAME, 3);
 
         // Empty metadata again: still use the cache
         cache.get(table_id, Some(HashMap::new()), None).await;
-        assert_histogram_metric_count(&catalog.metric_registry, METRIC_NAME, 4);
+        assert_catalog_access_metric_count(&catalog.metric_registry, METRIC_NAME, 4);
 
         // See a new UUID and not the old one: refresh the cache
         let new_uuid = Uuid::new_v4();
         cache
             .get(table_id, Some(HashMap::from([(new_uuid, 1)])), None)
             .await;
-        assert_histogram_metric_count(&catalog.metric_registry, METRIC_NAME, 5);
+        assert_catalog_access_metric_count(&catalog.metric_registry, METRIC_NAME, 5);
     }
 
     #[tokio::test]
@@ -455,9 +457,9 @@ mod tests {
         tfile1.flag_for_delete().await;
 
         // validate a second request doesn't result in a catalog request
-        assert_histogram_metric_count(&catalog.metric_registry, METRIC_NAME, 1);
+        assert_catalog_access_metric_count(&catalog.metric_registry, METRIC_NAME, 1);
         let cached_files = cache.get(table.table.id, None, None).await.vec();
-        assert_histogram_metric_count(&catalog.metric_registry, METRIC_NAME, 1);
+        assert_catalog_access_metric_count(&catalog.metric_registry, METRIC_NAME, 1);
 
         // still the old data
         assert_eq!(cached_files.len(), 2);
@@ -468,7 +470,7 @@ mod tests {
         catalog.mock_time_provider().inc(TTL);
         let mut cached_files = cache.get(table.table.id, None, None).await.vec();
         cached_files.sort_by_key(|f| f.id);
-        assert_histogram_metric_count(&catalog.metric_registry, METRIC_NAME, 2);
+        assert_catalog_access_metric_count(&catalog.metric_registry, METRIC_NAME, 2);
         assert_eq!(cached_files.len(), 3);
         assert_eq!(cached_files[0].as_ref(), &tfile2.parquet_file);
         assert_eq!(cached_files[1].as_ref(), &tfile3.parquet_file);

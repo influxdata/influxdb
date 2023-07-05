@@ -70,41 +70,16 @@ where
 
 #[cfg(test)]
 mod tests {
-    use std::{sync::Arc, time::Duration};
-
-    use assert_matches::assert_matches;
-    use data_types::{NamespaceId, PartitionId, PartitionKey, TableId};
-    use lazy_static::lazy_static;
-    use metric::Attributes;
-
     use super::*;
     use crate::{
-        buffer_tree::{namespace::NamespaceName, table::TableName},
-        deferred_load::DeferredLoad,
         dml_sink::{mock_sink::MockDmlSink, DmlError},
-        test_util::make_write_op,
+        test_util::{
+            make_write_op, ARBITRARY_NAMESPACE_ID, ARBITRARY_PARTITION_KEY, ARBITRARY_TABLE_ID,
+            ARBITRARY_TABLE_NAME,
+        },
     };
-
-    const PARTITION_ID: PartitionId = PartitionId::new(42);
-    const NAMESPACE_ID: NamespaceId = NamespaceId::new(24);
-    const TABLE_ID: TableId = TableId::new(2442);
-    const TABLE_NAME: &str = "banana-report";
-    const NAMESPACE_NAME: &str = "platanos";
-
-    lazy_static! {
-        static ref PARTITION_KEY: PartitionKey = PartitionKey::from("bananas");
-        static ref NAMESPACE_NAME_LOADER: Arc<DeferredLoad<NamespaceName>> =
-            Arc::new(DeferredLoad::new(
-                Duration::from_secs(1),
-                async { NamespaceName::from(NAMESPACE_NAME) },
-                &metric::Registry::default(),
-            ));
-        static ref TABLE_NAME_LOADER: Arc<DeferredLoad<TableName>> = Arc::new(DeferredLoad::new(
-            Duration::from_secs(1),
-            async { TableName::from(TABLE_NAME) },
-            &metric::Registry::default(),
-        ));
-    }
+    use assert_matches::assert_matches;
+    use metric::Attributes;
 
     const LAYER_NAME: &str = "test-bananas";
 
@@ -123,12 +98,12 @@ mod tests {
                     let decorator = DmlSinkInstrumentation::new(LAYER_NAME, mock, &metrics);
 
                     let op = IngestOp::Write(make_write_op(
-                        &PARTITION_KEY,
-                        NAMESPACE_ID,
-                        TABLE_NAME,
-                        TABLE_ID,
+                        &ARBITRARY_PARTITION_KEY,
+                        ARBITRARY_NAMESPACE_ID,
+                        &ARBITRARY_TABLE_NAME,
+                        ARBITRARY_TABLE_ID,
                         42,
-                        "banana-report,tag=1 v=2 42424242",
+                        &format!("{},tag=1 v=2 42424242", &*ARBITRARY_TABLE_NAME),
                         None,
                     ));
 
@@ -141,7 +116,9 @@ mod tests {
                     // Validate the histogram with the specified attributes saw
                     // an observation
                     let histogram = metrics
-                        .get_instrument::<Metric<DurationHistogram>>("ingester_dml_sink_apply_duration")
+                        .get_instrument::<Metric<DurationHistogram>>(
+                            "ingester_dml_sink_apply_duration"
+                        )
                         .expect("failed to find metric")
                         .get_observer(&Attributes::from(&$want_metric_attr))
                         .expect("failed to find attributes")

@@ -5,15 +5,13 @@ use std::{any::Any, sync::Arc};
 
 use arrow::record_batch::RecordBatch;
 use arrow_util::util::ensure_schema;
-use data_types::{ChunkId, ChunkOrder, DeletePredicate, PartitionId};
-use datafusion::{error::DataFusionError, physical_plan::Statistics};
+use data_types::{ChunkId, ChunkOrder, PartitionId, TimestampMinMax};
+use datafusion::physical_plan::Statistics;
 use iox_query::{
-    exec::{stringset::StringSet, IOxSessionContext},
     util::{compute_timenanosecond_min_max, create_basic_summary},
-    QueryChunk, QueryChunkData, QueryChunkMeta,
+    QueryChunk, QueryChunkData,
 };
 use once_cell::sync::OnceCell;
-use predicate::Predicate;
 use schema::{merge::merge_record_batch_schemas, sort::SortKey, Projection, Schema};
 
 /// A queryable wrapper over a set of ordered [`RecordBatch`] snapshot from a
@@ -107,16 +105,26 @@ impl QueryAdaptor {
     pub(crate) fn partition_id(&self) -> PartitionId {
         self.partition_id
     }
+
+    /// Number of rows, useful for building stats
+    pub(crate) fn num_rows(&self) -> u64 {
+        self.data.iter().map(|b| b.num_rows()).sum::<usize>() as u64
+    }
+
+    /// Time range, useful for building stats
+    pub(crate) fn ts_min_max(&self) -> TimestampMinMax {
+        compute_timenanosecond_min_max(self.data.iter().map(|b| b.as_ref()))
+            .expect("Should have time range")
+    }
 }
 
-impl QueryChunkMeta for QueryAdaptor {
+impl QueryChunk for QueryAdaptor {
     fn stats(&self) -> Arc<Statistics> {
         Arc::clone(self.stats.get_or_init(|| {
-            let ts_min_max = compute_timenanosecond_min_max(self.data.iter().map(|b| b.as_ref()))
-                .expect("Should have time range");
+            let ts_min_max = self.ts_min_max();
 
             Arc::new(create_basic_summary(
-                self.data.iter().map(|b| b.num_rows()).sum::<usize>() as u64,
+                self.num_rows(),
                 self.schema(),
                 ts_min_max,
             ))
@@ -135,12 +143,6 @@ impl QueryChunkMeta for QueryAdaptor {
         None // Ingester data is not sorted
     }
 
-    fn delete_predicates(&self) -> &[Arc<DeletePredicate>] {
-        &[]
-    }
-}
-
-impl QueryChunk for QueryAdaptor {
     fn id(&self) -> ChunkId {
         self.id
     }
@@ -151,33 +153,6 @@ impl QueryChunk for QueryAdaptor {
         // always true because the rows across record batches have not been
         // de-duplicated.
         true
-    }
-
-    /// Returns a set of Strings with column names from the specified
-    /// table that have at least one row that matches `predicate`, if
-    /// the predicate can be evaluated entirely on the metadata of
-    /// this Chunk. Returns `None` otherwise
-    fn column_names(
-        &self,
-        _ctx: IOxSessionContext,
-        _predicate: &Predicate,
-        _columns: Projection<'_>,
-    ) -> Result<Option<StringSet>, DataFusionError> {
-        Ok(None)
-    }
-
-    /// Return a set of Strings containing the distinct values in the
-    /// specified columns. If the predicate can be evaluated entirely
-    /// on the metadata of this Chunk. Returns `None` otherwise
-    ///
-    /// The requested columns must all have String type.
-    fn column_values(
-        &self,
-        _ctx: IOxSessionContext,
-        _column_name: &str,
-        _predicate: &Predicate,
-    ) -> Result<Option<StringSet>, DataFusionError> {
-        Ok(None)
     }
 
     fn data(&self) -> QueryChunkData {

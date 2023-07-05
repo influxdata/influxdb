@@ -142,6 +142,14 @@ pub fn limit_files_to_compact(
             } else {
                 files_to_keep.push(file);
             }
+            // TODO(maybe): See matching comment in stuck.rs/stuck_l1
+            // Its possible we split a few L1s so they don't overlap with too many L2s, then decided to compact just
+            // a few of them above.  Now this break will cause us to leave the rest of the L1s we split to wait for
+            // the next round that may never come.  The few we're compacting now may be enough to make the L1s fall
+            // below the threshold for compacting another round.
+            // We could set something here that's passed all the way up to the loop in `try_compact_partition` that
+            // skips the partition filter and forces it to do one more round because this round was stopped prematurely.
+            // That flag would mean: 'I'm in the middle of something, so ignore the continue critiera and let me finish'
             break;
         }
     }

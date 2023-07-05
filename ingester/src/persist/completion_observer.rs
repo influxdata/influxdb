@@ -156,19 +156,15 @@ pub(crate) mod mock {
 
 #[cfg(test)]
 mod tests {
-    use data_types::{ColumnId, ColumnSet, SequenceNumber, Timestamp};
-
     use super::*;
-
-    const NAMESPACE_ID: NamespaceId = NamespaceId::new(1);
-    const TABLE_ID: TableId = TableId::new(1);
-    const PARTITION_ID: PartitionId = PartitionId::new(1);
+    use crate::test_util::{ARBITRARY_NAMESPACE_ID, ARBITRARY_PARTITION_ID, ARBITRARY_TABLE_ID};
+    use data_types::{ColumnId, ColumnSet, SequenceNumber, Timestamp};
 
     fn arbitrary_file_meta() -> ParquetFileParams {
         ParquetFileParams {
-            namespace_id: NAMESPACE_ID,
-            table_id: TABLE_ID,
-            partition_id: PARTITION_ID,
+            namespace_id: ARBITRARY_NAMESPACE_ID,
+            table_id: ARBITRARY_TABLE_ID,
+            partition_id: ARBITRARY_PARTITION_ID,
             partition_hash_id: None,
             object_store_id: Default::default(),
             min_time: Timestamp::new(42),

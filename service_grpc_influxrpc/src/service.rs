@@ -1894,13 +1894,17 @@ mod tests {
             .with_id(0)
             .with_tag_column("state")
             .with_tag_column("k1")
-            .with_tag_column("k2");
+            .with_tag_column("k2")
+            .with_time_column()
+            .with_one_row_of_data();
 
         let chunk1 = TestChunk::new("m2")
             .with_id(1)
             .with_tag_column("state")
             .with_tag_column("k3")
-            .with_tag_column("k4");
+            .with_tag_column("k4")
+            .with_time_column()
+            .with_one_row_of_data();
 
         fixture
             .test_storage
@@ -1913,7 +1917,7 @@ mod tests {
 
         let request = TagKeysRequest {
             tags_source: source.clone(),
-            range: Some(make_timestamp_range(150, 200)),
+            range: Some(make_timestamp_range(950, 1050)),
             predicate: Some(make_state_eq_ma_predicate()),
         };
 
@@ -1972,14 +1976,18 @@ mod tests {
 
         let chunk0 = TestChunk::new("m1")
             // predicate specifies m4, so this is filtered out
-            .with_tag_column("k0");
+            .with_tag_column("k0")
+            .with_time_column()
+            .with_one_row_of_data();
 
         let chunk1 = TestChunk::new("m4")
             .with_tag_column("state")
             .with_tag_column("k1")
             .with_tag_column("k2")
             .with_tag_column("k3")
-            .with_tag_column("k4");
+            .with_tag_column("k4")
+            .with_time_column()
+            .with_one_row_of_data();
 
         fixture
             .test_storage
@@ -1996,7 +2004,7 @@ mod tests {
         let request = MeasurementTagKeysRequest {
             measurement: "m4".into(),
             source: source.clone(),
-            range: Some(make_timestamp_range(150, 200)),
+            range: Some(make_timestamp_range(950, 1050)),
             predicate: Some(make_state_eq_ma_predicate()),
         };
 

@@ -111,12 +111,9 @@ impl PhysicalOptimizerRule for PartitionSplit {
 
 #[cfg(test)]
 mod tests {
-    use crate::{
-        physical_optimizer::{
-            dedup::test_util::{chunk, dedup_plan},
-            test_util::OptimizationTest,
-        },
-        QueryChunkMeta,
+    use crate::physical_optimizer::{
+        dedup::test_util::{chunk, dedup_plan},
+        test_util::OptimizationTest,
     };
 
     use super::*;

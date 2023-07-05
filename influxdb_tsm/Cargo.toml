@@ -6,7 +6,7 @@ edition.workspace = true
 license.workspace = true
 
 [dependencies] # In alphabetical order
-integer-encoding = "3.0.4"
+integer-encoding = "4.0.0"
 snafu = "0.7"
 snap = "1.1.0"
 observability_deps = { path = "../observability_deps" }

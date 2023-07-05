@@ -1,29 +1,16 @@
 use std::sync::Arc;
 
 use async_trait::async_trait;
-use compactor_scheduler::{LocalScheduler, PartitionsSource};
+use compactor_scheduler::{CompactionJob, PartitionsSource, Scheduler};
 use data_types::PartitionId;
-
-use crate::config::Config;
 
 #[derive(Debug)]
 pub struct ScheduledPartitionsSource {
-    scheduler: LocalScheduler, // TODO: followon PR will replace with Arc<dyn Scheduler>
+    scheduler: Arc<dyn Scheduler>,
 }
 
 impl ScheduledPartitionsSource {
-    pub fn new(config: &Config) -> Self {
-        // TODO: followon PR:
-        // * will have the Arc<dyn Scheduler> provided as a component to the compactor
-        // * this Scheduler will be created with the below components
-        let scheduler = LocalScheduler::new(
-            config.partitions_source.clone(),
-            config.shard_config.clone(),
-            config.backoff_config.clone(),
-            Arc::clone(&config.catalog),
-            Arc::clone(&config.time_provider),
-        );
-
+    pub fn new(scheduler: Arc<dyn Scheduler>) -> Self {
         Self { scheduler }
     }
 }
@@ -31,7 +18,8 @@ impl ScheduledPartitionsSource {
 #[async_trait]
 impl PartitionsSource for ScheduledPartitionsSource {
     async fn fetch(&self) -> Vec<PartitionId> {
-        self.scheduler.fetch().await
+        let job: Vec<CompactionJob> = self.scheduler.get_jobs().await;
+        job.into_iter().map(|job| job.partition_id).collect()
     }
 }
 
@@ -43,10 +31,7 @@ impl std::fmt::Display for ScheduledPartitionsSource {
 
 #[cfg(test)]
 mod tests {
-    use std::collections::HashSet;
-
-    use backoff::BackoffConfig;
-    use compactor_scheduler::PartitionsSourceConfig;
+    use compactor_scheduler::create_test_scheduler;
     use iox_tests::TestCatalog;
     use iox_time::{MockProvider, Time};
 
@@ -54,12 +39,10 @@ mod tests {
 
     #[test]
     fn test_display() {
-        let scheduler = LocalScheduler::new(
-            PartitionsSourceConfig::Fixed(HashSet::new()),
-            None,
-            BackoffConfig::default(),
+        let scheduler = create_test_scheduler(
             TestCatalog::new().catalog(),
             Arc::new(MockProvider::new(Time::MIN)),
+            None,
         );
         let source = ScheduledPartitionsSource { scheduler };
 

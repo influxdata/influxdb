@@ -250,7 +250,7 @@ impl ExecutionPlan for RecordBatchesExec {
             .sum::<usize>();
 
         match t {
-            DisplayFormatType::Default => {
+            DisplayFormatType::Default | DisplayFormatType::Verbose => {
                 write!(
                     f,
                     "RecordBatchesExec: batches_groups={total_groups} batches={total_batches} total_rows={total_rows}",

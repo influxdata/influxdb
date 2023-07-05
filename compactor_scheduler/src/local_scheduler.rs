@@ -8,12 +8,14 @@ use std::sync::Arc;
 
 use async_trait::async_trait;
 use backoff::BackoffConfig;
-use data_types::PartitionId;
 use iox_catalog::interface::Catalog;
 use iox_time::TimeProvider;
 use observability_deps::tracing::info;
 
-use crate::{MockPartitionsSource, PartitionsSource, PartitionsSourceConfig, ShardConfig};
+use crate::{
+    CompactionJob, MockPartitionsSource, PartitionsSource, PartitionsSourceConfig, Scheduler,
+    ShardConfig,
+};
 
 use self::{
     id_only_partition_filter::{
@@ -26,23 +28,34 @@ use self::{
     },
 };
 
+/// Configuration specific to the local scheduler.
+#[derive(Debug, Default, Clone)]
+pub struct LocalSchedulerConfig {
+    /// The partitions source config used by the local sceduler.
+    pub partitions_source_config: PartitionsSourceConfig,
+    /// The shard config used by the local sceduler.
+    pub shard_config: Option<ShardConfig>,
+}
+
 /// Implementation of the scheduler for local (per compactor) scheduling.
 #[derive(Debug)]
-pub struct LocalScheduler {
+pub(crate) struct LocalScheduler {
     /// The partitions source to use for scheduling.
     partitions_source: Arc<dyn PartitionsSource>,
+    /// The shard config used for generating the PartitionsSource.
+    shard_config: Option<ShardConfig>,
 }
 
 impl LocalScheduler {
     /// Create a new [`LocalScheduler`].
-    pub fn new(
-        config: PartitionsSourceConfig,
-        shard_config: Option<ShardConfig>,
+    pub(crate) fn new(
+        config: LocalSchedulerConfig,
         backoff_config: BackoffConfig,
         catalog: Arc<dyn Catalog>,
         time_provider: Arc<dyn TimeProvider>,
     ) -> Self {
-        let partitions_source: Arc<dyn PartitionsSource> = match &config {
+        let shard_config = config.shard_config;
+        let partitions_source: Arc<dyn PartitionsSource> = match &config.partitions_source_config {
             PartitionsSourceConfig::CatalogRecentWrites { threshold } => {
                 Arc::new(CatalogToCompactPartitionsSource::new(
                     backoff_config,
@@ -79,20 +92,75 @@ impl LocalScheduler {
                 partitions_source,
             ));
 
-        Self { partitions_source }
+        Self {
+            partitions_source,
+            shard_config,
+        }
     }
 }
 
 #[async_trait]
-impl PartitionsSource for LocalScheduler {
-    // TODO: followon PR will replace with Arc<dyn Scheduler>.get_job()
-    async fn fetch(&self) -> Vec<PartitionId> {
-        self.partitions_source.fetch().await
+impl Scheduler for LocalScheduler {
+    async fn get_jobs(&self) -> Vec<CompactionJob> {
+        self.partitions_source
+            .fetch()
+            .await
+            .into_iter()
+            .map(CompactionJob::new)
+            .collect()
     }
 }
 
 impl std::fmt::Display for LocalScheduler {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "local_compaction_scheduler")
+        match &self.shard_config {
+            None => write!(f, "local_compaction_scheduler"),
+            Some(shard_config) => write!(f, "local_compaction_scheduler({shard_config})",),
+        }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use iox_tests::TestCatalog;
+    use iox_time::{MockProvider, Time};
+
+    use super::*;
+
+    #[test]
+    fn test_display() {
+        let scheduler = LocalScheduler::new(
+            LocalSchedulerConfig::default(),
+            BackoffConfig::default(),
+            TestCatalog::new().catalog(),
+            Arc::new(MockProvider::new(Time::MIN)),
+        );
+
+        assert_eq!(scheduler.to_string(), "local_compaction_scheduler",);
+    }
+
+    #[test]
+    fn test_display_with_sharding() {
+        let shard_config = Some(ShardConfig {
+            n_shards: 2,
+            shard_id: 1,
+        });
+
+        let config = LocalSchedulerConfig {
+            partitions_source_config: PartitionsSourceConfig::default(),
+            shard_config,
+        };
+
+        let scheduler = LocalScheduler::new(
+            config,
+            BackoffConfig::default(),
+            TestCatalog::new().catalog(),
+            Arc::new(MockProvider::new(Time::MIN)),
+        );
+
+        assert_eq!(
+            scheduler.to_string(),
+            "local_compaction_scheduler(shard_cfg(n_shards=2,shard_id=1))",
+        );
     }
 }

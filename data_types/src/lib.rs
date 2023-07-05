@@ -613,7 +613,13 @@ impl ParquetFile {
 
     /// Estimate the memory consumption of this object and its contents
     pub fn size(&self) -> usize {
-        std::mem::size_of_val(self) + self.column_set.size()
+        std::mem::size_of_val(self)
+            + self
+                .partition_hash_id
+                .as_ref()
+                .map(|id| id.size() - std::mem::size_of_val(id))
+                .unwrap_or_default()
+            + self.column_set.size()
             - std::mem::size_of_val(&self.column_set)
     }
 

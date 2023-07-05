@@ -220,21 +220,21 @@ where
 
 #[cfg(test)]
 mod tests {
-    use std::sync::Arc;
-
     use assert_matches::assert_matches;
     use data_types::SequenceNumber;
     use generated_types::influxdata::pbdata::v1::{
         column::{SemanticType, Values},
         Column, DatabaseBatch, TableBatch,
     };
+    use std::sync::Arc;
 
     use super::*;
-    use crate::dml_payload::IngestOp;
-    use crate::dml_sink::mock_sink::MockDmlSink;
+    use crate::{
+        dml_payload::IngestOp,
+        dml_sink::mock_sink::MockDmlSink,
+        test_util::{ARBITRARY_NAMESPACE_ID, ARBITRARY_PARTITION_KEY, ARBITRARY_TABLE_ID},
+    };
 
-    const NAMESPACE_ID: NamespaceId = NamespaceId::new(42);
-    const PARTITION_KEY: &str = "bananas";
     const PERSIST_QUEUE_DEPTH: usize = 42;
 
     macro_rules! test_rpc_write {
@@ -261,7 +261,13 @@ mod tests {
                         .write(Request::new($request))
                         .await;
 
-                    assert_eq!(ret.is_err(), $want_err, "wanted handler error {} got {:?}", $want_err, ret);
+                    assert_eq!(
+                        ret.is_err(),
+                        $want_err,
+                        "wanted handler error {} got {:?}",
+                        $want_err,
+                        ret
+                    );
                     assert_matches!(mock.get_calls().as_slice(), $($want_calls)+);
                 }
             }
@@ -272,10 +278,10 @@ mod tests {
         apply_ok,
         request = proto::WriteRequest {
         payload: Some(DatabaseBatch {
-                database_id: NAMESPACE_ID.get(),
-                partition_key: PARTITION_KEY.to_string(),
+                database_id: ARBITRARY_NAMESPACE_ID.get(),
+                partition_key: ARBITRARY_PARTITION_KEY.to_string(),
                 table_batches: vec![TableBatch {
-                    table_id: 42,
+                    table_id: ARBITRARY_TABLE_ID.get(),
                     columns: vec![Column {
                         column_name: "time".to_string(),
                         semantic_type: SemanticType::Time.into(),
@@ -299,10 +305,13 @@ mod tests {
         want_err = false,
         want_calls = [IngestOp::Write(w)] => {
             // Assert the various IngestOp properties match the expected values
-            assert_eq!(w.namespace(), NAMESPACE_ID);
+            assert_eq!(w.namespace(), ARBITRARY_NAMESPACE_ID);
             assert_eq!(w.tables().count(), 1);
-            assert_eq!(*w.partition_key(), PartitionKey::from(PARTITION_KEY));
-            assert_eq!(w.tables().next().unwrap().1.partitioned_data().sequence_number(), SequenceNumber::new(1));
+            assert_eq!(w.partition_key(), &*ARBITRARY_PARTITION_KEY);
+            assert_eq!(
+                w.tables().next().unwrap().1.partitioned_data().sequence_number(),
+                SequenceNumber::new(1)
+            );
         }
     );
 
@@ -318,8 +327,8 @@ mod tests {
         no_tables,
         request = proto::WriteRequest {
             payload: Some(DatabaseBatch {
-                database_id: NAMESPACE_ID.get(),
-                partition_key: PARTITION_KEY.to_string(),
+                database_id: ARBITRARY_NAMESPACE_ID.get(),
+                partition_key: ARBITRARY_PARTITION_KEY.to_string(),
                 table_batches: vec![],
             }),
         },
@@ -332,10 +341,10 @@ mod tests {
         batch_error,
         request = proto::WriteRequest {
             payload: Some(DatabaseBatch {
-                database_id: NAMESPACE_ID.get(),
-                partition_key: PARTITION_KEY.to_string(),
+                database_id: ARBITRARY_NAMESPACE_ID.get(),
+                partition_key: ARBITRARY_PARTITION_KEY.to_string(),
                 table_batches: vec![TableBatch {
-                    table_id: 42,
+                    table_id: ARBITRARY_TABLE_ID.get(),
                     columns: vec![Column {
                         column_name: "time".to_string(),
                         semantic_type: SemanticType::Time.into(),
@@ -373,10 +382,10 @@ mod tests {
 
         let req = proto::WriteRequest {
             payload: Some(DatabaseBatch {
-                database_id: NAMESPACE_ID.get(),
-                partition_key: PARTITION_KEY.to_string(),
+                database_id: ARBITRARY_NAMESPACE_ID.get(),
+                partition_key: ARBITRARY_PARTITION_KEY.to_string(),
                 table_batches: vec![TableBatch {
-                    table_id: 42,
+                    table_id: ARBITRARY_TABLE_ID.get(),
                     columns: vec![Column {
                         column_name: "time".to_string(),
                         semantic_type: SemanticType::Time.into(),
@@ -430,10 +439,10 @@ mod tests {
 
         let req = proto::WriteRequest {
             payload: Some(DatabaseBatch {
-                database_id: NAMESPACE_ID.get(),
-                partition_key: PARTITION_KEY.to_string(),
+                database_id: ARBITRARY_NAMESPACE_ID.get(),
+                partition_key: ARBITRARY_PARTITION_KEY.to_string(),
                 table_batches: vec![TableBatch {
-                    table_id: 42,
+                    table_id: ARBITRARY_TABLE_ID.get(),
                     columns: vec![Column {
                         column_name: "time".to_string(),
                         semantic_type: SemanticType::Time.into(),
@@ -486,10 +495,10 @@ mod tests {
 
         let req = proto::WriteRequest {
             payload: Some(DatabaseBatch {
-                database_id: NAMESPACE_ID.get(),
-                partition_key: PARTITION_KEY.to_string(),
+                database_id: ARBITRARY_NAMESPACE_ID.get(),
+                partition_key: ARBITRARY_PARTITION_KEY.to_string(),
                 table_batches: vec![TableBatch {
-                    table_id: 42,
+                    table_id: ARBITRARY_TABLE_ID.get(),
                     columns: vec![Column {
                         column_name: "time".to_string(),
                         semantic_type: SemanticType::Time.into(),

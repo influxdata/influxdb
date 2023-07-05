@@ -8,7 +8,7 @@ license.workspace = true
 [dependencies]
 arrow = { workspace = true }
 arrow-flight = { workspace = true }
-async-trait = "0.1.68"
+async-trait = "0.1.70"
 backoff = { path = "../backoff" }
 bytes = "1.4"
 cache_system = { path = "../cache_system" }
@@ -17,6 +17,7 @@ data_types = { path = "../data_types" }
 datafusion = { workspace = true }
 datafusion_util = { path = "../datafusion_util" }
 futures = "0.3"
+hashbrown = { version = "0.14.0" }
 influxdb_iox_client = { path = "../influxdb_iox_client" }
 iox_catalog = { path = "../iox_catalog" }
 iox_query = { path = "../iox_query" }
@@ -34,7 +35,7 @@ rand = "0.8.3"
 service_common = { path = "../service_common" }
 schema = { path = "../schema" }
 snafu = "0.7"
-tokio = { version = "1.28", features = ["macros", "parking_lot", "rt-multi-thread", "sync", "time"] }
+tokio = { version = "1.29", features = ["macros", "parking_lot", "rt-multi-thread", "sync", "time"] }
 tokio-util = { version = "0.7.8" }
 tonic = { workspace = true }
 trace = { path = "../trace" }

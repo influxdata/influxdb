@@ -2,7 +2,7 @@
 use std::{num::NonZeroUsize, sync::Arc, time::Duration};
 
 use backoff::BackoffConfig;
-use compactor_scheduler::{PartitionsSourceConfig, ShardConfig};
+use compactor_scheduler::SchedulerConfig;
 use iox_catalog::interface::Catalog;
 use iox_query::exec::Executor;
 use iox_time::TimeProvider;
@@ -24,6 +24,9 @@ pub struct Config {
 
     /// Central catalog.
     pub catalog: Arc<dyn Catalog>,
+
+    /// Scheduler configuration.
+    pub scheduler_config: SchedulerConfig,
 
     /// Store holding the actual parquet files.
     pub parquet_store_real: ParquetStorage,
@@ -78,9 +81,6 @@ pub struct Config {
     /// Maximum duration of the per-partition compaction task.
     pub partition_timeout: Duration,
 
-    /// Source of partitions to consider for comapction.
-    pub partitions_source: PartitionsSourceConfig,
-
     /// Shadow mode.
     ///
     /// This will NOT write / commit any output to the object store or catalog.
@@ -99,10 +99,6 @@ pub struct Config {
     ///
     /// This is mostly useful for debugging.
     pub ignore_partition_skip_marker: bool,
-
-    /// TODO: this will be removed in followup PR.
-    /// Shard config (if sharding should be enabled).
-    pub shard_config: Option<ShardConfig>,
 
     /// Minimum number of L1 files to compact to L2
     /// This is to prevent too many small files

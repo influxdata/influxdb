@@ -3,9 +3,6 @@
 rustflags = [
     "--cfg", "tokio_unstable",
 ]
-rustdocflags = [
-    "--cfg", "tokio_unstable",
-]
 
 # sparse protocol opt-in
 # See https://blog.rust-lang.org/2023/03/09/Rust-1.68.0.html#cargos-sparse-protocol

@@ -354,7 +354,6 @@ mod tests {
     use crate::{
         chunk_order_field,
         test::{format_execution_plan, TestChunk},
-        QueryChunkMeta,
     };
 
     use super::*;

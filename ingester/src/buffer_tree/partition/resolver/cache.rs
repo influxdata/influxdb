@@ -14,7 +14,7 @@ use crate::{
     buffer_tree::{
         namespace::NamespaceName,
         partition::{resolver::SortKeyResolver, PartitionData, SortKeyState},
-        table::TableName,
+        table::TableMetadata,
     },
     deferred_load::DeferredLoad,
 };
@@ -173,7 +173,7 @@ where
         namespace_id: NamespaceId,
         namespace_name: Arc<DeferredLoad<NamespaceName>>,
         table_id: TableId,
-        table_name: Arc<DeferredLoad<TableName>>,
+        table: Arc<DeferredLoad<TableMetadata>>,
     ) -> Arc<Mutex<PartitionData>> {
         // Use the cached PartitionKey instead of the caller's partition_key,
         // instead preferring to reuse the already-shared Arc<str> in the cache.
@@ -203,7 +203,7 @@ where
                 namespace_id,
                 namespace_name,
                 table_id,
-                table_name,
+                table,
                 SortKeyState::Deferred(Arc::new(sort_key_resolver)),
             )));
         }
@@ -212,13 +212,7 @@ where
 
         // Otherwise delegate to the catalog / inner impl.
         self.inner
-            .get_partition(
-                partition_key,
-                namespace_id,
-                namespace_name,
-                table_id,
-                table_name,
-            )
+            .get_partition(partition_key, namespace_id, namespace_name, table_id, table)
             .await
     }
 }
@@ -234,7 +228,7 @@ mod tests {
     use crate::{
         buffer_tree::partition::resolver::mock::MockPartitionProvider,
         test_util::{
-            defer_namespace_name_1_sec, defer_table_name_1_sec, PartitionDataBuilder,
+            defer_namespace_name_1_sec, defer_table_metadata_1_sec, PartitionDataBuilder,
             ARBITRARY_NAMESPACE_ID, ARBITRARY_NAMESPACE_NAME, ARBITRARY_PARTITION_ID,
             ARBITRARY_PARTITION_KEY, ARBITRARY_PARTITION_KEY_STR, ARBITRARY_TABLE_ID,
             ARBITRARY_TABLE_NAME,
@@ -270,15 +264,15 @@ mod tests {
                 ARBITRARY_NAMESPACE_ID,
                 defer_namespace_name_1_sec(),
                 ARBITRARY_TABLE_ID,
-                defer_table_name_1_sec(),
+                defer_table_metadata_1_sec(),
             )
             .await;
 
         assert_eq!(got.lock().partition_id(), ARBITRARY_PARTITION_ID);
         assert_eq!(got.lock().table_id(), ARBITRARY_TABLE_ID);
         assert_eq!(
-            &**got.lock().table_name().get().await,
-            &***ARBITRARY_TABLE_NAME
+            &**got.lock().table().get().await.name(),
+            &**ARBITRARY_TABLE_NAME
         );
         assert_eq!(
             &**got.lock().namespace_name().get().await,
@@ -309,15 +303,15 @@ mod tests {
                 ARBITRARY_NAMESPACE_ID,
                 defer_namespace_name_1_sec(),
                 ARBITRARY_TABLE_ID,
-                defer_table_name_1_sec(),
+                defer_table_metadata_1_sec(),
             )
             .await;
 
         assert_eq!(got.lock().partition_id(), ARBITRARY_PARTITION_ID);
         assert_eq!(got.lock().table_id(), ARBITRARY_TABLE_ID);
         assert_eq!(
-            &**got.lock().table_name().get().await,
-            &***ARBITRARY_TABLE_NAME
+            &**got.lock().table().get().await.name(),
+            &**ARBITRARY_TABLE_NAME
         );
         assert_eq!(
             &**got.lock().namespace_name().get().await,
@@ -366,15 +360,15 @@ mod tests {
                 ARBITRARY_NAMESPACE_ID,
                 defer_namespace_name_1_sec(),
                 ARBITRARY_TABLE_ID,
-                defer_table_name_1_sec(),
+                defer_table_metadata_1_sec(),
             )
             .await;
 
         assert_eq!(got.lock().partition_id(), other_key_id);
         assert_eq!(got.lock().table_id(), ARBITRARY_TABLE_ID);
         assert_eq!(
-            &**got.lock().table_name().get().await,
-            &***ARBITRARY_TABLE_NAME
+            &**got.lock().table().get().await.name(),
+            &**ARBITRARY_TABLE_NAME
         );
     }
 
@@ -402,15 +396,15 @@ mod tests {
                 ARBITRARY_NAMESPACE_ID,
                 defer_namespace_name_1_sec(),
                 other_table,
-                defer_table_name_1_sec(),
+                defer_table_metadata_1_sec(),
             )
             .await;
 
         assert_eq!(got.lock().partition_id(), ARBITRARY_PARTITION_ID);
         assert_eq!(got.lock().table_id(), other_table);
         assert_eq!(
-            &**got.lock().table_name().get().await,
-            &***ARBITRARY_TABLE_NAME
+            &**got.lock().table().get().await.name(),
+            &**ARBITRARY_TABLE_NAME
         );
     }
 }

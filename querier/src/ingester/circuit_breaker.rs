@@ -398,11 +398,12 @@ impl IngesterFlightClient for CircuitBreakerFlightClient {
                             gen,
                             ..
                         } => {
-                            assert_eq!(
-                                start_gen, *gen,
-                                "there's only a single concurrent request for half-open circuits"
-                            );
-                            Some((backoff.take().expect("not moved"), metrics.clone()))
+                            if *gen == start_gen {
+                                Some((backoff.take().expect("not moved"), metrics.clone()))
+                            } else {
+                                // this was not the test request but an old one
+                                None
+                            }
                         }
                         Circuit::Closed {
                             metrics,
@@ -466,19 +467,17 @@ impl IngesterFlightClient for CircuitBreakerFlightClient {
                             );
                         }
                         Circuit::HalfOpen { metrics, gen, .. } => {
-                            assert_eq!(
-                                start_gen, *gen,
-                                "there's only a single concurrent request for half-open circuits"
-                            );
-                            info!(ingester_address = ingester_addr.as_ref(), "Circuit closed",);
-                            span_recorder.event("Circuit closed");
+                            if start_gen == *gen {
+                                info!(ingester_address = ingester_addr.as_ref(), "Circuit closed",);
+                                span_recorder.event("Circuit closed");
 
-                            metrics.set_closed();
-                            *o = Circuit::Closed {
-                                metrics: metrics.clone(),
-                                error_count: 0,
-                                gen: start_gen + 1,
-                            };
+                                metrics.set_closed();
+                                *o = Circuit::Closed {
+                                    metrics: metrics.clone(),
+                                    error_count: 0,
+                                    gen: start_gen + 1,
+                                };
+                            }
                         }
                         Circuit::Closed {
                             error_count, gen, ..
@@ -1009,6 +1008,167 @@ mod tests {
             },
             Metrics::from(&metric_registry),
         );
+    }
+
+    #[tokio::test]
+    async fn test_late_failure_after_recovery() {
+        maybe_start_logging();
+
+        let barrier = barrier();
+        let TestSetup {
+            client,
+            time_provider,
+            ..
+        } = TestSetup::from([
+            MockAction {
+                err: Some(err_grpc_internal()),
+                wait: Some(Arc::clone(&barrier)),
+            },
+            MockAction {
+                err: Some(err_grpc_internal()),
+                ..Default::default()
+            },
+            MockAction {
+                err: Some(err_grpc_internal()),
+                ..Default::default()
+            },
+            MockAction::default(),
+            MockAction::default(),
+        ]);
+
+        // set up request that will fail later
+        let client_captured = Arc::clone(&client);
+        let mut fut = spawn(async move {
+            client_captured.assert_query_err_flight().await;
+        });
+        fut.assert_pending().await;
+
+        // break circuit
+        client.assert_query_err_flight().await;
+        client.assert_query_err_flight().await;
+        client.assert_query_err_circuit().await;
+
+        // recover circuit
+        time_provider.inc(Duration::from_secs(1));
+        client.assert_query_ok().await;
+
+        barrier.wait().await;
+        fut.await.unwrap();
+
+        // circuit not broken, because it was too late
+        client.assert_query_ok().await;
+    }
+
+    #[tokio::test]
+    async fn test_late_failure_after_half_open() {
+        maybe_start_logging();
+
+        let barrier1 = barrier();
+        let barrier2 = barrier();
+        let TestSetup {
+            client,
+            time_provider,
+            ..
+        } = TestSetup::from([
+            MockAction {
+                err: Some(err_grpc_internal()),
+                wait: Some(Arc::clone(&barrier1)),
+            },
+            MockAction {
+                err: Some(err_grpc_internal()),
+                ..Default::default()
+            },
+            MockAction {
+                err: Some(err_grpc_internal()),
+                ..Default::default()
+            },
+            MockAction {
+                wait: Some(Arc::clone(&barrier2)),
+                ..Default::default()
+            },
+        ]);
+
+        // set up request that will fail later
+        let client_captured = Arc::clone(&client);
+        let mut fut1 = spawn(async move {
+            client_captured.assert_query_err_flight().await;
+        });
+        fut1.assert_pending().await;
+
+        // break circuit
+        client.assert_query_err_flight().await;
+        client.assert_query_err_flight().await;
+        client.assert_query_err_circuit().await;
+
+        // half-open
+        time_provider.inc(Duration::from_secs(1));
+        let client_captured = Arc::clone(&client);
+        let mut fut2 = spawn(async move {
+            client_captured.assert_query_ok().await;
+        });
+        fut2.assert_pending().await;
+
+        barrier1.wait().await;
+        fut1.await.unwrap();
+
+        barrier2.wait().await;
+        fut2.await.unwrap();
+    }
+
+    #[tokio::test]
+    async fn test_late_ok_after_half_open() {
+        maybe_start_logging();
+
+        let barrier1 = barrier();
+        let barrier2 = barrier();
+        let TestSetup {
+            client,
+            time_provider,
+            ..
+        } = TestSetup::from([
+            MockAction {
+                wait: Some(Arc::clone(&barrier1)),
+                ..Default::default()
+            },
+            MockAction {
+                err: Some(err_grpc_internal()),
+                ..Default::default()
+            },
+            MockAction {
+                err: Some(err_grpc_internal()),
+                ..Default::default()
+            },
+            MockAction {
+                wait: Some(Arc::clone(&barrier2)),
+                ..Default::default()
+            },
+        ]);
+
+        // set up request that will fail later
+        let client_captured = Arc::clone(&client);
+        let mut fut1 = spawn(async move {
+            client_captured.assert_query_ok().await;
+        });
+        fut1.assert_pending().await;
+
+        // break circuit
+        client.assert_query_err_flight().await;
+        client.assert_query_err_flight().await;
+        client.assert_query_err_circuit().await;
+
+        // half-open
+        time_provider.inc(Duration::from_secs(1));
+        let client_captured = Arc::clone(&client);
+        let mut fut2 = spawn(async move {
+            client_captured.assert_query_ok().await;
+        });
+        fut2.assert_pending().await;
+
+        barrier1.wait().await;
+        fut1.await.unwrap();
+
+        barrier2.wait().await;
+        fut2.await.unwrap();
     }
 
     #[derive(Debug, Default)]

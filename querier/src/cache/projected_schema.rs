@@ -36,13 +36,13 @@ impl CacheKey {
     /// Create new key.
     ///
     /// This normalizes `projection`.
-    fn new(table_id: TableId, mut projection: Vec<ColumnId>) -> Self {
+    fn new(table_id: TableId, mut projection: Box<[ColumnId]>) -> Self {
         // normalize column order
         projection.sort();
 
         Self {
             table_id,
-            projection: projection.into(),
+            projection,
         }
     }
 
@@ -141,7 +141,7 @@ impl ProjectedSchemaCache {
     pub async fn get(
         &self,
         table: Arc<CachedTable>,
-        projection: Vec<ColumnId>,
+        projection: Box<[ColumnId]>,
         span: Option<Span>,
     ) -> Schema {
         let key = CacheKey::new(table.id, projection);
@@ -249,7 +249,7 @@ mod tests {
         let projection_1 = cache
             .get(
                 Arc::clone(&table_1a),
-                vec![ColumnId::new(1), ColumnId::new(2)],
+                [ColumnId::new(1), ColumnId::new(2)].into(),
                 None,
             )
             .await;
@@ -259,7 +259,7 @@ mod tests {
         let projection_2 = cache
             .get(
                 Arc::clone(&table_1a),
-                vec![ColumnId::new(1), ColumnId::new(2)],
+                [ColumnId::new(1), ColumnId::new(2)].into(),
                 None,
             )
             .await;
@@ -269,7 +269,7 @@ mod tests {
         let projection_3 = cache
             .get(
                 Arc::clone(&table_1b),
-                vec![ColumnId::new(1), ColumnId::new(2)],
+                [ColumnId::new(1), ColumnId::new(2)].into(),
                 None,
             )
             .await;
@@ -279,7 +279,7 @@ mod tests {
         let projection_4 = cache
             .get(
                 Arc::clone(&table_1a),
-                vec![ColumnId::new(2), ColumnId::new(1)],
+                [ColumnId::new(2), ColumnId::new(1)].into(),
                 None,
             )
             .await;
@@ -290,7 +290,7 @@ mod tests {
         let projection_5 = cache
             .get(
                 Arc::clone(&table_1a),
-                vec![ColumnId::new(1), ColumnId::new(3)],
+                [ColumnId::new(1), ColumnId::new(3)].into(),
                 None,
             )
             .await;
@@ -300,7 +300,7 @@ mod tests {
         let projection_6 = cache
             .get(
                 Arc::clone(&table_2a),
-                vec![ColumnId::new(1), ColumnId::new(2)],
+                [ColumnId::new(1), ColumnId::new(2)].into(),
                 None,
             )
             .await;
@@ -311,7 +311,7 @@ mod tests {
         let projection_7 = cache
             .get(
                 Arc::clone(&table_1a),
-                vec![ColumnId::new(1), ColumnId::new(2)],
+                [ColumnId::new(1), ColumnId::new(2)].into(),
                 None,
             )
             .await;

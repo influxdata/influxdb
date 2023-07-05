@@ -83,7 +83,7 @@ mod tests {
         scalar::ScalarValue,
     };
 
-    use crate::{physical_optimizer::test_util::OptimizationTest, test::TestChunk, QueryChunkMeta};
+    use crate::{physical_optimizer::test_util::OptimizationTest, test::TestChunk, QueryChunk};
 
     use super::*;
 

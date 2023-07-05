@@ -356,7 +356,9 @@ impl CachedNamespace {
 
 #[cfg(test)]
 mod tests {
-    use crate::cache::{ram::test_util::test_ram_pool, test_util::assert_histogram_metric_count};
+    use crate::cache::{
+        ram::test_util::test_ram_pool, test_util::assert_catalog_access_metric_count,
+    };
     use arrow::datatypes::DataType;
     use data_types::ColumnType;
     use generated_types::influxdata::iox::partition_template::v1::{
@@ -467,7 +469,7 @@ mod tests {
             ]),
         };
         assert_eq!(actual_ns_1_a.as_ref(), &expected_ns_1);
-        assert_histogram_metric_count(&catalog.metric_registry, "namespace_get_by_name", 1);
+        assert_catalog_access_metric_count(&catalog.metric_registry, "namespace_get_by_name", 1);
 
         let actual_ns_2 = cache
             .get(Arc::from(String::from("ns2")), &[], None)
@@ -499,14 +501,14 @@ mod tests {
             )]),
         };
         assert_eq!(actual_ns_2.as_ref(), &expected_ns_2);
-        assert_histogram_metric_count(&catalog.metric_registry, "namespace_get_by_name", 2);
+        assert_catalog_access_metric_count(&catalog.metric_registry, "namespace_get_by_name", 2);
 
         let actual_ns_1_b = cache
             .get(Arc::from(String::from("ns1")), &[], None)
             .await
             .unwrap();
         assert!(Arc::ptr_eq(&actual_ns_1_a, &actual_ns_1_b));
-        assert_histogram_metric_count(&catalog.metric_registry, "namespace_get_by_name", 2);
+        assert_catalog_access_metric_count(&catalog.metric_registry, "namespace_get_by_name", 2);
     }
 
     #[tokio::test]
@@ -525,11 +527,11 @@ mod tests {
 
         let none = cache.get(Arc::from(String::from("foo")), &[], None).await;
         assert!(none.is_none());
-        assert_histogram_metric_count(&catalog.metric_registry, "namespace_get_by_name", 1);
+        assert_catalog_access_metric_count(&catalog.metric_registry, "namespace_get_by_name", 1);
 
         let none = cache.get(Arc::from(String::from("foo")), &[], None).await;
         assert!(none.is_none());
-        assert_histogram_metric_count(&catalog.metric_registry, "namespace_get_by_name", 1);
+        assert_catalog_access_metric_count(&catalog.metric_registry, "namespace_get_by_name", 1);
     }
 
     #[tokio::test]
@@ -548,16 +550,16 @@ mod tests {
 
         // ========== namespace unknown ==========
         assert!(cache.get(Arc::from("ns1"), &[], None).await.is_none());
-        assert_histogram_metric_count(&catalog.metric_registry, "namespace_get_by_name", 1);
+        assert_catalog_access_metric_count(&catalog.metric_registry, "namespace_get_by_name", 1);
 
         assert!(cache.get(Arc::from("ns1"), &[], None).await.is_none());
-        assert_histogram_metric_count(&catalog.metric_registry, "namespace_get_by_name", 1);
+        assert_catalog_access_metric_count(&catalog.metric_registry, "namespace_get_by_name", 1);
 
         assert!(cache
             .get(Arc::from("ns1"), &[("t1", &HashSet::from([]))], None)
             .await
             .is_none());
-        assert_histogram_metric_count(&catalog.metric_registry, "namespace_get_by_name", 2);
+        assert_catalog_access_metric_count(&catalog.metric_registry, "namespace_get_by_name", 2);
 
         // ========== table unknown ==========
         let ns1 = catalog.create_namespace_1hr_retention("ns1").await;
@@ -566,13 +568,13 @@ mod tests {
             .get(Arc::from("ns1"), &[("t1", &HashSet::from([]))], None)
             .await
             .is_some());
-        assert_histogram_metric_count(&catalog.metric_registry, "namespace_get_by_name", 3);
+        assert_catalog_access_metric_count(&catalog.metric_registry, "namespace_get_by_name", 3);
 
         assert!(cache
             .get(Arc::from("ns1"), &[("t1", &HashSet::from([]))], None)
             .await
             .is_some());
-        assert_histogram_metric_count(&catalog.metric_registry, "namespace_get_by_name", 4);
+        assert_catalog_access_metric_count(&catalog.metric_registry, "namespace_get_by_name", 4);
 
         // ========== no columns ==========
         let t1 = ns1.create_table("t1").await;
@@ -581,13 +583,13 @@ mod tests {
             .get(Arc::from("ns1"), &[("t1", &HashSet::from([]))], None)
             .await
             .is_some());
-        assert_histogram_metric_count(&catalog.metric_registry, "namespace_get_by_name", 5);
+        assert_catalog_access_metric_count(&catalog.metric_registry, "namespace_get_by_name", 5);
 
         assert!(cache
             .get(Arc::from("ns1"), &[("t1", &HashSet::from([]))], None)
             .await
             .is_some());
-        assert_histogram_metric_count(&catalog.metric_registry, "namespace_get_by_name", 5);
+        assert_catalog_access_metric_count(&catalog.metric_registry, "namespace_get_by_name", 5);
 
         // ========== some columns ==========
         let c1 = t1.create_column("c1", ColumnType::Bool).await;
@@ -597,7 +599,7 @@ mod tests {
             .get(Arc::from("ns1"), &[("t1", &HashSet::from([]))], None)
             .await
             .is_some());
-        assert_histogram_metric_count(&catalog.metric_registry, "namespace_get_by_name", 5);
+        assert_catalog_access_metric_count(&catalog.metric_registry, "namespace_get_by_name", 5);
 
         assert!(cache
             .get(
@@ -607,7 +609,7 @@ mod tests {
             )
             .await
             .is_some());
-        assert_histogram_metric_count(&catalog.metric_registry, "namespace_get_by_name", 6);
+        assert_catalog_access_metric_count(&catalog.metric_registry, "namespace_get_by_name", 6);
 
         assert!(cache
             .get(
@@ -617,6 +619,6 @@ mod tests {
             )
             .await
             .is_some());
-        assert_histogram_metric_count(&catalog.metric_registry, "namespace_get_by_name", 6);
+        assert_catalog_access_metric_count(&catalog.metric_registry, "namespace_get_by_name", 6);
     }
 }
