@@ -4,8 +4,8 @@ use metric::{Attributes, U64Gauge};
 use sysinfo::{DiskExt, System, SystemExt};
 use tokio::{self, task::JoinHandle};
 
-/// Disk Protection instrument.
-pub struct InstrumentedDiskProtection {
+/// Disk Space metrics.
+pub struct DiskSpaceMetrics {
     /// Available disk space.
     available_disk_space: U64Gauge,
     /// Total disk space.
@@ -14,14 +14,14 @@ pub struct InstrumentedDiskProtection {
     directory: PathBuf,
 }
 
-impl std::fmt::Debug for InstrumentedDiskProtection {
+impl std::fmt::Debug for DiskSpaceMetrics {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "InstrumentedDiskProtection")
+        write!(f, "DiskSpaceMetrics")
     }
 }
 
-impl InstrumentedDiskProtection {
-    /// Create a new [`InstrumentedDiskProtection`].
+impl DiskSpaceMetrics {
+    /// Create a new [`DiskSpaceMetrics`].
     pub fn new(directory: PathBuf, registry: &metric::Registry) -> Self {
         let path: Cow<'static, str> = Cow::from(directory.display().to_string());
         let attributes = Attributes::from([("path", path)]);
@@ -44,7 +44,7 @@ impl InstrumentedDiskProtection {
         }
     }
 
-    /// Start the [`InstrumentedDiskProtection`] background task.
+    /// Start the [`DiskSpaceMetrics`] background task.
     pub async fn start(self) -> JoinHandle<()> {
         tokio::task::spawn(async move { self.background_task().await })
     }
@@ -106,7 +106,7 @@ mod tests {
 
         impl MockAnyStruct {
             pub(crate) async fn new(registry: &metric::Registry) -> Self {
-                let disk_protection = InstrumentedDiskProtection::new(PathBuf::from("/"), registry);
+                let disk_protection = DiskSpaceMetrics::new(PathBuf::from("/"), registry);
                 let abort_handle = disk_protection.start().await;
 
                 Self { abort_handle }
