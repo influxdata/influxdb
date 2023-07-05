@@ -4,17 +4,25 @@ use metric::{Attributes, U64Gauge};
 use sysinfo::{DiskExt, System, SystemExt};
 use tokio::{self, task::JoinHandle};
 
-/// Metrics that can be used to create a [`InstrumentedDiskProtection`].
-#[derive(Debug)]
-struct DiskProtectionMetrics {
+/// Disk Protection instrument.
+pub struct InstrumentedDiskProtection {
+    /// Available disk space.
     available_disk_space: U64Gauge,
+    /// Total disk space.
     total_disk_space: U64Gauge,
+    /// The directory to check.
     directory: PathBuf,
 }
 
-impl DiskProtectionMetrics {
-    /// Create a new [`DiskProtectionMetrics`].
-    pub(crate) fn new(directory: PathBuf, registry: &metric::Registry) -> Self {
+impl std::fmt::Debug for InstrumentedDiskProtection {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "InstrumentedDiskProtection")
+    }
+}
+
+impl InstrumentedDiskProtection {
+    /// Create a new [`InstrumentedDiskProtection`].
+    pub fn new(directory: PathBuf, registry: &metric::Registry) -> Self {
         let path: Cow<'static, str> = Cow::from(directory.display().to_string());
         let attributes = Attributes::from([("path", path)]);
 
@@ -36,8 +44,13 @@ impl DiskProtectionMetrics {
         }
     }
 
+    /// Start the [`InstrumentedDiskProtection`] background task.
+    pub async fn start(self) -> JoinHandle<()> {
+        tokio::task::spawn(async move { self.background_task().await })
+    }
+
     /// Measure the disk space.
-    pub(crate) fn measure_disk_space(&self, system: &mut System) {
+    fn measure_disk_space(&self, system: &mut System) {
         system.refresh_disks_list();
 
         let mut path = self.directory.clone();
@@ -61,32 +74,6 @@ impl DiskProtectionMetrics {
             self.total_disk_space.set(disk.total_space());
         }
     }
-}
-
-/// Disk Protection instrument.
-pub struct InstrumentedDiskProtection {
-    /// The metrics that are reported to the registry.
-    metrics: DiskProtectionMetrics,
-}
-
-impl std::fmt::Debug for InstrumentedDiskProtection {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "InstrumentedDiskProtection")
-    }
-}
-
-impl InstrumentedDiskProtection {
-    /// Create a new [`InstrumentedDiskProtection`].
-    pub fn new(directory_to_track: PathBuf, registry: &metric::Registry) -> Self {
-        let metrics = DiskProtectionMetrics::new(directory_to_track, registry);
-
-        Self { metrics }
-    }
-
-    /// Start the [`InstrumentedDiskProtection`] background task.
-    pub async fn start(self) -> JoinHandle<()> {
-        tokio::task::spawn(async move { self.background_task().await })
-    }
 
     /// The background task that periodically performs the disk protection check.
     async fn background_task(&self) {
@@ -94,7 +81,7 @@ impl InstrumentedDiskProtection {
         let mut interval = tokio::time::interval(Duration::from_secs(10));
 
         loop {
-            self.metrics.measure_disk_space(&mut system);
+            self.measure_disk_space(&mut system);
 
             interval.tick().await;
         }
