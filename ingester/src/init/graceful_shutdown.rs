@@ -9,6 +9,7 @@ use crate::{
     ingest_state::{IngestState, IngestStateError},
     partition_iter::PartitionIter,
     persist::{drain_buffer::persist_partitions, queue::PersistQueue},
+    query::projection::OwnedProjection,
 };
 
 /// Defines how often the shutdown task polls the partition buffers for
@@ -77,10 +78,11 @@ pub(super) async fn graceful_shutdown_handler<F, T, P>(
     // springs to life and buffers in the buffer tree after this check has
     // completed - I think this is extreme enough to accept as a theoretical
     // possibility that doesn't need covering off in practice.
-    while buffer
-        .partition_iter()
-        .any(|p| p.lock().get_query_data().is_some())
-    {
+    while buffer.partition_iter().any(|p| {
+        p.lock()
+            .get_query_data(&OwnedProjection::default())
+            .is_some()
+    }) {
         if persist_partitions(buffer.partition_iter(), &persist).await != 0 {
             // Late arriving writes needed persisting.
             debug!("re-persisting late arriving data");

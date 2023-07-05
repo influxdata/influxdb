@@ -3,8 +3,9 @@
 use arrow::record_batch::RecordBatch;
 
 use super::BufferState;
-use crate::buffer_tree::partition::buffer::{
-    state_machine::persisting::Persisting, traits::Queryable,
+use crate::{
+    buffer_tree::partition::buffer::{state_machine::persisting::Persisting, traits::Queryable},
+    query::projection::OwnedProjection,
 };
 
 /// An immutable, queryable FSM state containing at least one buffer snapshot.
@@ -24,8 +25,8 @@ impl Snapshot {
 }
 
 impl Queryable for Snapshot {
-    fn get_query_data(&self) -> Vec<RecordBatch> {
-        self.snapshots.clone()
+    fn get_query_data(&self, projection: &OwnedProjection) -> Vec<RecordBatch> {
+        projection.project_record_batch(&self.snapshots)
     }
 }
 

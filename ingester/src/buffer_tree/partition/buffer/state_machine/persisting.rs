@@ -4,7 +4,9 @@ use arrow::record_batch::RecordBatch;
 use data_types::sequence_number_set::SequenceNumberSet;
 
 use super::BufferState;
-use crate::buffer_tree::partition::buffer::traits::Queryable;
+use crate::{
+    buffer_tree::partition::buffer::traits::Queryable, query::projection::OwnedProjection,
+};
 
 /// An immutable set of [`RecordBatch`] in the process of being persisted.
 #[derive(Debug)]
@@ -22,8 +24,8 @@ impl Persisting {
 }
 
 impl Queryable for Persisting {
-    fn get_query_data(&self) -> Vec<RecordBatch> {
-        self.snapshots.clone()
+    fn get_query_data(&self, projection: &OwnedProjection) -> Vec<RecordBatch> {
+        projection.project_record_batch(&self.snapshots)
     }
 }
 

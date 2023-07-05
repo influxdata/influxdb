@@ -9,6 +9,8 @@ pub(crate) mod traits;
 
 pub(crate) use state_machine::*;
 
+use crate::query::projection::OwnedProjection;
+
 use self::{always_some::AlwaysSome, traits::Queryable};
 
 /// The current state of the [`BufferState`] state machine.
@@ -61,12 +63,12 @@ impl DataBuffer {
 
     /// Return all data for this buffer, ordered by the [`SequenceNumber`] from
     /// which it was buffered with.
-    pub(crate) fn get_query_data(&mut self) -> Vec<RecordBatch> {
+    pub(crate) fn get_query_data(&mut self, projection: &OwnedProjection) -> Vec<RecordBatch> {
         // Take ownership of the FSM and return the data within it.
         self.0.mutate(|fsm| match fsm {
             // The buffering state can return data.
             FsmState::Buffering(b) => {
-                let ret = b.get_query_data();
+                let ret = b.get_query_data(projection);
                 (FsmState::Buffering(b), ret)
             }
         })

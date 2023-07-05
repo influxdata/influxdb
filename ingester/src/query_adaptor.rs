@@ -99,6 +99,12 @@ impl QueryAdaptor {
         self.data.as_ref()
     }
 
+    /// Unwrap this [`QueryAdaptor`], yielding the inner [`RecordBatch`]
+    /// instances.
+    pub(crate) fn into_record_batches(self) -> Vec<RecordBatch> {
+        self.data
+    }
+
     /// Returns the partition ID from which the data this [`QueryAdaptor`] was
     /// sourced from.
     pub(crate) fn partition_id(&self) -> PartitionId {

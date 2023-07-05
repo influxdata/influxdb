@@ -6,6 +6,8 @@ use predicate::Predicate;
 use thiserror::Error;
 use trace::span::Span;
 
+use super::projection::OwnedProjection;
+
 #[derive(Debug, Error)]
 #[allow(missing_copy_implementations)]
 pub(crate) enum QueryError {
@@ -24,7 +26,7 @@ pub(crate) trait QueryExec: Send + Sync + Debug {
         &self,
         namespace_id: NamespaceId,
         table_id: TableId,
-        columns: Vec<String>,
+        projection: OwnedProjection,
         span: Option<Span>,
         predicate: Option<Predicate>,
     ) -> Result<Self::Response, QueryError>;
@@ -41,12 +43,12 @@ where
         &self,
         namespace_id: NamespaceId,
         table_id: TableId,
-        columns: Vec<String>,
+        projection: OwnedProjection,
         span: Option<Span>,
         predicate: Option<Predicate>,
     ) -> Result<Self::Response, QueryError> {
         self.deref()
-            .query_exec(namespace_id, table_id, columns, span, predicate)
+            .query_exec(namespace_id, table_id, projection, span, predicate)
             .await
     }
 }

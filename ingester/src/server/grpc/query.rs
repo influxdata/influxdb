@@ -27,7 +27,7 @@ use instrumentation::FlightFrameEncodeInstrumentation;
 
 use crate::{
     ingester_id::IngesterId,
-    query::{response::QueryResponse, QueryError, QueryExec},
+    query::{projection::OwnedProjection, response::QueryResponse, QueryError, QueryExec},
 };
 
 /// Error states for the query RPC handler.
@@ -207,15 +207,11 @@ where
             None
         };
 
+        let projection = OwnedProjection::from(request.columns);
+
         let response = match self
             .query_handler
-            .query_exec(
-                namespace_id,
-                table_id,
-                request.columns,
-                span.clone(),
-                predicate,
-            )
+            .query_exec(namespace_id, table_id, projection, span.clone(), predicate)
             .await
         {
             Ok(v) => v,
