@@ -18,7 +18,6 @@ use iox_query::{
 use mutable_batch::MutableBatch;
 use parking_lot::Mutex;
 use predicate::Predicate;
-use schema::Projection;
 use trace::span::{Span, SpanRecorder};
 
 use super::{
@@ -30,7 +29,8 @@ use crate::{
     arcmap::ArcMap,
     deferred_load::DeferredLoad,
     query::{
-        partition_response::PartitionResponse, response::PartitionStream, QueryError, QueryExec,
+        partition_response::PartitionResponse, projection::OwnedProjection,
+        response::PartitionStream, QueryError, QueryExec,
     },
     query_adaptor::QueryAdaptor,
 };
@@ -256,7 +256,7 @@ where
         &self,
         namespace_id: NamespaceId,
         table_id: TableId,
-        columns: Vec<String>,
+        projection: OwnedProjection,
         span: Option<Span>,
         predicate: Option<Predicate>,
     ) -> Result<Self::Response, QueryError> {
@@ -279,7 +279,7 @@ where
                     p.partition_id(),
                     p.partition_hash_id().cloned(),
                     p.completed_persistence_count(),
-                    p.get_query_data(),
+                    p.get_query_data(&projection),
                     p.partition_key().clone(),
                 )
             };
@@ -287,8 +287,6 @@ where
             let ret = match data {
                 Some(data) => {
                     assert_eq!(id, data.partition_id());
-
-                    let data = Arc::new(data);
 
                     // Potentially prune out this partition if the partition
                     // template & derived partition key can be used to match
@@ -314,15 +312,12 @@ where
                     }
 
                     // Project the data if necessary
-                    let columns = columns.iter().map(String::as_str).collect::<Vec<_>>();
-                    let selection = if columns.is_empty() {
-                        Projection::All
-                    } else {
-                        Projection::Some(columns.as_ref())
-                    };
-
-                    let data = data.project_selection(selection).into_iter().collect();
-                    PartitionResponse::new(data, id, hash_id, completed_persistence_count)
+                    PartitionResponse::new(
+                        data.into_record_batches(),
+                        id,
+                        hash_id,
+                        completed_persistence_count,
+                    )
                 }
                 None => PartitionResponse::new(vec![], id, hash_id, completed_persistence_count),
             };

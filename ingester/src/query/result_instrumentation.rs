@@ -67,6 +67,8 @@ use crate::query::{
     QueryError, QueryExec,
 };
 
+use super::projection::OwnedProjection;
+
 /// A [`QueryExec`] decorator adding instrumentation to the [`QueryResponse`]
 /// returned by the inner implementation.
 ///
@@ -203,7 +205,7 @@ where
         &self,
         namespace_id: NamespaceId,
         table_id: TableId,
-        columns: Vec<String>,
+        projection: OwnedProjection,
         span: Option<Span>,
         predicate: Option<Predicate>,
     ) -> Result<Self::Response, QueryError> {
@@ -213,7 +215,7 @@ where
         // metrics to be added?
         let stream = self
             .inner
-            .query_exec(namespace_id, table_id, columns, span, predicate)
+            .query_exec(namespace_id, table_id, projection, span, predicate)
             .await?;
 
         let stream = QueryMetricContext::new(
@@ -474,7 +476,7 @@ mod tests {
             .query_exec(
                 ARBITRARY_NAMESPACE_ID,
                 ARBITRARY_TABLE_ID,
-                vec![],
+                OwnedProjection::default(),
                 None,
                 None,
             )
@@ -561,7 +563,7 @@ mod tests {
             .query_exec(
                 ARBITRARY_NAMESPACE_ID,
                 ARBITRARY_TABLE_ID,
-                vec![],
+                OwnedProjection::default(),
                 None,
                 None,
             )
@@ -647,7 +649,7 @@ mod tests {
             .query_exec(
                 ARBITRARY_NAMESPACE_ID,
                 ARBITRARY_TABLE_ID,
-                vec![],
+                OwnedProjection::default(),
                 None,
                 None,
             )
@@ -733,7 +735,7 @@ mod tests {
             .query_exec(
                 ARBITRARY_NAMESPACE_ID,
                 ARBITRARY_TABLE_ID,
-                vec![],
+                OwnedProjection::default(),
                 None,
                 None,
             )

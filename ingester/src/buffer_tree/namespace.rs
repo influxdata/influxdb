@@ -20,7 +20,10 @@ use crate::{
     deferred_load::DeferredLoad,
     dml_payload::IngestOp,
     dml_sink::DmlSink,
-    query::{response::QueryResponse, tracing::QueryExecTracing, QueryError, QueryExec},
+    query::{
+        projection::OwnedProjection, response::QueryResponse, tracing::QueryExecTracing,
+        QueryError, QueryExec,
+    },
 };
 
 /// The string name / identifier of a Namespace.
@@ -189,7 +192,7 @@ where
         &self,
         namespace_id: NamespaceId,
         table_id: TableId,
-        columns: Vec<String>,
+        projection: OwnedProjection,
         span: Option<Span>,
         predicate: Option<Predicate>,
     ) -> Result<Self::Response, QueryError> {
@@ -207,7 +210,7 @@ where
         // a tracing delegate to emit a child span.
         Ok(QueryResponse::new(
             QueryExecTracing::new(inner, "table")
-                .query_exec(namespace_id, table_id, columns, span, predicate)
+                .query_exec(namespace_id, table_id, projection, span, predicate)
                 .await?,
         ))
     }
