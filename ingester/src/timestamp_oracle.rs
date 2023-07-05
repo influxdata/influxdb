@@ -32,7 +32,7 @@ impl TimestampOracle {
         // or diverge between threads.
         let v = self.0.fetch_add(1, Ordering::Relaxed);
 
-        SequenceNumber::new(v as i64)
+        SequenceNumber::new(v)
     }
 }
 
@@ -106,6 +106,6 @@ mod tests {
         timestamps
             .into_iter()
             .zip(expected)
-            .for_each(|(got, want)| assert_eq!(got, want as i64));
+            .for_each(|(got, want)| assert_eq!(got, want as u64));
     }
 }

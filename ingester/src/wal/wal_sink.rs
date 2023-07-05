@@ -105,10 +105,7 @@ impl WalAppender for Arc<wal::Wal> {
                 let partition_sequence_numbers = w
                     .tables()
                     .map(|(table_id, data)| {
-                        (
-                            *table_id,
-                            data.partitioned_data().sequence_number().get() as u64,
-                        )
+                        (*table_id, data.partitioned_data().sequence_number().get())
                     })
                     .collect::<HashMap<TableId, u64>>();
                 (

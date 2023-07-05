@@ -199,9 +199,7 @@ where
                 op,
             } = op;
 
-            let sequence_number = SequenceNumber::new(
-                i64::try_from(sequence_number).expect("sequence number overflow"),
-            );
+            let sequence_number = SequenceNumber::new(sequence_number);
 
             max_sequence = max_sequence.max(Some(sequence_number));
 
