@@ -7,7 +7,8 @@ use tokio::{self, task::JoinHandle};
 /// Metrics that can be used to create a [`InstrumentedDiskProtection`].
 #[derive(Debug)]
 struct DiskProtectionMetrics {
-    available_disk_space_percent: U64Gauge,
+    available_disk_space: U64Gauge,
+    total_disk_space: U64Gauge,
     directory: PathBuf,
 }
 
@@ -17,21 +18,26 @@ impl DiskProtectionMetrics {
         let path: Cow<'static, str> = Cow::from(directory.display().to_string());
         let attributes = Attributes::from([("path", path)]);
 
-        let available_disk_space_percent = registry
+        let available_disk_space = registry
             .register_metric::<U64Gauge>(
                 "disk_free_disk_space",
-                "The percentage amount of disk available.",
+                "The amount of disk space currently available.",
             )
+            .recorder(attributes.clone());
+
+        let total_disk_space = registry
+            .register_metric::<U64Gauge>("disk_total_disk_space", "The total amount of disk space.")
             .recorder(attributes);
 
         Self {
-            available_disk_space_percent,
+            available_disk_space,
+            total_disk_space,
             directory,
         }
     }
 
-    /// Measure the available disk space percentage.
-    pub(crate) fn measure_available_disk_space_percent(&self, system: &mut System) {
+    /// Measure the disk space.
+    pub(crate) fn measure_disk_space(&self, system: &mut System) {
         system.refresh_disks_list();
 
         let mut path = self.directory.clone();
@@ -51,12 +57,8 @@ impl DiskProtectionMetrics {
         if let Some(disk) = fnd_disk {
             disk.refresh();
 
-            let available_disk: u64 = disk.available_space();
-            let total_disk: u64 = disk.total_space();
-            let available_disk_percentage =
-                ((available_disk as f64) / (total_disk as f64) * 100.0).round() as u64;
-            self.available_disk_space_percent
-                .set(available_disk_percentage);
+            self.available_disk_space.set(disk.available_space());
+            self.total_disk_space.set(disk.total_space());
         }
     }
 }
@@ -92,8 +94,7 @@ impl InstrumentedDiskProtection {
         let mut interval = tokio::time::interval(Duration::from_secs(10));
 
         loop {
-            self.metrics
-                .measure_available_disk_space_percent(&mut system);
+            self.metrics.measure_disk_space(&mut system);
 
             interval.tick().await;
         }
@@ -129,14 +130,22 @@ mod tests {
 
         tokio::time::sleep(2 * Duration::from_secs(2)).await;
 
-        let recorded_metric = registry
+        let recorded_free_metric = registry
             .get_instrument::<Metric<U64Gauge>>("disk_free_disk_space")
             .expect("metric should exist")
             .get_observer(&Attributes::from(&[("path", "/")]))
             .expect("metric should have labels")
             .fetch();
 
-        assert!(recorded_metric > 0_u64);
+        let recorded_total_metric = registry
+            .get_instrument::<Metric<U64Gauge>>("disk_total_disk_space")
+            .expect("metric should exist")
+            .get_observer(&Attributes::from(&[("path", "/")]))
+            .expect("metric should have labels")
+            .fetch();
+
+        assert!(recorded_free_metric > 0_u64);
+        assert!(recorded_total_metric > 0_u64);
         mock.abort_handle.abort();
     }
 }
