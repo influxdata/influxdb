@@ -19,6 +19,18 @@ pub enum TransitionPartitionId {
     Deterministic(PartitionHashId),
 }
 
+impl TransitionPartitionId {
+    /// Size in bytes including `self`.
+    pub fn size(&self) -> usize {
+        match self {
+            Self::Deprecated(_) => std::mem::size_of::<Self>(),
+            Self::Deterministic(id) => {
+                std::mem::size_of::<Self>() + id.size() - std::mem::size_of_val(id)
+            }
+        }
+    }
+}
+
 impl std::fmt::Display for TransitionPartitionId {
     fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
         match self {
@@ -215,6 +227,11 @@ impl PartitionHashId {
     /// Read access to the bytes of the hash identifier.
     pub fn as_bytes(&self) -> &[u8] {
         self.0.as_ref()
+    }
+
+    /// Size in bytes including `Self`.
+    pub fn size(&self) -> usize {
+        std::mem::size_of::<Self>() + self.0.len()
     }
 }
 

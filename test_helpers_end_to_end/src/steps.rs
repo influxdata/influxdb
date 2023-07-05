@@ -157,6 +157,10 @@ pub enum Step {
     /// files from the value this step recorded.
     RecordNumParquetFiles,
 
+    /// Query the catalog service for how many parquet files it has for this
+    /// cluster's namespace, asserting the value matches expected.
+    AssertNumParquetFiles { expected: usize },
+
     /// Ask the ingester to persist immediately through the persist service gRPC API
     Persist,
 
@@ -263,6 +267,15 @@ pub enum Step {
         expected: Vec<&'static str>,
     },
 
+    /// Attempt to gracefully shutdown all running ingester instances.
+    ///
+    /// This step blocks until all ingesters have gracefully stopped, or at
+    /// least [`GRACEFUL_SERVER_STOP_TIMEOUT`] elapses before they are killed.
+    ///
+    /// [`GRACEFUL_SERVER_STOP_TIMEOUT`]:
+    ///     crate::server_fixture::GRACEFUL_SERVER_STOP_TIMEOUT
+    GracefulStopIngesters,
+
     /// Retrieve the metrics and verify the results using the provided
     /// validation function.
     ///
@@ -361,6 +374,10 @@ where
                 // starting a new write so we can observe a change when waiting for persistence.
                 Step::RecordNumParquetFiles => {
                     state.record_num_parquet_files().await;
+                }
+                Step::AssertNumParquetFiles { expected } => {
+                    let have_files = state.get_num_parquet_files().await;
+                    assert_eq!(have_files, *expected);
                 }
                 // Ask the ingesters to persist immediately through the persist service gRPC API
                 Step::Persist => {
@@ -576,6 +593,11 @@ where
                     batches.push(RecordBatch::new_empty(schema));
                     assert_batches_sorted_eq!(expected, &batches);
                     info!("====Done running");
+                }
+                Step::GracefulStopIngesters => {
+                    info!("====Gracefully stop all ingesters");
+
+                    state.cluster_mut().gracefully_stop_ingesters();
                 }
                 Step::VerifiedMetrics(verify) => {
                     info!("====Begin validating metrics");

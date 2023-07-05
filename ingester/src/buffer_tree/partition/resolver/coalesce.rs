@@ -14,7 +14,7 @@ use hashbrown::{hash_map::Entry, HashMap};
 use parking_lot::Mutex;
 
 use crate::{
-    buffer_tree::{namespace::NamespaceName, partition::PartitionData, table::TableName},
+    buffer_tree::{namespace::NamespaceName, partition::PartitionData, table::TableMetadata},
     deferred_load::DeferredLoad,
 };
 
@@ -146,7 +146,7 @@ where
         namespace_id: NamespaceId,
         namespace_name: Arc<DeferredLoad<NamespaceName>>,
         table_id: TableId,
-        table_name: Arc<DeferredLoad<TableName>>,
+        table: Arc<DeferredLoad<TableMetadata>>,
     ) -> Arc<Mutex<PartitionData>> {
         let key = Key {
             namespace_id,
@@ -170,7 +170,7 @@ where
                     namespace_id,
                     namespace_name,
                     table_id,
-                    table_name,
+                    table,
                 ));
 
                 // Make the future poll-able by many callers, all of which
@@ -233,7 +233,7 @@ async fn do_fetch<T>(
     namespace_id: NamespaceId,
     namespace_name: Arc<DeferredLoad<NamespaceName>>,
     table_id: TableId,
-    table_name: Arc<DeferredLoad<TableName>>,
+    table: Arc<DeferredLoad<TableMetadata>>,
 ) -> Arc<Mutex<PartitionData>>
 where
     T: PartitionProvider + 'static,
@@ -248,13 +248,7 @@ where
     // (which would cause the connection to be returned).
     tokio::spawn(async move {
         inner
-            .get_partition(
-                partition_key,
-                namespace_id,
-                namespace_name,
-                table_id,
-                table_name,
-            )
+            .get_partition(partition_key, namespace_id, namespace_name, table_id, table)
             .await
     })
     .await
@@ -280,7 +274,7 @@ mod tests {
     use crate::{
         buffer_tree::partition::{resolver::mock::MockPartitionProvider, SortKeyState},
         test_util::{
-            defer_namespace_name_1_sec, defer_table_name_1_sec, PartitionDataBuilder,
+            defer_namespace_name_1_sec, defer_table_metadata_1_sec, PartitionDataBuilder,
             ARBITRARY_NAMESPACE_ID, ARBITRARY_PARTITION_KEY, ARBITRARY_TABLE_ID,
         },
     };
@@ -308,7 +302,7 @@ mod tests {
                     ARBITRARY_NAMESPACE_ID,
                     defer_namespace_name_1_sec(),
                     ARBITRARY_TABLE_ID,
-                    defer_table_name_1_sec(),
+                    defer_table_metadata_1_sec(),
                 )
             })
             .collect::<FuturesUnordered<_>>()
@@ -342,7 +336,7 @@ mod tests {
             _namespace_id: NamespaceId,
             _namespace_name: Arc<DeferredLoad<NamespaceName>>,
             _table_id: TableId,
-            _table_name: Arc<DeferredLoad<TableName>>,
+            _table: Arc<DeferredLoad<TableMetadata>>,
         ) -> core::pin::Pin<
             Box<
                 dyn core::future::Future<Output = Arc<Mutex<PartitionData>>>
@@ -368,7 +362,7 @@ mod tests {
 
         let data = PartitionDataBuilder::new().build();
         let namespace_loader = defer_namespace_name_1_sec();
-        let table_name_loader = defer_table_name_1_sec();
+        let table_loader = defer_table_metadata_1_sec();
 
         // Add a single instance of the partition - if more than one call is
         // made to the mock, it will panic.
@@ -384,14 +378,14 @@ mod tests {
             ARBITRARY_NAMESPACE_ID,
             Arc::clone(&namespace_loader),
             ARBITRARY_TABLE_ID,
-            Arc::clone(&table_name_loader),
+            Arc::clone(&table_loader),
         );
         let pa_2 = layer.get_partition(
             ARBITRARY_PARTITION_KEY.clone(),
             ARBITRARY_NAMESPACE_ID,
             Arc::clone(&namespace_loader),
             ARBITRARY_TABLE_ID,
-            Arc::clone(&table_name_loader),
+            Arc::clone(&table_loader),
         );
 
         let waker = futures::task::noop_waker();
@@ -411,7 +405,7 @@ mod tests {
                 ARBITRARY_NAMESPACE_ID,
                 namespace_loader,
                 ARBITRARY_TABLE_ID,
-                table_name_loader,
+                table_loader,
             )
             .with_timeout_panic(Duration::from_secs(5))
             .await;
@@ -441,7 +435,7 @@ mod tests {
             _namespace_id: NamespaceId,
             _namespace_name: Arc<DeferredLoad<NamespaceName>>,
             _table_id: TableId,
-            _table_name: Arc<DeferredLoad<TableName>>,
+            _table: Arc<DeferredLoad<TableMetadata>>,
         ) -> Arc<Mutex<PartitionData>> {
             let waker = self.wait.notified();
             let permit = self.sem.acquire().await.unwrap();
@@ -481,7 +475,7 @@ mod tests {
             ARBITRARY_NAMESPACE_ID,
             defer_namespace_name_1_sec(),
             ARBITRARY_TABLE_ID,
-            defer_table_name_1_sec(),
+            defer_table_metadata_1_sec(),
         );
 
         let waker = futures::task::noop_waker();

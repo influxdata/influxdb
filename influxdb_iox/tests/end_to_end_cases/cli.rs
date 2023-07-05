@@ -1323,10 +1323,15 @@ async fn assert_ingester_contains_results(
         .await
         .unwrap();
 
-    let ingester_uuid = ingester_response.app_metadata.ingester_uuid;
+    let ingester_partition = ingester_response
+        .partitions
+        .into_iter()
+        .next()
+        .expect("at least one ingester partition");
+    let ingester_uuid = ingester_partition.app_metadata.ingester_uuid;
     assert!(!ingester_uuid.is_empty());
 
-    assert_batches_sorted_eq!(expected, &ingester_response.record_batches);
+    assert_batches_sorted_eq!(expected, &ingester_partition.record_batches);
 }
 
 #[tokio::test]

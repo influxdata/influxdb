@@ -30,7 +30,7 @@ use crate::{
         partition::resolver::{
             CatalogPartitionResolver, CoalescePartitionResolver, PartitionCache, PartitionProvider,
         },
-        table::name_resolver::{TableNameProvider, TableNameResolver},
+        table::metadata_resolver::{TableProvider, TableResolver},
         BufferTree,
     },
     dml_sink::{instrumentation::DmlSinkInstrumentation, tracing::DmlSinkTracing},
@@ -253,8 +253,8 @@ where
             Arc::clone(&metrics),
         ));
 
-    // Initialise the deferred table name resolver.
-    let table_name_provider: Arc<dyn TableNameProvider> = Arc::new(TableNameResolver::new(
+    // Initialise the deferred table metadata resolver.
+    let table_provider: Arc<dyn TableProvider> = Arc::new(TableResolver::new(
         persist_background_fetch_time,
         Arc::clone(&catalog),
         BackoffConfig::default(),
@@ -326,7 +326,7 @@ where
 
     let buffer = Arc::new(BufferTree::new(
         namespace_name_provider,
-        table_name_provider,
+        table_provider,
         partition_provider,
         Arc::new(hot_partition_persister),
         Arc::clone(&metrics),
@@ -389,9 +389,7 @@ where
     // ingester, but they are only used for internal ordering of operations at
     // runtime.
     let timestamp = Arc::new(TimestampOracle::new(
-        max_sequence_number
-            .map(|v| u64::try_from(v.get()).expect("sequence number overflow"))
-            .unwrap_or(0),
+        max_sequence_number.map(|v| v.get()).unwrap_or(0),
     ));
 
     let (shutdown_tx, shutdown_rx) = oneshot::channel();

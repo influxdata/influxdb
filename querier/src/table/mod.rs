@@ -492,7 +492,6 @@ mod tests {
     use super::*;
     use crate::{
         cache::test_util::{assert_cache_access_metric_count, assert_catalog_access_metric_count},
-        df_stats::ColumnRange,
         ingester::{test_util::MockIngesterConnection, IngesterPartition},
         table::test_util::{querier_table, IngesterPartitionBuilder},
     };
@@ -506,7 +505,7 @@ mod tests {
     use generated_types::influxdata::iox::partition_template::v1::{
         template_part::Part, PartitionTemplate, TemplatePart,
     };
-    use iox_query::exec::IOxSessionContext;
+    use iox_query::{chunk_statistics::ColumnRange, exec::IOxSessionContext};
     use iox_tests::{TestCatalog, TestParquetFileBuilder, TestTable};
     use predicate::Predicate;
     use schema::{builder::SchemaBuilder, InfluxFieldType, TIME_COLUMN_NAME};

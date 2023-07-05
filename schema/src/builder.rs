@@ -32,6 +32,14 @@ impl SchemaBuilder {
         Self::default()
     }
 
+    pub fn with_capacity(n: usize) -> Self {
+        Self {
+            measurement: Default::default(),
+            fields: Vec::with_capacity(n),
+            finished: Default::default(),
+        }
+    }
+
     /// Add a new tag column to this schema. By default tags are
     /// potentially nullable as they are not guaranteed to be present
     /// for all rows

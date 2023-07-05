@@ -67,10 +67,7 @@ pub(super) async fn compact_persisting_batch(
             adjust_sort_key_columns(&sk, &batch.schema().primary_key())
         }
         None => {
-            let sort_key = compute_sort_key(
-                batch.schema(),
-                batch.record_batches().iter().map(|sb| sb.as_ref()),
-            );
+            let sort_key = compute_sort_key(batch.schema(), batch.record_batches().iter());
             // Use the sort key computed from the cardinality as the sort key for this parquet
             // file's metadata, also return the sort key to be stored in the catalog
             (sort_key.clone(), Some(sort_key))
@@ -127,7 +124,7 @@ mod tests {
             .to_arrow(Projection::All)
             .unwrap();
 
-        let batch = QueryAdaptor::new(ARBITRARY_PARTITION_ID, vec![Arc::new(batch)]);
+        let batch = QueryAdaptor::new(ARBITRARY_PARTITION_ID, vec![batch]);
 
         // verify PK
         let schema = batch.schema();
@@ -459,8 +456,7 @@ mod tests {
         let expected_pk = vec!["tag1", "time"];
         assert_eq!(expected_pk, pk);
 
-        let sort_key =
-            compute_sort_key(schema, batch.record_batches().iter().map(|rb| rb.as_ref()));
+        let sort_key = compute_sort_key(schema, batch.record_batches().iter());
         assert_eq!(sort_key, SortKey::from_columns(["tag1", "time"]));
 
         // compact
@@ -500,8 +496,7 @@ mod tests {
         let expected_pk = vec!["tag1", "time"];
         assert_eq!(expected_pk, pk);
 
-        let sort_key =
-            compute_sort_key(schema, batch.record_batches().iter().map(|rb| rb.as_ref()));
+        let sort_key = compute_sort_key(schema, batch.record_batches().iter());
         assert_eq!(sort_key, SortKey::from_columns(["tag1", "time"]));
 
         // compact
@@ -549,8 +544,7 @@ mod tests {
         let expected_pk = vec!["tag1", "time"];
         assert_eq!(expected_pk, pk);
 
-        let sort_key =
-            compute_sort_key(schema, batch.record_batches().iter().map(|rb| rb.as_ref()));
+        let sort_key = compute_sort_key(schema, batch.record_batches().iter());
         assert_eq!(sort_key, SortKey::from_columns(["tag1", "time"]));
 
         // compact
@@ -596,8 +590,7 @@ mod tests {
         let expected_pk = vec!["tag1", "tag2", "time"];
         assert_eq!(expected_pk, pk);
 
-        let sort_key =
-            compute_sort_key(schema, batch.record_batches().iter().map(|rb| rb.as_ref()));
+        let sort_key = compute_sort_key(schema, batch.record_batches().iter());
         assert_eq!(sort_key, SortKey::from_columns(["tag1", "tag2", "time"]));
 
         // compact
@@ -647,8 +640,7 @@ mod tests {
         let expected_pk = vec!["tag1", "tag2", "time"];
         assert_eq!(expected_pk, pk);
 
-        let sort_key =
-            compute_sort_key(schema, batch.record_batches().iter().map(|rb| rb.as_ref()));
+        let sort_key = compute_sort_key(schema, batch.record_batches().iter());
         assert_eq!(sort_key, SortKey::from_columns(["tag1", "tag2", "time"]));
 
         // compact
@@ -699,7 +691,7 @@ mod tests {
         batch.schema();
     }
 
-    async fn create_one_row_record_batch_with_influxtype() -> Vec<Arc<RecordBatch>> {
+    async fn create_one_row_record_batch_with_influxtype() -> Vec<RecordBatch> {
         let chunk1 = Arc::new(
             TestChunk::new("t")
                 .with_id(1)
@@ -723,11 +715,10 @@ mod tests {
         ];
         assert_batches_eq!(&expected, &batches);
 
-        let batches: Vec<_> = batches.iter().map(|r| Arc::new(r.clone())).collect();
         batches
     }
 
-    async fn create_one_record_batch_with_influxtype_no_duplicates() -> Vec<Arc<RecordBatch>> {
+    async fn create_one_record_batch_with_influxtype_no_duplicates() -> Vec<RecordBatch> {
         let chunk1 = Arc::new(
             TestChunk::new("t")
                 .with_id(1)
@@ -753,11 +744,10 @@ mod tests {
         ];
         assert_batches_eq!(&expected, &batches);
 
-        let batches: Vec<_> = batches.iter().map(|r| Arc::new(r.clone())).collect();
         batches
     }
 
-    async fn create_one_record_batch_with_influxtype_duplicates() -> Vec<Arc<RecordBatch>> {
+    async fn create_one_record_batch_with_influxtype_duplicates() -> Vec<RecordBatch> {
         let chunk1 = Arc::new(
             TestChunk::new("t")
                 .with_id(1)
@@ -790,12 +780,11 @@ mod tests {
         ];
         assert_batches_eq!(&expected, &batches);
 
-        let batches: Vec<_> = batches.iter().map(|r| Arc::new(r.clone())).collect();
         batches
     }
 
     /// RecordBatches with knowledge of influx metadata
-    async fn create_batches_with_influxtype() -> Vec<Arc<RecordBatch>> {
+    async fn create_batches_with_influxtype() -> Vec<RecordBatch> {
         // Use the available TestChunk to create chunks and then convert them to raw RecordBatches
         let mut batches = vec![];
 
@@ -826,7 +815,7 @@ mod tests {
             "+-----------+------+--------------------------------+",
         ];
         assert_batches_eq!(&expected, &[batch1.clone()]);
-        batches.push(Arc::new(batch1));
+        batches.push(batch1);
 
         // chunk2 having duplicate data with chunk 1
         let chunk2 = Arc::new(
@@ -850,7 +839,7 @@ mod tests {
             "+-----------+------+--------------------------------+",
         ];
         assert_batches_eq!(&expected, &[batch2.clone()]);
-        batches.push(Arc::new(batch2));
+        batches.push(batch2);
 
         // verify data from both batches
         let expected = vec![
@@ -874,14 +863,13 @@ mod tests {
             "| 5         | MT   | 1970-01-01T00:00:00.000005Z    |",
             "+-----------+------+--------------------------------+",
         ];
-        let b: Vec<_> = batches.iter().map(|b| (**b).clone()).collect();
-        assert_batches_eq!(&expected, &b);
+        assert_batches_eq!(&expected, &batches);
 
         batches
     }
 
     /// RecordBatches with knowledge of influx metadata
-    async fn create_batches_with_influxtype_different_columns() -> Vec<Arc<RecordBatch>> {
+    async fn create_batches_with_influxtype_different_columns() -> Vec<RecordBatch> {
         // Use the available TestChunk to create chunks and then convert them to raw RecordBatches
         let mut batches = vec![];
 
@@ -912,7 +900,7 @@ mod tests {
             "+-----------+------+--------------------------------+",
         ];
         assert_batches_eq!(&expected, &[batch1.clone()]);
-        batches.push(Arc::new(batch1));
+        batches.push(batch1);
 
         // chunk2 having duplicate data with chunk 1
         // mmore columns
@@ -939,14 +927,14 @@ mod tests {
             "+-----------+------------+------+------+--------------------------------+",
         ];
         assert_batches_eq!(&expected, &[batch2.clone()]);
-        batches.push(Arc::new(batch2));
+        batches.push(batch2);
 
         batches
     }
 
     /// RecordBatches with knowledge of influx metadata
-    async fn create_batches_with_influxtype_different_columns_different_order(
-    ) -> Vec<Arc<RecordBatch>> {
+    async fn create_batches_with_influxtype_different_columns_different_order() -> Vec<RecordBatch>
+    {
         // Use the available TestChunk to create chunks and then convert them to raw RecordBatches
         let mut batches = vec![];
 
@@ -978,7 +966,7 @@ mod tests {
             "+-----------+------+------+--------------------------------+",
         ];
         assert_batches_eq!(&expected, &[batch1.clone()]);
-        batches.push(Arc::new(batch1.clone()));
+        batches.push(batch1.clone());
 
         // chunk2 having duplicate data with chunk 1
         // mmore columns
@@ -1003,13 +991,13 @@ mod tests {
             "+-----------+------+--------------------------------+",
         ];
         assert_batches_eq!(&expected, &[batch2.clone()]);
-        batches.push(Arc::new(batch2));
+        batches.push(batch2);
 
         batches
     }
 
     /// Has 2 tag columns; tag1 has a lower cardinality (3) than tag3 (4)
-    async fn create_batches_with_influxtype_different_cardinality() -> Vec<Arc<RecordBatch>> {
+    async fn create_batches_with_influxtype_different_cardinality() -> Vec<RecordBatch> {
         // Use the available TestChunk to create chunks and then convert them to raw RecordBatches
         let mut batches = vec![];
 
@@ -1034,7 +1022,7 @@ mod tests {
             "+-----------+------+------+-----------------------------+",
         ];
         assert_batches_eq!(&expected, &[batch1.clone()]);
-        batches.push(Arc::new(batch1.clone()));
+        batches.push(batch1.clone());
 
         let chunk2 = Arc::new(
             TestChunk::new("t")
@@ -1057,13 +1045,13 @@ mod tests {
             "+-----------+------+------+-----------------------------+",
         ];
         assert_batches_eq!(&expected, &[batch2.clone()]);
-        batches.push(Arc::new(batch2));
+        batches.push(batch2);
 
         batches
     }
 
     /// RecordBatches with knowledge of influx metadata
-    async fn create_batches_with_influxtype_same_columns_different_type() -> Vec<Arc<RecordBatch>> {
+    async fn create_batches_with_influxtype_same_columns_different_type() -> Vec<RecordBatch> {
         // Use the available TestChunk to create chunks and then convert them to raw RecordBatches
         let mut batches = vec![];
 
@@ -1087,7 +1075,7 @@ mod tests {
             "+-----------+------+-----------------------------+",
         ];
         assert_batches_eq!(&expected, &[batch1.clone()]);
-        batches.push(Arc::new(batch1));
+        batches.push(batch1);
 
         // chunk2 having duplicate data with chunk 1
         // mmore columns
@@ -1110,7 +1098,7 @@ mod tests {
             "+-----------+------+-----------------------------+",
         ];
         assert_batches_eq!(&expected, &[batch2.clone()]);
-        batches.push(Arc::new(batch2));
+        batches.push(batch2);
 
         batches
     }

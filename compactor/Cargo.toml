@@ -6,7 +6,7 @@ edition.workspace = true
 license.workspace = true
 
 [dependencies]
-async-trait = "0.1.68"
+async-trait = "0.1.70"
 backoff = { path = "../backoff" }
 bytes = "1.4"
 compactor_scheduler = { path = "../compactor_scheduler" }
@@ -21,7 +21,6 @@ metric = { path = "../metric" }
 object_store = { workspace = true }
 observability_deps = { path = "../observability_deps" }
 parquet_file = { path = "../parquet_file" }
-predicate = { path = "../predicate" }
 rand = "0.8.3"
 schema = { path = "../schema" }
 tokio = { version = "1", features = ["macros", "rt", "sync"] }

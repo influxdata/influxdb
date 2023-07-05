@@ -4,20 +4,24 @@ use async_trait::async_trait;
 use data_types::{NamespaceId, TableId};
 use metric::U64Counter;
 use parking_lot::Mutex;
+use predicate::Predicate;
 use trace::span::Span;
 
 use super::{
     namespace::{name_resolver::NamespaceNameProvider, NamespaceData},
     partition::{resolver::PartitionProvider, PartitionData},
     post_write::PostWriteObserver,
-    table::name_resolver::TableNameProvider,
+    table::metadata_resolver::TableProvider,
 };
 use crate::{
     arcmap::ArcMap,
     dml_payload::IngestOp,
     dml_sink::DmlSink,
     partition_iter::PartitionIter,
-    query::{response::QueryResponse, tracing::QueryExecTracing, QueryError, QueryExec},
+    query::{
+        projection::OwnedProjection, response::QueryResponse, tracing::QueryExecTracing,
+        QueryError, QueryExec,
+    },
 };
 
 /// A [`BufferTree`] is the root of an in-memory tree of many [`NamespaceData`]
@@ -92,12 +96,12 @@ pub(crate) struct BufferTree<O> {
     /// [`NamespaceName`]: data_types::NamespaceName
     namespaces: ArcMap<NamespaceId, NamespaceData<O>>,
     namespace_name_resolver: Arc<dyn NamespaceNameProvider>,
-    /// The [`TableName`] provider used by [`NamespaceData`] to initialise a
+    /// The [`TableMetadata`] provider used by [`NamespaceData`] to initialise a
     /// [`TableData`].
     ///
-    /// [`TableName`]: crate::buffer_tree::table::TableName
+    /// [`TableMetadata`]: crate::buffer_tree::table::TableMetadata
     /// [`TableData`]: crate::buffer_tree::table::TableData
-    table_name_resolver: Arc<dyn TableNameProvider>,
+    table_resolver: Arc<dyn TableProvider>,
 
     metrics: Arc<metric::Registry>,
     namespace_count: U64Counter,
@@ -112,7 +116,7 @@ where
     /// Initialise a new [`BufferTree`] that emits metrics to `metrics`.
     pub(crate) fn new(
         namespace_name_resolver: Arc<dyn NamespaceNameProvider>,
-        table_name_resolver: Arc<dyn TableNameProvider>,
+        table_resolver: Arc<dyn TableProvider>,
         partition_provider: Arc<dyn PartitionProvider>,
         post_write_observer: Arc<O>,
         metrics: Arc<metric::Registry>,
@@ -127,7 +131,7 @@ where
         Self {
             namespaces: Default::default(),
             namespace_name_resolver,
-            table_name_resolver,
+            table_resolver,
             metrics,
             partition_provider,
             post_write_observer,
@@ -178,7 +182,7 @@ where
             Arc::new(NamespaceData::new(
                 namespace_id,
                 Arc::new(self.namespace_name_resolver.for_namespace(namespace_id)),
-                Arc::clone(&self.table_name_resolver),
+                Arc::clone(&self.table_resolver),
                 Arc::clone(&self.partition_provider),
                 Arc::clone(&self.post_write_observer),
                 &self.metrics,
@@ -200,8 +204,9 @@ where
         &self,
         namespace_id: NamespaceId,
         table_id: TableId,
-        columns: Vec<String>,
+        projection: OwnedProjection,
         span: Option<Span>,
+        predicate: Option<Predicate>,
     ) -> Result<Self::Response, QueryError> {
         // Extract the namespace if it exists.
         let inner = self
@@ -211,7 +216,7 @@ where
         // Delegate query execution to the namespace, wrapping the execution in
         // a tracing delegate to emit a child span.
         QueryExecTracing::new(inner, "namespace")
-            .query_exec(namespace_id, table_id, columns, span)
+            .query_exec(namespace_id, table_id, projection, span, predicate)
             .await
     }
 }
@@ -227,29 +232,41 @@ where
 
 #[cfg(test)]
 mod tests {
+    use std::{sync::Arc, time::Duration};
+
+    use arrow::datatypes::DataType;
+    use assert_matches::assert_matches;
+    use data_types::{
+        partition_template::{test_table_partition_override, TemplatePart},
+        PartitionId, PartitionKey,
+    };
+    use datafusion::{
+        assert_batches_eq, assert_batches_sorted_eq,
+        prelude::{col, lit},
+        scalar::ScalarValue,
+    };
+    use futures::StreamExt;
+    use lazy_static::lazy_static;
+    use metric::{Attributes, Metric};
+    use predicate::Predicate;
+    use test_helpers::maybe_start_logging;
+
     use super::*;
     use crate::{
         buffer_tree::{
             namespace::{name_resolver::mock::MockNamespaceNameProvider, NamespaceData},
             partition::resolver::mock::MockPartitionProvider,
             post_write::mock::MockPostWriteObserver,
-            table::TableName,
+            table::{metadata_resolver::mock::MockTableProvider, TableMetadata},
         },
         deferred_load::{self, DeferredLoad},
         query::partition_response::PartitionResponse,
         test_util::{
             defer_namespace_name_1_ms, make_write_op, PartitionDataBuilder, ARBITRARY_NAMESPACE_ID,
             ARBITRARY_NAMESPACE_NAME, ARBITRARY_PARTITION_ID, ARBITRARY_PARTITION_KEY,
-            ARBITRARY_TABLE_ID, ARBITRARY_TABLE_NAME, ARBITRARY_TABLE_NAME_PROVIDER,
+            ARBITRARY_TABLE_ID, ARBITRARY_TABLE_NAME, ARBITRARY_TABLE_PROVIDER,
         },
     };
-    use assert_matches::assert_matches;
-    use data_types::{PartitionId, PartitionKey};
-    use datafusion::{assert_batches_eq, assert_batches_sorted_eq};
-    use futures::StreamExt;
-    use lazy_static::lazy_static;
-    use metric::{Attributes, Metric};
-    use std::{sync::Arc, time::Duration};
 
     const PARTITION2_ID: PartitionId = PartitionId::new(2);
     const PARTITION3_ID: PartitionId = PartitionId::new(3);
@@ -278,7 +295,7 @@ mod tests {
         let ns = NamespaceData::new(
             ARBITRARY_NAMESPACE_ID,
             defer_namespace_name_1_ms(),
-            Arc::clone(&*ARBITRARY_TABLE_NAME_PROVIDER),
+            Arc::clone(&*ARBITRARY_TABLE_PROVIDER),
             partition_provider,
             Arc::new(MockPostWriteObserver::default()),
             &metrics,
@@ -337,13 +354,19 @@ mod tests {
     macro_rules! test_write_query {
         (
             $name:ident,
-            partitions = [$($partition:expr), +], // The set of PartitionData for the mock partition provider
+            $(table_provider = $table_provider:expr,)? // An optional table provider
+            partitions = [$($partition:expr), +], // The set of PartitionData for the mock
+                                                  // partition provider
             writes = [$($write:expr), *],         // The set of WriteOperation to apply()
-            want = $want:expr                     // The expected results of querying ARBITRARY_NAMESPACE_ID and ARBITRARY_TABLE_ID
+            predicate = $predicate:expr,          // An optional predicate to use for the query
+            want = $want:expr                     // The expected results of querying
+                                                  // ARBITRARY_NAMESPACE_ID and ARBITRARY_TABLE_ID
         ) => {
             paste::paste! {
                 #[tokio::test]
                 async fn [<test_write_query_ $name>]() {
+                    maybe_start_logging();
+
                     // Configure the mock partition provider with the provided
                     // partitions.
                     let partition_provider = Arc::new(MockPartitionProvider::default()
@@ -352,10 +375,16 @@ mod tests {
                         )+
                     );
 
+                    #[allow(unused_variables)]
+                    let table_provider = Arc::clone(&*ARBITRARY_TABLE_PROVIDER);
+                    $(
+                        let table_provider: Arc<dyn TableProvider> = $table_provider;
+                    )?
+
                     // Init the buffer tree
                     let buf = BufferTree::new(
                         Arc::new(MockNamespaceNameProvider::new(&**ARBITRARY_NAMESPACE_NAME)),
-                        Arc::clone(&*ARBITRARY_TABLE_NAME_PROVIDER),
+                        table_provider,
                         partition_provider,
                         Arc::new(MockPostWriteObserver::default()),
                         Arc::new(metric::Registry::default()),
@@ -370,7 +399,13 @@ mod tests {
 
                     // Execute the query against ARBITRARY_NAMESPACE_ID and ARBITRARY_TABLE_ID
                     let batches = buf
-                        .query_exec(ARBITRARY_NAMESPACE_ID, ARBITRARY_TABLE_ID, vec![], None)
+                        .query_exec(
+                            ARBITRARY_NAMESPACE_ID,
+                            ARBITRARY_TABLE_ID,
+                            OwnedProjection::default(),
+                            None,
+                            $predicate
+                        )
                         .await
                         .expect("query should succeed")
                         .into_partition_stream()
@@ -407,6 +442,7 @@ mod tests {
             ),
             None,
         )],
+        predicate = None,
         want = [
             "+----------+------+-------------------------------+",
             "| region   | temp | time                          |",
@@ -456,6 +492,7 @@ mod tests {
                 None,
             )
         ],
+        predicate = None,
         want = [
             "+----------+------+-------------------------------+",
             "| region   | temp | time                          |",
@@ -508,6 +545,7 @@ mod tests {
                 None,
             )
         ],
+        predicate = None,
         want = [
             "+--------+------+-------------------------------+",
             "| region | temp | time                          |",
@@ -520,7 +558,7 @@ mod tests {
     // A query that ensures the data across multiple tables (with the same table
     // name!) is correctly filtered to return only the queried table.
     test_write_query!(
-        filter_multiple_tabls,
+        filter_multiple_tables,
         partitions = [
             PartitionDataBuilder::new()
                 .with_partition_id(ARBITRARY_PARTITION_ID)
@@ -558,6 +596,7 @@ mod tests {
                 None,
             )
         ],
+        predicate = None,
         want = [
             "+--------+------+-------------------------------+",
             "| region | temp | time                          |",
@@ -603,6 +642,7 @@ mod tests {
                 None,
             )
         ],
+        predicate = None,
         want = [
             "+----------+------+-------------------------------+",
             "| region   | temp | time                          |",
@@ -610,6 +650,98 @@ mod tests {
             "| Asturias | 35.0 | 1970-01-01T00:00:04.242424242 |",
             "| Asturias | 12.0 | 1970-01-01T00:00:04.242424242 |",
             "+----------+------+-------------------------------+",
+        ]
+    );
+
+    // This test asserts that the results returned from a query to the
+    // [`BufferTree`] filters rows from the result as directed by the
+    // query's [`Predicate`].
+    //
+    // It makes sure that for a [`BufferTree`] with a set of partitions split
+    // by some key a query with a predicate `<partition key column> == <arbitrary literal>`
+    // returns partition data that has been filtered to contain only rows which
+    // contain the specified value in that partition key column.
+    test_write_query!(
+        filter_by_predicate_partition_key,
+        table_provider = Arc::new(MockTableProvider::new(TableMetadata::new_for_testing(
+            ARBITRARY_TABLE_NAME.clone(),
+            test_table_partition_override(vec![TemplatePart::TagValue("region")])
+        ))),
+        partitions = [
+            PartitionDataBuilder::new()
+                .with_partition_id(ARBITRARY_PARTITION_ID)
+                .with_partition_key(ARBITRARY_PARTITION_KEY.clone()) // "platanos"
+                .build(),
+            PartitionDataBuilder::new()
+                .with_partition_id(PARTITION2_ID)
+                .with_partition_key(PARTITION2_KEY.clone()) // "p2"
+                .build()
+        ],
+        writes = [
+            make_write_op(
+                &ARBITRARY_PARTITION_KEY,
+                ARBITRARY_NAMESPACE_ID,
+                &ARBITRARY_TABLE_NAME,
+                ARBITRARY_TABLE_ID,
+                0,
+                &format!(
+                    r#"{},region={} temp=35 4242424242"#,
+                    &*ARBITRARY_TABLE_NAME, &*ARBITRARY_PARTITION_KEY
+                ),
+                None,
+            ),
+            make_write_op(
+                &ARBITRARY_PARTITION_KEY,
+                ARBITRARY_NAMESPACE_ID,
+                &ARBITRARY_TABLE_NAME,
+                ARBITRARY_TABLE_ID,
+                1,
+                &format!(
+                    r#"{},region={} temp=12 4242424242"#,
+                    &*ARBITRARY_TABLE_NAME, &*ARBITRARY_PARTITION_KEY
+                ),
+                None,
+            ),
+            make_write_op(
+                &PARTITION2_KEY,
+                ARBITRARY_NAMESPACE_ID,
+                &ARBITRARY_TABLE_NAME,
+                ARBITRARY_TABLE_ID,
+                2,
+                &format!(
+                    r#"{},region={} temp=17 7676767676"#,
+                    &*ARBITRARY_TABLE_NAME, *PARTITION2_KEY
+                ),
+                None,
+            ),
+            make_write_op(
+                &PARTITION2_KEY,
+                ARBITRARY_NAMESPACE_ID,
+                &ARBITRARY_TABLE_NAME,
+                ARBITRARY_TABLE_ID,
+                3,
+                &format!(
+                    r#"{},region={} temp=13 7676767676"#,
+                    &*ARBITRARY_TABLE_NAME, *PARTITION2_KEY,
+                ),
+                None,
+            )
+        ],
+        // NOTE: The querier will coerce the type of the predicates correctly, so the ingester does NOT need to perform
+        //       type coercion. This type should reflect that.
+        predicate = Some(Predicate::new().with_expr(col("region").eq(lit(
+            ScalarValue::Dictionary(
+                Box::new(DataType::Int32),
+                Box::new(ScalarValue::from(PARTITION2_KEY.inner()))
+            )
+        )))),
+        want = [
+            "+--------+------+-------------------------------+",
+            "| region | temp | time                          |",
+            "+--------+------+-------------------------------+",
+            "| p2     | 13.0 | 1970-01-01T00:00:07.676767676 |",
+            "| p2     | 17.0 | 1970-01-01T00:00:07.676767676 |",
+            "+--------+------+-------------------------------+",
         ]
     );
 
@@ -627,7 +759,7 @@ mod tests {
                 )
                 .with_partition(
                     PartitionDataBuilder::new()
-                        .with_partition_id(ARBITRARY_PARTITION_ID)
+                        .with_partition_id(PARTITION2_ID)
                         .with_partition_key(PARTITION2_KEY.clone())
                         .build(),
                 ),
@@ -638,7 +770,7 @@ mod tests {
         // Init the buffer tree
         let buf = BufferTree::new(
             Arc::new(MockNamespaceNameProvider::new(&**ARBITRARY_NAMESPACE_NAME)),
-            Arc::clone(&*ARBITRARY_TABLE_NAME_PROVIDER),
+            Arc::clone(&*ARBITRARY_TABLE_PROVIDER),
             partition_provider,
             Arc::new(MockPostWriteObserver::default()),
             Arc::clone(&metrics),
@@ -722,9 +854,14 @@ mod tests {
                         .with_partition_id(PARTITION3_ID)
                         .with_partition_key(PARTITION3_KEY.clone())
                         .with_table_id(TABLE2_ID)
-                        .with_table_name_loader(Arc::new(DeferredLoad::new(
+                        .with_table_loader(Arc::new(DeferredLoad::new(
                             Duration::from_secs(1),
-                            async move { TableName::from(TABLE2_NAME) },
+                            async move {
+                                TableMetadata::new_for_testing(
+                                    TABLE2_NAME.into(),
+                                    Default::default(),
+                                )
+                            },
                             &metric::Registry::default(),
                         )))
                         .build(),
@@ -734,7 +871,7 @@ mod tests {
         // Init the buffer tree
         let buf = BufferTree::new(
             Arc::new(MockNamespaceNameProvider::new(&**ARBITRARY_NAMESPACE_NAME)),
-            Arc::clone(&*ARBITRARY_TABLE_NAME_PROVIDER),
+            Arc::clone(&*ARBITRARY_TABLE_PROVIDER),
             partition_provider,
             Arc::new(MockPostWriteObserver::default()),
             Arc::clone(&Arc::new(metric::Registry::default())),
@@ -821,7 +958,7 @@ mod tests {
         // Init the BufferTree
         let buf = BufferTree::new(
             Arc::new(MockNamespaceNameProvider::new(&**ARBITRARY_NAMESPACE_NAME)),
-            Arc::clone(&*ARBITRARY_TABLE_NAME_PROVIDER),
+            Arc::clone(&*ARBITRARY_TABLE_PROVIDER),
             partition_provider,
             Arc::new(MockPostWriteObserver::default()),
             Arc::new(metric::Registry::default()),
@@ -829,7 +966,13 @@ mod tests {
 
         // Query the empty tree
         let err = buf
-            .query_exec(ARBITRARY_NAMESPACE_ID, ARBITRARY_TABLE_ID, vec![], None)
+            .query_exec(
+                ARBITRARY_NAMESPACE_ID,
+                ARBITRARY_TABLE_ID,
+                OwnedProjection::default(),
+                None,
+                None,
+            )
             .await
             .expect_err("query should fail");
         assert_matches!(err, QueryError::NamespaceNotFound(ns) => {
@@ -854,7 +997,13 @@ mod tests {
 
         // Ensure an unknown table errors
         let err = buf
-            .query_exec(ARBITRARY_NAMESPACE_ID, TABLE2_ID, vec![], None)
+            .query_exec(
+                ARBITRARY_NAMESPACE_ID,
+                TABLE2_ID,
+                OwnedProjection::default(),
+                None,
+                None,
+            )
             .await
             .expect_err("query should fail");
         assert_matches!(err, QueryError::TableNotFound(ns, t) => {
@@ -863,9 +1012,15 @@ mod tests {
         });
 
         // Ensure a valid namespace / table does not error
-        buf.query_exec(ARBITRARY_NAMESPACE_ID, ARBITRARY_TABLE_ID, vec![], None)
-            .await
-            .expect("namespace / table should exist");
+        buf.query_exec(
+            ARBITRARY_NAMESPACE_ID,
+            ARBITRARY_TABLE_ID,
+            OwnedProjection::default(),
+            None,
+            None,
+        )
+        .await
+        .expect("namespace / table should exist");
     }
 
     /// This test asserts the read consistency properties defined in the
@@ -906,7 +1061,7 @@ mod tests {
         // Init the buffer tree
         let buf = BufferTree::new(
             Arc::new(MockNamespaceNameProvider::new(&**ARBITRARY_NAMESPACE_NAME)),
-            Arc::clone(&*ARBITRARY_TABLE_NAME_PROVIDER),
+            Arc::clone(&*ARBITRARY_TABLE_PROVIDER),
             partition_provider,
             Arc::new(MockPostWriteObserver::default()),
             Arc::new(metric::Registry::default()),
@@ -931,7 +1086,13 @@ mod tests {
         // Execute a query of the buffer tree, generating the result stream, but
         // DO NOT consume it.
         let stream = buf
-            .query_exec(ARBITRARY_NAMESPACE_ID, ARBITRARY_TABLE_ID, vec![], None)
+            .query_exec(
+                ARBITRARY_NAMESPACE_ID,
+                ARBITRARY_TABLE_ID,
+                OwnedProjection::default(),
+                None,
+                None,
+            )
             .await
             .expect("query should succeed")
             .into_partition_stream();

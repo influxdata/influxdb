@@ -155,6 +155,16 @@ impl TestConfig {
         Self::new(ServerType::AllInOne, dsn, random_catalog_schema_name()).with_new_object_store()
     }
 
+    /// Set the number of failed ingester queries before the querier considers
+    /// the ingester to be dead.
+    pub fn with_querier_circuit_breaker_threshold(self, count: usize) -> Self {
+        assert!(count > 0);
+        self.with_env(
+            "INFLUXDB_IOX_INGESTER_CIRCUIT_BREAKER_THRESHOLD",
+            count.to_string(),
+        )
+    }
+
     /// Configure tracing capture
     pub fn with_tracing(self, udp_capture: &UdpCapture) -> Self {
         self.with_env("TRACES_EXPORTER", "jaeger")

@@ -1120,18 +1120,6 @@ impl QueryChunk for TestChunk {
         "Test Chunk"
     }
 
-    fn column_values(
-        &self,
-        _ctx: IOxSessionContext,
-        _column_name: &str,
-        _predicate: &Predicate,
-    ) -> Result<Option<StringSet>, DataFusionError> {
-        self.check_error()?;
-
-        // Model not being able to get column values from metadata
-        Ok(None)
-    }
-
     fn order(&self) -> ChunkOrder {
         self.order
     }

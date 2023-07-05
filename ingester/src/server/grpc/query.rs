@@ -12,6 +12,7 @@ use futures::{Stream, StreamExt, TryStreamExt};
 use ingester_query_grpc::influxdata::iox::ingester::v1 as proto;
 use metric::{DurationHistogram, U64Counter};
 use observability_deps::tracing::*;
+use predicate::Predicate;
 use prost::Message;
 use thiserror::Error;
 use tokio::sync::{Semaphore, TryAcquireError};
@@ -26,7 +27,7 @@ use instrumentation::FlightFrameEncodeInstrumentation;
 
 use crate::{
     ingester_id::IngesterId,
-    query::{response::QueryResponse, QueryError, QueryExec},
+    query::{projection::OwnedProjection, response::QueryResponse, QueryError, QueryExec},
 };
 
 /// Error states for the query RPC handler.
@@ -48,6 +49,10 @@ enum Error {
     /// The number of simultaneous queries being executed has been reached.
     #[error("simultaneous query limit exceeded")]
     RequestLimit,
+
+    /// The payload within the request has an invalid field value.
+    #[error("field violation: {0}")]
+    FieldViolation(#[from] ingester_query_grpc::FieldViolation),
 }
 
 /// Map a query-execution error into a [`tonic::Status`].
@@ -76,6 +81,10 @@ impl From<Error> for tonic::Status {
             Error::RequestLimit => {
                 warn!("simultaneous query limit exceeded");
                 Code::ResourceExhausted
+            }
+            Error::FieldViolation(_) => {
+                debug!(error=%e, "request contains field violation");
+                Code::InvalidArgument
             }
         };
 
@@ -188,18 +197,21 @@ where
         let ticket = request.into_inner();
         let request = proto::IngesterQueryRequest::decode(&*ticket.ticket).map_err(Error::from)?;
 
-        // Extract the namespace/table identifiers
+        // Extract the namespace/table identifiers and the query predicate
         let namespace_id = NamespaceId::new(request.namespace_id);
         let table_id = TableId::new(request.table_id);
+        let predicate = if let Some(p) = request.predicate {
+            debug!(predicate=?p, "received query predicate");
+            Some(Predicate::try_from(p).map_err(Error::from)?)
+        } else {
+            None
+        };
 
-        // Predicate pushdown is part of the API, but not implemented.
-        if let Some(p) = request.predicate {
-            debug!(predicate=?p, "ignoring query predicate (unsupported)");
-        }
+        let projection = OwnedProjection::from(request.columns);
 
         let response = match self
             .query_handler
-            .query_exec(namespace_id, table_id, request.columns, span.clone())
+            .query_exec(namespace_id, table_id, projection, span.clone(), predicate)
             .await
         {
             Ok(v) => v,

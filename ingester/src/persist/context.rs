@@ -18,7 +18,7 @@ use crate::{
     buffer_tree::{
         namespace::NamespaceName,
         partition::{persisting::PersistingData, PartitionData, SortKeyState},
-        table::TableName,
+        table::TableMetadata,
     },
     deferred_load::DeferredLoad,
     persist::completion_observer::CompletedPersist,
@@ -94,14 +94,14 @@ pub(super) struct Context {
     // The partition key for this partition
     partition_key: PartitionKey,
 
-    /// Deferred strings needed for persistence.
+    /// Deferred data needed for persistence.
     ///
     /// These [`DeferredLoad`] are given a pre-fetch hint when this [`Context`]
     /// is constructed to load them in the background (if not already resolved)
     /// in order to avoid incurring the query latency when the values are
     /// needed.
     namespace_name: Arc<DeferredLoad<NamespaceName>>,
-    table_name: Arc<DeferredLoad<TableName>>,
+    table: Arc<DeferredLoad<TableMetadata>>,
 
     /// The [`SortKey`] for the [`PartitionData`] at the time of [`Context`]
     /// construction.
@@ -164,7 +164,7 @@ impl Context {
                 partition_hash_id: guard.partition_hash_id().cloned(),
                 partition_key: guard.partition_key().clone(),
                 namespace_name: Arc::clone(guard.namespace_name()),
-                table_name: Arc::clone(guard.table_name()),
+                table: Arc::clone(guard.table()),
 
                 // Technically the sort key isn't immutable, but MUST NOT be
                 // changed by an external actor (by something other than code in
@@ -182,7 +182,7 @@ impl Context {
         // Pre-fetch the deferred values in a background thread (if not already
         // resolved)
         s.namespace_name.prefetch_now();
-        s.table_name.prefetch_now();
+        s.table.prefetch_now();
         if let SortKeyState::Deferred(ref d) = s.sort_key {
             d.prefetch_now();
         }
@@ -253,7 +253,7 @@ impl Context {
             namespace_id = %self.namespace_id,
             namespace_name = %self.namespace_name,
             table_id = %self.table_id,
-            table_name = %self.table_name,
+            table = %self.table,
             partition_id = %self.partition_id,
             partition_key = %self.partition_key,
             total_persist_duration = ?now.duration_since(self.enqueued_at),
@@ -315,7 +315,7 @@ impl Context {
         self.namespace_name.as_ref()
     }
 
-    pub(super) fn table_name(&self) -> &DeferredLoad<TableName> {
-        self.table_name.as_ref()
+    pub(super) fn table(&self) -> &DeferredLoad<TableMetadata> {
+        self.table.as_ref()
     }
 }

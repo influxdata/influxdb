@@ -242,7 +242,7 @@ where
         namespace: &str,
         lp: &str,
         partition_key: PartitionKey,
-        sequence_number: i64,
+        sequence_number: u64,
     ) {
         // Resolve the namespace ID needed to construct the DML op
         let namespace_id = self.namespace_id(namespace).await;

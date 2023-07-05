@@ -22,7 +22,7 @@ use arrow::{
 use async_trait::async_trait;
 use data_types::{ChunkId, ChunkOrder, PartitionId};
 use datafusion::{error::DataFusionError, physical_plan::Statistics, prelude::SessionContext};
-use exec::{stringset::StringSet, IOxSessionContext};
+use exec::IOxSessionContext;
 use hashbrown::HashMap;
 use observability_deps::tracing::trace;
 use once_cell::sync::Lazy;
@@ -34,6 +34,7 @@ use schema::{
 };
 use std::{any::Any, fmt::Debug, sync::Arc};
 
+pub mod chunk_statistics;
 pub mod config;
 pub mod exec;
 pub mod frontend;
@@ -80,18 +81,6 @@ pub trait QueryChunk: Debug + Send + Sync + 'static {
     /// Returns true if the chunk may contain a duplicate "primary
     /// key" within itself
     fn may_contain_pk_duplicates(&self) -> bool;
-
-    /// Return a set of Strings containing the distinct values in the
-    /// specified columns. If the predicate can be evaluated entirely
-    /// on the metadata of this Chunk. Returns `None` otherwise
-    ///
-    /// The requested columns must all have String type.
-    fn column_values(
-        &self,
-        ctx: IOxSessionContext,
-        column_name: &str,
-        predicate: &Predicate,
-    ) -> Result<Option<StringSet>, DataFusionError>;
 
     /// Provides access to raw [`QueryChunk`] data.
     ///
@@ -271,15 +260,6 @@ where
         self.as_ref().may_contain_pk_duplicates()
     }
 
-    fn column_values(
-        &self,
-        ctx: IOxSessionContext,
-        column_name: &str,
-        predicate: &Predicate,
-    ) -> Result<Option<StringSet>, DataFusionError> {
-        self.as_ref().column_values(ctx, column_name, predicate)
-    }
-
     fn data(&self) -> QueryChunkData {
         self.as_ref().data()
     }
@@ -321,15 +301,6 @@ impl QueryChunk for Arc<dyn QueryChunk> {
 
     fn may_contain_pk_duplicates(&self) -> bool {
         self.as_ref().may_contain_pk_duplicates()
-    }
-
-    fn column_values(
-        &self,
-        ctx: IOxSessionContext,
-        column_name: &str,
-        predicate: &Predicate,
-    ) -> Result<Option<StringSet>, DataFusionError> {
-        self.as_ref().column_values(ctx, column_name, predicate)
     }
 
     fn data(&self) -> QueryChunkData {

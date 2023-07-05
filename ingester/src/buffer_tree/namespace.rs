@@ -7,19 +7,23 @@ use std::sync::Arc;
 use async_trait::async_trait;
 use data_types::{NamespaceId, TableId};
 use metric::U64Counter;
+use predicate::Predicate;
 use trace::span::Span;
 
 use super::{
     partition::resolver::PartitionProvider,
     post_write::PostWriteObserver,
-    table::{name_resolver::TableNameProvider, TableData},
+    table::{metadata_resolver::TableProvider, TableData},
 };
 use crate::{
     arcmap::ArcMap,
     deferred_load::DeferredLoad,
     dml_payload::IngestOp,
     dml_sink::DmlSink,
-    query::{response::QueryResponse, tracing::QueryExecTracing, QueryError, QueryExec},
+    query::{
+        projection::OwnedProjection, response::QueryResponse, tracing::QueryExecTracing,
+        QueryError, QueryExec,
+    },
 };
 
 /// The string name / identifier of a Namespace.
@@ -60,12 +64,13 @@ pub(crate) struct NamespaceData<O> {
     /// A set of tables this [`NamespaceData`] instance has processed
     /// [`IngestOp`]'s for.
     ///
-    /// The [`TableNameProvider`] acts as a [`DeferredLoad`] constructor to
-    /// resolve the [`TableName`] for new [`TableData`] out of the hot path.
+    /// The [`TableProvider`] acts as a [`DeferredLoad`] constructor to
+    /// resolve the catalog [`Table`] for new [`TableData`] out of the hot path.
     ///
-    /// [`TableName`]: crate::buffer_tree::table::TableName
+    ///
+    /// [`Table`]: data_types::Table
     tables: ArcMap<TableId, TableData<O>>,
-    table_name_resolver: Arc<dyn TableNameProvider>,
+    catalog_table_resolver: Arc<dyn TableProvider>,
     /// The count of tables initialised in this Ingester so far, across all
     /// namespaces.
     table_count: U64Counter,
@@ -83,7 +88,7 @@ impl<O> NamespaceData<O> {
     pub(super) fn new(
         namespace_id: NamespaceId,
         namespace_name: Arc<DeferredLoad<NamespaceName>>,
-        table_name_resolver: Arc<dyn TableNameProvider>,
+        catalog_table_resolver: Arc<dyn TableProvider>,
         partition_provider: Arc<dyn PartitionProvider>,
         post_write_observer: Arc<O>,
         metrics: &metric::Registry,
@@ -99,7 +104,7 @@ impl<O> NamespaceData<O> {
             namespace_id,
             namespace_name,
             tables: Default::default(),
-            table_name_resolver,
+            catalog_table_resolver,
             table_count,
             partition_provider,
             post_write_observer,
@@ -151,7 +156,7 @@ where
                         self.table_count.inc(1);
                         Arc::new(TableData::new(
                             table_id,
-                            Arc::new(self.table_name_resolver.for_table(table_id)),
+                            Arc::new(self.catalog_table_resolver.for_table(table_id)),
                             self.namespace_id,
                             Arc::clone(&self.namespace_name),
                             Arc::clone(&self.partition_provider),
@@ -187,8 +192,9 @@ where
         &self,
         namespace_id: NamespaceId,
         table_id: TableId,
-        columns: Vec<String>,
+        projection: OwnedProjection,
         span: Option<Span>,
+        predicate: Option<Predicate>,
     ) -> Result<Self::Response, QueryError> {
         assert_eq!(
             self.namespace_id, namespace_id,
@@ -204,7 +210,7 @@ where
         // a tracing delegate to emit a child span.
         Ok(QueryResponse::new(
             QueryExecTracing::new(inner, "table")
-                .query_exec(namespace_id, table_id, columns, span)
+                .query_exec(namespace_id, table_id, projection, span, predicate)
                 .await?,
         ))
     }
@@ -226,7 +232,7 @@ mod tests {
         test_util::{
             defer_namespace_name_1_ms, make_write_op, PartitionDataBuilder, ARBITRARY_NAMESPACE_ID,
             ARBITRARY_NAMESPACE_NAME, ARBITRARY_PARTITION_KEY, ARBITRARY_TABLE_ID,
-            ARBITRARY_TABLE_NAME, ARBITRARY_TABLE_NAME_PROVIDER,
+            ARBITRARY_TABLE_NAME, ARBITRARY_TABLE_PROVIDER,
         },
     };
 
@@ -243,7 +249,7 @@ mod tests {
         let ns = NamespaceData::new(
             ARBITRARY_NAMESPACE_ID,
             defer_namespace_name_1_ms(),
-            Arc::clone(&*ARBITRARY_TABLE_NAME_PROVIDER),
+            Arc::clone(&*ARBITRARY_TABLE_PROVIDER),
             partition_provider,
             Arc::new(MockPostWriteObserver::default()),
             &metrics,

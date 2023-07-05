@@ -1,12 +1,11 @@
 //! A writfield1 buffer, with one or more snapshots.
 
-use std::sync::Arc;
-
 use arrow::record_batch::RecordBatch;
 
 use super::BufferState;
-use crate::buffer_tree::partition::buffer::{
-    state_machine::persisting::Persisting, traits::Queryable,
+use crate::{
+    buffer_tree::partition::buffer::{state_machine::persisting::Persisting, traits::Queryable},
+    query::projection::OwnedProjection,
 };
 
 /// An immutable, queryable FSM state containing at least one buffer snapshot.
@@ -15,19 +14,19 @@ pub(crate) struct Snapshot {
     /// Snapshots generated from previous buffer contents.
     ///
     /// INVARIANT: this array is always non-empty.
-    snapshots: Vec<Arc<RecordBatch>>,
+    snapshots: Vec<RecordBatch>,
 }
 
 impl Snapshot {
-    pub(super) fn new(snapshots: Vec<Arc<RecordBatch>>) -> Self {
+    pub(super) fn new(snapshots: Vec<RecordBatch>) -> Self {
         assert!(!snapshots.is_empty());
         Self { snapshots }
     }
 }
 
 impl Queryable for Snapshot {
-    fn get_query_data(&self) -> Vec<Arc<RecordBatch>> {
-        self.snapshots.clone()
+    fn get_query_data(&self, projection: &OwnedProjection) -> Vec<RecordBatch> {
+        projection.project_record_batch(&self.snapshots)
     }
 }
 

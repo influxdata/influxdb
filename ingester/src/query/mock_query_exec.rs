@@ -1,9 +1,10 @@
 use async_trait::async_trait;
 use data_types::{NamespaceId, TableId};
 use parking_lot::Mutex;
+use predicate::Predicate;
 use trace::span::Span;
 
-use super::{response::QueryResponse, QueryError, QueryExec};
+use super::{projection::OwnedProjection, response::QueryResponse, QueryError, QueryExec};
 
 #[derive(Debug, Default)]
 pub(crate) struct MockQueryExec {
@@ -25,8 +26,9 @@ impl QueryExec for MockQueryExec {
         &self,
         _namespace_id: NamespaceId,
         _table_id: TableId,
-        _columns: Vec<String>,
+        _projection: OwnedProjection,
         _span: Option<Span>,
+        _predicate: Option<Predicate>,
     ) -> Result<Self::Response, QueryError> {
         self.response
             .lock()

@@ -2,6 +2,7 @@
 
 use data_types::{ChunkId, ChunkOrder, PartitionId};
 use datafusion::physical_plan::Statistics;
+use iox_query::chunk_statistics::{create_chunk_statistics, ColumnRanges};
 use parquet_file::chunk::ParquetChunk;
 use schema::sort::SortKey;
 use std::sync::Arc;
@@ -10,8 +11,6 @@ mod creation;
 mod query_access;
 
 pub use creation::ChunkAdapter;
-
-use crate::df_stats::{create_chunk_statistics, ColumnRanges};
 
 /// Immutable metadata attached to a [`QuerierParquetChunk`].
 #[derive(Debug)]

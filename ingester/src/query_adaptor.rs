@@ -5,15 +5,13 @@ use std::{any::Any, sync::Arc};
 
 use arrow::record_batch::RecordBatch;
 use arrow_util::util::ensure_schema;
-use data_types::{ChunkId, ChunkOrder, PartitionId};
-use datafusion::{error::DataFusionError, physical_plan::Statistics};
+use data_types::{ChunkId, ChunkOrder, PartitionId, TimestampMinMax};
+use datafusion::physical_plan::Statistics;
 use iox_query::{
-    exec::{stringset::StringSet, IOxSessionContext},
     util::{compute_timenanosecond_min_max, create_basic_summary},
     QueryChunk, QueryChunkData,
 };
 use once_cell::sync::OnceCell;
-use predicate::Predicate;
 use schema::{merge::merge_record_batch_schemas, sort::SortKey, Projection, Schema};
 
 /// A queryable wrapper over a set of ordered [`RecordBatch`] snapshot from a
@@ -30,7 +28,7 @@ pub struct QueryAdaptor {
     ///
     /// This MUST be non-pub(crate) / closed for modification / immutable to support
     /// interning the merged schema in [`Self::schema()`].
-    data: Vec<Arc<RecordBatch>>,
+    data: Vec<RecordBatch>,
 
     /// The catalog ID of the partition the this data is part of.
     partition_id: PartitionId,
@@ -52,12 +50,12 @@ impl QueryAdaptor {
     ///
     /// This constructor panics if `data` contains no [`RecordBatch`], or all
     /// [`RecordBatch`] are empty.
-    pub(crate) fn new(partition_id: PartitionId, data: Vec<Arc<RecordBatch>>) -> Self {
+    pub(crate) fn new(partition_id: PartitionId, data: Vec<RecordBatch>) -> Self {
         // There must always be at least one record batch and one row.
         //
         // This upholds an invariant that simplifies dealing with empty
         // partitions - if there is a QueryAdaptor, it contains data.
-        assert!(data.iter().map(|b| b.num_rows()).sum::<usize>() > 0);
+        assert!(data.iter().any(|b| b.num_rows() > 0));
 
         let schema = merge_record_batch_schemas(&data);
         Self {
@@ -75,8 +73,7 @@ impl QueryAdaptor {
         // Project the column selection across all RecordBatch
         self.data
             .iter()
-            .map(|data| {
-                let batch = data.as_ref();
+            .map(|batch| {
                 let schema = batch.schema();
 
                 // Apply selection to in-memory batch
@@ -98,8 +95,14 @@ impl QueryAdaptor {
     }
 
     /// Returns the [`RecordBatch`] instances in this [`QueryAdaptor`].
-    pub(crate) fn record_batches(&self) -> &[Arc<RecordBatch>] {
+    pub(crate) fn record_batches(&self) -> &[RecordBatch] {
         self.data.as_ref()
+    }
+
+    /// Unwrap this [`QueryAdaptor`], yielding the inner [`RecordBatch`]
+    /// instances.
+    pub(crate) fn into_record_batches(self) -> Vec<RecordBatch> {
+        self.data
     }
 
     /// Returns the partition ID from which the data this [`QueryAdaptor`] was
@@ -107,16 +110,25 @@ impl QueryAdaptor {
     pub(crate) fn partition_id(&self) -> PartitionId {
         self.partition_id
     }
+
+    /// Number of rows, useful for building stats
+    pub(crate) fn num_rows(&self) -> u64 {
+        self.data.iter().map(|b| b.num_rows()).sum::<usize>() as u64
+    }
+
+    /// Time range, useful for building stats
+    pub(crate) fn ts_min_max(&self) -> TimestampMinMax {
+        compute_timenanosecond_min_max(self.data.iter()).expect("Should have time range")
+    }
 }
 
 impl QueryChunk for QueryAdaptor {
     fn stats(&self) -> Arc<Statistics> {
         Arc::clone(self.stats.get_or_init(|| {
-            let ts_min_max = compute_timenanosecond_min_max(self.data.iter().map(|b| b.as_ref()))
-                .expect("Should have time range");
+            let ts_min_max = self.ts_min_max();
 
             Arc::new(create_basic_summary(
-                self.data.iter().map(|b| b.num_rows()).sum::<usize>() as u64,
+                self.num_rows(),
                 self.schema(),
                 ts_min_max,
             ))
@@ -145,20 +157,6 @@ impl QueryChunk for QueryAdaptor {
         // always true because the rows across record batches have not been
         // de-duplicated.
         true
-    }
-
-    /// Return a set of Strings containing the distinct values in the
-    /// specified columns. If the predicate can be evaluated entirely
-    /// on the metadata of this Chunk. Returns `None` otherwise
-    ///
-    /// The requested columns must all have String type.
-    fn column_values(
-        &self,
-        _ctx: IOxSessionContext,
-        _column_name: &str,
-        _predicate: &Predicate,
-    ) -> Result<Option<StringSet>, DataFusionError> {
-        Ok(None)
     }
 
     fn data(&self) -> QueryChunkData {
