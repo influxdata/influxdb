@@ -205,7 +205,12 @@ impl FieldProjectionRewriter {
                 }
             });
 
-        Ok(predicate.with_field_columns(new_fields).unwrap())
+        let predicate = predicate
+            .with_field_columns(new_fields)
+            // errors are possible if the field colmns are not supported
+            .map_err(|e| DataFusionError::NotImplemented(e.to_string()))?;
+
+        Ok(predicate)
     }
 }
 
