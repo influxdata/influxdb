@@ -4963,6 +4963,7 @@ dependencies = [
  "serde_json",
  "service_common",
  "snafu",
+ "test_helpers",
  "tokio",
  "tonic",
  "trace",
