@@ -95,7 +95,10 @@ impl PartitionsSource for CatalogToCompactPartitionsSource {
 
             info!(
                 minimum_time = minimum_time.to_string().as_str(),
-                maximum_time = maximum_time.unwrap().to_string().as_str(),
+                maximum_time = maximum_time
+                    .map(|mt| mt.to_string())
+                    .unwrap_or(String::from(""))
+                    .as_str(),
                 last_maximum_time = (*last).to_string().as_str(),
                 "Fetching partitions to consider for compaction",
             );
