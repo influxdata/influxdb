@@ -3,6 +3,12 @@ use std::{borrow::Cow, path::PathBuf, time::Duration};
 use metric::{Attributes, U64Gauge};
 use sysinfo::{DiskExt, RefreshKind, System, SystemExt};
 
+/// The interval at which disk metrics are updated.
+///
+/// This is purposely chosen to be out-of-phase w.r.t the default metric scrape
+/// interval.
+const UPDATE_INTERVAL: Duration = Duration::from_secs(13);
+
 /// A periodic reporter of disk capacity / free statistics for a given
 /// directory.
 #[derive(Debug)]
@@ -68,7 +74,7 @@ impl DiskSpaceMetrics {
 
     /// Start the [`DiskSpaceMetrics`] evaluation loop, blocking forever.
     pub async fn run(mut self) {
-        let mut interval = tokio::time::interval(Duration::from_secs(10));
+        let mut interval = tokio::time::interval(UPDATE_INTERVAL);
 
         loop {
             interval.tick().await;
