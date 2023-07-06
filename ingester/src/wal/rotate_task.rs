@@ -102,7 +102,7 @@ mod tests {
     use crate::{
         buffer_tree::partition::{persisting::PersistingData, PartitionData},
         dml_payload::IngestOp,
-        persist::queue::mock::MockPersistQueue,
+        persist::{completion_observer::NopObserver, queue::mock::MockPersistQueue},
         test_util::{
             make_write_op, new_persist_notification, PartitionDataBuilder, ARBITRARY_NAMESPACE_ID,
             ARBITRARY_PARTITION_ID, ARBITRARY_PARTITION_KEY, ARBITRARY_TABLE_ID,
@@ -147,7 +147,7 @@ mod tests {
 
         // Initialise a mock persist queue to inspect the calls made to the
         // persist subsystem.
-        let persist_handle = Arc::new(MockPersistQueue::default());
+        let persist_handle = Arc::new(MockPersistQueue::<NopObserver>::default());
 
         // Initialise the WAL, write the operation to it
         let tmp_dir = tempdir().expect("no temp dir available");
@@ -176,7 +176,7 @@ mod tests {
         let (wal_reference_handle, wal_reference_actor) =
             WalReferenceHandle::new(Arc::clone(&wal), &metrics);
         let wal_reference_handle = Arc::new(wal_reference_handle);
-        let wal_reference_actor_task = tokio::spawn(wal_reference_actor.run());
+        tokio::spawn(wal_reference_actor.run());
 
         // Start the rotation task
         let rotate_task_handle = tokio::spawn(periodic_rotation(
@@ -231,9 +231,8 @@ mod tests {
         .with_timeout_panic(Duration::from_secs(5))
         .await;
 
-        // Stop the tasks and assert the state of the persist queue
+        // Stop the task and assert the state of the persist queue
         rotate_task_handle.abort();
-        wal_reference_actor_task.abort();
 
         assert_matches!(persist_handle.calls().as_slice(), [got] => {
             let guard = got.lock();
@@ -331,7 +330,7 @@ mod tests {
         let (wal_reference_handle, wal_reference_actor) =
             WalReferenceHandle::new(Arc::clone(&wal), &metrics);
         let wal_reference_handle = Arc::new(wal_reference_handle);
-        let wal_reference_actor_task = tokio::spawn(wal_reference_actor.run());
+        tokio::spawn(wal_reference_actor.run());
 
         // Start the rotation task
         let rotate_task_handle = tokio::spawn(periodic_rotation(
@@ -417,9 +416,8 @@ mod tests {
         .with_timeout_panic(Duration::from_secs(5))
         .await;
 
-        // Stop the workers and assert the state of the persist queue.
+        // Stop the worker and assert the state of the persist queue.
         rotate_task_handle.abort();
-        wal_reference_actor_task.abort();
 
         let calls = persist_handle.calls.lock().clone();
         assert_matches!(calls.as_slice(), [got1, got2] => {

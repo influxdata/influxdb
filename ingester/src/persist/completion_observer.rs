@@ -19,7 +19,7 @@ use crate::wal::reference_tracker::WalReferenceHandle;
 /// [`PartitionData::mark_persisted()`]:
 ///     crate::buffer_tree::partition::PartitionData::mark_persisted()
 #[async_trait]
-pub(crate) trait PersistCompletionObserver: Send + Sync + Debug {
+pub trait PersistCompletionObserver: Send + Sync + Debug {
     /// Observe the [`CompletedPersist`] notification for the newly persisted
     /// data.
     async fn persist_complete(&self, note: Arc<CompletedPersist>);
@@ -108,8 +108,8 @@ impl CompletedPersist {
 }
 
 /// A no-op implementation of the [`PersistCompletionObserver`] trait.
-#[derive(Debug, Default)]
-pub(crate) struct NopObserver;
+#[derive(Clone, Copy, Debug, Default)]
+pub struct NopObserver;
 
 #[async_trait]
 impl PersistCompletionObserver for NopObserver {

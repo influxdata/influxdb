@@ -109,7 +109,7 @@ mod tests {
     use parking_lot::Mutex;
 
     use crate::{
-        persist::queue::mock::MockPersistQueue,
+        persist::{completion_observer::NopObserver, queue::mock::MockPersistQueue},
         test_util::{PartitionDataBuilder, ARBITRARY_TABLE_NAME},
     };
 
@@ -131,7 +131,7 @@ mod tests {
         let p = Arc::new(Mutex::new(p));
 
         let metrics = metric::Registry::default();
-        let persist_handle = Arc::new(MockPersistQueue::default());
+        let persist_handle = Arc::new(MockPersistQueue::<NopObserver>::default());
 
         let hot_partition_persister =
             HotPartitionPersister::new(Arc::clone(&persist_handle), max_cost, &metrics);

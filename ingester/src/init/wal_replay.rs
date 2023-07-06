@@ -279,7 +279,7 @@ mod tests {
         buffer_tree::partition::PartitionData,
         dml_payload::IngestOp,
         dml_sink::mock_sink::MockDmlSink,
-        persist::queue::mock::MockPersistQueue,
+        persist::{completion_observer::NopObserver, queue::mock::MockPersistQueue},
         test_util::{
             assert_write_ops_eq, make_multi_table_write_op, make_write_op, PartitionDataBuilder,
             ARBITRARY_NAMESPACE_ID, ARBITRARY_PARTITION_ID, ARBITRARY_PARTITION_KEY,
@@ -417,7 +417,7 @@ mod tests {
         assert_eq!(wal.closed_segments().len(), 2);
 
         // Initialise the mock persist system
-        let persist = Arc::new(MockPersistQueue::default());
+        let persist = Arc::new(MockPersistQueue::<NopObserver>::default());
 
         // Replay the results into a mock to capture the DmlWrites and returns
         // some dummy partitions when iterated over.

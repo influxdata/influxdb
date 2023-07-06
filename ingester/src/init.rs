@@ -100,11 +100,6 @@ pub struct IngesterGuard<T> {
     /// Aborted on drop.
     rotation_task: tokio::task::JoinHandle<()>,
 
-    /// Handle to the WAL reference actor's task, it
-    /// is aborted on drop of the guard, or the actor's
-    /// handle.
-    wal_reference_actor_task: tokio::task::JoinHandle<()>,
-
     /// The task handle executing the graceful shutdown once triggered.
     graceful_shutdown_handler: tokio::task::JoinHandle<()>,
     shutdown_complete: Shared<oneshot::Receiver<()>>,
@@ -131,7 +126,6 @@ where
 impl<T> Drop for IngesterGuard<T> {
     fn drop(&mut self) {
         self.rotation_task.abort();
-        self.wal_reference_actor_task.abort();
         self.graceful_shutdown_handler.abort();
     }
 }
@@ -343,7 +337,7 @@ where
     ));
 
     // Start the WAL reference actor and then replay the WAL log files, if any.
-    let wal_reference_actor_task = tokio::spawn(wal_reference_actor.run());
+    tokio::spawn(wal_reference_actor.run());
     let max_sequence_number =
         wal_replay::replay(&wal, &buffer, Arc::clone(&persist_handle), &metrics)
             .await
@@ -405,6 +399,7 @@ where
         Arc::clone(&buffer),
         Arc::clone(&persist_handle),
         Arc::clone(&wal),
+        Arc::clone(&wal_reference_handle),
     ));
 
     Ok(IngesterGuard {
@@ -420,7 +415,6 @@ where
             persist_handle,
         ),
         rotation_task,
-        wal_reference_actor_task,
         graceful_shutdown_handler: shutdown_task,
         shutdown_complete: shutdown_rx.shared(),
     })
