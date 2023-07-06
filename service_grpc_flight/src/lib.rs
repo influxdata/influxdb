@@ -16,14 +16,16 @@
     unused_crate_dependencies
 )]
 
+use keep_alive::KeepAliveStream;
 // Workaround for "unused crate" lint false positives.
 use workspace_hack as _;
 
+mod keep_alive;
 mod request;
 
 use arrow::error::ArrowError;
 use arrow_flight::{
-    encode::{FlightDataEncoder, FlightDataEncoderBuilder},
+    encode::FlightDataEncoderBuilder,
     flight_descriptor::DescriptorType,
     flight_service_server::{FlightService as Flight, FlightServiceServer as FlightServer},
     Action, ActionType, Criteria, Empty, FlightData, FlightDescriptor, FlightEndpoint, FlightInfo,
@@ -44,7 +46,13 @@ use prost::Message;
 use request::{IoxGetRequest, RunQuery};
 use service_common::{datafusion_error_to_tonic_code, planner::Planner, QueryNamespaceProvider};
 use snafu::{OptionExt, ResultExt, Snafu};
-use std::{fmt::Debug, pin::Pin, sync::Arc, task::Poll, time::Instant};
+use std::{
+    fmt::Debug,
+    pin::Pin,
+    sync::Arc,
+    task::Poll,
+    time::{Duration, Instant},
+};
 use tonic::{
     metadata::{AsciiMetadataValue, MetadataMap},
     Request, Response, Streaming,
@@ -64,6 +72,9 @@ const IOX_FLIGHT_SQL_DATABASE_HEADERS: [&str; 4] = [
     "bucket-name",
     "iox-namespace-name", // deprecated
 ];
+
+/// In which interval should the `DoGet` stream send empty messages as keep alive markers?
+const DO_GET_KEEP_ALIVE_INTERVAL: Duration = Duration::from_secs(5);
 
 #[allow(clippy::enum_variant_names)]
 #[derive(Debug, Snafu)]
@@ -883,7 +894,7 @@ fn has_debug_header(metadata: &MetadataMap) -> bool {
 /// Wrapper over a FlightDataEncodeStream that adds IOx specfic
 /// metadata and records completion
 struct GetStream {
-    inner: FlightDataEncoder,
+    inner: KeepAliveStream,
     #[allow(dead_code)]
     permit: InstrumentedAsyncOwnedSemaphorePermit,
     query_completed_token: QueryCompletedToken,
@@ -918,6 +929,9 @@ impl GetStream {
             .with_schema(schema)
             .with_metadata(app_metadata.encode_to_vec().into())
             .build(query_results);
+
+        // add keep alive
+        let inner = KeepAliveStream::new(inner, DO_GET_KEEP_ALIVE_INTERVAL);
 
         Ok(Self {
             inner,
@@ -958,7 +972,6 @@ impl Stream for GetStream {
         }
     }
 }
-
 #[cfg(test)]
 mod tests {
     use arrow_flight::sql::ProstMessageExt;

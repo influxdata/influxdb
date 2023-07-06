@@ -20,13 +20,13 @@ mutable_batch_lp = { path = "../mutable_batch_lp" }
 mutable_batch = { path = "../mutable_batch" }
 parquet_file = { path = "../parquet_file" }
 rand = { version = "0.8.3", features = ["small_rng"] }
-regex = "1.8"
+regex = "1.9"
 schema = { path = "../schema" }
 serde = { version = "1.0", features = ["derive"] }
 serde_json = "1.0.100"
 snafu = "0.7"
 tokio = { version = "1.29", features = ["macros", "parking_lot", "rt-multi-thread", "sync", "time"] }
-toml = "0.7.5"
+toml = "0.7.6"
 tracing = "0.1"
 tracing-subscriber = "0.3"
 uuid = { version = "1", default_features = false }
