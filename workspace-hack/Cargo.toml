@@ -69,6 +69,7 @@ prost-types = { version = "0.11" }
 rand = { version = "0.8", features = ["small_rng"] }
 rand_core = { version = "0.6", default-features = false, features = ["std"] }
 regex = { version = "1" }
+regex-automata = { version = "0.3", default-features = false, features = ["dfa-onepass", "hybrid", "meta", "nfa-backtrack", "perf-inline", "perf-literal", "unicode"] }
 regex-syntax = { version = "0.7" }
 reqwest = { version = "0.11", default-features = false, features = ["json", "rustls-tls", "stream"] }
 ring = { version = "0.16", features = ["std"] }
@@ -138,6 +139,7 @@ prost-types = { version = "0.11" }
 rand = { version = "0.8", features = ["small_rng"] }
 rand_core = { version = "0.6", default-features = false, features = ["std"] }
 regex = { version = "1" }
+regex-automata = { version = "0.3", default-features = false, features = ["dfa-onepass", "hybrid", "meta", "nfa-backtrack", "perf-inline", "perf-literal", "unicode"] }
 regex-syntax = { version = "0.7" }
 ring = { version = "0.16", features = ["std"] }
 serde = { version = "1", features = ["derive", "rc"] }
