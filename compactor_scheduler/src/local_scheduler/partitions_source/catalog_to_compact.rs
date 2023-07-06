@@ -78,7 +78,7 @@ impl PartitionsSource for CatalogToCompactPartitionsSource {
             // we've already covered.  So if the prior query was 2m ago, and the query covered 10m, ending at
             // the time of that query, we just need to query for activity in the last 2m.  Asking for more than
             // that creates busy-work that will spam the catalog with more queries to determine no compaction
-            // nneded.  But we also don't want to query so far back in time that we get all partitions, so the
+            // needed.  But we also don't want to query so far back in time that we get all partitions, so the
             // lookback is limited to 3x the configured threshold.
             if minimum_time < *last || minimum_time.sub(*last) < self.min_threshold * 3 {
                 // the end of the last query is less than 3x our configured lookback, so we can query everything
