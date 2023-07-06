@@ -336,9 +336,14 @@ where
     let wal = Wal::new(wal_directory.clone())
         .await
         .map_err(InitError::WalInit)?;
-    // Initialize the disk proetction after the WAL directory is initialized
-    let disk_protection = DiskSpaceMetrics::new(wal_directory, &metrics);
-    let disk_metric_task = disk_protection.start().await;
+
+    // Initialize disk metrics to emit disk capacity / free statistics for the
+    // WAL directory.
+    let disk_metric_task = tokio::task::spawn(
+        DiskSpaceMetrics::new(wal_directory, &metrics)
+            .expect("failed to resolve WAL directory to disk")
+            .run(),
+    );
 
     // Replay the WAL log files, if any.
     let max_sequence_number =
