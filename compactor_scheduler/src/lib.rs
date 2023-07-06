@@ -26,26 +26,16 @@ use iox_time::TimeProvider;
 // Workaround for "unused crate" lint false positives.
 use workspace_hack as _;
 
-pub(crate) mod commit;
-pub(crate) use commit::mock::MockCommit;
-pub use commit::{Commit, CommitWrapper};
-
-mod error;
-pub use error::ErrorKind;
-
 mod local_scheduler;
 pub(crate) use local_scheduler::{id_only_partition_filter::IdOnlyPartitionFilter, LocalScheduler};
+// configurations used externally during scheduler setup
 pub use local_scheduler::{
-    partition_done_sink::{mock::MockPartitionDoneSink, PartitionDoneSink},
-    partitions_source_config::PartitionsSourceConfig,
-    shard_config::ShardConfig,
+    partitions_source_config::PartitionsSourceConfig, shard_config::ShardConfig,
     LocalSchedulerConfig,
 };
-
 // partitions_source trait
 mod partitions_source;
 pub use partitions_source::*;
-
 // scheduler trait and associated types
 mod scheduler;
 pub use scheduler::*;
@@ -59,8 +49,6 @@ pub fn create_scheduler(
     config: SchedulerConfig,
     catalog: Arc<dyn Catalog>,
     time_provider: Arc<dyn TimeProvider>,
-    metrics: Arc<metric::Registry>,
-    shadow_mode: bool,
 ) -> Arc<dyn Scheduler> {
     match config {
         SchedulerConfig::Local(scheduler_config) => {
@@ -69,8 +57,6 @@ pub fn create_scheduler(
                 BackoffConfig::default(),
                 catalog,
                 time_provider,
-                metrics,
-                shadow_mode,
             );
             Arc::new(scheduler)
         }
@@ -89,20 +75,13 @@ pub fn create_test_scheduler(
     let scheduler_config = match mocked_partition_ids {
         None => SchedulerConfig::default(),
         Some(partition_ids) => SchedulerConfig::Local(LocalSchedulerConfig {
-            commit_wrapper: None,
             partitions_source_config: PartitionsSourceConfig::Fixed(
                 partition_ids.into_iter().collect::<HashSet<PartitionId>>(),
             ),
             shard_config: None,
         }),
     };
-    create_scheduler(
-        scheduler_config,
-        catalog,
-        time_provider,
-        Arc::new(metric::Registry::default()),
-        false,
-    )
+    create_scheduler(scheduler_config, catalog, time_provider)
 }
 
 #[cfg(test)]

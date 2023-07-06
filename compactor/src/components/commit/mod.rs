@@ -6,9 +6,10 @@ use std::{
 use async_trait::async_trait;
 use data_types::{CompactionLevel, ParquetFile, ParquetFileId, ParquetFileParams, PartitionId};
 
-pub(crate) mod logging;
-pub(crate) mod metrics;
-pub(crate) mod mock;
+pub mod catalog;
+pub mod logging;
+pub mod metrics;
+pub mod mock;
 
 /// Ensures that the file change (i.e. deletion and creation) are committed to the catalog.
 #[async_trait]

@@ -221,8 +221,12 @@ mod round_info;
 
 // publically expose items needed for testing
 pub use components::{
-    df_planner::panic::PanicDataFusionPlanner, hardcoded::hardcoded_components,
-    namespaces_source::mock::NamespaceWrapper, parquet_files_sink::ParquetFilesSink, Components,
+    commit::{Commit, CommitWrapper},
+    df_planner::panic::PanicDataFusionPlanner,
+    hardcoded::hardcoded_components,
+    namespaces_source::mock::NamespaceWrapper,
+    parquet_files_sink::ParquetFilesSink,
+    Components,
 };
 pub use driver::compact;
 pub use error::DynError;

@@ -7,7 +7,7 @@ use observability_deps::tracing::info;
 use super::Commit;
 
 #[derive(Debug)]
-pub(crate) struct LoggingCommitWrapper<T>
+pub struct LoggingCommitWrapper<T>
 where
     T: Commit,
 {
@@ -18,7 +18,7 @@ impl<T> LoggingCommitWrapper<T>
 where
     T: Commit,
 {
-    pub(crate) fn new(inner: T) -> Self {
+    pub fn new(inner: T) -> Self {
         Self { inner }
     }
 }
@@ -83,7 +83,7 @@ mod tests {
     use test_helpers::tracing::TracingCapture;
 
     use super::*;
-    use crate::commit::mock::{CommitHistoryEntry, MockCommit};
+    use crate::components::commit::mock::{CommitHistoryEntry, MockCommit};
     use iox_tests::ParquetFileBuilder;
 
     #[test]
