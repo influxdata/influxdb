@@ -1,7 +1,7 @@
 //! Handles recording commit information to the test run log
 
 use async_trait::async_trait;
-use compactor::{Commit, CommitWrapper};
+use compactor_scheduler::{Commit, CommitWrapper};
 use data_types::{CompactionLevel, ParquetFile, ParquetFileId, ParquetFileParams, PartitionId};
 use std::{
     fmt::{Debug, Display},

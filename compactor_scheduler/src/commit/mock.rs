@@ -12,23 +12,23 @@ use data_types::{CompactionLevel, ParquetFile, ParquetFileId, ParquetFileParams,
 use super::Commit;
 
 #[derive(Debug, PartialEq, Eq, Clone)]
-pub struct CommitHistoryEntry {
-    pub partition_id: PartitionId,
-    pub delete: Vec<ParquetFile>,
-    pub upgrade: Vec<ParquetFile>,
-    pub created: Vec<ParquetFile>,
-    pub target_level: CompactionLevel,
+pub(crate) struct CommitHistoryEntry {
+    pub(crate) partition_id: PartitionId,
+    pub(crate) delete: Vec<ParquetFile>,
+    pub(crate) upgrade: Vec<ParquetFile>,
+    pub(crate) created: Vec<ParquetFile>,
+    pub(crate) target_level: CompactionLevel,
 }
 
-#[derive(Debug)]
-pub struct MockCommit {
+#[derive(Debug, Default)]
+pub(crate) struct MockCommit {
     history: Mutex<Vec<CommitHistoryEntry>>,
     id_counter: AtomicI64,
 }
 
 impl MockCommit {
     #[allow(dead_code)] // not used anywhere
-    pub fn new() -> Self {
+    pub(crate) fn new() -> Self {
         Self {
             history: Default::default(),
             id_counter: AtomicI64::new(1000),
@@ -36,7 +36,7 @@ impl MockCommit {
     }
 
     #[allow(dead_code)] // not used anywhere
-    pub fn history(&self) -> Vec<CommitHistoryEntry> {
+    pub(crate) fn history(&self) -> Vec<CommitHistoryEntry> {
         self.history.lock().expect("not poisoned").clone()
     }
 }

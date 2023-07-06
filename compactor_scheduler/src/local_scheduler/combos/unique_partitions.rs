@@ -7,11 +7,10 @@ use std::{
 };
 
 use async_trait::async_trait;
-use compactor_scheduler::PartitionsSource;
 use data_types::PartitionId;
 use futures::StreamExt;
 
-use crate::components::partition_done_sink::PartitionDoneSink;
+use crate::{PartitionDoneSink, PartitionsSource};
 
 /// Ensures that a unique set of partitions is flowing through the critical section of the compactor pipeline.
 ///
@@ -32,7 +31,7 @@ use crate::components::partition_done_sink::PartitionDoneSink;
 ///
 /// | Step |  Name                 | Type                                                        | Description |
 /// | ---- | --------------------- | ----------------------------------------------------------- | ----------- |
-/// | 1    | **Actual source**     | `inner_source`/`T1`/[`PartitionsSource`], wrapped           | This is the actual source, e.g. a [schedule](crate::components::partitions_source::scheduled::ScheduledPartitionsSource) |
+/// | 1    | **Actual source**     | `inner_source`/`T1`/[`PartitionsSource`], wrapped           | This is the actual source, e.g. a [schedule](crate::PartitionsSource) |
 /// | 2    | **Unique IDs source** | [`UniquePartionsSourceWrapper`], wraps `inner_source`/`T1`  | Outputs that [`PartitionId`]s from the `inner_source` but filters out partitions that have not yet reached the uniqueness sink (step 4) |
 /// | 3    | **Critical section**  | --                           | Here it is always ensured that a single [`PartitionId`] does NOT occur more than once. |
 /// | 4    | **Unique IDs sink**   | [`UniquePartitionDoneSinkWrapper`], wraps `inner_sink`/`T2` | Observes incoming IDs and removes them from the filter applied in step 2. |
@@ -41,7 +40,7 @@ use crate::components::partition_done_sink::PartitionDoneSink;
 /// Note that partitions filtered out by [`UniquePartionsSourceWrapper`] will directly be forwarded to `inner_sink`. No
 /// partition is ever lost. This means that `inner_source` and `inner_sink` can perform proper accounting. The
 /// concurrency of this bypass can be controlled via `bypass_concurrency`.
-pub fn unique_partitions<T1, T2>(
+pub(crate) fn unique_partitions<T1, T2>(
     inner_source: T1,
     inner_sink: T2,
     bypass_concurrency: usize,
@@ -71,7 +70,7 @@ where
 type InFlight = Arc<Mutex<HashSet<PartitionId>>>;
 
 #[derive(Debug)]
-pub struct UniquePartionsSourceWrapper<T1, T2>
+pub(crate) struct UniquePartionsSourceWrapper<T1, T2>
 where
     T1: PartitionsSource,
     T2: PartitionDoneSink,
@@ -128,7 +127,7 @@ where
 }
 
 #[derive(Debug)]
-pub struct UniquePartitionDoneSinkWrapper<T>
+pub(crate) struct UniquePartitionDoneSinkWrapper<T>
 where
     T: PartitionDoneSink,
 {
@@ -180,9 +179,7 @@ where
 mod tests {
     use std::collections::HashMap;
 
-    use compactor_scheduler::MockPartitionsSource;
-
-    use crate::components::partition_done_sink::mock::MockPartitionDoneSink;
+    use crate::{MockPartitionDoneSink, MockPartitionsSource};
 
     use super::*;
 

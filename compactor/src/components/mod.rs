@@ -1,19 +1,19 @@
 use std::sync::Arc;
 
+use compactor_scheduler::{Commit, PartitionDoneSink};
+
 use self::{
-    changed_files_filter::ChangedFilesFilter, commit::Commit, df_plan_exec::DataFusionPlanExec,
+    changed_files_filter::ChangedFilesFilter, df_plan_exec::DataFusionPlanExec,
     df_planner::DataFusionPlanner, divide_initial::DivideInitial, file_classifier::FileClassifier,
     ir_planner::IRPlanner, parquet_files_sink::ParquetFilesSink,
-    partition_done_sink::PartitionDoneSink, partition_files_source::PartitionFilesSource,
-    partition_filter::PartitionFilter, partition_info_source::PartitionInfoSource,
-    partition_stream::PartitionStream,
+    partition_files_source::PartitionFilesSource, partition_filter::PartitionFilter,
+    partition_info_source::PartitionInfoSource, partition_stream::PartitionStream,
     post_classification_partition_filter::PostClassificationPartitionFilter,
     round_info_source::RoundInfoSource, round_split::RoundSplit, scratchpad::ScratchpadGen,
 };
 
 pub mod changed_files_filter;
-pub mod combos;
-pub mod commit;
+pub(crate) mod commit;
 pub mod df_plan_exec;
 pub mod df_planner;
 pub mod divide_initial;
@@ -61,7 +61,7 @@ pub struct Components {
     pub post_classification_partition_filter: Arc<dyn PostClassificationPartitionFilter>,
     /// Records "partition is done" status for given partition.
     pub partition_done_sink: Arc<dyn PartitionDoneSink>,
-    /// Commits changes (i.e. deletion and creation) to the catalog.
+    /// Commits changes (i.e. deletion and creation).
     pub commit: Arc<dyn Commit>,
     /// Creates `PlanIR` that describes what files should be compacted and updated
     pub ir_planner: Arc<dyn IRPlanner>,

@@ -8,12 +8,11 @@ use std::{
 };
 
 use async_trait::async_trait;
-use compactor_scheduler::PartitionsSource;
 use data_types::{CompactionLevel, ParquetFile, ParquetFileId, ParquetFileParams, PartitionId};
 use futures::StreamExt;
 use iox_time::{Time, TimeProvider};
 
-use crate::components::{commit::Commit, partition_done_sink::PartitionDoneSink};
+use crate::{Commit, PartitionDoneSink, PartitionsSource};
 
 /// Ensures that partitions that do not receive any commits are throttled.
 ///
@@ -54,8 +53,8 @@ use crate::components::{commit::Commit, partition_done_sink::PartitionDoneSink};
 /// concurrency of this bypass can be controlled via `bypass_concurrency`.
 ///
 /// This setup relies on a fact that it does not process duplicate [`PartitionId`]. You may use
-/// [`unique_partitions`](crate::components::combos::unique_partitions::unique_partitions) to achieve that.
-pub fn throttle_partition<T1, T2, T3>(
+/// [`unique_partitions`](super::unique_partitions::unique_partitions) to achieve that.
+pub(crate) fn throttle_partition<T1, T2, T3>(
     source: T1,
     commit: T2,
     sink: T3,
@@ -107,7 +106,7 @@ struct State {
 type SharedState = Arc<Mutex<State>>;
 
 #[derive(Debug)]
-pub struct ThrottlePartitionsSourceWrapper<T1, T2>
+pub(crate) struct ThrottlePartitionsSourceWrapper<T1, T2>
 where
     T1: PartitionsSource,
     T2: PartitionDoneSink,
@@ -188,7 +187,7 @@ where
 }
 
 #[derive(Debug)]
-pub struct ThrottleCommitWrapper<T>
+pub(crate) struct ThrottleCommitWrapper<T>
 where
     T: Commit,
 {
@@ -241,7 +240,7 @@ where
 }
 
 #[derive(Debug)]
-pub struct ThrottlePartitionDoneSinkWrapper<T>
+pub(crate) struct ThrottlePartitionDoneSinkWrapper<T>
 where
     T: PartitionDoneSink,
 {
@@ -296,12 +295,10 @@ where
 
 #[cfg(test)]
 mod tests {
-    use compactor_scheduler::MockPartitionsSource;
     use iox_time::MockProvider;
 
-    use crate::components::{
-        commit::mock::{CommitHistoryEntry, MockCommit},
-        partition_done_sink::mock::MockPartitionDoneSink,
+    use crate::{
+        commit::mock::CommitHistoryEntry, MockCommit, MockPartitionDoneSink, MockPartitionsSource,
     };
 
     use super::*;

@@ -5,16 +5,16 @@ use backoff::{Backoff, BackoffConfig};
 use data_types::{CompactionLevel, ParquetFile, ParquetFileId, ParquetFileParams, PartitionId};
 use iox_catalog::interface::Catalog;
 
-use super::Commit;
+use crate::Commit;
 
 #[derive(Debug)]
-pub struct CatalogCommit {
+pub(crate) struct CatalogCommit {
     backoff_config: BackoffConfig,
     catalog: Arc<dyn Catalog>,
 }
 
 impl CatalogCommit {
-    pub fn new(backoff_config: BackoffConfig, catalog: Arc<dyn Catalog>) -> Self {
+    pub(crate) fn new(backoff_config: BackoffConfig, catalog: Arc<dyn Catalog>) -> Self {
         Self {
             backoff_config,
             catalog,

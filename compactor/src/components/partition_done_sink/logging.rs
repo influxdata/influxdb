@@ -1,12 +1,11 @@
 use std::fmt::Display;
 
 use async_trait::async_trait;
+use compactor_scheduler::PartitionDoneSink;
 use data_types::PartitionId;
 use observability_deps::tracing::{error, info};
 
 use crate::error::{DynError, ErrorKindExt};
-
-use super::PartitionDoneSink;
 
 #[derive(Debug)]
 pub struct LoggingPartitionDoneSinkWrapper<T>
@@ -61,10 +60,9 @@ where
 mod tests {
     use std::{collections::HashMap, sync::Arc};
 
+    use compactor_scheduler::MockPartitionDoneSink;
     use object_store::Error as ObjectStoreError;
     use test_helpers::tracing::TracingCapture;
-
-    use crate::components::partition_done_sink::mock::MockPartitionDoneSink;
 
     use super::*;
 

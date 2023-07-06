@@ -102,7 +102,7 @@ impl Histogram {
 }
 
 #[derive(Debug)]
-pub struct MetricsCommitWrapper<T>
+pub(crate) struct MetricsCommitWrapper<T>
 where
     T: Commit,
 {
@@ -124,7 +124,7 @@ impl<T> MetricsCommitWrapper<T>
 where
     T: Commit,
 {
-    pub fn new(inner: T, registry: &Registry) -> Self {
+    pub(crate) fn new(inner: T, registry: &Registry) -> Self {
         Self {
             file_bytes: Histogram::new(
                 registry,
@@ -307,7 +307,7 @@ mod tests {
 
     use metric::{assert_histogram, Attributes};
 
-    use crate::components::commit::mock::{CommitHistoryEntry, MockCommit};
+    use crate::commit::mock::{CommitHistoryEntry, MockCommit};
     use iox_tests::ParquetFileBuilder;
 
     use super::*;
