@@ -98,6 +98,7 @@ pub enum Error {
     ))]
     Query {
         namespace_name: String,
+        query: String,
         source: DataFusionError,
     },
 
@@ -127,6 +128,8 @@ pub enum Error {
 
     #[snafu(display("Error while planning query: {}", source))]
     Planning {
+        namespace_name: String,
+        query: String,
         source: service_common::planner::Error,
     },
 
@@ -157,15 +160,16 @@ impl From<Error> for tonic::Status {
         // An explicit match on the Error enum will ensure appropriate
         // logging is handled for any new error variants.
         let msg = "Error handling Flight gRPC request";
+        let namespace = err.namespace();
+        let query = err.query();
         match err {
             Error::DatabaseNotFound { .. }
             | Error::InvalidTicket { .. }
             | Error::InvalidHandshake { .. }
             | Error::Unauthenticated { .. }
             | Error::PermissionDenied { .. }
-            // TODO(edd): this should be `debug`. Keeping at info while IOx in early development
-            | Error::InvalidDatabaseName { .. } => info!(e=%err, msg),
-            Error::Query { .. } => info!(e=%err, msg),
+            | Error::InvalidDatabaseName { .. }
+            | Error::Query { .. } => info!(e=%err, %namespace, %query, msg),
             Error::Optimize { .. }
             | Error::EncodeSchema { .. }
             | Error::TooManyFlightSQLDatabases { .. }
@@ -176,9 +180,8 @@ impl From<Error> for tonic::Status {
             | Error::InternalCreatingTicket { .. }
             | Error::UnsupportedMessageType { .. }
             | Error::FlightSQL { .. }
-            | Error::Authz { .. }
-            => {
-                warn!(e=%err, msg)
+            | Error::Authz { .. } => {
+                warn!(e=%err, %namespace, %query, msg)
             }
         }
         err.into_status()
@@ -226,6 +229,54 @@ impl Error {
         };
 
         tonic::Status::new(code, msg)
+    }
+
+    /// returns the namespace name, if known, used for logging
+    fn namespace(&self) -> &str {
+        match self {
+            Error::InvalidTicket { .. }
+            | Error::InternalCreatingTicket { .. }
+            | Error::InvalidHandshake {}
+            | Error::TooManyFlightSQLDatabases { .. }
+            | Error::NoFlightSQLDatabase
+            | Error::InvalidDatabaseHeader { .. }
+            | Error::InvalidDatabaseName { .. }
+            | Error::Optimize { .. }
+            | Error::EncodeSchema { .. }
+            | Error::FlightSQL { .. }
+            | Error::Deserialization { .. }
+            | Error::UnsupportedMessageType { .. }
+            | Error::Unauthenticated
+            | Error::PermissionDenied
+            | Error::Authz { .. } => "<unknown>",
+            Error::DatabaseNotFound { namespace_name } => namespace_name,
+            Error::Query { namespace_name, .. } => namespace_name,
+            Error::Planning { namespace_name, .. } => namespace_name,
+        }
+    }
+
+    /// returns a query, if know, used for logging
+    fn query(&self) -> &str {
+        match self {
+            Error::InvalidTicket { .. }
+            | Error::InternalCreatingTicket { .. }
+            | Error::InvalidHandshake {}
+            | Error::TooManyFlightSQLDatabases { .. }
+            | Error::NoFlightSQLDatabase
+            | Error::InvalidDatabaseHeader { .. }
+            | Error::InvalidDatabaseName { .. }
+            | Error::Optimize { .. }
+            | Error::EncodeSchema { .. }
+            | Error::FlightSQL { .. }
+            | Error::Deserialization { .. }
+            | Error::UnsupportedMessageType { .. }
+            | Error::Unauthenticated
+            | Error::PermissionDenied
+            | Error::Authz { .. }
+            | Error::DatabaseNotFound { .. } => "NONE",
+            Error::Query { query, .. } => query,
+            Error::Planning { query, .. } => query,
+        }
     }
 
     fn unsupported_message_type(description: impl Into<String>) -> Self {
@@ -445,15 +496,19 @@ where
         trace: String,
         permit: InstrumentedAsyncOwnedSemaphorePermit,
         query: RunQuery,
-        namespace: String,
+        namespace_name: String,
         is_debug: bool,
     ) -> Result<Response<TonicStream<FlightData>>, tonic::Status> {
         let db = self
             .server
-            .db(&namespace, span_ctx.child_span("get namespace"), is_debug)
+            .db(
+                &namespace_name,
+                span_ctx.child_span("get namespace"),
+                is_debug,
+            )
             .await
             .context(DatabaseNotFoundSnafu {
-                namespace_name: &namespace,
+                namespace_name: &namespace_name,
             })?;
 
         let ctx = db.new_query_context(span_ctx);
@@ -463,7 +518,10 @@ where
                 let plan = Planner::new(&ctx)
                     .sql(sql_query)
                     .await
-                    .context(PlanningSnafu)?;
+                    .context(PlanningSnafu {
+                        namespace_name: &namespace_name,
+                        query: query.to_string(),
+                    })?;
                 (token, plan)
             }
             RunQuery::InfluxQL(sql_query) => {
@@ -471,15 +529,21 @@ where
                 let plan = Planner::new(&ctx)
                     .influxql(sql_query)
                     .await
-                    .context(PlanningSnafu)?;
+                    .context(PlanningSnafu {
+                        namespace_name: &namespace_name,
+                        query: query.to_string(),
+                    })?;
                 (token, plan)
             }
             RunQuery::FlightSQL(msg) => {
                 let token = db.record_query(&ctx, "flightsql", Box::new(msg.to_string()));
                 let plan = Planner::new(&ctx)
-                    .flight_sql_do_get(&namespace, db, msg.clone())
+                    .flight_sql_do_get(&namespace_name, db, msg.clone())
                     .await
-                    .context(PlanningSnafu)?;
+                    .context(PlanningSnafu {
+                        namespace_name: &namespace_name,
+                        query: query.to_string(),
+                    })?;
                 (token, plan)
             }
         };
@@ -487,7 +551,8 @@ where
         let output = GetStream::new(
             ctx,
             physical_plan,
-            namespace.to_string(),
+            namespace_name.to_string(),
+            &query,
             query_completed_token,
             permit,
         )
@@ -497,7 +562,7 @@ where
         // handling in this file happen during planning)
         let output = output.map(move |res| {
             if let Err(e) = &res {
-                info!(%namespace, %query, %trace, %e, "Error executing query via DoGet");
+                info!(%namespace_name, %query, %trace, %e, "Error executing query via DoGet");
             }
             res
         });
@@ -691,7 +756,10 @@ where
         let schema = Planner::new(&ctx)
             .flight_sql_get_flight_info_schema(&namespace_name, cmd.clone())
             .await
-            .context(PlanningSnafu);
+            .context(PlanningSnafu {
+                namespace_name: &namespace_name,
+                query: format!("{cmd:?}"),
+            });
 
         if let Err(e) = &schema {
             info!(%namespace_name, %cmd, %trace, %e, "Error running GetFlightInfo");
@@ -769,15 +837,12 @@ where
         let body = Planner::new(&ctx)
             .flight_sql_do_action(&namespace_name, db, cmd.clone())
             .await
-            .context(PlanningSnafu);
+            .context(PlanningSnafu {
+                namespace_name: &namespace_name,
+                query: format!("{cmd:?}"),
+            })?;
 
-        if let Err(e) = &body {
-            info!(%namespace_name, %cmd, %trace, %e, "Error running DoAction");
-        } else {
-            debug!(%namespace_name, %cmd, %trace, "Completed DoAction request");
-        };
-
-        let result = arrow_flight::Result { body: body? };
+        let result = arrow_flight::Result { body };
         let stream = futures::stream::iter([Ok(result)]);
 
         Ok(Response::new(stream.boxed()))
@@ -906,6 +971,7 @@ impl GetStream {
         ctx: IOxSessionContext,
         physical_plan: Arc<dyn ExecutionPlan>,
         namespace_name: String,
+        query: &RunQuery,
         query_completed_token: QueryCompletedToken,
         permit: InstrumentedAsyncOwnedSemaphorePermit,
     ) -> Result<Self, tonic::Status> {
@@ -918,6 +984,7 @@ impl GetStream {
             .await
             .context(QuerySnafu {
                 namespace_name: namespace_name.clone(),
+                query: query.to_string(),
             })?
             .map_err(|e| {
                 let code = datafusion_error_to_tonic_code(&e);
