@@ -373,7 +373,7 @@ pub(crate) fn non_negative_derivative_udf(unit: i64) -> AggregateUDF {
 }
 
 #[derive(Debug)]
-pub(super) struct DerivativeAccumulator {
+struct DerivativeAccumulator {
     unit: i64,
     prev: Option<Point>,
     curr: Option<Point>,

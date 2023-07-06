@@ -82,7 +82,7 @@ use schema::{
     InfluxColumnType, InfluxFieldType, Schema, INFLUXQL_MEASUREMENT_COLUMN_NAME,
     INFLUXQL_METADATA_KEY,
 };
-use std::collections::{BTreeSet, HashSet};
+use std::collections::{hash_map::Entry, BTreeSet, HashMap, HashSet};
 use std::fmt::Debug;
 use std::iter;
 use std::ops::{Bound, ControlFlow, Deref, Not, Range};
@@ -420,20 +420,6 @@ impl<'a> Context<'a> {
 
     fn fill(&self) -> FillClause {
         self.fill.unwrap_or_default()
-    }
-
-    fn is_aggregate(&self) -> bool {
-        matches!(
-            self.projection_type,
-            ProjectionType::Aggregate
-                | ProjectionType::WindowAggregate
-                | ProjectionType::WindowAggregateMixed
-                | ProjectionType::Selector { .. }
-        )
-    }
-
-    fn is_raw_distinct(&self) -> bool {
-        matches!(self.projection_type, ProjectionType::RawDistinct)
     }
 }
 
@@ -775,38 +761,126 @@ impl<'a> InfluxQLToLogicalPlan<'a> {
         fields: &[Field],
         group_by_tag_set: &[&str],
     ) -> Result<LogicalPlan> {
-        if ctx.projection_type == ProjectionType::WindowAggregateMixed {
-            return error::not_implemented("mixed window-aggregate and aggregate columns, such as DIFFERENCE(MEAN(col)), MEAN(col)");
+        match ctx.projection_type {
+             ProjectionType::Raw => self.project_select_raw(input, fields),
+             ProjectionType::RawDistinct => self.project_select_raw_distinct(input, fields),
+             ProjectionType::Aggregate | ProjectionType::Selector{..} => self.project_select_aggregate(ctx, input, fields, group_by_tag_set),
+             ProjectionType::Window => self.project_select_window(ctx, input, fields, group_by_tag_set),
+             ProjectionType::WindowAggregate => self.project_select_window_aggregate(ctx, input, fields, group_by_tag_set),
+             ProjectionType::WindowAggregateMixed => error::not_implemented("mixed window-aggregate and aggregate columns, such as DIFFERENCE(MEAN(col)), MEAN(col)"),
+             ProjectionType::TopBottomSelector => self.project_select_top_bottom_selector(ctx, input, fields, group_by_tag_set),
         }
+    }
 
+    fn project_select_raw(&self, input: LogicalPlan, fields: &[Field]) -> Result<LogicalPlan> {
+        let schemas = Schemas::new(input.schema())?;
+
+        // Transform InfluxQL AST field expressions to a list of DataFusion expressions.
+        let select_exprs = self.field_list_to_exprs(&input, fields, &schemas)?;
+
+        // Wrap the plan in a `LogicalPlan::Projection` from the select expressions
+        project(input, select_exprs)
+    }
+
+    fn project_select_raw_distinct(
+        &self,
+        input: LogicalPlan,
+        fields: &[Field],
+    ) -> Result<LogicalPlan> {
         let schemas = Schemas::new(input.schema())?;
 
         // Transform InfluxQL AST field expressions to a list of DataFusion expressions.
         let mut select_exprs = self.field_list_to_exprs(&input, fields, &schemas)?;
 
-        if ctx.is_raw_distinct() {
-            // This is a special case, where exactly one column can be projected with a `DISTINCT`
-            // clause or the `distinct` function.
-            //
-            // In addition, the time column is projected as the Unix epoch.
+        // This is a special case, where exactly one column can be projected with a `DISTINCT`
+        // clause or the `distinct` function.
+        //
+        // In addition, the time column is projected as the Unix epoch.
 
-            let Some(time_column_index) = find_time_column_index(fields) else {
+        let Some(time_column_index) = find_time_column_index(fields) else {
                 return error::internal("unable to find time column")
             };
 
-            // Take ownership of the alias, so we don't reallocate, and temporarily place a literal
-            // `NULL` in its place.
-            let Expr::Alias(_, alias) = std::mem::replace(&mut select_exprs[time_column_index], lit(ScalarValue::Null)) else {
+        // Take ownership of the alias, so we don't reallocate, and temporarily place a literal
+        // `NULL` in its place.
+        let Expr::Alias(_, alias) = std::mem::replace(&mut select_exprs[time_column_index], lit(ScalarValue::Null)) else {
                 return error::internal("time column is not an alias")
             };
 
-            select_exprs[time_column_index] = lit_timestamp_nano(0).alias(alias);
+        select_exprs[time_column_index] = lit_timestamp_nano(0).alias(alias);
 
-            // Wrap the plan in a `LogicalPlan::Projection` from the select expressions
-            let plan = project(input, select_exprs)?;
+        // Wrap the plan in a `LogicalPlan::Projection` from the select expressions
+        let plan = project(input, select_exprs)?;
 
-            return LogicalPlanBuilder::from(plan).distinct()?.build();
+        LogicalPlanBuilder::from(plan).distinct()?.build()
+    }
+
+    fn project_select_aggregate(
+        &self,
+        ctx: &Context<'_>,
+        input: LogicalPlan,
+        fields: &[Field],
+        group_by_tag_set: &[&str],
+    ) -> Result<LogicalPlan> {
+        let schemas = Schemas::new(input.schema())?;
+
+        // Transform InfluxQL AST field expressions to a list of DataFusion expressions.
+        let select_exprs = self.field_list_to_exprs(&input, fields, &schemas)?;
+
+        let (plan, select_exprs) =
+            self.select_aggregate(ctx, input, fields, select_exprs, group_by_tag_set)?;
+
+        // Wrap the plan in a `LogicalPlan::Projection` from the select expressions
+        project(plan, select_exprs)
+    }
+
+    fn project_select_window(
+        &self,
+        ctx: &Context<'_>,
+        input: LogicalPlan,
+        fields: &[Field],
+        group_by_tag_set: &[&str],
+    ) -> Result<LogicalPlan> {
+        let schemas = Schemas::new(input.schema())?;
+
+        // Transform InfluxQL AST field expressions to a list of DataFusion expressions.
+        let select_exprs = self.field_list_to_exprs(&input, fields, &schemas)?;
+
+        let (plan, select_exprs) =
+            self.select_window(ctx, input, select_exprs, group_by_tag_set)?;
+
+        // Wrap the plan in a `LogicalPlan::Projection` from the select expressions
+        let plan = project(plan, select_exprs)?;
+
+        // InfluxQL OG physical operators for
+
+        // generate a predicate to filter rows where all field values of the row are `NULL`,
+        // like:
+        //
+        //   NOT (field1 IS NULL AND field2 IS NULL AND ...)
+        match conjunction(fields.iter().filter_map(|f| {
+            if matches!(f.data_type, Some(InfluxColumnType::Field(_))) {
+                Some(f.name.as_expr().is_null())
+            } else {
+                None
+            }
+        })) {
+            Some(expr) => LogicalPlanBuilder::from(plan).filter(expr.not())?.build(),
+            None => Ok(plan),
         }
+    }
+
+    fn project_select_window_aggregate(
+        &self,
+        ctx: &Context<'_>,
+        input: LogicalPlan,
+        fields: &[Field],
+        group_by_tag_set: &[&str],
+    ) -> Result<LogicalPlan> {
+        let schemas = Schemas::new(input.schema())?;
+
+        // Transform InfluxQL AST field expressions to a list of DataFusion expressions.
+        let select_exprs = self.field_list_to_exprs(&input, fields, &schemas)?;
 
         let (plan, select_exprs) =
             self.select_aggregate(ctx, input, fields, select_exprs, group_by_tag_set)?;
@@ -816,29 +890,117 @@ impl<'a> InfluxQLToLogicalPlan<'a> {
         // Wrap the plan in a `LogicalPlan::Projection` from the select expressions
         let plan = project(plan, select_exprs)?;
 
-        if matches!(
-            ctx.projection_type,
-            ProjectionType::WindowAggregate | ProjectionType::Window
-        ) {
-            // InfluxQL OG physical operators for
+        // InfluxQL OG physical operators for
 
-            // generate a predicate to filter rows where all field values of the row are `NULL`,
-            // like:
-            //
-            //   NOT (field1 IS NULL AND field2 IS NULL AND ...)
-            match conjunction(fields.iter().filter_map(|f| {
-                if matches!(f.data_type, Some(InfluxColumnType::Field(_))) {
-                    Some(f.name.as_expr().is_null())
-                } else {
-                    None
-                }
-            })) {
-                Some(expr) => LogicalPlanBuilder::from(plan).filter(expr.not())?.build(),
-                None => Ok(plan),
+        // generate a predicate to filter rows where all field values of the row are `NULL`,
+        // like:
+        //
+        //   NOT (field1 IS NULL AND field2 IS NULL AND ...)
+        match conjunction(fields.iter().filter_map(|f| {
+            if matches!(f.data_type, Some(InfluxColumnType::Field(_))) {
+                Some(f.name.as_expr().is_null())
+            } else {
+                None
+            }
+        })) {
+            Some(expr) => LogicalPlanBuilder::from(plan).filter(expr.not())?.build(),
+            None => Ok(plan),
+        }
+    }
+
+    fn project_select_top_bottom_selector(
+        &self,
+        ctx: &Context<'_>,
+        input: LogicalPlan,
+        fields: &[Field],
+        group_by_tag_set: &[&str],
+    ) -> Result<LogicalPlan> {
+        let schemas = Schemas::new(input.schema())?;
+
+        let (selector_index, call) = fields
+            .iter()
+            .enumerate()
+            .find_map(|(idx, f)| match &f.expr {
+                IQLExpr::Call(c) if c.name == "top" || c.name == "bottom" => Some((idx, c.clone())),
+                _ => None,
+            })
+            .ok_or(error::map::internal(
+                "ProjectionTopBottomSelector used without top or bottom field",
+            ))?;
+
+        // Find the selector parameters.
+        let is_bottom = call.name == "bottom";
+        let [field, tag_keys @ .., narg] = call.args.as_slice() else {
+            return error::internal(format!(
+                "invalid number of arguments for {}: expected 2 or more, got {}",
+                call.name,
+                call.args.len()
+            ));
+        };
+        let field = if let IQLExpr::VarRef(v) = field {
+            Field {
+                expr: IQLExpr::VarRef(v.clone()),
+                name: v.name.clone().take(),
+                data_type: None,
             }
         } else {
-            Ok(plan)
+            return error::internal(format!(
+                "invalid expression for {} field argument, {field}",
+                call.name,
+            ));
+        };
+        let n = if let IQLExpr::Literal(Literal::Integer(v)) = narg {
+            *v
+        } else {
+            return error::internal(format!(
+                "invalid expression for {} n argument, {narg}",
+                call.name
+            ));
+        };
+
+        let mut internal_group_by = group_by_tag_set.to_vec();
+        let mut fields_vec = fields.to_vec();
+        for (i, tag_key) in tag_keys.iter().enumerate() {
+            if let IQLExpr::VarRef(v) = &tag_key {
+                fields_vec.insert(
+                    selector_index + i + 1,
+                    Field {
+                        expr: IQLExpr::VarRef(v.clone()),
+                        name: v.name.clone().take(),
+                        data_type: None,
+                    },
+                );
+                internal_group_by.push(v.name.as_ref());
+            } else {
+                return error::internal(format!(
+                    "invalid expression for {} tag_keys argument, {}",
+                    call.name, &tag_key
+                ));
+            }
         }
+
+        // Transform InfluxQL AST field expressions to a list of DataFusion expressions.
+        let select_exprs = self.field_list_to_exprs(&input, fields_vec.as_slice(), &schemas)?;
+
+        let plan = if !tag_keys.is_empty() {
+            self.select_first(
+                ctx,
+                input,
+                &schemas,
+                &field,
+                is_bottom,
+                internal_group_by.as_slice(),
+                1,
+            )?
+        } else {
+            input
+        };
+
+        let plan =
+            self.select_first(ctx, plan, &schemas, &field, is_bottom, group_by_tag_set, n)?;
+
+        // Wrap the plan in a `LogicalPlan::Projection` from the select expressions
+        project(plan, select_exprs)
     }
 
     fn select_aggregate(
@@ -849,10 +1011,6 @@ impl<'a> InfluxQLToLogicalPlan<'a> {
         mut select_exprs: Vec<Expr>,
         group_by_tag_set: &[&str],
     ) -> Result<(LogicalPlan, Vec<Expr>)> {
-        if !ctx.is_aggregate() {
-            return Ok((input, select_exprs));
-        }
-
         // Find a list of unique aggregate expressions from the projection.
         //
         // For example, a projection such as:
@@ -1123,6 +1281,56 @@ impl<'a> InfluxQLToLogicalPlan<'a> {
         Ok((plan, select_exprs))
     }
 
+    /// Generate a plan to select the first n rows from each partition in the input data sorted by the requested field.
+    #[allow(clippy::too_many_arguments)]
+    fn select_first(
+        &self,
+        ctx: &Context<'_>,
+        input: LogicalPlan,
+        schemas: &Schemas,
+        field: &Field,
+        asc: bool,
+        group_by_tags: &[&str],
+        count: i64,
+    ) -> Result<LogicalPlan> {
+        let mut group_by =
+            fields_to_exprs_no_nulls(input.schema(), group_by_tags).collect::<Vec<_>>();
+        if let Some(i) = ctx.interval {
+            let stride = lit(ScalarValue::new_interval_mdn(0, 0, i.duration));
+            let offset = i.offset.unwrap_or_default();
+
+            group_by.push(date_bin(
+                stride,
+                "time".as_expr(),
+                lit(ScalarValue::TimestampNanosecond(Some(offset), None)),
+            ));
+        }
+
+        let field_sort_expr = self
+            .field_to_df_expr(field, &input, schemas)?
+            .sort(asc, false);
+
+        let window_expr = Expr::WindowFunction(WindowFunction::new(
+            window_function::WindowFunction::BuiltInWindowFunction(
+                window_function::BuiltInWindowFunction::RowNumber,
+            ),
+            Vec::<Expr>::new(),
+            group_by,
+            vec![field_sort_expr, ctx.time_sort_expr()],
+            WindowFrame {
+                units: WindowFrameUnits::Rows,
+                start_bound: WindowFrameBound::Preceding(ScalarValue::Null),
+                end_bound: WindowFrameBound::CurrentRow,
+            },
+        ));
+        let column_name = window_expr.display_name()?;
+        let filter_expr = binary_expr(col(column_name.clone()), Operator::LtEq, lit(count));
+        LogicalPlanBuilder::from(input)
+            .window(vec![window_expr.alias(column_name)])?
+            .filter(filter_expr)?
+            .build()
+    }
+
     /// Transform a UDF to a window expression.
     fn udf_to_expr(
         ctx: &Context<'_>,
@@ -1380,9 +1588,25 @@ impl<'a> InfluxQLToLogicalPlan<'a> {
         fields: &[Field],
         schemas: &Schemas,
     ) -> Result<Vec<Expr>> {
+        let mut names: HashMap<&str, usize> = HashMap::new();
         fields
             .iter()
-            .map(|field| self.field_to_df_expr(field, plan, schemas))
+            .map(|field| {
+                let mut new_field = field.clone();
+                new_field.name = match names.entry(field.name.as_str()) {
+                    Entry::Vacant(v) => {
+                        v.insert(0);
+                        field.name.clone()
+                    }
+                    Entry::Occupied(mut e) => {
+                        let count = e.get_mut();
+                        *count += 1;
+                        format!("{}_{}", field.name, *count)
+                    }
+                };
+                new_field
+            })
+            .map(|field| self.field_to_df_expr(&field, plan, schemas))
             .collect()
     }
 
@@ -1729,6 +1953,11 @@ impl<'a> InfluxQLToLogicalPlan<'a> {
 
                 Ok(non_negative_derivative(eargs))
             }
+            // The TOP/BOTTOM function is handled as a `ProjectionType::TopBottomSelector`
+            // query, so the planner only needs to project the single column
+            // argument.
+            "top" | "bottom" => self.expr_to_df_expr(scope, &args[0], schemas),
+
             _ => error::query(format!("Invalid function '{name}'")),
         }
     }
@@ -3797,6 +4026,80 @@ mod test {
                 // Invalid number of arguments
                 assert_snapshot!(plan("SELECT MIN(usage_idle, usage_idle) FROM cpu"), @"Error during planning: invalid number of arguments for min, expected 1, got 2");
             }
+        }
+
+        #[test]
+        fn test_top() {
+            assert_snapshot!(plan("SELECT top(usage_idle,10) FROM cpu"), @r###"
+            Sort: time ASC NULLS LAST [iox::measurement:Dictionary(Int32, Utf8), time:Timestamp(Nanosecond, None), top:Float64;N]
+              Projection: Dictionary(Int32, Utf8("cpu")) AS iox::measurement, cpu.time AS time, cpu.usage_idle AS top [iox::measurement:Dictionary(Int32, Utf8), time:Timestamp(Nanosecond, None), top:Float64;N]
+                Filter: ROW_NUMBER() ORDER BY [cpu.usage_idle AS usage_idle DESC NULLS LAST, time ASC NULLS LAST] ROWS BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW <= Int64(10) [cpu:Dictionary(Int32, Utf8);N, host:Dictionary(Int32, Utf8);N, region:Dictionary(Int32, Utf8);N, time:Timestamp(Nanosecond, None), usage_idle:Float64;N, usage_system:Float64;N, usage_user:Float64;N, ROW_NUMBER() ORDER BY [cpu.usage_idle AS usage_idle DESC NULLS LAST, time ASC NULLS LAST] ROWS BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW:UInt64;N]
+                  WindowAggr: windowExpr=[[ROW_NUMBER() ORDER BY [cpu.usage_idle AS usage_idle DESC NULLS LAST, cpu.time ASC NULLS LAST] ROWS BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW AS ROW_NUMBER() ORDER BY [cpu.usage_idle AS usage_idle DESC NULLS LAST, time ASC NULLS LAST] ROWS BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW]] [cpu:Dictionary(Int32, Utf8);N, host:Dictionary(Int32, Utf8);N, region:Dictionary(Int32, Utf8);N, time:Timestamp(Nanosecond, None), usage_idle:Float64;N, usage_system:Float64;N, usage_user:Float64;N, ROW_NUMBER() ORDER BY [cpu.usage_idle AS usage_idle DESC NULLS LAST, time ASC NULLS LAST] ROWS BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW:UInt64;N]
+                    TableScan: cpu [cpu:Dictionary(Int32, Utf8);N, host:Dictionary(Int32, Utf8);N, region:Dictionary(Int32, Utf8);N, time:Timestamp(Nanosecond, None), usage_idle:Float64;N, usage_system:Float64;N, usage_user:Float64;N]
+                "###);
+
+            assert_snapshot!(plan("SELECT top(usage_idle,10),cpu FROM cpu"), @r###"
+            Sort: time ASC NULLS LAST, cpu ASC NULLS LAST [iox::measurement:Dictionary(Int32, Utf8), time:Timestamp(Nanosecond, None), top:Float64;N, cpu:Dictionary(Int32, Utf8);N]
+              Projection: Dictionary(Int32, Utf8("cpu")) AS iox::measurement, cpu.time AS time, cpu.usage_idle AS top, cpu.cpu AS cpu [iox::measurement:Dictionary(Int32, Utf8), time:Timestamp(Nanosecond, None), top:Float64;N, cpu:Dictionary(Int32, Utf8);N]
+                Filter: ROW_NUMBER() ORDER BY [cpu.usage_idle AS usage_idle DESC NULLS LAST, time ASC NULLS LAST] ROWS BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW <= Int64(10) [cpu:Dictionary(Int32, Utf8);N, host:Dictionary(Int32, Utf8);N, region:Dictionary(Int32, Utf8);N, time:Timestamp(Nanosecond, None), usage_idle:Float64;N, usage_system:Float64;N, usage_user:Float64;N, ROW_NUMBER() ORDER BY [cpu.usage_idle AS usage_idle DESC NULLS LAST, time ASC NULLS LAST] ROWS BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW:UInt64;N]
+                  WindowAggr: windowExpr=[[ROW_NUMBER() ORDER BY [cpu.usage_idle AS usage_idle DESC NULLS LAST, cpu.time ASC NULLS LAST] ROWS BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW AS ROW_NUMBER() ORDER BY [cpu.usage_idle AS usage_idle DESC NULLS LAST, time ASC NULLS LAST] ROWS BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW]] [cpu:Dictionary(Int32, Utf8);N, host:Dictionary(Int32, Utf8);N, region:Dictionary(Int32, Utf8);N, time:Timestamp(Nanosecond, None), usage_idle:Float64;N, usage_system:Float64;N, usage_user:Float64;N, ROW_NUMBER() ORDER BY [cpu.usage_idle AS usage_idle DESC NULLS LAST, time ASC NULLS LAST] ROWS BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW:UInt64;N]
+                    TableScan: cpu [cpu:Dictionary(Int32, Utf8);N, host:Dictionary(Int32, Utf8);N, region:Dictionary(Int32, Utf8);N, time:Timestamp(Nanosecond, None), usage_idle:Float64;N, usage_system:Float64;N, usage_user:Float64;N]
+                "###);
+
+            assert_snapshot!(plan("SELECT top(usage_idle,10) FROM cpu GROUP BY cpu"), @r###"
+            Sort: cpu ASC NULLS LAST, time ASC NULLS LAST [iox::measurement:Dictionary(Int32, Utf8), time:Timestamp(Nanosecond, None), cpu:Dictionary(Int32, Utf8);N, top:Float64;N]
+              Projection: Dictionary(Int32, Utf8("cpu")) AS iox::measurement, cpu.time AS time, cpu.cpu AS cpu, cpu.usage_idle AS top [iox::measurement:Dictionary(Int32, Utf8), time:Timestamp(Nanosecond, None), cpu:Dictionary(Int32, Utf8);N, top:Float64;N]
+                Filter: ROW_NUMBER() PARTITION BY [cpu] ORDER BY [cpu.usage_idle AS usage_idle DESC NULLS LAST, time ASC NULLS LAST] ROWS BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW <= Int64(10) [cpu:Dictionary(Int32, Utf8);N, host:Dictionary(Int32, Utf8);N, region:Dictionary(Int32, Utf8);N, time:Timestamp(Nanosecond, None), usage_idle:Float64;N, usage_system:Float64;N, usage_user:Float64;N, ROW_NUMBER() PARTITION BY [cpu] ORDER BY [cpu.usage_idle AS usage_idle DESC NULLS LAST, time ASC NULLS LAST] ROWS BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW:UInt64;N]
+                  WindowAggr: windowExpr=[[ROW_NUMBER() PARTITION BY [cpu.cpu] ORDER BY [cpu.usage_idle AS usage_idle DESC NULLS LAST, cpu.time ASC NULLS LAST] ROWS BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW AS ROW_NUMBER() PARTITION BY [cpu] ORDER BY [cpu.usage_idle AS usage_idle DESC NULLS LAST, time ASC NULLS LAST] ROWS BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW]] [cpu:Dictionary(Int32, Utf8);N, host:Dictionary(Int32, Utf8);N, region:Dictionary(Int32, Utf8);N, time:Timestamp(Nanosecond, None), usage_idle:Float64;N, usage_system:Float64;N, usage_user:Float64;N, ROW_NUMBER() PARTITION BY [cpu] ORDER BY [cpu.usage_idle AS usage_idle DESC NULLS LAST, time ASC NULLS LAST] ROWS BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW:UInt64;N]
+                    TableScan: cpu [cpu:Dictionary(Int32, Utf8);N, host:Dictionary(Int32, Utf8);N, region:Dictionary(Int32, Utf8);N, time:Timestamp(Nanosecond, None), usage_idle:Float64;N, usage_system:Float64;N, usage_user:Float64;N]
+                "###);
+
+            assert_snapshot!(plan("SELECT top(usage_idle,cpu,10) FROM cpu"), @r###"
+            Sort: time ASC NULLS LAST [iox::measurement:Dictionary(Int32, Utf8), time:Timestamp(Nanosecond, None), top:Float64;N, cpu:Dictionary(Int32, Utf8);N]
+              Projection: Dictionary(Int32, Utf8("cpu")) AS iox::measurement, cpu.time AS time, cpu.usage_idle AS top, cpu.cpu AS cpu [iox::measurement:Dictionary(Int32, Utf8), time:Timestamp(Nanosecond, None), top:Float64;N, cpu:Dictionary(Int32, Utf8);N]
+                Filter: ROW_NUMBER() ORDER BY [cpu.usage_idle AS usage_idle DESC NULLS LAST, time ASC NULLS LAST] ROWS BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW <= Int64(10) [cpu:Dictionary(Int32, Utf8);N, host:Dictionary(Int32, Utf8);N, region:Dictionary(Int32, Utf8);N, time:Timestamp(Nanosecond, None), usage_idle:Float64;N, usage_system:Float64;N, usage_user:Float64;N, ROW_NUMBER() PARTITION BY [cpu] ORDER BY [cpu.usage_idle AS usage_idle DESC NULLS LAST, time ASC NULLS LAST] ROWS BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW:UInt64;N, ROW_NUMBER() ORDER BY [cpu.usage_idle AS usage_idle DESC NULLS LAST, time ASC NULLS LAST] ROWS BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW:UInt64;N]
+                  WindowAggr: windowExpr=[[ROW_NUMBER() ORDER BY [cpu.usage_idle AS usage_idle DESC NULLS LAST, cpu.time ASC NULLS LAST] ROWS BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW AS ROW_NUMBER() ORDER BY [cpu.usage_idle AS usage_idle DESC NULLS LAST, time ASC NULLS LAST] ROWS BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW]] [cpu:Dictionary(Int32, Utf8);N, host:Dictionary(Int32, Utf8);N, region:Dictionary(Int32, Utf8);N, time:Timestamp(Nanosecond, None), usage_idle:Float64;N, usage_system:Float64;N, usage_user:Float64;N, ROW_NUMBER() PARTITION BY [cpu] ORDER BY [cpu.usage_idle AS usage_idle DESC NULLS LAST, time ASC NULLS LAST] ROWS BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW:UInt64;N, ROW_NUMBER() ORDER BY [cpu.usage_idle AS usage_idle DESC NULLS LAST, time ASC NULLS LAST] ROWS BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW:UInt64;N]
+                    Filter: ROW_NUMBER() PARTITION BY [cpu] ORDER BY [cpu.usage_idle AS usage_idle DESC NULLS LAST, time ASC NULLS LAST] ROWS BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW <= Int64(1) [cpu:Dictionary(Int32, Utf8);N, host:Dictionary(Int32, Utf8);N, region:Dictionary(Int32, Utf8);N, time:Timestamp(Nanosecond, None), usage_idle:Float64;N, usage_system:Float64;N, usage_user:Float64;N, ROW_NUMBER() PARTITION BY [cpu] ORDER BY [cpu.usage_idle AS usage_idle DESC NULLS LAST, time ASC NULLS LAST] ROWS BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW:UInt64;N]
+                      WindowAggr: windowExpr=[[ROW_NUMBER() PARTITION BY [cpu.cpu] ORDER BY [cpu.usage_idle AS usage_idle DESC NULLS LAST, cpu.time ASC NULLS LAST] ROWS BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW AS ROW_NUMBER() PARTITION BY [cpu] ORDER BY [cpu.usage_idle AS usage_idle DESC NULLS LAST, time ASC NULLS LAST] ROWS BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW]] [cpu:Dictionary(Int32, Utf8);N, host:Dictionary(Int32, Utf8);N, region:Dictionary(Int32, Utf8);N, time:Timestamp(Nanosecond, None), usage_idle:Float64;N, usage_system:Float64;N, usage_user:Float64;N, ROW_NUMBER() PARTITION BY [cpu] ORDER BY [cpu.usage_idle AS usage_idle DESC NULLS LAST, time ASC NULLS LAST] ROWS BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW:UInt64;N]
+                        TableScan: cpu [cpu:Dictionary(Int32, Utf8);N, host:Dictionary(Int32, Utf8);N, region:Dictionary(Int32, Utf8);N, time:Timestamp(Nanosecond, None), usage_idle:Float64;N, usage_system:Float64;N, usage_user:Float64;N]
+                "###);
+        }
+
+        #[test]
+        fn test_bottom() {
+            assert_snapshot!(plan("SELECT bottom(usage_idle,10) FROM cpu"), @r###"
+            Sort: time ASC NULLS LAST [iox::measurement:Dictionary(Int32, Utf8), time:Timestamp(Nanosecond, None), bottom:Float64;N]
+              Projection: Dictionary(Int32, Utf8("cpu")) AS iox::measurement, cpu.time AS time, cpu.usage_idle AS bottom [iox::measurement:Dictionary(Int32, Utf8), time:Timestamp(Nanosecond, None), bottom:Float64;N]
+                Filter: ROW_NUMBER() ORDER BY [cpu.usage_idle AS usage_idle ASC NULLS LAST, time ASC NULLS LAST] ROWS BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW <= Int64(10) [cpu:Dictionary(Int32, Utf8);N, host:Dictionary(Int32, Utf8);N, region:Dictionary(Int32, Utf8);N, time:Timestamp(Nanosecond, None), usage_idle:Float64;N, usage_system:Float64;N, usage_user:Float64;N, ROW_NUMBER() ORDER BY [cpu.usage_idle AS usage_idle ASC NULLS LAST, time ASC NULLS LAST] ROWS BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW:UInt64;N]
+                  WindowAggr: windowExpr=[[ROW_NUMBER() ORDER BY [cpu.usage_idle AS usage_idle ASC NULLS LAST, cpu.time ASC NULLS LAST] ROWS BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW AS ROW_NUMBER() ORDER BY [cpu.usage_idle AS usage_idle ASC NULLS LAST, time ASC NULLS LAST] ROWS BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW]] [cpu:Dictionary(Int32, Utf8);N, host:Dictionary(Int32, Utf8);N, region:Dictionary(Int32, Utf8);N, time:Timestamp(Nanosecond, None), usage_idle:Float64;N, usage_system:Float64;N, usage_user:Float64;N, ROW_NUMBER() ORDER BY [cpu.usage_idle AS usage_idle ASC NULLS LAST, time ASC NULLS LAST] ROWS BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW:UInt64;N]
+                    TableScan: cpu [cpu:Dictionary(Int32, Utf8);N, host:Dictionary(Int32, Utf8);N, region:Dictionary(Int32, Utf8);N, time:Timestamp(Nanosecond, None), usage_idle:Float64;N, usage_system:Float64;N, usage_user:Float64;N]
+                "###);
+
+            assert_snapshot!(plan("SELECT bottom(usage_idle,10),cpu FROM cpu"), @r###"
+            Sort: time ASC NULLS LAST, cpu ASC NULLS LAST [iox::measurement:Dictionary(Int32, Utf8), time:Timestamp(Nanosecond, None), bottom:Float64;N, cpu:Dictionary(Int32, Utf8);N]
+              Projection: Dictionary(Int32, Utf8("cpu")) AS iox::measurement, cpu.time AS time, cpu.usage_idle AS bottom, cpu.cpu AS cpu [iox::measurement:Dictionary(Int32, Utf8), time:Timestamp(Nanosecond, None), bottom:Float64;N, cpu:Dictionary(Int32, Utf8);N]
+                Filter: ROW_NUMBER() ORDER BY [cpu.usage_idle AS usage_idle ASC NULLS LAST, time ASC NULLS LAST] ROWS BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW <= Int64(10) [cpu:Dictionary(Int32, Utf8);N, host:Dictionary(Int32, Utf8);N, region:Dictionary(Int32, Utf8);N, time:Timestamp(Nanosecond, None), usage_idle:Float64;N, usage_system:Float64;N, usage_user:Float64;N, ROW_NUMBER() ORDER BY [cpu.usage_idle AS usage_idle ASC NULLS LAST, time ASC NULLS LAST] ROWS BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW:UInt64;N]
+                  WindowAggr: windowExpr=[[ROW_NUMBER() ORDER BY [cpu.usage_idle AS usage_idle ASC NULLS LAST, cpu.time ASC NULLS LAST] ROWS BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW AS ROW_NUMBER() ORDER BY [cpu.usage_idle AS usage_idle ASC NULLS LAST, time ASC NULLS LAST] ROWS BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW]] [cpu:Dictionary(Int32, Utf8);N, host:Dictionary(Int32, Utf8);N, region:Dictionary(Int32, Utf8);N, time:Timestamp(Nanosecond, None), usage_idle:Float64;N, usage_system:Float64;N, usage_user:Float64;N, ROW_NUMBER() ORDER BY [cpu.usage_idle AS usage_idle ASC NULLS LAST, time ASC NULLS LAST] ROWS BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW:UInt64;N]
+                    TableScan: cpu [cpu:Dictionary(Int32, Utf8);N, host:Dictionary(Int32, Utf8);N, region:Dictionary(Int32, Utf8);N, time:Timestamp(Nanosecond, None), usage_idle:Float64;N, usage_system:Float64;N, usage_user:Float64;N]
+                "###);
+
+            assert_snapshot!(plan("SELECT bottom(usage_idle,10) FROM cpu GROUP BY cpu"), @r###"
+            Sort: cpu ASC NULLS LAST, time ASC NULLS LAST [iox::measurement:Dictionary(Int32, Utf8), time:Timestamp(Nanosecond, None), cpu:Dictionary(Int32, Utf8);N, bottom:Float64;N]
+              Projection: Dictionary(Int32, Utf8("cpu")) AS iox::measurement, cpu.time AS time, cpu.cpu AS cpu, cpu.usage_idle AS bottom [iox::measurement:Dictionary(Int32, Utf8), time:Timestamp(Nanosecond, None), cpu:Dictionary(Int32, Utf8);N, bottom:Float64;N]
+                Filter: ROW_NUMBER() PARTITION BY [cpu] ORDER BY [cpu.usage_idle AS usage_idle ASC NULLS LAST, time ASC NULLS LAST] ROWS BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW <= Int64(10) [cpu:Dictionary(Int32, Utf8);N, host:Dictionary(Int32, Utf8);N, region:Dictionary(Int32, Utf8);N, time:Timestamp(Nanosecond, None), usage_idle:Float64;N, usage_system:Float64;N, usage_user:Float64;N, ROW_NUMBER() PARTITION BY [cpu] ORDER BY [cpu.usage_idle AS usage_idle ASC NULLS LAST, time ASC NULLS LAST] ROWS BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW:UInt64;N]
+                  WindowAggr: windowExpr=[[ROW_NUMBER() PARTITION BY [cpu.cpu] ORDER BY [cpu.usage_idle AS usage_idle ASC NULLS LAST, cpu.time ASC NULLS LAST] ROWS BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW AS ROW_NUMBER() PARTITION BY [cpu] ORDER BY [cpu.usage_idle AS usage_idle ASC NULLS LAST, time ASC NULLS LAST] ROWS BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW]] [cpu:Dictionary(Int32, Utf8);N, host:Dictionary(Int32, Utf8);N, region:Dictionary(Int32, Utf8);N, time:Timestamp(Nanosecond, None), usage_idle:Float64;N, usage_system:Float64;N, usage_user:Float64;N, ROW_NUMBER() PARTITION BY [cpu] ORDER BY [cpu.usage_idle AS usage_idle ASC NULLS LAST, time ASC NULLS LAST] ROWS BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW:UInt64;N]
+                    TableScan: cpu [cpu:Dictionary(Int32, Utf8);N, host:Dictionary(Int32, Utf8);N, region:Dictionary(Int32, Utf8);N, time:Timestamp(Nanosecond, None), usage_idle:Float64;N, usage_system:Float64;N, usage_user:Float64;N]
+                "###);
+
+            assert_snapshot!(plan("SELECT bottom(usage_idle,cpu,10) FROM cpu"), @r###"
+            Sort: time ASC NULLS LAST [iox::measurement:Dictionary(Int32, Utf8), time:Timestamp(Nanosecond, None), bottom:Float64;N, cpu:Dictionary(Int32, Utf8);N]
+              Projection: Dictionary(Int32, Utf8("cpu")) AS iox::measurement, cpu.time AS time, cpu.usage_idle AS bottom, cpu.cpu AS cpu [iox::measurement:Dictionary(Int32, Utf8), time:Timestamp(Nanosecond, None), bottom:Float64;N, cpu:Dictionary(Int32, Utf8);N]
+                Filter: ROW_NUMBER() ORDER BY [cpu.usage_idle AS usage_idle ASC NULLS LAST, time ASC NULLS LAST] ROWS BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW <= Int64(10) [cpu:Dictionary(Int32, Utf8);N, host:Dictionary(Int32, Utf8);N, region:Dictionary(Int32, Utf8);N, time:Timestamp(Nanosecond, None), usage_idle:Float64;N, usage_system:Float64;N, usage_user:Float64;N, ROW_NUMBER() PARTITION BY [cpu] ORDER BY [cpu.usage_idle AS usage_idle ASC NULLS LAST, time ASC NULLS LAST] ROWS BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW:UInt64;N, ROW_NUMBER() ORDER BY [cpu.usage_idle AS usage_idle ASC NULLS LAST, time ASC NULLS LAST] ROWS BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW:UInt64;N]
+                  WindowAggr: windowExpr=[[ROW_NUMBER() ORDER BY [cpu.usage_idle AS usage_idle ASC NULLS LAST, cpu.time ASC NULLS LAST] ROWS BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW AS ROW_NUMBER() ORDER BY [cpu.usage_idle AS usage_idle ASC NULLS LAST, time ASC NULLS LAST] ROWS BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW]] [cpu:Dictionary(Int32, Utf8);N, host:Dictionary(Int32, Utf8);N, region:Dictionary(Int32, Utf8);N, time:Timestamp(Nanosecond, None), usage_idle:Float64;N, usage_system:Float64;N, usage_user:Float64;N, ROW_NUMBER() PARTITION BY [cpu] ORDER BY [cpu.usage_idle AS usage_idle ASC NULLS LAST, time ASC NULLS LAST] ROWS BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW:UInt64;N, ROW_NUMBER() ORDER BY [cpu.usage_idle AS usage_idle ASC NULLS LAST, time ASC NULLS LAST] ROWS BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW:UInt64;N]
+                    Filter: ROW_NUMBER() PARTITION BY [cpu] ORDER BY [cpu.usage_idle AS usage_idle ASC NULLS LAST, time ASC NULLS LAST] ROWS BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW <= Int64(1) [cpu:Dictionary(Int32, Utf8);N, host:Dictionary(Int32, Utf8);N, region:Dictionary(Int32, Utf8);N, time:Timestamp(Nanosecond, None), usage_idle:Float64;N, usage_system:Float64;N, usage_user:Float64;N, ROW_NUMBER() PARTITION BY [cpu] ORDER BY [cpu.usage_idle AS usage_idle ASC NULLS LAST, time ASC NULLS LAST] ROWS BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW:UInt64;N]
+                      WindowAggr: windowExpr=[[ROW_NUMBER() PARTITION BY [cpu.cpu] ORDER BY [cpu.usage_idle AS usage_idle ASC NULLS LAST, cpu.time ASC NULLS LAST] ROWS BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW AS ROW_NUMBER() PARTITION BY [cpu] ORDER BY [cpu.usage_idle AS usage_idle ASC NULLS LAST, time ASC NULLS LAST] ROWS BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW]] [cpu:Dictionary(Int32, Utf8);N, host:Dictionary(Int32, Utf8);N, region:Dictionary(Int32, Utf8);N, time:Timestamp(Nanosecond, None), usage_idle:Float64;N, usage_system:Float64;N, usage_user:Float64;N, ROW_NUMBER() PARTITION BY [cpu] ORDER BY [cpu.usage_idle AS usage_idle ASC NULLS LAST, time ASC NULLS LAST] ROWS BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW:UInt64;N]
+                        TableScan: cpu [cpu:Dictionary(Int32, Utf8);N, host:Dictionary(Int32, Utf8);N, region:Dictionary(Int32, Utf8);N, time:Timestamp(Nanosecond, None), usage_idle:Float64;N, usage_system:Float64;N, usage_user:Float64;N]
+                "###);
         }
 
         /// Test InfluxQL-specific behaviour of scalar functions that differ
