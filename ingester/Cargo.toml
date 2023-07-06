@@ -54,6 +54,7 @@ criterion = { version = "0.5", default-features = false, features = ["async_toki
 datafusion_util = { path = "../datafusion_util" }
 influxdb_iox_client = { path = "../influxdb_iox_client" }
 ingester_test_ctx = { path = "../ingester_test_ctx" }
+itertools = "0.11"
 lazy_static = "1.4.0"
 mutable_batch_lp = { path = "../mutable_batch_lp" }
 object_store = { workspace = true }

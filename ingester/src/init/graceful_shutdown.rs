@@ -100,9 +100,6 @@ pub(super) async fn graceful_shutdown_handler<F, T, P>(
     // Therefore there are no ops that need replaying to rebuild the (now empty)
     // buffer state, therefore all WAL segments can be deleted to prevent
     // spurious replay and re-uploading of the same data.
-    //
-    // TODO(savage): This deletion should be redundant due to the persist-driven
-    // WAL dropping.
     wal.rotate().expect("failed to rotate wal");
     for file in wal.closed_segments() {
         if let Err(error) = wal.delete(file.id()).await {

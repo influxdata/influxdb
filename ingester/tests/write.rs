@@ -4,11 +4,13 @@ use data_types::{PartitionKey, TableId, Timestamp};
 use ingester_query_grpc::influxdata::iox::ingester::v1::IngesterQueryRequest;
 use ingester_test_ctx::{TestContextBuilder, DEFAULT_MAX_PERSIST_QUEUE_DEPTH};
 use iox_catalog::interface::Catalog;
+use itertools::Itertools;
 use metric::{
     assert_counter, assert_histogram, DurationHistogram, U64Counter, U64Gauge, U64Histogram,
 };
 use parquet_file::ParquetFilePath;
-use std::{sync::Arc, time::Duration};
+use std::{ffi::OsString, fs::read_dir, path::Path, sync::Arc, time::Duration};
+use test_helpers::timeout::FutureTimeout;
 
 // Write data to an ingester through the RPC interface and query the data, validating the contents.
 #[tokio::test]
@@ -439,4 +441,120 @@ async fn graceful_shutdown() {
         .await
         .unwrap();
     assert_eq!(parquet_files.len(), 3);
+}
+
+#[tokio::test]
+async fn wal_reference_dropping() {
+    let wal_dir = Arc::new(test_helpers::tmp_dir().unwrap());
+    let metrics = Arc::new(metric::Registry::default());
+    let catalog: Arc<dyn Catalog> =
+        Arc::new(iox_catalog::mem::MemCatalog::new(Arc::clone(&metrics)));
+
+    // Test-local namespace name
+    const TEST_NAMESPACE_NAME: &str = "wal_reference_dropping_test_namespace";
+    // Create an ingester using a fairly low write-ahead log rotation interval
+    const WAL_ROTATION_PERIOD: Duration = Duration::from_secs(15);
+
+    // Create an ingester with a low
+    let mut ctx = TestContextBuilder::default()
+        .with_wal_dir(Arc::clone(&wal_dir))
+        .with_catalog(Arc::clone(&catalog))
+        .with_wal_rotation_period(WAL_ROTATION_PERIOD)
+        .build()
+        .await;
+
+    let ns = ctx.ensure_namespace(TEST_NAMESPACE_NAME, None).await;
+
+    // Initial write
+    let partition_key = PartitionKey::from("1970-01-01");
+    ctx.write_lp(
+        TEST_NAMESPACE_NAME,
+        "bananas greatness=\"unbounded\" 10",
+        partition_key.clone(),
+        0,
+    )
+    .await;
+
+    // A subsequent write with a non-contiguous sequence number to a different table.
+    ctx.write_lp(
+        TEST_NAMESPACE_NAME,
+        "cpu bar=2 20\ncpu bar=3 30",
+        partition_key.clone(),
+        7,
+    )
+    .await;
+
+    // And a third write that appends more data to the table in the initial
+    // write.
+    ctx.write_lp(
+        TEST_NAMESPACE_NAME,
+        "bananas count=42 200",
+        partition_key.clone(),
+        42,
+    )
+    .await;
+
+    // Perform a query to validate the actual data buffered.
+    let data: Vec<_> = ctx
+        .query(IngesterQueryRequest {
+            namespace_id: ns.id.get(),
+            table_id: ctx.table_id(TEST_NAMESPACE_NAME, "bananas").await.get(),
+            columns: vec![],
+            predicate: None,
+        })
+        .await
+        .expect("query request failed");
+
+    let expected = vec![
+        "+-------+-----------+--------------------------------+",
+        "| count | greatness | time                           |",
+        "+-------+-----------+--------------------------------+",
+        "|       | unbounded | 1970-01-01T00:00:00.000000010Z |",
+        "| 42.0  |           | 1970-01-01T00:00:00.000000200Z |",
+        "+-------+-----------+--------------------------------+",
+    ];
+    assert_batches_sorted_eq!(&expected, &data);
+
+    let initial_segment_names =
+        get_file_names_in_dir(wal_dir.path()).expect("should be able to get file names");
+    assert_eq!(initial_segment_names.len(), 1); // Ensure a single (open) segment is present
+
+    tokio::time::pause();
+    tokio::time::advance(WAL_ROTATION_PERIOD).await;
+    tokio::time::resume();
+
+    // Wait for the rotation to result in the initial segment no longer being present in
+    // the write-ahead log directory
+    async {
+        loop {
+            let segments =
+                get_file_names_in_dir(wal_dir.path()).expect("should be able to get file names");
+            if !segments
+                .iter()
+                .any(|name| initial_segment_names.contains(name))
+            {
+                break;
+            }
+            tokio::task::yield_now().await;
+        }
+    }
+    .with_timeout_panic(Duration::from_secs(5))
+    .await;
+
+    let final_segment_names =
+        get_file_names_in_dir(wal_dir.path()).expect("should be able to get file names");
+    assert_eq!(final_segment_names.len(), 1); // Ensure a single (open) segment is present after the old one has been dropped
+}
+
+fn get_file_names_in_dir(dir: &Path) -> Result<Vec<OsString>, std::io::Error> {
+    read_dir(dir)?
+        .filter_map_ok(|f| {
+            if let Ok(file_type) = f.file_type() {
+                if file_type.is_file() {
+                    return Some(f.file_name());
+                }
+            }
+            None
+        })
+        .collect::<Result<Vec<_>, std::io::Error>>()
 }
