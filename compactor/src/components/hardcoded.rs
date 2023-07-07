@@ -44,7 +44,9 @@ use super::{
         mock::MockPartitionDoneSink, PartitionDoneSink,
     },
     partition_files_source::{
-        catalog::CatalogPartitionFilesSource, rate_limit::QueryRateLimit, PartitionFilesSource,
+        catalog::{CatalogPartitionFilesSource, QueryRateLimiter},
+        rate_limit::RateLimit,
+        PartitionFilesSource,
     },
     partition_filter::{
         and::AndPartitionFilter, greater_matching_files::GreaterMatchingFilesPartitionFilter,
@@ -237,7 +239,7 @@ fn make_partition_files_source(config: &Config) -> Arc<dyn PartitionFilesSource>
     match config.max_partition_fetch_queries_per_second {
         Some(rps) => Arc::new(CatalogPartitionFilesSource::new(
             config.backoff_config.clone(),
-            QueryRateLimit::new(Arc::clone(&config.catalog), rps),
+            QueryRateLimiter::new(Arc::clone(&config.catalog), RateLimit::new(rps)),
         )),
         None => Arc::new(CatalogPartitionFilesSource::new(
             config.backoff_config.clone(),
