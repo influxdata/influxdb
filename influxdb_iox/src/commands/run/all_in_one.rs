@@ -539,7 +539,10 @@ impl Config {
 /// panic's if the directory does not exist and can not be created
 fn ensure_directory_exists(p: &Path) {
     if !p.exists() {
-        println!("Creating directory {p:?}");
+        info!(
+            p=%p.display(),
+            "Creating directory",
+        );
         std::fs::create_dir_all(p).expect("Could not create default directory");
     }
 }
