@@ -2065,7 +2065,7 @@ mod test {
             // cpu is a Tag
             assert_matches!(q.select.fields[3].data_type, Some(InfluxColumnType::Tag));
 
-            let stmt = parse_select("SELECT field_i64 + field_f64 FROM all_types");
+            let stmt = parse_select("SELECT field_i64 + field_f64, field_i64 / field_i64, field_u64 / field_i64 FROM all_types");
             let q = rewrite_statement(&namespace, &stmt).unwrap();
             // first field is always the time column and thus a Timestamp
             assert_matches!(
@@ -2076,6 +2076,16 @@ mod test {
             assert_matches!(
                 q.select.fields[1].data_type,
                 Some(InfluxColumnType::Field(InfluxFieldType::Float))
+            );
+            // Integer division is promoted to a Float
+            assert_matches!(
+                q.select.fields[2].data_type,
+                Some(InfluxColumnType::Field(InfluxFieldType::Float))
+            );
+            // Unsigned division is still Unsigned
+            assert_matches!(
+                q.select.fields[3].data_type,
+                Some(InfluxColumnType::Field(InfluxFieldType::UInteger))
             );
         }
 
