@@ -194,12 +194,16 @@ where
 
         for op in ops {
             let SequencedWalOp {
-                sequence_number,
-                table_write_sequence_numbers: _, // TODO(savage): Use sequence numbers assigned per-partition
+                table_write_sequence_numbers, // TODO(savage): Use sequence numbers assigned per-partition
                 op,
             } = op;
 
-            let sequence_number = SequenceNumber::new(sequence_number);
+            let sequence_number = SequenceNumber::new(
+                *table_write_sequence_numbers
+                    .values()
+                    .next()
+                    .expect("attempt to replay unsequenced wal entry"),
+            );
 
             max_sequence = max_sequence.max(Some(sequence_number));
 

@@ -24,14 +24,14 @@ async fn crud() {
     // Can write an entry to the open segment
     let op = arbitrary_sequenced_wal_op(42);
     let summary = unwrap_summary(wal.write_op(op)).await;
-    assert_eq!(summary.total_bytes, 128);
-    assert_eq!(summary.bytes_written, 112);
+    assert_eq!(summary.total_bytes, 126);
+    assert_eq!(summary.bytes_written, 110);
 
     // Can write another entry; total_bytes accumulates
     let op = arbitrary_sequenced_wal_op(43);
     let summary = unwrap_summary(wal.write_op(op)).await;
-    assert_eq!(summary.total_bytes, 240);
-    assert_eq!(summary.bytes_written, 112);
+    assert_eq!(summary.total_bytes, 236);
+    assert_eq!(summary.bytes_written, 110);
 
     // Still no closed segments
     let closed = wal.closed_segments();
@@ -42,7 +42,7 @@ async fn crud() {
 
     // Can't read entries from the open segment; have to rotate first
     let (closed_segment_details, ids) = wal.rotate().unwrap();
-    assert_eq!(closed_segment_details.size(), 240);
+    assert_eq!(closed_segment_details.size(), 236);
     assert_eq!(
         ids.iter().collect::<Vec<_>>(),
         [SequenceNumber::new(42), SequenceNumber::new(43)]
@@ -58,17 +58,15 @@ async fn crud() {
     // op-level sequence number while it is the source of truth.
     let mut reader = wal.reader_for_segment(closed_segment_details.id()).unwrap();
     let op = reader.next().unwrap().unwrap();
-    assert_eq!(op[0].sequence_number, 42);
     op[0]
         .table_write_sequence_numbers
         .values()
-        .for_each(|sequence_number| assert_eq!(*sequence_number, op[0].sequence_number));
+        .for_each(|sequence_number| assert_eq!(*sequence_number, 42));
     let op = reader.next().unwrap().unwrap();
-    assert_eq!(op[0].sequence_number, 43);
     op[0]
         .table_write_sequence_numbers
         .values()
-        .for_each(|sequence_number| assert_eq!(*sequence_number, op[0].sequence_number));
+        .for_each(|sequence_number| assert_eq!(*sequence_number, 43));
 
     // Can delete a segment, leaving no closed segments again
     wal.delete(closed_segment_details.id()).await.unwrap();
@@ -108,20 +106,18 @@ async fn replay() {
     // op-level sequence number while it is the source of truth.
     let mut reader = wal.reader_for_segment(closed_segment_ids[0]).unwrap();
     let op = reader.next().unwrap().unwrap();
-    assert_eq!(op[0].sequence_number, 42);
     op[0]
         .table_write_sequence_numbers
         .values()
-        .for_each(|sequence_number| assert_eq!(*sequence_number, op[0].sequence_number));
+        .for_each(|sequence_number| assert_eq!(*sequence_number, 42));
 
     // Can read the written entries from the previously open segment
     let mut reader = wal.reader_for_segment(closed_segment_ids[1]).unwrap();
     let op = reader.next().unwrap().unwrap();
-    assert_eq!(op[0].sequence_number, 43);
     op[0]
         .table_write_sequence_numbers
         .values()
-        .for_each(|sequence_number| assert_eq!(*sequence_number, op[0].sequence_number));
+        .for_each(|sequence_number| assert_eq!(*sequence_number, 43));
 }
 
 #[tokio::test]
@@ -171,7 +167,6 @@ async fn ordering() {
 fn arbitrary_sequenced_wal_op(sequence_number: u64) -> SequencedWalOp {
     let w = test_data("m1,t=foo v=1i 1");
     SequencedWalOp {
-        sequence_number,
         table_write_sequence_numbers: w
             .table_batches
             .iter()

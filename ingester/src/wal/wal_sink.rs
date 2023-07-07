@@ -116,10 +116,6 @@ impl WalAppender for Arc<wal::Wal> {
         };
 
         self.write_op(SequencedWalOp {
-            sequence_number: *partition_sequence_numbers
-                .values()
-                .next()
-                .expect("tried to append unsequenced WAL operation"),
             table_write_sequence_numbers: partition_sequence_numbers,
             op: wal_op,
         })
@@ -232,7 +228,6 @@ mod tests {
 
         // Extract the op payload read from the WAL
         let read_op = assert_matches!(&*ops, [op] => op, "expected 1 DML operation");
-        assert_eq!(read_op.sequence_number, 42);
         assert_eq!(
             read_op.table_write_sequence_numbers,
             [(ARBITRARY_TABLE_ID, 42), (SECOND_TABLE_ID, 42)]
