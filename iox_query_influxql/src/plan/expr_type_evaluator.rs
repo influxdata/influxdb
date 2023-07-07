@@ -93,13 +93,13 @@ impl<'a> TypeEvaluator<'a> {
         match (lhs, rhs) {
             (Some(dt), None) | (None, Some(dt)) => Ok(Some(dt)),
             (None, None) => Ok(None),
-            (Some(lhs), Some(rhs)) => Ok(Some(binary_data_type(lhs, expr.op, rhs).ok_or_else(
-                || {
+            (Some(lhs), Some(rhs)) => {
+                Ok(Some(binary_data_type(lhs, op, rhs).ok_or_else(|| {
                     error::map::query(format!(
                         "incompatible operands for operator {op}: {lhs} and {rhs}"
                     ))
-                },
-            )?)),
+                })?))
+            }
         }
     }
 
@@ -399,6 +399,13 @@ fn binary_data_type(
         (Float, Add | Sub | Mul | Div | Mod, Float | Integer | Unsigned)
         | (Integer | Unsigned, Add | Sub | Mul | Div | Mod, Float) => Some(Float),
 
+        // Integers using the division operator are always float
+        //
+        // See:
+        // * https://github.com/influxdata/influxql/blob/802555d6b3a35cd464a6d8afa2a6511002cf3c2c/ast.go#L4335-L4340
+        // * https://github.com/influxdata/influxdb/blob/3372d3b878ebcba708dc9edfce7ea83cc8152393/query/cursor.go#L178
+        (Integer, Div, Integer) => Some(Float),
+
         // Integer and unsigned types support all operands and
         // the result is the same type if both operands are the same.
         //
@@ -468,8 +475,12 @@ mod test {
             assert_matches!(binary_data_type(operand, op, Float), None);
         }
 
+        // division and integers are special
+        assert_matches!(binary_data_type(Integer, Div, Integer), Some(Float));
+        assert_matches!(binary_data_type(Unsigned, Div, Unsigned), Some(Unsigned));
+
         // Integer op Integer | Unsigned op Unsigned
-        for op in [Add, Sub, Div, Mul, Mod, BitwiseAnd, BitwiseOr, BitwiseXor] {
+        for op in [Add, Sub, Mul, Mod, BitwiseAnd, BitwiseOr, BitwiseXor] {
             assert_matches!(binary_data_type(Integer, op, Integer), Some(Integer));
             assert_matches!(binary_data_type(Unsigned, op, Unsigned), Some(Unsigned));
         }
