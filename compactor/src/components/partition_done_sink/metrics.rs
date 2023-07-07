@@ -1,11 +1,12 @@
 use std::{collections::HashMap, fmt::Display};
 
 use async_trait::async_trait;
-use compactor_scheduler::PartitionDoneSink;
 use data_types::PartitionId;
 use metric::{Registry, U64Counter};
 
 use crate::error::{DynError, ErrorKind, ErrorKindExt};
+
+use super::PartitionDoneSink;
 
 const METRIC_NAME_PARTITION_COMPLETE_COUNT: &str = "iox_compactor_partition_complete_count";
 
@@ -82,9 +83,10 @@ where
 mod tests {
     use std::{collections::HashMap, sync::Arc};
 
-    use compactor_scheduler::MockPartitionDoneSink;
     use metric::{assert_counter, Attributes};
     use object_store::Error as ObjectStoreError;
+
+    use crate::components::partition_done_sink::mock::MockPartitionDoneSink;
 
     use super::*;
 

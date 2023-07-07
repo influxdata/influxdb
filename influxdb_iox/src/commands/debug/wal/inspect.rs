@@ -61,9 +61,11 @@ where
     let formatter = reader
         .flatten_ok()
         .filter_ok(|op| {
-            sequence_number_range
-                .as_ref()
-                .map_or(true, |range| range.contains(&op.sequence_number))
+            sequence_number_range.as_ref().map_or(true, |range| {
+                op.table_write_sequence_numbers
+                    .values()
+                    .any(|seq| range.contains(seq))
+            })
         })
         .format_with(",\n", |op, f| match op {
             Ok(op) => f(&format_args!("{:#?}", op)),
@@ -87,6 +89,7 @@ where
 
 #[cfg(test)]
 mod tests {
+    use data_types::TableId;
     use generated_types::influxdata::iox::wal::v1::sequenced_wal_op::Op as WalOp;
     use proptest::{prelude::*, prop_assert};
 
@@ -94,8 +97,7 @@ mod tests {
 
     fn arbitrary_sequence_wal_op(seq_number: u64) -> SequencedWalOp {
         SequencedWalOp {
-            sequence_number: seq_number,
-            table_write_sequence_numbers: Default::default(),
+            table_write_sequence_numbers: [(TableId::new(0), seq_number)].into(),
             op: WalOp::Write(Default::default()),
         }
     }
@@ -126,8 +128,21 @@ mod tests {
 
         // Expect two operations inspected, with the appropriate sequence numbers
         assert_eq!(results.matches("SequencedWalOp").count(), 2);
-        assert_eq!(results.matches("sequence_number: 2").count(), 1);
-        assert_eq!(results.matches("sequence_number: 3").count(), 1);
+
+        // Strip the whitespace before checking the output
+        let results: String = results.chars().filter(|c| !c.is_whitespace()).collect();
+        assert_eq!(
+            results
+                .matches("table_write_sequence_numbers:{TableId(0,):2,},")
+                .count(),
+            1
+        );
+        assert_eq!(
+            results
+                .matches("table_write_sequence_numbers:{TableId(0,):3,},")
+                .count(),
+            1
+        );
     }
 
     proptest! {

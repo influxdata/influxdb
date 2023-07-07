@@ -22,7 +22,9 @@ message PersistOp {
 
 // WAL operation with a sequence number, used to inform read buffers when to evict data
 message SequencedWalOp {
-  uint64 sequence_number = 1;
+  // Was the op-level sequence number.
+  reserved "sequence_number";
+  reserved 1;
 
   // A mapping which assigns a sequence number per table ID affected by this WAL
   // operation.

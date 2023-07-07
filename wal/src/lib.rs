@@ -470,8 +470,6 @@ impl WalBuffer {
 /// A wal operation with a sequence number
 #[derive(Debug, PartialEq, Clone)]
 pub struct SequencedWalOp {
-    /// The to-be-deprecated sequence number used to sequence WAL operations
-    pub sequence_number: u64,
     /// This mapping assigns a sequence number to table ID modified by this
     /// write.
     pub table_write_sequence_numbers: std::collections::HashMap<TableId, u64>,
@@ -484,13 +482,11 @@ impl TryFrom<ProtoSequencedWalOp> for SequencedWalOp {
 
     fn try_from(proto: ProtoSequencedWalOp) -> Result<Self, Self::Error> {
         let ProtoSequencedWalOp {
-            sequence_number,
             table_write_sequence_numbers,
             op,
         } = proto;
 
         Ok(Self {
-            sequence_number,
             table_write_sequence_numbers: table_write_sequence_numbers
                 .into_iter()
                 .map(|(table_id, sequence_number)| (TableId::new(table_id), sequence_number))
@@ -503,13 +499,11 @@ impl TryFrom<ProtoSequencedWalOp> for SequencedWalOp {
 impl From<SequencedWalOp> for ProtoSequencedWalOp {
     fn from(seq_op: SequencedWalOp) -> Self {
         let SequencedWalOp {
-            sequence_number,
             table_write_sequence_numbers,
             op,
         } = seq_op;
 
         Self {
-            sequence_number,
             table_write_sequence_numbers: table_write_sequence_numbers
                 .into_iter()
                 .map(|(table_id, sequence_number)| (table_id.get(), sequence_number))
@@ -705,22 +699,18 @@ mod tests {
         let w2 = test_data("m1,t=foo v=2i 2");
 
         let op1 = SequencedWalOp {
-            sequence_number: 0,
             table_write_sequence_numbers: vec![(TableId::new(0), 0)].into_iter().collect(),
             op: WalOp::Write(w1),
         };
         let op2 = SequencedWalOp {
-            sequence_number: 1,
             table_write_sequence_numbers: vec![(TableId::new(0), 1)].into_iter().collect(),
             op: WalOp::Write(w2),
         };
         let op3 = SequencedWalOp {
-            sequence_number: 2,
             table_write_sequence_numbers: vec![(TableId::new(0), 2)].into_iter().collect(),
             op: WalOp::Delete(test_delete()),
         };
         let op4 = SequencedWalOp {
-            sequence_number: 2,
             table_write_sequence_numbers: vec![(TableId::new(0), 2)].into_iter().collect(),
             op: WalOp::Persist(test_persist()),
         };
@@ -822,28 +812,23 @@ mod tests {
         let w3 = test_data("m1,t=foo v=3i 3");
 
         let op1 = SequencedWalOp {
-            sequence_number: 0,
             table_write_sequence_numbers: vec![(TableId::new(0), 0)].into_iter().collect(),
             op: WalOp::Write(w1.to_owned()),
         };
         let op2 = SequencedWalOp {
-            sequence_number: 1,
             table_write_sequence_numbers: vec![(TableId::new(0), 1)].into_iter().collect(),
             op: WalOp::Write(w2.to_owned()),
         };
         let op3 = SequencedWalOp {
-            sequence_number: 2,
             table_write_sequence_numbers: vec![(TableId::new(0), 2)].into_iter().collect(),
             op: WalOp::Delete(test_delete()),
         };
         let op4 = SequencedWalOp {
-            sequence_number: 2,
             table_write_sequence_numbers: vec![(TableId::new(0), 2)].into_iter().collect(),
             op: WalOp::Persist(test_persist()),
         };
         // A third write entry coming after a delete and persist entry must still be yielded
         let op5 = SequencedWalOp {
-            sequence_number: 3,
             table_write_sequence_numbers: vec![(TableId::new(0), 3)].into_iter().collect(),
             op: WalOp::Write(w3.to_owned()),
         };
@@ -888,7 +873,6 @@ mod tests {
         // Log a write operation to test recovery from a tail-corrupted WAL.
         let good_write = test_data("m3,a=baz b=4i 1");
         wal.write_op(SequencedWalOp {
-            sequence_number: 0,
             table_write_sequence_numbers: vec![(TableId::new(0), 0)].into_iter().collect(),
             op: WalOp::Write(good_write.to_owned()),
         })

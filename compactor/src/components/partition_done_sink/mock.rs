@@ -3,21 +3,21 @@ use std::{collections::HashMap, fmt::Display, sync::Mutex};
 use async_trait::async_trait;
 use data_types::PartitionId;
 
-use super::{DynError, PartitionDoneSink};
+use crate::error::DynError;
 
-/// Mock for [`PartitionDoneSink`].
+use super::PartitionDoneSink;
+
 #[derive(Debug, Default)]
 pub struct MockPartitionDoneSink {
     last: Mutex<HashMap<PartitionId, Result<(), String>>>,
 }
 
 impl MockPartitionDoneSink {
-    /// Create new mock.
     pub fn new() -> Self {
         Self::default()
     }
 
-    /// Get the last recorded results.
+    #[allow(dead_code)] // not used anywhere
     pub fn results(&self) -> HashMap<PartitionId, Result<(), String>> {
         self.last.lock().expect("not poisoned").clone()
     }

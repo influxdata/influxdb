@@ -5,6 +5,7 @@ use backoff::{Backoff, BackoffConfig};
 use data_types::PartitionId;
 use iox_catalog::interface::Catalog;
 use iox_time::{Time, TimeProvider};
+use observability_deps::tracing::info;
 
 use crate::PartitionsSource;
 
@@ -91,6 +92,16 @@ impl PartitionsSource for CatalogToCompactPartitionsSource {
                 minimum_time = self.time_provider.now() - self.min_threshold * 3;
             }
             maximum_time = self.max_threshold.map(|max| self.time_provider.now() - max);
+
+            info!(
+                minimum_time = minimum_time.to_string().as_str(),
+                maximum_time = maximum_time
+                    .map(|mt| mt.to_string())
+                    .unwrap_or(String::from(""))
+                    .as_str(),
+                last_maximum_time = (*last).to_string().as_str(),
+                "Fetching partitions to consider for compaction",
+            );
 
             // save the maximum time used in this query to self.last_maximum_time
             *last = maximum_time.unwrap_or(self.time_provider.now());
