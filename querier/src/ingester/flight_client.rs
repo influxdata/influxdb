@@ -96,12 +96,18 @@ pub struct FlightClientImpl {
     /// for a very short period of time, and any actual connection (and
     /// waiting) is done in CachedConnection
     connections: parking_lot::Mutex<HashMap<String, CachedConnection>>,
+
+    /// Name of the http header that will contain the tracing context value.
+    trace_context_header_name: String,
 }
 
 impl FlightClientImpl {
     /// Create new client.
-    pub fn new() -> Self {
-        Self::default()
+    pub fn new(trace_context_header_name: &str) -> Self {
+        Self {
+            trace_context_header_name: trace_context_header_name.to_string(),
+            ..Default::default()
+        }
     }
 
     /// Establish connection to given addr and perform handshake.
@@ -166,7 +172,7 @@ impl IngesterFlightClient for FlightClientImpl {
         if let Some(span) = span_recorder_comm.span() {
             client
                 .add_header(
-                    trace_exporters::DEFAULT_JAEGER_TRACE_CONTEXT_HEADER_NAME,
+                    &self.trace_context_header_name,
                     &format_jaeger_trace_context(&span.ctx),
                 )
                 // wrap in client error type

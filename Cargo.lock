@@ -4378,7 +4378,6 @@ dependencies = [
  "tokio-util",
  "tonic",
  "trace",
- "trace_exporters",
  "trace_http",
  "tracker",
  "uuid",
