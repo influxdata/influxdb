@@ -3,7 +3,8 @@ use data_types::{NamespaceId, PartitionKey, TableId};
 use ingester::IngesterRpcInterface;
 use ingester_query_grpc::influxdata::iox::ingester::v1::IngesterQueryRequest;
 use ingester_test_ctx::{TestContext, TestContextBuilder};
-use std::fmt::Write;
+use std::{fmt::Write, sync::Arc, time::Instant};
+use tokio::sync::Barrier;
 
 const TEST_NAMESPACE: &str = "bananas";
 const PARTITION_KEY: &str = "platanos";
@@ -15,7 +16,7 @@ fn generate_table_data(rows: usize, cols: usize) -> String {
         for j in 0..(cols - 1) {
             write!(&mut buf, "v{j}={i}{j},").unwrap();
         }
-        writeln!(&mut buf, "v{cols}={i}{cols} 42{i}").unwrap();
+        writeln!(&mut buf, "v{cols}={i}{cols} 42").unwrap(); // One timestamp -> one partition
     }
 
     buf
@@ -54,8 +55,8 @@ fn bench_query(c: &mut Criterion) {
         .expect("failed to initialise tokio runtime for benchmark");
 
     for (rows, cols) in [(100_000, 10), (100_000, 100), (100_000, 200)] {
-        run_bench("no projection", rows, cols, vec![], &runtime, c);
-        run_bench(
+        run_projection_bench("no projection", rows, cols, vec![], &runtime, c);
+        run_projection_bench(
             "project 1 column",
             rows,
             cols,
@@ -66,7 +67,7 @@ fn bench_query(c: &mut Criterion) {
     }
 }
 
-fn run_bench(
+fn run_projection_bench(
     name: &str,
     rows: usize,
     cols: usize,
@@ -77,7 +78,7 @@ fn run_bench(
     let lp = generate_table_data(rows, cols);
     let (ctx, namespace_id, table_id) = runtime.block_on(init(lp));
 
-    let mut group = c.benchmark_group("query");
+    let mut group = c.benchmark_group("projection");
     group.throughput(Throughput::Elements(1)); // Queries per second
     group.bench_function(
         BenchmarkId::new(name, format!("rows_{rows}_cols{cols}")),
@@ -98,5 +99,97 @@ fn run_bench(
     );
 }
 
-criterion_group!(benches, bench_query);
+/// Number of queries to send per reader, per iteration.
+const CONCURRENT_QUERY_BATCH_SIZE: usize = 20;
+
+// Benchmark scalability of the read path as more readers are added when
+// querying partitions with varying amounts of data.
+//
+// The ingester "process" is running in the same threadpool as the benchmark
+// loop, so this isn't super clean.
+fn bench_query_concurrent(c: &mut Criterion) {
+    let runtime = tokio::runtime::Builder::new_multi_thread()
+        .enable_all()
+        .build()
+        .expect("failed to initialise tokio runtime for benchmark");
+
+    for readers in [1, 10, 100] {
+        for buf_size_lines in [1000, 50_000] {
+            run_concurrent_bench(readers, buf_size_lines, &runtime, c);
+        }
+    }
+
+    run_concurrent_bench(1, 100_000, &runtime, c);
+    run_concurrent_bench(10, 100_000, &runtime, c);
+}
+
+async fn do_queries(ctx: &TestContext<impl IngesterRpcInterface>, query: &IngesterQueryRequest) {
+    for _ in 0..CONCURRENT_QUERY_BATCH_SIZE {
+        ctx.query(query.clone())
+            .await
+            .expect("query request failed");
+    }
+}
+
+fn run_concurrent_bench(
+    concurrent_readers: usize,
+    buf_size_lines: usize,
+    runtime: &tokio::runtime::Runtime,
+    c: &mut Criterion,
+) {
+    const COLUMN_COUNT: usize = 10;
+
+    let lp = generate_table_data(buf_size_lines, COLUMN_COUNT);
+    let (ctx, namespace_id, table_id) = runtime.block_on(init(lp));
+
+    let query = Arc::new(IngesterQueryRequest {
+        namespace_id: namespace_id.get(),
+        table_id: table_id.get(),
+        columns: vec![],
+        predicate: None,
+    });
+
+    let ctx = Arc::new(ctx);
+
+    let mut group = c.benchmark_group("concurrent_query");
+    group.throughput(Throughput::Elements(CONCURRENT_QUERY_BATCH_SIZE as _)); // Queries per second
+    group.bench_function(
+        format!("readers_{concurrent_readers}/buffered_{buf_size_lines}x{COLUMN_COUNT}"),
+        |b| {
+            b.to_async(runtime).iter_custom(|iters| {
+                let query = Arc::clone(&query);
+                let ctx = Arc::clone(&ctx);
+                async move {
+                    // Sync point to ensure all readers start at approximately the same
+                    // time.
+                    let barrier = Arc::new(Barrier::new(concurrent_readers));
+
+                    // Spawn N-1 readers that'll be adding the concurrent workload, but
+                    // not measured.
+                    for _ in 0..(concurrent_readers - 1) {
+                        let barrier = Arc::clone(&barrier);
+                        let query = Arc::clone(&query);
+                        let ctx = Arc::clone(&ctx);
+                        tokio::spawn(async move {
+                            barrier.wait().await;
+                            for _ in 0..iters {
+                                do_queries(&ctx, &query).await;
+                            }
+                        });
+                    }
+
+                    // And measure the last reader.
+                    barrier.wait().await;
+                    let start = Instant::now();
+                    for _ in 0..iters {
+                        do_queries(&ctx, &query).await;
+                    }
+                    start.elapsed()
+                }
+            });
+        },
+    );
+}
+
+criterion_group!(benches, bench_query, bench_query_concurrent);
 criterion_main!(benches);
