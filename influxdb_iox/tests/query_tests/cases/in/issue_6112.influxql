@@ -640,3 +640,15 @@ SELECT min, max, max - min FROM (SELECT MIN(usage_idle), MAX(usage_system) FROM 
 
 -- the predicate in the outer-most query is the narrowest, and therefore pushed through all the children
 SELECT * FROM (SELECT * FROM (SELECT FIRST(usage_idle) FROM cpu WHERE time >= '2022-10-31T02:00:00Z') WHERE time >= '2022-10-31T02:00:00Z') WHERE time >= '2022-10-31T02:00:10Z';
+
+--
+-- division operator not performing cast
+--
+-- https://github.com/influxdata/influxdb_iox/issues/8168
+--
+
+-- Raw query
+SELECT bytes_free / bytes_used AS result FROM disk;
+
+-- Aggregate query
+SELECT SUM(bytes_free) / SUM(bytes_used) AS result FROM disk WHERE time >= '2022-10-31T02:00:00Z' AND time <= '2022-10-31T02:00:10Z' GROUP BY time(5s) FILL(null);

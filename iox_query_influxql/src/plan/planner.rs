@@ -4544,6 +4544,22 @@ mod test {
                 TableScan: all_types [bool_field:Boolean;N, f64_field:Float64;N, i64_field:Int64;N, str_field:Utf8;N, tag0:Dictionary(Int32, Utf8);N, tag1:Dictionary(Int32, Utf8);N, time:Timestamp(Nanosecond, None), u64_field:UInt64;N]
             "###);
         }
+
+        /// Fix for https://github.com/influxdata/influxdb_iox/issues/8168
+        #[test]
+        fn test_integer_division_float_promotion() {
+            assert_snapshot!(plan("SELECT i64_field / i64_field FROM all_types"), @r###"
+            Sort: time ASC NULLS LAST [iox::measurement:Dictionary(Int32, Utf8), time:Timestamp(Nanosecond, None), i64_field_i64_field:Float64;N]
+              Projection: Dictionary(Int32, Utf8("all_types")) AS iox::measurement, all_types.time AS time, coalesce(CAST(all_types.i64_field AS Float64) / CAST(all_types.i64_field AS Float64), Float64(0)) AS i64_field_i64_field [iox::measurement:Dictionary(Int32, Utf8), time:Timestamp(Nanosecond, None), i64_field_i64_field:Float64;N]
+                TableScan: all_types [bool_field:Boolean;N, f64_field:Float64;N, i64_field:Int64;N, str_field:Utf8;N, tag0:Dictionary(Int32, Utf8);N, tag1:Dictionary(Int32, Utf8);N, time:Timestamp(Nanosecond, None), u64_field:UInt64;N]
+            "###);
+            assert_snapshot!(plan("SELECT sum(i64_field) / sum(i64_field) FROM all_types"), @r###"
+            Sort: time ASC NULLS LAST [iox::measurement:Dictionary(Int32, Utf8), time:Timestamp(Nanosecond, None), sum_sum:Float64;N]
+              Projection: Dictionary(Int32, Utf8("all_types")) AS iox::measurement, TimestampNanosecond(0, None) AS time, coalesce(CAST(SUM(all_types.i64_field) AS Float64) / CAST(SUM(all_types.i64_field) AS Float64), Float64(0)) AS sum_sum [iox::measurement:Dictionary(Int32, Utf8), time:Timestamp(Nanosecond, None), sum_sum:Float64;N]
+                Aggregate: groupBy=[[]], aggr=[[SUM(all_types.i64_field)]] [SUM(all_types.i64_field):Int64;N]
+                  TableScan: all_types [bool_field:Boolean;N, f64_field:Float64;N, i64_field:Int64;N, str_field:Utf8;N, tag0:Dictionary(Int32, Utf8);N, tag1:Dictionary(Int32, Utf8);N, time:Timestamp(Nanosecond, None), u64_field:UInt64;N]
+            "###);
+        }
     }
 
     /// Tests to validate InfluxQL `SELECT` statements that project aggregate functions, such as `COUNT` or `SUM`.
