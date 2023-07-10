@@ -828,8 +828,7 @@ impl IngesterPartition {
 
         let chunk = IngesterChunk {
             chunk_id,
-            partition_id: self.partition_id,
-            transition_partition_id: self.transition_partition_id(),
+            partition_id: self.transition_partition_id(),
             schema: expected_schema,
             batches,
             stats: None,
@@ -885,8 +884,9 @@ impl IngesterPartition {
 #[derive(Debug, Clone)]
 pub struct IngesterChunk {
     chunk_id: ChunkId,
-    partition_id: PartitionId,
-    transition_partition_id: TransitionPartitionId,
+
+    partition_id: TransitionPartitionId,
+
     schema: Schema,
 
     /// The raw table data
@@ -930,12 +930,8 @@ impl QueryChunk for IngesterChunk {
         &self.schema
     }
 
-    fn partition_id(&self) -> &PartitionId {
+    fn partition_id(&self) -> &TransitionPartitionId {
         &self.partition_id
-    }
-
-    fn transition_partition_id(&self) -> &TransitionPartitionId {
-        &self.transition_partition_id
     }
 
     fn sort_key(&self) -> Option<&SortKey> {
