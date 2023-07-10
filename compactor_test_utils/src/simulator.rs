@@ -202,7 +202,7 @@ impl SimulatedFile {
         ParquetFileParams {
             namespace_id: partition_info.namespace_id,
             table_id: partition_info.table.id,
-            partition_id: partition_info.transition_partition_id(),
+            partition_id: partition_info.partition_id(),
             object_store_id: Uuid::new_v4(),
             min_time,
             max_time,
