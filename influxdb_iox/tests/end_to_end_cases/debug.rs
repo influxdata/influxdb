@@ -142,7 +142,7 @@ async fn run_sql_until_non_empty(
         if !batches.is_empty() {
             return batches;
         }
-        tokio::task::yield_now().await;
+        tokio::time::sleep(Duration::from_millis(100)).await;
     }
 }
 
