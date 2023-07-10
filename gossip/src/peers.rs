@@ -213,7 +213,7 @@ mod tests {
         let v = Bytes::from_static(&[
             42, 42, 42, 42, 42, 42, 42, 42, 42, 42, 42, 42, 42, 42, 42, 42, 42, 42, 42, 42,
         ]);
-        let _ = Identity::try_from(v).expect_err("short ID should fail");
+        let _ = Identity::try_from(v).expect_err("long ID should fail");
     }
 
     #[test]
