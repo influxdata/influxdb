@@ -69,4 +69,15 @@ async fn test_payload_exchange() {
         .await
         .expect("reactor stopped");
     assert_eq!(got, b_payload);
+
+    // Send another payload through peer A (ensuring scratch buffers are
+    // correctly wiped, etc)
+    let a_payload = Bytes::from_static(b"platanos");
+    a.broadcast(a_payload.clone()).await.unwrap();
+    let got = b_rx
+        .recv()
+        .with_timeout_panic(TIMEOUT)
+        .await
+        .expect("reactor stopped");
+    assert_eq!(got, a_payload);
 }
