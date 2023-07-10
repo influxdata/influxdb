@@ -33,7 +33,7 @@ async fn test_payload_exchange() {
     let (b_tx, mut b_rx) = mpsc::channel(5);
 
     // Initialise both reactors
-    let addrs = dbg!(vec![a_addr.to_string(), b_addr.to_string()]);
+    let addrs = vec![a_addr.to_string(), b_addr.to_string()];
     let a = Builder::new(addrs.clone(), a_tx, Arc::clone(&metrics)).build(a_socket);
     let b = Builder::new(addrs, b_tx, Arc::clone(&metrics)).build(b_socket);
 
