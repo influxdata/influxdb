@@ -110,6 +110,7 @@ mod tests {
 
     use crate::{
         persist::queue::mock::MockPersistQueue,
+        query::projection::OwnedProjection,
         test_util::{PartitionDataBuilder, ARBITRARY_TABLE_NAME},
     };
 
@@ -162,7 +163,9 @@ mod tests {
             guard
                 .buffer_write(mb, SequenceNumber::new(2))
                 .expect("write should succeed");
-            guard.get_query_data().expect("should have query adaptor")
+            guard
+                .get_query_data(&OwnedProjection::default())
+                .expect("should have query adaptor")
         };
 
         hot_partition_persister.observe(Arc::clone(&p), p.lock());
@@ -170,7 +173,7 @@ mod tests {
         tokio::task::yield_now().await;
         // Assert the partition was queued for persistence with the correct data.
         assert_matches!(persist_handle.calls().as_slice(), [got] => {
-            let got_query_data = got.lock().get_query_data().expect("should have query adaptor");
+            let got_query_data = got.lock().get_query_data(&OwnedProjection::default(),).expect("should have query adaptor");
             assert_eq!(got_query_data.record_batches(), want_query_data.record_batches());
         });
 

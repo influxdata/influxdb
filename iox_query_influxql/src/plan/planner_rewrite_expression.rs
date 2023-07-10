@@ -341,10 +341,11 @@ fn rewrite_expr(expr: Expr, schemas: &Schemas) -> Result<Expr> {
                         _,
                         DataType::Int64
                     ) => match op {
-                        // Like Float64, dividing by zero should return 0 for InfluxQL
+                        // Like Float64, dividing by zero should return 0 for InfluxQL, and
+                        // the expression should be promoted to Float64, so cast both sides.
                         //
-                        // See: https://github.com/influxdata/influxql/blob/1ba470371ec093d57a726b143fe6ccbacf1b452b/ast.go#L4338-L4340
-                        Operator::Divide => yes(coalesce(vec![expr, lit(0_i64)])),
+                        // See: https://github.com/influxdata/influxql/blob/1ba470371ec093d57a726b143fe6ccbacf1b452b/ast.go#L4331-L4336
+                        Operator::Divide => yes(coalesce(vec![binary_expr(cast((**left).clone(), DataType::Float64), Operator::Divide, cast((**right).clone(), DataType::Float64)), lit(0_f64)])),
                         _ => no(expr),
                     },
 
@@ -564,7 +565,7 @@ mod test {
     /// The rewriter does not check whether the divisor is a literal 0, which it could reduce the
     /// binary expression to a scalar value, `0`.
     #[test]
-    fn test_division_by_zero() {
+    fn test_division() {
         let (schemas, _) = new_schemas();
         let rewrite = |expr| rewrite_expr(expr, &schemas).unwrap().to_string();
 
@@ -613,11 +614,11 @@ mod test {
             "coalesce(UInt64(5) / integer_field, UInt64(0))"
         );
 
-        // Int64
+        // Int64 values are cast to Float64 to be consistent with InfluxQL
         let expr = lit(5_i64) / "integer_field".as_expr();
         assert_eq!(
             rewrite(expr),
-            "coalesce(Int64(5) / integer_field, Int64(0))"
+            "coalesce(CAST(Int64(5) AS Float64) / CAST(integer_field AS Float64), Float64(0))"
         );
     }
 

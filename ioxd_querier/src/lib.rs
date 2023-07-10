@@ -180,6 +180,7 @@ pub struct QuerierServerTypeArgs<'a> {
     pub exec: Arc<Executor>,
     pub time_provider: Arc<dyn TimeProvider>,
     pub querier_config: QuerierConfig,
+    pub trace_context_header_name: String,
 }
 
 #[derive(Debug, Error)]
@@ -250,6 +251,7 @@ pub async fn create_querier_server_type(
             ingester_addresses,
             Arc::clone(&catalog_cache),
             args.querier_config.ingester_circuit_breaker_threshold,
+            &args.trace_context_header_name,
         ))
     };
 

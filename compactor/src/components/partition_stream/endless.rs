@@ -4,6 +4,7 @@ use compactor_scheduler::PartitionsSource;
 use data_types::PartitionId;
 use futures::{stream::BoxStream, StreamExt};
 
+use super::super::partition_files_source::rate_limit::RateLimit;
 use super::PartitionStream;
 
 #[derive(Debug)]
@@ -12,6 +13,7 @@ where
     T: PartitionsSource,
 {
     source: Arc<T>,
+    limiter: RateLimit,
 }
 
 impl<T> EndlessPartititionStream<T>
@@ -21,6 +23,7 @@ where
     pub fn new(source: T) -> Self {
         Self {
             source: Arc::new(source),
+            limiter: RateLimit::new(1), // Initial rate is irrelevant, it will be updated before first use.
         }
     }
 }
@@ -47,12 +50,25 @@ where
             let source = Arc::clone(&source);
             async move {
                 loop {
+                    while let Some(d) = self.limiter.can_proceed() {
+                        // Throttling because either we don't need to go this fast, or we're at risk of hitting the catalog
+                        // to hard, or both.
+                        tokio::time::sleep(d).await;
+                    }
+
                     if let Some(p_id) = buffer.pop_front() {
                         return Some((p_id, buffer));
                     }
 
                     // fetch new data
                     buffer = VecDeque::from(source.fetch().await);
+
+                    // update rate limiter so we can complete the batch in 5m, which is plenty fast.
+                    let mut rate = buffer.len() / (5 * 60);
+                    if rate < 1 {
+                        rate = 1;
+                    }
+                    self.limiter.update_rps(rate);
                 }
             }
         })

@@ -3,7 +3,7 @@ use std::{collections::HashSet, sync::Arc};
 use datafusion::{
     common::{DataFusionError, Result as DataFusionResult},
     execution::FunctionRegistry,
-    logical_expr::{AggregateUDF, ScalarUDF},
+    logical_expr::{AggregateUDF, ScalarUDF, WindowUDF},
 };
 use once_cell::sync::Lazy;
 
@@ -53,6 +53,12 @@ impl FunctionRegistry for IOxFunctionRegistry {
     fn udaf(&self, name: &str) -> DataFusionResult<Arc<AggregateUDF>> {
         Err(DataFusionError::Plan(format!(
             "IOx FunctionRegistry does not contain user defined aggregate function '{name}'"
+        )))
+    }
+
+    fn udwf(&self, name: &str) -> DataFusionResult<Arc<WindowUDF>> {
+        Err(DataFusionError::Plan(format!(
+            "IOx FunctionRegistry does not contain user defined window function '{name}'"
         )))
     }
 }

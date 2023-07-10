@@ -18,7 +18,10 @@ use crate::{
     dml_payload::IngestOp,
     dml_sink::DmlSink,
     partition_iter::PartitionIter,
-    query::{response::QueryResponse, tracing::QueryExecTracing, QueryError, QueryExec},
+    query::{
+        projection::OwnedProjection, response::QueryResponse, tracing::QueryExecTracing,
+        QueryError, QueryExec,
+    },
 };
 
 /// A [`BufferTree`] is the root of an in-memory tree of many [`NamespaceData`]
@@ -201,7 +204,7 @@ where
         &self,
         namespace_id: NamespaceId,
         table_id: TableId,
-        columns: Vec<String>,
+        projection: OwnedProjection,
         span: Option<Span>,
         predicate: Option<Predicate>,
     ) -> Result<Self::Response, QueryError> {
@@ -213,7 +216,7 @@ where
         // Delegate query execution to the namespace, wrapping the execution in
         // a tracing delegate to emit a child span.
         QueryExecTracing::new(inner, "namespace")
-            .query_exec(namespace_id, table_id, columns, span, predicate)
+            .query_exec(namespace_id, table_id, projection, span, predicate)
             .await
     }
 }
@@ -399,7 +402,7 @@ mod tests {
                         .query_exec(
                             ARBITRARY_NAMESPACE_ID,
                             ARBITRARY_TABLE_ID,
-                            vec![],
+                            OwnedProjection::default(),
                             None,
                             $predicate
                         )
@@ -966,7 +969,7 @@ mod tests {
             .query_exec(
                 ARBITRARY_NAMESPACE_ID,
                 ARBITRARY_TABLE_ID,
-                vec![],
+                OwnedProjection::default(),
                 None,
                 None,
             )
@@ -994,7 +997,13 @@ mod tests {
 
         // Ensure an unknown table errors
         let err = buf
-            .query_exec(ARBITRARY_NAMESPACE_ID, TABLE2_ID, vec![], None, None)
+            .query_exec(
+                ARBITRARY_NAMESPACE_ID,
+                TABLE2_ID,
+                OwnedProjection::default(),
+                None,
+                None,
+            )
             .await
             .expect_err("query should fail");
         assert_matches!(err, QueryError::TableNotFound(ns, t) => {
@@ -1006,7 +1015,7 @@ mod tests {
         buf.query_exec(
             ARBITRARY_NAMESPACE_ID,
             ARBITRARY_TABLE_ID,
-            vec![],
+            OwnedProjection::default(),
             None,
             None,
         )
@@ -1080,7 +1089,7 @@ mod tests {
             .query_exec(
                 ARBITRARY_NAMESPACE_ID,
                 ARBITRARY_TABLE_ID,
-                vec![],
+                OwnedProjection::default(),
                 None,
                 None,
             )

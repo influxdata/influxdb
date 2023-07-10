@@ -3,6 +3,8 @@
 mod r#trait;
 pub(crate) use r#trait::*;
 
+pub(crate) mod projection;
+
 // Response types
 pub(crate) mod partition_response;
 pub(crate) mod response;

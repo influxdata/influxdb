@@ -137,6 +137,7 @@ pub fn create_ingester_connections(
     ingester_addresses: Vec<Arc<str>>,
     catalog_cache: Arc<CatalogCache>,
     open_circuit_after_n_errors: u64,
+    trace_context_header_name: &str,
 ) -> Arc<dyn IngesterConnection> {
     // This backoff config is used to retry requests for a specific table-scoped query.
     let retry_backoff_config = BackoffConfig {
@@ -161,6 +162,7 @@ pub fn create_ingester_connections(
         retry_backoff_config,
         circuit_breaker_backoff_config,
         open_circuit_after_n_errors,
+        trace_context_header_name,
     ))
 }
 
@@ -331,8 +333,9 @@ impl IngesterConnectionImpl {
         backoff_config: BackoffConfig,
         circuit_breaker_backoff_config: BackoffConfig,
         open_circuit_after_n_errors: u64,
+        trace_context_header_name: &str,
     ) -> Self {
-        let flight_client = Arc::new(FlightClientImpl::new());
+        let flight_client = Arc::new(FlightClientImpl::new(trace_context_header_name));
         let flight_client = Arc::new(InvalidateOnErrorFlightClient::new(flight_client));
         let flight_client = Arc::new(CircuitBreakerFlightClient::new(
             flight_client,

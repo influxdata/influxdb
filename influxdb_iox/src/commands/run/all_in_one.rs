@@ -539,7 +539,10 @@ impl Config {
 /// panic's if the directory does not exist and can not be created
 fn ensure_directory_exists(p: &Path) {
     if !p.exists() {
-        println!("Creating directory {p:?}");
+        info!(
+            p=%p.display(),
+            "Creating directory",
+        );
         std::fs::create_dir_all(p).expect("Could not create default directory");
     }
 }
@@ -663,6 +666,10 @@ pub async fn command(config: Config) -> Result<()> {
         exec,
         time_provider,
         querier_config,
+        trace_context_header_name: querier_run_config
+            .tracing_config()
+            .traces_jaeger_trace_context_header_name
+            .clone(),
     })
     .await?;
 
