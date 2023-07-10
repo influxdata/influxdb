@@ -1343,8 +1343,8 @@ dependencies = [
 
 [[package]]
 name = "datafusion"
-version = "26.0.0"
-source = "git+https://github.com/apache/arrow-datafusion.git?rev=e0330d6c957c724fcc91b673c6ae10c535d9a33a#e0330d6c957c724fcc91b673c6ae10c535d9a33a"
+version = "27.0.0"
+source = "git+https://github.com/apache/arrow-datafusion.git?rev=46752163bd4f30f778850160513e8ca7f15fcf14#46752163bd4f30f778850160513e8ca7f15fcf14"
 dependencies = [
  "ahash 0.8.3",
  "arrow",
@@ -1367,8 +1367,8 @@ dependencies = [
  "futures",
  "glob",
  "hashbrown 0.14.0",
- "indexmap 1.9.3",
- "itertools 0.10.5",
+ "indexmap 2.0.0",
+ "itertools 0.11.0",
  "lazy_static",
  "log",
  "num_cpus",
@@ -1379,7 +1379,7 @@ dependencies = [
  "pin-project-lite",
  "rand",
  "smallvec",
- "sqlparser 0.34.0",
+ "sqlparser",
  "tempfile",
  "tokio",
  "tokio-util",
@@ -1391,8 +1391,8 @@ dependencies = [
 
 [[package]]
 name = "datafusion-common"
-version = "26.0.0"
-source = "git+https://github.com/apache/arrow-datafusion.git?rev=e0330d6c957c724fcc91b673c6ae10c535d9a33a#e0330d6c957c724fcc91b673c6ae10c535d9a33a"
+version = "27.0.0"
+source = "git+https://github.com/apache/arrow-datafusion.git?rev=46752163bd4f30f778850160513e8ca7f15fcf14#46752163bd4f30f778850160513e8ca7f15fcf14"
 dependencies = [
  "arrow",
  "arrow-array",
@@ -1400,13 +1400,13 @@ dependencies = [
  "num_cpus",
  "object_store",
  "parquet",
- "sqlparser 0.34.0",
+ "sqlparser",
 ]
 
 [[package]]
 name = "datafusion-execution"
-version = "26.0.0"
-source = "git+https://github.com/apache/arrow-datafusion.git?rev=e0330d6c957c724fcc91b673c6ae10c535d9a33a#e0330d6c957c724fcc91b673c6ae10c535d9a33a"
+version = "27.0.0"
+source = "git+https://github.com/apache/arrow-datafusion.git?rev=46752163bd4f30f778850160513e8ca7f15fcf14#46752163bd4f30f778850160513e8ca7f15fcf14"
 dependencies = [
  "dashmap",
  "datafusion-common",
@@ -1422,22 +1422,22 @@ dependencies = [
 
 [[package]]
 name = "datafusion-expr"
-version = "26.0.0"
-source = "git+https://github.com/apache/arrow-datafusion.git?rev=e0330d6c957c724fcc91b673c6ae10c535d9a33a#e0330d6c957c724fcc91b673c6ae10c535d9a33a"
+version = "27.0.0"
+source = "git+https://github.com/apache/arrow-datafusion.git?rev=46752163bd4f30f778850160513e8ca7f15fcf14#46752163bd4f30f778850160513e8ca7f15fcf14"
 dependencies = [
  "ahash 0.8.3",
  "arrow",
  "datafusion-common",
  "lazy_static",
- "sqlparser 0.34.0",
+ "sqlparser",
  "strum 0.25.0",
  "strum_macros 0.25.0",
 ]
 
 [[package]]
 name = "datafusion-optimizer"
-version = "26.0.0"
-source = "git+https://github.com/apache/arrow-datafusion.git?rev=e0330d6c957c724fcc91b673c6ae10c535d9a33a#e0330d6c957c724fcc91b673c6ae10c535d9a33a"
+version = "27.0.0"
+source = "git+https://github.com/apache/arrow-datafusion.git?rev=46752163bd4f30f778850160513e8ca7f15fcf14#46752163bd4f30f778850160513e8ca7f15fcf14"
 dependencies = [
  "arrow",
  "async-trait",
@@ -1446,15 +1446,15 @@ dependencies = [
  "datafusion-expr",
  "datafusion-physical-expr",
  "hashbrown 0.14.0",
- "itertools 0.10.5",
+ "itertools 0.11.0",
  "log",
  "regex-syntax 0.7.3",
 ]
 
 [[package]]
 name = "datafusion-physical-expr"
-version = "26.0.0"
-source = "git+https://github.com/apache/arrow-datafusion.git?rev=e0330d6c957c724fcc91b673c6ae10c535d9a33a#e0330d6c957c724fcc91b673c6ae10c535d9a33a"
+version = "27.0.0"
+source = "git+https://github.com/apache/arrow-datafusion.git?rev=46752163bd4f30f778850160513e8ca7f15fcf14#46752163bd4f30f778850160513e8ca7f15fcf14"
 dependencies = [
  "ahash 0.8.3",
  "arrow",
@@ -1469,8 +1469,8 @@ dependencies = [
  "datafusion-row",
  "half 2.3.1",
  "hashbrown 0.14.0",
- "indexmap 1.9.3",
- "itertools 0.10.5",
+ "indexmap 2.0.0",
+ "itertools 0.11.0",
  "lazy_static",
  "libc",
  "md-5",
@@ -1485,8 +1485,8 @@ dependencies = [
 
 [[package]]
 name = "datafusion-proto"
-version = "26.0.0"
-source = "git+https://github.com/apache/arrow-datafusion.git?rev=e0330d6c957c724fcc91b673c6ae10c535d9a33a#e0330d6c957c724fcc91b673c6ae10c535d9a33a"
+version = "27.0.0"
+source = "git+https://github.com/apache/arrow-datafusion.git?rev=46752163bd4f30f778850160513e8ca7f15fcf14#46752163bd4f30f778850160513e8ca7f15fcf14"
 dependencies = [
  "arrow",
  "chrono",
@@ -1499,8 +1499,8 @@ dependencies = [
 
 [[package]]
 name = "datafusion-row"
-version = "26.0.0"
-source = "git+https://github.com/apache/arrow-datafusion.git?rev=e0330d6c957c724fcc91b673c6ae10c535d9a33a#e0330d6c957c724fcc91b673c6ae10c535d9a33a"
+version = "27.0.0"
+source = "git+https://github.com/apache/arrow-datafusion.git?rev=46752163bd4f30f778850160513e8ca7f15fcf14#46752163bd4f30f778850160513e8ca7f15fcf14"
 dependencies = [
  "arrow",
  "datafusion-common",
@@ -1510,15 +1510,15 @@ dependencies = [
 
 [[package]]
 name = "datafusion-sql"
-version = "26.0.0"
-source = "git+https://github.com/apache/arrow-datafusion.git?rev=e0330d6c957c724fcc91b673c6ae10c535d9a33a#e0330d6c957c724fcc91b673c6ae10c535d9a33a"
+version = "27.0.0"
+source = "git+https://github.com/apache/arrow-datafusion.git?rev=46752163bd4f30f778850160513e8ca7f15fcf14#46752163bd4f30f778850160513e8ca7f15fcf14"
 dependencies = [
  "arrow",
  "arrow-schema",
  "datafusion-common",
  "datafusion-expr",
  "log",
- "sqlparser 0.34.0",
+ "sqlparser",
 ]
 
 [[package]]
@@ -2582,7 +2582,7 @@ version = "0.1.0"
 dependencies = [
  "generated_types",
  "snafu",
- "sqlparser 0.35.0",
+ "sqlparser",
  "workspace-hack",
 ]
 
@@ -4171,7 +4171,7 @@ dependencies = [
  "query_functions",
  "schema",
  "snafu",
- "sqlparser 0.35.0",
+ "sqlparser",
  "test_helpers",
  "workspace-hack",
 ]
@@ -5237,21 +5237,12 @@ dependencies = [
 
 [[package]]
 name = "sqlparser"
-version = "0.34.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "37d3706eefb17039056234df6b566b0014f303f867f2656108334a55b8096f59"
-dependencies = [
- "log",
- "sqlparser_derive",
-]
-
-[[package]]
-name = "sqlparser"
 version = "0.35.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "ca597d77c98894be1f965f2e4e2d2a61575d4998088e655476c73715c54b2b43"
 dependencies = [
  "log",
+ "sqlparser_derive",
 ]
 
 [[package]]
@@ -6729,6 +6720,7 @@ dependencies = [
  "sha2",
  "similar",
  "smallvec",
+ "sqlparser",
  "sqlx",
  "sqlx-core",
  "sqlx-macros",

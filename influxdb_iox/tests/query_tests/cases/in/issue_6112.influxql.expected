@@ -933,7 +933,7 @@ name: physical_plan
        ProjectionExec: expr=[m0 as iox::measurement, 0 as time, tag0@0 as tag0, COUNT(m0.f64)@1 as count, SUM(m0.f64)@2 as sum, STDDEV(m0.f64)@3 as stddev]
          AggregateExec: mode=FinalPartitioned, gby=[tag0@0 as tag0], aggr=[COUNT(m0.f64), SUM(m0.f64), STDDEV(m0.f64)]
            CoalesceBatchesExec: target_batch_size=8192
-             RepartitionExec: partitioning=Hash([Column { name: "tag0", index: 0 }], 4), input_partitions=4
+             RepartitionExec: partitioning=Hash([tag0@0], 4), input_partitions=4
                RepartitionExec: partitioning=RoundRobinBatch(4), input_partitions=1
                  AggregateExec: mode=Partial, gby=[tag0@1 as tag0], aggr=[COUNT(m0.f64), SUM(m0.f64), STDDEV(m0.f64)]
                    ParquetExec: file_groups={1 group: [[1/1/1/00000000-0000-0000-0000-000000000000.parquet]]}, projection=[f64, tag0]
@@ -942,7 +942,7 @@ name: physical_plan
          RepartitionExec: partitioning=RoundRobinBatch(4), input_partitions=4
            AggregateExec: mode=FinalPartitioned, gby=[tag0@0 as tag0], aggr=[COUNT(m1.f64), SUM(m1.f64), STDDEV(m1.f64)], ordering_mode=FullyOrdered
              CoalesceBatchesExec: target_batch_size=8192
-               RepartitionExec: partitioning=Hash([Column { name: "tag0", index: 0 }], 4), input_partitions=1
+               RepartitionExec: partitioning=Hash([tag0@0], 4), input_partitions=1
                  AggregateExec: mode=Partial, gby=[tag0@1 as tag0], aggr=[COUNT(m1.f64), SUM(m1.f64), STDDEV(m1.f64)], ordering_mode=FullyOrdered
                    ParquetExec: file_groups={1 group: [[1/1/1/00000000-0000-0000-0000-000000000001.parquet]]}, projection=[f64, tag0], output_ordering=[tag0@1 ASC]
 -- InfluxQL: SELECT COUNT(f64), SUM(f64), stddev(f64) FROM m0, m1 GROUP BY tag0;

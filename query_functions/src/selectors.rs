@@ -100,7 +100,7 @@ use std::{fmt::Debug, sync::Arc};
 use arrow::datatypes::DataType;
 use datafusion::{
     error::Result as DataFusionResult,
-    logical_expr::{AccumulatorFunctionImplementation, Signature, Volatility},
+    logical_expr::{AccumulatorFactoryFunction, Signature, Volatility},
     physical_plan::{udaf::AggregateUDF, Accumulator},
     prelude::SessionContext,
 };
@@ -218,7 +218,7 @@ impl FactoryBuilder {
     }
 
     /// Returns a function that instantiates the accumulator, consuming self
-    fn build_accumulator_factory(self) -> AccumulatorFunctionImplementation {
+    fn build_accumulator_factory(self) -> AccumulatorFactoryFunction {
         let Self { selector_type } = self;
 
         Arc::new(move |return_type| {

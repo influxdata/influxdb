@@ -109,7 +109,7 @@
 | physical_plan    | ProjectionExec: expr=[date_bin(Utf8("1 month"),cpu.time,Utf8("1970-12-31T00:15:00Z"))@0 as month, COUNT(cpu.user)@1 as COUNT(cpu.user)]    |
 |    |   AggregateExec: mode=FinalPartitioned, gby=[date_bin(Utf8("1 month"),cpu.time,Utf8("1970-12-31T00:15:00Z"))@0 as date_bin(Utf8("1 month"),cpu.time,Utf8("1970-12-31T00:15:00Z"))], aggr=[COUNT(cpu.user)]    |
 |    |     CoalesceBatchesExec: target_batch_size=8192    |
-|    |       RepartitionExec: partitioning=Hash([Column { name: "date_bin(Utf8(\"1 month\"),cpu.time,Utf8(\"1970-12-31T00:15:00Z\"))", index: 0 }], 4), input_partitions=4    |
+|    |       RepartitionExec: partitioning=Hash([date_bin(Utf8("1 month"),cpu.time,Utf8("1970-12-31T00:15:00Z"))@0], 4), input_partitions=4    |
 |    |         AggregateExec: mode=Partial, gby=[date_bin(79228162514264337593543950336, time@0, 31450500000000000) as date_bin(Utf8("1 month"),cpu.time,Utf8("1970-12-31T00:15:00Z"))], aggr=[COUNT(cpu.user)]    |
 |    |           RepartitionExec: partitioning=RoundRobinBatch(4), input_partitions=1    |
 |    |             CoalesceBatchesExec: target_batch_size=8192    |
