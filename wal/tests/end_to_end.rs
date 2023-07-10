@@ -22,16 +22,16 @@ async fn crud() {
     );
 
     // Can write an entry to the open segment
-    let op = arbitrary_sequenced_wal_op(42);
+    let op = arbitrary_sequenced_wal_op([42, 43]);
     let summary = unwrap_summary(wal.write_op(op)).await;
-    assert_eq!(summary.total_bytes, 126);
-    assert_eq!(summary.bytes_written, 110);
+    assert_eq!(summary.total_bytes, 140);
+    assert_eq!(summary.bytes_written, 124);
 
     // Can write another entry; total_bytes accumulates
-    let op = arbitrary_sequenced_wal_op(43);
+    let op = arbitrary_sequenced_wal_op([44, 45]);
     let summary = unwrap_summary(wal.write_op(op)).await;
-    assert_eq!(summary.total_bytes, 236);
-    assert_eq!(summary.bytes_written, 110);
+    assert_eq!(summary.total_bytes, 264);
+    assert_eq!(summary.bytes_written, 124);
 
     // Still no closed segments
     let closed = wal.closed_segments();
@@ -42,10 +42,15 @@ async fn crud() {
 
     // Can't read entries from the open segment; have to rotate first
     let (closed_segment_details, ids) = wal.rotate().unwrap();
-    assert_eq!(closed_segment_details.size(), 236);
+    assert_eq!(closed_segment_details.size(), 264);
     assert_eq!(
         ids.iter().collect::<Vec<_>>(),
-        [SequenceNumber::new(42), SequenceNumber::new(43)]
+        [
+            SequenceNumber::new(42),
+            SequenceNumber::new(43),
+            SequenceNumber::new(44),
+            SequenceNumber::new(45)
+        ]
     );
 
     // There's one closed segment
@@ -53,20 +58,25 @@ async fn crud() {
     let closed_segment_ids: Vec<_> = closed.iter().map(|c| c.id()).collect();
     assert_eq!(closed_segment_ids, &[closed_segment_details.id()]);
 
-    // Can read the written entries from the closed segment,
-    // ensuring the per-partition sequence numbers match up to the current
-    // op-level sequence number while it is the source of truth.
+    // Can read the written entries from the closed segment, ensuring that the
+    // per-partition sequence numbers are preserved.
     let mut reader = wal.reader_for_segment(closed_segment_details.id()).unwrap();
-    let op = reader.next().unwrap().unwrap();
-    op[0]
+    let mut op = reader.next().unwrap().unwrap();
+    let mut got_sequence_numbers = op
+        .remove(0)
         .table_write_sequence_numbers
-        .values()
-        .for_each(|sequence_number| assert_eq!(*sequence_number, 42));
-    let op = reader.next().unwrap().unwrap();
-    op[0]
+        .into_values()
+        .collect::<Vec<_>>();
+    got_sequence_numbers.sort();
+    assert_eq!(got_sequence_numbers, Vec::<u64>::from([42, 43]),);
+    let mut op = reader.next().unwrap().unwrap();
+    let mut got_sequence_numbers = op
+        .remove(0)
         .table_write_sequence_numbers
-        .values()
-        .for_each(|sequence_number| assert_eq!(*sequence_number, 43));
+        .into_values()
+        .collect::<Vec<_>>();
+    got_sequence_numbers.sort();
+    assert_eq!(got_sequence_numbers, Vec::<u64>::from([44, 45]),);
 
     // Can delete a segment, leaving no closed segments again
     wal.delete(closed_segment_details.id()).await.unwrap();
@@ -85,10 +95,10 @@ async fn replay() {
     // WAL.
     {
         let wal = wal::Wal::new(dir.path()).await.unwrap();
-        let op = arbitrary_sequenced_wal_op(42);
+        let op = arbitrary_sequenced_wal_op([42]);
         let _ = unwrap_summary(wal.write_op(op)).await;
         wal.rotate().unwrap();
-        let op = arbitrary_sequenced_wal_op(43);
+        let op = arbitrary_sequenced_wal_op([43, 44]);
         let _ = unwrap_summary(wal.write_op(op)).await;
     }
 
@@ -102,22 +112,27 @@ async fn replay() {
     assert_eq!(closed_segment_ids.len(), 2);
 
     // Can read the written entries from the previously closed segment
-    // ensuring the per-partition sequence numbers match up to the current
-    // op-level sequence number while it is the source of truth.
+    // ensuring the per-partition sequence numbers are preserved.
     let mut reader = wal.reader_for_segment(closed_segment_ids[0]).unwrap();
-    let op = reader.next().unwrap().unwrap();
-    op[0]
+    let mut op = reader.next().unwrap().unwrap();
+    let mut got_sequence_numbers = op
+        .remove(0)
         .table_write_sequence_numbers
-        .values()
-        .for_each(|sequence_number| assert_eq!(*sequence_number, 42));
+        .into_values()
+        .collect::<Vec<_>>();
+    got_sequence_numbers.sort();
+    assert_eq!(got_sequence_numbers, Vec::<u64>::from([42]));
 
     // Can read the written entries from the previously open segment
     let mut reader = wal.reader_for_segment(closed_segment_ids[1]).unwrap();
-    let op = reader.next().unwrap().unwrap();
-    op[0]
+    let mut op = reader.next().unwrap().unwrap();
+    let mut got_sequence_numbers = op
+        .remove(0)
         .table_write_sequence_numbers
-        .values()
-        .for_each(|sequence_number| assert_eq!(*sequence_number, 43));
+        .into_values()
+        .collect::<Vec<_>>();
+    got_sequence_numbers.sort();
+    assert_eq!(got_sequence_numbers, Vec::<u64>::from([43, 44]));
 }
 
 #[tokio::test]
@@ -128,19 +143,20 @@ async fn ordering() {
     {
         let wal = wal::Wal::new(dir.path()).await.unwrap();
 
-        let op = arbitrary_sequenced_wal_op(42);
-        let _ = unwrap_summary(wal.write_op(op)).await;
-        // TODO(savage): These will need to return the
-        // partition_sequence_numbers and be checked there.
-        let (_, ids) = wal.rotate().unwrap();
-        assert_eq!(ids.iter().collect::<Vec<_>>(), [SequenceNumber::new(42)]);
-
-        let op = arbitrary_sequenced_wal_op(43);
+        let op = arbitrary_sequenced_wal_op([42, 43]);
         let _ = unwrap_summary(wal.write_op(op)).await;
         let (_, ids) = wal.rotate().unwrap();
-        assert_eq!(ids.iter().collect::<Vec<_>>(), [SequenceNumber::new(43)]);
+        assert_eq!(
+            ids.iter().collect::<Vec<_>>(),
+            [SequenceNumber::new(42), SequenceNumber::new(43)]
+        );
 
-        let op = arbitrary_sequenced_wal_op(44);
+        let op = arbitrary_sequenced_wal_op([44]);
+        let _ = unwrap_summary(wal.write_op(op)).await;
+        let (_, ids) = wal.rotate().unwrap();
+        assert_eq!(ids.iter().collect::<Vec<_>>(), [SequenceNumber::new(44)]);
+
+        let op = arbitrary_sequenced_wal_op([45]);
         let _ = unwrap_summary(wal.write_op(op)).await;
     }
 
@@ -164,13 +180,21 @@ async fn ordering() {
     assert!(ids.is_empty());
 }
 
-fn arbitrary_sequenced_wal_op(sequence_number: u64) -> SequencedWalOp {
-    let w = test_data("m1,t=foo v=1i 1");
+fn arbitrary_sequenced_wal_op<I: IntoIterator<Item = u64>>(sequence_numbers: I) -> SequencedWalOp {
+    let sequence_numbers = sequence_numbers.into_iter().collect::<Vec<_>>();
+    let lp = sequence_numbers
+        .iter()
+        .enumerate()
+        .fold(String::new(), |string, (idx, _)| {
+            string + &format!("m{},t=foo v=1i 1\n", idx)
+        });
+    let w = test_data(lp.as_str());
     SequencedWalOp {
         table_write_sequence_numbers: w
             .table_batches
             .iter()
-            .map(|table_batch| (TableId::new(table_batch.table_id), sequence_number))
+            .zip(sequence_numbers.iter())
+            .map(|(table_batch, &id)| (TableId::new(table_batch.table_id), id))
             .collect(),
         op: WalOp::Write(w),
     }

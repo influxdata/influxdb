@@ -194,18 +194,9 @@ where
 
         for op in ops {
             let SequencedWalOp {
-                table_write_sequence_numbers, // TODO(savage): Use sequence numbers assigned per-partition
+                table_write_sequence_numbers,
                 op,
             } = op;
-
-            let sequence_number = SequenceNumber::new(
-                *table_write_sequence_numbers
-                    .values()
-                    .next()
-                    .expect("attempt to replay unsequenced wal entry"),
-            );
-
-            max_sequence = max_sequence.max(Some(sequence_number));
 
             let op = match op {
                 Op::Write(w) => w,
@@ -213,7 +204,8 @@ where
                 Op::Persist(_) => unreachable!(),
             };
 
-            debug!(?op, sequence_number = sequence_number.get(), "apply wal op");
+            let mut op_min_sequence_number = None;
+            let mut op_max_sequence_number = None;
 
             // Reconstruct the ingest operation
             let batches = decode_database_batch(&op)?;
@@ -226,10 +218,18 @@ where
                     .into_iter()
                     .map(|(k, v)| {
                         let table_id = TableId::new(k);
+                        let sequence_number = SequenceNumber::new(
+                            *table_write_sequence_numbers
+                                .get(&table_id)
+                                .expect("attempt to apply unsequenced wal op"),
+                        );
+
+                        max_sequence = max_sequence.max(Some(sequence_number));
+                        op_min_sequence_number = op_min_sequence_number.min(Some(sequence_number));
+                        op_max_sequence_number = op_min_sequence_number.max(Some(sequence_number));
+
                         (
                             table_id,
-                            // TODO(savage): Use table-partitioned sequence
-                            // numbers here
                             TableData::new(table_id, PartitionedData::new(sequence_number, v)),
                         )
                     })
@@ -237,6 +237,17 @@ where
                 partition_key,
                 // TODO: A tracing context should be added for WAL replay.
                 None,
+            );
+
+            debug!(
+                ?op,
+                op_min_sequence_number = op_min_sequence_number
+                    .expect("attempt to apply unsequenced wal op")
+                    .get(),
+                op_max_sequence_number = op_max_sequence_number
+                    .expect("attempt to apply unsequenced wal op")
+                    .get(),
+                "apply wal op"
             );
 
             // Apply the operation to the provided DML sink
@@ -270,9 +281,9 @@ mod tests {
         dml_sink::mock_sink::MockDmlSink,
         persist::queue::mock::MockPersistQueue,
         test_util::{
-            assert_dml_writes_eq, make_write_op, PartitionDataBuilder, ARBITRARY_NAMESPACE_ID,
-            ARBITRARY_PARTITION_ID, ARBITRARY_PARTITION_KEY, ARBITRARY_TABLE_ID,
-            ARBITRARY_TABLE_NAME,
+            assert_write_ops_eq, make_multi_table_write_op, make_write_op, PartitionDataBuilder,
+            ARBITRARY_NAMESPACE_ID, ARBITRARY_PARTITION_ID, ARBITRARY_PARTITION_KEY,
+            ARBITRARY_TABLE_ID, ARBITRARY_TABLE_NAME,
         },
         wal::wal_sink::WalSink,
     };
@@ -299,6 +310,8 @@ mod tests {
             self.sink.apply(op).await
         }
     }
+
+    const ALTERNATIVE_TABLE_NAME: &str = "arán";
 
     #[tokio::test]
     async fn test_replay() {
@@ -329,18 +342,30 @@ mod tests {
             ),
             None,
         );
-        let op3 = make_write_op(
+
+        // Add a write hitting multiple tables for good measure
+        let op3 = make_multi_table_write_op(
             &ARBITRARY_PARTITION_KEY,
             ARBITRARY_NAMESPACE_ID,
-            &ARBITRARY_TABLE_NAME,
-            ARBITRARY_TABLE_ID,
-            42,
+            [
+                (
+                    ARBITRARY_TABLE_NAME.to_string().as_str(),
+                    ARBITRARY_TABLE_ID,
+                    SequenceNumber::new(42),
+                ),
+                (
+                    ALTERNATIVE_TABLE_NAME,
+                    TableId::new(ARBITRARY_TABLE_ID.get() + 1),
+                    SequenceNumber::new(43),
+                ),
+            ]
+            .into_iter(),
             // Overwrite op2
             &format!(
-                r#"{},region=Asturias temp=15 4242424242"#,
-                &*ARBITRARY_TABLE_NAME
+                r#"{},region=Asturias temp=15 4242424242
+                {},region=Mayo temp=12 4242424242"#,
+                &*ARBITRARY_TABLE_NAME, ALTERNATIVE_TABLE_NAME,
             ),
-            None,
         );
 
         // The write portion of this test.
@@ -416,7 +441,7 @@ mod tests {
             .await
             .expect("failed to replay WAL");
 
-        assert_eq!(max_sequence_number, Some(SequenceNumber::new(42)));
+        assert_eq!(max_sequence_number, Some(SequenceNumber::new(43)));
 
         // Assert the ops were pushed into the DmlSink exactly as generated.
         let ops = mock_iter.sink.get_calls();
@@ -427,9 +452,9 @@ mod tests {
                 IngestOp::Write(ref w2),
                 IngestOp::Write(ref w3)
             ] => {
-                assert_dml_writes_eq(w1.clone(), op1);
-                assert_dml_writes_eq(w2.clone(), op2);
-                assert_dml_writes_eq(w3.clone(), op3);
+                assert_write_ops_eq(w1.clone(), op1);
+                assert_write_ops_eq(w2.clone(), op2);
+                assert_write_ops_eq(w3.clone(), op3);
             }
         );
 
