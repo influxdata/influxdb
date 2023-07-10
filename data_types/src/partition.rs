@@ -9,7 +9,7 @@ use thiserror::Error;
 
 /// Unique ID for a `Partition` during the transition from catalog-assigned sequential
 /// `PartitionId`s to deterministic `PartitionHashId`s.
-#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub enum TransitionPartitionId {
     /// The old catalog-assigned sequential `PartitionId`s that are in the process of being
     /// deprecated.
@@ -161,7 +161,7 @@ impl sqlx::Decode<'_, sqlx::Sqlite> for PartitionKey {
 const PARTITION_HASH_ID_SIZE_BYTES: usize = 32;
 
 /// Uniquely identify a partition based on its table ID and partition key.
-#[derive(Debug, Clone, PartialEq, Eq, Hash, sqlx::FromRow)]
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash, sqlx::FromRow)]
 #[sqlx(transparent)]
 pub struct PartitionHashId(Arc<[u8; PARTITION_HASH_ID_SIZE_BYTES]>);
 
