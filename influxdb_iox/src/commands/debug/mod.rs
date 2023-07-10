@@ -2,6 +2,7 @@ use futures::Future;
 use influxdb_iox_client::connection::Connection;
 use snafu::prelude::*;
 
+mod build_catalog;
 mod parquet_to_lp;
 mod print_cpu;
 mod schema;
@@ -13,6 +14,10 @@ pub enum Error {
     #[snafu(context(false))]
     #[snafu(display("Error in schema subcommand: {}", source))]
     Schema { source: schema::Error },
+
+    #[snafu(context(false))]
+    #[snafu(display("Error in build_catalog subcommand: {}", source))]
+    BuildCatalog { source: build_catalog::Error },
 
     #[snafu(context(false))]
     #[snafu(display("Error in parquet_to_lp subcommand: {}", source))]
@@ -44,6 +49,23 @@ enum Command {
     /// Interrogate the schema of a namespace
     Schema(schema::Config),
 
+    // NB: The example formatting below is weird so Clap make a nice help text
+    /// Build a local catalog from the output of `remote get-table`.
+    ///
+    /// For example:
+    /// ```text
+    ///  # download contents of table_name into a directory named 'table_name'
+    ///  influxdb_iox remote get-table <namespace> <table_name>
+    ///
+    ///  # Create a catalog and object_store in /tmp/data_dir
+    ///  influxdb_iox debug build-catalog <table_dir> /tmp/data_dir
+    ///
+    ///  # Start iox using this data directory (you can now query `table_name` locally):
+    ///  influxdb_iox --data-dir /tmp/data_dir
+    /// ```
+    #[clap(verbatim_doc_comment)]
+    BuildCatalog(build_catalog::Config),
+
     /// Convert IOx Parquet files back into line protocol format
     ParquetToLp(parquet_to_lp::Config),
 
@@ -65,6 +87,7 @@ where
             let connection = connection().await;
             schema::command(connection, config).await?
         }
+        Command::BuildCatalog(config) => build_catalog::command(config).await?,
         Command::ParquetToLp(config) => parquet_to_lp::command(config).await?,
         Command::SkippedCompactions(config) => {
             let connection = connection().await;

@@ -41,7 +41,10 @@ struct Get {
     file_name: String,
 }
 
-/// Get data for a particular namespace's table into a local directory
+/// Get data for a particular namespace's table into a local directory.
+///
+/// See `influxdb_iox debug build-catalog` to create a local catalog
+/// from these files.
 #[derive(Debug, clap::Parser)]
 struct GetTable {
     /// The namespace to get the Parquet files for

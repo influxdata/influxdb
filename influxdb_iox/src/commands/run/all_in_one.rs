@@ -666,6 +666,10 @@ pub async fn command(config: Config) -> Result<()> {
         exec,
         time_provider,
         querier_config,
+        trace_context_header_name: querier_run_config
+            .tracing_config()
+            .traces_jaeger_trace_context_header_name
+            .clone(),
     })
     .await?;
 
