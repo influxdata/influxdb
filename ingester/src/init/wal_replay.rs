@@ -289,7 +289,7 @@ mod tests {
         persist::queue::mock::MockPersistQueue,
         test_util::{
             assert_write_ops_eq, make_multi_table_write_op, make_write_op, PartitionDataBuilder,
-            ARBITRARY_NAMESPACE_ID, ARBITRARY_PARTITION_ID, ARBITRARY_PARTITION_KEY,
+            ARBITRARY_CATALOG_PARTITION_ID, ARBITRARY_NAMESPACE_ID, ARBITRARY_PARTITION_KEY,
             ARBITRARY_TABLE_ID, ARBITRARY_TABLE_NAME,
         },
         wal::wal_sink::{mock::MockUnbufferedWriteNotifier, WalSink},
@@ -490,7 +490,7 @@ mod tests {
         // Ensure all partitions were persisted
         let calls = persist.calls();
         assert_matches!(&*calls, [p] => {
-            assert_eq!(p.lock().partition_id(), ARBITRARY_PARTITION_ID);
+            assert_eq!(p.lock().partition_id(), ARBITRARY_CATALOG_PARTITION_ID);
         });
 
         // Ensure there were no partition persist panics.

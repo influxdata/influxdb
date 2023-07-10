@@ -262,9 +262,10 @@ mod tests {
         deferred_load::{self, DeferredLoad},
         query::partition_response::PartitionResponse,
         test_util::{
-            defer_namespace_name_1_ms, make_write_op, PartitionDataBuilder, ARBITRARY_NAMESPACE_ID,
-            ARBITRARY_NAMESPACE_NAME, ARBITRARY_PARTITION_ID, ARBITRARY_PARTITION_KEY,
-            ARBITRARY_TABLE_ID, ARBITRARY_TABLE_NAME, ARBITRARY_TABLE_PROVIDER,
+            defer_namespace_name_1_ms, make_write_op, PartitionDataBuilder,
+            ARBITRARY_CATALOG_PARTITION_ID, ARBITRARY_NAMESPACE_ID, ARBITRARY_NAMESPACE_NAME,
+            ARBITRARY_PARTITION_KEY, ARBITRARY_TABLE_ID, ARBITRARY_TABLE_NAME,
+            ARBITRARY_TABLE_PROVIDER,
         },
     };
 
@@ -434,7 +435,7 @@ mod tests {
     test_write_query!(
         read_writes,
         partitions = [PartitionDataBuilder::new()
-            .with_partition_id(ARBITRARY_PARTITION_ID)
+            .with_partition_id(ARBITRARY_CATALOG_PARTITION_ID)
             .with_partition_key(ARBITRARY_PARTITION_KEY.clone())
             .build()],
         writes = [make_write_op(
@@ -464,7 +465,7 @@ mod tests {
         projection,
         projection = OwnedProjection::from(vec!["time", "region"]),
         partitions = [PartitionDataBuilder::new()
-            .with_partition_id(ARBITRARY_PARTITION_ID)
+            .with_partition_id(ARBITRARY_CATALOG_PARTITION_ID)
             .with_partition_key(ARBITRARY_PARTITION_KEY.clone())
             .build()],
         writes = [make_write_op(
@@ -494,7 +495,7 @@ mod tests {
         projection_without_time,
         projection = OwnedProjection::from(vec!["region"]),
         partitions = [PartitionDataBuilder::new()
-            .with_partition_id(ARBITRARY_PARTITION_ID)
+            .with_partition_id(ARBITRARY_CATALOG_PARTITION_ID)
             .with_partition_key(ARBITRARY_PARTITION_KEY.clone())
             .build()],
         writes = [make_write_op(
@@ -525,7 +526,7 @@ mod tests {
         multiple_partitions,
         partitions = [
             PartitionDataBuilder::new()
-                .with_partition_id(ARBITRARY_PARTITION_ID)
+                .with_partition_id(ARBITRARY_CATALOG_PARTITION_ID)
                 .with_partition_key(ARBITRARY_PARTITION_KEY.clone())
                 .build(),
             PartitionDataBuilder::new()
@@ -576,7 +577,7 @@ mod tests {
         filter_multiple_namespaces,
         partitions = [
             PartitionDataBuilder::new()
-                .with_partition_id(ARBITRARY_PARTITION_ID)
+                .with_partition_id(ARBITRARY_CATALOG_PARTITION_ID)
                 .with_partition_key(ARBITRARY_PARTITION_KEY.clone())
                 .build(),
             PartitionDataBuilder::new()
@@ -628,7 +629,7 @@ mod tests {
         filter_multiple_tables,
         partitions = [
             PartitionDataBuilder::new()
-                .with_partition_id(ARBITRARY_PARTITION_ID)
+                .with_partition_id(ARBITRARY_CATALOG_PARTITION_ID)
                 .with_partition_key(ARBITRARY_PARTITION_KEY.clone())
                 .build(),
             PartitionDataBuilder::new()
@@ -680,7 +681,7 @@ mod tests {
     test_write_query!(
         duplicate_writes,
         partitions = [PartitionDataBuilder::new()
-            .with_partition_id(ARBITRARY_PARTITION_ID)
+            .with_partition_id(ARBITRARY_CATALOG_PARTITION_ID)
             .with_partition_key(ARBITRARY_PARTITION_KEY.clone())
             .build()],
         writes = [
@@ -736,7 +737,7 @@ mod tests {
         ))),
         partitions = [
             PartitionDataBuilder::new()
-                .with_partition_id(ARBITRARY_PARTITION_ID)
+                .with_partition_id(ARBITRARY_CATALOG_PARTITION_ID)
                 .with_partition_key(ARBITRARY_PARTITION_KEY.clone()) // "platanos"
                 .build(),
             PartitionDataBuilder::new()
@@ -825,7 +826,7 @@ mod tests {
             MockPartitionProvider::default()
                 .with_partition(
                     PartitionDataBuilder::new()
-                        .with_partition_id(ARBITRARY_PARTITION_ID)
+                        .with_partition_id(ARBITRARY_CATALOG_PARTITION_ID)
                         .with_partition_key("madrid".into())
                         .build(),
                 )
@@ -922,7 +923,7 @@ mod tests {
             MockPartitionProvider::default()
                 .with_partition(
                     PartitionDataBuilder::new()
-                        .with_partition_id(ARBITRARY_PARTITION_ID)
+                        .with_partition_id(ARBITRARY_CATALOG_PARTITION_ID)
                         .with_partition_key(ARBITRARY_PARTITION_KEY.clone())
                         .build(),
                 )
@@ -1004,7 +1005,7 @@ mod tests {
             MockPartitionProvider::default()
                 .with_partition(
                     PartitionDataBuilder::new()
-                        .with_partition_id(ARBITRARY_PARTITION_ID)
+                        .with_partition_id(ARBITRARY_CATALOG_PARTITION_ID)
                         .with_partition_key(ARBITRARY_PARTITION_KEY.clone())
                         .build(),
                 )
@@ -1100,7 +1101,7 @@ mod tests {
             .collect::<Vec<_>>();
         ids.sort_unstable();
 
-        let mut expected = [ARBITRARY_PARTITION_ID, PARTITION2_ID, PARTITION3_ID];
+        let mut expected = [ARBITRARY_CATALOG_PARTITION_ID, PARTITION2_ID, PARTITION3_ID];
         expected.sort_unstable();
 
         assert_eq!(ids, expected);
@@ -1114,7 +1115,7 @@ mod tests {
         let partition_provider = Arc::new(
             MockPartitionProvider::default().with_partition(
                 PartitionDataBuilder::new()
-                    .with_partition_id(ARBITRARY_PARTITION_ID)
+                    .with_partition_id(ARBITRARY_CATALOG_PARTITION_ID)
                     .with_partition_key(ARBITRARY_PARTITION_KEY.clone())
                     .build(),
             ),
@@ -1211,7 +1212,7 @@ mod tests {
             MockPartitionProvider::default()
                 .with_partition(
                     PartitionDataBuilder::new()
-                        .with_partition_id(ARBITRARY_PARTITION_ID)
+                        .with_partition_id(ARBITRARY_CATALOG_PARTITION_ID)
                         .with_partition_key(ARBITRARY_PARTITION_KEY.clone())
                         .build(),
                 )
@@ -1336,7 +1337,7 @@ mod tests {
         let partition_provider = Arc::new(
             MockPartitionProvider::default().with_partition(
                 PartitionDataBuilder::new()
-                    .with_partition_id(ARBITRARY_PARTITION_ID)
+                    .with_partition_id(ARBITRARY_CATALOG_PARTITION_ID)
                     .without_partition_hash_id()
                     .with_partition_key(ARBITRARY_PARTITION_KEY.clone())
                     .build(),

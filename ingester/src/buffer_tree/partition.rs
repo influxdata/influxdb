@@ -449,7 +449,7 @@ mod tests {
     use super::*;
     use crate::{
         buffer_tree::partition::resolver::SortKeyResolver,
-        test_util::{populate_catalog, PartitionDataBuilder, ARBITRARY_PARTITION_ID},
+        test_util::{populate_catalog, PartitionDataBuilder, ARBITRARY_CATALOG_PARTITION_ID},
     };
 
     // Write some data and read it back from the buffer.
@@ -473,7 +473,7 @@ mod tests {
             let data = p
                 .get_query_data(&OwnedProjection::default())
                 .expect("should return data");
-            assert_eq!(data.partition_id(), ARBITRARY_PARTITION_ID);
+            assert_eq!(data.partition_id(), ARBITRARY_CATALOG_PARTITION_ID);
 
             let expected = [
                 "+--------+--------+----------+--------------------------------+",
@@ -496,7 +496,7 @@ mod tests {
             let data = p
                 .get_query_data(&OwnedProjection::default())
                 .expect("should contain data");
-            assert_eq!(data.partition_id(), ARBITRARY_PARTITION_ID);
+            assert_eq!(data.partition_id(), ARBITRARY_CATALOG_PARTITION_ID);
 
             let expected = [
                 "+--------+--------+----------+--------------------------------+",
@@ -530,7 +530,10 @@ mod tests {
         // Begin persisting the partition.
         let persisting_data = p.mark_persisting().expect("must contain existing data");
         // And validate the data being persisted.
-        assert_eq!(persisting_data.partition_id(), ARBITRARY_PARTITION_ID);
+        assert_eq!(
+            persisting_data.partition_id(),
+            ARBITRARY_CATALOG_PARTITION_ID
+        );
         assert_eq!(persisting_data.record_batches().len(), 1);
         let expected = [
             "+--------+--------+----------+--------------------------------+",
@@ -558,7 +561,7 @@ mod tests {
             let data = p
                 .get_query_data(&OwnedProjection::default())
                 .expect("must have data");
-            assert_eq!(data.partition_id(), ARBITRARY_PARTITION_ID);
+            assert_eq!(data.partition_id(), ARBITRARY_CATALOG_PARTITION_ID);
             assert_eq!(data.record_batches().len(), 2);
             let expected = [
                 "+--------+--------+----------+--------------------------------+",
@@ -586,7 +589,7 @@ mod tests {
             let data = p
                 .get_query_data(&OwnedProjection::default())
                 .expect("must have data");
-            assert_eq!(data.partition_id(), ARBITRARY_PARTITION_ID);
+            assert_eq!(data.partition_id(), ARBITRARY_CATALOG_PARTITION_ID);
             assert_eq!(data.record_batches().len(), 1);
             let expected = [
                 "+--------+--------+---------+--------------------------------+",

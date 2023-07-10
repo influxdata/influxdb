@@ -228,7 +228,7 @@ mod tests {
         buffer_tree::partition::resolver::mock::MockPartitionProvider,
         test_util::{
             defer_namespace_name_1_sec, defer_table_metadata_1_sec, PartitionDataBuilder,
-            ARBITRARY_NAMESPACE_ID, ARBITRARY_NAMESPACE_NAME, ARBITRARY_PARTITION_ID,
+            ARBITRARY_CATALOG_PARTITION_ID, ARBITRARY_NAMESPACE_ID, ARBITRARY_NAMESPACE_NAME,
             ARBITRARY_PARTITION_KEY, ARBITRARY_PARTITION_KEY_STR, ARBITRARY_TABLE_ID,
             ARBITRARY_TABLE_NAME,
         },
@@ -267,7 +267,7 @@ mod tests {
             )
             .await;
 
-        assert_eq!(got.lock().partition_id(), ARBITRARY_PARTITION_ID);
+        assert_eq!(got.lock().partition_id(), ARBITRARY_CATALOG_PARTITION_ID);
         assert_eq!(got.lock().table_id(), ARBITRARY_TABLE_ID);
         assert_eq!(
             &**got.lock().table().get().await.name(),
@@ -286,7 +286,7 @@ mod tests {
 
         let stored_partition_key = PartitionKey::from(ARBITRARY_PARTITION_KEY_STR);
         let partition = Partition::new_in_memory_only(
-            ARBITRARY_PARTITION_ID,
+            ARBITRARY_CATALOG_PARTITION_ID,
             ARBITRARY_TABLE_ID,
             stored_partition_key.clone(),
             vec!["dos".to_string(), "bananas".to_string()],
@@ -306,7 +306,7 @@ mod tests {
             )
             .await;
 
-        assert_eq!(got.lock().partition_id(), ARBITRARY_PARTITION_ID);
+        assert_eq!(got.lock().partition_id(), ARBITRARY_CATALOG_PARTITION_ID);
         assert_eq!(got.lock().table_id(), ARBITRARY_TABLE_ID);
         assert_eq!(
             &**got.lock().table().get().await.name(),
@@ -345,7 +345,7 @@ mod tests {
         );
 
         let partition = Partition::new_in_memory_only(
-            ARBITRARY_PARTITION_ID,
+            ARBITRARY_CATALOG_PARTITION_ID,
             ARBITRARY_TABLE_ID,
             ARBITRARY_PARTITION_KEY.clone(),
             Default::default(),
@@ -381,7 +381,7 @@ mod tests {
         );
 
         let partition = Partition::new_in_memory_only(
-            ARBITRARY_PARTITION_ID,
+            ARBITRARY_CATALOG_PARTITION_ID,
             ARBITRARY_TABLE_ID,
             ARBITRARY_PARTITION_KEY.clone(),
             Default::default(),
@@ -399,7 +399,7 @@ mod tests {
             )
             .await;
 
-        assert_eq!(got.lock().partition_id(), ARBITRARY_PARTITION_ID);
+        assert_eq!(got.lock().partition_id(), ARBITRARY_CATALOG_PARTITION_ID);
         assert_eq!(got.lock().table_id(), other_table);
         assert_eq!(
             &**got.lock().table().get().await.name(),

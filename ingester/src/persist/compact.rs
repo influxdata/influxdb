@@ -109,7 +109,7 @@ mod tests {
     use schema::Projection;
 
     use super::*;
-    use crate::test_util::{ARBITRARY_PARTITION_ID, ARBITRARY_TRANSITION_PARTITION_ID};
+    use crate::test_util::{ARBITRARY_CATALOG_PARTITION_ID, ARBITRARY_TRANSITION_PARTITION_ID};
 
     // this test was added to guard against https://github.com/influxdata/influxdb_iox/issues/3782
     // where if sending in a single row it would compact into an output of two batches, one of
@@ -125,7 +125,7 @@ mod tests {
             .unwrap();
 
         let batch = QueryAdaptor::new(
-            ARBITRARY_PARTITION_ID,
+            ARBITRARY_CATALOG_PARTITION_ID,
             ARBITRARY_TRANSITION_PARTITION_ID.clone(),
             vec![batch],
         );
@@ -163,7 +163,7 @@ mod tests {
     async fn test_compact_batch_on_one_record_batch_no_dupilcates() {
         // create input data
         let batch = QueryAdaptor::new(
-            ARBITRARY_PARTITION_ID,
+            ARBITRARY_CATALOG_PARTITION_ID,
             ARBITRARY_TRANSITION_PARTITION_ID.clone(),
             create_one_record_batch_with_influxtype_no_duplicates().await,
         );
@@ -213,7 +213,7 @@ mod tests {
     async fn test_compact_batch_no_sort_key() {
         // create input data
         let batch = QueryAdaptor::new(
-            ARBITRARY_PARTITION_ID,
+            ARBITRARY_CATALOG_PARTITION_ID,
             ARBITRARY_TRANSITION_PARTITION_ID.clone(),
             create_batches_with_influxtype_different_cardinality().await,
         );
@@ -268,7 +268,7 @@ mod tests {
     async fn test_compact_batch_with_specified_sort_key() {
         // create input data
         let batch = QueryAdaptor::new(
-            ARBITRARY_PARTITION_ID,
+            ARBITRARY_CATALOG_PARTITION_ID,
             ARBITRARY_TRANSITION_PARTITION_ID.clone(),
             create_batches_with_influxtype_different_cardinality().await,
         );
@@ -328,7 +328,7 @@ mod tests {
     async fn test_compact_batch_new_column_for_sort_key() {
         // create input data
         let batch = QueryAdaptor::new(
-            ARBITRARY_PARTITION_ID,
+            ARBITRARY_CATALOG_PARTITION_ID,
             ARBITRARY_TRANSITION_PARTITION_ID.clone(),
             create_batches_with_influxtype_different_cardinality().await,
         );
@@ -392,7 +392,7 @@ mod tests {
     async fn test_compact_batch_missing_column_for_sort_key() {
         // create input data
         let batch = QueryAdaptor::new(
-            ARBITRARY_PARTITION_ID,
+            ARBITRARY_CATALOG_PARTITION_ID,
             ARBITRARY_TRANSITION_PARTITION_ID.clone(),
             create_batches_with_influxtype_different_cardinality().await,
         );
@@ -455,7 +455,7 @@ mod tests {
 
         // create input data
         let batch = QueryAdaptor::new(
-            ARBITRARY_PARTITION_ID,
+            ARBITRARY_CATALOG_PARTITION_ID,
             ARBITRARY_TRANSITION_PARTITION_ID.clone(),
             create_one_row_record_batch_with_influxtype().await,
         );
@@ -496,7 +496,7 @@ mod tests {
     async fn test_compact_one_batch_with_duplicates() {
         // create input data
         let batch = QueryAdaptor::new(
-            ARBITRARY_PARTITION_ID,
+            ARBITRARY_CATALOG_PARTITION_ID,
             ARBITRARY_TRANSITION_PARTITION_ID.clone(),
             create_one_record_batch_with_influxtype_duplicates().await,
         );
@@ -545,7 +545,7 @@ mod tests {
     async fn test_compact_many_batches_same_columns_with_duplicates() {
         // create many-batches input data
         let batch = QueryAdaptor::new(
-            ARBITRARY_PARTITION_ID,
+            ARBITRARY_CATALOG_PARTITION_ID,
             ARBITRARY_TRANSITION_PARTITION_ID.clone(),
             create_batches_with_influxtype().await,
         );
@@ -592,7 +592,7 @@ mod tests {
     async fn test_compact_many_batches_different_columns_with_duplicates() {
         // create many-batches input data
         let batch = QueryAdaptor::new(
-            ARBITRARY_PARTITION_ID,
+            ARBITRARY_CATALOG_PARTITION_ID,
             ARBITRARY_TRANSITION_PARTITION_ID.clone(),
             create_batches_with_influxtype_different_columns().await,
         );
@@ -643,7 +643,7 @@ mod tests {
     async fn test_compact_many_batches_different_columns_different_order_with_duplicates() {
         // create many-batches input data
         let batch = QueryAdaptor::new(
-            ARBITRARY_PARTITION_ID,
+            ARBITRARY_CATALOG_PARTITION_ID,
             ARBITRARY_TRANSITION_PARTITION_ID.clone(),
             create_batches_with_influxtype_different_columns_different_order().await,
         );
@@ -697,7 +697,7 @@ mod tests {
     async fn test_compact_many_batches_same_columns_different_types() {
         // create many-batches input data
         let batch = QueryAdaptor::new(
-            ARBITRARY_PARTITION_ID,
+            ARBITRARY_CATALOG_PARTITION_ID,
             ARBITRARY_TRANSITION_PARTITION_ID.clone(),
             create_batches_with_influxtype_same_columns_different_type().await,
         );

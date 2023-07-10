@@ -104,9 +104,9 @@ mod tests {
         dml_payload::IngestOp,
         persist::queue::mock::MockPersistQueue,
         test_util::{
-            make_write_op, new_persist_notification, PartitionDataBuilder, ARBITRARY_NAMESPACE_ID,
-            ARBITRARY_PARTITION_ID, ARBITRARY_PARTITION_KEY, ARBITRARY_TABLE_ID,
-            ARBITRARY_TABLE_NAME,
+            make_write_op, new_persist_notification, PartitionDataBuilder,
+            ARBITRARY_CATALOG_PARTITION_ID, ARBITRARY_NAMESPACE_ID, ARBITRARY_PARTITION_KEY,
+            ARBITRARY_TABLE_ID, ARBITRARY_TABLE_NAME,
         },
         wal::traits::WalAppender,
     };
@@ -235,7 +235,7 @@ mod tests {
 
         assert_matches!(persist_handle.calls().as_slice(), [got] => {
             let guard = got.lock();
-            assert_eq!(guard.partition_id(), ARBITRARY_PARTITION_ID);
+            assert_eq!(guard.partition_id(), ARBITRARY_CATALOG_PARTITION_ID);
         })
     }
 

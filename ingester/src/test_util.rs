@@ -29,7 +29,7 @@ use crate::{
     persist::completion_observer::CompletedPersist,
 };
 
-pub(crate) const ARBITRARY_PARTITION_ID: PartitionId = PartitionId::new(1);
+pub(crate) const ARBITRARY_CATALOG_PARTITION_ID: PartitionId = PartitionId::new(1);
 pub(crate) const ARBITRARY_NAMESPACE_ID: NamespaceId = NamespaceId::new(3);
 pub(crate) const ARBITRARY_TABLE_ID: TableId = TableId::new(4);
 pub(crate) const ARBITRARY_PARTITION_KEY_STR: &str = "platanos";
@@ -157,7 +157,7 @@ impl PartitionDataBuilder {
             .unwrap_or_else(|| ARBITRARY_PARTITION_KEY.clone());
 
         PartitionData::new(
-            self.partition_id.unwrap_or(ARBITRARY_PARTITION_ID),
+            self.partition_id.unwrap_or(ARBITRARY_CATALOG_PARTITION_ID),
             if self.remove_partition_hash_id {
                 None
             } else {

@@ -204,6 +204,8 @@ impl WalReferenceHandle {
 
 #[cfg(test)]
 mod tests {
+    use super::*;
+    use crate::test_util::new_persist_notification;
     use assert_matches::assert_matches;
     use async_trait::async_trait;
     use data_types::SequenceNumber;
@@ -213,9 +215,6 @@ mod tests {
     use std::{pin::Pin, task::Poll, time::Duration};
     use test_helpers::timeout::FutureTimeout;
     use tokio::sync::Notify;
-
-    use super::*;
-    use crate::test_util::new_persist_notification;
 
     /// A mock file deleter that records the IDs it was asked to delete.
     #[derive(Debug, Default)]
