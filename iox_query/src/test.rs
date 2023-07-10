@@ -21,7 +21,7 @@ use arrow::{
 };
 use async_trait::async_trait;
 use data_types::{
-    ChunkId, ChunkOrder, PartitionHashId, PartitionId, PartitionKey, TableId, TransitionPartitionId,
+    ChunkId, ChunkOrder, PartitionHashId, PartitionKey, TableId, TransitionPartitionId,
 };
 use datafusion::error::DataFusionError;
 use datafusion::execution::context::SessionState;
@@ -339,8 +339,7 @@ pub struct TestChunk {
 
     id: ChunkId,
 
-    partition_id: PartitionId,
-    transition_partition_id: TransitionPartitionId,
+    partition_id: TransitionPartitionId,
 
     /// Set the flag if this chunk might contain duplicates
     may_contain_pk_duplicates: bool,
@@ -420,11 +419,7 @@ impl TestChunk {
             saved_error: Default::default(),
             order: ChunkOrder::MIN,
             sort_key: None,
-            partition_id: PartitionId::new(0),
-            transition_partition_id: TransitionPartitionId::Deterministic(PartitionHashId::new(
-                TableId::new(0),
-                &PartitionKey::from("arbitrary"),
-            )),
+            partition_id: TransitionPartitionId::arbitrary_for_testing(),
             quiet: false,
         }
     }
@@ -491,17 +486,16 @@ impl TestChunk {
         self
     }
 
-    pub fn with_partition_id(mut self, id: i64) -> Self {
-        self.partition_id = PartitionId::new(id);
-        self.transition_partition_id = TransitionPartitionId::Deterministic(PartitionHashId::new(
+    pub fn with_partition(mut self, id: i64) -> Self {
+        self.partition_id = TransitionPartitionId::Deterministic(PartitionHashId::new(
             TableId::new(id),
             &PartitionKey::from("arbitrary"),
         ));
         self
     }
 
-    pub fn with_transition_partition_id(mut self, id: TransitionPartitionId) -> Self {
-        self.transition_partition_id = id;
+    pub fn with_partition_id(mut self, id: TransitionPartitionId) -> Self {
+        self.partition_id = id;
         self
     }
 
@@ -1110,12 +1104,8 @@ impl QueryChunk for TestChunk {
         &self.schema
     }
 
-    fn partition_id(&self) -> &PartitionId {
+    fn partition_id(&self) -> &TransitionPartitionId {
         &self.partition_id
-    }
-
-    fn transition_partition_id(&self) -> &TransitionPartitionId {
-        &self.transition_partition_id
     }
 
     fn sort_key(&self) -> Option<&SortKey> {
