@@ -391,7 +391,7 @@ fn new_payload(p: Payload) -> proto::FrameMessage {
     proto::FrameMessage { payload: Some(p) }
 }
 
-/// Send a PING message to `socket`, using `peer_name` as logging context.
+/// Send a PING message to `socket`.
 pub(crate) async fn ping(
     ping_frame: &[u8],
     socket: &UdpSocket,
