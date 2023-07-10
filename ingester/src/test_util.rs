@@ -76,6 +76,8 @@ lazy_static! {
             ARBITRARY_TABLE_NAME.clone(),
             TablePartitionTemplateOverride::default()
         )));
+    pub(crate) static ref ARBITRARY_PARTITION_HASH_ID: PartitionHashId =
+        PartitionHashId::new(ARBITRARY_TABLE_ID, &ARBITRARY_PARTITION_KEY);
 }
 
 /// Build a [`PartitionData`] with mostly arbitrary-yet-valid values for tests.
@@ -248,7 +250,10 @@ macro_rules! make_partition_stream {
             )+
         ) => {{
             use arrow::datatypes::Schema;
-            use $crate::query::{response::PartitionStream, partition_response::PartitionResponse};
+            use $crate::{
+                query::{response::PartitionStream, partition_response::PartitionResponse},
+                test_util::ARBITRARY_PARTITION_KEY,
+            };
             use futures::stream;
 
             PartitionStream::new(stream::iter([

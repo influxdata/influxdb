@@ -40,6 +40,17 @@ impl std::fmt::Display for TransitionPartitionId {
     }
 }
 
+impl TransitionPartitionId {
+    /// Create a new `TransitionPartitionId` for cases in tests where you need some value but the
+    /// value doesn't matter. Public and not test-only so that other crates' tests can use this.
+    pub fn arbitrary_for_testing() -> Self {
+        Self::Deterministic(PartitionHashId::new(
+            TableId::new(0),
+            &PartitionKey::from("arbitrary"),
+        ))
+    }
+}
+
 /// Unique ID for a `Partition`
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, sqlx::Type, sqlx::FromRow)]
 #[sqlx(transparent)]
@@ -232,6 +243,12 @@ impl PartitionHashId {
     /// Size in bytes including `Self`.
     pub fn size(&self) -> usize {
         std::mem::size_of::<Self>() + self.0.len()
+    }
+
+    /// Create a new `PartitionHashId` for cases in tests where you need some value but the value
+    /// doesn't matter. Public and not test-only so that other crates' tests can use this.
+    pub fn arbitrary_for_testing() -> Self {
+        Self::new(TableId::new(0), &PartitionKey::from("arbitrary"))
     }
 }
 

@@ -435,7 +435,7 @@ mod tests {
         make_batch, make_partition_stream,
         query::mock_query_exec::MockQueryExec,
         test_util::{
-            ARBITRARY_NAMESPACE_ID, ARBITRARY_PARTITION_ID, ARBITRARY_PARTITION_KEY,
+            ARBITRARY_NAMESPACE_ID, ARBITRARY_PARTITION_HASH_ID, ARBITRARY_PARTITION_ID,
             ARBITRARY_TABLE_ID,
         },
     };
@@ -458,10 +458,7 @@ mod tests {
         let stream = PartitionStream::new(stream::iter([PartitionResponse::new(
             vec![],
             ARBITRARY_PARTITION_ID,
-            Some(PartitionHashId::new(
-                ARBITRARY_TABLE_ID,
-                &ARBITRARY_PARTITION_KEY,
-            )),
+            Some(ARBITRARY_PARTITION_HASH_ID.clone()),
             42,
         )]));
 

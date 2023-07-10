@@ -402,7 +402,7 @@ mod tests {
             mock_query_exec::MockQueryExec, partition_response::PartitionResponse,
             response::PartitionStream,
         },
-        test_util::ARBITRARY_PARTITION_KEY,
+        test_util::ARBITRARY_PARTITION_HASH_ID,
     };
     use arrow::array::{Float64Array, Int32Array};
     use arrow_flight::decode::{DecodedPayload, FlightRecordBatchStream};
@@ -413,14 +413,14 @@ mod tests {
     #[tokio::test]
     async fn sends_partition_hash_id_if_present() {
         let ingester_id = IngesterId::new();
-        let partition_hash_id = PartitionHashId::new(TableId::new(3), &ARBITRARY_PARTITION_KEY);
+        // let partition_hash_id = PartitionHashId::new(TableId::new(3), &ARBITRARY_PARTITION_KEY);
 
         let flight = FlightService::new(
             MockQueryExec::default().with_result(Ok(QueryResponse::new(PartitionStream::new(
                 futures::stream::iter([PartitionResponse::new(
                     vec![],
                     PartitionId::new(2),
-                    Some(partition_hash_id.clone()),
+                    Some(ARBITRARY_PARTITION_HASH_ID.clone()),
                     42,
                 )]),
             )))),
@@ -448,7 +448,7 @@ mod tests {
             proto::IngesterQueryResponseMetadata::decode(flight_data[0].app_metadata()).unwrap();
         let md_expected = proto::IngesterQueryResponseMetadata {
             partition_id: 2,
-            partition_hash_id: Some(partition_hash_id.as_bytes().to_vec()),
+            partition_hash_id: Some(ARBITRARY_PARTITION_HASH_ID.as_bytes().to_vec()),
             ingester_uuid: ingester_id.to_string(),
             completed_persistence_count: 42,
         };
@@ -534,10 +534,7 @@ mod tests {
     #[tokio::test]
     async fn test_chunks_with_different_schemas() {
         let ingester_id = IngesterId::new();
-        let partition_hash_id = Some(PartitionHashId::new(
-            TableId::new(3),
-            &ARBITRARY_PARTITION_KEY,
-        ));
+        let partition_hash_id = Some(ARBITRARY_PARTITION_HASH_ID.clone());
         let (batch1, schema1) = make_batch!(
             Float64Array("float" => vec![1.1, 2.2, 3.3]),
             Int32Array("int" => vec![1, 2, 3]),
