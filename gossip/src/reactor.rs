@@ -213,15 +213,18 @@ where
                             // The user is guaranteed MAX_USER_PAYLOAD_BYTES to
                             // be send-able, so send this frame without packing
                             // others with it for simplicity.
-                            if populate_frame(
+                            populate_frame(
                                 &mut self.cached_frame,
                                 vec![new_payload(Payload::UserData(proto::UserPayload{payload}))],
                                 &mut self.serialisation_buf
-                            ).is_err()
-                            {
-                                continue
-                            }
-                            self.peer_list.broadcast(&self.serialisation_buf, &self.socket, &self.metric_frames_sent, &self.metric_bytes_sent).await;
+                            ).expect("size validated in handle at enqueue time");
+
+                            self.peer_list.broadcast(
+                                &self.serialisation_buf,
+                                &self.socket,
+                                &self.metric_frames_sent,
+                                &self.metric_bytes_sent
+                            ).await;
                         }
                     }
                 }
