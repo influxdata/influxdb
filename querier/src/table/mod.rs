@@ -351,7 +351,7 @@ impl QuerierTable {
         // Note that we sort before shuffling to achieve a deterministic pseudo-random order
         let mut partitions = should_cover.into_iter().collect::<Vec<_>>();
         let mut rng = StdRng::seed_from_u64(cached_table.id.get() as u64);
-        partitions.sort_by_key(|(p_id, _cols)| *p_id);
+        partitions.sort_by(|(a_p_id, _a_cols), (b_p_id, _b_cols)| a_p_id.cmp(b_p_id));
         partitions.shuffle(&mut rng);
 
         futures::stream::iter(partitions)

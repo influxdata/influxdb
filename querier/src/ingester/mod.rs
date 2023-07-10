@@ -627,8 +627,9 @@ impl IngesterStreamDecoder {
         self.flush_partition()?;
 
         let mut partitions = self.finished_partitions.into_values().collect::<Vec<_>>();
+
         // deterministic order
-        partitions.sort_by_key(|p| p.partition_id);
+        partitions.sort_by(|a, b| a.partition_id.cmp(&b.partition_id));
         self.span_recorder.ok("finished");
         Ok(partitions)
     }
@@ -737,7 +738,7 @@ impl IngesterConnection for IngesterConnectionImpl {
             .flatten()
             .collect();
 
-        ingester_partitions.sort_by_key(|p| p.partition_id);
+        ingester_partitions.sort_by(|a, b| a.partition_id.cmp(&b.partition_id));
         span_recorder.ok("done");
         Ok(ingester_partitions)
     }

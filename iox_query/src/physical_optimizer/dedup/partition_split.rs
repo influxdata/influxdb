@@ -74,7 +74,7 @@ impl PhysicalOptimizerRule for PartitionSplit {
 
                 // ensure deterministic order
                 let mut chunks_by_partition = chunks_by_partition.into_iter().collect::<Vec<_>>();
-                chunks_by_partition.sort_by_key(|(p_id, _chunks)| *p_id);
+                chunks_by_partition.sort_by(|a, b| a.0.cmp(&b.0));
 
                 let out = UnionExec::new(
                     chunks_by_partition
