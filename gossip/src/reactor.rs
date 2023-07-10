@@ -319,7 +319,13 @@ where
 
 /// Wait for a UDP datagram to become ready, and read it entirely into `buf`.
 async fn recv(socket: &UdpSocket, buf: &mut BytesMut) -> (usize, SocketAddr) {
-    let (n_bytes, addr) = socket.recv_buf_from(buf).await.expect("frame buffer maxed");
+    let (n_bytes, addr) = socket
+        .recv_buf_from(buf)
+        .await
+        // These errors are libc's recvfrom() or converting the kernel-provided
+        // socket structure to rust's SocketAddr - neither should ever happen.
+        .expect("invalid recvfrom");
+
     trace!(%addr, n_bytes, "socket read");
     (n_bytes, addr)
 }
