@@ -56,6 +56,7 @@ use iox_time::{MockProvider, Time, TimeProvider};
 use object_store::{path::Path, DynObjectStore};
 use parquet_file::storage::{ParquetStorage, StorageId};
 use schema::sort::SortKey;
+use trace::{RingBufferTraceCollector, TraceCollector};
 use tracker::AsyncSemaphoreMetrics;
 
 // Default values for the test setup builder
@@ -118,8 +119,13 @@ impl TestSetupBuilder<false> {
         let commit_wrapper = CommitRecorderBuilder::new(Arc::clone(&run_log))
             .with_invariant_check(Arc::clone(&invariant_check) as _);
 
+        let ring_buffer = Arc::new(RingBufferTraceCollector::new(5));
+        let trace_collector: Option<Arc<dyn TraceCollector>> =
+            Some(Arc::new(Arc::clone(&ring_buffer)));
+
         let config = Config {
             metric_registry: catalog.metric_registry(),
+            trace_collector,
             catalog: catalog.catalog(),
             scheduler_config: SchedulerConfig::default(),
             parquet_store_real: catalog.parquet_store.clone(),
@@ -677,6 +683,7 @@ impl TestSetup {
         let df_semaphore = Arc::new(
             Arc::new(AsyncSemaphoreMetrics::new(&config.metric_registry, [])).new_semaphore(10),
         );
+        let trace_collector = config.trace_collector.clone();
 
         // register scratchpad store
         let runtime_env = self
@@ -692,6 +699,7 @@ impl TestSetup {
         );
 
         compact(
+            trace_collector,
             NonZeroUsize::new(10).unwrap(),
             config.partition_timeout,
             df_semaphore,

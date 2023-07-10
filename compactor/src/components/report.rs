@@ -12,6 +12,8 @@ pub fn log_config(config: &Config) {
     let Config {
         // no need to print the internal state of the registry
         metric_registry: _,
+        // no need to print the internal state of the trace collector
+        trace_collector: _,
         catalog,
         scheduler_config,
         parquet_store_real,

@@ -24,6 +24,7 @@ observability_deps = { path = "../observability_deps" }
 parquet_file = { path = "../parquet_file" }
 schema = { path = "../schema" }
 tokio = { version = "1", features = ["macros", "rt", "sync"] }
+trace = { version = "0.1.0", path = "../trace" }
 tracker = { path = "../tracker" }
 uuid = { version = "1", features = ["v4"] }
 workspace-hack = { version = "0.1", path = "../workspace-hack" }

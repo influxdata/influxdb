@@ -57,6 +57,7 @@ impl Compactor {
                 _ = shutdown_captured.cancelled() => {}
                 _ = async {
                     compact(
+                        config.trace_collector,
                         config.partition_concurrency,
                         config.partition_timeout,
                         Arc::clone(&df_semaphore),
