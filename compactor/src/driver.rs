@@ -68,13 +68,14 @@ pub async fn compact(
 }
 
 async fn compact_partition(
-    span: SpanRecorder,
+    mut span: SpanRecorder,
     partition_id: PartitionId,
     partition_timeout: Duration,
     df_semaphore: Arc<InstrumentedAsyncSemaphore>,
     components: Arc<Components>,
 ) {
     info!(partition_id = partition_id.get(), "compact partition",);
+    span.set_metadata("partitionID", partition_id.get().to_string());
     let scratchpad = components.scratchpad_gen.pad();
 
     let res = timeout_with_progress_checking(partition_timeout, |transmit_progress_signal| {
@@ -467,12 +468,16 @@ async fn run_plans(
 }
 
 async fn execute_plan(
-    span: SpanRecorder,
+    mut span: SpanRecorder,
     plan_ir: PlanIR,
     partition_info: &Arc<PartitionInfo>,
     components: &Arc<Components>,
     df_semaphore: Arc<InstrumentedAsyncSemaphore>,
 ) -> Result<Vec<ParquetFileParams>, DynError> {
+    span.set_metadata("input_files", plan_ir.input_files().len().to_string());
+    span.set_metadata("input_bytes", plan_ir.input_bytes().to_string());
+    span.set_metadata("reason", plan_ir.reason());
+
     let create = {
         // Adjust concurrency based on the column count in the partition.
         let permits = compute_permits(df_semaphore.total_permits(), partition_info.column_count());
@@ -538,6 +543,16 @@ async fn execute_plan(
 
         res?
     };
+
+    span.set_metadata("output_files", create.len().to_string());
+    span.set_metadata(
+        "output_bytes",
+        create
+            .iter()
+            .map(|f| f.file_size_bytes as usize)
+            .sum::<usize>()
+            .to_string(),
+    );
 
     Ok(create)
 }
