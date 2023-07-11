@@ -488,7 +488,7 @@ impl TreeNodeVisitor for RowBasedVisitor {
 
     fn pre_visit(&mut self, expr: &Expr) -> Result<VisitRecursion, DataFusionError> {
         match expr {
-            Expr::Alias(_, _)
+            Expr::Alias(_)
             | Expr::Between { .. }
             | Expr::BinaryExpr { .. }
             | Expr::Case { .. }

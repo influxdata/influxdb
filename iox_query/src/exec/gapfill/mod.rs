@@ -27,7 +27,7 @@ use datafusion::{
     physical_plan::{
         expressions::Column,
         metrics::{BaselineMetrics, ExecutionPlanMetricsSet},
-        DisplayFormatType, Distribution, ExecutionPlan, Partitioning, PhysicalExpr,
+        DisplayAs, DisplayFormatType, Distribution, ExecutionPlan, Partitioning, PhysicalExpr,
         SendableRecordBatchStream, Statistics,
     },
     prelude::Expr,
@@ -534,6 +534,12 @@ impl ExecutionPlan for GapFillExec {
         )?))
     }
 
+    fn statistics(&self) -> Statistics {
+        Statistics::default()
+    }
+}
+
+impl DisplayAs for GapFillExec {
     fn fmt_as(&self, t: DisplayFormatType, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match t {
             DisplayFormatType::Default | DisplayFormatType::Verbose => {
@@ -565,10 +571,6 @@ impl ExecutionPlan for GapFillExec {
                 )
             }
         }
-    }
-
-    fn statistics(&self) -> Statistics {
-        Statistics::default()
     }
 }
 
