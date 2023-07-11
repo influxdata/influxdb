@@ -1,9 +1,10 @@
+use crate::error;
 use crate::plan::expr_type_evaluator::TypeEvaluator;
 use crate::plan::field::{field_by_name, field_name};
 use crate::plan::field_mapper::{field_and_dimensions, FieldTypeMap};
 use crate::plan::ir::{DataSource, Field, Interval, Select, SelectQuery, TagSet};
 use crate::plan::var_ref::{influx_type_to_var_ref_data_type, var_ref_data_type_to_influx_type};
-use crate::plan::{error, util, SchemaProvider};
+use crate::plan::{util, SchemaProvider};
 use datafusion::common::{DataFusionError, Result};
 use influxdb_influxql_parser::common::{MeasurementName, QualifiedMeasurementName, WhereClause};
 use influxdb_influxql_parser::expression::walk::{

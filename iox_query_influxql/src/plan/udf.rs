@@ -5,9 +5,8 @@
 //! call information as the InfluxQL AST. These expressions are then
 //! rewritten at a later stage of planning, with more context available.
 
-use crate::plan::error;
-use crate::plan::udaf::NUMERICS;
 use crate::plan::util_copy::find_exprs_in_exprs;
+use crate::{error, NUMERICS};
 use arrow::datatypes::DataType;
 use datafusion::logical_expr::{
     Expr, ReturnTypeFunction, ScalarFunctionImplementation, ScalarUDF, Signature, TypeSignature,

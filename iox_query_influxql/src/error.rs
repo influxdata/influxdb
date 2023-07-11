@@ -58,7 +58,7 @@ pub(crate) mod map {
 
     #[cfg(test)]
     mod test {
-        use crate::plan::error::map::PlannerError;
+        use crate::error::map::PlannerError;
 
         #[test]
         fn test_planner_error_display() {

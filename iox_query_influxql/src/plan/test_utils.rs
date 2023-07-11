@@ -1,7 +1,8 @@
 //! APIs for testing.
 #![cfg(test)]
 
-use crate::plan::{error, SchemaProvider};
+use crate::error;
+use crate::plan::SchemaProvider;
 use chrono::{DateTime, NaiveDate, Utc};
 use datafusion::common::Result as DataFusionResult;
 use datafusion::datasource::empty::EmptyTable;
