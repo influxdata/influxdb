@@ -52,7 +52,7 @@ async fn compact_partition(
     df_semaphore: Arc<InstrumentedAsyncSemaphore>,
     components: Arc<Components>,
 ) {
-    info!(partition_id = partition_id.get(), "compact partition",);
+    info!(partition_id = partition_id.get(), timeout = ?partition_timeout, "compact partition",);
     let scratchpad = components.scratchpad_gen.pad();
 
     let res = timeout_with_progress_checking(partition_timeout, |transmit_progress_signal| {
