@@ -8,7 +8,7 @@ use iox_query::exec::Executor;
 use iox_time::TimeProvider;
 use parquet_file::storage::ParquetStorage;
 
-use crate::components::{commit::CommitWrapper, parquet_files_sink::ParquetFilesSink};
+use crate::components::parquet_files_sink::ParquetFilesSink;
 
 /// Multiple from `max_desired_file_size_bytes` to compute the minimum value for
 /// `max_compact_size_bytes`. Since `max_desired_file_size_bytes` is softly enforced, actual file
@@ -118,11 +118,6 @@ pub struct Config {
     /// Use the provided [`ParquetFilesSink`] to create parquet files
     /// (used for testing)
     pub parquet_files_sink_override: Option<Arc<dyn ParquetFilesSink>>,
-
-    /// Optionally wrap the `Commit` instance
-    ///
-    /// This is mostly used for testing
-    pub commit_wrapper: Option<Arc<dyn CommitWrapper>>,
 
     /// Ensure that ALL errors (including object store errors) result in "skipped" partitions.
     ///

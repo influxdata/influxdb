@@ -5,18 +5,16 @@ use backoff::{Backoff, BackoffConfig};
 use data_types::PartitionId;
 use iox_catalog::interface::Catalog;
 
-use crate::error::DynError;
-
-use super::PartitionDoneSink;
+use super::{DynError, PartitionDoneSink};
 
 #[derive(Debug)]
-pub struct CatalogPartitionDoneSink {
+pub(crate) struct CatalogPartitionDoneSink {
     backoff_config: BackoffConfig,
     catalog: Arc<dyn Catalog>,
 }
 
 impl CatalogPartitionDoneSink {
-    pub fn new(backoff_config: BackoffConfig, catalog: Arc<dyn Catalog>) -> Self {
+    pub(crate) fn new(backoff_config: BackoffConfig, catalog: Arc<dyn Catalog>) -> Self {
         Self {
             backoff_config,
             catalog,

@@ -1,5 +1,6 @@
 //! Error handling.
 
+use compactor_scheduler::ErrorKind as SchedulerErrorKind;
 use datafusion::{arrow::error::ArrowError, error::DataFusionError, parquet::errors::ParquetError};
 use object_store::Error as ObjectStoreError;
 use std::{error::Error, fmt::Display, sync::Arc};
@@ -47,6 +48,17 @@ impl ErrorKind {
             Self::OutOfMemory => "out_of_memory",
             Self::Timeout => "timeout",
             Self::Unknown => "unknown",
+        }
+    }
+}
+
+impl From<ErrorKind> for SchedulerErrorKind {
+    fn from(e: ErrorKind) -> Self {
+        match e {
+            ErrorKind::ObjectStore => Self::ObjectStore,
+            ErrorKind::OutOfMemory => Self::OutOfMemory,
+            ErrorKind::Timeout => Self::Timeout,
+            ErrorKind::Unknown => Self::Unknown("".into()),
         }
     }
 }

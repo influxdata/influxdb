@@ -66,6 +66,7 @@ fn convert_shard_config(config: ShardConfigForLocalScheduler) -> Option<ShardCon
 pub(crate) fn convert_scheduler_config(config: CompactorSchedulerConfig) -> SchedulerConfig {
     match config.compactor_scheduler_type {
         CompactorSchedulerType::Local => SchedulerConfig::Local(LocalSchedulerConfig {
+            commit_wrapper: None,
             partitions_source_config: convert_partitions_source_config(
                 config.partition_source_config,
             ),
