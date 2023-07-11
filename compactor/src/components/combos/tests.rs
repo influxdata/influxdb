@@ -1,14 +1,14 @@
 use std::{sync::Arc, time::Duration};
 
+use compactor_scheduler::{MockPartitionsSource, PartitionsSource};
 use data_types::{CompactionLevel, PartitionId};
 use iox_time::{MockProvider, Time};
 
-use crate::{
-    Commit, MockCommit, MockPartitionDoneSink, MockPartitionsSource, PartitionDoneSink,
-    PartitionsSource,
+use crate::components::{
+    combos::{throttle_partition::throttle_partition, unique_partitions::unique_partitions},
+    commit::{mock::MockCommit, Commit},
+    partition_done_sink::{mock::MockPartitionDoneSink, PartitionDoneSink},
 };
-
-use super::{throttle_partition::throttle_partition, unique_partitions::unique_partitions};
 
 #[tokio::test]
 async fn test_unique_and_throttle() {
