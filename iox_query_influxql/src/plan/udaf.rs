@@ -1,4 +1,4 @@
-use crate::plan::error;
+use crate::{error, NUMERICS};
 use arrow::array::{Array, ArrayRef, Int64Array};
 use arrow::datatypes::{DataType, TimeUnit};
 use datafusion::common::{downcast_value, DataFusionError, Result, ScalarValue};
@@ -9,10 +9,6 @@ use datafusion::logical_expr::{
 use once_cell::sync::Lazy;
 use std::mem::replace;
 use std::sync::Arc;
-
-/// A list of the numeric types supported by InfluxQL that can be be used
-/// as input to user-defined aggregate functions.
-pub(crate) static NUMERICS: &[DataType] = &[DataType::Int64, DataType::UInt64, DataType::Float64];
 
 /// Name of the `MOVING_AVERAGE` user-defined aggregate function.
 pub(crate) const MOVING_AVERAGE_NAME: &str = "moving_average";

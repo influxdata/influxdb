@@ -1,4 +1,5 @@
-use crate::plan::{error, util_copy};
+use crate::error;
+use crate::plan::util_copy;
 use arrow::datatypes::{DataType, TimeUnit};
 use datafusion::common::tree_node::{TreeNode, VisitRecursion};
 use datafusion::common::{DFSchemaRef, Result};

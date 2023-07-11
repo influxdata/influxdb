@@ -440,6 +440,19 @@ mod influxql {
         .await;
     }
 
+    /// Test PERCENTILE functions.
+    #[tokio::test]
+    async fn percentile() {
+        test_helpers::maybe_start_logging();
+
+        TestCase {
+            input: "cases/in/percentile.influxql",
+            chunk_stage: ChunkStage::Ingester,
+        }
+        .run()
+        .await;
+    }
+
     #[tokio::test]
     async fn influxql_metadata() {
         test_helpers::maybe_start_logging();
