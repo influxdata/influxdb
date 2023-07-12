@@ -100,7 +100,11 @@ mod tests {
     use std::{sync::Arc, time::Duration};
 
     use assert_matches::assert_matches;
-    use iox_catalog::test_helpers::{arbitrary_namespace, arbitrary_table};
+    use data_types::TransitionPartitionId;
+    use iox_catalog::{
+        partition_lookup,
+        test_helpers::{arbitrary_namespace, arbitrary_table},
+    };
 
     use super::*;
     use crate::buffer_tree::table::TableName;
@@ -161,11 +165,9 @@ mod tests {
         assert_matches!(got.lock().sort_key(), SortKeyState::Provided(None));
         assert!(got.lock().partition_key.ptr_eq(&callers_partition_key));
 
-        let got = catalog
-            .repositories()
-            .await
-            .partitions()
-            .get_by_id(got.lock().partition_id)
+        let mut repos = catalog.repositories().await;
+        let id = TransitionPartitionId::Deprecated(got.lock().partition_id);
+        let got = partition_lookup(repos.as_mut(), &id)
             .await
             .unwrap()
             .expect("partition not created");

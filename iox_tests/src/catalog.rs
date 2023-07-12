@@ -328,7 +328,11 @@ impl TestTable {
 
         let partition = repos
             .partitions()
-            .cas_sort_key(partition.id, None, sort_key)
+            .cas_sort_key(
+                &TransitionPartitionId::Deprecated(partition.id),
+                None,
+                sort_key,
+            )
             .await
             .unwrap();
 
@@ -452,7 +456,7 @@ impl TestPartition {
             .await
             .partitions()
             .cas_sort_key(
-                self.partition.id,
+                &TransitionPartitionId::Deprecated(self.partition.id),
                 Some(old_sort_key),
                 &sort_key.to_columns().collect::<Vec<_>>(),
             )
@@ -786,7 +790,7 @@ async fn update_catalog_sort_key_if_needed(
                 );
                 partitions_catalog
                     .cas_sort_key(
-                        partition_id,
+                        &TransitionPartitionId::Deprecated(partition_id),
                         Some(
                             catalog_sort_key
                                 .to_columns()
@@ -803,7 +807,11 @@ async fn update_catalog_sort_key_if_needed(
             let new_columns = sort_key.to_columns().collect::<Vec<_>>();
             debug!("Updating sort key from None to {:?}", &new_columns);
             partitions_catalog
-                .cas_sort_key(partition_id, None, &new_columns)
+                .cas_sort_key(
+                    &TransitionPartitionId::Deprecated(partition_id),
+                    None,
+                    &new_columns,
+                )
                 .await
                 .unwrap();
         }
