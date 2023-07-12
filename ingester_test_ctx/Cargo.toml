@@ -32,4 +32,5 @@ test_helpers = { path = "../test_helpers", features = ["future_timeout"] }
 tokio = { version = "1.29", features = ["macros", "parking_lot", "rt-multi-thread", "sync", "time"] }
 tokio-util = "0.7.8"
 tonic = { workspace = true }
+trace = { version = "0.1.0", path = "../trace" }
 workspace-hack = { version = "0.1", path = "../workspace-hack" }
