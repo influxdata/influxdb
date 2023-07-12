@@ -13,10 +13,10 @@ use cache_system::{
 };
 use data_types::{
     partition_template::{build_column_values, ColumnValue},
-    ColumnId, Partition, PartitionId,
+    ColumnId, Partition, PartitionId, TransitionPartitionId,
 };
 use datafusion::scalar::ScalarValue;
-use iox_catalog::interface::Catalog;
+use iox_catalog::{interface::Catalog, partition_lookup};
 use iox_query::chunk_statistics::{ColumnRange, ColumnRanges};
 use iox_time::TimeProvider;
 use observability_deps::tracing::debug;
@@ -66,12 +66,9 @@ impl PartitionCache {
                 async move {
                     let partition = Backoff::new(&backoff_config)
                         .retry_all_errors("get partition_key", || async {
-                            catalog
-                                .repositories()
-                                .await
-                                .partitions()
-                                .get_by_id(partition_id)
-                                .await
+                            let mut repos = catalog.repositories().await;
+                            let id = TransitionPartitionId::Deprecated(partition_id);
+                            partition_lookup(repos.as_mut(), &id).await
                         })
                         .await
                         .expect("retry forever")?;

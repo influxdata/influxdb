@@ -21,7 +21,7 @@ use data_types::{
     Column, ColumnId, ColumnSet, ColumnType, CompactionLevel, Namespace, NamespaceId,
     NamespaceName, NamespaceServiceProtectionLimitsOverride, ParquetFile, ParquetFileId,
     ParquetFileParams, Partition, PartitionHashId, PartitionId, PartitionKey, SkippedCompaction,
-    Table, TableId, Timestamp,
+    Table, TableId, Timestamp, TransitionPartitionId,
 };
 use serde::{Deserialize, Serialize};
 use std::collections::HashSet;
@@ -952,24 +952,39 @@ WHERE table_id = $1;
     /// round trips to service a transaction in the happy path).
     async fn cas_sort_key(
         &mut self,
-        partition_id: PartitionId,
+        partition_id: &TransitionPartitionId,
         old_sort_key: Option<Vec<String>>,
         new_sort_key: &[&str],
     ) -> Result<Partition, CasFailure<Vec<String>>> {
         let old_sort_key = old_sort_key.unwrap_or_default();
-        let res = sqlx::query_as::<_, PartitionPod>(
-            r#"
+
+        // This `match` will go away when all partitions have hash IDs in the database.
+        let query = match partition_id {
+            TransitionPartitionId::Deterministic(hash_id) => sqlx::query_as::<_, PartitionPod>(
+                r#"
+UPDATE partition
+SET sort_key = $1
+WHERE hash_id = $2 AND sort_key = $3
+RETURNING id, hash_id, table_id, partition_key, sort_key, new_file_at;
+        "#,
+            )
+            .bind(Json(new_sort_key)) // $1
+            .bind(hash_id) // $2
+            .bind(Json(&old_sort_key)), // $3
+            TransitionPartitionId::Deprecated(id) => sqlx::query_as::<_, PartitionPod>(
+                r#"
 UPDATE partition
 SET sort_key = $1
 WHERE id = $2 AND sort_key = $3
 RETURNING id, hash_id, table_id, partition_key, sort_key, new_file_at;
         "#,
-        )
-        .bind(Json(new_sort_key)) // $1
-        .bind(partition_id) // $2
-        .bind(Json(&old_sort_key)) // $3
-        .fetch_one(self.inner.get_mut())
-        .await;
+            )
+            .bind(Json(new_sort_key)) // $1
+            .bind(id) // $2
+            .bind(Json(&old_sort_key)), // $3
+        };
+
+        let res = query.fetch_one(self.inner.get_mut()).await;
 
         let partition = match res {
             Ok(v) => v,
@@ -986,11 +1001,11 @@ RETURNING id, hash_id, table_id, partition_key, sort_key, new_file_at;
                 // NOTE: this is racy, but documented - this might return "Sort
                 // key differs! Old key: <old sort key you provided>"
                 return Err(CasFailure::ValueMismatch(
-                    PartitionRepo::get_by_id(self, partition_id)
+                    crate::partition_lookup(self, partition_id)
                         .await
                         .map_err(CasFailure::QueryError)?
                         .ok_or(CasFailure::QueryError(Error::PartitionNotFound {
-                            id: partition_id,
+                            id: partition_id.clone(),
                         }))?
                         .sort_key,
                 ));
@@ -1323,10 +1338,23 @@ RETURNING id;
 
     async fn list_by_partition_not_to_delete(
         &mut self,
-        partition_id: PartitionId,
+        partition_id: &TransitionPartitionId,
     ) -> Result<Vec<ParquetFile>> {
-        Ok(sqlx::query_as::<_, ParquetFilePod>(
-            r#"
+        // This `match` will go away when all partitions have hash IDs in the database.
+        let query = match partition_id {
+            TransitionPartitionId::Deterministic(hash_id) => sqlx::query_as::<_, ParquetFilePod>(
+                r#"
+SELECT id, namespace_id, table_id, partition_id, partition_hash_id, object_store_id, min_time,
+       max_time, to_delete, file_size_bytes, row_count, compaction_level, created_at, column_set,
+       max_l0_created_at
+FROM parquet_file
+WHERE parquet_file.partition_hash_id = $1
+  AND parquet_file.to_delete IS NULL;
+        "#,
+            )
+            .bind(hash_id), // $1
+            TransitionPartitionId::Deprecated(id) => sqlx::query_as::<_, ParquetFilePod>(
+                r#"
 SELECT id, namespace_id, table_id, partition_id, partition_hash_id, object_store_id, min_time,
        max_time, to_delete, file_size_bytes, row_count, compaction_level, created_at, column_set,
        max_l0_created_at
@@ -1334,14 +1362,17 @@ FROM parquet_file
 WHERE parquet_file.partition_id = $1
   AND parquet_file.to_delete IS NULL;
         "#,
-        )
-        .bind(partition_id) // $1
-        .fetch_all(self.inner.get_mut())
-        .await
-        .map_err(|e| Error::SqlxError { source: e })?
-        .into_iter()
-        .map(Into::into)
-        .collect())
+            )
+            .bind(id), // $1
+        };
+
+        Ok(query
+            .fetch_all(self.inner.get_mut())
+            .await
+            .map_err(|e| Error::SqlxError { source: e })?
+            .into_iter()
+            .map(Into::into)
+            .collect())
     }
 
     async fn get_by_object_store_id(

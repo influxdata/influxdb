@@ -376,7 +376,11 @@ where
                 let mut repos = catalog.repositories().await;
                 match repos
                     .partitions()
-                    .cas_sort_key(ctx.partition_id(), old_sort_key.clone(), &new_sort_key_str)
+                    .cas_sort_key(
+                        &ctx.transition_partition_id(),
+                        old_sort_key.clone(),
+                        &new_sort_key_str,
+                    )
                     .await
                 {
                     Ok(_) => ControlFlow::Break(Ok(())),
