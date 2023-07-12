@@ -7,8 +7,8 @@ use datafusion::{
     execution::context::TaskContext,
     physical_expr::PhysicalSortExpr,
     physical_plan::{
-        stream::RecordBatchStreamAdapter, ExecutionPlan, Partitioning, SendableRecordBatchStream,
-        Statistics,
+        stream::RecordBatchStreamAdapter, DisplayAs, DisplayFormatType, ExecutionPlan,
+        Partitioning, SendableRecordBatchStream, Statistics,
     },
 };
 use schema::SchemaBuilder;
@@ -90,6 +90,16 @@ impl ExecutionPlan for PanicPlan {
 
     fn statistics(&self) -> Statistics {
         unimplemented!()
+    }
+}
+
+impl DisplayAs for PanicPlan {
+    fn fmt_as(&self, t: DisplayFormatType, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match t {
+            DisplayFormatType::Default | DisplayFormatType::Verbose => {
+                write!(f, "PanicPlan")
+            }
+        }
     }
 }
 

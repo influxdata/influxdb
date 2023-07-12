@@ -99,6 +99,14 @@ impl Extend<SequenceNumber> for SequenceNumberSet {
     }
 }
 
+impl Extend<SequenceNumberSet> for SequenceNumberSet {
+    fn extend<T: IntoIterator<Item = SequenceNumberSet>>(&mut self, iter: T) {
+        for new_set in iter {
+            self.add_set(&new_set);
+        }
+    }
+}
+
 impl FromIterator<SequenceNumber> for SequenceNumberSet {
     fn from_iter<T: IntoIterator<Item = SequenceNumber>>(iter: T) -> Self {
         Self(iter.into_iter().map(|v| v.get() as _).collect())
@@ -172,6 +180,29 @@ mod tests {
         assert!(a.contains(SequenceNumber::new(42)));
         assert!(a.contains(SequenceNumber::new(4)));
         assert!(a.contains(SequenceNumber::new(2)));
+    }
+
+    #[test]
+    fn test_extend_multiple_sets() {
+        let mut a = SequenceNumberSet::default();
+        a.add(SequenceNumber::new(7));
+
+        let b = [SequenceNumber::new(13), SequenceNumber::new(76)];
+        let c = [SequenceNumber::new(42), SequenceNumber::new(64)];
+
+        assert!(a.contains(SequenceNumber::new(7)));
+        for &num in [b, c].iter().flatten() {
+            assert!(!a.contains(num));
+        }
+
+        a.extend([
+            SequenceNumberSet::from_iter(b),
+            SequenceNumberSet::from_iter(c),
+        ]);
+        assert!(a.contains(SequenceNumber::new(7)));
+        for &num in [b, c].iter().flatten() {
+            assert!(a.contains(num));
+        }
     }
 
     #[test]

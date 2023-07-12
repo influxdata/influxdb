@@ -1,5 +1,5 @@
 //! Tests the `influxdb_iox debug` commands
-use std::path::Path;
+use std::{path::Path, time::Duration};
 
 use arrow::record_batch::RecordBatch;
 use arrow_util::assert_batches_sorted_eq;
@@ -7,6 +7,7 @@ use assert_cmd::Command;
 use futures::FutureExt;
 use predicates::prelude::*;
 use tempfile::TempDir;
+use test_helpers::timeout::FutureTimeout;
 use test_helpers_end_to_end::{
     maybe_skip_integration, run_sql, MiniCluster, ServerFixture, Step, StepTest, StepTestState,
     TestConfig,
@@ -104,14 +105,20 @@ async fn build_catalog() {
 
                     // We can build a catalog and start up the server and run a query
                     let restarted = RestartedServer::build_catalog_and_start(&table_dir).await;
-                    let batches = restarted.run_sql(sql, &namespace).await;
+                    let batches = run_sql_until_non_empty(&restarted, sql, namespace.as_str())
+                        .with_timeout(Duration::from_secs(2))
+                        .await
+                        .expect("timed out waiting for non-empty batches in result");
                     assert_batches_sorted_eq!(&expected, &batches);
 
                     // We can also rebuild a catalog from just the parquet files
                     let only_parquet_dir = copy_only_parquet_files(&table_dir);
                     let restarted =
                         RestartedServer::build_catalog_and_start(only_parquet_dir.path()).await;
-                    let batches = restarted.run_sql(sql, &namespace).await;
+                    let batches = run_sql_until_non_empty(&restarted, sql, namespace.as_str())
+                        .with_timeout(Duration::from_secs(2))
+                        .await
+                        .expect("timed out waiting for non-empty batches in result");
                     assert_batches_sorted_eq!(&expected, &batches);
                 }
                 .boxed()
@@ -120,6 +127,23 @@ async fn build_catalog() {
     )
     .run()
     .await
+}
+
+/// Loops forever, running the SQL query against the [`RestartedServer`] given
+/// until the result is non-empty. Callers are responsible for timing out the
+/// function.
+async fn run_sql_until_non_empty(
+    restarted: &RestartedServer,
+    sql: &str,
+    namespace: &str,
+) -> Vec<RecordBatch> {
+    loop {
+        let batches = restarted.run_sql(sql, namespace).await;
+        if !batches.is_empty() {
+            return batches;
+        }
+        tokio::time::sleep(Duration::from_millis(100)).await;
+    }
 }
 
 /// An all in one instance, with data directory of `data_dir`

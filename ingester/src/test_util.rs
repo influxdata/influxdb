@@ -4,6 +4,7 @@ use data_types::{
     partition_template::TablePartitionTemplateOverride, NamespaceId, PartitionId, PartitionKey,
     SequenceNumber, TableId,
 };
+use hashbrown::HashSet;
 use iox_catalog::{interface::Catalog, test_helpers::arbitrary_namespace};
 use lazy_static::lazy_static;
 use mutable_batch_lp::lines_to_batches;
@@ -312,6 +313,52 @@ pub(crate) fn make_write_op(
     WriteOperation::new(namespace_id, tables_by_id, partition_key.clone(), span_ctx)
 }
 
+/// Construct a [`WriteOperation`] with the specified parameters for LP covering
+/// multiple separately sequenced table writes.
+///
+/// # Panics
+///
+/// This method panics if `table_sequence_numbers` contains a different number
+/// of tables to the batches derived from `lines` OR if a [`SequenceNumber`]
+/// is re-used within the write.
+#[track_caller]
+pub(crate) fn make_multi_table_write_op<
+    'a,
+    I: ExactSizeIterator<Item = (&'a str, TableId, SequenceNumber)>,
+>(
+    partition_key: &PartitionKey,
+    namespace_id: NamespaceId,
+    table_sequence_numbers: I,
+    lines: &str,
+) -> WriteOperation {
+    let mut tables_by_name = lines_to_batches(lines, 0).expect("invalid LP");
+    assert_eq!(
+        tables_by_name.len(),
+        table_sequence_numbers.len(),
+        "number of tables in LP does not match number of table_sequence_numbers"
+    );
+
+    let mut seen_sequence_numbers = HashSet::<SequenceNumber>::new();
+
+    let tables_by_id = table_sequence_numbers
+        .map(|(table_name, table_id, sequence_number)| {
+            let mb = tables_by_name
+                .remove(table_name)
+                .expect("table name does not exist in LP");
+            assert!(
+                seen_sequence_numbers.insert(sequence_number),
+                "duplicate sequence number {sequence_number:?} observed"
+            );
+            (
+                table_id,
+                TableData::new(table_id, PartitionedData::new(sequence_number, mb)),
+            )
+        })
+        .collect();
+
+    WriteOperation::new(namespace_id, tables_by_id, partition_key.clone(), None)
+}
+
 pub(crate) async fn populate_catalog(
     catalog: &dyn Catalog,
     namespace: &str,
@@ -332,17 +379,18 @@ pub(crate) async fn populate_catalog(
 /// Assert `a` and `b` have identical metadata, and that when converting
 /// them to Arrow batches they produces identical output.
 #[track_caller]
-pub(crate) fn assert_dml_writes_eq(a: WriteOperation, b: WriteOperation) {
+pub(crate) fn assert_write_ops_eq(a: WriteOperation, b: WriteOperation) {
     assert_eq!(a.namespace(), b.namespace(), "namespace");
     assert_eq!(a.tables().count(), b.tables().count(), "table count");
     assert_eq!(a.partition_key(), b.partition_key(), "partition key");
 
     // Assert sequence numbers were reassigned
     for (a_table, b_table) in a.tables().zip(b.tables()) {
+        assert_eq!(a_table.0, b_table.0, "table id mismatch");
         assert_eq!(
             a_table.1.partitioned_data().sequence_number(),
             b_table.1.partitioned_data().sequence_number(),
-            "sequence number"
+            "sequence number mismatch"
         );
     }
 

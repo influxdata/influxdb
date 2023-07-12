@@ -1,6 +1,7 @@
 //! Defines data structures which represent an InfluxQL
 //! statement after it has been processed
 
+use crate::error;
 use crate::plan::rewriter::ProjectionType;
 use datafusion::common::Result;
 use influxdb_influxql_parser::common::{
@@ -17,7 +18,7 @@ use schema::{InfluxColumnType, Schema};
 use std::collections::HashSet;
 use std::fmt::{Display, Formatter};
 
-use super::{error, SchemaProvider};
+use super::SchemaProvider;
 
 /// A set of tag keys.
 pub(super) type TagSet = HashSet<String>;

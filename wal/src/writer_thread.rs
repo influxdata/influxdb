@@ -122,17 +122,12 @@ impl WriterIoThread {
                 .ops
                 .into_iter()
                 .map(|v| {
-                    // TODO(savage): Extract all [`SequenceNumber`] used for
-                    // the op and include them in the batch once the tables
-                    // sequenced independently.
-                    let id = SequenceNumber::new(
-                        *v.table_write_sequence_numbers
-                            .values()
-                            .next()
-                            .expect("attempt to encode unsequence wal operation")
-                            as _,
-                    );
-                    (proto::SequencedWalOp::from(v), id)
+                    let op_ids: SequenceNumberSet = v
+                        .table_write_sequence_numbers
+                        .values()
+                        .map(|&id| SequenceNumber::new(id as _))
+                        .collect();
+                    (proto::SequencedWalOp::from(v), op_ids)
                 })
                 .unzip();
             let proto_batch = proto::WalOpBatch { ops };

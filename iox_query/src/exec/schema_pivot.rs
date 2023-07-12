@@ -30,7 +30,6 @@ use arrow::{
     error::ArrowError,
     record_batch::RecordBatch,
 };
-use datafusion::error::DataFusionError;
 use datafusion::{
     common::{DFSchemaRef, ToDFSchema},
     error::{DataFusionError as Error, Result},
@@ -43,6 +42,7 @@ use datafusion::{
         Statistics,
     },
 };
+use datafusion::{error::DataFusionError, physical_plan::DisplayAs};
 
 use datafusion_util::{watch::WatchedTask, AdapterStream};
 use observability_deps::tracing::debug;
@@ -247,14 +247,6 @@ impl ExecutionPlan for SchemaPivotExec {
         Ok(AdapterStream::adapt(self.schema(), rx, handle))
     }
 
-    fn fmt_as(&self, t: DisplayFormatType, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        match t {
-            DisplayFormatType::Default | DisplayFormatType::Verbose => {
-                write!(f, "SchemaPivotExec")
-            }
-        }
-    }
-
     fn metrics(&self) -> Option<MetricsSet> {
         Some(self.metrics.clone_inner())
     }
@@ -262,6 +254,16 @@ impl ExecutionPlan for SchemaPivotExec {
     fn statistics(&self) -> Statistics {
         // don't know anything about the statistics
         Statistics::default()
+    }
+}
+
+impl DisplayAs for SchemaPivotExec {
+    fn fmt_as(&self, t: DisplayFormatType, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match t {
+            DisplayFormatType::Default | DisplayFormatType::Verbose => {
+                write!(f, "SchemaPivotExec")
+            }
+        }
     }
 }
 

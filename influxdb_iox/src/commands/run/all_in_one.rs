@@ -33,7 +33,6 @@ use object_store::DynObjectStore;
 use observability_deps::tracing::*;
 use parquet_file::storage::{ParquetStorage, StorageId};
 use std::{
-    collections::HashMap,
     num::NonZeroUsize,
     path::{Path, PathBuf},
     str::FromStr,
@@ -436,6 +435,15 @@ impl Config {
             catalog_dsn.dsn = Some(dsn);
         };
 
+        // TODO: make num_threads a parameter (other modes have it
+        // configured by a command line)
+        let num_threads =
+            NonZeroUsize::new(num_cpus::get()).unwrap_or_else(|| NonZeroUsize::new(1).unwrap());
+
+        // Target allowing the compactor to use as many as 1/2 the
+        // cores by default, but at least one.
+        let compactor_concurrency = NonZeroUsize::new((num_threads.get() / 2).max(1)).unwrap();
+
         let ingester_addresses =
             vec![IngesterAddress::from_str(&ingester_grpc_bind_address.to_string()).unwrap()];
 
@@ -487,15 +495,15 @@ impl Config {
         // parameters are redundant with ingester's
         let compactor_config = CompactorConfig {
             compactor_scheduler_config,
-            compaction_partition_concurrency: NonZeroUsize::new(1).unwrap(),
-            compaction_df_concurrency: NonZeroUsize::new(1).unwrap(),
-            compaction_partition_scratchpad_concurrency: NonZeroUsize::new(1).unwrap(),
-            query_exec_thread_count: Some(NonZeroUsize::new(1).unwrap()),
+            compaction_partition_concurrency: compactor_concurrency,
+            compaction_df_concurrency: compactor_concurrency,
+            compaction_partition_scratchpad_concurrency: compactor_concurrency,
+            query_exec_thread_count: Some(num_threads),
             exec_mem_pool_bytes,
-            max_desired_file_size_bytes: 30_000,
+            max_desired_file_size_bytes: 100 * 1024 * 1024, // 100 MB
             percentage_max_file_size: 30,
             split_percentage: 80,
-            partition_timeout_secs: 0,
+            partition_timeout_secs: 30 * 60, // 30 minutes
             shadow_mode: false,
             enable_scratchpad: true,
             ignore_partition_skip_marker: false,
@@ -519,6 +527,8 @@ impl Config {
         };
 
         SpecializedConfig {
+            num_threads,
+
             router_run_config,
             querier_run_config,
 
@@ -550,6 +560,8 @@ fn ensure_directory_exists(p: &Path) {
 /// Different run configs for the different services (needed as they
 /// listen on different ports)
 struct SpecializedConfig {
+    num_threads: NonZeroUsize,
+
     router_run_config: RunConfig,
     querier_run_config: RunConfig,
     ingester_run_config: RunConfig,
@@ -564,6 +576,7 @@ struct SpecializedConfig {
 
 pub async fn command(config: Config) -> Result<()> {
     let SpecializedConfig {
+        num_threads,
         router_run_config,
         querier_run_config,
         ingester_run_config,
@@ -595,20 +608,23 @@ pub async fn command(config: Config) -> Result<()> {
     // create common state from the router and use it below
     let common_state = CommonServerState::from_config(router_run_config.clone())?;
 
-    // TODO: make num_threads a parameter (other modes have it
-    // configured by a command line)
-    let num_threads = NonZeroUsize::new(num_cpus::get())
-        .unwrap_or_else(|| NonZeroUsize::new(1).expect("1 is valid"));
     info!(%num_threads, "Creating shared query executor");
-
     let parquet_store_real = ParquetStorage::new(Arc::clone(&object_store), StorageId::from("iox"));
+    let parquet_store_scratchpad = ParquetStorage::new(
+        Arc::new(MetricsStore::new(
+            Arc::new(object_store::memory::InMemory::new()),
+            &metrics,
+            "scratchpad",
+        )),
+        StorageId::from("iox_scratchpad"),
+    );
     let exec = Arc::new(Executor::new_with_config(ExecutorConfig {
         num_threads,
         target_query_partitions: num_threads,
-        object_stores: HashMap::from([(
-            parquet_store_real.id(),
-            Arc::clone(parquet_store_real.object_store()),
-        )]),
+        object_stores: [&parquet_store_real, &parquet_store_scratchpad]
+            .into_iter()
+            .map(|store| (store.id(), Arc::clone(store.object_store())))
+            .collect(),
         metric_registry: Arc::clone(&metrics),
         mem_pool_size: querier_config.exec_mem_pool_bytes,
     }));
@@ -636,14 +652,6 @@ pub async fn command(config: Config) -> Result<()> {
     .expect("failed to start ingester");
 
     info!("starting compactor");
-    let parquet_store_scratchpad = ParquetStorage::new(
-        Arc::new(MetricsStore::new(
-            Arc::new(object_store::memory::InMemory::new()),
-            &metrics,
-            "scratchpad",
-        )),
-        StorageId::from("iox_scratchpad"),
-    );
 
     let compactor = create_compactor_server_type(
         &common_state,

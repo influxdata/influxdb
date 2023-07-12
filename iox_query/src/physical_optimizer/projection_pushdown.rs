@@ -434,7 +434,7 @@ mod tests {
         logical_expr::Operator,
         physical_plan::{
             expressions::{BinaryExpr, Literal},
-            PhysicalExpr, Statistics,
+            DisplayAs, PhysicalExpr, Statistics,
         },
         scalar::ScalarValue,
     };
@@ -1695,16 +1695,18 @@ mod tests {
             unimplemented!()
         }
 
+        fn statistics(&self) -> datafusion::physical_plan::Statistics {
+            unimplemented!()
+        }
+    }
+
+    impl DisplayAs for TestExec {
         fn fmt_as(
             &self,
             _t: datafusion::physical_plan::DisplayFormatType,
             f: &mut std::fmt::Formatter<'_>,
         ) -> std::fmt::Result {
             write!(f, "Test")
-        }
-
-        fn statistics(&self) -> datafusion::physical_plan::Statistics {
-            unimplemented!()
         }
     }
 }
