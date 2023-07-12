@@ -3,6 +3,7 @@ use arrow::{datatypes::SchemaRef, error::Result as ArrowResult, record_batch::Re
 use async_trait::async_trait;
 use data_types::NamespaceId;
 use datafusion::error::DataFusionError;
+use datafusion::physical_plan::{DisplayAs, DisplayFormatType};
 use datafusion::{
     catalog::schema::SchemaProvider,
     datasource::TableProvider,
@@ -140,9 +141,7 @@ struct SystemTableExecutionPlan<T> {
 
 impl<T> std::fmt::Debug for SystemTableExecutionPlan<T> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        f.debug_struct("SystemTableExecutionPlan")
-            .field("projection", &self.projection)
-            .finish()
+        self.fmt_as(DisplayFormatType::Default, f)
     }
 }
 
@@ -189,6 +188,17 @@ impl<T: IoxSystemTable + 'static> ExecutionPlan for SystemTableExecutionPlan<T> 
 
     fn statistics(&self) -> Statistics {
         Statistics::default()
+    }
+}
+
+impl<T> DisplayAs for SystemTableExecutionPlan<T> {
+    fn fmt_as(&self, t: DisplayFormatType, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match t {
+            DisplayFormatType::Default | DisplayFormatType::Verbose => f
+                .debug_struct("SystemTableExecutionPlan")
+                .field("projection", &self.projection)
+                .finish(),
+        }
     }
 }
 

@@ -29,7 +29,7 @@ use datafusion::catalog::TableReference;
 use datafusion::common::tree_node::{TreeNode, VisitRecursion};
 use datafusion::common::{DFSchema, DFSchemaRef, Result, ScalarValue, ToDFSchema};
 use datafusion::datasource::{provider_as_source, MemTable};
-use datafusion::logical_expr::expr::ScalarFunction;
+use datafusion::logical_expr::expr::{Alias, ScalarFunction};
 use datafusion::logical_expr::expr_rewriter::normalize_col;
 use datafusion::logical_expr::logical_plan::builder::project;
 use datafusion::logical_expr::logical_plan::Analyze;
@@ -813,7 +813,7 @@ impl<'a> InfluxQLToLogicalPlan<'a> {
 
         // Take ownership of the alias, so we don't reallocate, and temporarily place a literal
         // `NULL` in its place.
-        let Expr::Alias(_, alias) = std::mem::replace(&mut select_exprs[time_column_index], lit(ScalarValue::Null)) else {
+        let Expr::Alias(Alias{name: alias, ..}) = std::mem::replace(&mut select_exprs[time_column_index], lit(ScalarValue::Null)) else {
                 return error::internal("time column is not an alias")
             };
 
@@ -1149,7 +1149,10 @@ impl<'a> InfluxQLToLogicalPlan<'a> {
                             continue;
                         }
                         let (expr, out_name) = match expr.clone() {
-                            Expr::Alias(expr, out_name) => (*expr, out_name),
+                            Expr::Alias(Alias {
+                                expr,
+                                name: out_name,
+                            }) => (*expr, out_name),
                             _ => {
                                 return error::internal("other field is not aliased");
                             }
@@ -1195,7 +1198,7 @@ impl<'a> InfluxQLToLogicalPlan<'a> {
         let time_column = {
             // Take ownership of the alias, so we don't reallocate, and temporarily place a literal
             // `NULL` in its place.
-            let Expr::Alias(_, alias) = std::mem::replace(&mut select_exprs[time_column_index], lit(ScalarValue::Null)) else {
+            let Expr::Alias(Alias{name: alias, ..}) = std::mem::replace(&mut select_exprs[time_column_index], lit(ScalarValue::Null)) else {
                 return error::internal("time column is not an alias")
             };
 
@@ -2824,7 +2827,7 @@ fn build_gap_fill_node(
     fill_strategy: FillStrategy,
 ) -> Result<LogicalPlan> {
     let (expr, alias) = match time_column {
-        Expr::Alias(expr, alias) => (expr.as_ref(), alias),
+        Expr::Alias(Alias { expr, name: alias }) => (expr.as_ref(), alias),
         _ => return error::internal("expected time column to have an alias function"),
     };
 

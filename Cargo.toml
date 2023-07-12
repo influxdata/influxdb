@@ -118,13 +118,14 @@ edition = "2021"
 license = "MIT OR Apache-2.0"
 
 [workspace.dependencies]
-arrow = { version = "42.0.0" }
-arrow-flight = { version = "42.0.0" }
-datafusion = { git = "https://github.com/apache/arrow-datafusion.git", rev = "46752163bd4f30f778850160513e8ca7f15fcf14", default-features = false }
-datafusion-proto = { git = "https://github.com/apache/arrow-datafusion.git", rev = "46752163bd4f30f778850160513e8ca7f15fcf14" }
+arrow = { version = "43.0.0" }
+arrow-flight = { version = "43.0.0" }
+datafusion = { git = "https://github.com/apache/arrow-datafusion.git", rev = "311e8c7c7ab8c087f072eeac9335394c09ae8185", default-features = false }
+datafusion-proto = { git = "https://github.com/apache/arrow-datafusion.git", rev = "311e8c7c7ab8c087f072eeac9335394c09ae8185" }
+
 hashbrown = { version = "0.14.0" }
 object_store = { version = "0.6.0" }
-parquet = { version = "42.0.0" }
+parquet = { version = "43.0.0" }
 tonic = { version = "0.9.2", features = ["tls", "tls-webpki-roots"] }
 tonic-build = { version = "0.9.2" }
 tonic-health = { version = "0.9.2" }
@@ -154,22 +155,3 @@ opt-level = 3
 
 [profile.dev.package.similar]
 opt-level = 3
-
-[patch.crates-io]
-# TODO remove on upgrade to 43.0.0
-# Use https://github.com/apache/arrow-rs/pull/4467 to get the fix for
-# https://github.com/apache/arrow-rs/issues/4459
-parquet = { git = "https://github.com/alamb/arrow-rs.git", branch = "alamb/42.0.0_patched" }
-arrow = { git = "https://github.com/alamb/arrow-rs.git", branch = "alamb/42.0.0_patched" }
-arrow-buffer = { git = "https://github.com/alamb/arrow-rs.git", branch = "alamb/42.0.0_patched" }
-arrow-schema = { git = "https://github.com/alamb/arrow-rs.git", branch = "alamb/42.0.0_patched" }
-arrow-data = { git = "https://github.com/alamb/arrow-rs.git", branch = "alamb/42.0.0_patched" }
-arrow-array = { git = "https://github.com/alamb/arrow-rs.git", branch = "alamb/42.0.0_patched" }
-arrow-select = { git = "https://github.com/alamb/arrow-rs.git", branch = "alamb/42.0.0_patched" }
-arrow-cast = { git = "https://github.com/alamb/arrow-rs.git", branch = "alamb/42.0.0_patched" }
-arrow-ipc = { git = "https://github.com/alamb/arrow-rs.git", branch = "alamb/42.0.0_patched" }
-arrow-row = { git = "https://github.com/alamb/arrow-rs.git", branch = "alamb/42.0.0_patched" }
-arrow-arith = { git = "https://github.com/alamb/arrow-rs.git", branch = "alamb/42.0.0_patched" }
-arrow-ord = { git = "https://github.com/alamb/arrow-rs.git", branch = "alamb/42.0.0_patched" }
-arrow-string = { git = "https://github.com/alamb/arrow-rs.git", branch = "alamb/42.0.0_patched" }
-arrow-flight = { git = "https://github.com/alamb/arrow-rs.git", branch = "alamb/42.0.0_patched" }
