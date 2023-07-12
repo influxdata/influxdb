@@ -7,7 +7,6 @@ use generated_types::influxdata::iox::ingester::v1::{
     write_service_client::WriteServiceClient, WriteRequest,
 };
 use thiserror::Error;
-use tonic::IntoRequest;
 use trace::ctx::SpanContext;
 use trace_http::ctx::format_jaeger_trace_context;
 
@@ -82,19 +81,70 @@ impl<'a> WriteClient for TracePropagatingWriteClient<'a> {
         op: WriteRequest,
         span_ctx: Option<SpanContext>,
     ) -> Result<(), RpcWriteClientError> {
-        let mut req = tonic::Request::new(op).into_request();
-
-        if let Some(span_ctx) = span_ctx {
-            req.metadata_mut().insert(
-                tonic::metadata::MetadataKey::from_bytes(
-                    self.trace_context_header_name.as_bytes(),
-                )?,
-                tonic::metadata::MetadataValue::try_from(&format_jaeger_trace_context(&span_ctx))?,
-            );
-        };
-
+        let req = decorate_request_with_span_context(
+            tonic::Request::new(op),
+            self.trace_context_header_name,
+            span_ctx,
+        )?;
         WriteServiceClient::write(&mut self.inner.clone(), req).await?;
         Ok(())
+    }
+}
+
+fn decorate_request_with_span_context<T>(
+    mut req: tonic::Request<T>,
+    trace_context_header_name: &str,
+    span_ctx: Option<SpanContext>,
+) -> Result<tonic::Request<T>, RpcWriteClientError> {
+    if let Some(span_ctx) = span_ctx {
+        req.metadata_mut().insert(
+            tonic::metadata::MetadataKey::from_bytes(trace_context_header_name.as_bytes())?,
+            tonic::metadata::MetadataValue::try_from(&format_jaeger_trace_context(&span_ctx))?,
+        );
+    };
+    Ok(req)
+}
+
+#[cfg(test)]
+mod test {
+    use assert_matches::assert_matches;
+    use trace::{RingBufferTraceCollector, TraceCollector};
+    use trace_http::ctx::TraceHeaderParser;
+
+    use super::*;
+
+    const ARBITRARY_TRACE_CONTEXT_HEADER_NAME: &str = "bananas";
+
+    #[test]
+    fn span_context_can_be_parsed_from_write_request() {
+        // Initialise a trace context to bundle into the request.
+        let trace_collector = Arc::new(RingBufferTraceCollector::new(5));
+        let trace_observer: Arc<dyn TraceCollector> = Arc::new(Arc::clone(&trace_collector));
+        let req_ctx = SpanContext::new(Arc::clone(&trace_observer));
+        let req_span = req_ctx.child("request span");
+
+        // Decorate the request with the context.
+        let req = decorate_request_with_span_context(
+            tonic::Request::new(WriteRequest::default()),
+            ARBITRARY_TRACE_CONTEXT_HEADER_NAME,
+            Some(req_span.ctx),
+        )
+        .expect("must be able to decorate request");
+
+        // Parse the headers as it would be done by the middleware layer.
+        let header_parser = TraceHeaderParser::new()
+            .with_jaeger_trace_context_header_name(ARBITRARY_TRACE_CONTEXT_HEADER_NAME);
+        let headers = req.metadata().clone().into_headers();
+        let got_ctx = header_parser
+            .parse(Some(trace_observer).as_ref(), &headers)
+            .expect("must be able to parse a span context");
+
+        // Ensure that the parsed context shares the trace ID and has the
+        // request span as its parent.
+        assert_matches!(got_ctx, Some(got_ctx) => {
+            assert_eq!(got_ctx.trace_id, req_ctx.trace_id);
+            assert_eq!(got_ctx.parent_span_id, Some(req_ctx.span_id));
+        });
     }
 }
 
