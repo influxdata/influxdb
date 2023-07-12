@@ -102,7 +102,7 @@ impl ExecutionPlan for SchemaExec {
     }
 
     fn children(&self) -> Vec<Arc<dyn ExecutionPlan>> {
-        unimplemented!()
+        vec![Arc::clone(&self.input)]
     }
 
     fn with_new_children(
