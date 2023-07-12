@@ -1,12 +1,15 @@
 //! Abstraction over RPC client
 
-use std::sync::Arc;
+use std::{fmt::Debug, sync::Arc};
 
 use async_trait::async_trait;
 use generated_types::influxdata::iox::ingester::v1::{
     write_service_client::WriteServiceClient, WriteRequest,
 };
 use thiserror::Error;
+use tonic::IntoRequest;
+use trace::ctx::SpanContext;
+use trace_http::ctx::format_jaeger_trace_context;
 
 /// Request errors returned by [`WriteClient`] implementations.
 #[derive(Debug, Error)]
@@ -19,13 +22,25 @@ pub enum RpcWriteClientError {
     /// The upstream ingester returned an error response.
     #[error("upstream ingester error: {0}")]
     Upstream(#[from] tonic::Status),
+
+    /// The client is misconfigured and has produced an invalid request metadata key.
+    #[error("misconfigured client producing invalid metadata key: {0}")]
+    MisconfiguredMetadataKey(#[from] tonic::metadata::errors::InvalidMetadataKey),
+
+    /// The client is misconfigured and has produced an invalid request metadata value.
+    #[error("misconfigured client producing invalid metadata value: {0}")]
+    MisconfiguredMetadataValue(#[from] tonic::metadata::errors::InvalidMetadataValue),
 }
 
 /// An abstract RPC client that pushes `op` to an opaque receiver.
 #[async_trait]
 pub(super) trait WriteClient: Send + Sync + std::fmt::Debug {
     /// Write `op` and wait for a response.
-    async fn write(&self, op: WriteRequest) -> Result<(), RpcWriteClientError>;
+    async fn write(
+        &self,
+        op: WriteRequest,
+        span_ctx: Option<SpanContext>,
+    ) -> Result<(), RpcWriteClientError>;
 }
 
 #[async_trait]
@@ -33,16 +48,52 @@ impl<T> WriteClient for Arc<T>
 where
     T: WriteClient,
 {
-    async fn write(&self, op: WriteRequest) -> Result<(), RpcWriteClientError> {
-        (**self).write(op).await
+    async fn write(
+        &self,
+        op: WriteRequest,
+        span_ctx: Option<SpanContext>,
+    ) -> Result<(), RpcWriteClientError> {
+        (**self).write(op, span_ctx).await
     }
 }
 
-/// An implementation of [`WriteClient`] for the tonic gRPC client.
+#[derive(Debug)]
+pub(crate) struct TracePropagatingWriteClient<'a> {
+    inner: WriteServiceClient<tonic::transport::Channel>,
+    trace_context_header_name: &'a str,
+}
+
+impl<'a> TracePropagatingWriteClient<'a> {
+    pub(crate) fn new(
+        inner: WriteServiceClient<tonic::transport::Channel>,
+        trace_context_header_name: &'a str,
+    ) -> Self {
+        Self {
+            inner,
+            trace_context_header_name,
+        }
+    }
+}
+
 #[async_trait]
-impl WriteClient for WriteServiceClient<tonic::transport::Channel> {
-    async fn write(&self, op: WriteRequest) -> Result<(), RpcWriteClientError> {
-        WriteServiceClient::write(&mut self.clone(), op).await?;
+impl<'a> WriteClient for TracePropagatingWriteClient<'a> {
+    async fn write(
+        &self,
+        op: WriteRequest,
+        span_ctx: Option<SpanContext>,
+    ) -> Result<(), RpcWriteClientError> {
+        let mut req = tonic::Request::new(op).into_request();
+
+        if let Some(span_ctx) = span_ctx {
+            req.metadata_mut().insert(
+                tonic::metadata::MetadataKey::from_bytes(
+                    self.trace_context_header_name.as_bytes(),
+                )?,
+                tonic::metadata::MetadataValue::try_from(&format_jaeger_trace_context(&span_ctx))?,
+            );
+        };
+
+        WriteServiceClient::write(&mut self.inner.clone(), req).await?;
         Ok(())
     }
 }
@@ -112,7 +163,11 @@ pub mod mock {
 
     #[async_trait]
     impl WriteClient for Arc<MockWriteClient> {
-        async fn write(&self, op: WriteRequest) -> Result<(), RpcWriteClientError> {
+        async fn write(
+            &self,
+            op: WriteRequest,
+            _span_ctx: Option<SpanContext>,
+        ) -> Result<(), RpcWriteClientError> {
             let mut guard = self.state.lock();
             guard.calls.push(op);
 
