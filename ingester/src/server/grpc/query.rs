@@ -411,6 +411,94 @@ mod tests {
     use tonic::Code;
 
     #[tokio::test]
+    async fn sends_partition_hash_id_if_present() {
+        let ingester_id = IngesterId::new();
+        let partition_hash_id = PartitionHashId::new(TableId::new(3), &ARBITRARY_PARTITION_KEY);
+
+        let flight = FlightService::new(
+            MockQueryExec::default().with_result(Ok(QueryResponse::new(PartitionStream::new(
+                futures::stream::iter([PartitionResponse::new(
+                    vec![],
+                    PartitionId::new(2),
+                    Some(partition_hash_id.clone()),
+                    42,
+                )]),
+            )))),
+            ingester_id,
+            100,
+            &metric::Registry::default(),
+        );
+
+        let req = tonic::Request::new(Ticket {
+            ticket: Bytes::new(),
+        });
+        let response_stream = flight
+            .do_get(req)
+            .await
+            .unwrap()
+            .into_inner()
+            .map_err(FlightError::Tonic);
+        let flight_decoder =
+            FlightRecordBatchStream::new_from_flight_data(response_stream).into_inner();
+        let flight_data = flight_decoder.try_collect::<Vec<_>>().await.unwrap();
+
+        // partition info
+        assert_matches!(flight_data[0].payload, DecodedPayload::None);
+        let md_actual =
+            proto::IngesterQueryResponseMetadata::decode(flight_data[0].app_metadata()).unwrap();
+        let md_expected = proto::IngesterQueryResponseMetadata {
+            partition_id: 2,
+            partition_hash_id: Some(partition_hash_id.as_bytes().to_vec()),
+            ingester_uuid: ingester_id.to_string(),
+            completed_persistence_count: 42,
+        };
+        assert_eq!(md_actual, md_expected);
+    }
+
+    #[tokio::test]
+    async fn doesnt_send_partition_hash_id_if_not_present() {
+        let ingester_id = IngesterId::new();
+        let flight = FlightService::new(
+            MockQueryExec::default().with_result(Ok(QueryResponse::new(PartitionStream::new(
+                futures::stream::iter([PartitionResponse::new(
+                    vec![],
+                    PartitionId::new(2),
+                    None,
+                    42,
+                )]),
+            )))),
+            ingester_id,
+            100,
+            &metric::Registry::default(),
+        );
+
+        let req = tonic::Request::new(Ticket {
+            ticket: Bytes::new(),
+        });
+        let response_stream = flight
+            .do_get(req)
+            .await
+            .unwrap()
+            .into_inner()
+            .map_err(FlightError::Tonic);
+        let flight_decoder =
+            FlightRecordBatchStream::new_from_flight_data(response_stream).into_inner();
+        let flight_data = flight_decoder.try_collect::<Vec<_>>().await.unwrap();
+
+        // partition info
+        assert_matches!(flight_data[0].payload, DecodedPayload::None);
+        let md_actual =
+            proto::IngesterQueryResponseMetadata::decode(flight_data[0].app_metadata()).unwrap();
+        let md_expected = proto::IngesterQueryResponseMetadata {
+            partition_id: 2,
+            partition_hash_id: None,
+            ingester_uuid: ingester_id.to_string(),
+            completed_persistence_count: 42,
+        };
+        assert_eq!(md_actual, md_expected);
+    }
+
+    #[tokio::test]
     async fn limits_concurrent_queries() {
         let mut flight = FlightService::new(
             MockQueryExec::default(),
