@@ -5,7 +5,7 @@ use data_types::{NamespaceId, TableId};
 use predicate::Predicate;
 use trace::span::{Span, SpanRecorder};
 
-use super::QueryExec;
+use super::{projection::OwnedProjection, QueryExec};
 use crate::query::QueryError;
 
 /// An tracing decorator over a [`QueryExec`] implementation.
@@ -41,7 +41,7 @@ where
         &self,
         namespace_id: NamespaceId,
         table_id: TableId,
-        columns: Vec<String>,
+        projection: OwnedProjection,
         span: Option<Span>,
         predicate: Option<Predicate>,
     ) -> Result<Self::Response, QueryError> {
@@ -52,7 +52,7 @@ where
             .query_exec(
                 namespace_id,
                 table_id,
-                columns,
+                projection,
                 recorder.span().cloned(),
                 predicate,
             )
@@ -117,7 +117,7 @@ mod tests {
             .query_exec(
                 NamespaceId::new(42),
                 TableId::new(24),
-                vec![],
+                OwnedProjection::default(),
                 Some(span.child("root span")),
                 None,
             )
@@ -141,7 +141,7 @@ mod tests {
             .query_exec(
                 NamespaceId::new(42),
                 TableId::new(24),
-                vec![],
+                OwnedProjection::default(),
                 Some(span.child("root span")),
                 None,
             )

@@ -19,7 +19,7 @@ use tokio::sync::{Semaphore, TryAcquireError};
 use tonic::{Request, Response, Streaming};
 use trace::{
     ctx::SpanContext,
-    span::{Span, SpanExt},
+    span::{Span, SpanExt, SpanRecorder},
 };
 
 mod instrumentation;
@@ -27,7 +27,7 @@ use instrumentation::FlightFrameEncodeInstrumentation;
 
 use crate::{
     ingester_id::IngesterId,
-    query::{response::QueryResponse, QueryError, QueryExec},
+    query::{projection::OwnedProjection, response::QueryResponse, QueryError, QueryExec},
 };
 
 /// Error states for the query RPC handler.
@@ -175,7 +175,7 @@ where
         request: Request<Ticket>,
     ) -> Result<Response<Self::DoGetStream>, tonic::Status> {
         let span_ctx: Option<SpanContext> = request.extensions().get().cloned();
-        let span = span_ctx.child_span("ingester query");
+        let mut query_recorder = SpanRecorder::new(span_ctx.child_span("ingester query"));
 
         // Acquire and hold a permit for the duration of this request, or return
         // an error if the existing requests have already exhausted the
@@ -207,13 +207,15 @@ where
             None
         };
 
+        let projection = OwnedProjection::from(request.columns);
+
         let response = match self
             .query_handler
             .query_exec(
                 namespace_id,
                 table_id,
-                request.columns,
-                span.clone(),
+                projection,
+                query_recorder.child_span("query exec"),
                 predicate,
             )
             .await
@@ -221,10 +223,11 @@ where
             Ok(v) => v,
             Err(e @ (QueryError::TableNotFound(_, _) | QueryError::NamespaceNotFound(_))) => {
                 debug!(
-                        error=%e,
-                        %namespace_id,
-                        %table_id,
-                        "query error, no buffered data found");
+                    error=%e,
+                    %namespace_id,
+                    %table_id,
+                    "no buffered data found for query"
+                );
 
                 return Err(e)?;
             }
@@ -233,11 +236,12 @@ where
         let output = encode_response(
             response,
             self.ingester_id,
-            span,
+            query_recorder.child_span("serialise response"),
             Arc::clone(&self.query_request_frame_encoding_duration),
         )
         .map_err(tonic::Status::from);
 
+        query_recorder.ok("query exec complete - streaming results");
         Ok(Response::new(Box::pin(output) as Self::DoGetStream))
     }
 

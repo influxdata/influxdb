@@ -5,10 +5,11 @@ use std::{
 
 use async_trait::async_trait;
 use backoff::{Backoff, BackoffConfig};
-use data_types::{ParquetFile, PartitionId};
+use data_types::{ParquetFile, PartitionId, TransitionPartitionId};
 use iox_catalog::interface::Catalog;
+use observability_deps::tracing::warn;
 
-use super::{rate_limit::QueryRateLimit, PartitionFilesSource};
+use super::{rate_limit::RateLimit, PartitionFilesSource};
 
 #[async_trait]
 pub(crate) trait CatalogQuerier: Send + Sync + Debug {
@@ -16,6 +17,39 @@ pub(crate) trait CatalogQuerier: Send + Sync + Debug {
         &self,
         partition_id: PartitionId,
     ) -> Result<Vec<ParquetFile>, iox_catalog::interface::Error>;
+}
+
+/// a QueryRateLimiter applies a RateLimit to a CatalogQuerier.
+#[derive(Debug)]
+pub struct QueryRateLimiter<T> {
+    inner: T,
+    rate_limit: RateLimit,
+}
+
+impl<T> QueryRateLimiter<T> {
+    pub fn new(inner: T, rate_limit: RateLimit) -> Self {
+        Self { inner, rate_limit }
+    }
+}
+
+#[async_trait]
+impl<T> CatalogQuerier for QueryRateLimiter<T>
+where
+    T: CatalogQuerier,
+{
+    async fn get_partitions(
+        &self,
+        partition_id: PartitionId,
+    ) -> Result<Vec<ParquetFile>, iox_catalog::interface::Error> {
+        while let Some(d) = self.rate_limit.can_proceed() {
+            warn!(%partition_id, "partition fetch rate limited");
+
+            // Don't busy loop - wait the fractions of a second before a retry
+            // is allowed.
+            tokio::time::sleep(d).await;
+        }
+        self.inner.get_partitions(partition_id).await
+    }
 }
 
 #[async_trait]
@@ -27,13 +61,13 @@ impl CatalogQuerier for Arc<dyn Catalog> {
         self.repositories()
             .await
             .parquet_files()
-            .list_by_partition_not_to_delete(partition_id)
+            .list_by_partition_not_to_delete(&TransitionPartitionId::Deprecated(partition_id))
             .await
     }
 }
 
 #[derive(Debug)]
-pub struct CatalogPartitionFilesSource<T = QueryRateLimit<Arc<dyn Catalog>>> {
+pub struct CatalogPartitionFilesSource<T = QueryRateLimiter<Arc<dyn Catalog>>> {
     backoff_config: BackoffConfig,
     catalog: T,
 }
@@ -65,5 +99,55 @@ where
             })
             .await
             .expect("retry forever")
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::{sync::Mutex, time::Duration};
+    use tokio::time::Instant;
+
+    /// A [`CatalogQuerier`] that always returns OK, and counts the number of
+    /// calls made.
+    #[derive(Debug, Default)]
+    struct MockInner(Mutex<usize>);
+    #[async_trait]
+    impl CatalogQuerier for &MockInner {
+        async fn get_partitions(
+            &self,
+            _partition_id: PartitionId,
+        ) -> Result<Vec<ParquetFile>, iox_catalog::interface::Error> {
+            *self.0.lock().unwrap() += 1;
+            Ok(vec![])
+        }
+    }
+
+    #[tokio::test]
+    async fn test_rate_limit() {
+        const ALLOWED_PER_SECOND: usize = 100;
+
+        let inner = MockInner::default();
+        let r = QueryRateLimiter::new(&inner, RateLimit::new(ALLOWED_PER_SECOND));
+
+        let start = Instant::now();
+
+        // If there are ALLOWED_PER_SECOND queries allowed per second, then it
+        // should take 1 second to issue ALLOWED_PER_SECOND number of queries.
+        //
+        // Attempt to make 1/10th the number of permissible queries per second,
+        // which should take at least 1/10th of a second due to smoothing, so
+        // the test does not take so long.
+        for _ in 0..(ALLOWED_PER_SECOND / 10) {
+            r.get_partitions(PartitionId::new(42)).await.unwrap();
+        }
+
+        // It should have taken at least 1/10th of a second
+        let duration = Instant::now() - start;
+        assert!(duration > Duration::from_millis(ALLOWED_PER_SECOND as u64 / 10));
+
+        // Exactly 1/10th the number of queries should be dispatched to the
+        // inner impl.
+        assert_eq!(*inner.0.lock().unwrap(), ALLOWED_PER_SECOND / 10);
     }
 }

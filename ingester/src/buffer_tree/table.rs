@@ -18,7 +18,6 @@ use iox_query::{
 use mutable_batch::MutableBatch;
 use parking_lot::Mutex;
 use predicate::Predicate;
-use schema::Projection;
 use trace::span::{Span, SpanRecorder};
 
 use super::{
@@ -30,7 +29,8 @@ use crate::{
     arcmap::ArcMap,
     deferred_load::DeferredLoad,
     query::{
-        partition_response::PartitionResponse, response::PartitionStream, QueryError, QueryExec,
+        partition_response::PartitionResponse, projection::OwnedProjection,
+        response::PartitionStream, QueryError, QueryExec,
     },
     query_adaptor::QueryAdaptor,
 };
@@ -256,7 +256,7 @@ where
         &self,
         namespace_id: NamespaceId,
         table_id: TableId,
-        columns: Vec<String>,
+        projection: OwnedProjection,
         span: Option<Span>,
         predicate: Option<Predicate>,
     ) -> Result<Self::Response, QueryError> {
@@ -270,7 +270,7 @@ where
 
         // Gather the partition data from all of the partitions in this table.
         let span = SpanRecorder::new(span);
-        let partitions = self.partitions().into_iter().map(move |p| {
+        let partitions = self.partitions().into_iter().filter_map(move |p| {
             let mut span = span.child("partition read");
 
             let (id, hash_id, completed_persistence_count, data, partition_key) = {
@@ -279,7 +279,7 @@ where
                     p.partition_id(),
                     p.partition_hash_id().cloned(),
                     p.completed_persistence_count(),
-                    p.get_query_data(),
+                    p.get_query_data(&projection),
                     p.partition_key().clone(),
                 )
             };
@@ -287,8 +287,6 @@ where
             let ret = match data {
                 Some(data) => {
                     assert_eq!(id, data.partition_id());
-
-                    let data = Arc::new(data);
 
                     // Potentially prune out this partition if the partition
                     // template & derived partition key can be used to match
@@ -305,30 +303,36 @@ where
                         })
                         .unwrap_or_default()
                     {
-                        return PartitionResponse::new(
-                            vec![],
-                            id,
-                            hash_id,
-                            completed_persistence_count,
-                        );
+                        // This partition will never contain any data that would
+                        // form part of the query response.
+                        //
+                        // Because this is true of buffered data, it is also
+                        // true of the persisted data, and therefore sending the
+                        // persisted file count metadata is useless because the
+                        // querier would never utilise the persisted files as
+                        // part of this query.
+                        //
+                        // This avoids sending O(n) metadata frames for queries
+                        // that may only touch one or two actual frames. The N
+                        // partition count grows over the lifetime of the
+                        // ingester as more partitions are created, and while
+                        // fast to serialise individually, the sequentially-sent
+                        // N metadata frames add up.
+                        return None;
                     }
 
-                    // Project the data if necessary
-                    let columns = columns.iter().map(String::as_str).collect::<Vec<_>>();
-                    let selection = if columns.is_empty() {
-                        Projection::All
-                    } else {
-                        Projection::Some(columns.as_ref())
-                    };
-
-                    let data = data.project_selection(selection).into_iter().collect();
-                    PartitionResponse::new(data, id, hash_id, completed_persistence_count)
+                    PartitionResponse::new(
+                        data.into_record_batches(),
+                        id,
+                        hash_id,
+                        completed_persistence_count,
+                    )
                 }
                 None => PartitionResponse::new(vec![], id, hash_id, completed_persistence_count),
             };
 
             span.ok("read partition data");
-            ret
+            Some(ret)
         });
 
         Ok(PartitionStream::new(futures::stream::iter(partitions)))

@@ -1,13 +1,17 @@
+use crate::error;
 use crate::plan::ir::Field;
 use arrow::datatypes::DataType;
 use datafusion::common::{DFSchemaRef, Result};
 use datafusion::logical_expr::{Expr, LogicalPlan, LogicalPlanBuilder};
 use datafusion_util::AsExpr;
 use generated_types::influxdata::iox::querier::v1::influx_ql_metadata::TagKeyColumn;
-use influxdb_influxql_parser::expression::{Expr as IQLExpr, VarRef, VarRefDataType};
+use influxdb_influxql_parser::expression::{Call, Expr as IQLExpr, VarRef, VarRefDataType};
+use influxdb_influxql_parser::identifier::Identifier;
+use influxdb_influxql_parser::literal::Literal;
 use itertools::Itertools;
 use schema::{InfluxColumnType, INFLUXQL_MEASUREMENT_COLUMN_NAME};
 use std::collections::{HashMap, HashSet};
+use std::fmt::{Display, Formatter};
 
 pub(super) fn make_tag_key_column_meta(
     fields: &[Field],
@@ -197,4 +201,237 @@ fn find_tag_and_unknown_columns(fields: &[Field]) -> impl Iterator<Item = &str> 
         Some(InfluxColumnType::Tag) | None => Some(f.name.as_str()),
         _ => None,
     })
+}
+
+/// The selector function that has been specified for use with a selector
+/// projection type.
+#[derive(Debug)]
+pub(super) enum Selector<'a> {
+    Bottom {
+        field_key: &'a Identifier,
+        tag_keys: Vec<&'a Identifier>,
+        n: i64,
+    },
+    First {
+        field_key: &'a Identifier,
+    },
+    Last {
+        field_key: &'a Identifier,
+    },
+    Max {
+        field_key: &'a Identifier,
+    },
+    Min {
+        field_key: &'a Identifier,
+    },
+    Percentile {
+        field_key: &'a Identifier,
+        n: f64,
+    },
+    Sample {
+        field_key: &'a Identifier,
+        n: i64,
+    },
+    Top {
+        field_key: &'a Identifier,
+        tag_keys: Vec<&'a Identifier>,
+        n: i64,
+    },
+}
+
+impl<'a> Selector<'a> {
+    /// Find the selector function, with its location, in the specified field list.
+    pub(super) fn find_enumerated(fields: &'a [Field]) -> Result<(usize, Self)> {
+        fields
+            .iter()
+            .enumerate()
+            .find_map(|(idx, f)| match &f.expr {
+                IQLExpr::Call(c) => Some((idx, c)),
+                _ => None,
+            })
+            .map(|(idx, c)| {
+                Ok((
+                    idx,
+                    match c.name.as_str() {
+                        "bottom" => Self::bottom(c),
+                        "first" => Self::first(c),
+                        "last" => Self::last(c),
+                        "max" => Self::max(c),
+                        "min" => Self::min(c),
+                        "percentile" => Self::percentile(c),
+                        "sample" => Self::sample(c),
+                        "top" => Self::top(c),
+                        name => error::internal(format!("unexpected selector function: {name}")),
+                    }?,
+                ))
+            })
+            .ok_or_else(|| error::map::internal("expected Call expression"))?
+    }
+
+    fn bottom(call: &'a Call) -> Result<Self> {
+        let [field_key, tag_keys @ .., narg] =  call.args.as_slice() else {
+            return error::internal(format!(
+                "invalid number of arguments for bottom: expected 2 or more, got {}",
+                call.args.len()
+            ));
+        };
+        let tag_keys: Result<Vec<_>> = tag_keys.iter().map(Self::identifier).collect();
+        Ok(Self::Bottom {
+            field_key: Self::identifier(field_key)?,
+            tag_keys: tag_keys?,
+            n: Self::literal_int(narg)?,
+        })
+    }
+
+    fn first(call: &'a Call) -> Result<Self> {
+        if call.args.len() != 1 {
+            return error::internal(format!(
+                "invalid number of arguments for first: expected 1, got {}",
+                call.args.len()
+            ));
+        }
+        Ok(Self::First {
+            field_key: Self::identifier(call.args.get(0).unwrap())?,
+        })
+    }
+
+    fn last(call: &'a Call) -> Result<Self> {
+        if call.args.len() != 1 {
+            return error::internal(format!(
+                "invalid number of arguments for last: expected 1, got {}",
+                call.args.len()
+            ));
+        }
+        Ok(Self::Last {
+            field_key: Self::identifier(call.args.get(0).unwrap())?,
+        })
+    }
+
+    fn max(call: &'a Call) -> Result<Self> {
+        if call.args.len() != 1 {
+            return error::internal(format!(
+                "invalid number of arguments for max: expected 1, got {}",
+                call.args.len()
+            ));
+        }
+        Ok(Self::Max {
+            field_key: Self::identifier(call.args.get(0).unwrap())?,
+        })
+    }
+
+    fn min(call: &'a Call) -> Result<Self> {
+        if call.args.len() != 1 {
+            return error::internal(format!(
+                "invalid number of arguments for min: expected 1, got {}",
+                call.args.len()
+            ));
+        }
+        Ok(Self::Min {
+            field_key: Self::identifier(call.args.get(0).unwrap())?,
+        })
+    }
+
+    fn percentile(call: &'a Call) -> Result<Self> {
+        if call.args.len() != 2 {
+            return error::internal(format!(
+                "invalid number of arguments for min: expected 1, got {}",
+                call.args.len()
+            ));
+        }
+        Ok(Self::Percentile {
+            field_key: Self::identifier(call.args.get(0).unwrap())?,
+            n: Self::literal_num(call.args.get(1).unwrap())?,
+        })
+    }
+
+    fn sample(call: &'a Call) -> Result<Self> {
+        if call.args.len() != 2 {
+            return error::internal(format!(
+                "invalid number of arguments for min: expected 1, got {}",
+                call.args.len()
+            ));
+        }
+        Ok(Self::Sample {
+            field_key: Self::identifier(call.args.get(0).unwrap())?,
+            n: Self::literal_int(call.args.get(1).unwrap())?,
+        })
+    }
+
+    fn top(call: &'a Call) -> Result<Self> {
+        let [field_key, tag_keys @ .., narg] =  call.args.as_slice() else {
+            return error::internal(format!(
+                "invalid number of arguments for top: expected 2 or more, got {}",
+                call.args.len()
+            ));
+        };
+        let tag_keys: Result<Vec<_>> = tag_keys.iter().map(Self::identifier).collect();
+        Ok(Self::Top {
+            field_key: Self::identifier(field_key)?,
+            tag_keys: tag_keys?,
+            n: Self::literal_int(narg)?,
+        })
+    }
+
+    fn identifier(expr: &'a IQLExpr) -> Result<&'a Identifier> {
+        match expr {
+            IQLExpr::VarRef(v) => Ok(&v.name),
+            e => error::internal(format!("invalid column identifier: {}", e)),
+        }
+    }
+
+    fn literal_int(expr: &'a IQLExpr) -> Result<i64> {
+        match expr {
+            IQLExpr::Literal(Literal::Integer(n)) => Ok(*n),
+            e => error::internal(format!("invalid integer literal: {}", e)),
+        }
+    }
+
+    fn literal_num(expr: &'a IQLExpr) -> Result<f64> {
+        match expr {
+            IQLExpr::Literal(Literal::Integer(n)) => Ok(*n as f64),
+            IQLExpr::Literal(Literal::Float(n)) => Ok(*n),
+            e => error::internal(format!("invalid integer literal: {}", e)),
+        }
+    }
+}
+
+impl<'a> Display for Selector<'a> {
+    fn fmt(&self, f: &mut Formatter<'_>) -> Result<(), std::fmt::Error> {
+        match self {
+            Self::Bottom {
+                field_key,
+                tag_keys,
+                n,
+            } => {
+                write!(f, "bottom({field_key}")?;
+                for tag_key in tag_keys {
+                    write!(f, ", {tag_key}")?;
+                }
+                write!(f, ", {n})")
+            }
+            Self::First { field_key } => write!(f, "first({field_key})"),
+            Self::Last { field_key } => write!(f, "last({field_key})"),
+            Self::Max { field_key } => write!(f, "max({field_key})"),
+            Self::Min { field_key } => write!(f, "min({field_key})"),
+            Self::Percentile { field_key, n } => write!(f, "percentile({field_key}, {n})"),
+            Self::Sample { field_key, n } => write!(f, "sample({field_key}, {n})"),
+            Self::Top {
+                field_key,
+                tag_keys,
+                n,
+            } => {
+                write!(f, "top({field_key}")?;
+                for tag_key in tag_keys {
+                    write!(f, ", {tag_key}")?;
+                }
+                write!(f, ", {n})")
+            }
+        }
+    }
+}
+
+#[derive(Clone, Copy, Debug)]
+pub(super) enum SelectorWindowOrderBy<'a> {
+    FieldAsc(&'a Identifier),
+    FieldDesc(&'a Identifier),
 }

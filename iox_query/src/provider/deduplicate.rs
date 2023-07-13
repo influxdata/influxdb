@@ -20,8 +20,8 @@ use datafusion::{
         metrics::{
             self, BaselineMetrics, ExecutionPlanMetricsSet, MetricBuilder, MetricsSet, RecordOutput,
         },
-        DisplayFormatType, Distribution, ExecutionPlan, Partitioning, SendableRecordBatchStream,
-        Statistics,
+        DisplayAs, DisplayFormatType, Distribution, ExecutionPlan, Partitioning,
+        SendableRecordBatchStream, Statistics,
     },
 };
 use futures::StreamExt;
@@ -267,15 +267,6 @@ impl ExecutionPlan for DeduplicateExec {
         vec![Distribution::SinglePartition]
     }
 
-    fn fmt_as(&self, t: DisplayFormatType, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        match t {
-            DisplayFormatType::Default | DisplayFormatType::Verbose => {
-                let expr: Vec<String> = self.sort_keys.iter().map(|e| e.to_string()).collect();
-                write!(f, "DeduplicateExec: [{}]", expr.join(","))
-            }
-        }
-    }
-
     fn metrics(&self) -> Option<MetricsSet> {
         Some(self.metrics.clone_inner())
     }
@@ -285,6 +276,17 @@ impl ExecutionPlan for DeduplicateExec {
         Statistics {
             is_exact: false,
             ..self.input.statistics()
+        }
+    }
+}
+
+impl DisplayAs for DeduplicateExec {
+    fn fmt_as(&self, t: DisplayFormatType, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match t {
+            DisplayFormatType::Default | DisplayFormatType::Verbose => {
+                let expr: Vec<String> = self.sort_keys.iter().map(|e| e.to_string()).collect();
+                write!(f, "DeduplicateExec: [{}]", expr.join(","))
+            }
         }
     }
 }
@@ -1220,6 +1222,12 @@ mod test {
         fn statistics(&self) -> Statistics {
             // don't know anything about the statistics
             Statistics::default()
+        }
+    }
+
+    impl DisplayAs for DummyExec {
+        fn fmt_as(&self, _t: DisplayFormatType, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+            write!(f, "DummyExec")
         }
     }
 }

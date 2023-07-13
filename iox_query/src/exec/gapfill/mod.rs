@@ -27,7 +27,7 @@ use datafusion::{
     physical_plan::{
         expressions::Column,
         metrics::{BaselineMetrics, ExecutionPlanMetricsSet},
-        DisplayFormatType, Distribution, ExecutionPlan, Partitioning, PhysicalExpr,
+        DisplayAs, DisplayFormatType, Distribution, ExecutionPlan, Partitioning, PhysicalExpr,
         SendableRecordBatchStream, Statistics,
     },
     prelude::Expr,
@@ -223,12 +223,18 @@ impl UserDefinedLogicalNodeCore for GapFill {
             })
             .collect::<Vec<String>>()
             .join(", ");
+
+        let group_expr = self
+            .group_expr
+            .iter()
+            .map(|e| e.to_string())
+            .collect::<Vec<String>>()
+            .join(", ");
+
         write!(
             f,
-            "{}: groupBy=[{:?}], aggr=[[{}]], time_column={}, stride={}, range={:?}",
+            "{}: groupBy=[{group_expr}], aggr=[[{aggr_expr}]], time_column={}, stride={}, range={:?}",
             self.name(),
-            self.group_expr,
-            aggr_expr,
             self.params.time_column,
             self.params.stride,
             self.params.time_range,
@@ -528,6 +534,12 @@ impl ExecutionPlan for GapFillExec {
         )?))
     }
 
+    fn statistics(&self) -> Statistics {
+        Statistics::default()
+    }
+}
+
+impl DisplayAs for GapFillExec {
     fn fmt_as(&self, t: DisplayFormatType, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match t {
             DisplayFormatType::Default | DisplayFormatType::Verbose => {
@@ -559,10 +571,6 @@ impl ExecutionPlan for GapFillExec {
                 )
             }
         }
-    }
-
-    fn statistics(&self) -> Statistics {
-        Statistics::default()
     }
 }
 
@@ -740,7 +748,7 @@ mod test {
             format_logical_plan(&plan),
             @r###"
         ---
-        - " GapFill: groupBy=[[loc, time]], aggr=[[temp]], time_column=time, stride=IntervalDayTime(\"60000\"), range=Included(TimestampNanosecond(1000, None))..Excluded(TimestampNanosecond(2000, None))"
+        - " GapFill: groupBy=[loc, time], aggr=[[temp]], time_column=time, stride=IntervalDayTime(\"60000\"), range=Included(Literal(TimestampNanosecond(1000, None)))..Excluded(Literal(TimestampNanosecond(2000, None)))"
         - "   TableScan: temps"
         "###
         );

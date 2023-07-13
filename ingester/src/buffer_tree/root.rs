@@ -18,7 +18,10 @@ use crate::{
     dml_payload::IngestOp,
     dml_sink::DmlSink,
     partition_iter::PartitionIter,
-    query::{response::QueryResponse, tracing::QueryExecTracing, QueryError, QueryExec},
+    query::{
+        projection::OwnedProjection, response::QueryResponse, tracing::QueryExecTracing,
+        QueryError, QueryExec,
+    },
 };
 
 /// A [`BufferTree`] is the root of an in-memory tree of many [`NamespaceData`]
@@ -201,7 +204,7 @@ where
         &self,
         namespace_id: NamespaceId,
         table_id: TableId,
-        columns: Vec<String>,
+        projection: OwnedProjection,
         span: Option<Span>,
         predicate: Option<Predicate>,
     ) -> Result<Self::Response, QueryError> {
@@ -213,7 +216,7 @@ where
         // Delegate query execution to the namespace, wrapping the execution in
         // a tracing delegate to emit a child span.
         QueryExecTracing::new(inner, "namespace")
-            .query_exec(namespace_id, table_id, columns, span, predicate)
+            .query_exec(namespace_id, table_id, projection, span, predicate)
             .await
     }
 }
@@ -399,7 +402,7 @@ mod tests {
                         .query_exec(
                             ARBITRARY_NAMESPACE_ID,
                             ARBITRARY_TABLE_ID,
-                            vec![],
+                            OwnedProjection::default(),
                             None,
                             $predicate
                         )
@@ -742,6 +745,108 @@ mod tests {
         ]
     );
 
+    /// Ensure partition pruning during query execution also prunes metadata
+    /// frames.
+    ///
+    /// Individual frames are fast to serialise, but large numbers of frames can
+    /// add significant query overhead, particularly for queries returning small
+    /// numbers of rows where the metadata becomes a significant portion of the
+    /// response.
+    #[tokio::test]
+    async fn test_partition_metadata_pruning() {
+        let partition_provider = Arc::new(
+            MockPartitionProvider::default()
+                .with_partition(
+                    PartitionDataBuilder::new()
+                        .with_partition_id(ARBITRARY_PARTITION_ID)
+                        .with_partition_key("madrid".into())
+                        .build(),
+                )
+                .with_partition(
+                    PartitionDataBuilder::new()
+                        .with_partition_id(PARTITION2_ID)
+                        .with_partition_key("asturias".into())
+                        .build(),
+                ),
+        );
+
+        // Construct a partition template suitable for pruning on the "region"
+        // tag.
+        let table_provider = Arc::new(MockTableProvider::new(TableMetadata::new_for_testing(
+            ARBITRARY_TABLE_NAME.clone(),
+            test_table_partition_override(vec![TemplatePart::TagValue("region")]),
+        )));
+
+        // Init the buffer tree
+        let buf = BufferTree::new(
+            Arc::new(MockNamespaceNameProvider::new(&**ARBITRARY_NAMESPACE_NAME)),
+            table_provider,
+            partition_provider,
+            Arc::new(MockPostWriteObserver::default()),
+            Arc::new(metric::Registry::default()),
+        );
+
+        // Write to two regions
+        buf.apply(IngestOp::Write(make_write_op(
+            &PartitionKey::from("madrid"),
+            ARBITRARY_NAMESPACE_ID,
+            &ARBITRARY_TABLE_NAME,
+            ARBITRARY_TABLE_ID,
+            0,
+            &format!(
+                r#"{},region=madrid temp=35 4242424242"#,
+                &*ARBITRARY_TABLE_NAME
+            ),
+            None,
+        )))
+        .await
+        .expect("failed to perform write");
+
+        buf.apply(IngestOp::Write(make_write_op(
+            &PartitionKey::from("asturias"),
+            ARBITRARY_NAMESPACE_ID,
+            &ARBITRARY_TABLE_NAME,
+            ARBITRARY_TABLE_ID,
+            0,
+            &format!(
+                r#"{},region=asturias temp=35 4242424242"#,
+                &*ARBITRARY_TABLE_NAME
+            ),
+            None,
+        )))
+        .await
+        .expect("failed to perform write");
+
+        // Construct a predicate suitable for pruning partitions based on the
+        // region / partition template.
+        let predicate = Some(Predicate::new().with_expr(col("region").eq(lit(
+            ScalarValue::Dictionary(
+                Box::new(DataType::Int32),
+                Box::new(ScalarValue::from("asturias")),
+            ),
+        ))));
+
+        // Execute the query and count the number of partitions that are
+        // returned (either data, or metadata).
+        let partition_count = buf
+            .query_exec(
+                ARBITRARY_NAMESPACE_ID,
+                ARBITRARY_TABLE_ID,
+                OwnedProjection::default(),
+                None,
+                predicate,
+            )
+            .await
+            .expect("query should succeed")
+            .into_partition_stream()
+            .count()
+            .await;
+
+        // Because the data in the "madrid" partition was pruned out, the
+        // metadata should not be sent either.
+        assert_eq!(partition_count, 1);
+    }
+
     /// Assert that multiple writes to a single namespace/table results in a
     /// single namespace being created, and matching metrics.
     #[tokio::test]
@@ -966,7 +1071,7 @@ mod tests {
             .query_exec(
                 ARBITRARY_NAMESPACE_ID,
                 ARBITRARY_TABLE_ID,
-                vec![],
+                OwnedProjection::default(),
                 None,
                 None,
             )
@@ -994,7 +1099,13 @@ mod tests {
 
         // Ensure an unknown table errors
         let err = buf
-            .query_exec(ARBITRARY_NAMESPACE_ID, TABLE2_ID, vec![], None, None)
+            .query_exec(
+                ARBITRARY_NAMESPACE_ID,
+                TABLE2_ID,
+                OwnedProjection::default(),
+                None,
+                None,
+            )
             .await
             .expect_err("query should fail");
         assert_matches!(err, QueryError::TableNotFound(ns, t) => {
@@ -1006,7 +1117,7 @@ mod tests {
         buf.query_exec(
             ARBITRARY_NAMESPACE_ID,
             ARBITRARY_TABLE_ID,
-            vec![],
+            OwnedProjection::default(),
             None,
             None,
         )
@@ -1080,7 +1191,7 @@ mod tests {
             .query_exec(
                 ARBITRARY_NAMESPACE_ID,
                 ARBITRARY_TABLE_ID,
-                vec![],
+                OwnedProjection::default(),
                 None,
                 None,
             )

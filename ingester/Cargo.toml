@@ -9,8 +9,8 @@ license.workspace = true
 arrow = { workspace = true, features = ["prettyprint"] }
 arrow_util = { version = "0.1.0", path = "../arrow_util" }
 arrow-flight = { workspace = true }
-async-channel = "1.8.0"
-async-trait = "0.1.70"
+async-channel = "1.9.0"
+async-trait = "0.1.71"
 backoff = { version = "0.1.0", path = "../backoff" }
 bytes = "1.4.0"
 crossbeam-utils = "0.8.16"
@@ -39,7 +39,8 @@ schema = { version = "0.1.0", path = "../schema" }
 service_grpc_catalog = { version = "0.1.0", path = "../service_grpc_catalog" }
 sharder = { version = "0.1.0", path = "../sharder" }
 test_helpers = { path = "../test_helpers", features = ["future_timeout"], optional = true }
-thiserror = "1.0.41"
+thiserror = "1.0.43"
+tracker = { path = "../tracker" }
 tokio = { version = "1.29", features = ["macros", "parking_lot", "rt-multi-thread", "sync", "time"] }
 tokio-util = "0.7.8"
 tonic = { workspace = true }
@@ -81,3 +82,7 @@ name = "write"
 harness = false
  # Require some internal types be made visible for benchmark code.
 required-features = ["benches"]
+
+[[bench]]
+name = "query"
+harness = false

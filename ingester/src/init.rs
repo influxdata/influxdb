@@ -21,6 +21,7 @@ use parquet_file::storage::ParquetStorage;
 use thiserror::Error;
 use tokio::sync::oneshot;
 use tokio_util::sync::CancellationToken;
+use tracker::DiskSpaceMetrics;
 use wal::Wal;
 
 use crate::{
@@ -100,6 +101,11 @@ pub struct IngesterGuard<T> {
     /// Aborted on drop.
     rotation_task: tokio::task::JoinHandle<()>,
 
+    /// The handle of the periodic disk metric task.
+    ///
+    /// Aborted on drop.
+    disk_metric_task: tokio::task::JoinHandle<()>,
+
     /// The task handle executing the graceful shutdown once triggered.
     graceful_shutdown_handler: tokio::task::JoinHandle<()>,
     shutdown_complete: Shared<oneshot::Receiver<()>>,
@@ -126,6 +132,7 @@ where
 impl<T> Drop for IngesterGuard<T> {
     fn drop(&mut self) {
         self.rotation_task.abort();
+        self.disk_metric_task.abort();
         self.graceful_shutdown_handler.abort();
     }
 }
@@ -289,7 +296,9 @@ where
     let ingest_state = Arc::new(IngestState::default());
 
     // Initialise the WAL
-    let wal = Wal::new(wal_directory).await.map_err(InitError::WalInit)?;
+    let wal = Wal::new(wal_directory.clone())
+        .await
+        .map_err(InitError::WalInit)?;
 
     // Prepare the WAL segment reference tracker
     let (wal_reference_handle, wal_reference_actor) =
@@ -339,6 +348,16 @@ where
     // The tokio handle does not need retained here as the actor handle is
     // responsible for aborting the actor's run loop when dropped.
     tokio::spawn(wal_reference_actor.run());
+
+    // Initialize disk metrics to emit disk capacity / free statistics for the
+    // WAL directory.
+    let disk_metric_task = tokio::task::spawn(
+        DiskSpaceMetrics::new(wal_directory, &metrics)
+            .expect("failed to resolve WAL directory to disk")
+            .run(),
+    );
+
+    // Replay the WAL log files, if any.
     let max_sequence_number =
         wal_replay::replay(&wal, &buffer, Arc::clone(&persist_handle), &metrics)
             .await
@@ -416,6 +435,7 @@ where
             persist_handle,
         ),
         rotation_task,
+        disk_metric_task,
         graceful_shutdown_handler: shutdown_task,
         shutdown_complete: shutdown_rx.shared(),
     })

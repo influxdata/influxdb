@@ -7,7 +7,7 @@ use metric::{DurationHistogram, Metric};
 use predicate::Predicate;
 use trace::span::Span;
 
-use super::QueryExec;
+use super::{projection::OwnedProjection, QueryExec};
 use crate::query::QueryError;
 
 /// An instrumentation decorator over a [`QueryExec`] implementation.
@@ -63,7 +63,7 @@ where
         &self,
         namespace_id: NamespaceId,
         table_id: TableId,
-        columns: Vec<String>,
+        projection: OwnedProjection,
         span: Option<Span>,
         predicate: Option<Predicate>,
     ) -> Result<Self::Response, QueryError> {
@@ -71,7 +71,7 @@ where
 
         let res = self
             .inner
-            .query_exec(namespace_id, table_id, columns, span, predicate)
+            .query_exec(namespace_id, table_id, projection, span, predicate)
             .await;
 
         if let Some(delta) = self.time_provider.now().checked_duration_since(t) {
@@ -115,7 +115,7 @@ mod tests {
 
                     // Call the decorator and assert the return value
                     let got = decorator
-                        .query_exec(NamespaceId::new(42), TableId::new(24), vec![], None, None)
+                        .query_exec(NamespaceId::new(42), TableId::new(24),OwnedProjection::default(), None, None)
                         .await;
                     assert_matches!(got, $($want_ret)+);
 

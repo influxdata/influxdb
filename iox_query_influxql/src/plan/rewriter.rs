@@ -1,9 +1,10 @@
+use crate::error;
 use crate::plan::expr_type_evaluator::TypeEvaluator;
 use crate::plan::field::{field_by_name, field_name};
 use crate::plan::field_mapper::{field_and_dimensions, FieldTypeMap};
 use crate::plan::ir::{DataSource, Field, Interval, Select, SelectQuery, TagSet};
 use crate::plan::var_ref::{influx_type_to_var_ref_data_type, var_ref_data_type_to_influx_type};
-use crate::plan::{error, util, SchemaProvider};
+use crate::plan::{util, SchemaProvider};
 use datafusion::common::{DataFusionError, Result};
 use influxdb_influxql_parser::common::{MeasurementName, QualifiedMeasurementName, WhereClause};
 use influxdb_influxql_parser::expression::walk::{
@@ -2065,7 +2066,7 @@ mod test {
             // cpu is a Tag
             assert_matches!(q.select.fields[3].data_type, Some(InfluxColumnType::Tag));
 
-            let stmt = parse_select("SELECT field_i64 + field_f64 FROM all_types");
+            let stmt = parse_select("SELECT field_i64 + field_f64, field_i64 / field_i64, field_u64 / field_i64 FROM all_types");
             let q = rewrite_statement(&namespace, &stmt).unwrap();
             // first field is always the time column and thus a Timestamp
             assert_matches!(
@@ -2076,6 +2077,16 @@ mod test {
             assert_matches!(
                 q.select.fields[1].data_type,
                 Some(InfluxColumnType::Field(InfluxFieldType::Float))
+            );
+            // Integer division is promoted to a Float
+            assert_matches!(
+                q.select.fields[2].data_type,
+                Some(InfluxColumnType::Field(InfluxFieldType::Float))
+            );
+            // Unsigned division is still Unsigned
+            assert_matches!(
+                q.select.fields[3].data_type,
+                Some(InfluxColumnType::Field(InfluxFieldType::UInteger))
             );
         }
 

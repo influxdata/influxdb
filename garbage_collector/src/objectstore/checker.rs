@@ -542,7 +542,7 @@ mod tests {
 
         async fn list_by_partition_not_to_delete(
             &mut self,
-            partition_id: PartitionId,
+            partition_id: &TransitionPartitionId,
         ) -> iox_catalog::interface::Result<Vec<ParquetFile>> {
             self.inner
                 .list_by_partition_not_to_delete(partition_id)

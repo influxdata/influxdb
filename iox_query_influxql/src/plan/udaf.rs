@@ -1,18 +1,14 @@
-use crate::plan::error;
+use crate::{error, NUMERICS};
 use arrow::array::{Array, ArrayRef, Int64Array};
 use arrow::datatypes::{DataType, TimeUnit};
 use datafusion::common::{downcast_value, DataFusionError, Result, ScalarValue};
 use datafusion::logical_expr::{
-    Accumulator, AccumulatorFunctionImplementation, AggregateUDF, ReturnTypeFunction, Signature,
+    Accumulator, AccumulatorFactoryFunction, AggregateUDF, ReturnTypeFunction, Signature,
     StateTypeFunction, TypeSignature, Volatility,
 };
 use once_cell::sync::Lazy;
 use std::mem::replace;
 use std::sync::Arc;
-
-/// A list of the numeric types supported by InfluxQL that can be be used
-/// as input to user-defined aggregate functions.
-pub(crate) static NUMERICS: &[DataType] = &[DataType::Int64, DataType::UInt64, DataType::Float64];
 
 /// Name of the `MOVING_AVERAGE` user-defined aggregate function.
 pub(crate) const MOVING_AVERAGE_NAME: &str = "moving_average";
@@ -20,7 +16,7 @@ pub(crate) const MOVING_AVERAGE_NAME: &str = "moving_average";
 /// Definition of the `MOVING_AVERAGE` user-defined aggregate function.
 pub(crate) static MOVING_AVERAGE: Lazy<Arc<AggregateUDF>> = Lazy::new(|| {
     let return_type: ReturnTypeFunction = Arc::new(|_| Ok(Arc::new(DataType::Float64)));
-    let accumulator: AccumulatorFunctionImplementation =
+    let accumulator: AccumulatorFactoryFunction =
         Arc::new(|_| Ok(Box::new(AvgNAccumulator::new(&DataType::Float64))));
     let state_type: StateTypeFunction = Arc::new(|_| Ok(Arc::new(vec![])));
     Arc::new(AggregateUDF::new(
@@ -159,7 +155,7 @@ pub(crate) const DIFFERENCE_NAME: &str = "difference";
 /// Definition of the `DIFFERENCE` user-defined aggregate function.
 pub(crate) static DIFFERENCE: Lazy<Arc<AggregateUDF>> = Lazy::new(|| {
     let return_type: ReturnTypeFunction = Arc::new(|dt| Ok(Arc::new(dt[0].clone())));
-    let accumulator: AccumulatorFunctionImplementation =
+    let accumulator: AccumulatorFactoryFunction =
         Arc::new(|dt| Ok(Box::new(DifferenceAccumulator::new(dt))));
     let state_type: StateTypeFunction = Arc::new(|_| Ok(Arc::new(vec![])));
     Arc::new(AggregateUDF::new(
@@ -248,7 +244,7 @@ pub(crate) const NON_NEGATIVE_DIFFERENCE_NAME: &str = "non_negative_difference";
 /// Definition of the `NON_NEGATIVE_DIFFERENCE` user-defined aggregate function.
 pub(crate) static NON_NEGATIVE_DIFFERENCE: Lazy<Arc<AggregateUDF>> = Lazy::new(|| {
     let return_type: ReturnTypeFunction = Arc::new(|dt| Ok(Arc::new(dt[0].clone())));
-    let accumulator: AccumulatorFunctionImplementation = Arc::new(|dt| {
+    let accumulator: AccumulatorFactoryFunction = Arc::new(|dt| {
         Ok(Box::new(NonNegative::<_>::new(DifferenceAccumulator::new(
             dt,
         ))))
@@ -314,7 +310,7 @@ pub(crate) const DERIVATIVE_NAME: &str = "derivative";
 
 pub(crate) fn derivative_udf(unit: i64) -> AggregateUDF {
     let return_type: ReturnTypeFunction = Arc::new(|_| Ok(Arc::new(DataType::Float64)));
-    let accumulator: AccumulatorFunctionImplementation =
+    let accumulator: AccumulatorFactoryFunction =
         Arc::new(move |_| Ok(Box::new(DerivativeAccumulator::new(unit))));
     let state_type: StateTypeFunction = Arc::new(|_| Ok(Arc::new(vec![])));
     let sig = Signature::one_of(
@@ -344,7 +340,7 @@ pub(crate) const NON_NEGATIVE_DERIVATIVE_NAME: &str = "non_negative_derivative";
 
 pub(crate) fn non_negative_derivative_udf(unit: i64) -> AggregateUDF {
     let return_type: ReturnTypeFunction = Arc::new(|_| Ok(Arc::new(DataType::Float64)));
-    let accumulator: AccumulatorFunctionImplementation = Arc::new(move |_| {
+    let accumulator: AccumulatorFactoryFunction = Arc::new(move |_| {
         Ok(Box::new(NonNegative::<_>::new(DerivativeAccumulator::new(
             unit,
         ))))
@@ -373,7 +369,7 @@ pub(crate) fn non_negative_derivative_udf(unit: i64) -> AggregateUDF {
 }
 
 #[derive(Debug)]
-pub(super) struct DerivativeAccumulator {
+struct DerivativeAccumulator {
     unit: i64,
     prev: Option<Point>,
     curr: Option<Point>,

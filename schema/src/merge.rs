@@ -1,5 +1,3 @@
-use std::sync::Arc;
-
 use arrow::{datatypes::Field, record_batch::RecordBatch};
 use hashbrown::hash_map::RawEntryMut;
 use hashbrown::HashMap;
@@ -44,7 +42,7 @@ pub type Result<T, E = Error> = std::result::Result<T, E>;
 /// This is infallable because the schemas of chunks within a
 /// partition are assumed to be compatible because that schema was
 /// enforced as part of writing into the partition
-pub fn merge_record_batch_schemas(batches: &[Arc<RecordBatch>]) -> Schema {
+pub fn merge_record_batch_schemas(batches: &[RecordBatch]) -> Schema {
     let mut merger = SchemaMerger::new();
     for batch in batches {
         let schema = Schema::try_from(batch.schema()).expect("Schema conversion error");
@@ -172,6 +170,8 @@ impl<'a> SchemaMerger<'a> {
 
 #[cfg(test)]
 mod tests {
+    use std::sync::Arc;
+
     use crate::builder::SchemaBuilder;
     use crate::InfluxFieldType::Integer;
 

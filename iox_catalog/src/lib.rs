@@ -22,7 +22,7 @@ use workspace_hack as _;
 use crate::interface::{ColumnTypeMismatchSnafu, Error, RepoCollection, Result};
 use data_types::{
     partition_template::{NamespacePartitionTemplateOverride, TablePartitionTemplateOverride},
-    ColumnType, NamespaceId, NamespaceSchema, TableSchema,
+    ColumnType, NamespaceId, NamespaceSchema, Partition, TableSchema, TransitionPartitionId,
 };
 use mutable_batch::MutableBatch;
 use std::{borrow::Cow, collections::HashMap};
@@ -64,6 +64,27 @@ impl TableScopedError {
     /// Return ownership of the error, discarding the table name.
     pub fn into_err(self) -> Error {
         self.1
+    }
+}
+
+/// Look up a partition in the catalog by either database-assigned ID or deterministic hash ID.
+///
+/// The existence of this function should be temporary; it can be removed once all partition lookup
+/// is happening with only the deterministic hash ID.
+pub async fn partition_lookup<R>(
+    repos: &mut R,
+    id: &TransitionPartitionId,
+) -> Result<Option<Partition>, Error>
+where
+    R: RepoCollection + ?Sized,
+{
+    match id {
+        TransitionPartitionId::Deprecated(partition_id) => {
+            repos.partitions().get_by_id(*partition_id).await
+        }
+        TransitionPartitionId::Deterministic(partition_hash_id) => {
+            repos.partitions().get_by_hash_id(partition_hash_id).await
+        }
     }
 }
 

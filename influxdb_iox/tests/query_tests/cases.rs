@@ -426,6 +426,33 @@ mod influxql {
         .await;
     }
 
+    /// Test TOP/BOTTOM functions, which use window functions to project
+    /// the top or bottom rows in groups.
+    #[tokio::test]
+    async fn top_bottom() {
+        test_helpers::maybe_start_logging();
+
+        TestCase {
+            input: "cases/in/top_bottom.influxql",
+            chunk_stage: ChunkStage::Ingester,
+        }
+        .run()
+        .await;
+    }
+
+    /// Test PERCENTILE functions.
+    #[tokio::test]
+    async fn percentile() {
+        test_helpers::maybe_start_logging();
+
+        TestCase {
+            input: "cases/in/percentile.influxql",
+            chunk_stage: ChunkStage::Ingester,
+        }
+        .run()
+        .await;
+    }
+
     #[tokio::test]
     async fn influxql_metadata() {
         test_helpers::maybe_start_logging();

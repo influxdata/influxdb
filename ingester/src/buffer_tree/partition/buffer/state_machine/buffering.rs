@@ -1,15 +1,15 @@
 //! A write buffer.
 
-use std::sync::Arc;
-
 use arrow::record_batch::RecordBatch;
 use mutable_batch::MutableBatch;
-use schema::Projection;
 
 use super::{snapshot::Snapshot, BufferState, Transition};
-use crate::buffer_tree::partition::buffer::{
-    mutable_buffer::Buffer,
-    traits::{Queryable, Writeable},
+use crate::{
+    buffer_tree::partition::buffer::{
+        mutable_buffer::Buffer,
+        traits::{Queryable, Writeable},
+    },
+    query::projection::OwnedProjection,
 };
 
 /// The FSM starting ingest state - a mutable buffer collecting writes.
@@ -35,18 +35,11 @@ pub(crate) struct Buffering {
 /// This method panics if converting the buffered data (if any) into an Arrow
 /// [`RecordBatch`] fails (a non-transient error).
 impl Queryable for Buffering {
-    fn get_query_data(&self) -> Vec<Arc<RecordBatch>> {
-        let data = self.buffer.buffer().map(|v| {
-            Arc::new(
-                v.to_arrow(Projection::All)
-                    .expect("failed to snapshot buffer data"),
-            )
-        });
-
-        match data {
-            Some(v) => vec![v],
-            None => vec![],
-        }
+    fn get_query_data(&self, projection: &OwnedProjection) -> Vec<RecordBatch> {
+        self.buffer
+            .buffer()
+            .map(|v| vec![projection.project_mutable_batches(v)])
+            .unwrap_or_default()
     }
 }
 

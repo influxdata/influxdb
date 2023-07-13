@@ -3,4 +3,4 @@ mod export;
 mod import;
 
 pub use export::{ExportError, RemoteExporter};
-pub use import::{ExportedContents, ImportError};
+pub use import::{Error, ExportedContents, RemoteImporter};

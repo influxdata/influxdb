@@ -1,5 +1,3 @@
-use std::sync::Arc;
-
 use arrow::record_batch::RecordBatch;
 use mutable_batch::MutableBatch;
 use schema::Projection;
@@ -39,12 +37,12 @@ impl Buffer {
     /// # Panics
     ///
     /// If generating the snapshot fails, this method panics.
-    pub(super) fn snapshot(self) -> Option<Arc<RecordBatch>> {
-        Some(Arc::new(
+    pub(super) fn snapshot(self) -> Option<RecordBatch> {
+        Some(
             self.buffer?
                 .to_arrow(Projection::All)
                 .expect("failed to snapshot buffer data"),
-        ))
+        )
     }
 
     pub(super) fn is_empty(&self) -> bool {

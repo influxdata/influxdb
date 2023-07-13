@@ -28,7 +28,7 @@ pub struct QueryAdaptor {
     ///
     /// This MUST be non-pub(crate) / closed for modification / immutable to support
     /// interning the merged schema in [`Self::schema()`].
-    data: Vec<Arc<RecordBatch>>,
+    data: Vec<RecordBatch>,
 
     /// The catalog ID of the partition the this data is part of.
     partition_id: PartitionId,
@@ -50,12 +50,12 @@ impl QueryAdaptor {
     ///
     /// This constructor panics if `data` contains no [`RecordBatch`], or all
     /// [`RecordBatch`] are empty.
-    pub(crate) fn new(partition_id: PartitionId, data: Vec<Arc<RecordBatch>>) -> Self {
+    pub(crate) fn new(partition_id: PartitionId, data: Vec<RecordBatch>) -> Self {
         // There must always be at least one record batch and one row.
         //
         // This upholds an invariant that simplifies dealing with empty
         // partitions - if there is a QueryAdaptor, it contains data.
-        assert!(data.iter().map(|b| b.num_rows()).sum::<usize>() > 0);
+        assert!(data.iter().any(|b| b.num_rows() > 0));
 
         let schema = merge_record_batch_schemas(&data);
         Self {
@@ -73,8 +73,7 @@ impl QueryAdaptor {
         // Project the column selection across all RecordBatch
         self.data
             .iter()
-            .map(|data| {
-                let batch = data.as_ref();
+            .map(|batch| {
                 let schema = batch.schema();
 
                 // Apply selection to in-memory batch
@@ -96,8 +95,14 @@ impl QueryAdaptor {
     }
 
     /// Returns the [`RecordBatch`] instances in this [`QueryAdaptor`].
-    pub(crate) fn record_batches(&self) -> &[Arc<RecordBatch>] {
+    pub(crate) fn record_batches(&self) -> &[RecordBatch] {
         self.data.as_ref()
+    }
+
+    /// Unwrap this [`QueryAdaptor`], yielding the inner [`RecordBatch`]
+    /// instances.
+    pub(crate) fn into_record_batches(self) -> Vec<RecordBatch> {
+        self.data
     }
 
     /// Returns the partition ID from which the data this [`QueryAdaptor`] was
@@ -113,8 +118,7 @@ impl QueryAdaptor {
 
     /// Time range, useful for building stats
     pub(crate) fn ts_min_max(&self) -> TimestampMinMax {
-        compute_timenanosecond_min_max(self.data.iter().map(|b| b.as_ref()))
-            .expect("Should have time range")
+        compute_timenanosecond_min_max(self.data.iter()).expect("Should have time range")
     }
 }
 

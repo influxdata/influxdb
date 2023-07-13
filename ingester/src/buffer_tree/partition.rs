@@ -15,7 +15,9 @@ use self::{
     persisting::{BatchIdent, PersistingData},
 };
 use super::{namespace::NamespaceName, table::TableMetadata};
-use crate::{deferred_load::DeferredLoad, query_adaptor::QueryAdaptor};
+use crate::{
+    deferred_load::DeferredLoad, query::projection::OwnedProjection, query_adaptor::QueryAdaptor,
+};
 
 mod buffer;
 pub(crate) mod persisting;
@@ -156,9 +158,9 @@ impl PartitionData {
 
     /// Return all data for this partition, ordered by the calls to
     /// [`PartitionData::buffer_write()`].
-    pub(crate) fn get_query_data(&mut self) -> Option<QueryAdaptor> {
+    pub(crate) fn get_query_data(&mut self, projection: &OwnedProjection) -> Option<QueryAdaptor> {
         // Extract the buffered data, if any.
-        let buffered_data = self.buffer.get_query_data();
+        let buffered_data = self.buffer.get_query_data(projection);
 
         // Prepend any currently persisting batches.
         //
@@ -168,7 +170,7 @@ impl PartitionData {
         let data = self
             .persisting
             .iter()
-            .flat_map(|(_, b)| b.get_query_data())
+            .flat_map(|(_, b)| b.get_query_data(projection))
             .chain(buffered_data)
             .collect::<Vec<_>>();
 
@@ -230,7 +232,10 @@ impl PartitionData {
 
         // Wrap the persisting data in the type wrapper
         let data = PersistingData::new(
-            QueryAdaptor::new(self.partition_id, fsm.get_query_data()),
+            QueryAdaptor::new(
+                self.partition_id,
+                fsm.get_query_data(&OwnedProjection::default()),
+            ),
             batch_ident,
         );
 
@@ -349,7 +354,7 @@ impl PartitionData {
 
 #[cfg(test)]
 mod tests {
-    use std::{ops::Deref, time::Duration};
+    use std::time::Duration;
 
     use arrow::compute::SortOptions;
     use arrow_util::assert_batches_eq;
@@ -378,7 +383,7 @@ mod tests {
         let mut p = PartitionDataBuilder::new().build();
 
         // And no data should be returned when queried.
-        assert!(p.get_query_data().is_none());
+        assert!(p.get_query_data(&OwnedProjection::default()).is_none());
 
         // Perform a single write.
         let mb = lp_to_mutable_batch(r#"bananas,city=London people=2,pigeons="millions" 10"#).1;
@@ -387,7 +392,9 @@ mod tests {
 
         // The data should be readable.
         {
-            let data = p.get_query_data().expect("should return data");
+            let data = p
+                .get_query_data(&OwnedProjection::default())
+                .expect("should return data");
             assert_eq!(data.partition_id(), ARBITRARY_PARTITION_ID);
 
             let expected = [
@@ -397,15 +404,7 @@ mod tests {
                 "| London | 2.0    | millions | 1970-01-01T00:00:00.000000010Z |",
                 "+--------+--------+----------+--------------------------------+",
             ];
-            assert_batches_eq!(
-                expected,
-                &*data
-                    .record_batches()
-                    .iter()
-                    .map(Deref::deref)
-                    .cloned()
-                    .collect::<Vec<_>>()
-            );
+            assert_batches_eq!(expected, data.record_batches());
         }
 
         // Perform a another write, adding data to the existing queryable data
@@ -416,7 +415,9 @@ mod tests {
 
         // And finally both writes should be readable.
         {
-            let data = p.get_query_data().expect("should contain data");
+            let data = p
+                .get_query_data(&OwnedProjection::default())
+                .expect("should contain data");
             assert_eq!(data.partition_id(), ARBITRARY_PARTITION_ID);
 
             let expected = [
@@ -427,15 +428,7 @@ mod tests {
                 "| Madrid | 4.0    | none     | 1970-01-01T00:00:00.000000020Z |",
                 "+--------+--------+----------+--------------------------------+",
             ];
-            assert_batches_eq!(
-                expected,
-                &*data
-                    .record_batches()
-                    .iter()
-                    .map(Deref::deref)
-                    .cloned()
-                    .collect::<Vec<_>>()
-            );
+            assert_batches_eq!(expected, data.record_batches());
         }
     }
 
@@ -445,7 +438,7 @@ mod tests {
     async fn test_persist() {
         let mut p = PartitionDataBuilder::new().build();
 
-        assert!(p.get_query_data().is_none());
+        assert!(p.get_query_data(&OwnedProjection::default()).is_none());
 
         // Perform a single write.
         let mb = lp_to_mutable_batch(r#"bananas,city=London people=2,pigeons="millions" 10"#).1;
@@ -468,15 +461,7 @@ mod tests {
             "| London | 2.0    | millions | 1970-01-01T00:00:00.000000010Z |",
             "+--------+--------+----------+--------------------------------+",
         ];
-        assert_batches_eq!(
-            expected,
-            &*persisting_data
-                .record_batches()
-                .iter()
-                .map(Deref::deref)
-                .cloned()
-                .collect::<Vec<_>>()
-        );
+        assert_batches_eq!(expected, persisting_data.record_batches());
 
         // Ensure the started batch ident is increased after a persist call, but not the completed
         // batch ident.
@@ -492,7 +477,9 @@ mod tests {
 
         // Which must be readable, alongside the ongoing persist data.
         {
-            let data = p.get_query_data().expect("must have data");
+            let data = p
+                .get_query_data(&OwnedProjection::default())
+                .expect("must have data");
             assert_eq!(data.partition_id(), ARBITRARY_PARTITION_ID);
             assert_eq!(data.record_batches().len(), 2);
             let expected = [
@@ -503,15 +490,7 @@ mod tests {
                 "| Madrid | 4.0    | none     | 1970-01-01T00:00:00.000000020Z |",
                 "+--------+--------+----------+--------------------------------+",
             ];
-            assert_batches_eq!(
-                expected,
-                &*data
-                    .record_batches()
-                    .iter()
-                    .map(Deref::deref)
-                    .cloned()
-                    .collect::<Vec<_>>()
-            );
+            assert_batches_eq!(expected, data.record_batches());
         }
 
         // The persist now "completes".
@@ -526,7 +505,9 @@ mod tests {
 
         // Querying the buffer should now return only the second write.
         {
-            let data = p.get_query_data().expect("must have data");
+            let data = p
+                .get_query_data(&OwnedProjection::default())
+                .expect("must have data");
             assert_eq!(data.partition_id(), ARBITRARY_PARTITION_ID);
             assert_eq!(data.record_batches().len(), 1);
             let expected = [
@@ -536,15 +517,7 @@ mod tests {
                 "| Madrid | 4.0    | none    | 1970-01-01T00:00:00.000000020Z |",
                 "+--------+--------+---------+--------------------------------+",
             ];
-            assert_batches_eq!(
-                expected,
-                &*data
-                    .record_batches()
-                    .iter()
-                    .map(Deref::deref)
-                    .cloned()
-                    .collect::<Vec<_>>()
-            );
+            assert_batches_eq!(expected, data.record_batches());
         }
     }
 
@@ -557,12 +530,7 @@ mod tests {
         // A helper function to dedupe the record batches in [`QueryAdaptor`]
         // and assert the resulting batch contents.
         async fn assert_deduped(expect: &[&str], batch: QueryAdaptor) {
-            let batch = batch
-                .record_batches()
-                .iter()
-                .map(Deref::deref)
-                .cloned()
-                .collect::<Vec<_>>();
+            let batch = batch.record_batches().to_vec();
 
             let sort_keys = vec![PhysicalSortExpr {
                 expr: col("time", &batch[0].schema()).unwrap(),
@@ -596,7 +564,13 @@ mod tests {
         p.buffer_write(mb, SequenceNumber::new(1))
             .expect("write should succeed");
 
-        assert_eq!(p.get_query_data().unwrap().record_batches().len(), 1);
+        assert_eq!(
+            p.get_query_data(&OwnedProjection::default())
+                .unwrap()
+                .record_batches()
+                .len(),
+            1
+        );
         assert_deduped(
             &[
                 "+--------------------------------+-----+",
@@ -605,7 +579,7 @@ mod tests {
                 "| 1970-01-01T00:00:00.000000042Z | 1.0 |",
                 "+--------------------------------+-----+",
             ],
-            p.get_query_data().unwrap(),
+            p.get_query_data(&OwnedProjection::default()).unwrap(),
         )
         .await;
 
@@ -614,7 +588,13 @@ mod tests {
         p.buffer_write(mb, SequenceNumber::new(2))
             .expect("write should succeed");
 
-        assert_eq!(p.get_query_data().unwrap().record_batches().len(), 1);
+        assert_eq!(
+            p.get_query_data(&OwnedProjection::default())
+                .unwrap()
+                .record_batches()
+                .len(),
+            1
+        );
         assert_deduped(
             &[
                 "+--------------------------------+-----+",
@@ -623,7 +603,7 @@ mod tests {
                 "| 1970-01-01T00:00:00.000000042Z | 2.0 |",
                 "+--------------------------------+-----+",
             ],
-            p.get_query_data().unwrap(),
+            p.get_query_data(&OwnedProjection::default()).unwrap(),
         )
         .await;
 
@@ -656,7 +636,13 @@ mod tests {
         p.buffer_write(mb, SequenceNumber::new(3))
             .expect("write should succeed");
 
-        assert_eq!(p.get_query_data().unwrap().record_batches().len(), 2);
+        assert_eq!(
+            p.get_query_data(&OwnedProjection::default())
+                .unwrap()
+                .record_batches()
+                .len(),
+            2
+        );
         assert_deduped(
             &[
                 "+--------------------------------+-----+",
@@ -665,7 +651,7 @@ mod tests {
                 "| 1970-01-01T00:00:00.000000042Z | 3.0 |",
                 "+--------------------------------+-----+",
             ],
-            p.get_query_data().unwrap(),
+            p.get_query_data(&OwnedProjection::default()).unwrap(),
         )
         .await;
 
@@ -697,7 +683,13 @@ mod tests {
         p.buffer_write(mb, SequenceNumber::new(3))
             .expect("write should succeed");
 
-        assert_eq!(p.get_query_data().unwrap().record_batches().len(), 3);
+        assert_eq!(
+            p.get_query_data(&OwnedProjection::default())
+                .unwrap()
+                .record_batches()
+                .len(),
+            3
+        );
         assert_deduped(
             &[
                 "+--------------------------------+-----+",
@@ -706,7 +698,7 @@ mod tests {
                 "| 1970-01-01T00:00:00.000000042Z | 4.0 |",
                 "+--------------------------------+-----+",
             ],
-            p.get_query_data().unwrap(),
+            p.get_query_data(&OwnedProjection::default()).unwrap(),
         )
         .await;
 
@@ -717,7 +709,13 @@ mod tests {
         assert!(set.contains(SequenceNumber::new(2)));
 
         // And assert the correct value remains.
-        assert_eq!(p.get_query_data().unwrap().record_batches().len(), 2);
+        assert_eq!(
+            p.get_query_data(&OwnedProjection::default())
+                .unwrap()
+                .record_batches()
+                .len(),
+            2
+        );
         assert_deduped(
             &[
                 "+--------------------------------+-----+",
@@ -726,7 +724,7 @@ mod tests {
                 "| 1970-01-01T00:00:00.000000042Z | 4.0 |",
                 "+--------------------------------+-----+",
             ],
-            p.get_query_data().unwrap(),
+            p.get_query_data(&OwnedProjection::default()).unwrap(),
         )
         .await;
 
@@ -736,7 +734,13 @@ mod tests {
         assert!(set.contains(SequenceNumber::new(3)));
 
         // And assert the correct value remains.
-        assert_eq!(p.get_query_data().unwrap().record_batches().len(), 1);
+        assert_eq!(
+            p.get_query_data(&OwnedProjection::default())
+                .unwrap()
+                .record_batches()
+                .len(),
+            1
+        );
         assert_deduped(
             &[
                 "+--------------------------------+-----+",
@@ -745,7 +749,7 @@ mod tests {
                 "| 1970-01-01T00:00:00.000000042Z | 4.0 |",
                 "+--------------------------------+-----+",
             ],
-            p.get_query_data().unwrap(),
+            p.get_query_data(&OwnedProjection::default()).unwrap(),
         )
         .await;
 
@@ -777,7 +781,7 @@ mod tests {
         p.buffer_write(mb, SequenceNumber::new(3))
             .expect("write should succeed");
 
-        let data = p.get_query_data().unwrap();
+        let data = p.get_query_data(&OwnedProjection::default()).unwrap();
         assert_batches_eq!(
             [
                 "+--------------------------------+-----+",
@@ -787,12 +791,7 @@ mod tests {
                 "| 1970-01-01T00:00:00.000000042Z | 2.0 |",
                 "+--------------------------------+-----+",
             ],
-            &*data
-                .record_batches()
-                .iter()
-                .map(Deref::deref)
-                .cloned()
-                .collect::<Vec<_>>()
+            &*data.record_batches().to_vec()
         );
 
         // Persist again, moving the last write to the persisting state and
@@ -805,7 +804,7 @@ mod tests {
         p.buffer_write(mb, SequenceNumber::new(4))
             .expect("write should succeed");
 
-        let data = p.get_query_data().unwrap();
+        let data = p.get_query_data(&OwnedProjection::default()).unwrap();
         assert_batches_eq!(
             [
                 "+--------------------------------+-----+",
@@ -816,12 +815,7 @@ mod tests {
                 "| 1970-01-01T00:00:00.000000042Z | 3.0 |",
                 "+--------------------------------+-----+",
             ],
-            &*data
-                .record_batches()
-                .iter()
-                .map(Deref::deref)
-                .cloned()
-                .collect::<Vec<_>>()
+            &*data.record_batches().to_vec()
         );
 
         // Persist again, moving the last write to the persisting state and
@@ -834,7 +828,7 @@ mod tests {
         p.buffer_write(mb, SequenceNumber::new(5))
             .expect("write should succeed");
 
-        let data = p.get_query_data().unwrap();
+        let data = p.get_query_data(&OwnedProjection::default()).unwrap();
         assert_batches_eq!(
             [
                 "+--------------------------------+-----+",
@@ -846,12 +840,7 @@ mod tests {
                 "| 1970-01-01T00:00:00.000000042Z | 4.0 |",
                 "+--------------------------------+-----+",
             ],
-            &*data
-                .record_batches()
-                .iter()
-                .map(Deref::deref)
-                .cloned()
-                .collect::<Vec<_>>()
+            &*data.record_batches().to_vec()
         );
 
         // Finish persisting the second batch out-of-order! The middle entry,
@@ -860,7 +849,7 @@ mod tests {
         assert_eq!(set.len(), 1);
         assert!(set.contains(SequenceNumber::new(3)));
 
-        let data = p.get_query_data().unwrap();
+        let data = p.get_query_data(&OwnedProjection::default()).unwrap();
         assert_batches_eq!(
             [
                 "+--------------------------------+-----+",
@@ -871,12 +860,7 @@ mod tests {
                 "| 1970-01-01T00:00:00.000000042Z | 4.0 |",
                 "+--------------------------------+-----+",
             ],
-            &*data
-                .record_batches()
-                .iter()
-                .map(Deref::deref)
-                .cloned()
-                .collect::<Vec<_>>()
+            &*data.record_batches().to_vec()
         );
 
         // Finish persisting the last batch.
@@ -884,7 +868,7 @@ mod tests {
         assert_eq!(set.len(), 1);
         assert!(set.contains(SequenceNumber::new(4)));
 
-        let data = p.get_query_data().unwrap();
+        let data = p.get_query_data(&OwnedProjection::default()).unwrap();
         assert_batches_eq!(
             [
                 "+--------------------------------+-----+",
@@ -894,12 +878,7 @@ mod tests {
                 "| 1970-01-01T00:00:00.000000042Z | 4.0 |",
                 "+--------------------------------+-----+",
             ],
-            &*data
-                .record_batches()
-                .iter()
-                .map(Deref::deref)
-                .cloned()
-                .collect::<Vec<_>>()
+            &*data.record_batches().to_vec()
         );
 
         // Finish persisting the first batch.
@@ -908,7 +887,7 @@ mod tests {
         assert!(set.contains(SequenceNumber::new(1)));
 
         // Assert only the buffered data remains
-        let data = p.get_query_data().unwrap();
+        let data = p.get_query_data(&OwnedProjection::default()).unwrap();
         assert_batches_eq!(
             [
                 "+--------------------------------+-----+",
@@ -917,12 +896,7 @@ mod tests {
                 "| 1970-01-01T00:00:00.000000042Z | 4.0 |",
                 "+--------------------------------+-----+",
             ],
-            &*data
-                .record_batches()
-                .iter()
-                .map(Deref::deref)
-                .cloned()
-                .collect::<Vec<_>>()
+            &*data.record_batches().to_vec()
         );
     }
 
@@ -954,27 +928,26 @@ mod tests {
         // Populate the catalog with the namespace / table
         let (_ns_id, table_id) = populate_catalog(&*catalog, "bananas", "platanos").await;
 
-        let partition_id = catalog
+        let partition = catalog
             .repositories()
             .await
             .partitions()
             .create_or_get("test".into(), table_id)
             .await
-            .expect("should create")
-            .id;
+            .expect("should create");
 
         catalog
             .repositories()
             .await
             .partitions()
-            .cas_sort_key(partition_id, None, &["terrific"])
+            .cas_sort_key(&partition.transition_partition_id(), None, &["terrific"])
             .await
             .unwrap();
 
         // Read the just-created sort key (None)
         let fetcher = Arc::new(DeferredLoad::new(
             Duration::from_nanos(1),
-            SortKeyResolver::new(partition_id, Arc::clone(&catalog), backoff_config.clone())
+            SortKeyResolver::new(partition.id, Arc::clone(&catalog), backoff_config.clone())
                 .fetch(),
             &metrics,
         ));
@@ -1009,7 +982,7 @@ mod tests {
         );
 
         // Nothing should explode, data should be readable.
-        let data = p.get_query_data().unwrap();
+        let data = p.get_query_data(&OwnedProjection::default()).unwrap();
         assert_batches_eq!(
             [
                 "+--------+--------+----------+--------------------------------+",
@@ -1019,12 +992,7 @@ mod tests {
                 "| Madrid | 2.0    | none     | 1970-01-01T00:00:00.000000011Z |",
                 "+--------+--------+----------+--------------------------------+",
             ],
-            &*data
-                .record_batches()
-                .iter()
-                .map(Deref::deref)
-                .cloned()
-                .collect::<Vec<_>>()
+            &*data.record_batches().to_vec()
         );
     }
 
@@ -1053,6 +1021,6 @@ mod tests {
     async fn test_empty_partition_no_queryadaptor_panic() {
         let mut p = PartitionDataBuilder::new().build();
 
-        assert!(p.get_query_data().is_none());
+        assert!(p.get_query_data(&OwnedProjection::default()).is_none());
     }
 }
