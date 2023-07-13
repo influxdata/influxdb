@@ -22,8 +22,8 @@ use std::{collections::HashMap, sync::Arc, time::Duration};
 use arrow::record_batch::RecordBatch;
 use arrow_flight::{decode::FlightRecordBatchStream, flight_service_server::FlightService, Ticket};
 use data_types::{
-    partition_template::TablePartitionTemplateOverride, Namespace, NamespaceId, NamespaceSchema,
-    ParquetFile, PartitionKey, SequenceNumber, TableId,
+    partition_template::{NamespacePartitionTemplateOverride, TablePartitionTemplateOverride},
+    Namespace, NamespaceId, NamespaceSchema, ParquetFile, PartitionKey, SequenceNumber, TableId,
 };
 use dml::{DmlMeta, DmlWrite};
 use futures::{stream::FuturesUnordered, FutureExt, StreamExt, TryStreamExt};
@@ -222,6 +222,7 @@ where
         &mut self,
         name: &str,
         retention_period_ns: Option<i64>,
+        partition_template: Option<NamespacePartitionTemplateOverride>,
     ) -> Namespace {
         let mut repos = self.catalog.repositories().await;
         let ns = arbitrary_namespace(&mut *repos, name).await;
@@ -236,7 +237,7 @@ where
                         max_columns_per_table: iox_catalog::DEFAULT_MAX_COLUMNS_PER_TABLE as usize,
                         max_tables: iox_catalog::DEFAULT_MAX_TABLES as usize,
                         retention_period_ns,
-                        partition_template: Default::default(),
+                        partition_template: partition_template.unwrap_or_default(),
                     },
                 )
                 .is_none(),

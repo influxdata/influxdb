@@ -1,8 +1,17 @@
+use arrow::datatypes::DataType;
 use criterion::{criterion_group, criterion_main, BenchmarkId, Criterion, Throughput};
-use data_types::{NamespaceId, PartitionKey, TableId};
+use data_types::{
+    partition_template::NamespacePartitionTemplateOverride, NamespaceId, PartitionKey, TableId,
+};
+use datafusion::{
+    prelude::{col, lit},
+    scalar::ScalarValue,
+};
+use influxdb_iox_client::table::generated_types::{PartitionTemplate, TemplatePart};
 use ingester::IngesterRpcInterface;
 use ingester_query_grpc::influxdata::iox::ingester::v1::IngesterQueryRequest;
 use ingester_test_ctx::{TestContext, TestContextBuilder};
+use predicate::Predicate;
 use std::{fmt::Write, sync::Arc, time::Instant};
 use tokio::sync::Barrier;
 
@@ -37,7 +46,7 @@ async fn init(
         .await;
 
     // Ensure the namespace exists in the catalog.
-    let ns = ctx.ensure_namespace(TEST_NAMESPACE, None).await;
+    let ns = ctx.ensure_namespace(TEST_NAMESPACE, None, None).await;
 
     // Write the test data
     ctx.write_lp(
@@ -197,5 +206,124 @@ fn run_concurrent_bench(
     );
 }
 
-criterion_group!(benches, bench_query, bench_query_concurrent);
+/// Benchmark executing a query against a table that is configured to allow
+/// pruning based on tag values, varying the number of rows in the partitions,
+/// and the number of partitions pruned (always selecting 1 partition).
+fn bench_partition_pruning(c: &mut Criterion) {
+    let runtime = tokio::runtime::Builder::new_multi_thread()
+        .enable_all()
+        .build()
+        .expect("failed to initialise tokio runtime for benchmark");
+
+    static ROW_COUNTS: &[usize] = &[10, 10_000, 100_000];
+    static PRUNED_PARTITIONS: &[usize] = &[0, 100, 200, 500];
+
+    for rows in ROW_COUNTS {
+        for partition_count in PRUNED_PARTITIONS {
+            // plus one, so we're pruning the specified number, and returning 1
+            // partition.
+            let partition_count = partition_count + 1;
+
+            run_partition_prune_bench(*rows, partition_count, &runtime, c);
+        }
+    }
+}
+
+fn run_partition_prune_bench(
+    rows: usize,
+    partition_count: usize,
+    runtime: &tokio::runtime::Runtime,
+    c: &mut Criterion,
+) {
+    // Initialise the ingester configured with this partition template.
+    let (ctx, namespace_id, table_id) = runtime.block_on(partition_init(rows, partition_count));
+
+    let predicate = Some(
+        Predicate::new()
+            .with_expr(col("platanos").eq(lit(ScalarValue::Dictionary(
+                Box::new(DataType::Int32),
+                Box::new(ScalarValue::from("0")), // Always query for partition with platanos=0
+            ))))
+            .try_into()
+            .unwrap(),
+    );
+
+    let mut group = c.benchmark_group("partition_prune");
+    group.throughput(Throughput::Elements(1)); // Queries per second
+    group.bench_function(
+        format!("rows_{rows}/prune_{v}_partitions", v = partition_count - 1),
+        |b| {
+            let ctx = &ctx;
+            let predicate = &predicate;
+            b.to_async(runtime).iter(|| async move {
+                ctx.query(IngesterQueryRequest {
+                    namespace_id: namespace_id.get(),
+                    table_id: table_id.get(),
+                    columns: vec![],
+                    predicate: predicate.clone(),
+                })
+                .await
+                .expect("query request failed");
+            });
+        },
+    );
+}
+
+/// A specialised init function that creates many partitions.
+async fn partition_init(
+    rows: usize,
+    partition_count: usize,
+) -> (TestContext<impl IngesterRpcInterface>, NamespaceId, TableId) {
+    // Partition based on the tag value "platanos"
+    let partition_template = NamespacePartitionTemplateOverride::try_from(PartitionTemplate {
+        parts: vec![TemplatePart {
+            part: Some(influxdb_iox_client::table::generated_types::Part::TagValue(
+                "platanos".to_string(),
+            )),
+        }],
+    })
+    .expect("valid template");
+
+    let mut ctx = TestContextBuilder::default()
+        // Don't stop ingest during benchmarks
+        .with_max_persist_queue_depth(10_000_000)
+        .with_persist_hot_partition_cost(10_000_000_000)
+        .build()
+        .await;
+
+    // Ensure the namespace exists in the catalog.
+    let ns = ctx
+        .ensure_namespace(TEST_NAMESPACE, None, Some(partition_template))
+        .await;
+
+    // Generate LP that contains a tag "platanos" and a integer value - always
+    // query for partition 0.
+    let mut lp = String::new();
+    for p in 0..partition_count {
+        lp.clear();
+        for i in 0..rows {
+            writeln!(lp, "bananas,platanos={p} v={i} 42").unwrap();
+        }
+
+        ctx.write_lp(
+            TEST_NAMESPACE,
+            &lp,
+            PartitionKey::from(p.to_string()),
+            42,
+            None,
+        )
+        .await;
+    }
+
+    let table_id = ctx.table_id(TEST_NAMESPACE, "bananas").await;
+
+    (ctx, ns.id, table_id)
+}
+
+criterion_group!(
+    benches,
+    bench_query,
+    bench_query_concurrent,
+    bench_partition_pruning
+);
 criterion_main!(benches);
