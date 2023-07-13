@@ -75,7 +75,7 @@ async fn compact_partition(
     components: Arc<Components>,
 ) {
     info!(partition_id = partition_id.get(), "compact partition",);
-    span.set_metadata("partitionID", partition_id.get().to_string());
+    span.set_metadata("partition_id", partition_id.get().to_string());
     let scratchpad = components.scratchpad_gen.pad();
 
     let res = timeout_with_progress_checking(partition_timeout, |transmit_progress_signal| {
