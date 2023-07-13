@@ -4,7 +4,7 @@ use std::{collections::VecDeque, sync::Arc};
 
 use data_types::{
     sequence_number_set::SequenceNumberSet, NamespaceId, PartitionHashId, PartitionId,
-    PartitionKey, SequenceNumber, TableId, TransitionPartitionId,
+    PartitionKey, SequenceNumber, TableId, TimestampMinMax, TransitionPartitionId,
 };
 use mutable_batch::MutableBatch;
 use observability_deps::tracing::*;
@@ -156,6 +156,50 @@ impl PartitionData {
         self.buffer.persist_cost_estimate()
     }
 
+    /// Returns the number of rows currently buffered in this [`PartitionData`].
+    ///
+    /// The returned value will always match the row count of the data returned
+    /// by a subsequent call to [`PartitionData::get_query_data()`], without any
+    /// column projection applied.
+    ///
+    /// This value is inclusive of "hot" buffered data, and all currently
+    /// persisting data.
+    ///
+    /// This is an `O(n)` operation where `n` is the number of currently
+    /// persisting batches, plus 1 for the "hot" buffer. Reading the row count
+    /// of each batch is `O(1)`. This method is expected to be fast.
+    pub(crate) fn rows(&self) -> usize {
+        self.persisting.iter().map(|(_, v)| v.rows()).sum::<usize>() + self.buffer.rows()
+    }
+
+    /// Return the timestamp min/max values for the data contained within this
+    /// [`PartitionData`].
+    ///
+    /// The returned value will always match the timestamp summary values of the
+    /// data returned by a subsequent call to
+    /// [`PartitionData::get_query_data()`] iff the projection provided to the
+    /// call includes the timestamp column (returns pre-projection value).
+    ///
+    /// This value is inclusive of "hot" buffered data, and all currently
+    /// persisting data.
+    ///
+    /// This is an `O(n)` operation where `n` is the number of currently
+    /// persisting batches, plus 1 for the "hot" buffer, Reading the timestamp
+    /// statistics for each batch is `O(1)`. This method is expected to be fast.
+    pub(crate) fn timestamp_stats(&self) -> Option<TimestampMinMax> {
+        self.persisting
+            .iter()
+            .map(|(_, v)| {
+                v.timestamp_stats()
+                    .expect("persisting batches must be non-empty")
+            })
+            .chain(self.buffer.timestamp_stats())
+            .reduce(|acc, v| TimestampMinMax {
+                min: acc.min.min(v.min),
+                max: acc.max.max(v.max),
+            })
+    }
+
     /// Return all data for this partition, ordered by the calls to
     /// [`PartitionData::buffer_write()`].
     pub(crate) fn get_query_data(&mut self, projection: &OwnedProjection) -> Option<QueryAdaptor> {
@@ -185,6 +229,7 @@ impl PartitionData {
         );
 
         if data.is_empty() {
+            debug_assert_eq!(self.rows(), 0);
             return None;
         }
 
@@ -194,11 +239,32 @@ impl PartitionData {
         // is upheld by the FSM, which ensures only non-empty snapshots /
         // RecordBatch are generated. Because `data` contains at least one
         // RecordBatch, this invariant holds.
-        Some(QueryAdaptor::new(
-            self.partition_id,
-            self.transition_partition_id(),
-            data,
-        ))
+        let q = QueryAdaptor::new(self.partition_id, self.transition_partition_id(), data);
+
+        // Invariant: the number of rows returned in a query MUST always match
+        // the row count reported by the rows() method.
+        //
+        // The row count is never affected by projection.
+        debug_assert_eq!(q.num_rows(), self.rows() as u64);
+
+        // Invariant: the timestamp min/max MUST match the values reported by
+        // timestamp_stats(), iff the projection contains the "time" column.
+        #[cfg(debug_assertions)]
+        {
+            if projection
+                .columns()
+                .map(|v| v.iter().any(|v| v == schema::TIME_COLUMN_NAME))
+                .unwrap_or(true)
+            {
+                assert_eq!(q.ts_min_max(), self.timestamp_stats());
+            } else {
+                // Otherwise the timestamp summary in the query response MUST be
+                // empty.
+                assert_eq!(q.ts_min_max(), None);
+            }
+        }
+
+        Some(q)
     }
 
     /// Snapshot and mark all buffered data as persisting.
