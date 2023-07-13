@@ -1593,7 +1593,7 @@ impl TimestampRange {
 ///
 /// Note this differs subtlety (but critically) from a
 /// [`TimestampRange`] as the minimum and maximum values are included ([`TimestampRange`] has an exclusive end).
-#[derive(Clone, Debug, Copy)]
+#[derive(Clone, Debug, Copy, PartialEq)]
 pub struct TimestampMinMax {
     /// The minimum timestamp value
     pub min: i64,

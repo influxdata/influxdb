@@ -49,6 +49,8 @@ impl Buffer {
         self.buffer.is_none()
     }
 
+    /// Returns the underlying buffer if this [`Buffer`] contains data,
+    /// otherwise returns [`None`].
     pub(super) fn buffer(&self) -> Option<&MutableBatch> {
         self.buffer.as_ref()
     }
