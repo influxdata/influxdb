@@ -52,6 +52,8 @@ async fn test_print_cpu() {
 /// 3. Start a all-in-one instance from that rebuilt catalog
 /// 4. Can run a query successfully
 #[tokio::test]
+// Ignore due to https://github.com/influxdata/influxdb_iox/issues/8203
+#[ignore]
 async fn build_catalog() {
     test_helpers::maybe_start_logging();
     let database_url = maybe_skip_integration!();
