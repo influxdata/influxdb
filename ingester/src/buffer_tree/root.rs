@@ -238,7 +238,7 @@ mod tests {
     use assert_matches::assert_matches;
     use data_types::{
         partition_template::{test_table_partition_override, TemplatePart},
-        PartitionId, PartitionKey,
+        PartitionHashId, PartitionId, PartitionKey,
     };
     use datafusion::{
         assert_batches_eq, assert_batches_sorted_eq,
@@ -1309,6 +1309,12 @@ mod tests {
         assert_eq!(partitions.len(), 1); // only p1, not p2
         let partition = partitions.pop().unwrap();
 
+        // Ensure the partition hash ID is sent.
+        assert_eq!(
+            partition.partition_hash_id().unwrap(),
+            &PartitionHashId::new(ARBITRARY_TABLE_ID, &ARBITRARY_PARTITION_KEY)
+        );
+
         // Perform the partition read
         let batches = partition.into_record_batches();
 
@@ -1325,5 +1331,61 @@ mod tests {
             ],
             &batches
         );
+    }
+
+    // If the catalog doesn't have a PartitionHashId as represented by the PartitionProvider, don't send it to
+    // the querier.
+    #[tokio::test]
+    async fn dont_send_partition_hash_id_when_not_in_catalog() {
+        let partition_provider = Arc::new(
+            MockPartitionProvider::default().with_partition(
+                PartitionDataBuilder::new()
+                    .with_partition_id(ARBITRARY_PARTITION_ID)
+                    .without_partition_hash_id()
+                    .with_partition_key(ARBITRARY_PARTITION_KEY.clone())
+                    .build(),
+            ),
+        );
+
+        let buf = BufferTree::new(
+            Arc::new(MockNamespaceNameProvider::new(&**ARBITRARY_NAMESPACE_NAME)),
+            Arc::clone(&*ARBITRARY_TABLE_PROVIDER),
+            partition_provider,
+            Arc::new(MockPostWriteObserver::default()),
+            Arc::new(metric::Registry::default()),
+        );
+
+        buf.apply(IngestOp::Write(make_write_op(
+            &ARBITRARY_PARTITION_KEY,
+            ARBITRARY_NAMESPACE_ID,
+            &ARBITRARY_TABLE_NAME,
+            ARBITRARY_TABLE_ID,
+            0,
+            &format!(
+                r#"{},region=Madrid temp=35 4242424242"#,
+                &*ARBITRARY_TABLE_NAME
+            ),
+            None,
+        )))
+        .await
+        .expect("failed to write initial data");
+
+        let stream = buf
+            .query_exec(
+                ARBITRARY_NAMESPACE_ID,
+                ARBITRARY_TABLE_ID,
+                OwnedProjection::default(),
+                None,
+                None,
+            )
+            .await
+            .expect("query should succeed")
+            .into_partition_stream();
+
+        let mut partitions: Vec<PartitionResponse> = stream.collect().await;
+        let partition = partitions.pop().unwrap();
+
+        // Ensure the partition hash ID is NOT sent.
+        assert!(partition.partition_hash_id().is_none());
     }
 }
