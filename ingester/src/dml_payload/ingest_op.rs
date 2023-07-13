@@ -26,7 +26,8 @@ impl IngestOp {
         }
     }
 
-    /// The [`SequenceNumberSet`] the [`IngestOp`] maps to.
+    /// Construct a new [`SequenceNumberSet`] containing all the sequence
+    /// numbers in this op.
     pub fn sequence_number_set(&self) -> SequenceNumberSet {
         match self {
             Self::Write(w) => w
