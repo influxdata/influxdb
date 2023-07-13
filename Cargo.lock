@@ -1360,7 +1360,7 @@ dependencies = [
 [[package]]
 name = "datafusion"
 version = "27.0.0"
-source = "git+https://github.com/apache/arrow-datafusion.git?rev=311e8c7c7ab8c087f072eeac9335394c09ae8185#311e8c7c7ab8c087f072eeac9335394c09ae8185"
+source = "git+https://github.com/apache/arrow-datafusion.git?rev=04ecaf7405dbbfd43f43acec972f2435ada5ee81#04ecaf7405dbbfd43f43acec972f2435ada5ee81"
 dependencies = [
  "ahash 0.8.3",
  "arrow",
@@ -1408,7 +1408,7 @@ dependencies = [
 [[package]]
 name = "datafusion-common"
 version = "27.0.0"
-source = "git+https://github.com/apache/arrow-datafusion.git?rev=311e8c7c7ab8c087f072eeac9335394c09ae8185#311e8c7c7ab8c087f072eeac9335394c09ae8185"
+source = "git+https://github.com/apache/arrow-datafusion.git?rev=04ecaf7405dbbfd43f43acec972f2435ada5ee81#04ecaf7405dbbfd43f43acec972f2435ada5ee81"
 dependencies = [
  "arrow",
  "arrow-array",
@@ -1422,7 +1422,7 @@ dependencies = [
 [[package]]
 name = "datafusion-execution"
 version = "27.0.0"
-source = "git+https://github.com/apache/arrow-datafusion.git?rev=311e8c7c7ab8c087f072eeac9335394c09ae8185#311e8c7c7ab8c087f072eeac9335394c09ae8185"
+source = "git+https://github.com/apache/arrow-datafusion.git?rev=04ecaf7405dbbfd43f43acec972f2435ada5ee81#04ecaf7405dbbfd43f43acec972f2435ada5ee81"
 dependencies = [
  "dashmap",
  "datafusion-common",
@@ -1439,7 +1439,7 @@ dependencies = [
 [[package]]
 name = "datafusion-expr"
 version = "27.0.0"
-source = "git+https://github.com/apache/arrow-datafusion.git?rev=311e8c7c7ab8c087f072eeac9335394c09ae8185#311e8c7c7ab8c087f072eeac9335394c09ae8185"
+source = "git+https://github.com/apache/arrow-datafusion.git?rev=04ecaf7405dbbfd43f43acec972f2435ada5ee81#04ecaf7405dbbfd43f43acec972f2435ada5ee81"
 dependencies = [
  "ahash 0.8.3",
  "arrow",
@@ -1453,7 +1453,7 @@ dependencies = [
 [[package]]
 name = "datafusion-optimizer"
 version = "27.0.0"
-source = "git+https://github.com/apache/arrow-datafusion.git?rev=311e8c7c7ab8c087f072eeac9335394c09ae8185#311e8c7c7ab8c087f072eeac9335394c09ae8185"
+source = "git+https://github.com/apache/arrow-datafusion.git?rev=04ecaf7405dbbfd43f43acec972f2435ada5ee81#04ecaf7405dbbfd43f43acec972f2435ada5ee81"
 dependencies = [
  "arrow",
  "async-trait",
@@ -1470,7 +1470,7 @@ dependencies = [
 [[package]]
 name = "datafusion-physical-expr"
 version = "27.0.0"
-source = "git+https://github.com/apache/arrow-datafusion.git?rev=311e8c7c7ab8c087f072eeac9335394c09ae8185#311e8c7c7ab8c087f072eeac9335394c09ae8185"
+source = "git+https://github.com/apache/arrow-datafusion.git?rev=04ecaf7405dbbfd43f43acec972f2435ada5ee81#04ecaf7405dbbfd43f43acec972f2435ada5ee81"
 dependencies = [
  "ahash 0.8.3",
  "arrow",
@@ -1504,7 +1504,7 @@ dependencies = [
 [[package]]
 name = "datafusion-proto"
 version = "27.0.0"
-source = "git+https://github.com/apache/arrow-datafusion.git?rev=311e8c7c7ab8c087f072eeac9335394c09ae8185#311e8c7c7ab8c087f072eeac9335394c09ae8185"
+source = "git+https://github.com/apache/arrow-datafusion.git?rev=04ecaf7405dbbfd43f43acec972f2435ada5ee81#04ecaf7405dbbfd43f43acec972f2435ada5ee81"
 dependencies = [
  "arrow",
  "chrono",
@@ -1518,7 +1518,7 @@ dependencies = [
 [[package]]
 name = "datafusion-row"
 version = "27.0.0"
-source = "git+https://github.com/apache/arrow-datafusion.git?rev=311e8c7c7ab8c087f072eeac9335394c09ae8185#311e8c7c7ab8c087f072eeac9335394c09ae8185"
+source = "git+https://github.com/apache/arrow-datafusion.git?rev=04ecaf7405dbbfd43f43acec972f2435ada5ee81#04ecaf7405dbbfd43f43acec972f2435ada5ee81"
 dependencies = [
  "arrow",
  "datafusion-common",
@@ -1529,7 +1529,7 @@ dependencies = [
 [[package]]
 name = "datafusion-sql"
 version = "27.0.0"
-source = "git+https://github.com/apache/arrow-datafusion.git?rev=311e8c7c7ab8c087f072eeac9335394c09ae8185#311e8c7c7ab8c087f072eeac9335394c09ae8185"
+source = "git+https://github.com/apache/arrow-datafusion.git?rev=04ecaf7405dbbfd43f43acec972f2435ada5ee81#04ecaf7405dbbfd43f43acec972f2435ada5ee81"
 dependencies = [
  "arrow",
  "arrow-schema",
@@ -6135,6 +6135,7 @@ dependencies = [
  "parking_lot 0.12.1",
  "pin-project",
  "sysinfo",
+ "tempfile",
  "tokio",
  "tokio-util",
  "trace",
