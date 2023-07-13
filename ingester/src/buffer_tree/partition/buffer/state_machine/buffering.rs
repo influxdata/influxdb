@@ -3,7 +3,7 @@
 use arrow::record_batch::RecordBatch;
 use data_types::{StatValues, TimestampMinMax};
 use mutable_batch::{column::ColumnData, MutableBatch};
-use schema::TIME_COLUMN_NAME;
+use schema::{Projection, TIME_COLUMN_NAME};
 
 use super::{snapshot::Snapshot, BufferState, Transition};
 use crate::{
@@ -58,6 +58,13 @@ impl Queryable for Buffering {
                 min: v.min.unwrap(),
                 max: v.max.unwrap(),
             })
+    }
+
+    fn schema(&self) -> Option<schema::Schema> {
+        self.buffer.buffer().map(|v| {
+            v.schema(Projection::All)
+                .expect("failed to construct batch schema")
+        })
     }
 }
 

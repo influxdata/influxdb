@@ -5,6 +5,7 @@ use std::fmt::Debug;
 use arrow::record_batch::RecordBatch;
 use data_types::TimestampMinMax;
 use mutable_batch::MutableBatch;
+use schema::Schema;
 
 use crate::query::projection::OwnedProjection;
 
@@ -19,6 +20,8 @@ pub(crate) trait Queryable: Debug {
     fn rows(&self) -> usize;
 
     fn timestamp_stats(&self) -> Option<TimestampMinMax>;
+
+    fn schema(&self) -> Option<Schema>;
 
     /// Return the set of [`RecordBatch`] containing ONLY the projected columns.
     fn get_query_data(&self, projection: &OwnedProjection) -> Vec<RecordBatch>;
