@@ -98,6 +98,19 @@ pub(super) async fn graceful_shutdown_handler<F, T, P>(
         tokio::time::sleep(SHUTDOWN_POLL_INTERVAL).await;
     }
 
+    // Register interest with the WAL reference handle to notify this thread
+    // when there are no tracked inactive WAL segments, ensuring they are
+    // deleted before shutdown (so as not to be replayed).
+    //
+    // This future MUST be created before the active WAL segment is rotated
+    // out and enqueued, but `await`ed on afterwards. Failure to do so may
+    // cause the notifier to deadlock if the inactive segment tracking set
+    // empties before the notifier is created.
+    //
+    // TL;DR: Please read the docs for [`WalReferenceHandle::empty_inactive_notifier()`]
+    // before moving this about.
+    let empty_waker = wal_reference_handle.empty_inactive_notifier();
+
     // There is now no data buffered in the ingester - all data has been
     // persisted to object storage.
     //
@@ -109,9 +122,9 @@ pub(super) async fn graceful_shutdown_handler<F, T, P>(
         .enqueue_rotated_file(closed_segment.id(), sequence_number_set)
         .await;
 
-    // Wait for the reference handle to report it has no inactive WAL segments
-    // tracked, ensuring they are deleted.
-    wal_reference_handle.empty_inactive_notifier().await;
+    // Wait for the file rotation to be processed and the tracked set
+    // to drop to empty.
+    empty_waker.await;
 
     info!("persisted all data - stopping ingester");
 
