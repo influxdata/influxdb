@@ -34,6 +34,18 @@ impl From<Vec<String>> for OwnedProjection {
     }
 }
 
+impl From<Vec<&str>> for OwnedProjection {
+    fn from(value: Vec<&str>) -> Self {
+        if value.is_empty() {
+            return Self(Projection::All);
+        }
+
+        Self(Projection::Project(
+            value.into_iter().map(ToString::to_string).collect(),
+        ))
+    }
+}
+
 impl OwnedProjection {
     /// Copy the data within a [`MutableBatch`] into a [`RecordBatch`], applying
     /// the the specified projection.

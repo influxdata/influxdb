@@ -355,6 +355,7 @@ mod tests {
         (
             $name:ident,
             $(table_provider = $table_provider:expr,)? // An optional table provider
+            $(projection = $projection:expr,)?    // An optional OwnedProjection
             partitions = [$($partition:expr), +], // The set of PartitionData for the mock
                                                   // partition provider
             writes = [$($write:expr), *],         // The set of WriteOperation to apply()
@@ -397,12 +398,18 @@ mod tests {
                             .expect("failed to perform write");
                     )*
 
+                    #[allow(unused_variables)]
+                    let projection = OwnedProjection::default();
+                    $(
+                        let projection = $projection;
+                    )?
+
                     // Execute the query against ARBITRARY_NAMESPACE_ID and ARBITRARY_TABLE_ID
                     let batches = buf
                         .query_exec(
                             ARBITRARY_NAMESPACE_ID,
                             ARBITRARY_TABLE_ID,
-                            OwnedProjection::default(),
+                            projection,
                             None,
                             $predicate
                         )
@@ -449,6 +456,66 @@ mod tests {
             "+----------+------+-------------------------------+",
             "| Asturias | 35.0 | 1970-01-01T00:00:04.242424242 |",
             "+----------+------+-------------------------------+",
+        ]
+    );
+
+    // Projection support
+    test_write_query!(
+        projection,
+        projection = OwnedProjection::from(vec!["time", "region"]),
+        partitions = [PartitionDataBuilder::new()
+            .with_partition_id(ARBITRARY_PARTITION_ID)
+            .with_partition_key(ARBITRARY_PARTITION_KEY.clone())
+            .build()],
+        writes = [make_write_op(
+            &ARBITRARY_PARTITION_KEY,
+            ARBITRARY_NAMESPACE_ID,
+            &ARBITRARY_TABLE_NAME,
+            ARBITRARY_TABLE_ID,
+            0,
+            &format!(
+                r#"{},region=Asturias temp=35 4242424242"#,
+                &*ARBITRARY_TABLE_NAME
+            ),
+            None,
+        )],
+        predicate = None,
+        want = [
+            "+-------------------------------+----------+",
+            "| time                          | region   |",
+            "+-------------------------------+----------+",
+            "| 1970-01-01T00:00:04.242424242 | Asturias |",
+            "+-------------------------------+----------+",
+        ]
+    );
+
+    // Projection support
+    test_write_query!(
+        projection_without_time,
+        projection = OwnedProjection::from(vec!["region"]),
+        partitions = [PartitionDataBuilder::new()
+            .with_partition_id(ARBITRARY_PARTITION_ID)
+            .with_partition_key(ARBITRARY_PARTITION_KEY.clone())
+            .build()],
+        writes = [make_write_op(
+            &ARBITRARY_PARTITION_KEY,
+            ARBITRARY_NAMESPACE_ID,
+            &ARBITRARY_TABLE_NAME,
+            ARBITRARY_TABLE_ID,
+            0,
+            &format!(
+                r#"{},region=Asturias temp=35 4242424242"#,
+                &*ARBITRARY_TABLE_NAME
+            ),
+            None,
+        )],
+        predicate = None,
+        want = [
+            "+----------+",
+            "| region   |",
+            "+----------+",
+            "| Asturias |",
+            "+----------+",
         ]
     );
 
