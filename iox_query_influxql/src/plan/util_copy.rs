@@ -10,7 +10,7 @@
 use datafusion::common::tree_node::{TreeNode, VisitRecursion};
 use datafusion::common::Result;
 use datafusion::logical_expr::expr::{
-    AggregateUDF, InList, InSubquery, Placeholder, ScalarFunction, ScalarUDF,
+    AggregateUDF, Alias, InList, InSubquery, Placeholder, ScalarFunction, ScalarUDF,
 };
 use datafusion::logical_expr::{
     expr::{
@@ -104,10 +104,13 @@ where
                     filter: filter.clone(),
                     order_by: order_by.clone(),
                 })),
-                Expr::Alias(nested_expr, alias_name) => Ok(Expr::Alias(
-                    Box::new(clone_with_replacement(nested_expr, replacement_fn)?),
-                    alias_name.clone(),
-                )),
+                Expr::Alias(Alias {
+                    expr: nested_expr,
+                    name: alias_name,
+                }) => Ok(Expr::Alias(Alias {
+                    expr: Box::new(clone_with_replacement(nested_expr, replacement_fn)?),
+                    name: alias_name.clone(),
+                })),
                 Expr::Between(Between {
                     expr,
                     negated,

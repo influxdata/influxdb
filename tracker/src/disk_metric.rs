@@ -27,8 +27,10 @@ pub struct DiskSpaceMetrics {
 impl DiskSpaceMetrics {
     /// Create a new [`DiskSpaceMetrics`], returning [`None`] if no disk can be
     /// found for the specified `directory`.
-    pub fn new(mut directory: PathBuf, registry: &metric::Registry) -> Option<Self> {
+    pub fn new(directory: PathBuf, registry: &metric::Registry) -> Option<Self> {
         let path: Cow<'static, str> = Cow::from(directory.display().to_string());
+        let mut directory = directory.canonicalize().ok()?;
+
         let attributes = Attributes::from([("path", path)]);
 
         let available_disk_space = registry
@@ -49,6 +51,7 @@ impl DiskSpaceMetrics {
         let system = System::new_with_specifics(RefreshKind::new().with_disks_list());
 
         // Resolve the mount point once.
+        // The directory path may be `/path/to/dir` and the mount point is `/`.
         let disk_idx = loop {
             if let Some((idx, _disk)) = system
                 .disks()
@@ -99,15 +102,27 @@ mod tests {
     use std::{sync::Arc, time::Instant};
 
     use metric::Metric;
+    use tempfile::tempdir_in;
 
     use super::*;
 
     #[tokio::test]
     async fn test_metrics() {
+        let tmp_dir = tempdir_in(".").ok().unwrap();
+        let path = tmp_dir.path().display().to_string();
+        // TempDir creates a directory in current directory, so test the relative path (if possible).
+        let path = match path.find("/./") {
+            Some(index) => &path[index + 3..],
+            None => &path[..],
+        };
+
+        let pathbuf = PathBuf::from(path);
+        let metric_label: Cow<'static, str> = path.to_string().into();
+
         let registry = Arc::new(metric::Registry::new());
 
         let _handle = tokio::spawn(
-            DiskSpaceMetrics::new(PathBuf::from("/"), &registry)
+            DiskSpaceMetrics::new(pathbuf, &registry)
                 .expect("root always exists")
                 .run(),
         );
@@ -124,14 +139,14 @@ mod tests {
             let recorded_free_metric = registry
                 .get_instrument::<Metric<U64Gauge>>("disk_space_free")
                 .expect("metric should exist")
-                .get_observer(&Attributes::from(&[("path", "/")]))
+                .get_observer(&Attributes::from([("path", metric_label.clone())]))
                 .expect("metric should have labels")
                 .fetch();
 
             let recorded_total_metric = registry
                 .get_instrument::<Metric<U64Gauge>>("disk_capacity_total")
                 .expect("metric should exist")
-                .get_observer(&Attributes::from(&[("path", "/")]))
+                .get_observer(&Attributes::from([("path", metric_label.clone())]))
                 .expect("metric should have labels")
                 .fetch();
 

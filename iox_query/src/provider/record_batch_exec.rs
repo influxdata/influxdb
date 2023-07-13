@@ -14,7 +14,7 @@ use datafusion::{
         expressions::{Column, PhysicalSortExpr},
         memory::MemoryStream,
         metrics::{BaselineMetrics, ExecutionPlanMetricsSet, MetricsSet},
-        ColumnStatistics, DisplayFormatType, ExecutionPlan, Partitioning,
+        ColumnStatistics, DisplayAs, DisplayFormatType, ExecutionPlan, Partitioning,
         SendableRecordBatchStream, Statistics,
     },
     scalar::ScalarValue,
@@ -234,6 +234,16 @@ impl ExecutionPlan for RecordBatchesExec {
         Ok(adapter)
     }
 
+    fn metrics(&self) -> Option<MetricsSet> {
+        Some(self.metrics.clone_inner())
+    }
+
+    fn statistics(&self) -> Statistics {
+        self.statistics.clone()
+    }
+}
+
+impl DisplayAs for RecordBatchesExec {
     fn fmt_as(&self, t: DisplayFormatType, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         let total_groups = self.chunks.len();
 
@@ -257,13 +267,5 @@ impl ExecutionPlan for RecordBatchesExec {
                 )
             }
         }
-    }
-
-    fn metrics(&self) -> Option<MetricsSet> {
-        Some(self.metrics.clone_inner())
-    }
-
-    fn statistics(&self) -> Statistics {
-        self.statistics.clone()
     }
 }

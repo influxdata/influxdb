@@ -54,8 +54,8 @@ use datafusion::{
     physical_plan::{
         expressions::PhysicalSortExpr,
         metrics::{BaselineMetrics, ExecutionPlanMetricsSet, MetricsSet},
-        DisplayFormatType, Distribution, ExecutionPlan, Partitioning, SendableRecordBatchStream,
-        Statistics,
+        DisplayAs, DisplayFormatType, Distribution, ExecutionPlan, Partitioning,
+        SendableRecordBatchStream, Statistics,
     },
 };
 
@@ -272,14 +272,6 @@ impl ExecutionPlan for NonNullCheckerExec {
         Ok(AdapterStream::adapt(self.schema(), rx, handle))
     }
 
-    fn fmt_as(&self, t: DisplayFormatType, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        match t {
-            DisplayFormatType::Default | DisplayFormatType::Verbose => {
-                write!(f, "NonNullCheckerExec")
-            }
-        }
-    }
-
     fn metrics(&self) -> Option<MetricsSet> {
         Some(self.metrics.clone_inner())
     }
@@ -287,6 +279,16 @@ impl ExecutionPlan for NonNullCheckerExec {
     fn statistics(&self) -> Statistics {
         // don't know anything about the statistics
         Statistics::default()
+    }
+}
+
+impl DisplayAs for NonNullCheckerExec {
+    fn fmt_as(&self, t: DisplayFormatType, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match t {
+            DisplayFormatType::Default | DisplayFormatType::Verbose => {
+                write!(f, "NonNullCheckerExec")
+            }
+        }
     }
 }
 

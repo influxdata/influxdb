@@ -928,27 +928,26 @@ mod tests {
         // Populate the catalog with the namespace / table
         let (_ns_id, table_id) = populate_catalog(&*catalog, "bananas", "platanos").await;
 
-        let partition_id = catalog
+        let partition = catalog
             .repositories()
             .await
             .partitions()
             .create_or_get("test".into(), table_id)
             .await
-            .expect("should create")
-            .id;
+            .expect("should create");
 
         catalog
             .repositories()
             .await
             .partitions()
-            .cas_sort_key(partition_id, None, &["terrific"])
+            .cas_sort_key(&partition.transition_partition_id(), None, &["terrific"])
             .await
             .unwrap();
 
         // Read the just-created sort key (None)
         let fetcher = Arc::new(DeferredLoad::new(
             Duration::from_nanos(1),
-            SortKeyResolver::new(partition_id, Arc::clone(&catalog), backoff_config.clone())
+            SortKeyResolver::new(partition.id, Arc::clone(&catalog), backoff_config.clone())
                 .fetch(),
             &metrics,
         ));

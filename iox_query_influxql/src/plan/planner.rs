@@ -1,8 +1,11 @@
 mod select;
 
+use crate::aggregate::PERCENTILE;
+use crate::error;
 use crate::plan::ir::{DataSource, Field, Interval, Select, SelectQuery};
 use crate::plan::planner::select::{
-    fields_to_exprs_no_nulls, make_tag_key_column_meta, plan_with_sort, ProjectionInfo,
+    fields_to_exprs_no_nulls, make_tag_key_column_meta, plan_with_sort, ProjectionInfo, Selector,
+    SelectorWindowOrderBy,
 };
 use crate::plan::planner_time_range_expression::time_range_to_df_expr;
 use crate::plan::rewriter::{find_table_names, rewrite_statement, ProjectionType};
@@ -16,7 +19,8 @@ use crate::plan::udf::{
 };
 use crate::plan::util::{binary_operator_to_df_operator, rebase_expr, Schemas};
 use crate::plan::var_ref::var_ref_data_type_to_data_type;
-use crate::plan::{error, planner_rewrite_expression, udf, util_copy};
+use crate::plan::{planner_rewrite_expression, udf, util_copy};
+use crate::window::PERCENT_ROW_NUMBER;
 use arrow::array::{StringBuilder, StringDictionaryBuilder};
 use arrow::datatypes::{DataType, Field as ArrowField, Int32Type, Schema as ArrowSchema};
 use arrow::record_batch::RecordBatch;
@@ -25,7 +29,7 @@ use datafusion::catalog::TableReference;
 use datafusion::common::tree_node::{TreeNode, VisitRecursion};
 use datafusion::common::{DFSchema, DFSchemaRef, Result, ScalarValue, ToDFSchema};
 use datafusion::datasource::{provider_as_source, MemTable};
-use datafusion::logical_expr::expr::ScalarFunction;
+use datafusion::logical_expr::expr::{Alias, ScalarFunction};
 use datafusion::logical_expr::expr_rewriter::normalize_col;
 use datafusion::logical_expr::logical_plan::builder::project;
 use datafusion::logical_expr::logical_plan::Analyze;
@@ -47,6 +51,7 @@ use influxdb_influxql_parser::explain::{ExplainOption, ExplainStatement};
 use influxdb_influxql_parser::expression::walk::{walk_expr, walk_expression, Expression};
 use influxdb_influxql_parser::expression::{
     Binary, Call, ConditionalBinary, ConditionalExpression, ConditionalOperator, VarRef,
+    VarRefDataType,
 };
 use influxdb_influxql_parser::functions::{
     is_aggregate_function, is_now_function, is_scalar_math_function,
@@ -762,16 +767,19 @@ impl<'a> InfluxQLToLogicalPlan<'a> {
         group_by_tag_set: &[&str],
     ) -> Result<LogicalPlan> {
         match ctx.projection_type {
-             ProjectionType::Raw => self.project_select_raw(input, fields),
-             ProjectionType::RawDistinct => self.project_select_raw_distinct(input, fields),
-             ProjectionType::Aggregate | ProjectionType::Selector{..} => self.project_select_aggregate(ctx, input, fields, group_by_tag_set),
-             ProjectionType::Window => self.project_select_window(ctx, input, fields, group_by_tag_set),
-             ProjectionType::WindowAggregate => self.project_select_window_aggregate(ctx, input, fields, group_by_tag_set),
-             ProjectionType::WindowAggregateMixed => error::not_implemented("mixed window-aggregate and aggregate columns, such as DIFFERENCE(MEAN(col)), MEAN(col)"),
-             ProjectionType::TopBottomSelector => self.project_select_top_bottom_selector(ctx, input, fields, group_by_tag_set),
+            ProjectionType::Raw => self.project_select_raw(input, fields),
+            ProjectionType::RawDistinct => self.project_select_raw_distinct(input, fields),
+            ProjectionType::Aggregate   => self.project_select_aggregate(ctx, input, fields, group_by_tag_set),
+            ProjectionType::Window => self.project_select_window(ctx, input, fields, group_by_tag_set),
+            ProjectionType::WindowAggregate => self.project_select_window_aggregate(ctx, input, fields, group_by_tag_set),
+            ProjectionType::WindowAggregateMixed => error::not_implemented("mixed window-aggregate and aggregate columns, such as DIFFERENCE(MEAN(col)), MEAN(col)"),
+            ProjectionType::Selector{..} => self.project_select_selector(ctx, input, fields, group_by_tag_set),
+            ProjectionType::TopBottomSelector => self.project_select_top_bottom_selector(ctx, input, fields, group_by_tag_set),
         }
     }
 
+    /// Plan "Raw" SELECT queriers, These are queries that have no grouping
+    /// and call only scalar functions.
     fn project_select_raw(&self, input: LogicalPlan, fields: &[Field]) -> Result<LogicalPlan> {
         let schemas = Schemas::new(input.schema())?;
 
@@ -782,6 +790,8 @@ impl<'a> InfluxQLToLogicalPlan<'a> {
         project(input, select_exprs)
     }
 
+    /// Plan "RawDistinct" SELECT queriers, These are queries that have no grouping
+    /// and call only scalar functions, but output only distinct rows.
     fn project_select_raw_distinct(
         &self,
         input: LogicalPlan,
@@ -803,7 +813,7 @@ impl<'a> InfluxQLToLogicalPlan<'a> {
 
         // Take ownership of the alias, so we don't reallocate, and temporarily place a literal
         // `NULL` in its place.
-        let Expr::Alias(_, alias) = std::mem::replace(&mut select_exprs[time_column_index], lit(ScalarValue::Null)) else {
+        let Expr::Alias(Alias{name: alias, ..}) = std::mem::replace(&mut select_exprs[time_column_index], lit(ScalarValue::Null)) else {
                 return error::internal("time column is not an alias")
             };
 
@@ -815,6 +825,8 @@ impl<'a> InfluxQLToLogicalPlan<'a> {
         LogicalPlanBuilder::from(plan).distinct()?.build()
     }
 
+    /// Plan "Aggregate" SELECT queries. These are queries that use one or
+    /// more aggregate (but not window) functions.
     fn project_select_aggregate(
         &self,
         ctx: &Context<'_>,
@@ -834,6 +846,8 @@ impl<'a> InfluxQLToLogicalPlan<'a> {
         project(plan, select_exprs)
     }
 
+    /// Plan "Window" SELECT queries. These are queries that use one or
+    /// more window functions.
     fn project_select_window(
         &self,
         ctx: &Context<'_>,
@@ -870,6 +884,8 @@ impl<'a> InfluxQLToLogicalPlan<'a> {
         }
     }
 
+    /// Plan "WindowAggregate" SELECT queries. These are queries that use
+    /// a combination of window and nested aggregate functions.
     fn project_select_window_aggregate(
         &self,
         ctx: &Context<'_>,
@@ -908,6 +924,102 @@ impl<'a> InfluxQLToLogicalPlan<'a> {
         }
     }
 
+    /// Plan the execution of SELECT queries that have the Selector projection
+    /// type. These a queries that include a single FIRST, LAST, MAX, MIN,
+    /// PERCENTILE, or SAMPLE function call, possibly requesting additional
+    /// tags or fields.
+    ///
+    /// N.B SAMPLE is not yet implemented.
+    fn project_select_selector(
+        &self,
+        ctx: &Context<'_>,
+        input: LogicalPlan,
+        fields: &[Field],
+        group_by_tag_set: &[&str],
+    ) -> Result<LogicalPlan> {
+        let schemas = Schemas::new(input.schema())?;
+
+        let (selector_index, field_key, plan) = match Selector::find_enumerated(fields)? {
+            (_, Selector::First { .. })
+            | (_, Selector::Last { .. })
+            | (_, Selector::Max { .. })
+            | (_, Selector::Min { .. }) => {
+                // The FIRST, LAST, MAX & MIN selectors are implmented as specialised
+                // forms of the equivilent aggregate implementaiion.
+                return self.project_select_aggregate(ctx, input, fields, group_by_tag_set);
+            }
+            (idx, Selector::Percentile { field_key, n }) => {
+                let window_perc_row = Expr::WindowFunction(WindowFunction::new(
+                    PERCENT_ROW_NUMBER.clone(),
+                    vec![lit(n)],
+                    window_partition_by(ctx, input.schema(), group_by_tag_set),
+                    vec![field_key.as_expr().sort(true, false), ctx.time_sort_expr()],
+                    WindowFrame {
+                        units: WindowFrameUnits::Rows,
+                        start_bound: WindowFrameBound::Preceding(ScalarValue::Null),
+                        end_bound: WindowFrameBound::Following(ScalarValue::Null),
+                    },
+                ));
+                let perc_row_column_name = window_perc_row.display_name()?;
+
+                let window_row = Expr::WindowFunction(WindowFunction::new(
+                    window_function::WindowFunction::BuiltInWindowFunction(
+                        window_function::BuiltInWindowFunction::RowNumber,
+                    ),
+                    vec![],
+                    window_partition_by(ctx, input.schema(), group_by_tag_set),
+                    vec![field_key.as_expr().sort(true, false), ctx.time_sort_expr()],
+                    WindowFrame {
+                        units: WindowFrameUnits::Rows,
+                        start_bound: WindowFrameBound::Preceding(ScalarValue::Null),
+                        end_bound: WindowFrameBound::Following(ScalarValue::Null),
+                    },
+                ));
+                let row_column_name = window_row.display_name()?;
+
+                let filter_expr = binary_expr(
+                    col(perc_row_column_name.clone()),
+                    Operator::Eq,
+                    col(row_column_name.clone()),
+                );
+                let plan = LogicalPlanBuilder::from(input)
+                    .filter(field_key.as_expr().is_not_null())?
+                    .window(vec![
+                        window_perc_row.alias(perc_row_column_name),
+                        window_row.alias(row_column_name),
+                    ])?
+                    .filter(filter_expr)?
+                    .build()?;
+
+                (idx, field_key, plan)
+            }
+            (_, Selector::Sample { field_key: _, n: _ }) => {
+                return error::not_implemented("sample selector function")
+            }
+
+            (_, s) => {
+                return error::internal(format!(
+                    "unsupported selector function for ProjectionSelector {s}"
+                ))
+            }
+        };
+
+        let mut fields_vec = fields.to_vec();
+        fields_vec[selector_index].expr = IQLExpr::VarRef(VarRef {
+            name: field_key.clone(),
+            data_type: None,
+        });
+
+        // Transform InfluxQL AST field expressions to a list of DataFusion expressions.
+        let select_exprs = self.field_list_to_exprs(&plan, fields_vec.as_slice(), &schemas)?;
+
+        // Wrap the plan in a `LogicalPlan::Projection` from the select expressions
+        project(plan, select_exprs)
+    }
+
+    /// Plan the execution of "TopBottomSelector" SELECT queries. These are
+    /// queries that use the TOP or BOTTOM functions to select a number of
+    /// rows from the ends of a partition..
     fn project_select_top_bottom_selector(
         &self,
         ctx: &Context<'_>,
@@ -917,87 +1029,68 @@ impl<'a> InfluxQLToLogicalPlan<'a> {
     ) -> Result<LogicalPlan> {
         let schemas = Schemas::new(input.schema())?;
 
-        let (selector_index, call) = fields
-            .iter()
-            .enumerate()
-            .find_map(|(idx, f)| match &f.expr {
-                IQLExpr::Call(c) if c.name == "top" || c.name == "bottom" => Some((idx, c.clone())),
-                _ => None,
-            })
-            .ok_or(error::map::internal(
-                "ProjectionTopBottomSelector used without top or bottom field",
-            ))?;
+        let (selector_index, is_bottom, field_key, tag_keys, narg) =
+            match Selector::find_enumerated(fields)? {
+                (
+                    idx,
+                    Selector::Bottom {
+                        field_key,
+                        tag_keys,
+                        n,
+                    },
+                ) => (idx, true, field_key, tag_keys, n),
+                (
+                    idx,
+                    Selector::Top {
+                        field_key,
+                        tag_keys,
+                        n,
+                    },
+                ) => (idx, false, field_key, tag_keys, n),
+                (_, s) => {
+                    return error::internal(format!(
+                        "ProjectionTopBottomSelector used with unexpected selector function: {s}"
+                    ))
+                }
+            };
 
-        // Find the selector parameters.
-        let is_bottom = call.name == "bottom";
-        let [field, tag_keys @ .., narg] = call.args.as_slice() else {
-            return error::internal(format!(
-                "invalid number of arguments for {}: expected 2 or more, got {}",
-                call.name,
-                call.args.len()
-            ));
-        };
-        let field = if let IQLExpr::VarRef(v) = field {
-            Field {
-                expr: IQLExpr::VarRef(v.clone()),
-                name: v.name.clone().take(),
-                data_type: None,
-            }
+        let mut fields_vec = fields.to_vec();
+        fields_vec[selector_index].expr = IQLExpr::VarRef(VarRef {
+            name: field_key.clone(),
+            data_type: None,
+        });
+        let order_by = if is_bottom {
+            SelectorWindowOrderBy::FieldAsc(field_key)
         } else {
-            return error::internal(format!(
-                "invalid expression for {} field argument, {field}",
-                call.name,
-            ));
-        };
-        let n = if let IQLExpr::Literal(Literal::Integer(v)) = narg {
-            *v
-        } else {
-            return error::internal(format!(
-                "invalid expression for {} n argument, {narg}",
-                call.name
-            ));
+            SelectorWindowOrderBy::FieldDesc(field_key)
         };
 
         let mut internal_group_by = group_by_tag_set.to_vec();
-        let mut fields_vec = fields.to_vec();
         for (i, tag_key) in tag_keys.iter().enumerate() {
-            if let IQLExpr::VarRef(v) = &tag_key {
-                fields_vec.insert(
-                    selector_index + i + 1,
-                    Field {
-                        expr: IQLExpr::VarRef(v.clone()),
-                        name: v.name.clone().take(),
-                        data_type: None,
-                    },
-                );
-                internal_group_by.push(v.name.as_ref());
-            } else {
-                return error::internal(format!(
-                    "invalid expression for {} tag_keys argument, {}",
-                    call.name, &tag_key
-                ));
-            }
+            fields_vec.insert(
+                selector_index + i + 1,
+                Field {
+                    expr: IQLExpr::VarRef(VarRef {
+                        name: (*tag_key).clone(),
+                        data_type: Some(VarRefDataType::Tag),
+                    }),
+                    name: (*tag_key).clone().take(),
+                    data_type: None,
+                },
+            );
+            internal_group_by.push(*tag_key);
         }
 
         // Transform InfluxQL AST field expressions to a list of DataFusion expressions.
         let select_exprs = self.field_list_to_exprs(&input, fields_vec.as_slice(), &schemas)?;
 
         let plan = if !tag_keys.is_empty() {
-            self.select_first(
-                ctx,
-                input,
-                &schemas,
-                &field,
-                is_bottom,
-                internal_group_by.as_slice(),
-                1,
-            )?
+            self.select_first(ctx, input, order_by, internal_group_by.as_slice(), 1)?
         } else {
             input
         };
 
-        let plan =
-            self.select_first(ctx, plan, &schemas, &field, is_bottom, group_by_tag_set, n)?;
+        let plan = self.select_first(ctx, plan, order_by, group_by_tag_set, narg)?;
 
         // Wrap the plan in a `LogicalPlan::Projection` from the select expressions
         project(plan, select_exprs)
@@ -1056,7 +1149,10 @@ impl<'a> InfluxQLToLogicalPlan<'a> {
                             continue;
                         }
                         let (expr, out_name) = match expr.clone() {
-                            Expr::Alias(expr, out_name) => (*expr, out_name),
+                            Expr::Alias(Alias {
+                                expr,
+                                name: out_name,
+                            }) => (*expr, out_name),
                             _ => {
                                 return error::internal("other field is not aliased");
                             }
@@ -1102,7 +1198,7 @@ impl<'a> InfluxQLToLogicalPlan<'a> {
         let time_column = {
             // Take ownership of the alias, so we don't reallocate, and temporarily place a literal
             // `NULL` in its place.
-            let Expr::Alias(_, alias) = std::mem::replace(&mut select_exprs[time_column_index], lit(ScalarValue::Null)) else {
+            let Expr::Alias(Alias{name: alias, ..}) = std::mem::replace(&mut select_exprs[time_column_index], lit(ScalarValue::Null)) else {
                 return error::internal("time column is not an alias")
             };
 
@@ -1281,42 +1377,32 @@ impl<'a> InfluxQLToLogicalPlan<'a> {
         Ok((plan, select_exprs))
     }
 
-    /// Generate a plan to select the first n rows from each partition in the input data sorted by the requested field.
-    #[allow(clippy::too_many_arguments)]
+    /// Generate a plan to select the first n rows from each partition in
+    /// the input data, optionally sorted by the requested field.
     fn select_first(
         &self,
         ctx: &Context<'_>,
         input: LogicalPlan,
-        schemas: &Schemas,
-        field: &Field,
-        asc: bool,
+        order_by: SelectorWindowOrderBy<'_>,
         group_by_tags: &[&str],
         count: i64,
     ) -> Result<LogicalPlan> {
-        let mut group_by =
-            fields_to_exprs_no_nulls(input.schema(), group_by_tags).collect::<Vec<_>>();
-        if let Some(i) = ctx.interval {
-            let stride = lit(ScalarValue::new_interval_mdn(0, 0, i.duration));
-            let offset = i.offset.unwrap_or_default();
-
-            group_by.push(date_bin(
-                stride,
-                "time".as_expr(),
-                lit(ScalarValue::TimestampNanosecond(Some(offset), None)),
-            ));
-        }
-
-        let field_sort_expr = self
-            .field_to_df_expr(field, &input, schemas)?
-            .sort(asc, false);
+        let order_by_exprs = match order_by {
+            SelectorWindowOrderBy::FieldAsc(id) => {
+                vec![id.as_expr().sort(true, false), ctx.time_sort_expr()]
+            }
+            SelectorWindowOrderBy::FieldDesc(id) => {
+                vec![id.as_expr().sort(false, false), ctx.time_sort_expr()]
+            }
+        };
 
         let window_expr = Expr::WindowFunction(WindowFunction::new(
             window_function::WindowFunction::BuiltInWindowFunction(
                 window_function::BuiltInWindowFunction::RowNumber,
             ),
             Vec::<Expr>::new(),
-            group_by,
-            vec![field_sort_expr, ctx.time_sort_expr()],
+            window_partition_by(ctx, input.schema(), group_by_tags),
+            order_by_exprs,
             WindowFrame {
                 units: WindowFrameUnits::Rows,
                 start_bound: WindowFrameBound::Preceding(ScalarValue::Null),
@@ -1851,6 +1937,21 @@ impl<'a> InfluxQLToLogicalPlan<'a> {
                     AggregateFunction::from_str(name)?,
                     vec![expr],
                     false,
+                    None,
+                    None,
+                )))
+            }
+            "percentile" => {
+                let expr = self.expr_to_df_expr(scope, &args[0], schemas)?;
+                if let Expr::Literal(ScalarValue::Null) = expr {
+                    return Ok(expr);
+                }
+
+                check_arg_count(name, args, 2)?;
+                let nexpr = self.expr_to_df_expr(scope, &args[1], schemas)?;
+                Ok(Expr::AggregateUDF(expr::AggregateUDF::new(
+                    PERCENTILE.clone(),
+                    vec![expr, nexpr],
                     None,
                     None,
                 )))
@@ -2726,7 +2827,7 @@ fn build_gap_fill_node(
     fill_strategy: FillStrategy,
 ) -> Result<LogicalPlan> {
     let (expr, alias) = match time_column {
-        Expr::Alias(expr, alias) => (expr.as_ref(), alias),
+        Expr::Alias(Alias { expr, name: alias }) => (expr.as_ref(), alias),
         _ => return error::internal("expected time column to have an alias function"),
     };
 
@@ -3061,6 +3162,26 @@ fn find_var_refs(select: &Select) -> BTreeSet<&VarRef> {
     }
 
     var_refs
+}
+
+/// Calculate the partitioning for window functions.
+fn window_partition_by(
+    ctx: &Context<'_>,
+    schema: &DFSchemaRef,
+    group_by_tags: &[&str],
+) -> Vec<Expr> {
+    let mut parition_by = fields_to_exprs_no_nulls(schema, group_by_tags).collect::<Vec<_>>();
+    if let Some(i) = ctx.interval {
+        let stride = lit(ScalarValue::new_interval_mdn(0, 0, i.duration));
+        let offset = i.offset.unwrap_or_default();
+
+        parition_by.push(date_bin(
+            stride,
+            "time".as_expr(),
+            lit(ScalarValue::TimestampNanosecond(Some(offset), None)),
+        ));
+    }
+    parition_by
 }
 
 #[cfg(test)]
@@ -3689,10 +3810,10 @@ mod test {
                             TableScan: cpu [cpu:Dictionary(Int32, Utf8);N, host:Dictionary(Int32, Utf8);N, region:Dictionary(Int32, Utf8);N, time:Timestamp(Nanosecond, None), usage_idle:Float64;N, usage_system:Float64;N, usage_user:Float64;N]
             "###);
 
-            // aggregate with repeated table
+            // selector with repeated table
             //
             // ⚠️ Important
-            // The aggregate must be applied to the UNION of all instances of the cpu table
+            // The selector must be applied to the UNION of all instances of the cpu table
             assert_snapshot!(plan("SELECT last(usage_idle) FROM cpu, cpu"), @r###"
             Sort: time ASC NULLS LAST [iox::measurement:Dictionary(Int32, Utf8), time:Timestamp(Nanosecond, None);N, last:Float64;N]
               Projection: Dictionary(Int32, Utf8("cpu")) AS iox::measurement, (selector_last(usage_idle,time))[time] AS time, (selector_last(usage_idle,time))[value] AS last [iox::measurement:Dictionary(Int32, Utf8), time:Timestamp(Nanosecond, None);N, last:Float64;N]
@@ -3707,7 +3828,7 @@ mod test {
             // different tables for each subquery
             //
             // ⚠️ Important
-            // The aggregate must be applied independently for each unique table
+            // The selector must be applied independently for each unique table
             assert_snapshot!(plan("SELECT last(value) FROM (SELECT usage_idle AS value FROM cpu), (SELECT bytes_free AS value FROM disk)"), @r###"
             Sort: iox::measurement ASC NULLS LAST, time ASC NULLS LAST [iox::measurement:Dictionary(Int32, Utf8), time:Timestamp(Nanosecond, None);N, last:Float64;N]
               Union [iox::measurement:Dictionary(Int32, Utf8), time:Timestamp(Nanosecond, None);N, last:Float64;N]
@@ -4063,38 +4184,90 @@ mod test {
         }
 
         #[test]
+        fn test_percentile() {
+            assert_snapshot!(plan("SELECT percentile(usage_idle,50),usage_system FROM cpu"), @r###"
+            Sort: time ASC NULLS LAST [iox::measurement:Dictionary(Int32, Utf8), time:Timestamp(Nanosecond, None), percentile:Float64;N, usage_system:Float64;N]
+              Projection: Dictionary(Int32, Utf8("cpu")) AS iox::measurement, cpu.time AS time, cpu.usage_idle AS percentile, cpu.usage_system AS usage_system [iox::measurement:Dictionary(Int32, Utf8), time:Timestamp(Nanosecond, None), percentile:Float64;N, usage_system:Float64;N]
+                Filter: percent_row_number(Float64(50)) ORDER BY [usage_idle ASC NULLS LAST, time ASC NULLS LAST] ROWS BETWEEN UNBOUNDED PRECEDING AND UNBOUNDED FOLLOWING = ROW_NUMBER() ORDER BY [usage_idle ASC NULLS LAST, time ASC NULLS LAST] ROWS BETWEEN UNBOUNDED PRECEDING AND UNBOUNDED FOLLOWING [cpu:Dictionary(Int32, Utf8);N, host:Dictionary(Int32, Utf8);N, region:Dictionary(Int32, Utf8);N, time:Timestamp(Nanosecond, None), usage_idle:Float64;N, usage_system:Float64;N, usage_user:Float64;N, percent_row_number(Float64(50)) ORDER BY [usage_idle ASC NULLS LAST, time ASC NULLS LAST] ROWS BETWEEN UNBOUNDED PRECEDING AND UNBOUNDED FOLLOWING:UInt64;N, ROW_NUMBER() ORDER BY [usage_idle ASC NULLS LAST, time ASC NULLS LAST] ROWS BETWEEN UNBOUNDED PRECEDING AND UNBOUNDED FOLLOWING:UInt64;N]
+                  WindowAggr: windowExpr=[[percent_row_number(Float64(50)) ORDER BY [cpu.usage_idle ASC NULLS LAST, cpu.time ASC NULLS LAST] ROWS BETWEEN UNBOUNDED PRECEDING AND UNBOUNDED FOLLOWING AS percent_row_number(Float64(50)) ORDER BY [usage_idle ASC NULLS LAST, time ASC NULLS LAST] ROWS BETWEEN UNBOUNDED PRECEDING AND UNBOUNDED FOLLOWING, ROW_NUMBER() ORDER BY [cpu.usage_idle ASC NULLS LAST, cpu.time ASC NULLS LAST] ROWS BETWEEN UNBOUNDED PRECEDING AND UNBOUNDED FOLLOWING AS ROW_NUMBER() ORDER BY [usage_idle ASC NULLS LAST, time ASC NULLS LAST] ROWS BETWEEN UNBOUNDED PRECEDING AND UNBOUNDED FOLLOWING]] [cpu:Dictionary(Int32, Utf8);N, host:Dictionary(Int32, Utf8);N, region:Dictionary(Int32, Utf8);N, time:Timestamp(Nanosecond, None), usage_idle:Float64;N, usage_system:Float64;N, usage_user:Float64;N, percent_row_number(Float64(50)) ORDER BY [usage_idle ASC NULLS LAST, time ASC NULLS LAST] ROWS BETWEEN UNBOUNDED PRECEDING AND UNBOUNDED FOLLOWING:UInt64;N, ROW_NUMBER() ORDER BY [usage_idle ASC NULLS LAST, time ASC NULLS LAST] ROWS BETWEEN UNBOUNDED PRECEDING AND UNBOUNDED FOLLOWING:UInt64;N]
+                    Filter: cpu.usage_idle IS NOT NULL [cpu:Dictionary(Int32, Utf8);N, host:Dictionary(Int32, Utf8);N, region:Dictionary(Int32, Utf8);N, time:Timestamp(Nanosecond, None), usage_idle:Float64;N, usage_system:Float64;N, usage_user:Float64;N]
+                      TableScan: cpu [cpu:Dictionary(Int32, Utf8);N, host:Dictionary(Int32, Utf8);N, region:Dictionary(Int32, Utf8);N, time:Timestamp(Nanosecond, None), usage_idle:Float64;N, usage_system:Float64;N, usage_user:Float64;N]
+            "###);
+
+            assert_snapshot!(plan("SELECT percentile(usage_idle,50),usage_system FROM cpu WHERE time >= 0 AND time < 60000000000 GROUP BY cpu"), @r###"
+            Sort: cpu ASC NULLS LAST, time ASC NULLS LAST [iox::measurement:Dictionary(Int32, Utf8), time:Timestamp(Nanosecond, None), cpu:Dictionary(Int32, Utf8);N, percentile:Float64;N, usage_system:Float64;N]
+              Projection: Dictionary(Int32, Utf8("cpu")) AS iox::measurement, cpu.time AS time, cpu.cpu AS cpu, cpu.usage_idle AS percentile, cpu.usage_system AS usage_system [iox::measurement:Dictionary(Int32, Utf8), time:Timestamp(Nanosecond, None), cpu:Dictionary(Int32, Utf8);N, percentile:Float64;N, usage_system:Float64;N]
+                Filter: percent_row_number(Float64(50)) PARTITION BY [cpu] ORDER BY [usage_idle ASC NULLS LAST, time ASC NULLS LAST] ROWS BETWEEN UNBOUNDED PRECEDING AND UNBOUNDED FOLLOWING = ROW_NUMBER() PARTITION BY [cpu] ORDER BY [usage_idle ASC NULLS LAST, time ASC NULLS LAST] ROWS BETWEEN UNBOUNDED PRECEDING AND UNBOUNDED FOLLOWING [cpu:Dictionary(Int32, Utf8);N, host:Dictionary(Int32, Utf8);N, region:Dictionary(Int32, Utf8);N, time:Timestamp(Nanosecond, None), usage_idle:Float64;N, usage_system:Float64;N, usage_user:Float64;N, percent_row_number(Float64(50)) PARTITION BY [cpu] ORDER BY [usage_idle ASC NULLS LAST, time ASC NULLS LAST] ROWS BETWEEN UNBOUNDED PRECEDING AND UNBOUNDED FOLLOWING:UInt64;N, ROW_NUMBER() PARTITION BY [cpu] ORDER BY [usage_idle ASC NULLS LAST, time ASC NULLS LAST] ROWS BETWEEN UNBOUNDED PRECEDING AND UNBOUNDED FOLLOWING:UInt64;N]
+                  WindowAggr: windowExpr=[[percent_row_number(Float64(50)) PARTITION BY [cpu.cpu] ORDER BY [cpu.usage_idle ASC NULLS LAST, cpu.time ASC NULLS LAST] ROWS BETWEEN UNBOUNDED PRECEDING AND UNBOUNDED FOLLOWING AS percent_row_number(Float64(50)) PARTITION BY [cpu] ORDER BY [usage_idle ASC NULLS LAST, time ASC NULLS LAST] ROWS BETWEEN UNBOUNDED PRECEDING AND UNBOUNDED FOLLOWING, ROW_NUMBER() PARTITION BY [cpu.cpu] ORDER BY [cpu.usage_idle ASC NULLS LAST, cpu.time ASC NULLS LAST] ROWS BETWEEN UNBOUNDED PRECEDING AND UNBOUNDED FOLLOWING AS ROW_NUMBER() PARTITION BY [cpu] ORDER BY [usage_idle ASC NULLS LAST, time ASC NULLS LAST] ROWS BETWEEN UNBOUNDED PRECEDING AND UNBOUNDED FOLLOWING]] [cpu:Dictionary(Int32, Utf8);N, host:Dictionary(Int32, Utf8);N, region:Dictionary(Int32, Utf8);N, time:Timestamp(Nanosecond, None), usage_idle:Float64;N, usage_system:Float64;N, usage_user:Float64;N, percent_row_number(Float64(50)) PARTITION BY [cpu] ORDER BY [usage_idle ASC NULLS LAST, time ASC NULLS LAST] ROWS BETWEEN UNBOUNDED PRECEDING AND UNBOUNDED FOLLOWING:UInt64;N, ROW_NUMBER() PARTITION BY [cpu] ORDER BY [usage_idle ASC NULLS LAST, time ASC NULLS LAST] ROWS BETWEEN UNBOUNDED PRECEDING AND UNBOUNDED FOLLOWING:UInt64;N]
+                    Filter: cpu.usage_idle IS NOT NULL [cpu:Dictionary(Int32, Utf8);N, host:Dictionary(Int32, Utf8);N, region:Dictionary(Int32, Utf8);N, time:Timestamp(Nanosecond, None), usage_idle:Float64;N, usage_system:Float64;N, usage_user:Float64;N]
+                      Filter: cpu.time >= TimestampNanosecond(0, None) AND cpu.time <= TimestampNanosecond(59999999999, None) [cpu:Dictionary(Int32, Utf8);N, host:Dictionary(Int32, Utf8);N, region:Dictionary(Int32, Utf8);N, time:Timestamp(Nanosecond, None), usage_idle:Float64;N, usage_system:Float64;N, usage_user:Float64;N]
+                        TableScan: cpu [cpu:Dictionary(Int32, Utf8);N, host:Dictionary(Int32, Utf8);N, region:Dictionary(Int32, Utf8);N, time:Timestamp(Nanosecond, None), usage_idle:Float64;N, usage_system:Float64;N, usage_user:Float64;N]
+            "###);
+
+            assert_snapshot!(plan("SELECT percentile(usage_idle,50), percentile(usage_idle,90) FROM cpu"), @r###"
+            Sort: time ASC NULLS LAST [iox::measurement:Dictionary(Int32, Utf8), time:Timestamp(Nanosecond, None), percentile:Float64;N, percentile_1:Float64;N]
+              Projection: Dictionary(Int32, Utf8("cpu")) AS iox::measurement, TimestampNanosecond(0, None) AS time, percentile(cpu.usage_idle,Int64(50)) AS percentile, percentile(cpu.usage_idle,Int64(90)) AS percentile_1 [iox::measurement:Dictionary(Int32, Utf8), time:Timestamp(Nanosecond, None), percentile:Float64;N, percentile_1:Float64;N]
+                Aggregate: groupBy=[[]], aggr=[[percentile(cpu.usage_idle, Int64(50)), percentile(cpu.usage_idle, Int64(90))]] [percentile(cpu.usage_idle,Int64(50)):Float64;N, percentile(cpu.usage_idle,Int64(90)):Float64;N]
+                  TableScan: cpu [cpu:Dictionary(Int32, Utf8);N, host:Dictionary(Int32, Utf8);N, region:Dictionary(Int32, Utf8);N, time:Timestamp(Nanosecond, None), usage_idle:Float64;N, usage_system:Float64;N, usage_user:Float64;N]
+            "###);
+
+            assert_snapshot!(plan("SELECT percentile(usage_idle,50), percentile(usage_idle,90) FROM cpu GROUP BY cpu"), @r###"
+            Sort: cpu ASC NULLS LAST, time ASC NULLS LAST [iox::measurement:Dictionary(Int32, Utf8), time:Timestamp(Nanosecond, None), cpu:Dictionary(Int32, Utf8);N, percentile:Float64;N, percentile_1:Float64;N]
+              Projection: Dictionary(Int32, Utf8("cpu")) AS iox::measurement, TimestampNanosecond(0, None) AS time, cpu.cpu AS cpu, percentile(cpu.usage_idle,Int64(50)) AS percentile, percentile(cpu.usage_idle,Int64(90)) AS percentile_1 [iox::measurement:Dictionary(Int32, Utf8), time:Timestamp(Nanosecond, None), cpu:Dictionary(Int32, Utf8);N, percentile:Float64;N, percentile_1:Float64;N]
+                Aggregate: groupBy=[[cpu.cpu]], aggr=[[percentile(cpu.usage_idle, Int64(50)), percentile(cpu.usage_idle, Int64(90))]] [cpu:Dictionary(Int32, Utf8);N, percentile(cpu.usage_idle,Int64(50)):Float64;N, percentile(cpu.usage_idle,Int64(90)):Float64;N]
+                  TableScan: cpu [cpu:Dictionary(Int32, Utf8);N, host:Dictionary(Int32, Utf8);N, region:Dictionary(Int32, Utf8);N, time:Timestamp(Nanosecond, None), usage_idle:Float64;N, usage_system:Float64;N, usage_user:Float64;N]
+            "###);
+
+            assert_snapshot!(plan("SELECT percentile(usage_idle,50), percentile(usage_idle,90) FROM cpu GROUP BY cpu"), @r###"
+            Sort: cpu ASC NULLS LAST, time ASC NULLS LAST [iox::measurement:Dictionary(Int32, Utf8), time:Timestamp(Nanosecond, None), cpu:Dictionary(Int32, Utf8);N, percentile:Float64;N, percentile_1:Float64;N]
+              Projection: Dictionary(Int32, Utf8("cpu")) AS iox::measurement, TimestampNanosecond(0, None) AS time, cpu.cpu AS cpu, percentile(cpu.usage_idle,Int64(50)) AS percentile, percentile(cpu.usage_idle,Int64(90)) AS percentile_1 [iox::measurement:Dictionary(Int32, Utf8), time:Timestamp(Nanosecond, None), cpu:Dictionary(Int32, Utf8);N, percentile:Float64;N, percentile_1:Float64;N]
+                Aggregate: groupBy=[[cpu.cpu]], aggr=[[percentile(cpu.usage_idle, Int64(50)), percentile(cpu.usage_idle, Int64(90))]] [cpu:Dictionary(Int32, Utf8);N, percentile(cpu.usage_idle,Int64(50)):Float64;N, percentile(cpu.usage_idle,Int64(90)):Float64;N]
+                  TableScan: cpu [cpu:Dictionary(Int32, Utf8);N, host:Dictionary(Int32, Utf8);N, region:Dictionary(Int32, Utf8);N, time:Timestamp(Nanosecond, None), usage_idle:Float64;N, usage_system:Float64;N, usage_user:Float64;N]
+            "###);
+
+            assert_snapshot!(plan("SELECT percentile(usage_idle,50), percentile(usage_idle,90) FROM cpu WHERE time >= 0 AND time < 60000000000 GROUP BY time(10s), cpu"), @r###"
+            Sort: cpu ASC NULLS LAST, time ASC NULLS LAST [iox::measurement:Dictionary(Int32, Utf8), time:Timestamp(Nanosecond, None);N, cpu:Dictionary(Int32, Utf8);N, percentile:Float64;N, percentile_1:Float64;N]
+              Projection: Dictionary(Int32, Utf8("cpu")) AS iox::measurement, time, cpu.cpu AS cpu, percentile(cpu.usage_idle,Int64(50)) AS percentile, percentile(cpu.usage_idle,Int64(90)) AS percentile_1 [iox::measurement:Dictionary(Int32, Utf8), time:Timestamp(Nanosecond, None);N, cpu:Dictionary(Int32, Utf8);N, percentile:Float64;N, percentile_1:Float64;N]
+                GapFill: groupBy=[time, cpu.cpu], aggr=[[percentile(cpu.usage_idle,Int64(50)), percentile(cpu.usage_idle,Int64(90))]], time_column=time, stride=IntervalMonthDayNano("10000000000"), range=Included(Literal(TimestampNanosecond(0, None)))..Included(Literal(TimestampNanosecond(59999999999, None))) [time:Timestamp(Nanosecond, None);N, cpu:Dictionary(Int32, Utf8);N, percentile(cpu.usage_idle,Int64(50)):Float64;N, percentile(cpu.usage_idle,Int64(90)):Float64;N]
+                  Aggregate: groupBy=[[date_bin(IntervalMonthDayNano("10000000000"), cpu.time, TimestampNanosecond(0, None)) AS time, cpu.cpu]], aggr=[[percentile(cpu.usage_idle, Int64(50)), percentile(cpu.usage_idle, Int64(90))]] [time:Timestamp(Nanosecond, None);N, cpu:Dictionary(Int32, Utf8);N, percentile(cpu.usage_idle,Int64(50)):Float64;N, percentile(cpu.usage_idle,Int64(90)):Float64;N]
+                    Filter: cpu.time >= TimestampNanosecond(0, None) AND cpu.time <= TimestampNanosecond(59999999999, None) [cpu:Dictionary(Int32, Utf8);N, host:Dictionary(Int32, Utf8);N, region:Dictionary(Int32, Utf8);N, time:Timestamp(Nanosecond, None), usage_idle:Float64;N, usage_system:Float64;N, usage_user:Float64;N]
+                      TableScan: cpu [cpu:Dictionary(Int32, Utf8);N, host:Dictionary(Int32, Utf8);N, region:Dictionary(Int32, Utf8);N, time:Timestamp(Nanosecond, None), usage_idle:Float64;N, usage_system:Float64;N, usage_user:Float64;N]
+            "###);
+        }
+
+        #[test]
         fn test_top() {
             assert_snapshot!(plan("SELECT top(usage_idle,10) FROM cpu"), @r###"
             Sort: time ASC NULLS LAST [iox::measurement:Dictionary(Int32, Utf8), time:Timestamp(Nanosecond, None), top:Float64;N]
               Projection: Dictionary(Int32, Utf8("cpu")) AS iox::measurement, cpu.time AS time, cpu.usage_idle AS top [iox::measurement:Dictionary(Int32, Utf8), time:Timestamp(Nanosecond, None), top:Float64;N]
-                Filter: ROW_NUMBER() ORDER BY [cpu.usage_idle AS usage_idle DESC NULLS LAST, time ASC NULLS LAST] ROWS BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW <= Int64(10) [cpu:Dictionary(Int32, Utf8);N, host:Dictionary(Int32, Utf8);N, region:Dictionary(Int32, Utf8);N, time:Timestamp(Nanosecond, None), usage_idle:Float64;N, usage_system:Float64;N, usage_user:Float64;N, ROW_NUMBER() ORDER BY [cpu.usage_idle AS usage_idle DESC NULLS LAST, time ASC NULLS LAST] ROWS BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW:UInt64;N]
-                  WindowAggr: windowExpr=[[ROW_NUMBER() ORDER BY [cpu.usage_idle AS usage_idle DESC NULLS LAST, cpu.time ASC NULLS LAST] ROWS BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW AS ROW_NUMBER() ORDER BY [cpu.usage_idle AS usage_idle DESC NULLS LAST, time ASC NULLS LAST] ROWS BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW]] [cpu:Dictionary(Int32, Utf8);N, host:Dictionary(Int32, Utf8);N, region:Dictionary(Int32, Utf8);N, time:Timestamp(Nanosecond, None), usage_idle:Float64;N, usage_system:Float64;N, usage_user:Float64;N, ROW_NUMBER() ORDER BY [cpu.usage_idle AS usage_idle DESC NULLS LAST, time ASC NULLS LAST] ROWS BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW:UInt64;N]
+                Filter: ROW_NUMBER() ORDER BY [usage_idle DESC NULLS LAST, time ASC NULLS LAST] ROWS BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW <= Int64(10) [cpu:Dictionary(Int32, Utf8);N, host:Dictionary(Int32, Utf8);N, region:Dictionary(Int32, Utf8);N, time:Timestamp(Nanosecond, None), usage_idle:Float64;N, usage_system:Float64;N, usage_user:Float64;N, ROW_NUMBER() ORDER BY [usage_idle DESC NULLS LAST, time ASC NULLS LAST] ROWS BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW:UInt64;N]
+                  WindowAggr: windowExpr=[[ROW_NUMBER() ORDER BY [cpu.usage_idle DESC NULLS LAST, cpu.time ASC NULLS LAST] ROWS BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW AS ROW_NUMBER() ORDER BY [usage_idle DESC NULLS LAST, time ASC NULLS LAST] ROWS BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW]] [cpu:Dictionary(Int32, Utf8);N, host:Dictionary(Int32, Utf8);N, region:Dictionary(Int32, Utf8);N, time:Timestamp(Nanosecond, None), usage_idle:Float64;N, usage_system:Float64;N, usage_user:Float64;N, ROW_NUMBER() ORDER BY [usage_idle DESC NULLS LAST, time ASC NULLS LAST] ROWS BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW:UInt64;N]
                     TableScan: cpu [cpu:Dictionary(Int32, Utf8);N, host:Dictionary(Int32, Utf8);N, region:Dictionary(Int32, Utf8);N, time:Timestamp(Nanosecond, None), usage_idle:Float64;N, usage_system:Float64;N, usage_user:Float64;N]
                 "###);
 
             assert_snapshot!(plan("SELECT top(usage_idle,10),cpu FROM cpu"), @r###"
             Sort: time ASC NULLS LAST, cpu ASC NULLS LAST [iox::measurement:Dictionary(Int32, Utf8), time:Timestamp(Nanosecond, None), top:Float64;N, cpu:Dictionary(Int32, Utf8);N]
               Projection: Dictionary(Int32, Utf8("cpu")) AS iox::measurement, cpu.time AS time, cpu.usage_idle AS top, cpu.cpu AS cpu [iox::measurement:Dictionary(Int32, Utf8), time:Timestamp(Nanosecond, None), top:Float64;N, cpu:Dictionary(Int32, Utf8);N]
-                Filter: ROW_NUMBER() ORDER BY [cpu.usage_idle AS usage_idle DESC NULLS LAST, time ASC NULLS LAST] ROWS BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW <= Int64(10) [cpu:Dictionary(Int32, Utf8);N, host:Dictionary(Int32, Utf8);N, region:Dictionary(Int32, Utf8);N, time:Timestamp(Nanosecond, None), usage_idle:Float64;N, usage_system:Float64;N, usage_user:Float64;N, ROW_NUMBER() ORDER BY [cpu.usage_idle AS usage_idle DESC NULLS LAST, time ASC NULLS LAST] ROWS BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW:UInt64;N]
-                  WindowAggr: windowExpr=[[ROW_NUMBER() ORDER BY [cpu.usage_idle AS usage_idle DESC NULLS LAST, cpu.time ASC NULLS LAST] ROWS BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW AS ROW_NUMBER() ORDER BY [cpu.usage_idle AS usage_idle DESC NULLS LAST, time ASC NULLS LAST] ROWS BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW]] [cpu:Dictionary(Int32, Utf8);N, host:Dictionary(Int32, Utf8);N, region:Dictionary(Int32, Utf8);N, time:Timestamp(Nanosecond, None), usage_idle:Float64;N, usage_system:Float64;N, usage_user:Float64;N, ROW_NUMBER() ORDER BY [cpu.usage_idle AS usage_idle DESC NULLS LAST, time ASC NULLS LAST] ROWS BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW:UInt64;N]
+                Filter: ROW_NUMBER() ORDER BY [usage_idle DESC NULLS LAST, time ASC NULLS LAST] ROWS BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW <= Int64(10) [cpu:Dictionary(Int32, Utf8);N, host:Dictionary(Int32, Utf8);N, region:Dictionary(Int32, Utf8);N, time:Timestamp(Nanosecond, None), usage_idle:Float64;N, usage_system:Float64;N, usage_user:Float64;N, ROW_NUMBER() ORDER BY [usage_idle DESC NULLS LAST, time ASC NULLS LAST] ROWS BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW:UInt64;N]
+                  WindowAggr: windowExpr=[[ROW_NUMBER() ORDER BY [cpu.usage_idle DESC NULLS LAST, cpu.time ASC NULLS LAST] ROWS BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW AS ROW_NUMBER() ORDER BY [usage_idle DESC NULLS LAST, time ASC NULLS LAST] ROWS BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW]] [cpu:Dictionary(Int32, Utf8);N, host:Dictionary(Int32, Utf8);N, region:Dictionary(Int32, Utf8);N, time:Timestamp(Nanosecond, None), usage_idle:Float64;N, usage_system:Float64;N, usage_user:Float64;N, ROW_NUMBER() ORDER BY [usage_idle DESC NULLS LAST, time ASC NULLS LAST] ROWS BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW:UInt64;N]
                     TableScan: cpu [cpu:Dictionary(Int32, Utf8);N, host:Dictionary(Int32, Utf8);N, region:Dictionary(Int32, Utf8);N, time:Timestamp(Nanosecond, None), usage_idle:Float64;N, usage_system:Float64;N, usage_user:Float64;N]
                 "###);
 
             assert_snapshot!(plan("SELECT top(usage_idle,10) FROM cpu GROUP BY cpu"), @r###"
             Sort: cpu ASC NULLS LAST, time ASC NULLS LAST [iox::measurement:Dictionary(Int32, Utf8), time:Timestamp(Nanosecond, None), cpu:Dictionary(Int32, Utf8);N, top:Float64;N]
               Projection: Dictionary(Int32, Utf8("cpu")) AS iox::measurement, cpu.time AS time, cpu.cpu AS cpu, cpu.usage_idle AS top [iox::measurement:Dictionary(Int32, Utf8), time:Timestamp(Nanosecond, None), cpu:Dictionary(Int32, Utf8);N, top:Float64;N]
-                Filter: ROW_NUMBER() PARTITION BY [cpu] ORDER BY [cpu.usage_idle AS usage_idle DESC NULLS LAST, time ASC NULLS LAST] ROWS BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW <= Int64(10) [cpu:Dictionary(Int32, Utf8);N, host:Dictionary(Int32, Utf8);N, region:Dictionary(Int32, Utf8);N, time:Timestamp(Nanosecond, None), usage_idle:Float64;N, usage_system:Float64;N, usage_user:Float64;N, ROW_NUMBER() PARTITION BY [cpu] ORDER BY [cpu.usage_idle AS usage_idle DESC NULLS LAST, time ASC NULLS LAST] ROWS BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW:UInt64;N]
-                  WindowAggr: windowExpr=[[ROW_NUMBER() PARTITION BY [cpu.cpu] ORDER BY [cpu.usage_idle AS usage_idle DESC NULLS LAST, cpu.time ASC NULLS LAST] ROWS BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW AS ROW_NUMBER() PARTITION BY [cpu] ORDER BY [cpu.usage_idle AS usage_idle DESC NULLS LAST, time ASC NULLS LAST] ROWS BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW]] [cpu:Dictionary(Int32, Utf8);N, host:Dictionary(Int32, Utf8);N, region:Dictionary(Int32, Utf8);N, time:Timestamp(Nanosecond, None), usage_idle:Float64;N, usage_system:Float64;N, usage_user:Float64;N, ROW_NUMBER() PARTITION BY [cpu] ORDER BY [cpu.usage_idle AS usage_idle DESC NULLS LAST, time ASC NULLS LAST] ROWS BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW:UInt64;N]
+                Filter: ROW_NUMBER() PARTITION BY [cpu] ORDER BY [usage_idle DESC NULLS LAST, time ASC NULLS LAST] ROWS BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW <= Int64(10) [cpu:Dictionary(Int32, Utf8);N, host:Dictionary(Int32, Utf8);N, region:Dictionary(Int32, Utf8);N, time:Timestamp(Nanosecond, None), usage_idle:Float64;N, usage_system:Float64;N, usage_user:Float64;N, ROW_NUMBER() PARTITION BY [cpu] ORDER BY [usage_idle DESC NULLS LAST, time ASC NULLS LAST] ROWS BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW:UInt64;N]
+                  WindowAggr: windowExpr=[[ROW_NUMBER() PARTITION BY [cpu.cpu] ORDER BY [cpu.usage_idle DESC NULLS LAST, cpu.time ASC NULLS LAST] ROWS BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW AS ROW_NUMBER() PARTITION BY [cpu] ORDER BY [usage_idle DESC NULLS LAST, time ASC NULLS LAST] ROWS BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW]] [cpu:Dictionary(Int32, Utf8);N, host:Dictionary(Int32, Utf8);N, region:Dictionary(Int32, Utf8);N, time:Timestamp(Nanosecond, None), usage_idle:Float64;N, usage_system:Float64;N, usage_user:Float64;N, ROW_NUMBER() PARTITION BY [cpu] ORDER BY [usage_idle DESC NULLS LAST, time ASC NULLS LAST] ROWS BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW:UInt64;N]
                     TableScan: cpu [cpu:Dictionary(Int32, Utf8);N, host:Dictionary(Int32, Utf8);N, region:Dictionary(Int32, Utf8);N, time:Timestamp(Nanosecond, None), usage_idle:Float64;N, usage_system:Float64;N, usage_user:Float64;N]
                 "###);
 
             assert_snapshot!(plan("SELECT top(usage_idle,cpu,10) FROM cpu"), @r###"
             Sort: time ASC NULLS LAST [iox::measurement:Dictionary(Int32, Utf8), time:Timestamp(Nanosecond, None), top:Float64;N, cpu:Dictionary(Int32, Utf8);N]
               Projection: Dictionary(Int32, Utf8("cpu")) AS iox::measurement, cpu.time AS time, cpu.usage_idle AS top, cpu.cpu AS cpu [iox::measurement:Dictionary(Int32, Utf8), time:Timestamp(Nanosecond, None), top:Float64;N, cpu:Dictionary(Int32, Utf8);N]
-                Filter: ROW_NUMBER() ORDER BY [cpu.usage_idle AS usage_idle DESC NULLS LAST, time ASC NULLS LAST] ROWS BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW <= Int64(10) [cpu:Dictionary(Int32, Utf8);N, host:Dictionary(Int32, Utf8);N, region:Dictionary(Int32, Utf8);N, time:Timestamp(Nanosecond, None), usage_idle:Float64;N, usage_system:Float64;N, usage_user:Float64;N, ROW_NUMBER() PARTITION BY [cpu] ORDER BY [cpu.usage_idle AS usage_idle DESC NULLS LAST, time ASC NULLS LAST] ROWS BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW:UInt64;N, ROW_NUMBER() ORDER BY [cpu.usage_idle AS usage_idle DESC NULLS LAST, time ASC NULLS LAST] ROWS BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW:UInt64;N]
-                  WindowAggr: windowExpr=[[ROW_NUMBER() ORDER BY [cpu.usage_idle AS usage_idle DESC NULLS LAST, cpu.time ASC NULLS LAST] ROWS BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW AS ROW_NUMBER() ORDER BY [cpu.usage_idle AS usage_idle DESC NULLS LAST, time ASC NULLS LAST] ROWS BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW]] [cpu:Dictionary(Int32, Utf8);N, host:Dictionary(Int32, Utf8);N, region:Dictionary(Int32, Utf8);N, time:Timestamp(Nanosecond, None), usage_idle:Float64;N, usage_system:Float64;N, usage_user:Float64;N, ROW_NUMBER() PARTITION BY [cpu] ORDER BY [cpu.usage_idle AS usage_idle DESC NULLS LAST, time ASC NULLS LAST] ROWS BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW:UInt64;N, ROW_NUMBER() ORDER BY [cpu.usage_idle AS usage_idle DESC NULLS LAST, time ASC NULLS LAST] ROWS BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW:UInt64;N]
-                    Filter: ROW_NUMBER() PARTITION BY [cpu] ORDER BY [cpu.usage_idle AS usage_idle DESC NULLS LAST, time ASC NULLS LAST] ROWS BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW <= Int64(1) [cpu:Dictionary(Int32, Utf8);N, host:Dictionary(Int32, Utf8);N, region:Dictionary(Int32, Utf8);N, time:Timestamp(Nanosecond, None), usage_idle:Float64;N, usage_system:Float64;N, usage_user:Float64;N, ROW_NUMBER() PARTITION BY [cpu] ORDER BY [cpu.usage_idle AS usage_idle DESC NULLS LAST, time ASC NULLS LAST] ROWS BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW:UInt64;N]
-                      WindowAggr: windowExpr=[[ROW_NUMBER() PARTITION BY [cpu.cpu] ORDER BY [cpu.usage_idle AS usage_idle DESC NULLS LAST, cpu.time ASC NULLS LAST] ROWS BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW AS ROW_NUMBER() PARTITION BY [cpu] ORDER BY [cpu.usage_idle AS usage_idle DESC NULLS LAST, time ASC NULLS LAST] ROWS BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW]] [cpu:Dictionary(Int32, Utf8);N, host:Dictionary(Int32, Utf8);N, region:Dictionary(Int32, Utf8);N, time:Timestamp(Nanosecond, None), usage_idle:Float64;N, usage_system:Float64;N, usage_user:Float64;N, ROW_NUMBER() PARTITION BY [cpu] ORDER BY [cpu.usage_idle AS usage_idle DESC NULLS LAST, time ASC NULLS LAST] ROWS BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW:UInt64;N]
+                Filter: ROW_NUMBER() ORDER BY [usage_idle DESC NULLS LAST, time ASC NULLS LAST] ROWS BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW <= Int64(10) [cpu:Dictionary(Int32, Utf8);N, host:Dictionary(Int32, Utf8);N, region:Dictionary(Int32, Utf8);N, time:Timestamp(Nanosecond, None), usage_idle:Float64;N, usage_system:Float64;N, usage_user:Float64;N, ROW_NUMBER() PARTITION BY [cpu] ORDER BY [usage_idle DESC NULLS LAST, time ASC NULLS LAST] ROWS BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW:UInt64;N, ROW_NUMBER() ORDER BY [usage_idle DESC NULLS LAST, time ASC NULLS LAST] ROWS BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW:UInt64;N]
+                  WindowAggr: windowExpr=[[ROW_NUMBER() ORDER BY [cpu.usage_idle DESC NULLS LAST, cpu.time ASC NULLS LAST] ROWS BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW AS ROW_NUMBER() ORDER BY [usage_idle DESC NULLS LAST, time ASC NULLS LAST] ROWS BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW]] [cpu:Dictionary(Int32, Utf8);N, host:Dictionary(Int32, Utf8);N, region:Dictionary(Int32, Utf8);N, time:Timestamp(Nanosecond, None), usage_idle:Float64;N, usage_system:Float64;N, usage_user:Float64;N, ROW_NUMBER() PARTITION BY [cpu] ORDER BY [usage_idle DESC NULLS LAST, time ASC NULLS LAST] ROWS BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW:UInt64;N, ROW_NUMBER() ORDER BY [usage_idle DESC NULLS LAST, time ASC NULLS LAST] ROWS BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW:UInt64;N]
+                    Filter: ROW_NUMBER() PARTITION BY [cpu] ORDER BY [usage_idle DESC NULLS LAST, time ASC NULLS LAST] ROWS BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW <= Int64(1) [cpu:Dictionary(Int32, Utf8);N, host:Dictionary(Int32, Utf8);N, region:Dictionary(Int32, Utf8);N, time:Timestamp(Nanosecond, None), usage_idle:Float64;N, usage_system:Float64;N, usage_user:Float64;N, ROW_NUMBER() PARTITION BY [cpu] ORDER BY [usage_idle DESC NULLS LAST, time ASC NULLS LAST] ROWS BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW:UInt64;N]
+                      WindowAggr: windowExpr=[[ROW_NUMBER() PARTITION BY [cpu.cpu] ORDER BY [cpu.usage_idle DESC NULLS LAST, cpu.time ASC NULLS LAST] ROWS BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW AS ROW_NUMBER() PARTITION BY [cpu] ORDER BY [usage_idle DESC NULLS LAST, time ASC NULLS LAST] ROWS BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW]] [cpu:Dictionary(Int32, Utf8);N, host:Dictionary(Int32, Utf8);N, region:Dictionary(Int32, Utf8);N, time:Timestamp(Nanosecond, None), usage_idle:Float64;N, usage_system:Float64;N, usage_user:Float64;N, ROW_NUMBER() PARTITION BY [cpu] ORDER BY [usage_idle DESC NULLS LAST, time ASC NULLS LAST] ROWS BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW:UInt64;N]
                         TableScan: cpu [cpu:Dictionary(Int32, Utf8);N, host:Dictionary(Int32, Utf8);N, region:Dictionary(Int32, Utf8);N, time:Timestamp(Nanosecond, None), usage_idle:Float64;N, usage_system:Float64;N, usage_user:Float64;N]
                 "###);
         }
@@ -4104,34 +4277,34 @@ mod test {
             assert_snapshot!(plan("SELECT bottom(usage_idle,10) FROM cpu"), @r###"
             Sort: time ASC NULLS LAST [iox::measurement:Dictionary(Int32, Utf8), time:Timestamp(Nanosecond, None), bottom:Float64;N]
               Projection: Dictionary(Int32, Utf8("cpu")) AS iox::measurement, cpu.time AS time, cpu.usage_idle AS bottom [iox::measurement:Dictionary(Int32, Utf8), time:Timestamp(Nanosecond, None), bottom:Float64;N]
-                Filter: ROW_NUMBER() ORDER BY [cpu.usage_idle AS usage_idle ASC NULLS LAST, time ASC NULLS LAST] ROWS BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW <= Int64(10) [cpu:Dictionary(Int32, Utf8);N, host:Dictionary(Int32, Utf8);N, region:Dictionary(Int32, Utf8);N, time:Timestamp(Nanosecond, None), usage_idle:Float64;N, usage_system:Float64;N, usage_user:Float64;N, ROW_NUMBER() ORDER BY [cpu.usage_idle AS usage_idle ASC NULLS LAST, time ASC NULLS LAST] ROWS BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW:UInt64;N]
-                  WindowAggr: windowExpr=[[ROW_NUMBER() ORDER BY [cpu.usage_idle AS usage_idle ASC NULLS LAST, cpu.time ASC NULLS LAST] ROWS BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW AS ROW_NUMBER() ORDER BY [cpu.usage_idle AS usage_idle ASC NULLS LAST, time ASC NULLS LAST] ROWS BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW]] [cpu:Dictionary(Int32, Utf8);N, host:Dictionary(Int32, Utf8);N, region:Dictionary(Int32, Utf8);N, time:Timestamp(Nanosecond, None), usage_idle:Float64;N, usage_system:Float64;N, usage_user:Float64;N, ROW_NUMBER() ORDER BY [cpu.usage_idle AS usage_idle ASC NULLS LAST, time ASC NULLS LAST] ROWS BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW:UInt64;N]
+                Filter: ROW_NUMBER() ORDER BY [usage_idle ASC NULLS LAST, time ASC NULLS LAST] ROWS BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW <= Int64(10) [cpu:Dictionary(Int32, Utf8);N, host:Dictionary(Int32, Utf8);N, region:Dictionary(Int32, Utf8);N, time:Timestamp(Nanosecond, None), usage_idle:Float64;N, usage_system:Float64;N, usage_user:Float64;N, ROW_NUMBER() ORDER BY [usage_idle ASC NULLS LAST, time ASC NULLS LAST] ROWS BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW:UInt64;N]
+                  WindowAggr: windowExpr=[[ROW_NUMBER() ORDER BY [cpu.usage_idle ASC NULLS LAST, cpu.time ASC NULLS LAST] ROWS BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW AS ROW_NUMBER() ORDER BY [usage_idle ASC NULLS LAST, time ASC NULLS LAST] ROWS BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW]] [cpu:Dictionary(Int32, Utf8);N, host:Dictionary(Int32, Utf8);N, region:Dictionary(Int32, Utf8);N, time:Timestamp(Nanosecond, None), usage_idle:Float64;N, usage_system:Float64;N, usage_user:Float64;N, ROW_NUMBER() ORDER BY [usage_idle ASC NULLS LAST, time ASC NULLS LAST] ROWS BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW:UInt64;N]
                     TableScan: cpu [cpu:Dictionary(Int32, Utf8);N, host:Dictionary(Int32, Utf8);N, region:Dictionary(Int32, Utf8);N, time:Timestamp(Nanosecond, None), usage_idle:Float64;N, usage_system:Float64;N, usage_user:Float64;N]
                 "###);
 
             assert_snapshot!(plan("SELECT bottom(usage_idle,10),cpu FROM cpu"), @r###"
             Sort: time ASC NULLS LAST, cpu ASC NULLS LAST [iox::measurement:Dictionary(Int32, Utf8), time:Timestamp(Nanosecond, None), bottom:Float64;N, cpu:Dictionary(Int32, Utf8);N]
               Projection: Dictionary(Int32, Utf8("cpu")) AS iox::measurement, cpu.time AS time, cpu.usage_idle AS bottom, cpu.cpu AS cpu [iox::measurement:Dictionary(Int32, Utf8), time:Timestamp(Nanosecond, None), bottom:Float64;N, cpu:Dictionary(Int32, Utf8);N]
-                Filter: ROW_NUMBER() ORDER BY [cpu.usage_idle AS usage_idle ASC NULLS LAST, time ASC NULLS LAST] ROWS BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW <= Int64(10) [cpu:Dictionary(Int32, Utf8);N, host:Dictionary(Int32, Utf8);N, region:Dictionary(Int32, Utf8);N, time:Timestamp(Nanosecond, None), usage_idle:Float64;N, usage_system:Float64;N, usage_user:Float64;N, ROW_NUMBER() ORDER BY [cpu.usage_idle AS usage_idle ASC NULLS LAST, time ASC NULLS LAST] ROWS BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW:UInt64;N]
-                  WindowAggr: windowExpr=[[ROW_NUMBER() ORDER BY [cpu.usage_idle AS usage_idle ASC NULLS LAST, cpu.time ASC NULLS LAST] ROWS BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW AS ROW_NUMBER() ORDER BY [cpu.usage_idle AS usage_idle ASC NULLS LAST, time ASC NULLS LAST] ROWS BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW]] [cpu:Dictionary(Int32, Utf8);N, host:Dictionary(Int32, Utf8);N, region:Dictionary(Int32, Utf8);N, time:Timestamp(Nanosecond, None), usage_idle:Float64;N, usage_system:Float64;N, usage_user:Float64;N, ROW_NUMBER() ORDER BY [cpu.usage_idle AS usage_idle ASC NULLS LAST, time ASC NULLS LAST] ROWS BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW:UInt64;N]
+                Filter: ROW_NUMBER() ORDER BY [usage_idle ASC NULLS LAST, time ASC NULLS LAST] ROWS BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW <= Int64(10) [cpu:Dictionary(Int32, Utf8);N, host:Dictionary(Int32, Utf8);N, region:Dictionary(Int32, Utf8);N, time:Timestamp(Nanosecond, None), usage_idle:Float64;N, usage_system:Float64;N, usage_user:Float64;N, ROW_NUMBER() ORDER BY [usage_idle ASC NULLS LAST, time ASC NULLS LAST] ROWS BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW:UInt64;N]
+                  WindowAggr: windowExpr=[[ROW_NUMBER() ORDER BY [cpu.usage_idle ASC NULLS LAST, cpu.time ASC NULLS LAST] ROWS BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW AS ROW_NUMBER() ORDER BY [usage_idle ASC NULLS LAST, time ASC NULLS LAST] ROWS BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW]] [cpu:Dictionary(Int32, Utf8);N, host:Dictionary(Int32, Utf8);N, region:Dictionary(Int32, Utf8);N, time:Timestamp(Nanosecond, None), usage_idle:Float64;N, usage_system:Float64;N, usage_user:Float64;N, ROW_NUMBER() ORDER BY [usage_idle ASC NULLS LAST, time ASC NULLS LAST] ROWS BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW:UInt64;N]
                     TableScan: cpu [cpu:Dictionary(Int32, Utf8);N, host:Dictionary(Int32, Utf8);N, region:Dictionary(Int32, Utf8);N, time:Timestamp(Nanosecond, None), usage_idle:Float64;N, usage_system:Float64;N, usage_user:Float64;N]
                 "###);
 
             assert_snapshot!(plan("SELECT bottom(usage_idle,10) FROM cpu GROUP BY cpu"), @r###"
             Sort: cpu ASC NULLS LAST, time ASC NULLS LAST [iox::measurement:Dictionary(Int32, Utf8), time:Timestamp(Nanosecond, None), cpu:Dictionary(Int32, Utf8);N, bottom:Float64;N]
               Projection: Dictionary(Int32, Utf8("cpu")) AS iox::measurement, cpu.time AS time, cpu.cpu AS cpu, cpu.usage_idle AS bottom [iox::measurement:Dictionary(Int32, Utf8), time:Timestamp(Nanosecond, None), cpu:Dictionary(Int32, Utf8);N, bottom:Float64;N]
-                Filter: ROW_NUMBER() PARTITION BY [cpu] ORDER BY [cpu.usage_idle AS usage_idle ASC NULLS LAST, time ASC NULLS LAST] ROWS BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW <= Int64(10) [cpu:Dictionary(Int32, Utf8);N, host:Dictionary(Int32, Utf8);N, region:Dictionary(Int32, Utf8);N, time:Timestamp(Nanosecond, None), usage_idle:Float64;N, usage_system:Float64;N, usage_user:Float64;N, ROW_NUMBER() PARTITION BY [cpu] ORDER BY [cpu.usage_idle AS usage_idle ASC NULLS LAST, time ASC NULLS LAST] ROWS BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW:UInt64;N]
-                  WindowAggr: windowExpr=[[ROW_NUMBER() PARTITION BY [cpu.cpu] ORDER BY [cpu.usage_idle AS usage_idle ASC NULLS LAST, cpu.time ASC NULLS LAST] ROWS BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW AS ROW_NUMBER() PARTITION BY [cpu] ORDER BY [cpu.usage_idle AS usage_idle ASC NULLS LAST, time ASC NULLS LAST] ROWS BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW]] [cpu:Dictionary(Int32, Utf8);N, host:Dictionary(Int32, Utf8);N, region:Dictionary(Int32, Utf8);N, time:Timestamp(Nanosecond, None), usage_idle:Float64;N, usage_system:Float64;N, usage_user:Float64;N, ROW_NUMBER() PARTITION BY [cpu] ORDER BY [cpu.usage_idle AS usage_idle ASC NULLS LAST, time ASC NULLS LAST] ROWS BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW:UInt64;N]
+                Filter: ROW_NUMBER() PARTITION BY [cpu] ORDER BY [usage_idle ASC NULLS LAST, time ASC NULLS LAST] ROWS BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW <= Int64(10) [cpu:Dictionary(Int32, Utf8);N, host:Dictionary(Int32, Utf8);N, region:Dictionary(Int32, Utf8);N, time:Timestamp(Nanosecond, None), usage_idle:Float64;N, usage_system:Float64;N, usage_user:Float64;N, ROW_NUMBER() PARTITION BY [cpu] ORDER BY [usage_idle ASC NULLS LAST, time ASC NULLS LAST] ROWS BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW:UInt64;N]
+                  WindowAggr: windowExpr=[[ROW_NUMBER() PARTITION BY [cpu.cpu] ORDER BY [cpu.usage_idle ASC NULLS LAST, cpu.time ASC NULLS LAST] ROWS BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW AS ROW_NUMBER() PARTITION BY [cpu] ORDER BY [usage_idle ASC NULLS LAST, time ASC NULLS LAST] ROWS BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW]] [cpu:Dictionary(Int32, Utf8);N, host:Dictionary(Int32, Utf8);N, region:Dictionary(Int32, Utf8);N, time:Timestamp(Nanosecond, None), usage_idle:Float64;N, usage_system:Float64;N, usage_user:Float64;N, ROW_NUMBER() PARTITION BY [cpu] ORDER BY [usage_idle ASC NULLS LAST, time ASC NULLS LAST] ROWS BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW:UInt64;N]
                     TableScan: cpu [cpu:Dictionary(Int32, Utf8);N, host:Dictionary(Int32, Utf8);N, region:Dictionary(Int32, Utf8);N, time:Timestamp(Nanosecond, None), usage_idle:Float64;N, usage_system:Float64;N, usage_user:Float64;N]
                 "###);
 
             assert_snapshot!(plan("SELECT bottom(usage_idle,cpu,10) FROM cpu"), @r###"
             Sort: time ASC NULLS LAST [iox::measurement:Dictionary(Int32, Utf8), time:Timestamp(Nanosecond, None), bottom:Float64;N, cpu:Dictionary(Int32, Utf8);N]
               Projection: Dictionary(Int32, Utf8("cpu")) AS iox::measurement, cpu.time AS time, cpu.usage_idle AS bottom, cpu.cpu AS cpu [iox::measurement:Dictionary(Int32, Utf8), time:Timestamp(Nanosecond, None), bottom:Float64;N, cpu:Dictionary(Int32, Utf8);N]
-                Filter: ROW_NUMBER() ORDER BY [cpu.usage_idle AS usage_idle ASC NULLS LAST, time ASC NULLS LAST] ROWS BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW <= Int64(10) [cpu:Dictionary(Int32, Utf8);N, host:Dictionary(Int32, Utf8);N, region:Dictionary(Int32, Utf8);N, time:Timestamp(Nanosecond, None), usage_idle:Float64;N, usage_system:Float64;N, usage_user:Float64;N, ROW_NUMBER() PARTITION BY [cpu] ORDER BY [cpu.usage_idle AS usage_idle ASC NULLS LAST, time ASC NULLS LAST] ROWS BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW:UInt64;N, ROW_NUMBER() ORDER BY [cpu.usage_idle AS usage_idle ASC NULLS LAST, time ASC NULLS LAST] ROWS BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW:UInt64;N]
-                  WindowAggr: windowExpr=[[ROW_NUMBER() ORDER BY [cpu.usage_idle AS usage_idle ASC NULLS LAST, cpu.time ASC NULLS LAST] ROWS BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW AS ROW_NUMBER() ORDER BY [cpu.usage_idle AS usage_idle ASC NULLS LAST, time ASC NULLS LAST] ROWS BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW]] [cpu:Dictionary(Int32, Utf8);N, host:Dictionary(Int32, Utf8);N, region:Dictionary(Int32, Utf8);N, time:Timestamp(Nanosecond, None), usage_idle:Float64;N, usage_system:Float64;N, usage_user:Float64;N, ROW_NUMBER() PARTITION BY [cpu] ORDER BY [cpu.usage_idle AS usage_idle ASC NULLS LAST, time ASC NULLS LAST] ROWS BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW:UInt64;N, ROW_NUMBER() ORDER BY [cpu.usage_idle AS usage_idle ASC NULLS LAST, time ASC NULLS LAST] ROWS BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW:UInt64;N]
-                    Filter: ROW_NUMBER() PARTITION BY [cpu] ORDER BY [cpu.usage_idle AS usage_idle ASC NULLS LAST, time ASC NULLS LAST] ROWS BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW <= Int64(1) [cpu:Dictionary(Int32, Utf8);N, host:Dictionary(Int32, Utf8);N, region:Dictionary(Int32, Utf8);N, time:Timestamp(Nanosecond, None), usage_idle:Float64;N, usage_system:Float64;N, usage_user:Float64;N, ROW_NUMBER() PARTITION BY [cpu] ORDER BY [cpu.usage_idle AS usage_idle ASC NULLS LAST, time ASC NULLS LAST] ROWS BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW:UInt64;N]
-                      WindowAggr: windowExpr=[[ROW_NUMBER() PARTITION BY [cpu.cpu] ORDER BY [cpu.usage_idle AS usage_idle ASC NULLS LAST, cpu.time ASC NULLS LAST] ROWS BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW AS ROW_NUMBER() PARTITION BY [cpu] ORDER BY [cpu.usage_idle AS usage_idle ASC NULLS LAST, time ASC NULLS LAST] ROWS BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW]] [cpu:Dictionary(Int32, Utf8);N, host:Dictionary(Int32, Utf8);N, region:Dictionary(Int32, Utf8);N, time:Timestamp(Nanosecond, None), usage_idle:Float64;N, usage_system:Float64;N, usage_user:Float64;N, ROW_NUMBER() PARTITION BY [cpu] ORDER BY [cpu.usage_idle AS usage_idle ASC NULLS LAST, time ASC NULLS LAST] ROWS BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW:UInt64;N]
+                Filter: ROW_NUMBER() ORDER BY [usage_idle ASC NULLS LAST, time ASC NULLS LAST] ROWS BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW <= Int64(10) [cpu:Dictionary(Int32, Utf8);N, host:Dictionary(Int32, Utf8);N, region:Dictionary(Int32, Utf8);N, time:Timestamp(Nanosecond, None), usage_idle:Float64;N, usage_system:Float64;N, usage_user:Float64;N, ROW_NUMBER() PARTITION BY [cpu] ORDER BY [usage_idle ASC NULLS LAST, time ASC NULLS LAST] ROWS BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW:UInt64;N, ROW_NUMBER() ORDER BY [usage_idle ASC NULLS LAST, time ASC NULLS LAST] ROWS BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW:UInt64;N]
+                  WindowAggr: windowExpr=[[ROW_NUMBER() ORDER BY [cpu.usage_idle ASC NULLS LAST, cpu.time ASC NULLS LAST] ROWS BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW AS ROW_NUMBER() ORDER BY [usage_idle ASC NULLS LAST, time ASC NULLS LAST] ROWS BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW]] [cpu:Dictionary(Int32, Utf8);N, host:Dictionary(Int32, Utf8);N, region:Dictionary(Int32, Utf8);N, time:Timestamp(Nanosecond, None), usage_idle:Float64;N, usage_system:Float64;N, usage_user:Float64;N, ROW_NUMBER() PARTITION BY [cpu] ORDER BY [usage_idle ASC NULLS LAST, time ASC NULLS LAST] ROWS BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW:UInt64;N, ROW_NUMBER() ORDER BY [usage_idle ASC NULLS LAST, time ASC NULLS LAST] ROWS BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW:UInt64;N]
+                    Filter: ROW_NUMBER() PARTITION BY [cpu] ORDER BY [usage_idle ASC NULLS LAST, time ASC NULLS LAST] ROWS BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW <= Int64(1) [cpu:Dictionary(Int32, Utf8);N, host:Dictionary(Int32, Utf8);N, region:Dictionary(Int32, Utf8);N, time:Timestamp(Nanosecond, None), usage_idle:Float64;N, usage_system:Float64;N, usage_user:Float64;N, ROW_NUMBER() PARTITION BY [cpu] ORDER BY [usage_idle ASC NULLS LAST, time ASC NULLS LAST] ROWS BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW:UInt64;N]
+                      WindowAggr: windowExpr=[[ROW_NUMBER() PARTITION BY [cpu.cpu] ORDER BY [cpu.usage_idle ASC NULLS LAST, cpu.time ASC NULLS LAST] ROWS BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW AS ROW_NUMBER() PARTITION BY [cpu] ORDER BY [usage_idle ASC NULLS LAST, time ASC NULLS LAST] ROWS BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW]] [cpu:Dictionary(Int32, Utf8);N, host:Dictionary(Int32, Utf8);N, region:Dictionary(Int32, Utf8);N, time:Timestamp(Nanosecond, None), usage_idle:Float64;N, usage_system:Float64;N, usage_user:Float64;N, ROW_NUMBER() PARTITION BY [cpu] ORDER BY [usage_idle ASC NULLS LAST, time ASC NULLS LAST] ROWS BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW:UInt64;N]
                         TableScan: cpu [cpu:Dictionary(Int32, Utf8);N, host:Dictionary(Int32, Utf8);N, region:Dictionary(Int32, Utf8);N, time:Timestamp(Nanosecond, None), usage_idle:Float64;N, usage_system:Float64;N, usage_user:Float64;N]
                 "###);
         }

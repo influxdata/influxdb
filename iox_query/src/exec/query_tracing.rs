@@ -345,7 +345,7 @@ mod tests {
         physical_plan::{
             expressions::PhysicalSortExpr,
             metrics::{Count, Time, Timestamp},
-            Metric,
+            DisplayAs, Metric,
         },
     };
     use std::{collections::BTreeMap, str::FromStr, sync::Arc, time::Duration};
@@ -679,7 +679,9 @@ mod tests {
         fn metrics(&self) -> Option<MetricsSet> {
             self.metrics.clone()
         }
+    }
 
+    impl DisplayAs for TestExec {
         fn fmt_as(&self, _t: DisplayFormatType, f: &mut fmt::Formatter<'_>) -> fmt::Result {
             write!(f, "TestExec - {}", self.name)
         }

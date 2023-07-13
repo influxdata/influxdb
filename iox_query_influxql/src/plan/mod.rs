@@ -1,4 +1,3 @@
-mod error;
 mod expr_type_evaluator;
 mod field;
 mod field_mapper;
