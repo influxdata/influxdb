@@ -20,7 +20,9 @@ use arrow::{
     record_batch::RecordBatch,
 };
 use async_trait::async_trait;
-use data_types::{ChunkId, ChunkOrder, PartitionId};
+use data_types::{
+    ChunkId, ChunkOrder, PartitionHashId, PartitionId, PartitionKey, TableId, TransitionPartitionId,
+};
 use datafusion::error::DataFusionError;
 use datafusion::execution::context::SessionState;
 use datafusion::logical_expr::Expr;
@@ -338,6 +340,7 @@ pub struct TestChunk {
     id: ChunkId,
 
     partition_id: PartitionId,
+    transition_partition_id: TransitionPartitionId,
 
     /// Set the flag if this chunk might contain duplicates
     may_contain_pk_duplicates: bool,
@@ -418,6 +421,10 @@ impl TestChunk {
             order: ChunkOrder::MIN,
             sort_key: None,
             partition_id: PartitionId::new(0),
+            transition_partition_id: TransitionPartitionId::Deterministic(PartitionHashId::new(
+                TableId::new(0),
+                &PartitionKey::from("arbitrary"),
+            )),
             quiet: false,
         }
     }
@@ -486,6 +493,15 @@ impl TestChunk {
 
     pub fn with_partition_id(mut self, id: i64) -> Self {
         self.partition_id = PartitionId::new(id);
+        self.transition_partition_id = TransitionPartitionId::Deterministic(PartitionHashId::new(
+            TableId::new(id),
+            &PartitionKey::from("arbitrary"),
+        ));
+        self
+    }
+
+    pub fn with_transition_partition_id(mut self, id: TransitionPartitionId) -> Self {
+        self.transition_partition_id = id;
         self
     }
 
@@ -1096,6 +1112,10 @@ impl QueryChunk for TestChunk {
 
     fn partition_id(&self) -> PartitionId {
         self.partition_id
+    }
+
+    fn transition_partition_id(&self) -> &TransitionPartitionId {
+        &self.transition_partition_id
     }
 
     fn sort_key(&self) -> Option<&SortKey> {

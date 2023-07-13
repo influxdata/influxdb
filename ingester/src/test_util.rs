@@ -3,7 +3,7 @@ use std::{collections::BTreeMap, sync::Arc, time::Duration};
 use data_types::{
     partition_template::TablePartitionTemplateOverride, ColumnId, ColumnSet, NamespaceId,
     ParquetFileParams, PartitionHashId, PartitionId, PartitionKey, SequenceNumber, TableId,
-    Timestamp,
+    Timestamp, TransitionPartitionId,
 };
 use hashbrown::HashSet;
 use iox_catalog::{interface::Catalog, test_helpers::arbitrary_namespace};
@@ -78,6 +78,8 @@ lazy_static! {
         )));
     pub(crate) static ref ARBITRARY_PARTITION_HASH_ID: PartitionHashId =
         PartitionHashId::new(ARBITRARY_TABLE_ID, &ARBITRARY_PARTITION_KEY);
+    pub(crate) static ref ARBITRARY_TRANSITION_PARTITION_ID: TransitionPartitionId =
+        TransitionPartitionId::Deterministic(ARBITRARY_PARTITION_HASH_ID.clone());
 }
 
 /// Build a [`PartitionData`] with mostly arbitrary-yet-valid values for tests.

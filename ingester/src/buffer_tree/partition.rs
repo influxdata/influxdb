@@ -194,7 +194,11 @@ impl PartitionData {
         // is upheld by the FSM, which ensures only non-empty snapshots /
         // RecordBatch are generated. Because `data` contains at least one
         // RecordBatch, this invariant holds.
-        Some(QueryAdaptor::new(self.partition_id, data))
+        Some(QueryAdaptor::new(
+            self.partition_id,
+            self.transition_partition_id(),
+            data,
+        ))
     }
 
     /// Snapshot and mark all buffered data as persisting.
@@ -234,6 +238,7 @@ impl PartitionData {
         let data = PersistingData::new(
             QueryAdaptor::new(
                 self.partition_id,
+                self.transition_partition_id(),
                 fsm.get_query_data(&OwnedProjection::default()),
             ),
             batch_ident,

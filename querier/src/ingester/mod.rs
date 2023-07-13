@@ -12,7 +12,9 @@ use arrow_flight::decode::DecodedPayload;
 use async_trait::async_trait;
 use backoff::{Backoff, BackoffConfig, BackoffError};
 use client_util::connection;
-use data_types::{ChunkId, ChunkOrder, NamespaceId, PartitionHashId, PartitionId};
+use data_types::{
+    ChunkId, ChunkOrder, NamespaceId, PartitionHashId, PartitionId, TransitionPartitionId,
+};
 use datafusion::physical_plan::Statistics;
 use futures::{stream::FuturesUnordered, TryStreamExt};
 use ingester_query_grpc::{
@@ -825,6 +827,7 @@ impl IngesterPartition {
         let chunk = IngesterChunk {
             chunk_id,
             partition_id: self.partition_id,
+            transition_partition_id: self.transition_partition_id(),
             schema: expected_schema,
             batches,
             stats: None,
@@ -860,6 +863,13 @@ impl IngesterPartition {
         self.partition_id
     }
 
+    pub(crate) fn transition_partition_id(&self) -> TransitionPartitionId {
+        self.partition_hash_id
+            .clone()
+            .map(TransitionPartitionId::Deterministic)
+            .unwrap_or_else(|| TransitionPartitionId::Deprecated(self.partition_id))
+    }
+
     pub(crate) fn ingester_uuid(&self) -> Uuid {
         self.ingester_uuid
     }
@@ -881,6 +891,7 @@ impl IngesterPartition {
 pub struct IngesterChunk {
     chunk_id: ChunkId,
     partition_id: PartitionId,
+    transition_partition_id: TransitionPartitionId,
     schema: Schema,
 
     /// The raw table data
@@ -926,6 +937,10 @@ impl QueryChunk for IngesterChunk {
 
     fn partition_id(&self) -> PartitionId {
         self.partition_id
+    }
+
+    fn transition_partition_id(&self) -> &TransitionPartitionId {
+        &self.transition_partition_id
     }
 
     fn sort_key(&self) -> Option<&SortKey> {
