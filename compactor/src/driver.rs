@@ -39,19 +39,9 @@ pub async fn compact(
 
             // A root span is created for each partition.  Later this can be linked to the
             // scheduler's span via something passed through partition_stream.
-            let root_span: Option<Span> =
-                match std::env::var("INFLUXDB_IOX_COMPACTION_PARTITION_TRACE") {
-                    Ok(v) => {
-                        if v == "all" || v == partition_id.get().to_string() {
-                            trace_collector
-                                .as_ref()
-                                .map(|collector| Span::root("compaction", Arc::clone(collector)))
-                        } else {
-                            None
-                        }
-                    }
-                    Err(_) => None,
-                };
+            let root_span: Option<Span> = trace_collector
+                .as_ref()
+                .map(|collector| Span::root("compaction", Arc::clone(collector)));
             let span = SpanRecorder::new(root_span);
 
             compact_partition(
