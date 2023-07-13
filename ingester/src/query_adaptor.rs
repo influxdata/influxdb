@@ -116,9 +116,11 @@ impl QueryAdaptor {
         self.data.iter().map(|b| b.num_rows()).sum::<usize>() as u64
     }
 
-    /// Time range, useful for building stats
-    pub(crate) fn ts_min_max(&self) -> TimestampMinMax {
-        compute_timenanosecond_min_max(self.data.iter()).expect("Should have time range")
+    /// The (inclusive) time range covered by all data in this [`QueryAdaptor`],
+    /// if this batch contains a `time` column.
+    pub(crate) fn ts_min_max(&self) -> Option<TimestampMinMax> {
+        // This batch may have been projected to exclude the time column
+        compute_timenanosecond_min_max(self.data.iter()).ok()
     }
 }
 
