@@ -67,7 +67,7 @@ impl QuerierParquetChunk {
         let stats = Arc::new(create_chunk_statistics(
             parquet_chunk.rows() as u64,
             parquet_chunk.schema(),
-            parquet_chunk.timestamp_min_max(),
+            Some(parquet_chunk.timestamp_min_max()),
             &column_ranges,
         ));
 
