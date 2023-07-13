@@ -8,7 +8,7 @@ use generated_types::influxdata::{
 };
 use ingester::internal_implementation_details::{
     encode::encode_write_op,
-    queue::{MockPersistQueue, NopObserver},
+    queue::MockPersistQueue,
     write::{
         PartitionedData as PayloadPartitionedData, TableData as PayloadTableData, WriteOperation,
     },
@@ -63,7 +63,7 @@ fn wal_replay_bench(c: &mut Criterion) {
                 // overhead.
                 let sink = NopSink::default();
 
-                let persist = MockPersistQueue::<NopObserver>::default();
+                let persist = MockPersistQueue::default();
 
                 // Replay the wal into the NOP.
                 ingester::replay(&wal, &sink, Arc::new(persist), &metric::Registry::default())

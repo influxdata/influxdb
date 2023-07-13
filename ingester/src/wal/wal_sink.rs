@@ -142,7 +142,7 @@ impl WalAppender for Arc<wal::Wal> {
 }
 
 #[async_trait]
-impl UnbufferedWriteNotifier for Arc<WalReferenceHandle> {
+impl UnbufferedWriteNotifier for WalReferenceHandle {
     async fn notify_failed_write_buffer(&self, set: SequenceNumberSet) {
         self.enqueue_unbuffered_write(set).await;
     }

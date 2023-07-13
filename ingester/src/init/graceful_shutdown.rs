@@ -41,7 +41,7 @@ pub(super) async fn graceful_shutdown_handler<F, T, P>(
     buffer: T,
     persist: P,
     wal: Arc<wal::Wal>,
-    wal_reference_handle: Arc<WalReferenceHandle>,
+    wal_reference_handle: WalReferenceHandle,
 ) where
     F: Future<Output = CancellationToken> + Send,
     T: PartitionIter + Sync,
@@ -170,10 +170,9 @@ mod tests {
         let (_tempdir, wal) = new_wal().await;
         let (wal_reference_handle, wal_reference_actor) =
             WalReferenceHandle::new(Arc::clone(&wal), &metric::Registry::default());
-        let wal_reference_handle = Arc::new(wal_reference_handle);
-        let persist = Arc::new(MockPersistQueue::new_with_observer(Arc::clone(
-            &wal_reference_handle,
-        )));
+        let persist = Arc::new(MockPersistQueue::new_with_observer(
+            wal_reference_handle.clone(),
+        ));
         tokio::spawn(wal_reference_actor.run());
 
         // Ensure there is always more than 1 segment in the test, but notify the ref tracker.
@@ -193,7 +192,7 @@ mod tests {
             vec![Arc::clone(&partition)],
             Arc::clone(&persist),
             Arc::clone(&wal),
-            Arc::clone(&wal_reference_handle),
+            wal_reference_handle,
         )
         .await;
 
@@ -220,10 +219,9 @@ mod tests {
         let (_tempdir, wal) = new_wal().await;
         let (wal_reference_handle, wal_reference_actor) =
             WalReferenceHandle::new(Arc::clone(&wal), &metric::Registry::default());
-        let wal_reference_handle = Arc::new(wal_reference_handle);
-        let persist = Arc::new(MockPersistQueue::new_with_observer(Arc::clone(
-            &wal_reference_handle,
-        )));
+        let persist = Arc::new(MockPersistQueue::new_with_observer(
+            wal_reference_handle.clone(),
+        ));
         tokio::spawn(wal_reference_actor.run());
 
         // Ensure there is always more than 1 segment in the test, but notify the ref tracker.
@@ -251,7 +249,7 @@ mod tests {
             vec![Arc::clone(&partition)],
             Arc::clone(&persist),
             Arc::clone(&wal),
-            Arc::clone(&wal_reference_handle),
+            wal_reference_handle,
         ));
 
         // Wait a small duration of time for the first buffer emptiness check to
@@ -336,10 +334,9 @@ mod tests {
         let (_tempdir, wal) = new_wal().await;
         let (wal_reference_handle, wal_reference_actor) =
             WalReferenceHandle::new(Arc::clone(&wal), &metric::Registry::default());
-        let wal_reference_handle = Arc::new(wal_reference_handle);
-        let persist = Arc::new(MockPersistQueue::new_with_observer(Arc::clone(
-            &wal_reference_handle,
-        )));
+        let persist = Arc::new(MockPersistQueue::new_with_observer(
+            wal_reference_handle.clone(),
+        ));
         tokio::spawn(wal_reference_actor.run());
 
         // Ensure there is always more than 1 segment in the test, but notify the ref tracker.
@@ -364,7 +361,7 @@ mod tests {
             Arc::clone(&buffer),
             Arc::clone(&persist),
             Arc::clone(&wal),
-            Arc::clone(&wal_reference_handle),
+            wal_reference_handle.clone(),
         ));
 
         // Wait for the shutdown to complete.

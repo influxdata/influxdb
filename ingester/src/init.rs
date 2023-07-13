@@ -294,7 +294,6 @@ where
     // Prepare the WAL segment reference tracker
     let (wal_reference_handle, wal_reference_actor) =
         WalReferenceHandle::new(Arc::clone(&wal), &metrics);
-    let wal_reference_handle = Arc::new(wal_reference_handle);
 
     // Spawn the persist workers to compact partition data, convert it into
     // Parquet files, and upload them to object storage.
@@ -308,7 +307,7 @@ where
         // Register a post-persistence observer that emits Parquet file
         // attributes as metrics, and notifies the WAL segment reference tracker of
         // completed persist actions.
-        ParquetFileInstrumentation::new(Arc::clone(&wal_reference_handle), &metrics),
+        ParquetFileInstrumentation::new(wal_reference_handle.clone(), &metrics),
         &metrics,
     );
     let persist_handle = Arc::new(persist_handle);
@@ -337,6 +336,8 @@ where
     ));
 
     // Start the WAL reference actor and then replay the WAL log files, if any.
+    // The tokio handle does not need retained here as the actor handle is
+    // responsible for aborting the actor's run loop when dropped.
     tokio::spawn(wal_reference_actor.run());
     let max_sequence_number =
         wal_replay::replay(&wal, &buffer, Arc::clone(&persist_handle), &metrics)
@@ -355,7 +356,7 @@ where
                         &metrics,
                     ),
                     Arc::clone(&wal),
-                    Arc::clone(&wal_reference_handle),
+                    wal_reference_handle.clone(),
                 ),
                 "wal",
             ),
@@ -376,7 +377,7 @@ where
     let rotation_task = tokio::spawn(periodic_rotation(
         Arc::clone(&wal),
         wal_rotation_period,
-        Arc::clone(&wal_reference_handle),
+        wal_reference_handle.clone(),
         Arc::clone(&buffer),
         Arc::clone(&persist_handle),
     ));
@@ -399,7 +400,7 @@ where
         Arc::clone(&buffer),
         Arc::clone(&persist_handle),
         Arc::clone(&wal),
-        Arc::clone(&wal_reference_handle),
+        wal_reference_handle,
     ));
 
     Ok(IngesterGuard {

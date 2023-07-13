@@ -12,7 +12,7 @@ use crate::{
 pub(crate) async fn periodic_rotation<T, P>(
     wal: Arc<wal::Wal>,
     period: Duration,
-    wal_reference_handle: Arc<WalReferenceHandle>,
+    wal_reference_handle: WalReferenceHandle,
     buffer: T,
     persist: P,
 ) where
@@ -102,7 +102,7 @@ mod tests {
     use crate::{
         buffer_tree::partition::{persisting::PersistingData, PartitionData},
         dml_payload::IngestOp,
-        persist::{completion_observer::NopObserver, queue::mock::MockPersistQueue},
+        persist::queue::mock::MockPersistQueue,
         test_util::{
             make_write_op, new_persist_notification, PartitionDataBuilder, ARBITRARY_NAMESPACE_ID,
             ARBITRARY_PARTITION_ID, ARBITRARY_PARTITION_KEY, ARBITRARY_TABLE_ID,
@@ -147,7 +147,7 @@ mod tests {
 
         // Initialise a mock persist queue to inspect the calls made to the
         // persist subsystem.
-        let persist_handle = Arc::new(MockPersistQueue::<NopObserver>::default());
+        let persist_handle = Arc::new(MockPersistQueue::default());
 
         // Initialise the WAL, write the operation to it
         let tmp_dir = tempdir().expect("no temp dir available");
@@ -175,14 +175,13 @@ mod tests {
 
         let (wal_reference_handle, wal_reference_actor) =
             WalReferenceHandle::new(Arc::clone(&wal), &metrics);
-        let wal_reference_handle = Arc::new(wal_reference_handle);
         tokio::spawn(wal_reference_actor.run());
 
         // Start the rotation task
         let rotate_task_handle = tokio::spawn(periodic_rotation(
             Arc::clone(&wal),
             TICK_INTERVAL,
-            Arc::clone(&wal_reference_handle),
+            wal_reference_handle.clone(),
             vec![Arc::clone(&p)],
             Arc::clone(&persist_handle),
         ));
@@ -329,14 +328,13 @@ mod tests {
 
         let (wal_reference_handle, wal_reference_actor) =
             WalReferenceHandle::new(Arc::clone(&wal), &metrics);
-        let wal_reference_handle = Arc::new(wal_reference_handle);
         tokio::spawn(wal_reference_actor.run());
 
         // Start the rotation task
         let rotate_task_handle = tokio::spawn(periodic_rotation(
             Arc::clone(&wal),
             TICK_INTERVAL,
-            Arc::clone(&wal_reference_handle),
+            wal_reference_handle,
             vec![Arc::clone(&p)],
             Arc::clone(&persist_handle),
         ));

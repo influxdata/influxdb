@@ -83,10 +83,19 @@ pub(crate) mod mock {
     }
 
     /// A mock [`PersistQueue`] implementation.
-    #[derive(Debug, Default)]
-    pub struct MockPersistQueue<O = NopObserver> {
+    #[derive(Debug)]
+    pub struct MockPersistQueue<O> {
         state: Mutex<State>,
-        completion_observer: Arc<O>,
+        completion_observer: O,
+    }
+
+    impl Default for MockPersistQueue<NopObserver> {
+        fn default() -> Self {
+            Self {
+                state: Default::default(),
+                completion_observer: Default::default(),
+            }
+        }
     }
 
     impl<O> MockPersistQueue<O>
@@ -95,7 +104,7 @@ pub(crate) mod mock {
     {
         /// Creates a queue that notifies the [`PersistCompletionObserver`]
         /// on persist enqueue completion.
-        pub fn new_with_observer(completion_observer: Arc<O>) -> Self {
+        pub fn new_with_observer(completion_observer: O) -> Self {
             Self {
                 state: Default::default(),
                 completion_observer,
@@ -122,7 +131,7 @@ pub(crate) mod mock {
     #[async_trait]
     impl<O> PersistQueue for MockPersistQueue<O>
     where
-        O: PersistCompletionObserver + 'static,
+        O: PersistCompletionObserver + Clone + 'static,
     {
         #[allow(clippy::async_yields_async)]
         async fn enqueue(
@@ -135,7 +144,7 @@ pub(crate) mod mock {
             let mut guard = self.state.lock();
             guard.calls.push(Arc::clone(&partition));
 
-            let completion_observer = Arc::clone(&self.completion_observer);
+            let completion_observer = self.completion_observer.clone();
             // Spawn a persist task that randomly completes (soon) in the
             // future.
             //
