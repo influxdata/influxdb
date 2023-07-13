@@ -27,7 +27,7 @@ pub type ColumnRanges = Arc<HashMap<Arc<str>, ColumnRange>>;
 pub fn create_chunk_statistics(
     row_count: u64,
     schema: &Schema,
-    ts_min_max: TimestampMinMax,
+    ts_min_max: Option<TimestampMinMax>,
     ranges: &ColumnRanges,
 ) -> Statistics {
     let mut columns = Vec::with_capacity(schema.len());
@@ -36,8 +36,14 @@ pub fn create_chunk_statistics(
         let stats = match t {
             InfluxColumnType::Timestamp => ColumnStatistics {
                 null_count: Some(0),
-                max_value: Some(ScalarValue::TimestampNanosecond(Some(ts_min_max.max), None)),
-                min_value: Some(ScalarValue::TimestampNanosecond(Some(ts_min_max.min), None)),
+                max_value: Some(ScalarValue::TimestampNanosecond(
+                    ts_min_max.map(|v| v.max),
+                    None,
+                )),
+                min_value: Some(ScalarValue::TimestampNanosecond(
+                    ts_min_max.map(|v| v.min),
+                    None,
+                )),
                 distinct_count: None,
             },
             _ => ranges
@@ -71,9 +77,8 @@ mod tests {
     fn test_create_chunk_statistics_no_columns_no_rows() {
         let schema = SchemaBuilder::new().build().unwrap();
         let row_count = 0;
-        let ts_min_max = TimestampMinMax { min: 10, max: 20 };
 
-        let actual = create_chunk_statistics(row_count, &schema, ts_min_max, &Default::default());
+        let actual = create_chunk_statistics(row_count, &schema, None, &Default::default());
         let expected = Statistics {
             num_rows: Some(row_count as usize),
             total_byte_size: None,
@@ -112,7 +117,7 @@ mod tests {
         ]));
 
         for row_count in [0u64, 1337u64] {
-            let actual = create_chunk_statistics(row_count, &schema, ts_min_max, &ranges);
+            let actual = create_chunk_statistics(row_count, &schema, Some(ts_min_max), &ranges);
             let expected = Statistics {
                 num_rows: Some(row_count as usize),
                 total_byte_size: None,
@@ -160,7 +165,7 @@ mod tests {
             },
         )]));
 
-        let actual = create_chunk_statistics(row_count, &schema, ts_min_max, &ranges);
+        let actual = create_chunk_statistics(row_count, &schema, Some(ts_min_max), &ranges);
         let expected = Statistics {
             num_rows: Some(row_count as usize),
             total_byte_size: None,

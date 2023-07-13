@@ -33,7 +33,7 @@ impl QueryableParquetChunk {
         let stats = Arc::new(create_basic_summary(
             data.rows() as u64,
             data.schema(),
-            data.timestamp_min_max(),
+            Some(data.timestamp_min_max()),
         ));
         Self {
             data,
