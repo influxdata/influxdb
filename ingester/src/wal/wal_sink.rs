@@ -285,7 +285,7 @@ mod tests {
             .await
             .expect("failed to initialise WAL");
 
-        let wal_sink = WalSink::new(BlockingDmlSink::default(), wal);
+        let wal_sink = WalSink::new(BlockingDmlSink, wal);
 
         // Allow tokio to automatically advance time past the timeout duration,
         // when all threads are blocked on await points.

@@ -11,7 +11,7 @@ pub struct ManyFilesRoundSplit;
 
 impl ManyFilesRoundSplit {
     pub fn new() -> Self {
-        Self::default()
+        Self
     }
 }
 

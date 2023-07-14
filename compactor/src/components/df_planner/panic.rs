@@ -24,7 +24,7 @@ pub struct PanicDataFusionPlanner;
 impl PanicDataFusionPlanner {
     /// Create a new planner
     pub fn new() -> Self {
-        Self::default()
+        Self
     }
 }
 

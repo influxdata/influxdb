@@ -212,7 +212,7 @@ mod tests {
             SortExec::new(ordering(["col2", "col1"], &schema), Arc::new(inner))
                 .with_fetch(Some(42)),
         );
-        let opt = ParquetSortness::default();
+        let opt = ParquetSortness;
         insta::assert_yaml_snapshot!(
             OptimizationTest::new(plan, opt),
             @r###"
@@ -248,7 +248,7 @@ mod tests {
             ordering(["col2", "col1"], &schema),
             true,
         ));
-        let opt = ParquetSortness::default();
+        let opt = ParquetSortness;
         insta::assert_yaml_snapshot!(
             OptimizationTest::new(plan, opt),
             @r###"
@@ -287,7 +287,7 @@ mod tests {
 
         assert_unknown_partitioning(plan.output_partitioning(), 2);
 
-        let opt = ParquetSortness::default();
+        let opt = ParquetSortness;
         let test = OptimizationTest::new(plan, opt);
         insta::assert_yaml_snapshot!(
             test,
@@ -325,7 +325,7 @@ mod tests {
             SortExec::new(ordering(["col2", "col1"], &schema), Arc::new(inner))
                 .with_fetch(Some(42)),
         );
-        let opt = ParquetSortness::default();
+        let opt = ParquetSortness;
         insta::assert_yaml_snapshot!(
             OptimizationTest::new(plan, opt),
             @r###"
@@ -360,7 +360,7 @@ mod tests {
             SortExec::new(ordering(["col2", "col1"], &schema), Arc::new(inner))
                 .with_fetch(Some(42)),
         );
-        let opt = ParquetSortness::default();
+        let opt = ParquetSortness;
         insta::assert_yaml_snapshot!(
             OptimizationTest::new(plan, opt),
             @r###"
@@ -395,7 +395,7 @@ mod tests {
             SortExec::new(ordering(["col2", "col1"], &schema), Arc::new(inner))
                 .with_fetch(Some(42)),
         );
-        let opt = ParquetSortness::default();
+        let opt = ParquetSortness;
         insta::assert_yaml_snapshot!(
             OptimizationTest::new(plan, opt),
             @r###"
@@ -430,7 +430,7 @@ mod tests {
             SortExec::new(ordering(["col2", "col1"], &schema), Arc::new(inner))
                 .with_fetch(Some(42)),
         );
-        let opt = ParquetSortness::default();
+        let opt = ParquetSortness;
         let mut config = ConfigOptions::default();
         config.extensions.insert(IoxConfigExt {
             max_parquet_fanout: 2,
@@ -459,7 +459,7 @@ mod tests {
             SortExec::new(ordering(["col2", "col1"], &schema), Arc::new(inner))
                 .with_fetch(Some(42)),
         );
-        let opt = ParquetSortness::default();
+        let opt = ParquetSortness;
         insta::assert_yaml_snapshot!(
             OptimizationTest::new(plan, opt),
             @r###"
@@ -490,7 +490,7 @@ mod tests {
             infinite_source: false,
         };
         let plan = Arc::new(ParquetExec::new(base_config, None, None));
-        let opt = ParquetSortness::default();
+        let opt = ParquetSortness;
         insta::assert_yaml_snapshot!(
             OptimizationTest::new(plan, opt),
             @r###"
@@ -523,7 +523,7 @@ mod tests {
             Arc::new(SortExec::new(ordering(["col2", "col1"], &schema), plan).with_fetch(Some(42)));
         let plan =
             Arc::new(SortExec::new(ordering(["col1", "col2"], &schema), plan).with_fetch(Some(42)));
-        let opt = ParquetSortness::default();
+        let opt = ParquetSortness;
         insta::assert_yaml_snapshot!(
             OptimizationTest::new(plan, opt),
             @r###"
@@ -560,7 +560,7 @@ mod tests {
             Arc::new(SortExec::new(ordering(["col1", "col2"], &schema), plan).with_fetch(Some(42)));
         let plan =
             Arc::new(SortExec::new(ordering(["col2", "col1"], &schema), plan).with_fetch(Some(42)));
-        let opt = ParquetSortness::default();
+        let opt = ParquetSortness;
         insta::assert_yaml_snapshot!(
             OptimizationTest::new(plan, opt),
             @r###"
@@ -602,7 +602,7 @@ mod tests {
             ordering(["col2", "col1"], &schema),
             true,
         ));
-        let opt = ParquetSortness::default();
+        let opt = ParquetSortness;
         insta::assert_yaml_snapshot!(
             OptimizationTest::new(plan, opt),
             @r###"

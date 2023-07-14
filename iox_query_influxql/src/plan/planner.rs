@@ -1769,10 +1769,7 @@ impl<'a> InfluxQLToLogicalPlan<'a> {
                         Some(src_type) => {
                             let column = name.as_expr();
 
-                            match opt_dst_type
-                                .deref()
-                                .and_then(var_ref_data_type_to_data_type)
-                            {
+                            match opt_dst_type.and_then(var_ref_data_type_to_data_type) {
                                 Some(dst_type) => {
                                     fn is_numeric(dt: &DataType) -> bool {
                                         matches!(

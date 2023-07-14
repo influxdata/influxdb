@@ -12,7 +12,7 @@ pub struct NoopScratchpadGen;
 
 impl NoopScratchpadGen {
     pub fn new() -> Self {
-        Self::default()
+        Self
     }
 }
 
