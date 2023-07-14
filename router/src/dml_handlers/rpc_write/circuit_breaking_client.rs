@@ -172,7 +172,7 @@ pub(crate) mod mock {
 
 #[cfg(test)]
 mod tests {
-    use std::{borrow::Borrow, sync::Arc};
+    use std::sync::Arc;
 
     use crate::dml_handlers::rpc_write::client::mock::MockWriteClient;
 
@@ -220,7 +220,6 @@ mod tests {
         assert_eq!(circuit_breaker.err_count(), 0);
 
         wrapper
-            .borrow()
             .write(WriteRequest::default(), None)
             .await
             .expect("wrapper should return Ok mock value");
@@ -228,7 +227,6 @@ mod tests {
         assert_eq!(circuit_breaker.err_count(), 0);
 
         wrapper
-            .borrow()
             .write(WriteRequest::default(), None)
             .await
             .expect_err("wrapper should return Err mock value");
