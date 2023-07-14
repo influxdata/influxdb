@@ -85,7 +85,7 @@ mod tests {
     use rand::prelude::*;
 
     fn make_rng() -> StdRng {
-        let seed = rand::rngs::OsRng::default().next_u64();
+        let seed = rand::rngs::OsRng.next_u64();
         println!("Seed: {seed}");
         StdRng::seed_from_u64(seed)
     }

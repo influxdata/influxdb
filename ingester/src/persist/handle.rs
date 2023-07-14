@@ -885,7 +885,7 @@ mod tests {
             Arc::new(Executor::new_testing()),
             storage,
             catalog,
-            NopObserver::default(),
+            NopObserver,
             &metrics,
         );
         assert!(ingest_state.read().is_ok());
@@ -955,7 +955,7 @@ mod tests {
             Arc::new(Executor::new_testing()),
             storage,
             catalog,
-            NopObserver::default(),
+            NopObserver,
             &metrics,
         );
 

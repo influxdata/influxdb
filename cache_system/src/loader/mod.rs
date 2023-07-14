@@ -93,7 +93,7 @@ where
     pub fn new(loader: T) -> Self {
         Self {
             loader,
-            _phantom: PhantomData::default(),
+            _phantom: PhantomData,
         }
     }
 }

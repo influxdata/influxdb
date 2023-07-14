@@ -95,8 +95,8 @@ where
         backoff_cfg_some: Option<BackoffConfig>,
     ) -> Self {
         Self {
-            _k: PhantomData::default(),
-            _v: PhantomData::default(),
+            _k: PhantomData,
+            _v: PhantomData,
             backoff_cfg_none,
             backoff_cfg_some,
         }

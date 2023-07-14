@@ -104,7 +104,7 @@ mod tests {
                 2,
             ),
         ]));
-        let opt = CombineChunks::default();
+        let opt = CombineChunks;
         let mut config = ConfigOptions::default();
         config.execution.target_partitions = 2;
         insta::assert_yaml_snapshot!(
@@ -145,7 +145,7 @@ mod tests {
                 .unwrap(),
             ),
         ]));
-        let opt = CombineChunks::default();
+        let opt = CombineChunks;
         insta::assert_yaml_snapshot!(
             OptimizationTest::new(plan, opt),
             @r###"
@@ -175,7 +175,7 @@ mod tests {
         let chunk1 = TestChunk::new("table").with_id(1);
         let schema = chunk1.schema().as_arrow();
         let plan = chunks_to_physical_nodes(&schema, None, vec![], 2);
-        let opt = CombineChunks::default();
+        let opt = CombineChunks;
         let mut config = ConfigOptions::default();
         config.execution.target_partitions = 2;
         insta::assert_yaml_snapshot!(
@@ -202,7 +202,7 @@ mod tests {
             )
             .unwrap(),
         )]));
-        let opt = CombineChunks::default();
+        let opt = CombineChunks;
         insta::assert_yaml_snapshot!(
             OptimizationTest::new(plan, opt),
             @r###"

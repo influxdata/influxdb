@@ -97,7 +97,7 @@ where
     pub fn new(f: F) -> Self {
         Self {
             estimator: f,
-            _phantom: PhantomData::default(),
+            _phantom: PhantomData,
         }
     }
 }

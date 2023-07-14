@@ -61,7 +61,7 @@ fn wal_replay_bench(c: &mut Criterion) {
 
                 // Pass all writes into a NOP that discards them with no
                 // overhead.
-                let sink = NopSink::default();
+                let sink = NopSink;
 
                 let persist = MockPersistQueue::default();
 

@@ -304,7 +304,7 @@ where
         Arc::clone(&catalog),
         // Register a post-persistence observer that emits Parquet file
         // attributes as metrics.
-        ParquetFileInstrumentation::new(NopObserver::default(), &metrics),
+        ParquetFileInstrumentation::new(NopObserver, &metrics),
         &metrics,
     );
     let persist_handle = Arc::new(persist_handle);
