@@ -2730,6 +2730,7 @@ dependencies = [
  "tokio",
  "tokio-util",
  "tonic",
+ "trace",
  "workspace-hack",
 ]
 
@@ -4717,6 +4718,7 @@ dependencies = [
  "tokio-stream",
  "tonic",
  "trace",
+ "trace_http",
  "workspace-hack",
 ]
 

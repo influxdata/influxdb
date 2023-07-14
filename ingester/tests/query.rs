@@ -18,6 +18,7 @@ async fn write_query() {
         "bananas greatness=\"unbounded\" 10",
         partition_key.clone(),
         0,
+        None,
     )
     .await;
 
@@ -27,6 +28,7 @@ async fn write_query() {
         "cpu bar=2 20\ncpu bar=3 30",
         partition_key.clone(),
         7,
+        None,
     )
     .await;
 
@@ -37,6 +39,7 @@ async fn write_query() {
         "bananas count=42 200",
         partition_key.clone(),
         42,
+        None,
     )
     .await;
 
@@ -100,6 +103,7 @@ async fn write_query_projection() {
         "bananas greatness=\"unbounded\",level=42 10",
         partition_key.clone(),
         0,
+        None,
     )
     .await;
 
@@ -109,6 +113,7 @@ async fn write_query_projection() {
         "bananas count=42,level=4242 200",
         partition_key.clone(),
         42,
+        None,
     )
     .await;
 

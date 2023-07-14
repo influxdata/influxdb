@@ -111,7 +111,7 @@ pub enum Error {
     ChunkWithoutPartition { ingester_address: String },
 
     #[snafu(display(
-        "Duplicate partition info for partition {partition_id}, ingestger: {ingester_address}"
+        "Duplicate partition info for partition {partition_id}, ingester: {ingester_address}"
     ))]
     DuplicatePartitionInfo {
         partition_id: PartitionId,

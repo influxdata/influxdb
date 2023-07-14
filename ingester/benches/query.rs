@@ -40,8 +40,14 @@ async fn init(
     let ns = ctx.ensure_namespace(TEST_NAMESPACE, None).await;
 
     // Write the test data
-    ctx.write_lp(TEST_NAMESPACE, lp, PartitionKey::from(PARTITION_KEY), 42)
-        .await;
+    ctx.write_lp(
+        TEST_NAMESPACE,
+        lp,
+        PartitionKey::from(PARTITION_KEY),
+        42,
+        None,
+    )
+    .await;
 
     let table_id = ctx.table_id(TEST_NAMESPACE, "bananas").await;
 

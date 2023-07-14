@@ -49,6 +49,7 @@ use test_helpers::timeout::FutureTimeout;
 use tokio::sync::oneshot;
 use tokio_util::sync::CancellationToken;
 use tonic::Request;
+use trace::ctx::SpanContext;
 
 /// The default max persist queue depth - configurable with
 /// [`TestContextBuilder::with_max_persist_queue_depth()`].
@@ -243,6 +244,7 @@ where
         lp: &str,
         partition_key: PartitionKey,
         sequence_number: u64,
+        span_ctx: Option<SpanContext>,
     ) {
         // Resolve the namespace ID needed to construct the DML op
         let namespace_id = self.namespace_id(namespace).await;
@@ -313,12 +315,18 @@ where
             ),
         );
 
+        let mut req = tonic::Request::new(WriteRequest {
+            payload: Some(encode_write(namespace_id.get(), &op)),
+        });
+
+        // Mock out the trace extraction middleware by inserting the given
+        // span context straight into the requests extensions
+        span_ctx.map(|span_ctx| req.extensions_mut().insert(span_ctx));
+
         self.ingester
             .rpc()
             .write_service()
-            .write(tonic::Request::new(WriteRequest {
-                payload: Some(encode_write(namespace_id.get(), &op)),
-            }))
+            .write(req)
             .await
             .unwrap();
 

@@ -36,8 +36,14 @@ async fn init(lp: impl AsRef<str>) -> (TestContext<impl IngesterRpcInterface>, D
     let ns = ctx.ensure_namespace(TEST_NAMESPACE, None).await;
 
     // Perform a write to drive table / schema population in the catalog.
-    ctx.write_lp(TEST_NAMESPACE, lp, PartitionKey::from(PARTITION_KEY), 42)
-        .await;
+    ctx.write_lp(
+        TEST_NAMESPACE,
+        lp,
+        PartitionKey::from(PARTITION_KEY),
+        42,
+        None,
+    )
+    .await;
 
     // Construct the write request once, and reuse it for each iteration.
     let batches = lines_to_batches(lp, 0).unwrap();
