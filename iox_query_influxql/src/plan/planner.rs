@@ -721,27 +721,43 @@ impl<'a> InfluxQLToLogicalPlan<'a> {
                 &schemas,
                 &ds_schema,
             )?;
-            plans.push(plan);
+            plans.push((plan, ds_schema));
         }
 
         Ok(match plans.len() {
             0 => None,
-            1 => plans.pop(),
+            1 => plans.pop().map(|(plan, _)| plan),
             _ => {
                 // find all the columns referenced in the `SELECT`
                 let var_refs = find_var_refs(select);
 
+                let mut tags = HashMap::new();
                 let plans = plans
                     .into_iter()
-                    .map(|plan| {
+                    .map(|(plan, ds_schema)| {
                         let schema = plan.schema();
                         let select_exprs = var_refs.iter().map(|vr| {
-                            if schema.has_column_with_unqualified_name(vr.name.as_str()) {
-                                vr.name.as_str().as_expr().alias(vr.name.as_str())
+                            // If the variable reference is a tag in one of the sources,
+                            // but not in the other, then we need to produce an error.
+                            let name = vr.name.as_str();
+                            match (ds_schema.is_projected_tag_field(name), tags.get(name)) {
+                                (v, None) => { tags.insert(name, v); Ok(()) },
+                                (prev, Some(cur)) if &prev != cur => error::not_implemented(
+                                        format!(
+                                            "cannot mix tag and field columns with the same name: {}",
+                                            name
+                                        )),
+                                _ => Ok(()),
+
+                            }?;
+
+                            if schema.has_column_with_unqualified_name(name) {
+                                Ok(name.as_expr().alias(name))
                             } else {
-                                lit(ScalarValue::Null).alias(vr.name.as_str())
+                                Ok(lit(ScalarValue::Null).alias(name))
                             }
-                        });
+                        })
+                        .collect::<Result<Vec<_>>>()?;
 
                         project(plan.clone(), select_exprs)
                     })

@@ -3086,3 +3086,5 @@ name: disk
 | 2022-10-31T02:00:05 | 0.0                  |
 | 2022-10-31T02:00:10 | 0.007000528400759146 |
 +---------------------+----------------------+
+-- InfluxQL: SELECT count(host) FROM (SELECT usage_idle AS host FROM cpu), (SELECT host, usage_idle FROM cpu);
+Error while planning query: This feature is not implemented: cannot mix tag and field columns with the same name: host
