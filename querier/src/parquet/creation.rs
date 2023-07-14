@@ -171,12 +171,10 @@ impl ChunkAdapter {
         let order = ChunkOrder::new(parquet_file.file.max_l0_created_at.get());
 
         let partition_id = parquet_file.file.partition_id;
-        let transition_partition_id = parquet_file
-            .file
-            .partition_hash_id
-            .clone()
-            .map(TransitionPartitionId::Deterministic)
-            .unwrap_or_else(|| TransitionPartitionId::Deprecated(partition_id));
+        let transition_partition_id = TransitionPartitionId::from((
+            partition_id,
+            parquet_file.file.partition_hash_id.as_ref(),
+        ));
 
         let meta = Arc::new(QuerierParquetChunkMeta {
             chunk_id,

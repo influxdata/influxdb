@@ -31,6 +31,15 @@ impl TransitionPartitionId {
     }
 }
 
+impl From<(PartitionId, Option<&PartitionHashId>)> for TransitionPartitionId {
+    fn from((partition_id, partition_hash_id): (PartitionId, Option<&PartitionHashId>)) -> Self {
+        partition_hash_id
+            .cloned()
+            .map(TransitionPartitionId::Deterministic)
+            .unwrap_or_else(|| TransitionPartitionId::Deprecated(partition_id))
+    }
+}
+
 impl std::fmt::Display for TransitionPartitionId {
     fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
         match self {
@@ -394,10 +403,7 @@ impl Partition {
     /// If this partition has a `PartitionHashId` stored in the catalog, use that. Otherwise, use
     /// the database-assigned `PartitionId`.
     pub fn transition_partition_id(&self) -> TransitionPartitionId {
-        self.hash_id
-            .clone()
-            .map(TransitionPartitionId::Deterministic)
-            .unwrap_or_else(|| TransitionPartitionId::Deprecated(self.id))
+        TransitionPartitionId::from((self.id, self.hash_id.as_ref()))
     }
 
     /// The unique hash derived from the table ID and partition key, if it exists in the catalog.

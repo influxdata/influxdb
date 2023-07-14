@@ -605,10 +605,7 @@ impl ParquetFile {
     /// If this parquet file params will be storing a `PartitionHashId` in the catalog, use that.
     /// Otherwise, use the database-assigned `PartitionId`.
     pub fn transition_partition_id(&self) -> TransitionPartitionId {
-        self.partition_hash_id
-            .clone()
-            .map(TransitionPartitionId::Deterministic)
-            .unwrap_or_else(|| TransitionPartitionId::Deprecated(self.partition_id))
+        TransitionPartitionId::from((self.partition_id, self.partition_hash_id.as_ref()))
     }
 
     /// Estimate the memory consumption of this object and its contents
@@ -669,10 +666,7 @@ impl ParquetFileParams {
     /// If this parquet file params will be storing a `PartitionHashId` in the catalog, use that.
     /// Otherwise, use the database-assigned `PartitionId`.
     pub fn transition_partition_id(&self) -> TransitionPartitionId {
-        self.partition_hash_id
-            .clone()
-            .map(TransitionPartitionId::Deterministic)
-            .unwrap_or_else(|| TransitionPartitionId::Deprecated(self.partition_id))
+        TransitionPartitionId::from((self.partition_id, self.partition_hash_id.as_ref()))
     }
 }
 
