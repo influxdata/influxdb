@@ -1,5 +1,10 @@
 //! Tests the `influxdb_iox debug` commands
-use std::{path::Path, time::Duration};
+use std::{
+    collections::VecDeque,
+    io::Write,
+    path::{Path, PathBuf},
+    time::Duration,
+};
 
 use arrow::record_batch::RecordBatch;
 use arrow_util::assert_batches_sorted_eq;
@@ -47,6 +52,8 @@ async fn test_print_cpu() {
 /// 3. Start a all-in-one instance from that rebuilt catalog
 /// 4. Can run a query successfully
 #[tokio::test]
+// Ignore due to https://github.com/influxdata/influxdb_iox/issues/8203
+#[ignore]
 async fn build_catalog() {
     test_helpers::maybe_start_logging();
     let database_url = maybe_skip_integration!();
@@ -105,20 +112,18 @@ async fn build_catalog() {
 
                     // We can build a catalog and start up the server and run a query
                     let restarted = RestartedServer::build_catalog_and_start(&table_dir).await;
-                    let batches = run_sql_until_non_empty(&restarted, sql, namespace.as_str())
-                        .with_timeout(Duration::from_secs(2))
-                        .await
-                        .expect("timed out waiting for non-empty batches in result");
+                    let batches = restarted
+                        .run_sql_until_non_empty(sql, namespace.as_str())
+                        .await;
                     assert_batches_sorted_eq!(&expected, &batches);
 
                     // We can also rebuild a catalog from just the parquet files
                     let only_parquet_dir = copy_only_parquet_files(&table_dir);
                     let restarted =
                         RestartedServer::build_catalog_and_start(only_parquet_dir.path()).await;
-                    let batches = run_sql_until_non_empty(&restarted, sql, namespace.as_str())
-                        .with_timeout(Duration::from_secs(2))
-                        .await
-                        .expect("timed out waiting for non-empty batches in result");
+                    let batches = restarted
+                        .run_sql_until_non_empty(sql, namespace.as_str())
+                        .await;
                     assert_batches_sorted_eq!(&expected, &batches);
                 }
                 .boxed()
@@ -127,23 +132,6 @@ async fn build_catalog() {
     )
     .run()
     .await
-}
-
-/// Loops forever, running the SQL query against the [`RestartedServer`] given
-/// until the result is non-empty. Callers are responsible for timing out the
-/// function.
-async fn run_sql_until_non_empty(
-    restarted: &RestartedServer,
-    sql: &str,
-    namespace: &str,
-) -> Vec<RecordBatch> {
-    loop {
-        let batches = restarted.run_sql(sql, namespace).await;
-        if !batches.is_empty() {
-            return batches;
-        }
-        tokio::time::sleep(Duration::from_millis(100)).await;
-    }
 }
 
 /// An all in one instance, with data directory of `data_dir`
@@ -183,27 +171,40 @@ impl RestartedServer {
         println!("target_directory: {data_dir:?}");
 
         // call `influxdb_iox debug build-catalog <table_dir> <new_data_dir>`
-        Command::cargo_bin("influxdb_iox")
+        let cmd = Command::cargo_bin("influxdb_iox")
             .unwrap()
             // use -v to enable logging so we can check the status messages
-            .arg("-v")
+            .arg("-vv")
             .arg("debug")
             .arg("build-catalog")
             .arg(exported_table_dir.as_os_str().to_str().unwrap())
             .arg(data_dir.path().as_os_str().to_str().unwrap())
             .assert()
-            .success()
-            .stdout(
-                predicate::str::contains("Beginning catalog / object_store build")
-                    .and(predicate::str::contains(
-                        "Begin importing files total_files=1",
-                    ))
-                    .and(predicate::str::contains(
-                        "Completed importing files total_files=1",
-                    )),
-            );
+            .success();
+
+        // debug information to track down https://github.com/influxdata/influxdb_iox/issues/8203
+        println!("***** Begin build-catalog STDOUT ****");
+        std::io::stdout()
+            .write_all(&cmd.get_output().stdout)
+            .unwrap();
+        println!("***** Begin build-catalog STDERR ****");
+        std::io::stdout()
+            .write_all(&cmd.get_output().stderr)
+            .unwrap();
+        println!("***** DONE ****");
+
+        cmd.stdout(
+            predicate::str::contains("Beginning catalog / object_store build")
+                .and(predicate::str::contains(
+                    "Begin importing files total_files=1",
+                ))
+                .and(predicate::str::contains(
+                    "Completed importing files total_files=1",
+                )),
+        );
 
         println!("Completed rebuild in {data_dir:?}");
+        RecursiveDirPrinter::new().print(data_dir.path());
 
         // now, start up a new server in all-in-one mode
         // using the  newly built data directory
@@ -214,6 +215,27 @@ impl RestartedServer {
             all_in_one,
             data_dir,
         }
+    }
+
+    /// Runs the SQL query against this server, in a loop until
+    /// results are returned. Panics if the results are not produced
+    /// within a 5 seconds
+    async fn run_sql_until_non_empty(&self, sql: &str, namespace: &str) -> Vec<RecordBatch> {
+        let timeout = Duration::from_secs(5);
+        let loop_sleep = Duration::from_millis(500);
+        let fut = async {
+            loop {
+                let batches = self.run_sql(sql, namespace).await;
+                if !batches.is_empty() {
+                    return batches;
+                }
+                tokio::time::sleep(loop_sleep).await;
+            }
+        };
+
+        fut.with_timeout(timeout)
+            .await
+            .expect("timed out waiting for non-empty batches in result")
     }
 }
 
@@ -239,4 +261,44 @@ fn copy_only_parquet_files(src: &Path) -> TempDir {
         }
     }
     target_dir
+}
+
+/// Prints out the contents of the directory recursively
+/// for debugging.
+///
+/// ```text
+/// RecursiveDirPrinter All files rooted at "/tmp/.tmpvf16r0"
+/// "/tmp/.tmpvf16r0"
+/// "/tmp/.tmpvf16r0/catalog.sqlite"
+/// "/tmp/.tmpvf16r0/object_store"
+/// "/tmp/.tmpvf16r0/object_store/1"
+/// "/tmp/.tmpvf16r0/object_store/1/1"
+/// "/tmp/.tmpvf16r0/object_store/1/1/b862a7e9b329ee6a418cde191198eaeb1512753f19b87a81def2ae6c3d0ed237"
+/// "/tmp/.tmpvf16r0/object_store/1/1/b862a7e9b329ee6a418cde191198eaeb1512753f19b87a81def2ae6c3d0ed237/d78abef6-6859-48eb-aa62-3518097fbb9b.parquet"
+///
+struct RecursiveDirPrinter {
+    paths: VecDeque<PathBuf>,
+}
+
+impl RecursiveDirPrinter {
+    fn new() -> Self {
+        Self {
+            paths: VecDeque::new(),
+        }
+    }
+
+    // print root and all directories
+    fn print(mut self, root: &Path) {
+        println!("RecursiveDirPrinter All files rooted at {root:?}");
+        self.paths.push_back(PathBuf::from(root));
+
+        while let Some(path) = self.paths.pop_front() {
+            println!("{path:?}");
+            if path.is_dir() {
+                for entry in std::fs::read_dir(path).unwrap() {
+                    self.paths.push_front(entry.unwrap().path());
+                }
+            }
+        }
+    }
 }

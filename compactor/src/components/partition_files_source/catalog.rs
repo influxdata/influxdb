@@ -5,7 +5,7 @@ use std::{
 
 use async_trait::async_trait;
 use backoff::{Backoff, BackoffConfig};
-use data_types::{ParquetFile, PartitionId};
+use data_types::{ParquetFile, PartitionId, TransitionPartitionId};
 use iox_catalog::interface::Catalog;
 use observability_deps::tracing::warn;
 
@@ -61,7 +61,7 @@ impl CatalogQuerier for Arc<dyn Catalog> {
         self.repositories()
             .await
             .parquet_files()
-            .list_by_partition_not_to_delete(partition_id)
+            .list_by_partition_not_to_delete(&TransitionPartitionId::Deprecated(partition_id))
             .await
     }
 }
