@@ -160,6 +160,7 @@ pub async fn create_compactor_server_type(
 
     let compactor = Compactor::start(Config {
         metric_registry: Arc::clone(&metric_registry),
+        trace_collector: common_state.trace_collector(),
         catalog,
         scheduler_config: convert_scheduler_config(
             compactor_config.compactor_scheduler_config.clone(),

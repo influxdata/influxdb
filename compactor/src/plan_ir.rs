@@ -77,6 +77,23 @@ impl PlanIR {
             Self::None { .. } => &[],
         }
     }
+
+    /// return the total bytes of the input files that will be compacted together
+    pub fn input_bytes(&self) -> i64 {
+        self.input_files()
+            .iter()
+            .map(|ir| ir.file.file_size_bytes)
+            .sum::<i64>()
+    }
+
+    /// return a string describing the reason for this plan.
+    pub fn reason(&self) -> String {
+        match self {
+            Self::Compact { reason, .. } => format!("compact({reason:?})"),
+            Self::Split { reason, .. } => format!("split({reason:?})"),
+            Self::None { reason, .. } => format!("none({reason:?})"),
+        }
+    }
 }
 
 impl Display for PlanIR {

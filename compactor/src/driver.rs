@@ -5,6 +5,8 @@ use futures::{stream, StreamExt, TryStreamExt};
 use observability_deps::tracing::info;
 use parquet_file::ParquetFilePath;
 use tokio::sync::watch::Sender;
+use trace::span::Span;
+use trace::span::SpanRecorder;
 use tracker::InstrumentedAsyncSemaphore;
 
 use crate::{
@@ -23,6 +25,7 @@ use crate::{
 /// Tries to compact all eligible partitions, up to
 /// partition_concurrency at a time.
 pub async fn compact(
+    trace_collector: Option<Arc<dyn trace::TraceCollector>>,
     partition_concurrency: NonZeroUsize,
     partition_timeout: Duration,
     df_semaphore: Arc<InstrumentedAsyncSemaphore>,
@@ -34,7 +37,15 @@ pub async fn compact(
         .map(|partition_id| {
             let components = Arc::clone(components);
 
+            // A root span is created for each partition.  Later this can be linked to the
+            // scheduler's span via something passed through partition_stream.
+            let root_span: Option<Span> = trace_collector
+                .as_ref()
+                .map(|collector| Span::root("compaction", Arc::clone(collector)));
+            let span = SpanRecorder::new(root_span);
+
             compact_partition(
+                span,
                 partition_id,
                 partition_timeout,
                 Arc::clone(&df_semaphore),
@@ -47,12 +58,14 @@ pub async fn compact(
 }
 
 async fn compact_partition(
+    mut span: SpanRecorder,
     partition_id: PartitionId,
     partition_timeout: Duration,
     df_semaphore: Arc<InstrumentedAsyncSemaphore>,
     components: Arc<Components>,
 ) {
     info!(partition_id = partition_id.get(), timeout = ?partition_timeout, "compact partition",);
+    span.set_metadata("partition_id", partition_id.get().to_string());
     let scratchpad = components.scratchpad_gen.pad();
 
     let res = timeout_with_progress_checking(partition_timeout, |transmit_progress_signal| {
@@ -60,6 +73,7 @@ async fn compact_partition(
         let scratchpad = Arc::clone(&scratchpad);
         async {
             try_compact_partition(
+                span,
                 partition_id,
                 df_semaphore,
                 components,
@@ -184,6 +198,7 @@ async fn compact_partition(
 ///   . If there are no L0s files in the partition, the first round can just compact L1s and L2s to L2s
 ///   . Round 2 happens or not depends on the stop condition
 async fn try_compact_partition(
+    span: SpanRecorder,
     partition_id: PartitionId,
     df_semaphore: Arc<InstrumentedAsyncSemaphore>,
     components: Arc<Components>,
@@ -199,6 +214,8 @@ async fn try_compact_partition(
     // with mutliple calls to execute_branch is important to frequently clean the scratchpad and prevent
     // high memory use.
     loop {
+        let round_span = span.child("round");
+
         let round_info = components
             .round_info_source
             .calculate(&partition_info, &files)
@@ -239,9 +256,11 @@ async fn try_compact_partition(
                 let df_semaphore = Arc::clone(&df_semaphore);
                 let transmit_progress_signal = Arc::clone(&transmit_progress_signal);
                 let scratchpad = Arc::clone(&scratchpad_ctx);
+                let branch_span = round_span.child("branch");
 
                 async move {
                     execute_branch(
+                        branch_span,
                         partition_id,
                         branch,
                         df_semaphore,
@@ -265,6 +284,7 @@ async fn try_compact_partition(
 /// Compact or split given files
 #[allow(clippy::too_many_arguments)]
 async fn execute_branch(
+    span: SpanRecorder,
     partition_id: PartitionId,
     branch: Vec<ParquetFile>,
     df_semaphore: Arc<InstrumentedAsyncSemaphore>,
@@ -315,6 +335,7 @@ async fn execute_branch(
 
     // Compact & Split
     let created_file_params = run_plans(
+        span.child("run_plans"),
         split_or_compact.clone(),
         &partition_info,
         &components,
@@ -328,11 +349,13 @@ async fn execute_branch(
     scratchpad_ctx.clean_from_scratchpad(&input_paths).await;
 
     // upload files to real object store
+    let upload_span = span.child("upload_objects");
     let created_file_params = upload_files_to_object_store(
         created_file_params,
         Arc::<dyn Scratchpad>::clone(&scratchpad_ctx),
     )
     .await;
+    drop(upload_span);
 
     for file_param in &created_file_params {
         info!(
@@ -384,6 +407,7 @@ async fn execute_branch(
 
 /// Compact or split given files
 async fn run_plans(
+    span: SpanRecorder,
     split_or_compact: FilesToSplitOrCompact,
     partition_info: &Arc<PartitionInfo>,
     components: &Arc<Components>,
@@ -392,9 +416,11 @@ async fn run_plans(
     scratchpad_ctx: Arc<dyn Scratchpad>,
 ) -> Result<Vec<ParquetFileParams>, DynError> {
     // stage files
+    let download_span = span.child("download_objects");
     let input_uuids_inpad = scratchpad_ctx
         .load_to_scratchpad(&split_or_compact.file_input_paths())
         .await;
+    drop(download_span);
 
     let plans = components.ir_planner.create_plans(
         Arc::clone(partition_info),
@@ -417,6 +443,7 @@ async fn run_plans(
     )
     .map(|plan_ir| {
         execute_plan(
+            span.child("execute_plan"),
             plan_ir,
             partition_info,
             components,
@@ -431,11 +458,16 @@ async fn run_plans(
 }
 
 async fn execute_plan(
+    mut span: SpanRecorder,
     plan_ir: PlanIR,
     partition_info: &Arc<PartitionInfo>,
     components: &Arc<Components>,
     df_semaphore: Arc<InstrumentedAsyncSemaphore>,
 ) -> Result<Vec<ParquetFileParams>, DynError> {
+    span.set_metadata("input_files", plan_ir.input_files().len().to_string());
+    span.set_metadata("input_bytes", plan_ir.input_bytes().to_string());
+    span.set_metadata("reason", plan_ir.reason());
+
     let create = {
         // Adjust concurrency based on the column count in the partition.
         let permits = compute_permits(df_semaphore.total_permits(), partition_info.column_count());
@@ -460,10 +492,13 @@ async fn execute_plan(
         // We guard the DataFusion planning (that doesn't perform any IO) via the semaphore as well in case
         // DataFusion ever starts to pre-allocate buffers during the physical planning. To the best of our
         // knowledge, this is currently (2023-01-25) not the case but if this ever changes, then we are prepared.
+        let permit_span = span.child("acquire_permit");
         let permit = df_semaphore
             .acquire_many(permits, None)
             .await
             .expect("semaphore not closed");
+        drop(permit_span);
+
         info!(
             partition_id = partition_info.partition_id.get(),
             column_count = partition_info.column_count(),
@@ -473,6 +508,7 @@ async fn execute_plan(
             "job semaphore acquired",
         );
 
+        let df_span = span.child("data_fusion");
         let plan = components
             .df_planner
             .plan(&plan_ir, Arc::clone(partition_info))
@@ -489,6 +525,7 @@ async fn execute_plan(
         let res = job.await;
 
         drop(permit);
+        drop(df_span);
         info!(
             partition_id = partition_info.partition_id.get(),
             plan_id, "job semaphore released",
@@ -496,6 +533,16 @@ async fn execute_plan(
 
         res?
     };
+
+    span.set_metadata("output_files", create.len().to_string());
+    span.set_metadata(
+        "output_bytes",
+        create
+            .iter()
+            .map(|f| f.file_size_bytes as usize)
+            .sum::<usize>()
+            .to_string(),
+    );
 
     Ok(create)
 }

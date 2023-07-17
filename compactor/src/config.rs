@@ -22,6 +22,9 @@ pub struct Config {
     /// Metric registry.
     pub metric_registry: Arc<metric::Registry>,
 
+    /// trace collector
+    pub trace_collector: Option<Arc<dyn trace::TraceCollector>>,
+
     /// Central catalog.
     pub catalog: Arc<dyn Catalog>,
 

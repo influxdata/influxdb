@@ -187,6 +187,7 @@ impl TestConfig {
                 "custom-trace-header",
             )
             .with_client_header("custom-trace-header", "4:3:2:1")
+            .with_env("INFLUXDB_IOX_COMPACTION_PARTITION_TRACE", "all")
     }
 
     /// Configure a custom debug name for tracing

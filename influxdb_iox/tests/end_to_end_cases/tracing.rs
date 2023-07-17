@@ -194,3 +194,55 @@ pub async fn test_tracing_create_ingester_query_trace() {
     // wait for the UDP server to shutdown
     udp_capture.stop().await;
 }
+
+#[tokio::test]
+async fn test_tracing_create_compactor_trace() {
+    test_helpers::maybe_start_logging();
+    let database_url = maybe_skip_integration!();
+
+    let ingester_config = TestConfig::new_ingester(&database_url);
+    let router_config = TestConfig::new_router(&ingester_config);
+    let querier_config = TestConfig::new_querier(&ingester_config).with_querier_mem_pool_bytes(1);
+    let udp_capture = UdpCapture::new().await;
+    let compactor_config = TestConfig::new_compactor(&ingester_config).with_tracing(&udp_capture);
+
+    let mut cluster = MiniCluster::new()
+        .with_router(router_config)
+        .await
+        .with_ingester(ingester_config)
+        .await
+        .with_querier(querier_config)
+        .await
+        .with_compactor_config(compactor_config);
+
+    StepTest::new(
+        &mut cluster,
+        vec![
+            Step::RecordNumParquetFiles,
+            Step::WriteLineProtocol(String::from(
+                "my_awesome_table,tag1=A,tag2=B val=42i 123456",
+            )),
+            // wait for partitions to be persisted
+            Step::WaitForPersisted {
+                expected_increase: 1,
+            },
+            // Run the compactor
+            Step::Compact,
+        ],
+    )
+    .run()
+    .await;
+
+    // "shallow" packet inspection and verify the UDP server got omething that had some expected
+    // results.  We could look for any text of any of the compaction spans.  The name of the span
+    // for data fusion execution is arbitrarily chosen.
+    udp_capture
+        .wait_for(|m| m.to_string().contains("data_fusion"))
+        .await;
+
+    // debugging assistance
+    //println!("Traces received (1):\n\n{:#?}", udp_capture.messages());
+
+    // wait for the UDP server to shutdown
+    udp_capture.stop().await;
+}
