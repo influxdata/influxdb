@@ -85,7 +85,7 @@ parking_lot = "0.12.1"
 [dev-dependencies]
 # In alphabetical order
 arrow_util = { path = "../arrow_util" }
-assert_cmd = "2.0.11"
+assert_cmd = "2.0.12"
 assert_matches = "1.5"
 async-trait = "0.1"
 mutable_batch = { path = "../mutable_batch" }
