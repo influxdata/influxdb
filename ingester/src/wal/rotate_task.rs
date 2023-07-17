@@ -4,12 +4,15 @@ use std::{sync::Arc, time::Duration};
 use crate::{
     partition_iter::PartitionIter,
     persist::{drain_buffer::persist_partitions, queue::PersistQueue},
+    wal::reference_tracker::WalReferenceHandle,
 };
 
-/// Rotate the `wal` segment file every `period` duration of time.
+/// Rotate the `wal` segment file every `period` duration of time, notifying
+/// the [`WalReferenceHandle`].
 pub(crate) async fn periodic_rotation<T, P>(
     wal: Arc<wal::Wal>,
     period: Duration,
+    wal_reference_handle: WalReferenceHandle,
     buffer: T,
     persist: P,
 ) where
@@ -33,51 +36,9 @@ pub(crate) async fn periodic_rotation<T, P>(
             n_ops = ids.len(),
             "rotated wal"
         );
-
-        // TEMPORARY HACK: wait 5 seconds for in-flight writes to the old WAL
-        // segment to complete before draining the partitions.
-        //
-        // This can occur because writes to the WAL & buffer tree are not atomic
-        // (avoiding a serialising mutex in the write path).
-        //
-        // A flawed solution would be to have this code read the current
-        // SequenceNumber after rotation, and then wait until at least that
-        // sequence number has been buffered in the BufferTree. This may work in
-        // most cases, but is racy / not deterministic - writes are not ordered,
-        // so sequence number 5 might be buffered before sequence number 1.
-        //
-        // As a temporary hack, wait 5 seconds for in-flight writes to complete
-        // (which should be more than enough time) before proceeding under the
-        // assumption that they have indeed completed, and all writes from the
-        // previous WAL segment are now buffered. Because they're buffered, the
-        // persist operation performed next will persist all the writes that
-        // were in the previous WAL segment, and therefore at the end of the
-        // persist operation the WAL segment can be dropped.
-        //
-        // The potential downside of this hack is that in the very unlikely
-        // situation that an in-flight write has not completed before the
-        // persist operation starts (after the 5 second sleep) and the WAL entry
-        // for it is dropped - we then reduce the durability of that write until
-        // it is persisted next time, or it is lost after an ingester crash
-        // before the next rotation.
-        //
-        // In the future, a proper fix will be to keep the set of sequence
-        // numbers wrote to each partition buffer, and each WAL segment as a
-        // bitmap, and after persistence submit the partition's bitmap to the
-        // WAL for it to do a set difference to derive the remaining sequence
-        // IDs, and therefore number of references to the WAL segment. Once the
-        // set of remaining IDs is empty (all data is persisted), the segment is
-        // safe to delete. This content-addressed reference counting technique
-        // has the added advantage of working even with parallel / out-of-order
-        // / hot partition persists that span WAL segments, and means there's no
-        // special code path between "hot partition persist" and "wal rotation
-        // persist" - it all works the same way!
-        //
-        //      https://github.com/influxdata/influxdb_iox/issues/6566
-        //
-        // TODO: this properly as described above.
-
-        tokio::time::sleep(Duration::from_secs(5)).await;
+        wal_reference_handle
+            .enqueue_rotated_file(stats.id(), ids)
+            .await;
 
         // Do not block the ticker while partitions are persisted to ensure
         // timely ticking.
@@ -97,7 +58,6 @@ pub(crate) async fn periodic_rotation<T, P>(
         // the right WAL segment regardless of concurrent tasks.
         tokio::spawn({
             let persist = persist.clone();
-            let wal = Arc::clone(&wal);
             let iter = buffer.partition_iter();
             async move {
                 // Drain the BufferTree of partition data and persist each one.
@@ -121,17 +81,6 @@ pub(crate) async fn periodic_rotation<T, P>(
                     closed_id = %stats.id(),
                     "partitions persisted"
                 );
-
-                wal.delete(stats.id())
-                    .await
-                    .expect("failed to drop wal segment");
-
-                info!(
-                    closed_id = %stats.id(),
-                    file_bytes = stats.size(),
-                    n_ops = ids.len(),
-                    "dropped persisted wal segment"
-                );
             }
         });
     }
@@ -143,40 +92,64 @@ mod tests {
 
     use assert_matches::assert_matches;
     use async_trait::async_trait;
-    use data_types::SequenceNumber;
-    use mutable_batch_lp::test_helpers::lp_to_mutable_batch;
     use parking_lot::Mutex;
     use tempfile::tempdir;
     use test_helpers::timeout::FutureTimeout;
     use tokio::sync::oneshot;
+    use wal::WriteResult;
 
     use super::*;
     use crate::{
-        buffer_tree::{partition::persisting::PersistingData, partition::PartitionData},
+        buffer_tree::partition::{persisting::PersistingData, PartitionData},
+        dml_payload::IngestOp,
         persist::queue::mock::MockPersistQueue,
-        test_util::{PartitionDataBuilder, ARBITRARY_PARTITION_ID},
+        test_util::{
+            make_write_op, new_persist_notification, PartitionDataBuilder, ARBITRARY_NAMESPACE_ID,
+            ARBITRARY_PARTITION_ID, ARBITRARY_PARTITION_KEY, ARBITRARY_TABLE_ID,
+            ARBITRARY_TABLE_NAME,
+        },
+        wal::traits::WalAppender,
     };
 
     const TICK_INTERVAL: Duration = Duration::from_millis(10);
 
     #[tokio::test]
-    async fn test_persist() {
+    async fn test_notify_rotate_persist() {
+        let metrics = metric::Registry::default();
+
+        // Create a write operation to stick in the WAL, and create a partition
+        // iter from the data within it to mock out the buffer tree.
+        let write_op = make_write_op(
+            &ARBITRARY_PARTITION_KEY,
+            ARBITRARY_NAMESPACE_ID,
+            &ARBITRARY_TABLE_NAME,
+            ARBITRARY_TABLE_ID,
+            1,
+            &format!(
+                r#"{},city=London people=2,pigeons="millions" 10"#,
+                &*ARBITRARY_TABLE_NAME
+            ),
+            None,
+        );
+
         let mut p = PartitionDataBuilder::new().build();
-
-        // Perform a single write to populate the partition.
-        let mb = lp_to_mutable_batch(r#"bananas,city=London people=2,pigeons="millions" 10"#).1;
-        p.buffer_write(mb, SequenceNumber::new(1))
+        for (_, table_data) in write_op.tables() {
+            let partitioned_data = table_data.partitioned_data();
+            p.buffer_write(
+                partitioned_data.data().clone(),
+                partitioned_data.sequence_number(),
+            )
             .expect("write should succeed");
-
+        }
         // Wrap the partition in the lock.
         assert_eq!(p.completed_persistence_count(), 0);
         let p = Arc::new(Mutex::new(p));
 
         // Initialise a mock persist queue to inspect the calls made to the
         // persist subsystem.
-        let persist = Arc::new(MockPersistQueue::default());
+        let persist_handle = Arc::new(MockPersistQueue::default());
 
-        // Initialise the WAL
+        // Initialise the WAL, write the operation to it
         let tmp_dir = tempdir().expect("no temp dir available");
         let wal = wal::Wal::new(tmp_dir.path())
             .await
@@ -184,12 +157,33 @@ mod tests {
 
         assert_eq!(wal.closed_segments().len(), 0);
 
+        let mut write_result = wal.append(&IngestOp::Write(write_op));
+
+        write_result
+            .changed()
+            .await
+            .expect("should be able to get WAL write result");
+
+        assert_matches!(
+            write_result
+                .borrow()
+                .as_ref()
+                .expect("WAL should always return result"),
+            WriteResult::Ok(_),
+            "test write should succeed"
+        );
+
+        let (wal_reference_handle, wal_reference_actor) =
+            WalReferenceHandle::new(Arc::clone(&wal), &metrics);
+        tokio::spawn(wal_reference_actor.run());
+
         // Start the rotation task
-        let handle = tokio::spawn(periodic_rotation(
+        let rotate_task_handle = tokio::spawn(periodic_rotation(
             Arc::clone(&wal),
             TICK_INTERVAL,
+            wal_reference_handle.clone(),
             vec![Arc::clone(&p)],
-            Arc::clone(&persist),
+            Arc::clone(&persist_handle),
         ));
 
         tokio::time::pause();
@@ -209,39 +203,37 @@ mod tests {
         .await;
 
         // There should be exactly 1 segment.
-        let mut segment = wal.closed_segments();
-        assert_eq!(segment.len(), 1);
-        let segment = segment.pop().unwrap();
+        let mut segments = wal.closed_segments();
+        assert_eq!(segments.len(), 1);
+        let closed_segment = segments.pop().unwrap();
 
-        // Move past the hacky sleep.
-        tokio::time::pause();
-        tokio::time::advance(Duration::from_secs(10)).await;
-        tokio::time::resume();
+        // Send a persistence notification to allow the actor to delete
+        // the WAL file
+        wal_reference_handle
+            .enqueue_persist_notification(new_persist_notification([1]))
+            .await;
 
-        // Wait for the WAL segment to be deleted, indicating the end of
-        // processing.
+        // Wait for the closed segment to no longer appear in the WAL,
+        // indicating deletion
         async {
             loop {
-                match wal.closed_segments().pop() {
-                    Some(p) if p.id() != segment.id() => {
-                        // Rotation has occurred.
-                        break;
-                    }
-                    // Rotation has not yet occurred.
-                    Some(_) => tokio::task::yield_now().await,
-                    // The old file was deleted and no new one has yet taken its
-                    // place.
-                    None => break,
+                if wal
+                    .closed_segments()
+                    .iter()
+                    .all(|s| s.id() != closed_segment.id())
+                {
+                    break;
                 }
+                tokio::task::yield_now().await;
             }
         }
         .with_timeout_panic(Duration::from_secs(5))
         .await;
 
-        // Stop the worker and assert the state of the persist queue.
-        handle.abort();
+        // Stop the task and assert the state of the persist queue
+        rotate_task_handle.abort();
 
-        assert_matches!(persist.calls().as_slice(), [got] => {
+        assert_matches!(persist_handle.calls().as_slice(), [got] => {
             let guard = got.lock();
             assert_eq!(guard.partition_id(), ARBITRARY_PARTITION_ID);
         })
@@ -277,19 +269,38 @@ mod tests {
 
     #[tokio::test]
     async fn test_persist_ticks_when_blocked() {
+        let metrics = metric::Registry::default();
+
+        // Create a write operation to stick in the WAL, and create a partition
+        // iter from the data within it to mock out the buffer tree.
+        let write_op = make_write_op(
+            &ARBITRARY_PARTITION_KEY,
+            ARBITRARY_NAMESPACE_ID,
+            &ARBITRARY_TABLE_NAME,
+            ARBITRARY_TABLE_ID,
+            1,
+            &format!(
+                r#"{},city=London people=2,pigeons="millions" 10"#,
+                &*ARBITRARY_TABLE_NAME
+            ),
+            None,
+        );
+
         let mut p = PartitionDataBuilder::new().build();
-
-        // Perform a single write to populate the partition.
-        let mb = lp_to_mutable_batch(r#"bananas,city=London people=2,pigeons="millions" 10"#).1;
-        p.buffer_write(mb.clone(), SequenceNumber::new(1))
+        for (_, table_data) in write_op.tables() {
+            let partitioned_data = table_data.partitioned_data();
+            p.buffer_write(
+                partitioned_data.data().clone(),
+                partitioned_data.sequence_number(),
+            )
             .expect("write should succeed");
-
+        }
         // Wrap the partition in the lock.
         assert_eq!(p.completed_persistence_count(), 0);
         let p = Arc::new(Mutex::new(p));
 
         // Initialise a mock persist queue that never completes.
-        let persist = Arc::new(BlockedPersistQueue::default());
+        let persist_handle = Arc::new(BlockedPersistQueue::default());
 
         // Initialise the WAL
         let tmp_dir = tempdir().expect("no temp dir available");
@@ -299,12 +310,33 @@ mod tests {
 
         assert_eq!(wal.closed_segments().len(), 0);
 
+        let mut write_result = wal.append(&IngestOp::Write(write_op.clone()));
+
+        write_result
+            .changed()
+            .await
+            .expect("should be able to get WAL write result");
+
+        assert_matches!(
+            write_result
+                .borrow()
+                .as_ref()
+                .expect("WAL should always return result"),
+            WriteResult::Ok(_),
+            "test write should succeed"
+        );
+
+        let (wal_reference_handle, wal_reference_actor) =
+            WalReferenceHandle::new(Arc::clone(&wal), &metrics);
+        tokio::spawn(wal_reference_actor.run());
+
         // Start the rotation task
-        let handle = tokio::spawn(periodic_rotation(
+        let rotate_task_handle = tokio::spawn(periodic_rotation(
             Arc::clone(&wal),
             TICK_INTERVAL,
+            wal_reference_handle,
             vec![Arc::clone(&p)],
-            Arc::clone(&persist),
+            Arc::clone(&persist_handle),
         ));
 
         tokio::time::pause();
@@ -355,24 +387,25 @@ mod tests {
         .await;
 
         // Pause the ticker loop and buffer another write in the partition.
-        p.lock()
-            .buffer_write(mb, SequenceNumber::new(2))
-            .expect("write should succeed");
+        for (i, (_, table_data)) in write_op.tables().enumerate() {
+            let partitioned_data = table_data.partitioned_data();
+            p.lock()
+                .buffer_write(
+                    partitioned_data.data().clone(),
+                    partitioned_data.sequence_number() + i as u64 + 1,
+                )
+                .expect("write should succeed");
+        }
 
         // Cause another tick to occur, driving the loop again.
         tokio::time::pause();
         tokio::time::advance(TICK_INTERVAL).await;
         tokio::time::resume();
 
-        // Move past the sleep.
-        tokio::time::pause();
-        tokio::time::advance(Duration::from_secs(10)).await;
-        tokio::time::resume();
-
         // Wait the second tick to complete.
         async {
             loop {
-                if persist.calls.lock().len() == 2 {
+                if persist_handle.calls.lock().len() == 2 {
                     break;
                 }
                 tokio::task::yield_now().await;
@@ -382,9 +415,9 @@ mod tests {
         .await;
 
         // Stop the worker and assert the state of the persist queue.
-        handle.abort();
+        rotate_task_handle.abort();
 
-        let calls = persist.calls.lock().clone();
+        let calls = persist_handle.calls.lock().clone();
         assert_matches!(calls.as_slice(), [got1, got2] => {
             assert!(Arc::ptr_eq(got1, got2));
         })

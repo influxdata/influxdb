@@ -457,7 +457,7 @@ mod tests {
             )
             .unwrap(),
         );
-        let opt = ProjectionPushdown::default();
+        let opt = ProjectionPushdown;
         let test = OptimizationTest::new(plan, opt);
         insta::assert_yaml_snapshot!(
             test,
@@ -496,7 +496,7 @@ mod tests {
             )
             .unwrap(),
         );
-        let opt = ProjectionPushdown::default();
+        let opt = ProjectionPushdown;
         let test = OptimizationTest::new(plan, opt);
         insta::assert_yaml_snapshot!(
             test,
@@ -535,7 +535,7 @@ mod tests {
             )
             .unwrap(),
         );
-        let opt = ProjectionPushdown::default();
+        let opt = ProjectionPushdown;
         insta::assert_yaml_snapshot!(
             OptimizationTest::new(plan, opt),
             @r###"
@@ -564,7 +564,7 @@ mod tests {
             )
             .unwrap(),
         );
-        let opt = ProjectionPushdown::default();
+        let opt = ProjectionPushdown;
         insta::assert_yaml_snapshot!(
             OptimizationTest::new(plan, opt),
             @r###"
@@ -593,7 +593,7 @@ mod tests {
             )
             .unwrap(),
         );
-        let opt = ProjectionPushdown::default();
+        let opt = ProjectionPushdown;
         insta::assert_yaml_snapshot!(
             OptimizationTest::new(plan, opt),
             @r###"
@@ -619,7 +619,7 @@ mod tests {
             )
             .unwrap(),
         );
-        let opt = ProjectionPushdown::default();
+        let opt = ProjectionPushdown;
         insta::assert_yaml_snapshot!(
             OptimizationTest::new(plan, opt),
             @r###"
@@ -648,7 +648,7 @@ mod tests {
             )
             .unwrap(),
         );
-        let opt = ProjectionPushdown::default();
+        let opt = ProjectionPushdown;
         insta::assert_yaml_snapshot!(
             OptimizationTest::new(plan, opt),
             @r###"
@@ -685,7 +685,7 @@ mod tests {
             )
             .unwrap(),
         );
-        let opt = ProjectionPushdown::default();
+        let opt = ProjectionPushdown;
         insta::assert_yaml_snapshot!(
             OptimizationTest::new(plan, opt),
             @r###"
@@ -756,7 +756,7 @@ mod tests {
             )
             .unwrap(),
         );
-        let opt = ProjectionPushdown::default();
+        let opt = ProjectionPushdown;
         let test = OptimizationTest::new(plan, opt);
         insta::assert_yaml_snapshot!(
             test,
@@ -800,7 +800,7 @@ mod tests {
             )
             .unwrap(),
         );
-        let opt = ProjectionPushdown::default();
+        let opt = ProjectionPushdown;
         insta::assert_yaml_snapshot!(
             OptimizationTest::new(plan, opt),
             @r###"
@@ -833,7 +833,7 @@ mod tests {
             )
             .unwrap(),
         );
-        let opt = ProjectionPushdown::default();
+        let opt = ProjectionPushdown;
         insta::assert_yaml_snapshot!(
             OptimizationTest::new(plan, opt),
             @r###"
@@ -867,7 +867,7 @@ mod tests {
             )
             .unwrap(),
         );
-        let opt = ProjectionPushdown::default();
+        let opt = ProjectionPushdown;
         insta::assert_yaml_snapshot!(
             OptimizationTest::new(plan, opt),
             @r###"
@@ -899,7 +899,7 @@ mod tests {
             )
             .unwrap(),
         );
-        let opt = ProjectionPushdown::default();
+        let opt = ProjectionPushdown;
         insta::assert_yaml_snapshot!(
             OptimizationTest::new(plan, opt),
             @r###"
@@ -939,7 +939,7 @@ mod tests {
             )
             .unwrap(),
         );
-        let opt = ProjectionPushdown::default();
+        let opt = ProjectionPushdown;
         insta::assert_yaml_snapshot!(
             OptimizationTest::new(plan, opt),
             @r###"
@@ -980,7 +980,7 @@ mod tests {
             )
             .unwrap(),
         );
-        let opt = ProjectionPushdown::default();
+        let opt = ProjectionPushdown;
         insta::assert_yaml_snapshot!(
             OptimizationTest::new(plan, opt),
             @r###"
@@ -1025,7 +1025,7 @@ mod tests {
 
         assert_unknown_partitioning(plan.output_partitioning(), 2);
 
-        let opt = ProjectionPushdown::default();
+        let opt = ProjectionPushdown;
         let test = OptimizationTest::new(plan, opt);
         insta::assert_yaml_snapshot!(
             test,
@@ -1067,7 +1067,7 @@ mod tests {
             )
             .unwrap(),
         );
-        let opt = ProjectionPushdown::default();
+        let opt = ProjectionPushdown;
         insta::assert_yaml_snapshot!(
             OptimizationTest::new(plan, opt),
             @r###"
@@ -1113,7 +1113,7 @@ mod tests {
             )
             .unwrap(),
         );
-        let opt = ProjectionPushdown::default();
+        let opt = ProjectionPushdown;
         insta::assert_yaml_snapshot!(
             OptimizationTest::new(plan, opt),
             @r###"
@@ -1151,7 +1151,7 @@ mod tests {
             )
             .unwrap(),
         );
-        let opt = ProjectionPushdown::default();
+        let opt = ProjectionPushdown;
         let test = OptimizationTest::new(plan, opt);
         insta::assert_yaml_snapshot!(
             test,
@@ -1197,7 +1197,7 @@ mod tests {
             )
             .unwrap(),
         );
-        let opt = ProjectionPushdown::default();
+        let opt = ProjectionPushdown;
         insta::assert_yaml_snapshot!(
             OptimizationTest::new(plan, opt),
             @r###"
@@ -1253,7 +1253,7 @@ mod tests {
             )
             .unwrap(),
         );
-        let opt = ProjectionPushdown::default();
+        let opt = ProjectionPushdown;
         insta::assert_yaml_snapshot!(
             OptimizationTest::new(plan, opt),
             @r###"
@@ -1289,7 +1289,7 @@ mod tests {
             )
             .unwrap(),
         );
-        let opt = ProjectionPushdown::default();
+        let opt = ProjectionPushdown;
         let test = OptimizationTest::new(plan, opt);
         insta::assert_yaml_snapshot!(
             test,
@@ -1359,7 +1359,7 @@ mod tests {
             )
             .unwrap(),
         );
-        let opt = ProjectionPushdown::default();
+        let opt = ProjectionPushdown;
         insta::assert_yaml_snapshot!(
             OptimizationTest::new(plan, opt),
             @r###"

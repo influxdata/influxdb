@@ -76,8 +76,8 @@ where
     /// Create new provider with the given TTL value.
     pub fn new(ttl: Option<Duration>) -> Self {
         Self {
-            _k: PhantomData::default(),
-            _v: PhantomData::default(),
+            _k: PhantomData,
+            _v: PhantomData,
             ttl,
         }
     }
@@ -122,8 +122,8 @@ where
     /// Create new provider with the given TTL values for `None` and `Some(...)`.
     pub fn new(ttl_none: Option<Duration>, ttl_some: Option<Duration>) -> Self {
         Self {
-            _k: PhantomData::default(),
-            _v: PhantomData::default(),
+            _k: PhantomData,
+            _v: PhantomData,
             ttl_none,
             ttl_some,
         }

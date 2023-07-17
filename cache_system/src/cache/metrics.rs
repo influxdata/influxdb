@@ -251,9 +251,12 @@ mod tests {
     use tokio::sync::Barrier;
     use trace::{span::SpanStatus, RingBufferTraceCollector};
 
-    use crate::cache::{
-        driver::CacheDriver,
-        test_util::{run_test_generic, AbortAndWaitExt, EnsurePendingExt, TestAdapter, TestLoader},
+    use crate::{
+        cache::{
+            driver::CacheDriver,
+            test_util::{run_test_generic, AbortAndWaitExt, EnsurePendingExt, TestAdapter},
+        },
+        loader::test_util::TestLoader,
     };
 
     use super::*;
@@ -298,7 +301,7 @@ mod tests {
             assert_eq!(hist.total, Duration::from_secs(0));
         }
 
-        test_cache.loader.block();
+        test_cache.loader.block_global();
 
         let barrier_pending_1 = Arc::new(Barrier::new(2));
         let barrier_pending_1_captured = Arc::clone(&barrier_pending_1);
@@ -348,12 +351,13 @@ mod tests {
         barrier_pending_2.wait().await;
         let d2 = Duration::from_secs(3);
         test_cache.time_provider.inc(d2);
-        test_cache.loader.unblock();
+        test_cache.loader.mock_next(1, "v".into());
+        test_cache.loader.unblock_global();
 
         join_handle_1.await.unwrap();
         join_handle_2.await.unwrap();
 
-        test_cache.loader.block();
+        test_cache.loader.block_global();
         test_cache.time_provider.inc(Duration::from_secs(10));
         let n_hit = 100;
         for _ in 0..n_hit {
@@ -443,7 +447,7 @@ mod tests {
             assert_eq!(hist.total, Duration::from_secs(0));
         }
 
-        test_cache.loader.block();
+        test_cache.loader.block_global();
 
         test_cache
             .cache
@@ -491,12 +495,13 @@ mod tests {
         barrier_pending_2.wait().await;
         let d2 = Duration::from_secs(3);
         test_cache.time_provider.inc(d2);
-        test_cache.loader.unblock();
+        test_cache.loader.mock_next(1, "v".into());
+        test_cache.loader.unblock_global();
 
         join_handle_1.await.unwrap();
         join_handle_2.await.unwrap();
 
-        test_cache.loader.block();
+        test_cache.loader.block_global();
         test_cache.time_provider.inc(Duration::from_secs(10));
         let n_hit = 100;
         for _ in 0..n_hit {

@@ -56,7 +56,7 @@ where
         let policy_constructor = move |callback_handle| {
             *handle_captured.callback_handle.lock() = Some(callback_handle);
             Self {
-                _phantom: PhantomData::default(),
+                _phantom: PhantomData,
             }
         };
 

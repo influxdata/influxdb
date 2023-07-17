@@ -293,7 +293,7 @@ pub fn compute_timenanosecond_min_max_for_one_record_batch(
 pub fn create_basic_summary(
     row_count: u64,
     schema: &Schema,
-    ts_min_max: TimestampMinMax,
+    ts_min_max: Option<TimestampMinMax>,
 ) -> Statistics {
     let mut columns = Vec::with_capacity(schema.len());
 
@@ -301,8 +301,14 @@ pub fn create_basic_summary(
         let stats = match t {
             InfluxColumnType::Timestamp => ColumnStatistics {
                 null_count: Some(0),
-                max_value: Some(ScalarValue::TimestampNanosecond(Some(ts_min_max.max), None)),
-                min_value: Some(ScalarValue::TimestampNanosecond(Some(ts_min_max.min), None)),
+                max_value: Some(ScalarValue::TimestampNanosecond(
+                    ts_min_max.map(|v| v.max),
+                    None,
+                )),
+                min_value: Some(ScalarValue::TimestampNanosecond(
+                    ts_min_max.map(|v| v.min),
+                    None,
+                )),
                 distinct_count: None,
             },
             _ => ColumnStatistics::default(),
@@ -445,9 +451,8 @@ mod tests {
     fn test_create_basic_summary_no_columns_no_rows() {
         let schema = SchemaBuilder::new().build().unwrap();
         let row_count = 0;
-        let ts_min_max = TimestampMinMax { min: 10, max: 20 };
 
-        let actual = create_basic_summary(row_count, &schema, ts_min_max);
+        let actual = create_basic_summary(row_count, &schema, None);
         let expected = Statistics {
             num_rows: Some(row_count as usize),
             total_byte_size: None,
@@ -463,7 +468,7 @@ mod tests {
         let row_count = 0;
         let ts_min_max = TimestampMinMax { min: 10, max: 20 };
 
-        let actual = create_basic_summary(row_count, &schema, ts_min_max);
+        let actual = create_basic_summary(row_count, &schema, Some(ts_min_max));
         let expected = Statistics {
             num_rows: Some(0),
             total_byte_size: None,
@@ -492,7 +497,7 @@ mod tests {
         let row_count = 3;
         let ts_min_max = TimestampMinMax { min: 42, max: 42 };
 
-        let actual = create_basic_summary(row_count, &schema, ts_min_max);
+        let actual = create_basic_summary(row_count, &schema, Some(ts_min_max));
         let expected = Statistics {
             num_rows: Some(3),
             total_byte_size: None,

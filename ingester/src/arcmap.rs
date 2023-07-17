@@ -148,7 +148,7 @@ where
     ///
     /// This method panics if a value already exists for `key`.
     pub(crate) fn insert(&self, key: K, value: Arc<V>) {
-        let hash = self.compute_hash(key.borrow());
+        let hash = self.compute_hash(&key);
 
         match self
             .map

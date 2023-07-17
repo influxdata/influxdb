@@ -95,8 +95,8 @@ where
         backoff_cfg_some: Option<BackoffConfig>,
     ) -> Self {
         Self {
-            _k: PhantomData::default(),
-            _v: PhantomData::default(),
+            _k: PhantomData,
+            _v: PhantomData,
             backoff_cfg_none,
             backoff_cfg_some,
         }
@@ -525,9 +525,6 @@ pub mod test_util {
 
     use std::{collections::HashMap, time::Duration};
 
-    use async_trait::async_trait;
-    use tokio::sync::Barrier;
-
     use super::*;
 
     /// Easy-to-control [`RefreshDurationProvider`].
@@ -561,81 +558,6 @@ pub mod test_util {
                 .get(&(*k, v.clone()))
                 .unwrap_or_else(|| panic!("refresh time not mocked: K={k}, V={v}"))
                 .clone()
-        }
-    }
-
-    #[derive(Debug)]
-    struct TestLoaderResponse {
-        v: String,
-        block: Option<Arc<Barrier>>,
-    }
-
-    /// An easy-to-mock [`Loader`].
-    #[derive(Debug, Default)]
-    pub struct TestLoader {
-        data: Mutex<HashMap<u8, Vec<TestLoaderResponse>>>,
-    }
-
-    impl TestLoader {
-        /// Mock next value for given key-value pair.
-        pub fn mock_next(&self, k: u8, v: String) {
-            self.mock_inner(k, TestLoaderResponse { v, block: None });
-        }
-
-        /// Block on next load for given key-value pair.
-        ///
-        /// Return a barrier that can be used to unblock the load.
-        #[must_use]
-        pub fn block_next(&self, k: u8, v: String) -> Arc<Barrier> {
-            let block = Arc::new(Barrier::new(2));
-            self.mock_inner(
-                k,
-                TestLoaderResponse {
-                    v,
-                    block: Some(Arc::clone(&block)),
-                },
-            );
-            block
-        }
-
-        fn mock_inner(&self, k: u8, response: TestLoaderResponse) {
-            let mut data = self.data.lock();
-            data.entry(k).or_default().push(response);
-        }
-    }
-
-    impl Drop for TestLoader {
-        fn drop(&mut self) {
-            // prevent double-panic (i.e. aborts)
-            if !std::thread::panicking() {
-                for entries in self.data.lock().values() {
-                    assert!(entries.is_empty(), "mocked response left");
-                }
-            }
-        }
-    }
-
-    #[async_trait]
-    impl Loader for TestLoader {
-        type K = u8;
-        type V = String;
-        type Extra = ();
-
-        async fn load(&self, k: Self::K, _extra: Self::Extra) -> Self::V {
-            let TestLoaderResponse { v, block } = {
-                let mut guard = self.data.lock();
-                let entries = guard.get_mut(&k).expect("entry not mocked");
-
-                assert!(!entries.is_empty(), "no mocked response left");
-
-                entries.remove(0)
-            };
-
-            if let Some(block) = block {
-                block.wait().await;
-            }
-
-            v
         }
     }
 
@@ -712,83 +634,6 @@ pub mod test_util {
             provider.set_refresh_in(1, String::from("a"), Some(cfg3.clone()));
             assert_eq!(provider.refresh_in(&1, &String::from("a")), Some(cfg3),);
         }
-
-        #[tokio::test]
-        #[should_panic(expected = "entry not mocked")]
-        async fn test_loader_panic_entry_unknown() {
-            let loader = TestLoader::default();
-            loader.load(1, ()).await;
-        }
-
-        #[tokio::test]
-        #[should_panic(expected = "no mocked response left")]
-        async fn test_loader_panic_no_mocked_reponse_left() {
-            let loader = TestLoader::default();
-            loader.mock_next(1, String::from("foo"));
-            loader.load(1, ()).await;
-            loader.load(1, ()).await;
-        }
-
-        #[test]
-        #[should_panic(expected = "mocked response left")]
-        fn test_loader_panic_requests_left() {
-            let loader = TestLoader::default();
-            loader.mock_next(1, String::from("foo"));
-        }
-
-        #[test]
-        #[should_panic(expected = "panic-by-choice")]
-        fn test_loader_no_double_panic() {
-            let loader = TestLoader::default();
-            loader.mock_next(1, String::from("foo"));
-            panic!("panic-by-choice");
-        }
-
-        #[tokio::test]
-        async fn test_loader_nonblocking_mock() {
-            let loader = TestLoader::default();
-
-            loader.mock_next(1, String::from("foo"));
-            loader.mock_next(1, String::from("bar"));
-            loader.mock_next(2, String::from("baz"));
-
-            assert_eq!(loader.load(1, ()).await, String::from("foo"));
-            assert_eq!(loader.load(2, ()).await, String::from("baz"));
-            assert_eq!(loader.load(1, ()).await, String::from("bar"));
-        }
-
-        #[tokio::test]
-        async fn test_loader_blocking_mock() {
-            let loader = Arc::new(TestLoader::default());
-
-            let loader_barrier = loader.block_next(1, String::from("foo"));
-            loader.mock_next(2, String::from("bar"));
-
-            let is_blocked_barrier = Arc::new(Barrier::new(2));
-
-            let loader_captured = Arc::clone(&loader);
-            let is_blocked_barrier_captured = Arc::clone(&is_blocked_barrier);
-            let handle = tokio::task::spawn(async move {
-                let mut fut_load = loader_captured.load(1, ()).fuse();
-
-                futures::select_biased! {
-                    _ = fut_load => {
-                        panic!("should not finish");
-                    }
-                    _ = is_blocked_barrier_captured.wait().fuse() => {}
-                }
-                fut_load.await
-            });
-
-            is_blocked_barrier.wait().await;
-
-            // can still load other entries
-            assert_eq!(loader.load(2, ()).await, String::from("bar"));
-
-            // unblock load
-            loader_barrier.wait().await;
-            assert_eq!(handle.await.unwrap(), String::from("foo"));
-        }
     }
 }
 
@@ -800,18 +645,18 @@ mod tests {
     use metric::{Observation, RawReporter};
     use rand::rngs::mock::StepRng;
 
-    use crate::backend::{
-        policy::{
-            refresh::test_util::{backoff_cfg, NotifyExt},
-            PolicyBackend,
+    use crate::{
+        backend::{
+            policy::{
+                refresh::test_util::{backoff_cfg, NotifyExt},
+                PolicyBackend,
+            },
+            CacheBackend,
         },
-        CacheBackend,
+        loader::test_util::TestLoader,
     };
 
-    use super::{
-        test_util::{TestLoader, TestRefreshDurationProvider},
-        *,
-    };
+    use super::{test_util::TestRefreshDurationProvider, *};
 
     #[test]
     fn test_time_or_never_ord() {
@@ -1118,7 +963,7 @@ mod tests {
         metric_registry: metric::Registry,
         refresh_duration_provider: Arc<TestRefreshDurationProvider>,
         time_provider: Arc<MockProvider>,
-        loader: Arc<TestLoader>,
+        loader: Arc<TestLoader<u8, String, ()>>,
         notify_idle: Arc<Notify>,
     }
 

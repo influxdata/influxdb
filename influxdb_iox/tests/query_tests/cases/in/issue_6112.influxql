@@ -652,3 +652,6 @@ SELECT bytes_free / bytes_used AS result FROM disk;
 
 -- Aggregate query
 SELECT SUM(bytes_free) / SUM(bytes_used) AS result FROM disk WHERE time >= '2022-10-31T02:00:00Z' AND time <= '2022-10-31T02:00:10Z' GROUP BY time(5s) FILL(null);
+
+-- Unsupported: host is a field in one subquery and a tag in the other
+SELECT count(host) FROM (SELECT usage_idle AS host FROM cpu), (SELECT host, usage_idle FROM cpu);

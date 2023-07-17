@@ -270,7 +270,7 @@ where
 
         // Gather the partition data from all of the partitions in this table.
         let span = SpanRecorder::new(span);
-        let partitions = self.partitions().into_iter().map(move |p| {
+        let partitions = self.partitions().into_iter().filter_map(move |p| {
             let mut span = span.child("partition read");
 
             let (id, hash_id, completed_persistence_count, data, partition_key) = {
@@ -303,15 +303,24 @@ where
                         })
                         .unwrap_or_default()
                     {
-                        return PartitionResponse::new(
-                            vec![],
-                            id,
-                            hash_id,
-                            completed_persistence_count,
-                        );
+                        // This partition will never contain any data that would
+                        // form part of the query response.
+                        //
+                        // Because this is true of buffered data, it is also
+                        // true of the persisted data, and therefore sending the
+                        // persisted file count metadata is useless because the
+                        // querier would never utilise the persisted files as
+                        // part of this query.
+                        //
+                        // This avoids sending O(n) metadata frames for queries
+                        // that may only touch one or two actual frames. The N
+                        // partition count grows over the lifetime of the
+                        // ingester as more partitions are created, and while
+                        // fast to serialise individually, the sequentially-sent
+                        // N metadata frames add up.
+                        return None;
                     }
 
-                    // Project the data if necessary
                     PartitionResponse::new(
                         data.into_record_batches(),
                         id,
@@ -323,7 +332,7 @@ where
             };
 
             span.ok("read partition data");
-            ret
+            Some(ret)
         });
 
         Ok(PartitionStream::new(futures::stream::iter(partitions)))

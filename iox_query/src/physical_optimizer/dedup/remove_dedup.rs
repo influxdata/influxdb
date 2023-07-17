@@ -73,7 +73,7 @@ mod tests {
     fn test_no_chunks() {
         let schema = chunk(1).schema().clone();
         let plan = dedup_plan(schema, vec![]);
-        let opt = RemoveDedup::default();
+        let opt = RemoveDedup;
         insta::assert_yaml_snapshot!(
             OptimizationTest::new(plan, opt),
             @r###"
@@ -93,7 +93,7 @@ mod tests {
         let chunk1 = chunk(1).with_may_contain_pk_duplicates(false);
         let schema = chunk1.schema().clone();
         let plan = dedup_plan(schema, vec![chunk1]);
-        let opt = RemoveDedup::default();
+        let opt = RemoveDedup;
         insta::assert_yaml_snapshot!(
             OptimizationTest::new(plan, opt),
             @r###"
@@ -115,7 +115,7 @@ mod tests {
         let chunk1 = chunk(1).with_may_contain_pk_duplicates(true);
         let schema = chunk1.schema().clone();
         let plan = dedup_plan(schema, vec![chunk1]);
-        let opt = RemoveDedup::default();
+        let opt = RemoveDedup;
         insta::assert_yaml_snapshot!(
             OptimizationTest::new(plan, opt),
             @r###"
@@ -139,7 +139,7 @@ mod tests {
         let chunk2 = chunk(2).with_may_contain_pk_duplicates(false);
         let schema = chunk1.schema().clone();
         let plan = dedup_plan(schema, vec![chunk1, chunk2]);
-        let opt = RemoveDedup::default();
+        let opt = RemoveDedup;
         insta::assert_yaml_snapshot!(
             OptimizationTest::new(plan, opt),
             @r###"

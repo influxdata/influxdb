@@ -9,6 +9,10 @@ use mutable_batch_pb::decode::decode_database_batch;
 use observability_deps::tracing::*;
 use thiserror::Error;
 use tonic::{Code, Request, Response};
+use trace::{
+    ctx::SpanContext,
+    span::{SpanExt, SpanRecorder},
+};
 
 use crate::{
     dml_payload::write::{PartitionedData, TableData, WriteOperation},
@@ -132,6 +136,11 @@ where
         &self,
         request: Request<proto::WriteRequest>,
     ) -> Result<Response<proto::WriteResponse>, tonic::Status> {
+        // Extract the span context
+        let span_ctx: Option<SpanContext> = request.extensions().get().cloned();
+        let span = span_ctx.child_span("ingester write");
+        let mut span_recorder = SpanRecorder::new(span);
+
         // Drop writes if the persistence is saturated or the ingester is
         // shutting down.
         //
@@ -157,8 +166,6 @@ where
             .remote_addr()
             .map(|v| v.to_string())
             .unwrap_or_else(|| "<unknown>".to_string());
-
-        // Extract the write payload
         let payload = request.into_inner().payload.ok_or(RpcError::NoPayload)?;
 
         let batches = decode_database_batch(&payload).map_err(RpcError::Decode)?;
@@ -199,23 +206,21 @@ where
                 })
                 .collect(),
             partition_key,
-            // TODO:
-            // The tracing context should be propagated over the RPC boundary.
-            //
-            // See https://github.com/influxdata/influxdb_iox/issues/6177
-            None,
+            span_recorder.span().map(|span| span.ctx.clone()),
         );
 
-        // Apply the IngestOp to the in-memory buffer.
+        // Apply the IngestOp to the DML sink.
         match self.sink.apply(IngestOp::Write(op)).await {
-            Ok(()) => {}
+            Ok(()) => {
+                span_recorder.ok("applied write");
+                Ok(Response::new(proto::WriteResponse {}))
+            }
             Err(e) => {
                 error!(error=%e, "failed to apply ingest operation");
-                return Err(e.into())?;
+                span_recorder.error(e.to_string());
+                Err(e.into())?
             }
         }
-
-        Ok(Response::new(proto::WriteResponse {}))
     }
 }
 
@@ -228,6 +233,7 @@ mod tests {
         Column, DatabaseBatch, TableBatch,
     };
     use std::{collections::HashSet, sync::Arc};
+    use trace::RingBufferTraceCollector;
 
     use super::*;
     use crate::{
@@ -608,5 +614,67 @@ mod tests {
 
         // One write should have been passed through to the DML sinks.
         assert_matches!(*mock.get_calls(), [IngestOp::Write(_)]);
+    }
+
+    /// Assert that the ingester propagates the SpanContext from the client
+    /// request.
+    #[tokio::test]
+    async fn test_rpc_write_span_propagation() {
+        let mock = Arc::new(MockDmlSink::default().with_apply_return(vec![Ok(())]));
+        let timestamp = Arc::new(TimestampOracle::new(0));
+
+        let ingest_state = Arc::new(IngestState::default());
+
+        let handler = RpcWrite::new(Arc::clone(&mock), timestamp, Arc::clone(&ingest_state));
+
+        let mut req = Request::new(proto::WriteRequest {
+            payload: Some(DatabaseBatch {
+                database_id: ARBITRARY_NAMESPACE_ID.get(),
+                partition_key: ARBITRARY_PARTITION_KEY.to_string(),
+                table_batches: vec![TableBatch {
+                    table_id: ARBITRARY_TABLE_ID.get(),
+                    columns: vec![Column {
+                        column_name: "time".to_string(),
+                        semantic_type: SemanticType::Time.into(),
+                        values: Some(Values {
+                            i64_values: vec![4242],
+                            f64_values: vec![],
+                            u64_values: vec![],
+                            string_values: vec![],
+                            bool_values: vec![],
+                            bytes_values: vec![],
+                            packed_string_values: None,
+                            interned_string_values: None,
+                        }),
+                        null_mask: vec![0],
+                    }],
+                    row_count: 1,
+                }],
+            }),
+        });
+
+        // Initialise a trace context to bundle into the request.
+        let trace_collector = Arc::new(RingBufferTraceCollector::new(5));
+        let span_ctx = SpanContext::new(Arc::new(Arc::clone(&trace_collector)));
+        let external_span = span_ctx.child("external span");
+
+        // Insert the span context into the request extensions
+        req.extensions_mut().insert(external_span.clone().ctx);
+
+        handler.write(req).await.expect("write should succeed");
+
+        // One write should have been passed through to the DML sinks,
+        // containing the same trace ID.
+        assert_matches!(&mock.get_calls()[..], [IngestOp::Write(w)] => {
+            let got_span_ctx = w.clone().span_context().expect("op should contain span context").to_owned();
+            assert_eq!(got_span_ctx.trace_id, external_span.ctx.trace_id);
+        });
+
+        // Check the span name and the parent span ID are as expected
+        let spans = trace_collector.spans();
+        assert_matches!(spans.as_slice(), [handler_span] => {
+            assert_eq!(handler_span.name, "ingester write");
+            assert_eq!(handler_span.ctx.parent_span_id, Some(external_span.ctx.span_id));
+        })
     }
 }

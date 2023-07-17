@@ -1,7 +1,9 @@
 //! Main data structure, see [`CacheDriver`].
 
 use crate::{
-    backend::CacheBackend, cancellation_safe_future::CancellationSafeFuture, loader::Loader,
+    backend::CacheBackend,
+    cancellation_safe_future::{CancellationSafeFuture, CancellationSafeFutureReceiver},
+    loader::Loader,
 };
 use async_trait::async_trait;
 use futures::{
@@ -11,10 +13,7 @@ use futures::{
 use observability_deps::tracing::debug;
 use parking_lot::Mutex;
 use std::{collections::HashMap, fmt::Debug, future::Future, sync::Arc};
-use tokio::{
-    sync::oneshot::{error::RecvError, Sender},
-    task::JoinHandle,
-};
+use tokio::sync::oneshot::{error::RecvError, Sender};
 
 use super::{Cache, CacheGetStatus, CachePeekStatus};
 
@@ -70,7 +69,7 @@ where
 
         // need to wrap the query into a `CancellationSafeFuture` so that it doesn't get cancelled when
         // this very request is cancelled
-        let join_handle_receiver = Arc::new(Mutex::new(None));
+        let join_handle_receiver = CancellationSafeFutureReceiver::default();
         let k_captured = k.clone();
         let fut = async move {
             let loader_fut = async move {
@@ -122,14 +121,14 @@ where
             // It's OK if the receiver side is gone. This might happen during shutdown
             tx_main.send(v).ok();
         };
-        let fut = CancellationSafeFuture::new(fut, Arc::clone(&join_handle_receiver));
+        let fut = CancellationSafeFuture::new(fut, join_handle_receiver.clone());
 
         state.running_queries.insert(
             k,
             RunningQuery {
                 recv: receiver.clone(),
                 set: tx_set,
-                join_handle: join_handle_receiver,
+                _join_handle: join_handle_receiver,
                 tag,
             },
         );
@@ -262,16 +261,7 @@ where
     L: Loader<K = B::K, V = B::V>,
 {
     fn drop(&mut self) {
-        for (_k, running_query) in self.state.lock().running_queries.drain() {
-            // It's unlikely that anyone is still using the shared receiver at this point, because
-            // `Cache::get` borrows the `self`. If it is still in use, aborting the task will
-            // cancel the contained future which in turn will drop the sender of the oneshot
-            // channel. The receivers will be notified.
-            let handle = running_query.join_handle.lock();
-            if let Some(handle) = handle.as_ref() {
-                handle.abort();
-            }
-        }
+        for _ in self.state.lock().running_queries.drain() {}
     }
 }
 
@@ -389,7 +379,9 @@ struct RunningQuery<V> {
     /// A handle for the task that is currently executing the query.
     ///
     /// The handle can be used to abort the running query, e.g. when dropping the cache.
-    join_handle: Arc<Mutex<Option<JoinHandle<()>>>>,
+    ///
+    /// This is "dead code" because we only store it to keep the future alive. There's no direct interaction.
+    _join_handle: CancellationSafeFutureReceiver<()>,
 
     /// Tag so that queries for the same key (e.g. when starting, side-loading, starting again) can
     /// be told apart.
@@ -418,7 +410,10 @@ where
 mod tests {
     use std::sync::Arc;
 
-    use crate::cache::test_util::{run_test_generic, TestAdapter, TestLoader};
+    use crate::{
+        cache::test_util::{run_test_generic, TestAdapter},
+        loader::test_util::TestLoader,
+    };
 
     use super::*;
 

@@ -355,6 +355,7 @@ mod tests {
         (
             $name:ident,
             $(table_provider = $table_provider:expr,)? // An optional table provider
+            $(projection = $projection:expr,)?    // An optional OwnedProjection
             partitions = [$($partition:expr), +], // The set of PartitionData for the mock
                                                   // partition provider
             writes = [$($write:expr), *],         // The set of WriteOperation to apply()
@@ -397,12 +398,18 @@ mod tests {
                             .expect("failed to perform write");
                     )*
 
+                    #[allow(unused_variables)]
+                    let projection = OwnedProjection::default();
+                    $(
+                        let projection = $projection;
+                    )?
+
                     // Execute the query against ARBITRARY_NAMESPACE_ID and ARBITRARY_TABLE_ID
                     let batches = buf
                         .query_exec(
                             ARBITRARY_NAMESPACE_ID,
                             ARBITRARY_TABLE_ID,
-                            OwnedProjection::default(),
+                            projection,
                             None,
                             $predicate
                         )
@@ -449,6 +456,66 @@ mod tests {
             "+----------+------+-------------------------------+",
             "| Asturias | 35.0 | 1970-01-01T00:00:04.242424242 |",
             "+----------+------+-------------------------------+",
+        ]
+    );
+
+    // Projection support
+    test_write_query!(
+        projection,
+        projection = OwnedProjection::from(vec!["time", "region"]),
+        partitions = [PartitionDataBuilder::new()
+            .with_partition_id(ARBITRARY_PARTITION_ID)
+            .with_partition_key(ARBITRARY_PARTITION_KEY.clone())
+            .build()],
+        writes = [make_write_op(
+            &ARBITRARY_PARTITION_KEY,
+            ARBITRARY_NAMESPACE_ID,
+            &ARBITRARY_TABLE_NAME,
+            ARBITRARY_TABLE_ID,
+            0,
+            &format!(
+                r#"{},region=Asturias temp=35 4242424242"#,
+                &*ARBITRARY_TABLE_NAME
+            ),
+            None,
+        )],
+        predicate = None,
+        want = [
+            "+-------------------------------+----------+",
+            "| time                          | region   |",
+            "+-------------------------------+----------+",
+            "| 1970-01-01T00:00:04.242424242 | Asturias |",
+            "+-------------------------------+----------+",
+        ]
+    );
+
+    // Projection support
+    test_write_query!(
+        projection_without_time,
+        projection = OwnedProjection::from(vec!["region"]),
+        partitions = [PartitionDataBuilder::new()
+            .with_partition_id(ARBITRARY_PARTITION_ID)
+            .with_partition_key(ARBITRARY_PARTITION_KEY.clone())
+            .build()],
+        writes = [make_write_op(
+            &ARBITRARY_PARTITION_KEY,
+            ARBITRARY_NAMESPACE_ID,
+            &ARBITRARY_TABLE_NAME,
+            ARBITRARY_TABLE_ID,
+            0,
+            &format!(
+                r#"{},region=Asturias temp=35 4242424242"#,
+                &*ARBITRARY_TABLE_NAME
+            ),
+            None,
+        )],
+        predicate = None,
+        want = [
+            "+----------+",
+            "| region   |",
+            "+----------+",
+            "| Asturias |",
+            "+----------+",
         ]
     );
 
@@ -744,6 +811,108 @@ mod tests {
             "+--------+------+-------------------------------+",
         ]
     );
+
+    /// Ensure partition pruning during query execution also prunes metadata
+    /// frames.
+    ///
+    /// Individual frames are fast to serialise, but large numbers of frames can
+    /// add significant query overhead, particularly for queries returning small
+    /// numbers of rows where the metadata becomes a significant portion of the
+    /// response.
+    #[tokio::test]
+    async fn test_partition_metadata_pruning() {
+        let partition_provider = Arc::new(
+            MockPartitionProvider::default()
+                .with_partition(
+                    PartitionDataBuilder::new()
+                        .with_partition_id(ARBITRARY_PARTITION_ID)
+                        .with_partition_key("madrid".into())
+                        .build(),
+                )
+                .with_partition(
+                    PartitionDataBuilder::new()
+                        .with_partition_id(PARTITION2_ID)
+                        .with_partition_key("asturias".into())
+                        .build(),
+                ),
+        );
+
+        // Construct a partition template suitable for pruning on the "region"
+        // tag.
+        let table_provider = Arc::new(MockTableProvider::new(TableMetadata::new_for_testing(
+            ARBITRARY_TABLE_NAME.clone(),
+            test_table_partition_override(vec![TemplatePart::TagValue("region")]),
+        )));
+
+        // Init the buffer tree
+        let buf = BufferTree::new(
+            Arc::new(MockNamespaceNameProvider::new(&**ARBITRARY_NAMESPACE_NAME)),
+            table_provider,
+            partition_provider,
+            Arc::new(MockPostWriteObserver::default()),
+            Arc::new(metric::Registry::default()),
+        );
+
+        // Write to two regions
+        buf.apply(IngestOp::Write(make_write_op(
+            &PartitionKey::from("madrid"),
+            ARBITRARY_NAMESPACE_ID,
+            &ARBITRARY_TABLE_NAME,
+            ARBITRARY_TABLE_ID,
+            0,
+            &format!(
+                r#"{},region=madrid temp=35 4242424242"#,
+                &*ARBITRARY_TABLE_NAME
+            ),
+            None,
+        )))
+        .await
+        .expect("failed to perform write");
+
+        buf.apply(IngestOp::Write(make_write_op(
+            &PartitionKey::from("asturias"),
+            ARBITRARY_NAMESPACE_ID,
+            &ARBITRARY_TABLE_NAME,
+            ARBITRARY_TABLE_ID,
+            0,
+            &format!(
+                r#"{},region=asturias temp=35 4242424242"#,
+                &*ARBITRARY_TABLE_NAME
+            ),
+            None,
+        )))
+        .await
+        .expect("failed to perform write");
+
+        // Construct a predicate suitable for pruning partitions based on the
+        // region / partition template.
+        let predicate = Some(Predicate::new().with_expr(col("region").eq(lit(
+            ScalarValue::Dictionary(
+                Box::new(DataType::Int32),
+                Box::new(ScalarValue::from("asturias")),
+            ),
+        ))));
+
+        // Execute the query and count the number of partitions that are
+        // returned (either data, or metadata).
+        let partition_count = buf
+            .query_exec(
+                ARBITRARY_NAMESPACE_ID,
+                ARBITRARY_TABLE_ID,
+                OwnedProjection::default(),
+                None,
+                predicate,
+            )
+            .await
+            .expect("query should succeed")
+            .into_partition_stream()
+            .count()
+            .await;
+
+        // Because the data in the "madrid" partition was pruned out, the
+        // metadata should not be sent either.
+        assert_eq!(partition_count, 1);
+    }
 
     /// Assert that multiple writes to a single namespace/table results in a
     /// single namespace being created, and matching metrics.

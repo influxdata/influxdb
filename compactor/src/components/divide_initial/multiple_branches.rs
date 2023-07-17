@@ -16,7 +16,7 @@ pub struct MultipleBranchesDivideInitial;
 
 impl MultipleBranchesDivideInitial {
     pub fn new() -> Self {
-        Self::default()
+        Self
     }
 }
 

@@ -17,6 +17,7 @@ members = [
     "flightsql",
     "garbage_collector",
     "generated_types",
+    "gossip",
     "grpc-binary-logger-proto",
     "grpc-binary-logger-test-proto",
     "grpc-binary-logger",
@@ -29,9 +30,9 @@ members = [
     "influxdb_tsm",
     "influxdb2_client",
     "influxrpc_parser",
+    "ingester_query_grpc",
     "ingester_test_ctx",
     "ingester",
-    "ingester_query_grpc",
     "iox_catalog",
     "iox_data_generator",
     "iox_query_influxql",
@@ -82,8 +83,8 @@ members = [
     "trace",
     "tracker",
     "trogging",
-    "wal",
     "wal_inspect",
+    "wal",
     "workspace-hack",
 ]
 default-members = ["influxdb_iox"]
@@ -120,8 +121,8 @@ license = "MIT OR Apache-2.0"
 [workspace.dependencies]
 arrow = { version = "43.0.0" }
 arrow-flight = { version = "43.0.0" }
-datafusion = { git = "https://github.com/apache/arrow-datafusion.git", rev = "311e8c7c7ab8c087f072eeac9335394c09ae8185", default-features = false }
-datafusion-proto = { git = "https://github.com/apache/arrow-datafusion.git", rev = "311e8c7c7ab8c087f072eeac9335394c09ae8185" }
+datafusion = { git = "https://github.com/apache/arrow-datafusion.git", rev = "04ecaf7405dbbfd43f43acec972f2435ada5ee81", default-features = false }
+datafusion-proto = { git = "https://github.com/apache/arrow-datafusion.git", rev = "04ecaf7405dbbfd43f43acec972f2435ada5ee81" }
 
 hashbrown = { version = "0.14.0" }
 object_store = { version = "0.6.0" }

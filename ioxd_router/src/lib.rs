@@ -218,6 +218,7 @@ pub async fn create_router_server_type(
     catalog: Arc<dyn Catalog>,
     object_store: Arc<DynObjectStore>,
     router_config: &RouterConfig,
+    trace_context_header_name: String,
 ) -> Result<Arc<dyn ServerType>> {
     let ingester_connections = router_config.ingester_addresses.iter().map(|addr| {
         let addr = addr.to_string();
@@ -228,6 +229,7 @@ pub async fn create_router_server_type(
                 endpoint,
                 router_config.rpc_write_timeout_seconds,
                 router_config.rpc_write_max_outgoing_bytes,
+                trace_context_header_name.clone(),
             ),
             addr,
         )
